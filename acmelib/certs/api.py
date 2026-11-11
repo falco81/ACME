@@ -1865,9 +1865,14 @@ def options_for(store, source):
         return [[n, n] for n in own] + [[n, '%s (a connector of the tests)' % n]
                                         for n in tests if n not in own]
     if source == 'test_connectors':
-        # the connectors of the tests (checks/ssh_relay.py) a test can go through (1.0.76)
-        return [[r['name'], r['name']] for r in store.db.rows(
+        # the connectors of the tests (checks/ssh_relay.py) a test can go through (1.0.76),
+        # then those of the targets (1.0.77): a target's test goes the way its deployment goes
+        own = [r['name'] for r in store.db.rows(
             "SELECT name FROM cert_tests WHERE kind = 'ssh_relay' ORDER BY name")]
+        tg = [r['name'] for r in store.db.rows(
+            "SELECT name FROM cert_targets WHERE kind = 'ssh_connector' ORDER BY name")]
+        return [[n, n] for n in own] + [[n, '%s (a connector of the targets)' % n]
+                                        for n in tg if n not in own]
     if source == 'key_types':
         return [[k, k] for k in schema.KEY_TYPES]
     return []
@@ -2076,10 +2081,13 @@ def _via_renamed(store, family, old, new):
     """The targets and tests that go through a connector renamed (1.0.77): they named the old
     one, and every one of them failed "there is no connector called ..."."""
     db = store.db
-    tables = ['cert_targets'] if family == 'target' else ['cert_tests', 'cert_targets']
-    for table in tables:
+    for table in ('cert_tests', 'cert_targets'):
+        # each names its own family's connector first (a test may go through a target's, 1.0.77)
         if table == 'cert_targets' and family == 'check' and db.row(
                 "SELECT 1 AS x FROM cert_targets WHERE name = ? AND kind = 'ssh_connector'", (old,)):
+            continue
+        if table == 'cert_tests' and family == 'target' and db.row(
+                "SELECT 1 AS x FROM cert_tests WHERE name = ? AND kind = 'ssh_relay'", (old,)):
             continue
         for r in db.rows('SELECT id, config FROM %s WHERE config LIKE ?' % table,
                          ('%' + json.dumps(old) + '%',)):
@@ -2559,6 +2567,11 @@ def _deploy_save_in(store, b, by, full, made):
                     raise ValueError('%s is text' % what)
                 if len(json.dumps(v)) > 64000:
                     raise ValueError('%s is too long' % what)
+        if opts.get('verify') or 'verify_sni' in opts:
+            # "Check what is served" (as before 1.0.77, the command line's --set verify=...): a
+            # test of the target now, as the page's "Add a test of this target" makes
+            from acmelib.certs import checks as C
+            C.verify_to_tests(store, dict(row, cert_id=cert['id'], target=trow['name']), opts, by)
         fields['options'] = json.dumps(opts)
         fields['state'] = 'new' if row.get('state') != 'ok' else 'changed'
     if fields:

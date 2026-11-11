@@ -2744,6 +2744,183 @@ function deployOff(d, back, twice) {
       }}], true);
 }
 /* A target certificates can go to - not a connector (1.0.75): only a way to other targets. */
+var VERIFY_KEYS = ['verify', 'verify_sni', 'verify_tries', 'verify_wait'];
+var CERT_NAME_OF = {};
+/* What the target serves (1.0.77, in place of the deployment's "Check what is served"): the
+   tests of this certificate, seen from this target - the very same binding as the
+   certificate's Tests → its options ("When it runs for this certificate"), nothing of its
+   own. A switch on each: runs after a deployment here, or not. Attach a test (one of
+   Certificates → Tests) or make a new one of this target. One that fails after a deployment
+   here fails the deployment. `saved`: the deployment is there already - before it is, a test
+   made waits in `pending` and is made when it is saved. */
+function targetTestsPart(certId, t, saved, pending) {
+  var box = el('section', 'tt');
+  var head = el('div', 'tt-head');
+  var hic = el('span', 'tt-head-ic');
+  hic.innerHTML = iconMarkup('pulse', 18);
+  head.appendChild(hic);
+  var hw = el('div', 'tt-head-w');
+  hw.appendChild(el('b', '', 'What it serves'));
+  hw.appendChild(el('span', '', 'The certificate\'s tests, as this target sees them: on, one runs after each deployment here, and when it fails the deployment fails. The same switch as the test\'s own "When it runs for this certificate".'));
+  head.appendChild(hw);
+  box.appendChild(head);
+  var list = el('div', 'tt-list');
+  box.appendChild(list);
+  var actions = el('div', 'tt-actions');
+  box.appendChild(actions);
+  var formBox = el('div', 'tt-form');
+  formBox.hidden = true;
+  box.appendChild(formBox);
+  var depTargets = [];
+  var runsHere = function (after) {
+    var l = afterList(after);
+    return l.indexOf('-') < 0 && (!l.length || l.indexOf(t.name) >= 0);
+  };
+  var setHere = function (x, on) {
+    var l = afterList(x.after_target).filter(function (z) { return z !== '-'; });
+    var want;
+    if (on) want = l.length ? l.concat([t.name]) : [t.name];
+    else {
+      /* every deployment until now: every other target of the certificate from now on */
+      var from = l.length ? l : depTargets;
+      want = from.filter(function (z) { return z !== t.name; });
+      if (!want.length) want = ['-'];
+    }
+    return capi('checks/after', {id: x.id, target: want});
+  };
+  var draw = function () {
+    clear(list);
+    var paintRows = function (rows) {
+      clear(list);
+      rows.forEach(function (x) {
+        var here = runsHere(x.after_target);
+        var line = el('div', 'tt-row' + (here ? ' on' : ''));
+        var tg = (LISTS.tests || []).filter(function (q) { return q.name === x.test; })[0];
+        var pl = plugOf('check', x.kind || (tg && tg.kind) || '');
+        var ic = el('span', 'ct-kind-ic v-' + String((pl && pl.vendor) || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+        ic.textContent = kindLetters(pl, x.kind || (tg && tg.kind) || '') || 'T';
+        noI18n(ic);
+        line.appendChild(ic);
+        var w = el('div', 'tt-row-w');
+        w.appendChild(data('b', '', x.test));
+        var sub = el('div', 'tt-row-sub');
+        sub.appendChild(data('span', 'mono', x.where || ''));
+        var l = afterList(x.after_target);
+        sub.appendChild(el('span', 'tt-after', !l.length ? 'after every deployment' : l.indexOf('-') >= 0 ? 'on its schedule only'
+          : (l.length === 1 && l[0] === t.name ? 'after a deployment here' : tr('after a deployment on') + ' ' + l.join(', '))));
+        w.appendChild(sub);
+        line.appendChild(w);
+        line.appendChild(ckBadge(x.last_state));
+        if (MANAGE && saved) {
+          var sw = switchBox(here);
+          sw.classList.add('tt-sw');
+          explain(sw, here ? 'Runs after a deployment here. Off: not here - the certificate\'s other deployments as they are.' : 'Not run after a deployment here. On: it is.');
+          sw._input.onchange = function () {
+            sw._input.disabled = true;
+            setHere(x, sw._get()).then(draw).catch(function (e) { sw._input.checked = here; fail(e); })
+              .then(function () { sw._input.disabled = false; });
+          };
+          line.appendChild(sw);
+        }
+        list.appendChild(line);
+      });
+      pending.forEach(function (pt) {
+        var line = el('div', 'tt-row on pending');
+        var ic = el('span', 'ct-kind-ic');
+        ic.textContent = kindLetters(plugOf('check', pt.kind), pt.kind);
+        noI18n(ic);
+        line.appendChild(ic);
+        var w = el('div', 'tt-row-w');
+        w.appendChild(data('b', '', tr(plugTitle('check', pt.kind)) + ' ' + (pt.host || tr('the certificate\'s name')) + ':' + (pt.port || '')));
+        w.appendChild(el('div', 'tt-row-sub', 'made when the deployment is saved'));
+        line.appendChild(w);
+        list.appendChild(line);
+      });
+      if (!rows.length && !pending.length) {
+        var e = el('div', 'tt-empty');
+        var eic = el('span', 'tt-empty-ic');
+        eic.innerHTML = iconMarkup('eye', 20);
+        e.appendChild(eic);
+        e.appendChild(el('span', '', 'Nothing checks yet what this target serves after a deployment.'));
+        list.appendChild(e);
+      }
+    };
+    if (!saved) { paintRows([]); return; }
+    Promise.all([capi('checks' + qs({cert_id: certId})), capi('deploys' + qs({cert_id: certId})).catch(function () { return {}; }),
+                 loadRows('tests').catch(function () { return []; })]).then(function (got) {
+      depTargets = arr((got[1] || {}).rows).map(function (d) { return d.target; });
+      paintRows(arr((got[0] || {}).checks));
+    }).catch(function () { paintRows([]); });
+  };
+  draw();
+  if (!MANAGE) return box;
+  var attach = el('button', 'btn cmd small');
+  attach.type = 'button';
+  attach.innerHTML = iconMarkup('add', 15);
+  attach.appendChild(el('span', '', 'Attach a test'));
+  attach.disabled = !saved;
+  if (!saved) explain(attach, 'Save the deployment first - a test then runs after it.');
+  attach.onclick = function () {
+    capi('checks' + qs({cert_id: certId})).then(function (x) {
+      var c = {id: certId, name: CERT_NAME_OF[certId] || tr('this certificate')};
+      over(function () { attachTests(c, arr((x || {}).checks), draw, depTargets.length ? depTargets : [t.name], t.name); }, draw);
+    }).catch(fail);
+  };
+  var make = el('button', 'btn cmd small');
+  make.type = 'button';
+  make.innerHTML = iconMarkup('pulse', 15);
+  make.appendChild(el('span', '', 'A new test of this target…'));
+  actions.appendChild(attach);
+  actions.appendChild(make);
+  make.onclick = function () {
+    clear(formBox);
+    formBox.hidden = false;
+    var kinds = arr((PLUG || {}).check).filter(function (p) { return !p.connector && p.kind !== 'ssh_relay'; });
+    var kSel = selectBox(kinds.map(function (p) { return [p.kind, tr(p.title || p.kind)]; }), 'tls');
+    noI18n(kSel);
+    var tcfg = obj(t.config);
+    var host = el('input'); host.type = 'text';
+    host.value = String(tcfg.host || '').replace(/:\d+$/, '');
+    host.placeholder = tr('empty: the certificate\'s first name');
+    var port = el('input'); port.type = 'number'; port.min = 1; port.max = 65535;
+    var setPort = function () { var p = plugOf('check', kSel.value); port.value = (p && p.default_port) || 443; };
+    setPort();
+    kSel.onchange = setPort;
+    var sni = el('input'); sni.type = 'text'; sni.placeholder = tr('empty: the certificate\'s first name');
+    var tvia = String(tcfg.via || '');
+    var viaF = (arr((plugOf('check', 'tls') || {}).fields).filter(function (f) { return f.key === 'via'; })[0]) || {};
+    var vopts = [['', tr('directly from acme')]].concat(arr(viaF.options));
+    if (tvia && !vopts.some(function (o) { return o[0] === tvia; })) vopts.push([tvia, tvia]);
+    var vSel = selectBox(vopts, tvia);
+    noI18n(vSel);
+    formBox.appendChild(el('p', 'muted small', 'A test of Certificates → Tests, attached to this certificate and run after a deployment here - the same one is found rather than made twice.'));
+    var g = el('div', 'formgrid');
+    g.appendChild(formField('Protocol', kSel));
+    g.appendChild(formField('Connect to', host, 'The server the target is - its address, or a node behind a load balancer.'));
+    g.appendChild(formField('Port', port));
+    g.appendChild(formField('Name asked for (SNI)', sni));
+    g.appendChild(formField('Through a connector', vSel, tvia ? 'As the target is reached.' : ''));
+    formBox.appendChild(g);
+    var row = el('div', 'btnrow');
+    var ok = el('button', 'btn primary small'); ok.type = 'button'; ok.textContent = saved ? 'Make the test' : 'Make it when saved';
+    var no = el('button', 'btn small'); no.type = 'button'; no.textContent = 'Cancel';
+    no.onclick = function () { formBox.hidden = true; };
+    ok.onclick = function () {
+      var want = {kind: kSel.value, host: host.value.trim(), port: Number(port.value) || null, sni: sni.value.trim(), via: vSel.value};
+      if (!saved) { pending.push(want); formBox.hidden = true; draw(); return; }
+      busy(ok, true);
+      capi('checks/for_target', Object.assign({cert_id: certId, target: t.name}, want)).then(function (x) {
+        toast(tr('The test') + ' ' + (x.test || '') + ': ' + tr('runs after a deployment here'), 'good');
+        formBox.hidden = true;
+        delete LISTS.tests;
+        draw();
+      }).catch(fail).then(function () { busy(ok, false); });
+    };
+    row.appendChild(no); row.appendChild(ok);
+    formBox.appendChild(row);
+  };
+  return box;
+}
 function deployable(t) {
   return !(plugOf('target', (t || {}).kind) || {}).connector;
 }
@@ -2759,6 +2936,14 @@ function deployEdit(o) {
     if (!modalStill(ticket)) return;
     var targets = got[1], certs = got[2];
     var tSel = null, cSel = null, formHost = el('div'), form = null, on = null;
+    var testsHost = el('div'), pendingTests = [];
+    var drawTests = function () {
+      clear(testsHost);
+      var t = target();
+      var cid = cSel ? cSel.value : certId;
+      if (!t.name || !cid) return;
+      testsHost.appendChild(targetTestsPart(isNaN(Number(cid)) ? cid : Number(cid), t, !!d.id, pendingTests));
+    };
     var target = function () {
       var n = tSel ? tSel.value : tName;
       return targets.filter(function (t) { return t.name === n; })[0] || (o.target && o.target.name ? o.target : {name: n, kind: ''});
@@ -2778,7 +2963,9 @@ function deployEdit(o) {
          of the two it gets; one that serves both is told it takes both. */
       var dual = deployDual();
       var opts = obj(d.options);
-      var fields = arr(p.deploy_fields).filter(function (f) { return !f.dual_only || dual || opts[f.key]; });
+      /* "Check what is served" is a test of the target now (1.0.77): below, not a field. */
+      var fields = arr(p.deploy_fields).filter(function (f) { return (!f.dual_only || dual || opts[f.key]) && VERIFY_KEYS.indexOf(f.key) < 0; });
+      drawTests();
       if (dual) formHost.appendChild(el('p', 'muted small', p.dual
         ? 'The certificate is dual (ECDSA and RSA): this target takes both, and gives each client the one it takes.'
         : 'The certificate is dual (ECDSA and RSA): this target holds one at a time - choose which below (RSA where unsure: every client can use it).'));
@@ -2822,8 +3009,14 @@ function deployEdit(o) {
         /* Saved: pressed again (the deployment run after it refused - not issued
            yet), it is this one saved again, not a second one made. (1.0.19) */
         d.id = id;
-        if (!run) { toast(said(x, 'saved'), 'good'); closeModal(); CT.refresh(); return; }
-        return capi('deploys/run', {id: id}).then(function (y) { closeModal(); jobStarted(y, 'deploying'); });
+        /* The tests asked for before it was saved (1.0.77): made now that it is there. */
+        var made = pendingTests.splice(0).reduce(function (pr, pt) {
+          return pr.then(function () { return capi('checks/for_target', Object.assign({cert_id: isNaN(Number(cid)) ? cid : Number(cid), target: t.name}, pt)); });
+        }, Promise.resolve());
+        return made.then(function () {
+          if (!run) { toast(said(x, 'saved'), 'good'); closeModal(); CT.refresh(); return; }
+          return capi('deploys/run', {id: id}).then(function (y) { closeModal(); jobStarted(y, 'deploying'); });
+        });
       }).catch(fail).then(function () { busy(b, false); });
     };
     var buttons = [{words: 'Close', close: true}];
@@ -2839,6 +3032,7 @@ function deployEdit(o) {
       buttons.push({words: 'Save and deploy now', cls: 'primary', icon: 'deploy', go: function (b) { save(b, true); }});
     }
     var certName = first(d.cert_name, o.cert && o.cert.name, certId ? '#' + certId : '');
+    if (certId) CERT_NAME_OF[certId] = certName;
     modal(d.id ? 'The deployment of ' + certName + ' on ' + tName : 'Deploy a certificate', function (body) {
       body.appendChild(el('p', 'note', 'Where the certificate goes on this target and in what shape. When it is renewed, it is put there again by itself - and the job checks what is served afterwards.'));
       var g = el('div', 'formgrid');
@@ -2868,6 +3062,7 @@ function deployEdit(o) {
       g.appendChild(formField('In use', on, 'Off: kept, but the certificate is not put there.'));
       body.appendChild(g);
       body.appendChild(formHost);
+      body.appendChild(testsHost);
       drawFields();
       if (d.last_error) {
         var le = el('div', 'ct-errbox');
@@ -9152,7 +9347,7 @@ function certTests(c, back, deploys) {
           var pick = testAfterPick(targets, afterList(x.after_target));
           over(function () {
             modal(tr('The test') + ' ' + x.test + ' · ' + c.name, function (body) {
-              body.appendChild(el('p', 'note', 'How this test runs for this certificate.'));
+              body.appendChild(testHead(x));
               body.appendChild(pick.node);
             }, [{words: 'Cancel', close: true}, {words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
               busy(b, true);
@@ -9197,11 +9392,11 @@ function certTests(c, back, deploys) {
 }
 /** "Attach a test": the tests defined (Certificates → Tests), ticked to attach - as
     "Deploy it on a target" offers the targets. */
-function attachTests(c, have, back, targets) {
+function attachTests(c, have, back, targets, guess) {
   var had = {};
   arr(have).forEach(function (x) { had[x.test] = 1; });
   var picks = {};
-  var after = testAfterPick(arr(targets), null, true);
+  var after = testAfterPick(arr(targets), null, guess || true);
   popup(tr('Attach a test to') + ' ' + c.name, function () {
     return Promise.all([loadRows('tests', true), plugins().catch(function () { return null; })]).then(function (x) { return x[0]; });
   }, function (rows) {
@@ -9313,32 +9508,57 @@ function testAfterPick(targets, have, guess) {
     if (targets.length) chosen = [guess && targets.indexOf(guess) >= 0 ? guess : targets[0]];
     else how = 'every';
   }
-  var box = el('div', 'set-item');
-  box.appendChild(el('label', 'k', 'After deploying on'));
-  var mode = el('div', 'seg');
-  var tg = el('div', 'seg ck-after-targets');
-  var says = el('p', 'says');
-  var HOWS = [['every', 'Every deployment'], ['some', 'The targets chosen'], ['none', 'No deployment']];
+  /* 1.0.77: three cards to choose from, the targets as cards to tick - one look with the
+     rest of the page, not a strip of words. */
+  var box = el('div', 'ta');
+  box.appendChild(el('div', 'ta-k', 'When it runs for this certificate'));
+  var modes = el('div', 'ta-modes');
+  var tg = el('div', 'ta-targets');
+  var says = el('div', 'ta-says');
+  var HOWS = [['every', 'up', 'After every deployment', 'on any of its targets'],
+              ['some', 'router', 'After a deployment on…', 'only the targets ticked below'],
+              ['none', 'clock', 'On its schedule only', 'no deployment runs it']];
   var paint = function () {
-    Array.prototype.forEach.call(mode.children, function (b, i) { b.classList.toggle('on', HOWS[i][0] === how); });
+    Array.prototype.forEach.call(modes.children, function (b, i) { b.classList.toggle('on', HOWS[i][0] === how); b.setAttribute('aria-pressed', HOWS[i][0] === how ? 'true' : 'false'); });
     tg.hidden = how !== 'some';
     Array.prototype.forEach.call(tg.children, function (b) { b.classList.toggle('on', chosen.indexOf(b._t) >= 0); });
-    says.textContent = how === 'every' ? tr('Every deployment of the certificate runs it - on any of its targets.')
+    clear(says);
+    var ic = el('span', 'ta-says-ic');
+    ic.innerHTML = iconMarkup('info', 15);
+    says.appendChild(ic);
+    says.appendChild(el('span', '', how === 'every' ? tr('Every deployment of the certificate runs it - on any of its targets.')
       : how === 'none' ? tr('No deployment runs it: only the regular runs of the tests (and Run it now) - their alerts as every test’s.') +
         (CK_AUTO === false ? ' ' + tr('The regular runs are off now: Settings → Certificates → Test the servers by themselves.') : '')
-      : (chosen.length === 1 ? tr('Only a deployment on this target runs it.') : tr('A deployment on any of these targets runs it.'));
+      : (chosen.length === 1 ? tr('Only a deployment on this target runs it.') : tr('A deployment on any of these targets runs it.')) + ' ' +
+        tr('When it fails there, the deployment fails.')));
   };
   HOWS.forEach(function (o) {
-    var b = el('button', '', o[1]);
+    var b = el('button', 'ta-mode');
     b.type = 'button';
+    var ic = el('span', 'ta-mode-ic');
+    ic.innerHTML = iconMarkup(o[1], 18);
+    b.appendChild(ic);
+    var w = el('span', 'ta-mode-w');
+    w.appendChild(el('b', '', o[2]));
+    w.appendChild(el('span', '', o[3]));
+    b.appendChild(w);
     b.disabled = o[0] === 'some' && !targets.length;
     b.onclick = function () { how = o[0]; if (how === 'some' && !chosen.length && targets.length) chosen = [targets[0]]; paint(); };
-    mode.appendChild(b);
+    modes.appendChild(b);
   });
   targets.concat(chosen.filter(function (t) { return targets.indexOf(t) < 0; })).forEach(function (t) {
-    var b = noI18n(el('button', '', t + (targets.indexOf(t) < 0 ? ' - ' + tr('not deployed there any more') : '')));
+    var row = (LISTS.targets || []).filter(function (r) { return r.name === t; })[0];
+    var b = el('button', 'ta-target');
     b.type = 'button';
     b._t = t;
+    var mark = el('span', 'ta-mark');
+    mark.innerHTML = iconMarkup('check', 13);
+    b.appendChild(mark);
+    var w = el('span', 'ta-target-w');
+    w.appendChild(data('b', '', t));
+    if (targets.indexOf(t) < 0) w.appendChild(el('span', 'ct-badtext', 'not deployed there any more'));
+    else if (row) w.appendChild(el('span', '', plugTitle('target', row.kind)));
+    b.appendChild(w);
     b.onclick = function () {
       var at = chosen.indexOf(t);
       if (at >= 0) { if (chosen.length > 1) chosen.splice(at, 1); } else chosen.push(t);
@@ -9346,12 +9566,34 @@ function testAfterPick(targets, have, guess) {
     };
     tg.appendChild(b);
   });
-  box.appendChild(mode);
+  box.appendChild(modes);
   box.appendChild(tg);
   box.appendChild(says);
-  box.appendChild(el('p', 'says', 'Run now and by themselves: every test.'));
+  box.appendChild(el('p', 'ta-foot', 'Run it now, and by their schedule: every test, whatever is chosen here.'));
   paint();
   return {node: box, get: function () { return how === 'every' ? [] : (how === 'none' ? ['-'] : chosen.slice()); }};
+}
+/* The head of a test's window on a certificate (1.0.77): what it is, where it asks, how it
+   went last - before how it runs. */
+function testHead(x) {
+  var h = el('div', 'ta-head');
+  var tg = (LISTS.tests || []).filter(function (t) { return t.name === x.test; })[0];
+  var kind = x.kind || (tg && tg.kind) || '';
+  var p = plugOf('check', kind);
+  var ic = el('span', 'ct-kind-ic big v-' + String((p && p.vendor) || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+  ic.textContent = kindLetters(p, kind) || 'T';
+  noI18n(ic);
+  h.appendChild(ic);
+  var w = el('div', 'ta-head-w');
+  w.appendChild(data('b', '', x.test));
+  var sub = el('div', 'muted small');
+  sub.appendChild(data('span', 'mono', x.where || ''));
+  var via = tg ? String(obj(tg.config).via || '') : '';
+  if (via) { sub.appendChild(document.createTextNode(' · ')); sub.appendChild(el('span', '', tr('through') + ' ')); sub.appendChild(data('b', '', via)); }
+  w.appendChild(sub);
+  h.appendChild(w);
+  h.appendChild(ckBadge(x.last_state));
+  return h;
 }
 /** In a test's form: tried against a certificate before it is kept (POST checks/try). */
 function testTryHere(form, row, p) {

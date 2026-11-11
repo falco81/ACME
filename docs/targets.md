@@ -21,11 +21,20 @@ Every module here works the same way:
   says how many older ones stay; older ones are deleted unless still in use
   (`-1` keeps all). Intermediates are kept as `acme-ca-<id>` / `acme-chain-<id>`,
   added once and reused.
-- **Check what is served** (`verify`, `host:port` one a line, optional SNI
-  name): after deploying acme makes a TLS handshake there and compares the
-  SHA-256 fingerprint of the certificate served with the new one (the trust
-  is not checked - only *which* certificate it is). A few tries a few seconds
-  apart, as services take a moment to reload.
+- **What it serves - tests** (1.0.77, in place of *Check what is served*): in a
+  deployment's window, *Add a test of what it serves* makes a test (TLS,
+  HTTPS, SMTP, IMAP, LDAP... - Certificates → Tests) - the protocol, the
+  server connected to (by default the target's address), the port, the SNI
+  name and the connector (by default the target's own, so a target reached
+  through a connector is tested the same way) - attached to the certificate
+  and run **after each deployment on that target**: a few tries while the
+  service reloads; **one that fails fails the deployment there** (tried again,
+  alerted), as the old check did. The test also runs on its schedule, keeps a
+  history, checks the chain and the names, and goes into the report and isemon.
+  The same test is found rather than made twice. A deployment's old `verify`
+  (`host:port` lines, `verify_sni`) became such tests of TLS on the first start
+  of 1.0.77; `--set verify=HOST:PORT` on the command line still makes one.
+  (ESXi and the appliance still check their own pages themselves.)
 - **Check the device's certificate** (`verify_tls`) is on by default; paste
   the CA of the management interface in *CA certificate* when it is a private
   one, or turn the check off for a device still on its factory certificate.

@@ -178,7 +178,9 @@ class ViaTest(unittest.TestCase):
         got = A.options_for(STORE, 'connectors')
         self.assertEqual(got[0], ['jump-t', 'jump-t'])                     # the targets' own first
         self.assertIn(['jumpbox', 'jumpbox (a connector of the tests)'], got)
-        self.assertEqual(A.options_for(STORE, 'test_connectors'), [['jumpbox', 'jumpbox']])
+        # the tests' own first, then the targets' (1.0.77: a target's test goes its way)
+        self.assertEqual(A.options_for(STORE, 'test_connectors'),
+                         [['jumpbox', 'jumpbox'], ['jump-t', 'jump-t (a connector of the targets)']])
         self.assertIn('via', [f['key'] for f in S.registry().all()['check']['tls'].fields])
         self.assertNotIn('via', [f['key'] for f in S.registry().all()['target']['ssh_connector'].fields])
         self.assertTrue(S.registry().all()['target']['ssh_connector'].describe()['connector'])

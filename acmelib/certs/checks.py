@@ -119,6 +119,94 @@ def attach(store, cert_id, names, by, after_target=''):
     return made
 
 
+def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='', via=None):
+    """A test of what a target serves (1.0.77, in place of the deployment's "Check what is
+    served"): made - or the same one found - attached to the certificate, run after a
+    deployment on that target, and through the target's connector when it has one. A
+    failing one fails the deployment there (deployer.run_deploys). -> the test's name."""
+    from acmelib.certs import api
+    trow = S.plugin_row(store, 'target', target)
+    if not trow:
+        raise LookupError('there is no target %s' % target)
+    cls = S.plugin_class('check', kind)
+    if cls is None or getattr(cls, 'connector', False) or kind == 'ssh_relay':
+        raise ValueError('there is no test module "%s"' % kind)
+    tcfg = S.plugin_config('target', trow) or {}
+    if via is None:
+        via = str(tcfg.get('via') or '').strip()
+    host = str(host or '').strip()
+    port = int(port or getattr(cls, 'default_port', 443) or 443)
+    if not 0 < port < 65536:
+        raise ValueError('the port %s is not one' % port)
+    cfg = {'port': port}
+    for k, v in (('host', host), ('sni', str(sni or '').strip()), ('via', str(via or '').strip())):
+        if v:
+            cfg[k] = v
+    # the same test already there (the same kind, place and way): taken as it is
+    name = None
+    for r in store.db.rows('SELECT name, config FROM cert_tests WHERE kind = ?', (kind,)):
+        c = S.jload(r.get('config'), {}) or {}
+        if all(str(c.get(k) or '') == str(cfg.get(k) or '') for k in ('host', 'port', 'sni', 'via')):
+            name = r['name']
+            break
+    if name is None:
+        base = re.sub(r'[^A-Za-z0-9_.-]+', '-', '%s-%s-%d' % (target, host or 'name', port)).strip('-')
+        base = base[:60] or 'test'
+        name, n = base, 2
+        while S.plugin_row(store, 'check', name):
+            name = '%s-%d' % (base, n)
+            n += 1
+        api.family_save(store, 'check', {'name': name, 'kind': kind, 'config': cfg,
+                                         'note': 'what %s serves (made from its deployment)' % target},
+                        by)
+    have = store.db.row('SELECT * FROM cert_checks WHERE cert_id = ? AND test = ?',
+                        (int(cert_id), name))
+    if have is None:
+        attach(store, cert_id, [name], by, after_target=target)
+    else:
+        now = after_list(have.get('after_target'))
+        if now and AFTER_NONE not in now and target not in now:
+            after(store, have['id'], '\n'.join(now + [target]), by)
+        elif AFTER_NONE in now:
+            after(store, have['id'], target, by)
+    return name
+
+
+def verify_to_tests(store, dep, opts, by):
+    """A deployment's "Check what is served" (verify, verify_sni) made into tests of its
+    target (for_target) and taken out of its options (1.0.77). -> the names; `opts` changed."""
+    lines = [x.strip() for x in str(opts.get('verify') or '').replace(',', '\n').split('\n')
+             if x.strip()] if not isinstance(opts.get('verify'), list) else \
+        [str(x).strip() for x in opts['verify'] if str(x).strip()]
+    sni = str(opts.get('verify_sni') or '').strip()
+    made = []
+    for hp in lines[:10]:
+        host, _, port = hp.rpartition(':') if re.match(r'^.+:\d+$', hp) else (hp, '', '')
+        host = host.strip('[]')
+        try:
+            made.append(for_target(store, dep['cert_id'], dep['target'], by, 'tls', host,
+                                   int(port) if port else None, sni))
+        except (LookupError, ValueError) as e:
+            E.log('the check of what %s serves (%s) was not made a test: %s' % (
+                dep['target'], hp, e), 'warn')
+    for k in ('verify', 'verify_sni', 'verify_tries', 'verify_wait'):
+        opts.pop(k, None)
+    return made
+
+
+def verify_migrate(store, by='acme 1.0.77'):
+    """Every deployment's "Check what is served" made into tests, once (1.0.77)."""
+    n = 0
+    for dep in store.db.rows("SELECT * FROM cert_deploys WHERE options LIKE '%verify%'"):
+        opts = S.jload(dep.get('options'), {}) or {}
+        if not opts.get('verify') and 'verify_sni' not in opts:
+            continue
+        made = verify_to_tests(store, dep, opts, by)
+        store.db.update('cert_deploys', dep['id'], {'options': json.dumps(opts)})
+        n += len(made)
+    return n
+
+
 def detach(store, ident):
     if not store.db.row('SELECT id FROM cert_checks WHERE id = ?', (int(ident),)):
         raise LookupError('there is no such test of a certificate')
@@ -517,14 +605,21 @@ def _through(store, via, mod, host, port, sni, exp):
     from acmelib.certs import runtime
     from acmelib.plugins.checks import _tls
     crow = store.db.row("SELECT * FROM cert_tests WHERE name = ? AND kind = 'ssh_relay'", (via,))
+    fam = 'check'
     if not crow:
-        raise PluginError('there is no connector called %s (Tests → Connector over SSH)' % via,
-                          retry=False)
+        # a connector of the targets (1.0.77): the test of a target goes the way its
+        # deployment goes
+        crow = store.db.row("SELECT * FROM cert_targets WHERE name = ? AND kind = 'ssh_connector'",
+                            (via,))
+        fam = 'target'
+    if not crow:
+        raise PluginError('there is no connector called %s (Tests or Targets → Connector over '
+                          'SSH)' % via, retry=False)
     if crow.get('enabled') == 0:
         raise PluginError('the connector %s is switched off' % via, retry=False)
     ctx = runtime.RunContext(store, None, scope='check:%s' % via)
     try:
-        conn = S.plugin_instance(store, 'check', crow, ctx)
+        conn = S.plugin_instance(store, fam, crow, ctx)
         try:
             session = conn.ssh()
         except PluginError as e:
@@ -761,11 +856,13 @@ def run(store, chk, step=None):
     return record(store, chk, probe(store, chk), step)
 
 
-def after_deploy(store, job, cert_id, targets=None):
+def after_deploy(store, job, cert_id, targets=None, failed=None):
     """The tests of a certificate just deployed, a few times while the services restart - those
     tied to a target (after_target, 1.0.65) only after a deployment on that target, those tied
     to none ('-', 1.0.66) never; `targets`:
-    the targets just deployed on (None: every test, as before)."""
+    the targets just deployed on (None: every test, as before). `failed` (a dict, 1.0.77): a
+    test tied to targets that fails says so of each of them - {target: words} - and the
+    deployment there is failed by it (the place of "Check what is served" of before)."""
     if not E.CONFIG.get('certs_checks_after_deploy', 1):
         return None
     # switched off for this certificate (cert_checks) or as a test (cert_tests, 1.0.76: it ran
@@ -793,6 +890,11 @@ def after_deploy(store, job, cert_id, targets=None):
                     chk['test'], got['said'], AFTER_DEPLOY_TRIES[i + 1]), 'debug')
         record(store, chk, got, job.step)
         worst = worst and got['ok']
+        if not got['ok'] and failed is not None:
+            for tg in after_list(chk.get('after_target')):
+                if targets is None or tg in targets:
+                    failed.setdefault(tg, 'the test %s after deploying here: %s' % (
+                        chk['test'], got['said']))
     return worst
 
 

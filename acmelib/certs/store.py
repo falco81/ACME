@@ -398,14 +398,19 @@ def plugin_public(store, family, row, full=False):
 
 def via_users(store, name, family):
     """How many targets and tests go through the connector `name` (1.0.77: a connector in use
-    was deleted - "used by 0" - and every one of them failed after)."""
+    was deleted - "used by 0" - and every one of them failed after). A target's "via" names
+    the targets' connector first, a test's the tests' - each the other's when it has none of
+    its own by that name (1.0.77: a test may go through a connector of the targets)."""
     n = 0
-    tables = ['cert_targets'] + (['cert_tests'] if family == 'check' else [])
-    own = store.db.row("SELECT 1 AS x FROM cert_targets WHERE name = ? AND kind = 'ssh_connector'",
-                       (name,)) if family == 'check' else None
-    for table in tables:
-        if table == 'cert_targets' and own:
-            continue                    # a target's "via" names the targets' connector first
+    tg_own = store.db.row("SELECT 1 AS x FROM cert_targets WHERE name = ? AND kind = "
+                          "'ssh_connector'", (name,))
+    ts_own = store.db.row("SELECT 1 AS x FROM cert_tests WHERE name = ? AND kind = 'ssh_relay'",
+                          (name,))
+    for table in ('cert_targets', 'cert_tests'):
+        if family == 'check' and table == 'cert_targets' and tg_own:
+            continue
+        if family == 'target' and table == 'cert_tests' and ts_own:
+            continue
         for r in store.db.rows('SELECT config FROM %s WHERE config LIKE ?' % table,
                                ('%' + json.dumps(name) + '%',)):
             if str((jload(r.get('config'), {}) or {}).get('via') or '') == name:

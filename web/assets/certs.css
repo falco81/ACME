@@ -1170,3 +1170,66 @@ table.ct-issued td:nth-child(3){min-width:170px}
 table.ct-issued td:nth-child(4){white-space:nowrap}
 table.ct-issued td:nth-child(6){min-width:110px}
 table.ct-issued td:nth-child(2){min-width:210px;max-width:250px;white-space:normal}
+
+
+/* ---- When a test runs for a certificate (1.0.77): cards to choose from ------------------ */
+.ta-head{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);
+  border-radius:12px;background:var(--panel2);margin-bottom:16px}
+.ta-head-w{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.ta-head-w b{font-size:14px}
+.ta{display:flex;flex-direction:column;gap:12px}
+.ta-k{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--tx-mut)}
+.ta-modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.ta-mode{appearance:none;display:flex;align-items:flex-start;gap:10px;text-align:left;cursor:pointer;
+  padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--tx);
+  transition:border-color .15s,background .15s,box-shadow .15s}
+.ta-mode:hover:not(:disabled){border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
+.ta-mode.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--panel));
+  box-shadow:0 0 0 1px var(--accent) inset}
+.ta-mode:disabled{opacity:.45;cursor:not-allowed}
+.ta-mode-ic{flex:0 0 34px;height:34px;border-radius:10px;display:grid;place-items:center;
+  background:var(--panel2);color:var(--tx-mut)}
+.ta-mode.on .ta-mode-ic{background:color-mix(in srgb,var(--accent) 22%,transparent);color:var(--accent)}
+.ta-mode-w{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ta-mode-w b{font-size:13.5px}
+.ta-mode-w span{font-size:12px;color:var(--tx-mut)}
+.ta-targets{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.ta-target{appearance:none;display:flex;align-items:center;gap:10px;text-align:left;cursor:pointer;
+  padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--tx)}
+.ta-target:hover{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
+.ta-target.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
+.ta-mark{flex:0 0 20px;height:20px;border-radius:6px;border:1.5px solid var(--line);display:grid;place-items:center;color:transparent}
+.ta-target.on .ta-mark{background:var(--accent);border-color:var(--accent);color:#fff}
+.ta-target-w{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ta-target-w b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ta-target-w span{font-size:11.5px;color:var(--tx-mut)}
+.ta-says{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-radius:10px;
+  background:var(--info-bg, rgba(88,166,255,.08));font-size:12.5px;line-height:1.5}
+.ta-says-ic{color:var(--accent);flex:0 0 auto;margin-top:1px}
+.ta-foot{margin:0;font-size:11.5px;color:var(--tx-mut)}
+@media (max-width:640px){.ta-modes{grid-template-columns:1fr}}
+
+/* ---- A deployment's "What it serves": the same tests, seen from the target -------------- */
+.tt{margin-top:16px;border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--panel)}
+.tt-head{display:flex;gap:12px;align-items:flex-start}
+.tt-head-ic{flex:0 0 36px;height:36px;border-radius:10px;display:grid;place-items:center;
+  background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent)}
+.tt-head-w{display:flex;flex-direction:column;gap:3px}
+.tt-head-w b{font-size:14px}
+.tt-head-w span{font-size:12.5px;color:var(--tx-mut);line-height:1.5}
+.tt-list{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.tt-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);
+  background:var(--panel2);transition:border-color .15s,opacity .15s}
+.tt-row:not(.on){opacity:.62}
+.tt-row.on{border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+.tt-row.pending{border-style:dashed}
+.tt-row-w{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.tt-row-w b{font-size:13px}
+.tt-row-sub{display:flex;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--tx-mut)}
+.tt-after{padding:0 7px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:11px}
+.tt-empty{display:flex;align-items:center;gap:10px;padding:14px;border-radius:12px;border:1px dashed var(--line);
+  color:var(--tx-mut);font-size:12.5px}
+.tt-empty-ic{color:var(--tx-mut)}
+.tt-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.tt-form{margin-top:12px;padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--panel2)}
+.tt-form .btnrow{justify-content:flex-end;margin-top:8px}

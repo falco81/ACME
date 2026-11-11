@@ -85,6 +85,18 @@ def ensure(store):
         N.migrate(store)
     except Exception as e:                              # noqa: BLE001
         E.log_sparing('certs-names', 'making the names safe: %s' % e, 'warn', every=3600)
+    try:
+        # "Check what is served" of the deployments made into tests of their targets, once
+        # (1.0.77) - the tests do it, and more (other protocols, through a connector, a history)
+        if not store.get_meta('certs:verify_to_tests'):
+            from acmelib.certs import checks as C
+            n = C.verify_migrate(store)
+            store.set_meta('certs:verify_to_tests', '%d test(s)' % n)
+            if n:
+                E.log('the checks of what is served of the deployments are tests now: %d' % n)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('certs-verify', 'the checks of the deployments made into tests: %s' % e,
+                      'warn', every=3600)
     made = []
     try:
         if not _flagged(store, 'sources'):

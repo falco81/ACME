@@ -407,6 +407,98 @@ class TestRuns(Base):
         EN.CONFIG['certs_checks_auto'] = 0
 
 
+class TestForTarget(Base):
+    """1.0.77: "Check what is served" of a deployment is a test of its target - made from the
+    page (for_target), from the options (verify_to_tests) and once for every deployment
+    (verify_migrate); a failing one fails the deployment."""
+    def setUp(self):
+        STORE.db.run('DELETE FROM cert_checks WHERE cert_id = ?', (self.cid,))
+        STORE.db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (self.cid,))
+        if not S.plugin_row(STORE, 'target', 'vt-web'):
+            A.family_save(STORE, 'target', {'name': 'vt-web', 'kind': 'local',
+                                            'config': {'base': TMP + '/vt-out'}}, 'test')
+        self.dep = STORE.db.insert('cert_deploys', {'cert_id': self.cid, 'target': 'vt-web',
+                                                    'enabled': 1, 'options': '{}'})
+
+    def test_made_once_tied_to_the_target(self):
+        n1 = C.for_target(STORE, self.cid, 'vt-web', 'test', 'tls', '127.0.0.1', self.srv.port)
+        n2 = C.for_target(STORE, self.cid, 'vt-web', 'test', 'tls', '127.0.0.1', self.srv.port)
+        self.assertEqual(n1, n2)
+        rows = STORE.db.rows('SELECT * FROM cert_checks WHERE cert_id = ?', (self.cid,))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['after_target'], 'vt-web')
+        cfg = S.plugin_config('check', S.plugin_row(STORE, 'check', n1))
+        self.assertEqual((cfg['host'], int(cfg['port'])), ('127.0.0.1', self.srv.port))
+        with self.assertRaises(ValueError):
+            C.for_target(STORE, self.cid, 'vt-web', 'test', 'ssh_relay')
+
+    def test_options_and_migration(self):
+        opts = {'outputs': 'x', 'verify': '127.0.0.1:%d\n[::1]:8443' % self.srv.port,
+                'verify_sni': 'www.example.test'}
+        STORE.db.update('cert_deploys', self.dep, {'options': json.dumps(opts)})
+        self.assertEqual(C.verify_migrate(STORE), 2)
+        got = json.loads(STORE.db.row('SELECT options FROM cert_deploys WHERE id = ?',
+                                      (self.dep,))['options'])
+        self.assertEqual(got, {'outputs': 'x'})
+        tests = [r['test'] for r in STORE.db.rows('SELECT test FROM cert_checks WHERE cert_id = ?',
+                                                  (self.cid,))]
+        self.assertEqual(len(tests), 2)
+        cfgs = [S.plugin_config('check', S.plugin_row(STORE, 'check', n)) for n in tests]
+        self.assertIn('::1', [c.get('host') for c in cfgs])
+        self.assertTrue(all(c.get('sni') == 'www.example.test' for c in cfgs))
+        self.assertEqual(C.verify_migrate(STORE), 0)            # nothing left to make
+
+    def test_saved_with_verify_is_a_test(self):
+        A.deploy_save(STORE, {'id': self.dep, 'cert_id': self.cid, 'target': 'vt-web',
+                              'options': {'outputs': 'fullchain-pem a.pem',
+                                          'verify': '127.0.0.1:%d' % self.srv.port}},
+                      'test', full=True) if hasattr(A, 'deploy_save') else \
+            A._deploy_save_in(STORE, {'id': self.dep, 'cert_id': self.cid, 'target': 'vt-web',
+                                      'options': {'outputs': 'fullchain-pem a.pem',
+                                                  'verify': '127.0.0.1:%d' % self.srv.port}},
+                              'test', True, [])
+        opts = json.loads(STORE.db.row('SELECT options FROM cert_deploys WHERE id = ?',
+                                       (self.dep,))['options'])
+        self.assertNotIn('verify', opts)
+        self.assertEqual(STORE.db.value('SELECT COUNT(*) FROM cert_checks WHERE cert_id = ?',
+                                        (self.cid,), 0), 1)
+
+    def test_a_failing_test_fails_the_deployment(self):
+        from acmelib.certs import deployer as D
+        C.for_target(STORE, self.cid, 'vt-web', 'test', 'tls', '127.0.0.1', self.srv.port)
+        STORE.db.update('cert_deploys', self.dep, {'options': json.dumps(
+            {'outputs': 'fullchain-pem a.pem'})})
+        self.serve(self.v1)                     # the old version still served
+
+        class Job(object):
+            steps = []
+            kind = 'deploy'
+
+            def step(self, w, level='info'):
+                self.steps.append((level, w))
+
+            def check(self):
+                pass
+        C.AFTER_DEPLOY_TRIES, old = (0, 0), C.AFTER_DEPLOY_TRIES
+        try:
+            ok, said = D.run_deploys(STORE, Job(), self.cid, force=True)
+        finally:
+            C.AFTER_DEPLOY_TRIES = old
+        self.assertFalse(ok, said)
+        self.assertIn('after deploying here', said)
+        row = STORE.db.row('SELECT * FROM cert_deploys WHERE id = ?', (self.dep,))
+        self.assertEqual(row['state'], 'failed')
+        self.serve(self.v2)
+        C.AFTER_DEPLOY_TRIES, old = (0, 0), C.AFTER_DEPLOY_TRIES
+        try:
+            ok, said = D.run_deploys(STORE, Job(), self.cid, force=True)
+        finally:
+            C.AFTER_DEPLOY_TRIES = old
+        self.assertTrue(ok, said)
+        self.assertEqual(STORE.db.row('SELECT state FROM cert_deploys WHERE id = ?',
+                                      (self.dep,))['state'], 'ok')
+
+
 class FakeSession(object):
     def __init__(self):
         self.tunnels = []

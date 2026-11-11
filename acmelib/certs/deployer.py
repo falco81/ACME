@@ -268,14 +268,25 @@ def run_deploys(store, job, cert_id, only=None, force=False):
     # Its tests (1.0.32): what the servers really serve now - a failed one is a warning of
     # the job; the deployments themselves went as said.
     tested = None
+    failed_by_test = {}
     if good:
         try:
             from acmelib.certs import checks
-            tested = checks.after_deploy(store, job, cert_id, done_on)
+            tested = checks.after_deploy(store, job, cert_id, done_on, failed_by_test)
         except JobStopped:
             raise
         except Exception as e:                          # noqa: BLE001
             job.step('the tests of the certificate could not run: %s' % e, 'warn')
+    # A test tied to a target that failed (1.0.77, as "Check what is served" did): the
+    # deployment there failed - tried again later, and said in the alerts.
+    for dep in rows:
+        why = failed_by_test.get(str(dep.get('target') or ''))
+        if why and str(dep.get('target') or '') in done_on:
+            cur = store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (dep['id'],)) or dep
+            _failed(store, cur, why)
+            job.step('%s: %s' % (dep['target'], why), 'bad')
+            good -= 1
+            bad.append('%s: %s' % (dep['target'], why))
     if bad:
         return False, '%d of %d deployment(s) failed - %s' % (len(bad), len(rows), '; '.join(bad))
     off = ' (%d left out: target switched off)' % skipped if skipped else ''

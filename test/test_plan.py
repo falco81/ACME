@@ -161,8 +161,9 @@ class Plan(core.CertsCore):
         self.assertIn('later', branches[base + 'sslcertkey?action=update'])
         up = [s for s in ns if (s.get('detail') or {}).get('url') == base + 'systemfile']
         self.assertTrue(any('private key' in json.dumps(s['detail']['body']) for s in up))
-        checks = [s for s in ns if s['kind'] == 'check']
-        self.assertTrue(checks and '127.0.0.1:%d' % self.listener.port in checks[0]['words'])
+        # "Check what is served" is a test of the target now (1.0.77): in the tests' phase
+        hosts = [g.get('host') for g in ph['checks']['groups']]
+        self.assertIn('127.0.0.1:%d' % self.listener.port, hosts)
         # SSH: the connection, the files, the reload
         ssh = groups['web']['steps']
         cmds = '\n'.join((s.get('detail') or {}).get('command') or '' for s in ssh)

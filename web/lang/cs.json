@@ -55435,6 +55435,150 @@
   "dsb_24": {
    "source": "each file is compared with the one there by its SHA-256 fingerprint: the same one is not replaced (nor copied aside) and the deployment is still fine - the job says why. Off: every file is written each time",
    "text": "každý soubor se porovná s tím, který tam už je, podle otisku SHA-256: stejný se nenahrazuje (ani nezálohuje) a nasazení je přesto v pořádku – úloha uvede proč. Vypnuto: každý soubor se zapíše pokaždé"
+  },
+  "vt_1": {
+   "source": "What it serves - tests",
+   "text": "Co servíruje – testy"
+  },
+  "vt_2": {
+   "source": "After each deployment on this target, these tests ask what the server really serves - over TLS, HTTPS, SMTP, IMAP... and through the target's connector when it has one. One that fails fails the deployment; they also run on their schedule (Certificates → Tests).",
+   "text": "Po každém nasazení na tento cíl se tyto testy zeptají, co server opravdu servíruje – přes TLS, HTTPS, SMTP, IMAP… a přes konektor cíle, má-li ho. Když některý selže, selže i nasazení; běží také podle svého plánu (Certifikáty → Testy)."
+  },
+  "vt_3": {
+   "source": "made when saved",
+   "text": "vznikne při uložení"
+  },
+  "vt_4": {
+   "source": "No test of this target yet - what it serves is not checked after a deployment.",
+   "text": "Tento cíl zatím nemá test – po nasazení se nekontroluje, co servíruje."
+  },
+  "vt_5": {
+   "source": "Add a test of what it serves",
+   "text": "Přidat test toho, co servíruje"
+  },
+  "vt_6": {
+   "source": "directly from acme",
+   "text": "přímo z acme"
+  },
+  "vt_7": {
+   "source": "The server the target is - its address, or a node behind a load balancer.",
+   "text": "Server, kterým cíl je – jeho adresa, nebo uzel za load balancerem."
+  },
+  "vt_8": {
+   "source": "As the target is reached.",
+   "text": "Tak, jak se jde na cíl."
+  },
+  "vt_9": {
+   "source": "Add the test",
+   "text": "Přidat test"
+  },
+  "vt_10": {
+   "source": "Add it when saved",
+   "text": "Přidat při uložení"
+  },
+  "vt_11": {
+   "source": "runs after a deployment here",
+   "text": "běží po nasazení sem"
+  },
+  "ta_1": {
+   "source": "When it runs for this certificate",
+   "text": "Kdy běží pro tento certifikát"
+  },
+  "ta_2": {
+   "source": "After every deployment",
+   "text": "Po každém nasazení"
+  },
+  "ta_3": {
+   "source": "on any of its targets",
+   "text": "na kterýkoli jeho cíl"
+  },
+  "ta_4": {
+   "source": "After a deployment on…",
+   "text": "Po nasazení na…"
+  },
+  "ta_5": {
+   "source": "only the targets ticked below",
+   "text": "jen na cíle zaškrtnuté níže"
+  },
+  "ta_6": {
+   "source": "On its schedule only",
+   "text": "Jen podle plánu"
+  },
+  "ta_7": {
+   "source": "no deployment runs it",
+   "text": "žádné nasazení ho nespouští"
+  },
+  "ta_8": {
+   "source": "When it fails there, the deployment fails.",
+   "text": "Když tam selže, selže i nasazení."
+  },
+  "ta_9": {
+   "source": "Run it now, and by their schedule: every test, whatever is chosen here.",
+   "text": "Spustit hned a podle plánu: každý test, ať je zde zvoleno cokoli."
+  },
+  "ta_10": {
+   "source": "What it serves",
+   "text": "Co servíruje"
+  },
+  "ta_11": {
+   "source": "The certificate's tests, as this target sees them: on, one runs after each deployment here, and when it fails the deployment fails. The same switch as the test's own \"When it runs for this certificate\".",
+   "text": "Testy certifikátu, jak je vidí tento cíl: zapnutý běží po každém nasazení sem, a když selže, selže i nasazení. Je to tentýž přepínač jako „Kdy běží pro tento certifikát“ u testu samotného."
+  },
+  "ta_12": {
+   "source": "after every deployment",
+   "text": "po každém nasazení"
+  },
+  "ta_13": {
+   "source": "on its schedule only",
+   "text": "jen podle plánu"
+  },
+  "ta_14": {
+   "source": "after a deployment here",
+   "text": "po nasazení sem"
+  },
+  "ta_15": {
+   "source": "after a deployment on",
+   "text": "po nasazení na"
+  },
+  "ta_16": {
+   "source": "Runs after a deployment here. Off: not here - the certificate's other deployments as they are.",
+   "text": "Běží po nasazení sem. Vypnuto: sem ne – ostatní nasazení certifikátu zůstanou, jak jsou."
+  },
+  "ta_17": {
+   "source": "Not run after a deployment here. On: it is.",
+   "text": "Po nasazení sem neběží. Zapnuto: poběží."
+  },
+  "ta_18": {
+   "source": "made when the deployment is saved",
+   "text": "vznikne při uložení nasazení"
+  },
+  "ta_19": {
+   "source": "Nothing checks yet what this target serves after a deployment.",
+   "text": "Zatím nic nekontroluje, co tento cíl po nasazení servíruje."
+  },
+  "ta_20": {
+   "source": "Save the deployment first - a test then runs after it.",
+   "text": "Nejdřív nasazení uložte – test pak poběží po něm."
+  },
+  "ta_21": {
+   "source": "A new test of this target…",
+   "text": "Nový test tohoto cíle…"
+  },
+  "ta_22": {
+   "source": "A test of Certificates → Tests, attached to this certificate and run after a deployment here - the same one is found rather than made twice.",
+   "text": "Test v Certifikáty → Testy, připojený k tomuto certifikátu a spouštěný po nasazení sem – stejný se najde, nevytvoří se dvakrát."
+  },
+  "ta_23": {
+   "source": "Make the test",
+   "text": "Vytvořit test"
+  },
+  "ta_24": {
+   "source": "Make it when saved",
+   "text": "Vytvořit při uložení"
+  },
+  "ta_25": {
+   "source": "this certificate",
+   "text": "tento certifikát"
   }
  },
  "patterns": {
@@ -75841,6 +75985,26 @@
   "pui77_22": {
    "source": "{0} - tried again in {1} s, {2} line(s) held for it, {3} given up ({4})",
    "text": "{0} – další pokus za {1} s, {2} {2:řádek čeká|řádky čekají|řádků čeká}, {3} vzdáno ({4})"
+  },
+  "pvt_1": {
+   "source": "the test {0} after deploying here: {1}",
+   "text": "test {0} po nasazení sem: {1}"
+  },
+  "pvt_2": {
+   "source": "there is no connector called {0} (Tests or Targets → Connector over SSH)",
+   "text": "konektor {0} neexistuje (Testy nebo Cíle → Konektor přes SSH)"
+  },
+  "pvt_3": {
+   "source": "{0} (a connector of the targets)",
+   "text": "{0} (konektor cílů)"
+  },
+  "pvt_4": {
+   "source": "what {0} serves (made from its deployment)",
+   "text": "co servíruje {0} (vytvořeno z jeho nasazení)"
+  },
+  "pvt_5": {
+   "source": "the checks of what is served of the deployments are tests now: {0}",
+   "text": "kontroly toho, co se servíruje, jsou u nasazení nyní testy: {0}"
   }
  },
  "rich": {

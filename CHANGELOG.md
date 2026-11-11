@@ -5,6 +5,16 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.77 - not released
+- **Check what is served is a test now**: a deployment's window has *What it serves - tests*
+  and *Add a test of what it serves* (the protocol - TLS, HTTPS, SMTP, IMAP, LDAP...; the
+  server, by default the target's address; the port; the SNI; the connector, by default the
+  target's own). The test is attached to the certificate and runs after each deployment on
+  that target - **one that fails fails the deployment** (tried again, alerted), as the old
+  check did - and also on its schedule, with its history, the chain and names checked, in the
+  report and in isemon. The old field could not reach a target behind a connector, checked
+  only which certificate, and had to be filled in twice. The `verify` of every deployment
+  became such tests on the first start (`--set verify=HOST:PORT` still makes one); a test may
+  go through a connector of the targets too.
 - **Every target that writes files** on the machine it reaches - Linux/Unix over SSH, this
   machine, Windows over SSH, Caddy (files), ESXi, HAProxy, strongSwan, Traefik, Zimbra - has
   the same two choices, both on by default and each can be switched off:
