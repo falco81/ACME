@@ -274,6 +274,12 @@ class Shipper(object):
         for k in list(self.backlog):
             if k not in keys:                   # a target no longer there: its lines with it
                 self.backlog.pop(k, None)
+        # ...and what was said of it (1.0.77): the trouble stayed listed, and the alert "the
+        # logs do not reach isemon" with it, until a restart.
+        for held in (self.trouble, self.down, self.missed):
+            for k in list(held):
+                if not str(k).startswith('file:') and k not in keys:
+                    held.pop(k, None)
         for key, sock in list(self.tcp.items()):
             if again or key not in self.targets:
                 try:
@@ -328,6 +334,7 @@ class Shipper(object):
                 pri, line, file_name = self.q.get(timeout=1.0)
             except queue.Empty:
                 continue
+            self.busy = True                    # taken off the queue, not sent yet (1.0.77)
             # Nothing ends this thread (1.0.186): one error took isemon's
             # sending and its files away until a restart.
             try:
@@ -338,6 +345,8 @@ class Shipper(object):
                         self._to_target(target, '<%d>%s' % (pri, line))
             except Exception as e:                      # noqa: BLE001
                 log_sparing('shipper', 'isemon: a line could not go: %s' % e, 'warn', every=300)
+            finally:
+                self.busy = False
 
     def _to_file(self, name, line):
         path = LOG_DIR / name
@@ -360,6 +369,7 @@ class Shipper(object):
                 self.files[name] = f
             f.write(line + '\n')
             f.flush()
+            self.trouble.pop('file:' + name, None)      # written again: no longer a trouble
         except (OSError, ValueError) as e:
             self.trouble['file:' + name] = str(e)
 
@@ -466,6 +476,8 @@ class Shipper(object):
                 'file_dir': str(LOG_DIR)}
 
     def flush(self, wait=3.0):
+        """Until every line is sent - the last one too, not only off the queue (1.0.77: a test
+        said "sent" while the last line still waited for its TLS handshake)."""
         until = time.time() + wait
-        while not self.q.empty() and time.time() < until:
+        while (not self.q.empty() or getattr(self, 'busy', False)) and time.time() < until:
             time.sleep(0.05)

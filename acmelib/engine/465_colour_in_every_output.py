@@ -2512,6 +2512,13 @@ def cli_main(argv=None):
     global TABLE_PAL
     TABLE_PAL = pal
     args = parser.parse_args(argv)
+    # An option that names something given an empty name (1.0.77): it fell through to the help
+    # with exit 2, nothing said about why.
+    for dest in ('hand_done', 'mail_test', 'sms_test', 'del_user', 'disable_user', 'reset_2fa',
+                 'acme_order', 'ha_forget', 'ha_renamed', 'export_config', 'restart_nodes'):
+        v = getattr(args, dest, None)
+        if isinstance(v, str) and not v.strip():
+            raise SystemExit('acme: --%s needs a value, not an empty one' % dest.replace('_', '-'))
     # Every line coloured (1.0.132) - not the console's own screen, nor JSON.
     # On a terminal always: what is printed is made safe there (1.0.139).
     if (pal.on or sys.stdout.isatty()) and not args.console and not args.json and \
@@ -2732,8 +2739,23 @@ def cli_main(argv=None):
             print('restart the service so that it reads config.json again:  systemctl '
                   'restart acme')
         return 0 if not got['left'] else 2
-    if args.ha_renamed:
-        said = node_carry(store, args.ha_renamed.strip(), node_name(), by='command line')
+    if args.ha_renamed is not None:
+        old = args.ha_renamed.strip()
+        # Only a name this node had, and not one alive (1.0.77): any name was taken - another
+        # node's settings, maintenance and rows moved to this one.
+        if not old:
+            raise SystemExit('acme: --ha-renamed needs the old name of this node')
+        if old == node_name():
+            raise SystemExit('acme: that is this node\'s name now')
+        if any(n['name'] == old and n.get('alive') for n in ha_nodes(store)):
+            raise SystemExit('acme: %s is alive - it is another node, not an old name of this one'
+                             % old)
+        if not store.get_meta('node:' + old) and not any(
+                str(r['k']).endswith('@' + old) for r in store.db.rows('SELECT k FROM settings')):
+            raise SystemExit('acme: nothing is kept under the name %s' % old)
+        cli_sure(args, 'what belongs to %s is carried to %s, and %s taken off the list of nodes'
+                 % (old, node_name(), old))
+        said = node_carry(store, old, node_name(), by='command line')
         try:
             NODE_NAME_FILE.write_text(node_name() + '\n')
         except OSError:
@@ -3434,7 +3456,8 @@ def cli_main(argv=None):
         if on and left:
             print('set up at their next sign-in: %s' % ', '.join(left))
         if args.admin_2fa != 'status':
-            print('the running service takes it within seconds; sign-ins already open stay open')
+            print('the running service takes it within seconds' + (
+                '; every sign-in to the pages already open is ended' if on else ''))
         return 0
 
     if args.users:
@@ -4209,12 +4232,18 @@ def cli_main(argv=None):
         print(pal.ok_line('full sync %s: %d line(s) - %d event(s), %d job(s) of history' % (
             job.id, job.lines, _isy.STATE.get('events') or 0, _isy.STATE.get('jobs') or 0))
               if _isy.STATE.get('phase') == 'done' else pal.bad_line('the full sync failed: %s' % _isy.STATE.get('error')))
+        unsent = 0
         for t in st['targets']:
             if t in st['trouble']:
                 print(pal.bad_line('%s: %s' % (t, st['trouble'][t])))
+            elif not st['sent'].get(t, 0):
+                # nothing said and nothing sent (1.0.77): it still waits for the receiver - a
+                # receiver that never answers was "sent (0)" and a success
+                unsent += 1
+                print(pal.bad_line('%s: nothing sent yet - it does not answer (still waiting)' % t))
             else:
                 print(pal.ok_line('%s: sent (%d)' % (t, st['sent'].get(t, 0))))
-        return 1 if st['trouble'] or _isy.STATE.get('phase') != 'done' else 0
+        return 1 if st['trouble'] or unsent or _isy.STATE.get('phase') != 'done' else 0
     if args.isemon_test and CONFIG.get('isemon') and daemon_here():
         # From every node, by each daemon's own sender (1.0.188), as the pages do.
         return asked('isemon', api('POST', '/api/isemon', {'action': 'test', 'node': only}), 60)
@@ -4226,15 +4255,21 @@ def cli_main(argv=None):
         sh.configure()
         sh.put('acme', 'daemon', 'a test from acme %s on the command line - isemon reads nothing '
                'from this line' % __version__)
-        sh.flush(3)
-        time.sleep(0.5)
+        sh.flush(8)
+        time.sleep(0.2)
         st = sh.state()
+        unsent = 0
         for t in st['targets']:
             if t in st['trouble']:
                 print(pal.bad_line('%s: %s' % (t, st['trouble'][t])))
+            elif not st['sent'].get(t, 0):
+                # nothing said and nothing sent (1.0.77): it still waits for the receiver - a
+                # receiver that never answers was "sent (0)" and a success
+                unsent += 1
+                print(pal.bad_line('%s: nothing sent yet - it does not answer (still waiting)' % t))
             else:
                 print(pal.ok_line('%s: sent (%d)' % (t, st['sent'].get(t, 0))))
-        return 1 if st['trouble'] else 0               # trouble said is a failure (1.0.205)
+        return 1 if st['trouble'] or unsent else 0     # trouble said is a failure (1.0.205)
 
     build_parser().print_help()
     return 2

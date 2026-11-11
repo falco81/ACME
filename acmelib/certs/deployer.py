@@ -81,7 +81,7 @@ def deploy_one(store, job, cert, dep, force=False):
         return False, why
     if not trow.get('enabled', 1):
         step('target %s is switched off: not deployed' % trow['name'], 'warn')
-        return True, 'target switched off'
+        return None, 'target switched off'          # neither done nor failed (1.0.77)
     if not cert.get('cert_pem'):
         why = 'the certificate %s has not been issued yet' % cert['name']
         step(why, 'bad')
@@ -250,13 +250,17 @@ def run_deploys(store, job, cert_id, only=None, force=False):
     if not rows:
         job.step('no deployment to run')
         return True, 'nothing to deploy'
-    good, bad, done_on = 0, [], set()
+    good, bad, done_on, skipped = 0, [], set(), 0
     for dep in rows:
         job.check()
         from acmelib.certs import dnssets       # a target's own connections: Settings → DNS
         with dnssets.scope('targets', store):
             ok, said = deploy_one(store, job, cert, dep, force)
-        if ok:
+        if ok is None:
+            # Its target switched off (1.0.77): not counted as done, and its tests not run -
+            # they probed a server that never got the new certificate, and said "old version".
+            skipped += 1
+        elif ok:
             good += 1
             done_on.add(str(dep.get('target') or ''))
         else:
@@ -274,9 +278,10 @@ def run_deploys(store, job, cert_id, only=None, force=False):
             job.step('the tests of the certificate could not run: %s' % e, 'warn')
     if bad:
         return False, '%d of %d deployment(s) failed - %s' % (len(bad), len(rows), '; '.join(bad))
+    off = ' (%d left out: target switched off)' % skipped if skipped else ''
     if tested is False:
-        return True, '%d deployment(s) done - but a test of what is served failed' % good
-    return True, '%d deployment(s) done' % good
+        return True, '%d deployment(s) done%s - but a test of what is served failed' % (good, off)
+    return True, '%d deployment(s) done%s' % (good, off)
 
 
 def told_renewed(store, job, cert_id):

@@ -248,11 +248,24 @@ def new_job(store, kind, cert_id=None, deploy_id=None, target=None, by='', said=
     return job
 
 
+def unstick_deleting(store, cert_id, why):
+    """A certificate left "deleting" by a job that never ran or never ended (1.0.77): it is
+    "revocation failed" - kept, Keep it or Delete again - not stuck for good."""
+    if cert_id is None:
+        return
+    try:
+        store.db.run("UPDATE certs SET state = 'revoke-failed', last_error = ? WHERE id = ? AND "
+                     "state = 'deleting'", (why, cert_id))
+    except Exception:                                   # noqa: BLE001
+        pass
+
+
 def _work(job, fn):
     try:
         if job.cancelled():
             job.step('stopped before it began', 'warn')
             job.finish(False, 'stopped before it began')
+            unstick_deleting(job.store, getattr(job, 'cert_id', None), 'stopped before it began')
             return job
         job.state = 'running'
         job.started = time.time()
@@ -454,6 +467,7 @@ def stop(store, ident):
             store.db.run("UPDATE cert_deploys SET state = 'failed', last_error = ?, next_try = ? "
                          "WHERE cert_id = ? AND state = 'deploying'",
                          ('stopped before it was done', time.time() + 300, row['cert_id']))
+            unstick_deleting(store, row['cert_id'], 'stopped before it was done')
         return 'job %d marked stopped' % ident
     return 'job %d on %s is asked to stop' % (ident, row['node'])
 
@@ -481,6 +495,11 @@ def recover(store):
                      "state = 'renewing' AND id IN (SELECT cert_id FROM cert_jobs WHERE node = ? "
                      "AND state IN ('queued', 'running')" + nl + ")",
                      ('acme stopped while it was renewed', time.time() + 300, E.node_name()))
+        # One being revoked to be deleted (1.0.77): "revocation failed", not stuck for good.
+        store.db.run("UPDATE certs SET state = 'revoke-failed', last_error = ? WHERE "
+                     "state = 'deleting' AND id IN (SELECT cert_id FROM cert_jobs WHERE node = ? "
+                     "AND state IN ('queued', 'running')" + nl + ")",
+                     ('acme stopped while it was revoked', E.node_name()))
         # Its deployments half done too (1.0.44): "deploying" was passed over for good.
         store.db.run("UPDATE cert_deploys SET state = 'failed', last_error = ?, next_try = ? "
                      "WHERE state = 'deploying' AND cert_id IN (SELECT cert_id FROM cert_jobs "

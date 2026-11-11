@@ -134,9 +134,24 @@ class Daemon(object):
         except Exception:                               # noqa: BLE001
             return [node_name()]
 
-    def save_settings(self, changes, by='', node=None, drawn_by=None, keep_session=None):
+    def save_settings(self, changes, by='', node=None, drawn_by=None, keep_session=None,
+                      split_card=False):
         checked = {}
         was_2fa = bool(CONFIG.get('admin_2fa'))
+        # What the nodes do when they lose each other (1.0.77): only through its card - "try
+        # the arbiter first" and "no new preferred node while apart" were passed by with
+        # --set and the settings' own save.
+        if not split_card and changes:
+            if str(changes.get('split_mode') or '') == 'arbiter' and \
+                    CONFIG.get('split_mode') != 'arbiter':
+                raise BadSetting('split_mode: arbiter is chosen on Settings → High availability '
+                                 '(or acme --split-mode arbiter), where the arbiter is tried from every node '
+                                 'first - a node that cannot reach it would step aside')
+            if 'split_prefer' in changes and split_apart() and \
+                    str(changes.get('split_prefer') or '').strip() != \
+                    str(CONFIG.get('split_prefer') or '').strip():
+                raise BadSetting('split_prefer: the nodes cannot reach each other now - the '
+                                 'preferred node is changed once they are together again')
         # The page's boxes were drawn by one node and the save reached
         # another through the VIP address (1.0.110): acme1 took acme2's name
         # from a page acme2 had drawn. What belongs to one machine is saved
@@ -301,6 +316,10 @@ class Daemon(object):
                              else '',
                          '***' if k in SECRET_KEYS else json.dumps(v, ensure_ascii=False))
                 for k, v in sorted(checked.items())), who=by)
+        self.changed('settings')
+        self.reload_all()
+        # After the reload (1.0.77): read before it, CONFIG still said off, and no sign-in
+        # was ended when it was switched on.
         if not was_2fa and CONFIG.get('admin_2fa'):
             # The second step for those signed in already too (1.0.149): their
             # sessions, opened with the password alone, stayed whole for hours.
@@ -315,8 +334,6 @@ class Daemon(object):
                                          'sign-in(s) to the pages ended' % gone, 'warn', who=by)
             except Exception as e:                      # noqa: BLE001
                 log('the sign-ins to the pages could not be ended: %s' % e, 'warn')
-        self.changed('settings')
-        self.reload_all()
         return {'message': ' '.join(['%d setting(s) saved.' % len(checked)] + said),
                 'saved': sorted(checked)}
 

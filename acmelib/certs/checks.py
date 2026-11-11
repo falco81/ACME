@@ -63,6 +63,23 @@ def row_public(store, r):
     return d
 
 
+def runnable(store, ids):
+    """Of these tests of certificates, those that may run: switched on here, as a test, and
+    their certificate on (1.0.77: Run the tests ran every one, as the tests by themselves
+    never did)."""
+    if not ids:
+        return []
+    ok = set()
+    for at in range(0, len(ids), 500):
+        part = list(ids)[at:at + 500]
+        ok |= {r['id'] for r in store.db.rows(
+            'SELECT c.id FROM cert_checks c LEFT JOIN cert_tests t ON t.name = c.test JOIN certs x '
+            'ON x.id = c.cert_id WHERE COALESCE(c.enabled, 1) <> 0 AND COALESCE(t.enabled, 1) <> 0 '
+            'AND COALESCE(x.enabled, 1) <> 0 AND c.id IN (%s)' % ','.join('?' for _ in part),
+            tuple(part))}
+    return [i for i in ids if i in ok]
+
+
 def rows(store, cert_id=None, test=None):
     where, args = [], []
     if cert_id is not None:
@@ -134,7 +151,12 @@ def _after_checked(store, cert_id, targets):
     for t in targets:
         if t not in have:
             raise ValueError('the certificate is not deployed on %s' % t)
-    return '\n'.join(targets)
+    joined = '\n'.join(targets)
+    if len(joined) > 190:
+        # the column holds 190 characters on MariaDB (1.0.77): a vague "too big" came back
+        raise ValueError('too many targets for one test (%d characters of names, 190 at most) - '
+                         'choose "every deployment" instead' % len(joined))
+    return joined
 
 
 def after(store, ident, target, by):
@@ -797,8 +819,11 @@ def scan(store, by='the renewer'):
         return 0
     from acmelib.certs import jobs
     ids = [r['id'] for r in tests]
-    store.db.run('UPDATE cert_checks SET last_at = ? WHERE id IN (%s)' % ','.join(
-        '?' for _ in ids), tuple([time.time()] + ids))      # not started twice meanwhile
+    now = time.time()
+    for at in range(0, len(ids), 500):                 # in chunks (1.0.77): the database's limit
+        part = ids[at:at + 500]                        # of parameters cut tens of thousands off
+        store.db.run('UPDATE cert_checks SET last_at = ? WHERE id IN (%s)' % ','.join(
+            '?' for _ in part), tuple([now] + part))   # not started twice meanwhile
 
     def fn(job):
         return run_many(store, ids, job)

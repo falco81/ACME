@@ -70,9 +70,10 @@ def _split_post(h):
                             'once they are together again (each half would keep its own)')
     many = len(names) > 1
     if want:
-        h.d.save_settings(want, by=s['name'], node='*' if many else None)
+        h.d.save_settings(want, by=s['name'], node='*' if many else None, split_card=True)
     for n, v in arb.items():
-        h.d.save_settings({'split_arbiter': str(v or '').strip()}, by=s['name'], node=n)
+        h.d.save_settings({'split_arbiter': str(v or '').strip()}, by=s['name'], node=n,
+                          split_card=True)
     h.store.add_event('settings', '%s chose what the nodes do when they lose each other: %s' % (
         s['name'], ', '.join('%s=%s' % kv for kv in sorted(want.items())) or 'arbiters'), 'warn',
         who=s['name'])

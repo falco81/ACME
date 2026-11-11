@@ -83,6 +83,13 @@ class Siem(object):
         tls = (CONFIG.get('siem_verify'), CONFIG.get('siem_ca'))
         again = tls != getattr(self, '_tls_was', tls)
         self._tls_was = tls
+        # What was said of a target no longer there (or of all, switched off) goes with it
+        # (1.0.77): the trouble stayed listed - and the alert with it - until a restart.
+        keys = {'%s:%d/%s' % t for t in self.targets}
+        for held in (self.trouble, self.down, self.backlog):
+            for k in list(held):
+                if k not in keys:
+                    held.pop(k, None)
         for key, sock in list(self.conns.items()):
             if again or key not in self.targets:
                 try:
@@ -178,7 +185,7 @@ class Siem(object):
                     self._send(t, line, hold=True)
                 except Exception as e:                  # noqa: BLE001
                     # Nothing ends this thread (1.0.186).
-                    self.trouble[str(t)] = str(e)[:200]
+                    self.trouble['%s:%d/%s' % t] = str(e)[:200]
 
     def _tls(self):
         if self.ctx is None:

@@ -835,7 +835,7 @@ def orphans(store, t=None):
     from acmelib.certs import jobs
     t = t or time.time()
     n = 0
-    for c in store.db.rows("SELECT id, name FROM certs WHERE state = 'renewing'"):
+    for c in store.db.rows("SELECT id, name, state FROM certs WHERE state IN ('renewing', 'deleting')"):
         live = store.db.rows("SELECT id, node, ts FROM cert_jobs WHERE cert_id = ? AND "
                              "state IN ('queued', 'running')", (c['id'],))
         if c['id'] in jobs.BUSY_CERTS:                  # this process runs it
@@ -852,6 +852,7 @@ def orphans(store, t=None):
             store.db.run("UPDATE certs SET state = 'failed', last_error = ?, next_try = ? "
                          "WHERE id = ? AND state = 'renewing'",
                          ('the renewal was left by a node that is gone', t + 300, c['id']))
+            jobs.unstick_deleting(store, c['id'], 'the revocation was left with no job running it')
             store.add_event('certificates', 'the renewal of %s was left by a node that is gone: '
                             'it is tried again' % c['name'], 'warn')
             n += 1

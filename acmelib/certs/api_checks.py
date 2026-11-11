@@ -74,7 +74,8 @@ def _list(h, s):
                   test=h.arg('test').strip() or None))
     return {'checks': rows, 'settings': {k: E.CONFIG.get(k) for k in SETTINGS},
             # who a report of the tests goes to by default, and whether SMS can go (1.0.73)
-            'report': {'to': E._alerts_to('report_to'),
+            # the addresses only to whom may send a report (1.0.77): not to the read-only role
+            'report': {'to': E._alerts_to('report_to') if A.may(s, 'certadmin') else [],
                        'sms': (E.CONFIG.get('sms_mode') or 'off') != 'off',
                        'mail': (E.CONFIG.get('mail_mode') or 'off') != 'off'}}
 
@@ -156,27 +157,26 @@ def _run(h, s):
         return {'ok': True, 'result': got, 'check': C.row_public(h.store, r)}
     if b.get('cert_id') not in (None, '', 0):
         _cert_need(h, s, _int(b['cert_id'], 'cert_id'), 'manage', 'run the tests of')
-        ids = [r['id'] for r in C.rows(h.store, cert_id=_int(b['cert_id'], 'cert_id'))
-               if r.get('enabled', 1)]
+        ids = C.runnable(h.store, [r['id'] for r in C.rows(h.store, cert_id=_int(b['cert_id'], 'cert_id'))])
         cert = S.cert_get(h.store, _int(b['cert_id'], 'cert_id')) or {}
         what, cert_id = 'the tests of %s' % cert.get('name', '?'), cert.get('id')
     elif b.get('test'):
-        ids = [r['id'] for r in _seen(h, s, C.rows(h.store, test=str(b['test'])), 'manage')
-               if r.get('enabled', 1)]
+        ids = C.runnable(h.store, [r['id'] for r in _seen(h, s, C.rows(h.store, test=str(b['test'])), 'manage')])
         what, cert_id = 'the test %s on its certificates' % b['test'], None
     else:
-        ids = [r['id'] for r in _seen(h, s, C.rows(h.store), 'manage') if r.get('enabled', 1)]
+        ids = C.runnable(h.store, [r['id'] for r in _seen(h, s, C.rows(h.store), 'manage')])
         what, cert_id = 'every test', None
     if not ids:
         raise ValueError('there is no test to run')
     # A report of them when they are done (1.0.73): by mail and/or SMS, to whom it says.
     from acmelib.certs import checkreport as R
     rep = b.get('report') if isinstance(b.get('report'), dict) else {}
-    to = R.addresses(rep.get('to')) if rep.get('mail') else []
-    sms_to = R.phones(rep.get('sms_to')) if rep.get('sms') else []
-    if rep.get('mail') and not to:
+    want_mail, want_sms = A._flag(rep.get('mail'), 0), A._flag(rep.get('sms'), 0)   # "false" is off
+    to = R.addresses(rep.get('to')) if want_mail else []
+    sms_to = R.phones(rep.get('sms_to')) if want_sms else []
+    if want_mail and not to:
         raise ValueError('no address to send the report to')
-    if rep.get('sms') and not sms_to:
+    if want_sms and not sms_to:
         raise ValueError('no number to send the SMS to')
     if sms_to and (E.CONFIG.get('sms_mode') or 'off') == 'off':
         raise ValueError('sending SMS is switched off - Settings → Codes by mail and SMS')

@@ -761,7 +761,15 @@ class SshSession(base.SshSession):
         self.d = None
         self.opts = []
         self.env = None
-        self._open()
+        self.jump = None
+        try:
+            self._open()
+        except BaseException:
+            # Whatever went wrong on the way (1.0.77): the temp folders with the private keys
+            # of this server and of its connector, and the connector's held connection, gone -
+            # a failed sign-in through a connector left both behind.
+            self.close()
+            raise
 
     # ---- opening -------------------------------------------------------------------------
     def _open(self):
@@ -848,9 +856,15 @@ class SshSession(base.SshSession):
         self.opts += ssh_auth_options(auths, bool(pw or kp))
         if self.jump:
             j = self.jump
+            # Its connection held open as long as this session (1.0.77): with 120 s only, a long
+            # session's proxy signed in to the connector again - with this server's secret.
+            j.opts = [('ControlPersist=yes' if o == 'ControlPersist=120' else o) for o in j.opts]
             j.run('true', timeout=60)                   # its connection held open for the proxy
+            # Never this server's secrets to the connector's ssh (1.0.77), and an IPv6 address
+            # in brackets ("Bad stdio forwarding specification" without them).
             self.opts += ['-o', 'ProxyCommand=' + ' '.join(
-                shq(x) for x in ['ssh'] + j.opts + ['-p', str(j.port), '-W', '%h:%p', j.dest])]
+                shq(x) for x in ['env', '-u', 'ACME_SSH_SECRET', '-u', 'ACME_SSH_KEYPASS', 'ssh'] +
+                j.opts + ['-o', 'BatchMode=yes', '-p', str(j.port), '-W', '[%h]:%p', j.dest])]
             self.ctx.step('%s is reached through the connector %s (%s)' % (
                 self.host, c.get('via'), j.host), 'info')
         self.dest = '%s@%s' % (self.user, self.host)

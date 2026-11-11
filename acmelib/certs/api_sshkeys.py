@@ -793,6 +793,13 @@ def do_try(store, b, by, keep_hostkey=False):
 
     def scan(ctx, job, where):
         host, port = _where(where)
+        if str(cfg.get('via') or '').strip():
+            # Behind a connector (1.0.77): acme's own network may hold another machine at that
+            # address - its key offered to pin, and every deployment refused after. The sign-in
+            # through the connector reads it there.
+            job.step('%s is reached through the connector %s: its host key is read from there '
+                     'as it signs in' % (where, cfg.get('via')))
+            return
         try:
             from acmelib.certs import dnssets
             text = runtime.keyscan(dnssets.ssh_address(ctx, host), port, 10)

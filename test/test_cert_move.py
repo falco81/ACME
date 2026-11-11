@@ -83,6 +83,19 @@ class Move(unittest.TestCase):
         self.assertEqual(STORE.db.row('SELECT COUNT(*) AS n FROM cert_versions WHERE cert_id = ?',
                                       (cid,))['n'], 1)
 
+    def test_from_one_source_to_another(self):
+        A.family_save(STORE, 'issuer', {'name': 'Own SS2', 'kind': 'selfsigned', 'config': {}}, 'tester')
+        cid = A.cert_save(STORE, {'name': 'move3.example.test', 'names': ['move3.example.test'],
+                                  'issuer': 'Own SS'}, 'tester')
+        STORE.db.update('certs', cid, {'cert_pem': 'x', 'version': 1, 'state': 'failed', 'fails': 3,
+                                       'next_try': 9e9, 'last_error': 'old source down'})
+        A.cert_save(STORE, {'id': cid, 'issuer': 'Own SS2'}, 'tester')
+        r = self.row(cid)
+        self.assertEqual((r['state'], r['fails'], r['next_try']), ('ok', 0, None))   # no old wait
+        self.assertIn('did not issue it', A.revocable(STORE, r))     # Own SS issued version 1
+        STORE.db.update('certs', cid, {'version': 2})
+        self.assertNotIn('did not issue it', A.revocable(STORE, self.row(cid)))
+
     def test_to_by_hand_cannot_renew_by_itself(self):
         cid = imported('move2.example.test')
         A.cert_save(STORE, {'id': cid, 'issuer': 'Own SS', 'auto_renew': True}, 'tester')

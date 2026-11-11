@@ -209,6 +209,9 @@ def _isemon_tls_do(h, s, b, act):
                 'tls': isemon_tls_view(store)}
     if act == 'tls_off':
         host = str(b.get('host') or '').strip().strip('[]')
+        if host and not any(t[0] == host and t[2] == 'tls'
+                            for t in syslog_targets(CONFIG.get('isemon_targets'))):
+            raise ValueError('%s is not sent to over TLS - nothing to switch off' % host)
         targets = [syslog_target_text(*((t[0], 514, 'tcp') if t[2] == 'tls' and (not host or t[0] == host)
                                         else t)) for t in syslog_targets(CONFIG.get('isemon_targets'))]
         if hisec_enforced('isemon', store):
@@ -798,6 +801,9 @@ def _db_download_ticket(h, s, b):
     except ValueError as e:
         shutil.rmtree(str(work), ignore_errors=True)
         raise ApiError(400, str(e))
+    except BaseException:
+        shutil.rmtree(str(work), ignore_errors=True)     # an OSError, a DbError (1.0.77)
+        raise
     h.store.add_event('backups', '%s downloaded %s WITH the key that opens its tokens, locked with '
                       'a passphrase' % (by, out.name), 'warn', who=by)
     return {'ticket': dbkey_ticket_put(out, out.name, by), 'name': out.name}

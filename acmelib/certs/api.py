@@ -540,7 +540,7 @@ def cert_save(store, b, by, full=False):
         elif 'names' not in fields and row:
             fields['cn'] = (S.jload(row.get('names'), []) or [row.get('cn')])[0]
     if 'tags' in b or not row:
-        fields['tags'] = json.dumps(_list(b.get('tags'), 'tags')[:50])
+        fields['tags'] = json.dumps(_tags_of(b))
     if 'note' in b or not row:
         fields['note'] = _text(b, 'note', 4000)
     if 'owner' in b or not row:
@@ -558,7 +558,8 @@ def cert_save(store, b, by, full=False):
         elif row and not fields['enabled']:
             fields['state'] = 'disabled'
         elif row and row.get('state') == 'disabled':
-            fields['state'] = 'ok' if row.get('cert_pem') else 'new'
+            ended = row.get('not_after') and float(row['not_after']) < time.time()
+            fields['state'] = ('expired' if ended else 'ok') if row.get('cert_pem') else 'new'
     # What fits together (acmelib/certs/compat.py): the names, the source, each name's
     # validation, the key type and the twin - refused here, in the words of the problem.
     if not row or any(k in b for k in ('names', 'issuer', 'challenge', 'challenge_map',
@@ -581,10 +582,17 @@ def cert_save(store, b, by, full=False):
             fields['state'] = 'ok' if row.get('cert_pem') else 'new'
     elif moved:
         fields['source'] = 'issuer'
+        # the old source's wait after a failure not carried over (1.0.77)
+        fields.update({'next_try': None, 'fails': 0, 'last_error': None})
+        if row.get('state') == 'failed':
+            fields['state'] = 'ok' if row.get('cert_pem') else 'new'
     fields['updated'], fields['updated_by'] = t, str(by)[:190]
     if row:
         store.db.update('certs', row['id'], fields)
         if moved:
+            # The version in use came from the old source (1.0.77): the new one cannot revoke it.
+            if row.get('issuer'):          # from by hand: its imported version says so itself
+                store.set_meta('cert:moved:%s' % row['id'], str(int(row.get('version') or 0)))
             store.add_event('certificates', 'certificate %s moved from %s to %s by %s' % (
                 name, row.get('issuer') or 'by hand', fields['issuer'] or 'by hand', by), who=by)
         else:
@@ -715,6 +723,7 @@ def cert_drop(store, row, by):
     # certificate given the same id later (MariaDB counts from the highest one left
     # after a restart) was that person's - their mail, their profile, its PFX.
     db.run('DELETE FROM meta WHERE k = ?', ('certs:portal:%d' % int(row['id']),))
+    db.run('DELETE FROM meta WHERE k = ?', ('cert:moved:%d' % int(row['id']),))
     store.add_event('certificates', 'certificate %s deleted by %s' % (row['name'], by),
                     'warn', who=by)
 
@@ -730,6 +739,10 @@ def revocable(store, row):
     irow = S.plugin_row(store, 'issuer', row.get('issuer')) if row.get('issuer') else None
     if not irow:
         return 'it has no source acme speaks to'
+    moved_at = str(store.get_meta('cert:moved:%s' % row['id']) or '')
+    if moved_at.isdigit() and int(row.get('version') or 0) <= int(moved_at):
+        return 'the one in use is from its source before it was moved - %s did not issue it' \
+            % row.get('issuer')
     cur = store.db.row("SELECT why FROM cert_versions WHERE cert_id = ? AND version = ? AND "
                        "COALESCE(variant, '') = ''", (row['id'], int(row.get('version') or 0)))
     if cur and cur.get('why') in ('import', 'csr') and not row.get('issuer_ref'):
@@ -825,6 +838,10 @@ def start_renew(store, ref, force, by):
     if not row.get('issuer'):
         raise ValueError('%s has no issuer - it was imported or is answered by a CSR; import the '
                          'new certificate instead' % row['name'])
+    if row.get('enabled') == 0:
+        # Switched off (1.0.77): renewed by hand it was deployed everywhere and shown "valid"
+        # while still off.
+        raise ValueError('%s is switched off - switch it on first' % row['name'])
     # Asked by a person, it is renewed whether due or not; `force` also takes a
     # certificate that failed out of its wait - and both are written in the job.
     try:
@@ -850,6 +867,8 @@ def start_deploy(store, ref, deploy_id, by):
     row = S.cert_need(store, ref)
     if not row.get('cert_pem'):
         raise ValueError('%s has not been issued yet' % row['name'])
+    if row.get('enabled') == 0:
+        raise ValueError('%s is switched off - switch it on first' % row['name'])
     only = None
     if deploy_id not in (None, '', 0):
         d = store.db.row('SELECT * FROM cert_deploys WHERE id = ? AND cert_id = ?',
@@ -992,6 +1011,14 @@ def _cert_revoke(h, s):
     by = who(s)
 
     again = _flag(b.get('renew'), 0)
+    no = revocable(store=h.store, row=row)
+    if no:
+        raise ValueError('%s cannot be revoked here: %s' % (row['name'], no))
+    if again and (row.get('csr_given') or not row.get('issuer')):
+        # As the portal (1.0.19): issued for a CSR sent in, a new one needs a new CSR - it was
+        # left revoked with renewal switched on (1.0.77).
+        raise ValueError('%s was issued for a CSR sent in: a new one needs a new CSR - revoke '
+                         'it alone' % row['name'])
 
     def fn(job):
         got = renewer.revoke_cert(job.store, job, row['id'], reason, by)
@@ -1144,6 +1171,13 @@ def cert_import(store, b, by):
                 key = S.cert_key(row, 'alt')
             if key and S.pki().key_matches(leaf, key) is False:
                 key = None
+            main_fam = 'ec' if str(row.get('key_type') or '').startswith('ec') else (
+                'rsa' if 'rsa' in str(row.get('key_type') or '') else '')
+            if main_fam and _key_family(info) == main_fam and not row.get('key_type_alt'):
+                # A twin is the other kind of key (1.0.77): an RSA twin of an RSA certificate
+                # made it "dual" and every later save was refused.
+                raise ValueError('a twin is the other kind of key: %s has a %s key, this one too'
+                                 % (row['name'], main_fam.upper()))
             version = S.save_alt(store, row['id'], leaf, chain, key, 'import', by, info=info,
                                  extra={'key_type_alt': _key_type_words(info)})
             store.add_event('certificates', 'certificate %s: its twin (%s) imported by %s (version %d%s)' % (
@@ -1169,7 +1203,7 @@ def cert_import(store, b, by):
             'issuer': '', 'challenge': '', 'challenge_map': '{}', 'auto_renew': 0,
             'renew_days': None, 'reuse_key': 0, 'profile': '{}', 'source': 'import',
             'state': 'new', 'state_at': t, 'version': 0, 'fails': 0,
-            'tags': json.dumps(_list(b.get('tags'), 'tags')[:50]),
+            'tags': json.dumps(_tags_of(b)),
             'note': _text(b, 'note', 4000), 'owner': _text(b, 'owner', 190), 'created': t,
             'created_by': str(by)[:190], 'enabled': 1, 'ari': '{}'})
     version = S.save_version(store, cid, leaf, chain, key, 'import', by, info=info)
@@ -1190,6 +1224,17 @@ def cert_import(store, b, by):
         store.add_event('certificates', 'certificate %s: its twin (%s) imported with it by %s (version %d)' % (
             S.cert_need(store, cid)['name'], _key_type_words(s_info), by, v2), who=by)
     return cid, version
+
+
+def _tags_of(b):
+    """A certificate's or a target's tags, each one word as the teams' (1.0.77): any length of
+    anything was kept, and teams.adopt() skipped it quietly."""
+    out = []
+    for t in _list(b.get('tags'), 'tags')[:50]:
+        t = _lib('teams').clean_tag(t)
+        if t not in out:
+            out.append(t)
+    return out
 
 
 def _key_family(info):
@@ -1941,7 +1986,7 @@ def family_save(store, family, b, by):
     if 'note' in b or not row:
         fields['note'] = _text(b, 'note', 4000)
     if family == 'target' and ('tags' in b or not row):
-        fields['tags'] = json.dumps(_list(b.get('tags'), 'tags')[:50])
+        fields['tags'] = json.dumps(_tags_of(b))
     made = None
     if row is None:
         fields.update({'config': '{}', 'state': '{}', 'created': t, 'created_by': str(by)[:190]})
@@ -1999,6 +2044,8 @@ def _renamed(store, family, old, new):
         NM._list_setting(store, 'portal_cert_issuers' if family == 'issuer'
                          else 'portal_cert_challenge', {old: new})
     NM._kv(store, family, old, new)
+    if family in ('target', 'check'):
+        _via_renamed(store, family, old, new)
     if family == 'issuer':
         db.run('UPDATE certs SET issuer = ? WHERE issuer = ?', (new, old))
     elif family == 'check':
@@ -2010,6 +2057,12 @@ def _renamed(store, family, old, new):
                 db.update('cert_tests', r['id'], {'config': json.dumps(cfg)})
     elif family == 'target':
         db.run('UPDATE cert_deploys SET target = ? WHERE target = ?', (new, old))
+        # the tests run after a deployment on it (1.0.77): they never ran again, silently
+        for r in db.rows('SELECT id, after_target FROM cert_checks WHERE after_target LIKE ?',
+                         ('%' + old + '%',)):
+            got = [new if x == old else x for x in str(r['after_target'] or '').split('\n')]
+            if got != str(r['after_target'] or '').split('\n'):
+                db.update('cert_checks', r['id'], {'after_target': '\n'.join(got)})
     else:
         db.run('UPDATE certs SET challenge = ? WHERE challenge = ?', (new, old))
         for r in db.rows('SELECT id, challenge_map FROM certs WHERE challenge_map LIKE ?',
@@ -2017,6 +2070,23 @@ def _renamed(store, family, old, new):
             cmap = S.jload(r['challenge_map'], {}) or {}
             cmap = {k: (new if v == old else v) for k, v in cmap.items()}
             db.update('certs', r['id'], {'challenge_map': json.dumps(cmap)})
+
+
+def _via_renamed(store, family, old, new):
+    """The targets and tests that go through a connector renamed (1.0.77): they named the old
+    one, and every one of them failed "there is no connector called ..."."""
+    db = store.db
+    tables = ['cert_targets'] if family == 'target' else ['cert_tests', 'cert_targets']
+    for table in tables:
+        if table == 'cert_targets' and family == 'check' and db.row(
+                "SELECT 1 AS x FROM cert_targets WHERE name = ? AND kind = 'ssh_connector'", (old,)):
+            continue
+        for r in db.rows('SELECT id, config FROM %s WHERE config LIKE ?' % table,
+                         ('%' + json.dumps(old) + '%',)):
+            cfg = S.jload(r['config'], {}) or {}
+            if str(cfg.get('via') or '') == old:
+                cfg['via'] = new
+                db.update(table, r['id'], {'config': json.dumps(cfg)})
 
 
 def family_delete(store, family, b, by):
@@ -2407,6 +2477,12 @@ def _deploy_save_in(store, b, by, full, made):
             raise E.ApiError(403, 'this deployment runs commands or writes the key where a full '
                                   'administrator set: only one may move it to another target')
     fields = {'cert_id': cert['id'], 'target': trow['name']}
+    if row is not None and (int(row.get('cert_id') or 0) != int(cert['id']) or
+                            row.get('target') != trow['name']):
+        # Moved to another certificate or target (1.0.77): what was deployed is not there - the
+        # same version number of another certificate was taken as up to date, never deployed.
+        fields.update({'deployed_version': None, 'deployed_fp': None, 'state': 'new',
+                       'fails': 0, 'next_try': None, 'last_error': None})
     if 'enabled' in b or not row:
         fields['enabled'] = _flag(b.get('enabled'), 1)
     if 'note' in b or not row:

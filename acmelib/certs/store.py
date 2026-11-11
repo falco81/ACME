@@ -385,11 +385,32 @@ def plugin_public(store, family, row, full=False):
         for r in store.db.rows("SELECT config FROM cert_tests WHERE kind = 'ssh_relay'"):
             if row['name'] in (jload(r.get('config'), {}) or {}).get('tests') or []:
                 n += 1
+        if row.get('kind') == 'ssh_relay':
+            n += via_users(store, row['name'], 'check')
         out['used_by'] = n
     else:
         out['used_by'] = int(store.db.value('SELECT COUNT(*) FROM cert_deploys WHERE target = ?',
                                             (row['name'],), 0) or 0)
+        if row.get('kind') == 'ssh_connector':
+            out['used_by'] += via_users(store, row['name'], 'target')
     return out
+
+
+def via_users(store, name, family):
+    """How many targets and tests go through the connector `name` (1.0.77: a connector in use
+    was deleted - "used by 0" - and every one of them failed after)."""
+    n = 0
+    tables = ['cert_targets'] + (['cert_tests'] if family == 'check' else [])
+    own = store.db.row("SELECT 1 AS x FROM cert_targets WHERE name = ? AND kind = 'ssh_connector'",
+                       (name,)) if family == 'check' else None
+    for table in tables:
+        if table == 'cert_targets' and own:
+            continue                    # a target's "via" names the targets' connector first
+        for r in store.db.rows('SELECT config FROM %s WHERE config LIKE ?' % table,
+                               ('%' + json.dumps(name) + '%',)):
+            if str((jload(r.get('config'), {}) or {}).get('via') or '') == name:
+                n += 1
+    return n
 
 
 def plugin_instance(store, family, row, ctx, over=None):

@@ -91,12 +91,24 @@ def _ask_isemon(daemon, args):
     before = dict(sh.sent)
     # A line of the certificates', as isemon reads them (acme-certs), said to be
     # a test - to the receivers only, not into the files.
-    sh.put('acme-certs', 'daemon', event_kv(
-        'certificates', 'a test from acme %s on %s, sent by %s - nothing happened to a '
-        'certificate' % (__version__, node_name(), args.get('by') or '?'), 'info',
-        str(args.get('by') or ''), node_name()))
-    sh.flush(3)
-    time.sleep(0.3)
+    who = str(args.get('as_user') or '').strip()
+    if who:
+        # A test sign-in under the name given, a success or a failure as chosen (1.0.77: the
+        # pages' "Send a test sign-in" sent the certificates' test line, name and outcome
+        # left out) - as a sign-in to these pages is said, the words saying it is a test.
+        ok = args.get('ok', True) not in (False, 0, '0', 'false')
+        words = ('%s signed in from %s (a test from acme, sent by %s)' if ok else
+                 'a wrong password for %s from %s (a test from acme, sent by %s)') % (
+            who, node_name(), args.get('by') or '?')
+        sh.put('acme', 'daemon', event_kv(
+            'sign-ins', words, 'info' if ok else 'warn', who, node_name(),
+            {'action': 'sign-in', 'result': 'ok' if ok else 'failed', 'user': who, 'test': 1}))
+    else:
+        sh.put('acme-certs', 'daemon', event_kv(
+            'certificates', 'a test from acme %s on %s, sent by %s - nothing happened to a '
+            'certificate' % (__version__, node_name(), args.get('by') or '?'), 'info',
+            str(args.get('by') or ''), node_name()))
+    sh.flush(8)
     st = sh.state()
     went = [k for k, v in st.get('sent', {}).items() if v > before.get(k, 0)]
     return {'ok': bool(went) and not st.get('trouble'), 'went': went, 'state': st}
