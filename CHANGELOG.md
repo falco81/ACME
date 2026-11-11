@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.76 - not released
+
 ## 1.0.75 - 2026-11-11
 - One scroll everywhere. Sources, Validation, Targets and Tests are as tall as the window: the
   heading, the search and the pages stay and only the rows scroll, as on Certificates, Jobs and
