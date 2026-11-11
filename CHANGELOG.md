@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.63 - not released
+## 1.0.63 - 2026-11-11
 - **The SSH key of a target, a validation or a test works again** - Make a key, Use my own,
   Download, Forget and Try reaching it all said: there is no target module (an empty name). A list
   field's own variable in the form hid the form's options, so the key card knew neither its
