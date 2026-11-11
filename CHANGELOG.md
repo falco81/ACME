@@ -13,6 +13,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   attached): after a deployment on **one target** (the default), on **several targets**, or after
   **every deployment** (every test attached before is so). Deploying on rpki1 tested rpki2 too,
   waiting for its own deployment. The tests' table says which.
+- The TLS tests (https, smtp, imap... ldaps): **Check the chain sent**, on by default. Off, a
+  server sending its certificate without the intermediates is no longer a warning - for a server
+  whose clients have them.
 
 ## 1.0.64 - 2026-11-11
 - The files on a target: a quick layout **Full chain, chain, key** - the certificate with its

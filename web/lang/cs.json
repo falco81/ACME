@@ -54735,6 +54735,14 @@
   "chm65b_1": {
    "source": "sticky bit (restricted deletion)",
    "text": "sticky bit (omezené mazání)"
+  },
+  "_1": {
+   "source": "Check the chain sent",
+   "text": "Kontrolovat poslaný řetězec"
+  },
+  "_2": {
+   "source": "On: a server that sends its own certificate without the intermediates is said (a warning) - many clients cannot build the chain themselves. Off: not looked at, for a server whose clients have the intermediates.",
+   "text": "Zapnuto: server, který posílá svůj certifikát bez mezilehlých, se ohlásí (varování) – mnoho klientů si řetězec samo nesestaví. Vypnuto: nekontroluje se; pro server, jehož klienti mezilehlé certifikáty mají."
   }
  },
  "patterns": {

@@ -331,7 +331,7 @@ def _covers(names, host):
 
 
 def judge(exp, served, host, sni, require_trusted=False, trusted=None, why_untrusted='',
-          check_name='', expect='current'):
+          check_name='', expect='current', check_chain=True):
     """What the chain served means, against what acme expects -> the result.
     `expect`: current (the version now, or its twin) | main | alt | any (any version)."""
     t = time.time()
@@ -405,7 +405,9 @@ def judge(exp, served, host, sni, require_trusted=False, trusted=None, why_untru
                      'serves the current certificate, but it is not valid yet')
         elif days and left < days * 86400:
             warns.append('it ends in %s' % E.human_span(max(0, left)))
-        if served.get('whole_chain') and exp['chain'] and len(chain) < 2 and \
+        # The intermediates looked for unless switched off for the test (1.0.65: a server whose
+        # clients have them already, say).
+        if check_chain and served.get('whole_chain') and exp['chain'] and len(chain) < 2 and \
                 not leaf.get('self_signed'):
             warns.append('the server sends no intermediate certificate')
         if trusted is False:
@@ -519,8 +521,9 @@ def _served_judged(mod, host, port, sni, exp):
         _tls.CURRENT.cfg = None
     req = str(mod.config.get('require_trusted', '')).lower() in ('1', 'true', 'yes', 'on')
     expect = str(mod.config.get('expect') or 'current')
+    chain_on = str(mod.config.get('check_chain', True)).lower() not in ('0', 'false', 'no', 'off')
     got = judge(exp, served, host, sni, req, trusted, why,
-                str(mod.config.get('check_name') or '').strip(), expect)
+                str(mod.config.get('check_name') or '').strip(), expect, chain_on)
     got['detail']['port'] = port
     got['detail']['expect'] = expect            # what counted as right - said under it
     got['detail']['key_want'] = str(mod.config.get('key_want') or '')

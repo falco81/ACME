@@ -23,7 +23,7 @@ is attached to - one HTTPS test serves every web certificate.
 | | |
 |---|---|
 | **serves it** | the current version (or the twin of a dual certificate) |
-| **serves it - but** | the right one, but: it ends within `certs_checks_warn_days`, the name checked is not one of its names, the server sends no intermediate, or it is not trusted by this machine's CAs (failing only with *Fail when not trusted here*) |
+| **serves it - but** | the right one, but: it ends within `certs_checks_warn_days`, the name checked is not one of its names, the server sends no intermediate (unless *Check the chain sent* is off), or it is not trusted by this machine's CAs (failing only with *Fail when not trusted here*) |
 | **an old version** | an earlier version of the same certificate: the renewal did not reach the server - a service not restarted, another node behind the balancer |
 | **another certificate** | one acme did not deploy there. The other half of a dual certificate acme does not keep (the same names, the other key type - ECDSA where acme has only the RSA one) is said as that: import it into the certificate as its twin, or set *Key asked for* |
 | **wrong answer** | HTTPS asked over HTTP: the status or the words are not as set |

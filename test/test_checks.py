@@ -254,6 +254,9 @@ class TestJudged(Base):
         got = self.run_it(j)
         self.assertEqual(got['state'], 'warn')
         self.assertIn('no intermediate', got['said'])
+        k = self.add(check_chain=False)
+        got = self.run_it(k)
+        self.assertNotIn('no intermediate', got['said'])
 
     def test_required_trust(self):
         i = self.add(require_trusted=True)

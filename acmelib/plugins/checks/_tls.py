@@ -77,6 +77,10 @@ def fields(port, more=None):
                    'ECDSA: TLS 1.2 with ciphers of that key only (TLS 1.3 cannot ask for a key '
                    'type here) - the server must still speak TLS 1.2. Both: connected twice, '
                    'once for each - it passes when each half is the right one.'),
+        field('check_chain', 'Check the chain sent', 'bool', default=True,
+              help='On: a server that sends its own certificate without the intermediates is '
+                   'said (a warning) - many clients cannot build the chain themselves. Off: '
+                   'not looked at, for a server whose clients have the intermediates.'),
     ] + list(more or []) + [
         field('tls_min', 'TLS at least', 'select', default='', options=TLS_VERSIONS,
               advanced=True),
