@@ -55683,6 +55683,34 @@
   "hf_10": {
    "source": "no deployment - and the regular runs are off: not run",
    "text": "žádné nasazení – a pravidelné spouštění je vypnuté: neběží"
+  },
+  "huntg_1": {
+   "source": "Your password, to add a passkey",
+   "text": "Vaše heslo, k přidání passkey"
+  },
+  "huntg_2": {
+   "source": "Type your password first.",
+   "text": "Nejdřív napište své heslo."
+  },
+  "huntg_3": {
+   "source": "type your password to add a passkey",
+   "text": "k přidání passkey napište své heslo"
+  },
+  "huntg_4": {
+   "source": "(another owner's certificate)",
+   "text": "(certifikát jiného vlastníka)"
+  },
+  "huntg_5": {
+   "source": "every file holds it already, but the last deployment here did not finish - the commands run all the same",
+   "text": "každý soubor ho už obsahuje, ale poslední nasazení sem nedoběhlo - příkazy se spustí i tak"
+  },
+  "huntg_6": {
+   "source": "the private key is written with --out FILE (0600), or --out - to print it",
+   "text": "soukromý klíč se zapíše s --out SOUBOR (0600), nebo --out - ho vypíše"
+  },
+  "huntg_7": {
+   "source": "the address a portal code went to is masked in Events",
+   "text": "adresa, kam šel kód portálu, je v událostech zamaskovaná"
   }
  },
  "patterns": {
@@ -76165,6 +76193,22 @@
   "phf_14": {
    "source": "there is no node {0} (the nodes: {1})",
    "text": "uzel {0} neexistuje (uzly: {1})"
+  },
+  "phuntg_1": {
+   "source": "{0} is switched off: switch it on to renew it",
+   "text": "{0} je vypnutý: k obnovení ho zapněte"
+  },
+  "phuntg_2": {
+   "source": "the certificate it has keeps what it was issued with - acme --renew {0} issues it now",
+   "text": "certifikát, který má, zůstává takový, jak byl vydán - acme --renew {0} ho vydá hned"
+  },
+  "phuntg_3": {
+   "source": "it goes to the new server only with {0} typed again",
+   "text": "na nový server půjde jen s znovu zadaným: {0}"
+  },
+  "phuntg_4": {
+   "source": "type {0} again - it goes to the new server with it",
+   "text": "zadejte znovu {0} - půjde s ním na nový server"
   }
  },
  "rich": {

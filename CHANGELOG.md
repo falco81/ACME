@@ -5,6 +5,52 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.79 - not released
+- **Hunt G** - the whole application gone through again, not only the latest changes; fixed:
+  - **Deployments**: a deployment whose files were written and whose reload or restart was then
+    cut off (the SSH session dropped, the job stopped) is finished the next time - every file
+    found the same no longer means "nothing to run" while the last one here did not go through
+    (Linux/Unix over SSH, Caddy, ESXi, strongSwan, Traefik, Zimbra, Kubernetes with restarts);
+    Vault writes again when *Include the private key* changes, Azure Key Vault when PEM/PFX
+    changes; Windows (WAP, LDAPS, Exchange) and Docker Swarm take only their own old
+    certificates by the whole name (*acme-www-* took *acme-www-api-…* too); Docker Swarm keeps
+    the owner and mode a service had for the file; Nutanix keeps what was deployed per cluster;
+    MikroTik over SSH keeps an old certificate still in use; WHM `installssl` sends the key in
+    a POST form, not in the address (WHM's access log); HAProxy's temporary file has a name
+    nobody can guess; Cloudflare lists past the first 50 certificates.
+  - **Validations**: IPv6 addresses taken (HTTP-01 proves IP certificates); OCI DNS and Vercel
+    read every page; a record made is taken away by its id too; the built-in DNS probe asks the
+    way the DNS set says (host:port, DoT, TCP).
+  - **Certificates**: a switched-off certificate is not renewed or deployed by anything; a
+    revocation not done in full stops "revoke and renew"; a revoked main or twin certificate is
+    not "the current one" for tests; a sub-CA may only sign for what the authorities above it
+    may (name constraints); a certificate's name from the portal or a request profile is made
+    one the rules take; an id written as `1.0` no longer reached another team's certificate.
+  - **Teams**: a scoped account no longer sees other teams' free-text owners, the certificates
+    behind a push target's slots, or other teams' certificates under an authority.
+  - **Sign-in and accounts**: adding a passkey asks for the password (a session left open, or
+    its cookie, put the owner's app away for a second step of its own); the list of passkeys is
+    not told before the second step nor to a switched-off account; deleting or switching off a
+    local account ends its sign-ins on the enrolment pages too (a new account of the same name
+    took them over); the address a portal code went to is masked in Events.
+  - **Cluster, backups, alerts**: replication is healthy only with the other node's slot active;
+    MariaDB with *verify-full* and no CA named checks the name against the system's
+    authorities; a backup cut short is not counted as one (and its leftovers go); a restore
+    keeps the larger SNMP start count; a node whose restart or OS update failed comes out of
+    maintenance; maintenance silences the cluster alerts for six hours at most, never after a
+    rebuild that failed - and a node long in maintenance is an alert; events older than the
+    last look are not mailed as new after alerts are switched back on.
+  - **Command line**: `--api` refuses every secret a module or directory keeps sealed when it is
+    written out (`bind_pw`, `eab_hmac`, `service_account`...); `--set` beside another option is
+    refused (it was dropped); an empty name (`--cert-del ""`) and an option given alone say so
+    in one line, not the whole help - and never start the daemon in the foreground; the server
+    of a kept secret is changed with the secret in the same command, and the console asks for it
+    in the same window; `--api GET /api/db/download` is refused (it raised, after writing
+    "downloaded"); the private half of an SSH key needs `--out`; `--status/--check --json` say
+    `ok` as the exit code does; `--status` asks the daemon on the port it runs on; `--json` for
+    `--set`, `--tidy`, `--version`; things that are not there are said before `--yes` is asked;
+    `--tls-hsts` and `--hours` out of range refused; *The pages (nginx, PHP)* in the console
+    finds `php8.x-fpm`; the console's *Change it* of a certificate sends only what changed;
+    after new names, `--cert-edit` says `--renew` issues it now.
 
 ## 1.0.78 - 2026-11-11
 - **Deployments that write files: nothing replaced, nothing run.** Each file is compared by

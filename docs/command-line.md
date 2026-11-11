@@ -17,6 +17,27 @@ action failed, so these options can be used from scripts. Something that
 deletes or revokes asks first on a terminal; `--yes` says yes ahead (a script
 without a terminal needs it).
 
+One thing is asked at a time (1.0.79): `--set` beside another option (`acme
+--local-policy --set ...`, `acme --certs --set ...`) is refused - it was
+dropped without a word. An option that names something given an empty value
+(`--cert-del ""`) is refused with that said, and an option that only goes
+with another one, given alone (`--hosts x`, `--limit 40`), says so in one
+line instead of printing the whole help. A thing that is not there is said
+before anything is asked (`--team-del`, `--tag-del`, `--dns-set-del`,
+`--ssh-token-del`, `--downgrade FILE`).
+
+`--api METHOD PATH BODY` takes no secret written out in BODY: a field any
+module or directory keeps sealed (`bind_pw`, `eab_hmac`, `service_account`,
+`sas`, ...) is refused there - the body then comes through stdin (`--api POST
+PATH -`). Routes that hand a file to a browser (`/api/db/download`) are not
+run through it: `acme --backup` makes a copy and says where.
+
+The private half of an SSH key (`--target-key NAME private`, and the same for
+validations and tests) is written with `--out FILE` (0600) or printed with
+`--out -` - not to the screen unasked.
+
+`--status --json` and `--check --json` say `"ok"` as their exit code does.
+
 ## Settings of a module: `--set KEY=VALUE`
 
 Sources, validations, targets and deployments are modules (`acme --plugins`),
@@ -34,6 +55,11 @@ each is checked against the module's own fields before anything is saved:
 | `KEY=@env` | from `ACME_VALUE_KEY` (what the console passes) |
 | `KEY=@file:PATH` | the contents of a file - a PEM, a private key |
 | `KEY=` | empty; for a secret: keep the one that is set |
+
+A server a secret is sent to (the mail server of `smtp_password`, the proxy of
+`proxy_password`, ...) is changed together with the secret, in the same
+command: `acme --set smtp_port=2525 --set smtp_password=-`. The console asks
+for the secret in the same window.
 
 A needed field (and one only needed when another says so - `show_if`) is
 asked for when it is missing. Changing one (`--source-edit`, ...) keeps every
