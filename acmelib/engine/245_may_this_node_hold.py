@@ -209,6 +209,14 @@ def node_carry(store, old, new, by='the daemon'):
         CONFIG['split_prefer'] = new
     # The day's copies claimed under the old name carried over (1.0.48): the new name took the
     # night's dump and the remote backup again, both made twice.
+    # The signatures of rows made under the old name (1.0.80): left behind, read by nothing.
+    try:
+        for r in store.db.rows("SELECT k FROM meta WHERE k LIKE 'sig:%'"):
+            k = str(r['k'])
+            if k.endswith(':' + old) and k.count(':') == 3:
+                store.db.run('DELETE FROM meta WHERE k = ?', (k,))
+    except Exception as e:                              # noqa: BLE001
+        log('the signatures under the old name could not be taken away: %s' % e, 'warn')
     for k in ('backup_day:', 'rbackup_day:'):
         was = store.get_meta(k + old)
         if was is not None and store.get_meta(k + new) is None:
@@ -276,6 +284,18 @@ def machine_changed_check(store, put_back=False, name=None):
                                              for x in keys][:200]}))
     except Exception as e:                              # noqa: BLE001
         log('what the machine before had could not be kept: %s' % e, 'warn')
+    # The console at login as it was there (1.0.80): switched by the command line or the console
+    # it had no "wanted" row - only what was seen, forgotten below, and it never came back.
+    try:
+        seen = json.loads(store.get_meta('console:now:' + me) or '{}')
+        if isinstance(seen, dict) and 'on' in seen and not store.get_meta('console:want:' + me):
+            want = {'id': secrets.token_hex(6), 'on': bool(seen.get('on')),
+                    'by': 'the backup put back', 'at': time.time()}
+            if seen.get('users'):
+                want['users'] = seen['users']
+            store.set_meta('console:want:' + me, json.dumps(want))
+    except Exception as e:                              # noqa: BLE001
+        log('the console at login of the machine before could not be kept: %s' % e, 'warn')
     gone = []
     for k in MACHINE_ROWS:
         if store.get_meta(k + me) is not None:

@@ -164,7 +164,12 @@ Optional:
   another installation: `acme --export-config /root/acme-config.json`
   (without secrets) or `--with-secrets` (the passwords and private keys in
   the clear). Not a substitute for the copies: the jobs, the events and the
-  older versions of the certificates are not in it.
+  older versions of the certificates are not in it - nor what belongs to a
+  person or to this installation's key: the second step of signing in
+  (authenticator apps, passkeys), the SSH tokens, the backup destinations,
+  the modules uploaded on the pages and the password policy of local users.
+  Since 1.0.80 it carries the tests and where they are bound, an authority's
+  renewals, and the mail and phone of the accounts.
 - **A copy before every risky change** (an upgrade, a big import, a move of the
   database): `acme --backup`, or *Make a copy now* on the pages.
 

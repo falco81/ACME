@@ -676,7 +676,8 @@ def restore_jobs_tidy(store, got=None):
     return n
 
 
-def db_file_restore(store, path, by, key_file=None, from_name='', need_admin=True):
+def db_file_restore(store, path, by, key_file=None, from_name='', need_admin=True,
+                    machine=True):
     """Put a copy or a dump back over everything. A copy of what is replaced
     is made first and kept with the others."""
     engine = store.db.engine
@@ -728,6 +729,14 @@ def db_file_restore(store, path, by, key_file=None, from_name='', need_admin=Tru
                 dbguard_resign(store, 'a copy put back by %s' % by)
             except Exception as e:                      # noqa: BLE001
                 log('the rows put back could not be signed: %s' % e, 'warn')
+            # What the machine of the copy said it had in place (the SSH server, the time, the
+            # console, the firewall...) forgotten here too (1.0.80): only the backup put back
+            # did it - a copy put back on a new machine said all was in place, and nothing was
+            if machine:
+                try:
+                    restore_machine_rows(store, copy_node(path, kind))
+                except Exception as e:                  # noqa: BLE001
+                    log('the machine of the copy could not be compared: %s' % e, 'warn')
             return got
         finally:
             RESTORE_RUNNING.clear()
@@ -737,6 +746,35 @@ def db_file_restore(store, path, by, key_file=None, from_name='', need_admin=Tru
                 x.unlink()
             except OSError:
                 pass
+
+
+def copy_node(path, kind):
+    """The node a copy was made on, from its first line ('' for a dump)."""
+    if kind != 'copy':
+        return ''
+    import gzip
+    try:
+        with gzip.open(str(path), 'rt', encoding='utf-8') as f:
+            head = json.loads(f.readline() or '{}')
+        return str(((head.get('machine') or {}).get('node')) or '')
+    except (OSError, ValueError):
+        return ''
+
+
+def restore_machine_rows(store, node=''):
+    """After a copy or a backup is put back: what its machine (and the other nodes of its
+    cluster) said they had in place is forgotten, so that it is put in on this one; put back
+    on the same machine it is only read again. True when something was forgotten."""
+    did = bool(machine_changed_check(store, put_back=True, name=node or None))
+    others = set()
+    for pre in MACHINE_ROWS:
+        for r in store.db.rows('SELECT k FROM meta WHERE k LIKE ?', (pre + '%',)):
+            n = r['k'][len(pre):]
+            if n and n != (node or node_name()) and '@@' not in n:
+                others.add(n)
+    for n in sorted(others):
+        machine_changed_check(store, put_back=True, name=n)
+    return did
 
 
 def _db_file_restore(store, path, by, key_file, from_name, kind):

@@ -189,6 +189,13 @@ def rb_restore_guide(store):
             'file': m['file']}
 
 
+def rb_hooks_dir():
+    """Where the programs of "script" validations are kept (/etc/acme/hooks, beside the
+    modules of your own)."""
+    pdir = rb_plugins_dir()
+    return os.path.join(os.path.dirname(pdir.rstrip('/')), 'hooks') if pdir else ''
+
+
 def rb_build(store, work, progress=None):
     """The backup, built in `work`: (path of the file to send, its name,
     manifest, RESTORE.md text)."""
@@ -227,16 +234,26 @@ def rb_build(store, work, progress=None):
             shutil.copyfile(p, os.path.join(inner, 'files', os.path.basename(p)))
     # Modules of your own (ACME_PLUGINS, /etc/acme/plugins): sources, validations,
     # targets written for this installation - put back with the rest.
+    # Every file of theirs (1.0.80), not the .py alone - a module's own data went missing; and
+    # the programs of "script" validations where acme tells to keep them (/etc/acme/hooks).
     pdir = rb_plugins_dir()
-    if pdir and os.path.isdir(pdir):
-        for root, _dirs, files in os.walk(pdir):
+    for here, there in ((pdir, 'plugins'), (rb_hooks_dir(), 'hooks')):
+        if not here or not os.path.isdir(here):
+            continue
+        for root, dirs, files in os.walk(here):
+            # not what comes with acme (its examples, its README)
+            dirs[:] = [d for d in dirs if d not in ('__pycache__', 'examples')
+                       and not d.startswith('.')]
             for n in files:
-                if not n.endswith('.py'):
-                    continue
                 src = os.path.join(root, n)
-                dst = os.path.join(inner, 'plugins', os.path.relpath(src, pdir))
+                if root == here and there == 'plugins' and n.upper().startswith('README'):
+                    continue
+                if n.endswith(('.pyc', '.pyo')) or os.path.islink(src) or \
+                        not os.path.isfile(src) or os.path.getsize(src) > 16 << 20:
+                    continue
+                dst = os.path.join(inner, there, os.path.relpath(src, here))
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
-                shutil.copyfile(src, dst)
+                shutil.copy2(src, dst)
     say(2, 'what is in it is counted')
     pw = rb_password()
     m = rb_manifest(store, base, rb_counts(store))

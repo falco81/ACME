@@ -230,6 +230,16 @@ def _load_tables(db, src, keep_logs, say, gzip):
             if len(batch) >= 1000:
                 flush()
         flush()
+    # A table the copy does not have - an older version's copy, made before it was - is emptied
+    # too (1.0.80): its rows here stayed beside the copy's, a mix of the two installations.
+    if counts:
+        for t in TABLES:
+            if t in counts or t in ('sessions', 'meta') or t in LOG_TABLES:
+                continue
+            try:
+                db.run('DELETE FROM %s' % t)
+            except Exception as e:                      # noqa: BLE001
+                log('%s could not be emptied: %s' % (t, e), 'warn')
     if not keep_logs:
         for t, live in LOG_LIVE.items():
             if t in TABLES:

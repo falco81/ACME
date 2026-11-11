@@ -253,7 +253,8 @@ def config_masked(cfg, secrets, place=None, full=False):
 # The settings kept as JSON, where secrets sit inside (Export and import of the
 # configuration): table -> (column, what their place starts with).
 JSON_SECRET_COLS = {'cert_issuers': 'config', 'cert_challenges': 'config',
-                    'cert_targets': 'config', 'cert_deploys': 'options'}
+                    'cert_targets': 'config', 'cert_deploys': 'options',
+                    'cert_tests': 'config'}
 
 
 def carry_out(table, row, whole):

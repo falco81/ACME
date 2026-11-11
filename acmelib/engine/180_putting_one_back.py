@@ -86,6 +86,79 @@ def rb_open(path, password, work):
     return top, m
 
 
+def restore_copy_machine(store, path, by, keep_node_name=False):
+    """After a copy put back by hand (acme --restore, the pages): what the backup put back does
+    with its manifest, from the copy's first line (1.0.80) - this machine named as the node of
+    the copy (unless keep_node_name), the guard against writes on again as it was, the settings
+    of its config.json carried. What was done, said."""
+    import gzip
+    said = []
+    try:
+        with gzip.open(str(path), 'rt', encoding='utf-8') as f:
+            head = json.loads(f.readline() or '{}')
+    except (OSError, ValueError):
+        return said
+    mach = head.get('machine') or {}
+    conf = mach.get('config') or {}
+    node = str(mach.get('node') or '')
+    old = node_name()
+    if node and node != old and not keep_node_name and not CONFIG.get('ha_mode') and \
+            re.match(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,62}\Z', node):
+        write_file_settings({'node_name': node})
+        CONFIG['node_name'] = node
+        try:
+            node_carry(store, old, node, by=by)
+        except Exception:                               # noqa: BLE001
+            pass
+        said.append('this machine is node %s again (it was %s)' % (node, old))
+    if conf.get('db_guard') and not CONFIG.get('db_guard'):
+        if dbguard_key():
+            n = dbguard_resign(store, 'the guard switched on again with the copy put back by %s'
+                               % by)
+            write_file_settings({'db_guard': 1})
+            CONFIG['db_guard'] = 1
+            store.set_meta('conf_serial', '%.6f:%s' % (time.time(), node_name()))
+            said.append('the guard against writes to the database is on again, as it was '
+                        '(%d rows signed)' % n)
+        else:
+            said.append('the guard against writes to the database was on - it could not be '
+                        'switched on here: no secrets.key to sign with')
+    got = carry_file_settings(store, conf)
+    if got:
+        said.append('from its config.json: %s' % ', '.join(got))
+    return said
+
+
+def carry_file_settings(store, was):
+    """The settings a backup's machine kept in its config.json only - not this machine's own
+    (its database, its cluster, its node's own), not secrets - written into this one's
+    config.json when the database does not hold them. The keys carried."""
+    if not isinstance(was, dict):
+        return []
+    try:
+        in_db = {r['k'] for r in store.db.rows('SELECT k FROM settings')}
+    except Exception:                                   # noqa: BLE001
+        in_db = set()
+    want = {}
+    for k, v in was.items():
+        if k not in DEFAULTS or k in FILE_ONLY_KEYS or k in NODE_KEYS or k in SECRET_KEYS or \
+                k.startswith(('db_', 'ha_')) or 'password' in k or k in in_db:
+            continue
+        if isinstance(v, str) and v.startswith('(set - not kept'):
+            continue
+        if FILE_CONFIG.get(k) == v:
+            continue
+        try:
+            check_setting(k, v)
+        except Exception:                               # noqa: BLE001
+            continue
+        want[k] = v
+    if want:
+        write_file_settings(want)
+        CONFIG.update(want)
+    return sorted(want)
+
+
 def rb_restore(store, path, password, by, keep_node_name=False, need_admin=True):
     """Everything in a backup put back on this machine: the database, the key
     of its sealed secrets, the node's name. The connection to the database in
@@ -96,7 +169,8 @@ def rb_restore(store, path, password, by, keep_node_name=False, need_admin=True)
         top, m = rb_open(path, password, work)
         got = db_file_restore(store, os.path.join(top, 'acme-copy.json.gz'), by,
                               key_file=os.path.join(top, 'secrets.key'),
-                              from_name=os.path.basename(str(path)), need_admin=need_admin)
+                              from_name=os.path.basename(str(path)), need_admin=need_admin,
+                              machine=False)       # its own, below, with the manifest's node
         said = [got.get('key') or '']
         # A copy made while a job ran (1.0.19): its rows came back as running, and
         # kept their certificate busy for hours - nothing runs them here now.
@@ -114,40 +188,33 @@ def rb_restore(store, path, password, by, keep_node_name=False, need_admin=True)
         except Exception as e:                          # noqa: BLE001
             log('the jobs of the backup put back could not be tidied: %s' % e, 'warn')
         # Modules of your own, as they were (a file of the same name is replaced).
-        pin = os.path.join(top, 'plugins')
-        if os.path.isdir(pin):
-            pdir = rb_plugins_dir()
+        # ...with their own files, and the programs of "script" validations (1.0.80).
+        for sub, pdir, what in (('plugins', rb_plugins_dir(), 'file(s) of your own modules'),
+                                ('hooks', rb_hooks_dir(), 'program(s) of script validations')):
+            pin = os.path.join(top, sub)
+            if not os.path.isdir(pin) or not pdir:
+                continue
             n = 0
             try:
                 for root, _dirs, files in os.walk(pin):
                     for f in files:
-                        if not f.endswith('.py'):
-                            continue
                         src = os.path.join(root, f)
                         dst = os.path.join(pdir, os.path.relpath(src, pin))
                         os.makedirs(os.path.dirname(dst), exist_ok=True)
-                        shutil.copyfile(src, dst)
+                        shutil.copy2(src, dst)
                         n += 1
-                said.append('%d module(s) of your own put back into %s' % (n, pdir))
+                said.append('%d %s put back into %s' % (n, what, pdir))
             except OSError as e:
-                said.append('the modules of your own could not be put into %s: %s - they '
-                            'are in plugins/ of the backup' % (pdir, e))
+                said.append('the %s could not be put into %s: %s - they are in %s/ of the '
+                            'backup' % (what, pdir, e, sub))
         # Another machine than the one the backup was made on (1.0.43): what that one said it had
         # (the SSH server, the time, the console...) is forgotten here, so that it is put in.
         try:
-            if machine_changed_check(store, put_back=True, name=m.get('node') or None):
-                said.append('what the machine of the backup had in place is put in on this one')
             # The other nodes of the cluster it came from too: built again into the cluster
             # (a clean machine under the old name), each puts in what is wanted, and gets its
             # users and keys back to make again; one that is the same machine reads it again.
-            others = set()
-            for pre in MACHINE_ROWS:
-                for r in store.db.rows('SELECT k FROM meta WHERE k LIKE ?', (pre + '%',)):
-                    n = r['k'][len(pre):]
-                    if n and n != (m.get('node') or node_name()) and '@@' not in n:
-                        others.add(n)
-            for n in sorted(others):
-                machine_changed_check(store, put_back=True, name=n)
+            if restore_machine_rows(store, m.get('node') or ''):
+                said.append('what the machine of the backup had in place is put in on this one')
         except Exception as e:                          # noqa: BLE001
             log('the machine of the backup could not be compared: %s' % e, 'warn')
         old_name = node_name()
@@ -201,6 +268,11 @@ def rb_restore(store, path, password, by, keep_node_name=False, need_admin=True)
             else:
                 said.append('the guard against writes to the database was on - it could not be '
                             'switched on here: no secrets.key to sign with')
+        # The settings that lived in its config.json only (1.0.80): the site's name (in every
+        # backup's file name - its own backups were no longer "its"), a language set by hand...
+        got_file = carry_file_settings(store, was)
+        if got_file:
+            said.append('from its config.json: %s' % ', '.join(got_file))
         store.add_event('backups', '%s put back the backup %s (made %s on %s, acme %s)' % (
             by, os.path.basename(str(path)), m.get('made_words'), m.get('node'), m.get('acme')),
             'warn', who=by)

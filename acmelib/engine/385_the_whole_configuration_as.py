@@ -181,7 +181,7 @@ def config_export(store, whole):
                 settings.pop(k)
     accounts = []
     for a in store.db.rows('SELECT name, role, pw, source, disabled, must_change, note, display, '
-                           'dn, group_list, prefs, cols FROM accounts ORDER BY name'):
+                           'dn, group_list, prefs, cols, mail, mobile FROM accounts ORDER BY name'):
         a = dict(a)
         if not whole:
             a.pop('pw', None)
@@ -406,6 +406,10 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                       'display': str(a.get('display') or ''), 'dn': str(a.get('dn') or ''),
                       'group_list': str(a.get('group_list') or ''),
                       'source': str(a.get('source') or 'local')}
+            # the mail and phone of the account (1.0.80): the one-time codes go there
+            for k in ('mail', 'mobile'):
+                if k in a:
+                    fields[k] = str(a.get(k) or '')[:200]
             pw = a.get('pw')
             # Only a password's hash as this program makes it: never text
             # taken for one.

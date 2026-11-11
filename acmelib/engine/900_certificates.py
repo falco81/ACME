@@ -359,7 +359,9 @@ if 'cert_jobs' not in RB_GROWING:
 # set up, not what happened (cert_jobs, cert_versions stay out).
 CERT_CARRY_TABLES = ['cert_issuers', 'cert_challenges', 'cert_targets', 'cert_cas',
                      'cert_ca_issued', 'certs', 'cert_deploys', 'dns_records',
-                     'dns_sets', 'dns_set_uses', 'cert_teams', 'cert_tags', 'cert_req_profiles']
+                     'dns_sets', 'dns_set_uses', 'cert_teams', 'cert_tags', 'cert_req_profiles',
+                     # the tests and where they are bound, an authority's renewals (1.0.80)
+                     'cert_tests', 'cert_checks', 'cert_ca_versions']
 
 
 @_certs_hook('carry_tables')
@@ -370,7 +372,8 @@ def certs_carry_tables(*_args):
 # The rows of those tables that name another by its number - given the number
 # the other has after an import (a deployment its certificate).
 CERT_CARRY_REFS = {('cert_deploys', 'cert_id'): 'certs', ('cert_ca_issued', 'ca_id'): 'cert_cas',
-                   ('cert_ca_issued', 'cert_id'): 'certs', ('cert_cas', 'parent_id'): 'cert_cas'}
+                   ('cert_ca_issued', 'cert_id'): 'certs', ('cert_cas', 'parent_id'): 'cert_cas',
+                   ('cert_checks', 'cert_id'): 'certs', ('cert_ca_versions', 'ca_id'): 'cert_cas'}
 
 
 @_certs_hook('carry_refs')

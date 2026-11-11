@@ -622,8 +622,8 @@ def build_parser():
                    'of its secrets, the node\'s name; without --yes, what is in it')
     g.add_argument('--passphrase-file', metavar='FILE', help='with --restore-bundle: the '
                    'password of the backups, one line (else ACME_BACKUP_PASSWORD, else asked)')
-    g.add_argument('--keep-node-name', action='store_true', help='with --restore-bundle: this '
-                   'machine keeps its node name')
+    g.add_argument('--keep-node-name', action='store_true', help='with --restore-bundle or '
+                   '--restore: this machine keeps its node name')
     g.add_argument('--rbackup-now', action='store_true', help='a backup to every destination '
                    'switched on (Settings → Backups), now')
     g.add_argument('--rbackup-status', action='store_true', help='the backup destinations and '
@@ -3816,6 +3816,12 @@ def cli_main(argv=None):
                                   key_file=_key_beside(args.restore), need_admin=False)
         except (ValueError, OSError) as e:
             raise SystemExit('acme: %s' % e)
+        # the node, the guard, the settings of config.json - as a backup put back (1.0.80)
+        try:
+            got['said'] = restore_copy_machine(store, args.restore, 'command line',
+                                               keep_node_name=args.keep_node_name)
+        except Exception as e:                          # noqa: BLE001
+            got['said'] = ['the machine of the copy could not be followed: %s' % e]
         if args.json:                       # JSON alone (1.0.48)
             out(dict(got, admins=int(store.db.value(
                 "SELECT COUNT(*) FROM accounts WHERE role = 'fulladmin' AND "
@@ -3823,6 +3829,8 @@ def cli_main(argv=None):
             return 0
         print(pal.ok_line('put back (%s); what it replaced is kept as %s; %s'
                           % (DUMP_WORDS.get(got['kind'], got['kind']), got['safety'], got['key'])))
+        for x in got.get('said') or []:
+            print('  ' + x)
         if not store.db.value("SELECT COUNT(*) FROM accounts WHERE role = 'fulladmin' AND "
                               "COALESCE(disabled, 0) = 0"):
             print(pal.bad_line('nobody can sign in to the pages as a full administrator now: '
