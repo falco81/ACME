@@ -361,14 +361,22 @@ apt_update_once() {
 # Taking it away
 # ---------------------------------------------------------------------------
 php_fpm_units() {
-    local found="" unit listed
+    # Not a masked one, and the ones switched on before others (1.0.80): every php*-fpm was
+    # enabled and started - an old PHP switched off on purpose came back, a masked one warned.
+    local found="" off="" unit state listed
     systemctl cat php-fpm.service >/dev/null 2>&1 && found="php-fpm"
     listed="$(systemctl list-unit-files --no-legend 'php*-fpm.service' 2>/dev/null || true)"
-    while read -r unit _rest; do
+    while read -r unit state _rest; do
         unit="${unit%.service}"
-        [[ -n "$unit" && "$unit" != "php-fpm" && "$unit" =~ ^php[0-9.]*-fpm$ ]] && found="$found $unit"
+        [[ -n "$unit" && "$unit" != "php-fpm" && "$unit" =~ ^php[0-9.]*-fpm$ ]] || continue
+        case "$state" in
+            masked*) ;;
+            enabled*|static*|alias*) found="$found $unit" ;;
+            *) off="$off $unit" ;;
+        esac
     done <<< "$listed"
-    echo "$found"
+    [[ -n "${found// /}" ]] || found="$off"
+    echo $found
 }
 
 if [[ -n "$DO_UNINSTALL" ]]; then
@@ -416,7 +424,7 @@ if [[ -n "$DO_UNINSTALL" ]]; then
     [[ -e "$LIB_DIR" || -L "$LIB_DIR" ]] && run rm -rf "$LIB_DIR"
     [[ -d "$WEB_DIR" ]] && run rm -rf "$WEB_DIR"
     run systemctl daemon-reload
-    for unit in $(php_fpm_units); do run systemctl restart "$unit" || true; done
+    for unit in $(php_fpm_units); do run systemctl try-restart "$unit" || true; done
     command -v nginx >/dev/null && run systemctl reload nginx 2>/dev/null || true
     good "Gone. $STATE_DIR and $CONFIG_DIR were left alone."
     say "To remove the rest:  rm -rf $STATE_DIR $CONFIG_DIR $LOG_DIR; userdel $SERVICE_USER; userdel $POOL_USER; groupdel $WEB_GROUP"
@@ -1935,7 +1943,7 @@ install_console() {
         printf '%s\n' "$word" > "$flag"
         chmod 0644 "$flag"
     fi
-    good "the acme console at login: $(head -c 4 "$flag") (acme --console-at-login on|off)"
+    good "the acme console at login: $(head -n 1 "$flag" | head -c 4) (acme --console-at-login on|off)"
 }
 
 # ===========================================================================

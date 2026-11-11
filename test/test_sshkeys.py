@@ -356,7 +356,7 @@ class SshKeys(unittest.TestCase):
         self.assertEqual(got.stdout.strip(), self.old[2])
         got = self.cli_ok('--target-key', 'old1', 'show', '--json')
         self.assertEqual(json.loads(got.stdout)['public'], self.old[2])
-        got = self.cli_ok('--validation-key', 'web-ssh', 'make', '--json')
+        got = self.cli_ok('--validation-key', 'web-ssh', 'make', '--json', '--yes')   # replaced: asked (1.0.80)
         self.assertTrue(json.loads(got.stdout)['public'].startswith('ssh-ed25519 '))
         bad = self.cli('--target-key', 'old1', 'nonsense')
         self.assertNotEqual(bad.returncode, 0)

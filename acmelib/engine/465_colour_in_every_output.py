@@ -181,6 +181,14 @@ def cli_api(daemon, who, method, path, body=None, args=None):
     fn = ROUTES.get((method, path))
     if not fn:
         raise SystemExit('acme: the pages have no %s %s' % (method, path))
+    b_ = body or {}
+    if (path.endswith('/sshkey/download') and str(b_.get('half') or '') == 'private') or \
+            (path == '/api/certs/export' and 'key' in str(b_.get('format') or '').lower()
+             or path == '/api/certs/export' and str(b_.get('format') or '').lower().startswith(
+                ('p12', 'pfx', 'jks', 'combined', 'haproxy'))):
+        # a private key not printed to a screen (1.0.80), as --export and --target-key ask --out
+        raise SystemExit('acme: a private key is written to a file: acme --export NAME --format '
+                         'FORMAT --out FILE, or acme --target-key NAME private --out FILE')
     if path in ('/api/db/download', '/api/rbackup/download'):
         # a file, not an answer (1.0.79): it raised half way, its "downloaded" event written
         raise SystemExit('acme: %s hands a file to a browser - here: acme --backup (a copy '
@@ -2519,12 +2527,16 @@ def cli_main(argv=None):
     global TABLE_PAL
     TABLE_PAL = pal
     args = parser.parse_args(argv)
+    # a limit of rows within what a database takes (1.0.80: 10**20 raised)
+    lim_ = getattr(args, 'limit', None)
+    if isinstance(lim_, int) and not 0 <= lim_ <= 1000000:
+        raise SystemExit('acme: --limit: 0 to 1000000')
     # numbers outside their range said, not taken (1.0.79): -1 was "off", nan hours went by
     if getattr(args, 'tls_hsts', None) is not None and not 0 <= args.tls_hsts <= 63072000:
         raise SystemExit('acme: --tls-hsts: 0 (none) to 63072000 seconds (two years)')
     h_ = getattr(args, 'hours', None)
     if h_ is not None and not (h_ == h_ and 0 < h_ <= 24 * 3660):
-        raise SystemExit('acme: --hours: a number of hours above 0')
+        raise SystemExit('acme: --hours: a number of hours above 0, at most %d' % (24 * 3660))
     # An option that names something given an empty name (1.0.77): it fell through to the help
     # with exit 2, nothing said about why.
     for dest in ('hand_done', 'mail_test', 'sms_test', 'del_user', 'disable_user', 'reset_2fa',
@@ -2634,6 +2646,12 @@ def cli_main(argv=None):
                          '(acme --help)' % mods[0].replace('_', '-'))
     typed = [t.partition('=')[0] for t in said if t.startswith('--') and t.partition('=')[0]
              not in ('--no-color', '--no-colour', '--json', '--debug', '--config')]
+    # ...and these alone, from a script (1.0.80): "acme --debug" from cron started the daemon -
+    # only nothing at all is the daemon (and --daemon itself)
+    if not acted and not typed and said and not args.json and \
+            (os.environ.get('INVOCATION_ID') or not sys.stdin.isatty()):
+        raise SystemExit('acme: %s alone asks for nothing - the daemon is acme --daemon '
+                         '(acme --help)' % ' '.join(x for x in said if x.startswith('--'))[:80])
     if not acted and typed:
         # Given at its default value (1.0.79): "--limit 40", "--reboot ask" from a script were
         # "nothing asked" - the daemon in the foreground
@@ -2685,6 +2703,10 @@ def cli_main(argv=None):
             on = (args.console_at_login == 'on') if args.console_at_login in ('on', 'off') \
                 else console_at_login()
             print(pal.ok_line(console_at_login_set(on, users)))
+        elif args.json:                             # 1.0.80: text with --json
+            print(json.dumps({'on': bool(console_at_login()), 'users': console_users(),
+                              'profile': CONSOLE_PROFILE.exists()}, default=str))
+            return 0
         else:
             print(pal.ok_line('the console at login is %s' % ('ON' if console_at_login()
                                                                 else 'off')))
@@ -3400,8 +3422,11 @@ def cli_main(argv=None):
         else:
             fd = getattr(args, 'export_fd', None)
             if fd is None:
-                fd = os.open(args.export_config, os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
-                             0o600 if args.with_secrets else 0o640)
+                try:                        # never through a link (1.0.80)
+                    fd = os.open(args.export_config, os.O_WRONLY | os.O_CREAT | os.O_TRUNC |
+                                 getattr(os, 'O_NOFOLLOW', 0), 0o600 if args.with_secrets else 0o640)
+                except OSError as e:
+                    raise SystemExit('acme: %s: %s' % (args.export_config, e))
             # The mode of a file there already too (1.0.94): O_CREAT's mode is
             # only a new file's, and secrets went into a 0644 one.
             os.fchmod(fd, 0o600 if args.with_secrets else 0o640)
@@ -4029,6 +4054,10 @@ def cli_main(argv=None):
                               kind=args.by or 'app', dest=args.to or '')
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
+        if args.json:                               # 1.0.80: text with --json
+            print(json.dumps({k: got.get(k) for k in ('name', 'kind', 'dest', 'uri', 'secret')
+                              if got.get(k) is not None}))
+            return 0
         if got['kind'] != 'app':
             print(pal.ok_line('the SSH token of %s is made - its codes go to %s' % (got['name'], got['dest'])))
             return 0
@@ -4297,6 +4326,27 @@ def cli_main(argv=None):
             except Exception:                           # noqa: BLE001
                 sealed = set()
             sealed |= {'bind_pw', 'given_hmac', 'pair_code', 'hmac', 'enroll_code'}
+            # a private key in any field (1.0.80): pem, data_b64 of a PEM with its key...
+            def values(o):
+                if isinstance(o, dict):
+                    for v in o.values():
+                        yield from values(v)
+                elif isinstance(o, list):
+                    for v in o:
+                        yield from values(v)
+                elif isinstance(o, str):
+                    yield o
+            for v in values(body):
+                txt = v
+                if 'PRIVATE KEY' not in txt and len(txt) > 40 and re.match(r'^[A-Za-z0-9+/=\s]+$', txt):
+                    try:
+                        txt = base64.b64decode(re.sub(r'\s', '', txt) + '==', validate=False) \
+                            .decode('latin-1')
+                    except (ValueError, TypeError):
+                        txt = ''
+                if 'PRIVATE KEY' in txt and args.api[2] != '-':
+                    raise SystemExit('acme: a private key is not taken written out on the command '
+                                     'line: give the body through stdin (--api POST PATH -)')
             secretish = [k for k in keys(body) if k in SECRET_KEYS or k in sealed or (re.search(
                 r'pass|secret|token|key|pin', k, re.I) and not (k in DEFAULTS and k not in
                                                                 SECRET_KEYS))]
@@ -4483,6 +4533,13 @@ def entry():
         sys.exit(cli_main())
     except KeyboardInterrupt:
         sys.exit(130)
+    except EOFError:
+        # asked for something with no terminal to type it on (1.0.80): a trace before
+        if '--daemon' in sys.argv:
+            raise
+        sys.stderr.write('acme: this asks for something typed - there is no terminal here '
+                         '(give it through the environment or a file: acme --help)\n')
+        sys.exit(1)
     except (ValueError, OSError, LdapError, DbError) as e:
         # Said as one line, not a trace (1.0.44): a missing file, a name
         # with a comma, a directory that is not there.
@@ -4609,6 +4666,13 @@ def cli_os_roots(args, pal, store):
             print(pal.ok_line(r['message']))
         return 0
     if args.os_roots_remove:
+        # one acme added, before it is asked (1.0.80)
+        want = re.sub(r'[^0-9a-f]', '', str(args.os_roots_remove).lower())
+        have = [str(c.get('fp') or '').lower().replace(':', '')
+                for c in api('GET', '/api/osroots').get('certs') or []]
+        if len(want) < 12 or not any(h.startswith(want) for h in have):
+            raise SystemExit('acme: acme added no root of SHA-256 %s (acme --os-roots lists them; '
+                             'twelve characters at least)' % args.os_roots_remove)
         cli_sure(args, 'what %s signs is no longer trusted by the system of any node' % args.os_roots_remove)
         r = api('POST', '/api/osroots', {'action': 'remove', 'fp': args.os_roots_remove})
         if args.json:

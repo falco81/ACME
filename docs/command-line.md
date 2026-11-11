@@ -80,7 +80,7 @@ other setting as it is.
 | `acme --revoke NAME [--reason R] [--yes]` | revoke it where it was issued. Reasons: `unspecified`, `keyCompromise`, `cACompromise`, `affiliationChanged`, `superseded`, `cessationOfOperation`, `certificateHold`, `privilegeWithdrawn` |
 | `acme --csr NAME [--out FILE] [--force]` | a request (CSR) for an authority acme does not speak to: printed (or written to FILE). The key waits in acme. `--force`: a new request (a new key) |
 | `acme --csr-answer NAME FILE` | the certificate that authority sent back for it: kept as a new version, then deployed |
-| `acme --import FILE [--name N] [--password]` | a certificate from a file: PEM, DER, PFX/P12, P7B, JKS, or a ZIP of them. `--password` asks for the file's password (or reads `ACME_FILE_PASSWORD`, or one line of stdin) |
+| `acme --import FILE [--name N \| --into CERT] [--password]` | a certificate from a file: PEM, DER, PFX/P12, P7B, JKS, or a ZIP of them; `--into CERT` makes it a new version of a certificate kept here (its names, deployments and tests stay). `--password` asks for the file's password (or reads `ACME_FILE_PASSWORD`, or one line of stdin) |
 | `acme --export NAME --format F --out FILE [--password]` | the certificate into a file (`--out -` writes it to stdout). Formats: `cert-pem`, `cert-der`, `chain-pem`, `fullchain-pem`, `p7b`, `key-pem`, `key-rsa`, `key-der`, `combined-pem`, `pfx`, `p12`, `p12-legacy`, `jks`. PFX, P12 and JKS need `--password`. The file is written with mode 0600 |
 | `acme --selfsigned NAME --names a,b [--key-type T] [--days N]` | a self-signed certificate, made now. A `self-signed` source is made the first time it is needed |
 | `acme --jobs [--limit N]` | the jobs, newest first |

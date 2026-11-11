@@ -77,7 +77,7 @@ def menu(con):
         ('1', 'Browse them (Enter: what to do with one)',
          lambda: con.pick('Certificates', load, cols, lambda r: cert_do(con, r),
                           'no certificate yet')),
-        ('i', 'Import one (or a new version of one): a file', lambda: cert_import(con)),
+        ('i', 'Import one: a file (a new version of one: from its own menu)', lambda: cert_import(con)),
         ('s', 'A self-signed certificate', lambda: cert_selfsigned(con)),
         ('2', 'Add one', lambda: cert_add(con)),
         ('k', 'Check names before a certificate: what to set up where', lambda: check_names(con)),
@@ -861,7 +861,9 @@ def ca_do(con, r):
             {'key': 'reason', 'label': 'why', 'kind': 'choice', 'options': [
                 (x, x) for x in ('unspecified', 'keyCompromise', 'superseded',
                                  'cessationOfOperation', 'affiliationChanged')]}])
-        if got:
+        if got and con.confirm('Revoke', 'Revoke serial %s signed by %s (%s)? It cannot be '
+                               'taken back.' % (got['serial'], name, got['reason']), 'Revoke it',
+                               danger=True):            # asked, as a certificate's (1.0.80)
             con.act('--ca-revoke', name, got['serial'], '--reason', got['reason'], '--yes')
     elif what == 'del':
         if con.confirm('Delete ' + name, 'Delete the authority %s and its key? What it signed '
@@ -1026,19 +1028,25 @@ def ssh_key(con, word, name):
     if not what:
         return
     flag = '--%s-key' % word
+    if what in ('make', 'make-rsa', 'own') and not con.confirm(
+            'A new key', 'If %s has a key already, it is replaced: the server keeps the old public '
+            'half until the new one is put there. Go on?' % name, 'Go on', danger=True):
+        return                                          # asked first (1.0.80)
     if what == 'make-rsa':
-        con.act(flag, name, 'make', 'rsa4096')
+        con.act(flag, name, 'make', 'rsa4096', '--yes')
     elif what == 'own':
         f = con.ask_one('Your own key for %s' % name, 'the file', '', 'A private key '
                         '(OpenSSH or PEM); its passphrase from ACME_KEY_PASSWORD.')
         if f:
-            con.act(flag, name, 'own', os.path.expanduser(f))
+            con.act(flag, name, 'own', os.path.expanduser(f), '--yes')
     elif what == 'forget':
         if con.confirm('Forget the key', 'Forget the SSH key of %s?' % name, 'Forget it',
                        danger=True):
             con.act(flag, name, 'forget', '--yes')
     elif what == 'try':
         con.live(lambda: (con.cmd(flag, name, 'try'), con.pause()))
+    elif what == 'make':
+        con.act(flag, name, what, '--yes')
     else:
         con.act(flag, name, what)
 
@@ -1048,14 +1056,16 @@ def cert_import(con, name=None):
         {'key': 'file', 'label': 'the file', 'need': True,
          'help': 'PEM (with its key), DER, PFX / P12, P7B, JKS.'}] + ([] if name else [
             {'key': 'name', 'label': 'its name in acme',
-             'help': 'Empty: its common name. The name of one kept: a new version of it.'}]) + [
+             'help': 'Empty: its common name.'}]) + [
         {'key': 'pw', 'label': 'locked with a password', 'kind': 'choice',
          'options': [('0', 'no'), ('1', 'yes')]}])
     if not got:
         return
     args = ['--import', os.path.expanduser(got['file'].strip())]
-    if name or got.get('name'):
-        args += ['--name', name or got['name']]
+    if name:
+        args += ['--into', name]            # a new version of it (1.0.80: it made a new one)
+    elif got.get('name'):
+        args += ['--name', got['name']]
     if got.get('pw') == '1':
         con.live(lambda: (con.cmd(*(args + ['--password'])), con.pause()))
     else:

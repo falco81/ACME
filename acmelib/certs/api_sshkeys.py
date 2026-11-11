@@ -964,13 +964,21 @@ def cli(c, family, words):
         if not dest or dest == '-':
             sys.stdout.write(text)
             return 0
-        fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, 'w') as f:
-            f.write(text)
+        # as --export writes a key (1.0.80): never through a link, 0600 on a file there before
+        c._write(dest, text.encode() if isinstance(text, str) else text, 0o600)
         return c.done('written to %s' % dest, {'ok': True, 'file': dest})
 
     if what == 'show':
         return shown(key_view(store, Ref(store, b)))
+    if what in ('make', 'own'):
+        # one there already is replaced - the server knows only its public half (1.0.80)
+        try:
+            had = (key_view(store, Ref(store, b)) or {}).get('has')
+        except Exception:                               # noqa: BLE001
+            had = False
+        if had:
+            c.sure('the SSH key of %s is replaced - put the new public half on the server '
+                   'before the next deployment' % name)
     if what == 'make':
         if more and more[0] not in KEY_TYPES:
             raise SystemExit('acme: make ed25519 or make rsa4096')

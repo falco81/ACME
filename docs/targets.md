@@ -485,7 +485,10 @@ it must change nothing when `ACME_DRY_RUN` is `1` (the examples do so).
 
 Writes files under one folder of the acme server only (*Folder*, default
 `/etc/acme/out`), for something else to pick up (a backup job, a container
-volume). The *Files* lines are as for `ssh` but the paths are inside that
+volume). A folder outside `/etc/acme` has to be let in to the service's
+sandbox first (`ProtectSystem=strict`): `systemctl edit acme`, `[Service]`,
+`ReadWritePaths=/srv/certs`, `systemctl restart acme` - else it is a
+*Read-only file system*. The *Files* lines are as for `ssh` but the paths are inside that
 folder (`fullchain-pem {name}/fullchain.pem`); a path leading outside it -
 `..`, an absolute path elsewhere, or a link - is refused. Each file is
 written to a temporary file in the same folder and renamed into place.

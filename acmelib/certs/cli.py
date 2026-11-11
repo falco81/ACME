@@ -115,6 +115,8 @@ def add_args(p):
                    'the authority sent back for that CSR')
     g.add_argument('--import', dest='import_file', metavar='FILE', help='a certificate from a '
                    'file (PEM, DER, PFX/P12, P7B, JKS...) - --name, --password')
+    g.add_argument('--into', metavar='CERT', help='with --import: a new version of this '
+                   'certificate kept here (its names, its deployments), not a new one')
     g.add_argument('--name', metavar='NAME', help='with --import, --ca-import: the name it is '
                    'kept under; with --*-edit: its new name')
     g.add_argument('--password', action='store_true', help='with --import, --export, '
@@ -791,8 +793,9 @@ class Cli(object):
                 else a.key_type_alt.strip()
         if row is not None and a.name:
             b['name'] = a.name
-        if a.note:
-            b['note'] = a.note
+        if a.note or (row is not None and any(x == '--note' or x.startswith('--note=')
+                                              for x in sys.argv[1:])):
+            b['note'] = a.note or ''            # "" takes it away (1.0.80)
         if a.enabled:
             b['enabled'] = 1 if a.enabled == 'on' else 0
         cur = None
@@ -1143,6 +1146,9 @@ class Cli(object):
                 'filename': os.path.basename(a.import_file), 'password': pw}
         if a.name:
             body['name'] = a.name
+        if getattr(a, 'into', None):                    # a new version of one kept (1.0.80)
+            body['id'] = self.cert_ref(a.into)['id']
+            body.pop('name', None)
         parsed = self.api('POST', '/api/certs/parse', body=dict(body))
         if parsed.get('needs_password') and not pw:
             raise SystemExit('acme: %s is locked - add --password' % a.import_file)
@@ -2186,6 +2192,10 @@ class Cli(object):
         r = self.ca_ref(ca)
         if self.args.reason not in api.REVOKE_REASONS:
             raise SystemExit('acme: the reason is one of %s' % ', '.join(api.REVOKE_REASONS))
+        # a serial before it is asked (1.0.80)
+        if not re.match(r'^[0-9A-Fa-f:]{1,80}\Z', str(serial).strip()):
+            raise SystemExit('acme: %s is not a serial number (hex, as --ca-show lists it)'
+                             % serial)
         self.sure('serial %s of %s is revoked (%s)' % (serial, r['name'], self.args.reason))
         got = self.api('POST', '/api/cas/revoke', body={'id': r['id'], 'serial': serial,
                                                         'reason': self.args.reason})

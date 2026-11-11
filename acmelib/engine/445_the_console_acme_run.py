@@ -2098,7 +2098,7 @@ class Console(object):
             else:
                 vals[f['key']] = str(f.get('value') if f.get('value') is not None else '')
             pos[f['key']] = len(vals[f['key']]) if f['kind'] != 'choice' else 0
-        at, err, err_at = 0, '', None
+        at, err, err_at, top = 0, '', None, 0
         try:
             c.curs_set(1)
         except Exception:                               # noqa: BLE001
@@ -2129,7 +2129,19 @@ class Console(object):
                 if head:
                     y += 1
                 cursor = None
+                # the fields scrolled within the window (1.0.80): at 80x24 a form of 28 fields
+                # showed 14, and what was typed went into one nobody could see
+                room = max(1, wh - y - 4 - 3)        # 4: the help of a field, at most
+                if at < top:
+                    top = at
+                elif at >= top + room:
+                    top = at - room + 1
+                top = max(0, min(top, max(0, len(shown) - room)))
+                if top > 0:
+                    self._wput(win, y - 1 if head else 0, ww - 6, ' ^ ', A['dim'])
                 for i, x in enumerate(shown):
+                    if i < top or i >= top + room:
+                        continue
                     lab = (x.get('label') or x['key'])[:labw - 1]
                     here = i == at
                     self._wput(win, y, 2, lab.rjust(labw), A['key'] if here else 0)
@@ -2150,12 +2162,16 @@ class Console(object):
                     if err and err_at == x['key']:
                         self._wput(win, y, ww - 3, '!', A['bad'])
                     y += 1
+                if top + room < len(shown):
+                    self._wput(win, y, ww - 6, ' v ', A['dim'])
                 y += 1
                 for ln in helps:
+                    if y >= wh - 2:
+                        break
                     self._wput(win, y, 2, ln, A['dim'])
                     y += 1
                 if err:
-                    self._wput(win, wh - 2, 2, err[:ww - 4], A['bad'])
+                    self._wput(win, wh - 2, 2, err[:ww - 4].ljust(ww - 4), A['bad'])
                 else:
                     self._wput(win, wh - 2, 2, ('Up/Down field   ' + ('Left/Right choose   '
                                if any(x['kind'] == 'choice' for x in shown) else '') +

@@ -167,7 +167,7 @@ keep it with the password, apart from the backups.
 
 | What it says | What to do |
 |---|---|
-| *the acme account may not write into ...* | a folder destination: `chown acme /mnt/backup/acme` (or give the acme group write) |
+| *the acme account may not write into ...*, *Read-only file system* | a folder destination: `chown acme /mnt/backup/acme` (or give the acme group write) - and, since the service runs sandboxed (`ProtectSystem=strict`, `ProtectHome=yes`: only `/var/lib/acme`, `/var/log/acme` and `/etc/acme` are writable), let it write there: `systemctl edit acme`, add `[Service]` and `ReadWritePaths=/mnt/backup/acme`, then `systemctl restart acme`. The same for a *This machine* target writing outside `/etc/acme` |
 | *the server's certificate is not trusted* | FTPS: the server's certificate is not from an authority this machine trusts - give its authority, or pin it |
 | *the server shows another host key than the one trusted* | SFTP/SCP: reinstalled on purpose? *Forget it*, *Try reaching it*, compare, trust. Otherwise somebody is in between |
 | *the server did not let the account in* | the public key is not in `authorized_keys` yet, or the password is wrong |
