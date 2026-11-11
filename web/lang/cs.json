@@ -55643,6 +55643,46 @@
   "vt_12": {
    "source": "Make a test in Tests…",
    "text": "Vytvořit test v Testech…"
+  },
+  "hf_1": {
+   "source": "nothing replaced: every file holds this certificate already (the same SHA-256) - no command, script or reload run",
+   "text": "nic se nenahradilo: všechny soubory už tento certifikát obsahují (stejný SHA-256) – žádný příkaz, skript ani reload se nespustil"
+  },
+  "hf_2": {
+   "source": "nothing replaced: every file holds this certificate already (the same SHA-256) - nothing run",
+   "text": "nic se nenahradilo: všechny soubory už tento certifikát obsahují (stejný SHA-256) – nic se nespustilo"
+  },
+  "hf_3": {
+   "source": "nothing replaced: every file holds this certificate already (the same SHA-256) - no script or command run",
+   "text": "nic se nenahradilo: všechny soubory už tento certifikát obsahují (stejný SHA-256) – žádný skript ani příkaz se nespustil"
+  },
+  "hf_4": {
+   "source": "name.20261111-153000.bak",
+   "text": "název.20261111-153000.bak"
+  },
+  "hf_5": {
+   "source": "name.2026-11-11.bak (one a day)",
+   "text": "název.2026-11-11.bak (jedna za den)"
+  },
+  "hf_6": {
+   "source": ".acme-backup/name.….bak",
+   "text": ".acme-backup/název.….bak"
+  },
+  "hf_7": {
+   "source": "name.bak (the last one)",
+   "text": "název.bak (jen poslední)"
+  },
+  "hf_8": {
+   "source": "beside the file: its name, the date and time, .bak (each time), its name and the date (one a day) or its name.bak (the last one only); or in the folder .acme-backup beside it - for a folder a program reads whole (HAProxy's crt folder)",
+   "text": "vedle souboru: jeho název, datum a čas, .bak (pokaždé), název a datum (jedna za den) nebo název.bak (jen poslední); nebo ve složce .acme-backup vedle něj – pro složku, kterou program načítá celou (složka crt HAProxy)"
+  },
+  "hf_9": {
+   "source": "not run - its schedule is off",
+   "text": "neběží – plánované spouštění je vypnuté"
+  },
+  "hf_10": {
+   "source": "no deployment - and the regular runs are off: not run",
+   "text": "žádné nasazení – a pravidelné spouštění je vypnuté: neběží"
   }
  },
  "patterns": {
@@ -76069,6 +76109,62 @@
   "pvt_5": {
    "source": "the checks of what is served of the deployments are tests now: {0}",
    "text": "kontroly toho, co se servíruje, jsou u nasazení nyní testy: {0}"
+  },
+  "phf_1": {
+   "source": "tests #{0}",
+   "text": "testy č. {0}"
+  },
+  "phf_2": {
+   "source": "test {0} saved by {1}",
+   "text": "test {0} uložil {1}"
+  },
+  "phf_3": {
+   "source": "test {0} deleted by {1}",
+   "text": "test {0} smazal {1}"
+  },
+  "phf_4": {
+   "source": "test(s) {0} attached to {1} by {2}",
+   "text": "test(y) {0} připojil k {1} {2}"
+  },
+  "phf_5": {
+   "source": "test {0} taken off {1} by {2}",
+   "text": "test {0} odebral z {1} {2}"
+  },
+  "phf_6": {
+   "source": "the test {0} of {1} fails: {2}",
+   "text": "test {0} certifikátu {1} selhává: {2}"
+  },
+  "phf_7": {
+   "source": "{0}: the same SHA-256 ({1}…) - left as it is",
+   "text": "{0}: stejný SHA-256 ({1}…) – ponechán beze změny"
+  },
+  "phf_8": {
+   "source": "{0}: SHA-256 there {1}…, new {2}… - replaced",
+   "text": "{0}: SHA-256 tam {1}…, nový {2}… – nahrazen"
+  },
+  "phf_9": {
+   "source": "{0}: not there yet - written",
+   "text": "{0}: zatím tam není – zapsán"
+  },
+  "phf_10": {
+   "source": "{0}: made anew each time ({1}) - this certificate was put there already: left as it is",
+   "text": "{0}: vzniká pokaždé znovu ({1}) – tento certifikát tam už je: ponechán beze změny"
+  },
+  "phf_11": {
+   "source": "{0}: made anew each time ({1}) - written",
+   "text": "{0}: vzniká pokaždé znovu ({1}) – zapsán"
+  },
+  "phf_12": {
+   "source": "unchanged: every file on {0} holds it already (the same SHA-256) - nothing replaced, nothing run",
+   "text": "beze změny: všechny soubory na {0} ho už obsahují (stejný SHA-256) – nic nenahrazeno, nic nespuštěno"
+  },
+  "phf_13": {
+   "source": "unchanged: every file in {0} holds it already (the same SHA-256) - nothing replaced, nothing run",
+   "text": "beze změny: všechny soubory v {0} ho už obsahují (stejný SHA-256) – nic nenahrazeno, nic nespuštěno"
+  },
+  "phf_14": {
+   "source": "there is no node {0} (the nodes: {1})",
+   "text": "uzel {0} neexistuje (uzly: {1})"
   }
  },
  "rich": {

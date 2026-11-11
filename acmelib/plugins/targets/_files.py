@@ -43,11 +43,13 @@ from acmelib.plugins.targets._common import PluginError, as_bool, as_int, quote,
 
 PREV = '.acme-prev'
 FOLDER = '.acme-backup'
+# short, to be read whole in the list (1.0.78: "name.20261111-153000.bak - beside it," was all
+# of it there); what each means is in the field's help and docs/targets.md
 BACKUP_FORMATS = [
-    ['dated', 'name.20261111-153000.bak - beside it, the date and time'],
-    ['daily', 'name.2026-11-11.bak - beside it, one a day'],
-    ['folder', '.acme-backup/name.20261111-153000.bak - in a folder beside it'],
-    ['bak', 'name.bak - beside it, the last one only'],
+    ['dated', 'name.20261111-153000.bak'],
+    ['daily', 'name.2026-11-11.bak (one a day)'],
+    ['folder', '.acme-backup/name.….bak'],
+    ['bak', 'name.bak (the last one)'],
 ]
 FORMAT_KEYS = [f[0] for f in BACKUP_FORMATS]
 
@@ -68,8 +70,10 @@ def backup_fields(fmt='dated'):
                    'back'),
         field('backup_format', 'Name of the copy', 'select', default=fmt,
               options=BACKUP_FORMATS, show_if={'backup': [True, 1, '1', 'true', 'on']},
-              help='its original name, the time, .bak. In a folder a program reads whole (a '
-                   'HAProxy crt folder) choose the folder beside it'),
+              help='beside the file: its name, the date and time, .bak (each time), its name and '
+                   'the date (one a day) or its name.bak (the last one only); or in the folder '
+                   '.acme-backup beside it - for a folder a program reads whole (HAProxy\'s crt '
+                   'folder)'),
         field('backup_keep', 'Copies kept', 'number', default=5, min=0, advanced=True,
               help='of each file, the newest so many dated copies; the older ones are '
                    'deleted (0: all kept)'),

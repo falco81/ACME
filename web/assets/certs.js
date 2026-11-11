@@ -275,7 +275,7 @@ function stateTag(st) {
 }
 var JOB_KIND = {issue: 'issue', renew: 'renewal', deploy: 'deployment', revoke: 'revocation',
                 'import': 'import', test: 'test', csr: 'CSR', crl: 'CRL', verify: 'check', export: 'export',
-                'dry-run': 'dry run', 'online-import': 'import from a source'};
+                'dry-run': 'dry run', 'online-import': 'import from a source', check: 'tests'};
 function jobState(j) {
   var st = j.state || (j.finished ? (j.ok ? 'ok' : 'failed') : 'running');
   if (st === 'done') st = j.ok ? 'ok' : 'failed';
@@ -2776,7 +2776,12 @@ function targetTestsPart(certId, t, saved, pending) {
   var setHere = function (x, on) {
     var l = afterList(x.after_target).filter(function (z) { return z !== '-'; });
     var want;
-    if (on) want = l.length ? l.concat([t.name]) : [t.name];
+    if (on) {
+      want = l.length ? l.concat([t.name]) : [t.name];
+      /* every target of the certificate again: "after every deployment", as it was (1.0.78: it
+         stayed a list, and a deployment added later did not run it) */
+      if (depTargets.length && depTargets.every(function (z) { return want.indexOf(z) >= 0; })) want = [];
+    }
     else {
       /* every deployment until now: every other target of the certificate from now on */
       var from = l.length ? l : depTargets;
@@ -2803,7 +2808,7 @@ function targetTestsPart(certId, t, saved, pending) {
         var sub = el('div', 'tt-row-sub');
         sub.appendChild(data('span', 'mono', x.where || ''));
         var l = afterList(x.after_target);
-        sub.appendChild(el('span', 'tt-after', !l.length ? 'after every deployment' : l.indexOf('-') >= 0 ? 'on its schedule only'
+        sub.appendChild(el('span', 'tt-after', !l.length ? 'after every deployment' : l.indexOf('-') >= 0 ? (CK_AUTO === false ? 'not run - its schedule is off' : 'on its schedule only')
           : (l.length === 1 && l[0] === t.name ? 'after a deployment here' : tr('after a deployment on') + ' ' + l.join(', '))));
         w.appendChild(sub);
         line.appendChild(w);
@@ -2864,6 +2869,7 @@ function targetTestsPart(certId, t, saved, pending) {
     Promise.all([capi('checks' + qs({cert_id: certId})), capi('deploys' + qs({cert_id: certId})).catch(function () { return {}; }),
                  loadRows('tests').catch(function () { return []; })]).then(function (got) {
       depTargets = arr((got[1] || {}).rows).map(function (d) { return d.target; });
+      CK_AUTO = !!obj((got[0] || {}).settings).certs_checks_auto;
       paintRows(arr((got[0] || {}).checks));
     }).catch(function () { paintRows([]); });
   };
@@ -2884,8 +2890,8 @@ function targetTestsPart(certId, t, saved, pending) {
   actions.appendChild(attach);
   /* A test is made in Certificates → Tests (1.0.78), with every setting it has - here only
      attached and bound to this target. */
-  var mk = el('a', 'btn cmd small');
-  mk.href = '#tests';
+  var mk = el('button', 'btn cmd small');
+  mk.type = 'button';
   mk.innerHTML = iconMarkup('pulse', 15);
   mk.appendChild(el('span', '', 'Make a test in Tests…'));
   mk.onclick = function (ev) { ev.preventDefault(); closeModal(); closeModal(); showTab('tests'); setTimeout(function () { if (typeof modPick === 'function') modPick('tests'); }, 300); };
@@ -7689,13 +7695,15 @@ function drawOverviewCerts(box, d, counts, total) {
     spanSel.disabled = true;
     capi('certs/overview' + qs({span: spanSel.value})).then(function (nd) {
       OV.d = nd;
-      noteEl.textContent = ovNote(nd.unit).split('. ').map(function (x, i, all) { return tr(i < all.length - 1 ? x + '.' : x); }).join(' ');
+      ovNoteFill(noteEl, nd.unit);
+      explainWhatWasDrawn(noteEl);
       drawExpiryChart($('ov-ct-chart'), nd);
     }).catch(fail).then(function () { spanSel.disabled = false; });
   };
   h.appendChild(spanSel);
   ch.appendChild(h);
-  var noteEl = el('p', 'note', ovNote(d.unit));
+  var noteEl = el('p', 'note');
+  ovNoteFill(noteEl, d.unit);
   ch.appendChild(noteEl);
   var chart = el('div', 'chart ct-chart');
   chart.id = 'ov-ct-chart';
@@ -7828,6 +7836,15 @@ function ovNote(unit) {
   return ({day: 'How many certificates end on each day ahead.', month: 'How many certificates end in each month ahead.',
            quarter: 'How many certificates end in each quarter ahead.'}[unit] || 'How many certificates end in each week ahead.') +
     ' ' + 'Those that renew by themselves will be renewed before - a red bar of certificates renewed by hand is the one to look at.';
+}
+/* The note as two sentences, each its own text (1.0.78: after a reload the second stayed in
+   English - the two together are no text of the page's language but the weeks'). */
+function ovNoteFill(p, unit) {
+  clear(p);
+  var parts = ovNote(unit).split('. ');
+  p.appendChild(el('span', '', parts[0] + '.'));
+  p.appendChild(document.createTextNode(' '));
+  p.appendChild(el('span', '', parts.slice(1).join('. ')));
 }
 function drawExpiryChart(host, d) {
   if (!host) return;
@@ -9286,7 +9303,11 @@ function certTests(c, back, deploys) {
       var cell = el('td', 'small');
       var have = afterList(x.after_target);
       if (!have.length) { cell.appendChild(el('span', 'muted', 'every deployment')); return cell; }
-      if (have.indexOf('-') >= 0) { cell.appendChild(el('span', 'muted', 'no deployment - by its schedule only')); return cell; }
+      if (have.indexOf('-') >= 0) {
+        /* the regular runs off (1.0.78): nothing runs it - said so, not "by its schedule" */
+        cell.appendChild(el('span', CK_AUTO === false ? 'ct-badtext' : 'muted', CK_AUTO === false ? 'no deployment - and the regular runs are off: not run' : 'no deployment - by its schedule only'));
+        return cell;
+      }
       cell.appendChild(data('span', '', have.join(', ')));
       if (have.some(function (t) { return targets.indexOf(t) < 0; })) cell.appendChild(el('div', 'ct-rowerr', 'not deployed there any more'));
       return cell;

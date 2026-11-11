@@ -1241,3 +1241,17 @@ table.ct-issued td:nth-child(2){min-width:210px;max-width:250px;white-space:norm
 .tt-ask{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin:-2px 0 2px;border-radius:12px;
   border:1px solid color-mix(in srgb,var(--crit,#f85149) 45%,var(--line));background:color-mix(in srgb,var(--crit,#f85149) 8%,var(--panel));font-size:12.5px}
 .tt-ask span{flex:1 1 260px}
+
+/* A phone (1.0.78): the tests of a target in rows that wrap; facts tables whose values have
+   room (an address went a letter a line, a value of the certificate was cut off) */
+@media (max-width: 640px) {
+  .tt-row{flex-wrap:wrap;row-gap:8px}
+  .tt-row-w{flex:1 1 calc(100% - 60px)}
+  .tt-row-w b{overflow-wrap:anywhere}
+  .tt-row .tag{margin-left:46px}
+  .tt-after{white-space:normal;border-radius:8px}
+  table.plain.tight{table-layout:fixed;width:100%}
+  table.plain.tight td:first-child{width:38%}
+  table.plain.tight td{overflow-wrap:anywhere;word-break:break-word}
+  table.plain.tight td .mono, table.plain.tight td.mono{white-space:normal;overflow-wrap:anywhere}
+}

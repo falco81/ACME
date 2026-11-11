@@ -53,6 +53,14 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     off;
   - `--node` with a node not heard of waited 90 s and said "no answer" (said at once now);
   - the local target failed every deployment when the place of its copy was a link.
+  - the page: a job of tests titled "check #N" in English; the tests' events (saved, attached,
+    taken off), a test's note made from a deployment and the deployments' new file lines in
+    English; a test without *Connect to* shown as "its first name:443"; the chart's note half in
+    English after a reload; a test switched off and on again for a target no longer "after every
+    deployment"; "on its schedule only" said while the regular runs are off (nothing runs it -
+    said so now); the names of the copies cut off in their list (shorter now); *Make a test in
+    Tests…* a link among buttons; on a phone the tests of a target overlapped and the facts of a
+    target or certificate went a letter a line or were cut off.
 
 ## 1.0.77 - 2026-11-11
 - **Check what is served is a test now**: a deployment's window has *What it serves - tests*

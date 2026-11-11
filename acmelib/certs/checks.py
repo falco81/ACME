@@ -50,7 +50,8 @@ NOTIFY_EVERY = 6 * 3600
 def row_public(store, r):
     d = dict(r)
     d['last_detail'] = S.jload(r.get('last_detail'), {}) or {}
-    cert = store.db.row('SELECT id, name FROM certs WHERE id = ?', (r['cert_id'],))
+    # its names too (1.0.78): a test without "Connect to" said "its first name:443"
+    cert = store.db.row('SELECT id, name, names FROM certs WHERE id = ?', (r['cert_id'],))
     d['cert'] = cert['name'] if cert else '?'
     trow = S.plugin_row(store, 'check', r['test'])
     cls = S.row_class('check', trow) if trow else None

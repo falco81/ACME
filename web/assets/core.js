@@ -20,6 +20,12 @@ function known(v) {
     if (v && typeof I18N !== 'undefined' && I18N.exact && typeof i18nFold === 'function') {
       var t = I18N.exact.get(i18nFold(String(v)));
       if (t) return t;
+      /* a sentence acme wrote with a name in it (1.0.78: "what web01 serves (made from its
+         deployment)") - by a pattern; a word or two is a name, never translated */
+      if (/\S+\s+\S+\s+\S+\s+\S+/.test(String(v)) && typeof i18nText === 'function') {
+        var p = i18nText(String(v));
+        if (p) return p;
+      }
     }
   } catch (e) { /* as it is */ }
   return v;
