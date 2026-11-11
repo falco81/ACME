@@ -551,6 +551,12 @@ certificates only in an audit report written to S3), `selfsigned`.
 
 ## Deploying
 
+A deployment can be switched off for its certificate alone (1.0.76): the certificate's window →
+Deployments → the power button of the row. It is kept with its options, and the certificate is
+not put on that target until it is on again. The target itself, and every other certificate
+deployed on it, go on as before. Switching the whole target off (Targets) stops all of them.
+*Deploy it there again now* still deploys a switched-off one, because it was asked for.
+
 For each deployment, the target's module is handed a `Bundle` (the
 certificate in every format a device may want: PEM, DER, PKCS#8/PKCS#1,
 chain, fullchain, combined, P7B, PFX/P12, legacy P12, JKS) and the

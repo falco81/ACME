@@ -5,6 +5,10 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.76 - not released
+- A certificate's deployments: a switch for each - *Switch it off here* - as each of its
+  tests has one. It concerns only this certificate on that target: kept with its options, and
+  not deployed there until it is on again. The target and its other certificates go on as
+  before.
 - Tests: **each test chooses its connector itself** - *More → Through a connector*, as a
   target does. It is then connected from that server (`ssh -W`). The tests' connector is now
   called *Connector over SSH*; its old list *Tests run from there* moved under More and still

@@ -2631,6 +2631,9 @@ function deployTable(rows, o) {
       stc.appendChild(off);
       tr.classList.add('ct-depoff');
     }
+    /* Switched off for this certificate only (1.0.76) - the tag says "switched off": kept with
+       its options, the certificate not put there until it is on again. */
+    if (d.enabled === 0) tr.classList.add('ct-depoff');
     tr.appendChild(stc);
     tr.appendChild(td('num', d.deployed_version ? 'v' + d.deployed_version : '–'));
     tr.appendChild(d.last_ok ? stampCell(d.last_ok) : td('muted', d.last_try ? 'last tried ' + ago(d.last_try) : 'never'));
@@ -2661,6 +2664,25 @@ function deployTable(rows, o) {
           .catch(fail).then(function () { busy(run, false); });
       };
       tools.appendChild(run);
+      var sw = iconButton('power', d.enabled === 0 ? 'Switch it on here' : 'Switch it off here');
+      sw.onclick = function (ev) {
+        ev.stopPropagation();
+        busy(sw, true);
+        var on = d.enabled === 0;
+        capi('deploys/save', {id: d.id, enabled: on}).then(function () {
+          toast(on ? 'switched on - it is deployed there again from the next renewal' : 'switched off - kept, not deployed there until it is on again', 'good');
+          /* the row as it is now, in place: only this certificate on this target */
+          d.enabled = on ? 1 : 0;
+          tr.classList.toggle('ct-depoff', !on);
+          var tag = stc.querySelector('.tag');
+          if (tag) stc.replaceChild(deployTag(d, (o.cert && o.cert.version) || d.cert_version), tag);
+          var w = on ? 'Switch it off here' : 'Switch it on here';
+          sw.title = w;
+          sw.setAttribute('aria-label', w);
+          CT.refresh();
+        }).catch(fail).then(function () { busy(sw, false); });
+      };
+      tools.appendChild(sw);
       var ed = iconButton('edit', 'The options of this deployment');
       ed.onclick = function (ev) { ev.stopPropagation(); over(function () { deployEdit({deploy: d, cert: o.cert, target: o.target}); }, o.back); };
       tools.appendChild(ed);

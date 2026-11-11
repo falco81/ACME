@@ -55327,6 +55327,14 @@
   "tt_2": {
    "source": "Tests through it",
    "text": "Testů přes něj"
+  },
+  "dp_1": {
+   "source": "switched on - it is deployed there again from the next renewal",
+   "text": "zapnuto – od příštího obnovení se tam opět nasazuje"
+  },
+  "dp_2": {
+   "source": "switched off - kept, not deployed there until it is on again",
+   "text": "vypnuto – zůstává uložené, ale nenasazuje se tam, dokud ho znovu nezapnete"
   }
  },
  "patterns": {
