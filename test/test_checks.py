@@ -387,6 +387,12 @@ class TestRuns(Base):
             C.after(STORE, i, '', 'test')                 # any again
             job.steps = []
             self.assertTrue(C.after_deploy(STORE, job, self.cid, {'rpki3'}))
+            # switched off as a test (not only for this certificate): not run after a deployment
+            tname = STORE.db.row('SELECT test FROM cert_checks WHERE id = ?', (i,))['test']
+            STORE.db.run('UPDATE cert_tests SET enabled = 0 WHERE name = ?', (tname,))
+            job.steps = []
+            self.assertIsNone(C.after_deploy(STORE, job, self.cid, {'rpki3'}))
+            STORE.db.run('UPDATE cert_tests SET enabled = 1 WHERE name = ?', (tname,))
         finally:
             C.AFTER_DEPLOY_TRIES = old
             STORE.db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (self.cid,))

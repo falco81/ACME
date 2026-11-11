@@ -5,6 +5,9 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.76 - not released
+- Tests: a test switched off on Tests (for every certificate) no longer runs after a
+  deployment. Before, only its switch on the certificate was looked at there; the tests run by
+  themselves already looked at both.
 - A certificate's deployments: a switch for each - *Switch it off here* - as each of its
   tests has one. It concerns only this certificate on that target: kept with its options, and
   not deployed there until it is on again. The target and its other certificates go on as

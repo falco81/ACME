@@ -746,8 +746,11 @@ def after_deploy(store, job, cert_id, targets=None):
     the targets just deployed on (None: every test, as before)."""
     if not E.CONFIG.get('certs_checks_after_deploy', 1):
         return None
-    tests = store.db.rows('SELECT * FROM cert_checks WHERE cert_id = ? AND '
-                          'COALESCE(enabled, 1) <> 0 ORDER BY position, id', (int(cert_id),))
+    # switched off for this certificate (cert_checks) or as a test (cert_tests, 1.0.76: it ran
+    # after a deployment all the same; the tests by themselves never did)
+    tests = store.db.rows('SELECT c.* FROM cert_checks c LEFT JOIN cert_tests t ON t.name = c.test '
+                          'WHERE c.cert_id = ? AND COALESCE(c.enabled, 1) <> 0 AND '
+                          'COALESCE(t.enabled, 1) <> 0 ORDER BY c.position, c.id', (int(cert_id),))
     tests = [t for t in tests if AFTER_NONE not in after_list(t.get('after_target'))]
     if targets is not None:
         tests = [t for t in tests if not after_list(t.get('after_target')) or
