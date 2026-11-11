@@ -899,7 +899,10 @@ class CpanelSslTest(unittest.TestCase):
         got = []
 
         def install(call):
-            got.append(call['query'])
+            # a POST form (1.0.79): the key out of the address WHM's access log keeps
+            self.assertNotIn('key=', call['url'])
+            got.append(urllib.parse.parse_qs(call['body'].decode()
+                                             if isinstance(call['body'], bytes) else call['body']))
             return 200, {'metadata': {'result': 1, 'reason': 'OK'},
                          'data': {'status': 1, 'message': 'installed'}}
         ctx = FakeCtx([
@@ -907,7 +910,7 @@ class CpanelSslTest(unittest.TestCase):
              (200, {'metadata': {'result': 1}, 'data': {'vhosts': [
                  {'servername': 'www.example.test', 'domains': ['www.example.test'],
                   'crt': {'not_after': 5}}]}})),
-            ('GET', r'^https://whm\.test:2087/json-api/installssl\?', install)])
+            ('POST', r'^https://whm\.test:2087/json-api/installssl$', install)])
         t = make('cpanel_ssl', {'host': 'whm.test', 'api': 'whm', 'user': 'root',
                                 'token': 'T'}, ctx)
         t.deploy(self.a, {'domain': 'www.example.test'})

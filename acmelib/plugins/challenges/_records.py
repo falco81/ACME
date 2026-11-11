@@ -113,14 +113,19 @@ class RecordApiDns(ApiDns):
         ours = self._ours(zone, fqdn, value)
         # the one made, by its id, too (1.0.79): a listing that does not show it (past a page,
         # not yet visible) left it behind
-        if h.get('id') and h['id'] not in ours:
-            ours.append(h['id'])
         for rid in ours:
             try:
                 self.delete_txt(zone, D.norm(fqdn), rid, value)
             except PluginError as e:
                 if '404' not in str(e):
                     raise
+        if h.get('id') and h['id'] not in ours:
+            # not listed: most likely gone already - tried, and quiet if it is (a provider says
+            # "not found" in its own words, or not at all)
+            try:
+                self.delete_txt(zone, D.norm(fqdn), h['id'], value)
+            except Exception as e:                      # noqa: BLE001
+                self.ctx.debug('the record %s is not there to delete: %s' % (h['id'], e))
 
 
 ZONE_HELP = ('Load the list and pick it, or type it. Empty: the longest zone of the account '
