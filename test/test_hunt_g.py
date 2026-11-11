@@ -84,6 +84,44 @@ class Targets(unittest.TestCase):
         self.assertIn("('UID', 'uid')", src)
 
 
+class CommandLine(unittest.TestCase):
+    def acme(self, *argv):
+        import subprocess
+        env = dict(os.environ)
+        r = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py')] + list(argv),
+                           capture_output=True, text=True, env=env, stdin=subprocess.DEVNULL,
+                           timeout=120)
+        return r.returncode, r.stdout + r.stderr
+
+    def test_secrets_of_modules_not_written_out(self):
+        for body in ('{"action":"save","directory":{"name":"x","bind_pw":"H"}}',):
+            rc, said = self.acme('--api', 'POST', '/api/directories', body)
+            self.assertNotEqual(rc, 0)
+            self.assertIn('bind_pw', said)
+        rc, said = self.acme('--api', 'POST', '/api/sources/save',
+                             '{"name":"L","kind":"acme","config":{"eab_hmac":"S"}}')
+        self.assertIn('eab_hmac', said)
+
+    def test_set_with_another_option_refused(self):
+        rc, said = self.acme('--local-policy', '--set', 'site_name=Y')
+        self.assertNotEqual(rc, 0)
+        self.assertIn('--set goes on its own', said)
+
+    def test_empty_value_and_lone_option(self):
+        rc, said = self.acme('--cert-del', '')
+        self.assertIn('needs a value', said)
+        rc, said = self.acme('--hosts', 'x')
+        self.assertIn('asks for nothing alone', said)
+        self.assertLess(len(said), 400)
+        rc, said = self.acme('--limit', '40')
+        self.assertIn('alone asks for nothing', said)
+
+    def test_download_through_api_refused(self):
+        rc, said = self.acme('--api', 'GET', '/api/db/download')
+        self.assertIn('hands a file', said)
+        self.assertNotIn('Traceback', said)
+
+
 class Privacy(unittest.TestCase):
     def test_portal_code_event_masked(self):
         src = src_of('acmelib/engine/390_the_portal_sign_in.py')

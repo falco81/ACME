@@ -99,6 +99,9 @@ def cli(c):
             got = N.save_set(store, _fields(a, base), by)
             return c.done('the DNS set %s was changed' % got['name'], {'ok': True, 'set': got})
         if a.dns_set_del:
+            if not [x for x in N.sets(store) if str(x.get('name')).lower() ==
+                    str(a.dns_set_del).lower()]:        # said before it is asked (1.0.79)
+                raise SystemExit('acme: there is no DNS set %s' % a.dns_set_del)
             c.sure('delete the DNS set %s' % a.dns_set_del)
             got = N.delete_set(store, a.dns_set_del, by)
             return c.done('the DNS set %s was deleted%s' % (

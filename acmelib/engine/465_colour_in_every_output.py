@@ -181,6 +181,10 @@ def cli_api(daemon, who, method, path, body=None, args=None):
     fn = ROUTES.get((method, path))
     if not fn:
         raise SystemExit('acme: the pages have no %s %s' % (method, path))
+    if path in ('/api/db/download', '/api/rbackup/download'):
+        # a file, not an answer (1.0.79): it raised half way, its "downloaded" event written
+        raise SystemExit('acme: %s hands a file to a browser - here: acme --backup (a copy '
+                         'made now, its path said) or acme --backup-info FILE' % path)
     h = CliApiHandler(daemon, who, body, args, path)
     try:
         return fn(h)
@@ -2515,6 +2519,12 @@ def cli_main(argv=None):
     global TABLE_PAL
     TABLE_PAL = pal
     args = parser.parse_args(argv)
+    # numbers outside their range said, not taken (1.0.79): -1 was "off", nan hours went by
+    if getattr(args, 'tls_hsts', None) is not None and not 0 <= args.tls_hsts <= 63072000:
+        raise SystemExit('acme: --tls-hsts: 0 (none) to 63072000 seconds (two years)')
+    h_ = getattr(args, 'hours', None)
+    if h_ is not None and not (h_ == h_ and 0 < h_ <= 24 * 3660):
+        raise SystemExit('acme: --hours: a number of hours above 0')
     # An option that names something given an empty name (1.0.77): it fell through to the help
     # with exit 2, nothing said about why.
     for dest in ('hand_done', 'mail_test', 'sms_test', 'del_user', 'disable_user', 'reset_2fa',
@@ -2522,6 +2532,26 @@ def cli_main(argv=None):
         v = getattr(args, dest, None)
         if isinstance(v, str) and not v.strip():
             raise SystemExit('acme: --%s needs a value, not an empty one' % dest.replace('_', '-'))
+    # ...and every other one (1.0.79): an empty value typed ("" or --x=) is refused, but for
+    # the few where empty means "take it away"
+    may_be_empty = {'--note', '--tags', '--owner', '--description', '--contact', '--mail',
+                    '--mobile', '--set', '--get', '--suffix', '--proxy-test', '--node'}
+    # (the first option only - the one that says what is asked; after it an empty one may
+    # mean "none", as the console sends --issuer '')
+    for i, tok in enumerate(said):
+        if tok == '--':
+            break
+        if not tok.startswith('--') or tok.partition('=')[0] in (
+                '--no-color', '--no-colour', '--json', '--debug', '--yes'):
+            continue
+        opt, eq, val = tok.partition('=')
+        empty = (eq and not val.strip()) or (not eq and i + 1 < len(said) and
+                                               not said[i + 1].strip())
+        if empty and opt not in may_be_empty and opt in parser._option_string_actions:
+            act = parser._option_string_actions[opt]
+            if act.nargs != 0 and not isinstance(act.const, str):
+                raise SystemExit('acme: %s needs a value, not an empty one' % opt)
+        break
     # Every line coloured (1.0.132) - not the console's own screen, nor JSON.
     # On a terminal always: what is printed is made safe there (1.0.139).
     if (pal.on or sys.stdout.isatty()) and not args.console and not args.json and \
@@ -2529,6 +2559,9 @@ def cli_main(argv=None):
         sys.stdout = ColourOut(sys.stdout, pal)
     if args.help:
         sys.stdout.write(parser.format_help())
+        return 0
+    if args.version and args.json:
+        print(json.dumps({'version': __version__}))
         return 0
     if args.version:
         print('%s %s%s' % (pal.head('acme'), pal.bold(__version__), '' if HAVE_COLORAMA
@@ -2556,6 +2589,18 @@ def cli_main(argv=None):
                              'suffix'))
     if args.daemon:
         return run_daemon()
+    # --set with another option (1.0.79): the other ran and the settings were dropped, exit 0
+    try:
+        from acmelib.certs.cli import asked as _certs_asked
+    except Exception:                                   # noqa: BLE001
+        _certs_asked = None
+    if args.set and not (_certs_asked and _certs_asked(args)):
+        others = [k for k, v in vars(args).items()
+                  if k not in ('set', 'node', 'yes', 'json', 'debug', 'no_color', 'config')
+                  and v != parser.get_default(k) and v != []]
+        if others:
+            raise SystemExit('acme: --set goes on its own - not with --%s (nothing was done)'
+                             % others[0].replace('_', '-'))
     for fn in HOOKS['cli_run']:
         got = fn(args)
         if got is not None:
@@ -2587,6 +2632,13 @@ def cli_main(argv=None):
         # the foreground, as "nothing asked".
         raise SystemExit('acme: --%s alone asks for nothing - it goes with another option '
                          '(acme --help)' % mods[0].replace('_', '-'))
+    typed = [t.partition('=')[0] for t in said if t.startswith('--') and t.partition('=')[0]
+             not in ('--no-color', '--no-colour', '--json', '--debug', '--config')]
+    if not acted and typed:
+        # Given at its default value (1.0.79): "--limit 40", "--reboot ask" from a script were
+        # "nothing asked" - the daemon in the foreground
+        raise SystemExit('acme: %s alone asks for nothing - it goes with another option '
+                         '(acme --help)' % typed[0])
     if not acted:
         # Nothing asked for. Under systemd (or anything else that is not a
         # person at a terminal) that is the daemon, as it always was; typed by
@@ -2916,6 +2968,8 @@ def cli_main(argv=None):
             raise SystemExit('acme: an upgrade is going on - acme --upgrade-follow')
         want = args.downgrade
         is_file = want.endswith(('.tar.gz', '.tgz')) or os.path.sep in want
+        if is_file and not os.path.isfile(want):       # before "go back?" (1.0.79)
+            raise SystemExit('acme: there is no file %s' % want)
         if not is_file:
             why = downgrade_why_not(store, want)
             if why:
@@ -3068,10 +3122,14 @@ def cli_main(argv=None):
     if args.status or args.check:
         d = Daemon(store, serve=False)
         s = d.status()
+        # the port it runs on (1.0.79): a new api_port is taken at its next start only
+        try:
+            port_now = int((RUN_DIR / 'api-port').read_text().strip())
+        except (OSError, ValueError):
+            port_now = int(CONFIG.get('api_port') or 9861)
         try:
             import urllib.request
-            req = urllib.request.Request('http://127.0.0.1:%d/api/health'
-                                         % int(CONFIG.get('api_port') or 9861))
+            req = urllib.request.Request('http://127.0.0.1:%d/api/health' % port_now)
             with url_open(req, timeout=3) as r:
                 alive = json.loads(r.read().decode()).get('ok')
         except Exception:
@@ -3087,16 +3145,18 @@ def cli_main(argv=None):
                 rc = cli_main(words + ['--no-color'])
             lines = [re.sub(r'\x1b\[[0-9;]*m', '', x).rstrip() for x in buf.getvalue().split('\n')
                      if x.strip()]
-            out(dict(s, check={'ok': not rc, 'exit': rc or 0, 'lines': lines}))
+            out(dict(s, ok=not rc, check={'ok': not rc, 'exit': rc or 0, 'lines': lines}))
             return rc or 0
         if args.json:
-            # The same exit code as the text (1.0.207): 0 with the daemon down.
-            out(s)
-            return 0 if alive and not s['problems'] else 1
+            # The same exit code as the text (1.0.207): 0 with the daemon down - and "ok" the
+            # same as it (1.0.79), not true beside exit 1
+            rc = 0 if alive and not s['problems'] else 1
+            out(dict(s, ok=not rc))
+            return rc
         print(pal.head('acme %s on %s' % (__version__, s['host'])) + '  ' +
               pal.dim('- ' + ACME_WHAT))
         print((pal.ok_line if alive else pal.bad_line)(
-            'the daemon %s' % ('answers on 127.0.0.1:%s' % CONFIG.get('api_port') if alive
+            'the daemon %s' % ('answers on 127.0.0.1:%s' % port_now if alive
                                else 'is not answering - systemctl status acme')))
         print(pal.ok_line('the database: %s (%s)' % (store.db.where(), store.db.version())))
         # The cluster, in one line: the nodes heard from, the replication.
@@ -3432,7 +3492,16 @@ def cli_main(argv=None):
             # with --node '*' (1.0.187), as the pages can: it was this node's only.
             said = d.save_settings(want, by=who, node=args.node or None)
         except (BadSetting, OSError) as e:
+            # how to do it here (1.0.79): the secret in the same command
+            pair = [sk for sk, where in SECRET_GOES_TO.items()
+                    if sk not in want and any(k in want for k in where)]
+            if pair and 'again' in str(e):
+                raise SystemExit('acme: %s - in the same command: --set %s=- (asks for it, '
+                                 'or reads it from stdin)' % (e, pair[0]))
             raise SystemExit('acme: %s' % e)
+        if args.json:
+            print(json.dumps({'ok': True, 'message': said['message'], 'saved': sorted(want)}))
+            return 0
         print(pal.ok_line(said['message']))
         return 0
 
@@ -3761,7 +3830,12 @@ def cli_main(argv=None):
         return 0
 
     if args.tidy:
-        print(pal.ok_line('tidied: %s' % store.tidy()))
+        got = store.tidy()
+        if args.json:                               # 1.0.79: it was a Python dict printed
+            out(got if isinstance(got, dict) else {'tidied': got})
+            return 0
+        print(pal.ok_line('tidied: %s' % (', '.join('%s %s' % kv for kv in sorted(
+            got.items())) if isinstance(got, dict) else got)))
         return 0
 
     # ---- what the pages do, here too (1.0.187) -------------------------------------------
@@ -3957,6 +4031,11 @@ def cli_main(argv=None):
         return 0
 
     if args.ssh_token_del:
+        try:                                        # said before it is asked (1.0.79)
+            if not sshotp_get(store, sshotp_name(args.ssh_token_del)):
+                raise SystemExit('acme: %s has no SSH token' % args.ssh_token_del)
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
         cli_sure(args, 'the SSH token of %s is taken away' % args.ssh_token_del)
         try:
             sshotp_remove(store, args.ssh_token_del, who)
@@ -4198,7 +4277,19 @@ def cli_main(argv=None):
                         yield from keys(v)
             # A setting known not to be one is not taken for a secret (1.0.207):
             # acme_key, acme_account_key were refused.
-            secretish = [k for k in keys(body) if k in SECRET_KEYS or (re.search(
+            # ...and every field a module or a directory keeps sealed (1.0.79): bind_pw,
+            # eab_hmac, service_account, sas, pat... went through by their names
+            try:
+                from acmelib.certs.store import registry as _registry
+                sealed = {f['key'] for fam in _registry().all().values()
+                          for c in fam.values() for f in (
+                    list(getattr(c, 'fields', None) or []) +
+                    list(getattr(c, 'deploy_fields', None) or []))
+                    if isinstance(f, dict) and (f.get('type') == 'secret' or f.get('secret'))}
+            except Exception:                           # noqa: BLE001
+                sealed = set()
+            sealed |= {'bind_pw', 'given_hmac', 'pair_code', 'hmac', 'enroll_code'}
+            secretish = [k for k in keys(body) if k in SECRET_KEYS or k in sealed or (re.search(
                 r'pass|secret|token|key|pin', k, re.I) and not (k in DEFAULTS and k not in
                                                                 SECRET_KEYS))]
             if args.api[2] != '-' and secretish:
@@ -4275,7 +4366,17 @@ def cli_main(argv=None):
                 print(pal.ok_line('%s: sent (%d)' % (t, st['sent'].get(t, 0))))
         return 1 if st['trouble'] or unsent else 0     # trouble said is a failure (1.0.205)
 
-    build_parser().print_help()
+    # Something given that no branch took (1.0.79): an option that goes with another, given
+    # alone - the whole help (700 lines) was printed with no word of why.
+    parser = build_parser()
+    given = ['--' + k.replace('_', '-') for k, v in sorted(vars(args).items())
+             if k not in ('no_color', 'json', 'debug', 'config')
+             and v != parser.get_default(k) and v != []]
+    if given:
+        sys.stderr.write('acme: %s asks for nothing alone - it goes with another option '
+                         '(acme --help)\n' % ' '.join(given[:4]))
+        return 2
+    parser.print_help()
     return 2
 
 

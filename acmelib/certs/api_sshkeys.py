@@ -993,6 +993,10 @@ def cli(c, family, words):
         c.sure('forget the SSH key of %s' % name)
         return c.done('the key is gone', do_forget(store, b, by))
     if what in ('public', 'private'):
+        if what == 'private' and not c.args.out:
+            # as --export key-pem (1.0.79): a private key not printed to a screen unasked
+            raise SystemExit('acme: the private key is written with --out FILE (0600), or '
+                             '--out - to print it')
         b['half'] = what
         try:
             got = do_download(store, b, {'name': by, 'role': 'fulladmin'})

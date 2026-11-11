@@ -190,6 +190,8 @@ class Daemon(object):
                      str((changes or {})[k]).strip() != str(CONFIG.get(k) if CONFIG.get(k) is not None
                                                             else '').strip()]
             if moved:
+                for k in moved:             # a wrong value said as such first (1.0.79)
+                    check_setting(k, changes[k])
                 raise BadSetting('%s changed: type %s again' % (
                     ', '.join(moved), str(NAMES.get(secret_key, secret_key)).lower()))
         for key, value in (changes or {}).items():

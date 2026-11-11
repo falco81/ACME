@@ -170,6 +170,8 @@ def cli(c):
                                                  'name': a.name or have['name']}), by)
             return c.done('the owner %s was changed' % got['name'], {'ok': True, 'team': got})
         if a.team_del:
+            if not T.team_get(store, a.team_del):      # said before it is asked (1.0.79)
+                raise SystemExit('acme: there is no owner %s' % a.team_del)
             c.sure('delete the owner %s' % a.team_del)
             got = T.delete_team(store, a.team_del, by, reassign=a.reassign)
             return c.done('the owner %s was deleted%s' % (got['deleted'], (
@@ -180,6 +182,8 @@ def cli(c):
                                      'description': getattr(a, 'note', None) or ''}, by)
             return c.done('the tag %s was added' % got['name'], {'ok': True, 'tag': got})
         if a.tag_del:
+            if not T.tag_get(store, a.tag_del):
+                raise SystemExit('acme: there is no tag %s' % a.tag_del)
             c.sure('delete the tag %s' % a.tag_del)
             got = T.delete_tag(store, a.tag_del, by, strip=bool(a.strip))
             return c.done('the tag %s was deleted' % got['deleted'], got)

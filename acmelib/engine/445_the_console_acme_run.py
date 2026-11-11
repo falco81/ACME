@@ -1825,9 +1825,33 @@ class Console(object):
                 err = str(e)
                 continue
             # A secret goes by the environment, not the command line (1.0.136).
-            env = {'ACME_VALUE_' + key.upper(): value} if secret else None
+            env = {'ACME_VALUE_' + key.upper(): value} if secret else {}
+            extra = []
+            # The server of a secret kept (1.0.79): its password asked here, in the same
+            # window, and saved with it - one --set at a time could never change it.
+            pair = [sk for sk, where in SECRET_GOES_TO.items() if key in where and
+                    CONFIG.get(sk)]
+            if pair and str(value).strip() != str(CONFIG.get(key) if CONFIG.get(key)
+                                                  is not None else '').strip():
+                sk = pair[0]
+                word = str(NAMES.get(sk, sk)).lower()
+                try:
+                    win.addnstr(wh - 2, 2, ('it goes to the new server only with %s typed '
+                                            'again' % word)[:ww - 4].ljust(ww - 4), ww - 4,
+                                A['dim'])
+                except c.error:
+                    pass
+                pw = self._line_in(min(y + 1, wh - 3), 'again: ', '', secret=True, win=win,
+                                   x=2, width=ww - 14)
+                if pw is None:
+                    return None
+                if not pw:
+                    err = 'type %s again - it goes to the new server with it' % word
+                    continue
+                env['ACME_VALUE_' + sk.upper()] = pw
+                extra = ['--set', '%s=@env' % sk]
             out, rc = self.capture(acme_argv(self.me) + ['--set', '%s=%s' % (
-                key, '@env' if secret else value), '--no-color'], env=env)
+                key, '@env' if secret else value)] + extra + ['--no-color'], env=env or None)
             if rc != 0:
                 err = (out.strip().splitlines() or ['it was not saved'])[-1]
                 continue
@@ -3059,8 +3083,8 @@ class Console(object):
                 '$ systemctl status acme')),
             ('2', 'Restart it', restart),
             ('3', 'The pages (nginx, PHP)', lambda: self.act_argv(
-                ['systemctl', 'status', 'nginx', 'php-fpm', '--no-pager', '-n', '5'],
-                '$ systemctl status nginx php-fpm')),
+                ['systemctl', 'status', 'nginx'] + php_fpm_units() + ['--no-pager', '-n', '5'],
+                '$ systemctl status nginx %s' % ' '.join(php_fpm_units()))),
             ('4', 'Its journal, live', self.journal, 'plain'),
             ('5', 'The console at login: on or off', at_login),
             ('6', 'The console at login: for normal users too', at_login_users),
@@ -3152,3 +3176,21 @@ def console_at_login_set(on, users=None):
     return said
 
 
+
+
+def php_fpm_units():
+    """The PHP-FPM units of this machine, as install.sh finds them (1.0.79): php-fpm on
+    RHEL, php8.x-fpm on Debian and Ubuntu - "php-fpm" was not found there."""
+    found = []
+    try:
+        r = subprocess.run(['systemctl', 'list-unit-files', '--no-legend', 'php*-fpm.service'],
+                           capture_output=True, text=True, timeout=10)
+        for ln in (r.stdout or '').splitlines():
+            u = (ln.split() or [''])[0]
+            if u.endswith('.service'):
+                u = u[:-8]
+            if re.match(r'^php[0-9.]*-fpm$', u) and u not in found:
+                found.append(u)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return found or ['php-fpm']

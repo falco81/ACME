@@ -567,12 +567,28 @@ def cert_edit(con, r):
         {'key': 'note', 'label': 'note', 'value': one.get('note') or ''}])
     if not got:
         return
-    args = ['--cert-edit', r['name'], '--names', got['names'], '--issuer', got['issuer'],
-            '--challenge', got['challenge'], '--key-type', got['key_type'],
-            '--set', 'auto_renew=%s' % got['auto_renew'],
-            '--set', 'renew_days=%s' % (got['renew_days'] or '0'),
-            '--set', 'reuse_key=%s' % got['reuse_key'], '--set', 'owner=%s' % got['owner'],
-            '--set', 'tags=%s' % got['tags'], '--set', 'note=%s' % got['note']]
+    # only what was changed (1.0.79): every field sent made the event "changed: auto_renew,
+    # challenge, issuer, ..." for a note
+    def norm(v):
+        return re.sub(r'\s*,\s*', ',', str(v if v is not None else '').strip())
+    was = {'names': ', '.join(one.get('names') or []), 'issuer': one.get('issuer') or '',
+           'challenge': one.get('challenge') or '', 'key_type': one.get('key_type') or 'ec-256',
+           'auto_renew': '1' if one.get('auto_renew') else '0',
+           'renew_days': str(one.get('renew_days') or '0'),
+           'reuse_key': '1' if one.get('reuse_key') else '0', 'owner': one.get('owner') or '',
+           'tags': ', '.join(one.get('tags') or []), 'note': one.get('note') or ''}
+    now = dict(got, renew_days=got.get('renew_days') or '0')
+    args = ['--cert-edit', r['name']]
+    for k, opt in (('names', '--names'), ('issuer', '--issuer'), ('challenge', '--challenge'),
+                   ('key_type', '--key-type')):
+        if norm(now.get(k)) != norm(was[k]):
+            args += [opt, now.get(k) or '']
+    for k in ('auto_renew', 'renew_days', 'reuse_key', 'owner', 'tags', 'note'):
+        if norm(now.get(k)) != norm(was[k]):
+            args += ['--set', '%s=%s' % (k, now.get(k) or '')]
+    if len(args) == 2:
+        con.note('Change ' + r['name'], 'Nothing was changed.')
+        return
     con.act(*args)
 
 

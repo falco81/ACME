@@ -516,6 +516,7 @@ class Cli(object):
     # ---- --set KEY=VALUE against a module's fields ----------------------------------------
     def sets(self):
         """[(key, op, value)] of --set: op '=' '+=' '-='."""
+        self.sets_used = True
         out = []
         for one in self.args.set or []:
             m = re.match(r'^([A-Za-z0-9_.-]{1,80})([+-]?=)(.*)\Z', one, re.S)
@@ -876,8 +877,14 @@ class Cli(object):
                                  CERT_SETS))
         b['id'] = row['id']
         got = self.api('POST', '/api/certs/save', body=b)
-        return self.done('%s changed: %s' % (b.get('name') or row['name'], ', '.join(
+        rc = self.done('%s changed: %s' % (b.get('name') or row['name'], ', '.join(
             sorted(k for k in b if k != 'id'))), got)
+        # new names are on it only once it is issued again (1.0.79): it stayed "ok" without them
+        if any(k in b for k in ('names', 'key_type', 'key_type_alt')) and not self.json \
+                and row.get('cert_pem'):
+            print(self.pal.dim('  the certificate it has keeps what it was issued with - '
+                               'acme --renew %s issues it now' % (b.get('name') or row['name'])))
+        return rc
 
     def cert_del(self):
         row = self.cert_ref(self.args.cert_del)
@@ -2305,4 +2312,11 @@ class Cli(object):
 def run(args):
     if not asked(args):
         return None
-    return Cli(args).run()
+    cli = Cli(args)
+    rc = cli.run()
+    if getattr(args, 'set', None) and not getattr(cli, 'sets_used', False):
+        # --set beside an option that takes none (1.0.79): it was dropped without a word
+        sys.stderr.write('acme: --set does not go with this option - nothing of it was saved '
+                         '(the settings: acme --set KEY=VALUE on its own)\n')
+        return 2
+    return rc
