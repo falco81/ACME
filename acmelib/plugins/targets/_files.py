@@ -11,6 +11,13 @@ tell a program to read them (not a module: the registry skips "_" files).
     drop_previous(t, s, files)       the .acme-prev copies removed (after success)
     ls(t, s, folder)                 the names in a folder
 
+The deployment's two choices of the files (1.0.77), for every target that writes them:
+    same_field() / backup_fields()   "Leave a file that is the same" and "Before replacing"
+    skip_same(options)               on unless switched off
+    backup_mode(options)             'none' | 'bak' | 'dated' | 'daily' (the old bool kept)
+    backup_suffix(mode, when)        what is put after the path of the copy kept
+    prune_posix(path, keep)          the shell that keeps only the newest dated copies
+
 `files` is [{'path', 'data' (bytes), 'mode' (int), 'owner' (or None)}];
 `t` a target with SshMixin (t.sh: through sudo when it says so).
 """
@@ -18,10 +25,83 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+import time
 
-from acmelib.plugins.targets._common import PluginError, quote, text
+from acmelib.plugins.base import field
+from acmelib.plugins.targets._common import PluginError, as_bool, as_int, quote, text
 
 PREV = '.acme-prev'
+BACKUP_MODES = [['bak', 'keep it as .bak (the last one only)'],
+                ['dated', 'keep it with the date and time: file.20261111-153000.bak'],
+                ['daily', 'keep it with the date: file.2026-11-11.bak'],
+                ['none', 'just overwrite it']]
+
+
+def same_field():
+    return field('skip_same', 'Leave a file alone when it is the same (SHA-256)', 'bool',
+                 default=True,
+                 help='each file is compared with the one there by its SHA-256 fingerprint: '
+                      'the same one is not replaced (nor copied aside) and the deployment is '
+                      'still fine. Off: every file is written each time')
+
+
+def backup_fields(default='bak'):
+    return [
+        field('backup', 'Before replacing a file', 'select', default=default,
+              options=BACKUP_MODES, from_bool=['bak', 'none'],
+              help='the one there kept beside it, or just overwritten. Whichever, a failing '
+                   'test or reload puts the previous files back'),
+        field('backup_keep', 'Dated copies kept', 'number', default=5, min=0, advanced=True,
+              help='of each file, the newest so many copies with a date; the older ones are '
+                   'deleted (0: all kept)'),
+    ]
+
+
+def skip_same(options):
+    return as_bool((options or {}).get('skip_same'), True)
+
+
+def backup_mode(options, default='bak'):
+    v = (options or {}).get('backup')
+    if v is None or v == '':
+        return default
+    if isinstance(v, bool) or str(v).strip().lower() in (
+            '0', '1', 'true', 'false', 'yes', 'no', 'on', 'off'):
+        return 'bak' if as_bool(v, True) else 'none'
+    v = str(v).strip().lower()
+    return v if v in ('bak', 'dated', 'daily', 'none') else default
+
+
+def backup_keep(options):
+    return max(0, as_int((options or {}).get('backup_keep'), 5))
+
+
+def backup_suffix(mode, when=None):
+    """After the path of the copy kept: .bak, .20261111-153000.bak, .2026-11-11.bak - or the
+    copy only for putting it back, removed when the deployment went through."""
+    when = time.localtime(when if when is not None else time.time())
+    if mode == 'dated':
+        return '.' + time.strftime('%Y%m%d-%H%M%S', when) + '.bak'
+    if mode == 'daily':
+        return '.' + time.strftime('%Y-%m-%d', when) + '.bak'
+    return '.bak' if mode == 'bak' else PREV
+
+
+DATED_GLOB = '[0-9][0-9][0-9][0-9][0-9-]*.bak'
+
+
+def prune_posix(path, keep):
+    """The shell that deletes the older dated copies of this file, the newest `keep` left."""
+    if not keep:
+        return ''
+    return ('ls -1t -- %s.%s 2>/dev/null | tail -n +%d | while IFS= read -r f; do rm -f -- "$f"; '
+            'done' % (quote(path), DATED_GLOB, int(keep) + 1))
+
+
+def describe_same(t, paths):
+    """The step of the files left as they were."""
+    if paths:
+        t.ctx.step('left as they are, the same SHA-256 there already: %s' % ', '.join(paths), 'ok')
 
 
 def hashes(t, s, paths):

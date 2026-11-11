@@ -30,6 +30,7 @@ from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, lines, as_bool, label_of, stamp,
     parse_outputs, subst, quote, ssh_fields, verify_fields, PFX_FORMATS, alt_of, family_of,
     variants_of, outputs_for, service_of)
+from acmelib.plugins.targets import _files as F
 from acmelib.plugins.targets import _script as SC
 
 
@@ -122,7 +123,7 @@ PRESETS = {
             'kubectl create secret tls {service} --cert=/run/acme-k8s/{name}.crt '
             '--key=/run/acme-k8s/{name}.key --dry-run=client -o yaml | kubectl apply -f -',
             'rm -f /run/acme-k8s/{name}.crt /run/acme-k8s/{name}.key'],
-        'service': 'web-tls', 'backup': False},
+        'service': 'web-tls', 'backup': 'none'},
     'webmin': {
         'title': 'Webmin',
         'outputs': ['combined-pem /etc/webmin/miniserv.pem 0600 root:root',
@@ -222,7 +223,8 @@ class SshTarget(SshMixin, Base):
     ] + SC.password_fields() + [
         field('service', 'Service / container / secret name', 'text', advanced=True,
               help='{service} in the paths and commands'),
-        field('backup', 'Keep the previous files as .bak', 'bool', default=True),
+        F.same_field(),
+    ] + F.backup_fields() + [
     ] + SC.script_fields(INTERPS) + [
         field('pre_cmd', 'Before writing', 'list', advanced=True,
               help='commands run first; one failing stops the deployment'),
@@ -258,7 +260,7 @@ class SshTarget(SshMixin, Base):
         preset = PRESETS.get(options.get('preset') or 'custom') or PRESETS['custom']
         out = {}
         for key in ('outputs', 'test_cmd', 'reload_cmd', 'service', 'jks_alias', 'pfx_password',
-                    'backup'):
+                    'backup', 'skip_same', 'backup_keep'):
             v = options.get(key)
             if key == 'outputs' and preset.get('outputs') and \
                     lines(v) in ([], lines(preset['outputs'])):
@@ -270,7 +272,9 @@ class SshTarget(SshMixin, Base):
             out[key] = v
         for key in ('pre_cmd', 'post_cmd'):
             out[key] = options.get(key)
-        out['backup'] = as_bool(out['backup'], True)
+        out['backup'] = F.backup_mode({'backup': out['backup']})
+        out['skip_same'] = F.skip_same({'skip_same': out['skip_same']})
+        out['backup_keep'] = F.backup_keep({'backup_keep': out['backup_keep']})
         name = label_of(bundle, options)
         cn = label_of(bundle, {'object_name': (list(bundle.names or [name]))[0]})
         alt = alt_of(bundle)
@@ -330,28 +334,43 @@ class SshTarget(SshMixin, Base):
         force = as_bool(options.get('force'))
         tmpdir = (self.c('tmp_dir') or '/tmp').rstrip('/')
         token = secrets.token_hex(6)
-        suffix = '.bak' if r['backup'] else '.acme-prev'
+        mode = r['backup']
+        suffix = F.backup_suffix(mode)
 
         before = self._written(options)
         stale = [p for p in before if p not in {f['path'] for f in files}]
         with self.ssh() as s:
-            if not force and not stale and self._all_same(s, files, datas, bundle, options):
-                return self.same(bundle, 'in every file')
+            # Each file compared with the one there (1.0.77): the same one left alone.
+            same = self._same_files(s, files, datas, bundle, options) \
+                if r['skip_same'] and not force else [False] * len(files)
+            if all(same) and not stale:
+                if self.unchanged(bundle, options):
+                    return self.same(bundle, 'in every file')
+                # The files are there but this deployment did not get through to its reload
+                # (or its commands changed): nothing written, the rest done.
+                self.ctx.step('every file holds it already (the same SHA-256) - none replaced; '
+                              'the commands run all the same', 'ok')
+            todo = [i for i, x in enumerate(same) if not x]
+            F.describe_same(self, [f['path'] for f, x in zip(files, same) if x])
+            wfiles = [files[i] for i in todo]
+            wdatas = [datas[i] for i in todo]
             for c in r['pre_cmd']:
                 self.sh(s, c, what='"%s"' % c)
                 self.ctx.step('ran %s' % c)
             tmps = []
             try:
-                for i, (f, data) in enumerate(zip(files, datas)):
+                for i, data in enumerate(wdatas):
                     tmp = '%s/.acme-%s-%d' % (tmpdir, token, i)
                     s.put(data, tmp, 0o600)
                     tmps.append(tmp)
-                existed = self._install(s, files, tmps, suffix)
-                self.ctx.step('wrote %s' % ', '.join(f['path'] for f in files), 'ok')
+                existed = self._install(s, wfiles, tmps, suffix) if wfiles else []
+                if wfiles:
+                    self.ctx.step('wrote %s%s' % (', '.join(f['path'] for f in wfiles), '' if mode == 'none'
+                                                  else ' (the previous kept as *%s)' % suffix), 'ok')
                 moved = self._stale_aside(s, stale)
                 failed = self._commands(s, r['test_cmd'], 'test')
                 if failed:
-                    self._rollback(s, files, existed, suffix)
+                    self._rollback(s, wfiles, existed, suffix)
                     self._stale_back(s, moved)
                     raise PluginError('the test "%s" failed, the previous files are back: %s'
                                       % failed, retry=False)
@@ -360,7 +379,7 @@ class SshTarget(SshMixin, Base):
                     rc, out, err = SC.run_posix(self, s, r['script'], env, tmpdir)
                     said = SC.tell(self, r['script'], rc, out, err)
                     if rc != 0:
-                        self._rollback(s, files, existed, suffix)
+                        self._rollback(s, wfiles, existed, suffix)
                         self._stale_back(s, moved)
                         raise PluginError('%s failed (exit %s), the previous files are back%s'
                                           % (SC._what(r['script']), rc,
@@ -368,14 +387,12 @@ class SshTarget(SshMixin, Base):
                                              else ''), retry=False)
                 failed = self._commands(s, r['reload_cmd'], 'reload')
                 if failed:
-                    self._rollback(s, files, existed, suffix)
+                    self._rollback(s, wfiles, existed, suffix)
                     self._stale_back(s, moved)
                     self._commands(s, r['reload_cmd'], 'reload with the previous files')
                     raise PluginError('"%s" failed, the previous files are back: %s' % failed)
                 self._stale_gone(s, moved)
-                if not r['backup']:
-                    self.sh(s, 'rm -f ' + ' '.join(quote(f['path'] + suffix) for f in files),
-                            check=False)
+                self._after_backup(s, wfiles, existed, mode, suffix, r['backup_keep'])
                 for c in r['post_cmd']:
                     rc, out, err = self.sh(s, c, check=False)
                     self.ctx.step('ran %s%s' % (c, '' if rc == 0 else ' - failed: %s'
@@ -389,9 +406,41 @@ class SshTarget(SshMixin, Base):
                         pass
         self.remember(bundle, options)
         self._written(options, [f['path'] for f in files])
-        return '%d file%s written on %s%s%s' % (
-            len(files), '' if len(files) == 1 else 's', self.c('host'),
+        kept = len(files) - len(wfiles)
+        return '%d file%s written on %s%s%s%s' % (
+            len(wfiles), '' if len(wfiles) == 1 else 's', self.c('host'),
+            (', %d the same left as %s' % (kept, 'it was' if kept == 1 else 'they were'))
+            if kept else '',
             ', the script ran' if r['script'] else '', ', reloaded' if r['reload_cmd'] else '')
+
+    def _same_files(self, s, files, datas, bundle, options):
+        """[True: the file there holds exactly this already], one a file. PEM and DER are
+        compared by SHA-256; PKCS#12, keystores and p7b differ every time they are made, so
+        they are the same only when this certificate was deployed here as it is now."""
+        want = {f['path']: hashlib.sha256(d).hexdigest() for f, d in zip(files, datas)}
+        have = F.hashes(self, s, list(want))
+        remembered = None
+        out = []
+        for f in files:
+            if f['format'] in PFX_FORMATS or f['format'] == 'p7b':
+                if remembered is None:
+                    remembered = self.unchanged(bundle, options)
+                out.append(bool(remembered) and f['path'] in have)
+            else:
+                out.append(have.get(f['path']) == want[f['path']])
+        return out
+
+    def _after_backup(self, s, files, existed, mode, suffix, keep):
+        """After a deployment that went through: the copies only for putting back removed;
+        of dated ones, the older beyond `keep` deleted."""
+        if not files:
+            return
+        if mode == 'none':
+            self.sh(s, 'rm -f ' + ' '.join(quote(f['path'] + suffix) for f in files), check=False)
+        elif mode in ('dated', 'daily') and keep:
+            script = [F.prune_posix(f['path'], keep) for f, was in zip(files, existed) if was]
+            if script:
+                self.sh(s, '\n'.join(script), check=False)
 
     # -- what it would do: the page's preview, and a test that changes nothing ---------
     def preview(self, bundle, options):
@@ -548,26 +597,6 @@ class SshTarget(SshMixin, Base):
                                            for x in ('.acme-stale', '.bak', '.acme-prev')),
                     check=False)
 
-    def _all_same(self, s, files, datas, bundle, options):
-        """Every text file there already holds exactly this (PEM is the same
-        every time; PKCS#12 and keystores are not, so they ask the memory)."""
-        want = [(f['path'], hashlib.sha256(d).hexdigest()) for f, d in zip(files, datas)
-                if f['format'] not in PFX_FORMATS and f['format'] != 'p7b']
-        if want:
-            rc, out, err = self.sh(s, 'sha256sum %s 2>/dev/null; true'
-                                   % ' '.join(quote(p) for p, _ in want), check=False)
-            have = {}
-            for line in out.splitlines():
-                parts = line.split(None, 1)
-                if len(parts) == 2:
-                    have[parts[1].strip().lstrip('*')] = parts[0].lower()
-            if any(have.get(p) != h for p, h in want):
-                return False
-        # ...and the deployment of this certificate here was done through to its reload (1.0.48):
-        # a drop between the files and the reload left the same files and an old service -
-        # taken as done, it was never reloaded until the next renewal.
-        return self.unchanged(bundle, options)
-
     def _install(self, s, files, tmps, suffix):
         """mkdir -p, the old file copied aside, the new one copied next to its
         place, its mode and owner set, then moved over (rename: atomic).
@@ -613,6 +642,8 @@ class SshTarget(SshMixin, Base):
                 continue
             if was:
                 script.append('cp -p %s %s' % (quote(f['path'] + suffix), p))
+                if suffix == '.acme-prev':      # only for putting back: done with (1.0.77)
+                    script.append('rm -f %s' % quote(f['path'] + suffix))
             else:
                 script.append('rm -f %s' % p)
             script.append('rm -f %s' % quote(f['path'] + '.acme-new'))

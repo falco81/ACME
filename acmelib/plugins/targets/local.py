@@ -16,6 +16,7 @@ import tempfile
 from acmelib.plugins.targets._common import (
     Base, PluginError, field, lines, label_of, stamp, parse_outputs, subst, PFX_FORMATS,
     verify_fields, as_int, as_bool, text, alt_of, family_of, outputs_for, service_of)
+from acmelib.plugins.targets import _files as F
 from acmelib.plugins.targets import _script as SC
 
 INTERPS = ('bash', 'sh', 'python3')
@@ -51,7 +52,8 @@ class LocalTarget(Base):
     ] + SC.password_fields() + [
         field('command', 'Then run', 'text', advanced=True,
               help='one of the commands the target allows'),
-    ] + SC.script_fields(INTERPS) + verify_fields()
+        F.same_field(),
+    ] + F.backup_fields('none') + SC.script_fields(INTERPS) + verify_fields()
     files_ui = SC.files_ui('local', INTERPS, SC.layouts('', 'posix'), owners=False,
                            base='/etc/acme/out')
 
@@ -149,29 +151,46 @@ class LocalTarget(Base):
         sc = self._script(options, vars)
         # Where each file is written (1.0.19): a path already under the folder is
         # the folder's, as _place() takes it - joined again it was never there.
-        if self.unchanged(bundle, options, present=lambda: all(
+        skip = F.skip_same(options) and not as_bool(options.get('force'))
+        if skip and self.unchanged(bundle, options, present=lambda: all(
                 os.path.exists(self._where(base, o['path'])) for o in outs)):
             return self.same(bundle, 'in %s' % base)
         os.makedirs(base, mode=0o750, exist_ok=True)
         datas = self._render(pairs, options, vars)
+        mode = F.backup_mode(options, 'none')
+        suffix = F.backup_suffix(mode)
         before = []                 # (path, the bytes there before or None)
         written = []
+        left = []
         try:
             for (o, b), data in zip(pairs, datas):
                 full = self._place(base, o['path'])
                 try:
                     with open(full, 'rb') as fh:
-                        before.append((full, fh.read()))
+                        had = fh.read()
                 except OSError:
-                    before.append((full, None))
-                self._write(full, data, o['mode'])
+                    had = None
                 written.append((o, full))
-                self.ctx.step('wrote %s' % full)
+                # The same bytes there (1.0.77): PEM and DER only - PKCS#12 and keystores
+                # are new bytes every time, and are written when the certificate is not.
+                if skip and had is not None and had == data and \
+                        o['format'] not in PFX_FORMATS and o['format'] != 'p7b':
+                    left.append(full)
+                    continue
+                before.append((full, had))
+                if had is not None and mode != 'none':
+                    self._keep(full, had, suffix)
+                self._write(full, data, o['mode'])
+                self.ctx.step('wrote %s%s' % (full, '' if had is None or mode == 'none'
+                                              else ' (the previous kept as *%s)' % suffix))
         except Exception:
             # One file refused (outside the folder, a link, the disk full) - 1.0.51: those
             # written before it stayed new, the new chain beside the old key.
             self._put_back(before)
             raise
+        F.describe_same(self, left)
+        if not before:
+            self.ctx.step('every file holds it already (the same SHA-256) - none replaced', 'ok')
         if sc:
             env = SC.env_for(self, bundle, [(dict(o, path=full), b) for (o, full), (_o, b)
                                             in zip(written, pairs)], vars, SC.password_of(options))
@@ -188,10 +207,40 @@ class LocalTarget(Base):
             except Exception:
                 self._put_back(before)          # as when the script fails (1.0.51)
                 raise
+        if mode in ('dated', 'daily'):
+            for full, had in before:
+                if had is not None:
+                    self._prune(full, F.backup_keep(options))
         self.remember(bundle, options)
-        return '%d file%s in %s%s%s' % (len(outs), '' if len(outs) == 1 else 's', base,
-                                         ', the script ran' if sc else '',
-                                         ', ran %s' % cmd if cmd else '')
+        n = len(before)
+        return '%d file%s written in %s%s%s%s' % (
+            n, '' if n == 1 else 's', base,
+            (', %d the same left as %s' % (len(left), 'it was' if len(left) == 1 else 'they were'))
+            if left else '', ', the script ran' if sc else '', ', ran %s' % cmd if cmd else '')
+
+    def _keep(self, full, had, suffix):
+        """The file there kept beside it before it is replaced (not through a link)."""
+        dest = full + suffix
+        if os.path.islink(dest):
+            os.unlink(dest)
+        self._write(dest, had, os.stat(full).st_mode & 0o777)
+
+    def _prune(self, full, keep):
+        if not keep:
+            return
+        folder, name = os.path.split(full)
+        got = []
+        for x in os.listdir(folder):
+            rest = x[len(name) + 1:] if x.startswith(name + '.') else ''
+            if rest.endswith('.bak') and rest[:4].isdigit() and \
+                    set(rest[:-4]) <= set('0123456789-'):
+                got.append(os.path.join(folder, x))
+        got.sort(key=lambda p: os.stat(p).st_mtime, reverse=True)
+        for p in got[keep:]:
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
 
     def _write(self, full, data, mode):
         fd, tmp = tempfile.mkstemp(prefix='.acme-', dir=os.path.dirname(full))

@@ -5,6 +5,22 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.77 - not released
+- Deployments that write files (Linux/Unix over SSH, this machine, Windows over SSH): **a
+  file that already holds the same is left alone** - each one compared with the new one by
+  its SHA-256 first (*Leave a file alone when it is the same (SHA-256)*, on by default, can be
+  switched off to write every file each time). Only the files that differ are replaced; the
+  job says which were left (*left as they are, the same SHA-256 there already*), and the
+  deployment is fine (green) - when every file is the same and acme had deployed it there,
+  nothing is done at all; when the files are the same but the last deployment did not get
+  to its reload, nothing is written and the commands run. Before, one changed file had all of
+  them written again.
+- The same deployments: **Before replacing a file** - *keep it as .bak* (the last one, as
+  before), *keep it with the date and time* (`file.20261111-153000.bak`), *keep it with the
+  date* (`file.2026-11-11.bak`) or *just overwrite it*; *Dated copies kept* (5) deletes the
+  older dated copies. A failing test or reload still puts the previous files back, whichever
+  is chosen. The old switch *Keep the previous files as .bak* is read as the first or the last
+  choice. A temporary `.acme-prev` copy is no longer left behind after the files were put
+  back.
 
 ## 1.0.76 - 2026-11-11
 - Tests: a test switched off on Tests (for every certificate) no longer runs after a

@@ -716,6 +716,8 @@ function fieldForm(fields, values, secrets, opts) {
       input = switchBox(v === undefined ? false : truthy(v));
       get = function () { return !!input._get(); };
     } else if (type === 'select') {
+      /* A choice that was on/off before (1.0.77: backup): its old value as one of the choices. */
+      if (f.from_bool && (typeof v === 'boolean' || ['0', '1', 'true', 'false'].indexOf(String(v)) >= 0)) v = truthy(v) ? f.from_bool[0] : f.from_bool[1];
       var pairs = optionPairs(f);
       if (!f.required && !pairs.some(function (p) { return p[0] === ''; }) && (v === undefined || v === '')) pairs.unshift(['', '–']);
       input = selectBox(pairs, v === undefined ? (pairs[0] ? pairs[0][0] : '') : v);

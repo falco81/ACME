@@ -534,11 +534,15 @@ class DualTargets(unittest.TestCase):
         self.assertEqual(TT.read(d + '/s.rsa.crt'), self.b.alt.fullchain_pem)
         self.assertEqual(TT.read(d + '/s.crt'), self.b.fullchain_pem)
         self.assertTrue(t.deploy(self.b, opts).startswith('unchanged'))
-        # only the twin new: written again
+        # only the twin new: its two files written, the main one's left as they are (1.0.77)
         other = S.bundle_of(S.cert_get(STORE, own_dual('other.example')))
         mixed = S.bundle_of(S.cert_get(STORE, self.cid))
         mixed.alt = other.alt
-        self.assertIn('4 files written', t.deploy(mixed, opts))
+        got = t.deploy(mixed, opts)
+        self.assertIn('2 files written', got)
+        self.assertIn('2 the same left as they were', got)
+        self.assertEqual(TT.read(d + '/s.rsa.crt'), other.alt.fullchain_pem)
+        self.assertIn('4 files written', t.deploy(mixed, dict(opts, skip_same=False)))
 
     def test_stale_files_taken_away(self):
         """Single -> dual -> single: the files acme wrote before and not now go, put

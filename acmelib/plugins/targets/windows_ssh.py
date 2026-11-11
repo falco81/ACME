@@ -14,6 +14,10 @@ from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, lines, as_bool, as_int, object_name, name_prefix,
     ssh_fields, verify_fields, keep_field, sha1_thumb, random_password, text, put_scp,
     label_of, stamp, parse_outputs, outputs_for, alt_of, family_of, PFX_FORMATS)
+import hashlib
+import re
+
+from acmelib.plugins.targets import _files as F
 from acmelib.plugins.targets import _script as SC
 from acmelib.plugins.targets import _win_roles as WR
 
@@ -70,7 +74,8 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
     ] + SC.password_fields() + [
         field('service', 'Service name', 'text', advanced=True,
               help='{service} in the paths, ACME_SERVICE for the script'),
-    ] + SC.script_fields(INTERPS, default='powershell') + WR.role_fields() + verify_fields()
+        F.same_field(),
+    ] + F.backup_fields('none') + SC.script_fields(INTERPS, default='powershell') + WR.role_fields() + verify_fields()
     files_ui = SC.files_ui('windows', INTERPS, SC.layouts('C:/certs', 'windows'),
                            owners=False)
 
@@ -220,9 +225,9 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
     def _tmp(self):
         return (self.c('tmp_dir') or 'C:/Windows/Temp').rstrip('/\\')
 
-    def _write_files(self, s, pairs, datas):
-        """Each uploaded, then moved into place, the one there kept as .acme-prev.
-        -> the paths that were there before."""
+    def _write_files(self, s, pairs, datas, suffix='.acme-prev'):
+        """Each uploaded, then moved into place, the one there kept as <path><suffix>
+        (.acme-prev, .bak or dated). -> the paths that were there before."""
         token = secrets.token_hex(6)
         tmps = []
         for i, data in enumerate(datas):
@@ -233,12 +238,12 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
             p = ps_str(o['path'])
             sc += ["New-Item -ItemType Directory -Force -Path (Split-Path -Parent %s) | Out-Null" % p,
                    "if (Test-Path -LiteralPath %s) { Copy-Item -LiteralPath %s -Destination %s "
-                   "-Force; Write-Output ('HAD ' + %s) }" % (p, p, ps_str(o['path'] + '.acme-prev'), p),
+                   "-Force; Write-Output ('HAD ' + %s) }" % (p, p, ps_str(o['path'] + suffix), p),
                    "Move-Item -LiteralPath %s -Destination %s -Force" % (ps_str(tmp), p)]
         rc, out, err = self.run_ps(s, '\n'.join(sc), 'writing the files', check=False)
         had = [x[4:].strip() for x in out.splitlines() if x.startswith('HAD ')]
         if rc != 0:
-            self._put_back(s, pairs, had)
+            self._put_back(s, pairs, had, suffix)
             self.run_ps(s, '; '.join("Remove-Item -LiteralPath %s -Force -ErrorAction "
                                      "SilentlyContinue" % ps_str(t) for t in tmps),
                         'cleaning up', check=False)
@@ -248,13 +253,13 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
         self.ctx.step('wrote %s' % ', '.join(o['path'] for o, _b in pairs), 'ok')
         return had
 
-    def _put_back(self, s, pairs, had):
+    def _put_back(self, s, pairs, had, suffix='.acme-prev'):
         sc = []
         for o, _b in pairs:
             p = ps_str(o['path'])
             if o['path'] in had:
                 sc.append("Copy-Item -LiteralPath %s -Destination %s -Force"
-                          % (ps_str(o['path'] + '.acme-prev'), p))
+                          % (ps_str(o['path'] + suffix), p))
             else:
                 sc.append("Remove-Item -LiteralPath %s -Force -ErrorAction SilentlyContinue" % p)
         if sc:
@@ -263,10 +268,45 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
                           'putting the previous files back failed: %s' % (err or out)[-200:],
                           'warn' if rc == 0 else 'bad')
 
-    def _drop_previous(self, s, pairs):
+    def _drop_previous(self, s, pairs, suffix='.acme-prev'):
         self.run_ps(s, '; '.join("Remove-Item -LiteralPath %s -Force -ErrorAction "
-                                 "SilentlyContinue" % ps_str(o['path'] + '.acme-prev')
+                                 "SilentlyContinue" % ps_str(o['path'] + suffix)
                                  for o, _b in pairs), 'cleaning up', check=False)
+
+    def _same_files(self, s, pairs, datas):
+        """[True: the file there holds exactly this], one a file - by SHA-256 (1.0.77); a
+        PKCS#12 or keystore is new bytes every time: never the same."""
+        want = [(o['path'], hashlib.sha256(d).hexdigest().upper()) for (o, _b), d in zip(pairs, datas)
+                if o['format'] not in PFX_FORMATS and o['format'] != 'p7b']
+        have = {}
+        if want:
+            sc = ["$p = %s; if (Test-Path -LiteralPath $p -PathType Leaf) { Write-Output ('SHA ' + "
+                  "(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash + ' ' + $p) }" % ps_str(p)
+                  for p, _h in want]
+            rc, out, err = self.run_ps(s, '\n'.join(sc), 'comparing the files', check=False)
+            for line in out.splitlines():
+                parts = line.strip().split(' ', 2)
+                if len(parts) == 3 and parts[0] == 'SHA':
+                    have[parts[2]] = parts[1].upper()
+        hashes = dict(want)
+        return [o['path'] in hashes and have.get(o['path']) == hashes[o['path']] for o, _b in pairs]
+
+    def _after_backup(self, s, pairs, had, mode, suffix, keep):
+        if mode == 'none':
+            self._drop_previous(s, pairs, suffix)
+        elif mode in ('dated', 'daily') and keep:
+            sc = []
+            for o, _b in pairs:
+                if o['path'] not in had:
+                    continue
+                name = o['path'].replace('\\', '/').rstrip('/').split('/')[-1]
+                sc.append("Get-ChildItem -LiteralPath (Split-Path -Parent %s) -File | Where-Object "
+                          "{ $_.Name -match %s } | Sort-Object LastWriteTime -Descending | "
+                          "Select-Object -Skip %d | Remove-Item -Force -ErrorAction SilentlyContinue"
+                          % (ps_str(o['path']), ps_str('^' + re.escape(name) + r'\.\d{4}[\d-]*\.bak$'),
+                             int(keep)))
+            if sc:
+                self.run_ps(s, '\n'.join(sc), 'the older copies', check=False)
 
     def _after(self, s, bundle, options, vars, pairs):
         """The files written and the script run after them; a failing script puts
@@ -275,22 +315,35 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
         if not pairs and not sc:
             return ''
         datas = self._render(pairs, options, vars)
-        had = self._write_files(s, pairs, datas) if pairs else []
+        every = pairs
+        left = []
+        if pairs and F.skip_same(options) and not as_bool(options.get('force')):
+            same = self._same_files(s, pairs, datas)
+            left = [o['path'] for (o, _b), x in zip(pairs, same) if x]
+            F.describe_same(self, left)
+            keep = [(p, d) for p, d, x in zip(pairs, datas, same) if not x]
+            pairs, datas = [p for p, _d in keep], [d for _p, d in keep]
+        mode = F.backup_mode(options, 'none')
+        suffix = F.backup_suffix(mode)
+        had = self._write_files(s, pairs, datas, suffix) if pairs else []
         if sc:
-            env = SC.env_for(self, bundle, pairs, vars, SC.password_of(options),
+            env = SC.env_for(self, bundle, every, vars, SC.password_of(options),
                              extra={'ACME_THUMBPRINT': sha1_thumb(bundle)})
             rc, out, err = SC.run_windows(self, s, sc, env, self._tmp())
             said = SC.tell(self, sc, rc, out, err)
             if rc != 0:
                 if pairs:
-                    self._put_back(s, pairs, had)
+                    self._put_back(s, pairs, had, suffix)
                 raise PluginError('%s failed (exit %s)%s%s' % (
                     SC._what(sc), rc, ', the previous files are back' if pairs else '',
                     (': ' + said.splitlines()[-1][-200:]) if said else ''), retry=False)
         if pairs:
-            self._drop_previous(s, pairs)
+            self._after_backup(s, pairs, had, mode, suffix, F.backup_keep(options))
         return ', '.join(x for x in ('%d file%s' % (len(pairs), '' if len(pairs) == 1 else 's')
-                                     if pairs else '', 'the script ran' if sc else '') if x)
+                                     if pairs else '',
+                                     '%d the same left as %s' % (len(left), 'it was' if len(left) == 1
+                                                                 else 'they were') if left else '',
+                                     'the script ran' if sc else '') if x)
 
     def preview(self, bundle, options):
         options = dict(options or {})

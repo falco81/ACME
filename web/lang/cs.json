@@ -55335,6 +55335,62 @@
   "dp_2": {
    "source": "switched off - kept, not deployed there until it is on again",
    "text": "vypnuto – zůstává uložené, ale nenasazuje se tam, dokud ho znovu nezapnete"
+  },
+  "dsb_1": {
+   "source": "Leave a file alone when it is the same (SHA-256)",
+   "text": "Stejný soubor nenahrazovat (SHA-256)"
+  },
+  "dsb_2": {
+   "source": "each file is compared with the one there by its SHA-256 fingerprint: the same one is not replaced (nor copied aside) and the deployment is still fine. Off: every file is written each time",
+   "text": "každý soubor se porovná s tím, který tam už je, podle otisku SHA-256: stejný se nenahrazuje (ani nezálohuje) a nasazení je přesto v pořádku. Vypnuto: každý soubor se zapíše pokaždé"
+  },
+  "dsb_3": {
+   "source": "Before replacing a file",
+   "text": "Před nahrazením souboru"
+  },
+  "dsb_4": {
+   "source": "keep it as .bak (the last one only)",
+   "text": "zálohovat jako .bak (jen poslední)"
+  },
+  "dsb_5": {
+   "source": "keep it with the date and time: file.20261111-153000.bak",
+   "text": "zálohovat s datem a časem: soubor.20261111-153000.bak"
+  },
+  "dsb_6": {
+   "source": "keep it with the date: file.2026-11-11.bak",
+   "text": "zálohovat s datem: soubor.2026-11-11.bak"
+  },
+  "dsb_7": {
+   "source": "just overwrite it",
+   "text": "jen přepsat"
+  },
+  "dsb_8": {
+   "source": "the one there kept beside it, or just overwritten. Whichever, a failing test or reload puts the previous files back",
+   "text": "původní se uloží vedle něj, nebo se jen přepíše. Tak či tak selhaný test nebo reload vrátí předchozí soubory zpět"
+  },
+  "dsb_9": {
+   "source": "Dated copies kept",
+   "text": "Ponechat záloh s datem"
+  },
+  "dsb_10": {
+   "source": "of each file, the newest so many copies with a date; the older ones are deleted (0: all kept)",
+   "text": "od každého souboru tolik nejnovějších záloh s datem; starší se smažou (0: ponechat všechny)"
+  },
+  "dsb_11": {
+   "source": "every file holds it already (the same SHA-256) - none replaced; the commands run all the same",
+   "text": "všechny soubory ho už obsahují (stejný SHA-256) – nic se nenahradilo; příkazy se přesto spustí"
+  },
+  "dsb_12": {
+   "source": "every file holds it already (the same SHA-256) - none replaced",
+   "text": "všechny soubory ho už obsahují (stejný SHA-256) – nic se nenahradilo"
+  },
+  "dsb_13": {
+   "source": "comparing the files",
+   "text": "porovnání souborů"
+  },
+  "dsb_14": {
+   "source": "the older copies",
+   "text": "starší zálohy"
   }
  },
  "patterns": {
@@ -75553,6 +75609,98 @@
   "ptc_1": {
    "source": "through the connector {0}",
    "text": "přes konektor {0}"
+  },
+  "pdsb_1": {
+   "source": "left as they are, the same SHA-256 there already: {0}",
+   "text": "ponecháno beze změny, stejný SHA-256 už tam je: {0}"
+  },
+  "pdsb_2": {
+   "source": "wrote {0} (the previous kept as *{1})",
+   "text": "zapsáno {0} (předchozí zálohováno jako *{1})"
+  },
+  "pdsb_3": {
+   "source": "{0} files written on {1}, {2} the same left as they were",
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno} na {1}, {2} {2:stejný ponechán beze změny|stejné ponechány beze změny|stejných ponecháno beze změny}"
+  },
+  "pdsb_4": {
+   "source": "{0} files written on {1}, {2} the same left as they were, reloaded",
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno} na {1}, {2} {2:stejný ponechán beze změny|stejné ponechány beze změny|stejných ponecháno beze změny}, znovu načteno"
+  },
+  "pdsb_5": {
+   "source": "{0} files written on {1}, {2} the same left as they were, the script ran, reloaded",
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno} na {1}, {2} {2:stejný ponechán beze změny|stejné ponechány beze změny|stejných ponecháno beze změny}, skript proběhl, znovu načteno"
+  },
+  "pdsb_6": {
+   "source": "{0} files written on {1}, {2} the same left as it was",
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno} na {1}, {2} stejný ponechán beze změny"
+  },
+  "pdsb_7": {
+   "source": "{0} files written on {1}, {2} the same left as it was, reloaded",
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno} na {1}, {2} stejný ponechán beze změny, znovu načteno"
+  },
+  "pdsb_8": {
+   "source": "{0} files written on {1}, reloaded",
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno} na {1}, znovu načteno"
+  },
+  "pdsb_9": {
+   "source": "{0} files written in {1}",
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno} v {1}"
+  },
+  "pdsb_10": {
+   "source": "{0} files written in {1}, {2} the same left as they were",
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno} v {1}, {2} {2:stejný ponechán beze změny|stejné ponechány beze změny|stejných ponecháno beze změny}"
+  },
+  "pdsb_11": {
+   "source": "{0} files written in {1}, {2} the same left as it was",
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno} v {1}, {2} stejný ponechán beze změny"
+  },
+  "pdsb_12": {
+   "source": "{0} the same left as they were",
+   "text": "{0} {0:stejný ponechán beze změny|stejné ponechány beze změny|stejných ponecháno beze změny}"
+  },
+  "pdsb_13": {
+   "source": "{0} the same left as it was",
+   "text": "{0} stejný ponechán beze změny"
+  },
+  "pdsb_14": {
+   "source": "{0} file written on {1}, {2} the same left as it was",
+   "text": "{0} soubor zapsán na {1}, {2} stejný ponechán beze změny"
+  },
+  "pdsb_15": {
+   "source": "{0} file written on {1}, {2} the same left as they were",
+   "text": "{0} soubor zapsán na {1}, {2} {2:stejný ponechán beze změny|stejné ponechány beze změny|stejných ponecháno beze změny}"
+  },
+  "pdsb_16": {
+   "source": "{0} file written on {1}, {2} the same left as it was, reloaded",
+   "text": "{0} soubor zapsán na {1}, {2} stejný ponechán beze změny, znovu načteno"
+  },
+  "pdsb_17": {
+   "source": "{0} file written on {1}, {2} the same left as they were, reloaded",
+   "text": "{0} soubor zapsán na {1}, {2} {2:stejný ponechán beze změny|stejné ponechány beze změny|stejných ponecháno beze změny}, znovu načteno"
+  },
+  "pdsb_18": {
+   "source": "{0} file written in {1}",
+   "text": "{0} soubor zapsán v {1}"
+  },
+  "pdsb_19": {
+   "source": "{0} file written in {1}, {2} the same left as it was",
+   "text": "{0} soubor zapsán v {1}, {2} stejný ponechán beze změny"
+  },
+  "pdsb_20": {
+   "source": "{0} file written in {1}, {2} the same left as they were",
+   "text": "{0} soubor zapsán v {1}, {2} {2:stejný ponechán beze změny|stejné ponechány beze změny|stejných ponecháno beze změny}"
+  },
+  "pdsb_21": {
+   "source": "{0} file written in {1}, {2} the same left as it was, reloaded",
+   "text": "{0} soubor zapsán v {1}, {2} stejný ponechán beze změny, znovu načteno"
+  },
+  "pdsb_22": {
+   "source": "{0} file written in {1}, {2} the same left as they were, reloaded",
+   "text": "{0} soubor zapsán v {1}, {2} {2:stejný ponechán beze změny|stejné ponechány beze změny|stejných ponecháno beze změny}, znovu načteno"
+  },
+  "pdsb_23": {
+   "source": "{0} file written on {1}, reloaded",
+   "text": "{0} soubor zapsán na {1}, znovu načteno"
   }
  },
  "rich": {

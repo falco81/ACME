@@ -172,7 +172,7 @@ pfx            /opt/app/keystore.p12       0640  app:app
 
 **How it is written**: each file is uploaded to `/tmp` (*Folder for uploads*)
 first; then in one script, through sudo when asked: `mkdir -p` the folder,
-the old file copied to `<path>.bak`, the new one copied to `<path>.acme-new`
+the old file copied aside (see *Before replacing a file* below), the new one copied to `<path>.acme-new`
 beside it, `chmod`, `chown`, and `mv -f` over the old one (a rename: atomic,
 nothing ever reads half a file). Then:
 
@@ -185,9 +185,50 @@ nothing ever reads half a file). Then:
    files are put back and the reload commands run again with the old ones;
 5. *After reloading* - a failure is only a warning.
 
-*Keep the previous files as .bak* off: the copies are removed after success.
-When every PEM file there already holds exactly the new content (compared by
-`sha256sum`), nothing is done.
+### The files already there (1.0.77)
+
+**Leave a file alone when it is the same (SHA-256)** - on unless switched off.
+Before anything is written, each file there is compared with the new one by its
+SHA-256 (`sha256sum` on the server, `Get-FileHash` on Windows, read directly by
+the `local` target):
+
+- a file that already holds exactly the new bytes is **not replaced** and not
+  copied aside; the job says which ones: *left as they are, the same SHA-256
+  there already: ...* (an `ok` step, not a warning);
+- only the others are written; the result says *2 files written on web1, 1 the
+  same left as it was*;
+- when **every** file is the same and acme deployed this very certificate here
+  through to its reload before, nothing is done at all: *unchanged: the same
+  certificate is in every file*. When the files are the same but acme's
+  deployment did not get that far (someone copied them, or the last one stopped
+  before the reload, or the commands were changed), nothing is written and the
+  test and reload commands run all the same.
+  Either way the deployment is **fine** (green), never failed.
+- PKCS#12, keystores and `p7b` come out different every time they are made
+  (a random salt), so they count as the same only when acme deployed this
+  certificate here as it is now.
+- *Deploy again* (force) writes every file whatever this says.
+
+Off: every file is written each time.
+
+**Before replacing a file** - what happens to the one there:
+
+| Choice | The file kept | |
+|---|---|---|
+| keep it as .bak (the last one only) | `<path>.bak` | the default of `ssh` (as before 1.0.77) |
+| keep it with the date and time | `<path>.20261111-153000.bak` | one per deployment |
+| keep it with the date | `<path>.2026-11-11.bak` | one per day, the day's first replaced by a later one |
+| just overwrite it | none | the default of `local` and `windows_ssh` |
+
+*Dated copies kept* (5): of each file, the newest so many dated copies stay and
+the older are deleted after a deployment that went through (0: all kept). Only
+copies named `<path>.<digits and dashes>.bak` are counted.
+
+Whichever is chosen, a failing test, script or reload puts the previous files
+back: from the copy kept, or with *just overwrite it* from a temporary
+`<path>.acme-prev` that is removed once the deployment went through (or after
+it was put back). A deployment saved before 1.0.77 with *Keep the previous files
+as .bak* on is *keep it as .bak*, off is *just overwrite it*.
 
 **Service presets** fill whatever you leave empty (what you set wins); the
 field carries the values in `fills` so the page can show them:
@@ -426,6 +467,9 @@ volume). The *Files* lines are as for `ssh` but the paths are inside that
 folder (`fullchain-pem {name}/fullchain.pem`); a path leading outside it -
 `..`, an absolute path elsewhere, or a link - is refused. Each file is
 written to a temporary file in the same folder and renamed into place.
+*Leave a file alone when it is the same (SHA-256)* and *Before replacing a
+file* work as for `ssh` (see *The files already there*); here the default is
+*just overwrite it*, so nothing else appears in the folder unless asked.
 
 *Then run* runs one command - only one listed, exactly, in the target's
 *Commands allowed* (set by a full admin); it is run without a shell, as the
@@ -561,6 +605,9 @@ that import). After it:
    sslcert`: AD FS, WAP, SSTP, RD Gateway, older WAC), the RDP listener, a SQL Server
    instance, or a WinRM listener. When a role is on, the import itself removes nothing;
 4. the files and the script after them (see above), then the TLS checks of *verify*.
+   The files: *Leave a file alone when it is the same (SHA-256)* (`Get-FileHash`) and
+   *Before replacing a file* as for `ssh` (*The files already there*); the default here is
+   *just overwrite it*.
 
 The roles that need a PFX (RDS, SharePoint) get a second upload with a one-time password.
 CCS gets one locked with the store's password. Both are deleted at the end, whatever
