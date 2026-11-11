@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.69 - not released
+## 1.0.69 - 2026-11-11
 - A certificate's window → **Change the source…**: a wizard that moves a certificate in use to
   another source. An imported one goes to Let's Encrypt or an authority, an issued one to
   another source or to by hand (renewed by importing). It shows the source now → the source
