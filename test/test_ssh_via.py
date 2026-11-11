@@ -79,6 +79,9 @@ class ViaTest(unittest.TestCase):
         A.family_save(STORE, 'check', {'name': 'jumpbox', 'kind': 'ssh_relay', 'config': {
             'host': '127.0.0.1', 'port': cls.ports['jump'], 'user': 'root', 'auth': 'key',
             'key': cls.key, 'trust_first': True, 'tests': []}}, 'tester')
+        A.family_save(STORE, 'target', {'name': 'jump-t', 'kind': 'ssh_connector', 'config': {
+            'host': '127.0.0.1', 'port': cls.ports['jump'], 'user': 'root', 'auth': 'key',
+            'key': cls.key, 'trust_first': True}}, 'tester')
 
     @classmethod
     def tearDownClass(cls):
@@ -110,13 +113,35 @@ class ViaTest(unittest.TestCase):
         self.assertIn('port %d' % self.ports['target'], log)
         self.assertTrue(any('through the connector jumpbox' in str(x) for x in ctx.steps))
 
+    def test_through_the_targets_connector(self):
+        ctx = RT.RunContext(STORE)
+        s = ctx.ssh(self.conn(via='jump-t'))
+        try:
+            self.assertEqual(s.run('echo ok')[1].strip(), 'ok')
+        finally:
+            s.close()
+        self.assertTrue(any('through the connector jump-t' in str(x) for x in ctx.steps))
+        # nothing is deployed on a connector
+        cid = A.cert_save(STORE, {'name': 'via.example.test', 'names': ['via.example.test'],
+                                  'issuer': ''}, 'tester')
+        with self.assertRaises(ValueError) as e:
+            A.deploy_save(STORE, {'cert_id': cid, 'target': 'jump-t', 'options': {}}, 'tester')
+        self.assertIn('is a connector', str(e.exception))
+        with self.assertRaises(PluginError):
+            S.plugin_instance(STORE, 'target', S.plugin_row(STORE, 'target', 'jump-t'),
+                              RT.RunContext(STORE)).deploy(None, {})
+
     def test_no_such_connector(self):
         with self.assertRaises(PluginError) as e:
             RT.RunContext(STORE).ssh(self.conn(via='nope'))
         self.assertIn('no connector called nope', str(e.exception))
 
     def test_offered_and_not_on_itself(self):
-        self.assertIn(['jumpbox', 'jumpbox'], A.options_for(STORE, 'connectors'))
+        got = A.options_for(STORE, 'connectors')
+        self.assertEqual(got[0], ['jump-t', 'jump-t'])                     # the targets' own first
+        self.assertIn(['jumpbox', 'jumpbox (a connector of the tests)'], got)
+        self.assertNotIn('via', [f['key'] for f in S.registry().all()['target']['ssh_connector'].fields])
+        self.assertTrue(S.registry().all()['target']['ssh_connector'].describe()['connector'])
         relay = S.registry().all()['check']['ssh_relay']
         self.assertNotIn('via', [f['key'] for f in relay.fields])
         ssh = S.registry().all()['target']['ssh']

@@ -859,14 +859,19 @@ class SshSession(base.SshSession):
     def _jump(self, name):
         """The connector named (a test of the kind ssh_relay) signed in to."""
         store = getattr(self.ctx, 'store', None)
-        row = store.db.row('SELECT * FROM cert_tests WHERE name = ?', (name,)) if store else None
-        if not row or row.get('kind') != 'ssh_relay':
-            raise base.PluginError('there is no connector called %s (Tests → a test of the kind '
-                                   '"Tests on a server over SSH")' % name, retry=False)
+        # a connector of the targets (1.0.75) first, then one of the tests (1.0.74)
+        fam, row = 'target', store.db.row("SELECT * FROM cert_targets WHERE name = ? AND "
+                                          "kind = 'ssh_connector'", (name,)) if store else None
+        if not row and store:
+            fam, row = 'check', store.db.row("SELECT * FROM cert_tests WHERE name = ? AND "
+                                             "kind = 'ssh_relay'", (name,))
+        if not row:
+            raise base.PluginError('there is no connector called %s (Targets → Connector over SSH)'
+                                   % name, retry=False)
         if row.get('enabled') == 0:
             raise base.PluginError('the connector %s is switched off' % name, retry=False)
         from acmelib.plugins.targets._common import ssh_conn
-        conn = ssh_conn(S.plugin_instance(store, 'check', row, self.ctx))
+        conn = ssh_conn(S.plugin_instance(store, fam, row, self.ctx))
         conn.update(via='', no_keep=True)
         return SshSession(self.ctx, conn)
 

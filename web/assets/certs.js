@@ -1455,7 +1455,7 @@ function drawModTab(key, live) {
           tools.appendChild(ab);
         });
         if (FULL) {
-          if (key !== 'tests') tools.appendChild(defaultButton(key, r));
+          if (key !== 'tests' && (key !== 'targets' || deployable(r))) tools.appendChild(defaultButton(key, r));
           var e = iconButton('edit', 'Edit');
           e.onclick = function (ev) { ev.stopPropagation(); modEdit(key, r); };
           tools.appendChild(e);
@@ -2503,7 +2503,7 @@ function targetPeek(r) {
         var sec = section('Certificates deployed here', 'Each with the options it has on this target. Run deploys it again now.', true);
         if (depsErr) sec._body.appendChild(failedBox(depsErr, 'the deployments of a target'));
         else sec._body.appendChild(deployTable(deps || [], {target: r, back: function () { targetPeek(r); }}));
-        if (MANAGE) {
+        if (MANAGE && deployable(r)) {
           var add = cmdButton('Deploy a certificate here', 'add', 'primary small');
           add.onclick = function () { over(function () { deployEdit({target: r}); }, function () { targetPeek(r); }); };
           var row = el('div', 'btnrow'); row.appendChild(add);
@@ -2647,6 +2647,10 @@ function deployOff(d, back, twice) {
         }).catch(function (e) { busy(b, false); fail(e); });
       }}], true);
 }
+/* A target certificates can go to - not a connector (1.0.75): only a way to other targets. */
+function deployable(t) {
+  return !(plugOf('target', (t || {}).kind) || {}).connector;
+}
 function deployEdit(o) {
   var d = o.deploy || {};
   var certId = first(d.cert_id, o.cert && o.cert.id);
@@ -2759,7 +2763,7 @@ function deployEdit(o) {
       } else {
         /* The default target offered first (preselected). */
         var dtg = defaultOf(targets);
-        tSel = selectBox([['', tr('choose one…')]].concat(targets.map(function (t) { return [t.name, t.name + ' · ' + plugTitle('target', t.kind) + (t.is_default ? ' · ' + tr('default') : '')]; })), tName || (dtg ? dtg.name : ''));
+        tSel = selectBox([['', tr('choose one…')]].concat(targets.filter(deployable).map(function (t) { return [t.name, t.name + ' · ' + plugTitle('target', t.kind) + (t.is_default ? ' · ' + tr('default') : '')]; })), tName || (dtg ? dtg.name : ''));
         noI18n(tSel);
         tSel.onchange = drawFields;
         g.appendChild(formField('Target', tSel, targets.length ? '' : 'No target yet - a full administrator adds them under Targets.'));
@@ -5574,7 +5578,7 @@ function certWizard(cert, detail, opts) {
       W.vals = got[1];
       /* The default target first, offered (ticked) for a new certificate. */
       var dt = defaultOf(got[2]);
-      W.targets = dt ? [dt].concat(got[2].filter(function (t) { return t !== dt; })) : got[2];
+      W.targets = (dt ? [dt].concat(got[2].filter(function (t) { return t !== dt; })) : got[2]).filter(deployable);
       if (dt && !editing && (dt.enabled === undefined || truthy(dt.enabled))) W.deploys[dt.name] = {};
       if (!MOVE && !W.d.issuer && W.sources.length === 1) W.d.issuer = W.sources[0].name;
       /* Let's Encrypt first: the default source and validation (is_default). */

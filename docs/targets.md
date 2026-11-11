@@ -83,6 +83,7 @@ Every module here works the same way:
 | `fastly` | Fastly TLS (your own certificate) | Fastly |
 | `nutanix` | Nutanix cluster (Prism Central v4 API) | Nutanix |
 | `omnissa_uag` | Omnissa Unified Access Gateway (UAG) | Omnissa |
+| `ssh_connector` | Connector over SSH | Connector |
 | `checkpoint` | Check Point (Management API) | Check Point |
 | `nsx` | VMware NSX load balancer (Policy API) | VMware |
 | `barracuda_waf` | Barracuda Web Application Firewall | Barracuda |
@@ -263,12 +264,19 @@ other file (a link is left alone).
 
 
 
-### Through a connector (1.0.74)
+### Through a connector (1.0.74, the targets' own 1.0.75)
 
 A server only another network reaches is deployed to through a **connector**: a Linux
-server of yours that acme can sign in to, defined once under Tests as a test of the kind *Tests
-on a server over SSH* (`ssh_relay`). The tests go through the same connector. Every target that
-signs in over SSH has the setting *More → Through a connector*: Linux / Unix, Windows over SSH,
+server of yours that acme can sign in to.
+
+* **The targets' connector:** defined under Targets, as a target of the kind *Connector over
+  SSH* (`ssh_connector`, below).
+* **The tests' connector:** separate, under Tests, *Tests on a server over SSH*. The two may be
+  different servers.
+* **The choice:** *Through a connector* offers the targets' connectors first, then the tests'
+  ones, marked "a connector of the tests".
+
+Every target that signs in over SSH has the setting *More → Through a connector*: Linux / Unix, Windows over SSH,
 HAProxy, Caddy, Traefik, NGINX Unit, strongSwan, Docker Swarm, Zimbra, TrueNAS, ESXi, pfSense,
 HestiaCP and OPNsense's SSH.
 
@@ -1727,6 +1735,25 @@ Community scripts: <https://github.com/numerate64/omnissa-uag-cert-automation> a
 * whether every version takes an ECDSA key, and a PKCS#8 one;
 * the PFX variant (`PUT …/certs/ssl/pfx/{entity}`, `pfxKeystore` base64, `password`, `alias`),
   which is not used here.
+
+
+## `ssh_connector` - Connector over SSH
+
+A Linux server of yours (AlmaLinux, RHEL, Rocky… - any with OpenSSH) that acme signs in to over
+SSH, to reach from it the targets only that network reaches. Its fields are the sign-in, the
+same key card as a Linux / Unix target: *Make a key*, *Use my own*, *Try reaching it*. A target
+that signs in over SSH chooses it in *More → Through a connector*. See *Through a connector*
+above.
+
+* **No certificate is deployed on it.** It is left out of *Deploy it on a target* and has no
+  *Deploy a certificate here*; a deployment on it is refused in words. It cannot be the default
+  target.
+* **Test** signs in and says whether `ssh-keyscan` is there. Without it, pin each target's host
+  key.
+* **What the server needs:** forwarding allowed (`AllowTcpForwarding`, on by default).
+  Nothing is installed on it.
+
+It speaks only OpenSSH; there is no API of its own.
 
 ## `azure_appservice` - Azure App Service
 

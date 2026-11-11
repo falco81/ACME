@@ -1811,9 +1811,14 @@ def options_for(store, source):
                 for r in store.db.rows('SELECT name, kind, config FROM cert_targets ORDER BY name')
                 if issubclass(S.row_class('target', r) or object, SshMixin)]
     if source == 'connectors':
-        # the connectors (checks/ssh_relay.py) a server over SSH can be reached through (1.0.74)
-        return [[r['name'], r['name']] for r in store.db.rows(
+        # the connectors a target over SSH can be reached through: those of the targets
+        # (targets/ssh_connector.py, 1.0.75), then those of the tests (checks/ssh_relay.py, 1.0.74)
+        own = [r['name'] for r in store.db.rows(
+            "SELECT name FROM cert_targets WHERE kind = 'ssh_connector' ORDER BY name")]
+        tests = [r['name'] for r in store.db.rows(
             "SELECT name FROM cert_tests WHERE kind = 'ssh_relay' ORDER BY name")]
+        return [[n, n] for n in own] + [[n, '%s (a connector of the tests)' % n]
+                                        for n in tests if n not in own]
     if source == 'key_types':
         return [[k, k] for k in schema.KEY_TYPES]
     return []
@@ -2373,6 +2378,8 @@ def _deploy_save_in(store, b, by, full, made):
     if not trow:
         raise ValueError('there is no target %s' % target)
     cls = S.row_class('target', trow)
+    if getattr(cls, 'connector', False):
+        raise ValueError('%s is a connector: certificates go to the targets reached through it' % target)
     if row is not None and not full and row.get('target') != trow['name'] and 'options' not in b:
         # Moved to another target with its options (1.0.51): the commands, the script and where
         # the key goes, written by a full administrator for one server, ran on the one a

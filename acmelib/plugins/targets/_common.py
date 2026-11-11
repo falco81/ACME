@@ -623,7 +623,7 @@ def ssh_fields(sudo=True, port=22, prefix='', show_if=None, advanced=False, user
         out.append(f(p + 'via', 'Through a connector', 'select', default='', options=[['', 'directly']],
                      options_from='connectors', advanced=True,
                      help='a server only another network reaches: acme signs in to the connector '
-                          '(Tests → Tests on a server over SSH) and from it to this one - nothing '
+                          '(Targets → Connector over SSH) and from it to this one - nothing '
                           'installed there'))
     if sudo:
         out += [

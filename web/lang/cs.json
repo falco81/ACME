@@ -55259,6 +55259,18 @@
   "via_3": {
    "source": "a server only another network reaches: acme signs in to the connector (Tests → Tests on a server over SSH) and from it to this one - nothing installed there",
    "text": "server, na který dosáhne jen jiná síť: acme se přihlásí na konektor (Testy → Testy na serveru přes SSH) a z něj na tento – nic se tam neinstaluje"
+  },
+  "conn_1": {
+   "source": "Connector over SSH",
+   "text": "Konektor přes SSH"
+  },
+  "conn_2": {
+   "source": "A connector: a Linux server of yours (AlmaLinux, RHEL, Rocky…) acme signs in to over SSH, to reach from it the targets only that network reaches - chosen in their More → Through a connector. Nothing is deployed on it.",
+   "text": "Konektor: váš linuxový server (AlmaLinux, RHEL, Rocky…), na který se acme přihlásí přes SSH a z něj dosáhne na cíle, kam vede jen ta síť – vybírá se v jejich Další → Přes konektor. Nic se na něj nenasazuje."
+  },
+  "conn_3": {
+   "source": "a server only another network reaches: acme signs in to the connector (Targets → Connector over SSH) and from it to this one - nothing installed there",
+   "text": "server, na který dosáhne jen jiná síť: acme se přihlásí na konektor (Cíle → Konektor přes SSH) a z něj na tento – nic se tam neinstaluje"
   }
  },
  "patterns": {
@@ -75469,6 +75481,10 @@
   "pvia_2": {
    "source": "the connector {0} - signed in to first, this server reached from it (ssh -W)",
    "text": "konektor {0} – přihlásí se nejdřív na něj a z něj na tento server (ssh -W)"
+  },
+  "pconn_1": {
+   "source": "{0} (a connector of the tests)",
+   "text": "{0} (konektor testů)"
   }
  },
  "rich": {
