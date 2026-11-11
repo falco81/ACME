@@ -1156,3 +1156,8 @@ td.acc-role{white-space:nowrap}
 .card.held > .held-fill .lt-pager{flex:none}
 .card.held > #src-broken, .card.held > #val-broken, .card.held > #tg-broken, .card.held > #ts-broken{flex:none}
 .modal pre.log-modal{max-height:none;margin-top:12px}
+/* Targets and Tests: the list or the connectors (1.0.76) */
+.mod-view{flex:none}
+.mod-view button{display:inline-flex;align-items:center;gap:7px}
+.mod-view-n{font-size:11px;font-weight:700;padding:1px 7px;border-radius:9px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line)}
+.mod-view button.on .mod-view-n{background:var(--info-bg);box-shadow:none}

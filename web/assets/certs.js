@@ -349,7 +349,7 @@ function cssVar(name, fallback) {
 function mono(text, cls) { return noI18n(el('span', 'mono' + (cls ? ' ' + cls : ''), text)); }
 function data(kind, cls, text) { return noI18n(el(kind, cls, text)); }
 /* A module's vendor: a word (Public CA, Generic) translated, a name (ACME, Microsoft) as it is (1.0.51) */
-var VENDOR_WORDS = ['Public CA', 'Protocol', 'Generic', 'Standards', 'Other', 'Own', 'Connector'];
+var VENDOR_WORDS = ['Public CA', 'Protocol', 'Generic', 'Standards', 'Other', 'Own', 'Connector', 'Where certificates go', 'Modules'];
 function vendorEl(tag, cls, v) {
   return VENDOR_WORDS.indexOf(v) >= 0 ? el(tag, cls, v) : data(tag, cls, v);
 }
@@ -1098,14 +1098,22 @@ function kindPicker(family, go, filter) {
     var x = FIRST.indexOf(a.kind), y = FIRST.indexOf(b.kind);
     return (x < 0 ? 99 : x) - (y < 0 ? 99 : y);
   });
-  list.forEach(function (p) {
+  /* The connectors (1.0.76) - a way to other servers, not a server: a group of their own,
+     first, as the tests have it; the rest under them. */
+  var conns = list.filter(function (p) { return p.vendor === 'Connector'; });
+  var rest = list.filter(function (p) { return p.vendor !== 'Connector'; });
+  rest.forEach(function (p) {
     var v = p.vendor || 'Other';
     if (!groups[v]) { groups[v] = []; order.push(v); }
     groups[v].push(p);
   });
   /* Mostly one module a vendor: one grid, the vendor said on each card. */
-  var flat = order.length > list.length / 2;
-  if (flat) { groups = {'': list}; order = ['']; }
+  var flat = order.length > rest.length / 2;
+  if (flat) {
+    var restWord = conns.length ? ({target: 'Where certificates go', check: 'Protocol'}[family] || 'Modules') : '';
+    groups = {}; groups[restWord] = rest; order = [restWord];
+  }
+  if (conns.length) { groups.Connector = conns; order.unshift('Connector'); }
   var tiles = [];
   order.forEach(function (v) {
     var g = el('div', 'ct-kind-group');
@@ -1128,7 +1136,7 @@ function kindPicker(family, go, filter) {
       /* its vendor and kind, then its tags in a row of their own, at the bottom left
          of the tile, whatever the length of the words above (1.0.33) */
       var foot = el('span', 'ct-kind-foot');
-      if (flat && p.vendor) foot.appendChild(vendorEl('span', 'ct-kind-v', p.vendor));
+      if (flat && p.vendor && v !== 'Connector') foot.appendChild(vendorEl('span', 'ct-kind-v', p.vendor));
       foot.appendChild(mono(p.kind, 'ct-kind-k'));
       w.appendChild(foot);
       var tl = modTags(family, p, null, {count: true});
@@ -1380,6 +1388,32 @@ function modQuerySpec(key) {
     }
   };
 }
+/* Targets and Tests (1.0.76): the list or the connectors, a switch above the table. */
+var MOD_VIEW = {targets: 'main', tests: 'main'};
+try { ['targets', 'tests'].forEach(function (k) { var v = localStorage.getItem('acme.view.' + k); if (v) MOD_VIEW[k] = v; }); } catch (e) { }
+function isConnectorRow(m, r) {
+  return (plugOf(m.family, r.kind) || {}).vendor === 'Connector';
+}
+function drawModView(key, m) {
+  var box = $(key === 'targets' ? 'tg-view' : 'ts-view');
+  if (!box) return;
+  var all = LISTS[key] || [];
+  var nConn = all.filter(function (r) { return isConnectorRow(m, r); }).length;
+  clear(box);
+  box.hidden = false;
+  [['main', key === 'targets' ? 'Targets' : 'Tests', all.length - nConn], ['conn', 'Connectors', nConn]].forEach(function (o) {
+    var b = el('button', MOD_VIEW[key] === o[0] ? 'on' : '');
+    b.type = 'button';
+    b.appendChild(el('span', '', o[1]));
+    b.appendChild(el('span', 'mod-view-n', num(o[2])));
+    b.onclick = function () {
+      MOD_VIEW[key] = o[0];
+      try { localStorage.setItem('acme.view.' + key, o[0]); } catch (e) { }
+      drawModTab(key, true);
+    };
+    box.appendChild(b);
+  });
+}
 function drawModTab(key, live) {
   var m = MODS[key];
   var host = $(m.host);
@@ -1400,6 +1434,11 @@ function drawModTab(key, live) {
                     value: function (r, f) { return qbox._qspec.value(r, f); }});
       rows = qFilter(qbox, spec, rows);
     }
+    if (key === 'targets' || key === 'tests') {
+      drawModView(key, m);
+      var wantConn = MOD_VIEW[key] === 'conn';
+      rows = rows.filter(function (r) { return isConnectorRow(m, r) === wantConn; });
+    }
     var s = $(m.said);
     if (s) s.textContent = LISTS[key].length ? num(LISTS[key].length) + ' in all' : '';
     if (key === 'sources' && b) {
@@ -1415,7 +1454,17 @@ function drawModTab(key, live) {
         box.appendChild(e);
         return;
       }
-      var heads = ['Name', 'Kind', 'Settings', key === 'targets' ? 'Certificates' : 'Used by', 'State', ''];
+      if ((key === 'targets' || key === 'tests') && MOD_VIEW[key] === 'conn' && !rows.length && !($(MOD_Q_BOX[key] || '') || {}).value) {
+        var ec = el('div', 'ct-blank');
+        ec.appendChild(el('p', 'muted', key === 'targets'
+          ? 'No connector yet. A connector is a Linux server acme signs in to over SSH, to reach from it the targets only that network reaches - Add a target → Connector over SSH.'
+          : 'No connector yet. A connector is a Linux server acme signs in to over SSH, to test from it the servers only that network reaches - Add a test → Connector over SSH.'));
+        box.appendChild(ec);
+        return;
+      }
+      var connView = (key === 'targets' || key === 'tests') && MOD_VIEW[key] === 'conn';
+      var heads = ['Name', 'Kind', 'Settings', connView ? (key === 'targets' ? 'Targets through it' : 'Tests through it')
+                   : (key === 'targets' ? 'Certificates' : 'Used by'), 'State', ''];
       box.appendChild(listTable(heads, rows, function (r) {
         var tr = el('tr');
         var nc = el('td', 'ct-modname');
@@ -1436,9 +1485,16 @@ function drawModTab(key, live) {
         }
         tr.appendChild(kc);
         var sumCell = td('', modSummary(m, r));
+        if (r.config && r.config.via) {
+          var vl = el('div', 'muted small');
+          vl.appendChild(el('span', '', 'through the connector '));
+          vl.appendChild(data('b', '', r.config.via));
+          sumCell.appendChild(vl);
+        }
         if (HTTP_HERE[r.kind]) sumCell.appendChild(httpRowLine(r));
         tr.appendChild(sumCell);
-        var n = usedCount(r);
+        var n = isConnectorRow(m, r) && (key === 'targets' || key === 'tests')
+          ? LISTS[key].filter(function (x) { return obj(x.config).via === r.name; }).length : usedCount(r);
         tr.appendChild(td('num', n === null ? '–' : num(n)));
         tr.appendChild(modStateCell(r, key));
         var tools = el('td', 'rowtools');
@@ -9107,10 +9163,14 @@ function attachTests(c, have, back, targets) {
   popup(tr('Attach a test to') + ' ' + c.name, function () {
     return Promise.all([loadRows('tests', true), plugins().catch(function () { return null; })]).then(function (x) { return x[0]; });
   }, function (rows) {
-    rows = arr(rows);
+    /* A connector is not a test (1.0.76) - only one with tests ticked the older way is. */
+    rows = arr(rows).filter(function (r) {
+      var t = obj(r.config).tests;
+      return r.kind !== 'ssh_relay' || arr(Array.isArray(t) ? t : String(t || '').split(/\n/)).filter(Boolean).length;
+    });
     return {
       build: function (body) {
-        body.appendChild(el('p', 'note', 'Tick the tests to run against this certificate. A connector (tests on a server over SSH) brings every test it carries. Empty "Connect to" in a test: it connects to the certificate’s first name.'));
+        body.appendChild(el('p', 'note', 'Tick the tests to run against this certificate. A test set to go through a connector (More → Through a connector) is run from there. Empty "Connect to" in a test: it connects to the certificate’s first name.'));
         if (!rows.length) {
           body.appendChild(emptyNote('No test is defined yet.'));
         }

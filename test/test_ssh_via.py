@@ -131,6 +131,44 @@ class ViaTest(unittest.TestCase):
             S.plugin_instance(STORE, 'target', S.plugin_row(STORE, 'target', 'jump-t'),
                               RT.RunContext(STORE)).deploy(None, {})
 
+    def test_a_test_through_the_connector(self):
+        import ssl
+        import threading
+        from acmelib.certs import checks as C
+        from acmelib.certs import pki
+        key = pki.make_key('ec-256')
+        crt = pki.self_signed(key, ['tls.via.test'], days=30)
+        cid = A.cert_import(STORE, {'data_b64': __import__('base64').b64encode((crt + key).encode()).decode(),
+                                    'filename': 'tlsvia.pem'}, 'tester')[0]
+        with open(self.d + '/srv.pem', 'w') as f:
+            f.write(crt + key)
+        sctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        sctx.load_cert_chain(self.d + '/srv.pem')
+        lsock = socket.socket()
+        lsock.bind(('127.0.0.1', 0))
+        lsock.listen(5)
+        port = lsock.getsockname()[1]
+
+        def serve():
+            for _ in range(4):
+                try:
+                    c, _a = lsock.accept()
+                    with sctx.wrap_socket(c, server_side=True) as t:
+                        t.recv(1)
+                except Exception:                       # noqa: BLE001
+                    pass
+        threading.Thread(target=serve, daemon=True).start()
+        got = C.probe(STORE, {'cert_id': cid, 'kind': 'tls', 'config': {
+            'host': '127.0.0.1', 'port': port, 'sni': 'tls.via.test', 'via': 'jumpbox'}})
+        lsock.close()
+        self.assertIn(got['state'], ('ok', 'warn'), got['said'])
+        self.assertEqual(got['detail'].get('via'), 'jumpbox')
+        with open(self.d + '/jump.log') as f:
+            self.assertIn('port %d' % port, f.read())            # it went through the connector
+        bad = C.probe(STORE, {'cert_id': cid, 'kind': 'tls', 'config': {
+            'host': '127.0.0.1', 'port': port, 'via': 'nope'}})
+        self.assertIn('no connector called nope', bad['said'])
+
     def test_no_such_connector(self):
         with self.assertRaises(PluginError) as e:
             RT.RunContext(STORE).ssh(self.conn(via='nope'))
@@ -140,6 +178,8 @@ class ViaTest(unittest.TestCase):
         got = A.options_for(STORE, 'connectors')
         self.assertEqual(got[0], ['jump-t', 'jump-t'])                     # the targets' own first
         self.assertIn(['jumpbox', 'jumpbox (a connector of the tests)'], got)
+        self.assertEqual(A.options_for(STORE, 'test_connectors'), [['jumpbox', 'jumpbox']])
+        self.assertIn('via', [f['key'] for f in S.registry().all()['check']['tls'].fields])
         self.assertNotIn('via', [f['key'] for f in S.registry().all()['target']['ssh_connector'].fields])
         self.assertTrue(S.registry().all()['target']['ssh_connector'].describe()['connector'])
         relay = S.registry().all()['check']['ssh_relay']

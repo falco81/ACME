@@ -474,7 +474,9 @@ def probe(store, chk, cert=None):
             host = str(cfg.get('host') or '').strip() or _first_name(exp)
             port = int(cfg.get('port') or cls.default_port)
             sni = str(cfg.get('sni') or '').strip() or _first_name(exp) or host
-            got = _one_served(mod, host, port, sni, exp)
+            via = str(cfg.get('via') or '').strip()
+            got = _through(store, via, mod, host, port, sni, exp) if via else \
+                _one_served(mod, host, port, sni, exp)
     except PluginError as e:
         got = {'state': 'unreachable', 'ok': False, 'said': str(e), 'detail': {}}
     except Exception as e:                              # noqa: BLE001
@@ -485,6 +487,42 @@ def probe(store, chk, cert=None):
 
 
 ORDER = {'ok': 0, 'warn': 1, 'old': 2, 'other': 3, 'answer': 3, 'unreachable': 4}
+
+
+def _through(store, via, mod, host, port, sni, exp):
+    """One test through a connector of the tests (1.0.76): signed in to its server over SSH,
+    the test connected from there (ssh -W), as a target is reached through one."""
+    from acmelib.certs import runtime
+    from acmelib.plugins.checks import _tls
+    crow = store.db.row("SELECT * FROM cert_tests WHERE name = ? AND kind = 'ssh_relay'", (via,))
+    if not crow:
+        raise PluginError('there is no connector called %s (Tests → Connector over SSH)' % via,
+                          retry=False)
+    if crow.get('enabled') == 0:
+        raise PluginError('the connector %s is switched off' % via, retry=False)
+    ctx = runtime.RunContext(store, None, scope='check:%s' % via)
+    try:
+        conn = S.plugin_instance(store, 'check', crow, ctx)
+        try:
+            session = conn.ssh()
+        except PluginError as e:
+            raise PluginError('signing in to the connector %s (%s): %s' % (
+                via, conn.c('host') or '?', e))
+        try:
+            _tls.RELAY.fn = lambda h, p, t: session.tunnel(h, p, t)
+            try:
+                got = _one_served(mod, host, port, sni, exp)
+            except PluginError as e:
+                why = session.tunnel_said() if hasattr(session, 'tunnel_said') else ''
+                raise PluginError('%s (through %s)%s' % (e, via, (' - ssh said: ' + why) if why else ''))
+            finally:
+                _tls.RELAY.fn = None
+        finally:
+            session.close()
+    finally:
+        ctx.tidy()
+    got.setdefault('detail', {})['via'] = via
+    return got
 
 
 def _one_served(mod, host, port, sni, exp):

@@ -169,6 +169,7 @@ function acme_certs_tab_panels(): void
       makes one the default: offered first when a certificate is deployed.</p>
     <div class="btnrow filters">
       <input type="search" id="tg-q" placeholder="a name, an address, a kind…" style="flex:1;min-width:200px">
+      <span class="seg mod-view" id="tg-view" hidden></span>
       <span class="spacer"></span>
       <button class="btn cmd primary ct-fulladmin" id="tg-add" data-icon="add">Add a target</button>
     </div>
@@ -189,6 +190,7 @@ function acme_certs_tab_panels(): void
       connector signs in to a Linux server over SSH and runs the tests it carries from there.</p>
     <div class="btnrow filters">
       <input type="search" id="ts-q" placeholder="a name, a kind, an address…" style="flex:1;min-width:200px">
+      <span class="seg mod-view" id="ts-view" hidden></span>
       <span class="spacer"></span>
       <button class="btn cmd primary ct-fulladmin" id="ts-add" data-icon="add">Add a test</button>
     </div>

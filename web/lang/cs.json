@@ -55279,6 +55279,54 @@
   "sc_2": {
    "source": "The tail of /var/log/acme/acme.log - in a window of its own, so this page keeps one scroll.",
    "text": "Konec souboru /var/log/acme/acme.log – ve vlastním okně, aby tato stránka měla jediný posuvník."
+  },
+  "kp_1": {
+   "source": "Where certificates go",
+   "text": "Kam jdou certifikáty"
+  },
+  "tc_1": {
+   "source": "a server only another network reaches: acme signs in to the connector (Tests → Connector over SSH) and connects to this one from there - nothing installed there",
+   "text": "server, na který dosáhne jen jiná síť: acme se přihlásí na konektor (Testy → Konektor přes SSH) a odtud se připojí na tento – nic se tam neinstaluje"
+  },
+  "tc_2": {
+   "source": "A connector: a Linux server of yours (AlmaLinux, RHEL, Rocky…) acme signs in to over SSH, to test from it the servers only that network reaches - chosen in each test's More → Through a connector.",
+   "text": "Konektor: váš linuxový server (AlmaLinux, RHEL, Rocky…), na který se acme přihlásí přes SSH a z něj testuje servery, kam vede jen ta síť – vybírá se v každém testu v Další → Přes konektor."
+  },
+  "tc_3": {
+   "source": "Tests run from there (the older way)",
+   "text": "Testy spouštěné odtud (starší způsob)"
+  },
+  "tc_4": {
+   "source": "The older way (before 1.0.76): this connector attached to certificates runs the tests ticked here. Now each test chooses its connector itself - More → Through a connector - and this stays empty.",
+   "text": "Starší způsob (před 1.0.76): tento konektor připojený k certifikátům spouští testy zaškrtnuté zde. Teď si každý test vybírá konektor sám – Další → Přes konektor – a toto zůstává prázdné."
+  },
+  "tc_5": {
+   "source": "Connectors",
+   "text": "Konektory"
+  },
+  "tc_6": {
+   "source": "No connector yet. A connector is a Linux server acme signs in to over SSH, to reach from it the targets only that network reaches - Add a target → Connector over SSH.",
+   "text": "Zatím žádný konektor. Konektor je linuxový server, na který se acme přihlásí přes SSH a z něj dosáhne na cíle, kam vede jen ta síť – Přidat cíl → Konektor přes SSH."
+  },
+  "tc_7": {
+   "source": "No connector yet. A connector is a Linux server acme signs in to over SSH, to test from it the servers only that network reaches - Add a test → Connector over SSH.",
+   "text": "Zatím žádný konektor. Konektor je linuxový server, na který se acme přihlásí přes SSH a z něj testuje servery, kam vede jen ta síť – Přidat test → Konektor přes SSH."
+  },
+  "tc_8": {
+   "source": "through the connector",
+   "text": "přes konektor"
+  },
+  "tc_9": {
+   "source": "Tick the tests to run against this certificate. A test set to go through a connector (More → Through a connector) is run from there. Empty \"Connect to\" in a test: it connects to the certificate’s first name.",
+   "text": "Zaškrtněte testy, které se mají spouštět proti tomuto certifikátu. Test nastavený přes konektor (Další → Přes konektor) se spustí odtamtud. Prázdné „Připojit k“ v testu: připojí se na první jméno certifikátu."
+  },
+  "tt_1": {
+   "source": "Targets through it",
+   "text": "Cílů přes něj"
+  },
+  "tt_2": {
+   "source": "Tests through it",
+   "text": "Testů přes něj"
   }
  },
  "patterns": {
@@ -75493,6 +75541,10 @@
   "pconn_1": {
    "source": "{0} (a connector of the tests)",
    "text": "{0} (konektor testů)"
+  },
+  "ptc_1": {
+   "source": "through the connector {0}",
+   "text": "přes konektor {0}"
   }
  },
  "rich": {

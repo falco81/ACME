@@ -107,6 +107,13 @@ def fields(port, more=None):
               help='On: the chain must be trusted by this machine\'s CAs and hold the name '
                    'checked - off, that is only said (a CA of acme\'s own is not trusted '
                    'by the system).'),
+        # Through a connector (1.0.76), as a target chooses one: the test connects from the
+        # connector's server (ssh -W) - for servers only that network reaches.
+        field('via', 'Through a connector', 'select', default='', options=[['', 'directly']],
+              options_from='test_connectors', advanced=True,
+              help='a server only another network reaches: acme signs in to the connector '
+                   '(Tests → Connector over SSH) and connects to this one from there - nothing '
+                   'installed there'),
     ]
 
 

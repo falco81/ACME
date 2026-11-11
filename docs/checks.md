@@ -115,18 +115,28 @@ header* (a virtual host other than the SNI), *More headers*, *Status expected*
 
 ## Through an SSH server
 
-A **connector** (*Tests on a server over SSH*, `ssh_relay`) is a test of its
-own: it signs in to a Linux server of yours (AlmaLinux, RHEL, Rocky… - any with
-OpenSSH) with its address, port, user and key or password - the same key card
-as a Linux / Unix (SSH) target: *Make a key*, *Use my own*, *Try reaching it*,
-*How to set it up on the server*. Its *Tests run from there* tick tests already
-defined (HTTPS of an internal site, SMTP of a relay, RDP of a Windows server…).
-Attached to a certificate, every one of them is run from that server through
-`ssh -W host:port` - nothing installed there, nothing left behind
-(`AllowTcpForwarding` must not be `no`) - and compared with that certificate;
-the worst of them is the result, every one shown under it.
+A **connector** (*Connector over SSH*, `ssh_relay`) is a Linux server of yours (AlmaLinux,
+RHEL, Rocky… - any with OpenSSH) that acme signs in to with its address, port, user and key or
+password. It has the same key card as a Linux / Unix (SSH) target: *Make a key*, *Use my own*,
+*Try reaching it*, *How to set it up on the server*.
 
-The same connector also carries the deployments (1.0.74): a target that signs in over SSH,
+**Since 1.0.76 each test chooses its connector itself**, as a target does: *More → Through a
+connector*. The test is then connected from that server through `ssh -W host:port`. Nothing is
+installed there and nothing is left behind (`AllowTcpForwarding` must not be `no`), and the
+result is judged as any other. A connector that is not there or is switched off is said in
+words; it never quietly goes direct.
+
+**The tests' connectors and the targets' are separate** (Targets → Connector over SSH): they
+may be different servers. The Tests and Targets tables each have a switch above them - *Tests |
+Connectors*, *Targets | Connectors* - and a connector's row counts the tests (targets) that go
+through it. *Add a test* shows the connector in a group of its own, first.
+
+**The older way:** a connector with *Tests run from there* ticked (now under More),
+attached to a certificate, runs those tests and gives the worst of them as the result, every one
+shown under it. It still works. *Attach a test* offers only such a connector; one without
+ticked tests is only a way through.
+
+The same connector can carry the deployments too (1.0.74): a target that signs in over SSH,
 with *More → Through a connector* set to it, is reached from that server. See
 [targets.md](targets.md), *Through a connector*.
 

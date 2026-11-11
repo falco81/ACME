@@ -1819,6 +1819,10 @@ def options_for(store, source):
             "SELECT name FROM cert_tests WHERE kind = 'ssh_relay' ORDER BY name")]
         return [[n, n] for n in own] + [[n, '%s (a connector of the tests)' % n]
                                         for n in tests if n not in own]
+    if source == 'test_connectors':
+        # the connectors of the tests (checks/ssh_relay.py) a test can go through (1.0.76)
+        return [[r['name'], r['name']] for r in store.db.rows(
+            "SELECT name FROM cert_tests WHERE kind = 'ssh_relay' ORDER BY name")]
     if source == 'key_types':
         return [[k, k] for k in schema.KEY_TYPES]
     return []

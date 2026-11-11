@@ -5,6 +5,14 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.76 - not released
+- Tests: **each test chooses its connector itself** - *More → Through a connector*, as a
+  target does. It is then connected from that server (`ssh -W`). The tests' connector is now
+  called *Connector over SSH*; its old list *Tests run from there* moved under More and still
+  works the older way. Only a connector with tests ticked is offered when a test is attached.
+- Targets and Tests: a switch above the table - *Targets | Connectors* and *Tests | Connectors*,
+  each with its count. A connector's row counts what goes through it, and its settings column
+  says *through the connector X*.
+- *Add a target* and *Add a test*: the connectors in a group of their own, first.
 
 ## 1.0.75 - 2026-11-11
 - One scroll everywhere. Sources, Validation, Targets and Tests are as tall as the window: the
