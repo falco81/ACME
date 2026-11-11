@@ -252,6 +252,14 @@ def layouts(folder, kind='posix'):
         {'key': 'fullchain', 'title': 'Full chain + key', 'what': 'as nginx wants it',
          'outputs': [ln('fullchain-pem', d + '/{name}.fullchain.crt', cert),
                      ln('key-pem', d + '/{name}.key', key)]},
+        # The full chain where the server sends it from, the chain alone beside it for what checks
+        # it (nginx's ssl_trusted_certificate for OCSP stapling, Apache's SSLCACertificateFile),
+        # and the key (1.0.64).
+        {'key': 'fullchain_chain', 'title': 'Full chain, chain, key',
+         'what': 'nginx with OCSP stapling, Apache 2.4.8+',
+         'outputs': [ln('fullchain-pem', d + '/{name}.crt', cert),
+                     ln('chain-pem', d + '/{name}.ca', cert),
+                     ln('key-pem', d + '/{name}.key', key)]},
         {'key': 'pfx', 'title': 'PKCS#12 with a password', 'what': 'one .pfx file',
          'outputs': [ln('pfx', d + '/{name}.pfx', key)], 'password': 'generate'},
         {'key': 'jks', 'title': 'Java keystore', 'what': 'one .jks file',

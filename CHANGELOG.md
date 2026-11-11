@@ -5,6 +5,11 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.64 - not released
+- The files on a target: a quick layout **Full chain, chain, key** - the certificate with its
+  intermediates where the server sends it from (nginx's ssl_certificate, Apache 2.4.8+'s
+  SSLCertificateFile), the chain alone beside it (nginx's ssl_trusted_certificate for OCSP
+  stapling) and the key. A server sending only its own certificate is what the test after a
+  deployment says as "the server sends no intermediate certificate".
 
 ## 1.0.63 - 2026-11-11
 - **The SSH key of a target, a validation or a test works again** - Make a key, Use my own,

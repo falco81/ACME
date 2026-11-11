@@ -54579,6 +54579,14 @@
   "ad25_3": {
    "source": "the directory wants a signed or encrypted connection (strongerAuthRequired) - a domain controller that requires LDAP signing (Windows Server 2025 does by default) refuses a sign-in over plain LDAP: switch this directory to LDAPS (636) or STARTTLS",
    "text": "adresář chce podepsané nebo šifrované spojení (strongerAuthRequired) - řadič domény, který vyžaduje podepisování LDAP (Windows Server 2025 ve výchozím stavu ano), odmítne přihlášení přes nešifrovaný LDAP: přepněte tento adresář na LDAPS (636) nebo STARTTLS"
+  },
+  "fc64_1": {
+   "source": "Full chain, chain, key",
+   "text": "Celý řetězec, řetězec, klíč"
+  },
+  "fc64_2": {
+   "source": "nginx with OCSP stapling, Apache 2.4.8+",
+   "text": "nginx s OCSP staplingem, Apache 2.4.8+"
   }
  },
  "patterns": {
