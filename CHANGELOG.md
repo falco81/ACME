@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.74 - not released
+
 ## 1.0.73 - 2026-11-11
 - Certificates: **Run the tests…**, for every certificate (a button above the list) or for one
   (▶ in its row). A popup lists the tests with how each went last. Choose **Only run them**, or
