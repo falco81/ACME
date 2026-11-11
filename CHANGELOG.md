@@ -5,6 +5,10 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.65 - not released
+- A certificate's tests tied to a deployment: the certificate's window → Tests → **After
+  deploying on** - a test of one target runs only after a deployment on that target (deploying
+  on rpki1 tested rpki2 too, still waiting for its own deployment); **any target** (as every test
+  is until changed) runs after any deployment, as before.
 
 ## 1.0.64 - 2026-11-11
 - The files on a target: a quick layout **Full chain, chain, key** - the certificate with its

@@ -8,6 +8,7 @@ family 'check', table cert_tests).
     POST /api/checks/attach   {cert_id, tests: [name...]}
     POST /api/checks/detach   {id}
     POST /api/checks/switch   {id, enabled}
+    POST /api/checks/after    {id, target}   (1.0.65: '' - after any deployment)
     POST /api/checks/run      {id} -> the result at once | {cert_id | test | all} -> a job
     POST /api/checks/try      {cert_id, kind, config} - a test as its form has it, kept nowhere
 """
@@ -109,6 +110,24 @@ def _switch(h, s):
     _check_need(h, s, _int(b.get('id'), 'id'), 'manage', 'switch a test of')
     C.switch(h.store, _int(b.get('id'), 'id'), b.get('enabled') not in (False, 0, '0'),
              A.who(s))
+    return {'ok': True}
+
+
+@A.api('POST', '/api/checks/after', 'certadmin')
+def _after(h, s):
+    """After which deployment the test runs: a target of the certificate, or '' - any (1.0.65)."""
+    b = h.body()
+    ident = _int(b.get('id'), 'id')
+    _check_need(h, s, ident, 'manage', 'change a test of')
+    try:
+        chk = C.after(h.store, ident, b.get('target'), A.who(s))
+    except ValueError as e:
+        raise E.ApiError(400, str(e))
+    cert = S.cert_get(h.store, chk['cert_id']) or {}
+    t = str(b.get('target') or '').strip()
+    h.store.add_event('certificates', 'test %s of %s runs after %s by %s' % (
+        chk['test'], cert.get('name', '?'), ('a deployment on %s' % t) if t else 'any deployment',
+        A.who(s)), who=A.who(s))
     return {'ok': True}
 
 

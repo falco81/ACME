@@ -106,6 +106,20 @@ def detach(store, ident):
     store.db.run('DELETE FROM cert_checks WHERE id = ?', (int(ident),))
 
 
+def after(store, ident, target, by):
+    """The target after whose deployment the test runs ('' - after any) (1.0.65)."""
+    chk = store.db.row('SELECT * FROM cert_checks WHERE id = ?', (int(ident),))
+    if not chk:
+        raise LookupError('there is no such test of a certificate')
+    target = str(target or '').strip()
+    if target and not store.db.row('SELECT id FROM cert_deploys WHERE cert_id = ? AND target = ?',
+                                   (chk['cert_id'], target)):
+        raise ValueError('the certificate is not deployed on %s' % target)
+    store.db.update('cert_checks', int(ident), {'after_target': target, 'updated': time.time(),
+                                                 'updated_by': str(by)[:190]})
+    return chk
+
+
 def switch(store, ident, on, by):
     store.db.update('cert_checks', int(ident), {'enabled': 1 if on else 0,
                                                  'updated': time.time(),
@@ -656,12 +670,19 @@ def run(store, chk, step=None):
     return record(store, chk, probe(store, chk), step)
 
 
-def after_deploy(store, job, cert_id):
-    """The tests of a certificate just deployed, a few times while the services restart."""
+def after_deploy(store, job, cert_id, targets=None):
+    """The tests of a certificate just deployed, a few times while the services restart - those
+    tied to a target (after_target, 1.0.65) only after a deployment on that target; `targets`:
+    the targets just deployed on (None: every test, as before)."""
     if not E.CONFIG.get('certs_checks_after_deploy', 1):
         return None
     tests = store.db.rows('SELECT * FROM cert_checks WHERE cert_id = ? AND '
                           'COALESCE(enabled, 1) <> 0 ORDER BY position, id', (int(cert_id),))
+    if targets is not None:
+        tests = [t for t in tests if not (t.get('after_target') or '') or
+                 t['after_target'] in targets]
+        if not tests:
+            return None
     if not tests:
         return None
     worst = True

@@ -54587,6 +54587,30 @@
   "fc64_2": {
    "source": "nginx with OCSP stapling, Apache 2.4.8+",
    "text": "nginx s OCSP staplingem, Apache 2.4.8+"
+  },
+  "ck65_1": {
+   "source": "After deploying on",
+   "text": "Po nasazení na"
+  },
+  "ck65_2": {
+   "source": "any target",
+   "text": "kterýkoli cíl"
+  },
+  "ck65_3": {
+   "source": "not deployed there any more",
+   "text": "tam už se nenasazuje"
+  },
+  "ck65_4": {
+   "source": "A deployment on this target runs the test; any: a deployment on any of the certificate's targets does.",
+   "text": "Test spustí nasazení na tento cíl; kterýkoli: nasazení na kterýkoli cíl certifikátu."
+  },
+  "ck65_5": {
+   "source": "runs after a deployment on",
+   "text": "spustí se po nasazení na"
+  },
+  "ck65_6": {
+   "source": "runs after any deployment",
+   "text": "spustí se po každém nasazení"
   }
  },
  "patterns": {
@@ -74721,6 +74745,10 @@
   "ph62_5": {
    "source": "the server’s certificate does not name {0}: {1}. Give the server by a name its certificate has",
    "text": "certifikát serveru neuvádí {0}: {1}. Zadejte server jménem, které jeho certifikát má"
+  },
+  "pck65_1": {
+   "source": "the certificate is not deployed on {0}",
+   "text": "certifikát se na {0} nenasazuje"
   }
  },
  "rich": {

@@ -353,6 +353,26 @@ class TestRuns(Base):
             self.assertTrue(any('current certificate' in w for _l, w in job.steps))
         finally:
             C.AFTER_DEPLOY_TRIES = old
+        # Tied to a target (1.0.65): run after a deployment on it only.
+        STORE.db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (self.cid,))
+        STORE.db.insert('cert_deploys', {'cert_id': self.cid, 'target': 'rpki1', 'enabled': 1})
+        with self.assertRaises(ValueError):
+            C.after(STORE, i, 'rpki2', 'test')           # not a target of the certificate
+        C.after(STORE, i, 'rpki1', 'test')
+        C.AFTER_DEPLOY_TRIES, old = (0, 0), C.AFTER_DEPLOY_TRIES
+        try:
+            job = Job()
+            job.steps = []
+            self.assertIsNone(C.after_deploy(STORE, job, self.cid, {'rpki3'}))   # none of its own
+            self.assertEqual(job.steps, [])
+            self.assertTrue(C.after_deploy(STORE, job, self.cid, {'rpki1'}))
+            self.assertTrue(job.steps)
+            C.after(STORE, i, '', 'test')                 # any again
+            job.steps = []
+            self.assertTrue(C.after_deploy(STORE, job, self.cid, {'rpki3'}))
+        finally:
+            C.AFTER_DEPLOY_TRIES = old
+            STORE.db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (self.cid,))
         EN.CONFIG['certs_checks_auto'] = 0
         self.assertEqual(C.due(STORE), [])
         EN.CONFIG['certs_checks_auto'] = 1

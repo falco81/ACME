@@ -250,7 +250,7 @@ def run_deploys(store, job, cert_id, only=None, force=False):
     if not rows:
         job.step('no deployment to run')
         return True, 'nothing to deploy'
-    good, bad = 0, []
+    good, bad, done_on = 0, [], set()
     for dep in rows:
         job.check()
         from acmelib.certs import dnssets       # a target's own connections: Settings → DNS
@@ -258,6 +258,7 @@ def run_deploys(store, job, cert_id, only=None, force=False):
             ok, said = deploy_one(store, job, cert, dep, force)
         if ok:
             good += 1
+            done_on.add(str(dep.get('target') or ''))
         else:
             bad.append('%s: %s' % (dep['target'], said))
     # Its tests (1.0.32): what the servers really serve now - a failed one is a warning of
@@ -266,7 +267,7 @@ def run_deploys(store, job, cert_id, only=None, force=False):
     if good:
         try:
             from acmelib.certs import checks
-            tested = checks.after_deploy(store, job, cert_id)
+            tested = checks.after_deploy(store, job, cert_id, done_on)
         except JobStopped:
             raise
         except Exception as e:                          # noqa: BLE001

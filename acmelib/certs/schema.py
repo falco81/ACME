@@ -118,13 +118,14 @@ SCHEMA = [
         id {ID}, name {K} NOT NULL UNIQUE, kind {K}, config {B}, state {B}, enabled {I},
         note {T}, created {N}, created_by {K}, updated {N}, last_ok {N}, last_error {T},
         tags {T})'''),
-    # A test attached to a certificate (acmelib/certs/checks.py) - and how it went last
+    # A test attached to a certificate (acmelib/certs/checks.py) - and how it went last; after_target
+    # (1.0.65): run after a deployment on that target only ('' - after any of its deployments)
     # (last_state ok | warn | old | other | answer | unreachable, last_detail: JSON of
     # what was served).
     ('cert_checks', '''CREATE TABLE IF NOT EXISTS cert_checks (
         id {ID}, cert_id {I} NOT NULL, test {K} NOT NULL, enabled {I}, position {I},
         note {T}, last_at {N}, last_ok {N}, last_state {K}, last_said {T}, last_detail {B},
-        fails {I}, created {N}, created_by {K}, updated {N}, updated_by {K})'''),
+        fails {I}, created {N}, created_by {K}, updated {N}, updated_by {K}, after_target {K})'''),
 ]
 
 INDEXES = [

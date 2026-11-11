@@ -3445,7 +3445,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
   grid.appendChild(ds);
   /* tests of what the servers serve (1.0.32): attached here as targets are */
   var tsec = section('Tests', 'What the servers really serve, compared with this certificate - after its deployments, by themselves when Settings → Certificates says so, or now.', true);
-  tsec._body.appendChild(certTests(c, back));
+  tsec._body.appendChild(certTests(c, back, deploys));
   grid.appendChild(tsec);
   /* versions */
   var vs = section('Versions', 'Every certificate it has had - renewals, imports. The newest is the one in use.', true);
@@ -8706,7 +8706,7 @@ function ckDetail(res) {
 }
 /** The tests attached to a certificate - drawn as its deployments are, each with how it
     went last; "Attach a test" offers the tests defined on Certificates → Tests. */
-function certTests(c, back) {
+function certTests(c, back, deploys) {
   /* Drawn as its deployments are (1.0.33): a table, the buttons under it on the left. */
   var box = el('div', 'ck-card');
   var sum = el('div', 'ck-sum');
@@ -8752,7 +8752,33 @@ function certTests(c, back) {
       sum.appendChild(el('span', 'ck-auto small muted', st.certs_checks_auto ? 'run by themselves every ' + st.certs_checks_every_min + ' min' : 'run after each deployment only'));
     }
     runAll.hidden = !rows.length;
-    host.appendChild(listTable(['Test', 'State', 'Where', 'Last run', ''], rows, function (x) {
+    /* After which deployment each test runs (1.0.65): one of the certificate's targets, or any. */
+    var targets = [];
+    arr(deploys).forEach(function (dp) { if (dp && dp.target && targets.indexOf(dp.target) < 0) targets.push(dp.target); });
+    var afterCell = function (x) {
+      var cell = el('td', 'small');
+      var have = String(x.after_target || '');
+      if (!MANAGE) {
+        cell.appendChild(have ? data('span', '', have) : el('span', 'muted', 'any target'));
+        return cell;
+      }
+      var pairs = [['', tr('any target')]].concat(targets.map(function (t) { return [t, t]; }));
+      if (have && targets.indexOf(have) < 0) pairs.push([have, have + ' - ' + tr('not deployed there any more')]);
+      var sel = selectBox(pairs, have);
+      sel.classList.add('ck-after');
+      sel.setAttribute('data-no-i18n', '');
+      explain(sel, 'A deployment on this target runs the test; any: a deployment on any of the certificate\'s targets does.');
+      sel.onclick = function (ev) { ev.stopPropagation(); };
+      sel.onchange = function () {
+        capi('checks/after', {id: x.id, target: sel.value}).then(function () {
+          x.after_target = sel.value;
+          toast(sel.value ? tr('runs after a deployment on') + ' ' + sel.value : tr('runs after any deployment'), 'good');
+        }).catch(function (e) { sel.value = have; fail(e); });
+      };
+      cell.appendChild(sel);
+      return cell;
+    };
+    host.appendChild(listTable(['Test', 'State', 'Where', 'After deploying on', 'Last run', ''], rows, function (x) {
       var r = el('tr');
       if (x.enabled === 0 || !x.test_enabled) r.classList.add('ct-depoff');
       var nc = el('td');
@@ -8772,6 +8798,7 @@ function certTests(c, back) {
       if (x.enabled === 0) sc.appendChild(el('span', 'tag dim', 'off here'));
       r.appendChild(sc);
       r.appendChild(td('mono small', x.where || '–'));
+      r.appendChild(afterCell(x));
       r.appendChild(x.last_at ? stampCell(x.last_at) : td('muted', 'never'));
       var tools = el('td', 'rowtools');
       if (x.last_at) {
