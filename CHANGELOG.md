@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.71 - not released
+## 1.0.71 - 2026-11-11
 - isemon: **First full sync** (Settings → isemon, or `acme --isemon-sync [DAYS]`). It sends
   everything acme holds of its certificates once: every certificate, deployment, attached
   test, target, source, validation and authority as it is now, then the history of the
