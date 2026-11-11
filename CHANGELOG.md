@@ -5,6 +5,10 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.63 - not released
+- **The SSH key of a target, a validation or a test works again** - Make a key, Use my own,
+  Download, Forget and Try reaching it all said: there is no target module (an empty name). A list
+  field's own variable in the form hid the form's options, so the key card knew neither its
+  module nor its row (nor did the catalog picker of a form).
 
 ## 1.0.62 - 2026-11-09
 - Bug hunt over what came since 1.0.53:

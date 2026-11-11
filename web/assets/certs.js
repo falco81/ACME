@@ -752,8 +752,8 @@ function fieldForm(fields, values, secrets, opts) {
          1.0.32): ticked, in the order of the options; what was set but is gone stays
          ticked and said. */
       var picks = arr(Array.isArray(v) ? v : (typeof v === 'string' ? v.split(/\n/) : [])).map(String).filter(Boolean);
-      var opts = optionPairs(f).filter(function (o) { return o[0] !== ''; });
-      picks.forEach(function (x) { if (!opts.some(function (o) { return o[0] === x; })) opts.push([x, x + ' - ' + tr('not there any more')]); });
+      var choices = optionPairs(f).filter(function (o) { return o[0] !== ''; });
+      picks.forEach(function (x) { if (!choices.some(function (o) { return o[0] === x; })) choices.push([x, x + ' - ' + tr('not there any more')]); });
       /* Drawn as a certificate's deployments are: a table of the chosen ones, each
          taken off by its own button, and "Add" under it offering what is not chosen. */
       input = el('div', 'ck-chosen');
@@ -762,7 +762,7 @@ function fieldForm(fields, values, secrets, opts) {
       var addB = cmdButton(f.add_words || 'Add', 'add', 'small');
       var menu = el('div', 'ck-pickmenu');
       menu.hidden = true;
-      var wordOf = function (x) { var o = opts.filter(function (q) { return q[0] === x; })[0]; return o ? o[1] : x; };
+      var wordOf = function (x) { var o = choices.filter(function (q) { return q[0] === x; })[0]; return o ? o[1] : x; };
       var drawChosen = function () {
         clear(tbl);
         tbl.appendChild(listTable([f.options_from === 'tests' ? 'Test' : 'Name', ''], picks, function (x, i) {
@@ -780,7 +780,7 @@ function fieldForm(fields, values, secrets, opts) {
           r.appendChild(tools);
           return r;
         }, 'plain ct-deptable|' + tr('Nothing chosen yet')));
-        var free = opts.filter(function (o) { return picks.indexOf(o[0]) < 0; });
+        var free = choices.filter(function (o) { return picks.indexOf(o[0]) < 0; });
         addB.disabled = !free.length;
         clear(menu);
         free.forEach(function (o) {
