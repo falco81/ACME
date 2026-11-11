@@ -674,7 +674,8 @@ class FakeSsh(object):
              'trust_first': bool(self.conn.get('trust_first')),
              'timeout': int(self.conn.get('timeout') or 15),
              'key': bool(self.conn.get('key')), 'password': bool(self.conn.get('password')),
-             'key_pass': bool(self.conn.get('key_pass'))})
+             'key_pass': bool(self.conn.get('key_pass')),
+             'via': str(self.conn.get('via') or '')})
 
     def __enter__(self):
         return self

@@ -508,7 +508,9 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                                            ev.get('auth'), 'nothing set'), 'words'],
                     ['Host key', ', '.join(ev.get('hostkey') or [])] if ev.get('hostkey') else
                     ['Host key', 'none pinned: the first one seen is trusted and kept'
-                     if ev.get('trust_first') else 'none pinned: refused until it is', 'words']],
+                     if ev.get('trust_first') else 'none pinned: refused until it is', 'words']] +
+                    ([['Through', 'the connector %s - signed in to first, this server reached from '
+                       'it (ssh -W)' % ev['via'], 'words']] if ev.get('via') else []),
                     'command': _ssh_shown(ev)}}
         elif k == 'ssh-run':
             cmd = ev.get('command') or ''

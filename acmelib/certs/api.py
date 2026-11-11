@@ -1810,6 +1810,10 @@ def options_for(store, source):
         return [[r['name'], '%s (%s)' % (r['name'], r['kind'])]
                 for r in store.db.rows('SELECT name, kind, config FROM cert_targets ORDER BY name')
                 if issubclass(S.row_class('target', r) or object, SshMixin)]
+    if source == 'connectors':
+        # the connectors (checks/ssh_relay.py) a server over SSH can be reached through (1.0.74)
+        return [[r['name'], r['name']] for r in store.db.rows(
+            "SELECT name FROM cert_tests WHERE kind = 'ssh_relay' ORDER BY name")]
     if source == 'key_types':
         return [[k, k] for k in schema.KEY_TYPES]
     return []

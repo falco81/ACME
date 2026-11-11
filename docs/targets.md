@@ -263,6 +263,29 @@ other file (a link is left alone).
 
 
 
+### Through a connector (1.0.74)
+
+A server only another network reaches is deployed to through a **connector**: a Linux
+server of yours that acme can sign in to, defined once under Tests as a test of the kind *Tests
+on a server over SSH* (`ssh_relay`). The tests go through the same connector. Every target that
+signs in over SSH has the setting *More → Through a connector*: Linux / Unix, Windows over SSH,
+HAProxy, Caddy, Traefik, NGINX Unit, strongSwan, Docker Swarm, Zimbra, TrueNAS, ESXi, pfSense,
+HestiaCP and OPNsense's SSH.
+
+How it goes:
+
+1. acme signs in to the connector with the connector's own address, user and key.
+2. It reads the target's host key from there (`ssh-keyscan`), unless one is pinned.
+3. It reaches the target through the connector: `ProxyCommand ssh … -W %h:%p`, the
+   connector's connection held open for it. The target's name is resolved by the connector's
+   network, not by acme's DNS.
+4. The files are written and the commands run on the target as without a connector.
+
+Nothing is installed on the connector, and its OpenSSH must allow forwarding
+(`AllowTcpForwarding`, on by default). *What happens* names the connector, and the job says
+"… is reached through the connector …". A connector that is not there, or that is switched
+off, is said in words; it never quietly goes direct.
+
 ### After the files: from a template (1.0.72)
 
 *After the files → From a template…* fills *Test command*, *Reload / restart* and *After

@@ -55247,6 +55247,18 @@
   "rt_23": {
    "source": "The tests of every certificate run now - only run, or with a report of them sent by mail or SMS.",
    "text": "Testy všech certifikátů se spustí hned – jen spustit, nebo i s reportem e-mailem či SMS."
+  },
+  "via_1": {
+   "source": "Through a connector",
+   "text": "Přes konektor"
+  },
+  "via_2": {
+   "source": "directly",
+   "text": "přímo"
+  },
+  "via_3": {
+   "source": "a server only another network reaches: acme signs in to the connector (Tests → Tests on a server over SSH) and from it to this one - nothing installed there",
+   "text": "server, na který dosáhne jen jiná síť: acme se přihlásí na konektor (Testy → Testy na serveru přes SSH) a z něj na tento – nic se tam neinstaluje"
   }
  },
  "patterns": {
@@ -75449,6 +75461,14 @@
   "prt_2": {
    "source": "test(s) of {0} certificate(s)",
    "text": "testů z {0} {0:certifikátu|certifikátů|certifikátů}"
+  },
+  "pvia_1": {
+   "source": "{0} is reached through the connector {1} ({2})",
+   "text": "{0} je dostupný přes konektor {1} ({2})"
+  },
+  "pvia_2": {
+   "source": "the connector {0} - signed in to first, this server reached from it (ssh -W)",
+   "text": "konektor {0} – přihlásí se nejdřív na něj a z něj na tento server (ssh -W)"
   }
  },
  "rich": {

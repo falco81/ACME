@@ -779,11 +779,23 @@ class SshSession(base.SshSession):
         if not re.match(r'^[A-Za-z0-9_.@\\-]{1,64}\Z', self.user) or self.user.startswith('-'):
             raise base.PluginError('%r is not an account name' % self.user, retry=False)
         self.timeout = int(c.get('timeout') or 20)
+        # Through a connector (1.0.74): a Linux server of the tests' connectors signed in to
+        # first, and this one reached from it (ProxyCommand ssh -W) - its name as that network
+        # knows it, its host key read there.
+        self.jump = self._jump(str(c.get('via') or '').strip()) if c.get('via') else None
         from acmelib.certs import dnssets               # the name asked of Settings → DNS
-        self.addr = dnssets.ssh_address(self.ctx, self.host)
+        self.addr = self.host if self.jump else dnssets.ssh_address(self.ctx, self.host)
         lines = hostkey_lines(c.get('hostkey'))
         if not lines:
-            scanned = keyscan(self.addr, self.port, min(self.timeout, 15))
+            if self.jump:
+                rc, scanned, err = self.jump.run('ssh-keyscan -T %d -p %d %s' % (
+                    min(self.timeout, 15), self.port, shq(self.host)), timeout=60, check=False)
+                if not hostkey_lines(scanned):
+                    self.close()
+                    raise base.PluginError('%s:%s showed no host key to %s: %s' % (
+                        self.host, self.port, self.jump.host, (err or '').strip()[-200:] or 'no answer'))
+            else:
+                scanned = keyscan(self.addr, self.port, min(self.timeout, 15))
             lines = hostkey_lines(scanned)
             prints = ', '.join(hostkey_fingerprint(x) for x in lines)
             if not c.get('trust_first'):
@@ -793,7 +805,7 @@ class SshSession(base.SshSession):
                     % (self.host, prints), detail=scanned, retry=False)
             self.ctx.step('the host key of %s taken as the first one seen: %s'
                           % (self.host, prints), 'warn')
-            if self.ctx.on_hostkey:
+            if self.ctx.on_hostkey and not c.get('no_keep'):
                 try:
                     # the lines kept under the host's name as set (1.0.51), not the address
                     # scanned: a validation's list of hosts finds them by that name
@@ -834,8 +846,29 @@ class SshSession(base.SshSession):
             raise base.PluginError('neither a key nor a password is set for %s' % self.host,
                                    retry=False)
         self.opts += ssh_auth_options(auths, bool(pw or kp))
+        if self.jump:
+            j = self.jump
+            j.run('true', timeout=60)                   # its connection held open for the proxy
+            self.opts += ['-o', 'ProxyCommand=' + ' '.join(
+                shq(x) for x in ['ssh'] + j.opts + ['-p', str(j.port), '-W', '%h:%p', j.dest])]
+            self.ctx.step('%s is reached through the connector %s (%s)' % (
+                self.host, c.get('via'), j.host), 'info')
         self.dest = '%s@%s' % (self.user, self.host)
         self.rdest = '%s@[%s]' % (self.user, self.host) if ':' in self.host else self.dest
+
+    def _jump(self, name):
+        """The connector named (a test of the kind ssh_relay) signed in to."""
+        store = getattr(self.ctx, 'store', None)
+        row = store.db.row('SELECT * FROM cert_tests WHERE name = ?', (name,)) if store else None
+        if not row or row.get('kind') != 'ssh_relay':
+            raise base.PluginError('there is no connector called %s (Tests → a test of the kind '
+                                   '"Tests on a server over SSH")' % name, retry=False)
+        if row.get('enabled') == 0:
+            raise base.PluginError('the connector %s is switched off' % name, retry=False)
+        from acmelib.plugins.targets._common import ssh_conn
+        conn = ssh_conn(S.plugin_instance(store, 'check', row, self.ctx))
+        conn.update(via='', no_keep=True)
+        return SshSession(self.ctx, conn)
 
     # ---- the programs --------------------------------------------------------------------
     def _exec(self, argv, data=None, timeout=120):
@@ -973,6 +1006,9 @@ class SshSession(base.SshSession):
                 pass
             shutil.rmtree(self.d, ignore_errors=True)
             self.d = None
+        if getattr(self, 'jump', None) is not None:
+            j, self.jump = self.jump, None
+            j.close()
 
 
 def wire_request(method, url, headers=None, body=None, own=False):

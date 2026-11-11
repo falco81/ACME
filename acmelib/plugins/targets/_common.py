@@ -582,7 +582,7 @@ def outputs_for(ctx, bundle, outs):
 # Fields every module uses
 # ---------------------------------------------------------------------------
 def ssh_fields(sudo=True, port=22, prefix='', show_if=None, advanced=False, user_default='root',
-               howto='linux', try_command=None):
+               howto='linux', try_command=None, via=True):
     """The SSH sign-in: host, port, user, key or password, host key. The key is
     the key card of isemon (type sshkey): made here or brought, kept sealed; a
     passphrase of a key brought is kept in <prefix>key_pass, as before."""
@@ -617,6 +617,14 @@ def ssh_fields(sudo=True, port=22, prefix='', show_if=None, advanced=False, user
         f(p + 'trust_first', 'Trust the first host key seen', 'bool', default=True,
           advanced=True),
     ]
+    if via:
+        # Through a connector (1.0.74): a server only another network reaches, signed in to
+        # from the connector's Linux server (ssh -W), as the tests run through it.
+        out.append(f(p + 'via', 'Through a connector', 'select', default='', options=[['', 'directly']],
+                     options_from='connectors', advanced=True,
+                     help='a server only another network reaches: acme signs in to the connector '
+                          '(Tests → Tests on a server over SSH) and from it to this one - nothing '
+                          'installed there'))
     if sudo:
         out += [
             f(p + 'sudo', 'Use sudo', 'bool', default=False,
@@ -683,6 +691,7 @@ def ssh_conn(plugin, prefix=''):
         'hostkey_field': p + 'hostkey',        # where the first one seen is kept (1.0.51)
         'trust_first': as_bool(c(p + 'trust_first', True), True),
         'timeout': as_int(c('timeout', 30), 30),
+        'via': c(p + 'via') or '',                # through a connector (1.0.74)
     }
 
 

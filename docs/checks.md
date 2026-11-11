@@ -126,6 +126,10 @@ Attached to a certificate, every one of them is run from that server through
 (`AllowTcpForwarding` must not be `no`) - and compared with that certificate;
 the worst of them is the result, every one shown under it.
 
+The same connector also carries the deployments (1.0.74): a target that signs in over SSH,
+with *More → Through a connector* set to it, is reached from that server. See
+[targets.md](targets.md), *Through a connector*.
+
 ## Your own tests
 
 A test is a module like a source or a target: see

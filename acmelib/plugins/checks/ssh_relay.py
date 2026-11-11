@@ -28,7 +28,7 @@ class SshRelayCheck(SshMixin, Check):
     description = ('A connector: signs in over SSH to a Linux server of yours (AlmaLinux, RHEL, '
                    'Rocky…) and runs the tests chosen for it from there - for servers only that '
                    'network reaches.')
-    fields = ssh_fields(sudo=False, try_command='id -un; uname -n; command -v ssh || true') + [
+    fields = ssh_fields(sudo=False, try_command='id -un; uname -n; command -v ssh || true', via=False) + [
         field('tests', 'Tests run from there', 'list', options=[],
               options_from='tests', add_words='Add a test',
               help='Tests defined on Certificates → Tests (HTTPS of an internal site, SMTP of a '
