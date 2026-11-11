@@ -5,6 +5,8 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.67 - not released
+- The files on a target: the button of a file's mode as tall and wide as the fields beside it
+  (it was a thin strip).
 
 ## 1.0.66 - 2026-11-11
 - A certificate's tests: **No deployment** beside *Every deployment* and *The targets chosen*
