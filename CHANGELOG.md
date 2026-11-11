@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.80 - not released
+
 ## 1.0.79 - 2026-11-11
 - **Hunt G** - the whole application gone through again, not only the latest changes; fixed:
   - **Deployments**: a deployment whose files were written and whose reload or restart was then
