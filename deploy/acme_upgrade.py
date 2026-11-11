@@ -117,7 +117,7 @@ def version_tuple(v):
     return tuple(int(x) for x in str(v).split('.'))
 
 
-VERSION_RE = re.compile(r"^__version__ = '([0-9]+(?:\.[0-9]+){2,3})'", re.M)
+VERSION_RE = re.compile(r"^__version__ = ['\"]([0-9]+(?:\.[0-9]+){2,3})['\"]", re.M)
 
 
 def tree_version(tree):
@@ -285,7 +285,7 @@ def inspect(path, extract_to=None):
                 if h.hexdigest() != listed[rel]:
                     raise Refused('%s is not the file that was signed' % rel)
                 if rel == 'acmelib/__init__.py':
-                    mm = re.search(rb"^__version__ = '([0-9.]+)'", b''.join(body), re.M)
+                    mm = re.search(rb"^__version__ = ['\"]([0-9.]+)['\"]", b''.join(body), re.M)
                     acme_version = mm.group(1).decode() if mm else ''
                 if rel == 'CHANGELOG.md':
                     text = b''.join(body).decode('utf-8', 'replace')
@@ -416,6 +416,11 @@ def put_in(package, ident='', want_sha='', by='the command line', log_to=None,
         unpacked = os.path.join(work, 'x')
         os.makedirs(unpacked, mode=0o700)
         info = inspect(copy, extract_to=unpacked)
+        if not info.get('installed'):
+            # what is installed not read (1.0.80): an older package then went in as a newer
+            # one, past the floor of going back
+            raise Refused('the version installed here could not be read (%s) - install.sh '
+                          '--upgrade by hand' % LIB_DIR)
         if info['older']:
             if not downgrade:
                 raise Refused('%s is older than %s, which is installed: going back is asked for '

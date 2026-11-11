@@ -70,7 +70,7 @@ SKIP_TOP = {'.git', '.github', '.claude', 'release', 'build', 'dist', '.venv', '
 SKIP_SUFFIX = ('.pyc', '.pyo', '.swp', '.swo', '~', '.orig', '.rej', '.key')
 SKIP_NAMES = {'.DS_Store', 'Thumbs.db'}
 NAME_RE = re.compile(r'^acme-(\d+)\.(\d+)\.(\d+)\.tar\.gz\Z')
-VERSION_RE = re.compile(r"^__version__ = '(\d+)\.(\d+)\.(\d+)'", re.M)
+VERSION_RE = re.compile(r"^__version__ = ['\"](\d+)\.(\d+)\.(\d+)['\"]", re.M)
 
 
 def say(text):

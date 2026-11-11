@@ -30,7 +30,7 @@ set -Eeuo pipefail
 
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # The version is acmelib/__init__.py's; the floor for going back is the engine's.
-VERSION="$(sed -n "s/^__version__ = '\(.*\)'.*/\1/p" "$SOURCE_DIR/acmelib/__init__.py" 2>/dev/null | head -n1)"
+VERSION="$(sed -n "s/^__version__ = [\"']\([^\"']*\)[\"'].*/\1/p" "$SOURCE_DIR/acmelib/__init__.py" 2>/dev/null | head -n1)"
 VERSION="${VERSION:-unknown}"
 SERVICE_USER="acme"
 WEB_GROUP="acme-web"
@@ -1293,7 +1293,7 @@ swap_link() {            # swap_link LINK TARGET: the link made new beside it, r
 flat_layout_aside() {    # a program put in as files straight into $LIB_DIR: made a tree of its own
     [[ -f "$LIB_DIR/acme.py" && ! -L "$LIB_DIR/acme.py" ]] || return 0
     local was dest one
-    was="$(sed -n "s/^__version__ = '\(.*\)'.*/\1/p" "$LIB_DIR/acmelib/__init__.py" "$LIB_DIR/acme.py" 2>/dev/null | head -n1 || true)"
+    was="$(sed -n "s/^__version__ = [\"']\([^\"']*\)[\"'].*/\1/p" "$LIB_DIR/acmelib/__init__.py" "$LIB_DIR/acme.py" 2>/dev/null | head -n1 || true)"
     dest="$TREES_DIR/${was:-0.0.0}-flat"
     mkdir -p "$dest"; chmod 0755 "$dest"
     for one in acme.py acmelib web deploy docs test tools acme_upgrade.py acme_web.py acme-vip-check \
