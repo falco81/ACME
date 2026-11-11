@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.69 - not released
+
 ## 1.0.68 - 2026-11-11
 - The files on a target: the owner[:group] field wider (at least 150 px), so www-data:www-data
   fits.
