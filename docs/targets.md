@@ -262,6 +262,29 @@ reload fails. Only files acme itself wrote for that deployment, never any
 other file (a link is left alone).
 
 
+
+### After the files: from a template (1.0.72)
+
+*After the files → From a template…* fills *Test command*, *Reload / restart* and *After
+reloading* for a known application. You can edit them afterwards. Pick the application and how
+it takes the new certificate:
+
+- **Reload** - no downtime, where the application can read a certificate again (nginx,
+  Apache, HAProxy, Caddy, Squid, Hitch, Postfix, Dovecot, PostgreSQL, MySQL 8 `ALTER INSTANCE
+  RELOAD TLS`, MariaDB `FLUSH SSL`, Proxmox Backup Server, ProFTPD, GitLab `gitlab-ctl hup
+  nginx`, any systemd service).
+- **Restart** - `systemctl restart`.
+- **Hard restart** - for a service whose processes outlive a restart. The configuration is
+  tested first; then the service is stopped, its processes are sent TERM and waited for (20 s
+  at most), those left are KILLed, and it is started and checked:
+  `TEST && { systemctl stop U; pkill -TERM -x P; i=0; while pgrep -x P >/dev/null && [ $i -lt 20 ]; do sleep 1; i=$((i+1)); done; pkill -KILL -x P; sleep 1; systemctl start U && systemctl is-active --quiet U; }`.
+
+The unit and the process name can be changed in the picker. The applications: nginx, Apache
+(RHEL `httpd` and Debian `apache2`), lighttpd, Caddy, HAProxy, Traefik, Squid, Hitch, Postfix,
+Dovecot, Exim, OpenLDAP, PostgreSQL, MySQL, MariaDB, Proxmox VE, Proxmox Backup Server, Webmin,
+Cockpit, Grafana, GitLab, vsftpd, ProFTPD, Tomcat, Mosquitto, a Docker container, and any
+systemd service.
+
 ## Files and the script after them
 
 `ssh`, `local` and `windows_ssh` write the certificate as **files** and can run

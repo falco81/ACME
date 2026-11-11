@@ -5,6 +5,13 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.72 - not released
+- The files on a Linux target: **After the files → From a template…**, a picker of 28
+  applications (nginx, Apache RHEL/Debian, HAProxy, Caddy, Postfix, Dovecot, Exim, OpenLDAP,
+  PostgreSQL, MySQL, MariaDB, Proxmox, Grafana, GitLab, Tomcat… and any systemd service).
+  Choose how each takes the new certificate: **Reload** (no downtime), **Restart**, or **Hard
+  restart** (the configuration tested, the service stopped, its leftover processes ended or
+  killed, started and checked). It fills the test, the reload and the check after it, shown
+  before they are used; the unit and process name can be changed.
 
 ## 1.0.71 - 2026-11-11
 - isemon: **First full sync** (Settings → isemon, or `acme --isemon-sync [DAYS]`). It sends

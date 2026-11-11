@@ -1094,3 +1094,35 @@ td.acc-role{white-space:nowrap}
   .ct-move-arrow{transform:rotate(90deg);justify-self:center}
   .ct-move-cols{grid-template-columns:1fr}
 }
+/* Templates of the commands after the files (1.0.72) */
+.df-tpl-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 10px}
+.df-tpl{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr);gap:16px;min-height:420px}
+.df-tpl-l{display:flex;flex-direction:column;gap:8px;min-width:0}
+.df-tpl-list{display:flex;flex-direction:column;gap:3px;max-height:460px;overflow:auto;padding-right:4px}
+.df-tpl-g{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:10px 4px 4px}
+.df-tpl-g:first-child{margin-top:2px}
+.df-tpl-app{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:9px;cursor:pointer;border:1px solid transparent}
+.df-tpl-app:hover{background:var(--panel2)}
+.df-tpl-app:focus-visible{outline:2px solid var(--info);outline-offset:1px}
+.df-tpl-app.on{background:var(--info-bg);border-color:var(--info)}
+.df-tpl-ic{flex:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-size:11.5px;font-weight:700;background:var(--panel2);color:var(--info);box-shadow:inset 0 0 0 1px var(--line)}
+.df-tpl-app.on .df-tpl-ic{background:var(--info);color:var(--bg);box-shadow:none}
+.df-tpl-n{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.df-tpl-r{border:1px solid var(--line);border-radius:12px;background:var(--panel2);padding:16px;min-width:0;display:flex;flex-direction:column;gap:12px}
+.df-tpl-empty{margin:auto}
+.df-tpl-h{margin:0;font-size:16px}
+.df-tpl-how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.df-tpl-hw{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:5px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);cursor:pointer}
+.df-tpl-hw .tag{align-self:flex-start}
+.df-tpl-hw:hover:not([disabled]){border-color:rgba(88,166,255,.5)}
+.df-tpl-hw.on{border-color:var(--info);background:var(--info-bg);box-shadow:0 0 0 1px var(--info) inset}
+.df-tpl-hw[disabled]{opacity:.45;cursor:default}
+.df-tpl-cmds{display:flex;flex-direction:column;gap:8px}
+.df-tpl-cmd{display:flex;flex-direction:column;gap:4px}
+.df-tpl-k{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.df-tpl-cmd pre{margin:0;padding:9px 11px;border-radius:8px;background:var(--bg);border:1px solid var(--line);font-size:12px;white-space:pre-wrap;word-break:break-all}
+@media (max-width:760px){
+  .df-tpl{grid-template-columns:1fr}
+  .df-tpl-list{max-height:220px}
+  .df-tpl-how{grid-template-columns:1fr}
+}

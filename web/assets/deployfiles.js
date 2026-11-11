@@ -121,6 +121,175 @@
     });
   }
   var CHMOD_LAST = null;
+  /* Templates of the commands after the files (1.0.72): an application, then how it takes the
+     new certificate - reloaded (no connection dropped), restarted, or stopped hard (every
+     process of it ended, those left killed, then started) - each with the test of its
+     configuration first. Fill test_cmd, reload_cmd and post_cmd; the person edits them after. */
+  function hardCmd(unit, proc, test) {
+    return (test ? test + ' && ' : '') + '{ systemctl stop ' + unit + '; pkill -TERM -x ' + proc +
+      '; i=0; while pgrep -x ' + proc + ' >/dev/null && [ $i -lt 20 ]; do sleep 1; i=$((i+1)); done; pkill -KILL -x ' +
+      proc + '; sleep 1; systemctl start ' + unit + ' && systemctl is-active --quiet ' + unit + '; }';
+  }
+  /* [key, title, group, unit, process (for the hard stop), test, reload (none: restart only), note] */
+  var SVC_APPS = [
+    ['nginx', 'nginx', 'Web servers', 'nginx', 'nginx', 'nginx -t', 'systemctl reload nginx'],
+    ['httpd', 'Apache httpd (RHEL, Rocky, Alma, Fedora)', 'Web servers', 'httpd', 'httpd', 'apachectl configtest', 'systemctl reload httpd'],
+    ['apache2', 'Apache 2 (Debian, Ubuntu)', 'Web servers', 'apache2', 'apache2', 'apache2ctl configtest', 'systemctl reload apache2'],
+    ['lighttpd', 'lighttpd', 'Web servers', 'lighttpd', 'lighttpd', 'lighttpd -tt -f /etc/lighttpd/lighttpd.conf', ''],
+    ['caddy', 'Caddy', 'Web servers', 'caddy', 'caddy', 'caddy validate --config /etc/caddy/Caddyfile', 'systemctl reload caddy'],
+    ['haproxy', 'HAProxy', 'Proxies and load balancers', 'haproxy', 'haproxy', 'haproxy -c -q -f /etc/haproxy/haproxy.cfg', 'systemctl reload haproxy'],
+    ['traefik', 'Traefik', 'Proxies and load balancers', 'traefik', 'traefik', '', '', 'A certificate in a file provider\'s directory is taken by itself - restart only when it is not.'],
+    ['squid', 'Squid', 'Proxies and load balancers', 'squid', 'squid', 'squid -k parse', 'squid -k reconfigure'],
+    ['hitch', 'Hitch', 'Proxies and load balancers', 'hitch', 'hitch', 'hitch --test --config=/etc/hitch/hitch.conf', 'systemctl reload hitch'],
+    ['postfix', 'Postfix', 'Mail', 'postfix', '', 'postfix check', 'postfix reload'],
+    ['dovecot', 'Dovecot', 'Mail', 'dovecot', 'dovecot', 'doveconf -n >/dev/null', 'systemctl reload dovecot'],
+    ['exim4', 'Exim (Debian, exim4)', 'Mail', 'exim4', 'exim4', 'exim4 -bV >/dev/null', ''],
+    ['exim', 'Exim (RHEL, exim)', 'Mail', 'exim', 'exim', 'exim -bV >/dev/null', ''],
+    ['slapd', 'OpenLDAP (slapd)', 'Directories', 'slapd', 'slapd', 'slaptest -u', ''],
+    ['postgresql', 'PostgreSQL', 'Databases', 'postgresql', '', '', 'systemctl reload postgresql', 'PostgreSQL 10 and later read the certificate again on a reload.'],
+    ['mysql', 'MySQL 8', 'Databases', 'mysql', '', '', 'mysql -e "ALTER INSTANCE RELOAD TLS"', 'Reloaded without a restart; mysql must sign in by itself (as root through its socket, or ~/.my.cnf).'],
+    ['mariadb', 'MariaDB 10.4+', 'Databases', 'mariadb', '', '', 'mariadb -e "FLUSH SSL"', 'Reloaded without a restart; mariadb must sign in by itself (as root through its socket, or ~/.my.cnf).'],
+    ['pveproxy', 'Proxmox VE (pveproxy)', 'Panels and appliances', 'pveproxy', '', '', ''],
+    ['pbs', 'Proxmox Backup Server', 'Panels and appliances', 'proxmox-backup-proxy', '', '', 'systemctl reload proxmox-backup-proxy'],
+    ['webmin', 'Webmin', 'Panels and appliances', 'webmin', '', '', ''],
+    ['cockpit', 'Cockpit', 'Panels and appliances', 'cockpit', '', '', ''],
+    ['grafana', 'Grafana', 'Panels and appliances', 'grafana-server', '', '', ''],
+    ['gitlab', 'GitLab (Omnibus)', 'Panels and appliances', '', '', '', 'gitlab-ctl hup nginx', 'Its bundled nginx is told to read the certificate again.'],
+    ['vsftpd', 'vsftpd', 'File transfer', 'vsftpd', 'vsftpd', '', ''],
+    ['proftpd', 'ProFTPD', 'File transfer', 'proftpd', 'proftpd', 'proftpd -t', 'systemctl reload proftpd'],
+    ['tomcat', 'Tomcat', 'Application servers', 'tomcat', '', '', '', 'The unit is tomcat, tomcat9 or tomcat10 - change it if it is not.'],
+    ['mosquitto', 'Mosquitto (MQTT)', 'Application servers', 'mosquitto', 'mosquitto', '', ''],
+    ['docker', 'A Docker container', 'Containers', '', '', '', '', 'The container is called web here - change it to yours.'],
+    ['any', 'Any systemd service', 'Any other', 'myservice', 'myservice', '', '*', 'Its unit and process name below; a test of its configuration can be added after.']
+  ];
+  var SVC_HOW = [
+    ['reload', 'Reload', 'no downtime', 'The service reads the new certificate; no connection is dropped.'],
+    ['restart', 'Restart', 'a moment', 'systemctl restart: the service stops and starts again.'],
+    ['hard', 'Hard restart', 'a few seconds', 'Stopped, every process of it waited for (20 s at most), those left killed, then started and checked - for a service whose processes outlive a restart.']
+  ];
+  function svcCommands(app, how, unitAs, procAs) {
+    var unit = unitAs || app[3], proc = procAs || app[4], test = app[5], rel = app[6];
+    if (rel === '*') rel = 'systemctl reload ' + unit;
+    var post = unit ? ['systemctl is-active --quiet ' + unit] : [];
+    if (app[0] === 'docker') {
+      return how === 'restart' ? {test_cmd: [], reload_cmd: ['docker restart ' + (unitAs || 'web')], post_cmd: []} : null;
+    }
+    if (how === 'reload') return rel ? {test_cmd: test ? [test] : [], reload_cmd: [rel], post_cmd: app[0] === 'gitlab' ? [] : post} : null;
+    if (how === 'restart') return unit ? {test_cmd: test ? [test] : [], reload_cmd: ['systemctl restart ' + unit], post_cmd: post} : null;
+    if (how === 'hard') return unit && proc ? {test_cmd: test ? [test] : [], reload_cmd: [hardCmd(unit, proc, test)], post_cmd: []} : null;
+    return null;
+  }
+  var SVC_LAST = null;
+  function svcTemplates(done) {
+    var st = {app: null, how: '', unit: '', proc: ''};
+    modalOver(function () {
+      modal(tr('A template for the commands after the files'), function (body) {
+        body.appendChild(el('p', 'note', 'Choose the application and how it takes the new certificate. The test, the reload and the check after are filled in - change them as you need.'));
+        var wrap = el('div', 'df-tpl');
+        var left = el('div', 'df-tpl-l');
+        var find = el('input');
+        find.type = 'search';
+        find.className = 'ct-kind-find';
+        find.placeholder = tr('an application…');
+        left.appendChild(find);
+        var list = el('div', 'df-tpl-list');
+        left.appendChild(list);
+        var right = el('div', 'df-tpl-r');
+        wrap.appendChild(left);
+        wrap.appendChild(right);
+        body.appendChild(wrap);
+        var drawList = function () {
+          clear(list);
+          var q = find.value.trim().toLowerCase(), group = '';
+          SVC_APPS.forEach(function (a) {
+            if (q && (a[1] + ' ' + a[0] + ' ' + a[3]).toLowerCase().indexOf(q) < 0) return;
+            if (a[2] !== group) { group = a[2]; list.appendChild(el('div', 'df-tpl-g', group)); }
+            var b = el('button', 'df-tpl-app' + (st.app === a ? ' on' : ''));
+            b.type = 'button';
+            var ic = el('span', 'df-tpl-ic');
+            ic.textContent = a[1].replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
+            b.appendChild(noI18n(ic));
+            b.appendChild(noI18n(el('span', 'df-tpl-n', a[1])));
+            b.onclick = function () {
+              st.app = a;
+              st.unit = a[0] === 'docker' ? 'web' : a[3];
+              find.blur();
+              st.proc = a[4];
+              st.how = ['reload', 'restart', 'hard'].filter(function (h) { return svcCommands(a, h); })[0];
+              drawList();
+              drawRight();
+            };
+            list.appendChild(b);
+          });
+          if (!list.children.length) list.appendChild(el('p', 'muted small', 'Nothing of that name - Any service below fits every other.'));
+        };
+        var drawRight = function () {
+          clear(right);
+          var a = st.app;
+          if (!a) { right.appendChild(el('p', 'muted df-tpl-empty', 'Choose an application on the left.')); return; }
+          right.appendChild(noI18n(el('h4', 'df-tpl-h', a[1])));
+          if (a[7]) right.appendChild(el('p', 'note small', a[7]));
+          var seg = el('div', 'df-tpl-how');
+          SVC_HOW.forEach(function (h) {
+            var ok = !!svcCommands(a, h[0], st.unit, st.proc);
+            var b = el('button', 'df-tpl-hw' + (st.how === h[0] ? ' on' : ''));
+            b.type = 'button';
+            b.disabled = !ok;
+            b.appendChild(el('b', '', h[1]));
+            b.appendChild(el('span', 'tag ' + (h[0] === 'reload' ? 'ok' : (h[0] === 'restart' ? 'info' : 'warn')), h[2]));
+            b.appendChild(el('span', 'muted small', ok ? h[3] : (h[0] === 'reload' ? 'It cannot read a certificate again without a restart.' : 'Not for this one.')));
+            b.onclick = function () { st.how = h[0]; drawRight(); };
+            seg.appendChild(b);
+          });
+          right.appendChild(seg);
+          var g = el('div', 'formgrid');
+          if (a[0] === 'docker') {
+            var cn = textBox(st.unit, 'web', 'mono');
+            cn.oninput = function () { st.unit = cn.value.trim(); paintCmds(); };
+            g.appendChild(formField('The container', cn));
+          } else if (a[3]) {
+            var un = textBox(st.unit, a[3], 'mono');
+            un.oninput = function () { st.unit = un.value.trim(); paintCmds(); };
+            g.appendChild(formField('The service (systemd unit)', un));
+            if (st.how === 'hard') {
+              var pr = textBox(st.proc, a[4], 'mono');
+              pr.oninput = function () { st.proc = pr.value.trim(); paintCmds(); };
+              g.appendChild(formField('Its process name', pr, 'pgrep -x / pkill -x'));
+            }
+          }
+          if (g.children.length) right.appendChild(g);
+          var cmds = el('div', 'df-tpl-cmds');
+          right.appendChild(cmds);
+          var paintCmds = function () {
+            clear(cmds);
+            var c = svcCommands(a, st.how, st.unit, st.proc);
+            if (!c) return;
+            [['test_cmd', 'Test command'], ['reload_cmd', 'Reload / restart'], ['post_cmd', 'After reloading']].forEach(function (k) {
+              var box = el('div', 'df-tpl-cmd');
+              box.appendChild(el('span', 'df-tpl-k', k[1]));
+              var pre = el('pre', 'mono');
+              pre.textContent = c[k[0]].length ? c[k[0]].join('\n') : '–';
+              noI18n(pre);
+              box.appendChild(pre);
+              cmds.appendChild(box);
+            });
+          };
+          paintCmds();
+        };
+        find.oninput = drawList;
+        drawList();
+        drawRight();
+        setTimeout(function () { try { find.focus(); } catch (e) { } }, 50);
+        SVC_LAST = st;
+      }, [{words: 'Cancel', close: true}, {words: 'Use the template', cls: 'primary', icon: 'check', go: function () {
+        var s = SVC_LAST;
+        var c = s && s.app && svcCommands(s.app, s.how, s.unit, s.proc);
+        if (!c) { toast(tr('choose the application'), 'bad'); return; }
+        closeModal();
+        done(c, s.app[1]);
+      }}], 'large');
+    });
+  }
   /* Words in the page's language where i18n.js does not reach: the hint of a
      box marked as data (data-no-i18n) is never translated by it. (1.0.19) */
   function tr(s) {
@@ -936,6 +1105,22 @@
       var anyCmd = aroundFields.some(function (f) { var v = values[f.key]; return Array.isArray(v) ? v.length : (v !== undefined && v !== null && String(v).trim() !== ''); });
       if (anyCmd) det.open = true;
       ssec.appendChild(det);
+      /* From a template (1.0.72): the application and how it takes the certificate. */
+      var tplRow = el('div', 'df-tpl-row');
+      var tplB = el('button', 'btn cmd small');
+      tplB.type = 'button';
+      tplB.innerHTML = iconMarkup('list', 15);
+      tplB.appendChild(el('span', '', 'From a template…'));
+      tplB.onclick = function () {
+        svcTemplates(function (c, title) {
+          ['test_cmd', 'reload_cmd', 'post_cmd'].forEach(function (k) { around.set(k, c[k]); });
+          det.open = true;
+          toast(tr('Filled from the template') + ': ' + title, 'good');
+        });
+      };
+      tplRow.appendChild(tplB);
+      tplRow.appendChild(el('span', 'muted small', 'nginx, Apache, HAProxy, Postfix, Dovecot, PostgreSQL… - reload, restart or hard restart'));
+      if (aroundFields.some(function (f) { return f.key === 'reload_cmd'; })) ssec.insertBefore(tplRow, det);
     }
 
     var rsec = null;

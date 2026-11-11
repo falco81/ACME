@@ -54999,6 +54999,162 @@
   "isy_17": {
    "source": "Start the sync",
    "text": "Spustit synchronizaci"
+  },
+  "tpl_1": {
+   "source": "A template for the commands after the files",
+   "text": "Šablona příkazů po souborech"
+  },
+  "tpl_2": {
+   "source": "Choose the application and how it takes the new certificate. The test, the reload and the check after are filled in - change them as you need.",
+   "text": "Vyberte aplikaci a způsob, jak převezme nový certifikát. Vyplní se test, znovunačtení a kontrola po něm – pak je upravte podle potřeby."
+  },
+  "tpl_3": {
+   "source": "an application…",
+   "text": "aplikace…"
+  },
+  "tpl_4": {
+   "source": "Proxies and load balancers",
+   "text": "Proxy a balancery"
+  },
+  "tpl_5": {
+   "source": "Databases",
+   "text": "Databáze"
+  },
+  "tpl_6": {
+   "source": "Panels and appliances",
+   "text": "Panely a zařízení"
+  },
+  "tpl_7": {
+   "source": "File transfer",
+   "text": "Přenos souborů"
+  },
+  "tpl_8": {
+   "source": "Application servers",
+   "text": "Aplikační servery"
+  },
+  "tpl_9": {
+   "source": "Containers",
+   "text": "Kontejnery"
+  },
+  "tpl_10": {
+   "source": "Any other",
+   "text": "Cokoli jiného"
+  },
+  "tpl_11": {
+   "source": "Nothing of that name - Any service below fits every other.",
+   "text": "Nic takového – pro cokoli jiného je dole Jakákoli služba."
+  },
+  "tpl_12": {
+   "source": "Choose an application on the left.",
+   "text": "Vyberte aplikaci vlevo."
+  },
+  "tpl_13": {
+   "source": "Hard restart",
+   "text": "Tvrdý restart"
+  },
+  "tpl_14": {
+   "source": "no downtime",
+   "text": "bez výpadku"
+  },
+  "tpl_15": {
+   "source": "a moment",
+   "text": "chvilka"
+  },
+  "tpl_16": {
+   "source": "a few seconds",
+   "text": "pár sekund"
+  },
+  "tpl_17": {
+   "source": "The service reads the new certificate; no connection is dropped.",
+   "text": "Služba načte nový certifikát; žádné spojení se nepřeruší."
+  },
+  "tpl_18": {
+   "source": "systemctl restart: the service stops and starts again.",
+   "text": "systemctl restart: služba se zastaví a znovu spustí."
+  },
+  "tpl_19": {
+   "source": "Stopped, every process of it waited for (20 s at most), those left killed, then started and checked - for a service whose processes outlive a restart.",
+   "text": "Zastaví se, na každý její proces se počká (nejvýš 20 s), zbylé se zabijí, pak se spustí a zkontroluje – pro službu, jejíž procesy restart přežijí."
+  },
+  "tpl_20": {
+   "source": "It cannot read a certificate again without a restart.",
+   "text": "Bez restartu certifikát znovu nenačte."
+  },
+  "tpl_21": {
+   "source": "Not for this one.",
+   "text": "Pro tuto ne."
+  },
+  "tpl_22": {
+   "source": "The container",
+   "text": "Kontejner"
+  },
+  "tpl_23": {
+   "source": "The service (systemd unit)",
+   "text": "Služba (unit systemd)"
+  },
+  "tpl_24": {
+   "source": "Its process name",
+   "text": "Jméno jejího procesu"
+  },
+  "tpl_25": {
+   "source": "Use the template",
+   "text": "Použít šablonu"
+  },
+  "tpl_26": {
+   "source": "choose the application",
+   "text": "vyberte aplikaci"
+  },
+  "tpl_27": {
+   "source": "Filled from the template",
+   "text": "Vyplněno ze šablony"
+  },
+  "tpl_28": {
+   "source": "From a template…",
+   "text": "Ze šablony…"
+  },
+  "tpl_29": {
+   "source": "nginx, Apache, HAProxy, Postfix, Dovecot, PostgreSQL… - reload, restart or hard restart",
+   "text": "nginx, Apache, HAProxy, Postfix, Dovecot, PostgreSQL… – znovunačtení, restart nebo tvrdý restart"
+  },
+  "tpl_30": {
+   "source": "A certificate in a file provider's directory is taken by itself - restart only when it is not.",
+   "text": "Certifikát v adresáři file provideru si Traefik převezme sám – restartujte, jen když ne."
+  },
+  "tpl_31": {
+   "source": "PostgreSQL 10 and later read the certificate again on a reload.",
+   "text": "PostgreSQL 10 a novější načte certifikát znovu při reloadu."
+  },
+  "tpl_32": {
+   "source": "Reloaded without a restart; mysql must sign in by itself (as root through its socket, or ~/.my.cnf).",
+   "text": "Načte se bez restartu; mysql se musí přihlásit sám (jako root přes socket, nebo ~/.my.cnf)."
+  },
+  "tpl_33": {
+   "source": "Reloaded without a restart; mariadb must sign in by itself (as root through its socket, or ~/.my.cnf).",
+   "text": "Načte se bez restartu; mariadb se musí přihlásit sám (jako root přes socket, nebo ~/.my.cnf)."
+  },
+  "tpl_34": {
+   "source": "Its bundled nginx is told to read the certificate again.",
+   "text": "Jeho přibalený nginx dostane pokyn certifikát znovu načíst."
+  },
+  "tpl_35": {
+   "source": "The unit is tomcat, tomcat9 or tomcat10 - change it if it is not.",
+   "text": "Unit je tomcat, tomcat9 nebo tomcat10 – změňte, pokud je jiná."
+  },
+  "tpl_36": {
+   "source": "The container is called web here - change it to yours.",
+   "text": "Kontejner se tu jmenuje web – změňte na svůj."
+  },
+  "tpl_37": {
+   "source": "Its unit and process name below; a test of its configuration can be added after.",
+   "text": "Unit a jméno procesu níže; test konfigurace lze doplnit potom."
+  },
+  "tpl_38": {
+   "source": "Any systemd service",
+   "text": "Jakákoli služba systemd"
+  },
+  "tpl_39": {
+   "source": "A Docker container",
+   "text": "Kontejner Dockeru"
   }
  },
  "patterns": {
