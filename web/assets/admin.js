@@ -1404,13 +1404,34 @@ $('ev-q').addEventListener('input', debounce(function () { PAGE.events = 0; load
 
 $('ev-kind').onchange = function () { PAGE.events = 0; loadEvents(); };
 if ($('ev-time')) $('ev-time').onchange = function () { PAGE.events = 0; loadEvents(); };
+/* The daemon's own log (1.0.75): in a window of its own - beside the events it was a second
+   card, and the page had two scroll bars. */
 $('log-read').onclick = function () {
-  api('log&lines=' + $('log-lines').value).then(function (d) {
-    var out = $('log-out');
-    out.hidden = false;
-    out.textContent = d.lines.join('\n');
-    out.scrollTop = out.scrollHeight;
-  }).catch(oops);
+  var out = null, lines = null;
+  var read = function () {
+    api('log&lines=' + lines.value).then(function (d) {
+      out.hidden = false;
+      out.textContent = (d.lines || []).join('\n');
+      var mb = $('modal-body');
+      if (mb) mb.scrollTop = mb.scrollHeight;          /* the newest lines, at the end */
+    }).catch(oops);
+  };
+  modal("The daemon's own log", function (body) {
+    body.appendChild(el('p', 'note', 'The tail of /var/log/acme/acme.log. Switch on debug in Settings → About to have it say every step of every request.'));
+    var row = el('div', 'btnrow');
+    lines = selectBox([['200', '200'], ['600', '600'], ['2000', '2000']], '600');
+    lines.onchange = read;
+    row.appendChild(lines);
+    var again = cmdButton('Read it again', 'refresh', 'small');
+    again.onclick = read;
+    row.appendChild(again);
+    body.appendChild(row);
+    out = el('pre', 'lines log-modal');
+    out.hidden = true;
+    noI18n(out);
+    body.appendChild(out);
+  }, [{words: 'Close', close: true}], 'large');
+  read();
 };
 
 /* ==========================================================================

@@ -55271,6 +55271,14 @@
   "conn_3": {
    "source": "a server only another network reaches: acme signs in to the connector (Targets → Connector over SSH) and from it to this one - nothing installed there",
    "text": "server, na který dosáhne jen jiná síť: acme se přihlásí na konektor (Cíle → Konektor přes SSH) a z něj na tento – nic se tam neinstaluje"
+  },
+  "sc_1": {
+   "source": "The tail of /var/log/acme/acme.log. Switch on debug in Settings → About to have it say every step of every request.",
+   "text": "Konec souboru /var/log/acme/acme.log. Zapněte debug v Nastavení → O aplikaci a bude vypisovat každý krok každého požadavku."
+  },
+  "sc_2": {
+   "source": "The tail of /var/log/acme/acme.log - in a window of its own, so this page keeps one scroll.",
+   "text": "Konec souboru /var/log/acme/acme.log – ve vlastním okně, aby tato stránka měla jediný posuvník."
   }
  },
  "patterns": {

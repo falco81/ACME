@@ -5,6 +5,12 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.75 - not released
+- One scroll everywhere. Sources, Validation, Targets and Tests are as tall as the window: the
+  heading, the search and the pages stay and only the rows scroll, as on Certificates, Jobs and
+  Events. Before, the page and the table scrolled one inside the other. Events has one scroll
+  too: the daemon's own log, a second card under them, is now a button that opens it in a
+  window. In Settings a table no longer scrolls inside its pane (People, The database), and
+  neither does the configuration sample of High availability.
 - Certificates: the row of one renewed by hand (imported) no longer offers *Renew it now*. It
   only ended in "it has no issuer"; it is renewed by importing a new one.
 - Targets: a connector of their own - **Connector over SSH** (`ssh_connector`), a Linux server

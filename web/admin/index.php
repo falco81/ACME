@@ -754,17 +754,12 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <input type="search" id="ev-q" placeholder="anything in an event…" style="flex:1;min-width:200px">
       <select id="ev-kind"><option value="">everything</option></select>
       <span id="ev-time" title="How far back the events go."></span>
+      <span class="spacer"></span>
+      <button class="btn cmd fulladmin-only" id="log-read" data-icon="log"
+              title="The tail of /var/log/acme/acme.log - in a window of its own, so this page keeps one scroll.">The daemon's own log</button>
     </div>
     <div id="ev-table" class="scroll rowsonly"></div>
     <div class="pager" id="ev-pager"></div>
-  </div>
-  <div class="card full fulladmin-only aside">
-    <h2>The daemon's own log</h2>
-    <p class="note">The tail of <span class="mono">/var/log/acme/acme.log</span>. Switch on
-      <i>debug</i> in Settings → About to have it say every step of every request.</p>
-    <div class="btnrow"><button class="btn cmd" id="log-read" data-icon="log">Read it</button>
-      <select id="log-lines"><option>200</option><option selected>600</option><option>2000</option></select></div>
-    <pre class="lines" id="log-out" style="margin-top:12px" hidden></pre>
   </div>
 </section>
 

@@ -124,7 +124,7 @@ function acme_certs_tab_panels(): void
 
 <!-- ===================== Sources ===================== -->
 <section class="panel" id="tab-sources" hidden>
-  <div class="card full">
+  <div class="card full ct-held" data-hold>
     <h2>Sources <span class="right" id="src-said"></span></h2>
     <p class="note">Where certificates come from. Each is one module - ACME (Let's Encrypt, ZeroSSL,
       your own ACME server), an authority of acme's own, self-signed, Microsoft AD CS, SCEP - with
@@ -136,13 +136,13 @@ function acme_certs_tab_panels(): void
       <button class="btn cmd primary ct-fulladmin" id="src-add" data-icon="add">Add a source</button>
     </div>
     <div id="src-broken"></div>
-    <div id="src-list"></div>
+    <div id="src-list" class="held-fill"></div>
   </div>
 </section>
 
 <!-- ===================== Validation ===================== -->
 <section class="panel" id="tab-validation" hidden>
-  <div class="card full">
+  <div class="card full ct-held" data-hold>
     <h2>Validation <span class="right" id="val-said"></span></h2>
     <p class="note">How names are proved to an ACME CA. DNS-01 puts a TXT record in DNS - in
       acme's own DNS server, or at your DNS provider - and is the only way for a wildcard;
@@ -155,13 +155,13 @@ function acme_certs_tab_panels(): void
       <button class="btn cmd primary ct-fulladmin" id="val-add" data-icon="add">Add a way of validation</button>
     </div>
     <div id="val-broken"></div>
-    <div id="val-list"></div>
+    <div id="val-list" class="held-fill"></div>
   </div>
 </section>
 
 <!-- ===================== Targets ===================== -->
 <section class="panel" id="tab-targets" hidden>
-  <div class="card full">
+  <div class="card full ct-held" data-hold>
     <h2>Targets <span class="right" id="tg-said"></span></h2>
     <p class="note">Where certificates go: a Linux server over SSH, a load balancer, a firewall, a
       router. A certificate is deployed on a target with options of its own - paths, formats, the
@@ -173,13 +173,13 @@ function acme_certs_tab_panels(): void
       <button class="btn cmd primary ct-fulladmin" id="tg-add" data-icon="add">Add a target</button>
     </div>
     <div id="tg-broken"></div>
-    <div id="tg-list"></div>
+    <div id="tg-list" class="held-fill"></div>
   </div>
 </section>
 
 <!-- ===================== Tests ===================== -->
 <section class="panel" id="tab-tests" hidden>
-  <div class="card full">
+  <div class="card full ct-held" data-hold>
     <h2>Tests <span class="right" id="ts-said"></span></h2>
     <p class="note">What the servers really serve. A test connects as a client of its protocol
       would - a browser, a mail client, Remote Desktop - and compares the certificate it is sent
@@ -193,7 +193,7 @@ function acme_certs_tab_panels(): void
       <button class="btn cmd primary ct-fulladmin" id="ts-add" data-icon="add">Add a test</button>
     </div>
     <div id="ts-broken"></div>
-    <div id="ts-list"></div>
+    <div id="ts-list" class="held-fill"></div>
   </div>
 </section>
 

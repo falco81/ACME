@@ -2382,7 +2382,7 @@ select.vip-iface{min-width:150px}
 .lb-block{display:flex;flex-direction:column;gap:6px}
 .lb-block-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .lb-code{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0;
-  overflow:auto;white-space:pre;font-size:12px;max-height:460px}
+  overflow-x:auto;overflow-y:visible;white-space:pre;font-size:12px}
 .lbv{color:var(--info);background:var(--info-bg);border-radius:4px;padding:0 2px}
 .lb-trust .note{margin:8px 0}
 .note.good{background:var(--ok-bg);border-radius:10px;padding:10px 12px}
@@ -3079,7 +3079,9 @@ body.app-shell #pane-mailq > .card.held{flex:1 1 auto;min-height:320px;max-heigh
 /* In a window, one scroll - the window's (1.0.42): a long list (The database, What it holds)
    had a scroll bar of its own beside the window's. */
 .modal .scroll.lt-held{max-height:none;overflow-y:visible}
-.ctl-pane .scroll.lt-held{max-height:max(280px, calc(100vh - 440px))}
+/* In a pane of Settings, one scroll - the pane's (1.0.75): a table with a height of its own
+   (people, the database) scrolled beside the pane. Long ones are paged at 50 rows. */
+.ctl-pane .scroll.lt-held{max-height:none;overflow-y:visible}
 
 /* Syslog and SIEM, Disks and logs (1.0.166) */
 .si-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}

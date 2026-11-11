@@ -1148,3 +1148,11 @@ td.acc-role{white-space:nowrap}
 .rt-rep{margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:var(--panel2)}
 .rt-rep[hidden]{display:none}
 @media (max-width:760px){.rt-cards{grid-template-columns:1fr}}
+/* One scroll (1.0.75): a list of modules alone on its page - Sources, Validation, Targets,
+   Tests - as tall as the window; the heading, the search and the pages stay, the rows scroll. */
+.card.held > .held-fill{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.card.held > .held-fill > .lt-paged{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.card.held > .held-fill .scroll.lt-held{max-height:none;flex:1 1 auto;min-height:0}
+.card.held > .held-fill .lt-pager{flex:none}
+.card.held > #src-broken, .card.held > #val-broken, .card.held > #tg-broken, .card.held > #ts-broken{flex:none}
+.modal pre.log-modal{max-height:none;margin-top:12px}
