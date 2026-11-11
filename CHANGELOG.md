@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.67 - not released
+
 ## 1.0.66 - 2026-11-11
 - A certificate's tests: **No deployment** beside *Every deployment* and *The targets chosen*
   (Attach a test → Options on this certificate, or the gear of one attached) - no deployment
