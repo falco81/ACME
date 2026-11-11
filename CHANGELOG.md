@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.74 - not released
+## 1.0.74 - 2026-11-11
 - Targets over SSH: **Through a connector** (More). A server only another network reaches is
   deployed to through a connector of the tests (a Linux server, *Tests on a server over SSH*).
   acme signs in there first, reads the target's host key there and reaches the target with
