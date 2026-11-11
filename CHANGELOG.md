@@ -5,6 +5,8 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.75 - not released
+- Certificates: the row of one renewed by hand (imported) no longer offers *Renew it now*. It
+  only ended in "it has no issuer"; it is renewed by importing a new one.
 - Targets: a connector of their own - **Connector over SSH** (`ssh_connector`), a Linux server
   defined under Targets. A target over SSH chooses it in *More → Through a connector*, so the
   connectors of the deployments and of the tests can be different servers (the tests' ones are

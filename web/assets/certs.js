@@ -2961,7 +2961,9 @@ function certRow(c) {
   if (c.last_error && (c.state === 'failed')) explain(jc, String(c.last_error));
   tr.appendChild(jc);
   var tools = el('td', 'rowtools');
-  if (MANAGE && c.state !== 'revoked' && c.state !== 'pending' && !asked(c) &&
+  /* Only one with a source (1.0.75): one by hand is renewed by importing a new one - the
+     button only ended in "it has no issuer". */
+  if (MANAGE && c.issuer && c.state !== 'revoked' && c.state !== 'pending' && !asked(c) &&
       c.state !== 'deleting' && c.state !== 'revoke-failed') {
     var r = iconButton('refresh', 'Renew it now');
     r.onclick = function (ev) { ev.stopPropagation(); certRenew(c, r); };
