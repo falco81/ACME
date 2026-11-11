@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.67 - not released
+## 1.0.67 - 2026-11-11
 - The files on a target: the button of a file's mode as tall and wide as the fields beside it
   (it was a thin strip).
 
