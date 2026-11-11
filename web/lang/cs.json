@@ -55627,6 +55627,18 @@
   "ov_12": {
    "source": "Those that renew by themselves will be renewed before - a red bar of certificates renewed by hand is the one to look at.",
    "text": "Ty, které se obnovují samy, se obnoví dřív – pozornost si zaslouží červený sloupec certifikátů obnovovaných ručně."
+  },
+  "rm_1": {
+   "source": "Take it off the certificate",
+   "text": "Odebrat z certifikátu"
+  },
+  "rm_2": {
+   "source": "Take the test off the certificate? It no longer runs for it at all - after no deployment, nor on its schedule. The test itself stays in Certificates → Tests. Only off this target: the switch.",
+   "text": "Odebrat test z certifikátu? Pro certifikát pak už vůbec neběží – po žádném nasazení ani podle plánu. Test samotný zůstane v Certifikáty → Testy. Jen od tohoto cíle: přepínač."
+  },
+  "rm_3": {
+   "source": "Runs after a deployment here. Off: not here - it stays on the certificate (its schedule, its other targets).",
+   "text": "Běží po nasazení sem. Vypnuto: sem ne – na certifikátu zůstává (jeho plán, jeho ostatní cíle)."
   }
  },
  "patterns": {

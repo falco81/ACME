@@ -17,7 +17,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   go through a connector of the targets too.
 - A deployment's *What it serves* is the certificate's tests seen from that target - the same
   binding as the test's own window, nothing of its own: a switch on each test (runs after a
-  deployment here, or not), *Attach a test* (of Certificates → Tests) and *A new test of this
+  deployment here, or not - it stays on the certificate), a bin to take it off the certificate
+  altogether (asked first), *Attach a test* (of Certificates → Tests) and *A new test of this
   target…*. A test's *When it runs for this certificate* is three cards to choose from (after
   every deployment, after a deployment on…, on its schedule only) with the targets as cards
   to tick, under a head of what the test is, where it asks and how it went last.

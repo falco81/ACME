@@ -2814,13 +2814,31 @@ function targetTestsPart(certId, t, saved, pending) {
         if (MANAGE && saved) {
           var sw = switchBox(here);
           sw.classList.add('tt-sw');
-          explain(sw, here ? 'Runs after a deployment here. Off: not here - the certificate\'s other deployments as they are.' : 'Not run after a deployment here. On: it is.');
+          explain(sw, here ? 'Runs after a deployment here. Off: not here - it stays on the certificate (its schedule, its other targets).' : 'Not run after a deployment here. On: it is.');
           sw._input.onchange = function () {
             sw._input.disabled = true;
             setHere(x, sw._get()).then(draw).catch(function (e) { sw._input.checked = here; fail(e); })
               .then(function () { sw._input.disabled = false; });
           };
           line.appendChild(sw);
+          /* Off the certificate altogether (1.0.77) - not only off this target: asked first. */
+          var rm = iconButton('trash', 'Take it off the certificate');
+          rm.classList.add('tt-rm');
+          rm.onclick = function () {
+            var ask = el('div', 'tt-ask');
+            ask.appendChild(el('span', '', tr('Take the test off the certificate? It no longer runs for it at all - after no deployment, nor on its schedule. The test itself stays in Certificates → Tests. Only off this target: the switch.')));
+            var yes = el('button', 'btn danger small'); yes.type = 'button'; yes.textContent = tr('Take it off');
+            var no = el('button', 'btn small'); no.type = 'button'; no.textContent = tr('No, leave it');
+            no.onclick = function () { ask.remove(); };
+            yes.onclick = function () {
+              busy(yes, true);
+              capi('checks/detach', {id: x.id}).then(function () { toast(tr('Taken off') + ': ' + x.test, 'good'); draw(); })
+                .catch(fail).then(function () { busy(yes, false); });
+            };
+            ask.appendChild(no); ask.appendChild(yes);
+            if (!line.nextSibling || !line.nextSibling.classList || !line.nextSibling.classList.contains('tt-ask')) line.parentNode.insertBefore(ask, line.nextSibling);
+          };
+          line.appendChild(rm);
         }
         list.appendChild(line);
       });

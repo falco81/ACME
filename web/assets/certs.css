@@ -1237,3 +1237,7 @@ table.ct-issued td:nth-child(2){min-width:210px;max-width:250px;white-space:norm
 /* "When certificates run out": the window chosen (1.0.77) */
 .ct-ovchart-h{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .ct-ovchart-h select.ct-ovspan{width:auto;min-width:220px;font-size:12.5px;padding:6px 30px 6px 10px}
+.tt-rm{flex:0 0 auto}
+.tt-ask{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin:-2px 0 2px;border-radius:12px;
+  border:1px solid color-mix(in srgb,var(--crit,#f85149) 45%,var(--line));background:color-mix(in srgb,var(--crit,#f85149) 8%,var(--panel));font-size:12.5px}
+.tt-ask span{flex:1 1 260px}
