@@ -108,8 +108,12 @@ def detach(store, ident):
     store.db.run('DELETE FROM cert_checks WHERE id = ?', (int(ident),))
 
 
+AFTER_NONE = '-'      # after_target: no deployment runs the test - only its schedule (1.0.66)
+
+
 def after_list(v):
-    """The targets a test runs after (1.0.65): '' - any; one name, or several, one a line."""
+    """The targets a test runs after (1.0.65): '' - any; one name, or several, one a line;
+    '-' (AFTER_NONE, 1.0.66) - none."""
     if isinstance(v, (list, tuple)):
         items = v
     else:
@@ -123,6 +127,8 @@ def after_list(v):
 
 
 def _after_checked(store, cert_id, targets):
+    if AFTER_NONE in targets:
+        return AFTER_NONE
     have = {r['target'] for r in store.db.rows('SELECT target FROM cert_deploys WHERE cert_id = ?',
                                                (int(cert_id),))}
     for t in targets:
@@ -697,17 +703,17 @@ def run(store, chk, step=None):
 
 def after_deploy(store, job, cert_id, targets=None):
     """The tests of a certificate just deployed, a few times while the services restart - those
-    tied to a target (after_target, 1.0.65) only after a deployment on that target; `targets`:
+    tied to a target (after_target, 1.0.65) only after a deployment on that target, those tied
+    to none ('-', 1.0.66) never; `targets`:
     the targets just deployed on (None: every test, as before)."""
     if not E.CONFIG.get('certs_checks_after_deploy', 1):
         return None
     tests = store.db.rows('SELECT * FROM cert_checks WHERE cert_id = ? AND '
                           'COALESCE(enabled, 1) <> 0 ORDER BY position, id', (int(cert_id),))
+    tests = [t for t in tests if AFTER_NONE not in after_list(t.get('after_target'))]
     if targets is not None:
         tests = [t for t in tests if not after_list(t.get('after_target')) or
                  set(after_list(t.get('after_target'))) & set(targets)]
-        if not tests:
-            return None
     if not tests:
         return None
     worst = True

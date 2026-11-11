@@ -378,12 +378,19 @@ class TestRuns(Base):
             self.assertTrue(C.after_deploy(STORE, job, self.cid, {'rpki3'}))
             self.assertIsNone(C.after_deploy(STORE, job, self.cid, {'rpki9'}))
             self.assertEqual(C.after_list('rpki1\nrpki3'), ['rpki1', 'rpki3'])
+            C.after(STORE, i, ['-'], 'test')              # no deployment: its schedule only
+            self.assertEqual(STORE.db.row('SELECT after_target FROM cert_checks WHERE id = ?',
+                                          (i,))['after_target'], '-')
+            job.steps = []
+            self.assertIsNone(C.after_deploy(STORE, job, self.cid, {'rpki1'}))
+            self.assertIsNone(C.after_deploy(STORE, job, self.cid))
             C.after(STORE, i, '', 'test')                 # any again
             job.steps = []
             self.assertTrue(C.after_deploy(STORE, job, self.cid, {'rpki3'}))
         finally:
             C.AFTER_DEPLOY_TRIES = old
             STORE.db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (self.cid,))
+        C.after(STORE, i, '-', 'test')                    # the schedule still runs it
         EN.CONFIG['certs_checks_auto'] = 0
         self.assertEqual(C.due(STORE), [])
         EN.CONFIG['certs_checks_auto'] = 1

@@ -51,8 +51,9 @@ where it connected and the HTTP answer.
   options are (the certificate's window → Tests → **Attach a test** → *Options on this
   certificate*, or the gear of an attached one; 1.0.65): **The targets chosen** - one
   target, the default (a test is mostly of one server), or several - or **Every
-  deployment**, as every test attached before 1.0.65 is. Deploying on rpki1 then tests
-  rpki1, not rpki2.
+  deployment**, as every test attached before 1.0.65 is - or **No deployment** (1.0.66):
+  only the runs *by themselves* below (and *Run it now*) run it, alerting as every test.
+  Deploying on rpki1 then tests rpki1, not rpki2.
 - **By themselves** (`certs_checks_auto`, off; `certs_checks_every_min`, 360):
   every test, on the node that leads.
 - **Asked**: the certificate's window, or the command line.

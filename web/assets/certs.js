@@ -8726,7 +8726,7 @@ function certTests(c, back, deploys) {
   };
   var D = {};
   var load = function () {
-    return capi('checks' + qs({cert_id: c.id})).then(function (d) { D = d || {}; draw(); })
+    return capi('checks' + qs({cert_id: c.id})).then(function (d) { D = d || {}; CK_AUTO = !!obj(D.settings).certs_checks_auto; draw(); })
       .catch(function (e) { clear(host); host.appendChild(failedBox(e, 'the tests')); });
   };
   var served = function (x) {
@@ -8764,6 +8764,7 @@ function certTests(c, back, deploys) {
       var cell = el('td', 'small');
       var have = afterList(x.after_target);
       if (!have.length) { cell.appendChild(el('span', 'muted', 'every deployment')); return cell; }
+      if (have.indexOf('-') >= 0) { cell.appendChild(el('span', 'muted', 'no deployment - by its schedule only')); return cell; }
       cell.appendChild(data('span', '', have.join(', ')));
       if (have.some(function (t) { return targets.indexOf(t) < 0; })) cell.appendChild(el('div', 'ct-rowerr', 'not deployed there any more'));
       return cell;
@@ -8824,7 +8825,8 @@ function certTests(c, back, deploys) {
             }, [{words: 'Cancel', close: true}, {words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
               busy(b, true);
               capi('checks/after', {id: x.id, target: pick.get()}).then(function () {
-                toast(pick.get().length ? tr('runs after a deployment on') + ' ' + pick.get().join(', ') : tr('runs after any deployment'), 'good');
+                var g = pick.get();
+                toast(g.indexOf('-') >= 0 ? tr('runs after no deployment - by its schedule only') : (g.length ? tr('runs after a deployment on') + ' ' + g.join(', ') : tr('runs after any deployment')), 'good');
                 closeModal();
                 load();
               }).catch(fail).then(function () { busy(b, false); });
@@ -8957,34 +8959,44 @@ function attachTests(c, have, back, targets) {
   }, 'medium');
 }
 /** After which deployments a test of a certificate runs (1.0.65): after every one, or after
-    those on the targets ticked - one (the default, as a test is mostly of one server) or more.
-    Chosen as a deployment's options are, a button each. {node, get} - get(): [] for every. */
+    those on the targets ticked - one (the default, as a test is mostly of one server) or more -
+    or after none (1.0.66: only its schedule runs it). Chosen as a deployment's options are, a
+    button each. {node, get} - get(): [] for every, ['-'] for none. */
 function afterList(v) {
   return String(v || '').split(/[\n,]/).map(function (x) { return x.trim(); }).filter(Boolean);
 }
+var CK_AUTO = null;      /* the tests run by themselves (certs_checks_auto), as the last load said */
 function testAfterPick(targets, have, guess) {
   targets = arr(targets);
   var chosen = Array.isArray(have) ? have.slice() : afterList(have);
-  var every = !chosen.length && have !== undefined && have !== null && !guess;
-  if (!chosen.length && !every && targets.length) chosen = [guess && targets.indexOf(guess) >= 0 ? guess : targets[0]];
-  if (!targets.length) every = true;
+  /* how: 'every' (any deployment), 'some' (the targets chosen), 'none' (no deployment, 1.0.66) */
+  var how = chosen.indexOf('-') >= 0 ? 'none'
+    : (!chosen.length && have !== undefined && have !== null && !guess ? 'every' : 'some');
+  chosen = chosen.filter(function (t) { return t !== '-'; });
+  if (how === 'some' && !chosen.length) {
+    if (targets.length) chosen = [guess && targets.indexOf(guess) >= 0 ? guess : targets[0]];
+    else how = 'every';
+  }
   var box = el('div', 'set-item');
   box.appendChild(el('label', 'k', 'After deploying on'));
   var mode = el('div', 'seg');
   var tg = el('div', 'seg ck-after-targets');
   var says = el('p', 'says');
+  var HOWS = [['every', 'Every deployment'], ['some', 'The targets chosen'], ['none', 'No deployment']];
   var paint = function () {
-    Array.prototype.forEach.call(mode.children, function (b, i) { b.classList.toggle('on', (i === 0) === every); });
-    tg.hidden = every;
+    Array.prototype.forEach.call(mode.children, function (b, i) { b.classList.toggle('on', HOWS[i][0] === how); });
+    tg.hidden = how !== 'some';
     Array.prototype.forEach.call(tg.children, function (b) { b.classList.toggle('on', chosen.indexOf(b._t) >= 0); });
-    says.textContent = every ? tr('Every deployment of the certificate runs it - on any of its targets.')
+    says.textContent = how === 'every' ? tr('Every deployment of the certificate runs it - on any of its targets.')
+      : how === 'none' ? tr('No deployment runs it: only the regular runs of the tests (and Run it now) - their alerts as every test’s.') +
+        (CK_AUTO === false ? ' ' + tr('The regular runs are off now: Settings → Certificates → Test the servers by themselves.') : '')
       : (chosen.length === 1 ? tr('Only a deployment on this target runs it.') : tr('A deployment on any of these targets runs it.'));
   };
-  [['every', 'Every deployment'], ['some', 'The targets chosen']].forEach(function (o, i) {
+  HOWS.forEach(function (o) {
     var b = el('button', '', o[1]);
     b.type = 'button';
-    b.disabled = i === 1 && !targets.length;
-    b.onclick = function () { every = i === 0; if (!every && !chosen.length && targets.length) chosen = [targets[0]]; paint(); };
+    b.disabled = o[0] === 'some' && !targets.length;
+    b.onclick = function () { how = o[0]; if (how === 'some' && !chosen.length && targets.length) chosen = [targets[0]]; paint(); };
     mode.appendChild(b);
   });
   targets.concat(chosen.filter(function (t) { return targets.indexOf(t) < 0; })).forEach(function (t) {
@@ -9003,7 +9015,7 @@ function testAfterPick(targets, have, guess) {
   box.appendChild(says);
   box.appendChild(el('p', 'says', 'Run now and by themselves: every test.'));
   paint();
-  return {node: box, get: function () { return every ? [] : chosen.slice(); }};
+  return {node: box, get: function () { return how === 'every' ? [] : (how === 'none' ? ['-'] : chosen.slice()); }};
 }
 /** In a test's form: tried against a certificate before it is kept (POST checks/try). */
 function testTryHere(form, row, p) {

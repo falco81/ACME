@@ -8,7 +8,7 @@ family 'check', table cert_tests).
     POST /api/checks/attach   {cert_id, tests: [name...], after_target}
     POST /api/checks/detach   {id}
     POST /api/checks/switch   {id, enabled}
-    POST /api/checks/after    {id, target}   (1.0.65: '' - after any deployment)
+    POST /api/checks/after    {id, target}   (1.0.65: '' - after any deployment; 1.0.66: '-' none)
     POST /api/checks/run      {id} -> the result at once | {cert_id | test | all} -> a job
     POST /api/checks/try      {cert_id, kind, config} - a test as its form has it, kept nowhere
 """
@@ -127,10 +127,14 @@ def _after(h, s):
     except ValueError as e:
         raise E.ApiError(400, str(e))
     cert = S.cert_get(h.store, chk['cert_id']) or {}
-    t = ', '.join(C.after_list(b.get('target')))
+    got = C.after_list(b.get('target'))
+    t = ', '.join(got)
+    if C.AFTER_NONE in got:
+        how = 'no deployment (by its schedule only)'
+    else:
+        how = ('a deployment on %s' % t) if t else 'any deployment'
     h.store.add_event('certificates', 'test %s of %s runs after %s by %s' % (
-        chk['test'], cert.get('name', '?'), ('a deployment on %s' % t) if t else 'any deployment',
-        A.who(s)), who=A.who(s))
+        chk['test'], cert.get('name', '?'), how, A.who(s)), who=A.who(s))
     return {'ok': True}
 
 

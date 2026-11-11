@@ -54743,6 +54743,26 @@
   "_2": {
    "source": "On: a server that sends its own certificate without the intermediates is said (a warning) - many clients cannot build the chain themselves. Off: not looked at, for a server whose clients have the intermediates.",
    "text": "Zapnuto: server, který posílá svůj certifikát bez mezilehlých, se ohlásí (varování) – mnoho klientů si řetězec samo nesestaví. Vypnuto: nekontroluje se; pro server, jehož klienti mezilehlé certifikáty mají."
+  },
+  "_3": {
+   "source": "No deployment",
+   "text": "Žádné nasazení"
+  },
+  "_4": {
+   "source": "no deployment - by its schedule only",
+   "text": "žádné nasazení – jen pravidelně podle plánu"
+  },
+  "_5": {
+   "source": "runs after no deployment - by its schedule only",
+   "text": "nespustí ho žádné nasazení – jen pravidelně podle plánu"
+  },
+  "_6": {
+   "source": "No deployment runs it: only the regular runs of the tests (and Run it now) - their alerts as every test’s.",
+   "text": "Nespustí ho žádné nasazení: jen pravidelné spouštění testů (a Spustit teď) – upozornění jako u každého testu."
+  },
+  "_7": {
+   "source": "The regular runs are off now: Settings → Certificates → Test the servers by themselves.",
+   "text": "Pravidelné spouštění je teď vypnuté: Nastavení → Certifikáty → Testovat servery automaticky."
   }
  },
  "patterns": {
