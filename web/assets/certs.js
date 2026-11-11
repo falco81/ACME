@@ -275,7 +275,7 @@ function stateTag(st) {
 }
 var JOB_KIND = {issue: 'issue', renew: 'renewal', deploy: 'deployment', revoke: 'revocation',
                 'import': 'import', test: 'test', csr: 'CSR', crl: 'CRL', verify: 'check', export: 'export',
-                'dry-run': 'dry run', 'online-import': 'import from a source', check: 'tests'};
+                'dry-run': 'dry run', 'online-import': 'import from a source', check: 'test run'};
 function jobState(j) {
   var st = j.state || (j.finished ? (j.ok ? 'ok' : 'failed') : 'running');
   if (st === 'done') st = j.ok ? 'ok' : 'failed';
@@ -352,7 +352,10 @@ function data(kind, cls, text) { return noI18n(el(kind, cls, text)); }
    over SSH" gave "CO" in every language). */
 function kindLetters(p, kind) {
   if (p && (p.connector || p.kind === 'ssh_relay' || p.kind === 'ssh_connector')) return 'SSH';
-  return String((p && p.title) || kind || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
+  /* from the title in the page's language (1.0.79: "TH" for Tento stroj) */
+  var t = String((p && p.title) ? tr(p.title) : (kind || ''));
+  try { t = t.normalize('NFKD').replace(/[\u0300-\u036f]/g, ''); } catch (e) { }
+  return t.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase();
 }
 /* A module's vendor: a word (Public CA, Generic) translated, a name (ACME, Microsoft) as it is (1.0.51) */
 var VENDOR_WORDS = ['Public CA', 'Protocol', 'Generic', 'Standards', 'Other', 'Own', 'Connector', 'Where certificates go', 'Modules'];
@@ -1182,7 +1185,11 @@ function kindPicker(family, go, filter) {
       Array.prototype.forEach.call(box.querySelectorAll('.ct-kind-group'), function (g) {
         g.hidden = !g.querySelector('.ct-kind-tile:not([hidden])');
       });
+      /* said when nothing is left (1.0.79): an empty window, no word */
+      if (!none) { none = emptyNote('Nothing matches'); box.appendChild(none); }
+      none.hidden = keep.length > 0;
     };
+    var none = null;
   }
   return box;
 }
@@ -2447,7 +2454,7 @@ function modForm(key, row, p, fromPick, keep) {
     if (p.missing) body.appendChild(el('p', 'ct-bad', 'The module of this kind is not installed (or would not load): its settings are shown as they are kept.'));
     var g = el('div', 'formgrid ct-basic');
     var others = arr(LISTS[key]).filter(function (x) { return !row || x.id !== row.id; }).map(function (x) { return x.name; });
-    name = textBox(keep && keep.name !== undefined ? keep.name : (row ? row.name : safeName(tr(p.default_name || p.title || p.kind), others)   /* in the page's language (1.0.48) */), tr('a name of its own'), '');
+    name = textBox(keep && keep.name !== undefined ? keep.name : (row ? row.name : safeName(tr((p.default_name && p.default_name !== safeName(p.title || '') ? p.default_name : '') || p.title || p.kind), others)   /* in the page's language (1.0.48) */), tr('a name of its own'), '');
     noI18n(name);
     if (FULL) guardName(name, true, others);
     g.appendChild(formField('Name', name, 'What it is called here, in the certificates and the jobs.'));
@@ -2659,14 +2666,23 @@ function deployTable(rows, o) {
     /* What says where it goes - not the module's inner switches (1.0.48: "pfx_password_mode
        fixed / script_interp bash" for a deployment of PEM files) */
     var INNER = {pfx_password_mode: 1, pfx_password: 1, script_interp: 1, script_mode: 1, backup: 1,
-                 preset: opt.preset === 'custom' ? 1 : 0, pfx_password_new: 1};
+                 preset: opt.preset === 'custom' ? 1 : 0, pfx_password_new: 1,
+                 /* the files' own switches (1.0.79): "skip_same true / backup_format dated"
+                    took the place of the files */
+                 skip_same: 1, backup_format: 1, backup_keep: 1, verify_tries: 1, verify_wait: 1};
+    /* the files first, their paths only */
+    if (typeof opt.outputs === 'string' && opt.outputs.trim()) {
+      opt = Object.assign({}, opt);
+      opt.outputs = opt.outputs.split(/\n/).map(function (x) { var p = x.trim().split(/\s+/); return p[1] || p[0]; })
+        .filter(Boolean).join(', ');
+    }
     var keys = Object.keys(opt).filter(function (k) {
       return !INNER[k] && opt[k] !== '' && opt[k] !== null && opt[k] !== false && typeof opt[k] !== 'object';
-    }).slice(0, 2);
+    }).sort(function (a, b) { return (b === 'outputs') - (a === 'outputs'); }).slice(0, 2);
     var oc = el('td', 'ct-sum');
     keys.forEach(function (k) {
       var l = el('div', 'ct-sum-l');
-      l.appendChild(el('span', 'muted', k + ' '));
+      if (k !== 'outputs') l.appendChild(noI18n(el('span', 'muted', k + ' ')));
       l.appendChild(mono(String(opt[k])));
       oc.appendChild(l);
     });
@@ -4042,7 +4058,7 @@ function rdGroup(g, o) {
         b.appendChild(data('span', '', s.validation));
         b.onclick = function () { o.onUse(g, s.validation); };
         one.appendChild(b);
-      } else one.appendChild(data('b', '', s.validation || plugTitle('challenge', s.kind)));
+      } else one.appendChild((s.validation ? data('b', '', s.validation) : el('b', '', plugTitle('challenge', s.kind))));
       one.appendChild(el('span', 'muted small', s.why || ''));
       sbox.appendChild(one);
     });
@@ -7063,8 +7079,8 @@ function caRevoke(ca, r) {
   }}], 'narrow');
   nameInTitle('Revoke', r.serial);
 }
-function subjectFields(g, f, cnNeeded) {
-  [['CN', 'Common name', 'Example Root CA', true], ['O', 'Organisation', 'Example s.r.o.'], ['OU', 'Unit', 'IT'],
+function subjectFields(g, f, cnNeeded, cnHint) {
+  [['CN', 'Common name', cnHint || 'Example Root CA', true], ['O', 'Organisation', 'Example s.r.o.'], ['OU', 'Unit', 'IT'],
    ['C', 'Country', 'CZ'], ['ST', 'Region', 'Praha'], ['L', 'City', 'Praha']].forEach(function (x) {
     f[x[0]] = textBox('', x[2], '');
     noI18n(f[x[0]]);
@@ -7113,7 +7129,7 @@ function caCreateForm(parent) {
     body.appendChild(g);
     body.appendChild(el('h4', 'ct-formh', 'Subject'));
     var sg = el('div', 'formgrid');
-    subjectFields(sg, f, true);
+    subjectFields(sg, f, true, isRoot ? 'Example Root CA' : 'Example Issuing CA');
     body.appendChild(sg);
     body.appendChild(el('h4', 'ct-formh', 'Revocation and publishing'));
     var pg = el('div', 'formgrid');
@@ -7123,10 +7139,10 @@ function caCreateForm(parent) {
     var pubField = formField('Publish on acme', f.pub, 'Its CRL and certificate served by acme itself at /pki/ (port 80, every node and the VIP address). The two addresses below are then acme’s own unless given - so every certificate it signs points here.');
     pubField.classList.add('wide');
     pg.appendChild(pubField);
-    f.crlUrl = textBox('', 'http://pki.example.cz/root.crl', 'mono');
+    f.crlUrl = textBox('', 'http://pki.example.cz/' + (isRoot ? 'root' : 'issuing') + '.crl', 'mono');
     noI18n(f.crlUrl);
     pg.appendChild(formField('CRL address', f.crlUrl, 'Written into what it signs, so a client can find the CRL. Empty: acme’s own when it is published on acme, else none.'));
-    f.aia = textBox('', 'http://pki.example.cz/root.crt', 'mono');
+    f.aia = textBox('', 'http://pki.example.cz/' + (isRoot ? 'root' : 'issuing') + '.crt', 'mono');
     noI18n(f.aia);
     pg.appendChild(formField('AIA address', f.aia, 'Where its own certificate can be fetched. Empty: acme’s own when it is published on acme.'));
     f.nc = areaBox('', 'permitted DNS:.example.cz\npermitted IP:10.0.0.0/8\nexcluded DNS:.public.example.cz', 3, 'mono');
@@ -7411,7 +7427,7 @@ function jobTable(rows, o) {
     if (j.said) s.title = j.said;          /* cut short in the cell: the whole on hover (1.0.45) */
     tr.appendChild(s);
     return rowOpens(tr, function () { over(function () { jobPeek(j.id); }); });
-  }, 'plain ct-jobs|No job yet', o.paged ? {own: true} : undefined);
+  }, 'plain ct-jobs|' + (o.filtered ? 'No job matches the filter' : 'No job yet'), o.paged ? {own: true} : undefined);
 }
 function jobFilters() {
   var ok = $('jb-ok') ? $('jb-ok').value : '';
@@ -7452,7 +7468,7 @@ function loadJobs(live) {
     tabCount('tabn-jobs', running, false);
     /* paged by the daemon (1.0.48): paged again here, 100 a page showed 50 and the rest of
        the page was out of reach */
-    liveFill(host, function (box) { box.appendChild(jobTable(rows, {paged: true})); }, live);
+    liveFill(host, function (box) { box.appendChild(jobTable(rows, {paged: true, filtered: !!(f.kind || f.ok || f.state || f.cert_id)})); }, live);
     pager('jb-pager', JL.page, f.per, JL.total, function (p) { JL.page = p; loadJobs(); });
     explainWhatWasDrawn(host);
     clearTimeout(JL.timer);
@@ -9646,7 +9662,7 @@ function testTryHere(form, row, p) {
       var r = d.result || {};
       var l = el('div', 'ck-tryline');
       l.appendChild(ckBadge(r.state));
-      l.appendChild(data('span', '', r.said || ''));
+      l.appendChild(el('span', '', r.said || ''));   /* translated, as the footer's Test (1.0.79) */
       out.appendChild(l);
       out.appendChild(ckDetail(r));
     }).catch(function (e) { clear(out); out.appendChild(failedBox(e, 'the test')); }).then(function () { busy(go, false); });

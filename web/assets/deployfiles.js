@@ -99,6 +99,16 @@
           }
         };
         dcb.onchange = function () { paint(dcb.checked ? parseInt(deflt, 8) : fromBits()); };
+        /* Enter sets it, as the button does (1.0.79) */
+        octal.onkeydown = function (e) {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          /* this window's own foot - it may sit over another dialog */
+          var up = octal.parentNode;
+          while (up && !(up.querySelector && up.querySelector('.foot .primary'))) up = up.parentNode;
+          var b = up && up.querySelector('.foot .primary');
+          if (b) b.click();
+        };
         body.appendChild(dflt);
         body.appendChild(grid);
         var row = el('div', 'df-chmod-octrow');

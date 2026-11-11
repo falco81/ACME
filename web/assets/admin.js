@@ -3124,7 +3124,7 @@ function drawIsemon() {
       Object.keys(n.sent || {}).forEach(function (k) { total += n.sent[k]; });
       nodeBig(c, num(total), 'line(s) sent since it started');
       c.appendChild(netFacts([
-        ['As the host', n.host || '', true], ['To', (n.targets || []).join(', ') || '', true],
+        ['As the host', n.host || '', true], ['Where to', (n.targets || []).join(', ') || '', true],
         ['Last sent', n.last_sent ? ago(n.last_sent) : 'never'], ['Waiting', num(n.queued || 0)],
         ['Dropped, the queue full', num(n.dropped || 0)], ['Files here', n.files ? n.file_dir : 'no', !!n.files]
       ]));
@@ -3134,7 +3134,7 @@ function drawIsemon() {
         row.appendChild(noI18n(el('span', 'mono', t)));
         row.appendChild(el('span', 'muted small', num((n.sent || {})[t] || 0) + ' sent'));
         c.appendChild(row);
-        if ((n.trouble || {})[t]) c.appendChild(noI18n(el('div', 'si-said small', n.trouble[t])));
+        if ((n.trouble || {})[t]) c.appendChild(el('div', 'si-said small', n.trouble[t]));   /* translated (1.0.79) */
       });
       var said = IS.said[n.node];
       if (said) c.appendChild(nodeSaid(said, said.ok ? 'The test line went to ' + (said.went || []).join(', ') : 'The test line did not go'));
@@ -6537,7 +6537,7 @@ function searchButtons(input, go, selects, times) {
     });
     (times || []).forEach(function (id) {
       var tp = $(id);
-      if (tp && tp._set) { tp._quiet = true; tp._set({k: 'rel', s: 86400}); tp._quiet = false; }
+      if (tp && tp._set) { tp._quiet = true; tp._set(tp._start || {k: 'rel', s: 86400}); tp._quiet = false; }
     });
     if (input._qs) input._qs.said('');
     go();
@@ -8320,7 +8320,7 @@ function drawHaRep(d, live) {
                behind: x.behind, wal: x.wal_status});
   });
   if (!(r.outgoing || []).length) rows.push({dir: 'out', from: d.node, to: r.peer, state: 'not set up', ok: false});
-  host.appendChild(listTable(['Direction', 'From', 'To', 'State', 'Last heard', {words: 'Waiting to go over', cls: 'num'}, 'Errors'], rows, function (x) {
+  host.appendChild(listTable(['Direction', 'From', 'Where to', 'State', 'Last heard', {words: 'Waiting to go over', cls: 'num'}, 'Errors'], rows, function (x) {
     var tr = el('tr');
     tr.appendChild(el('td', '', x.dir === 'in' ? 'coming in' : 'going out'));
     tr.appendChild(noI18n(el('td', 'mono small', x.from || '')));
@@ -16293,7 +16293,7 @@ function drawSiem() {
         row.appendChild(noI18n(el('span', 'mono', t)));
         row.appendChild(el('span', 'muted small', num((n.sent || {})[t] || 0) + ' sent'));
         c.appendChild(row);
-        if ((n.trouble || {})[t]) c.appendChild(noI18n(el('div', 'si-said small', n.trouble[t])));
+        if ((n.trouble || {})[t]) c.appendChild(el('div', 'si-said small', n.trouble[t]));   /* translated (1.0.79) */
       });
       if (!(n.targets || []).length && fresh) c.appendChild(el('p', 'muted small', 'Nowhere to send to.'));
       var said = SI.said[n.node];

@@ -216,7 +216,7 @@ function acme_certs_tab_panels(): void
         <option value="revoke">revocation</option>
         <option value="import">import</option>
         <option value="test">test</option>
-        <option value="check">test of the servers</option>
+        <option value="check">test run</option>
       </select>
       <select id="jb-ok" title="Only jobs that ended like this.">
         <option value="">however they ended</option>

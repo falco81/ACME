@@ -858,7 +858,10 @@ def start_renew(store, ref, force, by):
     # Asked by a person, it is renewed whether due or not; `force` also takes a
     # certificate that failed out of its wait - and both are written in the job.
     try:
-        return jobs.submit(store, 'renew', renewer.renew_job(row['id'], force, by),
+        # the first one is an issue, not a renewal (1.0.79: "renewal no. 140", and the filter
+        # "issue" did not find it)
+        return jobs.submit(store, 'renew' if row.get('cert_pem') else 'issue',
+                           renewer.renew_job(row['id'], force, by),
                            cert_id=row['id'], by=by,
                            said='asked by %s%s' % (by, ' (forced)' if force else ''))
     except ValueError as e:
@@ -1483,7 +1486,7 @@ def _jobs(h, s):
     # rows, or none, while its jobs were on the pages after it.
     return jobs.job_rows(h.store, cert_id=h.arg('cert_id') or None, kind=h.arg('kind'),
                          ok=ok if ok in ('0', '1') else None, page=h.num('page', 1, 1),
-                         per=h.num('per', 50, 1, 500),
+                         per=h.num('per', 50, 1, 500), state=h.arg('state') or '',
                          where=_lib('teams').where(h.store, s, 'view', 'c.owner'))
 
 

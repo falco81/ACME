@@ -45962,7 +45962,7 @@
   },
   "sup108": {
    "source": "added, not issued - Issue now issues it",
-   "text": "přidán, nevystaven – vystaví ho Vystavit teď"
+   "text": "přidán, nevystaven – vystaví ho Vystavit hned"
   },
   "sup109": {
    "source": "Its running job",
@@ -45978,11 +45978,11 @@
   },
   "sup112": {
    "source": "Kept, not issued: it waits until Issue now is pressed in its window.",
-   "text": "Uloží se, ale nevystaví: čeká, až v jeho okně stisknete Vystavit teď."
+   "text": "Uloží se, ale nevystaví: čeká, až v jeho okně stisknete Vystavit hned."
   },
   "sup113": {
    "source": "What it will be. \"Add and issue now\" asks the source at once, in a job you can watch; \"Add only\" keeps it unissued until Issue now is pressed in its window.",
-   "text": "Jak bude vypadat. „Přidat a hned vystavit“ požádá zdroj okamžitě, v úloze, kterou můžete sledovat; „Jen přidat“ ho nechá nevystavený, dokud v jeho okně nestisknete Vystavit teď."
+   "text": "Jak bude vypadat. „Přidat a hned vystavit“ požádá zdroj okamžitě, v úloze, kterou můžete sledovat; „Jen přidat“ ho nechá nevystavený, dokud v jeho okně nestisknete Vystavit hned."
   },
   "sup114": {
    "source": "Take this deployment off",
@@ -45990,7 +45990,7 @@
   },
   "sup115": {
    "source": "Take this deployment off?",
-   "text": "Odebrat toto nasazení?"
+   "text": "Vyřadit toto nasazení?"
   },
   "sup116": {
    "source": "acme no longer puts the certificate there, nor after its renewals. What is on the target now stays there.",
@@ -55711,6 +55711,42 @@
   "huntg_7": {
    "source": "the address a portal code went to is masked in Events",
    "text": "adresa, kam šel kód portálu, je v událostech zamaskovaná"
+  },
+  "huntg6_1": {
+   "source": "No job matches the filter",
+   "text": "Filtru neodpovídá žádná úloha"
+  },
+  "huntg6_2": {
+   "source": "test run",
+   "text": "běh testů"
+  },
+  "huntg6_3": {
+   "source": "Connection refused",
+   "text": "Spojení odmítnuto"
+  },
+  "huntg6_4": {
+   "source": "Connection reset by peer",
+   "text": "Spojení ukončeno druhou stranou"
+  },
+  "huntg6_5": {
+   "source": "Connection timed out",
+   "text": "Spojení vypršelo"
+  },
+  "huntg6_6": {
+   "source": "No route to host",
+   "text": "Cesta k hostiteli neexistuje"
+  },
+  "huntg6_7": {
+   "source": "Name or service not known",
+   "text": "Název nebo služba není známá"
+  },
+  "huntg6_8": {
+   "source": "Network is unreachable",
+   "text": "Síť je nedostupná"
+  },
+  "huntg6_9": {
+   "source": "no address to send the report to",
+   "text": "není adresa, kam report poslat"
   }
  },
  "patterns": {
@@ -62560,7 +62596,7 @@
   },
   "pc0142": {
    "source": "{0} deleted",
-   "text": "{0} smazán"
+   "text": "{0} – smazáno"
   },
   "pc0143": {
    "source": "{0} has no issuer - it was imported or is answered by a CSR; import the new certificate instead",
@@ -76209,6 +76245,10 @@
   "phuntg_4": {
    "source": "type {0} again - it goes to the new server with it",
    "text": "zadejte znovu {0} - půjde s ním na nový server"
+  },
+  "phuntg6_1": {
+   "source": "{0} bits",
+   "text": "{0} bitů"
   }
  },
  "rich": {

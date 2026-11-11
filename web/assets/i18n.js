@@ -113,6 +113,9 @@ function i18nWordy(m, depth) {
     /* Words, apart by a space, of letters only (1.0.48): "certs_certadmin_all=1" or a team "HB1
        tym" are a name, not a sentence - a weak pattern refused them and stayed in English. */
     if (!/(^|\s)[A-Za-z]{2,}[,;:]?\s+[A-Za-z]{2,}(\s|$|[.,;:])/.test(m[i] || '')) continue;
+    /* ...a name of capitalised words is a name too (1.0.79): "G6 Imported CA deleted" stayed
+       English - a sentence has a word in small letters among them */
+    if (!/(^|\s)[a-z][A-Za-z]*[,;:]?(\s|$)/.test(m[i] || '') && /^[\sA-Z0-9][\s\S]*$/.test(m[i] || '')) continue;
     /* Several words are still a slot's worth when they are a text of the
        page's own: "Started {0}." around "2 min ago". */
     if ((depth || 0) < I18N_DEEP && i18nWork(m[i], (depth || 0) + 1) !== null) continue;

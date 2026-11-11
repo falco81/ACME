@@ -547,7 +547,8 @@ def job_view(store, ident):
     return out
 
 
-def job_rows(store, cert_id=None, kind='', ok=None, page=1, per=50, since=None, where=None):
+def job_rows(store, cert_id=None, kind='', ok=None, page=1, per=50, since=None, where=None,
+             state=''):
     """A page of jobs. `where`: (' AND ...', args) on the certificate `c` (teams.where)."""
     scoped = where if where and where[0] else None
     where, args = [], []
@@ -563,6 +564,8 @@ def job_rows(store, cert_id=None, kind='', ok=None, page=1, per=50, since=None, 
     if ok in (0, 1, '0', '1'):
         where.append('j.ok = ?')
         args.append(int(ok))
+    if state == 'running':             # asked by the page (1.0.79): it counted every job
+        where.append("j.state IN ('queued', 'running')")
     if since:
         where.append('j.ts >= ?')
         args.append(float(since))

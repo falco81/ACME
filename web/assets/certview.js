@@ -105,8 +105,14 @@
   function colons(hex) { return String(hex || '').replace(/(..)(?!$)/g, '$1:'); }
   function keyLine(k) {
     if (!k) return '–';
-    if (k.algo === 'EC') return 'EC ' + (k.curve || '') + (k.bits ? ' (' + k.bits + ' bits)' : '');
-    if (k.algo === 'RSA' || k.algo === 'RSA-PSS' || k.algo === 'DSA') return k.algo + ' ' + k.bits + ' bits';
+    /* "bits" in the page's language (1.0.79): the line is a value, not read by the translation */
+    var bits = function (n) {
+      var w = n + ' bits';
+      try { w = (typeof i18nText === 'function' && i18nText(w)) || w; } catch (e) { }
+      return w;
+    };
+    if (k.algo === 'EC') return 'EC ' + (k.curve || '') + (k.bits ? ' (' + bits(k.bits) + ')' : '');
+    if (k.algo === 'RSA' || k.algo === 'RSA-PSS' || k.algo === 'DSA') return k.algo + ' ' + bits(k.bits);
     return k.algo || k.type || '?';
   }
   function copyBtn(text, words) {

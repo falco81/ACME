@@ -922,7 +922,8 @@ def scan(store, by='the renewer'):
                 cur = leader(store)
                 if cur and not cur.get('me'):
                     break
-            jobs.submit(store, 'renew', renew_job(r['id'], by=who, only=only), cert_id=r['id'],
+            jobs.submit(store, 'renew' if r.get('cert_pem') or r.get('has_cert') else 'issue',
+                        renew_job(r['id'], by=who, only=only), cert_id=r['id'],
                         by=who, said=why)
             started += 1
         except Exception as e:                          # noqa: BLE001
@@ -940,6 +941,10 @@ def scan(store, by='the renewer'):
         "c.cert_pem IS NOT NULL AND c.state IN ('ok', 'due', 'failed')")
     todo = {}
     for d in deps:
+        # just made, never tried (1.0.79): "Save and deploy now" follows in a moment as the
+        # person's own - the scan took it first, as "renewed by itself", and ran it twice
+        if not d.get('last_try') and float(d.get('created') or 0) > t - 30:
+            continue
         if d.get('state') == 'failed':
             if float(d.get('next_try') or 0) > t:
                 continue

@@ -2523,7 +2523,7 @@ function timePicker(id, opts) {
     var f = el('input', 'tp-dt'); f.type = 'datetime-local'; f.value = tpLocal(r0.from || now - 86400);
     var t = el('input', 'tp-dt'); t.type = 'datetime-local'; t.value = r0.to ? tpLocal(r0.to) : '';
     var fr = el('label', 'tp-lab'); fr.appendChild(el('span', '', 'From')); fr.appendChild(f);
-    var tr = el('label', 'tp-lab'); tr.appendChild(el('span', '', 'To')); tr.appendChild(t);
+    var tr = el('label', 'tp-lab'); tr.appendChild(el('span', '', 'Until')); tr.appendChild(t);
     own.appendChild(fr); own.appendChild(tr);
     own.appendChild(el('div', 'tp-s', 'An empty end means up to now.'));
     var go2 = cmdButton('Show this window', 'check', 'small primary');
@@ -2561,6 +2561,8 @@ function timePicker(id, opts) {
   };
   wrap._range = function () { var r = tpRange(st); return {from: Math.floor(r.from), to: Math.ceil(r.to), words: tpWords(st)}; };
   wrap._set = function (s) { st = s; fire(); };
+  /* the window this picker starts with on its page (1.0.79): Clear puts that one back */
+  wrap._start = opts.start || {k: 'rel', s: 86400};
   Object.defineProperty(wrap, 'value', {get: function () {
     var r = tpRange(st);
     if (st.k === 'all') return '0';
