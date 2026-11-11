@@ -241,6 +241,11 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
     return {'rows': out, 'total': total, 'page': page, 'per': per}
 
 
+# span -> (bars, days a bar, what a bar is)
+OV_SPANS = {'4w': (28, 1, 'day'), '12w': (12, 7, 'week'), '26w': (26, 7, 'week'),
+            '52w': (52, 7, 'week'), '2y': (24, 30.4375, 'month'), '5y': (20, 91.3125, 'quarter')}
+
+
 @api('GET', '/api/certs/overview')
 def _overview(h, s):
     store = h.store
@@ -262,9 +267,15 @@ def _overview(h, s):
                          "ORDER BY not_after LIMIT 10" % sw, sa)
     for r in soon:
         r['days_left'] = S.days_left(r, t)
+    # The window of "When certificates run out" (1.0.77): chosen on the page - days for the
+    # next 4 weeks, weeks up to a year, months for 2 years, quarters for 5.
+    span = h.arg('span').strip() or '12w'
+    count, size, unit = OV_SPANS.get(span, OV_SPANS['12w'])
+    if span not in OV_SPANS:
+        span = '12w'
     weeks = []
-    for i in range(12):
-        a, b = t + i * 7 * 86400, t + (i + 1) * 7 * 86400
+    for i in range(count):
+        a, b = t + i * size * 86400, t + (i + 1) * size * 86400
         # Those renewed by hand apart, and the revoked and switched off not counted (1.0.51): the
         # grey part of the bars was never drawn, the revoked ones counted as running out.
         r = store.db.row("SELECT COUNT(*) AS n, SUM(CASE WHEN COALESCE(auto_renew, 0) = 0 THEN 1 "
@@ -309,7 +320,7 @@ def _overview(h, s):
                 "SELECT COUNT(*) FROM cert_deploys d JOIN certs c ON c.id = d.cert_id WHERE "
                 "d.state = 'failed'" + T.where(store, s, 'view', 'c.owner')[0],
                 tuple(sa), 0) or 0),
-            'weeks': weeks, 'jobs': recent, 'running': len(jobs.RUNNING),
+            'weeks': weeks, 'span': span, 'unit': unit, 'jobs': recent, 'running': len(jobs.RUNNING),
             'leader': lead, 'last_scan': S.jload(store.get_meta('certs:last_scan'), None),
             'alerts': alerts[:50], 'notify_days': days,
             'states': schema.STATES, 'key_types': list(schema.KEY_TYPES)}

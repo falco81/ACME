@@ -1233,3 +1233,7 @@ table.ct-issued td:nth-child(2){min-width:210px;max-width:250px;white-space:norm
 .tt-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .tt-form{margin-top:12px;padding:14px;border-radius:12px;border:1px solid var(--line);background:var(--panel2)}
 .tt-form .btnrow{justify-content:flex-end;margin-top:8px}
+
+/* "When certificates run out": the window chosen (1.0.77) */
+.ct-ovchart-h{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ct-ovchart-h select.ct-ovspan{width:auto;min-width:220px;font-size:12.5px;padding:6px 30px 6px 10px}

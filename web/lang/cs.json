@@ -55579,6 +55579,54 @@
   "ta_25": {
    "source": "this certificate",
    "text": "tento certifikát"
+  },
+  "ov_1": {
+   "source": "the next 4 weeks (days)",
+   "text": "příštích 4 týdnů (po dnech)"
+  },
+  "ov_2": {
+   "source": "the next 12 weeks",
+   "text": "příštích 12 týdnů"
+  },
+  "ov_3": {
+   "source": "the next 6 months",
+   "text": "příštích 6 měsíců"
+  },
+  "ov_4": {
+   "source": "the next year",
+   "text": "příští rok"
+  },
+  "ov_5": {
+   "source": "the next 2 years (months)",
+   "text": "příští 2 roky (po měsících)"
+  },
+  "ov_6": {
+   "source": "the next 5 years (quarters)",
+   "text": "příštích 5 let (po čtvrtletích)"
+  },
+  "ov_7": {
+   "source": "The window",
+   "text": "Časové okno"
+  },
+  "ov_8": {
+   "source": "How many certificates end on each day ahead.",
+   "text": "Kolik certifikátů vyprší v každém z příštích dnů."
+  },
+  "ov_9": {
+   "source": "How many certificates end in each month ahead.",
+   "text": "Kolik certifikátů vyprší v každém z příštích měsíců."
+  },
+  "ov_10": {
+   "source": "How many certificates end in each quarter ahead.",
+   "text": "Kolik certifikátů vyprší v každém z příštích čtvrtletí."
+  },
+  "ov_11": {
+   "source": "How many certificates end in each week ahead.",
+   "text": "Kolik certifikátů vyprší v každém z příštích týdnů."
+  },
+  "ov_12": {
+   "source": "Those that renew by themselves will be renewed before - a red bar of certificates renewed by hand is the one to look at.",
+   "text": "Ty, které se obnovují samy, se obnoví dřív – pozornost si zaslouží červený sloupec certifikátů obnovovaných ručně."
   }
  },
  "patterns": {

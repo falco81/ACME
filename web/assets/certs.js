@@ -7641,7 +7641,7 @@ function tabCount(id, n, hot) {
 function loadOverviewCerts(live) {
   var host = $('ov-certs');
   if (!host) return;
-  capi('certs/overview').then(function (d) {
+  capi('certs/overview' + qs({span: ovSpan()})).then(function (d) {
     OV.d = d;
     var counts = d.by_state || d.counts || {};
     var total = Number(first(d.total, Object.keys(counts).reduce(function (a, k) { return a + Number(counts[k] || 0); }, 0)));
@@ -7711,11 +7711,25 @@ function drawOverviewCerts(box, d, counts, total) {
   });
   if (!row1) box.appendChild(grid);
   var ch = el('div', 'card full ct-ovcard');
-  var h = el('h2', '', 'When certificates run out');
-  var right = el('span', 'right muted', 'the next ' + (rowsOf(d.weeks || d.expiry_by_week || d.by_week).length || 26) + ' weeks');
-  h.appendChild(right);
+  var h = el('h2', 'ct-ovchart-h', 'When certificates run out');
+  /* The window looked at (1.0.77): chosen, kept in this browser - the next 12 weeks were all. */
+  var spanSel = selectBox(OV_SPANS.map(function (x) { return [x[0], tr(x[1])]; }), d.span || ovSpan());
+  noI18n(spanSel);
+  spanSel.className = (spanSel.className || '') + ' ct-ovspan';
+  spanSel.setAttribute('aria-label', tr('The window'));
+  spanSel.onchange = function () {
+    try { localStorage.setItem('acme.ov.span', spanSel.value); } catch (e) { }
+    spanSel.disabled = true;
+    capi('certs/overview' + qs({span: spanSel.value})).then(function (nd) {
+      OV.d = nd;
+      noteEl.textContent = ovNote(nd.unit).split('. ').map(function (x, i, all) { return tr(i < all.length - 1 ? x + '.' : x); }).join(' ');
+      drawExpiryChart($('ov-ct-chart'), nd);
+    }).catch(fail).then(function () { spanSel.disabled = false; });
+  };
+  h.appendChild(spanSel);
   ch.appendChild(h);
-  ch.appendChild(el('p', 'note', 'How many certificates end in each week ahead. Those that renew by themselves will be renewed before - a red bar of certificates renewed by hand is the one to look at.'));
+  var noteEl = el('p', 'note', ovNote(d.unit));
+  ch.appendChild(noteEl);
   var chart = el('div', 'chart ct-chart');
   chart.id = 'ov-ct-chart';
   chart.appendChild(el('div', 'empty', '…'));
@@ -7835,6 +7849,18 @@ function openCerts(f) {
     loadCerts();
   }, 0);
 }
+var OV_SPANS = [['4w', 'the next 4 weeks (days)'], ['12w', 'the next 12 weeks'], ['26w', 'the next 6 months'],
+                ['52w', 'the next year'], ['2y', 'the next 2 years (months)'], ['5y', 'the next 5 years (quarters)']];
+function ovSpan() {
+  var v = '';
+  try { v = localStorage.getItem('acme.ov.span') || ''; } catch (e) { }
+  return OV_SPANS.some(function (x) { return x[0] === v; }) ? v : '12w';
+}
+function ovNote(unit) {
+  return ({day: 'How many certificates end on each day ahead.', month: 'How many certificates end in each month ahead.',
+           quarter: 'How many certificates end in each quarter ahead.'}[unit] || 'How many certificates end in each week ahead.') +
+    ' ' + 'Those that renew by themselves will be renewed before - a red bar of certificates renewed by hand is the one to look at.';
+}
 function drawExpiryChart(host, d) {
   if (!host) return;
   var tip = host.querySelector('.tip') || el('div', 'tip');
@@ -7898,7 +7924,8 @@ function drawExpiryChart(host, d) {
     if (i % every) return;
     var dd = new Date(p.t * 1000);
     var t = make('text', {x: padL + step * i + step / 2, y: H - 8, fill: mut, 'font-size': 11, 'text-anchor': 'middle'});
-    t.textContent = pad2(dd.getDate()) + '-' + pad2(dd.getMonth() + 1);
+    t.textContent = d.unit === 'month' || d.unit === 'quarter' ? pad2(dd.getMonth() + 1) + '/' + dd.getFullYear()
+      : pad2(dd.getDate()) + '-' + pad2(dd.getMonth() + 1);
     svg.appendChild(t);
   });
   weeks.forEach(function (p, i) {
@@ -7910,9 +7937,9 @@ function drawExpiryChart(host, d) {
     });
     hit.addEventListener('mousemove', function (e) {
       var box = host.getBoundingClientRect();
-      var end = new Date((p.t + 6 * 86400) * 1000);
+      var end = new Date(((p.end ? p.end - 1 : p.t + 6 * 86400)) * 1000);
       tip.innerHTML = '';
-      tip.appendChild(el('b', '', dayWords(new Date(p.t * 1000)) + ' – ' + dayWords(end)));
+      tip.appendChild(el('b', '', d.unit === 'day' ? dayWords(new Date(p.t * 1000)) : dayWords(new Date(p.t * 1000)) + ' – ' + dayWords(end)));
       tip.appendChild(el('br'));
       tip.appendChild(el('span', '', p.n ? (p.n === 1 ? '1 certificate ends' : p.n + ' certificates end') : 'nothing ends'));
       if (p.manual) { tip.appendChild(el('br')); tip.appendChild(el('span', 'ct-tipwarn', p.manual + ' renewed by hand')); }
@@ -7932,7 +7959,7 @@ function drawExpiryChart(host, d) {
   host.appendChild(svg);
 }
 function weekPeek(p) {
-  var end = new Date((p.t + 6 * 86400) * 1000);
+  var end = new Date(((p.end ? p.end - 1 : p.t + 6 * 86400)) * 1000);
   modal('Ending ' + dayWords(new Date(p.t * 1000)) + ' – ' + dayWords(end), function (body) {
     body.appendChild(listTable(['State', 'Name', 'Expires'], p.certs, function (c) {
       var tr = el('tr');
