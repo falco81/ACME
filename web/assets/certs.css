@@ -1126,3 +1126,25 @@ td.acc-role{white-space:nowrap}
   .df-tpl-list{max-height:220px}
   .df-tpl-how{grid-template-columns:1fr}
 }
+/* Run the tests (1.0.73): the tests that will run, then only run or run and report */
+.rt-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.rt-big{display:flex;align-items:baseline;gap:8px}
+.rt-big b{font-size:26px;font-weight:700}
+.rt-sum{display:flex;gap:6px;flex-wrap:wrap}
+.rt-n{margin-left:6px}
+.rt-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;max-height:230px;overflow:auto;margin-bottom:14px}
+.rt-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 11px;border-bottom:1px solid var(--line)}
+.rt-row:last-child{border-bottom:0}
+.rt-w{display:flex;flex-direction:column;min-width:0}
+.rt-w > *{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rt-cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rt-card{all:unset;box-sizing:border-box;display:flex;gap:11px;align-items:flex-start;padding:12px 13px;border:1px solid var(--line);border-radius:11px;background:var(--panel2);cursor:pointer}
+.rt-card:hover{border-color:rgba(88,166,255,.5)}
+.rt-card:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.rt-card.on{border-color:var(--info);background:var(--info-bg);box-shadow:0 0 0 1px var(--info) inset}
+.rt-ic{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--info-bg);color:var(--info)}
+.rt-card.on .rt-ic{background:var(--info);color:var(--bg)}
+.rt-cw{display:flex;flex-direction:column;gap:3px}
+.rt-rep{margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-radius:11px;background:var(--panel2)}
+.rt-rep[hidden]{display:none}
+@media (max-width:760px){.rt-cards{grid-template-columns:1fr}}

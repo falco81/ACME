@@ -57,6 +57,16 @@ where it connected and the HTTP answer.
 - **By themselves** (`certs_checks_auto`, off; `certs_checks_every_min`, 360):
   every test, on the node that leads.
 - **Asked**: the certificate's window, or the command line.
+- **Run the tests…** (1.0.73): on the certificates' list - the button above it runs the tests
+  of every certificate, the ▶ of a row the tests of that one. The popup lists the tests that
+  will run with how each went last, then: **Only run them**, or **Run them and send a
+  report**. The report is a mail with every result grouped by certificate (test, where, state,
+  what it said, when) and a subject that says how many are fine, warned and failed. It goes to
+  the addresses given, by default the report's (Settings → Alerts and reports). With SMS on it
+  can also send one line - how many are fine, warned and failed, and which ones fail - to the
+  numbers given. The report goes once the tests are done, as a step of the same job; a report
+  that cannot go (no mail set up) is said there and in the events. `POST /api/checks/run
+  {cert_id | all, report: {mail, to, sms, sms_to}}`.
 
 A test that starts failing is an event and a notification - mail and SMS to the
 addresses of Settings → Certificates (`certs_checks_alert`), in the words of

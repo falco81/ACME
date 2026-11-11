@@ -55,6 +55,8 @@ function acme_certs_tab_panels(): void
               title="Certificates asked for on the portal that wait for an administrator: click one, then Approve or Decline."></button>
       <button class="btn cmd small" id="ct-view" data-icon="eye"
               title="Look inside any certificate, chain, request, CRL, key or keystore - PEM, DER, P7B, PFX/P12, JKS, JCEKS - dropped or pasted. Nothing is kept and nothing changes.">Show a certificate</button>
+      <button class="btn cmd small ct-manage" id="ct-tests" data-icon="play"
+              title="The tests of every certificate run now - only run, or with a report of them sent by mail or SMS.">Run the tests</button>
       <button class="btn cmd small ct-manage" id="ct-import" data-icon="upload"
               title="Bring in a certificate you already have - PEM, CRT, CER, DER, P7B, PFX/P12, JKS or a key - by dropping the file here.">Import</button>
       <button class="btn cmd small ct-manage" id="ct-onlineimport" data-icon="download"

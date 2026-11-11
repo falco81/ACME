@@ -5,6 +5,13 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.73 - not released
+- Certificates: **Run the tests…**, for every certificate (a button above the list) or for one
+  (▶ in its row). A popup lists the tests with how each went last. Choose **Only run them**, or
+  **Run them and send a report**. The report is a mail with every result grouped by
+  certificate, and the subject says how many are fine, warned and failed. It goes to the
+  report's addresses or those typed. With SMS on, one line can also go to the numbers given. It
+  is sent once the tests are done, and a report that cannot go is said in the job, not
+  failing it.
 
 ## 1.0.72 - 2026-11-11
 - The files on a Linux target: **After the files → From a template…**, a picker of 28

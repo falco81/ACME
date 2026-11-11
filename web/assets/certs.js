@@ -2963,6 +2963,11 @@ function certRow(c) {
     r.onclick = function (ev) { ev.stopPropagation(); certRenew(c, r); };
     tools.appendChild(r);
   }
+  if (MANAGE) {
+    var rt = iconButton('play', 'Run its tests…');
+    rt.onclick = function (ev) { ev.stopPropagation(); runTestsDialog(c); };
+    tools.insertBefore(rt, tools.firstChild);
+  }
   tr.appendChild(tools);
   return rowOpens(tr, function () { certPeek(c.id); });
 }
@@ -9406,6 +9411,113 @@ function on(id, ev, fn) { var n = $(id); if (n) n.addEventListener(ev, fn); }
 on('ct-add', 'click', function () { certWizard(); });
 on('ct-import', 'click', function () { importDialog(); });
 on('ct-onlineimport', 'click', function () { onlineImport(); });
+/* Run the tests (1.0.73): of one certificate, or of every one - only run, or run and send a
+   report of them by mail and/or SMS. POST checks/run {cert_id | all, report}. */
+function runTestsDialog(c) {
+  var st = {how: 'run', mail: true, sms: false};
+  var toBox = null, smsBox = null, list = null, info = {};
+  popup(c ? tr('Run the tests of') + ' ' + c.name : 'Run the tests of every certificate', function () {
+    return capi('checks' + (c ? qs({cert_id: c.id}) : ''));
+  }, function (d) {
+    var rows = rowsOf(d.checks).filter(function (x) { return x.enabled !== 0; });
+    info = obj(d.report);
+    return {
+      build: function (body) {
+        if (!rows.length) {
+          body.appendChild(emptyNote(c ? 'No test is attached to this certificate - its window → Tests → Attach a test.' : 'No test is attached to any certificate yet.'));
+          return;
+        }
+        var head = el('div', 'rt-head');
+        var big = el('div', 'rt-big');
+        big.appendChild(el('b', '', num(rows.length)));
+        big.appendChild(el('span', 'muted small', c ? 'test(s) of this certificate' : 'test(s) of ' + num(Object.keys(rows.reduce(function (m, x) { m[x.cert_id] = 1; return m; }, {})).length) + ' certificate(s)'));
+        head.appendChild(big);
+        var sum = el('div', 'rt-sum');
+        ['ok', 'warn', 'bad', ''].forEach(function (k) {
+          var n = rows.filter(function (x) { var s = x.last_state || ''; return k === 'bad' ? (s && s !== 'ok' && s !== 'warn') : s === k; }).length;
+          if (!n) return;
+          var t = ckBadge(k === 'bad' ? 'unreachable' : k);
+          t.appendChild(el('b', 'rt-n', num(n)));
+          if (k === 'bad') t.querySelector('span').textContent = tr('failing now');
+          sum.appendChild(t);
+        });
+        head.appendChild(sum);
+        body.appendChild(head);
+        list = el('div', 'rt-list');
+        rows.slice(0, 200).forEach(function (x) {
+          var r = el('div', 'rt-row');
+          r.appendChild(ckBadge(x.last_state));
+          var w = el('div', 'rt-w');
+          w.appendChild(data('b', '', (c ? '' : x.cert + ' · ') + x.test));
+          w.appendChild(data('span', 'muted small mono', x.where || ''));
+          r.appendChild(w);
+          r.appendChild(el('span', 'muted small', x.last_at ? ago(x.last_at) : tr('never')));
+          list.appendChild(r);
+        });
+        body.appendChild(list);
+        /* only run, or run and report */
+        var item = el('div', 'set-item rt-how');
+        item.appendChild(el('label', 'k', 'When they are done'));
+        var seg = el('div', 'rt-cards');
+        var rep = el('div', 'rt-rep');
+        [['run', 'Only run them', 'The results are written to each test and the job - and an alert goes as for every test that fails.', 'play'],
+         ['report', 'Run them and send a report', 'Then a report of every result, by mail and/or SMS, to whom you say below.', 'mail']].forEach(function (o) {
+          var b = el('button', 'rt-card' + (st.how === o[0] ? ' on' : ''));
+          b.type = 'button';
+          var ic = el('span', 'rt-ic');
+          ic.innerHTML = iconMarkup(o[3], 20);
+          b.appendChild(ic);
+          var w = el('span', 'rt-cw');
+          w.appendChild(el('b', '', o[1]));
+          w.appendChild(el('span', 'muted small', o[2]));
+          b.appendChild(w);
+          b.onclick = function () {
+            st.how = o[0];
+            Array.prototype.forEach.call(seg.children, function (x) { x.classList.remove('on'); });
+            b.classList.add('on');
+            rep.hidden = st.how !== 'report';
+          };
+          seg.appendChild(b);
+        });
+        item.appendChild(seg);
+        body.appendChild(item);
+        /* the report: to whom */
+        rep.hidden = true;
+        var g = el('div', 'formgrid');
+        var mailSw = switchBox(st.mail);
+        mailSw._input.onchange = function () { st.mail = mailSw._get(); toBox.disabled = !st.mail; };
+        g.appendChild(formField('By mail', mailSw, info.mail ? '' : 'Mail is not set up yet - Settings → Mail.'));
+        toBox = areaBox(arr(info.to).join('\n'), 'admin@example.com', 2, 'mono');
+        noI18n(toBox);
+        g.appendChild(formField('To', toBox, 'one a line; by default the report’s addresses (Settings → Alerts and reports)'));
+        var smsSw = switchBox(st.sms);
+        smsSw._input.disabled = !info.sms;
+        smsSw._input.onchange = function () { st.sms = smsSw._get(); smsBox.disabled = !st.sms; };
+        g.appendChild(formField('By SMS', smsSw, info.sms ? 'one line: how many fine, with a warning, failed - and which' : 'SMS is switched off - Settings → Codes by mail and SMS.'));
+        smsBox = textBox('', '+420 600 000 000', 'mono');
+        smsBox.disabled = true;
+        noI18n(smsBox);
+        g.appendChild(formField('Numbers', smsBox, 'separated by commas'));
+        rep.appendChild(g);
+        body.appendChild(rep);
+      },
+      buttons: [{words: 'Close', close: true}].concat(rows.length ? [{words: 'Run the tests', cls: 'primary', icon: 'play', go: function (b) {
+        var sent = c ? {cert_id: c.id} : {all: true};
+        if (st.how === 'report') {
+          if (!st.mail && !st.sms) { toast(tr('choose how the report goes: by mail or by SMS'), 'bad'); return; }
+          sent.report = {mail: st.mail, to: st.mail ? toBox.value.split(/[\s,;]+/).filter(Boolean) : [],
+                         sms: st.sms, sms_to: st.sms ? smsBox.value : ''};
+        }
+        busy(b, true);
+        capi('checks/run', sent, 60).then(function (x) {
+          closeModal();
+          jobStarted(x, st.how === 'report' ? 'the tests run - the report goes once they are done' : 'the tests run');
+        }).catch(function (e) { busy(b, false); fail(e); });
+      }}] : [])
+    };
+  }, 'medium');
+}
+on('ct-tests', 'click', function () { runTestsDialog(null); });
 /* Show a certificate (1.0.23): certview.js, for anybody signed in - it changes nothing. */
 on('ct-view', 'click', function () { if (window.ACME_CERTVIEW) window.ACME_CERTVIEW.open(); });
 on('ct-self', 'click', function () { selfSigned(); });

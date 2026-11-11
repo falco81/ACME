@@ -55155,6 +55155,98 @@
   "tpl_39": {
    "source": "A Docker container",
    "text": "Kontejner Dockeru"
+  },
+  "rt_1": {
+   "source": "Run the tests of",
+   "text": "Spustit testy certifikátu"
+  },
+  "rt_2": {
+   "source": "Run the tests of every certificate",
+   "text": "Spustit testy všech certifikátů"
+  },
+  "rt_3": {
+   "source": "No test is attached to this certificate - its window → Tests → Attach a test.",
+   "text": "K tomuto certifikátu není připojen žádný test – jeho okno → Testy → Připojit test."
+  },
+  "rt_4": {
+   "source": "No test is attached to any certificate yet.",
+   "text": "Zatím není k žádnému certifikátu připojen test."
+  },
+  "rt_5": {
+   "source": "test(s) of this certificate",
+   "text": "testů tohoto certifikátu"
+  },
+  "rt_6": {
+   "source": "failing now",
+   "text": "teď selhává"
+  },
+  "rt_7": {
+   "source": "When they are done",
+   "text": "Až doběhnou"
+  },
+  "rt_8": {
+   "source": "Only run them",
+   "text": "Jen je spustit"
+  },
+  "rt_9": {
+   "source": "The results are written to each test and the job - and an alert goes as for every test that fails.",
+   "text": "Výsledky se zapíšou ke každému testu a do úlohy – a upozornění odejde jako u každého testu, který selže."
+  },
+  "rt_10": {
+   "source": "Run them and send a report",
+   "text": "Spustit a poslat report"
+  },
+  "rt_11": {
+   "source": "Then a report of every result, by mail and/or SMS, to whom you say below.",
+   "text": "Pak report se všemi výsledky e-mailem a/nebo SMS těm, koho uvedete níže."
+  },
+  "rt_12": {
+   "source": "Mail is not set up yet - Settings → Mail.",
+   "text": "Pošta zatím není nastavená – Nastavení → Pošta."
+  },
+  "rt_13": {
+   "source": "one a line; by default the report’s addresses (Settings → Alerts and reports)",
+   "text": "jedna na řádek; výchozí jsou adresy reportu (Nastavení → Upozornění a reporty)"
+  },
+  "rt_14": {
+   "source": "one line: how many fine, with a warning, failed - and which",
+   "text": "jeden řádek: kolik v pořádku, s varováním, selhalo – a které"
+  },
+  "rt_15": {
+   "source": "SMS is switched off - Settings → Codes by mail and SMS.",
+   "text": "SMS jsou vypnuté – Nastavení → Kódy e-mailem a SMS."
+  },
+  "rt_16": {
+   "source": "Numbers",
+   "text": "Čísla"
+  },
+  "rt_17": {
+   "source": "separated by commas",
+   "text": "oddělená čárkami"
+  },
+  "rt_18": {
+   "source": "Run the tests",
+   "text": "Spustit testy"
+  },
+  "rt_19": {
+   "source": "choose how the report goes: by mail or by SMS",
+   "text": "vyberte, jak report odejde: e-mailem nebo SMS"
+  },
+  "rt_20": {
+   "source": "the tests run - the report goes once they are done",
+   "text": "testy běží – report odejde, až doběhnou"
+  },
+  "rt_21": {
+   "source": "the tests run",
+   "text": "testy běží"
+  },
+  "rt_22": {
+   "source": "Run its tests…",
+   "text": "Spustit jeho testy…"
+  },
+  "rt_23": {
+   "source": "The tests of every certificate run now - only run, or with a report of them sent by mail or SMS.",
+   "text": "Testy všech certifikátů se spustí hned – jen spustit, nebo i s reportem e-mailem či SMS."
   }
  },
  "patterns": {
@@ -75349,6 +75441,14 @@
   "pisy_3": {
    "source": "{0} event(s) and {1} job(s) of history",
    "text": "historie: {0} {0:událost|události|událostí} a {1} {1:úloha|úlohy|úloh}"
+  },
+  "prt_1": {
+   "source": "Run the tests of {0}",
+   "text": "Spustit testy certifikátu {0}"
+  },
+  "prt_2": {
+   "source": "test(s) of {0} certificate(s)",
+   "text": "testů z {0} {0:certifikátu|certifikátů|certifikátů}"
   }
  },
  "rich": {
