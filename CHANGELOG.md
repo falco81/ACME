@@ -5,6 +5,8 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.68 - not released
+- The files on a target: the owner[:group] field wider (at least 150 px), so www-data:www-data
+  fits.
 
 ## 1.0.67 - 2026-11-11
 - The files on a target: the button of a file's mode as tall and wide as the fields beside it

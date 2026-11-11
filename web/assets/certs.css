@@ -585,7 +585,7 @@ select.ct-valsel option.ct-unfit{color:var(--tx-mut)}
 /* the rows: format · path · mode · owner · remove */
 .df-rows{display:flex;flex-direction:column;gap:6px}
 .df-row{display:grid;grid-template-columns:minmax(150px,1fr) minmax(0,2.1fr) 92px auto;gap:6px;align-items:start}
-.df-rows.own .df-row{grid-template-columns:minmax(150px,1fr) minmax(0,2fr) 92px minmax(90px,.8fr) auto}
+.df-rows.own .df-row{grid-template-columns:minmax(150px,1fr) minmax(0,2fr) 92px minmax(150px,1.1fr) auto}
 .df-rows.nomode .df-row{grid-template-columns:minmax(150px,1fr) minmax(0,2.4fr) auto}
 .df-head{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--tx-mut);padding:0 2px}
 .df-row select,.df-row input{width:100%;padding:7px 10px;font-size:12.5px;border-radius:8px}
