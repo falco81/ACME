@@ -34,7 +34,9 @@
   var OWNED = ['preset', 'outputs', 'pfx_password_mode', 'pfx_password', 'jks_alias',
                'script_mode', 'script_path', 'script_args', 'script_interp', 'script_body'];
   var AROUND = ['pre_cmd', 'test_cmd', 'reload_cmd', 'post_cmd', 'command', 'post_ps'];
-  var MODES = ['0600', '0640', '0644', '0400', '0440', '0444'];
+  /* Offered; any other mode of three or four octal digits is typed (1.0.65: 0700, 0750,
+     0755... were not to be had). */
+  var MODES = ['0600', '0640', '0644', '0400', '0440', '0444', '0700', '0750', '0755', '0660', '0664'];
   /* Words in the page's language where i18n.js does not reach: the hint of a
      box marked as data (data-no-i18n) is never translated by it. (1.0.19) */
   function tr(s) {
@@ -204,12 +206,20 @@
       line.appendChild(pcell);
       var msel = null, owner = null;
       if (withMode) {
-        var mpairs = MODES.map(function (m) { return [m, m]; });
-        if (r.mode && MODES.indexOf(r.mode) < 0) mpairs.push([r.mode, r.mode]);
-        mpairs.unshift(['', tr('default')]);
-        msel = selectBox(mpairs, r.mode || '');
-        msel.className = 'df-mode';
+        /* Typed, with the usual ones offered (a datalist): empty is the default
+           (0600 for a key, 0644 for the rest). */
+        msel = textBox(r.mode || '', tr('default'), 'mono df-mode');
+        msel.setAttribute('list', 'df-modes');
+        msel.setAttribute('inputmode', 'numeric');
+        msel.maxLength = 4;
+        msel.title = tr('the file\'s mode, as chmod takes it (0600, 0640, 0755...) - empty: 0600 for a key, 0644 for the rest');
         noI18n(msel);
+        if (!document.getElementById('df-modes')) {
+          var dl = el('datalist');
+          dl.id = 'df-modes';
+          MODES.forEach(function (m) { var o = document.createElement('option'); o.value = m; dl.appendChild(o); });
+          document.body.appendChild(dl);
+        }
         line.appendChild(msel);
       }
       if (withOwner) {
@@ -235,7 +245,7 @@
         var p = path.value.trim();
         if (!p) return '';
         var bits = [fsel.value + (vsel.value ? '@' + vsel.value : ''), p];
-        if (msel && msel.value) bits.push(msel.value);
+        if (msel && msel.value.trim()) bits.push(msel.value.trim());
         if (owner && owner.value.trim()) bits.push(owner.value.trim());
         return bits.join(' ');
       };
@@ -248,11 +258,15 @@
         else if (/['"`$;&|<>]/.test(p)) bad = 'quotes, $ ; & | < > are not allowed in a path';
         else if (/[\\/]$/.test(p)) bad = 'that is a folder: give the file a name';
         else if (/\{(?!(name|cn|service|date|alt)\})[a-z_]+\}/.test(p)) bad = 'not a placeholder there is: ' + p.match(/\{[a-z_]+\}/)[0];
-        var m = msel && (msel.value || (KEYS.indexOf(fsel.value) >= 0 ? '0600' : '0644'));
+        if (msel && msel.value.trim() && !/^0?[0-7]{3}$/.test(msel.value.trim())) bad = bad || 'the mode is three or four octal digits, as 0644 or 0755';
+        var m = msel && (msel.value.trim() || (KEYS.indexOf(fsel.value) >= 0 ? '0600' : '0644'));
         if (!bad && m && KEYS.indexOf(fsel.value) >= 0 && (parseInt(m, 8) & 4)) warn = 'anybody on the machine may read the key: 0600 or 0640';
         if (owner && owner.value.trim() && !/^[A-Za-z0-9_][A-Za-z0-9_.-]*(:[A-Za-z0-9_][A-Za-z0-9_.-]*)?$/.test(owner.value.trim())) bad = bad || 'the owner is user or user:group';
         path.classList.toggle('df-bad', !!bad && !!p);
-        if (msel) msel.classList.toggle('df-warn', !!warn);
+        if (msel) {
+          msel.classList.toggle('df-warn', !!warn);
+          msel.classList.toggle('df-bad', !!msel.value.trim() && !/^0?[0-7]{3}$/.test(msel.value.trim()));
+        }
         pnote.textContent = bad && p ? bad : warn;
         pnote.className = 'df-pnote ' + (bad && p ? 'bad' : (warn ? 'warn' : ''));
         says.hidden = !!pnote.textContent;

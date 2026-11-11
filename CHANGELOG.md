@@ -5,6 +5,8 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.65 - not released
+- The files on a target: the mode of a file is typed - any of three or four octal digits (0700,
+  0750, 0755...), the usual ones offered as it is typed; only six were to be chosen.
 - A certificate's tests tied to its deployments, chosen when a test is attached as a
   deployment's options are (Attach a test → Options on this certificate, or the gear of one
   attached): after a deployment on **one target** (the default), on **several targets**, or after

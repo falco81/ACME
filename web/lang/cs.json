@@ -54655,6 +54655,14 @@
   "ck65c_7": {
    "source": "every deployment",
    "text": "každé nasazení"
+  },
+  "md65_1": {
+   "source": "the file's mode, as chmod takes it (0600, 0640, 0755...) - empty: 0600 for a key, 0644 for the rest",
+   "text": "režim souboru, jak ho bere chmod (0600, 0640, 0755...) - prázdné: 0600 pro klíč, 0644 pro ostatní"
+  },
+  "md65_2": {
+   "source": "the mode is three or four octal digits, as 0644 or 0755",
+   "text": "režim jsou tři nebo čtyři osmičkové číslice, např. 0644 nebo 0755"
   }
  },
  "patterns": {
