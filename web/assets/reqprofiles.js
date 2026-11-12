@@ -369,7 +369,9 @@
           f.said.textContent = '';
           busy(b, true);
           api('reqprofiles/save', out).then(function (r) {
-            toast(r.message || 'saved', 'good');
+            /* its name not run through the translation (1.0.88: "Client certificate" came out
+               Czech in the toast) */
+            toast('The request profile is saved', 'good');
             closeModal();
             drawPane();
           }).catch(function (e) {
@@ -382,7 +384,7 @@
   function deleteProfile(p) {
     confirmThen('Delete the request profile', htmlText(tr('The request profile {0} is deleted. The certificates asked for from it stay as they are.').replace('{0}', p.name)),
       'Delete it', function () {
-        api('reqprofiles/delete', {name: p.name}).then(function (r) { toast(r.message || 'deleted', 'good'); drawPane(); }).catch(oops);
+        api('reqprofiles/delete', {name: p.name}).then(function (r) { toast('The request profile is deleted', 'good'); drawPane(); }).catch(oops);
       });
   }
 

@@ -2581,8 +2581,16 @@ $('set-save').onclick = function () {
       }).sort(function (a, b) { return b.key.length - a.key.length; })[0];
       if (hit) {
         var item = document.querySelector('.set-item[data-key="' + hit.key + '"]');
-        if (item) { item.classList.add('refused'); item.scrollIntoView({block: 'center'}); }
-        said = '“' + hit.name + '”' + said.slice(hit.key.length);
+        /* why, next to the field and in the page's language (1.0.88: only in a toast, the
+           field's name in English) */
+        var why = said.slice(hit.key.length).replace(/^\s*:\s*/, '');
+        if (item) {
+          item.classList.add('refused');
+          Array.prototype.forEach.call(item.querySelectorAll('.set-why'), function (x) { x.remove(); });
+          item.appendChild(el('div', 'set-why', why));
+          item.scrollIntoView({block: 'center'});
+        }
+        said = '“' + tr(hit.name) + '”: ' + tr(why);
       }
       toast(said, 'bad');
       return false;

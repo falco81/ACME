@@ -817,4 +817,6 @@ def approve_request(store, row, by, ok, why):
     store.add_event('certificates', '%s declined %s, asked for on the portal by %s: %s' % (
         by, row['name'], row.get('owner') or '?', why), 'warn', who=by)
     tell(store, row['id'], 'declined', why)
-    return {'message': '%s declined - %s is told' % (row['name'], row.get('owner') or 'nobody')}
+    who_ = str(row.get('owner') or '')
+    who_ = who_[6:] if who_.startswith('local:') else who_      # a person's name (1.0.88)
+    return {'message': '%s declined - %s is told' % (row['name'], who_ or 'nobody')}

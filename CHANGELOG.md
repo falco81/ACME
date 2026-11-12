@@ -139,6 +139,20 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   - Importing another certificate's names into one on the page asks first, red, and does it
     if you want (*Import it anyway*).
   - Windows over SSH: the temporary folder with the key is cleaned up after a stop too.
+- Bug hunt I, round 3 - the pages, by use:
+  - *Take it away* of a module in use with *Take it off everywhere first* asks "Really?" once
+    more, as every delete. It went at the first click.
+  - Export: *PKCS#1* is offered for an RSA key only, also after another choice in the dialog
+    (it came back on for an EC key, and the download was refused).
+  - Settings: *Notices by mail* takes mail addresses only, *by SMS* phone numbers only, the
+    address of the published CRLs a URL. Anything was saved. A refused setting says why under
+    its field and in the page's language; the toast said it only in English, and gone in a
+    moment.
+  - Czech: a test taken off a certificate said "Pořízeno z" (now "Odebráno"); "before" of the
+    hold box was in the wrong place; why a certificate cannot be revoked by its new source;
+    the profile's name refused.
+  - A request profile saved: its own name is not translated in the message.
+  - A request declined on the portal: the person is named without `local:`.
 
 ## 1.0.87 - 2026-11-12
 

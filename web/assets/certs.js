@@ -1809,7 +1809,8 @@ function modDeleteAsk(key, r, uses, done) {
   var force = null, go = null;
   var buttons = [{words: 'Close', close: true}];
   if (!uses.length || free) {
-    buttons.unshift({words: 'Delete', cls: 'danger', icon: 'trash', once: true, go: function (b) {
+    /* taken off everywhere and deleted: asked once more, as every delete (1.0.88) */
+    buttons.unshift({words: 'Delete', cls: 'danger', icon: 'trash', once: !uses.length, go: function (b) {
       if (uses.length && !(force && force._get())) return;
       busy(b, true);
       capi(m.list + '/delete', {id: r.id, name: r.name, force: uses.length ? 1 : 0}).then(function (d) {
@@ -3702,7 +3703,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
       hby.appendChild(el('span', '', 'asked by'));
       hby.appendChild(document.createTextNode(' '));
       hby.appendChild(el('span', '', hold.by));
-      if (hold.at) hby.appendChild(document.createTextNode(' · ' + ago(hold.at)));
+      if (hold.at) { hby.appendChild(document.createTextNode(' · ')); hby.appendChild(el('span', '', ago(hold.at))); }
       hh.appendChild(hby);
     }
     hb.appendChild(hh);
@@ -4041,7 +4042,11 @@ function exportDialog(c, versions, version) {
       Array.prototype.forEach.call(grid.querySelectorAll('.ct-fmt'), function (l) {
         var inp = l.querySelector('input');
         var f = FORMATS.filter(function (x) { return x[0] === inp.value; })[0] || [];
-        var off = (both && !BOTH_FMTS[inp.value]) || (f[4] && !FULL);
+        /* PKCS#1 only for an RSA key - of the one chosen (1.0.88: paint() turned it on again) */
+        var kt = varSel && varSel.value === 'alt' ? String((twin && twin.key_type) || c.key_type_alt || '')
+          : (both ? String(c.key_type || '') + ' ' + String(c.key_type_alt || '') : String(c.key_type || ''));
+        var off = (both && !BOTH_FMTS[inp.value]) || (f[4] && !FULL) ||
+          (inp.value === 'key-rsa' && !/(^|\s)rsa/i.test(kt));
         inp.disabled = !!off;
         l.classList.toggle('off', !!off);
         if (off && inp.checked) { inp.checked = false; pick = null; }

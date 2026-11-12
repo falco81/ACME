@@ -9458,7 +9458,7 @@
   },
   "s2363": {
    "source": "Taken off",
-   "text": "Pořízeno z"
+   "text": "Odebráno"
   },
   "s2364": {
    "source": "Takes",
@@ -56159,6 +56159,18 @@
   "f88c_2": {
    "source": "Import it anyway",
    "text": "Přesto importovat"
+  },
+  "f88e_1": {
+   "source": "the profile's name",
+   "text": "název profilu"
+  },
+  "f88e_2": {
+   "source": "The request profile is saved",
+   "text": "Profil žádosti je uložen"
+  },
+  "f88e_3": {
+   "source": "The request profile is deleted",
+   "text": "Profil žádosti je smazán"
   }
  },
  "patterns": {
@@ -76889,6 +76901,26 @@
   "pf88c_2": {
    "source": "Import it into {0} anyway?",
    "text": "Přesto ho importovat do {0}?"
+  },
+  "pf88e_1": {
+   "source": "the one in use is from its source before it was moved - {0} did not issue it",
+   "text": "ten používaný je ze zdroje před přesunem – {0} ho nevydal"
+  },
+  "pf88e_2": {
+   "source": "the one in use was imported, not issued by {0} - only its own CA could revoke it",
+   "text": "ten používaný byl importován, nevydal ho {0} – odvolat ho může jen jeho vlastní CA"
+  },
+  "pf88e_3": {
+   "source": "{0}: {1} is not a phone number (+420123456789)",
+   "text": "{0}: {1} není telefonní číslo (+420123456789)"
+  },
+  "pf88e_4": {
+   "source": "{0}: an address as http://pki.example.cz/pki",
+   "text": "{0}: adresa ve tvaru http://pki.example.cz/pki"
+  },
+  "pf88e_5": {
+   "source": "{0}: {1} is not a mail address",
+   "text": "{0}: {1} není e-mailová adresa"
   }
  },
  "rich": {

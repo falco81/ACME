@@ -947,6 +947,8 @@
   .set-item.refused input, .set-item.refused select, .set-item.refused textarea{
     border-color:var(--crit);box-shadow:0 0 0 1px var(--crit)}
   .set-item.refused label{color:var(--crit)}
+  .set-item .set-why{color:var(--crit);font-size:12.5px;margin-top:6px;line-height:1.4}
+  .set-item:not(.refused) .set-why{display:none}
   /* a setting another setting has taken out of play */
   .set-item.asleep > label,.set-item.asleep > input,.set-item.asleep > select,
   .set-item.asleep > .sw,.set-item.asleep > div:not(.says){opacity:.45}
