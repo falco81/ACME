@@ -212,6 +212,14 @@ function toast(words, kind) {
   node._away = setTimeout(function () { node.className = 'toast' + (kind ? ' ' + kind : ''); },
                           kind === 'bad' ? 6500 : 3200);
 }
+/** A toast taken away at once (1.0.93): "choose the target" stayed over the footer after
+    the target was chosen. */
+function toastAway() {
+  var node = $('toast');
+  if (!node) return;
+  clearTimeout(node._away);
+  node.className = 'toast';
+}
 /* Only the newest answer of a list is drawn (1.0.57): a slow answer to the
    last filter landed after the fast one to the new filter and drew rows that
    did not match what was asked. An older one ends as "stopped". */
@@ -1943,8 +1951,11 @@ function suggestBox(input) {
     var r = input.getBoundingClientRect();
     var below = window.innerHeight - r.bottom - 12, above = r.top - 12;
     var up = below < 220 && above > below;
-    drop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - Math.max(r.width, 320) - 8)) + 'px';
     drop.style.minWidth = r.width + 'px';
+    /* kept on the screen by its real width (1.0.93): a list wider than the box - up to
+       720 px - beside a small box on the right ran off it */
+    var w = Math.max(drop.offsetWidth || 0, r.width, 320);
+    drop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
     drop.style.maxHeight = Math.max(160, Math.min(440, up ? above : below)) + 'px';
     /* 'auto', never '' (1.0.35): emptied, the stylesheet's own top of 100%
        came back, and a list that had to open upwards - from a box low in a

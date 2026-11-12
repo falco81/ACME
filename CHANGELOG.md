@@ -6,6 +6,50 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.93 - not released
 
+Bug hunt (four parts: the recent changes, the certificates' logic, the daemon/HA/CLI, the pages):
+
+- **A deployment failed by its test** was tried again every five minutes for good (its count
+  of failures put back to 0 by the deployment that went through) and each time said
+  *deployed* - event and notice - before *failed*. The wait now doubles, and *deployed* is said
+  only after the tests passed.
+- **Since 1.0.92 the checks of what is served are the attached tests only** - so a target whose
+  module checked its own address (ESXi, vCenter, a BMC/Redfish, UniFi OS, TrueNAS, FRITZ!Box,
+  an SSH preset with a port, a domain controller's LDAPS on 636) now gets **that as a test
+  attached** with a new deployment (or one moved, or its options changed), and once for the
+  deployments made before. The tests after a deployment wait as long as the module did where
+  it restarts for long (vCenter, a BMC: 20 × 15 s). The deployment says whether a test checks
+  it or none does.
+- The answer to a CSR taken kept the **deploy hold** no more (it deployed everywhere and ended
+  the hold) and failed after keeping the version on a switched-off certificate.
+- **Discover → Apply** stopped half way when a certificate could not be pushed now (left said,
+  the rest done); a slot covered by another certificate's deployment no longer gets a second
+  one taking turns with it (a deployment naming the slot gives it up; one by auto/nodes/vip is
+  said); switched-off certificates are not offered. An empty choice of slots is refused (it
+  went to *auto*).
+- **web_tick stopped for good** on a certificate whose CN is no host name (a label over 63
+  characters): the self-check raised at every tick and nothing reached nginx any more.
+- **The guard against writes to the database switched on by itself** (a node joining a cluster
+  whose other node has it) re-signed everything the database held - a row written past acme
+  included. Now it signs nothing, only follows a heartbeat the other node signed, and a person
+  switching it off is kept in the node's own config.json (a meta row could be deleted).
+- The VIP's self-check is done again when the address comes to a node (keepalived), and a node
+  without it shows none (an old one was shown after a failover). Its failure no longer skips
+  the guard's sync (own try).
+- The TLS to the database switched off on one node was switched on again ten minutes later by
+  the cluster's wish - kept off now.
+- A server without its intermediate: the one fetched is kept a day and fetched again when it no
+  longer fits (a certificate renewed from another intermediate failed until a restart). A chain
+  that fails for another reason (expired, no roots on the machine) is said as it is, not as a
+  missing link with *Complete the chain*. The ECDSA certificate's chain state is kept.
+- Importing a configuration without the secrets kept the ECDSA second certificate of acme's
+  own pages no more.
+- `--tls-selfsigned --days 0` made 825 days; a negative one an openssl error - 1 to 3650 now.
+- Import from a source named another team's certificate to a scoped account in its job.
+- Pages: the search of a certificate's Deployments and Tests takes the states as shown
+  (`state:selhalo`), its suggestions stay on the screen; the tests' names are not squeezed;
+  *Discover* in an application's window too; a toast "choose the target" goes once one is
+  chosen; Discover says when acme is to give a slot a certificate not there yet; the events of
+  the chain, of the command line's certificates and of the self-check translated.
 ## 1.0.92 - 2026-11-12
 
 - **A certificate's window: a search over its Deployments and its Tests** (once there are more

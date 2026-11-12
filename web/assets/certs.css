@@ -1315,3 +1315,8 @@ table.ct-issued td:nth-child(2){min-width:210px;max-width:250px;white-space:norm
 .msect .msect-find{width:240px;max-width:100%;flex:0 1 240px;height:30px;font-size:12.5px;margin:0}
 .ct-nomatch{margin:8px 2px}
 @media (max-width:640px){.msect .msect-find{flex:1 1 100%;width:100%}}
+/* The tests of a certificate (1.0.93): the test's name not squeezed into two lines, its error
+   wrapping at words */
+table.ct-deptable td.ck-namecell{min-width:180px}
+table.ct-deptable td.ck-namecell > b{white-space:nowrap}
+table.ct-deptable .ct-rowerr{overflow-wrap:break-word;word-break:normal;max-width:360px}

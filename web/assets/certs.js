@@ -1704,7 +1704,10 @@ function pushDiscover(r, button) {
           row.appendChild(txt);
           var side = el('div', 'ps-side');
           var cov = arr(sl.covered_by);
-          if (cov.length) side.appendChild(data('span', 'tag ok', tr('acme gives it') + ': ' + cov.map(function (x) { return x.cert; }).join(', ')));
+          /* a deployment of acme's covers it, but the application says another way put what it
+             has (1.0.93: "put in by hand" beside "acme gives it" read as a contradiction) */
+          if (cov.length && sl.managed_by !== 'acme-push') side.appendChild(data('span', 'tag warn', tr('acme is to give it') + ': ' + cov.map(function (x) { return x.cert; }).join(', ') + ' - ' + tr('not there yet')));
+          else if (cov.length) side.appendChild(data('span', 'tag ok', tr('acme gives it') + ': ' + cov.map(function (x) { return x.cert; }).join(', ')));
           else if (sl.installable === false) side.appendChild(el('span', 'tag warn', sl.why_not || 'cannot be put in'));
           else if (follows(sl)) side.appendChild(el('span', 'tag dim', 'needs nothing'));
           else side.appendChild(el('span', 'tag warn', 'not covered'));
@@ -2764,6 +2767,9 @@ function targetPeek(r) {
       },
       buttons: [{words: 'Close', close: true},
         defaultFoot('targets', r, function () { closeModal(); targetPeek(r); }),
+        /* an application of ours: its Discover here too (1.0.93) - the window said "Discover
+           tells which certificates it needs", only the list's row had it */
+        r.kind === 'acme_push' && MANAGE ? {words: 'Discover', icon: 'search', go: function (b) { pushDiscover(r, b); }} : null,
         MANAGE ? {words: 'Test', icon: 'play', go: function (b) { modTest('targets', r, b); }} : null,
         FULL ? {words: 'Edit', icon: 'edit', go: function () { modEdit('targets', r); }} : null
       ].filter(Boolean)
@@ -3120,6 +3126,7 @@ function certPickList(certs, target, chosen) {
     rb.onchange = function () {
       if (!rb.checked) return;
       items.forEach(function (x) { x.classList.toggle('on', x === lab); });
+      toastAway();
       chosen(c.id);
     };
     lab.appendChild(rb);
@@ -3180,6 +3187,7 @@ function targetPickList(targets, cert, chosen) {
     rb.onchange = function () {
       if (!rb.checked) return;
       items.forEach(function (x) { x.classList.toggle('on', x === lab); });
+      toastAway();
       chosen(t.name);
     };
     lab.appendChild(rb);
@@ -4186,11 +4194,19 @@ function certBody(body, c, versions, deploys, jobs, back) {
       fields: [['target', 'the target\'s name', 'target~web'], ['kind', 'its kind', 'kind:ssh'],
                ['state', 'deployed, failed, off…', 'state:failed'], ['options', 'its options - a path, a slot', 'options~/etc/nginx']],
       rows: function () { return arr(deploys); },
+      /* the state as shown too (1.0.93): "state:selhalo" found nothing, only "state:failed" */
       value: function (d, f) {
-        return {target: d.target, kind: d.target_kind || d.kind || '', state: d.enabled === 0 ? 'off' : (d.state || ''),
+        var tag = deployTag(d, c.version).textContent;
+        var kind = d.target_kind || d.kind || '';
+        return {target: d.target, kind: [kind, tr(plugTitle('target', kind))],
+                state: [d.enabled === 0 ? 'off' : (d.state || ''), tr(tag)],
                 options: JSON.stringify(d.options || {})}[f];
       },
-      words: function (d) { return d.target + ' ' + (d.target_kind || d.kind || '') + ' ' + (d.state || '') + ' ' + JSON.stringify(d.options || {}) + ' ' + (d.last_error || ''); }
+      words: function (d) {
+        var kind = d.target_kind || d.kind || '';
+        return d.target + ' ' + kind + ' ' + tr(plugTitle('target', kind)) + ' ' + (d.state || '') + ' ' +
+          tr(deployTag(d, c.version).textContent) + ' ' + JSON.stringify(d.options || {}) + ' ' + (d.last_error || '');
+      }
     }, drawDeploys, 'a target, a state, a path…');
   }
   drawDeploys();
@@ -9852,10 +9868,16 @@ function certTests(c, back, deploys, sec) {
         rows: function () { return arr(D.checks); },
         value: function (x, f) {
           var st = x.last_state || '';
-          return {test: x.test, state: !st ? 'none' : (st === 'ok' || st === 'warn' ? st : 'failing'),
+          var code = !st ? 'none' : (st === 'ok' || st === 'warn' ? st : 'failing');
+          var shown = {none: 'not run yet', ok: 'pass', warn: 'with a warning', failing: 'failing'}[code];
+          return {test: x.test, state: [code, st, tr(shown)],
                   where: x.where || x.address || '', after: x.after_target || ''}[f];
         },
-        words: function (x) { return x.test + ' ' + (x.kind || '') + ' ' + (x.where || '') + ' ' + (x.after_target || '') + ' ' + (x.last_state || '') + ' ' + (x.last_error || ''); }
+        words: function (x) {
+          var st = x.last_state || '';
+          var shown = !st ? 'not run yet' : (st === 'ok' ? 'pass' : (st === 'warn' ? 'with a warning' : 'failing'));
+          return x.test + ' ' + (x.kind || '') + ' ' + (x.where || '') + ' ' + (x.after_target || '') + ' ' + st + ' ' + tr(shown) + ' ' + (x.last_error || '');
+        }
       }, function () { draw(); }, 'a test, a state, an address…');
     }
     var rows = tFind ? tFind._rows(all) : all;
@@ -9896,7 +9918,7 @@ function certTests(c, back, deploys, sec) {
     host.appendChild(listTable(['Test', 'State', 'Where', 'After deploying on', 'Last run', ''], rows, function (x) {
       var r = el('tr');
       if (x.enabled === 0 || !x.test_enabled) r.classList.add('ct-depoff');
-      var nc = el('td');
+      var nc = el('td', 'ck-namecell');
       nc.appendChild(data('b', '', x.test));
       var tg = (LISTS.tests || []).filter(function (t) { return t.name === x.test; })[0];
       if (tg) nc.appendChild(el('div', 'muted small', plugTitle('check', tg.kind)));

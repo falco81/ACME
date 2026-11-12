@@ -32334,7 +32334,7 @@
   },
   "sp0002": {
    "source": "The certificate put on another application of ours - its nodes, its VIP address, its server in front - through its Certificates and TLS, over HTTPS with a signed request and the key sealed to the application. Discover tells which certificates it needs.",
-   "text": "Certifikát vložený do jiné naší aplikace – na její uzly, VIP adresu, server vpředu – přes její Certifikáty a TLS, po HTTPS podepsaným požadavkem a s klíčem zapečetěným pro aplikaci. Objevit řekne, které certifikáty potřebuje."
+   "text": "Certifikát vložený do jiné naší aplikace – na její uzly, VIP adresu, server vpředu – přes její Certifikáty a TLS, po HTTPS podepsaným požadavkem a s klíčem zapečetěným pro aplikaci. Zjistit řekne, které certifikáty potřebuje."
   },
   "sp0003": {
    "source": "Address of its administration",
@@ -56539,6 +56539,22 @@
   "dtx_1": {
    "source": "Where the certificate goes on this target and in what shape. When it is renewed, it is put there again by itself - and the tests attached to the certificate check what is served afterwards.",
    "text": "Kam na tomto cíli certifikát půjde a v jaké podobě. Po obnovení se tam nasadí znovu sám – a co se skutečně podává, potom zkontrolují testy připojené k certifikátu."
+  },
+  "hj_1": {
+   "source": "a self-signed certificate lasts 1 to 3650 days",
+   "text": "certifikát podepsaný sám sebou platí 1 až 3650 dní"
+  },
+  "hj_2": {
+   "source": "the days are a number",
+   "text": "počet dní musí být číslo"
+  },
+  "hj_3": {
+   "source": "another owner's certificate",
+   "text": "certifikát jiného vlastníka"
+  },
+  "hj_4": {
+   "source": "acme is to give it",
+   "text": "má ho dodat acme"
   }
  },
  "patterns": {
@@ -77401,6 +77417,78 @@
   "pdsc_6": {
    "source": "{0} slot(s) given an existing certificate - pushed at its next deployment; {1} certificate(s) made - each is issued and pushed by itself",
    "text": "{0} slotům přidělen existující certifikát – vloží se při příštím nasazení; {1} nových certifikátů – každý se sám vydá a vloží"
+  },
+  "phj_1": {
+   "source": "{0} added {1} to the chain of the certificate of {2}: {3}",
+   "text": "{0} přidal(a) {1} do řetězce certifikátu {2}: {3}"
+  },
+  "phj_2": {
+   "source": "{0} checked the chain of the certificate of {1}: {2}",
+   "text": "{0} zkontroloval(a) řetězec certifikátu {1}: {2}"
+  },
+  "phj_3": {
+   "source": "a certificate was put in for {0} on the command line: {1}",
+   "text": "certifikát pro {0} vložen z příkazové řádky: {1}"
+  },
+  "phj_4": {
+   "source": "a certificate was put in for {0} on the command line: {1} - with a second one beside it, {2}",
+   "text": "certifikát pro {0} vložen z příkazové řádky: {1} – s druhým vedle něj, {2}"
+  },
+  "phj_5": {
+   "source": "the TLS of {0} was changed on the command line: {1}, DH {2}, HSTS {3}",
+   "text": "TLS {0} změněno z příkazové řádky: {1}, DH {2}, HSTS {3}"
+  },
+  "phj_6": {
+   "source": "a client that fetches nothing (curl, the other applications) refuses what nginx sends on {0}: {1}",
+   "text": "klient, který si nic nestahuje (curl, ostatní aplikace), odmítá to, co nginx posílá na {0}: {1}"
+  },
+  "phj_7": {
+   "source": "a client that fetches nothing (curl, the other applications) refuses what nginx sends on the VIP address: {0}",
+   "text": "klient, který si nic nestahuje (curl, ostatní aplikace), odmítá to, co nginx posílá na VIP adrese: {0}"
+  },
+  "phj_8": {
+   "source": "the connection of {0} to its database is encrypted again, as the cluster asked (verify-full)",
+   "text": "spojení {0} s databází je znovu šifrované, jak cluster požaduje (verify-full)"
+  },
+  "phj_9": {
+   "source": "{0}: root acts only on rows acme signed, as on the other node of the cluster",
+   "text": "{0}: root jedná jen podle řádků, které acme podepsalo – stejně jako na druhém uzlu clusteru"
+  },
+  "phj_10": {
+   "source": "{0}: Discover on {1} gave {2} slot(s) an existing certificate and made {3} new one(s)",
+   "text": "{0}: Zjistit na {1} přidělilo existující certifikát {2} slotům a vytvořilo {3} nových"
+  },
+  "phj_11": {
+   "source": "{0}: in place - what it serves is checked by the tests attached",
+   "text": "{0}: na místě – co podává, kontrolují připojené testy"
+  },
+  "phj_12": {
+   "source": "{0}: in place - no test attached checks what it serves (the certificate → Tests → Attach a test)",
+   "text": "{0}: na místě – co podává, nekontroluje žádný připojený test (certifikát → Testy → Připojit test)"
+  },
+  "phj_13": {
+   "source": "{0}: in place - tests after a deployment are switched off (Settings → Certificates)",
+   "text": "{0}: na místě – testy po nasazení jsou vypnuté (Nastavení → Certifikáty)"
+  },
+  "phj_14": {
+   "source": "the chain does not check: {0}",
+   "text": "řetězec neprochází kontrolou: {0}"
+  },
+  "phj_15": {
+   "source": "given {0}, not pushed now: {1}",
+   "text": "přidělen {0}, teď nevložen: {1}"
+  },
+  "phj_16": {
+   "source": "given {0}, pushed after the job busy on it",
+   "text": "přidělen {0}, vloží se po úloze, která s ním právě pracuje"
+  },
+  "phj_17": {
+   "source": "{0} puts a certificate there by \"{1}\" - change that deployment first",
+   "text": "{0} tam dává certifikát přes „{1}“ – nejdřív změňte to nasazení"
+  },
+  "phj_18": {
+   "source": "the guard as on the other node: {0}",
+   "text": "ochrana jako na druhém uzlu: {0}"
   }
  },
  "rich": {
