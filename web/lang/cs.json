@@ -56319,6 +56319,162 @@
   "chain_16": {
    "source": "the system has no list of root authorities to check against",
    "text": "systém nemá seznam kořenových autorit, proti kterému ověřovat"
+  },
+  "pslots_1": {
+   "source": "Automatically",
+   "text": "Automaticky"
+  },
+  "pslots_2": {
+   "source": "each slot whose names the certificate holds",
+   "text": "každý slot, jehož jména certifikát obsahuje"
+  },
+  "pslots_3": {
+   "source": "Every node",
+   "text": "Všechny uzly"
+  },
+  "pslots_4": {
+   "source": "the certificate of each node of the application",
+   "text": "certifikát každého uzlu aplikace"
+  },
+  "pslots_5": {
+   "source": "the address of the application's cluster",
+   "text": "adresa clusteru aplikace"
+  },
+  "pslots_6": {
+   "source": "This one",
+   "text": "Tento"
+  },
+  "pslots_7": {
+   "source": "the node that answers at the address of the target",
+   "text": "uzel, který odpovídá na adrese cíle"
+  },
+  "pslots_8": {
+   "source": "Find the slots",
+   "text": "Zjistit sloty"
+  },
+  "pslots_9": {
+   "source": "Save the target first - then its slots can be asked for.",
+   "text": "Nejdřív uložte cíl – pak se dají zjistit jeho sloty."
+  },
+  "pslots_10": {
+   "source": "Another slot by its id:",
+   "text": "Jiný slot podle id:"
+  },
+  "pslots_11": {
+   "source": "By what they are",
+   "text": "Podle druhu"
+  },
+  "pslots_12": {
+   "source": "The slots of the application",
+   "text": "Sloty aplikace"
+  },
+  "pslots_13": {
+   "source": "Not asked yet - Find the slots asks the application.",
+   "text": "Zatím nezjištěno – Zjistit sloty se zeptá aplikace."
+  },
+  "pslots_14": {
+   "source": "Not asked yet.",
+   "text": "Zatím nezjištěno."
+  },
+  "pslots_15": {
+   "source": "The application has no slots to give.",
+   "text": "Aplikace nemá žádné sloty."
+  },
+  "pslots_16": {
+   "source": "has one until",
+   "text": "má certifikát do"
+  },
+  "pslots_17": {
+   "source": "follows",
+   "text": "přebírá od"
+  },
+  "pslots_18": {
+   "source": "acme gives it",
+   "text": "dodává acme"
+  },
+  "pslots_19": {
+   "source": "chosen before",
+   "text": "zvoleno dříve"
+  },
+  "pslots_20": {
+   "source": "Nothing chosen: the certificate goes nowhere on the application.",
+   "text": "Nic nezvoleno: certifikát se do aplikace nikam nevloží."
+  },
+  "pslots_21": {
+   "source": "asking the application…",
+   "text": "ptám se aplikace…"
+  },
+  "pslots_22": {
+   "source": "slot(s)",
+   "text": "slotů"
+  },
+  "pslots_23": {
+   "source": "a slot's id is letters, digits and : . _ - @",
+   "text": "id slotu tvoří písmena, číslice a : . _ - @"
+  },
+  "pslots_24": {
+   "source": "Where on the application the certificate goes: auto (each slot whose names the certificate holds), nodes, vip, this, or the slots themselves - Find the slots asks the application for them (node:otp1, vip, front, broker...). On the command line one a line.",
+   "text": "Kam v aplikaci certifikát půjde: auto (každý slot, jehož jména certifikát obsahuje), nodes, vip, this, nebo přímo sloty – Zjistit sloty se na ně zeptá aplikace (node:otp1, vip, front, broker…). Na příkazové řádce jeden na řádek."
+  },
+  "dsc_1": {
+   "source": "For each slot: leave it, give it a certificate acme has already (only those holding its names are offered), or make a new one - each from the source and validation chosen for it.",
+   "text": "U každého slotu: nechat, jak je, dát mu certifikát, který už acme má (nabízí se jen ty, které obsahují jeho jména), nebo vydat nový – každý ze zdroje a validace zvolených právě pro něj."
+  },
+  "dsc_2": {
+   "source": "has",
+   "text": "má"
+  },
+  "dsc_3": {
+   "source": "until",
+   "text": "do"
+  },
+  "dsc_4": {
+   "source": "Leave it (acme gives it already)",
+   "text": "Nechat (acme ho už dodává)"
+  },
+  "dsc_5": {
+   "source": "Leave it as it is",
+   "text": "Nechat, jak je"
+  },
+  "dsc_6": {
+   "source": "A certificate acme has",
+   "text": "Certifikát, který acme má"
+  },
+  "dsc_7": {
+   "source": "A new certificate…",
+   "text": "Nový certifikát…"
+  },
+  "dsc_8": {
+   "source": "A full administrator can give the slots their certificates.",
+   "text": "Certifikáty slotům může přidělit plný administrátor."
+  },
+  "dsc_9": {
+   "source": "One certificate for the new slots",
+   "text": "Jeden certifikát pro nové sloty"
+  },
+  "dsc_10": {
+   "source": "The new slots of the same source and validation get one certificate holding all their names (every node’s and the VIP address’s) instead of one each.",
+   "text": "Nové sloty se stejným zdrojem a validací dostanou jeden certifikát se všemi jejich jmény (každého uzlu i VIP adresy) místo jednoho pro každý."
+  },
+  "dsc_11": {
+   "source": "Push the existing certificates now",
+   "text": "Hned vložit existující certifikáty"
+  },
+  "dsc_12": {
+   "source": "Off: they go there at their next deployment (a renewal, or Deploy now).",
+   "text": "Vypnuto: vloží se při příštím nasazení (obnova nebo Nasadit hned)."
+  },
+  "dsc_13": {
+   "source": "Apply",
+   "text": "Použít"
+  },
+  "dsc_14": {
+   "source": "Nothing chosen: every slot is left as it is",
+   "text": "Nic nezvoleno: všechny sloty zůstávají, jak jsou"
+  },
+  "dsc_15": {
+   "source": "a slot is left, given an existing certificate or a new one",
+   "text": "slot se buď nechá, dostane existující certifikát, nebo nový"
   }
  },
  "patterns": {
@@ -77153,6 +77309,34 @@
   "pchain_16": {
    "source": "complete - {0} certificates up to {1} (fetched: {2} - it was not sent with the certificate) - a private root: only clients that trust it take it",
    "text": "úplný – {0} certifikáty až k {1} (staženo: {2} – nepřišlo s certifikátem) – soukromý kořen: přijmou ho jen klienti, kteří mu důvěřují"
+  },
+  "ppslots_1": {
+   "source": "{0} slot(s)",
+   "text": "{0} {0:slot|sloty|slotů}"
+  },
+  "pdsc_1": {
+   "source": "{0} does not hold its names ({1})",
+   "text": "{0} neobsahuje jeho jména ({1})"
+  },
+  "pdsc_2": {
+   "source": "has {0} already",
+   "text": "už má {0}"
+  },
+  "pdsc_3": {
+   "source": "{0} slot(s) given an existing certificate - being pushed",
+   "text": "{0} {0:slotu|slotům|slotům} přidělen existující certifikát – právě se vkládá"
+  },
+  "pdsc_4": {
+   "source": "{0} slot(s) given an existing certificate - pushed at its next deployment",
+   "text": "{0} {0:slotu|slotům|slotům} přidělen existující certifikát – vloží se při příštím nasazení"
+  },
+  "pdsc_5": {
+   "source": "{0} slot(s) given an existing certificate - being pushed; {1} certificate(s) made - each is issued and pushed by itself",
+   "text": "{0} slotům přidělen existující certifikát – právě se vkládá; {1} nových certifikátů – každý se sám vydá a vloží"
+  },
+  "pdsc_6": {
+   "source": "{0} slot(s) given an existing certificate - pushed at its next deployment; {1} certificate(s) made - each is issued and pushed by itself",
+   "text": "{0} slotům přidělen existující certifikát – vloží se při příštím nasazení; {1} nových certifikátů – každý se sám vydá a vloží"
   }
  },
  "rich": {

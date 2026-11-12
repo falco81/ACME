@@ -5,7 +5,8 @@ which certificates an application of ours has and needs, and the
 certificates and deployments made for them in one go.
 
     POST /api/targets/push_discover {name}  -> {app, cluster, slots: [slot + covered_by]}
-                                 the application asked (inventory), changes nothing
+                                 the application asked (inventory), changes nothing;
+                                 each slot with `fits`: the certificates holding its names
     POST /api/targets/adopt      {name, slots: [ids], plan: each | together,
                                   issuer, challenge, key_type, key_type_alt}
                                  -> {made: [{cert, cert_id, deploy_id, slots, names}],
@@ -15,6 +16,9 @@ certificates and deployments made for them in one go.
                                  (the nodes' and the VIP address's) and one deployment
                                  to all of them. A slot covered already, one that
                                  follows another, or one without a name is left, and said.
+                                 Or each slot as chosen for it (1.0.90): `each` {slot id:
+                                 {how: existing, cert_id} | {how: new, issuer, challenge}},
+                                 `deploy_now` - see adopt_each.
 """
 from __future__ import annotations
 
@@ -81,12 +85,43 @@ def discover(store, b):
     finally:
         ctx.tidy()
     slots = []
+    pool = certs_pool(store)
     for s in inv.get('slots') or []:
         s = dict(s)
         s['covered_by'] = covered_by(store, row, s)
+        s['fits'] = fits(pool, s)
         slots.append(s)
     return {'target': row['name'], 'app': inv.get('app'), 'version': inv.get('version'),
             'cluster': inv.get('cluster'), 'slots': slots, 'steps': ctx.steps}
+
+
+def certs_pool(store):
+    """The certificates a slot could be given (1.0.90): not revoked, with names."""
+    out = []
+    for c in store.db.rows('SELECT id, name, names, state, not_after, enabled, key_type, '
+                           'key_type_alt FROM certs'):
+        if str(c.get('state') or '') in ('revoked',):
+            continue
+        names = S.jload(c.get('names'), []) or []
+        if names:
+            out.append(dict(c, names=names))
+    return out
+
+
+def fits(pool, slot):
+    """The certificates of `pool` that hold every name of the slot (a wildcard too) - those
+    it can be given as they are."""
+    want = list(slot.get('names') or [])
+    if not want:
+        return []
+    out = []
+    for c in pool:
+        if all(_covers(c['names'], n) for n in want):
+            out.append({'cert_id': c['id'], 'cert': c['name'], 'names': c['names'],
+                        'state': c.get('state'), 'not_after': c.get('not_after'),
+                        'enabled': bool(c.get('enabled', 1))})
+    out.sort(key=lambda x: (x['state'] != 'ok', -(x['not_after'] or 0)))
+    return out
 
 
 def _slot_free(s):
@@ -103,6 +138,8 @@ def _slot_free(s):
 
 
 def adopt(store, b, by):
+    if isinstance(b.get('each'), dict):
+        return adopt_each(store, b, by)
     got = discover(store, b)
     want = [str(x) for x in (b.get('slots') or [])]
     plan = str(b.get('plan') or 'each')
@@ -179,10 +216,126 @@ def _discover(h, s):
                                 {'cert': '(another owner\'s certificate)', 'cert_id': None,
                                  'deploy_id': None, 'enabled': c.get('enabled')}
                                 for c in sl.get('covered_by') or []]
+            sl['fits'] = [c for c in sl.get('fits') or [] if int(c['cert_id']) in mine]
     return got
 
 
 @A.api('POST', '/api/targets/adopt', 'fulladmin')
 def _adopt(h, s):
     return adopt(h.store, h.body(), A.who(s))
+
+
+def adopt_each(store, b, by):
+    """Each slot as chosen for it (1.0.90) - `each`: {slot id: {how: 'existing', cert_id} |
+    {how: 'new', issuer, challenge}}: an existing certificate holding the slot's names gets a
+    deployment to it (its deployment to this target, when it has one, takes the slot beside
+    those it has); new ones are made as Make the certificates makes them - one for each slot,
+    or (`plan` together) one for the new slots of the same source and validation.
+    `deploy_now`: the existing ones pushed at once."""
+    got = discover(store, b)
+    target = got['target']
+    each = b['each']
+    by_id = {str(s['id']): s for s in got['slots']}
+    left, linked, made = [], [], []
+    existing, new = {}, []
+    for sid, want in each.items():
+        sid = str(sid)
+        want = want if isinstance(want, dict) else {}
+        s = by_id.get(sid)
+        if s is None:
+            left.append({'slot': sid, 'why': 'the application has no such slot'})
+            continue
+        how = str(want.get('how') or '')
+        if how in ('', 'leave', 'none'):
+            continue
+        if str(s.get('managed_by') or '').startswith('follows:'):
+            left.append({'slot': sid, 'why': 'follows %s by itself' % s['managed_by'][8:]})
+            continue
+        if s.get('installable') is False:
+            left.append({'slot': sid, 'why': 'cannot be put in: %s' % (s.get('why_not') or '?')})
+            continue
+        if how == 'existing':
+            cid = A._id(want.get('cert_id'))
+            fit = next((c for c in s.get('fits') or [] if int(c['cert_id']) == int(cid or 0)),
+                       None)
+            if fit is None:
+                cert = store.db.row('SELECT name FROM certs WHERE id = ?', (cid,))
+                left.append({'slot': sid, 'why': '%s does not hold its names (%s)' % (
+                    cert['name'] if cert else 'that certificate',
+                    ', '.join(s.get('names') or []))})
+                continue
+            if any(int(c.get('cert_id') or 0) == int(cid) for c in s.get('covered_by') or []):
+                left.append({'slot': sid, 'why': 'has %s already' % fit['cert']})
+                continue
+            existing.setdefault(int(cid), []).append(sid)
+        elif how == 'new':
+            if not s.get('names'):
+                left.append({'slot': sid, 'why': 'has no name to order a certificate for'})
+                continue
+            new.append((s, str(want.get('issuer') or ''), str(want.get('challenge') or '')))
+        else:
+            raise ValueError('a slot is left, given an existing certificate or a new one')
+    for cid, sids in existing.items():
+        cert = S.cert_need(store, cid)
+        dep = store.db.row('SELECT * FROM cert_deploys WHERE cert_id = ? AND target = ? '
+                           'ORDER BY id LIMIT 1', (cid, target))
+        if dep:
+            opts = S.jload(dep.get('options'), {}) or {}
+            raw = opts.get('slots') or 'auto'
+            had = [x.strip() for x in (raw if isinstance(raw, (list, tuple))
+                                       else str(raw).replace(',', '\n').splitlines())
+                   if str(x).strip()]
+            opts['slots'] = '\n'.join(had + [x for x in sids if x not in had])
+            A.deploy_save(store, {'id': dep['id'], 'cert_id': cid, 'target': target,
+                                  'options': opts, 'enabled': dep.get('enabled', 1)}, by)
+            did = dep['id']
+        else:
+            did = A.deploy_save(store, {'cert_id': cid, 'target': target,
+                                        'options': {'slots': '\n'.join(sids)},
+                                        'note': 'given by Discover'}, by)
+        job = None
+        if b.get('deploy_now') and cert.get('cert_pem'):
+            job = A.start_deploy(store, cid, did, by)
+        linked.append({'cert': cert['name'], 'cert_id': cid, 'deploy_id': did, 'slots': sids,
+                       'job_id': job})
+    groups = []
+    if str(b.get('plan') or 'each') == 'together':
+        keyed = {}
+        for s, iss, ch in new:
+            keyed.setdefault((iss, ch), []).append(s)
+        groups = [(v, k[0], k[1]) for k, v in keyed.items()]
+    else:
+        groups = [([s], iss, ch) for s, iss, ch in new]
+    for slots, iss, ch in groups:
+        names = []
+        for s in slots:
+            names += [n for n in s['names'] if n not in names]
+        req = {'names': names}
+        if iss:
+            req['issuer'] = iss
+        if ch:
+            req['challenge'] = ch
+        if not any('ec' in (s.get('key_types') or ['ec', 'rsa']) for s in slots):
+            req['key_type'] = 'rsa-2048'
+        cid = A.cert_save(store, req, by)
+        did = A.deploy_save(store, {'cert_id': cid, 'target': target,
+                                    'options': {'slots': '\n'.join(s['id'] for s in slots)},
+                                    'note': 'made by Discover'}, by)
+        cert = S.cert_need(store, cid)
+        made.append({'cert': cert['name'], 'cert_id': cid, 'deploy_id': did,
+                     'slots': [s['id'] for s in slots], 'names': names})
+    store.add_event('certificates', '%s: Discover on %s gave %d slot(s) an existing certificate '
+                    'and made %d new one(s)%s' % (
+                        by, target, sum(len(x['slots']) for x in linked), len(made),
+                        (' - left: ' + '; '.join('%s (%s)' % (x['slot'], x['why'])
+                                                 for x in left)) if left else ''), who=by)
+    words = []
+    if linked:
+        words.append('%d slot(s) given an existing certificate%s' % (
+            sum(len(x['slots']) for x in linked),
+            ' - being pushed' if b.get('deploy_now') else ' - pushed at its next deployment'))
+    if made:
+        words.append('%d certificate(s) made - each is issued and pushed by itself' % len(made))
+    return {'made': made, 'linked': linked, 'left': left, 'target': target,
+            'message': '; '.join(words) or 'nothing to do'}
 

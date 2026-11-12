@@ -74,11 +74,12 @@ class AcmePushTarget(HttpTarget):
         field('timeout', 'Timeout (s)', 'number', default=30, advanced=True),
     ]
     deploy_fields = [
-        field('slots', 'Slots', 'list', default='auto',
+        field('slots', 'Slots', 'list', default='auto', picker='push_slots',
               placeholder='auto\nnode:otp1\nvip',
-              help='One a line: auto (each slot whose names the certificate holds), nodes, '
-                   'vip, this, or a slot\'s id from Discover (node:otp1, vip, front, '
-                   'broker...).'),
+              help='Where on the application the certificate goes: auto (each slot whose '
+                   'names the certificate holds), nodes, vip, this, or the slots themselves - '
+                   'Find the slots asks the application for them (node:otp1, vip, front, '
+                   'broker...). On the command line one a line.'),
         field('check_names', 'The certificate must hold the slot\'s names', 'bool',
               default=True, advanced=True,
               help='off is taken only where the application allows it (Certificates from '

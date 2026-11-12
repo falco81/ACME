@@ -530,6 +530,49 @@ class Discovery(unittest.TestCase):
         self.assertEqual(twice['made'], [])
         self.assertIn('already', twice['left'][0]['why'])
 
+    def test_each_slot_its_own_way(self):
+        """Discover (1.0.90): each slot given an existing certificate that holds its names,
+        or a new one from a source of its own - an existing deployment takes the slot beside
+        those it has."""
+        wild = A.cert_save(STORE, {'names': ['*.example.test', 'example.test']}, 'tester')
+        other = A.cert_save(STORE, {'names': ['other.example.test']}, 'tester')
+        got = api_push.discover(STORE, {'name': 'app'})
+        fits = [c['cert_id'] for c in got['slots'][0]['fits']]
+        self.assertIn(wild, fits)
+        self.assertNotIn(other, fits)
+        bad = api_push.adopt(STORE, {'name': 'app', 'each': {
+            SLOT: {'how': 'existing', 'cert_id': other}}}, 'tester')
+        self.assertIn('does not hold its names', bad['left'][0]['why'])
+        self.assertEqual(bad['linked'], [])
+        ok = api_push.adopt(STORE, {'name': 'app', 'each': {
+            SLOT: {'how': 'existing', 'cert_id': wild}, 'nope': {'how': 'new'}}}, 'tester')
+        self.assertEqual([(x['cert_id'], x['slots']) for x in ok['linked']], [(wild, [SLOT])])
+        self.assertEqual(ok['made'], [])
+        self.assertIn('no such slot', ok['left'][0]['why'])
+        dep = STORE.db.row('SELECT * FROM cert_deploys WHERE cert_id = ?', (wild,))
+        self.assertEqual(json.loads(dep['options'])['slots'], SLOT)
+        again = api_push.discover(STORE, {'name': 'app'})
+        self.assertEqual(again['slots'][0]['covered_by'][0]['cert_id'], wild)
+        twice = api_push.adopt(STORE, {'name': 'app', 'each': {
+            SLOT: {'how': 'existing', 'cert_id': wild}}}, 'tester')
+        self.assertIn('already', twice['left'][0]['why'])
+        # a deployment of it to this target there already: the slot put beside its own
+        STORE.db.run('DELETE FROM cert_deploys')
+        A.deploy_save(STORE, {'cert_id': wild, 'target': 'app', 'options': {'slots': 'vip'}},
+                      'tester')
+        api_push.adopt(STORE, {'name': 'app', 'each': {
+            SLOT: {'how': 'existing', 'cert_id': wild}}}, 'tester')
+        rows = STORE.db.rows('SELECT * FROM cert_deploys WHERE cert_id = ?', (wild,))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(json.loads(rows[0]['options'])['slots'], 'vip\n' + SLOT)
+        # or a new one, from a source chosen for the slot
+        STORE.db.run('DELETE FROM cert_deploys')
+        new = api_push.adopt(STORE, {'name': 'app', 'each': {SLOT: {'how': 'new'}}}, 'tester')
+        self.assertEqual(len(new['made']), 1)
+        self.assertEqual(new['made'][0]['names'], ['app1.example.test'])
+        with self.assertRaises(ValueError):
+            api_push.adopt(STORE, {'name': 'app', 'each': {SLOT: {'how': 'what'}}}, 'tester')
+
     def test_together_in_a_cluster(self):
         was = dict(E.CONFIG)
         E.CONFIG['ha_mode'] = 'active'

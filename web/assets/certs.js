@@ -714,8 +714,10 @@ function fieldForm(fields, values, secrets, opts) {
     var input, get, wide = false;
     /* A type drawn by a part of its own (window.ACME_FIELD_TYPES[type] -
        sshkey.js: the SSH key card): {input, get, item?}. */
-    var own = window.ACME_FIELD_TYPES && typeof window.ACME_FIELD_TYPES[type] === 'function'
-      ? window.ACME_FIELD_TYPES[type](f, v, {values: values, secrets: secrets, opts: opts, form: node,
+    /* or a field that says a picker of its own (pushslots.js: the slots of an application) */
+    var ownType = f.picker && window.ACME_FIELD_TYPES && typeof window.ACME_FIELD_TYPES[f.picker] === 'function' ? f.picker : type;
+    var own = window.ACME_FIELD_TYPES && typeof window.ACME_FIELD_TYPES[ownType] === 'function'
+      ? window.ACME_FIELD_TYPES[ownType](f, v, {values: values, secrets: secrets, opts: opts, form: node, capi: capi,
                                              current: function () { return current(); }}) : null;
     if (own) {
       input = own.input;
@@ -1634,83 +1636,130 @@ function modAction(key, r, a, button) {
   if (a.confirm) confirmThen(r.name + ': ' + (a.label || a.key), htmlText(a.confirm) + (a.help ? '<br><span class="muted small">' + htmlText(a.help) + '</span>' : ''), a.label || a.key, go);
   else go();
 }
-/** Discover (acme push): the application's slots, and - for a full administrator - the
-    certificates and deployments made for those not covered yet. */
+/** Discover (acme push): the application's slots, each with what it has and who keeps it -
+    and, for a full administrator, what each is given (1.0.90): left as it is, a certificate
+    acme has already that holds its names, or a new one from a source and validation of its
+    own. The same rows as the slots of a deployment (pushslots.js). */
 function pushDiscover(r, button) {
   busy(button, true);
   Promise.all([capi('targets/push_discover', {name: r.name}, 120), loadRows('sources'), loadRows('validation')]).then(function (got) {
     var d = got[0], srcs = got[1] || [], vals = got[2] || [];
-    var picks = {};
-    var plan, src, val;
-    /* Known before the popup is drawn: its buttons are made with it. */
-    var freeN = arr(d.slots).filter(function (sl) {
-      return !(sl.covered_by && sl.covered_by.length) && sl.installable !== false
-        && (sl.names || []).length && !/^follows:/.test(sl.managed_by || '');
-    }).length;
+    var rows = {};                /* slot id -> {how, cert, src, val} as chosen */
+    var together, pushNow;
+    var follows = function (sl) { return /^follows:/.test(sl.managed_by || ''); };
+    var usable = function (sl) { return FULL && !follows(sl) && sl.installable !== false; };
+    var anyUsable = arr(d.slots).some(usable);
     over(function () {
       modal('Discover', function (body) {
-        body.appendChild(data('p', 'muted', r.name));
         var head = el('p', 'note');
-        head.appendChild(data('b', '', (d.app || '?') + ' ' + (d.version || '')));
-        if (d.cluster && d.cluster.on) { head.appendChild(data('span', '', ' \u00b7 ')); head.appendChild(el('span', '', 'a cluster')); }
+        head.appendChild(data('b', '', r.name));
+        head.appendChild(data('span', '', ' · ' + (d.app || '?') + ' ' + (d.version || '')));
+        if (d.cluster && d.cluster.on) { head.appendChild(data('span', '', ' · ')); head.appendChild(el('span', '', 'a cluster')); }
         body.appendChild(head);
-        var table = el('table', 'plain');
-        var hr = el('tr');
-        ['', 'Slot', 'Names', 'Has now', 'Kept by', 'From acme'].forEach(function (w) { hr.appendChild(el('th', '', w)); });
-        table.appendChild(hr);
+        if (anyUsable) body.appendChild(el('p', 'muted small', 'For each slot: leave it, give it a certificate acme has already (only those holding its names are offered), or make a new one - each from the source and validation chosen for it.'));
+        var list = el('div', 'ps-list ps-discover');
+        var newCount = function () { return Object.keys(rows).filter(function (k) { return rows[k].how.value === 'new'; }).length; };
+        var paintFoot = function () {
+          if (together) together.closest('.ps-opt').hidden = newCount() < 2;
+          if (pushNow) pushNow.closest('.ps-opt').hidden = !Object.keys(rows).some(function (k) { return rows[k].how.value.indexOf('cert:') === 0; });
+        };
+        if (!arr(d.slots).length) list.appendChild(el('p', 'muted small ps-none', 'The application has no slots to give.'));
         arr(d.slots).forEach(function (sl) {
-          var tr = el('tr');
-          var free = !(sl.covered_by && sl.covered_by.length) && sl.installable !== false
-            && (sl.names || []).length && !/^follows:/.test(sl.managed_by || '');
-          var cb = el('td');
-          if (free && FULL) {
-            var c = document.createElement('input');
-            c.type = 'checkbox';
-            c.checked = true;
-            picks[sl.id] = c;
-            cb.appendChild(c);
-          }
-          tr.appendChild(cb);
-          tr.appendChild(td('', data('b', 'mono', sl.id)));
-          tr.appendChild(td('', data('span', 'mono', (sl.names || []).join(', ') || '–')));
+          var row = el('div', 'ps-row ps-drow');
+          var txt = el('div', 'ps-txt');
+          var t = el('div', 'ps-title');
+          t.appendChild(data('b', '', sl.title || sl.id));
+          t.appendChild(data('code', 'ps-id', sl.id));
+          txt.appendChild(t);
+          var sub = el('div', 'ps-sub');
+          sub.appendChild(data('span', 'ps-names', (sl.names || []).join(', ') || tr('no name')));
           var cur = sl.current;
-          tr.appendChild(td('', cur ? data('span', '', ((cur.names || []).join(', ') || '?') + ' · ' + (cur.not_after ? stamp(cur.not_after) : '?')) : el('span', 'muted', 'nothing')));
-          var by = /^follows:/.test(sl.managed_by || '') ? el('span', '', 'follows another by itself')
-            : el('span', '', {'acme-push': 'acme', 'own-acme': 'its own ACME', 'manual': 'put in by hand', 'none': 'nothing'}[sl.managed_by] || String(sl.managed_by || ''));
-          tr.appendChild(td('', by));
-          var cov = el('td');
-          if (sl.covered_by && sl.covered_by.length) cov.appendChild(data('span', 'good', sl.covered_by.map(function (x) { return x.cert; }).join(', ')));
-          else if (sl.installable === false) cov.appendChild(el('span', 'muted', 'cannot be put in'));
-          else if (/^follows:/.test(sl.managed_by || '')) cov.appendChild(el('span', 'muted', 'needs nothing'));
-          else cov.appendChild(el('span', 'warn', 'not covered'));
-          tr.appendChild(cov);
-          table.appendChild(tr);
+          var nowLine = el('span', 'muted small');
+          var kept = follows(sl) ? tr('follows') + ' ' + String(sl.managed_by).slice(8)
+            : tr({'acme-push': 'from acme', 'own-acme': 'its own ACME', 'manual': 'put in by hand', 'none': 'nothing yet'}[sl.managed_by] || String(sl.managed_by || ''));
+          nowLine.textContent = cur ? tr('has') + ' ' + ((cur.names || []).join(', ') || '?') + (cur.not_after ? ' · ' + tr('until') + ' ' + stamp(cur.not_after) : '') + ' · ' + kept
+            : tr('nothing yet') + (sl.managed_by && sl.managed_by !== 'none' ? ' · ' + kept : '');
+          noI18n(nowLine);
+          sub.appendChild(nowLine);
+          txt.appendChild(sub);
+          row.appendChild(txt);
+          var side = el('div', 'ps-side');
+          var cov = arr(sl.covered_by);
+          if (cov.length) side.appendChild(data('span', 'tag ok', tr('acme gives it') + ': ' + cov.map(function (x) { return x.cert; }).join(', ')));
+          else if (sl.installable === false) side.appendChild(el('span', 'tag warn', sl.why_not || 'cannot be put in'));
+          else if (follows(sl)) side.appendChild(el('span', 'tag dim', 'needs nothing'));
+          else side.appendChild(el('span', 'tag warn', 'not covered'));
+          if (usable(sl)) {
+            /* what it is given: one choice, the certificates that fit grouped */
+            var how = el('select', 'ps-how');
+            var opt = function (parent, v, w, data_) { var o = el('option', '', w); o.value = v; if (data_) noI18n(o); parent.appendChild(o); return o; };
+            opt(how, 'leave', cov.length ? 'Leave it (acme gives it already)' : 'Leave it as it is');
+            var fit = arr(sl.fits).filter(function (c) { return !cov.some(function (x) { return x.cert_id === c.cert_id; }); });
+            if (fit.length) {
+              var g = el('optgroup');
+              g.label = tr('A certificate acme has');
+              fit.forEach(function (c) {
+                opt(g, 'cert:' + c.cert_id, c.cert + ' — ' + (c.names || []).join(', ') + (c.not_after ? ' · ' + stamp(c.not_after).split(' ')[0] : ' · ' + tr('not issued yet')), true);
+              });
+              how.appendChild(g);
+            }
+            if ((sl.names || []).length) opt(how, 'new', 'A new certificate…');
+            how.value = cov.length ? 'leave' : (fit.length ? 'cert:' + fit[0].cert_id : ((sl.names || []).length ? 'new' : 'leave'));
+            var extra = el('div', 'ps-new');
+            var src = selectBox([['', 'the default source']].concat(srcs.map(function (x) { return [x.name, x.name]; })), '');
+            var val = selectBox([['', 'the default validation']].concat(vals.map(function (x) { return [x.name, x.name]; })), '');
+            extra.appendChild(formField('From', src));
+            extra.appendChild(formField('Validation', val));
+            var paint = function () {
+              extra.hidden = how.value !== 'new';
+              row.classList.toggle('on', how.value !== 'leave');
+              paintFoot();
+            };
+            how.addEventListener('change', paint);
+            side.appendChild(how);
+            rows[sl.id] = {how: how, src: src, val: val, names: arr(sl.names)};
+            row.appendChild(side);
+            var wrap = el('div', 'ps-dwrap');
+            wrap.appendChild(row);
+            wrap.appendChild(extra);
+            list.appendChild(wrap);
+            paint();
+          } else {
+            row.classList.add('off');
+            row.appendChild(side);
+            list.appendChild(row);
+          }
         });
-        table.style.marginBottom = '18px';
-        body.appendChild(table);
-        if (!FULL || !Object.keys(picks).length) {
-          body.appendChild(el('p', 'note', Object.keys(picks).length ? 'A full administrator can make the certificates for those not covered.' : 'Every slot that needs a certificate has one from acme.'));
-          return;
-        }
-        plan = selectBox([['each', 'A certificate for each slot'], ['together', 'One certificate for all of them (every node’s name and the VIP address’s)']], 'each');
-        body.appendChild(formField('Certificates', plan));
-        src = selectBox([['', 'the default source']].concat(srcs.map(function (x) { return [x.name, x.name]; })), '');
-        body.appendChild(formField('From', src));
-        val = selectBox([['', 'the default validation']].concat(vals.map(function (x) { return [x.name, x.name]; })), '');
-        body.appendChild(formField('Validation', val, 'Each certificate is issued by itself and pushed to its slots; renewals the same.'));
-      }, [{words: 'Close', close: true}].concat(FULL && freeN ? [{words: 'Make the certificates', cls: 'primary', icon: 'save', go: function (btn) {
-        var ids = Object.keys(picks).filter(function (k) { return picks[k].checked; });
-        if (!ids.length) { toast('Choose a slot first', 'bad'); return; }
+        body.appendChild(list);
+        if (!FULL) { body.appendChild(el('p', 'note', 'A full administrator can give the slots their certificates.')); return; }
+        var foot = el('div', 'ps-opts');
+        together = switchBox(false);
+        var o1 = formField('One certificate for the new slots', together, 'The new slots of the same source and validation get one certificate holding all their names (every node’s and the VIP address’s) instead of one each.');
+        o1.classList.add('ps-opt');
+        foot.appendChild(o1);
+        pushNow = switchBox(true);
+        var o2 = formField('Push the existing certificates now', pushNow, 'Off: they go there at their next deployment (a renewal, or Deploy now).');
+        o2.classList.add('ps-opt');
+        foot.appendChild(o2);
+        body.appendChild(foot);
+        paintFoot();
+      }, [{words: 'Close', close: true}].concat(FULL && anyUsable ? [{words: 'Apply', cls: 'primary', icon: 'save', go: function (btn) {
+        var each = {};
+        Object.keys(rows).forEach(function (k) {
+          var x = rows[k], v = x.how.value;
+          if (v === 'new') each[k] = {how: 'new', issuer: x.src.value, challenge: x.val.value};
+          else if (v.indexOf('cert:') === 0) each[k] = {how: 'existing', cert_id: Number(v.slice(5))};
+        });
+        if (!Object.keys(each).length) { toast('Nothing chosen: every slot is left as it is', 'bad'); return; }
         busy(btn, true);
-        /* the names shown, to be ordered only as they are (1.0.51) */
-        var shown = {};
-        arr(d.slots).forEach(function (sl) { if (ids.indexOf(String(sl.id)) >= 0) shown[sl.id] = arr(sl.names); });
-        capi('targets/adopt', {name: r.name, slots: ids, plan: plan.value, issuer: src.value, challenge: val.value, shown: shown}, 180).then(function (x) {
+        capi('targets/adopt', {name: r.name, each: each, plan: together && together._get() ? 'together' : 'each',
+                               deploy_now: !!(pushNow && pushNow._get())}, 180).then(function (x) {
           closeModal();
-          toast(said(x, 'made'), 'good');
+          toast(said(x, 'done'), 'good');
           arr(x.left).forEach(function (l) { toast(l.slot + ': ' + l.why, 'warn'); });
+          if (typeof CT !== 'undefined' && CT.refresh) CT.refresh();
         }).catch(fail).then(function () { busy(btn, false); });
-      }}] : []));
+      }}] : []), 'large');
     });
   }).catch(fail).then(function () { busy(button, false); });
 }
