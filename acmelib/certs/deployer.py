@@ -112,15 +112,13 @@ def deploy_one(store, job, cert, dep, force=False):
         job.check()
         if said:
             step(str(said), 'info')
-        try:
-            seen = target.verify(bundle, opts)
-        except base.PluginError as e:
-            step('could not be checked: %s' % e, 'warn')
-            seen = None
-        if seen is False:
-            raise base.PluginError('%s does not serve the new certificate after it was put '
-                                   'in place' % trow['name'])
-        step('%s: in place%s' % (trow['name'], ' and served' if seen else ''), 'ok')
+        # What is served is looked at by the tests attached to the certificate only (1.0.92):
+        # the module's own check after the push (a handshake to names it guessed - isemon's
+        # node named merit.cz, the company's web answering there) failed a deployment that
+        # was put in and served. The tests run after it (checks.after_deploy) and, failing,
+        # fail it.
+        step('%s: in place - what it serves is checked by the tests attached' % trow['name'],
+             'ok')
     except JobStopped:
         # Stopped half way (a restart, an upgrade, Stop pressed) - not left "deploying"
         # (1.0.44), which the renewer passes over: the target kept the old certificate

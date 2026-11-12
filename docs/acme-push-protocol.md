@@ -567,8 +567,8 @@ Nothing else changes. `inventory` and `hello` change nothing at all.
 ## 12. acme's side
 
 The target `acme_push` (docs/targets.md): `url`, `pair_code`, `verify_tls`,
-`ca_pem`, `timeout`; a deployment's `slots`, `check_names`, `verify_served`,
-`verify`. Its state, in acme's database (both nodes): the **pin** of each
+`ca_pem`, `timeout`; a deployment's `slots`, `check_names` (`verify_served` and
+`verify` of older versions are not used from 1.0.92: the tests attached check). Its state, in acme's database (both nodes): the **pin** of each
 application by its address (meta `acme_push:pin:…`: `app_id`, `enc_key`, how
 it was learned - so a Try before the target is saved pairs it for good), and
 the target's last `inventory`.
@@ -590,7 +590,7 @@ the target's last `inventory`.
   that is not installable is left, and said.
 - **Slots of a deployment** are picked: *Find the slots* asks the application
   and offers `auto`, `nodes`, `vip`, `this` and each slot, ticked.
-- **Deploy** = hello (is it still the pinned one?), install, then the TLS check.
+- **Deploy** = hello (is it still the pinned one?), install; what is served is then looked at by the tests attached to the certificate (1.0.92).
 
 ## 13. Security considerations
 

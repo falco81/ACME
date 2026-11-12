@@ -6,6 +6,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.92 - not released
 
+- **What is served is checked by the attached tests only.** A deployment no longer runs a
+  check of its module's own after it (a handshake to names it guessed: an application of ours
+  to each slot's name, the older *Check what is served* lines): the tests attached to the
+  certificate run after it (on that target) and, failing, fail it - as the certificate's Tests
+  show. *What happens* shows the same. The deployment says *in place - what it serves is
+  checked by the tests attached*.
 ## 1.0.91 - 2026-11-12
 
 - **An application of ours (acme push): the check after the push** asks first at the

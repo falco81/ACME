@@ -2889,7 +2889,7 @@ function deployOff(d, back, twice) {
       }}], true);
 }
 /* A target certificates can go to - not a connector (1.0.75): only a way to other targets. */
-var VERIFY_KEYS = ['verify', 'verify_sni', 'verify_tries', 'verify_wait'];
+var VERIFY_KEYS = ['verify', 'verify_sni', 'verify_tries', 'verify_wait', 'verify_served'];
 var CERT_NAME_OF = {};
 /* What the target serves (1.0.77, in place of the deployment's "Check what is served"): the
    tests of this certificate, seen from this target - the very same binding as the

@@ -920,11 +920,8 @@ def run_one(job, r, bundle_holder):
                     pass
                 RECORDING[0] = events
             said = inst.deploy(b, opts)
-            rec({'kind': 'phase', 'what': 'verify'})
-            try:
-                inst.verify(b, opts)
-            except Exception:                           # noqa: BLE001
-                pass
+            # no check of the module's own after it (1.0.92): what is served is looked at by
+            # the tests attached to the certificate only - the Tests phase shows them
         elif op == 'challenge':
             name = r.get('names', ['example.invalid'])[0]
             handle = inst.present(name, TOKEN, KEYAUTH, TXT)

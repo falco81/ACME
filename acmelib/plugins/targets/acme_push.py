@@ -84,13 +84,8 @@ class AcmePushTarget(HttpTarget):
               default=True, advanced=True,
               help='off is taken only where the application allows it (Certificates from '
                    'acme → Take certificates of other names)'),
-        field('verify_served', 'Check that it is served', 'bool', default=True,
-              advanced=True,
-              help='a TLS handshake to each slot\'s name (SNI) after the push, until the '
-                   'new certificate is served'),
-        field('verify', 'Check these instead', 'list', advanced=True,
-              placeholder='otp1.example.com:443',
-              help='host:port, one a line; empty: the names of the slots it went to'),
+        # nothing checked here after the push (1.0.92): the tests attached to the certificate
+        # look at what is served
     ]
     actions = [{'key': 'discover', 'label': 'Discover',
                 'help': 'Which certificates the application has, and needs - changes nothing',

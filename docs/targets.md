@@ -575,9 +575,9 @@ slot whose names the certificate holds), `nodes`, `vip`, `this`, or slot ids
 from Discover (`node:otp1`, `vip`, `front`, `broker`). The application
 refuses a certificate without a slot's names unless it allows other names
 and *The certificate must hold the slot's names* is off. Pushed twice, it
-answers *already there*. After the push acme makes a TLS handshake to each
-slot's name (SNI) until the new certificate is served (`verify_served`; or
-`verify` host:port lines instead).
+answers *already there*. What is served afterwards is looked at by the tests
+attached to the certificate only (1.0.92) - attach an HTTPS test to the
+application's address (After deploying on: this target).
 
 ```
 acme --target-add otp --kind acme_push --set url=https://otp.example.com/admin/ --set pair_code=ABCD-EFGH-JKMN-PQRS
@@ -635,7 +635,7 @@ that import). After it:
    still in use. "In use" means an IIS binding, any http.sys binding (`netsh http show
    sslcert`: AD FS, WAP, SSTP, RD Gateway, older WAC), the RDP listener, a SQL Server
    instance, or a WinRM listener. When a role is on, the import itself removes nothing;
-4. the files and the script after them (see above), then the TLS checks of *verify*.
+4. the files and the script after them (see above); what is served is then looked at by the tests attached to the certificate.
    The files: *Leave a file alone when it is the same (SHA-256)* (`Get-FileHash`) and
    *Keep a copy of a file replaced* as for `ssh` (*The files already there*).
 
