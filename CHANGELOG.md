@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.83 - not released
+
 ## 1.0.82 - 2026-11-12
 - A deployment's *What it serves*: *A new test…* opens the popup of *Tests → Add a test* (the
   kinds, then the test's every setting) over the deployment's window, which is never closed
