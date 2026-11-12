@@ -23,7 +23,7 @@ import acme as E  # noqa: E402
 
 # The cluster's own wiring, set by its wizard and never listed (settings_state).
 WIRING = {'ha_mode', 'ha_slot', 'ha_peer', 'ha_peer_port', 'ha_address', 'ha_tls',
-          'ha_tls_ca'}
+          'ha_tls_ca', 'db_guard_kept_off'}
 
 
 class Panes(unittest.TestCase):

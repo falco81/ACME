@@ -388,7 +388,7 @@ class Daemon(object):
         written = self.store.settings_written()
         for key in DEFAULTS:
             if key in ('ha_mode', 'ha_slot', 'ha_peer', 'ha_peer_port', 'ha_address', 'ha_tls',
-                       'ha_tls_ca'):
+                       'ha_tls_ca', 'db_guard_kept_off'):
                 continue                    # the cluster's own wiring, set by its wizard
             if key in CARD_DRAWN:
                 # Its own card on High availability (1.0.14, as otp 1.0.219): drawn as boxes
