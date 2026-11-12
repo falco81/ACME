@@ -1002,6 +1002,11 @@ class Storage(object):
         pem = '\n'.join(have)
         with self.lock:
             self.db.run('UPDATE directories SET ca = ? WHERE id = ?', (pem, int(ident)))
+            # signed again (1.0.95): its authorities are part of what is signed - unsigned, its
+            # administrators could not sign in until it was saved again
+            row = self.db.row('SELECT name FROM directories WHERE id = ?', (int(ident),))
+            if row:
+                dbguard_directory_sign(self.db, row['name'])
             self._dirs = None
 
     def directory_save(self, data, by=''):

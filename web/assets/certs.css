@@ -1499,3 +1499,7 @@ code.gd-ccopy.gd-copied::after{content:'✓';font-size:10px;margin-left:4px;colo
 .gd-sure-w{margin:0 0 16px;font-size:14.5px;line-height:1.5;color:var(--tx)}
 .gd-sure-row{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 @keyframes gdFade{from{opacity:0}to{opacity:1}}
+/* on a phone the guide and its editor are the whole screen (1.0.95: the sizes above won) */
+@media (max-width:900px){
+  #modal-box.gd-full,#modal-box.gd-edbox{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0;margin:0}
+}

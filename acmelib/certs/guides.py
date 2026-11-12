@@ -145,6 +145,36 @@ def _made(cls, family, kind, version, lang):
     return '\n'.join(out)
 
 
+def _acmes_kind(family, kind, cls):
+    """A kind acme ships - its guide is shipped too: the module itself, an override of it, or
+    a version of your own of a kind acme has (1.0.95: fortigate@7.8 of your own got none)."""
+    if cls is None or getattr(cls, '_origin', 'builtin') == 'builtin' or getattr(cls, '_overrides', ''):
+        return True
+    try:
+        vers = base.REGISTRY.versions_of(family, kind) or {}
+    except Exception:                                   # noqa: BLE001
+        vers = {}
+    return any(getattr(c, '_origin', 'builtin') == 'builtin' or getattr(c, '_overrides', '')
+               for c in vers.values())
+
+
+def check_key(k, v):
+    """A row from a configuration file: (key, value) as acme writes them, or None."""
+    m = re.match(r'^guide:([a-z]+):([a-z0-9_]+)@([A-Za-z0-9_.+-]{0,40}):([a-z]{2})\Z', str(k or ''))
+    if not m or m.group(1) not in base.FAMILIES or m.group(4) not in LANGS:
+        return None
+    try:
+        got = json.loads(v) if isinstance(v, str) else None
+    except ValueError:
+        return None
+    if not isinstance(got, dict) or not isinstance(got.get('md'), str) or not got['md'].strip() \
+            or len(got['md']) > MAX_MD:
+        return None
+    keep = {'md': got['md'].replace('\r\n', '\n'), 'at': got.get('at') if isinstance(
+        got.get('at'), (int, float)) else time.time(), 'by': str(got.get('by') or '')[:200]}
+    return k, json.dumps(keep)
+
+
 def guide(store, family, kind, version='', lang='en'):
     """The guide to show: {md, origin: written | module | shipped | made, lang, written_at,
     written_by, has_default}."""
@@ -167,8 +197,7 @@ def guide(store, family, kind, version='', lang='en'):
         if own:
             return {'md': own, 'origin': 'module', 'lang': lg, 'has_default': True,
                     'family': family, 'kind': kind, 'version': version}
-        if cls is None or getattr(cls, '_origin', 'builtin') == 'builtin' or \
-                getattr(cls, '_overrides', ''):
+        if _acmes_kind(family, kind, cls):
             text, name = _shipped(family, kind, version, lg)
             if text:
                 return {'md': text, 'origin': 'shipped', 'lang': lg, 'file': name,

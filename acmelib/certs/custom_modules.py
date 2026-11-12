@@ -185,10 +185,15 @@ def uploaded_dir():
     return base.UPLOADED_DIR
 
 
+def _guarded(store, rows):
+    return S.E.dbguard_rows(store.db, rows)
+
+
 def uploaded(store, text=False):
     """{folder/file.py: {sha256, bytes, by, at, note, text?}} of the uploaded modules."""
     out = {}
-    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE ?", (FILE_KEY + '%',)):
+    # only those acme wrote (1.0.95): with the guard on, one written past acme is not run
+    for r in _guarded(store, store.db.rows("SELECT k, v FROM meta WHERE k LIKE ?", (FILE_KEY + '%',))):
         got = S.jload(r['v'], {}) or {}
         if not isinstance(got, dict):
             continue
@@ -285,7 +290,7 @@ DEFAULT_KEY = 'module-default:'     # meta: module-default:<family>/<kind> -> {v
 def defaults(store):
     """{(family, kind): {version, by, at}} chosen on the page."""
     out = {}
-    for r in store.db.rows('SELECT k, v FROM meta WHERE k LIKE ?', (DEFAULT_KEY + '%',)):
+    for r in _guarded(store, store.db.rows('SELECT k, v FROM meta WHERE k LIKE ?', (DEFAULT_KEY + '%',))):
         fam, _, kind = r['k'][len(DEFAULT_KEY):].partition('/')
         got = S.jload(r['v'], {}) or {}
         if fam and kind and isinstance(got, dict) and 'version' in got:

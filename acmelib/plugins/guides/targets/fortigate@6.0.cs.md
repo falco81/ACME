@@ -20,7 +20,7 @@ Vše ostatní, co acme používá - import certifikátu, `system global admin-se
 | Volba v acme | Nastavení FortiOS | Hodnota |
 |---|---|---|
 | (vždy) | `config vpn certificate local` | nový lokální certifikát `acme-...`; starší `acme-...` téhož certifikátu nad *ponechat* smazány (používaný zůstane) |
-| Importovat mezilehlé (pokročilé, zapnuto) | `config vpn certificate ca` | mezilehlé CA, globálně; už existující se přeskočí |
+| Importovat mezilehlé certifikáty jako certifikáty CA (pokročilé, zapnuto) | `config vpn certificate ca` | mezilehlé CA, globálně; už existující se přeskočí |
 | Certifikát administrace (GUI) | `config system global` / `set admin-server-cert` | nový certifikát (globální - certifikát musí být importován *globálně*) |
 | Certifikát SSL VPN | `config vpn ssl settings` / `set servercert` | nový certifikát, ve VDOM |
 | Inspekční profily SSL/SSH | `config firewall ssl-ssh-profile` / `set server-cert` | jedno jméno (`server-cert` je v 6.x jediný certifikát) - certifikát profilu se nahradí |
@@ -118,7 +118,7 @@ V GUI totéž: *System → Administrators → Create New → REST API Admin* (pr
 | Ověřovat certifikát zařízení | zapnuto; vypnuto jen dokud má FortiGate vlastní `Fortinet_GUI_Server` |
 | Certifikát administrace / SSL VPN (nasazení) | zaškrtněte, co má certifikát používat |
 | Inspekční profily SSL/SSH, Virtuální IP (nasazení) | jedno jméno na řádek, např. `inbound-replace`, `vip-www` |
-| Ponechat (pokročilé) | kolik starších certifikátů acme ponechat (používaný se nikdy nesmaže) |
+| Kolik předchozích verzí ponechat (pokročilé) | kolik starších certifikátů acme ponechat (používaný se nikdy nesmaže) |
 
 Administrace přejde na nový certifikát hned: se zapnutým *Ověřovat certifikát zařízení* se další požadavky acme ověřují proti němu (certifikát veřejné CA projde; u soukromé CA nastavte *CA certifikát*). Skupiny, které profil neuvádí, mají výchozí `none`.
 

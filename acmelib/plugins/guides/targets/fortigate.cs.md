@@ -1,4 +1,4 @@
-# FortiGate (libovolná verze (zjistí ji)) - nastavení pro acme
+# FortiGate (libovolná verze - zjistí ji) - nastavení pro acme
 
 acme s FortiGate mluví přes **FortiOS REST API** s **API tokenem** (`Authorization: Bearer <token>`, jen HTTPS). Certifikát naimportuje pod jménem s datem (`acme-<jméno>-<datum>-<sériové číslo>`, nejvýš 35 znaků) přes `POST /api/v2/monitor/vpn-certificate/local/import` (PKCS#12 s jednorázovým heslem, nebo certifikát + klíč v PEM), mezilehlé certifikáty naimportuje jako CA, nastaví je službám, které zaškrtnete, a starší certifikáty acme nad počet *ponechat* smaže.
 
@@ -20,7 +20,7 @@ Vše ostatní, co acme používá - import certifikátu, `system global admin-se
 | Volba v acme | Nastavení FortiOS | Hodnota |
 |---|---|---|
 | (vždy) | `config vpn certificate local` | nový lokální certifikát `acme-...`; starší `acme-...` téhož certifikátu nad *ponechat* smazány (používaný zůstane) |
-| Importovat mezilehlé (pokročilé, zapnuto) | `config vpn certificate ca` | mezilehlé CA, globálně; už existující se přeskočí |
+| Importovat mezilehlé certifikáty jako certifikáty CA (pokročilé, zapnuto) | `config vpn certificate ca` | mezilehlé CA, globálně; už existující se přeskočí |
 | Certifikát administrace (GUI) | `config system global` / `set admin-server-cert` | nový certifikát (globální - certifikát musí být importován *globálně*) |
 | Certifikát SSL VPN | `config vpn ssl settings` / `set servercert` | nový certifikát, ve VDOM |
 | Inspekční profily SSL/SSH | `config firewall ssl-ssh-profile` / `set server-cert` | podle verze: jméno do 6.4, seznam certifikátů od 7.0 |
@@ -136,7 +136,7 @@ V GUI totéž: *System → Administrators → Create New → REST API Admin* (pr
 | Ověřovat certifikát zařízení | zapnuto; vypnuto jen dokud má FortiGate vlastní `Fortinet_GUI_Server` |
 | Certifikát administrace / SSL VPN (nasazení) | zaškrtněte, co má certifikát používat |
 | Inspekční profily SSL/SSH, Virtuální IP (nasazení) | jedno jméno na řádek, např. `inbound-replace`, `vip-www` |
-| Ponechat (pokročilé) | kolik starších certifikátů acme ponechat (používaný se nikdy nesmaže) |
+| Kolik předchozích verzí ponechat (pokročilé) | kolik starších certifikátů acme ponechat (používaný se nikdy nesmaže) |
 
 Administrace přejde na nový certifikát hned: se zapnutým *Ověřovat certifikát zařízení* se další požadavky acme ověřují proti němu (certifikát veřejné CA projde; u soukromé CA nastavte *CA certifikát*). Skupiny, které profil neuvádí, mají výchozí `none`.
 

@@ -31,6 +31,20 @@
   function ws(s) { return String(s).replace(/[\s ]+/g, ' '); }
   /* text that would read as Markdown kept as text: \* \` \_ (a _ inside a word is no mark) */
   function esc(s) { return String(s).replace(/\\/g, '\\\\').replace(/([*`])/g, '\\$1').replace(/(^|[^\w])_/g, '$1\\_').replace(/_(?=[^\w]|$)/g, '\\_'); }
+  /* `code` - fenced by more backticks than it holds in a row, so none of its own is lost */
+  function codeSpan(k) {
+    var runs = String(k).match(/`+/g) || [], n = 0;
+    runs.forEach(function (r) { n = Math.max(n, r.length); });
+    var f = new Array(n + 2).join('`');
+    var pad = n && (/^`|`$/.test(k) || /^ .* $/.test(k)) ? ' ' : (/^ .* $/.test(k) ? ' ' : '');
+    return f + pad + k + pad + f;
+  }
+  /* a paragraph's line that would start a heading, list, quote, table or line: kept as text */
+  function lead(p) {
+    return String(p).replace(/^(\s*)(#{1,6}\s)/gm, '$1\\$2').replace(/^(\s*)>/gm, '$1\\>')
+      .replace(/^(\s*)([-+])(\s)/gm, '$1\\$2$3').replace(/^(\s*)(\d{1,3})([.)])(\s)/gm, '$1$2\\$3$4')
+      .replace(/^(\s*)\|/gm, '$1\\|').replace(/^(\s*)(-{3,}|_{3,})\s*$/gm, '$1\\$2');
+  }
   function inl(node) {
     var out = '';
     Array.prototype.forEach.call(node.childNodes, function (c) {
@@ -42,7 +56,7 @@
       if (/^(STRONG|B)$/.test(t)) { var b = inl(c).trim(); if (b) out += '**' + b + '**'; return; }
       if (/^(EM|I)$/.test(t)) { var e = inl(c).trim(); if (e) out += '*' + e + '*'; return; }
       if (/^(DEL|S|STRIKE)$/.test(t)) { var d = inl(c).trim(); if (d) out += '~~' + d + '~~'; return; }
-      if (t === 'CODE' || t === 'KBD' || t === 'SAMP' || t === 'TT') { var k = c.textContent; if (k) out += '`' + k.replace(/`/g, '´') + '`'; return; }
+      if (t === 'CODE' || t === 'KBD' || t === 'SAMP' || t === 'TT') { var k = c.textContent; if (k) out += codeSpan(k); return; }
       if (t === 'A') {
         var href = c.getAttribute('href') || '', words = inl(c).trim();
         if (/^(https?:|mailto:|#)/i.test(href) && words) out += '[' + words + '](' + href + ')'; else out += words;
@@ -104,9 +118,16 @@
     });
     return out.join('\n');
   }
+  /* a block of code: fenced by more backticks than any line of it starts with */
+  function fence(code, lg) {
+    var n = 2;
+    (String(code).match(/^\s*`+/gm) || []).forEach(function (r) { n = Math.max(n, r.trim().length); });
+    var f = new Array(n + 2).join('`');
+    return f + lg + '\n' + code + '\n' + f;
+  }
   function blocks(node) {
     var out = [], para = '';
-    var flush = function () { if (para.trim()) out.push(para.trim()); para = ''; };
+    var flush = function () { if (para.trim()) out.push(lead(para.trim())); para = ''; };
     Array.prototype.forEach.call(node.childNodes, function (c) {
       if (c.nodeType === 3) { para += esc(ws(c.nodeValue)); return; }
       if (c.nodeType !== 1) return;
@@ -119,7 +140,7 @@
         var lg = sel ? sel.value : ((c.querySelector && c.querySelector('.gd-pre-lang')) ? c.querySelector('.gd-pre-lang').textContent : '');
         if (!lg && pre) { var cc = pre.querySelector('code'); var m = cc && /language-([\w+-]+)/.exec(cc.className || ''); if (m) lg = m[1]; }
         var code = pre ? pre.innerText !== undefined && pre.isConnected ? pre.innerText : pre.textContent : '';
-        out.push('```' + (lg && lg !== 'text' ? lg : (lg === 'text' ? 'text' : '')) + '\n' + String(code).replace(/\n+$/, '') + '\n```');
+        out.push(fence(String(code).replace(/\n+$/, ''), lg || ''));
         return;
       }
       if (/^H[1-6]$/.test(t)) { flush(); var h = inl(c).trim(); if (h) out.push(new Array(Number(t[1]) + 1).join('#') + ' ' + h); return; }
@@ -146,7 +167,13 @@
       if (BLOCK.test(t)) {
         flush();
         if (hasBlocks(c)) { var inner = blocks(c); if (inner.trim()) out.push(inner); }
-        else { var p = inl(c).replace(/^\s+|\s+$/g, ''); if (p) out.push(p); }
+        else if (/white-space\s*:\s*pre/i.test(c.getAttribute('style') || '') && c.children.length) {
+          /* code copied from an editor (VS Code and the like): a line in a div each */
+          var ls = Array.prototype.every.call(c.children, function (x) { return /^(DIV|P|BR)$/.test(x.tagName); })
+            ? Array.prototype.map.call(c.children, function (x) { return x.tagName === 'BR' ? '' : x.textContent; }) : c.textContent.split('\n');
+          out.push(fence(ls.join('\n').replace(/\n+$/, ''), ''));
+        }
+        else { var p = inl(c).replace(/^\s+|\s+$/g, ''); if (p) out.push(lead(p)); }
         return;
       }
       /* inline element at block level: part of a paragraph */
@@ -325,7 +352,7 @@
         stateTag.className = 'tag ' + (g.origin === 'written' ? 'info' : (g.origin === 'made' ? 'dim' : 'ok'));
         stateTag.textContent = originWords(g);
         said.textContent = g.lang !== cur.lang ? tr('this language has none yet: the English text is shown to start from') : '';
-        resetB.disabled = g.origin !== 'written';
+        resetB.disabled = !(g.origin === 'written' && g.lang === cur.lang);
       }).catch(function (e) { said.textContent = String((e && e.message) || e); });
     };
     var keep = function (b) {
@@ -429,7 +456,9 @@
         if (!/^(https?:\/\/|mailto:)/i.test(url)) { toast(tr('a link is an https://, http:// or mailto: address'), 'bad'); u.focus(); return; }
         pop.remove(); done(url, w.value.trim());
       };
-      u.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); go.click(); } if (ev.key === 'Escape') { ev.stopPropagation(); pop.remove(); } });
+      var keys = function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); go.click(); } if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); pop.remove(); } };
+      u.addEventListener('keydown', keys);
+      w.addEventListener('keydown', keys);
       row.appendChild(no); row.appendChild(go);
       pop.appendChild(row);
       ed.appendChild(pop);
@@ -517,6 +546,7 @@
     ];
     var toolEls = {};
     var toolsState = function () {
+      if (ed && !ed.isConnected) { document.removeEventListener('selectionchange', toolsState); return; }
       if (!vis) return;
       var s = window.getSelection(), inT = false;
       if (cur.mode === 'visual' && s.rangeCount && vis.contains(s.getRangeAt(0).startContainer)) {
@@ -624,7 +654,7 @@
         if (!cd) return;
         var html = cd.getData('text/html'), plain = cd.getData('text/plain');
         var mdIn = html ? fromHtml(html) : '';
-        if (!mdIn && plain) {
+        if (!mdIn.trim() && plain) {
           /* Markdown pasted as text: drawn; plain words: as they are */
           if (/^(#{1,6} |[-*+] |\d+\. |```|> |\|.*\|)/m.test(plain)) mdIn = plain;
           else { ev.preventDefault(); document.execCommand('insertText', false, plain); return; }
@@ -785,11 +815,18 @@
         if (!resetB) resetB = {disabled: true};
         load().then(function () { vis.focus(); });
       }, 0);
+      document.removeEventListener('selectionchange', toolsState);
       document.addEventListener('selectionchange', toolsState);
+      /* Close, its x, Escape: what is not kept is asked about first */
+      if (typeof modalLeaveGuard === 'function') modalLeaveGuard(function (go) {
+        if (!dirty) return false;
+        G().sure('Leave the changes not kept?', go, 'Leave them');
+        return true;
+      });
     }, [
-      {words: 'Back to the default', cls: 'danger-soft gd-resetbtn', icon: 'undo', go: function () {
-        confirmThen('Give the guide back to its default?', htmlText('What was written over for this version and language is taken away: acme\'s own text (or the module\'s, or one made from its fields) is shown again.'),
-          'Give it back', function () {
+      {words: 'Back to the default', cls: 'gd-resetbtn', noDanger: true, noConfirm: true, icon: 'undo', go: function () {
+        G().sure('Give the guide back to its default? What was written over for this version and language is taken away: acme\'s own text (or the module\'s, or one made from its fields) is shown again.',
+          function () {
             post({family: family, kind: kind, version: cur.version, lang: cur.lang, md: ''}).then(function (d) {
               toast(tr(d.message || 'done'), 'good'); setDirty(false); load();
             }).catch(function (e) { toast(String((e && e.message) || e), 'bad'); });

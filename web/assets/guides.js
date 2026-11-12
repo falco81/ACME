@@ -3,8 +3,7 @@
    For every source, validation, target and test - each version of it - a Markdown text
    saying how to set up the other side (the FortiGate, the DNS provider, the CA...) for acme.
    guideShow(): read-only, in a popup nearly the whole page, with its contents beside it;
-   guideEdit(): a Markdown editor (toolbar, the text and how it will look side by side, the
-   module's own text to start from or to give it back) - a full administrator's.
+   the editor (visual, Markdown, the assistant) is guides-editor.js - a full administrator's.
 
    Markdown is drawn here, never as HTML: every node made by hand (el, text nodes) - what a
    guide holds cannot run anything. Links open in a new tab, http(s) and mailto only. */
@@ -40,7 +39,7 @@
   }
   /* inline: `code`, **bold**, *em* / _em_, ~~del~~, [text](url), <https://...> */
   function inline(parent, s) {
-    var re = /\\([\\`*_{}\[\]()#+\-.!|~>])|(`+)([\s\S]*?[^`])\2(?!`)|\*\*([\s\S]+?)\*\*|__([\s\S]+?)__|~~([\s\S]+?)~~|\*([^*\s][\s\S]*?)\*|(^|[^\w])_([^_\s][\s\S]*?)_(?=[^\w]|$)|\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)|<(https?:\/\/[^>\s]+)>/g;
+    var re = /\\([\\`*_{}\[\]()#+\-.!|~>])|(`+)([\s\S]*?[^`])\2(?!`)|\*\*([\s\S]+?)\*\*|__([\s\S]+?)__|~~([\s\S]+?)~~|\*([^*\s][\s\S]*?)\*|(^|[^\w])_([^_\s][\s\S]*?)_(?=[^\w]|$)|\[([^\]]+)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+"[^"]*")?\)|<(https?:\/\/[^>\s]+)>/g;
     var at = 0, m;
     var plain = function (t) {
       String(t).split('\n').forEach(function (part, k) { if (k) parent.appendChild(el('br')); if (part) parent.appendChild(txt(part)); });
@@ -75,11 +74,12 @@
     var out = [], cur = '', esc = false;
     for (var i = 0; i < s.length; i++) {
       var ch = s.charAt(i);
-      if (esc) { cur += ch; esc = false; continue; }
-      if (ch === '\\') { esc = true; cur += ''; continue; }
+      if (esc) { cur += ch === '|' ? '|' : '\\' + ch; esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
       if (ch === '|') { out.push(cur.trim()); cur = ''; continue; }
       cur += ch;
     }
+    if (esc) cur += '\\';
     out.push(cur.trim());
     return out;
   }
@@ -227,7 +227,7 @@
   function sure(words, go, yesWords) {
     var host = document.getElementById('modal-box') || document.body;
     var old = host.querySelector(':scope > .gd-sure');
-    if (old) old.remove();
+    if (old && old._end) old._end(); else if (old) old.remove();
     var veil = el('div', 'gd-sure');
     var box = el('div', 'gd-sure-box');
     box.setAttribute('role', 'alertdialog');
@@ -238,8 +238,17 @@
     var end = function () { veil.remove(); document.removeEventListener('keydown', key, true); };
     var key = function (ev) {
       if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); end(); }
-      else if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); end(); go(); }
+      else if (ev.key === 'Enter') {
+        /* Enter presses what has the focus - "No" too; nothing focused in it: no */
+        ev.preventDefault(); ev.stopPropagation();
+        if (document.activeElement === yes) { end(); go(); } else end();
+      } else if (ev.key === 'Tab') {
+        /* the focus stays on its two buttons */
+        ev.preventDefault();
+        (document.activeElement === yes ? no : yes).focus();
+      }
     };
+    veil._end = end;
     no.onclick = end;
     yes.onclick = function () { end(); go(); };
     row.appendChild(no); row.appendChild(yes);
@@ -425,237 +434,6 @@
     if (opt.over && typeof modalOver === 'function') modalOver(show, opt.back); else show();
   }
 
-  /* ---- the editor ---------------------------------------------------------------------- */
-  var TOOLS = [
-    ['H1', 'Heading 1', function (e) { lineStart(e, '# '); }],
-    ['H2', 'Heading 2', function (e) { lineStart(e, '## '); }],
-    ['H3', 'Heading 3', function (e) { lineStart(e, '### '); }],
-    ['|'],
-    ['B', 'Bold (Ctrl+B)', function (e) { around(e, '**', '**', 'bold'); }],
-    ['I', 'Italic (Ctrl+I)', function (e) { around(e, '*', '*', 'italic'); }],
-    ['S', 'Struck through', function (e) { around(e, '~~', '~~', 'text'); }],
-    ['`', 'Code', function (e) { around(e, '`', '`', 'code'); }],
-    ['|'],
-    ['•', 'List', function (e) { lineStart(e, '- '); }],
-    ['1.', 'Numbered list', function (e) { lineStart(e, '1. '); }],
-    ['☐', 'Checklist', function (e) { lineStart(e, '- [ ] '); }],
-    ['❝', 'Quote', function (e) { lineStart(e, '> '); }],
-    ['|'],
-    ['{ }', 'Code block (Ctrl+Shift+C)', function (e) { block(e, '```sh\n', '\n```', 'config system global\n    set admin-server-cert "acme"\nend'); }],
-    ['▦', 'Table', function (e) { insert(e, '\n| Field | Value |\n|---|---|\n| | |\n'); }],
-    ['🔗', 'Link (Ctrl+K)', function (e) { around(e, '[', '](https://)', 'words'); }],
-    ['—', 'Line', function (e) { insert(e, '\n\n---\n\n'); }]
-  ];
-  function sel(t) { return {a: t.selectionStart, b: t.selectionEnd, v: t.value}; }
-  function put(t, v, a, b) {
-    t.focus();
-    /* through the editing commands where they are (undo keeps working) */
-    var old = t.value;
-    t.setSelectionRange(0, old.length);
-    var ok = false;
-    try { ok = document.execCommand('insertText', false, v); } catch (e) { ok = false; }
-    if (!ok || t.value !== v) t.value = v;
-    t.setSelectionRange(a, b);
-    t.dispatchEvent(new Event('input', {bubbles: true}));
-  }
-  function around(t, l, r, dflt) {
-    var s = sel(t), mid = s.v.slice(s.a, s.b) || tr(dflt);
-    put(t, s.v.slice(0, s.a) + l + mid + r + s.v.slice(s.b), s.a + l.length, s.a + l.length + mid.length);
-  }
-  function lineStart(t, mark) {
-    var s = sel(t), v = s.v;
-    var a = v.lastIndexOf('\n', s.a - 1) + 1, b = v.indexOf('\n', s.b); if (b < 0) b = v.length;
-    var part = v.slice(a, b).split('\n').map(function (ln, k) {
-      var clean = ln.replace(/^(#{1,6} |> |- \[[ xX]\] |[-*+] |\d+[.)] )/, '');
-      var m = mark === '1. ' ? (k + 1) + '. ' : mark;
-      return ln.indexOf(m) === 0 ? clean : m + clean;
-    }).join('\n');
-    put(t, v.slice(0, a) + part + v.slice(b), a, a + part.length);
-  }
-  function block(t, l, r, sample) {
-    var s = sel(t), mid = s.v.slice(s.a, s.b) || sample;
-    var pre = s.a && s.v.charAt(s.a - 1) !== '\n' ? '\n' : '';
-    put(t, s.v.slice(0, s.a) + pre + l + mid + r + '\n' + s.v.slice(s.b), s.a + pre.length + l.length, s.a + pre.length + l.length + mid.length);
-  }
-  function insert(t, what) {
-    var s = sel(t);
-    put(t, s.v.slice(0, s.a) + what + s.v.slice(s.b), s.a + what.length, s.a + what.length);
-  }
-
-  function guideEdit(p, family, version, opt) {
-    opt = opt || {};
-    var kind = p.kind;
-    var vers = versionsOf(p);
-    var cur = {version: version === undefined || version === null ? String(p.version || '') : String(version), lang: opt.lang || lang(), base: '', origin: ''};
-    var area, preview, said, wc, dirty = false;
-    var setDirty = function (on) { dirty = on; if (said) said.classList.toggle('gd-dirty', on); };
-    var paint = function () {
-      clear(preview);
-      preview.appendChild(draw(area.value).node);
-      var w = (area.value.match(/\S+/g) || []).length;
-      wc.textContent = w + ' ' + tr('words') + ' · ' + area.value.split('\n').length + ' ' + tr('lines');
-    };
-    var timer = null;
-    var load = function () {
-      said.textContent = tr('Asking…');
-      return ask(family, kind, cur.version, cur.lang).then(function (g) {
-        cur.origin = g.origin;
-        /* another language's text is not taken as this one's: started from it, said */
-        area.value = g.md || '';
-        cur.loadedLang = g.lang;
-        setDirty(false);
-        paint();
-        said.textContent = (g.origin === 'written' ? tr('written on the page') : (g.origin === 'made' ? tr('none written yet - this is made from its fields') : tr('the module\'s own text'))) +
-          (g.lang !== cur.lang ? ' · ' + tr('in English - write it in this language') : '');
-      }).catch(fail2);
-    };
-    var fail2 = function (e) { said.textContent = String((e && e.message) || e); said.className = 'bad small'; };
-    var save = function (b) {
-      busy(b, true);
-      capiPost('modules/guide', {family: family, kind: kind, version: cur.version, lang: cur.lang, md: area.value}).then(function (d) {
-        toast(d.message || 'kept', 'good');
-        setDirty(false);
-        load();
-      }).catch(function (e) { toast(String((e && e.message) || e), 'bad'); }).then(function () { busy(b, false); });
-    };
-    var openEd = function () { modal(tr('Edit the setup guide') + ' · ' + (p.title || kind), function (body) {
-      var head = el('div', 'gd-head');
-      var left = el('div', 'gd-head-l');
-      left.appendChild(el('span', 'tag dim', FAM_WORDS[family] || family));
-      var kd = el('code', 'gd-kind', kind); if (typeof noI18n === 'function') noI18n(kd);
-      left.appendChild(kd);
-      head.appendChild(left);
-      var right = el('div', 'gd-head-r');
-      if (vers.length > 1 || cur.version) {
-        var vs = selectBox(vers.map(function (v) { return [v[0], v[1] || (v[0] || tr('plain'))]; }), cur.version);
-        if (typeof noI18n === 'function') noI18n(vs);
-        vs.className += ' gd-vsel';
-        vs.onchange = function () {
-          var want = vs.value, go = function () { vs.value = want; cur.version = want; load(); };
-          if (!dirty) return go();
-          vs.value = cur.version;
-          sure('Leave the changes not kept?', go, 'Leave them');
-        };
-        right.appendChild(el('label', 'gd-vlabel', 'Version'));
-        right.appendChild(vs);
-      }
-      var lg = el('div', 'gd-lang');
-      [['cs', 'CS'], ['en', 'EN']].forEach(function (x) {
-        var b = el('button', 'gd-langb' + (cur.lang === x[0] ? ' on' : ''), x[1]);
-        b.type = 'button';
-        if (typeof noI18n === 'function') noI18n(b);
-        b.onclick = function () {
-          var go = function () {
-            cur.lang = x[0];
-            Array.prototype.forEach.call(lg.children, function (c) { c.classList.toggle('on', c === b); });
-            load();
-          };
-          if (dirty) return sure('Leave the changes not kept?', go, 'Leave them');
-          go();
-        };
-        lg.appendChild(b);
-      });
-      right.appendChild(lg);
-      head.appendChild(right);
-      body.appendChild(head);
-
-      var ed = el('div', 'gd-editor split');
-      var bar = el('div', 'gd-toolbar');
-      TOOLS.forEach(function (t) {
-        if (t[0] === '|') { bar.appendChild(el('span', 'gd-sep')); return; }
-        var b = el('button', 'gd-tool', t[0]);
-        b.type = 'button';
-        b.title = tr(t[1]);
-        b.setAttribute('aria-label', tr(t[1]));
-        if (typeof noI18n === 'function') noI18n(b);
-        b.onclick = function () { t[2](area); };
-        bar.appendChild(b);
-      });
-      var views = el('div', 'gd-views');
-      [['edit', 'Write'], ['split', 'Side by side'], ['view', 'Preview']].forEach(function (x) {
-        var b = el('button', 'gd-viewb' + (x[0] === 'split' ? ' on' : ''), x[1]);
-        b.type = 'button';
-        b.onclick = function () {
-          ed.className = 'gd-editor ' + x[0];
-          Array.prototype.forEach.call(views.children, function (c) { c.classList.toggle('on', c === b); });
-          if (x[0] !== 'view') area.focus();
-        };
-        views.appendChild(b);
-      });
-      bar.appendChild(views);
-      ed.appendChild(bar);
-      var panes = el('div', 'gd-panes');
-      area = el('textarea', 'gd-area');
-      area.spellcheck = true;
-      area.setAttribute('aria-label', tr('The guide, in Markdown'));
-      if (typeof noI18n === 'function') noI18n(area);
-      area.addEventListener('input', function () { setDirty(true); clearTimeout(timer); timer = setTimeout(paint, 120); });
-      area.addEventListener('keydown', function (ev) {
-        var k = ev.key.toLowerCase();
-        if ((ev.ctrlKey || ev.metaKey) && k === 'b') { ev.preventDefault(); around(area, '**', '**', 'bold'); }
-        else if ((ev.ctrlKey || ev.metaKey) && k === 'i') { ev.preventDefault(); around(area, '*', '*', 'italic'); }
-        else if ((ev.ctrlKey || ev.metaKey) && k === 'k') { ev.preventDefault(); around(area, '[', '](https://)', 'words'); }
-        else if ((ev.ctrlKey || ev.metaKey) && ev.shiftKey && k === 'c') { ev.preventDefault(); block(area, '```sh\n', '\n```', ''); }
-        else if ((ev.ctrlKey || ev.metaKey) && k === 's') { ev.preventDefault(); var sb = $('modal-foot') && $('modal-foot').querySelector('.gd-savebtn'); if (sb) sb.click(); }
-        else if (k === 'tab' && !ev.ctrlKey && !ev.altKey) {
-          ev.preventDefault();
-          var s = sel(area);
-          if (ev.shiftKey) {
-            var a = s.v.lastIndexOf('\n', s.a - 1) + 1;
-            if (s.v.slice(a, a + 2) === '  ') put(area, s.v.slice(0, a) + s.v.slice(a + 2), Math.max(a, s.a - 2), Math.max(a, s.b - 2));
-          } else insert(area, '  ');
-        } else if (k === 'enter' && !ev.shiftKey) {
-          /* a list goes on by itself; an empty item ends it */
-          var s2 = sel(area), ls = s2.v.lastIndexOf('\n', s2.a - 1) + 1, line = s2.v.slice(ls, s2.a);
-          var m = line.match(/^(\s*)([-*+] \[[ xX]\] |[-*+] |(\d+)([.)]) |> )/);
-          if (m && s2.a === s2.b) {
-            ev.preventDefault();
-            if (line.trim() === m[2].trim()) { put(area, s2.v.slice(0, ls) + s2.v.slice(s2.a), ls, ls); return; }
-            var next = m[3] ? (Number(m[3]) + 1) + m[4] + ' ' : m[2].replace(/\[[xX]\]/, '[ ]');
-            insert(area, '\n' + m[1] + next);
-          }
-        }
-      });
-      var lpane = el('div', 'gd-pane gd-pane-l');
-      lpane.appendChild(area);
-      preview = el('div', 'gd-pane gd-pane-r gd-preview');
-      panes.appendChild(lpane);
-      panes.appendChild(preview);
-      /* the preview follows the text as it is scrolled */
-      area.addEventListener('scroll', function () {
-        var r = area.scrollTop / Math.max(1, area.scrollHeight - area.clientHeight);
-        preview.scrollTop = r * (preview.scrollHeight - preview.clientHeight);
-      });
-      ed.appendChild(panes);
-      var foot = el('div', 'gd-edfoot');
-      said = el('span', 'muted small gd-said', '');
-      wc = el('span', 'muted small gd-wc', '');
-      foot.appendChild(said);
-      foot.appendChild(wc);
-      ed.appendChild(foot);
-      body.appendChild(ed);
-      body.appendChild(el('p', 'muted small', 'Markdown: # headings, **bold**, *italic*, `code`, ```code blocks```, - lists, 1. numbered, | tables |, [links](https://…), > quotes. Kept in the database - on every node and in every backup; each version and language has its own.'));
-      setTimeout(function () { load(); area.focus(); }, 0);
-    }, [
-      {words: 'Back to the module\'s own', cls: 'danger-soft', icon: 'undo', go: function (b) {
-        confirmThen('Give the guide back to the module\'s own?', htmlText('What was written here for this version and language is taken away; the module\'s own text (or one made from its fields) is shown again.'),
-          'Give it back', function () {
-            capiPost('modules/guide', {family: family, kind: kind, version: cur.version, lang: cur.lang, md: ''}).then(function (d) {
-              toast(d.message || 'done', 'good'); setDirty(false); load();
-            }).catch(function (e) { toast(String((e && e.message) || e), 'bad'); });
-          });
-      }},
-      {words: 'Close', close: true},
-      {words: 'Show it', icon: 'eye', go: function () {
-        var go = function () { guideShow(p, family, cur.version); };
-        if (dirty) return sure('Leave the changes not kept?', go, 'Leave them');
-        go();
-      }},
-      {words: 'Save', cls: 'primary gd-savebtn', icon: 'save', go: function (b) { save(b); }}
-    ], 'gd-full'); };
-    if (opt.over && typeof modalOver === 'function') modalOver(openEd, opt.back); else openEd();
-  }
-
   /* the button a module's head carries (certs.js plugHead) */
   function guideButton(p, family, row) {
     var b = cmdButton('Setup guide', 'book', 'small gd-open');
@@ -671,7 +449,7 @@
   /* the editor of its own file (guides-editor.js, 1.0.94): visual, Markdown, the Assistant */
   function editAny(p, family, version, opt) {
     if (window.ACME_GUIDE_EDITOR) return window.ACME_GUIDE_EDITOR.edit(p, family, version, opt);
-    return guideEdit(p, family, version, opt);
+    toast(tr('The editor of the guides did not load - reload the page'), 'bad');
   }
   window.ACME_GUIDES = {sure: sure, render: draw, show: guideShow, edit: editAny, button: guideButton};
 })();

@@ -26,14 +26,18 @@ DBGUARD_META_EXACT = frozenset(('host:pwpolicy:conf', 'rbackup:targets',
     'web:vip', 'web:access', 'fw:conf', 'fw:trial', 'fw_trial_back', 'ntp:conf', 'power:plan',
     'readdress:ask', 'hatls:ca', 'hatls:want', 'host:osup:plan', 'host:sshd:conf',
     'host:sshd:keep', 'host:sshd:back', 'host:logs:again', 'upgrade:plan',
-    'upgrade:pkg', 'acme_push:conf', 'acme_push:pairing', 'hisec:waive', 'sshotp:gate'))
+    'upgrade:pkg', 'acme_push:conf', 'acme_push:pairing', 'hisec:waive', 'sshotp:gate',
+    'module-files:sig'))
 DBGUARD_META_PREFIXES = (
     'web:tls:', 'web:retry:', 'ntp:sync:', 'net:want:', 'net:job:', 'net:undo:', 'net:keep:',
     'net:back:', 'readdress:dropold:', 'hatls:node:', 'dbtls:server:', 'ask:want:',
     'host:sshkeys:want:', 'host:rootkey:', 'host:osup:checkwant:',
     'console:want:', 'acme_push:key:', 'adm2fa:', 'host:selinux:want:',
     'host:users:want:', 'sshotp:u:', 'sshotp:port:', 'rbackup:now:',
-    'oscerts:want:')      # the system's trusted roots (1.0.59): root writes them
+    'oscerts:want:',      # the system's trusted roots (1.0.59): root writes them
+    # modules uploaded on the page Modules (1.0.95): their code is run by every node's daemon,
+    # which holds the key - one written past acme was a way to all of it
+    'module-file:', 'module-default:')
 # Settings whose word reaches root, or who may sign in to these pages.
 DBGUARD_SETTINGS = frozenset((
     'acme', 'acme_challenge', 'acme_for', 'acme_node_name', 'pki_publish', 'snmp', 'snmp_from', 'snmp_port', 'net_confirm_min', 'fw_confirm_min',
@@ -66,6 +70,11 @@ DBGUARD_ADOPT = {'m': ('rbackup:targets',),
                        'acme_dns_key', 'acme_desec_token', 'acme_ca', 'acme_url')}
 DBGUARD_ADOPT_PREFIXES = {'m': ('rbackup:now:',)}     # rows of these taken under it too
 DBGUARD_ADOPT_MARK = 'dbguard:adopted:1.0.44'
+# Taken under the guard by 1.0.95: the uploaded modules - signed once as they are, on a node
+# whose cluster all runs 1.0.95 (an older node saving one unsigned made it go away here).
+DBGUARD_ADOPT2 = {'m': ('module-files:sig',)}
+DBGUARD_ADOPT2_PREFIXES = {'m': ('module-file:', 'module-default:')}
+DBGUARD_ADOPT2_MARK = 'dbguard:adopted:1.0.95'
 DBGUARD_FILE = STATE_DIR / 'guard.json'
 DBGUARD = {'seen': None, 'good': None, 'seen_h': None, 'adopted': None, 'dirty': 0.0,
            'refused': {}, 'nodes': {},
@@ -491,8 +500,11 @@ def dbguard_resign(store, why=''):
 def dbguard_adopted_ok(kind, ident):
     """Whether a row this version took under the guard is checked yet: only once this node
     has signed it as it was (dbguard_adopt) - until then it is as unguarded as before."""
-    keys = DBGUARD_ADOPT.get(kind) or ()
     ident = str(ident)
+    if ident in (DBGUARD_ADOPT2.get(kind) or ()) or ident.startswith(DBGUARD_ADOPT2_PREFIXES.get(kind) or ()):
+        _dbguard_load()
+        return bool((DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT2_MARK))
+    keys = DBGUARD_ADOPT.get(kind) or ()
     # ...and the rows named by a prefix (1.0.45): a Back up now asked by a node still on 1.0.43
     # was refused for good on the upgraded one, an error every ten minutes.
     if ident.split('@', 1)[0] not in keys and \
@@ -516,6 +528,27 @@ def cluster_runs_at_least(store, version):
                    if n.get('me') or float(n.get('age') or 0) < 86400)
 
 
+def _dbguard_adopt2(store):
+    """The rows 1.0.95 took under the guard (the uploaded modules), signed once as they are."""
+    if (DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT2_MARK):
+        return 0
+    if not cluster_runs_at_least(store, '1.0.95'):
+        return 0
+    db, n = store.db, 0
+    for r in db.rows('SELECT k, v FROM meta'):
+        k = str(r['k'])
+        if k in DBGUARD_ADOPT2['m'] or k.startswith(DBGUARD_ADOPT2_PREFIXES['m']):
+            n += bool(dbguard_sign(db, 'm', k, r['v']))
+    with DBGUARD['lock']:
+        DBGUARD.setdefault('adopted', {})[DBGUARD_ADOPT2_MARK] = time.time()
+        DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
+    dbguard_flush(force=True)
+    if n:
+        log('the guard against writes now signs the uploaded modules, %d row(s), as they were '
+            '(upgrade)' % n)
+    return n
+
+
 def dbguard_adopt(store):
     """Rows taken under the guard by this version (1.0.44), signed once as they are now - and
     from then on checked. Not before every node runs this version: a 1.0.43 node saving them
@@ -525,8 +558,9 @@ def dbguard_adopt(store):
     if not dbguard_on() or not dbguard_key():
         return 0
     _dbguard_load()
+    n2 = _dbguard_adopt2(store)
     if (DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT_MARK):
-        return 0
+        return n2
     if not cluster_runs_at_least(store, '1.0.44'):
         return 0                                        # tried again at the next tick
     db, n = store.db, 0

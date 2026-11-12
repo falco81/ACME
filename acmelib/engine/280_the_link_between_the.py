@@ -351,8 +351,10 @@ def hatls_off(store, by, here=True):
         except Exception:                               # noqa: BLE001
             continue
         try:
+            # the value first, then the key (1.0.95: the other way round it matched no row,
+            # and the other node was never told straight)
             told = bool(far.run('UPDATE meta SET v = ? WHERE k = ?',
-                                ('hatls:want', json.dumps(w))))   # see hatls_start
+                                (json.dumps(w), 'hatls:want')))   # see hatls_start
             if told:
                 dbguard_sign(far, 'm', 'hatls:want', json.dumps(w), far=True)
             break

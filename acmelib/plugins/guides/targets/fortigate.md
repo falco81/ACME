@@ -1,4 +1,4 @@
-# FortiGate (any version (detects it)) - setup for acme
+# FortiGate (any version - detects it) - setup for acme
 
 acme talks to the FortiGate through the **FortiOS REST API** with an **API token** (`Authorization: Bearer <token>`, HTTPS only). It imports the certificate under a dated name (`acme-<name>-<date>-<serial>`, at most 35 characters) through `POST /api/v2/monitor/vpn-certificate/local/import` (PKCS#12 with a one-time password, or certificate + key PEM), imports the intermediates as CA certificates, points the services you ticked at it and deletes older acme certificates beyond *keep*.
 
@@ -20,7 +20,7 @@ Everything else acme uses - the certificate import, `system global admin-server-
 | acme option | FortiOS setting | Value |
 |---|---|---|
 | (always) | `config vpn certificate local` | a new local certificate `acme-...`; older `acme-...` ones of the same certificate deleted beyond *keep* (one still in use stays) |
-| Import the intermediates (advanced, on) | `config vpn certificate ca` | the intermediate CA(s), global scope; one already there is skipped |
+| Import the intermediates as CA certificates (advanced, on) | `config vpn certificate ca` | the intermediate CA(s), global scope; one already there is skipped |
 | Admin GUI certificate | `config system global` / `set admin-server-cert` | the new certificate (global - needs the certificate imported in *global* scope) |
 | SSL VPN certificate | `config vpn ssl settings` / `set servercert` | the new certificate, in the VDOM |
 | SSL/SSH inspection profiles | `config firewall ssl-ssh-profile` / `set server-cert` | by version: a name up to 6.4, a list of certificates from 7.0 |
@@ -136,7 +136,7 @@ In the GUI the same is *System → Administrators → Create New → REST API Ad
 | Check the device's certificate | on; off only while the FortiGate still has its self-signed `Fortinet_GUI_Server` |
 | Admin GUI / SSL VPN certificate (deploy) | tick what should use the certificate |
 | SSL/SSH inspection profiles, Virtual IPs (deploy) | one name a line, e.g. `inbound-replace`, `vip-www` |
-| Keep (advanced) | older acme certificates to keep (one still referenced is never deleted) |
+| Previous versions to keep (advanced) | older acme certificates to keep (one still referenced is never deleted) |
 
 The admin GUI switches to the new certificate at once: with *Check the device's certificate* on, acme's next requests are checked against it (a certificate of a public CA passes; for a private CA set *CA certificate*). The groups not listed in the profile default to `none`.
 

@@ -166,8 +166,13 @@ def mfa_update(store, name, rec):
     """An account's second step written over the one there - never made again (1.0.80): read,
     then reset by an administrator, then written back, the old authenticator worked again
     (on two nodes no lock kept them apart). False when it is gone."""
-    return bool(store.db.run('UPDATE meta SET v = ? WHERE k = ?',
-                             (json.dumps(rec), mfa_key(name))))
+    v = json.dumps(rec)
+    hit = bool(store.db.run('UPDATE meta SET v = ? WHERE k = ?', (v, mfa_key(name))))
+    if hit:
+        # signed as acme's word (1.0.95): with the guard on, unsigned it read as gone and the
+        # next sign-in was refused - "the second step is lost"
+        dbguard_sign(store.db, 'm', mfa_key(name), v)
+    return hit
 
 
 def mfa_reset(store, name, by):

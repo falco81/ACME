@@ -487,6 +487,7 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                     fields['pw'] = pw
                 store.db.run('UPDATE accounts SET %s WHERE id = ?' % ', '.join(
                     '%s = ?' % k for k in fields), tuple(fields.values()) + (old['id'],))
+                dbguard_account_sign(store.db, name)
                 if (fields.get('pw') and fields['pw'] != old.get('pw')) or fields['disabled'] or \
                         fields['role'] != old.get('role'):
                     # Its sign-ins ended (1.0.101), as a password set on the
@@ -504,6 +505,7 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                 store.db.insert('accounts', dict(fields, name=name, pw=pw or '',
                                                  created=time.time(), last_in=None,
                                                  last_from='', prefs=str(a.get('prefs') or '{}')))
+                dbguard_account_sign(store.db, name)
             said['accounts'] += 1
         for t, prof in tls_in.items():
             prof = dict(prof)
@@ -546,12 +548,21 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
             fw_trial_begin(store, by)
             store.set_meta('web:access', json.dumps(dict(access, at=time.time(), by=by)))
             said['page access'] += 1
-        # the setup guides written on the page Modules (1.0.94)
-        for k, v in (conf.get('guides') or {}).items() if isinstance(conf.get('guides'), dict) else []:
-            if isinstance(k, str) and re.match(r'^guide:[a-z]+:[a-z0-9_]+@[A-Za-z0-9_.+-]*:[a-z]{2}\Z', k) \
-                    and isinstance(v, str) and len(v) < 400000:
-                store.set_meta(k, v)
-                said['setup guides'] += 1
+        # the setup guides written on the page Modules (1.0.94); checked as acme writes them, and
+        # one file replacing all takes away the ones it does not have (1.0.95)
+        if isinstance(conf.get('guides'), dict):
+            from acmelib.certs import guides as _guides
+            had = set()
+            for k, v in conf['guides'].items():
+                got = _guides.check_key(k, v)
+                if got:
+                    store.set_meta(got[0], got[1])
+                    had.add(got[0])
+                    said['setup guides'] += 1
+            if replace:
+                for r in store.db.rows("SELECT k FROM meta WHERE k LIKE 'guide:%'"):
+                    if r['k'] not in had:
+                        store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
         if isinstance(web.get('vip'), dict):
             vip = dict(web['vip'])
             if not CONFIG.get('ha_mode'):
@@ -622,8 +633,9 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
         if said:
             try:
                 daemon.changed('all')
-                # Signed as this node's word first (1.0.231), then read in.
-                dbguard_resign(store, '%s imported a configuration' % by)
+                # Only what the import wrote is signed - each where it was written (1.0.95):
+                # signing the whole database as it was then took in rows written past acme
+                # (an administrator's sign-in, the firewall) refused until then.
                 # Read in here too (1.0.62): a setting put back to its default
                 # stayed at the old value in this process until a restart.
                 daemon.reload_all('a configuration was imported')

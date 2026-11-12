@@ -247,6 +247,10 @@ function busy(button, on) {
 
 /* ---- the popup ---------------------------------------------------------- */
 var MODAL_CLOSE = null;
+/* A popup that holds what is not kept yet asks before it goes (1.0.95): Close, its x and
+   Escape. modalLeaveGuard(fn) - fn(go) returns true when it asked (and calls go on yes). */
+var MODAL_LEAVE = null;
+function modalLeaveGuard(fn) { MODAL_LEAVE = {gen: MODAL_GEN, fn: fn}; }
 /* Which opening of the popup is the current one. Every open and every close
    is a new number, and anything that put up a placeholder and then went to
    ask the daemon holds the number it got; when the answer comes back, it is
@@ -510,7 +514,12 @@ function modalOverNow() {
   MODAL_CLOSE = null;
   MODAL_FROM = document.activeElement;
 }
-function closeModal() {
+function closeModal(sure) {
+  if (sure !== true && MODAL_LEAVE && MODAL_LEAVE.gen === MODAL_GEN && $('modal') && !$('modal').hidden) {
+    var guard = MODAL_LEAVE;
+    try { if (guard.fn(function () { MODAL_LEAVE = null; closeModal(true); }) === true) return; } catch (e) { /* closes */ }
+  }
+  MODAL_LEAVE = null;
   MODAL_OVER_WANTED = null;
   MODAL_KEEP = null;
   /* A time picker's list goes with the popup it was in (1.0.57). */

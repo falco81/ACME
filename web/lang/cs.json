@@ -56999,6 +56999,14 @@
   "ged_68": {
    "source": "Leave them",
    "text": "Zahodit je"
+  },
+  "ged_69": {
+   "source": "Give the guide back to its default? What was written over for this version and language is taken away: acme's own text (or the module's, or one made from its fields) is shown again.",
+   "text": "Vrátit návod na výchozí? To, co bylo pro tuto verzi a jazyk přepsáno, se odstraní: znovu se zobrazí vlastní text acme (nebo modulu, případně text vytvořený z jeho polí)."
+  },
+  "ged_70": {
+   "source": "The editor of the guides did not load - reload the page",
+   "text": "Editor návodů se nenačetl - načtěte stránku znovu"
   }
  },
  "patterns": {
