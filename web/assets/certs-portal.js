@@ -619,7 +619,7 @@ function askDialog() {
     body.appendChild(formField('A note', noteBox, ''));
     said = el('div', 'said');
     body.appendChild(said);
-  }, [{words: 'Cancel', close: true}, {words: d.auto ? 'Ask and issue' : 'Ask for it', cls: 'primary', icon: 'add', go: function (b) {
+  }, [{words: 'Close', close: true}, {words: d.auto ? 'Ask and issue' : 'Ask for it', cls: 'primary', icon: 'add', go: function (b) {
     var names = check();
     said.className = 'said';
     said.textContent = '';
@@ -925,7 +925,7 @@ function pickerDialog() {
       list.appendChild(other);
     }
     body.appendChild(list);
-  }, [{words: 'Cancel', close: true}], 'large');
+  }, [{words: 'Close', close: true}], 'large');
 }
 /* What one gives, in a few chips. */
 function profileChips(p) {

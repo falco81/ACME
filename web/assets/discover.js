@@ -206,7 +206,10 @@
         r.box = c;
         t.appendChild(tr);
       });
-      out.appendChild(t);
+      var tw = el('div', 'tablewrap');    /* scrolls on a phone (1.0.88), not the dialog */
+      tw.style.overflowX = 'auto';
+      tw.appendChild(t);
+      out.appendChild(tw);
       if (rows.some(function (r) { return !r.box.checked && !r.choice; })) {
         out.appendChild(el('p', 'muted small', 'Unticked: the form has another value there - tick it to replace it.'));
       }

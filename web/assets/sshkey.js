@@ -531,7 +531,7 @@
             + 'sealed beside the key, for ssh.');
           body.appendChild(ppf);
           setTimeout(function () { area.focus(); }, 60);
-        }, [{words: 'Cancel', close: true},
+        }, [{words: 'Close', close: true},
             {words: 'Keep this key', cls: 'primary', icon: 'save', go: function (b) {
               busy(b, true);
               var q = ref();

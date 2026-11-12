@@ -5075,7 +5075,7 @@ function dbDownloadAsk(o) {
     noB.onclick = function () { body._with = false; noB.classList.add('on'); withB.classList.remove('on'); withBox.hidden = true; noBox.hidden = false; };
     MODAL_BODY_DBK = body;
   }, [
-    {words: 'Cancel', close: true},
+    {words: 'Close', close: true},
     {words: 'Download', cls: 'primary', icon: 'down', go: function (button) {
       var body = MODAL_BODY_DBK;
       if (!body._with) {
@@ -5106,7 +5106,7 @@ function dbAskPassphrase(d, fileName) {
     body.appendChild(formField('Passphrase', p));
     setTimeout(function () { p.focus(); }, 50);
   }, [
-    {words: 'Cancel', close: true},
+    {words: 'Close', close: true},
     {words: 'Open it', cls: 'primary', icon: 'key', go: function (button) {
       var pass = $('dbk-open').value;
       busy(button, true);
@@ -5618,7 +5618,7 @@ function certExport(target, prof) {
     body.appendChild(keyBox);
     draw();
   }, [
-    {words: 'Cancel', close: true},
+    {words: 'Close', close: true},
     {words: 'Download', cls: 'primary', icon: 'download', go: function (button) {
       var f = CERT_FORMATS.filter(function (x) { return x[0] === st.kind; })[0];
       var req = {action: 'tls_export', target: target, kind: st.kind, which: st.which};
@@ -9341,7 +9341,7 @@ function certUpload(target, prof) {
     pw.id = 'cu-pw';
     body.appendChild(formField('Password', pw, 'Used here to open it, and not kept.'));
     body.appendChild(el('div', 'said', '')).id = 'cu-said';
-  }, [{words: 'Cancel', close: true},
+  }, [{words: 'Close', close: true},
       {words: 'Put it in', cls: 'primary', icon: 'save', go: function (b) {
         var pem = got.filter(function (x) { return x.pem; }).map(function (x) { return x.pem; }).join('\n') + '\n' + ($('cu-paste').value || '');
         var pfx = got.filter(function (x) { return x.pfx; });
@@ -9395,7 +9395,7 @@ function certRequest(target, prof) {
   modal('A certificate request for ' + webTargetWords(target), function (body) {
     body.appendChild(el('p', 'note', 'A new key is made here and stays here; the request (CSR) goes to your certificate authority. Upload what it sends back - the certificate alone is enough.'));
     certSubjectFields(body, target, WEB.last || {vip: {}}, false);
-  }, [{words: 'Cancel', close: true},
+  }, [{words: 'Close', close: true},
       {words: 'Make the request', cls: 'primary', icon: 'list', go: function (b) {
         busy(b, true);
         api('web', Object.assign({action: 'tls_csr', target: target}, certSubjectValues())).then(function (x) {
@@ -9424,7 +9424,7 @@ function certSelf(target, d) {
   modal('A self-signed certificate for ' + webTargetWords(target), function (body) {
     body.appendChild(el('p', 'note warn', 'Browsers warn about a self-signed certificate until it is trusted by hand. Good for a test, or until the real one comes.'));
     certSubjectFields(body, target, d, true);
-  }, [{words: 'Cancel', close: true},
+  }, [{words: 'Close', close: true},
       {words: 'Make it and put it in', cls: 'primary', icon: 'key', go: function (b) {
         busy(b, true);
         api('web', Object.assign({action: 'tls_selfsigned', target: target}, certSubjectValues())).then(function (x) {
@@ -9524,7 +9524,7 @@ function certPolicy(target, prof, d) {
     rows.appendChild(tlsRow('HSTS', 'A browser that saw it comes back only over HTTPS for that long. Turn it on once HTTPS is surely staying.', seg));
     body.appendChild(rows);
     paint();
-  }, [{words: 'Cancel', close: true},
+  }, [{words: 'Close', close: true},
       {words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
         busy(b, true);
         api('web', {action: 'tls_policy', target: target, preset: st.preset, protocols: st.protocols,
@@ -9945,7 +9945,7 @@ function osrAdd() {
     };
     area.oninput = function () { clearTimeout(timer); timer = setTimeout(look, 400); };
     setTimeout(function () { area.focus(); }, 60);
-  }, [{words: 'Cancel', close: true}, {words: 'Add them', cls: 'primary', icon: 'add', go: function (b) {
+  }, [{words: 'Close', close: true}, {words: 'Add them', cls: 'primary', icon: 'add', go: function (b) {
     busy(b, true);
     api('osroots', {action: 'add', text: area.value.trim()}).then(function (x) {
       closeModal();
@@ -10590,7 +10590,7 @@ function fwRuleEdit(d, r) {
     rows.appendChild(tlsRow('In force', 'Off keeps it here without putting it in.', dis));
     body.appendChild(rows);
     paintPort();
-  }, [{words: 'Cancel', close: true},
+  }, [{words: 'Close', close: true},
       {words: r ? 'Change it' : 'Add it', cls: 'primary', icon: 'check', go: function (b) {
         /* Checked by the daemon now, kept in the draft until Save (1.0.54). */
         busy(b, true);
@@ -12778,7 +12778,7 @@ function rbSshBlock(body, t, f, cur) {
         pp.id = 'rb-paste-pp';
         body2.appendChild(formField('Its passphrase, if it has one', pp));
         setTimeout(function () { area.focus(); }, 60);
-      }, [{words: 'Cancel', close: true},
+      }, [{words: 'Close', close: true},
           {words: 'Keep this key', cls: 'primary', close: true, go: function () {
             var key = $('rb-paste-area').value, pass = $('rb-paste-pp').value;
             rbNeedSaved(t.kind, cur).then(function () { return api('rbackup', {action: 'key_paste', id: cur.id, key: key, passphrase: pass}); })
@@ -12924,7 +12924,7 @@ function rbFtpsBlock(body, t, f, cur) {
         var pw = maskBox('', '', 'mono');
         pw.id = 'rb-cert-pw';
         body2.appendChild(formField('The password of the key or of the PFX, if it has one', pw));
-      }, [{words: 'Cancel', close: true},
+      }, [{words: 'Close', close: true},
           {words: 'Keep this certificate', cls: 'primary', close: true, go: function () {
             var text = $('rb-cert-area').value, pass = $('rb-cert-pw').value;
             rbNeedSaved(t.kind, cur).then(function () { return api('rbackup', {action: 'cert_given', id: cur.id, text: text, password: pass}); })
@@ -14594,7 +14594,7 @@ function skKeptCard(d) {
         sg.appendChild(b);
       });
       body.appendChild(formField('The kind', sg));
-    }, [{words: 'Cancel', close: true}, {words: 'Make one', cls: 'primary', icon: 'key', go: function (b) {
+    }, [{words: 'Close', close: true}, {words: 'Make one', cls: 'primary', icon: 'key', go: function (b) {
       busy(b, true);
       api('sshkeys', {action: 'rk_make', scope: cur.scope, kind: kind}).then(function (x) {
         skShowMade(x);
@@ -14628,7 +14628,7 @@ function skUserCard(d, user) {
         sg.appendChild(b);
       });
       body.appendChild(formField('The kind', sg));
-    }, [{words: 'Cancel', close: true}, {words: 'Make one', cls: 'primary', icon: 'key', go: function (b) {
+    }, [{words: 'Close', close: true}, {words: 'Make one', cls: 'primary', icon: 'key', go: function (b) {
       busy(b, true);
       api('sshkeys', {action: 'uk_make', user: user, kind: kind, nodes: where}).then(function (x) {
         skShowMade(x, user);
@@ -14717,7 +14717,7 @@ function skAdd() {
     body.appendChild(ppf);
     pick = skNodePicker(body);
     setTimeout(function () { area.focus(); }, 60);
-  }, [{words: 'Cancel', close: true}, {words: 'Add it', cls: 'primary', icon: 'add', close: true, go: function () {
+  }, [{words: 'Close', close: true}, {words: 'Add it', cls: 'primary', icon: 'add', close: true, go: function () {
     var nodes = pick();
     api('sshkeys', {action: 'add', line: area.value.trim(), passphrase: pp.value, nodes: nodes, user: user}).then(function (x) { toast(x.message, 'good'); skPoll(true); }).catch(oops);
   }}], 'medium');
@@ -15232,7 +15232,7 @@ function osuAdd(name) {
       var there = osuRows().by[name] || {};
       body.querySelectorAll('.osu-nodes input').forEach(function (c) { if (there[c.value]) { c.checked = false; c.disabled = true; } });
     }
-  }, [{words: 'Cancel', close: true}, {words: name ? 'Make it there' : 'Add the user', cls: 'primary', icon: 'add', go: function () {
+  }, [{words: 'Close', close: true}, {words: name ? 'Make it there' : 'Add the user', cls: 'primary', icon: 'add', go: function () {
     var n = nameI.value.trim(), p = pw(), nodes = pick();
     if (!/^[a-z_][a-z0-9_.-]{0,31}$/.test(n)) { toast('a name is small letters, digits, _ . and -, starting with a letter', 'warn'); return; }
     if (!p.ok) { toast(p.said, 'warn'); return; }

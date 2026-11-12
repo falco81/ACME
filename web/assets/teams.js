@@ -375,7 +375,8 @@
         var nm = cell('', '');
         nm.appendChild(data('b', '', t.name));
         nm.appendChild(el('span', 'tag dim tm-kind', t.kind === 'person' ? 'person' : 'team'));
-        if (t.note) nm.appendChild(data('div', 'muted small', t.note));
+        /* the note acme writes itself in its own words (1.0.88); a person's note as typed */
+        if (t.note) nm.appendChild((t.note === 'made from what certificates said' ? el : data)('div', 'muted small', t.note));
         tr_.appendChild(nm);
         tr_.appendChild(membersCell(t));
         var told = cell('small', '');

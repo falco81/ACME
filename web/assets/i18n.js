@@ -433,8 +433,10 @@ function i18nAttrsSkip(el) {
   if (el.nodeType === 1 && I18N_BOXES[el.tagName]) {
     /* A box for a name or an address is .mono for what is typed in it, not
        for its hint: "192.0.2.1 or 192.0.2.0/24" is words (1.0.36). */
-    if (el.hasAttribute('data-no-i18n')) return true;
-    return !!(el.parentNode && el.parentNode.nodeType === 1 && i18nSkip(el.parentNode));
+    /* Its value is never translated; its hint is, even on a box marked so (1.0.88: "A person
+       in the directory", "... or 192.0.2.10" stayed English) - a hint with no translation, an
+       address say, stays as it is anyway. */
+    return false;
   }
   return i18nSkip(el);
 }

@@ -3874,6 +3874,12 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
     justify-content: center; white-space: normal; padding-left: 8px; padding-right: 8px; }
   .modal .foot > .btn:only-child, .modal .foot > button:only-child { flex-basis: 100%; }
   .modal .foot { flex-shrink: 0; }   /* not squeezed by the dialog's column (1.0.52) */
+  /* Many of them (1.0.88: the certificate's ten took a third of the screen): three a row,
+     smaller, and the row of them no taller than a quarter of it - it scrolls */
+  .modal .foot:has(> :nth-child(7)) { max-height: 26vh; }
+  .modal .foot:has(> :nth-child(7)) > .btn, .modal .foot:has(> :nth-child(7)) > button {
+    flex-basis: calc(33.33% - 6px); font-size: 12px; padding: 6px 6px; min-height: 34px; }
+  .modal .foot:has(> :nth-child(7)) > .btn svg, .modal .foot:has(> :nth-child(7)) > button svg { width: 14px; height: 14px; }
   .modal .foot .left { margin-right: 0; }
   .modal .body .card, .modal .body .ct-card { max-width: 100%; box-sizing: border-box; }
 }

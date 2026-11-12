@@ -710,8 +710,8 @@
     var open = function () {
       var title = 'What happens';
       var buttons = function () {
-        return [{words: 'Work it out again', icon: 'refresh', left: true, go: function () { load(); }},
-                {words: 'Close', close: true, cls: 'primary'}];
+        return [{words: 'Close', close: true},
+                {words: 'Work it out again', icon: 'refresh', go: function () { load(); }}];
       };
       var ticket = null;
       var load = function () {

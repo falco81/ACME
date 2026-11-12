@@ -3249,7 +3249,7 @@ function approveDialog(c, ok, back) {
         body.appendChild(wideField(ok ? 'A word to them' : 'Why', why, ''));
         body.appendChild(s);
       },
-      buttons: [{words: 'Cancel', close: true}, {words: ok ? 'Approve and issue' : 'Decline', cls: ok ? 'primary' : 'danger', once: true, icon: ok ? 'check' : 'ban', go: function (b) {
+      buttons: [{words: 'Close', close: true}, {words: ok ? 'Approve and issue' : 'Decline', cls: ok ? 'primary' : 'danger', once: true, icon: ok ? 'check' : 'ban', go: function (b) {
         busy(b, true);
         capi('certs/approve', {id: c.id, ok: ok, why: why.value}).then(function (d) {
           CT.refresh();
@@ -3527,14 +3527,14 @@ function certPeek(id) {
       buttons.push({words: 'Revoke', cls: 'danger', icon: 'ban', once: true, go: function () { over(function () { revokeDialog(c); }, back); }});
     if (MANAGE && c.issuer && truthy(c.setup_due)) buttons.push({words: 'Set it up', cls: 'primary', icon: 'edit',
       says: 'Imported from its source: every step of Add a certificate - validation, key, renewal, profile, targets - read from the certificate, set as for a new one. The certificate in use stays as it is.',
-      go: function () { certWizard(c, d, {setup: true}); }});
+      go: function () { over(function () { certWizard(c, d, {setup: true}); }, back); }});
     if (MANAGE && c.issuer) buttons.push({words: c.not_after ? 'Change names, key, source…' : 'Edit', icon: 'edit',
       says: c.not_after ? 'The whole set-up, step by step. What is in the certificate itself (names, key, source, profile) takes a new certificate - you choose: now, or at its next renewal. Owner, tags, note and renewal are changed at once in Details above.' : '',
-      go: function () { certWizard(c, d); }});
+      go: function () { over(function () { certWizard(c, d); }, back); }});
     if (MANAGE && c.not_after && ['revoked', 'deleting', 'pending', 'pending-approval', 'declined'].indexOf(c.state) < 0 && !waiting)
       buttons.push({words: 'Change the source…', icon: 'swap',
         says: 'Another source for it - an imported one to Let\u2019s Encrypt or an authority, an issued one to another source or to by hand. Its deployments, tests and everything else stay.',
-        go: function () { certWizard(c, d, {move: true}); }});
+        go: function () { over(function () { certWizard(c, d, {move: true}); }, back); }});
     if (MANAGE && (c.not_after || versions.length)) buttons.push({words: 'Export', icon: 'download', go: function () { over(function () { exportDialog(c, versions); }, back); }});
     if (MANAGE && waiting) buttons.push({words: 'Upload the answer', cls: 'primary', icon: 'upload', go: function () { over(function () { csrAnswer(c); }, back); }});
     if (MANAGE && !c.issuer && !waiting) buttons.push({words: 'Import a new one', icon: 'upload', go: function () { over(function () { importDialog(c); }, back); }});
@@ -3657,6 +3657,8 @@ function renewAsk(id, name) {
       }}], true);
 }
 function certBody(body, c, versions, deploys, jobs, back) {
+  var mw = body.closest ? body.closest('.modal') : null;
+  if (mw) mw.dataset.cert = String(c.id || '');
   var head = el('div', 'ct-head');
   var ic = el('div', 'ct-head-ic ' + ((STATE[c.state] || [0, 'dim'])[1]));
   ic.innerHTML = iconMarkup('cert', 26);
@@ -7698,7 +7700,12 @@ function jobPeek(id) {
   var draw = function (j) {
     var running = jobRunning(j);
     var buttons = [{words: 'Close', close: true}];
-    if (j.cert_id) buttons.unshift({words: 'The certificate', icon: 'cert', left: true, go: function () { over(function () { certPeek(j.cert_id); }); }});
+    /* opened from that certificate's window (1.0.88): back to it, not a second one over */
+    if (j.cert_id) buttons.unshift({words: 'The certificate', icon: 'cert', left: true, go: function () {
+      var under = MODAL_STACK.length ? MODAL_STACK[MODAL_STACK.length - 1].el : null;
+      if (under && String(under.dataset.cert || '') === String(j.cert_id)) { closeModal(); return; }
+      over(function () { certPeek(j.cert_id); });
+    }});
     if (running && MANAGE) buttons.push({words: 'Stop it', icon: 'cancel', go: function (b) {
       busy(b, true);
       capi('certs/job_stop', {id: j.id}).then(function (x) { toast(said(x, 'asked to stop'), 'good'); poll(true); }).catch(fail).then(function () { busy(b, false); });
@@ -8985,7 +8992,7 @@ function moduleStartPick(o) {
     what.appendChild(el('span', '', o.override ? 'It will replace the shipped version, for everything that uses it.' : 'It will be the version'));
     if (!o.override) { what.appendChild(document.createTextNode(' ')); what.appendChild(mono(o.version)); if (o.label) what.appendChild(document.createTextNode(' · ' + o.label)); }
     body.appendChild(what);
-  }, [{words: 'Cancel', close: true}, {words: 'Download', cls: 'primary', icon: 'download', go: function (b) {
+  }, [{words: 'Close', close: true}, {words: 'Download', cls: 'primary', icon: 'download', go: function (b) {
     if (pick === 'start') {
       saveText(o.override ? o.p.kind + '_override.py' : o.p.kind + '_' + String(o.version).toLowerCase().replace(/[^a-z0-9]+/g, '_') + '.py',
                moduleTemplate(o.fam, shippedOf(o.p), o.override ? '' : o.version, o.override ? '' : (o.label || ''), !!o.override), 'text/x-python');
@@ -9023,7 +9030,7 @@ function moduleDefault(fam, p, v, again) {
     c.textContent = n ? tr('{0} of them name no version: they use the new default from now on.').replace('{0}', num(n))
                       : tr('None of them names no version: nothing changes for those there are.');
     body.appendChild(c);
-  }, [{words: 'Cancel', close: true}, {words: v ? 'Make it the default' : 'As the code says', cls: 'primary', icon: v ? 'star' : 'undo', go: function (b) {
+  }, [{words: 'Close', close: true}, {words: v ? 'Make it the default' : 'As the code says', cls: 'primary', icon: v ? 'star' : 'undo', go: function (b) {
     busy(b, true);
     capi('modules/default', {family: fam, kind: p.kind, version: v ? String(v.version || '') : null}).then(function (x) {
       toast(said(x, 'the default version is set'), 'good');
@@ -9063,7 +9070,7 @@ function moduleMark(fam, p, v) {
     body.appendChild(grid);
     note = textBox((cur.here || {}).note || '', tr('e.g. NetScaler 14.1-25, both nodes'), '');
     body.appendChild(formField('Note', note, 'What it was checked on.'));
-  }, [{words: 'Cancel', close: true}, {words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
+  }, [{words: 'Close', close: true}, {words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
     busy(b, true);
     capi('modules/mark', {family: fam, kind: p.kind, version: v.version || '', state: pick, note: note.value}).then(function (d) {
       toast(said(d, 'marked'), 'good');
@@ -9199,7 +9206,7 @@ function moduleUpload(o) {
     out = el('div', 'md-check');
     body.appendChild(out);
     setFam(st.family);
-  }, [{words: 'Cancel', close: true},
+  }, [{words: 'Close', close: true},
       {words: 'Check it', icon: 'search', go: function () { check(); }},
       {words: 'Install', cls: 'primary', icon: 'upload', go: function (b) { install(b); }}], 'large');
   go = $('modal-foot').querySelector('.btn.primary');
@@ -9578,7 +9585,7 @@ function certTests(c, back, deploys) {
             modal(tr('The test') + ' ' + x.test + ' · ' + c.name, function (body) {
               body.appendChild(testHead(x));
               body.appendChild(pick.node);
-            }, [{words: 'Cancel', close: true}, {words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
+            }, [{words: 'Close', close: true}, {words: 'Save', cls: 'primary', icon: 'save', go: function (b) {
               busy(b, true);
               capi('checks/after', {id: x.id, target: pick.get()}).then(function () {
                 var g = pick.get();
@@ -9706,7 +9713,7 @@ function attachTests(c, have, back, targets, guess) {
           body.appendChild(r2);
         }
       },
-      buttons: [{words: 'Cancel', close: true}, {words: 'Attach', cls: 'primary', icon: 'add', go: function (b) {
+      buttons: [{words: 'Close', close: true}, {words: 'Attach', cls: 'primary', icon: 'add', go: function (b) {
         var names = Object.keys(picks);
         if (!names.length) { toast('Tick a test first', 'bad'); return; }
         busy(b, true);

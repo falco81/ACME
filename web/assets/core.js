@@ -287,6 +287,7 @@ var DANGER_WORDS = /^(Delete|Delete it|Delete them|Remove|Remove it|Take it off|
 var ACTION_WORDS = /^(Save and deploy now|Move and issue now|Move, issue and deploy now|Deploy now|Deploy it there again now|Deploy them now|Add and issue now|Issue a new one|Issue it now|Order the ones switched on|Restart it|Restart now|Restart them|Power it off|Switch over|Move it now|Move back|Make it and put it in|Take it out of service|Upgrade now|Go back now|Start the sync)\b/;
 function modal(title, build, buttons, narrow) {
   if (MODAL_OVER_WANTED) modalOverNow();
+  if ($('modal')) delete $('modal').dataset.cert;   /* whose window it is: drawn by certBody */
   MODAL_GEN += 1;
   $('modal-title').textContent = title;
   /* `narrow` is true for the small popup, or the name of another size. */

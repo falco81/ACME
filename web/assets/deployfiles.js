@@ -122,7 +122,7 @@
         };
         paint(start);
         CHMOD_LAST = body;
-      }, [{words: 'Cancel', close: true}, {words: 'Set', cls: 'primary', icon: 'check', go: function () {
+      }, [{words: 'Close', close: true}, {words: 'Set', cls: 'primary', icon: 'check', go: function () {
         var v = CHMOD_LAST && CHMOD_LAST._get();
         if (v === null) { toast(tr('the mode is three or four octal digits, as 0644 or 0755'), 'bad'); return; }
         closeModal();
@@ -294,7 +294,7 @@
         drawRight();
         setTimeout(function () { try { find.focus(); } catch (e) { } }, 50);
         SVC_LAST = st;
-      }, [{words: 'Cancel', close: true}, {words: 'Use the template', cls: 'primary', icon: 'check', go: function () {
+      }, [{words: 'Close', close: true}, {words: 'Use the template', cls: 'primary', icon: 'check', go: function () {
         var s = SVC_LAST;
         var c = s && s.app && svcCommands(s.app, s.how, s.unit, s.proc);
         if (!c) { toast(tr('choose the application'), 'bad'); return; }
