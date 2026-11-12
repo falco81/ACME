@@ -51,6 +51,13 @@ DNS_VALIDATION = ('dns_builtin', DNS_OWN, 'dns_builtin', {},
                   'names to it (wildcards too).')
 
 
+def _todo(store, key):
+    """Not done yet: no row, or one claimed by a run that may have stopped half way (1.0.96:
+    a claim left behind was never taken over - the change never finished)."""
+    v = str(store.get_meta(key) or '')
+    return not v or v.startswith('running:')
+
+
 def _claim(store, key):
     """A one-time change taken by one only (1.0.95): both nodes at start, the command line and
     the pages asking at once ran it side by side. True for the one whose row went in; a claim
@@ -108,7 +115,7 @@ def ensure(store):
     try:
         # "Check what is served" of the deployments made into tests of their targets, once
         # (1.0.77) - the tests do it, and more (other protocols, through a connector, a history)
-        if not store.get_meta('certs:verify_to_tests') and _claim(store, 'certs:verify_to_tests'):
+        if _todo(store, 'certs:verify_to_tests') and _claim(store, 'certs:verify_to_tests'):
             from acmelib.certs import checks as C
             try:
                 n = C.verify_migrate(store)
@@ -124,7 +131,7 @@ def ensure(store):
     try:
         # where a target's module checked what it serves itself (until 1.0.92) made into
         # tests of those deployments, once (1.0.93)
-        if not store.get_meta('certs:served_to_tests') and _claim(store, 'certs:served_to_tests'):
+        if _todo(store, 'certs:served_to_tests') and _claim(store, 'certs:served_to_tests'):
             from acmelib.certs import checks as C
             try:
                 n = C.served_migrate(store)

@@ -321,7 +321,7 @@ def run_deploys(store, job, cert_id, only=None, force=False):
             # stopped while its tests ran (1.0.95): what went through is told as deployed -
             # it was in place already, and never said (no event, no notice) and never tried
             for dep in rows:
-                if dep['id'] in ok_ids:
+                if dep['id'] in ok_ids and not failed_by_test.get(str(dep.get('target') or '')):
                     try:
                         _told_deployed(store, cert, dep)
                     except Exception:                   # noqa: BLE001

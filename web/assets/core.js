@@ -448,6 +448,9 @@ function modal(title, build, buttons, narrow) {
    is drawn again - its parts that come a moment later too - until it can
    be scrolled there, or whoever reads it scrolls himself. */
 var MODAL_KEEP = null;
+/* When a popup was last drawn again as the one underneath came back on top (1.0.96): what a
+   window keeps of itself (a section's search) only then - not when it is opened afresh */
+var MODAL_BACK_AT = 0;
 function modalKeepPending() { return !!(MODAL_KEEP && Date.now() - MODAL_KEEP.at < 15000); }
 function modalKeepOn(body) {
   if (!modalKeepPending()) { MODAL_KEEP = null; return null; }
@@ -580,6 +583,7 @@ function closeModal(sure) {
     setTimeout(function () {
       if (MODAL_GEN === gen) {
         MODAL_KEEP = {top: top, at: Date.now()};
+        MODAL_BACK_AT = Date.now();
         again();
         return;
       }

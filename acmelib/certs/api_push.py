@@ -305,6 +305,16 @@ def adopt_each(store, b, by):
         elif not s.get('names'):
             left.append({'slot': sid, 'why': 'has no name to order a certificate for'})
             continue
+        else:
+            # its source and validation there - asked before the slot is given up (1.0.96: one
+            # that is not refused the whole request with the slot taken from the other one)
+            iss, chal = str(want.get('issuer') or ''), str(want.get('challenge') or '')
+            if iss and not S.plugin_row(store, 'issuer', iss):
+                left.append({'slot': sid, 'why': 'there is no source %s' % iss})
+                continue
+            if chal and not S.plugin_row(store, 'challenge', chal):
+                left.append({'slot': sid, 'why': 'there is no validation %s' % chal})
+                continue
         if s.get('covered_by'):
             # another certificate in it already (1.0.93): two took turns in the slot at each
             # renewal - one naming the slot itself gives it up, one by auto/nodes/vip cannot;

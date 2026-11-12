@@ -144,9 +144,20 @@ class ServedTests(unittest.TestCase):
         # taken off by a person: not attached again
         self.assertTrue(C.auto_made(STORE, name))
         C.detach(STORE, chk['id'])
-        C.for_target(STORE, cid, 'tk', 'tester', 'tls', 'tk.example.test', 443)
+        # by acme itself (a save of the deployment): left off
+        C.for_target(STORE, cid, 'tk', 'tester', 'tls', 'tk.example.test', 443, auto=True)
         self.assertIsNone(STORE.db.row('SELECT id FROM cert_checks WHERE cert_id = ? AND test = ?',
                                        (cid, name)))
+        # asked for by a person (verify=...): attached again (1.0.96)
+        C.for_target(STORE, cid, 'tk', 'tester', 'tls', 'tk.example.test', 443)
+        self.assertIsNotNone(STORE.db.row('SELECT id FROM cert_checks WHERE cert_id = ? AND test = ?',
+                                          (cid, name)))
+        # a '-' left by the deployment going away is tied again when it comes back (1.0.96)
+        chk2 = STORE.db.row('SELECT * FROM cert_checks WHERE cert_id = ? AND test = ?', (cid, name))
+        STORE.db.update('cert_checks', chk2['id'], {'after_target': C.AFTER_NONE})
+        C.for_target(STORE, cid, 'tk', 'tester', 'tls', 'tk.example.test', 443, auto=True)
+        self.assertEqual(STORE.db.row('SELECT after_target FROM cert_checks WHERE id = ?',
+                                      (chk2['id'],))['after_target'], 'tk')
 
     def test_8_unreachable_made_test_does_not_fail(self):
         STORE.db.insert('cert_targets', {'name': 'uk', 'kind': 'local', 'config': '{}', 'enabled': 1})

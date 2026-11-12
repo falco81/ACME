@@ -416,7 +416,9 @@
     b.appendChild(el('span', '', 'Setup guide'));
     b.onclick = function (ev) {
       ev.preventDefault(); ev.stopPropagation();
-      window.ACME_GUIDES.show({kind: m.kind, title: m.title || m.kind}, m.family, m.version || '', {over: true});
+      /* the module as the page knows it - its versions to choose among (1.0.96) */
+      var p = (typeof plugOf === 'function' && plugOf(m.family, m.kind)) || {kind: m.kind, title: m.title || m.kind};
+      window.ACME_GUIDES.show(p, m.family, m.version || '', {over: true});
     };
     return b;
   }

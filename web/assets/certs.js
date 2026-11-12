@@ -484,7 +484,11 @@ function sectionFind(sec, spec, onFind, hint) {
   var find = el('input', 'ct-kind-find msect-find');
   find.type = 'search';
   find.placeholder = tr(hint || 'search…');
-  if (spec.keep && SECTION_FIND[spec.keep]) find.value = SECTION_FIND[spec.keep];
+  /* only when the window comes back from a dialog over it (1.0.96: opened again later from
+     the list, a search typed long before still filtered it, unseen) */
+  if (spec.keep && SECTION_FIND[spec.keep] && typeof MODAL_BACK_AT !== 'undefined' &&
+      Date.now() - MODAL_BACK_AT < 15000) find.value = SECTION_FIND[spec.keep];
+  else if (spec.keep) delete SECTION_FIND[spec.keep];
   var remember = function () { if (spec.keep) SECTION_FIND[spec.keep] = find.value; };
   find.addEventListener('input', remember);
   find.addEventListener('search', remember);
@@ -3278,8 +3282,11 @@ function deployEdit(o) {
       } catch (e) { typed = null; }
       clear(formHost);
       var t = target();
-      if (typedFor && typedFor !== (t.kind || '') + '@' + (t.version || '')) typed = null;
-      typedFor = (t.kind || '') + '@' + (t.version || '');
+      /* the same target only (1.0.96: another target of the same kind - two F5s - got the
+         options typed for the first) */
+      var forNow = (t.name || '') + '|' + (t.kind || '') + '@' + (t.version || '');
+      if (typedFor && typedFor !== forNow) typed = null;
+      typedFor = forNow;
       var p = plugVersion(plugOf('target', t.kind), t.version);
       if (!t.name) { if (!pickHost) formHost.appendChild(el('p', 'muted', 'Choose a target first.')); form = null; return; }
       if (!p) {

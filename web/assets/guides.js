@@ -333,6 +333,12 @@
     if (!out.length) out.push([String(p.version || p.default_version || ''), p.version_label || '']);
     return out;
   }
+  /* the version asked is among them (1.0.96: one not in the list showed "plain" over its text) */
+  function withVersion(vers, v) {
+    v = String(v || '');
+    if (!vers.some(function (x) { return x[0] === v; })) vers.push([v, v || tr('plain')]);
+    return vers;
+  }
   function ask(family, kind, version, lg, dflt) {
     return capiG('modules/guide' + '?' + ['family=' + encodeURIComponent(family), 'kind=' + encodeURIComponent(kind),
       'version=' + encodeURIComponent(version || ''), 'lang=' + lg].concat(dflt ? ['default=1'] : []).join('&'));
@@ -360,6 +366,7 @@
     var vers = versionsOf(p);
     var cur = {version: version === undefined || version === null ? String(p.version || '') : String(version),
                lang: opt.lang === 'cs' || opt.lang === 'en' ? opt.lang : lang()};
+    withVersion(vers, cur.version);
     var content = el('div', 'gd-content');
     var tocBox = el('nav', 'gd-toc');
     var meta = el('div', 'gd-meta');

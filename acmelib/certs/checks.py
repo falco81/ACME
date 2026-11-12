@@ -127,6 +127,8 @@ def attach(store, cert_id, names, by, after_target=''):
             continue
         if not S.plugin_row(store, 'check', n):
             raise LookupError('there is no test %s (Certificates → Tests)' % n)
+        # attached by a person (or asked for by name): no longer "taken off" (1.0.96)
+        store.db.run('DELETE FROM meta WHERE k = ?', (_off_key(cert_id, n),))
         made.append(store.db.insert('cert_checks', {
             'cert_id': int(cert_id), 'test': n, 'enabled': 1, 'position': pos, 'fails': 0,
             'created': t, 'created_by': str(by)[:190], 'updated': t,
@@ -137,7 +139,8 @@ def attach(store, cert_id, names, by, after_target=''):
 
 
 @_one_at_a_time
-def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='', via=None):
+def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='', via=None,
+               auto=False):
     """A test of what a target serves (1.0.77, in place of the deployment's "Check what is
     served"): made - or the same one found - attached to the certificate, run after a
     deployment on that target, and through the target's connector when it has one. A
@@ -170,9 +173,13 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
         if all(str(c.get(k) or '') == str(cfg.get(k) or '') for k in ('host', 'port', 'sni', 'via')):
             name = r['name']
             break
+    base = re.sub(r'[^A-Za-z0-9_.-]+', '-', '%s-%s-%d' % (target, host or 'name', port)).strip('-')
+    base = base[:60] or 'test'
+    # made by acme by itself (auto, served_tests): one a person took off stays off - looked at
+    # before anything is made (1.0.96: made again in Tests, attached to nothing)
+    if auto and store.get_meta(_off_key(cert_id, name or base)):
+        return None
     if name is None:
-        base = re.sub(r'[^A-Za-z0-9_.-]+', '-', '%s-%s-%d' % (target, host or 'name', port)).strip('-')
-        base = base[:60] or 'test'
         name, n = base, 2
         while S.plugin_row(store, 'check', name):
             name = '%s-%d' % (base, n)
@@ -183,15 +190,18 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
     have = store.db.row('SELECT * FROM cert_checks WHERE cert_id = ? AND test = ?',
                         (int(cert_id), name))
     if have is None:
-        if store.get_meta(_off_key(cert_id, name)):
-            return name                     # taken off by a person: left off (1.0.95)
+        if auto and store.get_meta(_off_key(cert_id, name)):
+            return None                     # taken off by a person: left off (1.0.95)
         attach(store, cert_id, [name], by, after_target=target)
     else:
-        # tied to other targets: this one too; "only by its schedule" ('-') is a person's
-        # choice and stays (1.0.95: every save of the deployment's options undid it)
+        # tied to other targets: this one too; "only by its schedule" ('-') chosen by a person
+        # stays (1.0.95: every save of the deployment's options undid it) - one acme left
+        # with no target when the deployment went (target_gone) is tied again (1.0.96)
         now = after_list(have.get('after_target'))
         if now and AFTER_NONE not in now and target not in now:
             after(store, have['id'], '\n'.join(now + [target]), by)
+        elif AFTER_NONE in now and not store.get_meta(_none_key(have['id'])):
+            after(store, have['id'], target, by)
     return name
 
 
@@ -220,6 +230,8 @@ def verify_to_tests(store, dep, opts, by):
     # a preset's "{host}" (the command line's --set preset=nginx, 1.0.95): the target's host -
     # it was made a test of a host called "{host}", never reached, failing every deployment
     thost = str((S.jload(trow.get('config'), {}) or {}).get('host') or '').strip() if trow else ''
+    if ':' in thost and not thost.startswith('['):
+        thost = '[%s]' % thost             # an IPv6 address: [2001:db8::1]:443 (1.0.96)
     lines = [x.replace('{host}', thost) if '{host}' in x and thost else x for x in lines]
     lines = [x for x in lines if '{host}' not in x]
     for hp in lines[:10]:
@@ -271,8 +283,10 @@ def served_tests(store, dep, by):
         if not host:
             continue
         try:
-            made.append(for_target(store, dep['cert_id'], dep['target'], by, 'tls', host,
-                                   int(port)))
+            got = for_target(store, dep['cert_id'], dep['target'], by, 'tls', host, int(port),
+                             auto=True)
+            if got:
+                made.append(got)
         except (LookupError, ValueError) as e:
             E.log('the test of what %s serves (%s:%s) was not made: %s' % (
                 dep['target'], host, port, e), 'warn')
@@ -356,6 +370,11 @@ def detach(store, ident):
         pass
 
 
+def _none_key(ident):
+    """A person's "only by its schedule" (1.0.96) - apart from the '-' left by target_gone."""
+    return 'certs:after_none:%d' % int(ident)
+
+
 def _off_key(cert_id, test):
     return 'certs:served_off:%d:%s' % (int(cert_id), str(test)[:120])
 
@@ -402,6 +421,13 @@ def after(store, ident, target, by):
     target = _after_checked(store, chk['cert_id'], after_list(target))
     store.db.update('cert_checks', int(ident), {'after_target': target, 'updated': time.time(),
                                                  'updated_by': str(by)[:190]})
+    try:
+        if after_list(target) == [AFTER_NONE]:
+            store.set_meta(_none_key(ident), json.dumps({'at': time.time(), 'by': str(by)[:190]}))
+        else:
+            store.db.run('DELETE FROM meta WHERE k = ?', (_none_key(ident),))
+    except Exception:                                   # noqa: BLE001
+        pass
     return chk
 
 

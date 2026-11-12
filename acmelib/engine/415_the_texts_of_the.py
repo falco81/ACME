@@ -167,11 +167,14 @@ def mfa_update(store, name, rec):
     then reset by an administrator, then written back, the old authenticator worked again
     (on two nodes no lock kept them apart). False when it is gone."""
     v = json.dumps(rec)
-    hit = bool(store.db.run('UPDATE meta SET v = ? WHERE k = ?', (v, mfa_key(name))))
-    if hit:
-        # signed as acme's word (1.0.95): with the guard on, unsigned it read as gone and the
-        # next sign-in was refused - "the second step is lost"
-        dbguard_sign(store.db, 'm', mfa_key(name), v)
+    # the row and its signature in one (1.0.96): replicated apart, the other node read the row
+    # before its signature and refused that sign-in
+    with store.db.transaction():
+        hit = bool(store.db.run('UPDATE meta SET v = ? WHERE k = ?', (v, mfa_key(name))))
+        if hit:
+            # signed as acme's word (1.0.95): with the guard on, unsigned it read as gone and
+            # the next sign-in was refused - "the second step is lost"
+            dbguard_sign(store.db, 'm', mfa_key(name), v)
     return hit
 
 

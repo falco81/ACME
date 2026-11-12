@@ -361,6 +361,7 @@
       busy(b, true);
       post({family: family, kind: kind, version: cur.version, lang: cur.lang, md: text()}).then(function (d) {
         toast(tr(d.message || 'kept'), 'good');
+        setDirty(false);              /* kept: Close does not ask, whatever the reading after it */
         load();
       }).catch(function (e) { toast(String((e && e.message) || e), 'bad'); }).then(function () { busy(b, false); });
     };
