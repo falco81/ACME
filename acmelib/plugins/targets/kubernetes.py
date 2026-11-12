@@ -8,6 +8,7 @@ same secret beside tls.crt / tls.key, as tls-rsa.crt / tls-rsa.key (or tls-ec.*)
 from __future__ import annotations
 
 import base64
+import re
 import time
 import urllib.parse
 
@@ -85,6 +86,11 @@ class KubernetesTarget(HttpTarget):
                 raise PluginError('%s/%s is a secret of another type (%s)' % (
                     ns, name, cur.get('type')), retry=False)
             self.mark_pending(bundle)
+            # what acme put there and sends no more goes (1.0.88: a twin gone, or the ca option
+            # off, left the old tls-rsa.* / ca.crt in the secret for its readers)
+            for k in list(have.keys()):
+                if k not in data and (k == 'ca.crt' or re.match(r'^tls-[a-z0-9]+\.(crt|key)$', k)):
+                    data[k] = None
             self.req('PATCH', url, {'data': data, 'metadata': {'annotations': {
                 'acme/fingerprint': dual_fp(bundle)}}},
                 {'Content-Type': 'application/merge-patch+json'},

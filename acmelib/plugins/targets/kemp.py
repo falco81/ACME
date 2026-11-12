@@ -37,6 +37,7 @@ its own alone (as before), saying so.
 from __future__ import annotations
 
 import base64
+import re
 import time
 
 from acmelib.plugins.targets._common import (
@@ -148,8 +149,12 @@ class KempTarget(HttpTarget):
                             data=base64.b64encode(pem.encode()).decode()) is not None:
                     self.ctx.step('added the intermediate %s' % iname)
         for vs in lines(options.get('virtual_services')):
-            parts = vs.rsplit(':', 2) if vs.count(':') >= 2 and not vs.startswith('[') \
-                else vs.rsplit(':', 1) + ['tcp']
+            m6 = re.match(r'^\[([^\]]+)\]:(\d+)(?::(\w+))?$', vs.strip())
+            if m6:                  # [IPv6]:port[:protocol] (1.0.88: the protocol was the port)
+                parts = [m6.group(1), m6.group(2), m6.group(3) or 'tcp']
+            else:
+                parts = vs.rsplit(':', 2) if vs.count(':') >= 2 and not vs.startswith('[') \
+                    else vs.rsplit(':', 1) + ['tcp']
             if len(parts) != 3 or not parts[1].isdigit():
                 raise PluginError('"%s" is not address:port[:tcp]' % vs, retry=False)
             addr, port, prot = parts[0].strip('[]'), parts[1], parts[2] or 'tcp'

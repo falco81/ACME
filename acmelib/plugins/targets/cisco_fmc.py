@@ -260,6 +260,9 @@ class CiscoFmcTarget(HttpTarget):
                         continue
                     for k in ('links', 'metadata'):
                         rule.pop(k, None)
+                    # marked before a rule changes (1.0.88): a deployment to the devices that
+                    # failed after it found no rule to change on the next try, and never ran
+                    self.mark_pending(bundle)
                     self.api('PUT', '/policy/decryptionpolicies/%s/decryptionpolicyrules/%s'
                              % (q(pid), q(r.get('id'))), rule,
                              what='switching the rule %s of %s' % (r.get('name'), pname))
@@ -272,8 +275,9 @@ class CiscoFmcTarget(HttpTarget):
                                   'warn')
                 changed += n
                 did.append('%s: %d rule%s' % (pname, n, '' if n == 1 else 's'))
-        if changed and as_bool(self.opt(options, 'deploy', True), True):
+        if (changed or (refs and self.pending())) and as_bool(self.opt(options, 'deploy', True), True):
             self.deploy_devices(options, did)
+        self.done_pending()
         self.cleanup(prefix, name, self.keep(options), certs)
         self.remember(bundle, options, id=new['id'])
         return ', '.join(did) or 'already %s' % name

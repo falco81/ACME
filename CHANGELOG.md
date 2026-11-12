@@ -96,6 +96,20 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
       `--add-directory` and `--mail-test` gives JSON.
   - The console: a certificate's deploy hold on and off; a target or test in use is taken off
     everywhere and deleted when asked.
+- Bug hunt I, round 3 - targets:
+  - One half of a dual certificate asked by name (`variant` ec, rsa, alt) gets an object of
+    its own on AWS ACM, Azure Key Vault and Application Gateway, Google Certificate Manager,
+    Cloudflare and NetScaler. The EC and the RSA deployment wrote over each other there, and
+    ACM refused the second.
+  - Cisco ASA: a PKCS#12 import that failed takes its new trustpoint away again. Left empty, the
+    next try bound ssl to a trustpoint with no certificate.
+  - A10: the key is imported again when the certificate went up and the key did not; the chain
+    file is named by the whole chain.
+  - Cisco FMC and FDM: a deployment to the devices that failed after the switch runs again on
+    the next try. It was never run again and the job said done.
+  - Kubernetes: what acme put in a secret and sends no more (a twin gone, `ca.crt` switched off)
+    is taken out.
+  - Kemp: `[IPv6]:port:protocol` is read right.
 
 ## 1.0.87 - 2026-11-12
 

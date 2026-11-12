@@ -224,8 +224,12 @@ class CiscoFtdFdmTarget(HttpTarget):
                 did.append('RA VPN %s' % v.get('name'))
                 changed = True
         deploy_on = as_bool(self.opt(options, 'fdm_deploy', True), True)
-        if changed and deploy_on:
+        if (changed or self.pending()) and deploy_on:
+            # a deployment that failed after the switch is run again (1.0.88)
+            if changed:
+                self.mark_pending(bundle)
             self.deploy_now(options)
+            self.done_pending()
             did.append('deployed')
         elif changed:
             self.ctx.step('not deployed: the change is pending in FDM until a deployment',

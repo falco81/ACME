@@ -164,13 +164,23 @@ class CiscoAsaTarget(HttpTarget):
             pw = random_password(20)
             p12 = bundle.as_format(self.opt(options, 'pkcs12_kind', 'p12-legacy'), password=pw,
                                    alias=name)
-            out = self.conf_t(['crypto ca trustpoint %s' % name, 'exit',
-                               'crypto ca import %s pkcs12 %s nointeractive' % (name, pw)] +
-                              b64_lines(p12) + ['quit'],
-                              'importing into the trustpoint %s' % name, hide=pw)
-            if not re.search(r'Import PKCS12 operation completed successfully', out, re.I):
-                raise PluginError('the ASA did not say the PKCS#12 import completed: %s'
-                                  % out.strip()[-300:], retry=False)
+            try:
+                out = self.conf_t(['crypto ca trustpoint %s' % name, 'exit',
+                                   'crypto ca import %s pkcs12 %s nointeractive' % (name, pw)] +
+                                  b64_lines(p12) + ['quit'],
+                                  'importing into the trustpoint %s' % name, hide=pw)
+                if not re.search(r'Import PKCS12 operation completed successfully', out, re.I):
+                    raise PluginError('the ASA did not say the PKCS#12 import completed: %s'
+                                      % out.strip()[-300:], retry=False)
+            except Exception:
+                # the trustpoint made for it goes again (1.0.88: left empty, the next try saw it
+                # there, imported nothing and bound ssl to a trustpoint with no certificate)
+                try:
+                    self.conf_t(['no crypto ca trustpoint %s noconfirm' % name],
+                                'taking away the empty trustpoint %s' % name)
+                except Exception:                       # noqa: BLE001
+                    pass
+                raise
             self.ctx.step('imported into the new trustpoint %s' % name, 'ok')
             did.append('imported %s' % name)
         else:

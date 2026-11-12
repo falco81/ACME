@@ -120,9 +120,9 @@ class A10Target(HttpTarget):
         finally:
             self.logout()
 
-    def files(self):
-        st, d = self.call('GET', '/axapi/v3/file/ssl-cert/oper', what='listing the SSL files')
-        oper = ((d.get('ssl-cert') or {}).get('oper') or {})
+    def files(self, kind='ssl-cert'):
+        st, d = self.call('GET', '/axapi/v3/file/%s/oper' % kind, what='listing the SSL files')
+        oper = ((d.get(kind) or {}).get('oper') or {})
         out = []
         for f in oper.get('file-list') or []:
             if isinstance(f, dict) and f.get('file'):
@@ -146,18 +146,26 @@ class A10Target(HttpTarget):
         self.login()
         try:
             have = self.files()
-            if self.unchanged(bundle, options, present=lambda: name in have):
+            # its key too (1.0.88: the certificate went up, its key failed, and every later try
+            # saw the certificate there and imported neither - templates pointed at no key)
+            try:
+                keys = self.files('ssl-key')
+            except PluginError:
+                keys = None
+            key_there = keys is None or name in keys
+            if self.unchanged(bundle, options, present=lambda: name in have and key_there):
                 return self.same(bundle, 'as %s' % name)
             did = []
-            if name not in have or as_bool(options.get('force')):
+            if name not in have or not key_there or as_bool(options.get('force')):
                 self.upload('ssl-cert', name, bundle.as_format('cert-pem'),
                             {'certificate-type': 'pem'})
                 self.upload('ssl-key', name, bundle.as_format('key-pem'))
                 self.ctx.step('imported the certificate and key %s' % name, 'ok')
                 did.append('imported %s' % name)
             chain = None
-            for pem in chain_list(bundle)[:1]:          # the issuing CA: ACOS sends one chain file
-                chain = 'acme-ca-%s' % chain_id(pem)
+            for _pem in chain_list(bundle)[:1]:         # the issuing CA: ACOS sends one chain file
+                # named by the whole chain (1.0.88: by its first only, a changed rest was not sent)
+                chain = 'acme-ca-%s' % chain_id(''.join(chain_list(bundle)))
                 if chain not in have:
                     pems = ''.join(chain_list(bundle))
                     self.upload('ssl-cert', chain, pems.encode(), {'certificate-type': 'pem'})
