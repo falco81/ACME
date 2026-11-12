@@ -309,7 +309,9 @@ def _cert_of_job(store, ident):
 MANAGE_ROUTES = {'/api/certs/auto', '/api/certs/delete', '/api/certs/renew', '/api/certs/deploy',
                  '/api/certs/revoke', '/api/certs/export', '/api/certs/csr_answer',
                  '/api/certs/plan', '/api/certs/check', '/api/certs/dry_run', '/api/certs/keep',
-                 '/api/certs/add_key'}
+                 '/api/certs/add_key',
+                 # held or let go for another team's certificate (1.0.88: not checked)
+                 '/api/certs/hold'}
 
 
 def guard(h, s, method, path):

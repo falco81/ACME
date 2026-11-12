@@ -185,10 +185,13 @@ def cli_api(daemon, who, method, path, body=None, args=None):
     if (path.endswith('/sshkey/download') and str(b_.get('half') or '') == 'private') or \
             (path == '/api/certs/export' and 'key' in str(b_.get('format') or '').lower()
              or path == '/api/certs/export' and str(b_.get('format') or '').lower().startswith(
-                ('p12', 'pfx', 'jks', 'combined', 'haproxy'))):
+                ('p12', 'pfx', 'jks', 'combined', 'haproxy'))) or \
+            (path == '/api/cas/export' and str(b_.get('format') or '').lower() in
+             ('key', 'p12', 'pfx')):          # an authority's key (1.0.88), as --ca-export asks
         # a private key not printed to a screen (1.0.80), as --export and --target-key ask --out
         raise SystemExit('acme: a private key is written to a file: acme --export NAME --format '
-                         'FORMAT --out FILE, or acme --target-key NAME private --out FILE')
+                         'FORMAT --out FILE, acme --ca-export CA --what key --out FILE, or '
+                         'acme --target-key NAME private --out FILE')
     if path in ('/api/db/download', '/api/rbackup/download'):
         # a file, not an answer (1.0.79): it raised half way, its "downloaded" event written
         raise SystemExit('acme: %s hands a file to a browser - here: acme --backup (a copy '
