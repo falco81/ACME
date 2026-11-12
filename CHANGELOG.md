@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.88 - not released
 
+- Overview → *When certificates run out*: a click on a bar shows the certificates that end
+  then, each opening its window. The bars came without their certificates, and a click opened
+  the whole list unfiltered. The bar's tip names them too.
+
 - One icon for every Import and one for every Export in the whole application: an open box
   with the arrow going in, or coming out. *Import* had the upload arrow, *Import from a
   source* the download one, and *Export* the download one. The button's words decide, so

@@ -282,7 +282,14 @@ def _overview(h, s):
         r = store.db.row("SELECT COUNT(*) AS n, SUM(CASE WHEN COALESCE(auto_renew, 0) = 0 THEN 1 "
                          "ELSE 0 END) AS m FROM certs WHERE not_after >= ? AND not_after < ? AND "
                          "state NOT IN ('revoked', 'disabled')" + sw, (a, b) + tuple(sa)) or {}
-        weeks.append({'from': a, 'to': b, 'n': int(r.get('n') or 0), 'manual': int(r.get('m') or 0)})
+        one = {'from': a, 'to': b, 'n': int(r.get('n') or 0), 'manual': int(r.get('m') or 0)}
+        if one['n']:
+            # which they are (1.0.88): a click on the bar shows them, not the whole list
+            one['certs'] = store.db.rows(
+                "SELECT id, name, state, not_after, renew_days, auto_renew FROM certs WHERE "
+                "not_after >= ? AND not_after < ? AND state NOT IN ('revoked', 'disabled')" + sw +
+                " ORDER BY not_after LIMIT 100", (a, b) + tuple(sa))
+        weeks.append(one)
     recent = jobs.job_rows(store, per=10, where=T.where(store, s, 'view', 'c.owner'))['rows']
     alerts = renewer.alerts(store)
     if sc_ is not None:
