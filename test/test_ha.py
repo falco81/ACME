@@ -736,7 +736,7 @@ class PairChecks(object):
         for node in (self.a, self.b):
             for cid in ids:
                 jobs = node.ok('GET', '/api/certs/jobs', args={'cert_id': cid})['rows']
-                renews = [j for j in jobs if j['kind'] == 'renew']
+                renews = [j for j in jobs if j['kind'] in ('renew', 'issue')]
                 self.assertEqual(len(renews), 1, (node.name, cid, jobs))
                 self.assertEqual(renews[0]['node'], self.lead, renews[0])
                 one = node.ok('GET', '/api/certs/one', args={'id': cid})
@@ -1165,7 +1165,7 @@ class ReplicatedPair(PairChecks, unittest.TestCase):
         self.sync()
         for node in (self.a, self.b):
             jobs = node.ok('GET', '/api/certs/jobs', args={'cert_id': cid})['rows']
-            self.assertEqual([(j['kind'], j['node']) for j in jobs], [('renew', lead.name)])
+            self.assertEqual([(j['kind'], j['node']) for j in jobs], [('issue', lead.name)])
 
     def test_08_replication_state_healthy(self):
         # Both directions seen from each node (1.0.210): the slots found by

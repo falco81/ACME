@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.88 - not released
+## 1.0.88 - 2026-11-12
 
 - A server that sends its certificate **without the intermediate authority** (isemon with a
   RapidSSL certificate uploaded by hand: *unable to get local issuer certificate* on pairing,
