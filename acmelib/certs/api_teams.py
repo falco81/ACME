@@ -49,7 +49,10 @@ def summary(store, s):
             'portal': {'on': bool(E.CONFIG.get('portal')),
                        'certs': bool(E.CONFIG.get('portal_cert')),
                        'ask': bool(str(E.CONFIG.get('portal_cert_suffixes') or '').strip()
-                                   and str(E.CONFIG.get('portal_cert_issuers') or '').strip())},
+                                   and str(E.CONFIG.get('portal_cert_issuers') or '').strip())
+                       # ...or a request profile says it (1.0.80: "not said yet" beside them)
+                       or bool(store.db.value('SELECT COUNT(*) FROM cert_req_profiles WHERE '
+                                             'COALESCE(enabled, 1) <> 0', (), 0))},
             'scoped': {'view': T.scope(store, s, 'view') is not None,
                        'manage': T.scope(store, s, 'manage') is not None}}
 

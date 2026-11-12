@@ -2258,7 +2258,7 @@
   },
   "s0563": {
    "source": "Check its certificate",
-   "text": "Ověřovat její certifikát"
+   "text": "Ověřovat certifikát"
   },
   "s0564": {
    "source": "Check the server’s certificate",
@@ -4846,7 +4846,7 @@
   },
   "s1210": {
    "source": "Its name",
-   "text": "Její jméno"
+   "text": "Název"
   },
   "s1211": {
    "source": "Its name on the nodes - the name typed at ssh.",
@@ -4894,7 +4894,7 @@
   },
   "s1222": {
    "source": "Its password",
-   "text": "Její heslo"
+   "text": "Heslo"
   },
   "s1223": {
    "source": "Its password (or the OAuth access token for XOAUTH2). Kept in the database sealed with the key that seals the tokens.",
@@ -13314,7 +13314,7 @@
   },
   "s3329": {
    "source": "a code typed on the enrolment pages",
-   "text": "kód zadaný na registračních stránkách"
+   "text": "kód zadaný na stránkách registrace"
   },
   "s3330": {
    "source": "a code went a moment ago - wait half a minute for another",
@@ -13502,7 +13502,7 @@
   },
   "s3376": {
    "source": "a new token on the enrolment pages",
-   "text": "nový token na registračních stránkách"
+   "text": "nový token na stránkách registrace"
   },
   "s3377": {
    "source": "a note",
@@ -14394,7 +14394,7 @@
   },
   "s3599": {
    "source": "codes sent from the enrolment pages",
-   "text": "kódy odeslané z registračních stránek"
+   "text": "kódy odeslané z stránek registrace"
   },
   "s3600": {
    "source": "combined",
@@ -14422,7 +14422,7 @@
   },
   "s3606": {
    "source": "confirming a token on the enrolment pages",
-   "text": "potvrzení tokenu na registračních stránkách"
+   "text": "potvrzení tokenu na stránkách registrace"
   },
   "s3607": {
    "source": "connected",
@@ -16926,7 +16926,7 @@
   },
   "s4232": {
    "source": "recovery codes shown on the enrolment pages",
-   "text": "zobrazení záložních kódů na registračních stránkách"
+   "text": "zobrazení záložních kódů na stránkách registrace"
   },
   "s4233": {
    "source": "refused",
@@ -17306,7 +17306,7 @@
   },
   "s4327": {
    "source": "signing in to the enrolment pages",
-   "text": "přihlášení na registrační stránky"
+   "text": "přihlášení na stránky registrace"
   },
   "s4328": {
    "source": "signing in to these pages",
@@ -19098,7 +19098,7 @@
   },
   "s4775": {
    "source": "the two new ones are not the same",
-   "text": "obě nová hesla nejsou stejná"
+   "text": "nová hesla se neshodují"
   },
   "s4776": {
    "source": "the two nodes cannot have one address",
@@ -19106,11 +19106,11 @@
   },
   "s4777": {
    "source": "the two passphrases are not the same",
-   "text": "obě hesla nejsou stejná"
+   "text": "hesla se neshodují"
   },
   "s4778": {
    "source": "the two passwords are not the same",
-   "text": "obě hesla nejsou stejná"
+   "text": "hesla se neshodují"
   },
   "s4779": {
    "source": "the upgrade has begun",
@@ -21974,7 +21974,7 @@
   },
   "scp0030": {
    "source": "not by itself",
-   "text": "ne sám"
+   "text": "ne automaticky"
   },
   "scp0031": {
    "source": "you",
@@ -37586,7 +37586,7 @@
   },
   "sx8769": {
    "source": "the enrolment pages sign people in against it (Settings → The enrolment pages); choose another directory for them first",
-   "text": "stránky pro žádosti proti němu přihlašují lidi (Nastavení → Stránky pro žádosti); nejdřív pro ně zvolte jiný adresář"
+   "text": "stránky registrace proti němu přihlašují lidi (Nastavení → Stránky pro žádosti); nejdřív pro ně zvolte jiný adresář"
   },
   "sx8770": {
    "source": "none is set",
@@ -40474,27 +40474,27 @@
   },
   "srole01": {
    "source": "enrolment pages only",
-   "text": "jen enrolment stránky"
+   "text": "jen stránky registrace"
   },
   "srole02": {
    "source": "Enrolment pages only",
-   "text": "Jen enrolment stránky"
+   "text": "Jen stránky registrace"
   },
   "srole03": {
    "source": "Accounts of the role Enrolment pages only may sign in",
-   "text": "Přihlásit se mohou účty s rolí Jen enrolment stránky"
+   "text": "Přihlásit se mohou účty s rolí Jen stránky registrace"
   },
   "srole04": {
    "source": "Group of enrolment-only accounts",
-   "text": "Skupina účtů jen pro enrolment stránky"
+   "text": "Skupina účtů jen pro stránky registrace"
   },
   "srole05": {
    "source": "this account signs in on the enrolment pages only, not here",
-   "text": "tento účet se přihlašuje jen na enrolment stránky, ne sem"
+   "text": "tento účet se přihlašuje jen na stránky registrace, ne sem"
   },
   "srole06": {
    "source": "Enrolment pages only: never gets into the administration - signs in on the enrolment pages and sees and asks for what the teams it is in give it (Owners and teams).",
-   "text": "Jen enrolment stránky: do administrace se nikdy nedostane – přihlašuje se na enrolment stránky a vidí a žádá to, co mu dávají týmy, jejichž je členem (Vlastníci a týmy)."
+   "text": "Jen stránky registrace: do administrace se nikdy nedostane – přihlašuje se na stránky registrace a vidí a žádá to, co mu dávají týmy, jejichž je členem (Vlastníci a týmy)."
   },
   "srole07": {
    "source": "The password you were given",
@@ -40510,7 +40510,7 @@
   },
   "srole10": {
    "source": "The two new passwords are not the same.",
-   "text": "Obě nová hesla nejsou stejná."
+   "text": "Nová hesla se neshodují."
   },
   "srole11": {
    "source": "The password is changed.",
@@ -40522,7 +40522,7 @@
   },
   "srole13": {
    "source": "an account of acme’s own - the enrolment pages only",
-   "text": "vlastní účet acme – jen enrolment stránky"
+   "text": "vlastní účet acme – jen stránky registrace"
   },
   "srole14": {
    "source": "You see the certificates whose owner is your account here (its name, or local: and its name), and those of the teams you are a member of.",
@@ -40534,11 +40534,11 @@
   },
   "sportoff01": {
    "source": "The enrolment pages are switched off: the members see nothing there.",
-   "text": "Enrolment stránky jsou vypnuté: členové tam nic neuvidí."
+   "text": "Stránky registrace jsou vypnuté: členové tam nic neuvidí."
   },
   "sportoff02": {
    "source": "Certificates on the portal is off: the members sign in on the enrolment pages and see nothing there - no certificate of their teams, no asking for one.",
-   "text": "Certifikáty na portálu jsou vypnuté: členové se na enrolment stránky přihlásí, ale nic tam neuvidí – žádný certifikát svých týmů a nemohou o žádný požádat."
+   "text": "Certifikáty na portálu jsou vypnuté: členové se na stránky registrace přihlásí, ale nic tam neuvidí – žádný certifikát svých týmů a nemohou o žádný požádat."
   },
   "sportoff03": {
    "source": "Open the setting",
@@ -55582,7 +55582,7 @@
   },
   "ov_1": {
    "source": "the next 4 weeks (days)",
-   "text": "příštích 4 týdnů (po dnech)"
+   "text": "příští 4 týdny (po dnech)"
   },
   "ov_2": {
    "source": "the next 12 weeks",
@@ -55747,6 +55747,82 @@
   "huntg6_9": {
    "source": "no address to send the report to",
    "text": "není adresa, kam report poslat"
+  },
+  "huntg6_10": {
+   "source": "[Errno 111] Connection refused",
+   "text": "Spojení odmítnuto"
+  },
+  "huntg6_11": {
+   "source": "[Errno 113] No route to host",
+   "text": "Cesta k hostiteli neexistuje"
+  },
+  "huntg6_12": {
+   "source": "[Errno 110] Connection timed out",
+   "text": "Spojení vypršelo"
+  },
+  "huntg6_13": {
+   "source": "[Errno 101] Network is unreachable",
+   "text": "Síť je nedostupná"
+  },
+  "huntg6_14": {
+   "source": "[Errno 104] Connection reset by peer",
+   "text": "Spojení ukončeno druhou stranou"
+  },
+  "huntg6_15": {
+   "source": "[Errno -2] Name or service not known",
+   "text": "Název nebo služba není známá"
+  },
+  "huntg6_16": {
+   "source": "[Errno -3] Temporary failure in name resolution",
+   "text": "Dočasná chyba překladu názvu"
+  },
+  "huntg6_17": {
+   "source": "[Errno -5] No address associated with hostname",
+   "text": "K názvu není přiřazena adresa"
+  },
+  "huntg6_18": {
+   "source": "timed out",
+   "text": "vypršel čas"
+  },
+  "huntg6_19": {
+   "source": "your sign-in has run out - sign in again",
+   "text": "vaše přihlášení vypršelo - přihlaste se znovu"
+  },
+  "huntg6_20": {
+   "source": "type your name",
+   "text": "napište své jméno"
+  },
+  "huntg6_21": {
+   "source": "type your password",
+   "text": "napište své heslo"
+  },
+  "huntg6_22": {
+   "source": "public key (DER)",
+   "text": "veřejný klíč (DER)"
+  },
+  "huntpr_1": {
+   "source": "see them",
+   "text": "vidět"
+  },
+  "huntpr_2": {
+   "source": "ask for new ones",
+   "text": "žádat o nové"
+  },
+  "huntpr_3": {
+   "source": "manage them",
+   "text": "spravovat"
+  },
+  "huntpr_4": {
+   "source": "approve them",
+   "text": "schvalovat"
+  },
+  "huntw_1": {
+   "source": "Last page",
+   "text": "Poslední"
+  },
+  "huntw_2": {
+   "source": "Take it out of service",
+   "text": "Vyřadit z provozu"
   }
  },
  "patterns": {
@@ -60272,7 +60348,7 @@
   },
   "p1131": {
    "source": "{0} could not be reached: {1}",
-   "text": "{0} není dostupný: {1}"
+   "text": "{0} není dosažitelný: {1}"
   },
   "p1132": {
    "source": "{0} could not be read",
@@ -70220,7 +70296,7 @@
   },
   "px3452": {
    "source": "{0} may not use the enrolment pages: in none of the groups ({1})",
-   "text": "{0} nesmí používat stránky pro žádosti: není v žádné ze skupin ({1})"
+   "text": "{0} nesmí používat stránky registrace: není v žádné ze skupin ({1})"
   },
   "px3453": {
    "source": "{0}, switched off, tried to sign in to the enrolment pages from {1}",
@@ -71484,15 +71560,15 @@
   },
   "prole01": {
    "source": "{0} (enrolment pages only) tried to sign in to the administration from {1}",
-   "text": "{0} (jen enrolment stránky) se pokusil přihlásit do administrace z {1}"
+   "text": "{0} (jen stránky registrace) se pokusil přihlásit do administrace z {1}"
   },
   "prole02": {
    "source": "the directory knows {0}, a member of the group of enrolment-only accounts - refused here (from {1})",
-   "text": "adresář zná {0}, člena skupiny účtů jen pro enrolment stránky – zde odmítnut (z {1})"
+   "text": "adresář zná {0}, člena skupiny účtů jen pro stránky registrace – zde odmítnut (z {1})"
   },
   "prole03": {
    "source": "{0} changed their own password (on the enrolment pages)",
-   "text": "{0} si změnil heslo (na enrolment stránkách)"
+   "text": "{0} si změnil heslo (na stránkách registrace)"
   },
   "pptr01": {
    "source": "Decline {0}",
@@ -72432,7 +72508,7 @@
   },
   "srpj02": {
    "source": "{0} step(s)",
-   "text": "{0} kroků"
+   "text": "{0} {0:krok|kroky|kroků}"
   },
   "srpj03": {
    "source": "{0} deployment(s) side by side",
@@ -75324,7 +75400,7 @@
   },
   "pa6_1": {
    "source": "a wrong password for {0} (an account here) on the enrolment pages from {1}",
-   "text": "špatné heslo pro {0} (zdejší účet) na stránkách pro žádosti z {1}"
+   "text": "špatné heslo pro {0} (zdejší účet) na stránkách registrace z {1}"
   },
   "pa6_2": {
    "source": "{0} cannot sign in: a one-time code is needed, and neither the mail nor the SMS is set up",
@@ -76249,6 +76325,54 @@
   "phuntg6_1": {
    "source": "{0} bits",
    "text": "{0} bitů"
+  },
+  "phuntg6_2": {
+   "source": "the status expected: {0}",
+   "text": "očekávaný stav: {0}"
+  },
+  "phuntg6_3": {
+   "source": "its fingerprint, the name {0} among its names, the chain sent with it, how long it runs",
+   "text": "jeho otisk, jméno {0} mezi jeho jmény, řetězec poslaný s ním, jak dlouho platí"
+  },
+  "phuntg6_4": {
+   "source": "its fingerprint, the name {0} among its names, the chain sent with it, how long it runs; it must be trusted here",
+   "text": "jeho otisk, jméno {0} mezi jeho jmény, řetězec poslaný s ním, jak dlouho platí; tady mu musí být důvěřováno"
+  },
+  "phuntpl_1": {
+   "source": "{0} test(s)",
+   "text": "{0} {0:test|testy|testů}"
+  },
+  "phuntpl_2": {
+   "source": "{0} deployment(s)",
+   "text": "{0} nasazení"
+  },
+  "phuntpl_3": {
+   "source": "{0} pass",
+   "text": "{0} {0:prochází|procházejí|prochází}"
+  },
+  "phuntpl_4": {
+   "source": "{0} failing",
+   "text": "{0} {0:selhává|selhávají|selhává}"
+  },
+  "phuntpl_5": {
+   "source": "{0} with a warning",
+   "text": "{0} s varováním"
+  },
+  "phuntpl_6": {
+   "source": "{0} not run yet",
+   "text": "{0} {0:ještě neběžel|ještě neběžely|ještě neběželo}"
+  },
+  "phuntm_1": {
+   "source": "+ {0} more - every failed job",
+   "text": "+ {0} {0:další|další|dalších} – všechny neúspěšné úlohy"
+  },
+  "phunte_1": {
+   "source": "{0} picked the picture of the sign-in of the administration: {1}",
+   "text": "{0} vybral(a) obrázek přihlášení do administrace: {1}"
+  },
+  "phunte_2": {
+   "source": "{0} picked the picture of the sign-in of the enrolment pages: {1}",
+   "text": "{0} vybral(a) obrázek přihlášení do stránek registrace: {1}"
   }
  },
  "rich": {

@@ -502,11 +502,11 @@
     fact('proof', 'Validation', (h.validations || []).length ? vs : el('span', 'muted', 'none needed'));
     var dn = el('span', '');
     dn.appendChild(data('b', 'rp-big', String(h.deploys || 0)));
-    dn.appendChild(el('span', 'muted', ' deployment(s)'));
+    dn.appendChild(noI18n(el('span', 'muted', ' ' + nWord(h.deploys || 0, 'deployment(s)'))));
     fact('deploy', 'Deployed to', dn);
     var tn = el('span', '');
     tn.appendChild(data('b', 'rp-big', String(h.tests || 0)));
-    tn.appendChild(el('span', 'muted', ' test(s)'));
+    tn.appendChild(noI18n(el('span', 'muted', ' ' + nWord(h.tests || 0, 'test(s)'))));
     fact('check', 'Tested by', tn);
     box.appendChild(facts);
     return box;
@@ -577,7 +577,7 @@
       st.appendChild(sub);
       var steps = countSteps(g);
       var meta = el('span', 'rp-station-m');
-      meta.appendChild(el('span', 'small muted', steps.length + ' step(s)'));
+      meta.appendChild(noI18n(el('span', 'small muted', steps.length + ' ' + nWord(steps.length, 'step(s)'))));
       if (steps.some(function (x) { return x.secret; })) meta.appendChild(el('span', 'tag crit rp-tag', 'holds the private key'));
       if (g.off) meta.appendChild(el('span', 'tag warn rp-tag', kind === 'checks' ? 'the test is switched off' : 'the target is switched off'));
       else if (g.enabled === false) meta.appendChild(el('span', 'tag warn rp-tag', 'switched off: skipped'));

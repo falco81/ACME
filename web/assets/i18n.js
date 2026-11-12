@@ -110,6 +110,9 @@ function i18nPattern(source, text, rich) {
 }
 function i18nWordy(m, depth) {
   for (var i = 1; i < m.length; i++) {
+    /* a slot with ": " in it is a sentence of its own (1.0.80): "{0} refused" took
+       "x:5514/tcp: [Errno 111] Connection" and said "Connection odmítnuto" */
+    if (/\S: \S/.test(m[i] || '') && (depth || 0) < I18N_DEEP && i18nWork(m[i], (depth || 0) + 1) === null) return true;
     /* Words, apart by a space, of letters only (1.0.48): "certs_certadmin_all=1" or a team "HB1
        tym" are a name, not a sentence - a weak pattern refused them and stayed in English. */
     if (!/(^|\s)[A-Za-z]{2,}[,;:]?\s+[A-Za-z]{2,}(\s|$|[.,;:])/.test(m[i] || '')) continue;

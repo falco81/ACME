@@ -7,6 +7,13 @@ function $(id) { return document.getElementById(id); }
 
 /** An element holding a name or a value rather than words of the page's
     own: never translated, whatever language the page is in. (1.10.155) */
+/* The word after a number, in the page's language (1.0.80): the number and its word in two
+   nodes of their own were never one text a translation could make agree ("3 testů"). */
+function nWord(n, words) {
+  var s = String(n) + ' ' + words, t = null;
+  try { t = typeof i18nText === 'function' ? i18nText(s) : null; } catch (e) { t = null; }
+  return String(t || s).replace(/^\S+\s*/, '');
+}
 function noI18n(node) {
   if (node && node.setAttribute) node.setAttribute('data-no-i18n', '');
   return node;
@@ -255,6 +262,23 @@ function labelsFromPlaceholders(root) {
   } catch (e) { }
 }
 document.addEventListener('DOMContentLoaded', function () { labelsFromPlaceholders(document); });
+/* Enter in a box of a popup presses its one main button (1.0.80): "Make an account", the
+   portal's new password... did nothing - unless the box (or its form) takes Enter itself, or
+   there is no single main button that destroys nothing. */
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter' || e.defaultPrevented || e.isComposing || e.shiftKey || e.ctrlKey || e.altKey) return;
+  var t = e.target;
+  if (!t || t.tagName !== 'INPUT' || !/^(text|password|number|email|search|tel|url|)$/.test(t.type || '')) return;
+  var body = $('modal-body'), foot = $('modal-foot');
+  if (!body || !foot || !body.contains(t) || ($('modal') && $('modal').hidden)) return;
+  if (t.form || t.onkeydown || (t.closest && t.closest('[data-enter-own]'))) return;
+  var main = Array.prototype.filter.call(foot.querySelectorAll('.btn.primary'), function (b) {
+    return !b.hidden && !b.disabled && !/\bdanger\b/.test(b.className) && b.offsetParent !== null;
+  });
+  if (main.length !== 1) return;
+  e.preventDefault();
+  main[0].click();
+});
 function modal(title, build, buttons, narrow) {
   if (MODAL_OVER_WANTED) modalOverNow();
   MODAL_GEN += 1;
@@ -1274,7 +1298,7 @@ function pager(id, page, per, total, go, capped) {
   host.appendChild(says);
   button('Next', 'next', Math.min(pages - 1, page + 1), page >= pages - 1,
          pageSays('Next', page, pages) + ' The filters above stay as they are.');
-  button('Last', 'last', pages - 1, page >= pages - 1 || capped, capped
+  button('Last page', 'last', pages - 1, page >= pages - 1 || capped, capped
     ? 'The list goes on past what was counted. To reach its other end, make the time window '
       + 'shorter or the search narrower - or, in a list whose headings sort, order it the other '
       + 'way round by its heading.' : pageSays('Last', page, pages));

@@ -899,18 +899,18 @@ def alert_mail(new, still, gone, events, to, lang, test=False, left=0):
         text.append(head.upper())
         for p in items:
             lv = level or p['level']
-            lines = [_h(p['said'])]
+            lines = [_h(mail_tr(p['said'], lang))]
             if p.get('node'):
                 lines.append('<span style="color:#6b7280">%s %s</span>' % (
                     _h(_al(lang, 'Uzel:', 'Node:')), _h(p['node'])))
             if p.get('since'):
                 lines.append('<span style="color:#6b7280">%s %s</span>' % (
                     _h(_al(lang, 'Od:', 'Since:')), _h(_al_when(p['since']))))
-            body.append(_al_card(lv, p['title'], lines,
+            body.append(_al_card(lv, mail_tr(p['title'], lang), lines,
                                  (link + '#settings/' + p['pane'], _al(lang, 'Otevřít v administraci →',
                                                                       'Open in the administration →'))
                                  if p.get('pane') and lv != 'good' else ''))
-            text.append('- %s: %s%s' % (p['title'], p['said'],
+            text.append('- %s: %s%s' % (mail_tr(p['title'], lang), mail_tr(p['said'], lang),
                                         (' [%s]' % p['node']) if p.get('node') else ''))
         text.append('')
     if test:
@@ -1223,6 +1223,18 @@ def _rep_bars(series, lang):
             % (''.join(cols), legend))
 
 
+def mail_tr(words, lang):
+    """An event's, an alert's words in the mail's language, by the pages' translation (1.0.80):
+    kept in English, they went into a Czech report as they were."""
+    if not words or lang in (None, '', 'en'):
+        return words
+    try:
+        from acmelib.i18n_mail import tr
+        return tr(words, lang)
+    except Exception:                                   # noqa: BLE001
+        return words
+
+
 def report_build(store, since, until, lang='cs'):
     """The report of a period, as a mail: (subject, html, text) - the engine's
     own (the events, the sign-ins to the administration, what is wrong, the
@@ -1292,7 +1304,8 @@ def report_build(store, since, until, lang='cs'):
     if probs:
         body.append(_al_h(_al(lang, 'Co je teď špatně', 'What is wrong now')))
         for p in probs.values():
-            body.append(_al_card(p['level'], p['title'], [_h(p['said'])] + (
+            body.append(_al_card(p['level'], mail_tr(p['title'], lang),
+                                 [_h(mail_tr(p['said'], lang))] + (
                 ['<span style="color:#6b7280">%s %s</span>' % (_h(_al(lang, 'Uzel:', 'Node:')),
                                                                 _h(p['node']))]
                 if p.get('node') else [])))
@@ -1301,16 +1314,17 @@ def report_build(store, since, until, lang='cs'):
         _al(lang, 'Celkem %d záznamů, z toho %d neúspěšných nebo s varováním.',
             '%d in all, %d of them failed or warned about.') % (len(admins), len(adm_bad))))
     body.append(_rep_table([_al(lang, 'Kdy', 'When'), _al(lang, 'Co', 'What')],
-                           [[_h(_al_when(a['ts'])), _h(str(a['words'])[:600])] for a in adm_bad[:10]]))
+                           [[_h(_al_when(a['ts'])), _h(mail_tr(str(a['words']), lang)[:600])] for a in adm_bad[:10]]))
     body.append(_al_h(_al(lang, 'Důležité události', 'Events worth a look')))
     body.append(_rep_table([_al(lang, 'Kdy', 'When'), _al(lang, 'Druh', 'Kind'), _al(lang, 'Co', 'What')],
-                           [[_h(_al_when(e['ts'])), _h(e.get('kind') or ''),
+                           [[_h(_al_when(e['ts'])), _h(mail_tr(e.get('kind') or '', lang)),
                              '<span style="color:%s">%s</span>' % (
                                  AL_COLORS['bad' if e.get('level') == 'bad' else 'warn'][2],
-                                 _h(str(e.get('words') or '')[:600]))] for e in important]))
+                                 _h(mail_tr(str(e.get('words') or ''), lang)[:600]))]
+                            for e in important]))
     body.append('<p style="margin:4px 0 0;font-size:12.5px;color:#6b7280">%s %s</p>' % (
         _h(_al(lang, 'Všechny události podle druhu:', 'All events by kind:')),
-        _h(', '.join('%s %d' % (k['kind'], int(k['n'])) for k in kinds) or '–')))
+        _h(', '.join('%s %d' % (mail_tr(k['kind'], lang), int(k['n'])) for k in kinds) or '–')))
     # The servers.
     srows = []
     cluster = ha_nodes(store) if CONFIG.get('ha_mode') else []
@@ -1319,7 +1333,7 @@ def report_build(store, since, until, lang='cs'):
         ck = _meta_obj(store, 'host:osup:check:' + n)
         tr = (((_meta_obj(store, 'ntp:now:' + n)).get('data') or {}).get('tracking') or {})
         disk = max([d.get('pct') or 0 for d in h.get('disks') or []] or [0])
-        srows.append([_h(n), '%s %%' % disk, ('%.3f s' % float(tr['offset'])) if tr else '–',
+        srows.append([_h(n), ('%s %%' % disk).replace('.', ',' if lang == 'cs' else '.'), ('%.3f s' % float(tr['offset'])) if tr else '–',
                       ('%s / %s' % (ck.get('count', '–'), ck.get('security', '–'))) if ck else '–',
                       _h(_al_when(h.get('last_backup')))])
     body.append(_al_h(_al(lang, 'Servery', 'The servers')))
@@ -1350,10 +1364,12 @@ def report_build(store, since, until, lang='cs'):
         text.append('')
     if probs:
         text.append(_al(lang, 'Co je teď špatně:', 'What is wrong now:'))
-        text += ['- %s: %s' % (p['title'], p['said']) for p in probs.values()]
+        text += ['- %s%s' % (mail_tr(p['title'], lang), (': ' + mail_tr(p['said'], lang))
+                             if p.get('said') else '') for p in probs.values()]
         text.append('')
     text.append(_al(lang, 'Důležité události:', 'Events worth a look:'))
-    text += ['- %s %s: %s' % (_al_when(e['ts']), e.get('kind') or '', str(e.get('words') or '')[:300])
+    text += ['- %s %s: %s' % (_al_when(e['ts']), mail_tr(e.get('kind') or '', lang),
+                              mail_tr(str(e.get('words') or ''), lang)[:300])
              for e in important] or ['-']
     subject = _al(lang, '[acme] %s report %s - %s', '[acme] %s report %s - %s') % (kind_w, period,
                                                                                  site)

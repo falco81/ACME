@@ -1226,23 +1226,59 @@ def counts(store):
     return out
 
 
-def report(store, since):
+REPORT_STATE_CS = {'new': 'nevydané', 'ok': 'v pořádku', 'due': 'k obnově', 'failed': 'selhalé',
+                   'renewing': 'obnovuje se', 'revoked': 'odvolané', 'expired': 'prošlé',
+                   'disabled': 'vypnuté', 'pending-approval': 'čeká na schválení',
+                   'declined': 'zamítnuto', 'held': 'pozdrženo', 'deleting': 'maže se',
+                   'revoke-failed': 'odvolání selhalo'}
+
+
+def report(store, since, lang=None):
+    """The certificates' part of the report - in its language (1.0.80: in English whatever
+    the report's was)."""
+    if lang is None:
+        try:
+            lang = E.report_lang()
+        except Exception:                               # noqa: BLE001
+            lang = 'en'
+    cs = lang == 'cs'
     t = time.time()
     c = counts(store)
-    lines = ['%d certificate(s): %s' % (sum(c.values()), ', '.join(
-        '%d %s' % (n, s) for s, n in sorted(c.items())) or 'none')]
+    n = sum(c.values())
+    if cs:
+        lines = ['%d %s: %s' % (n, 'certifikát' if n == 1 else 'certifikáty' if 2 <= n <= 4
+                                else 'certifikátů', ', '.join(
+                    '%s %d' % (REPORT_STATE_CS.get(st, st), k) for st, k in sorted(c.items()))
+                 or 'žádný')]
+    else:
+        lines = ['%d certificate(s): %s' % (n, ', '.join(
+            '%d %s' % (k, st) for st, k in sorted(c.items())) or 'none')]
     got = store.db.rows("SELECT kind, ok, COUNT(*) AS n FROM cert_jobs WHERE ts >= ? AND "
-                        "kind IN ('renew', 'deploy') GROUP BY kind, ok", (float(since or 0),))
+                        "kind IN ('renew', 'deploy', 'issue') GROUP BY kind, ok",
+                        (float(since or 0),))
+    kinds_cs = {'renew': 'obnovení', 'deploy': 'nasazení', 'issue': 'vystavení'}
     for g in got:
-        lines.append('%s: %d %s' % (g['kind'], g['n'], 'done' if g['ok'] else 'failed'))
+        if cs:
+            lines.append('%s: %s %d' % (kinds_cs.get(g['kind'], g['kind']),
+                                        'v pořádku' if g['ok'] else 'selhalo', g['n']))
+        else:
+            lines.append('%s: %d %s' % (g['kind'], g['n'], 'done' if g['ok'] else 'failed'))
     soon = store.db.rows("SELECT name, not_after FROM certs WHERE not_after > ? AND not_after < ? "
                          "ORDER BY not_after", (t, t + 30 * 86400))
-    for s in soon[:20]:
-        lines.append('ends %s: %s' % (time.strftime('%Y-%m-%d', time.gmtime(s['not_after'])),
-                                      s['name']))
+    for s_ in soon[:20]:
+        day = time.strftime('%d.%m.%Y' if cs else '%Y-%m-%d', time.localtime(s_['not_after']))
+        lines.append(('končí %s: %s' if cs else 'ends %s: %s') % (day, s_['name']))
     for a in alerts(store)[:20]:
-        lines.append('! ' + a['words'])
-    return [('Certificates', lines)]
+        lines.append('! ' + (_tr(a['words'], lang)))
+    return [('Certifikáty' if cs else 'Certificates', lines)]
+
+
+def _tr(words, lang):
+    try:
+        from acmelib.i18n_mail import tr
+        return tr(words, lang)
+    except Exception:                                   # noqa: BLE001
+        return words
 
 
 def metrics(store):

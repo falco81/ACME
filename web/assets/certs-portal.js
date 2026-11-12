@@ -268,7 +268,7 @@ function row(c) {
   if (c.not_after) {
     ec.appendChild(el('span', 'day', dayOnly(c.not_after)));
     ec.appendChild(el('br'));
-    ec.appendChild(daysTag(c.not_after));
+    ec.appendChild(c.state === 'revoked' ? el('span', 'ct-days crit', 'revoked') : daysTag(c.not_after));   /* 1.0.80: green days left on a revoked one */
   } else if (running(c)) {
     ec.appendChild(el('span', 'muted small', 'being issued…'));
   } else ec.appendChild(el('span', 'muted', '–'));
@@ -302,7 +302,7 @@ function certDialog(id, fresh) {
   var manage = may.indexOf('manage') >= 0, approve = manage || may.indexOf('approve') >= 0;
   var waiting = c.state === 'pending-approval';
   if (approve && waiting) {
-    buttons.push({words: 'Decline', icon: 'ban', go: function () { modalOver(function () { declineDialog(c); }); }});
+    buttons.push({words: 'Decline', icon: 'ban', go: function () { modalOver(function () { declineDialog(c); }, function () { certDialog(c.id); }); }});
     buttons.push({words: 'Approve', cls: 'primary', icon: 'check', go: function (b) {
       busy(b, true);
       api('cert-approve', {id: c.id, ok: 1}).then(function () {
@@ -312,7 +312,7 @@ function certDialog(id, fresh) {
     }});
   }
   if (manage && c.not_after && c.state !== 'revoked') {
-    buttons.push({words: 'Revoke', icon: 'ban', go: function () { modalOver(function () { revokeDialogP(c); }); }});
+    buttons.push({words: 'Revoke', icon: 'ban', go: function () { modalOver(function () { revokeDialogP(c); }, function () { certDialog(c.id); }); }});
   }
   if (manage && c.issuer && !waiting && c.state !== 'declined' && c.state !== 'revoked') {
     buttons.push({words: 'Renew now', icon: 'refresh', go: function (b) {
@@ -338,7 +338,7 @@ function certDialog(id, fresh) {
     var t = el('div', 'ct-head-t');
     t.appendChild(data('span', 'ct-head-name', c.cn || c.name));
     t.appendChild(stateTag(c.state));
-    if (c.not_after) t.appendChild(daysTag(c.not_after));
+    if (c.not_after) t.appendChild(c.state === 'revoked' ? el('span', 'ct-days crit', 'revoked') : daysTag(c.not_after));
     hw.appendChild(t);
     hw.appendChild(namesChips(c.names));
     head.appendChild(hw);
@@ -390,7 +390,7 @@ function certDialog(id, fresh) {
   if (jobId) followJob(jobId, logHost, ticket);
 }
 
-var RIGHT_WORDS_P = {view: 'see', request: 'ask for new', manage: 'manage', approve: 'approve'};
+var RIGHT_WORDS_P = {view: 'see them', request: 'ask for new ones', manage: 'manage them', approve: 'approve them'};   /* after "You may:" (1.0.80) */
 function ownerWords(c) {
   var w = el('span', '');
   w.appendChild(data('span', '', c.owner));

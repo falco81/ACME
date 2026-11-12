@@ -7801,6 +7801,15 @@ function drawOverviewCerts(box, d, counts, total) {
       row.onkeydown = function (e) { if (e.key === 'Enter') open(); };
       l2.appendChild(row);
     });
+    /* the rest said (1.0.80): the count said 9, the list showed 8 and no way to the 9th */
+    if (fails.length > 8) {
+      var more = el('div', 'ct-ovrow tappable muted');
+      more.tabIndex = 0;
+      more.appendChild(el('div', 'ct-ovrow-w', '+ ' + (fails.length - 8) + ' more - every failed job'));
+      more.onclick = function () { openJobs({ok: '0'}); };
+      more.onkeydown = function (e) { if (e.key === 'Enter') more.onclick(); };
+      l2.appendChild(more);
+    }
     s2.appendChild(l2);
   }
   halves.appendChild(s2);
@@ -9306,7 +9315,7 @@ function certTests(c, back, deploys) {
         if (!x[1] && x[0] !== 'ok') return;
         var ct = el('span', 'ck-count ck-c-' + x[0]);
         ct.appendChild(el('b', '', num(x[1])));
-        ct.appendChild(el('span', '', x[2]));
+        ct.appendChild(noI18n(el('span', '', nWord(x[1], x[2]))));
         sum.appendChild(ct);
       });
       var st = obj(D.settings);

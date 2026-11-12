@@ -8174,8 +8174,8 @@ function haJoinPopup() {
     var box = el('div', 'ha-sure');
     box.appendChild(el('b', '', 'This node has data of its own'));
     var what = el('p', 'note small ha-held');
-    if (l.certs) what.appendChild(haWords('', l.certs, ' certificate(s)'));
-    if (l.accounts > 1) what.appendChild(haWords('', l.accounts, ' accounts'));
+    if (l.certs) what.appendChild(haWords('', l.certs, ' ' + nWord(l.certs, 'certificate(s)')));
+    if (l.accounts > 1) what.appendChild(haWords('', l.accounts, ' ' + nWord(l.accounts, 'accounts')));
     if (l.sealed) what.appendChild(el('span', '', 'sealed secrets (private keys, passwords)'));
     box.appendChild(what);
     box.appendChild(el('p', 'note', 'Joining does not delete them, but leaves them behind: this node then works only with the cluster’s database and key. They stay in its old database, and its key is kept as secrets.key.before-join - but nothing uses them any more. To keep a certificate, export it first.'));
@@ -8550,7 +8550,7 @@ function maintenanceAsk(n, on, then) {
     why.id = 'maint-why';
     body.appendChild(formField('Why', why));
   }, [{words: 'No, leave it', close: true},
-      {words: 'Take it out', cls: alone ? 'danger' : 'primary', icon: 'power', close: true, go: function () {
+      {words: 'Take it out of service', cls: alone ? 'danger' : 'primary', icon: 'power', close: true, go: function () {
         api('upgrade', {action: 'maintenance', node: n.name, on: true, why: ($('maint-why') || {}).value || ''})
           .then(function (r) { toast(r.message, 'good'); then(r); }).catch(oops);
       }}], true);

@@ -122,7 +122,7 @@ function gateForm(g) {
   code.inputMode = 'numeric';
   code.autocomplete = 'one-time-code';
   code.maxLength = 32;
-  code.setAttribute('aria-label', 'The code');
+  code.setAttribute('aria-label', (typeof i18nText === 'function' && i18nText('The code')) || 'The code');
   noI18n(code);
   f.appendChild(code);
   var go = cmdButton('Confirm', 'check', 'primary');
@@ -327,6 +327,10 @@ function passwordForm(host, first, done) {
   var go = cmdButton('Change the password', 'key', 'primary');
   row.appendChild(go);
   host.appendChild(row);
+  /* Enter in any of the three changes it (1.0.80) */
+  [old, pw, again].forEach(function (x) {
+    x.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+  });
   go.onclick = function () {
     said.className = 'said';
     said.textContent = '';
