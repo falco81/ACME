@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.92 - not released
+
 ## 1.0.91 - 2026-11-12
 
 - **An application of ours (acme push): the check after the push** asks first at the
