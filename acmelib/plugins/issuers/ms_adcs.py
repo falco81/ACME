@@ -421,30 +421,38 @@ class MsAdcsIssuer(Issuer):
         template = str((req.profile or {}).get('template') or self.c('template') or '').strip()
         if not template:
             raise PluginError('set the template', retry=False)
-        slot = self._slot(req)
+        # Kept by the certificate (and its key type), with the request's key and CSR (1.0.80):
+        # kept by the key, a renewal - a new key each try - never found the request waiting
+        # for approval, filed a new one each time, and an approved one was never fetched
+        slot = sc.pending_slot('ms_adcs', self._base(), req)
         h = self._http()
         try:
-            held = self.ctx.kv_get(slot)
-            if isinstance(held, str):
-                try:
-                    held = json.loads(held)
-                except ValueError:
-                    held = None
-            if isinstance(held, dict) and held.get('req_id'):
+            held = sc.pending_get(self.ctx, slot, req)
+            if not held:                                # kept by the key before 1.0.80
+                old = self.ctx.kv_get(self._slot(req))
+                if isinstance(old, str):
+                    old = sc.parse_json(old)
+                if isinstance(old, dict) and old.get('req_id'):
+                    held = {'id': old['req_id'], 'at': old.get('at')}
+                    self.ctx.kv_set(self._slot(req), None)
+            r = sc.held_request(req, held) if held and held.get('csr_pem') else req
+            if held and (held.get('id') or held.get('req_id')):
+                req_id = str(held.get('id') or held.get('req_id'))
                 self._say('the request %s waits at the CA since %s - asked for again' % (
-                    held['req_id'], time.strftime('%Y-%m-%d %H:%M', time.gmtime(held.get('at') or 0))))
-                req_id = str(held['req_id'])
+                    req_id, time.strftime('%Y-%m-%d %H:%M', time.gmtime(held.get('at') or 0))))
             else:
                 req_id = self._submit(h, req, template)
                 if not req_id.startswith('ok:'):
-                    self.ctx.kv_set(slot, json.dumps({'req_id': req_id, 'at': time.time(),
-                                                      'template': template}), ttl_s=90 * 86400)
+                    sc.pending_put(self.ctx, slot, req, {'id': req_id, 'template': template,
+                                                         'csr_pem': req.csr_pem}, ttl_days=90)
             if req_id.startswith('ok:'):
                 req_id = req_id[3:]
             else:
                 self._wait(h, req_id)
-            out = self._fetch(h, req_id, req)
-            self.ctx.kv_set(slot, None)
+            out = self._fetch(h, req_id, r)
+            if r is not req and r.key_pem:
+                out.key_pem = r.key_pem                 # the key of the request held
+            sc.pending_drop(self.ctx, slot)
             return out
         finally:
             h.close()

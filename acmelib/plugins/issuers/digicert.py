@@ -349,6 +349,12 @@ class DigicertIssuer(Issuer):
         oid = str(getattr(req, 'ref', None) or '').strip() or str(self.c('order_id') or '').strip()
         if not oid:
             kept = sc.parse_json(self.ctx.kv_get(sub_key) or '') or {}
+            if not kept:
+                # kept before 1.0.80 under the certificate alone - taken unless it names the
+                # other variant's family
+                old = sc.parse_json(self.ctx.kv_get(sub_key.rsplit(':', 1)[0]) or '') or {}
+                if old and old.get('family') in (None, '', sub_key.rsplit(':', 1)[1]):
+                    kept = old
             oid = str(kept.get('order_id') or '')
         allowed = sc.as_bool(self.c('allow_paid'))
         renewal = None
@@ -375,7 +381,10 @@ class DigicertIssuer(Issuer):
     def issue(self, req):
         ck = str(req.cert_id or '') or sc.pending_slot('x', '', req).split(':')[-1]
         slot = sc.pending_slot('digicert', self._base(), req)
-        sub_key = 'digicert-order:%s' % ck
+        # each variant of a dual certificate its own order (1.0.80): the twin found the main
+        # one's order and reissued it - one order for both, each renewal replacing the other
+        fam = 'rsa' if str(req.key_type or '').lower().startswith('rsa') else 'ec'
+        sub_key = 'digicert-order:%s:%s' % (ck, fam)
         held = sc.pending_get(self.ctx, slot, req)
         r = sc.held_request(req, held)
         placer = _dcv.Placer(self)
@@ -417,7 +426,8 @@ class DigicertIssuer(Issuer):
                                       'paid again)', retry=False)
                 self._say('order %s made at DigiCert: %s for %s' % (oid, self.product(),
                                                                      ', '.join(req.names)), 'ok')
-                self.ctx.kv_set(sub_key, json.dumps({'order_id': oid, 'at': time.time()}),
+                self.ctx.kv_set(sub_key, json.dumps({'order_id': oid, 'at': time.time(),
+                                                     'family': fam}),
                                 ttl_s=5 * 366 * 86400)
             held = sc.pending_put(self.ctx, slot, req, {'id': oid, 'how': how, 'dcv': [],
                                                         'csr_pem': sc.csr_pem(req)}, ttl_days=120)

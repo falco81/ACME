@@ -17,6 +17,7 @@ import re
 import time
 import urllib.parse
 
+from acmelib.plugins.issuers import _source_common as sc
 from acmelib.plugins.base import Issuer, Issued, PluginError, field
 from acmelib.plugins.issuers import _scep_pkcs7 as p7
 
@@ -183,6 +184,17 @@ class ScepIssuer(Issuer):
         caps = self.caps()
         ci, dg = self._algos(caps)
         ca, rcpt, all_certs = self.ca_certs()
+        # Kept by the certificate (and key type), with the request's key and CSR (1.0.80): kept
+        # by the key, a renewal - a new key each try - sent a new PKCSReq each time instead of
+        # asking (CertPoll) for the one waiting for approval
+        slot = sc.pending_slot('scep', self._url(), req)
+        held = sc.pending_get(self.ctx, slot, req)
+        if held and not (held.get('csr_pem') and held.get('key_pem')):
+            sc.pending_drop(self.ctx, slot)
+            held = None
+        mine = req
+        if held:
+            req = sc.held_request(req, held)
         with p7.Crypto(self._openssl) as cr:
             key_file = cr.file(req.key_pem, 'key.pem')
             spki = p7.csr_spki(req.csr_der)
@@ -190,9 +202,7 @@ class ScepIssuer(Issuer):
                 raise PluginError('SCEP needs an RSA key (the CA encrypts its answer to it) - set the '
                                   'certificate\'s key type to RSA', retry=False)
             tid = p7.transaction_id(spki)
-            slot = 'scep-pending:%s:%s' % (hashlib.sha256(self._url().encode()).hexdigest()[:16], tid[:32])
             signer = cr.selfsigned(key_file, (req.names or ['acme'])[0])
-            held = self.ctx.kv_get(slot)
             if held:
                 self._say('the CA held this request (transaction %s…) - asked for again' % tid[:16])
                 msg_type, content = 'CertPoll', p7.seq(ca.subject_der, p7.csr_subject(req.csr_der))
@@ -207,7 +217,10 @@ class ScepIssuer(Issuer):
                                   all_certs)
             end = time.time() + float(self.c('wait_pending') or 0)
             while got[0] == 'PENDING':
-                self.ctx.kv_set(slot, json.dumps({'at': time.time(), 'tid': tid}), ttl_s=30 * 86400)
+                if not held:
+                    held = sc.pending_put(self.ctx, slot, req, {'tid': tid,
+                                                                'csr_pem': req.csr_pem},
+                                          ttl_days=30)
                 if time.time() >= end:
                     raise PluginError('the CA holds the request (PENDING, transaction %s…) for someone '
                                       'to approve - acme asks for it again at the next try' % tid[:16])
@@ -218,8 +231,8 @@ class ScepIssuer(Issuer):
                 got = self._operation(cr, caps, ci, dg, 'CertPoll',
                                       p7.seq(ca.subject_der, p7.csr_subject(req.csr_der)),
                                       tid, signer, key_file, rcpt, ca, all_certs)
-            if held or got[0] in ('SUCCESS', 'FAILURE'):
-                self.ctx.kv_set(slot, None)
+            if got[0] in ('SUCCESS', 'FAILURE'):
+                sc.pending_drop(self.ctx, slot)
             if got[0] == 'FAILURE':
                 fi = got[1]
                 raise PluginError('the CA refused the request: %s%s' % (
@@ -238,7 +251,8 @@ class ScepIssuer(Issuer):
         x = p7.Cert(leaf)
         self._say('the certificate came: serial %x, until %s, from %s' % (
             x.serial, time.strftime('%Y-%m-%d', time.gmtime(x.not_after)), x.issuer_cn or '?'), 'ok')
-        return Issued(p7.pem(leaf), [p7.pem(c) for c in chain], info={'transaction_id': tid})
+        return Issued(p7.pem(leaf), [p7.pem(c) for c in chain], info={'transaction_id': tid},
+                      key_pem=req.key_pem if req is not mine else None)
 
     def _openssl(self, args, data=None):
         try:
