@@ -975,6 +975,7 @@ class Target(Plugin):
 
     # How long the tests run after a deployment here wait at most for the service to come
     # back (1.0.93): (tries, seconds between them) - a vCenter or a BMC restarts for minutes.
+    # Or a function of the deployment's options giving that (1.0.95: a BMC only when reset).
     served_wait = None
 
     def served_places(self, options):

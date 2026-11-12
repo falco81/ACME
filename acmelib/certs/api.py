@@ -2782,6 +2782,12 @@ def _deploy_save_in(store, b, by, full, made):
                 if f.get('required') and field_shown(f, opts) and \
                         opts.get(f['key']) in (None, '') and f.get('default') in (None, ''):
                     raise ValueError('%s is needed' % (f.get('label') or f['key']))
+                # a required one given empty is refused even with a default (1.0.95: the
+                # slots of an application, emptied, went on as "auto" - only the page said no)
+                if f.get('required') and field_shown(f, opts) and f['key'] in opts and \
+                        (opts[f['key']] in ('', []) or (isinstance(opts[f['key']], str) and
+                                                       not opts[f['key']].strip())):
+                    raise ValueError('%s is needed' % (f.get('label') or f['key']))
                 # Of the field's own kind (1.0.45): a number for a file name broke the module
                 # inside the deployment ("join() argument must be str").
                 v = opts.get(f['key'])

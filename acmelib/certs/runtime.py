@@ -308,6 +308,9 @@ class RunContext(base.Context):
                         # authority (1.0.88): browsers fetch it from the certificate's AIA
                         # address, Python does not. Fetched here too, and trusted only as a
                         # link to a root of the system (no partial chains).
+                        u0 = urllib.parse.urlsplit(url)
+                        aia_key = (u0.hostname or '', u0.port or 443)
+                        was_kept = aia_key in _AIA_FOUND
                         ctx2 = (self._aia_context(url, timeout, client_cert and ctx)
                                 if ctx is not None and verify and not ca_pem and
                                 AIA_MISSING in str(e) else None)
@@ -319,10 +322,10 @@ class RunContext(base.Context):
                             # the one kept before no longer fits (1.0.93: a renewed
                             # certificate from another intermediate - every call failed
                             # until a restart): fetched again once
-                            u0 = urllib.parse.urlsplit(url)
-                            if AIA_MISSING not in str(e2) or \
-                                    _AIA_FOUND.pop((u0.hostname or '', u0.port or 443),
-                                                   None) is None:
+                            # only when the one used was kept from before (1.0.95: one
+                            # just fetched was fetched again - two more fetches a call)
+                            if AIA_MISSING not in str(e2) or not was_kept or \
+                                    _AIA_FOUND.pop(aia_key, None) is None:
                                 raise
                             ctx2 = self._aia_context(url, timeout, client_cert and ctx)
                             if ctx2 is None:

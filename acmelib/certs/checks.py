@@ -27,8 +27,10 @@ or asked. A test that starts failing is an event and a notification
 """
 from __future__ import annotations
 
+import functools
 import json
 import ssl
+import threading
 import re
 import time
 import urllib.parse
@@ -94,6 +96,20 @@ def rows(store, cert_id=None, test=None):
     return [row_public(store, r) for r in store.db.rows(q, tuple(args))]
 
 
+# attaching is "is it there? then add it" - one at a time in this process (1.0.95: two pages
+# asking at once gave a certificate the same test twice, each run and counted by itself)
+_ATTACH_LOCK = threading.RLock()
+
+
+def _one_at_a_time(fn):
+    @functools.wraps(fn)
+    def run(*a, **k):
+        with _ATTACH_LOCK:
+            return fn(*a, **k)
+    return run
+
+
+@_one_at_a_time
 def attach(store, cert_id, names, by, after_target=''):
     """Tests attached to a certificate (those attached already stay) -> the ids made; with
     after_target (1.0.65) they run after a deployment on that target only."""
@@ -120,6 +136,7 @@ def attach(store, cert_id, names, by, after_target=''):
     return made
 
 
+@_one_at_a_time
 def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='', via=None):
     """A test of what a target serves (1.0.77, in place of the deployment's "Check what is
     served"): made - or the same one found - attached to the certificate, run after a
@@ -166,14 +183,25 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
     have = store.db.row('SELECT * FROM cert_checks WHERE cert_id = ? AND test = ?',
                         (int(cert_id), name))
     if have is None:
+        if store.get_meta(_off_key(cert_id, name)):
+            return name                     # taken off by a person: left off (1.0.95)
         attach(store, cert_id, [name], by, after_target=target)
     else:
+        # tied to other targets: this one too; "only by its schedule" ('-') is a person's
+        # choice and stays (1.0.95: every save of the deployment's options undid it)
         now = after_list(have.get('after_target'))
         if now and AFTER_NONE not in now and target not in now:
             after(store, have['id'], '\n'.join(now + [target]), by)
-        elif AFTER_NONE in now:
-            after(store, have['id'], target, by)
     return name
+
+
+AUTO_NOTE = '(made from its deployment)'
+
+
+def auto_made(store, name):
+    """Whether a test is one acme made from a deployment (its note says so, 1.0.77/1.0.93)."""
+    r = store.db.row('SELECT note FROM cert_tests WHERE name = ?', (name,))
+    return bool(r and str(r.get('note') or '').endswith(AUTO_NOTE))
 
 
 def verify_to_tests(store, dep, opts, by):
@@ -189,6 +217,11 @@ def verify_to_tests(store, dep, opts, by):
     tcls = S.row_class('target', trow) if trow else None
     dport = int(getattr(tcls, 'default_verify_port', 443) or 443)
     left = []
+    # a preset's "{host}" (the command line's --set preset=nginx, 1.0.95): the target's host -
+    # it was made a test of a host called "{host}", never reached, failing every deployment
+    thost = str((S.jload(trow.get('config'), {}) or {}).get('host') or '').strip() if trow else ''
+    lines = [x.replace('{host}', thost) if '{host}' in x and thost else x for x in lines]
+    lines = [x for x in lines if '{host}' not in x]
     for hp in lines[:10]:
         # as the old check read it (1.0.78): [v6]:port, a bare IPv6 address, the target's own
         # default port (Proxmox 8006, Synology 5001...) - not "2001:db8::1" as host "2001:db8:"
@@ -226,6 +259,17 @@ def served_tests(store, dep, by):
         E.log('where %s serves could not be read: %s' % (dep['target'], e), 'warn')
         return []
     for host, port in places[:5]:
+        host = str(host or '').strip()
+        if '://' in host:
+            from urllib.parse import urlsplit
+            try:
+                u = urlsplit(host)
+                host, port = u.hostname or '', u.port or port
+            except ValueError:
+                continue
+        host = host.strip('[]').rstrip('/')
+        if not host:
+            continue
         try:
             made.append(for_target(store, dep['cert_id'], dep['target'], by, 'tls', host,
                                    int(port)))
@@ -254,6 +298,13 @@ def _tries_for(store, chk, targets):
         trow = S.plugin_row(store, 'target', tg)
         cls = S.row_class('target', trow) if trow else None
         w = getattr(cls, 'served_wait', None) if cls else None
+        if callable(w):
+            dep = store.db.row('SELECT options FROM cert_deploys WHERE cert_id = ? AND target = ?',
+                               (int(chk['cert_id']), tg))
+            try:
+                w = w(S.jload((dep or {}).get('options'), {}) or {})
+            except Exception:                           # noqa: BLE001
+                w = None
         if w and (longest is None or w[0] * w[1] > longest[0] * longest[1]):
             longest = w
     if not longest:
@@ -292,9 +343,21 @@ def target_gone(store, cert_id, target):
 
 
 def detach(store, ident):
-    if not store.db.row('SELECT id FROM cert_checks WHERE id = ?', (int(ident),)):
+    row = store.db.row('SELECT * FROM cert_checks WHERE id = ?', (int(ident),))
+    if not row:
         raise LookupError('there is no such test of a certificate')
     store.db.run('DELETE FROM cert_checks WHERE id = ?', (int(ident),))
+    # one acme made from a deployment, taken off by a person, is not attached again by the
+    # next save of that deployment (1.0.95)
+    try:
+        if auto_made(store, row['test']):
+            store.set_meta(_off_key(row['cert_id'], row['test']), json.dumps({'at': time.time()}))
+    except Exception:                                   # noqa: BLE001
+        pass
+
+
+def _off_key(cert_id, test):
+    return 'certs:served_off:%d:%s' % (int(cert_id), str(test)[:120])
 
 
 AFTER_NONE = '-'      # after_target: no deployment runs the test - only its schedule (1.0.66)
@@ -986,6 +1049,13 @@ def after_deploy(store, job, cert_id, targets=None, failed=None):
                 job.step('test %s: %s - asked again in %d s' % (
                     chk['test'], got['said'], waits[i + 1]), 'debug')
         record(store, chk, got, job.step)
+        if got['state'] == 'unreachable' and auto_made(store, chk['test']):
+            # a test acme made from the deployment (1.0.95): not reached from here (a target
+            # behind a proxy, a network acme does not see) says so - as the module's own check
+            # did until 1.0.92 - and does not fail the deployment that went through
+            job.step('test %s could not reach what is served (%s) - the deployment stands; '
+                     'a test of your own fails it' % (chk['test'], got['said']), 'warn')
+            continue
         worst = worst and got['ok']
         if not got['ok'] and failed is not None:
             # tied to targets, or (1.0.78) to every deployment: each target deployed on now

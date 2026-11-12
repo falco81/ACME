@@ -173,8 +173,10 @@ def _tested_words(store, cert, target):
         from acmelib.certs import checks
         if not E.CONFIG.get('certs_checks_after_deploy', 1):
             return 'tests after a deployment are switched off (Settings → Certificates)'
-        for r in store.db.rows('SELECT after_target FROM cert_checks WHERE cert_id = ? AND '
-                               'COALESCE(enabled, 1) <> 0', (cert['id'],)):
+        # as after_deploy picks them (1.0.95): a test switched off, or one gone, checks nothing
+        for r in store.db.rows('SELECT c.after_target FROM cert_checks c JOIN cert_tests t ON '
+                               't.name = c.test WHERE c.cert_id = ? AND COALESCE(c.enabled, 1) '
+                               '<> 0 AND COALESCE(t.enabled, 1) <> 0', (cert['id'],)):
             have = checks.after_list(r.get('after_target'))
             if checks.AFTER_NONE not in have and (not have or target in have):
                 return 'what it serves is checked by the tests attached'
@@ -316,6 +318,14 @@ def run_deploys(store, job, cert_id, only=None, force=False):
             from acmelib.certs import checks
             tested = checks.after_deploy(store, job, cert_id, done_on, failed_by_test)
         except JobStopped:
+            # stopped while its tests ran (1.0.95): what went through is told as deployed -
+            # it was in place already, and never said (no event, no notice) and never tried
+            for dep in rows:
+                if dep['id'] in ok_ids:
+                    try:
+                        _told_deployed(store, cert, dep)
+                    except Exception:                   # noqa: BLE001
+                        pass
             raise
         except Exception as e:                          # noqa: BLE001
             job.step('the tests of the certificate could not run: %s' % e, 'warn')

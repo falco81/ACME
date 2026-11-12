@@ -51,6 +51,26 @@ DNS_VALIDATION = ('dns_builtin', DNS_OWN, 'dns_builtin', {},
                   'names to it (wildcards too).')
 
 
+def _claim(store, key):
+    """A one-time change taken by one only (1.0.95): both nodes at start, the command line and
+    the pages asking at once ran it side by side. True for the one whose row went in; a claim
+    left by one that stopped half way is taken over after an hour."""
+    try:
+        store.db.run('INSERT INTO meta (k, v) VALUES (?, ?)', (key, 'running:%d' % time.time()))
+        return True
+    except Exception:                                   # noqa: BLE001
+        pass
+    v = str(store.get_meta(key) or '')
+    if v.startswith('running:'):
+        try:
+            if time.time() - float(v.split(':', 1)[1]) > 3600:
+                return bool(store.db.run('UPDATE meta SET v = ? WHERE k = ? AND v = ?',
+                                         ('running:%d' % time.time(), key, v)))
+        except ValueError:
+            pass
+    return False
+
+
 def _flagged(store, what):
     return bool(store.get_meta(FLAG + what))
 
@@ -88,9 +108,13 @@ def ensure(store):
     try:
         # "Check what is served" of the deployments made into tests of their targets, once
         # (1.0.77) - the tests do it, and more (other protocols, through a connector, a history)
-        if not store.get_meta('certs:verify_to_tests'):
+        if not store.get_meta('certs:verify_to_tests') and _claim(store, 'certs:verify_to_tests'):
             from acmelib.certs import checks as C
-            n = C.verify_migrate(store)
+            try:
+                n = C.verify_migrate(store)
+            except Exception:
+                store.db.run('DELETE FROM meta WHERE k = ?', ('certs:verify_to_tests',))
+                raise
             store.set_meta('certs:verify_to_tests', '%d test(s)' % n)
             if n:
                 E.log('the checks of what is served of the deployments are tests now: %d' % n)
@@ -100,9 +124,13 @@ def ensure(store):
     try:
         # where a target's module checked what it serves itself (until 1.0.92) made into
         # tests of those deployments, once (1.0.93)
-        if not store.get_meta('certs:served_to_tests'):
+        if not store.get_meta('certs:served_to_tests') and _claim(store, 'certs:served_to_tests'):
             from acmelib.certs import checks as C
-            n = C.served_migrate(store)
+            try:
+                n = C.served_migrate(store)
+            except Exception:
+                store.db.run('DELETE FROM meta WHERE k = ?', ('certs:served_to_tests',))
+                raise
             store.set_meta('certs:served_to_tests', '%d test(s)' % n)
             if n:
                 E.log('what the targets serve is checked by tests now: %d made' % n)
