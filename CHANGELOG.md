@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.95 - not released
+
 ## 1.0.94 - 2026-11-12
 
 - **FortiGate in versions by FortiOS's API**: *FortiOS 6.0 - 6.4*, *7.0 - 7.4.1* and
