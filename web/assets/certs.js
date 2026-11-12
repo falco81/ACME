@@ -3053,6 +3053,84 @@ function targetTestsPart(certId, t, saved, pending) {
 function deployable(t) {
   return !(plugOf('target', (t || {}).kind) || {}).connector;
 }
+/** A target's icon as the lists draw it: its vendor's colour, its letters. */
+function targetIcon(t) {
+  var p = plugVersion(plugOf('target', t.kind), t.version) || {};
+  var ic = el('span', 'ct-kind-ic v-' + String(p.vendor || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+  ic.textContent = kindLetters(p, t.kind);
+  noI18n(ic);
+  return ic;
+}
+/** The targets of a deployment, one picked (1.0.90) - drawn as "Attach a test" draws the
+    tests: the search, a row each with its icon, name, kind and address; a radio, as a
+    deployment goes to one target. Where the certificate is deployed already is said. */
+function targetPickList(targets, cert, chosen) {
+  var node = el('div', 'dp-pick');
+  var has = {};
+  arr((cert || {}).deploys).forEach(function (x) { has[x.target] = 1; });
+  var find = el('input');
+  find.type = 'search';
+  find.placeholder = tr('a name, a kind, an address…');
+  find.className = 'ct-kind-find';
+  node.appendChild(find);
+  var list = el('div', 'ck-attach');
+  var items = [];
+  var group = 'dp-t-' + Math.random().toString(36).slice(2);
+  var rows = targets.slice().sort(function (a, b) {
+    return (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0) || String(a.name).localeCompare(String(b.name));
+  });
+  var whereOf = function (t) {
+    var cfg = obj(t.config);
+    var w = cfg.host || cfg.url || cfg.address || cfg.server || cfg.base || cfg.path || '';
+    if (w && cfg.port && String(w).indexOf('://') < 0) w += ':' + cfg.port;
+    return String(w);
+  };
+  rows.forEach(function (t) {
+    var lab = el('label', 'ck-attach-row');
+    var rb = el('input');
+    rb.type = 'radio';
+    rb.name = group;
+    rb.onchange = function () {
+      if (!rb.checked) return;
+      items.forEach(function (x) { x.classList.toggle('on', x === lab); });
+      chosen(t.name);
+    };
+    lab.appendChild(rb);
+    lab.appendChild(targetIcon(t));
+    var w = el('span', 'ck-attach-w');
+    var tl = el('span', 'ck-attach-t');
+    tl.appendChild(data('b', '', t.name));
+    tl.appendChild(el('span', 'tag dim', plugTitle('target', t.kind)));
+    if (t.is_default) tl.appendChild(el('span', 'tag info', 'default'));
+    if (has[t.name]) tl.appendChild(el('span', 'tag ok', 'deployed there already'));
+    if (t.enabled === 0 || t.enabled === false) tl.appendChild(el('span', 'tag dim', 'off'));
+    w.appendChild(tl);
+    var where = whereOf(t);
+    if (where) w.appendChild(data('span', 'mono small muted', where));
+    lab.appendChild(w);
+    lab._rb = rb;
+    items.push(lab);
+    list.appendChild(lab);
+  });
+  if (!rows.length) list.appendChild(emptyNote('No target yet - a full administrator adds them under Targets.'));
+  var aspec = {
+    fields: [['name', 'the target\'s name', 'name~web'], ['kind', 'its kind', 'kind:ssh'],
+             ['address', 'where it is', 'address~10.0.']],
+    rows: function () { return rows; },
+    value: function (t, f) { return {name: t.name, kind: t.kind, address: whereOf(t)}[f]; },
+    words: function (t) { return t.name + ' ' + t.kind + ' ' + plugTitle('target', t.kind) + ' ' + whereOf(t); }
+  };
+  setTimeout(function () { if (find.isConnected) qLocal(find, aspec); }, 0);
+  find.oninput = function () {
+    var keep = qFilter(find, aspec, rows);
+    items.forEach(function (x, i) { x.hidden = keep.indexOf(rows[i]) < 0; });
+  };
+  node.appendChild(list);
+  return {node: node, reset: function () {
+    items.forEach(function (x) { x._rb.checked = false; x.classList.remove('on'); });
+    setTimeout(function () { try { find.focus(); } catch (e) { } }, 0);
+  }};
+}
 function deployEdit(o) {
   var d = o.deploy || {};
   var certId = first(d.cert_id, o.cert && o.cert.id);
@@ -3064,7 +3142,7 @@ function deployEdit(o) {
   .then(function (got) {
     if (!modalStill(ticket)) return;
     var targets = got[1], certs = got[2];
-    var tSel = null, cSel = null, formHost = el('div'), form = null, on = null;
+    var tSel = null, cSel = null, formHost = el('div'), form = null, on = null, pickHost = null;
     var testsHost = el('div'), pendingTests = [];
     var drawTests = function () {
       clear(testsHost);
@@ -3081,7 +3159,7 @@ function deployEdit(o) {
       clear(formHost);
       var t = target();
       var p = plugVersion(plugOf('target', t.kind), t.version);
-      if (!t.name) { formHost.appendChild(el('p', 'muted', 'Choose a target first.')); form = null; return; }
+      if (!t.name) { if (!pickHost) formHost.appendChild(el('p', 'muted', 'Choose a target first.')); form = null; return; }
       if (!p) {
         formHost.appendChild(el('p', 'ct-bad', 'The module of this target (' + (t.kind || '?') + ') is not installed: its options cannot be drawn.'));
         form = null;
@@ -3176,16 +3254,56 @@ function deployEdit(o) {
         if (tt.kind) { var fxk = el('span', 'muted small', ' · '); fxk.appendChild(el('span', '', plugTitle('target', tt.kind))); fx.appendChild(fxk); }
         g.appendChild(formField('Target', fx));
       } else {
-        /* The default target offered first (preselected). */
-        var dtg = defaultOf(targets);
-        tSel = selectBox([['', tr('choose one…')]].concat(targets.filter(deployable).map(function (t) { return [t.name, t.name + ' · ' + tr(plugTitle('target', t.kind)) + (t.is_default ? ' · ' + tr('default') : '')]; })), tName || (dtg ? dtg.name : ''));
-        noI18n(tSel);
-        tSel.onchange = drawFields;
-        g.appendChild(formField('Target', tSel, targets.length ? '' : 'No target yet - a full administrator adds them under Targets.'));
+        /* The target picked from a list as "Attach a test" offers the tests (1.0.90): one at
+           a time (a radio), then its options as before - Change brings the list back. The
+           select stays underneath: what the rest of the form reads. */
+        var free = targets.filter(deployable);
+        tSel = selectBox([['', '']].concat(free.map(function (t) { return [t.name, t.name]; })), tName || '');
+        tSel.hidden = true;
+        var chosenBox = el('div', 'ck-attach-row on dp-chosen');
+        g.appendChild(tSel);
+        pickHost = targetPickList(free, o.cert, function (name) {
+          tSel.value = name;
+          paintPick();
+          drawFields();
+        });
+        var paintPick = function () {
+          clear(chosenBox);
+          var t = target();
+          chosenBox.hidden = !tSel.value;
+          if (tSel.value) {
+            chosenBox.appendChild(targetIcon(t));
+            var w = el('span', 'ck-attach-w');
+            var tl = el('span', 'ck-attach-t');
+            tl.appendChild(data('b', '', t.name));
+            tl.appendChild(el('span', 'tag dim', plugTitle('target', t.kind)));
+            w.appendChild(tl);
+            var cfg0 = obj(t.config), wh = cfg0.host || cfg0.url || cfg0.address || cfg0.base || '';
+            if (wh) w.appendChild(data('span', 'mono small muted', String(wh)));
+            chosenBox.appendChild(w);
+            if (MANAGE && free.length > 1) {
+              var ch = cmdButton('Change', 'edit', 'small');
+              ch.onclick = function () { tSel.value = ''; pickHost.reset(); paintPick(); drawFields(); };
+              chosenBox.appendChild(ch);
+            }
+          }
+          pickHost.node.hidden = !!tSel.value;
+          formHost.hidden = !tSel.value;
+          testsHost.hidden = !tSel.value;
+        };
+        setTimeout(paintPick, 0);
       }
       on = switchBox(d.id ? (d.enabled === undefined || truthy(d.enabled)) : true);
       g.appendChild(formField('In use', on, 'Off: kept, but the certificate is not put there.'));
       body.appendChild(g);
+      if (pickHost) {
+        /* the target: the list until one is picked, then that one as its row */
+        var th = el('div', 'dp-target');
+        th.appendChild(el('label', 'dp-label', 'Target'));
+        th.appendChild(chosenBox);
+        th.appendChild(pickHost.node);
+        body.appendChild(th);
+      }
       body.appendChild(formHost);
       body.appendChild(testsHost);
       drawFields();

@@ -576,12 +576,20 @@ the target's last `inventory`.
 - **Try** = hello, the pairing when a code is given, inventory. Nothing is
   changed there.
 - **Discover** (the target's button): the slots, what each has, and whether
-  a certificate of acme's covers it already; *Make the certificates* makes one
-  for each slot chosen, or one for all of them, each with a deployment naming
-  its slots (`POST /api/targets/push_discover`, `POST /api/targets/adopt`,
-  acmelib/certs/api_push.py). Discover again later says what is new (a new
-  node) and what is not covered. A `follows:` slot needs nothing; one that is
-  not installable is left, and said.
+  a certificate of acme's covers it already. Each slot its own choice (1.0.90):
+  left as it is, **a certificate acme has already** that holds its names (its
+  deployment to this target takes the slot beside those it has, or one is
+  made; *Push the existing certificates now*), or **a new one** from the source
+  and validation chosen for it - one each, or (*One certificate for the new
+  slots*) one for the new slots of the same source (`POST
+  /api/targets/push_discover` - each slot with `fits`, the certificates holding
+  its names -, `POST /api/targets/adopt` with `each`, acmelib/certs/api_push.py).
+  It makes ordinary deployments: the certificate's window shows them, and one
+  made there shows here as covering the slot. Discover again later says what is
+  new (a new node) and what is not covered. A `follows:` slot needs nothing; one
+  that is not installable is left, and said.
+- **Slots of a deployment** are picked: *Find the slots* asks the application
+  and offers `auto`, `nodes`, `vip`, `this` and each slot, ticked.
 - **Deploy** = hello (is it still the pinned one?), install, then the TLS check.
 
 ## 13. Security considerations

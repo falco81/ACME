@@ -1286,3 +1286,18 @@ table.ct-issued td:nth-child(2){min-width:210px;max-width:250px;white-space:norm
 .ct-holdbox.on .ct-holdbox-h b{color:var(--warn)}
 .ct-holdbox .note{margin:0 0 10px}
 .ct-holdbox-b{display:flex;gap:8px;flex-wrap:wrap}
+/* A deployment's target, picked from the list (1.0.90): the chosen one in the field */
+.dp-pick{margin:4px 0 8px}
+.dp-pick .ck-attach{max-height:min(52vh,560px);overflow:auto;padding-right:2px}
+.dp-chosen{display:flex;align-items:center;gap:10px;min-height:38px;padding:4px 0;flex-wrap:wrap}
+.dp-chosen .ct-kind-ic{width:30px;height:30px;font-size:11px;border-radius:8px;flex:none}
+.dp-chosen .ck-attach-w{display:flex;flex-direction:column;min-width:0;flex:1 1 auto}
+.dp-chosen .ck-attach-w b{overflow-wrap:anywhere}
+.dp-target{margin:6px 0 10px}
+.dp-label{display:block;font-weight:600;font-size:13px;margin:0 0 6px}
+.dp-chosen{cursor:default;margin:0;min-height:0;padding:9px 12px}
+.dp-chosen[hidden]{display:none}
+.dp-chosen .ck-attach-w{flex:1 1 auto}
+.dp-chosen .btn{flex:none;margin-left:auto}
+.dp-pick[hidden]{display:none}
+.ck-attach-w .mono{overflow-wrap:anywhere}

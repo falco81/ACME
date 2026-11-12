@@ -56475,6 +56475,18 @@
   "dsc_15": {
    "source": "a slot is left, given an existing certificate or a new one",
    "text": "slot se buď nechá, dostane existující certifikát, nebo nový"
+  },
+  "dp_3": {
+   "source": "deployed there already",
+   "text": "už je tam nasazený"
+  },
+  "dp_4": {
+   "source": "the target's name",
+   "text": "název cíle"
+  },
+  "dp_5": {
+   "source": "where it is",
+   "text": "kde je"
   }
  },
  "patterns": {

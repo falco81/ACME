@@ -6,6 +6,20 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.90 - not released
 
+- **Deploy a certificate**: the target is picked from a list drawn as *Attach a test* draws the
+  tests - the search, each target with its icon, kind and address, the default first, where the
+  certificate is deployed already said - one at a time (a radio); picked, its options show as
+  before, and *Change* brings the list back.
+- **An application of ours (acme push) - the slots picked, not typed**: *Find the slots* asks the
+  application (as Discover) and lists *Automatically / Every node / The VIP address / This one*
+  and each slot with its names, what it has now and who keeps it - ticked; a slot not there any
+  more stays and is said, another can be added by its id. The command line types the lines as before.
+- **Discover on an application of ours**: each slot its own choice - left as it is, **a
+  certificate acme has already** (only those holding the slot's names are offered; its
+  deployment to the target takes the slot, or one is made) or **a new one** from the source and
+  validation chosen for that slot; *One certificate for the new slots* and *Push the existing
+  certificates now*. It is the same deployment as one made in the certificate's window - both
+  show it.
 ## 1.0.89 - 2026-11-12
 
 - **The whole chain of acme's own web certificates** (Settings → Certificates and TLS, every
