@@ -391,6 +391,31 @@ def certs_carry_row_in(store, table, ident, old):
     return certs_mod('store').carry_in(store, table, ident, old)
 
 
+@_certs_hook('carry_meta_out')
+def certs_carry_meta_out(store, table, row):
+    """A certificate's rows in meta, with it in the file (1.0.88)."""
+    if table == 'certs' and row.get('id') is not None:
+        return certs_mod('store').cert_meta_out(store, row['id'])
+    return None
+
+
+@_certs_hook('carry_meta_in')
+def certs_carry_meta_in(store, table, ident, meta):
+    if table == 'certs':
+        certs_mod('store').cert_meta_in(store, ident, meta)
+
+
+@_certs_hook('carry_row_drop')
+def certs_carry_row_drop(store, table, ident):
+    if table == 'certs':
+        certs_mod('store').cert_leftovers(store, ident)
+
+
+@_certs_hook('carry_with_sealed')
+def certs_carry_with_sealed(*_args):
+    return {'certs': dict(certs_mod('store').CERT_WITH_KEY)}
+
+
 def certs_port80_why(store):
     """Why the certificate manager needs port 80 from anywhere, even when "Who
     may reach the pages" keeps the pages to some networks: [reasons] - the CRLs

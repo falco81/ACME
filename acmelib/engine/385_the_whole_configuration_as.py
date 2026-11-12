@@ -57,6 +57,14 @@ def carry_export(store, whole):
             # opened for the file with the secrets, dots only without them.
             for fn in HOOKS.get('carry_row_out', []):
                 row = fn(table, row, whole) or row
+            # its rows in meta, by its number (1.0.88: a held deployment, a move, the portal's)
+            for fn in HOOKS.get('carry_meta_out', []):
+                try:
+                    got = fn(store, table, row)
+                except Exception:                       # noqa: BLE001
+                    got = None
+                if got is not None:
+                    row = dict(row, _meta=got)
             rows.append(row)
         out[table] = rows
     return out
@@ -92,7 +100,14 @@ def carry_import(store, tables, by, replace, said):
         kept = set()
         natural = CARRY_NATURAL.get(table)
         refs_here = {col: tgt for (t_, col), tgt in carry_refs().items() if t_ == table}
+        with_sealed = {}
+        for fn in HOOKS.get('carry_with_sealed', []):
+            try:
+                with_sealed.update((fn() or {}).get(table) or {})
+            except Exception:                           # noqa: BLE001
+                pass
         for row in rows:
+            meta = row.get('_meta') if '_meta' in row else None
             row = {k: v for k, v in row.items() if k.lower() in have}
             fid = row.pop('id', None)
             plain = {c: row.pop(c) for c in cols if c in row}
@@ -122,6 +137,12 @@ def carry_import(store, tables, by, replace, said):
                 old = store.db.row('SELECT * FROM %s WHERE id = ?' % table, (fid,))
             if old:
                 ident = old['id']
+                # a sealed column the file does not carry (no secrets): what goes with it here
+                # stays as it is (1.0.88: an older certificate over the key of the newer one)
+                for c, along in with_sealed.items():
+                    if old.get(c) and not plain.get(c):
+                        for a_ in along:
+                            row.pop(a_, None)
                 if row:
                     store.db.update(table, ident, row)
             else:
@@ -141,6 +162,9 @@ def carry_import(store, tables, by, replace, said):
                 # (dots in the file: the ones kept here stay).
                 for fn in HOOKS.get('carry_row_in', []):
                     fn(store, table, ident, old)
+            if ident is not None and meta is not None:
+                for fn in HOOKS.get('carry_meta_in', []):
+                    fn(store, table, ident, meta)
             kept.add(ident)
             said[table] += 1
             if fid is not None and ident is not None:
@@ -149,6 +173,9 @@ def carry_import(store, tables, by, replace, said):
         if replace:
             for one in store.db.rows('SELECT id FROM %s' % table):
                 if one['id'] not in kept:
+                    # what is the row's elsewhere goes with it (1.0.88)
+                    for fn in HOOKS.get('carry_row_drop', []):
+                        fn(store, table, one['id'])
                     store.db.run('DELETE FROM %s WHERE id = ?' % table, (one['id'],))
                     said['%s taken away' % table] += 1
         db_numbering_fix(store.db, [table])

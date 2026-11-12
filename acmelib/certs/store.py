@@ -276,6 +276,56 @@ def carry_out(table, row, whole):
     return dict(row, **{col: json.dumps(cfg)})
 
 
+# A certificate's own rows in meta, by its number (1.0.88): carried with it in the
+# configuration's file and taken away with it.
+CERT_META = {'hold': 'certs:deploy_hold:%d', 'moved': 'cert:moved:%d', 'portal': 'certs:portal:%d'}
+
+
+def cert_meta_out(store, cert_id):
+    out = {}
+    for k, pat in CERT_META.items():
+        v = store.get_meta(pat % int(cert_id))
+        if v not in (None, ''):
+            out[k] = v
+    return out
+
+
+def cert_meta_in(store, cert_id, meta):
+    """The file's (a dict - {} when it had none) put under the number here; any other gone."""
+    for k, pat in CERT_META.items():
+        key = pat % int(cert_id)
+        if isinstance(meta, dict) and meta.get(k) not in (None, ''):
+            store.set_meta(key, str(meta[k]))
+        else:
+            store.db.run('DELETE FROM meta WHERE k = ?', (key,))
+
+
+def cert_leftovers(store, cert_id):
+    """What a certificate leaves when its row goes: its versions, tests, finished jobs and
+    its rows in meta (1.0.88: an import with replace left them, and a certificate given the
+    same number later was held, had someone else's portal mail and old versions)."""
+    db = store.db
+    db.run('DELETE FROM cert_checks WHERE cert_id = ?', (int(cert_id),))
+    db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (int(cert_id),))
+    db.run('DELETE FROM cert_versions WHERE cert_id = ?', (int(cert_id),))
+    db.run("DELETE FROM cert_jobs WHERE cert_id = ? AND state NOT IN ('queued', 'running')",
+           (int(cert_id),))
+    for pat in CERT_META.values():
+        db.run('DELETE FROM meta WHERE k = ?', (pat % int(cert_id),))
+
+
+# A certificate's columns that go with its sealed key (1.0.88): a file without the secrets
+# changes none of them on a certificate here - the key kept here is of the version here
+# (taken with an older one, it was sealed for another version and opened no more).
+CERT_WITH_KEY = {
+    'key_sealed': ('cert_pem', 'chain_pem', 'version', 'serial', 'fingerprint', 'not_before',
+                   'not_after', 'issuer_dn', 'subject_dn', 'ari', 'csr_pending'),
+    'alt_key_sealed': ('alt_cert_pem', 'alt_chain_pem', 'alt_version', 'alt_serial',
+                       'alt_fingerprint', 'alt_not_before', 'alt_not_after', 'alt_issuer_dn',
+                       'alt_ari', 'alt_state'),
+}
+
+
 def carry_in(store, table, ident, old):
     """A row put in from such a file: a secret in clear sealed for its place
     here; eight dots (a file without the secrets) - the one kept here stays,

@@ -132,6 +132,22 @@ class DeployHold(unittest.TestCase):
         self.assertIsNone(S.deploy_hold(STORE, cid))
 
 
+class Carry(unittest.TestCase):
+    def test_hold_goes_with_the_certificate_in_the_file(self):
+        import collections
+        from acmelib.certs import store as S
+        cid = cert('carry-i.example.test')
+        STORE.db.update('certs', cid, {'version': 3, 'cert_pem': 'x'})
+        row = STORE.db.row('SELECT * FROM certs WHERE id = ?', (cid,))
+        S.deploy_hold_set(STORE, row, True, 'tester')
+        tables = E.carry_export(STORE, False)
+        mine = [r for r in tables['certs'] if r['id'] == cid][0]
+        self.assertIn('hold', mine.get('_meta') or {})
+        S.deploy_hold_set(STORE, row, False)
+        E.carry_import(STORE, {'certs': [mine]}, 'tester', False, collections.Counter())
+        self.assertIsNotNone(S.deploy_hold(STORE, cid))
+
+
 class Buttons(unittest.TestCase):
     def test_one_order_in_every_popup(self):
         with open(os.path.join(ROOT, 'web/assets/core.js')) as f:
