@@ -58,6 +58,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import atexit
 
 import threading
 import time

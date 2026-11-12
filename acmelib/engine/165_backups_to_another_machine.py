@@ -50,7 +50,12 @@ def rb_clean(text, what, most=200, pattern=None, empty=True):
 
 
 def rb_slug(text):
-    return re.sub(r'[^A-Za-z0-9_.]+', '_', str(text or 'acme')).strip('_.')[:40] or 'acme'
+    clean = re.sub(r'[^A-Za-z0-9_.]+', '_', str(text or 'acme')).strip('_.') or 'acme'
+    if len(clean) <= 40:
+        return clean
+    # a long name cut keeps a mark of the whole (1.0.96: two nodes "...-prague-1" and
+    # "...-prague-2" cut to one name, and one node's backups were taken away as the other's)
+    return clean[:31].rstrip('_.') + '_' + hashlib.sha256(str(text).encode('utf-8')).hexdigest()[:8]
 
 
 # ---- the destinations ---------------------------------------------------------------

@@ -206,6 +206,13 @@ def cli_api(daemon, who, method, path, body=None, args=None, printed=False):
         # a file, not an answer (1.0.79): it raised half way, its "downloaded" event written
         raise SystemExit('acme: %s hands a file to a browser - here: acme --backup (a copy '
                          'made now, its path said) or acme --backup-info FILE' % path)
+    # changes wait while the nodes are apart, here as on the pages (1.0.96: the command line
+    # went past split_freeze)
+    if method == 'POST':
+        frozen = split_refuses(method, path, str((b_ or {}).get('action') or '')
+                               if isinstance(b_, dict) else '')
+        if frozen:
+            raise SystemExit('acme: %s' % frozen)
     h = CliApiHandler(daemon, who, body, args, path)
     try:
         return fn(h)
@@ -3708,6 +3715,31 @@ def cli_main(argv=None):
         print(pal.ok_line('%s, and the key beside it' % got))
         return 0
 
+    # The database with its key the pages download (.with-key.tar, 1.0.96): opened here too -
+    # the console offered it, and the command line said it was no copy made by acme
+    bundle_key = None
+    for attr in ('restore', 'backup_info'):
+        f = getattr(args, attr, None)
+        if not f or not Path(f).is_file() or not dbkey_is_bundle(f):
+            continue
+        pw = os.environ.get('ACME_KEY_PASSPHRASE', '')
+        if getattr(args, 'passphrase_file', None):
+            try:
+                pw = Path(args.passphrase_file).read_text().split('\n')[0]
+            except OSError as e:
+                raise SystemExit('acme: %s' % e)
+        if not pw and attr == 'restore' and args.yes and sys.stdin.isatty():
+            pw = getpass.getpass('the passphrase of the key in the file (empty: the key that is '
+                                 'here now is kept): ')
+        work = tempfile.mkdtemp(prefix='acme-bundle-', dir=str(STATE_DIR))
+        atexit.register(shutil.rmtree, work, True)
+        try:
+            inner, keyf, _head = dbkey_open(f, work, pw or None)
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        setattr(args, attr, str(inner))
+        bundle_key = keyf
+
     if args.backup_info or (args.restore and not args.yes):
         # What a copy holds and where it was made (1.0.63), before anything
         # is put back.
@@ -3857,7 +3889,8 @@ def cli_main(argv=None):
             raise SystemExit('acme: there is no file %s' % args.restore)
         try:
             got = db_file_restore(store, args.restore, 'command line',
-                                  key_file=_key_beside(args.restore), need_admin=False)
+                                  key_file=bundle_key or _key_beside(args.restore),
+                                  need_admin=False)
         except (ValueError, OSError) as e:
             raise SystemExit('acme: %s' % e)
         # the node, the guard, the settings of config.json - as a backup put back (1.0.80)

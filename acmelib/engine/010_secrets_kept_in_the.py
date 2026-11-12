@@ -18,13 +18,40 @@ SEALED = 'sealed:1:'
 
 def scrub_secret(text):
     """Words that may carry a database password (a conninfo in an error, say)
-    with the password taken out, before they are logged or shown."""
-    # A quoted value whole, up to the quote a space or the end follows (so
-    # one with spaces, \' or SQL's '' inside goes too); otherwise up to the
-    # next space - taking a quote with it rather than leaving a letter of
-    # the password behind.
-    return re.sub(r"(password\s*=\s*)('.*?'(?=\s|$)|\S+)", r'\1***', str(text or ''),
-                  flags=re.I | re.S)
+    with the password taken out, before they are logged or shown. A quoted value is read as
+    libpq quotes it - \\' and \\\\ inside, to the quote that ends it - and as SQL doubles it
+    inside another string ('' for '): 1.0.96, a password with a quote and a space in it showed
+    its end. Unquoted: up to the next space."""
+    s = str(text or '')
+    pat = re.compile(r'(password\s*=\s*)', re.I)
+    out, pos = [], 0
+    while True:
+        m = pat.search(s, pos)
+        if not m:
+            out.append(s[pos:])
+            break
+        out.append(s[pos:m.end()] + '***')
+        j = m.end()
+        if j < len(s) and s[j] == "'":
+            q = 2 if s.startswith("''", j) and not (j + 2 >= len(s) or s[j + 2].isspace()) else 1
+            if q == 1 and s.startswith("''", j):
+                j += 2                                  # an empty value
+            else:
+                quote = "'" * q
+                j += q
+                while j < len(s):
+                    if s[j] == '\\':
+                        j += 1 + (q if s.startswith(quote, j + 1) else 1)
+                        continue
+                    if s.startswith(quote, j):
+                        j += q
+                        break
+                    j += 1
+        else:
+            while j < len(s) and not s[j].isspace():
+                j += 1
+        pos = j
+    return ''.join(out)
 
 
 def sealing_key_path():

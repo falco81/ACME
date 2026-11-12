@@ -433,11 +433,37 @@ def split_state_of(store, name):
     return _meta_obj(store, 'split:state:' + name)
 
 
+def _split_from_row():
+    """In a process that does not watch (the command line, 1.0.96): this node's state as its
+    daemon wrote it - renewing, revoking, signing and settings by the command line went on
+    on a node stepped aside, or apart and held back, as if all were well."""
+    if split_watching():
+        return
+    now = time.time()
+    if now - float(SPLIT.get('row_read') or 0) < 10:
+        return
+    SPLIT['row_read'] = now
+    store = HA_STORE.get('store')
+    if store is None:
+        return
+    try:
+        row = _meta_obj(store, 'split:state:' + node_name())
+    except Exception:                                   # noqa: BLE001
+        return
+    if not isinstance(row, dict) or now - float(row.get('at') or 0) > 300:
+        return                          # none, or its daemon not writing: as before
+    SPLIT['role'] = str(row.get('role') or 'serve')
+    SPLIT['why'] = str(row.get('why') or '')
+    SPLIT['apart_since'] = float(row.get('since') or now) if row.get('apart') else 0.0
+
+
 def split_apart():
+    _split_from_row()
     return bool(SPLIT['apart_since']) and split_engaged()
 
 
 def split_aside():
+    _split_from_row()
     return split_engaged() and SPLIT['role'] == 'aside'
 
 
@@ -647,6 +673,7 @@ def split_no_lead():
     signed: stepped aside, or apart with split_renew on and not the preferred node."""
     if not split_engaged():
         return False
+    _split_from_row()
     if SPLIT['role'] == 'aside':
         return True
     return bool(CONFIG.get('split_renew')) and split_apart() and not split_me_preferred()

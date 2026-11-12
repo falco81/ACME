@@ -873,6 +873,7 @@ def _db_restore(h):
             got = db_file_restore(h.store, tmp, s['name'], from_name='the page')
         except ValueError as e:
             raise ApiError(400, str(e))
+        _machine_followed(h.store, tmp, s['name'], got)
         h.d.reload_all('a database was put back') if hasattr(h.d, 'reload_all') else None
         return got
     finally:
@@ -880,6 +881,18 @@ def _db_restore(h):
             tmp.unlink()
         except OSError:
             pass
+
+
+def _machine_followed(store, path, by, got):
+    """After a copy put back from the pages, what acme --restore does after it (1.0.96): the node
+    named as in the copy, the guard against writes on again as it was, the settings of its
+    config.json - put back on a new machine from the pages, the guard stayed off."""
+    try:
+        said = restore_copy_machine(store, path, by)
+    except Exception as e:                              # noqa: BLE001
+        said = ['the machine of the copy could not be followed: %s' % e]
+    if said and isinstance(got, dict):
+        got['said'] = list(got.get('said') or []) + list(said)
 
 
 @route('POST', '/api/db')
@@ -936,6 +949,7 @@ def _db_do(h):
                 progress(2, 3, 'put back')
                 got = db_file_restore(store, inner, by, key_file=keyf,
                                       from_name=head.get('file') or 'a file with its key')
+                _machine_followed(store, inner, by, got)
                 progress(3, 3, 'done')
                 try:
                     daemon.reload_all('a database was put back')
@@ -974,6 +988,7 @@ def _db_do(h):
                                   from_name=path.name)
         except ValueError as e:
             raise ApiError(400, str(e))
+        _machine_followed(h.store, path, s['name'], got)
         if hasattr(h.d, 'reload_all'):
             h.d.reload_all('a database was put back')
         return got

@@ -272,7 +272,22 @@ def clock_decide(mode, ref, aside_s, codes_fixed, dir_ok, health_dir, peer, asid
 
 
 def clock_aside():
-    return clock_engaged() and CLOCK['role'] == 'aside'
+    if not clock_engaged():
+        return False
+    if not clock_watching() and not CLOCK['ref_at']:
+        # the command line (1.0.96): as its daemon measured it - not "all well" by itself
+        now = time.time()
+        if now - float(CLOCK.get('row_read') or 0) >= 10:
+            CLOCK['row_read'] = now
+            store = HA_STORE.get('store')
+            try:
+                row = _meta_obj(store, 'clock:state:' + node_name()) if store is not None else None
+            except Exception:                           # noqa: BLE001
+                row = None
+            if isinstance(row, dict) and now - float(row.get('at') or 0) <= 300:
+                CLOCK['role'] = str(row.get('role') or 'serve')
+                CLOCK['why'] = str(row.get('why') or '')
+    return CLOCK['role'] == 'aside'
 
 
 def clock_stepped():

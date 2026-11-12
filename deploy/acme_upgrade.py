@@ -538,6 +538,7 @@ def check_tree(tree, unsigned=False):
     if not who:
         raise Refused('the MANIFEST of %s is not signed by any release key this machine '
                       'trusts' % tree)
+    listed = set()
     with open(man, encoding='utf-8') as f:
         for line in f:
             line = line.rstrip('\n')
@@ -546,6 +547,7 @@ def check_tree(tree, unsigned=False):
             mm = re.match(r'^([0-9a-f]{64})  (.+)\Z', line)
             if not mm or mm.group(2).startswith('/') or '..' in mm.group(2).split('/'):
                 raise Refused('the MANIFEST of %s has a line that does not read' % tree)
+            listed.add(mm.group(2))
             path = os.path.join(tree, mm.group(2))
             h = hashlib.sha256()
             try:
@@ -557,6 +559,17 @@ def check_tree(tree, unsigned=False):
                     h.update(lump)
             if h.hexdigest() != mm.group(1):
                 raise Refused('%s in %s is not the file that was signed' % (mm.group(2), tree))
+    # code that was not signed beside what was (1.0.96): every NNN_*.py of acmelib/engine is
+    # run, signed or not - a file put into a previous tree ran after going back to it
+    lib = os.path.join(tree, 'acmelib')
+    for root, dirs, files in os.walk(lib):
+        dirs[:] = [d for d in dirs if d != '__pycache__']
+        for fn in files:
+            if fn.endswith('.py'):
+                rel = os.path.relpath(os.path.join(root, fn), tree).replace(os.sep, '/')
+                if rel not in listed:
+                    raise Refused('%s in %s is not in its MANIFEST - code nobody signed'
+                                  % (rel, tree))
     return who
 
 

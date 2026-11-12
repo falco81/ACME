@@ -341,8 +341,13 @@ class Shipper(object):
             # Nothing ends this thread (1.0.186): one error took isemon's
             # sending and its files away until a restart.
             try:
+                # a file that cannot be written does not keep the line from isemon (1.0.96)
                 if file_name and CONFIG.get('ship_files'):
-                    self._to_file(file_name, line)
+                    try:
+                        self._to_file(file_name, line)
+                    except Exception as e:              # noqa: BLE001
+                        log_sparing('shipper-file', 'a log file could not be written: %s' % e,
+                                    'warn', every=300)
                 if CONFIG.get('isemon'):
                     for target in list(self.targets):
                         self._to_target(target, '<%d>%s' % (pri, line))

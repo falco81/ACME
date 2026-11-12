@@ -426,7 +426,24 @@ def alert_problems(store, lang='en'):
                             'The node does not take the VIP address if the other goes.'), 'ha')
     # Backups: the nightly copy of each node, and the backups sent away.
     if CONFIG.get('alerts_backup', 1):
-        if CONFIG.get('backup_daily'):
+        ha_m = str(CONFIG.get('ha_mode') or '')
+        if CONFIG.get('backup_daily') and ha_m and ha_m != 'replicated':
+            # one database (1.0.96): one node makes the copy of the night for both (backup_day)
+            # - each node asked for its own said "no nightly copy" of the other for good
+            last = max([float((health.get(n) or {}).get('last_backup') or 0) for n in names] or [0])
+            try:
+                done = str(store.get_meta('backup_day', '') or '')
+            except Exception:                           # noqa: BLE001
+                done = ''
+            import datetime as _dtm
+            recent = done >= (_dtm.datetime.now() - _dtm.timedelta(days=1)).strftime('%Y-%m-%d')
+            if now - last > 36 * 3600 and not recent:
+                add('backup:cluster', 'warn', '',
+                    _al(lang, 'Noční záloha chybí', 'No nightly copy'),
+                    _al(lang, 'Poslední je z %s.' % _al_when(last) if last else
+                        'Žádná tam není.', 'The last one is from %s.' % _al_when(last)
+                        if last else 'There is none.'), 'db')
+        elif CONFIG.get('backup_daily'):
             for n in names:
                 h = health.get(n) or {}
                 if not h:
