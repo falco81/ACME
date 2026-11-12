@@ -98,6 +98,7 @@ Every module here works the same way:
 | `omnissa_uag` | Omnissa Unified Access Gateway (UAG) | Omnissa |
 | `ssh_connector` | Connector over SSH | Connector |
 | `checkpoint` | Check Point (Management API) | Check Point |
+| `flowmon` | Flowmon (REST API) | Progress Flowmon |
 | `nsx` | VMware NSX load balancer (Policy API) | VMware |
 | `barracuda_waf` | Barracuda Web Application Firewall | Barracuda |
 | `fortiweb` | FortiWeb | Fortinet |
@@ -2567,3 +2568,38 @@ code; PBS's own ACME client writes the same files (do not use both).
 - **pfSense**: pfSense CE has no official REST API (the pfSense-pkg-RESTAPI
   package is not Netgate's), and Netgate Nexus publishes no reference for
   certificates; the `pfsense` target above works over SSH.
+
+## `flowmon` - Flowmon (REST API)
+
+Flowmon OS 13.1 REST API. Sign-in: `POST /resources/oauth/token`
+(form: `grant_type=password`, `client_id` - *OAuth client*, `invea-tech`
+unless said otherwise - `username`, `password`), then `Authorization: bearer
+<token>`.
+
+Two places take the certificate (on the deployment, one or both):
+
+- **Reusable TLS setting** (Configuration center -> Reusable settings -> TLS:
+  what the probes decrypt the servers' TLS with). `GET
+  /rest/fcc/reusable-settings-tls` finds it by name; when there is none it is
+  made (`POST`, multipart, with the issuing authority as its `tlsCaFile`). In it
+  the **certificate pair** (*Certificate pair*, empty: the certificate's name)
+  is replaced (`PUT .../reusable-settings-tls/<id>/pairs`, with its `id`) or
+  added (`POST`), the key as `tlsPrivateKeyFile` and the certificate as
+  `tlsCertificateFile`. Whatever uses the pair uses the new one.
+- **Listening ports over TLS** (the collector's ports taking flows over TLS,
+  by name): `GET /rest/fcc/listening-ports`, then `PUT /rest/fcc/listening-ports`
+  `{"entity": {...the port..., "secure": true, "certificates": {"key", "crt",
+  "cacrt"}}}` (base64 of the PEMs, extensions `pem`).
+
+*Verify* reads the pair back (`parsedCertificate.validTo`) and compares the
+expiry. *Test* signs in and counts the settings and ports.
+
+**Uncertain** (checked against the API document 13.1 only, not on an
+appliance): the API describes the uploads as `multipart/form-data` with an
+`entity` object and files, without saying how the parts are named. *Form of
+the uploads* picks it: `entity[name]` (the usual for its PHP backend, the
+default), `entity.name`, or the entity as one JSON part with the files beside
+it - change it only when Flowmon refuses an upload. The API 13.1 has **no
+call for the certificate of Flowmon's own web interface**; that one is set in
+its Configuration center by hand (or over SSH with the `ssh` target and a
+script after the files).

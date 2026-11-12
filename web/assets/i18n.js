@@ -483,7 +483,8 @@ function i18nWalk(root) {
     else if (n.nodeType === 1) {
       /* A .mono box's hint is words too (1.0.103), as i18nAttrsSkip says:
          inside something drawn later it stayed English. */
-      if (I18N_BOXES[n.tagName] && n.attributes.length && !n.hasAttribute('data-no-i18n')) {
+      if (I18N_BOXES[n.tagName] && n.attributes.length &&
+          (!n.hasAttribute('data-no-i18n') || n.hasAttribute('data-i18n-hint'))) {
         i18nAttrs(n, true);
       }
       if (I18N_SKIP[n.tagName] || n.contentEditable === 'true'

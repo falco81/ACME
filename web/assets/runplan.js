@@ -593,7 +593,9 @@
     at.appendChild(icon('list', 15, 'rp-station-ic'));
     at.appendChild(el('b', '', 'All of them'));
     allBtn.appendChild(at);
-    allBtn.appendChild(el('span', 'rp-station-s small muted', groups.length + (kind === 'checks' ? ' test(s) side by side' : ' deployment(s) side by side')));
+    allBtn.appendChild(el('span', 'rp-station-s small muted', kind === 'checks'
+      ? (groups.length === 1 ? '1 test side by side' : groups.length + ' tests side by side')
+      : (groups.length === 1 ? '1 deployment side by side' : groups.length + ' deployments side by side')));
     allBtn.onclick = function () { pick(-1); };
     stations.push(allBtn);
     yard.appendChild(allBtn);

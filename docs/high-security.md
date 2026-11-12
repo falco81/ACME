@@ -94,7 +94,7 @@ the database, so nobody who can write the database can switch it off - and signs
 what the database holds at that moment as acme's word. It is switched off only on
 the node itself (its pages, or `acme --set db_guard=0` as root). In a cluster switch
 it on on every node, once all of them run 1.0.40 or later (it refuses while one
-does not). A copy put back on purpose, a configuration imported, the database moved
+does not). From 1.0.88 a node that joins (or comes back to) a cluster whose other live node has the guard on switches it on by itself - unless somebody switched it off on that node (then it stays off). A copy put back on purpose, a configuration imported, the database moved
 and a node renamed are signed again by acme afterwards - they work as before.
 
 **From the command line**: `acme --set db_guard=1` on each node, as root. The

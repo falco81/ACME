@@ -76,6 +76,7 @@ class Daemon(object):
                                          'taken as acme\'s word' % by)
             write_file_settings({'db_guard': 1})
             CONFIG['db_guard'] = 1
+            self.store.db.run('DELETE FROM meta WHERE k = ?', ('dbguard:off:' + node_name(),))
             # Read again by the running service too (1.0.232): from the command line it went on
             # only at its next reload.
             self.store.set_meta('conf_serial', '%.6f:%s' % (time.time(), node_name()))
@@ -83,11 +84,34 @@ class Daemon(object):
             return ['this node acts as root only on rows acme signed (%d signed now)' % n]
         write_file_settings({'db_guard': 0})
         CONFIG['db_guard'] = 0
+        # switched off by a person: not on again by itself (dbguard_as_cluster, 1.0.88)
+        self.store.set_meta('dbguard:off:' + node_name(), json.dumps({'by': by, 'at': time.time()}))
         self.store.set_meta('conf_serial', '%.6f:%s' % (time.time(), node_name()))
         self.store.add_event('security', '%s switched off the guard of root\'s actions on %s: '
                              'rows of the database are acted on whoever wrote them'
                              % (by, node_name()), 'bad', who=by)
         return ['this node acts on rows of the database whoever wrote them, as before 1.0.40']
+
+    def dbguard_as_cluster(self):
+        """A node of a cluster whose other node has the guard on takes it on too (1.0.88): a node
+        joined afresh, or built again after a backup was put back, came up without it - the
+        setting is its config.json's, not the database's. Only on, never off; and not on a node
+        where a person switched it off."""
+        if CONFIG.get('db_guard') or CONFIG.get('ha_mode') not in ('replicated', 'shared'):
+            return
+        if self.store.get_meta('dbguard:off:' + node_name()) is not None:
+            return
+        others = [n for n in ha_nodes(self.store) if not n.get('me') and n.get('alive')]
+        if not any(n.get('db_guard') for n in others):
+            return
+        try:
+            said = self.dbguard_switch(True, 'acme (as the other node of the cluster)')
+            if said:
+                self.store.add_event('security', '%s: root acts only on rows acme signed, as on '
+                                     'the other node of the cluster' % node_name())
+        except Exception as e:                          # noqa: BLE001
+            log_sparing('dbguard-cluster', 'the guard as on the other node: %s' % e, 'warn',
+                        every=3600)
 
     def reload_all(self, why=''):
         """Everything read again from the database: the settings and the
@@ -766,6 +790,7 @@ class Daemon(object):
                     log_sparing('isemon-tls-tick', 'isemon over TLS: %s' % e, 'warn', every=600)
                 try:
                     dbtls_tick(self)            # the connection to the database (1.0.170)
+                    self.dbguard_as_cluster()   # the guard as the cluster has it (1.0.88)
                 except Exception as e:          # noqa: BLE001
                     log_sparing('dbtls-tick', 'the encryption to the database: %s' % e, 'warn',
                                 every=600)

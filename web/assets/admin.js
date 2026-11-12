@@ -2587,10 +2587,16 @@ $('set-save').onclick = function () {
         if (item) {
           item.classList.add('refused');
           Array.prototype.forEach.call(item.querySelectorAll('.set-why'), function (x) { x.remove(); });
-          item.appendChild(el('div', 'set-why', why));
+          /* in its explanation's row, before the help (1.0.88: over it) */
+          var tailW = item.querySelector('.set-tail');
+          var whyEl = el('div', 'set-why', why);
+          if (tailW) tailW.insertBefore(whyEl, tailW.firstChild); else item.appendChild(whyEl);
           item.scrollIntoView({block: 'center'});
         }
-        said = '“' + tr(hit.name) + '”: ' + tr(why);
+        var tw = function (x) {
+          try { return (typeof i18nText === 'function' && i18nText(x)) || x; } catch (e2) { return x; }
+        };
+        said = '“' + tw(hit.name) + '”: ' + tw(why);
       }
       toast(said, 'bad');
       return false;

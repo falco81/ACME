@@ -934,7 +934,7 @@ function fieldForm(fields, values, secrets, opts) {
           it.item.classList.add('refused');
           if (it.f.advanced) more.open = true;
           if (!bad) {
-            bad = (it.f.label || it.f.key) + ' is needed';
+            bad = tr(it.f.label || it.f.key) + ' is needed';   /* the field as it is shown (1.0.88) */
             var box = it.input._input || it.input;
             try { box.focus(); } catch (e) { }
           }
@@ -3490,6 +3490,7 @@ function certPeek(id) {
     c.names = arr(c.names);
     var versions = rowsOf(d.versions), deploys = rowsOf(d.deploys), jobs = rowsOf(d.jobs);
     var back = function () { certPeek(c.id); };
+    c.deploys = deploys;        /* "Renew now" says what follows (1.0.88: "nothing to deploy" here) */
     var buttons = [];
     var waiting = c.state === 'pending' || c.csr_waiting;
     /* Being revoked to be deleted (1.0.23): nothing is started on it meanwhile. */
@@ -7739,14 +7740,18 @@ function jobPeek(id) {
           c.deploys = rowsOf(d.deploys);
           var badDeploy = c.deploys.some(function (x) { return x.state === 'failed'; });
           if (c.not_after && c.state === 'ok' && badDeploy) {
-            capi('certs/deploy', {id: c.id}).then(function (x) { jobStarted(x, 'deploying'); }).catch(fail);
+            over(function () {
+              confirmThen('Deploy ' + c.name + ' again?', htmlText('Its deployments run again now, in a job.'), 'Deploy now', function () {
+                capi('certs/deploy', {id: c.id}).then(function (x) { jobStarted(x, 'deploying'); }).catch(fail);
+              }, false);
+            });
             return;
           }
           certRenew(c, b);
         }).catch(function (e) { busy(b, false); fail(e); });
       }});
     if (!running && MANAGE && j.deploy_id && j.kind === 'deploy' && jobState(j) === 'failed')
-      buttons.push({words: 'Try again', cls: 'primary', icon: 'refresh', go: function (b) {
+      buttons.push({words: 'Try again', cls: 'primary', icon: 'refresh', confirm: 'It is deployed there at once - go on?', go: function (b) {
         busy(b, true);
         capi('deploys/run', {id: j.deploy_id}).then(function (x) { jobStarted(x, 'deploying'); }).catch(fail).then(function () { busy(b, false); });
       }});

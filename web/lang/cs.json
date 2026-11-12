@@ -41810,11 +41810,11 @@
   },
   "rp20s134": {
    "source": "nothing is sent when it goes well (Settings → Renewal and notices)",
-   "text": "když se zdaří, nic se neposílá (Nastavení → Obnova a upozornění)"
+   "text": "když se zdaří, nic se neposílá (Nastavení → Obnovování a upozornění)"
   },
   "rp20s135": {
    "source": "Nobody is mailed: no address is set for notices (Settings → Renewal and notices)",
-   "text": "Nikomu se nepíše: pro upozornění není nastavena adresa (Nastavení → Obnova a upozornění)"
+   "text": "Nikomu se nepíše: pro upozornění není nastavena adresa (Nastavení → Obnovování a upozornění)"
   },
   "rp20s136": {
    "source": "Every step is written into the job's log, and an event (syslog, SIEM) says what was done",
@@ -56175,6 +56175,86 @@
   "f88f_1": {
    "source": "an address as http://pki.example.cz/pki",
    "text": "adresa ve tvaru http://pki.example.cz/pki"
+  },
+  "f88h_1": {
+   "source": "1 test side by side",
+   "text": "1 test vedle sebe"
+  },
+  "f88h_2": {
+   "source": "1 deployment side by side",
+   "text": "1 nasazení vedle sebe"
+  },
+  "f88h_3": {
+   "source": "It is deployed there at once - go on?",
+   "text": "Hned se tam nasadí – pokračovat?"
+  },
+  "f88h_4": {
+   "source": "Its deployments run again now, in a job.",
+   "text": "Jeho nasazení se teď spustí znovu, v úloze."
+  },
+  "f88h_5": {
+   "source": "[Malformed packet: cut short or not SNMP]",
+   "text": "[Poškozený paket: zkrácený nebo to není SNMP]"
+  },
+  "flowmon_1": {
+   "source": "Flowmon (REST API)",
+   "text": "Flowmon (REST API)"
+  },
+  "flowmon_2": {
+   "source": "Puts the certificate and its key into a certificate pair of a reusable TLS setting (what the probes decrypt the servers' TLS with) and into the listening ports of the collector that take flows over TLS.",
+   "text": "Vloží certifikát a jeho klíč do páru certifikátů opakovaně použitelného nastavení TLS (tím sondy dešifrují TLS serverů) a do naslouchacích portů kolektoru, které přijímají toky přes TLS."
+  },
+  "flowmon_3": {
+   "source": "OAuth client",
+   "text": "Klient OAuth"
+  },
+  "flowmon_4": {
+   "source": "the client_id of the token request - invea-tech unless Flowmon says another",
+   "text": "client_id žádosti o token – invea-tech, pokud Flowmon neuvádí jiný"
+  },
+  "flowmon_5": {
+   "source": "Form of the uploads",
+   "text": "Podoba nahrávání"
+  },
+  "flowmon_6": {
+   "source": "entity[name], entity[tlsCaFile] (the usual)",
+   "text": "entity[name], entity[tlsCaFile] (obvyklá)"
+  },
+  "flowmon_7": {
+   "source": "entity.name, entity.tlsCaFile",
+   "text": "entity.name, entity.tlsCaFile"
+  },
+  "flowmon_8": {
+   "source": "the entity as JSON, the files beside it",
+   "text": "entita jako JSON, soubory vedle ní"
+  },
+  "flowmon_9": {
+   "source": "how the parts of a certificate upload are named - change it only when Flowmon refuses an upload",
+   "text": "jak se jmenují části nahrávaného certifikátu – měňte jen tehdy, když Flowmon nahrání odmítne"
+  },
+  "flowmon_10": {
+   "source": "Reusable TLS setting",
+   "text": "Opakovaně použitelné nastavení TLS"
+  },
+  "flowmon_11": {
+   "source": "its name in Configuration center -> Reusable settings -> TLS: the certificate pair goes there (made, with the issuing authority as its CA, when there is none of that name). Empty: none",
+   "text": "jeho název v Configuration center -> Reusable settings -> TLS: tam se vloží pár certifikátů (když tak pojmenované neexistuje, vytvoří se s vydávající autoritou jako CA). Prázdné: žádné"
+  },
+  "flowmon_12": {
+   "source": "Certificate pair",
+   "text": "Pár certifikátů"
+  },
+  "flowmon_13": {
+   "source": "the name of the pair in that setting: replaced when it is there, made when not. Empty: the certificate's name",
+   "text": "název páru v tom nastavení: když existuje, nahradí se, jinak se vytvoří. Prázdné: název certifikátu"
+  },
+  "flowmon_14": {
+   "source": "Listening ports over TLS",
+   "text": "Naslouchací porty přes TLS"
+  },
+  "flowmon_15": {
+   "source": "one a line: the collector's listening ports (their names) that take flows over TLS - each given this certificate, its key and the issuing authority",
+   "text": "jeden na řádek: naslouchací porty kolektoru (jejich názvy), které přijímají toky přes TLS – každý dostane tento certifikát, jeho klíč a vydávající autoritu"
   }
  },
  "patterns": {
@@ -76933,6 +77013,18 @@
   "pf88f_2": {
    "source": "{0} holds the {1} certificate: this one ({2}) is imported as one of its own",
    "text": "{0} drží certifikát {1}: tento ({2}) se importuje jako samostatný"
+  },
+  "pf88h_1": {
+   "source": "{0} tests side by side",
+   "text": "{0} {0:test|testy|testů} vedle sebe"
+  },
+  "pf88h_2": {
+   "source": "{0} deployments side by side",
+   "text": "{0} nasazení vedle sebe"
+  },
+  "pf88h_3": {
+   "source": "Deploy {0} again?",
+   "text": "Znovu nasadit {0}?"
   }
  },
  "rich": {

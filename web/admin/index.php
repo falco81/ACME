@@ -806,7 +806,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <div class="ctl-group">Data</div>
     <button type="button" data-pane="db" data-icon="db" title="Which database everything lives in, how big it is, copies of it, and how long things are kept.">The database</button>
     <button type="button" data-pane="backup" data-icon="archive" title="Backups of everything to another machine - FTP, FTPS, SFTP, SCP, SMB or a folder - locked with a password, on a schedule, and putting one back.">Backups</button>
-    <button type="button" data-pane="carry" data-icon="download" title="Everything that makes this installation what it is, as one file to carry to another machine.">Export and import</button>
+    <button type="button" data-pane="carry" data-icon="export" title="Everything that makes this installation what it is, as one file to carry to another machine.">Export and import</button>
     <div class="ctl-group">Monitoring and updates</div>
     <button type="button" class="fulladmin-only" data-pane="alerts" data-icon="bell" title="A mail when something is wrong, and a report of the week by mail.">Alerts and reports</button>
     <button type="button" class="fulladmin-only" data-pane="monitor" data-icon="pulse" title="Prometheus asks each node for its metrics.">Monitoring</button>

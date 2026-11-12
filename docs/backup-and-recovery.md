@@ -574,6 +574,17 @@ machines**. You build one server from the copy, then the second node from it.
 
    The VIP address, kept in the copy, comes back by itself once there are two
    nodes; each node takes its certificate from the database.
+   From 1.0.88 the rest of the cluster comes back by itself too: the TLS of
+   the connections to the databases (local and the replica) as it was set
+   (`verify-full` and the CA it used), and the *Guard against writes to the
+   database* (`db_guard`) on a node that joins a cluster where the other node
+   has it on (not on a node where somebody switched it off by hand). SELinux
+   *enforcing* is asked of each new machine again (it is the machine's, not the
+   copy's) - see [selinux.md](selinux.md). Tried end to end in
+   `test/test_remote_backup_ha.py`: a PostgreSQL 16 pair with TLS to both
+   databases, the VIP, SELinux enforcing and the guard on, backed up over SFTP,
+   both machines emptied, acme1 put back from the remote copy, acme2 joined
+   anew - every table as at the backup.
 4. `acme --ha-status ; acme --ha-compare`, and [section 8](#8-after-every-recovery-the-checks).
 
 Without a copy but with an exported configuration (`--export-config

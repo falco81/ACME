@@ -451,6 +451,11 @@ def dbtls_apply(daemon, args):
                 raise ValueError('this node\'s PostgreSQL has no certificate from acme yet')
             mode = 'verify-full'
         ca = _dbtls_ca_for(store, kind, mode, args)
+        # The cluster's wish, in its database (1.0.88): a node put back from a backup or joined
+        # afresh had its connection without TLS - config.json is the machine's, not the backup's
+        if not args.get('only'):
+            store.set_meta('dbtls:want', json.dumps({'mode': mode, 'ca_source': str(
+                args.get('ca_source') or ''), 'by': by, 'at': time.time()}))
         try:
             got = dbtls_switch(daemon, mode, ca, by)
         except Exception:
@@ -654,6 +659,37 @@ def _dbtls_again(daemon):
                     'go: %s' % e, 'warn', every=3600)
 
 
+def _dbtls_as_wanted(daemon):
+    """This node's connection as the cluster asked (dbtls:want, 1.0.88) when it is not so: a
+    node put back from a backup, or a new one joined, came up without TLS - tried every 10
+    minutes, the move dbtls_switch's own (put back as it was if it does not go). Not while the
+    rescue holds it back (dbtls:rescued:), nor before this node's PostgreSQL has a certificate."""
+    store = daemon.store
+    want = _meta_obj(store, 'dbtls:want')
+    mode = str(want.get('mode') or '')
+    if not mode or str(CONFIG.get('db_tls') or '') == mode or \
+            _meta_obj(store, 'dbtls:rescued:' + node_name()):
+        return
+    if dbtls_kind() not in ('local', 'replicated') or not _dbtls_has_server(store):
+        return
+    now = time.time()
+    if 0 <= now - DBTLS_WORK.get('wanted_at', 0) < DBTLS_AGAIN_S:
+        return
+    DBTLS_WORK['wanted_at'] = now
+    try:
+        ca = _dbtls_ca_for(store, dbtls_kind(), 'verify-full',
+                           {'ca_source': want.get('ca_source') or 'acme'})
+        if not dbtls_probe('verify-full', ca)['ok']:
+            return
+        dbtls_switch(daemon, 'verify-full', ca, 'acme (as the cluster asked: %s)'
+                     % (want.get('by') or '?'))
+        store.add_event('settings', 'the connection of %s to its database is encrypted again, as '
+                        'the cluster asked (verify-full)' % node_name())
+    except Exception as e:                              # noqa: BLE001
+        log_sparing('dbtls-wanted', 'the connection to the database as the cluster asked: %s'
+                    % e, 'warn', every=3600)
+
+
 def dbtls_tick(daemon):
     """Every few minutes the row for the page; the own certificate
     (kind local) made again 45 days before it ends or when the machine's
@@ -662,6 +698,7 @@ def dbtls_tick(daemon):
     if dbtls_kind() not in ('local', 'replicated'):
         return
     _dbtls_again(daemon)
+    _dbtls_as_wanted(daemon)
     srv = _meta_obj(daemon.store, 'dbtls:server:' + node_name())
     if not srv or _dbtls_link_has(daemon.store) or _dbtls_link_on(daemon.store):
         # None of its own, or the link renews it - also while the link's own renewal is

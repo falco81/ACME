@@ -6,6 +6,18 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.88 - not released
 
+- New target **Flowmon** (`flowmon`, Flowmon OS REST API 13.1): the certificate and its key
+  into a certificate pair of a reusable TLS setting (what the probes decrypt with), made
+  when missing, and/or into the collector's listening ports over TLS. Checked against the
+  API document only - the form of the multipart uploads can be switched (*Form of the
+  uploads*) should the appliance refuse it. The API has no call for Flowmon's own web
+  certificate. See [targets.md](docs/targets.md#flowmon---flowmon-rest-api).
+- A cluster put back from a (remote) backup and built again is the same as at the backup:
+  the TLS of the connections to the databases comes back as it was set (the wish is kept in
+  the database, each node applies it), and the *Guard against writes to the database*
+  switches itself on on a node that joins a cluster where it is on (unless switched off by
+  hand on that node). Tried end to end with PostgreSQL 16, TLS, VIP, SELinux enforcing
+  and the guard on (`test/test_remote_backup_ha.py`).
 - Overview → *When certificates run out*: a click on a bar shows the certificates that end
   then, each opening its window. The bars came without their certificates, and a click opened
   the whole list unfiltered. The bar's tip names them too.

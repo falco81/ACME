@@ -3888,3 +3888,9 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 
 /* selects in a row of a dialog no wider than it (1.0.52): the DH select ran past the edge */
 .arow-c select, .arow-c .select { max-width: 100%; }
+
+/* A label of a table of facts on a phone wraps (1.0.88): "Days before the end" ran into its value */
+@media (max-width: 560px) {
+  .modal table.plain.tight td.muted:first-child { white-space: normal; overflow-wrap: anywhere;
+    max-width: 42vw; padding-right: 10px; vertical-align: top; }
+}
