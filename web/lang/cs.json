@@ -56135,6 +56135,14 @@
   "f86_21": {
    "source": "the deployments held since its source was changed go now",
    "text": "nasazení pozdržená od změny zdroje jdou teď"
+  },
+  "f87_1": {
+   "source": "The machine up for",
+   "text": "Stroj běží"
+  },
+  "f87_2": {
+   "source": "acme running for",
+   "text": "acme běží"
   }
  },
  "patterns": {

@@ -3989,9 +3989,11 @@ def cli_main(argv=None):
             plan.get('how'), ', '.join(plan.get('targets') or []), plan.get('order'),
             plan.get('by') or '-', stamp(plan.get('at'))) if plan else 'none of late')))
         print(table([(n['name'] + (' (this)' if n['me'] else ''), 'up' if n['alive'] else 'not heard',
+                      stamp(n.get('booted')) if n.get('booted') else '-',
                       stamp(n.get('started')) if n.get('started') else '-', (n.get('row') or {}).get('state') or '-',
                       (n.get('row') or {}).get('said') or '') for n in v['nodes']],
-                    ['node', 'state', 'started', 'restart', 'said'], [22, 10, 20, 12, 60]))
+                    ['node', 'state', 'machine up since', 'acme started', 'restart', 'said'],
+                    [22, 10, 20, 20, 12, 60]))
         return 0
 
     if args.mail_test:

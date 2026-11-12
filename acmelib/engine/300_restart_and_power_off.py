@@ -174,6 +174,8 @@ def power_view(store):
                                                                       if n == node_name() else
                                                                       b.get('alive')),
                       'started': b.get('started'), 'age': b.get('age'),
+                      # the OS beside the daemon (1.0.87): a restart of the machine shows
+                      'booted': (boot_time() or None) if n == node_name() else b.get('booted'),
                       'address': b.get('address') or '', 'version': b.get('version') or '',
                       'row': row if row.get('id') == plan.get('id') else {}})
     # Hidden from the page by whoever pressed Hide this (1.0.123).

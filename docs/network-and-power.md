@@ -78,8 +78,10 @@ Switched on for a node, by hand (address/prefix, gateway, DNS) or automatically
 
 ## Settings → Restart and power off
 
-A card per node (answering or not, its address, how long it has run, its
-version) with **Restart** and **Power off**. In a cluster:
+A card per node (answering or not, its address, how long the machine has been up
+and how long acme has run on it - a restart of the service is not one of the machine
+(1.0.87) -, its version) with **Restart** and **Power off**. `acme --restarts` shows
+both too (*machine up since*, *acme started*). In a cluster:
 
 | | |
 |---|---|

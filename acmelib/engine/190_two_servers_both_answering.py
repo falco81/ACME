@@ -95,6 +95,7 @@ def heartbeat(store, daemon=None):
         return {}                       # nothing written while the rows come over (1.0.44)
     beat = {'at': time.time(), 'version': __version__, 'address': node_address(),
             'host': socket.gethostname(), 'started': daemon.started if daemon else None,
+            'booted': boot_time() or None,      # the OS beside the daemon (1.0.87)
             'engine': store.db.engine,
             'maintenance': bool(maintenance_now(store).get('on')),
             # What its own settings are in effect (1.0.67), its config.json's

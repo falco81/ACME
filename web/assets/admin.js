@@ -13534,7 +13534,8 @@ function drawPower(live) {
     c.appendChild(netFacts([
       ['State', n.alive ? 'answering' : 'not answering'],
       ['Address', n.address || '', true],
-      ['Running for', n.started ? span(d.now - n.started) : ''],
+      ['The machine up for', n.booted ? span(d.now - n.booted) : ''],
+      ['acme running for', n.started ? span(d.now - n.started) : ''],
       ['Version', n.version || '', true]
     ]));
     var row = el('div', 'btnrow');
