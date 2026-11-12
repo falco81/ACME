@@ -76,7 +76,8 @@ other setting as it is.
 | `acme --cert-del NAME [--yes]` | delete it with its versions and deployments (the devices keep what they have) |
 | `acme --renew NAME` | renew it now, due or not |
 | `acme --renew all [--force]` | every certificate that is due. With `--force`, every one acme can renew |
-| `acme --deploy NAME` | run every enabled deployment of it now (forced: put in place even when unchanged) |
+| `acme --deploy NAME` | run every enabled deployment of it now (forced: put in place even when unchanged); a hold (`--deploy-hold`) ends |
+| `acme --deploy-hold NAME on\|off` | on: a new certificate of it is issued and kept, not deployed until `--deploy NAME`; off: deployed by itself again |
 | `acme --revoke NAME [--reason R] [--yes]` | revoke it where it was issued. Reasons: `unspecified`, `keyCompromise`, `cACompromise`, `affiliationChanged`, `superseded`, `cessationOfOperation`, `certificateHold`, `privilegeWithdrawn` |
 | `acme --csr NAME [--out FILE] [--force]` | a request (CSR) for an authority acme does not speak to: printed (or written to FILE). The key waits in acme. `--force`: a new request (a new key) |
 | `acme --csr-answer NAME FILE` | the certificate that authority sent back for it: kept as a new version, then deployed |

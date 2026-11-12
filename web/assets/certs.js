@@ -3685,6 +3685,49 @@ function certBody(body, c, versions, deploys, jobs, back) {
   }
   var nk = noKeyBox(c, back);
   if (nk) body.appendChild(nk);
+  /* Held since its source was changed (1.0.86): issued, not deployed until Deploy now */
+  var hold = c.deploy_hold;
+  if (hold && deploys.length) {
+    var hb = el('div', 'ct-holdbox' + (hold.now ? ' on' : ''));
+    var hh = el('div', 'ct-holdbox-h');
+    hh.appendChild(el('b', '', hold.now ? 'The new certificate is not deployed yet' : 'A new certificate will not be deployed by itself'));
+    if (hold.by) {
+      var hby = el('span', 'muted small');
+      hby.appendChild(el('span', '', 'asked by'));
+      hby.appendChild(document.createTextNode(' '));
+      hby.appendChild(el('span', '', hold.by));
+      if (hold.at) hby.appendChild(document.createTextNode(' · ' + ago(hold.at)));
+      hh.appendChild(hby);
+    }
+    hb.appendChild(hh);
+    hb.appendChild(el('p', 'note small', hold.now
+      ? (deploys.length === 1 ? 'It was issued from the new source and is kept here: its target still has the one before. Deploy now puts it there - until then nothing deploys it by itself.'
+        : 'It was issued from the new source and is kept here: its ' + deploys.length + ' targets still have the one before. Deploy now puts it there - until then nothing deploys it by itself.')
+      : 'Asked when its source was changed: the next certificate is issued and kept here until Deploy now - also at a renewal.'));
+    if (MANAGE) {
+      var hrow = el('div', 'ct-holdbox-b');
+      if (hold.now) {
+        var dn = cmdButton('Deploy now', 'deploy', 'primary small');
+        dn.onclick = function () {
+          over(function () {
+            confirmThen('Deploy ' + c.name + ' now?', htmlText(deploys.length === 1 ? 'The new certificate is put on its target now, in a job.' : 'The new certificate is put on its ' + deploys.length + ' targets now, in a job.'),
+              'Deploy now', function () { certDeploy(c, dn, back); }, false);
+          }, back);
+        };
+        hrow.appendChild(dn);
+      }
+      var rel = cmdButton(hold.now ? 'Deploy by itself from now on' : 'Do not hold it', 'refresh', 'small');
+      explain(rel, hold.now ? 'The hold goes: the next look deploys it, as any new certificate.' : 'A new certificate is deployed as soon as it is issued, as before.');
+      rel.onclick = function () {
+        busy(rel, true);
+        capi('certs/hold', {id: c.id, hold: 0}).then(function () { toast(tr('deployed by itself'), 'good'); certPeek(c.id); })
+          .catch(fail).then(function () { busy(rel, false); });
+      };
+      hrow.appendChild(rel);
+      hb.appendChild(hrow);
+    }
+    body.appendChild(hb);
+  }
   if (c.state === 'revoke-failed') {
     var rf = el('div', 'ct-errbox');
     var rh = el('div', 'ct-errbox-h');
@@ -4464,6 +4507,8 @@ function certWizard(cert, detail, opts) {
   if (MOVE) {
     W.d.issuer = '';
     W.when = 'now';
+    /* Then (1.0.86): the new one kept here until Deploy now - or deployed everywhere at once */
+    W.deploy = 'later';
     if (!FROM) { W.d.auto_renew = true; W.d.renew_days = c.renew_days || 30; }
   }
   var hand = function () { return MOVE && W.d.issuer === HAND; };
@@ -4591,7 +4636,7 @@ function certWizard(cert, detail, opts) {
     var unfit = st.key === 'review' && !hand() ? compatProblems() : [];
     if (MOVE && st.key === 'review' && !unfit.length) {
       if (window.ACME_RUNPLAN && !hand()) buttons.push({words: 'What happens', icon: 'list', go: function () { planOpen(); }});
-      buttons.push({words: hand() ? 'Move to by hand' : (W.when === 'now' ? 'Move and issue now' : 'Move'), cls: 'primary',
+      buttons.push({words: hand() ? 'Move to by hand' : (W.when === 'now' ? (W.deploy === 'all' && rowsOf(obj(detail).deploys).length ? 'Move, issue and deploy now' : 'Move and issue now') : 'Move'), cls: 'primary',
         icon: hand() ? 'upload' : (W.when === 'now' ? 'play' : 'save'), go: function (b) { finishMove(b); }});
     } else if (unfit.length) {
       var at = list.map(function (x) { return x.key; }).indexOf(unfit[0].step);
@@ -5808,7 +5853,7 @@ function certWizard(cert, detail, opts) {
       var paintWhen = function () {
         Array.prototype.forEach.call(seg.children, function (x, i) { x.classList.toggle('on', opts2[i][0] === W.when); });
         says.textContent = W.when === 'now'
-          ? 'A new certificate is asked for at once, in a job you can watch, and deployed where this one is - the tests then run as after every deployment. If it fails, the one in use stays.'
+          ? 'A new certificate is asked for at once, in a job you can watch. If it fails, the one in use stays.'
           : (c.not_after ? 'Nothing is asked now: the certificate in use stays until its renewal, about ' + dayOnly(c.not_after - (Number(W.d.renew_days) || 30) * 86400) + ' - then it comes from the new source.'
             : 'Nothing is asked now: at its next renewal it comes from the new source.');
       };
@@ -5822,6 +5867,32 @@ function certWizard(cert, detail, opts) {
       when.appendChild(says);
       paintWhen();
       host.appendChild(when);
+      var ndep = rowsOf(obj(detail).deploys).length;
+      if (ndep) {
+        var then = el('div', 'set-item ct-move-when');
+        then.appendChild(el('label', 'k', 'Then'));
+        var seg3 = el('div', 'seg');
+        var says3 = el('p', 'says');
+        var opts3 = [['later', 'Keep it - I deploy it myself'], ['all', 'Deploy it everywhere at once']];
+        var paintThen = function () {
+          Array.prototype.forEach.call(seg3.children, function (x, i) { x.classList.toggle('on', opts3[i][0] === W.deploy); });
+          says3.textContent = W.deploy === 'later'
+            ? (ndep === 1 ? 'The new certificate is issued and kept here; its target keeps the one in use until you press Deploy now in its window. Until then it is not deployed by itself either - not even at a renewal.'
+              : 'The new certificate is issued and kept here; its ' + ndep + ' targets keep the one in use until you press Deploy now in its window. Until then it is not deployed by itself either - not even at a renewal.')
+            : (ndep === 1 ? 'Put on its target as soon as it is issued - the tests then run as after every deployment.'
+              : 'Put on its ' + ndep + ' targets as soon as it is issued - the tests then run as after every deployment.');
+        };
+        opts3.forEach(function (o) {
+          var bt = el('button', '', o[1]);
+          bt.type = 'button';
+          bt.onclick = function () { W.deploy = o[0]; paintThen(); paint(); };
+          seg3.appendChild(bt);
+        });
+        then.appendChild(seg3);
+        then.appendChild(says3);
+        paintThen();
+        host.appendChild(then);
+      }
       if (!compatThen(host, steps()[W.step])) return;
       var left = compatProblems();
       if (left.length) { host.appendChild(problemBox('This does not fit yet - it cannot be moved so', left)); return; }
@@ -5844,7 +5915,10 @@ function certWizard(cert, detail, opts) {
       if (!obj(sent.profile).over && sent.profile) delete sent.profile.over;
     }
     busy(b, true);
+    var held = !hand() && W.deploy === 'later' && rowsOf(obj(detail).deploys).length > 0;
     capi('certs/save', sent).then(function () {
+      return hand() ? null : capi('certs/hold', {id: c.id, hold: held ? 1 : 0});
+    }).then(function () {
       toast(hand() ? 'It is now renewed by hand' : 'It now comes from ' + W.d.issuer, 'good');
       CT.refresh();
       if (!hand() && W.when === 'now') return capi('certs/renew', {id: c.id, force: true}).then(function (x) { closeModal(); jobStarted(x, 'issuing'); },

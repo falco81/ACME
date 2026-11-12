@@ -958,6 +958,12 @@ def scan(store, by='the renewer'):
             revoked_now[d['cert_id']] = bool(crow) and S.current_revoked(store, crow)
         if revoked_now[d['cert_id']]:
             continue
+        # held since its source was changed (1.0.86): only Deploy now puts the new one there
+        if S.deploy_held(store, {'id': d['cert_id'], 'version': d.get('cur_version'),
+                                 'alt_version': d.get('cur_alt_version'),
+                                 'key_type_alt': d.get('cur_key_type_alt'),
+                                 'alt_cert_pem': 'x' if d.get('cur_has_alt') else None}):
+            continue
         # just made, never tried (1.0.79): "Save and deploy now" follows in a moment as the
         # person's own - the scan took it first, as "renewed by itself", and ran it twice
         if not d.get('last_try') and float(d.get('created') or 0) > t - 30:

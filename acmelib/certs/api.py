@@ -358,6 +358,8 @@ def cert_one(store, ref, full=False):
     out['due'] = renewer.due_why(row, dual=dual_ok)
     out['busy'] = jobs.cert_busy(store, row['id'])
     out['revoke_no'] = revocable(store, row)
+    hold = S.deploy_hold(store, row['id'])
+    out['deploy_hold'] = dict(hold, now=S.deploy_held(store, row)) if hold else None
     return {'cert': out, 'versions': versions, 'deploys': deps, 'jobs': js}
 
 
@@ -737,6 +739,7 @@ def cert_drop(store, row, by):
     # after a restart) was that person's - their mail, their profile, its PFX.
     db.run('DELETE FROM meta WHERE k = ?', ('certs:portal:%d' % int(row['id']),))
     db.run('DELETE FROM meta WHERE k = ?', ('cert:moved:%d' % int(row['id']),))
+    db.run('DELETE FROM meta WHERE k = ?', (S.HOLD_KEY % int(row['id']),))
     store.add_event('certificates', 'certificate %s deleted by %s' % (row['name'], by),
                     'warn', who=by)
 
@@ -925,6 +928,20 @@ def start_deploy(store, ref, deploy_id, by):
             if running is not None and not only:
                 return running
             raise E.ApiError(409, str(e))
+
+
+@api('POST', '/api/certs/hold', 'certadmin')
+def _cert_hold(h, s):
+    """{id, hold}: a new version of it issued from now on is not deployed until Deploy now
+    (1.0.86) - or, false, deployed by itself again."""
+    b = h.body()
+    row = S.cert_need(h.store, _id(b.get('id')))
+    on = _flag(b.get('hold'))
+    S.deploy_hold_set(h.store, row, on, who(s))
+    h.store.add_event('certificates', '%s: %s by %s' % (
+        row['name'], 'a new version is not deployed until Deploy now' if on else
+        'a new version is deployed by itself again', who(s)), who=who(s))
+    return {'message': 'held' if on else 'deployed by itself'}
 
 
 @api('POST', '/api/certs/deploy', 'certadmin')

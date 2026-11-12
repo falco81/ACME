@@ -331,6 +331,21 @@ all stay. The certificate in use stays in use until the new source gives it a ne
   by importing a new one (its window → Import a new one). Its deployments and tests take
   that one as they took this one. Its end is still watched and told.
 
+**Then** (1.0.86, when it has deployments) chooses what happens to the new certificate:
+
+* **Keep it - I deploy it myself** (the default): it is issued and kept here, and its
+  targets keep the one in use. The certificate's window says so ("The new certificate is
+  not deployed yet"). **Deploy now** there (or `acme --deploy NAME`) puts it on every
+  target and ends the hold. Until then nothing deploys it by itself, not the regular look
+  and not a renewal. A failed deployment of the version in use is still tried again.
+  Running one deployment alone (its row) puts it there and keeps the hold for the rest.
+  *Deploy by itself from now on* (or `acme --deploy-hold NAME off`) ends the hold without
+  deploying: the next look deploys it. `acme --deploy-hold NAME on` holds by hand.
+  `POST /api/certs/hold {id, hold}` is the same.
+* **Deploy it everywhere at once**: put on the targets as soon as it is issued, as before.
+
+With *At its next renewal* the choice holds for that renewal. *What happens* shows the hold.
+
 The move is an event of its own ("certificate X moved from A to B by …"). The one in use was
 imported and never issued by the new source, so that source is not offered to revoke it
 (`revocable`). It can be revoked once the source has issued its own.

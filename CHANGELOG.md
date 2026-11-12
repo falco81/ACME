@@ -6,6 +6,14 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.86 - not released
 
+- *Change the source* asks what happens to the new certificate (**Then**). The default is
+  *Keep it - I deploy it myself*: the certificate is issued and kept, and the targets keep
+  the one in use until *Deploy now*. Nothing deploys it by itself meanwhile, neither the
+  regular look nor a renewal. The certificate's window says so and offers *Deploy now* or
+  *Deploy by itself from now on*. *Deploy it everywhere at once* is what the move always
+  did. The hold is also available on the command line (`--deploy-hold NAME on|off`,
+  shown in `--cert`) and in the API (`POST /api/certs/hold`). *What happens* shows it.
+
 ## 1.0.85 - 2026-11-12
 
 - *What happens* says everything a renewal and its deployments do. It now also shows how

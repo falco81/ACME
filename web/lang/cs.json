@@ -56051,6 +56051,90 @@
   "f85_17": {
    "source": "nothing secret: no password, key or token",
    "text": "nic tajného: žádné heslo, klíč ani token"
+  },
+  "f86_1": {
+   "source": "Keep it - I deploy it myself",
+   "text": "Nechat – nasadím sám"
+  },
+  "f86_2": {
+   "source": "Deploy it everywhere at once",
+   "text": "Hned nasadit všude"
+  },
+  "f86_3": {
+   "source": "The new certificate is issued and kept here; its target keeps the one in use until you press Deploy now in its window. Until then it is not deployed by itself either - not even at a renewal.",
+   "text": "Nový certifikát se vydá a zůstane tady; jeho cíl si ponechá ten současný, dokud v jeho okně nestisknete Nasadit hned. Do té doby se nenasadí ani sám – ani při obnově."
+  },
+  "f86_4": {
+   "source": "Put on its target as soon as it is issued - the tests then run as after every deployment.",
+   "text": "Nasadí se na jeho cíl hned po vydání – testy pak běží jako po každém nasazení."
+  },
+  "f86_5": {
+   "source": "A new certificate is asked for at once, in a job you can watch. If it fails, the one in use stays.",
+   "text": "Nový certifikát se vyžádá hned, v úloze, kterou můžete sledovat. Když se to nepovede, zůstane ten současný."
+  },
+  "f86_6": {
+   "source": "Move, issue and deploy now",
+   "text": "Přesunout, vydat a hned nasadit"
+  },
+  "f86_7": {
+   "source": "The new certificate is not deployed yet",
+   "text": "Nový certifikát ještě není nasazený"
+  },
+  "f86_8": {
+   "source": "A new certificate will not be deployed by itself",
+   "text": "Nový certifikát se sám nenasadí"
+  },
+  "f86_9": {
+   "source": "asked by",
+   "text": "požádal(a)"
+  },
+  "f86_10": {
+   "source": "It was issued from the new source and is kept here: its target still has the one before. Deploy now puts it there - until then nothing deploys it by itself.",
+   "text": "Byl vydán z nového zdroje a je uložený tady: jeho cíl má pořád ten předchozí. Nasadit hned ho tam dá – do té doby ho nic samo nenasadí."
+  },
+  "f86_11": {
+   "source": "Asked when its source was changed: the next certificate is issued and kept here until Deploy now - also at a renewal.",
+   "text": "Nastaveno při změně zdroje: příští certifikát se vydá a zůstane tady až do Nasadit hned – i při obnově."
+  },
+  "f86_12": {
+   "source": "The new certificate is put on its target now, in a job.",
+   "text": "Nový certifikát se teď nasadí na jeho cíl, v úloze."
+  },
+  "f86_13": {
+   "source": "Deploy by itself from now on",
+   "text": "Odteď nasazovat samo"
+  },
+  "f86_14": {
+   "source": "Do not hold it",
+   "text": "Nepozdržovat"
+  },
+  "f86_15": {
+   "source": "The hold goes: the next look deploys it, as any new certificate.",
+   "text": "Pozdržení se zruší: příští kontrola ho nasadí jako každý nový certifikát."
+  },
+  "f86_16": {
+   "source": "A new certificate is deployed as soon as it is issued, as before.",
+   "text": "Nový certifikát se nasadí hned po vydání, jako dřív."
+  },
+  "f86_17": {
+   "source": "deployed by itself",
+   "text": "nasazuje se samo"
+  },
+  "f86_18": {
+   "source": "Held since its source was changed: a new certificate is issued and kept here, and put on the targets only with Deploy now",
+   "text": "Pozdrženo od změny zdroje: nový certifikát se vydá a zůstane tady, na cíle jde jen přes Nasadit hned"
+  },
+  "f86_19": {
+   "source": "not by itself either - not at a renewal",
+   "text": "ani sám – ani při obnově"
+  },
+  "f86_20": {
+   "source": "issued, not deployed - it waits for Deploy now",
+   "text": "vydán, nenasazen – čeká na Nasadit hned"
+  },
+  "f86_21": {
+   "source": "the deployments held since its source was changed go now",
+   "text": "nasazení pozdržená od změny zdroje jdou teď"
   }
  },
  "patterns": {
@@ -76729,6 +76813,38 @@
   "pf85_11": {
    "source": "A deployment that fails is tried again by itself: after 5 minutes, then twice as long each time, at most every {0} h",
    "text": "Nasazení, které selže, se samo zkusí znovu: po 5 minutách, pak pokaždé po dvojnásobné době, nejvýš každých {0} h"
+  },
+  "pf86_1": {
+   "source": "The new certificate is issued and kept here; its {0} targets keep the one in use until you press Deploy now in its window. Until then it is not deployed by itself either - not even at a renewal.",
+   "text": "Nový certifikát se vydá a zůstane tady; jeho cíle ({0}) si ponechají ten současný, dokud v jeho okně nestisknete Nasadit hned. Do té doby se nenasadí ani sám – ani při obnově."
+  },
+  "pf86_2": {
+   "source": "Put on its {0} targets as soon as it is issued - the tests then run as after every deployment.",
+   "text": "Nasadí se na jeho cíle ({0}) hned po vydání – testy pak běží jako po každém nasazení."
+  },
+  "pf86_3": {
+   "source": "It was issued from the new source and is kept here: its {0} targets still have the one before. Deploy now puts it there - until then nothing deploys it by itself.",
+   "text": "Byl vydán z nového zdroje a je uložený tady: jeho cíle ({0}) mají pořád ten předchozí. Nasadit hned ho tam dá – do té doby ho nic samo nenasadí."
+  },
+  "pf86_4": {
+   "source": "Deploy {0} now?",
+   "text": "Nasadit {0} hned?"
+  },
+  "pf86_5": {
+   "source": "The new certificate is put on its {0} targets now, in a job.",
+   "text": "Nový certifikát se teď nasadí na jeho cíle ({0}), v úloze."
+  },
+  "pf86_6": {
+   "source": "{0} (version {1}) is kept here, not deployed: it waits for Deploy now (asked when its source was changed)",
+   "text": "{0} (verze {1}) zůstává tady, nenasazuje se: čeká na Nasadit hned (nastaveno při změně zdroje)"
+  },
+  "pf86_7": {
+   "source": "{0}: a new version is not deployed until Deploy now by {1}",
+   "text": "{0}: nová verze se nenasadí do Nasadit hned – {1}"
+  },
+  "pf86_8": {
+   "source": "{0}: a new version is deployed by itself again by {1}",
+   "text": "{0}: nová verze se zase nasazuje sama – {1}"
   }
  },
  "rich": {

@@ -93,6 +93,43 @@ class WhatHappens(unittest.TestCase):
         self.assertIn('at most every', after)
 
 
+class FakeJob(object):
+    kind = 'deploy'
+    version = None
+
+    def __init__(self):
+        self.said = []
+
+    def step(self, words, level='info'):
+        self.said.append(words)
+
+    def check(self):
+        pass
+
+
+class DeployHold(unittest.TestCase):
+    def test_new_version_waits_for_deploy_now(self):
+        from acmelib.certs import deployer, store as S
+        cid = cert('hold-i.example.test')
+        STORE.db.update('certs', cid, {'version': 1, 'cert_pem': 'x'})
+        STORE.db.insert('cert_deploys', {'cert_id': cid, 'target': 'nowhere-i'})
+        row = STORE.db.row('SELECT * FROM certs WHERE id = ?', (cid,))
+        S.deploy_hold_set(STORE, row, True, 'tester')
+        self.assertFalse(S.deploy_held(STORE, row))         # the version in use: not held
+        STORE.db.update('certs', cid, {'version': 2})       # issued from the new source
+        row = STORE.db.row('SELECT * FROM certs WHERE id = ?', (cid,))
+        self.assertTrue(S.deploy_held(STORE, row))
+        job = FakeJob()
+        ok, said = deployer.run_deploys(STORE, job, cid)
+        self.assertTrue(ok)
+        self.assertIn('waits for Deploy now', said)
+        self.assertFalse(STORE.db.row("SELECT last_try FROM cert_deploys WHERE cert_id = ?",
+                                      (cid,))['last_try'])
+        # a person deploying it lets it go
+        deployer.run_deploys(STORE, FakeJob(), cid, force=True)
+        self.assertIsNone(S.deploy_hold(STORE, cid))
+
+
 class Buttons(unittest.TestCase):
     def test_one_order_in_every_popup(self):
         with open(os.path.join(ROOT, 'web/assets/core.js')) as f:

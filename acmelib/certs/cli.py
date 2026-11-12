@@ -39,7 +39,7 @@ import re
 import sys
 import time
 
-MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy', 'revoke',
+MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy', 'deploy_hold', 'revoke',
         'csr', 'csr_answer', 'import_file', 'export', 'selfsigned', 'cas', 'ca_show',
         'ca_create', 'ca_sub', 'ca_import', 'ca_revoke', 'ca_crl', 'ca_export', 'ca_sign',
         'ca_del', 'sources', 'validations', 'targets', 'target_test', 'jobs', 'job', 'job_stop',
@@ -105,6 +105,9 @@ def add_args(p):
                    'with --csr: a new request; with --acme-contact: on every ACME source; '
                    'with a target\'s or a test\'s delete: taken off everywhere first')
     g.add_argument('--deploy', metavar='NAME', help='run its deployments now')
+    g.add_argument('--deploy-hold', nargs=2, metavar=('NAME', 'on|off'),
+                   help='on: a new certificate of it is issued and kept, not deployed until '
+                   '--deploy NAME (or Deploy now); off: deployed by itself again')
     g.add_argument('--revoke', metavar='NAME', help='revoke it where it was issued (--reason)')
     g.add_argument('--reason', metavar='WHY', default='unspecified', help='with --revoke, '
                    '--ca-revoke: unspecified keyCompromise cACompromise affiliationChanged '
@@ -663,7 +666,7 @@ class Cli(object):
                  ('revoke', self.revoke), ('csr_answer', self.csr_answer), ('csr', self.csr),
                  ('deploy_add', self.deploy_add), ('deploy_edit', self.deploy_edit),
                  ('deploy_del', self.deploy_del), ('deploy_run', self.deploy_run),
-                 ('deploy', self.deploy), ('deploys', self.deploys), ('export', self.export),
+                 ('deploy', self.deploy), ('deploy_hold', self.deploy_hold), ('deploys', self.deploys), ('export', self.export),
                  ('target_test', self.target_test), ('job_stop', self.job_stop),
                  ('job', self.job), ('cert', self.cert), ('certs', self.certs),
                  ('cas', self.cas), ('jobs', self.jobs), ('plugin', self.plugin),
@@ -742,7 +745,11 @@ class Cli(object):
                      ('next try', _when(c.get('next_try')) if c.get('next_try') else ''),
                      ('due', c.get('due')), ('owner', c.get('owner')), ('note', c.get('note')),
                      ('tags', ', '.join(c.get('tags') or [])),
-                     ('switched', 'off' if not c.get('enabled', 1) else '')):
+                     ('switched', 'off' if not c.get('enabled', 1) else ''),
+                     ('deploy hold', ('the new one waits for --deploy' if (c.get('deploy_hold') or
+                                                                          {}).get('now') else
+                                      'on: a new one waits for --deploy')
+                      if c.get('deploy_hold') else '')):
             if v not in (None, '', []):
                 print('  %s %s' % (p.info('%-14s' % k), v))
         if got['versions']:
@@ -1133,6 +1140,15 @@ class Cli(object):
         job = self._run_job('deploy', deployer.deploy_job(row['id'], force=True), row['id'],
                             'the deployments of %s' % row['name'])
         return 0 if job.ok else 1
+
+    def deploy_hold(self):
+        name, state = self.args.deploy_hold
+        if state not in ('on', 'off'):
+            raise SystemExit('acme: --deploy-hold NAME on|off')
+        row = self.cert_ref(name)
+        got = self.api('POST', '/api/certs/hold', body={'id': row['id'], 'hold': state == 'on'})
+        return self.done('%s: %s' % (row['name'], 'a new certificate waits for --deploy'
+                                     if state == 'on' else 'deployed by itself again'), got)
 
     def _password(self, twice):
         if not self.args.password:

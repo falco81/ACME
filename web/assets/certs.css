@@ -1278,3 +1278,11 @@ table.ct-issued td:nth-child(2){min-width:210px;max-width:250px;white-space:norm
 .ct-use-tag.warn{background:var(--warn-bg);color:var(--warn)}
 .ct-use-tag.crit{background:var(--crit-bg);color:var(--crit)}
 @media (max-width:560px){.ct-use{flex-wrap:wrap}.ct-use-tag{margin-left:42px}}
+
+/* Deployments held since the source was changed (1.0.86) */
+.ct-holdbox{border:1px solid var(--line);background:var(--panel2);border-radius:12px;padding:12px 14px;margin:0 0 14px}
+.ct-holdbox.on{border-color:rgba(210,153,34,.4);background:var(--warn-bg)}
+.ct-holdbox-h{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px}
+.ct-holdbox.on .ct-holdbox-h b{color:var(--warn)}
+.ct-holdbox .note{margin:0 0 10px}
+.ct-holdbox-b{display:flex;gap:8px;flex-wrap:wrap}

@@ -874,6 +874,34 @@ def generation(row):
                if row.get('key_type_alt') and row.get('alt_cert_pem') else 0)
 
 
+HOLD_KEY = 'certs:deploy_hold:%d'
+
+
+def deploy_hold(store, cert_id):
+    """Deployments held (1.0.86): a version newer than `from` is issued but not put on the
+    targets until somebody presses Deploy now - asked when its source is changed. None: not
+    held. {from, by, at}."""
+    try:
+        got = json.loads(store.get_meta(HOLD_KEY % int(cert_id)) or 'null')
+    except (ValueError, TypeError):
+        return None
+    return got if isinstance(got, dict) else None
+
+
+def deploy_held(store, row):
+    """The version the certificate holds now waits for Deploy now."""
+    h = deploy_hold(store, row['id']) if row and row.get('id') else None
+    return bool(h) and generation(row) > int(h.get('from') or 0)
+
+
+def deploy_hold_set(store, row, on, by=''):
+    if on:
+        store.set_meta(HOLD_KEY % int(row['id']), json.dumps(
+            {'from': generation(row), 'by': by, 'at': time.time()}))
+    else:
+        store.db.run('DELETE FROM meta WHERE k = ?', (HOLD_KEY % int(row['id']),))
+
+
 def is_dual(row):
     """The certificate is dual and its twin has been issued - and not revoked (1.0.48: a revoked
     twin was put on the servers with the new main one, after a revoke and a new one)."""
