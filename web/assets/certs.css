@@ -345,7 +345,7 @@ table.ct-jobs td{vertical-align:middle}
 .ct-lg.info{background:var(--info)} .ct-lg.dim{background:var(--tx-mut);opacity:.6}
 .ct-chart .tip .muted{color:var(--tx-dim)}
 .ct-tipwarn{color:var(--warn)}
-.ct-ovlist{display:flex;flex-direction:column;max-height:520px;overflow-y:auto}
+.ct-ovlist{display:flex;flex-direction:column;max-height:520px;overflow-y:auto;overflow-x:hidden;padding:0 10px;margin:0 -10px}
 .ct-ovrow{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:8px 10px;margin:0 -10px;
   border-radius:9px;cursor:pointer}
 .ct-ovrow + .ct-ovrow{border-top:1px solid rgba(38,44,55,.55)}

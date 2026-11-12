@@ -4,7 +4,9 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.81 - not released
+## 1.0.81 - 2026-11-12
+- Overview: *Running out soonest* and *What needs a look* no longer scroll sideways (1.0.80 gave
+  the lists a height and a scroll of their own, and their rows' edges overflowed it).
 
 ## 1.0.80 - 2026-11-12
 - **Backups checked whole** - built rich, put back on a clean installation, compared table by
