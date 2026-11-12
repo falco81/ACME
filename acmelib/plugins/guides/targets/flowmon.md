@@ -52,7 +52,7 @@ At least one of *Reusable TLS setting* and *Listening ports over TLS* must be fi
 ## Check it
 
 - In acme, press **Test**: it signs in, reads the version and counts the reusable TLS settings and listening ports over TLS (`signed in to Flowmon 13.x at …`).
-- After a deployment, in Flowmon open **Configuration center → Reusable settings → TLS → <setting>** and check the pair's validity dates, and the listening ports in the collector settings.
+- After a deployment, in Flowmon open **Configuration center → Reusable settings → TLS → (your setting)** and check the pair's validity dates, and the listening ports in the collector settings.
 - From a shell, with the token from the sign-in above:
 
 ```sh

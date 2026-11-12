@@ -52,7 +52,7 @@ Vyplněno musí být aspoň jedno z *Reusable TLS setting* a *Listening ports ov
 ## Ověření
 
 - V acme stiskněte **Test**: přihlásí se, přečte verzi a spočítá TLS nastavení a naslouchající porty přes TLS (`signed in to Flowmon 13.x at …`).
-- Po nasazení otevřete ve Flowmonu **Configuration center → Reusable settings → TLS → <nastavení>** a zkontrolujte platnost páru, a naslouchající porty v nastavení kolektoru.
+- Po nasazení otevřete ve Flowmonu **Configuration center → Reusable settings → TLS → (vaše nastavení)** a zkontrolujte platnost páru, a naslouchající porty v nastavení kolektoru.
 - Z příkazové řádky, s tokenem z přihlášení výše:
 
 ```sh
