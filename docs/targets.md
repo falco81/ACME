@@ -800,19 +800,43 @@ FortiOS REST API with an API token (`Authorization: Bearer`):
 2. imports the intermediates as CA certificates (an existing one is skipped);
 3. as asked: `system global admin-server-cert`, `vpn ssl settings servercert`,
    `firewall ssl-ssh-profile <name> server-cert` and `firewall vip <name>
-   ssl-certificate` (the shape by the version the FortiGate says: a VIP's is a
-   string up to 7.4.1 and a list of `{"name"}` from 7.4.2, a profile's a list
-   from 7.0; the other shape is tried when the version is unknown or the first
-   is refused);
+   ssl-certificate` (the shape by the module version, below);
 4. deletes older acme certificates beyond *keep* (one still referenced stays).
 
 `vdom` (target, or per deployment) is sent as `?vdom=`.
 
-**Rights**: a *REST API Admin* with an admin profile giving read-write to
-*System → Certificates* (`vpngrp`/`sysgrp` certificate parts), plus
-*Firewall* for profiles/VIPs and *VPN* for SSL VPN; trusted hosts set to the
-acme servers' addresses. For `admin-server-cert` the profile needs
-`super_admin` or *System → Settings* write.
+**Versions of the module** (1.0.94) - chosen on the target's form; a saved
+target keeps its own, a new one gets *any version*:
+
+| Version | Label | profile `server-cert` | VIP `ssl-certificate` |
+|---|---|---|---|
+| `''` | any version (detects it) | by the version the FortiGate says (a list from 7.0) | by version (a list from 7.4.2) |
+| `6.0` | FortiOS 6.0 - 6.4 | a name | a name |
+| `7.0` | FortiOS 7.0 - 7.4.1 | a list of `{"name"}` (others kept) | a name |
+| `7.4.2` | FortiOS 7.4.2 - 8.0 | a list of `{"name"}` | a list of `{"name"}` (others kept) |
+
+*Any version* (the one saved targets had before) reads `monitor/system/status`
+and tries the other shape when the version is unknown or the first is refused.
+A numbered version sends its own shapes only, and first checks the FortiOS the
+box says: another one is refused before anything changes, naming the version
+to choose (a box newer than 8.0 is a warning for `7.4.2`; one whose version
+cannot be read gets the version's shapes, with a warning). Everything else -
+`monitor/vpn-certificate/local/import`, `ca/import`, `cmdb
+vpn.certificate/local`, `admin-server-cert`, `servercert` - is the same from
+6.0 to 8.0. SSL VPN tunnel mode is gone from 7.6.3 (its settings end at 7.6.2) and
+web mode is the *Agentless VPN*; `vpn ssl settings servercert` stays, so 7.6
+and 8.0 need no version of their own. FortiOS 7.6 is said to no longer take a
+user name and password on the REST API (hfortix, unverified) - acme uses a
+token anyway. Setup guides: `acmelib/plugins/guides/targets/fortigate[@<version>][.cs].md`.
+
+**Rights**: a *REST API Admin* (`config system api-user`, token by `execute
+api-user generate-key`) with trusted hosts set to the acme servers' addresses
+and an admin profile (`config system accprofile`, `scope global` for the
+global import): `vpngrp` read-write (certificate import / delete - the access
+group the 6.0.4 reference gives - and SSL VPN), `sysgrp` custom `cfg`
+read-write for `admin-server-cert`, `fwgrp` read-write for VIPs, `utmgrp`
+read-write for SSL/SSH inspection profiles. The exact commands are in the
+setup guides.
 
 **Example**: admin GUI on, SSL VPN on, VIPs `web-https`, verify
 `vpn.example.com:443` and `fw.example.com:8443`.
@@ -821,7 +845,13 @@ acme servers' addresses. For `admin-server-cert` the profile needs
 Fortinet's Ansible and Terraform docs, KB articles): confirmed - the import
 body, CA import apart, a new name + switch + delete (an existing name is not
 overwritten). Changed: the VIP / profile shape is picked by version
-(`monitor/system/status`) - VIPs are lists from 7.4.2. Not done: `user
+(`monitor/system/status`) - VIPs are lists from 7.4.2. **Versions checked**
+(1.0.94) against the FortiOS REST API reference built from Fortinet's Ansible
+collection 2.6.0 (each attribute's FortiOS range, 6.0.0 - 8.0.0: VIP
+`ssl-certificate` a string v6.0.0 - v7.4.1, the list v7.4.2 -; profile
+`server-cert`'s `name` member from v7.0.0), FortiOS 7.4.8 device schemas
+(both tables of `{name}`), the official 6.0.4 reference (import parameters,
+`vpngrp`) and the 7.6 monitor API (the same import parameters). Not done: `user
 setting auth-cert` (captive portal) and `server-cert-mode replace` of an
 inspection profile (set it once yourself). **Less certain**: base64 of the
 whole PEM (Terraform) or of DER (KB 134662) - acme sends PKCS#12, or the
