@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.95 - not released
+## 1.0.95 - 2026-11-12
 
 - **The setup guide and its editor take the screen they are given**: the text was held to
   960 px inside a window of at most 1500 / 1680 px - narrow on a large screen. Larger screens

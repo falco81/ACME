@@ -8710,7 +8710,7 @@ function dnsAdd() {
     f.type = selectBox(RTYPES.map(function (t) { return [t, t]; }), 'TXT');
     noI18n(f.type);
     g.appendChild(formField('Type', f.type));
-    f.value = textBox('', '"v=spf1 -all" or 192.0.2.10', 'mono');
+    f.value = textBox('', tr('"v=spf1 -all" or 192.0.2.10'), 'mono');
     noI18n(f.value);
     f.value.setAttribute('data-i18n-hint', '1');   /* its hint is words (1.0.88) */
     var vf = formField('Value', f.value);
