@@ -73,6 +73,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     and for a new one after a revoke too.
   - Czech in the alert mails: "2 dny", "1 den" (it said "2 dní"); "obnovení certifikátu X
     selhalo".
+  - acme's own DNS server answers a wildcard record (`*.x`) for every name under it (RFC 4592).
+    It could be saved and was never served. A record at `@` with several zones set is put at
+    the first of them, not at a name made of the whole list.
 
 ## 1.0.87 - 2026-11-12
 

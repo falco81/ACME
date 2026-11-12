@@ -1010,8 +1010,19 @@ class DnsServer(object):
         soa = zones.data[zone][6][0]
         owner = qname                                   # 0x20: names as asked
         seen = set()
+        wild = False
         for _hop in range(8):
             rrsets = zones.data.get(name, {})
+            if not rrsets and name not in zones.exists:
+                # a wildcard (RFC 4592, 1.0.88: *.x was saved and never served): the closest
+                # name that is there, and *. under it
+                up = name
+                while '.' in up and up != zone:
+                    up = up.split('.', 1)[1]
+                    if up in zones.exists or up == zone:
+                        rrsets = zones.data.get('*.' + up, {})
+                        wild = bool(rrsets)             # there: no data of a type is NODATA
+                        break
             if qtype == 255:
                 got = [(t, v) for t, v in sorted(rrsets.items())]
                 if not tcp and got:
@@ -1041,7 +1052,7 @@ class DnsServer(object):
                 continue
             break
         resp.authority.append(D.RR(zone, 6, D.CLASS_IN, min(soa[0], zones.ttl), soa[1]))
-        if name in zones.exists:
+        if name in zones.exists or wild:
             self.stats['nodata'] += 1
             return done(D.NOERROR, True)
         self.stats['nxdomain'] += 1

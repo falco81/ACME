@@ -2908,7 +2908,9 @@ def dns_record_save(store, b, by):
     if not re.match(r'^(\*\.)?([a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?\.)*[a-z0-9_]'
                     r'([a-z0-9_-]{0,61}[a-z0-9_])?\Z', name) and name != '@':
         raise ValueError('%r is not a DNS name' % name)
-    zone = str(E.CONFIG.get('dns_zone') or '').strip().lower().rstrip('.')
+    # the first of the zones (1.0.88: "a.net, b.com" whole was the name of a record at @)
+    zone = (re.split(r'[\s,;]+', str(E.CONFIG.get('dns_zone') or '').strip().lower()) or [''])[0]
+    zone = zone.rstrip('.')
     if name == '@':
         if not zone:
             raise ValueError('@ is the zone, and no zone is set (dns_zone)')
