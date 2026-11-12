@@ -222,8 +222,11 @@ def pg_path_checked(path, folder=False):
             st = os.lstat(p)
         except OSError:
             raise Refused('%s is not there' % p[:100])
+        # the file or folder itself postgres's own - never root's (1.0.88: a fake server on its
+        # socket named /etc/sudoers or the CA folder of the system, and root wrote into it)
+        own = {pg_uid} if (p == path and pg_uid is not None) else ok_uid
         if stat.S_ISLNK(st.st_mode) or (stat.S_ISDIR(st.st_mode) != want_dir) or \
-                st.st_uid not in ok_uid or st.st_mode & 0o002:
+                st.st_uid not in own or st.st_mode & 0o002:
             raise Refused('%s is not PostgreSQL\'s own (a link, or owned or written by another '
                           'account) - not touched' % p[:100])
     return path
@@ -2323,6 +2326,21 @@ def dbmake_pg(r):
             "rolcreatedb OR rolreplication OR rolbypassrls)") % pg_lit(user)) == '1':
         raise Refused('the account %s is there with rights over the whole server - its password '
                       'is not changed from here; choose another name' % user)
+    # ...nor through a role it is in, nor one that is not for signing in (1.0.88: SET ROLE
+    # postgres, COPY TO PROGRAM of pg_execute_server_program; a group role made a login)
+    if verb == 'ALTER' and pg_sql(r['port'], (
+            "SELECT 1 FROM pg_roles r WHERE r.rolname = %s AND (NOT r.rolcanlogin OR EXISTS ("
+            "SELECT 1 FROM pg_roles s WHERE pg_has_role(r.oid, s.oid, 'MEMBER') AND s.oid <> r.oid "
+            "AND (s.rolsuper OR s.rolcreaterole OR s.rolcreatedb OR s.rolreplication OR "
+            "s.rolbypassrls OR s.rolname LIKE 'pg\\_%%')))") % pg_lit(user)) == '1':
+        raise Refused('the account %s is there and is not only a login of its own (it is in a role '
+                      'with rights over the server, or is a group) - choose another name' % user)
+    # a database that is there is another application's unless this account owns it (1.0.88)
+    owner = pg_sql(r['port'], "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = %s"
+                   % pg_lit(name))
+    if owner and owner != user:
+        raise Refused('the database %s is there, owned by %s - not taken over; choose another '
+                      'name' % (name, owner))
     pg_sql(r['port'], quiet + '%s ROLE "%s" WITH LOGIN PASSWORD %s' % (verb, user, pg_lit(r['password'])))
     said.append('the account %s %s' % (user, 'was there: its password is new' if verb == 'ALTER'
                                        else 'is made'))
@@ -2355,6 +2373,21 @@ def dbmake_my(r):
     if got.returncode == 0 and got.stdout.strip() not in ('', '0'):
         raise Refused("the account '%s' is there with rights over the whole server - its "
                       "password is not changed from here; choose another name" % user)
+    # ...any right over every database, a right on mysql itself, or a database that is there
+    # and someone else's (1.0.88)
+    got = subprocess.run([prog, '--protocol=socket', '-u', 'root', '--batch', '-N', '-e',
+                          "SELECT (SELECT COUNT(*) FROM mysql.user WHERE User = '%s' AND ("
+                          "Select_priv = 'Y' OR Insert_priv = 'Y' OR Update_priv = 'Y' OR "
+                          "Delete_priv = 'Y' OR Create_priv = 'Y' OR Drop_priv = 'Y' OR "
+                          "Reload_priv = 'Y' OR Alter_priv = 'Y' OR Execute_priv = 'Y')) + "
+                          "(SELECT COUNT(*) FROM mysql.db WHERE User = '%s' AND Db IN ('mysql', "
+                          "'sys', 'performance_schema', 'information_schema')) + "
+                          "(SELECT COUNT(*) FROM mysql.db WHERE Db = '%s' AND User <> '%s')"
+                          % (user, user, name, user)],
+                         capture_output=True, text=True, timeout=60)
+    if got.returncode == 0 and got.stdout.strip() not in ('', '0'):
+        raise Refused("the account '%s' has rights beyond one database of its own, or the database "
+                      "%s is another account's - not taken over; choose other names" % (user, name))
     sql = ['SET SESSION sql_log_off = 1;',
            'CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;' % name]
     for at in ('localhost', '127.0.0.1', '::1'):

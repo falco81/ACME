@@ -1067,6 +1067,34 @@ FOLDERS = {'issuer': 'issuers', 'challenge': 'challenges', 'target': 'targets',
 # Finding them
 # ---------------------------------------------------------------------------
 
+def _read_roots_own(root, folder, fn, most=4 << 20):
+    """A module's source read as root through handles: the folder of the modules and the file
+    each opened without following a link, each root's and written by no one else."""
+    import stat as _st
+    flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_CLOEXEC', 0)
+    fds = []
+    try:
+        d = os.open(os.path.join(root, folder), flags | getattr(os, 'O_DIRECTORY', 0))
+        fds.append(d)
+        st = os.fstat(d)
+        if st.st_uid != 0 or st.st_mode & 0o022:
+            raise PermissionError('%s/%s is not root\'s alone' % (root, folder))
+        f = os.open(fn, flags, dir_fd=d)
+        fds.append(f)
+        st = os.fstat(f)
+        if not _st.S_ISREG(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022 or \
+                st.st_size > most:
+            raise PermissionError('%s is not root\'s alone' % fn)
+        with os.fdopen(os.dup(f), 'rb') as fh:
+            return fh.read(most)
+    finally:
+        for x in fds:
+            try:
+                os.close(x)
+            except OSError:
+                pass
+
+
 def _roots_own(*paths):
     """Whether every one of these is root's and written by no one else (and no link)."""
     for p in paths:
@@ -1193,6 +1221,17 @@ class Registry(object):
             name = 'acmelib.plugins.%s.%s' % (folder, fn[:-3])
         else:
             name = 'acme_local_plugins.%s.%s' % (folder, fn[:-3])
+        if root != self.dirs[0] and os.geteuid() == 0:
+            # As root, read through handles held from the folder down, never by its name again
+            # (1.0.88: checked by lstat, then opened by name - a folder swapped in between by the
+            # acme account, whose group may rename in /etc/acme, was loaded as root)
+            src = _read_roots_own(root, folder, fn)
+            import types
+            mod = types.ModuleType(name)
+            mod.__file__ = path
+            sys.modules[name] = mod
+            exec(compile(src, path, 'exec'), mod.__dict__)
+            return mod
         spec = importlib.util.spec_from_file_location(name, path)
         mod = importlib.util.module_from_spec(spec)
         sys.modules[name] = mod

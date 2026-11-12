@@ -128,9 +128,17 @@ class Helper(unittest.TestCase):
         d = tempfile.mkdtemp(prefix='acme-pgl-')
         real = os.path.join(d, 'real')
         os.makedirs(real)
+        try:                    # postgres's own folder (1.0.88: root's is refused)
+            import pwd
+            os.chown(real, pwd.getpwnam('postgres').pw_uid, -1)
+        except KeyError:
+            self.skipTest('no postgres account')
         link = os.path.join(d, 'main')
         os.symlink(real, link)
         self.assertEqual(W.pg_path_checked(link, folder=True), real)
+        os.chown(real, 0, -1)
+        with self.assertRaises(W.Refused):          # root's own folder: not PostgreSQL's
+            W.pg_path_checked(real, folder=True)
 
     def test_unlock_end_day_only_ahead(self):
         src = read('deploy', 'acme_web.py')

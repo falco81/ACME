@@ -110,6 +110,19 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   - Kubernetes: what acme put in a secret and sends no more (a twin gone, `ca.crt` switched off)
     is taken out.
   - Kemp: `[IPv6]:port:protocol` is read right.
+- Bug hunt I, round 3 - root's helper and installation:
+  - A path PostgreSQL names (its data folder, pg_hba.conf) is written by root only when it is
+    postgres's own. A server pretending on postgres's socket could have root write a key into
+    the system's CA folder or a line into /etc/sudoers.
+  - *Make the database*: an account that is there is not taken over when it is in a role with
+    rights over the server (SET ROLE postgres, pg_execute_server_program) or is a group role.
+    A database that is there and someone else's is not taken over. MariaDB: likewise, for
+    rights over every database or on `mysql`.
+  - Modules of your own loaded as root (the console, the command line) are read through
+    handles held from their folder down. Checked and then opened by name, a folder swapped
+    in between by the acme account was loaded as root.
+  - install.sh reads config.json without following a link or waiting on a pipe. A FIFO there
+    hung an upgrade.
 
 ## 1.0.87 - 2026-11-12
 

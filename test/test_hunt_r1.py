@@ -74,6 +74,11 @@ class Helper(unittest.TestCase):
         f = os.path.join(d, 'pg_hba.conf')
         with open(f, 'w') as fh:
             fh.write('x\n')
+        try:                    # postgres's own file (1.0.88: root's is refused)
+            import pwd
+            os.chown(f, pwd.getpwnam('postgres').pw_uid, -1)
+        except (KeyError, OSError):
+            pass
         self.assertEqual(W.pg_path_checked(f), f)
         link = os.path.join(d, 'link.conf')
         os.symlink('/etc/passwd', link)

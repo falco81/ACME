@@ -1115,7 +1115,7 @@ selinux_module() {
 # packages and has the driver from PyPI (psycopg2-binary, PyMySQL).
 py_mods_wanted() {
     local inuse=""
-    inuse="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("db_engine") or "")' \
+    inuse="$(python3 -c 'import json,os,stat,sys; fd=os.open(sys.argv[1], os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK); assert stat.S_ISREG(os.fstat(fd).st_mode); print(json.loads(os.read(fd, 4<<20) or b"{}").get("db_engine") or "")' \
              "$CONFIG_DIR/config.json" 2>/dev/null || true)"
     case "$inuse $WITH_DB" in *postgres*|*both*) echo psycopg2;; esac
     case "$inuse $WITH_DB" in *mariadb*|*mysql*|*both*) echo pymysql;; esac
@@ -1642,7 +1642,7 @@ restart_daemon() {
 # The Python drivers themselves come with the Python (runtime_python).
 install_db_tools() {
     local tools=() inuse=""
-    inuse="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("db_engine") or "")' \
+    inuse="$(python3 -c 'import json,os,stat,sys; fd=os.open(sys.argv[1], os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK); assert stat.S_ISREG(os.fstat(fd).st_mode); print(json.loads(os.read(fd, 4<<20) or b"{}").get("db_engine") or "")' \
              "$CONFIG_DIR/config.json" 2>/dev/null || true)"
     case "$inuse" in
         mariadb) tools=("mariadb-dump:mariadb:mariadb-client");;
