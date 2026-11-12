@@ -7992,7 +7992,7 @@ function haBundleRun(peer, dbHost, rep, prepareOnly) {
 
 function haBundleDone(host, made, peer, warned, size) {
   var file = el('div', 'ha-file ok');
-  var ico = el('span', 'ha-file-ico'); ico.innerHTML = iconMarkup('download', 22); file.appendChild(ico);
+  var ico = el('span', 'ha-file-ico'); ico.innerHTML = iconMarkup('export', 22); file.appendChild(ico);
   var fw = el('div', 'ha-file-w');
   fw.appendChild(noI18n(el('b', 'mono', made.name)));
   fw.appendChild(haWords('saved to your downloads · ', bytes(size)));
@@ -8092,7 +8092,7 @@ function haJoinPopup() {
     if (!st.file) {
       var drop = el('div', 'drop ha-drop');
       drop.id = 'ha-join-drop';
-      var ico = el('span', 'ha-drop-ico'); ico.innerHTML = iconMarkup('upload', 26); drop.appendChild(ico);
+      var ico = el('span', 'ha-drop-ico'); ico.innerHTML = iconMarkup('import', 26); drop.appendChild(ico);
       var w = el('div', 'ha-drop-w');
       w.appendChild(el('b', '', 'Drop the bundle here, or press to choose it'));
       w.appendChild(noI18n(el('span', 'mono small', 'acme-join-NODE-DATE.json')));

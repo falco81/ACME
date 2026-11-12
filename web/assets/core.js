@@ -333,7 +333,7 @@ function modal(title, build, buttons, narrow) {
   list.forEach(function (b) {
     var button = el('button', 'btn cmd' + (b.cls ? ' ' + b.cls : ''), b.words);
     setButtonIcon(button, b.icon || iconForWords(b.words), b.words);
-    if (b.enter === false || /^(deploy|refresh|power|ban|trash|delete|play|send|upload)$/.test(b.icon || iconForWords(b.words) || '')
+    if (b.enter === false || /^(deploy|refresh|power|ban|trash|delete|play|send|upload|import)$/.test(b.icon || iconForWords(b.words) || '')
         || /deploy|issue|renew|restart|revoke|delete|run|send/i.test(b.words || '')) button.setAttribute('data-no-enter', '1');
     if (b === lastLeft) button.classList.add('left');
     if (b.says) explain(button, b.says);
@@ -617,7 +617,9 @@ function iconForWords(words) {
   if (/router|sync/.test(w)) return 'router';
   if (/key/.test(w)) return 'key';
   if (/download/.test(w)) return 'download';
-  if (/load|import|paste|use my own/.test(w)) return 'upload';
+  if (/import/.test(w)) return 'import';
+  if (/export/.test(w)) return 'export';
+  if (/load|paste|use my own/.test(w)) return 'upload';
   if (/fetch/.test(w)) return 'download';
   if (/password|sign/.test(w)) return 'lock';
   if (/make|add|new/.test(w)) return 'add';
@@ -694,6 +696,10 @@ var ICONS = {
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/>'
     + '<path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
   upload: '<path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M4 20h16"/>',
+  /* Into acme and out of it (1.0.88): every Import one mark, every Export the other - an open
+     box with the arrow going in, or coming out; Upload / Download stay for a plain file. */
+  import: '<path d="M4 13v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6"/><path d="M12 3v11"/><path d="M8 10l4 4 4-4"/>',
+  export: '<path d="M4 13v6a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6"/><path d="M12 14V3"/><path d="M8 7l4-4 4 4"/>',
   key: '<circle cx="8" cy="12" r="3.2"/><path d="M11.2 12H21"/><path d="M17 12v3"/>'
     + '<path d="M20 12v2.4"/>',
   router: '<rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 16.5h.01M11 16.5h.01"/>'
@@ -755,8 +761,18 @@ function iconMarkup(key, size) {
 }
 
 /** Put an icon on a button that is already on the page, keeping its words. */
+/* What a button says decides import / export, whatever icon it was given (1.0.88: an Import
+   had the upload arrow, Import from a source the download one, an Export the download one) */
+function ioIcon(key, words) {
+  var w = String(words || '').toLowerCase();
+  if (/(^|\b)import/.test(w) && /(^|\b)export/.test(w)) return key;   /* both: its own */
+  if (/(^|\b)import/.test(w)) return 'import';
+  if (/(^|\b)export/.test(w)) return 'export';
+  return key;
+}
 function setButtonIcon(button, key, label) {
   var words = label !== undefined ? label : button.textContent;
+  key = ioIcon(key, words || button.title || button.getAttribute('aria-label') || '');
   button.innerHTML = iconMarkup(key) + (words ? '<span></span>' : '');
   if (words) button.querySelector('span').textContent = words;
   return button;

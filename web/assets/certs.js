@@ -534,7 +534,7 @@ function dropZone(words, got, accept, many) {
   box.tabIndex = 0;
   box.setAttribute('role', 'button');
   var ic = el('span', 'ct-drop-ic');
-  ic.innerHTML = iconMarkup('upload', 22);
+  ic.innerHTML = iconMarkup('import', 22);      /* into acme: the mark of every Import (1.0.88) */
   box.appendChild(ic);
   var w = el('span', '', words);
   box.appendChild(w);

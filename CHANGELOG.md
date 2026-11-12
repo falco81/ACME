@@ -6,6 +6,39 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.88 - not released
 
+- One icon for every Import and one for every Export in the whole application: an open box
+  with the arrow going in, or coming out. *Import* had the upload arrow, *Import from a
+  source* the download one, and *Export* the download one. The button's words decide, so
+  a new button gets the right one. The boxes to drop a file on show the Import icon.
+- Bug hunt I, round 1:
+  - Security:
+    - a certificate administrator of one team could hold or let go the deployments of
+      another team's certificate;
+    - `acme --api` printed an authority's private key (`cas/export` with a key format).
+  - A dual certificate retried for its twin alone took the revoked twin's key again (after
+    *Revoke and issue a new one* whose twin failed).
+  - A stop or a restart during a renewal:
+    - a proof in DNS or a token file put there over SSH is now taken away even after a stop;
+    - the copies of a key in /tmp on a target go too (they stayed for good);
+    - it is no longer counted as a failed renewal with a backoff and a "Renewing failed"
+      notice.
+  - Windows over SSH: a script past cmd.exe's 8191 characters (three IIS bindings and RDP,
+    a few lines after the import) failed every time. It now goes up as a .ps1.
+  - A certificate's own *dual order* setting is read by the regular look too. Off for the
+    certificate but on for the source, a job that did nothing started every few minutes.
+  - A job gives back only its own lease of a certificate. The second give took away the
+    lease of the job after it.
+  - Deploy hold:
+    - held again, the version waiting stays held;
+    - a move to *by hand* ends a hold;
+    - the box counts only the targets without the new one.
+  - Popups:
+    - *Take it out of service* is not a red "cannot be taken back" button;
+    - a non-red confirmation (*Forget them*) stays non-red;
+    - a button the page had hidden stays hidden after *No, leave it*.
+  - *What happens* does not say a test runs after a deployment when tests after deployments
+    are switched off.
+
 ## 1.0.87 - 2026-11-12
 
 - Restart and power off: each node's card shows how long the machine (the OS) has been up
