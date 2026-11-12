@@ -405,6 +405,8 @@ def web_tick(store):
             'fw' not in desired and 'access' not in desired and 'acme' not in desired:
         return
     h = web_hash(desired)
+    if st.get('state') == 'done':
+        web_self_check(store, st)
     if st.get('hash') == h:
         if st.get('state') == 'done':
             # Done, by root's last word - and nginx really has it (1.0.104):
@@ -463,6 +465,84 @@ def web_tick(store):
     os.replace(str(tmp), str(req))
     WEB_ASKED['hash'] = h
     WEB_ASKED['at'] = time.time()
+
+
+WEB_SELF_PORT = int(os.environ.get('ACME_WEB_SELF_PORT') or 443)
+
+
+def web_self_check(store, st):
+    """After nginx was given its part (1.0.89): acme connects to it as a client that fetches
+    nothing (curl, the other applications) - the system's roots, plus the root kept with a
+    private certificate - and says whether the chain it is sent is enough. Once for each
+    time root applied it; a refusal is an event, not silence."""
+    at = float(st.get('at') or 0)
+    key = 'web:selfcheck:' + node_name()
+    try:
+        had = json.loads(store.get_meta(key) or '{}')
+    except ValueError:
+        had = {}
+    if not at or float(had.get('applied') or 0) >= at:
+        return had
+    prof = tls_profile(store, node_name()) or {}
+    info = prof.get('info') or {}
+    if not prof.get('cert') or info.get('self_signed'):
+        got = {'ok': None, 'words': 'self-signed or none - not checked'}
+    else:
+        got = web_self_connect(prof)
+    got.update(applied=at, at=time.time())
+    store.set_meta(key, json.dumps(got))
+    if got.get('ok') is False:
+        store.add_event('settings', 'a client that fetches nothing (curl, the other '
+                        'applications) refuses what nginx sends on %s: %s' % (
+                            node_name(), got.get('why') or ''), 'warn')
+    # The VIP address (HA, keepalived): its own certificate, checked on the node that holds
+    # the address - on that address, as the clients reach it.
+    v = vip_conf(store)
+    vprof = tls_profile(store, 'vip') or {}
+    vkey = 'web:selfcheck:vip:' + node_name()
+    if v.get('on') and vprof.get('cert') and vip_here(v.get('address')):
+        if (vprof.get('info') or {}).get('self_signed'):
+            vgot = {'ok': None, 'words': 'self-signed - not checked'}
+        else:
+            vgot = web_self_connect(vprof, host=vip_plain(str(v.get('address') or '').split('/')[0]))
+        vgot.update(applied=at, at=time.time())
+        store.set_meta(vkey, json.dumps(vgot))
+        if vgot.get('ok') is False:
+            store.add_event('settings', 'a client that fetches nothing (curl, the other '
+                            'applications) refuses what nginx sends on the VIP address: %s'
+                            % (vgot.get('why') or ''), 'warn')
+    return got
+
+
+def web_self_connect(prof, port=None, host='127.0.0.1'):
+    info = prof.get('info') or {}
+    name = next((n for n in info.get('san') or [] if n and '*' not in n), '') or \
+        info.get('cn') or ''
+    ctx = ssl.create_default_context()
+    ca = chain_ca_file()
+    try:
+        if ca:
+            ctx.load_verify_locations(cafile=ca)
+        if prof.get('root'):
+            ctx.load_verify_locations(cadata=prof['root'])
+    except (OSError, ssl.SSLError, ValueError):
+        pass
+    ctx.verify_flags &= ~getattr(ssl, 'VERIFY_X509_PARTIAL_CHAIN', 0)
+    ctx.check_hostname = False
+    try:
+        with socket.create_connection((host or '127.0.0.1', port or WEB_SELF_PORT),
+                                      timeout=8) as raw:
+            with ctx.wrap_socket(raw, server_hostname=name or None):
+                pass
+        return {'ok': True, 'words': 'checked as a client that fetches nothing: the whole chain '
+                                     'is sent'}
+    except ssl.SSLCertVerificationError as e:
+        why = str(getattr(e, 'verify_message', '') or e)
+        return {'ok': False, 'why': why, 'words': 'a client that fetches nothing (curl, the '
+                                                  'other applications) refuses what nginx '
+                                                  'sends: %s' % why}
+    except (OSError, ssl.SSLError) as e:
+        return {'ok': None, 'words': 'what nginx sends could not be checked: %s' % e}
 
 
 WEB_ASKED = {'hash': '', 'at': 0.0}
@@ -532,6 +612,8 @@ def web_state(store):
     # The files root writes and web_drift reads (1.0.56), not always /etc/nginx/certs.
     return {'cert_now': cert_now(NGINX_CERT_FILES['node']),
             'vip_cert_now': cert_now(NGINX_CERT_FILES['vip']),
+            'self_check': _json_meta(store, 'web:selfcheck:' + node_name()),
+            'vip_self_check': _json_meta(store, 'web:selfcheck:vip:' + node_name()),
             'state': st.get('state') or '', 'said': (st.get('said') or [])[-6:],
             'at': st.get('at'), 'current': bool(st) and st.get('hash') == desired_hash,
             'waiting': (WEB_DIR / 'request.json').exists(),
@@ -593,7 +675,14 @@ def cert_now(path):
         m = PEM_CERT.search(text)
         info = cert_info(m.group(0)) if m else None
         if info:
-            info['chain'] = max(0, len(PEM_CERT.findall(text)) - 1)
+            all_ = PEM_CERT.findall(text)
+            info['chain'] = max(0, len(all_) - 1)
+            # What nginx sends, checked as curl and the other applications check it (1.0.89):
+            # the system's roots, nothing fetched.
+            if not info.get('self_signed'):
+                ok, why = chain_verify(all_[0] + '\n', ''.join(c + '\n' for c in all_[1:]))
+                info['chain_ok'] = ok
+                info['chain_why'] = '' if ok else why[:200]
     except (OSError, ValueError):
         return None             # not kept: read again next time (1.0.57)
     CERT_NOW[path] = ((st.st_mtime, st.st_size), info)

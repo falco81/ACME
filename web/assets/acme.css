@@ -2245,6 +2245,8 @@ select.vip-iface{min-width:150px}
 .cert-kv{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:5px 14px;margin:8px 0 0;font-size:13px}
 .cert-kv dt{color:var(--tx-dim);font-weight:600;white-space:nowrap}
 .cert-kv dd{margin:0;overflow-wrap:anywhere;font-weight:600}
+.cert-kv dd .good{color:var(--ok)}
+.cert-kv dd .bad{color:var(--crit)}
 
 /* How TLS is spoken (1.0.49): tiles, pills, a segmented choice */
 .tls-h{margin:4px 0 10px;font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--tx-dim)}

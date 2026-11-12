@@ -594,7 +594,7 @@ def push_put(store, slot, got, alt, by):
     prof = tls_profile(store, target) or {}
     prof.update(cert=got['cert'], chain=got['chain'], root=got['root'],
                 key=seal_secret(got['key'], 'web:tls'), info=got['info'],
-                chain_info=got['chain_info'], root_info=got['root_info'],
+                chain_info=got['chain_info'], root_info=got['root_info'], chain_state=got.get('chain_state'),
                 verify=got['verify'], how=('acme push: %s' % by)[:190])
     for k in ('pending_key', 'csr', 'alt'):
         prof.pop(k, None)

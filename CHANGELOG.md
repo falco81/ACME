@@ -6,6 +6,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.89 - not released
 
+- **The whole chain of acme's own web certificates** (Settings → Certificates and TLS, every
+  node and the VIP address): whatever comes - upload, PFX, a signed request, ACME, acme push,
+  `--tls-import` - is checked against the system's roots as curl and the other applications
+  check it, and a missing intermediate is fetched from the certificate's CA Issuers address
+  (trusted only as a link to a system root; a root never sent). The card's *Chain* line says
+  it in green or red; **Complete the chain** / **Check the chain**, **Upload the missing
+  authority** (a dialog naming the authority missing; a private CA's root kept to check with).
+  What nginx has in its file is checked too, and after nginx is given its part acme connects
+  to it as a client that fetches nothing - a refusal is an event; for the VIP address on the
+  node that holds it. CLI: `--tls-chain`, `--tls-chain-add FILE`. See
+  [tls-and-vip.md](docs/tls-and-vip.md#the-whole-chain-1089).
 ## 1.0.88 - 2026-11-12
 
 - A server that sends its certificate **without the intermediate authority** (isemon with a

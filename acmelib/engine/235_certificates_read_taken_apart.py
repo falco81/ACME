@@ -249,10 +249,185 @@ def cert_bundle(cert='', key='', chain='', root='', pfx=b'', password='', pendin
                 verify = 'ok'
             except ValueError as e:
                 verify = str(e)
+    # The whole chain (1.0.89): checked against the system's roots as clients that fetch
+    # nothing check it, completed from the CA Issuers addresses where it does not reach one.
+    chain_out, chain_state = chain_complete(leaf, chain_out, ''.join(c + '\n' for c in roots))
     return {'cert': leaf + '\n', 'chain': ''.join(c + '\n' for c in chain_out),
             'root': ''.join(c + '\n' for c in roots), 'key': key_pem, 'info': info,
             'chain_info': [cert_info(c) for c in chain_out],
-            'root_info': [cert_info(c) for c in roots], 'verify': verify}
+            'root_info': [cert_info(c) for c in roots], 'verify': verify,
+            'chain_state': chain_state}
+
+
+# ---- the whole chain (1.0.89) ------------------------------------------------------------
+# nginx must send the certificate with every intermediate authority up to (not including) a
+# root. Browsers fetch a missing intermediate themselves (Authority Information Access -> CA
+# Issuers) and say nothing; curl, Python, Java, Go, rsyslog, the other applications (acme
+# push) and the monitoring agents do not, and refuse the connection. So whatever comes - an
+# upload, a PFX, a request signed elsewhere, ACME, acme push - is checked against the system's
+# roots, and a chain that does not reach one is completed as browsers do it: the intermediate
+# fetched from its CA Issuers address, at most four steps. What is fetched is trusted only as
+# a link to a root of the system; a root is never sent.
+CHAIN_CA_FILES = ('/etc/pki/tls/certs/ca-bundle.crt',
+                  '/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem',
+                  '/etc/ssl/certs/ca-certificates.crt')
+CHAIN_FETCHED = {}                  # url -> (when, [pem]) - kept a day
+
+
+def chain_ca_file():
+    for f in (os.environ.get('ACME_CHAIN_CA'),) + CHAIN_CA_FILES:
+        if f and os.path.isfile(f):
+            return f
+    return None
+
+
+def chain_verify(leaf, chain, roots=''):
+    """(True, '') when leaf + chain lead to a root of the system (or to `roots`, a private CA
+    given with it); else (False, what openssl said - without the paths of its files)."""
+    ca = chain_ca_file()
+    bundle = ''
+    if ca:
+        try:
+            with open(ca) as f:
+                bundle = f.read()
+        except OSError:
+            bundle = ''
+    bundle += '\n' + (roots or '')
+    if '-----BEGIN CERTIFICATE-----' not in bundle:
+        return False, 'the system has no list of root authorities to check against'
+    with tempfile.TemporaryDirectory(prefix='acme-chain-') as t:
+        def put(name, text):
+            p = os.path.join(t, name)
+            with open(p, 'w') as f:
+                f.write(text)
+            return p
+        args = ['verify', '-CAfile', put('ca.pem', bundle)]
+        if chain.strip():
+            args += ['-untrusted', put('chain.pem', chain)]
+        args.append(put('leaf.pem', leaf))
+        try:
+            _openssl(args, what='the chain')
+            return True, ''
+        except ValueError as e:
+            return False, re.sub(r'(error )?\S*acme-chain-\S*:\s*', '', str(e)).strip()
+
+
+def aia_issuer_url(pem):
+    """The CA Issuers address of a certificate (http or https, as the CAs publish it)."""
+    try:
+        out = _openssl(['x509', '-noout', '-ext', 'authorityInfoAccess'], pem.encode(),
+                       what='the certificate').decode('utf-8', 'replace')
+    except ValueError:
+        return ''
+    m = re.search(r'CA Issuers\s*-\s*URI:(https?://\S+)', out)
+    return m.group(1) if m else ''
+
+
+def aia_fetch(url):
+    """The certificates at a CA Issuers address - DER, PEM or PKCS#7 - as PEM (kept a day)."""
+    got = CHAIN_FETCHED.get(url)
+    if got and time.time() - got[0] < 86400:
+        return got[1]
+    if not re.match(r'^https?://[A-Za-z0-9.-]+(:\d+)?/\S*\Z', url):
+        return []
+    with url_open(urllib.request.Request(url, headers={'User-Agent': 'acme/%s' % __version__}),
+                  timeout=15, purpose='acme') as r:
+        raw = r.read(262145)
+    if len(raw) > 262144:
+        return []
+    pems = []
+    if b'-----BEGIN' in raw:
+        text = raw.decode('ascii', 'replace')
+        if '-----BEGIN PKCS7-----' in text:
+            try:
+                text = _openssl(['pkcs7', '-print_certs'], raw,
+                                what='PKCS#7').decode('ascii', 'replace')
+            except ValueError:
+                text = ''
+        pems = [m.group(0) for m in PEM_CERT.finditer(text)]
+    else:
+        for args in (['x509', '-inform', 'DER'], ['pkcs7', '-inform', 'DER', '-print_certs']):
+            try:
+                text = _openssl(args, raw, what='the authority').decode('ascii', 'replace')
+            except ValueError:
+                continue
+            pems = [m.group(0) for m in PEM_CERT.finditer(text)]
+            if pems:
+                break
+    CHAIN_FETCHED[url] = (time.time(), pems[:6])
+    return pems[:6]
+
+
+def _cn_of(dn):
+    m = re.search(r'(?:^|,)\s*CN\s*=\s*([^,]+)', str(dn or ''))
+    return (m.group(1) if m else str(dn or '?')).strip()
+
+
+def chain_complete(leaf, chain_out, roots=''):
+    """The chain checked against the system's roots and, where it does not reach one,
+    completed from the CA Issuers addresses: (the chain, a list of PEM; its state
+    {ok: True | False | None, words, fetched, missing, private_root})."""
+    leaf = leaf.strip()
+    chain_out = [c.strip() for c in chain_out]
+    if cert_info(leaf).get('self_signed'):
+        return chain_out, {'ok': None, 'fetched': [],
+                           'words': 'self-signed - no chain; whoever connects must trust this '
+                                    'certificate itself'}
+
+    def joined(cs):
+        return ''.join(c + '\n' for c in cs)
+    ok, why = chain_verify(leaf + '\n', joined(chain_out), roots)
+    fetched, chain = [], list(chain_out)
+    tried, root_seen = 0, ''
+    while not ok and tried < 4:
+        tried += 1
+        last = chain[-1] if chain else leaf
+        info = cert_info(last)
+        if info.get('self_signed'):
+            break
+        url = aia_issuer_url(last)
+        if not url:
+            why = '%s names no CA Issuers address to fetch it from' % (
+                info.get('cn') or 'the certificate')
+            break
+        try:
+            got = aia_fetch(url)
+        except Exception as e:                          # noqa: BLE001
+            why = 'the authority %s could not be fetched from %s: %s' % (
+                _cn_of(info.get('issuer')), url, getattr(e, 'reason', e))
+            break
+        nxt = next((c for c in got if cert_info(c).get('subject') == info.get('issuer')), None)
+        if not nxt:
+            why = '%s does not hold the authority %s' % (url, _cn_of(info.get('issuer')))
+            break
+        ni = cert_info(nxt)
+        if ni.get('self_signed'):
+            root_seen = ni.get('cn') or ni.get('subject')
+            break                       # a root: never sent - it has to be the system's own
+        chain.append(nxt.strip())
+        fetched.append(ni.get('cn') or ni.get('subject'))
+        ok, why = chain_verify(leaf + '\n', joined(chain), roots)
+    n = len(chain)
+    if ok:
+        top = cert_info(chain[-1] if chain else leaf).get('issuer')
+        words = 'complete - %d certificates up to %s' % (n + 1, _cn_of(top))
+        if fetched:
+            words += ' (fetched: %s - it was not sent with the certificate)' % ', '.join(fetched)
+        if roots and not chain_verify(leaf + '\n', joined(chain))[0]:
+            words += ' - a private root: only clients that trust it take it'
+        return chain, {'ok': True, 'words': words, 'fetched': fetched}
+    if root_seen:
+        return chain, {'ok': False, 'fetched': fetched, 'missing': '', 'private_root': root_seen,
+                       'words': 'it leads to %s, a root the system does not trust (a private '
+                                'CA?) - the chain is complete; the clients must trust that '
+                                'root, or give its root here' % root_seen}
+    last = cert_info(chain[-1] if chain else leaf)
+    return (chain if fetched else chain_out), {
+        'ok': False, 'fetched': fetched, 'missing': _cn_of(last.get('issuer')),
+        'words': 'incomplete - the authority %s is not sent and could not be completed (%s); '
+                 'curl, other applications and monitoring refuse it - only browsers fetch it '
+                 'themselves; send the certificate with its chain, or, for a private CA, its '
+                 'root to the clients' % (_cn_of(last.get('issuer')), why[:200])}
 
 
 def cert_bundles(cert='', key='', chain='', root='', pfx=b'', password='', pending_key='',

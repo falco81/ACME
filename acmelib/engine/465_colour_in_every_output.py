@@ -878,6 +878,12 @@ def build_parser():
     g.add_argument('--days', type=int, default=None,
                    help='how many days: --tls-selfsigned [825], --selfsigned [365], --ca-create '
                         '[3650], an intermediate [1825], --ca-sign [the profile\'s]')
+    g.add_argument('--tls-chain', action='store_true', help='the chain of --tls-for checked '
+                   'against the system\'s roots and completed: an intermediate it did not come '
+                   'with fetched from its CA Issuers address (nginx then sends the whole chain)')
+    g.add_argument('--tls-chain-add', metavar='FILE', help='the missing authority of --tls-for\'s '
+                   'chain by hand (PEM or .cer): intermediates into the chain, a root kept to '
+                   'check with, never sent')
     g.add_argument('--tls-export', nargs=2, metavar=('FORMAT', 'FILE'), help='the certificate of '
                    '--tls-for into FILE: pem, fullchain, der, p7b, pfx or pemkey (the last two with '
                    'its private key, locked with a password asked for; --legacy: a PFX older Windows '
@@ -1704,7 +1710,7 @@ def cli_web(args, pal, store):
             raise ValueError('this certificate ran out on %s' % stamp(got['info']['not_after']))
         prof.update(cert=got['cert'], chain=got['chain'], root=got['root'],
                     key=seal_secret(got['key'], 'web:tls'), info=got['info'],
-                    chain_info=got['chain_info'], root_info=got['root_info'],
+                    chain_info=got['chain_info'], root_info=got['root_info'], chain_state=got.get('chain_state'),
                     verify=got['verify'], how='imported on the command line')
         if got2:
             prof['alt'] = {'cert': got2['cert'], 'chain': got2['chain'],
@@ -4260,6 +4266,22 @@ def cli_main(argv=None):
         return shown(api('POST', '/api/web', {'action': 'tls_selfsigned', 'target': target,
                                               'cn': args.tls_selfsigned, 'names': args.names or '',
                                               'days': args.days or 825, 'org': args.org}))
+    if args.tls_chain or args.tls_chain_add:
+        body = {'action': 'tls_chain', 'target': target}
+        if args.tls_chain_add:
+            raw = Path(args.tls_chain_add).read_bytes()[:262145]
+            if b'-----BEGIN' in raw:
+                text = raw.decode('utf-8', 'replace')
+            else:
+                text = '-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----\n' % \
+                    base64.encodebytes(raw).decode('ascii').strip()
+            body = {'action': 'tls_chain_add', 'target': target, 'text': text}
+        got = api('POST', '/api/web', body)
+        if args.json:
+            out(got)
+        else:
+            print((pal.ok_line if got.get('complete') else pal.warn_line)(got.get('message') or ''))
+        return 0 if got.get('complete') else 4
     if args.tls_export:
         kind, path = args.tls_export
         if kind not in TLS_EXPORT_KINDS:

@@ -94,7 +94,7 @@ def _web_do(h):
             raise ApiError(400, 'this certificate ran out on %s' % stamp(info['not_after']))
         prof.update(cert=got['cert'], chain=got['chain'], root=got['root'],
                     key=seal_secret(got['key'], 'web:tls'), info=info,
-                    chain_info=got['chain_info'], root_info=got['root_info'],
+                    chain_info=got['chain_info'], root_info=got['root_info'], chain_state=got.get('chain_state'),
                     verify=got['verify'], how=how)
         if got2:
             # Both of the same names (otp 1.0.240): the ECDSA one beside, as ACME's "both".
@@ -119,6 +119,8 @@ def _web_do(h):
                            'seconds' % (words, 's' if target == 'vip' else '',
                                         '' if target == 'vip' else 's'),
                 'tls': tls_view(prof)}
+    if act in ('tls_chain', 'tls_chain_add'):
+        return tls_chain_act(store, target, prof, words, who, act, b)
     if act == 'tls_csr':
         names = [x.strip() for x in re.split(r'[\s,;]+', str(b.get('names') or '')) if x.strip()]
         key, csr = make_csr(str(b.get('cn') or '').strip(), names, str(b.get('kind') or 'rsa2048'),
@@ -256,4 +258,84 @@ def _web_do(h):
         return {'message': '%s tries again within a few seconds' % node}
     raise ApiError(400, 'no such thing to do')
 
+
+def tls_chain_act(store, target, prof, words, who, act, b):
+    """Complete the chain (1.0.89): the certificate kept, checked again against the system's
+    roots and completed from its CA Issuers addresses - nginx then sends the whole chain. Or
+    the missing authority by hand, when it cannot be fetched (no CA Issuers address, no way
+    out, a private CA): only certificates of authorities, never a key; a root goes beside the
+    chain (kept to check with, never sent), the rest into the chain in order. The answer has
+    `complete`, not `ok` - an ok: false would read as an error without words."""
+    if not prof.get('cert'):
+        raise ApiError(404, 'no certificate is kept for %s' % words)
+    leaf = prof['cert'].strip()
+    if cert_info(leaf).get('self_signed'):
+        raise ApiError(400, 'the certificate of %s is self-signed - it has no chain' % words)
+    cur = [m.group(0) for m in PEM_CERT.finditer(prof.get('chain') or '')]
+    roots = [m.group(0) for m in PEM_CERT.finditer(prof.get('root') or '')]
+    added = []
+    if act == 'tls_chain_add':
+        text = str(b.get('text') or '')
+        if len(text) > 262144:
+            raise ApiError(400, 'that is far bigger than the certificates of a chain')
+        if re.search(r'PRIVATE KEY', text):
+            raise ApiError(400, 'only the certificates of the authorities - no private key')
+        given = [m.group(0) for m in PEM_CERT.finditer(text)]
+        if not given:
+            raise ApiError(400, 'no certificate in it (-----BEGIN CERTIFICATE-----, or a .cer '
+                                'file)')
+        if len(given) > 8:
+            raise ApiError(400, '%d certificates - the chain of one certificate is a few'
+                           % len(given))
+        try:
+            infos = {c: cert_info(c) for c in given + cur + roots}
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        have = {infos[c].get('fingerprint') for c in cur + roots}
+        have.add((prof.get('info') or {}).get('fingerprint'))
+        new_roots, new_inter = [], []
+        for c in given:
+            if infos[c].get('fingerprint') in have:
+                continue
+            have.add(infos[c].get('fingerprint'))
+            (new_roots if infos[c].get('self_signed') else new_inter).append(c)
+        if not new_roots and not new_inter:
+            raise ApiError(400, 'every certificate in it is there already')
+        # In order from the certificate: each the issuer of the one before.
+        pool = cur + new_inter
+        ordered, at = [], cert_info(leaf)
+        while pool:
+            nxt = next((c for c in pool if infos[c].get('subject') == at.get('issuer')), None)
+            if not nxt:
+                break
+            ordered.append(nxt)
+            pool.remove(nxt)
+            at = infos[nxt]
+        added = [c for c in new_inter if c in ordered] or \
+            [c for c in new_roots if infos[c].get('subject') == at.get('issuer')]
+        if not added:
+            raise ApiError(400, 'none of these is the authority that signed the chain\'s last '
+                                'certificate (%s)' % _cn_of(at.get('issuer')))
+        cur, roots = ordered, roots + new_roots
+    root_now = ''.join(c.strip() + '\n' for c in roots)
+    chain, state = chain_complete(leaf, cur, root_now)
+    prof.update(chain=''.join(c + '\n' for c in chain),
+                chain_info=[cert_info(c) for c in chain], root=root_now,
+                root_info=[cert_info(c) for c in roots], chain_state=state)
+    alt = prof.get('alt') if isinstance(prof.get('alt'), dict) else None
+    if alt and alt.get('cert'):
+        # The second certificate (ECDSA) of the same names: its chain completed too.
+        acur = [m.group(0) for m in PEM_CERT.finditer(alt.get('chain') or '')]
+        achain, _st = chain_complete(alt['cert'], acur, root_now)
+        alt['chain'] = ''.join(c + '\n' for c in achain)
+    tls_save(store, target, prof, who)
+    if act == 'tls_chain_add':
+        store.add_event('settings', '%s added %s to the chain of the certificate of %s: %s' % (
+            who, ', '.join(cert_info(c).get('cn') or '?' for c in added), words,
+            state['words']), 'info' if state.get('ok') else 'warn', who=who)
+    else:
+        store.add_event('settings', '%s checked the chain of the certificate of %s: %s' % (
+            who, words, state['words']), 'info' if state.get('ok') else 'warn', who=who)
+    return {'message': state['words'], 'complete': bool(state.get('ok')),
+            'tls': tls_view(prof)}
 

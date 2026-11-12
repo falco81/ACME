@@ -108,6 +108,55 @@ certificate it sends back.
 *Self-signed…*: for a test, or until the real one comes. Browsers warn until
 it is trusted by hand.
 
+### The whole chain (1.0.89)
+
+nginx must send the certificate **with every intermediate authority** up to (not
+including) a root. Browsers fetch a missing intermediate themselves (from the
+certificate's *Authority Information Access → CA Issuers* address) and say nothing;
+curl, Python, Java, Go, rsyslog, the other applications (acme push) and monitoring
+do not, and refuse the connection (`unable to get local issuer certificate`).
+
+So whatever comes - an upload, a PFX, a request signed elsewhere, ACME, acme push,
+`--tls-import` - is checked against **the system's roots**
+(`/etc/pki/tls/certs/ca-bundle.crt`) as such a client checks it, and a chain that
+does not reach one is completed as browsers do it: the intermediate fetched from its
+CA Issuers address (at most four steps, kept a day). What is fetched is trusted only
+as a link to a root of the system; a root is never sent.
+
+The card shows it in the line **Chain**:
+
+| | |
+|---|---|
+| green `complete - 3 certificates up to <root>` | checked against the system's roots |
+| green `… (fetched: <CN> - it was not sent with the certificate)` | completed by fetching |
+| green `… - a private root: only clients that trust it take it` | a private CA, its root given here |
+| red `incomplete - the authority <CN> is not sent and could not be completed (<why>)` | it cannot be completed |
+| red `it leads to <CN>, a root the system does not trust (a private CA?)` | a root nobody here trusts |
+| `self-signed - no chain` | no chain, no buttons |
+
+What nginx has in its file now is checked too (nothing fetched) - a certificate put
+in before 1.0.89 shows red until it is completed. The buttons:
+
+- **Complete the chain** (red chain) / **Check the chain** - the certificate kept is
+  checked again and completed from its CA Issuers addresses; nginx is given the whole
+  chain within seconds. The second (ECDSA) certificate beside it too.
+- **Upload the missing authority** (red chain only) - when it cannot be fetched (no
+  CA Issuers address, no way out to it, a private CA): the dialog names the authority
+  missing; paste its certificate (PEM) or read a `.pem/.crt/.cer/.der` file. Only
+  certificates of authorities, never a key; intermediates go into the chain in order,
+  a root is kept to check with and never sent. The certificate and its key stay.
+
+After every time nginx is given its part, acme connects to it as a client that
+fetches nothing (the system's roots, plus a private root kept) and shows the result
+under the card; a refusal is an event. **In a cluster** it is the same for every
+node's card and for the **VIP address**: the profiles are in the database, so a
+chain completed on either node is put in on the node it is for (the VIP one on both
+nodes), and the VIP certificate is checked on its address by the node holding it
+(keepalived).
+
+Command line: `acme --tls-chain [--tls-for NODE|vip]`,
+`acme --tls-chain-add FILE [--tls-for NODE|vip]` (exit 4 while incomplete).
+
 ### Which certificate goes where
 
 - **A node's own**: what is answered on `https://acme1.example.cz/` - the

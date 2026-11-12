@@ -77,7 +77,7 @@ def acme_put_back(store, target, by):
                          'Certificates and TLS' % stamp(info.get('not_after')))
     prof = tls_profile(store, target) or {}
     prof.update({k: got.get(k) for k in ('cert', 'chain', 'root', 'key', 'info', 'chain_info',
-                                         'root_info', 'verify', 'how')})
+                                         'root_info', 'chain_state', 'verify', 'how')})
     prof.pop('pending_key', None)
     prof.pop('csr', None)
     tls_save(store, target, prof, by)
@@ -253,11 +253,11 @@ def acme_order(store, target, name, by, say=None):
             # back with a click, its key as sealed as it was.
             store.set_meta('acme:before:' + target, json.dumps(
                 {k: prof.get(k) for k in ('cert', 'chain', 'root', 'key', 'info', 'chain_info',
-                                          'root_info', 'verify', 'how')}
+                                          'root_info', 'chain_state', 'verify', 'how')}
                 | {'at': time.time()}))
         prof.update(cert=got['cert'], chain=got['chain'], root=got['root'],
                     key=seal_secret(got['key'], 'web:tls'), info=info,
-                    chain_info=got['chain_info'], root_info=got['root_info'],
+                    chain_info=got['chain_info'], root_info=got['root_info'], chain_state=got.get('chain_state'),
                     verify=got['verify'], how='ACME')
         if alt:
             prof['alt'] = alt

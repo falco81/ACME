@@ -56255,6 +56255,70 @@
   "flowmon_15": {
    "source": "one a line: the collector's listening ports (their names) that take flows over TLS - each given this certificate, its key and the issuing authority",
    "text": "jeden na řádek: naslouchací porty kolektoru (jejich názvy), které přijímají toky přes TLS – každý dostane tento certifikát, jeho klíč a vydávající autoritu"
+  },
+  "chain_1": {
+   "source": "Complete the chain",
+   "text": "Doplnit řetězec"
+  },
+  "chain_2": {
+   "source": "Check the chain",
+   "text": "Zkontrolovat řetězec"
+  },
+  "chain_3": {
+   "source": "Upload the missing authority",
+   "text": "Nahrát chybějící autoritu"
+  },
+  "chain_4": {
+   "source": "Checked against the system's root authorities; an intermediate the certificate did not come with is fetched from its CA Issuers address, as browsers do it - so that curl, the other applications and monitoring, which fetch nothing, take it too.",
+   "text": "Kontroluje se proti kořenovým autoritám systému; mezilehlá autorita, která s certifikátem nepřišla, se stáhne z jeho adresy CA Issuers, jako to dělají prohlížeče – aby ho přijaly i curl, ostatní aplikace a monitoring, které si nic nestahují."
+  },
+  "chain_5": {
+   "source": "incomplete - what nginx sends does not lead to a root of the system: curl, the other applications and monitoring refuse it",
+   "text": "neúplný – to, co nginx posílá, nevede ke kořeni systému: curl, ostatní aplikace a monitoring ho odmítnou"
+  },
+  "chain_6": {
+   "source": "Missing in the chain:",
+   "text": "V řetězci chybí:"
+  },
+  "chain_7": {
+   "source": "The certificate of that authority - the intermediate (or several) your certificate authority gives with the certificate, often called \"CA bundle\", \"intermediate\" or \"chain\" - as PEM or a .cer / .crt file. Only certificates of authorities, never a key; the certificate and its key stay as they are. A root is kept to check with and never sent.",
+   "text": "Certifikát té autority – mezilehlá (nebo několik), kterou vaše certifikační autorita dává k certifikátu, často nazvaná „CA bundle“, „intermediate“ nebo „chain“ – jako PEM nebo soubor .cer / .crt. Jen certifikáty autorit, nikdy klíč; certifikát a jeho klíč zůstávají, jak jsou. Kořen se uloží ke kontrole a nikdy se neposílá."
+  },
+  "chain_8": {
+   "source": "Add it to the chain",
+   "text": "Přidat do řetězce"
+  },
+  "chain_9": {
+   "source": " - a private root: only clients that trust it take it",
+   "text": " – soukromý kořen: přijmou ho jen klienti, kteří mu důvěřují"
+  },
+  "chain_10": {
+   "source": "self-signed - no chain; whoever connects must trust this certificate itself",
+   "text": "self-signed – bez řetězce; kdo se připojuje, musí důvěřovat přímo tomuto certifikátu"
+  },
+  "chain_11": {
+   "source": "checked as a client that fetches nothing: the whole chain is sent",
+   "text": "ověřeno jako klient, který si nic nestahuje: posílá se celý řetězec"
+  },
+  "chain_12": {
+   "source": "that is far bigger than the certificates of a chain",
+   "text": "to je mnohem víc, než jsou certifikáty jednoho řetězce"
+  },
+  "chain_13": {
+   "source": "only the certificates of the authorities - no private key",
+   "text": "jen certifikáty autorit – žádný soukromý klíč"
+  },
+  "chain_14": {
+   "source": "no certificate in it (-----BEGIN CERTIFICATE-----, or a .cer file)",
+   "text": "není v tom žádný certifikát (-----BEGIN CERTIFICATE-----, nebo soubor .cer)"
+  },
+  "chain_15": {
+   "source": "every certificate in it is there already",
+   "text": "všechny certifikáty z toho už tam jsou"
+  },
+  "chain_16": {
+   "source": "the system has no list of root authorities to check against",
+   "text": "systém nemá seznam kořenových autorit, proti kterému ověřovat"
   }
  },
  "patterns": {
@@ -77025,6 +77089,70 @@
   "pf88h_3": {
    "source": "Deploy {0} again?",
    "text": "Znovu nasadit {0}?"
+  },
+  "pchain_1": {
+   "source": "complete - {0} between it and the root",
+   "text": "úplný – {0} mezi ním a kořenem"
+  },
+  "pchain_2": {
+   "source": "complete - {0} certificates up to {1}",
+   "text": "úplný – {0} certifikáty až k {1}"
+  },
+  "pchain_3": {
+   "source": " (fetched: {0} - it was not sent with the certificate)",
+   "text": " (staženo: {0} – nepřišlo s certifikátem)"
+  },
+  "pchain_4": {
+   "source": "it leads to {0}, a root the system does not trust (a private CA?) - the chain is complete; the clients must trust that root, or give its root here",
+   "text": "vede k {0}, kořeni, kterému systém nedůvěřuje (soukromá CA?) – řetězec je úplný; klienti musí tomu kořeni důvěřovat, nebo jeho kořen zadejte zde"
+  },
+  "pchain_5": {
+   "source": "incomplete - the authority {0} is not sent and could not be completed ({1}); curl, other applications and monitoring refuse it - only browsers fetch it themselves; send the certificate with its chain, or, for a private CA, its root to the clients",
+   "text": "neúplný – autorita {0} se neposílá a nepodařilo se ji doplnit ({1}); curl, ostatní aplikace a monitoring ho odmítnou – jen prohlížeče si ji stáhnou samy; pošlete certifikát s jeho řetězcem, nebo u soukromé CA dejte klientům její kořen"
+  },
+  "pchain_6": {
+   "source": "{0} names no CA Issuers address to fetch it from",
+   "text": "{0} neuvádí adresu CA Issuers, odkud ji stáhnout"
+  },
+  "pchain_7": {
+   "source": "the authority {0} could not be fetched from {1}: {2}",
+   "text": "autoritu {0} se nepodařilo stáhnout z {1}: {2}"
+  },
+  "pchain_8": {
+   "source": "{0} does not hold the authority {1}",
+   "text": "{0} neobsahuje autoritu {1}"
+  },
+  "pchain_9": {
+   "source": "a client that fetches nothing (curl, the other applications) refuses what nginx sends: {0}",
+   "text": "klient, který si nic nestahuje (curl, ostatní aplikace), odmítá to, co nginx posílá: {0}"
+  },
+  "pchain_10": {
+   "source": "what nginx sends could not be checked: {0}",
+   "text": "to, co nginx posílá, se nepodařilo ověřit: {0}"
+  },
+  "pchain_11": {
+   "source": "the certificate of {0} is self-signed - it has no chain",
+   "text": "certifikát {0} je self-signed – nemá řetězec"
+  },
+  "pchain_12": {
+   "source": "{0} certificates - the chain of one certificate is a few",
+   "text": "{0} certifikátů – řetězec jednoho certifikátu má jen pár"
+  },
+  "pchain_13": {
+   "source": "none of these is the authority that signed the chain's last certificate ({0})",
+   "text": "žádný z nich není autorita, která podepsala poslední certifikát řetězce ({0})"
+  },
+  "pchain_14": {
+   "source": "complete - {0} certificates up to {1} (fetched: {2} - it was not sent with the certificate)",
+   "text": "úplný – {0} certifikáty až k {1} (staženo: {2} – nepřišlo s certifikátem)"
+  },
+  "pchain_15": {
+   "source": "complete - {0} certificates up to {1} - a private root: only clients that trust it take it",
+   "text": "úplný – {0} certifikáty až k {1} – soukromý kořen: přijmou ho jen klienti, kteří mu důvěřují"
+  },
+  "pchain_16": {
+   "source": "complete - {0} certificates up to {1} (fetched: {2} - it was not sent with the certificate) - a private root: only clients that trust it take it",
+   "text": "úplný – {0} certifikáty až k {1} (staženo: {2} – nepřišlo s certifikátem) – soukromý kořen: přijmou ho jen klienti, kteří mu důvěřují"
   }
  },
  "rich": {
