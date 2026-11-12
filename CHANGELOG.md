@@ -4,8 +4,12 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.92 - not released
+## 1.0.92 - 2026-11-12
 
+- **A certificate's window: a search over its Deployments and its Tests** (once there are more
+  than three): small, in the section's heading on the right, the same query as every list of
+  the pages (`target:`, `state:failed`, `options~/etc/nginx`, `test:`, `where~10.0.`…,
+  suggested as typed); the test counts stay those of all of them.
 - **What is served is checked by the attached tests only.** A deployment no longer runs a
   check of its module's own after it (a handshake to names it guessed: an application of ours
   to each slot's name, the older *Check what is served* lines): the tests attached to the

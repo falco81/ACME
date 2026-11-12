@@ -474,6 +474,25 @@ function section(title, lede, wide) {
   box._body = body;
   return box;
 }
+/** A small search of a section's list (1.0.92): in its heading on the right, the same
+    query as every list of the pages (name:, state:..., suggested as typed - core.js qLocal).
+    onFind(): the list drawn again with what matches. */
+function sectionFind(sec, spec, onFind, hint) {
+  var find = el('input', 'ct-kind-find msect-find');
+  find.type = 'search';
+  find.placeholder = tr(hint || 'search…');
+  var h = sec.querySelector('h4');
+  var row = el('div', 'msect-head');
+  h.parentNode.insertBefore(row, h);
+  row.appendChild(h);
+  row.appendChild(find);
+  setTimeout(function () { if (find.isConnected) qLocal(find, spec); }, 0);
+  var t = null;
+  find.oninput = function () { clearTimeout(t); t = setTimeout(onFind, 120); };
+  find.addEventListener('search', onFind);
+  find._rows = function (rows) { return find.value.trim() ? qFilter(find, spec, rows) : rows; };
+  return find;
+}
 function factsRow(pairs) { return peekFacts(pairs); }
 /** Two sections side by side take half each, one takes the row - not a
     third of it beside two empty thirds. */
@@ -4153,7 +4172,28 @@ function certBody(body, c, versions, deploys, jobs, back) {
   if (valSection && !blocked) grid.appendChild(valSection);
   /* deployments */
   var ds = section('Deployments', 'Where it is put each time it is renewed.', true);
-  ds._body.appendChild(deployTable(deploys, {cert: c, back: back}));
+  var dHost = el('div');
+  ds._body.appendChild(dHost);
+  var dFind = null;
+  var drawDeploys = function () {
+    clear(dHost);
+    var shown = dFind ? dFind._rows(arr(deploys)) : arr(deploys);
+    if (dFind && !shown.length) { dHost.appendChild(el('p', 'muted small ct-nomatch', 'Nothing matches.')); return; }
+    dHost.appendChild(deployTable(shown, {cert: c, back: back}));
+  };
+  if (arr(deploys).length > 3) {
+    dFind = sectionFind(ds, {
+      fields: [['target', 'the target\'s name', 'target~web'], ['kind', 'its kind', 'kind:ssh'],
+               ['state', 'deployed, failed, off…', 'state:failed'], ['options', 'its options - a path, a slot', 'options~/etc/nginx']],
+      rows: function () { return arr(deploys); },
+      value: function (d, f) {
+        return {target: d.target, kind: d.target_kind || d.kind || '', state: d.enabled === 0 ? 'off' : (d.state || ''),
+                options: JSON.stringify(d.options || {})}[f];
+      },
+      words: function (d) { return d.target + ' ' + (d.target_kind || d.kind || '') + ' ' + (d.state || '') + ' ' + JSON.stringify(d.options || {}) + ' ' + (d.last_error || ''); }
+    }, drawDeploys, 'a target, a state, a path…');
+  }
+  drawDeploys();
   if (MANAGE) {
     var add = cmdButton('Deploy it on a target', 'add', 'small');
     add.onclick = function () { over(function () { deployEdit({cert: c}); }, back); };
@@ -4164,7 +4204,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
   grid.appendChild(ds);
   /* tests of what the servers serve (1.0.32): attached here as targets are */
   var tsec = section('Tests', 'What the servers really serve, compared with this certificate - after its deployments, by themselves when Settings → Certificates says so, or now.', true);
-  tsec._body.appendChild(certTests(c, back, deploys));
+  tsec._body.appendChild(certTests(c, back, deploys, tsec));
   grid.appendChild(tsec);
   /* versions */
   var vs = section('Versions', 'Every certificate it has had - renewals, imports. The newest is the one in use.', true);
@@ -9769,7 +9809,7 @@ function ckDetail(res) {
 }
 /** The tests attached to a certificate - drawn as its deployments are, each with how it
     went last; "Attach a test" offers the tests defined on Certificates → Tests. */
-function certTests(c, back, deploys) {
+function certTests(c, back, deploys, sec) {
   /* Drawn as its deployments are (1.0.33): a table, the buttons under it on the left. */
   var box = el('div', 'ck-card');
   var sum = el('div', 'ck-sum');
@@ -9799,17 +9839,33 @@ function certTests(c, back, deploys) {
       }, 'medium');
     }, back);
   };
+  var tFind = null;
   var draw = function () {
     clear(host);
     clear(sum);
-    var rows = arr(D.checks);
+    var all = arr(D.checks);
+    /* a search in the heading once there are a few (1.0.92) */
+    if (sec && !tFind && all.length > 3) {
+      tFind = sectionFind(sec, {
+        fields: [['test', 'the test\'s name', 'test~www'], ['state', 'ok, warn, failing, none', 'state:failing'],
+                 ['where', 'where it connects', 'where~10.0.'], ['after', 'after deploying on', 'after~nginx']],
+        rows: function () { return arr(D.checks); },
+        value: function (x, f) {
+          var st = x.last_state || '';
+          return {test: x.test, state: !st ? 'none' : (st === 'ok' || st === 'warn' ? st : 'failing'),
+                  where: x.where || x.address || '', after: x.after_target || ''}[f];
+        },
+        words: function (x) { return x.test + ' ' + (x.kind || '') + ' ' + (x.where || '') + ' ' + (x.after_target || '') + ' ' + (x.last_state || '') + ' ' + (x.last_error || ''); }
+      }, function () { draw(); }, 'a test, a state, an address…');
+    }
+    var rows = tFind ? tFind._rows(all) : all;
     var n = {ok: 0, warn: 0, bad: 0, none: 0};
-    rows.forEach(function (x) {
+    all.forEach(function (x) {
       var st = x.last_state || '';
       if (st === 'ok') n.ok++; else if (st === 'warn') n.warn++; else if (!st) n.none++; else n.bad++;
     });
-    sum.hidden = !rows.length;
-    if (rows.length) {
+    sum.hidden = !all.length;
+    if (all.length) {
       [['ok', n.ok, 'pass'], ['warn', n.warn, 'with a warning'], ['crit', n.bad, 'failing'], ['dim', n.none, 'not run yet']].forEach(function (x) {
         if (!x[1] && x[0] !== 'ok') return;
         var ct = el('span', 'ck-count ck-c-' + x[0]);
@@ -9820,7 +9876,8 @@ function certTests(c, back, deploys) {
       var st = obj(D.settings);
       sum.appendChild(el('span', 'ck-auto small muted', st.certs_checks_auto ? 'run by themselves every ' + st.certs_checks_every_min + ' min' : 'run after each deployment only'));
     }
-    runAll.hidden = !rows.length;
+    runAll.hidden = !all.length;
+    if (all.length && !rows.length) { host.appendChild(el('p', 'muted small ct-nomatch', 'Nothing matches.')); return; }
     /* After which deployment each test runs (1.0.65): one of the certificate's targets, or any. */
     var targets = deployTargets();
     var afterCell = function (x) {

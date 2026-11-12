@@ -56499,6 +56499,38 @@
   "dc_3": {
    "source": "No certificate yet.",
    "text": "Zatím žádný certifikát."
+  },
+  "sfind_1": {
+   "source": "search…",
+   "text": "hledat…"
+  },
+  "sfind_2": {
+   "source": "a target, a state, a path…",
+   "text": "cíl, stav, cesta…"
+  },
+  "sfind_3": {
+   "source": "a test, a state, an address…",
+   "text": "test, stav, adresa…"
+  },
+  "sfind_4": {
+   "source": "Nothing matches.",
+   "text": "Nic neodpovídá."
+  },
+  "sfind_5": {
+   "source": "deployed, failed, off…",
+   "text": "nasazeno, selhalo, vypnuto…"
+  },
+  "sfind_6": {
+   "source": "its options - a path, a slot",
+   "text": "jeho volby – cesta, slot"
+  },
+  "sfind_7": {
+   "source": "ok, warn, failing, none",
+   "text": "ok, warn, failing, none"
+  },
+  "sfind_8": {
+   "source": "after deploying on",
+   "text": "po nasazení na"
   }
  },
  "patterns": {

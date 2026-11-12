@@ -1309,3 +1309,9 @@ table.ct-issued td:nth-child(2){min-width:210px;max-width:250px;white-space:norm
 .dp-chosen{flex-wrap:nowrap}
 .dp-chosen .ck-attach-w{flex:1 1 0;min-width:0}
 @media (max-width:640px){.dp-chosen{align-items:flex-start}.dp-chosen .btn{padding:6px 8px}}
+/* A section's own search, in its heading (1.0.92): small, on the right */
+.msect-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.msect-head > h4{margin-bottom:0}
+.msect .msect-find{width:240px;max-width:100%;flex:0 1 240px;height:30px;font-size:12.5px;margin:0}
+.ct-nomatch{margin:8px 2px}
+@media (max-width:640px){.msect .msect-find{flex:1 1 100%;width:100%}}
