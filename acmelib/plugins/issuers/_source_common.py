@@ -320,9 +320,23 @@ def pending_slot(kind, where, req):
                                   who))[:120]
 
 
-def pending_get(ctx, slot, req):
+def _drop_held(ctx, slot, req, v, issuer):
+    """A request held no longer used: its DCV records taken away first (1.0.96: the TXT and
+    CNAME records it put in DNS stayed there for good)."""
+    if issuer is not None and v.get('dcv'):
+        try:
+            from acmelib.plugins.issuers import _dcv
+            _dcv.Placer(issuer).cleanup(req, v.get('dcv') or [])
+        except Exception as e:                          # noqa: BLE001
+            say(ctx, 'the DCV records of the request left behind could not be taken away: %s'
+                % e, 'warn')
+    ctx.kv_set(slot, None)
+
+
+def pending_get(ctx, slot, req, issuer=None):
     """What is held for this certificate - None when nothing, or when it was for
-    other names (then it is dropped). The key held comes back as 'key_pem'."""
+    other names (then it is dropped, its DCV records taken away when `issuer` is given). The
+    key held comes back as 'key_pem'."""
     v = ctx.kv_get(slot)
     if isinstance(v, str):
         v = parse_json(v)
@@ -331,13 +345,13 @@ def pending_get(ctx, slot, req):
     if sorted(v.get('names') or []) != sorted(req.names or []):
         say(ctx, 'the request waiting at the CA (%s) was for other names - left alone, a new '
                  'one is made' % (v.get('id') or '?'), 'warn')
-        ctx.kv_set(slot, None)
+        _drop_held(ctx, slot, req, v, issuer)
         return None
     if v.get('key'):
         from acmelib.plugins.issuers.acme import _unseal
         v['key_pem'] = _unseal(ctx, v['key'], slot)
         if not v['key_pem']:
-            ctx.kv_set(slot, None)
+            _drop_held(ctx, slot, req, v, issuer)
             return None
     return v
 

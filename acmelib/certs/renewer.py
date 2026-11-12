@@ -457,7 +457,11 @@ def _twin(store, job, cert, irow, issuer, names, profile, challenges, by):
 def _twin_failed(store, job, cert, e):
     """The twin did not come: the main one counts all the same. Words said."""
     why = str(e) if isinstance(e, base.PluginError) else '%s: %s' % (type(e).__name__, e)
-    wait = S.alt_failed(store, cert['id'], why)
+    wait = S.alt_failed(store, cert['id'], why, getattr(e, 'retry_after', 0))
+    try:
+        e._alt_counted = True           # counted here: not again where the job fails (1.0.96)
+    except Exception:                                   # noqa: BLE001
+        pass
     words = 'the twin (%s) failed: %s - tried again in %s' % (cert.get('key_type_alt'), why,
                                                               E.human_span(wait))
     job.step(words, 'bad')
@@ -717,8 +721,10 @@ def _renew_failed(store, job, cert_id, only, e):
             except Exception:                           # noqa: BLE001
                 pass
             notify(store, 'renew:%s' % cert['id'], 'Renewing %s failed' % cert['name'], why)
-        elif only == 'alt' and cert.get('alt_state') != 'failed':
-            S.alt_failed(store, cert['id'], str(e))
+        elif only == 'alt' and not getattr(e, '_alt_counted', False):
+            # failed before the twin was asked for (its source switched off...): counted, and
+            # waited for (1.0.96: one failed already was started again every few minutes)
+            S.alt_failed(store, cert['id'], str(e), getattr(e, 'retry_after', 0))
         raise e
 
 

@@ -78049,6 +78049,18 @@
   "pged_1": {
    "source": "Asked {0} times while the services restart",
    "text": "Dotázáno {0}krát, než se služby restartují"
+  },
+  "pl1_1": {
+   "source": "after {0} s",
+   "text": "po {0} s"
+  },
+  "pl1_2": {
+   "source": "after {0} s - its target restarts for long",
+   "text": "po {0} s - jeho cíl se restartuje dlouho"
+  },
+  "pl1_3": {
+   "source": "test {0} could not reach what is served ({1}) - the deployment stands; a test of your own fails it",
+   "text": "test {0} se nedostal k tomu, co cíl poskytuje ({1}) - nasazení platí; vlastní test by ho zhodil"
   }
  },
  "rich": {

@@ -385,7 +385,7 @@ class DigicertIssuer(Issuer):
         # one's order and reissued it - one order for both, each renewal replacing the other
         fam = 'rsa' if str(req.key_type or '').lower().startswith('rsa') else 'ec'
         sub_key = 'digicert-order:%s:%s' % (ck, fam)
-        held = sc.pending_get(self.ctx, slot, req)
+        held = sc.pending_get(self.ctx, slot, req, issuer=self)
         r = sc.held_request(req, held)
         placer = _dcv.Placer(self)
         if held:

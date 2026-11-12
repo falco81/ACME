@@ -519,7 +519,7 @@ class GlobalSignMsslIssuer(Issuer):
         ck = str(req.cert_id or '') or sc.pending_slot('x', '', req).split(':')[-1]
         made_key = 'gsmssl-order:%s' % ck
         slot = sc.pending_slot('gsmssl', self._host() + self._profile(), req)
-        held = sc.pending_get(self.ctx, slot, req) or {}
+        held = sc.pending_get(self.ctx, slot, req, issuer=self) or {}
         r = sc.held_request(req, held if held.get('id') else None)
         placer = _dcv.Placer(self)
         if held.get('id'):

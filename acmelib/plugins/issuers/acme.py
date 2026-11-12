@@ -611,7 +611,16 @@ class AcmeIssuer(Issuer):
                     self._say('%s: the proof was not taken away: %s' % (t['shown'], e), 'warn')
 
     def _wait_ready(self, group):
-        end = time.time() + self._num('wait_ready', 300)
+        # a validation's own wait (its "delay") longer than this source's: waited out, then
+        # some (1.0.96: it never could be ready, and said the proof was not visible)
+        longest = 0
+        for t in group:
+            try:
+                longest = max(longest, float(t['mod'].num('delay', 0) or 0))
+            except Exception:                           # noqa: BLE001
+                pass
+        span = max(self._num('wait_ready', 300), longest + 120 if longest else 0)
+        end = time.time() + span
         every = self._num('poll_every', 5)
         left = list(group)
         said = False
@@ -636,7 +645,7 @@ class AcmeIssuer(Issuer):
                 raise PluginError('the proof for %s is not visible after %d s - for DNS-01 check '
                                   'that the record is in the zone the world sees (the CNAME, the '
                                   'delegation), or wait longer (More → Wait for the proof)'
-                                  % (', '.join(t['shown'] for t in left), self._num('wait_ready', 300)))
+                                  % (', '.join(t['shown'] for t in left), span))
             if not said:
                 self._say('waiting for %s to be visible' % ', '.join(t['shown'] for t in left))
                 said = True
@@ -677,7 +686,12 @@ class AcmeIssuer(Issuer):
                 w = cl.renewal_info(cid)
         except PluginError as e:
             self.ctx.debug('ARI not asked: %s' % e)
-            return None
+            # the CA has none for it (404): no window; it could not be asked (a timeout, a 5xx):
+            # raised - the window chosen before is kept (1.0.96: it was taken away, the moment
+            # picked in it with it, and a "renew now" of the CA dropped)
+            if getattr(e, 'status', None) == 404 or ' 404' in str(e):
+                return None
+            raise
         if not w:
             return None
         return (w['start'], w['end'])

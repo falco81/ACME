@@ -1214,12 +1214,17 @@ def save_alt(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=None, 
     return version
 
 
-def alt_failed(store, cert_id, why):
-    """The twin did not come: said on the row, tried again after its own wait.
-    Returns the wait in seconds."""
+def alt_failed(store, cert_id, why, retry_after=0):
+    """The twin did not come: said on the row, tried again after its own wait - as long as
+    the CA says at least (1.0.96: the twin of the same names, the one a duplicate-certificate
+    limit hits, was asked again after minutes for a week). Returns the wait in seconds."""
     row = cert_need(store, cert_id)
     fails = int(row.get('alt_fails') or 0) + 1
     wait = backoff(fails)
+    try:
+        wait = max(wait, min(float(retry_after or 0), 30 * 86400))
+    except (TypeError, ValueError):
+        pass
     # A revoked twin stays revoked (1.0.48): "failed" over it made is_dual true again, and the
     # revoked twin went out with the new main one.
     state = 'revoked' if row.get('alt_state') == 'revoked' else 'failed'

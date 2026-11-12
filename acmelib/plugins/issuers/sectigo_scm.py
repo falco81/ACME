@@ -563,7 +563,7 @@ class SectigoScmIssuer(Issuer):
             raise PluginError('SCM proves a wildcard name by DNS or e-mail, not by an HTTP file - '
                               'choose a DNS record', retry=False)
         slot = sc.pending_slot('sectigo_scm', self._base(), req)
-        held = sc.pending_get(self.ctx, slot, req)
+        held = sc.pending_get(self.ctx, slot, req, issuer=self)
         r = sc.held_request(req, held)
         placer = _dcv.Placer(self)
         end = time.time() + sc.num(self.c('wait_issue'), 600)

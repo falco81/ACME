@@ -215,6 +215,10 @@ class RunContext(base.Context):
             self.job.ship('debug', 'debug', str(words)[:4000], scope=self.scope)
 
     def cancelled(self):
+        # tidying up after a stop (1.0.96): its calls are made, not cut off by the stop - the
+        # limits' waits and a 429 asked again said "stopped", and the proofs stayed in DNS
+        if getattr(self, '_tidy', 0) > 0:
+            return False
         if self._stop.is_set():
             return True
         return bool(self.job is not None and self.job.cancelled())

@@ -467,7 +467,7 @@ class SslStoreIssuer(Issuer):
         ck = str(req.cert_id or '') or sc.pending_slot('x', '', req).split(':')[-1]
         made_key = 'sslstore-order:%s' % ck
         slot = sc.pending_slot('sslstore', self._base(), req)
-        held = sc.pending_get(self.ctx, slot, req)
+        held = sc.pending_get(self.ctx, slot, req, issuer=self)
         r = sc.held_request(req, held)
         placer = _dcv.Placer(self)
         if held:

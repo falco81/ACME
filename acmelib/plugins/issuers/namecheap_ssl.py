@@ -440,7 +440,7 @@ class NamecheapSslIssuer(Issuer):
             raise PluginError('a wildcard name is proved by a CNAME or e-mail, not by an HTTP '
                               'file - choose the DNS CNAME record', retry=False)
         slot = sc.pending_slot('namecheap_ssl', self._url(), req)
-        held = sc.pending_get(self.ctx, slot, req)
+        held = sc.pending_get(self.ctx, slot, req, issuer=self)
         r = sc.held_request(req, held)
         placer = _dcv.Placer(self)
         if held:
