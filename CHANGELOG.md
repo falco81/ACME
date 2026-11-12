@@ -9,6 +9,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - **The setup guide and its editor take the screen they are given**: the text was held to
   960 px inside a window of at most 1500 / 1680 px - narrow on a large screen. Larger screens
   get a slightly larger letter and wider contents and assistant; a phone the whole screen.
+- **What happens shows what 1.0.93 - 1.0.95 changed**: each deployment says whether a test
+  checks what it serves (or that none does); a test acme made from a deployment says so -
+  not reached from here it warns, a wrong certificate fails the deployment - and how many
+  times it asks while a slow target restarts; every module there has its **Setup guide**.
 
 ## 1.0.94 - 2026-11-12
 

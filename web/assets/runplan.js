@@ -406,10 +406,26 @@
   }
 
   /* ---- a group: one validation, one deployment ------------------------- */
+  /* the module's setup guide, of its version (1.0.95): how the other side is set up */
+  function guideBtn(m) {
+    if (!m || !m.family || !m.kind || !window.ACME_GUIDES) return null;
+    var b = el('button', 'rp-guide');
+    b.type = 'button';
+    b.title = tr('Setup guide') + ' - ' + (m.title || m.kind);
+    b.appendChild(icon('book', 13));
+    b.appendChild(el('span', '', 'Setup guide'));
+    b.onclick = function (ev) {
+      ev.preventDefault(); ev.stopPropagation();
+      window.ACME_GUIDES.show({kind: m.kind, title: m.title || m.kind}, m.family, m.version || '', {over: true});
+    };
+    return b;
+  }
   function moduleChip(m) {
     var c = el('span', 'rp-mod');
     c.appendChild(data('b', '', m.name));
     c.appendChild(el('span', 'muted', m.title || m.kind));
+    var gb = guideBtn(m);
+    if (gb) c.appendChild(gb);
     return c;
   }
   function factsFold(title, pairs, open) {
@@ -432,6 +448,8 @@
     var line = el('div', 'rp-group-name');
     line.appendChild(data('b', '', g.title));
     if (g.module) line.appendChild(el('span', 'tag info rp-tag', g.module.title || g.module.kind));
+    var gb = g.module && guideBtn(g.module);
+    if (gb) line.appendChild(gb);
     if (g.off) line.appendChild(el('span', 'tag warn rp-tag', kind === 'checks' ? 'the test is switched off' : 'the target is switched off'));
     else if (g.enabled === false) line.appendChild(el('span', 'tag warn rp-tag', 'switched off: skipped'));
     t.appendChild(line);

@@ -57007,6 +57007,42 @@
   "ged_70": {
    "source": "The editor of the guides did not load - reload the page",
    "text": "Editor návodů se nenačetl - načtěte stránku znovu"
+  },
+  "ged_71": {
+   "source": "Made by acme from a deployment: what the target serves",
+   "text": "Vytvořeno acme z nasazení: co cíl poskytuje"
+  },
+  "ged_72": {
+   "source": "its module checked it itself until 1.0.92; taken off, it is not attached again",
+   "text": "do verze 1.0.92 to kontroloval sám modul; po odpojení se znovu nepřipojí"
+  },
+  "ged_73": {
+   "source": "a wrong certificate served there fails that deployment - tried again later, an event and a notice; not reached from here (a proxy, another network): a warning, the deployment stands",
+   "text": "špatný certifikát na cíli nasazení zhodí - zkusí se znovu později, událost a upozornění; nedostupné odsud (proxy, jiná síť): jen varování, nasazení platí"
+  },
+  "ged_74": {
+   "source": "when it fails, the deployments of this run fail - tried again later",
+   "text": "když selže, nasazení tohoto běhu selžou - zkusí se znovu později"
+  },
+  "ged_75": {
+   "source": "its target restarts for long",
+   "text": "jeho cíl se restartuje dlouho"
+  },
+  "ged_76": {
+   "source": "what it serves is checked by the tests attached",
+   "text": "co poskytuje, kontrolují připojené testy"
+  },
+  "ged_77": {
+   "source": "What it serves is checked by the tests attached",
+   "text": "Co poskytuje, kontrolují připojené testy"
+  },
+  "ged_78": {
+   "source": "No test attached checks what it serves (the certificate → Tests → Attach a test)",
+   "text": "Žádný připojený test nekontroluje, co poskytuje (certifikát → Testy → Připojit test)"
+  },
+  "ged_79": {
+   "source": "Tests after a deployment are switched off (Settings → Certificates)",
+   "text": "Testy po nasazení jsou vypnuté (Nastavení → Certifikáty)"
   }
  },
  "patterns": {
@@ -77957,6 +77993,10 @@
   "pguide_4": {
    "source": "{0} gave the setup guide of {1} {2} ({3}) back to the module's own",
    "text": "{0} vrátil(a) návod k nastavení {1} {2} ({3}) na vlastní text modulu"
+  },
+  "pged_1": {
+   "source": "Asked {0} times while the services restart",
+   "text": "Dotázáno {0}krát, než se služby restartují"
   }
  },
  "rich": {

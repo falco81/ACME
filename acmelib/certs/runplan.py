@@ -161,6 +161,11 @@ def _cls(family, kind, row=None):
     return S.row_class(family, row, kind) if row else S.plugin_class(family, kind)
 
 
+def _ver(cls):
+    """The version of a module (1.0.95: its setup guide is of that version)."""
+    return str(getattr(cls, 'module_version', '') or '') if cls is not None else ''
+
+
 def _fields_of(cls, attr='fields'):
     return list(getattr(cls, attr, None) or []) if cls else []
 
@@ -1145,7 +1150,8 @@ def plan(store, cert, deploys, full=False):
                              'out', 'note': r.get('error') or ''}]
     if irow:
         src['module'] = {'name': irow['name'], 'kind': irow['kind'],
-                         'title': (icls.title if icls else irow['kind'])}
+                         'title': (icls.title if icls else irow['kind']),
+                         'family': 'issuer', 'version': _ver(icls)}
     phases.append(src)
     # 3. validation
     val = {'key': 'validation', 'title': 'Validation, per name', 'groups': []}
@@ -1161,7 +1167,7 @@ def plan(store, cert, deploys, full=False):
             continue
         cls = vi['cls']
         g['module'] = {'name': vi['row']['name'], 'kind': vi['row']['kind'],
-                       'title': cls.title or cls.kind}
+                       'title': cls.title or cls.kind, 'family': 'challenge', 'version': _ver(cls)}
         g['facts'] = facts_of(cls, vi['cfg'])
         if vi['row'].get('kind') == 'dns_persist':
             g['steps'] = persist_steps(store, vi['row'], vi['cfg'], ns, irow)
@@ -1208,7 +1214,8 @@ def plan(store, cert, deploys, full=False):
                            'is missing)'}]
             dp['groups'].append(g)
             continue
-        g['module'] = {'name': trow['name'], 'kind': trow['kind'], 'title': cls.title or cls.kind}
+        g['module'] = {'name': trow['name'], 'kind': trow['kind'], 'title': cls.title or cls.kind,
+                       'family': 'target', 'version': _ver(cls)}
         g['host'] = _hostish(item['cfg'])
         g['facts'] = facts_of(cls, item['cfg'])
         g['options'] = facts_of(cls, item['opts'], attr='deploy_fields')
@@ -1243,7 +1250,17 @@ def plan(store, cert, deploys, full=False):
             pre.append({'kind': 'key', 'words': 'A password for the PKCS#12 / keystore files is '
                         'made and kept sealed with the deployment', 'first': True,
                         'note': 'a full administrator sees it'})
-        g['steps'] = pre + steps
+        post = []
+        if cert.get('id') and dep.get('target'):
+            # what says what is served there (1.0.93): the tests attached, or that none does
+            try:
+                from acmelib.certs import deployer as _dep
+                words = _dep._tested_words(store, cert, dep['target'])
+                post.append({'kind': 'check' if 'checked by' in words else 'info',
+                             'words': words[:1].upper() + words[1:]})
+            except Exception:                           # noqa: BLE001
+                pass
+        g['steps'] = pre + steps + post
         dp['groups'].append(g)
     phases.append(dp)
     # 5. the tests of what the servers serve (1.0.32)
@@ -1442,7 +1459,7 @@ def checks_phase(store, cert, names):
             continue
         cfg = S.plugin_config('check', trow)
         g['module'] = {'name': trow['name'], 'kind': trow['kind'],
-                       'title': cls.title or cls.kind}
+                       'title': cls.title or cls.kind, 'family': 'check', 'version': _ver(cls)}
         g['facts'] = facts_of(cls, cfg)
         if not trow.get('enabled', 1):
             g['off'] = True
@@ -1480,15 +1497,33 @@ def checks_phase(store, cert, names):
         if CK.AFTER_NONE in tied or not after:
             steps.append({'kind': 'wait', 'words': 'No deployment runs it: only its schedule '
                           'and Run it now'})
-        elif tied:
-            steps.append({'kind': 'wait', 'words': 'Runs only after a deployment on {0}'.replace(
-                '{0}', ', '.join(tied)), 'note': 'when it fails there, that deployment fails - '
-                'tried again later, an event and a notice as a failed deployment'})
         else:
-            steps.append({'kind': 'wait', 'words': 'Runs after every deployment, on any of its '
-                          'targets', 'note': 'a few times while the services restart (after %s s) '
-                          '- a failure is a warning of the job' % ', '.join(
-                              str(x) for x in CK.AFTER_DEPLOY_TRIES)})
+            try:
+                waits = CK._tries_for(store, r, None)
+            except Exception:                           # noqa: BLE001
+                waits = CK.AFTER_DEPLOY_TRIES
+            made = CK.auto_made(store, r['test'])
+            if made:
+                steps.append({'kind': 'info', 'words': 'Made by acme from a deployment: what the '
+                              'target serves', 'note': 'its module checked it itself until 1.0.92; '
+                              'taken off, it is not attached again'})
+            if tied:
+                steps.append({'kind': 'wait', 'words': 'Runs only after a deployment on {0}'.replace(
+                    '{0}', ', '.join(tied)), 'note': (
+                    'a wrong certificate served there fails that deployment - tried again later, '
+                    'an event and a notice; not reached from here (a proxy, another network): '
+                    'a warning, the deployment stands') if made else (
+                    'when it fails there, that deployment fails - tried again later, an event '
+                    'and a notice as a failed deployment')})
+            else:
+                steps.append({'kind': 'wait', 'words': 'Runs after every deployment, on any of '
+                              'its targets', 'note': 'when it fails, the deployments of this run '
+                              'fail - tried again later'})
+            steps.append({'kind': 'wait', 'words': 'Asked {0} times while the services restart'
+                          .replace('{0}', str(len(waits))), 'note': 'after %s s%s' % (
+                              ', '.join(str(x) for x in waits),
+                              ' - its target restarts for long' if tuple(waits) !=
+                              tuple(CK.AFTER_DEPLOY_TRIES) else '')})
         steps.append({'kind': 'wait', 'words': ('By itself every {0} min'.replace(
             '{0}', str(E.CONFIG.get('certs_checks_every_min'))) if auto else
             'Not by itself: the regular runs are off (Settings → Certificates)'),

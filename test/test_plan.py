@@ -128,6 +128,25 @@ class Plan(core.CertsCore):
                 out += p.get('steps') or []
         return out
 
+    def test_49_tests_and_guides_shown(self):
+        """1.0.95: each deployment says whether a test checks what it serves; a test acme made
+        from a deployment says so, and how many times it asks; each module carries its
+        family and version (its setup guide)."""
+        ids, out = self.setup_world()
+        plan = self.plan_of(ids['plan-own'])
+        ph = {p['key']: p for p in plan['phases']}
+        groups = {g['title']: g for g in ph['deploy']['groups']}
+        words = [s['words'] for s in groups['web']['steps']]
+        self.assertIn('What it serves is checked by the tests attached', words)
+        self.assertEqual(groups['web']['module']['family'], 'target')
+        self.assertIn('version', groups['web']['module'])
+        self.assertEqual(ph['source']['module']['family'], 'issuer')
+        tsteps = [s['words'] for s in self.all_steps(ph['checks'])]
+        self.assertIn('Made by acme from a deployment: what the target serves', tsteps)
+        self.assertTrue(any(w.startswith('Asked ') for w in tsteps), tsteps)
+        self.assertTrue(all(g['module']['family'] == 'check' for g in ph['checks']['groups']
+                            if g.get('module')))
+
     def test_50_own_ca_plan(self):
         ids, out = self.setup_world()
         plan = self.plan_of(ids['plan-own'])
