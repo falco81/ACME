@@ -56555,6 +56555,178 @@
   "hj_4": {
    "source": "acme is to give it",
    "text": "má ho dodat acme"
+  },
+  "guide_1": {
+   "source": "Setup guide",
+   "text": "Návod k nastavení"
+  },
+  "guide_2": {
+   "source": "Edit the guide",
+   "text": "Upravit návod"
+  },
+  "guide_3": {
+   "source": "Edit the setup guide",
+   "text": "Upravit návod k nastavení"
+  },
+  "guide_4": {
+   "source": "How to set up the other side for acme - for this version",
+   "text": "Jak pro acme nastavit protějšek – pro tuto verzi"
+  },
+  "guide_5": {
+   "source": "How to set up the other side for this version - as the forms show it.",
+   "text": "Jak nastavit protějšek pro tuto verzi – tak, jak ho ukazují formuláře."
+  },
+  "guide_6": {
+   "source": "Write this version's guide over - in Markdown, for each language. Kept in the database (both nodes, every backup); “Back to the module's own” gives it back.",
+   "text": "Přepsat návod této verze – v Markdownu, pro každý jazyk zvlášť. Uloží se do databáze (oba uzly, každá záloha); „Zpět na vlastní text modulu“ ho vrátí."
+  },
+  "guide_7": {
+   "source": "Contents",
+   "text": "Obsah"
+  },
+  "guide_8": {
+   "source": "written on the page Modules",
+   "text": "napsáno na stránce Moduly"
+  },
+  "guide_9": {
+   "source": "carried by the module",
+   "text": "dodává modul"
+  },
+  "guide_10": {
+   "source": "shipped with acme",
+   "text": "dodáno s acme"
+  },
+  "guide_11": {
+   "source": "made from the module's fields - none written yet",
+   "text": "sestaveno z polí modulu – zatím žádný nenapsán"
+  },
+  "guide_12": {
+   "source": "in English - none in this language yet",
+   "text": "anglicky – v tomto jazyce zatím není"
+  },
+  "guide_13": {
+   "source": "Write",
+   "text": "Psát"
+  },
+  "guide_14": {
+   "source": "Side by side",
+   "text": "Vedle sebe"
+  },
+  "guide_15": {
+   "source": "Heading 1",
+   "text": "Nadpis 1"
+  },
+  "guide_16": {
+   "source": "Heading 2",
+   "text": "Nadpis 2"
+  },
+  "guide_17": {
+   "source": "Heading 3",
+   "text": "Nadpis 3"
+  },
+  "guide_18": {
+   "source": "Struck through",
+   "text": "Přeškrtnuté"
+  },
+  "guide_19": {
+   "source": "Code",
+   "text": "Kód"
+  },
+  "guide_20": {
+   "source": "List",
+   "text": "Seznam"
+  },
+  "guide_21": {
+   "source": "Numbered list",
+   "text": "Číslovaný seznam"
+  },
+  "guide_22": {
+   "source": "Checklist",
+   "text": "Kontrolní seznam"
+  },
+  "guide_23": {
+   "source": "Quote",
+   "text": "Citace"
+  },
+  "guide_24": {
+   "source": "Code block (Ctrl+Shift+C)",
+   "text": "Blok kódu (Ctrl+Shift+C)"
+  },
+  "guide_25": {
+   "source": "Link (Ctrl+K)",
+   "text": "Odkaz (Ctrl+K)"
+  },
+  "guide_26": {
+   "source": "Line",
+   "text": "Čára"
+  },
+  "guide_27": {
+   "source": "The guide, in Markdown",
+   "text": "Návod v Markdownu"
+  },
+  "guide_28": {
+   "source": "words",
+   "text": "slov"
+  },
+  "guide_29": {
+   "source": "lines",
+   "text": "řádků"
+  },
+  "guide_30": {
+   "source": "written on the page",
+   "text": "napsáno na stránce"
+  },
+  "guide_31": {
+   "source": "none written yet - this is made from its fields",
+   "text": "zatím žádný nenapsán – toto je sestaveno z jeho polí"
+  },
+  "guide_32": {
+   "source": "the module's own text",
+   "text": "vlastní text modulu"
+  },
+  "guide_33": {
+   "source": "in English - write it in this language",
+   "text": "anglicky – napište ho v tomto jazyce"
+  },
+  "guide_34": {
+   "source": "Leave the changes not kept?",
+   "text": "Zahodit neuložené změny?"
+  },
+  "guide_35": {
+   "source": "Back to the module's own",
+   "text": "Zpět na vlastní text modulu"
+  },
+  "guide_36": {
+   "source": "Give the guide back to the module's own?",
+   "text": "Vrátit návod na vlastní text modulu?"
+  },
+  "guide_37": {
+   "source": "What was written here for this version and language is taken away; the module's own text (or one made from its fields) is shown again.",
+   "text": "Co tu bylo napsáno pro tuto verzi a jazyk, se odstraní; znovu se ukáže vlastní text modulu (nebo text sestavený z jeho polí)."
+  },
+  "guide_38": {
+   "source": "Markdown: # headings, **bold**, *italic*, `code`, ```code blocks```, - lists, 1. numbered, | tables |, [links](https://…), > quotes. Kept in the database - on every node and in every backup; each version and language has its own.",
+   "text": "Markdown: # nadpisy, **tučně**, *kurzíva*, `kód`, ```bloky kódu```, - seznamy, 1. číslované, | tabulky |, [odkazy](https://…), > citace. Uloží se do databáze – na každém uzlu a v každé záloze; každá verze a jazyk má svůj vlastní."
+  },
+  "guide_39": {
+   "source": "the guide is kept",
+   "text": "návod je uložen"
+  },
+  "guide_40": {
+   "source": "the guide is the module's own again",
+   "text": "návod je znovu vlastní text modulu"
+  },
+  "guide_41": {
+   "source": "that is no module",
+   "text": "to není modul"
+  },
+  "guide_42": {
+   "source": "that is no version of a module",
+   "text": "to není verze modulu"
+  },
+  "guide_43": {
+   "source": "setup guides",
+   "text": "návody k nastavení"
   }
  },
  "patterns": {
@@ -77489,6 +77661,22 @@
   "phj_18": {
    "source": "the guard as on the other node: {0}",
    "text": "ochrana jako na druhém uzlu: {0}"
+  },
+  "pguide_1": {
+   "source": "a guide is {0} characters at most",
+   "text": "návod může mít nejvýš {0} znaků"
+  },
+  "pguide_2": {
+   "source": "there is no family of modules called {0}",
+   "text": "skupina modulů {0} neexistuje"
+  },
+  "pguide_3": {
+   "source": "{0} wrote the setup guide of {1} {2} ({3})",
+   "text": "{0} napsal(a) návod k nastavení {1} {2} ({3})"
+  },
+  "pguide_4": {
+   "source": "{0} gave the setup guide of {1} {2} ({3}) back to the module's own",
+   "text": "{0} vrátil(a) návod k nastavení {1} {2} ({3}) na vlastní text modulu"
   }
  },
  "rich": {

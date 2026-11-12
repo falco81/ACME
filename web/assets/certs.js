@@ -1235,6 +1235,12 @@ function plugHead(p, family, row) {
     w.appendChild(d);
   }
   h.appendChild(w);
+  /* How to set up the other side, for this version (1.0.94, guides.js) */
+  if (window.ACME_GUIDES && p.kind && family) {
+    var gb = window.ACME_GUIDES.button(p, family, null);
+    gb.classList.add('ct-plughead-guide');
+    h.appendChild(gb);
+  }
   return h;
 }
 
@@ -9148,6 +9154,19 @@ function moduleDetail(fam, kind) {
       left.appendChild(el('div', 'small', n ? 'used by ' + n : 'nothing uses it'));
       card.appendChild(left);
       var right = el('div', 'md-vrow-r btnrow');
+      /* its setup guide, this version's (1.0.94): read, and written over by a full administrator */
+      if (window.ACME_GUIDES) {
+        var gv = cmdButton('Setup guide', 'book', 'small');
+        explain(gv, 'How to set up the other side for this version - as the forms show it.');
+        gv.onclick = function () { window.ACME_GUIDES.show(p, fam, v.version || '', {over: true, back: again}); };
+        right.appendChild(gv);
+        if (FULL) {
+          var ge = cmdButton('Edit the guide', 'edit', 'small');
+          explain(ge, 'Write this version\'s guide over - in Markdown, for each language. Kept in the database (both nodes, every backup); “Back to the module\'s own” gives it back.');
+          ge.onclick = function () { window.ACME_GUIDES.edit(p, fam, v.version || '', {over: true, back: again}); };
+          right.appendChild(ge);
+        }
+      }
       if (d.may_upload) {
         var dl = cmdButton('Download this code', 'download', 'small');
         explain(dl, v.overrides ? 'The code of your replacement - the one used now.' : (v.origin === 'custom' ? 'The code of this version of yours.' : 'The code as it comes with acme.'));

@@ -170,3 +170,34 @@ def _default(h, s):
     got = CM.set_default(h.store, fam, kind, None if ver is None else str(ver), A.who(s))
     return {'ok': True, 'default': got, 'using_default': CM.using_default(h.store, fam, kind),
             'message': 'the default version of %s is %s' % (kind, got or 'plain')}
+
+
+# ---- the setup guides of the modules (1.0.94, acmelib/certs/guides.py) ------------------
+@A.api('GET', '/api/modules/guide', 'readonly')
+def _guide(h, s):
+    """The guide of one version of a module, as it is shown - read by anybody signed in (it is
+    help, no secret); `default=1`: the one it has without what was written on the page."""
+    from acmelib.certs import guides as G
+    args = (h.arg('family'), h.arg('kind'), h.arg('version'), h.arg('lang') or 'en')
+    if h.arg('default'):
+        return G.default_of(*args)
+    got = G.guide(h.store, *args)
+    got['may'] = s.get('role') == 'fulladmin'
+    return got
+
+
+@A.api('POST', '/api/modules/guide', 'fulladmin')
+def _guide_save(h, s):
+    """A guide written over on the page Modules; md empty or null: given back."""
+    from acmelib.certs import guides as G
+    b = h.body()
+    got = G.save(h.store, b.get('family'), b.get('kind'), b.get('version'), b.get('lang') or 'en',
+                 b.get('md'), A.who(s))
+    return {'ok': True, 'written': bool(got),
+            'message': 'the guide is kept' if got else 'the guide is the module\'s own again'}
+
+
+@A.api('GET', '/api/modules/guides', 'certadmin')
+def _guides_written(h, s):
+    from acmelib.certs import guides as G
+    return {'rows': G.written(h.store)}

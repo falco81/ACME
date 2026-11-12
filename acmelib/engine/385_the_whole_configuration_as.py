@@ -282,7 +282,10 @@ def config_export(store, whole):
             'art': art_read(store, 'portal'),
             'admin_logo': (lambda o: {k: o.get(k) for k in ('type', 'b64', 'name')}
                            if o else None)(logo_read(store, 'admin')),
-            'admin_art': art_read(store, 'admin')}
+            'admin_art': art_read(store, 'admin'),
+            # the setup guides written on the page Modules (1.0.94)
+            'guides': {r['k']: r['v'] for r in store.db.rows(
+                "SELECT k, v FROM meta WHERE k LIKE 'guide:%'")}}
 
 
 def config_import(store, daemon, conf, by, keep_account='', access_check=None, nodes_as=None,
@@ -543,6 +546,12 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
             fw_trial_begin(store, by)
             store.set_meta('web:access', json.dumps(dict(access, at=time.time(), by=by)))
             said['page access'] += 1
+        # the setup guides written on the page Modules (1.0.94)
+        for k, v in (conf.get('guides') or {}).items() if isinstance(conf.get('guides'), dict) else []:
+            if isinstance(k, str) and re.match(r'^guide:[a-z]+:[a-z0-9_]+@[A-Za-z0-9_.+-]*:[a-z]{2}\Z', k) \
+                    and isinstance(v, str) and len(v) < 400000:
+                store.set_meta(k, v)
+                said['setup guides'] += 1
         if isinstance(web.get('vip'), dict):
             vip = dict(web['vip'])
             if not CONFIG.get('ha_mode'):

@@ -4,12 +4,32 @@ FortiGate (FortiOS REST API with an API token): the certificate imported
 under a dated name, then used for the admin GUI, SSL VPN, SSL/SSH inspection
 profiles and virtual IPs as asked; older acme ones deleted.
 
-Checked against api-docs/fortigate/notes.md (Fortinet's Ansible modules and
-admin guide): a virtual IP's ssl-certificate is a string up to FortiOS 7.4.1
-and a list of {"name"} from 7.4.2, an SSL/SSH profile's server-cert a list
-from 7.0.0 - the form is taken from the version the FortiGate says
-(monitor/system/status), the other one tried when the version is not known
-or the first is refused.
+Versions of the module (1.0.94), by the FortiOS REST API documents (Fortinet's
+Ansible collection 2.6.0 - every CMDB attribute with the FortiOS versions it is
+in, 6.0.0 to 8.0.0 -, schemas read from a FortiGate on 7.4.8, the official 6.0.4
+reference, the 7.6 monitor API). What acme uses is the same everywhere but two
+reference fields:
+
+  firewall ssl-ssh-profile server-cert   a name up to 6.4; a list of {"name"} from 7.0.0
+                                         (its "name" member is in the data from v7.0.0)
+  firewall vip ssl-certificate           a name up to 7.4.1; a list of {"name"} from 7.4.2
+                                         ("ssl-certificate" v6.0.0-v7.4.1, the list -
+                                         Ansible's ssl-certificate-dict - v7.4.2-)
+
+monitor/vpn-certificate/local/import, ca/import, cmdb vpn.certificate/local,
+system global admin-server-cert and vpn ssl settings servercert are alike in
+6.0 - 8.0. SSL VPN tunnel mode is gone from 7.6.3 (tunnel-ip-pools, dtls-tunnel
+... end at v7.6.2), web mode is "Agentless VPN" since, its servercert kept - so
+no version of its own. Hence three versions, besides the plain one:
+
+  ''        any version - reads it (monitor/system/status), the other shape tried
+            when it is not known or the first is refused (as before 1.0.94)
+  '6.0'     FortiOS 6.0 - 6.4      profile: a name     VIP: a name
+  '7.0'     FortiOS 7.0 - 7.4.1    profile: a list     VIP: a name
+  '7.4.2'   FortiOS 7.4.2 - 8.0    profile: a list     VIP: a list
+
+A version sends its shapes and no other; the FortiOS version the box says is
+checked first, one outside the range refused before anything is changed.
 """
 from __future__ import annotations
 
@@ -27,13 +47,36 @@ def b64(data):
     return base64.b64encode(data if isinstance(data, bytes) else data.encode()).decode()
 
 
+def fos_words(ver):
+    return '.'.join(str(x) for x in ver)
+
+
+# The module versions and the FortiOS versions each is for (first, last; None: open) -
+# for the words said when the box runs another one.
+RANGES = (('6.0', 'FortiOS 6.0 - 6.4', (6, 0, 0), (6, 4, 999)),
+          ('7.0', 'FortiOS 7.0 - 7.4.1', (7, 0, 0), (7, 4, 1)),
+          ('7.4.2', 'FortiOS 7.4.2 - 8.0', (7, 4, 2), None))
+
+
+def version_for(ver):
+    """The module version made for FortiOS `ver` ((major, minor, patch)): (module_version,
+    its label), ('', '') when none is (older than 6.0)."""
+    for mv, label, lo, hi in RANGES:
+        if ver >= lo and (hi is None or ver <= hi):
+            return mv, label
+    return '', ''
+
+
 class FortiGateTarget(HttpTarget):
     kind = 'fortigate'
     title = 'FortiGate'
     vendor = 'Fortinet'
+    module_version = ''
+    version_label = 'any version (detects it)'
     description = ('Imports the certificate through the FortiOS REST API and uses it for the '
                    'admin GUI, SSL VPN, inspection profiles and virtual IPs; deletes older '
-                   'ones acme put there.')
+                   'ones acme put there. Any FortiOS: the shapes of the profile and VIP '
+                   'certificate fields are taken from the version the FortiGate says.')
     doc = 'targets.md'
     fields = http_fields(443, 'fw.example.local') + [
         field('token', 'API token', 'secret', required=True,
@@ -59,6 +102,14 @@ class FortiGateTarget(HttpTarget):
         keep_field(2),
     ] + verify_fields()
 
+    # What a version of the module sends (1.0.94): True - a list of {"name"}; False - a
+    # name; None - by the version the FortiGate says, the other shape tried after.
+    profile_cert_list = None        # firewall ssl-ssh-profile server-cert
+    vip_cert_list = None            # firewall vip ssl-certificate
+    fos_min = None                  # the FortiOS versions it is for (None: any)
+    fos_max = None
+    fos_checked_to = (8, 0)         # the newest FortiOS in the documents it was checked by
+
     def auth_headers(self):
         return {'Authorization': 'Bearer %s' % self.c('token')}
 
@@ -83,9 +134,47 @@ class FortiGateTarget(HttpTarget):
         st, d = self.api('GET', '/api/v2/monitor/system/status', what='signing in',
                          vdom=self.vdom())
         r = d.get('results') or {}
+        self._fos = self.parse_version(d.get('version'))
+        self.check_version()
         return 'signed in to %s (%s), FortiOS %s' % (
             r.get('hostname', self.c('host')), r.get('model_name', d.get('serial', '?')),
             d.get('version', '?'))
+
+    @staticmethod
+    def parse_version(v):
+        m = re.match(r'^v?(\d+)\.(\d+)\.(\d+)', text(v).strip())
+        return tuple(int(x) for x in m.groups()) if m else None
+
+    def range_words(self):
+        if self.fos_min is None:
+            return 'any FortiOS'
+        lo = fos_words(self.fos_min[:2] if self.fos_min[2] == 0 else self.fos_min)
+        if self.fos_max is None:
+            return 'FortiOS %s and later' % lo
+        hi = self.fos_max[:2] if self.fos_max[2] >= 999 else self.fos_max
+        return 'FortiOS %s - %s' % (lo, fos_words(hi))
+
+    def check_version(self, vdom=None):
+        """A version of the module on a FortiOS it is not for: refused, before anything is
+        changed (its shapes would be wrong). Not known: said, and gone on."""
+        if self.fos_min is None:
+            return
+        ver = self.fos_version(vdom if vdom is not None else self.vdom())
+        if ver is None:
+            self.ctx.step('the FortiOS version cannot be read - the shapes of %s are used'
+                          % self.range_words(), 'warn')
+            return
+        if ver < self.fos_min or (self.fos_max is not None and ver > self.fos_max):
+            fit = version_for(ver)[1] or FortiGateTarget.version_label
+            raise PluginError(
+                'this FortiGate runs FortiOS %s - the module version "%s" is for %s; choose '
+                'the version "%s" of the target' % (fos_words(ver), self.version_label,
+                                                    self.range_words(), fit),
+                retry=False)
+        if ver[:2] > tuple(self.fos_checked_to):
+            self.ctx.step('FortiOS %s is newer than the documents this module version was '
+                          'checked against (%s)' % (fos_words(ver),
+                                                    fos_words(self.fos_checked_to)), 'warn')
 
     # -- discovery (1.0.29): the form filled in from the FortiGate --------------------------
     discover_keys = ['host', 'port', 'token', 'verify_tls']
@@ -101,6 +190,9 @@ class FortiGateTarget(HttpTarget):
                          ('Host name', r.get('hostname')), ('Serial number', d.get('serial'))):
             if text(v).strip():
                 out['facts'].append([label, text(v).strip()])
+        ver = self.parse_version(d.get('version'))
+        if ver is not None and version_for(ver)[0]:
+            out['facts'].append(['Module version for it', version_for(ver)[1]])
         v = text(d.get('vdom')).strip()
         if v:
             self.offer(out, 'vdom', [['', 'Empty: a FortiGate without VDOMs'], [v, v]], pick=v)
@@ -114,9 +206,7 @@ class FortiGateTarget(HttpTarget):
             ver = None
             try:
                 st, d = self.api('GET', '/api/v2/monitor/system/status', vdom=vdom)
-                m = re.match(r'^v?(\d+)\.(\d+)\.(\d+)', text(d.get('version')))
-                if m:
-                    ver = tuple(int(x) for x in m.groups())
+                ver = self.parse_version(d.get('version'))
             except PluginError as e:
                 self.ctx.debug('the FortiOS version cannot be read: %s' % e)
             self._fos = ver
@@ -127,16 +217,22 @@ class FortiGateTarget(HttpTarget):
         ver = self.fos_version(vdom)
         return default if ver is None else ver >= since
 
+    def form(self, fixed, since, vdom, default):
+        """(a list?, the other shape tried after?) - a version's own, or detected."""
+        if fixed is not None:
+            return fixed, False
+        return self.list_first(since, vdom, default), True
+
     def exists(self, name, vdom):
         st, d = self.api('GET', '/api/v2/cmdb/vpn.certificate/local/%s'
                          % urllib.parse.quote(name, safe=''), ok=(200, 404), vdom=vdom)
         return st == 200 and bool(d.get('results'))
 
-    def set_ref(self, p, key, name, vdom, list_first, what, prefix=None):
+    def set_ref(self, p, key, name, vdom, list_first, what, prefix=None, fallback=True):
         """Point an object at the certificate - as a string or a [{name}] list,
-        whichever this FortiOS version takes."""
+        whichever this FortiOS version takes (fallback=False: only the one asked)."""
         listed = [{'name': name}]
-        if prefix:
+        if prefix and (fallback or list_first):
             # The list as it is, ours in it replaced (1.0.51): a profile's other server
             # certificates, a VIP's ECDSA beside the RSA one, were dropped by the PUT.
             try:
@@ -154,6 +250,8 @@ class FortiGateTarget(HttpTarget):
         forms = [listed, name]
         if not list_first:
             forms.reverse()
+        if not fallback:
+            forms = forms[:1]
         err = None
         for value in forms:
             try:
@@ -173,6 +271,7 @@ class FortiGateTarget(HttpTarget):
         scope = options.get('scope') or 'global'
         if self.unchanged(bundle, options, present=lambda: self.exists(name, vdom)):
             return self.same(bundle, 'as %s' % name)
+        self.check_version(vdom)
         did = []
         if self.exists(name, vdom) and not as_bool(options.get('force')):
             self.ctx.step('%s is there already' % name)
@@ -209,15 +308,17 @@ class FortiGateTarget(HttpTarget):
             self.ctx.step('SSL VPN uses %s' % name, 'ok')
             did.append('SSL VPN')
         for p in lines(options.get('ssl_ssh_profiles')):
+            first, fallback = self.form(self.profile_cert_list, (7, 0, 0), vdom, True)
             self.set_ref('/api/v2/cmdb/firewall/ssl-ssh-profile/%s' % urllib.parse.quote(p, safe=''),
-                         'server-cert', name, vdom, self.list_first((7, 0, 0), vdom, True),
-                         'setting profile %s' % p, prefix)
+                         'server-cert', name, vdom, first, 'setting profile %s' % p, prefix,
+                         fallback)
             self.ctx.step('profile %s uses %s' % (p, name), 'ok')
             did.append('profile %s' % p)
         for v in lines(options.get('vips')):
+            first, fallback = self.form(self.vip_cert_list, (7, 4, 2), vdom, False)
             self.set_ref('/api/v2/cmdb/firewall/vip/%s' % urllib.parse.quote(v, safe=''),
-                         'ssl-certificate', name, vdom, self.list_first((7, 4, 2), vdom, False),
-                         'setting VIP %s' % v, prefix)
+                         'ssl-certificate', name, vdom, first, 'setting VIP %s' % v, prefix,
+                         fallback)
             self.ctx.step('VIP %s uses %s' % (v, name), 'ok')
             did.append('VIP %s' % v)
         self.cleanup(prefix, name, vdom, self.keep(options))
@@ -242,3 +343,42 @@ class FortiGateTarget(HttpTarget):
                 self.ctx.step('deleted the old %s' % old)
             except PluginError as e:
                 self.ctx.step('the old %s stays (still used?): %s' % (old, e), 'warn')
+
+
+# -- the versions (1.0.94) ------------------------------------------------------------------
+_SAME = (' Imports the certificate (monitor/vpn-certificate/local/import), uses it for the '
+         'admin GUI (system global admin-server-cert), SSL VPN (vpn ssl settings '
+         'servercert), inspection profiles and virtual IPs, deletes older ones acme put '
+         'there. Refused on a FortiGate that says another FortiOS.')
+
+
+class FortiGate60Target(FortiGateTarget):
+    """FortiOS 6.0 - 6.4: an inspection profile's server-cert and a VIP's ssl-certificate
+    are names (the server-cert list's "name" member is in the data from 7.0.0 only)."""
+    module_version, version_label, fos_min, fos_max = RANGES[0]
+    description = ('FortiOS 6.0 - 6.4: an inspection profile\'s server-cert and a virtual '
+                   'IP\'s ssl-certificate are set as a name.' + _SAME)
+    profile_cert_list = False
+    vip_cert_list = False
+
+
+class FortiGate70Target(FortiGateTarget):
+    """FortiOS 7.0 - 7.4.1: server-cert a list of {name}, ssl-certificate still a name."""
+    module_version, version_label, fos_min, fos_max = RANGES[1]
+    description = ('FortiOS 7.0 - 7.4.1: an inspection profile\'s server-cert is a list of '
+                   'certificates (others in it kept), a virtual IP\'s ssl-certificate a '
+                   'name.' + _SAME)
+    profile_cert_list = True
+    vip_cert_list = False
+
+
+class FortiGate742Target(FortiGateTarget):
+    """FortiOS 7.4.2 - 8.0: both lists of {name}. SSL VPN web mode is "Agentless VPN"
+    from 7.6.3 (tunnel mode gone) - vpn ssl settings servercert is the same."""
+    module_version, version_label, fos_min, fos_max = RANGES[2]
+    description = ('FortiOS 7.4.2 - 8.0 (7.4.x, 7.6.x, 8.0): an inspection profile\'s '
+                   'server-cert and a virtual IP\'s ssl-certificate are lists of '
+                   'certificates (others in them kept); "SSL VPN" is the Agentless VPN of '
+                   '7.6.3 and later.' + _SAME)
+    profile_cert_list = True
+    vip_cert_list = True
