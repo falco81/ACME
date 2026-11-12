@@ -56995,6 +56995,10 @@
   "ged_67": {
    "source": "Copy the whole block",
    "text": "Zkopírovat celý blok"
+  },
+  "ged_68": {
+   "source": "Leave them",
+   "text": "Zahodit je"
   }
  },
  "patterns": {

@@ -335,7 +335,7 @@
         load();
       }).catch(function (e) { toast(String((e && e.message) || e), 'bad'); }).then(function () { busy(b, false); });
     };
-    var leave = function () { return !dirty || window.confirm(tr('Leave the changes not kept?')); };
+    var leave = function (go) { if (!dirty) return go(); G().sure('Leave the changes not kept?', go, 'Leave them'); };
 
     /* putting a part in, wherever the caret is */
     var put = function (md) {
@@ -549,7 +549,7 @@
         var vs = selectBox(vers, cur.version);
         nn(vs);
         vs.className += ' gd-vsel';
-        vs.onchange = function () { if (!leave()) { vs.value = cur.version; return; } cur.version = vs.value; load(); };
+        vs.onchange = function () { var want = vs.value; vs.value = cur.version; leave(function () { vs.value = want; cur.version = want; load(); }); };
         right.appendChild(el('label', 'gd-vlabel', 'Version'));
         right.appendChild(vs);
       }
@@ -559,10 +559,12 @@
         b.type = 'button';
         nn(b);
         b.onclick = function () {
-          if (cur.lang === x[0] || !leave()) return;
-          cur.lang = x[0];
-          Array.prototype.forEach.call(lg.children, function (c) { c.classList.toggle('on', c === b); });
-          load();
+          if (cur.lang === x[0]) return;
+          leave(function () {
+            cur.lang = x[0];
+            Array.prototype.forEach.call(lg.children, function (c) { c.classList.toggle('on', c === b); });
+            load();
+          });
         };
         lg.appendChild(b);
       });
@@ -711,25 +713,27 @@
         b.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
         b.onclick = function () {
           var S = snippets(p, cur.lang === 'cs');
-          if (x[0] === 'outline' && text().trim() && !window.confirm(tr('Put the whole outline in, beside what is written?'))) return;
-          put(S[x[0]]);
-          if (cur.mode === 'split') paintPreview();
+          var doIt = function () { put(S[x[0]]); if (cur.mode === 'split') paintPreview(); };
+          if (x[0] === 'outline' && text().trim()) return G().sure('Put the whole outline in, beside what is written?', doIt, 'Put it in');
+          doIt();
         };
         grid.appendChild(b);
       });
       parts.appendChild(grid);
 
       var from = sec('Start from', 'Takes the place of what is in the editor - nothing is kept until you press Save.');
+      var replacing = function (go) { if (!text().trim()) return go(); G().sure('Replace what is in the editor?', go, 'Replace it'); };
       var fromRow = function (words, sub, fn) {
         var b = el('button', 'gd-as-from');
         b.type = 'button';
         b.appendChild(el('b', '', words));
         if (sub) b.appendChild(nn(el('small', '', sub)));
         b.onclick = function () {
-          if (text().trim() && !window.confirm(tr('Replace what is in the editor?'))) return;
-          busy(b, true);
-          fn().then(function (md2) { if (md2 !== null && md2 !== undefined) { setText(md2); setDirty(true); toast(tr('taken in - Save keeps it'), 'good'); } })
-            .catch(function (e) { toast(String((e && e.message) || e), 'bad'); }).then(function () { busy(b, false); });
+          replacing(function () {
+            busy(b, true);
+            fn().then(function (md2) { if (md2 !== null && md2 !== undefined) { setText(md2); setDirty(true); toast(tr('taken in - Save keeps it'), 'good'); } })
+              .catch(function (e) { toast(String((e && e.message) || e), 'bad'); }).then(function () { busy(b, false); });
+          });
         };
         from.appendChild(b);
       };
@@ -741,10 +745,11 @@
         nn(vsel);
         var vgo = cmdButton('Take it', 'download', 'small');
         vgo.onclick = function () {
-          if (text().trim() && !window.confirm(tr('Replace what is in the editor?'))) return;
-          busy(vgo, true);
-          ask(vsel.value, cur.lang).then(function (g) { setText(g.md || ''); setDirty(true); toast(tr('taken in - Save keeps it'), 'good'); })
-            .catch(function (e) { toast(String((e && e.message) || e), 'bad'); }).then(function () { busy(vgo, false); });
+          replacing(function () {
+            busy(vgo, true);
+            ask(vsel.value, cur.lang).then(function (g) { setText(g.md || ''); setDirty(true); toast(tr('taken in - Save keeps it'), 'good'); })
+              .catch(function (e) { toast(String((e && e.message) || e), 'bad'); }).then(function () { busy(vgo, false); });
+          });
         };
         vrow.appendChild(el('span', 'gd-as-vl', 'Another version'));
         vrow.appendChild(vsel);
@@ -792,8 +797,7 @@
       }},
       {words: 'Close', close: true},
       {words: 'Show it', icon: 'eye', go: function () {
-        if (!leave()) return;
-        G().show(p, family, cur.version);
+        leave(function () { G().show(p, family, cur.version); });
       }},
       {words: 'Save', cls: 'primary gd-savebtn', icon: 'save', go: function (b) { keep(b); }}
     ], 'gd-full gd-edbox'); };

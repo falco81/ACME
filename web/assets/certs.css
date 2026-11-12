@@ -1417,7 +1417,7 @@ code.gd-ccopy.gd-copied::after{content:'✓';font-size:10px;margin-left:4px;colo
 /* the page Modules: a guide's row of buttons */
 .md-guide-tools{display:inline-flex;gap:6px;flex-wrap:wrap}
 /* the popup's body keeps the head and the toolbar in place; only the text and the guide scroll */
-#modal-box.gd-full{height:94vh;max-height:94vh}
+#modal-box.gd-full{height:94vh;max-height:94vh;position:relative}
 #modal-box.gd-full > #modal-body{display:flex;flex-direction:column;gap:12px;min-height:0;flex:1 1 auto;overflow:hidden}
 #modal-box.gd-full .gd-main{flex:1 1 0;min-height:0}
 #modal-box.gd-full .gd-editor{flex:1 1 0;min-height:0}
@@ -1492,3 +1492,10 @@ code.gd-ccopy.gd-copied::after{content:'✓';font-size:10px;margin-left:4px;colo
   .gd-mode-split .gd-preview{display:none}
   .gd-visual{padding:18px 16px 40px}
 }
+
+/* a question over the guide's window (1.0.94) */
+.gd-sure{position:absolute;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(5,8,12,.5);backdrop-filter:blur(1px);border-radius:inherit;animation:gdFade .12s ease-out}
+.gd-sure-box{width:min(420px,calc(100% - 32px));background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 20px 16px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.gd-sure-w{margin:0 0 16px;font-size:14.5px;line-height:1.5;color:var(--tx)}
+.gd-sure-row{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+@keyframes gdFade{from{opacity:0}to{opacity:1}}

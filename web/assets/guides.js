@@ -223,6 +223,33 @@
     close();
     return L;
   }
+  /* a question over the window that is open (not the browser's own dialog): yes runs go */
+  function sure(words, go, yesWords) {
+    var host = document.getElementById('modal-box') || document.body;
+    var old = host.querySelector(':scope > .gd-sure');
+    if (old) old.remove();
+    var veil = el('div', 'gd-sure');
+    var box = el('div', 'gd-sure-box');
+    box.setAttribute('role', 'alertdialog');
+    box.appendChild(el('p', 'gd-sure-w', tr(words)));
+    var row = el('div', 'gd-sure-row');
+    var no = cmdButton('No, leave it', 'x', 'gd-sure-no');
+    var yes = cmdButton(yesWords || 'Yes', 'check', 'primary gd-sure-yes');
+    var end = function () { veil.remove(); document.removeEventListener('keydown', key, true); };
+    var key = function (ev) {
+      if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); end(); }
+      else if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); end(); go(); }
+    };
+    no.onclick = end;
+    yes.onclick = function () { end(); go(); };
+    row.appendChild(no); row.appendChild(yes);
+    box.appendChild(row);
+    veil.appendChild(box);
+    veil.addEventListener('mousedown', function (ev) { if (ev.target === veil) end(); });
+    host.appendChild(veil);
+    document.addEventListener('keydown', key, true);
+    setTimeout(function () { yes.focus(); }, 0);
+  }
   /* the clipboard: the browser's own where the page is https, else the old way */
   function copyText(text, done) {
     var old = function () {
@@ -504,8 +531,10 @@
         if (typeof noI18n === 'function') noI18n(vs);
         vs.className += ' gd-vsel';
         vs.onchange = function () {
-          if (dirty && !window.confirm(tr('Leave the changes not kept?'))) { vs.value = cur.version; return; }
-          cur.version = vs.value; load();
+          var want = vs.value, go = function () { vs.value = want; cur.version = want; load(); };
+          if (!dirty) return go();
+          vs.value = cur.version;
+          sure('Leave the changes not kept?', go, 'Leave them');
         };
         right.appendChild(el('label', 'gd-vlabel', 'Version'));
         right.appendChild(vs);
@@ -516,10 +545,13 @@
         b.type = 'button';
         if (typeof noI18n === 'function') noI18n(b);
         b.onclick = function () {
-          if (dirty && !window.confirm(tr('Leave the changes not kept?'))) return;
-          cur.lang = x[0];
-          Array.prototype.forEach.call(lg.children, function (c) { c.classList.toggle('on', c === b); });
-          load();
+          var go = function () {
+            cur.lang = x[0];
+            Array.prototype.forEach.call(lg.children, function (c) { c.classList.toggle('on', c === b); });
+            load();
+          };
+          if (dirty) return sure('Leave the changes not kept?', go, 'Leave them');
+          go();
         };
         lg.appendChild(b);
       });
@@ -615,8 +647,9 @@
       }},
       {words: 'Close', close: true},
       {words: 'Show it', icon: 'eye', go: function () {
-        if (dirty && !window.confirm(tr('Leave the changes not kept?'))) return;
-        guideShow(p, family, cur.version);
+        var go = function () { guideShow(p, family, cur.version); };
+        if (dirty) return sure('Leave the changes not kept?', go, 'Leave them');
+        go();
       }},
       {words: 'Save', cls: 'primary gd-savebtn', icon: 'save', go: function (b) { save(b); }}
     ], 'gd-full'); };
@@ -640,5 +673,5 @@
     if (window.ACME_GUIDE_EDITOR) return window.ACME_GUIDE_EDITOR.edit(p, family, version, opt);
     return guideEdit(p, family, version, opt);
   }
-  window.ACME_GUIDES = {render: draw, show: guideShow, edit: editAny, button: guideButton};
+  window.ACME_GUIDES = {sure: sure, render: draw, show: guideShow, edit: editAny, button: guideButton};
 })();
