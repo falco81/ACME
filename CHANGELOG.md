@@ -6,6 +6,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.88 - not released
 
+- A server that sends its certificate **without the intermediate authority** (isemon with a
+  RapidSSL certificate uploaded by hand: *unable to get local issuer certificate* on pairing,
+  while browsers said nothing): acme now fetches the missing intermediate from the
+  certificate's AIA address as browsers do, and trusts it only as a link to a root of the
+  system. The job warns that the server should send its whole chain. Every HTTPS call of
+  the modules (targets, sources, checks). What isemon should change:
+  [isemon-full-chain.md](docs/isemon-full-chain.md).
 - New target **Flowmon** (`flowmon`, Flowmon OS REST API 13.1): the certificate and its key
   into a certificate pair of a reusable TLS setting (what the probes decrypt with), made
   when missing, and/or into the collector's listening ports over TLS. Checked against the

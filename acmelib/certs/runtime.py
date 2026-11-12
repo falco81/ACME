@@ -137,6 +137,29 @@ def scope_hostkey_keeper(store, scope):
     return keep
 
 
+AIA_MISSING = 'unable to get local issuer certificate'
+_AIA_FOUND = {}                 # (host, port) -> the intermediates fetched for it
+
+
+def _aia_pem(data):
+    """What an AIA (caIssuers) address gives - DER, PEM or PKCS#7 - as PEM certificates."""
+    from acmelib.certs import pki
+    data = bytes(data or b'')
+    if b'-----BEGIN CERTIFICATE-----' in data:
+        return ''.join(pki.certs_in(data.decode('ascii', 'replace')))
+    try:
+        pem = pki.der_to_pem(data)
+        pki.cert_info(pem)
+        return pem
+    except Exception:                                   # noqa: BLE001
+        pass
+    try:
+        got = pki.openssl(['pkcs7', '-inform', 'DER', '-print_certs'], data)
+        text = got.decode('ascii', 'replace') if isinstance(got, bytes) else str(got)
+        return ''.join(pki.certs_in(text))
+    except Exception:                                   # noqa: BLE001
+        return ''
+
 class RunContext(base.Context):
     """The Context of acmelib/plugins/base.py, for one job (or a test).
 
@@ -278,7 +301,20 @@ class RunContext(base.Context):
             while True:
                 with L.throttle(url, say=lambda w: self.step(w, 'warn'),
                                 cancelled=self.cancelled, method=verb):
-                    got = self._http_once(req, url, timeout, ctx, proxy)
+                    try:
+                        got = self._http_once(req, url, timeout, ctx, proxy)
+                    except base.PluginError as e:
+                        # A server that sends its certificate without the intermediate
+                        # authority (1.0.88): browsers fetch it from the certificate's AIA
+                        # address, Python does not. Fetched here too, and trusted only as a
+                        # link to a root of the system (no partial chains).
+                        ctx2 = (self._aia_context(url, timeout, client_cert and ctx)
+                                if ctx is not None and verify and not ca_pem and
+                                AIA_MISSING in str(e) else None)
+                        if ctx2 is None:
+                            raise
+                        ctx = ctx2
+                        got = self._http_once(req, url, timeout, ctx, proxy)
                 wait = L.slowdown(*got)
                 if wait is None:
                     return got
@@ -294,6 +330,72 @@ class RunContext(base.Context):
         finally:
             if tmp:
                 shutil.rmtree(tmp, ignore_errors=True)
+
+    def _aia_context(self, url, timeout, client_ctx=None):
+        """A TLS context with the intermediates the server at url did not send, fetched from
+        the AIA (caIssuers) address of its certificate - or None. The fetched ones only help
+        the chain to a root of the system: a partial chain is not taken, so an intermediate
+        named by anyone in between leads nowhere."""
+        if client_ctx:
+            return None                     # a client certificate: not rebuilt here
+        u = urllib.parse.urlsplit(url)
+        host, port = u.hostname or '', u.port or 443
+        pems = _AIA_FOUND.get((host, port))
+        if pems is None:
+            pems = self._aia_fetch(host, port, timeout)
+            if pems:
+                _AIA_FOUND[(host, port)] = pems
+        if not pems:
+            return None
+        ctx = ssl.create_default_context()
+        ctx.verify_flags &= ~getattr(ssl, 'VERIFY_X509_PARTIAL_CHAIN', 0)
+        try:
+            ctx.load_verify_locations(cadata=pems)
+        except ssl.SSLError:
+            return None
+        return ctx
+
+    def _aia_fetch(self, host, port, timeout):
+        from acmelib.certs import pki
+        try:
+            leaf = ssl.get_server_certificate((host, port), timeout=min(timeout or 30, 30))
+            info = pki.cert_info(leaf)
+        except Exception:                               # noqa: BLE001
+            return ''
+        out = []
+        for _ in range(3):                  # at most a few links up
+            uris = [x for x in (info.get('ca_issuers') or []) if str(x).startswith('http://')
+                    or str(x).startswith('https://')]
+            if not uris or info.get('self_signed'):
+                break
+            got = ''
+            for aia in uris[:2]:
+                try:
+                    with E.url_open(urllib.request.Request(aia, headers={
+                            'User-Agent': 'acme/%s' % E.__version__}), timeout=15,
+                            purpose='acme') as r:
+                        data = r.read(200000)
+                except Exception:                       # noqa: BLE001
+                    continue
+                got = _aia_pem(data)
+                if got:
+                    break
+            if not got:
+                break
+            try:
+                info = pki.cert_info(got)
+            except Exception:                           # noqa: BLE001
+                break
+            if not info.get('is_ca') or info.get('self_signed'):
+                break
+            out.append(got)
+        if out:
+            self.step('%s does not send the intermediate authority with its certificate - '
+                      'browsers fetch it themselves, acme fetched it too (%s); better: let '
+                      'the server send its whole chain' % (
+                          host, pki.cert_info(out[0]).get('subject', {}).get('CN', '?')),
+                      'warn')
+        return ''.join(out)
 
     def _http_shipped(self, method, url, began, status=None, size=None, error=None):
         """A module's HTTPS request, said to isemon (1.0.44): host, path - its query's names
