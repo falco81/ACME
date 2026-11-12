@@ -4,12 +4,14 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.90 - not released
+## 1.0.90 - 2026-11-12
 
 - **Deploy a certificate**: the target is picked from a list drawn as *Attach a test* draws the
   tests - the search, each target with its icon, kind and address, the default first, where the
   certificate is deployed already said - one at a time (a radio); picked, its options show as
-  before, and *Change* brings the list back.
+  before, and *Change* brings the list back. From a target's window (*Deploy a certificate
+  here*) the certificate is picked the same way (its state, source, names and end), and the
+  one given shows as the same row - every way to it looks alike.
 - **An application of ours (acme push) - the slots picked, not typed**: *Find the slots* asks the
   application (as Discover) and lists *Automatically / Every node / The VIP address / This one*
   and each slot with its names, what it has now and who keeps it - ticked; a slot not there any

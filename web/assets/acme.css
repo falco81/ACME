@@ -3933,3 +3933,4 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .ps-opts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
 .ps-opt[hidden]{display:none}
 @media (max-width:760px){.ps-drow{flex-direction:column;align-items:stretch}.ps-side{max-width:100%;align-items:stretch}.ps-side .tag{text-align:left;align-self:flex-start}.ps-how{min-width:0;width:100%}.ps-new,.ps-opts{grid-template-columns:1fr}}
+.ps-row .ps-txt .small,.ps-row .ps-sub,.ps-row .ps-sub *{font-weight:400}

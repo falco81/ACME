@@ -3061,6 +3061,74 @@ function targetIcon(t) {
   noI18n(ic);
   return ic;
 }
+/** A certificate's icon in a list: the first letters of its name, coloured by its state. */
+function certIcon(c) {
+  var tone = (STATE[c.state] || ['', 'dim'])[1];
+  var ic = el('span', 'ct-kind-ic dp-cert-ic t-' + tone);
+  ic.textContent = String(c.name || '?').replace(/^\*\./, '').replace(/^www\./, '').slice(0, 2).toUpperCase();
+  noI18n(ic);
+  return ic;
+}
+function certRowWords(c) {
+  var w = el('span', 'ck-attach-w');
+  var tl = el('span', 'ck-attach-t');
+  tl.appendChild(data('b', '', c.name));
+  tl.appendChild(stateTag(c.state));
+  if (c.issuer) tl.appendChild(data('span', 'tag dim', c.issuer));
+  w.appendChild(tl);
+  var names = arr(c.names).length ? arr(c.names) : (c.cn ? [c.cn] : []);
+  var line = names.join(', ') + (c.not_after ? ' · ' + tr('until') + ' ' + stamp(c.not_after).split(' ')[0] : '');
+  if (line) w.appendChild(data('span', 'mono small muted', line));
+  return w;
+}
+/** The certificates of a deployment made from a target's window, one picked (1.0.90). */
+function certPickList(certs, target, chosen) {
+  var node = el('div', 'dp-pick');
+  var find = el('input');
+  find.type = 'search';
+  find.placeholder = tr('a name, a source, a state…');
+  find.className = 'ct-kind-find';
+  node.appendChild(find);
+  var list = el('div', 'ck-attach');
+  var items = [];
+  var group = 'dp-c-' + Math.random().toString(36).slice(2);
+  var rows = certs.slice().sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+  rows.forEach(function (c) {
+    var lab = el('label', 'ck-attach-row');
+    var rb = el('input');
+    rb.type = 'radio';
+    rb.name = group;
+    rb.onchange = function () {
+      if (!rb.checked) return;
+      items.forEach(function (x) { x.classList.toggle('on', x === lab); });
+      chosen(c.id);
+    };
+    lab.appendChild(rb);
+    lab.appendChild(certIcon(c));
+    lab.appendChild(certRowWords(c));
+    lab._rb = rb;
+    items.push(lab);
+    list.appendChild(lab);
+  });
+  if (!rows.length) list.appendChild(emptyNote('No certificate yet.'));
+  var cspec = {
+    fields: [['name', 'the certificate\'s name', 'name~www'], ['state', 'its state', 'state:ok'],
+             ['issuer', 'its source', 'issuer:LetsEncrypt']],
+    rows: function () { return rows; },
+    value: function (c, f) { return {name: c.name, state: c.state, issuer: c.issuer}[f]; },
+    words: function (c) { return c.name + ' ' + (c.cn || '') + ' ' + arr(c.names).join(' ') + ' ' + (c.issuer || '') + ' ' + (c.state || ''); }
+  };
+  setTimeout(function () { if (find.isConnected) qLocal(find, cspec); }, 0);
+  find.oninput = function () {
+    var keep = qFilter(find, cspec, rows);
+    items.forEach(function (x, i) { x.hidden = keep.indexOf(rows[i]) < 0; });
+  };
+  node.appendChild(list);
+  return {node: node, reset: function () {
+    items.forEach(function (x) { x._rb.checked = false; x.classList.remove('on'); });
+    setTimeout(function () { try { find.focus(); } catch (e) { } }, 0);
+  }};
+}
 /** The targets of a deployment, one picked (1.0.90) - drawn as "Attach a test" draws the
     tests: the search, a row each with its icon, name, kind and address; a radio, as a
     deployment goes to one target. Where the certificate is deployed already is said. */
@@ -3143,6 +3211,7 @@ function deployEdit(o) {
     if (!modalStill(ticket)) return;
     var targets = got[1], certs = got[2];
     var tSel = null, cSel = null, formHost = el('div'), form = null, on = null, pickHost = null;
+    var certPick = null, certHost = null;
     var testsHost = el('div'), pendingTests = [];
     var drawTests = function () {
       clear(testsHost);
@@ -3240,19 +3309,61 @@ function deployEdit(o) {
       body.appendChild(el('p', 'note', 'Where the certificate goes on this target and in what shape. When it is renewed, it is put there again by itself - and the job checks what is served afterwards.'));
       var g = el('div', 'formgrid');
       if (certId) {
-        g.appendChild(formField('Certificate', data('div', 'ct-fixed', certName)));
+        /* given (from the certificate's window): its row, as when picked */
+        var cFix = el('div', 'ck-attach-row on dp-chosen');
+        var cRow = Object.assign({id: certId, name: certName}, o.cert || {});
+        cFix.appendChild(certIcon(cRow));
+        cFix.appendChild(certRowWords(cRow));
+        certHost = el('div', 'dp-target');
+        certHost.appendChild(el('label', 'dp-label', 'Certificate'));
+        certHost.appendChild(cFix);
       } else {
-        cSel = selectBox([['', tr('choose one…')]].concat(certs.map(function (c) { return [String(c.id), c.name + (c.cn && c.cn !== c.name ? ' (' + c.cn + ')' : '')]; })), '');
-        noI18n(cSel);
-        cSel.onchange = function () { drawFields(); };
-        g.appendChild(formField('Certificate', cSel));
+        /* From a target's window (1.0.90): the certificate picked from a list as the target is
+           picked from the certificate's - the same rows, a radio, then the options. */
+        cSel = selectBox([['', '']].concat(certs.map(function (c) { return [String(c.id), c.name]; })), '');
+        cSel.hidden = true;
+        g.appendChild(cSel);
+        var certChosen = el('div', 'ck-attach-row on dp-chosen');
+        certPick = certPickList(certs, tName, function (id) { cSel.value = String(id); paintCert(); drawFields(); });
+        var paintCert = function () {
+          clear(certChosen);
+          var c = certs.filter(function (x) { return String(x.id) === cSel.value; })[0];
+          certChosen.hidden = !c;
+          certPick.node.hidden = !!c;
+          formHost.hidden = !c;
+          testsHost.hidden = !c;
+          if (!c) return;
+          certChosen.appendChild(certIcon(c));
+          certChosen.appendChild(certRowWords(c));
+          if (certs.length > 1) {
+            var ch = cmdButton('Change', 'edit', 'small');
+            ch.onclick = function () { cSel.value = ''; certPick.reset(); paintCert(); drawFields(); };
+            certChosen.appendChild(ch);
+          }
+        };
+        certHost = el('div', 'dp-target');
+        certHost.appendChild(el('label', 'dp-label', 'Certificate'));
+        certHost.appendChild(certChosen);
+        certHost.appendChild(certPick.node);
+        setTimeout(paintCert, 0);
       }
+      var tFixHost = null;
       if (tName && (o.target || d.id)) {
+        /* given (from the target's window, or the deployment edited): its row, as when picked */
         var tt = target();
-        var fx = el('div', 'ct-fixed');
-        fx.appendChild(data('span', '', tName));
-        if (tt.kind) { var fxk = el('span', 'muted small', ' · '); fxk.appendChild(el('span', '', plugTitle('target', tt.kind))); fx.appendChild(fxk); }
-        g.appendChild(formField('Target', fx));
+        var fx = el('div', 'ck-attach-row on dp-chosen');
+        fx.appendChild(targetIcon(tt));
+        var fw = el('span', 'ck-attach-w');
+        var ftl = el('span', 'ck-attach-t');
+        ftl.appendChild(data('b', '', tName));
+        if (tt.kind) ftl.appendChild(el('span', 'tag dim', plugTitle('target', tt.kind)));
+        fw.appendChild(ftl);
+        var fcfg = obj(tt.config), fwh = fcfg.host || fcfg.url || fcfg.address || fcfg.base || '';
+        if (fwh) fw.appendChild(data('span', 'mono small muted', String(fwh)));
+        fx.appendChild(fw);
+        tFixHost = el('div', 'dp-target');
+        tFixHost.appendChild(el('label', 'dp-label', 'Target'));
+        tFixHost.appendChild(fx);
       } else {
         /* The target picked from a list as "Attach a test" offers the tests (1.0.90): one at
            a time (a radio), then its options as before - Change brings the list back. The
@@ -3288,14 +3399,16 @@ function deployEdit(o) {
             }
           }
           pickHost.node.hidden = !!tSel.value;
-          formHost.hidden = !tSel.value;
-          testsHost.hidden = !tSel.value;
+          formHost.hidden = !tSel.value || (cSel && !cSel.value);
+          testsHost.hidden = formHost.hidden;
         };
         setTimeout(paintPick, 0);
       }
       on = switchBox(d.id ? (d.enabled === undefined || truthy(d.enabled)) : true);
       g.appendChild(formField('In use', on, 'Off: kept, but the certificate is not put there.'));
-      body.appendChild(g);
+      if (tFixHost && !certId) body.appendChild(tFixHost);
+      if (certHost) body.appendChild(certHost);
+      if (tFixHost && certId) body.appendChild(tFixHost);
       if (pickHost) {
         /* the target: the list until one is picked, then that one as its row */
         var th = el('div', 'dp-target');
@@ -3304,6 +3417,7 @@ function deployEdit(o) {
         th.appendChild(pickHost.node);
         body.appendChild(th);
       }
+      body.appendChild(g);
       body.appendChild(formHost);
       body.appendChild(testsHost);
       drawFields();

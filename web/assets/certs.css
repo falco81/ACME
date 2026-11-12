@@ -1301,3 +1301,11 @@ table.ct-issued td:nth-child(2){min-width:210px;max-width:250px;white-space:norm
 .dp-chosen .btn{flex:none;margin-left:auto}
 .dp-pick[hidden]{display:none}
 .ck-attach-w .mono{overflow-wrap:anywhere}
+.dp-cert-ic{background:var(--panel);color:var(--tx-dim)}
+.dp-cert-ic.t-ok{color:var(--ok);background:rgba(63,185,80,.12)}
+.dp-cert-ic.t-warn{color:var(--warn);background:rgba(210,153,34,.14)}
+.dp-cert-ic.t-crit{color:var(--crit);background:rgba(248,81,73,.12)}
+.dp-cert-ic.t-info{color:var(--accent);background:rgba(88,166,255,.12)}
+.dp-chosen{flex-wrap:nowrap}
+.dp-chosen .ck-attach-w{flex:1 1 0;min-width:0}
+@media (max-width:640px){.dp-chosen{align-items:flex-start}.dp-chosen .btn{padding:6px 8px}}

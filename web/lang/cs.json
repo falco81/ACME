@@ -56487,6 +56487,18 @@
   "dp_5": {
    "source": "where it is",
    "text": "kde je"
+  },
+  "dc_1": {
+   "source": "a name, a source, a state…",
+   "text": "název, zdroj, stav…"
+  },
+  "dc_2": {
+   "source": "its state",
+   "text": "jeho stav"
+  },
+  "dc_3": {
+   "source": "No certificate yet.",
+   "text": "Zatím žádný certifikát."
   }
  },
  "patterns": {
