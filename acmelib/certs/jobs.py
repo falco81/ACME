@@ -171,6 +171,7 @@ class Job(object):
             raise JobStopped('the job was stopped')
 
     def finish(self, ok, said=''):
+        _lease_give(self.store, self.cert_id)          # given back before it says it is done
         self.ok = bool(ok)
         self.state = 'stopped' if self.stop.is_set() and not ok else ('ok' if ok else 'failed')
         self.said = str(said or '')[:2000]
@@ -303,6 +304,7 @@ def _work(job, fn):
             RUNNING.pop(job.id, None)
             if job.cert_id is not None:
                 BUSY_CERTS.discard(job.cert_id)
+        _lease_give(job.store, job.cert_id)
 
 
 def submit(store, kind, fn, cert_id=None, deploy_id=None, target=None, by='', said=''):
@@ -311,7 +313,7 @@ def submit(store, kind, fn, cert_id=None, deploy_id=None, target=None, by='', sa
     try:
         job = new_job(store, kind, cert_id, deploy_id, target, by, said)
     except BaseException:
-        _unclaim(cert_id)
+        _unclaim(cert_id, store)
         raise
     _pool().submit(_work, job, fn)
     return job.id
@@ -329,12 +331,76 @@ def _claim(store, cert_id):
         if cert_id in BUSY_CERTS:
             raise ValueError('a job is already working on that certificate')
         BUSY_CERTS.add(cert_id)
+    # ...and in the database, in one statement (1.0.80): the check above is of this process -
+    # the command line beside the daemon, or the other node on a shared database, both passed
+    # it, both ordered, and the second one's certificate (paid for, maybe) was lost
+    if not _lease_take(store, cert_id):
+        with _LOCK:
+            BUSY_CERTS.discard(cert_id)
+        raise ValueError('a job is already working on that certificate')
 
 
-def _unclaim(cert_id):
+LEASE_S = 7200          # as cert_busy's: a job older than that was left by a process that is gone
+
+
+def _lease_key(cert_id):
+    return 'certs:busy:%s' % cert_id
+
+
+def _lease_on(store):
+    # Two replicated databases are two tables: a row both write breaks the replication -
+    # there the lead node alone renews and deploys (claim_once's rule)
+    return E.CONFIG.get('ha_mode') != 'replicated'
+
+
+def _lease_take(store, cert_id):
+    if not _lease_on(store):
+        return True
+    key = _lease_key(cert_id)
+    mine = '%s|%s|%d' % (E.node_name(), os.getpid(), int(time.time()))
+    try:
+        if store.get_meta(key) is None:
+            try:
+                store.db.run('INSERT INTO meta (k, v) VALUES (?, ?)', (key, ''))
+            except Exception:                           # noqa: BLE001
+                pass                                    # another made it at the same moment
+        if store.db.run("UPDATE meta SET v = ? WHERE k = ? AND (v IS NULL OR v = '')",
+                        (mine, key)):
+            return True
+        was = str(store.get_meta(key) or '')
+        try:
+            at = int(was.rsplit('|', 1)[-1])
+        except ValueError:
+            at = 0
+        # left by a process that is gone, or by a job that has ended (its row says so before
+        # the lease is given back) - taken over, in one statement again
+        live = int(store.db.value("SELECT COUNT(*) FROM cert_jobs WHERE cert_id = ? AND state IN "
+                                  "('queued', 'running') AND ts > ?",
+                                  (cert_id, time.time() - LEASE_S), 0) or 0)
+        # (a lease of the last minute stays: its job may be about to be written)
+        if time.time() - at > LEASE_S or (not live and time.time() - at > 60):
+            return bool(store.db.run('UPDATE meta SET v = ? WHERE k = ? AND v = ?',
+                                     (mine, key, was)))
+        return False
+    except Exception as e:                              # noqa: BLE001
+        E.log('the certificate %s could not be taken for a job: %s' % (cert_id, e), 'warn')
+        return True                                     # as before: this process's check
+
+
+def _lease_give(store, cert_id):
+    if cert_id is None or store is None or not _lease_on(store):
+        return
+    try:
+        store.db.run('DELETE FROM meta WHERE k = ?', (_lease_key(cert_id),))
+    except Exception:                                   # noqa: BLE001
+        pass
+
+
+def _unclaim(cert_id, store=None):
     if cert_id is not None:
         with _LOCK:
             BUSY_CERTS.discard(cert_id)
+        _lease_give(store, cert_id)
 
 
 # The command line's jobs carry this node's name as the daemon's do (1.0.51): a file of their own
@@ -396,7 +462,7 @@ def run_now(store, kind, fn, cert_id=None, deploy_id=None, target=None, by='', s
     try:
         job = new_job(store, kind, cert_id, deploy_id, target, by, said, echo)
     except BaseException:
-        _unclaim(cert_id)
+        _unclaim(cert_id, store)
         raise
     mark = _cli_mark(job.id)
     try:

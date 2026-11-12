@@ -223,26 +223,36 @@ def all_same(t, s, files):
                                for f in files)
 
 
-def place_lines(path, bak, tmp, mode, owner, i):
+def place_lines(path, bak, tmp, mode, owner, i, names=None):
     """The shell lines that put one file in place (1.0.80): the copy of the old one and the
-    new one made under names nobody can guess (random, made with noclobber - never through a
-    link), in the folder itself, and moved over - "<path>.acme-new" and the copy's name were
-    fixed, and a link laid there by whoever may write the folder had root write the key
-    through it, its mode and owner too."""
+    new one made under names nobody can guess (random, so no link can wait there), in the
+    folder itself, with umask 077 - never readable by others while the key is written - and
+    moved over. "<path>.acme-new" and the copy's name were fixed, and a link laid there by
+    whoever may write the folder had root write the key through it. `names` (a dict) is given
+    the two names, for taking exactly those away when it fails."""
     p = quote(path)
     out = ['mkdir -p "$(dirname %s)"' % p]
     if bak:
         b = quote(bak)
-        tb = quote('%s/.acme-bak.%s' % (posixpath.dirname(bak) or '.', secrets.token_hex(8)))
-        out.append('if [ -e %s ]; then mkdir -p "$(dirname %s)"; (set -C; : > %s); '
-                   'cp -p %s %s; mv -f %s %s; echo "EXISTED %d"; fi'
-                   % (p, b, tb, p, tb, tb, b, i))
-    tn = quote('%s/.acme-new.%s' % (posixpath.dirname(path) or '.', secrets.token_hex(8)))
-    out += ['(set -C; : > %s)' % tn, 'cp %s %s' % (quote(tmp), tn), 'chmod %o %s' % (mode, tn)]
+        tb = '%s/.acme-bak.%s' % (posixpath.dirname(bak) or '.', secrets.token_hex(8))
+        out.append('if [ -e %s ]; then mkdir -p "$(dirname %s)"; (umask 077; cp -p %s %s); '
+                   'mv -f %s %s; echo "EXISTED %d"; fi' % (p, b, p, quote(tb), quote(tb), b, i))
+        if names is not None:
+            names['_tb'] = tb
+    tn = '%s/.acme-new.%s' % (posixpath.dirname(path) or '.', secrets.token_hex(8))
+    if names is not None:
+        names['_tn'] = tn
+    out += ['(umask 077; cp %s %s)' % (quote(tmp), quote(tn)), 'chmod %o %s' % (mode, quote(tn))]
     if owner:
-        out.append('chown -h %s %s' % (quote(owner), tn))
-    out += ['mv -f %s %s' % (tn, p), 'echo "PLACED %d"' % i]
+        out.append('chown -h %s %s' % (quote(owner), quote(tn)))
+    out += ['mv -f %s %s' % (quote(tn), p), 'echo "PLACED %d"' % i]
     return out
+
+
+def drop_temps(f):
+    """This file's own temporary names taken away - never another job's in the folder."""
+    return 'rm -f %s %s' % (quote(f.get('_tn') or f['path'] + '.acme-new'),
+                            quote(f.get('_tb') or f['path'] + '.acme-bak'))
 
 
 def write_files(t, s, files, tmp_dir='/tmp', options=None, fmt=None):
@@ -281,7 +291,7 @@ def write_files(t, s, files, tmp_dir='/tmp', options=None, fmt=None):
         for i in todo:
             f = files[i]
             script += place_lines(f['path'], f['_bak'], tmps[i], f.get('mode') or 0o600,
-                                  f.get('owner'), i)
+                                  f.get('owner'), i, names=f)
         rc, out, err = t.sh(s, '\n'.join(script), check=False)
         placed = [False] * len(files)
         for i in todo:
@@ -318,7 +328,7 @@ def put_back(t, s, files, existed, placed=None):
         p = quote(f['path'])
         bak = f.get('_bak') or f['path'] + PREV
         if placed is not None and not placed[i]:
-            script.append('rm -f "$(dirname %s)"/.acme-new.*' % quote(f['path']))
+            script.append(drop_temps(f))
             continue
         if was:
             script.append('cp -p %s %s' % (quote(bak), p))
@@ -326,7 +336,7 @@ def put_back(t, s, files, existed, placed=None):
                 script.append('rm -f %s' % quote(bak))
         else:
             script.append('rm -f %s' % p)
-        script.append('rm -f "$(dirname %s)"/.acme-new.*' % quote(f['path']))
+        script.append(drop_temps(f))
     if not script:
         return
     rc, out, err = t.sh(s, '\n'.join(script), check=False)

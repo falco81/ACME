@@ -939,7 +939,7 @@ class TestDigicert(Base):
         h2 = d.issue(req_for(['www.example.test'], challenges={'www.example.test': board}))
         self.assertTrue(h2.cert_pem)
         self.assertEqual(state['orders'], 1)
-        self.assertEqual(json.loads(ctx.kv['digicert-order:7'])['order_id'], '555')
+        self.assertEqual(json.loads(ctx.kv['digicert-order:7:ec'])['order_id'], '555')
 
 
 # ---------------------------------------------------------------------------

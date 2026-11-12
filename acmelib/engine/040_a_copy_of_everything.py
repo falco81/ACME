@@ -159,7 +159,7 @@ def db_numbering_fix(db, tables=None):
             log('the numbering could not be set after loading: %s' % e, 'warn')
 
 
-META_TRANSIENT = ('db_job:', 'node:', 'maint:', 'upgrade:', 'hatls:node:')
+META_TRANSIENT = ('db_job:', 'node:', 'maint:', 'upgrade:', 'hatls:node:', 'certs:busy:')
 # The tables that are a log, not a setting nor a thing kept: left as they are
 # here when a copy is put back without its logs. A module appends its own
 # (the certificate manager its jobs, say).

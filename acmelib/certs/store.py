@@ -646,7 +646,11 @@ def clean_names(names):
         names = [n for n in re.split(r'[\s,;]+', names) if n]
     if names is not None and not isinstance(names, (list, tuple)):
         raise ValueError('the names are a list of names')     # a number (1.0.45): a traceback
-    out = []
+    # counted before they are looked at, each once by a set (1.0.80): a list of a million names
+    # from the enrolment pages took the processor for hours, the cap said only at the end
+    if names is not None and len(names) > 1000:
+        raise ValueError('100 names at most in one certificate')
+    out, seen = [], set()
     for n in names or []:
         n = str(n).strip().lower().rstrip('.')
         if not n:
@@ -672,8 +676,11 @@ def clean_names(names):
                     raise ValueError('%r is not a DNS name' % n)
             if len(n) > 253 or not DNS_RE.match(n):
                 raise ValueError('%r is not a DNS name or an address' % n)
-        if n not in out:
+        if n not in seen:
+            seen.add(n)
             out.append(n)
+            if len(out) > 100:
+                break
     if len(out) > 100:
         raise ValueError('100 names at most in one certificate')
     return out
@@ -1021,17 +1028,28 @@ def save_version(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=No
     the current one. Returns the version's number."""
     row = cert_need(store, cert_id)
     info = info or info_of(cert_pem)
-    version = next_version(store, row)
-    sealed = E.seal_secret(key_pem, key_place(row['id'], version)) if key_pem else None
     chain = ''.join(p if p.endswith('\n') else p + '\n' for p in (chain_pems or []))
     t = now()
-    store.db.insert('cert_versions', {
-        'cert_id': row['id'], 'version': version, 'cert_pem': cert_pem, 'chain_pem': chain,
-        'key_sealed': sealed, 'serial': str(info.get('serial') or '')[:190],
-        'fingerprint': str(info.get('sha256') or '')[:190], 'not_before': info.get('not_before'),
-        'not_after': info.get('not_after'), 'issuer_dn': info.get('issuer_dn') or '',
-        'created': t, 'why': str(why)[:60], 'by_who': str(by or '')[:190], 'revoked': None,
-        'variant': ''})
+    # the number taken again when another process took it in the meantime (1.0.80): two jobs
+    # saving at once - the second one's certificate was lost to the unique key
+    for attempt in range(6):
+        version = next_version(store, row)
+        sealed = E.seal_secret(key_pem, key_place(row['id'], version)) if key_pem else None
+        try:
+            store.db.insert('cert_versions', {
+                'cert_id': row['id'], 'version': version, 'cert_pem': cert_pem,
+                'chain_pem': chain, 'key_sealed': sealed,
+                'serial': str(info.get('serial') or '')[:190],
+                'fingerprint': str(info.get('sha256') or '')[:190],
+                'not_before': info.get('not_before'), 'not_after': info.get('not_after'),
+                'issuer_dn': info.get('issuer_dn') or '', 'created': t, 'why': str(why)[:60],
+                'by_who': str(by or '')[:190], 'revoked': None, 'variant': ''})
+            break
+        except Exception as e:                          # noqa: BLE001
+            if attempt == 5 or not re.search(r'unique|duplicate|integrity|1062', str(e) +
+                                             type(e).__name__, re.I):
+                raise
+            time.sleep(0.05 * (attempt + 1))
     fields = {
         'cert_pem': cert_pem, 'chain_pem': chain, 'key_sealed': sealed,
         'serial': str(info.get('serial') or '')[:190],
@@ -1066,17 +1084,28 @@ def save_alt(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=None, 
     it is. Returns the twin's version number."""
     row = cert_need(store, cert_id)
     info = info or info_of(cert_pem)
-    version = next_version(store, row)
-    sealed = E.seal_secret(key_pem, key_place(row['id'], version, 'alt')) if key_pem else None
     chain = ''.join(p if p.endswith('\n') else p + '\n' for p in (chain_pems or []))
     t = now()
-    store.db.insert('cert_versions', {
-        'cert_id': row['id'], 'version': version, 'cert_pem': cert_pem, 'chain_pem': chain,
-        'key_sealed': sealed, 'serial': str(info.get('serial') or '')[:190],
-        'fingerprint': str(info.get('sha256') or '')[:190], 'not_before': info.get('not_before'),
-        'not_after': info.get('not_after'), 'issuer_dn': info.get('issuer_dn') or '',
-        'created': t, 'why': str(why)[:60], 'by_who': str(by or '')[:190], 'revoked': None,
-        'variant': 'alt'})
+    # the number taken again when another process took it in the meantime (1.0.80): two jobs
+    # saving at once - the second one's certificate was lost to the unique key
+    for attempt in range(6):
+        version = next_version(store, row)
+        sealed = E.seal_secret(key_pem, key_place(row['id'], version, 'alt')) if key_pem else None
+        try:
+            store.db.insert('cert_versions', {
+                'cert_id': row['id'], 'version': version, 'cert_pem': cert_pem,
+                'chain_pem': chain, 'key_sealed': sealed,
+                'serial': str(info.get('serial') or '')[:190],
+                'fingerprint': str(info.get('sha256') or '')[:190],
+                'not_before': info.get('not_before'), 'not_after': info.get('not_after'),
+                'issuer_dn': info.get('issuer_dn') or '', 'created': t, 'why': str(why)[:60],
+                'by_who': str(by or '')[:190], 'revoked': None, 'variant': 'alt'})
+            break
+        except Exception as e:                          # noqa: BLE001
+            if attempt == 5 or not re.search(r'unique|duplicate|integrity|1062', str(e) +
+                                             type(e).__name__, re.I):
+                raise
+            time.sleep(0.05 * (attempt + 1))
     fields = {
         'alt_cert_pem': cert_pem, 'alt_chain_pem': chain, 'alt_key_sealed': sealed,
         'alt_serial': str(info.get('serial') or '')[:190],

@@ -55823,6 +55823,34 @@
   "huntw_2": {
    "source": "Take it out of service",
    "text": "Vyřadit z provozu"
+  },
+  "hunt80_1": {
+   "source": "nothing deployed: the certificate it holds is revoked",
+   "text": "nic se nenasadilo: certifikát, který má, je odvolaný"
+  },
+  "hunt80_2": {
+   "source": "a restart or power-off is going on - wait for it to end",
+   "text": "probíhá restart nebo vypnutí - počkejte, až skončí"
+  },
+  "hunt80_3": {
+   "source": "the system is being updated - wait for it to end",
+   "text": "systém se aktualizuje - počkejte, až skončí"
+  },
+  "hunt80_4": {
+   "source": "not updated: the update was stopped",
+   "text": "neaktualizováno: aktualizace byla zastavena"
+  },
+  "hunt80_5": {
+   "source": "the second step of this account was reset meanwhile",
+   "text": "druhý krok tohoto účtu byl mezitím zrušen"
+  },
+  "hunt80_6": {
+   "source": "the second step of this account was reset - sign in again",
+   "text": "druhý krok tohoto účtu byl zrušen - přihlaste se znovu"
+  },
+  "hunt80_7": {
+   "source": "what the machine of the backup had in place is put in on this one",
+   "text": "co měl stroj zálohy nastavené, se nastaví i na tomto"
   }
  },
  "patterns": {
@@ -76373,6 +76401,42 @@
   "phunte_2": {
    "source": "{0} picked the picture of the sign-in of the enrolment pages: {1}",
    "text": "{0} vybral(a) obrázek přihlášení do stránek registrace: {1}"
+  },
+  "phunt80_1": {
+   "source": "the certificate {0} holds now is revoked: nothing deployed - a new one is issued first",
+   "text": "certifikát, který {0} teď má, je odvolaný: nic se nenasadilo - nejdřív se vydá nový"
+  },
+  "phunt80_2": {
+   "source": "the certificate {0} holds is revoked - issue a new one first",
+   "text": "certifikát, který {0} má, je odvolaný - nejdřív vydejte nový"
+  },
+  "phunt80_3": {
+   "source": "the update of the system stopped: {0} has not been heard from in the middle of it",
+   "text": "aktualizace systému skončila: {0} se uprostřed ní přestal ozývat"
+  },
+  "phunt80_4": {
+   "source": "from its config.json: {0}",
+   "text": "z jeho config.json: {0}"
+  },
+  "phunt80_5": {
+   "source": "{0} file(s) of your own modules put back into {1}",
+   "text": "{0} {0:soubor|soubory|souborů} vlastních modulů vráceno do {1}"
+  },
+  "phunt80_6": {
+   "source": "{0} program(s) of script validations put back into {1}",
+   "text": "{0} {0:program|programy|programů} skriptových validací vráceno do {1}"
+  },
+  "phunt80_7": {
+   "source": "{0}: {1} is the port of acme's own API here",
+   "text": "{0}: {1} je port vlastního API acme"
+  },
+  "phunt80_8": {
+   "source": "dns_port: {0} is the port of the pages",
+   "text": "dns_port: {0} je port stránek"
+  },
+  "phunt80_9": {
+   "source": "{0} was changed by something else since it was read - nothing written, try again",
+   "text": "{0} mezitím změnilo něco jiného - nic se nezapsalo, zkuste to znovu"
   }
  },
  "rich": {

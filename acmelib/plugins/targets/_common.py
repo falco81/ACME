@@ -763,7 +763,8 @@ class Base(Target):
 
     def pending(self):
         try:
-            v = self.ctx.kv_get(self._pending_key())
+            v = self.ctx.kv_get(self._pending_key()) or \
+                self.ctx.kv_get('pending:%s:%s' % (self.kind, self.ident()))   # 1.0.79's
         except Exception:                               # noqa: BLE001
             v = None
         return bool(v)
@@ -771,6 +772,8 @@ class Base(Target):
     def done_pending(self):
         try:
             self.ctx.kv_set(self._pending_key(), '')
+            if self.ctx.kv_get('pending:%s:%s' % (self.kind, self.ident())):
+                self.ctx.kv_set('pending:%s:%s' % (self.kind, self.ident()), '')
         except Exception:                               # noqa: BLE001
             pass
 

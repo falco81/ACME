@@ -12,6 +12,7 @@ import hashlib
 import json
 import urllib.parse
 import re
+import threading
 import time
 
 from acmelib.plugins.base import Issuer, Issued, PluginError, field
@@ -53,6 +54,10 @@ def _unseal(ctx, value, bind):
         except Exception:                           # noqa: BLE001
             return None
     return value
+
+
+_ACCOUNT_LOCKS = {}
+_ACCOUNT_LOCKS_LOCK = threading.Lock()
 
 
 class AcmeIssuer(Issuer):
@@ -239,6 +244,23 @@ class AcmeIssuer(Issuer):
                         return self.account(cl, fresh=True)
                     self._say('the account\'s contacts could not be changed: %s' % e, 'warn')
             return row
+        # One at a time, and the one made meanwhile taken (1.0.80): parallel first renewals each
+        # registered an account of their own - orphans, the CA's limit, an EAB key used twice
+        with _ACCOUNT_LOCKS_LOCK:
+            lock = _ACCOUNT_LOCKS.setdefault(slot, threading.Lock())
+        with lock:
+            again = None if fresh else self.ctx.kv_get(slot)
+            if isinstance(again, (str, bytes)):
+                try:
+                    again = json.loads(again)
+                except ValueError:
+                    again = None
+            if isinstance(again, dict) and again.get('key') and again.get('url') and \
+                    again != row:
+                return self.account(cl, fresh=False)
+            return self._register(cl, url, slot, kind)
+
+    def _register(self, cl, url, slot, kind):
         cl.directory()
         self._say('a new ACME account at %s (%s key)' % (url, kind))
         pem_text = cl.new_key(kind)

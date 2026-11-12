@@ -360,7 +360,12 @@ class RunContext(base.Context):
         return '%s%s:%s' % (KV_PREFIX, self.scope, key)
 
     def kv_get(self, key, default=None):
-        got = S.jload(self.store.get_meta(self._kv_key(key)), None)
+        raw = self.store.get_meta(self._kv_key(key))
+        if raw is None and len(str(key)) > 120 and not str(key).startswith('deployed:'):
+            # kept before 1.0.80 under the key cut at 120 (an ARN, a slot...) - still found;
+            # never the "deployed" record, which two deployments shared that way
+            raw = self.store.get_meta('%s%s:%s' % (KV_PREFIX, self.scope, str(key)[:120]))
+        got = S.jload(raw, None)
         if not isinstance(got, dict):
             return default
         if got.get('exp') and float(got['exp']) < time.time():

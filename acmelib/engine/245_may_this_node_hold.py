@@ -209,14 +209,6 @@ def node_carry(store, old, new, by='the daemon'):
         CONFIG['split_prefer'] = new
     # The day's copies claimed under the old name carried over (1.0.48): the new name took the
     # night's dump and the remote backup again, both made twice.
-    # The signatures of rows made under the old name (1.0.80): left behind, read by nothing.
-    try:
-        for r in store.db.rows("SELECT k FROM meta WHERE k LIKE 'sig:%'"):
-            k = str(r['k'])
-            if k.endswith(':' + old) and k.count(':') == 3:
-                store.db.run('DELETE FROM meta WHERE k = ?', (k,))
-    except Exception as e:                              # noqa: BLE001
-        log('the signatures under the old name could not be taken away: %s' % e, 'warn')
     for k in ('backup_day:', 'rbackup_day:'):
         was = store.get_meta(k + old)
         if was is not None and store.get_meta(k + new) is None:
@@ -234,7 +226,17 @@ def node_carry(store, old, new, by='the daemon'):
                       + NODE_KEY_SEP + esc,))
     store.add_event('settings', 'the node %s is called %s now; carried over: %s' % (
         old, new, ', '.join(said) or 'nothing (it had nothing of its own)'), 'warn', who=by)
-    dbguard_resign(store, 'the node %s is called %s now' % (old, new))      # 1.0.231
+    signed = dbguard_resign(store, 'the node %s is called %s now' % (old, new))      # 1.0.231
+    # The signatures of rows made under the old name (1.0.80): left behind, read by nothing -
+    # taken away only once the rows are signed as the new name (or nothing is guarded)
+    if signed or not CONFIG.get('db_guard'):
+        try:
+            for r in store.db.rows("SELECT k FROM meta WHERE k LIKE 'sig:%'"):
+                k = str(r['k'])
+                if k.endswith(':' + old) and k.count(':') == 3:
+                    store.db.run('DELETE FROM meta WHERE k = ?', (k,))
+        except Exception as e:                          # noqa: BLE001
+            log('the signatures under the old name could not be taken away: %s' % e, 'warn')
     return said
 
 

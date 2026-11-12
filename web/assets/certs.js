@@ -3436,7 +3436,8 @@ function certPeek(id) {
     if (window.ACME_RUNPLAN) buttons.push({words: 'What happens', icon: 'list',
       says: 'Everything a renewal of it does, step by step: the key, every call to its source, how each name is proved, and on each target every call, file and command - worked out without doing any of it.',
       go: function () { ACME_RUNPLAN.open({id: c.id, name: c.name, back: back}); }});
-    if (MANAGE && c.issuer && c.not_after && c.state !== 'revoked' && !c.revoke_no)
+    /* ...and again for a twin whose revoke failed (1.0.80: no button, only the command line) */
+    if (MANAGE && c.issuer && c.not_after && (c.state !== 'revoked' || c.alt_state === 'revoke-failed') && !c.revoke_no)
       buttons.push({words: 'Revoke', icon: 'ban', go: function () { over(function () { revokeDialog(c); }, back); }});
     if (MANAGE && c.issuer && truthy(c.setup_due)) buttons.push({words: 'Set it up', cls: 'primary', icon: 'edit',
       says: 'Imported from its source: every step of Add a certificate - validation, key, renewal, profile, targets - read from the certificate, set as for a new one. The certificate in use stays as it is.',

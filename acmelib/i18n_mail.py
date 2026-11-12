@@ -80,9 +80,9 @@ def pack(code):
                     exact[_fold(v['source'])] = v['text']
             for v in (raw.get('patterns') or {}).values():
                 if isinstance(v, dict) and v.get('source') and v.get('text'):
-                    c = _compile(v['source'])
+                    c = _compile(_fold(v['source']))
                     if c:
-                        c['text'] = v['text']
+                        c['text'] = _fold(v['text'])
                         pats.append(c)
             got = {'exact': exact, 'pats': pats}
         _PACKS[code] = got
@@ -111,8 +111,8 @@ def _plural(text, slots, m):
 def _wordy(m, p, depth):
     for i in range(1, len(m.groups()) + 1):
         v = m.group(i) or ''
-        if re.search(r'\S: \S', v) and (depth >= DEEP or _work(v, p, depth + 1) is None):
-            return True                                 # a sentence of its own
+        if re.search(r'\S: \S', v) and depth < DEEP and _work(v, p, depth + 1) is None:
+            return True                                 # a sentence of its own (as i18n.js)
         if not re.search(r'(^|\s)[A-Za-z]{2,}[,;:]?\s+[A-Za-z]{2,}(\s|$|[.,;:])', v):
             continue
         if not re.search(r'(^|\s)[a-z][A-Za-z]*[,;:]?(\s|$)', v) and re.match(r'^[\sA-Z0-9]', v):
@@ -146,26 +146,69 @@ def _work(s, p, depth=0):
             best, best_own = (c, m), own
     # a node's (or a place's) name, a colon and a sentence of its own
     if depth < DEEP and (not best or (not best[0]['lead'] and ': ' in (best[1].group(1) or ''))):
-        nm = re.match(r'^([A-Za-z0-9][\w.:/\[\]-]{0,80}): (.*[A-Za-z]{2}.*)$', key)
-        if nm and re.search(r'[0-9.:/-]', nm.group(1)):
+        nm = re.match(r'^([A-Za-z0-9][\w.-]{0,62}): (.*[A-Za-z]{2}.*)$', key)
+        if nm and re.search(r'[0-9.-]', nm.group(1)) and not re.match(r'^[A-Z][a-z]+$',
+                                                                       nm.group(1)):
             got = _work(nm.group(2), p, depth + 1)
             if got is not None:
                 return nm.group(1) + ': ' + got
-    if not best:
-        return None
-    c, m = best
+    if best:
+        c, m = best
 
-    def slot(mm):
-        n = int(mm.group(1))
-        if n not in c['slots']:
-            return mm.group(0)
-        v = m.group(c['slots'].index(n) + 1) or ''
-        if depth < DEEP:
-            got = _work(v, p, depth + 1)
-            if got is not None:
-                return got
-        return v
-    return re.sub(r'\{(\d+)\}', slot, _plural(c['text'], c['slots'], m))
+        def slot(mm):
+            n = int(mm.group(1))
+            if n not in c['slots']:
+                return mm.group(0)
+            return _slot(m.group(c['slots'].index(n) + 1) or '', p, depth)
+        return re.sub(r'\{(\d+)\}', slot, _plural(c['text'], c['slots'], m))
+    # words with a number before or after them
+    wn = re.match(r'^(\S.*?[A-Za-z].*?)\s+([0-9][0-9\s\u00a0\u202f.,]*)$', key) or \
+        re.match(r'^([0-9][0-9\s\u00a0\u202f.,]*?)\s+(\S.*?[A-Za-z].*)$', key)
+    if wn:
+        num_first = bool(re.match(r'^[0-9]', wn.group(1)))
+        hit = p['exact'].get(wn.group(2) if num_first else wn.group(1))
+        if hit:
+            return (wn.group(1) + ' ' + hit) if num_first else (hit + ' ' + wn.group(2))
+    if depth < DEEP:
+        named = re.match(r'^([^\s:]+): (.*[A-Za-z]{2}.*)$', key)
+        if named:
+            rest = _work(named.group(2), p, depth + 1)
+            if rest is not None:
+                return named.group(1) + ': ' + rest
+        marked = re.sub(r'([.!?:;])\s+', '\\1\x01', key)
+        parts = re.split(r'(\s+[\u00b7\u2022|\u2014\u2013-]\s+|\x01)', marked)
+        parts = [' ' if x == '\x01' else x for x in parts]
+        if len(parts) > 1:
+            anyt = False
+            for k in range(0, len(parts), 2):
+                if not parts[k]:
+                    continue
+                one = _work(parts[k], p, depth + 1)
+                if one is not None:
+                    parts[k], anyt = one, True
+            if anyt:
+                for q in range(1, len(parts), 2):
+                    if re.match(r'^\s+-\s+$', parts[q]):
+                        parts[q] = ' \u2013 '
+                return ''.join(parts)
+    return None
+
+
+def _slot(got, p, depth):
+    """What fills a slot: a number or a name stays; words of the page's own are translated."""
+    if not got or depth >= DEEP or not re.search(r'[A-Za-z]{2}', got):
+        return got
+    q = re.match(r'^(\s*[\u201c"\u201e])([^\u201c\u201d"]+)([\u201d"]\s*)$', got)
+    if q and re.search(r'\S\s+\S', q.group(2)):
+        inner = _work(q.group(2), p, depth + 1)
+        if inner is not None and inner != q.group(2):
+            return q.group(1) + inner + q.group(3)
+    if not re.search(r'\S\s+\S', got.strip()):
+        return got
+    lead = re.match(r'^\s*', got).group(0)
+    tail = re.search(r'\s*$', got).group(0)
+    to = _work(got, p, depth + 1)
+    return got if to is None else lead + to + tail
 
 
 def tr(s, code):
@@ -177,4 +220,9 @@ def tr(s, code):
         got = _work(str(s), p)
     except Exception:                                   # noqa: BLE001
         got = None
-    return s if got is None else got
+    if got is None:
+        return s
+    # the spaces around it kept, as the pages keep them
+    lead = re.match(r'^\s*', str(s)).group(0)
+    tail = re.search(r'\s*$', str(s)).group(0)
+    return lead + got + tail

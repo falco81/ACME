@@ -311,7 +311,7 @@ function certDialog(id, fresh) {
       }).catch(oops).then(function () { busy(b, false); });
     }});
   }
-  if (manage && c.not_after && c.state !== 'revoked') {
+  if (manage && c.not_after && (c.state !== 'revoked' || c.alt_state === 'revoke-failed')) {
     buttons.push({words: 'Revoke', icon: 'ban', go: function () { modalOver(function () { revokeDialogP(c); }, function () { certDialog(c.id); }); }});
   }
   if (manage && c.issuer && !waiting && c.state !== 'declined' && c.state !== 'revoked') {

@@ -162,9 +162,18 @@ def mfa_all(store):
     return out
 
 
+def mfa_update(store, name, rec):
+    """An account's second step written over the one there - never made again (1.0.80): read,
+    then reset by an administrator, then written back, the old authenticator worked again
+    (on two nodes no lock kept them apart). False when it is gone."""
+    return bool(store.db.run('UPDATE meta SET v = ? WHERE k = ?',
+                             (json.dumps(rec), mfa_key(name))))
+
+
 def mfa_reset(store, name, by):
-    had = mfa_get(store, name)
-    store.db.run('DELETE FROM meta WHERE k = ?', (mfa_key(name),))
+    with MFA_LOCK:
+        had = mfa_get(store, name)
+        store.db.run('DELETE FROM meta WHERE k = ?', (mfa_key(name),))
     mfa_mark(store, name, False)
     store.add_event('accounts', '%s reset the second step of signing in of %s%s' % (
         by, name, ' (it was %s)' % MFA_KIND_WORDS.get(had.get('kind'), had.get('kind'))
@@ -521,7 +530,9 @@ def _mfa_act(h, kind):
                 kid, count = pk_check(h, s, acc, b, rp)
                 with MFA_LOCK:
                     rec, used = pk_counter_keep(h, acc, kid, count, rp)
-                    h.store.set_meta(mfa_key(name), json.dumps(rec))
+                    if not mfa_update(h.store, name, rec):
+                        raise ApiError(409, 'the second step of this account was reset - sign '
+                                            'in again')
             except ApiError:
                 h.failed(key)
                 raise
@@ -547,7 +558,9 @@ def _mfa_act(h, kind):
                     raise ApiError(400, 'that code is not right' if step is None else
                                    'that code was used already - wait for the next one')
                 rec['step'] = step
-                h.store.set_meta(mfa_key(name), json.dumps(rec))
+                if not mfa_update(h.store, name, rec):
+                    raise ApiError(409, 'the second step of this account was reset - sign in '
+                                        'again')
         else:
             if not _mfa_code_ok(data.get('mfa_code'), code) or \
                     not h.store.session_take(s['id'], 'mfa_code'):

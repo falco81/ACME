@@ -129,6 +129,12 @@ def restore_copy_machine(store, path, by, keep_node_name=False):
     return said
 
 
+# The addresses a machine listens on, written in its config.json - another machine's, not
+# carried (1.0.80: the DNS server tried to bind the old machine's address)
+MACHINE_FILE_KEYS = ('dns_listen', 'dns_ns_addresses', 'ssh_gate_port', 'snmp_port',
+                     'dns_port')
+
+
 def carry_file_settings(store, was):
     """The settings a backup's machine kept in its config.json only - not this machine's own
     (its database, its cluster, its node's own), not secrets - written into this one's
@@ -142,6 +148,7 @@ def carry_file_settings(store, was):
     want = {}
     for k, v in was.items():
         if k not in DEFAULTS or k in FILE_ONLY_KEYS or k in NODE_KEYS or k in SECRET_KEYS or \
+                k in MACHINE_FILE_KEYS or \
                 k.startswith(('db_', 'ha_')) or 'password' in k or k in in_db:
             continue
         if isinstance(v, str) and v.startswith('(set - not kept'):

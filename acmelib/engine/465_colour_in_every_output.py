@@ -2529,8 +2529,8 @@ def cli_main(argv=None):
     args = parser.parse_args(argv)
     # a limit of rows within what a database takes (1.0.80: 10**20 raised)
     lim_ = getattr(args, 'limit', None)
-    if isinstance(lim_, int) and not 0 <= lim_ <= 1000000:
-        raise SystemExit('acme: --limit: 0 to 1000000')
+    if isinstance(lim_, int) and lim_ > 1000000:
+        raise SystemExit('acme: --limit: 1000000 at most')
     # numbers outside their range said, not taken (1.0.79): -1 was "off", nan hours went by
     if getattr(args, 'tls_hsts', None) is not None and not 0 <= args.tls_hsts <= 63072000:
         raise SystemExit('acme: --tls-hsts: 0 (none) to 63072000 seconds (two years)')

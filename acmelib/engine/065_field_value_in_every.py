@@ -585,8 +585,15 @@ class Storage(object):
         return rows
 
     def account(self, name, checked=False):
-        row = self.db.row('SELECT * FROM accounts WHERE LOWER(name) = ?',
-                          (str(name or '').strip().lower(),))
+        want = str(name or '').strip().lower()
+        row = self.db.row('SELECT * FROM accounts WHERE LOWER(name) = ?', (want,))
+        if row is None and want and not want.isascii():
+            # a database that lowers only A-Z (PostgreSQL with LC_CTYPE C, 1.0.80): "Žofie"
+            # was made and then never found - not signed in, not dropped; compared here
+            for r in self.db.rows('SELECT * FROM accounts'):
+                if str(r.get('name') or '').lower() == want:
+                    row = r
+                    break
         if checked and row and not dbguard_account_ok(self.db, row):
             return None             # put in by somebody else than acme (1.0.231)
         return row
@@ -646,8 +653,8 @@ class Storage(object):
         with self.db.transaction():                 # with its signature (1.0.234)
             self.db.run('DELETE FROM accounts WHERE id = ?', (one['id'],))
             dbguard_account_sign(self.db, one['name'])
-        self.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',
-                    ('admin', one['name'].lower()))
+        self.db.run('DELETE FROM sessions WHERE kind = ? AND (LOWER(name) = ? OR name = ?)',
+                    ('admin', one['name'].lower(), one['name']))
         # ...and its sign-ins on the enrolment pages (1.0.79): a new account of the same name
         # was the old person's open portal sign-in, with the new one's role
         if one.get('source') != 'directory':

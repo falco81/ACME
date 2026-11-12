@@ -627,7 +627,7 @@ class SshTarget(SshMixin, Base):
         -> [True/False: was there one before], one a file."""
         script = ['set -e']
         for i, (f, tmp) in enumerate(zip(files, tmps)):
-            script += F.place_lines(f['path'], bak(f), tmp, f['mode'], f['owner'], i)
+            script += F.place_lines(f['path'], bak(f), tmp, f['mode'], f['owner'], i, names=f)
         rc, out, err = self.sh(s, '\n'.join(script), check=False)
         existed = [False] * len(files)
         placed = [False] * len(files)
@@ -650,7 +650,7 @@ class SshTarget(SshMixin, Base):
         for i, (f, was) in enumerate(zip(files, existed)):
             p = quote(f['path'])
             if placed is not None and not placed[i]:
-                script.append('rm -f "$(dirname %s)"/.acme-new.*' % quote(f['path']))
+                script.append(F.drop_temps(f))
                 continue
             if was:
                 script.append('cp -p %s %s' % (quote(bak(f)), p))
@@ -658,7 +658,7 @@ class SshTarget(SshMixin, Base):
                     script.append('rm -f %s' % quote(bak(f)))
             else:
                 script.append('rm -f %s' % p)
-            script.append('rm -f "$(dirname %s)"/.acme-new.*' % quote(f['path']))
+            script.append(F.drop_temps(f))
         rc, out, err = self.sh(s, '\n'.join(script), check=False)
         self.ctx.step('the previous files are back' if rc == 0 else
                       'putting the previous files back failed: %s' % err.strip()[-200:],

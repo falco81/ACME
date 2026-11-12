@@ -85,7 +85,7 @@ class Certs(unittest.TestCase):
         lines = '\n'.join(F.place_lines('/etc/x/site.key', '/etc/x/site.key.bak', '/tmp/t', 0o600,
                                         'app:app', 0))
         self.assertNotIn('site.key.acme-new', lines)
-        self.assertIn('set -C', lines)
+        self.assertIn('(umask 077; cp', lines)
         self.assertIn('chown -h', lines)
 
 

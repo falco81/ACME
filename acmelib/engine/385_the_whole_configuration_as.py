@@ -62,6 +62,11 @@ def carry_export(store, whole):
     return out
 
 
+# Tables with no name of their own, matched by what they are (1.0.80): (columns)
+CARRY_NATURAL = {'cert_ca_versions': ('ca_id', 'version'),
+                 'cert_checks': ('cert_id', 'test', 'after_target')}
+
+
 def carry_import(store, tables, by, replace, said):
     """The rows of the module's tables put in: a row matched by its name (or
     its number, in a table with no name) is changed, a new one made - with its
@@ -85,12 +90,33 @@ def carry_import(store, tables, by, replace, said):
         cols = _sealed_cols(table)
         key = named.get(table)
         kept = set()
+        natural = CARRY_NATURAL.get(table)
+        refs_here = {col: tgt for (t_, col), tgt in carry_refs().items() if t_ == table}
         for row in rows:
             row = {k: v for k, v in row.items() if k.lower() in have}
             fid = row.pop('id', None)
             plain = {c: row.pop(c) for c in cols if c in row}
             old = None
-            if key and row.get(key) is not None:
+            if natural:
+                # by what it is, not by its number (1.0.80): an authority's renewals and a
+                # certificate's tests have no name - matched by number, the file's row 1 wrote
+                # over another authority's here. What they name is turned into the numbers here
+                # first; a row naming something that did not come is left out.
+                for col, tgt in refs_here.items():
+                    if row.get(col) is not None:
+                        got = (moved.get(tgt) or {}).get(_carry_num(row[col]))
+                        if got is None:
+                            row = None
+                            break
+                        row[col] = got
+                if row is None:
+                    said['%s left out: what it belongs to is not in the file' % table] += 1
+                    continue
+                fid = None                              # never its number from the file
+                old = store.db.row('SELECT * FROM %s WHERE %s' % (table, ' AND '.join(
+                    '%s = ?' % c if row.get(c) is not None else '%s IS NULL' % c
+                    for c in natural)), tuple(row[c] for c in natural if row.get(c) is not None))
+            elif key and row.get(key) is not None:
                 old = store.db.row('SELECT * FROM %s WHERE %s = ?' % (table, key), (row[key],))
             elif fid is not None:
                 old = store.db.row('SELECT * FROM %s WHERE id = ?' % table, (fid,))

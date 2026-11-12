@@ -425,8 +425,11 @@ def _events(h):
         return {'rows': rows, 'total': total, 'kinds': h.reader.event_kinds()}
     # Kept to its teams (1.0.48): read on in chunks until the page is whole, and counted as kept -
     # filtering one page after the database paged it gave short pages and a wrong count.
+    # a page far back, read in bounds (1.0.80): offset 10**9 read the whole table, 500 rows and
+    # a count at a time, every kept row held - seconds and hundreds of MB a request
+    offset = min(offset, 20000)
     kept, at, total_raw, seen_all = [], 0, None, False
-    while len(kept) < offset + limit:
+    while len(kept) < offset + limit and at < 200000:
         rows, total_raw = h.reader.events(500, at, lq.words, h.arg('kind'), extra=(lq.sql, lq.args))
         if not rows:
             seen_all = True

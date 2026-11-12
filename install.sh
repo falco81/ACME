@@ -364,7 +364,10 @@ php_fpm_units() {
     # Not a masked one, and the ones switched on before others (1.0.80): every php*-fpm was
     # enabled and started - an old PHP switched off on purpose came back, a masked one warned.
     local found="" off="" unit state listed
-    systemctl cat php-fpm.service >/dev/null 2>&1 && found="php-fpm"
+    if systemctl cat php-fpm.service >/dev/null 2>&1 && \
+            [[ "$(systemctl is-enabled php-fpm.service 2>/dev/null)" != masked* ]]; then
+        found="php-fpm"
+    fi
     listed="$(systemctl list-unit-files --no-legend 'php*-fpm.service' 2>/dev/null || true)"
     while read -r unit state _rest; do
         unit="${unit%.service}"
@@ -376,6 +379,19 @@ php_fpm_units() {
         esac
     done <<< "$listed"
     [[ -n "${found// /}" ]] || found="$off"
+    # ...and always the one acme's pool goes into (its php-fpm: php-fpm8.3 -> php8.3-fpm),
+    # whatever its state - left out, the pool was in a php-fpm never started (502)
+    local bin mine
+    bin="$(php_fpm_bin)"
+    case "$(basename "${bin:-x}")" in
+        php-fpm[0-9]*) mine="php$(basename "$bin" | sed 's/^php-fpm//')-fpm" ;;
+        php-fpm) mine="php-fpm" ;;
+        *) mine="" ;;
+    esac
+    if [[ -n "$mine" && " $found " != *" $mine "* ]] && \
+            systemctl cat "$mine.service" >/dev/null 2>&1; then
+        found="$found $mine"
+    fi
     echo $found
 }
 

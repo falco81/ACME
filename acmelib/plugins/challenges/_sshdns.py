@@ -302,7 +302,10 @@ def write_script(path, content, old_sha, check=None, reload=None, check_after=Fa
     out = ['set -u', PATH_PRE.strip(), 'umask 022',
            'f=%s' % shq(path),
            'd=$(dirname -- "$f"); n=$(basename -- "$f")',
-           't="$d/.$n.acme-new"; b="$d/.$n.acme-bak"',
+           # names nobody can guess for what is written (1.0.80): a link laid at the fixed
+           # .NAME.acme-new by the DNS server's group had root write the zone through it
+           't="$d/.$n.acme-new.%s"; tb="$d/.$n.acme-bak.%s"; b="$d/.$n.acme-bak"' % (
+               secrets.token_hex(8), secrets.token_hex(8)),
            'had=0; [ -e "$f" ] && had=1',
            'if [ "$had" = 1 ]; then',
            '  if [ ! -f "$f" ] || [ -L "$f" ]; then echo "acme: $f is not a plain file" >&2; '
@@ -312,8 +315,8 @@ def write_script(path, content, old_sha, check=None, reload=None, check_after=Fa
            'if [ "$s" != %s ]; then echo "acme: $f was changed by something else since it was '
            'read - nothing written, try again" >&2; exit 4; fi' % shq(old_sha or 'none'),
            'if [ "$had" = 1 ]; then',
-           '  cp -p "$f" "$b" && cp -p "$f" "$t" || { rm -f "$t"; echo "acme: no copy of $f '
-           'could be made beside it" >&2; exit 5; }',
+           '  cp -p "$f" "$tb" && mv -f "$tb" "$b" && cp -p "$f" "$t" || { rm -f "$t" "$tb"; '
+           'echo "acme: no copy of $f could be made beside it" >&2; exit 5; }',
            'fi',
            'cat > "$t" <<\'%s\' || { rm -f "$t"; echo "acme: $t could not be written" >&2; '
            'exit 5; }' % delim]

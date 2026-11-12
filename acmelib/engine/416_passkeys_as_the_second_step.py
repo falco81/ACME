@@ -444,7 +444,11 @@ def _pk_do(h):
             if any(k.get('id') == pk['id'] for k in rec['keys']):
                 raise ApiError(409, 'this device has a passkey of this account already')
             rec['keys'] = (rec.get('keys') or []) + [pk]
-            h.store.set_meta(mfa_key(name), json.dumps(rec))
+            if was == 'passkey':                        # over the one there (1.0.80)
+                if not mfa_update(h.store, name, rec):
+                    raise ApiError(409, 'the second step of this account was reset meanwhile')
+            else:
+                h.store.set_meta(mfa_key(name), json.dumps(rec))
         mfa_mark(h.store, name, True)
         h.store.add_event('accounts', '%s added a passkey (%s) for %s%s' % (
             name, pk['name'], pk['host'], (' - in place of %s' % MFA_KIND_WORDS.get(was, was))
@@ -462,14 +466,16 @@ def _pk_do(h):
             if not new:
                 raise ApiError(400, 'give it a name')
             one[0]['name'] = new
-            h.store.set_meta(mfa_key(name), json.dumps(rec))
+            if not mfa_update(h.store, name, rec):
+                raise ApiError(409, 'the second step of this account was reset meanwhile')
             return {'message': 'renamed', 'keys': pk_keys_view(rec)}
         if act == 'delete':
             if len(keys) == 1:
                 raise ApiError(409, 'that is the only one - the second step would be gone: add '
                                     'another first, or an administrator resets the second step')
             rec['keys'] = [k for k in keys if k.get('id') != kid]
-            h.store.set_meta(mfa_key(name), json.dumps(rec))
+            if not mfa_update(h.store, name, rec):
+                raise ApiError(409, 'the second step of this account was reset meanwhile')
             h.store.add_event('accounts', '%s took a passkey away (%s)' % (name, one[0].get('name')),
                               'warn', who=name)
             return {'message': 'the passkey is taken away', 'keys': pk_keys_view(rec)}
