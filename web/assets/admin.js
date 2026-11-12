@@ -5697,6 +5697,7 @@ $('ex-file').onchange = function () {
         phrase = textBox('', 'the passphrase', 'mono');
         phrase.type = 'password';
         noI18n(phrase);
+        phrase.setAttribute('data-i18n-hint', '1');   /* its hint is words (1.0.88) */
         body.appendChild(formField('Passphrase', phrase));
       }
       body.appendChild(el('p', 'note', 'Directories and accounts of the same name are replaced; the settings, the certificates, the VIP address, who may reach the pages, the firewall and the mail server\'s authorities in it are saved. Your own account is left as it is.'));

@@ -97,10 +97,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   - The console: a certificate's deploy hold on and off; a target or test in use is taken off
     everywhere and deleted when asked.
 - Bug hunt I, round 3 - targets:
-  - One half of a dual certificate asked by name (`variant` ec, rsa, alt) gets an object of
-    its own on AWS ACM, Azure Key Vault and Application Gateway, Google Certificate Manager,
-    Cloudflare and NetScaler. The EC and the RSA deployment wrote over each other there, and
-    ACM refused the second.
+  - AWS ACM: the EC and the RSA half of a dual certificate (deployments with `variant`)
+    in one region get an ARN each. The second found the first one's ARN and was refused.
+    A deployment there before keeps its ARN.
   - Cisco ASA: a PKCS#12 import that failed takes its new trustpoint away again. Left empty, the
     next try bound ssl to a trustpoint with no certificate.
   - A10: the key is imported again when the certificate went up and the key did not; the chain
@@ -153,6 +152,23 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     the profile's name refused.
   - A request profile saved: its own name is not translated in the message.
   - A request declined on the portal: the person is named without `local:`.
+- Bug hunt I, round 4:
+  - The difference of the clocks between the nodes is forgotten when there is nothing to
+    measure against any more (HA off), or after an hour without a measurement. The alert and
+    the metric stayed for ever.
+  - The report counts every sign-in and every refused one. It counted the newest 400 only,
+    and refused ones earlier in the week were missing.
+  - Lines to a SIEM / syslog server are cleaned of secrets, as isemon's are. A password or an
+    access key in an event went out in clear.
+  - The outgoing mail is kept to a session's teams, as the events are. A certificate
+    administrator of one team saw another team's notices and addresses.
+  - `acme_cert_renewals_total` and `acme_cert_deployments_total` are gauges, as they are
+    counted from the jobs kept and go down when old ones go. The first issues count too.
+  - An import of the configuration leaves out a setting that is refused here and says so.
+    The whole file was refused. *Notices by mail* takes an address of the machine too
+    (`root@localhost`).
+  - Kubernetes: what is no more sent is taken out of the secret even when the certificate is
+    the same. Cisco FDM: marked before the first switch.
 
 ## 1.0.87 - 2026-11-12
 

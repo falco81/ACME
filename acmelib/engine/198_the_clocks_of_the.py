@@ -458,8 +458,14 @@ def clock_step(store, now=None, ref=None, skew=None, dir_ok=None, peer=None):
             name, sk = clock_peer_skew(store)
             if name is not None:
                 CLOCK.update(skew=sk, skew_at=now, skew_of=name, skew_err='')
+            else:
+                # nothing to measure against any more (1.0.88: the last difference stayed -
+                # an alert and a metric for ever)
+                CLOCK.update(skew=None, skew_at=0.0, skew_of='', skew_err='')
         except Exception as e:                          # noqa: BLE001
             CLOCK.update(skew_err=str(e).split('\n')[0][:160])
+            if now - float(CLOCK.get('skew_at') or 0) > 3600:
+                CLOCK.update(skew=None, skew_of='')     # an hour old: not said as now
     if dir_ok is not None:
         CLOCK.update(dir_ok=None if dir_ok == 'none' else dir_ok, dir_at=now)
     elif CONFIG.get('health_dir') and now - CLOCK['dir_at'] > CLOCK_DIR_EVERY_S:

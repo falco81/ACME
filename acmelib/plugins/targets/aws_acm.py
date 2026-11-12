@@ -120,9 +120,17 @@ class AwsAcmTarget(CloudTarget):
     def deploy(self, bundle, options):
         options = options or {}
         arn = text(options.get('certificate_arn')).strip()
+        kept_typed = False
         if not arn:
+            # one ARN per key type (1.0.88: the EC and the RSA half of a dual certificate in one
+            # region found each other's ARN, and the second was refused); the one kept before
+            # by the name alone is taken when it is of this key type
             try:
-                arn = text(self.ctx.kv_get(self.kv_arn(bundle, options)) or '')
+                arn = text(self.ctx.kv_get(self.kv_arn(bundle, options) + ':' +
+                                           acm_key_type(bundle)) or '')
+                kept_typed = bool(arn)
+                if not arn:
+                    arn = text(self.ctx.kv_get(self.kv_arn(bundle, options)) or '')
             except Exception:                           # noqa: BLE001
                 arn = ''
         if arn:
@@ -136,7 +144,14 @@ class AwsAcmTarget(CloudTarget):
                     self.remember(bundle, options, arn=arn)
                     return self.same(bundle, 'in %s' % arn)
                 have, want = text(info.get('KeyAlgorithm')), acm_key_type(bundle)
-                if have and want and have != want:
+                half = str(options.get('variant') or '').strip().lower() in ('ec', 'rsa', 'alt')
+                if have and want and have != want and half and \
+                        not options.get('certificate_arn') and not kept_typed:
+                    # the other half's, kept by the name alone: this one gets its own
+                    self.ctx.step('%s holds the %s certificate: this one (%s) is imported as '
+                                  'one of its own' % (arn, have, want))
+                    arn = ''
+                elif have and want and have != want:
                     raise PluginError(
                         'ACM cannot change the key type on a re-import (%s has %s, this '
                         'certificate %s): keep the key type, or import it as a new '
@@ -174,7 +189,9 @@ class AwsAcmTarget(CloudTarget):
         if not new:
             raise PluginError('ACM gave no ARN for the imported certificate', detail=text(d))
         try:
-            self.ctx.kv_set(self.kv_arn(bundle, options), new)
+            self.ctx.kv_set(self.kv_arn(bundle, options) + ':' + acm_key_type(bundle), new)
+            if not text(self.ctx.kv_get(self.kv_arn(bundle, options)) or ''):
+                self.ctx.kv_set(self.kv_arn(bundle, options), new)
         except Exception as e:                          # noqa: BLE001
             self.ctx.debug('cannot keep the ARN: %s' % e)
         self.ctx.step('%s %s' % ('re-imported into' if arn else 'imported as', new), 'ok')

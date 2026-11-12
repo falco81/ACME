@@ -1782,7 +1782,12 @@ def check_setting(key, value):
     if key == 'pki_base_url' and str(got).strip():
         if not re.match(r'^https?://[A-Za-z0-9.\[\]:-]+(/[^\s]*)?\Z', str(got).strip()):
             raise BadSetting('%s: an address as http://pki.example.cz/pki' % key)
-    if key in ('alerts_to', 'report_to', 'certs_notify_mail'):
+    if key == 'certs_notify_mail':
+        # an address of the machine too (root@localhost, ops@intranet): as it was taken before
+        for one in [w for w in re.split(r'[\s,;]+', str(got)) if w]:
+            if not re.match(r'^[^@\s<>"]{1,64}@[A-Za-z0-9.-]{1,253}\Z', one):
+                raise BadSetting('%s: %r is not a mail address' % (key, one))
+    if key in ('alerts_to', 'report_to'):
         for one in [w for w in re.split(r'[\s,;]+', str(got)) if w]:
             if not re.match(r'^[^@\s<>"]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}\Z', one):
                 raise BadSetting('%s: %r is not a mail address' % (key, one))

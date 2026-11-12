@@ -1269,9 +1269,15 @@ def report_build(store, since, until, lang='cs'):
                          (since, until), 0) or 0)
     worth = int(db.value("SELECT COUNT(*) FROM events WHERE ts >= ? AND ts < ? AND level IN "
                          "('warn', 'bad')", (since, until), 0) or 0)
-    admins = db.rows("SELECT words, ts, level FROM events WHERE ts >= ? AND ts < ? AND "
-                     "kind = 'sign-ins' ORDER BY ts DESC LIMIT 400", (since, until))
-    adm_bad = [a for a in admins if a.get('level') in ('warn', 'bad')]
+    # counted whole, the refused ones listed (1.0.88: of the newest 400 only - older refused
+    # ones, an attack early in the week, were not in the report at all)
+    adm_n = int(db.value("SELECT COUNT(*) FROM events WHERE ts >= ? AND ts < ? AND "
+                         "kind = 'sign-ins'", (since, until), 0) or 0)
+    adm_bad_n = int(db.value("SELECT COUNT(*) FROM events WHERE ts >= ? AND ts < ? AND "
+                             "kind = 'sign-ins' AND level IN ('warn', 'bad')", (since, until), 0) or 0)
+    adm_bad = db.rows("SELECT words, ts, level FROM events WHERE ts >= ? AND ts < ? AND "
+                      "kind = 'sign-ins' AND level IN ('warn', 'bad') ORDER BY ts DESC LIMIT 10",
+                      (since, until))
     important = db.rows("SELECT ts, kind, level, who, words FROM events WHERE ts >= ? AND ts < ? "
                         "AND level IN ('warn', 'bad') AND kind <> 'sign-ins' ORDER BY ts DESC "
                         "LIMIT 25", (since, until))
@@ -1299,8 +1305,8 @@ def report_build(store, since, until, lang='cs'):
     body.append(_rep_tiles([
         (_al(lang, 'událostí', 'events'), str(total), 'info'),
         (_al(lang, 'k pozornosti', 'worth a look'), str(worth), 'warn' if worth else 'good'),
-        (_al(lang, 'neúspěšných přihlášení', 'sign-ins refused'), str(len(adm_bad)),
-         'warn' if adm_bad else 'good'),
+        (_al(lang, 'neúspěšných přihlášení', 'sign-ins refused'), str(adm_bad_n),
+         'warn' if adm_bad_n else 'good'),
         (_al(lang, 'problémů teď', 'problems now'), str(len(probs)), 'bad' if probs else 'good')]))
     for heading, lines in sections:
         body.append(_al_h(heading))
@@ -1321,7 +1327,7 @@ def report_build(store, since, until, lang='cs'):
     body.append(_al_h(_al(lang, 'Přihlášení do administrace', 'Sign-ins to the administration')))
     body.append('<p style="margin:0 0 6px;font-size:13.5px;color:#374151">%s</p>' % _h(
         _al(lang, 'Celkem %d záznamů, z toho %d neúspěšných nebo s varováním.',
-            '%d in all, %d of them failed or warned about.') % (len(admins), len(adm_bad))))
+            '%d in all, %d of them failed or warned about.') % (adm_n, adm_bad_n)))
     body.append(_rep_table([_al(lang, 'Kdy', 'When'), _al(lang, 'Co', 'What')],
                            [[_h(_al_when(a['ts'])), _h(mail_tr(str(a['words']), lang)[:600])] for a in adm_bad[:10]]))
     body.append(_al_h(_al(lang, 'Důležité události', 'Events worth a look')))
@@ -1366,7 +1372,7 @@ def report_build(store, since, until, lang='cs'):
             _al(lang, 'Událostí: %d, k pozornosti %d. Přihlášení do administrace: %d, '
                       'neúspěšných %d.',
                 'Events: %d, worth a look %d. Sign-ins to the administration: %d, refused %d.')
-            % (total, worth, len(admins), len(adm_bad)), '']
+            % (total, worth, adm_n, adm_bad_n), '']
     for heading, lines in sections:
         text.append(heading.upper())
         text += ['- %s' % x for x in lines] or ['-']

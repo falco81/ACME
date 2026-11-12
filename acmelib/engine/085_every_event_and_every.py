@@ -141,6 +141,9 @@ class Siem(object):
     def event_line(self, kind, words, level, who):
         """An event of the engine's (store.add_event). A sign-in (kind
         sign-ins) goes as one, with siem_signins; every other with siem_events."""
+        # nothing secret leaves (1.0.88: isemon's lines were cleaned, the SIEM's not)
+        raw = words
+        words = detail_redact(words)
         if kind == 'sign-ins':
             if CONFIG.get('siem_signins', 1):
                 ok = level not in ('warn', 'bad')
@@ -151,7 +154,7 @@ class Siem(object):
         if CONFIG.get('siem_events', 1):
             # What a module says of the event (event_fields: cert, serial,
             # target, result ...) beside the engine's own, never over them.
-            extra = {k: v for k, v in event_fields(kind, words, level).items()
+            extra = {k: detail_redact(v) for k, v in event_fields(kind, raw, level).items()
                      if k not in ('event', 'kind', 'level', 'who', 'node', 'type', 'message')}
             self.put('event', SIEM_SEVERITY.get(level, 6),
                      dict(extra, event='event', kind=kind, level=level, who=who or ''),

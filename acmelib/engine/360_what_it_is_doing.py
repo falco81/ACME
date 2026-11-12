@@ -52,13 +52,29 @@ def _software(h):
     return {'nodes': out}
 
 
+def mailq_seen(h, rows):
+    """Of the outgoing mail what the session may see (1.0.88): kept to its teams' certificates,
+    a certificate's mail (and a code's) only when it names one of its own - as the events."""
+    hidden = events_hidden_of(h.store, h.me())
+    if hidden is None:
+        return rows
+    out = []
+    for r in rows:
+        if str(r.get('kind') or '') in ('certs', 'code', 'portal', 'alert', 'report'):
+            if hidden({'kind': 'certificates', 'words': '%s %s' % (r.get('subject') or '',
+                                                                   r.get('name') or '')}):
+                continue
+        out.append(r)
+    return out
+
+
 @route('GET', '/api/mailq')
 def _mailq(h):
     """The outgoing mail (1.0.95): what waits, what went, what failed."""
     h.me()
     q = h.arg('q')
     state = h.arg('state')
-    every = mailq_all(h.store)
+    every = mailq_seen(h, mailq_all(h.store))
     rows = [r for r in every
             if (not state or r.get('state') == state or
                 (state == 'open' and r.get('state') in ('waiting', 'sending', 'failed')))]
@@ -88,7 +104,7 @@ def _mailq(h):
 def _mailq_one(h):
     h.me()
     rec, _raw = mailq_read(h.store, h.arg('id'))
-    if not rec:
+    if not rec or not mailq_seen(h, [rec]):
         raise ApiError(404, 'that mail is not in the outgoing mail any more')
     out = mailq_view(rec)
     out['history'] = rec.get('history') or []
@@ -172,7 +188,7 @@ def _suggest(h):
         # Its rows are in no table: what the field holds, counted here.
         col = (LIST_FIELDS['mailq'].get(field) or ('', ''))[0]
         got = collections.Counter()
-        for r in mailq_all(h.store):
+        for r in mailq_seen(h, mailq_all(h.store)):
             v = str(mailq_search_row(r).get(col) or '')
             for one in (v.split() if col == 'to_addr' else [v]):
                 if one and (not typed or typed.strip('*').lower() in one.lower()):

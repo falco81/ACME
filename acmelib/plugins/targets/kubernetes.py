@@ -78,7 +78,10 @@ class KubernetesTarget(HttpTarget):
         if st == 200:
             have = (cur or {}).get('data') or {}
             # a restart cut off last time (1.0.79): the secret holds it, the pods do not yet
+            stale = [k for k in have if k not in data and (k == 'ca.crt' or re.match(
+                r'^tls-[a-z0-9]+\.(crt|key)$', k))]
             if all(have.get(k) == v for k, v in data.items() if k.endswith('.crt')) and \
+                    not stale and \
                     not as_bool(options.get('force')) and \
                     not (self.pending() and lines(options.get('restart'))):
                 return self.same(bundle, 'in %s/%s' % (ns, name))

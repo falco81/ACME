@@ -48,7 +48,7 @@ now*.
 | `acme_cert_not_after_timestamp_seconds{name,cn,issuer}` | when each certificate ends (unix time) |
 | `acme_cert_expiry_seconds{name}` | seconds until each certificate ends |
 | `acme_cert_expiring` | certificates that end within `certs_notify_days` |
-| `acme_cert_renewals_total{result}`, `acme_cert_deployments_total{result}` | renewals and deployment jobs that went well / failed (of the jobs kept, `certs_keep_jobs_days`) |
+| `acme_cert_renewals_total{result}`, `acme_cert_deployments_total{result}` | renewals (first issues too) and deployment jobs that went well / failed, of the jobs kept (`certs_keep_jobs_days`) - gauges: old jobs pruned make them go down |
 | `acme_cert_jobs_24h{kind,result}`, `acme_cert_jobs_failed_24h` | certificate jobs of the last 24 hours |
 | `acme_cert_deploys{state}`, `acme_cert_deploys_failed` | deployments by state; those whose last try failed |
 | `acme_cert_last_job_timestamp_seconds{kind,result}` | when the last job of each kind ended |

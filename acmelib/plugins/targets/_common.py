@@ -204,13 +204,6 @@ def label_of(bundle, options=None, maxlen=40):
         (list(getattr(bundle, 'names', None) or ['cert'])[0])
     raw = text(raw).strip().lower().replace('*.', 'wildcard.').replace('*', 'wildcard')
     s = re.sub(r'[^a-z0-9._-]+', '-', raw).strip('-.') or 'cert'
-    # one half of a dual certificate asked by name (1.0.88): its own object - the EC and the
-    # RSA deployment of one certificate to one ACM region, Key Vault, zone or ADC wrote over
-    # each other (ACM refused: another key type on a re-import)
-    want = str((options or {}).get('variant') or '').strip().lower()
-    if want and want not in ('auto', 'main', 'both') and not (options or {}).get('object_name'):
-        tail = '-' + re.sub(r'[^a-z0-9]+', '', want)[:8]
-        return s[:max(1, maxlen - len(tail))].rstrip('-.') + tail
     return s[:maxlen].rstrip('-.')
 
 

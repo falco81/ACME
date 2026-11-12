@@ -147,6 +147,7 @@
       f.name = textBox(p.name, 'Web servers', '');
       f.name.id = 'rp-f-name';
       noI18n(f.name);
+      f.name.setAttribute('data-i18n-hint', '1');   /* its hint is words (1.0.88) */
       g.appendChild(formField('Name', f.name, 'What people pick on the portal. Letters, digits, spaces and . _ @ + -.'));
       f.enabled = switchBox(p.enabled);
       g.appendChild(formField('Offered', f.enabled, 'Off: kept, not shown on the portal.'));

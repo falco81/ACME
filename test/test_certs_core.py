@@ -849,7 +849,7 @@ print(json.dumps({'text': E.metrics_text(D()),
             self.assertIn(name, text)
         self.assertRegex(text, r'acme_cert_not_after_timestamp_seconds\{cn="www\.example\.test",'
                                r'issuer="self",name="web"\} \d{10}')
-        self.assertIn('# TYPE acme_cert_renewals_total counter', text)
+        self.assertIn('# TYPE acme_cert_renewals_total gauge', text)    # counted from the jobs kept (1.0.88)
         base = tuple(got['base'])
         rows = {tuple(o): (k, v) for o, k, v in got['rows']}
         # The table of the certificates kept, by their id.

@@ -56171,6 +56171,10 @@
   "f88e_3": {
    "source": "The request profile is deleted",
    "text": "Profil žádosti je smazán"
+  },
+  "f88f_1": {
+   "source": "an address as http://pki.example.cz/pki",
+   "text": "adresa ve tvaru http://pki.example.cz/pki"
   }
  },
  "patterns": {
@@ -76921,6 +76925,14 @@
   "pf88e_5": {
    "source": "{0}: {1} is not a mail address",
    "text": "{0}: {1} není e-mailová adresa"
+  },
+  "pf88f_1": {
+   "source": "{0} is not a phone number (+420123456789)",
+   "text": "{0} není telefonní číslo (+420123456789)"
+  },
+  "pf88f_2": {
+   "source": "{0} holds the {1} certificate: this one ({2}) is imported as one of its own",
+   "text": "{0} drží certifikát {1}: tento ({2}) se importuje jako samostatný"
   }
  },
  "rich": {

@@ -411,9 +411,9 @@ def _lease_give(store, cert_id):
 
 def _unclaim(cert_id, store=None):
     if cert_id is not None:
+        _lease_give(store, cert_id)         # before it is free here (1.0.88)
         with _LOCK:
             BUSY_CERTS.discard(cert_id)
-        _lease_give(store, cert_id)
 
 
 # The command line's jobs carry this node's name as the daemon's do (1.0.51): a file of their own

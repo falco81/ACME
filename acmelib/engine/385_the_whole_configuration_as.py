@@ -431,6 +431,16 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                 # The cluster's own value (1.0.206): a node's setting shared in the
                 # file was saved for the node that imported it alone - and with
                 # "replace" then taken away again.
+                # one that is not taken here any more left out and said, not the whole file
+                # refused (1.0.88: a value saved before a check came, from this same machine)
+                for k_ in list(want):
+                    try:
+                        check_setting(k_, want[k_])
+                    except BadSetting:
+                        want.pop(k_)
+                        said['settings left out: refused here (%s)' % k_] += 1
+                    except Exception:                   # noqa: BLE001
+                        pass
                 daemon.save_settings(want, by, node='*', split_card=True)   # a configuration put back: its split choices too (1.0.78)
                 imported_keys |= set(want)
                 said['settings'] += len(want)

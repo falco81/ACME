@@ -160,10 +160,12 @@ def metrics(store):
          [({'name': r['name'], 'state': r.get('state') or 'new'}, 1) for r in rows]),
         ('acme_cert_expiring', 'Certificates that end within certs_notify_days', 'gauge',
          [({}, sum(1 for r in dated if t < float(r['not_after']) < t + days * 86400))]),
+        # gauges (1.0.88): counted from the jobs kept, which are pruned - as counters they went
+        # down, and Prometheus took each drop for a restart; the first issues are jobs of their own
         ('acme_cert_renewals_total', 'Renewals (and first issues) in the jobs kept, by result',
-         'counter', [({'result': res}, jobs_ok.get(('renew', res), 0))
-                     for res in ('ok', 'failed')]),
-        ('acme_cert_deployments_total', 'Deployment jobs in the jobs kept, by result', 'counter',
+         'gauge', [({'result': res}, jobs_ok.get(('renew', res), 0) + jobs_ok.get(('issue', res), 0))
+                   for res in ('ok', 'failed')]),
+        ('acme_cert_deployments_total', 'Deployment jobs in the jobs kept, by result', 'gauge',
          [({'result': res}, jobs_ok.get(('deploy', res), 0)) for res in ('ok', 'failed')]),
         ('acme_cert_jobs_24h', 'Certificate jobs of the last 24 hours, by kind and result',
          'gauge', [({'kind': k, 'result': res}, n) for (k, res), n in sorted(day.items())]),

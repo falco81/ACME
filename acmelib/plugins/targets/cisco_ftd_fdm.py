@@ -199,6 +199,7 @@ class CiscoFtdFdmTarget(HttpTarget):
                 body = bare(w)
                 body['certificate'] = ref_of(cur)
                 body['trustChain'] = chain
+                self.mark_pending(bundle)       # before the switch (1.0.88): run again if cut off
                 self.api('PUT', '/devicesettings/default/webuicertificates/%s' % q(w.get('id')),
                          body, what='switching the web interface to %s' % name)
                 self.ctx.step('the web interface uses %s' % name, 'ok')
@@ -218,6 +219,7 @@ class CiscoFtdFdmTarget(HttpTarget):
                     continue
                 body = bare(v)
                 body['vpnGatewaySettings'] = dict(gw, serverCertificate=ref_of(cur))
+                self.mark_pending(bundle)       # before the switch (1.0.88): run again if cut off
                 self.api('PUT', '/ravpns/%s' % q(v.get('id')), body,
                          what='switching the RA VPN %s to %s' % (v.get('name'), name))
                 self.ctx.step('the RA VPN %s uses %s' % (v.get('name'), name), 'ok')
@@ -226,8 +228,7 @@ class CiscoFtdFdmTarget(HttpTarget):
         deploy_on = as_bool(self.opt(options, 'fdm_deploy', True), True)
         if (changed or self.pending()) and deploy_on:
             # a deployment that failed after the switch is run again (1.0.88)
-            if changed:
-                self.mark_pending(bundle)
+            self.mark_pending(bundle)
             self.deploy_now(options)
             self.done_pending()
             did.append('deployed')
