@@ -319,13 +319,37 @@ class AcmePushTarget(HttpTarget):
         names = list(dict.fromkeys(names))
         if not names:
             return None
+        # Where acme put it (1.0.91): the application's own address, asked for each name (SNI)
+        # - first; then the name itself. A slot's name may point at another server (isemon's
+        # node named merit.cz, the company's web there): it is not a failed deployment when
+        # the application serves it at its address.
+        u = urllib.parse.urlsplit(self.base_url())
+        app_host, app_port = u.hostname or '', u.port or (443 if u.scheme == 'https' else 80)
+        tries = as_int(options.get('verify_tries', 6), 6)
+        wait = float(options.get('verify_wait', 3) or 3)
+        sleep = getattr(self, '_sleep', time.sleep)
         out = True
         for n in names:
             host, port = split_hostport(n, 443)
-            seen = check_served(self.ctx, bundle, ['%s:%d' % (host, port)], sni=host,
-                                tries=as_int(options.get('verify_tries', 6), 6),
-                                wait=float(options.get('verify_wait', 3) or 3),
-                                sleep=getattr(self, '_sleep', time.sleep))
+            places = []
+            if app_host and u.scheme == 'https':
+                places.append('%s:%d' % (app_host, app_port))
+            if '%s:%d' % (host, port) not in places:
+                places.append('%s:%d' % (host, port))
+            seen = None
+            for i, hp in enumerate(places):
+                got = check_served(self.ctx, bundle, [hp], sni=host,
+                                   tries=tries if i == 0 else min(tries, 2), wait=wait,
+                                   sleep=sleep)
+                if got is True:
+                    if i > 0:
+                        self.ctx.step('%s serves it (asked for %s)' % (hp, host), 'ok')
+                    elif hp != '%s:%d' % (host, port):
+                        self.ctx.step('the application at %s serves it for %s' % (hp, host), 'ok')
+                    seen = True
+                    break
+                if got is False or seen is None:
+                    seen = got
             if seen is False:
                 return False
             if seen is None:

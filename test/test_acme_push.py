@@ -501,6 +501,37 @@ class Receiver(unittest.TestCase):
             STORE.db.run('DELETE FROM meta WHERE k = ?', ('web:vip',))
 
 
+class ServedWhere(unittest.TestCase):
+    """After the push (1.0.91): what is served is asked at the application's own address
+    first (SNI: the slot's name), then at the name - a slot named merit.cz while merit.cz is
+    another server (the company's web) and isemon is monitor.merit.cz."""
+    def test_the_application_address_first(self):
+        from acmelib.plugins.targets import acme_push as AP
+        cls = S.plugin_class('target', 'acme_push')
+        t = cls({'url': 'https://monitor.merit.test/'}, ctx_for('mon'))
+        t._installed = [{'slot': 'node:isemon', 'names': ['merit.test']}]
+        asked = []
+
+        def served(ctx, bundle, hps, sni=None, **kw):
+            asked.append((hps[0], sni))
+            return hps[0] == 'monitor.merit.test:443'
+        real = AP.check_served
+        AP.check_served = served
+        try:
+            self.assertTrue(t.verify(Bundle('a'), {}))
+            self.assertEqual(asked, [('monitor.merit.test:443', 'merit.test')])
+            # served nowhere: asked at both, and failed
+            asked.clear()
+            AP.check_served = lambda ctx, b, hps, sni=None, **kw: asked.append(hps[0]) or False
+            self.assertFalse(t.verify(Bundle('a'), {}))
+            self.assertEqual(asked, ['monitor.merit.test:443', 'merit.test:443'])
+            # only the name serves it (a VIP slot reached apart from the address)
+            AP.check_served = lambda ctx, b, hps, sni=None, **kw: hps[0] == 'merit.test:443'
+            self.assertTrue(t.verify(Bundle('a'), {}))
+        finally:
+            AP.check_served = real
+
+
 class Discovery(unittest.TestCase):
     def setUp(self):
         receiver_reset()
