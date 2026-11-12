@@ -3947,8 +3947,8 @@ $('us-add').onclick = function () {
     g.appendChild(formField('Name', name));
     g.appendChild(formField('Role', role, 'Enrolment pages only: never gets into the administration - signs in on the enrolment pages and sees and asks for what the teams it is in give it (Owners and teams).'));
     g.appendChild(formField('A first password', pw, 'They choose their own at the first sign-in.'));
-    g.appendChild(formField('E-mail address', mail, 'Where the portal’s one-time code goes (A one-time code for acme’s own accounts). Optional.'));
-    g.appendChild(formField('Mobile number', mobile, 'For the code by SMS. Optional.'));
+    g.appendChild(formField('E-mail address', mail, 'Where the portal’s one-time code goes when it goes by mail - needed then (A one-time code for acme’s own accounts).'));
+    g.appendChild(formField('Mobile number', mobile, 'Where the portal’s one-time code goes when it goes by SMS - needed then: without it the account cannot sign in there.'));
     g.appendChild(formField('Note', note));
     body.appendChild(g);
     MODAL_GO = function (b) {
@@ -11820,6 +11820,9 @@ function mustChange() {
     body.appendChild(g);
     var go = cmdButton('Change the password', 'lock', 'primary');
     go.id = 'mc-go';
+    [old, nw, nw2].forEach(function (x) {         /* Enter changes it (1.0.80) */
+      x.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
+    });
     var row = el('div', 'me-acts');
     row.style.marginTop = '14px';
     go.onclick = function () {

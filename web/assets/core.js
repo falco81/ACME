@@ -275,6 +275,9 @@ document.addEventListener('keydown', function (e) {
   var main = Array.prototype.filter.call(foot.querySelectorAll('.btn.primary'), function (b) {
     return !b.hidden && !b.disabled && !/\bdanger\b/.test(b.className) && b.offsetParent !== null;
   });
+  /* never one that sets something going (1.0.80: Enter in a path box ran "Save and deploy
+     now" with the path half typed) - deploy, issue, renew, restart, revoke, delete */
+  if (main.length === 1 && main[0].getAttribute('data-no-enter')) return;
   if (main.length !== 1) return;
   e.preventDefault();
   main[0].click();
@@ -298,6 +301,8 @@ function modal(title, build, buttons, narrow) {
     if (b.admin && !ADMIN) return;
     var button = el('button', 'btn cmd' + (b.cls ? ' ' + b.cls : ''), b.words);
     setButtonIcon(button, b.icon || iconForWords(b.words), b.words);
+    if (b.enter === false || /^(deploy|refresh|power|ban|trash|delete|play|send|upload)$/.test(b.icon || iconForWords(b.words) || '')
+        || /deploy|issue|renew|restart|revoke|delete|run|send/i.test(b.words || '')) button.setAttribute('data-no-enter', '1');
     if (b.left) button.classList.add('left');
     if (b.says) explain(button, b.says);
     var run = function () {

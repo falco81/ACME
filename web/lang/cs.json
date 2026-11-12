@@ -40562,7 +40562,7 @@
   },
   "sptr03": {
    "source": "it is being revoked - its job is shown here",
-   "text": "revokuje se – jeho úloha je vidět zde"
+   "text": "odvolává se – jeho úloha je vidět zde"
   },
   "sptr04": {
    "source": "declined - the person who asked is told",
@@ -55851,6 +55851,50 @@
   "hunt80_7": {
    "source": "what the machine of the backup had in place is put in on this one",
    "text": "co měl stroj zálohy nastavené, se nastaví i na tomto"
+  },
+  "h2c_1": {
+   "source": "no file is written - pick a layout or add a file",
+   "text": "nezapisuje se žádný soubor - vyberte rozložení nebo přidejte soubor"
+  },
+  "h2c_2": {
+   "source": "(forced)",
+   "text": "(vynuceně)"
+  },
+  "h2cr_1": {
+   "source": "unspecified",
+   "text": "neuvedeno"
+  },
+  "h2cr_2": {
+   "source": "keyCompromise",
+   "text": "kompromitace klíče"
+  },
+  "h2cr_3": {
+   "source": "cessationOfOperation",
+   "text": "ukončení provozu"
+  },
+  "h2cr_4": {
+   "source": "superseded",
+   "text": "nahrazen"
+  },
+  "h2cr_5": {
+   "source": "affiliationChanged",
+   "text": "změna příslušnosti"
+  },
+  "h2cw_1": {
+   "source": "no - it is revoked",
+   "text": "ne – je odvolaný"
+  },
+  "h2cw_2": {
+   "source": "once it is approved and issued",
+   "text": "až bude schválen a vydán"
+  },
+  "h2cm_1": {
+   "source": "Where the portal’s one-time code goes when it goes by mail - needed then (A one-time code for acme’s own accounts).",
+   "text": "Kam jde jednorázový kód portálu, když jde e-mailem – pak je potřeba (Jednorázový kód pro vlastní účty acme)."
+  },
+  "h2cm_2": {
+   "source": "Where the portal’s one-time code goes when it goes by SMS - needed then: without it the account cannot sign in there.",
+   "text": "Kam jde jednorázový kód portálu, když jde SMS – pak je potřeba: bez něj se účet na portál nepřihlásí."
   }
  },
  "patterns": {
@@ -66326,10 +66370,6 @@
    "source": "the setting {0}",
    "text": "nastavení {0}"
   },
-  "px2453": {
-   "source": "{0} is {1} to {2}",
-   "text": "{0} je {1} až {2}"
-  },
   "px2454": {
    "source": "\"{0}\" is built in: it cannot be changed",
    "text": "„{0}“ je vestavěná: nelze ji změnit"
@@ -71616,7 +71656,7 @@
   },
   "pptr05": {
    "source": "{0} revokes {1} from the portal ({2})",
-   "text": "{0} revokuje {1} z portálu ({2})"
+   "text": "{0} odvolává {1} z portálu ({2})"
   },
   "pptr06": {
    "source": "{0} was refused on the portal: renewing {1} (needs the right {2})",
@@ -74968,7 +75008,7 @@
   },
   "posu_1": {
    "source": "+{0} more",
-   "text": "+{0} další"
+   "text": "+{0} {0:další|další|dalších}"
   },
   "posu_2": {
    "source": "A fresh pair is made here. Its private half is shown to you once, to download or copy, and kept nowhere; its public half goes onto {0}.",
@@ -76437,6 +76477,22 @@
   "phunt80_9": {
    "source": "{0} was changed by something else since it was read - nothing written, try again",
    "text": "{0} mezitím změnilo něco jiného - nic se nezapsalo, zkuste to znovu"
+  },
+  "ph2c_1": {
+   "source": "test run #{0}",
+   "text": "běh testů č. {0}"
+  },
+  "ph2c_2": {
+   "source": "job {0} is told to stop (by {1})",
+   "text": "úloze {0} bylo řečeno, ať se zastaví ({1})"
+  },
+  "px2453": {
+   "source": "{0} is {1} to {2}",
+   "text": "{0} je {1} až {2}"
+  },
+  "ph2cr_1": {
+   "source": "asked by {0} (forced)",
+   "text": "požádal {0} (vynuceně)"
   }
  },
  "rich": {

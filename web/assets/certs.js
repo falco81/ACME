@@ -2671,9 +2671,10 @@ function deployTable(rows, o) {
                     took the place of the files */
                  skip_same: 1, backup_format: 1, backup_keep: 1, verify_tries: 1, verify_wait: 1};
     /* the files first, their paths only */
-    if (typeof opt.outputs === 'string' && opt.outputs.trim()) {
+    if ((typeof opt.outputs === 'string' && opt.outputs.trim()) || Array.isArray(opt.outputs)) {
       opt = Object.assign({}, opt);
-      opt.outputs = opt.outputs.split(/\n/).map(function (x) { var p = x.trim().split(/\s+/); return p[1] || p[0]; })
+      /* a list too (1.0.80: saved as one, the column said "–") */
+      opt.outputs = (Array.isArray(opt.outputs) ? opt.outputs.join('\n') : opt.outputs).split(/\n/).map(function (x) { var p = x.trim().split(/\s+/); return p[1] || p[0]; })
         .filter(Boolean).join(', ');
     }
     var keys = Object.keys(opt).filter(function (k) {
@@ -3368,7 +3369,7 @@ function certRenew(c, button, back) {
       if (c.issuer) facts.push(['From', data('span', '', c.issuer)]);
       facts.push(['Its key', c.from_csr ? 'the same key - the CSR sent in is used again' : (c.reuse_key ? 'the same key is kept' : 'a new key')]);
       if (c.key_type_alt) facts.push(['Dual', 'both certificates - ' + (c.key_type || '') + ' and ' + c.key_type_alt]);
-      var n = Array.isArray(c.deploys) ? c.deploys.length : (Number(c.deploy_count || c.deploys_total || 0) || 0);
+      var n = Array.isArray(c.deploys) ? c.deploys.length : (Number(c.deploys || c.deploy_count || c.deploys_total || 0) || 0);
       facts.push(['Then', n ? 'put in place again on its targets' : 'nothing to deploy']);
       body.appendChild(kvTable(facts));
       /* Only for a source of a public CA (ACME and the commercial ones): an own
@@ -3480,7 +3481,11 @@ function detailsSection(c, back) {
       ['Owner', c.owner ? (window.ACME_TEAMS ? ACME_TEAMS.ownerChip(c.owner) : data('span', '', c.owner)) : 'nobody'],
       ['Tags', arr(c.tags).length ? tagChips(c.tags) : '–'],
       ['Note', c.note ? data('span', '', known(c.note)) : '–'],
-      ['Renews', autoCan(c) ? (truthy(c.auto_renew) ? 'automatically' : 'only when asked') : 'by importing a new one'],
+      /* what it is, for whoever looks (1.0.80: read-only accounts, revoked and waiting ones said
+         "by importing a new one" of a certificate from a source) */
+      ['Renews', !c.issuer ? 'by importing a new one' : c.state === 'revoked' ? 'no - it is revoked'
+        : (c.state === 'pending' || c.state === 'pending-approval' || asked(c)) ? 'once it is approved and issued'
+        : (truthy(c.auto_renew) ? 'automatically' : 'only when asked')],
       ['Days before the end', c.renew_days ? String(c.renew_days) : 'as Renewal and notices says'],
       ['Key on renewal', truthy(c.reuse_key) ? 'kept' : 'a new one each time'],
       c.issuer_ref ? ['Its id at the source', explain(copyable(String(c.issuer_ref), 'copied'), 'Imported from its source: each renewal reissues this order (or certificate) there.')] : null,
@@ -5504,7 +5509,9 @@ function certWizard(cert, detail, opts) {
     var s = src();
     var list = names();
     var pairs = [
-      ['Source', s ? s.name + ' · ' + plugTitle('issuer', s.kind) : W.d.issuer],
+      /* its name as it is, its kind in the page's language (1.0.80: "Self-signed" translated
+         as a name - "Podepsaný sám sebou · Podepsaný sám sebou") */
+      ['Source', s ? data('span', '', s.name + ' · ' + tr(plugTitle('issuer', s.kind))) : data('span', '', W.d.issuer || '')],
       ['Name in acme', W.d.name || (list[0] ? certName(list[0]) : '–')],
       ['Common name (CN)', data('span', 'mono', String(W.d.cn || '').trim() || list[0] || '–')],
       ['Names', namesChips(list.concat(sanOther()))],
@@ -7533,7 +7540,23 @@ function jobPeek(id) {
       capi('certs/job_stop', {id: j.id}).then(function (x) { toast(said(x, 'asked to stop'), 'good'); poll(true); }).catch(fail).then(function () { busy(b, false); });
     }});
     if (!running && MANAGE && j.cert_id && (j.kind === 'renew' || j.kind === 'issue') && jobState(j) === 'failed')
-      buttons.push({words: 'Try again', cls: 'primary', icon: 'refresh', go: function (b) { certRenew({id: j.cert_id}, b); }});
+      buttons.push({words: 'Try again', cls: 'primary', icon: 'refresh', go: function (b) {
+        /* what failed tried again (1.0.80): the certificate as it is now - issued and only its
+           deployment failed: deployed again; else asked, as Renew now asks (it went at once,
+           a new certificate from the CA, its limits) */
+        busy(b, true);
+        capi('certs/one' + qs({id: j.cert_id})).then(function (d) {
+          busy(b, false);
+          var c = d.cert || d;
+          c.deploys = rowsOf(d.deploys);
+          var badDeploy = c.deploys.some(function (x) { return x.state === 'failed'; });
+          if (c.not_after && c.state === 'ok' && badDeploy) {
+            capi('certs/deploy', {id: c.id}).then(function (x) { jobStarted(x, 'deploying'); }).catch(fail);
+            return;
+          }
+          certRenew(c, b);
+        }).catch(function (e) { busy(b, false); fail(e); });
+      }});
     if (!running && MANAGE && j.deploy_id && j.kind === 'deploy' && jobState(j) === 'failed')
       buttons.push({words: 'Try again', cls: 'primary', icon: 'refresh', go: function (b) {
         busy(b, true);
@@ -7779,7 +7802,7 @@ function drawOverviewCerts(box, d, counts, total) {
     s2.appendChild(okb);
   } else {
     var l2 = el('div', 'ct-ovlist');
-    fails.slice(0, 8).forEach(function (a) {
+    fails.slice(0, 30).forEach(function (a) {
       var key = String(a.key || '');
       var m = /^cert-(\w+):(\d+)$/.exec(key);
       var row = el('div', 'ct-ovrow tappable ' + (a.level === 'bad' ? 'bad' : 'warn'));
@@ -7803,10 +7826,10 @@ function drawOverviewCerts(box, d, counts, total) {
       l2.appendChild(row);
     });
     /* the rest said (1.0.80): the count said 9, the list showed 8 and no way to the 9th */
-    if (fails.length > 8) {
+    if (fails.length > 30) {
       var more = el('div', 'ct-ovrow tappable muted');
       more.tabIndex = 0;
-      more.appendChild(el('div', 'ct-ovrow-w', '+ ' + (fails.length - 8) + ' more - every failed job'));
+      more.appendChild(el('div', 'ct-ovrow-w', '+ ' + (fails.length - 30) + ' more - every failed job'));
       more.onclick = function () { openJobs({ok: '0'}); };
       more.onkeydown = function (e) { if (e.key === 'Enter') more.onclick(); };
       l2.appendChild(more);

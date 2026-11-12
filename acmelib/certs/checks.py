@@ -917,7 +917,14 @@ def after_deploy(store, job, cert_id, targets=None, failed=None):
         got = None
         for i, wait in enumerate(AFTER_DEPLOY_TRIES):
             job.check()
-            time.sleep(wait if i else min(wait, 3))
+            # a Stop heard while it waits (1.0.80: it ran to its end, the window said "running")
+            pause = wait if i else min(wait, 3)
+            stop = getattr(job, 'stop', None)
+            if stop is not None and hasattr(stop, 'wait'):
+                stop.wait(pause)
+            else:
+                time.sleep(pause)
+            job.check()
             got = probe(store, chk)
             if got['state'] in ('ok', 'warn'):
                 break

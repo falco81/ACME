@@ -238,6 +238,8 @@ def mine(h, s, rows=None):
         one = public_row(st_, r, via)
         one['may'] = [w for w in ALL_RIGHTS if w in rights_of(s, r, names, groups, tms, defined)]
         one['team'] = str(r.get('owner') or '').strip().lower() in tms
+        # asked for by this very person (1.0.80): its Approve was offered, then refused
+        one['asked_by_me'] = str(asker(st_, r['id']).get('who') or '').lower() in names
         if not key_may(s, via, one['may'], asker(st_, r['id']).get('who')):
             one['formats'] = [f for f in one.get('formats') or [] if f != KEY_FORMAT]
         return one

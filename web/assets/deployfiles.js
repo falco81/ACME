@@ -638,6 +638,8 @@
         if (textMode) return '';
         var bad = '';
         rows.forEach(function (r) { var b = r.check(); if (b && !bad && r.path.value.trim()) bad = b; });
+        /* none at all (1.0.80): saved, its deployment failed "no files to write" */
+        if (!bad && !rows.some(function (r) { return r.path.value.trim(); })) bad = tr('no file is written - pick a layout or add a file');
         return bad;
       },
       dual: function (on) { rows.forEach(function (r) { r.vsel.hidden = !on && !r.vsel.value; }); }

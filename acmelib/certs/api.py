@@ -1223,7 +1223,14 @@ def cert_import(store, b, by):
                         _names_in(store, 'certs'))
         if store.db.row('SELECT id FROM certs WHERE name = ?', (name,)):
             raise ValueError('there is a certificate called %s already' % name)
-        names = list(info.get('names') or ([info['cn']] if info.get('cn') else []))
+        # the common name stands in for the names only when it is a DNS name or an address
+        # (1.0.80: "ZZ Issuing CA" of a chain was kept as a DNS name)
+        names = list(info.get('names') or [])
+        if not names and info.get('cn'):
+            try:
+                names = S.clean_names([info['cn']])
+            except ValueError:
+                names = []
         cid = store.db.insert('certs', {
             'name': name, 'cn': str(info.get('cn') or (names[0] if names else ''))[:190],
             'names': json.dumps(names), 'key_type': str(info.get('key_type') or '')[:60],

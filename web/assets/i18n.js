@@ -140,7 +140,7 @@ function i18nInit(pack) {
   });
   (Array.isArray(pack.patterns) ? pack.patterns : []).forEach(function (pair) {
     if (!Array.isArray(pair) || typeof pair[0] !== 'string' || typeof pair[1] !== 'string'
-        || !pair[1] || pair[1] === pair[0]) return;
+        || !pair[1]) return;               /* the same in both: its slots still translated (1.0.80) */
     var c = i18nPattern(i18nFold(pair[0]), pair[1], false);
     if (c && c.own > 0) I18N.pats.push(c);
   });

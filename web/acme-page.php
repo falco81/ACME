@@ -137,7 +137,8 @@ function acme_lang_pack(string $code): ?array
             }
             $from = (string) ($entry['source'] ?? '');
             $to   = (string) ($entry['text'] ?? '');
-            if ($from === '' || $to === '' || $to === $from) {
+            // a pattern the same in both still has its slots translated (1.0.80)
+            if ($from === '' || $to === '' || ($to === $from && $part !== 'patterns')) {
                 continue;
             }
             if ($part === 'patterns') {

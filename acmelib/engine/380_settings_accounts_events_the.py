@@ -456,12 +456,27 @@ def events_hidden_of(store, s):
     try:
         sw, sa = T.where(store, s, 'view', 'owner')
         mine = {r['id'] for r in store.db.rows('SELECT id FROM certs WHERE 1 = 1' + sw, sa)}
-        names = [str(r['name']) for r in store.db.rows('SELECT id, name FROM certs')
-                 if r['id'] not in mine and r.get('name')]
+        allrows = store.db.rows('SELECT id, name FROM certs')
+        names = [str(r['name']) for r in allrows if r['id'] not in mine and r.get('name')]
+        my_names = [str(r['name']) for r in allrows if r['id'] in mine and r.get('name')]
     except Exception:                                   # noqa: BLE001
         return lambda r: str(r.get('kind') or '') in ('certificates', 'portal')
+    # Kept to what is its own (1.0.80): only the names of the certificates there now were hidden
+    # - a deleted one of another team, a job by its number, the accounts and the enrolment
+    # pages (a person's phone) went through. A certificate's event is shown when it names one of
+    # its own; the accounts', sign-ins' and the enrolment pages' not at all.
+    mine_pat = re.compile(r'(?<![\w.-])(?:%s)(?![\w-]|\.[\w])' % '|'.join(
+        re.escape(n) for n in sorted(my_names, key=len, reverse=True)), re.I) if my_names else None
+
+    def not_mine(r):
+        kind = str(r.get('kind') or '')
+        if kind in ('accounts', 'sign-ins', 'portal'):
+            return True
+        if kind == 'certificates':
+            return not (mine_pat and mine_pat.search(str(r.get('words') or '')))
+        return False
     if not names:
-        return None
+        return not_mine
     # A name like a host (a dot, a dash, a digit) anywhere; a plain word ("web", "mail") only where
     # an event names a certificate by it - not every event with the word in it.
     hosty = sorted((n for n in names if re.search(r'[.\-_0-9]', n)), key=len, reverse=True)
@@ -476,7 +491,7 @@ def events_hidden_of(store, s):
 
     def hidden(r):
         w = str(r.get('words') or '')
-        return any(p.search(w) for p in pats)
+        return not_mine(r) or any(p.search(w) for p in pats)
     return hidden
 
 

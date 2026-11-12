@@ -301,7 +301,7 @@ function certDialog(id, fresh) {
   var may = c.may || ['view'];
   var manage = may.indexOf('manage') >= 0, approve = manage || may.indexOf('approve') >= 0;
   var waiting = c.state === 'pending-approval';
-  if (approve && waiting) {
+  if (approve && waiting && !c.asked_by_me) {
     buttons.push({words: 'Decline', icon: 'ban', go: function () { modalOver(function () { declineDialog(c); }, function () { certDialog(c.id); }); }});
     buttons.push({words: 'Approve', cls: 'primary', icon: 'check', go: function (b) {
       busy(b, true);
