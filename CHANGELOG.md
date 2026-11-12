@@ -4,6 +4,8 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.84 - not released
+
 ## 1.0.83 - 2026-11-12
 
 - A source, validation, target or test in use is not deleted, and *Take it away* now
