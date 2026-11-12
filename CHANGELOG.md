@@ -6,6 +6,22 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.94 - not released
 
+- **FortiGate in versions by FortiOS's API**: *FortiOS 6.0 - 6.4*, *7.0 - 7.4.1* and
+  *7.4.2 - 8.0* (the inspection profile's and the VIP's certificate fields changed shape), and
+  the plain one that finds the version itself. A version that does not fit is refused before
+  anything changes, and says which to choose.
+- **Setup guides for every module and version** - how to set up the other side (FortiGate's
+  `config`/`set` commands, an API account and least rights, DNS providers' tokens, CAs, the
+  servers a test checks), in English and Czech. A button *Setup guide* in the forms, the
+  windows of targets and tests and on the page *Modules* shows it over almost the whole page,
+  with contents, the module's versions and both languages.
+- **A guide is written over on the page Modules** in a new editor: *Visual* (like a document,
+  no Markdown needed), *Markdown*, side by side, preview; an assistant putting parts of a guide
+  in (the outline with the module's fields, steps, commands, warnings, tips, tables) and
+  starting from acme's own text, the other language or another version. *Back to the default*
+  gives the shipped text back. Modules of your own carry their own (`guide`, `guide_cs` or
+  `<name>.md` / `<name>.cs.md`); written guides are in backups and the configuration file.
+
 ## 1.0.93 - 2026-11-12
 
 Bug hunt (four parts: the recent changes, the certificates' logic, the daemon/HA/CLI, the pages):

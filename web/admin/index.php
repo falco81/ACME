@@ -1795,6 +1795,9 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <?php if (is_file(dirname(__DIR__) . '/assets/sshkey.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/sshkey.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/sshkey.js')) ?>"></script>
 <?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/guides-editor.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/guides-editor.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/guides-editor.js')) ?>"></script>
+<?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/guides.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/guides.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/guides.js')) ?>"></script>
 <?php endif; ?>

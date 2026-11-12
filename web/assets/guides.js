@@ -40,31 +40,35 @@
   }
   /* inline: `code`, **bold**, *em* / _em_, ~~del~~, [text](url), <https://...> */
   function inline(parent, s) {
-    var re = /(`+)([\s\S]*?[^`])\1(?!`)|\*\*([\s\S]+?)\*\*|__([\s\S]+?)__|~~([\s\S]+?)~~|\*([^*\s][\s\S]*?)\*|(^|[^\w])_([^_\s][\s\S]*?)_(?=[^\w]|$)|\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)|<(https?:\/\/[^>\s]+)>/g;
+    var re = /\\([\\`*_{}\[\]()#+\-.!|~>])|(`+)([\s\S]*?[^`])\2(?!`)|\*\*([\s\S]+?)\*\*|__([\s\S]+?)__|~~([\s\S]+?)~~|\*([^*\s][\s\S]*?)\*|(^|[^\w])_([^_\s][\s\S]*?)_(?=[^\w]|$)|\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)|<(https?:\/\/[^>\s]+)>/g;
     var at = 0, m;
+    var plain = function (t) {
+      String(t).split('\n').forEach(function (part, k) { if (k) parent.appendChild(el('br')); if (part) parent.appendChild(txt(part)); });
+    };
     while ((m = re.exec(s)) !== null) {
-      if (m.index > at) parent.appendChild(txt(s.slice(at, m.index)));
-      if (m[1]) { var c = el('code', 'gd-code'); c.textContent = m[2].replace(/^ (.*) $/, '$1'); parent.appendChild(c); }
-      else if (m[3] !== undefined || m[4] !== undefined) { var b = el('strong'); inline(b, m[3] !== undefined ? m[3] : m[4]); parent.appendChild(b); }
-      else if (m[5] !== undefined) { var d = el('del'); inline(d, m[5]); parent.appendChild(d); }
-      else if (m[6] !== undefined) { var e = el('em'); inline(e, m[6]); parent.appendChild(e); }
-      else if (m[8] !== undefined) { if (m[7]) parent.appendChild(txt(m[7])); var e2 = el('em'); inline(e2, m[8]); parent.appendChild(e2); }
-      else if (m[9] !== undefined) {
-        var href = safeHref(m[10]);
+      if (m.index > at) plain(s.slice(at, m.index));
+      if (m[1] !== undefined) { parent.appendChild(txt(m[1])); }
+      else if (m[2]) { var c = el('code', 'gd-code'); c.textContent = m[3].replace(/^ (.*) $/, '$1'); parent.appendChild(c); }
+      else if (m[4] !== undefined || m[5] !== undefined) { var b = el('strong'); inline(b, m[4] !== undefined ? m[4] : m[5]); parent.appendChild(b); }
+      else if (m[6] !== undefined) { var d = el('del'); inline(d, m[6]); parent.appendChild(d); }
+      else if (m[7] !== undefined) { var e = el('em'); inline(e, m[7]); parent.appendChild(e); }
+      else if (m[9] !== undefined) { if (m[8]) parent.appendChild(txt(m[8])); var e2 = el('em'); inline(e2, m[9]); parent.appendChild(e2); }
+      else if (m[10] !== undefined) {
+        var href = safeHref(m[11]);
         if (href) {
           var a = el('a', 'gd-link');
           a.href = href;
           if (href.charAt(0) !== '#') { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
-          inline(a, m[9]);
+          inline(a, m[10]);
           parent.appendChild(a);
-        } else inline(parent, m[9]);
-      } else if (m[11]) {
-        var a2 = el('a', 'gd-link', m[11]); a2.href = m[11]; a2.target = '_blank'; a2.rel = 'noopener noreferrer';
+        } else inline(parent, m[10]);
+      } else if (m[12]) {
+        var a2 = el('a', 'gd-link', m[12]); a2.href = m[12]; a2.target = '_blank'; a2.rel = 'noopener noreferrer';
         parent.appendChild(a2);
       }
       at = re.lastIndex;
     }
-    if (at < s.length) parent.appendChild(txt(s.slice(at)));
+    if (at < s.length) plain(s.slice(at));
   }
   function cells(line) {
     var s = line.trim().replace(/^\|/, '').replace(/\|$/, '');
@@ -89,10 +93,13 @@
     var flush = function () {
       if (!para.length) return;
       var p = el('p');
-      para.forEach(function (ln, k) {
-        if (k) { if (/ {2,}$|\\$/.test(para[k - 1])) p.appendChild(el('br')); else p.appendChild(txt(' ')); }
-        inline(p, ln.replace(/ {2,}$|\\$/, '').trim());
-      });
+      /* one paragraph, its lines one text (1.0.94: **bold** or *italic* over a line's end was
+         left as stars); a line ending in two spaces or a backslash breaks there */
+      var whole = para.map(function (ln, k) {
+        var t = ln.replace(/ {2,}$|\\$/, '').trim();
+        return k < para.length - 1 ? t + (/ {2,}$|\\$/.test(ln) ? '\n' : ' ') : t;
+      }).join('');
+      inline(p, whole);
       root.appendChild(p);
       para = [];
     };
@@ -102,9 +109,9 @@
       var fence = ln.match(/^\s*(```+|~~~+)\s*([\w+-]*)\s*$/);
       if (fence) {
         flush();
-        var body = [], close = fence[1];
+        var body = [], close = fence[1], fin = new RegExp('^ {0,' + ln.match(/^\s*/)[0].length + '}');
         i++;
-        while (i < lines.length && lines[i].trim().indexOf(close) !== 0) { body.push(lines[i]); i++; }
+        while (i < lines.length && lines[i].trim().indexOf(close) !== 0) { body.push(lines[i].replace(fin, '')); i++; }
         i++;
         root.appendChild(codeBlock(body.join('\n'), fence[2]));
         continue;
@@ -180,13 +187,15 @@
       if (sub.length) {
         var lead = [], rest = [], k = 0;
         while (k < sub.length && !/^\s*([-*+]|\d{1,3}[.)])\s+/.test(sub[k]) && !/^\s*(```|~~~)/.test(sub[k])) { lead.push(sub[k].trim()); k++; }
-        if (lead.length) { item._p.appendChild(txt(' ')); inline(item._p, lead.join(' ')); }
+        if (lead.length) item._raw += ' ' + lead.join(' ');
         rest = sub.slice(k);
         if (rest.length) {
-          var inner = render(rest.map(function (x) { return x.replace(new RegExp('^\\s{0,' + (base + 4) + '}'), ''); }).join('\n'), {inner: true});
+          var cut = new RegExp('^ {0,' + Math.max(item._ind, base + 2) + '}');
+          var inner = render(rest.map(function (x) { return x.replace(cut, ''); }).join('\n'), {inner: true});
           while (inner.node.firstChild) item.appendChild(inner.node.firstChild);
         }
       }
+      inline(item._p, item._raw);
       L.appendChild(item);
       item = null; sub = [];
     };
@@ -204,8 +213,9 @@
           text = task[2];
         }
         item._p = el('span');
-        inline(item._p, text);
-        item.appendChild(item._p);
+        item._raw = text;
+        item._ind = ln.length - m[3].length;   /* where the item's own text begins */
+        item.insertBefore(item._p, null);
       } else if (item) {
         sub.push(ln);
       }
@@ -311,7 +321,7 @@
     var editB = null;
     var buttons = [{words: 'Close', close: true}];
     buttons.push({words: 'Edit the guide', icon: 'edit', cls: 'gd-editbtn', go: function () {
-      guideEdit(p, family, cur.version, {lang: cur.lang, back: function () { guideShow(p, family, cur.version, opt); }});
+      editAny(p, family, cur.version, {lang: cur.lang});
     }});
     var show = function () {
       modal(tr('Setup guide') + ' · ' + (p.title || kind), function (body) {
@@ -591,5 +601,10 @@
     return b;
   }
 
-  window.ACME_GUIDES = {render: draw, show: guideShow, edit: guideEdit, button: guideButton};
+  /* the editor of its own file (guides-editor.js, 1.0.94): visual, Markdown, the Assistant */
+  function editAny(p, family, version, opt) {
+    if (window.ACME_GUIDE_EDITOR) return window.ACME_GUIDE_EDITOR.edit(p, family, version, opt);
+    return guideEdit(p, family, version, opt);
+  }
+  window.ACME_GUIDES = {render: draw, show: guideShow, edit: editAny, button: guideButton};
 })();

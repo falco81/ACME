@@ -1414,3 +1414,71 @@ table.ct-deptable .ct-rowerr{overflow-wrap:break-word;word-break:normal;max-widt
 #modal-box.gd-full .gd-panes{flex:1 1 0;min-height:0}
 #modal-box.gd-full .gd-pane-l,#modal-box.gd-full .gd-preview{min-height:0;overflow:auto}
 #modal-box.gd-full .gd-area{min-height:0;height:auto;overflow:auto}
+
+/* ==== The guide editor (1.0.94, guides-editor.js): visual / Markdown / side by side / preview, the Assistant ==== */
+#modal-box.gd-edbox{width:min(1680px,98vw);height:96vh;max-height:96vh}
+.gd-edbox .gd-editor{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel))}
+.gd-edbox .gd-toolbar{position:sticky;top:0;z-index:3;gap:3px;padding:8px 10px;backdrop-filter:blur(6px)}
+.gd-edbox .gd-tool{min-width:34px;height:32px;border-radius:8px;font-size:13.5px;transition:background .12s,border-color .12s,color .12s}
+.gd-edbox .gd-tool.on{background:rgba(88,166,255,.18);border-color:rgba(88,166,255,.45);color:var(--accent)}
+.gd-edbox .gd-tool[hidden]{display:none}
+.gd-edbox .gd-sep[hidden]{display:none}
+.gd-toolbar.gd-bar-off .gd-tool{opacity:.35;pointer-events:none}
+.gd-assistb{margin-left:8px;background:transparent;border:1px solid var(--line);color:var(--tx-dim);border-radius:8px;padding:5px 12px;font-size:12.5px;font-weight:700;cursor:pointer}
+.gd-assistb.on{background:rgba(163,113,247,.16);border-color:rgba(163,113,247,.5);color:var(--violet)}
+.gd-work{flex:1 1 0;min-height:0;display:flex}
+.gd-edbox .gd-panes{flex:1 1 auto;min-width:0;min-height:0;display:grid;grid-template-columns:1fr}
+.gd-edbox .gd-pane{min-height:0;overflow:auto}
+.gd-edbox .gd-visual,.gd-edbox .gd-area,.gd-edbox .gd-preview{display:none}
+.gd-mode-visual .gd-visual{display:block}
+.gd-mode-markdown .gd-area{display:block}
+.gd-mode-split .gd-panes{grid-template-columns:1fr 1fr}
+.gd-mode-split .gd-area,.gd-mode-split .gd-preview{display:block}
+.gd-mode-split .gd-area{border-right:1px solid var(--line)}
+.gd-mode-view .gd-preview{display:block}
+.gd-edbox .gd-area{width:100%;height:100%;resize:none;border:0;outline:none;background:transparent;color:var(--tx);padding:22px 26px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px;line-height:1.65}
+.gd-edbox .gd-preview{padding:22px 30px;background:var(--panel)}
+.gd-visual{padding:28px 40px 60px;outline:none;max-width:none;background:var(--panel);cursor:text;caret-color:var(--accent)}
+.gd-visual > *{max-width:980px}
+.gd-visual:focus{box-shadow:inset 0 0 0 1px rgba(88,166,255,.25)}
+.gd-visual p:empty::before,.gd-visual:empty::before{content:" "}
+.gd-visual .gd-tablewrap td,.gd-visual .gd-tablewrap th{min-width:80px;outline:none}
+.gd-visual .gd-tablewrap td:focus-within,.gd-visual .gd-tablewrap th:focus-within{background:rgba(88,166,255,.08)}
+.gd-pre-ed .gd-pre-bar{gap:8px}
+.gd-pre-sel{background:transparent;color:var(--tx-dim);border:1px solid var(--line);border-radius:6px;font-size:11.5px;padding:2px 6px;text-transform:uppercase;font-weight:700}
+.gd-pre-rm{background:transparent;border:0;color:var(--tx-dim);font-size:16px;line-height:1;cursor:pointer;padding:0 4px}
+.gd-pre-rm:hover{color:var(--crit)}
+.gd-pre-ed pre{outline:none;min-height:2.2em;caret-color:#fff}
+.gd-pre-ed pre:focus{box-shadow:inset 0 0 0 1px rgba(88,166,255,.4)}
+/* the Assistant */
+.gd-assist{display:none;width:340px;flex:none;border-left:1px solid var(--line);overflow:auto;padding:14px 14px 30px;background:var(--panel2)}
+.gd-with-assist .gd-assist{display:block}
+.gd-as-sec{margin-bottom:20px}
+.gd-as-h{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--violet);margin:0 0 4px}
+.gd-as-sub{font-size:12px;color:var(--tx-dim);margin:0 0 10px;line-height:1.45}
+.gd-as-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.gd-as-card{display:flex;gap:9px;align-items:flex-start;text-align:left;padding:10px;border:1px solid var(--line);border-radius:11px;background:var(--panel);color:var(--tx);cursor:pointer;transition:transform .1s,border-color .12s,box-shadow .12s}
+.gd-as-card:hover{border-color:rgba(163,113,247,.55);box-shadow:0 6px 18px rgba(0,0,0,.25);transform:translateY(-1px)}
+.gd-as-ic{flex:none;width:28px;height:28px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;background:rgba(163,113,247,.15);color:var(--violet);font-weight:800;font-size:13px}
+.gd-as-w{display:flex;flex-direction:column;gap:2px;min-width:0}
+.gd-as-w b{font-size:12.5px}
+.gd-as-w small{font-size:11px;color:var(--tx-dim);line-height:1.3}
+.gd-as-from{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;padding:9px 12px;margin:0 0 7px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--tx);cursor:pointer;font-size:12.5px}
+.gd-as-from:hover{border-color:var(--accent)}
+.gd-as-vrow{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;margin:2px 0 8px;padding:9px 10px;border:1px dashed var(--line);border-radius:10px}
+.gd-as-vrow .gd-as-vl{grid-column:1 / -1;font-size:12px;font-weight:700}
+.gd-cheat{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}
+.gd-cheat td{padding:5px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+.gd-cheat td:first-child{white-space:nowrap}
+/* a small question over the editor (a link) */
+.gd-pop{position:absolute;z-index:10;top:56px;left:50%;transform:translateX(-50%);width:min(440px,92%);padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.gd-pop-h{font-weight:800;margin:0 0 8px}
+.gd-pop-b{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+.gd-edbox .gd-head-r .gd-langb{padding:6px 14px}
+@media (max-width:1100px){.gd-assist{width:280px}.gd-as-grid{grid-template-columns:1fr}}
+@media (max-width:760px){
+  .gd-with-assist .gd-assist{position:absolute;right:0;top:48px;bottom:34px;width:88%;z-index:4;box-shadow:-10px 0 30px rgba(0,0,0,.4)}
+  .gd-mode-split .gd-panes{grid-template-columns:1fr}
+  .gd-mode-split .gd-preview{display:none}
+  .gd-visual{padding:18px 16px 40px}
+}

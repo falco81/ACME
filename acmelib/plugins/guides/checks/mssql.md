@@ -11,7 +11,7 @@ The **Microsoft SQL Server** test connects to SQL Server on port `1433`, sends a
 ## Set up SQL Server
 
 1. Windows: the certificate (with its key, *Server Authentication* EKU, the server's FQDN) in **Local Computer\Personal**. Grant the SQL Server service account read access to the key (certlm.msc → the certificate → All Tasks → Manage Private Keys → add `NT Service\MSSQLSERVER` or the instance's service account → Read).
-2. Choose it for the instance: **SQL Server Configuration Manager → SQL Server Network Configuration → Protocols for <instance> → Properties → Certificate** (SQL Server 2019+ also: Import / the thumbprint). Or set the thumbprint (lower case, no spaces) in the registry value `Certificate` under `HKLM\SOFTWARE\Microsoft\Microsoft SQL Server\<instance id>\MSSQLServer\SuperSocketNetLib` - that is what a Windows target can update on each deployment.
+2. Choose it for the instance: **SQL Server Configuration Manager → SQL Server Network Configuration → Protocols for INSTANCE → Properties → Certificate** (INSTANCE: the instance name, e.g. MSSQLSERVER) (SQL Server 2019+ also: Import / the thumbprint). Or set the thumbprint (lower case, no spaces) in the registry value `Certificate` under `HKLM\SOFTWARE\Microsoft\Microsoft SQL Server\<instance id>\MSSQLServer\SuperSocketNetLib` - that is what a Windows target can update on each deployment.
 3. **Restart the SQL Server service** - SQL Server loads its certificate only at start:
 
    ```powershell

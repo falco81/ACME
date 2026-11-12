@@ -490,6 +490,47 @@ so. A release ships its own in `acmelib/plugins/verified.json`
 `acme --module-marks-export` prints the marks set on an installation in that
 shape, to put into the file before a release.
 
+## A setup guide for the other side
+
+Every module - each version of it, an override, one of your own - has a **setup guide**: Markdown
+saying how to set up the device, service, DNS provider or CA for acme (its account and least
+rights, the commands, what goes into acme's fields). Forms, target and test windows and the page
+*Modules* show it read-only in a window over almost the whole page (button *Setup guide*); a full
+administrator writes it over on the page *Modules* (*Edit the guide*).
+
+Where the text comes from - the first that has one, for the language asked, then English:
+
+1. **written on the page** - kept in the database (`meta guide:<family>:<kind>@<version>:<lang>`),
+   so on both nodes of a cluster, in every backup and in the configuration file
+   (`config export` / `import`, key `guides`); *Back to the default* takes it away again;
+2. **the module itself** - a class attribute `guide` / `guide_cs` (Markdown), or a file beside a
+   module of your own: `mine.py` → `mine.md` and `mine.cs.md`;
+3. **shipped with acme** - `acmelib/plugins/guides/<folder>/<kind>@<version>[.cs].md`, then
+   `<kind>[.cs].md` (one text for every version with the same steps);
+4. **made from the module** - its title, description and fields as a table.
+
+```python
+class Mine(LocalTarget):
+    kind = 'mine'
+    title = 'Mine'
+    guide = """# Mine - setup for acme
+
+1. Make an account `acme` with the right to import certificates.
+2. Fill in acme: *Address*, *User*, *Password*.
+"""
+```
+
+The editor has a **Visual** mode (edited like a document, no Markdown needed), **Markdown**, side
+by side and a preview. Its assistant puts parts of a guide in (an outline with the module's
+fields filled in, steps, commands, a warning, a tip, a table) and starts from another text:
+acme's own text of the version, the other language, another version of the module. HTML pasted
+in (from a web page or a document) is turned into Markdown. Links may be `https://`, `http://`,
+`mailto:` or `#` only; nothing of the text runs as HTML.
+
+    GET  /api/modules/guide?family=target&kind=fortigate&version=7.4.2&lang=cs
+    POST /api/modules/guide {family, kind, version, lang, md}   (md '' gives it back)
+    GET  /api/modules/guides                                    (the ones written on the page)
+
 ## Filled in from the account (discovery)
 
 *Find the settings from the account* (web/assets/discover.js, POST

@@ -11,7 +11,7 @@ Test **Microsoft SQL Server** se připojí k SQL Serveru na port `1433`, pošle 
 ## Nastavení SQL Serveru
 
 1. Windows: certifikát (s klíčem, EKU *Server Authentication*, FQDN serveru) v **Local Computer\Personal**. Dejte účtu služby SQL Server právo číst klíč (certlm.msc → certifikát → All Tasks → Manage Private Keys → přidat `NT Service\MSSQLSERVER` nebo účet služby instance → Read).
-2. Vyberte ho pro instanci: **SQL Server Configuration Manager → SQL Server Network Configuration → Protocols for <instance> → Properties → Certificate** (SQL Server 2019+ také: Import / otisk). Nebo nastavte otisk (malými písmeny, bez mezer) v hodnotě registru `Certificate` pod `HKLM\SOFTWARE\Microsoft\Microsoft SQL Server\<instance id>\MSSQLServer\SuperSocketNetLib` - tu může cíl Windows aktualizovat při každém nasazení.
+2. Vyberte ho pro instanci: **SQL Server Configuration Manager → SQL Server Network Configuration → Protocols for INSTANCE → Properties → Certificate** (INSTANCE: jméno instance, např. MSSQLSERVER) (SQL Server 2019+ také: Import / otisk). Nebo nastavte otisk (malými písmeny, bez mezer) v hodnotě registru `Certificate` pod `HKLM\SOFTWARE\Microsoft\Microsoft SQL Server\<instance id>\MSSQLServer\SuperSocketNetLib` - tu může cíl Windows aktualizovat při každém nasazení.
 3. **Restartujte službu SQL Server** - SQL Server načítá certifikát jen při startu:
 
    ```powershell

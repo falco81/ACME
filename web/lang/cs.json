@@ -56727,6 +56727,270 @@
   "guide_43": {
    "source": "setup guides",
    "text": "návody k nastavení"
+  },
+  "ged_1": {
+   "source": "Put a part in",
+   "text": "Vložit část"
+  },
+  "ged_2": {
+   "source": "A part of a guide where the caret is - then fill it in.",
+   "text": "Část návodu na místo kurzoru - pak ji doplňte."
+  },
+  "ged_3": {
+   "source": "Whole outline",
+   "text": "Celá osnova"
+  },
+  "ged_4": {
+   "source": "every usual section, the fields filled in",
+   "text": "všechny obvyklé oddíly, s vyplněnými poli"
+  },
+  "ged_5": {
+   "source": "What you need",
+   "text": "Co potřebujete"
+  },
+  "ged_6": {
+   "source": "versions, access",
+   "text": "verze, přístupy"
+  },
+  "ged_7": {
+   "source": "Setting it up",
+   "text": "Nastavení"
+  },
+  "ged_8": {
+   "source": "numbered steps",
+   "text": "číslované kroky"
+  },
+  "ged_9": {
+   "source": "Fill in acme",
+   "text": "Vyplnit v acme"
+  },
+  "ged_10": {
+   "source": "the module's fields as a table",
+   "text": "pole modulu jako tabulka"
+  },
+  "ged_11": {
+   "source": "how to verify",
+   "text": "jak ověřit"
+  },
+  "ged_12": {
+   "source": "Common problems",
+   "text": "Časté problémy"
+  },
+  "ged_13": {
+   "source": "errors and fixes",
+   "text": "chyby a řešení"
+  },
+  "ged_14": {
+   "source": "Warning",
+   "text": "Upozornění"
+  },
+  "ged_15": {
+   "source": "something to take care of",
+   "text": "na co si dát pozor"
+  },
+  "ged_16": {
+   "source": "Tip",
+   "text": "Tip"
+  },
+  "ged_17": {
+   "source": "a good piece of advice",
+   "text": "dobrá rada"
+  },
+  "ged_18": {
+   "source": "Commands",
+   "text": "Příkazy"
+  },
+  "ged_19": {
+   "source": "a block to copy",
+   "text": "blok ke zkopírování"
+  },
+  "ged_20": {
+   "source": "Steps",
+   "text": "Kroky"
+  },
+  "ged_21": {
+   "source": "a numbered list",
+   "text": "číslovaný seznam"
+  },
+  "ged_22": {
+   "source": "Start from",
+   "text": "Začít z"
+  },
+  "ged_23": {
+   "source": "Takes the place of what is in the editor - nothing is kept until you press Save.",
+   "text": "Nahradí obsah editoru - nic se neuloží, dokud nestisknete Uložit."
+  },
+  "ged_24": {
+   "source": "acme's own text of this version",
+   "text": "Vlastní text acme pro tuto verzi"
+  },
+  "ged_25": {
+   "source": "The other language",
+   "text": "Druhý jazyk"
+  },
+  "ged_26": {
+   "source": "Another version",
+   "text": "Jiná verze"
+  },
+  "ged_27": {
+   "source": "Take it",
+   "text": "Převzít"
+  },
+  "ged_28": {
+   "source": "An empty outline",
+   "text": "Prázdná osnova"
+  },
+  "ged_29": {
+   "source": "Markdown in brief",
+   "text": "Markdown ve zkratce"
+  },
+  "ged_30": {
+   "source": "In Visual nothing of it is needed - the buttons do it.",
+   "text": "V režimu Vizuálně nic z toho nepotřebujete - udělají to tlačítka."
+  },
+  "ged_31": {
+   "source": "Section heading",
+   "text": "Nadpis oddílu"
+  },
+  "ged_32": {
+   "source": "Smaller heading",
+   "text": "Menší nadpis"
+  },
+  "ged_33": {
+   "source": "Bold",
+   "text": "Tučně"
+  },
+  "ged_34": {
+   "source": "Italic",
+   "text": "Kurzíva"
+  },
+  "ged_35": {
+   "source": "Code in the text",
+   "text": "Kód v textu"
+  },
+  "ged_36": {
+   "source": "Numbered steps",
+   "text": "Číslované kroky"
+  },
+  "ged_37": {
+   "source": "Link",
+   "text": "Odkaz"
+  },
+  "ged_38": {
+   "source": "Shortcuts: Ctrl+B bold, Ctrl+I italic, Ctrl+K link, Ctrl+Alt+1/2/3 headings, Ctrl+S save.",
+   "text": "Zkratky: Ctrl+B tučně, Ctrl+I kurzíva, Ctrl+K odkaz, Ctrl+Alt+1/2/3 nadpisy, Ctrl+S uložit."
+  },
+  "ged_39": {
+   "source": "Give the guide back to its default?",
+   "text": "Vrátit návod na výchozí?"
+  },
+  "ged_40": {
+   "source": "What was written over for this version and language is taken away: acme's own text (or the module's, or one made from its fields) is shown again.",
+   "text": "To, co bylo pro tuto verzi a jazyk přepsáno, se odstraní: znovu se zobrazí vlastní text acme (nebo modulu, případně text vytvořený z jeho polí)."
+  },
+  "ged_41": {
+   "source": "Visual",
+   "text": "Vizuálně"
+  },
+  "ged_42": {
+   "source": "Markdown",
+   "text": "Markdown"
+  },
+  "ged_43": {
+   "source": "Plain text",
+   "text": "Běžný text"
+  },
+  "ged_44": {
+   "source": "A note (quote)",
+   "text": "Poznámka (citace)"
+  },
+  "ged_45": {
+   "source": "Commands (code block)",
+   "text": "Příkazy (blok kódu)"
+  },
+  "ged_46": {
+   "source": "Dividing line",
+   "text": "Dělicí čára"
+  },
+  "ged_47": {
+   "source": "Table: a row below",
+   "text": "Tabulka: řádek pod"
+  },
+  "ged_48": {
+   "source": "Table: a column right",
+   "text": "Tabulka: sloupec vpravo"
+  },
+  "ged_49": {
+   "source": "Table: take the row away",
+   "text": "Tabulka: odebrat řádek"
+  },
+  "ged_50": {
+   "source": "Table: take the column away",
+   "text": "Tabulka: odebrat sloupec"
+  },
+  "ged_51": {
+   "source": "Words",
+   "text": "Text"
+  },
+  "ged_52": {
+   "source": "Take this block away",
+   "text": "Odebrat tento blok"
+  },
+  "ged_53": {
+   "source": "The guide",
+   "text": "Návod"
+  },
+  "ged_54": {
+   "source": "Put the whole outline in, beside what is written?",
+   "text": "Vložit celou osnovu vedle toho, co je napsáno?"
+  },
+  "ged_55": {
+   "source": "Replace what is in the editor?",
+   "text": "Nahradit obsah editoru?"
+  },
+  "ged_56": {
+   "source": "a link is an https://, http:// or mailto: address",
+   "text": "odkaz musí být adresa https://, http:// nebo mailto:"
+  },
+  "ged_57": {
+   "source": "acme's own text",
+   "text": "vlastní text acme"
+  },
+  "ged_58": {
+   "source": "none yet - made from its fields",
+   "text": "zatím žádný - vytvořený z polí modulu"
+  },
+  "ged_59": {
+   "source": "put the caret in a table first",
+   "text": "nejprve umístěte kurzor do tabulky"
+  },
+  "ged_60": {
+   "source": "taken in - Save keeps it",
+   "text": "převzato - uloží se tlačítkem Uložit"
+  },
+  "ged_61": {
+   "source": "the heading row stays",
+   "text": "řádek záhlaví zůstává"
+  },
+  "ged_62": {
+   "source": "the words shown",
+   "text": "zobrazený text"
+  },
+  "ged_63": {
+   "source": "this language has none yet: the English text is shown to start from",
+   "text": "tento jazyk zatím návod nemá: jako základ je zobrazen anglický text"
+  },
+  "ged_64": {
+   "source": "written over here",
+   "text": "přepsáno zde"
+  },
+  "ged_65": {
+   "source": "| Field | Value |",
+   "text": "| Pole | Hodnota |"
+  },
+  "ged_66": {
+   "source": "Assistant",
+   "text": "Asistent"
   }
  },
  "patterns": {
