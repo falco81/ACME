@@ -1191,9 +1191,9 @@ def plan(store, cert, deploys, full=False):
                          'nothing is deployed until a new one is issued'})
     hold = S.deploy_hold(store, cert['id']) if cert.get('id') else None
     if hold and not stop_all:
-        stop_all.append({'kind': 'wait', 'words': 'Held since its source was changed: a new '
-                         'certificate is issued and kept here, and put on the targets only with '
-                         'Deploy now', 'note': 'not by itself either - not at a renewal'})
+        stop_all.append({'kind': 'wait', 'words': 'Its deployments are held: a new certificate '
+                         'is issued and kept here, and put on the targets only with Deploy now',
+                         'note': 'not by itself either - not at a renewal'})
     if stop_all:
         dp['steps'] = stop_all
     if not dinfo:

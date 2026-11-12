@@ -76,6 +76,26 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   - acme's own DNS server answers a wildcard record (`*.x`) for every name under it (RFC 4592).
     It could be saved and was never served. A record at `@` with several zones set is put at
     the first of them, not at a name made of the whole list.
+  - The command line:
+    - a private key could not be exported with `--out FILE` at all since 1.0.80 (`--export`
+      of a key format, `--ca-export --what key`): the refusal meant for `--api`, which prints
+      what it gets, refused every option. A key goes into a file again, and into a pipe with
+      `--out -` - not onto a screen;
+    - `--import FILE --into NAME` took a certificate of other names (its key dropped), and the
+      next deployment put it on the servers. Its names must cover the certificate's, or
+      `--force`;
+    - two options that do something (`--deploy-hold … --deploy …`) are refused; the first ran
+      and the rest were dropped. `--set` beside an option that takes none is refused before
+      anything is done, not after;
+    - `--check-switch` of a test that is not there says so;
+    - `--target-del` of a target in use is refused before the question, and says `--force`;
+    - `--deploy NAME` ends a hold set by hand too; the job's words no longer say the hold came
+      from a change of the source;
+    - `--jobs --limit` 0 or less is refused, as for `--events`;
+    - `--json` with `--maintenance`, `--restart-nodes`, `--updates`, `--hand-clear`,
+      `--add-directory` and `--mail-test` gives JSON.
+  - The console: a certificate's deploy hold on and off; a target or test in use is taken off
+    everywhere and deleted when asked.
 
 ## 1.0.87 - 2026-11-12
 

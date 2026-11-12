@@ -237,6 +237,7 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
         # closed while it ran can be opened again from there.
         from acmelib.certs import portal as _portal
         one['last_job'] = _portal.last_job(store, r['id'])
+        one['deploy_hold'] = S.deploy_hold(store, r['id']) is not None   # the console (1.0.88)
         out.append(one)
     return {'rows': out, 'total': total, 'page': page, 'per': per}
 
@@ -1211,6 +1212,20 @@ def cert_import(store, b, by):
     second = _second_half(got, leaf, key, info)
     if b.get('id') not in (None, '', 0):
         row = S.cert_need(store, _id(b.get('id')))
+        # its names, all of them, in the one brought in (1.0.88: another certificate went into
+        # it - its key dropped - and the next deployment put it on the servers); `force` takes it
+        have = [str(n).lower() for n in (S.jload(row.get('names'), []) or [])]
+        brings = [str(n).lower() for n in (info.get('names') or [])] or \
+            ([str(info.get('cn')).lower()] if info.get('cn') else [])
+
+        def covered(n):
+            return any(n == m or (m.startswith('*.') and n.count('.') == m.count('.') and
+                                  n.split('.', 1)[-1] == m[2:]) for m in brings)
+        missing = [n for n in have if not covered(n)]
+        if missing and brings and b.get('force') in (None, '', 0, '0', False, 'false'):
+            raise ValueError('the certificate brought in is not for %s: it lacks %s (it is for %s)'
+                             ' - import it as a certificate of its own, or with force'
+                             % (row['name'], ', '.join(missing[:5]), ', '.join(brings[:5])))
         if as_ == 'auto':
             as_ = 'alt' if _other_half_of(row, info) else 'main'
         if as_ == 'alt':

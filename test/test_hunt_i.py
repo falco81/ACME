@@ -148,6 +148,29 @@ class Carry(unittest.TestCase):
         self.assertIsNotNone(S.deploy_hold(STORE, cid))
 
 
+class CommandLine(unittest.TestCase):
+    def acme(self, *argv):
+        import subprocess
+        r = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py')] + list(argv),
+                           capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=120)
+        return r.returncode, r.stdout + r.stderr
+
+    def test_key_exported_into_a_file_not_printed(self):
+        self.acme('--selfsigned', 'cli-i.example.test')
+        out = os.path.join(TMP, 'k.pem')
+        rc, said = self.acme('--export', 'cli-i.example.test', '--format', 'key-pem', '--out', out)
+        self.assertEqual(rc, 0, said)
+        with open(out) as f:
+            self.assertIn('PRIVATE KEY', f.read())
+        rc, said = self.acme('--api', 'POST', '/api/certs/export',
+                             '{"id":1,"format":"key-pem"}')
+        self.assertIn('written to a file', said)
+
+    def test_two_actions_refused(self):
+        rc, said = self.acme('--deploy-hold', 'x', 'on', '--deploy', 'x')
+        self.assertIn('one of them at a time', said)
+
+
 class Buttons(unittest.TestCase):
     def test_one_order_in_every_popup(self):
         with open(os.path.join(ROOT, 'web/assets/core.js')) as f:

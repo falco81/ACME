@@ -315,6 +315,8 @@ def fam_do(con, fam, r):
     opts = [('show', 'Show it all'), ('test', 'Try it (nothing is changed)'),
             ('edit', 'Change its settings'), ('rename', 'Rename it'),
             ('switch', 'Switch it %s' % ('off' if r.get('enabled', 1) else 'on')),
+        ('hold', 'Deploy hold: %s' % ('on - a new one waits for Deploy it now' if r.get(
+            'deploy_hold') else 'off - a new one is deployed by itself')),
             ('default', 'No default %s any more' % word if r.get('is_default') else
              'Make it the default %s' % word)]
     if fam == 'challenge' and r.get('kind') == 'http_local':
@@ -382,8 +384,18 @@ def fam_do(con, fam, r):
     elif what == 'key':
         ssh_key(con, word, name)
     elif what == 'del':
-        if con.confirm('Delete %s' % name, 'Delete the %s %s with its settings and secrets?'
-                       % (word, name), 'Delete it', danger=True):
+        used = int(r.get('used_by') or 0)
+        if used and word in ('target', 'check'):
+            # used somewhere (1.0.88, as the pages): taken off there first, then deleted
+            if con.confirm('Delete %s' % name, '%s is used in %d place(s) (acme --%s-del %s lists '
+                           'them). Take it off everywhere first - %s - and then delete it?'
+                           % (name, used, word, name, 'its deployments are deleted, the '
+                              'certificates stay where they were put' if word == 'target'
+                              else 'it is taken off its certificates and tests'),
+                           'Take it off and delete it', danger=True):
+                con.act('--%s-del' % word, name, '--force', '--yes')
+        elif con.confirm('Delete %s' % name, 'Delete the %s %s with its settings and secrets?'
+                         % (word, name), 'Delete it', danger=True):
             con.act('--%s-del' % word, name, '--yes')
     return None
 
@@ -429,6 +441,8 @@ def cert_do(con, r):
         cert_source(con, r)
     elif what == 'switch':
         con.act('--cert-edit', name, '--enabled', 'off' if r.get('enabled', 1) else 'on')
+    elif what == 'hold':
+        con.act('--deploy-hold', name, 'off' if r.get('deploy_hold') else 'on')
     elif what == 'import':
         cert_import(con, name)
     elif what == 'export':

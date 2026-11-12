@@ -56143,6 +56143,14 @@
   "f87_2": {
    "source": "acme running for",
    "text": "acme běží"
+  },
+  "f88b_1": {
+   "source": "the hold of its deployments ends: they go now",
+   "text": "pozdržení jeho nasazení končí: jdou teď"
+  },
+  "f88b_2": {
+   "source": "Its deployments are held: a new certificate is issued and kept here, and put on the targets only with Deploy now",
+   "text": "Jeho nasazení jsou pozdržena: nový certifikát se vydá a zůstane tady, na cíle jde jen přes Nasadit hned"
   }
  },
  "patterns": {
@@ -76857,6 +76865,14 @@
   "pf88a_1": {
    "source": "renewing the certificate {0} failed: {1}",
    "text": "obnovení certifikátu {0} selhalo: {1}"
+  },
+  "pf88b_1": {
+   "source": "{0} (version {1}) is kept here, not deployed: it waits for Deploy now (its deployments are held)",
+   "text": "{0} (verze {1}) zůstává tady, nenasazuje se: čeká na Nasadit hned (jeho nasazení jsou pozdržena)"
+  },
+  "pf88b_2": {
+   "source": "the certificate brought in is not for {0}: it lacks {1} (it is for {2}) - import it as a certificate of its own, or with force",
+   "text": "přinesený certifikát není pro {0}: chybí v něm {1} (je pro {2}) – importujte ho jako samostatný certifikát, nebo s volbou force"
   }
  },
  "rich": {

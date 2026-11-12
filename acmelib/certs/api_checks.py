@@ -43,8 +43,10 @@ def _cert_need(h, s, cert_id, right, what):
 
 def _check_need(h, s, ident, right, what):
     r = h.store.db.row('SELECT cert_id FROM cert_checks WHERE id = ?', (ident,))
-    if r:
-        _cert_need(h, s, r['cert_id'], right, what)
+    if not r:
+        # none (1.0.88: switching a test that is not there said "switched off")
+        raise LookupError('there is no such test of a certificate')
+    _cert_need(h, s, r['cert_id'], right, what)
 
 
 def _seen(h, s, rows, right='view'):

@@ -103,7 +103,8 @@ def add_args(p):
                    '--force every one acme can renew)')
     g.add_argument('--force', action='store_true', help='with --renew all: not only those due; '
                    'with --csr: a new request; with --acme-contact: on every ACME source; '
-                   'with a target\'s or a test\'s delete: taken off everywhere first')
+                   'with a target\'s or a test\'s delete: taken off everywhere first; with '
+                   '--import --into: a certificate of other names')
     g.add_argument('--deploy', metavar='NAME', help='run its deployments now')
     g.add_argument('--deploy-hold', nargs=2, metavar=('NAME', 'on|off'),
                    help='on: a new certificate of it is issued and kept, not deployed until '
@@ -1166,6 +1167,8 @@ class Cli(object):
         if getattr(a, 'into', None):                    # a new version of one kept (1.0.80)
             body['id'] = self.cert_ref(a.into)['id']
             body.pop('name', None)
+            if getattr(a, 'force', False):
+                body['force'] = True        # another certificate's names into it, knowingly
         parsed = self.api('POST', '/api/certs/parse', body=dict(body))
         if parsed.get('needs_password') and not pw:
             raise SystemExit('acme: %s is locked - add --password' % a.import_file)
@@ -1211,6 +1214,12 @@ class Cli(object):
         row = self.cert_ref(a.export)
         if not a.out:
             raise SystemExit('acme: --export needs --out FILE (or --out - for stdout)')
+        keyish = 'key' in str(a.format or '') or str(a.format or '').startswith(
+            ('p12', 'pfx', 'jks', 'combined', 'haproxy'))
+        if a.out == '-' and keyish and sys.stdout.isatty():
+            # into a pipe, yes; onto a screen, no (1.0.88)
+            raise SystemExit('acme: %s holds the private key - not onto the screen: --out FILE, '
+                             'or --out - into a pipe' % a.format)
         pw = self._password(True)
         if a.format in ('pfx', 'p12', 'p12-legacy', 'jks') and not pw:
             pw = os.environ.get('ACME_FILE_PASSWORD') or ''
@@ -1289,6 +1298,8 @@ class Cli(object):
                    ['job', 'when', 'kind', 'of', 'state', 'node', 'took', 'said'])
 
     def jobs(self):
+        if self.args.limit is not None and int(self.args.limit) < 1:
+            raise SystemExit('acme: --limit is 1 or more')          # as --events (1.0.88)
         got = self.api('GET', '/api/certs/jobs', args={'per': str(self.args.limit or 40)})
         if self.json:
             self.out(got)
@@ -1552,6 +1563,13 @@ class Cli(object):
             for u in uses:
                 print('  %-15s %-40s %s%s' % (u.get('where'), u.get('name'), u.get('said'),
                                              '' if u.get('free') else '  (change it there first)'))
+        if uses and (not force or not all(u.get('free') for u in uses)):
+            # refused before the question (1.0.88: asked "--yes", then refused)
+            held = [u for u in uses if not u.get('free')]
+            raise SystemExit('acme: %s is in use (%d place(s), above) - %s' % (
+                row['name'], len(uses), 'change those marked "change it there first" first'
+                if held else 'take it off there first, or add --force to take it off everywhere '
+                'first'))
         self.sure('the %s %s is deleted, with its settings and secrets%s' % (
             word, row['name'], ' - taken off everywhere above first' if uses and force else ''))
         got = self.api('POST', '/api/%s/delete' % path, body={'id': row['id'], 'force': force})
@@ -2347,6 +2365,20 @@ class Cli(object):
 def run(args):
     if not asked(args):
         return None
+    # One at a time, and --set only beside what takes it - said before anything is done (1.0.88:
+    # the first ran, the rest were dropped without a word; --set was refused after the change)
+    given = [k for k in MINE if getattr(args, k, None) not in (None, False, '')]
+    lists = {'certs', 'cas', 'sources', 'validations', 'targets', 'tests', 'checks', 'jobs',
+             'deploys', 'plugins', 'dns_records', 'dns_sets'}
+    acting = [k for k in given if k not in lists]
+    if len(acting) > 1:
+        raise SystemExit('acme: --%s - one of them at a time' % ', --'.join(
+            k.replace('_', '-') for k in acting))
+    if getattr(args, 'set', None) and acting and not re.search(
+            r'(_add|_edit|_test|_discover)$|^(selfsigned|ca_create|ca_sub|ca_sign|ca_renew|'
+            r'ca_edit|cert_check|check_names|dry_run|import_file)$', acting[0]):
+        raise SystemExit('acme: --set does not go with --%s - nothing was done (the settings: '
+                         'acme --set KEY=VALUE on its own)' % acting[0].replace('_', '-'))
     cli = Cli(args)
     rc = cli.run()
     if getattr(args, 'set', None) and not getattr(cli, 'sets_used', False):

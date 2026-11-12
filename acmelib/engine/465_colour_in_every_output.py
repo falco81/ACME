@@ -176,18 +176,28 @@ class CliApiHandler(ApiHandler):
         return self.me()
 
 
-def cli_api(daemon, who, method, path, body=None, args=None):
-    """One route of the pages, run here: its answer, or SystemExit with its words."""
+def cli_ok(args, pal, words):
+    """A line that went well - or, with --json, {ok, message} (1.0.88: text in the JSON)."""
+    if getattr(args, 'json', False):
+        print(json.dumps({'ok': True, 'message': str(words)}, ensure_ascii=False))
+    else:
+        print(pal.ok_line(words))
+
+
+def cli_api(daemon, who, method, path, body=None, args=None, printed=False):
+    """One route of the pages, run here: its answer, or SystemExit with its words. `printed`:
+    the answer goes to the screen whole (--api) - a private key is refused then (1.0.88: it
+    was refused for every option, and no key could be exported with --out at all)."""
     fn = ROUTES.get((method, path))
     if not fn:
         raise SystemExit('acme: the pages have no %s %s' % (method, path))
     b_ = body or {}
-    if (path.endswith('/sshkey/download') and str(b_.get('half') or '') == 'private') or \
-            (path == '/api/certs/export' and 'key' in str(b_.get('format') or '').lower()
-             or path == '/api/certs/export' and str(b_.get('format') or '').lower().startswith(
-                ('p12', 'pfx', 'jks', 'combined', 'haproxy'))) or \
-            (path == '/api/cas/export' and str(b_.get('format') or '').lower() in
-             ('key', 'p12', 'pfx')):          # an authority's key (1.0.88), as --ca-export asks
+    if printed and ((path.endswith('/sshkey/download') and str(b_.get('half') or '') == 'private') or
+                    (path == '/api/certs/export' and 'key' in str(b_.get('format') or '').lower()
+                     or path == '/api/certs/export' and str(b_.get('format') or '').lower().startswith(
+                         ('p12', 'pfx', 'jks', 'combined', 'haproxy'))) or
+                    (path == '/api/cas/export' and str(b_.get('format') or '').lower() in
+                     ('key', 'p12', 'pfx'))):          # an authority's key (1.0.88), as --ca-export asks
         # a private key not printed to a screen (1.0.80), as --export and --target-key ask --out
         raise SystemExit('acme: a private key is written to a file: acme --export NAME --format '
                          'FORMAT --out FILE, acme --ca-export CA --what key --out FILE, or '
@@ -2887,16 +2897,16 @@ def cli_main(argv=None):
                             'command line', name)
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
-        print(pal.ok_line('%s: %s' % (name, 'in maintenance - no work of its own, and '
+        cli_ok(args, pal, '%s: %s' % (name, 'in maintenance - no work of its own, and '
                                       '/healthz says 503' if args.maintenance == 'on'
-                                      else 'back in service')))
+                                      else 'back in service'))
         return 0
     if args.upgrade_cancel:
         try:
             upgrade_cancel(store, 'command line')
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
-        print(pal.ok_line('the upgrade is stopped; the nodes not begun stay as they are'))
+        cli_ok(args, pal, ('the upgrade is stopped; the nodes not begun stay as they are'))
         return 0
     if args.upgrade_check:
         row = online_look(store, 'command line')
@@ -3110,7 +3120,7 @@ def cli_main(argv=None):
         d = Daemon(store, serve=False)
         if args.hand_clear:
             n = hand_done_clear(store, None, who)
-            print(pal.ok_line('done lately cleared (%d) - what is still to be done stays' % n))
+            cli_ok(args, pal, ('done lately cleared (%d) - what is still to be done stays' % n))
             return 0
         if args.hand_done:
             iid, _, node = args.hand_done.partition('@')
@@ -3120,7 +3130,7 @@ def cli_main(argv=None):
             except ApiError as e:
                 print(pal.bad_line(str(e)))
                 return 1
-            print(pal.ok_line('written down as done: %s on %s' % (iid, node or node_name())))
+            cli_ok(args, pal, ('written down as done: %s on %s' % (iid, node or node_name())))
             return 0
         HAND['cache_at'] = 0.0
         got = {'items': hand_all(store), 'done': hand_done_lately(store)}
@@ -3129,7 +3139,7 @@ def cli_main(argv=None):
             return 0
         print(pal.head('to be done by hand'))
         if not got['items']:
-            print(pal.ok_line('nothing is to be done by hand'))
+            cli_ok(args, pal, ('nothing is to be done by hand'))
         for i in got['items']:
             print((pal.bad_line if i.get('level') == 'bad' else pal.warn_line)(
                 '%s on %s: %s' % (i.get('id'), i.get('node'), i.get('title'))))
@@ -3334,7 +3344,7 @@ def cli_main(argv=None):
         store.add_event('directories', 'command line saved the directory %s'
                         % args.add_directory, who='command line')
         bump(store)
-        print(pal.ok_line('the directory %s is saved' % args.add_directory))
+        cli_ok(args, pal, ('the directory %s is saved' % args.add_directory))
         return 0
 
     if args.del_directory:
@@ -3962,7 +3972,7 @@ def cli_main(argv=None):
                                   % ', '.join(plan['order'])))
             else:
                 osup_cancel(store, who)
-                print(pal.ok_line('stopped - a node being updated finishes'))
+                cli_ok(args, pal, ('stopped - a node being updated finishes'))
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
         return 0
@@ -3979,7 +3989,7 @@ def cli_main(argv=None):
             plan = power_ask(store, 'reboot', nodes, 'rolling' if len(nodes) > 1 else 'one', who)
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
-        print(pal.ok_line('asked (%s) - acme --restarts says how it goes' % plan.get('id')))
+        cli_ok(args, pal, ('asked (%s) - acme --restarts says how it goes' % plan.get('id')))
         return 0
 
     if args.restarts:
@@ -4014,7 +4024,7 @@ def cli_main(argv=None):
         for st_ in steps or []:
             print('  ' + (st_ if isinstance(st_, str) else json.dumps(st_, ensure_ascii=False)))
         store.add_event('mail', '%s sent a test mail to %s' % (who, to), who=who)
-        print(pal.ok_line('sent to %s' % to))
+        cli_ok(args, pal, ('sent to %s' % to))
         return 0
 
     if args.sms_test:
@@ -4029,7 +4039,7 @@ def cli_main(argv=None):
             print(pal.bad_line('not sent: %s' % e))
             return 1
         store.add_event('settings', '%s sent a test SMS to %s' % (who, to), who=who)
-        print(pal.ok_line('sent to %s%s' % (to, (': %s' % said) if said else '')))
+        cli_ok(args, pal, ('sent to %s%s' % (to, (': %s' % said) if said else '')))
         return 0
 
     if args.ssh_tokens:
@@ -4361,7 +4371,7 @@ def cli_main(argv=None):
                                  % ', '.join(sorted(set(secretish))))
         qs = dict(x.split('=', 1) if '=' in x else (x, '') for x in query.split('&') if x)
         got = cli_api(Daemon(store, serve=False), who, method, path,
-                      body if method == 'POST' else None, qs)
+                      body if method == 'POST' else None, qs, printed=True)
         print(json.dumps(got, indent=1, ensure_ascii=False, default=str))
         return 0
 

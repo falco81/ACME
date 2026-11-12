@@ -256,15 +256,14 @@ def run_deploys(store, job, cert_id, only=None, force=False):
     told_renewed(store, job, cert_id)
     # Held (1.0.86, its source changed with "I deploy it myself"): issued, not put anywhere
     # until a person deploys it - who does it lets it go for all of them.
-    if S.deploy_held(store, cert):
-        if not force:
-            job.step('%s (version %s) is kept here, not deployed: it waits for Deploy now '
-                     '(asked when its source was changed)' % (cert['name'], cert.get('version')),
-                     'warn')
-            return True, 'issued, not deployed - it waits for Deploy now'
-        if not only:
-            S.deploy_hold_set(store, cert, False)
-            job.step('the deployments held since its source was changed go now', 'info')
+    if S.deploy_held(store, cert) and not force:
+        job.step('%s (version %s) is kept here, not deployed: it waits for Deploy now (its '
+                 'deployments are held)' % (cert['name'], cert.get('version')), 'warn')
+        return True, 'issued, not deployed - it waits for Deploy now'
+    if force and not only and S.deploy_hold(store, cert['id']):
+        # all of them deployed by a person: the hold ends (1.0.88: also with nothing new waiting)
+        S.deploy_hold_set(store, cert, False)
+        job.step('the hold of its deployments ends: they go now', 'info')
     rows = deploys_of(store, cert_id, only)
     if not rows:
         job.step('no deployment to run')
