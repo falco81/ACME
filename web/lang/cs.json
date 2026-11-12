@@ -55895,6 +55895,14 @@
   "h2cm_2": {
    "source": "Where the portal’s one-time code goes when it goes by SMS - needed then: without it the account cannot sign in there.",
    "text": "Kam jde jednorázový kód portálu, když jde SMS – pak je potřeba: bez něj se účet na portál nepřihlásí."
+  },
+  "ntest_1": {
+   "source": "A new test…",
+   "text": "Nový test…"
+  },
+  "ntest_2": {
+   "source": "Makes a test, as Tests → Add a test does; this window stays and is back when it is saved - then Attach a test lists it.",
+   "text": "Vytvoří test jako Testy → Přidat test; toto okno zůstane a po uložení se vrátí - Připojit test ho pak nabídne."
   }
  },
  "patterns": {

@@ -4,7 +4,11 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.82 - not released
+## 1.0.82 - 2026-11-12
+- A deployment's *What it serves*: *A new test…* opens the popup of *Tests → Add a test* (the
+  kinds, then the test's every setting) over the deployment's window, which is never closed
+  underneath and is back as it was once the test is saved; *Attach a test* lists it then.
+  (*Make a test in Tests…* left both windows and went to the Tests tab.)
 
 ## 1.0.81 - 2026-11-12
 - Overview: *Running out soonest* and *What needs a look* no longer scroll sideways (1.0.80 gave

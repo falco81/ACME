@@ -2905,14 +2905,21 @@ function targetTestsPart(certId, t, saved, pending) {
     }).catch(fail);
   };
   actions.appendChild(attach);
-  /* A test is made in Certificates → Tests (1.0.78), with every setting it has - here only
-     attached and bound to this target. */
-  var mk = el('button', 'btn cmd small');
-  mk.type = 'button';
-  mk.innerHTML = iconMarkup('pulse', 15);
-  mk.appendChild(el('span', '', 'Make a test in Tests…'));
-  mk.onclick = function (ev) { ev.preventDefault(); closeModal(); closeModal(); showTab('tests'); setTimeout(function () { if (typeof modPick === 'function') modPick('tests'); }, 300); };
-  actions.appendChild(mk);
+  /* A new test made here (1.0.82): the very popup of Tests → Add a test, with every setting it
+     has, opened over this one - which stays as it is underneath and is back once the test is
+     saved (or the popup closed); Attach a test then lists it. */
+  if (FULL) {
+    var mk = el('button', 'btn cmd small');
+    mk.type = 'button';
+    mk.innerHTML = iconMarkup('pulse', 15);
+    mk.appendChild(el('span', '', 'A new test…'));
+    explain(mk, 'Makes a test, as Tests → Add a test does; this window stays and is back when it is saved - then Attach a test lists it.');
+    mk.onclick = function (ev) {
+      ev.preventDefault();
+      over(function () { modPick('tests'); }, draw);
+    };
+    actions.appendChild(mk);
+  }
   return box;
 }
 function deployable(t) {

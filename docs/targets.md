@@ -35,6 +35,10 @@ Every module here works the same way:
   (`host:port` lines, `verify_sni`) became such tests of TLS on the first start
   of 1.0.77; `--set verify=HOST:PORT` on the command line still makes one.
   (ESXi and the appliance still check their own pages themselves.)
+  Since 1.0.78 the window only binds tests made in Certificates → Tests
+  (*Attach a test*); *A new test…* (1.0.82) opens the very popup of *Tests →
+  Add a test* over the deployment's window, which stays as it is underneath and
+  is back once the test is saved - *Attach a test* then lists the new one.
 - **Check the device's certificate** (`verify_tls`) is on by default; paste
   the CA of the management interface in *CA certificate* when it is a private
   one, or turn the check off for a device still on its factory certificate.
