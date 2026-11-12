@@ -1324,7 +1324,7 @@ table.ct-deptable .ct-rowerr{overflow-wrap:break-word;word-break:normal;max-widt
 /* ==== Setup guides of the modules (1.0.94, guides.js) ==================================== */
 .ct-plughead{position:relative}
 .ct-plughead-guide{margin-left:auto;align-self:flex-start;flex:none}
-.modal .box.gd-full{width:min(1500px,96vw);max-height:94vh;height:94vh}
+.modal .box.gd-full{width:min(2600px,96vw);max-height:94vh;height:94vh}
 .modal .box.gd-full .body{display:flex;flex-direction:column;gap:12px;min-height:0;overflow:hidden}
 .gd-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .gd-head-l,.gd-head-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -1345,7 +1345,7 @@ table.ct-deptable .ct-rowerr{overflow-wrap:break-word;word-break:normal;max-widt
 .gd-toc-a.lv3{padding-left:20px;color:var(--tx-dim);font-size:12.5px}
 .gd-content{overflow:auto;padding:0 6px 24px 2px;scroll-behavior:smooth}
 /* the guide itself */
-.gd-md{max-width:960px;font-size:14.5px;line-height:1.65;color:var(--tx)}
+.gd-md{max-width:none;font-size:14.5px;line-height:1.65;color:var(--tx)}
 .gd-md > :first-child{margin-top:0}
 .gd-md h1{font-size:26px;line-height:1.25;margin:4px 0 14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
 .gd-md h2{font-size:19px;margin:28px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
@@ -1426,7 +1426,7 @@ code.gd-ccopy.gd-copied::after{content:'✓';font-size:10px;margin-left:4px;colo
 #modal-box.gd-full .gd-area{min-height:0;height:auto;overflow:auto}
 
 /* ==== The guide editor (1.0.94, guides-editor.js): visual / Markdown / side by side / preview, the Assistant ==== */
-#modal-box.gd-edbox{width:min(1680px,98vw);height:96vh;max-height:96vh}
+#modal-box.gd-edbox{width:min(2800px,98vw);height:96vh;max-height:96vh}
 .gd-edbox .gd-editor{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel))}
 .gd-edbox .gd-toolbar{position:sticky;top:0;z-index:3;gap:3px;padding:8px 10px;backdrop-filter:blur(6px)}
 .gd-edbox .gd-tool{min-width:34px;height:32px;border-radius:8px;font-size:13.5px;transition:background .12s,border-color .12s,color .12s}
@@ -1449,7 +1449,7 @@ code.gd-ccopy.gd-copied::after{content:'✓';font-size:10px;margin-left:4px;colo
 .gd-edbox .gd-area{width:100%;height:100%;resize:none;border:0;outline:none;background:transparent;color:var(--tx);padding:22px 26px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px;line-height:1.65}
 .gd-edbox .gd-preview{padding:22px 30px;background:var(--panel)}
 .gd-visual{padding:28px 40px 60px;outline:none;max-width:none;background:var(--panel);cursor:text;caret-color:var(--accent)}
-.gd-visual > *{max-width:980px}
+.gd-visual > *{max-width:none}
 .gd-visual:focus{box-shadow:inset 0 0 0 1px rgba(88,166,255,.25)}
 .gd-visual p:empty::before,.gd-visual:empty::before{content:" "}
 .gd-visual .gd-tablewrap td,.gd-visual .gd-tablewrap th{min-width:80px;outline:none}
@@ -1502,4 +1502,18 @@ code.gd-ccopy.gd-copied::after{content:'✓';font-size:10px;margin-left:4px;colo
 /* on a phone the guide and its editor are the whole screen (1.0.95: the sizes above won) */
 @media (max-width:900px){
   #modal-box.gd-full,#modal-box.gd-edbox{width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;border-radius:0;margin:0}
+}
+/* the guide and its editor take the screen they are given (1.0.95: held to 960 px of text
+   inside a window of at most 1500 / 1680 px - narrow on a large screen) */
+@media (min-width:1700px){
+  .gd-md{font-size:15px}
+  .gd-main{grid-template-columns:260px minmax(0,1fr);gap:28px}
+  .gd-assist{width:380px}
+}
+@media (min-width:2300px){
+  .gd-md{font-size:16px;line-height:1.7}
+  .gd-md h1{font-size:30px}
+  .gd-md h2{font-size:21px}
+  .gd-main{grid-template-columns:300px minmax(0,1fr)}
+  .gd-assist{width:420px}
 }

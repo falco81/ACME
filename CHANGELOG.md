@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.95 - not released
 
+- **The setup guide and its editor take the screen they are given**: the text was held to
+  960 px inside a window of at most 1500 / 1680 px - narrow on a large screen. Larger screens
+  get a slightly larger letter and wider contents and assistant; a phone the whole screen.
+
 ## 1.0.94 - 2026-11-12
 
 - **FortiGate in versions by FortiOS's API**: *FortiOS 6.0 - 6.4*, *7.0 - 7.4.1* and
