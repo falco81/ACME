@@ -9701,6 +9701,7 @@ function testAfterPick(targets, have, guess) {
     var b = el('button', 'ta-target');
     b.type = 'button';
     b._t = t;
+    b.title = t;   /* the whole name, always (1.0.84) */
     var mark = el('span', 'ta-mark');
     mark.innerHTML = iconMarkup('check', 13);
     b.appendChild(mark);

@@ -4,7 +4,13 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.84 - not released
+## 1.0.84 - 2026-11-12
+
+- The targets a test of a certificate runs after (*After a deployment on…*) show their whole
+  names - they ended in "…" after about 20 characters, and targets named alike ("Linux Unix
+  server SSH - …") could not be told apart. A long name wraps; the whole one is also under
+  the pointer. The same for the certificates in *Take it away*'s list and in the tests'
+  overview.
 
 ## 1.0.83 - 2026-11-12
 
