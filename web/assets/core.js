@@ -283,7 +283,7 @@ document.addEventListener('keydown', function (e) {
   main[0].click();
 });
 /* What takes something away, by its words, and what sets something going at once (1.0.83) */
-var DANGER_WORDS = /^(Delete|Delete it|Delete them|Remove|Remove it|Take it off|Take it away|Take them away|Take the user away|Forget|Forget it|Forget them|Revoke|Revoke it|Revoke them|Clear the history|Clear them|Erase|Erase it|Drop it|Drop the request|Take it out)\b/;
+var DANGER_WORDS = /^(Delete|Delete it|Delete them|Remove|Remove it|Take it off|Take it away|Take them away|Take the user away|Forget|Forget it|Forget them|Revoke|Revoke it|Revoke them|Clear the history|Clear them|Erase|Erase it|Drop it|Drop the request|Take it out(?! of service))\b/;
 var ACTION_WORDS = /^(Save and deploy now|Move and issue now|Move, issue and deploy now|Deploy now|Deploy it there again now|Deploy them now|Add and issue now|Issue a new one|Issue it now|Order the ones switched on|Restart it|Restart now|Restart them|Power it off|Switch over|Move it now|Move back|Make it and put it in|Take it out of service|Upgrade now|Go back now|Start the sync)\b/;
 function modal(title, build, buttons, narrow) {
   if (MODAL_OVER_WANTED) modalOverNow();
@@ -358,7 +358,7 @@ function modal(title, build, buttons, narrow) {
         setButtonIcon(yes, b.icon || iconForWords(b.words), b.words);
         strip.appendChild(no);
         strip.appendChild(yes);
-        var kept = Array.prototype.slice.call(foot.children);
+        var kept = Array.prototype.slice.call(foot.children).filter(function (c) { return !c.hidden; });
         kept.forEach(function (c) { c.hidden = true; });
         foot.appendChild(strip);
         no.onclick = function () { strip.remove(); kept.forEach(function (c) { c.hidden = false; }); no.blur(); };
@@ -376,7 +376,7 @@ function modal(title, build, buttons, narrow) {
         setButtonIcon(yes, b.icon || iconForWords(b.words), b.words);
         strip.appendChild(no);
         strip.appendChild(yes);
-        var kept = Array.prototype.slice.call(foot.children);
+        var kept = Array.prototype.slice.call(foot.children).filter(function (c) { return !c.hidden; });
         kept.forEach(function (c) { c.hidden = true; });
         foot.appendChild(strip);
         no.onclick = function () { strip.remove(); kept.forEach(function (c) { c.hidden = false; }); no.blur(); };
@@ -636,7 +636,7 @@ function confirmThen(title, words, buttonWords, go, danger) {
     body.appendChild(p);
   }, [
     {words: 'No, leave it', close: true},
-    {words: buttonWords, cls: danger === false ? 'primary' : 'danger', close: true, once: true, go: go}
+    {words: buttonWords, cls: danger === false ? 'primary' : 'danger', close: true, once: true, noDanger: danger === false, go: go}
   ], true);
 }
 var ICONS = {

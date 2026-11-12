@@ -600,7 +600,13 @@ class AcmeIssuer(Issuer):
                 if not t['presented']:
                     continue
                 try:
-                    t['mod'].cleanup(t['name'], t['handle'])
+                    ctx = getattr(t['mod'], 'ctx', None)
+                    tidy = ctx.tidying() if hasattr(ctx, 'tidying') else None
+                    if tidy is not None:
+                        with tidy:                  # after a stop too (1.0.88)
+                            t['mod'].cleanup(t['name'], t['handle'])
+                    else:
+                        t['mod'].cleanup(t['name'], t['handle'])
                 except Exception as e:              # noqa: BLE001
                     self._say('%s: the proof was not taken away: %s' % (t['shown'], e), 'warn')
 

@@ -896,8 +896,17 @@ def deploy_held(store, row):
 
 def deploy_hold_set(store, row, on, by=''):
     if on:
+        # held again: the version waiting stays held (1.0.88: "from" moved up to it, and the
+        # next look deployed what "Keep it" had promised to keep)
+        had = deploy_hold(store, row['id'])
+        start = generation(row)
+        if had:
+            try:
+                start = min(start, int(had.get('from') or 0))
+            except (TypeError, ValueError):
+                pass
         store.set_meta(HOLD_KEY % int(row['id']), json.dumps(
-            {'from': generation(row), 'by': by, 'at': time.time()}))
+            {'from': start, 'by': by, 'at': time.time()}))
     else:
         store.db.run('DELETE FROM meta WHERE k = ?', (HOLD_KEY % int(row['id']),))
 
@@ -909,8 +918,10 @@ def is_dual(row):
         str(row.get('alt_state') or '') != 'revoked'
 
 
-def issuer_dual(store, ref):
-    """Whether the source (a row of cert_issuers, or its name) gives a twin."""
+def issuer_dual(store, ref, cert=None):
+    """Whether the source (a row of cert_issuers, or its name) gives a twin - for `cert`, with
+    its own settings of the source over the source's (1.0.88: dual_order is one of them; the
+    scan read the source's alone and started a job that did nothing every few minutes)."""
     irow = ref if isinstance(ref, dict) else plugin_row(store, 'issuer', ref)
     if not irow:
         return False
@@ -918,7 +929,10 @@ def issuer_dual(store, ref):
     if cls is None:
         return False
     try:
-        return bool(cls.dual_for(jload(irow.get('config'), {}) or {}))
+        cfg = jload(irow.get('config'), {}) or {}
+        if cert is not None:
+            cfg = config_over(cls, cfg, cert_over(cert, 'issuer'))
+        return bool(cls.dual_for(cfg))
     except Exception:                                   # noqa: BLE001
         return False
 

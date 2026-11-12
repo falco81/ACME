@@ -3687,7 +3687,11 @@ function certBody(body, c, versions, deploys, jobs, back) {
   if (nk) body.appendChild(nk);
   /* Held since its source was changed (1.0.86): issued, not deployed until Deploy now */
   var hold = c.deploy_hold;
-  if (hold && deploys.length) {
+  /* those that do not have the newest one yet (1.0.88: one deployed by itself on its row was
+     still counted) */
+  var gen = Math.max(Number(c.version || 0), c.key_type_alt && c.alt_version ? Number(c.alt_version) : 0);
+  var waitingDeps = deploys.filter(function (x) { return Number(x.deployed_version || 0) < gen; });
+  if (hold && deploys.length && (!hold.now || waitingDeps.length)) {
     var hb = el('div', 'ct-holdbox' + (hold.now ? ' on' : ''));
     var hh = el('div', 'ct-holdbox-h');
     hh.appendChild(el('b', '', hold.now ? 'The new certificate is not deployed yet' : 'A new certificate will not be deployed by itself'));
@@ -3701,8 +3705,8 @@ function certBody(body, c, versions, deploys, jobs, back) {
     }
     hb.appendChild(hh);
     hb.appendChild(el('p', 'note small', hold.now
-      ? (deploys.length === 1 ? 'It was issued from the new source and is kept here: its target still has the one before. Deploy now puts it there - until then nothing deploys it by itself.'
-        : 'It was issued from the new source and is kept here: its ' + deploys.length + ' targets still have the one before. Deploy now puts it there - until then nothing deploys it by itself.')
+      ? (waitingDeps.length === 1 ? 'It was issued from the new source and is kept here: its target still has the one before. Deploy now puts it there - until then nothing deploys it by itself.'
+        : 'It was issued from the new source and is kept here: its ' + waitingDeps.length + ' targets still have the one before. Deploy now puts it there - until then nothing deploys it by itself.')
       : 'Asked when its source was changed: the next certificate is issued and kept here until Deploy now - also at a renewal.'));
     if (MANAGE) {
       var hrow = el('div', 'ct-holdbox-b');
@@ -5917,7 +5921,8 @@ function certWizard(cert, detail, opts) {
     busy(b, true);
     var held = !hand() && W.deploy === 'later' && rowsOf(obj(detail).deploys).length > 0;
     capi('certs/save', sent).then(function () {
-      return hand() ? null : capi('certs/hold', {id: c.id, hold: held ? 1 : 0});
+      /* by hand: no hold left from a move before (1.0.88) - an import is deployed as always */
+      return capi('certs/hold', {id: c.id, hold: held ? 1 : 0});
     }).then(function () {
       toast(hand() ? 'It is now renewed by hand' : 'It now comes from ' + W.d.issuer, 'good');
       CT.refresh();

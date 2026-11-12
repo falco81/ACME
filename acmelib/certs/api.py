@@ -349,7 +349,7 @@ def cert_one(store, ref, full=False):
         except Exception as e:                          # noqa: BLE001
             out['info'] = {'error': str(e)}
     # A dual certificate: both, side by side - the main one and its twin.
-    dual_ok = bool(row.get('key_type_alt')) and S.issuer_dual(store, row.get('issuer')) \
+    dual_ok = bool(row.get('key_type_alt')) and S.issuer_dual(store, row.get('issuer'), row) \
         if row.get('issuer') else bool(row.get('key_type_alt'))
     out['variants'] = [_variant_view(row, '')]
     if row.get('key_type_alt') or row.get('alt_cert_pem'):
@@ -937,7 +937,10 @@ def _cert_hold(h, s):
     b = h.body()
     row = S.cert_need(h.store, _id(b.get('id')))
     on = _flag(b.get('hold'))
+    had = S.deploy_hold(h.store, row['id'])
     S.deploy_hold_set(h.store, row, on, who(s))
+    if bool(had) == on:
+        return {'message': 'held' if on else 'deployed by itself'}   # no change: no event
     h.store.add_event('certificates', '%s: %s by %s' % (
         row['name'], 'a new version is not deployed until Deploy now' if on else
         'a new version is deployed by itself again', who(s)), who=who(s))

@@ -427,6 +427,15 @@ def _twin(store, job, cert, irow, issuer, names, profile, challenges, by):
     alt_type = cert['key_type_alt']
     kept = S.cert_key(cert, 'alt') if cert.get('reuse_key') and cert.get('alt_key_sealed') \
         else None
+    # Revoked, the twin's key is not used again (1.0.88: tried again alone after the twin of
+    # "Revoke and issue a new one" failed, the main one had a new key and the twin took its
+    # compromised one back)
+    if kept and (str(cert.get('alt_state') or '') in ('revoked', 'revoke-failed') or
+                 store.db.value("SELECT revoked FROM cert_versions WHERE cert_id = ? AND "
+                                "version = ? AND variant = 'alt'",
+                                (cert['id'], cert.get('alt_version') or 0), None)):
+        job.step('the twin: a new key - the one before was revoked')
+        kept = None
     job.step('the twin: the same names with a %s key%s' % (
         alt_type, ' - the names proved for the first one are used again'
         if issuer.needs_challenge else ''))
@@ -644,7 +653,14 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         if twin_said:
             return False, words + '; ' + twin_said
         return ok, words
-    except jobs.JobStopped:
+    except Exception as e0:
+        # A stop said by a module as an error ("stopped", "the job was stopped", 1.0.88): a
+        # stop, not a failure - no fail counted, no backoff, no "Renewing failed" notice on every
+        # restart that cut a renewal short
+        stopped = isinstance(e0, jobs.JobStopped) or bool(getattr(job, 'cancelled', None) and
+                                                          job.cancelled())
+        if not stopped:
+            return _renew_failed(store, job, cert_id, only, e0)
         if only != 'alt':
             now = S.cert_get(store, cert['id']) or {}
             if str(now.get('version') or '') != str(cert.get('version') or '') and now.get('cert_pem'):
@@ -656,8 +672,17 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             else:
                 store.db.update('certs', cert['id'], {
                     'state': was if was != 'renewing' else 'failed', 'state_at': time.time()})
-        raise
-    except Exception as e:
+        if isinstance(e0, jobs.JobStopped):
+            raise
+        raise jobs.JobStopped(str(e0) or 'stopped') from e0
+    finally:
+        for c in contexts:
+            c.tidy()
+
+
+def _renew_failed(store, job, cert_id, only, e):
+    """A renewal that failed: counted, waited for, said. Raises e again."""
+    if True:
         cert = S.cert_need(store, cert_id)
         if cert.get('state') == 'renewing':
             why = str(e) if isinstance(e, base.PluginError) else '%s: %s' % (type(e).__name__, e)
@@ -684,10 +709,7 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             notify(store, 'renew:%s' % cert['id'], 'Renewing %s failed' % cert['name'], why)
         elif only == 'alt' and cert.get('alt_state') != 'failed':
             S.alt_failed(store, cert['id'], str(e))
-        raise
-    finally:
-        for c in contexts:
-            c.tidy()
+        raise e
 
 
 def renew_job(cert_id, force=False, by='', only=None):
@@ -903,7 +925,7 @@ def scan(store, by='the renewer'):
                          "COALESCE(auto_renew, 0) <> 0 AND COALESCE(issuer, '') <> ''")
     for r in rows:
         try:
-            dual = bool(r.get('key_type_alt')) and S.issuer_dual(store, r.get('issuer'))
+            dual = bool(r.get('key_type_alt')) and S.issuer_dual(store, r.get('issuer'), r)
             if r.get('cert_pem') and r.get('state') in ('ok', 'due'):
                 ari_refresh(store, r)
                 if dual and r.get('alt_cert_pem'):

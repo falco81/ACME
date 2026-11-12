@@ -176,7 +176,7 @@ class HttpSsh(HttpChallenge):
         """fn(session, host) on every machine; [(host, error)] of those it failed on."""
         failed = []
         for host, port in self.hosts():
-            if self.ctx.cancelled():
+            if self.ctx.cancelled() and what != 'remove':    # taken away after a stop (1.0.88)
                 failed.append((host, 'the job was stopped'))
                 break
             try:

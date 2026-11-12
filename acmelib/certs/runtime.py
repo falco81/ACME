@@ -199,6 +199,20 @@ class RunContext(base.Context):
     def cancel(self):
         self._stop.set()
 
+    def tidying(self):
+        """What is taken away after a stop (1.0.88): a proof in DNS or on a web server, the
+        copies of a key in /tmp - run although the job was stopped (they stayed for good)."""
+        ctx = self
+
+        class _T(object):
+            def __enter__(self):
+                ctx._tidy = getattr(ctx, '_tidy', 0) + 1
+
+            def __exit__(self, *a):
+                ctx._tidy = max(0, getattr(ctx, '_tidy', 1) - 1)
+                return False
+        return _T()
+
     # ---- HTTPS -------------------------------------------------------------------------
     shares_limits = True            # sign-ins and reads shared (acmelib/plugins/limits.py)
 
@@ -901,7 +915,7 @@ class SshSession(base.SshSession):
 
     # ---- the programs --------------------------------------------------------------------
     def _exec(self, argv, data=None, timeout=120):
-        if self.ctx.cancelled():
+        if self.ctx.cancelled() and not getattr(self.ctx, '_tidy', 0):
             raise base.PluginError('the job was stopped', retry=False)
         try:
             return subprocess.run(argv, input=data, capture_output=True, timeout=timeout,

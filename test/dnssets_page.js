@@ -81,8 +81,8 @@ const { chromium } = require('playwright');
 
     // ---- 6. Delete it again (the page's own "Really?") --------------------------------------
     await row.locator('.dnss-del').click();
-    await page.locator('#modal-foot button.danger').last().click();
-    await page.locator('#modal-foot .sure-strip button.danger').click();
+    // the popup is the question (1.0.83): asked once, red, far left
+    await page.locator('#modal-foot > button.danger').first().click();
     await modalClosed();
     await page.waitForFunction((s) => !Array.from(document.querySelectorAll('#dnss-host table.dnss-sets tbody tr')).some((t) => t.textContent.indexOf(s) >= 0), set, {timeout: 20000});
     const after = await ask('dnssets');

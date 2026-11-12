@@ -119,6 +119,8 @@ class DeployHold(unittest.TestCase):
         STORE.db.update('certs', cid, {'version': 2})       # issued from the new source
         row = STORE.db.row('SELECT * FROM certs WHERE id = ?', (cid,))
         self.assertTrue(S.deploy_held(STORE, row))
+        S.deploy_hold_set(STORE, row, True, 'again')       # held again: v2 still waits
+        self.assertTrue(S.deploy_held(STORE, row))
         job = FakeJob()
         ok, said = deployer.run_deploys(STORE, job, cid)
         self.assertTrue(ok)

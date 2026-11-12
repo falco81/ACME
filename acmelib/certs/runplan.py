@@ -1477,14 +1477,14 @@ def checks_phase(store, cert, names):
         elif not trow.get('enabled', 1):
             steps.append({'kind': 'stop', 'words': 'The test is switched off (Tests): it does not '
                           'run for any certificate'})
-        if CK.AFTER_NONE in tied:
+        if CK.AFTER_NONE in tied or not after:
             steps.append({'kind': 'wait', 'words': 'No deployment runs it: only its schedule '
                           'and Run it now'})
         elif tied:
             steps.append({'kind': 'wait', 'words': 'Runs only after a deployment on {0}'.replace(
                 '{0}', ', '.join(tied)), 'note': 'when it fails there, that deployment fails - '
                 'tried again later, an event and a notice as a failed deployment'})
-        elif after:
+        else:
             steps.append({'kind': 'wait', 'words': 'Runs after every deployment, on any of its '
                           'targets', 'note': 'a few times while the services restart (after %s s) '
                           '- a failure is a warning of the job' % ', '.join(

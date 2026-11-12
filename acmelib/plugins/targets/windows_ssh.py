@@ -82,19 +82,10 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
     _did = []
 
     def run_ps(self, s, script, what='PowerShell', check=True, timeout=300):
-        full = ("$ErrorActionPreference = 'Stop'\n$ProgressPreference = 'SilentlyContinue'\n"
-                "try {\n%s\n} catch { Write-Output ('ERROR: ' + $_.Exception.Message); "
-                "exit 1 }\n" % script)
-        cmd = ('powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass '
-               '-EncodedCommand ' + encoded(full))
-        rc, out, err = s.run(cmd, timeout=timeout, check=False)
-        out, err = text(out), text(err)
-        if check and rc != 0:
-            said = [x[7:] for x in out.splitlines() if x.startswith('ERROR: ')]
-            raise PluginError('%s failed: %s' % (what, (said[-1] if said else
-                                                        (err.strip() or out.strip())[-300:])),
-                              detail=out + err)
-        return rc, out, err
+        # past cmd.exe's 8191 characters (1.0.88: three IIS bindings and RDP, or a few lines
+        # of post_ps, and every deployment failed "The command line is too long"): uploaded
+        # as a .ps1 that deletes itself, as the roles' scripts are
+        return self.roles_ps(s, script, what=what, check=check, timeout=timeout)
 
     def test(self):
         with self.ssh() as s:

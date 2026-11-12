@@ -415,7 +415,13 @@ class SshTarget(SshMixin, Base):
             finally:
                 if tmps:
                     try:
-                        s.run('rm -f ' + ' '.join(quote(t) for t in tmps), check=False)
+                        # the copies of the key go after a stop too (1.0.88)
+                        tidy = self.ctx.tidying() if hasattr(self.ctx, 'tidying') else None
+                        if tidy is not None:
+                            with tidy:
+                                s.run('rm -f ' + ' '.join(quote(t) for t in tmps), check=False)
+                        else:
+                            s.run('rm -f ' + ' '.join(quote(t) for t in tmps), check=False)
                     except Exception:                       # noqa: BLE001
                         pass
         self.remember(bundle, options)

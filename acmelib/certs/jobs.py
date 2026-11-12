@@ -366,6 +366,7 @@ def _lease_take(store, cert_id):
                 pass                                    # another made it at the same moment
         if store.db.run("UPDATE meta SET v = ? WHERE k = ? AND (v IS NULL OR v = '')",
                         (mine, key)):
+            _MY_LEASES[cert_id] = mine
             return True
         was = str(store.get_meta(key) or '')
         try:
@@ -379,19 +380,29 @@ def _lease_take(store, cert_id):
                                   (cert_id, time.time() - LEASE_S), 0) or 0)
         # (a lease of the last minute stays: its job may be about to be written)
         if time.time() - at > LEASE_S or (not live and time.time() - at > 60):
-            return bool(store.db.run('UPDATE meta SET v = ? WHERE k = ? AND v = ?',
-                                     (mine, key, was)))
+            if store.db.run('UPDATE meta SET v = ? WHERE k = ? AND v = ?', (mine, key, was)):
+                _MY_LEASES[cert_id] = mine
+                return True
+            return False
         return False
     except Exception as e:                              # noqa: BLE001
         E.log('the certificate %s could not be taken for a job: %s' % (cert_id, e), 'warn')
         return True                                     # as before: this process's check
 
 
+_MY_LEASES = {}         # cert_id: the value this process wrote in its lease
+
+
 def _lease_give(store, cert_id):
+    """Its own lease given back - only its own (1.0.88: the second give of an ended job took
+    away the lease of the job that came next, and a third one ordered beside it)."""
     if cert_id is None or store is None or not _lease_on(store):
         return
+    mine = _MY_LEASES.pop(cert_id, None)
+    if not mine:
+        return
     try:
-        store.db.run('DELETE FROM meta WHERE k = ?', (_lease_key(cert_id),))
+        store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (_lease_key(cert_id), mine))
     except Exception:                                   # noqa: BLE001
         pass
 
