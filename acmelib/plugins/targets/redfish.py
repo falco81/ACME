@@ -200,8 +200,8 @@ class RedfishTarget(HttpTarget):
                 if not target:
                     raise PluginError(
                         'the controller offers no CertificateService.ReplaceCertificate '
-                        '(HPE iLO 6 has only GenerateCSR: it takes a certificate only for '
-                        'a request it made itself)', retry=False)
+                        '(HPE iLO: choose the module version for HPE iLO - iLO takes a '
+                        'certificate with its key through its own HpeHttpsCert)', retry=False)
                 self.req('POST', target, {
                     'CertificateString': pem, 'CertificateType': typ,
                     'CertificateUri': {'@odata.id': uri}}, what='replacing %s' % uri,

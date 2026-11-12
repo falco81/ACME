@@ -75,6 +75,15 @@ class EsxiTarget(SshMixin, Base):
                     raise PluginError('"%s" failed, the previous certificate is back: %s'
                                       % (cmd, (text(err).strip() or text(out).strip())[-300:]))
                 self.ctx.step('ran %s' % cmd, 'ok')
+            # Saved to the boot bank now (KB 317244, KB 341649): ESXi keeps /etc in memory and
+            # saves it about hourly - a reboot before that brought the old certificate back.
+            rc, out, err = self.sh(s, '/sbin/auto-backup.sh', timeout=300, check=False)
+            if rc != 0:
+                self.ctx.step('/sbin/auto-backup.sh failed - the certificate is lost if the host '
+                              'reboots within the hour: %s' % (text(err).strip() or
+                                                               text(out).strip())[-200:], 'warn')
+            else:
+                self.ctx.step('saved to the boot bank (/sbin/auto-backup.sh)')
             F.drop_previous(self, s, files, options)
         self.remember(bundle, options)
         self.done_pending()
