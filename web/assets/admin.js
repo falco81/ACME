@@ -1395,7 +1395,12 @@ function stepsList(steps) {
    ========================================================================== */
 function loadEvents() {
   var per = 100;
-  apiLatest('events', 'events&q=' + encodeURIComponent($('ev-q').value) + '&kind=' + encodeURIComponent($('ev-kind').value)
+  /* words typed in the language shown: the English they stand for asked too (1.0.95) */
+  var evq = $('ev-q').value, alt = '';
+  if (typeof i18nBack === 'function' && evq.trim() && !/[:~=<>]/.test(evq)) {
+    alt = i18nBack(evq, 12).join('\n');
+  }
+  apiLatest('events', 'events&q=' + encodeURIComponent(evq) + (alt ? '&q_alt=' + encodeURIComponent(alt) : '') + '&kind=' + encodeURIComponent($('ev-kind').value)
       + tpQuery('ev-time') + '&limit=' + per + '&offset=' + PAGE.events * per).then(function (d) {
     QS.events.said(d.q_error || '');
     var sel = $('ev-kind');

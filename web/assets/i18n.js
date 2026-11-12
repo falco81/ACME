@@ -126,6 +126,20 @@ function i18nWordy(m, depth) {
   }
   return false;
 }
+/** English that the words typed stand for (1.0.95: the events searched in Czech found
+    nothing - the daemon keeps them in English). At most `most`, the shortest first. */
+function i18nBack(words, most) {
+  var w = String(words || '').trim().toLowerCase();
+  if (!I18N.on || !I18N.back || w.length < 3) return [];
+  var seen = {}, out = [];
+  I18N.back.forEach(function (pair) {
+    if (pair[0].indexOf(w) < 0 || seen[pair[1]]) return;
+    seen[pair[1]] = 1;
+    out.push(pair[1]);
+  });
+  out.sort(function (a, b) { return a.length - b.length; });
+  return out.slice(0, most || 12);
+}
 function i18nInit(pack) {
   if (!pack || typeof pack !== 'object' || !I18N.orig || typeof Map !== 'function') return false;
   I18N.code = String(pack.code || 'en');
@@ -164,6 +178,21 @@ function i18nInit(pack) {
       I18N.rich.set(key, v);
       if (plain && !I18N.exact.has(key)) I18N.exact.set(key, v);
     }
+  });
+  /* the way back (1.0.95): words of the language shown -> the English they stand for, so a
+     search done by the daemon in English finds what the page shows translated */
+  I18N.back = [];
+  Object.keys(strings).forEach(function (k) {
+    var v = strings[k];
+    if (typeof v === 'string' && v && v !== k) I18N.back.push([i18nFold(v).toLowerCase(), k]);
+  });
+  (Array.isArray(pack.patterns) ? pack.patterns : []).forEach(function (pair) {
+    if (!Array.isArray(pair) || typeof pair[0] !== 'string' || typeof pair[1] !== 'string' || !pair[1]) return;
+    /* the longest piece of the English without a {0}: what an event's words hold */
+    var bits = pair[0].split(/\{\d+\}/).map(function (x) { return x.trim(); }).filter(function (x) { return x.length > 2; });
+    if (!bits.length) return;
+    bits.sort(function (a, b) { return b.length - a.length; });
+    I18N.back.push([i18nFold(pair[1].replace(/\{\d+\}/g, ' ')).toLowerCase(), bits[0]]);
   });
   I18N.pats.sort(function (a, b) { return b.own - a.own; });
   /* One look for any pattern's fixed words at all: most texts on a page

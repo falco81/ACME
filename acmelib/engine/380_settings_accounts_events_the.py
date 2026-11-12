@@ -419,6 +419,19 @@ def _events(h):
         return {'rows': [], 'total': 0, 'q_error': bad, 'kinds': h.reader.event_kinds()}
     time_span(h, lq)
     limit, offset = h.num('limit', 100, 1, 1000), h.num('offset', 0)
+    # the words typed in the language of the page, and the English they stand for (1.0.95: a
+    # search in Czech found nothing - events are kept in English): any of them
+    alts = [a.strip()[:120] for a in str(h.arg('q_alt') or '').split('\n') if a.strip()][:12]
+    if alts and lq.words:
+        one = "(LOWER(words) LIKE ? ESCAPE '!' OR LOWER(who) LIKE ? ESCAPE '!' OR LOWER(kind) LIKE ? ESCAPE '!')"
+        cond, cargs = [], []
+        for w in [lq.words] + alts:
+            like = '%' + like_pattern(str(w).lower()) + '%'
+            cond.append(one)
+            cargs += [like, like, like]
+        lq.sql = ' AND '.join(x for x in (lq.sql, '(' + ' OR '.join(cond) + ')') if x)
+        lq.args = list(lq.args or []) + cargs
+        lq.words = ''
     hidden = events_hidden_of(h.store, s)
     if hidden is None:
         rows, total = h.reader.events(limit, offset, lq.words, h.arg('kind'), extra=(lq.sql, lq.args))
