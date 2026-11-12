@@ -1124,6 +1124,13 @@ class RolesMixin(object):
         return got
 
     # -- checking ----------------------------------------------------------------------
+    def served_places(self, options):
+        options = options or {}
+        out = list(super(RolesMixin, self).served_places(options))
+        if 'ldaps' in enabled(options) and Opts(options).on('ldaps_verify') and self.c('host'):
+            out.append((self.c('host'), 636))
+        return out
+
     def verify(self, bundle, options):
         options = options or {}
         o = Opts(options)

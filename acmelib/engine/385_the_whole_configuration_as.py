@@ -530,6 +530,13 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                     prof['key'] = old_key
                 else:
                     said['certificates without their key (put it in on the pages)'] += 1
+            # the second certificate (ECDSA) beside it kept as the key is (1.0.93): a file
+            # without the secrets has none, and nginx went back to RSA only
+            if not prof.get('alt') and prof.get('cert'):
+                old_alt = (_json_meta(store, 'web:tls:' + target) or {}).get('alt')
+                if isinstance(old_alt, dict) and old_alt.get('key') and \
+                        old_alt.get('for') == tls_alt_for(prof['cert']):
+                    prof['alt'] = old_alt
             tls_save(store, target, prof, by)
             said['certificates'] += 1
         if access is not None:

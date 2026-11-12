@@ -968,8 +968,19 @@ class Target(Plugin):
         raise NotImplementedError
 
     def verify(self, bundle, options):
-        """Is the new certificate what is served now? True / False / None (cannot tell)."""
+        """Is the new certificate what is served now? True / False / None (cannot tell).
+        Not called after a deployment since 1.0.92 - the tests attached to the certificate
+        check what is served; see served_places."""
         return None
+
+    # How long the tests run after a deployment here wait at most for the service to come
+    # back (1.0.93): (tries, seconds between them) - a vCenter or a BMC restarts for minutes.
+    served_wait = None
+
+    def served_places(self, options):
+        """Where this target serves the certificate it was given, for the tests made with a
+        new deployment (1.0.93, in place of the check the module made itself): [(host, port)]."""
+        return []
 
     def remove(self, bundle, options):
         """Take an old certificate away from the device, where that makes sense."""

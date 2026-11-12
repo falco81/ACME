@@ -306,10 +306,18 @@ def chain_verify(leaf, chain, roots=''):
             args += ['-untrusted', put('chain.pem', chain)]
         args.append(put('leaf.pem', leaf))
         try:
-            _openssl(args, what='the chain')
+            got = subprocess.run(['openssl'] + args, capture_output=True, timeout=60)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            return False, 'the chain could not be checked: %s' % e
+        if got.returncode == 0:
             return True, ''
-        except ValueError as e:
-            return False, re.sub(r'(error )?\S*acme-chain-\S*:\s*', '', str(e)).strip()
+        # the reason (1.0.93): "error 20 at 0 depth lookup: unable to get local issuer
+        # certificate" - the last line says only "verification failed"
+        out = (got.stdout + b'\n' + got.stderr).decode('utf-8', 'replace')
+        why = [ln for ln in out.splitlines() if 'lookup:' in ln or re.match(r'error \d+ at', ln)]
+        text = re.sub(r'^error \d+ at \d+ depth lookup:\s*', '', why[0].strip()) if why else \
+            ((out.strip().splitlines() or ['verification failed'])[-1])
+        return False, re.sub(r'(error )?\S*acme-chain-\S*:\s*', '', text).strip()[:300]
 
 
 def aia_issuer_url(pem):
@@ -379,6 +387,12 @@ def chain_complete(leaf, chain_out, roots=''):
     ok, why = chain_verify(leaf + '\n', joined(chain_out), roots)
     fetched, chain = [], list(chain_out)
     tried, root_seen = 0, ''
+    # only a link missing is fetched (1.0.93): an expired or wrong one, or a machine without
+    # its roots, said it led to a root nobody trusted - and offered to complete it
+    missing = re.compile(r'unable to get (local )?issuer certificate', re.I)
+    if not ok and not missing.search(why or ''):
+        return chain_out, {'ok': False, 'fetched': [], 'missing': '',
+                           'words': 'the chain does not check: %s' % (why or '?')[:300]}
     while not ok and tried < 4:
         tried += 1
         last = chain[-1] if chain else leaf

@@ -39,7 +39,7 @@ def _online_import(h, s):
     b = h.body()
     try:
         return {'job_id': OI.import_job(h.store, A._text(b, 'source', 200), b.get('items'),
-                                        A.who(s))}
+                                        A.who(s), s)}
     except ValueError as e:
         if 'already working' in str(e):
             raise E.ApiError(409, str(e))

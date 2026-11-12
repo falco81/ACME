@@ -37,6 +37,8 @@ DEFAULTS = {
     # Root's actions only from rows of the database acme signed (1.0.40, otp 1.0.231): a setting
     # of this node's config.json, never of the database. 0 - as until now.
     'db_guard': 0,
+    # switched off by a person on this node (1.0.93): not on again by itself
+    'db_guard_kept_off': 0,
     # --- upgrades from the web (1.0.123) ----------------------------------
     'upgrade_check': 1,
     'upgrade_downgrade': 0,
@@ -353,7 +355,7 @@ DB_KEYS = ('db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password
 
 # ...and the name of this node of a cluster, which is this machine's own.
 FILE_ONLY_KEYS = DB_KEYS + ('node_name', 'ha_mode', 'ha_slot', 'ha_peer', 'ha_peer_port',
-                             'ha_address', 'ha_tls', 'ha_tls_ca', 'db_guard')
+                             'ha_address', 'ha_tls', 'ha_tls_ca', 'db_guard', 'db_guard_kept_off')
 
 # Settings of one node of a cluster, not of the cluster (1.0.37): saved as
 # `key@node` and read only by that node; without one it takes the cluster's.

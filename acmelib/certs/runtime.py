@@ -138,7 +138,7 @@ def scope_hostkey_keeper(store, scope):
 
 
 AIA_MISSING = 'unable to get local issuer certificate'
-_AIA_FOUND = {}                 # (host, port) -> the intermediates fetched for it
+_AIA_FOUND = {}                 # (host, port) -> (when, the intermediates fetched for it)
 
 
 def _aia_pem(data):
@@ -313,8 +313,22 @@ class RunContext(base.Context):
                                 AIA_MISSING in str(e) else None)
                         if ctx2 is None:
                             raise
+                        try:
+                            got = self._http_once(req, url, timeout, ctx2, proxy)
+                        except base.PluginError as e2:
+                            # the one kept before no longer fits (1.0.93: a renewed
+                            # certificate from another intermediate - every call failed
+                            # until a restart): fetched again once
+                            u0 = urllib.parse.urlsplit(url)
+                            if AIA_MISSING not in str(e2) or \
+                                    _AIA_FOUND.pop((u0.hostname or '', u0.port or 443),
+                                                   None) is None:
+                                raise
+                            ctx2 = self._aia_context(url, timeout, client_cert and ctx)
+                            if ctx2 is None:
+                                raise
+                            got = self._http_once(req, url, timeout, ctx2, proxy)
                         ctx = ctx2
-                        got = self._http_once(req, url, timeout, ctx, proxy)
                 wait = L.slowdown(*got)
                 if wait is None:
                     return got
@@ -340,11 +354,12 @@ class RunContext(base.Context):
             return None                     # a client certificate: not rebuilt here
         u = urllib.parse.urlsplit(url)
         host, port = u.hostname or '', u.port or 443
-        pems = _AIA_FOUND.get((host, port))
+        kept = _AIA_FOUND.get((host, port))
+        pems = kept[1] if kept and time.time() - kept[0] < 86400 else None
         if pems is None:
             pems = self._aia_fetch(host, port, timeout)
             if pems:
-                _AIA_FOUND[(host, port)] = pems
+                _AIA_FOUND[(host, port)] = (time.time(), pems)     # kept a day
         if not pems:
             return None
         ctx = ssl.create_default_context()

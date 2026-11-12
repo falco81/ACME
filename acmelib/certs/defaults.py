@@ -97,6 +97,18 @@ def ensure(store):
     except Exception as e:                              # noqa: BLE001
         E.log_sparing('certs-verify', 'the checks of the deployments made into tests: %s' % e,
                       'warn', every=3600)
+    try:
+        # where a target's module checked what it serves itself (until 1.0.92) made into
+        # tests of those deployments, once (1.0.93)
+        if not store.get_meta('certs:served_to_tests'):
+            from acmelib.certs import checks as C
+            n = C.served_migrate(store)
+            store.set_meta('certs:served_to_tests', '%d test(s)' % n)
+            if n:
+                E.log('what the targets serve is checked by tests now: %d made' % n)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('certs-served', 'the checks of the targets made into tests: %s' % e,
+                      'warn', every=3600)
     made = []
     try:
         if not _flagged(store, 'sources'):

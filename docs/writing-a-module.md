@@ -146,7 +146,7 @@ combined-pem p7b pfx p12 p12-legacy jks`.
 | | |
 |---|---|
 | `HttpTarget` | a `Target` with `self.req(method, path, body, headers, ok=, what=)` → `(status, headers, data)` over `ctx.http`: JSON in and out, the target's TLS check / CA / proxy / timeout fields applied, a non-2xx status turned into a `PluginError` in words. Override `auth_headers()` and, if needed, `base_url()`. |
-| `Base` | the same without HTTP: `unchanged(bundle, options, present=)`, `remember(bundle, options)`, `same(bundle, words)`, `keep(options)`, `opt(options, key)`, and `verify()` from the `verify` field |
+| `Base` | the same without HTTP: `unchanged(bundle, options, present=)`, `remember(bundle, options)`, `same(bundle, words)`, `keep(options)`, `opt(options, key)`; `served_places(options)` and `served_wait` say where it serves and how long it restarts - a test of it is attached with a new deployment (1.0.93) |
 | `SshMixin` | `self.ssh()` from `ssh_fields()`, `self.sh(s, script)` - through sudo when the target says so |
 | `http_fields(port, placeholder)`, `tls_fields()`, `ssh_fields(sudo=)`, `verify_fields()`, `keep_field(n)` | the usual fields |
 | `object_name(bundle, options, maxlen=)`, `name_prefix(…)`, `prune(names, prefix, keep, current)` | dated names and which old ones to delete |

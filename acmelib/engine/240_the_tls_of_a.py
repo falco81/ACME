@@ -406,7 +406,12 @@ def web_tick(store):
         return
     h = web_hash(desired)
     if st.get('state') == 'done':
-        web_self_check(store, st)
+        try:
+            web_self_check(store, st)
+        except Exception as e:                          # noqa: BLE001
+            # never in the way of the rest (1.0.93): a name it could not send stopped every
+            # request to root after it, at each tick
+            log_sparing('web-selfcheck', 'checking what nginx sends: %s' % e, 'warn', every=3600)
     if st.get('hash') == h:
         if st.get('state') == 'done':
             # Done, by root's last word - and nginx really has it (1.0.104):
@@ -482,6 +487,14 @@ def web_self_check(store, st):
     except ValueError:
         had = {}
     if not at or float(had.get('applied') or 0) >= at:
+        # ...and the VIP address that moved here since (keepalived), checked again
+        try:
+            v = vip_conf(store)
+            here = bool(v.get('on') and vip_here(v.get('address')))
+        except Exception:                               # noqa: BLE001
+            here = WEB_SELF_VIP['here']
+        if here != WEB_SELF_VIP['here']:
+            web_self_check_vip(store, at)
         return had
     prof = tls_profile(store, node_name()) or {}
     info = prof.get('info') or {}
@@ -497,10 +510,25 @@ def web_self_check(store, st):
                             node_name(), got.get('why') or ''), 'warn')
     # The VIP address (HA, keepalived): its own certificate, checked on the node that holds
     # the address - on that address, as the clients reach it.
+    web_self_check_vip(store, at)
+    return got
+
+
+def web_self_check_vip(store, at):
+    """The VIP address's certificate, checked on its address by the node holding it - when
+    root applied it, and again when the address came here (1.0.93: after a failover the one
+    shown was another node's, or one from an older certificate). A node without it says
+    nothing."""
     v = vip_conf(store)
     vprof = tls_profile(store, 'vip') or {}
     vkey = 'web:selfcheck:vip:' + node_name()
-    if v.get('on') and vprof.get('cert') and vip_here(v.get('address')):
+    here = bool(v.get('on') and vip_here(v.get('address')))
+    WEB_SELF_VIP['here'] = here
+    if not here:
+        if store.get_meta(vkey) is not None:
+            store.db.run('DELETE FROM meta WHERE k = ?', (vkey,))
+        return
+    if vprof.get('cert'):
         if (vprof.get('info') or {}).get('self_signed'):
             vgot = {'ok': None, 'words': 'self-signed - not checked'}
         else:
@@ -511,7 +539,9 @@ def web_self_check(store, st):
             store.add_event('settings', 'a client that fetches nothing (curl, the other '
                             'applications) refuses what nginx sends on the VIP address: %s'
                             % (vgot.get('why') or ''), 'warn')
-    return got
+
+
+WEB_SELF_VIP = {'here': None}
 
 
 def web_self_connect(prof, port=None, host='127.0.0.1'):
@@ -529,10 +559,15 @@ def web_self_connect(prof, port=None, host='127.0.0.1'):
         pass
     ctx.verify_flags &= ~getattr(ssl, 'VERIFY_X509_PARTIAL_CHAIN', 0)
     ctx.check_hostname = False
+    # a name nginx can be asked by (1.0.93): a CN that is no host name - a label over 63
+    # characters, spaces - made the handshake raise, and nothing after it ran
+    sni = name if name and re.match(r'^(?=.{1,253}$)([A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}'
+                                    r'[A-Za-z0-9])?\.)*[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}'
+                                    r'[A-Za-z0-9])?\.?$', name) else None
     try:
         with socket.create_connection((host or '127.0.0.1', port or WEB_SELF_PORT),
                                       timeout=8) as raw:
-            with ctx.wrap_socket(raw, server_hostname=name or None):
+            with ctx.wrap_socket(raw, server_hostname=sni):
                 pass
         return {'ok': True, 'words': 'checked as a client that fetches nothing: the whole chain '
                                      'is sent'}
@@ -541,7 +576,7 @@ def web_self_connect(prof, port=None, host='127.0.0.1'):
         return {'ok': False, 'why': why, 'words': 'a client that fetches nothing (curl, the '
                                                   'other applications) refuses what nginx '
                                                   'sends: %s' % why}
-    except (OSError, ssl.SSLError) as e:
+    except Exception as e:                              # noqa: BLE001
         return {'ok': None, 'words': 'what nginx sends could not be checked: %s' % e}
 
 

@@ -1524,8 +1524,16 @@ def _cert_csr_answer(h, s):
     store.add_event('certificates', 'the answer to the CSR of %s taken (version %d) by %s' % (
         row['name'], version, who(s)), who=who(s))
     job_id = None
-    if deployer.deploys_of(store, row['id']):
-        job_id = start_deploy(store, row['id'], None, who(s))
+    fresh = S.cert_need(store, row['id'])
+    # deployed as a renewal is (1.0.93): not forced - a hold is kept (it waits for Deploy
+    # now) and a certificate switched off is not deployed; the answer is taken either way
+    if deployer.deploys_of(store, row['id']) and fresh.get('enabled') != 0 and \
+            not S.deploy_held(store, fresh):
+        try:
+            job_id = jobs.submit(store, 'deploy', deployer.deploy_job(row['id'], None),
+                                 cert_id=row['id'], by=who(s), said='the answer to its CSR')
+        except ValueError:
+            job_id = None               # a job busy on it: the renewer deploys it after
     return {'id': row['id'], 'version': version, 'job_id': job_id}
 
 
@@ -2817,6 +2825,16 @@ def _deploy_save_in(store, b, by, full, made):
         opts = S.jload(cur.get('options'), {}) or {}
         C.verify_to_tests(store, cur, opts, by)
         store.db.update('cert_deploys', row['id'], {'options': json.dumps(opts)})
+    if made or moved_from or 'options' in b:
+        # what the target serves, as a test of it (1.0.93): its module checked it itself until
+        # 1.0.92 - a new deployment, one moved to another target, or its options changed
+        # (LDAPS on, a preset with a port) gets it attached; one there already is kept
+        from acmelib.certs import checks as C
+        try:
+            cur = store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (row['id'],))
+            C.served_tests(store, cur, by)
+        except Exception as e:                          # noqa: BLE001
+            E.log('the test of what %s serves was not made: %s' % (trow['name'], e), 'warn')
     store.add_event('certificates', 'deployment of %s to %s saved by %s' % (
         cert['name'], trow['name'], by), who=by)
     _wake()

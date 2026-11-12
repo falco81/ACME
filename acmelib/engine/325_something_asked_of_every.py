@@ -456,6 +456,15 @@ def dbtls_apply(daemon, args):
         if not args.get('only'):
             store.set_meta('dbtls:want', json.dumps({'mode': mode, 'ca_source': str(
                 args.get('ca_source') or ''), 'by': by, 'at': time.time()}))
+            for r in store.db.rows("SELECT k FROM meta WHERE k LIKE 'dbtls:want:off:%'"):
+                store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
+        elif not mode:
+            # one node switched off on its own (1.0.93): the cluster's wish does not switch it
+            # on again ten minutes later
+            store.set_meta('dbtls:want:off:' + node_name(), json.dumps({'by': by,
+                                                                        'at': time.time()}))
+        else:
+            store.db.run('DELETE FROM meta WHERE k = ?', ('dbtls:want:off:' + node_name(),))
         try:
             got = dbtls_switch(daemon, mode, ca, by)
         except Exception:
@@ -668,7 +677,8 @@ def _dbtls_as_wanted(daemon):
     want = _meta_obj(store, 'dbtls:want')
     mode = str(want.get('mode') or '')
     if not mode or str(CONFIG.get('db_tls') or '') == mode or \
-            _meta_obj(store, 'dbtls:rescued:' + node_name()):
+            _meta_obj(store, 'dbtls:rescued:' + node_name()) or \
+            store.get_meta('dbtls:want:off:' + node_name()) is not None:
         return
     if dbtls_kind() not in ('local', 'replicated') or not _dbtls_has_server(store):
         return

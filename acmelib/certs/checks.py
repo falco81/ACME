@@ -209,6 +209,59 @@ def verify_to_tests(store, dep, opts, by):
     return made
 
 
+def served_tests(store, dep, by):
+    """Tests of where the target serves the certificate (its module's served_places), made
+    with a new deployment (1.0.93): the module checked them itself after a deployment until
+    1.0.92 - what is served is checked by the tests attached only. -> the names."""
+    trow = S.plugin_row(store, 'target', dep['target'])
+    if not trow:
+        return []
+    made = []
+    try:
+        from acmelib.certs import runtime
+        ctx = runtime.RunContext(store, None, scope='target:%s' % trow['name'], on_hostkey=False)
+        inst = S.plugin_instance(store, 'target', trow, ctx)
+        places = list(inst.served_places(S.jload(dep.get('options'), {}) or {}) or [])
+    except Exception as e:                              # noqa: BLE001
+        E.log('where %s serves could not be read: %s' % (dep['target'], e), 'warn')
+        return []
+    for host, port in places[:5]:
+        try:
+            made.append(for_target(store, dep['cert_id'], dep['target'], by, 'tls', host,
+                                   int(port)))
+        except (LookupError, ValueError) as e:
+            E.log('the test of what %s serves (%s:%s) was not made: %s' % (
+                dep['target'], host, port, e), 'warn')
+    return made
+
+
+def served_migrate(store, by='acme 1.0.93'):
+    """Once (1.0.93): every deployment on a target whose module checked what it serves
+    itself gets that as a test - none left without the check it had."""
+    n = 0
+    for dep in store.db.rows('SELECT * FROM cert_deploys'):
+        n += len(served_tests(store, dep, by))
+    return n
+
+
+def _tries_for(store, chk, targets):
+    """The waits of a test run after a deployment: longer where a target restarts for long
+    (its module's served_wait, 1.0.93 - vCenter, a BMC)."""
+    longest = None
+    for tg in (after_list(chk.get('after_target')) or sorted(targets or [])):
+        if targets is not None and tg not in targets:
+            continue
+        trow = S.plugin_row(store, 'target', tg)
+        cls = S.row_class('target', trow) if trow else None
+        w = getattr(cls, 'served_wait', None) if cls else None
+        if w and (longest is None or w[0] * w[1] > longest[0] * longest[1]):
+            longest = w
+    if not longest:
+        return AFTER_DEPLOY_TRIES
+    tries, wait = max(1, int(longest[0])), max(1, int(longest[1]))
+    return (3,) + (wait,) * (tries - 1)
+
+
 def verify_migrate(store, by='acme 1.0.77'):
     """Every deployment's "Check what is served" made into tests, once (1.0.77)."""
     n = 0
@@ -915,7 +968,8 @@ def after_deploy(store, job, cert_id, targets=None, failed=None):
     worst = True
     for chk in tests:
         got = None
-        for i, wait in enumerate(AFTER_DEPLOY_TRIES):
+        waits = _tries_for(store, chk, targets)
+        for i, wait in enumerate(waits):
             job.check()
             # a Stop heard while it waits (1.0.80: it ran to its end, the window said "running")
             pause = wait if i else min(wait, 3)
@@ -928,9 +982,9 @@ def after_deploy(store, job, cert_id, targets=None, failed=None):
             got = probe(store, chk)
             if got['state'] in ('ok', 'warn'):
                 break
-            if i + 1 < len(AFTER_DEPLOY_TRIES):
+            if i + 1 < len(waits):
                 job.step('test %s: %s - asked again in %d s' % (
-                    chk['test'], got['said'], AFTER_DEPLOY_TRIES[i + 1]), 'debug')
+                    chk['test'], got['said'], waits[i + 1]), 'debug')
         record(store, chk, got, job.step)
         worst = worst and got['ok']
         if not got['ok'] and failed is not None:

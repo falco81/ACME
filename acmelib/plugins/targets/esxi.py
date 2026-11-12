@@ -81,6 +81,11 @@ class EsxiTarget(SshMixin, Base):
         return 'rui.crt / rui.key written on %s%s' % (self.c('host'),
                                                      ', hostd restarted' if cmd else '')
 
+    served_wait = (10, 6)
+
+    def served_places(self, options):
+        return [(self.c('host'), 443)] if self.c('host') else []
+
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify'):

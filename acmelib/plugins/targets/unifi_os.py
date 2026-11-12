@@ -141,6 +141,11 @@ class UnifiOsTarget(HttpTarget):
             except PluginError as e:
                 self.ctx.step('the old %s stays: %s' % (old, e), 'warn')
 
+    served_wait = (8, 5)
+
+    def served_places(self, options):
+        return [(self.c('host'), as_int(self.c('port', 443), 443))] if self.c('host') else []
+
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify'):

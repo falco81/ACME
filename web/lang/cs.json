@@ -56531,6 +56531,14 @@
   "sfind_8": {
    "source": "after deploying on",
    "text": "po nasazení na"
+  },
+  "pslots_25": {
+   "source": "Nothing chosen - choose at least one (Automatically: each slot whose names it holds).",
+   "text": "Nic nezvoleno – zvolte aspoň jeden (Automaticky: každý slot, jehož jména obsahuje)."
+  },
+  "dtx_1": {
+   "source": "Where the certificate goes on this target and in what shape. When it is renewed, it is put there again by itself - and the tests attached to the certificate check what is served afterwards.",
+   "text": "Kam na tomto cíli certifikát půjde a v jaké podobě. Po obnovení se tam nasadí znovu sám – a co se skutečně podává, potom zkontrolují testy připojené k certifikátu."
   }
  },
  "patterns": {

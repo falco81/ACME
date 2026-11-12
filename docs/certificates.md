@@ -613,9 +613,14 @@ deployment's options, with its secrets opened. The module:
 
 1. puts the certificate in place;
 2. makes the service take it (reload, profile update, ...);
-3. is asked `verify()`: is the new certificate what is served now?
-
-`False` counts as a failure. `None` means the module cannot tell.
+3. what is served afterwards is checked by the **tests attached to the
+   certificate** only (1.0.92): those run after a deployment on that target, a
+   few times while the service restarts (longer where the module says it
+   restarts for long - vCenter, a BMC), and a failing one fails the deployment
+   there (tried again later, the wait doubling). A target whose module knows
+   where it serves (an ESXi, a vCenter, a BMC, a FRITZ!Box, a domain
+   controller's LDAPS on 636...) gets that test attached with a new deployment
+   (1.0.93; once for the deployments made before).
 
 A deployment started by a person (the page, `acme --deploy`, the console)
 passes `options['force'] = True`, so a target that skips an unchanged

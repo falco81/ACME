@@ -136,6 +136,9 @@ class FritzBoxTarget(HttpTarget):
         self.remember(bundle, options)
         return 'certificate uploaded to the FRITZ!Box %s' % self.c('host')
 
+    def served_places(self, options):
+        return [(self.c('host'), as_int(self.c('port', 443), 443))] if self.c('host') else []
+
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify'):

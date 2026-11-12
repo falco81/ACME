@@ -253,7 +253,7 @@ def clean_picks(store, items):
     return out
 
 
-def import_job(store, name, items, by=''):
+def import_job(store, name, items, by='', s=None):
     """The job (its id) that imports `items` (clean_picks) from the source."""
     irow = _source(store, name)
     if not irow.get('enabled', 1):
@@ -261,7 +261,7 @@ def import_job(store, name, items, by=''):
     picks = clean_picks(store, items)
 
     def fn(job):
-        return run_import(store, job, irow, picks, by)
+        return run_import(store, job, irow, picks, by, s)
     return jobs.submit(store, 'online-import', fn, by=by,
                        said='%d certificate(s) from %s' % (len(picks), irow['name']))
 
@@ -271,7 +271,20 @@ def _key_type(info):
     return kt if kt in schema.KEY_TYPES else (kt[:60] or 'ec-256')
 
 
-def run_import(store, job, irow, picks, by):
+def _named(store, s, mine):
+    """A certificate acme has, named to this session only when it may see it (1.0.93: the
+    job's steps and result named another team's certificate, the list did not)."""
+    if s is not None:
+        try:
+            from acmelib.certs import teams
+            if not teams.cert_may(store, s, mine, 'view'):
+                return 'another owner\'s certificate'
+        except Exception:                               # noqa: BLE001
+            return 'another owner\'s certificate'
+    return mine['name']
+
+
+def run_import(store, job, irow, picks, by, s=None):
     """(ok, words): each certificate fetched from the source, checked and kept."""
     inst, ctx = _instance(store, irow, job)
     results = []
@@ -285,12 +298,12 @@ def run_import(store, job, irow, picks, by):
             results.append(one)
             mine, _by = _match(kn, {'ref': p['ref']})
             if mine is not None:
-                one['why'] = 'acme has it already: %s' % mine['name']
+                one['why'] = 'acme has it already: %s' % _named(store, s, mine)
                 job.step('%s: %s' % (p['ref'], one['why']), 'warn')
                 continue
             try:
                 got = inst.fetch_existing(p['ref']) or {}
-                cid, name, info = _keep(store, irow, p, got, kn, by)
+                cid, name, info = _keep(store, irow, p, got, kn, by, s)
             except jobs.JobStopped:
                 raise
             except (base.PluginError, ValueError, LookupError) as e:
@@ -350,7 +363,7 @@ def profile_of(info):
     return prof
 
 
-def _keep(store, irow, p, got, kn, by):
+def _keep(store, irow, p, got, kn, by, s=None):
     """(id, name, info) of the certificate made, or (None, why, {}) when it is not."""
     pki = S.pki()
     leaf = str(got.get('cert_pem') or '').strip()
@@ -363,7 +376,7 @@ def _keep(store, irow, p, got, kn, by):
     mine, _by = _match(kn, {'serial': info.get('serial'), 'fingerprint': info.get('sha256'),
                             'acme_cert_id': got.get('acme_cert_id')})
     if mine is not None:
-        return None, 'acme has it already: %s' % mine['name'], {}
+        return None, 'acme has it already: %s' % _named(store, s, mine), {}
     chain = [c if c.endswith('\n') else c + '\n' for c in (got.get('chain_pems') or [])
              if str(c).strip() and str(c).strip() != leaf.strip()]
     try:

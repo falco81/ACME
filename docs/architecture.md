@@ -77,7 +77,7 @@ API endpoints are added with `@route('GET', '/api/...')` anywhere.
 3. The new certificate becomes the current one (the old one is kept in
    `cert_versions`), and every enabled deployment of it is run: the target's
    module puts it in place in the formats asked and makes the service take
-   it, then checks what is served.
+   it; the tests attached to the certificate then check what is served.
 4. Every step is in the job (`acme --job ID`, the Jobs tab); a failure is an
    event, an alert by mail/SMS, a line to syslog/SIEM and isemon.
 

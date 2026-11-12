@@ -128,7 +128,7 @@
       }).forEach(function (p) {
         list.appendChild(line(p, p, el('span', 'muted small', slots === null ? tr('chosen before') : tr('not there any more'))));
       });
-      if (!picks.length) list.appendChild(el('p', 'bad small ps-none', 'Nothing chosen: the certificate goes nowhere on the application.'));
+      if (!picks.length) list.appendChild(el('p', 'bad small ps-none', 'Nothing chosen - choose at least one (Automatically: each slot whose names it holds).'));
     }
     function ask() {
       if (!row.name) return;

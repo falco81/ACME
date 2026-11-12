@@ -876,8 +876,8 @@ def build_parser():
     g.add_argument('--org', metavar='TEXT', default='', help='with --tls-csr, --tls-selfsigned: the '
                    'organisation')
     g.add_argument('--days', type=int, default=None,
-                   help='how many days: --tls-selfsigned [825], --selfsigned [365], --ca-create '
-                        '[3650], an intermediate [1825], --ca-sign [the profile\'s]')
+                   help='how many days: --tls-selfsigned [825, 1-3650], --selfsigned [365], '
+                        '--ca-create [3650], an intermediate [1825], --ca-sign [the profile\'s]')
     g.add_argument('--tls-chain', action='store_true', help='the chain of --tls-for checked '
                    'against the system\'s roots and completed: an intermediate it did not come '
                    'with fetched from its CA Issuers address (nginx then sends the whole chain)')
@@ -4265,7 +4265,8 @@ def cli_main(argv=None):
         cli_sure(args, 'a certificate of its own, made here, for %s - in place of the one it has' % target)
         return shown(api('POST', '/api/web', {'action': 'tls_selfsigned', 'target': target,
                                               'cn': args.tls_selfsigned, 'names': args.names or '',
-                                              'days': args.days or 825, 'org': args.org}))
+                                              'days': 825 if args.days is None else args.days,
+                                              'org': args.org}))
     if args.tls_chain or args.tls_chain_add:
         body = {'action': 'tls_chain', 'target': target}
         if args.tls_chain_add:

@@ -670,7 +670,8 @@ as `********`, and refuses impossible settings (`problems`).
 
 **Example**: on an AD FS server, *Role: AD FS* on (all its switches), verify
 `sts.example.com:443`. On a domain controller, *Role: LDAPS* on: the TLS check on
-`<host>:636` is added by itself.
+`<host>:636` is attached as a test of the certificate with the deployment
+(*Check port 636 after*).
 
 ## `f5` - F5 BIG-IP
 

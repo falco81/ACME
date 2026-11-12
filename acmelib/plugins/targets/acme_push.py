@@ -74,7 +74,7 @@ class AcmePushTarget(HttpTarget):
         field('timeout', 'Timeout (s)', 'number', default=30, advanced=True),
     ]
     deploy_fields = [
-        field('slots', 'Slots', 'list', default='auto', picker='push_slots',
+        field('slots', 'Slots', 'list', default='auto', picker='push_slots', required=True,
               placeholder='auto\nnode:otp1\nvip',
               help='Where on the application the certificate goes: auto (each slot whose '
                    'names the certificate holds), nodes, vip, this, or the slots themselves - '

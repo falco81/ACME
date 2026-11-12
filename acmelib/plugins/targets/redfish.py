@@ -220,6 +220,11 @@ class RedfishTarget(HttpTarget):
         self.remember(bundle, options)
         return did
 
+    served_wait = (20, 15)          # a reset of the controller takes minutes
+
+    def served_places(self, options):
+        return [(self.c('host'), as_int(self.c('port', 443), 443))] if self.c('host') else []
+
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify'):

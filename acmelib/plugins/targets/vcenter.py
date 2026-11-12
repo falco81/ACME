@@ -152,6 +152,11 @@ class VCenterTarget(HttpTarget):
         self.remember(bundle, options)
         return 'machine SSL certificate of %s replaced; its services restart' % self.c('host')
 
+    served_wait = (20, 15)
+
+    def served_places(self, options):
+        return [(self.c('host'), as_int(self.c('port', 443), 443))] if self.c('host') else []
+
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify'):

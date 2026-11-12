@@ -12,7 +12,7 @@ Phases, in the order a renewal goes:
                 an own authority (written here), any other source as its module's
                 own issue() was recorded
     validation  per name, the module's present() / ready() / cleanup() recorded
-    deploy      per deployment, the target's deploy() and verify() recorded
+    deploy      per deployment, the target's deploy() recorded (what is served: the tests)
     after       who is told, when it comes again, what only the first time does
 
 How a module is recorded (plansandbox.py): its own code is run in a process of

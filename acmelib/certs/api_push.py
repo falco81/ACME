@@ -100,8 +100,8 @@ def certs_pool(store):
     out = []
     for c in store.db.rows('SELECT id, name, names, state, not_after, enabled, key_type, '
                            'key_type_alt FROM certs'):
-        if str(c.get('state') or '') in ('revoked',):
-            continue
+        if str(c.get('state') or '') in ('revoked',) or c.get('enabled') == 0:
+            continue                    # nothing to give: revoked, or switched off (1.0.93)
         names = S.jload(c.get('names'), []) or []
         if names:
             out.append(dict(c, names=names))
@@ -225,6 +225,33 @@ def _adopt(h, s):
     return adopt(h.store, h.body(), A.who(s))
 
 
+def _give_up_slot(store, target, slot, keep_cid, by):
+    """The deployments of other certificates naming this slot take it out of their slots.
+    (deployment's certificate, the word) when one covers it by auto, nodes or vip - that one
+    is not changed here; else None."""
+    for c in slot.get('covered_by') or []:
+        if keep_cid and int(c.get('cert_id') or 0) == int(keep_cid):
+            continue
+        dep = store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (c.get('deploy_id'),))
+        if not dep:
+            continue
+        opts = S.jload(dep.get('options'), {}) or {}
+        raw = opts.get('slots') or 'auto'
+        had = [x.strip() for x in (raw if isinstance(raw, (list, tuple))
+                                   else str(raw).replace(',', '\n').splitlines()) if str(x).strip()]
+        named = [x for x in had if x == slot['id'] or (slot.get('node') and x == slot['node'])]
+        if not named:
+            word = next((x for x in had if x in ('auto', 'nodes', 'vip', 'this')), 'auto')
+            return (c.get('cert') or '?', word)
+        rest = [x for x in had if x not in named]
+        if not rest:
+            return (c.get('cert') or '?', slot['id'])  # its only slot: take it off by hand
+        opts['slots'] = '\n'.join(rest)
+        A.deploy_save(store, {'id': dep['id'], 'cert_id': dep['cert_id'], 'target': target,
+                              'options': opts, 'enabled': dep.get('enabled', 1)}, by)
+    return None
+
+
 def adopt_each(store, b, by):
     """Each slot as chosen for it (1.0.90) - `each`: {slot id: {how: 'existing', cert_id} |
     {how: 'new', issuer, challenge}}: an existing certificate holding the slot's names gets a
@@ -254,6 +281,15 @@ def adopt_each(store, b, by):
         if s.get('installable') is False:
             left.append({'slot': sid, 'why': 'cannot be put in: %s' % (s.get('why_not') or '?')})
             continue
+        if how in ('existing', 'new') and s.get('covered_by'):
+            # another certificate in it already (1.0.93): two took turns in the slot at each
+            # renewal - one naming the slot itself gives it up, one by auto/nodes/vip cannot
+            keep_cid = A._id(want.get('cert_id')) if how == 'existing' else None
+            stuck = _give_up_slot(store, target, s, keep_cid, by)
+            if stuck:
+                left.append({'slot': sid, 'why': '%s puts a certificate there by "%s" - change '
+                             'that deployment first' % stuck})
+                continue
         if how == 'existing':
             cid = A._id(want.get('cert_id'))
             fit = next((c for c in s.get('fits') or [] if int(c['cert_id']) == int(cid or 0)),
@@ -295,7 +331,18 @@ def adopt_each(store, b, by):
                                         'note': 'given by Discover'}, by)
         job = None
         if b.get('deploy_now') and cert.get('cert_pem'):
-            job = A.start_deploy(store, cid, did, by)
+            # one that cannot go now (its version revoked, a job busy on it) is said, and the
+            # rest still done (1.0.93: the request failed half way, the new ones never made)
+            try:
+                job = A.start_deploy(store, cid, did, by)
+            except (ValueError, LookupError) as e:
+                left.append({'slot': ', '.join(sids), 'why': 'given %s, not pushed now: %s'
+                             % (cert['name'], e)})
+            except Exception as e:                      # noqa: BLE001
+                if getattr(e, 'status', None) != 409:
+                    raise
+                left.append({'slot': ', '.join(sids), 'why': 'given %s, pushed after the job '
+                             'busy on it' % cert['name']})
         linked.append({'cert': cert['name'], 'cert_id': cid, 'deploy_id': did, 'slots': sids,
                        'job_id': job})
     groups = []

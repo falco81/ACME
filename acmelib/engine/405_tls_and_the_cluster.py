@@ -84,8 +84,15 @@ def _web_do(h):
             how = 'uploaded'
         else:
             names = [x.strip() for x in re.split(r'[\s,;]+', str(b.get('names') or '')) if x.strip()]
+            try:
+                days = int(b.get('days')) if b.get('days') not in (None, '') else 825
+            except (TypeError, ValueError):
+                raise ApiError(400, 'the days are a number')
+            if not 1 <= days <= 3650:
+                # 1.0.93: 0 made 825 days, a negative one an openssl error
+                raise ApiError(400, 'a self-signed certificate lasts 1 to 3650 days')
             key, crt = make_selfsigned(str(b.get('cn') or '').strip(), names,
-                                       int(b.get('days') or 825), str(b.get('kind') or 'rsa2048'),
+                                       days, str(b.get('kind') or 'rsa2048'),
                                        org=str(b.get('org') or ''))
             got, got2 = cert_bundle(crt, key), None
             how = 'self-signed, made here'
@@ -326,8 +333,12 @@ def tls_chain_act(store, target, prof, words, who, act, b):
     if alt and alt.get('cert'):
         # The second certificate (ECDSA) of the same names: its chain completed too.
         acur = [m.group(0) for m in PEM_CERT.finditer(alt.get('chain') or '')]
-        achain, _st = chain_complete(alt['cert'], acur, root_now)
+        achain, ast = chain_complete(alt['cert'], acur, root_now)
         alt['chain'] = ''.join(c + '\n' for c in achain)
+        alt['chain_state'] = ast        # its own (1.0.93): it was thrown away
+        if ast.get('ok') is False and state.get('ok'):
+            state = dict(state, words=state['words'] + ' - the ECDSA one beside it: '
+                         + ast.get('words', ''))
     tls_save(store, target, prof, who)
     if act == 'tls_chain_add':
         store.add_event('settings', '%s added %s to the chain of the certificate of %s: %s' % (

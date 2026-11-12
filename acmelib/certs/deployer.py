@@ -2,8 +2,10 @@
 """
 A certificate put on its targets: for each deployment (a row of
 cert_deploys) the target's module is handed the certificate in every shape
-(a Bundle) and the deployment's options, puts it in place, makes the
-service take it, and is asked whether it is what is served now.
+(a Bundle) and the deployment's options, puts it in place and makes the
+service take it. What is served afterwards is checked by the tests attached to
+the certificate only (1.0.92; checks.after_deploy) - a failing one fails the
+deployment on its target.
 
 A deployment that fails is tried again by the renewer after a wait that
 doubles each time (5 min, 10, 20 ... certs_retry_max_h at most).
@@ -117,7 +119,7 @@ def deploy_one(store, job, cert, dep, force=False):
         # node named merit.cz, the company's web answering there) failed a deployment that
         # was put in and served. The tests run after it (checks.after_deploy) and, failing,
         # fail it.
-        step('%s: in place - what it serves is checked by the tests attached' % trow['name'],
+        step('%s: in place - %s' % (trow['name'], _tested_words(store, cert, trow['name'])),
              'ok')
     except JobStopped:
         # Stopped half way (a restart, an upgrade, Stop pressed) - not left "deploying"
@@ -162,13 +164,35 @@ def deploy_one(store, job, cert, dep, force=False):
         'deployed_fp': cert.get('fingerprint'), 'last_ok': t2, 'last_error': '', 'fails': 0,
         'next_try': None})
     store.db.update('cert_targets', trow['id'], {'last_ok': t2, 'last_error': ''})
+    return True, 'deployed to %s' % trow['name']
+
+
+def _tested_words(store, cert, target):
+    """What says what is served there (1.0.93): the tests attached, or that none does."""
+    try:
+        from acmelib.certs import checks
+        if not E.CONFIG.get('certs_checks_after_deploy', 1):
+            return 'tests after a deployment are switched off (Settings → Certificates)'
+        for r in store.db.rows('SELECT after_target FROM cert_checks WHERE cert_id = ? AND '
+                               'COALESCE(enabled, 1) <> 0', (cert['id'],)):
+            have = checks.after_list(r.get('after_target'))
+            if checks.AFTER_NONE not in have and (not have or target in have):
+                return 'what it serves is checked by the tests attached'
+    except Exception:                                   # noqa: BLE001
+        pass
+    return 'no test attached checks what it serves (the certificate → Tests → Attach a test)'
+
+
+def _told_deployed(store, cert, dep):
+    """Its event and notice (1.0.93: after the tests of the certificate - a deployment a test
+    then failed was said deployed first, every five minutes)."""
+    trow = S.plugin_row(store, 'target', dep['target']) or {'name': dep['target']}
     with E.event_with(**_fields(store, cert, trow, 'deployed', 'ok')):
         store.add_event('certificates', '%s (version %s) deployed to %s' % (
             cert['name'], cert.get('version'), trow['name']))
     if _notices().ok_wanted():
         _tell(store, 'cert_deployed', 'deployed:%s:%s' % (dep['id'], cert.get('version')), cert,
               trow)
-    return True, 'deployed to %s' % trow['name']
 
 
 def generated_password(store, dep, opts, step=None, again=False):
@@ -303,7 +327,9 @@ def run_deploys(store, job, cert_id, only=None, force=False):
         # twice - its backoff doubled - and counted twice)
         if why and dep['id'] in ok_ids:
             cur = store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (dep['id'],)) or dep
-            _failed(store, cur, why)
+            # counted on from its failures before this run (1.0.93): put in place it had 0,
+            # and every try waited five minutes - redeployed and restarted for ever
+            _failed(store, dict(cur, fails=dep.get('fails') or 0), why)
             job.step('%s: %s' % (dep['target'], why), 'bad')
             good -= 1
             bad.append('%s: %s' % (dep['target'], why))
@@ -317,6 +343,12 @@ def run_deploys(store, job, cert_id, only=None, force=False):
                       error=why[:500])
             except Exception as e:                      # noqa: BLE001
                 job.step('the failure could not be told: %s' % e, 'warn')
+    for dep in rows:
+        if dep['id'] in ok_ids and not failed_by_test.get(str(dep.get('target') or '')):
+            try:
+                _told_deployed(store, cert, dep)
+            except Exception as e:                      # noqa: BLE001
+                job.step('the deployment could not be told: %s' % e, 'warn')
     if bad:
         return False, '%d of %d deployment(s) failed - %s' % (len(bad), len(rows), '; '.join(bad))
     off = ' (%d left out: target switched off)' % skipped if skipped else ''

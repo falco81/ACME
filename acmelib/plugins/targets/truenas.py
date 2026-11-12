@@ -167,6 +167,13 @@ class TrueNasTarget(SshMixin, Base):
             except (PluginError, TypeError, ValueError) as e:
                 self.ctx.step('the old %s stays (still used?): %s' % (old, e), 'warn')
 
+    served_wait = (8, 5)
+
+    def served_places(self, options):
+        if not self.c('host') or not as_bool(self.opt(options or {}, 'ui', True), True):
+            return []
+        return [(self.c('host'), 443)]
+
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify') and as_bool(self.opt(options, 'ui', True), True):

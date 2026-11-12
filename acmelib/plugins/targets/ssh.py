@@ -681,6 +681,11 @@ class SshTarget(SshMixin, Base):
             self.ctx.step('%s: %s' % (what, c), 'ok')
         return None
 
+    def served_places(self, options):
+        preset = PRESETS.get((options or {}).get('preset') or 'custom') or {}
+        return [(self.c('host'), int(preset['port']))] if preset.get('port') and \
+            self.c('host') else []
+
     def verify(self, bundle, options):
         options = dict(options or {})
         if not lines(options.get('verify')):

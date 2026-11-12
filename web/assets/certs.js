@@ -3325,7 +3325,7 @@ function deployEdit(o) {
     var certName = first(d.cert_name, o.cert && o.cert.name, certId ? '#' + certId : '');
     if (certId) CERT_NAME_OF[certId] = certName;
     modal(d.id ? 'The deployment of ' + certName + ' on ' + tName : 'Deploy a certificate', function (body) {
-      body.appendChild(el('p', 'note', 'Where the certificate goes on this target and in what shape. When it is renewed, it is put there again by itself - and the job checks what is served afterwards.'));
+      body.appendChild(el('p', 'note', 'Where the certificate goes on this target and in what shape. When it is renewed, it is put there again by itself - and the tests attached to the certificate check what is served afterwards.'));
       var g = el('div', 'formgrid');
       if (certId) {
         /* given (from the certificate's window): its row, as when picked */
