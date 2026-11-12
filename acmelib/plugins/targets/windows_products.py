@@ -17,10 +17,13 @@ certificates nothing uses removed afterwards:
     windows_scom            Operations Manager (management server, gateway, agent): the
                             key imported AT_KEYEXCHANGE into a legacy CSP (certutil), then
                             MOMCertImport, the HealthService restarted
+    windows_oos             Office Online Server: the farm's certificate by its friendly
+                            name (Set-OfficeWebAppsFarm -CertificateName), the key
+                            exportable as it must be, a restart when asked
 
 What the vendor documents give is the same in every version they cover (Windows Server
 2016 - 2025; SSRS 2016 - 2022 and Power BI Report Server; Operations Manager 2019 -
-2025): one module each, no versions. IIS sites, RDP, Exchange, SQL Server, AD FS,
+2025; Office Online Server): one module each, no versions. IIS sites, RDP, Exchange, SQL Server, AD FS,
 RDS, LDAPS, WinRM, SSTP, Skype for Business, SharePoint SE and Windows Admin Center are
 windows_ssh's (its roles) - not repeated here.
 
@@ -39,6 +42,8 @@ Sources (Microsoft Learn, read 2026-11):
   https://learn.microsoft.com/en-us/sql/reporting-services/wmi-provider-library-reference/configurationsetting-method-createsslcertificatebinding
   https://learn.microsoft.com/en-us/sql/reporting-services/wmi-provider-library-reference/configurationsetting-method-removesslcertificatebinding
   https://learn.microsoft.com/en-us/system-center/scom/obtain-certificate-windows-server-and-operations-manager
+  https://learn.microsoft.com/en-us/officeonlineserver/plan-office-online-server
+  https://learn.microsoft.com/en-us/powershell/module/officewebapps/set-officewebappsfarm
 """
 from __future__ import annotations
 
@@ -711,3 +716,84 @@ class ScomTarget(WinProductTarget):
             "$store | Where-Object { $_.SerialNumber -eq $h -or $_.SerialNumber -eq $hr } | "
             "ForEach-Object { $_.Thumbprint }) } } catch { }" % '; '.join(SCOM_SERIAL),
         ]
+
+
+# ---------------------------------------------------------------------------
+# Office Online Server
+# ---------------------------------------------------------------------------
+class OosTarget(WinProductTarget):
+    kind = 'windows_oos'
+    title = 'Office Online Server'
+    product = 'Office Online Server'
+    description = ('Office Online Server (on Windows Server 2016 - 2022) for SharePoint and '
+                   'Exchange, over OpenSSH and PowerShell: imports the certificate with an '
+                   'exportable key under its own friendly name, points the farm at it '
+                   '(Set-OfficeWebAppsFarm -CertificateName), restarts the server when asked '
+                   'and removes the old ones. Deploy it to every server of the farm.')
+    deploy_fields = [
+        field('oos_restart', 'Restart this server after the change', 'bool', default=False,
+              help='the farm takes the certificate after its servers restart; on: a restart in '
+                   'a minute (shutdown /r /t 60) - deploy to one server of the farm at a time'),
+        field('oos_port', 'HTTPS port to check', 'number', default=443,
+              help='for the test made with the deployment; 0: none'),
+    ] + WinProductTarget.common_deploy_fields
+
+    def import_cert(self, s, bundle, options):
+        # "the private key must be exportable" (Plan Office Online Server)
+        WinProductTarget.import_cert(self, s, bundle, dict(options, exportable=True))
+
+    def detect(self):
+        return ["if (Get-Module -ListAvailable -Name 'OfficeWebApps') { Import-Module "
+                "OfficeWebApps -WarningAction SilentlyContinue; $f = $null; try { $f = "
+                "Get-OfficeWebAppsFarm -ErrorAction Stop } catch { }; if ($f) { Write-Output "
+                "('FOUND yes ' + [string]$f.InternalURL + ', certificate ' + "
+                "[string]$f.CertificateName) } else { Write-Output 'FOUND no this server is in "
+                "no Office Online Server farm (New-OfficeWebAppsFarm)' } } else { Write-Output "
+                "'FOUND no the OfficeWebApps module is not here - is Office Online Server "
+                "installed?' }"]
+
+    def body(self, bundle, options):
+        sc = [
+            "Need-Module 'OfficeWebApps' 'Office Online Server'",
+            "$farm = Get-OfficeWebAppsFarm -ErrorAction Stop",
+            "if ($farm.SSLOffloaded) { throw 'Office Online Server: the farm is SSL offloaded - "
+            "the certificate belongs on the load balancer' }",
+            "$name = [string]$cert.FriendlyName",
+            "$same = @(Get-ChildItem $store | Where-Object { $_.FriendlyName -eq $name })",
+            "if ($same.Count -ne 1) { throw ('Office Online Server: the friendly name ' + $name + "
+            "' is on ' + $same.Count + ' certificates - it must be unique') }",
+            "if ([string]$farm.CertificateName -eq $name) { Say ok ('Office Online Server "
+            "already uses it (' + $name + ')') } else {",
+            "  Set-OfficeWebAppsFarm -CertificateName $name -Force -ErrorAction Stop",
+            "  Say ok ('Office Online Server uses it (' + $name + ')')",
+        ]
+        if as_bool(options.get('oos_restart')):
+            sc += [
+                "  $r = Run-Native 'shutdown.exe' @('/r', '/t', '60', '/c', 'acme: Office Online "
+                "Server takes the new certificate')",
+                "  if ($r.rc -ne 0) { throw ('Office Online Server: the restart could not be "
+                "scheduled: ' + $r.out) }",
+                "  Say warn 'Office Online Server: this server restarts in a minute'",
+            ]
+        else:
+            sc.append("  Say warn 'Office Online Server takes it after the servers of the farm "
+                      "restart'")
+        sc.append("}")
+        return sc
+
+    def used(self):
+        return [
+            "try { Import-Module OfficeWebApps -WarningAction SilentlyContinue -ErrorAction Stop; "
+            "$n = [string](Get-OfficeWebAppsFarm -ErrorAction Stop).CertificateName; if ($n) { "
+            "$used += @(Get-ChildItem $store | Where-Object { $_.FriendlyName -eq $n } | "
+            "ForEach-Object { $_.Thumbprint }) } } catch { }",
+        ]
+
+    def served_places(self, options):
+        p = as_int((options or {}).get('oos_port'), 443)
+        return [(self.c('host'), p)] if p and self.c('host') else []
+
+    # a restart in a minute: the tests after the deployment wait for it (up to 6 minutes)
+    @staticmethod
+    def served_wait(options):
+        return (13, 30) if as_bool((options or {}).get('oos_restart')) else None

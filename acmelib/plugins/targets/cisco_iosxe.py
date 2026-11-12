@@ -55,7 +55,8 @@ import re
 
 from acmelib.plugins.targets._common import (
     Base, PluginError, field, as_bool, text, object_name, name_prefix, ours, prune,
-    random_password, ssh_fields, ssh_conn, verify_fields, keep_field, put_scp, as_int, family_of)
+    random_password, ssh_fields, ssh_conn, verify_fields, keep_field, put_scp, as_int, family_of,
+    pem_to_der)
 from acmelib.plugins.targets._cisco_aruba import Ranges, VersionCheck
 
 # IOS says what it did not take with a "%" line
@@ -77,9 +78,18 @@ def parse_iosxe(out):
     return tuple(int(x) for x in m.groups()) if m else None
 
 
+EC_OID = bytes.fromhex('06072a8648ce3d0201')      # id-ecPublicKey
+
+
 def key_kind(bundle):
     """'rsa' or 'ec' - the key of the certificate (for `crypto key zeroize`)."""
-    return 'ec' if family_of(bundle) == 'ec' else 'rsa'
+    fam = family_of(bundle)
+    if fam in ('ec', 'rsa'):
+        return fam
+    try:
+        return 'ec' if EC_OID in pem_to_der(bundle.cert_pem) else 'rsa'
+    except Exception:                                   # noqa: BLE001
+        return 'rsa'
 
 
 class CiscoIosXeTarget(VersionCheck, Base):

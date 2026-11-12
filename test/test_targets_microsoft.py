@@ -26,9 +26,11 @@ from acmelib.plugins.targets import windows_products as WP  # noqa: E402
 
 CONF = {'host': 'srv.example.test', 'user': 'Administrator', 'auth': 'password',
         'password': 'pw'}
-KINDS = ['windows_wsus', 'windows_hyperv_replica', 'windows_ssrs', 'windows_scom']
+KINDS = ['windows_wsus', 'windows_hyperv_replica', 'windows_ssrs', 'windows_scom',
+         'windows_oos']
 MARK = {'windows_wsus': 'New-IISSiteBinding', 'windows_hyperv_replica': 'Set-VMReplication',
-        'windows_ssrs': 'CreateSSLCertificateBinding', 'windows_scom': 'MOMCertImport'}
+        'windows_ssrs': 'CreateSSLCertificateBinding', 'windows_scom': 'MOMCertImport',
+        'windows_oos': 'Set-OfficeWebAppsFarm'}
 
 
 def setUpModule():
@@ -107,6 +109,7 @@ class RegisteredTest(unittest.TestCase):
                                        {'hvr_server': False}],
             'windows_ssrs': [{}, {'ssrs_instance': 'PBIRS'}],
             'windows_scom': [{}, {'scom_tool': 'C:\\T\\MOMCertImport.exe', 'scom_restart': False}],
+            'windows_oos': [{}, {'oos_restart': True}],
         }
         for k, optss in sets.items():
             t, _c = make(k, Server())
@@ -322,6 +325,35 @@ class ScomTest(unittest.TestCase):
         t.deploy(b, {})
 
 
+class OosTest(unittest.TestCase):
+    def test_script_and_exportable_key(self):
+        sv = Server()
+        t, ctx = make('windows_oos', sv)
+        b = FakeBundle()
+        t.deploy(b, {})
+        imp = sv.runs('Import-PfxCertificate')[0]
+        self.assertIn('-Exportable', sv.scripts[imp], 'OOS needs an exportable key')
+        ps = sv.scripts[sv.runs('Set-OfficeWebAppsFarm')[0]]
+        self.assertIn("Need-Module 'OfficeWebApps' 'Office Online Server'", ps)
+        self.assertIn('Set-OfficeWebAppsFarm -CertificateName $name -Force', ps)
+        self.assertIn('$farm.SSLOffloaded', ps)
+        self.assertIn('it must be unique', ps)
+        self.assertNotIn('shutdown.exe', ps)
+        self.assertIn("$cert.FriendlyName = '%s'" % C.object_name(b, {}), sv.scripts[imp])
+        old = sv.runs(r'Select-Object -Skip 1')[0]
+        self.assertIn('Get-OfficeWebAppsFarm', sv.scripts[old], 'the farm\'s one is kept')
+
+    def test_restart_and_waits(self):
+        ps = product_script('windows_oos', {'oos_restart': True})
+        self.assertIn("Run-Native 'shutdown.exe' @('/r', '/t', '60'", ps)
+        cls = Registry(extra_dirs=[]).reload().get('target', 'windows_oos')
+        self.assertEqual(cls.served_wait({'oos_restart': True}), (13, 30))
+        self.assertIsNone(cls.served_wait({}))
+        t, _c = make('windows_oos', Server())
+        self.assertEqual(t.served_places({}), [('srv.example.test', 443)])
+        self.assertEqual(t.served_places({'oos_port': 0}), [])
+
+
 class TryTestPreviewTest(unittest.TestCase):
     def test_try(self):
         for k in KINDS:
@@ -364,7 +396,7 @@ class GuidesTest(unittest.TestCase):
         d = os.path.join(os.path.dirname(HERE), 'acmelib', 'plugins', 'guides', 'targets')
         must = {'windows_wsus': 'configuressl', 'windows_hyperv_replica': 'Set-VMReplicationServer',
                 'windows_ssrs': 'MSReportServer_ConfigurationSetting',
-                'windows_scom': 'MOMCertImport'}
+                'windows_scom': 'MOMCertImport', 'windows_oos': 'Set-OfficeWebAppsFarm'}
         for k in KINDS:
             for suffix in ('.md', '.cs.md'):
                 with open(os.path.join(d, k + suffix), encoding='utf-8') as f:
