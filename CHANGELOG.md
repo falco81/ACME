@@ -38,6 +38,30 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     - a button the page had hidden stays hidden after *No, leave it*.
   - *What happens* does not say a test runs after a deployment when tests after deployments
     are switched off.
+  - The UI:
+    - Esc (or Close) in *Change the source* and *Change names, key, source…* goes back to the
+      certificate's window; it closed everything;
+    - *The certificate* in a job opened from the certificate's window goes back to it, not
+      a second one over it;
+    - *What happens*: Close and *Work it out again* in the common order;
+    - a certificate's window on a phone: its many buttons three a row and smaller (they took a
+      third of the screen);
+    - *Find out* on a phone: the table scrolls, not the whole dialog;
+    - the hints of boxes marked as data (placeholders, labels) are translated;
+    - the note "made from what certificates said" of an owner is translated;
+    - *Cancel* is *Close* in every dialog, as everywhere else.
+- Bug hunt I, round 2:
+  - Import of the configuration with *replace*: a certificate taken away left its versions,
+    tests, finished jobs and its rows in meta (hold, move, the portal's requester). A
+    certificate given its number later inherited them: held, mailed to a stranger, revoke
+    refused, old versions shown. They go with it now.
+  - An import without the secrets of an older file put an older certificate over the key of
+    the newer one here: the key no longer opened, and nothing could be deployed, exported or
+    renewed with the key kept. A certificate's material stays as it is when the file does not
+    carry its key.
+  - The configuration's file carries a certificate's hold of its deployments, its move and
+    its portal requester, under its number there. They were lost: a held certificate was
+    deployed after the import.
 
 ## 1.0.87 - 2026-11-12
 
