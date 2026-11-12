@@ -132,7 +132,7 @@ class CiscoIosXeTarget(VersionCheck, Base):
             self.check(out, what or cmd)
         return out
 
-    def config(self, s, cmds, what, hide=None, check=True):
+    def conf_t(self, s, cmds, what, hide=None, check=True):
         """Lines in configuration mode, over the input of an SSH shell session."""
         script = '\n'.join(['configure terminal'] + list(cmds) + ['end', 'exit']) + '\n'
         rc, out, err = s.run('', input=script, timeout=300, check=False)
@@ -234,7 +234,7 @@ class CiscoIosXeTarget(VersionCheck, Base):
                 self.ctx.step('copied the PKCS#12 to %s (%s)' % (
                     path, '3DES, SHA-1 MAC' if kind == 'p12-legacy' else 'AES-256'))
                 try:
-                    self.config(s, ['crypto pki import %s pkcs12 %s password %s'
+                    self.conf_t(s, ['crypto pki import %s pkcs12 %s password %s'
                                     % (name, path, pw)], 'importing %s' % name, hide=pw)
                     shown = self.exec_(s, 'show crypto pki certificates %s' % name,
                                        what='reading the trustpoint %s' % name, check=False)
@@ -252,7 +252,7 @@ class CiscoIosXeTarget(VersionCheck, Base):
                 self.ctx.step('the trustpoint %s is there already' % name)
             for words, cmds in self.binds(options, name):
                 self.mark_pending(bundle)
-                self.config(s, cmds, 'pointing %s at %s' % (words, name))
+                self.conf_t(s, cmds, 'pointing %s at %s' % (words, name))
                 self.ctx.step('%s uses %s' % (words, name), 'ok')
                 did.append(words)
             if as_bool(self.opt(options, 'save', True), True):
@@ -289,7 +289,7 @@ class CiscoIosXeTarget(VersionCheck, Base):
             # the "yes" lines answer the questions IOS asks; where it asks none they are
             # refused words - so the result is read from the configuration, not the answer
             try:
-                self.config(s, cmds, 'removing the trustpoint %s' % old, check=False)
+                self.conf_t(s, cmds, 'removing the trustpoint %s' % old, check=False)
                 left = self.running(s)[0]
             except PluginError as e:
                 self.ctx.step('the older trustpoint %s may stay: %s' % (old, e), 'warn')

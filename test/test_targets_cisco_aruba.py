@@ -252,15 +252,15 @@ class IosXe(unittest.TestCase):
     def test_older_removed_same_is_noop(self):
         prefix = C.name_prefix(FakeBundle(), {}, maxlen=60)
         old = prefix + '20250101-aaaaaaaa'
-        b, ssh, ctx, got = self.deploy('', '17.12.04', ssh={'tps': [old, old + '-rrr1'],
-                                                            'http_tp': old})
+        b, ssh, ctx, got = self.deploy('', '17.12.04', keep=0,
+                                       ssh={'tps': [old, old + '-rrr1'], 'http_tp': old})
         last = self.scripts(ssh)[-1]
         self.assertIn('no crypto pki trustpoint %s-rrr1\nyes\n' % old, last)
         self.assertIn('no crypto pki trustpoint %s\nyes\n' % old, last)
         self.assertIn('crypto key zeroize ec %s\nyes\n' % old, last)
         self.assertTrue([w for _l, w in ctx.steps if 'removed the older trustpoint' in w])
         # the same again: nothing
-        again = make('cisco_iosxe', '', CFG, ctx).deploy(b, {'keep': 1})
+        again = make('cisco_iosxe', '', CFG, ctx).deploy(b, {'keep': 0})
         self.assertIn('unchanged', again)
 
     def test_wlc_webauth(self):
@@ -283,7 +283,7 @@ class IosXe(unittest.TestCase):
     def test_wlc_keeps_the_portal_trustpoint(self):
         prefix = C.name_prefix(FakeBundle(), {}, maxlen=60)
         old = prefix + '20250101-aaaaaaaa'
-        b, ssh, ctx, got = self.deploy('', '17.12.03', kind='cisco_wlc9800', ssh={
+        b, ssh, ctx, got = self.deploy('', '17.12.03', kind='cisco_wlc9800', keep=0, ssh={
             'tps': [old], 'webauth': 'parameter-map type webauth global\n trustpoint %s\n' % old})
         self.assertFalse([i for c, i in ssh.runs if c == '' and 'no crypto pki' in (i or '')])
         self.assertTrue([w for lv, w in ctx.steps if lv == 'warn' and 'still in use' in w])
