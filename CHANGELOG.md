@@ -5,6 +5,69 @@ upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.80 - not released
+- **Backups checked whole** - built rich, put back on a clean installation, compared table by
+  table, file by file, and used (secrets, the own authority, renewals, deployments, sign-ins
+  with the second step). Fixed:
+  - a copy put back by hand (`acme --restore`, the pages) on a new machine said that machine's
+    SSH server, time, firewall and console were in place and never put them in - forgotten
+    now as by a backup put back; `--restore` also makes the machine the copy's node again
+    (`--keep-node-name` keeps it), switches the guard against writes back on and carries the
+    settings of its `config.json`;
+  - the settings kept only in `config.json` (the site's name, which every backup's file name
+    and the "own" backups go by, a language set by hand) come back with a backup;
+  - the console at login switched on from the command line or the console comes back;
+  - the files of your own modules beside their `.py` and the programs of "script"
+    validations (`/etc/acme/hooks`) are in the backup and put back;
+  - an older version's copy put back empties the tables it did not have (a mix of the two
+    installations before); signatures under a node's old name are taken away;
+  - `--export-config` carries the tests and where they are bound, an authority's renewals,
+    and the mail and phone of the accounts (what belongs to a person or this key - second
+    steps, SSH tokens, destinations, uploaded modules - is said not to be in it).
+- **Hunt H, round 1** - fixed:
+  - **Deployments over SSH (and Caddy, ESXi, HAProxy, strongSwan, Traefik, Zimbra)**: the new
+    file and the copy of the old one are made under names nobody can guess, never through a
+    link - a link laid at `<file>.acme-new` by an account that may write the folder had root
+    write the private key through it, with its mode and owner; dated copies pruned without
+    following a name with a line break; the "not finished" mark is the deployment's own
+    (another deployment to the same server took it away); Azure (and every module with long
+    settings) keeps each deployment's record apart.
+  - **Certificates**: one whose new issue failed after "revoke and issue a new one" is not
+    deployed nor taken as current by its tests (it held the revoked one); a key compromise
+    revokes the twin's older versions with the same key too; a twin whose revoke failed can
+    be revoked again from the pages and the portal; the portal holds a name under another
+    owner's wildcard (or a wildcard over another owner's name) for approval.
+  - **Cluster and system**: an OS update stopped while a node was updating is followed to its
+    end, a node only drained comes back into service; a plan whose node went silent ends
+    failed (it kept the cluster's alerts quiet for good - now six hours at most); a node keeps
+    the maintenance a person set; a node switched on again after a power-off comes out of
+    maintenance; an upgrade waits for an OS update or a restart going on; the alert of a long
+    maintenance says its real length; `dns_port`/`snmp_port` equal to the API's refused; a
+    directory's authority or weak TLS changed asks for its password again.
+  - **The version line** of 1.0.80 was written with double quotes, which the installer, the
+    release tool and the root's upgrade check could not read (an older package would have
+    gone in as a newer one): back in single quotes, every reader takes either, and an
+    upgrade is refused when the installed version cannot be read.
+  - **Command line and console**: `--api` refuses a private key written out (in any field,
+    also base64) and does not print private keys; the SSH key `--out` and `--export-config`
+    never write through a link and set 0600 on a file there before; a new version of a
+    certificate from a file (`--import FILE --into CERT`, the console's *A new version*);
+    replacing an SSH key and revoking what an authority signed are asked first; console
+    forms scroll (a form of 28 fields showed 14 and was typed into blind); no trace without
+    a terminal; `--limit` capped; `--note ""` empties a certificate's note; `--debug` alone
+    from a script no longer starts the daemon; `--json` for `--console-at-login status` and
+    `--ssh-token-add`; existence checked before `--yes` for `--ca-revoke` and
+    `--os-roots-remove`; the installer leaves masked and switched-off PHP-FPM units alone;
+    the sandbox's `ReadWritePaths` documented for folder backups and *This machine* targets.
+  - **Pages and mails**: the weekly report and the alert mails are in their language - the
+    events, alerts and certificate lines through the pages' own translation, on the server
+    (`acmelib/i18n_mail.py`); "Connection refused" and the other errors of the network in
+    Czech everywhere; numbers and their words agree where they stand apart (3 testy, 3
+    kroky, 45 certifikátů, 3 selhávají); the portal's window is fresh after a revoke or a
+    decline, its rights read "Smíte: vidět, spravovat…", a revoked certificate says so;
+    Enter in a popup's box presses its one main button (and in the portal's new password);
+    the overview lists past eight what needs attention; one Czech name for the enrolment
+    pages; Owners and teams no longer says nothing may be asked for when request profiles
+    exist; wording (Vyřadit z provozu, Poslední, Hesla se neshodují, …).
 
 ## 1.0.79 - 2026-11-11
 - **Hunt G** - the whole application gone through again, not only the latest changes; fixed:
