@@ -68,6 +68,39 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     the overview lists past eight what needs attention; one Czech name for the enrolment
     pages; Owners and teams no longer says nothing may be asked for when request profiles
     exist; wording (Vyřadit z provozu, Poslední, Hesla se neshodují, …).
+- **Hunt H, round 2** - the fixes of round 1 gone over again, the sources' modules, the pages
+  end to end, the data and what runs at once; fixed:
+  - **Two jobs on one certificate**: a job takes its certificate in the database, in one
+    statement - the command line beside the daemon, or the other node on a shared database,
+    both passed the check of their own process and both ordered (the second one's certificate,
+    perhaps paid for, was lost); version numbers taken again when another took the same.
+  - **Files on targets**: written with umask 077 under names nobody can guess (round 1's
+    noclobber made the new key readable by others for a moment); a failed deployment takes
+    away only its own temporary files, never another job's in the folder; zone files of
+    "SSH + zone file" validations the same way.
+  - **Sources**: AD CS and SCEP keep a request waiting for approval by the certificate, with its
+    key and CSR - a renewal (a new key each try) filed a new request each time and an approved
+    one was never fetched; DigiCert's twin of a dual certificate is an order of its own.
+  - **Accounts**: an administrator's reset of the second step can no longer be written back
+    over by a sign-in or a passkey change going on at that moment; accounts with Czech
+    capitals are found on a PostgreSQL database with the C character type.
+  - **Bounds**: a portal request of a million names refused before it is read (it took the
+    processor for hours); a team's events read in bounds; one ACME account per source made
+    when its first renewals run at once.
+  - **Import and restore**: `--import-config` matches an authority's renewals and a
+    certificate's tests by what they are (by number, it wrote over another authority's
+    history); a restore leaves this machine's listen addresses alone; marks and long keys kept
+    by 1.0.79 are still found.
+  - **Pages**: Enter never sets a deployment or an issue going (a half-typed path was
+    deployed); *Try again* of a failed job deploys again when only the deployment failed,
+    else asks first; a deployment with no file is not saved; an account kept to its teams sees
+    only its own certificates' events (not the accounts', the portal's, nor a deleted
+    certificate of another team); the portal offers no *Approve* of one's own request; *Revoke*
+    again for a twin whose revoke failed, on the pages and the portal; the Options column with
+    the files again; the forced password change takes Enter; *Stop* is heard while a job
+    waits for its tests; a pattern the same in Czech still has its parts translated; the
+    report and alert mails translated by the same rules as the pages; the installer always
+    starts the php-fpm acme's pool is in.
 
 ## 1.0.79 - 2026-11-11
 - **Hunt G** - the whole application gone through again, not only the latest changes; fixed:
