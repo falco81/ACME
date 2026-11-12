@@ -14,7 +14,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   `config`/`set` commands, an API account and least rights, DNS providers' tokens, CAs, the
   servers a test checks), in English and Czech. A button *Setup guide* in the forms, the
   windows of targets and tests and on the page *Modules* shows it over almost the whole page,
-  with contents, the module's versions and both languages.
+  with contents, the module's versions and both languages. **Every block of commands has its
+  Copy button**, and a command, path or value in the text is copied by a click on it.
 - **A guide is written over on the page Modules** in a new editor: *Visual* (like a document,
   no Markdown needed), *Markdown*, side by side, preview; an assistant putting parts of a guide
   in (the outline with the module's fields, steps, commands, warnings, tips, tables) and

@@ -223,21 +223,54 @@
     close();
     return L;
   }
+  /* the clipboard: the browser's own where the page is https, else the old way */
+  function copyText(text, done) {
+    var old = function () {
+      try {
+        var ta = el('textarea'); ta.value = text; ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand('copy'); ta.remove();
+        if (ok) done();
+      } catch (e) { /* nothing to do */ }
+    };
+    try {
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, old);
+      else old();
+    } catch (e) { old(); }
+  }
+  /* in the guide shown: a command, a path, a value in the text is copied by a click */
+  function copyable(node) {
+    Array.prototype.forEach.call(node.querySelectorAll('code.gd-code'), function (c) {
+      if (c.closest('pre, th, h1, h2, h3, h4, a') || !c.textContent.trim()) return;
+      c.classList.add('gd-ccopy');
+      c.title = tr('Click to copy');
+      c.tabIndex = 0;
+      var go = function () {
+        copyText(c.textContent, function () {
+          c.classList.add('gd-copied');
+          setTimeout(function () { c.classList.remove('gd-copied'); }, 1200);
+        });
+      };
+      c.addEventListener('click', go);
+      c.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); go(); } });
+    });
+  }
   function codeBlock(code, langName) {
     var box = el('div', 'gd-pre');
     var bar = el('div', 'gd-pre-bar');
     bar.appendChild(el('span', 'gd-pre-lang', langName || 'text'));
-    var copy = el('button', 'gd-copy', tr('Copy'));
+    var copy = el('button', 'gd-copy');
     copy.type = 'button';
+    copy.title = tr('Copy the whole block');
+    var cw = el('span', '', tr('Copy'));
+    copy.appendChild(el('span', 'gd-copy-ic', '⧉'));
+    copy.appendChild(cw);
     copy.onclick = function () {
-      var done = function () { copy.textContent = tr('Copied'); setTimeout(function () { copy.textContent = tr('Copy'); }, 1400); };
-      try {
-        if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(code).then(done, function () {});
-        else {
-          var ta = el('textarea'); ta.value = code; document.body.appendChild(ta); ta.select();
-          document.execCommand('copy'); ta.remove(); done();
-        }
-      } catch (e) { /* nothing to do */ }
+      copyText(code, function () {
+        copy.classList.add('on'); cw.textContent = tr('Copied');
+        setTimeout(function () { copy.classList.remove('on'); cw.textContent = tr('Copy'); }, 1400);
+      });
     };
     bar.appendChild(copy);
     box.appendChild(bar);
@@ -297,6 +330,7 @@
       return ask(family, kind, cur.version, cur.lang).then(function (g) {
         clear(content); clear(meta);
         var got = draw(g.md || '');
+        copyable(got.node);
         content.appendChild(got.node);
         if (got.toc.length > 2) {
           tocBox.appendChild(el('div', 'gd-toc-h', 'Contents'));

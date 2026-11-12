@@ -496,7 +496,9 @@ Every module - each version of it, an override, one of your own - has a **setup 
 saying how to set up the device, service, DNS provider or CA for acme (its account and least
 rights, the commands, what goes into acme's fields). Forms, target and test windows and the page
 *Modules* show it read-only in a window over almost the whole page (button *Setup guide*); a full
-administrator writes it over on the page *Modules* (*Edit the guide*).
+administrator writes it over on the page *Modules* (*Edit the guide*). Put commands in a fenced
+block (```` ```sh ````, ```` ```text ````): the guide shown gives each block a *Copy* button, and a
+click on `code` in the text copies it.
 
 Where the text comes from - the first that has one, for the language asked, then English:
 

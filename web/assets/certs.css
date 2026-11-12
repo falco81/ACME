@@ -1370,6 +1370,16 @@ table.ct-deptable .ct-rowerr{overflow-wrap:break-word;word-break:normal;max-widt
 .gd-pre-lang{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--tx-dim)}
 .gd-copy{background:transparent;border:1px solid var(--line);color:var(--tx-dim);border-radius:6px;font-size:11.5px;padding:3px 9px;cursor:pointer}
 .gd-copy:hover{color:var(--tx);border-color:var(--tx-dim)}
+.gd-copy{display:inline-flex;align-items:center;gap:5px;transition:color .15s,border-color .15s,background .15s}
+.gd-copy-ic{font-size:13px;line-height:1}
+.gd-copy.on{color:#3fb950;border-color:rgba(63,185,80,.55);background:rgba(63,185,80,.1)}
+.gd-copy.on .gd-copy-ic{display:none}
+.gd-copy.on span:last-child::before{content:'✓ '}
+code.gd-ccopy{cursor:copy;position:relative;transition:background .15s,box-shadow .15s}
+code.gd-ccopy:hover,code.gd-ccopy:focus-visible{box-shadow:0 0 0 1px var(--accent,#58a6ff);outline:none}
+code.gd-ccopy:hover::after{content:'⧉';font-size:10px;margin-left:4px;opacity:.7}
+code.gd-ccopy.gd-copied{background:rgba(63,185,80,.18);box-shadow:0 0 0 1px rgba(63,185,80,.6)}
+code.gd-ccopy.gd-copied::after{content:'✓';font-size:10px;margin-left:4px;color:#3fb950;opacity:1}
 .gd-pre pre{margin:0;padding:12px 14px;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.55;color:#d6e2ef;white-space:pre}
 .gd-tablewrap{overflow:auto;margin:0 0 14px;border:1px solid var(--line);border-radius:10px}
 .gd-table{border-collapse:collapse;width:100%;font-size:13.5px}

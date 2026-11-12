@@ -56991,6 +56991,10 @@
   "ged_66": {
    "source": "Assistant",
    "text": "Asistent"
+  },
+  "ged_67": {
+   "source": "Copy the whole block",
+   "text": "Zkopírovat celý blok"
   }
  },
  "patterns": {
