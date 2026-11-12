@@ -9409,7 +9409,7 @@ function showCsr(target, csr, prof) {
     var pre = noI18n(el('pre', 'mono cert-csr', csr));
     copyOnClick(pre, csr, 'the request was copied');
     body.appendChild(pre);
-  }, [{words: 'Drop the request', icon: 'trash', go: function () {
+  }, [{words: 'Drop the request', icon: 'trash', once: true, go: function () {
         modalOver(function () { confirmThen('Drop the request', 'Its waiting key goes too; a certificate made for it can then not be used.', 'Drop it', function () {
           api('web', {action: 'tls_csr_drop', target: target}).then(function (x) { toast(x.message, 'good'); loadWeb(); }).catch(oops);
         }, true); });

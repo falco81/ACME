@@ -102,7 +102,8 @@ def add_args(p):
     g.add_argument('--renew', metavar='NAME|all', help='renew it now (all: every one due; with '
                    '--force every one acme can renew)')
     g.add_argument('--force', action='store_true', help='with --renew all: not only those due; '
-                   'with --csr: a new request; with --acme-contact: on every ACME source')
+                   'with --csr: a new request; with --acme-contact: on every ACME source; '
+                   'with a target\'s or a test\'s delete: taken off everywhere first')
     g.add_argument('--deploy', metavar='NAME', help='run its deployments now')
     g.add_argument('--revoke', metavar='NAME', help='revoke it where it was issued (--reason)')
     g.add_argument('--reason', metavar='WHY', default='unspecified', help='with --revoke, '
@@ -1528,8 +1529,16 @@ class Cli(object):
     def fam_del(self, fam, name):
         word, path, _o = FAMILIES[fam]
         row = self.fam_row(fam, name)
-        self.sure('the %s %s is deleted, with its settings and secrets' % (word, row['name']))
-        got = self.api('POST', '/api/%s/delete' % path, body={'id': row['id']})
+        force = bool(getattr(self.args, 'force', False))
+        uses = self.api('GET', '/api/%s/uses' % path, args={'id': row['id']}).get('uses') or []
+        if uses and not self.json:
+            print('%s is used:' % row['name'])
+            for u in uses:
+                print('  %-15s %-40s %s%s' % (u.get('where'), u.get('name'), u.get('said'),
+                                             '' if u.get('free') else '  (change it there first)'))
+        self.sure('the %s %s is deleted, with its settings and secrets%s' % (
+            word, row['name'], ' - taken off everywhere above first' if uses and force else ''))
+        got = self.api('POST', '/api/%s/delete' % path, body={'id': row['id'], 'force': force})
         return self.done(got.get('message') or 'deleted', got)
 
     def fam_test(self, fam, name):

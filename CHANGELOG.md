@@ -4,7 +4,21 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.83 - not released
+## 1.0.83 - 2026-11-12
+
+- A source, validation, target or test in use is not deleted, and *Take it away* now
+  shows where: each certificate (a click opens it), test, connection, request profile or
+  portal setting, with what it does there and whether it can go with it. For a target's
+  deployments and a test's attachments the switch *Take it off everywhere first* takes
+  them off (each an event) and then deletes it; a certificate issued or validated by it
+  is changed first. The refusal names the places (it said "in use (3)"). The same on the
+  command line (the places listed; `--force` takes them off) and in the API
+  (`GET /api/<list>/uses`, `delete {force: 1}`).
+- One order and look for the buttons of every popup: what takes something away red, asked
+  again and on the far left; *Close*, the rest and the main one on the right. What starts
+  at once - a deployment, an issue, a restart, a switch-over, a move - asks first ("It
+  starts at once - go on?"); tests do not. The row's *Deploy it there again now* asked
+  nothing; *Revoke* is red now, and *Take it off* of a deployment no longer asks twice.
 
 ## 1.0.82 - 2026-11-12
 - A deployment's *What it serves*: *A new test…* opens the popup of *Tests → Add a test* (the

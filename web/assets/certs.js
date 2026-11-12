@@ -1754,21 +1754,95 @@ function contactAsk(host, names) {
   box.appendChild(b);
   host.insertBefore(box, host.firstChild);
 }
+/* Taken away (1.0.83): where it is used asked first and shown - each certificate, test,
+   connection or setting, what it does there and whether it can be taken off with it. A
+   deployment and an attached test can ("Take it off everywhere first", then it goes); a
+   certificate issued or validated by it, and what goes through a connector, are changed
+   there first. */
 function modDelete(key, r, fromDialog) {
   var m = MODS[key];
-  var n = usedCount(r);
   var done = function (d) {
     toast(said(d, 'taken away'), 'good');
     if (fromDialog) closeModal();
     delete LISTS[key];
     drawModTab(key);
   };
-  if (r.kind === 'dns_persist') { persistDelete(key, r, n, done); return; }
-  confirmThen(m.one + ' ' + r.name + ': take it away',
-    (n ? htmlText('It is used by ' + num(n) + ' certificate(s) or deployment(s): change those first.') + ' ' : '')
-    + 'Its settings and secrets go with it.', 'Take it away', function () {
-      capi(m.list + '/delete', {id: r.id, name: r.name}).then(done).catch(fail);
-    });
+  capi(m.list + '/uses' + qs({id: r.id})).then(function (u) {
+    var uses = arr(u && u.uses);
+    if (!uses.length && r.kind === 'dns_persist') { persistDelete(key, r, 0, done); return; }
+    modDeleteAsk(key, r, uses, done);
+  }).catch(fail);
+}
+var USE_ICON = {certificate: 'shield', test: 'pulse', target: 'net', setting: 'gear', 'request profile': 'list'};
+function usesList(uses) {
+  var box = el('div', 'ct-uses');
+  uses.forEach(function (x) {
+    var row = el('div', 'ct-use' + (x.free ? '' : ' held'));
+    var ic = el('span', 'ct-use-ic');
+    setButtonIcon(ic, USE_ICON[x.where] || 'info', '');
+    row.appendChild(ic);
+    var mid = el('div', 'ct-use-mid');
+    var nm = el('div', 'ct-use-name', x.name);
+    mid.appendChild(nm);
+    var what = el('div', 'ct-use-what');
+    what.appendChild(el('span', '', cap(x.where)));
+    what.appendChild(document.createTextNode(' \u00b7 '));
+    what.appendChild(el('span', '', x.said));
+    mid.appendChild(what);
+    row.appendChild(mid);
+    row.appendChild(el('span', 'ct-use-tag ' + (x.free ? 'warn' : 'crit'), x.free ? 'taken off with it' : 'change it there first'));
+    if (x.cert_id) {
+      row.classList.add('link');
+      row.tabIndex = 0;
+      row.title = tr('Open the certificate');
+      row.onclick = function () { over(function () { certPeek(x.cert_id); }); };
+      row.onkeydown = function (ev) { if (ev.key === 'Enter') row.onclick(); };
+    }
+    box.appendChild(row);
+  });
+  return box;
+}
+function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+function modDeleteAsk(key, r, uses, done) {
+  var m = MODS[key];
+  var free = uses.length && uses.every(function (x) { return x.free; });
+  var force = null, go = null;
+  var buttons = [{words: 'Close', close: true}];
+  if (!uses.length || free) {
+    buttons.unshift({words: 'Delete', cls: 'danger', icon: 'trash', once: true, go: function (b) {
+      if (uses.length && !(force && force._get())) return;
+      busy(b, true);
+      capi(m.list + '/delete', {id: r.id, name: r.name, force: uses.length ? 1 : 0}).then(function (d) {
+        closeModal();
+        done(d);
+      }).catch(function (e) { busy(b, false); fail(e); });
+    }});
+  }
+  modal(m.one + ' ' + r.name + ': take it away', function (body) {
+    if (!uses.length) {
+      body.appendChild(el('p', 'note', 'It is not used anywhere. Its settings and secrets go with it - this cannot be taken back.'));
+      return;
+    }
+    var head = el('div', 'ct-uses-head ' + (free ? 'warn' : 'crit'));
+    head.appendChild(el('strong', '', uses.length === 1 ? 'It is used in 1 place' : 'It is used in ' + uses.length + ' places'));
+    head.appendChild(el('span', '', free
+      ? 'Take it off there first - or switch on "Take it off everywhere first" below, and it is taken off and then deleted.'
+      : 'It cannot be taken off where it says "change it there first": change those to another one, then delete it.'));
+    body.appendChild(head);
+    body.appendChild(usesList(uses));
+    if (free) {
+      force = switchBox(false);
+      body.appendChild(formField('Take it off everywhere first', force,
+        key === 'targets' ? 'Its deployments above are deleted (the certificates stay where they were put), then the target.'
+          : 'It is taken off the certificates and tests above, then deleted.'));
+      var sync = function () {
+        var b = $('modal-foot') && Array.prototype.filter.call($('modal-foot').querySelectorAll('button.danger'), function (x) { return !x.closest('.sure-strip'); })[0];
+        if (b) b.disabled = !force._get();
+      };
+      force._input.addEventListener('change', sync);
+      setTimeout(sync, 0);
+    }
+  }, buttons, 'narrow');
 }
 /* A dns-persist-01 validation taken away (1.0.21): "Also remove its records from
    DNS" - what acme wrote through another validation, in a job first; ticked when
@@ -2692,11 +2766,15 @@ function deployTable(rows, o) {
     var tools = el('td', 'rowtools');
     if (MANAGE) {
       var run = iconButton('deploy', 'Deploy it there again now');
+      /* Asked first (1.0.83): it puts the certificate there at once, as every action does */
       run.onclick = function (ev) {
         ev.stopPropagation();
-        busy(run, true);
-        capi('deploys/run', {id: d.id}).then(function (x) { jobStarted(x, 'deploying', o.back); })
-          .catch(fail).then(function () { busy(run, false); });
+        over(function () {
+          confirmThen('Deploy it to ' + d.target + ' again?', htmlText('The certificate is put on ' + d.target + ' again now, in a job - whether it changed or not.'),
+            'Deploy now', function () {
+              capi('deploys/run', {id: d.id}).then(function (x) { jobStarted(x, 'deploying', o.back); }).catch(fail);
+            }, false);
+        }, o.back);
       };
       tools.appendChild(run);
       var sw = iconButton('power', d.enabled === 0 ? 'Switch it on here' : 'Switch it off here');
@@ -3021,7 +3099,7 @@ function deployEdit(o) {
     if (MANAGE) buttons.push({words: 'Test', icon: 'play', cls: 'df-testbtn', go: function (b) {
       if (form && form.test) form.test(b);
     }});
-    if (d.id && MANAGE) buttons.push({words: 'Take it off', cls: 'danger', icon: 'trash', go: function () {
+    if (d.id && MANAGE) buttons.push({words: 'Take it off', cls: 'danger', icon: 'trash', once: true, go: function () {
       over(function () { deployOff(d, null, true); });
     }});
     if (MANAGE) {
@@ -3446,7 +3524,7 @@ function certPeek(id) {
       go: function () { ACME_RUNPLAN.open({id: c.id, name: c.name, back: back}); }});
     /* ...and again for a twin whose revoke failed (1.0.80: no button, only the command line) */
     if (MANAGE && c.issuer && c.not_after && (c.state !== 'revoked' || c.alt_state === 'revoke-failed') && !c.revoke_no)
-      buttons.push({words: 'Revoke', icon: 'ban', go: function () { over(function () { revokeDialog(c); }, back); }});
+      buttons.push({words: 'Revoke', cls: 'danger', icon: 'ban', once: true, go: function () { over(function () { revokeDialog(c); }, back); }});
     if (MANAGE && c.issuer && truthy(c.setup_due)) buttons.push({words: 'Set it up', cls: 'primary', icon: 'edit',
       says: 'Imported from its source: every step of Add a certificate - validation, key, renewal, profile, targets - read from the certificate, set as for a new one. The certificate in use stays as it is.',
       go: function () { certWizard(c, d, {setup: true}); }});

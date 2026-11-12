@@ -176,10 +176,10 @@ function fn(src, name) {
       await page.locator('#sd-host .sd-tokens tbody tr').first().locator('td.acts button').last().click();
       await page.waitForSelector('#modal:not([hidden])');
       out.checks[tag + '_remove_asks'] = (await page.locator('#modal-body').innerText()).length > 10;
-      // Asked twice: "Really?" first.
-      await page.locator('#modal-foot button').last().click();
-      out.checks[tag + '_remove_really'] = await page.evaluate(() => SENT.every((x) => !x[1] || x[1].action !== 'sshotp_remove'));
-      await page.locator('#modal-foot .sure-strip button.danger').click();
+      // The popup is the question (1.0.83): red, on the far left, asked once - nothing sent before it.
+      out.checks[tag + '_remove_really'] = await page.evaluate(() => SENT.every((x) => !x[1] || x[1].action !== 'sshotp_remove'))
+        && await page.locator('#modal-foot > button').first().evaluate((b) => b.classList.contains('danger'));
+      await page.locator('#modal-foot > button.danger').click();
       await page.waitForTimeout(250);
       out.checks[tag + '_removed'] = await page.evaluate(() =>
         SENT.some((x) => x[1] && x[1].action === 'sshotp_remove' && x[1].name === 'root'));

@@ -67,6 +67,40 @@ stays the default; deleted, there is none (an event says so) - nothing is
 taken in its place. An installation that never set one keeps "LetsEncrypt" and
 "This server HTTP-01" where they are there.
 
+### Taking away one that is in use
+
+A source, validation, target or test that is used somewhere is not deleted
+(1.0.83). *Take it away* shows **where it is used**, one row for each place - the
+certificate (a click opens it), the test that runs it, the connection that goes
+through it, the request profile or the portal setting - with what it does there
+and whether it can go with it:
+
+| it is | used by | taken off with it? |
+|---|---|---|
+| a target | a certificate's deployment there | yes - the deployment is deleted; what was put on the target stays |
+| a test | a certificate it is attached to, the set of a test through SSH | yes - it is taken off |
+| a source / validation | a certificate issued or validated by it, a request profile, the portal | no - change those first |
+| an SSH connection | a target or test that goes through it | no - change those first |
+
+When every place can go with it, the switch *Take it off everywhere first*
+deletes the deployments and takes the test off (each an event), then the module;
+off, *Delete* stays grey. `GET /api/<list>/uses?id=N` gives the same list
+(`{uses: [{where, name, cert_id, id, said, free}], free}`), `POST
+/api/<list>/delete {id, force: 1}` deletes with it taken off first; refused, the
+message names the places. On the command line the places are printed before the
+question, and `--force` takes them off (`acme --target-del NAME --force`).
+
+### The buttons of every popup
+
+Every popup has its buttons in one order (1.0.83): what takes something away
+(*Delete*, *Take it off*, *Revoke*, *Forget*...) red and on the far left, asked
+again ("Really? This cannot be taken back.") unless the popup is itself the
+question; on the right *Close* first, then the rest, the main one last. What sets
+something going at once - a deployment (*Deploy now*, *Save and deploy now*, the
+row's *Deploy it there again now*), an issue, a restart, a switch-over, a move -
+asks "It starts at once - go on?" first; a test and *Save* do not. *Esc* closes the
+popup on top only, and what was under it is back as it was.
+
 ### Names
 
 Every source, validation, target, authority and certificate has a name of

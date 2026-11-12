@@ -55903,6 +55903,86 @@
   "ntest_2": {
    "source": "Makes a test, as Tests → Add a test does; this window stays and is back when it is saved - then Attach a test lists it.",
    "text": "Vytvoří test jako Testy → Přidat test; toto okno zůstane a po uložení se vrátí - Připojit test ho pak nabídne."
+  },
+  "f83_1": {
+   "source": "It starts at once - go on?",
+   "text": "Spustí se to hned – pokračovat?"
+  },
+  "f83_2": {
+   "source": "It is used in 1 place",
+   "text": "Používá se na 1 místě"
+  },
+  "f83_3": {
+   "source": "Take it off there first - or switch on \"Take it off everywhere first\" below, and it is taken off and then deleted.",
+   "text": "Nejdřív ho tam odeberte – nebo níže zapněte „Nejdřív všude odebrat“ a bude odebrán a pak smazán."
+  },
+  "f83_4": {
+   "source": "It cannot be taken off where it says \"change it there first\": change those to another one, then delete it.",
+   "text": "Tam, kde je „nejdřív změňte tam“, ho odebrat nelze: změňte je na jiný a pak ho smažte."
+  },
+  "f83_5": {
+   "source": "Take it off everywhere first",
+   "text": "Nejdřív všude odebrat"
+  },
+  "f83_6": {
+   "source": "Its deployments above are deleted (the certificates stay where they were put), then the target.",
+   "text": "Jeho nasazení výše se smažou (certifikáty zůstanou tam, kam byly nasazeny) a pak cíl."
+  },
+  "f83_7": {
+   "source": "It is taken off the certificates and tests above, then deleted.",
+   "text": "Odebere se z certifikátů a testů výše a pak se smaže."
+  },
+  "f83_8": {
+   "source": "It is not used anywhere. Its settings and secrets go with it - this cannot be taken back.",
+   "text": "Nikde se nepoužívá. Jeho nastavení a tajné údaje zmizí s ním – nelze to vrátit zpět."
+  },
+  "f83_9": {
+   "source": "taken off with it",
+   "text": "odebere se s ním"
+  },
+  "f83_10": {
+   "source": "change it there first",
+   "text": "nejdřív změňte tam"
+  },
+  "f83_11": {
+   "source": "issued by it",
+   "text": "vydává ho"
+  },
+  "f83_12": {
+   "source": "validated by it",
+   "text": "ověřuje ho"
+  },
+  "f83_13": {
+   "source": "tested by it",
+   "text": "testuje ho"
+  },
+  "f83_14": {
+   "source": "in the tests it runs",
+   "text": "v testech, které spouští"
+  },
+  "f83_15": {
+   "source": "deployed there",
+   "text": "nasazen tam"
+  },
+  "f83_16": {
+   "source": "goes through it",
+   "text": "jde přes něj"
+  },
+  "f83_17": {
+   "source": "the portal uses it",
+   "text": "používá ho portál"
+  },
+  "f83_18": {
+   "source": "uses it",
+   "text": "používá ho"
+  },
+  "f83_19": {
+   "source": "Settings → the enrolment pages",
+   "text": "Nastavení → stránky pro žádosti"
+  },
+  "f83_20": {
+   "source": "Open the certificate",
+   "text": "Otevřít certifikát"
   }
  },
  "patterns": {
@@ -76501,6 +76581,42 @@
   "ph2cr_1": {
    "source": "asked by {0} (forced)",
    "text": "požádal {0} (vynuceně)"
+  },
+  "pf83_1": {
+   "source": "It is used in {0} places",
+   "text": "Používá se na {0} {0:místě|místech|místech}"
+  },
+  "pf83_2": {
+   "source": "Deploy it to {0} again?",
+   "text": "Znovu nasadit na {0}?"
+  },
+  "pf83_3": {
+   "source": "The certificate is put on {0} again now, in a job - whether it changed or not.",
+   "text": "Certifikát se teď znovu nasadí na {0} v úloze – ať se změnil, nebo ne."
+  },
+  "pf83_4": {
+   "source": "{0} is in use - {1}: change those first",
+   "text": "{0} se používá – {1}: nejdřív změňte je"
+  },
+  "pf83_5": {
+   "source": "{0} is in use - {1}: take it off there first, or delete it with \"take it off everywhere first\"",
+   "text": "{0} se používá – {1}: nejdřív ho tam odeberte, nebo ho smažte s volbou „nejdřív všude odebrat“"
+  },
+  "pf83_6": {
+   "source": "{0} and {1} more",
+   "text": "{0} a {1} {1:další|další|dalších}"
+  },
+  "pf83_7": {
+   "source": "the deployment of {0} to {1} taken off by {2}",
+   "text": "nasazení {0} na {1} odebral(a) {2}"
+  },
+  "pf83_8": {
+   "source": "the test {0} taken off {1} by {2}",
+   "text": "test {0} odebral(a) z {1} {2}"
+  },
+  "pf83_9": {
+   "source": "the test {0} taken out of {1} by {2}",
+   "text": "test {0} vyjmul(a) z {1} {2}"
   }
  },
  "rich": {

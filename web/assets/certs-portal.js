@@ -312,7 +312,7 @@ function certDialog(id, fresh) {
     }});
   }
   if (manage && c.not_after && (c.state !== 'revoked' || c.alt_state === 'revoke-failed')) {
-    buttons.push({words: 'Revoke', icon: 'ban', go: function () { modalOver(function () { revokeDialogP(c); }, function () { certDialog(c.id); }); }});
+    buttons.push({words: 'Revoke', cls: 'danger', icon: 'ban', once: true, go: function () { modalOver(function () { revokeDialogP(c); }, function () { certDialog(c.id); }); }});
   }
   if (manage && c.issuer && !waiting && c.state !== 'declined' && c.state !== 'revoked') {
     buttons.push({words: 'Renew now', icon: 'refresh', go: function (b) {

@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""1.0.83: a module in use is not deleted - where it is used is said, and "take it off
+everywhere first" takes a deployment or an attached test off before it goes; one look and
+order of the popup buttons in every page.
+
+    python3 test/test_hunt_i.py
+"""
+import json
+import os
+import re
+import sys
+import tempfile
+import unittest
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+TMP = tempfile.mkdtemp(prefix='acme-hunt-i-')
+with open(os.path.join(TMP, 'config.json'), 'w') as f:
+    f.write('{}')
+os.environ.update(ACME_CONFIG=os.path.join(TMP, 'config.json'), ACME_STATE=TMP,
+                  ACME_RUN=TMP, ACME_LOGDIR=TMP)
+sys.path.insert(0, ROOT)
+import acme  # noqa: E402,F401
+from acmelib import engine as E  # noqa: E402
+from acmelib.certs import api as A  # noqa: E402
+
+STORE = E.Storage(E.open_db())
+E.HA_STORE['store'] = STORE
+
+
+def cert(name, **kw):
+    row = {'name': name, 'cn': name, 'names': json.dumps([name]), 'state': 'valid',
+           'issuer': kw.get('issuer', ''), 'challenge': kw.get('challenge', '')}
+    return STORE.db.insert('certs', row)
+
+
+class InUse(unittest.TestCase):
+    def test_target_with_a_deployment(self):
+        tid = STORE.db.insert('cert_targets', {'name': 'lb-i', 'kind': 'local', 'config': '{}',
+                                               'enabled': 1})
+        cid = cert('web-i.example.test')
+        STORE.db.insert('cert_deploys', {'cert_id': cid, 'target': 'lb-i'})
+        row = STORE.db.row('SELECT * FROM cert_targets WHERE id = ?', (tid,))
+        uses = A.family_uses(STORE, 'target', row)
+        self.assertEqual([(u['name'], u['free']) for u in uses], [('web-i.example.test', True)])
+        with self.assertRaises(ValueError) as e:
+            A.family_delete(STORE, 'target', {'id': tid}, 'tester')
+        self.assertIn('certificate web-i.example.test', str(e.exception))
+        self.assertIn('take it off everywhere first', str(e.exception))
+        A.family_delete(STORE, 'target', {'id': tid, 'force': 1}, 'tester')
+        self.assertFalse(STORE.db.row('SELECT id FROM cert_targets WHERE id = ?', (tid,)))
+        self.assertFalse(STORE.db.row("SELECT id FROM cert_deploys WHERE target = 'lb-i'"))
+        self.assertTrue(STORE.db.row('SELECT id FROM certs WHERE id = ?', (cid,)))
+
+    def test_test_attached_and_in_a_set(self):
+        kid = STORE.db.insert('cert_tests', {'name': 'tls-i', 'kind': 'tls', 'config': '{}',
+                                             'enabled': 1})
+        STORE.db.insert('cert_tests', {'name': 'relay-i', 'kind': 'ssh_relay', 'enabled': 1,
+                                       'config': json.dumps({'tests': ['tls-i', 'other']})})
+        cid = cert('app-i.example.test')
+        STORE.db.insert('cert_checks', {'cert_id': cid, 'test': 'tls-i'})
+        row = STORE.db.row('SELECT * FROM cert_tests WHERE id = ?', (kid,))
+        self.assertEqual(sorted(u['where'] for u in A.family_uses(STORE, 'check', row)),
+                         ['certificate', 'test'])
+        A.family_delete(STORE, 'check', {'id': kid, 'force': True}, 'tester')
+        self.assertFalse(STORE.db.row("SELECT id FROM cert_checks WHERE test = 'tls-i'"))
+        relay = STORE.db.row("SELECT config FROM cert_tests WHERE name = 'relay-i'")
+        self.assertEqual(json.loads(relay['config'])['tests'], ['other'])
+
+    def test_issuer_of_a_certificate_not_taken_off(self):
+        iid = STORE.db.insert('cert_issuers', {'name': 'ca-i', 'kind': 'selfsigned',
+                                               'config': '{}', 'enabled': 1})
+        cert('held-i.example.test', issuer='ca-i')
+        with self.assertRaises(ValueError) as e:
+            A.family_delete(STORE, 'issuer', {'id': iid, 'force': 1}, 'tester')
+        self.assertIn('change those first', str(e.exception))
+        self.assertTrue(STORE.db.row('SELECT id FROM cert_issuers WHERE id = ?', (iid,)))
+
+
+class Buttons(unittest.TestCase):
+    def test_one_order_in_every_popup(self):
+        with open(os.path.join(ROOT, 'web/assets/core.js')) as f:
+            src = f.read()
+        self.assertIn('var DANGER_WORDS', src)
+        self.assertIn('var ACTION_WORDS', src)
+        self.assertTrue(re.search(r'lefts\.concat\(closes, mids, mains\)', src))
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)

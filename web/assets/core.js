@@ -282,6 +282,9 @@ document.addEventListener('keydown', function (e) {
   e.preventDefault();
   main[0].click();
 });
+/* What takes something away, by its words, and what sets something going at once (1.0.83) */
+var DANGER_WORDS = /^(Delete|Delete it|Delete them|Remove|Remove it|Take it off|Take it away|Take them away|Take the user away|Forget|Forget it|Forget them|Revoke|Revoke it|Revoke them|Clear the history|Clear them|Erase|Erase it|Drop it|Drop the request|Take it out)\b/;
+var ACTION_WORDS = /^(Save and deploy now|Deploy now|Deploy it there again now|Deploy them now|Add and issue now|Issue a new one|Issue it now|Order the ones switched on|Restart it|Restart now|Restart them|Power it off|Switch over|Move it now|Move back|Make it and put it in|Take it out of service|Upgrade now|Go back now|Start the sync)\b/;
 function modal(title, build, buttons, narrow) {
   if (MODAL_OVER_WANTED) modalOverNow();
   MODAL_GEN += 1;
@@ -296,14 +299,43 @@ function modal(title, build, buttons, narrow) {
   var keep = modalKeepOn(body);
   var foot = $('modal-foot');
   clear(foot);
-  (buttons || [{words: 'Close', close: true}]).forEach(function (b) {
-    if (b.spacer) { var s = el('span', 'left'); foot.appendChild(s); return; }
-    if (b.admin && !ADMIN) return;
+  /* One order and one look in every popup (1.0.83): what takes something away red, asked
+     twice and on the far left; on the right Close, then the rest, the main one last; what
+     sets something going at once (a deployment, an issue, a restart...) asked first - a
+     test is not. Buttons before a spacer stay on the left, as they were. */
+  /* A popup that is itself the question ("No, leave it", "Not now") is not asked again */
+  var asking = (buttons || []).some(function (b) { return b && b.close && !b.go && /^(No, leave it|Not now|Keep it|No)$/.test(String(b.words || '')); });
+  var list = [], seenSpacer = (buttons || []).some(function (b) { return b && b.spacer; }), beforeSpacer = seenSpacer;
+  (buttons || [{words: 'Close', close: true}]).forEach(function (b0) {
+    if (!b0) return;
+    if (b0.spacer) { beforeSpacer = false; return; }
+    if (b0.admin && !ADMIN) return;
+    var b = {};
+    Object.keys(b0).forEach(function (k) { b[k] = b0[k]; });
+    var w = String(b.words || '');
+    if (b.go && !b.noDanger && (DANGER_WORDS.test(w) || b.icon === 'trash') && !/\bdanger\b/.test(b.cls || '') && asking) b.once = true;
+    if (b.go && !b.noDanger && (DANGER_WORDS.test(w) || b.icon === 'trash')) b.cls = ((b.cls || '').replace(/\bprimary\b/, '') + ' danger').replace(/\s+/g, ' ').trim();
+    var isDanger = /\bdanger\b/.test(b.cls || '');
+    if (isDanger && b.go) b.left = true;
+    if (beforeSpacer) b.left = true;
+    if (b.go && !isDanger && !b.noConfirm && (b.confirm || (ACTION_WORDS.test(w) && !asking))) b.act = true;
+    list.push(b);
+  });
+  var lefts = list.filter(function (b) { return b.left; }).sort(function (x, y) {
+    return (/\bdanger\b/.test(y.cls || '') ? 1 : 0) - (/\bdanger\b/.test(x.cls || '') ? 1 : 0);
+  });
+  var rest = list.filter(function (b) { return !b.left; });
+  var closes = rest.filter(function (b) { return b.close && !b.go; });
+  var mains = rest.filter(function (b) { return closes.indexOf(b) < 0 && /\bprimary\b/.test(b.cls || ''); });
+  var mids = rest.filter(function (b) { return closes.indexOf(b) < 0 && mains.indexOf(b) < 0; });
+  list = lefts.concat(closes, mids, mains);
+  var lastLeft = lefts.length ? lefts[lefts.length - 1] : null;
+  list.forEach(function (b) {
     var button = el('button', 'btn cmd' + (b.cls ? ' ' + b.cls : ''), b.words);
     setButtonIcon(button, b.icon || iconForWords(b.words), b.words);
     if (b.enter === false || /^(deploy|refresh|power|ban|trash|delete|play|send|upload)$/.test(b.icon || iconForWords(b.words) || '')
         || /deploy|issue|renew|restart|revoke|delete|run|send/i.test(b.words || '')) button.setAttribute('data-no-enter', '1');
-    if (b.left) button.classList.add('left');
+    if (b === lastLeft) button.classList.add('left');
     if (b.says) explain(button, b.says);
     var run = function () {
       var was = MODAL_GEN;
@@ -332,6 +364,24 @@ function modal(title, build, buttons, narrow) {
         no.onclick = function () { strip.remove(); kept.forEach(function (c) { c.hidden = false; }); no.blur(); };
         yes.onclick = function () { strip.remove(); kept.forEach(function (c) { c.hidden = false; }); run(); };
         setTimeout(function () { try { no.focus(); } catch (e) { } }, 0);
+      };
+    }
+    if (b.act && b.go && !b.once) {
+      button.onclick = function () {
+        var strip = el('div', 'sure-strip act');
+        strip.appendChild(el('span', 'sure-q', typeof b.confirm === 'string' ? b.confirm : 'It starts at once - go on?'));
+        var no = el('button', 'btn cmd', 'No, leave it');
+        setButtonIcon(no, 'close', 'No, leave it');
+        var yes = el('button', 'btn cmd primary', b.words);
+        setButtonIcon(yes, b.icon || iconForWords(b.words), b.words);
+        strip.appendChild(no);
+        strip.appendChild(yes);
+        var kept = Array.prototype.slice.call(foot.children);
+        kept.forEach(function (c) { c.hidden = true; });
+        foot.appendChild(strip);
+        no.onclick = function () { strip.remove(); kept.forEach(function (c) { c.hidden = false; }); no.blur(); };
+        yes.onclick = function () { strip.remove(); kept.forEach(function (c) { c.hidden = false; }); run(); };
+        setTimeout(function () { try { yes.focus(); } catch (e) { } }, 0);
       };
     }
     foot.appendChild(button);
@@ -586,7 +636,7 @@ function confirmThen(title, words, buttonWords, go, danger) {
     body.appendChild(p);
   }, [
     {words: 'No, leave it', close: true},
-    {words: buttonWords, cls: danger === false ? 'primary' : 'danger', close: true, go: go}
+    {words: buttonWords, cls: danger === false ? 'primary' : 'danger', close: true, once: true, go: go}
   ], true);
 }
 var ICONS = {

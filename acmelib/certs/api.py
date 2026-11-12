@@ -2159,30 +2159,120 @@ def _via_renamed(store, family, old, new):
                 db.update(table, r['id'], {'config': json.dumps(cfg)})
 
 
+def family_uses(store, family, row):
+    """Where a module is used (1.0.83), each place with what it does there and whether
+    deleting it with "take it off everywhere first" may undo it (`free`): a deployment to a
+    target and a test attached to a certificate may; a certificate issued or validated by it,
+    and what goes through a connector may not - those are changed there first."""
+    db, name, out = store.db, row['name'], []
+
+    def cert(r, said, free, ident=None):
+        out.append({'where': 'certificate', 'name': r['name'], 'cert_id': r['cid'],
+                    'id': ident, 'said': said, 'free': free})
+    if family == 'issuer':
+        for r in db.rows('SELECT id AS cid, name FROM certs WHERE issuer = ? ORDER BY name',
+                         (name,)):
+            cert(r, 'issued by it', False)
+    elif family == 'challenge':
+        for r in db.rows('SELECT id AS cid, name, challenge, challenge_map FROM certs WHERE '
+                         'challenge = ? OR challenge_map LIKE ? ORDER BY name',
+                         (name, '%' + json.dumps(name) + '%')):
+            if r.get('challenge') == name or name in json.dumps(S.jload(r.get('challenge_map'), {})):
+                cert(r, 'validated by it', False)
+    elif family == 'check':
+        for r in db.rows('SELECT k.id, c.id AS cid, c.name FROM cert_checks k JOIN certs c '
+                         'ON c.id = k.cert_id WHERE k.test = ? ORDER BY c.name', (name,)):
+            cert(r, 'tested by it', True, r['id'])
+        for r in db.rows("SELECT id, name, config FROM cert_tests WHERE kind = 'ssh_relay' "
+                         "ORDER BY name"):
+            if name in ((S.jload(r.get('config'), {}) or {}).get('tests') or []):
+                out.append({'where': 'test', 'name': r['name'], 'id': r['id'],
+                            'said': 'in the tests it runs', 'free': True})
+    else:
+        for r in db.rows('SELECT d.id, c.id AS cid, c.name FROM cert_deploys d JOIN certs c '
+                         'ON c.id = d.cert_id WHERE d.target = ? ORDER BY c.name', (name,)):
+            cert(r, 'deployed there', True, r['id'])
+    if (family == 'target' and row.get('kind') == 'ssh_connector') or \
+            (family == 'check' and row.get('kind') == 'ssh_relay'):
+        # as via_users counts them: each names its own family's connector first
+        tg_own = db.row("SELECT 1 AS x FROM cert_targets WHERE name = ? AND kind = "
+                        "'ssh_connector'", (name,))
+        ts_own = db.row("SELECT 1 AS x FROM cert_tests WHERE name = ? AND kind = 'ssh_relay'",
+                        (name,))
+        for table, where in (('cert_targets', 'target'), ('cert_tests', 'test')):
+            if family == 'check' and table == 'cert_targets' and tg_own:
+                continue
+            if family == 'target' and table == 'cert_tests' and ts_own:
+                continue
+            for r in db.rows('SELECT id, name, config FROM %s WHERE config LIKE ? ORDER BY name'
+                             % table, ('%' + json.dumps(name) + '%',)):
+                if str((S.jload(r.get('config'), {}) or {}).get('via') or '') == name:
+                    out.append({'where': where, 'name': r['name'], 'id': r['id'],
+                                'said': 'goes through it', 'free': False})
+    if family in ('issuer', 'challenge'):
+        key = 'portal_cert_issuers' if family == 'issuer' else 'portal_cert_challenge'
+        have = E.CONFIG.get(key) or ''
+        have = have if isinstance(have, list) else re.split(r'[\s,;]+', str(have))
+        if name in [str(x).strip() for x in have]:
+            out.append({'where': 'setting', 'name': 'Settings \u2192 the enrolment pages',
+                        'said': 'the portal uses it', 'free': False})
+        from acmelib.certs import reqprofiles as RP
+        for p in RP.using_source(store, family, name):
+            out.append({'where': 'request profile', 'name': p, 'said': 'uses it',
+                        'free': False})
+    return out
+
+
+def _uses_said(row, uses):
+    held = [u for u in uses if not u['free']] or uses
+    names = ['%s %s' % (u['where'], u['name']) for u in held[:8]]
+    more = len(held) - len(names)
+    return '%s is in use - %s%s: %s' % (
+        row['name'], ', '.join(names), (' and %d more' % more) if more > 0 else '',
+        'change those first' if held is not uses else
+        'take it off there first, or delete it with "take it off everywhere first"')
+
+
+def _unbind(store, family, row, uses, by):
+    """What `free` places hold undone, before the module goes (1.0.83)."""
+    from acmelib.certs import checks as C
+    for u in uses:
+        if family == 'target' and u['where'] == 'certificate':
+            if jobs.cert_busy(store, u['cert_id']):
+                raise ValueError('a job is working on %s - wait for it to end' % u['name'])
+    for u in uses:
+        if family == 'target' and u['where'] == 'certificate':
+            store.db.run('DELETE FROM cert_deploys WHERE id = ?', (u['id'],))
+            C.target_gone(store, u['cert_id'], row['name'])
+            store.add_event('certificates', 'the deployment of %s to %s taken off by %s' % (
+                u['name'], row['name'], by), who=by)
+        elif family == 'check' and u['where'] == 'certificate':
+            C.detach(store, u['id'])
+            store.add_event('certificates', 'the test %s taken off %s by %s' % (
+                row['name'], u['name'], by), who=by)
+        elif family == 'check' and u['where'] == 'test':
+            r = store.db.row('SELECT config FROM cert_tests WHERE id = ?', (u['id'],))
+            cfg = S.jload((r or {}).get('config'), {}) or {}
+            cfg['tests'] = [x for x in (cfg.get('tests') or []) if x != row['name']]
+            store.db.update('cert_tests', u['id'], {'config': json.dumps(cfg)})
+            store.add_event('certificates', 'the test %s taken out of %s by %s' % (
+                row['name'], u['name'], by), who=by)
+
+
 def family_delete(store, family, b, by):
     row = S.plugin_row(store, family, _id(b.get('id')))
     if not row:
         raise LookupError('there is no such %s' % family)
-    used = S.plugin_public(store, family, row)['used_by']
-    if used:
-        raise ValueError('%s is in use (%d): change those first' % (row['name'], used))
-    if family in ('issuer', 'challenge'):
-        # named by the portal's settings (1.0.79: deleted, and every free-form request failed)
-        key = 'portal_cert_issuers' if family == 'issuer' else 'portal_cert_challenge'
-        have = E.CONFIG.get(key) or ''
-        have = have if isinstance(have, list) else re.split(r'[\s,;]+', str(have))
-        if row['name'] in [str(x).strip() for x in have]:
-            raise ValueError('%s is the one the portal uses (Settings → the enrolment pages): '
-                             'choose another there first' % row['name'])
-        from acmelib.certs import reqprofiles as RP
-        prof = RP.using_source(store, family, row['name'])
-        if prof:
-            raise ValueError('%s is in use by request profile(s) %s: change those first' % (
-                row['name'], ', '.join(prof[:10])))
+    uses = family_uses(store, family, row)
+    force = b.get('force') not in (None, '', 0, '0', False, 'false')
+    if uses and (not force or not all(u['free'] for u in uses)):
+        raise ValueError(_uses_said(row, uses))
     if family == 'target' and store.db.value(
             "SELECT COUNT(*) FROM cert_jobs WHERE target = ? AND state IN ('queued', 'running') "
             "AND ts > ?", (row['name'], time.time() - 7200), 0):
         raise ValueError('a job is working with %s - wait for it to end' % row['name'])
+    if uses:
+        _unbind(store, family, row, uses, by)
     store.db.run('DELETE FROM %s WHERE id = ?' % S.TABLE_OF[family], (row['id'],))
     # Its own rows only (1.0.44): LIKE read "_" as any character, and SQLite's ignores
     # case - deleting dc_1 took dc-1's (an aws-acm ARN) with it.
@@ -2410,6 +2500,15 @@ def _family_routes(family, path):
             out.update(persist_cleanup(h.store, b, who(s)))
         out['message'] = '%s deleted' % family_delete(h.store, family, b, who(s))
         return out
+
+    @api('GET', '/api/%s/uses' % path, 'fulladmin')
+    def _uses(h, s):
+        row = S.plugin_row(h.store, family, _id(h.arg('id')))
+        if not row:
+            raise LookupError('there is no such %s' % family)
+        uses = family_uses(h.store, family, row)
+        return {'name': row['name'], 'uses': uses,
+                'free': bool(uses) and all(u['free'] for u in uses)}
 
     @api('POST', '/api/%s/test' % path, 'certadmin')
     def _test(h, s):
