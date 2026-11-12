@@ -62,6 +62,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   - The configuration's file carries a certificate's hold of its deployments, its move and
     its portal requester, under its number there. They were lost: a held certificate was
     deployed after the import.
+  - The enrolment pages:
+    - an account of acme's own named like a person of the directory got that person's
+      team rights (their certificates and keys); it is a member only as `local:NAME`;
+    - the person who asked is told when the certificate is issued even when the first try
+      failed and the renewer issued it later;
+    - the mails to the person who asked (issued, declined) are in the words of Settings →
+      Message texts, which were never used.
+  - "Certificate renewed" (when notices of what went well are on) is sent for the first issue
+    and for a new one after a revoke too.
+  - Czech in the alert mails: "2 dny", "1 den" (it said "2 dní"); "obnovení certifikátu X
+    selhalo".
 
 ## 1.0.87 - 2026-11-12
 

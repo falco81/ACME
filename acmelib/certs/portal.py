@@ -130,7 +130,10 @@ def my_teams(h, s):
     """{team lower: (name, {rights})} of the person (Settings → Owners and teams):
     the teams with them - their name, local:NAME, a group they are in - as a member."""
     from acmelib.certs import teams
-    return teams.person_teams(h.store, my_names(s), my_groups(h, s))
+    # an account of acme's own is a member only as local:NAME (1.0.88: as "novak" it took the
+    # rights of the directory's novak - his certificates, their keys)
+    names = {'local:' + str(s['name']).lower()} if is_local(s) else my_names(s)
+    return teams.person_teams(h.store, names, my_groups(h, s))
 
 
 def defined_teams(store):
@@ -429,13 +432,26 @@ def tell(store, cid, what, why=''):
                     'names': ', '.join(S.jload(row.get('names'), []) or []),
                     'issuer': row.get('issuer') or '',
                     'why': (words['why'] % why) if why else ''}
-            subject, body = words[what]
-            from email.message import EmailMessage
-            msg = EmailMessage()
-            msg['Subject'] = subject % fill
-            msg['From'] = E.mail_sender() or 'acme@%s' % E.node_name()
-            msg['To'] = to
-            msg.set_content((body % fill) + '\n\n-- acme, %s\n' % site)
+            msg = None
+            if what in ('issued', 'declined'):
+                # in the words of Settings → Message texts (1.0.88: they were never used - the
+                # mail went in words of its own whatever an administrator wrote there)
+                try:
+                    from acmelib.certs import notices
+                    mail, _sms = notices.drawn('cert_portal_' + what, notices.cert_values(
+                        store, row, name=who.get('who') or '', reason=why or '', site=site))
+                    if mail and (mail.get('text') or '').strip():
+                        msg = notices._mail([to], mail)
+                except Exception as e:                  # noqa: BLE001
+                    E.log('the portal\'s mail in its own words: %s' % e, 'warn')
+            if msg is None:
+                subject, body = words[what]
+                from email.message import EmailMessage
+                msg = EmailMessage()
+                msg['Subject'] = subject % fill
+                msg['From'] = E.mail_sender() or 'acme@%s' % E.node_name()
+                msg['To'] = to
+                msg.set_content((body % fill) + '\n\n-- acme, %s\n' % site)
             said = 'told %s by mail' % to
             try:
                 E.mail_deliver(store, msg, [to], kind='certs', name=who.get('who') or '',
@@ -455,10 +471,9 @@ def tell(store, cid, what, why=''):
 def issue_job(cid, by):
     """renewer.renew_job, and the person told when it worked."""
     def fn(job):
-        got = renewer.renew_cert(job.store, job, cid, False, by)
-        if (S.cert_get(job.store, cid) or {}).get('cert_pem'):
-            tell(job.store, cid, 'issued')
-        return got
+        # the person is told by the renewal when the first one is issued (1.0.88: here only,
+        # and a first try that failed was retried by the renewer - and nobody told)
+        return renewer.renew_cert(job.store, job, cid, False, by)
     return fn
 
 

@@ -333,7 +333,9 @@ def told_renewed(store, job, cert_id):
     certs_notify_ok says so. Never raises."""
     try:
         n = _notices()
-        if getattr(job, 'kind', '') != 'renew' or not getattr(job, 'version', None) or \
+        # the first issue and a revoke's new one too (1.0.88: jobs of kind issue since 1.0.79)
+        if getattr(job, 'kind', '') not in ('renew', 'issue', 'revoke') or \
+                not getattr(job, 'version', None) or \
                 not n.ok_wanted():
             return
         cert = S.cert_need(store, cert_id)

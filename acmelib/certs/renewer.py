@@ -628,6 +628,12 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             version, info.get('serial') or '?', until), 'ok')
         store.add_event('certificates', '%s %s (version %d, until %s)' % (
             cert['name'], 'renewed' if cert.get('cert_pem') else 'issued', version, until))
+        if not cert.get('cert_pem') and store.get_meta('certs:portal:%d' % int(cert['id'])):
+            try:                                    # the first one of a portal's request
+                from acmelib.certs import portal as _portal
+                _portal.tell(store, cert['id'], 'issued')
+            except Exception as e:                  # noqa: BLE001
+                job.step('the person who asked could not be told: %s' % e, 'warn')
         E.split_note(store, 'renew', cert['name'], 'renew:%s' % cert['id'])
         twin_said = ''
         if twin:

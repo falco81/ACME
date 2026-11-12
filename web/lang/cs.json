@@ -76853,6 +76853,10 @@
   "pf86_8": {
    "source": "{0}: a new version is deployed by itself again by {1}",
    "text": "{0}: nová verze se zase nasazuje sama – {1}"
+  },
+  "pf88a_1": {
+   "source": "renewing the certificate {0} failed: {1}",
+   "text": "obnovení certifikátu {0} selhalo: {1}"
   }
  },
  "rich": {

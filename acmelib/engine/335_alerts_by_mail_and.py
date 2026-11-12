@@ -108,6 +108,15 @@ def _al(lang, cs, en):
     return cs if lang == 'cs' else en
 
 
+def _al_days(n, lang):
+    """N days in the language (1.0.88: "2 dní" - 2 to 4 are "dny", 1 "den")."""
+    n = int(n)
+    if lang != 'cs':
+        return '%d day%s' % (n, '' if abs(n) == 1 else 's')
+    k = abs(n)
+    return '%d %s' % (n, 'den' if k == 1 else ('dny' if 2 <= k <= 4 else 'dní'))
+
+
 def _al_ago(t, lang):
     s = max(0, int(time.time() - float(t or 0)))
     if s < 90:
@@ -116,7 +125,7 @@ def _al_ago(t, lang):
         return _al(lang, '%d min' % (s // 60), '%d min' % (s // 60))
     if s < 2 * 86400:
         return _al(lang, '%d h' % (s // 3600), '%d h' % (s // 3600))
-    return _al(lang, '%d dní' % (s // 86400), '%d days' % (s // 86400))
+    return _al_days(s // 86400, lang)
 
 
 def _al_when(t):
@@ -481,9 +490,9 @@ def alert_problems(store, lang='en'):
                                                        'brzy vyprší'),
                             'The certificate of %s %s' % (who, 'ran out' if left < 0 else
                                                           'runs out soon')),
-                        _al(lang, '%s - platí do %s (%d dní).', '%s - good until %s (%d days).')
+                        _al(lang, '%s - platí do %s (%s).', '%s - good until %s (%s).')
                         % (c.get('cn') or c.get('subject') or '?', _al_when(c['not_after']),
-                           int(left)), 'web')
+                           _al_days(left, lang)), 'web')
     # Disks.
     pct = int(CONFIG.get('alerts_disk_pct') or 0)
     if pct:
@@ -661,9 +670,9 @@ def alert_problems_more(store, lang, add, names, health, beats, cluster, quiet, 
                     add('cert:%s:%s' % (what, n), 'bad' if left < 7 else 'warn', n,
                         _al(lang, 'Certifikát %s na %s %s' % (words, n, 'vypršel' if left < 0 else 'brzy vyprší'),
                             'The certificate of %s on %s %s' % (words, n, 'ran out' if left < 0 else 'runs out soon')),
-                        _al(lang, 'Platí do %s (%d dní) - obnovuje se sám; když ne, Nastavení → %s.',
-                            'Good until %s (%d days) - it renews itself; when it does not, Settings → %s.')
-                        % (_al_when(end), int(left), _al(lang, 'Databáze', 'The database') if what == 'pg'
+                        _al(lang, 'Platí do %s (%s) - obnovuje se sám; když ne, Nastavení → %s.',
+                            'Good until %s (%s) - it renews itself; when it does not, Settings → %s.')
+                        % (_al_when(end), _al_days(left, lang), _al(lang, 'Databáze', 'The database') if what == 'pg'
                            else _al(lang, 'Vysoká dostupnost', 'High availability')), 'db' if what == 'pg' else 'ha')
     # The update of the system that failed, or could not even look.
     if CONFIG.get('alerts_updates', 1):
