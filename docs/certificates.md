@@ -639,6 +639,36 @@ it into place, so the file is replaced whole or not at all. With
 Windows), the file goes by scp straight to the path, with no temporary
 file, chmod or chown.
 
+## What happens (the plan of a certificate)
+
+*What happens* in a certificate's window works out, without doing anything, every step
+a renewal and its deployments would take: nothing is connected to, no DNS record or file
+is written, no CA is asked - each module runs in a sandbox that records what it would
+send. Passwords, keys and tokens are never shown. Six phases:
+
+1. **Key and request** - the key made (or kept) and the CSR, its subject and names.
+2. **The source** - every question to the CA or the source, as it goes on the wire.
+3. **Validation, per name** - what is put where, waited for and taken away.
+4. **Deployments**, in their order - per target how acme connects, every file
+   written (path, what, mode, owner, size), every command and API call. Said too
+   (1.0.85): a certificate switched off or holding a revoked one (nothing deployed),
+   a target or a deployment switched off, which certificate of a dual one goes there
+   (the option *variant*), a PKCS#12 / keystore password acme makes.
+5. **Tests** - for each test attached its connection, TLS, request and comparison, and
+   how it runs for this certificate (1.0.85): after every deployment, only after one
+   on the targets ticked (where a failure fails that deployment), or by its schedule
+   only; switched off here or as a test.
+6. **After** - who is told and how: mail and SMS of the notices, the alerts (mail,
+   SNMP traps, Prometheus), isemon, the events; the next renewal; a failed deployment
+   tried again after 5 minutes, then twice as long each time, at most every
+   `certs_retry_max_h` hours.
+
+*Show debug details* adds how each connection is made (address, TLS, SNI, the
+device's certificate, a proxy), every request as it goes on the wire (all its headers,
+those acme adds too, and the body; *Copy the whole request*), the ssh command as it
+runs, and each test's settings and comparison. It changes what is shown, not what is
+worked out. *Work it out again* asks anew with the settings as they are now.
+
 ## Jobs
 
 Jobs run in a pool of `certs_parallel` threads (4). At most one job works

@@ -1182,8 +1182,18 @@ def plan(store, cert, deploys, full=False):
     phases.append(val)
     # 4. deployments
     dp = {'key': 'deploy', 'title': 'Deployments', 'groups': []}
+    stop_all = []
+    if cert.get('enabled') == 0:
+        stop_all.append({'kind': 'stop', 'words': 'The certificate is switched off: nothing is '
+                         'deployed, whoever asks'})
+    elif cert.get('id') and S.current_revoked(store, cert):
+        stop_all.append({'kind': 'stop', 'words': 'The certificate it holds now is revoked: '
+                         'nothing is deployed until a new one is issued'})
+    if stop_all:
+        dp['steps'] = stop_all
     if not dinfo:
-        dp['steps'] = [{'kind': 'info', 'words': 'It is deployed nowhere: it is only kept here'}]
+        dp['steps'] = stop_all + [{'kind': 'info', 'words': 'It is deployed nowhere: it is only '
+                                   'kept here'}]
     for item in dinfo:
         dep, trow, cls = item['dep'], item['row'], item['cls']
         g = {'title': dep.get('target') or '?', 'enabled': bool(dep.get('enabled', 1)) and
@@ -1205,7 +1215,30 @@ def plan(store, cert, deploys, full=False):
             steps = [{'kind': 'info', 'words': cls.description or cls.title},
                      {'kind': 'stop', 'words': 'The detailed steps could not be worked out',
                       'note': r.get('error') or ''}]
-        g['steps'] = steps
+        pre = []
+        if g.get('off'):
+            pre.append({'kind': 'stop', 'words': 'The target is switched off: nothing is put '
+                        'there until it is on again (not counted as failed)'})
+        if not g['enabled']:
+            pre.append({'kind': 'stop', 'words': 'This deployment is switched off: it is passed '
+                        'over (Deploy now on it still runs it)'})
+        if cert.get('key_type_alt'):
+            if getattr(cls, 'dual', False):
+                pre.append({'kind': 'info', 'words': 'Dual: both certificates go there ({0} and '
+                            '{1})'.replace('{0}', cert.get('key_type') or 'ec-256').replace(
+                                '{1}', cert['key_type_alt'])})
+            else:
+                want = str((item['opts'] or {}).get('variant') or 'auto').strip().lower()
+                pre.append({'kind': 'info', 'words': 'Dual: the target holds one certificate - '
+                            '{0} goes there'.replace('{0}', 'the RSA one' if want == 'auto' else
+                                                     want), 'note': 'its option "variant": %s' %
+                            want})
+        if str((item['opts'] or {}).get('pfx_password_mode') or '') == 'generate' and \
+                not (item['opts'] or {}).get('pfx_password'):
+            pre.append({'kind': 'key', 'words': 'A password for the PKCS#12 / keystore files is '
+                        'made and kept sealed with the deployment', 'first': True,
+                        'note': 'a full administrator sees it'})
+        g['steps'] = pre + steps
         dp['groups'].append(g)
     phases.append(dp)
     # 5. the tests of what the servers serve (1.0.32)
@@ -1430,13 +1463,33 @@ def checks_phase(store, cert, names):
             g['host'] = '%s:%s' % (cfg.get('host') or first or '?',
                                    cfg.get('port') or cls.default_port)
             steps += _test_steps(cls, mcfg, names)
-        steps.append({'kind': 'wait', 'words': 'When: after the deployments%s' % (
-            ', and by themselves every %s min' % E.CONFIG.get('certs_checks_every_min')
-            if auto else '') if after else ('by themselves every %s min' % E.CONFIG.get(
-                'certs_checks_every_min') if auto else 'only when asked'),
-            'note': 'a test that starts failing is an event and a notice (Settings → '
-            'Renewal and notices)' if E.CONFIG.get('certs_checks_alert', 1) else
-            'no notice is sent when it fails'})
+        # how it runs for this certificate (1.0.65/66), switched off here or as a test (1.0.85)
+        from acmelib.certs import checks as CK
+        tied = CK.after_list(r.get('after_target'))
+        if not g['enabled']:
+            steps.append({'kind': 'stop', 'words': 'Switched off for this certificate: it does '
+                          'not run, neither after a deployment nor by itself'})
+        elif not trow.get('enabled', 1):
+            steps.append({'kind': 'stop', 'words': 'The test is switched off (Tests): it does not '
+                          'run for any certificate'})
+        if CK.AFTER_NONE in tied:
+            steps.append({'kind': 'wait', 'words': 'No deployment runs it: only its schedule '
+                          'and Run it now'})
+        elif tied:
+            steps.append({'kind': 'wait', 'words': 'Runs only after a deployment on {0}'.replace(
+                '{0}', ', '.join(tied)), 'note': 'when it fails there, that deployment fails - '
+                'tried again later, an event and a notice as a failed deployment'})
+        elif after:
+            steps.append({'kind': 'wait', 'words': 'Runs after every deployment, on any of its '
+                          'targets', 'note': 'a few times while the services restart (after %s s) '
+                          '- a failure is a warning of the job' % ', '.join(
+                              str(x) for x in CK.AFTER_DEPLOY_TRIES)})
+        steps.append({'kind': 'wait', 'words': ('By itself every {0} min'.replace(
+            '{0}', str(E.CONFIG.get('certs_checks_every_min'))) if auto else
+            'Not by itself: the regular runs are off (Settings → Certificates)'),
+            'note': 'a test that starts failing is an event, a notice (Settings → Renewal and '
+            'notices) and among the alerts (mail, SNMP trap, Prometheus)' if
+            E.CONFIG.get('certs_checks_alert', 1) else 'no notice is sent when it fails'})
         if r.get('last_at'):
             steps.append({'kind': 'info', 'words': 'Last time: {0}'.replace(
                 '{0}', str(r.get('last_said') or r.get('last_state') or '?'))})
@@ -1463,6 +1516,23 @@ def after_phase(store, cert, irow, dinfo):
                       'notices (Settings → Renewal and notices)'})
     steps.append({'kind': 'save', 'words': 'Every step is written into the job\'s log, and an '
                   'event (syslog, SIEM) says what was done'})
+    tels = [x for x in re.split(r'[\s,;]+', str(E.CONFIG.get('certs_notify_sms') or '')) if x]
+    if tels:
+        steps.append({'kind': 'mail', 'words': 'And by SMS to {0}'.replace('{0}', ', '.join(tels))})
+    C = E.CONFIG
+    if C.get('alerts') and C.get('alerts_to'):
+        steps.append({'kind': 'mail', 'words': 'A failed deployment or a failing test is among '
+                      'the alerts: mailed to {0}'.replace('{0}', str(C.get('alerts_to'))),
+                      'note': 'after %s min, again every %s h while it lasts (Settings → Alerts)'
+                      % (C.get('alerts_delay_min', 5), C.get('alerts_repeat_h', 24))})
+    if C.get('snmp_traps') and C.get('snmp_trap_to'):
+        steps.append({'kind': 'call', 'words': 'An SNMP trap goes to {0}'.replace(
+            '{0}', str(C.get('snmp_trap_to'))), 'note': 'when it fails, and when it is right again'})
+    if C.get('metrics'):
+        steps.append({'kind': 'info', 'words': 'Prometheus reads its state at /metrics'})
+    if C.get('isemon'):
+        steps.append({'kind': 'call', 'words': 'Every line of the job goes to isemon too',
+                      'note': 'nothing secret: no password, key or token'})
     days = int(cert.get('renew_days') or E.CONFIG.get('certs_renew_days') or 30)
     auto = cert.get('auto_renew') not in (0, '0', False, None) or not cert.get('id')
     if not auto:
@@ -1484,7 +1554,9 @@ def after_phase(store, cert, irow, dinfo):
         steps.append({'kind': 'info', 'words': 'At each renewal all of the above repeats - the '
                       'steps marked "only the first time" are not done again'})
         steps.append({'kind': 'info', 'words': 'A deployment that fails is tried again by '
-                      'itself: after 5 minutes, then twice as long each time'})
+                      'itself: after 5 minutes, then twice as long each time, at most every '
+                      '{0} h'.replace('{0}', str(max(1, int(E.CONFIG.get('certs_retry_max_h')
+                                                              or 6))))})
     return {'key': 'after', 'title': 'After', 'steps': steps}
 
 

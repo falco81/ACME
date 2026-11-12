@@ -77,6 +77,22 @@ class InUse(unittest.TestCase):
         self.assertTrue(STORE.db.row('SELECT id FROM cert_issuers WHERE id = ?', (iid,)))
 
 
+class WhatHappens(unittest.TestCase):
+    def test_how_a_test_runs_for_the_certificate(self):
+        from acmelib.certs import runplan
+        STORE.db.insert('cert_tests', {'name': 'tls-plan', 'kind': 'tls', 'config': '{}',
+                                       'enabled': 1})
+        cid = cert('plan-i.example.test')
+        STORE.db.insert('cert_checks', {'cert_id': cid, 'test': 'tls-plan',
+                                        'after_target': 'lb-a\nlb-b'})
+        row = STORE.db.row('SELECT * FROM certs WHERE id = ?', (cid,))
+        words = json.dumps(runplan.checks_phase(STORE, row, ['plan-i.example.test']))
+        self.assertIn('Runs only after a deployment on lb-a, lb-b', words)
+        self.assertIn('that deployment fails', words)
+        after = json.dumps(runplan.after_phase(STORE, dict(row, auto_renew=1), None, []))
+        self.assertIn('at most every', after)
+
+
 class Buttons(unittest.TestCase):
     def test_one_order_in_every_popup(self):
         with open(os.path.join(ROOT, 'web/assets/core.js')) as f:

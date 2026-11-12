@@ -4,7 +4,17 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.85 - not released
+## 1.0.85 - 2026-11-12
+
+- *What happens* says everything a renewal and its deployments do. It now also shows how
+  each test runs for the certificate: after every deployment, only after one on the
+  targets ticked (a failure there fails that deployment), or by its schedule only. The
+  phase said "after the deployments" for every test. It also shows a test switched off
+  for the certificate or as a test, and a certificate switched off or holding a revoked
+  one (nothing deployed). Per target it shows a target or a deployment switched off,
+  which certificate of a dual one goes there, and a PKCS#12 password acme makes. Under
+  *After* it shows the SMS of the notices, the alerts by mail, the SNMP traps,
+  Prometheus and isemon, and the longest wait between tries of a failed deployment.
 
 ## 1.0.84 - 2026-11-12
 

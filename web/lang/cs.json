@@ -55983,6 +55983,74 @@
   "f83_20": {
    "source": "Open the certificate",
    "text": "Otevřít certifikát"
+  },
+  "f85_1": {
+   "source": "Switched off for this certificate: it does not run, neither after a deployment nor by itself",
+   "text": "Pro tento certifikát vypnutý: nespouští se po nasazení ani sám"
+  },
+  "f85_2": {
+   "source": "The test is switched off (Tests): it does not run for any certificate",
+   "text": "Test je vypnutý (Testy): nespouští se pro žádný certifikát"
+  },
+  "f85_3": {
+   "source": "No deployment runs it: only its schedule and Run it now",
+   "text": "Žádné nasazení ho nespouští: jen jeho plán a Spustit hned"
+  },
+  "f85_4": {
+   "source": "when it fails there, that deployment fails - tried again later, an event and a notice as a failed deployment",
+   "text": "když tam selže, selže i to nasazení – zkusí se znovu později, událost a upozornění jako u selhaného nasazení"
+  },
+  "f85_5": {
+   "source": "Runs after every deployment, on any of its targets",
+   "text": "Spustí se po každém nasazení, na kterýkoli jeho cíl"
+  },
+  "f85_6": {
+   "source": "Not by itself: the regular runs are off (Settings → Certificates)",
+   "text": "Sám ne: pravidelné spouštění je vypnuté (Nastavení → Certifikáty)"
+  },
+  "f85_7": {
+   "source": "a test that starts failing is an event, a notice (Settings → Renewal and notices) and among the alerts (mail, SNMP trap, Prometheus)",
+   "text": "test, který začne selhávat, je událost, upozornění (Nastavení → Obnovování a upozornění) a je mezi výstrahami (mail, SNMP trap, Prometheus)"
+  },
+  "f85_8": {
+   "source": "The certificate is switched off: nothing is deployed, whoever asks",
+   "text": "Certifikát je vypnutý: nic se nenasazuje, ať o to požádá kdokoli"
+  },
+  "f85_9": {
+   "source": "The certificate it holds now is revoked: nothing is deployed until a new one is issued",
+   "text": "Certifikát, který teď drží, je odvolaný: nic se nenasadí, dokud se nevydá nový"
+  },
+  "f85_10": {
+   "source": "The target is switched off: nothing is put there until it is on again (not counted as failed)",
+   "text": "Cíl je vypnutý: nic se tam nedá, dokud se nezapne (nepočítá se jako selhání)"
+  },
+  "f85_11": {
+   "source": "This deployment is switched off: it is passed over (Deploy now on it still runs it)",
+   "text": "Toto nasazení je vypnuté: přeskočí se (Nasadit hned na něm ho přesto spustí)"
+  },
+  "f85_12": {
+   "source": "A password for the PKCS#12 / keystore files is made and kept sealed with the deployment",
+   "text": "Heslo k souborům PKCS#12 / keystore se vytvoří a uloží zapečetěné u nasazení"
+  },
+  "f85_13": {
+   "source": "a full administrator sees it",
+   "text": "plný správce ho uvidí"
+  },
+  "f85_14": {
+   "source": "when it fails, and when it is right again",
+   "text": "když selže, a když je zase v pořádku"
+  },
+  "f85_15": {
+   "source": "Prometheus reads its state at /metrics",
+   "text": "Prometheus čte jeho stav na /metrics"
+  },
+  "f85_16": {
+   "source": "Every line of the job goes to isemon too",
+   "text": "Každý řádek úlohy jde i do isemonu"
+  },
+  "f85_17": {
+   "source": "nothing secret: no password, key or token",
+   "text": "nic tajného: žádné heslo, klíč ani token"
   }
  },
  "patterns": {
@@ -76617,6 +76685,50 @@
   "pf83_9": {
    "source": "the test {0} taken out of {1} by {2}",
    "text": "test {0} vyjmul(a) z {1} {2}"
+  },
+  "pf85_1": {
+   "source": "Runs only after a deployment on {0}",
+   "text": "Spustí se jen po nasazení na {0}"
+  },
+  "pf85_2": {
+   "source": "a few times while the services restart (after {0} s) - a failure is a warning of the job",
+   "text": "několikrát, než se služby restartují (po {0} s) – selhání je varování úlohy"
+  },
+  "pf85_3": {
+   "source": "By itself every {0} min",
+   "text": "Sám každých {0} min"
+  },
+  "pf85_4": {
+   "source": "Dual: both certificates go there ({0} and {1})",
+   "text": "Duální: jdou tam oba certifikáty ({0} a {1})"
+  },
+  "pf85_5": {
+   "source": "Dual: the target holds one certificate - {0} goes there",
+   "text": "Duální: cíl drží jeden certifikát – jde tam {0}"
+  },
+  "pf85_6": {
+   "source": "its option \"variant\": {0}",
+   "text": "jeho volba „variant“: {0}"
+  },
+  "pf85_7": {
+   "source": "And by SMS to {0}",
+   "text": "A SMS na {0}"
+  },
+  "pf85_8": {
+   "source": "A failed deployment or a failing test is among the alerts: mailed to {0}",
+   "text": "Selhané nasazení nebo selhávající test je mezi výstrahami: mailem na {0}"
+  },
+  "pf85_9": {
+   "source": "after {0} min, again every {1} h while it lasts (Settings → Alerts)",
+   "text": "po {0} min, znovu každých {1} h, dokud trvá (Nastavení → Výstrahy)"
+  },
+  "pf85_10": {
+   "source": "An SNMP trap goes to {0}",
+   "text": "SNMP trap jde na {0}"
+  },
+  "pf85_11": {
+   "source": "A deployment that fails is tried again by itself: after 5 minutes, then twice as long each time, at most every {0} h",
+   "text": "Nasazení, které selže, se samo zkusí znovu: po 5 minutách, pak pokaždé po dvojnásobné době, nejvýš každých {0} h"
   }
  },
  "rich": {
