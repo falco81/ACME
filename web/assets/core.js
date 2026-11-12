@@ -431,6 +431,12 @@ function modal(title, build, buttons, narrow) {
         }
       }
       if (keep) first.focus({preventScroll: true}); else first.focus();
+      /* a box that cannot take the focus (in a closed part, hidden): its buttons do (1.0.95:
+         the TLS settings opened with the focus left on the page behind) */
+      if (!$('modal').contains(document.activeElement)) {
+        var alt2 = foot.querySelector('.btn.primary:not(.danger)') || foot.querySelector('.btn:not(.danger)');
+        if (alt2) alt2.focus({preventScroll: true});
+      }
     } catch (e) { }
   }, 0);
   return {body: $('modal-body'), foot: foot};

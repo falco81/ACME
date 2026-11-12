@@ -314,6 +314,6 @@
 .rp-pkt-b.hid{color:var(--warn,#d29922)}
 .rp-pkt-b.lit{background:rgba(88,166,255,.35);color:var(--tx)}
 /* the module's setup guide (1.0.95) */
-.rp-guide{display:inline-flex;align-items:center;gap:5px;margin:4px 0 0 0;align-self:flex-start;padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--tx-dim);font-size:11.5px;cursor:pointer;transition:color .15s,border-color .15s,background .15s}
+.rp-guide{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;margin:4px 0 0 0;align-self:flex-start;padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--tx-dim);font-size:11.5px;cursor:pointer;transition:color .15s,border-color .15s,background .15s}
 .rp-guide:hover{color:var(--accent,#58a6ff);border-color:rgba(88,166,255,.5);background:rgba(88,166,255,.08)}
 .rp-group-name .rp-guide{margin:0 0 0 6px;align-self:center}

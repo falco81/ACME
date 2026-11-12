@@ -3934,3 +3934,12 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .ps-opt[hidden]{display:none}
 @media (max-width:760px){.ps-drow{flex-direction:column;align-items:stretch}.ps-side{max-width:100%;align-items:stretch}.ps-side .tag{text-align:left;align-self:flex-start}.ps-how{min-width:0;width:100%}.ps-new,.ps-opts{grid-template-columns:1fr}}
 .ps-row .ps-txt .small,.ps-row .ps-sub,.ps-row .ps-sub *{font-weight:400}
+/* Accounts (1.0.95): the role chosen in its row read whole - "only the registration pages" was
+   cut at any width; on a phone the seven buttons a row of their own beneath it, not a column
+   held over the role and the account's tags */
+#us-table td select { min-width: 13em; max-width: 100%; }
+@media (max-width: 700px) {
+  #us-table td.rowtools, #us-table th.rowtools { position: static; box-shadow: none; max-width: none; }
+  #us-table td.rowtools { min-width: 9.5em; }
+  #us-table td select { min-width: 10em; }
+}

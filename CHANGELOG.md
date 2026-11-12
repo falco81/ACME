@@ -14,6 +14,42 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   not reached from here it warns, a wrong certificate fails the deployment - and how many
   times it asks while a slow target restarts; every module there has its **Setup guide**.
 
+Bug hunt (four parts: the setup guides, the certificates' logic, the daemon/HA/security, the
+pages):
+
+- **With the guard against writes to the database on**: a module's code written into the
+  database past acme was run by every node (the uploaded modules are signed now, taken under
+  the guard once the whole cluster runs 1.0.95); a configuration put in signed everything the
+  database held - a sign-in or a firewall row written past acme with it (only what it wrote is
+  signed now); an administrator with a second step was locked out after the first sign-in;
+  a directory's authorities changed on the page stopped its administrators signing in.
+- Switching TLS between the databases off never told the other node straight (the value and
+  the key were the other way round).
+- **A test acme made from a deployment** that cannot reach the server (a target behind a proxy,
+  a network acme does not see) warns and no longer fails a deployment that went through - every
+  push of an ESXi or a vCenter through a proxy was failed and retried for good; a host given as
+  an address (https://vc:8443) is its name and port. A person's "only by its schedule" and a test
+  taken off stay (every save of the deployment's options undid them). A BMC waits minutes only
+  when it is reset. The command line's preset no longer makes a test of a host called "{host}".
+- **Discover → Apply** gives a slot up only for a choice that stands: a certificate that does
+  not hold its names left the slot empty. An empty choice of slots is refused by the API and
+  the command line too. The one-time changes of 1.0.77/1.0.93 run once only (two pages asking
+  at once gave a certificate the same test twice). Stopped during the tests after a deployment,
+  what went through is still said deployed.
+- **The guide editor**: Close, its x and Escape ask before throwing changes away, the question
+  starts on No; "Back to the default" asks in the editor (it closed it); Enter in the link's
+  words no longer saves the guide; backslashes in tables are kept (EXAMPLE\acme-admin), as are
+  backticks in code, lines starting like a heading or list, links with brackets, and code pasted
+  from an editor; a version of your own of a shipped kind gets the shipped guide; guides in a
+  configuration file are checked as acme writes them.
+- **The pages**: the searches find the Czech words they show (targets, modules, pickers, the
+  states of tests and certificates); the deployments' search finds a target's kind; a window's
+  search is kept when a dialog over it closes; the Modules count says how many the filters left;
+  the certificate picker says where a certificate is deployed already; the deploy dialog keeps
+  the options typed when the same target is picked again; the accounts' role read whole, on a
+  phone not under the buttons; a dialog whose first box cannot take the focus gives it to its
+  buttons; FortiGate and other modules' texts in Czech.
+
 ## 1.0.94 - 2026-11-12
 
 - **FortiGate in versions by FortiOS's API**: *FortiOS 6.0 - 6.4*, *7.0 - 7.4.1* and

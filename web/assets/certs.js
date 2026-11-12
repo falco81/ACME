@@ -477,10 +477,17 @@ function section(title, lede, wide) {
 /** A small search of a section's list (1.0.92): in its heading on the right, the same
     query as every list of the pages (name:, state:..., suggested as typed - core.js qLocal).
     onFind(): the list drawn again with what matches. */
+/* what was typed into a section's search, by spec.keep (1.0.95): the window drawn again after a
+   dialog over it (Attach a test, a deployment) came back with the search empty, the whole list */
+var SECTION_FIND = {};
 function sectionFind(sec, spec, onFind, hint) {
   var find = el('input', 'ct-kind-find msect-find');
   find.type = 'search';
   find.placeholder = tr(hint || 'search…');
+  if (spec.keep && SECTION_FIND[spec.keep]) find.value = SECTION_FIND[spec.keep];
+  var remember = function () { if (spec.keep) SECTION_FIND[spec.keep] = find.value; };
+  find.addEventListener('input', remember);
+  find.addEventListener('search', remember);
   var h = sec.querySelector('h4');
   var row = el('div', 'msect-head');
   h.parentNode.insertBefore(row, h);
@@ -1179,7 +1186,7 @@ function kindPicker(family, go, filter) {
       }
       t.appendChild(w);
       t.onclick = function () { go(p); };
-      t._words = ((p.title || '') + ' ' + p.kind + ' ' + v + ' ' + (p.description || '')).toLowerCase();
+      t._words = ((p.title || '') + ' ' + tr(p.title || '') + ' ' + p.kind + ' ' + v + ' ' + (p.description || '') + ' ' + tr(p.description || '')).toLowerCase();
       tiles.push({t: t, g: g, p: p});
       grid.appendChild(t);
     });
@@ -1194,10 +1201,10 @@ function kindPicker(family, go, filter) {
                ['import', 'can import what an account has: yes or no', 'import:yes', 'ok']],
       rows: function () { return tiles.map(function (x) { return x.p; }); },
       value: function (p, f) {
-        return {name: p.title || p.kind, vendor: p.vendor || '', kind: p.kind, about: p.description || '',
-                'import': p.lists_existing ? 1 : 0}[f];
+        return {name: [p.title || p.kind, tr(p.title || p.kind)], vendor: p.vendor || '', kind: p.kind,
+                about: [p.description || '', tr(p.description || '')], 'import': p.lists_existing ? 1 : 0}[f];
       },
-      words: function (p) { return (p.title || '') + ' ' + p.kind + ' ' + (p.vendor || '') + ' ' + (p.description || ''); }
+      words: function (p) { return (p.title || '') + ' ' + tr(p.title || '') + ' ' + p.kind + ' ' + (p.vendor || '') + ' ' + (p.description || '') + ' ' + tr(p.description || ''); }
     };
     setTimeout(function () { if (find.isConnected) qLocal(find, kspec); }, 0);
     find.oninput = function () {
@@ -1431,7 +1438,7 @@ function modQuerySpec(key) {
       return v;
     },
     words: function (r) {
-      return r.name + ' ' + r.kind + ' ' + plugTitle(m.family, r.kind) + ' ' + JSON.stringify(r.config || {}) + ' '
+      return r.name + ' ' + r.kind + ' ' + plugTitle(m.family, r.kind) + ' ' + tr(plugTitle(m.family, r.kind)) + ' ' + JSON.stringify(r.config || {}) + ' '
         + arr(r.tags).join(' ') + ' ' + (r.note || '');
     }
   };
@@ -2738,7 +2745,7 @@ function targetPeek(r) {
         else sec._body.appendChild(deployTable(deps || [], {target: r, back: function () { targetPeek(r); }}));
         if (MANAGE && deployable(r)) {
           var add = cmdButton('Deploy a certificate here', 'add', 'primary small');
-          add.onclick = function () { over(function () { deployEdit({target: r}); }, function () { targetPeek(r); }); };
+          add.onclick = function () { over(function () { deployEdit({target: r, have: arr(deps).map(function (x) { return x.cert_id; })}); }, function () { targetPeek(r); }); };
           var row = el('div', 'btnrow'); row.appendChild(add);
           sec._body.appendChild(row);
         }
@@ -3113,8 +3120,10 @@ function certRowWords(c) {
   return w;
 }
 /** The certificates of a deployment made from a target's window, one picked (1.0.90). */
-function certPickList(certs, target, chosen) {
+function certPickList(certs, target, chosen, have) {
   var node = el('div', 'dp-pick');
+  var there = {};
+  arr(have).forEach(function (x) { there[String(x)] = 1; });
   var find = el('input');
   find.type = 'search';
   find.placeholder = tr('a name, a source, a state…');
@@ -3137,7 +3146,10 @@ function certPickList(certs, target, chosen) {
     };
     lab.appendChild(rb);
     lab.appendChild(certIcon(c));
-    lab.appendChild(certRowWords(c));
+    var cw = certRowWords(c);
+    /* deployed on this target already (1.0.95), as the targets' list says of a target */
+    if (there[String(c.id)]) { var tl0 = cw.querySelector('.ck-attach-t'); (tl0 || cw).appendChild(el('span', 'tag ok', 'deployed there already')); }
+    lab.appendChild(cw);
     lab._rb = rb;
     items.push(lab);
     list.appendChild(lab);
@@ -3147,8 +3159,8 @@ function certPickList(certs, target, chosen) {
     fields: [['name', 'the certificate\'s name', 'name~www'], ['state', 'its state', 'state:ok'],
              ['issuer', 'its source', 'issuer:LetsEncrypt']],
     rows: function () { return rows; },
-    value: function (c, f) { return {name: c.name, state: c.state, issuer: c.issuer}[f]; },
-    words: function (c) { return c.name + ' ' + (c.cn || '') + ' ' + arr(c.names).join(' ') + ' ' + (c.issuer || '') + ' ' + (c.state || ''); }
+    value: function (c, f) { return {name: c.name, state: [c.state, tr(stateTag(c.state).textContent)], issuer: c.issuer}[f]; },
+    words: function (c) { return c.name + ' ' + (c.cn || '') + ' ' + arr(c.names).join(' ') + ' ' + (c.issuer || '') + ' ' + (c.state || '') + ' ' + tr(stateTag(c.state).textContent); }
   };
   setTimeout(function () { if (find.isConnected) qLocal(find, cspec); }, 0);
   find.oninput = function () {
@@ -3218,8 +3230,8 @@ function targetPickList(targets, cert, chosen) {
     fields: [['name', 'the target\'s name', 'name~web'], ['kind', 'its kind', 'kind:ssh'],
              ['address', 'where it is', 'address~10.0.']],
     rows: function () { return rows; },
-    value: function (t, f) { return {name: t.name, kind: t.kind, address: whereOf(t)}[f]; },
-    words: function (t) { return t.name + ' ' + t.kind + ' ' + plugTitle('target', t.kind) + ' ' + whereOf(t); }
+    value: function (t, f) { return {name: t.name, kind: [t.kind, tr(plugTitle('target', t.kind))], address: whereOf(t)}[f]; },
+    words: function (t) { return t.name + ' ' + t.kind + ' ' + plugTitle('target', t.kind) + ' ' + tr(plugTitle('target', t.kind)) + ' ' + whereOf(t); }
   };
   setTimeout(function () { if (find.isConnected) qLocal(find, aspec); }, 0);
   find.oninput = function () {
@@ -3257,9 +3269,17 @@ function deployEdit(o) {
       var n = tSel ? tSel.value : tName;
       return targets.filter(function (t) { return t.name === n; })[0] || (o.target && o.target.name ? o.target : {name: n, kind: ''});
     };
+    var typedFor = null, typed = null;
     var drawFields = function () {
+      /* what was typed kept while the target is the same kind (1.0.95: "Change" and the same
+         target picked again lost the options typed - the F5's client SSL profiles) */
+      try {
+        if (form && form.read && typedFor) { typed = form.read(); }
+      } catch (e) { typed = null; }
       clear(formHost);
       var t = target();
+      if (typedFor && typedFor !== (t.kind || '') + '@' + (t.version || '')) typed = null;
+      typedFor = (t.kind || '') + '@' + (t.version || '');
       var p = plugVersion(plugOf('target', t.kind), t.version);
       if (!t.name) { if (!pickHost) formHost.appendChild(el('p', 'muted', 'Choose a target first.')); form = null; return; }
       if (!p) {
@@ -3271,7 +3291,7 @@ function deployEdit(o) {
       /* A dual certificate (ECDSA + RSA): a target of one certificate is asked which
          of the two it gets; one that serves both is told it takes both. */
       var dual = deployDual();
-      var opts = obj(d.options);
+      var opts = typed ? Object.assign({}, obj(d.options), typed) : obj(d.options);
       /* "Check what is served" is a test of the target now (1.0.77): below, not a field. */
       var fields = arr(p.deploy_fields).filter(function (f) { return (!f.dual_only || dual || opts[f.key]) && VERIFY_KEYS.indexOf(f.key) < 0; });
       drawTests();
@@ -3357,7 +3377,7 @@ function deployEdit(o) {
         cSel.hidden = true;
         g.appendChild(cSel);
         var certChosen = el('div', 'ck-attach-row on dp-chosen');
-        certPick = certPickList(certs, tName, function (id) { cSel.value = String(id); paintCert(); drawFields(); });
+        certPick = certPickList(certs, tName, function (id) { cSel.value = String(id); paintCert(); drawFields(); }, o.have);
         var paintCert = function () {
           clear(certChosen);
           var c = certs.filter(function (x) { return String(x.id) === cSel.value; })[0];
@@ -4189,6 +4209,13 @@ function certBody(body, c, versions, deploys, jobs, back) {
   var dHost = el('div');
   ds._body.appendChild(dHost);
   var dFind = null;
+  /* the kind of its target - from the list of targets, as the table shows it (1.0.95: the rows
+     carry none, and kind:local found nothing) */
+  var deployKind = function (d) {
+    if (d.target_kind || d.kind) return d.target_kind || d.kind;
+    var tg = (LISTS.targets || []).filter(function (t) { return t.name === d.target; })[0];
+    return tg ? tg.kind : '';
+  };
   var drawDeploys = function () {
     clear(dHost);
     var shown = dFind ? dFind._rows(arr(deploys)) : arr(deploys);
@@ -4197,19 +4224,20 @@ function certBody(body, c, versions, deploys, jobs, back) {
   };
   if (arr(deploys).length > 3) {
     dFind = sectionFind(ds, {
+      keep: 'cert-deploys:' + c.id,
       fields: [['target', 'the target\'s name', 'target~web'], ['kind', 'its kind', 'kind:ssh'],
                ['state', 'deployed, failed, off…', 'state:failed'], ['options', 'its options - a path, a slot', 'options~/etc/nginx']],
       rows: function () { return arr(deploys); },
       /* the state as shown too (1.0.93): "state:selhalo" found nothing, only "state:failed" */
       value: function (d, f) {
         var tag = deployTag(d, c.version).textContent;
-        var kind = d.target_kind || d.kind || '';
+        var kind = deployKind(d);
         return {target: d.target, kind: [kind, tr(plugTitle('target', kind))],
                 state: [d.enabled === 0 ? 'off' : (d.state || ''), tr(tag)],
                 options: JSON.stringify(d.options || {})}[f];
       },
       words: function (d) {
-        var kind = d.target_kind || d.kind || '';
+        var kind = deployKind(d);
         return d.target + ' ' + kind + ' ' + tr(plugTitle('target', kind)) + ' ' + (d.state || '') + ' ' +
           tr(deployTag(d, c.version).textContent) + ' ' + JSON.stringify(d.options || {}) + ' ' + (d.last_error || '');
       }
@@ -8937,8 +8965,6 @@ function drawModules(live) {
   }
   var b = $('md-broken');
   if (b) { clear(b); ['issuer', 'challenge', 'target', 'check'].forEach(function (f) { b.appendChild(brokenBox(f)); }); }
-  var said = $('md-said');
-  if (said) said.textContent = num(rows.length) + ' in all';
   /* the family chips */
   var fams = $('md-fams');
   if (fams && !fams.children.length) {
@@ -8968,7 +8994,7 @@ function drawModules(live) {
               version: arr(p.versions).map(function (v) { return v.version || 'plain'; }).join(' ') || p.version || '',
               mark: (m.here || m.release || {}).state || '', used: r.used}[f];
     },
-    words: function (r) { return [r.p.title, r.p.kind, r.p.vendor, r.p.description].join(' '); }
+    words: function (r) { return [r.p.title, tr(r.p.title || ''), r.p.kind, r.p.vendor, r.p.description, tr(r.p.description || '')].join(' '); }
   };
   if (q && !q._md) { q._md = 1; setTimeout(function () { if (q.isConnected) qLocal(q, spec); }, 0); q.oninput = function () { drawModules(); }; }
   var list = rows.filter(function (r) {
@@ -8978,6 +9004,10 @@ function drawModules(live) {
             versions: arr(r.p.versions).length > 1, marked: !!(m.here || m.release)}[MD.origin];
   });
   if (q) list = qFilter(q, spec, list);
+  /* the count of those shown (1.0.95: it said all of them, whatever the filters left) */
+  var said = $('md-said');
+  if (said) said.textContent = list.length === rows.length ? num(rows.length) + ' in all'
+    : num(list.length) + ' of ' + num(rows.length);
   /* your own first, then by family and name */
   list.sort(function (a, b) {
     var FO = {issuer: 0, challenge: 1, target: 2, check: 3};
@@ -9882,6 +9912,7 @@ function certTests(c, back, deploys, sec) {
     /* a search in the heading once there are a few (1.0.92) */
     if (sec && !tFind && all.length > 3) {
       tFind = sectionFind(sec, {
+        keep: 'cert-tests:' + c.id,
         fields: [['test', 'the test\'s name', 'test~www'], ['state', 'ok, warn, failing, none', 'state:failing'],
                  ['where', 'where it connects', 'where~10.0.'], ['after', 'after deploying on', 'after~nginx']],
         rows: function () { return arr(D.checks); },
@@ -9889,13 +9920,14 @@ function certTests(c, back, deploys, sec) {
           var st = x.last_state || '';
           var code = !st ? 'none' : (st === 'ok' || st === 'warn' ? st : 'failing');
           var shown = {none: 'not run yet', ok: 'pass', warn: 'with a warning', failing: 'failing'}[code];
-          return {test: x.test, state: [code, st, tr(shown)],
+          var badge = (CK_STATE[st] || CK_STATE[''])[0];
+          return {test: x.test, state: [code, st, tr(shown), badge, tr(badge)],
                   where: x.where || x.address || '', after: x.after_target || ''}[f];
         },
         words: function (x) {
           var st = x.last_state || '';
           var shown = !st ? 'not run yet' : (st === 'ok' ? 'pass' : (st === 'warn' ? 'with a warning' : 'failing'));
-          return x.test + ' ' + (x.kind || '') + ' ' + (x.where || '') + ' ' + (x.after_target || '') + ' ' + st + ' ' + tr(shown) + ' ' + (x.last_error || '');
+          return x.test + ' ' + (x.kind || '') + ' ' + (x.where || '') + ' ' + (x.after_target || '') + ' ' + st + ' ' + tr((CK_STATE[st] || CK_STATE[''])[0]) + ' ' + tr(shown) + ' ' + (x.last_error || '');
         }
       }, function () { draw(); }, 'a test, a state, an address…');
     }

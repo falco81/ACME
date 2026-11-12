@@ -233,8 +233,10 @@
     box.setAttribute('role', 'alertdialog');
     box.appendChild(el('p', 'gd-sure-w', tr(words)));
     var row = el('div', 'gd-sure-row');
+    /* what is asked here throws something away: red, and the focus on No (1.0.95: one Enter
+       after Escape lost the edits) - as the other questions of the pages */
     var no = cmdButton('No, leave it', 'x', 'gd-sure-no');
-    var yes = cmdButton(yesWords || 'Yes', 'check', 'primary gd-sure-yes');
+    var yes = cmdButton(yesWords || 'Yes', 'check', 'danger gd-sure-yes');
     var end = function () { veil.remove(); document.removeEventListener('keydown', key, true); };
     var key = function (ev) {
       if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); end(); }
@@ -257,7 +259,7 @@
     veil.addEventListener('mousedown', function (ev) { if (ev.target === veil) end(); });
     host.appendChild(veil);
     document.addEventListener('keydown', key, true);
-    setTimeout(function () { yes.focus(); }, 0);
+    setTimeout(function () { no.focus(); }, 0);
   }
   /* the clipboard: the browser's own where the page is https, else the old way */
   function copyText(text, done) {
@@ -356,7 +358,8 @@
     opt = opt || {};
     var kind = p.kind;
     var vers = versionsOf(p);
-    var cur = {version: version === undefined || version === null ? String(p.version || '') : String(version), lang: lang()};
+    var cur = {version: version === undefined || version === null ? String(p.version || '') : String(version),
+               lang: opt.lang === 'cs' || opt.lang === 'en' ? opt.lang : lang()};
     var content = el('div', 'gd-content');
     var tocBox = el('nav', 'gd-toc');
     var meta = el('div', 'gd-meta');

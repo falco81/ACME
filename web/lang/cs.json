@@ -57043,6 +57043,58 @@
   "ged_79": {
    "source": "Tests after a deployment are switched off (Settings → Certificates)",
    "text": "Testy po nasazení jsou vypnuté (Nastavení → Certifikáty)"
+  },
+  "ged_80": {
+   "source": "Imports the certificate through the FortiOS REST API and uses it for the admin GUI, SSL VPN, inspection profiles and virtual IPs; deletes older ones acme put there. Any FortiOS: the shapes of the profile and VIP certificate fields are taken from the version the FortiGate says.",
+   "text": "Importuje certifikát přes FortiOS REST API a použije ho pro administrační GUI, SSL VPN, inspekční profily a virtuální IP; starší, které tam acme dalo, smaže. Libovolný FortiOS: tvar polí certifikátu v profilu a VIP se řídí verzí, kterou FortiGate ohlásí."
+  },
+  "ged_81": {
+   "source": "any version (detects it)",
+   "text": "libovolná verze (zjistí ji)"
+  },
+  "ged_82": {
+   "source": "FortiOS 6.0 - 6.4: an inspection profile's server-cert and a virtual IP's ssl-certificate are set as a name. Imports the certificate (monitor/vpn-certificate/local/import), uses it for the admin GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspection profiles and virtual IPs, deletes older ones acme put there. Refused on a FortiGate that says another FortiOS.",
+   "text": "FortiOS 6.0 - 6.4: server-cert inspekčního profilu a ssl-certificate virtuální IP se nastavují jako jméno. Importuje certifikát (monitor/vpn-certificate/local/import), použije ho pro administrační GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspekční profily a virtuální IP, starší, které tam acme dalo, smaže. Na FortiGate, který ohlásí jiný FortiOS, se odmítne."
+  },
+  "ged_83": {
+   "source": "FortiOS 7.0 - 7.4.1: an inspection profile's server-cert is a list of certificates (others in it kept), a virtual IP's ssl-certificate a name. Imports the certificate (monitor/vpn-certificate/local/import), uses it for the admin GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspection profiles and virtual IPs, deletes older ones acme put there. Refused on a FortiGate that says another FortiOS.",
+   "text": "FortiOS 7.0 - 7.4.1: server-cert inspekčního profilu je seznam certifikátů (ostatní v něm zůstanou), ssl-certificate virtuální IP je jméno. Importuje certifikát (monitor/vpn-certificate/local/import), použije ho pro administrační GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspekční profily a virtuální IP, starší, které tam acme dalo, smaže. Na FortiGate, který ohlásí jiný FortiOS, se odmítne."
+  },
+  "ged_84": {
+   "source": "FortiOS 7.4.2 - 8.0 (7.4.x, 7.6.x, 8.0): an inspection profile's server-cert and a virtual IP's ssl-certificate are lists of certificates (others in them kept); \"SSL VPN\" is the Agentless VPN of 7.6.3 and later. Imports the certificate (monitor/vpn-certificate/local/import), uses it for the admin GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspection profiles and virtual IPs, deletes older ones acme put there. Refused on a FortiGate that says another FortiOS.",
+   "text": "FortiOS 7.4.2 - 8.0 (7.4.x, 7.6.x, 8.0): server-cert inspekčního profilu i ssl-certificate virtuální IP jsou seznamy certifikátů (ostatní v nich zůstanou); \"SSL VPN\" je od 7.6.3 Agentless VPN. Importuje certifikát (monitor/vpn-certificate/local/import), použije ho pro administrační GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspekční profily a virtuální IP, starší, které tam acme dalo, smaže. Na FortiGate, který ohlásí jiný FortiOS, se odmítne."
+  },
+  "ged_85": {
+   "source": "12 months",
+   "text": "12 měsíců"
+  },
+  "ged_86": {
+   "source": "24 months",
+   "text": "24 měsíců"
+  },
+  "ged_87": {
+   "source": "36 months",
+   "text": "36 měsíců"
+  },
+  "ged_88": {
+   "source": "48 months",
+   "text": "48 měsíců"
+  },
+  "ged_89": {
+   "source": "60 months",
+   "text": "60 měsíců"
+  },
+  "ged_90": {
+   "source": "15 years",
+   "text": "15 let"
+  },
+  "ged_91": {
+   "source": "a copy",
+   "text": "kopie"
+  },
+  "ged_92": {
+   "source": "\"v=spf1 -all\" or 192.0.2.10",
+   "text": "\"v=spf1 -all\" nebo 192.0.2.10"
   }
  },
  "patterns": {

@@ -338,10 +338,12 @@
       return api(name, body, 30);
     };
     var originWords = function (g) {
-      return g.origin === 'written' ? tr('written over here') + (g.written_by ? ' · ' + g.written_by : '')
-        : g.origin === 'module' ? tr('the module\'s own text')
-        : g.origin === 'shipped' ? tr('acme\'s own text')
-        : tr('none yet - made from its fields');
+      /* the same words as the guide shown (1.0.95: "acme's own text" there, "shipped with
+         acme" here, for one and the same) */
+      return g.origin === 'written' ? tr('written on the page Modules') + (g.written_by ? ' · ' + g.written_by : '')
+        : g.origin === 'module' ? tr('carried by the module')
+        : g.origin === 'shipped' ? tr('shipped with acme')
+        : tr('made from the module\'s fields - none written yet');
     };
     var load = function () {
       said.textContent = tr('Asking…');
@@ -834,7 +836,7 @@
       }},
       {words: 'Close', close: true},
       {words: 'Show it', icon: 'eye', go: function () {
-        leave(function () { G().show(p, family, cur.version); });
+        leave(function () { G().show(p, family, cur.version, {lang: cur.lang}); });
       }},
       {words: 'Save', cls: 'primary gd-savebtn', icon: 'save', go: function (b) { keep(b); }}
     ], 'gd-full gd-edbox'); };
