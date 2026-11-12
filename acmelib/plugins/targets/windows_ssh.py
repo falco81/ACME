@@ -85,6 +85,11 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
         # past cmd.exe's 8191 characters (1.0.88: three IIS bindings and RDP, or a few lines
         # of post_ps, and every deployment failed "The command line is too long"): uploaded
         # as a .ps1 that deletes itself, as the roles' scripts are
+        if what in ('cleaning up', 'putting the files back') and \
+                hasattr(self.ctx, 'tidying'):
+            # after a stop too (1.0.88): the temporary folder with the key stayed on the machine
+            with self.ctx.tidying():
+                return self.roles_ps(s, script, what=what, check=check, timeout=timeout)
         return self.roles_ps(s, script, what=what, check=check, timeout=timeout)
 
     def test(self):

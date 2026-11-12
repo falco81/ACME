@@ -56151,6 +56151,14 @@
   "f88b_2": {
    "source": "Its deployments are held: a new certificate is issued and kept here, and put on the targets only with Deploy now",
    "text": "Jeho nasazení jsou pozdržena: nový certifikát se vydá a zůstane tady, na cíle jde jen přes Nasadit hned"
+  },
+  "f88c_1": {
+   "source": "Its deployments then put a certificate of other names on their servers.",
+   "text": "Jeho nasazení pak dají na servery certifikát s jinými jmény."
+  },
+  "f88c_2": {
+   "source": "Import it anyway",
+   "text": "Přesto importovat"
   }
  },
  "patterns": {
@@ -76873,6 +76881,14 @@
   "pf88b_2": {
    "source": "the certificate brought in is not for {0}: it lacks {1} (it is for {2}) - import it as a certificate of its own, or with force",
    "text": "přinesený certifikát není pro {0}: chybí v něm {1} (je pro {2}) – importujte ho jako samostatný certifikát, nebo s volbou force"
+  },
+  "pf88c_1": {
+   "source": "the certificate brought in is not for {0}: it lacks {1} (it is for {2}) - import it as a certificate of its own (or anyway, with force)",
+   "text": "přinesený certifikát není pro {0}: chybí v něm {1} (je pro {2}) – importujte ho jako samostatný certifikát (nebo přesto, s volbou force)"
+  },
+  "pf88c_2": {
+   "source": "Import it into {0} anyway?",
+   "text": "Přesto ho importovat do {0}?"
   }
  },
  "rich": {

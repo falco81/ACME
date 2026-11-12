@@ -2799,6 +2799,7 @@ function dirSampler(a, mailAttr, mobAttr, form) {
   var who = textBox('', 'jan.novak', 'mono');
   who.setAttribute('aria-label', 'A person in the directory');
   noI18n(who);
+  who.setAttribute('data-i18n-hint', '1');   /* its hint is words (1.0.88) */
   var go = cmdButton('Show a person’s attributes', 'search', '');
   go.type = 'button';
   row.appendChild(who);

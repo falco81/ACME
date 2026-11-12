@@ -88,9 +88,14 @@ def owner_word(s):
 def my_names(s):
     data = s.get('data') or {}
     about = data.get('about') or {}
-    out = {str(s['name']).lower()}
     if is_local(s):
-        return out | {'local:' + str(s['name']).lower()}
+        # local:NAME; NAME alone only where nobody of a directory signs in here (1.0.88: with a
+        # directory, a local "novak" owned the directory novak's certificates and took their keys)
+        mine = {'local:' + str(s['name']).lower()}
+        if not str(E.CONFIG.get('portal_directory') or E.CONFIG.get('admin_directory') or '').strip():
+            mine.add(str(s['name']).lower())
+        return mine
+    out = {str(s['name']).lower()}
     # What the directory said who it is (1.0.45) - never the name as typed: "B\\falco" typed by
     # falco of domain A owned what was B\\falco's.
     for v in (about.get('sam'), about.get('upn'), data.get('mail')):
@@ -130,10 +135,7 @@ def my_teams(h, s):
     """{team lower: (name, {rights})} of the person (Settings → Owners and teams):
     the teams with them - their name, local:NAME, a group they are in - as a member."""
     from acmelib.certs import teams
-    # an account of acme's own is a member only as local:NAME (1.0.88: as "novak" it took the
-    # rights of the directory's novak - his certificates, their keys)
-    names = {'local:' + str(s['name']).lower()} if is_local(s) else my_names(s)
-    return teams.person_teams(h.store, names, my_groups(h, s))
+    return teams.person_teams(h.store, my_names(s), my_groups(h, s))
 
 
 def defined_teams(store):

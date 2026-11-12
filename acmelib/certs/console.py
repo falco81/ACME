@@ -315,8 +315,6 @@ def fam_do(con, fam, r):
     opts = [('show', 'Show it all'), ('test', 'Try it (nothing is changed)'),
             ('edit', 'Change its settings'), ('rename', 'Rename it'),
             ('switch', 'Switch it %s' % ('off' if r.get('enabled', 1) else 'on')),
-        ('hold', 'Deploy hold: %s' % ('on - a new one waits for Deploy it now' if r.get(
-            'deploy_hold') else 'off - a new one is deployed by itself')),
             ('default', 'No default %s any more' % word if r.get('is_default') else
              'Make it the default %s' % word)]
     if fam == 'challenge' and r.get('kind') == 'http_local':
@@ -417,6 +415,8 @@ def cert_do(con, r):
         ('edit', 'Change it (names, issuer, validation, renewing)'),
         ('source', 'Change the source (imported, an authority, by hand) - keeping the rest'),
         ('switch', 'Switch it %s' % ('off' if r.get('enabled', 1) else 'on')),
+        ('hold', 'Deploy hold: %s' % ('on - a new one waits for Deploy it now' if r.get(
+            'deploy_hold') else 'off - a new one is deployed by itself')),
         ('import', 'A new version of it from a file'),
         ('export', 'Export it into a file'), ('csr', 'A CSR for an outside authority'),
         ('answer', 'The answer to its CSR (a file)'), ('revoke', 'Revoke it'),

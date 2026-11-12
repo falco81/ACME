@@ -115,6 +115,9 @@ Where the owner is set:
 * a certificate's **Edit** (the same field);
 * the command line: `acme --cert-edit NAME --set owner=novak` (or
   `--set owner=group:CERT_USERS`, `--set owner=local:spravce`);
+  An account of acme's own owns a certificate whose owner is its name alone (no `local:`)
+  only where no directory signs in on these pages (1.0.88): with one, that name may be the
+  directory's person of the same name, whose certificates and keys it took.
 * a certificate asked for on the portal is owned by whoever asked (an account
   here as `local:NAME`).
 

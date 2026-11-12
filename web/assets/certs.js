@@ -6241,10 +6241,10 @@ function importDialog(into) {
       g.appendChild(nf);
     }
     body.appendChild(g);
-  }, [{words: 'Close', close: true}, {words: 'Import', cls: 'primary', icon: 'upload', go: function (b) {
+  }, [{words: 'Close', close: true}, {words: 'Import', cls: 'primary', icon: 'upload', go: function go1(b, force) {
     if (!held.main) { toast('drop a file first', 'bad'); return; }
     busy(b, true);
-    capi('certs/import', {id: into ? into.id : undefined, name: into ? undefined : (name.value.trim() || undefined), data_b64: held.mainB64, filename: held.main.name,
+    capi('certs/import', {id: into ? into.id : undefined, force: force ? 1 : undefined, name: into ? undefined : (name.value.trim() || undefined), data_b64: held.mainB64, filename: held.main.name,
                           password: pass.value || undefined, key_b64: held.keyB64 || undefined, more: moreOf(), key_filename: held.key ? held.key.name : undefined,
                           key_password: keyPass.value || undefined, tags: splitNames(tags.value), note: note.value,
                           as: into && asBox ? asBox.value : undefined,
@@ -6253,7 +6253,19 @@ function importDialog(into) {
       closeModal();
       CT.refresh();
       if (d && d.id && !into) certPeek(d.id);
-    }).catch(fail).then(function () { busy(b, false); });
+    }).catch(function (e) {
+      /* another certificate's names into this one (1.0.88): asked, red, before it is taken */
+      var m = String((e && e.message) || e || '');
+      if (into && !force && /is not for/.test(m)) {
+        over(function () {
+          confirmThen('Import it into ' + into.name + ' anyway?', htmlText(m) + '<br><br>' +
+            htmlText('Its deployments then put a certificate of other names on their servers.'),
+            'Import it anyway', function () { go1(b, true); });
+        });
+        return;
+      }
+      fail(e);
+    }).then(function () { busy(b, false); });
   }}], 'medium');
 }
 
@@ -8319,6 +8331,7 @@ function dnsAdd() {
     g.appendChild(formField('Type', f.type));
     f.value = textBox('', '"v=spf1 -all" or 192.0.2.10', 'mono');
     noI18n(f.value);
+    f.value.setAttribute('data-i18n-hint', '1');   /* its hint is words (1.0.88) */
     var vf = formField('Value', f.value);
     vf.classList.add('wide');
     g.appendChild(vf);

@@ -1224,7 +1224,7 @@ def cert_import(store, b, by):
         missing = [n for n in have if not covered(n)]
         if missing and brings and b.get('force') in (None, '', 0, '0', False, 'false'):
             raise ValueError('the certificate brought in is not for %s: it lacks %s (it is for %s)'
-                             ' - import it as a certificate of its own, or with force'
+                             ' - import it as a certificate of its own (or anyway, with force)'
                              % (row['name'], ', '.join(missing[:5]), ', '.join(brings[:5])))
         if as_ == 'auto':
             as_ = 'alt' if _other_half_of(row, info) else 'main'

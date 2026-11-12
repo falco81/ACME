@@ -155,6 +155,7 @@
       f.desc.value = p.description || '';
       f.desc.placeholder = 'A TLS certificate for a web server of the company, issued at once.';
       noI18n(f.desc);
+      f.desc.setAttribute('data-i18n-hint', '1');   /* its hint is words (1.0.88) */
       var df = formField('What it is for', f.desc, 'Shown to people on the portal beside its name.');
       df.classList.add('wide');
       g.appendChild(df);

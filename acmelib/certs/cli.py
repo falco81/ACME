@@ -2342,7 +2342,9 @@ class Cli(object):
         else:
             name = words[0].strip().lower().rstrip('.')
             if name == '@':
-                name = str(self.E.CONFIG.get('dns_zone') or '').strip().lower().rstrip('.')
+                # the first of the zones, as a record at @ is saved (1.0.88)
+                name = (re.split(r'[\s,;]+', str(self.E.CONFIG.get('dns_zone') or '').strip()
+                                 .lower()) or [''])[0].rstrip('.')
             sql, args = 'SELECT * FROM dns_records WHERE name = ?', [name]
             if len(words) > 1:
                 sql += ' AND rtype = ?'

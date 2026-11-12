@@ -433,10 +433,10 @@ function i18nAttrsSkip(el) {
   if (el.nodeType === 1 && I18N_BOXES[el.tagName]) {
     /* A box for a name or an address is .mono for what is typed in it, not
        for its hint: "192.0.2.1 or 192.0.2.0/24" is words (1.0.36). */
-    /* Its value is never translated; its hint is, even on a box marked so (1.0.88: "A person
-       in the directory", "... or 192.0.2.10" stayed English) - a hint with no translation, an
-       address say, stays as it is anyway. */
-    return false;
+    /* Its value is never translated; its hint is, inside a part marked as data (1.0.88: "A
+       person in the directory", "... or 192.0.2.10" stayed English). A box marked so itself
+       keeps its hint as it is: a literal default ("root", "default") is no word to translate. */
+    return el.hasAttribute('data-no-i18n') && !el.hasAttribute('data-i18n-hint');
   }
   return i18nSkip(el);
 }

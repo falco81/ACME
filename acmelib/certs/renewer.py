@@ -578,6 +578,8 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             except jobs.JobStopped:
                 raise
             except Exception as e:
+                if getattr(job, 'cancelled', None) and job.cancelled():
+                    raise jobs.JobStopped(str(e) or 'stopped') from e   # a stop (1.0.88)
                 cert = S.cert_need(store, cert_id)
                 _twin_failed(store, job, cert, e)
                 raise
@@ -648,6 +650,8 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             except jobs.JobStopped:
                 raise
             except Exception as e:                      # noqa: BLE001
+                if getattr(job, 'cancelled', None) and job.cancelled():
+                    raise jobs.JobStopped(str(e) or 'stopped') from e   # a stop (1.0.88)
                 twin_said = _twin_failed(store, job, S.cert_need(store, cert_id), e)
         for c in contexts:
             c.tidy()

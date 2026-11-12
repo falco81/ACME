@@ -3960,16 +3960,16 @@ def cli_main(argv=None):
         try:
             if args.updates == 'check':
                 got = osup_check_ask(store, nodes or host_nodes(store), who)
-                print(pal.ok_line('looking for updates on %s - acme --updates status in a minute'
-                                  % ', '.join(got)))
+                cli_ok(args, pal, 'looking for updates on %s - acme --updates status in a minute'
+                       % ', '.join(got))
             elif args.updates == 'start':
                 cli_sure(args, 'the updates are put in on %s, one node at a time%s' % (
                     ', '.join(nodes or host_nodes(store)), {'auto': ', each restarted by itself '
                                                             'where an update needs it',
                                                             'never': ', none restarted'}.get(args.reboot, '')))
                 plan = osup_start(store, nodes, args.reboot, who)
-                print(pal.ok_line('the update starts: %s, one at a time - acme --updates status'
-                                  % ', '.join(plan['order'])))
+                cli_ok(args, pal, 'the update starts: %s, one at a time - acme --updates status'
+                       % ', '.join(plan['order']))
             else:
                 osup_cancel(store, who)
                 cli_ok(args, pal, ('stopped - a node being updated finishes'))
@@ -4021,9 +4021,14 @@ def cli_main(argv=None):
                 print('  ' + (st_ if isinstance(st_, str) else json.dumps(st_, ensure_ascii=False)))
             print(pal.bad_line('not sent: %s' % e))
             return 1
+        store.add_event('mail', '%s sent a test mail to %s' % (who, to), who=who)
+        if args.json:                       # the steps in the JSON, not before it (1.0.88)
+            print(json.dumps({'ok': True, 'message': 'sent to %s' % to, 'steps': [
+                st_ if isinstance(st_, str) else st_ for st_ in (steps or [])]},
+                ensure_ascii=False, default=str))
+            return 0
         for st_ in steps or []:
             print('  ' + (st_ if isinstance(st_, str) else json.dumps(st_, ensure_ascii=False)))
-        store.add_event('mail', '%s sent a test mail to %s' % (who, to), who=who)
         cli_ok(args, pal, ('sent to %s' % to))
         return 0
 

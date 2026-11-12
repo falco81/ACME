@@ -229,7 +229,9 @@ class PortalLocal(unittest.TestCase):
     def test_10_owner_only_for_a_reader(self):
         st, got = self.portal_in('viewer')
         names, d = self.certs_of(got['token'])
-        self.assertEqual(names, {'of-viewer': 'me', 'of-local-viewer': 'me'})
+        # with a directory signing in here, "viewer" alone may be the directory's person
+        # (1.0.88): the account of acme's own owns only what is local:viewer's
+        self.assertEqual(names, {'of-local-viewer': 'me'})
         self.assertFalse(d['sees_all'])
         self.assertEqual(d['kind'], 'local')
         st, _ = self.call('POST', '/api/portal/cert_download',

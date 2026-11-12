@@ -300,11 +300,13 @@ def _work(job, fn):
         job.finish(ok, said)
         return job
     finally:
+        # given back before the certificate is free here (1.0.88: after, a job claiming it in
+        # between had its own lease taken away by this one)
+        _lease_give(job.store, job.cert_id)
         with _LOCK:
             RUNNING.pop(job.id, None)
             if job.cert_id is not None:
                 BUSY_CERTS.discard(job.cert_id)
-        _lease_give(job.store, job.cert_id)
 
 
 def submit(store, kind, fn, cert_id=None, deploy_id=None, target=None, by='', said=''):

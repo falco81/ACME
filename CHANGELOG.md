@@ -123,6 +123,22 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     in between by the acme account was loaded as root.
   - install.sh reads config.json without following a link or waiting on a pipe. A FIFO there
     hung an upgrade.
+- Bug hunt I, round 3 - the fixes reviewed:
+  - `--ca-sign CA --csr FILE` works again: its `--csr` is not a second action.
+  - An account of acme's own on the portal owns a certificate whose owner is its bare name only
+    where no directory signs in there. With one, a local "novak" owned the directory novak's
+    certificates and could take their keys.
+  - The console's deploy hold is in the certificate's menu (it was in the modules' menu).
+  - A literal default in a box (`root`, `default`) is not translated. Only the hints of
+    boxes marked as words are.
+  - A stop while the twin of a dual certificate was issued is a stop, not a failure of the
+    twin.
+  - A job gives its lease back before its certificate is free here.
+  - `--json` with `--mail-test` and `--updates check|start` is JSON only.
+  - `--dns-del @` with several zones looks at the first.
+  - Importing another certificate's names into one on the page asks first, red, and does it
+    if you want (*Import it anyway*).
+  - Windows over SSH: the temporary folder with the key is cleaned up after a stop too.
 
 ## 1.0.87 - 2026-11-12
 
