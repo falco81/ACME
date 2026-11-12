@@ -166,13 +166,13 @@
       if (t === 'BR') { para += '  \n'; return; }
       if (BLOCK.test(t)) {
         flush();
-        if (hasBlocks(c)) { var inner = blocks(c); if (inner.trim()) out.push(inner); }
-        else if (/white-space\s*:\s*pre/i.test(c.getAttribute('style') || '') && c.children.length) {
+        if (/white-space\s*:\s*pre/i.test(c.getAttribute('style') || '') && c.children.length) {
           /* code copied from an editor (VS Code and the like): a line in a div each */
           var ls = Array.prototype.every.call(c.children, function (x) { return /^(DIV|P|BR)$/.test(x.tagName); })
             ? Array.prototype.map.call(c.children, function (x) { return x.tagName === 'BR' ? '' : x.textContent; }) : c.textContent.split('\n');
           out.push(fence(ls.join('\n').replace(/\n+$/, ''), ''));
         }
+        else if (hasBlocks(c)) { var inner = blocks(c); if (inner.trim()) out.push(inner); }
         else { var p = inl(c).replace(/^\s+|\s+$/g, ''); if (p) out.push(lead(p)); }
         return;
       }
