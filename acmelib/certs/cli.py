@@ -2371,6 +2371,8 @@ def run(args):
     lists = {'certs', 'cas', 'sources', 'validations', 'targets', 'tests', 'checks', 'jobs',
              'deploys', 'plugins', 'dns_records', 'dns_sets'}
     acting = [k for k in given if k not in lists]
+    if 'ca_sign' in acting:                 # --csr FILE is what --ca-sign signs, not an action
+        acting = [k for k in acting if k != 'csr']
     if len(acting) > 1:
         raise SystemExit('acme: --%s - one of them at a time' % ', --'.join(
             k.replace('_', '-') for k in acting))
