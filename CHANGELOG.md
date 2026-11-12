@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.80 - not released
+## 1.0.80 - 2026-11-12
 - **Backups checked whole** - built rich, put back on a clean installation, compared table by
   table, file by file, and used (secrets, the own authority, renewals, deployments, sign-ins
   with the second step). Fixed:
