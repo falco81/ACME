@@ -118,6 +118,46 @@ SOURCES = {
                                                                   'locations/{CFG:location}/'
                                                                   'caPools/{CFG:pool}/'
                                                                   'certificateAuthorities/ca-1'}}],
+    'keyfactor_command': [
+        {'method': 'POST', 'url': r'/Enrollment/CSR$', 'body': {'CertificateInformation': {
+            'SerialNumber': '{CERT_SERIAL}', 'IssuerDN': 'CN=Plan Intermediate CA',
+            'KeyfactorID': 4711, 'KeyfactorRequestId': 815, 'RequestDisposition': 'ISSUED',
+            'DispositionMessage': 'The private key was successfully retained.',
+            'Certificates': ['{CERT}', '{CHAIN}']}, 'Metadata': {}}}],
+    'globalsign_atlas': [
+        {'method': 'POST', 'url': r'/login$', 'body': {'access_token': '{SESSION}'}},
+        {'method': 'POST', 'url': r'/certificates$', 'status': 201, 'headers': {
+            'Location': 'https://emea.api.hvca.globalsign.com:8443/v2/certificates/'
+                        '0123456789ABCDEF0123456789ABCDEF'}, 'body': ''},
+        {'method': 'GET', 'url': r'/certificates/[0-9A-Fa-f]+$', 'times': 1, 'status': 202,
+         'body': {'status': 'PENDING'}},
+        {'method': 'GET', 'url': r'/certificates/[0-9A-Fa-f]+$', 'body': {
+            'status': 'ISSUED', 'certificate': '{CERT}'}},
+        {'method': 'GET', 'url': r'/trustchain$', 'body': ['{CHAIN}']}],
+    'venafi_cloud': [
+        {'method': 'GET', 'url': r'/applications/name/', 'body': {
+            'id': '‹application id›', 'name': '{CFG:application}',
+            'certificateIssuingTemplateAliasIdMap': {'{CFG:template}': '‹template id›'}}},
+        {'method': 'POST', 'url': r'/certificaterequests$', 'status': 201, 'body': {
+            'certificateRequests': [{'id': '‹request id›', 'status': 'REQUESTED'}]}},
+        {'method': 'GET', 'url': r'/certificaterequests/', 'times': 1, 'body': {
+            'id': '‹request id›', 'status': 'PENDING'}},
+        {'method': 'GET', 'url': r'/certificaterequests/', 'body': {
+            'id': '‹request id›', 'status': 'ISSUED',
+            'certificateIds': ['‹certificate id›']}},
+        {'method': 'GET', 'url': r'/contents\?', 'headers': {'Content-Type': 'text/plain'},
+         'body': '{CERT}{CHAIN}'}],
+    'venafi_tpp': [
+        {'method': 'POST', 'url': r'/vedauth/authorize/oauth$', 'body': {
+            'access_token': '{SESSION}', 'refresh_token': '{SESSION}', 'expires': 1893456000,
+            'token_type': 'Bearer', 'scope': 'certificate:manage,revoke'}},
+        {'method': 'POST', 'url': r'/vedsdk/certificates/request$', 'body': {
+            'CertificateDN': '{CFG:zone}\\\\{NAME}', 'Guid': '{‹guid›}'}},
+        {'method': 'POST', 'url': r'/vedsdk/certificates/renew$', 'body': {'Success': True}},
+        {'method': 'POST', 'url': r'/vedsdk/certificates/retrieve$', 'times': 1, 'status': 202,
+         'body': {'Stage': 500, 'Status': 'Post CSR'}},
+        {'method': 'POST', 'url': r'/vedsdk/certificates/retrieve$', 'body': {
+            'CertificateData': '{P7_B64}', 'Filename': '{NAME}.p7b', 'Format': 'Base64'}}],
     'cloudflare_origin_ca': [
         {'method': 'POST', 'url': r'/client/v4/certificates$', 'body': {
             'success': True, 'errors': [], 'messages': [], 'result': {

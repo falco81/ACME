@@ -2092,7 +2092,8 @@ def _filled(v, cfg, opts):
         got = _setting_lines((cfg if src == 'CFG' else opts).get(key))
         return got[0] if got else ''
     if isinstance(v, dict):
-        return {k: _filled(x, cfg, opts) for k, x in v.items()}
+        return {(_filled(k, cfg, opts) if isinstance(k, str) else k): _filled(x, cfg, opts)
+                for k, x in v.items()}
     if isinstance(v, list):
         out = []
         for x in v:
