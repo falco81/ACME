@@ -972,6 +972,18 @@ class Target(Plugin):
     # 'rsa-2048'...) - the form offers only these; None: any (the device is asked for the
     # one chosen and says no in words when it cannot).
     device_key_types = None
+    # Words on the names such a certificate needs (1.0.96), said where the wizard asks for
+    # them - a device that takes one host name only, say. '' : nothing to say.
+    device_key_names = ''
+
+    @classmethod
+    def device_key_problem(cls, names, key_type, options):
+        """Only with device_key: why a certificate with these `names` and `key_type`, deployed
+        here with these `options`, cannot have its key made by the device - words, or ''.
+        Asked when the certificate or its deployment here is saved (1.0.96: a Synergy
+        enclosure's IP address as its name was refused only at the issue); device_csr()
+        still checks at every issue."""
+        return ''
 
     def device_csr(self, req):
         """Only with device_key: ask the device to make a new key and a CSR for `req`, and
@@ -1047,6 +1059,7 @@ class Target(Plugin):
         if d['device_key']:
             d['device_key_types'] = list(cls.device_key_types) if cls.device_key_types \
                 else None
+            d['device_key_names'] = str(getattr(cls, 'device_key_names', '') or '')
         # A target that writes the certificate as files (ssh, windows_ssh, local): what
         # the page's files designer needs - formats in words, quick layouts, the
         # variables of the script after them (targets/_script.py files_ui()).

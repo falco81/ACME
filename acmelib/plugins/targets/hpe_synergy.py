@@ -114,6 +114,27 @@ class HpeSynergyTarget(HpeOneViewTarget):
     # the device makes the key (docs/writing-a-module.md "The device makes the key")
     device_key = True
     device_key_types = ('rsa-2048', 'rsa-3072')
+    device_key_names = ('an enclosure\'s certificate (the deployment\'s "Certificate of"): one '
+                        'name, the DNS name of its management module - not an IP address, and '
+                        'not the appliance\'s address the target has - and an RSA 2048 key')
+
+    @classmethod
+    def device_key_problem(cls, names, key_type, options):
+        # an enclosure's CSR: one name, a host name, RSA 2048 - said when it is saved (1.0.96:
+        # refused only at the issue, the bay asked first)
+        if cls.part(options) != 'enclosure':
+            return ''
+        names = list(names or [])
+        if len(names) > 1:
+            return ('an enclosure\'s CSR has one name, its common name - give the certificate '
+                    'one name (it has %s)' % ', '.join(names))
+        if names and _is_ip(names[0]):
+            return ('the common name of an enclosure\'s CSR is a host name - give the '
+                    'certificate the module\'s DNS name')
+        if key_type and key_type != 'rsa-2048':
+            return ('an enclosure\'s management module makes RSA 2048 keys only - choose '
+                    'rsa-2048 for the certificate (it asks for %s)' % key_type)
+        return ''
 
     fields = list(HpeOneViewTarget.fields) + [
         field('csr_country', 'Country (C)', 'text', required=True, placeholder='CZ',
@@ -134,7 +155,8 @@ class HpeSynergyTarget(HpeOneViewTarget):
         field('enclosure', 'Enclosure', 'text', placeholder='Frame1',
               show_if={'part': ['enclosure']},
               help='its name in OneView, or its URI (/rest/enclosures/…)'),
-        field('bay', 'Bay', 'number', default=1, show_if={'part': ['enclosure']},
+        field('bay', 'Bay', 'number', default=1, min=1, max=2,
+              show_if={'part': ['enclosure']},
               help='the bay of the Frame Link Module / Onboard Administrator (1 or 2)'),
         field('import_chain', 'Put the intermediates into the trust store', 'bool',
               default=True, show_if={'part': ['appliance']},

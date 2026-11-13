@@ -99,6 +99,14 @@ def save_problem(store, cert, deploys=None, one_per_device=True):
     if kts and kt not in kts:
         return ('%s makes %s keys only - choose one of those (not %s)'
                 % (trow['name'], ', '.join(kts), kt))
+    if cert.get('id'):
+        # what the device takes, with the options of its deployment there (1.0.96: a Synergy
+        # enclosure's name an IP address was refused only at the issue)
+        for d in store.db.rows('SELECT options FROM cert_deploys WHERE cert_id = ? AND '
+                               'target = ?', (int(cert['id']), trow['name'])):
+            why = fit_problem(cls, cert, S.jload(d.get('options'), {}) or {})
+            if why:
+                return why
     iss = str(cert.get('issuer') or '').strip()
     if not iss:
         return ('a certificate whose key the device makes is issued for its CSR: give it a '
@@ -127,20 +135,44 @@ def save_problem(store, cert, deploys=None, one_per_device=True):
     return ''
 
 
+def fit_problem(cls, cert, options):
+    """Why the device (module class `cls`) cannot make the key of `cert` (its names and key
+    type) deployed with `options` - its module's device_key_problem, words or ''."""
+    fn = getattr(cls, 'device_key_problem', None) if cls is not None else None
+    if not callable(fn):
+        return ''
+    names = cert.get('names')
+    if isinstance(names, str):
+        names = S.jload(names, []) or []
+    try:
+        return str(fn(list(names or []), str(cert.get('key_type') or 'ec-256'),
+                      dict(options or {})) or '')
+    except Exception:                                   # noqa: BLE001
+        return ''
+
+
 def sharing(store, cert, device):
     """Another certificate whose key the device `device` makes ({'name'}), or None."""
     return store.db.row('SELECT name FROM certs WHERE csr_from = ? AND id <> ? ORDER BY name',
                         (device, int(cert.get('id') or 0)))
 
 
-def deploy_problem(store, cert, trow, cls=None, version=True):
+def deploy_problem(store, cert, trow, cls=None, version=True, saving=None):
     """Why the certificate `cert` cannot be deployed to the target `trow` - words, or ''.
     `version`: the version it holds checked to fit where its key is made too (a deployment
-    run; not when a deployment is only saved)."""
+    run; not when a deployment is only saved). `saving`: the id of the deployment being saved
+    (0: a new one) - a second deployment to the device that makes its key refused (1.0.96: the
+    certificate window offered the device again, and two deployments of one certificate went
+    to one device)."""
     src = str(cert.get('csr_from') or '').strip()
     if src and src != trow['name']:
         return ('the key of %s is made by %s and stays there - it can be deployed only to %s '
                 '(no other target can have its key)' % (cert['name'], src, src))
+    if src and saving is not None and cert.get('id') and store.db.value(
+            'SELECT id FROM cert_deploys WHERE cert_id = ? AND target = ? AND id <> ?',
+            (int(cert['id']), src, int(saving or 0)), None):
+        return ('%s is deployed to %s already - a certificate whose key the device makes has one '
+                'deployment there (change that one)' % (cert['name'], src))
     cls = cls if cls is not None else S.row_class('target', trow)
     if cls is not None and getattr(cls, 'device_key', False) and src != trow['name']:
         return ('%s makes the key itself and takes only a certificate for it - add a '

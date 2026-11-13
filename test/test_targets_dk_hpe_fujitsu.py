@@ -263,6 +263,21 @@ class Synergy(unittest.TestCase):
         self.assertIn('no enclosure named Nope', str(e.exception))
         self.assertFalse(ctx.find('POST', r'certificaterequest'))
 
+    def test_bay_and_names_checked_at_the_save(self):
+        # 1.0.96: bay 3 and an IP address as an enclosure's name were refused only at the
+        # issue - the bay field has its min and max, the module says what it takes
+        from acmelib.plugins.targets import hpe_synergy as M
+        cls = M.HpeSynergyTarget
+        bay = [f for f in cls.deploy_fields if f['key'] == 'bay'][0]
+        self.assertEqual((bay.get('min'), bay.get('max')), (1, 2))
+        enc = {'part': 'enclosure', 'enclosure': 'Frame1'}
+        self.assertEqual(cls.device_key_problem(['10.0.0.5'], 'rsa-2048', {}), '')
+        self.assertIn('is a host name', cls.device_key_problem(['10.0.0.5'], 'rsa-2048', enc))
+        self.assertIn('one name', cls.device_key_problem(['a.test', 'b.test'], 'rsa-2048', enc))
+        self.assertIn('RSA 2048 keys only', cls.device_key_problem(['a.test'], 'rsa-3072', enc))
+        self.assertEqual(cls.device_key_problem(['a.test'], 'rsa-2048', enc), '')
+        self.assertIn('DNS name', cls.describe()['device_key_names'])
+
 
 # ---------------------------------------------------------------------------
 # HPE iLO with its own key

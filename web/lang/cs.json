@@ -57050,7 +57050,7 @@
   },
   "ged_81": {
    "source": "any version (detects it)",
-   "text": "libovolná verze (zjistí ji)"
+   "text": "jakákoli verze (zjistí ji)"
   },
   "ged_82": {
    "source": "FortiOS 6.0 - 6.4: an inspection profile's server-cert and a virtual IP's ssl-certificate are set as a name. Imports the certificate (monitor/vpn-certificate/local/import), uses it for the admin GUI (system global admin-server-cert), SSL VPN (vpn ssl settings servercert), inspection profiles and virtual IPs, deletes older ones acme put there. Refused on a FortiGate that says another FortiOS.",
@@ -60983,6 +60983,26 @@
   "_28": {
    "source": "Made on the device that keeps it: it makes the key and the request (CSR), the key never leaves it.",
    "text": "Vytváří se na zařízení, které ho drží: zařízení vytvoří klíč i žádost (CSR), klíč ho nikdy neopustí."
+  },
+  "_29": {
+   "source": "an enclosure's certificate (the deployment's \"Certificate of\"): one name, the DNS name of its management module - not an IP address, and not the appliance's address the target has - and an RSA 2048 key",
+   "text": "certifikát skříně (v nasazení „Certifikát pro“): jedno jméno, DNS jméno jejího management modulu – ne IP adresa a ne adresa appliance, kterou má cíl – a klíč RSA 2048"
+  },
+  "_30": {
+   "source": "Where its key is made changes: the certificate it holds fits no key there any more, so right after Save it is issued anew (a new key and certificate) - not at its next renewal.",
+   "text": "Mění se, kde se jeho klíč vytváří: certifikát, který má, už tam k žádnému klíči nepasuje, takže hned po uložení se vystaví znovu (nový klíč i certifikát) – ne až při příští obnově."
+  },
+  "_31": {
+   "source": "Where its key is made changes: the certificate it holds fits no key there any more - saved, it is due for a new issue; it is not renewed by itself, so press Renew now in it.",
+   "text": "Mění se, kde se jeho klíč vytváří: certifikát, který má, už tam k žádnému klíči nepasuje – po uložení čeká na nové vystavení; sám se neobnovuje, proto v něm stiskněte Obnovit nyní."
+  },
+  "_32": {
+   "source": "acme made this test from a deployment and keeps it in step with it. A note written here makes it a test of yours, which acme leaves as it is.",
+   "text": "Tento test vytvořilo acme z nasazení a udržuje ho s ním v souladu. Poznámka napsaná sem z něj udělá váš test, který acme nechá, jak je."
+  },
+  "_33": {
+   "source": "The tests acme made from its deployments go with it, unless another certificate has them too; tests of yours stay.",
+   "text": "Testy, které acme vytvořilo z jeho nasazení, se smažou s ním, pokud je nemá i jiný certifikát; vaše testy zůstanou."
   }
  },
  "patterns": {
@@ -84412,7 +84432,7 @@
   },
   "p_12": {
    "source": "the device {0} already makes the key of the certificate {1} - a device holds one pending key, so a second certificate would replace the key of the first: change that certificate (add these names to it), or choose another target",
-   "text": "zařízení {0} už vytváří klíč certifikátu {1} - zařízení drží jeden čekající klíč, takže druhý certifikát by nahradil klíč prvního: změňte ten certifikát (přidejte mu tyto názvy), nebo zvolte jiný cíl"
+   "text": "zařízení {0} už vytváří klíč certifikátu {1} - zařízení drží jeden čekající klíč, takže druhý certifikát by nahradil klíč prvního: změňte ten certifikát (přidejte mu tato jména), nebo zvolte jiný cíl"
   },
   "p_13": {
    "source": "version {0} of {1} holds a key acme made, but its key is made by the device of {2} now - that version fits no key there: it is issued anew for a key the device makes (Renew now issues it at once)",
@@ -84496,7 +84516,7 @@
   },
   "p_33": {
    "source": "{0}: the device of {1} makes the key of the certificate {2} too - it holds one pending key, so this new CSR replaces the key of the other one (whose certificate then fits no key there): put the names of both into one certificate",
-   "text": "{0}: zařízení {1} vytváří i klíč certifikátu {2} - drží jeden čekající klíč, takže tento nový CSR nahradí klíč toho druhého (jehož certifikát pak už k žádnému klíči na zařízení nepasuje): dejte názvy obou do jednoho certifikátu"
+   "text": "{0}: zařízení {1} vytváří i klíč certifikátu {2} - drží jeden čekající klíč, takže tento nový CSR nahradí klíč toho druhého (jehož certifikát pak už k žádnému klíči na zařízení nepasuje): dejte jména obou do jednoho certifikátu"
   },
   "p_34": {
    "source": "the device of {0} makes the key of {1} - {2} makes {3} keys only: choose one of those key types for those certificates first",
@@ -84525,6 +84545,46 @@
   "p_40": {
    "source": "the test {0}, made from a deployment to {1}, deleted with it",
    "text": "test {0}, vytvořený z nasazení na {1}, smazán spolu s ním"
+  },
+  "p_41": {
+   "source": "{0} is deployed to {1} already - a certificate whose key the device makes has one deployment there (change that one)",
+   "text": "{0} už je na {1} nasazen – certifikát, jehož klíč vytváří zařízení, tam má jedno nasazení (změňte to)"
+  },
+  "p_42": {
+   "source": "the test {0}, made from a deployment to {1}, deleted by {2} - the deployment serves the certificate elsewhere now",
+   "text": "test {0}, vytvořený z nasazení na {1}, smazal {2} – nasazení teď certifikát servíruje jinde"
+  },
+  "p_43": {
+   "source": "{0} is {1} at least (not {2})",
+   "text": "{0} je nejméně {1} (ne {2})"
+  },
+  "p_44": {
+   "source": "{0} is {1} at most (not {2})",
+   "text": "{0} je nejvýše {1} (ne {2})"
+  },
+  "p_45": {
+   "source": "the device of {0} makes the key of {1} - {2} (version {3}) makes {4} keys only: choose one of those key types for those certificates first",
+   "text": "zařízení {0} vytváří klíč certifikátu {1} – {2} (verze {3}) vytváří jen klíče {4}: nejdřív těm certifikátům zvolte jeden z těchto typů klíče"
+  },
+  "p_46": {
+   "source": "makes the key of {0} already",
+   "text": "už vytváří klíč certifikátu {0}"
+  },
+  "p_47": {
+   "source": "{0} makes the key of the certificate {1} already - a device holds one pending key, so a second certificate would replace the key of the first: change that certificate (add these names to it), or choose another device.",
+   "text": "{0} už vytváří klíč certifikátu {1} – zařízení drží jeden čekající klíč, takže druhý certifikát by nahradil klíč prvního: změňte ten certifikát (přidejte mu tato jména), nebo zvolte jiné zařízení."
+  },
+  "p_48": {
+   "source": "It is deployed to {0}: a certificate whose key the device makes goes to that device alone, so the save is refused while those deployments stay. Choose “acme, here” again, or close this, take those deployments away (the certificate → Deployments) and then change where its key is made.",
+   "text": "Je nasazen na {0}: certifikát, jehož klíč vytváří zařízení, jde jen na to zařízení, takže dokud ta nasazení zůstávají, uložení se odmítne. Zvolte znovu „acme, zde“, nebo toto zavřete, ta nasazení odeberte (certifikát → Nasazení) a pak změňte, kde se jeho klíč vytváří."
+  },
+  "p_49": {
+   "source": "What the device takes: {0}",
+   "text": "Co zařízení přijme: {0}"
+  },
+  "p_50": {
+   "source": "It makes the key of the certificate {0} - a device holds one pending key: to add names, change that certificate.",
+   "text": "Vytváří klíč certifikátu {0} – zařízení drží jeden čekající klíč: chcete-li přidat jména, změňte ten certifikát."
   }
  },
  "rich": {

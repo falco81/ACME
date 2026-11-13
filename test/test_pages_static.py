@@ -240,8 +240,8 @@ class DeviceKeyRound1e(unittest.TestCase):
         # "acme, here" on a certificate deployed to its device: said in the key step
         self.assertIn("rowsOf(obj(detail).deploys).some(function (r) { return r.target === c.csr_from; })", certs)
         # Deploy it on a target: its device only, or no device that makes its own key
-        self.assertIn("return csrFrom ? t.name === csrFrom : !devKeyOf(t);", certs)
-        self.assertIn("return !x.csr_from || x.csr_from === tName;", certs)
+        self.assertIn("return csrFrom ? (t.name === csrFrom && !depHas[t.name]) : !devKeyOf(t);", certs)
+        self.assertIn("return !x.csr_from || (x.csr_from === tName && !haveHere[String(x.id)]);", certs)
         # no deployment to the device: said
         self.assertIn("it has no deployment to {0}, whose device makes its key", certs)
         # not the default target
@@ -252,6 +252,33 @@ class DeviceKeyRound1e(unittest.TestCase):
         css = read('web', 'assets', 'certs.css')
         self.assertIn('.ct-src.off,.ct-keyt.off{opacity:.45;cursor:not-allowed;border-style:dashed', css)
         self.assertIn('.ct-src.off.on,.ct-keyt.off.on{border-color:var(--line)}', css)
+
+    def test_round_2c(self):
+        certs = read('web', 'assets', 'certs.js')
+        # 1: the device it is deployed to not offered again; every deployment there looked at
+        self.assertIn("if (MANAGE && !devDone) {", certs)
+        self.assertIn("var devOn = devDeps.some(", certs)
+        self.assertNotIn("var devDep = arr(deploys).filter(function (d) { return d.target === c.csr_from; })[0];", certs)
+        # 3: where its key is made changed - issued anew right after Save, no question after
+        self.assertIn("var devSwitched = function () {", certs)
+        self.assertIn("inCert(sent) !== inCert(c) && !devSwitched();", certs)
+        self.assertIn("note warn tm-devswitch", certs)
+        # 4: a device taken by another certificate shown, not chosen; deployed elsewhere said
+        self.assertIn("var devTaken = function (t)", certs)
+        self.assertIn("if (tt && devTaken(tt) && op.value !== W.d.csr_from) op.disabled = true;", certs)
+        self.assertIn("note warn ct-develse", certs)
+        self.assertIn("var keyOf = r.key_of ||", certs)
+        # 5: what the device takes, said where the device is chosen
+        self.assertIn("(devPlug(devOf()) || {}).device_key_names", certs)
+        # 6: an auto-made test's note as a translated hint, kept as it is
+        self.assertIn("note: autoNote && note.value === '' ? autoNote : note.value", certs)
+        self.assertIn("autoNote ? tr(autoNote) : ''", certs)
+        # 8: the device's deployment saved by certs/save with its options, not again
+        self.assertIn("if (devT) sent.deploy_options = W.deploys[devT];", certs)
+        self.assertIn("filter(function (t) { return !skip[t]; })", certs)
+        # 9: the shipped original's version words; the tests that go with a certificate
+        self.assertIn("/* its words too, as the row of its replacement above has them (1.0.96) */", certs)
+        self.assertIn("The tests acme made from its deployments go with it", certs)
 
 
 if __name__ == '__main__':

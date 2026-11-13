@@ -993,6 +993,99 @@ class Round2a(unittest.TestCase):
             base.REGISTRY.found['target'].pop(Ec384Device.kind, None)
 
 
+class Round2c(unittest.TestCase):
+    """1.0.96, round 2c: one deployment to the device, saved once from the wizard, the device
+    taken by another certificate said in its row, what the module takes checked at the save."""
+
+    def events(self, like):
+        return [r['words'] for r in STORE.db.rows(
+            'SELECT words FROM events WHERE words LIKE ? ORDER BY id', ('%' + like + '%',))]
+
+    def test_second_deployment_to_the_device_refused(self):
+        d = device()
+        cid = save(name='dup1', names=['dup1.example.test'], issuer='own', csr_from=d,
+                   key_type='ec-256')
+        deps = STORE.db.rows('SELECT id FROM cert_deploys WHERE cert_id = ?', (cid,))
+        self.assertEqual(len(deps), 1)
+        with self.assertRaises(ValueError) as e:
+            api.deploy_save(STORE, {'cert_id': cid, 'target': d, 'options': {}}, 'test')
+        self.assertIn('is deployed to %s already' % d, str(e.exception))
+        self.assertEqual(STORE.db.value('SELECT COUNT(*) FROM cert_deploys WHERE cert_id = ?',
+                                        (cid,)), 1)
+        # the one there is changed as before
+        api.deploy_save(STORE, {'id': deps[0]['id'], 'cert_id': cid, 'target': d,
+                                'options': {'slot': 'ldap'}}, 'test')
+        opts = S.jload(STORE.db.value('SELECT options FROM cert_deploys WHERE id = ?',
+                                      (deps[0]['id'],)), {})
+        self.assertEqual(opts.get('slot'), 'ldap')
+
+    def test_wizard_options_saved_once(self):
+        d = device()
+        out = {}
+        cid = api.cert_save(STORE, {'name': 'once1', 'names': ['once1.example.test'],
+                                    'issuer': 'own', 'csr_from': d, 'key_type': 'ec-256',
+                                    'deploy_options': {'slot': 'ldap'}}, 'test', full=True,
+                            out=out)
+        deps = STORE.db.rows('SELECT * FROM cert_deploys WHERE cert_id = ?', (cid,))
+        self.assertEqual(len(deps), 1)
+        self.assertEqual(out.get('device_deploy'), deps[0]['id'])
+        self.assertEqual(S.jload(deps[0]['options'], {}).get('slot'), 'ldap')
+        self.assertEqual(len(self.events('deployment of once1 to %s saved' % d)), 1)
+
+    def test_wizard_options_refused_made_without(self):
+        d = device()
+        out = {}
+        cid = api.cert_save(STORE, {'name': 'once2', 'names': ['once2.example.test'],
+                                    'issuer': 'own', 'csr_from': d, 'key_type': 'ec-256',
+                                    'deploy_options': {'slot': ['not', 'text']}}, 'test',
+                            full=True, out=out)
+        self.assertIsNone(out.get('device_deploy'))
+        self.assertEqual(STORE.db.value('SELECT COUNT(*) FROM cert_deploys WHERE cert_id = ?',
+                                        (cid,)), 1)
+
+    def test_key_of_in_the_target_row(self):
+        d = device()
+        row = S.plugin_row(STORE, 'target', d)
+        self.assertEqual(S.plugin_public(STORE, 'target', row).get('key_of'), '')
+        save(name='taken1', names=['taken1.example.test'], issuer='own', csr_from=d,
+             key_type='ec-256')
+        self.assertEqual(S.plugin_public(STORE, 'target', row).get('key_of'), 'taken1')
+        self.assertNotIn('key_of', S.plugin_public(STORE, 'target',
+                                                   S.plugin_row(STORE, 'target', 'web')))
+
+    def test_module_problem_at_the_save(self):
+        class Picky(base.REGISTRY.get('target', 'fakedevice')):
+            kind = 'fakepicky'
+
+            @classmethod
+            def device_key_problem(cls, names, key_type, options):
+                return 'no %s here' % options.get('slot') if options.get('slot') == 'bad' else ''
+        base.REGISTRY.found['target'][Picky.kind] = Picky
+        try:
+            add('cert_targets', 'picky1', 'fakepicky', {'host': 'p'})
+            cid = save(name='pk1', names=['pk1.example.test'], issuer='own', csr_from='picky1',
+                       key_type='ec-256')
+            dep = STORE.db.row('SELECT id FROM cert_deploys WHERE cert_id = ?', (cid,))
+            with self.assertRaises(ValueError) as e:
+                api.deploy_save(STORE, {'id': dep['id'], 'cert_id': cid, 'target': 'picky1',
+                                        'options': {'slot': 'bad'}}, 'test')
+            self.assertIn('no bad here', str(e.exception))
+        finally:
+            base.REGISTRY.found['target'].pop(Picky.kind, None)
+
+    def test_version_named_in_the_refusal(self):
+        class Rsa(base.REGISTRY.get('target', 'fakedevice')):
+            kind = 'fakedevice'
+            module_version = 'v2'
+            device_key_types = ('rsa-2048',)
+        d = device()
+        save(name='vn1', names=['vn1.example.test'], issuer='own', csr_from=d, key_type='ec-256')
+        row = S.plugin_row(STORE, 'target', d)
+        with self.assertRaises(ValueError) as e:
+            api._device_kind_kept(STORE, row, Rsa)
+        self.assertIn('(version v2) makes rsa-2048 keys only', str(e.exception))
+
+
 def tearDownModule():
     shutil.rmtree(TMP, ignore_errors=True)
 

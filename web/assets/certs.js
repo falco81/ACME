@@ -2572,6 +2572,9 @@ function modForm(key, row, p, fromPick, keep) {
   var m = MODS[key];
   var cfg = (keep && keep.config) || (row && row.config) || {};
   var form = null, name = null, note = null, on = null, tags = null, testSaid = null;
+  /* a test acme made from a deployment (1.0.96): its note, kept in English as acme knows it
+     by, shown translated as the box's hint - the box empty; left so, the note stays acme's */
+  var autoNote = row && m.family === 'check' && /\(made from its deployment\)$/.test(String(row.note || '')) ? String(row.note) : '';
   var title = row ? m.one + ' ' + row.name : tr(m.newTitle) + ' · ' + tr(p.title || p.kind);   /* each part translated (1.0.51) */
   /* a module with versions (1.0.32): the one this uses, kept in its config */
   var versioned = arr((p._base || p).versions).length > 1;
@@ -2579,7 +2582,7 @@ function modForm(key, row, p, fromPick, keep) {
     var c = form.read();
     if (versioned) c._version = String(p.version || '');
     return {id: row && row.id, name: name.value.trim(), kind: p.kind, config: c,
-            enabled: on._get(), note: note.value, tags: tags ? splitNames(tags.value) : undefined};
+            enabled: on._get(), note: autoNote && note.value === '' ? autoNote : note.value, tags: tags ? splitNames(tags.value) : undefined};
   };
   var buttons = [];
   if (fromPick) buttons.push({words: 'Back', icon: 'prev', left: true, go: function () { modPick(key); }});
@@ -2633,8 +2636,9 @@ function modForm(key, row, p, fromPick, keep) {
     g.appendChild(formField('Name', name, 'What it is called here, in the certificates and the jobs.'));
     on = switchBox(keep && keep.enabled !== undefined ? !!keep.enabled : (row ? (row.enabled === undefined || truthy(row.enabled)) : true));
     g.appendChild(formField('In use', on, 'Off: kept, but not used for anything.'));
-    note = textBox(keep && keep.note !== undefined ? keep.note : (row ? row.note : ''), '', '');
-    var nf = formField('Note', note);
+    var note0 = keep && keep.note !== undefined ? keep.note : (row ? row.note : '');
+    note = textBox(autoNote && note0 === autoNote ? '' : note0, autoNote ? tr(autoNote) : '', '');
+    var nf = autoNote ? formField('Note', note, 'acme made this test from a deployment and keeps it in step with it. A note written here makes it a test of yours, which acme leaves as it is.') : formField('Note', note);
     if (key === 'targets') {
       tags = tagsBox(row ? arr(row.tags) : []);
       noI18n(tags);
@@ -2761,13 +2765,20 @@ function targetPeek(r) {
           /* the device makes the key (certs.csr_from): its certificate is made for it, not
              picked - one whose key it made, deployed here alone */
           sec._body.appendChild(el('p', 'muted small', 'This device makes its own key and takes only a certificate for it: acme asks it for a new key and CSR at every issue and puts the certificate back right after.'));
-          var mk = cmdButton('Make its certificate', 'add', 'primary small');
-          mk.onclick = function () {
-            var host = bareHost(first(cfg.host, cfg.address, ''));
-            over(function () { certWizard(null, null, {csrFrom: r.name, names: host ? [host] : []}); }, function () { targetPeek(r); });
-          };
-          var mrow = el('div', 'btnrow'); mrow.appendChild(mk);
-          sec._body.appendChild(mrow);
+          /* one certificate per device (1.0.96: offered again, refused only at the save) */
+          /* (its deployments asked anew: only that certificate is deployed to such a device) */
+          var keyOf = r.key_of || (arr(deps)[0] || {}).cert_name || '';
+          if (keyOf) {
+            sec._body.appendChild(data('p', 'note', tr('It makes the key of the certificate {0} - a device holds one pending key: to add names, change that certificate.').replace('{0}', keyOf)));
+          } else {
+            var mk = cmdButton('Make its certificate', 'add', 'primary small');
+            mk.onclick = function () {
+              var host = bareHost(first(cfg.host, cfg.address, ''));
+              over(function () { certWizard(null, null, {csrFrom: r.name, names: host ? [host] : []}); }, function () { targetPeek(r); });
+            };
+            var mrow = el('div', 'btnrow'); mrow.appendChild(mk);
+            sec._body.appendChild(mrow);
+          }
         } else if (MANAGE && deployable(r)) {
           var add = cmdButton('Deploy a certificate here', 'add', 'primary small');
           add.onclick = function () { over(function () { deployEdit({target: r, have: arr(deps).map(function (x) { return x.cert_id; })}); }, function () { targetPeek(r); }); };
@@ -3413,7 +3424,10 @@ function deployEdit(o) {
         g.appendChild(cSel);
         var certChosen = el('div', 'ck-attach-row on dp-chosen');
         /* ...and from a target's window: a certificate whose key a device makes is not offered */
-        certs = certs.filter(function (x) { return !x.csr_from || x.csr_from === tName; });
+        /* ...nor one deployed here already (1.0.96: a second deployment of it to its device) */
+        var haveHere = {};
+        arr(o.have).forEach(function (x) { haveHere[String(x)] = 1; });
+        certs = certs.filter(function (x) { return !x.csr_from || (x.csr_from === tName && !haveHere[String(x.id)]); });
         certPick = certPickList(certs, tName, function (id) { cSel.value = String(id); paintCert(); drawFields(); }, o.have);
         var paintCert = function () {
           clear(certChosen);
@@ -3462,7 +3476,10 @@ function deployEdit(o) {
            taken by a device that makes its own key (as the deployment step of the wizard) */
         var devKeyOf = function (t) { var pp = plugVersion(plugOf('target', t.kind), t.version); return !!(pp && pp.device_key); };
         var csrFrom = (o.cert && o.cert.csr_from) || '';
-        var free = targets.filter(deployable).filter(function (t) { return csrFrom ? t.name === csrFrom : !devKeyOf(t); });
+        /* ...once (1.0.96): the device it is deployed to already is not offered again */
+        var depHas = {};
+        arr(o.cert && o.cert.deploys).forEach(function (x) { depHas[x.target] = 1; });
+        var free = targets.filter(deployable).filter(function (t) { return csrFrom ? (t.name === csrFrom && !depHas[t.name]) : !devKeyOf(t); });
         tSel = selectBox([['', '']].concat(free.map(function (t) { return [t.name, t.name]; })), tName || '');
         tSel.hidden = true;
         var chosenBox = el('div', 'ck-attach-row on dp-chosen');
@@ -3791,6 +3808,8 @@ function deleteDialog(c) {
   var no = c.revoke_no || '';
   modal('Delete ' + c.name, function (body) {
     body.appendChild(el('p', 'note', 'It is deleted from acme with its versions and deployments - this cannot be taken back. Nothing is removed from the targets: what is in place there stays.'));
+    /* ...and the tests acme made from its deployments (1.0.96, api.cert_drop: drop_auto_left) */
+    body.appendChild(el('p', 'note small muted', 'The tests acme made from its deployments go with it, unless another certificate has them too; tests of yours stay.'));
     also = switchBox(!no);
     if (no) also._input.disabled = true;
     var f = formField('Revoke it first', also, no ? 'Not possible: ' + no + '.'
@@ -4251,10 +4270,11 @@ function certBody(body, c, versions, deploys, jobs, back) {
   /* its key made by a device (certs.csr_from): without its deployment there (switched on) an
      issue is refused - said here, in the words the issue would say (devicekey.csr_for) */
   if (c.csr_from) {
-    var devDep = arr(deploys).filter(function (d) { return d.target === c.csr_from; })[0];
-    var devWhy = !devDep ? 'it has no deployment to {0}, whose device makes its key - the certificate would never reach the device: add it (the certificate → Deployments)'
-      : (devDep.enabled === 0 || devDep.enabled === false || devDep.enabled === '0'
-        ? 'its deployment to {0}, whose device makes its key, is switched off - the certificate would never reach the device: switch it on' : '');
+    /* every deployment there (1.0.96: only the first was looked at) - one switched on is enough */
+    var devDeps = arr(deploys).filter(function (d) { return d.target === c.csr_from; });
+    var devOn = devDeps.some(function (d) { return !(d.enabled === 0 || d.enabled === false || d.enabled === '0'); });
+    var devWhy = !devDeps.length ? 'it has no deployment to {0}, whose device makes its key - the certificate would never reach the device: add it (the certificate → Deployments)'
+      : (!devOn ? 'its deployment to {0}, whose device makes its key, is switched off - the certificate would never reach the device: switch it on' : '');
     if (devWhy) {
       var dw = tr(devWhy).replace('{0}', c.csr_from);
       ds._body.appendChild(data('p', 'note warn', dw.charAt(0).toUpperCase() + dw.slice(1)));
@@ -4298,7 +4318,10 @@ function certBody(body, c, versions, deploys, jobs, back) {
     }, drawDeploys, 'a target, a state, a path…');
   }
   drawDeploys();
-  if (MANAGE) {
+  /* its key made by a device: deployed there, it goes nowhere else (1.0.96: the device was
+     offered again, and a second deployment of it made there) */
+  var devDone = !!c.csr_from && arr(deploys).some(function (d) { return d.target === c.csr_from; });
+  if (MANAGE && !devDone) {
     var add = cmdButton('Deploy it on a target', 'add', 'small');
     add.onclick = function () { over(function () { deployEdit({cert: c}); }, back); };
     var dr = el('div', 'btnrow');
@@ -4958,6 +4981,19 @@ function certWizard(cert, detail, opts) {
   /* ...switched on: an issue asks the device, and one switched off is refused */
   var devTargets = function () { return W.targets.filter(function (t) { return !!devPlug(t) && t.enabled !== 0 && t.enabled !== false && t.enabled !== '0'; }); };
   var devOf = function () { return W.targets.filter(function (t) { return t.name === W.d.csr_from; })[0] || null; };
+  /* Where its key is made changed on one issued (to or from "Key made by the device"): the
+     version it holds fits no key there - saving makes it due, and it is issued anew right
+     away (certs/save), not at its next renewal (1.0.96: the wizard said that, and offered
+     the choice after Save) */
+  var devSwitched = function () { return editing && !!c.not_after && (W.d.csr_from || '') !== (c.csr_from || ''); };
+  var devSwitchWords = function () {
+    var self = !!W.d.auto_renew && !(c.enabled === 0 || c.enabled === false || c.state === 'disabled') && !!W.d.issuer;
+    return self ? 'Where its key is made changes: the certificate it holds fits no key there any more, so right after Save it is issued anew (a new key and certificate) - not at its next renewal.'
+      : 'Where its key is made changes: the certificate it holds fits no key there any more - saved, it is due for a new issue; it is not renewed by itself, so press Renew now in it.';
+  };
+  /* the certificate another one whose key the device makes (its row's key_of), or '' - this
+     one being edited is not another */
+  var devTaken = function (t) { return t && t.key_of && !(editing && t.key_of === c.name) ? t.key_of : ''; };
   var devTypes = function () { var p = devPlug(devOf()); return p && arr(p.device_key_types).length ? arr(p.device_key_types) : null; };
   /* its deployment: to that target alone; a target whose device makes keys takes no other */
   /* a source that signs no CSR made elsewhere cannot give the device's certificate */
@@ -5172,6 +5208,8 @@ function certWizard(cert, detail, opts) {
       if (MOVE) { /* its own words, in each step */ }
       else if (SETUP && st.key !== 'review')
         body.appendChild(el('p', 'note tm-setup', 'Imported from ' + (c.issuer || 'its source') + ': this is read from the certificate itself and what the import set. Set it as for a new certificate - the certificate imported stays in use as it is, and its next renewal is made so.'));
+      else if (editing && c.not_after && ['source', 'names', 'key', 'profile'].indexOf(st.key) >= 0 && devSwitched())
+        body.appendChild(el('p', 'note warn tm-devswitch', devSwitchWords()));
       else if (editing && c.not_after && ['source', 'names', 'key', 'profile'].indexOf(st.key) >= 0)
         body.appendChild(el('p', 'note tm-next-renewal', 'In the certificate itself: what is changed here goes into a new certificate - saving issues nothing; after Save you choose: renew now, or at its next renewal.'));
       else if (editing && c.not_after && st.key !== 'review')
@@ -5524,7 +5562,9 @@ function certWizard(cert, detail, opts) {
              last - not the first in the list */
           if (!o[0] && W.d.csr_from) W.devLast = W.d.csr_from;
           var back = [W.devLast, opts.csrFrom, c.csr_from].filter(function (n) { return n && devs.some(function (t) { return t.name === n; }); })[0];
-          W.d.csr_from = o[0] ? (W.d.csr_from || back || (devs[0] || {}).name || '') : '';
+          /* the first not taken by another certificate (one certificate per device) */
+          var freeDev = devs.filter(function (t) { return !devTaken(t); })[0] || devs[0] || {};
+          W.d.csr_from = o[0] ? (W.d.csr_from || back || freeDev.name || '') : '';
           devDeploys();
           paint();
         };
@@ -5534,11 +5574,29 @@ function certWizard(cert, detail, opts) {
       host.appendChild(who);
     }
     if (W.d.csr_from) {
-      var dsel = selectBox(devs.map(function (t) { var p = devPlug(t); return [t.name, t.name + ' · ' + tr(p ? p.title : t.kind)]; }), W.d.csr_from);
+      var dsel = selectBox(devs.map(function (t) { var p = devPlug(t); return [t.name, t.name + ' · ' + tr(p ? p.title : t.kind) + (devTaken(t) ? ' · ' + tr('makes the key of {0} already').replace('{0}', t.key_of) : '')]; }), W.d.csr_from);
       if (!devs.some(function (t) { return t.name === W.d.csr_from; })) dsel.appendChild(new Option(W.d.csr_from, W.d.csr_from, true, true));
+      /* one certificate per device (1.0.96: offered, and refused only at the save): a device
+         that makes the key of another certificate is shown, not chosen */
+      Array.prototype.forEach.call(dsel.options, function (op) {
+        var tt = devs.filter(function (t) { return t.name === op.value; })[0];
+        if (tt && devTaken(tt) && op.value !== W.d.csr_from) op.disabled = true;
+      });
       noI18n(dsel);
       dsel.onchange = function () { W.d.csr_from = W.devLast = dsel.value; devDeploys(); paint(); };
       host.appendChild(formField('The device', dsel, 'At every issue and renewal acme asks it for a new key and CSR, and puts the certificate back right after. The key never leaves the device; acme holds none, so it cannot be exported and goes to this target alone.'));
+      var takenBy = devTaken(devOf());
+      if (takenBy) {
+        host.appendChild(data('p', 'note warn ct-devtaken', tr('{0} makes the key of the certificate {1} already - a device holds one pending key, so a second certificate would replace the key of the first: change that certificate (add these names to it), or choose another device.').replace('{0}', W.d.csr_from).replace('{1}', takenBy)));
+      }
+      /* deployed elsewhere already (1.0.96: refused only at the save, as "acme, here" below
+         says of the device): a certificate whose key a device makes goes there alone */
+      var elsewhere = editing && !c.csr_from ? rowsOf(obj(detail).deploys).map(function (r) { return r.target; }).filter(function (n, i, a) { return n !== W.d.csr_from && a.indexOf(n) === i; }) : [];
+      if (elsewhere.length) {
+        host.appendChild(data('p', 'note warn ct-develse', tr('It is deployed to {0}: a certificate whose key the device makes goes to that device alone, so the save is refused while those deployments stay. Choose “acme, here” again, or close this, take those deployments away (the certificate → Deployments) and then change where its key is made.').replace('{0}', elsewhere.join(', '))));
+      }
+      var dHint = (devPlug(devOf()) || {}).device_key_names;
+      if (dHint) host.appendChild(data('p', 'note ct-devnames', tr('What the device takes: {0}').replace('{0}', tr(dHint))));
     } else {
       host.appendChild(el('p', 'note', 'The key is made here, on this server, and never leaves it unless a full administrator exports it.'));
       /* its device has the certificate (a deployment there): the save would be refused
@@ -6208,6 +6266,7 @@ function certWizard(cert, detail, opts) {
     if (!editing || SETUP) pairs.push(['Deployed on', Object.keys(W.deploys).length ? Object.keys(W.deploys).join(', ') : 'nowhere yet']);
     if (W.d.tags) pairs.push(['Tags', tagChips(splitNames(W.d.tags))]);
     if (SETUP) host.appendChild(el('p', 'note', 'Saved, the certificate imported stays as it is - valid, in use. Its deployments get it now (those that need its private key once the key is added); its next renewal asks ' + (W.d.issuer || 'the source') + ' for it with what is set here.'));
+    else if (editing && c.not_after && devSwitched()) host.appendChild(el('p', 'note warn tm-devswitch', devSwitchWords()));
     else host.appendChild(el('p', 'note', editing ? 'What it will be. Saved, it takes effect at its next renewal - press Renew now in it to have it at once.'
       : 'What it will be. "Add and issue now" asks the source at once, in a job you can watch; "Add only" keeps it unissued until Issue now is pressed in its window.'));
     host.appendChild(kvTable(pairs));
@@ -6525,18 +6584,25 @@ function certWizard(cert, detail, opts) {
       return JSON.stringify([arr(x.names).slice().sort(), x.key_type || '', x.key_type_alt || '', x.issuer || '',
                              obj(x.profile)]);
     };
-    var reissue = editing && !SETUP && !issue && !!c.not_after && inCert(sent) !== inCert(c);
+    /* where its key is made changed: issued anew by the save itself - nothing to ask */
+    var reissue = editing && !SETUP && !issue && !!c.not_after && inCert(sent) !== inCert(c) && !devSwitched();
+    /* its deployment to the device that makes its key: made by certs/save with these options
+       (1.0.96: made there, then saved again here - two events for one deployment) */
+    W.deployed = W.deployed || {};
+    var devT = W.d.csr_from && W.deploys[W.d.csr_from] && !W.deployed[W.d.csr_from] ? W.d.csr_from : '';
+    if (devT) sent.deploy_options = W.deploys[devT];
     capi('certs/save', sent).then(function (d) {
       var id = (d && d.id) || c.id;
       /* Saved: pressed again after a deployment was refused, it is this certificate
          and these deployments saved again - not a second of each. (1.0.19) */
       c.id = id;
-      W.deployed = W.deployed || {};
+      var skip = {};
+      if (devT && d && d.device_deploy) { W.deployed[devT] = d.device_deploy; skip[devT] = 1; }
       var made = W.d.csr_from && !W.deployed[W.d.csr_from]
         ? capi('deploys' + qs({cert_id: id})).then(function (x) {
           rowsOf(x, 'deploys').forEach(function (r) { if (r.target === W.d.csr_from) W.deployed[r.target] = r.id; });
         }).catch(function () { }) : Promise.resolve();
-      var jobs = [function () { return made; }].concat(Object.keys(W.deploys).map(function (t) {
+      var jobs = [function () { return made; }].concat(Object.keys(W.deploys).filter(function (t) { return !skip[t]; }).map(function (t) {
         return function () {
           return capi('deploys/save', {id: W.deployed[t], cert_id: id, target: t, options: W.deploys[t], enabled: true})
             .then(function (x) { W.deployed[t] = (x && x.id) || W.deployed[t]; });
@@ -9412,6 +9478,8 @@ function moduleDetail(fam, kind) {
         var ol = el('div', 'md-vrow-l');
         var ot = el('div', 'md-vrow-t');
         ot.appendChild(data('b', '', versionName(v.version || '')));
+        /* its words too, as the row of its replacement above has them (1.0.96) */
+        if (versionWords(v)) ot.appendChild(data('span', 'muted', ' · ' + versionWords(v)));
         var otags = el('span', 'md-tags');
         otags.appendChild(el('span', 'tag dim md-origin', 'shipped original'));
         otags.appendChild(el('span', 'tag warn md-origin', 'replaced - not used'));

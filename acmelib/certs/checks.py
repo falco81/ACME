@@ -253,7 +253,7 @@ def drop_auto_left(store, by, names=None, target=None):
                 continue                        # another test runs it
             for a in loose:
                 store.db.run('DELETE FROM cert_checks WHERE id = ?', (int(a['id']),))
-            api.family_delete(store, 'check', {'id': row['id']}, by)
+            api.family_delete(store, 'check', {'id': row['id']}, by, quiet=True)
             gone.append(name)
         except Exception:                                   # noqa: BLE001
             continue                            # left as it is - a person can delete it
@@ -300,14 +300,13 @@ def verify_to_tests(store, dep, opts, by):
     return made
 
 
-def served_tests(store, dep, by):
-    """Tests of where the target serves the certificate (its module's served_places), made
-    with a new deployment (1.0.93): the module checked them itself after a deployment until
-    1.0.92 - what is served is checked by the tests attached only. -> the names."""
+def served_places(store, dep):
+    """Where the target of the deployment `dep` serves the certificate (its module's
+    served_places for the deployment's options), as the tests made of it name it: [(host,
+    port, key_want)] - host '' for the certificate's first name. None: not read."""
     trow = S.plugin_row(store, 'target', dep['target'])
     if not trow:
         return []
-    made = []
     try:
         from acmelib.certs import runtime
         ctx = runtime.RunContext(store, None, scope='target:%s' % trow['name'], on_hostkey=False)
@@ -315,7 +314,8 @@ def served_tests(store, dep, by):
         places = list(inst.served_places(S.jload(dep.get('options'), {}) or {}) or [])
     except Exception as e:                              # noqa: BLE001
         E.log('where %s serves could not be read: %s' % (dep['target'], e), 'warn')
-        return []
+        return None
+    out = []
     for place in places[:5]:
         # (host, port) - or (host, port, key): the key the test asks for, 'rsa' / 'ecdsa', where
         # one port serves both (1.0.96: CUCM's tomcat and tomcat-ECDSA); host CERT_NAME: the
@@ -327,15 +327,29 @@ def served_tests(store, dep, by):
         if first:
             host = ''
         if '://' in host:
-            from urllib.parse import urlsplit
             try:
-                u = urlsplit(host)
+                u = urllib.parse.urlsplit(host)
                 host, port = u.hostname or '', u.port or port
             except ValueError:
                 continue
         host = host.strip('[]').rstrip('/')
         if not host and not first:
             continue
+        try:
+            port = int(port)
+        except (TypeError, ValueError):
+            continue
+        out.append((host, port, want.strip().lower()))
+    return out
+
+
+def served_tests(store, dep, by):
+    """Tests of where the target serves the certificate (its module's served_places), made
+    with a new deployment (1.0.93): the module checked them itself after a deployment until
+    1.0.92 - what is served is checked by the tests attached only. -> the names."""
+    places = served_places(store, dep)
+    made = []
+    for host, port, want in places or []:
         try:
             got = for_target(store, dep['cert_id'], dep['target'], by, 'tls', host, int(port),
                              auto=True, key_want=want)
@@ -345,6 +359,58 @@ def served_tests(store, dep, by):
             E.log('the test of what %s serves (%s:%s) was not made: %s' % (
                 dep['target'], host, port, e), 'warn')
     return made
+
+
+@_one_at_a_time
+def served_follow(store, cert_id, target, before, by):
+    """A deployment's options changed so that its target serves the certificate elsewhere
+    (1.0.96: a vSphere Supervisor deployment switched to the NSX ingress kept the test of the
+    API endpoint, which failed every deployment after): the tests acme made of a place served
+    `before` ([(host, port, key_want)], served_places) and served by none of the certificate's
+    deployments there now run after it no more - detached when tied to it alone, deleted when
+    attached to nothing (drop_auto_left). Tests a person made or changed stay. -> names gone."""
+    if not before:
+        return []
+    now = set()
+    for dep in store.db.rows('SELECT * FROM cert_deploys WHERE cert_id = ? AND target = ?',
+                             (int(cert_id), target)):
+        got = served_places(store, dep)
+        if got is None:
+            return []                       # not read: nothing taken away on a guess
+        now |= set(got)
+    gone = set(before) - now
+    if not gone:
+        return []
+    mine = 'what %s serves %s' % (target, AUTO_NOTE)
+    left = []
+    for r in store.db.rows('SELECT id, test, after_target FROM cert_checks WHERE cert_id = ?',
+                           (int(cert_id),)):
+        have = after_list(r.get('after_target'))
+        if target not in have:
+            continue
+        t = store.db.row('SELECT config, note, kind FROM cert_tests WHERE name = ?', (r['test'],))
+        if not t or str(t.get('note') or '') != mine or t.get('kind') != 'tls':
+            continue
+        c = S.jload(t.get('config'), {}) or {}
+        try:
+            key = (str(c.get('host') or ''), int(c.get('port') or 443),
+                   str(c.get('key_want') or '').lower())
+        except (TypeError, ValueError):
+            continue
+        if key not in gone or c.get('sni'):
+            continue
+        rest = [x for x in have if x != target]
+        if rest:
+            store.db.update('cert_checks', r['id'], {'after_target': '\n'.join(rest)})
+        else:
+            store.db.run('DELETE FROM cert_checks WHERE id = ?', (int(r['id']),))
+            left.append(r['test'])
+    gone_names = drop_auto_left(store, by, names=left) if left else []
+    for n in gone_names:
+        store.add_event('certificates', 'the test %s, made from a deployment to %s, deleted by %s '
+                        '- the deployment serves the certificate elsewhere now' % (n, target, by),
+                        who=by)
+    return gone_names
 
 
 def served_migrate(store, by='acme 1.0.93'):

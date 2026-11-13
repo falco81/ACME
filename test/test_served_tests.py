@@ -140,6 +140,84 @@ class Served(unittest.TestCase):
             'endpoint': 'DEFAULT_NSX_INGRESS'}}, 'tester')
         self.assertEqual(tests_of(cid), {})
 
+    def test_5_options_changed_the_tests_follow(self):
+        # 1.0.96: a Supervisor deployment switched to the NSX ingress kept the test of the API
+        # endpoint (failing every deployment after) - the tests acme made follow where the
+        # target serves the certificate; switched back, the test comes again
+        A.family_save(STORE, 'target', {'kind': 'vsphere_supervisor', 'name': 'sup5', 'config': {
+            'host': 'vc.example.test', 'user': 'u', 'password': 'x', 'supervisor': 'domain-c8',
+            'endpoint_host': 'sup5.example.test'}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['sup5.example.test']}, 'tester')
+        did = A.deploy_save(STORE, {'cert_id': cid, 'target': 'sup5', 'options': {
+            'endpoint': 'KUBERNETES_API_SERVER'}}, 'tester')
+        self.assertEqual(tests_of(cid), {('sup5.example.test', 443): 'sup5'})
+        made = STORE.db.value('SELECT test FROM cert_checks WHERE cert_id = ?', (cid,))
+        # a test of a person's, attached after the same deployment: stays
+        A.family_save(STORE, 'check', {'kind': 'tls', 'name': 'mine5', 'config': {
+            'host': 'other.example.test', 'port': 443}}, 'tester')
+        C.attach(STORE, cid, ['mine5'], 'tester', after_target='sup5')
+        A.deploy_save(STORE, {'id': did, 'cert_id': cid, 'target': 'sup5', 'options': {
+            'endpoint': 'DEFAULT_NSX_INGRESS'}}, 'tester')
+        self.assertEqual(tests_of(cid), {('other.example.test', 443): 'sup5'})
+        self.assertIsNone(S.plugin_row(STORE, 'check', made), 'attached to nothing: deleted')
+        ev = [r['words'] for r in STORE.db.rows('SELECT words FROM events WHERE words LIKE ?',
+                                                ('%' + made + '%',))]
+        self.assertEqual(len([w for w in ev if 'deleted' in w]), 1, ev)
+        self.assertIn('serves the certificate elsewhere now', [w for w in ev if 'deleted' in w][0])
+        A.deploy_save(STORE, {'id': did, 'cert_id': cid, 'target': 'sup5', 'options': {
+            'endpoint': 'KUBERNETES_API_SERVER'}}, 'tester')
+        self.assertEqual(tests_of(cid).get(('sup5.example.test', 443)), 'sup5')
+
+    def test_6_a_test_shared_with_another_certificate_stays(self):
+        A.family_save(STORE, 'target', {'kind': 'vsphere_supervisor', 'name': 'sup6', 'config': {
+            'host': 'vc.example.test', 'user': 'u', 'password': 'x', 'supervisor': 'domain-c8',
+            'endpoint_host': 'sup6.example.test'}}, 'tester')
+        one = A.cert_save(STORE, {'names': ['a6.example.test']}, 'tester')
+        two = A.cert_save(STORE, {'names': ['b6.example.test']}, 'tester')
+        d1 = A.deploy_save(STORE, {'cert_id': one, 'target': 'sup6', 'options': {}}, 'tester')
+        A.deploy_save(STORE, {'cert_id': two, 'target': 'sup6', 'options': {}}, 'tester')
+        name = STORE.db.value('SELECT test FROM cert_checks WHERE cert_id = ?', (one,))
+        A.deploy_save(STORE, {'id': d1, 'cert_id': one, 'target': 'sup6', 'options': {
+            'endpoint': 'DEFAULT_NSX_INGRESS'}}, 'tester')
+        self.assertEqual(tests_of(one), {})
+        self.assertIsNotNone(S.plugin_row(STORE, 'check', name))
+        self.assertEqual(len(tests_of(two)), 1)
+
+    def test_7_deleted_with_its_certificate_said_once_as_a_test(self):
+        A.family_save(STORE, 'target', {'kind': 'vsphere_supervisor', 'name': 'sup7', 'config': {
+            'host': 'vc.example.test', 'user': 'u', 'password': 'x', 'supervisor': 'domain-c8',
+            'endpoint_host': 'sup7.example.test'}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['c7.example.test']}, 'tester')
+        A.deploy_save(STORE, {'cert_id': cid, 'target': 'sup7', 'options': {}}, 'tester')
+        name = STORE.db.value('SELECT test FROM cert_checks WHERE cert_id = ?', (cid,))
+        A.cert_drop(STORE, S.cert_need(STORE, cid), 'tester')
+        ev = [r['words'] for r in STORE.db.rows('SELECT words FROM events WHERE words LIKE ?',
+                                                ('%' + name + '%',))]
+        self.assertEqual(len([w for w in ev if 'deleted' in w]), 1, ev)
+        self.assertFalse(any(w.startswith('check ') for w in ev), ev)
+        # a test deleted by a person: "test X deleted by"
+        A.family_save(STORE, 'check', {'kind': 'tls', 'name': 'gone7', 'config': {
+            'host': 'g.example.test', 'port': 443}}, 'tester')
+        A.family_delete(STORE, 'check', {'id': S.plugin_row(STORE, 'check', 'gone7')['id']},
+                        'tester')
+        self.assertEqual(STORE.db.value("SELECT COUNT(*) FROM events WHERE words = "
+                                        "'test gone7 deleted by tester'"), 1)
+
+    def test_8_a_number_below_its_min_refused(self):
+        # 1.0.96: a field's min and max held at the save (a Synergy enclosure's bay 3 was
+        # refused only when the deployment ran)
+        A.family_save(STORE, 'target', {'kind': 'local', 'name': 'files8', 'config': {
+            'base': os.path.join(TMP, 'out8')}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['files8.example.test']}, 'tester')
+        with self.assertRaises(ValueError) as e:
+            A.deploy_save(STORE, {'cert_id': cid, 'target': 'files8',
+                                  'options': {'backup_keep': -1}}, 'tester')
+        self.assertIn('at least', str(e.exception))
+        self.assertEqual(STORE.db.value('SELECT COUNT(*) FROM cert_deploys WHERE cert_id = ?',
+                                        (cid,)), 0)
+        A.deploy_save(STORE, {'cert_id': cid, 'target': 'files8',
+                              'options': {'backup_keep': 0}}, 'tester')
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

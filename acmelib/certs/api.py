@@ -426,7 +426,7 @@ KEEP_STATES = ('revoked', 'pending-approval', 'declined', 'pending', 'deleting',
                'held')
 
 
-def cert_save(store, b, by, full=False):
+def cert_save(store, b, by, full=False, out=None):
     t = time.time()
     ident = b.get('id')
     row = S.cert_need(store, _id(ident)) if ident not in (None, '', 0) else None
@@ -616,7 +616,7 @@ def cert_save(store, b, by, full=False):
                          'away first (the device keeps the certificate it has), then change '
                          'where its key is made' % dev_was)
     if dev_now and (not row or any(k in b for k in (
-            'csr_from', 'issuer', 'key_type', 'key_type_alt', 'reuse_key'))):
+            'csr_from', 'issuer', 'key_type', 'key_type_alt', 'reuse_key', 'names'))):
         from acmelib.certs import devicekey
         cur = dict(row or {})
         cur.update(fields)
@@ -686,14 +686,33 @@ def cert_save(store, b, by, full=False):
                                     'target = ?', (ident, dev_now)):
         # its deployment to the device whose key it is: made with it - the certificate goes
         # there right after each issue
-        deploy_save(store, {'cert_id': ident, 'target': dev_now}, by, full)
+        # there right after each issue. With its options when given (deploy_options, the
+        # wizard's deployment step): saved once - 1.0.96 saved it here and again from the
+        # wizard, two "deployment saved" events for one deployment. Options refused: made
+        # without them, the wizard saves them after and says why.
+        opts = b.get('deploy_options')
+        did = None
+        if isinstance(opts, dict):
+            try:
+                did = deploy_save(store, {'cert_id': ident, 'target': dev_now, 'options': opts},
+                                  by, full)
+            except (ValueError, LookupError, E.ApiError):
+                did = None
+        if did is None:
+            deploy_save(store, {'cert_id': ident, 'target': dev_now}, by, full)
+        if isinstance(out, dict):
+            out['device_deploy'] = did
     _wake()
     return ident
 
 
 @api('POST', '/api/certs/save', 'certadmin')
 def _cert_save(h, s):
-    return {'id': cert_save(h.store, h.body(), who(s), full=may(s, 'fulladmin'))}
+    out = {}
+    ident = cert_save(h.store, h.body(), who(s), full=may(s, 'fulladmin'), out=out)
+    # the device's deployment made with its options (deploy_options): not saved again
+    return dict({'id': ident}, **({'device_deploy': out['device_deploy']}
+                                  if out.get('device_deploy') else {}))
 
 
 def cert_auto(store, ref, on, by):
@@ -2237,6 +2256,14 @@ def _device_kind_kept(store, row, cls):
             'SELECT name, key_type FROM certs WHERE csr_from = ?', (row['name'],))
             if kts and (r['key_type'] or 'ec-256') not in kts})
         if odd:
+            ver = str(getattr(cls, 'module_version', '') or '')
+            if ver:
+                # its version named (1.0.96: the same module title for both versions)
+                raise ValueError('the device of %s makes the key of %s - %s (version %s) makes '
+                                 '%s keys only: choose one of those key types for those '
+                                 'certificates first' % (row['name'], ', '.join(odd[:10]),
+                                                         cls.title or cls.kind, ver,
+                                                         ', '.join(kts)))
             raise ValueError('the device of %s makes the key of %s - %s makes %s keys only: '
                              'choose one of those key types for those certificates first'
                              % (row['name'], ', '.join(odd[:10]), cls.title or cls.kind,
@@ -2462,7 +2489,9 @@ def _unbind(store, family, row, uses, by):
                 row['name'], u['name'], by), who=by)
 
 
-def family_delete(store, family, b, by):
+def family_delete(store, family, b, by, quiet=False):
+    """A source, validation, target or test deleted. `quiet`: no "deleted by" event - the
+    caller says it in its own words (a test acme made, deleted with what it was made from)."""
     row = S.plugin_row(store, family, _id(b.get('id')))
     if not row:
         raise LookupError('there is no such %s' % family)
@@ -2495,8 +2524,10 @@ def family_delete(store, family, b, by):
     if DF.forget(store, family, row['name']):
         store.add_event('certificates', '%s was the default %s: there is none now' % (
             row['name'], DF.WORDS[family]), 'warn', who=by)
-    store.add_event('certificates', '%s %s deleted by %s' % (family, row['name'], by), 'warn',
-                    who=by)
+    if not quiet:
+        # a test is a test in words (1.0.96: "check X deleted by" - as family_save says it)
+        store.add_event('certificates', '%s %s deleted by %s' % (
+            'test' if family == 'check' else family, row['name'], by), 'warn', who=by)
     return row['name']
 
 
@@ -2861,7 +2892,8 @@ def _deploy_save_in(store, b, by, full, made):
     # The key made by a device (devicekey.py): its certificate goes to that target alone, and
     # that target takes no other.
     from acmelib.certs import devicekey
-    why_dev = devicekey.deploy_problem(store, cert, trow, cls, version=False)
+    why_dev = devicekey.deploy_problem(store, cert, trow, cls, version=False,
+                                       saving=int((row or {}).get('id') or 0))
     if why_dev:
         raise ValueError(why_dev)
     if row is not None and not full and row.get('target') != trow['name'] and 'options' not in b:
@@ -2969,6 +3001,15 @@ def _deploy_save_in(store, b, by, full, made):
                     if isinstance(v, bool) or (not isinstance(v, (int, float)) and
                                                not re.match(r'^-?\d+(\.\d+)?\Z', str(v).strip() or '0')):
                         raise ValueError('%s is a number' % what)
+                    # within the field's min and max (1.0.96: a Synergy enclosure's bay 3 was
+                    # saved, and refused only when the deployment ran)
+                    if str(v).strip() != '':
+                        n = float(v)
+                        lo, hi = f.get('min'), f.get('max')
+                        if isinstance(lo, (int, float)) and n < lo:
+                            raise ValueError('%s is %s at least (not %s)' % (what, lo, v))
+                        if isinstance(hi, (int, float)) and n > hi:
+                            raise ValueError('%s is %s at most (not %s)' % (what, hi, v))
                 elif f.get('type') == 'list':
                     if not isinstance(v, (str, list)) or (isinstance(v, list) and
                                                           not all(isinstance(x, str) for x in v)):
@@ -2979,6 +3020,12 @@ def _deploy_save_in(store, b, by, full, made):
                     raise ValueError('%s is text' % what)
                 if len(json.dumps(v)) > 64000:
                     raise ValueError('%s is too long' % what)
+        if str(cert.get('csr_from') or '') == trow['name']:
+            # what the device takes, with these options (1.0.96: a Synergy enclosure's IP
+            # address as the name was refused only at the issue)
+            why_fit = devicekey.fit_problem(cls, cert, opts)
+            if why_fit:
+                raise ValueError(why_fit)
         verify_later = bool(opts.get('verify') or 'verify_sni' in opts)
         if verify_later and not full:
             # a test - a host and port acme connects to - is a full administrator's (1.0.78)
@@ -2988,6 +3035,12 @@ def _deploy_save_in(store, b, by, full, made):
         fields['state'] = 'new' if row.get('state') != 'ok' else 'changed'
     moved_from = (row.get('cert_id'), row.get('target')) if row is not None and (
         int(row.get('cert_id') or 0) != int(cert['id']) or row.get('target') != trow['name']) else None
+    served_before = None
+    if 'options' in b and not made and not moved_from and 'options' in fields:
+        # where it was served before its options changed: the tests acme made of a place no
+        # longer served follow (1.0.96, checks.served_follow)
+        from acmelib.certs import checks as C
+        served_before = C.served_places(store, row)
     if fields:
         store.db.update('cert_deploys', row['id'], fields)
     if moved_from and moved_from[0]:
@@ -3010,6 +3063,8 @@ def _deploy_save_in(store, b, by, full, made):
         try:
             cur = store.db.row('SELECT * FROM cert_deploys WHERE id = ?', (row['id'],))
             C.served_tests(store, cur, by)
+            if served_before:
+                C.served_follow(store, cert['id'], trow['name'], served_before, by)
         except Exception as e:                          # noqa: BLE001
             E.log('the test of what %s serves was not made: %s' % (trow['name'], e), 'warn')
     store.add_event('certificates', 'deployment of %s to %s saved by %s' % (

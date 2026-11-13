@@ -446,6 +446,11 @@ def plugin_public(store, family, row, full=False):
                                             (row['name'],), 0) or 0)
         if row.get('kind') == 'ssh_connector':
             out['used_by'] += via_users(store, row['name'], 'target')
+        # the certificate whose key its device makes (certs.csr_from, one a device - 1.0.96:
+        # the wizard offered a device taken already, and refused it only at the save)
+        if cls is not None and getattr(cls, 'device_key', False):
+            out['key_of'] = str(store.db.value('SELECT name FROM certs WHERE csr_from = ? '
+                                               'ORDER BY name', (row['name'],), '') or '')
     return out
 
 
