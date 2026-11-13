@@ -209,6 +209,12 @@ class VeeamVbrTarget(VeeamPsTarget):
     def deploy(self, bundle, options):
         options = options or {}
         self.check_certificate(bundle, options)
+        # 1.0.96: the service names refused before signing in - a bad one was found only
+        # after the PKCS#12 (the key) had been uploaded, and it stayed on the server
+        services = lines(options.get('restart_services'))
+        for svc in services:
+            if not re.match(r'^[A-Za-z0-9_.$ -]{1,80}$', svc):
+                raise PluginError('"%s" is not a service name' % svc, retry=False)
         thumb = sha1_thumb(bundle)
         with self.ssh() as s:
             info = self.server_info(s)
@@ -221,46 +227,67 @@ class VeeamVbrTarget(VeeamPsTarget):
                 self.ctx.step('the version cannot be read: the calls of VBR %s are used' % gen,
                               'warn')
             pfx, pw = self.upload_pfx(s, bundle, options)
-            sc = [self.module_line()] + self.import_lines(bundle, options, pfx, pw) + [
-                "$c = Get-VBRBackupServerCertificate -FromStore | Where-Object { "
-                "$_.Thumbprint -eq $thumb } | Select-Object -First 1",
-                "if (-not $c) { throw ('Get-VBRBackupServerCertificate -FromStore does not offer '"
-                " + $thumb + ' - it lists only certificates with their private key that Veeam "
-                "can use') }",
-                "$prev = ''; try { $prev = (Get-VBRBackupServerCertificate).Thumbprint } catch { }",
-                "Add-VBRBackupServerCertificate -Certificate $c%s | Out-Null"
-                % (' -Force' if gen >= 13 else ''),
-                "Write-Output 'STEP ok the backup server certificate is set'",
-                "Write-Output ('SET ' + $thumb)",
-            ]
-            if gen < 13 and as_bool(self.opt(options, 'rest_binding', True), True):
-                sc += [
-                    "netsh http delete sslcert ipport=0.0.0.0:9419 | Out-Null",
-                    "$r = netsh http add sslcert ipport=0.0.0.0:9419 certhash=$thumb "
-                    "appid='%s' certstorename=MY" % REST_APPID,
-                    "if ($LASTEXITCODE -ne 0) { throw ('netsh http add sslcert said: ' + "
-                    "($r -join ' ')) }",
-                    "Write-Output 'STEP ok the REST API (0.0.0.0:9419) uses it'",
-                ]
-            sc += ["$used = @($thumb, $prev)"] + self.cleanup_lines(bundle, options)
-            for svc in lines(options.get('restart_services')):
-                if not re.match(r'^[A-Za-z0-9_.$ -]{1,80}$', svc):
-                    raise PluginError('"%s" is not a service name' % svc, retry=False)
-                sc += ["Restart-Service -Name %s -Force" % ps_str(svc),
-                       "Write-Output ('STEP ok restarted ' + %s)" % ps_str(svc)]
             try:
-                rc, out, err = self.ps(s, '\n'.join(sc), 'setting the backup server certificate',
-                                       timeout=self.timeout_s())
-            except PluginError:
-                self.drop_file(s, pfx)
+                out = self.set_certificate(s, bundle, options, gen, pfx, pw, services)
+            except BaseException:
+                # 1.0.96: the PKCS#12 removed on every path that did not run the script to
+                # its Remove-Item (a refusal, a lost session, a failing step)
+                try:
+                    self.drop_file(s, pfx)
+                except Exception:                       # noqa: BLE001
+                    pass
                 raise
             self.steps_of(out)
-        if not lines(options.get('restart_services')):
+        if not services:
             self.ctx.step('restart the backup service (it stops running jobs) and the consoles '
                           'in a maintenance window - Veeam needs it for the new certificate',
                           'warn')
         self.remember(bundle, options)
         return 'backup server certificate %s set (VBR %s)' % (thumb[:12], gen)
+
+    def set_certificate(self, s, bundle, options, gen, pfx, pw, services):
+        """The script that imports the PKCS#12 (and removes it), sets the backup server
+        certificate, moves the 12.x REST binding and restarts the services. -> its output"""
+        sc = [self.module_line()] + self.import_lines(bundle, options, pfx, pw) + [
+            "$c = Get-VBRBackupServerCertificate -FromStore | Where-Object { "
+            "$_.Thumbprint -eq $thumb } | Select-Object -First 1",
+            "if (-not $c) { throw ('Get-VBRBackupServerCertificate -FromStore does not offer '"
+            " + $thumb + ' - it lists only certificates with their private key that Veeam "
+            "can use') }",
+            "$prev = ''; try { $prev = (Get-VBRBackupServerCertificate).Thumbprint } catch { }",
+            "Add-VBRBackupServerCertificate -Certificate $c%s | Out-Null"
+            % (' -Force' if gen >= 13 else ''),
+            "Write-Output 'STEP ok the backup server certificate is set'",
+            "Write-Output ('SET ' + $thumb)",
+        ]
+        if gen < 13 and as_bool(self.opt(options, 'rest_binding', True), True):
+            # 1.0.96: the binding there before (its hash and application ID - read by
+            # their shape, netsh words are in the language of Windows) is put back when
+            # the add fails: 9419 was left with no certificate, the REST API down
+            sc += [
+                "$was = (netsh http show sslcert ipport=0.0.0.0:9419) -join ' '",
+                "$oldhash = ''; if ($was -match '\\b([0-9a-fA-F]{40})\\b') "
+                "{ $oldhash = $Matches[1] }",
+                "$oldapp = '%s'; if ($was -match '(\\{[0-9a-fA-F-]{36}\\})') "
+                "{ $oldapp = $Matches[1] }" % REST_APPID,
+                "netsh http delete sslcert ipport=0.0.0.0:9419 | Out-Null",
+                "$r = netsh http add sslcert ipport=0.0.0.0:9419 certhash=$thumb "
+                "appid='%s' certstorename=MY" % REST_APPID,
+                "if ($LASTEXITCODE -ne 0) { $back = ''; if ($oldhash) { netsh http add "
+                "sslcert ipport=0.0.0.0:9419 certhash=$oldhash appid=$oldapp "
+                "certstorename=MY | Out-Null; if ($LASTEXITCODE -eq 0) { $back = "
+                "' - the previous binding of 0.0.0.0:9419 is back' } else { $back = "
+                "' - the previous binding of 0.0.0.0:9419 could not be put back' } }; "
+                "throw ('netsh http add sslcert said: ' + ($r -join ' ') + $back) }",
+                "Write-Output 'STEP ok the REST API (0.0.0.0:9419) uses it'",
+            ]
+        sc += ["$used = @($thumb, $prev)"] + self.cleanup_lines(bundle, options)
+        for svc in services:
+            sc += ["Restart-Service -Name %s -Force" % ps_str(svc),
+                   "Write-Output ('STEP ok restarted ' + %s)" % ps_str(svc)]
+        rc, out, err = self.ps(s, '\n'.join(sc), 'setting the backup server certificate',
+                               timeout=self.timeout_s())
+        return out
 
     @staticmethod
     def served_wait(options):

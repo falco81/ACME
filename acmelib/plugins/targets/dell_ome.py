@@ -56,7 +56,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, as_bool, as_int, http_fields, tls_fields, verify_fields,
-    text, chain_list, pem_blocks, split_hostport, served_fingerprint, fp_of)
+    text, chain_list, pem_blocks, split_hostport, join_hostport, served_fingerprint, fp_of)
 
 API = '/api'
 GEN = API + '/ApplicationService/Actions/ApplicationService.GenerateCSR'
@@ -145,7 +145,7 @@ class DellOmeTarget(HttpTarget):
 
     def served_now(self, bundle):
         try:
-            host, port = split_hostport('%s:%s' % (self.c('host'), self.c('port') or 443))
+            host, port = split_hostport(join_hostport(self.c('host'), self.c('port') or 443))
             return served_fingerprint(host, port, None) == fp_of(bundle)
         except (OSError, ValueError):
             return False

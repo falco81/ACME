@@ -318,6 +318,32 @@ class OntapTest(unittest.TestCase):
             self.run_deploy('', Ontap(), {'svm': 'nope'})
         self.assertIn('no SVM named "nope"', str(e.exception))
 
+    def test_not_json_said_in_words(self):
+        # 1.0.96: an HTML answer was an AttributeError ('bytes' object has no attribute 'get')
+        html = (200, b'<html>login</html>')
+        with self.assertRaises(PluginError) as e:
+            make('netapp_ontap', '', self.CONF, FakeCtx([('GET', r'/api/cluster', html)])).test()
+        self.assertIn('signing in: the cluster did not answer with JSON', str(e.exception))
+        for rx, words in ((r'/api/security/certificates\?', 'listing the certificates'),
+                          (r'/api/svm/svms\?name=svm1', 'finding the SVM svm1'),
+                          (r'/api/cluster/jobs/', 'asking for the job of')):
+            routes = [('GET', rx, html)] + Ontap((9, 16, 1)).routes()
+            ctx = FailingHttpCtx(routes)
+            t = make('netapp_ontap', '', dict(self.CONF), ctx)
+            t._sleep = lambda s: None
+            with self.assertRaises(PluginError) as e:
+                t.deploy(FakeBundle(), {'svm': 'svm1'})
+            self.assertIn(words, str(e.exception))
+            self.assertIn('did not answer with JSON', str(e.exception))
+        # the version and the binding: not readable, gone on
+        routes = [('GET', r'/api/cluster\?fields=version', html),
+                  ('GET', r'/api/cluster/web\?fields=certificate', html)] + \
+            Ontap((9, 16, 1)).routes()
+        t = make('netapp_ontap', '', dict(self.CONF), FailingHttpCtx(routes))
+        t._sleep = lambda s: None
+        self.assertIsNone(t.ontap_version())
+        self.assertEqual(t.bound('', ''), '')
+
 
 # ---------------------------------------------------------------------------
 # Pure Storage
@@ -389,6 +415,27 @@ class PureTest(unittest.TestCase):
             make('pure_flasharray', '', {'host': 'a', 'api_token': 'TKN', 'api_version': '1.19'},
                  FakeCtx(self.routes())).test()
 
+    def test_served_on_the_configured_port(self):
+        # 1.0.96: 443 was asked whatever the port
+        t = make('pure_flasharray', '', {'host': 'array01', 'port': 8443, 'api_token': 'TKN'},
+                 FakeCtx([]))
+        self.assertEqual(t.served_places({}), [('array01', 8443)])
+
+    def test_not_json_said_in_words(self):
+        # 1.0.96: an HTML answer was an AttributeError ('bytes' object has no attribute 'get')
+        html = (200, b'<html>login</html>')
+        with self.assertRaises(PluginError) as e:
+            make('pure_flasharray', '', {'host': 'a', 'api_token': 'TKN'},
+                 FakeCtx([('GET', r'/api/api_version$', html)])).test()
+        self.assertIn('did not answer with JSON', str(e.exception))
+        routes = [r for r in self.routes() if 'certificates' not in r[1]]
+        with self.assertRaises(PluginError) as e:
+            make('pure_flasharray', '', {'host': 'a', 'api_token': 'TKN'}, FakeCtx(
+                [('GET', r'/api/2\.59/certificates\?names=', html)] + routes)).deploy(
+                    FakeBundle(), {})
+        self.assertIn('reading the certificate management: the array did not answer with JSON',
+                      str(e.exception))
+
 
 # ---------------------------------------------------------------------------
 # QNAP
@@ -428,6 +475,21 @@ class QnapTest(unittest.TestCase):
         cmds = '\n'.join(c for c, _i in ssh.runs)
         self.assertIn('cp -p /etc/stunnel/stunnel.pem.acme-prev /etc/stunnel/stunnel.pem', cmds)
         self.assertNotIn('Qthttpd', cmds)
+
+    def test_failed_write_removes_the_staged_key(self):
+        # 1.0.96: a failing cp / cat left the key in /tmp (the rm was the end of the && chain)
+        ssh = FakeSsh([(r'cp -p /etc/stunnel/stunnel.pem', (1, '', 'cp: read-only file system')),
+                       (r"sed -n", (0, '', ''))])
+        with self.assertRaises(PluginError) as e:
+            make('qnap', '', self.CONF, FakeCtx(ssh=ssh)).deploy(FakeBundle(), {})
+        self.assertIn('read-only file system', str(e.exception))
+        staged = sorted(p for p, _d, _m in ssh.puts)
+        self.assertEqual(len(staged), 2)
+        rm = [c for c, _i in ssh.runs if 'rm -f' in c]
+        self.assertEqual(len(rm), 1)
+        for p in staged:
+            self.assertIn(p, rm[0])
+        self.assertFalse([c for c, _i in ssh.runs if 'stunnel.sh restart' in c])
 
     def test_test_says_when_not_qnap(self):
         t = make('qnap', '', self.CONF, FakeCtx(ssh=FakeSsh([(r'id -un', (0, 'admin\n', ''))])))
@@ -668,6 +730,42 @@ class VbrTest(unittest.TestCase):
             make('veeam_vbr', '13', WIN, FakeCtx(ssh=w2.ssh)).deploy(ca_bundle(), {})
         self.assertIn('it failed here', str(e.exception))
         self.assertTrue(w2.ran('Remove-Item -LiteralPath'), 'the PKCS#12 is deleted')
+
+    def test_bad_service_refused_before_signing_in(self):
+        # 1.0.96: refused after the PKCS#12 was uploaded, and the PKCS#12 stayed
+        w = WinWorld()
+        with self.assertRaises(PluginError) as e:
+            make('veeam_vbr', '13', WIN, FakeCtx(ssh=w.ssh)).deploy(
+                ca_bundle(), {'restart_services': 'Veeam;Backup'})
+        self.assertIn('"Veeam;Backup" is not a service name', str(e.exception))
+        self.assertFalse(e.exception.retry)
+        self.assertFalse(w.ssh.puts, 'nothing uploaded')
+        self.assertFalse(w.ssh.runs, 'refused before signing in')
+
+    def test_pfx_dropped_on_any_failure(self):
+        # 1.0.96: not only on a PluginError of the script - a lost session too
+        w = WinWorld()
+        t = make('veeam_vbr', '13', WIN, FakeCtx(ssh=w.ssh))
+
+        def lost(*a):
+            raise OSError('connection reset')
+        t.set_certificate = lost
+        with self.assertRaises(OSError):
+            t.deploy(ca_bundle(), {})
+        pfx = [p for p, _d, _m in w.ssh.puts if p.endswith('.pfx')]
+        self.assertEqual(len(pfx), 1)
+        self.assertTrue([s for s in w.ran('Remove-Item -LiteralPath') if pfx[0] in s])
+
+    def test_123_previous_binding_put_back(self):
+        # 1.0.96: a failing netsh add left 0.0.0.0:9419 with no certificate (REST API down)
+        w = WinWorld(force=False, build='12.3.2.4465')
+        make('veeam_vbr', '12.3', WIN, FakeCtx(ssh=w.ssh)).deploy(ca_bundle(), {})
+        sc = w.ran('Add-VBRBackupServerCertificate -Certificate')[0]
+        show = sc.index('netsh http show sslcert ipport=0.0.0.0:9419')
+        self.assertLess(show, sc.index('netsh http delete sslcert ipport=0.0.0.0:9419'))
+        self.assertIn('netsh http add sslcert ipport=0.0.0.0:9419 certhash=$oldhash '
+                      'appid=$oldapp certstorename=MY', sc)
+        self.assertIn('the previous binding of 0.0.0.0:9419 is back', sc)
 
     def test_try(self):
         w = WinWorld()

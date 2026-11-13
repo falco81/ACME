@@ -29,11 +29,13 @@ NimbleOS 5.x and 6.x: the SDKs show no difference in the certificates object - o
 from __future__ import annotations
 
 import base64
+import re
 import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, as_bool, as_int, http_fields, tls_fields, verify_fields,
-    text, random_password, served_fingerprint, fp_of, split_hostport)
+    text, random_password, served_fingerprint, fp_of, split_hostport,
+    join_hostport)
 
 API_PORT = 5392
 
@@ -100,6 +102,21 @@ class HpeNimbleTarget(HttpTarget):
                 pass
         self.token = self.token_id = None
 
+    def action_path(self, options, key):
+        """The import / use action as a path of the group's API. The token goes with each
+        call: an absolute URL (or a path out of /v1/) would send it elsewhere - refused before
+        any call (1.0.96)."""
+        default = {'import_action': '/v1/certificates/actions/import',
+                   'use_action': '/v1/certificates/actions/use'}[key]
+        p = text(self.opt(options, key, default)).strip() or default
+        if not re.match(r'^/v1/[A-Za-z0-9_.~-]+(/[A-Za-z0-9_.~-]+)*\Z', p) or \
+                set(p.split('/')) & {'.', '..'}:
+            raise PluginError('%s: %r is not a path of the NimbleOS REST API - it starts with '
+                              '/v1/ (no address, no query)' % (
+                                  'the import action' if key == 'import_action' else
+                                  'the use action', p), retry=False)
+        return p
+
     def call_action(self, path, data, what):
         try:
             return self.req('POST', path, {'data': data}, timeout=120, what=what)
@@ -126,7 +143,7 @@ class HpeNimbleTarget(HttpTarget):
     def served_now(self, bundle, options):
         try:
             for host, port in self.served_places(options):
-                h, p = split_hostport('%s:%s' % (host, port))
+                h, p = split_hostport(join_hostport(host, port))
                 if served_fingerprint(h, p, None) != fp_of(bundle):
                     return False
             return bool(self.served_places(options))
@@ -135,6 +152,8 @@ class HpeNimbleTarget(HttpTarget):
 
     def deploy(self, bundle, options):
         options = options or {}
+        imp, use = self.action_path(options, 'import_action'), self.action_path(options,
+                                                                                'use_action')
         https = as_bool(self.opt(options, 'https', True), True)
         apis = as_bool(self.opt(options, 'apis', True), True)
         if not (https or apis):
@@ -148,11 +167,11 @@ class HpeNimbleTarget(HttpTarget):
         p12 = base64.b64encode(bundle.as_format('pfx', password=pw, alias=name)).decode()
         self.login()
         try:
-            self.call_action(text(self.opt(options, 'import_action')).strip(), {
+            self.call_action(imp, {
                 'name': name, 'input': p12, 'pkcs12': True, 'password': pw, 'force': True},
                 'importing the certificate as %s' % name)
             self.ctx.step('imported the certificate with its key as %s' % name, 'ok')
-            st, hd, d = self.call_action(text(self.opt(options, 'use_action')).strip(), {
+            st, hd, d = self.call_action(use, {
                 'name': name, 'https': https, 'apis': apis}, 'putting %s to use' % name)
             uses = ' and '.join(w for w, on in (('the HTTPS GUI', https),
                                                 ('the REST API', apis)) if on)

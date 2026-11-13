@@ -174,6 +174,17 @@ def save(**b):
     return api.cert_save(STORE, b, 'test', full=True)
 
 
+_DEVS = [0]
+
+
+def device(prefix='dev'):
+    """A target of its own whose device makes the key (one certificate per device)."""
+    _DEVS[0] += 1
+    name = '%s%d' % (prefix, _DEVS[0])
+    add('cert_targets', name, 'fakedevice', {'host': name + '.example.test'})
+    return name
+
+
 CA_ID = CA.ca_create(STORE, 'Device Root', {'CN': 'Device Root'}, key_type='ec-256', by='t')
 add('cert_issuers', 'own', 'internal_ca', {'ca': CA_ID, 'days': 60})
 add('cert_issuers', 'self', 'selfsigned', {})
@@ -266,13 +277,13 @@ class Flow(unittest.TestCase):
 
     def test_6_the_device_key_type(self):
         cid = save(name='bmc-rsa', names=['rsa.example.test'], issuer='own', key_type='rsa-2048',
-                   csr_from='xcc2')
+                   csr_from=device())
         job = renew(cid)
         self.assertTrue(job.ok, words(job))
         self.assertEqual(pki.cert_info(S.cert_get(STORE, cid)['cert_pem'])['key_type'], 'rsa-2048')
         # none said: the first the device makes
         cid2 = api.cert_save(STORE, {'name': 'bmc-none', 'names': ['none.example.test'],
-                                     'issuer': 'own', 'csr_from': 'xcc2'}, 'test', full=True)
+                                     'issuer': 'own', 'csr_from': device()}, 'test', full=True)
         self.assertEqual(S.cert_get(STORE, cid2)['key_type'], 'ec-256')
         with self.assertRaises(ValueError) as e:
             save(id=cid2, key_type='ec-384')
@@ -314,13 +325,14 @@ class Refused(unittest.TestCase):
         self.refused('CSR sent in', id=cid, csr_from='xcc1')
 
     def test_deployed_elsewhere_and_to_elsewhere(self):
-        cid = save(name='r6', names=['r6.example.test'], issuer='own', csr_from='xcc1')
+        d = device()
+        cid = save(name='r6', names=['r6.example.test'], issuer='own', csr_from=d)
         with self.assertRaises(ValueError) as e:
             api.deploy_save(STORE, {'cert_id': cid, 'target': 'web'}, 'test')
-        self.assertIn('only to xcc1', str(e.exception))
+        self.assertIn('only to ' + d, str(e.exception))
         with self.assertRaises(ValueError) as e:
             api.deploy_save(STORE, {'cert_id': cid, 'target': 'xcc2'}, 'test')
-        self.assertIn('only to xcc1', str(e.exception))
+        self.assertIn('only to ' + d, str(e.exception))
         # a certificate of acme's key on a device that makes its own: refused, said what to do
         plain = save(name='r7', names=['r7.example.test'], issuer='own')
         with self.assertRaises(ValueError) as e:
@@ -334,7 +346,7 @@ class Refused(unittest.TestCase):
         self.refused('take that deployment away first', id=cid, csr_from='xcc2')
 
     def test_a_csr_with_other_names(self):
-        cid = save(name='r8', names=['r8.example.test'], issuer='own', csr_from='xcc1')
+        cid = save(name='r8', names=['r8.example.test'], issuer='own', csr_from=device())
         mode('extra')
         try:
             job = renew(cid)
@@ -344,7 +356,7 @@ class Refused(unittest.TestCase):
         finally:
             mode('ok')
         cid = save(name='r9', names=['r9.example.test', 'www.r9.example.test'], issuer='own',
-                   csr_from='xcc1')
+                   csr_from=device())
         mode('missing')
         try:
             job = renew(cid)
@@ -355,7 +367,7 @@ class Refused(unittest.TestCase):
             mode('ok')
 
     def test_the_device_refuses(self):
-        cid = save(name='r10', names=['r10.example.test'], issuer='own', csr_from='xcc1')
+        cid = save(name='r10', names=['r10.example.test'], issuer='own', csr_from=device())
         mode('refuse')
         try:
             job = renew(cid)
@@ -366,38 +378,41 @@ class Refused(unittest.TestCase):
             mode('ok')
 
     def test_a_certificate_not_for_the_csr_key(self):
-        cid = save(name='r11', names=['r11.example.test'], issuer='wrong', csr_from='xcc1')
+        d = device()
+        cid = save(name='r11', names=['r11.example.test'], issuer='wrong', csr_from=d)
         n = len(state('deployed.json', []))
         job = renew(cid)
         self.assertFalse(job.ok)
-        self.assertIn('not for the key of the CSR the device of xcc1 made', words(job))
+        self.assertIn('not for the key of the CSR the device of %s made' % d, words(job))
         self.assertEqual(len(state('deployed.json', [])), n)
 
     def test_the_target_off_or_gone(self):
-        cid = save(name='r12', names=['r12.example.test'], issuer='own', csr_from='xcc2')
-        STORE.db.run("UPDATE cert_targets SET enabled = 0 WHERE name = 'xcc2'")
+        d = device()
+        cid = save(name='r12', names=['r12.example.test'], issuer='own', csr_from=d)
+        STORE.db.run("UPDATE cert_targets SET enabled = 0 WHERE name = ?", (d,))
         try:
             job = renew(cid)
             self.assertFalse(job.ok)
-            self.assertIn('xcc2, which is switched off', words(job))
+            self.assertIn('%s, which is switched off' % d, words(job))
         finally:
-            STORE.db.run("UPDATE cert_targets SET enabled = 1 WHERE name = 'xcc2'")
+            STORE.db.run("UPDATE cert_targets SET enabled = 1 WHERE name = ?", (d,))
         STORE.db.update('certs', cid, {'csr_from': 'gone'})
         job = renew(cid)
         self.assertFalse(job.ok)
         self.assertIn('target gone, which is not there any more', words(job))
-        STORE.db.update('certs', cid, {'csr_from': 'xcc2'})
+        STORE.db.update('certs', cid, {'csr_from': d})
         # its deployment taken away: refused before the device is asked
         STORE.db.run("DELETE FROM cert_deploys WHERE cert_id = ?", (cid,))
         n = len(state('keys.json', []))
         job = renew(cid)
         self.assertFalse(job.ok)
-        self.assertIn('no deployment to xcc2', words(job))
+        self.assertIn('no deployment to ' + d, words(job))
         self.assertEqual(len(state('keys.json', [])), n)
 
     def test_a_target_in_use_not_deleted(self):
-        save(name='r13', names=['r13.example.test'], issuer='own', csr_from='xcc2')
-        trow = S.plugin_row(STORE, 'target', 'xcc2')
+        d = device()
+        save(name='r13', names=['r13.example.test'], issuer='own', csr_from=d)
+        trow = S.plugin_row(STORE, 'target', d)
         uses = api.family_uses(STORE, 'target', trow)
         self.assertIn('its key is made there', [u['said'] for u in uses])
         with self.assertRaises(ValueError):
@@ -406,13 +421,14 @@ class Refused(unittest.TestCase):
 
 class Carried(unittest.TestCase):
     def test_config_file_keeps_it(self):
-        cid = save(name='c1', names=['c1.example.test'], issuer='own', csr_from='xcc1')
+        d = device()
+        cid = save(name='c1', names=['c1.example.test'], issuer='own', csr_from=d)
         tables = json.loads(json.dumps(E.carry_export(STORE, False)))
         mine = [r for r in tables['certs'] if r['name'] == 'c1'][0]
-        self.assertEqual(mine['csr_from'], 'xcc1')
+        self.assertEqual(mine['csr_from'], d)
         STORE.db.update('certs', cid, {'csr_from': ''})
         E.carry_import(STORE, tables, 'test', False, collections.Counter())
-        self.assertEqual(S.cert_get(STORE, cid)['csr_from'], 'xcc1')
+        self.assertEqual(S.cert_get(STORE, cid)['csr_from'], d)
 
     def test_a_target_renamed(self):
         add('cert_targets', 'xcc9', 'fakedevice', {})
@@ -476,14 +492,15 @@ class ApiAndCli(unittest.TestCase):
             h = E.CliApiHandler(daemon, 'tester', body or {}, args or {}, path)
             h.me = lambda need=None: {'name': 'tester', 'role': 'fulladmin'}
             return E.ROUTES[(method, path)](h)
+        dv = device('api')
         got = call('POST', '/api/certs/save', {'name': 'a1', 'names': ['a1.example.test'],
-                                                'issuer': 'own', 'csr_from': 'xcc1'})
+                                                'issuer': 'own', 'csr_from': dv})
         one = call('GET', '/api/certs/one', args={'id': str(got['id'])})
-        self.assertEqual(one['cert']['csr_from'], 'xcc1')
-        self.assertEqual([d['target'] for d in one['deploys']], ['xcc1'])
+        self.assertEqual(one['cert']['csr_from'], dv)
+        self.assertEqual([d['target'] for d in one['deploys']], [dv])
         listed = [r for r in call('GET', '/api/certs', args={'per': '1000'})['rows']
                   if r['name'] == 'a1'][0]
-        self.assertEqual(listed['csr_from'], 'xcc1')
+        self.assertEqual(listed['csr_from'], dv)
         plugs = call('GET', '/api/plugins')
         dev = [p for p in plugs['target'] if p['kind'] == 'fakedevice'] if isinstance(
             plugs.get('target'), list) else None
@@ -497,17 +514,18 @@ class ApiAndCli(unittest.TestCase):
                               env=env, capture_output=True, text=True, timeout=180)
 
     def test_cli(self):
+        d1, d2 = device('cli'), device('cli')
         got = self.run_cli('--cert-add', 'cli1', '--names', 'cli1.example.test', '--issuer',
-                           'own', '--csr-from', 'xcc1')
+                           'own', '--csr-from', d1)
         self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
         row = STORE.db.row("SELECT * FROM certs WHERE name = 'cli1'")
-        self.assertEqual(row['csr_from'], 'xcc1')
+        self.assertEqual(row['csr_from'], d1)
         self.assertEqual(STORE.db.value('SELECT target FROM cert_deploys WHERE cert_id = ?',
-                                        (row['id'],)), 'xcc1')
+                                        (row['id'],)), d1)
         got = self.run_cli('--cert', 'cli1')
         self.assertEqual(got.returncode, 0, got.stderr)
         self.assertIn('key made by', got.stdout)
-        self.assertIn('xcc1', got.stdout)
+        self.assertIn(d1, got.stdout)
         got = self.run_cli('--cert-edit', 'cli1', '--csr-from', 'web')
         self.assertNotEqual(got.returncode, 0)
         self.assertIn('does not make keys', got.stdout + got.stderr)
@@ -515,10 +533,243 @@ class ApiAndCli(unittest.TestCase):
         self.assertNotEqual(got.returncode, 0)
         self.assertIn('reuse_key', got.stdout + got.stderr)
         got = self.run_cli('--cert-add', 'cli2', '--names', 'cli2.example.test', '--issuer',
-                           'own', '--set', 'csr_from=xcc2', '--json')
+                           'own', '--set', 'csr_from=' + d2, '--json')
         self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
         self.assertEqual(STORE.db.value("SELECT csr_from FROM certs WHERE name = 'cli2'"),
-                         'xcc2')
+                         d2)
+
+
+# ---------------------------------------------------------------------------
+# What the bug hunt found (r1a): each one again
+# ---------------------------------------------------------------------------
+from acmelib.plugins.issuers import _source_common as SC  # noqa: E402
+
+
+class HeldCa(base.Issuer):
+    """As ms_adcs (a manager's approval), digicert, sectigo, est...: the request (its CSR) held
+    at the CA at the first try, the certificate for that held CSR fetched at the next."""
+    kind = 'heldca'
+    title = 'A CA that holds the request (tests)'
+
+    def issue(self, req):
+        slot = SC.pending_slot('heldca', 'x', req)
+        held = SC.pending_get(self.ctx, slot, req)
+        if not held:
+            SC.pending_put(self.ctx, slot, req, {'id': '7', 'csr_pem': req.csr_pem})
+            raise base.PluginError('request 7 waits for approval at the CA')
+        r = SC.held_request(req, held)
+        cert, chain = CA.ca_sign(STORE, CA_ID, r.csr_pem, 30, {'names': list(req.names)},
+                                 cert_id=req.cert_id, by='t')
+        SC.pending_drop(self.ctx, slot)
+        return base.Issued(cert, chain)
+
+
+base.REGISTRY.found['issuer'][HeldCa.kind] = HeldCa
+add('cert_issuers', 'held', 'heldca', {})
+FAKE = base.REGISTRY.get('target', 'fakedevice')
+
+
+def deploy_now(cid):
+    return jobs.run_now(STORE, 'deploy', deployer.deploy_job(cid, None), cert_id=cid, by='t')
+
+
+class Patched(object):
+    """A method of the fake device swapped for the time of a with."""
+    def __init__(self, name, fn):
+        self.name, self.fn = name, fn
+
+    def __enter__(self):
+        self.was = FAKE.__dict__[self.name]
+        setattr(FAKE, self.name, self.fn)
+
+    def __exit__(self, *exc):
+        setattr(FAKE, self.name, self.was)
+
+
+class Found(unittest.TestCase):
+    def test_1_a_held_request_finishes_with_the_csr_kept(self):
+        d = device()
+        cid = save(name='h1', names=['h1.example.test'], issuer='held', csr_from=d)
+        keys0, dep0 = len(state('keys.json', [])), len(state('deployed.json', []))
+        job = renew(cid)
+        self.assertFalse(job.ok)
+        self.assertIn('waits for approval', words(job))
+        kept = devicekey.held_csr(S.cert_get(STORE, cid), d)
+        self.assertTrue(kept and kept['csr_pem'])
+        self.assertFalse(api.cert_one(STORE, cid)['cert']['csr_waiting'])
+        job = renew(cid)
+        self.assertTrue(job.ok, words(job))
+        self.assertIn('is used again', words(job))
+        keys = state('keys.json', [])
+        self.assertEqual(len(keys), keys0 + 1)           # the device asked once
+        self.assertEqual(len(state('deployed.json', [])), dep0 + 1)
+        row = S.cert_get(STORE, cid)
+        self.assertTrue(pki.key_matches(row['cert_pem'], keys[-1]['key']))
+        self.assertIsNone(row.get('csr_pending'))
+        # the next issue: a new key again
+        renew(cid)
+        self.assertEqual(len(state('keys.json', [])), keys0 + 2)
+
+    def test_2_switched_to_the_device_after_it_was_issued(self):
+        cid = save(name='s1', names=['s1.example.test'], issuer='own')
+        self.assertTrue(renew(cid).ok)
+        STORE.db.update('certs', cid, {'csr_pending': json.dumps({'csr_pem': 'x', 'at': 1})})
+        d = device()
+        save(id=cid, csr_from=d)
+        row = S.cert_get(STORE, cid)
+        self.assertEqual(row['state'], 'due')
+        self.assertIsNone(row.get('csr_pending'))
+        self.assertIn('due for a new issue', renewer.main_due(row))
+        n = len(state('deployed.json', []))
+        job = deploy_now(cid)
+        self.assertFalse(job.ok)
+        self.assertIn('holds a key acme made', words(job))
+        self.assertEqual(len(state('deployed.json', [])), n)
+        job = renew(cid)
+        self.assertTrue(job.ok, words(job))
+        got = state('deployed.json', [])
+        self.assertEqual(len(got), n + 1)
+        self.assertFalse(got[-1]['key_pem'])
+        self.assertIsNone(S.cert_get(STORE, cid).get('key_sealed'))
+
+    def test_3_switched_away_from_the_device(self):
+        d = device()
+        cid = save(name='s2', names=['s2.example.test'], issuer='own', csr_from=d)
+        self.assertTrue(renew(cid).ok)
+        STORE.db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (cid,))
+        save(id=cid, csr_from='')
+        self.assertEqual(S.cert_get(STORE, cid)['state'], 'due')
+        api.deploy_save(STORE, {'cert_id': cid, 'target': 'web'}, 'test')
+        job = deploy_now(cid)
+        self.assertFalse(job.ok)
+        self.assertIn('issued for a key its device made', words(job))
+        job = renew(cid)
+        self.assertTrue(job.ok, words(job))
+        self.assertTrue(S.cert_get(STORE, cid).get('key_sealed'))
+
+    def test_4_no_csr_answer_on_a_device_certificate(self):
+        d = device()
+        cid = save(name='s3', names=['s3.example.test'], issuer='own', csr_from=d)
+
+        class H(object):
+            store = STORE
+
+            def body(self):
+                return {'id': cid, 'data_b64': ''}
+        with self.assertRaises(ValueError) as e:
+            api._cert_csr_answer(H(), {'name': 't', 'role': 'fulladmin'})
+        self.assertIn('made by the device of ' + d, str(e.exception))
+
+    def test_5_import_no_twin_no_key(self):
+        import base64
+        d = device()
+        cid = save(name='i1', names=['i1.example.test'], issuer='own', csr_from=d)
+        self.assertTrue(renew(cid).ok)
+        k = pki.make_key('rsa-2048')
+        c = pki.self_signed(k, ['i1.example.test'], days=30)
+        for as_, data, said in (('alt', c + k, 'it has no twin'),
+                                ('main', c + k, 'without its key')):
+            with self.assertRaises(ValueError) as e:
+                api.cert_import(STORE, {'id': cid, 'data_b64': base64.b64encode(
+                    data.encode()).decode(), 'filename': 'x.pem', 'as': as_}, 'test')
+            self.assertIn(said, str(e.exception))
+        row = S.cert_get(STORE, cid)
+        self.assertFalse(row.get('key_type_alt'))
+        self.assertFalse(row.get('key_sealed'))
+        # a twin renewal: nothing asked of the device
+        n = len(state('keys.json', []))
+        j = jobs.run_now(STORE, 'renew', renewer.renew_job(cid, True, 'test', only='alt'),
+                         cert_id=cid, by='t')
+        self.assertTrue(j.ok)
+        self.assertEqual(len(state('keys.json', [])), n)
+        self.assertEqual(renewer.alt_due(dict(row, key_type_alt='rsa-2048',
+                                              auto_renew=1)), '')
+
+    def test_6_a_key_not_asked_for_refused(self):
+        import subprocess as sp
+        d = device()
+        cid = save(name='k1', names=['k1.example.test'], issuer='own', csr_from=d,
+                   key_type='ec-256')
+        for made, said in (('rsa-1024', 'weak rsa-1024 key'),
+                           ('ec-384', 'made a ec-384 key, but ec-256 was asked for')):
+            def dcsr(self, req, made=made):
+                if made == 'rsa-1024':
+                    key = sp.run(['openssl', 'genrsa', '1024'], capture_output=True,
+                                 text=True).stdout
+                else:
+                    key = pki.make_key(made)
+                csr = pki.make_csr(key, list(req.names), subject={'CN': req.names[0]})
+                return csr[0] if isinstance(csr, (tuple, list)) else csr
+            with Patched('device_csr', dcsr):
+                job = renew(cid)
+            self.assertFalse(job.ok)
+            self.assertIn(said, words(job))
+            row = S.cert_get(STORE, cid)
+            self.assertFalse(row.get('cert_pem'))
+            self.assertIsNone(devicekey.held_csr(row))
+
+    def test_7_a_target_module_not_changed_under_certificates(self):
+        d = device()
+        save(name='m1', names=['m1.example.test'], issuer='own', csr_from=d)
+        tid = S.plugin_row(STORE, 'target', d)['id']
+        with self.assertRaises(ValueError) as e:
+            api.family_save(STORE, 'target', {'id': tid, 'kind': 'plaintarget', 'config': {}},
+                            'test')
+        self.assertIn('makes the key of m1', str(e.exception))
+        add('cert_targets', 'web7', 'plaintarget', {})
+        plain = save(name='m2', names=['m2.example.test'], issuer='own')
+        api.deploy_save(STORE, {'cert_id': plain, 'target': 'web7'}, 'test')
+        wid = S.plugin_row(STORE, 'target', 'web7')['id']
+        with self.assertRaises(ValueError) as e:
+            api.family_save(STORE, 'target', {'id': wid, 'kind': 'fakedevice',
+                                              'config': {'host': 'w'}}, 'test')
+        self.assertIn("takes certificates with acme's key (m2)", str(e.exception))
+        # unused: changed freely
+        add('cert_targets', 'free7', 'plaintarget', {})
+        fid = S.plugin_row(STORE, 'target', 'free7')['id']
+        api.family_save(STORE, 'target', {'id': fid, 'kind': 'fakedevice', 'config': {}}, 'test')
+        self.assertEqual(S.plugin_row(STORE, 'target', 'free7')['kind'], 'fakedevice')
+
+    def test_8_one_certificate_per_device(self):
+        d = device()
+        save(name='o1', names=['o1.example.test'], issuer='own', csr_from=d)
+        with self.assertRaises(ValueError) as e:
+            save(name='o2', names=['o2.example.test'], issuer='own', csr_from=d)
+        self.assertIn('already makes the key of the certificate o1', str(e.exception))
+        other = save(name='o3', names=['o3.example.test'], issuer='own')
+        with self.assertRaises(ValueError):
+            save(id=other, csr_from=d)
+
+    def test_9_a_device_that_lost_its_key_issued_anew_once(self):
+        d = device()
+        cid = save(name='l1', names=['l1.example.test'], issuer='own', csr_from=d)
+        self.assertTrue(renew(cid).ok)
+        v1 = S.cert_get(STORE, cid)['version']
+
+        def lost(self, bundle, options):
+            raise base.PluginError('the device has no pending key for this certificate')
+        with Patched('deploy', lost):
+            for i in range(devicekey.REISSUE_AFTER - 1):
+                self.assertFalse(deploy_now(cid).ok)
+                self.assertEqual(S.cert_get(STORE, cid)['state'], 'ok')
+            job = deploy_now(cid)
+            self.assertIn('issued anew', words(job))
+            row = S.cert_get(STORE, cid)
+            self.assertEqual(row['state'], 'due')
+            self.assertTrue(renewer.main_due(row))
+            n = len(state('keys.json', []))
+            job = renew(cid, force=False)
+            self.assertFalse(job.ok)                    # deployed: failed again
+            row = S.cert_get(STORE, cid)
+            self.assertEqual(row['version'], v1 + 1)
+            self.assertEqual(len(state('keys.json', [])), n + 1)   # a new key and CSR
+            # ...and not again: no loop of issues
+            self.assertEqual(row['state'], 'ok')
+            self.assertFalse(renewer.main_due(row))
+            deploy_now(cid)
+            self.assertEqual(S.cert_get(STORE, cid)['state'], 'ok')
+        self.assertTrue(deploy_now(cid).ok)
+        self.assertFalse(STORE.get_meta(devicekey.REISSUE_KEY % cid))
 
 
 def tearDownModule():

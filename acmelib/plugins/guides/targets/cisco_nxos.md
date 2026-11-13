@@ -1,6 +1,6 @@
 # Cisco NX-OS (Nexus, NX-API) - setup for acme
 
-acme makes **NX-API** (the HTTPS API of a Nexus 9000) serve the certificate. It copies the certificate with its key and chain as a **PKCS#12** to `bootflash:` with **SCP**, then through NX-API (JSON-RPC, `POST /ins`) creates a trustpoint `acme-<name>-<date>-<serial>`, imports the PKCS#12 into it (`crypto ca import ... pkcs12`), deletes the file, saves the configuration, points NX-API at the trustpoint (`nxapi certificate trustpoint`) and removes older acme trustpoints beyond *keep*.
+acme makes **NX-API** (the HTTPS API of a Nexus 9000) serve the certificate. It copies the certificate with its key and chain as a **PKCS#12** to `bootflash:` with **SCP**, then through NX-API (JSON-RPC, `POST /ins`) creates a trustpoint `acme-<name>-<date>-<serial>`, imports the PKCS#12 into it (`crypto ca import ... pkcs12`), deletes the file, points NX-API at the trustpoint (`nxapi certificate trustpoint`), removes older acme trustpoints beyond *keep* (never the one `show nxapi` names) and saves the configuration last.
 
 ## Which NX-OS
 

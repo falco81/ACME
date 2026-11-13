@@ -39,7 +39,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, as_int, text, random_password, chain_list,
-    http_fields, tls_fields, verify_fields, quote)
+    http_fields, tls_fields, verify_fields, quote, family_of)
 
 SERVICES = ('HTTPS(RSA)', 'HTTPS(ECC)', 'RADIUS', 'RadSec')
 USAGES = ('AD/LDAP Servers', 'Aruba Infrastructure', 'Aruba Services', 'Database', 'EAP',
@@ -177,6 +177,18 @@ class ArubaClearPassTarget(HttpTarget):
         if bad or not svcs:
             raise PluginError('not a service of a ClearPass server certificate: %s (%s)' % (
                 ', '.join(bad) or 'none given', ', '.join(SERVICES)), retry=False)
+        # the key of the certificate and the service, before anything changes (1.0.96):
+        # ClearPass refused the PUT of HTTPS(ECC) with an RSA key only after the CAs were
+        # in the trust list and the services before it had the new certificate
+        fam = family_of(bundle)
+        need = {'HTTPS(RSA)': ('rsa', 'an RSA'), 'HTTPS(ECC)': ('ec', 'an ECDSA')}
+        wrong = [x for x in svcs if x in need and fam and fam != need[x][0]]
+        if wrong:
+            raise PluginError('%s takes %s certificate, this one has %s key - choose the key '
+                              'type or the service' % (wrong[0], need[wrong[0]][1],
+                                                       {'rsa': 'an RSA', 'ec': 'an ECDSA',
+                                                        'ed': 'an Ed25519'}.get(fam, fam)),
+                              retry=False)
         if self.unchanged(bundle, options):
             return self.same(bundle, 'on ClearPass')
         srv = self.server()

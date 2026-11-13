@@ -38,7 +38,8 @@ from __future__ import annotations
 import base64
 
 from acmelib.plugins.targets._common import (
-    HttpTarget, PluginError, field, as_bool, text, tls_fields, verify_fields, family_of)
+    HttpTarget, PluginError, field, as_bool, text, tls_fields, verify_fields, family_of,
+    join_hostport)
 from acmelib.plugins.targets import _vmware as V
 
 TRUST = '/api/vcenter/certificate-management/vcenter/trusted-root-chains'
@@ -269,7 +270,7 @@ class EsxiApi803Target(HttpTarget):
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify') and self.esx_name():
-            options['verify'] = '%s:443' % self.esx_name()
+            options['verify'] = join_hostport(self.esx_name(), 443)
         options.setdefault('verify_tries', 6)
         options.setdefault('verify_wait', 5)
         return HttpTarget.verify(self, bundle, options)

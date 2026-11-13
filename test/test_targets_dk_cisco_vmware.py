@@ -527,6 +527,39 @@ class Ops(unittest.TestCase):
         self.assertIn('9.1', words)
         self.assertIn('c-77', words)
 
+    def test_certificate_id_quoted(self):
+        # 1.0.96: a given Certificate ID went into the URLs as it was
+        cid = 'a/b?c&d e'
+        routes = [('GET', r'/certificate-management/csrs\?certificateId=', (200, {
+            'certificateSignatureInfo': [{'csr': a_csr(['vc01.example.test'])}]})),
+            ('PUT', r'/certificates/a%2Fb%3Fc%26d%20e$', (202, {'requestId': 'w-2'}))] + \
+            ops_routes()
+        ctx = FakeCtx(routes)
+        make('vcf_component', '9.1', ctx, dict(OCFG, certificate_id=cid)).device_csr(
+            req(['vc01.example.test']))
+        got = ctx.find('GET', r'/csrs\?')[0]
+        self.assertTrue(got['url'].endswith('/csrs?certificateId=a%2Fb%3Fc%26d%20e'))
+        self.assertEqual(got['query'], {'certificateId': [cid]})
+        ctx = FakeCtx(routes)
+        make('vcf_component', '9.1', ctx, dict(OCFG, certificate_id=cid)).deploy(
+            device_bundle(), {})
+        self.assertTrue(ctx.find('PUT', r'/certificates/a%2Fb%3Fc%26d%20e$'))
+
+    def test_not_json_said_in_words(self):
+        # 1.0.96: an HTML answer was an AttributeError ('bytes' object has no attribute 'get')
+        html = (200, b'<html>login</html>')
+        with self.assertRaises(PluginError) as e:
+            make('vcf_component', '9.1', FakeCtx([('POST', r'/certificates/query\?', html)] +
+                                                 ops_routes()), OCFG) \
+                .device_csr(req(['vc01.example.test']))
+        self.assertIn('VCF Operations did not answer with JSON', str(e.exception))
+        with self.assertRaises(PluginError) as e:
+            make('vcf_component', '', FakeCtx([('GET', r'/v1/domains$', html)] +
+                                              sddc_routes()), VCFG) \
+                .device_csr(req(['vc01.example.test']))
+        self.assertIn('reading the workload domains: SDDC Manager did not answer with JSON',
+                      str(e.exception))
+
 
 class Guides(unittest.TestCase):
     def test_shipped(self):

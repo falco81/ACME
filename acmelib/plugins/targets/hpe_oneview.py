@@ -40,7 +40,7 @@ import urllib.parse
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, as_bool, as_int, http_fields, tls_fields, verify_fields,
     text, multipart, random_password, chain_list, chain_id, served_fingerprint, fp_of,
-    split_hostport)
+    split_hostport, join_hostport)
 from acmelib.plugins.targets.redfish_ilo import key_family
 
 API_NEWEST = 9200           # OneView 11.50 - the newest the documents were read for
@@ -200,7 +200,7 @@ class HpeOneViewTarget(HttpTarget):
 
     def served_now(self, bundle):
         try:
-            host, port = split_hostport('%s:%s' % (self.c('host'), self.c('port') or 443))
+            host, port = split_hostport(join_hostport(self.c('host'), self.c('port') or 443))
             return served_fingerprint(host, port, None) == fp_of(bundle)
         except (OSError, ValueError):
             return False
@@ -276,7 +276,7 @@ class HpeOneViewTarget(HttpTarget):
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify'):
-            options['verify'] = '%s:%d' % (self.c('host'), as_int(self.c('port', 443), 443))
+            options['verify'] = join_hostport(self.c('host'), as_int(self.c('port', 443), 443))
         options.setdefault('verify_tries', 12)
         options.setdefault('verify_wait', 10)
         return HttpTarget.verify(self, bundle, options)

@@ -623,6 +623,14 @@ def cert_save(store, b, by, full=False):
         why = devicekey.save_problem(store, cur)
         if why:
             raise ValueError('the key cannot be made by %s: %s' % (dev_now, why))
+    if row and 'csr_from' in fields and (dev_now or '') != dev_was:
+        # Where its key is made changed: the version it holds fits no key there any more (acme's
+        # key for a device that makes its own, or a device's key acme does not hold) - due for
+        # a new issue, and a CSR given out (or one a device made) is of no use now.
+        fields['csr_pending'] = None
+        if row.get('cert_pem') and row.get('state') in ('ok', 'due', 'failed'):
+            fields.update({'state': 'due', 'state_at': t, 'next_try': None})
+        store.db.run('DELETE FROM meta WHERE k = ?', (S.CERT_META['devkey'] % int(row['id']),))
     moved = row is not None and 'issuer' in fields and \
         (fields['issuer'] or '') != (row.get('issuer') or '')
     if moved and not fields['issuer']:
@@ -781,6 +789,7 @@ def cert_drop(store, row, by):
     # after a restart) was that person's - their mail, their profile, its PFX.
     db.run('DELETE FROM meta WHERE k = ?', ('certs:portal:%d' % int(row['id']),))
     db.run('DELETE FROM meta WHERE k = ?', ('cert:moved:%d' % int(row['id']),))
+    db.run('DELETE FROM meta WHERE k = ?', (S.CERT_META['devkey'] % int(row['id']),))
     db.run('DELETE FROM meta WHERE k = ?', (S.HOLD_KEY % int(row['id']),))
     store.add_event('certificates', 'certificate %s deleted by %s' % (row['name'], by),
                     'warn', who=by)
@@ -1253,6 +1262,19 @@ def cert_import(store, b, by):
     second = _second_half(got, leaf, key, info)
     if b.get('id') not in (None, '', 0):
         row = S.cert_need(store, _id(b.get('id')))
+        if row.get('csr_from'):
+            # Its key made by a device: one key, there - no twin, and no key of acme's
+            # (deployed, it went to the device, which takes none; a twin renewal asked the
+            # device for a second key and replaced the one it held).
+            if as_ == 'alt' or second or (as_ == 'auto' and _other_half_of(row, info)):
+                raise ValueError('the key of %s is made by the device of %s - it has no twin: '
+                                 'import the certificate alone (or as a certificate of its own)'
+                                 % (row['name'], row['csr_from']))
+            if key:
+                raise ValueError('the key of %s is made by the device of %s, and acme holds none '
+                                 '- import the certificate without its key (the device has the '
+                                 'key), or import it as a certificate of its own'
+                                 % (row['name'], row['csr_from']))
         # its names, all of them, in the one brought in (1.0.88: another certificate went into
         # it - its key dropped - and the next deployment put it on the servers); `force` takes it
         have = [str(n).lower() for n in (S.jload(row.get('names'), []) or [])]
@@ -1286,7 +1308,7 @@ def cert_import(store, b, by):
             store.add_event('certificates', 'certificate %s: its twin (%s) imported by %s (version %d%s)' % (
                 row['name'], _key_type_words(info), by, version, '' if key else ', without its key'), who=by)
             return row['id'], version
-        if not key:
+        if not key and not row.get('csr_from'):
             key = S.cert_key(row)       # a new certificate for the key it has (a CSR's answer)
             # ...only when it is that key's (1.0.48): renewed elsewhere with a new key, it was kept
             # with the old one, and every server was given a certificate its key does not fit.
@@ -1514,7 +1536,7 @@ def _cert_csr(h, s):
                          'at every issue (Renew now), not from acme' % (row['name'],
                                                                          row['csr_from']))
     pend = S.jload(row.get('csr_pending'), None)
-    if pend and pend.get('csr_pem') and not _flag(b.get('again')):
+    if pend and pend.get('csr_pem') and not pend.get('device') and not _flag(b.get('again')):
         return {'csr_pem': pend['csr_pem'], 'made': pend.get('at')}
     pki = S.pki()
     names = S.jload(row.get('names'), []) or []
@@ -1541,8 +1563,14 @@ def _cert_csr_answer(h, s):
     b = h.body()
     store = h.store
     row = S.cert_need(store, _id(b.get('id')))
+    if row.get('csr_from'):
+        # its key is the device's: a version with acme's key would go to a device that cannot
+        # use it (a CSR given out before "Key made by the device" was chosen)
+        raise ValueError('the key of %s is made by the device of %s - a certificate for a CSR '
+                         'acme gave out does not fit there; it is issued for the device\'s CSR '
+                         '(Renew now)' % (row['name'], row['csr_from']))
     pend = S.jload(row.get('csr_pending'), None)
-    if not pend:
+    if not pend or pend.get('device'):
         raise ValueError('no CSR of %s is waiting for its answer' % row['name'])
     key = E.unseal_secret(pend.get('key_sealed'), 'certs:%s:csr_pending' % row['id'])
     if not key:
@@ -2138,6 +2166,8 @@ def family_save(store, family, b, by):
         raise ValueError('the module %s of %s is missing (taken away, or it did not load): its '
                          'settings cannot be changed until it is back - its name, its note and '
                          'switching it on or off can' % (kind, row['name']))
+    if family == 'target' and row is not None and cls is not None:
+        _device_kind_kept(store, row, cls)
     fields = {'name': name, 'kind': kind, 'updated': t}
     if 'enabled' in b or not row:
         fields['enabled'] = _flag(b.get('enabled'), 1)
@@ -2161,6 +2191,35 @@ def family_save(store, family, b, by):
             # at every try after.
             store.db.run('DELETE FROM %s WHERE id = ?' % table, (made,))
         raise
+
+
+def _device_kind_kept(store, row, cls):
+    """A target's module changed between one whose device makes the key (device_key) and one
+    that takes acme's, while certificates use it: refused in words. A device certificate went
+    to a module that took it with no key, and certificates of acme's key to a device that takes
+    none."""
+    was = S.row_class('target', row)
+    if was is None:
+        return
+    dev_was, dev_now = bool(getattr(was, 'device_key', False)), bool(getattr(cls, 'device_key',
+                                                                          False))
+    if dev_was == dev_now:
+        return
+    used = [r['name'] for r in store.db.rows(
+        'SELECT name FROM certs WHERE csr_from = ? UNION SELECT c.name FROM certs c JOIN '
+        'cert_deploys d ON d.cert_id = c.id WHERE d.target = ?', (row['name'], row['name']))]
+    if not used:
+        return
+    used = sorted(set(used))
+    if dev_was:
+        raise ValueError('the device of %s makes the key of %s - its module cannot be changed to '
+                         '%s, which takes a certificate with acme\'s key: let acme make the key '
+                         'of those certificates (and take their deployments to %s away) first'
+                         % (row['name'], ', '.join(used[:10]), cls.title or cls.kind,
+                            row['name']))
+    raise ValueError('%s takes certificates with acme\'s key (%s) - its module cannot be changed '
+                     'to %s, whose device makes the key itself: take those deployments away '
+                     'first' % (row['name'], ', '.join(used[:10]), cls.title or cls.kind))
 
 
 def _family_fill(store, family, table, row, name, kind, cls, given, fields, secrets_, by):
@@ -2746,7 +2805,7 @@ def _deploy_save_in(store, b, by, full, made):
     # The key made by a device (devicekey.py): its certificate goes to that target alone, and
     # that target takes no other.
     from acmelib.certs import devicekey
-    why_dev = devicekey.deploy_problem(store, cert, trow, cls)
+    why_dev = devicekey.deploy_problem(store, cert, trow, cls, version=False)
     if why_dev:
         raise ValueError(why_dev)
     if row is not None and not full and row.get('target') != trow['name'] and 'options' not in b:

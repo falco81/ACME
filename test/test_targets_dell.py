@@ -270,6 +270,36 @@ class PowerScaleTest(unittest.TestCase):
         self.assertFalse(ctx.find('PUT', 'certificate/settings'), 'already the default')
         self.assertIn('unchanged', make('powerscale', ctx, **PS).deploy(b, {}))
 
+    def test_force_same_name_not_posted_twice(self):
+        # 1.0.96: force posted the name there again - OneFS refuses a second one of a name
+        b = FakeBundle()
+        name = C.object_name(b, {})
+        fp = ':'.join(b.fingerprint[i:i + 2] for i in range(0, 64, 2))
+        # the same certificate: used again, made the default
+        ctx = FakeCtx(onefs(certs=[{'id': 'n', 'name': name, 'fingerprints': [
+            {'type': 'SHA256', 'value': fp}]}], default='old1'))
+        make('powerscale', ctx, **PS).deploy(b, {'force': True})
+        self.assertFalse(ctx.find('POST', 'certificate/server'))
+        self.assertEqual(ctx.json(ctx.find('PUT', 'certificate/settings')[0]),
+                         {'default_https_certificate': 'n'})
+        # another one (or not told) of the name, not the default: deleted first, then imported
+        for fps in ([{'type': 'SHA256', 'value': 'AA:' * 31 + 'AA'}], []):
+            ctx = FakeCtx(onefs(certs=[{'id': 'n', 'name': name, 'fingerprints': fps}],
+                                default='old1'))
+            make('powerscale', ctx, **PS).deploy(b, {'force': True, 'keep': -1})
+            order = [(c['method'], c['path']) for c in ctx.calls
+                     if c['path'].startswith('/platform/4/certificate/server') and
+                     c['method'] != 'GET']
+            self.assertEqual(order, [('DELETE', '/platform/4/certificate/server/n'),
+                                     ('POST', '/platform/4/certificate/server')])
+        # another one of the name that is the default: said, nothing changed
+        ctx = FakeCtx(onefs(certs=[{'id': 'n', 'name': name, 'fingerprints': [
+            {'type': 'SHA256', 'value': 'AA:' * 31 + 'AA'}]}], default='n'))
+        with self.assertRaises(PluginError) as e:
+            make('powerscale', ctx, **PS).deploy(b, {'force': True})
+        self.assertIn('make another one the default', str(e.exception))
+        self.assertEqual({c['method'] for c in ctx.calls}, {'GET'})
+
     def test_versions(self):
         for rel in ('8.1.2.0', '7.2.1.0'):
             ctx = FakeCtx(onefs(rel))
@@ -360,6 +390,11 @@ class PowerStoreTest(unittest.TestCase):
         self.assertFalse(ctx.calls)
         self.assertEqual(make('powerstore', ctx, **PST).served_places({}), [('pstore', 443)])
 
+    def test_served_now_ipv6(self):
+        # 1.0.96: an IPv6 host asked as itself, not as "2001:db8::1:443"
+        self.assertEqual(T.served_asked('powerstore', {'user': 'u', 'password': 'p'}),
+                         [('2001:db8::1', 8443)] * 2)
+
 
 # ---------------------------------------------------------------------------
 # Unity
@@ -438,6 +473,11 @@ class UnityTest(unittest.TestCase):
         self.assertIn('unchanged', make('unity', FakeCtx(ssh=ssh), served=True, **UN)
                       .deploy(b, {}))
         self.assertFalse(ssh.runs)
+
+    def test_served_now_ipv6(self):
+        # 1.0.96: an IPv6 host asked as itself, not as "2001:db8::1:443"
+        self.assertEqual(T.served_asked('unity', dict(UN), port_key='mgmt_port'),
+                         [('2001:db8::1', 8443)] * 2)
 
 
 # ---------------------------------------------------------------------------

@@ -420,6 +420,31 @@ class HorizonTest(unittest.TestCase):
         self.assertTrue([s for s in sc if "$cert.FriendlyName = 'vdm.ec'" in s])
         self.assertTrue([w for lv, w in ctx.steps if lv == 'warn' and 'not restarted' in w])
 
+    def test_import_refused_staged_files_removed(self):
+        # 1.0.96: the PKCS#12 and the .cer files stayed in the temporary folder on a failure
+        ssh = FakeSsh()
+
+        def answer(cmd, inp):
+            probe = FakeSsh()
+            probe.runs, probe.puts = [(cmd, inp)], ssh.puts
+            sc = ps_scripts(probe)
+            if sc and 'Import-PfxCertificate' in sc[0]:
+                return 1, '', 'Import-PfxCertificate : The PFX file could not be read'
+            return 0, '', ''
+        ssh.answers.append((r'.', answer))
+        ctx = FakeCtx(ssh=ssh)
+        with self.assertRaises(PluginError):
+            make('horizon_cs', '', ctx, **self.CFG).deploy(FakeBundle(), {})
+        staged = [p for p, d, m in ssh.puts if re.search(r'acme-hz-\w+\.(pfx|cer)$', p)]
+        self.assertTrue(any(p.endswith('.pfx') for p in staged))
+        self.assertTrue(any(p.endswith('.cer') for p in staged))
+        rm = [s for s in ps_scripts(ssh) if s.lstrip().startswith('Remove-Item') or
+              '\nRemove-Item' in s]
+        self.assertTrue(rm)
+        for p in staged:
+            self.assertIn(p.replace("'", "''"), rm[-1], p)
+        self.assertFalse([s for s in ps_scripts(ssh) if 'Restart-Service' in s])
+
     def test_older_ones_only_acmes(self):
         ctx = FakeCtx(ssh=FakeSsh())
         ctx.kv['horizon-thumbs:cs01.example.test:22'] = ['AAAA', 'BBBB']
@@ -771,6 +796,28 @@ class SupervisorTest(unittest.TestCase):
                  **dict(SUPCFG, endpoint_host='sup.example.test'))
         self.assertIn('supervisors calls', t.test())
         self.assertEqual(t.served_places({}), [('sup.example.test', 443)])
+
+
+def verify_asked(t, options=None):
+    """The (host, port) each verify() of a target checks (check_served not run)."""
+    seen = []
+    old = C.check_served
+    C.check_served = lambda ctx, b, hp, *a, **k: seen.extend(
+        C.split_hostport(x) for x in hp) or 'ok'
+    try:
+        t.verify(FakeBundle(), dict(options or {}, verify_tries=1))
+    finally:
+        C.check_served = old
+    return seen
+
+
+class Ipv6Test(unittest.TestCase):
+    def test_esxi_and_horizon_verify_ipv6(self):
+        # 1.0.96: "2001:db8::1:443" was read as a host without a port
+        t = make('esxi', '8.0.3', FakeCtx([]), **dict(ESXCFG, esx_name='2001:db8::5'))
+        self.assertEqual(verify_asked(t), [('2001:db8::5', 443)])
+        t = make('horizon_cs', '', FakeCtx([]), **dict(HorizonTest.CFG, host='2001:db8::6'))
+        self.assertEqual(verify_asked(t), [('2001:db8::6', 443)])
 
 
 if __name__ == '__main__':

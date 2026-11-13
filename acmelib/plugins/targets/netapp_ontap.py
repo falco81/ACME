@@ -64,6 +64,20 @@ def version_for(ver):
     return '', ''
 
 
+def json_of(d, what):
+    """The answer as a dict - one that is not JSON (a proxy's or a login page) said in words
+    (1.0.96: it was an AttributeError of bytes)."""
+    if not isinstance(d, dict):
+        raise PluginError('%s: the cluster did not answer with JSON - is it the ONTAP '
+                          'cluster management address?' % what, detail=text(d)[:4000])
+    return d
+
+
+def dict_in(d, key):
+    v = d.get(key)
+    return v if isinstance(v, dict) else {}
+
+
 def q(s):
     return urllib.parse.quote(text(s), safe='')
 
@@ -118,7 +132,7 @@ class NetAppOntapTarget(HttpTarget):
             try:
                 st, hd, d = self.req('GET', '/api/cluster?fields=version,name',
                                      what='reading the ONTAP version')
-                v = (d or {}).get('version') or {}
+                v = dict_in(json_of(d, 'reading the ONTAP version'), 'version')
                 full = text(v.get('full'))
                 if v.get('generation') is not None:
                     ver = (as_int(v.get('generation')), as_int(v.get('major')),
@@ -162,31 +176,33 @@ class NetAppOntapTarget(HttpTarget):
 
     def test(self):
         st, hd, d = self.req('GET', '/api/cluster?fields=version,name', what='signing in')
-        v = (d or {}).get('version') or {}
+        d = json_of(d, 'signing in')
+        v = dict_in(d, 'version')
         self._full = text(v.get('full'))
         if v.get('generation') is not None:
             self._ver = (as_int(v.get('generation')), as_int(v.get('major')),
                          as_int(v.get('minor')))
         self.check_version()
-        return 'signed in to %s, %s' % ((d or {}).get('name') or self.c('host'),
-                                       self._full or 'ONTAP ?')
+        return 'signed in to %s, %s' % (d.get('name') or self.c('host'),
+                                        self._full or 'ONTAP ?')
 
     # -- the calls ---------------------------------------------------------------------
     def wait_job(self, d, what, options):
         """A 202's job waited for: success, or its message as an error."""
-        job = (d or {}).get('job') if isinstance(d, dict) else None
-        uuid = text((job or {}).get('uuid'))
+        job = d.get('job') if isinstance(d, dict) else None
+        uuid = text(job.get('uuid')) if isinstance(job, dict) else ''
         if not uuid:
             return
         end = time.time() + as_int(self.opt(options, 'job_timeout', 120), 120)
         while True:
             st, hd, j = self.req('GET', '/api/cluster/jobs/%s?fields=state,message' % q(uuid),
                                  what='asking for the job of %s' % what)
-            state = text((j or {}).get('state')).lower()
+            j = json_of(j, 'asking for the job of %s' % what)
+            state = text(j.get('state')).lower()
             if state == 'success':
                 return
             if state == 'failure':
-                raise PluginError('%s: the job failed - %s' % (what, (j or {}).get('message')),
+                raise PluginError('%s: the job failed - %s' % (what, j.get('message')),
                                   detail=text(j)[:4000])
             if self.ctx.cancelled() or time.time() > end:
                 raise PluginError('%s: the job %s has not finished' % (what, uuid))
@@ -195,7 +211,8 @@ class NetAppOntapTarget(HttpTarget):
     def svm_uuid(self, svm):
         st, hd, d = self.req('GET', '/api/svm/svms?name=%s&fields=uuid,name' % q(svm),
                              what='finding the SVM %s' % svm)
-        recs = (d or {}).get('records') or []
+        recs = [r for r in json_of(d, 'finding the SVM %s' % svm).get('records') or []
+                if isinstance(r, dict)]
         if not recs:
             raise PluginError('the cluster has no SVM named "%s"' % svm, retry=False)
         return text(recs[0].get('uuid'))
@@ -206,7 +223,8 @@ class NetAppOntapTarget(HttpTarget):
         qs += '&svm.name=%s' % q(svm) if svm else '&scope=cluster'
         st, hd, d = self.req('GET', '/api/security/certificates?' + qs,
                              what='listing the certificates')
-        return [r for r in (d or {}).get('records') or [] if isinstance(r, dict)]
+        return [r for r in json_of(d, 'listing the certificates').get('records') or []
+                if isinstance(r, dict)]
 
     def bound(self, svm, svm_id):
         """The uuid of the certificate the web services use now ('' when not said)."""
@@ -216,7 +234,7 @@ class NetAppOntapTarget(HttpTarget):
             else:
                 p = '/api/svm/svms/%s' % q(svm_id) if svm else '/api/cluster'
             st, hd, d = self.req('GET', p + '?fields=certificate', what='reading the binding')
-            return text(((d or {}).get('certificate') or {}).get('uuid'))
+            return text(dict_in(json_of(d, 'reading the binding'), 'certificate').get('uuid'))
         except PluginError as e:
             self.ctx.debug('the binding cannot be read: %s' % e)
             return ''

@@ -42,7 +42,7 @@ __all__ = [
     'ssh_fields', 'http_fields', 'verify_fields', 'keep_field', 'ssh_conn', 'text',
     'PFX_FORMATS', 'quote', 'chain_list', 'tls_fields', 'put_scp',
     'alt_of', 'variant_of', 'variants_of', 'family_of', 'dual_fp', 'VARIANT_WORDS',
-    'outputs_for', 'ours', 'covers', 'service_of',
+    'outputs_for', 'ours', 'covers', 'service_of', 'join_hostport', 'debug_url',
 ]
 
 PFX_FORMATS = ('pfx', 'p12', 'p12-legacy', 'jks')
@@ -283,6 +283,16 @@ def split_hostport(s, default_port=443):
         host, port = s.split(':')
         return host, as_int(port, default_port)
     return s, default_port
+
+
+def join_hostport(host, port):
+    """host:port as split_hostport reads it back: an IPv6 address in brackets (1.0.96 -
+    '2001:db8::1:443' was read as a host without a port, the check went to 443 of a host
+    named so)."""
+    host = text(host).strip()
+    if ':' in host and not host.startswith('['):
+        host = '[%s]' % host
+    return '%s:%s' % (host, port)
 
 
 # Offering only these (TLS 1.2: the cipher suite says the kind of the server's key),
@@ -810,6 +820,24 @@ class Base(Target):
         return v
 
 
+def debug_url(url):
+    """A URL as the debug log of a request says it: secrets in its query as dots. The same
+    words as the job's steps (acmelib.certs.runtime.url_shown: client_secret, p12Password,
+    pass..., in any case) - 1.0.96, before only a few names, lower case, were hidden and
+    Aruba Central's client_secret, Catalyst Center's p12Password went into the log. Session
+    ids (sid, _sid) besides."""
+    try:
+        from acmelib.certs.runtime import url_shown     # here: runtime loads the engine
+        shown = url_shown(url)
+    except ImportError:
+        u = urllib.parse.urlsplit(str(url))
+        q = '&'.join('%s=%s' % (k, '\u2022' * 8 if v and re.search(
+            r'(?i)key|token|pass|secret|sig|auth|credential|session|code', k) else v)
+            if eq else k for k, eq, v in (x.partition('=') for x in u.query.split('&') if x))
+        shown = urllib.parse.urlunsplit((u.scheme, u.netloc.rsplit('@', 1)[-1], u.path, q, ''))
+    return re.sub(r'(?i)([?&][\w.-]*sid)=[^&]+', '\\1=' + '\u2022' * 8, shown)
+
+
 class HttpTarget(Base):
     """A device spoken to over HTTPS through ctx.http - which is kind to it
     (acmelib/plugins/limits.py): two requests at once and a few a second at
@@ -845,8 +873,7 @@ class HttpTarget(Base):
         else:
             data = body
         h.setdefault('Accept', 'application/json')
-        self.ctx.debug('%s %s' % (method, re.sub(r'(key|password|passwd|token|_sid|sid)=[^&]*',
-                                                 r'\1=…', url)))
+        self.ctx.debug('%s %s' % (method, debug_url(url)))
         try:
             st, hd, raw = self.ctx.http(
                 method, url, body=data, headers=h,

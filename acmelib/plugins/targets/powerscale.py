@@ -143,12 +143,28 @@ class PowerScaleTarget(HttpTarget):
         if mine and self.unchanged(bundle, options) and \
                 (not make_default or text(mine[0].get('id')) == current):
             return self.same(bundle, 'as %s' % name)
-        if mine and not as_bool(options.get('force')) and \
-                self.fingerprint_of(mine[0]) in ('', fp_of(bundle)):
+        force = as_bool(options.get('force'))
+        there = self.fingerprint_of(mine[0]) if mine else None
+        # 1.0.96: on force the same name was posted again - OneFS refuses a second
+        # certificate of one name; the one there is used when it is this certificate (or
+        # cannot be told and is the default), deleted first when it is another
+        if mine and (there == fp_of(bundle) or (there == '' and (
+                not force or text(mine[0].get('id')) == current))):
             cid = text(mine[0].get('id'))
             self.ctx.step('%s is there already' % name)
             did = ['%s there already' % name]
         else:
+            if mine:
+                old = text(mine[0].get('id'))
+                if old == current:
+                    raise PluginError(
+                        'OneFS has another certificate named %s and it is the default HTTPS '
+                        'certificate - make another one the default, then deploy again' % name,
+                        retry=False)
+                self.req('DELETE', '/platform/4/certificate/server/%s'
+                         % urllib.parse.quote(old, safe=''),
+                         what='deleting the certificate %s there before' % name)
+                self.ctx.step('deleted the certificate %s there before (%s)' % (name, old))
             cid = self.import_cert(bundle, name, folder)
             did = ['imported %s' % name]
         if make_default and cid != current:

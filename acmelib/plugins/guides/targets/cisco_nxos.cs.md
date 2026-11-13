@@ -1,6 +1,6 @@
 # Cisco NX-OS (Nexus, NX-API) - nastavení pro acme
 
-acme zařídí, aby certifikát servírovalo **NX-API** (HTTPS API Nexusu 9000). Certifikát s klíčem a řetězcem zkopíruje jako **PKCS#12** přes **SCP** do `bootflash:`, pak přes NX-API (JSON-RPC, `POST /ins`) vytvoří trustpoint `acme-<název>-<datum>-<sériové číslo>`, naimportuje do něj PKCS#12 (`crypto ca import ... pkcs12`), soubor smaže, uloží konfiguraci, nasměruje NX-API na nový trustpoint (`nxapi certificate trustpoint`) a odstraní starší trustpointy acme nad počet *ponechat*.
+acme zařídí, aby certifikát servírovalo **NX-API** (HTTPS API Nexusu 9000). Certifikát s klíčem a řetězcem zkopíruje jako **PKCS#12** přes **SCP** do `bootflash:`, pak přes NX-API (JSON-RPC, `POST /ins`) vytvoří trustpoint `acme-<název>-<datum>-<sériové číslo>`, naimportuje do něj PKCS#12 (`crypto ca import ... pkcs12`), soubor smaže, nasměruje NX-API na nový trustpoint (`nxapi certificate trustpoint`), odstraní starší trustpointy acme nad počet *ponechat* (nikdy ten, který jmenuje `show nxapi`) a nakonec uloží konfiguraci.
 
 ## Pro které NX-OS
 

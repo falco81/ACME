@@ -125,6 +125,16 @@ class CiscoFmc77Target(VersionCheck, CiscoFmcTarget):
                 'pkcs12Content': {'base64Certificate': base64.b64encode(p12).decode(),
                                   'passPhrase': pw},
                 'validationUsage': {'ipsecClient': True, 'sslServer': True}}
+        # the devices listed and checked before the object is made or replaced (1.0.96): a
+        # device name the FMC does not know left a changed Cert Enrollment, enrolled nowhere
+        want = lines(options.get('enroll_devices'))
+        devs = {}
+        if want:
+            devs = {text(d.get('name')): text(d.get('id')) for d in
+                    self.paged('/devices/devicerecords', 'listing the devices')}
+            missing = [n for n in want if n not in devs]
+            if missing:
+                raise PluginError('the FMC has no device %s' % ', '.join(missing), retry=False)
         objs = self.paged('/object/certenrollments', 'listing the Cert Enrollment objects')
         obj = next((o for o in objs if text(o.get('name')) == enr), None)
         if obj is None:
@@ -145,15 +155,9 @@ class CiscoFmc77Target(VersionCheck, CiscoFmcTarget):
         eid = text(obj.get('id'))
         if not eid:
             raise PluginError('the FMC gave no id for %s' % enr, retry=False)
-        want = lines(options.get('enroll_devices'))
         if not want:
             self.ctx.step('no device to enrol %s on - give the devices' % enr, 'warn')
             return 'Cert Enrollment %s' % enr
-        devs = {text(d.get('name')): text(d.get('id')) for d in
-                self.paged('/devices/devicerecords', 'listing the devices')}
-        missing = [n for n in want if n not in devs]
-        if missing:
-            raise PluginError('the FMC has no device %s' % ', '.join(missing), retry=False)
         done = []
         for n in want:
             st, d = self.api('GET', '/devices/certificates?filter=%s&expanded=true'

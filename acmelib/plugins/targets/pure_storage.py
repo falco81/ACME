@@ -33,7 +33,7 @@ import re
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, text, http_fields, tls_fields, verify_fields, pem_blocks,
-    pem_to_der, as_bool)
+    pem_to_der, as_bool, as_int)
 
 
 def ver_key(v):
@@ -77,9 +77,15 @@ class PureFlashArrayTarget(HttpTarget):
             return v
         st, hd, d = self.req('GET', '/api/api_version', auth=False,
                              what='asking for the REST API versions')
-        vers = [x for x in ((d or {}).get('version') or []) if text(x).startswith('2.')]
+        # 1.0.96: an answer that is not JSON (a proxy's page, a login form) said in words,
+        # not an AttributeError of bytes
+        if not isinstance(d, dict):
+            raise PluginError('asking for the REST API versions: the array did not answer '
+                              'with JSON - is it a FlashArray / FlashBlade?', retry=False)
+        listed = d.get('version') if isinstance(d.get('version'), list) else []
+        vers = [x for x in listed if text(x).startswith('2.')]
         if not vers:
-            said = ', '.join(map(text, (d or {}).get('version') or [])) or '-'
+            said = ', '.join(map(text, listed)) or '-'
             raise PluginError('the array speaks no REST API 2.x (it said %s)' % said,
                               retry=False)
         return sorted(vers, key=ver_key)[-1]
@@ -105,8 +111,12 @@ class PureFlashArrayTarget(HttpTarget):
     def cert(self, name):
         st, hd, d = self.req('GET', '/api/%s/certificates?names=%s' % (self.v, name),
                              what='reading the certificate %s' % name)
-        items = (d or {}).get('items') or []
-        return items[0] if items and isinstance(items[0], dict) else None
+        if not isinstance(d, dict):
+            raise PluginError('reading the certificate %s: the array did not answer with '
+                              'JSON' % name)
+        items = d.get('items') or []
+        return items[0] if isinstance(items, list) and items and isinstance(items[0], dict) \
+            else None
 
     @staticmethod
     def name_of(options):
@@ -159,7 +169,8 @@ class PureFlashArrayTarget(HttpTarget):
 
     def served_places(self, options):
         if self.c('host') and self.name_of(options) in ('management', 'global'):
-            return [(self.c('host'), 443)]
+            # 1.0.96: the configured port (443 was asked whatever the port)
+            return [(self.c('host'), as_int(self.c('port', 443), 443))]
         return []
 
 

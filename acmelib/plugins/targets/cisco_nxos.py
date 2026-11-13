@@ -2,8 +2,8 @@
 """
 Cisco NX-OS (Nexus 9000) - the HTTPS certificate of NX-API: the certificate, its key and
 chain copied as PKCS#12 to bootflash: with SCP, imported into a new trustpoint through
-NX-API (JSON-RPC), NX-API pointed at the trustpoint, the configuration saved, the file and
-older acme trustpoints removed.
+NX-API (JSON-RPC), NX-API pointed at the trustpoint, the file and older acme trustpoints
+(not the one NX-API uses) removed, the configuration saved.
 
     scp (legacy SCP protocol)  <file>  user@host:bootflash:<tp>.pfx      (feature scp-server)
     POST /ins  (application/json-rpc, HTTP basic)   [{"jsonrpc": "2.0", "method": "cli" |
@@ -12,11 +12,13 @@ older acme trustpoints removed.
       show running-config | include "crypto ca trustpoint"     the trustpoints
       configure terminal ; crypto ca trustpoint <tp> ; exit ;
       crypto ca import <tp> pkcs12 bootflash:<tp>.pfx <one-time password>
-      delete bootflash:<tp>.pfx no-prompt ; copy running-config startup-config
+      delete bootflash:<tp>.pfx no-prompt
       configure terminal ; nxapi certificate trustpoint <tp>    (NX-API restarts: the
                                                                 answer may never come)
+      show nxapi                                       the trustpoint NX-API uses stays
       configure terminal ; crypto ca trustpoint <old> ; delete certificate force ;
       delete ca-certificate ; exit ; no crypto ca trustpoint <old>    older acme ones
+      copy running-config startup-config               last
 
 One version: `nxapi certificate trustpoint` is there from NX-OS 10.2(3)F; the guide (NX-OS
 10.2 - 10.6) has no other difference for this job. An older NX-OS is refused (its way -
@@ -33,7 +35,10 @@ Less certain:
     - `nxapi certificate` lines are not in the running configuration (the guide): after a
       `reload ascii` the trustpoint may have to be set again - a deployment with "force" does;
     - removing an older trustpoint (delete certificate force, delete ca-certificate, no crypto
-      ca trustpoint) is NX-OS's usual way, not quoted; the clean-up warns, never fails.
+      ca trustpoint) is NX-OS's usual way, not quoted; the clean-up warns, never fails;
+    - that `show nxapi` names the trustpoint in use is not quoted either: a trustpoint it
+      names is kept, and when it names none (and NX-API was not pointed at the new one in
+      this run) no older one is removed (1.0.96).
 """
 from __future__ import annotations
 
@@ -202,9 +207,7 @@ class CiscoNxosTarget(HttpTarget):
             did.append('imported %s' % name)
         else:
             self.ctx.step('the trustpoint %s is there already' % name)
-        if as_bool(self.opt(options, 'save', True), True):
-            self.rpc(['copy running-config startup-config'], 'saving the configuration')
-            self.ctx.step('copy running-config startup-config', 'ok')
+        switched = False
         if as_bool(self.opt(options, 'nxapi', True), True):
             # NX-API restarts with the new certificate and the answer may be cut off
             self.mark_pending(bundle)
@@ -212,6 +215,7 @@ class CiscoNxosTarget(HttpTarget):
                 self.rpc(['configure terminal', 'nxapi certificate trustpoint %s' % name],
                          'pointing NX-API at %s' % name)
                 self.ctx.step('NX-API uses %s (it restarts)' % name, 'ok')
+                switched = True
             except PluginError as e:
                 if 'NX-OS said' in str(e):
                     raise
@@ -221,14 +225,43 @@ class CiscoNxosTarget(HttpTarget):
             did.append('NX-API')
         # after the switch: the older trustpoint is the one NX-API served until now (one the
         # restart keeps from answering stays until the next deployment)
-        self.cleanup(prefix, name, self.keep(options), tps)
+        self.cleanup(prefix, name, self.keep(options), tps, switched)
+        # saved last (1.0.96): before, the startup configuration had the import but not the
+        # trustpoint of NX-API nor the removal of the older ones
+        if as_bool(self.opt(options, 'save', True), True):
+            self.rpc(['copy running-config startup-config'], 'saving the configuration')
+            self.ctx.step('copy running-config startup-config', 'ok')
         self.remember(bundle, options)
         return ', '.join(did) or 'already %s' % name
 
-    def cleanup(self, prefix, current, keep, tps):
+    def nxapi_uses(self, tps):
+        """The trustpoints `show nxapi` names (the `nxapi certificate` lines are not in the
+        running configuration); None when it cannot be read."""
+        try:
+            r = self.rpc(['show nxapi'], 'reading the NX-API settings', ascii=True)
+        except PluginError as e:
+            self.ctx.debug('show nxapi: %s' % e)
+            return None
+        out = text((r[0] or {}).get('msg') if r and isinstance(r[0], dict) else '')
+        return {t for t in tps if re.search(r'(?<![\w.-])%s(?![\w.-])' % re.escape(t), out)}
+
+    def cleanup(self, prefix, current, keep, tps, switched=False):
         if keep < 0:
             return
-        for old in prune([t for t in tps if ours(t, prefix)], prefix, keep, current):
+        gone = prune([t for t in tps if ours(t, prefix)], prefix, keep, current)
+        if not gone:
+            return
+        # never the trustpoint NX-API serves (1.0.96): with "Point NX-API at it" off, or the
+        # switch cut off by the restart, that is an older acme one - removing it took HTTPS
+        # of NX-API away
+        used = self.nxapi_uses(tps)
+        if used is None or (not used and not switched):
+            self.ctx.step('the older trustpoints stay - which one NX-API uses cannot be read '
+                          '(show nxapi)', 'warn')
+            return
+        for old in [t for t in gone if t in used]:
+            self.ctx.step('the older trustpoint %s stays: NX-API uses it' % old, 'warn')
+        for old in [t for t in gone if t not in used]:
             try:
                 self.rpc(['configure terminal', 'crypto ca trustpoint %s' % old,
                           'delete certificate force', 'delete ca-certificate', 'exit',

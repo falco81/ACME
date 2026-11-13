@@ -94,17 +94,25 @@ class QnapTarget(SshMixin, Base):
             tmp = '%s/acme-%s' % ((self.c('tmp_dir') or '/tmp').rstrip('/'), secrets.token_hex(6))
             pem = bundle.as_format('key-pem') + bundle.as_format('cert-pem')
             chain = bundle.as_format('chain-pem')
-            s.put(pem, tmp + '.pem', 0o600)
-            s.put(chain, tmp + '.uca', 0o600)
-            self.mark_pending(bundle)
-            self.run(s, ' && '.join([
-                'cp -p %s %s.acme-prev' % (PEM, PEM),
-                '{ test ! -f %s || cp -p %s %s.acme-prev; }' % (UCA, UCA, UCA),
-                'cat %s > %s' % (quote(tmp + '.pem'), PEM),
-                'cat %s > %s' % (quote(tmp + '.uca'), UCA),
-                'chmod 600 %s' % PEM,
-                'rm -f %s %s' % (quote(tmp + '.pem'), quote(tmp + '.uca'))]),
-                'writing %s' % PEM)
+            try:
+                s.put(pem, tmp + '.pem', 0o600)
+                s.put(chain, tmp + '.uca', 0o600)
+                self.mark_pending(bundle)
+                self.run(s, ' && '.join([
+                    'cp -p %s %s.acme-prev' % (PEM, PEM),
+                    '{ test ! -f %s || cp -p %s %s.acme-prev; }' % (UCA, UCA, UCA),
+                    'cat %s > %s' % (quote(tmp + '.pem'), PEM),
+                    'cat %s > %s' % (quote(tmp + '.uca'), UCA),
+                    'chmod 600 %s' % PEM]),
+                    'writing %s' % PEM)
+            finally:
+                # 1.0.96: the staged key removed on every path - a failed cp or cat left it
+                # in the temporary directory (the rm was the last link of the && chain)
+                try:
+                    self.run(s, 'rm -f %s %s' % (quote(tmp + '.pem'), quote(tmp + '.uca')),
+                             'removing the staged files', check=False)
+                except (PluginError, OSError):
+                    pass
             self.ctx.step('wrote %s and %s' % (PEM, UCA), 'ok')
             rc, out, err = self.run(s, '/etc/init.d/stunnel.sh restart', 'restarting stunnel',
                                     check=False)

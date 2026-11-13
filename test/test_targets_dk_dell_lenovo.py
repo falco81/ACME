@@ -389,6 +389,17 @@ class LxcaDeploy(unittest.TestCase):
         self.assertIn('gave its server certificate', words)
         self.assertEqual(calls(ctx), [('GET', '/serverCertificate')])
 
+    def test_served_now_ipv6(self):
+        # 1.0.96: an IPv6 host asked as itself, not as "2001:db8::1:443"
+        self.assertEqual(T.served_asked('lenovo_lxca', dict(LX_CFG)),
+                         [('2001:db8::1', 8443)] * 2)
+
+
+class OmeIpv6(unittest.TestCase):
+    def test_served_now_ipv6(self):
+        # 1.0.96: "2001:db8::1:8443" was read as a host without a port
+        self.assertEqual(T.served_asked('dell_ome', OME_CFG), [('2001:db8::1', 8443)] * 2)
+
 
 if __name__ == '__main__':
     unittest.main()

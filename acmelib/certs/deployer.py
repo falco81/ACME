@@ -95,6 +95,9 @@ def deploy_one(store, job, cert, dep, force=False):
     if why:
         _failed(store, dep, why)
         step(why, 'bad')
+        # the version it holds fits no key on the device: a new issue made due (once)
+        devicekey.deploy_failed(store, job, cert, dep, 0,
+                                misfit=bool(devicekey.version_problem(store, cert)))
         return False, why
     step('deploying %s (version %s) to %s (%s)%s' % (
         cert['name'], cert.get('version'), trow['name'], trow['kind'],
@@ -163,6 +166,11 @@ def deploy_one(store, job, cert, dep, force=False):
         store.db.update('cert_targets', trow['id'], {'last_error': why[:2000]})
         step('%s: %s (tried again in %s)' % (trow['name'], why,
                                              E.human_span(S.backoff(fails))), 'bad')
+        # the device keeps refusing the certificate for the key it made: a new issue (once)
+        try:
+            devicekey.deploy_failed(store, job, cert, dep, fails)
+        except Exception as e2:                         # noqa: BLE001
+            step('a new issue could not be made due: %s' % e2, 'warn')
         with E.event_with(**_fields(store, cert, trow, 'deploy', 'failed')):
             store.add_event('certificates', 'deploying %s to %s failed: %s' % (
                 cert['name'], trow['name'], why), 'bad')
@@ -177,6 +185,7 @@ def deploy_one(store, job, cert, dep, force=False):
         'deployed_fp': cert.get('fingerprint'), 'last_ok': t2, 'last_error': '', 'fails': 0,
         'next_try': None})
     store.db.update('cert_targets', trow['id'], {'last_ok': t2, 'last_error': ''})
+    devicekey.deploy_worked(store, cert, dep)
     return True, 'deployed to %s' % trow['name']
 
 

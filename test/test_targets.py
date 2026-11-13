@@ -202,12 +202,16 @@ def make(kind, config, ctx):
     return reg.get('target', kind)(config, ctx)
 
 
-def served_asked(kind, config, hosts=('2001:db8::1', '[2001:db8::1]'), port=8443):
+def served_asked(kind, config, hosts=('2001:db8::1', '[2001:db8::1]'), port=8443,
+                 version='', port_key='port'):
     """The (host, port) each served_now() of a target asks served_fingerprint for, a host
     of `hosts` at a time (IPv6: the address itself, never "2001:db8::1:8443")."""
     seen = []
+    reg = Registry(extra_dirs=[]).reload()
+    cls = reg.get('target', kind, version)
+    assert cls.module_version == version, (cls.module_version, version)
     for host in hosts:
-        t = make(kind, dict(config, host=host, port=port), FakeCtx([]))
+        t = cls(dict(config, host=host, **{port_key: port}), FakeCtx([]))
         g = type(t).served_now.__globals__
         old = g['served_fingerprint']
         g['served_fingerprint'] = lambda h, p, *a, **k: seen.append((h, p)) or 'x'
@@ -1041,9 +1045,11 @@ class RedfishFixesTest(unittest.TestCase):
         self.assertNotIn('HPE iLO', str(e))
 
     def test_ipv6_served_and_verify(self):
-        for kind in ('redfish', 'huawei_ibmc', 'supermicro_bmc'):
-            self.assertEqual(served_asked(kind, {'user': 'u', 'password': 'p'}),
-                             [('2001:db8::1', 8443)] * 2, kind)
+        for kind, version in (('redfish', ''), ('redfish', '6.00.02'), ('redfish', 'ilo'),
+                              ('huawei_ibmc', ''), ('supermicro_bmc', '')):
+            self.assertEqual(served_asked(kind, {'user': 'u', 'password': 'p'},
+                                          version=version),
+                             [('2001:db8::1', 8443)] * 2, (kind, version))
         t = make('redfish', {'host': '2001:db8::1', 'port': 8443, 'user': 'u', 'password': 'p'},
                  FakeCtx([]))
         seen = []

@@ -33,7 +33,8 @@ from xml.sax.saxutils import quoteattr
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, as_bool, as_int, http_fields, tls_fields, verify_fields,
-    text, served_fingerprint, fp_of, split_hostport, family_of)
+    text, served_fingerprint, fp_of, split_hostport, family_of,
+    join_hostport)
 
 MAX_FILE = 8192
 
@@ -113,7 +114,7 @@ class CiscoImcTarget(HttpTarget):
     # -- the work ----------------------------------------------------------------------
     def served_now(self, bundle):
         try:
-            host, port = split_hostport('%s:%s' % (self.c('host'), self.c('port') or 443))
+            host, port = split_hostport(join_hostport(self.c('host'), self.c('port') or 443))
             return served_fingerprint(host, port, None) == fp_of(bundle)
         except (OSError, ValueError):
             return False
@@ -187,7 +188,7 @@ class CiscoImcTarget(HttpTarget):
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify'):
-            options['verify'] = '%s:%d' % (self.c('host'), as_int(self.c('port', 443), 443))
+            options['verify'] = join_hostport(self.c('host'), as_int(self.c('port', 443), 443))
         options.setdefault('verify_tries', 30)
         options.setdefault('verify_wait', 15)
         return HttpTarget.verify(self, bundle, options)

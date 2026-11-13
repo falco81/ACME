@@ -292,8 +292,8 @@ class IosXe(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # NX-OS
 # ---------------------------------------------------------------------------
-def nxapi(version='10.6(1)', tps=(), fail=None, cut=False):
-    state = {'tps': list(tps), 'batches': []}
+def nxapi(version='10.6(1)', tps=(), fail=None, cut=False, used=None):
+    state = {'tps': list(tps), 'batches': [], 'used': used}
 
     def ans(call):
         batch = json.loads(call['body'])
@@ -313,6 +313,13 @@ def nxapi(version='10.6(1)', tps=(), fail=None, cut=False):
                 r = {'body': {'nxos_ver_str': version, 'host_name': 'n9k01'}}
             elif c.startswith('show running-config'):
                 r = {'msg': ''.join('crypto ca trustpoint %s\n' % t for t in state['tps'])}
+            elif c == 'show nxapi':
+                r = {'msg': 'nxapi enabled\nNXAPI timeout 10\nHTTPS Listen on port 443\n'
+                            'Certificate Information:\n    Trustpoint: %s\n'
+                            % (state['used'] or '-')}
+            elif c.startswith('nxapi certificate trustpoint '):
+                state['used'] = c.split()[-1]
+                r = None
             else:
                 m = re.match(r'crypto ca import (\S+) pkcs12', c)
                 if m:
@@ -351,11 +358,38 @@ class Nxos(unittest.TestCase):
         self.assertIn(['delete bootflash:%s.pfx no-prompt' % name], b_)
         self.assertIn(['copy running-config startup-config'], b_)
         self.assertIn(['configure terminal', 'nxapi certificate trustpoint %s' % name], b_)
-        rm = b_[-1]
+        rm = b_[-2]
         self.assertEqual(rm[-1], 'no crypto ca trustpoint %s' % old,
                          'the older one goes after NX-API has left it')
         self.assertLess(b_.index(['configure terminal', 'nxapi certificate trustpoint %s' % name]),
-                        len(b_) - 1)
+                        len(b_) - 2)
+        # 1.0.96: saved last - the switch and the removal in the startup configuration too
+        self.assertEqual(b_[-1], ['copy running-config startup-config'])
+
+    def test_trustpoint_nxapi_uses_stays(self):
+        # 1.0.96: with "Point NX-API at it" off the older acme trustpoint NX-API serves was
+        # removed
+        prefix = C.name_prefix(FakeBundle(), {}, maxlen=60)
+        old = prefix + '20250101-aaaaaaaa'
+        older = prefix + '20240101-bbbbbbbb'
+        state, ans = nxapi(tps=[older, old], used=old)
+        ctx = FakeCtx([('POST', r'/ins$', ans)])
+        make('cisco_nxos', '', NXCFG, ctx).deploy(FakeBundle(), {'keep': 0, 'nxapi': False})
+        b_ = state['batches']
+        self.assertIn(['show nxapi'], b_)
+        removed = [x[-1] for x in b_ if x[-1].startswith('no crypto ca trustpoint')]
+        self.assertEqual(removed, ['no crypto ca trustpoint %s' % older])
+        self.assertTrue([w for lv, w in ctx.steps if lv == 'warn' and old in w])
+        self.assertEqual(b_[-1], ['copy running-config startup-config'])
+
+    def test_nxapi_unreadable_nothing_removed(self):
+        prefix = C.name_prefix(FakeBundle(), {}, maxlen=60)
+        old = prefix + '20250101-aaaaaaaa'
+        state, ans = nxapi(tps=[old], fail='show nxapi')
+        ctx = FakeCtx([('POST', r'/ins$', ans)])
+        make('cisco_nxos', '', NXCFG, ctx).deploy(FakeBundle(), {'keep': 0, 'nxapi': False})
+        self.assertFalse([x for x in state['batches'] if 'no crypto ca trustpoint %s' % old in x])
+        self.assertEqual(state['batches'][-1], ['copy running-config startup-config'])
 
     def test_old_nxos_refused(self):
         state, ans = nxapi(version='10.2(2)F')
@@ -389,6 +423,16 @@ class Nxos(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Catalyst Center
 # ---------------------------------------------------------------------------
+class DebugCtx(FakeCtx):
+    """FakeCtx keeping the debug lines."""
+    def __init__(self, *a, **k):
+        FakeCtx.__init__(self, *a, **k)
+        self.dbg = []
+
+    def debug(self, words):
+        self.dbg.append(words)
+
+
 class CatalystCenter(unittest.TestCase):
     def routes(self, task):
         return [('POST', r'/dna/system/api/v1/auth/token$', (200, {'Token': 'TOK'})),
@@ -426,6 +470,17 @@ class CatalystCenter(unittest.TestCase):
         self.assertEqual(up['query']['listOfUsers'], ['server,ipsec'])
         self.assertTrue(up['query']['p12Password'][0])
         self.assertIn('p12FileUpload', parts_of(up))
+
+    def test_p12_password_not_in_the_debug_log(self):
+        # 1.0.96: the debug line of a request showed the p12Password of the query
+        ctx = DebugCtx(self.routes((200, {'response': {'endTime': 1}})))
+        make('cisco_catalyst_center', '', {'host': 'cc.test', 'user': 'a', 'password': 'p'},
+             ctx).deploy(FakeBundle(), {'format': 'pkcs12'})
+        pw = ctx.find('POST', r'/certificate-p12\?')[0]['query']['p12Password'][0]
+        lines = [d for d in ctx.dbg if 'certificate-p12' in d]
+        self.assertTrue(lines)
+        self.assertFalse([d for d in ctx.dbg if pw in d])
+        self.assertIn('p12Password=\u2022', lines[0])
 
     def test_refused_by_the_task(self):
         ctx = FakeCtx(self.routes((200, {'response': {'isError': True,
@@ -522,9 +577,18 @@ class Fmc77(unittest.TestCase):
 
     def test_unknown_device_and_wrong_type(self):
         ctx = FakeCtx(fmc_routes())
-        with self.assertRaises(PluginError):
+        with self.assertRaises(PluginError) as e:
             make('cisco_fmc', '7.7', FMCCFG, ctx).deploy(FakeBundle(), {
                 'enrollment': 'RAVPN-acme', 'enroll_devices': 'ftd-9', 'internal': False})
+        self.assertIn('no device ftd-9', str(e.exception))
+        # 1.0.96: refused before the Cert Enrollment object is made or replaced
+        self.assertEqual({c['method'] for c in ctx.calls[1:]}, {'GET'})
+        ctx = FakeCtx(fmc_routes(enrollments=[{'id': 'enr-1', 'name': 'RAVPN-acme',
+                                               'enrollmentType': 'PKCS12'}]))
+        with self.assertRaises(PluginError):
+            make('cisco_fmc', '7.7', FMCCFG, ctx).deploy(FakeBundle(), {
+                'enrollment': 'RAVPN-acme', 'enroll_devices': 'ftd-1\nftd-9'})
+        self.assertFalse(ctx.find('PUT', r'/certenrollments/'), 'the PKCS#12 not replaced')
         ctx = FakeCtx(fmc_routes(enrollments=[{'id': 'enr-1', 'name': 'RAVPN-acme',
                                                'enrollmentType': 'SCEP'}]))
         with self.assertRaises(PluginError) as e:
@@ -687,6 +751,27 @@ class ClearPass(unittest.TestCase):
         self.assertIn('chain not trusted', str(e.exception))
         self.assertTrue(ctx._ssh.runs and ctx._ssh.runs[-1][0].startswith('rm -f '))
 
+    def test_key_type_of_the_service_before_any_change(self):
+        # 1.0.96: HTTPS(ECC) with an RSA key was refused by ClearPass only after the trust
+        # list and the services before it had changed
+        for kt, svcs, bad in (('rsa2048', 'RADIUS\nHTTPS(ECC)', 'HTTPS(ECC)'),
+                              ('ec256', 'HTTPS(RSA)\nRADIUS', 'HTTPS(RSA)'),
+                              ('rsa2048', 'HTTPS(RSA)\nHTTPS(ECC)', 'HTTPS(ECC)')):
+            ctx = FakeCtx(cp_routes())
+            b = FakeBundle()
+            b.key_type = kt
+            with self.assertRaises(PluginError) as e:
+                make('aruba_clearpass', '', CPCFG, ctx).deploy(b, {'services': svcs})
+            self.assertIn(bad, str(e.exception))
+            self.assertFalse(e.exception.retry)
+            self.assertEqual(ctx.calls, [])
+            self.assertEqual(ctx._ssh.puts, [])
+        ctx = FakeCtx(cp_routes())
+        b = FakeBundle()
+        b.key_type = 'ec256'
+        make('aruba_clearpass', '', CPCFG, ctx).deploy(b, {'services': 'HTTPS(ECC)\nRadSec'})
+        self.assertEqual(len(ctx.find('PUT', r'/server-cert/')), 2)
+
     def test_unknowns(self):
         with self.assertRaises(PluginError):
             make('aruba_clearpass', '', CPCFG, FakeCtx(cp_routes())).deploy(
@@ -747,6 +832,16 @@ class Central(unittest.TestCase):
         self.assertEqual(ctx.json(ctx.find('PUT', r'/non_msp/certificate$')[0])['cert_name'],
                          'captive')
         self.assertFalse(ctx.find('POST', r'/certificates$'))
+
+    def test_client_secret_not_in_the_debug_log(self):
+        # 1.0.96: the client secret and the refresh token of the token request went into
+        # the debug log
+        ctx = DebugCtx(central_routes())
+        make('aruba_central', '', dict(CCFG, client_secret='TOPSECRET-CS', refresh_token='RTOK'),
+             ctx).deploy(FakeBundle(), {'cert_name': 'captive'})
+        self.assertTrue([d for d in ctx.dbg if '/oauth2/token' in d])
+        self.assertFalse([d for d in ctx.dbg if 'TOPSECRET' in d or 'RTOK' in d])
+        self.assertIn('client_id=cid', ' '.join(ctx.dbg))
 
     def test_refused_refresh_said(self):
         ctx = FakeCtx([('POST', r'/oauth2/token\?', (401, {'error': 'invalid_grant'}))])

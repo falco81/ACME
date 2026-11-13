@@ -278,7 +278,9 @@ def carry_out(table, row, whole):
 
 # A certificate's own rows in meta, by its number (1.0.88): carried with it in the
 # configuration's file and taken away with it.
-CERT_META = {'hold': 'certs:deploy_hold:%d', 'moved': 'cert:moved:%d', 'portal': 'certs:portal:%d'}
+CERT_META = {'hold': 'certs:deploy_hold:%d', 'moved': 'cert:moved:%d', 'portal': 'certs:portal:%d',
+             # a new issue made due once after its device lost its key (devicekey.py)
+             'devkey': 'certs:devkey:reissue:%d'}
 
 
 def cert_meta_out(store, cert_id):
@@ -1087,7 +1089,8 @@ def cert_public(row, full=False):
     out['generation'] = generation(row)
     out['alt_days_left'] = days_left({'not_after': row.get('alt_not_after')}) \
         if row.get('alt_not_after') else None
-    out['csr_waiting'] = bool(row.get('csr_pending'))
+    # a CSR given out waits for its answer - not one a device made for an issue not finished
+    out['csr_waiting'] = bool(row.get('csr_pending')) and not row.get('csr_from')
     # Issued for a CSR sent in (a request profile, 1.0.17): acme never had its key.
     out['from_csr'] = bool(row.get('csr_given'))
     # Its key made by a target's device (devicekey.py): that target's name, '' when acme

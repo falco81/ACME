@@ -60899,6 +60899,18 @@
   "mdkcv_68": {
    "source": "reading SDDC Manager",
    "text": "čtení SDDC Manageru"
+  },
+  "_8": {
+   "source": "the controller has no HTTPS certificate collection (404) (HPE iLO: choose the module version for HPE iLO - iLO takes a certificate with its key through its own HpeHttpsCert)",
+   "text": "řadič nemá kolekci HTTPS certifikátů (404) (HPE iLO: zvolte verzi modulu pro HPE iLO - iLO přijímá certifikát s klíčem přes vlastní HpeHttpsCert)"
+  },
+  "_9": {
+   "source": "asking for the REST API versions: the array did not answer with JSON - is it a FlashArray / FlashBlade?",
+   "text": "dotaz na verze REST API: pole neodpovědělo v JSON - je to FlashArray / FlashBlade?"
+  },
+  "_10": {
+   "source": "reading the workload domains: SDDC Manager did not answer with JSON",
+   "text": "čtení domén (workload domains): SDDC Manager neodpověděl v JSON"
   }
  },
  "patterns": {
@@ -84281,6 +84293,30 @@
   "pmdkcv_49": {
    "source": "signed in to SDDC Manager {0} ({1}); workload domain {2}",
    "text": "přihlášeno k SDDC Manageru {0} ({1}); doména {2}"
+  },
+  "p_1": {
+   "source": "OneFS has another certificate named {0} and it is the default HTTPS certificate - make another one the default, then deploy again",
+   "text": "OneFS má jiný certifikát s názvem {0} a ten je výchozím HTTPS certifikátem - nastavte jako výchozí jiný a nasaďte znovu"
+  },
+  "p_2": {
+   "source": "deleted the certificate {0} there before ({1})",
+   "text": "smazán certifikát {0}, který tam byl předtím ({1})"
+  },
+  "p_3": {
+   "source": "deleting the certificate {0} there before",
+   "text": "mazání certifikátu {0}, který tam byl předtím"
+  },
+  "p_4": {
+   "source": "{0}: the cluster did not answer with JSON - is it the ONTAP cluster management address?",
+   "text": "{0}: cluster neodpověděl v JSON - je to adresa správy clusteru ONTAP?"
+  },
+  "p_5": {
+   "source": "reading the certificate {0}: the array did not answer with JSON",
+   "text": "čtení certifikátu {0}: pole neodpovědělo v JSON"
+  },
+  "p_6": {
+   "source": "looking for the certificate of {0}: VCF Operations did not answer with JSON",
+   "text": "hledání certifikátu {0}: VCF Operations neodpověděl v JSON"
   }
  },
  "rich": {

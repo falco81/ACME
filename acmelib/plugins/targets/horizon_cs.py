@@ -34,7 +34,7 @@ import secrets
 
 from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, as_bool, as_int, ssh_fields, verify_fields, keep_field,
-    sha1_thumb, random_password, text, put_scp, object_name, chain_list)
+    sha1_thumb, random_password, text, put_scp, object_name, chain_list, join_hostport)
 from acmelib.plugins.targets import _win_roles as WR
 
 
@@ -190,6 +190,19 @@ class HorizonConnectionServerTarget(SshMixin, Base):
                 self.ctx.step('removed the older %s' % line[8:])
         return removed
 
+    def drop_staged(self, s, paths):
+        """The files put for the import taken away; a warning when they cannot be."""
+        sc = '\n'.join("Remove-Item -LiteralPath %s -Force -ErrorAction SilentlyContinue"
+                       % ps_str(p) for p in paths)
+        try:
+            if hasattr(self.ctx, 'tidying'):
+                with self.ctx.tidying():
+                    self.roles_ps(s, sc, 'cleaning up', check=False)
+            else:
+                self.roles_ps(s, sc, 'cleaning up', check=False)
+        except PluginError as e:
+            self.ctx.step('%s may stay: %s' % (', '.join(paths), e), 'warn')
+
     def deploy(self, bundle, options):
         options = options or {}
         thumb = sha1_thumb(bundle)
@@ -203,17 +216,25 @@ class HorizonConnectionServerTarget(SshMixin, Base):
             password = random_password()
             tmp = self._roles_tmp()
             pfx = '%s/acme-hz-%s.pfx' % (tmp, secrets.token_hex(6))
-            put_scp(s, bundle.as_format('p12-legacy', password=password,
-                                        alias=object_name(bundle, options)), pfx)
             cers = []
-            if as_bool(self.opt(options, 'intermediates', True), True):
-                for pem in chain_list(bundle):
-                    p = '%s/acme-hz-%s.cer' % (tmp, secrets.token_hex(6))
-                    put_scp(s, pem.encode() if isinstance(pem, str) else pem, p)
-                    cers.append(p)
-            self.mark_pending(bundle)
-            rc, out, err = self.roles_ps(s, self.script(bundle, options, pfx, password, cers),
-                                         'importing the certificate')
+            staged = [pfx]
+            try:
+                put_scp(s, bundle.as_format('p12-legacy', password=password,
+                                            alias=object_name(bundle, options)), pfx)
+                if as_bool(self.opt(options, 'intermediates', True), True):
+                    for pem in chain_list(bundle):
+                        p = '%s/acme-hz-%s.cer' % (tmp, secrets.token_hex(6))
+                        staged.append(p)
+                        put_scp(s, pem.encode() if isinstance(pem, str) else pem, p)
+                        cers.append(p)
+                self.mark_pending(bundle)
+                rc, out, err = self.roles_ps(s, self.script(bundle, options, pfx, password,
+                                                            cers),
+                                             'importing the certificate')
+            finally:
+                # every path (1.0.96, as _veeam does): a refused upload or import left the
+                # PKCS#12 - the key - in the temporary folder
+                self.drop_staged(s, staged)
             self._remember_thumb(thumb)
             self._steps(out)
             restarted = False
@@ -237,7 +258,7 @@ class HorizonConnectionServerTarget(SshMixin, Base):
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify') and self.c('host'):
-            options['verify'] = '%s:443' % self.c('host')
+            options['verify'] = join_hostport(self.c('host'), 443)
         options.setdefault('verify_tries', 10)
         options.setdefault('verify_wait', 12)
         return Base.verify(self, bundle, options)

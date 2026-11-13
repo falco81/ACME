@@ -224,7 +224,7 @@ def alt_due(row, t=None):
     """Why the twin of a dual certificate is due on its own, or '': not issued
     yet, failed and past its wait, near its end, inside its ARI window."""
     t = t or time.time()
-    if not row.get('key_type_alt') or not row.get('cert_pem'):
+    if not row.get('key_type_alt') or not row.get('cert_pem') or row.get('csr_from'):
         return ''
     if not row.get('auto_renew') or row.get('enabled') == 0 or not row.get('issuer'):
         return ''
@@ -267,6 +267,10 @@ def main_due(row, t=None):
             if float(row.get('next_try') or 0) <= t else ''
     if not row.get('cert_pem'):
         return 'it has not been issued yet'
+    if row.get('state') == 'due':
+        # made due for a new issue: where its key is made changed (Key made by the device),
+        # or its device lost the key its certificate was made for (devicekey.deploy_failed)
+        return 'it is due for a new issue'
     na = float(row.get('not_after') or 0)
     if na - renew_window(row, na, row.get('not_before')) <= t:
         return 'it ends in %s' % E.human_span(max(0, na - t)) if na > t else 'it has expired'
@@ -509,6 +513,10 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         raise base.PluginError(held)
     if only == 'alt' and not cert.get('cert_pem'):
         only = None
+    if only == 'alt' and cert.get('csr_from'):
+        # its key made by a device: one key, no twin (devicekey.save_problem) - the device is
+        # never asked for a second key, which would replace the one it holds
+        return True, 'its key is made by the device of %s: it has no twin' % cert['csr_from']
     contexts = []
     was = cert.get('state')
     if was in ('pending-approval', 'declined'):

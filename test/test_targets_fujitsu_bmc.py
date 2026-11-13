@@ -766,5 +766,27 @@ class EternusTest(unittest.TestCase):
         self.assertFalse([x for x in FakeFtp.log if x[0] in ('stor', 'dele')])
 
 
+def verify_asked(t, options=None):
+    """The (host, port) each verify() of a target checks (check_served not run)."""
+    seen = []
+    old = C.check_served
+    C.check_served = lambda ctx, b, hp, *a, **k: seen.extend(
+        C.split_hostport(x) for x in hp) or 'ok'
+    try:
+        t.verify(FakeBundle(), dict(options or {}, verify_tries=1))
+    finally:
+        C.check_served = old
+    return seen
+
+
+class Ipv6Test(unittest.TestCase):
+    def test_cisco_imc_ipv6(self):
+        # 1.0.96: "2001:db8::1:8443" was read as a host without a port
+        cfg = {'user': 'u', 'password': 'p'}
+        self.assertEqual(T.served_asked('cisco_imc', cfg), [('2001:db8::1', 8443)] * 2)
+        t = make('cisco_imc', dict(cfg, host='2001:db8::1', port=8443), FakeCtx([]))
+        self.assertEqual(verify_asked(t), [('2001:db8::1', 8443)])
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=1)

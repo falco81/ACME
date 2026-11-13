@@ -122,8 +122,8 @@ class FujitsuIsmTarget(Base):
             raise
         if rc not in (0, -1, 255, None):
             out, err = text(out), text(err)
-            raise PluginError('restarting the ISM-VA: ismadm said (exit %s) %s' % (
-                rc, (err.strip() or out.strip())[-300:] or '-'),
+            raise PluginError('%s: ismadm said (exit %s) %s' % (
+                'restarting the ISM-VA', rc, (err.strip() or out.strip())[-300:] or '-'),
                 detail='$ ismadm power restart\n%s\n%s' % (out, err), retry=False)
 
     def served_now(self, bundle):

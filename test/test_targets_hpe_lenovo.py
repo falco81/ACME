@@ -453,6 +453,20 @@ class NimbleTest(unittest.TestCase):
         self.assertFalse(ctx.find('POST', 'actions/use'), 'not put to use')
         self.assertEqual(ctx.calls[-1]['method'], 'DELETE', 'signed out')
 
+    def test_actions_are_paths_of_the_api(self):
+        # 1.0.96: an absolute URL in an action sent the session token there
+        for key, bad in (('import_action', 'https://evil.test/v1/x'),
+                         ('use_action', '//evil.test/v1/x'),
+                         ('import_action', '/v2/certificates/actions/import'),
+                         ('use_action', '/v1/../tokens'),
+                         ('import_action', '/v1/certificates/actions/import?x=1')):
+            ctx = FakeCtx(ns_routes())
+            with self.assertRaises(PluginError) as e:
+                make('hpe_nimble', '', ctx, **NS_CFG).deploy(FakeBundle(), {key: bad})
+            self.assertIn('/v1/', str(e.exception))
+            self.assertFalse(e.exception.retry)
+            self.assertEqual(ctx.calls, [], bad)
+
     def test_nothing_to_use_it_for(self):
         ctx = FakeCtx(ns_routes())
         with self.assertRaises(PluginError):
@@ -487,6 +501,43 @@ class GuidesTest(unittest.TestCase):
                 self.assertIn(must, md, p)
                 self.assertIn('```', md, p)
                 self.assertIn('openssl s_client', md, p)
+
+
+def verify_asked(t, options=None):
+    """The (host, port) each verify() of a target checks (check_served not run)."""
+    seen = []
+    old = C.check_served
+    C.check_served = lambda ctx, b, hp, *a, **k: seen.extend(
+        C.split_hostport(x) for x in hp) or 'ok'
+    try:
+        t.verify(FakeBundle(), dict(options or {}, verify_tries=1))
+    finally:
+        C.check_served = old
+    return seen
+
+
+class Ipv6Test(unittest.TestCase):
+    def test_oneview_synergy_ipv6(self):
+        # 1.0.96: "2001:db8::1:8443" was read as a host without a port
+        for kind in ('hpe_oneview', 'hpe_synergy'):
+            self.assertEqual(T.served_asked(kind, OV_CFG), [('2001:db8::1', 8443)] * 2, kind)
+            t = make(kind, '', FakeCtx([]), **dict(OV_CFG, host='2001:db8::1', port=8443))
+            self.assertEqual(verify_asked(t), [('2001:db8::1', 8443)], kind)
+
+    def test_nimble_ipv6(self):
+        reg = Registry(extra_dirs=[]).reload()
+        seen = []
+        b = FakeBundle()
+        for host in ('2001:db8::1', '[2001:db8::1]'):
+            t = reg.get('target', 'hpe_nimble')(dict(NS_CFG, host=host), FakeCtx([]))
+            g = type(t).served_now.__globals__
+            old = g['served_fingerprint']
+            g['served_fingerprint'] = lambda h, p, *a, **k: seen.append((h, p)) or C.fp_of(b)
+            try:
+                self.assertTrue(t.served_now(b, {}))
+            finally:
+                g['served_fingerprint'] = old
+        self.assertEqual(seen, [('2001:db8::1', 443), ('2001:db8::1', 5392)] * 2)
 
 
 if __name__ == '__main__':

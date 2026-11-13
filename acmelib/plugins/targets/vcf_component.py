@@ -71,6 +71,7 @@ from __future__ import annotations
 import ipaddress
 import json
 import time
+import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, as_int, http_fields, tls_fields, text, chain_list)
@@ -283,7 +284,13 @@ class VcfComponentTarget(HttpTarget):
 
     def domain_id(self):
         st, hd, d = self.req('GET', '/v1/domains', what='reading the workload domains')
-        doms = (d.get('elements') if isinstance(d, dict) else d) or []
+        # 1.0.96: an answer that is not JSON (a proxy's or a login page) said in words - it
+        # was an AttributeError of bytes
+        doms = d.get('elements') if isinstance(d, dict) else d
+        if not isinstance(doms, list):
+            raise PluginError('reading the workload domains: SDDC Manager did not answer with '
+                              'JSON', detail=text(d)[:4000])
+        doms = [x for x in doms if isinstance(x, dict)]
         want = text(self.c('domain')).strip()
         if want:
             for x in doms:
@@ -363,7 +370,11 @@ class VcfComponentTarget(HttpTarget):
         st, hd, d = self.req('POST', FLEET + '/certificates/query?page=0&pageSize=100',
                              {'applianceFqdn': fq, 'category': 'TLS_CERT'},
                              what='looking for the certificate of %s' % fq)
-        rows = [x for x in ((d or {}).get('vcfCertificateModels') or []) if isinstance(x, dict)
+        if not isinstance(d, dict):
+            # 1.0.96: not JSON - in words, not an AttributeError of bytes
+            raise PluginError('looking for the certificate of %s: VCF Operations did not '
+                              'answer with JSON' % fq, detail=text(d)[:4000])
+        rows = [x for x in (d.get('vcfCertificateModels') or []) if isinstance(x, dict)
                 and fq.lower() in (text(x.get('applianceFqdn')).lower(),
                                    text(x.get('issuedTo')).lower())]
         ids = []
@@ -397,7 +408,9 @@ class VcfComponentTarget(HttpTarget):
                                                        'generateCsrSpec': spec},
                              what='asking VCF Operations for a new key and CSR')
         self.wait_request(d, 'making the CSR')
-        st, hd, d = self.req('GET', FLEET + '/csrs?certificateId=%s' % cid,
+        # 1.0.96: the id quoted - a given Certificate ID is the user's text
+        st, hd, d = self.req('GET', FLEET + '/csrs?certificateId=%s'
+                             % urllib.parse.quote(cid, safe=''),
                              what='reading the CSR')
         infos = (d.get('certificateSignatureInfo') if isinstance(d, dict) else None) or d
         csr = find_csr(infos)
@@ -469,7 +482,9 @@ class VcfComponentTarget(HttpTarget):
     def _ops_install(self, fq, leaf, inter, root):
         self._ops_check_version()
         cid = self._cert_id(fq)
-        st, hd, d = self.req('PUT', FLEET + '/certificates/%s' % cid, {
+        # 1.0.96: the id quoted - a given Certificate ID is the user's text
+        path = FLEET + '/certificates/%s' % urllib.parse.quote(cid, safe='')
+        st, hd, d = self.req('PUT', path, {
             'caType': 'EXTERNAL_CA', 'certificateChain': leaf + ''.join(inter) + root},
             what='having VCF Operations replace the certificate')
         self.wait_request(d, 'replacing the certificate of %s' % fq)
@@ -489,7 +504,8 @@ class VcfComponentTarget(HttpTarget):
                     self.c('host'), V.version_words(v) if v else 'version not read', more)
             st, hd, d = self.req('GET', '/v1/sddc-managers', what='reading SDDC Manager')
             els = (d.get('elements') if isinstance(d, dict) else None) or [{}]
-            ver = text(els[0].get('version'))
+            ver = text(els[0].get('version')) if isinstance(els, list) and \
+                isinstance(els[0], dict) else ''
             dom = self.domain_id()
             return 'signed in to SDDC Manager %s (%s); workload domain %s' % (
                 self.c('host'), ver or 'version not read', dom)
