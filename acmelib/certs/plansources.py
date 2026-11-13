@@ -132,6 +132,170 @@ def acme_flow(base):
             'suggestedWindow': {'start': '2027-01-10T00:00:00Z', 'end': '2027-01-12T00:00:00Z'}}}]
 
 
+# The plain ACME source (issuers/acme.py, 1.0.98): the CA at the directory URL it is set to.
+# Which of the presets ask for an EAB, have ARI (renewalInfo) and order profiles - a custom
+# server is taken as offering what the source asks of it (a profile set, ARI).
+ACME_EAB = ('zerossl', 'google', 'google-staging', 'sslcom-rsa', 'sslcom-ecc', 'digicert',
+            'actalis', 'certum', 'sectigo-dv', 'sectigo-ov')
+ACME_ARI = ('letsencrypt', 'letsencrypt-staging', 'google', 'google-staging', 'custom')
+ACME_PROFILES = {'letsencrypt': ['classic', 'tlsserver', 'shortlived'],
+                 'letsencrypt-staging': ['classic', 'tlsserver', 'shortlived']}
+
+
+def acme_directory_flow(dir_url, preset, names, profile=None, eab=None):
+    """An ACME CA (RFC 8555) at `dir_url` - its endpoints where that CA keeps them (Let's
+    Encrypt's /acme/new-acct..., another's next to its directory) - answering an order on
+    a running account: the directory (meta: terms, EAB required, profiles), nonces, a new
+    account, the order, one pending authorization per name (dns-01, http-01, tls-alpn-01;
+    dns-01 only for a wildcard), the challenge processing, the authorization asked for
+    again (Retry-After) until valid, the order ready, finalized (processing, Retry-After),
+    valid, the certificate chain with an alternate one (Link: rel="alternate"), ARI's
+    renewalInfo. `preset`: the source's "directory" setting."""
+    import re as _re
+    le = preset in ('letsencrypt', 'letsencrypt-staging')
+    u = str(dir_url or '').strip()
+    if le:
+        base = u.rsplit('/', 1)[0] + '/acme'
+        ep = {'newNonce': base + '/new-nonce', 'newAccount': base + '/new-acct',
+              'newOrder': base + '/new-order', 'revokeCert': base + '/revoke-cert',
+              'keyChange': base + '/key-change', 'renewalInfo': base.rsplit('/', 1)[0] +
+              '/draft-ietf-acme-ari-03/renewalInfo'}
+        acct = base + '/acct/2187654321'
+        order = base + '/order/2187654321/398765432101'
+        fin = base + '/finalize/2187654321/398765432101'
+        cert = base + '/cert/fa1b2c3d4e5f60718293a4b5c6d7e8f90a1b'
+
+        def az(i):
+            return base + '/authz/2187654321/4567890%02d' % i
+
+        def chp(i):
+            return base + '/chall/2187654321/4567890%02d/Xq1' % i
+    else:
+        base = _re.sub(r'/directory/?$', '', u).rstrip('/')
+        ep = {'newNonce': base + '/new-nonce', 'newAccount': base + '/new-account',
+              'newOrder': base + '/new-order', 'revokeCert': base + '/revoke-cert',
+              'keyChange': base + '/key-change', 'renewalInfo': base + '/renewal-info'}
+        acct = base + '/account/8f3Kq2LmZx'
+        order = base + '/order/Qm7Tn4Wv'
+        fin = order + '/finalize'
+        cert = base + '/certificate/Hx9Rp2Vd'
+
+        def az(i):
+            return base + '/authz/Az%02dLp6Ue' % i
+
+        def chp(i):
+            return base + '/challenge/Az%02dLp6Ue/' % i
+
+    def ch(i, t):
+        return chp(i) + t.replace('-', '')
+    if preset not in ACME_ARI:
+        ep.pop('renewalInfo')
+    meta = {'termsOfService': base.split('/acme')[0] + '/terms.pdf' if le else base + '/terms',
+            'website': base.split('/acme')[0] if le else base.rsplit('/', 1)[0]}
+    if preset in ACME_EAB:
+        meta['externalAccountRequired'] = True
+    profs = list(ACME_PROFILES.get(preset) or ([profile] if profile and preset == 'custom'
+                                               else []))
+    if profs:
+        meta['profiles'] = {p: 'the CA\'s %s profile' % p for p in profs}
+    if le:
+        meta['caaIdentities'] = ['letsencrypt.org']
+    nonce = {'Replay-Nonce': 'PLANnonce0aB3dE5fG7hJ9kL1mN3pQ5r', 'Cache-Control': 'no-store'}
+    idents, auths = [], []
+    seen = set()
+    for n in names or []:
+        n = str(n).strip().lower()
+        wild = n.startswith('*.')
+        v = n[2:] if wild else n
+        if (v, wild) in seen or not v:
+            continue
+        seen.add((v, wild))
+        typ = 'ip' if _re.match(r'^[\d.]+$|:', v) else 'dns'
+        idents.append({'type': typ, 'value': v})
+        auths.append((v, wild, typ))
+    o = {'status': 'pending', 'expires': '2026-11-20T12:00:00Z', 'identifiers': idents,
+         'authorizations': [az(i) for i in range(len(auths))], 'finalize': fin}
+    if profile and profile in profs:
+        o['profile'] = profile
+    q = _re.escape
+    rules = [
+        # the directory: no nonce in its answer (Let's Encrypt gives none) - newNonce asked
+        {'method': 'GET', 'url': '^' + q(u) + '$', 'headers': {
+            'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=0, no-cache'},
+         'body': dict(ep, meta=meta)},
+        {'method': 'HEAD', 'url': '^' + q(ep['newNonce']) + '$', 'headers': nonce, 'body': ''},
+        {'method': 'GET', 'url': '^' + q(ep['newNonce']) + '$', 'status': 204, 'headers': nonce,
+         'body': ''},
+        {'method': 'POST', 'url': '^' + q(ep['newAccount']) + '$', 'status': 201, 'headers': dict(
+            nonce, Location=acct, Link='<%s>;rel="terms-of-service"' % meta['termsOfService']),
+         'body': {'status': 'valid', 'contact': [], 'createdAt': '2026-11-13T12:00:00Z',
+                  'orders': acct + '/orders'}},
+        # the account's contacts changed (acme.py: update_contacts)
+        {'method': 'POST', 'url': '^' + q(acct) + '$', 'headers': nonce, 'body': {
+            'status': 'valid', 'orders': acct + '/orders'}},
+        {'method': 'POST', 'url': '^' + q(ep['newOrder']) + '$', 'status': 201, 'headers': dict(
+            nonce, Location=order), 'body': o}]
+    for i, (v, wild, typ) in enumerate(auths):
+        offered = ['dns-01'] if wild else (['http-01', 'tls-alpn-01'] if typ == 'ip' else
+                                           ['http-01', 'dns-01', 'tls-alpn-01'])
+        ident = {'type': typ, 'value': v}
+        chs = [{'type': t, 'status': 'pending', 'url': ch(i, t),
+                'token': 'PLAN-TOKEN-from-the-CA-0000000000'} for t in offered]
+        head = {'status': 'pending', 'identifier': ident, 'expires': '2026-11-20T12:00:00Z',
+                'challenges': chs}
+        if wild:
+            head['wildcard'] = True
+        a = '^' + q(az(i)) + '$'
+        rules += [
+            {'method': 'POST', 'url': a, 'times': 1, 'headers': nonce, 'body': head},
+            # asked again while the CA checks: still pending, come back in 3 s
+            {'method': 'POST', 'url': a, 'times': 1, 'headers': dict(nonce, **{
+                'Retry-After': '3'}), 'body': dict(head, challenges=[
+                    dict(c, status='processing') if c['type'] == 'dns-01' else c
+                    for c in chs])},
+            # valid: the challenge the CA was told to check (the last one posted) listed
+            {'method': 'POST', 'url': a, 'headers': nonce, 'body': dict(
+                head, status='valid', expires='2026-12-13T12:00:00Z', challenges=[{
+                    'type': '{SEEN:(dns|http|tls)(?:alpn)?01\\n}-01', 'status': 'valid',
+                    'url': chp(i) + '{SEEN:((?:dns|http|tlsalpn)01)\\n}',
+                    'token': 'PLAN-TOKEN-from-the-CA-0000000000',
+                    'validated': '2026-11-13T12:00:05Z'}])}]
+        for t in offered:
+            rules.append({'method': 'POST', 'url': '^' + q(ch(i, t)) + '$', 'headers': dict(
+                nonce, Link='<%s>;rel="up"' % az(i)), 'body': {
+                'type': t, 'status': 'processing', 'url': ch(i, t),
+                'token': 'PLAN-TOKEN-from-the-CA-0000000000'}})
+    oq = '^' + q(order) + '$'
+    rules += [
+        {'method': 'POST', 'url': oq, 'times': 1, 'headers': nonce, 'body': dict(o, status='ready')},
+        {'method': 'POST', 'url': '^' + q(fin) + '$', 'headers': dict(
+            nonce, Location=order, **{'Retry-After': '2'}), 'body': dict(o, status='processing')},
+        {'method': 'POST', 'url': oq, 'times': 1, 'headers': dict(nonce, **{'Retry-After': '2'}),
+         'body': dict(o, status='processing')},
+        {'method': 'POST', 'url': oq, 'headers': nonce, 'body': dict(
+            o, status='valid', certificate=cert)},
+        {'method': 'POST', 'url': '^' + q(cert) + '$', 'headers': dict(
+            nonce, Link='<%s/1>;rel="alternate"' % cert,
+            **{'Content-Type': 'application/pem-certificate-chain'}), 'body': '{CERT}{CHAIN}'},
+        # the alternate chain: one more certificate up, the one "Preferred chain" names
+        {'method': 'POST', 'url': '^' + q(cert + '/1') + '$', 'headers': dict(
+            nonce, Link='<%s>;rel="alternate"' % cert,
+            **{'Content-Type': 'application/pem-certificate-chain'}),
+         'body': '{CERT}{CHAIN}{ALT_ROOT}'}]
+    if ep.get('renewalInfo'):
+        rules.append({'method': 'GET', 'url': '^' + q(ep['renewalInfo'] + '/') + '.+$',
+                      'headers': {'Content-Type': 'application/json', 'Retry-After': '21600'},
+                      'body': {'suggestedWindow': {'start': '2027-01-10T00:00:00Z',
+                                                   'end': '2027-01-12T00:00:00Z'}}})
+    if preset == 'zerossl' and not eab:
+        # ZeroSSL makes the EAB for the contact e-mail (acme.py eab())
+        rules.append({'method': 'POST', 'url': r'^https://api\.zerossl\.com/acme/'
+                      r'eab-credentials-email$', 'body': {
+                          'success': True, 'eab_kid': 'PLANzsKid0aB3dE5fG7hJ9kL1',
+                          'eab_hmac_key': 'UExBTnplcm9zc2xIbWFjS2V5MDAwMDAwMDAwMDAwMDAwMDA'}})
+    return rules
+
+
 SOURCES = {
     # -- commercial CAs: an order bought before, reissued inside it at each renewal; the
     #    domain's validation run out, so the CA asks for its DCV record again (put in place by

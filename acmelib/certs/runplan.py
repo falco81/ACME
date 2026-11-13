@@ -4409,6 +4409,10 @@ def plan(store, cert, deploys, full=False):
                   challenges=dcv, previous=bool(cert.get('cert_pem')),
                   pinned=__import__('acmelib.certs.plansources', fromlist=['PINNED']).PINNED.get(
                       irow['kind'], []))
+    elif irow and icls and irow.get('kind') == 'acme':
+        # the plain ACME source (1.0.98): recorded whole against a stand-in of the CA at its
+        # directory URL, the certificate's validations within its run; a renewal after it
+        iid = acme_run(store, irow, icls, icfg, cert, names, chal, vinfo, secrets_, run)
     elif icfg:
         secrets_.stand_ins(_fields_of(icls), icfg)
     # the device that makes the key (certs.csr_from): its device_csr() recorded

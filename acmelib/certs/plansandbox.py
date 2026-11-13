@@ -621,7 +621,7 @@ SECRET_NAME = re.compile(r'(pass|secret|token|apikey|api_key|api-key|private|pas
                          r'(^|[_.-])pin$|^pin([_.-]|$)|'
                          r'(^|[_.-])key$|^key(pem|data|file|_pem|_data)?$|privkey|'
                          r'^sid$|_sid$|^sig$|assertion$)', re.I)
-NOT_SECRET_NAME = re.compile(r'^(public[_-]?key|key[_-]?(type|size|usage|length|alg|algorithm|'
+NOT_SECRET_NAME = re.compile(r'^(public[_-]?key|authorizations|key[_-]?(type|size|usage|length|alg|algorithm|'
                              r'id|name|spec)|auth[_-]?(type|method|mode|scheme|source|login[_-]?domain|domain|provider)|'
                              r'token[_-]?(type|expires?|ttl)|session[_-]?(timeout|ttl|type))$', re.I)
 HEADER_SCHEMES = re.compile(r'^(Basic|Bearer|Token|Negotiate|NTLM|Digest|SSWS|ApiKey|'
@@ -988,6 +988,84 @@ def mask_body(body, marks, ctype=None):
     return mask_text(t, marks), dict(facts, format=fmt)
 
 
+def _b64u_json(s):
+    import base64
+    s = str(s or '')
+    if not s:
+        return ''
+    raw = base64.urlsafe_b64decode(s + '=' * (-len(s) % 4))
+    return json.loads(raw.decode('utf-8'))
+
+
+def _jws_parts(d):
+    """A flattened JWS (protected, payload, signature) decoded -> dict, or None."""
+    if not isinstance(d, dict) or not {'protected', 'payload', 'signature'} <= set(d):
+        return None
+    try:
+        prot = _b64u_json(d['protected'])
+        pay = _b64u_json(d['payload'])
+    except Exception:                                   # noqa: BLE001
+        return None
+    if not isinstance(prot, dict):
+        return None
+    return {'protected': prot, 'payload': pay}
+
+
+def jws_shown(body, marks):
+    """An ACME request's JWS as people read it: the protected header (alg, nonce, url, kid
+    or the account's public jwk) and the payload decoded - "" a POST-as-GET -, the CSR
+    in words, an EAB inside decoded the same way; every signature dots. None: not a JWS."""
+    try:
+        d = json.loads(bytes(body).decode('utf-8') if isinstance(body, (bytes, bytearray))
+                       else body) if not isinstance(body, dict) else body
+    except Exception:                                   # noqa: BLE001
+        return None
+    got = _jws_parts(d)
+    if got is None:
+        return None
+
+    def jwk(p):
+        k = p.get('jwk') if isinstance(p, dict) else None
+        if isinstance(k, dict) and isinstance(k.get('n'), str) and len(k['n']) > 40:
+            # an RSA public key's modulus: public, long - its start and its size
+            p['jwk'] = dict(k, n='%s… (RSA modulus, %d bits)' % (
+                k['n'][:24], len(k['n'].rstrip('=')) * 6 // 8 * 8))
+        return p
+    prot = jwk(got['protected'])
+    pay = got['payload']
+    if isinstance(pay, dict):
+        pay = dict(pay)
+        if isinstance(pay.get('csr'), str):
+            n = len(pay['csr']) * 3 // 4
+            pay['csr'] = '‹the certificate request (CSR), DER, base64url, %s›' % size_words(n)
+        eab = _jws_parts(pay.get('externalAccountBinding'))
+        if eab is not None:
+            pay['externalAccountBinding'] = {
+                'protected': eab['protected'], 'payload': '‹the account\'s public key (jwk, '
+                'as in the header)›', 'signature': '•••• (HMAC-SHA256 with the EAB key)'}
+        if isinstance(pay.get('certificate'), str) and len(pay['certificate']) > 60:
+            pay['certificate'] = '‹the certificate, DER, base64url›'
+    out = {'protected': prot, 'payload': pay, 'signature': '•••• (signature)'}
+    return mask_json(out, marks)
+
+
+def jws_wire(body):
+    """The JWS body as sent, an EAB's signature in its payload left out (re-encoded)."""
+    import base64
+    try:
+        d = json.loads(bytes(body).decode('utf-8') if isinstance(body, (bytes, bytearray))
+                       else body) if not isinstance(body, dict) else dict(body)
+        pay = _b64u_json(d.get('payload'))
+        if isinstance(pay, dict) and isinstance(pay.get('externalAccountBinding'), dict):
+            pay['externalAccountBinding'] = dict(pay['externalAccountBinding'],
+                                                 signature='••••')
+            d['payload'] = base64.urlsafe_b64encode(json.dumps(
+                pay, separators=(',', ':')).encode()).decode().rstrip('=')
+        return json.dumps(d).encode('utf-8')
+    except Exception:                                   # noqa: BLE001
+        return body
+
+
 def wire_body(body, marks, ctype=None):
     """The body as it goes on the wire, its secrets out: JSON as sent (compact), form
     fields url-encoded, a multipart body its parts, binary in words."""
@@ -1186,7 +1264,7 @@ class Answers(object):
             return text
         name = str(self.vname or '').lstrip('*.')
         vals = {'NAME': name, 'FQDN': '_acme-challenge.' + name if name else '', 'TXT': TXT,
-                'KEYAUTH': KEYAUTH, 'PLACED': PLACED_TXT[-1] if PLACED_TXT else ''}
+                'KEYAUTH': PLACED_KEYAUTH[0] or KEYAUTH, 'PLACED': PLACED_TXT[-1] if PLACED_TXT else ''}
         try:
             from acmelib.plugins.challenges import _dns as D
             vals['ZONE'] = D.registrable(name) if name else ''
@@ -1918,6 +1996,7 @@ def run_one(job, r, bundle_holder):
     RECORDING[0] = events
     CURRENT[0] = r
     del PLACED_TXT[:]
+    PLACED_KEYAUTH[0] = ''
     PLACED_CNAME.clear()
     del OWN_DNS[:]
     err = None
@@ -2021,9 +2100,29 @@ def run_one(job, r, bundle_holder):
                 answers.vname = names[0]
                 previous = pki.self_signed(pki.make_key(cert.get('key_type') or 'ec-256'),
                                            names, days=90) if r.get('previous') else None
+                acme = r.get('acme') if isinstance(r.get('acme'), dict) else None
+                if acme is not None:
+                    # the plain ACME source (1.0.98): the certificate it renews is one the CA
+                    # issued (its AKI and serial make the ARI id); the alternate chain ends at
+                    # the root "Preferred chain" names; an account made before is used as it
+                    # is - its key a throwaway one of its kind, here only
+                    if previous is not None:
+                        k0 = pki.make_key(cert.get('key_type') or 'ec-256')
+                        previous = issued_for(pki.make_csr(k0, names)[0], names)['CERT']
+                    answers.issued['ALT_ROOT'] = pki.self_signed(
+                        pki.make_key('ec-256'), [], subject={'CN': str(
+                            acme.get('preferred') or 'Plan Alternate Root')[:60]}, days=365,
+                        is_ca=True)
+                    if acme.get('account') and not r.get('kv'):
+                        url = inst.directory_url()
+                        kind = str(inst.c('account_key') or 'ec-256')
+                        ctx.kv_set(inst.account_slot(url), json.dumps({
+                            'url': acme['account'], 'key': pki.make_key(kind), 'kind': kind,
+                            'contacts': inst.contacts(), 'directory': url}))
             # the certificate's own validations, for a commercial CA's DCV (1.0.98): each
             # puts the CA's record in place through its own module, recorded here too
             chal = {}
+            proving = {'put': 0, 'gone': 0, 'ready': False}
             for n, c in (r.get('challenges') or {}).items():
                 ccls = module('challenge', c['kind'], (c.get('config') or {}).get('_version'))
                 ca = Answers(c.get('answers'), c.get('ssh_answers'))
@@ -2043,13 +2142,42 @@ def run_one(job, r, bundle_holder):
                 def present(name, token, key_authorization, txt_value, _o=chal[n].present):
                     # an ACME source's own proof (sslmarket_acme): seen once it is in place
                     PLACED_TXT.append(str(txt_value))
+                    PLACED_KEYAUTH[0] = str(key_authorization)
+                    proving['put'] += 1
+                    proving['ready'] = False
                     return _o(name, token, key_authorization, txt_value)
                 chal[n].present = present
+
+                def ready(name, handle, _o=chal[n].ready):
+                    # an ACME source's validations (1.0.98): the wait until each proof can be
+                    # seen, the taking away after the CA has looked, then the order again
+                    if proving['put'] and not proving['ready']:
+                        proving['ready'] = True
+                        rec({'kind': 'phase', 'what': 'ready'})
+                    return _o(name, handle)
+                chal[n].ready = ready
+
+                def cleanup(name, handle, _o=chal[n].cleanup):
+                    if proving['put'] and not proving['gone']:
+                        rec({'kind': 'phase', 'what': 'cleanup'})
+                    proving['gone'] += 1
+                    try:
+                        return _o(name, handle)
+                    finally:
+                        if proving['put'] and proving['gone'] == proving['put']:
+                            rec({'kind': 'phase', 'what': 'order'})
+                chal[n].cleanup = cleanup
             req = base.CertRequest(names=names, sans=names, key_type=cert.get('key_type'),
                                    key_pem=key, csr_pem=csr_pem, csr_der=csr_der,
                                    subject={}, days=cert.get('days'), profile={},
                                    challenges=chal, previous=previous, cert_id=cert.get('id'),
                                    ref=cert.get('ref') or None)
+            if previous and acme is not None and acme.get('ari'):
+                # a renewal: when to renew asked of the CA first (ARI, RFC 9773 - the
+                # renewer, every 6 hours), then the order that says it replaces it
+                rec({'kind': 'phase', 'what': 'ari'})
+                inst.renewal_window(previous)
+                rec({'kind': 'phase', 'what': 'issue'})
             got = inst.issue(req)
             said = 'issued' if got else None
     except Alarm:
@@ -2090,6 +2218,12 @@ def clean(ev, marks):
         ev['url'] = mask_url(ev['url'], marks)
         ev['headers'] = {hk: header_shown(hk, hv, marks) for hk, hv in raw_headers.items()}
         body, facts = mask_body(raw_body, marks, ctype)
+        jws = jws_shown(raw_body, marks) if 'jose' in ctype.lower() else None
+        if jws is not None:
+            # an ACME request (JWS, RFC 8555 6.2): its protected header and payload decoded,
+            # the signature (and an EAB's within) never shown; on the wire as sent (1.0.98)
+            body, facts = jws, dict(facts, format='jws')
+            raw_body = jws_wire(raw_body)
         ev['body'] = body
         ev['body_facts'] = facts
         # the request exactly as it goes on the wire (debug details): every header - the
@@ -2219,6 +2353,7 @@ def scep_reply(issued, sent):
 
 CURRENT = [None]                # the run going on (run_one): its family, its settings
 PLACED_TXT = []                 # TXT values a run wrote (UPDATE, a CA's DCV): seen when asked
+PLACED_KEYAUTH = ['']           # the key authorization an ACME source's run put in (HTTP-01)
 PLACED_CNAME = {}               # CNAMEs a CA's DCV put in place: {name: target}
 OWN_DNS = []                    # names acme's own DNS server was given a TXT record at
 
@@ -2408,6 +2543,17 @@ def main():
             if r.get('later_ssh_answers') is not None:
                 later['ssh_answers'] = r['later_ssh_answers']
             got['later'] = run_one(job, later, holder)['events']
+        if r.get('op') == 'issue' and isinstance(r.get('acme'), dict) and \
+                r['acme'].get('later') and not got.get('error'):
+            # the plain ACME source (1.0.98): a renewal after this first issue - the account
+            # it made (or used) kept, the certificate it renews handed, ARI asked first
+            later = dict(r, previous=True, acme=dict(r['acme'], account=None, ari=True),
+                         kv={str(k): v for k, v in dict(KV_AFTER[0] or {}).items()})
+            lg = run_one(job, later, holder)
+            if not lg.get('error'):
+                got['later'] = lg['events']
+            else:
+                got['later_error'] = lg['error']
         out[r['id']] = got
     sys.stdout.write(json.dumps({'runs': out}, default=str))
     sys.stdout.flush()
