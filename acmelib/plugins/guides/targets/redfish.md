@@ -16,7 +16,8 @@ member (or the *Certificate URI* you give) and calls
 the version **`ilo`** of this target (iLO 5 2.78+, iLO 6 1.30+, iLO 7). **Dell iDRAC9
 6.00.02+ / iDRAC10**: the version **`6.00.02`** (Dell's own upload). **Lenovo XClarity
 Controller (XCC, XCC2, XCC3) takes only a certificate of a request it made itself** - acme's
-key cannot go there (Lenovo's documents, 2026). Older iDRACs need `racadm sslkeyupload`.
+key cannot go there (Lenovo's documents, 2026): use the target **`lenovo_xcc`**, whose XCC
+makes the key and the CSR. Older iDRACs need `racadm sslkeyupload`.
 Supermicro's standard certificate service needs the SFT-DCMS-SINGLE licence (else the
 target `supermicro_bmc`); Supermicro and OpenBMC take *Send as* `PEM`.
 Use an **RSA 2048** key type for the certificate.
@@ -90,7 +91,7 @@ Use an **RSA 2048** key type for the certificate.
 |---|---|
 | `401` on signing in | Wrong user/password, user disabled, or Redfish off. |
 | `403` on replacing | The user lacks *Configure* / *Configure iLO Settings*. |
-| `offers no CertificateService.ReplaceCertificate` | HPE iLO 6/7: use the version `ilo` of this target. Lenovo XCC: takes only a certificate of its own request - not possible. |
+| `offers no CertificateService.ReplaceCertificate` | HPE iLO 6/7: use the version `ilo` of this target. Lenovo XCC: takes only a certificate of its own request - use the target `lenovo_xcc`. |
 | Certificate refused | Try *Send as* `PEM`; use an RSA 2048 key; older firmware may not accept a key at all - update it. |
 | Old certificate still served | Set *Restart the controller afterwards* (iDRAC); the check waits for the restart. |
 | Session limit reached | Too many open sessions on the controller; wait, or use basic authentication. |

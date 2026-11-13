@@ -272,6 +272,90 @@ class ExampleSsh(SshMixin, Base):
         return 'imported %s' % name
 ```
 
+## The device makes the key
+
+Some devices take only a certificate for a key they made themselves (Lenovo XClarity
+Controller, Dell OpenManage Enterprise, Cisco CUCM, Unisphere for PowerMax, SDDC Manager,
+HPE Synergy, Fujitsu MMB...): they make a key and a CSR through their API or CLI and import
+the certificate signed for it. A target module for such a device says so and asks it for the
+CSR; acme then never holds the key, and does the rest - the issue (any source that signs a
+CSR: an ACME CA, an authority of acme's own, a commercial CA), renewal, ARI, retries,
+notices, events, What happens - as for any certificate.
+
+```python
+class ExampleBmc(HttpTarget):
+    kind = 'examplebmc'
+    ...
+    device_key = True                                   # default False
+    device_key_types = ('ec-256', 'rsa-2048')           # optional: the form offers only these
+
+    def device_csr(self, req):          # -> the CSR, PEM ("CERTIFICATE REQUEST")
+        st, hd, d = self.req('POST', '/api/csr', {
+            'common_name': req.subject.get('CN') or req.names[0],
+            'alt_names': req.names,                     # every name, and only these
+            'organization': req.subject.get('O') or self.c('org'),
+            'key': {'ec-256': 'P256', 'rsa-2048': 'RSA2048'}[req.key_type],
+            'slot': req.options.get('slot', 'https'),   # the deployment's own options
+        }, what='asking the device for a new key and CSR')
+        self.ctx.step('the device made a new %s key and a CSR' % req.key_type, 'ok')
+        return d['csr']
+
+    def deploy(self, bundle, options):  # bundle.key_pem is None: the certificate (+ chain) only
+        self.req('POST', '/api/certificate', {'certificate': bundle.cert_pem,
+                                              'chain': ''.join(bundle.chain_pems)},
+                 what='importing the certificate')
+        return 'imported the certificate for the device\'s own key'
+```
+
+`req` is a `CertRequest` with `names` (DNS names and IP addresses; the first the usual common
+name), `sans` (with the `email:` / `uri:` ones of the profile), `subject` (`{'CN', 'O', 'OU',
+'C', 'ST', 'L', 'emailAddress'}` as the certificate's profile says - `CN` always there),
+`key_type` (`ec-256 ec-384 rsa-2048 rsa-3072 rsa-4096`), `options` (the deployment's options
+of this certificate on this target, opened as `deploy()` gets them), `name` and `cert_id` (the
+certificate in acme), `target` (the target's name). The context is the target's (`self.ctx`,
+the same kv state as `deploy()`); `self.c()` reads the target's settings.
+
+What acme does with it (acmelib/certs/devicekey.py):
+
+- A certificate says where its key is made: `certs.csr_from` = the target's name (the form's
+  *Key made by the device*, `acme --cert-add NAME --names ... --csr-from TARGET`). Its
+  deployment to that target is made with it.
+- **At every issue and renewal** `device_csr()` is called - a **new** key each time (never the
+  one before: there is no "keep the key"). acme checks the CSR: signed by its key, **every name
+  of the certificate in it and no other** (DNS/IP subjectAltNames, or the common name when it
+  has none); for an ACME source the common name must be one of the names. The subject of the
+  certificate is the profile's where the source sets it (acme's authority does). The
+  certificate issued is checked to be for the CSR's key (`pub_sha256`).
+- **Right after the issue**, in the same job, the deployment runs: `deploy(bundle, options)`
+  with `bundle.key_pem` `None` - put the certificate (and the chain, where the device takes it)
+  in place for the key it made a moment ago. When the deployments are held (*Deploy now*), the
+  device keeps its old certificate, and the next issue asks it for a new key and CSR.
+- Such a certificate goes to **that target only**, has no twin (`key_type_alt`), no
+  `reuse_key`, no key to export; and a `device_key` target takes **no other certificate** -
+  `deploy_save` refuses both in words.
+
+Rules for the module:
+
+- Raise `PluginError` in words a person can act on - a missing privilege, a key type the
+  device cannot make (`retry=False`), a name it will not put into its CSR.
+- Give every name the device can take; a device that takes only one host name must say so
+  (refuse more than one name in `device_csr()` - the check after it would refuse the CSR
+  anyway, less clearly).
+- Do not import anything in `device_csr()`: making the CSR is all. A device that drops its
+  pending key when asked for a CSR a second time is fine - acme asks once per issue and
+  deploys right after.
+- `deploy()` must work with no key; refuse a bundle that has one (`bundle.key_pem` set) with
+  words saying to let the device make the key - it cannot use acme's.
+- `served_wait` / `served_places` as for any target (a device that switches to the new
+  certificate after minutes says how long).
+- What happens records `device_csr()` in its sandbox like any other call: what the module
+  sends is shown, and the sandbox answers with a CSR for the names (a throwaway key).
+
+The reference module is `acmelib/plugins/targets/lenovo_xcc.py` (Redfish `GenerateCSR` and
+`ReplaceCertificate`, a version for Lenovo's OEM service); its tests
+`test/test_targets_lenovo_xcc.py` check the exact calls against a fake Redfish, and
+`test/test_device_key.py` the whole flow with a fake device.
+
 ## A source that lists its account's certificates
 
 Sources (`acmelib/plugins/issuers/`, base class `Issuer`) whose API can list

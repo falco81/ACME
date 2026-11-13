@@ -16,7 +16,7 @@ novější. **HPE iLO 6 neuvádí ReplaceCertificate**: klíč jde přes vlastn�
 zvolte verzi **`ilo`** tohoto cíle (iLO 5 2.78+, iLO 6 1.30+, iLO 7). **Dell iDRAC9 6.00.02+ /
 iDRAC10**: verze **`6.00.02`** (vlastní nahrání Dellu). **Lenovo XClarity Controller (XCC,
 XCC2, XCC3) přijme jen certifikát k žádosti, kterou si sám vytvořil** - klíč z acme tam
-nejde (dokumentace Lenova, 2026). Starší iDRAC potřebují `racadm sslkeyupload`. Standardní
+nejde (dokumentace Lenova, 2026): použijte cíl **`lenovo_xcc`**, u něhož klíč a CSR vytváří XCC. Starší iDRAC potřebují `racadm sslkeyupload`. Standardní
 certifikační služba Supermicro potřebuje licenci SFT-DCMS-SINGLE (jinak cíl
 `supermicro_bmc`); Supermicro a OpenBMC berou *Send as* `PEM`.
 Pro certifikát použijte typ klíče **RSA 2048**.
@@ -90,7 +90,7 @@ Pro certifikát použijte typ klíče **RSA 2048**.
 |---|---|
 | `401` při přihlášení | Špatné jméno/heslo, vypnutý uživatel, nebo vypnutý Redfish. |
 | `403` při výměně | Uživateli chybí *Configure* / *Configure iLO Settings*. |
-| `offers no CertificateService.ReplaceCertificate` | HPE iLO 6/7: použijte verzi `ilo` tohoto cíle. Lenovo XCC: bere jen certifikát k vlastní žádosti - nejde. |
+| `offers no CertificateService.ReplaceCertificate` | HPE iLO 6/7: použijte verzi `ilo` tohoto cíle. Lenovo XCC: bere jen certifikát k vlastní žádosti - použijte cíl `lenovo_xcc`. |
 | Certifikát odmítnut | Zkuste *Send as* `PEM`; použijte klíč RSA 2048; starší firmware nemusí klíč přijmout vůbec - aktualizujte ho. |
 | Řadič stále ukazuje starý certifikát | Zapněte *Restart the controller afterwards* (iDRAC); kontrola na restart počká. |
 | Dosažen limit relací | Na řadiči je otevřeno příliš relací; počkejte, nebo použijte základní autentizaci. |

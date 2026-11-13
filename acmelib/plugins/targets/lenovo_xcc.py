@@ -41,13 +41,18 @@ service instead:
 The XCC serves the new certificate within about 15 minutes, without a restart (Lenovo's XCC3
 user guide, "SSL certificate handling"); the tests after the deployment wait that long.
 
-Sources: the XCC3 REST API (CertificateService, POST GenerateCSR, POST ReplaceCertificate,
-Resource Certificate), the XCC REST API "Certificate Management", the XCC3 user guide (SSL
-certificate handling and management, roles), Lenovo's python-redfish-lenovo scripts
-(lenovo_ssl_certificate_generate_csr.py, lenovo_ssl_certificate_import.py) - as gathered
-in the vendor notes for acme (2026-11).
+Sources:
+    https://pubs.lenovo.com/xcc3-restapi/certmgt_resource_certificateservice
+    https://pubs.lenovo.com/xcc3-restapi/certmgt_generate_csr_post
+    https://pubs.lenovo.com/xcc3-restapi/certmgt_replace_certificate_post
+    https://pubs.lenovo.com/xcc-restapi/certificate_management
+    https://pubs.lenovo.com/xcc3/nn1ia_c_sslcertificatehandling   (only a CSR of the same XCC,
+        about 15 minutes until it is served)
+    https://pubs.lenovo.com/xcc3/dw1lm_r_rolescommand             (the role: custom:nsc)
+    https://github.com/lenovo/python-redfish-lenovo  (lenovo_ssl_certificate_generate_csr.py,
+        lenovo_ssl_certificate_import.py: the key parameters, CertificateType PEM, the OEM way)
 
-Uncertain (not tried on a device): the KeyPairAlgorithm / KeyCurveId / KeyBitLength values
+Less certain (not tried on a device): the KeyPairAlgorithm / KeyCurveId / KeyBitLength values
 (from Lenovo's script and the DMTF schema - Lenovo's page lists KeyBitLength as a string; an
 integer is sent, as the schema says); CertificateType "PEM" (Lenovo's script uses it, its
 page does not say); whether the intermediates may follow the certificate (off by default);

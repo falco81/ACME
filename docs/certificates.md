@@ -461,6 +461,50 @@ offering only RSA ones; a server that offers no TLS 1.2 is compared with
 either. See [targets.md](targets.md) for each target.
 
 
+## Key made by the device
+
+Some devices take **only a certificate for a key they made themselves** - Lenovo XClarity
+Controller, Dell OpenManage Enterprise, Cisco CUCM, Unisphere for PowerMax, SDDC Manager, HPE
+Synergy, Fujitsu MMB...: they make a key and a CSR and import the certificate signed for it;
+no private key can be put on them. acme automates them fully, renewal included, where the
+target's module can ask the device for the CSR (its module says *device_key* - today
+`lenovo_xcc`; docs/writing-a-module.md "The device makes the key").
+
+A certificate says where its key is made - **`csr_from`**, the name of such a target:
+
+- **Add a certificate → Key → Key made by the device**, and the target (only targets whose
+  device makes keys are offered; the key types are those it can make). Or, in the target's
+  window, **Make its certificate** - the form prefilled with the target and its address as the
+  name. `acme --cert-add NAME --names ... --issuer SOURCE --csr-from TARGET`
+  (`--cert-edit NAME --csr-from none` lets acme make the key again; `--set csr_from=TARGET`
+  too), `csr_from` in `POST /api/certs/save`.
+- **At every issue and renewal** the device is asked for a **new key and CSR** (the job says
+  *the key and the CSR are made by the device of ...*). The CSR is used as one sent in is
+  (request profiles): acme holds no key; every name of the certificate must be in it and no
+  other; the subject is the profile's where the source sets it; the certificate issued must
+  be for the CSR's key.
+- Its deployment to that target is **made with it** and **runs right after the issue**, in the
+  same job: the device gets the certificate (and the chain) for the key it made a moment ago,
+  without a key. When its deployments are held (*Deploy now*), the device keeps its old
+  certificate, and the next issue asks it for a new key and CSR - the certificate held then
+  fits no key there.
+- It goes to **that target only** - a deployment to another target is refused (no other can
+  have its key) - and a target whose device makes the key takes **no other certificate**.
+- **Refused with it**: a twin (`key_type_alt`), *Keep the key* (`reuse_key`), a CSR sent in,
+  a source that cannot sign a CSR made elsewhere (*Self-signed*, CMP, SCEP and sources that
+  make the key themselves), no source at all. There is no key to export, to download from the
+  portal or to add later.
+- Renewal, ARI, retries, notices, events, isemon lines and *What happens* are as for any
+  certificate. A certificate whose target is switched off, deleted, no longer of a module that
+  makes keys, or whose deployment there is gone or switched off is not issued - the job says
+  why. A target a certificate's key is made on is not deleted until the certificate is changed;
+  renamed, the certificate follows it. `csr_from` travels with the certificate in the
+  configuration file, the backups and to the other node.
+
+The certificate's window says *key made by TARGET*. A revoked one is simply issued again: the
+device makes a new key.
+
+
 ## Before the first certificate: what acme checks and tells you
 
 Let's Encrypt counts failed validations (five an hour for one account and
