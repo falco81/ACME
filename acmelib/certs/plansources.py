@@ -139,12 +139,12 @@ SOURCES = {
             'id': '‹application id›', 'name': '{CFG:application}',
             'certificateIssuingTemplateAliasIdMap': {'{CFG:template}': '‹template id›'}}},
         {'method': 'POST', 'url': r'/certificaterequests$', 'status': 201, 'body': {
-            'certificateRequests': [{'id': '‹request id›', 'status': 'REQUESTED'}]}},
+            'certificateRequests': [{'id': '3f2504e0-4f89-11d3-9a0c-0305e82c3301', 'status': 'REQUESTED'}]}},
         {'method': 'GET', 'url': r'/certificaterequests/', 'times': 1, 'body': {
-            'id': '‹request id›', 'status': 'PENDING'}},
+            'id': '3f2504e0-4f89-11d3-9a0c-0305e82c3301', 'status': 'PENDING'}},
         {'method': 'GET', 'url': r'/certificaterequests/', 'body': {
-            'id': '‹request id›', 'status': 'ISSUED',
-            'certificateIds': ['‹certificate id›']}},
+            'id': '3f2504e0-4f89-11d3-9a0c-0305e82c3301', 'status': 'ISSUED',
+            'certificateIds': ['6ba7b810-9dad-11d1-80b4-00c04fd430c8']}},
         {'method': 'GET', 'url': r'/contents\?', 'headers': {'Content-Type': 'text/plain'},
          'body': '{CERT}{CHAIN}'}],
     'venafi_tpp': [

@@ -112,9 +112,6 @@ ANSWERS = {
         {'method': 'POST', 'url': r'/dns_records$', 'body': {'success': True, 'result': {
             'id': '\u2039record id\u203a'}}},
         {'body': {'success': True, 'result': []}}],
-    'synology': [{'url': r'auth', 'body': {'success': True, 'data': {
-        'sid': '{SESSION}', 'synotoken': '{SESSION}'}}},
-        {'body': {'success': True, 'data': {}}}],
     # Cloudflare's custom certificates: the zone found by its name, a custom certificate of
     # the certificate's names there (sni_custom, active) - replaced in place (PATCH), the
     # answer the new id (sni_custom: "a new resource id being returned")
@@ -222,9 +219,6 @@ ANSWERS = {
             'certificateManager': {'type': 'HostCertificateManager',
                                    'value': '\u2039certificate manager\u203a'}}},
         _VSPHERE_SESSION],
-    # vCenter, the Supervisor: the Automation API's session (as above)
-    'vcenter': [_VSPHERE_SESSION],
-    'vsphere_supervisor': [_VSPHERE_SESSION],
     # FortiManager: every JSON-RPC call is at /jsonrpc - its first, "is it there?", answered
     # -3 (Object does not exist), the others status 0 (OK)
     # (1.0.98: by the call in the body) the new certificate not there yet (-3); the
@@ -266,7 +260,8 @@ ANSWERS = {
         {'method': 'POST', 'url': r'/v1/certificates/actions/import$', 'body': {
             'data': {'id': '2b0e1d2c3b4a596870000000000000000000003', 'name': '{SENT:data.name}',
                      'usage': 'https,apis', 'is_custom': True}}},
-        {'method': 'POST', 'url': r'/v1/certificates/actions/use$', 'body': {'data': {}}}],
+        {'method': 'POST', 'url': r'/v1/certificates/actions/use$', 'body': {'data': {}}},
+        {'method': 'DELETE', 'url': r'/v1/tokens/', 'body': {'data': {}}}],
     # OneView: its API version (that of OneView 9.00), the sessionID, the CA not in the trust
     # store yet, the tasks of the calls completed
     'hpe_oneview': [
@@ -283,34 +278,12 @@ ANSWERS = {
             'uri': '/rest/tasks/\u2039task\u203a'}},
         {'method': 'PUT', 'url': r'/rest/certificates/https/pkcs12', 'status': 202, 'body': {
             'uri': '/rest/tasks/\u2039task\u203a'}},
-        {'method': 'GET', 'url': r'/rest/tasks/', 'body': {'taskState': 'Completed'}}],
+        {'method': 'GET', 'url': r'/rest/tasks/', 'body': {'taskState': 'Completed'}},
+        {'method': 'DELETE', 'url': r'/rest/login-sessions$', 'status': 204, 'body': ''}],
     # Redfish (and the BMCs signed in to by it): the session's token and address are headers
     # of the sign-in, so it is signed out of
-    'supermicro_bmc': [_REDFISH_SESSION],
-    # SDDC Manager: the token is accessToken of the sign-in
-    'sddc_manager': [{'method': 'POST', 'url': r'/v1/tokens$', 'body': {
-        'accessToken': '{SESSION}', 'refreshToken': {'id': '\u2039refresh token\u203a'}}}],
-    # Unisphere says its REST API version (that of Unisphere 10.0, the oldest acme takes)
-    'unisphere_powermax': [{'method': 'GET', 'url': r'/univmax/restapi/version$', 'body': {
-        'version': 'V10.0.0.0', 'api_version': '100', 'supported_api_versions': ['100']}}],
-    # Cloud Director: the token is a header of the sign-in; the library gives the id of the
-    # item imported; its cells (those named, else one), the endpoints' change a task that
-    # succeeds
-    'vcd': [
-        {'method': 'POST', 'url': r'/sessions/provider$', 'body': {},
-         'headers': {'Content-Type': 'application/json',
-                     'X-VMWARE-VCLOUD-ACCESS-TOKEN': 'PLANSESSION0token'}},
-        {'method': 'POST', 'url': r'/ssl/certificateLibrary$', 'status': 201, 'body': {
-            'id': 'urn:vcloud:certificateLibraryItem:\u2039new\u203a'}},
-        {'method': 'GET', 'url': r'/cells\?', 'body': {'values': [
-            {'id': 'urn:vcloud:cell:\u2039cell\u203a', 'name': '\u2039cell\u203a'},
-            {'id': 'urn:vcloud:cell:\u2039cell\u203a', 'name': '{EACH:OPT:cells}'}],
-            'pageCount': 1}},
-        {'method': 'PUT', 'url': r'/cells/[^/]+(/accessEndpoints)?$', 'status': 202, 'body': '',
-         'headers': {'Location': '/api/task/\u2039task\u203a'}},
-        {'method': 'GET', 'url': r'/api/task/', 'body': {'status': 'success'}}],
-    # Site Recovery / vSphere Replication: session_id of the sign-in
-    'vmware_dr': [{'method': 'POST', 'url': r'/session$', 'body': {'session_id': '{SESSION}'}}],
+    # (supermicro_bmc, sddc_manager, unisphere_powermax, vcd, vmware_dr, vcenter,
+    # vsphere_supervisor, synology: in the section of targets redfish@ilo .. zimbra below)
 }
 # What an SSH command prints where a module reads it (plansandbox.Answers.ssh): {command (a
 # regex), input? (a regex of what is typed in), stdout, stderr?, exit?, times?} - else nothing.
@@ -322,9 +295,6 @@ SSH_ANSWERS = {
         {'command': r'^show crypto pki certificates ',
          'stdout': 'Certificate\n  Status: Available\n'},
         {'command': r'^write memory', 'stdout': 'Building configuration...\n[OK]\n'}],
-    # Unity: svc_custom_cert says it installed the files
-    'unity': [{'command': r'^svc_custom_cert ',
-               'stdout': 'Successfully installed custom certificate files.\n'}],
 }
 # a Catalyst 9800 is an IOS XE: show version says 17.12.4 (17.9.5, 17.15.3 for those versions);
 # the running configuration holds two earlier acme trustpoints (the older with a CA's of its
@@ -360,7 +330,17 @@ SSH_ANSWERS['cisco_wlc9800'] = [
         'Certificate\n  Status: Available\n  Certificate Serial Number (hex): ‹serial›\n'
         '  Certificate Usage: General Purpose\n  Associated Trustpoints: ' + _WLC_NEW + '\n'
         'CA Certificate\n  Status: Available\n  Associated Trustpoints: ' + _WLC_NEW + '\n'},
-    {'command': r'^write memory', 'stdout': 'Building configuration...\n[OK]\n'}]
+    {'command': r'^write memory', 'stdout': 'Building configuration...\n[OK]\n'},
+    # the PKCS#12 deleted from bootflash:; a binding, a trustpoint removed: configuration mode
+    # takes the lines (IOS asks before it removes a trustpoint: the "yes" lines)
+    {'command': r'^delete /force ', 'stdout': ''},
+    {'command': r'^$', 'input': r'\n(ip http secure-trustpoint|parameter-map type webauth) ',
+     'stdout': 'Enter configuration commands, one per line.  End with CNTL/Z.\n'},
+    {'command': r'^$', 'input': r'\nno crypto pki trustpoint ', 'stdout':
+        'Enter configuration commands, one per line.  End with CNTL/Z.\n'
+        '% Removing an enrolled certificate may destroy existing connection.\n'
+        'Are you sure you want to do this? [yes/no]: yes\n'
+        '% Be sure to ask the CA administrator to revoke your certificates.\n'}]
 SSH_ANSWERS['cisco_wlc9800@17.3'] = [
     {'command': r'^show version', 'stdout':
         'Cisco IOS XE Software, Version 17.09.05\nCisco IOS Software [Cupertino], C9800 '
@@ -413,7 +393,11 @@ SSH_ANSWERS['cockpit'] = [
     {'command': r'cockpit-certificate-ensure --check$', 'stdout':
         'Would use certificate /etc/cockpit/ws-certs.d/90-{CURRENT}.crt\n'},
     {'command': r'test -d /etc/pki/ca-trust/source/anchors', 'stdout':
-        '/etc/pki/ca-trust/source/anchors\n'}]
+        '/etc/pki/ca-trust/source/anchors\n'},
+    # install, rm, the trust store's update, the restart: nothing printed
+    {'command': r'(^|\' )(install -m 06[04][04] |rm -f |systemctl restart cockpit\.service$|'
+                r'/usr/bin/update-ca-trust extract$|/usr/sbin/update-ca-certificates$)',
+     'stdout': ''}]
 # cPanel (UAPI): the websites with SSL - one of the certificate's first name (its names, an
 # earlier certificate installed), the domains named; install_ssl updates it (cert_id); SSL
 # storage lists what is there. WHM API 1: the same through fetch_ssl_vhosts / installssl
@@ -505,6 +489,11 @@ _ILO_HTTPS_CERT = {
 # HPE iLO with its own key: the manager is an iLO 6 in Production; its HttpsCert has no CSR
 # before GenerateCSR and the new one ({CSR}) after it
 ANSWERS['hpe_ilo_devkey'] = [
+    {'method': 'GET', 'url': r'/redfish/v1/?$', 'body': {
+        'RedfishVersion': '1.13.0', 'Product': 'ProLiant DL380 Gen11', 'Vendor': 'HPE',
+        'Managers': {'@odata.id': '/redfish/v1/Managers/'},
+        'Links': {'Sessions': {'@odata.id': '/redfish/v1/SessionService/Sessions/'}}}},
+    {'method': 'DELETE', 'url': r'/SessionService/Sessions/', 'body': {}},
     _REDFISH_SESSION,
     {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {'Members': [
         {'@odata.id': '/redfish/v1/Managers/1/'}]}},
@@ -533,6 +522,10 @@ ANSWERS['dell_ome'] = [
     {'method': 'GET', 'url': r'/api/ApplicationService/Info$', 'body': {'Version': '4.6.0'}},
     {'method': 'POST', 'url': r'ApplicationService\.GenerateCSR$', 'body': {
         'CertificateData': '{CSR}'}},
+    # the upload taken (200, nothing said); the session deleted
+    {'method': 'POST', 'url': r'ApplicationService\.Upload(CertChain|Certificate)$',
+     'body': ''},
+    {'method': 'DELETE', 'url': r'/api/SessionService/Sessions\(', 'status': 204, 'body': ''},
 ]
 # its version for OME 3.0 - 3.9 says such a version (the certificate uploaded alone)
 ANSWERS['dell_ome@3.0'] = [
@@ -546,44 +539,6 @@ ANSWERS['lenovo_lxca'] = [
     {'method': 'GET', 'url': r'/certificateSigningRequest\?', 'body': {'csr': '{CSR}'}},
     {'method': 'POST', 'url': r'/serverCertificate/tmp$', 'body': {
         'result': 'success', 'messages': [{'id': 'FQXHMSE0134I'}]}},
-]
-# VCF component through SDDC Manager, key made by the device: the token, the domain named,
-# the tasks done, the CSR made ({CSR}), the validation succeeded
-ANSWERS['vcf_component'] = [
-    {'method': 'POST', 'url': r'/v1/tokens$', 'body': {
-        'accessToken': '{SESSION}', 'refreshToken': {'id': '‹refresh token›'}}},
-    {'method': 'GET', 'url': r'/v1/domains$', 'body': {'elements': [
-        {'id': '‹domain›', 'name': '{CFG:domain}'}]}},
-    {'method': 'PUT', 'url': r'/v1/domains/[^/]+/csrs$', 'status': 202, 'body': {
-        'id': '‹task›', 'status': 'IN_PROGRESS'}},
-    {'method': 'GET', 'url': r'/v1/domains/[^/]+/csrs$', 'body': {'elements': [
-        {'csrEncodedContent': '{CSR}'}]}},
-    {'method': 'PUT', 'url': r'/resource-certificates/validations$', 'status': 201, 'body': {
-        'validationId': '‹validation›'}},
-    {'method': 'GET', 'url': r'/resource-certificates/validations/', 'body': {
-        'executionStatus': 'COMPLETED', 'resultStatus': 'SUCCEEDED'}},
-    {'method': 'PUT', 'url': r'/v1/domains/[^/]+/resource-certificates$', 'status': 202,
-     'body': {'id': '‹task›', 'status': 'IN_PROGRESS'}},
-    {'method': 'GET', 'url': r'/v1/tasks/', 'body': {'status': 'SUCCESSFUL'}},
-    {'method': 'GET', 'url': r'/v1/sddc-managers$', 'body': {'elements': [
-        {'version': '5.2.1.0'}]}},
-]
-# its version 9.1 - VCF Operations: the token, the version 9.1, the component's certificate
-# (the FQDN asked), the workflows completed, the CSR made ({CSR})
-ANSWERS['vcf_component@9.1'] = [
-    {'method': 'POST', 'url': r'/auth/token/acquire$', 'body': {'token': '{SESSION}'}},
-    {'method': 'GET', 'url': r'/suite-api/api/versions/current$', 'body': {
-        'releaseName': 'VCF Operations 9.1', 'major': 9, 'minor': 1}},
-    {'method': 'POST', 'url': r'/certificates/query', 'body': {'vcfCertificateModels': [
-        {'certificateResourceKey': '‹certificate›',
-         'applianceFqdn': '{SENT:applianceFqdn}', 'category': 'TLS_CERT'}]}},
-    {'method': 'POST', 'url': r'/certificate-management/csrs$', 'body': {
-        'requestId': '‹request›', 'state': 'INPROGRESS'}},
-    {'method': 'GET', 'url': r'/certificate-management/csrs\?', 'body': {
-        'certificateSignatureInfo': [{'csr': '{CSR}'}]}},
-    {'method': 'PUT', 'url': r'/certificate-management/certificates/', 'status': 202,
-     'body': {'requestId': '‹request›'}},
-    {'method': 'GET', 'url': r'/workflows/requests/', 'body': {'state': 'COMPLETED'}},
 ]
 # CUCM's CLI (one session a step, the lines on its input): the version, an empty trust
 # store, the imports and restarts as Cisco's TechNote 200753 shows them; set csr gen /
@@ -976,6 +931,95 @@ ANSWERS['bunny'] = [
         'Items': [_BUNNY_ZONE], 'CurrentPage': 1, 'TotalItems': 1, 'HasMoreItems': False}},
     {'method': 'POST', 'url': r'/pullzone/\d+/addCertificate$', 'status': 204, 'body': ''},
 ]
+# Two files written over SSH (targets/_files.py): sha256sum says the ones there (another
+# certificate), the placing script says each existed and was placed (so its copy is kept and
+# the older copies pruned), the temporary files removed
+_FILES2_SSH = [
+    {'command': r'sha256sum \S+ \S+ 2>/dev/null', 'stdout':
+        '5a0e1d2c3b4a59687706f5e4d3c2b1a0988776655443322110ffeeddccbbaa99  '
+        '{SEEN:sha256sum (\\S+) \\S+ 2>/dev/null}\n'
+        '0b1c2d3e4f5a69788706f5e4d3c2b1a0988776655443322110ffeeddccbbaa11  '
+        '{SEEN:sha256sum \\S+ (\\S+) 2>/dev/null}\n'},
+    {'command': r'echo "PLACED \d+"', 'stdout': 'EXISTED 0\nPLACED 0\nEXISTED 1\nPLACED 1\n'},
+    {'command': r'ls -1t -- ', 'stdout': ''},
+    {'command': r'^rm -f /tmp/\.acme-', 'stdout': ''},
+]
+# Caddy: its admin API (curl on the machine) lists the certificates loaded through it - the
+# earlier one of this certificate (its tag) and another - and takes the new list (200);
+# files: as _FILES2_SSH, caddy reload says nothing
+SSH_ANSWERS['caddy'] = [
+    {'command': r'curl .* -X GET .*/config/apps/tls/certificates', 'stdout':
+        '{"load_pem": [{"certificate": "‹the earlier certificate, PEM›", "key": '
+        '"‹its key›", "tags": ["acme-{LABEL}"]}, {"certificate": "‹another '
+        'certificate, PEM›", "key": "‹its key›", "tags": ["intranet"]}]}\n200'},
+    {'command': r'curl .* -X (PATCH|POST) ', 'stdout': '\n200'},
+    {'command': r'^rm -f /tmp/\.acme-caddy-', 'stdout': ''},
+    {'command': r'caddy reload', 'stdout': ''},
+] + _FILES2_SSH
+# Check Point Management API (every command a POST of its own): the session; the dated new
+# object is not there yet (a fixed one is - replaced in place); the server certificates are the
+# new one and two earlier ones of acme - the oldest, used nowhere, deleted (keep 1); publish and
+# install are tasks that succeed
+_CP_TASK = {'task-id': '01234567-89ab-cdef-0123-456789abcdef'}
+ANSWERS['checkpoint'] = [
+    {'method': 'POST', 'url': r'/web_api/(v[\d.]+/)?login$', 'body': {
+        'sid': '{SESSION}', 'uid': '‹session uid›', 'session-timeout': 600,
+        'api-server-version': '1.9.1', 'url': 'https://{CFG:host}:443/web_api'}},
+    {'method': 'POST', 'url': r'/web_api/(v[\d.]+/)?logout$', 'body': {'message': 'OK'}},
+    {'method': 'POST', 'url': r'/show-server-certificate$', 'sent': r'"name": "acme-',
+     'status': 404, 'body': {'code': 'generic_err_object_not_found',
+                             'message': 'Requested object [{SENT:name}] not found'}},
+    {'method': 'POST', 'url': r'/show-server-certificate$', 'body': {
+        'uid': '‹object uid›', 'name': '{SENT:name}', 'type': 'server-certificate',
+        'server-certificate': {'subject': 'CN={CERTNAME}', 'valid-to': {
+            'iso-8601': '‹its end›'}}}},
+    {'method': 'POST', 'url': r'/(add|set)-server-certificate$', 'body': {
+        'uid': '‹object uid›', 'name': '{SENT:name}', 'type': 'server-certificate'}},
+    {'method': 'POST', 'url': r'/set-https-rule$', 'body': {
+        'uid': '‹rule uid›', 'type': 'https-rule', 'certificate': '{SENT:certificate}'}},
+    {'method': 'POST', 'url': r'/set-simple-(gateway|cluster)$', 'body': {
+        'uid': '‹gateway uid›', 'name': '{SENT:name}'}},
+    {'method': 'POST', 'url': r'/show-server-certificates$', 'body': {
+        'objects': [{'name': '{CURRENT}', 'type': 'server-certificate'},
+                    {'name': '{EARLIER}', 'type': 'server-certificate'},
+                    {'name': '{EARLIER2}', 'type': 'server-certificate'}],
+        'from': 1, 'to': 3, 'total': 3}},
+    {'method': 'POST', 'url': r'/where-used$', 'body': {
+        'used-directly': {'total': 0, 'objects': []},
+        'used-indirectly': {'total': 0, 'objects': []}}},
+    {'method': 'POST', 'url': r'/delete-server-certificate$', 'body': {'message': 'OK'}},
+    {'method': 'POST', 'url': r'/(publish|install-policy)$', 'body': _CP_TASK},
+    {'method': 'POST', 'url': r'/show-task$', 'body': {'tasks': [dict(
+        _CP_TASK, status='succeeded', **{'progress-percentage': 100})]}},
+]
+# Cisco ASA (HTTP interface, text answers): the trustpoints - two earlier ones of acme and the
+# Smart Call Home one; ssl trust-point names the earlier one on the interface, then the new one
+# (as the switch sent it); the PKCS#12 import completes; write memory says [OK]
+_ASA_TEXT = {'Content-Type': 'text/plain'}
+ANSWERS['cisco_asa'] = [
+    {'method': 'GET', 'url': r'/admin/exec/show\+running-config\+crypto\+ca\+trustpoint$',
+     'headers': _ASA_TEXT, 'body':
+        'crypto ca trustpoint {EARLIER:128}\n keypair {EARLIER:128}\n crl configure\n'
+        'crypto ca trustpoint {EARLIER2:128}\n keypair {EARLIER2:128}\n crl configure\n'
+        'crypto ca trustpoint _SmartCallHome_ServerCA\n no validation-usage\n crl configure\n'},
+    {'method': 'GET', 'url': r'/admin/exec/show\+running-config\+ssl\+trust-point$',
+     'times': 1, 'headers': _ASA_TEXT, 'body': 'ssl trust-point {EARLIER:128} '
+                                               '{OPT:trust_points}\n'},
+    {'method': 'GET', 'url': r'/admin/exec/show\+running-config\+ssl\+trust-point$',
+     'headers': _ASA_TEXT, 'body': 'ssl trust-point {SEEN:(?:^|\\n)ssl trust-point (\\S+ [^\\n]*)}\n'},
+    {'method': 'POST', 'url': r'/admin/config$', 'sent': r'crypto ca import \S+ pkcs12',
+     'headers': _ASA_TEXT, 'body': 'Enter the base 64 encoded pkcs12.\nEnd with the word "quit" '
+                                   'on a line by itself:\nINFO: Import PKCS12 operation '
+                                   'completed successfully.\n'},
+    {'method': 'POST', 'url': r'/admin/config$', 'sent': r'no crypto ca trustpoint',
+     'headers': _ASA_TEXT, 'body': 'WARNING: Removing an enrolled trustpoint will destroy all\n'
+                                   'certificates received from the related\n'
+                                   'Certificate Authority.\n'},
+    {'method': 'POST', 'url': r'/admin/config$', 'headers': _ASA_TEXT, 'body': ''},
+    {'method': 'GET', 'url': r'/admin/exec/write\+memory$', 'headers': _ASA_TEXT, 'body':
+        'Building configuration...\nCryptochecksum: 5a0e1d2c 3b4a5968 7706f5e4 d3c2b1a0\n\n'
+        '21834 bytes copied in 0.230 secs\n[OK]\n'},
+]
 # ---- end of targets a10 .. cisco_nxos ----
 # ---- targets cisco_wlc9800 .. hpe_oneview ----
 # CUCM: the CA certificates of the chain in <unit>-trust already at a renewal (the first time
@@ -1060,7 +1104,8 @@ SSH_ANSWERS['docker_swarm'] = [
         '"SecretID":"\u2039secret id\u203a","SecretName":"db_password"}]\n'},
     {'command': r'secret create ', 'stdout': '\u2039secret id\u203a\n'},
     {'command': r'service update ', 'stdout': '\u2039service\u203a\n'},
-    {'command': r'secret rm ', 'stdout': '{SEEN:secret rm (\\S+)}\n'}]
+    {'command': r'secret rm ', 'stdout': '{SEEN:secret rm (\\S+)}\n'},
+    {'command': r'^rm -f /tmp/\.acme-secret-', 'stdout': ''}]
 # ESXi over SSH: rui.crt and rui.key there (an earlier certificate: other SHA-256s), both
 # replaced (EXISTED, PLACED), hostd and vpxa restarted, the state saved to the boot bank
 SSH_ANSWERS['esxi'] = [
@@ -1074,7 +1119,10 @@ SSH_ANSWERS['esxi'] = [
         'hostd stopped.\nhostd started.\nvpxa stopped.\nvpxa started.\n'},
     {'command': r'services\.sh restart', 'stdout': 'Running services restart\n'},
     {'command': r'/sbin/auto-backup\.sh', 'stdout':
-        'Saving current state in /bootbank\nClock updated.\n'}]
+        'Saving current state in /bootbank\nClock updated.\n'},
+    # the uploads taken away, the older dated copies pruned: nothing printed
+    {'command': r'^rm -f /tmp/\.acme-', 'stdout': ''},
+    {'command': r'ls -1t -- .*\.bak ', 'stdout': ''}]
 # ESXi 8.0 U3 - 9.1 through vCenter: the service content says vCenter 8.0.3; the host is
 # ESXi 8.0.3 of its name; the chain added to the trusted roots (its id)
 ANSWERS['esxi@8.0.3'] = [
@@ -1088,7 +1136,13 @@ ANSWERS['esxi@8.0.3'] = [
             'version': '8.0.3', 'build': '24280767'}},
         'runtime': {'connectionState': 'connected', 'inMaintenanceMode': False}}},
     {'method': 'POST', 'url': r'/certificate-management/vcenter/trusted-root-chains$',
-     'status': 201, 'body': '"\u2039chain id\u203a"'}]
+     'status': 201, 'body': '"\u2039chain id\u203a"'},
+    # the methods that return nothing (204), the sessions ended
+    {'method': 'POST', 'url': r'/HostCertificateManager/[^/]+/(ProvisionServerPrivateKey|'
+                              r'InstallServerCertificate|NotifyAffectedServices)$',
+     'status': 204, 'body': ''},
+    {'method': 'POST', 'url': r'/SessionManager/[^/]+/Logout$', 'status': 204, 'body': ''},
+    {'method': 'DELETE', 'url': r'/api/session$', 'status': 204, 'body': ''}]
 # BIG-IP: the new key and certificate not there yet (404), the chain there already (the same
 # intermediate as at the earlier renewal); the uploads and installs taken; the profile's
 # cert-key-chain on the earlier certificate; the partition's certificates: three earlier
@@ -1127,7 +1181,11 @@ ANSWERS['f5'][1:1] = [
     {'method': 'POST', 'url': r'/mgmt/tm/sys/config$', 'body': {
         'kind': 'tm:sys:config:savestate', 'command': 'save'}},
     {'method': 'POST', 'url': r'/mgmt/tm/cm$', 'body': {
-        'kind': 'tm:cm:runstate', 'command': 'run', 'utilCmdArgs': '{SENT:utilCmdArgs}'}}]
+        'kind': 'tm:cm:runstate', 'command': 'run', 'utilCmdArgs': '{SENT:utilCmdArgs}'}},
+    {'method': 'DELETE', 'url': r'/mgmt/tm/sys/crypto/(cert|key)/', 'body': ''},
+    {'method': 'DELETE', 'url': r'/mgmt/shared/authz/tokens/', 'body': {
+        'token': '\u2039session\u203a', 'name': '\u2039session\u203a',
+        'kind': 'shared:authz:tokens:authtokenitemstate'}}]
 # Fastly: the TLS certificates - the earlier one acme put there (its activations kept), the
 # one named by its ID, another; the private keys of the two earlier ones (not this one's);
 # the key uploaded, the certificate replaced in place; unused keys: the two earlier ones (the
@@ -1379,6 +1437,8 @@ SSH_ANSWERS['haproxy'] = [
     {'command': r"'commit ssl cert ", 'stdout':
         'Committing {OPT:cert_path}\nSuccess!\n'},
     {'command': r"'new ssl cert ", 'stdout': 'New empty certificate store \'{OPT:cert_path}\'!\n'},
+    {'command': r'^rm -f /tmp/\.acme-', 'stdout': ''},
+    {'command': r'ls -1t -- .*\.bak ', 'stdout': ''},
     {'command': r"'add ssl crt-list ", 'stdout':
         'Inserting certificate \'{OPT:cert_path}\' in crt-list \'{OPT:crt_list}\'.\nSuccess!\n'}]
 # HestiaCP: each web domain has SSL on with a certificate of its own (not Hestia's Let's
@@ -1394,7 +1454,9 @@ SSH_ANSWERS['hestiacp'] = [
         '{\n    "' + _HESTIA_DOM + '": {\n        "CRT": "\u2039the earlier certificate\u203a",\n'
         '        "KEY": "",\n        "CA": "",\n        "SUBJECT": "' + _HESTIA_DOM + '",\n'
         '        "NOT_AFTER": "Nov 12 10:00:00 2026 GMT"\n    }\n}\n'},
-    {'command': r'mktemp -d$', 'stdout': '/tmp/tmp.Xa8k2LmQ0p\n'}]
+    {'command': r'mktemp -d$', 'stdout': '/tmp/tmp.Xa8k2LmQ0p\n'},
+    {'command': r'/v-(change|add)-web-domain-ssl(cert)? ', 'stdout': ''},
+    {'command': r'^rm -rf /tmp/tmp\.', 'stdout': ''}]
 # Hetzner Cloud: the certificate of this name not there yet, then uploaded (its id); each
 # load balancer named has an HTTPS service on the earlier certificate (and an HTTP one); the
 # update an action that is running, then done; the project's certificates: the two earlier
@@ -1444,7 +1506,9 @@ SSH_ANSWERS['horizon_cs'] = [
         '{SEEN:\\$thumb = \'([0-9A-Fa-f]+)\'}\n'},
     {'command': r'^powershell', 'script': r'Restart-Service', 'stdout':
         'STEP ok restarted VMware Horizon Connection Server\n'},
-    {'command': r'^powershell', 'script': r"if \(\$c -and \$c\.FriendlyName", 'stdout': 'NO\n'}]
+    {'command': r'^powershell', 'script': r"if \(\$c -and \$c\.FriendlyName", 'stdout': 'NO\n'},
+    # the files put for the import taken away: nothing printed
+    {'command': r'^powershell', 'script': r'^(\$\w+ = [^\n]*\n)*try \{\nRemove-Item ', 'stdout': ''}]
 # Alletra MP / Primera: createcert -csr prints the new CSR (the sandbox's {CSR}); importcert
 # takes the CA certificates and the certificate (the services restart)
 SSH_ANSWERS['hpe_alletra_mp'] = [
@@ -1924,24 +1988,7 @@ ANSWERS['redfish'] = [
         'CertificateType': 'PEM'}},
     {'method': 'POST', 'url': r'/Actions/Manager\.Reset$', 'status': 204, 'body': ''},
     {'method': 'DELETE', 'url': r'/SessionService/Sessions/', 'status': 204, 'body': ''}]
-# an iLO 6 (firmware 1.62) in Production, its HttpsCert with the ImportCertificate action
-ANSWERS['redfish@ilo'] = [
-    {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {'Members': [
-        {'@odata.id': '/redfish/v1/Managers/1/'}]}},
-    {'method': 'GET', 'url': r'/redfish/v1/Managers/1/?$', 'body': {
-        'Model': 'iLO 6', 'Manufacturer': 'HPE', 'FirmwareVersion': 'iLO 6 v1.62'}},
-    {'method': 'GET', 'url': r'/SecurityService/?$', 'body': {
-        'SecurityState': 'Production', 'Links': {'HttpsCert': {
-            '@odata.id': '/redfish/v1/Managers/1/SecurityService/HttpsCert/'}}}},
-    {'method': 'GET', 'url': r'/HttpsCert/?$', 'body': {
-        'X509CertificateInformation': {'Subject': 'CN={CERTNAME}',
-                                       'ValidNotAfter': '‹when the earlier one ends›'},
-        'Actions': {'#HpeHttpsCert.ImportCertificate': {
-            'target': '/redfish/v1/Managers/1/SecurityService/HttpsCert/Actions/'
-                      'HpeHttpsCert.ImportCertificate'}}}},
-    {'method': 'POST', 'url': r'HpeHttpsCert\.ImportCertificate$', 'body': {
-        'error': {'code': 'iLO.0.10.ExtendedInfo', '@Message.ExtendedInfo': [
-            {'MessageId': 'iLO.2.16.ImportCertSuccessfuliLOResetinProgress'}]}}}]
+# (redfish@ilo - redfish_ilo.py: in the section of targets redfish@ilo .. zimbra below)
 # an iDRAC9 (firmware 7.10.30.00): its manager iDRAC.Embedded.1, Dell's card service with
 # UploadSSLKey and ImportSSLCertificate
 ANSWERS['redfish@6.00.02'] = [
@@ -2037,6 +2084,655 @@ SSH_ANSWERS['mikrotik'] = [
     {'command': r'^(:foreach c in=|/file remove |/ip service set |/certificate remove |'
                 r'/interface (sstp|ovpn)-server server set )', 'stdout': ''}]
 # ---- end of targets hpe_synergy .. redfish_idrac ----
+# ---- targets redfish@ilo .. zimbra (1.0.98): what each device answers on a renewal - the
+# certificate of the renewal before there, replaced, the older acme ones cleaned up ----
+_SOPHOS_OK = '<Login><status>Authentication Successful</status></Login>'
+ANSWERS['sophos'] = [
+    {'method': 'POST', 'url': r'/webconsole/APIController$', 'sent': r'<Get><Certificate>',
+     'times': 1, 'headers': {'Content-Type': 'application/xml'}, 'body':
+        '<?xml version="1.0" encoding="UTF-8"?>\n<Response APIVersion="2000.1" IPS_CAT_VER="1">'
+        + _SOPHOS_OK + '<Certificate transactionid=""><Name>ApplianceCertificate</Name></Certificate>'
+        '<Certificate transactionid=""><Name>{EARLIER2:50:6}</Name></Certificate>'
+        '<Certificate transactionid=""><Name>{EARLIER:50:6}</Name></Certificate></Response>'},
+    {'method': 'POST', 'url': r'/webconsole/APIController$', 'sent': r'<Get><Certificate>',
+     'headers': {'Content-Type': 'application/xml'}, 'body':
+        '<?xml version="1.0" encoding="UTF-8"?>\n<Response APIVersion="2000.1" IPS_CAT_VER="1">'
+        + _SOPHOS_OK + '<Certificate transactionid=""><Name>ApplianceCertificate</Name></Certificate>'
+        '<Certificate transactionid=""><Name>{EARLIER2:50:6}</Name></Certificate>'
+        '<Certificate transactionid=""><Name>{EARLIER:50:6}</Name></Certificate>'
+        '<Certificate transactionid=""><Name>{CURRENT:50:6}</Name></Certificate></Response>'},
+    {'method': 'POST', 'url': r'/webconsole/APIController$', 'sent': r'<Get><FirewallRule>',
+     'headers': {'Content-Type': 'application/xml'}, 'body':
+        '<?xml version="1.0" encoding="UTF-8"?>\n<Response APIVersion="2000.1" IPS_CAT_VER="1">'
+        + _SOPHOS_OK + '<FirewallRule transactionid=""><Name>{SEEN:criteria="=">([^<]*)<}</Name><PolicyType>HTTPBased'
+        '</PolicyType><HTTPBasedPolicy><HTTPSCertificate>{EARLIER:50:6}</HTTPSCertificate>'
+        '</HTTPBasedPolicy></FirewallRule></Response>'},
+    {'method': 'POST', 'url': r'/webconsole/APIController$', 'sent': r'<Remove>',
+     'headers': {'Content-Type': 'application/xml'}, 'body':
+        '<?xml version="1.0" encoding="UTF-8"?>\n<Response APIVersion="2000.1" IPS_CAT_VER="1">'
+        + _SOPHOS_OK + '<Certificate transactionid=""><Status code="200">Configuration applied '
+        'successfully.</Status></Certificate></Response>'},
+    {'method': 'POST', 'url': r'/webconsole/APIController$', 'sent': r'<FirewallRule',
+     'headers': {'Content-Type': 'application/xml'}, 'body':
+        '<?xml version="1.0" encoding="UTF-8"?>\n<Response APIVersion="2000.1" IPS_CAT_VER="1">'
+        + _SOPHOS_OK + '<FirewallRule transactionid=""><Status code="200">Configuration applied '
+        'successfully.</Status></FirewallRule></Response>'},
+    {'method': 'POST', 'url': r'/webconsole/APIController$', 'headers': {
+        'Content-Type': 'application/xml'}, 'body':
+        '<?xml version="1.0" encoding="UTF-8"?>\n<Response APIVersion="2000.1" IPS_CAT_VER="1">'
+        + _SOPHOS_OK + '<Certificate transactionid=""><Status code="200">Configuration applied '
+        'successfully.</Status></Certificate></Response>'},
+]
+# DSM: the sign-in (sid, synotoken), the certificates - the one acme put there before under
+# its description, the default one - the import (its id), the sign-out
+ANSWERS['synology'] = [
+    {'method': 'POST', 'url': r'/webapi/entry\.cgi', 'sent': r'api=SYNO\.API\.Auth&.*method=login',
+     'body': {'data': {'did': '‹device id›', 'is_portal_port': False,
+                       'sid': '{SESSION}', 'synotoken': '{SESSION}'}, 'success': True}},
+    {'method': 'POST', 'url': r'/webapi/entry\.cgi', 'sent': r'api=SYNO\.Core\.Certificate\.CRT&.*method=list',
+     'body': {'data': {'certificates': [
+         {'desc': '{EACH:OPT:desc}', 'id': 'Xq3vTb', 'is_default': True,
+          'is_broken': False, 'renewable': False, 'user_deletable': True,
+          'subject': {'common_name': '{CERTNAME}'}, 'valid_till': 'Feb 11 08:00:00 2027 GMT',
+          'services': [{'display_name': 'DSM Desktop Service', 'service': 'default',
+                        'subscriber': 'system', 'owner': 'root', 'isPkg': False}]},
+         {'desc': 'acme {LABEL}', 'id': 'Kd81Wm', 'is_default': True,
+          'is_broken': False, 'renewable': False, 'user_deletable': True,
+          'subject': {'common_name': '{CERTNAME}'}, 'valid_till': 'Feb 11 08:00:00 2027 GMT',
+          'services': [{'display_name': 'DSM Desktop Service', 'service': 'default',
+                        'subscriber': 'system', 'owner': 'root', 'isPkg': False}]},
+         {'desc': '', 'id': 'Rm2kqP', 'is_default': False, 'is_broken': False,
+          'renewable': False, 'user_deletable': False,
+          'subject': {'common_name': 'synology'}, 'valid_till': 'Mar  3 10:15:00 2045 GMT',
+          'services': []}]}, 'success': True}},
+    {'method': 'POST', 'url': r'/webapi/entry\.cgi\?api=SYNO\.Core\.Certificate&.*method=import',
+     'body': {'data': {'id': 'Kd81Wm', 'restart_http': True}, 'success': True}},
+    {'method': 'POST', 'url': r'/webapi/entry\.cgi', 'sent': r'method=logout',
+     'body': {'success': True}},
+]
+# TrueNAS (midclt over SSH): its certificates - the default, two acme put there before -, the
+# web interface on the newer of those; the import's job done; listed with the new one after it
+_TRUENAS_CERTS = ('{"id": 1, "type": 8, "name": "truenas_default", "cert_type": "CERTIFICATE", '
+       '"common": "localhost", "issuer": "external", "until": "Wed Sep 10 08:12:30 2031"}, '
+       '{"id": 4, "type": 8, "name": "{EARLIER2:63:8:_}", "cert_type": "CERTIFICATE", '
+       '"common": "{CERTNAME}", "issuer": "external", "until": "Fri Feb 13 09:00:00 2026"}, '
+       '{"id": 6, "type": 8, "name": "{EARLIER:63:8:_}", "cert_type": "CERTIFICATE", '
+       '"common": "{CERTNAME}", "issuer": "external", "until": "Thu May 14 09:00:00 2026"}')
+SSH_ANSWERS['truenas'] = [
+    {'command': r'midclt call certificate\.query', 'times': 1, 'stdout': '[' + _TRUENAS_CERTS + ']\n'},
+    {'command': r'midclt call certificate\.query', 'stdout':
+        '[' + _TRUENAS_CERTS + ', {"id": 9, "type": 8, "name": "{CURRENT:63:8:_}", "cert_type": '
+        '"CERTIFICATE", "common": "{CERTNAME}", "issuer": "external", '
+        '"until": "Thu Feb 11 09:00:00 2027"}]\n'},
+    {'command': r'midclt call system\.general\.config', 'stdout':
+        '{"id": 1, "ui_address": ["0.0.0.0"], "ui_port": 80, "ui_httpsport": 443, '
+        '"ui_httpsredirect": true, "ui_certificate": {"id": 6, "name": "{EARLIER:63:8:_}", '
+        '"cert_type": "CERTIFICATE"}, "timezone": "Europe/Prague"}\n'},
+    {'command': r'certificate\.create', 'stdout':
+        '{"id": 9, "type": 8, "name": "{CURRENT:63:8:_}", "cert_type": "CERTIFICATE"}\n'},
+    {'command': r'midclt call system\.general\.update', 'stdout':
+        '{"id": 1, "ui_certificate": {"id": 9, "name": "{CURRENT:63:8:_}"}}\n'},
+    {'command': r'midclt call system\.general\.ui_restart', 'stdout': 'null\n'},
+    {'command': r'midclt call ftp\.update', 'stdout': '{"id": 1, "ssltls_certificate": 9}\n'},
+    {'command': r'midclt call -j certificate\.delete', 'stdout':
+        'Status: Deleting certificate\nTotal Progress: [########################################] '
+        '100.00%\ntrue\n'},
+]
+# UniFi OS: the session the TOKEN cookie of the sign-in, its CSRF token a header; the
+# certificates added there - two acme added before, the newer active -, the new one's id
+_UNIFI_OLD = [
+    {'id': '6650c1a2e4b0a1f3c2d1e0a1', 'name': '{EARLIER2}', 'active': False,
+     'fingerprint': '5A:0E:1D:2C:3B:4A:59:68:76:00:11:22:33:44:55:66:77:88:99:A6',
+     'subject': {'CN': '{CERTNAME}'}, 'validTo': '2026-02-12T09:00:00Z'},
+    {'id': '66f1d0b3e4b0a1f3c2d1e0b2', 'name': '{EARLIER}', 'active': True,
+     'fingerprint': '5A:0E:1D:2C:3B:4A:59:68:77:00:11:22:33:44:55:66:77:88:99:A7',
+     'subject': {'CN': '{CERTNAME}'}, 'validTo': '2026-05-14T09:00:00Z'}]
+ANSWERS['unifi_os'] = [
+    {'method': 'POST', 'url': r'/api/auth/login$', 'body': {
+        'unique_id': '‹user id›', 'username': '{CFG:user}', 'isOwner': False,
+        'deviceToken': ''},
+     'headers': {'Content-Type': 'application/json',
+                 'Set-Cookie': 'TOKEN=PLANSESSION0token; path=/; samesite=strict; secure; httponly',
+                 'X-CSRF-Token': '‹csrf token›'}},
+    {'method': 'GET', 'url': r'/api/userCertificates$', 'times': 1, 'body': _UNIFI_OLD},
+    {'method': 'POST', 'url': r'/api/userCertificates$', 'body': {
+        'id': '67a2b9c4e4b0a1f3c2d1e0c3', 'name': '{SENT:name}', 'active': False}},
+    {'method': 'GET', 'url': r'/api/userCertificates$', 'body': _UNIFI_OLD + [
+        {'id': '67a2b9c4e4b0a1f3c2d1e0c3', 'name': '{CURRENT}', 'active': True,
+         'fingerprint': '{FP1}', 'subject': {'CN': '{CERTNAME}'},
+         'validTo': '2027-02-11T09:00:00Z'}]},
+    {'method': 'PUT', 'url': r'/api/userCertificates/[^/]+/status$', 'body': {'active': True}},
+    {'method': 'DELETE', 'url': r'/api/userCertificates/[^/]+$', 'body': {}},
+]
+# the certificate a device holds from the renewal before (another key, its own fingerprint)
+_OLD_PEM = ('-----BEGIN CERTIFICATE-----\n'
+            'MIIBiTCCAS+gAwIBAgIUY9Lv9vUV7BKizx5JYHEl/xbIWGAwCgYIKoZIzj0EAwIw\n'
+            'GjEYMBYGA1UEAwwPd3d3LmV4YW1wbGUuY29tMB4XDTI2MTExMzE2MDg1NVoXDTI3\n'
+            'MDIxMTE2MDg1NVowGjEYMBYGA1UEAwwPd3d3LmV4YW1wbGUuY29tMFkwEwYHKoZI\n'
+            'zj0CAQYIKoZIzj0DAQcDQgAESvI9qZBOGt9o3fYmLZeWpMKzjeSJjRDa+4+QC+d3\n'
+            'QLTNowramYbjy2/IYb38w43OPgafMVqHx8vrjcjYodnPGKNTMFEwHQYDVR0OBBYE\n'
+            'FLqmJxjaZTDTvtYLpGCvHLa5XhfVMB8GA1UdIwQYMBaAFLqmJxjaZTDTvtYLpGCv\n'
+            'HLa5XhfVMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDSAAwRQIgSmUGNsO9\n'
+            'BgIhAjDaF0Y9W3aY/cOf+q2VbmrFYgwLYQwCIQDtfQXvrmpVZSMCol2b7AQKm8uE\n'
+            '6cRzLREnWYEIUb9xqg==\n'
+            '-----END CERTIFICATE-----\n')
+# Virtualmin (remote.cgi, text): the virtual server holds the certificate of the renewal
+# before; install-cert installs and restarts what uses it
+ANSWERS['virtualmin'] = [
+    {'method': 'POST', 'url': r'/virtual-server/remote\.cgi$', 'sent': r'program=list-certs',
+     'headers': {'Content-Type': 'text/plain'}, 'body': _OLD_PEM + '\nExit status: 0\n'},
+    {'method': 'POST', 'url': r'/virtual-server/remote\.cgi$', 'sent': r'program=enable-feature',
+     'headers': {'Content-Type': 'text/plain'}, 'body':
+        'Enabling features for virtual server ..\n.. done\n\nExit status: 0\n'},
+    {'method': 'POST', 'url': r'/virtual-server/remote\.cgi$', 'sent': r'program=install-cert',
+     'headers': {'Content-Type': 'text/plain'}, 'body':
+        'Installing new SSL files ..\n.. done\n\nRe-loading Apache webserver ..\n.. done\n'
+        '\nExit status: 0\n'},
+    {'method': 'POST', 'url': r'/virtual-server/remote\.cgi$', 'sent': r'program=list-domains',
+     'headers': {'Content-Type': 'text/plain'}, 'body':
+        '{OPT:domain}\nshop.example.com\n\nExit status: 0\n'},
+]
+# a webhook: the receiver takes it (what it answers is the receiver's own - 200 here)
+ANSWERS['webhook'] = [{'method': 'POST', 'body': {'ok': True}}]
+# Files over SSH (_files: hashes, place_lines): each file there holds the certificate of the
+# renewal before (sha256sum prints another SHA-256 for every path asked), each is put in place
+# - the old one there was copied aside (EXISTED i), the new one moved over (PLACED i), as the
+# script's echo lines print it
+_SSH_SHA = {'command': r'sha256sum ', 'seen_lines': True, 'stdout': ''.join(
+    '5a0e1d2c3b4a5968%02d7e1f0c9b8a7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c  '
+    '{SEEN:sha256sum (?:[^\\s\']+ ){%d}(/[^\\s\';]*)}\n' % (i, i) for i in range(12))}
+_SSH_PLACED = {'command': r'echo "PLACED \d+"', 'seen_lines': True, 'stdout': ''.join(
+    '{SEEN:echo "(EXISTED %d)"}\n{SEEN:echo "(PLACED %d)"}\n' % (i, i) for i in range(12))}
+SSH_ANSWERS['ssh'] = [_SSH_SHA, _SSH_PLACED]
+# what the services' own tests print (to stderr, exit 0), and the commands that print nothing
+_SSH_SERVICES = [
+    {'command': r'nginx -t', 'stderr': 'nginx: the configuration file /etc/nginx/nginx.conf syntax '
+     'is ok\nnginx: configuration file /etc/nginx/nginx.conf test is successful\n'},
+    {'command': r'apachectl -t|apache2ctl -t|httpd -t', 'stderr': 'Syntax OK\n'},
+    {'command': r'haproxy -c', 'stdout': 'Configuration file is valid\n'},
+    {'command': r'^(sh -c \'|sudo -[nS] (-p \'\' )?sh -c \')?(systemctl (reload|restart)|postfix '
+     r'(check|reload)|doveconf -n|exim -bV|docker restart|rm -f|ls -1t|mv -f|chmod|chown)',
+     'stdout': ''},
+]
+SSH_ANSWERS['ssh'] += _SSH_SERVICES
+# strongSwan: the files there hold the renewal before's; swanctl --load-creds says what it
+# loaded (ipsec rereadall nothing)
+SSH_ANSWERS['strongswan'] = [_SSH_SHA, _SSH_PLACED, {
+    'command': r'swanctl --load-creds', 'stdout':
+        "loaded certificate from '{SEEN:mv -f \\S+ (/\\S+/x509/[^\\s/]+\\.crt)}'\n"
+        "loaded certificate from '{SEEN:mv -f \\S+ (/\\S+/x509ca/[^\\s/]+\\.crt)}'\n"
+        "loaded ecdsa key from '{SEEN:mv -f \\S+ (/\\S+/private/[^\\s/]+\\.key)}'\n"
+        "no authorities found, 0 unloaded\nno pools found, 0 unloaded\n"},
+    {'command': r'ipsec rereadall', 'stdout': ''}] + _SSH_SERVICES
+# Traefik: the dynamic configuration there (another SHA-256), no files of the new name yet;
+# the certificates' folder holds two acme wrote before and the new one
+SSH_ANSWERS['traefik'] = [
+    {'command': r'sha256sum ', 'seen_lines': True, 'stdout': ''.join(
+        '5a0e1d2c3b4a5968%02d7e1f0c9b8a7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c  '
+        '{SEEN:sha256sum (?:[^\\s\']+ ){%d}(/[^\\s\';]*\\.yml)}\n' % (i, i) for i in range(4))},
+    {'command': r'echo "PLACED \d+"', 'times': 1, 'seen_lines': True, 'stdout': ''.join(
+        '{SEEN:echo "(PLACED %d)"}\n' % i for i in range(4))},
+    _SSH_PLACED,
+    {'command': r'ls -1 ', 'stdout': '{EARLIER2}.crt\n{EARLIER2}.key\n{EARLIER}.crt\n'
+                                     '{EARLIER}.key\n{CURRENT}.crt\n{CURRENT}.key\n'}] + _SSH_SERVICES
+# Zimbra: commercial.key / .crt there (the renewal before's), the work files not; zmcertmgr
+# says the key, certificate and chain match, deploys, zmcontrol restarts every service
+SSH_ANSWERS['zimbra'] = [
+    {'command': r'sha256sum ', 'seen_lines': True, 'stdout': ''.join(
+        '5a0e1d2c3b4a5968%02d7e1f0c9b8a7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c  '
+        '{SEEN:sha256sum (?:[^\\s\']+ ){%d}(/[^\\s\';]*/commercial/[^\\s\';]*)}\n' % (i, i)
+        for i in range(4))},
+    {'command': r'echo "PLACED \d+"', 'times': 1, 'seen_lines': True, 'stdout': ''.join(
+        '{SEEN:echo "(PLACED %d)"}\n' % i for i in range(4))},
+    _SSH_PLACED,
+    {'command': r'zmcertmgr verifycrt', 'stdout':
+        "** Verifying '/opt/zimbra/ssl/acme/cert.pem' against "
+        "'/opt/zimbra/ssl/zimbra/commercial/commercial.key'\n"
+        "Certificate '/opt/zimbra/ssl/acme/cert.pem' and private key "
+        "'/opt/zimbra/ssl/zimbra/commercial/commercial.key' match.\n"
+        "** Verifying '/opt/zimbra/ssl/acme/cert.pem' against '/opt/zimbra/ssl/acme/chain.pem'\n"
+        "Valid certificate chain: /opt/zimbra/ssl/acme/cert.pem: OK\n"},
+    {'command': r'zmcertmgr deploycrt', 'stdout':
+        "** Verifying '/opt/zimbra/ssl/acme/cert.pem' against "
+        "'/opt/zimbra/ssl/zimbra/commercial/commercial.key'\n"
+        "Certificate '/opt/zimbra/ssl/acme/cert.pem' and private key "
+        "'/opt/zimbra/ssl/zimbra/commercial/commercial.key' match.\n"
+        "** Verifying '/opt/zimbra/ssl/acme/cert.pem' against '/opt/zimbra/ssl/acme/chain.pem'\n"
+        "Valid certificate chain: /opt/zimbra/ssl/acme/cert.pem: OK\n"
+        "** Copying '/opt/zimbra/ssl/acme/cert.pem' to "
+        "'/opt/zimbra/ssl/zimbra/commercial/commercial.crt'\n"
+        "** Copying '/opt/zimbra/ssl/acme/chain.pem' to "
+        "'/opt/zimbra/ssl/zimbra/commercial/commercial_ca.crt'\n"
+        "** Appending ca chain '/opt/zimbra/ssl/acme/chain.pem' to "
+        "'/opt/zimbra/ssl/zimbra/commercial/commercial.crt'\n"
+        "** Importing cert '/opt/zimbra/ssl/zimbra/commercial/commercial_ca.crt' as "
+        "'zcs-user-commercial_ca' into cacerts '/opt/zimbra/common/lib/jvm/java/lib/security/"
+        "cacerts'\n** NOTE: restart mailboxd to use the imported certificate.\n"
+        "** Saving config key 'zimbraSSLCertificate' via zmprov modifyServer {CERTNAME}...ok\n"
+        "** Saving config key 'zimbraSSLPrivateKey' via zmprov modifyServer {CERTNAME}...ok\n"
+        "** Installing imapd certificate '/opt/zimbra/conf/imapd.crt' and key "
+        "'/opt/zimbra/conf/imapd.key'\n** Installing MTA certificate '/opt/zimbra/conf/smtpd.crt'"
+        " and key '/opt/zimbra/conf/smtpd.key'\n** Installing proxy certificate "
+        "'/opt/zimbra/conf/nginx.crt' and key '/opt/zimbra/conf/nginx.key'\n"
+        "** Installing ldap certificate '/opt/zimbra/conf/slapd.crt' and key "
+        "'/opt/zimbra/conf/slapd.key'\n"},
+    {'command': r'zmcontrol restart', 'stdout':
+        'Host {CERTNAME}\n\tStopping zmconfigd...Done.\n\tStopping zimlet webapp...Done.\n'
+        '\tStopping proxy...Done.\n\tStopping mta...Done.\n\tStopping mailbox...Done.\n'
+        '\tStopping ldap...Done.\nHost {CERTNAME}\n\tStarting ldap...Done.\n'
+        '\tStarting mailbox...Done.\n\tStarting mta...Done.\n\tStarting proxy...Done.\n'
+        '\tStarting zmconfigd...Done.\n'},
+    {'command': r'zmproxyctl restart', 'stdout': 'Stopping proxy...done.\nStarting proxy...done.\n'
+     'Stopping mailboxd...done.\nStarting mailboxd...done.\nRewrote: /opt/zimbra/conf/'
+     'postfix_header_checks\nStopping saslauthd...done.\nStarting saslauthd...done.\n'
+     '/postfix-script: refreshing the Postfix mail system\n'}] + _SSH_SERVICES
+
+
+def _nth(before, group, after, i):
+    """A regex finding the i-th (0: the first) "before GROUP after" of a script: its group."""
+    one = before + group.replace('(', '(?:', 1) + after
+    return '(?s)(?:%s.*?){%d}%s%s%s' % (one, i, before, group, after)
+
+
+# Windows over OpenSSH (PowerShell, decoded): the new certificate not in the machine store yet;
+# the import script says what it did - IMPORTED, each IIS binding, RDP, Exchange, the old one
+# beyond "keep" removed (two acme put there before, the older goes); the files there hold
+# the renewal before's (SHA), each was there (HAD); a role's script and the clean-up say their
+# steps (STEP) as their Say does
+_OLD_THUMB = '5A0E1D2C3B4A59687600112233445566778899A6'
+_WIN = [
+    {'command': r'powershell', 'script': r"Test-Path 'Cert:\\LocalMachine\\My\\[0-9A-Fa-f]+'\) \{ "
+     r"'YES' \}", 'stdout': 'NO\n'},
+    {'command': r'powershell', 'script': r'Write-Output "IMPORTED \$thumb"', 'seen_lines': True,
+     'stdout': "IMPORTED {SEEN:\\$thumb = '([0-9A-Fa-f]{40})'}\n" + ''.join(
+         'IIS {SEEN:%s}\n' % _nth(r"Write-Output \('IIS ' \+ '", r"([^']*)", r"'\)", i)
+         for i in range(8)) +
+        "{SEEN:Write-Output '(RDP)'}\n{SEEN:Write-Output '(EXCHANGE)'}\n"
+        "{SEEN:\\('(REMOVED) ' \\+}" + ' ' + _OLD_THUMB + '\n'},
+    {'command': r'powershell', 'script': r"Write-Output \('SHA ' \+", 'seen_lines': True,
+     'stdout': ''.join(
+         'SHA 5A0E1D2C3B4A5968%02d7E1F0C9B8A7D6E5F4A3B2C1D0E9F8A7B6C5D4E3F2A1B0C {SEEN:%s}\n'
+         % (i, _nth(r"\$p = '", r"([^']+)", r"'; if \(Test-Path", i)) for i in range(12))},
+    {'command': r'powershell', 'script': r"Write-Output \('HAD ' \+", 'seen_lines': True,
+     'stdout': ''.join('HAD {SEEN:%s}\n' % _nth(r"Write-Output \('HAD ' \+ '", r"([^']+)",
+                                                r"'\)", i) for i in range(12))},
+    {'command': r'powershell', 'script': r"Grant-KeyRead \$cert '", 'seen_lines': True,
+     'stdout': ''.join('STEP ok read on the key for {SEEN:%s}\n' % _nth(
+         r"Grant-KeyRead \$cert '", r"([^']+)", r"'", i) for i in range(6))},
+    {'command': r'powershell', 'script': r"Say info \('removed the old ' \+", 'stdout':
+        'STEP info removed the old ' + _OLD_THUMB + '\n'},
+    {'command': r'powershell', 'script': r'(?s)^(?:\$ErrorActionPreference[^\n]*\n'
+     r'\$ProgressPreference[^\n]*\ntry \{\n)?(?:Remove-Item -LiteralPath [^\n]*(?:\n|; )?|'
+     r'Get-ChildItem -LiteralPath [^\n]*Remove-Item[^\n]*\n?)+(?:\} catch[^\n]*\n?)?$',
+     'stdout': ''},
+]
+SSH_ANSWERS['windows_ssh'] = list(_WIN)
+# Windows products (windows_products): the import as windows_ssh's; each product's script says
+# its steps - the renewal: the product used the certificate of the renewal before, moves to
+# this one; the old ones beyond "keep" removed by the clean-up (_WIN)
+_WIN_IMPORT = [
+    {'command': r'powershell', 'script': r'Write-Output "IMPORTED \$thumb"', 'stdout':
+        "IMPORTED {SEEN:\\$thumb = '([0-9A-Fa-f]{40})'}\n"}] + _WIN
+SSH_ANSWERS['windows_wsus'] = [
+    {'command': r'powershell', 'script': r"Need-Service 'WsusService'", 'seen_lines': True,
+     'stdout': "STEP ok WSUS: {SEEN:\\$site = '([^']+)'} *:{SEEN:\\$port = (\\d+)}: uses it\n" +
+        ''.join("STEP ok WSUS: {SEEN:%s} already requires SSL\n" % _nth(
+            r"foreach \(\$v in @\((?:'[^']*', ){%d}" % i, r"'([^']+)'", '', 0) for i in range(5)) +
+        "STEP ok WSUS: wsusutil configuressl {SEEN:@\\('configuressl', '([^']+)'\\)} - "
+        "Successfully configured SSL.\n"}] + _WIN_IMPORT
+SSH_ANSWERS['windows_hyperv_replica'] = [
+    {'command': r'powershell', 'script': r"Need-Module 'Hyper-V'", 'seen_lines': True,
+     'stdout': "STEP ok {SEEN:Say ok '(Hyper-V Replica server uses it)'}\n"
+               "STEP ok {SEEN:Say ok \\('(Hyper-V Replica: )' \\+ \\$to}hvr02.example.com:443 "
+               "takes it\n"
+               "STEP ok {SEEN:Say ok \\('(Hyper-V Replica: VM )' \\+ \\$r}SQL01 uses it\n"
+               "STEP ok {SEEN:Say ok \\('(Hyper-V Replica: VM )' \\+ \\$r}WEB01 uses it\n"}
+] + _WIN_IMPORT
+SSH_ANSWERS['windows_ssrs'] = [
+    {'command': r'powershell', 'script': r'MSReportServer_ConfigurationSetting', 'stdout':
+        'STEP ok Reporting Services: ReportServerWebService 0.0.0.0:443 uses it\n'
+        'STEP ok Reporting Services: ReportServerWebApp 0.0.0.0:443 uses it\n'}] + _WIN_IMPORT
+SSH_ANSWERS['windows_scom'] = [
+    {'command': r'powershell', 'script': r"Need-Service 'HealthService'", 'seen_lines': True,
+     'stdout': 'STEP ok Operations Manager uses it ({CERTNAME})\n'
+               "STEP ok restarted {SEEN:Restart-Role '(HealthService)'}\n"
+               "STEP warn {SEEN:Say warn '(Operations Manager takes it when the HealthService "
+               "restarts)'}\n"}] + _WIN_IMPORT
+SSH_ANSWERS['windows_oos'] = [
+    {'command': r'powershell', 'script': r"Need-Module 'OfficeWebApps'", 'seen_lines': True,
+     'stdout': "STEP ok Office Online Server uses it ({CURRENT})\n"
+               "STEP warn {SEEN:Say warn '(Office Online Server: this server restarts in a "
+               "minute)'}\n"
+               "STEP warn {SEEN:Say warn '(Office Online Server takes it after the servers of "
+               "the farm restart)'}\n"}] + _WIN_IMPORT
+# Vault (KV v2): AppRole's token; the secret holds the certificate of the renewal before
+# (version 3), the write makes version 4
+ANSWERS['vault'] = [
+    {'method': 'POST', 'url': r'/v1/auth/[^/]+/login$', 'body': {
+        'request_id': '‹request›', 'auth': {
+            'client_token': '{SESSION}', 'accessor': '‹accessor›',
+            'policies': ['default', 'acme'], 'lease_duration': 3600, 'renewable': True}}},
+    {'method': 'GET', 'url': r'/v1/[^?]+/data/', 'body': {
+        'request_id': '‹request›', 'lease_id': '', 'renewable': False,
+        'lease_duration': 0, 'data': {'data': {
+            'certificate': _OLD_PEM, 'chain': '', 'fullchain': _OLD_PEM,
+            'fingerprint': '5a0e1d2c3b4a59687700112233445566778899a7b6c5d4e3f2a1b0c9d8e7f6a5',
+            'serial': '5A0E1D2C3B4A59687', 'names': '{CERTNAME}',
+            'not_before': 1771146000, 'not_after': 1778922000, 'private_key': '‹key›'},
+            'metadata': {'created_time': '2026-05-15T09:00:12.345678Z', 'custom_metadata': None,
+                         'deletion_time': '', 'destroyed': False, 'version': 3}}}},
+    {'method': 'POST', 'url': r'/v1/[^?]+/data/', 'body': {
+        'request_id': '‹request›', 'data': {
+            'created_time': '2026-11-13T09:00:12.345678Z', 'custom_metadata': None,
+            'deletion_time': '', 'destroyed': False, 'version': 4}}},
+    {'method': 'GET', 'url': r'/v1/auth/token/lookup-self$', 'body': {'data': {
+        'display_name': 'approle', 'policies': ['default', 'acme']}}},
+]
+# Webglobe (the target; the validation's rules follow in ANSWERS['webglobe']): the JWT of the
+# sign-in, the domains of the login with the one set, Webglobe's check of the certificate, the
+# own certificate stored (its id), the redirect set
+_WEBGLOBE_TARGET = [
+    {'method': 'POST', 'url': r'/auth/login$', 'body': {'success': True, 'data': {
+        'token': '{SESSION}', 'token_type': 'bearer', 'expires_in': 3600}}},
+    {'method': 'GET', 'url': r'/domains\?per_page=', 'body': {'success': True, 'data': {
+        '1001': {'domain': '{CFG:domain}', 'domain_id': 1001},
+        '1002': {'domain': 'example.org', 'domain_id': 1002}}}},
+    {'method': 'POST', 'url': r'/\d+/ssl/validate$', 'body': {'success': True, 'data': {
+        'domain': '{CERTNAME}', 'valid_from': '2026-11-13', 'valid_to': '2027-02-11',
+        'serial_number': '‹serial›', 'subject': {'CN': '{CERTNAME}'},
+        'issuer': {'CN': '‹issuer›'}, 'purposes': [], 'extensions': {}}}},
+    {'method': 'POST', 'url': r'/\d+/ssl/own-certificate$', 'body': {'success': True,
+                                                                      'id': 4711}},
+    {'method': 'POST', 'url': r'/\d+/ssl/httpsRedirect$', 'body': {'success': True}},
+]
+# SDDC Manager: its token; the trust store holds the VMCA root and another CA, not this
+# certificate's issuers (a renewal from an intermediate the CA rotated to): both are added
+ANSWERS['sddc_manager'] = [
+    {'method': 'POST', 'url': r'/v1/tokens$', 'body': {
+        'accessToken': '{SESSION}', 'refreshToken': {'id': '‹refresh token›'}}},
+    {'method': 'GET', 'url': r'/v1/sddc-manager/trusted-certificates$', 'body': {'elements': [
+        {'certificate': _OLD_PEM, 'certificateUsageType': 'TRUSTED_FOR_OUTBOUND',
+         'issuedBy': 'CN=CA, DC=vsphere, DC=local', 'issuedTo': 'CN=CA, DC=vsphere, DC=local',
+         'keySize': '2048', 'notAfter': '2034-03-01T10:00:00.000Z', 'numberOfDaysToExpire': 2665,
+         'serialNumber': '‹serial›', 'thumbprint': '‹thumbprint›'}]}},
+    {'method': 'POST', 'url': r'/v1/sddc-manager/trusted-certificates$', 'body': {}},
+]
+# a Redfish service root (the sign-in's address in it)
+_REDFISH_ROOT = {'method': 'GET', 'url': r'/redfish/v1/?$', 'body': {
+    '@odata.id': '/redfish/v1/', 'RedfishVersion': '1.15.1', 'Name': 'Root Service',
+    'SessionService': {'@odata.id': '/redfish/v1/SessionService'},
+    'Managers': {'@odata.id': '/redfish/v1/Managers'},
+    'Links': {'Sessions': {'@odata.id': '/redfish/v1/SessionService/Sessions'}}}}
+_REDFISH_SIGNOUT = {'method': 'DELETE', 'url': r'/SessionService/Sessions/', 'status': 204,
+                    'body': ''}
+_RF_SESSION = {
+    'method': 'POST', 'url': r'/SessionService/Sessions/?$', 'status': 201, 'body': {
+        '@odata.id': '/redfish/v1/SessionService/Sessions/‹session›',
+        'Id': '‹session›', 'UserName': '{CFG:user}'},
+    'headers': {'Content-Type': 'application/json', 'X-Auth-Token': 'PLANSESSION0token',
+                'Location': '/redfish/v1/SessionService/Sessions/‹session›/'}}
+# Supermicro: the upload taken (Redfish's success message), its one manager reset
+ANSWERS['supermicro_bmc'] = [
+    _REDFISH_ROOT, _RF_SESSION,
+    {'method': 'POST', 'url': r'/SmcSSLCert\.Upload$', 'body': {
+        'Success': {'code': 'Base.v1_10_3.Success', 'Message': 'Successfully Completed Request',
+                    '@Message.ExtendedInfo': [{'MessageId': 'Base.1.10.Success',
+                                               'Message': 'Successfully Completed Request',
+                                               'Severity': 'OK', 'Resolution': 'None'}]}}},
+    {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {
+        'Members': [{'@odata.id': '/redfish/v1/Managers/1'}], 'Members@odata.count': 1}},
+    {'method': 'POST', 'url': r'/Actions/Manager\.Reset$', 'status': 204, 'body': ''},
+    _REDFISH_SIGNOUT,
+]
+# an iLO 6 (firmware 1.62, in Production): its HTTPS certificate is the renewal before's (RSA);
+# the import taken, the iLO resets
+ANSWERS['redfish@ilo'] = [
+    _REDFISH_ROOT, _RF_SESSION,
+    {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {'Members': [
+        {'@odata.id': '/redfish/v1/Managers/1/'}], 'Members@odata.count': 1}},
+    {'method': 'GET', 'url': r'/redfish/v1/Managers/1/?$', 'body': {
+        '@odata.id': '/redfish/v1/Managers/1/', 'Id': '1', 'Model': 'iLO 6',
+        'FirmwareVersion': 'iLO 6 v1.62', 'ManagerType': 'BMC',
+        'Oem': {'Hpe': {'Firmware': {'Current': {'VersionString': 'iLO 6 v1.62'}}}}}},
+    {'method': 'GET', 'url': r'/SecurityService/?$', 'body': {
+        'SecurityState': 'Production', 'Links': {'HttpsCert': {
+            '@odata.id': '/redfish/v1/Managers/1/SecurityService/HttpsCert/'}}}},
+    {'method': 'GET', 'url': r'/HttpsCert/?$', 'body': {
+        '@odata.id': '/redfish/v1/Managers/1/SecurityService/HttpsCert/', 'Id': 'HttpsCert',
+        'KeyType': 'RSA', 'CertificateSigningRequest': '',
+        'X509CertificateInformation': {
+            'Issuer': '/C=US/O=Let\'s Encrypt/CN=R11', 'SerialNumber': '5a0e1d2c3b4a59687',
+            'Subject': '/CN={CERTNAME}', 'ValidNotAfter': 'May 16 09:00:00 2026 GMT',
+            'ValidNotBefore': 'Feb 15 09:00:00 2026 GMT'},
+        'Actions': {'#HpeHttpsCert.ImportCertificate': {
+            'target': '/redfish/v1/Managers/1/SecurityService/HttpsCert/Actions/'
+                      'HpeHttpsCert.ImportCertificate/'},
+            '#HpeHttpsCert.GenerateCSR': {
+            'target': '/redfish/v1/Managers/1/SecurityService/HttpsCert/Actions/'
+                      'HpeHttpsCert.GenerateCSR/'}}}},
+    {'method': 'PATCH', 'url': r'/HttpsCert/?$', 'body': {'error': {
+        'code': 'iLO.0.10.ExtendedInfo', '@Message.ExtendedInfo': [
+            {'MessageId': 'iLO.2.15.Success'}]}}},
+    {'method': 'POST', 'url': r'HpeHttpsCert\.ImportCertificate/?$', 'body': {'error': {
+        'code': 'iLO.0.10.ExtendedInfo', 'message': 'See @Message.ExtendedInfo for more '
+        'information.', '@Message.ExtendedInfo': [
+            {'MessageId': 'iLO.2.15.ImportCertSuccessfuliLOResetinProgress'}]}}},
+    _REDFISH_SIGNOUT,
+]
+# Unisphere for PowerMax 10.1 (REST API 101); each node's import taken (an empty JSON answer)
+ANSWERS['unisphere_powermax'] = [
+    {'method': 'GET', 'url': r'/univmax/restapi/version$', 'body': {
+        'version': 'V10.1.0.2', 'api_version': '101', 'supported_api_versions': ['101', '100']}},
+    {'method': 'POST', 'url': r'/solutions_enabler/custom_certificate/import$', 'body': {}},
+    {'method': 'GET', 'url': r'/serviceability/symmetrix/[^/]+/application/unisphere$', 'body': {
+        'node_name': 'Semgmt0', 'status': 'Online'}},
+]
+# Unity: svc_custom_cert says it installed the files; the files taken away after
+SSH_ANSWERS['unity'] = [
+    {'command': r'^svc_custom_cert ', 'stdout':
+        'Successfully installed custom certificate files.\n'},
+    {'command': r'^rm -f ', 'stdout': ''}]
+# Cloud Director: the token a header of the sign-in; the new alias not in the library yet;
+# the cells (those named, else two), each endpoint on the item of the renewal before; the
+# import's id; the endpoints' change a task running, then done; the library holding the two
+# acme put there before and the new one - the older beyond "keep" used by nothing, deleted
+_VCD_ITEM = 'urn:vcloud:certificateLibraryItem:'
+ANSWERS['vcd'] = [
+    {'method': 'POST', 'url': r'/sessions/provider$', 'body': {
+        'id': 'urn:vcloud:session:‹session›', 'site': {'name': 'vcd'},
+        'user': {'name': '{CFG:user}'}, 'roles': ['System Administrator']},
+     'headers': {'Content-Type': 'application/json;version=39.0',
+                 'X-VMWARE-VCLOUD-ACCESS-TOKEN': 'PLANSESSION0token',
+                 'X-VMWARE-VCLOUD-TOKEN-TYPE': 'Bearer'}},
+    {'method': 'GET', 'url': r'/ssl/certificateLibrary\?filter=', 'body': {
+        'resultTotal': 0, 'pageCount': 0, 'page': 1, 'pageSize': 128, 'values': []}},
+    {'method': 'GET', 'url': r'/cells\?', 'body': {'resultTotal': 2, 'pageCount': 1, 'page': 1,
+                                                   'pageSize': 128, 'values': [
+        {'id': 'urn:vcloud:cell:3f1c0a52-cell-0001', 'name': '{EACH:OPT:cells}',
+         'primaryIp': '10.0.10.11', 'status': 'ACTIVE'},
+        {'id': 'urn:vcloud:cell:3f1c0a52-cell-0001', 'name': 'vcd-cell1', 'primaryIp': '10.0.10.11',
+         'status': 'ACTIVE'},
+        {'id': 'urn:vcloud:cell:3f1c0a52-cell-0002', 'name': 'vcd-cell2', 'primaryIp': '10.0.10.12',
+         'status': 'ACTIVE'}]}},
+    {'method': 'POST', 'url': r'/ssl/certificateLibrary$', 'status': 201, 'body': {
+        'id': _VCD_ITEM + '9b2e0c41-new', 'alias': '{SENT:alias}',
+        'description': '{SENT:description}', 'certificate': '‹certificate›'}},
+    {'method': 'GET', 'url': r'/cells/[^/]+/accessEndpoints$', 'body': {
+        'apiSslCertRef': {'id': _VCD_ITEM + '5a0e1d2c-earlier', 'name': '{EARLIER}'},
+        'consoleProxySslCertRef': {'id': _VCD_ITEM + '5a0e1d2c-earlier', 'name': '{EARLIER}'},
+        'publicUrl': 'https://{CERTNAME}', 'consoleProxyPublicUrl': 'https://{CERTNAME}:8443'}},
+    {'method': 'PUT', 'url': r'/cells/[^/]+(/accessEndpoints)?$', 'status': 202, 'body': '',
+     'headers': {'Location': '/api/task/\u2039task\u203a'}},
+    {'method': 'GET', 'url': r'/cells/[^/?]+$', 'body': {
+        'id': 'urn:vcloud:cell:3f1c0a52-cell-0001', 'name': 'vcd-cell1', 'status': 'ACTIVE'}},
+    {'method': 'GET', 'url': r'/api/task/', 'times': 1, 'body': {
+        'status': 'running', 'operation': 'Updating cell endpoints'}},
+    {'method': 'GET', 'url': r'/api/task/', 'body': {'status': 'success'}},
+    {'method': 'GET', 'url': r'/ssl/certificateLibrary\?page=', 'body': {
+        'resultTotal': 3, 'pageCount': 1, 'page': 1, 'pageSize': 128, 'values': [
+            {'id': _VCD_ITEM + '1c7d9e30-earlier2', 'alias': '{EARLIER2}'},
+            {'id': _VCD_ITEM + '5a0e1d2c-earlier', 'alias': '{EARLIER}'},
+            {'id': _VCD_ITEM + '9b2e0c41-new', 'alias': '{CURRENT}'}]}},
+    {'method': 'GET', 'url': r'/consumers\?', 'body': {
+        'resultTotal': 0, 'pageCount': 0, 'page': 1, 'pageSize': 25, 'values': []}},
+    {'method': 'DELETE', 'url': r'/ssl/certificateLibrary/', 'status': 204, 'body': ''},
+]
+# vCenter: the session (a JSON string); the machine SSL certificate there the renewal
+# before's; the chain added to the trusted roots (its id); the replacement taken (204); signed
+# out (204). Its version (VI JSON API) 8.0.3
+_VS_SESSION = {'method': 'POST', 'url': r'/api/session$', 'status': 201,
+                    'body': '"PLANSESSION0token"'}
+_VSPHERE_SIGNOUT = {'method': 'DELETE', 'url': r'/api/session$', 'status': 204, 'body': ''}
+_VC_ABOUT = {'method': 'GET', 'url': r'/sdk/vim25/[^/]+/ServiceInstance/ServiceInstance/content$',
+             'body': {'_typeName': 'ServiceContent', 'about': {
+                 '_typeName': 'AboutInfo', 'name': 'VMware vCenter Server',
+                 'fullName': 'VMware vCenter Server 8.0.3 build 24322831', 'vendor': 'VMware, Inc.',
+                 'version': '8.0.3', 'build': '24322831', 'apiVersion': '8.0.3.0',
+                 'productLineId': 'vpx', 'apiType': 'VirtualCenter'}}}
+_VC_TLS = {'method': 'GET', 'url': r'/certificate-management/vcenter/tls$', 'body': {
+    'subject_dn': 'CN={CERTNAME}', 'issuer_dn': "CN=R11, O=Let's Encrypt, C=US",
+    'serial_number': '5a0e1d2c3b4a59687', 'thumbprint':
+        '5A:0E:1D:2C:3B:4A:59:68:77:00:11:22:33:44:55:66:77:88:99:A7',
+    'valid_from': '2026-05-15T09:00:00.000Z', 'valid_to': '2026-08-13T09:00:00.000Z',
+    'version': 3, 'is_CA': False, 'key_usage': ['digitalSignature', 'keyEncipherment'],
+    'extended_key_usage': ['serverAuth'], 'subject_alternative_name': ['{CERTNAME}']}}
+ANSWERS['vcenter'] = [
+    _VS_SESSION, _VC_ABOUT, _VC_TLS,
+    {'method': 'POST', 'url': r'/certificate-management/vcenter/trusted-root-chains$',
+     'status': 201, 'body': '"‹chain id›"'},
+    {'method': 'PUT', 'url': r'/certificate-management/vcenter/tls$', 'status': 204, 'body': ''},
+    _VSPHERE_SIGNOUT]
+
+
+def _vc_about(ver, build):
+    return {'method': 'GET', 'url': r'/sdk/vim25/[^/]+/ServiceInstance/ServiceInstance/content$',
+            'body': {'_typeName': 'ServiceContent', 'about': {
+                '_typeName': 'AboutInfo', 'name': 'VMware vCenter Server',
+                'fullName': 'VMware vCenter Server %s build %s' % (ver, build),
+                'vendor': 'Broadcom', 'version': ver, 'build': build, 'apiVersion': ver + '.0',
+                'productLineId': 'vpx', 'apiType': 'VirtualCenter'}}}
+
+
+# the Supervisor: vCenter 9.1 (9.0 for the version of 9.0); the endpoint holds the
+# certificate of the renewal before; the replacement taken (204)
+_SUP_OLD = {'tls_endpoint_certificate': _OLD_PEM, 'endpoint': 'KUBERNETES_API_SERVER'}
+ANSWERS['vsphere_supervisor'] = [
+    _VS_SESSION, _vc_about('9.1.0', '24957300'),
+    {'method': 'GET', 'url': r'/namespace-management/supervisors/[^/]+/certificates$',
+     'body': [_SUP_OLD, {'tls_endpoint_certificate': '', 'endpoint': 'DEFAULT_NSX_INGRESS'}]},
+    {'method': 'GET', 'url': r'/namespace-management/clusters/[^/]+$', 'body': {
+        'config_status': 'RUNNING', 'kubernetes_status': 'READY',
+        'api_server_management_endpoint': '10.0.40.2', 'tls_endpoint_certificate': _OLD_PEM}},
+    {'method': 'PATCH', 'url': r'/namespace-management/', 'status': 204, 'body': ''},
+    _VSPHERE_SIGNOUT]
+ANSWERS['vsphere_supervisor@9.0'] = [_vc_about('9.0.0', '24755230')]
+# Live Site Recovery / vSphere Replication: session_id of the sign-in; the appliance holds the
+# certificate of the renewal before; the CA certificates and the PKCS#12 taken (204)
+ANSWERS['vmware_dr'] = [
+    {'method': 'POST', 'url': r'/session$', 'body': {'session_id': '{SESSION}'}},
+    {'method': 'GET', 'url': r'/appliance/certificates/server$', 'body': {
+        'certificate': _OLD_PEM, 'subject_dn': 'CN={CERTNAME}',
+        'issuer_dn': "CN=R11, O=Let's Encrypt, C=US", 'not_before': '2026-05-15T09:00:00Z',
+        'not_after': '2026-08-13T09:00:00Z',
+        'thumbprint': '5A:0E:1D:2C:3B:4A:59:68:77:00:11:22:33:44:55:66:77:88:99:A7'}},
+    {'method': 'POST', 'url': r'/appliance/certificates/ca$', 'status': 204, 'body': ''},
+    {'method': 'POST', 'url': r'/appliance/certificates/server$', 'status': 204, 'body': ''},
+]
+# VCF component through SDDC Manager, key made by the device: the token, the domain named,
+# each task running once and then done, the CSR made ({CSR}), the validation in progress once
+# and then succeeded
+ANSWERS['vcf_component'] = [
+    {'method': 'POST', 'url': r'/v1/tokens$', 'body': {
+        'accessToken': '{SESSION}', 'refreshToken': {'id': '‹refresh token›'}}},
+    {'method': 'GET', 'url': r'/v1/domains$', 'body': {'elements': [
+        {'id': '‹domain›', 'name': '{CFG:domain}', 'type': 'MANAGEMENT',
+         'status': 'ACTIVE'}]}},
+    {'method': 'PUT', 'url': r'/v1/domains/[^/]+/csrs$', 'status': 202, 'body': {
+        'id': '‹task›', 'name': 'Generate CSR(s)', 'status': 'IN_PROGRESS'}},
+    {'method': 'GET', 'url': r'/v1/domains/[^/]+/csrs$', 'body': {'elements': [
+        {'csrEncodedContent': '{CSR}', 'resource': {
+            'fqdn': '{SEEN:"resources": \\[."fqdn": "([^"]+)"}',
+            'type': '{SEEN:"resources": \\[.[^\\]]*?"type": "([^"]+)"}'}}]}},
+    {'method': 'PUT', 'url': r'/resource-certificates/validations$', 'status': 201, 'body': {
+        'validationId': '‹validation›', 'executionStatus': 'IN_PROGRESS'}},
+    {'method': 'GET', 'url': r'/resource-certificates/validations/', 'times': 1, 'body': {
+        'validationId': '‹validation›', 'executionStatus': 'IN_PROGRESS'}},
+    {'method': 'GET', 'url': r'/resource-certificates/validations/', 'body': {
+        'validationId': '‹validation›', 'executionStatus': 'COMPLETED',
+        'resultStatus': 'SUCCEEDED', 'validations': [
+            {'resourceFqdn': '{CERTNAME}', 'resultStatus': 'SUCCEEDED'}]}},
+    {'method': 'PUT', 'url': r'/v1/domains/[^/]+/resource-certificates$', 'status': 202,
+     'body': {'id': '‹task›', 'name': 'Replace certificate(s)',
+              'status': 'IN_PROGRESS'}},
+    {'method': 'GET', 'url': r'/v1/tasks/', 'times': 1, 'body': {
+        'id': '‹task›', 'status': 'IN_PROGRESS'}},
+    {'method': 'GET', 'url': r'/v1/tasks/', 'body': {
+        'id': '‹task›', 'status': 'SUCCESSFUL'}},
+    {'method': 'GET', 'url': r'/v1/sddc-managers$', 'body': {'elements': [
+        {'version': '5.2.1.0-24307856', 'fqdn': '{CFG:host}'}]}},
+]
+# its version 9.1 - VCF Operations: the token, the version 9.1, the component's certificate
+# (the FQDN asked), each workflow in progress once and then completed, the CSR made ({CSR}),
+# the token released
+ANSWERS['vcf_component@9.1'] = [
+    {'method': 'POST', 'url': r'/auth/token/acquire$', 'body': {
+        'token': '{SESSION}', 'validity': 1763049600000, 'expiresAt': 'Thu Nov 13 16:00:00 UTC '
+        '2026', 'roles': []}},
+    {'method': 'POST', 'url': r'/auth/token/release$', 'status': 200, 'body': ''},
+    {'method': 'GET', 'url': r'/suite-api/api/versions/current$', 'body': {
+        'releaseName': 'VCF Operations 9.1', 'major': 9, 'minor': 1, 'minorMinor': 0}},
+    {'method': 'POST', 'url': r'/certificates/query', 'body': {'vcfCertificateModels': [
+        {'certificateResourceKey': '‹certificate›',
+         'applianceFqdn': '{SENT:applianceFqdn}', 'category': 'TLS_CERT',
+         'issuedTo': '{SENT:applianceFqdn}', 'expiryDate': '2026-12-01'}]}},
+    {'method': 'POST', 'url': r'/certificate-management/csrs$', 'body': {
+        'requestId': '‹request›', 'state': 'INPROGRESS'}},
+    {'method': 'GET', 'url': r'/certificate-management/csrs\?', 'body': {
+        'certificateSignatureInfo': [{'csr': '{CSR}'}]}},
+    {'method': 'PUT', 'url': r'/certificate-management/certificates/', 'status': 202,
+     'body': {'requestId': '‹request›', 'state': 'INPROGRESS'}},
+    {'method': 'GET', 'url': r'/workflows/requests/', 'times': 1, 'body': {
+        'requestId': '‹request›', 'state': 'INPROGRESS'}},
+    {'method': 'GET', 'url': r'/workflows/requests/', 'body': {
+        'requestId': '‹request›', 'state': 'COMPLETED'}},
+]
+# Veeam (PowerShell over SSH, _veeam): an administrator; the version and the certificate there
+# (the renewal before's); the import (not in the store yet - the chain trusted already), the
+# certificate set, the older acme one beyond "keep" removed, the services restarted - as the
+# scripts' STEP lines print it
+_OLD_THUMB2 = '5A0E1D2C3B4A59687700112233445566778899A7'
+_VEEAM = [
+    {'command': r'powershell', 'script': r'Write-Output \("WHO \$env:USERNAME', 'stdout':
+        'WHO {CFG:user}|True\n'},
+    {'command': r'powershell', 'script': r'-match \(\'\^\' \+ \[regex\]::Escape', 'seen_lines': True,
+     'stdout': "{SEEN:Write-Output '(STEP ok imported the certificate into "
+               "LocalMachine\\\\My)'}\n"
+               "{SEEN:Write-Output '(STEP ok the backup server certificate is set)'}\n"
+               "SET {SEEN:\\$thumb = '([0-9A-Fa-f]{40})'}\n"
+               "{SEEN:Write-Output '(STEP ok the REST API \\(0\\.0\\.0\\.0:9419\\) uses it)'}"
+               "\n{SEEN:Write-Output '(STEP ok Cloud Connect uses the new certificate)'}\n"
+               "STEP info removed the old " + _OLD_THUMB + '\n' + ''.join(
+                   "STEP ok restarted {SEEN:%s}\n" % _nth(r"Write-Output \('STEP ok restarted ' "
+                                                         r"\+ '", r"([^']+)", r"'\)", i)
+                   for i in range(4))},
+] + _WIN
+SSH_ANSWERS['veeam_vbr'] = [
+    {'command': r'powershell', 'script': r'Get-Command Add-VBRBackupServerCertificate', 'stdout':
+        'FORCE True\nBUILD 13.0.1.180\nCURRENT ' + _OLD_THUMB2 + '\n'}] + _VEEAM
+SSH_ANSWERS['veeam_vbr@12.3'] = [
+    {'command': r'powershell', 'script': r'Get-Command Add-VBRBackupServerCertificate', 'stdout':
+        'FORCE False\nBUILD 12.3.1.1139\nCURRENT ' + _OLD_THUMB2 + '\n'}]
+SSH_ANSWERS['veeam_cloud_connect'] = [
+    {'command': r'powershell', 'script': r'Get-VBRCloudGatewayCertificate -ErrorAction Stop',
+     'stdout': 'CURRENT ' + _OLD_THUMB2 + '\n'}] + _VEEAM
+SSH_ANSWERS['veeam_vb365'] = [
+    {'command': r'powershell', 'script': r'Import-Module Veeam\.Archiver\.PowerShell',
+     'seen_lines': True, 'stdout': ''.join(
+         '{SEEN:%s}\n' % _nth(r"Write-Output '", r"(STEP ok [^']+)", r"'", i) for i in range(6))},
+] + _VEEAM
+SSH_ANSWERS['truenas'] += _SSH_SERVICES
+ANSWERS['webglobe'] = _WEBGLOBE_TARGET + ANSWERS.get('webglobe', [])
+# ---- end of targets redfish@ilo .. zimbra ----
 FIRST = {
     # OneView: the CA of the chain not in its trust store yet the first time (added)
     'hpe_oneview': [

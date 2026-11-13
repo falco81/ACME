@@ -61135,6 +61135,18 @@
   "_66": {
    "source": "refused here and not recorded as acme would make it - the module must make this call through acme (ctx)",
    "text": "tady odmítnuto a nezaznamenáno tak, jak by ho udělalo acme – modul musí toto volání dělat přes acme (ctx)"
+  },
+  "_67": {
+   "source": "PBS serves this certificate already - uploaded again (forced)",
+   "text": "PBS už tento certifikát poskytuje – nahrává se znovu (vynuceno)"
+  },
+  "_68": {
+   "source": "PBS serves another certificate - replacing it",
+   "text": "PBS poskytuje jiný certifikát – nahrazuje se"
+  },
+  "_69": {
+   "source": "PBS has no certificate it says the fingerprint of - uploading it",
+   "text": "PBS neuvádí otisk žádného certifikátu – nahrává se"
   }
  },
  "patterns": {
@@ -84757,6 +84769,78 @@
   "p_60": {
    "source": "The module went around acme's connection layer: {0}",
    "text": "Modul obešel vrstvu spojení acme: {0}"
+  },
+  "p_61": {
+   "source": "{0} has another certificate - replacing it",
+   "text": "{0} má jiný certifikát – nahrazuje se"
+  },
+  "p_62": {
+   "source": "{0}: SSL is off - turning it on with this certificate",
+   "text": "{0}: SSL je vypnuté – zapíná se s tímto certifikátem"
+  },
+  "p_63": {
+   "source": "the intermediate {0} was not added (the LoadMaster refused it: there already?)",
+   "text": "mezilehlý certifikát {0} nebyl přidán (LoadMaster ho odmítl: už tam je?)"
+  },
+  "p_64": {
+   "source": "the intermediate {0} is there already",
+   "text": "mezilehlý certifikát {0} už tam je"
+  },
+  "p_65": {
+   "source": "{0} serves this certificate already",
+   "text": "{0} už tento certifikát poskytuje"
+  },
+  "p_66": {
+   "source": "{0} serves this certificate already - uploaded again (forced)",
+   "text": "{0} už tento certifikát poskytuje – nahrává se znovu (vynuceno)"
+  },
+  "p_67": {
+   "source": "{0} serves another certificate - replacing it",
+   "text": "{0} poskytuje jiný certifikát – nahrazuje se"
+  },
+  "p_68": {
+   "source": "{0} has no custom certificate yet - uploading it",
+   "text": "{0} zatím nemá vlastní certifikát – nahrává se"
+  },
+  "p_69": {
+   "source": "{0} holds this certificate already - written again (forced)",
+   "text": "{0} už tento certifikát obsahuje – zapisuje se znovu (vynuceno)"
+  },
+  "p_70": {
+   "source": "{0} holds this certificate already - written again (the last deployment did not finish)",
+   "text": "{0} už tento certifikát obsahuje – zapisuje se znovu (minulé nasazení nedoběhlo)"
+  },
+  "p_71": {
+   "source": "{0} holds another certificate - replacing it",
+   "text": "{0} obsahuje jiný certifikát – nahrazuje se"
+  },
+  "p_72": {
+   "source": "{0} holds no certificate - writing it",
+   "text": "{0} neobsahuje žádný certifikát – zapisuje se"
+  },
+  "p_73": {
+   "source": "what {0} serves cannot be read ({1}) - the certificate is put there",
+   "text": "co {0} poskytuje, nelze přečíst ({1}) – certifikát se tam nasadí"
+  },
+  "p_74": {
+   "source": "{0} serves another certificate - this one is put there",
+   "text": "{0} poskytuje jiný certifikát – nasadí se tento"
+  },
+  "p_75": {
+   "source": "{0} is linked to {1} already",
+   "text": "{0} už je propojen s {1}"
+  },
+  "p_76": {
+   "source": "{0} is bound to {1} already",
+   "text": "{0} už je navázán na {1}"
+  },
+  "p_77": {
+   "source": "{0} is there (on {1}) - updated with the new files",
+   "text": "{0} už existuje (se soubory {1}) – aktualizuje se novými soubory"
+  },
+  "p_78": {
+   "source": "{0} is not there yet - added",
+   "text": "{0} zatím neexistuje – přidává se"
   }
  },
  "rich": {

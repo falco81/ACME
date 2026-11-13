@@ -202,7 +202,11 @@ class CiscoAsaTarget(HttpTarget):
         if cmds:
             self.conf_t(cmds, 'switching ssl trust-point to %s' % name)
             for rest in want:
-                self.ctx.step('ssl trust-point %s %s' % (name, rest or '(every interface)'), 'ok')
+                # what it named before, said (1.0.98): the decision What happens shows
+                was = [tp for tp, r in binds if r == rest and tp != name]
+                self.ctx.step('ssl trust-point %s %s%s' % (
+                    name, rest or '(every interface)', ' (before: %s)' % ', '.join(was)
+                    if was else ''), 'ok')
             did.append('ssl trust-point: %s' % ', '.join(r or 'fallback' for r in want))
         elif not want:
             self.ctx.step('no ssl trust-point names this certificate (the first time: give the '

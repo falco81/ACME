@@ -128,6 +128,10 @@ class CaddyTarget(SshMixin, Base):
                     mine[0].get('certificate', '').strip() == entry['certificate'].strip():
                 self.remember(bundle, options)
                 return self.same(bundle, 'loaded in Caddy (tag %s)' % tag)
+            # what is there now, said (1.0.98): the decision What happens shows
+            self.ctx.step('Caddy has %d certificate%s loaded through its API%s - %s' % (
+                len(have), '' if len(have) == 1 else 's', ', %d tagged %s' % (len(mine), tag)
+                if mine else '', 'replaced by this one' if mine else 'this one is added'))
             new = [e for e in have if tag not in (e.get('tags') or [])] + [entry]
             if certs is None:
                 st, tls = self.curl(s, 'GET', '/config/apps/tls', what='reading the tls app')
