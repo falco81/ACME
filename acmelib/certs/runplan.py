@@ -378,6 +378,47 @@ SSH_ANSWERS['cockpit'] = [
         'Would use certificate /etc/cockpit/ws-certs.d/90-{NAME}.crt\n'},
     {'command': r'test -d /etc/pki/ca-trust/source/anchors', 'stdout':
         '/etc/pki/ca-trust/source/anchors\n'}]
+# cPanel (UAPI): the websites with SSL - one of the certificate's first name (its names, an
+# earlier certificate installed), the domains named; install_ssl updates it (cert_id); SSL
+# storage lists what is there. WHM API 1: the same through fetch_ssl_vhosts / installssl
+_CPANEL_HOST = {'servername': '{CERTNAME}', 'domains': '{CERTNAMES}',
+                'certificate_text': '', 'certificate': {
+                    'subject.commonName': '{CERTNAME}', 'not_after': 1779000000,
+                    'modulus': '\u2039modulus\u203a', 'issuer.organizationName': "Let's Encrypt"}}
+ANSWERS['cpanel_ssl'] = [
+    {'method': 'GET', 'url': r'/execute/SSL/installed_hosts$', 'body': {'result': {
+        'status': 1, 'errors': None, 'messages': None, 'data': [
+            _CPANEL_HOST,
+            dict(_CPANEL_HOST, servername='{OPT:domain}', domains=['{OPT:domain}']),
+            dict(_CPANEL_HOST, servername='{EACH:OPT:domains}', domains=['{EACH:OPT:domains}'])
+        ]}}},
+    {'method': 'POST', 'url': r'/execute/SSL/install_ssl$', 'body': {'result': {
+        'status': 1, 'errors': None, 'messages': None, 'data': {
+            'cert_id': '{SENT:domain}_\u2039id\u203a', 'action': 'update', 'domain': '{SENT:domain}',
+            'message': 'The SSL certificate is now installed onto the domain \u201c{SENT:domain}'
+                       '\u201d using the IP address \u201c192.0.2.10\u201d.',
+            'warning_domains': []}}}},
+    {'method': 'GET', 'url': r'/execute/SSL/list_certs$', 'body': {'result': {
+        'status': 1, 'errors': None, 'data': []}}},
+    {'method': 'GET', 'url': r'/execute/SSL/delete_cert\?', 'body': {'result': {
+        'status': 1, 'errors': None, 'data': []}}},
+    {'method': 'GET', 'url': r'/json-api/fetch_ssl_vhosts\?', 'body': {
+        'metadata': {'result': 1, 'reason': 'OK', 'version': 1, 'command': 'fetch_ssl_vhosts'},
+        'data': {'vhosts': [
+            {'servername': '{CERTNAME}', 'domains': '{CERTNAMES}', 'crt': {
+                'subject.commonName': '{CERTNAME}', 'not_after': 1779000000,
+                'modulus': '\u2039modulus\u203a'}},
+            {'servername': '{OPT:domain}', 'domains': ['{OPT:domain}'], 'crt': {
+                'not_after': 1779000000}},
+            {'servername': '{EACH:OPT:domains}', 'domains': ['{EACH:OPT:domains}'], 'crt': {
+                'not_after': 1779000000}}]}}},
+    {'method': 'POST', 'url': r'/json-api/installssl$', 'body': {
+        'metadata': {'result': 1, 'reason': 'OK', 'version': 1, 'command': 'installssl'},
+        'data': {'status': 1, 'statusmsg': 'The SSL certificate is now installed onto the '
+                 'domain \u201c{SENT:domain}\u201d using the IP address \u201c192.0.2.10\u201d.',
+                 'message': 'The SSL certificate is now installed onto the domain \u201c'
+                 '{SENT:domain}\u201d using the IP address \u201c192.0.2.10\u201d.'}}},
+]
 # Lenovo XCC: the device makes the key - its CertificateService, the HTTPS collection, the CSR
 # it answers GenerateCSR with ({CSR}: the sandbox's own for the names, plansandbox.Answers)
 ANSWERS['lenovo_xcc'] = [

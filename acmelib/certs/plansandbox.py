@@ -647,7 +647,8 @@ def mask_json(v, marks, key=''):
     if isinstance(v, list):
         return [mask_json(x, marks, key) for x in v]
     if isinstance(v, str):
-        if key and SECRET_KEY.search(key) and v and not v.startswith('‹'):
+        if key and secret_name(key) and v and not v.startswith('‹') and not \
+                v.startswith('••••'):
             if v == SESSION:
                 return '‹session›'
             return '••••'
@@ -664,37 +665,149 @@ def mask_url(url, marks):
     net = u.netloc
     if '@' in net:
         net = '••••@' + net.rsplit('@', 1)[1]
-    q = '&'.join('%s=%s' % (k, '••••' if SECRET_KEY.search(
-        urllib.parse.unquote(k)) and v else v) if eq else k
-        for k, eq, v in (p.partition('=') for p in u.query.split('&') if p)) if u.query else ''
+    q = '&'.join('%s=%s' % (k, '••••' if secret_name(urllib.parse.unquote(k)) and v else v)
+                 if eq else k
+                 for k, eq, v in (p.partition('=') for p in u.query.split('&') if p)) \
+        if u.query else ''
     return mask_text(urllib.parse.urlunsplit((u.scheme, net, u.path, q, u.fragment)), marks)
 
 
-def mask_body(body, marks):
-    """-> (shown, facts): a JSON body as JSON (masked), text masked, binary in words."""
+def _sha(data):
+    import hashlib
+    return hashlib.sha256(data).hexdigest()
+
+
+def binary_words(data):
+    return '‹binary data, %s, sha256 %s›' % (size_words(len(data)), _sha(data)[:16])
+
+
+def _boundary(ctype):
+    m = re.search(r'boundary="?([^";]+)"?', str(ctype or ''), re.I)
+    return m.group(1) if m else ''
+
+
+def multipart_parts(body, ctype):
+    """[{name, filename, type, size, sha256, format, value?, secret?}] of a multipart body."""
+    bnd = _boundary(ctype)
+    if not bnd:
+        m = re.match(rb'--([^\r\n]{4,200})\r?\n', body)
+        bnd = m.group(1).decode('latin-1') if m else ''
+    if not bnd:
+        return None
+    out = []
+    for chunk in body.split(b'--' + bnd.encode('latin-1'))[1:]:
+        if chunk.startswith(b'--'):
+            break
+        chunk = chunk[2:] if chunk.startswith(b'\r\n') else chunk.lstrip(b'\n')
+        head, sep, data = chunk.partition(b'\r\n\r\n')
+        if not sep:
+            head, sep, data = chunk.partition(b'\n\n')
+        if data.endswith(b'\r\n'):
+            data = data[:-2]
+        elif data.endswith(b'\n'):
+            data = data[:-1]
+        h = head.decode('utf-8', 'replace')
+        name = re.search(r'\bname="([^"]*)"', h)
+        fn = re.search(r'\bfilename="([^"]*)"', h)
+        ct = re.search(r'(?im)^content-type:\s*(.+)$', h)
+        part = {'name': name.group(1) if name else '', 'filename': fn.group(1) if fn else None,
+                'type': ct.group(1).strip() if ct else None, 'size': len(data),
+                'sha256': _sha(data)}
+        f = blob_facts(data)
+        part['format'] = f.get('format')
+        if f.get('secret'):
+            part['secret'] = True
+        out.append((part, data))
+    return out
+
+
+def multipart_text(parts, marks):
+    """The parts of a multipart body, readable: each its name, file name, type, size; a
+    text field's value (a secret one as dots), a PEM as a placeholder, binary as its size
+    and sha256."""
+    lines = []
+    for part, data in parts:
+        head = ['part "%s"' % part['name']]
+        if part.get('filename') is not None:
+            head.append('file "%s"' % part['filename'])
+        if part.get('type'):
+            head.append(part['type'])
+        head.append(size_words(part['size']))
+        lines.append('── ' + ' · '.join(head))
+        try:
+            t = data.decode('utf-8')
+        except UnicodeDecodeError:
+            t = None
+        if t is None:
+            lines.append(('•••• (%s)' % part['format']) if part.get('secret') and
+                         part['format'] != 'binary (DER, PKCS#12 or a keystore)' else
+                         binary_words(data))
+        elif secret_name(part['name']) and t and part.get('filename') is None and \
+                '-----BEGIN' not in t:
+            lines.append('••••')
+        else:
+            t = mask_text(t, marks)
+            lines.append(t if len(t) <= 4000 else t[:4000] + '\n…')
+    return '\n'.join(lines)
+
+
+def mask_body(body, marks, ctype=None):
+    """-> (shown, facts): a JSON body as JSON (masked), form fields as fields (masked), a
+    multipart body its parts (file names, types, sizes), text masked, binary as its size
+    and sha256."""
     if body is None:
         return None, {}
     if isinstance(body, (dict, list)):
-        return mask_json(body, marks), {'size': len(json.dumps(body))}
+        return mask_json(body, marks), {'size': len(json.dumps(body)), 'format': 'json'}
     if isinstance(body, str):
         body = body.encode('utf-8')
+    body = bytes(body)
     facts = {'size': len(body)}
+    if 'multipart/' in str(ctype or '').lower() or re.match(rb'--[^\r\n]{4,200}\r?\n'
+                                                           rb'Content-Disposition', body):
+        parts = multipart_parts(body, ctype)
+        if parts is not None:
+            return multipart_text(parts, marks), dict(
+                facts, format='multipart', parts=[p for p, _d in parts])
     try:
         t = body.decode('utf-8')
     except UnicodeDecodeError:
-        return None, dict(facts, format='binary')
+        return binary_words(body), dict(facts, format='binary', sha256=_sha(body))
     if t[:1] in ('{', '['):
         try:
-            return mask_json(json.loads(t), marks), facts
+            return mask_json(json.loads(t), marks), dict(facts, format='json')
         except ValueError:
             pass
-    if re.match(r'^[\w.%+-]+=[^&\s]*(&[\w.%+-]+=[^&\s]*)*$', t.strip()):
+    if re.match(r'^[\w.%+\[\]-]+=[^&\s]*(&[\w.%+\[\]-]+=[^&\s]*)*$', t.strip()):
         import urllib.parse
         pairs = urllib.parse.parse_qsl(t.strip(), keep_blank_values=True)
         return mask_json(dict(pairs), marks), dict(facts, format='form')
     if len(t) > 12000:
         t = t[:12000] + '\n…'
-    return mask_text(t, marks), facts
+    fmt = 'xml' if t.lstrip()[:1] == '<' else 'text'
+    return mask_text(t, marks), dict(facts, format=fmt)
+
+
+def wire_body(body, marks, ctype=None):
+    """The body as it goes on the wire, its secrets out: JSON as sent (compact), form
+    fields url-encoded, a multipart body its parts, binary in words."""
+    if body is None:
+        return None
+    if isinstance(body, (dict, list)):
+        return json.dumps(mask_json(body, marks))
+    shown, facts = mask_body(body, marks, ctype)
+    f = facts.get('format')
+    if f == 'json':
+        raw = body.decode('utf-8', 'replace') if isinstance(body, (bytes, bytearray)) else body
+        # as sent: its own spacing kept when nothing in it was masked
+        if json.dumps(json.loads(raw)) == json.dumps(shown):
+            return mask_text(raw, marks)
+        return json.dumps(shown)
+    if f == 'form':
+        import urllib.parse
+        return '&'.join('%s=%s' % (urllib.parse.quote_plus(str(k)), v if str(v).startswith(
+            ('••••', '‹')) else urllib.parse.quote_plus(str(v))) for k, v in shown.items())
+    return shown
 
 
 # ---------------------------------------------------------------------------
