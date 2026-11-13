@@ -60231,6 +60231,202 @@
   "mcsr_31": {
    "source": "The target is switched off: the issue is refused until it is on again",
    "text": "Cíl je vypnutý: vystavení se odmítá, dokud nebude znovu zapnutý"
+  },
+  "dk_1": {
+   "source": "signs no CSR of a device",
+   "text": "nepodepíše CSR zařízení"
+  },
+  "mdkdl_1": {
+   "source": "Dell OpenManage Enterprise",
+   "text": "Dell OpenManage Enterprise"
+  },
+  "mdkdl_2": {
+   "source": "The HTTPS certificate of a Dell OpenManage Enterprise appliance (web interface and REST API) for a key OME makes itself: at every issue and renewal acme asks it for a new key and CSR over its REST API and uploads the certificate signed for it. Any OME 3.x or 4.x: the version is read - the chain is uploaded on 3.10 and later, the certificate alone before.",
+   "text": "HTTPS certifikát appliance Dell OpenManage Enterprise (webové rozhraní a REST API) pro klíč, který si OME vytvoří samo: při každém vystavení a obnovení si acme přes jeho REST API řekne o nový klíč a CSR a nahraje k nim podepsaný certifikát. Jakékoli OME 3.x nebo 4.x: verze se přečte - od 3.10 se nahraje řetězec, dřív samotný certifikát."
+  },
+  "mdkdl_3": {
+   "source": "OpenManage Enterprise 3.0 - 3.9: the key and CSR made by OME, the certificate uploaded alone (UploadCertificate - no chain upload before 3.10). Refuses an appliance on another version.",
+   "text": "OpenManage Enterprise 3.0 - 3.9: klíč a CSR vytvoří OME, certifikát se nahraje samotný (UploadCertificate - před 3.10 nahrání řetězce není). Appliance s jinou verzí odmítne."
+  },
+  "mdkdl_4": {
+   "source": "OpenManage Enterprise 3.10 - 4.x: the key and CSR made by OME, the certificate and its intermediates uploaded (UploadCertChain). Refuses an appliance on another version.",
+   "text": "OpenManage Enterprise 3.10 - 4.x: klíč a CSR vytvoří OME, nahraje se certifikát s mezilehlými certifikáty (UploadCertChain). Appliance s jinou verzí odmítne."
+  },
+  "mdkdl_5": {
+   "source": "OpenManage Enterprise 3.0 - 3.9",
+   "text": "OpenManage Enterprise 3.0 - 3.9"
+  },
+  "mdkdl_6": {
+   "source": "OpenManage Enterprise 3.10 - 4.x",
+   "text": "OpenManage Enterprise 3.10 - 4.x"
+  },
+  "mdkdl_7": {
+   "source": "an OME account with the privilege \"Appliance Management\" (a custom role of OME 4.x with only that) or the role Administrator",
+   "text": "účet OME s oprávněním „Appliance Management“ (vlastní role OME 4.x jen s ním) nebo s rolí Administrator"
+  },
+  "mdkdl_8": {
+   "source": "two letters - OME asks for it in every CSR; the certificate's own subject (its profile) wins",
+   "text": "dvě písmena - OME je chce v každém CSR; přednost má vlastní subjekt certifikátu (jeho profil)"
+  },
+  "mdkdl_9": {
+   "source": "Business name (O)",
+   "text": "Název firmy (O)"
+  },
+  "mdkdl_10": {
+   "source": "Department name (OU)",
+   "text": "Oddělení (OU)"
+  },
+  "mdkdl_11": {
+   "source": "Upload the chain",
+   "text": "Nahrát řetězec"
+  },
+  "mdkdl_12": {
+   "source": "on: the certificate and its intermediates (OME 3.10 and later; the certificate alone on an older one); off: the certificate alone",
+   "text": "zapnuto: certifikát a jeho mezilehlé certifikáty (OME 3.10 a novější; na starším samotný certifikát); vypnuto: samotný certifikát"
+  },
+  "mdkdl_13": {
+   "source": "added at the end of the chain uploaded - for a CA whose chain does not carry its root (Dell advises the whole chain, root included)",
+   "text": "přidá se na konec nahrávaného řetězce - pro CA, jejíž řetězec kořen nenese (Dell doporučuje celý řetězec včetně kořene)"
+  },
+  "mdkdl_14": {
+   "source": "signing in to OME",
+   "text": "přihlášení do OME"
+  },
+  "mdkdl_15": {
+   "source": "OME gave no session (X-Auth-Token) on signing in",
+   "text": "OME při přihlášení nedalo relaci (X-Auth-Token)"
+  },
+  "mdkdl_16": {
+   "source": "reading the OME version",
+   "text": "čtení verze OME"
+  },
+  "mdkdl_17": {
+   "source": "the certificate has no name for the CSR",
+   "text": "certifikát nemá žádné jméno pro CSR"
+  },
+  "mdkdl_18": {
+   "source": "Department name",
+   "text": "Oddělení"
+  },
+  "mdkdl_19": {
+   "source": "Business name",
+   "text": "Název firmy"
+  },
+  "mdkdl_20": {
+   "source": "asking OME for a new key and CSR",
+   "text": "žádost o nový klíč a CSR v OME"
+  },
+  "mdkdl_21": {
+   "source": "OME answered GenerateCSR without a CSR",
+   "text": "OME odpovědělo na GenerateCSR bez CSR"
+  },
+  "mdkdl_22": {
+   "source": "OpenManage Enterprise takes only a certificate for a key it made itself - let the device make the key (the certificate → Key: \"Key made by the device\")",
+   "text": "OpenManage Enterprise přijme jen certifikát pro klíč, který si samo vytvořilo - nechte klíč vytvořit zařízení (certifikát → Klíč: „Klíč vytváří zařízení“)"
+  },
+  "mdkdl_23": {
+   "source": "served by OME",
+   "text": "obsluhuje ho OME"
+  },
+  "mdkdl_24": {
+   "source": "uploading the certificate chain",
+   "text": "nahrání řetězce certifikátů"
+  },
+  "mdkdl_25": {
+   "source": "no version of this module",
+   "text": "žádná verze tohoto modulu"
+  },
+  "mdkdl_26": {
+   "source": "chain",
+   "text": "řetězec"
+  },
+  "mdkdl_27": {
+   "source": "certificate alone",
+   "text": "samotný certifikát"
+  },
+  "mdkdl_28": {
+   "source": "any OME",
+   "text": "jakékoli OME"
+  },
+  "mdkdl_29": {
+   "source": "Lenovo XClarity Administrator",
+   "text": "Lenovo XClarity Administrator"
+  },
+  "mdkdl_30": {
+   "source": "The server certificate of a Lenovo XClarity Administrator (LXCA 3.x, 4.x: web interface, REST API, the certificate its managed devices see) for a key LXCA makes itself: at every issue and renewal acme asks it for a new key and CSR over its REST API, puts the CA certificates in its trust store and uploads the certificate signed for it.",
+   "text": "Serverový certifikát Lenovo XClarity Administratoru (LXCA 3.x, 4.x: webové rozhraní, REST API, certifikát, který vidí jeho spravovaná zařízení) pro klíč, který si LXCA vytvoří sám: při každém vystavení a obnovení si acme přes jeho REST API řekne o nový klíč a CSR, přidá certifikáty CA do jeho úložiště důvěryhodných certifikátů a nahraje k nim podepsaný certifikát."
+  },
+  "mdkdl_31": {
+   "source": "LXCA 3.x - 4.x",
+   "text": "LXCA 3.x - 4.x"
+  },
+  "mdkdl_32": {
+   "source": "an LXCA account in the role group LXC-SECURITY-ADMIN (or a custom role made from lxc-security-admin)",
+   "text": "účet LXCA ve skupině rolí LXC-SECURITY-ADMIN (nebo ve vlastní roli vytvořené z lxc-security-admin)"
+  },
+  "mdkdl_33": {
+   "source": "two letters - LXCA asks for it in every CSR; the certificate's own subject (its profile) wins",
+   "text": "dvě písmena - LXCA je chce v každém CSR; přednost má vlastní subjekt certifikátu (jeho profil)"
+  },
+  "mdkdl_34": {
+   "source": "Add the CA certificates to the trust store",
+   "text": "Přidat certifikáty CA do úložiště důvěryhodných"
+  },
+  "mdkdl_35": {
+   "source": "the root and the intermediates added to LXCA's Trusted Certificates before the upload, as Lenovo asks (else the managed devices may turn untrusted)",
+   "text": "kořenový a mezilehlé certifikáty se před nahráním přidají do Trusted Certificates v LXCA, jak Lenovo žádá (jinak se spravovaná zařízení mohou stát nedůvěryhodnými)"
+  },
+  "mdkdl_36": {
+   "source": "the root the chain ends in, when the chain does not carry it (an ACME CA sends none) - LXCA wants the whole chain, root included",
+   "text": "kořen, kterým řetězec končí, když ho řetězec nenese (ACME CA ho neposílá) - LXCA chce celý řetězec včetně kořene"
+  },
+  "mdkdl_37": {
+   "source": "asking LXCA for a new key and CSR",
+   "text": "žádost o nový klíč a CSR v LXCA"
+  },
+  "mdkdl_38": {
+   "source": "downloading the CSR",
+   "text": "stažení CSR"
+  },
+  "mdkdl_39": {
+   "source": "LXCA gave no CSR to download",
+   "text": "LXCA nedal žádné CSR ke stažení"
+  },
+  "mdkdl_40": {
+   "source": "root CA certificate",
+   "text": "kořenový certifikát CA"
+  },
+  "mdkdl_41": {
+   "source": "LXCA takes only a certificate for a key it made itself - let the device make the key (the certificate → Key: \"Key made by the device\")",
+   "text": "LXCA přijme jen certifikát pro klíč, který si sám vytvořil - nechte klíč vytvořit zařízení (certifikát → Klíč: „Klíč vytváří zařízení“)"
+  },
+  "mdkdl_42": {
+   "source": "served by LXCA",
+   "text": "obsluhuje ho LXCA"
+  },
+  "mdkdl_43": {
+   "source": "no root CA certificate - the chain ends in an intermediate; LXCA wants the root too (give it in the deployment's options)",
+   "text": "chybí kořenový certifikát CA - řetězec končí mezilehlým; LXCA chce i kořen (zadejte ho ve volbách nasazení)"
+  },
+  "mdkdl_44": {
+   "source": "uploading the server certificate",
+   "text": "nahrání serverového certifikátu"
+  },
+  "mdkdl_45": {
+   "source": "LXCA took the server certificate - its web server restarts (LXCA 4.0 and later end every session)",
+   "text": "LXCA převzal serverový certifikát - jeho webový server se restartuje (LXCA 4.0 a novější ukončí všechny relace)"
+  },
+  "mdkdl_46": {
+   "source": "reading the server certificate",
+   "text": "čtení serverového certifikátu"
+  },
+  "mdkdl_47": {
+   "source": "gave",
+   "text": "vydal"
+  },
+  "mdkdl_48": {
+   "source": "answered, without",
+   "text": "odpověděl, ale bez"
   }
  },
  "patterns": {
@@ -83201,6 +83397,106 @@
   "pmcsr_35": {
    "source": "The key and the request (CSR) are made by the device of {0} - a new key at every issue; acme holds none",
    "text": "Klíč a žádost (CSR) vytváří zařízení {0} - při každém vystavení nový klíč; acme žádný nemá"
+  },
+  "pmdkdl_1": {
+   "source": "the OME version cannot be read - the calls of {0} are used",
+   "text": "verzi OME nelze přečíst - použijí se volání pro {0}"
+  },
+  "pmdkdl_2": {
+   "source": "this appliance runs OpenManage Enterprise {0} - the module version \"{1}\" is for {2}; choose the version \"{3}\" of the target",
+   "text": "na této appliance běží OpenManage Enterprise {0} - verze modulu „{1}“ je pro {2}; zvolte verzi cíle „{3}“"
+  },
+  "pmdkdl_3": {
+   "source": "OpenManage Enterprise takes no wildcard certificate ({0}) - give the appliance's own names",
+   "text": "OpenManage Enterprise nepřijme wildcard certifikát ({0}) - zadejte vlastní jména appliance"
+  },
+  "pmdkdl_4": {
+   "source": "OpenManage Enterprise puts at most {0} names in its CSR - the certificate has {1} ({2})",
+   "text": "OpenManage Enterprise dá do svého CSR nejvýš {0} jména - certifikát jich má {1} ({2})"
+  },
+  "pmdkdl_5": {
+   "source": "OpenManage Enterprise makes {0} keys only - choose that key type for the certificate",
+   "text": "OpenManage Enterprise vytváří jen klíče {0} - zvolte certifikátu tento typ klíče"
+  },
+  "pmdkdl_6": {
+   "source": "OpenManage Enterprise asks for {0} in every CSR - fill them in on the target",
+   "text": "OpenManage Enterprise chce v každém CSR {0} - vyplňte je u cíle"
+  },
+  "pmdkdl_7": {
+   "source": "OME made a new key and a CSR for {0}",
+   "text": "OME vytvořilo nový klíč a CSR pro {0}"
+  },
+  "pmdkdl_8": {
+   "source": "OME took {0} - its web server restarts, a few seconds",
+   "text": "OME převzalo {0} - jeho webový server se restartuje, pár sekund"
+  },
+  "pmdkdl_9": {
+   "source": "uploaded {0} for OME's own key{1}",
+   "text": "nahrán {0} pro vlastní klíč OME{1}"
+  },
+  "pmdkdl_10": {
+   "source": "signed in to {0}; the OME version cannot be read",
+   "text": "přihlášeno do {0}; verzi OME nelze přečíst"
+  },
+  "pmdkdl_11": {
+   "source": "signed in to {0}: OpenManage Enterprise {1} ({2}); the {3} is uploaded",
+   "text": "přihlášeno do {0}: OpenManage Enterprise {1} ({2}); nahraje se {3}"
+  },
+  "pmdkdl_12": {
+   "source": " - NOT the version this module version is for ({0})",
+   "text": " - NENÍ to verze, pro kterou je tato verze modulu ({0})"
+  },
+  "pmdkdl_13": {
+   "source": "LXCA makes RSA keys only ({0}, by its cryptographic mode) - choose one of those key types for the certificate",
+   "text": "LXCA vytváří jen klíče RSA ({0}, podle svého kryptografického režimu) - zvolte certifikátu jeden z těchto typů klíče"
+  },
+  "pmdkdl_14": {
+   "source": "LXCA asks for {0} in every CSR - fill them in on the target",
+   "text": "LXCA chce v každém CSR {0} - vyplňte je u cíle"
+  },
+  "pmdkdl_15": {
+   "source": "LXCA did not make the CSR: {0}",
+   "text": "LXCA nevytvořil CSR: {0}"
+  },
+  "pmdkdl_16": {
+   "source": "LXCA made a new key and a CSR for {0}",
+   "text": "LXCA vytvořil nový klíč a CSR pro {0}"
+  },
+  "pmdkdl_17": {
+   "source": "adding the {0} to the trust store",
+   "text": "přidání {0} do úložiště důvěryhodných certifikátů"
+  },
+  "pmdkdl_18": {
+   "source": "added the {0} to LXCA's trusted certificates",
+   "text": "{0} přidán do důvěryhodných certifikátů LXCA"
+  },
+  "pmdkdl_19": {
+   "source": "the {0} is in LXCA's trust store already",
+   "text": "{0} už je v úložišti důvěryhodných certifikátů LXCA"
+  },
+  "pmdkdl_20": {
+   "source": "intermediate CA certificate{0}",
+   "text": "mezilehlý certifikát CA{0}"
+  },
+  "pmdkdl_21": {
+   "source": "LXCA did not take the certificate: {0}",
+   "text": "LXCA certifikát nepřevzal: {0}"
+  },
+  "pmdkdl_22": {
+   "source": "LXCA hands the new CA to its managed devices (job {0}) - look at Jobs if a device turns untrusted",
+   "text": "LXCA rozesílá novou CA svým spravovaným zařízením (úloha {0}) - pokud se některé zařízení stane nedůvěryhodným, podívejte se do Jobs"
+  },
+  "pmdkdl_23": {
+   "source": "uploaded the server certificate for LXCA's own key{0}",
+   "text": "nahrán serverový certifikát pro vlastní klíč LXCA{0}"
+  },
+  "pmdkdl_24": {
+   "source": " (CA job {0})",
+   "text": " (úloha CA {0})"
+  },
+  "pmdkdl_25": {
+   "source": "signed in to {0}; LXCA {1} its server certificate",
+   "text": "přihlášeno do {0}; LXCA {1} svůj serverový certifikát"
   }
  },
  "rich": {

@@ -319,13 +319,17 @@ class VcfComponentTarget(HttpTarget):
         self.wait_task(hd, d, 'making the CSR')
         st, hd, d = self.req('GET', '/v1/domains/%s/csrs' % dom, what='reading the CSR')
         csr = ''
-        for x in (d.get('elements') if isinstance(d, dict) else d) or []:
+        els = [x for x in ((d.get('elements') if isinstance(d, dict) else d) or [])
+               if isinstance(x, dict)]
+        for x in els:
             res = x.get('resource') if isinstance(x, dict) else None
-            names = [text((res or {}).get('fqdn')), text(x.get('fqdn') if isinstance(x, dict)
-                                                         else '')]
+            names = [text((res or {}).get('fqdn')), text(x.get('fqdn'))]
             if fq.lower() in [n.lower() for n in names]:
                 csr = find_csr(x)
                 break
+        if not csr and len(els) == 1 and not any(
+                text((els[0].get('resource') or {}).get('fqdn') or els[0].get('fqdn'))):
+            csr = find_csr(els[0])      # one CSR, its resource not said: the one just made
         if not csr:
             raise PluginError('SDDC Manager made the CSR but lists none for %s' % fq,
                               detail=text(json.dumps(d) if isinstance(d, (dict, list)) else d)[:4000])

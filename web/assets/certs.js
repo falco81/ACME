@@ -5131,6 +5131,8 @@ function certWizard(cert, detail, opts) {
   }
 
   /* -- 1. where it comes from -- */
+  /* sources that sign no CSR made elsewhere (reqprofiles.NO_CSR_KINDS) */
+  var SOURCE_NO_CSR = ['selfsigned', 'cmp', 'scep'];
   function drawSource(host) {
     host.appendChild(el('p', 'note', 'Where the certificate comes from. A source is set up once under Sources - an ACME account, an authority, a Windows CA.'));
     if (!W.sources.length) {
@@ -5164,9 +5166,14 @@ function certWizard(cert, detail, opts) {
       if (cn.days) chips.appendChild(el('span', 'tag dim', 'validity chosen'));
       if (!on) chips.appendChild(el('span', 'tag warn', 'off'));
       if (s.is_default) chips.appendChild(el('span', 'tag ok', 'default'));
+      /* the device makes the key (1.0.96): a source that signs no CSR it did not make cannot
+         give its certificate - said, and not taken (as the save refuses it) */
+      var noCsr = !!W.d.csr_from && (SOURCE_NO_CSR.indexOf(s.kind) >= 0 || (p && p.makes_key));
+      if (noCsr) { chips.appendChild(el('span', 'tag warn', 'signs no CSR of a device')); t.disabled = true; t.classList.add('off'); }
       w.appendChild(chips);
       t.appendChild(w);
       t.onclick = function () {
+        if (noCsr) return;
         var was = W.d.issuer;
         W.d.issuer = s.name;
         Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove('on'); });
