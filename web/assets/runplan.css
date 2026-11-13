@@ -359,3 +359,12 @@
   .rp-conn-c{white-space:normal;height:auto;min-height:24px;padding:3px 9px;flex-wrap:wrap;row-gap:0}
   .rp-conn-v{overflow:visible;overflow-wrap:anywhere;word-break:break-all}
 }
+/* the module's own words (ctx.step, 1.0.98): what it found and decided, quieter than a call */
+.rp-step.rp-said{padding-top:6px;padding-bottom:6px}
+.rp-step.rp-said .rp-mark{width:22px;height:22px;margin-left:4px;border-radius:7px}
+.rp-step.rp-said .rp-words{font-weight:500;font-size:13px;color:var(--tx-dim)}
+.rp-step.rp-said.lv-ok .rp-mark{background:var(--ok-bg);color:var(--ok)}
+.rp-step.rp-said.lv-warn .rp-mark{background:var(--warn-bg);color:var(--warn)}
+.rp-step.rp-said.lv-warn .rp-words{color:var(--warn)}
+.rp-step.rp-said.lv-bad .rp-mark{background:var(--crit-bg);color:var(--crit)}
+.rp-step.rp-said.lv-bad .rp-words{color:var(--crit)}

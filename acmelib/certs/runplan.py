@@ -2930,6 +2930,89 @@ SSH_ANSWERS['veeam_vb365'] = [
 ] + _VEEAM
 SSH_ANSWERS['truenas'] += _SSH_SERVICES
 ANSWERS['webglobe'] = _WEBGLOBE_TARGET + ANSWERS.get('webglobe', [])
+# windows_ssh's roles (_win_roles.role_script): each role's script says its steps (STEP, as its
+# Say does) on the renewal path - the role on the certificate of the renewal before, moved to
+# this one, its service restarted where the script restarts it. In a line: {IF:regex} - left
+# out when the script has no such thing; {SEENALL:regex} - every match by ", "
+def _role(script, *lines):
+    return {'command': r'powershell', 'script': script, 'seen_lines': True,
+            'stdout': ''.join(x + '\n' for x in lines)}
+
+
+def _restarted(svc, also=''):
+    return "STEP ok restarted %s%s{IF:Restart-Role '%s'}" % (svc, also, svc)
+
+
+def _listed(var, i, end):
+    """The i-th item of the script's "foreach ($var in @('a', 'b')) {" list."""
+    return "{SEEN:foreach \\(\\$%s in @\\((?:'[^']*', ){%d}'([^']+)'[^\\n]*\\) \\{%s}" % (
+        var, i, end)
+
+
+_WIN_ROLES = [
+    _role(r"Set-RDCertificate -Role", *[
+        "STEP ok RDS %s uses it" % _listed('r', i, '') for i in range(4)]),
+    _role(r"RDS:\\GatewayServer",
+          "STEP ok read on the key for NT AUTHORITY\\NETWORK SERVICE",
+          "STEP ok RD Gateway uses it", _restarted('TSGateway')),
+    _role(r"Set-AdfsSslCertificate",
+          "STEP ok read on the key for CORP\\gmsa-adfs${IF:Grant-KeyRead \\$cert \\$svc}",
+          "STEP ok AD FS SSL uses it",
+          "STEP ok AD FS Service-Communications uses it{IF:Set-AdfsCertificate -Certificate"
+          "Type Service-Communications}",
+          _restarted('adfssrv')),
+    _role(r"Set-WebApplicationProxySslCertificate",
+          "STEP ok Web Application Proxy uses it",
+          "STEP ok WAP application Outlook Web App uses it{IF:Set-WebApplicationProxyApplication}"),
+    _role(r"Microsoft SQL Server\\Instance Names\\SQL",
+          "STEP ok read on the key for NT Service\\{SEEN:\\$svcName = '(MSSQLSERVER)'"
+          "(?=[^\\n]*\\} else)}{IF:\\$inst = 'MSSQLSERVER'}",
+          "STEP ok read on the key for NT Service\\MSSQL${SEEN:\\$inst = '((?!MSSQLSERVER')"
+          "[^']+)'}",
+          "STEP ok SQL Server {SEEN:\\$inst = '([^']+)'} uses it",
+          "STEP ok {SEEN:Say ok '(SQL Server ForceEncryption (?:on|off))'}",
+          "STEP ok restarted MSSQLSERVER (and SQLSERVERAGENT){IF:\\$inst = 'MSSQLSERVER'}"
+          "{IF:Restart-Role \\$svcName}",
+          "STEP ok restarted MSSQL${SEEN:\\$inst = '((?!MSSQLSERVER')[^']+)'} (and SQLAgent$"
+          "{SEEN:\\$inst = '((?!MSSQLSERVER')[^']+)'}){IF:Restart-Role \\$svcName}",
+          "STEP warn SQL Server takes it when {SEEN:\\$inst = '([^']+)'}{IF:takes it when} is "
+          "restarted"),
+    _role(r"renewServerCertificate",
+          "STEP ok LDAPS: put into NTDS\\Personal{IF:LDAPS: put into NTDS}",
+          "STEP info LDAPS: the old 5A0E1D2C3B4A59687700112233445566778899A7 left "
+          "NTDS\\Personal{IF:LDAPS: the old }",
+          "STEP ok LDAPS: the domain controller took the certificate (renewServerCertificate)"),
+    _role(r"WSMan:\\localhost\\Listener \| Where-Object",
+          "STEP ok WinRM Listener_1305953032 uses it",
+          "STEP ok firewall: 5986 already open{IF:firewall: 5986 already open}",
+          "STEP ok restarted WinRM"),
+    _role(r"Set-RemoteAccess -SslCertificate",
+          "STEP ok SSTP uses it", _restarted('RemoteAccess')),
+    _role(r"IIS Central Certificate Store: the folder", *[
+        "STEP ok CCS: wrote %s" % _listed('n', i, '') for i in range(8)]),
+    _role(r"GetChildElement\('ftpServer'\)",
+          "STEP ok FTP site {SEEN:\\$site = '([^']+)'} uses it",
+          "STEP ok FTP (every site) uses it{IF:\\$where = 'FTP \\(every site\\)'}",
+          _restarted('ftpsvc')),
+    _role(r"Get-ExchangeCertificate -Thumbprint \$thumb",
+          "STEP ok Exchange uses it for {SEENALL:'(\\w+)'(?=[^\\n]*\\)\\n\\$missing)}",
+          "STEP ok restarted MSExchangeIMAP4{IF:'MSExchangeIMAP4', 'MSExchangeIMAP4BE'}",
+          "STEP ok restarted MSExchangeIMAP4BE{IF:'MSExchangeIMAP4', 'MSExchangeIMAP4BE'}",
+          "STEP ok restarted MSExchangePOP3{IF:'MSExchangePOP3', 'MSExchangePOP3BE'}",
+          "STEP ok restarted MSExchangePOP3BE{IF:'MSExchangePOP3', 'MSExchangePOP3BE'}",
+          "STEP ok Exchange: removed the old 5A0E1D2C3B4A59687600112233445566778899A6"
+          "{IF:Remove-ExchangeCertificate}"),
+    _role(r"Set-CsCertificate -Type", *([
+        "STEP ok Skype for Business %s uses it" % _listed('ty', i, '') for i in range(3)] +
+        ["STEP ok Skype for Business services restarted{IF:Start-CsWindowsService}"])),
+    _role(r"Import-SPCertificate -Path",
+          "STEP ok SharePoint: imported",
+          "STEP ok SharePoint: {SEEN:\\$url = '([^']+)'} uses it"),
+    _role(r"Set-WACCertificateSubjectName",
+          "STEP ok Windows Admin Center uses it ({CERTNAME})",
+          "STEP ok restarted WindowsAdminCenter"),
+]
+SSH_ANSWERS['windows_ssh'] = _WIN_ROLES + SSH_ANSWERS['windows_ssh']
 # ---- end of targets redfish@ilo .. zimbra ----
 FIRST = {
     # OneView: the CA of the chain not in its trust store yet the first time (added)
@@ -3356,6 +3439,8 @@ def _sig(ev):
         return 'http %s %s %s' % (ev.get('method'), u, keys)
     if k == 'ssh-run':
         return 'run ' + re.sub(r'[0-9a-f]{8,}', '#', ev.get('command') or '')[:200]
+    if k == 'say':                  # the module's own words: each its own (1.0.98)
+        return 'say ' + re.sub(r'[0-9A-Fa-f]{8,}|\d+', '#', str(ev.get('words') or ''))[:200]
     return '%s %s' % (k, re.sub(r'[0-9a-f]{8,}|\d{8}', '#', str(ev.get('path') or '')))
 
 
@@ -3797,7 +3882,7 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
             hp = '%s:%s' % (ev.get('host'), ev.get('port'))
             tries = 1
             j = i + 1
-            while j < len(merged) and merged[j][0].get('kind') in ('check', 'wait', 'say'):
+            while j < len(merged) and merged[j][0].get('kind') in ('check', 'wait'):
                 e2 = merged[j][0]
                 if e2.get('kind') == 'check':
                     if '%s:%s' % (e2.get('host'), e2.get('port')) != hp or \
@@ -3835,6 +3920,18 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                                     ['TLS at most', 'TLS 1.2 (to ask for the key type)' if fam else
                                      'as the server and this machine agree', 'dim'],
                                     ['Compared by', 'the SHA-256 fingerprint of the certificate sent', 'dim']]
+        elif k == 'say':
+            # the module's own words (ctx.step): what it found and decided - "serves another
+            # certificate - replacing it", "not bound yet - binding" - a step of its own, in
+            # order, with or without the debug details (1.0.98: they were dropped)
+            words = str(ev.get('words') or '').strip()
+            if not words:
+                i += 1
+                continue
+            lv = str(ev.get('level') or 'info')
+            st = {'kind': 'info', 'words': words, 'said': True}
+            if lv in ('ok', 'warn', 'bad'):
+                st['level'] = lv
         elif k == 'pages':
             st = {'kind': 'save', 'words': 'Puts it into acme\'s own pages ({0})'.replace(
                 '{0}', ev.get('where') or '')}

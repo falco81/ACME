@@ -814,9 +814,18 @@ def key_reference(name, value):
     file name) - not key material: shown (1.0.98). Only a key's name, never a password's or a
     token's; a value with a PEM, a long base64 run or no path shape stays dots."""
     v = str(value or '')
-    if not KEYISH_NAME.search(str(name or '')) or not PATH_VALUE.match(v):
+    # a yes/no is never a secret, whatever its name (Synology's enable_syno_token: "yes")
+    if v.strip().lower() in ('yes', 'no', 'true', 'false', 'on', 'off', 'none', 'null', '0',
+                             '1', 'enabled', 'disabled'):
+        return True
+    if not PATH_VALUE.match(v) or '-----' in v or re.search(r'[A-Za-z0-9+/=_-]{60,}', v):
         return False
-    return '-----' not in v and not re.search(r'[A-Za-z0-9+/=_-]{60,}', v)
+    if KEYISH_NAME.search(str(name or '')):
+        return True
+    # under another secret's name only a path of folders (/etc/x/y, C:\\a\\b) or a key or
+    # certificate file's name - "/abc" may be a password
+    return bool(re.match(r'^(/|[A-Za-z]:[\\/]|~/|\.\.?/)[^/\\]+[/\\]', v) or
+                re.search(r'\.(key|pem|crt|cer|pfx|p12|der|jks)$', v))
 
 
 def mask_url(url, marks):
@@ -1369,8 +1378,25 @@ class Answers(object):
                     got = re.search(m.group(1), sent)
                     return (got.group(1) if got.groups() else got.group(0)) if got else ''
 
+                def every(m):
+                    found = re.findall(m.group(1), sent)
+                    return ', '.join(x if isinstance(x, str) else x[0] for x in found)
+
+                def tag(text, name, fn):
+                    # {NAME:regex} filled as {SEEN:..} is (the regex may hold braces)
+                    hid = text.replace('{SEEN:', '\x02')
+                    return fill_seen(hid.replace('{%s:' % name, '{SEEN:'), fn).replace(
+                        '\x02', '{SEEN:')
+
                 def kept(ln):
+                    # {SEENALL:regex}: every match (its group) by ", " - the line left out when
+                    # none; {SEEN?:regex}: '' when none, the line kept
                     got = []
+                    # {IF:regex}: nothing printed - the line left out when it is not there
+                    ln = tag(ln, 'IF', lambda m: got.append(
+                        'y' if re.search(m.group(1), sent) else '') or '')
+                    ln = tag(ln, 'SEENALL', lambda m: got.append(every(m)) or got[-1])
+                    ln = tag(ln, 'SEEN?', now)
                     filled = fill_seen(ln, lambda m: got.append(now(m)) or got[-1])
                     return None if '' in got else filled
                 out = ''.join(x for x in (kept(ln) for ln in out.splitlines(True))

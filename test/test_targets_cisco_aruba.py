@@ -919,5 +919,60 @@ class Central(unittest.TestCase):
         self.assertFalse(ctx.find('PUT', ''))
 
 
+class DecisionsSaid(unittest.TestCase):
+    """1.0.98: what a module found decides what it does - said as a step (What happens shows
+    the steps): what is there now and what it replaces."""
+    def test_central_there_or_not(self):
+        ctx = FakeCtx(central_routes())
+        make('aruba_central', '', CCFG, ctx).deploy(FakeBundle(), {'cert_name': 'captive'})
+        self.assertIn('captive is not in Central yet - it is uploaded', [w for _l, w in ctx.steps])
+        ctx = FakeCtx(central_routes(items=[{'cert_name': 'captive', 'cert_type': 'SERVER_CERT',
+                                             'expire_date': 'Feb 11 2027'}]))
+        make('aruba_central', '', CCFG, ctx).deploy(FakeBundle(), {'cert_name': 'captive'})
+        self.assertIn('captive is in Central (until Feb 11 2027) - it is replaced under that '
+                      'name', [w for _l, w in ctx.steps])
+
+    def test_fmc_rule_names_the_one_before(self):
+        from acmelib.plugins.targets import cisco_fmc as F
+        # a reference found whatever the id is made of (1.0.98: json.dumps escaped a non-ASCII
+        # id and the reference was never found)
+        self.assertTrue(F.refers({'x': {'id': '\u2039earlier\u203a'}}, ['\u2039earlier\u203a']))
+        b = FakeBundle()
+        old = C.name_prefix(b, {}) + '20260101-aaaa0001'
+        rule = {'id': 'r1', 'name': 'decrypt-www', 'type': 'DecryptionPolicyRule',
+                'internalCertificates': {'objects': [{'id': 'o1', 'name': old}]}}
+        ctx = FakeCtx([
+            ('POST', r'/generatetoken$', (204, '', {'X-auth-access-token': 'TKN',
+                                                    'DOMAIN_UUID': 'd1'})),
+            ('GET', r'/object/internalcertificates\?', (200, {'items': [
+                {'id': 'o1', 'name': old}]})),
+            ('POST', r'/object/internalcertificates$', (201, {'id': 'n1'})),
+            ('GET', r'/policy/decryptionpolicies\?', (200, {'items': [
+                {'id': 'p1', 'name': 'Inbound'}]})),
+            ('GET', r'/decryptionpolicyrules\?', (200, {'items': [rule]})),
+            ('PUT', r'/decryptionpolicyrules/r1$', (200, {})),
+            ('GET', r'/deployment/deployabledevices', (200, {'items': []}))])
+        t = make('cisco_fmc', '', {'host': 'fmc', 'user': 'u', 'password': 'p',
+                                   'domain_uuid': 'd1'}, ctx)
+        t.deploy(b, {'decryption_policy': 'Inbound'})
+        self.assertTrue([w for _l, w in ctx.steps if w.startswith('the rule decrypt-www of '
+                         'Inbound uses acme-') and w.endswith('(before: %s)' % old)], ctx.steps)
+
+    def test_ise_earlier_and_trusted_ca_said(self):
+        b = FakeBundle()
+        old = C.name_prefix(b, {}, maxlen=60) + '20260101-aaaa0001'
+        ctx = FakeCtx([
+            ('GET', r'/system-certificate/ise01\?size=', (200, {'response': [
+                {'id': 'i1', 'friendlyName': old, 'usedBy': 'EAP Authentication'}]})),
+            ('POST', r'/trusted-certificate/import$', (400, {'message': 'already exists'})),
+            ('POST', r'/system-certificate/import$', (200, {'response': {'id': 'n1'}}))])
+        make('cisco_ise', '', {'host': 'ise', 'user': 'u', 'password': 'p', 'node': 'ise01'},
+             ctx).deploy(b, {'roles': 'eap', 'keep': -1})
+        words = [w for _l, w in ctx.steps]
+        self.assertIn('the node has the earlier %s (used by: EAP Authentication)' % old, words)
+        self.assertTrue([w for w in words if w.startswith('the intermediate acme-ca-') and
+                         'there already?' in w], words)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=1)

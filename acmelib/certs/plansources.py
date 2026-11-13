@@ -109,6 +109,27 @@ SOURCES = {
                                                                    'renewId': '‹id›'}},
         {'method': 'GET', 'url': r'/api/ssl/v2/collect/\d+', 'headers': {
             'Content-Type': 'application/x-pem-file'}, 'body': '{CERT}{CHAIN}'}],
+    # The SSL Store: an order bought before, reissued inside it; the CNAME DCV of the reissue
+    'sslstore': [
+        {'url': r'/order/info$', 'times': 1, 'body': {
+            'AuthResponse': {'isError': False}, 'TheSSLStoreOrderID': '{CFG:order_id}',
+            'CommonName': '{NAME}', 'DNSNames': '', 'OrderStatus': {'MajorStatus': 'Active'},
+            'CertificateEndDateInUTC': '2027-01-01T00:00:00', 'OrderExpiryDateInUTC':
+            '2028-01-01T00:00:00'}},
+        {'url': r'/order/reissue$', 'body': {
+            'AuthResponse': {'isError': False}, 'TheSSLStoreOrderID': '{CFG:order_id}',
+            'OrderStatus': {'MajorStatus': 'Pending', 'DomainAuthVettingStatus': [
+                {'domain': '{NAME}', 'dcvMethod': 'CNAME',
+                 'DNSName': '_8F2E4C6A8B1D3F5E7A9C0B2D4F6E8A1C.{NAME}',
+                 'DNSEntry': '1c3e5a7b9d0f2e4c6a8b1d3f5e7a9c0b.4d6f8a0c2e.sectigo.com'}]}}},
+        {'url': r'/order/info$', 'body': {
+            'AuthResponse': {'isError': False}, 'TheSSLStoreOrderID': '{CFG:order_id}',
+            'CommonName': '{NAME}', 'OrderStatus': {'MajorStatus': 'Active'},
+            'CertificateEndDateInUTC': '2027-02-11T00:00:00'}},
+        {'url': r'/order/certificate/download$', 'body': {
+            'AuthResponse': {'isError': False}, 'Certificates': [
+                {'FileName': '{NAME}.crt', 'FileContent': '{CERT}'},
+                {'FileName': 'Intermediate.crt', 'FileContent': '{CHAIN}'}]}}],
     'digicert': [
         {'method': 'GET', 'url': r'/order/certificate/\d+$', 'body': {
             'id': '{CFG:order_id}', 'status': 'issued', 'order_valid_till': '2028-01-01',

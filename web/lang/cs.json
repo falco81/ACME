@@ -61179,6 +61179,18 @@
   "_77": {
    "source": "none read",
    "text": "žádný nepřečten"
+  },
+  "_78": {
+   "source": "on one connection kept open for the whole sign-in (Windows authentication signs in a connection, not a request); no proxy",
+   "text": "po jednom spojení drženém otevřené po celé přihlášení (přihlášení Windows přihlašuje spojení, ne požadavek); bez proxy"
+  },
+  "_79": {
+   "source": "not stopped from here on: a certificate the CA made is never left behind",
+   "text": "odtud už se nezastavuje: certifikát, který autorita vyrobila, se nikdy nezahodí"
+  },
+  "_80": {
+   "source": "(signature)",
+   "text": "(podpis)"
   }
  },
  "patterns": {
@@ -85013,6 +85025,22 @@
   "p_113": {
    "source": "Cloud Connect uses {0} now - it is replaced",
    "text": "Cloud Connect teď používá {0} – nahradí se"
+  },
+  "p_114": {
+   "source": "It puts in place the records (or files) {0} asks for - of the CA's own shape, with the values the order gives - within the source's run: The source shows each call, the wait until they can be seen and their taking away",
+   "text": "Umístí záznamy (nebo soubory), které žádá {0} – v podobě, jakou chce certifikační autorita, s hodnotami z objednávky – během běhu zdroje: Zdroj ukazuje každé volání, čekání, až budou vidět, i jejich odstranění"
+  },
+  "p_115": {
+   "source": "Asks for the order until it is ready (every {0} s, at most {1} s)",
+   "text": "Ptá se na objednávku, dokud není připravená (každých {0} s, nejvýš {1} s)"
+  },
+  "p_116": {
+   "source": "Asks for the order again while the CA makes the certificate (processing) until it is valid (at most {0} s)",
+   "text": "Ptá se na objednávku znovu, dokud certifikační autorita certifikát vyrábí (processing), až je platná (nejvýš {0} s)"
+  },
+  "p_117": {
+   "source": "openssl cmp sends its messages ({0}, then certConf unless implicit confirmation; pollReq while the CA waits) to acme's relay on 127.0.0.1, which posts each to {1} with acme's connection (Content-Type: application/pkixcmp) and hands back the answer",
+   "text": "openssl cmp posílá své zprávy ({0}, pak certConf, není-li implicitní potvrzení; pollReq, dokud autorita čeká) přes předávací server acme na 127.0.0.1, který každou pošle na {1} spojením acme (Content-Type: application/pkixcmp) a vrátí odpověď"
   }
  },
  "rich": {

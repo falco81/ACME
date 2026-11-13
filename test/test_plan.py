@@ -241,6 +241,23 @@ class Plan(core.CertsCore):
         self.assertNotIn('draft.example.cz', json.dumps(n))     # nothing saved
         self.assertEqual(self.listener.seen, 0)
 
+    def test_53_own_pages_as_they_are(self):
+        """1.0.98: a deployment to acme's own pages is recorded with the nodes and what their
+        pages hold now (runplan.pages_of) - not a made-up node."""
+        ids, out = self.setup_world()
+        self.ok('POST', '/api/targets/save', {'name': 'pages', 'kind': 'appliance',
+                                              'config': {}})
+        self.ok('POST', '/api/deploys/save', {'cert_id': ids['plan-own'], 'target': 'pages',
+                                              'options': {'where': 'this'}, 'enabled': True})
+        plan = self.plan_of(ids['plan-own'])
+        self.no_secrets(plan)
+        ph = {p['key']: p for p in plan['phases']}
+        groups = {g['title']: g for g in ph['deploy']['groups']}
+        words = ' | '.join(str(s.get('words')) for s in groups['pages']['steps'])
+        self.assertIn('the pages of ', words)
+        self.assertNotIn('the pages of acme ', words)       # the sandbox's own stand-in node
+        self.assertIn("Puts it into acme's own pages", words)
+
 
 class Lockdown(unittest.TestCase):
     """The recording's process (plansandbox.lockdown) fails closed: what no
@@ -970,12 +987,16 @@ print(json.dumps({'before': before == want, 'signed_in': signed_in == want, 'aft
         as itself (1.0.98)."""
         from acmelib.certs import plansandbox as P
         got = P.mask_json({'key': '/Common/acme-www.key', 'privateKey': 'C:\\c\\a.key',
-                           'keyFile': 'www.key', 'password': '/looks/like/a/path',
+                           'keyFile': 'www.key', 'password': '/looks',
                            'apiKey': '/x', 'k2': {'key': 'Zm9vYmFy' * 10},
                            'k3': {'key': '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----'}}, {})
         self.assertEqual((got['key'], got['privateKey'], got['keyFile']),
                          ('/Common/acme-www.key', 'C:\\c\\a.key', 'www.key'))
         self.assertEqual((got['password'], got['apiKey'], got['k2']['key']), ('••••',) * 3)
+        got = P.mask_json({'session': 'S3ss10n', 'enable_syno_token': 'yes', 'passwd': 'true',
+                           'token_file': '/etc/acme/tok', 'password': '/abc'}, {})
+        self.assertEqual(got, {'session': '••••', 'enable_syno_token': 'yes', 'passwd': 'true',
+                               'token_file': '/etc/acme/tok', 'password': '••••'})
         self.assertNotIn('MIIE', json.dumps(got))
         u = P.mask_url('https://x/zones/%E2%80%B9zone%20id%E2%80%BA/c?n=%E2%80%B9a+b%E2%80%BA'
                        '&password=1', {})
@@ -996,6 +1017,30 @@ print(json.dumps({'before': before == want, 'signed_in': signed_in == want, 'aft
         self.assertEqual(got['short'], got['fp'][:16])
         self.assertNotEqual(got['thumb'], C.sha1_thumb(b))
         self.assertTrue(got['thumb'].isupper())
+
+    def test_modules_words_are_steps(self):
+        """The module's own words (ctx.step) are steps of their own, in order, debug or not -
+        between handshakes too, and a later run's own words told apart (1.0.98: dropped)."""
+        from acmelib.certs import runplan as R
+        evs = [{'kind': 'say', 'words': 'signed in', 'level': 'info'},
+               {'kind': 'check', 'host': 'h', 'port': 443, 'served': 'earlier'},
+               {'kind': 'say', 'words': 'h serves another certificate - replacing it',
+                'level': 'warn'},
+               {'kind': 'http', 'method': 'POST', 'url': 'https://h/upload', 'headers': {}},
+               {'kind': 'check', 'host': 'h', 'port': 443, 'served': 'new'},
+               {'kind': 'say', 'words': 'h serves the new certificate', 'level': 'ok'}]
+        steps = R.steps_of(evs)
+        said = [(s['words'], s.get('level')) for s in steps if s.get('said')]
+        self.assertEqual(said, [('signed in', None),
+                                ('h serves another certificate - replacing it', 'warn'),
+                                ('h serves the new certificate', 'ok')])
+        kinds = [s['kind'] for s in steps]
+        self.assertEqual(kinds, ['info', 'check', 'info', 'call', 'check', 'info'])
+        self.assertFalse(any(s.get('debug') for s in steps if s.get('said')))
+        later = evs[:2] + [{'kind': 'say', 'words': 'h serves it already', 'level': 'ok'}]
+        steps = R.steps_of(evs, later=later)
+        self.assertIn(('h serves it already', 'Only at later renewals - when it is there already'),
+                      [(s['words'], s.get('branch')) for s in steps if s.get('said')])
 
     def test_calls_around_ctx_are_errors(self):
         """A module that goes around ctx (urllib / http.client, a socket, a program, a DNS
@@ -1324,6 +1369,35 @@ class RenewalPathsG4(RenewalPathsG2):
                       'SAY the backup server certificate is set', 'SAY the REST API (0.0.0.0:9419)',
                       'SAY removed the old 5A0E', 'SAY restarted VeeamBackupSvc')
 
+    def test_windows_roles(self):
+        """windows_ssh with each role on: the role's own steps on the renewal path."""
+        want = {
+            'rds': ['SAY RDS RDGateway uses it', 'SAY RDS RDRedirector uses it'],
+            'rdgw': ['SAY read on the key for NT AUTHORITY\\NETWORK SERVICE',
+                     'SAY RD Gateway uses it', 'SAY restarted TSGateway'],
+            'adfs': ['SAY AD FS SSL uses it', 'SAY AD FS Service-Communications uses it',
+                     'SAY restarted adfssrv'],
+            'wap': ['SAY Web Application Proxy uses it', 'SAY WAP application'],
+            'sql': ['SAY read on the key for NT Service\\MSSQLSERVER',
+                    'SAY SQL Server MSSQLSERVER uses it', 'SAY restarted MSSQLSERVER'],
+            'ldaps': ['SAY LDAPS: put into NTDS', 'SAY LDAPS: the old',
+                      'SAY LDAPS: the domain controller took'],
+            'winrm': ['SAY WinRM Listener_', 'SAY restarted WinRM'],
+            'sstp': ['SAY SSTP uses it', 'SAY restarted RemoteAccess'],
+            'ccs': ['SAY CCS: wrote www.example.com.pfx'],
+            'ftp': ['SAY FTP (every site) uses it'],
+            'exchange': ['SAY Exchange uses it for IIS, SMTP'],
+            'lync': ['SAY Skype for Business Default uses it'],
+            'sharepoint': ['SAY SharePoint: imported', 'SAY SharePoint: https://sp.example.com'],
+            'wac': ['SAY Windows Admin Center uses it', 'SAY restarted WindowsAdminCenter']}
+        from acmelib.plugins.targets import _win_roles as WR
+        self.assertEqual(sorted(want), sorted(r[0] for r in WR.ROLES))
+        for role, lines in sorted(want.items()):
+            got = self.record('windows_ssh', dict(self.SSH), {
+                'role_' + role: True, 'ccs_path': '\\\\fs\\ccs', 'ccs_password': 'p',
+                'sp_url': 'https://sp.example.com', 'wap_apps': True})
+            self.in_order(got, 'SAY roles on the server', *(lines + ['SAY removed the old 5A0E']))
+
 
 class SandboxPlaceholdersG4(unittest.TestCase):
     """What the answers of the targets redfish@ilo .. zimbra need of the sandbox (1.0.98)."""
@@ -1363,6 +1437,12 @@ class SandboxPlaceholdersG4(unittest.TestCase):
         self.assertEqual(a.ssh('powershell.exe -EncodedCommand ' + enc)[1], 'IMPORTED x\n')
         self.assertIsNone(a.ssh('powershell.exe -EncodedCommand ' + base64.b64encode(
             'Get-Date'.encode('utf-16-le')).decode()))
+
+    def test_seen_lines_if_all_optional(self):
+        from acmelib.certs import plansandbox as P
+        a = P.Answers([], [{'command': r'x', 'seen_lines': True, 'stdout':
+                            "A {SEENALL:'(\\w+)'}\nB{IF:SMTP}\nC{IF:POP}\nD{SEEN?:(zz)}\n"}])
+        self.assertEqual(a.ssh("x 'IIS', 'SMTP'")[1], 'A IIS, SMTP\nB\nD\n')
 
     def test_xml_secrets_masked(self):
         from acmelib.certs import plansandbox as P
@@ -1570,11 +1650,17 @@ class SourcesAndValidations(unittest.TestCase):
         self.assertNotIn('CfTok3nVerySecret', json.dumps(evs))
 
 
-class RenewalPathsG1(RenewalPathsG2):
+class RenewalPathsG1(unittest.TestCase):
     """The renewal path of the targets a10 .. cisco_nxos (1.0.98): what is there found and
     said, replaced, the older ones cleaned up - every call answered as the device does; what
     acme keeps for a target (the acme push pin, ACM's ARN) and acme's own pages as they are;
     a password made for the run masked."""
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+
     def record(self, kind, cfg, opts=None, version='', later=False, run=None, job=None,
                events=False):
         from acmelib.certs import runplan as R
@@ -1652,7 +1738,9 @@ class RenewalPathsG1(RenewalPathsG2):
         got = self.record('cisco_nxos', pw, {})
         self.in_order(got, 'SAY imported into the new trustpoint acme-',
                       'SAY NX-API uses acme-', 'SAY removed the older trustpoint acme-')
-        got = self.record('cisco_fmc', pw, {'decryption_policy': 'Inbound'}, version='7.7')
+        got = self.record('cisco_fmc', pw, {'decryption_policy': 'Inbound', 'enrollment':
+                                            'RAVPN-acme', 'enroll_devices': 'ftd-1'},
+                          version='7.7', later=True)
         self.in_order(got, 'GET https://dev/api/fmc_platform/v1/info/serverversion',
                       'SAY replaced the PKCS#12 of the Cert Enrollment',
                       'SAY RE_ENROLL of', 'SAY the rule decrypt-www of Inbound uses acme-',
@@ -1687,8 +1775,7 @@ class RenewalPathsG1(RenewalPathsG2):
                                                       'hostnames': 'cdn.example.com'})
         self.in_order(got, 'SAY cdn.example.com has the certificate (in place of the one it had)')
         # ACM: the ARN acme kept from the first import - the renewal re-imports into it
-        from acmelib.plugins.base import REGISTRY
-        cls = REGISTRY.get('target', 'aws_acm')
+        from acmelib.plugins.targets.aws_acm import AwsAcmTarget as cls
         aws = {'access_key_id': 'AKIAX', 'secret_access_key': 's', 'region': 'eu-central-1'}
 
         class B(object):
@@ -1757,6 +1844,49 @@ class RenewalPathsG1(RenewalPathsG2):
                       'take', 'SAY the pages of a2 have no certificate of their own yet',
                       'SAY the pages of the VIP address')
         self.assertEqual([e['where'] for e in evs if e['kind'] == 'pages'], ['a1', 'a2', 'vip'])
+
+    def test_what_acme_keeps(self):
+        """The plan hands the sandbox what acme keeps of a target: the acme push pin (when one
+        is kept for the address), ACM's ARN of the first import - none when nothing is."""
+        from acmelib.certs import runplan as R
+        from acmelib.certs import runtime
+        from acmelib import engine as E
+        from acmelib.plugins.targets.aws_acm import AwsAcmTarget
+        from acmelib.plugins.targets.acme_push import AcmePushTarget
+
+        class Store(object):
+            def __init__(self):
+                self.meta = {}
+
+            def get_meta(self, k):
+                return self.meta.get(k)
+
+            def set_meta(self, k, v):
+                self.meta[k] = v
+        st = Store()
+        url = {'url': 'https://otp.example/admin/'}
+        self.assertIsNone(R.push_pin_of(st, AcmePushTarget, url))
+        E.push_pin(st, 'https://otp.example/admin/', {'app_id': 'a', 'enc_key': 'k'})
+        self.assertEqual(R.push_pin_of(st, AcmePushTarget, url)['app_id'],
+                         R.PUSH_PIN['app_id'])
+        aws = {'access_key_id': 'AKIAX', 'region': 'eu-central-1'}
+        cert = {'name': 'www.example.com', 'names': '["www.example.com"]',
+                'key_type': 'rsa-2048'}
+        self.assertIsNone(R.kept_of(st, {'kind': 'aws_acm', 'name': 'acm'}, AwsAcmTarget, aws,
+                                    {}, cert))
+        ctx = runtime.RunContext.__new__(runtime.RunContext)
+        ctx.store, ctx.scope = st, 'target:acm'
+
+        class B(object):
+            name = 'www.example.com'
+            names = ['www.example.com']
+            key_type = 'rsa-2048'
+        key = AwsAcmTarget(dict(aws), None).kv_arn(B, {})
+        ctx.kv_set(key, 'arn:aws:acm:eu-central-1:1:certificate/kept')
+        got = R.kept_of(st, {'kind': 'aws_acm', 'name': 'acm'}, AwsAcmTarget, aws, {}, cert)
+        self.assertEqual(got, {key: 'arn:aws:acm:eu-central-1:1:certificate/kept'})
+        self.assertIsNone(R.kept_of(st, {'kind': 'a10', 'name': 'acm'}, AwsAcmTarget, aws, {},
+                                    cert))
 
     def test_placeholders(self):
         """{EARLIER_PEM} (another certificate of the names) and {CAID} (the chain's CA as a

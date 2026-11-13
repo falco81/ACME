@@ -447,10 +447,11 @@
       return h;
     }
     var k = KINDS[st.kind] || KINDS.info;
-    var row = el('div', 'rp-step k-' + k.cls + (st.branch ? ' branched' : '') + (st.error ? ' rp-err' : ''));
+    var row = el('div', 'rp-step k-' + k.cls + (st.branch ? ' branched' : '') + (st.error ? ' rp-err' : '') +
+                 (st.said ? ' rp-said' : '') + (st.level ? ' lv-' + st.level : ''));
     var mark = el('div', 'rp-mark');
-    mark.appendChild(icon(k.icon, 15));
-    explain(mark, st.error ? 'an error of the module' : k.words);
+    mark.appendChild(icon(st.said ? (st.level === 'ok' ? 'check' : 'info') : k.icon, 15));
+    explain(mark, st.error ? 'an error of the module' : st.said ? 'what the module says it found or does' : k.words);
     row.appendChild(mark);
     var w = el('div', 'rp-w');
     var top = el('div', 'rp-top');
