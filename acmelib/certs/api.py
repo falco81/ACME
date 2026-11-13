@@ -823,9 +823,8 @@ def cert_drop(store, row, by):
     # Who asked for it on the portal (portal.META) goes with it (1.0.19): kept, a
     # certificate given the same id later (MariaDB counts from the highest one left
     # after a restart) was that person's - their mail, their profile, its PFX.
-    db.run('DELETE FROM meta WHERE k = ?', ('certs:portal:%d' % int(row['id']),))
-    db.run('DELETE FROM meta WHERE k = ?', ('cert:moved:%d' % int(row['id']),))
-    db.run('DELETE FROM meta WHERE k = ?', (S.CERT_META['devkey'] % int(row['id']),))
+    # ...and the rest of its rows in meta (S.CERT_META; by its tests' names, 1.0.96)
+    S.cert_meta_drop(store, row['id'])
     db.run('DELETE FROM meta WHERE k = ?', (S.HOLD_KEY % int(row['id']),))
     store.add_event('certificates', 'certificate %s deleted by %s' % (row['name'], by),
                     'warn', who=by)
@@ -2333,6 +2332,9 @@ def _renamed(store, family, old, new):
         db.run('UPDATE certs SET issuer = ? WHERE issuer = ?', (new, old))
     elif family == 'check':
         db.run('UPDATE cert_checks SET test = ? WHERE test = ?', (new, old))
+        # renamed by a person: theirs (1.0.96, checks.auto_made)
+        from acmelib.certs import checks as C
+        C.test_meta_drop(store, old)
         for r in db.rows("SELECT id, config FROM cert_tests WHERE kind = 'ssh_relay'"):
             cfg = S.jload(r['config'], {}) or {}
             if old in (cfg.get('tests') or []):
@@ -2517,6 +2519,9 @@ def family_delete(store, family, b, by, quiet=False):
             pass
     # Its own rows only (1.0.44): LIKE read "_" as any character, and SQLite's ignores
     # case - deleting dc_1 took dc-1's (an aws-acm ARN) with it.
+    if family == 'check':
+        from acmelib.certs import checks as C
+        C.test_meta_drop(store, row['name'])            # acme's mark (1.0.96)
     kv = '%s%s:%s:' % (runtime.KV_PREFIX, family, row['name'])
     for r in store.db.rows('SELECT k FROM meta WHERE k LIKE ?', (kv + '%',)):
         if r['k'].startswith(kv):
@@ -3002,8 +3007,11 @@ def _deploy_save_in(store, b, by, full, made):
                                                not re.match(r'^-?\d+(\.\d+)?\Z', str(v).strip() or '0')):
                         raise ValueError('%s is a number' % what)
                     # within the field's min and max (1.0.96: a Synergy enclosure's bay 3 was
-                    # saved, and refused only when the deployment ran)
-                    if str(v).strip() != '':
+                    # saved, and refused only when the deployment ran) - a value changed only:
+                    # one saved before ran as the module clamps it, and any other change of
+                    # that deployment was refused for it (the page sends every option back)
+                    if str(v).strip() != '' and (made or f['key'] not in old or
+                                                 not _same_value(f, v, old.get(f['key']))):
                         n = float(v)
                         lo, hi = f.get('min'), f.get('max')
                         if isinstance(lo, (int, float)) and n < lo:

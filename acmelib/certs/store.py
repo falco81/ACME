@@ -280,7 +280,25 @@ def carry_out(table, row, whole):
 # configuration's file and taken away with it.
 CERT_META = {'hold': 'certs:deploy_hold:%d', 'moved': 'cert:moved:%d', 'portal': 'certs:portal:%d',
              # a new issue made due once after its device lost its key (devicekey.py)
-             'devkey': 'certs:devkey:reissue:%d'}
+             'devkey': 'certs:devkey:reissue:%d',
+             # "renew it by hand" said for this version (devicekey.deploy_failed, once)
+             'devhand': 'certs:devkey:hand:%d',
+             # the version issued for a key its device made, as the renewer saw it (1.0.96,
+             # devicekey.device_made) - not guessed from a key acme does not hold
+             'devmade': 'certs:devkey:made:%d'}
+
+
+# ...and by the name of a test (1.0.96, checks.py), {test: value} in the file:
+#   served_off  a test acme made from a deployment, taken off by a person - not attached again
+#   after_gone  a test acme left running after no deployment when the deployment went
+#               (checks.target_gone) - not a person's "only by its schedule"
+CERT_META_BY_TEST = {'served_off': 'certs:served_off:%d:', 'after_gone': 'certs:after_gone:%d:'}
+
+
+def _by_test(store, cert_id, pat):
+    pre = pat % int(cert_id)
+    return {r['k'][len(pre):]: r['v'] for r in store.db.rows(
+        'SELECT k, v FROM meta WHERE k LIKE ?', (pre + '%',)) if r['k'].startswith(pre)}
 
 
 def cert_meta_out(store, cert_id):
@@ -289,17 +307,34 @@ def cert_meta_out(store, cert_id):
         v = store.get_meta(pat % int(cert_id))
         if v not in (None, ''):
             out[k] = v
+    for k, pat in CERT_META_BY_TEST.items():
+        got = _by_test(store, cert_id, pat)
+        if got:
+            out[k] = got
     return out
+
+
+def cert_meta_drop(store, cert_id):
+    """A certificate's rows in meta taken away (its row gone, or put in from a file)."""
+    for pat in CERT_META.values():
+        store.db.run('DELETE FROM meta WHERE k = ?', (pat % int(cert_id),))
+    for pat in CERT_META_BY_TEST.values():
+        for k in _by_test(store, cert_id, pat):
+            store.db.run('DELETE FROM meta WHERE k = ?', ((pat % int(cert_id)) + k,))
 
 
 def cert_meta_in(store, cert_id, meta):
     """The file's (a dict - {} when it had none) put under the number here; any other gone."""
+    cert_meta_drop(store, cert_id)
+    if not isinstance(meta, dict):
+        return
     for k, pat in CERT_META.items():
-        key = pat % int(cert_id)
-        if isinstance(meta, dict) and meta.get(k) not in (None, ''):
-            store.set_meta(key, str(meta[k]))
-        else:
-            store.db.run('DELETE FROM meta WHERE k = ?', (key,))
+        if meta.get(k) not in (None, ''):
+            store.set_meta(pat % int(cert_id), str(meta[k]))
+    for k, pat in CERT_META_BY_TEST.items():
+        for test, v in (meta.get(k) or {}).items() if isinstance(meta.get(k), dict) else ():
+            if str(test).strip() and v not in (None, ''):
+                store.set_meta((pat % int(cert_id)) + str(test)[:120], str(v))
 
 
 def cert_leftovers(store, cert_id):
@@ -312,8 +347,7 @@ def cert_leftovers(store, cert_id):
     db.run('DELETE FROM cert_versions WHERE cert_id = ?', (int(cert_id),))
     db.run("DELETE FROM cert_jobs WHERE cert_id = ? AND state NOT IN ('queued', 'running')",
            (int(cert_id),))
-    for pat in CERT_META.values():
-        db.run('DELETE FROM meta WHERE k = ?', (pat % int(cert_id),))
+    cert_meta_drop(store, cert_id)
 
 
 # A certificate's columns that go with its sealed key (1.0.88): a file without the secrets

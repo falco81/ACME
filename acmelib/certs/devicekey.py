@@ -182,6 +182,32 @@ def deploy_problem(store, cert, trow, cls=None, version=True, saving=None):
     return version_problem(store, cert) if version else ''
 
 
+def device_made(store, cert):
+    """Whether the version the certificate holds was issued for a key its device made: as the
+    renewer recorded it (S.CERT_META['devmade'], 1.0.96); else, when acme holds none of its
+    key and a device makes the certificate's key (a version from before the record, or the
+    device's own certificate imported). (Guessed from a missing key
+    until then, an ordinary certificate whose key was not carried - a configuration put in
+    without its secrets - was "issued for a device's key", issued anew when switched on.)"""
+    rec = S.jload(store.get_meta(S.CERT_META['devmade'] % int(cert['id'])), None) \
+        if cert.get('id') else None
+    try:
+        if isinstance(rec, dict) and int(rec.get('version')) == int(cert.get('version') or 0):
+            return True
+    except (TypeError, ValueError):
+        pass
+    if cert.get('key_sealed'):
+        return False                        # acme holds its key
+    return bool(str(cert.get('csr_from') or '').strip())
+
+
+def made_by_device(store, cert_id, version, device):
+    """The renewer: the version `version` was issued for a CSR the device `device` made
+    (device_made); another version is not named by it."""
+    store.set_meta(S.CERT_META['devmade'] % int(cert_id),
+                   json.dumps({'version': int(version), 'device': str(device)[:190]}))
+
+
 def version_problem(store, cert):
     """Why the version the certificate holds does not fit where its key is made - words, or ''.
     Switched to "Key made by the device" (or away from it) after it was issued, the version
@@ -190,19 +216,15 @@ def version_problem(store, cert):
     if not cert.get('cert_pem'):
         return ''
     src = str(cert.get('csr_from') or '').strip()
-    if src and cert.get('key_sealed'):
+    dev = device_made(store, cert)
+    if src and not dev:
         return ('version %s of %s holds a key acme made, but its key is made by the device of %s '
                 'now - that version fits no key there: it is issued anew for a key the device '
                 'makes (Renew now issues it at once)' % (cert.get('version'), cert['name'], src))
-    if not src and not cert.get('key_sealed') and not str(cert.get('csr_given') or '').strip():
-        why = store.db.value('SELECT why FROM cert_versions WHERE cert_id = ? AND version = ? '
-                             "AND COALESCE(variant, '') <> 'alt'",
-                             (cert['id'], cert.get('version') or 0), None)
-        if why in ('issue', 'renewal'):
-            # issued with no key and no CSR sent in now: for the key a device made
-            return ('version %s of %s was issued for a key its device made, which acme does '
-                    'not hold - acme makes its key now: it is issued anew with acme\'s key first '
-                    '(Renew now issues it at once)' % (cert.get('version'), cert['name']))
+    if not src and dev:
+        return ('version %s of %s was issued for a key its device made, which acme does '
+                'not hold - acme makes its key now: it is issued anew with acme\'s key first '
+                '(Renew now issues it at once)' % (cert.get('version'), cert['name']))
     return ''
 
 
@@ -421,6 +443,7 @@ def dummy_csr(names, key_type='ec-256', subject=None):
 # ---------------------------------------------------------------------------
 REISSUE_AFTER = 3                   # failed deployments in a row (5 + 10 + 20 minutes)
 REISSUE_KEY = S.CERT_META['devkey']
+HAND_KEY = S.CERT_META['devhand']      # "renew it by hand" said for this version
 
 
 def deploy_failed(store, job, cert, dep, fails, misfit=False):
@@ -458,6 +481,11 @@ def deploy_failed(store, job, cert, dep, fails, misfit=False):
         # so - said once (at the failure that reaches the count), nothing changed
         if not misfit and int(fails or 0) != REISSUE_AFTER:
             return ''
+        # once for the version (1.0.96: a misfit said it again at every try of the deployment)
+        hand = HAND_KEY % int(cert['id'])
+        if str(store.get_meta(hand) or '') == str(cur.get('version') or 0):
+            return ''
+        store.set_meta(hand, str(cur.get('version') or 0))
         if misfit:
             said = ('%s: the version it holds fits no key on %s, whose device makes its key; it '
                     'is not renewed by itself (%s): renew it by hand (Renew now) for a new key '
@@ -493,4 +521,5 @@ def deploy_worked(store, cert, dep):
     """A deployment to the device that makes its key worked: a new issue after failures may
     come again."""
     if str(cert.get('csr_from') or '') and str(dep.get('target') or '') == cert['csr_from']:
-        store.db.run('DELETE FROM meta WHERE k = ?', (REISSUE_KEY % int(cert['id']),))
+        store.db.run('DELETE FROM meta WHERE k IN (?, ?)', (REISSUE_KEY % int(cert['id']),
+                                                            HAND_KEY % int(cert['id'])))

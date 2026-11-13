@@ -696,7 +696,10 @@ class SshTarget(SshMixin, Base):
             # an IPv6 address in brackets (1.0.96): "{host}:8443" was read as a host with no
             # port
             h = str(self.c('host') or '').strip()
-            h = '[%s]' % h if ':' in h and not h.startswith('[') else h
-            options['verify'] = '\n'.join(subst(x, {'host': h})
+            v6 = ':' in h
+            h = '[%s]' % h.strip('[]') if v6 else h
+            # "[{host}]:8443" not bracketed twice
+            options['verify'] = '\n'.join(subst(x.replace('[{host}]', '{host}') if v6 else x,
+                                                 {'host': h})
                                           for x in lines(options['verify']))
         return Base.verify(self, bundle, options)

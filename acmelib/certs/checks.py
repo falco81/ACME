@@ -28,6 +28,7 @@ or asked. A test that starts failing is an event and a notification
 from __future__ import annotations
 
 import functools
+import hashlib
 import json
 import ssl
 import threading
@@ -128,7 +129,8 @@ def attach(store, cert_id, names, by, after_target=''):
         if not S.plugin_row(store, 'check', n):
             raise LookupError('there is no test %s (Certificates → Tests)' % n)
         # attached by a person (or asked for by name): no longer "taken off" (1.0.96)
-        store.db.run('DELETE FROM meta WHERE k = ?', (_off_key(cert_id, n),))
+        store.db.run('DELETE FROM meta WHERE k IN (?, ?)', (_off_key(cert_id, n),
+                                                            _gone_key(cert_id, n)))
         made.append(store.db.insert('cert_checks', {
             'cert_id': int(cert_id), 'test': n, 'enabled': 1, 'position': pos, 'fails': 0,
             'created': t, 'created_by': str(by)[:190], 'updated': t,
@@ -172,20 +174,44 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
     # the certificate must be deployed there - checked before a test is made (1.0.78: a test
     # was left behind, attached to nothing)
     _after_checked(store, cert_id, [target])
-    # the same test already there (the same kind, place and way): taken as it is
-    name = None
-    for r in store.db.rows('SELECT name, config FROM cert_tests WHERE kind = ?', (kind,)):
+    # the same test already there (the same kind, place and way): taken as it is. The key it
+    # asks for (1.0.96) tells two of acme's own apart (CUCM's tomcat and tomcat-ECDSA on one
+    # port); one of acme's made before asked none is taken over (the key set, not a second
+    # test made beside it), and a person's is the same test unless it asks the other key
+    name, took, loose = None, None, None
+    for r in store.db.rows('SELECT name, config FROM cert_tests WHERE kind = ? ORDER BY id',
+                           (kind,)):
         c = S.jload(r.get('config'), {}) or {}
-        if all(str(c.get(k) or '') == str(cfg.get(k) or '')
-               for k in ('host', 'port', 'sni', 'via', 'key_want')):
+        if not all(str(c.get(k) or '') == str(cfg.get(k) or '')
+                   for k in ('host', 'port', 'sni', 'via')):
+            continue
+        if not host and auto_target(store, r['name']) not in ('', target):
+            continue                    # the certificate's first name: one test per target
+        kw = str(c.get('key_want') or '').strip().lower()
+        if kw == key_want:
             name = r['name']
             break
+        if loose is None:
+            if not auto_made(store, r['name']):
+                if not (kw and key_want):
+                    loose = r['name']
+            elif not kw:
+                loose, took = r['name'], dict(c, key_want=key_want)
+    if name is None and loose is not None:
+        name = loose
+        if took is not None:
+            trow_ = store.db.row('SELECT id FROM cert_tests WHERE name = ?', (name,))
+            store.db.update('cert_tests', trow_['id'], {'config': json.dumps(took)})
+            mark_auto(store, name, auto_target(store, name) or target)
     base = re.sub(r'[^A-Za-z0-9_.-]+', '-', '%s-%s-%d%s' % (
         target, host or 'name', port, ('-' + key_want) if key_want else '')).strip('-')
     base = base[:60] or 'test'
+    # as it was named before the key asked for was in its name (1.0.95)
+    base_was = re.sub(r'[^A-Za-z0-9_.-]+', '-', '%s-%s-%d' % (
+        target, host or 'name', port)).strip('-')[:60] or 'test'
     # made by acme by itself (auto, served_tests): one a person took off stays off - looked at
     # before anything is made (1.0.96: made again in Tests, attached to nothing)
-    if auto and store.get_meta(_off_key(cert_id, name or base)):
+    if auto and any(store.get_meta(_off_key(cert_id, n)) for n in {name or base, base, base_was}):
         return None
     if name is None:
         name, n = base, 2
@@ -193,8 +219,9 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
             name = '%s-%d' % (base, n)
             n += 1
         api.family_save(store, 'check', {'name': name, 'kind': kind, 'config': cfg,
-                                         'note': 'what %s serves (made from its deployment)' % target},
+                                         'note': 'what %s serves %s' % (target, AUTO_NOTE)},
                         by)
+        mark_auto(store, name, target)
     have = store.db.row('SELECT * FROM cert_checks WHERE cert_id = ? AND test = ?',
                         (int(cert_id), name))
     if have is None:
@@ -204,11 +231,12 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
     else:
         # tied to other targets: this one too; "only by its schedule" ('-') chosen by a person
         # stays (1.0.95: every save of the deployment's options undid it) - one acme left
-        # with no target when the deployment went (target_gone) is tied again (1.0.96)
+        # with no target when the deployment went (target_gone, its mark) is tied again
+        # (1.0.96); a '-' not known to be acme's is a person's
         now = after_list(have.get('after_target'))
         if now and AFTER_NONE not in now and target not in now:
             after(store, have['id'], '\n'.join(now + [target]), by)
-        elif AFTER_NONE in now and not store.get_meta(_none_key(have['id'])):
+        elif AFTER_NONE in now and store.get_meta(_gone_key(cert_id, name)):
             after(store, have['id'], target, by)
     return name
 
@@ -218,34 +246,100 @@ AUTO_NOTE = '(made from its deployment)'
 CERT_NAME = '{name}'
 
 
+def _auto_key(name):
+    return 'certs:test_auto:%s' % str(name)[:150]
+
+
+def _made_as(row):
+    """What a test is - its module, settings and note - as one value (mark_auto)."""
+    cfg = S.jload(row.get('config'), {}) or {}
+    return hashlib.sha256(json.dumps([str(row.get('kind') or ''), cfg,
+                                      str(row.get('note') or '')], sort_keys=True,
+                                     default=str).encode('utf-8')).hexdigest()
+
+
+def mark_auto(store, name, target):
+    """The test `name` as acme made it from a deployment to `target` (1.0.96): what it is then,
+    kept - changed in any way since, by a person, it is theirs (auto_made)."""
+    row = store.db.row('SELECT * FROM cert_tests WHERE name = ?', (name,))
+    if row:
+        store.set_meta(_auto_key(name), json.dumps({'made': _made_as(row),
+                                                    'target': str(target or '')[:190]}))
+
+
+def _auto_mark(store, name):
+    got = S.jload(store.get_meta(_auto_key(name)), None)
+    return got if isinstance(got, dict) else None
+
+
 def auto_made(store, name):
-    """Whether a test is one acme made from a deployment (its note says so, 1.0.77/1.0.93)."""
+    """Whether a test is one acme made from a deployment and nobody changed since (1.0.96: its
+    mark, mark_auto - a test a person edited kept acme's note, the page keeps it when the box
+    is left empty, and was deleted with the certificate). One made before the mark: its note
+    is acme's and it was never saved again."""
+    r = store.db.row('SELECT * FROM cert_tests WHERE name = ?', (name,))
+    if not r:
+        return False
+    mark = _auto_mark(store, name)
+    if mark is not None:
+        return mark.get('made') == _made_as(r)
+    if not str(r.get('note') or '').endswith(AUTO_NOTE):
+        return False
+    try:
+        return abs(float(r.get('updated') or 0) - float(r.get('created') or 0)) < 1
+    except (TypeError, ValueError):
+        return False
+
+
+def auto_target(store, name):
+    """The target acme made the test `name` for ('' - none known): its mark, or its note."""
+    mark = _auto_mark(store, name)
+    if mark is not None and mark.get('target'):
+        return str(mark['target'])
     r = store.db.row('SELECT note FROM cert_tests WHERE name = ?', (name,))
-    return bool(r and str(r.get('note') or '').endswith(AUTO_NOTE))
+    m = re.match(r'^what (.+) serves %s$' % re.escape(AUTO_NOTE), str((r or {}).get('note') or ''))
+    return m.group(1) if m else ''
+
+
+def test_meta_out(store, name):
+    """A test's rows in meta, with it in the configuration's file (1.0.96)."""
+    v = store.get_meta(_auto_key(name))
+    return {'auto': v} if v not in (None, '') else {}
+
+
+def test_meta_in(store, name, meta):
+    if isinstance(meta, dict) and meta.get('auto') not in (None, ''):
+        store.set_meta(_auto_key(name), str(meta['auto']))
+    else:
+        store.db.run('DELETE FROM meta WHERE k = ?', (_auto_key(name),))
+
+
+def test_meta_drop(store, name):
+    store.db.run('DELETE FROM meta WHERE k = ?', (_auto_key(name),))
 
 
 def drop_auto_left(store, by, names=None, target=None):
     """Tests acme made from a deployment (auto_made) that nothing needs any more, deleted: those
     in `names` attached to no certificate (the certificate deleted), or those made for the
-    target `target` (their note names it) attached to none - or only where they run after no
-    deployment, left so when the deployment went (target_gone), not by a person (the target
-    deleted). A test made or changed by a person - its note is not acme's - stays, and one
-    another test runs stays. -> the names deleted."""
+    target `target` attached to none - or only where they run after no deployment, left so
+    when the deployment went (target_gone, its mark), not by a person (the target deleted;
+    "after any deployment" is not loose, and a '-' not known to be acme's stays). A test made
+    or changed by a person stays, and one another test runs stays. -> the names deleted."""
     from acmelib.certs import api
     cand = set(str(n) for n in (names or []) if n)
     if target:
-        mine = 'what %s serves %s' % (target, AUTO_NOTE)
-        for r in store.db.rows('SELECT name, note FROM cert_tests'):
-            if str(r.get('note') or '') == mine:
+        for r in store.db.rows('SELECT name FROM cert_tests'):
+            if auto_target(store, r['name']) == target:
                 cand.add(r['name'])
     gone = []
     for name in sorted(cand):
         row = store.db.row('SELECT * FROM cert_tests WHERE name = ?', (name,))
         if not row or not auto_made(store, name):
             continue
-        att = store.db.rows('SELECT id, after_target FROM cert_checks WHERE test = ?', (name,))
-        loose = [a for a in att if after_list(a.get('after_target')) in ([], [AFTER_NONE])
-                 and not store.get_meta(_none_key(a['id']))]
+        att = store.db.rows('SELECT id, cert_id, after_target FROM cert_checks WHERE test = ?',
+                            (name,))
+        loose = [a for a in att if after_list(a.get('after_target')) == [AFTER_NONE]
+                 and store.get_meta(_gone_key(a['cert_id'], name))]
         if att and not (target and len(loose) == len(att)):
             continue
         try:
@@ -253,6 +347,7 @@ def drop_auto_left(store, by, names=None, target=None):
                 continue                        # another test runs it
             for a in loose:
                 store.db.run('DELETE FROM cert_checks WHERE id = ?', (int(a['id']),))
+                store.db.run('DELETE FROM meta WHERE k = ?', (_gone_key(a['cert_id'], name),))
             api.family_delete(store, 'check', {'id': row['id']}, by, quiet=True)
             gone.append(name)
         except Exception:                                   # noqa: BLE001
@@ -276,8 +371,11 @@ def verify_to_tests(store, dep, opts, by):
     # a preset's "{host}" (the command line's --set preset=nginx, 1.0.95): the target's host -
     # it was made a test of a host called "{host}", never reached, failing every deployment
     thost = str((S.jload(trow.get('config'), {}) or {}).get('host') or '').strip() if trow else ''
-    if ':' in thost and not thost.startswith('['):
-        thost = '[%s]' % thost             # an IPv6 address: [2001:db8::1]:443 (1.0.96)
+    if ':' in thost:
+        # an IPv6 address: [2001:db8::1]:443 (1.0.96) - also where the line has it in brackets
+        # already ("[{host}]:8443" was [[2001:db8::1]]:8443, a test that never passed)
+        thost = '[%s]' % thost.strip('[]')
+        lines = [x.replace('[{host}]', '{host}') for x in lines]
     lines = [x.replace('{host}', thost) if '{host}' in x and thost else x for x in lines]
     lines = [x for x in lines if '{host}' not in x]
     for hp in lines[:10]:
@@ -381,7 +479,6 @@ def served_follow(store, cert_id, target, before, by):
     gone = set(before) - now
     if not gone:
         return []
-    mine = 'what %s serves %s' % (target, AUTO_NOTE)
     left = []
     for r in store.db.rows('SELECT id, test, after_target FROM cert_checks WHERE cert_id = ?',
                            (int(cert_id),)):
@@ -389,7 +486,8 @@ def served_follow(store, cert_id, target, before, by):
         if target not in have:
             continue
         t = store.db.row('SELECT config, note, kind FROM cert_tests WHERE name = ?', (r['test'],))
-        if not t or str(t.get('note') or '') != mine or t.get('kind') != 'tls':
+        if not t or t.get('kind') != 'tls' or not auto_made(store, r['test']) or \
+                auto_target(store, r['test']) not in ('', target):
             continue
         c = S.jload(t.get('config'), {}) or {}
         try:
@@ -468,12 +566,17 @@ def target_gone(store, cert_id, target):
     if store.db.row('SELECT 1 AS x FROM cert_deploys WHERE cert_id = ? AND target = ?',
                     (int(cert_id), target)):
         return
-    for r in store.db.rows('SELECT id, after_target FROM cert_checks WHERE cert_id = ?',
+    for r in store.db.rows('SELECT id, test, after_target FROM cert_checks WHERE cert_id = ?',
                            (int(cert_id),)):
         have = after_list(r.get('after_target'))
         if target in have:
             rest = [x for x in have if x != target]
             store.db.update('cert_checks', r['id'], {'after_target': '\n'.join(rest) or AFTER_NONE})
+            if not rest:
+                # left with none by acme, not by a person (1.0.96): tied again by the next
+                # deployment there, and deleted with the target when acme made it
+                store.set_meta(_gone_key(cert_id, r['test']), json.dumps({'at': time.time(),
+                                                                          'target': target}))
 
 
 def detach(store, ident):
@@ -481,6 +584,7 @@ def detach(store, ident):
     if not row:
         raise LookupError('there is no such test of a certificate')
     store.db.run('DELETE FROM cert_checks WHERE id = ?', (int(ident),))
+    store.db.run('DELETE FROM meta WHERE k = ?', (_gone_key(row['cert_id'], row['test']),))
     # one acme made from a deployment, taken off by a person, is not attached again by the
     # next save of that deployment (1.0.95)
     try:
@@ -490,13 +594,15 @@ def detach(store, ident):
         pass
 
 
-def _none_key(ident):
-    """A person's "only by its schedule" (1.0.96) - apart from the '-' left by target_gone."""
-    return 'certs:after_none:%d' % int(ident)
+BY_TEST = S.CERT_META_BY_TEST
 
 
 def _off_key(cert_id, test):
-    return 'certs:served_off:%d:%s' % (int(cert_id), str(test)[:120])
+    return BY_TEST['served_off'] % int(cert_id) + str(test)[:120]
+
+
+def _gone_key(cert_id, test):
+    return BY_TEST['after_gone'] % int(cert_id) + str(test)[:120]
 
 
 AFTER_NONE = '-'      # after_target: no deployment runs the test - only its schedule (1.0.66)
@@ -541,13 +647,8 @@ def after(store, ident, target, by):
     target = _after_checked(store, chk['cert_id'], after_list(target))
     store.db.update('cert_checks', int(ident), {'after_target': target, 'updated': time.time(),
                                                  'updated_by': str(by)[:190]})
-    try:
-        if after_list(target) == [AFTER_NONE]:
-            store.set_meta(_none_key(ident), json.dumps({'at': time.time(), 'by': str(by)[:190]}))
-        else:
-            store.db.run('DELETE FROM meta WHERE k = ?', (_none_key(ident),))
-    except Exception:                                   # noqa: BLE001
-        pass
+    # chosen by a person now: no longer the '-' acme left (target_gone)
+    store.db.run('DELETE FROM meta WHERE k = ?', (_gone_key(chk['cert_id'], chk['test']),))
     return chk
 
 

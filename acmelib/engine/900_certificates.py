@@ -396,6 +396,9 @@ def certs_carry_meta_out(store, table, row):
     """A certificate's rows in meta, with it in the file (1.0.88)."""
     if table == 'certs' and row.get('id') is not None:
         return certs_mod('store').cert_meta_out(store, row['id'])
+    if table == 'cert_tests' and row.get('name'):
+        # made by acme from a deployment, as it was then (1.0.96, checks.mark_auto)
+        return certs_mod('checks').test_meta_out(store, row['name'])
     return None
 
 
@@ -403,12 +406,20 @@ def certs_carry_meta_out(store, table, row):
 def certs_carry_meta_in(store, table, ident, meta):
     if table == 'certs':
         certs_mod('store').cert_meta_in(store, ident, meta)
+    elif table == 'cert_tests':
+        name = store.db.value('SELECT name FROM cert_tests WHERE id = ?', (ident,), None)
+        if name:
+            certs_mod('checks').test_meta_in(store, name, meta)
 
 
 @_certs_hook('carry_row_drop')
 def certs_carry_row_drop(store, table, ident):
     if table == 'certs':
         certs_mod('store').cert_leftovers(store, ident)
+    elif table == 'cert_tests':
+        name = store.db.value('SELECT name FROM cert_tests WHERE id = ?', (ident,), None)
+        if name:
+            certs_mod('checks').test_meta_drop(store, name)
 
 
 @_certs_hook('carry_with_sealed')

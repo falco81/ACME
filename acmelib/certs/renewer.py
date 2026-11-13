@@ -651,6 +651,11 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         version = S.save_version(store, cert['id'], pem, chain, key_out,
                                  'renewal' if cert.get('cert_pem') else 'issue', by,
                                  info=info, extra=extra)
+        if str(cert.get('csr_from') or '').strip() and \
+                not str(cert.get('csr_given') or '').strip():
+            # for the CSR its device made (_issue_one): recorded on the version (1.0.96)
+            from acmelib.certs import devicekey
+            devicekey.made_by_device(store, cert['id'], version, cert['csr_from'])
         job.version = version
         store.db.update('cert_issuers', irow['id'], {'last_ok': time.time(), 'last_error': ''})
         readiness.mark(store, cert['id'], False)
