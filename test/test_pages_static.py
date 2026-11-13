@@ -445,5 +445,74 @@ class OwnPasswordAndSshRoot(unittest.TestCase):
         self.assertEqual(got, [True, False, True, True, True, False, True, False])
 
 
+class WhatHappensLayout(unittest.TestCase):
+    """What happens (runplan.js/css), checked in a browser at 1400/768/420 px: the fixes kept."""
+
+    def test_copy_buttons_and_lines_line_up(self):
+        css = read('web', 'assets', 'runplan.css')
+        # every copy button 6 px from its box's edges: the http line's padding, the code block's place
+        self.assertIn('.rp-code .rp-copy{position:absolute;top:5px;right:5px}', css)
+        self.assertIn('align-items:flex-start;min-width:0;padding:5px;', css)
+        # a code block with no heading as tall as an http line: its copy button not on its edge
+        self.assertIn('.rp-code > pre:first-child{box-sizing:border-box;min-height:42px;', css)
+        # a long address wraps under the buttons, which stay at the top
+        self.assertIn('.rp-method{flex:none;font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:5px 7px;margin-top:5.5px;', css)
+        # one gap in a column: no extra margins of the chips or a folded part
+        self.assertIn('.rp-conn{display:flex;flex-wrap:wrap;gap:6px;margin:0}', css)
+        self.assertIn('.rp-withconn{display:flex;flex-direction:column;gap:6px;min-width:0}', css)
+        self.assertNotIn('.rp-raw{margin-top:6px}', css)
+        self.assertIn('.rp-more{margin:4px 10px 10px;', css)
+
+    def test_numbers_in_one_column(self):
+        rp = read('web', 'assets', 'runplan.js')
+        css = read('web', 'assets', 'runplan.css')
+        self.assertIn("box.style.setProperty('--rp-nw', widest + 'ch');", rp)
+        self.assertIn('min-width:max(34px,var(--rp-nw,0px))', css)
+        # on a phone the number stays beside the words, the tags go under the words
+        self.assertNotIn('flex:1 1 calc(100% - 40px)', css)
+        self.assertIn('padding-left:calc(max(34px,var(--rp-nw,0px)) + 10px)', css)
+
+    def test_tables_wrap_inside_the_page(self):
+        css = read('web', 'assets', 'runplan.css')
+        # a facts value (table td > span.mono is nowrap in acme.css): 2958 px wide before
+        self.assertIn('.rp-page .rp-val,.rp-page td > .rp-val{white-space:pre-wrap;', css)
+        self.assertNotIn('word-break:break-all;white-space:normal}}', css)
+        # the files: the path wraps, mode and size do not; a card a file on a phone
+        self.assertIn('.rp-page table.rp-files td:first-child{width:auto;white-space:normal;', css)
+        self.assertIn('.rp-page table.rp-files td:not(:first-child){white-space:nowrap}', css)
+        self.assertIn('.rp-page table.rp-files thead{display:none}', css)
+        # a long module name cut inside its station; the head's guide button wraps in its card
+        self.assertIn('.rp-station-s .mono,.rp-station-s .rp-tag{overflow:hidden;text-overflow:ellipsis;', css)
+        self.assertIn('.rp-mod .rp-guide{white-space:normal;max-width:100%;', css)
+        self.assertIn('.rp-htab .rp-hk{width:25%;', css)
+
+    def test_module_words_with_a_command_translated(self):
+        rp = read('web', 'assets', 'runplan.js')
+        self.assertIn("var SAID_CMD = /^(ran|test|reload|reload with the previous files)(:? )([\\s\\S]+)$/;", rp)
+        self.assertIn("top.appendChild(st.said ? saidWords(st.words || '') : el('span', 'rp-words', masked(st.words || '')));", rp)
+        # "< input (text, 52 B)" and the comment over a device's CLI lines in the page's language
+        self.assertIn("'< ' + inputWords(d.input)", rp)
+        self.assertIn("codeBlock(shellComment(d.command), 'rp-shell')", rp)
+        self.assertIn("var CLI_HEAD = '# a shell session, these lines on its input:';", rp)
+        self.assertIn("'# a shell session, these lines on its ' \\\n                            'input:\\n'",
+                      read('acmelib', 'certs', 'runplan.py'))
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        pre = ("var CS={'ran {0}':'spušteno {0}','a password made for this run':'heslo pro tento běh'};"
+               "function tr(w){return CS[w]||w;} function noI18n(n){n.ni=1;return n;}"
+               "function el(k,c,t){return {k:k,c:c,t:t===undefined?'':t,kids:[],appendChild:function(x){this.kids.push(x);}};}"
+               "var document={createTextNode:function(t){return {t:t};}};"
+               "function data(k,c,t){return noI18n(el(k,c,t));}")
+        fns = ''.join(re.search(r'\n  ' + n + r'[\s\S]*?\n  }\n', rp).group(0)
+                      for n in (r'function masked\(', r'var SAID_CMD[\s\S]*?function saidWords\('))
+        js = (pre + fns + 'var a=saidWords("ran sh -c \\"test -d /x || mkdir /x\\"");'
+              'var b=saidWords("wrote /a •••• (a password made for this run)");'
+              'console.log(JSON.stringify([a.kids.map(function(x){return x.t;}), a.ni, b.t]));')
+        got = subprocess.run([node, '-e', js], capture_output=True, text=True, timeout=60)
+        self.assertEqual(json.loads(got.stdout), [['spušteno ', 'sh -c "test -d /x || mkdir /x"'], 1,
+                                                  'wrote /a •••• (heslo pro tento běh)'], got.stderr)
+
+
 if __name__ == '__main__':
     sys.exit(unittest.main())

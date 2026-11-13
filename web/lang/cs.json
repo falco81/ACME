@@ -61335,6 +61335,58 @@
   "_116": {
    "source": "The CA's directory offers no renewalInfo (ARI): it is renewed by acme's own renewal days, the order says nothing of the certificate before",
    "text": "Adresář CA nenabízí renewalInfo (ARI): obnovuje se podle vlastních dnů obnovy acme, objednávka o předchozím certifikátu nic neříká"
+  },
+  "_117": {
+   "source": "Not the same as the one you have now",
+   "text": "Jiné než současné heslo"
+  },
+  "_118": {
+   "source": "The same as the new one",
+   "text": "Stejné jako nové heslo"
+  },
+  "_119": {
+   "source": "Not the same as the new one",
+   "text": "Není stejné jako nové heslo"
+  },
+  "_120": {
+   "source": "The first password again",
+   "text": "První heslo znovu"
+  },
+  "_121": {
+   "source": "the new password and the one typed again are not the same - type them again",
+   "text": "nové heslo a heslo napsané znovu nejsou stejná – napište je znovu"
+  },
+  "_122": {
+   "source": "Root will not be able to sign in over SSH while it is not among these accounts - save anyway?",
+   "text": "Root se přes SSH nebude moci přihlásit, dokud nebude mezi těmito účty – přesto uložit?"
+  },
+  "_123": {
+   "source": "Save anyway",
+   "text": "Přesto uložit"
+  },
+  "_124": {
+   "source": "Root cannot sign in over SSH",
+   "text": "Root se přes SSH nepřihlásí"
+  },
+  "_125": {
+   "source": "it is not among these accounts (AllowUsers). Add root to them for it to sign in, or set Root signs in to Not at all.",
+   "text": "není mezi těmito účty (AllowUsers). Aby se přihlásil, přidejte ho k nim, nebo nastavte Root se přihlašuje na Vůbec ne."
+  },
+  "_126": {
+   "source": "None of these accounts is a user of the nodes - nobody would sign in over SSH (each node refuses to put it in).",
+   "text": "Žádný z těchto účtů není uživatelem uzlů – přes SSH by se nepřihlásil nikdo (každý uzel odmítne nastavení použít)."
+  },
+  "_127": {
+   "source": "Passwords are off: these accounts sign in with an SSH key only - make sure at least one of them has a key on every node (Settings → SSH keys) before you save, and keep the session you have open.",
+   "text": "Hesla jsou vypnutá: tyto účty se přihlásí jen SSH klíčem – před uložením ověřte, že alespoň jeden z nich má klíč na každém uzlu (Nastavení → SSH klíče), a otevřenou relaci nezavírejte."
+  },
+  "_128": {
+   "source": "no - not in AllowUsers",
+   "text": "ne – není v AllowUsers"
+  },
+  "_129": {
+   "source": "root will not be able to sign in over SSH while it is not among AllowUsers - add root to them, let root not sign in at all, or save it so on purpose (ok_no_root)",
+   "text": "root se přes SSH nebude moci přihlásit, dokud nebude mezi AllowUsers – přidejte ho k nim, rootovi přihlášení vůbec nepovolte, nebo to tak uložte záměrně (ok_no_root)"
   }
  },
  "patterns": {
@@ -85345,6 +85397,22 @@
   "p_157": {
    "source": "The chain taken: the default chain - {0} not offered (it ends at {1})",
    "text": "Vybraný řetězec: výchozí řetězec - {0} se nenabízí (končí u {1})"
+  },
+  "p_158": {
+   "source": "At least {0} characters",
+   "text": "Alespoň {0} znaků"
+  },
+  "p_159": {
+   "source": "At least {0} characters ({1} now)",
+   "text": "Alespoň {0} znaků (teď {1})"
+  },
+  "p_160": {
+   "source": "At most {0} characters",
+   "text": "Nejvýše {0} znaků"
+  },
+  "p_161": {
+   "source": "{0}: root is not among the accounts that may sign in over SSH (AllowUsers) - the keys below are not used there until it is.",
+   "text": "{0}: root není mezi účty, které se smějí přihlásit přes SSH (AllowUsers) – klíče níže se tam nepoužijí, dokud mezi nimi nebude."
   }
  },
  "rich": {

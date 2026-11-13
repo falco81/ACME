@@ -6,6 +6,18 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.98 - not released
 
+- *Your account*, the password to choose first and the enrolment pages change your own password
+  in one form: the one you have now, the new one and the new one again side by side (one under
+  the other on a phone), each with an eye to show what is typed; under the new ones, as you type,
+  whether it has 8 characters, is not the one you have now and is typed the same again. *Change
+  the password* is pressed only then (Enter too), and a refusal is said under the boxes. The
+  daemon checks the one typed again as well, also where an administrator types one in (a new
+  account's first password is typed twice now).
+- Settings - SSH server: *Who may sign in* without root while root may sign in is saved when you
+  say so (the page asks first) - root then signs in nowhere over SSH, said under the field, on
+  the node cards and on SSH keys (not counted as "root with a password" by High security). Root
+  with no key is no refusal then; a warning when none of the accounts is on the nodes, or
+  passwords are off.
 - Fixed: *Download a start* of a module whose file holds several versions (FortiGate: plain,
   6.0, 7.0, 7.4.2) gave a file that, uploaded, replaced every shipped version of that file
   instead of adding one - and a new version made from 6.0, 7.0 or 7.4.2 kept the old number.

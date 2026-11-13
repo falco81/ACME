@@ -15965,7 +15965,7 @@ function sdWhoSays(holder, dr, nodes) {
   if (sdRootShut(dr)) {
     var p = el('p', 'note warn sd-noroot');
     p.appendChild(el('b', '', 'Root cannot sign in over SSH'));
-    p.appendChild(document.createTextNode(' - '));
+    p.appendChild(document.createTextNode(': '));
     p.appendChild(el('span', '', 'it is not among these accounts (AllowUsers). Add root to them for it to sign in, or set Root signs in to Not at all.'));
     holder.appendChild(p);
   }

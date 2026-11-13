@@ -185,6 +185,17 @@
     if (at + 3 < shape.length) span.appendChild(document.createTextNode(shape.slice(at + 3)));
     return span;
   }
+  /* the words around the data in the page's language (1.0.98): "< input (text, 52 B)" and the
+     comment over the lines typed into a device's CLI - the data itself as it is */
+  function inputWords(t) {
+    var m = /^(input|••••) \(([\w -]+), (\d+ B)\)$/.exec(String(t));
+    return m ? (m[1] === 'input' ? tr('input') : m[1]) + ' (' + tr(m[2]) + ', ' + m[3] + ')' : String(t);
+  }
+  var CLI_HEAD = '# a shell session, these lines on its input:';
+  function shellComment(cmd) {
+    cmd = String(cmd == null ? '' : cmd);
+    return cmd.indexOf(CLI_HEAD) === 0 ? '# ' + tr(CLI_HEAD.slice(2)) + cmd.slice(CLI_HEAD.length) : cmd;
+  }
   function present(v) { return v !== null && v !== undefined && v !== ''; }
   /* what the stand-in device answered (debug details) */
   function answerBlock(a, ssh) {
@@ -438,8 +449,8 @@
         raw.appendChild(el('summary', 'small muted', 'The command as it is sent (encoded)'));
         raw.appendChild(codeBlock(d.command, 'rp-shell'));
         b.appendChild(raw);
-      } else b.appendChild(codeBlock(d.command, 'rp-shell'));
-      if (d.input) b.appendChild(data('div', 'mono small muted rp-input', '< ' + d.input));
+      } else b.appendChild(codeBlock(shellComment(d.command), 'rp-shell'));
+      if (d.input) b.appendChild(data('div', 'mono small muted rp-input', '< ' + inputWords(d.input)));
       /* debug: what goes on its input, readable (secrets out), and what it printed */
       if (present(d.input_body)) {
         var ib = codeBlock(d.input_body, 'rp-body rp-dbg', tr('On its input'));
