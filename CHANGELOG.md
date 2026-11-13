@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.96 - not released
+## 1.0.96 - 2026-11-13
 
 **Targets from a collection of vendors' guides** - each checked against the official documents
 it cites, with a setup guide (English and Czech) for every target and version, and its run

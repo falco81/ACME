@@ -155,6 +155,8 @@ class ServedTests(unittest.TestCase):
         # a '-' left by the deployment going away is tied again when it comes back (1.0.96)
         chk2 = STORE.db.row('SELECT * FROM cert_checks WHERE cert_id = ? AND test = ?', (cid, name))
         STORE.db.update('cert_checks', chk2['id'], {'after_target': C.AFTER_NONE})
+        # as target_gone leaves it: marked as acme's '-' (1.0.96 - an unmarked '-' is a person's)
+        STORE.set_meta(C._gone_key(cid, name), json.dumps({'at': 1, 'target': 'tk'}))
         C.for_target(STORE, cid, 'tk', 'tester', 'tls', 'tk.example.test', 443, auto=True)
         self.assertEqual(STORE.db.row('SELECT after_target FROM cert_checks WHERE id = ?',
                                       (chk2['id'],))['after_target'], 'tk')
