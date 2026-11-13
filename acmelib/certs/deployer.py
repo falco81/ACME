@@ -96,8 +96,11 @@ def deploy_one(store, job, cert, dep, force=False):
         _failed(store, dep, why)
         step(why, 'bad')
         # the version it holds fits no key on the device: a new issue made due (once)
-        devicekey.deploy_failed(store, job, cert, dep, 0,
-                                misfit=bool(devicekey.version_problem(store, cert)))
+        try:
+            devicekey.deploy_failed(store, job, cert, dep, 0,
+                                    misfit=bool(devicekey.version_problem(store, cert)))
+        except Exception as e2:                         # noqa: BLE001
+            step('a new issue could not be made due: %s' % e2, 'warn')
         return False, why
     step('deploying %s (version %s) to %s (%s)%s' % (
         cert['name'], cert.get('version'), trow['name'], trow['kind'],

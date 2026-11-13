@@ -455,6 +455,21 @@ class SandboxAnswers(unittest.TestCase):
         self.assertEqual(s.ssh('list'), (0, 'id abc12 ok', ''))
         self.assertEqual(P.fill_seen('x {SEEN:a{2', lambda m: 'never'), 'x {SEEN:a{2')
 
+    def test_serial_of_the_certificate_sent(self):
+        # {SERIAL} (1.0.96): the serial of the last certificate sent over SSH - CUCM's
+        # "show cert own" after the certificate pasted to "set cert import own"
+        from acmelib.certs import plansandbox as P, pki
+        key = pki.make_key('ec-256')
+        one = pki.self_signed(key, ['one.example.test'], days=3)
+        two = pki.self_signed(key, ['two.example.test'], days=3)
+        s = P.Answers([], [{'command': '^show', 'stdout': 'SerialNumber: [ {SERIAL} ]'}])
+        self.assertEqual(s.ssh('show'), (0, 'SerialNumber: [  ]', ''), 'none sent: empty')
+        s.ssh('import', one.encode())
+        self.assertEqual(s.ssh('show')[1], 'SerialNumber: [ %s ]' % pki.cert_info(one)['serial'])
+        # the last one sent - in the same input as the command answered too
+        got = s.ssh('show', ('set cert import own tomcat x\n' + two).encode())[1]
+        self.assertEqual(got, 'SerialNumber: [ %s ]' % pki.cert_info(two)['serial'])
+
     def test_recording_on_again_after_acme_own_work_failed(self):
         from acmelib.certs import plansandbox as P, devicekey
         from acmelib.plugins import base

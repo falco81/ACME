@@ -1162,6 +1162,12 @@ def save_version(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=No
         'updated': t, 'updated_by': str(by or '')[:190]}
     if info.get('cn') and not row.get('cn'):
         fields['cn'] = str(info['cn'])[:190]
+    # the CSR a device made for an issue not finished (devicekey.held_csr) is done with once a
+    # version is saved - an import included (1.0.96): kept, the next renewal, weeks later,
+    # issued for that key again instead of asking the device for a new one
+    pend = jload(row.get('csr_pending'), None)
+    if isinstance(pend, dict) and pend.get('device'):
+        fields['csr_pending'] = None
     if extra:
         fields.update(extra)
     store.db.update('certs', row['id'], fields)

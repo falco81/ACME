@@ -203,6 +203,15 @@ class Csr(unittest.TestCase):
             'OptionalCertificateData': {'OrganizationalUnitName': 'IT'}})
         self.assertEqual(ctx.json(dl[0]), {'Title': 'DownloadCSR', 'Service': 'Server',
                                            'Format': 'PEM'})
+        # 1.0.96: the OEM CSR has no SAN - HostName is the certificate's name even when the
+        # profile gives another CN (acme's check of the CSR would refuse it after the XCC made
+        # its key)
+        ctx = FakeCtx(routes(standard=False, extra=[
+            ('POST', r'LenovoSecurityService\.DownloadCSR$', (200, {'CSRString': want}))]))
+        make('xcc2', ctx).device_csr(self.req(names=('xcc01.example.test',), key_type='rsa-2048',
+                                              CN='Some Other CN'))
+        self.assertEqual(ctx.json(ctx.find('POST', r'GenerateCSR$')[0])
+                         ['RequiredCertificateData']['HostName'], 'xcc01.example.test')
 
     def test_find_csr(self):
         pem = a_csr(['a.example.test'])

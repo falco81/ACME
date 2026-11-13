@@ -292,13 +292,21 @@ class IosXe(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # NX-OS
 # ---------------------------------------------------------------------------
-def nxapi(version='10.6(1)', tps=(), fail=None, cut=False, used=None):
-    state = {'tps': list(tps), 'batches': [], 'used': used}
+def nxapi(version='10.6(1)', tps=(), fail=None, cut=False, used=None, down=0):
+    """down: after `nxapi certificate trustpoint` NX-API restarts - that many calls are
+    refused (as a real one does for a while)."""
+    state = {'tps': list(tps), 'batches': [], 'used': used, 'down': 0}
 
     def ans(call):
         batch = json.loads(call['body'])
         cmds = [x['params']['cmd'] for x in batch]
         state['batches'].append(cmds)
+        if state['down'] > 0:
+            state['down'] -= 1
+            state['refused'] = state.get('refused', 0) + 1
+            raise ConnectionRefusedError('[Errno 111] Connection refused')
+        if any(c.startswith('nxapi certificate') for c in cmds):
+            state['down'] = down
         if cut and any(c.startswith('nxapi certificate') for c in cmds):
             raise ConnectionResetError('the connection was reset')
         out = []
@@ -334,13 +342,54 @@ NXCFG = {'host': 'n9k01.example.test', 'user': 'acme', 'password': 'pw'}
 
 
 class Nxos(unittest.TestCase):
+    @staticmethod
+    def nx(ctx):
+        t = make('cisco_nxos', '', NXCFG, ctx)
+        t._sleep = lambda s: None               # the wait for NX-API after its restart
+        return t
+
+    def test_restart_refuses_then_answers(self):
+        # round 2: NX-API restarts after the switch and refuses connections for a while - the
+        # deployment waited for it, then removed the older trustpoint and saved again
+        prefix = C.name_prefix(FakeBundle(), {}, maxlen=60)
+        old = prefix + '20250101-aaaaaaaa'
+        state, ans = nxapi(tps=[old], down=3)
+        ctx = FakeCtx([('POST', r'/ins$', ans)])
+        b = FakeBundle()
+        name = C.object_name(b, {}, maxlen=60)
+        got = self.nx(ctx).deploy(b, {'keep': 0})
+        self.assertIn('NX-API', got)
+        self.assertEqual(state['refused'], 3)
+        b_ = state['batches']
+        sw = b_.index(['configure terminal', 'nxapi certificate trustpoint %s' % name])
+        self.assertIn(['copy running-config startup-config'], b_[:sw], 'saved before the switch')
+        self.assertTrue([x for x in b_[sw:] if x[-1] == 'no crypto ca trustpoint %s' % old])
+        self.assertEqual(b_[-1], ['copy running-config startup-config'])
+        self.assertEqual(state['used'], name)
+
+    def test_restart_never_answers_is_a_warning(self):
+        prefix = C.name_prefix(FakeBundle(), {}, maxlen=60)
+        old = prefix + '20250101-aaaaaaaa'
+        state, ans = nxapi(tps=[old], down=1000)
+        ctx = FakeCtx([('POST', r'/ins$', ans)])
+        b = FakeBundle()
+        name = C.object_name(b, {}, maxlen=60)
+        got = self.nx(ctx).deploy(b, {'keep': 0})
+        self.assertIn('NX-API', got)
+        b_ = state['batches']
+        sw = b_.index(['configure terminal', 'nxapi certificate trustpoint %s' % name])
+        self.assertIn(['copy running-config startup-config'], b_[:sw])
+        self.assertFalse([x for x in b_ if x[-1] == 'no crypto ca trustpoint %s' % old])
+        warns = [w for lv, w in ctx.steps if lv == 'warn']
+        self.assertTrue([w for w in warns if 'saved before NX-API was pointed' in w], warns)
+
     def test_deploy(self):
         prefix = C.name_prefix(FakeBundle(), {}, maxlen=60)
         old = prefix + '20250101-aaaaaaaa'
         state, ans = nxapi(tps=[old])
         ctx = FakeCtx([('POST', r'/ins$', ans)])
         b = FakeBundle()
-        make('cisco_nxos', '', NXCFG, ctx).deploy(b, {'keep': 0})
+        self.nx(ctx).deploy(b, {'keep': 0})
         name = C.object_name(b, {}, maxlen=60)
         c = ctx.calls[0]
         self.assertEqual(c['headers']['Content-Type'], 'application/json-rpc')
@@ -374,7 +423,7 @@ class Nxos(unittest.TestCase):
         older = prefix + '20240101-bbbbbbbb'
         state, ans = nxapi(tps=[older, old], used=old)
         ctx = FakeCtx([('POST', r'/ins$', ans)])
-        make('cisco_nxos', '', NXCFG, ctx).deploy(FakeBundle(), {'keep': 0, 'nxapi': False})
+        self.nx(ctx).deploy(FakeBundle(), {'keep': 0, 'nxapi': False})
         b_ = state['batches']
         self.assertIn(['show nxapi'], b_)
         removed = [x[-1] for x in b_ if x[-1].startswith('no crypto ca trustpoint')]
@@ -387,7 +436,7 @@ class Nxos(unittest.TestCase):
         old = prefix + '20250101-aaaaaaaa'
         state, ans = nxapi(tps=[old], fail='show nxapi')
         ctx = FakeCtx([('POST', r'/ins$', ans)])
-        make('cisco_nxos', '', NXCFG, ctx).deploy(FakeBundle(), {'keep': 0, 'nxapi': False})
+        self.nx(ctx).deploy(FakeBundle(), {'keep': 0, 'nxapi': False})
         self.assertFalse([x for x in state['batches'] if 'no crypto ca trustpoint %s' % old in x])
         self.assertEqual(state['batches'][-1], ['copy running-config startup-config'])
 
@@ -395,7 +444,7 @@ class Nxos(unittest.TestCase):
         state, ans = nxapi(version='10.2(2)F')
         ctx = FakeCtx([('POST', r'/ins$', ans)])
         with self.assertRaises(PluginError) as e:
-            make('cisco_nxos', '', NXCFG, ctx).deploy(FakeBundle(), {})
+            self.nx(ctx).deploy(FakeBundle(), {})
         self.assertIn('10.2(3)F', str(e.exception))
         self.assertEqual(ctx._ssh.puts, [])
 
@@ -403,21 +452,20 @@ class Nxos(unittest.TestCase):
         state, ans = nxapi(fail='crypto ca import')
         ctx = FakeCtx([('POST', r'/ins$', ans)])
         with self.assertRaises(PluginError) as e:
-            make('cisco_nxos', '', NXCFG, ctx).deploy(FakeBundle(), {})
+            self.nx(ctx).deploy(FakeBundle(), {})
         self.assertIn('Invalid PKCS12 password', str(e.exception))
         self.assertTrue([x for x in state['batches'] if x[0].startswith('delete bootflash:')])
 
     def test_restart_cut_off_is_a_warning(self):
         state, ans = nxapi(cut=True)
         ctx = FakeCtx([('POST', r'/ins$', ans)])
-        got = make('cisco_nxos', '', NXCFG, ctx).deploy(FakeBundle(), {})
+        got = self.nx(ctx).deploy(FakeBundle(), {})
         self.assertIn('NX-API', got)
         self.assertTrue([w for lv, w in ctx.steps if lv == 'warn' and 'restarted' in w])
 
     def test_try(self):
         state, ans = nxapi()
-        self.assertIn('NX-OS 10.6(1)', make('cisco_nxos', '', NXCFG,
-                                            FakeCtx([('POST', r'/ins$', ans)])).test())
+        self.assertIn('NX-OS 10.6(1)', self.nx(FakeCtx([('POST', r'/ins$', ans)])).test())
 
 
 # ---------------------------------------------------------------------------

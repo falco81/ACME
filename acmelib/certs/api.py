@@ -620,17 +620,32 @@ def cert_save(store, b, by, full=False):
         from acmelib.certs import devicekey
         cur = dict(row or {})
         cur.update(fields)
-        why = devicekey.save_problem(store, cur)
+        # one certificate per device checked only when where its key is made is set or
+        # changed (1.0.96): two saved before that could not be edited at all
+        why = devicekey.save_problem(store, cur,
+                                     one_per_device=not row or (dev_now or '') != dev_was)
         if why:
             raise ValueError('the key cannot be made by %s: %s' % (dev_now, why))
     if row and 'csr_from' in fields and (dev_now or '') != dev_was:
         # Where its key is made changed: the version it holds fits no key there any more (acme's
         # key for a device that makes its own, or a device's key acme does not hold) - due for
-        # a new issue, and a CSR given out (or one a device made) is of no use now.
+        # a new issue, and a CSR given out (or one a device made) is of no use now. The state
+        # as this save sets it (switched on or off in it too): 'disabled' stays.
         fields['csr_pending'] = None
-        if row.get('cert_pem') and row.get('state') in ('ok', 'due', 'failed'):
+        if row.get('cert_pem') and fields.get('state', row.get('state')) in ('ok', 'due',
+                                                                             'failed'):
             fields.update({'state': 'due', 'state_at': t, 'next_try': None})
         store.db.run('DELETE FROM meta WHERE k = ?', (S.CERT_META['devkey'] % int(row['id']),))
+    elif row and fields.get('state') == 'ok' and row.get('state') == 'disabled' and \
+            row.get('cert_pem') and (dev_now or row.get('csr_from') or
+                                     not row.get('key_sealed')):
+        # switched on again after where its key is made changed while it was off: the version
+        # it holds fits no key there - due for a new issue at once
+        from acmelib.certs import devicekey
+        cur = dict(row)
+        cur.update(fields)
+        if devicekey.version_problem(store, cur):
+            fields.update({'state': 'due', 'state_at': t, 'next_try': None})
     moved = row is not None and 'issuer' in fields and \
         (fields['issuer'] or '') != (row.get('issuer') or '')
     if moved and not fields['issuer']:
@@ -2285,6 +2300,14 @@ def _renamed(store, family, old, new):
     elif family == 'target':
         db.run('UPDATE cert_deploys SET target = ? WHERE target = ?', (new, old))
         db.run('UPDATE certs SET csr_from = ? WHERE csr_from = ?', (new, old))
+        # the CSR its device made for an issue a source still holds (1.0.96): kept under the
+        # old name, the device was asked for a new key and the held request fit no key
+        for r in db.rows("SELECT id, csr_pending FROM certs WHERE csr_pending LIKE ?",
+                         ('%"device"%',)):
+            pend = S.jload(r['csr_pending'], None)
+            if isinstance(pend, dict) and pend.get('device') == old:
+                pend['device'] = new
+                db.update('certs', r['id'], {'csr_pending': json.dumps(pend)})
         # the tests run after a deployment on it (1.0.77): they never ran again, silently
         for r in db.rows('SELECT id, after_target FROM cert_checks WHERE after_target LIKE ?',
                          ('%' + old + '%',)):

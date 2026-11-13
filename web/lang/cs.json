@@ -60943,6 +60943,14 @@
   "_18": {
    "source": "it is due for a new issue",
    "text": "je na řadě nové vystavení"
+  },
+  "_19": {
+   "source": "tomcat: Cisco Tomcat and Cisco Tftp; CallManager: Cisco CallManager, Cisco CTIManager and Cisco HAProxy (phones register again) - off: restart them yourself, CUCM keeps serving the old certificate until then",
+   "text": "tomcat: Cisco Tomcat a Cisco Tftp; CallManager: Cisco CallManager, Cisco CTIManager a Cisco HAProxy (telefony se znovu zaregistrují) – vypnuto: restartujte je sami, do té doby CUCM servíruje starý certifikát"
+  },
+  "_20": {
+   "source": "the Supervisor's FQDN or virtual IP: where acme checks the API endpoint's certificate (443); the NSX ingress's is not checked there",
+   "text": "FQDN nebo virtuální IP Supervisoru: kde acme kontroluje certifikát API endpointu (443); certifikát NSX ingressu se tam nekontroluje"
   }
  },
  "patterns": {
@@ -84437,6 +84445,14 @@
   "p_28": {
    "source": "{0} takes certificates with acme's key ({1}) - its module cannot be changed to {2}, whose device makes the key itself: take those deployments away first",
    "text": "{0} bere certifikáty s klíčem z acme ({1}) - jeho modul nejde změnit na {2}, jehož zařízení si klíč vytváří samo: nejdřív ta nasazení odeberte"
+  },
+  "p_29": {
+   "source": "an enclosure's management module makes RSA 2048 keys only - choose rsa-2048 for the certificate (it asks for {0})",
+   "text": "modul správy enclosure vytváří jen klíče RSA 2048 – zvolte pro certifikát rsa-2048 (žádá {0})"
+  },
+  "p_30": {
+   "source": "the bay is 1 or 2 - the Frame Link Module / Onboard Administrator bay (it is {0})",
+   "text": "pozice je 1 nebo 2 – pozice Frame Link Module / Onboard Administratoru (je {0})"
   }
  },
  "rich": {

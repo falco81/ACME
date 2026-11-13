@@ -286,7 +286,9 @@ ANSWERS = {
 # a FlashBlade answers as a FlashArray
 ANSWERS['pure_flashblade'] = ANSWERS['pure_flasharray']
 # What an SSH command prints where a module reads it (plansandbox.Answers.ssh): {command (a
-# regex), input? (a regex of what is typed in), stdout, stderr?, exit?, times?} - else nothing
+# regex), input? (a regex of what is typed in), stdout, stderr?, exit?, times?} - else nothing.
+# stdout may say {SESSION}, {SEEN:regex} (the first group of it in what was sent before) and
+# {SERIAL} (1.0.96: the serial of the last certificate sent over SSH)
 SSH_ANSWERS = {
     # IOS XE: the trustpoint imported holds its certificate; write memory says [OK]
     'cisco_iosxe': [
@@ -1722,7 +1724,9 @@ def plan(store, cert, deploys, full=False):
                     'key_type': cert.get('key_type') or 'ec-256',
                     'key_type_alt': cert.get('key_type_alt') or '',
                     'state': cert.get('state') or 'new', 'issued': bool(cert.get('cert_pem')),
-                    'not_after': cert.get('not_after'), 'draft': not cert.get('id')},
+                    'not_after': cert.get('not_after'), 'draft': not cert.get('id'),
+                    # the device that makes its key (certs.csr_from): the page says so
+                    'csr_from': cert.get('csr_from') or ''},
            'head': {'source': src.get('module'),
                     'validations': [g.get('module') for g in val['groups'] if g.get('module')],
                     'deploys': len(dinfo), 'tests': len(tp.get('groups') or [])},

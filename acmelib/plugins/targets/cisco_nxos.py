@@ -13,12 +13,14 @@ NX-API (JSON-RPC), NX-API pointed at the trustpoint, the file and older acme tru
       configure terminal ; crypto ca trustpoint <tp> ; exit ;
       crypto ca import <tp> pkcs12 bootflash:<tp>.pfx <one-time password>
       delete bootflash:<tp>.pfx no-prompt
+      copy running-config startup-config               before the switch
       configure terminal ; nxapi certificate trustpoint <tp>    (NX-API restarts: the
                                                                 answer may never come)
+      show version                                     until NX-API answers again
       show nxapi                                       the trustpoint NX-API uses stays
       configure terminal ; crypto ca trustpoint <old> ; delete certificate force ;
       delete ca-certificate ; exit ; no crypto ca trustpoint <old>    older acme ones
-      copy running-config startup-config               last
+      copy running-config startup-config               last (a failure: a warning)
 
 One version: `nxapi certificate trustpoint` is there from NX-OS 10.2(3)F; the guide (NX-OS
 10.2 - 10.6) has no other difference for this job. An older NX-OS is refused (its way -
@@ -44,6 +46,7 @@ from __future__ import annotations
 
 import base64
 import re
+import time
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, as_bool, as_int, text, object_name, name_prefix, ours,
@@ -207,8 +210,16 @@ class CiscoNxosTarget(HttpTarget):
             did.append('imported %s' % name)
         else:
             self.ctx.step('the trustpoint %s is there already' % name)
+        save = as_bool(self.opt(options, 'save', True), True)
+        nxapi = as_bool(self.opt(options, 'nxapi', True), True)
+        if save and nxapi:
+            # saved before the switch too (1.0.96): NX-API restarts there and may not answer
+            # for a while - the import is in the startup configuration whatever comes after
+            self.rpc(['copy running-config startup-config'], 'saving the configuration')
+            self.ctx.step('copy running-config startup-config', 'ok')
         switched = False
-        if as_bool(self.opt(options, 'nxapi', True), True):
+        up = True
+        if nxapi:
             # NX-API restarts with the new certificate and the answer may be cut off
             self.mark_pending(bundle)
             try:
@@ -223,16 +234,50 @@ class CiscoNxosTarget(HttpTarget):
                               'served says whether it took %s' % (e, name), 'warn')
             self.done_pending()
             did.append('NX-API')
+            up = self.wait_nxapi()
         # after the switch: the older trustpoint is the one NX-API served until now (one the
         # restart keeps from answering stays until the next deployment)
-        self.cleanup(prefix, name, self.keep(options), tps, switched)
-        # saved last (1.0.96): before, the startup configuration had the import but not the
-        # trustpoint of NX-API nor the removal of the older ones
-        if as_bool(self.opt(options, 'save', True), True):
+        if up:
+            self.cleanup(prefix, name, self.keep(options), tps + [t for t in [name] if t not in tps], switched)
+        else:
+            self.ctx.step('the older trustpoints stay: NX-API did not answer after its '
+                          'restart', 'warn')
+        # saved last (1.0.96): the trustpoint of NX-API and the removal of the older ones in
+        # the startup configuration too
+        if save and not nxapi:
             self.rpc(['copy running-config startup-config'], 'saving the configuration')
             self.ctx.step('copy running-config startup-config', 'ok')
+        elif save:
+            try:
+                if not up:
+                    raise PluginError('NX-API did not answer after its restart')
+                self.rpc(['copy running-config startup-config'], 'saving the configuration')
+                self.ctx.step('copy running-config startup-config', 'ok')
+            except PluginError as e:
+                self.ctx.step('the configuration was saved before NX-API was pointed at %s, '
+                              'not after it (%s) - run copy running-config startup-config on '
+                              'the switch' % (name, e), 'warn')
         self.remember(bundle, options)
         return ', '.join(did) or 'already %s' % name
+
+    def wait_nxapi(self):
+        """After `nxapi certificate trustpoint`: NX-API restarts - asked again (show version)
+        until it answers, as long as the test of what is served waits (served_wait)."""
+        tries, wait = self.served_wait
+        sleep = getattr(self, '_sleep', time.sleep)
+        last = None
+        for _i in range(tries):
+            sleep(wait)
+            try:
+                self.rpc(['show version'], 'asking NX-API after its restart')
+                return True
+            except PluginError as e:
+                if 'NX-OS said' in str(e):
+                    return True                 # it answers
+                last = e
+        self.ctx.step('NX-API did not answer within %d s of its restart (%s)'
+                      % (tries * wait, last), 'warn')
+        return False
 
     def nxapi_uses(self, tps):
         """The trustpoints `show nxapi` names (the `nxapi certificate` lines are not in the
@@ -255,9 +300,13 @@ class CiscoNxosTarget(HttpTarget):
         # switch cut off by the restart, that is an older acme one - removing it took HTTPS
         # of NX-API away
         used = self.nxapi_uses(tps)
-        if used is None or (not used and not switched):
+        if used is None:
             self.ctx.step('the older trustpoints stay - which one NX-API uses cannot be read '
                           '(show nxapi)', 'warn')
+            return
+        if not used and not switched:
+            self.ctx.step('the older trustpoints stay - show nxapi names none of the '
+                          'trustpoints, so which one NX-API uses is not known', 'warn')
             return
         for old in [t for t in gone if t in used]:
             self.ctx.step('the older trustpoint %s stays: NX-API uses it' % old, 'warn')

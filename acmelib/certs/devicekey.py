@@ -73,9 +73,11 @@ def key_types_of(cls):
     return list(kts) if kts else None
 
 
-def save_problem(store, cert, deploys=None):
+def save_problem(store, cert, deploys=None, one_per_device=True):
     """Why `cert` (a row as it would be saved, with csr_from) cannot be so - words, or ''.
-    `deploys`: its deployments' targets (None: read)."""
+    `deploys`: its deployments' targets (None: read). `one_per_device`: another certificate
+    whose key the same device makes refused - only when csr_from is set or changed (two saved
+    before 1.0.96 can still be edited; the renewer warns of them, devicekey.sharing)."""
     src = str(cert.get('csr_from') or '').strip()
     if not src:
         return ''
@@ -116,14 +118,19 @@ def save_problem(store, cert, deploys=None):
                 % (', '.join(sorted(set(other))), trow['name']))
     # One certificate per device: the device holds one pending key - a second certificate's
     # CSR replaced the first one's key, and each renewal took the other's certificate away.
-    twin = store.db.row('SELECT name FROM certs WHERE csr_from = ? AND id <> ? ORDER BY name',
-                        (trow['name'], int(cert.get('id') or 0)))
+    twin = sharing(store, cert, trow['name']) if one_per_device else None
     if twin:
         return ('the device %s already makes the key of the certificate %s - a device holds one '
                 'pending key, so a second certificate would replace the key of the first: '
                 'change that certificate (add these names to it), or choose another target'
                 % (trow['name'], twin['name']))
     return ''
+
+
+def sharing(store, cert, device):
+    """Another certificate whose key the device `device` makes ({'name'}), or None."""
+    return store.db.row('SELECT name FROM certs WHERE csr_from = ? AND id <> ? ORDER BY name',
+                        (device, int(cert.get('id') or 0)))
 
 
 def deploy_problem(store, cert, trow, cls=None, version=True):
@@ -272,6 +279,16 @@ def csr_for(store, job, cert, names, sans, subject, key_type, profile, needs_cha
             return info
     jobs.step_in(job, '%sthe key and the CSR are made by the device of %s (%s) - the key stays '
                  'there' % (what, trow['name'], cls.title or cls.kind), scope=scope)
+    twin = sharing(store, cert, trow['name'])
+    if twin:
+        # two certificates on one device, saved before 1.0.96 refused that: each new CSR
+        # replaces the key the device holds for the other one
+        said = ('%s: the device of %s makes the key of the certificate %s too - it holds one '
+                'pending key, so this new CSR replaces the key of the other one (whose '
+                'certificate then fits no key there): put the names of both into one certificate'
+                % (cert['name'], trow['name'], twin['name']))
+        jobs.step_in(job, '%s%s' % (what, said), 'warn', scope=scope)
+        store.add_event('certificates', said, 'warn')
     ctx = deployer.target_context(store, job, trow)
     ctx.deploy_id = dep['id']
     ctx.target_name = trow['name']
@@ -381,7 +398,8 @@ def deploy_failed(store, job, cert, dep, fails, misfit=False):
     never goes in, and it would not be renewed for weeks while the device's old one runs out.
     After REISSUE_AFTER failures (or a misfit at once) it is made due for a new issue - a new
     key and CSR asked of the device. Once only, until a deployment there works again (no loop
-    of issues). -> the words said, or ''."""
+    of issues). One nothing renews by itself (switched off, automatic renewal off, no source)
+    is not made due: "renew it by hand" is said, once. -> the words said, or ''."""
     src = str(cert.get('csr_from') or '').strip()
     if not src or str(dep.get('target') or '') != src:
         return ''
@@ -396,9 +414,34 @@ def deploy_failed(store, job, cert, dep, fails, misfit=False):
         return ''
     if misfit and cur.get('state') == 'due':
         return ''                           # made due already (where its key is made changed)
+    from acmelib.certs import jobs
+
+    def on(k):
+        return bool(int(cur.get(k) if cur.get(k) is not None else 1))
+    by_hand = ('switched off' if not on('enabled') else
+               'no source' if not str(cur.get('issuer') or '').strip() else
+               'automatic renewal is off' if not on('auto_renew') else '')
+    if by_hand:
+        # nothing issues it by itself (1.0.96): it was made due, said "issued anew", and stayed
+        # so - said once (at the failure that reaches the count), nothing changed
+        if not misfit and int(fails or 0) != REISSUE_AFTER:
+            return ''
+        if misfit:
+            what = 'the version it holds fits no key on %s, whose device makes its key' % src
+        else:
+            what = ('its deployment to %s, whose device makes its key, failed %d times - the '
+                    'device may have lost the key it made' % (src, int(fails)))
+        said = ('%s: %s; it is not renewed by itself (%s): renew it by hand (Renew now) for a '
+                'new key and CSR of the device' % (cert['name'], what, by_hand))
+        jobs.step_in(job, said, 'warn', scope='target:%s' % src)
+        store.add_event('certificates', said, 'warn')
+        return said
+    # in one step with the checks above (1.0.96): a save of the certificate in between kept
+    if not store.db.run("UPDATE certs SET state = 'due', state_at = ?, csr_pending = NULL "
+                        "WHERE id = ? AND version = ? AND state IN ('ok', 'due')",
+                        (time.time(), int(cert['id']), int(cur.get('version') or 0))):
+        return ''
     store.set_meta(key, str(cert.get('version') or 0))
-    store.db.update('certs', cert['id'], {'state': 'due', 'state_at': time.time(),
-                                          'csr_pending': None})
     if misfit:
         said = ('%s: the version it holds fits no key on %s, whose device makes its key - it is '
                 'issued anew for a new key and CSR of the device' % (cert['name'], src))
@@ -407,7 +450,6 @@ def deploy_failed(store, job, cert, dep, fails, misfit=False):
                 'device may have lost the key it made: it is issued anew (a new key and CSR '
                 'asked of the device), once; should that fail too, see to the device'
                 % (cert['name'], src, int(fails)))
-    from acmelib.certs import jobs
     jobs.step_in(job, said, 'warn', scope='target:%s' % src)
     store.add_event('certificates', said, 'warn')
     return said

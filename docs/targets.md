@@ -3254,12 +3254,16 @@ NX-API JSON-RPC (`POST /ins`, `application/json-rpc`, HTTP basic) and SCP with t
 2. the PKCS#12 copied with SCP to `bootflash:<tp>.pfx`;
 3. `configure terminal`, `crypto ca trustpoint <tp>`, `exit`, `crypto ca import <tp> pkcs12
    bootflash:<tp>.pfx <pw>` in one batch (an error said with the password left out); `delete
-   bootflash:<tp>.pfx no-prompt`; *Save*: `copy running-config startup-config`;
+   bootflash:<tp>.pfx no-prompt`; *Save*: `copy running-config startup-config` (with *NX-API
+   HTTPS* off: once, after the clean-up of step 5);
 4. *NX-API HTTPS*: `configure terminal`, `nxapi certificate trustpoint <tp>` - NX-API (nginx)
    restarts; an answer cut off by the restart is a warning, the test of what is served tells;
-5. after the switch, older acme trustpoints beyond *keep*: `crypto ca trustpoint <old>`,
-   `delete certificate force`, `delete ca-certificate`, `exit`, `no crypto ca trustpoint <old>`
-   (a failure warned).
+   then `show version` is asked again (every 5 s, 30 s at most) until NX-API answers;
+5. after the switch, older acme trustpoints beyond *keep* (never the one `show nxapi` names):
+   `crypto ca trustpoint <old>`, `delete certificate force`, `delete ca-certificate`, `exit`,
+   `no crypto ca trustpoint <old>` (a failure warned); *Save* again: `copy running-config
+   startup-config` - when NX-API does not answer after its restart, or this save fails, that
+   is a warning (the configuration saved in step 3 has the import), never a failed deployment.
 
 `nxapi certificate` lines are not in the running configuration: after `reload ascii` or a
 config replace deploy again with *force*. One version (10.2(3)F - 10.6, the same calls).

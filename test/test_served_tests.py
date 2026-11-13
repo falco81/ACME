@@ -40,6 +40,17 @@ def tests_of(cid):
     return out
 
 
+def new_deployment(cid, target, options=None):
+    """A deployment of a device-key target (its certificate needs a CA signing its CSR - not
+    the point here): put in as it is, its tests made as deploy_save makes them."""
+    STORE.db.insert('cert_deploys', {'cert_id': cid, 'target': target,
+                                     'options': json.dumps(options or {}), 'enabled': 1,
+                                     'state': 'new'})
+    dep = STORE.db.row('SELECT * FROM cert_deploys WHERE cert_id = ? AND target = ?',
+                       (cid, target))
+    return C.served_tests(STORE, dep, 'tester')
+
+
 class Served(unittest.TestCase):
     def test_1_a_new_deployment_gets_its_test(self):
         A.family_save(STORE, 'target', {'kind': 'esxi', 'name': 'esx1', 'config': {
@@ -81,6 +92,52 @@ class Served(unittest.TestCase):
             'base': os.path.join(TMP, 'out')}}, 'tester')
         cid = A.cert_save(STORE, {'names': ['files.example.test']}, 'tester')
         A.deploy_save(STORE, {'cert_id': cid, 'target': 'files', 'options': {}}, 'tester')
+        self.assertEqual(tests_of(cid), {})
+
+    def test_4_the_key_asked_for_and_the_first_name(self):
+        # 1.0.96: a served place may say the key the test asks for (CUCM's Tomcat serves
+        # tomcat and tomcat-ECDSA on 8443) and the host CERT_NAME (the certificate's first
+        # name); a module that says neither is tested as before
+        for name, unit in (('cu1', 'tomcat'), ('cu2', 'tomcat-ECDSA')):
+            A.family_save(STORE, 'target', {'kind': 'cucm', 'name': name, 'config': {
+                'host': 'cucm.example.test', 'user': 'svc', 'auth': 'password',
+                'password': 'x', 'unit': unit}}, 'tester')
+        got, names = {}, set()
+        for name, kt in (('cu1', 'rsa-2048'), ('cu2', 'ec-256')):
+            cid = A.cert_save(STORE, {'names': ['cucm.example.test'], 'key_type': kt},
+                              'tester')
+            new_deployment(cid, name)
+            rows = STORE.db.rows('SELECT c.test, c.after_target, t.config FROM cert_checks c '
+                                 'JOIN cert_tests t ON t.name = c.test WHERE c.cert_id = ?',
+                                 (cid,))
+            got.update({r['after_target']: json.loads(r['config']) for r in rows})
+            names.update(r['test'] for r in rows)
+        self.assertEqual(got['cu1'], {'port': 8443, 'host': 'cucm.example.test',
+                                      'key_want': 'rsa'})
+        self.assertEqual(got['cu2'], {'port': 8443, 'host': 'cucm.example.test',
+                                      'key_want': 'ecdsa'})
+        self.assertEqual(len(names), 2, 'one test each: the key is part of what a test is')
+        cid = STORE.db.row("SELECT cert_id FROM cert_deploys WHERE target = 'cu1'")['cert_id']
+        # the same place with no key asked for is another test (older tests stay as they are)
+        n = C.for_target(STORE, cid, 'cu1', 'tester', 'tls', 'cucm.example.test', 8443)
+        self.assertNotIn(n, names)
+        with self.assertRaises(ValueError):
+            C.for_target(STORE, cid, 'cu1', 'tester', 'tls', 'cucm.example.test', 8443,
+                         key_want='dsa')
+        # VCF without Component FQDN: deployed for the certificate's first name, tested there
+        A.family_save(STORE, 'target', {'kind': 'vcf_component', 'name': 'vcf1', 'config': {
+            'host': 'sddc.example.test', 'user': 'u', 'password': 'x', 'csr_country': 'CZ',
+            'csr_state': 'P', 'csr_city': 'P', 'csr_org': 'O', 'csr_ou': 'IT'}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['vc9.example.test']}, 'tester')
+        new_deployment(cid, 'vcf1')
+        self.assertEqual(tests_of(cid), {(None, 443): 'vcf1'})
+        # vSphere Supervisor: its API endpoint, not for the NSX ingress
+        A.family_save(STORE, 'target', {'kind': 'vsphere_supervisor', 'name': 'sup1', 'config': {
+            'host': 'vc.example.test', 'user': 'u', 'password': 'x', 'supervisor': 'domain-c8',
+            'endpoint_host': 'sup.example.test'}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['ingress.example.test']}, 'tester')
+        A.deploy_save(STORE, {'cert_id': cid, 'target': 'sup1', 'options': {
+            'endpoint': 'DEFAULT_NSX_INGRESS'}}, 'tester')
         self.assertEqual(tests_of(cid), {})
 
 
