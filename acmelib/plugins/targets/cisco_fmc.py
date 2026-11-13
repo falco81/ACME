@@ -77,7 +77,7 @@ def swap(node, old_ids, new):
 
 
 def refers(node, ids):
-    s = json.dumps(node)
+    s = json.dumps(node, ensure_ascii=False)
     return any('"%s"' % i in s for i in ids)
 
 
@@ -266,8 +266,12 @@ class CiscoFmcTarget(HttpTarget):
                     self.api('PUT', '/policy/decryptionpolicies/%s/decryptionpolicyrules/%s'
                              % (q(pid), q(r.get('id'))), rule,
                              what='switching the rule %s of %s' % (r.get('name'), pname))
-                    self.ctx.step('the rule %s of %s uses %s' % (r.get('name'), pname, name),
-                                  'ok')
+                    # what it used before, said (1.0.98): the decision What happens shows
+                    was = sorted(n for n, c in byname.items() if text(c.get('id')) in old_ids
+                                 and refers(r, [text(c.get('id'))]))
+                    self.ctx.step('the rule %s of %s uses %s%s' % (
+                        r.get('name'), pname, name, ' (before: %s)' % ', '.join(was)
+                        if was else ''), 'ok')
                     n += 1
                 if not n:
                     self.ctx.step('no rule of %s used an older acme object of this certificate '

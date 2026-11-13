@@ -99,6 +99,13 @@ _VSPHERE_SESSION = {'method': 'POST', 'url': r'/api/session$', 'status': 201,
                     'body': '"PLANSESSION0token"'}
 # What a module needs answered to go on at all (a sign-in's token where it looks for it, a
 # zone or domain found) - made up, as every answer of the recording is.
+# The certificates a device holds before a renewal (plansandbox.Answers.earlier): {CURRENT}
+# the name the new one gets; {EARLIER}, {EARLIER2}, {EARLIER3} ... {EARLIERn} the names of
+# certificates of the same names 1, 2, 3 ... n renewals older (3 months each, another serial)
+# - list three earlier ones to a module keeping 2 and its cleanup deletes the oldest. Each
+# takes :maxlen[:serial length[:replacement char]] ({EARLIER3:35:6}). What the device serves
+# over TLS before the new one was sent is such an earlier certificate ({EARLIER_PEM}), after
+# it the new one (plansandbox served_der, 1.0.98).
 ANSWERS = {
     'f5': [{'method': 'POST', 'url': r'/authn/login', 'body': {'token': {'token': '{SESSION}'}}}],
     'webglobe': [{'method': 'GET', 'url': r'/domains/[^/?]+$',
@@ -186,7 +193,48 @@ ANSWERS = {
             {'id': '\u2039device\u203a', 'name': '{EACH:OPT:enroll_devices}'}]}},
         {'method': 'GET', 'url': r'/policy/decryptionpolicies\?', 'body': {'items': [
             {'id': '\u2039policy\u203a', 'name': '{EACH:OPT:decryption_policy}'},
-            {'id': '\u2039policy\u203a', 'name': '{EACH:OPT:decryption_policies}'}]}}],
+            {'id': '\u2039policy\u203a', 'name': '{EACH:OPT:decryption_policies}'}]}},
+        # (1.0.98: a renewal) the Internal Certificates: two earlier ones of acme; a Decrypt -
+        # Known Key rule of each policy uses the newer earlier one - switched, deployed to the
+        # device with changes, the oldest (no rule uses it) deleted; FMC 7.7: the Cert
+        # Enrollment object asked for is there (PKCS12), enrolled on the devices asked already
+        {'method': 'GET', 'url': r'/object/internalcertificates\?', 'body': {'items': [
+            {'id': '\u2039earlier object\u203a', 'name': '{EARLIER}',
+             'type': 'InternalCertificate'},
+            {'id': '\u2039oldest object\u203a', 'name': '{EARLIER2}',
+             'type': 'InternalCertificate'}], 'paging': {'offset': 0, 'limit': 1000, 'count': 2,
+                                                         'pages': 1}}},
+        {'method': 'GET', 'url': r'/decryptionpolicyrules\?expanded=true', 'body': {'items': [{
+            'id': '\u2039rule\u203a', 'name': 'decrypt-www', 'type': 'DecryptionPolicyRule',
+            'action': 'DECRYPT_KNOWN_KEY', 'enabled': True, 'internalCertificates': {'objects': [
+                {'id': '\u2039earlier object\u203a', 'name': '{EARLIER}',
+                 'type': 'InternalCertificate'}]}}], 'paging': {'count': 1, 'pages': 1}}},
+        {'method': 'PUT', 'url': r'/decryptionpolicyrules/[^/?]+$', 'body': {
+            'id': '\u2039rule\u203a', 'name': 'decrypt-www', 'type': 'DecryptionPolicyRule'}},
+        {'method': 'GET', 'url': r'/deployment/deployabledevices\?', 'body': {'items': [{
+            'type': 'DeployableDevice', 'name': 'ftd-1', 'canBeDeployed': True,
+            'device': {'id': '\u2039device\u203a', 'name': 'ftd-1', 'type': 'Device'}}]}},
+        {'method': 'POST', 'url': r'/deployment/deploymentrequests$', 'status': 202, 'body': {
+            'type': 'DeploymentRequest', 'metadata': {'task': {
+                'id': '\u2039task\u203a', 'taskType': 'DEVICE_DEPLOYMENT'}}}},
+        {'method': 'DELETE', 'url': r'/object/internalcertificates/', 'body': {
+            'id': '{TAIL}', 'type': 'InternalCertificate'}},
+        {'method': 'GET', 'url': r'/object/certenrollments\?', 'body': {'items': [
+            {'id': '\u2039enrollment\u203a', 'name': '{EACH:OPT:enrollment}',
+             'type': 'CertEnrollment', 'enrollmentType': 'PKCS12'}],
+            'paging': {'count': 1, 'pages': 1}}},
+        {'method': 'PUT', 'url': r'/object/certenrollments/', 'body': {
+            'id': '\u2039enrollment\u203a', 'name': '{SENT:name}', 'type': 'CertEnrollment',
+            'enrollmentType': 'PKCS12'}},
+        {'method': 'GET', 'url': r'/devices/certificates\?filter=', 'body': {'items': [{
+            'type': 'DeviceCertificate', 'status': 'Available', 'certificate': {
+                'id': '\u2039enrollment\u203a', 'type': 'CertEnrollment'}}]}},
+        {'method': 'POST', 'url': r'/devices/operational/managecertificates$', 'status': 202,
+         'body': {'type': 'ManageCertificate', 'metadata': {'task': {
+             'id': '\u2039task\u203a'}}}}],
+    # FMC 7.7: its version
+    'cisco_fmc@7.7': [{'method': 'GET', 'url': r'/info/serverversion$', 'body': {'items': [{
+        'serverVersion': '7.7.0 (build 91)', 'type': 'ServerVersion'}]}}],
     # the IMC answers every call of its XML API at /nuova: a session cookie, no error
     'cisco_imc': [{'method': 'POST', 'url': r'/nuova$', 'headers': {'Content-Type': 'text/xml'},
                    'body': '<aaaLogin response="yes" outCookie="PLANSESSION0token" '
@@ -375,7 +423,8 @@ SSH_ANSWERS['aruba_aos8'] = [
         '(acme-[0-9a-f]+\\.pfx)}  1                No\n'
         '{EARLIER:31}   acme-4a596877.pfx  0                No\n'
         '{EARLIER2:31}   acme-4a596876.pfx  0                No\n'},
-    {'input': r'(?m)^show crypto-local pki (IntermediateCA|TrustedCA)$', 'stdout': _AOS8_CERTS},
+    {'input': r'(?m)^show crypto-local pki (IntermediateCA|TrustedCA)$', 'stdout': _AOS8_CERTS +
+        'acme-ca-{CAID}                   acme-ca-{CAID}.pem  1                No\n'},
     {'input': r'(?m)^copy (tftp|scp): ', 'stdout': ''},
     {'input': r'(?m)^crypto pki-import (pfx|pem) ', 'stdout': ''},
     {'input': r'(?m)^web-server profile$', 'stdout': ''},
@@ -704,7 +753,8 @@ ANSWERS['aruba_aoscx'] = [
         '{EARLIER:32:6}': '/rest/v10.13/certificates/{EARLIER:32:6}',
         '{EARLIER2:32:6}': '/rest/v10.13/certificates/{EARLIER2:32:6}'}},
     {'method': 'GET', 'url': r'/rest/[^/]+/system/pki_ta_profiles$', 'body': {
-        'corp-root-ca': '/rest/v10.13/system/pki_ta_profiles/corp-root-ca'}},
+        'corp-root-ca': '/rest/v10.13/system/pki_ta_profiles/corp-root-ca',
+        'acme-ca-{CAID}': '/rest/v10.13/system/pki_ta_profiles/acme-ca-{CAID}'}},
     {'method': 'POST', 'url': r'/rest/[^/]+/system/pki_ta_profiles$', 'status': 201, 'body': ''},
     {'method': 'PUT', 'url': r'/rest/[^/]+/certificates/[^/?]+$', 'body': ''},
     {'method': 'GET', 'url': r'/system\?attributes=certificate_association$', 'times': 1,
@@ -2766,6 +2816,13 @@ FIRST['azure_keyvault'] = [{'method': 'GET', 'url': r'/certificates/[^/?]+\?api-
                                     'A certificate with (name/id) {TAIL} was not found in this '
                                     'key vault.'}}}]
 LATER['azure_keyvault'] = []
+# Cisco FMC: the first time no earlier Internal Certificate (no rule switched: said), no Cert
+# Enrollment object (made) and nothing enrolled on the devices (ENROLL)
+FIRST['cisco_fmc'] = [
+    {'method': 'GET', 'url': r'/object/(internalcertificates|certenrollments)\?', 'body': {
+        'items': [], 'paging': {'offset': 0, 'limit': 1000, 'count': 0, 'pages': 0}}},
+    {'method': 'GET', 'url': r'/devices/certificates\?filter=', 'body': {'items': []}}]
+LATER['cisco_fmc'] = []
 # ---- end of targets a10 .. cisco_nxos (FIRST / LATER) ----
 # ---- targets redfish@ilo .. zimbra: the first deployment (FIRST: nothing of acme there yet)
 # and the renewals (LATER: [] - the ANSWERS above, the certificate of the renewal before) ----
@@ -2802,6 +2859,9 @@ LATER['vcd'] = []
 SSH_FIRST['truenas'] = [
     {'command': r'midclt call certificate\.query', 'times': 1, 'stdout':
         '[{"id": 1, "type": 8, "name": "truenas_default", "cert_type": "CERTIFICATE"}]\n'},
+    {'command': r'midclt call certificate\.query', 'stdout':
+        '[{"id": 1, "type": 8, "name": "truenas_default", "cert_type": "CERTIFICATE"}, '
+        '{"id": 9, "type": 8, "name": "{CURRENT:63:8:_}", "cert_type": "CERTIFICATE"}]\n'},
     {'command': r'midclt call system\.general\.config', 'stdout':
         '{"id": 1, "ui_certificate": {"id": 1, "name": "truenas_default"}}\n'}]
 SSH_LATER['truenas'] = []
@@ -2869,12 +2929,18 @@ def answers_of(kind, cfg=None, opts=None, first=True, later=False, version='', f
             for r in rules]
 
 
-def ssh_answers_of(kind, cfg=None, opts=None, version='', first=True, later=False):
+def ssh_answers_of(kind, cfg=None, opts=None, version='', first=True, later=False,
+                   family=None):
     """What the SSH commands of a module's recording print: SSH_FIRST (or SSH_LATER, 1.0.98)
-    and SSH_ANSWERS of its version and kind, the settings put in where an answer names them."""
-    rules = (SSH_LATER.get(kind, []) if later else SSH_FIRST.get(kind, []) if first else []) + \
-        (SSH_ANSWERS.get('%s@%s' % (kind, version), []) if version else []) + \
-        SSH_ANSWERS.get(kind, [])
+    and SSH_ANSWERS of its version and kind, the settings put in where an answer names them;
+    a validation's (family 'challenge'): those of plansources.py only."""
+    if family in ('issuer', 'challenge'):
+        from acmelib.certs import plansources
+        rules = plansources.ssh_answers(family, kind, version)
+    else:
+        rules = (SSH_LATER.get(kind, []) if later else SSH_FIRST.get(kind, []) if first
+                 else []) + (SSH_ANSWERS.get('%s@%s' % (kind, version), []) if version
+                             else []) + SSH_ANSWERS.get(kind, [])
     cfg, opts = dict(cfg or {}), dict(opts or {})
     return [dict(r, stdout=_filled(r['stdout'], cfg, opts)) if 'stdout' in r else dict(r)
             for r in rules]
@@ -3322,6 +3388,9 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
             notes = []
             if ev.get('own'):
                 notes.append('a connection the module makes itself (http.client), not through acme')
+            if ev.get('kept'):
+                notes.append('on one connection kept open for the whole sign-in (Windows '
+                             'authentication signs in a connection, not a request); no proxy')
             if not ev.get('verify', True):
                 notes.append('the device\'s TLS certificate is not checked')
             if ev.get('client_cert'):
@@ -3599,8 +3668,16 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                                                    else 'RSA') if ev.get('only') else '')}}
             if tries > 1:
                 st['note'] = 'tried up to %d times, a few seconds apart, until it is so' % tries
+            # what the stand-in device served (1.0.98): the earlier certificate before the new
+            # one was sent, the new one after
+            served = merged[i][0].get('served') or ev.get('served')    # the last one asked
+            if served:
+                st['served'] = served
             hh, _, pp = hp.rpartition(':')
-            st['detail']['conn'] = [['Address', hh, ''], ['Port', pp, ''],
+            st['detail']['conn'] = ([['Here', 'the stand-in served an earlier certificate'
+                                      if served == 'earlier' else
+                                      'the stand-in served the new certificate', 'dim']]
+                                    if served else []) + [['Address', hh, ''], ['Port', pp, ''],
                                     ['SNI', ev.get('sni') or 'none', '' if ev.get('sni') else 'dim'],
                                     ['Key asked for', fam or 'whichever the server picks', ''],
                                     ['TLS at most', 'TLS 1.2 (to ask for the key type)' if fam else
@@ -3998,7 +4075,9 @@ def plan(store, cert, deploys, full=False):
                                                 config=scfg, marks=marks,
                                                 answers=answers_of(crow['kind'], scfg,
                                                                    first=False,
-                                                                   family='challenge'))))
+                                                                   family='challenge'),
+                                                ssh_answers=ssh_answers_of(
+                                                    crow['kind'], scfg, family='challenge'))))
     # the source, where it is not written here
     iid = None
     if irow and icls and irow.get('kind') not in ('acme', 'internal_ca', 'selfsigned'):
@@ -4009,13 +4088,17 @@ def plan(store, cert, deploys, full=False):
             if vi.get('row') and vi.get('cls') and 'scfg' in vi:
                 dcv[n] = {'kind': vi['row']['kind'], 'name': which, 'config': vi['scfg'],
                           'answers': answers_of(vi['row']['kind'], vi['scfg'], first=False,
-                                                family='challenge')}
+                                                family='challenge'),
+                          'ssh_answers': ssh_answers_of(vi['row']['kind'], vi['scfg'],
+                                                        family='challenge')}
                 marks = dict(marks, **vi['marks'])
         # a renewal hands the certificate it renews (CertRequest.previous)
         iid = run(family='issuer', kind=irow['kind'], name=irow['name'], op='issue',
                   config=scfg, marks=marks, answers=answers_of(irow['kind'], scfg, first=False,
                                                                family='issuer'),
-                  challenges=dcv, previous=bool(cert.get('cert_pem')))
+                  challenges=dcv, previous=bool(cert.get('cert_pem')),
+                  pinned=__import__('acmelib.certs.plansources', fromlist=['PINNED']).PINNED.get(
+                      irow['kind'], []))
     elif icfg:
         secrets_.stand_ins(_fields_of(icls), icfg)
     # the device that makes the key (certs.csr_from): its device_csr() recorded

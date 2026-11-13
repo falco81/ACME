@@ -127,6 +127,14 @@ class AdcsHttp(object):
         return self.conn
 
     def _send(self, method, path, body, headers):
+        kept = getattr(self.ctx, 'http_kept', None)
+        if callable(kept):
+            # a context that keeps a connection for the module itself (What happens records
+            # each request there as it records ctx.http) - NTLM's three messages on it
+            cc = (self.client_cert, self.client_key) if self.auth == 'cert' else None
+            status, hdrs, data = kept(method, self.url(path), body, headers, self.timeout,
+                                      self.verify, self.ca_pem, cc)
+            return status, {str(k).lower(): v for k, v in (hdrs or {}).items()}, data or b''
         for attempt in (1, 2):
             conn = self._connect()
             try:
@@ -155,6 +163,8 @@ class AdcsHttp(object):
                                   % (self.host, self.port, e))
 
     def server_cert(self):
+        if self.conn is None:
+            return None
         try:
             sock = self.conn.sock
             return sock.getpeercert(binary_form=True) if sock and self.scheme == 'https' else None

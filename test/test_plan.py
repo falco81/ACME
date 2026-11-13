@@ -383,7 +383,7 @@ class Answers(unittest.TestCase):
         self.assertIn('"cppm01"', json.dumps(cp))
         self.assertNotIn('{CFG:', json.dumps(R.answers_of('aruba_clearpass', {}, {})))
         ilo = R.answers_of('redfish', {}, {}, version='ilo')
-        self.assertIn('iLO', json.dumps(ilo[:2]))
+        self.assertIn('iLO', json.dumps(ilo[:len(R.ANSWERS['redfish@ilo'])]))
         # the version's rules first, then the kind's
         self.assertEqual(ilo[len(ilo) - len(R.ANSWERS['redfish'])]['url'],
                          R.ANSWERS['redfish'][0]['url'])
@@ -896,6 +896,69 @@ print(json.dumps([P.clean(e, {'STANDIN': 'the password'}) for e in ev]))
         self.assertEqual(cmds[1]['detail']['answer']['fallback'], 'empty')
         self.assertIn('input_body', cmds[1]['detail'])
 
+    def test_secret_names_and_look_alikes(self):
+        """1.0.98: what a name says about a secret is no secret (ISPConfig's "code": "ok",
+        Nutanix's privateKeyAlgorithm were masked)."""
+        from acmelib.certs import plansandbox as P
+        secrets = ['password', 'p12Password', 'client_secret', 'passphrase', 'token',
+                   'access_token', 'refresh_token', 'apiKey', 'api_key', 'key', 'privateKey',
+                   'private_key', 'privkey', 'keyPem', 'sid', 'sessionid', 'sessionId',
+                   'authToken', 'secret', 'pin', 'BoxCertPassword', 'inPassword', 'passwd',
+                   'signature', 'cookie', 'credentials', 'pfxPassword', 'keystore_password']
+        alike = ['code', 'privateKeyAlgorithm', 'keyType', 'publicKey', 'public_key', 'keySize',
+                 'keyUsage', 'key_length', 'signatureAlgorithm', 'tokenType', 'tokenExpires',
+                 'sessionTimeout', 'passwordPolicy', 'hasPassword', 'enable_syno_token',
+                 'isPrivate', 'authType', 'author', 'certificateAuthority', 'pinned',
+                 'keyAlgorithm', 'token_type', 'password_expires', 'privateKeyFormat']
+        self.assertEqual([n for n in secrets if not P.secret_name(n)], [])
+        self.assertEqual([n for n in alike if P.secret_name(n)], [])
+        got = P.mask_json({'code': 'ok', 'privateKeyAlgorithm': 'RSA_2048', 'password': 'x'}, {})
+        self.assertEqual(got, {'code': 'ok', 'privateKeyAlgorithm': 'RSA_2048', 'password': '••••'})
+
+    def test_earlier_n(self):
+        import time as _t
+        from acmelib.certs import plansandbox as P
+
+        class B(object):
+            name, names, not_before, serial = 'www', ['www.example.com'], _t.time(), 'ab' * 8
+        a = P.Answers([])
+        a.bundle, a.options = B(), {}
+        got = a.earlier('{CURRENT} {EARLIER} {EARLIER2} {EARLIER3} {EARLIER4}').split()
+        self.assertEqual(len(set(got)), 5, got)
+        self.assertEqual(a.earlier('{EARLIER1}'), a.earlier('{EARLIER}'))
+        self.assertTrue(got[3] < got[2] < got[1], got)          # older dates, older names
+
+    def test_served_earlier_then_new(self):
+        """What the device serves: an earlier certificate of the same names before the new
+        one was sent (the renewal's way taken), the new one after (a check after it passes)."""
+        got = self.record_in(r"""
+P._patch_modules({})
+from acmelib.plugins.targets import _common as C
+P.RECORDING[0] = ev = []
+a = P.Answers([])
+P.ANSWERS[0] = a
+a.bundle = P.dummy_bundle({'names': ['www.example.com'], 'key_type': 'ec-256'})
+ctx = P.PlanContext({}, 'target:t', a)
+want = C.fp_of(a.bundle)
+before = C.served_fingerprint('dev.example.test', 443)
+ctx.http('POST', 'https://dev.example.test/login', body={'user': 'u', 'password': 'p'})
+signed_in = C.served_fingerprint('dev.example.test', 443)
+ctx.http('POST', 'https://dev.example.test/upload', body={'cert': a.bundle.cert_pem})
+after = C.served_fingerprint('dev.example.test', 443)
+from acmelib.certs import pki
+earlier = pki.cert_info(a.earlier_pem())
+P.RECORDING[0] = None
+print(json.dumps({'before': before == want, 'signed_in': signed_in == want, 'after': after == want,
+                  'same_earlier': before == C.served_fingerprint.__globals__['hashlib'].sha256(
+                      C.pem_to_der(a.earlier_pem())).hexdigest(),
+                  'names': earlier.get('names') or earlier.get('sans'),
+                  'served': [e.get('served') for e in ev if e['kind'] == 'check']}))
+""")
+        self.assertEqual((got['before'], got['signed_in'], got['after'], got['same_earlier']),
+                         (False, False, True, True))
+        self.assertEqual(got['served'], ['earlier', 'earlier', 'new'])
+        self.assertIn('www.example.com', json.dumps(got['names']))
+
     def test_calls_around_ctx_are_errors(self):
         """A module that goes around ctx (urllib / http.client, a socket, a program, a DNS
         lookup) is caught: recorded as an error step, never reaching the network."""
@@ -926,6 +989,340 @@ print(json.dumps({'got': got.decode() if isinstance(got, bytes) else got, 'ev': 
         errs = [s for s in steps if s.get('error')]
         self.assertEqual(len(errs), 5)
         self.assertTrue(all(s['words'].startswith('The module went around acme') for s in errs))
+
+
+class RenewalPathsG2(unittest.TestCase):
+    """The renewal path of the targets cisco_wlc9800 .. hpe_oneview (1.0.98): the earlier
+    certificate found, replaced, the older ones cleaned up, the decisions said - every call
+    answered as the device does (no stand-in answer); SSH_FIRST / SSH_LATER."""
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+
+    def record(self, kind, cfg, opts=None, version='', later=False):
+        from acmelib.certs import runplan as R
+        cfg = dict(cfg, _version=version)
+        got, err = R.record({'runs': [{
+            'id': 'r1', 'family': 'target', 'kind': kind, 'name': 't', 'op': 'deploy',
+            'config': cfg, 'options': opts or {}, 'seconds': 30,
+            'answers': R.answers_of(kind, cfg, opts, first=not later, later=later,
+                                    version=version),
+            'ssh_answers': R.ssh_answers_of(kind, cfg, opts, first=not later, later=later,
+                                            version=version)}],
+            'cert': {'names': ['www.example.com'], 'key_type': 'rsa-2048'}}, timeout=120)
+        self.assertEqual(err, '')
+        run = got['r1']
+        self.assertFalse(run.get('error'), '%s: %s' % (kind, run.get('error')))
+        evs = run['events']
+        self.assertFalse([e for e in evs if e.get('fallback')],
+                         '%s: a call no answer of the module matched' % kind)
+        return RenewalPaths.seen(evs)
+
+    def in_order(self, lines, *wants):
+        i = 0
+        for w in wants:
+            while i < len(lines) and w not in lines[i]:
+                i += 1
+            self.assertLess(i, len(lines), '%r not found in order in %s' % (w, lines))
+            i += 1
+
+    def test_ssh_devices(self):
+        ssh = {'host': 'dev', 'user': 'acme', 'auth': 'password', 'password': 'p'}
+        for ver, said in (('', 'IOS XE 17.12.4'), ('17.3', 'IOS XE 17.9.5'),
+                          ('17.12', 'IOS XE 17.15.3')):
+            got = self.record('cisco_wlc9800', ssh, {}, version=ver)
+            self.in_order(got, 'SSH show version', 'SAY %s; trustpoints: TP-self-signed' % said,
+                          'SAY imported into the new trustpoint acme-',
+                          'SAY the HTTPS server uses acme-', 'SAY write memory - [OK]',
+                          'SAY removed the older trustpoint acme-www.example.com-')
+        got = self.record('cockpit', ssh, {})
+        self.in_order(got, 'SAY /etc/cockpit/ws-certs.d holds 0-self-signed.cert',
+                      'SAY Cockpit takes 90-acme-', 'SAY cockpit.service restarted',
+                      'SAY deleted the old 90-acme-www.example.com-')
+        got = self.record('docker_swarm', ssh, {'services': 'web_proxy'})
+        self.assertTrue([x for x in got if '--secret-rm acme-www.example.com-' in x and
+                         'uid=0,gid=0,mode=0444' in x], got)
+        self.in_order(got, 'SAY service web_proxy rolled onto acme-',
+                      'SAY removed the old secret acme-www.example.com-')
+        got = self.record('esxi', ssh, {})
+        self.in_order(got, 'SAY /etc/vmware/ssl/rui.crt: SHA-256 there 3f1d0c5e',
+                      'SAY the files replaced kept as', 'SAY ran /etc/init.d/hostd restart',
+                      'SAY saved to the boot bank')
+        got = self.record('haproxy', ssh, {'cert_path': '/etc/haproxy/certs/www.pem'})
+        self.in_order(got, 'SAY HAProxy has loaded /etc/haproxy/certs/www.pem',
+                      'SAY HAProxy serves it now (set ssl cert, commit)')
+        got = self.record('hestiacp', ssh, {'hestia_user': 'admin',
+                                            'web_domains': 'example.com'})
+        self.in_order(got, "SAY example.com: SSL on, Hestia's Let's Encrypt off",
+                      'v-change-web-domain-sslcert admin example.com /tmp/tmp.',
+                      'SAY example.com: certificate installed')
+        got = self.record('horizon_cs', ssh, {})
+        self.in_order(got, 'SAY imported into LocalMachine', 'SAY vdm taken off',
+                      'SAY the friendly name vdm is on', 'SAY restarted VMware Horizon')
+
+    def test_cucm_first_and_later(self):
+        ssh = {'host': 'cucm', 'user': 'admin', 'auth': 'password', 'password': 'p'}
+        from acmelib.certs import runplan as R
+        self.assertIn('cucm', R.SSH_LATER)
+        # (a key made by the device: the bundle without a key - the sandbox's own has one, so
+        # what is asked of the CLI is looked at through the answers here)
+        a = R.ssh_answers_of('cucm', later=True)
+        self.assertIn('tomcat-trust/{CACN_}.pem', a[0]['stdout'])
+        from acmelib.certs import plansandbox as P
+        from acmelib.certs import pki
+        key = pki.make_key('ec-256')
+
+        class B(object):
+            cert_pem = pki.self_signed(key, ['www.example.com'], days=3)
+            chain_pems = [pki.self_signed(pki.make_key('ec-256'), ['issuing-ca1.example'],
+                                          days=3)]
+            names = ['www.example.com']
+        ans = P.Answers([], a)
+        ans.bundle = B()
+        out = ans.ssh('', 'show cert list trust\nexit\n')[1]
+        self.assertIn('tomcat-trust/issuing-ca1.example.pem: Trust Certificate', out)
+        self.assertNotIn('rrr', out)
+        self.assertEqual(out.count('-trust/issuing-ca1.example.pem'), 2)  # no 2nd CA: no line
+        self.assertNotIn('{CACN', out)
+
+    def test_http_devices(self):
+        pw = {'host': 'dev', 'user': 'acme', 'password': 'p'}
+        got = self.record('cloudflare_ssl', {'token': 't', 'zone': 'example.com'}, {})
+        self.in_order(got, 'GET https://api.cloudflare.com/client/v4/zones/',
+                      'has the same names: replacing it', 'PATCH https://api.cloudflare.com/',
+                      'SAY replaced the custom certificate')
+        got = self.record('cpanel_ssl', {'host': 'cp', 'user': 'u', 'token': 't'}, {})
+        self.in_order(got, 'GET https://cp:2083/execute/SSL/installed_hosts',
+                      'POST https://cp:2083/execute/SSL/install_ssl',
+                      'SAY installed on www.example.com: The SSL certificate is now installed '
+                      'onto the domain “www.example.com”')
+        got = self.record('directadmin_ssl', dict(pw), {'da_domain': 'example.com'})
+        self.in_order(got, 'is the one for www.example.com - replacing it',
+                      'dry-run=true', 'SAY replaced the certificate')
+        got = self.record('digitalocean_lb', {'token': 't'}, {'load_balancers': 'lb-www'})
+        self.in_order(got, 'SAY uploaded acme-', 'PUT https://api.digitalocean.com/v2/'
+                      'load_balancers/', 'SAY lb-www:443 uses acme-',
+                      'SAY deleted the older acme-www.example.com-')
+        got = self.record('f5', dict(pw), {'profiles': '/Common/www_clientssl'})
+        self.in_order(got, 'GET https://dev/mgmt/tm/sys/crypto/cert/~Common~acme-www',
+                      'SAY installed /Common/acme-',
+                      'SAY /Common/www_clientssl: its cert-key-chain entry default holds '
+                      '/Common/acme-www.example.com-', 'SAY profile /Common/www_clientssl updated',
+                      'SAY deleted the old acme-www.example.com-', 'POST https://dev/mgmt/tm/'
+                      'sys/config')
+        got = self.record('fastly', {'token': 't'}, {})
+        self.in_order(got, 'SAY uploaded the key acme-', 'SAY replaced the certificate',
+                      'SAY deleted the older key acme-www.example.com-')
+        got = self.record('fortiadc', dict(pw), {'cert_group': 'GRP'})
+        self.in_order(got, 'SAY uploaded the local certificate acme-',
+                      'SAY the group GRP holds acme-', 'SAY took the older acme-',
+                      'SAY deleted the older acme-www.example.com-')
+        for ver, said, shape in (('', 'FortiOS 7.4.5', "[{'name'"), ('6.0', 'FortiOS 6.4.15', ''),
+                                 ('7.0', 'FortiOS 7.2.10', ''), ('7.4.2', 'FortiOS 7.4.5', '')):
+            got = self.record('fortigate', {'host': 'fw', 'token': 't', 'vdom': 'root'},
+                              {'vips': 'vip-www'}, version=ver)
+            self.in_order(got, 'SAY ' + said, 'SAY imported acme-', 'SAY VIP vip-www uses acme-',
+                          'SAY deleted the old acme-www.example.co-')
+        got = self.record('fortimanager', {'host': 'fmg', 'token': 't'}, {})
+        self.in_order(got, 'SAY added the local certificate acme-',
+                      'SAY the CA acme-ca-', 'SAY the GUI and the API use acme-',
+                      'SAY deleted the older acme-www.example.co-')
+        got = self.record('fortiweb', dict(pw), {'policy': 'www-policy'})
+        self.in_order(got, 'SAY imported the local certificate acme-',
+                      'SAY the intermediate CA group acme-chain-',
+                      'SAY the server policy www-policy uses acme-',
+                      'SAY deleted the older acme-www.example.com-')
+        got = self.record('hetzner_lb', {'token': 't'}, {'load_balancers': 'lb-www'})
+        self.in_order(got, 'SAY uploaded acme-', 'update_service', 'actions/13',
+                      'SAY lb-www:443 uses acme-', 'DELETE https://api.hetzner.cloud/v1/'
+                      'certificates/101')
+        got = self.record('esxi', dict(pw, host_id='host-12', esx_name='esx01'), {},
+                          version='8.0.3')
+        self.in_order(got, 'SAY vCenter 8.0.3; the host esx01: VMware ESXi 8.0.3',
+                      'SAY the host installed the certificate')
+        got = self.record('hpe_nimble', dict(pw), {})
+        self.assertIn('SAY the HTTPS GUI and the REST API use custom - they reload', got)
+        first = self.record('hpe_oneview', dict(pw), {})
+        later = self.record('hpe_oneview', dict(pw), {}, later=True)
+        self.assertTrue([x for x in first if x.endswith('added to the trust store')], first)
+        self.assertTrue([x for x in later if x.endswith('is in the trust store already')], later)
+
+    def test_placeholders_and_masking(self):
+        from acmelib.certs import plansandbox as P
+        from acmelib.certs import pki
+
+        class B(object):
+            cert_pem = pki.self_signed(pki.make_key('ec-256'), ['a.example.test'], days=3)
+            names = ['a.example.test', 'b.example.test']
+            name = 'a.example.test'
+            not_before = 1760000000
+            serial = '0a1b2c3d4e5f'
+        a = P.Answers([{'url': r'/x$', 'body': {'hosts': '{CERTNAMES}', 'cn': '{CERTNAME}',
+                                                'echo': '{SENT:domain}'}}])
+        a.bundle, a.options = B(), {}
+        got = json.loads(a('POST', 'https://d/x', 'domain=www.example.com&cert=x')[2])
+        self.assertEqual(got, {'hosts': ['a.example.test', 'b.example.test'],
+                               'cn': 'a.example.test', 'echo': 'www.example.com'})
+        names = [a.earlier('{EARLIER%s}' % n) for n in ('', '2', '3')]
+        self.assertEqual(len(set(names)), 3)
+        self.assertEqual(sorted(names, reverse=True), names)    # each older
+        self.assertEqual(P.mask_body(b'grant_type=x&assertion=eyJh.eyJp.c2ln', {})[0],
+                         {'grant_type': 'x', 'assertion': '••••'})
+        self.assertEqual(P.mask_json({'authLoginDomain': 'LOCAL', 'SessionType': 'API',
+                                      'password': 'x'}, {}),
+                         {'authLoginDomain': 'LOCAL', 'SessionType': 'API',
+                          'password': '••••'})
+
+
+class RenewalPathsG4(RenewalPathsG2):
+    """The renewal path of the targets redfish@ilo .. zimbra (1.0.98): the certificate acme put
+    there before found and replaced, the older ones cleaned up, every check shown and every
+    decision said - each call answered as the device does (no stand-in answer); FIRST /
+    LATER where the first deployment differs."""
+    SSH = {'host': 'dev', 'user': 'acme', 'auth': 'password', 'password': 'p'}
+    PW = {'host': 'dev', 'user': 'acme', 'password': 'p'}
+
+    def test_lists_replaced_and_cleaned(self):
+        got = self.record('sophos', dict(self.PW), {'rules': 'WAF www', 'keep': 1}, later=True)
+        self.in_order(got, 'POST https://dev:4444/webconsole/APIController',
+                      'SAY uploaded acme-www.example.com-', 'SAY rule WAF www updated (it used '
+                      'acme-www.example.com-', 'SAY removed the old acme-www.example.com-')
+        first = self.record('sophos', dict(self.PW), {'rules': 'WAF www', 'keep': 1})
+        self.assertFalse([x for x in first if 'removed the old' in x])
+        got = self.record('unifi_os', dict(self.PW), {}, later=True)
+        self.in_order(got, 'POST https://dev/api/auth/login', 'GET https://dev/api/userCertificates',
+                      'SAY added acme-', 'PUT https://dev/api/userCertificates/',
+                      'SAY deleted the old acme-')
+        got = self.record('truenas', dict(self.SSH), {}, later=True)
+        self.in_order(got, 'SSH sh -c \'midclt call certificate.query\'',
+                      'system.general.config', 'certificate.create', 'SAY imported acme-www_example_com-',
+                      'system.general.update', 'ui_restart', 'certificate.delete 4',
+                      'SAY deleted the old acme-www_example_com-')
+        first = self.record('truenas', dict(self.SSH), {})
+        self.assertFalse([x for x in first if 'certificate.delete' in x])
+        self.in_order(first, 'SAY imported acme-', 'system.general.update')
+        got = self.record('vcd', dict(self.PW), {'cells': 'vcd-cell1'}, later=True)
+        self.in_order(got, 'POST https://dev/cloudapi/1.0.0/sessions/provider',
+                      'GET https://dev/cloudapi/1.0.0/ssl/certificateLibrary?filter=',
+                      'SAY imported acme-', 'SAY vcd-cell1 uses acme-www.example.com-',
+                      'PUT https://dev/cloudapi/1.0.0/cells/', 'GET https://dev/api/task/',
+                      'GET https://dev/api/task/', '/consumers?',
+                      'DELETE https://dev/cloudapi/1.0.0/ssl/certificateLibrary/',
+                      'SAY deleted the older acme-')
+
+    def test_http_devices(self):
+        got = self.record('synology', dict(self.PW), {}, later=True)
+        self.in_order(got, 'POST https://dev:5001/webapi/entry.cgi',
+                      'POST https://dev:5001/webapi/entry.cgi?api=SYNO.Core.Certificate&',
+                      'SAY replaced "acme www.example.com" (default)')
+        got = self.record('virtualmin', dict(self.PW), {'domain': 'example.com'})
+        self.in_order(got, 'SAY example.com has another certificate - installing this one',
+                      'SAY example.com: certificate installed')
+        got = self.record('vault', {'host': 'https://dev:8200', 'token': 't'}, {}, later=True)
+        self.in_order(got, 'GET https://dev:8200/v1/secret/data/acme/www.example.com',
+                      'SAY acme/www.example.com holds another certificate (version 3)',
+                      'SAY wrote acme/www.example.com (version 4)')
+        got = self.record('vcenter', dict(self.PW), {}, version='8.0.2')
+        self.in_order(got, '/ServiceInstance/content', 'SAY vCenter 8.0.3 - 8.0 U2',
+                      'GET https://dev/api/vcenter/certificate-management/vcenter/tls',
+                      'SAY vCenter serves CN=www.example.com', 'trusted-root-chains',
+                      'PUT https://dev/api/vcenter/certificate-management/vcenter/tls',
+                      'DELETE https://dev/api/session')
+        got = self.record('vsphere_supervisor', dict(self.PW, supervisor='domain-c8'), {})
+        self.in_order(got, 'SAY vCenter 9.1.0: the supervisors/<id>/certificates calls; the '
+                      'Supervisor domain-c8 holds another certificate',
+                      'PATCH https://dev/api/vcenter/namespace-management/supervisors/')
+        got = self.record('vmware_dr', dict(self.PW), {})
+        self.in_order(got, 'SAY the appliance holds CN=www.example.com',
+                      'POST https://dev:5480/configure/requests/appliance/certificates/server')
+        got = self.record('redfish', dict(self.PW), {}, version='ilo')
+        self.in_order(got, 'GET https://dev/redfish/v1/', 'SAY iLO 6 firmware 1.62, security '
+                      'state Production; it holds', 'SAY key type of the iLO certificate: RSA',
+                      'HpeHttpsCert.ImportCertificate', 'DELETE https://dev/redfish/v1/Session')
+        got = self.record('vcf_component', dict(self.PW, domain='mgmt'), {})
+        self.in_order(got, 'SAY the workload domain mgmt is', 'validations',
+                      'validations/', 'validations/', 'SAY SDDC Manager validated',
+                      '/v1/tasks/', '/v1/tasks/', 'SAY SDDC Manager installed')
+
+    def test_ssh_and_powershell(self):
+        got = self.record('zimbra', dict(self.SSH), {}, later=True)
+        self.in_order(got, 'SSH sh -c \'sha256sum ', 'SAY /opt/zimbra/ssl/zimbra/commercial/'
+                      'commercial.key: SHA-256 there', 'SAY the files replaced kept as',
+                      'zmcertmgr verifycrt', 'zmcertmgr deploycrt', 'zmcontrol restart')
+        got = self.record('traefik', dict(self.SSH), {}, later=True)
+        self.in_order(got, 'not there yet - written', 'SHA-256 there',
+                      'SSH sh -c \'ls -1 /etc/traefik/certs', 'SAY deleted the old acme-')
+        first = self.record('traefik', dict(self.SSH), {})
+        self.assertFalse([x for x in first if 'SHA-256 there' in x])
+        got = self.record('unity', dict(self.SSH), {})
+        self.in_order(got, 'SAY what dev serves cannot be read', 'SSH svc_custom_cert acmecert',
+                      'SSH rm -f ', 'SAY installed')
+        got = self.record('windows_ssh', dict(self.SSH),
+                          {'iis': 'Default Web Site | www.example.com | 443', 'rdp': True})
+        self.in_order(got, 'SAY bound to IIS Default Web Site www.example.com:443',
+                      'SAY Remote Desktop listener uses it', 'SAY removed the old 5A0E')
+        got = self.record('windows_scom', dict(self.SSH), {})
+        self.in_order(got, 'SAY imported', 'SAY Operations Manager uses it (www.example.com)',
+                      'SAY restarted HealthService', 'SAY removed the old 5A0E')
+        got = self.record('veeam_vbr', dict(self.SSH), {'allow_leaf': True,
+                                                         'restart_services': 'VeeamBackupSvc'},
+                          version='12.3')
+        self.in_order(got, 'SAY Veeam Backup & Replication 12.3.1.1139; its backup server '
+                      'certificate now: 5A0E', 'SAY imported the certificate into LocalMachine',
+                      'SAY the backup server certificate is set', 'SAY the REST API (0.0.0.0:9419)',
+                      'SAY removed the old 5A0E', 'SAY restarted VeeamBackupSvc')
+
+
+class SandboxPlaceholdersG4(unittest.TestCase):
+    """What the answers of the targets redfish@ilo .. zimbra need of the sandbox (1.0.98)."""
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+
+    def test_names_label_and_seen(self):
+        from acmelib.certs import plansandbox as P
+        from acmelib.plugins.targets import _common as C
+
+        class B(object):
+            name, names, not_before, serial = 'www', ['www.example.com'], 1786000000.0, 'ab12cd34ef'
+        a = P.Answers([{'method': 'POST', 'url': r'/x$', 'body':
+                        '<a>{CURRENT:50:6}</a><b>{EARLIER:50:6}</b><c>{EARLIER2:63:8:_}</c>'
+                        '<d>acme {LABEL}</d><e>{SEEN:criteria="=">([^<]*)<}</e>'}])
+        a.bundle, a.options = B(), {}
+        st, hd, raw = a('POST', 'https://h/x', '<key name="Name" criteria="=">WAF www</key>')
+        got = raw.decode()
+        cur = C.object_name(B(), {}, 50, 6)
+        self.assertIn('<a>%s</a>' % cur, got)
+        prefix = C.name_prefix(B(), {}, 50, 6)
+        old = got.split('<b>')[1].split('</b>')[0]
+        self.assertTrue(C.ours(old, prefix) and old != cur, old)
+        self.assertNotIn('.', got.split('<c>')[1].split('</c>')[0])
+        self.assertIn('<d>acme www</d><e>WAF www</e>', got)
+        # SSH: one line a thing asked (seen_lines - this command only), a PowerShell script
+        # matched decoded
+        import base64
+        a = P.Answers([], [{'command': r'sha256sum ', 'seen_lines': True, 'stdout': ''.join(
+            'h%d  {SEEN:sha256sum (?:[^\\s\']+ ){%d}(/[^\\s\';]*)}\n' % (i, i) for i in range(5))},
+            {'command': r'powershell', 'script': r'IMPORTED', 'stdout': 'IMPORTED x\n'}])
+        self.assertEqual(a.ssh("sh -c 'sha256sum /a /b 2>/dev/null; true'")[1], 'h0  /a\nh1  /b\n')
+        enc = base64.b64encode("Write-Output 'IMPORTED'".encode('utf-16-le')).decode()
+        self.assertEqual(a.ssh('powershell.exe -EncodedCommand ' + enc)[1], 'IMPORTED x\n')
+        self.assertIsNone(a.ssh('powershell.exe -EncodedCommand ' + base64.b64encode(
+            'Get-Date'.encode('utf-16-le')).decode()))
+
+    def test_xml_secrets_masked(self):
+        from acmelib.certs import plansandbox as P
+        t = P.mask_text('<Login><Username>a</Username><Password>pw1</Password></Login>'
+                        '<key name="Name">WAF</key><Certificate><Password>p12pw</Password>'
+                        '</Certificate>', {})
+        self.assertNotIn('pw1', t)
+        self.assertNotIn('p12pw', t)
+        self.assertIn('<key name="Name">WAF</key>', t)
+        self.assertIn('<Username>a</Username>', t)
 
 
 if __name__ == '__main__':

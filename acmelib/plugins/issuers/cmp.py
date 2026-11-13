@@ -216,6 +216,23 @@ class CmpIssuer(Issuer):
 
     def run(self, args, timeout):
         """openssl cmp with `args`, its messages through the relay."""
+        runner = getattr(self.ctx, 'run_local', None)
+        if callable(runner):
+            # a context that runs local programs itself (What happens: recorded, not run) -
+            # the relay is not opened; what openssl would send through it is said
+            full = ['openssl', 'cmp', '-server', '127.0.0.1:RELAY/cmp', '-no_proxy',
+                    '127.0.0.1', '-msg_timeout', str(max(10, int(timeout))), '-total_timeout',
+                    str(max(20, int(timeout) + 10))] + list(args)
+            cmd = args[args.index('-cmd') + 1] if '-cmd' in args else '?'
+            sc.say(self.ctx, 'openssl cmp sends its messages (%s, then certConf unless implicit '
+                   'confirmation; pollReq while the CA waits) to acme\'s relay on 127.0.0.1, '
+                   'which posts each to %s with acme\'s connection (Content-Type: '
+                   'application/pkixcmp) and hands back the answer' % (cmd, self._url()))
+            rc, out, err = runner(full, timeout=int(timeout) + 30)
+            if rc != 0:
+                raise PluginError('openssl cmp: %s' % ((out or b'') + (err or b'')).decode(
+                    'utf-8', 'replace').strip()[-300:])
+            return out or b''
         # CMP protects the messages itself: the TLS under it needs no client certificate.
         relay = _Relay(self.ctx, self._url(), sc.as_bool(self.c('verify'), True),
                        self.c('ca_pem') or None, None)

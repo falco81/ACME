@@ -62,13 +62,21 @@ class Script(DnsChallenge):
         env.update({'ACME_ACTION': action, 'ACME_NAME': name, 'ACME_RECORD': fqdn,
                     'ACME_CHALLENGE_NAME': rr, 'ACME_TXT': value, 'ACME_TOKEN': token or '',
                     'ACME_ZONE': zone, 'ACME_TTL': str(self.ttl())})
-        try:
-            got = subprocess.run(args, env=env, capture_output=True, timeout=self.num('timeout', 120),
-                                 stdin=subprocess.DEVNULL)
-        except subprocess.TimeoutExpired:
-            raise PluginError('%s did not finish within %d s' % (path, self.num('timeout', 120)))
-        except OSError as e:
-            raise PluginError('%s could not be run: %s' % (path, e), retry=False)
+        runner = getattr(self.ctx, 'run_local', None)
+        if callable(runner):
+            # a context that runs local programs itself (What happens records it: the program,
+            # its words and its ACME_* variables) - as targets/local.py does
+            rc, so, se = runner(args, timeout=self.num('timeout', 120), env=env, cwd=None)
+            got = subprocess.CompletedProcess(args, rc, so or b'', se or b'')
+        else:
+            try:
+                got = subprocess.run(args, env=env, capture_output=True,
+                                     timeout=self.num('timeout', 120), stdin=subprocess.DEVNULL)
+            except subprocess.TimeoutExpired:
+                raise PluginError('%s did not finish within %d s' % (path,
+                                                                    self.num('timeout', 120)))
+            except OSError as e:
+                raise PluginError('%s could not be run: %s' % (path, e), retry=False)
         out = (got.stdout + got.stderr).decode('utf-8', 'replace').strip()
         if out:
             self.ctx.debug('%s %s: %s' % (os.path.basename(path), action, out[-2000:]))

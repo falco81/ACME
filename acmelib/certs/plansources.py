@@ -158,6 +158,33 @@ SOURCES = {
          'body': {'Stage': 500, 'Status': 'Post CSR'}},
         {'method': 'POST', 'url': r'/vedsdk/certificates/retrieve$', 'body': {
             'CertificateData': '{P7_B64}', 'Filename': '{NAME}.p7b', 'Format': 'Base64'}}],
+    # Web Enrollment behind IIS Windows authentication: the first request refused (401,
+    # NTLM offered), the NEGOTIATE answered with a CHALLENGE (a real one's shape: domain
+    # EXAMPLE, a time), the AUTHENTICATE let in - on the one connection the module keeps
+    'ms_adcs': [
+        {'method': 'POST', 'url': r'/certfnsh\.asp$', 'times': 1, 'status': 401, 'headers': {
+            'WWW-Authenticate': 'Negotiate, NTLM', 'Content-Type': 'text/html'},
+         'body': '<html><body>401 - Unauthorized</body></html>'},
+        {'method': 'POST', 'url': r'/certfnsh\.asp$', 'times': 1, 'status': 401, 'headers': {
+            'WWW-Authenticate': 'NTLM TlRMTVNTUAACAAAADgAOADgAAAAVgoniASNFZ4mrze8AAAAAAAAAAJIAkgBGAAAACgBjRQAAAA9FAFgAQQBNAFAATABFAAIADgBFAFgAQQBNAFAATABFAAEACABDAEEAMAAxAAQAGgBlAHgAYQBtAHAAbABlAC4AbABvAGMAYQBsAAMAJABjAGEAMAAxAC4AZQB4AGEAbQBwAGwAZQAuAGwAbwBjAGEAbAAFABoAZQB4AGEAbQBwAGwAZQAuAGwAbwBjAGEAbAAHAAgAAADnP0oQ3AEAAAAA', 'Content-Type': 'text/html'}, 'body': ''},
+        {'method': 'POST', 'url': r'/certfnsh\.asp$', 'headers': {'Content-Type': 'text/html'},
+         'body': '<html><body><P ID=locInfo>The certificate you requested was issued to you.'
+                 '</P><A Href="certnew.cer?ReqID=4711&amp;Enc=b64">Base 64 encoded</A>'
+                 '</body></html>'},
+        {'method': 'GET', 'url': r'/certnew\.cer\?ReqID=\d+&Enc=b64$', 'headers': {
+            'Content-Type': 'application/pkix-cert'}, 'body': '{CERT}'},
+        {'method': 'GET', 'url': r'/certnew\.p7b\?ReqID=\d+&Enc=b64$', 'headers': {
+            'Content-Type': 'application/x-pkcs7-certificates'},
+         'body': '-----BEGIN PKCS7-----\n{P7_B64}\n-----END PKCS7-----\n'}],
+    # a SCEP server (RFC 8894): its capabilities, its CA certificate (DER), and a CertRep made
+    # for the request sent - enveloped to the requester, signed by the CA (plansandbox.scep_reply)
+    'scep': [
+        {'method': 'GET', 'url': r'operation=GetCACaps', 'headers': {'Content-Type': 'text/plain'},
+         'body': 'POSTPKIOperation\nSHA-256\nSHA-512\nAES\nSCEPStandard\nRenewal\n'},
+        {'method': 'GET', 'url': r'operation=GetCACert', 'b64': True, 'headers': {
+            'Content-Type': 'application/x-x509-ca-cert'}, 'body': '{CHAIN_B64}'},
+        {'method': 'POST', 'url': r'operation=PKIOperation', 'scep': True, 'headers': {
+            'Content-Type': 'application/x-pki-message'}, 'body': ''}],
     'cloudflare_origin_ca': [
         {'method': 'POST', 'url': r'/client/v4/certificates$', 'body': {
             'success': True, 'errors': [], 'messages': [], 'result': {
@@ -961,6 +988,27 @@ CHALLENGES = {
     'acme_dns': [
         {'method': 'POST', 'url': r'/update$', 'body': {'txt': '{TXT}'}}],
 }
+
+
+# What the commands of a validation over SSH print (plansandbox.Answers.ssh rules): nsupdate,
+# the DnsServer cmdlets, mkdir / rm print nothing when they do it - the shell says exit 0.
+SSH_CHALLENGES = {
+    'ssh_dns': [{'command': r'nsupdate( |$)', 'stdout': ''},
+                {'command': r'(?i)powershell', 'stdout': ''}],
+    'windows_dns': [{'command': r'(?i)powershell', 'stdout': ''}],
+    'http_ssh': [{'command': r'^(sudo -n )?(mkdir -p|rm -f) ', 'stdout': ''}],
+}
+
+
+def ssh_answers(family, kind, version=''):
+    table = SSH_CHALLENGES if family == 'challenge' else {}
+    return [dict(r) for r in (table.get('%s@%s' % (kind, version), []) if version else []) +
+            table.get(kind, [])]
+
+
+# Settings a source checks the CA it reaches against (a pinned fingerprint): in the recording
+# they are those of the stand-in CA that answers, in the shape the user wrote them
+PINNED = {'scep': ['ca_fingerprint']}
 
 
 # a record taken away: done, nothing to say (204) - after the module's own rules

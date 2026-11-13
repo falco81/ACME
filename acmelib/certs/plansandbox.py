@@ -44,6 +44,7 @@ import traceback
 SANDBOX = ['']                  # the process's own folder
 RECORDING = [None]              # the list a module's run writes into, or None
 ANSWERS = [None]                # the run's Answers - what a call around ctx is answered too
+SENT_NEW = [False]              # the run's certificate has been sent to the device (served_der)
 SESSION = 'PLANSESSION0token'   # what a sign-in is answered with
 TOKEN = 'PLAN-TOKEN-from-the-CA-0000000000'   # an ACME token (8+ of [A-Za-z0-9_-])
 TXT = 'PLANTXTvalueComputedFromTheToken0000000000a'  # 43 characters, base64url
@@ -51,7 +52,7 @@ KEYAUTH = TOKEN + '.PLANthumbprintOfTheAccountKey00000000000000'
 SAFE_OPENSSL = {'genpkey', 'req', 'x509', 'pkcs12', 'pkey', 'pkcs8', 'rsa', 'ec', 'ecparam',
                 'genrsa', 'pkcs7', 'crl2pkcs7', 'dgst', 'asn1parse', 'base64', 'enc',
                 'pkeyutl', 'version', 'list', 'rand', 'crl', 'verify', 'storeutl', 'kdf',
-                'mac', 'sha256', 'sha1', 'md5'}
+                'mac', 'sha256', 'sha1', 'md5', 'cms'}       # cms: files only (SCEP)
 _real = {}
 
 
@@ -79,6 +80,56 @@ def _inside(path):
 # ---------------------------------------------------------------------------
 # The lockdown
 # ---------------------------------------------------------------------------
+def note_sent(data):
+    """Whether `data` (sent to the device: a body, an upload, an SSH input, a file) carries the
+    certificate deployed - its DER, its base64 (PEM), or a binary bundle (PKCS#12, a keystore,
+    DER) of some size: from then on the stand-in device serves the new certificate
+    (served_der, 1.0.98)."""
+    if SENT_NEW[0] or data is None:
+        return
+    ans = ANSWERS[0]
+    b = getattr(ans, 'bundle', None)
+    if b is None:
+        return
+    try:
+        if isinstance(data, (dict, list)):
+            data = json.dumps(data)
+        if isinstance(data, str):
+            data = data.encode('utf-8', 'replace')
+        data = bytes(data)
+        marks = getattr(ans, '_new_marks', None)
+        if marks is None:
+            import base64
+            from acmelib.plugins.targets import _common as C
+            marks = []
+            for v in C.variants_of(b):
+                der = C.pem_to_der(v.cert_pem)
+                # within the first line of the PEM (64 characters): the same in a PEM (its
+                # line ends written any way) and in the DER's base64 on one line
+                marks += [der[40:80], base64.b64encode(der)[12:64]]
+            ans._new_marks = marks
+        if any(m and m in data for m in marks):
+            SENT_NEW[0] = True
+            return
+        if len(data) >= 600:
+            try:
+                t = data.decode('utf-8')
+            except UnicodeDecodeError:
+                SENT_NEW[0] = True          # a PKCS#12, a keystore, DER: the certificate in it
+                return
+            import base64
+            for m in re.finditer(r'[A-Za-z0-9+/]{800,}={0,2}', t):
+                try:                        # ... or such a one in base64 (in JSON, XML)
+                    base64.b64decode(m.group(0) + '=' * (-len(m.group(0)) % 4)).decode('utf-8')
+                except UnicodeDecodeError:
+                    SENT_NEW[0] = True
+                    return
+                except ValueError:
+                    continue
+    except Exception:                                   # noqa: BLE001
+        pass
+
+
 def bypass(how, what):
     """A module went around acme's connection layer (ctx.http, ctx.ssh, ctx.run_local...):
     written down as such - What happens shows it as an error step - and refused."""
@@ -206,6 +257,7 @@ def _patch_http_client():
         # answered as ctx.http would be (the module's answers), a stand-in else
         ans = ANSWERS[0]
         if ans is not None:
+            note_sent(body)
             st, hd, raw = ans(str(method).upper(), full, body)
             hd = dict(hd or {})
             r = _FakeResponse(st, raw, hd.get('Content-Type') or 'application/json')
@@ -275,6 +327,7 @@ def _patch_ftplib():
 
     def storbinary(self, cmd, fp, blocksize=8192, callback=None, rest=None):
         data = fp.read() if hasattr(fp, 'read') else b''
+        note_sent(data)
         f = blob_facts(data or b'')
         rec({'kind': 'ftp-put', 'host': str(getattr(self, 'host', '')), 'cmd': str(cmd),
              'bytes': len(data or b''), 'format': f.get('format'), 'sha256': f.get('sha256'),
@@ -314,6 +367,7 @@ class _Recorded(io.BytesIO):
 
     def close(self):
         if not self.closed:
+            note_sent(self.getvalue())
             rec(dict({'kind': 'file', 'path': os.fsdecode(self._path)},
                      **blob_facts(self.getvalue())))
         io.BytesIO.close(self)
@@ -371,6 +425,7 @@ def _replace(src, dst, *a, **k):
             _real['os.unlink'](src)
         except OSError:
             data, mode = b'', None
+        note_sent(data)
         ev = dict({'kind': 'file', 'path': os.fsdecode(dst)}, **blob_facts(data))
         if mode:
             ev['mode'] = mode
@@ -562,9 +617,10 @@ SECRET_HEADER = re.compile(r'(authorization|cookie|key|token|secret|auth|pass|se
 # parameter, a multipart part (1.0.98: one rule for all of them; runtime.SECRET_PARAM's
 # words too: key, sig, code)
 SECRET_NAME = re.compile(r'(pass|secret|token|apikey|api_key|api-key|private|passphrase|'
-                         r'credential|signature|hmac|session|cookie|auth|pin$|^pin|'
+                         r'credential|signature|hmac|session|cookie|auth(?!or)|'
+                         r'(^|[_.-])pin$|^pin([_.-]|$)|'
                          r'(^|[_.-])key$|^key(pem|data|file|_pem|_data)?$|privkey|'
-                         r'^sid$|_sid$|^sig$|^code$|assertion$)', re.I)
+                         r'^sid$|_sid$|^sig$|assertion$)', re.I)
 NOT_SECRET_NAME = re.compile(r'^(public[_-]?key|key[_-]?(type|size|usage|length|alg|algorithm|'
                              r'id|name|spec)|auth[_-]?(type|method|mode|scheme|source|login[_-]?domain|domain|provider)|'
                              r'token[_-]?(type|expires?|ttl)|session[_-]?(timeout|ttl|type))$', re.I)
@@ -573,9 +629,39 @@ HEADER_SCHEMES = re.compile(r'^(Basic|Bearer|Token|Negotiate|NTLM|Digest|SSWS|Ap
                             re.I)
 
 
+# what a name says ABOUT a secret is no secret (1.0.98): its last word an algorithm, a type, a
+# size, a usage, a format, a name, a time... (privateKeyAlgorithm, keyType, tokenExpires,
+# passwordPolicy, sessionTimeout, signatureAlgorithm), its first a yes/no (hasPassword,
+# enable_syno_token, isPrivate), a public key
+NOT_SECRET_LAST = {'algorithm', 'algorithms', 'algo', 'alg', 'type', 'types', 'size', 'length',
+                   'len', 'bits', 'usage', 'usages', 'format', 'fmt', 'name', 'names', 'count',
+                   'expires', 'expiry', 'expiration', 'expire', 'ttl', 'timeout', 'lifetime',
+                   'age', 'mode', 'method', 'methods', 'scheme', 'policy', 'status', 'state',
+                   'enabled', 'disabled', 'required', 'version', 'strength', 'curve', 'hash',
+                   'digest', 'label', 'path', 'file', 'filename', 'location', 'store',
+                   'provider', 'source', 'kind', 'class', 'level', 'url', 'uri', 'endpoint',
+                   'header', 'field', 'alias', 'min', 'max', 'changed', 'set', 'exists',
+                   'present', 'domain', 'realm', 'server', 'host', 'port', 'protocol',
+                   'complexity', 'history', 'reset', 'rotation', 'reuse', 'storage', 'spec',
+                   'flag', 'flags', 'option', 'options', 'id_type', 'login'}
+NOT_SECRET_FIRST = {'is', 'has', 'enable', 'enabled', 'use', 'allow', 'require', 'show', 'no',
+                    'with', 'public', 'disable', 'need', 'needs', 'can', 'should'}
+
+
+def _words(n):
+    n = re.sub(r'([a-z0-9])([A-Z])', r'\1 \2', n)
+    n = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1 \2', n)
+    return [w.lower() for w in re.split(r'[\s_.\-@:/]+', n) if w]
+
+
 def secret_name(name):
     n = str(name or '').strip()
-    return bool(n) and bool(SECRET_NAME.search(n)) and not NOT_SECRET_NAME.match(n)
+    if not n or not SECRET_NAME.search(n) or NOT_SECRET_NAME.match(n):
+        return False
+    w = _words(n)
+    if len(w) > 1 and (w[-1] in NOT_SECRET_LAST or w[0] in NOT_SECRET_FIRST):
+        return False
+    return True
 
 
 def header_shown(name, value, marks=None):
@@ -903,12 +989,12 @@ class Answers(object):
         # the certificate deployed and the deployment's options (run_one): {EARLIER}
         self.bundle, self.options = None, {}
 
-    EARLIER_RE = re.compile(r'\{(EARLIER[23]?|CURRENT|LABEL)(?::(\d+))?(?::(\d+))?(?::([^}\d]))?\}')
+    EARLIER_RE = re.compile(r'\{(EARLIER\d*|CURRENT|LABEL)(?::(\d+))?(?::(\d+))?(?::([^}\d]))?\}')
 
     def earlier(self, text):
         """{EARLIER} / {EARLIER2} (1.0.98) in an answer: the name acme gave (object_name:
         acme-<label>-<date>-<serial>) to an earlier certificate of this one - 3 (EARLIER2: 6,
-        EARLIER3: 9) months older, another serial - so a device answers with the certificate
+        EARLIER3: 9, EARLIERn: 3n) months older, another serial - so a device answers with the certificate
         a renewal replaces; {EARLIER:n}: of a module whose names are at most n long (63);
         {EARLIER:n:s}: with a serial of s characters (8); {EARLIER:n:s:c}: each character
         but A-Z a-z 0-9 _ - written as c (TrueNAS: _). {CURRENT...} (same arguments): the
@@ -953,6 +1039,21 @@ class Answers(object):
             text = '\n'.join(re.sub(r'\{CACN(\d?)(_?)\}', ca, ln) for ln in text.split('\n')
                              if all(int(x or 1) <= len(cns)
                                     for x in re.findall(r'\{CACN(\d?)_?\}', ln)))
+        if self.bundle is not None and '{CAID' in text:
+            # {CAID} / {CAID2}: _common.chain_id of the first (second) CA certificate of the
+            # chain - the "acme-ca-<id>" a module named it when it added it before, there at a
+            # renewal (1.0.98); a line naming a CA the chain has not is left out
+            from acmelib.plugins.targets import _common as C
+            ids = []
+            for pem in C.chain_list(self.bundle):
+                try:
+                    ids.append(C.chain_id(pem))
+                except Exception:                       # noqa: BLE001
+                    ids.append('')
+            text = '\n'.join(re.sub(r'\{CAID(\d?)\}', lambda m: ids[int(m.group(1) or 1) - 1],
+                                    ln) for ln in text.split('\n')
+                             if all(int(x or 1) <= len(ids)
+                                    for x in re.findall(r'\{CAID(\d?)\}', ln)))
         if '{EARLIER' not in text and '{CURRENT' not in text and '{LABEL' not in text:
             return text
 
@@ -963,7 +1064,10 @@ class Answers(object):
                     return C.label_of(self.bundle, self.options, int(m.group(2) or 40))
                 except Exception:                       # noqa: BLE001
                     return 'cert'
-            back = {'EARLIER': 91, 'EARLIER2': 182, 'EARLIER3': 273}.get(m.group(1), 0)
+            # {EARLIERn} (1.0.98): n renewals back, 3 months each - EARLIER, EARLIER2, EARLIER3...
+            # (a keep-N cleanup listing more certificates than it keeps)
+            nth = int(m.group(1)[7:] or 1) if m.group(1).startswith('EARLIER') else 0
+            back = 91 * nth
             nb = getattr(self.bundle, 'not_before', None) or time.time()
             sl = int(m.group(3) or 8)
 
@@ -971,8 +1075,7 @@ class Answers(object):
                 name = getattr(self.bundle, 'name', '')
                 names = list(getattr(self.bundle, 'names', None) or ['cert'])
                 not_before = float(nb) - back * 86400
-                serial = '5a0e1d2c3b4a59687%s' % {'EARLIER2': '6', 'EARLIER3': '5'}.get(
-                    m.group(1), '7')
+                serial = '5a0e1d2c3b4a5968%02x' % max(0, 0x78 - max(nth, 1))
             try:
                 if getattr(self, 'namer', None) is not None and not m.group(2):
                     got = self.namer(B() if back else self.bundle, self.options)
@@ -1103,6 +1206,7 @@ class Answers(object):
 
     def __call__(self, method, url, body=None):
         self._keep_sent(body)
+        sent_body = body
         # which kind of answer the last call got: None - a rule of the module's answered;
         # 'sign-in' / 'csr' / 'empty' - no rule did, a stand-in answered (marked on the event)
         self.fell = None
@@ -1165,6 +1269,10 @@ class Answers(object):
                 # a binary answer (DER, PKCS#7, CMP) written in the rule in base64
                 import base64
                 raw = base64.b64decode(raw)
+            if r.get('scep') and self.issued and isinstance(sent_body, (bytes, bytearray)):
+                # a SCEP server's CertRep to the request sent (issuers/scep.py)
+                with _unrecorded(RECORDING[0]):
+                    raw = scep_reply(self.issued, sent_body)
             return int(r.get('status', 200)), {k: self.plan_fill(str(v), False) for k, v in (
                 r.get('headers') or {}).items()}, raw
         path = url.split('?', 1)[0]
@@ -1359,6 +1467,8 @@ class FakeSsh(object):
         self.close()
 
     def run(self, command, input=None, timeout=120, check=True):
+        note_sent(input)
+        note_sent(str(command))
         ev = {'kind': 'ssh-run', 'host': self.host, 'command': str(command)}
         if input:
             f = blob_facts(input)
@@ -1394,6 +1504,7 @@ class FakeSsh(object):
         return got
 
     def put(self, data, remote_path, mode=0o600, owner=None, via='shell'):
+        note_sent(data)
         ev = dict({'kind': 'ssh-put', 'host': self.host, 'path': str(remote_path),
                    'mode': '%o' % int(mode) if mode is not None else None,
                    'owner': owner or None, 'via': via}, **blob_facts(data))
@@ -1479,6 +1590,7 @@ class PlanContext(object):
         h = dict(headers or {})
         if isinstance(body, (dict, list)):
             h.setdefault('Content-Type', 'application/json')
+        note_sent(body)
         st, hd, raw = self.answers(method, str(url), body)
         if b'{PUSH_CONFIRM}' in (raw or b''):
             raw = push_confirm(raw, h)
@@ -1494,6 +1606,17 @@ class PlanContext(object):
         rec(ev)
         return st, hd, raw
 
+    def http_kept(self, method, url, body=None, headers=None, timeout=30, verify=True,
+                  ca_pem=None, client_cert=None):
+        """A request on a connection the module keeps open (issuers/ms_adcs.py: NTLM signs in
+        a connection, not a request) - recorded as ctx.http is; never through a proxy."""
+        got = self.http(method, url, body, headers, timeout, verify, ca_pem, client_cert,
+                        proxy=False)
+        ev = (RECORDING[0] or [None])[-1]
+        if isinstance(ev, dict) and ev.get('kind') == 'http':
+            ev['kept'] = True
+        return got
+
     def ssh(self, conn):
         return FakeSsh(self, conn)
 
@@ -1508,6 +1631,16 @@ class PlanContext(object):
     def run_local(self, argv, timeout=120, env=None, cwd=None):
         rec({'kind': 'command', 'argv': [str(x) for x in argv][:60],
              'env': sorted(k for k in (env or {}) if k.startswith('ACME_')), 'cwd': cwd})
+        argv = [str(x) for x in argv]
+        issued = getattr(self.answers, 'issued', None)
+        if issued and argv[:2] and os.path.basename(argv[0]) == 'openssl' and 'cmp' in argv[1:2]:
+            # openssl cmp (issuers/cmp.py) answered as the CMP server issues: the certificate
+            # for the request's key written where -certout says, its chain where -chainout
+            with _unrecorded(RECORDING[0]):
+                for opt, key in (('-certout', 'CERT'), ('-chainout', 'CHAIN')):
+                    if opt in argv[:-1] and _inside(argv[argv.index(opt) + 1]):
+                        with _real['open'](argv[argv.index(opt) + 1], 'w') as fh:
+                            fh.write(issued.get(key) or '')
         return 0, b'', b''
 
     def kv_get(self, key, default=None):
@@ -1681,6 +1814,7 @@ def run_one(job, r, bundle_holder):
         cls = module(r['family'], r['kind'], (r.get('config') or {}).get('_version'))
         answers = Answers(r.get('answers'), r.get('ssh_answers'))
         ANSWERS[0] = answers
+        SENT_NEW[0] = False
         ctx = PlanContext(dict(job, deploy_id=r.get('deploy_id'), target_name=r.get('name'),
                                push_pin=r.get('push_pin'), kv=r.get('kv')),
                           '%s:%s' % (r['family'], r.get('name')), answers)
@@ -1758,6 +1892,17 @@ def run_one(job, r, bundle_holder):
                 # what the CA answers holds a certificate for this key (1.0.98); a renewal
                 # hands the certificate it renews (base.CertRequest.previous)
                 answers.issued = issued_for(csr_pem, names)
+                # a fingerprint the module checks the CA it is answered by against (SCEP's
+                # ca_fingerprint): the stand-in CA's, in the length and shape set
+                import hashlib
+                for k in r.get('pinned') or ():
+                    v = str(inst.config.get(k) or '')
+                    hexed = re.sub(r'[^0-9a-fA-F]', '', v)
+                    if hexed:
+                        algo = {32: 'md5', 40: 'sha1'}.get(len(hexed), 'sha256')
+                        fp = hashlib.new(algo, pki.pem_to_der(answers.issued['CHAIN'])).hexdigest()
+                        inst.config[k] = ':'.join(fp[i:i + 2] for i in range(0, len(fp), 2)) \
+                            if ':' in v else fp
                 answers.vname = names[0]
                 previous = pki.self_signed(pki.make_key(cert.get('key_type') or 'ec-256'),
                                            names, days=90) if r.get('previous') else None
@@ -1766,7 +1911,7 @@ def run_one(job, r, bundle_holder):
             chal = {}
             for n, c in (r.get('challenges') or {}).items():
                 ccls = module('challenge', c['kind'], (c.get('config') or {}).get('_version'))
-                ca = Answers(c.get('answers'))
+                ca = Answers(c.get('answers'), c.get('ssh_answers'))
                 ca.vname = n
                 chal[n] = ccls(dict(c.get('config') or {}), PlanContext(
                     job, 'challenge:%s' % c.get('name'), ca))
@@ -1901,7 +2046,9 @@ def issued_for(csr_pem, names):
     Answers.plan_fill take it (PEM, DER in base64, PKCS#7 in base64, the serial)."""
     import base64
     from acmelib.certs import pki
-    ca_key = pki.make_key('ec-256')
+    # an RSA request gets an RSA intermediate (SCEP encrypts to it and checks its signature)
+    rsa = 'rsa' in str(pki.csr_info(csr_pem).get('key_type') or '')
+    ca_key = pki.make_key('rsa-2048' if rsa else 'ec-256')
     ca = pki.self_signed(ca_key, [], subject={'CN': 'Plan Intermediate CA'}, days=365,
                          is_ca=True)
     san, _typed = pki.san_lines(names)
@@ -1925,7 +2072,28 @@ def issued_for(csr_pem, names):
         return base64.b64encode(pki.pem_to_der(pem)).decode()
     return {'CERT': leaf, 'CHAIN': ca, 'CERT_B64': b64(leaf), 'CHAIN_B64': b64(ca),
             'P7_B64': base64.b64encode(p7).decode(), 'CA_P7_B64': base64.b64encode(ca7).decode(),
-            'CERT_SERIAL': str(pki.cert_info(leaf).get('serial') or '')}
+            'CERT_SERIAL': str(pki.cert_info(leaf).get('serial') or ''), '_ca_key': ca_key}
+
+
+def scep_reply(issued, sent):
+    """A SCEP CertRep (SUCCESS) to the PKIOperation `sent` (DER): the certificate issued and
+    its intermediate, in a certs-only PKCS#7 enveloped to the requester's signing
+    certificate, signed by the intermediate with the request's transactionID and nonce."""
+    from acmelib.certs import pki
+    from acmelib.plugins.issuers import _scep_pkcs7 as p7
+    req = p7.SignedMessage(bytes(sent))
+    tid = req.attr_text(p7.OID_SCEP_TRANSACTION_ID) or ''
+    nonce = req.attr_bytes(p7.OID_SCEP_SENDER_NONCE) or os.urandom(16)
+    ca_der = pki.pem_to_der(issued['CHAIN'])
+    with p7.Crypto(lambda args, data=None: pki.openssl(args, data)) as cr:
+        inner = p7.build_degenerate([pki.pem_to_der(issued['CERT']), ca_der])
+        env = p7.build_enveloped(cr, inner, req.signer_cert(), 'aes256')
+        return p7.build_signed(cr, env, ca_der, cr.file(issued['_ca_key'], 'ca.key'), [
+            (p7.OID_SCEP_MESSAGE_TYPE, p7.der_printable(p7.MESSAGE_TYPES['CertRep'])),
+            (p7.OID_SCEP_TRANSACTION_ID, p7.der_printable(tid)),
+            (p7.OID_SCEP_PKI_STATUS, p7.der_printable('0')),
+            (p7.OID_SCEP_RECIPIENT_NONCE, p7.der_octets(nonce)),
+            (p7.OID_SCEP_SENDER_NONCE, p7.der_octets(os.urandom(16)))], 'sha256')
 
 
 CURRENT = [None]                # the run going on (run_one): its family, its settings
@@ -2052,9 +2220,27 @@ def _patch_modules(job):
     D.system_resolvers = lambda: list(res.get('system') or ['127.0.0.1'])
 
     def served_der(host, port, sni=None, timeout=10, only=None):
-        rec({'kind': 'check', 'host': str(host), 'port': int(port), 'sni': sni or '',
-             'only': only or ''})
-        raise OSError('the run plan makes no handshake')
+        """What the device serves (1.0.98): before the new certificate was sent to it, an
+        earlier one of the same names (its own key - the one {EARLIER_PEM} is), so a module
+        that looks first takes the renewal's way ("serves another - replacing it"); once
+        sent, the new one (of the key family asked for), so a check after it passes. Outside
+        a deployment (no certificate): no handshake."""
+        ev = {'kind': 'check', 'host': str(host), 'port': int(port), 'sni': sni or '',
+              'only': only or ''}
+        rec(ev)
+        ans = ANSWERS[0]
+        b = getattr(ans, 'bundle', None)
+        if b is None:
+            raise OSError('the run plan makes no handshake')
+        if SENT_NEW[0]:
+            v = TC.variant_of(b, only) if only else b
+            ev['served'] = 'new'
+            return TC.pem_to_der((v or b).cert_pem)
+        pem = ans.earlier_pem()
+        if not pem:
+            raise OSError('the run plan makes no handshake')
+        ev['served'] = 'earlier'
+        return TC.pem_to_der(pem)
     TC.served_der = served_der
     try:
         from acmelib.certs import dnssets
