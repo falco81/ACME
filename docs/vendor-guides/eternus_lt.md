@@ -7,6 +7,16 @@ import of a key made elsewhere, no CLI, REST or SNMP for it (SSH is for service 
 **no target** for it. (LT260 User's Guide -Panel Operation- P3AM-8802-14ENZ0, LT140
 P3AG-3732-08ENZ0.)
 
+## What was checked (2026-11)
+
+acme makes a target for a device that makes its own key when *any* interface of it can make
+the CSR and take the signed certificate. The libraries have none: both user's guides say
+"The functions related to certificates can only be used in the remote panel"; the libraries
+have no REST API or CLI for customers ("SSH is used for maintenance work. It cannot be used
+by the customer."), their SNMP MIB has no certificate objects, and there is no Ansible,
+PowerShell, ACME or SCEP support. The Remote Panel's wizard is a session of the browser
+(30 minutes at most) - not an interface acme may drive.
+
 ## Doing it by hand
 
 1. Sign in to the Remote Panel as *administrator* (or *security* for switching SSL); turn off
@@ -19,6 +29,15 @@ P3AG-3732-08ENZ0.)
    on.
 5. **[Backup Custom Certificate]** - after a controller board change **[Restore Custom
    Certificate]** puts it back.
+
+## Renewing it with acme's help
+
+The CSR of the wizard holds only for its 30 minutes, so every renewal is a new key: run the
+wizard again (step 3), and in acme **Send a new CSR** on the certificate - with an own
+authority of acme's it is issued at once, well inside the 30 minutes - then paste it.
+acme does the rest: an **alert** before the certificate expires (Settings → Alerts and reports) and a TLS
+test of the library on port 443, which says whether the new certificate is served after the
+*[Finish]*.
 
 ## Check it
 

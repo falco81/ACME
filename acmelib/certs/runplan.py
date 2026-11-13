@@ -322,6 +322,54 @@ ANSWERS['lenovo_xcc'] = [
         {'@odata.id': '/redfish/v1/Managers/1/NetworkProtocol/HTTPS/Certificates/1'}]}},
     {'method': 'POST', 'url': r'GenerateCSR$', 'body': {'CSRString': '{CSR}'}},
 ]
+# HPE Synergy Composer / OneView, key made by the device: the API version, the session
+# (sessionID), the CSR of the appliance (base64Data) and of an enclosure's bay
+ANSWERS['hpe_synergy'] = [
+    {'method': 'GET', 'url': r'/rest/version$', 'body': {'currentVersion': 9200}},
+    {'method': 'POST', 'url': r'/rest/login-sessions$', 'body': {'sessionID': '{SESSION}'}},
+    {'method': 'POST', 'url': r'/https/certificaterequest(\?bayNumber=\d+)?$', 'body': {
+        'type': 'CertificateSigningRequestV2', 'base64Data': '{CSR}'}},
+    {'method': 'GET', 'url': r'/rest/enclosures\?filter=', 'body': {'members': [
+        {'name': '{OPT:enclosure}', 'uri': '/rest/enclosures/‹enclosure›'}]}},
+]
+# HPE iLO with its own key: the manager is an iLO 6 in Production; its HttpsCert has no CSR
+# before GenerateCSR and the new one ({CSR}) after it
+ANSWERS['hpe_ilo_devkey'] = [
+    _REDFISH_SESSION,
+    {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {'Members': [
+        {'@odata.id': '/redfish/v1/Managers/1/'}]}},
+    {'method': 'GET', 'url': r'/redfish/v1/Managers/1/?$', 'body': {
+        'Model': 'iLO 6', 'FirmwareVersion': 'iLO 6 v1.62', 'Manufacturer': 'HPE'}},
+    {'method': 'GET', 'url': r'/SecurityService/?$', 'body': {
+        'SecurityState': 'Production', 'Links': {'HttpsCert': {
+            '@odata.id': '/redfish/v1/Managers/1/SecurityService/HttpsCert/'}}}},
+    {'method': 'GET', 'url': r'/HttpsCert/?$', 'times': 1, 'body': {
+        'CertificateSigningRequest': ''}},
+    {'method': 'GET', 'url': r'/HttpsCert/?$', 'body': {'CertificateSigningRequest': '{CSR}'}},
+]
+# Dell OpenManage Enterprise, key made by the device: the session (X-Auth-Token, Id), the
+# version (4.6: the chain uploaded), the CSR in CertificateData
+ANSWERS['dell_ome'] = [
+    {'method': 'POST', 'url': r'/api/SessionService/Sessions$', 'status': 201,
+     'body': {'Id': '‹session›'},
+     'headers': {'Content-Type': 'application/json', 'X-Auth-Token': 'PLANSESSION0token'}},
+    {'method': 'GET', 'url': r'/api/ApplicationService/Info$', 'body': {'Version': '4.6.0'}},
+    {'method': 'POST', 'url': r'ApplicationService\.GenerateCSR$', 'body': {
+        'CertificateData': '{CSR}'}},
+]
+# its version for OME 3.0 - 3.9 says such a version (the certificate uploaded alone)
+ANSWERS['dell_ome@3.0'] = [
+    {'method': 'GET', 'url': r'/api/ApplicationService/Info$', 'body': {'Version': '3.9.0'}},
+]
+# Lenovo XClarity Administrator, key made by the device: the CSR made (its path) and
+# downloaded, the upload taken (FQXHMSE0134I)
+ANSWERS['lenovo_lxca'] = [
+    {'method': 'POST', 'url': r'/certificateSigningRequest$', 'body': {
+        'response': [{'path': '1'}], 'result': 'success'}},
+    {'method': 'GET', 'url': r'/certificateSigningRequest\?', 'body': {'csr': '{CSR}'}},
+    {'method': 'POST', 'url': r'/serverCertificate/tmp$', 'body': {
+        'result': 'success', 'messages': [{'id': 'FQXHMSE0134I'}]}},
+]
 FIRST = {
     'netscaler': [
         {'method': 'GET', 'url': r'/nitro/v1/config/sslcertkey/', 'status': 404,
