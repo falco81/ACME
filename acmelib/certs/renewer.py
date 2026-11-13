@@ -346,11 +346,25 @@ def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_t
     its order is the one reissued."""
     pki = S.pki()
     given = str(cert.get('csr_given') or '').strip()
+    device = str(cert.get('csr_from') or '').strip()
     subject = profile.get('subject') or {}
     # Every subjectAltName: the names (proved) and the e-mail and URI ones of the profile;
     # the common name its own where the profile says one (compat.py: where allowed).
     sans = S.sans_of(names, profile)
-    if given:
+    if device and not given:
+        # The key made by the device (certs.csr_from, devicekey.py): a fresh CSR from the
+        # target's device at every issue - then used as one sent in; the key never here.
+        from acmelib.certs import devicekey
+        subject = dict(subject)
+        subject.setdefault('CN', cert.get('cn') or names[0])
+        ci = devicekey.csr_for(store, job, cert, names, sans, subject, key_type, profile,
+                               needs_challenge=bool(getattr(issuer, 'needs_challenge', False)),
+                               what=what)
+        given = ci['pem']
+        key_pem = ''
+        csr_pem, csr_der = ci['pem'], ci['der']
+        profile = dict(profile, csr_given=True, device_key=device)
+    elif given:
         # A CSR sent in (a request profile, 1.0.17): its key stays with whoever made it -
         # the same CSR at every renewal; the subject the profile says, the names checked.
         key_pem = ''
@@ -395,8 +409,9 @@ def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_t
         job.step('the chain could not be put in order: %s' % e, 'warn')
     if given:
         if pki.cert_info(issued.cert_pem).get('pub_sha256') != ci.get('sha256'):
-            raise base.PluginError('the certificate %s gave is not for the key of the CSR sent in'
-                                   % irow['name'])
+            raise base.PluginError('the certificate %s gave is not for the key of the CSR %s'
+                                   % (irow['name'], 'the device of %s made' % device
+                                      if device else 'sent in'))
         return issued.cert_pem, chain, None, S.info_of(issued.cert_pem), dict(issued.info or {})
     try:
         if pki.key_matches(issued.cert_pem, key_out) is False:
@@ -540,7 +555,8 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         if S.cert_over(cert, 'issuer'):
             job.step('its own settings of %s: %s' % (irow['name'], ', '.join(
                 '%s=%s' % (k, v) for k, v in sorted(S.cert_over(cert, 'issuer').items()))))
-        twin = bool(cert.get('key_type_alt')) and not cert.get('csr_given')
+        twin = bool(cert.get('key_type_alt')) and not cert.get('csr_given') and \
+            not cert.get('csr_from')
         if twin and not issuer.can_dual():
             job.step('%s gives no twin (a second certificate with a %s key)%s - only the %s one '
                      'is issued' % (irow['name'], cert['key_type_alt'],
@@ -600,7 +616,8 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
                        said)
             return ok, 'the twin: version %d, valid until %s; %s' % (version, until, said)
         key_type = cert.get('key_type') or 'ec-256'
-        kept = S.cert_key(cert) if cert.get('reuse_key') and cert.get('key_sealed') else None
+        kept = S.cert_key(cert) if cert.get('reuse_key') and cert.get('key_sealed') and \
+            not cert.get('csr_from') else None
         if kept:
             # The key kept only while it is of the key type asked (1.0.48): changed to rsa-2048,
             # the certificate came out ec-256 again - past a request profile's key types too.

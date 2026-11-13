@@ -25,7 +25,7 @@ from acmelib.certs import store as S
 from acmelib.certs import runplan
 
 BUSY = threading.BoundedSemaphore(2)
-DRAFT_KEYS = ('name', 'issuer', 'challenge', 'key_type', 'key_type_alt', 'reuse_key',
+DRAFT_KEYS = ('name', 'issuer', 'challenge', 'key_type', 'key_type_alt', 'reuse_key', 'csr_from',
               'auto_renew', 'renew_days')
 
 

@@ -206,7 +206,7 @@ def row_formats(store, row):
         out = list(PORTAL_FORMATS) + ([KEY_FORMAT] if a.get('pfx') else [])
     else:
         out = formats()
-    if row.get('csr_given'):
+    if row.get('csr_given') or row.get('csr_from'):
         out = [f for f in out if f != KEY_FORMAT]
     return out
 
@@ -541,6 +541,9 @@ def _portal_download(h):
     b = h.body()
     row = need_mine(h, s, b.get('id'))
     fmt = str(b.get('format') or 'fullchain-pem')
+    if fmt == KEY_FORMAT and row.get('csr_from'):
+        raise E.ApiError(400, 'the key of %s was made by a device and stays there - acme never '
+                              'had it' % row['name'])
     if fmt == KEY_FORMAT and row.get('csr_given'):
         raise E.ApiError(400, '%s was issued for the CSR you sent: acme never had its key - it '
                               'is where you made the CSR' % row['name'])

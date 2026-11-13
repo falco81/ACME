@@ -74,6 +74,15 @@ LATER = {
          'body': {'errorcode': 0, 'systemfile': []}},
     ],
 }
+# (a header takes no placeholder: the session in one is written as plansandbox.SESSION is)
+# a Redfish sign-in: the session's token and address are headers of its answer
+_REDFISH_SESSION = {
+    'method': 'POST', 'url': r'/SessionService/Sessions/?$', 'status': 201, 'body': {},
+    'headers': {'Content-Type': 'application/json', 'X-Auth-Token': 'PLANSESSION0token',
+                'Location': '/redfish/v1/SessionService/Sessions/\u2039session\u203a/'}}
+# a sign-in to vCenter's Automation API (/api/session): the session is a JSON string
+_VSPHERE_SESSION = {'method': 'POST', 'url': r'/api/session$', 'status': 201,
+                    'body': '"PLANSESSION0token"'}
 # What a module needs answered to go on at all (a sign-in's token where it looks for it, a
 # zone or domain found) - made up, as every answer of the recording is.
 ANSWERS = {
@@ -117,8 +126,7 @@ ANSWERS = {
             {'id': '\u2039device\u203a', 'name': '{EACH:OPT:enroll_devices}'}]}},
         {'method': 'GET', 'url': r'/policy/decryptionpolicies\?', 'body': {'items': [
             {'id': '\u2039policy\u203a', 'name': '{EACH:OPT:decryption_policy}'},
-            {'id': '\u2039policy\u203a', 'name': '{EACH:OPT:decryption_policies}'}]}},
-        {'method': 'GET', 'body': {'items': []}}],
+            {'id': '\u2039policy\u203a', 'name': '{EACH:OPT:decryption_policies}'}]}}],
     # the IMC answers every call of its XML API at /nuova: a session cookie, no error
     'cisco_imc': [{'method': 'POST', 'url': r'/nuova$', 'headers': {'Content-Type': 'text/xml'},
                    'body': '<aaaLogin response="yes" outCookie="PLANSESSION0token" '
@@ -130,7 +138,7 @@ ANSWERS = {
         {'method': 'GET', 'url': r'/api/cluster/server$', 'body': {'_embedded': {'items': [
             {'server_uuid': '\u2039server uuid\u203a', 'name': '{CFG:server}'}]}}}],
     # ESXi through vCenter's VI JSON API: its session manager, the session a header of the
-    # sign-in, the host's certificate manager; the Automation API's session a JSON string
+    # sign-in, the host's certificate manager; the Automation API's session
     'esxi': [
         {'method': 'GET', 'url': r'/ServiceInstance/ServiceInstance/content$', 'body': {
             'sessionManager': {'type': 'SessionManager', 'value': 'SessionManager'}}},
@@ -140,15 +148,17 @@ ANSWERS = {
         {'method': 'GET', 'url': r'/HostSystem/[^/]+/configManager$', 'body': {
             'certificateManager': {'type': 'HostCertificateManager',
                                    'value': '\u2039certificate manager\u203a'}}},
-        {'method': 'POST', 'url': r'/api/session$', 'status': 201,
-         'body': '"PLANSESSION0token"'}],
+        _VSPHERE_SESSION],
+    # vCenter, the Supervisor: the Automation API's session (as above)
+    'vcenter': [_VSPHERE_SESSION],
+    'vsphere_supervisor': [_VSPHERE_SESSION],
     # FortiManager answers every JSON-RPC call at /jsonrpc alike: status 0 (OK) - its "is it
     # there?" too, so the recording finds the certificate there and does not add it
     'fortimanager': [{'method': 'POST', 'url': r'/jsonrpc$', 'body': {
         'id': 1, 'result': [{'status': {'code': 0, 'message': 'OK'}, 'data': {}}]}}],
     # NimbleOS: the token and its id in "data" of the sign-in
     'hpe_nimble': [{'method': 'POST', 'url': r'/v1/tokens$', 'status': 201, 'body': {
-        'data': {'session_token': '{SESSION}', 'id': '‹token id›'}}}],
+        'data': {'session_token': '{SESSION}', 'id': '\u2039token id\u203a'}}}],
     # OneView: its API version (that of OneView 9.00), the sessionID, the CA not in the trust
     # store yet, the tasks of the calls completed
     'hpe_oneview': [
@@ -158,15 +168,15 @@ ANSWERS = {
         {'method': 'GET', 'url': r'/rest/certificates/ca/', 'status': 404, 'body': {
             'errorCode': 'RESOURCE_NOT_FOUND'}},
         {'method': 'POST', 'url': r'/rest/certificates/ca$', 'status': 202, 'body': {
-            'uri': '/rest/tasks/‹task›'}},
+            'uri': '/rest/tasks/\u2039task\u203a'}},
         {'method': 'PUT', 'url': r'/rest/certificates/https/pkcs12', 'status': 202, 'body': {
-            'uri': '/rest/tasks/‹task›'}},
+            'uri': '/rest/tasks/\u2039task\u203a'}},
         {'method': 'GET', 'url': r'/rest/tasks/', 'body': {'taskState': 'Completed'}}],
     # NIOS: uploadinit gives the token and the address the file goes to
     'infoblox': [{'method': 'POST', 'url': r'/fileop\?_function=uploadinit$', 'body': {
-        'token': '‹upload token›',
-        'url': 'https://‹grid master›/http_direct_file_io/req_id-UPLOAD-'
-               '‹id›/acme.pem'}}],
+        'token': '\u2039upload token\u203a',
+        'url': 'https://\u2039grid master\u203a/http_direct_file_io/req_id-UPLOAD-'
+               '\u2039id\u203a/acme.pem'}}],
     # the iRMC answers SCCI (POST /config) in XML: status 0, no error
     'irmc': [{'method': 'POST', 'url': r'/config$', 'headers': {'Content-Type': 'text/xml'},
               'body': '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><Status>'
@@ -176,44 +186,86 @@ ANSWERS = {
     # same call before and after the install: the recording finds it there and binds it)
     'netapp_ontap': [
         {'method': 'GET', 'url': r'/api/svm/svms\?', 'body': {'records': [
-            {'uuid': '‹svm uuid›', 'name': '{OPT:svm}'}], 'num_records': 1}},
+            {'uuid': '\u2039svm uuid\u203a', 'name': '{OPT:svm}'}], 'num_records': 1}},
         {'method': 'GET', 'url': r'/api/security/certificates\?', 'body': {'records': [
-            {'uuid': '‹certificate uuid›', 'type': 'server'}], 'num_records': 1}}],
+            {'uuid': '\u2039certificate uuid\u203a', 'type': 'server'}], 'num_records': 1}}],
     # NSX: the id of the certificate imported, its validation OK
     'nsx_manager': [
         {'method': 'POST', 'url': r'/certificates\?action=import$', 'status': 201, 'body': {
-            'results': [{'id': '‹certificate id›'}], 'result_count': 1}},
+            'results': [{'id': '\u2039certificate id\u203a'}], 'result_count': 1}},
         {'method': 'GET', 'url': r'\?action=validate', 'body': {'status': 'OK'}}],
     # Prism Central: the cluster named is one of its clusters, its certificate read with an
     # ETag, the replacement a task that succeeds
     'nutanix': [
         {'method': 'GET', 'url': r'/config/clusters$', 'body': {'data': [
-            {'extId': '‹cluster id›', 'name': '{CFG:cluster}'}]}},
+            {'extId': '\u2039cluster id\u203a', 'name': '{CFG:cluster}'}]}},
         {'method': 'GET', 'url': r'/ssl-certificate$', 'body': {'data': {}},
-         'headers': {'Content-Type': 'application/json', 'ETag': '‹etag›'}},
+         'headers': {'Content-Type': 'application/json', 'ETag': '\u2039etag\u203a'}},
         {'method': 'PUT', 'url': r'/ssl-certificate$', 'status': 202, 'body': {
-            'data': {'extId': '‹task›'}}},
+            'data': {'extId': '\u2039task\u203a'}}},
         {'method': 'GET', 'url': r'/config/tasks/', 'body': {'data': {'status': 'SUCCEEDED'}}}],
     # OneFS: the id of the certificate imported
     'powerscale': [{'method': 'POST', 'url': r'/platform/\d+/certificate/server$',
-                    'status': 201, 'body': {'id': '‹certificate id›'}}],
+                    'status': 201, 'body': {'id': '\u2039certificate id\u203a'}}],
     # PowerStore: the session is the DELL-EMC-TOKEN header and the cookie of the sign-in; the
     # id of the certificate imported
     'powerstore': [
-        {'method': 'GET', 'url': r'/api/rest/login_session$', 'body': [{'id': '‹session›'}],
+        {'method': 'GET', 'url': r'/api/rest/login_session$',
+         'body': [{'id': '\u2039session\u203a'}],
          'headers': {'Content-Type': 'application/json', 'DELL-EMC-TOKEN': 'PLANSESSION0token',
                      'Set-Cookie': 'auth_cookie=PLANSESSION0token; Path=/; Secure; HttpOnly'}},
         {'method': 'POST', 'url': r'/api/rest/x509_certificate$', 'status': 201, 'body': {
-            'id': '‹certificate id›'}}],
+            'id': '\u2039certificate id\u203a'}}],
     # Purity: the REST API versions it speaks (the newest 2.x is used), the session the
     # x-auth-token header of the sign-in, the certificate to replace there
     'pure_flasharray': [
         {'method': 'GET', 'url': r'/api/api_version$', 'body': {
-            'version': ['1.19', '2.‹n›']}},
+            'version': ['1.19', '2.\u2039n\u203a']}},
         {'method': 'POST', 'url': r'/login$', 'body': {'items': [{}]},
          'headers': {'Content-Type': 'application/json', 'x-auth-token': 'PLANSESSION0token'}},
         {'method': 'GET', 'url': r'/certificates\?names=', 'body': {'items': [
             {'name': '{OPT:cert_name}', 'certificate': ''}]}}],
+    # Redfish (and the BMCs signed in to by it): the session's token and address are headers
+    # of the sign-in, so it is signed out of
+    'redfish': [_REDFISH_SESSION],
+    'supermicro_bmc': [_REDFISH_SESSION],
+    'huawei_ibmc': [_REDFISH_SESSION],
+    # an iLO's one manager says it is an iLO (its firmware not said: the recording goes on)
+    'redfish@ilo': [
+        {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {'Members': [
+            {'@odata.id': '/redfish/v1/Managers/1/'}]}},
+        {'method': 'GET', 'url': r'/redfish/v1/Managers/1/?$', 'body': {
+            'Model': 'iLO 6', 'Manufacturer': 'HPE'}}],
+    # an iDRAC's manager is iDRAC.Embedded.1 (its firmware not said: the recording goes on)
+    'redfish@6.00.02': [
+        {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {'Members': [
+            {'@odata.id': '/redfish/v1/Managers/iDRAC.Embedded.1'}]}},
+        {'method': 'GET', 'url': r'/Managers/iDRAC\.Embedded\.1$', 'body': {
+            'Manufacturer': 'Dell Inc.'}}],
+    # SDDC Manager: the token is accessToken of the sign-in
+    'sddc_manager': [{'method': 'POST', 'url': r'/v1/tokens$', 'body': {
+        'accessToken': '{SESSION}', 'refreshToken': {'id': '\u2039refresh token\u203a'}}}],
+    # Unisphere says its REST API version (that of Unisphere 10.0, the oldest acme takes)
+    'unisphere_powermax': [{'method': 'GET', 'url': r'/univmax/restapi/version$', 'body': {
+        'version': 'V10.0.0.0', 'api_version': '100', 'supported_api_versions': ['100']}}],
+    # Cloud Director: the token is a header of the sign-in; the library gives the id of the
+    # item imported; its cells (those named, else one), the endpoints' change a task that
+    # succeeds
+    'vcd': [
+        {'method': 'POST', 'url': r'/sessions/provider$', 'body': {},
+         'headers': {'Content-Type': 'application/json',
+                     'X-VMWARE-VCLOUD-ACCESS-TOKEN': 'PLANSESSION0token'}},
+        {'method': 'POST', 'url': r'/ssl/certificateLibrary$', 'status': 201, 'body': {
+            'id': 'urn:vcloud:certificateLibraryItem:\u2039new\u203a'}},
+        {'method': 'GET', 'url': r'/cells\?', 'body': {'values': [
+            {'id': 'urn:vcloud:cell:\u2039cell\u203a', 'name': '\u2039cell\u203a'},
+            {'id': 'urn:vcloud:cell:\u2039cell\u203a', 'name': '{EACH:OPT:cells}'}],
+            'pageCount': 1}},
+        {'method': 'PUT', 'url': r'/cells/[^/]+(/accessEndpoints)?$', 'status': 202, 'body': '',
+         'headers': {'Location': '/api/task/\u2039task\u203a'}},
+        {'method': 'GET', 'url': r'/api/task/', 'body': {'status': 'success'}}],
+    # Site Recovery / vSphere Replication: session_id of the sign-in
+    'vmware_dr': [{'method': 'POST', 'url': r'/session$', 'body': {'session_id': '{SESSION}'}}],
 }
 # a FlashBlade answers as a FlashArray
 ANSWERS['pure_flashblade'] = ANSWERS['pure_flasharray']

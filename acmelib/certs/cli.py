@@ -67,7 +67,7 @@ FAMILIES = {'issuer': ('source', 'sources', 'source'),
             'check': ('check', 'tests', 'test')}
 CA_FORMATS = ('cert', 'cert-der', 'chain', 'crl', 'crl-der', 'p7b', 'bundle', 'csr', 'key',
               'p12', 'pfx')
-CERT_SETS = ('names', 'issuer', 'challenge', 'key_type', 'key_type_alt', 'auto_renew',
+CERT_SETS = ('names', 'issuer', 'challenge', 'key_type', 'key_type_alt', 'csr_from', 'auto_renew',
              'renew_days', 'reuse_key', 'tags', 'note', 'owner', 'enabled', 'challenge_map.NAME',
              'profile.KEY')
 
@@ -99,6 +99,10 @@ def add_args(p):
                    'a dual certificate - a twin of the same names with this key type too '
                    '(rsa-2048 beside ec-256, or ec-256 beside rsa-*), for clients that cannot '
                    'use ECDSA; none: no twin')
+    g.add_argument('--csr-from', metavar='TARGET|none', help='with --cert-add, --cert-edit: the '
+                   'key is made by that target\'s device (Lenovo XCC...): at every issue it is '
+                   'asked for a new key and CSR, and the certificate goes there alone - acme '
+                   'holds no key; none: acme makes the key again')
     g.add_argument('--renew', metavar='NAME|all', help='renew it now (all: every one due; with '
                    '--force every one acme can renew)')
     g.add_argument('--force', action='store_true', help='with --renew all: not only those due; '
@@ -735,6 +739,8 @@ class Cli(object):
                          c.get('renew_days') or self.E.CONFIG.get('certs_renew_days'))
                       if c.get('auto_renew') else 'by hand'),
                      ('reuse key', 'yes' if c.get('reuse_key') else ''),
+                     ('key made by', 'the device of %s (acme holds no key)' % c['csr_from']
+                      if c.get('csr_from') else ''),
                      ('profile', json.dumps(c.get('profile')) if c.get('profile') else ''),
                      ('subject', c.get('subject_dn')), ('issued by', c.get('issuer_dn')),
                      ('serial', c.get('serial')), ('sha-256', c.get('fingerprint')),
@@ -800,6 +806,9 @@ class Cli(object):
         if getattr(a, 'key_type_alt', None) is not None:
             b['key_type_alt'] = '' if a.key_type_alt.strip().lower() in ('none', '-', '') \
                 else a.key_type_alt.strip()
+        if getattr(a, 'csr_from', None) is not None:
+            b['csr_from'] = '' if a.csr_from.strip().lower() in ('none', '-', '') \
+                else a.csr_from.strip()
         if row is not None and a.name:
             b['name'] = a.name
         if a.note or (row is not None and any(x == '--note' or x.startswith('--note=')
@@ -830,7 +839,7 @@ class Cli(object):
                     [x for x in list((cur or {}).get(k) or []) if x not in vals]
             elif k in ('issuer', 'challenge', 'key_type', 'note', 'owner'):
                 b[k] = v
-            elif k == 'key_type_alt':
+            elif k in ('key_type_alt', 'csr_from'):
                 b[k] = '' if v.strip().lower() in ('none', '-', '') else v.strip()
             elif k.startswith('challenge_map.') and len(k) > 14:
                 cmap = b.setdefault('challenge_map', dict((cur or {}).get('challenge_map') or {}))
@@ -885,14 +894,15 @@ class Cli(object):
         b = self._cert_body(row)
         if not b:
             raise SystemExit('acme: nothing to change - --names, --issuer, --challenge, '
-                             '--key-type, --key-type-alt, --name, --note, --enabled, --set %s' % ' '.join(
+                             '--key-type, --key-type-alt, --csr-from, --name, --note, --enabled, '
+                             '--set %s' % ' '.join(
                                  CERT_SETS))
         b['id'] = row['id']
         got = self.api('POST', '/api/certs/save', body=b)
         rc = self.done('%s changed: %s' % (b.get('name') or row['name'], ', '.join(
             sorted(k for k in b if k != 'id'))), got)
         # new names are on it only once it is issued again (1.0.79): it stayed "ok" without them
-        if any(k in b for k in ('names', 'key_type', 'key_type_alt')) and not self.json \
+        if any(k in b for k in ('names', 'key_type', 'key_type_alt', 'csr_from')) and not self.json \
                 and row.get('cert_pem'):
             print(self.pal.dim('  the certificate it has keeps what it was issued with - '
                                'acme --renew %s issues it now' % (b.get('name') or row['name'])))

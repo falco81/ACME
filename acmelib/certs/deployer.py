@@ -88,8 +88,18 @@ def deploy_one(store, job, cert, dep, force=False):
         why = 'the certificate %s has not been issued yet' % cert['name']
         step(why, 'bad')
         return False, why
-    step('deploying %s (version %s) to %s (%s)' % (cert['name'], cert.get('version'),
-                                                  trow['name'], trow['kind']))
+    # The key made by a device (certs.csr_from, devicekey.py): the certificate goes to that
+    # target alone, and such a target takes no other certificate.
+    from acmelib.certs import devicekey
+    why = devicekey.deploy_problem(store, cert, trow)
+    if why:
+        _failed(store, dep, why)
+        step(why, 'bad')
+        return False, why
+    step('deploying %s (version %s) to %s (%s)%s' % (
+        cert['name'], cert.get('version'), trow['name'], trow['kind'],
+        ' - the certificate for the key its device made (acme holds no key)'
+        if cert.get('csr_from') else ''))
     store.db.update('cert_deploys', dep['id'], {'last_try': t, 'state': 'deploying'})
     ctx = target_context(store, job, trow)
     ctx.deploy_id = dep['id']       # what a target wrote for this deployment is kept by it
@@ -134,7 +144,10 @@ def deploy_one(store, job, cert, dep, force=False):
         raise
     except Exception as e:                              # noqa: BLE001
         why = str(e) if isinstance(e, base.PluginError) else '%s: %s' % (type(e).__name__, e)
-        if cert.get('csr_given') and 'key' in why.lower():
+        if cert.get('csr_from') and 'key' in why.lower():
+            why = ('%s is issued for the key the device of %s made, so acme holds no key (%s)'
+                   % (cert['name'], cert['csr_from'], why))
+        elif cert.get('csr_given') and 'key' in why.lower():
             why = ('%s was issued for a CSR that was sent in, so acme holds no key, and %s needs '
                    'one (%s) - deploy it where only the certificate is needed, or put it in place '
                    'by hand beside its key' % (cert['name'], trow['name'], why))
@@ -283,6 +296,13 @@ def run_deploys(store, job, cert_id, only=None, force=False):
     if S.deploy_held(store, cert) and not force:
         job.step('%s (version %s) is kept here, not deployed: it waits for Deploy now (its '
                  'deployments are held)' % (cert['name'], cert.get('version')), 'warn')
+        if cert.get('csr_from'):
+            # its key is the device's: the device keeps its old certificate meanwhile, and a
+            # new key and CSR is asked of it at the next issue - this one is then of no use
+            job.step('its key was made by the device of %s, which keeps its old certificate '
+                     'until Deploy now; the next issue asks the device for a new key and CSR, '
+                     'and this certificate then fits no key there any more' % cert['csr_from'],
+                     'warn')
         return True, 'issued, not deployed - it waits for Deploy now'
     if force and not only and S.deploy_hold(store, cert['id']):
         # all of them deployed by a person: the hold ends (1.0.88: also with nothing new waiting)

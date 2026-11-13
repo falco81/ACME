@@ -961,10 +961,46 @@ class Target(Plugin):
     # acme's own pages... False: the target holds one at a time, and is handed the
     # one its deployment's 'variant' option says (VARIANT_FIELD), bundle.alt None.
     dual = False
+    # "The device makes the key" (docs/writing-a-module.md): True for a device that takes
+    # only a certificate for a key it made itself (Lenovo XCC, Dell OME, Cisco CUCM...). A
+    # certificate whose key it makes (certs.csr_from = this target) asks device_csr() for a
+    # fresh CSR at every issue and renewal, and deploy() then gets a bundle with no key
+    # (bundle.key_pem None) - the certificate and its chain only. Such a target takes no
+    # other certificate. Off by default.
+    device_key = False
+    # The key types the device can make (acmelib.certs.schema.KEY_TYPES words: 'ec-256',
+    # 'rsa-2048'...) - the form offers only these; None: any (the device is asked for the
+    # one chosen and says no in words when it cannot).
+    device_key_types = None
+
+    def device_csr(self, req):
+        """Only with device_key: ask the device to make a new key and a CSR for `req`, and
+        return the CSR (PEM, 'CERTIFICATE REQUEST'). `req` is a CertRequest with
+
+            names      the names of the certificate (DNS names and IP addresses), the first
+                       the usual common name - the CSR must name all of them and no other
+            sans       every subjectAltName asked (names + 'email:...' / 'uri:...' ones)
+            subject    {'CN': .., 'O': .., 'OU': .., 'C': .., 'ST': .., 'L': ..} - what the
+                       certificate's profile says (CN always there); the issuer may set
+                       the subject of the certificate itself
+            key_type   the key wanted: 'ec-256' | 'ec-384' | 'rsa-2048' | 'rsa-3072' |
+                       'rsa-4096' (one of device_key_types when the module gives them)
+            options    the options of this certificate's deployment to this target (a dict,
+                       as deploy() gets them)
+            name       the certificate's name in acme;  cert_id  its number
+
+        The key stays on the device. Raise PluginError in words a person can act on
+        (retry=False when asking again cannot help). acme checks the CSR (its signature,
+        its names) and that the certificate issued is for its key; the deployment that runs
+        right after the issue - deploy(bundle, options) with bundle.key_pem None - puts it
+        on the device."""
+        raise PluginError('%s does not make keys of its own' % (self.title or self.kind),
+                          retry=False)
 
     def deploy(self, bundle, options):
         """Put `bundle` in place as `options` say and make the service take
-        it. Returns words for the job's log. Raise PluginError when it fails."""
+        it. Returns words for the job's log. Raise PluginError when it fails.
+        A device_key target gets bundle.key_pem None: the certificate (+ chain) only."""
         raise NotImplementedError
 
     def verify(self, bundle, options):
@@ -996,6 +1032,12 @@ class Target(Plugin):
         d['dual'] = bool(cls.dual)
         # A connector of the targets (1.0.75): a way to other targets, never deployed on.
         d['connector'] = bool(getattr(cls, 'connector', False))
+        # The device makes the key (certs.csr_from): the certificate form offers the target
+        # under "Key made by the device", with the key types it can make.
+        d['device_key'] = bool(getattr(cls, 'device_key', False))
+        if d['device_key']:
+            d['device_key_types'] = list(cls.device_key_types) if cls.device_key_types \
+                else None
         # A target that writes the certificate as files (ssh, windows_ssh, local): what
         # the page's files designer needs - formats in words, quick layouts, the
         # variables of the script after them (targets/_script.py files_ui()).

@@ -360,5 +360,51 @@ print(json.dumps(P.RECORDING[0]))
         self.assertTrue(any('445' in w for w in words), words)
 
 
+class Answers(unittest.TestCase):
+    """The canned answers of a module's recording: a setting's value where an answer names it,
+    those of the module's version first."""
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+
+    def test_settings_put_in(self):
+        from acmelib.certs import runplan as R
+        rules = R.answers_of('cisco_fmc', {'host': 'fmc'}, {
+            'enroll_devices': 'ftd-1\nftd-2', 'decryption_policy': 'Inbound',
+            'decryption_policies': ''})
+        devs = [r for r in rules if 'devicerecords' in r.get('url', '')][0]['body']['items']
+        self.assertEqual([d['name'] for d in devs], ['ftd-1', 'ftd-2'])
+        pols = [r for r in rules if 'decryptionpolicies' in r.get('url', '')][0]['body']
+        self.assertEqual([p['name'] for p in pols['items']], ['Inbound'])
+        cp = R.answers_of('aruba_clearpass', {'server': 'cppm01'}, {})
+        self.assertIn('"cppm01"', json.dumps(cp))
+        self.assertNotIn('{CFG:', json.dumps(R.answers_of('aruba_clearpass', {}, {})))
+        ilo = R.answers_of('redfish', {}, {}, version='ilo')
+        self.assertIn('iLO', json.dumps(ilo[:2]))
+        self.assertEqual(ilo[-1]['url'], R.ANSWERS['redfish'][0]['url'])
+        self.assertNotIn('iLO', json.dumps(R.answers_of('redfish', {}, {})))
+
+    def test_recorded_to_the_end(self):
+        """Prism Central with a cluster of the user's name: found, replaced, the task done."""
+        from acmelib.certs import runplan as R
+        cfg = {'host': 'pc.example.test', 'auth': 'api_key', 'api_key': 'stand-in',
+               'cluster': 'prod-cluster', '_version': '7.5'}
+        got, err = R.record({'runs': [{
+            'id': 'r1', 'family': 'target', 'kind': 'nutanix', 'name': 'pc', 'op': 'deploy',
+            'config': cfg, 'options': {}, 'seconds': 20,
+            'answers': R.answers_of('nutanix', cfg, {}, version='7.5')}],
+            'cert': {'names': ['www.example.com'], 'key_type': 'ec-256'}}, timeout=120)
+        self.assertEqual(err, '')
+        run = got['r1']
+        self.assertFalse(run.get('error'), run.get('error'))
+        calls = [(e['method'], e['url'].split('/api/', 1)[-1]) for e in run['events']
+                 if e['kind'] == 'http']
+        self.assertEqual([m for m, u in calls], ['GET', 'GET', 'PUT', 'GET'])
+        self.assertTrue(calls[2][1].endswith('/ssl-certificate'), calls)
+        self.assertIn('/config/tasks/', calls[3][1])
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

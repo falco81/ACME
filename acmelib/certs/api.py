@@ -176,7 +176,7 @@ LIST_COLS = ('id', 'name', 'cn', 'names', 'key_type', 'issuer', 'challenge', 'au
              'issuer_dn', 'subject_dn', 'source', 'state', 'state_at', 'last_try', 'last_ok',
              'last_error', 'next_try', 'fails', 'version', 'tags', 'note', 'owner', 'created',
              'created_by', 'updated', 'updated_by', 'enabled', 'key_type_alt', 'alt_not_after',
-             'alt_state', 'alt_version', 'alt_fingerprint', 'alt_serial', 'setup_due')
+             'alt_state', 'alt_version', 'alt_fingerprint', 'alt_serial', 'setup_due', 'csr_from')
 
 
 def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, per=50,
@@ -516,6 +516,18 @@ def cert_save(store, b, by, full=False):
             fields['renew_days'] = rd
     if 'reuse_key' in b or not row:
         fields['reuse_key'] = _flag(b.get('reuse_key'), 0)
+    if 'csr_from' in b:
+        # The key made by a target's device (devicekey.py): its name, checked below.
+        src = str(b.get('csr_from') or '').strip()
+        if src:
+            from acmelib.certs import devicekey
+            trow_, dcls_ = devicekey.target_of(store, src)
+            src = trow_['name']
+            kts_ = devicekey.key_types_of(dcls_)
+            if kts_ and 'key_type' not in b and (fields.get('key_type') or (row or {}).get(
+                    'key_type') or 'ec-256') not in kts_:
+                fields['key_type'] = kts_[0]      # the device's own when none was said
+        fields['csr_from'] = src
     if 'profile' in b or 'cn' in b or 'san_other' in b or not row:
         prof = _dict(b.get('profile'), 'profile') if 'profile' in b or not row else \
             (S.jload(row.get('profile'), {}) or {})
@@ -594,6 +606,23 @@ def cert_save(store, b, by, full=False):
             probs = compat.check_cert(store, cur)
             if probs:
                 raise E.ApiError(400, compat.words(probs), detail=json.dumps(probs)[:20000])
+    # The key made by a device (certs.csr_from): what it cannot go with refused in words -
+    # a twin, reuse_key, a CSR sent in, a source that signs no CSR, other targets.
+    dev_now = fields.get('csr_from') if 'csr_from' in fields else (row or {}).get('csr_from')
+    dev_was = str((row or {}).get('csr_from') or '')
+    if dev_was and (dev_now or '') != dev_was and store.db.row(
+            'SELECT id FROM cert_deploys WHERE cert_id = ? AND target = ?', (row['id'], dev_was)):
+        raise ValueError('its key is made by %s and it is deployed there - take that deployment '
+                         'away first (the device keeps the certificate it has), then change '
+                         'where its key is made' % dev_was)
+    if dev_now and (not row or any(k in b for k in (
+            'csr_from', 'issuer', 'key_type', 'key_type_alt', 'reuse_key'))):
+        from acmelib.certs import devicekey
+        cur = dict(row or {})
+        cur.update(fields)
+        why = devicekey.save_problem(store, cur)
+        if why:
+            raise ValueError('the key cannot be made by %s: %s' % (dev_now, why))
     moved = row is not None and 'issuer' in fields and \
         (fields['issuer'] or '') != (row.get('issuer') or '')
     if moved and not fields['issuer']:
@@ -630,6 +659,11 @@ def cert_save(store, b, by, full=False):
                        'ari': '{}'})
         ident = store.db.insert('certs', fields)
         store.add_event('certificates', 'certificate %s added by %s' % (name, by), who=by)
+    if dev_now and not store.db.row('SELECT id FROM cert_deploys WHERE cert_id = ? AND '
+                                    'target = ?', (ident, dev_now)):
+        # its deployment to the device whose key it is: made with it - the certificate goes
+        # there right after each issue
+        deploy_save(store, {'cert_id': ident, 'target': dev_now}, by, full)
     _wake()
     return ident
 
@@ -1065,7 +1099,7 @@ def _cert_revoke(h, s):
     no = revocable(store=h.store, row=row)
     if no:
         raise ValueError('%s cannot be revoked here: %s' % (row['name'], no))
-    if again and (row.get('csr_given') or not row.get('issuer')):
+    if again and (row.get('csr_given') or not row.get('issuer')) and not row.get('csr_from'):
         # As the portal (1.0.19): issued for a CSR sent in, a new one needs a new CSR - it was
         # left revoked with renewal switched on (1.0.77).
         raise ValueError('%s was issued for a CSR sent in: a new one needs a new CSR - revoke '
@@ -1434,6 +1468,10 @@ def cert_export(store, b, s, allowed=None):
         # for "alt of version 1", the main one came back without a word.
         raise ValueError('version %s of %s is its %s certificate, not the %s one' % (
             b['version'], row['name'], variant, asked))
+    if fmt in S.KEY_FORMATS and row.get('csr_from'):
+        raise ValueError('the key of %s was made by the device of %s and stays there: acme '
+                         'never had it, so no file with the key can be made here'
+                         % (row['name'], row['csr_from']))
     if fmt in S.KEY_FORMATS and row.get('csr_given'):
         raise ValueError('%s was issued for a CSR that was sent in: acme never had its key - it '
                          'stays where the CSR was made, so no file with the key can be made here'
@@ -1471,6 +1509,10 @@ def _cert_csr(h, s):
     b = h.body()
     store = h.store
     row = S.cert_need(store, _id(b.get('id')))
+    if row.get('csr_from'):
+        raise ValueError('the key of %s is made by the device of %s - its CSR comes from there '
+                         'at every issue (Renew now), not from acme' % (row['name'],
+                                                                         row['csr_from']))
     pend = S.jload(row.get('csr_pending'), None)
     if pend and pend.get('csr_pem') and not _flag(b.get('again')):
         return {'csr_pem': pend['csr_pem'], 'made': pend.get('at')}
@@ -2173,6 +2215,7 @@ def _renamed(store, family, old, new):
                 db.update('cert_tests', r['id'], {'config': json.dumps(cfg)})
     elif family == 'target':
         db.run('UPDATE cert_deploys SET target = ? WHERE target = ?', (new, old))
+        db.run('UPDATE certs SET csr_from = ? WHERE csr_from = ?', (new, old))
         # the tests run after a deployment on it (1.0.77): they never ran again, silently
         for r in db.rows('SELECT id, after_target FROM cert_checks WHERE after_target LIKE ?',
                          ('%' + old + '%',)):
@@ -2242,6 +2285,10 @@ def family_uses(store, family, row):
         for r in db.rows('SELECT d.id, c.id AS cid, c.name FROM cert_deploys d JOIN certs c '
                          'ON c.id = d.cert_id WHERE d.target = ? ORDER BY c.name', (name,)):
             cert(r, 'deployed there', True, r['id'])
+        # a certificate whose key its device makes (certs.csr_from): changed there first
+        for r in db.rows('SELECT id AS cid, name FROM certs WHERE csr_from = ? ORDER BY name',
+                         (name,)):
+            cert(r, 'its key is made there', False)
     if (family == 'target' and row.get('kind') == 'ssh_connector') or \
             (family == 'check' and row.get('kind') == 'ssh_relay'):
         # as via_users counts them: each names its own family's connector first
@@ -2696,6 +2743,12 @@ def _deploy_save_in(store, b, by, full, made):
     cls = S.row_class('target', trow)
     if getattr(cls, 'connector', False):
         raise ValueError('%s is a connector: certificates go to the targets reached through it' % target)
+    # The key made by a device (devicekey.py): its certificate goes to that target alone, and
+    # that target takes no other.
+    from acmelib.certs import devicekey
+    why_dev = devicekey.deploy_problem(store, cert, trow, cls)
+    if why_dev:
+        raise ValueError(why_dev)
     if row is not None and not full and row.get('target') != trow['name'] and 'options' not in b:
         # Moved to another target with its options (1.0.51): the commands, the script and where
         # the key goes, written by a full administrator for one server, ran on the one a

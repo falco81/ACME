@@ -488,6 +488,9 @@ def add_key(store, row, b, by):
     if row.get('csr_given'):
         raise ValueError('%s was issued for a CSR that was sent in: its key stays where the CSR '
                          'was made' % row['name'])
+    if row.get('csr_from'):
+        raise ValueError('the key of %s is made by the device of %s and stays there'
+                         % (row['name'], row['csr_from']))
     if not row.get('cert_pem'):
         raise ValueError('%s has no certificate yet' % row['name'])
     key = _read_key(b)

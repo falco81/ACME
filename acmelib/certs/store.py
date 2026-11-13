@@ -1090,6 +1090,9 @@ def cert_public(row, full=False):
     out['csr_waiting'] = bool(row.get('csr_pending'))
     # Issued for a CSR sent in (a request profile, 1.0.17): acme never had its key.
     out['from_csr'] = bool(row.get('csr_given'))
+    # Its key made by a target's device (devicekey.py): that target's name, '' when acme
+    # makes the key.
+    out['csr_from'] = row.get('csr_from') or ''
     out['days_left'] = days_left(row)
     out['state_words'] = STATES().get(row.get('state') or '', '')
     return out
