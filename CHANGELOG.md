@@ -10,7 +10,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   6.0, 7.0, 7.4.2) gave a file that, uploaded, replaced every shipped version of that file
   instead of adding one - and a new version made from 6.0, 7.0 or 7.4.2 kept the old number.
   Now the start holds only the version it was made from (the others imported as they are);
-  checked for every module and version.
+  checked for every module and version, on the server's disk (/etc/acme/plugins) and uploaded.
+- Fixed: *What happens* for a version of your own made from a shipped one (dell_ome 3.0,
+  FortiGate 6.0 / 7.0, IOS XE / 9800 17.3, Redfish iDRAC / iLO, VCF Operations 9.1) ended in an
+  error: it now gets the answers of the version it was made from.
 
 ## 1.0.97 - 2026-11-13
 

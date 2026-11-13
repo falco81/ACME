@@ -17,6 +17,7 @@ import socket
 import sys
 import threading
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_certs_core as core  # noqa: E402
@@ -560,6 +561,27 @@ class SandboxAnswers(unittest.TestCase):
         self.assertEqual(calls[-2][0], 'PATCH')
         self.assertFalse([e for e in evs if e['kind'] == 'wait'])
 
+
+
+class OwnVersionAnswers(unittest.TestCase):
+    """A version of your own made from a shipped one (Download a start), or an override, gets
+    the canned answers of the shipped version it speaks like (1.0.98: dell_ome@3.0's answers
+    were not given to a version made from 3.0 - its What happens ended in an error)."""
+
+    def test_answer_version(self):
+        from acmelib.plugins import base as B
+        from acmelib.certs import runplan as RP
+        B.REGISTRY.reload()
+        shipped = B.REGISTRY.versions['target']['dell_ome']['3.0']
+        own = type(shipped.__name__, (shipped,), {'module_version': 'own_x', '_origin': 'custom',
+                                                  '_replaced': None, '__module__': 'acme_local_plugins.t'})
+        with unittest.mock.patch.dict(B.REGISTRY.versions['target']['dell_ome'], {'own_x': own}):
+            self.assertEqual(RP._answer_ver(own), '3.0')
+        over = type(shipped.__name__, (shipped,), {'module_version': '3.0', '_origin': 'custom',
+                                                   '_replaced': shipped, '__module__': 'acme_local_plugins.t'})
+        self.assertEqual(RP._answer_ver(over), '3.0')
+        self.assertEqual(RP._answer_ver(shipped), '3.0')
+        self.assertEqual(RP._answer_ver(None), '')
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

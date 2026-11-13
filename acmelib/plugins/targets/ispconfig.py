@@ -173,6 +173,10 @@ class IspConfigTarget(HttpTarget):
                     self.ctx.step('%s has this certificate already' % dom)
                     same.append(dom)
                     continue
+                if rec.get('ssl') == 'y':
+                    self.ctx.step('%s has another certificate - replacing it' % dom)
+                else:
+                    self.ctx.step('%s: SSL is off - turning it on with this certificate' % dom)
                 if rec.get('ssl_letsencrypt') == 'y':
                     self.ctx.step('%s: the panel\'s own Let\'s Encrypt is turned off for it' % dom,
                                   'warn')

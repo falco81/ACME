@@ -88,6 +88,10 @@ class AriaAutomationTarget(SshMixin, Base):
                 if not as_bool(options.get('force')) and rc == 0 and V.has_cert(cur, bundle):
                     self.remember(bundle, options)
                     return self.same(bundle, 'the ingress certificate')
+                # what is there now, said (1.0.98): the decision What happens shows
+                self.ctx.step('the ingress certificate there now is another one - it is replaced'
+                              if 'BEGIN CERTIFICATE' in text(cur) else
+                              'vracli lists no ingress certificate there now - it is set')
             s.put(data, path, mode=0o600)
             try:
                 rc, out, err = self.sh(s, 'vracli certificate ingress --validate stdin --parse '

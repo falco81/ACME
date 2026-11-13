@@ -91,6 +91,9 @@ class ProxmoxBackupTarget(HttpTarget):
         if fp in now and not options.get('force'):
             self.remember(bundle, options)
             return self.same(bundle, 'on %s' % self.c('host'))
+        self.ctx.step('PBS serves this certificate already - uploaded again (forced)' if fp in now
+                      else 'PBS serves another certificate - replacing it' if any(now) else
+                      'PBS has no certificate it says the fingerprint of - uploading it')
         try:
             self.req('POST', '/api2/json/nodes/%s/certificates/custom' % node, form({
                 'certificates': text(bundle.as_format('fullchain-pem')),

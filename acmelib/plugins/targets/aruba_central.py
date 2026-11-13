@@ -167,6 +167,10 @@ class ArubaCentralTarget(HttpTarget):
         if there is not None and text(there.get('cert_type')) not in ('', 'SERVER_CERT'):
             raise PluginError('%s in Central is a %s, not a server certificate' % (
                 name, there.get('cert_type')), retry=False)
+        # what is there now, said (1.0.98): the decision What happens shows
+        self.ctx.step('%s is in Central%s - it is replaced under that name' % (
+            name, ' (until %s)' % there['expire_date'] if there.get('expire_date') else '')
+            if there is not None else '%s is not in Central yet - it is uploaded' % name)
         pw = random_password(20)
         body = {'cert_name': name, 'cert_type': 'SERVER_CERT', 'cert_format': 'PKCS12',
                 'passphrase': b64(pw),

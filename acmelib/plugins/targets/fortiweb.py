@@ -187,6 +187,7 @@ class FortiWebTarget(HttpTarget):
                          '?mkey=%s' % q(group), ok=range(200, 600),
                          what='looking for the group %s' % group)
         if st == 200 and errcode(d) == 0 and results(d):
+            self.ctx.step('the intermediate CA group %s is there already' % group)
             return group
         names = []
         for pem in chain:
@@ -254,7 +255,8 @@ class FortiWebTarget(HttpTarget):
                 continue
             self.api('PUT', '/cmdb/server-policy/policy?mkey=%s' % q(ref), {'data': want},
                      what='pointing the server policy %s at %s' % (ref, name))
-            self.ctx.step('the server policy %s uses %s' % (ref, name), 'ok')
+            self.ctx.step('the server policy %s uses %s (it used %s)' % (
+                ref, name, pol.get('certificate') or '-'), 'ok')
             did.append(ref)
         self.cleanup(prefix, name, self.keep(options))
         self.remember(bundle, options)

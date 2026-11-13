@@ -214,8 +214,10 @@ class ArubaAosCxTarget(HttpTarget):
                     # the HTTPS server took the new certificate and cut this session
                     self.ctx.debug('the session ended with the switch: %s' % e)
                 self.cookie = self.csrf = None      # https-server: a new session (the guide)
-                self.ctx.step('%s use%s %s' % (', '.join(apps), 's' if len(apps) == 1 else '',
-                                               name), 'ok')
+                before = sorted(set(text(cur[a]) for a in apps if cur.get(a)))
+                self.ctx.step('%s use%s %s%s' % (', '.join(apps), 's' if len(apps) == 1 else '',
+                                                 name, ' (before: %s)' % ', '.join(before)
+                                                 if before else ''), 'ok')
                 did.append(', '.join(apps))
             self.check_status(apps, name)
         if as_bool(self.opt(options, 'save', True), True):

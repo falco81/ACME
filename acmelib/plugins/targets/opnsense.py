@@ -97,6 +97,8 @@ class OPNsenseTarget(SshMixin, HttpTarget):
                     'action': 'existing', 'descr': ca, 'crt_payload': pem}},
                     what='adding the CA %s' % ca)
                 self.ctx.step('added the intermediate %s' % ca)
+            else:
+                self.ctx.step('the intermediate %s is there already' % ca)
         replaced = False
         if name not in have or as_bool(options.get('force')):
             cert = {'action': 'import', 'descr': name,

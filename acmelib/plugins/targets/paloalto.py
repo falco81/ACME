@@ -191,6 +191,8 @@ class PaloAltoTarget(HttpTarget):
                     files=[('file', (ca + '.pem', pem.encode(), 'application/x-pem-file'))],
                     what='importing %s' % ca)
                 self.ctx.step('imported the intermediate %s' % ca)
+            else:
+                self.ctx.step('the intermediate %s is there already' % ca)
         for p in lines(options.get('profiles')):
             self.call({'type': 'config', 'action': 'set',
                        'xpath': '%s/ssl-tls-service-profile/entry[@name=%s]' % (base, xstr(p)),

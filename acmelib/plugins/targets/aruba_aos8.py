@@ -73,7 +73,6 @@ from __future__ import annotations
 
 import posixpath
 import re
-import secrets
 import string
 
 from acmelib.plugins.targets._common import (
@@ -114,8 +113,9 @@ def parse_certs(out):
 
 def one_time_password(n=20):
     # letters and digits only: AOS refuses quotes, ; < > | and the like in a passphrase
-    abc = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(abc) for _ in range(n))
+    # (through _common.random_password, as it is at the time: What happens masks it)
+    from acmelib.plugins.targets import _common
+    return _common.random_password(n, string.ascii_letters + string.digits)
 
 
 def stage_fields(device='controller', url=False, transfer=False):
@@ -370,6 +370,11 @@ class ArubaAos8Target(_Aos8):
             have = self.certs(s)
             if self.unchanged(bundle, options, present=lambda: name in have):
                 return self.same(bundle, 'the ServerCert %s' % name)
+            # what is there now, said (1.0.98): the decision What happens shows
+            olds = sorted((n for n in have if n != name and ours(n, prefix)), reverse=True)
+            if olds:
+                self.ctx.step('the controller has the earlier ServerCert %s of this certificate'
+                              ' - %s takes its place' % (', '.join(olds), name))
             did = []
             cas = []
             # one try around the staged files as well (1.0.96): a refused import, or the

@@ -112,6 +112,7 @@ def errors_of(raw):
 
 class JuniperSrxTarget(HttpTarget):
     kind = 'juniper_srx'
+    plan_name = staticmethod(srx_id)    # What happens: the ids of the earlier certificates
     discovery = False       # nothing to find: its fields are the sign-in
     title = 'Juniper SRX (Junos REST API)'
     vendor = 'Juniper Networks'

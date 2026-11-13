@@ -160,6 +160,7 @@ class SophosTarget(HttpTarget):
                               % rule, retry=False)
         if all(text(c.text) == name for c in certs):
             return 'unchanged'
+        was = ', '.join(sorted(set(text(c.text) for c in certs if text(c.text) != name)))
         for c in certs:
             c.text = name
         for k in list(el.attrib):
@@ -167,7 +168,7 @@ class SophosTarget(HttpTarget):
                 del el.attrib[k]
         self.api('<Set operation="update">%s</Set>' % ET.tostring(el, encoding='unicode'),
                  what='pointing the rule %s at %s' % (rule, name))
-        return 'updated'
+        return 'updated (it used %s)' % was if was else 'updated'
 
     def deploy(self, bundle, options):
         options = options or {}

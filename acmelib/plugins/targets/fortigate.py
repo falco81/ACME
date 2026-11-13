@@ -272,6 +272,9 @@ class FortiGateTarget(HttpTarget):
         if self.unchanged(bundle, options, present=lambda: self.exists(name, vdom)):
             return self.same(bundle, 'as %s' % name)
         self.check_version(vdom)
+        ver = self.fos_version(vdom)
+        if ver is not None:
+            self.ctx.step('FortiOS %s' % fos_words(ver))
         did = []
         if self.exists(name, vdom) and not as_bool(options.get('force')):
             self.ctx.step('%s is there already' % name)
@@ -296,7 +299,8 @@ class FortiGateTarget(HttpTarget):
                                  {'import_method': 'file', 'scope': 'global',
                                   'file_content': b64(pem)}, what='importing a CA certificate')
                     except PluginError as e:
-                        self.ctx.debug('CA certificate not imported (there already?): %s' % e)
+                        self.ctx.step('the CA certificate is not imported (there already?): %s'
+                                      % e)
         if as_bool(options.get('admin')):
             self.api('PUT', '/api/v2/cmdb/system/global', {'admin-server-cert': name},
                      what='setting the admin certificate')

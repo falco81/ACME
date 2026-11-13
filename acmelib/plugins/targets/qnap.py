@@ -87,10 +87,15 @@ class QnapTarget(SshMixin, Base):
         options = options or {}
         want = pem_to_der(bundle.cert_pem)
         with self.ssh() as s:
-            if not as_bool(options.get('force')) and self.served_now(s) == want and \
-                    not self.pending():
+            now = self.served_now(s)
+            if not as_bool(options.get('force')) and now == want and not self.pending():
                 self.remember(bundle, options)
                 return self.same(bundle, 'in %s' % PEM)
+            self.ctx.step(('%s holds this certificate already - written again (%s)' % (
+                PEM, 'forced' if as_bool(options.get('force')) else
+                'the last deployment did not finish')) if now == want else
+                '%s holds another certificate - replacing it' % PEM if now else
+                '%s holds no certificate - writing it' % PEM)
             tmp = '%s/acme-%s' % ((self.c('tmp_dir') or '/tmp').rstrip('/'), secrets.token_hex(6))
             pem = bundle.as_format('key-pem') + bundle.as_format('cert-pem')
             chain = bundle.as_format('chain-pem')

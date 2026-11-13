@@ -113,7 +113,7 @@
       var say = function () {
         clear(more);
         more.appendChild(el('span', '', box.classList.contains('folded') ? 'Show all' : 'Show less'));
-        if (box.classList.contains('folded')) more.appendChild(data('span', 'rp-more-n', ' (' + lines + ')'));
+        if (box.classList.contains('folded')) more.appendChild(data('span', 'rp-more-n', '(' + lines + ')'));
       };
       say();
       more.onclick = function () { box.classList.toggle('folded'); say(); };
@@ -132,34 +132,97 @@
     });
     return cn;
   }
+  /* headers as a table (1.0.98): the name, its value wrapped - the ones the transport
+     adds (Host, Content-Length, User-Agent...) dimmed */
+  function hdrTable(rows, cls) {
+    var t = el('table', 'rp-htab' + (cls ? ' ' + cls : ''));
+    var tb = el('tbody');
+    rows.forEach(function (h) {
+      var r = el('tr', h[2] ? 'auto' : '');
+      r.appendChild(data('td', 'mono rp-hk', h[0]));
+      var v = data('td', 'mono rp-hv', h[1]);
+      r.appendChild(v);
+      if (h[2]) explain(r, tr('Added by acme for every request') + (/^≈/.test(String(h[1])) ? '. ' + tr('Worked out from a recording with stand-ins for the certificate and the secrets: the real length differs.') : ''));
+      tb.appendChild(r);
+    });
+    t.appendChild(tb);
+    var w = el('div', 'rp-htab-w');
+    w.appendChild(t);
+    return w;
+  }
+  /* a body, readable: JSON pretty, form fields one a line, the parts of a multipart body,
+     binary as its size and sha256 - each with its copy button */
+  var BODY_FORMAT = {form: 'form fields', multipart: 'multipart parts', json: 'JSON', xml: 'XML', binary: 'binary', text: 'text'};
+  function bodyText(body, facts) {
+    if (facts && facts.format === 'form' && body && typeof body === 'object' && !Array.isArray(body)) {
+      return Object.keys(body).map(function (k) { return k + ' = ' + body[k]; }).join('\n');
+    }
+    return pretty(body);
+  }
+  function bodyBlock(body, facts, label) {
+    var f = facts && facts.format && BODY_FORMAT[facts.format];
+    var head = tr(label || 'Body') + (f ? ' · ' + tr(f) : '') + (facts && facts.size ? ' · ' + bytes(facts.size) : '');
+    return codeBlock(bodyText(body, facts), 'rp-body', head);
+  }
+  function present(v) { return v !== null && v !== undefined && v !== ''; }
+  /* what the stand-in device answered (debug details) */
+  function answerBlock(a, ssh) {
+    var box = el('div', 'rp-answer rp-dbg');
+    var h = el('div', 'rp-answer-h');
+    h.appendChild(el('span', 'rp-answer-t', ssh ? 'What it printed' : 'The answer'));
+    var st = ssh ? 'exit ' + (a.exit === undefined ? 0 : a.exit) : String(a.status === undefined ? '' : a.status);
+    var ok = ssh ? !a.exit : (a.status >= 200 && a.status < 400);
+    if (st) h.appendChild(data('span', 'rp-status mono ' + (ok ? 'ok' : 'bad'), st));
+    h.appendChild(el('span', 'muted small', 'here: from the stand-in device'));
+    box.appendChild(h);
+    if (a.fallback) {
+      var fb = el('div', 'rp-fallback');
+      fb.appendChild(icon('info', 13));
+      fb.appendChild(el('span', '', 'no answer was prepared for this call - a stand-in answered'));
+      explain(fb, 'What happens has no prepared answer of this device for this call: a generic one stood in (an empty success). The real device answers with its own data - what the module does next may differ.');
+      box.appendChild(fb);
+    }
+    if (!ssh && a.headers && a.headers.length) box.appendChild(hdrTable(a.headers, 'rp-ans-h'));
+    if (ssh) {
+      if (present(a.stdout)) box.appendChild(codeBlock(a.stdout, 'rp-out', tr('Output')));
+      if (present(a.stderr)) box.appendChild(codeBlock(a.stderr, 'rp-out', tr('Errors')));
+      if (!present(a.stdout) && !present(a.stderr)) box.appendChild(el('div', 'muted small rp-empty', 'nothing printed'));
+    } else if (present(a.body)) {
+      box.appendChild(bodyBlock(a.body, a.body_facts, 'Body'));
+    } else if (!present(a.body)) box.appendChild(el('div', 'muted small rp-empty', 'no body'));
+    return box;
+  }
   function httpBlock(d) {
     var box = el('div', 'rp-http');
     var line = el('div', 'rp-http-line');
     line.appendChild(data('span', 'rp-method m-' + String(d.method || 'GET').toLowerCase(), d.method || 'GET'));
     line.appendChild(data('span', 'mono rp-url', d.url || ''));
-    line.appendChild(copyBtn((d.method || 'GET') + ' ' + (d.url || '')));
+    var acts = el('span', 'rp-acts');
+    acts.appendChild(copyBtn((d.method || 'GET') + ' ' + (d.url || ''), tr('Copy the address')));
+    line.appendChild(acts);
     box.appendChild(line);
-    /* the request as it goes on the wire (1.0.37): every header - the ones acme and
-       Python add dimmed - and the body exactly as sent */
     /* how it is connected (1.0.37): address, TLS, SNI, the device's certificate, proxy */
     if (d.conn && d.conn.length) { var cr = connRow(d.conn); cr.classList.add('rp-dbg'); box.appendChild(cr); }
     var wire = d.wire && d.wire.headers ? d.wire : null;
+    var hasBody = present(d.body) || (wire && present(wire.body));
     if (wire) {
-      var ws = el('div', 'rp-hdrs rp-wire rp-dbg');
-      ws.appendChild(data('span', 'rp-hdr mono rp-wire-line', wire.line || ''));
-      wire.headers.forEach(function (h) {
-        var row = data('span', 'rp-hdr mono' + (h[2] ? ' auto' : ''));
-        row.appendChild(el('b', '', h[0] + ':'));
-        row.appendChild(document.createTextNode(' ' + h[1]));
-        if (h[2]) explain(row, tr('Added by acme for every request') + (/^≈/.test(String(h[1])) ? '. ' + tr('Worked out from a recording with stand-ins for the certificate and the secrets: the real length differs.') : ''));
-        ws.appendChild(row);
-      });
+      /* the request as it goes on the wire (1.0.37): every header - the ones acme and
+         Python add dimmed - and the body exactly as sent */
+      var ws = el('div', 'rp-wire rp-dbg');
+      ws.appendChild(data('div', 'rp-wire-line mono', wire.line || ''));
+      ws.appendChild(hdrTable(wire.headers));
       box.appendChild(ws);
       var raw = [wire.line].concat(wire.headers.map(function (h) { return h[0] + ': ' + h[1]; })).join('\n') +
-                '\n\n' + (wire.body === null || wire.body === undefined ? '' : String(wire.body));
-      var cw = copyBtn(raw, tr('Copy the whole request'));
-      cw.classList.add('rp-dbg');
-      line.appendChild(cw);
+                '\n\n' + (present(wire.body) ? String(wire.body) : '');
+      /* the whole request - its line, every header, the body - in words, beside the
+         address's own copy button (an icon alone, they looked the same) */
+      var cw = el('button', 'btn small rp-copy rp-copy-all rp-dbg');
+      cw.type = 'button';
+      cw.title = tr('Copy the whole request');
+      cw.appendChild(icon('copy', 13));
+      cw.appendChild(el('span', '', 'request'));
+      cw.onclick = function (ev) { ev.stopPropagation(); copyText(raw, cw); };
+      acts.appendChild(cw);
       /* debug off: the headers the module set, as before */
       var mine = Object.keys(d.headers || {});
       if (mine.length) {
@@ -172,21 +235,22 @@
         });
         box.appendChild(hp);
       }
-      if (wire.body !== null && wire.body !== undefined && wire.body !== '') box.appendChild(codeBlock(pretty(d.body !== undefined && d.body !== null ? d.body : wire.body), 'rp-body', 'Body'));
-      return box;
+    } else {
+      var hk = Object.keys(d.headers || {});
+      if (hk.length) box.appendChild(hdrTable(hk.map(function (k) { return [k, d.headers[k], false]; })));
     }
-    var hk = Object.keys(d.headers || {});
-    if (hk.length) {
-      var hs = el('div', 'rp-hdrs');
-      hk.forEach(function (k) {
-        var h = data('span', 'rp-hdr mono');
-        h.appendChild(el('b', '', k + ':'));
-        h.appendChild(document.createTextNode(' ' + d.headers[k]));
-        hs.appendChild(h);
-      });
-      box.appendChild(hs);
+    if (hasBody) {
+      if (present(d.body)) box.appendChild(bodyBlock(d.body, d.body_facts, 'Body'));
+      else box.appendChild(codeBlock(wire.body, 'rp-body', tr('Body')));
+      /* debug: the body exactly as it goes on the wire, when it reads differently */
+      if (wire && present(wire.body) && present(d.body) && String(wire.body) !== bodyText(d.body, d.body_facts)) {
+        var asis = el('details', 'rp-raw rp-dbg');
+        asis.appendChild(el('summary', 'small muted', 'The body as it is sent'));
+        asis.appendChild(codeBlock(wire.body, 'rp-body'));
+        box.appendChild(asis);
+      }
     }
-    if (d.body !== null && d.body !== undefined && d.body !== '') box.appendChild(codeBlock(pretty(d.body), 'rp-body', 'Body'));
+    if (d.answer) box.appendChild(answerBlock(d.answer, false));
     return box;
   }
   function pairsTable(pairs) {
@@ -251,8 +315,19 @@
     if (d.size) chip('size', bytes(d.size));
     if (d.via === 'scp') chip('by', 'scp');
     if (chips.firstChild) box.appendChild(chips);
+    if (d.sha256) {
+      var sh = el('span', 'rp-chip rp-dbg');
+      sh.appendChild(el('span', 'muted', 'sha256'));
+      sh.appendChild(data('b', 'mono rp-sha', String(d.sha256).slice(0, 16) + '…'));
+      explain(sh, String(d.sha256));
+      chips.appendChild(sh);
+      if (!chips.parentNode) box.appendChild(chips);
+    }
     if (d.text) box.appendChild(codeBlock(d.text));
     if (d.body) box.appendChild(codeBlock(d.body, 'rp-body', 'What it holds'));
+    /* debug: the command that puts it there (or reads it), as the SSH session runs it */
+    if (d.put_command) box.appendChild(codeBlock(d.put_command, 'rp-shell rp-dbg', tr('As it is run')));
+    if (d.answer) box.appendChild(answerBlock(d.answer, true));
     return box;
   }
   function recordBlock(r) {
@@ -344,6 +419,12 @@
         b.appendChild(raw);
       } else b.appendChild(codeBlock(d.command, 'rp-shell'));
       if (d.input) b.appendChild(data('div', 'mono small muted rp-input', '< ' + d.input));
+      /* debug: what goes on its input, readable (secrets out), and what it printed */
+      if (present(d.input_body)) {
+        var ib = codeBlock(d.input_body, 'rp-body rp-dbg', tr('On its input'));
+        b.appendChild(ib);
+      }
+      if (d.answer) b.appendChild(answerBlock(d.answer, true));
       return b;
     }
     if (d.record) return recordBlock(d.record);
@@ -366,10 +447,10 @@
       return h;
     }
     var k = KINDS[st.kind] || KINDS.info;
-    var row = el('div', 'rp-step k-' + k.cls + (st.branch ? ' branched' : ''));
+    var row = el('div', 'rp-step k-' + k.cls + (st.branch ? ' branched' : '') + (st.error ? ' rp-err' : ''));
     var mark = el('div', 'rp-mark');
     mark.appendChild(icon(k.icon, 15));
-    explain(mark, k.words);
+    explain(mark, st.error ? 'an error of the module' : k.words);
     row.appendChild(mark);
     var w = el('div', 'rp-w');
     var top = el('div', 'rp-top');

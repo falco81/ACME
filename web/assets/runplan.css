@@ -164,7 +164,8 @@
 .rp-shell pre::before{content:"$ ";color:var(--tx-mut)}
 .rp-code.folded pre{max-height:17.5em;overflow:hidden;
   -webkit-mask-image:linear-gradient(#000 75%,transparent);mask-image:linear-gradient(#000 75%,transparent)}
-.rp-more{margin:0 10px 8px;align-self:flex-start}
+.rp-more{margin:0 10px 8px;align-self:flex-start;gap:4px}
+.rp-more-n{font-variant-numeric:tabular-nums;color:var(--tx-dim)}
 .rp-code .rp-copy,.rp-http-line .rp-copy{flex:none}
 .rp-code .rp-copy{position:absolute;top:4px;right:4px}
 .rp-input{padding-left:4px}
@@ -318,3 +319,43 @@
 .rp-guide{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;margin:4px 0 0 0;align-self:flex-start;padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--tx-dim);font-size:11.5px;cursor:pointer;transition:color .15s,border-color .15s,background .15s}
 .rp-guide:hover{color:var(--accent,#58a6ff);border-color:rgba(88,166,255,.5);background:rgba(88,166,255,.08)}
 .rp-group-name .rp-guide{margin:0 0 0 6px;align-self:center}
+/* debug details of a request and its answer (1.0.98): headers as a table, the body with its
+   copy button, the stand-in's answer; a call around acme as an error */
+.rp-acts{display:inline-flex;align-items:center;gap:6px;flex:none;margin-left:auto}
+.rp-wire{display:flex;flex-direction:column;gap:4px;min-width:0}
+.rp-wire-line{font-size:12.5px;font-weight:600;color:var(--tx);overflow-wrap:anywhere;word-break:break-all;padding:0 2px}
+.rp-htab-w{border:1px solid var(--line);border-radius:9px;background:var(--bg);min-width:0;overflow:hidden}
+.rp-htab{width:100%;border-collapse:collapse;table-layout:fixed}
+.rp-htab td{padding:3px 10px;font-size:12px;line-height:1.5;vertical-align:top;border-top:1px solid var(--line)}
+.rp-htab tr:first-child td{border-top:0}
+.rp-htab .rp-hk{width:32%;max-width:240px;color:var(--tx-mut);font-weight:600;overflow-wrap:anywhere;word-break:break-word}
+.rp-htab .rp-hv{color:var(--tx);overflow-wrap:anywhere;word-break:break-all;white-space:pre-wrap}
+.rp-htab tr.auto td{opacity:.6}
+.rp-code-h{padding-right:44px}
+.rp-answer{display:flex;flex-direction:column;gap:6px;min-width:0;padding:8px 10px;border:1px dashed var(--line);border-radius:9px}
+.rp-answer-h{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px}
+.rp-answer-t{font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;color:var(--tx-mut)}
+.rp-status{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--ok-bg);color:var(--ok)}
+.rp-status.bad{background:var(--crit-bg);color:var(--crit)}
+.rp-fallback{display:flex;gap:7px;align-items:flex-start;padding:5px 9px;border-radius:7px;font-size:12px;
+  background:var(--warn-bg);color:var(--warn);overflow-wrap:anywhere}
+.rp-fallback .rp-ic{margin-top:2px}
+.rp-empty{padding:0 2px}
+.rp-step.rp-err .rp-mark{background:var(--crit-bg);color:var(--crit)}
+.rp-step.rp-err .rp-words{color:var(--crit)}
+.rp-step.rp-err{background:linear-gradient(90deg,rgba(248,81,73,.07),transparent 50%)}
+@media (max-width:720px){
+  .rp-htab,.rp-htab tbody,.rp-htab tr,.rp-htab td{display:block;width:auto}
+  .rp-htab tr{padding:4px 0;border-top:1px solid var(--line)}
+  .rp-htab tr:first-child{border-top:0}
+  .rp-htab td{border-top:0;padding:0 10px}
+  .rp-htab .rp-hk{width:auto;max-width:none;font-size:11.5px}
+}
+.rp-copy-all{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 10px;font-size:12px;white-space:nowrap}
+/* a fact of a connection wider than the column (a long name at 420 px): wrapped in its chip */
+.rp-conn-c{max-width:100%;min-width:0}
+.rp-conn-v{min-width:0;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:720px){
+  .rp-conn-c{white-space:normal;height:auto;min-height:24px;padding:3px 9px;flex-wrap:wrap;row-gap:0}
+  .rp-conn-v{overflow:visible;overflow-wrap:anywhere;word-break:break-all}
+}

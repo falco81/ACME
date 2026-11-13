@@ -172,6 +172,10 @@ class AcmePushTarget(HttpTarget):
         me = self.ctx.push_identity()
         code = text(self.c('pair_code')).strip()
         if pin and pin.get('app_id') == h['app_id'] and pin.get('enc_key') == h['enc_key']:
+            # said (1.0.98): the decision What happens shows - no pairing, its keys are known
+            self.ctx.step('%s %s at %s is the application paired (%s): its id and key are '
+                          'the ones kept' % (h.get('app') or '?', h.get('version') or '',
+                                             self.base_url(), pin.get('how') or '?'))
             return h, pin
         if pin and not code:
             raise PluginError('the application at %s is not the one paired (its keys changed: '

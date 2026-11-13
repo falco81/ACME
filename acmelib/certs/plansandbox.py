@@ -43,6 +43,7 @@ import traceback
 
 SANDBOX = ['']                  # the process's own folder
 RECORDING = [None]              # the list a module's run writes into, or None
+ANSWERS = [None]                # the run's Answers - what a call around ctx is answered too
 SESSION = 'PLANSESSION0token'   # what a sign-in is answered with
 TOKEN = 'PLAN-TOKEN-from-the-CA-0000000000'   # an ACME token (8+ of [A-Za-z0-9_-])
 TXT = 'PLANTXTvalueComputedFromTheToken0000000000a'  # 43 characters, base64url
@@ -78,8 +79,22 @@ def _inside(path):
 # ---------------------------------------------------------------------------
 # The lockdown
 # ---------------------------------------------------------------------------
+def bypass(how, what):
+    """A module went around acme's connection layer (ctx.http, ctx.ssh, ctx.run_local...):
+    written down as such - What happens shows it as an error step - and refused."""
+    rec({'kind': 'bypass', 'how': str(how), 'what': str(what)[:600]})
+
+
 def _no_net(*_a, **_k):
     raise Blocked('the run plan contacts nothing')
+
+
+def _lookup_said(name):
+    def fn(*a, **_k):
+        if RECORDING[0] is not None:
+            bypass('dns', '%s(%s)' % (name, ', '.join(repr(x) for x in a[:2])))
+        raise Blocked('the run plan contacts nothing')
+    return fn
 
 
 def _net_said(how):
@@ -95,6 +110,8 @@ def _net_said(how):
                 ev['bytes'] = len(data)
                 ev['hex'] = bytes(data[:512]).hex()
             rec(ev)
+            bypass('udp' if how == 'udp' else 'socket', '%s %s:%s' % (
+                'UDP' if how == 'udp' else 'TCP', addr[0], addr[1]))
         raise Blocked('the run plan contacts nothing')
     return fn
 
@@ -179,12 +196,30 @@ def _patch_http_client():
             b = bytes(b).decode('utf-8', 'replace')
         elif b is not None and not isinstance(b, str):
             b = '‹a stream›'
-        rec({'kind': 'http', 'method': str(method).upper(), 'url': full,
-             'headers': {str(k): str(v) for k, v in dict(headers or {}).items()},
-             'body': b, 'verify': verify, 'ca': False, 'client_cert': False,
-             'proxy': proxied, 'proxy_own': proxied, 'own': True, 'timeout': getattr(self, 'timeout', None)
-             if isinstance(getattr(self, 'timeout', None), (int, float)) else None})
-        self._acme_answer = _FakeResponse()
+        bypass('http.client', '%s %s' % (str(method).upper(), full))
+        ev = {'kind': 'http', 'method': str(method).upper(), 'url': full,
+              'headers': {str(k): str(v) for k, v in dict(headers or {}).items()},
+              'body': b, 'verify': verify, 'ca': False, 'client_cert': False,
+              'proxy': proxied, 'proxy_own': proxied, 'own': True,
+              'timeout': getattr(self, 'timeout', None)
+              if isinstance(getattr(self, 'timeout', None), (int, float)) else None}
+        # answered as ctx.http would be (the module's answers), a stand-in else
+        ans = ANSWERS[0]
+        if ans is not None:
+            st, hd, raw = ans(str(method).upper(), full, body)
+            hd = dict(hd or {})
+            r = _FakeResponse(st, raw, hd.get('Content-Type') or 'application/json')
+            for hk, hv in hd.items():
+                if hk.lower() not in ('content-type', 'content-length'):
+                    r.headers[hk] = hv
+            ev.update(answer=st, answer_headers=hd, answer_body=raw)
+            if getattr(ans, 'fell', None):
+                ev['fallback'] = ans.fell
+        else:
+            r = _FakeResponse()
+            ev.update(answer=200, fallback='empty')
+        rec(ev)
+        self._acme_answer = r
 
     def getresponse(self):
         r = getattr(self, '_acme_answer', None) or _FakeResponse()
@@ -352,11 +387,20 @@ def _popen_init(self, args, *a, **k):
     if exe == 'openssl' and sub in SAFE_OPENSSL and not k.get('shell'):
         return _real['Popen.__init__'](self, args, *a, **k)
     rec({'kind': 'command', 'argv': [os.fsdecode(x) for x in argv][:60]})
+    bypass('program', ' '.join(os.fsdecode(x) for x in argv[:60]))
     raise Blocked('the run plan runs no program: %s' % exe)
 
 
 def _forbid(*_a, **_k):
     raise Blocked('the run plan runs no program')
+
+
+def _forbid_said(name):
+    def fn(*a, **_k):
+        if RECORDING[0] is not None:
+            bypass('program', '%s(%s)' % (name, ', '.join(repr(x)[:200] for x in a[:3])))
+        raise Blocked('the run plan runs no program')
+    return fn
 
 
 def _mk_temp(real):
@@ -413,7 +457,8 @@ def lockdown(folder):
     socket.socket.sendmsg = _net_said('udp')
     for n in ('getaddrinfo', 'gethostbyname', 'gethostbyname_ex',
               'gethostbyaddr', 'create_server', 'socketpair', 'fromfd'):
-        setattr(socket, n, _no_net)
+        setattr(socket, n, _lookup_said(n) if n.startswith(('get',)) else _no_net)
+    socket.getfqdn = _lookup_said('getfqdn')
     socket.create_connection = _net_said('tcp')
     _patch_http_client()
     _patch_ftplib()
@@ -438,7 +483,7 @@ def lockdown(folder):
               'execlp', 'execvp', 'execvpe', 'spawnv', 'spawnve', 'spawnl', 'posix_spawn',
               'posix_spawnp', 'kill', 'killpg'):
         if hasattr(os, n):
-            setattr(os, n, _forbid)
+            setattr(os, n, _forbid_said('os.' + n))
     _real['Popen.__init__'] = subprocess.Popen.__init__
     subprocess.Popen.__init__ = _popen_init
     shutil.rmtree = _guarded_rmtree(shutil.rmtree)
@@ -520,7 +565,7 @@ SECRET_NAME = re.compile(r'(pass|secret|token|apikey|api_key|api-key|private|pas
                          r'^sid$|_sid$|^sig$|^code$)', re.I)
 NOT_SECRET_NAME = re.compile(r'^(public[_-]?key|key[_-]?(type|size|usage|length|alg|algorithm|'
                              r'id|name|spec)|auth[_-]?(type|method|mode|scheme|source)|'
-                             r'token[_-]?(type|expires?|ttl)|session[_-]?(timeout|ttl))$', re.I)
+                             r'token[_-]?(type|expires?|ttl)|session[_-]?(timeout|ttl|type))$', re.I)
 HEADER_SCHEMES = re.compile(r'^(Basic|Bearer|Token|Negotiate|NTLM|Digest|SSWS|ApiKey|'
                             r'Key|Splunk|GenieKey|Bot|AWS4-HMAC-SHA256|SharedKey|PVEAPIToken)\b',
                             re.I)
@@ -638,7 +683,19 @@ def mask_text(t, marks):
         if inner is None:
             return '•••• (binary, base64, %s)' % size_words(len(raw))
         return s
-    return B64_RUN.sub(b64, t)
+    t = B64_RUN.sub(b64, t)
+    if '</' in t:
+        # an XML element of a secret's name (1.0.98: <Password> of a Sophos upload, the
+        # PKCS#12's password made for the one run, no stand-in the marks know)
+        # (<key name=".."> - a filter's, Sophos - is no key)
+        t = XML_SECRET.sub(lambda m: m.group(0) if not secret_name(m.group(1)) or
+                           m.group(1).lower() == 'key' or
+                           m.group(3).startswith(('••••', '‹')) else
+                           '<%s%s>••••</%s>' % (m.group(1), m.group(2) or '', m.group(1)), t)
+    return t
+
+
+XML_SECRET = re.compile(r'<([A-Za-z][\w.:-]*)(\s[^<>]*)?>([^<]+)</\1>')
 
 
 def mask_json(v, marks, key=''):
@@ -647,12 +704,11 @@ def mask_json(v, marks, key=''):
     if isinstance(v, list):
         return [mask_json(x, marks, key) for x in v]
     if isinstance(v, str):
-        if key and secret_name(key) and v and not v.startswith('‹') and not \
+        t = mask_text(v, marks)
+        if key and secret_name(key) and v and t == v and not v.startswith('‹') and not \
                 v.startswith('••••'):
-            if v == SESSION:
-                return '‹session›'
             return '••••'
-        return mask_text(v, marks)
+        return t
     return v
 
 
@@ -794,7 +850,7 @@ def wire_body(body, marks, ctype=None):
     if body is None:
         return None
     if isinstance(body, (dict, list)):
-        return json.dumps(mask_json(body, marks))
+        return json.dumps(mask_json(body, marks), ensure_ascii=False)
     shown, facts = mask_body(body, marks, ctype)
     f = facts.get('format')
     if f == 'json':
@@ -802,7 +858,7 @@ def wire_body(body, marks, ctype=None):
         # as sent: its own spacing kept when nothing in it was masked
         if json.dumps(json.loads(raw)) == json.dumps(shown):
             return mask_text(raw, marks)
-        return json.dumps(shown)
+        return json.dumps(shown, ensure_ascii=False)
     if f == 'form':
         import urllib.parse
         return '&'.join('%s=%s' % (urllib.parse.quote_plus(str(k)), v if str(v).startswith(
@@ -827,7 +883,8 @@ class Answers(object):
     {SESSION}, {TAIL} (the last part of the path) and {SENT:key} - the value of "key"
     (dotted for a nested one) in the JSON body the module sent last with it ('' before);
     {SEEN:regex} - its first group in this request ("METHOD url\nbody") or one before.
-    SSH rules (ssh()): {command (a regex), input? (a regex), stdout?, stderr?, exit?,
+    SSH rules (ssh()): {command (a regex), input? (a regex), script? (a regex of the PowerShell
+    script run - decoded or uploaded), seen_lines?, stdout?, stderr?, exit?,
     times?} - what a command matching them printed."""
     def __init__(self, rules, ssh_rules=None):
         self.rules = rules or []
@@ -841,18 +898,20 @@ class Answers(object):
         # the certificate deployed and the deployment's options (run_one): {EARLIER}
         self.bundle, self.options = None, {}
 
-    EARLIER_RE = re.compile(r'\{(EARLIER2?|NAME)(?::(\d+))?(?::(\d+))?(?::([^}\d]))?\}')
+    EARLIER_RE = re.compile(r'\{(EARLIER[23]?|CURRENT|LABEL)(?::(\d+))?(?::(\d+))?(?::([^}\d]))?\}')
 
     def earlier(self, text):
         """{EARLIER} / {EARLIER2} (1.0.98) in an answer: the name acme gave (object_name:
-        acme-<label>-<date>-<serial>) to an earlier certificate of this one - 3 (EARLIER2: 6)
-        months older, another serial - so a device answers with the certificate a renewal
-        replaces; {EARLIER:n}: of a module whose names are at most n long (63);
+        acme-<label>-<date>-<serial>) to an earlier certificate of this one - 3 (EARLIER2: 6,
+        EARLIER3: 9) months older, another serial - so a device answers with the certificate
+        a renewal replaces; {EARLIER:n}: of a module whose names are at most n long (63);
         {EARLIER:n:s}: with a serial of s characters (8); {EARLIER:n:s:c}: each character
-        but A-Z a-z 0-9 _ - written as c (TrueNAS: _). {NAME...} (same arguments): the name
-        this certificate gets - listed back after it was put there. The certificate's DNS
+        but A-Z a-z 0-9 _ - written as c (TrueNAS: _). {CURRENT...} (same arguments): the
+        name this certificate gets - listed back after it was put there; {LABEL[:n]}: its
+        label (_common.label_of - "acme {LABEL}" of a module). The certificate's DNS
         names: {CERTNAME} (the first), {CERTNAMES} (all, by commas; "{CERTNAMES}" in a JSON
-        body: a list of them) - a device listing the certificate it holds for them."""
+        body: a list of them) - a device listing the certificate it holds for them. {CACN},
+        {CACN2}, {CACN_}: the CA certificates of its chain (below)."""
         if self.bundle is not None and '{CERTNAME' in text:
             dns = [str(n) for n in (getattr(self.bundle, 'names', None) or [])]
             text = text.replace('"{CERTNAMES}"', json.dumps(dns)).replace(
@@ -868,12 +927,38 @@ class Answers(object):
                     '{FP}', hashlib.sha256(der).hexdigest())
             except Exception:                           # noqa: BLE001
                 pass
-        if '{EARLIER' not in text and '{NAME' not in text:
+        if self.bundle is not None and '{CACN' in text:
+            # {CACN} / {CACN2}: the common name of the first (second) CA certificate of the
+            # chain deployed, {CACN_}: with what is not A-Z a-z 0-9 . - _ written as _ (a
+            # file named after it) - a device's trust store holding it at a renewal; a line
+            # naming a CA the chain has not is left out
+            from acmelib.certs import pki
+            from acmelib.plugins.targets import _common as C
+            cns = []
+            for pem in C.chain_list(self.bundle):
+                try:
+                    cns.append(str((pki.cert_info(pem).get('subject') or {}).get('CN') or ''))
+                except Exception:                       # noqa: BLE001
+                    cns.append('')
+
+            def ca(m):
+                i = int(m.group(1) or 1) - 1
+                v = cns[i] if i < len(cns) else ''
+                return re.sub(r'[^A-Za-z0-9._-]', '_', v) if m.group(2) else v
+            text = '\n'.join(re.sub(r'\{CACN(\d?)(_?)\}', ca, ln) for ln in text.split('\n')
+                             if all(int(x or 1) <= len(cns)
+                                    for x in re.findall(r'\{CACN(\d?)_?\}', ln)))
+        if '{EARLIER' not in text and '{CURRENT' not in text and '{LABEL' not in text:
             return text
 
         def one(m):
             from acmelib.plugins.targets import _common as C
-            back = {'EARLIER': 91, 'EARLIER2': 182}.get(m.group(1), 0)
+            if m.group(1) == 'LABEL':
+                try:
+                    return C.label_of(self.bundle, self.options, int(m.group(2) or 40))
+                except Exception:                       # noqa: BLE001
+                    return 'cert'
+            back = {'EARLIER': 91, 'EARLIER2': 182, 'EARLIER3': 273}.get(m.group(1), 0)
             nb = getattr(self.bundle, 'not_before', None) or time.time()
             sl = int(m.group(3) or 8)
 
@@ -881,10 +966,14 @@ class Answers(object):
                 name = getattr(self.bundle, 'name', '')
                 names = list(getattr(self.bundle, 'names', None) or ['cert'])
                 not_before = float(nb) - back * 86400
-                serial = '5a0e1d2c3b4a59687%s' % ('6' if m.group(1) == 'EARLIER2' else '7')
+                serial = '5a0e1d2c3b4a59687%s' % {'EARLIER2': '6', 'EARLIER3': '5'}.get(
+                    m.group(1), '7')
             try:
-                got = C.object_name(B() if back else self.bundle, self.options,
-                                    int(m.group(2) or 63), sl)
+                if getattr(self, 'namer', None) is not None and not m.group(2):
+                    got = self.namer(B() if back else self.bundle, self.options)
+                else:
+                    got = C.object_name(B() if back else self.bundle, self.options,
+                                        int(m.group(2) or 63), sl)
             except Exception:                           # noqa: BLE001
                 got = 'acme-cert-%s-5a0e1d2c' % time.strftime(
                     '%Y%m%d', time.gmtime(float(nb) - back * 86400))
@@ -899,10 +988,33 @@ class Answers(object):
     # (PEM of the certificate issued for the request's key), {CHAIN} (PEM of its intermediate),
     # {CERT_B64} / {CHAIN_B64} (their DER in base64), {P7_B64} (a PKCS#7 of both, DER, base64),
     # {CA_P7_B64} (one of the intermediate only), {CERT_SERIAL} (its serial, hex)
+    # {EARLIER_PEM} / {EARLIER_B64}: another certificate of the deployed one's names (its own
+    # key; PEM / DER in base64) - the one a device holds and lists before a renewal
     PLAN_RE = re.compile(r'\{(ZONE|NAME|FQDN|TXT|CERT|CHAIN|CERT_B64|CHAIN_B64|P7_B64|CA_P7_B64|'
-                         r'CERT_SERIAL)\}')
+                         r'CERT_SERIAL|EARLIER_PEM|EARLIER_B64)\}')
+    _earlier_pem = None
+
+    def earlier_pem(self):
+        if self._earlier_pem is None:
+            self._earlier_pem = ''
+            try:
+                from acmelib.certs import pki
+                names = [str(n) for n in (getattr(self.bundle, 'names', None) or
+                                          ['example.invalid'])]
+                with _unrecorded(RECORDING[0]):
+                    self._earlier_pem = pki.self_signed(pki.make_key('ec-256'), names,
+                                                        days=90).strip() + '\n'
+            except Exception:                           # noqa: BLE001
+                pass
+        return self._earlier_pem
     vname = ''
     issued = None
+
+    def plan_re(self, pat):
+        """A rule's url / sent regex with {ZONE}, {NAME}... in it: their values, escaped."""
+        if '{' not in pat or not self.PLAN_RE.search(pat):
+            return pat
+        return self.PLAN_RE.sub(lambda m: re.escape(self.plan_fill(m.group(0), False)), pat)
 
     def plan_fill(self, text, js):
         if '{' not in text or not self.PLAN_RE.search(text):
@@ -915,6 +1027,10 @@ class Answers(object):
         except Exception:                               # noqa: BLE001
             vals['ZONE'] = ''
         vals.update(self.issued or {})
+        if '{EARLIER_' in text:
+            pem = self.earlier_pem()
+            vals['EARLIER_PEM'] = pem
+            vals['EARLIER_B64'] = ''.join(l for l in pem.splitlines() if l and '-----' not in l)
 
         def one(m):
             v = str(vals.get(m.group(1), ''))
@@ -934,6 +1050,13 @@ class Answers(object):
         if isinstance(body, (bytes, bytearray)):
             body = bytes(body).decode('utf-8', 'replace')
         if isinstance(body, str):
+            if re.match(r'^[A-Za-z0-9_.%\[\]-]+=[^&]*(&[A-Za-z0-9_.%\[\]-]+=[^&]*)*$',
+                        body.strip()):
+                # a form (application/x-www-form-urlencoded): {SENT:field} too (1.0.98)
+                import urllib.parse
+                for k, v in urllib.parse.parse_qsl(body.strip(), keep_blank_values=True):
+                    self.sent[k] = v
+                return
             if body.strip()[:1] not in ('{', '['):
                 return
             try:
@@ -976,9 +1099,9 @@ class Answers(object):
         for i, r in enumerate(self.rules):
             if r.get('method') and r['method'] != method:
                 continue
-            if r.get('url') and not re.search(r['url'], url):
+            if r.get('url') and not re.search(self.plan_re(r['url']), url):
                 continue
-            if r.get('sent') and not re.search(r['sent'], self.sent_text(body)):
+            if r.get('sent') and not re.search(self.plan_re(r['sent']), self.sent_text(body)):
                 continue
             if not self._take('http', i, r):
                 continue
@@ -1059,6 +1182,15 @@ class Answers(object):
             seen = self._ssh_seen = []
         sent = str(command) + '\n' + (input.decode('utf-8', 'replace')
                                       if isinstance(input, (bytes, bytearray)) else str(input or ''))
+        # the PowerShell script the command runs (1.0.98): -EncodedCommand decoded, or the
+        # .ps1 uploaded before it (-File "path") - a rule's "script" (a regex) is matched
+        # against it, {SEEN:..} looks in it too
+        script = encoded_script(command)
+        if not script:
+            fm = re.search(r'-File\s+"([^"]+)"', str(command))
+            script = (getattr(self, 'uploads', None) or {}).get(fm.group(1), '') if fm else ''
+        if script:
+            sent += '\n' + script
 
         def echo(m):
             for old in reversed(seen):
@@ -1074,12 +1206,29 @@ class Answers(object):
                 else str(input or '')
             if r.get('input') is not None and not re.search(r['input'], inp):
                 continue
+            if r.get('script') is not None and not re.search(r['script'], script):
+                continue
             if not self._take('ssh', i, r):
                 continue
             out = str(r.get('stdout', '')).replace('{SESSION}', SESSION)
             if '{SERIAL}' in out:
                 out = out.replace('{SERIAL}', sent_serial(seen))
-            out = self.earlier(fill_seen(out, echo))
+            if r.get('seen_lines'):
+                # one line a thing asked (1.0.98): {SEEN:..} looks in this command only, a
+                # line where it found nothing is left out - sha256sum of 3 paths prints 3
+                # lines, the rule has room for more
+                def now(m):
+                    got = re.search(m.group(1), sent)
+                    return (got.group(1) if got.groups() else got.group(0)) if got else ''
+
+                def kept(ln):
+                    got = []
+                    filled = fill_seen(ln, lambda m: got.append(now(m)) or got[-1])
+                    return None if '' in got else filled
+                out = ''.join(x for x in (kept(ln) for ln in out.splitlines(True))
+                              if x is not None)
+            out = self.plan_fill(self.earlier(fill_seen(out, echo)).replace(
+                '{CSR}', self.csr or ''), False)
             return (int(r.get('exit', 0)), out, str(r.get('stderr', '')))
         return None
 
@@ -1237,6 +1386,16 @@ class FakeSsh(object):
                    'owner': owner or None, 'via': via}, **blob_facts(data))
         ev['command'] = put_command(str(remote_path), mode, owner, via, self.port)
         rec(ev)
+        answers = getattr(self.ctx, 'answers', None)
+        if answers is not None and str(remote_path).lower().endswith(('.ps1', '.sh', '.py')):
+            # a script uploaded to be run (1.0.98: a long PowerShell one, -File "path"): what
+            # a rule's "script" is matched against, {SEEN:..} looks in
+            try:
+                raw = data if isinstance(data, (bytes, bytearray)) else str(data).encode()
+                answers.__dict__.setdefault('uploads', {})[str(remote_path)] = \
+                    bytes(raw).decode('utf-8-sig', 'replace')
+            except Exception:                           # noqa: BLE001
+                pass
 
     def get(self, remote_path):
         rec({'kind': 'ssh-get', 'host': self.host, 'path': str(remote_path),
@@ -1246,6 +1405,24 @@ class FakeSsh(object):
 
     def close(self):
         pass
+
+
+def push_confirm(raw, headers):
+    """{PUSH_CONFIRM} in an answer (acme push's pair, runplan.ANSWERS['acme_push']): the
+    confirmation the application makes with the pairing code - of the run's own code (its
+    stand-in), the nonce the request said and the app_id / enc_key of the answer - so the
+    pairing goes through as with the application."""
+    try:
+        from acmelib import engine as E
+        d = json.loads(raw.decode('utf-8', 'replace').replace('{PUSH_CONFIRM}', ''))
+        nonce = next((str(v) for k, v in (headers or {}).items()
+                      if str(k).lower() == 'x-acme-push-nonce'), '')
+        code = ((CURRENT[0] or {}).get('config') or {}).get('pair_code') or ''
+        got = E.push_proof(code, 'paired', d.get('app_id'), 'acme-plan', nonce,
+                           d.get('enc_key'))
+        return raw.replace(b'{PUSH_CONFIRM}', got.encode())
+    except Exception:                                   # noqa: BLE001
+        return raw
 
 
 class PlanContext(object):
@@ -1261,6 +1438,10 @@ class PlanContext(object):
         self.deploy_id = job.get('deploy_id')
         self.target_name = job.get('target_name')
         self._kv = {}
+        # acme push (targets/acme_push.py): the pin acme keeps of the application when it is
+        # paired already (runplan.PUSH_PIN, the one its hello is answered with) - else none
+        self._push_pin = job.get('push_pin') or None
+        self._pages = job.get('pages') or None
 
     def step(self, words, level='info'):
         rec({'kind': 'say', 'words': str(words)[:600], 'level': level})
@@ -1284,6 +1465,8 @@ class PlanContext(object):
         if isinstance(body, (dict, list)):
             h.setdefault('Content-Type', 'application/json')
         st, hd, raw = self.answers(method, str(url), body)
+        if b'{PUSH_CONFIRM}' in (raw or b''):
+            raw = push_confirm(raw, h)
         ev = {'kind': 'http', 'method': method, 'url': str(url), 'headers': h, 'body': body,
               'verify': bool(verify), 'ca': bool(ca_pem), 'client_cert': bool(client_cert),
               'proxy': bool(proxy), 'answer': st, 'timeout': timeout,
@@ -1380,12 +1563,18 @@ class PlanContext(object):
     def tidy(self):
         pass
 
+    # acme's own pages as they are (runplan.pages_of, the job's "pages"): its nodes, the VIP
+    # address, what each holds now
     def pages_where(self):
+        got = (self._pages or {}).get('where')
+        if isinstance(got, dict) and got.get('nodes'):
+            return got
         return {'node': self.node, 'nodes': [self.node], 'cluster': False,
                 'vip': {'on': False, 'fqdn': '', 'address': ''}}
 
     def pages_get(self, where):
-        return None
+        got = ((self._pages or {}).get('have') or {}).get(str(where))
+        return dict(got) if isinstance(got, dict) else None
 
     def pages_put(self, where, cert_pem, key_pem, chain_pems=None, how='', alt=None):
         rec({'kind': 'pages', 'where': str(where), 'alt': bool(alt)})
@@ -1395,7 +1584,7 @@ class PlanContext(object):
         return {'seed': b'\0' * 32, 'public': 'PLAN', 'id': 'acme-plan', 'text': 'acme-plan'}
 
     def push_pin(self, url, pin=None):
-        return None
+        return dict(self._push_pin) if pin is None and self._push_pin else None
 
 
 # ---------------------------------------------------------------------------
@@ -1462,6 +1651,7 @@ def run_one(job, r, bundle_holder):
     RECORDING[0] = events
     CURRENT[0] = r
     del PLACED_TXT[:]
+    PLACED_CNAME.clear()
     err = None
     said = None
     signal.signal(signal.SIGALRM, _alarm)
@@ -1469,7 +1659,9 @@ def run_one(job, r, bundle_holder):
     try:
         cls = module(r['family'], r['kind'], (r.get('config') or {}).get('_version'))
         answers = Answers(r.get('answers'), r.get('ssh_answers'))
-        ctx = PlanContext(dict(job, deploy_id=r.get('deploy_id'), target_name=r.get('name')),
+        ANSWERS[0] = answers
+        ctx = PlanContext(dict(job, deploy_id=r.get('deploy_id'), target_name=r.get('name'),
+                               push_pin=r.get('push_pin')),
                           '%s:%s' % (r['family'], r.get('name')), answers)
         inst = cls(dict(r.get('config') or {}), ctx)
         op = r.get('op')
@@ -1483,6 +1675,9 @@ def run_one(job, r, bundle_holder):
                 b = pick_variant(b, r.get('options') or {}, cls)
             opts = dict(r.get('options') or {})
             answers.bundle, answers.options = b, dict(opts)
+            # a module naming its objects otherwise than object_name (Junos ids): its own
+            # plan_name(bundle, options) names {EARLIER} / {CURRENT}
+            answers.namer = getattr(cls, 'plan_name', None)
             if callable(getattr(inst, 'preview', None)):
                 RECORDING[0] = None
                 try:
@@ -1522,6 +1717,7 @@ def run_one(job, r, bundle_holder):
             said = 'the device gave its CSR' if got else None
         elif op == 'challenge':
             name = r.get('names', ['example.invalid'])[0]
+            answers.vname = name
             handle = inst.present(name, TOKEN, KEYAUTH, TXT)
             rec({'kind': 'phase', 'what': 'ready'})
             try:
@@ -1538,10 +1734,34 @@ def run_one(job, r, bundle_holder):
             with _unrecorded(events):
                 key = pki.make_key(cert.get('key_type') or 'ec-256')
                 csr_pem, csr_der = pki.make_csr(key, names)
+                # what the CA answers holds a certificate for this key (1.0.98); a renewal
+                # hands the certificate it renews (base.CertRequest.previous)
+                answers.issued = issued_for(csr_pem, names)
+                answers.vname = names[0]
+                previous = pki.self_signed(pki.make_key(cert.get('key_type') or 'ec-256'),
+                                           names, days=90) if r.get('previous') else None
+            # the certificate's own validations, for a commercial CA's DCV (1.0.98): each
+            # puts the CA's record in place through its own module, recorded here too
+            chal = {}
+            for n, c in (r.get('challenges') or {}).items():
+                ccls = module('challenge', c['kind'], (c.get('config') or {}).get('_version'))
+                ca = Answers(c.get('answers'))
+                ca.vname = n
+                chal[n] = ccls(dict(c.get('config') or {}), PlanContext(
+                    job, 'challenge:%s' % c.get('name'), ca))
+
+                def place(kind, name, where, content, _o=chal[n].place):
+                    # what the CA asked for is what DNS answers once it is in place
+                    if kind == 'cname':
+                        PLACED_CNAME[str(where).lower().rstrip('.')] = str(content)
+                    else:
+                        PLACED_TXT.append(str(content))
+                    return _o(kind, name, where, content)
+                chal[n].place = place
             req = base.CertRequest(names=names, sans=names, key_type=cert.get('key_type'),
                                    key_pem=key, csr_pem=csr_pem, csr_der=csr_der,
                                    subject={}, days=cert.get('days'), profile={},
-                                   challenges={}, previous=None, cert_id=cert.get('id'),
+                                   challenges=chal, previous=previous, cert_id=cert.get('id'),
                                    ref=cert.get('ref') or None)
             got = inst.issue(req)
             said = 'issued' if got else None
@@ -1555,9 +1775,22 @@ def run_one(job, r, bundle_holder):
     finally:
         signal.alarm(0)
         RECORDING[0] = None
+        ANSWERS[0] = None
     marks = r.get('marks') or {}
     return {'events': [clean(ev, marks) for ev in events], 'error': mask_text(err, marks)
             if err else None, 'said': mask_text(said, marks) if isinstance(said, str) else None}
+
+
+def _hdr(headers, name):
+    for k, v in dict(headers or {}).items():
+        if str(k).lower() == name:
+            return str(v)
+    return ''
+
+
+ARGV_SECRET_FLAG = re.compile(r'^(--?(password|passwd|pass|passphrase|secret|token|api-?key|'
+                              r'storepass|keypass|key-?pass|pin)|-(Password|PlainPassword|Pin|'
+                              r'Secret|Token|ApiKey|Passphrase|CertificatePassword))$', re.I)
 
 
 def clean(ev, marks):
@@ -1565,24 +1798,72 @@ def clean(ev, marks):
     ev = dict(ev)
     k = ev.get('kind')
     if k == 'http':
+        raw_url, raw_headers, raw_body = ev['url'], dict(ev.get('headers') or {}), ev.get('body')
+        ctype = _hdr(raw_headers, 'content-type')
         ev['url'] = mask_url(ev['url'], marks)
-        ev['headers'] = {hk: ('••••' if SECRET_HEADER.search(str(hk))
-                              and str(hk).lower() not in ('content-type', 'accept')
-                              else mask_text(hv, marks)) for hk, hv in ev['headers'].items()}
-        body, facts = mask_body(ev.get('body'), marks)
+        ev['headers'] = {hk: header_shown(hk, hv, marks) for hk, hv in raw_headers.items()}
+        body, facts = mask_body(raw_body, marks, ctype)
         ev['body'] = body
         ev['body_facts'] = facts
+        # the request exactly as it goes on the wire (debug details): every header - the
+        # ones the transport adds too - and the body as sent, its secrets out
+        try:
+            from acmelib.certs import runtime as _rt
+            w = _rt.wire_request(ev.get('method'), raw_url, raw_headers,
+                                 raw_body if not isinstance(raw_body, (bytes, bytearray))
+                                 else bytes(raw_body).decode('latin-1'), own=bool(ev.get('own')))
+            murl = mask_url(raw_url, marks)
+            import urllib.parse
+            u = urllib.parse.urlsplit(murl)
+            line = '%s %s HTTP/1.1' % (str(ev.get('method') or 'GET').upper(),
+                                       (u.path or '/') + ('?' + u.query if u.query else ''))
+            hs = []
+            for h in w['headers']:
+                v = h[1]
+                if h[0].lower() == 'content-length' and raw_body is not None:
+                    v = str(len(raw_body if isinstance(raw_body, (bytes, bytearray)) else
+                                (json.dumps(raw_body) if isinstance(raw_body, (dict, list))
+                                 else str(raw_body)).encode('utf-8')))
+                hs.append([h[0], header_shown(h[0], v, marks), bool(h[2])])
+            ev['wire'] = {'line': line, 'headers': hs,
+                          'body': wire_body(raw_body, marks, ctype)}
+        except Exception:                               # noqa: BLE001
+            pass
+        if 'answer_headers' in ev or 'answer_body' in ev:
+            ah = dict(ev.pop('answer_headers', None) or {})
+            ab = ev.pop('answer_body', None)
+            shown, afacts = mask_body(ab if ab not in (None, b'') else None, marks,
+                                      _hdr(ah, 'content-type'))
+            ev['answered'] = {'status': ev.get('answer'),
+                              'headers': [[hk, header_shown(hk, hv, marks)]
+                                          for hk, hv in ah.items()],
+                              'body': shown, 'body_facts': afacts}
     elif k in ('ssh-run',):
         # PowerShell's -EncodedCommand read too (1.0.23): the script as it runs, for people
         script = encoded_script(ev['command'])
         if script:
-            ev['script'] = mask_text(script, marks)
-        ev['command'] = mask_text(ev['command'], marks)
-    elif k in ('ssh-put', 'file'):
+            ev['script'] = mask_command(script, marks)
+        ev['command'] = mask_command(ev['command'], marks)
+        if isinstance(ev.get('input'), dict) and ev['input'].get('body') is not None:
+            ev['input'] = dict(ev['input'], body=mask_text(ev['input']['body'], marks))
+        if isinstance(ev.get('answer'), dict):
+            ev['answer'] = {a: (mask_text(b, marks) if isinstance(b, str) else b)
+                            for a, b in ev['answer'].items()}
+    elif k in ('ssh-put', 'file', 'ssh-get'):
         if ev.get('body') is not None:
             ev['body'] = mask_text(ev['body'], marks)
+        if ev.get('command'):
+            ev['command'] = mask_command(ev['command'], marks)
     elif k == 'command':
-        ev['argv'] = [mask_text(a, marks) for a in ev.get('argv') or []]
+        argv = [mask_text(a, marks) for a in ev.get('argv') or []]
+        for n in range(1, len(argv)):
+            if ARGV_SECRET_FLAG.match(argv[n - 1]) and not argv[n].startswith('••••'):
+                argv[n] = '••••'
+        ev['argv'] = [mask_command(a, marks) if ' ' in a or 'pass:' in a else a for a in argv]
+    elif k in ('ftp-cmd', 'ftp-put'):
+        ev['cmd'] = mask_command(ev.get('cmd') or '', marks)
+    elif k == 'bypass':
+        ev['what'] = mask_command(ev.get('what') or '', marks)
     elif k == 'say':
         ev['words'] = mask_text(ev['words'], marks)
     elif k in ('dns-ask', 'dns-update'):
@@ -1593,8 +1874,42 @@ def clean(ev, marks):
     return ev
 
 
+def issued_for(csr_pem, names):
+    """What a CA answers a request with (1.0.98): a certificate for the request's key and
+    names, signed by an intermediate made here for the run - as the placeholders of
+    Answers.plan_fill take it (PEM, DER in base64, PKCS#7 in base64, the serial)."""
+    import base64
+    from acmelib.certs import pki
+    ca_key = pki.make_key('ec-256')
+    ca = pki.self_signed(ca_key, [], subject={'CN': 'Plan Intermediate CA'}, days=365,
+                         is_ca=True)
+    san, _typed = pki.san_lines(names)
+    ext = ['basicConstraints = critical, CA:FALSE', 'keyUsage = critical, digitalSignature, '
+           'keyEncipherment', 'extendedKeyUsage = serverAuth, clientAuth',
+           'subjectKeyIdentifier = hash', 'authorityKeyIdentifier = keyid:always'] + (
+        ['subjectAltName = @san', '', '[san]'] + san if san else [])
+    with pki.workdir() as d:
+        out = pki.openssl(['x509', '-req', '-in', pki.wfile(d, 'r.csr', csr_pem),
+                           '-CA', pki.wfile(d, 'ca.pem', ca), '-CAkey',
+                           pki.wfile(d, 'ca.key', ca_key), '-set_serial',
+                           '0x' + pki.random_serial(), '-days', '90', '-sha256',
+                           '-extfile', pki.wfile(d, 'ext.cnf', '\n'.join(ext) + '\n')])
+        leaf = pki.certs_in(out.decode() if isinstance(out, bytes) else out)[0]
+        p7 = pki.openssl(['crl2pkcs7', '-nocrl', '-outform', 'DER', '-certfile',
+                          pki.wfile(d, 'all.pem', leaf + ca)])
+        ca7 = pki.openssl(['crl2pkcs7', '-nocrl', '-outform', 'DER', '-certfile',
+                           pki.wfile(d, 'ca1.pem', ca)])
+
+    def b64(pem):
+        return base64.b64encode(pki.pem_to_der(pem)).decode()
+    return {'CERT': leaf, 'CHAIN': ca, 'CERT_B64': b64(leaf), 'CHAIN_B64': b64(ca),
+            'P7_B64': base64.b64encode(p7).decode(), 'CA_P7_B64': base64.b64encode(ca7).decode(),
+            'CERT_SERIAL': str(pki.cert_info(leaf).get('serial') or '')}
+
+
 CURRENT = [None]                # the run going on (run_one): its family, its settings
-PLACED_TXT = []                 # TXT values a run wrote by DNS UPDATE: seen when asked
+PLACED_TXT = []                 # TXT values a run wrote (UPDATE, a CA's DCV): seen when asked
+PLACED_CNAME = {}               # CNAMEs a CA's DCV put in place: {name: target}
 
 
 def dns_answer(D, wire, r):
@@ -1637,6 +1952,8 @@ def dns_answer(D, wire, r):
             m.answer.append(D.RR(n, 1, D.CLASS_IN, 300, '192.0.2.53'))
         elif t == 28:
             m.answer.append(D.RR(n, 28, D.CLASS_IN, 300, '2001:db8::53'))
+        elif t == 5 and n in PLACED_CNAME:
+            m.answer.append(D.RR(n, 5, D.CLASS_IN, 300, PLACED_CNAME[n]))
         elif t == 16 and (n.startswith('_acme-challenge.') or PLACED_TXT):
             for v in [TXT] + [x for x in PLACED_TXT if x != TXT]:
                 m.answer.append(D.RR(n, 16, D.CLASS_IN, 60, v))
@@ -1650,6 +1967,25 @@ def _patch_modules(job):
     from acmelib.plugins.challenges import _dns as D
     from acmelib.plugins.targets import _common as TC
     res = job.get('resolvers') or {}
+
+    # a password a module makes for the one run (_common.random_password: a PKCS#12's, a
+    # one-time import password) is a secret no stand-in mark knows - masked wherever it shows
+    # (a command line, a body, an SSH session's input), 1.0.98
+    made = getattr(TC.random_password, 'plan_made', None) or TC.random_password
+
+    def random_password(*a, **k):
+        pw = made(*a, **k)
+        r = CURRENT[0]
+        if r is not None and pw:
+            if not isinstance(r.get('marks'), dict):
+                r['marks'] = {}
+            r['marks'][pw] = 'a password made for this run'
+        return pw
+    random_password.plan_made = made
+    TC.random_password = random_password
+    for mname, mod in list(sys.modules.items()):
+        if getattr(mod, 'random_password', None) is made:     # custom modules' too
+            mod.random_password = random_password
 
     def exchange(server, wire, port=53, timeout=3.0, tcp=False):
         try:
@@ -1720,6 +2056,8 @@ def main():
         got = run_one(job, r, holder)
         if r.get('op') == 'deploy' and r.get('later_answers') is not None:
             later = dict(r, answers=r['later_answers'])
+            if r.get('later_ssh_answers') is not None:
+                later['ssh_answers'] = r['later_ssh_answers']
             got['later'] = run_one(job, later, holder)['events']
         out[r['id']] = got
     sys.stdout.write(json.dumps({'runs': out}, default=str))

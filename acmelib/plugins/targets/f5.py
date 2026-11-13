@@ -218,6 +218,8 @@ class F5Target(HttpTarget):
             if old.get('cert') == new['cert'] and old.get('key') == new['key'] and \
                     old.get('chain', 'none') == new.get('chain', 'none'):
                 return False
+            self.ctx.step('%s: its cert-key-chain entry %s holds %s - pointed at %s' % (
+                profile, old.get('name') or default_name, old.get('cert') or '-', new['cert']))
             chains[i] = dict({'name': old.get('name') or default_name}, **new)
             for k in ('passphrase', 'usage', 'ocspStapling'):
                 if old.get(k) is not None:

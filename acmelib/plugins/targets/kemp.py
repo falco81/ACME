@@ -148,6 +148,9 @@ class KempTarget(HttpTarget):
                 if self.cmd('addintermediate', ok_fail=True, cert=iname,
                             data=base64.b64encode(pem.encode()).decode()) is not None:
                     self.ctx.step('added the intermediate %s' % iname)
+                else:
+                    self.ctx.step('the intermediate %s was not added (the LoadMaster refused it: '
+                                  'there already?)' % iname)
         for vs in lines(options.get('virtual_services')):
             m6 = re.match(r'^\[([^\]]+)\]:(\d+)(?::(\w+))?$', vs.strip())
             if m6:                  # [IPv6]:port[:protocol] (1.0.88: the protocol was the port)

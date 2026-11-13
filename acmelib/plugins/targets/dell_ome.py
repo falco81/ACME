@@ -284,6 +284,9 @@ class DellOmeTarget(HttpTarget):
             ver = self.check_version()
             chain = as_bool(self.opt(options, 'send_chain', True), True) and \
                 self.uploads_chain(ver)
+            self.ctx.step('OpenManage Enterprise %s: the %s is uploaded' % (
+                words(ver) if ver else '(its version not read)',
+                'certificate and its chain' if chain else 'certificate alone'))
             pem = text(bundle.cert_pem).strip() + '\n'
             if chain:
                 blocks = chain_list(bundle)

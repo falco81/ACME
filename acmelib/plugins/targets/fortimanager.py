@@ -147,7 +147,7 @@ class FortiManagerTarget(HttpTarget):
                     self.rpc('add', CA, {'name': ca, 'ca': pem}, what='adding the CA %s' % ca)
                     self.ctx.step('added the intermediate %s' % ca)
                 except PluginError as e:
-                    self.ctx.debug('the CA %s not added (there already?): %s' % (ca, e))
+                    self.ctx.step('the CA %s is not added (there already?): %s' % (ca, e))
         current_gui = None
         if as_bool(self.opt(options, 'admin_gui', True), True):
             self.rpc('set', SETTING, {'admin_server_cert': name},

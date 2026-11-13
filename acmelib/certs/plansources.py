@@ -1,0 +1,622 @@
+# -*- coding: utf-8 -*-
+"""
+What happens (runplan.py): the answers a source's and a validation's recording gets (1.0.98) -
+what a CA's or a DNS provider's API answers when all goes as it goes on a running account:
+the zone of the name is there, a record put in is listed back, an order is issued, the
+certificate it sends is for the request's key. Made up, as every answer of the recording is;
+each rule is plansandbox.Answers' (method, url regex, status, headers, body, times, sent, b64).
+
+Placeholders, besides those of plansandbox.Answers ({SESSION}, {TAIL}, {SENT:key},
+{SEEN:regex}): {ZONE} (the registrable domain of the name validated), {NAME}, {FQDN}
+(_acme-challenge.NAME), {TXT} (the value put in); {CERT} / {CHAIN} (PEM of the certificate
+issued for the request's key and of its intermediate), {CERT_B64} / {CHAIN_B64} (their DER in
+base64), {P7_B64} / {CA_P7_B64} (PKCS#7 of both / of the intermediate, DER in base64),
+{CERT_SERIAL}; {CFG:key} a setting of the module.
+
+    answers(family, kind, version='') -> [rule]       family 'issuer' or 'challenge'
+"""
+from __future__ import annotations
+
+import xmlrpc.client
+
+RID = '‹record id›'
+ZID = '‹zone id›'
+
+
+
+def xmlrpc_answer(value):
+    """An XML-RPC methodResponse holding value (Loopia, Gandi's old API...)."""
+    return xmlrpc.client.dumps((value,), methodresponse=True)
+
+
+SOURCES = {
+}
+
+CHALLENGES = {
+    # -- DNS providers: the zone of the name is on the account, the TXT record not there yet
+    #    when it is put in, there (with its id) when it is taken away --------------------------
+    'active24': [
+        {'method': 'GET', 'url': r'/v1/user/self/service$', 'body': [
+            {'id': 1001, 'name': '{ZONE}', 'serviceName': 'domain'}]},
+        {'method': 'GET', 'url': r'/v2/service/\d+/dns/record\?', 'times': 1,
+         'body': {'data': []}},
+        {'method': 'GET', 'url': r'/v2/service/\d+/dns/record\?', 'body': {'data': [
+            {'id': 2002, 'type': 'TXT', 'name': '{SEEN:filters%5Bname%5D=([^&]*)}',
+             'content': '{TXT}'}]}},
+        {'method': 'POST', 'url': r'/v2/service/\d+/dns/record$', 'body': {'id': 2002}}],
+    'akamai_edgedns': [
+        {'method': 'GET', 'url': r'/config-dns/v2/zones\?', 'body': {'zones': [
+            {'zone': '{ZONE}', 'type': 'PRIMARY'}]}},
+        {'method': 'GET', 'url': r'/types/TXT$', 'times': 1, 'status': 404, 'body': {
+            'title': 'Not Found', 'status': 404}},
+        {'method': 'GET', 'url': r'/types/TXT$', 'body': {
+            'name': '{FQDN}', 'type': 'TXT', 'ttl': 60, 'rdata': ['"{TXT}"']}}],
+    'alidns': [
+        {'url': r'Action=DescribeDomains', 'body': {'RequestId': 'req-1', 'TotalCount': 1,
+         'Domains': {'Domain': [{'DomainName': '{ZONE}', 'DomainId': 'dom-1'}]}}},
+        {'url': r'Action=DescribeDomainRecords', 'times': 1, 'body': {
+            'RequestId': 'req-2', 'TotalCount': 0, 'DomainRecords': {'Record': []}}},
+        {'url': r'Action=DescribeDomainRecords', 'body': {
+            'RequestId': 'req-3', 'TotalCount': 1, 'DomainRecords': {'Record': [
+                {'RecordId': '3003', 'RR': '{SEEN:RRKeyWord=([^&]*)}', 'Type': 'TXT',
+                 'Value': '{TXT}'}]}}},
+        {'url': r'Action=AddDomainRecord', 'body': {'RequestId': 'req-4', 'RecordId': '3003'}},
+        {'url': r'Action=DeleteDomainRecord', 'body': {'RequestId': 'req-5',
+                                                        'RecordId': '3003'}}],
+    'azure_dns': [
+        {'method': 'POST', 'url': r'/oauth2/v2\.0/token$', 'body': {
+            'token_type': 'Bearer', 'expires_in': 3599, 'access_token': '{SESSION}'}},
+        {'method': 'GET', 'url': r'/providers/Microsoft\.Network/dnsZones\?', 'body': {'value': [
+            {'id': '/subscriptions/{CFG:subscription_id}/resourceGroups/dns/providers/'
+                   'Microsoft.Network/dnszones/{ZONE}', 'name': '{ZONE}'}]}},
+        {'method': 'GET', 'url': r'/TXT/', 'times': 1, 'status': 404, 'body': {
+            'error': {'code': 'NotFound', 'message': 'The resource record was not found.'}}},
+        {'method': 'GET', 'url': r'/TXT/', 'body': {
+            'etag': '‹etag›', 'properties': {'TTL': 60, 'TXTRecords': [
+                {'value': ['{TXT}']}]}}},
+        {'method': 'PUT', 'url': r'/TXT/', 'status': 201, 'body': {'etag': '‹etag›'}}],
+    'bunny': [
+        {'method': 'GET', 'url': r'/dnszone\?page=', 'body': {
+            'Items': [{'Id': 4004, 'Domain': '{ZONE}'}], 'HasMoreItems': False}},
+        {'method': 'GET', 'url': r'/dnszone/\d+$', 'times': 1, 'body': {
+            'Id': 4004, 'Domain': '{ZONE}', 'Records': []}},
+        {'method': 'GET', 'url': r'/dnszone/\d+$', 'body': {
+            'Id': 4004, 'Domain': '{ZONE}', 'Records': [
+                {'Id': 5005, 'Type': 3, 'Name': '{SEEN:"Name": "([^"]*)"}', 'Value': '{TXT}'}]}},
+        {'method': 'PUT', 'url': r'/records$', 'status': 201, 'body': {'Id': 5005, 'Type': 3}}],
+    'cloudflare': [
+        {'method': 'GET', 'url': r'/zones\?name={ZONE}$', 'body': {
+            'success': True, 'result': [{'id': ZID, 'name': '{ZONE}'}]}},
+        {'method': 'GET', 'url': r'/zones\?name=', 'body': {'success': True, 'result': []}},
+        {'method': 'GET', 'url': r'/dns_records\?', 'times': 1, 'body': {
+            'success': True, 'result': []}},
+        {'method': 'GET', 'url': r'/dns_records\?', 'body': {'success': True, 'result': [
+            {'id': RID, 'type': 'TXT', 'name': '{FQDN}', 'content': '"{TXT}"'}]}},
+        {'method': 'POST', 'url': r'/dns_records$', 'body': {'success': True, 'result': {
+            'id': RID, 'type': 'TXT', 'name': '{FQDN}', 'content': '"{TXT}"'}}},
+        {'method': 'DELETE', 'body': {'success': True, 'result': {'id': RID}}}],
+    'cloudns': [
+        {'url': r'/list-zones\.json$', 'body': [{'name': '{ZONE}', 'type': 'master',
+                                                 'zone': 'domain', 'status': '1'}]},
+        {'url': r'/records\.json$', 'times': 1, 'body': []},
+        {'url': r'/records\.json$', 'body': {'6006': {
+            'id': '6006', 'type': 'TXT', 'host': '{SEEN:host=([^&]*)}', 'record': '{TXT}',
+            'ttl': '60'}}},
+        {'url': r'/add-record\.json$', 'body': {'status': 'Success', 'statusDescription':
+                                                'The record was added successfully.',
+                                                'data': {'id': 6006}}},
+        {'url': r'/delete-record\.json$', 'body': {'status': 'Success', 'statusDescription':
+                                                   'The record was deleted successfully.'}}],
+    'constellix': [
+        {'method': 'GET', 'url': r'/v1/domains$', 'body': [{'id': 7007, 'name': '{ZONE}'}]},
+        {'method': 'GET', 'url': r'/records/txt$', 'times': 1, 'body': []},
+        {'method': 'GET', 'url': r'/records/txt$', 'body': [
+            {'id': 8008, 'name': '{SEEN:"name": "([^"]*)"}', 'ttl': 60, 'roundRobin': [
+                {'value': '"{TXT}"', 'disableFlag': False}]}]},
+        {'method': 'POST', 'url': r'/records/txt$', 'body': [{'id': 8008, 'name': 'x'}]}],
+    'czechia': [
+        {'method': 'GET', 'url': r'/DNS/[^/]+$', 'times': 1, 'body': {'txtRecords': []}},
+        {'method': 'GET', 'url': r'/DNS/[^/]+$', 'body': {'txtRecords': [
+            {'hostName': '{SEEN:"hostName": "([^"]*)"}', 'text': '{TXT}', 'ttl': 3600}]}}],
+    'desec': [
+        {'method': 'GET', 'url': r'/domains/$', 'body': [{'name': '{ZONE}', 'minimum_ttl': 3600}]},
+        {'method': 'GET', 'url': r'/domains/[^/]+/$', 'body': {'name': '{ZONE}',
+                                                              'minimum_ttl': 3600}},
+        {'method': 'GET', 'url': r'/rrsets/[^/]+/TXT/$', 'times': 1, 'status': 404, 'body': {
+            'detail': 'Not found.'}},
+        {'method': 'GET', 'url': r'/rrsets/[^/]+/TXT/$', 'body': {
+            'subname': '{SEEN:/rrsets/([^/]+)/TXT/}', 'type': 'TXT', 'ttl': 3600,
+            'records': ['"{TXT}"']}},
+        {'method': 'PATCH', 'url': r'/rrsets/$', 'body': [{'type': 'TXT', 'ttl': 3600}]}],
+    'digitalocean': [
+        {'method': 'GET', 'url': r'/domains/{ZONE}$', 'body': {'domain': {'name': '{ZONE}',
+                                                                         'ttl': 1800}}},
+        {'method': 'GET', 'url': r'/domains/[^/?]+$', 'status': 404, 'body': {
+            'id': 'not_found', 'message': 'The resource you requested could not be found.'}},
+        {'method': 'POST', 'url': r'/records$', 'status': 201, 'body': {'domain_record': {
+            'id': 9009, 'type': 'TXT', 'name': '_acme-challenge', 'data': '{TXT}'}}}],
+    'directadmin': [
+        {'method': 'GET', 'url': r'/CMD_API_SHOW_DOMAINS', 'body': 'list[]={ZONE}'},
+        {'method': 'GET', 'url': r'/CMD_API_DNS_CONTROL\?', 'times': 1,
+         'body': 'A=www=192.0.2.10\nTXT=@=%22v%3Dspf1%20mx%20-all%22\n'},
+        {'method': 'GET', 'url': r'/CMD_API_DNS_CONTROL\?', 'times': 2,
+         'body': 'A=www=192.0.2.10\nTXT=@=%22v%3Dspf1%20mx%20-all%22&'
+                 '{SEEN:name=([^&]+)&value=}=%22{TXT}%22\n'},
+        {'method': 'GET', 'url': r'/CMD_API_DNS_CONTROL\?',
+         'body': 'A=www=192.0.2.10\nTXT=@=%22v%3Dspf1%20mx%20-all%22\n'},
+        {'method': 'POST', 'url': r'/CMD_API_DNS_CONTROL$', 'body': 'error=0&text=Records '
+                                                                    'Updated&details='}],
+    'dnsimple': [
+        {'method': 'GET', 'url': r'/whoami$', 'body': {'data': {'user': None, 'account': {
+            'id': 1010, 'email': 'dns@{ZONE}'}}}},
+        {'method': 'GET', 'url': r'/zones\?per_page', 'body': {'data': [{'id': 1, 'name': '{ZONE}'}],
+                                                             'pagination': {'total_pages': 1}}},
+        {'method': 'GET', 'url': r'/records\?type=TXT', 'times': 1, 'body': {'data': []}},
+        {'method': 'POST', 'url': r'/records$', 'status': 201, 'body': {'data': {
+            'id': 1111, 'type': 'TXT', 'content': '{TXT}'}}}],
+    'dnsmadeeasy': [
+        {'method': 'GET', 'url': r'/dns/managed/$', 'body': {'data': [{'id': 1212,
+                                                                      'name': '{ZONE}'}]}},
+        {'method': 'GET', 'url': r'/records\?', 'times': 1, 'body': {'data': []}},
+        {'method': 'GET', 'url': r'/records\?', 'body': {'data': [
+            {'id': 1313, 'type': 'TXT', 'name': '{SEEN:recordName=([^&]*)}',
+             'value': '"{TXT}"'}]}},
+        {'method': 'POST', 'url': r'/records$', 'status': 201, 'body': {'id': 1313,
+                                                                      'type': 'TXT'}}],
+    'domeneshop': [
+        {'method': 'GET', 'url': r'/domains$', 'body': [{'id': 1414, 'domain': '{ZONE}'}]},
+        {'method': 'GET', 'url': r'/dns\?', 'times': 1, 'body': []},
+        {'method': 'GET', 'url': r'/dns\?', 'body': [
+            {'id': 1515, 'host': '{SEEN:host=([^&]*)}', 'type': 'TXT', 'data': '{TXT}'}]},
+        {'method': 'POST', 'url': r'/dns$', 'status': 201, 'body': {'id': 1515}}],
+    'dreamhost': [
+        {'url': r'cmd=dns-list_records', 'times': 2, 'body': {'result': 'success', 'data': [
+            {'zone': '{ZONE}', 'record': '{ZONE}', 'type': 'A', 'value': '192.0.2.10'}]}},
+        {'url': r'cmd=dns-list_records', 'body': {'result': 'success', 'data': [
+            {'zone': '{ZONE}', 'record': '{ZONE}', 'type': 'A', 'value': '192.0.2.10'},
+            {'zone': '{ZONE}', 'record': '{FQDN}', 'type': 'TXT', 'value': '{TXT}'}]}},
+        {'url': r'cmd=dns-(add|remove)_record', 'body': {'result': 'success',
+                                                          'data': 'record_added'}}],
+    'duckdns': [
+        {'url': r'duckdns\.org/update\?', 'body': 'OK\n{TXT}\n\nUPDATED'}],
+    'dynu': [
+        {'method': 'GET', 'url': r'/dns$', 'body': {'domains': [{'id': 1616, 'name': '{ZONE}'}]}},
+        {'method': 'GET', 'url': r'/record$', 'times': 1, 'body': {'dnsRecords': []}},
+        {'method': 'GET', 'url': r'/record$', 'body': {'dnsRecords': [
+            {'id': 1717, 'recordType': 'TXT', 'hostname': '{FQDN}', 'textData': '{TXT}'}]}},
+        {'method': 'POST', 'url': r'/record$', 'body': {'statusCode': 200, 'id': 1717}}],
+    'easydns': [
+        {'method': 'GET', 'url': r'/zones/records/all/', 'times': 1, 'body': {'data': [
+            {'id': '1818', 'host': '@', 'type': 'A', 'rdata': '192.0.2.10'}]}},
+        {'method': 'GET', 'url': r'/zones/records/all/', 'body': {'data': [
+            {'id': '1818', 'host': '@', 'type': 'A', 'rdata': '192.0.2.10'},
+            {'id': '1919', 'host': '{SEEN:"host": "([^"]*)"}', 'type': 'TXT',
+             'rdata': '{TXT}'}]}},
+        {'method': 'PUT', 'url': r'/zones/records/add/', 'status': 201, 'body': {
+            'data': {'id': '1919'}}}],
+    'efficientip': [
+        {'method': 'GET', 'url': r'/dns/zone/list', 'body': [
+            {'zone_id': '20', 'zone_name': '{ZONE}', 'zone_is_reverse': '0',
+             'server_name': '{CFG:server}'}]},
+        {'method': 'GET', 'url': r'/dns/rr/list', 'times': 1, 'status': 204, 'body': ''},
+        {'method': 'GET', 'url': r'/dns/rr/list', 'body': [
+            {'rr_id': '2121', 'rr_full_name': '{FQDN}', 'rr_type': 'TXT',
+             'rr_value1': '{TXT}'}]},
+        {'method': 'POST', 'url': r'/dns/rr/add', 'status': 201, 'body': [{'ret_oid': '2121',
+                                                                          'rr_id': '2121'}]},
+        {'method': 'DELETE', 'url': r'/dns/rr/delete', 'body': [{'ret_oid': '2121'}]}],
+    'exoscale': [
+        {'method': 'GET', 'url': r'/dns-domain$', 'body': {'dns-domains': [
+            {'id': '‹domain id›', 'unicode-name': '{ZONE}'}]}},
+        {'method': 'GET', 'url': r'/record$', 'times': 1, 'body': {'dns-domain-records': []}},
+        {'method': 'GET', 'url': r'/record$', 'body': {'dns-domain-records': [
+            {'id': RID, 'type': 'TXT', 'name': '{SEEN:"name": "([^"]*)"}',
+             'content': '"{TXT}"'}]}},
+        {'method': 'POST', 'url': r'/record$', 'body': {'id': '‹operation›',
+                                                        'state': 'success'}}],
+    'forpsi': [
+        {'method': 'GET', 'url': r'/domains\?skip', 'body': {'domains': [{'name': '{ZONE}'}],
+                                                            'next_page': None}},
+        {'method': 'GET', 'url': r'/records\?skip', 'times': 1, 'body': {'dnsrecords': [
+            {'id': 2222, 'name': '@', 'type': 'A', 'data': '192.0.2.10'}]}},
+        {'method': 'GET', 'url': r'/records\?skip', 'body': {'dnsrecords': [
+            {'id': 2222, 'name': '@', 'type': 'A', 'data': '192.0.2.10'},
+            {'id': 2323, 'name': '{SEEN:"name": "([^"]*)"}', 'type': 'TXT', 'data': '{TXT}'}]}},
+        {'method': 'POST', 'url': r'/records$', 'status': 201, 'body': {'id': 2323}}],
+    'froxlor': [
+        {'sent': r'"Domains\.listing"', 'body': {'data': {'count': 1, 'list': [
+            {'id': 1, 'domain': '{ZONE}', 'parentdomainid': '0', 'isbinddomain': '1'}]}}},
+        {'sent': r'"DomainZones\.listing"', 'times': 1, 'body': {'data': {'count': 1, 'list': [
+            {'id': 2424, 'record': '@', 'type': 'A', 'content': '192.0.2.10'}]}}},
+        {'sent': r'"DomainZones\.listing"', 'body': {'data': {'count': 2, 'list': [
+            {'id': 2424, 'record': '@', 'type': 'A', 'content': '192.0.2.10'},
+            {'id': 2525, 'record': '{SEEN:"record": "([^"]*)"}', 'type': 'TXT',
+             'content': '"{TXT}"'}]}}},
+        {'sent': r'"DomainZones\.(add|delete)"', 'body': {'data': {}}}],
+    'gandi': [
+        {'method': 'GET', 'url': r'/domains$', 'body': [{'fqdn': '{ZONE}'}]},
+        {'method': 'GET', 'url': r'/records/[^/]+/TXT$', 'times': 1, 'status': 404, 'body': {
+            'code': 404, 'message': 'Not Found', 'object': 'HTTPNotFound', 'cause': 'Not Found'}},
+        {'method': 'GET', 'url': r'/records/[^/]+/TXT$', 'body': {
+            'rrset_name': '{SEEN:/records/([^/]+)/TXT}', 'rrset_type': 'TXT', 'rrset_ttl': 300,
+            'rrset_values': ['"{TXT}"']}},
+        {'method': 'POST', 'url': r'/TXT$', 'status': 201, 'body': {
+            'message': 'DNS Record Created'}},
+        {'method': 'PATCH', 'url': r'/TXT$', 'status': 201, 'body': {
+            'message': 'DNS Record Created'}}],
+    'gcore': [
+        {'method': 'GET', 'url': r'/v2/zones\?', 'body': {'zones': [{'id': 2626,
+                                                                     'name': '{ZONE}'}]}},
+        {'method': 'GET', 'url': r'/TXT$', 'times': 1, 'status': 404, 'body': {
+            'error': 'record is not found'}},
+        {'method': 'GET', 'url': r'/TXT$', 'body': {'name': '{FQDN}', 'type': 'TXT', 'ttl': 60,
+                                                   'resource_records': [
+                                                       {'content': ['{TXT}'], 'enabled': True}]}},
+        {'method': 'POST', 'url': r'/TXT$', 'body': {}}],
+    'glesys': [
+        {'url': r'/domain/list$', 'body': {'response': {'status': {'code': 200}, 'domains': [
+            {'domainname': '{ZONE}'}]}}},
+        {'url': r'/domain/listrecords$', 'times': 1, 'body': {'response': {
+            'status': {'code': 200}, 'records': [
+                {'recordid': 2727, 'host': '@', 'type': 'A', 'data': '192.0.2.10'}]}}},
+        {'url': r'/domain/listrecords$', 'body': {'response': {
+            'status': {'code': 200}, 'records': [
+                {'recordid': 2727, 'host': '@', 'type': 'A', 'data': '192.0.2.10'},
+                {'recordid': 2828, 'host': '{SEEN:"host": "([^"]*)"}', 'type': 'TXT',
+                 'data': '{TXT}'}]}}},
+        {'url': r'/domain/addrecord$', 'body': {'response': {
+            'status': {'code': 200}, 'record': {'recordid': 2828}}}},
+        {'url': r'/domain/deleterecord$', 'body': {'response': {'status': {'code': 200}}}}],
+    'godaddy': [
+        {'method': 'GET', 'url': r'/domain-names\?', 'body': {'items': [
+            {'domain': '{ZONE}', 'status': 'ACTIVE'}], 'links': []}},
+        {'method': 'GET', 'url': r'/domains\?statuses', 'body': [{'domain': '{ZONE}',
+                                                                  'status': 'ACTIVE'}]},
+        {'method': 'GET', 'url': r'/dns-records\?', 'times': 1, 'body': {'items': [],
+                                                                        'links': []}},
+        {'method': 'GET', 'url': r'/dns-records\?', 'body': {'items': [
+            {'recordId': '‹record id›', 'type': 'TXT',
+             'name': '{SEEN:[?&]name=([^&]*)}', 'data': '{TXT}'}], 'links': []}},
+        {'method': 'POST', 'url': r'/dns-records$', 'status': 201, 'body': {
+            'recordId': '‹record id›'}},
+        {'method': 'GET', 'url': r'/records/TXT/', 'times': 1, 'body': []},
+        {'method': 'GET', 'url': r'/records/TXT/', 'body': [{'data': '{TXT}', 'ttl': 600}]}],
+    'he_net': [
+        {'method': 'POST', 'url': r'dyn\.dns\.he\.net/nic/update', 'body': 'good 127.0.0.1'}],
+    'hestiacp': [
+        {'sent': r'cmd=v-list-dns-domains', 'body': {'{ZONE}': {'IP': '192.0.2.10',
+                                                               'SOA': 'ns1.{ZONE}'}}},
+        {'sent': r'cmd=v-list-dns-records', 'times': 1, 'body': {'1': {
+            'ID': '1', 'RECORD': '@', 'TYPE': 'A', 'VALUE': '192.0.2.10'}}},
+        {'sent': r'cmd=v-list-dns-records', 'body': {'1': {
+            'ID': '1', 'RECORD': '@', 'TYPE': 'A', 'VALUE': '192.0.2.10'}, '2': {
+            'ID': '2', 'RECORD': '{SEEN:arg3=([^&]*)&arg4=TXT}', 'TYPE': 'TXT',
+            'VALUE': '"{TXT}"'}}},
+        {'sent': r'cmd=v-(add|delete)-dns-record', 'body': '0'}],
+    'hetzner': [
+        {'method': 'GET', 'url': r'/zones\?name={ZONE}$', 'body': {'zones': [
+            {'id': 2929, 'name': '{ZONE}', 'mode': 'primary'}]}},
+        {'method': 'GET', 'url': r'/zones\?name=', 'body': {'zones': []}},
+        {'method': 'GET', 'url': r'/rrsets/[^/]+/TXT$', 'times': 1, 'status': 404, 'body': {
+            'error': {'code': 'not_found', 'message': 'rrset not found'}}},
+        {'method': 'GET', 'url': r'/rrsets/[^/]+/TXT$', 'body': {'rrset': {
+            'name': '{SEEN:/rrsets/([^/]+)/TXT}', 'type': 'TXT', 'ttl': 60, 'records': [
+                {'value': '"{TXT}"'}]}}},
+        {'method': 'POST', 'url': r'/actions/(add|remove)_records$', 'status': 201, 'body': {
+            'action': {'id': 3030, 'command': 'add_rrset_records', 'status': 'running'}}},
+        {'method': 'GET', 'url': r'/zones/actions/\d+$', 'body': {'action': {
+            'id': 3030, 'status': 'success'}}}],
+    'hostingde': [
+        {'sent': r'"value": "\*"', 'url': r'/zoneConfigsFind$', 'body': {
+            'status': 'success', 'response': {'data': [{'id': ZID, 'name': '{ZONE}'}]}}},
+        {'url': r'/zoneConfigsFind$', 'body': {'status': 'success', 'response': {'data': [
+            {'id': ZID, 'name': '{ZONE}', 'type': 'NATIVE'}]}}},
+        {'url': r'/recordsFind$', 'times': 1, 'body': {'status': 'success',
+                                                       'response': {'data': []}}},
+        {'url': r'/recordsFind$', 'body': {'status': 'success', 'response': {'data': [
+            {'name': '{FQDN}', 'type': 'TXT', 'content': '"{TXT}"'}]}}},
+        {'url': r'/zoneUpdate$', 'body': {'status': 'success', 'response': {}}}],
+    'hostinger': [
+        {'method': 'GET', 'url': r'/api/domains/v1/portfolio$', 'body': [
+            {'id': 3131, 'domain': '{ZONE}', 'type': 'domain', 'status': 'active'}]},
+        {'method': 'GET', 'url': r'/api/dns/v1/zones/[^/]+$', 'times': 1, 'body': [
+            {'name': '@', 'type': 'A', 'ttl': 300, 'records': [{'content': '192.0.2.10'}]}]},
+        {'method': 'GET', 'url': r'/api/dns/v1/zones/[^/]+$', 'body': [
+            {'name': '@', 'type': 'A', 'ttl': 300, 'records': [{'content': '192.0.2.10'}]},
+            {'name': '{SEEN:"name": "([^"]*)", "type": "TXT"}', 'type': 'TXT', 'ttl': 60,
+             'records': [{'content': '{TXT}'}]}]},
+        {'method': 'PUT', 'url': r'/api/dns/v1/zones/', 'body': {'message': 'Request accepted'}},
+        {'method': 'DELETE', 'url': r'/api/dns/v1/zones/', 'body': {
+            'message': 'Request accepted'}}],
+    'huawei_dns': [
+        {'method': 'GET', 'url': r'/v2/zones\?', 'body': {'zones': [
+            {'id': '‹zone id›', 'name': '{ZONE}.', 'zone_type': 'public'}],
+            'links': {}}},
+        {'method': 'GET', 'url': r'/recordsets\?', 'times': 1, 'body': {'recordsets': []}},
+        {'method': 'GET', 'url': r'/recordsets\?', 'body': {'recordsets': [
+            {'id': '‹recordset id›', 'name': '{FQDN}.', 'type': 'TXT', 'ttl': 300,
+             'records': ['"{TXT}"']}]}},
+        {'method': 'POST', 'url': r'/recordsets$', 'status': 202, 'body': {
+            'id': '‹recordset id›', 'status': 'PENDING_CREATE'}},
+        {'method': 'DELETE', 'url': r'/recordsets/', 'status': 202, 'body': {
+            'id': '‹recordset id›', 'status': 'PENDING_DELETE'}}],
+    'infoblox': [
+        {'method': 'GET', 'url': r'/zone_auth\?', 'body': [
+            {'_ref': 'zone_auth/‹ref›:{ZONE}/default', 'fqdn': '{ZONE}'}]},
+        {'method': 'GET', 'url': r'/record:txt\?', 'times': 1, 'body': []},
+        {'method': 'GET', 'url': r'/record:txt\?', 'body': [
+            {'_ref': 'record:txt/‹ref›:{FQDN}/default', 'name': '{FQDN}',
+             'text': '{TXT}'}]},
+        {'method': 'POST', 'url': r'/record:txt$', 'status': 201,
+         'body': '"record:txt/‹ref›:{FQDN}/default"'}],
+    'infomaniak': [
+        {'method': 'GET', 'url': r'/2/zones/{ZONE}/exists$', 'body': {'result': 'success',
+                                                                    'data': True}},
+        {'method': 'GET', 'url': r'/exists$', 'body': {'result': 'success', 'data': False}},
+        {'method': 'GET', 'url': r'/records\?', 'times': 1, 'body': {'result': 'success',
+                                                                    'data': []}},
+        {'method': 'GET', 'url': r'/records\?', 'body': {'result': 'success', 'data': [
+            {'id': 3232, 'source': '{SEEN:"source": "([^"]*)"}', 'type': 'TXT',
+             'target': '{TXT}'}]}},
+        {'method': 'POST', 'url': r'/records$', 'body': {'result': 'success', 'data': {
+            'id': 3232}}},
+        {'method': 'DELETE', 'url': r'/records/', 'body': {'result': 'success', 'data': True}}],
+    'inwx': [
+        {'sent': r'"account\.login"', 'headers': {
+            'Set-Cookie': 'domrobot=PLANSESSION0token; path=/; secure; HttpOnly'},
+         'body': {'code': 1000, 'msg': 'Command completed successfully', 'resData': {
+             'tfa': '0'}}},
+        {'sent': r'"nameserver\.list"', 'body': {'code': 1000, 'resData': {
+            'count': 1, 'domains': [{'roId': 1, 'domain': '{ZONE}', 'type': 'MASTER'}]}}},
+        {'sent': r'"nameserver\.info"', 'body': {'code': 1000, 'resData': {
+            'domain': '{ZONE}', 'record': []}}},
+        {'sent': r'"nameserver\.createRecord"', 'body': {'code': 1000, 'resData': {
+            'id': 3333}}},
+        {'sent': r'"nameserver\.deleteRecord"', 'body': {'code': 1000,
+                                                         'msg': 'Command completed successfully'}}],
+    'ionos': [
+        {'method': 'GET', 'url': r'/zones$', 'body': [{'id': ZID, 'name': '{ZONE}',
+                                                      'type': 'NATIVE'}]},
+        {'method': 'GET', 'url': r'/zones/[^/?]+\?recordName', 'times': 1, 'body': {
+            'id': ZID, 'name': '{ZONE}', 'records': []}},
+        {'method': 'POST', 'url': r'/records$', 'status': 201, 'body': [
+            {'id': RID, 'name': '{FQDN}', 'type': 'TXT', 'content': '"{TXT}"'}]}],
+    'ispconfig': [
+        {'url': r'\?login$', 'body': {'code': 'ok', 'message': '', 'response': '{SESSION}'}},
+        {'url': r'\?logout$', 'body': {'code': 'ok', 'message': '', 'response': True}},
+        {'url': r'\?dns_zone_get$', 'sent': r'"primary_id": -1', 'body': {
+            'code': 'ok', 'message': '', 'response': [{'id': '34', 'origin': '{ZONE}.'}]}},
+        {'url': r'\?dns_zone_get$', 'body': {'code': 'ok', 'message': '', 'response': [
+            {'id': '34', 'origin': '{ZONE}.', 'server_id': '1'}]}},
+        {'url': r'\?dns_rr_get_all_by_zone$', 'times': 1, 'body': {
+            'code': 'ok', 'message': '', 'response': [
+                {'id': '3434', 'name': '{ZONE}.', 'type': 'A', 'data': '192.0.2.10'}]}},
+        {'url': r'\?dns_rr_get_all_by_zone$', 'body': {'code': 'ok', 'message': '', 'response': [
+            {'id': '3434', 'name': '{ZONE}.', 'type': 'A', 'data': '192.0.2.10'},
+            {'id': '3535', 'name': '{FQDN}.', 'type': 'TXT', 'data': '{TXT}'}]}},
+        {'url': r'\?dns_txt_add$', 'body': {'code': 'ok', 'message': '', 'response': '3535'}},
+        {'url': r'\?dns_txt_delete$', 'body': {'code': 'ok', 'message': '', 'response': 1}}],
+    'joker': [
+        {'url': r'/request/login$', 'body': 'Auth-Sid: {SESSION}\nUID: ‹user id›\n'
+                                           'Status-Code: 0\nStatus-Text: Command completed '
+                                           'successfully\n\n{ZONE}\n'},
+        {'url': r'/request/dns-zone-list$', 'body': 'Status-Code: 0\n\n{ZONE} 2027-01-01\n'},
+        {'url': r'/request/dns-zone-get$', 'times': 1, 'body':
+            'Status-Code: 0\n\n@ A 0 192.0.2.10 86400\nwww A 0 192.0.2.10 86400\n'},
+        {'url': r'/request/dns-zone-get$', 'times': 2, 'body':
+            'Status-Code: 0\n\n@ A 0 192.0.2.10 86400\nwww A 0 192.0.2.10 86400\n'
+            '{SEEN:zone=[^&]*%0A([^+%]+)\\+TXT\\+0} TXT 0 "{TXT}" 300\n'},
+        {'url': r'/request/dns-zone-get$', 'body':
+            'Status-Code: 0\n\n@ A 0 192.0.2.10 86400\nwww A 0 192.0.2.10 86400\n'},
+        {'url': r'/request/dns-zone-put$', 'body': 'Status-Code: 0\nStatus-Text: Command '
+                                                   'completed successfully\n\n'}],
+    'linode': [
+        {'method': 'GET', 'url': r'/domains\?', 'body': {'data': [
+            {'id': 3636, 'domain': '{ZONE}', 'type': 'master'}], 'page': 1, 'pages': 1}},
+        {'method': 'GET', 'url': r'/records\?', 'times': 1, 'body': {'data': [], 'pages': 1}},
+        {'method': 'POST', 'url': r'/records$', 'body': {'id': 3737, 'type': 'TXT',
+                                                         'target': '{TXT}'}}],
+    'loopia': [
+        {'sent': r'<methodName>getDomains<', 'body': xmlrpc_answer([
+            {'domain': '{ZONE}', 'paid': 1, 'registered': 1, 'renewal_status': 'NORMAL'}])},
+        {'sent': r'<methodName>getZoneRecords<', 'times': 1, 'body': xmlrpc_answer([])},
+        {'sent': r'<methodName>getZoneRecords<', 'times': 1, 'body': xmlrpc_answer([
+            {'type': 'TXT', 'ttl': 300, 'priority': 0, 'rdata': '{TXT}', 'record_id': 3838}])},
+        {'sent': r'<methodName>getZoneRecords<', 'body': xmlrpc_answer([])},
+        {'sent': r'<methodName>(addSubdomain|addZoneRecord|removeZoneRecord|removeSubdomain)<',
+         'body': xmlrpc_answer('OK')}],
+    'mailinabox': [
+        {'method': 'GET', 'url': r'/admin/dns/zones$', 'body': ['{ZONE}']},
+        {'method': 'GET', 'url': r'/admin/dns/custom/[^/]+/TXT$', 'times': 1, 'body': []},
+        {'method': 'GET', 'url': r'/admin/dns/custom/[^/]+/TXT$', 'body': [
+            {'qname': '{FQDN}', 'rtype': 'TXT', 'value': '{TXT}'}]},
+        {'method': 'POST', 'url': r'/admin/dns/custom/', 'body': 'updated DNS: {ZONE}'},
+        {'method': 'DELETE', 'url': r'/admin/dns/custom/', 'body': 'updated DNS: {ZONE}'}],
+    'mythic_beasts': [
+        {'method': 'POST', 'url': r'auth\.mythic-beasts\.com/login', 'body': {
+            'access_token': '{SESSION}', 'token_type': 'bearer', 'expires_in': 300}},
+        {'method': 'GET', 'url': r'/zones$', 'body': {'zones': ['{ZONE}']}},
+        {'method': 'GET', 'url': r'/TXT$', 'times': 1, 'body': {'records': []}},
+        {'method': 'GET', 'url': r'/TXT$', 'body': {'records': [
+            {'host': '{SEEN:/records/([^/]+)/TXT}', 'type': 'TXT', 'ttl': 60,
+             'data': '{TXT}'}]}},
+        {'method': 'POST', 'url': r'/TXT$', 'body': {'records_added': 1,
+                                                     'message': '1 records added'}},
+        {'method': 'DELETE', 'url': r'/TXT\?', 'body': {'records_removed': 1,
+                                                        'message': '1 records removed'}}],
+    'namecheap': [
+        {'url': r'Command=namecheap\.domains\.getList', 'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.domains.getList</RequestedCommand><CommandResponse Type="namecheap.domains.getList"><DomainGetListResult><Domain ID="1" Name="{ZONE}" IsExpired="false" /></DomainGetListResult><Paging><TotalItems>1</TotalItems><CurrentPage>1</CurrentPage><PageSize>100</PageSize></Paging></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.1</ExecutionTime></ApiResponse>'},
+        {'method': 'GET', 'url': r'Command=namecheap\.domains\.dns\.getHosts', 'times': 1,
+         'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.domains.dns.getHosts</RequestedCommand><CommandResponse Type="namecheap.domains.dns.getHosts"><DomainDNSGetHostsResult Domain="{ZONE}" EmailType="MX" IsUsingOurDNS="true"><host HostId="1" Name="@" Type="A" Address="192.0.2.10" MXPref="10" TTL="1800" /><host HostId="2" Name="@" Type="MX" Address="mail.{ZONE}." MXPref="10" TTL="1800" /></DomainDNSGetHostsResult></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.1</ExecutionTime></ApiResponse>'},
+        {'method': 'GET', 'url': r'Command=namecheap\.domains\.dns\.getHosts', 'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.domains.dns.getHosts</RequestedCommand><CommandResponse Type="namecheap.domains.dns.getHosts"><DomainDNSGetHostsResult Domain="{ZONE}" EmailType="MX" IsUsingOurDNS="true"><host HostId="1" Name="@" Type="A" Address="192.0.2.10" MXPref="10" TTL="1800" /><host HostId="2" Name="@" Type="MX" Address="mail.{ZONE}." MXPref="10" TTL="1800" /><host HostId="3" Name="{SEEN:HostName3=([^&]*)}" Type="TXT" Address="{TXT}" MXPref="10" TTL="60" /></DomainDNSGetHostsResult></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.1</ExecutionTime></ApiResponse>'},
+        {'method': 'POST', 'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.domains.dns.setHosts</RequestedCommand><CommandResponse Type="namecheap.domains.dns.setHosts"><DomainDNSSetHostsResult Domain="{ZONE}" IsSuccess="true" /></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.1</ExecutionTime></ApiResponse>'}],
+    'namecom': [
+        {'method': 'GET', 'url': r'/domains\?page', 'body': {'domains': [
+            {'domainName': '{ZONE}'}]}},
+        {'method': 'GET', 'url': r'/records\?page', 'times': 1, 'body': {'records': [
+            {'id': 3939, 'host': '', 'fqdn': '{ZONE}.', 'type': 'A', 'answer': '192.0.2.10'}]}},
+        {'method': 'GET', 'url': r'/records\?page', 'body': {'records': [
+            {'id': 3939, 'host': '', 'fqdn': '{ZONE}.', 'type': 'A', 'answer': '192.0.2.10'},
+            {'id': 4040, 'host': '{SEEN:"host": "([^"]*)"}', 'fqdn': '{FQDN}.', 'type': 'TXT',
+             'answer': '{TXT}'}]}},
+        {'method': 'POST', 'url': r'/records$', 'body': {'id': 4040, 'type': 'TXT'}}],
+    'namesilo': [
+        {'url': r'/listDomains\?', 'body': {'request': {'operation': 'listDomains'}, 'reply': {
+            'code': 300, 'detail': 'success', 'domains': {'domain': [{'domain': '{ZONE}'}]}}}},
+        {'url': r'/dnsListRecords\?', 'times': 1, 'body': {'reply': {
+            'code': 300, 'detail': 'success', 'resource_record': [
+                {'record_id': '4141', 'type': 'A', 'host': '{ZONE}', 'value': '192.0.2.10'}]}}},
+        {'url': r'/dnsListRecords\?', 'body': {'reply': {
+            'code': 300, 'detail': 'success', 'resource_record': [
+                {'record_id': '4141', 'type': 'A', 'host': '{ZONE}', 'value': '192.0.2.10'},
+                {'record_id': '4242', 'type': 'TXT', 'host': '{FQDN}', 'value': '{TXT}'}]}}},
+        {'url': r'/dnsAddRecord\?', 'body': {'reply': {'code': 300, 'detail': 'success',
+                                                       'record_id': '4242'}}},
+        {'url': r'/dnsDeleteRecord\?', 'body': {'reply': {'code': 300, 'detail': 'success'}}}],
+    'netcup': [
+        {'sent': r'"action": "login"', 'body': {'status': 'success', 'statuscode': 2000,
+                                                'responsedata': {'apisessionid': '{SESSION}'}}},
+        {'sent': r'"action": "infoDnsZone".*"domainname": "{ZONE}"', 'body': {
+            'status': 'success', 'statuscode': 2000, 'responsedata': {
+                'name': '{ZONE}', 'ttl': '86400', 'dnssecstatus': False}}},
+        {'sent': r'"action": "infoDnsZone"', 'body': {
+            'status': 'error', 'statuscode': 5029, 'shortmessage': 'Can not get DNS zone.',
+            'longmessage': 'The DNS zone does not exist.'}},
+        {'sent': r'"action": "infoDnsRecords"', 'times': 1, 'body': {
+            'status': 'success', 'statuscode': 2000, 'responsedata': {'dnsrecords': [
+                {'id': '4343', 'hostname': '@', 'type': 'A', 'destination': '192.0.2.10'}]}}},
+        {'sent': r'"action": "infoDnsRecords"', 'body': {
+            'status': 'success', 'statuscode': 2000, 'responsedata': {'dnsrecords': [
+                {'id': '4343', 'hostname': '@', 'type': 'A', 'destination': '192.0.2.10'},
+                {'id': '4444', 'hostname': '{SEEN:"hostname": "(_acme-challenge[^"]*)"}',
+                 'type': 'TXT', 'destination': '{TXT}'}]}}},
+        {'sent': r'"action": "updateDnsRecords"', 'body': {
+            'status': 'success', 'statuscode': 2000, 'responsedata': {'dnsrecords': []}}}],
+    'netim': [
+        {'method': 'POST', 'url': r'/session/$', 'body': {'access_token': '{SESSION}'}},
+        {'method': 'DELETE', 'url': r'/session/$', 'body': {}},
+        {'method': 'GET', 'url': r'/domains/\*$', 'body': [{'domain': '{ZONE}'}]},
+        {'method': 'GET', 'url': r'/zone/$', 'times': 1, 'body': [
+            {'hostname': '@', 'type': 'A', 'value': '192.0.2.10'}]},
+        {'method': 'GET', 'url': r'/zone/$', 'body': [
+            {'hostname': '@', 'type': 'A', 'value': '192.0.2.10'},
+            {'hostname': '{FQDN}', 'type': 'TXT', 'value': '{TXT}'}]},
+        {'method': 'POST', 'url': r'/zone/$', 'body': {'ID_OPE': 4545, 'STATUS': 'Pending'}},
+        {'method': 'DELETE', 'url': r'/zone/$', 'body': {'ID_OPE': 4646, 'STATUS': 'Pending'}},
+        {'method': 'GET', 'url': r'/operation/\d+$', 'body': {'ID_OPE': 4545, 'STATUS': 'Done'}}],
+    'netlify': [
+        {'method': 'GET', 'url': r'/dns_zones$', 'body': [{'id': '‹zone id›',
+                                                          'name': '{ZONE}'}]},
+        {'method': 'GET', 'url': r'/dns_records$', 'times': 1, 'body': []},
+        {'method': 'GET', 'url': r'/dns_records$', 'body': [
+            {'id': RID, 'hostname': '{FQDN}', 'type': 'TXT', 'value': '{TXT}'}]},
+        {'method': 'POST', 'url': r'/dns_records$', 'status': 201, 'body': {
+            'id': RID, 'hostname': '{FQDN}', 'type': 'TXT', 'value': '{TXT}'}}],
+    'njalla': [
+        {'sent': r'"method": "list-domains"', 'body': {'result': {'domains': [
+            {'name': '{ZONE}', 'status': 'active'}]}}},
+        {'sent': r'"method": "list-records"', 'times': 1, 'body': {'result': {'records': []}}},
+        {'sent': r'"method": "list-records"', 'body': {'result': {'records': [
+            {'id': 4747, 'name': '{SEEN:"name": "(_acme-challenge[^"]*)"}', 'type': 'TXT',
+             'content': '{TXT}'}]}}},
+        {'sent': r'"method": "add-record"', 'body': {'result': {'id': 4747, 'type': 'TXT'}}},
+        {'sent': r'"method": "remove-record"', 'body': {'result': {}}}],
+    'ns1': [
+        {'method': 'GET', 'url': r'/zones$', 'body': [{'zone': '{ZONE}', 'id': ZID}]},
+        {'method': 'GET', 'url': r'/TXT$', 'times': 1, 'status': 404, 'body': {
+            'message': 'record not found'}},
+        {'method': 'GET', 'url': r'/TXT$', 'body': {'domain': '{FQDN}', 'type': 'TXT', 'ttl': 60,
+                                                   'answers': [{'answer': ['{TXT}']}]}},
+        {'method': 'PUT', 'url': r'/TXT$', 'body': {'domain': '{FQDN}', 'type': 'TXT'}}],
+    'oci_dns': [
+        {'method': 'GET', 'url': r'/zones\?compartmentId', 'body': [
+            {'id': 'ocid1.dns-zone.oc1..‹zone›', 'name': '{ZONE}',
+             'zoneType': 'PRIMARY'}]},
+        {'method': 'GET', 'url': r'\?rtype=TXT$', 'times': 1, 'body': {'items': []}},
+        {'method': 'GET', 'url': r'\?rtype=TXT$', 'body': {'items': [
+            {'domain': '{FQDN}', 'rtype': 'TXT', 'rdata': '"{TXT}"', 'ttl': 30,
+             'recordHash': '‹hash›'}]}},
+        {'method': 'PATCH', 'url': r'/TXT$', 'body': {'items': []}}],
+    'openprovider': [
+        {'method': 'POST', 'url': r'/v1beta/auth/login$', 'body': {'code': 0, 'desc': '',
+                                                                   'data': {'token': '{SESSION}',
+                                                                            'reseller_id': 1}}},
+        {'method': 'GET', 'url': r'/v1beta/dns/zones\?', 'body': {'code': 0, 'data': {
+            'results': [{'id': 4848, 'name': '{ZONE}', 'is_deleted': False}], 'total': 1}}},
+        {'method': 'GET', 'url': r'/records\?', 'times': 1, 'body': {'code': 0, 'data': {
+            'results': [], 'total': 0}}},
+        {'method': 'GET', 'url': r'/records\?', 'body': {'code': 0, 'data': {'results': [
+            {'name': '{FQDN}', 'type': 'TXT', 'value': '"{TXT}"', 'ttl': 60}], 'total': 1}}},
+        {'method': 'PUT', 'url': r'/v1beta/dns/zones/', 'body': {'code': 0, 'data': {
+            'success': True}}}],
+    'ovh': [
+        {'method': 'GET', 'url': r'/auth/time$', 'body': 1767225600},
+        {'method': 'GET', 'url': r'/domain/zone$', 'body': ['{ZONE}']},
+        {'method': 'POST', 'url': r'/record$', 'body': {'id': 4949, 'fieldType': 'TXT',
+                                                        'target': '"{TXT}"', 'zone': '{ZONE}'}},
+        {'method': 'POST', 'url': r'/refresh$', 'body': None}],
+    'porkbun': [
+        {'url': r'/domain/listAll$', 'body': {'status': 'SUCCESS', 'domains': [
+            {'domain': '{ZONE}', 'status': 'ACTIVE'}]}},
+        {'url': r'/dns/retrieveByNameType/', 'times': 1, 'body': {'status': 'SUCCESS',
+                                                                  'records': []}},
+        {'url': r'/dns/retrieveByNameType/', 'body': {'status': 'SUCCESS', 'records': [
+            {'id': '5050', 'name': '{FQDN}', 'type': 'TXT', 'content': '{TXT}'}]}},
+        {'url': r'/dns/create/', 'body': {'status': 'SUCCESS', 'id': 5050}},
+        {'url': r'/dns/delete/', 'body': {'status': 'SUCCESS'}}],
+    'plesk': [
+        {'sent': r'<site>\s*<get>', 'body': '<?xml version="1.0" encoding="UTF-8"?>\n<packet version="1.6.9.1"><site><get><result><status>ok</status><filter-id>{ZONE}</filter-id><id>1</id><data><gen_info><name>{ZONE}</name><ascii-name>{ZONE}</ascii-name></gen_info></data></result></get></site></packet>'},
+        {'sent': r'<get_rec>', 'times': 1, 'body': '<?xml version="1.0" encoding="UTF-8"?>\n<packet version="1.6.9.1"><dns><get_rec><result><status>ok</status><id>11</id><data><site-id>1</site-id><type>A</type><host>{ZONE}.</host><value>192.0.2.10</value></data></result></get_rec></dns></packet>'},
+        {'sent': r'<get_rec>', 'body': '<?xml version="1.0" encoding="UTF-8"?>\n<packet version="1.6.9.1"><dns><get_rec><result><status>ok</status><id>11</id><data><site-id>1</site-id><type>A</type><host>{ZONE}.</host><value>192.0.2.10</value></data></result><result><status>ok</status><id>12</id><data><site-id>1</site-id><type>TXT</type><host>{FQDN}.</host><value>{TXT}</value></data></result></get_rec></dns></packet>'},
+        {'sent': r'<add_rec>', 'body': '<?xml version="1.0" encoding="UTF-8"?>\n<packet version="1.6.9.1"><dns><add_rec><result><status>ok</status><id>12</id></result></add_rec></dns></packet>'},
+        {'sent': r'<del_rec>', 'body': '<?xml version="1.0" encoding="UTF-8"?>\n<packet version="1.6.9.1"><dns><del_rec><result><status>ok</status><id>12</id></result></del_rec></dns></packet>'}],
+    'powerdns': [
+        {'method': 'GET', 'url': r'/servers/[^/]+/zones$', 'body': [
+            {'id': '{ZONE}.', 'name': '{ZONE}.', 'kind': 'Native'}]},
+        {'method': 'GET', 'url': r'/servers/[^/]+$', 'body': {
+            'type': 'Server', 'id': 'localhost', 'daemon_type': 'authoritative',
+            'version': '4.9.4'}},
+        {'method': 'GET', 'url': r'/zones/[^?]+\?rrsets=true', 'times': 1, 'body': {
+            'id': '{ZONE}.', 'name': '{ZONE}.', 'rrsets': []}},
+        {'method': 'GET', 'url': r'/zones/[^?]+\?rrsets=true', 'body': {
+            'id': '{ZONE}.', 'name': '{ZONE}.', 'rrsets': [
+                {'name': '{FQDN}.', 'type': 'TXT', 'ttl': 60, 'records': [
+                    {'content': '"{TXT}"', 'disabled': False}]}]}},
+        {'method': 'PATCH', 'url': r'/zones/', 'status': 204, 'body': ''}],
+    'rackspace': [
+        {'method': 'POST', 'url': r'/v2\.0/tokens$', 'body': {'access': {
+            'token': {'id': '{SESSION}', 'expires': '2030-01-01T00:00:00.000Z'},
+            'serviceCatalog': [{'name': 'cloudDNS', 'type': 'rax:dns', 'endpoints': [
+                {'publicURL': 'https://dns.api.rackspacecloud.com/v1.0/‹account›'}]}]}}},
+        {'method': 'GET', 'url': r'/domains\?limit', 'body': {'domains': [
+            {'id': 5151, 'name': '{ZONE}'}], 'totalEntries': 1}},
+        {'method': 'GET', 'url': r'/records\?', 'times': 1, 'body': {'records': []}},
+        {'method': 'GET', 'url': r'/records\?', 'body': {'records': [
+            {'id': 'TXT-5252', 'name': '{FQDN}', 'type': 'TXT', 'data': '{TXT}'}]}},
+        {'method': 'POST', 'url': r'/records$', 'status': 202, 'body': {
+            'status': 'RUNNING', 'jobId': '‹job›',
+            'callbackUrl': 'https://dns.api.rackspacecloud.com/v1.0/‹account›/status/'
+                           '‹job›'}},
+        {'method': 'DELETE', 'url': r'/records/', 'status': 202, 'body': {
+            'status': 'RUNNING', 'jobId': '‹job›',
+            'callbackUrl': 'https://dns.api.rackspacecloud.com/v1.0/‹account›/status/'
+                           '‹job›'}},
+        {'method': 'GET', 'url': r'/status/', 'body': {'status': 'COMPLETED', 'response': {
+            'records': [{'id': 'TXT-5252', 'name': '{FQDN}', 'type': 'TXT'}]}}}],
+    'gcloud_dns': [
+        {'method': 'POST', 'url': r'oauth2\.googleapis\.com/token$', 'body': {
+            'access_token': '{SESSION}', 'expires_in': 3599, 'token_type': 'Bearer'}},
+        {'method': 'GET', 'url': r'/managedZones$', 'body': {'managedZones': [
+            {'name': 'zone-1', 'dnsName': '{ZONE}.', 'visibility': 'public'}]}},
+        {'method': 'GET', 'url': r'/rrsets\?', 'times': 1, 'body': {'rrsets': []}},
+        {'method': 'GET', 'url': r'/rrsets\?', 'body': {'rrsets': [
+            {'name': '{FQDN}.', 'type': 'TXT', 'ttl': 60, 'rrdatas': ['"{TXT}"']}]}},
+        {'method': 'POST', 'url': r'/changes$', 'body': {'kind': 'dns#change', 'id': '5',
+                                                         'status': 'done'}}],
+}
+
+
+def answers(family, kind, version=''):
+    table = SOURCES if family == 'issuer' else CHALLENGES if family == 'challenge' else {}
+    return [dict(r) for r in (table.get('%s@%s' % (kind, version), []) if version else []) +
+            table.get(kind, [])]

@@ -137,6 +137,9 @@ class VirtualminTarget(HttpTarget):
                     self.ctx.step('%s has this certificate already' % dom)
                     same.append(dom)
                     continue
+                self.ctx.step('%s has %s - installing this one' % (
+                    dom, 'another certificate' if rc == 0 and fp_text(out) else
+                    'no certificate acme could read'))
             if as_bool(self.opt(options, 'enable_ssl', False)):
                 rc, out = self.run('enable-feature', [('domain', dom), ('ssl', '')],
                                    'turning SSL on for %s' % dom, check=False)

@@ -126,6 +126,7 @@ class DirectAdminSslTarget(HttpTarget):
         d = self.listed(domain)
         ids = [text(i) for i in d.get('certIds') or []]
         if len(ids) == 1:
+            self.ctx.step('%s has one certificate: %s - replacing it' % (domain, ids[0]))
             return ids[0]
         first = next((n for n in bundle.names if not n.startswith('*')), bundle.names[0])
         fit = []
@@ -136,6 +137,8 @@ class DirectAdminSslTarget(HttpTarget):
             if covers(names, first) or first in names:
                 fit.append(text(c.get('id')))
         if len(fit) == 1:
+            self.ctx.step('of the certificates of %s (%s), %s is the one for %s - replacing it'
+                          % (domain, ', '.join(ids), fit[0], first))
             return fit[0]
         if not ids:
             raise PluginError('the domain %s has no certificate slot yet: make one in '

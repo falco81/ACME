@@ -125,16 +125,25 @@ ANSWERS = {
     'aws_acm': [{'method': 'POST', 'body': {
         'CertificateArn': 'arn:aws:acm:\u2039region\u203a:\u2039account\u203a:certificate/'
                           '\u2039new\u203a'}}],
-    # Suite Lifecycle: the Locker without the certificate before the import, with it (the
-    # alias the import sent) after; Replace Certificate a request that completes
+    # Suite Lifecycle: the Locker with two earlier certificates of acme before the import, with
+    # the new one (the alias the import sent) too after; the pre-validation passes; Replace
+    # Certificate a request that completes; the oldest deleted (1.0.98: the renewal's path)
     'aria_lifecycle': [
-        {'method': 'GET', 'url': r'/lcm/locker/api/v2/certificates$', 'times': 1, 'body': []},
+        {'method': 'GET', 'url': r'/lcm/locker/api/v2/certificates$', 'times': 1, 'body': [
+            {'alias': '{EARLIER}', 'vmid': '\u2039earlier vmid\u203a'},
+            {'alias': '{EARLIER2}', 'vmid': '\u2039oldest vmid\u203a'}]},
         {'method': 'GET', 'url': r'/lcm/locker/api/v2/certificates$', 'body': [
-            {'alias': '{SENT:alias}', 'vmid': '\u2039certificate vmid\u203a'}]},
+            {'alias': '{SENT:alias}', 'vmid': '\u2039certificate vmid\u203a'},
+            {'alias': '{EARLIER}', 'vmid': '\u2039earlier vmid\u203a'},
+            {'alias': '{EARLIER2}', 'vmid': '\u2039oldest vmid\u203a'}]},
+        {'method': 'POST', 'url': r'/lcm/locker/api/v2/certificates/import$', 'body': {
+            'alias': '{SENT:alias}', 'vmid': '\u2039certificate vmid\u203a'}},
+        {'method': 'POST', 'url': r'/certificates/[^/]+/pre-validate$', 'body': {}},
         {'method': 'PUT', 'url': r'/products/[^/]+/certificates/[^/]+$', 'body': {
             'requestId': '\u2039request\u203a'}},
         {'method': 'GET', 'url': r'/lcm/request/api/v2/requests/', 'body': {
-            'state': 'COMPLETED'}}],
+            'state': 'COMPLETED'}},
+        {'method': 'DELETE', 'url': r'/lcm/locker/api/v2/certificates/', 'body': {}}],
     # Catalyst Center: the token is "Token" of the sign-in; the import is a task, done
     'cisco_catalyst_center': [
         {'method': 'POST', 'url': r'/auth/token$', 'body': {'Token': '{SESSION}'}},
@@ -182,9 +191,35 @@ ANSWERS = {
     'vsphere_supervisor': [_VSPHERE_SESSION],
     # FortiManager: every JSON-RPC call is at /jsonrpc - its first, "is it there?", answered
     # -3 (Object does not exist), the others status 0 (OK)
+    # (1.0.98: by the call in the body) the new certificate not there yet (-3); the
+    # intermediate there already (-2, a renewal); the local certificates: three earlier acme
+    # ones, the new one, the factory one (beyond the 2 kept: the oldest deleted); the admin
+    # setting on the new one
     'fortimanager': [
-        {'method': 'POST', 'url': r'/jsonrpc$', 'times': 1, 'body': {
-            'id': 1, 'result': [{'status': {'code': -3, 'message': 'Object does not exist'}}]}},
+        {'method': 'POST', 'url': r'/jsonrpc$',
+         'sent': r'"method": "get", "params": \[\{"url": "/cli/global/system/certificate/'
+                 r'local/', 'body': {'id': 1, 'result': [{'status': {
+                     'code': -3, 'message': 'Object does not exist'},
+                     'url': '/cli/global/system/certificate/local/\u2039name\u203a'}]}},
+        {'method': 'POST', 'url': r'/jsonrpc$',
+         'sent': r'"method": "add", "params": \[\{"url": "/cli/global/system/certificate/ca"',
+         'body': {'id': 1, 'result': [{'status': {
+             'code': -2, 'message': 'Object already exists'},
+             'url': '/cli/global/system/certificate/ca'}]}},
+        {'method': 'POST', 'url': r'/jsonrpc$',
+         'sent': r'"method": "get", "params": \[\{"url": "/cli/global/system/certificate/'
+                 r'local"', 'body': {'id': 1, 'result': [{'status': {'code': 0, 'message': 'OK'},
+                                                          'url': '/cli/global/system/certificate/local',
+                                                          'data': [
+            {'name': 'Fortinet_Local'}, {'name': 'Fortinet_Local2'},
+            {'name': '{EARLIER3:35:6}'}, {'name': '{EARLIER2:35:6}'},
+            {'name': '{EARLIER:35:6}'}, {'name': '{CURRENT:35:6}'}]}]}},
+        {'method': 'POST', 'url': r'/jsonrpc$',
+         'sent': r'"method": "get", "params": \[\{"url": "/cli/global/system/admin/setting"',
+         'body': {'id': 1, 'result': [{'status': {'code': 0, 'message': 'OK'},
+                                       'url': '/cli/global/system/admin/setting',
+                                       'data': {'admin_server_cert': '{EARLIER:35:6}',
+                                                'https_port': 443}}]}},
         {'method': 'POST', 'url': r'/jsonrpc$', 'body': {
             'id': 1, 'result': [{'status': {'code': 0, 'message': 'OK'}, 'data': {}}]}}],
     # NimbleOS: the token and its id in "data" of the sign-in
@@ -360,12 +395,39 @@ SSH_ANSWERS['cisco_wlc9800@17.12'] = [
     {'command': r'^show version', 'stdout':
         'Cisco IOS XE Software, Version 17.15.03\nCisco IOS Software [IOSXE], C9800 Software '
         '(C9800_IOSXE-K9), Version 17.15.3, RELEASE SOFTWARE (fc1)\n'}]
-# ArubaOS 8: the server certificate imported is listed by `show crypto-local pki ServerCert`
-# after the import (name, original file, references) - its name as the import command gave it
+# ArubaOS 8 (1.0.98: a renewal): show version an AOS 8.10; `show crypto-local pki ServerCert`
+# (name, original file, references, expired) lists the earlier acme certificate the WebUI uses
+# and an older one before the import, the new one too after it (its name as the import command
+# gave it), and after switch-cert the new one in use - the oldest is removed (keep 1); the
+# chain's CAs are not there yet; copy, import, profile, delete go through; write memory saves
+_AOS8_CERTS = ('Certificates\n------------\nName                             Original Filename'
+               '  Reference Count  Expired\n----                             -----------------'
+               '  ---------------  -------\n')
 SSH_ANSWERS['aruba_aos8'] = [
-    {'input': r'crypto pki-import pfx ServerCert', 'stdout': ''},
-    {'input': r'show crypto-local pki ServerCert',
-     'stdout': '{SEEN:crypto pki-import pfx ServerCert (\\S+)}  acme.pfx  1  No\n'}]
+    {'input': r'(?m)^show version$', 'stdout':
+        'Aruba Operating System Software.\nArubaOS (MODEL: Aruba7210), Version 8.10.0.7\n'
+        'Website: http://www.arubanetworks.com\nCopyright (c) 2002-2023, Hewlett Packard '
+        'Enterprise Development LP.\n'},
+    {'input': r'(?m)^show crypto-local pki ServerCert$', 'times': 1, 'stdout': _AOS8_CERTS +
+        '{EARLIER:31}   acme-4a596877.pfx  1                No\n'
+        '{EARLIER2:31}   acme-4a596876.pfx  0                No\n'},
+    {'input': r'(?m)^show crypto-local pki ServerCert$', 'times': 1, 'stdout': _AOS8_CERTS +
+        '{SEEN:crypto pki-import pfx ServerCert (\\S+)}   {SEEN:copy \\S+: .* flash: '
+        '(acme-[0-9a-f]+\\.pfx)}  0                No\n'
+        '{EARLIER:31}   acme-4a596877.pfx  1                No\n'
+        '{EARLIER2:31}   acme-4a596876.pfx  0                No\n'},
+    {'input': r'(?m)^show crypto-local pki ServerCert$', 'stdout': _AOS8_CERTS +
+        '{SEEN:crypto pki-import pfx ServerCert (\\S+)}   {SEEN:copy \\S+: .* flash: '
+        '(acme-[0-9a-f]+\\.pfx)}  1                No\n'
+        '{EARLIER:31}   acme-4a596877.pfx  0                No\n'
+        '{EARLIER2:31}   acme-4a596876.pfx  0                No\n'},
+    {'input': r'(?m)^show crypto-local pki (IntermediateCA|TrustedCA)$', 'stdout': _AOS8_CERTS},
+    {'input': r'(?m)^copy (tftp|scp): ', 'stdout': ''},
+    {'input': r'(?m)^crypto pki-import (pfx|pem) ', 'stdout': ''},
+    {'input': r'(?m)^web-server profile$', 'stdout': ''},
+    {'input': r'(?m)^write memory$', 'stdout': 'Saving Configuration...\n\nConfiguration Saved.\n'},
+    {'input': r'(?m)^delete filename ', 'stdout': ''},
+    {'command': r'^rm -f -- ', 'stdout': ''}]
 # Cockpit: ws-certs.d holds its own self-signed one and two earlier acme certificates;
 # cockpit-certificate-ensure is in /usr/libexec and would use the new one
 SSH_ANSWERS['cockpit'] = [
@@ -375,7 +437,7 @@ SSH_ANSWERS['cockpit'] = [
     {'command': r'^test -x /usr/libexec/cockpit-certificate-ensure', 'stdout':
         '/usr/libexec/cockpit-certificate-ensure\n'},
     {'command': r'cockpit-certificate-ensure --check$', 'stdout':
-        'Would use certificate /etc/cockpit/ws-certs.d/90-{NAME}.crt\n'},
+        'Would use certificate /etc/cockpit/ws-certs.d/90-{CURRENT}.crt\n'},
     {'command': r'test -d /etc/pki/ca-trust/source/anchors', 'stdout':
         '/etc/pki/ca-trust/source/anchors\n'}]
 # cPanel (UAPI): the websites with SSL - one of the certificate's first name (its names, an
@@ -538,7 +600,13 @@ SSH_ANSWERS['cucm'] = [
         'Active Master Version: 15.0.1.13900-234\n'},
     {'command': r'^$', 'input': r'^show cert list (trust|own)\nexit', 'stdout': ''},
     {'command': r'^$', 'input': r'^set cert import trust', 'stdout':
-        'Paste the Certificate and Hit Enter\nImport of trust certificate is successful\n'},
+        'Paste the Certificate and Hit Enter\nImport of trust certificate is successful\n'
+        'tomcat-trust/Cisco_Root_CA_2048.pem: Trust Certificate\n'
+        'tomcat-trust/{CACN_}.pem: Trust Certificate\ntomcat-trust/{CACN2_}.pem: Trust '
+        'Certificate\n'},
+    # set csr gen: a new key and CSR made; show csr own prints it (the sandbox's {CSR})
+    {'command': r'^$', 'input': r'^set csr gen ', 'stdout':
+        'Successfully Generated CSR for tomcat\n{CSR}\n'},
     {'command': r'^$', 'input': r'^set cert import own', 'stdout':
         'Paste the Certificate and Hit Enter\nSuccessfully imported certificate for tomcat.\n'
         '[\n  Version: V3\n  SerialNumber: [ {SERIAL} ]\n]\n'},
@@ -548,13 +616,821 @@ SSH_ANSWERS['cucm'] = [
 # ---- targets a10 .. cisco_nxos (1.0.98): what each device answers on a renewal - the
 # certificate acme put there before ({EARLIER}, {EARLIER2}: two older ones of its names) is
 # there, so the module takes its real path: replaced, rebound, the older ones deleted ----
+# acme push: an application acme is paired with already (it keeps the pin of it) answers
+# hello with the id and key of that pin - the plan's own, the same in both; install puts the
+# certificate into the slots asked for. Not paired yet: no pin, the pairing (or inventory)
+# shown before.
+PUSH_PIN = {'app_id': '4f0c2d0e8b7a4a6c9d3e1f2a3b4c5d6e',
+            'enc_key': 'B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9/AsrhtHHw=', 'how': 'pairing code',
+            'app': 'otp'}
+
+
+def push_pin_of(store, cls, cfg):
+    """The plan's pin for an acme push target paired already (acme keeps one for its
+    address), else None."""
+    try:
+        return dict(PUSH_PIN) if E.push_pin(store, cls(dict(cfg or {}), None).base_url()) \
+            else None
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def pages_of(store):
+    """acme's own pages (targets/appliance.py) as they are: the nodes, the VIP address and
+    what each holds now - so its run says where it goes and what it replaces."""
+    try:
+        from acmelib.certs import runtime
+        ctx = runtime.RunContext.__new__(runtime.RunContext)
+        ctx.store = store
+        where = ctx.pages_where()
+        have = {}
+        for one in list(where.get('nodes') or []) + (['vip'] if (where.get('vip') or {})
+                                                     .get('on') else []):
+            try:
+                have[one] = ctx.pages_get(one)
+            except Exception:                           # noqa: BLE001
+                have[one] = None
+        return {'where': where, 'have': have}
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+ANSWERS['acme_push'] = [
+    {'method': 'GET', 'url': r'[?&]api=acme-push-hello$', 'body': {
+        'ok': True, 'protocol': [1], 'app': 'otp', 'version': '1.0.210', 'on': True,
+        'app_id': PUSH_PIN['app_id'], 'enc_key': PUSH_PIN['enc_key'],
+        'enc_alg': 'X25519-HKDF-SHA256-A256GCM', 'node': 'otp1', 'cluster': True,
+        'nodes': ['otp1', 'otp2'], 'slots': ['node:otp1', 'node:otp2', 'vip'], 'paired': 1,
+        'pairing': False}},
+    {'method': 'POST', 'url': r'[?&]api=acme-push-pair$', 'body': {
+        'ok': True, 'app': 'otp', 'app_id': PUSH_PIN['app_id'], 'key_id': 'acme-plan',
+        'enc_key': PUSH_PIN['enc_key'], 'confirm': '{PUSH_CONFIRM}'}},
+    {'method': 'POST', 'url': r'[?&]api=acme-push-inventory$', 'body': {
+        'ok': True, 'app': 'otp', 'version': '1.0.210', 'cluster': True, 'slots': []}},
+    {'method': 'POST', 'url': r'[?&]api=acme-push-install$', 'body': {
+        'ok': True, 'installed': [{'slot': 'node:otp1', 'node': 'otp1',
+                                   'names': ['\u2039the slot\'s names\u203a'],
+                                   'state': 'installed'}],
+        'said': 'put in for node:otp1 - each node puts it into nginx within seconds'}},
+]
+# A10 ACOS (aXAPI v3): the signature; the SSL files and keys there - two earlier ones of acme
+# and, once imported, the new one; the template holds the earlier one beside the new one;
+# every change answered {"response": {"status": "OK"}}
+_A10_OK = {'response': {'status': 'OK'}}
+ANSWERS['a10'] = [
+    {'method': 'POST', 'url': r'/axapi/v3/auth$', 'body': {'authresponse': {
+        'signature': '{SESSION}', 'description': 'the signature should be set in '
+                                                  'Authorization header for following request.'}}},
+    {'method': 'POST', 'url': r'/axapi/v3/active-partition/', 'body': _A10_OK},
+    {'method': 'GET', 'url': r'/axapi/v3/file/ssl-(cert|key)/oper$', 'body': {
+        'ssl-cert': {'oper': {'file-list': [
+            {'file': '{SENT:certificate.cert}', 'type': 'certificate'},
+            {'file': '{EARLIER}', 'type': 'certificate'},
+            {'file': '{EARLIER2}', 'type': 'certificate'}]}},
+        'ssl-key': {'oper': {'file-list': [
+            {'file': '{SENT:certificate.key}'}, {'file': '{EARLIER}'}, {'file': '{EARLIER2}'}]}}}},
+    {'method': 'POST', 'url': r'/axapi/v3/file/ssl-(cert|key)$', 'body': _A10_OK},
+    {'method': 'POST', 'url': r'/axapi/v3/slb/template/client-ssl/[^/]+/certificate$',
+     'body': _A10_OK},
+    {'method': 'GET', 'url': r'/axapi/v3/slb/template/client-ssl/[^/]+$', 'body': {
+        'client-ssl': {'name': '{TAIL}', 'certificate-list': [
+            {'cert': '{EARLIER}', 'key': '{EARLIER}'},
+            {'cert': '{SENT:certificate.cert}', 'key': '{SENT:certificate.key}',
+             'chain-cert': '{SENT:certificate.chain-cert}'}]}}},
+    {'method': 'DELETE', 'url': r'/axapi/v3/slb/template/client-ssl/[^/]+/certificate/',
+     'body': _A10_OK},
+    {'method': 'POST', 'url': r'/axapi/v3/write/memory$', 'body': _A10_OK},
+    {'method': 'POST', 'url': r'/axapi/v3/pki/delete$', 'body': _A10_OK},
+    {'method': 'POST', 'url': r'/axapi/v3/logoff$', 'body': _A10_OK},
+]
+# Aria Automation (vracli over SSH): the ingress certificate there now is an earlier one of
+# its names; validate, set, deploy.sh and rm go through (exit 0)
+SSH_ANSWERS['aria_automation'] = [
+    {'command': r'vracli certificate ingress --list', 'stdout': '{EARLIER_PEM}'},
+    {'command': r'vracli certificate ingress --validate ', 'stdout': ''},
+    {'command': r'vracli certificate ingress --set ', 'stdout': ''},
+    {'command': r'/opt/scripts/deploy\.sh', 'stdout': ''},
+    {'command': r"rm -f /root/acme-ingress-", 'stdout': ''},
+]
+# AOS-CX (REST): the session a cookie of the sign-in (and its CSRF token); the switch holds its
+# own local-cert and two earlier acme certificates, the WebUI's (https-server) the newer one;
+# the CAs not trusted yet; after the PATCH it uses the new one, as configured; the oldest no
+# application uses is deleted (keep 1)
+ANSWERS['aruba_aoscx'] = [
+    {'method': 'POST', 'url': r'/rest/[^/]+/login\?', 'body': '',
+     'headers': {'Set-Cookie': 'id=PLANSESSION0token; Path=/; HttpOnly; Secure',
+                 'x-csrf-token': 'PLANSESSION0token'}},
+    {'method': 'POST', 'url': r'/rest/[^/]+/logout$', 'body': ''},
+    {'method': 'GET', 'url': r'/rest/[^/]+/certificates$', 'body': {
+        'local-cert': '/rest/v10.13/certificates/local-cert',
+        '{EARLIER:32:6}': '/rest/v10.13/certificates/{EARLIER:32:6}',
+        '{EARLIER2:32:6}': '/rest/v10.13/certificates/{EARLIER2:32:6}'}},
+    {'method': 'GET', 'url': r'/rest/[^/]+/system/pki_ta_profiles$', 'body': {
+        'corp-root-ca': '/rest/v10.13/system/pki_ta_profiles/corp-root-ca'}},
+    {'method': 'POST', 'url': r'/rest/[^/]+/system/pki_ta_profiles$', 'status': 201, 'body': ''},
+    {'method': 'PUT', 'url': r'/rest/[^/]+/certificates/[^/?]+$', 'body': ''},
+    {'method': 'GET', 'url': r'/system\?attributes=certificate_association$', 'times': 1,
+     'body': {'certificate_association': {'https-server': '{EARLIER:32:6}'}}},
+    {'method': 'GET', 'url': r'/system\?attributes=certificate_association$', 'body': {
+        'certificate_association': {'https-server': '{CURRENT:32:6}'}}},
+    {'method': 'GET', 'url': r'/system\?attributes=certificate_association_status$', 'body': {
+        'certificate_association_status': {'https-server': {
+            'status': 'up', 'status_reason': 'as_configured'}}}},
+    {'method': 'PATCH', 'url': r'/rest/[^/]+/system$', 'status': 204, 'body': ''},
+    {'method': 'PUT', 'url': r'/fullconfigs/startup-config\?from=', 'body': ''},
+    {'method': 'DELETE', 'url': r'/rest/[^/]+/certificates/', 'status': 204, 'body': ''},
+]
+# Aruba Central: the token refresh gives a token and a new refresh token; the name asked for is
+# in the store (a server certificate) - replaced under that name (FIRST: not there, uploaded)
+ANSWERS['aruba_central'] = [
+    {'method': 'POST', 'url': r'/oauth2/token\?', 'body': {
+        'access_token': '{SESSION}', 'refresh_token': '{SESSION}', 'token_type': 'bearer',
+        'expires_in': 7200}},
+    {'method': 'GET', 'url': r'/configuration/v1/certificates\?', 'body': {'items': [
+        {'cert_name': '{OPT:cert_name}', 'cert_type': 'SERVER_CERT', 'cert_format': 'PEM',
+         'expire_date': 'Feb 11 12:00:00 2027 GMT', 'cert_md5_checksum':
+             '‹checksum›'}], 'total': 1}},
+    {'method': 'POST', 'url': r'/configuration/v1/certificates$', 'body': {
+        'cert_name': '{SENT:cert_name}', 'cert_type': 'SERVER_CERT'}},
+    {'method': 'PUT', 'url': r'/configuration/v1/non_msp/certificate$', 'body': {
+        'cert_name': '{SENT:cert_name}', 'cert_type': 'SERVER_CERT'}},
+]
 # ---- end of targets a10 .. cisco_nxos ----
+# ---- targets cisco_wlc9800 .. hpe_oneview ----
+# CUCM: the CA certificates of the chain in <unit>-trust already at a renewal (the first time
+# they are not: imported)
+SSH_FIRST = {}
+SSH_LATER = {}
+SSH_LATER['cucm'] = [
+    {'command': r'^$', 'input': r'^show cert list trust\nexit', 'stdout':
+        'tomcat-trust/Cisco_Root_CA_2048.pem: Trust Certificate\n'
+        'tomcat-trust/{CACN_}.pem: Trust Certificate\ntomcat-trust/{CACN2_}.pem: Trust '
+        'Certificate\nCallManager-trust/{CACN_}.pem: Trust Certificate\n'
+        'CallManager-trust/{CACN2_}.pem: Trust Certificate\n'
+        'Successfully listed the trust certificates.\n'}]
+# DigitalOcean: the certificate of this name not there yet, then uploaded (its id); the load
+# balancers named (by name: listed; by ID: read) with an HTTPS rule on the earlier
+# certificate, an HTTP one, a passthrough one; the account's certificates: the two earlier
+# ones and the new one (the oldest deleted)
+_DO_LB = {'id': '\u2039load balancer id\u203a', 'name': '{EACH:OPT:load_balancers}',
+          'ip': '192.0.2.1', 'status': 'active', 'region': {'slug': 'fra1', 'name': 'Frankfurt 1'},
+          'size_unit': 1, 'algorithm': 'round_robin', 'droplet_ids': [3164444, 3164445],
+          'redirect_http_to_https': True, 'vpc_uuid': '\u2039vpc\u203a',
+          'health_check': {'protocol': 'http', 'port': 80, 'path': '/'},
+          'forwarding_rules': [
+              {'entry_protocol': 'https', 'entry_port': 443, 'target_protocol': 'http',
+               'target_port': 80, 'certificate_id': '\u2039earlier certificate id\u203a',
+               'tls_passthrough': False},
+              {'entry_protocol': 'http', 'entry_port': 80, 'target_protocol': 'http',
+               'target_port': 80, 'certificate_id': '', 'tls_passthrough': False}]}
+ANSWERS['digitalocean_lb'] = [
+    {'method': 'GET', 'url': r'/v2/certificates\?name=', 'body': {
+        'certificates': [], 'links': {}, 'meta': {'total': 0}}},
+    {'method': 'POST', 'url': r'/v2/certificates$', 'status': 201, 'body': {'certificate': {
+        'id': '\u2039new certificate id\u203a', 'name': '{SENT:name}', 'type': 'custom',
+        'state': 'verified', 'dns_names': '{CERTNAMES}', 'sha1_fingerprint': '{FP1}'}}},
+    {'method': 'GET', 'url': r'/v2/load_balancers\?', 'body': {
+        'load_balancers': [_DO_LB], 'links': {}, 'meta': {'total': 1}}},
+    {'method': 'GET', 'url': r'/v2/load_balancers/[^/?]+$', 'body': {
+        'load_balancer': dict(_DO_LB, id='{TAIL}', name='lb-www')}},
+    {'method': 'PUT', 'url': r'/v2/load_balancers/[^/?]+$', 'body': {
+        'load_balancer': dict(_DO_LB, name='lb-www')}},
+    {'method': 'GET', 'url': r'/v2/certificates\?page=', 'body': {'certificates': [
+        {'id': '\u2039older certificate id\u203a', 'name': '{EARLIER2}', 'type': 'custom',
+         'state': 'verified'},
+        {'id': '\u2039earlier certificate id\u203a', 'name': '{EARLIER}', 'type': 'custom',
+         'state': 'verified'},
+        {'id': '\u2039new certificate id\u203a', 'name': '{CURRENT}', 'type': 'custom',
+         'state': 'verified'}], 'links': {}, 'meta': {'total': 3}}},
+    {'method': 'DELETE', 'url': r'/v2/certificates/', 'status': 204, 'body': ''}]
+# DirectAdmin (the new API): the domain's certificates - its own and the one acme replaces,
+# for the certificate's names; the files of a slot are the earlier certificate; the PUT
+# (dry run, then for real) takes it. The legacy CMD_API_SSL says error=0
+ANSWERS['directadmin_ssl'] = [
+    {'method': 'GET', 'url': r'/domain-tls/domains/[^/]+/certs$', 'body': {
+        'certIds': ['\u2039webmail slot\u203a', '\u2039certificate slot\u203a'],
+        'missingDNSNames': [], 'certs': [
+            {'id': '\u2039webmail slot\u203a', 'autorenewEnabled': True, 'error': '',
+             'certificate': {'dnsNames': ['webmail.{OPT:da_domain}'],
+                             'notAfter': '2026-12-20T10:00:00Z'}},
+            {'id': '\u2039certificate slot\u203a', 'autorenewEnabled': False, 'error': '',
+             'certificate': {'dnsNames': '{CERTNAMES}', 'notAfter': '2026-12-01T10:00:00Z'}}]}},
+    {'method': 'GET', 'url': r'/domain-tls/domains/[^/]+/certs/[^/]+/files$', 'body': {
+        'cert': '\u2039the earlier certificate, PEM\u203a', 'chain': [], 'error': ''}},
+    {'method': 'PUT', 'url': r'/domain-tls/domains/[^/]+/certs/[^/]+/files\?', 'body': {
+        'cert': '\u2039the certificate sent, PEM\u203a', 'error': ''}},
+    {'method': 'GET', 'url': r'/CMD_API_SSL\?domain=', 'headers': {
+        'Content-Type': 'text/plain'}, 'body': 'certificate=%E2%80%B9the+earlier+certificate'
+        '%E2%80%BA&key=&cacert=&active=yes'},
+    {'method': 'POST', 'url': r'/CMD_API_SSL$', 'headers': {'Content-Type': 'text/plain'},
+     'body': 'error=0&text=Certificate+and+Key+Saved.&details='}]
+# Docker Swarm: the secrets of two earlier certificates there (and one of the application),
+# then the new ones too; each service named mounts the earlier pair as tls.crt / tls.key
+# (root, 0444 / 0400); the update converges; the oldest pair removed
+_SWARM_LS = 'db_password\n{EARLIER2:58}.crt\n{EARLIER2:58}.key\n{EARLIER:58}.crt\n{EARLIER:58}.key\n'
+SSH_ANSWERS['docker_swarm'] = [
+    {'command': r'secret ls --format', 'times': 1, 'stdout': _SWARM_LS},
+    {'command': r'secret ls --format', 'stdout': _SWARM_LS + '{CURRENT:58}.crt\n{CURRENT:58}.key\n'},
+    {'command': r'service inspect ', 'stdout':
+        '[{"File":{"Name":"tls.crt","UID":"0","GID":"0","Mode":292},"SecretID":'
+        '"\u2039secret id\u203a","SecretName":"{EARLIER:58}.crt"},{"File":{"Name":"tls.key",'
+        '"UID":"0","GID":"0","Mode":256},"SecretID":"\u2039secret id\u203a","SecretName":'
+        '"{EARLIER:58}.key"},{"File":{"Name":"db_password","UID":"0","GID":"0","Mode":292},'
+        '"SecretID":"\u2039secret id\u203a","SecretName":"db_password"}]\n'},
+    {'command': r'secret create ', 'stdout': '\u2039secret id\u203a\n'},
+    {'command': r'service update ', 'stdout': '\u2039service\u203a\n'},
+    {'command': r'secret rm ', 'stdout': '{SEEN:secret rm (\\S+)}\n'}]
+# ESXi over SSH: rui.crt and rui.key there (an earlier certificate: other SHA-256s), both
+# replaced (EXISTED, PLACED), hostd and vpxa restarted, the state saved to the boot bank
+SSH_ANSWERS['esxi'] = [
+    {'command': r'sha256sum /etc/vmware/ssl/rui\.crt', 'stdout':
+        '3f1d0c5e8a2b4c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9a0b1c2d3e4f  '
+        '/etc/vmware/ssl/rui.crt\n'
+        '9a8b7c6d5e4f30211203f4e5d6c7b8a9f0e1d2c3b4a5968778695a4b3c2d1e0f  '
+        '/etc/vmware/ssl/rui.key\n'},
+    {'command': r'echo "PLACED 0"', 'stdout': 'EXISTED 0\nPLACED 0\nEXISTED 1\nPLACED 1\n'},
+    {'command': r'/etc/init.d/hostd restart', 'stdout':
+        'hostd stopped.\nhostd started.\nvpxa stopped.\nvpxa started.\n'},
+    {'command': r'services\.sh restart', 'stdout': 'Running services restart\n'},
+    {'command': r'/sbin/auto-backup\.sh', 'stdout':
+        'Saving current state in /bootbank\nClock updated.\n'}]
+# ESXi 8.0 U3 - 9.1 through vCenter: the service content says vCenter 8.0.3; the host is
+# ESXi 8.0.3 of its name; the chain added to the trusted roots (its id)
+ANSWERS['esxi@8.0.3'] = [
+    {'method': 'GET', 'url': r'/ServiceInstance/ServiceInstance/content$', 'body': {
+        'sessionManager': {'type': 'SessionManager', 'value': 'SessionManager'},
+        'about': {'name': 'VMware vCenter Server', 'version': '8.0.3', 'build': '24322831',
+                  'apiVersion': '8.0.3.0', 'productLineId': 'vpx'}}},
+    {'method': 'GET', 'url': r'/HostSystem/[^/]+/summary$', 'body': {
+        'config': {'name': '{CFG:esx_name}', 'product': {
+            'name': 'VMware ESXi', 'fullName': 'VMware ESXi 8.0.3 build-24280767',
+            'version': '8.0.3', 'build': '24280767'}},
+        'runtime': {'connectionState': 'connected', 'inMaintenanceMode': False}}},
+    {'method': 'POST', 'url': r'/certificate-management/vcenter/trusted-root-chains$',
+     'status': 201, 'body': '"\u2039chain id\u203a"'}]
+# BIG-IP: the new key and certificate not there yet (404), the chain there already (the same
+# intermediate as at the earlier renewal); the uploads and installs taken; the profile's
+# cert-key-chain on the earlier certificate; the partition's certificates: three earlier
+# ones, the new one, the chain, the default (beyond the 2 kept: the oldest deleted)
+_F5_ITEM = {'kind': 'tm:sys:file:ssl-cert:ssl-certstate', 'partition': '{OPT:partition}'}
+ANSWERS['f5'][1:1] = [
+    {'method': 'GET', 'url': r'/mgmt/tm/sys/crypto/cert/~[^/?]*~acme-chain-', 'body': dict(
+        _F5_ITEM, name='{TAIL}', fullPath='{TAIL}', certificateKeyCurveName='none',
+        issuer='CN=\u2039the root\u203a')},
+    {'method': 'GET', 'url': r'/mgmt/tm/sys/crypto/(cert|key)/~[^/?]+$', 'status': 404, 'body': {
+        'code': 404, 'message': '01020036:3: The requested Certificate File (\u2039name\u203a) '
+        'was not found.', 'errorStack': [], 'apiError': 3}},
+    {'method': 'POST', 'url': r'/mgmt/shared/file-transfer/uploads/', 'body': {
+        'remainingByteCount': 0, 'usedChunks': {'0': 1}, 'totalByteCount': 1,
+        'localFilePath': '/var/config/rest/downloads/{TAIL}', 'temporaryFilePath':
+        '/var/config/rest/downloads/tmp/{TAIL}', 'generation': 0}},
+    {'method': 'POST', 'url': r'/mgmt/tm/sys/crypto/(cert|key)$', 'body': {
+        'kind': 'tm:sys:crypto:cert:certstate', 'command': 'install', 'name': '{SENT:name}',
+        'from-local-file': '{SENT:from-local-file}'}},
+    {'method': 'POST', 'url': r'/mgmt/tm/util/unix-rm$', 'body': {
+        'kind': 'tm:util:unix-rm:runstate', 'command': 'run',
+        'utilCmdArgs': '{SENT:utilCmdArgs}'}},
+    {'method': 'GET', 'url': r'/mgmt/tm/ltm/profile/client-ssl/', 'body': {
+        'kind': 'tm:ltm:profile:client-ssl:client-sslstate', 'name': '{TAIL}',
+        'defaultsFrom': '/Common/clientssl', 'certKeyChain': [
+            {'name': 'default', 'cert': '/Common/{EARLIER}', 'key': '/Common/{EARLIER}',
+             'chain': '/Common/acme-chain-\u2039id\u203a'}]}},
+    {'method': 'PATCH', 'url': r'/mgmt/tm/ltm/profile/client-ssl/', 'body': {
+        'kind': 'tm:ltm:profile:client-ssl:client-sslstate', 'name': '{TAIL}'}},
+    {'method': 'GET', 'url': r'/mgmt/tm/sys/crypto/cert\?\$filter=partition', 'body': {
+        'kind': 'tm:sys:crypto:cert:certcollectionstate', 'items': [
+            dict(_F5_ITEM, name='default.crt'), dict(_F5_ITEM, name='{EARLIER3}'),
+            dict(_F5_ITEM, name='{EARLIER2}'), dict(_F5_ITEM, name='{EARLIER}'),
+            dict(_F5_ITEM, name='{CURRENT}'),
+            dict(_F5_ITEM, name='acme-chain-\u2039id\u203a')]}},
+    {'method': 'POST', 'url': r'/mgmt/tm/sys/config$', 'body': {
+        'kind': 'tm:sys:config:savestate', 'command': 'save'}},
+    {'method': 'POST', 'url': r'/mgmt/tm/cm$', 'body': {
+        'kind': 'tm:cm:runstate', 'command': 'run', 'utilCmdArgs': '{SENT:utilCmdArgs}'}}]
+# Fastly: the TLS certificates - the earlier one acme put there (its activations kept), the
+# one named by its ID, another; the private keys of the two earlier ones (not this one's);
+# the key uploaded, the certificate replaced in place; unused keys: the two earlier ones (the
+# older deleted)
+_FASTLY_CERT = {'type': 'tls_certificate', 'attributes': {
+    'issued_to': '{CERTNAME}', 'issuer': "Let's Encrypt", 'replace': False,
+    'not_after': '2026-12-01T10:00:00.000Z'}}
+_FASTLY_KEY = {'type': 'tls_private_key', 'attributes': {'key_type': 'RSA', 'key_length': 2048,
+                                                         'replace': False}}
+ANSWERS['fastly'] = [
+    {'method': 'GET', 'url': r'/tls/certificates\?', 'body': {'data': [
+        {'id': '\u2039certificate id\u203a', 'type': 'tls_certificate', 'attributes': dict(
+            _FASTLY_CERT['attributes'], name='{EARLIER}')},
+        {'id': '{OPT:certificate_id}', 'type': 'tls_certificate', 'attributes': dict(
+            _FASTLY_CERT['attributes'], name='www (uploaded by hand)')},
+        {'id': '\u2039other certificate id\u203a', 'type': 'tls_certificate', 'attributes': dict(
+            _FASTLY_CERT['attributes'], name='api.example.org', issued_to='api.example.org')}],
+        'meta': {'per_page': 100, 'current_page': 1, 'record_count': 3, 'total_pages': 1}}},
+    {'method': 'GET', 'url': r'/tls/private_keys\?filter', 'body': {'data': [
+        dict(_FASTLY_KEY, id='\u2039older key id\u203a', attributes=dict(
+            _FASTLY_KEY['attributes'], name='{EARLIER2}')),
+        dict(_FASTLY_KEY, id='\u2039earlier key id\u203a', attributes=dict(
+            _FASTLY_KEY['attributes'], name='{EARLIER}'))],
+        'meta': {'per_page': 100, 'current_page': 1, 'record_count': 2, 'total_pages': 1}}},
+    {'method': 'GET', 'url': r'/tls/private_keys\?', 'body': {'data': [
+        dict(_FASTLY_KEY, id='\u2039older key id\u203a', attributes=dict(
+            _FASTLY_KEY['attributes'], name='{EARLIER2}')),
+        dict(_FASTLY_KEY, id='\u2039earlier key id\u203a', attributes=dict(
+            _FASTLY_KEY['attributes'], name='{EARLIER}'))],
+        'meta': {'per_page': 100, 'current_page': 1, 'record_count': 2, 'total_pages': 1}}},
+    {'method': 'POST', 'url': r'/tls/private_keys$', 'status': 201, 'body': {'data': dict(
+        _FASTLY_KEY, id='\u2039new key id\u203a', attributes=dict(
+            _FASTLY_KEY['attributes'], name='{SENT:data.attributes.name}'))}},
+    {'method': 'PATCH', 'url': r'/tls/certificates/', 'body': {'data': dict(
+        _FASTLY_CERT, id='{SENT:data.id}', attributes=dict(
+            _FASTLY_CERT['attributes'], name='{SENT:data.attributes.name}'))}},
+    {'method': 'POST', 'url': r'/tls/certificates$', 'status': 201, 'body': {'data': dict(
+        _FASTLY_CERT, id='\u2039new certificate id\u203a')}},
+    {'method': 'DELETE', 'url': r'/tls/private_keys/', 'status': 204, 'body': ''}]
+# Flowmon: the token; the reusable TLS setting named is there with the pair of this
+# certificate (by the name given, else its label) - replaced; the listening ports named take
+# flows over TLS already (with the earlier certificate)
+ANSWERS['flowmon'] = [
+    {'method': 'POST', 'url': r'/resources/oauth/token$', 'body': {
+        'access_token': '{SESSION}', 'token_type': 'bearer', 'expires_in': 7199,
+        'scope': 'all'}},
+    {'method': 'GET', 'url': r'/rest/fcc/reusable-settings-tls$', 'body': [
+        {'id': '\u2039setting id\u203a', 'name': '{OPT:tls_setting}', 'description': '',
+         'usageCount': 1}]},
+    {'method': 'GET', 'url': r'/rest/fcc/reusable-settings-tls/[^/]+/pairs$', 'body': [
+        {'id': '\u2039pair id\u203a', 'name': '{OPT:pair}', 'usageCount': 2,
+         'description': 'acme', 'parsedCertificate': {'validTo': '2026-12-01T10:00:00Z'}},
+        {'id': '\u2039pair id\u203a', 'name': '{LABEL:100}', 'usageCount': 2,
+         'description': 'acme', 'parsedCertificate': {'validTo': '2026-12-01T10:00:00Z'}}]},
+    {'method': 'PUT', 'url': r'/pairs$', 'body': {'id': '\u2039pair id\u203a'}},
+    {'method': 'POST', 'url': r'/pairs$', 'status': 201, 'body': {'id': '\u2039pair id\u203a'}},
+    {'method': 'POST', 'url': r'/rest/fcc/reusable-settings-tls$', 'status': 201, 'body': {
+        'id': '\u2039setting id\u203a', 'name': '{OPT:tls_setting}'}},
+    {'method': 'GET', 'url': r'/rest/fcc/listening-ports$', 'body': [
+        {'id': '\u2039port id\u203a', 'name': '{EACH:OPT:listening_ports}', 'secure': True,
+         'tcpCollector': {'name': 'p6343', 'localPort': 6343}, 'stats': {'flows': 1520311},
+         'certificates': {'keyExtension': 'pem', 'crtExtension': 'pem',
+                          'cacrtExtension': 'pem'}}]},
+    {'method': 'PUT', 'url': r'/rest/fcc/listening-ports$', 'body': {
+        'id': '\u2039port id\u203a', 'secure': True}}]
+# FortiADC: the token; the local certificates: the factory one and two earlier acme ones (the
+# new one too after the upload); the groups: the one named and another; the group holds the
+# earlier certificate as its default member (the new one after the change); the client SSL
+# profiles named present the group already, the virtual servers the first profile
+_FADC_LOCAL = [{'mkey': 'Factory', 'type': 'CertKey', 'status': 'normal'},
+               {'mkey': '{EARLIER2}', 'type': 'CertKey', 'status': 'normal'},
+               {'mkey': '{EARLIER}', 'type': 'CertKey', 'status': 'normal'}]
+ANSWERS['fortiadc'] = [
+    {'method': 'POST', 'url': r'/api/user/login', 'body': {'token': '{SESSION}'},
+     'headers': {'Content-Type': 'application/json',
+                 'Set-Cookie': 'last_login=PLANSESSION0token; Path=/; Secure; HttpOnly'}},
+    {'method': 'GET', 'url': r'/api/system_certificate_local(\?|$)', 'times': 1, 'body': {
+        'payload': _FADC_LOCAL}},
+    {'method': 'GET', 'url': r'/api/system_certificate_local(\?|$)', 'body': {
+        'payload': _FADC_LOCAL + [{'mkey': '{CURRENT}', 'type': 'CertKey', 'status': 'normal'}]}},
+    {'method': 'GET', 'url': r'/api/system_certificate_local_cert_group(\?|$)', 'body': {
+        'payload': [{'mkey': '{OPT:cert_group}'}, {'mkey': 'LOCAL_CERT_GROUP'}]}},
+    {'method': 'GET', 'url': r'_child_group_member\?pkey=', 'times': 1, 'body': {'payload': [
+        {'mkey': '1', 'local_cert': '{EARLIER}', 'default': 'enable',
+         'OCSP_stapling': 'disable', 'intermediate_cag': '{OPT:intermediate_cag}'}]}},
+    {'method': 'GET', 'url': r'_child_group_member\?pkey=', 'body': {'payload': [
+        {'mkey': '2', 'local_cert': '{CURRENT}', 'default': 'enable',
+         'OCSP_stapling': 'disable', 'intermediate_cag': '{OPT:intermediate_cag}'}]}},
+    {'method': 'GET', 'url': r'/api/load_balance_client_ssl_profile\?mkey=', 'body': {
+        'payload': [{'mkey': '{TAIL}', 'local_certificate_group': '{OPT:cert_group}',
+                     'ssl_ciphers': 'ECDHE-RSA-AES256-GCM-SHA384', 'ssl_session_cache_flag':
+                     'enable'}]}},
+    {'method': 'GET', 'url': r'/api/load_balance_virtual_server\?mkey=', 'body': {
+        'payload': [{'mkey': '\u2039virtual server\u203a', 'status': 'enable',
+                     'client_ssl_profile': '{OPT:client_ssl_profiles}', 'port': '443'}]}},
+    {'body': {'payload': 0}}]
+# FortiGate: its status says FortiOS 7.4.5 (6.4.15, 7.2.10 for those versions); the new
+# certificate not there yet (404); the inspection profiles named present the earlier
+# certificate and one of their own, the VIPs the earlier one (a name before 7.4.2, a list
+# after); the certificates: three earlier ones, the new one, the factory one (beyond the 2
+# kept: the oldest deleted)
+_FGT_STATUS = {'http_method': 'GET', 'status': 'success', 'serial': 'FGT60F\u2039serial\u203a',
+               'version': 'v7.4.5', 'build': 2702, 'vdom': 'root', 'results': {
+                   'model_name': 'FortiGate', 'model_number': '60F', 'hostname': 'fw01'}}
+ANSWERS['fortigate'] = [
+    {'method': 'GET', 'url': r'/api/v2/monitor/system/status', 'body': _FGT_STATUS},
+    {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local/[^/?]+', 'status': 404,
+     'body': {'http_method': 'GET', 'status': 'error', 'http_status': 404, 'vdom': 'root'}},
+    {'method': 'POST', 'url': r'/vpn-certificate/(local|ca)/import', 'body': {
+        'http_method': 'POST', 'status': 'success', 'http_status': 200,
+        'results': {'mkey': '{SENT:certname}'}}},
+    {'method': 'GET', 'url': r'/api/v2/cmdb/firewall/ssl-ssh-profile/', 'body': {
+        'http_method': 'GET', 'status': 'success', 'results': [
+            {'name': '{TAIL}', 'server-cert-mode': 're-sign', 'server-cert': [
+                {'name': '{EARLIER:35:6}'}, {'name': 'Fortinet_SSL'}]}]}},
+    {'method': 'GET', 'url': r'/api/v2/cmdb/firewall/vip/', 'body': {
+        'http_method': 'GET', 'status': 'success', 'results': [
+            {'name': '{TAIL}', 'type': 'server-load-balance', 'server-type': 'https',
+             'ssl-certificate': [{'name': '{EARLIER:35:6}'}]}]}},
+    {'method': 'GET', 'url': r'/api/v2/cmdb/vpn\.certificate/local\?', 'body': {
+        'http_method': 'GET', 'status': 'success', 'results': [
+            {'name': 'Fortinet_Factory'}, {'name': 'Fortinet_SSL'},
+            {'name': '{EARLIER3:35:6}'}, {'name': '{EARLIER2:35:6}'},
+            {'name': '{EARLIER:35:6}'}, {'name': '{CURRENT:35:6}'}]}},
+    {'body': {'http_method': 'PUT', 'status': 'success', 'http_status': 200}}]
+ANSWERS['fortigate@6.0'] = [
+    {'method': 'GET', 'url': r'/api/v2/monitor/system/status', 'body': dict(
+        _FGT_STATUS, version='v6.4.15', build=2095)},
+    {'method': 'GET', 'url': r'/api/v2/cmdb/firewall/ssl-ssh-profile/', 'body': {
+        'http_method': 'GET', 'status': 'success', 'results': [
+            {'name': '{TAIL}', 'server-cert-mode': 'replace', 'server-cert': '{EARLIER:35:6}'}]}},
+    {'method': 'GET', 'url': r'/api/v2/cmdb/firewall/vip/', 'body': {
+        'http_method': 'GET', 'status': 'success', 'results': [
+            {'name': '{TAIL}', 'ssl-certificate': '{EARLIER:35:6}'}]}}]
+ANSWERS['fortigate@7.0'] = [
+    {'method': 'GET', 'url': r'/api/v2/monitor/system/status', 'body': dict(
+        _FGT_STATUS, version='v7.2.10', build=1706)},
+    {'method': 'GET', 'url': r'/api/v2/cmdb/firewall/vip/', 'body': {
+        'http_method': 'GET', 'status': 'success', 'results': [
+            {'name': '{TAIL}', 'ssl-certificate': '{EARLIER:35:6}'}]}}]
+# FortiWeb: the new local certificate not there yet (-3); the intermediate CA group of the
+# chain there already (a renewal); each server policy named on the earlier certificate (and
+# that group); the local certificates: the defaults, two earlier ones, the new one (beyond
+# the 1 kept: the oldest deleted)
+_FWB_GROUP = '{SEEN:certificate\\.intermediate-certificate-group\\?mkey=([A-Za-z0-9_.-]+)}'
+_FWB_POL = {'name': '{TAIL}', 'deployment-mode': 'server-pool', 'ssl': 'enable',
+            'certificate': '{EARLIER}', 'intermediate-certificate-group': _FWB_GROUP,
+            'vserver': 'vs-www', 'service': 'HTTPS'}
+ANSWERS['fortiweb'] = [
+    {'method': 'GET', 'url': r'/cmdb/system/certificate\.local\?mkey=', 'status': 500,
+     'body': {'results': {'errcode': -3, 'message': 'Entry not found.'}}},
+    {'method': 'GET', 'url': r'/cmdb/system/certificate\.local$', 'body': {'results': [
+        {'name': 'defaultcert', 'status': 'ok'}, {'name': '{EARLIER2}', 'status': 'ok'},
+        {'name': '{EARLIER}', 'status': 'ok'}, {'name': '{CURRENT}', 'status': 'ok'}]}},
+    {'method': 'POST', 'url': r'/system/certificate\.local\.json_cert$', 'body': {
+        'results': {'name': '{SENT:name}'}}},
+    {'method': 'GET', 'url': r'/certificate\.intermediate-certificate-group\?mkey=', 'body': {
+        'results': [{'name': _FWB_GROUP, 'q_ref': 1}]}},
+    {'method': 'GET', 'url': r'/cmdb/server-policy/policy\?mkey=', 'body': {'results': [
+        dict(_FWB_POL, name='{SEEN:server-policy/policy\\?mkey=([^&\\s]+)}')]}},
+    {'method': 'GET', 'url': r'/cmdb/server-policy/policy$', 'body': {'results': [
+        dict(_FWB_POL, name='{OPT:policy}', certificate='{CURRENT}'),
+        dict(_FWB_POL, name='{EACH:OPT:policies}', certificate='{CURRENT}')]}},
+    {'body': {'results': {}}}]
+# FRITZ!Box: login_sid.lua gives a PBKDF2 challenge, then the session (a SID, hex); the
+# upload page says the certificate was imported; the sign-out ends the session
+ANSWERS['fritzbox'] = [
+    {'method': 'GET', 'url': r'/login_sid\.lua\?version=2$', 'headers': {
+        'Content-Type': 'text/xml'}, 'body':
+        '<?xml version="1.0" encoding="utf-8"?><SessionInfo><SID>0000000000000000</SID>'
+        '<Challenge>2$60000$5a1711f0e0c2b1a3$6000$9b8f3c1d2e4a5b6c</Challenge><BlockTime>0'
+        '</BlockTime><Rights></Rights><Users><User last="1">{CFG:user}</User></Users>'
+        '</SessionInfo>'},
+    {'method': 'POST', 'url': r'/login_sid\.lua\?version=2$', 'headers': {
+        'Content-Type': 'text/xml'}, 'body':
+        '<?xml version="1.0" encoding="utf-8"?><SessionInfo><SID>5e1d0c0ffee5a1ab</SID>'
+        '<Challenge>2$60000$5a1711f0e0c2b1a3$6000$9b8f3c1d2e4a5b6c</Challenge><BlockTime>0'
+        '</BlockTime><Rights><Name>Dial</Name><Access>2</Access><Name>App</Name><Access>2'
+        '</Access><Name>HomeAuto</Name><Access>2</Access><Name>BoxAdmin</Name><Access>2'
+        '</Access><Name>Phone</Name><Access>2</Access><Name>NAS</Name><Access>2</Access>'
+        '</Rights></SessionInfo>'},
+    {'method': 'POST', 'url': r'/cgi-bin/firmwarecfg$', 'headers': {
+        'Content-Type': 'text/html; charset=utf-8'}, 'body':
+        '<html><body><p>Das SSL-Zertifikat wurde erfolgreich importiert.</p></body></html>'},
+    {'method': 'GET', 'url': r'/login_sid\.lua\?logout=1', 'headers': {
+        'Content-Type': 'text/xml'}, 'body':
+        '<?xml version="1.0" encoding="utf-8"?><SessionInfo><SID>0000000000000000</SID>'
+        '<Challenge>2$60000$5a1711f0e0c2b1a3$6000$9b8f3c1d2e4a5b6c</Challenge><BlockTime>0'
+        '</BlockTime><Rights></Rights></SessionInfo>'}]
+# froxlor: each domain has a certificate (the earlier one) - updated in place
+ANSWERS['froxlor'] = [
+    {'method': 'POST', 'url': r'/api\.php$', 'sent': r'"command": "Certificates\.get"',
+     'body': {'data': {'id': 7, 'domainid': 12, 'domain': '{SENT:params.domainname}',
+                       'ssl_cert_file': '\u2039the earlier certificate, PEM\u203a',
+                       'ssl_key_file': '', 'ssl_ca_file': '',
+                       'ssl_cert_chainfile': '\u2039its chain, PEM\u203a',
+                       'validfromdate': '2026-08-14 10:00:00',
+                       'validtodate': '2026-11-12 10:00:00', 'letsencrypt': 0}}},
+    {'method': 'POST', 'url': r'/api\.php$', 'sent': r'"command": "Certificates\.(update|add)"',
+     'body': {'data': {'id': 7, 'domainid': 12, 'domain': '{SENT:params.domainname}'}}}]
+# ISM-VA: ismadm asks before it sets the certificate and before the restart (answered y)
+SSH_ANSWERS['fujitsu_ism'] = [
+    {'command': r'^ismadm sslcert set ', 'stdout':
+        'The SSL server certificate will be set. Do you want to continue? [y/n]: y\n'
+        'The SSL server certificate has been set. Restart ISM-VA to apply it.\n'},
+    {'command': r'^ismadm power restart', 'stdout':
+        'ISM-VA will be restarted. Do you want to continue? [y/n]: y\n'}]
+# ETERNUS DX / AF: import ssl-certificate prints nothing when it took the files
+SSH_ANSWERS['eternus_dx'] = [
+    {'command': r'^import ssl-certificate ', 'stdout': ''},
+    {'command': r'^set smi-s ', 'stdout': ''}]
+# ---- end of targets cisco_wlc9800 .. hpe_oneview ----
+# ---- targets hpe_synergy .. redfish_idrac ----
+# ISPConfig's Remote API (JSON): the session; the website asked for (by its domain) has SSL on
+# with another certificate - the update writes this one; signed out
+ANSWERS['ispconfig'] = [
+    {'method': 'POST', 'url': r'/remote/json\.php\?login$', 'body': {
+        'code': 'ok', 'message': '', 'response': '{SESSION}'}},
+    {'method': 'POST', 'url': r'/remote/json\.php\?sites_web_domain_get$', 'body': {
+        'code': 'ok', 'message': '', 'response': [{
+            'domain_id': '12', 'domain': '{SENT:primary_id.domain}', 'type': 'vhost',
+            'active': 'y', 'ssl': 'y', 'ssl_letsencrypt': 'n',
+            'ssl_cert': '‹the certificate it has now›'}]}},
+    {'method': 'POST', 'url': r'/remote/json\.php\?sites_web_domain_update$', 'body': {
+        'code': 'ok', 'message': '', 'response': 1}},
+    {'method': 'POST', 'url': r'/remote/json\.php\?logout$', 'body': {
+        'code': 'ok', 'message': '', 'response': True}}]
+# Kemp LoadMaster (every call POST /accessv2, its command in the body): acme's two earlier
+# certificates listed, the virtual services on the earlier one, the intermediate there
+# already (422), the oldest deleted
+ANSWERS['kemp'] = [
+    {'method': 'POST', 'url': r'/accessv2$', 'sent': r'"cmd": "listcert"', 'times': 1, 'body': {
+        'code': 200, 'status': 'ok', 'cert': [
+            {'name': '{EARLIER:60}', 'type': 'RSA', 'modulus': '‹modulus›'},
+            {'name': '{EARLIER2:60}', 'type': 'RSA', 'modulus': '‹modulus›'}]}},
+    {'method': 'POST', 'url': r'/accessv2$', 'sent': r'"cmd": "listcert"', 'body': {
+        'code': 200, 'status': 'ok', 'cert': [
+            {'name': '{EARLIER:60}'}, {'name': '{EARLIER2:60}'}, {'name': '{CURRENT:60}'}]}},
+    {'method': 'POST', 'url': r'/accessv2$', 'sent': r'"cmd": "addintermediate"', 'status': 422,
+     'body': {'code': 422, 'status': 'fail', 'message': 'Certificate already exists'}},
+    {'method': 'POST', 'url': r'/accessv2$', 'sent': r'"cmd": "showvs"', 'body': {
+        'code': 200, 'status': 'ok', 'Status': 'Up', 'Protocol': 'tcp', 'SSLAcceleration': 'Y',
+        'CertFile': '{EARLIER:60}'}},
+    {'method': 'POST', 'url': r'/accessv2$', 'body': {
+        'code': 200, 'message': 'Command completed ok', 'status': 'ok'}}]
+# Kong: no certificate with this one's fingerprint tag yet; added (its id); the SNIs pointed;
+# acme's certificates of this name - the new one and two earlier ones no SNI uses any more
+ANSWERS['kong'] = [
+    {'method': 'GET', 'url': r'/certificates\?tags=acme-fp-', 'body': {'data': [], 'next': None}},
+    {'method': 'POST', 'url': r'/certificates$', 'status': 201, 'body': {
+        'id': '3f1e0c52-7d4b-4c1e-9a6f-0b8e2d71c4a9', 'created_at': 1763000000, 'snis': []}},
+    {'method': 'PUT', 'url': r'/snis/[^/]+$', 'body': {
+        'id': '‹sni id›', 'name': '{TAIL}', 'certificate': {'id': '3f1e0c52-7d4b-4c1e-9a6f-0b8e2d71c4a9'}}},
+    {'method': 'GET', 'url': r'/certificates\?tags=acme-', 'body': {'data': [
+        {'id': '3f1e0c52-7d4b-4c1e-9a6f-0b8e2d71c4a9', 'tags': ['acme', 'acme-at-29991231-00000000'],
+         'snis': ['{CERTNAME}']},
+        {'id': '9b2d5e10-3c7a-4f8e-b1d2-6a4c8e0f2b17', 'tags': ['acme', 'acme-at-20260815-5a0e1d27'],
+         'snis': []},
+        {'id': 'c47a19e3-5b2f-4d6c-8e0a-1f3b5d7e9a24', 'tags': ['acme', 'acme-at-20260515-5a0e1d26'],
+         'snis': []}], 'next': None}},
+    {'method': 'DELETE', 'url': r'/certificates/', 'status': 204, 'body': ''}]
+# RouterOS 7 REST: acme's earlier certificates (none with this one's fingerprint) before the
+# import, this one (with its key) after it; the uploaded files found and deleted; www-ssl and
+# api-ssl on the earlier one; no SSTP / OpenVPN server on any; the oldest removed
+ANSWERS['mikrotik'] = [
+    {'method': 'GET', 'url': r'/rest/certificate$', 'times': 1, 'body': [
+        {'.id': '*A', 'name': '{EARLIER}', 'fingerprint': '‹its SHA-256›',
+         'private-key': 'true', 'trusted': 'true'},
+        {'.id': '*9', 'name': '{EARLIER2}', 'fingerprint': '‹its SHA-256›',
+         'private-key': 'true', 'trusted': 'true'}]},
+    {'method': 'GET', 'url': r'/rest/certificate$', 'body': [
+        {'.id': '*A', 'name': '{EARLIER}', 'fingerprint': '‹its SHA-256›',
+         'private-key': 'true'},
+        {'.id': '*9', 'name': '{EARLIER2}', 'fingerprint': '‹its SHA-256›',
+         'private-key': 'true'},
+        {'.id': '*B', 'name': '{CURRENT}', 'fingerprint': '{FP}', 'private-key': 'true',
+         'trusted': 'true'}]},
+    {'method': 'POST', 'url': r'/rest/certificate/import$', 'body': [
+        {'certificates-imported': '1', 'private-keys-imported': '0', 'files-imported': '1',
+         'decryption-failures': '0', 'keys-with-no-certificate': '0'}]},
+    {'method': 'GET', 'url': r'/rest/file\?name=', 'body': [
+        {'.id': '*1F', 'name': '{SEEN:name=([^&\\s]+)}', 'type': '.crt file'}]},
+    {'method': 'DELETE', 'url': r'/rest/(file|certificate)/', 'status': 204, 'body': ''},
+    {'method': 'GET', 'url': r'/rest/ip/service$', 'times': 1, 'body': [
+        {'.id': '*6', 'name': 'www-ssl', 'port': '443', 'certificate': '{EARLIER}'},
+        {'.id': '*7', 'name': 'api-ssl', 'port': '8729', 'certificate': '{EARLIER}'},
+        {'.id': '*1', 'name': 'ssh', 'port': '22'}]},
+    {'method': 'GET', 'url': r'/rest/ip/service$', 'body': [
+        {'.id': '*6', 'name': 'www-ssl', 'port': '443', 'certificate': '{CURRENT}'},
+        {'.id': '*7', 'name': 'api-ssl', 'port': '8729', 'certificate': '{CURRENT}'},
+        {'.id': '*1', 'name': 'ssh', 'port': '22'}]},
+    {'method': 'PATCH', 'url': r'/rest/ip/service/', 'body': {'certificate': '{CURRENT}'}},
+    {'method': 'GET', 'url': r'/rest/interface/(sstp|ovpn)-server/server$', 'body': {
+        'certificate': 'none', 'enabled': 'false'}}]
+# Nginx Proxy Manager: the token; acme's two earlier custom certificates (the proxy host of
+# the name on the newer); the new one added (its id), its files uploaded; the proxy hosts;
+# then the earlier ones used by no host - the oldest deleted
+ANSWERS['nginx_proxy_manager'] = [
+    {'method': 'POST', 'url': r'/api/tokens$', 'body': {
+        'token': '{SESSION}', 'expires': '‹in a day›'}},
+    {'method': 'GET', 'url': r'/api/nginx/certificates\?expand=', 'times': 1, 'body': [
+        {'id': 7, 'provider': 'other', 'nice_name': '{EARLIER}',
+         'proxy_hosts': [{'id': 3, 'domain_names': ['{CERTNAME}']}],
+         'redirection_hosts': [], 'dead_hosts': []},
+        {'id': 4, 'provider': 'other', 'nice_name': '{EARLIER2}', 'proxy_hosts': [],
+         'redirection_hosts': [], 'dead_hosts': []}]},
+    {'method': 'GET', 'url': r'/api/nginx/certificates\?expand=', 'body': [
+        {'id': 12, 'provider': 'other', 'nice_name': '{CURRENT}',
+         'proxy_hosts': [{'id': 3, 'domain_names': ['{CERTNAME}']}],
+         'redirection_hosts': [], 'dead_hosts': []},
+        {'id': 7, 'provider': 'other', 'nice_name': '{EARLIER}', 'proxy_hosts': [],
+         'redirection_hosts': [], 'dead_hosts': []},
+        {'id': 4, 'provider': 'other', 'nice_name': '{EARLIER2}', 'proxy_hosts': [],
+         'redirection_hosts': [], 'dead_hosts': []}]},
+    {'method': 'POST', 'url': r'/api/nginx/certificates$', 'status': 201, 'body': {
+        'id': 12, 'provider': 'other', 'nice_name': '{SENT:nice_name}'}},
+    {'method': 'POST', 'url': r'/api/nginx/certificates/\d+/upload$', 'body': {
+        'certificate': '‹the certificate›', 'certificate_key': '‹the key›'}},
+    {'method': 'GET', 'url': r'/api/nginx/proxy-hosts$', 'body': [
+        {'id': 3, 'domain_names': ['{CERTNAME}'], 'certificate_id': 7},
+        {'id': 3, 'domain_names': ['{EACH:OPT:proxy_hosts}'], 'certificate_id': 7}]},
+    {'method': 'GET', 'url': r'/api/nginx/redirection-hosts$', 'body': [
+        {'id': 5, 'domain_names': ['{EACH:OPT:redirection_hosts}'], 'certificate_id': 7}]},
+    {'method': 'GET', 'url': r'/api/nginx/dead-hosts$', 'body': [
+        {'id': 6, 'domain_names': ['{EACH:OPT:dead_hosts}'], 'certificate_id': 7}]},
+    {'method': 'PUT', 'url': r'/api/nginx/[a-z-]+-hosts/\d+$', 'body': {
+        'id': '{TAIL}', 'certificate_id': 12}},
+    {'method': 'DELETE', 'url': r'/api/nginx/certificates/\d+$', 'body': True}]
+# NSX Policy API: this certificate's id not there yet (404); imported; the virtual server
+# with a client SSL binding on the earlier one; acme's certificates, the oldest used by none
+ANSWERS['nsx'] = [
+    {'method': 'GET', 'url': r'/infra/certificates/[^/?]+$', 'status': 404, 'body': {
+        'httpStatus': 'NOT_FOUND', 'error_code': 500090, 'module_name': 'Policy',
+        'error_message': 'The path=[/infra/certificates/{TAIL}] is invalid'}},
+    {'method': 'PUT', 'url': r'/infra/certificates/[^/?]+$', 'body': {
+        'id': '{TAIL}', 'resource_type': 'TlsCertificate', 'display_name': '{TAIL}'}},
+    {'method': 'GET', 'url': r'/infra/lb-virtual-servers/[^/?]+$', 'body': {
+        'id': '{TAIL}', 'display_name': '{TAIL}', 'resource_type': 'LBVirtualServer',
+        'ip_address': '192.0.2.10', 'ports': ['443'], '_revision': 3,
+        'lb_service_path': '/infra/lb-services/lb-1',
+        'client_ssl_profile_binding': {
+            'ssl_profile_path': '/infra/lb-client-ssl-profiles/default-balanced-client-ssl-profile',
+            'default_certificate_path': '/infra/certificates/{EARLIER}',
+            'sni_certificate_paths': []}}},
+    {'method': 'PUT', 'url': r'/infra/lb-virtual-servers/[^/?]+$', 'body': {
+        'id': '{TAIL}', '_revision': 4}},
+    {'method': 'GET', 'url': r'/infra/certificates(\?|$)', 'body': {'results': [
+        {'id': '{CURRENT}'}, {'id': '{EARLIER}'}, {'id': '{EARLIER2}'}], 'result_count': 3}},
+    {'method': 'GET', 'url': r'/infra/lb-virtual-servers(\?|$)', 'body': {'results': [
+        {'id': 'vs-www-443', 'client_ssl_profile_binding': {
+            'default_certificate_path': '/infra/certificates/{CURRENT}',
+            'sni_certificate_paths': []}}], 'result_count': 1}},
+    {'method': 'DELETE', 'url': r'/infra/certificates/', 'body': ''}]
+# the UAG: a token at sign-in; each certificate replaced (PUT answers the settings)
+ANSWERS['omnissa_uag'] = [
+    {'method': 'POST', 'url': r'/rest/v1/jwt/login$', 'body': {
+        'accessToken': '{SESSION}', 'refreshToken': '{SESSION}',
+        'accessTokenExpiryTime': '‹in an hour›'}},
+    {'method': 'PUT', 'url': r'/rest/v1/config/certs/ssl/(end_user|admin)$', 'body': {
+        'certChainPem': '‹the chain›'}}]
+# PAN-OS XML API (POST /api/, what is asked in the form body): the key at keygen; this
+# certificate not there yet, the intermediate there already; imported; profiles set; acme's
+# certificates there; the commit a job - running, then finished OK
+ANSWERS['paloalto'] = [
+    {'method': 'POST', 'url': r'/api/$', 'sent': r'type=keygen', 'body':
+        '<response status="success"><result><key>PLANSESSION0token</key></result></response>'},
+    {'method': 'POST', 'url': r'/api/$', 'sent':
+        r'action=get&xpath=[^&]*certificate%2Fentry%5B%40name%3D%27acme-ca-', 'body':
+        '<response status="success" code="19"><result total-count="1" count="1">'
+        '<entry name="{SEEN:%27(acme-ca-[0-9a-f]+)%27}"><common-name>‹intermediate›'
+        '</common-name></entry></result></response>'},
+    {'method': 'POST', 'url': r'/api/$', 'sent': r'action=get&xpath=[^&]*certificate%2Fentry',
+     'body': '<response status="success" code="7"><result/></response>'},
+    {'method': 'POST', 'url': r'/api/$', 'sent': r'action=get&xpath=[^&]*%2Fcertificate$',
+     'body': '<response status="success" code="19"><result total-count="1" count="1">'
+             '<certificate><entry name="{EARLIER}"/><entry name="{EARLIER2}"/>'
+             '<entry name="{CURRENT}"/></certificate></result></response>'},
+    {'method': 'POST', 'url': r'/api/\?.*type=import', 'body':
+        '<response status="success"><msg><line>Successfully imported {SEEN:certificate-name='
+        '([^&]+)} into candidate configuration</line></msg></response>'},
+    {'method': 'POST', 'url': r'/api/$', 'sent': r'type=commit', 'body':
+        '<response status="success" code="19"><result><msg><line>Commit job enqueued with '
+        'jobid 1234</line></msg><job>1234</job></result></response>'},
+    {'method': 'POST', 'url': r'/api/$', 'sent': r'type=op', 'times': 1, 'body':
+        '<response status="success"><result><job><id>1234</id><type>Commit</type>'
+        '<status>ACT</status><result>PEND</result><progress>55</progress></job></result>'
+        '</response>'},
+    {'method': 'POST', 'url': r'/api/$', 'sent': r'type=op', 'body':
+        '<response status="success"><result><job><id>1234</id><type>Commit</type>'
+        '<status>FIN</status><result>OK</result><progress>100</progress><details><line>'
+        'Configuration committed successfully</line></details></job></result></response>'},
+    {'method': 'POST', 'url': r'/api/$', 'body':
+        '<response status="success" code="20"><msg>command succeeded</msg></response>'}]
+# Plesk XML API (POST agent.php, the operation in the packet): the repository holds acme's two
+# earlier certificates; the install and a removal OK
+ANSWERS['plesk'] = [
+    {'method': 'POST', 'url': r'/enterprise/control/agent\.php$', 'sent': r'<get-pool>', 'body':
+        '<?xml version="1.0" encoding="UTF-8"?><packet version="1.6.9.1"><certificate>'
+        '<get-pool><result><status>ok</status><certificates>'
+        '<certificate><name>{EARLIER}</name></certificate>'
+        '<certificate><name>{EARLIER2}</name></certificate>'
+        '</certificates></result></get-pool></certificate></packet>'},
+    {'method': 'POST', 'url': r'/enterprise/control/agent\.php$', 'sent': r'<(install|remove)>',
+     'body': '<?xml version="1.0" encoding="UTF-8"?><packet version="1.6.9.1"><certificate>'
+             '<{SEEN:<(install|remove)>}><result><status>ok</status></result>'
+             '</{SEEN:<(install|remove)>}></certificate></packet>'}]
+# NGINX Unit's control API through curl over SSH (the answer, then its status on the last
+# line): acme's earlier bundle and an older one, the listener on the earlier one
+SSH_ANSWERS['nginx_unit'] = [
+    {'command': r"-X GET .*http://localhost/certificates'?$", 'stdout':
+        '{"{EARLIER}": {"key": "RSA (2048 bits)", "chain": []}, '
+        '"{EARLIER2}": {"key": "RSA (2048 bits)", "chain": []}}\n200'},
+    {'command': r"-X GET .*http://localhost/config/listeners'?$", 'stdout':
+        '{"{OPT:listeners}": {"pass": "routes", "tls": {"certificate": "{EARLIER}"}}}\n200'},
+    {'command': r"-X PUT .*http://localhost/certificates/", 'stdout':
+        '{"success": "Certificate chain uploaded."}\n200'},
+    {'command': r"-X PUT .*http://localhost/config/listeners/", 'stdout':
+        '{"success": "Reconfiguration done."}\n200'},
+    {'command': r"-X DELETE .*http://localhost/certificates/", 'stdout':
+        '{"success": "Certificate deleted."}\n200'}]
+# pfSense: the PHP script imported the certificate, pointed the web GUI at it, finished
+SSH_ANSWERS['pfsense'] = [
+    {'command': r'php$', 'input': r'certs\.inc', 'stdout':
+        'IMPORTED 6553f0a1b2c3d\nGUI\nDONE\n'},
+    {'command': r'^/etc/rc\.restart_webgui', 'stdout': '>>> Restarting nginx webConfigurator... done.\n'}]
+# Junos REST: the PKI's local certificates - acme's two earlier ones (Junos ids, plan_name)
+# and the system's; every RPC posted answered OK, the commit with commit-success
+ANSWERS['juniper_srx'] = [
+    {'method': 'GET', 'url': r'/rpc/get-pki-local-certificate$', 'headers': {
+        'Content-Type': 'application/xml'}, 'body':
+        '<x509-pki-certificate-info-list xmlns="http://xml.juniper.net/junos/23.4R1/junos-pki">'
+        '<x509-certificate-info><identifier>{EARLIER}</identifier></x509-certificate-info>'
+        '<x509-certificate-info><identifier>{EARLIER2}</identifier></x509-certificate-info>'
+        '<x509-certificate-info><identifier>system-generated</identifier>'
+        '</x509-certificate-info></x509-pki-certificate-info-list>'},
+    {'method': 'POST', 'url': r'/rpc\?stop-on-error=1$', 'sent': r'<commit-configuration>',
+     'headers': {'Content-Type': 'application/xml'}, 'body':
+        '<rpc-reply><ok/></rpc-reply><rpc-reply><load-configuration-results><ok/>'
+        '</load-configuration-results></rpc-reply><rpc-reply><commit-results><routing-engine>'
+        '<name>node0</name><commit-success/></routing-engine></commit-results></rpc-reply>'
+        '<rpc-reply><ok/></rpc-reply>'},
+    {'method': 'POST', 'url': r'/rpc\?stop-on-error=1$', 'headers': {
+        'Content-Type': 'application/xml'}, 'body': '<rpc-reply><ok/></rpc-reply>'}]
+# Kubernetes: the TLS secret is there (the earlier certificate in it) - patched; a deployment
+# restarted
+ANSWERS['kubernetes'] = [
+    {'method': 'GET', 'url': r'/api/v1/namespaces/[^/]+/secrets/[^/?]+$', 'body': {
+        'kind': 'Secret', 'apiVersion': 'v1', 'type': 'kubernetes.io/tls',
+        'metadata': {'name': '{TAIL}', 'resourceVersion': '81723',
+                     'labels': {'app.kubernetes.io/managed-by': 'acme'}},
+        'data': {'tls.crt': '‹the earlier certificate, base64›',
+                 'tls.key': '‹its key, base64›'}}},
+    {'method': 'PATCH', 'url': r'/api/v1/namespaces/[^/]+/secrets/[^/?]+$', 'body': {
+        'kind': 'Secret', 'apiVersion': 'v1', 'type': 'kubernetes.io/tls',
+        'metadata': {'name': '{TAIL}', 'resourceVersion': '81802'}}},
+    {'method': 'PATCH', 'url': r'/apis/apps/v1/namespaces/[^/]+/deployments/', 'body': {
+        'kind': 'Deployment', 'apiVersion': 'apps/v1', 'metadata': {
+            'name': '{TAIL}', 'generation': 8}}}]
+# Proxmox VE: the cluster's nodes; each serves an earlier custom certificate (pveproxy-ssl.pem)
+# - uploaded anew, pveproxy restarted
+ANSWERS['proxmox'] = [
+    {'method': 'GET', 'url': r'/api2/json/nodes$', 'body': {'data': [
+        {'node': 'pve1', 'status': 'online'}, {'node': 'pve2', 'status': 'online'}]}},
+    {'method': 'GET', 'url': r'/api2/json/nodes/[^/]+/certificates/info$', 'body': {'data': [
+        {'filename': 'pve-root-ca.pem', 'subject': '/CN=Proxmox Virtual Environment/OU=‹id›'},
+        {'filename': 'pve-ssl.pem', 'fingerprint': '‹its own›'},
+        {'filename': 'pveproxy-ssl.pem', 'subject': '/CN={CERTNAME}',
+         'fingerprint': '5A:0E:1D:2C:3B:4A:59:68:77:86:95:A4:B3:C2:D1:E0:F0:01:12:23:34:45:56:'
+                        '67:78:89:9A:AB:BC:CD:DE:EF', 'notafter': 1763000000}]}},
+    {'method': 'POST', 'url': r'/api2/json/nodes/[^/]+/certificates/custom$', 'body': {'data': {
+        'filename': 'pveproxy-ssl.pem', 'fingerprint': '{FP}'}}}]
+# Proxmox Backup Server: its proxy.pem an earlier certificate; the upload taken
+ANSWERS['proxmox_backup'] = [
+    {'method': 'GET', 'url': r'/api2/json/nodes/[^/]+/certificates/info$', 'body': {'data': [
+        {'filename': 'proxy.pem', 'subject': 'CN = {CERTNAME}',
+         'fingerprint': '5a:0e:1d:2c:3b:4a:59:68:77:86:95:a4:b3:c2:d1:e0:f0:01:12:23:34:45:56:'
+                        '67:78:89:9a:ab:bc:cd:de:ef', 'notafter': 1763000000}]}},
+    {'method': 'POST', 'url': r'/api2/json/nodes/[^/]+/certificates/custom$', 'body': {
+        'data': None}}]
+# OPNsense: acme's two earlier certificates in the trust store, the intermediate there already;
+# imported; then the three - the oldest deleted (keep 2: none - keep 1: the oldest)
+ANSWERS['opnsense'] = [
+    {'method': 'GET', 'url': r'/api/trust/cert/search\?', 'times': 1, 'body': {'rows': [
+        {'uuid': '6f1c2d3e-4a5b-4c6d-8e7f-90a1b2c3d4e5', 'descr': '{EARLIER}'},
+        {'uuid': '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d', 'descr': '{EARLIER2}'}],
+        'rowCount': 2, 'total': 2, 'current': 1}},
+    {'method': 'GET', 'url': r'/api/trust/cert/search\?', 'body': {'rows': [
+        {'uuid': '9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a', 'descr': '{CURRENT}'},
+        {'uuid': '6f1c2d3e-4a5b-4c6d-8e7f-90a1b2c3d4e5', 'descr': '{EARLIER}'},
+        {'uuid': '1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d', 'descr': '{EARLIER2}'}],
+        'rowCount': 3, 'total': 3, 'current': 1}},
+    {'method': 'GET', 'url': r'/api/trust/ca/search\?', 'body': {'rows': [
+        {'uuid': '2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e',
+         'descr': '{SEEN:searchPhrase=(acme-ca-[0-9a-f]+)}'}], 'rowCount': 1, 'total': 1}},
+    {'method': 'POST', 'url': r'/api/trust/(cert|ca)/(add|set/[^/]+)$', 'body': {
+        'result': 'saved', 'uuid': '9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a'}},
+    {'method': 'POST', 'url': r'/api/trust/cert/del/', 'body': {'result': 'deleted'}}]
+# its web GUI over SSH: the PHP script switched it (CHANGED), the web GUI restarted
+SSH_ANSWERS['opnsense'] = [
+    {'command': r'php$', 'stdout': 'CHANGED 6553f0a1b2c3d\n'},
+    {'command': r'^configctl webgui restart', 'stdout': 'OK\n'}]
+# QNAP: stunnel.pem holds an earlier certificate (not this one); stunnel restarts
+SSH_ANSWERS['qnap'] = [
+    {'command': r"sed -n .*/etc/stunnel/stunnel\.pem", 'stdout':
+        '-----BEGIN CERTIFICATE-----\nMIIDdzCCAl+gAwIBAgIUWm5vdHRoaXNjZXJ0aWZpY2F0ZTANBgkqhkiG9w0BAQsF\n'
+        '-----END CERTIFICATE-----\n'},
+    {'command': r'stunnel\.sh restart', 'stdout':
+        'Shutting down stunnel:  OK\nStarting stunnel:  OK\n'},
+    {'command': r'Qthttpd\.sh restart', 'stdout':
+        'Shutting down Qthttpd services: OK\nStarting Qthttpd services: OK\n'}]
+# ---- end of targets hpe_synergy .. redfish_idrac ----
 FIRST = {
     'netscaler': [
         {'method': 'GET', 'url': r'/nitro/v1/config/sslcertkey/', 'status': 404,
          'body': {'errorcode': 1540, 'message': 'Certificate does not exist'}},
     ],
 }
+# ---- targets a10 .. cisco_nxos: the first deployment (FIRST: nothing there yet) and the
+# renewals (LATER: [] - the ANSWERS above, the certificate there) ----
+# Aruba Central: the name is not in the store the first time (uploaded), then replaced
+FIRST['aruba_central'] = [{'method': 'GET', 'url': r'/configuration/v1/certificates\?',
+                           'body': {'items': [], 'total': 0}}]
+LATER['aruba_central'] = []
+# ---- end of targets a10 .. cisco_nxos (FIRST / LATER) ----
 
 
 # {CFG:key} / {OPT:key} in an answer's body: that setting (or deployment option) of the
@@ -593,21 +1469,29 @@ def _filled(v, cfg, opts):
     return v
 
 
-def answers_of(kind, cfg=None, opts=None, first=True, later=False, version=''):
+def answers_of(kind, cfg=None, opts=None, first=True, later=False, version='', family=None):
     """The answers a module's recording gets: FIRST (or LATER) and ANSWERS of its kind - those
     of its version ("kind@version") before those of the kind -, the settings put in where an
-    answer names them."""
-    rules = (LATER.get(kind, []) if later else FIRST.get(kind, []) if first else []) + \
-        (ANSWERS.get('%s@%s' % (kind, version), []) if version else []) + ANSWERS.get(kind, [])
+    answer names them. A source's or a validation's (family 'issuer' / 'challenge', 1.0.98):
+    those of plansources.py first - a kind there is of that family only (a target of the same
+    kind - Plesk, bunny.net - answers otherwise)."""
+    own = []
+    if family in ('issuer', 'challenge'):
+        from acmelib.certs import plansources
+        own = plansources.answers(family, kind, version)
+    rules = own + (LATER.get(kind, []) if later else FIRST.get(kind, []) if first else []) + \
+        (ANSWERS.get('%s@%s' % (kind, version), []) if version else []) + (
+            ANSWERS.get(kind, []) if not (own and family) else [])
     cfg, opts = dict(cfg or {}), dict(opts or {})
     return [dict(r, body=_filled(r['body'], cfg, opts)) if 'body' in r else dict(r)
             for r in rules]
 
 
-def ssh_answers_of(kind, cfg=None, opts=None, version=''):
-    """What the SSH commands of a module's recording print: SSH_ANSWERS of its version and
-    kind, the settings put in where an answer names them."""
-    rules = (SSH_ANSWERS.get('%s@%s' % (kind, version), []) if version else []) + \
+def ssh_answers_of(kind, cfg=None, opts=None, version='', first=True, later=False):
+    """What the SSH commands of a module's recording print: SSH_FIRST (or SSH_LATER, 1.0.98)
+    and SSH_ANSWERS of its version and kind, the settings put in where an answer names them."""
+    rules = (SSH_LATER.get(kind, []) if later else SSH_FIRST.get(kind, []) if first else []) + \
+        (SSH_ANSWERS.get('%s@%s' % (kind, version), []) if version else []) + \
         SSH_ANSWERS.get(kind, [])
     cfg, opts = dict(cfg or {}), dict(opts or {})
     return [dict(r, stdout=_filled(r['stdout'], cfg, opts)) if 'stdout' in r else dict(r)
@@ -639,6 +1523,10 @@ class Secrets(object):
             if v in (None, ''):
                 continue
             self.keep(v)
+            shaped = self.shaped(v, str(f.get('label') or k), marks)
+            if shaped is not None:
+                out[k] = shaped
+                continue
             self.n += 1
             si = _stand_in(self.n)
             out[k] = si
@@ -647,11 +1535,61 @@ class Secrets(object):
             if isinstance(v, str) and (v.startswith('sealed:') or '-----BEGIN' in v and
                                        'PRIVATE' in v):
                 self.keep(v)
+                shaped = self.shaped(v, k, marks) if not v.startswith('sealed:') else None
+                if shaped is not None:
+                    out[k] = shaped
+                    continue
                 self.n += 1
                 si = _stand_in(self.n)
                 out[k] = si
                 marks[si] = k
         return out, marks
+
+    def shaped(self, v, label, marks):
+        """A stand-in of the secret's own shape (1.0.98), or None: a module that signs with a
+        private key (a service account's JSON, a JWK, a PEM key: Google, OCI, TransIP, step-ca)
+        gets a throwaway key of the same kind, made here for the run - the real one is never
+        handed; a JSON of several secrets (acme-dns accounts) the same JSON, each secret in it a
+        stand-in."""
+        from acmelib.certs import pki
+
+        def key_like(pem):
+            kt = 'ec-256'
+            try:
+                kt = pki.key_info(pem)['key_type']
+            except Exception:                           # noqa: BLE001
+                kt = 'rsa-2048' if 'RSA' in pem else 'ec-256'
+            return pki.make_key(kt if str(kt).startswith(('rsa', 'ec', 'ed')) else 'ec-256')
+
+        def walk(x, path):
+            if isinstance(x, dict):
+                if x.get('kty') and x.get('d'):
+                    return key_like('EC' if x.get('kty') == 'EC' else 'RSA')
+                return {a: walk(b, path + [str(a)]) for a, b in x.items()}
+            if isinstance(x, list):
+                return [walk(b, path) for b in x]
+            if isinstance(x, str) and '-----BEGIN' in x and 'PRIVATE KEY' in x:
+                return key_like(x)
+            if isinstance(x, str) and x and path and (re.search(
+                    r'(pass|secret|private|apikey|credential)', path[-1], re.I) or re.search(
+                    r'(^|_)(key|token)$', path[-1], re.I)):
+                self.keep(x)
+                self.n += 1
+                si = _stand_in(self.n)
+                marks[si] = '%s: %s' % (label, path[-1])
+                return si
+            return x
+        try:
+            if isinstance(v, str) and v.strip()[:1] in ('{', '['):
+                got = json.loads(v)
+                if isinstance(got, (dict, list)):
+                    w = walk(got, [])
+                    return w if isinstance(w, str) else json.dumps(w)
+            if isinstance(v, str) and '-----BEGIN' in v and 'PRIVATE KEY' in v:
+                return key_like(v)
+        except Exception:                               # noqa: BLE001
+            return None
+        return None
 
     def keep(self, v):
         if isinstance(v, (bytes, bytearray)):
@@ -671,6 +1609,29 @@ def _cls(family, kind, row=None):
 def _ver(cls):
     """The version of a module (1.0.95: its setup guide is of that version)."""
     return str(getattr(cls, 'module_version', '') or '') if cls is not None else ''
+
+
+def _answer_ver(cls):
+    """The version whose canned answers a module's recording gets (1.0.98): its own - or, for
+    a version of your own made from a shipped one (Download a start: the same class, a new
+    number), the shipped version it was made from, whose API it speaks; an override, the one
+    it replaces."""
+    v = _ver(cls)
+    if cls is None or getattr(cls, '_origin', 'builtin') == 'builtin':
+        return v
+    rep = getattr(cls, '_replaced', None)
+    if rep is not None:
+        return _ver(rep)
+    try:
+        fam = next((f for f, b in base.FAMILIES.items() if issubclass(cls, b)), None)
+        for sv, sc in (base.REGISTRY.versions.get(fam, {}).get(cls.kind) or {}).items():
+            if getattr(sc, '_origin', 'builtin') == 'builtin' and sc.__name__ == cls.__name__:
+                return sv
+            if getattr(sc, '_replaced', None) is not None and sc._replaced.__name__ == cls.__name__:
+                return _ver(sc._replaced)
+    except Exception:                               # noqa: BLE001
+        pass
+    return v
 
 
 def _fields_of(cls, attr='fields'):
@@ -927,23 +1888,40 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
             st = {'kind': kind, 'words': words.replace('{0}', host),
                   'detail': {'method': m, 'url': url, 'headers': ev.get('headers') or {},
                              'body': ev.get('body')}}
+            if ev.get('body_facts'):
+                st['detail']['body_facts'] = ev['body_facts']
             st['detail']['conn'] = _conn_of(url, ev, proxy_on)
             # the request as it goes on the wire (1.0.37): every header, the ones acme
-            # and Python add too, and the body as sent - secrets left out by scrub()
+            # and Python add too, and the body as sent - secrets left out by scrub().
+            # The sandbox works it out from what the module sent (1.0.98), before masking
+            # - a form stays a form, a multipart body its parts; else here from the event.
             try:
-                from acmelib.certs import runtime as _rt
-                st['detail']['wire'] = _rt.wire_request(m, url, ev.get('headers') or {},
-                                                        ev.get('body'), own=bool(ev.get('own')))
-                if ev.get('own'):
-                    st['note'] = ((st.get('note') + '; ') if st.get('note') else '') + \
-                        'a connection the module makes itself (http.client), not through acme'
+                if isinstance(ev.get('wire'), dict):
+                    w = ev['wire']
+                    st['detail']['wire'] = {'line': w.get('line'), 'body': w.get('body'),
+                                            'headers': [list(h) for h in w.get('headers') or []]}
+                else:
+                    from acmelib.certs import runtime as _rt
+                    st['detail']['wire'] = _rt.wire_request(m, url, ev.get('headers') or {},
+                                                            ev.get('body'),
+                                                            own=bool(ev.get('own')))
                 # recorded with stand-ins (the certificate, the secrets): the real length differs
                 for h in st['detail']['wire']['headers']:
                     if h[0] == 'Content-Length':
                         h[1] = '≈ %s' % h[1]
             except Exception:                           # noqa: BLE001
                 pass
+            # what the stand-in device answered (debug details); a call no prepared answer
+            # matched is marked - its answer is a generic stand-in, not the device's
+            if isinstance(ev.get('answered'), dict):
+                st['detail']['answer'] = dict(ev['answered'])
+            elif ev.get('answer') is not None:
+                st['detail']['answer'] = {'status': ev.get('answer')}
+            if ev.get('fallback') and 'answer' in st['detail']:
+                st['detail']['answer']['fallback'] = ev['fallback']
             notes = []
+            if ev.get('own'):
+                notes.append('a connection the module makes itself (http.client), not through acme')
             if not ev.get('verify', True):
                 notes.append('the device\'s TLS certificate is not checked')
             if ev.get('client_cert'):
@@ -1036,6 +2014,16 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                 st['detail']['input'] = '%s (%s, %d B)' % (
                     DOTS if inp.get('secret') else 'input', inp.get('format') or 'text',
                     inp.get('size') or 0)
+                # what goes on its input, readable (debug details; secrets out)
+                if inp.get('body') is not None:
+                    st['detail']['input_body'] = inp['body']
+                if inp.get('sha256'):
+                    st['detail']['input_sha256'] = inp['sha256']
+            # what the stand-in device printed (debug details), a stand-in answer marked
+            if isinstance(ev.get('answer'), dict):
+                st['detail']['answer'] = dict(ev['answer'])
+                if ev.get('fallback'):
+                    st['detail']['answer']['fallback'] = ev['fallback']
             if 'sudo -S' in cmd:
                 st['note'] = 'through sudo - its password goes on the command\'s input, not shown'
             elif 'sudo -n' in cmd:
@@ -1050,12 +2038,33 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                              'format': ev.get('format'), 'via': ev.get('via')}}
             if ev.get('body') is not None:
                 st['detail']['body'] = ev['body']
+            if ev.get('sha256'):
+                st['detail']['sha256'] = ev['sha256']
+            if ev.get('command'):
+                st['detail']['put_command'] = ev['command']
             if ev.get('secret'):
                 st['secret'] = True
         elif k == 'ssh-get':
             st = {'kind': 'read', 'words': 'Reads a file from {0}'.replace('{0}',
                                                                            ev.get('host') or ''),
                   'detail': {'path': ev.get('path')}, 'invented': True}
+            if ev.get('command'):
+                st['detail']['put_command'] = ev['command']
+            if isinstance(ev.get('answer'), dict):
+                st['detail']['answer'] = dict(ev['answer'], fallback=ev.get('fallback'))
+        elif k == 'bypass':
+            # a call around acme's connection layer (1.0.98): a bug in the module - shown as
+            # an error, so no call it makes is ever missing from here unseen
+            st = {'kind': 'stop', 'error': True,
+                  'words': 'The module went around acme\'s connection layer: {0}'.replace(
+                      '{0}', {'http.client': 'HTTP of its own (http.client / urllib)',
+                              'socket': 'a connection of its own', 'udp': 'UDP of its own',
+                              'dns': 'a DNS lookup of its own',
+                              'program': 'a program run by itself'}.get(
+                                  ev.get('how'), str(ev.get('how') or ''))),
+                  'detail': {'text': ev.get('what') or ''},
+                  'note': 'refused here and not recorded as acme would make it - the module '
+                          'must make this call through acme (ctx)'}
         elif k == 'file':
             st = {'kind': 'file', 'words': 'Writes a file on this machine',
                   'detail': {'path': ev.get('path'), 'mode': ev.get('mode'),
@@ -1550,6 +2559,9 @@ def plan(store, cert, deploys, full=False):
 
     # the validations, per name
     needs = bool(icls and icls.needs_challenge_for(icfg))
+    # a commercial CA's domain validation (DCV, issuers/_dcv.py): the records of its own shape
+    # are put in place by the validations within its issue() - recorded there (1.0.98)
+    dcv_src = bool(needs and irow and irow.get('kind') != 'acme' and getattr(icls, 'dcv', None))
     chal = {}
     groups = {}
     if needs:
@@ -1567,21 +2579,36 @@ def plan(store, cert, deploys, full=False):
         ccfg = S.config_over(ccls, S.plugin_config('challenge', crow),
                              S.cert_over({'profile': profile}, 'challenge', crow['name']))
         scfg, marks = secrets_.stand_ins(_fields_of(ccls), ccfg)
-        vinfo[which] = {'row': crow, 'cls': ccls, 'cfg': ccfg, 'runs': []}
+        vinfo[which] = {'row': crow, 'cls': ccls, 'cfg': ccfg, 'runs': [], 'scfg': scfg,
+                        'marks': marks}
         if crow.get('kind') == 'dns_persist':
             continue                    # nothing put in place per order: persist_steps()
+        if dcv_src:
+            continue                    # the CA's own records: put in place in the source's run
         for n in ns[:NAMES_MOST]:
             vinfo[which]['runs'].append((n, run(family='challenge', kind=crow['kind'],
                                                 name=crow['name'], op='challenge', names=[n],
                                                 config=scfg, marks=marks,
                                                 answers=answers_of(crow['kind'], scfg,
-                                                                   first=False))))
+                                                                   first=False,
+                                                                   family='challenge'))))
     # the source, where it is not written here
     iid = None
     if irow and icls and irow.get('kind') not in ('acme', 'internal_ca', 'selfsigned'):
         scfg, marks = secrets_.stand_ins(_fields_of(icls), icfg)
+        dcv = {}
+        for n, which in (chal.items() if dcv_src else ()):
+            vi = vinfo.get(which) or {}
+            if vi.get('row') and vi.get('cls') and 'scfg' in vi:
+                dcv[n] = {'kind': vi['row']['kind'], 'name': which, 'config': vi['scfg'],
+                          'answers': answers_of(vi['row']['kind'], vi['scfg'], first=False,
+                                                family='challenge')}
+                marks = dict(marks, **vi['marks'])
+        # a renewal hands the certificate it renews (CertRequest.previous)
         iid = run(family='issuer', kind=irow['kind'], name=irow['name'], op='issue',
-                  config=scfg, marks=marks, answers=answers_of(irow['kind'], scfg, first=False))
+                  config=scfg, marks=marks, answers=answers_of(irow['kind'], scfg, first=False,
+                                                               family='issuer'),
+                  challenges=dcv, previous=bool(cert.get('cert_pem')))
     elif icfg:
         secrets_.stand_ins(_fields_of(icls), icfg)
     # the device that makes the key (certs.csr_from): its device_csr() recorded
@@ -1606,8 +2633,8 @@ def plan(store, cert, deploys, full=False):
                 family='target', kind=drow['kind'], name=drow['name'], op='device_csr',
                 config=dcfg, options=dsopts, marks=dmarks, subject=subj,
                 sans=S.sans_of(names, profile),
-                answers=answers_of(drow['kind'], dcfg, dsopts, version=_ver(dcls)),
-                ssh_answers=ssh_answers_of(drow['kind'], dcfg, dsopts, version=_ver(dcls))))
+                answers=answers_of(drow['kind'], dcfg, dsopts, version=_answer_ver(dcls)),
+                ssh_answers=ssh_answers_of(drow['kind'], dcfg, dsopts, version=_answer_ver(dcls))))
         else:
             devrun = (drow, dcls, None)
     # the deployments
@@ -1631,11 +2658,15 @@ def plan(store, cert, deploys, full=False):
         item.update(cfg=tcfg, opts=opts)
         kw = dict(family='target', kind=trow['kind'], name=trow['name'], op='deploy',
                   config=scfg, options=sopts, marks=marks, deploy_id=dep.get('id'))
-        kw['answers'] = answers_of(trow['kind'], scfg, sopts, version=_ver(tcls))
-        kw['ssh_answers'] = ssh_answers_of(trow['kind'], scfg, sopts, version=_ver(tcls))
-        if trow['kind'] in LATER:
+        kw['answers'] = answers_of(trow['kind'], scfg, sopts, version=_answer_ver(tcls))
+        kw['ssh_answers'] = ssh_answers_of(trow['kind'], scfg, sopts, version=_answer_ver(tcls))
+        if trow['kind'] == 'acme_push':
+            kw['push_pin'] = push_pin_of(store, tcls, tcfg)
+        if trow['kind'] in LATER or trow['kind'] in SSH_LATER:
             kw['later_answers'] = answers_of(trow['kind'], scfg, sopts, later=True,
-                                             version=_ver(tcls))
+                                             version=_answer_ver(tcls))
+            kw['later_ssh_answers'] = ssh_answers_of(trow['kind'], scfg, sopts, later=True,
+                                                     version=_answer_ver(tcls))
         item['run'] = run(**kw)
     # the recording
     resolvers = {}
@@ -1657,6 +2688,8 @@ def plan(store, cert, deploys, full=False):
                     'ref': cert.get('issuer_ref') or None,
                     'csr_from': cert.get('csr_from') or ''},
            'runs': runs}
+    if any(r.get('kind') == 'appliance' for r in runs):
+        job['pages'] = pages_of(store)
     got, rec_err = record(job) if runs else ({}, '')
     try:
         proxy_on = bool(E.proxy_full('acme'))
@@ -1739,6 +2772,14 @@ def plan(store, cert, deploys, full=False):
         g['facts'] = facts_of(cls, vi['cfg'])
         if vi['row'].get('kind') == 'dns_persist':
             g['steps'] = persist_steps(store, vi['row'], vi['cfg'], ns, irow)
+            val['groups'].append(g)
+            continue
+        if dcv_src:
+            g['steps'] = [{'kind': 'info', 'words': 'It puts in place the records (or files) '
+                           '{0} asks for - of the CA\'s own shape, with the values the order '
+                           'gives - within the source\'s run: The source shows each call, the '
+                           'wait until they can be seen and their taking away'.replace(
+                               '{0}', (icls.title if icls else '') or irow['kind'])}]
             val['groups'].append(g)
             continue
         g['per_name'] = []
@@ -2222,6 +3263,10 @@ def scrub(out, real):
             elif form and ('"%s"' % form) in text:
                 text = text.replace('"%s"' % form, '"%s"' % DOTS)
     text = re.sub(r'cGxhbnNlY3JldD[A-Za-z0-9+/=]{2,6}', DOTS, text)
+    # a signed token (JWT / compact JWS: a service account's assertion, a provisioner's
+    # token): its header and payload as they are, the signature said (1.0.98)
+    text = re.sub(r'\b(eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})\.[A-Za-z0-9_-]{16,}',
+                  r'\1.' + DOTS + ' (signature)', text)
     text = re.sub(r'-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----',
                   DOTS + ' (private key)', text)
     return json.loads(text)

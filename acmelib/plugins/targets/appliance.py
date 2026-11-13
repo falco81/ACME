@@ -23,6 +23,13 @@ WHERE = [['auto', 'every node, and the VIP address in a cluster that has one'],
          ['list', 'the ones named below']]
 
 
+def _day(t):
+    try:
+        return time.strftime('%Y-%m-%d', time.gmtime(float(t))) if t else '?'
+    except (TypeError, ValueError):
+        return '?'
+
+
 def _fp(v):
     return str(v or '').replace(':', '').strip().lower()
 
@@ -133,6 +140,14 @@ class ApplianceTarget(Target):
                     and (have.get('alt_fingerprint') or '') == want_alt:
                 same.append(one)
                 continue
+            # what is there now, said (1.0.98): the decision What happens shows
+            who = 'the VIP address' if one == 'vip' else one
+            if have.get('fingerprint'):
+                self.ctx.step('the pages of %s have %s until %s (%s) - it is replaced' % (
+                    who, have.get('cn') or '?', _day(have.get('not_after')),
+                    have.get('how') or 'put in'))
+            else:
+                self.ctx.step('the pages of %s have no certificate of their own yet' % who)
             more = {'alt': (alt.cert_pem, alt.key_pem, alt.chain_pems)} if alt is not None \
                 else {}
             got = self.ctx.pages_put(one, bundle.cert_pem, bundle.key_pem, bundle.chain_pems,

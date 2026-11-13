@@ -90,7 +90,11 @@ def lines(v):
     return [x.strip() for x in raw if x.strip() and not x.strip().startswith('#')]
 
 
-def random_password(n=24):
+def random_password(n=24, alphabet=None):
+    """A password made for one deployment (a PKCS#12's, a one-time import password) - What
+    happens masks each one made (plansandbox). alphabet: its characters only."""
+    if alphabet:
+        return ''.join(secrets.choice(alphabet) for _ in range(n))
     return secrets.token_urlsafe(n)[:n]
 
 

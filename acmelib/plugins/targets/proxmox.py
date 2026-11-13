@@ -62,9 +62,14 @@ class ProxmoxTarget(HttpTarget):
         force = as_bool(options.get('force'))
         done, same = [], []
         for node in self.nodes(options):
-            if not force and self.served(node) == fp:
+            now = self.served(node)
+            if not force and now == fp:
+                self.ctx.step('%s serves this certificate already' % node)
                 same.append(node)
                 continue
+            self.ctx.step('%s serves this certificate already - uploaded again (forced)' % node
+                          if now == fp else '%s serves another certificate - replacing it' % node
+                          if now else '%s has no custom certificate yet - uploading it' % node)
             self.req('POST', '/api2/json/nodes/%s/certificates/custom' % urllib.parse.quote(node, safe=""),
                      form({'certificates': text(bundle.as_format('fullchain-pem')),
                            'key': text(bundle.as_format('key-pem')), 'force': 1,

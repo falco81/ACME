@@ -228,6 +228,9 @@ class EsxiApi803Target(HttpTarget):
         try:
             summ = self.summary()
             self.check_version(summ)
+            self.ctx.step('vCenter %s; the host %s: %s' % (
+                self.about.get('version') or '?', self.esx_name(summ) or self.host_id(),
+                self.esx_version(summ)[1]))
             hcm = self.hcm()
             if as_bool(self.opt(options, 'trust_chain', True), True):
                 root = V.root_of(bundle, options.get('root_pem'))
