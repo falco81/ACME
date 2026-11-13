@@ -186,6 +186,8 @@ CHALLENGES = {
         {'method': 'GET', 'url': r'/types/TXT$', 'times': 1, 'status': 404, 'body': {
             'title': 'Not Found', 'status': 404}},
         {'method': 'GET', 'url': r'/types/TXT$', 'body': {
+            'name': '{FQDN}', 'type': 'TXT', 'ttl': 60, 'rdata': ['"{TXT}"']}},
+        {'method': 'POST', 'url': r'/types/TXT$', 'status': 201, 'body': {
             'name': '{FQDN}', 'type': 'TXT', 'ttl': 60, 'rdata': ['"{TXT}"']}}],
     'alidns': [
         {'url': r'Action=DescribeDomains', 'body': {'RequestId': 'req-1', 'TotalCount': 1,
@@ -253,7 +255,9 @@ CHALLENGES = {
     'czechia': [
         {'method': 'GET', 'url': r'/DNS/[^/]+$', 'times': 1, 'body': {'txtRecords': []}},
         {'method': 'GET', 'url': r'/DNS/[^/]+$', 'body': {'txtRecords': [
-            {'hostName': '{SEEN:"hostName": "([^"]*)"}', 'text': '{TXT}', 'ttl': 3600}]}}],
+            {'hostName': '{SEEN:"hostName": "([^"]*)"}', 'text': '{TXT}', 'ttl': 3600}]}},
+        {'method': 'POST', 'url': r'/TXT$', 'body': {'isError': False}},
+        {'method': 'DELETE', 'url': r'/TXT$', 'body': {'isError': False}}],
     'desec': [
         {'method': 'GET', 'url': r'/domains/$', 'body': [{'name': '{ZONE}', 'minimum_ttl': 3600}]},
         {'method': 'GET', 'url': r'/domains/[^/]+/$', 'body': {'name': '{ZONE}',
@@ -946,17 +950,26 @@ CHALLENGES = {
             'status': 1, 'errors': None, 'data': {'new_serial': '2026010103'}}}}],
     'http_ssh': HTTP01,
     'http_ftp': HTTP01,
-    'http_s3': HTTP01 + [{'method': 'DELETE', 'status': 204, 'body': ''}],
+    'http_s3': HTTP01 + [{'method': 'PUT', 'headers': {'ETag': '"\u2039etag\u203a"'},
+                          'body': ''}, {'method': 'DELETE', 'status': 204, 'body': ''}],
     'http_azure_blob': HTTP01 + [{'method': 'PUT', 'status': 201, 'body': ''},
                                  {'method': 'DELETE', 'status': 202, 'body': ''}],
     # the folders are there already: MKCOL is refused (405), the file is made (201)
     'http_webdav': HTTP01 + [{'method': 'MKCOL', 'status': 405, 'body': ''},
                              {'method': 'PUT', 'status': 201, 'body': ''},
                              {'method': 'DELETE', 'status': 204, 'body': ''}],
+    'acme_dns': [
+        {'method': 'POST', 'url': r'/update$', 'body': {'txt': '{TXT}'}}],
 }
+
+
+# a record taken away: done, nothing to say (204) - after the module's own rules
+GONE = [{'method': 'DELETE', 'status': 204, 'body': ''}]
 
 
 def answers(family, kind, version=''):
     table = SOURCES if family == 'issuer' else CHALLENGES if family == 'challenge' else {}
-    return [dict(r) for r in (table.get('%s@%s' % (kind, version), []) if version else []) +
-            table.get(kind, [])]
+    own = (table.get('%s@%s' % (kind, version), []) if version else []) + table.get(kind, [])
+    if family == 'challenge' and own:
+        own = own + GONE
+    return [dict(r) for r in own]

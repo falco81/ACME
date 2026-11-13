@@ -2767,6 +2767,51 @@ FIRST['azure_keyvault'] = [{'method': 'GET', 'url': r'/certificates/[^/?]+\?api-
                                     'key vault.'}}}]
 LATER['azure_keyvault'] = []
 # ---- end of targets a10 .. cisco_nxos (FIRST / LATER) ----
+# ---- targets redfish@ilo .. zimbra: the first deployment (FIRST: nothing of acme there yet)
+# and the renewals (LATER: [] - the ANSWERS above, the certificate of the renewal before) ----
+_SOPHOS_FIRST_LIST = (
+    '<?xml version="1.0" encoding="UTF-8"?>\n<Response APIVersion="2000.1" IPS_CAT_VER="1">'
+    '<Login><status>Authentication Successful</status></Login><Certificate transactionid="">'
+    '<Name>ApplianceCertificate</Name></Certificate></Response>')
+# Sophos: only the appliance's own certificate the first time (the rule on it)
+FIRST['sophos'] = [
+    {'method': 'POST', 'url': r'/webconsole/APIController$', 'sent': r'<Get><Certificate>',
+     'times': 1, 'headers': {'Content-Type': 'application/xml'}, 'body': _SOPHOS_FIRST_LIST}]
+LATER['sophos'] = []
+# UniFi OS: no certificate added the first time
+FIRST['unifi_os'] = [{'method': 'GET', 'url': r'/api/userCertificates$', 'times': 1,
+                      'body': []}]
+LATER['unifi_os'] = []
+# DSM: no certificate of the description the first time - imported as a new one
+FIRST['synology'] = [
+    {'method': 'POST', 'url': r'/webapi/entry\.cgi', 'sent': r'api=SYNO\.Core\.Certificate\.CRT&',
+     'body': {'data': {'certificates': [
+         {'desc': '', 'id': 'Rm2kqP', 'is_default': True, 'is_broken': False,
+          'subject': {'common_name': 'synology'}, 'services': []}]}, 'success': True}}]
+LATER['synology'] = []
+# Vault: no secret at the path the first time
+FIRST['vault'] = [{'method': 'GET', 'url': r'/v1/[^?]+/data/', 'status': 404,
+                   'body': {'errors': []}}]
+LATER['vault'] = []
+# Cloud Director: no acme item in the library the first time - nothing to delete
+FIRST['vcd'] = [{'method': 'GET', 'url': r'/ssl/certificateLibrary\?page=', 'body': {
+    'resultTotal': 1, 'pageCount': 1, 'page': 1, 'pageSize': 128, 'values': [
+        {'id': 'urn:vcloud:certificateLibraryItem:9b2e0c41-new', 'alias': '{CURRENT}'}]}}]
+LATER['vcd'] = []
+# TrueNAS: only its own certificate the first time, the web interface on it
+SSH_FIRST['truenas'] = [
+    {'command': r'midclt call certificate\.query', 'times': 1, 'stdout':
+        '[{"id": 1, "type": 8, "name": "truenas_default", "cert_type": "CERTIFICATE"}]\n'},
+    {'command': r'midclt call system\.general\.config', 'stdout':
+        '{"id": 1, "ui_certificate": {"id": 1, "name": "truenas_default"}}\n'}]
+SSH_LATER['truenas'] = []
+# files over SSH: none there the first time (sha256sum prints nothing, nothing EXISTED)
+for _k in ('ssh', 'strongswan', 'traefik', 'zimbra'):
+    SSH_FIRST[_k] = [{'command': r'sha256sum ', 'stdout': ''},
+                     {'command': r'echo "PLACED \d+"', 'seen_lines': True, 'stdout': ''.join(
+                         '{SEEN:echo "(PLACED %d)"}\n' % i for i in range(12))}]
+    SSH_LATER[_k] = []
+# ---- end of targets redfish@ilo .. zimbra (FIRST / LATER) ----
 
 
 # {CFG:key} / {OPT:key} in an answer's body: that setting (or deployment option) of the
