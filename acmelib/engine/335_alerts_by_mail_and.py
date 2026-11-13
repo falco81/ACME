@@ -419,7 +419,10 @@ def alert_problems(store, lang='en'):
                     add('vip:fault:' + n, 'warn', n,
                         _al(lang, '%s nemůže držet VIP adresu' % n, '%s cannot hold the VIP address' % n),
                         why or _al(lang, 'keepalived hlásí FAULT.', 'keepalived says FAULT.'), 'ha')
-                elif not role and w:
+                elif role in ('', 'STOP') and w:
+                    # keepalived stopped (systemctl stop, its file refused) calls notify a
+                    # last time with STOP: vip-role says so, not nothing - the alert never
+                    # came for a keepalived stopped on purpose or by mistake.
                     add('vip:ka:' + n, 'warn', n,
                         _al(lang, 'keepalived na %s neběží' % n, 'keepalived is not running on %s' % n),
                         _al(lang, 'Uzel VIP adresu nepřevezme, kdyby druhý vypadl.',

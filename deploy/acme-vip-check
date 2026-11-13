@@ -5,7 +5,8 @@
 #            "fail ..." (maintenance, an upgrade)
 #            is no.
 #   prefer   is this the node it is meant to be on (moved on the pages)?
-#   notify   keepalived saying what this node now is: MASTER, BACKUP or FAULT.
+#   notify   keepalived saying what this node now is: MASTER, BACKUP or FAULT - and STOP
+#            when keepalived itself stops.
 # Run by keepalived as the acme account (script_user acme); root's own file, so
 # keepalived's script security takes it.
 f=/run/acme/vip-state

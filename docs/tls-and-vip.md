@@ -237,7 +237,9 @@ questions:
    takes the address within about three seconds.
 2. **Is it the node the address is meant to be on?** - the one chosen with
    *Move it here* (by default the first node). That node gets priority, so
-   the address goes back to it once it is well again (after five seconds).
+   the address goes back to it once it is well again (keepalived waits five
+   seconds more, then three without the other's word: about ten seconds after
+   acme says it is well).
 
 When the address moves, the new node announces it (gratuitous ARP), and the
 browsers' next requests go there. Signed-in sessions stay valid: they are
