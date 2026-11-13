@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.97 - not released
+## 1.0.97 - 2026-11-13
 
 - **The VIP address with real VRRP, tested end to end** (two nodes, keepalived 2.2.8, acme's own
   file and check script): it moves on maintenance, a lost node or a stopped keepalived, and is
