@@ -34,7 +34,7 @@ import xml.etree.ElementTree as ET
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, as_bool, as_int, http_fields, tls_fields, verify_fields,
-    text, served_fingerprint, fp_of, split_hostport, family_of)
+    text, served_fingerprint, fp_of, family_of)
 
 KEY_OE, CERT_OE, CA_OE = '1981', '1982', '1983'
 MAX_FILE = 4096            # the iRMC takes files up to 4 KB (Configuration and Maintenance)
@@ -74,6 +74,11 @@ def scci_result(raw):
             if el is not None and text(el.text).strip():
                 st = text(el.text).strip()
                 break
+            # 1.0.96: <Status><Value>N</Value><Message/></Status> inside a CMD - the code is
+            # in Value, the element itself has no text (read as "no status" before)
+            if el is not None and status_value(el) is not None:
+                st = status_value(el)
+                break
         words = ' '.join(text(e.text).strip() for e in cmd.iter()
                          if e.tag.upper() in ('MESSAGE', 'ERROR', 'ERRORMSG')
                          and text(e.text).strip())
@@ -88,9 +93,29 @@ def scci_result(raw):
     # a sequence-level status (some firmware answers <Status> under the root only)
     if not cmds:
         for el in root.iter():
-            if el.tag.upper() == 'STATUS' and text(el.text).strip() not in ('', '0'):
-                errors.append('SCCI status %s' % text(el.text).strip())
+            if el.tag.upper() != 'STATUS':
+                continue
+            # 1.0.96: the root <Status><Value>N</Value><Severity/><Message/></Status> (the
+            # answer to a whole sequence) - a Value other than 0 is an error, worded with
+            # its Message / Error; the Value was not read before, so a refusal passed as done
+            st = status_value(el)
+            if st is None:
+                st = text(el.text).strip()
+            if st in ('', '0'):
+                continue
+            words = ' '.join(text(e.text).strip() for e in el.iter()
+                             if e.tag.upper() in ('MESSAGE', 'ERROR', 'ERRORMSG')
+                             and text(e.text).strip())
+            errors.append('SCCI status %s%s' % (st, (' - ' + words) if words else ''))
     return errors, values
+
+
+def status_value(el):
+    """The code of a <Status><Value>N</Value>...</Status> element (None: no Value in it)."""
+    for v in el:
+        if v.tag.upper() == 'VALUE' and text(v.text).strip():
+            return text(v.text).strip()
+    return None
 
 
 class IrmcTarget(HttpTarget):
@@ -142,8 +167,11 @@ class IrmcTarget(HttpTarget):
 
     def served_now(self, bundle):
         try:
-            host, port = split_hostport('%s:%s' % (self.c('host'), self.c('port') or 443))
-            return served_fingerprint(host, port, None) == fp_of(bundle)
+            # 1.0.96: the host and the port apart - "2001:db8::1:443" read back by
+            # split_hostport is another address (an IPv6 host was never asked)
+            host = text(self.c('host')).strip().strip('[]')
+            return served_fingerprint(host, as_int(self.c('port') or 443, 443),
+                                      None) == fp_of(bundle)
         except (OSError, ValueError):
             return False
 

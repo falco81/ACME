@@ -494,6 +494,19 @@ class CockpitTest(unittest.TestCase):
                       % (base, base), cmds)
         self.assertNotIn('sudo -n systemctl restart cockpit.service', cmds)
 
+    def test_key_install_fails_both_new_files_removed(self):
+        # 1.0.96: the .crt installed, the .key not - both taken out of ws-certs.d
+        b, base, ssh = self.world()
+        ssh.answers.insert(0, (r'install -m 0600 .*\.key', (1, '', 'install: No space left')))
+        with self.assertRaises(PluginError) as e:
+            make('cockpit', '', self.CONF, FakeCtx(ssh=ssh)).deploy(b, {})
+        self.assertIn('No space left', str(e.exception))
+        cmds = [c for c, _i in ssh.runs]
+        self.assertIn('sudo -n rm -f /etc/cockpit/ws-certs.d/%s.crt /etc/cockpit/ws-certs.d/%s.key'
+                      % (base, base), cmds)
+        self.assertTrue(any(c.startswith('rm -f /tmp/acme-') for c in cmds), 'uploads removed')
+        self.assertNotIn('sudo -n systemctl restart cockpit.service', cmds)
+
     def test_same_noop_sudo_password_and_debian_trust(self):
         now = '90-' + C.object_name(FakeBundle(), {})
         b, base, ssh = self.world(files='%s.crt\n%s.key\n' % (now, now))

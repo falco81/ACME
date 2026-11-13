@@ -202,6 +202,22 @@ def make(kind, config, ctx):
     return reg.get('target', kind)(config, ctx)
 
 
+def served_asked(kind, config, hosts=('2001:db8::1', '[2001:db8::1]'), port=8443):
+    """The (host, port) each served_now() of a target asks served_fingerprint for, a host
+    of `hosts` at a time (IPv6: the address itself, never "2001:db8::1:8443")."""
+    seen = []
+    for host in hosts:
+        t = make(kind, dict(config, host=host, port=port), FakeCtx([]))
+        g = type(t).served_now.__globals__
+        old = g['served_fingerprint']
+        g['served_fingerprint'] = lambda h, p, *a, **k: seen.append((h, p)) or 'x'
+        try:
+            t.served_now(FakeBundle())
+        finally:
+            g['served_fingerprint'] = old
+    return seen
+
+
 # ---------------------------------------------------------------------------
 class CommonTest(unittest.TestCase):
     def test_names_and_prune(self):
@@ -985,6 +1001,62 @@ class OthersTest(unittest.TestCase):
                     self.assertTrue(f.get('catalog') and callable(
                         getattr(reg.get('target', d['kind']), 'catalog', None)), d['kind'])
             self.assertTrue(d['vendor'] and d['description'], d['kind'])
+
+
+class RedfishFixesTest(unittest.TestCase):
+    """1.0.96: the plain Redfish target on an iLO (no HTTPS certificate collection) and on
+    an IPv6 address."""
+    def routes(self, fw):
+        return [
+            ('GET', r'/redfish/v1/$', (200, {
+                'Links': {'Sessions': {'@odata.id': '/redfish/v1/SessionService/Sessions'}},
+                'CertificateService': {'@odata.id': '/redfish/v1/CertificateService'}})),
+            ('POST', r'/Sessions$', (201, {}, {
+                'X-Auth-Token': 't', 'Location': '/redfish/v1/SessionService/Sessions/1'})),
+            ('DELETE', r'/Sessions/1$', (200, {})),
+            ('GET', r'/redfish/v1/Managers$', (200, {
+                'Members': [{'@odata.id': '/redfish/v1/Managers/1'}]})),
+            ('GET', r'/redfish/v1/Managers/1$', (200, {
+                'NetworkProtocol': {'@odata.id': '/redfish/v1/Managers/1/NetworkProtocol'},
+                'FirmwareVersion': fw})),
+            ('GET', r'/HTTPS/Certificates$', (404, {'error': {'message': 'not here'}}))]
+
+    def deploy(self, fw):
+        t = make('redfish', {'host': 'bmc', 'user': 'u', 'password': 'p'},
+                 FakeCtx(self.routes(fw)))
+        t.served_now = lambda b: False
+        with self.assertRaises(PluginError) as e:
+            t.deploy(FakeBundle(), {})
+        return e.exception
+
+    def test_ilo_404_points_to_the_ilo_version(self):
+        e = self.deploy('iLO 6 v1.62')
+        self.assertIn('module version for HPE iLO', str(e))
+        self.assertIn('not here', e.detail)
+        self.assertFalse(e.retry)
+
+    def test_other_404_said_as_it_is(self):
+        e = self.deploy('2.10.0')
+        self.assertIn('listing the HTTPS certificates: not found on the device (404)', str(e))
+        self.assertNotIn('HPE iLO', str(e))
+
+    def test_ipv6_served_and_verify(self):
+        for kind in ('redfish', 'huawei_ibmc', 'supermicro_bmc'):
+            self.assertEqual(served_asked(kind, {'user': 'u', 'password': 'p'}),
+                             [('2001:db8::1', 8443)] * 2, kind)
+        t = make('redfish', {'host': '2001:db8::1', 'port': 8443, 'user': 'u', 'password': 'p'},
+                 FakeCtx([]))
+        seen = []
+        # the check of HttpTarget (of the module the registry loaded) - what it is asked
+        g = [b for b in type(t).__mro__ if b.__name__ == 'HttpTarget'][0].verify.__globals__
+        old = g['check_served']
+        g['check_served'] = lambda ctx, b, hp, *a, **k: seen.extend(
+            C.split_hostport(x) for x in hp)
+        try:
+            t.verify(FakeBundle(), {})
+        finally:
+            g['check_served'] = old
+        self.assertEqual(seen, [('2001:db8::1', 8443)])
 
 
 if __name__ == '__main__':

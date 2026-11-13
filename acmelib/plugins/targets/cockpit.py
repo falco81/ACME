@@ -152,10 +152,23 @@ class CockpitTarget(Base):
                 put.append(tmp + '.crt')
                 s.put(bundle.as_format('key-pem'), tmp + '.key', 0o600)
                 put.append(tmp + '.key')
-                self.root(s, 'install -m 0644 -o root -g root %s %s/%s.crt'
-                          % (quote(tmp + '.crt'), WS, base), 'installing the certificate')
-                self.root(s, 'install -m 0600 -o root -g root %s %s/%s.key'
-                          % (quote(tmp + '.key'), WS, base), 'installing the key')
+                try:
+                    self.root(s, 'install -m 0644 -o root -g root %s %s/%s.crt'
+                              % (quote(tmp + '.crt'), WS, base), 'installing the certificate')
+                    self.root(s, 'install -m 0600 -o root -g root %s %s/%s.key'
+                              % (quote(tmp + '.key'), WS, base), 'installing the key')
+                except PluginError:
+                    # 1.0.96: a .crt without its .key (or a half-written key) in ws-certs.d
+                    # stops Cockpit at its next start - both taken away again. Files of
+                    # this name there before are this same certificate: they stay.
+                    if not there:
+                        try:
+                            self.root(s, 'rm -f %s/%s.crt %s/%s.key' % (WS, base, WS, base),
+                                      'taking the new files away', check=False)
+                        except PluginError as e:
+                            self.ctx.step('%s/%s.crt and .key may stay: %s' % (WS, base, e),
+                                          'warn')
+                    raise
             finally:
                 if put:
                     self.plain(s, 'rm -f %s' % ' '.join(quote(p) for p in put))

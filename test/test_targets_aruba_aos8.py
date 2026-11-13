@@ -98,7 +98,10 @@ def aos_ssh(version='8.10.0.7', certs=None, said=None):
             st[kind][name] = 0
             out += 'Certificate is uploaded. It can be used in the configuration now.\n'
         for f in re.findall(r'^delete filename (\S+)$', inp, re.M):
-            st['flash'].remove(f)
+            if f in st['flash']:
+                st['flash'].remove(f)
+            else:
+                out += '%% File %s not found\n' % f
         m = re.search(r'^switch-cert (\S+)$', inp, re.M)
         if m:
             if st['switch'] in st['ServerCert']:
@@ -291,6 +294,18 @@ class Aos8(unittest.TestCase):
         self.assertFalse([s for s in shells(ssh) if 'switch-cert' in s])
         self.assertNotIn(re.search(r'ServerCert \S+ \S+ (\w+)', '\n'.join(shells(ssh))).group(1),
                          str(e.exception))
+        # 1.0.96: the PKCS#12 copied to flash is deleted on this path too
+        self.assertEqual(ssh.state['flash'], [])
+        self.assertTrue([s for s in shells(ssh) if 'delete filename acme-' in s])
+
+    def test_missing_after_import_flash_cleaned(self):
+        # the import answered well but the ServerCert is not listed: flash cleaned (1.0.96)
+        ssh = aos_ssh(said={r'pki-import pfx': 'Certificate is uploaded.\n'})
+        with self.assertRaises(PluginError) as e:
+            self.deploy(ssh=ssh, import_chain=False)
+        self.assertIn('not there after the import', str(e.exception))
+        self.assertEqual(ssh.state['flash'], [])
+        self.assertTrue([s for s in shells(ssh) if 'delete filename acme-' in s])
 
     def test_aos6_and_aos10_refused_before_any_change(self):
         for v in ('6.5.4.20', '10.7.1.0'):

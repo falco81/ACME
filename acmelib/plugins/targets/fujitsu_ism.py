@@ -107,6 +107,25 @@ class FujitsuIsmTarget(Base):
                 detail='$ ismadm %s\n%s\n%s' % (args, out, err), retry=False)
         return out
 
+    def restart(self, s):
+        """ismadm power restart. The console goes away with the restart: a cut session is no
+        failure. ssh ends with 255 then, which the SSH session of acme raises as "ssh to
+        <host>: ..." whatever check says, or the command does not come back in time (1.0.96:
+        both were taken as a failed deployment, retried, and the certificate not remembered).
+        ismadm refusing the restart (it answers, exit 1) stays a failure."""
+        try:
+            rc, out, err = s.run('ismadm power restart', input='y\n', timeout=120, check=False)
+        except PluginError as e:
+            if str(e).startswith('ssh to ') or 'took more than' in str(e):
+                self.ctx.debug('the session ended with the restart: %s' % e)
+                return
+            raise
+        if rc not in (0, -1, 255, None):
+            out, err = text(out), text(err)
+            raise PluginError('restarting the ISM-VA: ismadm said (exit %s) %s' % (
+                rc, (err.strip() or out.strip())[-300:] or '-'),
+                detail='$ ismadm power restart\n%s\n%s' % (out, err), retry=False)
+
     def served_now(self, bundle):
         try:
             return served_fingerprint(self.c('host'), as_int(self.c('https_port', 25566), 25566),
@@ -137,27 +156,23 @@ class FujitsuIsmTarget(Base):
                                                            True) else 'cert-pem')
         with self.ctx.ssh(self.conn()) as s:
             with self.ftp() as st:
-                st.put(base + '.key', bundle.as_format('key-pem'), folder)
-                st.put(base + '.crt', crt, folder)
-                self.ctx.step('put %s.key and %s.crt into /%s over FTP' % (base, base, folder),
-                              'ok')
+                # the try opens before the first upload (1.0.96): the certificate refused
+                # after the key went up must not leave the key there
                 try:
+                    st.put(base + '.key', bundle.as_format('key-pem'), folder)
+                    st.put(base + '.crt', crt, folder)
+                    self.ctx.step('put %s.key and %s.crt into /%s over FTP' % (
+                        base, base, folder), 'ok')
                     self.ismadm(s, 'sslcert set -key /%s/%s.key -crt /%s/%s.crt' % (
                         folder, base, folder, base), 'setting the certificate')
                 finally:
                     # The key must not stay in the FTP area (the User's Guide says to delete
                     # it) - taken away before the restart, while the FTP still answers.
-                    st.delete(base + '.key', folder)
-                    st.delete(base + '.crt', folder)
+                    st.clean()
             self.ctx.step('ismadm sslcert set: the ISM-VA took the certificate', 'ok')
             did = 'certificate set'
             if as_bool(self.opt(options, 'restart', True), True):
-                try:
-                    self.ismadm(s, 'power restart', 'restarting the ISM-VA', timeout=120)
-                except PluginError as e:
-                    # the console goes away with the restart: a cut session is no failure
-                    if 'exit -1' not in str(e) and 'exit None' not in str(e):
-                        raise
+                self.restart(s)
                 self.ctx.step('the ISM-VA restarts (a few minutes: GUI, REST API and '
                               'monitoring are away)', 'ok')
                 did += ', the ISM-VA restarts'

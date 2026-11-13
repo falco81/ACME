@@ -372,25 +372,27 @@ class ArubaAos8Target(_Aos8):
                 return self.same(bundle, 'the ServerCert %s' % name)
             did = []
             cas = []
-            with self.staged() as st:
-                if as_bool(self.opt(options, 'import_chain', True), True):
-                    cas = self.chain(s, st, bundle, flash)
-                if name not in have:
-                    pw = one_time_password()
-                    kind = 'p12-legacy' if text(self.c('p12_kind') or 'legacy') == 'legacy' \
-                        else 'pfx'
-                    flash.append(fname)
-                    self.bring(s, st, fname, bundle.as_format(kind, password=pw, alias=name),
-                               'crypto pki-import pfx ServerCert %s %s %s' % (name, fname, pw),
-                               'importing %s' % name, hide=[pw])
-                    if name not in self.certs(s):
-                        raise PluginError('the ServerCert %s is not there after the import'
-                                          % name, retry=False)
-                    self.ctx.step('imported the ServerCert %s' % name, 'ok')
-                    did.append('imported %s' % name)
-                else:
-                    self.ctx.step('the ServerCert %s is there already' % name)
+            # one try around the staged files as well (1.0.96): a refused import, or the
+            # ServerCert missing after it, left the PKCS#12 (its key) on flash
             try:
+                with self.staged() as st:
+                    if as_bool(self.opt(options, 'import_chain', True), True):
+                        cas = self.chain(s, st, bundle, flash)
+                    if name not in have:
+                        pw = one_time_password()
+                        kind = 'p12-legacy' if text(self.c('p12_kind') or 'legacy') == 'legacy' \
+                            else 'pfx'
+                        flash.append(fname)
+                        self.bring(s, st, fname, bundle.as_format(kind, password=pw, alias=name),
+                                   'crypto pki-import pfx ServerCert %s %s %s' % (name, fname, pw),
+                                   'importing %s' % name, hide=[pw])
+                        if name not in self.certs(s):
+                            raise PluginError('the ServerCert %s is not there after the import'
+                                              % name, retry=False)
+                        self.ctx.step('imported the ServerCert %s' % name, 'ok')
+                        did.append('imported %s' % name)
+                    else:
+                        self.ctx.step('the ServerCert %s is there already' % name)
                 cmds = self.config_lines(options, name, fname, cas)
                 if cmds:
                     self.mark_pending(bundle)

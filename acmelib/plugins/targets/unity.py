@@ -32,7 +32,7 @@ import re
 
 from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, as_bool, as_int, ssh_fields, text, quote,
-    family_of, served_fingerprint, fp_of, split_hostport)
+    family_of, served_fingerprint, fp_of)
 
 FOLDER = '/home/service/user'
 
@@ -91,8 +91,10 @@ class UnityTarget(SshMixin, Base):
 
     def served_now(self, bundle):
         try:
-            host, port = split_hostport('%s:%s' % (self.c('host'), self.served_port()))
-            return served_fingerprint(host, port, None) == fp_of(bundle)
+            # 1.0.96: the host and the port apart - "2001:db8::1:443" read back by
+            # split_hostport is another address (an IPv6 host was never asked)
+            host = text(self.c('host')).strip().strip('[]')
+            return served_fingerprint(host, self.served_port(), None) == fp_of(bundle)
         except (OSError, ValueError):
             return False
 

@@ -40,7 +40,7 @@ import re
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, as_bool, as_int, http_fields, tls_fields, verify_fields,
-    text, served_fingerprint, fp_of, split_hostport)
+    text, served_fingerprint, fp_of)
 
 
 def pstos_tuple(v):
@@ -147,8 +147,11 @@ class PowerStoreTarget(HttpTarget):
 
     def served_now(self, bundle):
         try:
-            host, port = split_hostport('%s:%s' % (self.c('host'), self.c('port') or 443))
-            return served_fingerprint(host, port, None) == fp_of(bundle)
+            # 1.0.96: the host and the port apart - "2001:db8::1:443" read back by
+            # split_hostport is another address (an IPv6 host was never asked)
+            host = text(self.c('host')).strip().strip('[]')
+            return served_fingerprint(host, as_int(self.c('port') or 443, 443),
+                                      None) == fp_of(bundle)
         except (OSError, ValueError):
             return False
 

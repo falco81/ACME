@@ -128,6 +128,35 @@ def with_ftp(t):
     return t
 
 
+def refuse_crt():
+    """FakeFtp.storbinary refusing the certificate (after the key went up); the original."""
+    import ftplib
+    orig = FakeFtp.storbinary
+
+    def stor(self_, cmd, fh):
+        if cmd.endswith('.crt'):
+            raise ftplib.error_perm('552 Quota exceeded')
+        return orig(self_, cmd, fh)
+    FakeFtp.storbinary = stor
+    return orig
+
+
+def expire_once():
+    """FakeFtp.delete answering 421 (the server closed the idle session) once; the original."""
+    import ftplib
+    orig = FakeFtp.delete
+    gone = [True]
+
+    def dele(self_, path):
+        if gone[0]:
+            gone[0] = False
+            FakeFtp.log.append(('421', path))
+            raise ftplib.error_temp('421 Timeout.')
+        return orig(self_, path)
+    FakeFtp.delete = dele
+    return orig
+
+
 def not_served(t):
     t.served_now = lambda b: False
     return t
@@ -255,6 +284,28 @@ class IrmcTest(unittest.TestCase):
         self.assertTrue(t.deploy(rsa(), {}).startswith('unchanged'))
         self.assertEqual(ctx.calls, [])
         self.assertEqual(t.served_places({}), [('irmc.test', 443)])
+
+    def test_status_value_error_refused(self):
+        # 1.0.96: an error in the shape of the OK answer (<Status><Value>N</Value>) was taken
+        # as done - the iRMC reset with the old certificate
+        bad = (200, '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><Status>'
+                    '<Value>32</Value><Severity>Error</Severity>'
+                    '<Message>Certificate does not match the key</Message></Status>')
+        ctx = FakeCtx(self.routes(scci=bad))
+        with self.assertRaises(PluginError) as e:
+            self.make(ctx).deploy(rsa(), {})
+        self.assertIn('status 32 - Certificate does not match the key', str(e.exception))
+        self.assertFalse(ctx.find('POST', 'Reset'), 'no reset after a refusal')
+        from acmelib.plugins.targets import irmc
+        errors, _ = irmc.scci_result('<CMDSEQ><CMD OE="1981"><Status><Value>5</Value>'
+                                     '<Message>bad key</Message></Status></CMD></CMDSEQ>')
+        self.assertEqual(errors, ['SCCI 1981: status 5 - bad key'])
+        self.assertEqual(irmc.scci_result(SCCI_OK), ([], {}))
+
+    def test_served_now_ipv6(self):
+        # 1.0.96: an IPv6 host asked as itself, not as "2001:db8::1:443"
+        self.assertEqual(T.served_asked('irmc', {'user': 'u', 'password': 'p'}),
+                         [('2001:db8::1', 8443)] * 2)
 
 
 # ---------------------------------------------------------------------------
@@ -540,6 +591,51 @@ class IsmTest(unittest.TestCase):
         self.assertEqual(FakeFtp.files, {}, 'the key deleted after a failure too')
         self.assertEqual(len(ssh.runs), 1, 'no restart')
 
+    def test_crt_refused_key_taken_away(self):
+        # 1.0.96: the key stayed on the FTP server when the certificate upload failed
+        ssh = FakeSsh()
+        t, ctx = self.t(ssh)
+        orig = refuse_crt()
+        try:
+            with self.assertRaises(PluginError) as e:
+                t.deploy(FakeBundle(), {})
+        finally:
+            FakeFtp.storbinary = orig
+        self.assertIn('552', str(e.exception))
+        self.assertEqual(FakeFtp.files, {})
+        self.assertTrue([x for x in FakeFtp.log if x[0] == 'dele' and x[1].endswith('.key')])
+        self.assertEqual(ssh.runs, [])
+        self.assertFalse([w for lvl, w in ctx.steps if lvl == 'warn'],
+                         'no warning for the certificate that never got there')
+
+    def test_session_expired_reconnects_for_delete(self):
+        t, ctx = self.t(FakeSsh())
+        orig = expire_once()
+        try:
+            t.deploy(FakeBundle(), {})
+        finally:
+            FakeFtp.delete = orig
+        self.assertEqual(FakeFtp.files, {}, 'deleted over a new session')
+        self.assertEqual(len([x for x in FakeFtp.log if x[0] == 'login']), 2)
+        self.assertFalse([w for lvl, w in ctx.steps if lvl == 'warn'])
+
+    def test_restart_cut_is_expected(self):
+        # 1.0.96: the real SSH session raises when the restart cuts it - no failure, remembered
+        for cut in ('ssh to ism.test: Connection to ism.test closed by remote host.',
+                    'ssh on ism.test took more than 120 s'):
+            FakeFtp.reset()
+
+            def go(cmd, inp, cut=cut):
+                raise PluginError(cut)
+            ssh = FakeSsh([(r'power restart', go)])
+            t, ctx = self.t(ssh)
+            self.assertIn('ISM-VA restarts', t.deploy(FakeBundle(), {}))
+            self.assertTrue(ctx.kv, 'the deployment remembered')
+        ssh = FakeSsh([(r'power restart', (1, '', 'Error: permission denied'))])
+        with self.assertRaises(PluginError) as e:
+            self.t(ssh)[0].deploy(FakeBundle(), {})
+        self.assertIn('permission denied', str(e.exception))
+
     def test_ftp_refused(self):
         FakeFtp.refuse_login = True
         ssh = FakeSsh()
@@ -637,6 +733,30 @@ class EternusTest(unittest.TestCase):
         with self.assertRaises(PluginError) as e:
             self.t(FakeSsh(), ftp_user='a b')[0].deploy(rsa(), {})
         self.assertIn('user', str(e.exception))
+
+    def test_crt_refused_key_taken_away(self):
+        # 1.0.96: the key stayed on the file server when the certificate upload failed
+        ssh = FakeSsh()
+        t, ctx = self.t(ssh)
+        orig = refuse_crt()
+        try:
+            with self.assertRaises(PluginError):
+                t.deploy(rsa(), {})
+        finally:
+            FakeFtp.storbinary = orig
+        self.assertEqual(FakeFtp.files, {})
+        self.assertEqual(ssh.runs, [])
+
+    def test_session_expired_reconnects_for_delete(self):
+        t, ctx = self.t(FakeSsh())
+        orig = expire_once()
+        try:
+            t.deploy(rsa(), {})
+        finally:
+            FakeFtp.delete = orig
+        self.assertEqual(FakeFtp.files, {})
+        self.assertEqual(len([x for x in FakeFtp.log if x[0] == 'prot_p']), 2,
+                         'the new session is FTPS again')
 
     def test_try(self):
         ssh = FakeSsh([(r'show ssl-version', (0, 'Protocol  TLS1.2  TLS1.3\nMNT  Enable\n', ''))])

@@ -174,16 +174,18 @@ class EternusDxTarget(SshMixin, Base):
             cmd += ' -disable-ftps yes'     # S6 only: older CLIs have FTP alone, no option
         with self.ssh() as s:
             with self.ftp() as st:
-                st.put(base + '.key', key, folder)
-                st.put(base + '.crt', crt, folder)
-                self.ctx.step('put %s.key and %s.crt on %s' % (base, base, st.words()), 'ok')
+                # the try opens before the first upload (1.0.96): the certificate refused
+                # after the key went up must not leave the key there
                 try:
+                    st.put(base + '.key', key, folder)
+                    st.put(base + '.crt', crt, folder)
+                    self.ctx.step('put %s.key and %s.crt on %s' % (base, base, st.words()),
+                                  'ok')
                     out = self.cli(s, cmd, 'registering the certificate',
                                    answer=text(self.c('ftp_password') or '') + '\n')
                 finally:
                     # the key does not stay on the file server
-                    st.delete(base + '.key', folder)
-                    st.delete(base + '.crt', folder)
+                    st.clean()
             self.ctx.step('the array registered the certificate - HTTPS of the Web GUI and the '
                           'RESTful API restart (a few minutes)', 'ok')
             did = 'registered the SSL certificate'

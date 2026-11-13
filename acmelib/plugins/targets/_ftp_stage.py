@@ -12,9 +12,11 @@ one of them is the private key.
 
     st = FtpStage(module, host, port, user, password, tls=True, verify=True)
     with st:
-        st.put('acme-x.key', data, folder='Administrator/ftp')
-        ...
-        st.delete('acme-x.key', folder='Administrator/ftp')
+        try:
+            st.put('acme-x.key', data, folder='Administrator/ftp')
+            ...
+        finally:
+            st.clean()          # every file put there (or begun) taken away again
 """
 from __future__ import annotations
 
@@ -40,6 +42,9 @@ class FtpStage(object):
         self.verify = bool(verify)
         self.timeout = float(timeout or 30)
         self.f = None
+        # (path, stored) of every file a put began - clean() takes them away (1.0.96): a
+        # second upload refused must not leave the key of the first one there
+        self.staged = []
 
     def words(self):
         return '%s:%d (%s)' % (self.host, self.port, 'FTPS' if self.tls else 'FTP')
@@ -106,6 +111,8 @@ class FtpStage(object):
 
     def put(self, name, data, folder=''):
         p = self.path(name, folder)
+        # written down before the transfer: one broken off half-way leaves a part of it
+        self.staged.append([p, False])
         try:
             self.f.storbinary('STOR %s' % p, io.BytesIO(data if isinstance(data, bytes)
                                                          else str(data).encode()))
@@ -113,14 +120,42 @@ class FtpStage(object):
             raise PluginError('the FTP server refused %s: %s' % (p, e), retry=False)
         except (OSError, EOFError, ftplib.Error) as e:
             raise PluginError('%s could not be written over FTP: %s' % (p, e))
+        self.staged[-1][1] = True
         return p
 
-    def delete(self, name, folder=''):
-        """Taken away; False (and a warning) when it cannot be."""
+    def delete(self, name, folder='', quiet=False):
+        """Taken away; False (and a warning) when it cannot be. The device may work for
+        minutes while the files wait: a session the server closed meanwhile (421 timeout, a
+        reset connection) is opened again once for the delete (1.0.96)."""
         p = self.path(name, folder)
-        try:
-            self.f.delete(p)
-            return True
-        except Exception as e:                          # noqa: BLE001
-            self.m.ctx.step('%s stays on the FTP server - delete it by hand: %s' % (p, e), 'warn')
-            return False
+        for again in (False, True):
+            try:
+                if self.f is None:
+                    raise EOFError('not connected')
+                self.f.delete(p)
+                return True
+            except (OSError, EOFError, ftplib.error_temp, ftplib.error_reply,
+                    ftplib.error_proto) as e:
+                if not again:
+                    self.close()
+                    try:
+                        self.open()
+                    except PluginError as e2:
+                        why = e2
+                        break
+                    continue
+                why = e
+            except Exception as e:                      # noqa: BLE001
+                why = e
+            break
+        if not quiet:
+            self.m.ctx.step('%s stays on the FTP server - delete it by hand: %s' % (p, why),
+                            'warn')
+        return False
+
+    def clean(self):
+        """Every file put() began taken away, the key first (the modules put it first). A
+        file whose upload failed may not be there at all: no warning for it."""
+        staged, self.staged = self.staged, []
+        for p, stored in staged:
+            self.delete(p, quiet=not stored)

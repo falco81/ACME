@@ -38,10 +38,11 @@ XCC2 takes "PEM" only.
 from __future__ import annotations
 
 import base64
+import re
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, as_bool, as_int, http_fields, tls_fields, verify_fields,
-    text, served_fingerprint, fp_of, split_hostport)
+    text, served_fingerprint, fp_of)
 
 
 class RedfishTarget(HttpTarget):
@@ -134,7 +135,19 @@ class RedfishTarget(HttpTarget):
         if not np:
             raise PluginError('the manager has no NetworkProtocol: give the Certificate URI',
                               retry=False)
-        coll = self.get(np + '/HTTPS/Certificates', what='listing the HTTPS certificates')
+        try:
+            coll = self.get(np + '/HTTPS/Certificates', what='listing the HTTPS certificates')
+        except PluginError as e:
+            # 1.0.96: an HPE iLO has no standard HTTPS certificate collection - say which
+            # version of the target it needs, not only "not found"
+            fw = '%s %s' % (text(m.get('FirmwareVersion')), text(m.get('Model')))
+            if '(404)' in str(e) and re.search(r'\bilo', fw, re.I):
+                raise PluginError(
+                    'the controller has no HTTPS certificate collection (404) (HPE iLO: '
+                    'choose the module version for HPE iLO - iLO takes a certificate with its '
+                    'key through its own HpeHttpsCert)',
+                    detail='%s\n%s' % (e, e.detail or ''), retry=False)
+            raise
         mem = coll.get('Members') or []
         if mem:
             return mem[0]['@odata.id']
@@ -159,8 +172,11 @@ class RedfishTarget(HttpTarget):
 
     def served_now(self, bundle):
         try:
-            host, port = split_hostport('%s:%s' % (self.c('host'), self.c('port') or 443))
-            return served_fingerprint(host, port, None) == fp_of(bundle)
+            # 1.0.96: the host and the port apart - "2001:db8::1:443" read back by
+            # split_hostport is another address (an IPv6 host was never asked)
+            host = text(self.c('host')).strip().strip('[]')
+            return served_fingerprint(host, as_int(self.c('port') or 443, 443),
+                                      None) == fp_of(bundle)
         except (OSError, ValueError):
             return False
 
@@ -232,7 +248,10 @@ class RedfishTarget(HttpTarget):
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify'):
-            options['verify'] = '%s:%d' % (self.c('host'), as_int(self.c('port', 443), 443))
+            # 1.0.96: an IPv6 address in brackets, so split_hostport reads it back whole
+            host = text(self.c('host')).strip().strip('[]')
+            options['verify'] = '%s:%d' % ('[%s]' % host if ':' in host else host,
+                                           as_int(self.c('port', 443), 443))
         if as_bool(options.get('reset')):
             options.setdefault('verify_tries', 20)
             options.setdefault('verify_wait', 15)
