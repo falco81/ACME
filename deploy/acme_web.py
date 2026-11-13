@@ -50,6 +50,9 @@ import time
 STATE_DIR = os.environ.get('ACME_STATE', '/var/lib/acme')
 WEB_DIR = os.path.join(STATE_DIR, 'web')
 KA_CONF = os.environ.get('ACME_VIP_KA_CONF', '/etc/keepalived/keepalived.conf')
+# systemd's word for keepalived while the address is on: started again when it dies.
+KA_DROPIN = os.environ.get('ACME_VIP_KA_DROPIN',
+                           '/etc/systemd/system/keepalived.service.d/acme.conf')
 NGINX_DIR = os.environ.get('ACME_VIP_NGINX_DIR', '/etc/nginx/conf.d')
 NGINX_MAIN = os.path.join(NGINX_DIR, 'acme.conf')
 NGINX_VIP = os.path.join(NGINX_DIR, 'acme_vip.conf')   # read after acme.conf: never the default server
@@ -476,6 +479,32 @@ def ka_ours():
     except FileNotFoundError:
         return None                                     # nobody's
     return head.startswith(MARK)
+
+
+def ka_dropin_ours():
+    try:
+        with open(KA_DROPIN) as f:
+            head = f.read(len(MARK) + 10)
+    except FileNotFoundError:
+        return None                                     # nobody's
+    return head.startswith(MARK)
+
+
+def ka_dropin():
+    """keepalived killed or crashed (SIGKILL, the OOM killer) leaves the address on
+    its interface - nobody is there to take it away - while the other node takes it:
+    both hold it. Started again, keepalived drops it at once (it starts as BACKUP and
+    takes away the addresses of its instances it finds on the interfaces), so systemd
+    starts it again. A stop asked for (systemctl stop) is not restarted."""
+    return '\n'.join([
+        MARK,
+        '# keepalived started again when it dies (killed, crashed): the web address it',
+        '# leaves behind on this node is taken away when it starts.',
+        '[Service]',
+        'Restart=on-failure',
+        'RestartSec=2',
+        '',
+    ])
 
 
 def ka_conf(node, v):
@@ -1240,6 +1269,15 @@ def vip_part(r, last):
             os.unlink(KA_CONF)
             said.append('keepalived stopped and its file taken away - the web address is on '
                         'no node')
+        if ka_dropin_ours():
+            os.unlink(KA_DROPIN)
+            if os.path.dirname(KA_DROPIN).endswith('.service.d'):
+                try:
+                    os.rmdir(os.path.dirname(KA_DROPIN))    # left empty: it was acme's alone
+                except OSError:
+                    pass
+            if not NO_SERVICES:
+                subprocess.run(['systemctl', 'daemon-reload'], capture_output=True)
         if last.get('peer'):
             said.append(firewall(last['peer'], int(last.get('family') or 4), False))
         return said, {}
@@ -1254,8 +1292,16 @@ def vip_part(r, last):
         raise Refused('there is no interface %s on this node' % v['iface'])
     if not os.access(CHECK, os.X_OK):
         raise Refused('%s is missing - install.sh --upgrade puts it in' % CHECK)
-    snap = snapshot([KA_CONF])
+    snap = snapshot([KA_CONF, KA_DROPIN])
     write_root(KA_CONF, ka_conf(r['node'], v), 0o640)
+    dropin = ka_dropin_ours()
+    if dropin is False:
+        said.append('%s is there and is not acme\'s: left as it is (keepalived killed may not '
+                    'be started again)' % KA_DROPIN)
+    elif not dropin or snap[KA_DROPIN][0].decode('utf-8', 'replace') != ka_dropin():
+        write_root(KA_DROPIN, ka_dropin(), 0o644)
+        dropin = 'new'
+        said.append('keepalived: started again by systemd when it dies (%s)' % KA_DROPIN)
     if shutil.which('keepalived') and not NO_SERVICES:
         t = subprocess.run(['keepalived', '-t', '-f', KA_CONF], capture_output=True, text=True)
         if t.returncode != 0:
@@ -1268,6 +1314,8 @@ def vip_part(r, last):
         firewall(last['peer'], int(last.get('family') or 4), False)
     said.append(firewall(v['peer'], v['family'], True))
     if not NO_SERVICES:
+        if dropin == 'new':
+            run(['systemctl', 'daemon-reload'], 'systemctl daemon-reload')
         active = subprocess.run(['systemctl', 'is-active', '--quiet', 'keepalived']).returncode == 0
         subprocess.run(['systemctl', 'enable', 'keepalived'], capture_output=True)
         run(['systemctl', 'reload' if active else 'start', 'keepalived'],

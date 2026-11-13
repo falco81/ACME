@@ -61027,6 +61027,10 @@
   "_39": {
    "source": "No address associated with hostname",
    "text": "Ke jménu není přiřazena adresa"
+  },
+  "_40": {
+   "source": "keepalived stopped",
+   "text": "keepalived zastaven"
   }
  },
  "patterns": {

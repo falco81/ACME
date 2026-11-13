@@ -55,6 +55,31 @@ def alerts_lead(store):
     return lead_of(store)
 
 
+PROC_DIR = '/proc'          # tests: a folder made to look like it
+
+
+def keepalived_alive():
+    """Is a keepalived process alive on this machine? /proc/*/comm, every process's
+    readable by any user (the daemon runs as acme). None when that cannot be told:
+    /proc mounted with hidepid shows only acme's own processes - pid 1 is not there."""
+    try:
+        with open(os.path.join(PROC_DIR, '1', 'comm')) as f:
+            f.read()
+        names = os.listdir(PROC_DIR)
+    except OSError:
+        return None
+    for pid in names:
+        if not pid.isdigit():
+            continue
+        try:
+            with open(os.path.join(PROC_DIR, pid, 'comm')) as f:
+                if f.read().strip() == 'keepalived':
+                    return True
+        except OSError:
+            pass                                        # gone in between
+    return False
+
+
 def health_publish(daemon):
     """This node's own row: what the node that sends the alerts cannot see."""
     now = time.time()
@@ -100,8 +125,18 @@ def health_publish(daemon):
         refused = sorted((guard.get('refused') or {}).values(), key=lambda r: -float(r.get('at') or 0))
         row['dbguard_refused'] = [{'what': r.get('what'), 'why': r.get('why'), 'at': r.get('at')}
                                   for r in refused if now - float(r.get('at') or 0) < 3600][:5]
+    # keepalived killed (SIGKILL, a crash) calls no notify: vip-role still says MASTER or
+    # BACKUP. Looked at here, once a minute, while the VIP address is on.
+    if CONFIG.get('ha_mode') and said(lambda: vip_conf(daemon.store).get('on')):
+        row['keepalived'] = said(keepalived_alive)
     daemon.store.set_meta('host:health:' + node_name(), json.dumps(row))
     return row
+
+
+def _ka_dead(row, now):
+    """The node's own health row, fresh (5 minutes), says no keepalived is alive."""
+    row = row or {}
+    return row.get('keepalived') is False and now - float(row.get('at') or 0) < 300
 
 
 def _al(lang, cs, en):
@@ -419,14 +454,21 @@ def alert_problems(store, lang='en'):
                     add('vip:fault:' + n, 'warn', n,
                         _al(lang, '%s nemůže držet VIP adresu' % n, '%s cannot hold the VIP address' % n),
                         why or _al(lang, 'keepalived hlásí FAULT.', 'keepalived says FAULT.'), 'ha')
-                elif role in ('', 'STOP') and w:
+                elif w and (role in ('', 'STOP') or _ka_dead(health.get(n), now)):
                     # keepalived stopped (systemctl stop, its file refused) calls notify a
                     # last time with STOP: vip-role says so, not nothing - the alert never
-                    # came for a keepalived stopped on purpose or by mistake.
+                    # came for a keepalived stopped on purpose or by mistake. Killed, it
+                    # says nothing (vip-role keeps MASTER): the node's health row says
+                    # no keepalived process is alive.
                     add('vip:ka:' + n, 'warn', n,
                         _al(lang, 'keepalived na %s neběží' % n, 'keepalived is not running on %s' % n),
                         _al(lang, 'Uzel VIP adresu nepřevezme, kdyby druhý vypadl.',
-                            'The node does not take the VIP address if the other goes.'), 'ha')
+                            'The node does not take the VIP address if the other goes.') +
+                        ('' if role in ('', 'STOP') else ' ' + _al(
+                            lang, 'Žádný proces keepalived neběží (zabitý, spadl): adresu, '
+                                  'kterou držel, může mít uzel dál, než ho systemd znovu spustí.',
+                            'No keepalived process is alive (killed, crashed): the address it '
+                            'held may stay on the node until systemd starts it again.')), 'ha')
     # Backups: the nightly copy of each node, and the backups sent away.
     if CONFIG.get('alerts_backup', 1):
         ha_m = str(CONFIG.get('ha_mode') or '')

@@ -6,7 +6,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.97 - not released
 
-(nothing yet)
+- **The VIP address with real VRRP, tested end to end** (two nodes, keepalived 2.2.8, acme's own
+  file and check script): it moves on maintenance, a lost node or a stopped keepalived, and is
+  never on both. keepalived now restarts by itself when it dies (a systemd drop-in acme puts in
+  with the VIP) - a killed keepalived left the address on its node while the other took it too.
+- Fixed: the alert "keepalived is not running" never came for a stopped keepalived (it says
+  STOP), nor for a killed one (now its process is looked for); the HA card shows "keepalived
+  stopped".
 
 ## 1.0.96 - 2026-11-13
 

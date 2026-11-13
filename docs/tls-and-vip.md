@@ -34,14 +34,17 @@ systemd (`acme-web.path`) starts `acme-web.service`, which runs
 - writes the files: `/etc/nginx/certs/acme.pem` (certificate + chain),
   `acme.key`, `acme-ca.pem` (the root, for `ssl_trusted_certificate`),
   `acme-dh.pem`; for the VIP address `acme-vip.*` and
-  `/etc/nginx/conf.d/acme_vip.conf`; `/etc/keepalived/keepalived.conf`;
+  `/etc/nginx/conf.d/acme_vip.conf`; `/etc/keepalived/keepalived.conf` and
+  systemd's drop-in `/etc/systemd/system/keepalived.service.d/acme.conf`
+  (below: keepalived started again when it dies);
 - asks nginx (`nginx -t`) and keepalived (`keepalived -t`) before reloading
   them, and **puts every file back as it was** when either says no;
 - writes what it did to `/var/lib/acme/web/status.json` - shown on the pages
   and by `acme --web-status`.
 
 It never touches a `keepalived.conf` that is not acme's own (it refuses, and
-says so). `install.sh` (1.0.47 and later) installs the helper and the units.
+says so), nor a drop-in `keepalived.service.d/acme.conf` that is not (it leaves it
+and says so). `install.sh` (1.0.47 and later) installs the helper and the units.
 
 ---
 
@@ -241,6 +244,35 @@ questions:
    seconds more, then three without the other's word: about ten seconds after
    acme says it is well).
 
+### keepalived stopped, or killed
+
+- **Stopped** (`systemctl stop keepalived`, or its file refused): keepalived takes
+  the address away itself and the other node has it within about a second. Its last
+  word to `acme-vip-check` is `STOP` (`/run/acme/vip-role`): the node's row says
+  *keepalived stopped*, and the alert *keepalived is not running on NODE* comes.
+- **Killed** (SIGKILL, the OOM killer, a crash): nobody is left to take the address
+  away - it **stays on the node's interface** while the other node, no longer hearing
+  it, takes it within about four seconds: both hold it. keepalived started again drops
+  it at once (it starts as BACKUP and takes away the addresses of its instance it
+  finds on the interface - seen with keepalived 2.2.8 in `test/test_vip_vrrp.py`, gone
+  within 0.2 s), then takes the address back over VRRP if it is the preferred node.
+  So while the address is on, acme puts in systemd's drop-in
+  `/etc/systemd/system/keepalived.service.d/acme.conf`:
+
+  ```ini
+  [Service]
+  Restart=on-failure
+  RestartSec=2
+  ```
+
+  (marked as acme's on its first line, `systemctl daemon-reload` after; taken away
+  when the address is turned off, only if it is acme's; `install.sh --uninstall` takes
+  it too). A stop asked for is not restarted. A killed keepalived calls no notify, so
+  `vip-role` keeps saying `MASTER`/`BACKUP`: each node also looks, once a minute (its
+  health row for the alerts), whether any `keepalived` process is alive
+  (`/proc/*/comm`), and the alert *keepalived is not running* comes for that as well.
+  With `/proc` mounted `hidepid=` acme cannot see keepalived and says nothing.
+
 When the address moves, the new node announces it (gratuitous ARP), and the
 browsers' next requests go there. Signed-in sessions stay valid: they are
 in the database.
@@ -425,6 +457,7 @@ table inet acme {
 | *no interface here holds ...* | choose the interface for that node |
 | holds it: neither; may hold it: no - *its pages do not answer* | nginx or PHP-FPM down on that node: `systemctl status nginx php-fpm` |
 | *in maintenance* | `acme --maintenance off` |
+| a node's row: *keepalived stopped*; alert *keepalived is not running* | `systemctl status keepalived` on it, `journalctl -u keepalived`; `systemctl start keepalived`. Killed, systemd starts it again (acme's drop-in) - the alert stays when it does not come up |
 | the address on neither node, both healthy | `journalctl -u keepalived`; VRRP blocked one way; a different VRRP id on each (save again) |
 | *being put in…* stays | `systemctl status acme-web.path acme-web.service`; `install.sh --upgrade` once on the command line puts the units in |
 | the browser still sees the old certificate | it may be shown the other node's; check both cards, and the name it asks for |

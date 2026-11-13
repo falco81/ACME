@@ -418,6 +418,12 @@ if [[ -n "$DO_UNINSTALL" ]]; then
         run rm -f /etc/keepalived/keepalived.conf
         say "keepalived stopped: its file was acme's (the web address)"
     fi
+    # acme's drop-in for keepalived (started again when it dies), only if it is acme's.
+    if head -1 /etc/systemd/system/keepalived.service.d/acme.conf 2>/dev/null | grep -q '^# written by acme'; then
+        run rm -f /etc/systemd/system/keepalived.service.d/acme.conf
+        run rmdir /etc/systemd/system/keepalived.service.d 2>/dev/null || true
+        run systemctl daemon-reload 2>/dev/null || true
+    fi
     [[ -e /etc/nginx/conf.d/acme_vip.conf ]] && run rm -f /etc/nginx/conf.d/acme_vip.conf
     [[ -e /usr/libexec/keepalived/acme-vip-check ]] && run rm -f /usr/libexec/keepalived/acme-vip-check
     for one in "$UNIT_FILE" "$LOGROTATE_FILE" "$NGINX_CONF" "$BIN_LINK" \

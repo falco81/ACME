@@ -186,7 +186,9 @@ The page writes those lines with the engine IDs filled in.
   of a node in trouble (the daemon could not use it).
 - **The VIP address (VRRP)**: the VIP address on no node, or on both (the nodes do
   not see each other over VRRP), a node whose keepalived gave it up (FAULT), or
-  keepalived not running on a node.
+  keepalived not running on a node - stopped (its last word STOP), or killed (no
+  `keepalived` process alive, looked at by the node itself once a minute; see
+  [tls-and-vip.md](tls-and-vip.md)).
 
 Neither is mailed while the cluster is worked on - a node in maintenance, an
 upgrade, the system's updates or a restart going on - nor for 10 minutes after

@@ -34,11 +34,15 @@ Checked: one node holds the address within seconds, the preferred one; never
 both at any moment sampled (every 0.2 s); maintenance moves it to the other,
 back (after preempt_delay) when it ends; the preference moved; acme's own
 process gone (its lock's pid) moves it; keepalived stopped (SIGTERM) and
-killed (SIGKILL) on the holder moves it; the notify call writes vip-role;
+killed (SIGKILL) on the holder moves it - the killed one keeps the address on its
+interface until keepalived starts again there (acme's systemd drop-in, Restart=on-failure,
+after its RestartSec), which takes the stale address away at once; the notify call writes vip-role;
 the IPv6 address beside the IPv4 one (virtual_ipaddress_excluded) moves with
 it; an IPv6-only pair (VRRPv3, no authentication) does the same - both IPv6 parts left
 out on a kernel without IPv6. acme-vip-check's exit codes against what vip_watch() writes;
-the alert for a keepalived stopped (its last notify says STOP).
+the alert for a keepalived stopped (its last notify says STOP) and for one killed (no
+keepalived in /proc, from the node's health row - a /proc made up); the drop-in vip_part()
+writes and takes away (the file alone: no systemd here).
 
     ACME_VRRP_KEEP=1   the nodes' folders (keepalived's and acme's logs) kept, path printed
 """
@@ -305,6 +309,13 @@ class Node(object):
             return ''
 
 
+def dropin_restart_sec(W):
+    for line in W.ka_dropin().splitlines():
+        if line.startswith('RestartSec='):
+            return float(line.split('=', 1)[1])
+    raise AssertionError('no RestartSec in the drop-in')
+
+
 @unittest.skipIf(SKIP, SKIP)
 class VrrpPair(unittest.TestCase):
     family = 4
@@ -533,7 +544,9 @@ class VrrpPair(unittest.TestCase):
         # keepalived killed on the holder: the other takes it when the adverts stop
         # (3 x advert_int and the skew). The killed one keeps the address on its
         # interface - nobody is left there to take it away - until keepalived starts
-        # again there (systemd's Restart=), which drops it.
+        # again there, which drops it: started as BACKUP, it takes away the addresses
+        # of its instance it finds on the interface. acme's drop-in has systemd start it
+        # again (Restart=on-failure); here the test does, after the drop-in's RestartSec.
         t0 = time.time()
         self.allow_stale.add('acme2')
         b.stop_keepalived(signal.SIGKILL)
@@ -541,12 +554,21 @@ class VrrpPair(unittest.TestCase):
         while time.time() - t_k < 8 and not a.holds(self.vip):
             time.sleep(0.2)
         self.assertTrue(a.holds(self.vip), 'acme1 did not take the address of a dead keepalived')
+        stale = b.holds(self.vip)
         print('  keepalived killed on acme2: acme1 holds it after %.1fs; acme2 still has it: %s'
-              % (time.time() - t0, b.holds(self.vip)))
+              % (time.time() - t0, stale))
+        self.assertTrue(stale, 'acme2 dropped the address with no keepalived running')
+        restart = dropin_restart_sec(self.W)
+        time.sleep(max(0.0, restart - (time.time() - t_k)))
         b.start_keepalived()
         t_s = time.time()
-        while time.time() - t_s < 10 and b.holds(self.vip) and a.holds(self.vip):
+        while time.time() - t_s < 10 and b.holds(self.vip):
             time.sleep(0.2)
+        self.assertFalse(b.holds(self.vip), 'keepalived started again kept the stale address')
+        self.assertEqual(self.holders(), ['acme1'])
+        print('  keepalived started again on acme2 (%gs after, RestartSec): stale address gone '
+              'after %.1fs' % (restart, time.time() - t_s))
+        time.sleep(0.6)             # a sample taken while it was still there: let it finish
         self.allow_stale.discard('acme2')
         self.wait_holder('acme2', 25)
 
@@ -658,6 +680,64 @@ class CheckScript(unittest.TestCase):
             self.assertRegex(f.read(), r'^MASTER \d+\n\Z')
 
 
+class KeepalivedDropIn(unittest.TestCase):
+    """vip_part() writes systemd's drop-in for keepalived when the address is on
+    (Restart=on-failure: a keepalived killed is started again and drops the address it
+    left behind - seen above) and takes it away when it goes off, only if it is acme's.
+    No systemd under the namespaces: the file itself (ACME_VIP_NO_SERVICES). Runs anywhere."""
+
+    def setUp(self):
+        self.W = load_helper()
+        top = tempfile.mkdtemp(prefix='acme-vrrp-dropin-')
+        self.addCleanup(shutil.rmtree, top, True)
+        self.W.KA_CONF = os.path.join(top, 'keepalived', 'keepalived.conf')
+        self.W.KA_DROPIN = os.path.join(top, 'system', 'keepalived.service.d', 'acme.conf')
+        self.W.progress = lambda *a, **k: None
+        self.W.keepalived_installed = lambda: 'there'
+
+    def vip(self, on=True):
+        return {'node': 'acme1', 'vip': {
+            'on': on, 'address': '192.0.2.250/24', 'own': '192.0.2.11', 'peer': '192.0.2.12',
+            'iface': 'lo', 'vrid': VRID, 'auth': AUTH, 'family': 4}}
+
+    def test_written_and_taken_away(self):
+        W = self.W
+        said, _ = W.vip_part(self.vip(), {})
+        with open(W.KA_DROPIN) as f:
+            text = f.read()
+        self.assertTrue(text.startswith(W.MARK + '\n'))
+        self.assertEqual([x for x in text.splitlines() if x and not x.startswith('#')],
+                         ['[Service]', 'Restart=on-failure', 'RestartSec=2'])
+        self.assertEqual(oct(os.stat(W.KA_DROPIN).st_mode & 0o777), '0o644')
+        self.assertTrue(any('started again by systemd' in x for x in said), said)
+        # The same again: not written again, not said.
+        said, _ = W.vip_part(self.vip(), {})
+        self.assertFalse(any('started again by systemd' in x for x in said), said)
+        W.vip_part(self.vip(False), {'peer': '192.0.2.12', 'family': 4})
+        self.assertFalse(os.path.exists(W.KA_DROPIN))
+        self.assertFalse(os.path.exists(os.path.dirname(W.KA_DROPIN)))   # left empty: gone
+        self.assertFalse(os.path.exists(W.KA_CONF))
+
+    def test_someone_elses_kept(self):
+        W = self.W
+        os.makedirs(os.path.dirname(W.KA_DROPIN))
+        with open(W.KA_DROPIN, 'w') as f:
+            f.write('[Service]\nRestart=always\n')
+        said, _ = W.vip_part(self.vip(), {})
+        self.assertTrue(any('is not acme' in x for x in said), said)
+        W.vip_part(self.vip(False), {})
+        with open(W.KA_DROPIN) as f:
+            self.assertEqual(f.read(), '[Service]\nRestart=always\n')
+
+    def test_put_back_with_the_conf(self):
+        W = self.W
+        snap = W.snapshot([W.KA_CONF, W.KA_DROPIN])
+        W.vip_part(self.vip(), {})
+        W.put_back(snap)
+        self.assertFalse(os.path.exists(W.KA_DROPIN))
+        self.assertFalse(os.path.exists(W.KA_CONF))
+
+
 class KeepalivedStoppedAlert(unittest.TestCase):
     """keepalived stopped calls notify a last time with STOP (seen above, keepalived 2.2.8):
     vip-role then says STOP, and the alert "keepalived is not running" has to come for it as
@@ -685,6 +765,58 @@ class KeepalivedStoppedAlert(unittest.TestCase):
             st.set_meta('node:' + name, json.dumps({'at': time.time(), 'web': web,
                                                     'version': E.__version__}))
         return E.alert_problems(st)
+
+    def proc(self, comms, hide=False):
+        """A folder made to look like /proc: pid -> comm."""
+        d = tempfile.mkdtemp(prefix='acme-vrrp-proc-')
+        self.addCleanup(shutil.rmtree, d, True)
+        for pid, comm in comms.items():
+            os.makedirs(os.path.join(d, str(pid)))
+            with open(os.path.join(d, str(pid), 'comm'), 'w') as f:
+                f.write(comm + '\n')
+        if not hide:
+            os.makedirs(os.path.join(d, '1'), exist_ok=True)
+            if 1 not in comms:
+                with open(os.path.join(d, '1', 'comm'), 'w') as f:
+                    f.write('systemd\n')
+        os.makedirs(os.path.join(d, 'self'))             # not a pid: skipped
+        old = self.E.PROC_DIR
+        self.E.PROC_DIR = d
+        self.addCleanup(setattr, self.E, 'PROC_DIR', old)
+
+    def test_keepalived_alive_from_proc(self):
+        E = self.E
+        self.proc({55: 'keepalived', 56: 'keepalived', 77: 'nginx'})
+        self.assertIs(E.keepalived_alive(), True)
+        self.proc({77: 'nginx', 78: 'keepalived-x'})
+        self.assertIs(E.keepalived_alive(), False)
+        self.proc({500: 'python3'}, hide=True)           # hidepid: other users' unseen
+        self.assertIsNone(E.keepalived_alive())
+
+    def test_killed_is_not_running(self):
+        """keepalived killed says no STOP: vip-role keeps MASTER/BACKUP. The node's health
+        row (written once a minute, health_publish) says no keepalived process is alive."""
+        E, st = self.E, self.store
+        import types
+        daemon = types.SimpleNamespace(store=st, dirs={})
+        self.proc({55: 'keepalived', 77: 'nginx'})
+        st.set_meta('web:vip', json.dumps({'on': True, 'address': '192.0.2.250/24'}))
+        self.assertIs(E.health_publish(daemon).get('keepalived'), True)
+        self.assertNotIn('vip:ka:acme1', self.alerts('BACKUP'))
+        self.proc({77: 'nginx'})
+        self.assertIs(E.health_publish(daemon).get('keepalived'), False)
+        got = self.alerts('BACKUP')
+        self.assertIn('vip:ka:acme1', got)
+        self.assertIn('killed', got['vip:ka:acme1']['said'])
+        # Stale (the node's row 10 minutes old): not this node's word now.
+        row = json.loads(st.get_meta('host:health:acme1'))
+        row['at'] = time.time() - 600
+        st.set_meta('host:health:acme1', json.dumps(row))
+        self.assertNotIn('vip:ka:acme1', self.alerts('BACKUP'))
+        # The VIP address off: not looked at.
+        st.set_meta('web:vip', json.dumps({'on': False}))
+        self.assertNotIn('keepalived', E.health_publish(daemon))
+        st.set_meta('host:health:acme1', json.dumps({'at': time.time()}))
 
     def test_stop_is_not_running(self):
         self.assertIn('vip:ka:acme2', self.alerts('STOP'))

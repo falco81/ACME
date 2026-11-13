@@ -10235,8 +10235,9 @@ function drawVip(d) {
     if (v.on && v.mode !== 'stays' && (v.prefer_now === n.name)) nm.appendChild(el('span', 'tag dim', 'preferred'));
     tr.appendChild(nm);
     var role = el('td');
-    var r = w.vip_here ? 'holds it' : ({MASTER: 'holds it', BACKUP: 'standby', FAULT: 'not well'}[w.role] || (v.on ? '–' : 'off'));
-    role.appendChild(el('span', 'tag ' + (w.vip_here ? 'ok' : (w.role === 'FAULT' ? 'crit' : 'dim')), r));
+    /* STOP: keepalived's last notify when it was stopped (or refused its file). */
+    var r = w.vip_here ? 'holds it' : ({MASTER: 'holds it', BACKUP: 'standby', FAULT: 'not well', STOP: 'keepalived stopped'}[w.role] || (v.on ? '–' : 'off'));
+    role.appendChild(el('span', 'tag ' + (w.vip_here ? 'ok' : (w.role === 'FAULT' ? 'crit' : (w.role === 'STOP' && v.on ? 'warn' : 'dim'))), r));
     tr.appendChild(role);
     var h = el('td', 'small');
     if (!v.on) h.appendChild(el('span', 'muted', '–'));
