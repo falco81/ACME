@@ -36,7 +36,11 @@ back (after preempt_delay) when it ends; the preference moved; acme's own
 process gone (its lock's pid) moves it; keepalived stopped (SIGTERM) and
 killed (SIGKILL) on the holder moves it; the notify call writes vip-role;
 the IPv6 address beside the IPv4 one (virtual_ipaddress_excluded) moves with
-it; an IPv6-only pair (VRRPv3, no authentication) does the same.
+it; an IPv6-only pair (VRRPv3, no authentication) does the same - both IPv6 parts left
+out on a kernel without IPv6. acme-vip-check's exit codes against what vip_watch() writes;
+the alert for a keepalived stopped (its last notify says STOP).
+
+    ACME_VRRP_KEEP=1   the nodes' folders (keepalived's and acme's logs) kept, path printed
 """
 import importlib.util
 import itertools
