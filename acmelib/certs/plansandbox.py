@@ -708,7 +708,10 @@ class Answers(object):
             elif isinstance(body, str) and ('{SENT:' in body or '{CSR}' in body):
                 # a text body: JSON written as text gets the values escaped as JSON strings,
                 # anything else (XML, a PEM, plain text) as they are
-                js = body.lstrip()[:1] in ('{', '[')
+                # (told by the body with its placeholders taken out: one that starts with
+                # {CSR} or {SENT:x} is not JSON)
+                js = re.sub(r'\{[A-Z]+(?::[A-Za-z0-9_.-]+)?\}', '',
+                            body).lstrip()[:1] in ('{', '[')
                 body = re.sub(r'\{SENT:([A-Za-z0-9_.-]+)\}', self._sent if js else (
                     lambda m: self.sent.get(m.group(1), '')), body)
                 body = body.replace('{CSR}', json.dumps(self.csr or '')[1:-1] if js

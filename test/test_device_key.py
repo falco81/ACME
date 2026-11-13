@@ -464,6 +464,8 @@ class WhatHappens(unittest.TestCase):
         deps = STORE.db.rows('SELECT * FROM cert_deploys WHERE cert_id = ?', (cid,))
         got = runplan.plan(STORE, row, deps, full=True)
         self.assertFalse(got['recording'], got['recording'])
+        # the page's lede and header say the device makes the key (round 1e)
+        self.assertEqual(got['cert']['csr_from'], 'xccplan')
         key = [p for p in got['phases'] if p['key'] == 'key'][0]
         text = json.dumps(key)
         self.assertIn('made by the device of xccplan', text)
