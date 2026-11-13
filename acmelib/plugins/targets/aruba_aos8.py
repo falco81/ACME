@@ -252,6 +252,7 @@ class _Aos8(Base):
 # Mobility Conductor / Mobility Controller
 # ---------------------------------------------------------------------------
 class ArubaAos8Target(_Aos8):
+    discovery = False           # nothing to find: a device over SSH
     kind = 'aruba_aos8'
     title = 'HPE Aruba Networking ArubaOS 8 (Mobility Conductor, controllers)'
     module_version = ''
@@ -504,6 +505,7 @@ IAP_IMPORT = ('crypto pki-import format {format} cert-type ServerCert url {url} 
 
 
 class ArubaIapTarget(VersionCheck, _Aos8):
+    discovery = False           # nothing to find: a device over SSH
     kind = 'aruba_iap'
     title = 'HPE Aruba Networking Instant AP (AOS 8)'
     module_version = ''
