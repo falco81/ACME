@@ -370,6 +370,58 @@ ANSWERS['lenovo_lxca'] = [
     {'method': 'POST', 'url': r'/serverCertificate/tmp$', 'body': {
         'result': 'success', 'messages': [{'id': 'FQXHMSE0134I'}]}},
 ]
+# VCF component through SDDC Manager, key made by the device: the token, the domain named,
+# the tasks done, the CSR made ({CSR}), the validation succeeded
+ANSWERS['vcf_component'] = [
+    {'method': 'POST', 'url': r'/v1/tokens$', 'body': {
+        'accessToken': '{SESSION}', 'refreshToken': {'id': '‹refresh token›'}}},
+    {'method': 'GET', 'url': r'/v1/domains$', 'body': {'elements': [
+        {'id': '‹domain›', 'name': '{CFG:domain}'}]}},
+    {'method': 'PUT', 'url': r'/v1/domains/[^/]+/csrs$', 'status': 202, 'body': {
+        'id': '‹task›', 'status': 'IN_PROGRESS'}},
+    {'method': 'GET', 'url': r'/v1/domains/[^/]+/csrs$', 'body': {'elements': [
+        {'csrEncodedContent': '{CSR}'}]}},
+    {'method': 'PUT', 'url': r'/resource-certificates/validations$', 'status': 201, 'body': {
+        'validationId': '‹validation›'}},
+    {'method': 'GET', 'url': r'/resource-certificates/validations/', 'body': {
+        'executionStatus': 'COMPLETED', 'resultStatus': 'SUCCEEDED'}},
+    {'method': 'PUT', 'url': r'/v1/domains/[^/]+/resource-certificates$', 'status': 202,
+     'body': {'id': '‹task›', 'status': 'IN_PROGRESS'}},
+    {'method': 'GET', 'url': r'/v1/tasks/', 'body': {'status': 'SUCCESSFUL'}},
+    {'method': 'GET', 'url': r'/v1/sddc-managers$', 'body': {'elements': [
+        {'version': '5.2.1.0'}]}},
+]
+# its version 9.1 - VCF Operations: the token, the version 9.1, the component's certificate
+# (the FQDN asked), the workflows completed, the CSR made ({CSR})
+ANSWERS['vcf_component@9.1'] = [
+    {'method': 'POST', 'url': r'/auth/token/acquire$', 'body': {'token': '{SESSION}'}},
+    {'method': 'GET', 'url': r'/suite-api/api/versions/current$', 'body': {
+        'releaseName': 'VCF Operations 9.1', 'major': 9, 'minor': 1}},
+    {'method': 'POST', 'url': r'/certificates/query', 'body': {'vcfCertificateModels': [
+        {'certificateResourceKey': '‹certificate›',
+         'applianceFqdn': '{SENT:applianceFqdn}', 'category': 'TLS_CERT'}]}},
+    {'method': 'POST', 'url': r'/certificate-management/csrs$', 'body': {
+        'requestId': '‹request›', 'state': 'INPROGRESS'}},
+    {'method': 'GET', 'url': r'/certificate-management/csrs\?', 'body': {
+        'certificateSignatureInfo': [{'csr': '{CSR}'}]}},
+    {'method': 'PUT', 'url': r'/certificate-management/certificates/', 'status': 202,
+     'body': {'requestId': '‹request›'}},
+    {'method': 'GET', 'url': r'/workflows/requests/', 'body': {'state': 'COMPLETED'}},
+]
+# CUCM's CLI (one session a step, the lines on its input): the version, an empty trust
+# store, the imports and restarts as Cisco's TechNote 200753 shows them; set csr gen /
+# show csr own print the sandbox's CSR (what an unanswered command prints)
+SSH_ANSWERS['cucm'] = [
+    {'command': r'^$', 'input': r'^show version active', 'stdout':
+        'Active Master Version: 15.0.1.13900-234\n'},
+    {'command': r'^$', 'input': r'^show cert list (trust|own)\nexit', 'stdout': ''},
+    {'command': r'^$', 'input': r'^set cert import trust', 'stdout':
+        'Paste the Certificate and Hit Enter\nImport of trust certificate is successful\n'},
+    {'command': r'^$', 'input': r'^set cert import own', 'stdout':
+        'Paste the Certificate and Hit Enter\nSuccessfully imported certificate for tomcat.\n'},
+    {'command': r'^$', 'input': r'^utils service restart', 'stdout':
+        'Service Manager is running\nCommanded Restart\n'},
+]
 FIRST = {
     'netscaler': [
         {'method': 'GET', 'url': r'/nitro/v1/config/sslcertkey/', 'status': 404,
