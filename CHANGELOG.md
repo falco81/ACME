@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.99 - not released
+
+(nothing yet)
+
 ## 1.0.98 - 2026-11-13
 
 - **What happens shows everything, for every module** - checked module by module (every target,
