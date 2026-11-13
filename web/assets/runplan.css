@@ -385,3 +385,9 @@
   .rp-page table.rp-files td:nth-child(4){display:none}
 }
 .rp-said-cmd{font-size:12.5px;overflow-wrap:anywhere;word-break:break-word}
+/* a module in a narrow card of the head (Czech "Návod k nastavení" at 1400 px): its name and
+   its guide button wrap inside the card instead of running past its edge */
+.rp-mod{max-width:100%}
+.rp-mod .rp-guide{white-space:normal;max-width:100%;text-align:left;align-items:flex-start}
+.rp-mod .rp-guide .rp-ic{margin-top:2px}
+.rp-mod .rp-guide{border-radius:11px}

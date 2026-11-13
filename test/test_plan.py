@@ -2243,11 +2243,50 @@ class AcmeRecorded(unittest.TestCase):
                 o = [e for e in run['events'] if e['kind'] == 'http' and
                      e['url'].endswith('/new-order')][0]
                 self.assertEqual(o['body']['payload']['profile'], 'tls')
-            # no ARI at a CA without renewalInfo: the renewal orders without replaces
+            # ARI where acme says the CA has it (DigiCert here): the module's own decision
+            # from the directory - renewalInfo asked and replaces sent, else neither
             o2 = [e for e in run['later'] if e['kind'] == 'http' and
                   e['url'].endswith('/new-order')][0]
-            self.assertEqual('replaces' in o2['body']['payload'],
-                             cfg['directory'] in ('custom',), cfg)
+            ari = cfg['directory'] == 'digicert'
+            self.assertEqual('replaces' in o2['body']['payload'], ari, cfg)
+            self.assertEqual(bool([e for e in run['later'] if e['kind'] == 'http' and
+                                   'renewal-info' in e['url']]), ari, cfg)
+            self.assertEqual(bool([e for e in run['later'] if e.get('what') == 'no-ari']),
+                             not ari, cfg)
+
+    def test_presets_as_acme_says(self):
+        """The stand-in directories offer what acme itself says of each CA: EAB where the
+        source's option says "(EAB", ARI at Let's Encrypt and DigiCert, Let's Encrypt's
+        profiles as the "ACME profile" help names them."""
+        from acmelib.certs import plansources as PS
+        from acmelib.plugins.issuers import _acme_client as ac
+        eab = PS.acme_eab_presets()
+        self.assertIn('digicert', eab)
+        self.assertNotIn('letsencrypt', eab)
+        self.assertNotIn('buypass', eab)
+        for d, url in ac.DIRECTORIES.items():
+            rules = PS.acme_directory_flow(url, d, ['www.example.com'])
+            dr = rules[0]['body']
+            self.assertEqual(bool(dr['meta'].get('externalAccountRequired')), d in eab, d)
+            self.assertEqual('renewalInfo' in dr, d in PS.ACME_ARI, d)
+            self.assertEqual(sorted(dr['meta'].get('profiles') or []), sorted(
+                ['classic', 'tlsserver', 'shortlived'] if d.startswith('letsencrypt') else []),
+                d)
+
+    def test_chain_taken_said(self):
+        """Where a chain is preferred, a step says which the module took and where it ends."""
+        from acmelib.certs import runplan as R
+        run, _u, _t = self.record({'directory': 'letsencrypt',
+                                   'preferred_chain': 'ISRG Root X2'})
+        steps = R.steps_of(run['events'], None, later=run['later'])
+        got = [s['words'] for s in steps if s['words'].startswith('The chain taken')]
+        self.assertEqual(got, ['The chain taken: the preferred chain ISRG Root X2 (it ends at '
+                               'ISRG Root X2)'])
+        st = R.steps_of([{'kind': 'chain', 'preferred': 'X', 'top': 'Y', 'where': 'default'}])
+        self.assertEqual(st[0]['words'], 'The chain taken: the default chain - X not offered '
+                                         '(it ends at Y)')
+        run, _u, _t = self.record({'directory': 'letsencrypt'})
+        self.assertFalse([e for e in run['events'] if e['kind'] == 'chain'])
 
     def test_not_recorded_falls_back(self):
         """A recording that failed: the description, said so - never a broken phase."""

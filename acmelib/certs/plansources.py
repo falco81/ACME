@@ -133,13 +133,34 @@ def acme_flow(base):
 
 
 # The plain ACME source (issuers/acme.py, 1.0.98): the CA at the directory URL it is set to.
-# Which of the presets ask for an EAB, have ARI (renewalInfo) and order profiles - a custom
-# server is taken as offering what the source asks of it (a profile set, ARI).
-ACME_EAB = ('zerossl', 'google', 'google-staging', 'sslcom-rsa', 'sslcom-ecc', 'digicert',
-            'actalis', 'certum', 'sectigo-dv', 'sectigo-ov')
-ACME_ARI = ('letsencrypt', 'letsencrypt-staging', 'google', 'google-staging', 'custom')
-ACME_PROFILES = {'letsencrypt': ['classic', 'tlsserver', 'shortlived'],
-                 'letsencrypt-staging': ['classic', 'tlsserver', 'shortlived']}
+# What each preset's stand-in directory offers is what acme itself says of that CA - the
+# module asks the directory at run time (renewalInfo: ARI and `replaces`; meta.profiles; meta
+# .externalAccountRequired) and its own decision drives the recording:
+# - EAB: the presets whose "CA" option says "(EAB)" (issuers/acme.py; docs/acme-issuers.md)
+# - ARI: Let's Encrypt (docs/acme.md: "where the CA tells (ARI, RFC 9773 - Let's Encrypt
+#   does)") and DigiCert (docs/sslmarket.md: SSLmarket ACME at DigiCert "(ARI)"); acme says
+#   nothing of the others - their directories offer no renewalInfo here
+# - profiles: Let's Encrypt's, as the "ACME profile" field's help names them; a server of
+#   your own ("custom") is taken as offering the profile set for it, and nothing more
+ACME_ARI = ('letsencrypt', 'letsencrypt-staging', 'digicert')
+
+
+def acme_eab_presets():
+    """The presets acme's ACME source marks "(EAB)" or "(EAB - ...)"."""
+    from acmelib.plugins.issuers.acme import AcmeIssuer
+    f = [x for x in AcmeIssuer.fields if x.get('key') == 'directory'][0]
+    return tuple(str(k) for k, words in f.get('options') or [] if '(EAB' in str(words))
+
+
+def acme_profiles_of(preset):
+    """The profiles acme's ACME source names for a preset (the "ACME profile" help)."""
+    import re as _re
+    from acmelib.plugins.issuers.acme import AcmeIssuer
+    if preset not in ('letsencrypt', 'letsencrypt-staging'):
+        return []
+    f = [x for x in AcmeIssuer.fields if x.get('key') == 'profile'][0]
+    m = _re.search(r"Let's Encrypt: ([a-z]+(?:, [a-z]+)*)", str(f.get('help') or ''))
+    return m.group(1).split(', ') if m else []
 
 
 def acme_directory_flow(dir_url, preset, names, profile=None, eab=None):
@@ -193,9 +214,9 @@ def acme_directory_flow(dir_url, preset, names, profile=None, eab=None):
     root = '/'.join(u.split('/')[:3])
     meta = {'termsOfService': 'https://letsencrypt.org/documents/LE-SA-v1.5-February-24-2025.pdf'
             if le else root + '/terms', 'website': 'https://letsencrypt.org' if le else root}
-    if preset in ACME_EAB:
+    if preset in acme_eab_presets():
         meta['externalAccountRequired'] = True
-    profs = list(ACME_PROFILES.get(preset) or ([profile] if profile and preset == 'custom'
+    profs = list(acme_profiles_of(preset) or ([profile] if profile and preset == 'custom'
                                                else []))
     if profs:
         meta['profiles'] = {p: 'the CA\'s %s profile' % p for p in profs}

@@ -3601,6 +3601,20 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                             'renewed (ARI)'})
             elif sub == 'issue':
                 out.append({'kind': 'head', 'words': 'The order'})
+            elif sub == 'no-ari':
+                out.append({'kind': 'info', 'words': 'The CA\'s directory offers no renewalInfo '
+                            '(ARI): it is renewed by acme\'s own renewal days, the order says '
+                            'nothing of the certificate before'})
+            i += 1
+            continue
+        if k == 'chain':
+            # the chain an ACME source took where "Preferred chain" is set (1.0.98)
+            pref, top = str(ev.get('preferred') or ''), str(ev.get('top') or '?')
+            if str(ev.get('where') or 'default') != 'default':
+                words = 'The chain taken: the preferred chain {0} (it ends at {1})'
+            else:
+                words = 'The chain taken: the default chain - {0} not offered (it ends at {1})'
+            out.append({'kind': 'info', 'words': words.replace('{0}', pref).replace('{1}', top)})
             i += 1
             continue
         if k == 'http':

@@ -61331,6 +61331,10 @@
   "_115": {
    "source": "‹the certificate, DER, base64url›",
    "text": "‹certifikát, DER, base64url›"
+  },
+  "_116": {
+   "source": "The CA's directory offers no renewalInfo (ARI): it is renewed by acme's own renewal days, the order says nothing of the certificate before",
+   "text": "Adresář CA nenabízí renewalInfo (ARI): obnovuje se podle vlastních dnů obnovy acme, objednávka o předchozím certifikátu nic neříká"
   }
  },
  "patterns": {
@@ -85333,6 +85337,14 @@
   "p_155": {
    "source": "‹the certificate request (CSR), DER, base64url, {0}›",
    "text": "‹žádost o certifikát (CSR), DER, base64url, {0}›"
+  },
+  "p_156": {
+   "source": "The chain taken: the preferred chain {0} (it ends at {1})",
+   "text": "Vybraný řetězec: upřednostněný řetězec {0} (končí u {1})"
+  },
+  "p_157": {
+   "source": "The chain taken: the default chain - {0} not offered (it ends at {1})",
+   "text": "Vybraný řetězec: výchozí řetězec - {0} se nenabízí (končí u {1})"
   }
  },
  "rich": {

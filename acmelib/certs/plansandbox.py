@@ -2178,10 +2178,25 @@ def run_one(job, r, bundle_holder):
                 # a renewal: when to renew asked of the CA first (ARI, RFC 9773 - the
                 # renewer, every 6 hours), then the order that says it replaces it
                 rec({'kind': 'phase', 'what': 'ari'})
-                inst.renewal_window(previous)
+                win = inst.renewal_window(previous)
+                if not win:
+                    # the module's own decision: the directory has no renewalInfo
+                    rec({'kind': 'phase', 'what': 'no-ari'})
                 rec({'kind': 'phase', 'what': 'issue'})
             got = inst.issue(req)
             said = 'issued' if got else None
+            if acme is not None and acme.get('preferred') and got is not None:
+                # the chain the module took (Issued.info 'chain': 'default' or the alternate's
+                # link) and the CA its top comes from (1.0.98)
+                top = ''
+                try:
+                    from acmelib.plugins.issuers import _scep_pkcs7 as _der
+                    pems = list(got.chain_pems or []) or [got.cert_pem]
+                    top = _der.Cert(pems[-1]).issuer_cn or ''
+                except Exception:                       # noqa: BLE001
+                    pass
+                rec({'kind': 'chain', 'preferred': str(acme['preferred']), 'top': top,
+                     'where': str((got.info or {}).get('chain') or 'default')})
     except Alarm:
         err = 'it took too long (it was stopped after %s s)' % (r.get('seconds') or 8)
     except Exception as e:                              # noqa: BLE001
