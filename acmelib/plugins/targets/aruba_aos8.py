@@ -608,6 +608,12 @@ class ArubaIapTarget(VersionCheck, _Aos8):
             self._ver = ver
             self.check_iap(ver)
             way = self.way_for(ver)
+            # the way taken, said (1.0.98): the decision What happens shows
+            if ver is not None:
+                self.ctx.step('Instant %s: %s' % (
+                    words(ver, 4), 'the certificate imported, then assigned '
+                    '(wlan cert-assignment-profile, Instant 8.7 and later)' if way == '8.7'
+                    else 'loaded with copy tftp (Instant 8.3 - 8.6)'))
             with self.staged() as st:
                 if way == '8.7':
                     did = self.deploy_87(s, st, bundle, name, pw, web, cp)

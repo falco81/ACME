@@ -79,6 +79,59 @@ def gs_soap(op, inner, query=True):
             '</ns2:%sResponse></soap:Body></soap:Envelope>' % (op, head, head, inner, op))
 
 
+def acme_flow(base):
+    """An ACME server (RFC 8555) at `base` answering an order on a running account: its
+    directory, nonces, the account (EAB), the order, a pending authorization with dns-01 and
+    http-01, the challenge, the authorization valid, the order ready, finalized, valid, the
+    certificate chain."""
+    n = {'Replay-Nonce': 'PLANnonce0aB3dE5fG7hJ9kL1mN3pQ5r'}
+    o = {'status': 'pending', 'expires': '2026-11-20T00:00:00Z', 'identifiers': [
+        {'type': 'dns', 'value': '{NAME}'}], 'authorizations': [base + '/authz/1'],
+        'finalize': base + '/order/1/finalize'}
+    return [
+        {'method': 'GET', 'url': r'/directory/?$', 'headers': n, 'body': {
+            'newNonce': base + '/new-nonce', 'newAccount': base + '/new-account',
+            'newOrder': base + '/new-order', 'revokeCert': base + '/revoke-cert',
+            'keyChange': base + '/key-change', 'renewalInfo': base + '/renewal-info',
+            'meta': {'termsOfService': base + '/terms', 'externalAccountRequired': True}}},
+        {'method': 'HEAD', 'url': r'/new-nonce$', 'headers': n, 'body': ''},
+        {'method': 'GET', 'url': r'/new-nonce$', 'status': 204, 'headers': n, 'body': ''},
+        {'method': 'POST', 'url': r'/new-account$', 'status': 201, 'headers': dict(
+            n, Location=base + '/account/4711'), 'body': {'status': 'valid', 'contact': [],
+                                                         'orders': base + '/account/4711/orders'}},
+        {'method': 'POST', 'url': r'/new-order$', 'status': 201, 'headers': dict(
+            n, Location=base + '/order/1'), 'body': o},
+        {'method': 'POST', 'url': r'/authz/1$', 'times': 1, 'headers': n, 'body': {
+            'status': 'pending', 'identifier': {'type': 'dns', 'value': '{NAME}'},
+            'expires': '2026-11-20T00:00:00Z', 'challenges': [
+                {'type': 'dns-01', 'status': 'pending', 'url': base + '/chall/1/dns',
+                 'token': 'PLAN-TOKEN-from-the-CA-0000000000'},
+                {'type': 'http-01', 'status': 'pending', 'url': base + '/chall/1/http',
+                 'token': 'PLAN-TOKEN-from-the-CA-0000000000'}]}},
+        {'method': 'POST', 'url': r'/chall/1/', 'headers': dict(
+            n, Link='<%s/authz/1>;rel="up"' % base), 'body': {
+            'type': 'dns-01', 'status': 'processing', 'url': base + '/chall/1/dns',
+            'token': 'PLAN-TOKEN-from-the-CA-0000000000'}},
+        {'method': 'POST', 'url': r'/authz/1$', 'headers': n, 'body': {
+            'status': 'valid', 'identifier': {'type': 'dns', 'value': '{NAME}'},
+            'expires': '2026-12-13T00:00:00Z', 'challenges': [
+                {'type': 'dns-01', 'status': 'valid', 'url': base + '/chall/1/dns',
+                 'token': 'PLAN-TOKEN-from-the-CA-0000000000',
+                 'validated': '2026-11-13T12:00:05Z'}]}},
+        {'method': 'POST', 'url': r'/order/1/finalize$', 'headers': dict(
+            n, Location=base + '/order/1', **{'Retry-After': '2'}), 'body': dict(
+                o, status='processing')},
+        {'method': 'POST', 'url': r'/order/1$', 'times': 1, 'headers': n, 'body': dict(
+            o, status='ready')},
+        {'method': 'POST', 'url': r'/order/1$', 'headers': n, 'body': dict(
+            o, status='valid', certificate=base + '/cert/1')},
+        {'method': 'POST', 'url': r'/cert/1$', 'headers': dict(
+            n, **{'Content-Type': 'application/pem-certificate-chain'}),
+         'body': '{CERT}{CHAIN}'},
+        {'method': 'GET', 'url': r'/renewal-info/', 'headers': n, 'body': {
+            'suggestedWindow': {'start': '2027-01-10T00:00:00Z', 'end': '2027-01-12T00:00:00Z'}}}]
+
+
 SOURCES = {
     # -- commercial CAs: an order bought before, reissued inside it at each renewal; the
     #    domain's validation run out, so the CA asks for its DCV record again (put in place by
@@ -300,6 +353,17 @@ SOURCES = {
             'Content-Type': 'text/plain'}, 'body': '{CERT}'},
         {'method': 'GET', 'url': r'/format/pem_intermediate$', 'headers': {
             'Content-Type': 'text/plain'}, 'body': '{CHAIN}'}],
+    # SSLmarket ACME: its ACME key made through SSLmarket's API (directory URL and EAB), then
+    # ACME at DigiCert as on any ACME CA
+    'sslmarket_acme': [
+        {'method': 'GET', 'url': r'/api/acme/list', 'body': {'acme': []}},
+        {'method': 'POST', 'url': r'/api/acme$', 'body': {
+            'acme_id': 8642, 'status': 'active', 'name': '{CFG:acme_name}',
+            'product_code': '{CFG:acme_product}', 'certificate_validity_days': 199,
+            'acme_directory_url': 'https://acme.digicert.com/v2/acme/directory/',
+            'ext_act_kid': 'PLANkid0EabKeyIdFromSslmarket0000',
+            'ext_act_hmac': 'PLANhmac0EabHmacFromSslmarket000000000000000'}}] + acme_flow(
+        'https://acme.digicert.com/v2/acme'),
     'digicert': [
         {'method': 'GET', 'url': r'/order/certificate/\d+$', 'body': {
             'id': '{CFG:order_id}', 'status': 'issued', 'order_valid_till': '2028-01-01',
@@ -396,6 +460,16 @@ SOURCES = {
             'status': 'ISSUED', 'certificate': '{CERT}'}},
         {'method': 'GET', 'url': r'/trustchain$', 'body': ['{CHAIN}']}],
     'venafi_cloud': [
+        # a renewal: the certificate made before (its id kept by acme), the request that made
+        # it - its application and issuing template reused
+        {'method': 'GET', 'url': r'/certificates/[0-9a-f-]{36}$', 'body': {
+            'id': '6ba7b810-9dad-11d1-80b4-00c04fd430c8', 'certificateStatus': 'ACTIVE',
+            'certificateRequestId': '9b2e7c1a-5d3f-4e8b-a6c0-1f2d3e4a5b6c',
+            'subjectCN': ['{NAME}'], 'validityEnd': '2027-01-01T00:00:00.000+00:00'}},
+        {'method': 'GET', 'url': r'/certificaterequests/9b2e7c1a-5d3f-4e8b-a6c0-1f2d3e4a5b6c$',
+         'body': {'id': '9b2e7c1a-5d3f-4e8b-a6c0-1f2d3e4a5b6c', 'status': 'ISSUED',
+                  'applicationId': '\u2039application id\u203a',
+                  'certificateIssuingTemplateId': '\u2039template id\u203a'}},
         {'method': 'GET', 'url': r'/applications/name/', 'body': {
             'id': '‹application id›', 'name': '{CFG:application}',
             'certificateIssuingTemplateAliasIdMap': {'{CFG:template}': '‹template id›'}}},

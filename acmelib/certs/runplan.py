@@ -1219,6 +1219,29 @@ ANSWERS['cisco_nxos'] = [
             '    Issuer:   CN={CACN}\n    Expires:  \u2039its end\u203a\n'}}]},
     {'method': 'POST', 'url': r'/ins$', 'body': _NX_OK},
 ]
+# Instant AP (the virtual controller's CLI: lines on the input of a shell session): show version
+# an Instant 8.10 (8.6 for the version 8.3); the import, the assignment, copy tftp go through,
+# commit apply commits; show cert assignment names the certificate the import named; the staged
+# file removed from the staging server
+SSH_ANSWERS['aruba_iap'] = [
+    {'input': r'(?m)^show version$', 'stdout':
+        'Aruba Operating System Software.\nArubaOS (MODEL: 515), Version 8.10.0.6\n'
+        'Website: http://www.arubanetworks.com\nCopyright (c) 2002-2023, Hewlett Packard '
+        'Enterprise Development LP.\nAP uptime is 41 days 3 hours 12 minutes\n'},
+    {'input': r'(?m)^crypto pki-import ', 'stdout': ''},
+    {'input': r'(?m)^copy tftp \S+ \S+ (uiserver|cpserver) cert ', 'stdout': ''},
+    {'input': r'(?m)^commit apply$', 'stdout': 'committing configuration...\n'
+                                             'configuration committed.\n'},
+    {'input': r'(?m)^show cert assignment$', 'stdout':
+        'Certificate Assignment Profile\n------------------------------\n'
+        'Application    Cert Type   Cert Name\n-----------    ---------   ---------\n'
+        'ui             ServerCert  {SEEN:certname (\\S+)}\n'},
+    {'command': r'^rm -f -- ', 'stdout': ''}]
+SSH_ANSWERS['aruba_iap@8.3'] = [
+    {'input': r'(?m)^show version$', 'stdout':
+        'Aruba Operating System Software.\nArubaOS (MODEL: 315), Version 8.6.0.18\n'
+        'Website: http://www.arubanetworks.com\nCopyright (c) 2002-2022, Hewlett Packard '
+        'Enterprise Development LP.\nAP uptime is 41 days 3 hours 12 minutes\n'}]
 # ---- end of targets a10 .. cisco_nxos ----
 # ---- targets cisco_wlc9800 .. hpe_oneview ----
 # CUCM: the CA certificates of the chain in <unit>-trust already at a renewal (the first time
@@ -3733,6 +3756,20 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                     st['detail']['input_body'] = inp['body']
                 if inp.get('sha256'):
                     st['detail']['input_sha256'] = inp['sha256']
+                # no command, the lines on the input of a shell session (1.0.98: a network
+                # device's CLI - ArubaOS, Instant, IOS XE, CUCM): those lines are what it runs,
+                # said in the words and as the command (the session's own noise left out)
+                if not cmd.strip() and inp.get('body') and not inp.get('secret'):
+                    said = [x.strip() for x in str(inp['body']).splitlines()
+                            if x.strip() and x.strip() not in ('exit', 'end', 'no paging',
+                                                               'enable', 'yes')
+                            and not x.strip().startswith('••••')]
+                    if said:
+                        st['words'] = 'In the CLI of {0}: {1}'.replace(
+                            '{0}', ev.get('host') or '').replace(
+                            '{1}', '; '.join(said)[:300])
+                        st['detail']['command'] = '# a shell session, these lines on its ' \
+                            'input:\n' + str(inp['body']).rstrip('\n')
             # what the stand-in device printed (debug details), a stand-in answer marked
             if isinstance(ev.get('answer'), dict):
                 st['detail']['answer'] = dict(ev['answer'])

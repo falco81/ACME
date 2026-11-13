@@ -814,6 +814,9 @@ def mask_json(v, marks, key=''):
     return v
 
 
+PUBLIC_VALUE = re.compile(r'^(acme-push-ed25519|ssh-ed25519|ssh-rsa|ssh-dss|ecdsa-sha2-[a-z0-9]+|'
+                          r'sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-[a-z0-9@.]+) [A-Za-z0-9+/=]+'
+                          r'( [^\n]*)?$|^-----BEGIN (PUBLIC KEY|RSA PUBLIC KEY|CERTIFICATE)-----')
 KEYISH_NAME = re.compile(r'(^|[_.-])key$|^key(file|_file|path|_path)?$|privkey|private_?key',
                          re.I)
 PATH_VALUE = re.compile(r'^(/|[A-Za-z]:[\\/]|~/|\./|\.\./)[^\s"\'<>|]{0,400}$|'
@@ -825,6 +828,10 @@ def key_reference(name, value):
     file name) - not key material: shown (1.0.98). Only a key's name, never a password's or a
     token's; a value with a PEM, a long base64 run or no path shape stays dots."""
     v = str(value or '')
+    # a public key is never a secret (acme push's acme_key: "acme-push-ed25519 BASE64 ...",
+    # an SSH public key, a PEM public key or certificate) - a private key always is
+    if PUBLIC_VALUE.match(v.strip()) and 'PRIVATE' not in v:
+        return True
     # a yes/no is never a secret, whatever its name (Synology's enable_syno_token: "yes")
     if v.strip().lower() in ('yes', 'no', 'true', 'false', 'on', 'off', 'none', 'null', '0',
                              '1', 'enabled', 'disabled'):
@@ -1798,7 +1805,11 @@ class PlanContext(object):
         return {'cn': '', 'not_after': None, 'fingerprint': '', 'verify': '', 'alt': bool(alt)}
 
     def push_identity(self):
-        return {'seed': b'\0' * 32, 'public': 'PLAN', 'id': 'acme-plan', 'text': 'acme-plan'}
+        # its public key as acme pastes it (a stand-in key: 32 zero bytes)
+        import base64
+        pub = b'\0' * 32
+        return {'seed': b'\0' * 32, 'public': pub, 'id': 'acme-plan',
+                'text': 'acme-push-ed25519 %s acme-push@acme-plan' % base64.b64encode(pub).decode()}
 
     def push_pin(self, url, pin=None):
         return dict(self._push_pin) if pin is None and self._push_pin else None

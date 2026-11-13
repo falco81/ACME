@@ -61223,6 +61223,18 @@
   "_88": {
    "source": "this one is added",
    "text": "tento se přidá"
+  },
+  "_89": {
+   "source": "the certificate imported, then assigned (wlan cert-assignment-profile, Instant 8.7 and later)",
+   "text": "certifikát se naimportuje a pak přiřadí (wlan cert-assignment-profile, Instant 8.7 a novější)"
+  },
+  "_90": {
+   "source": "loaded with copy tftp (Instant 8.3 - 8.6)",
+   "text": "nahraje se přes copy tftp (Instant 8.3 - 8.6)"
+  },
+  "_91": {
+   "source": "# a shell session, these lines on its input:",
+   "text": "# relace shellu, tyto řádky na jejím vstupu:"
   }
  },
  "patterns": {
@@ -85201,6 +85213,14 @@
   "p_149": {
    "source": "the intermediate acme-ca-{0} is not imported (there already?): {1}",
    "text": "mezilehlý certifikát acme-ca-{0} se neimportoval (už tam je?): {1}"
+  },
+  "p_150": {
+   "source": "In the CLI of {0}: {1}",
+   "text": "V CLI {0}: {1}"
+  },
+  "p_151": {
+   "source": "Instant {0}: {1}",
+   "text": "Instant {0}: {1}"
   }
  },
  "rich": {

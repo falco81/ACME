@@ -933,7 +933,23 @@ print(json.dumps([P.clean(e, {'STANDIN': 'the password'}) for e in ev]))
                  'isPrivate', 'authType', 'author', 'certificateAuthority', 'pinned',
                  'keyAlgorithm', 'token_type', 'password_expires', 'privateKeyFormat']
         secrets += ['auth', 'authorization', 'Authorization', 'auth_token', 'authkey']
-        alike += ['issuingCertificateAuthorityId', 'authority', 'certificateAuthorityName']
+        alike += ['issuingCertificateAuthorityId', 'authority', 'certificateAuthorityName',
+                  'key-name', 'key_name', 'session_cookie_name', 'cookieName']
+        # names of things and public keys shown; private keys and secret values never
+        got = P.mask_json({'key-name': 'acme-www.key', 'session_cookie_name': 'JSESSIONID',
+                           'error': {'code': 'InvalidParameter', 'message': 'm'},
+                           'acme_key': 'acme-push-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA acme@n1',
+                           'ssh_key': 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA u@h',
+                           'key': '-----BEGIN PUBLIC KEY-----\nMFkw\n-----END PUBLIC KEY-----',
+                           'private_key': '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----',
+                           'api_key': 'ssh-ed25519-not-really'}, {})
+        self.assertEqual((got['key-name'], got['session_cookie_name'], got['error']['code']),
+                         ('acme-www.key', 'JSESSIONID', 'InvalidParameter'))
+        self.assertTrue(got['acme_key'].startswith('acme-push-ed25519 '))
+        self.assertTrue(got['ssh_key'].startswith('ssh-ed25519 '))
+        self.assertIn('public key', got['key'])
+        self.assertNotIn('MIIE', got['private_key'])
+        self.assertEqual(got['api_key'], '••••')
         self.assertEqual([n for n in secrets if not P.secret_name(n)], [])
         self.assertEqual(P.mask_url('https://p/v1/x?issuingCertificateAuthorityId=ca1&auth=s', {}),
                          'https://p/v1/x?issuingCertificateAuthorityId=ca1&auth=••••')
@@ -1150,7 +1166,6 @@ class RenewalPathsG2(unittest.TestCase):
                       'SAY the friendly name vdm is on', 'SAY restarted VMware Horizon')
 
     def test_cucm_first_and_later(self):
-        ssh = {'host': 'cucm', 'user': 'admin', 'auth': 'password', 'password': 'p'}
         from acmelib.certs import runplan as R
         self.assertIn('cucm', R.SSH_LATER)
         # (a key made by the device: the bundle without a key - the sandbox's own has one, so
@@ -1472,7 +1487,7 @@ class SourcesAndValidations(unittest.TestCase):
             sys.path.insert(0, root)
 
     def run_one(self, family, kind, cfg, names=('www.example.com',), key_type='ec-256',
-                dcv=None, settings=None):
+                dcv=None, settings=None, previous=False, cert_id=None):
         from acmelib.certs import runplan as R
         from acmelib.certs import plansources as PS
         from acmelib.plugins import base
@@ -1487,7 +1502,7 @@ class SourcesAndValidations(unittest.TestCase):
              'op': 'issue' if family == 'issuer' else 'challenge', 'config': scfg,
              'marks': marks, 'answers': R.answers_of(kind, scfg, first=False, family=family),
              'ssh_answers': R.ssh_answers_of(kind, scfg, family=family), 'names': list(names),
-             'pinned': PS.PINNED.get(kind, [])}
+             'pinned': PS.PINNED.get(kind, []), 'previous': previous}
         if dcv:
             ck, ccfg = dcv
             ccls = base.REGISTRY.get('challenge', ck)
@@ -1499,7 +1514,8 @@ class SourcesAndValidations(unittest.TestCase):
                                    'ssh_answers': R.ssh_answers_of(ck, c2, family='challenge')}
                                for n in names}
         got, err = R.record({'runs': [r], 'settings': settings or {},
-                             'cert': {'names': list(names), 'key_type': key_type}}, timeout=120)
+                             'cert': {'names': list(names), 'key_type': key_type,
+                                      'id': cert_id}}, timeout=120)
         self.assertEqual(err, '')
         run = got['r1']
         self.assertFalse(run.get('error'), '%s: %s' % (kind, run.get('error')))
@@ -1652,6 +1668,78 @@ class SourcesAndValidations(unittest.TestCase):
             at = hit[0] + 1
         self.assertNotIn('Dc-Key-Very-Secret', json.dumps(evs))
         self.assertNotIn('CfTok3nVerySecret', json.dumps(evs))
+
+    CF = ('cloudflare', {'token': 'CfTok3nVerySecret'})
+
+    def test_commercial_sources_reissue_with_dcv(self):
+        """Each commercial source on its renewal path: the order bought before reissued
+        (rekeyed, renewed), its DCV put in by the certificate's validation where the CA asks
+        for one, the order read until issued, the certificate for the request's key."""
+        cases = [
+            ('gogetssl', {'user': 'u', 'api_password': 'Gg-Pass-1', 'order_id': '1234567',
+                          'dcv': 'dns'}, self.CF, 'reissue inside order 1234567'),
+            ('ssls', {'token': 'Ssls-Token-1', 'cert_reuse': '1234567890', 'dcv': 'dns',
+                      'product': 'RapidSSL',
+                      'policy': 'reissue'}, self.CF, 'the certificate 1234567890 is reissued'),
+            ('namecheap_ssl', {'api_user': 'u', 'api_key': 'Nc-Key-1', 'client_ip':
+                               '203.0.113.10', 'cert_id': '1234567', 'admin_email':
+                               'it@example.com', 'dcv': 'cname'}, self.CF,
+             'reissue of certificate 1234567'),
+            ('certum', {'user': 'partner', 'password': 'Certum-Pw-1', 'order_id': '4711815',
+                        'dcv': 'DNS_TXT_PREFIX'}, self.CF, 'reissue inside order 4711815'),
+            ('globalsign_mssl', {'user': 'u', 'password': 'Gs-Pw-1', 'order_id':
+                                 'CE20260101000001', 'profile_id': 'MSSL1234', 'dcv': 'profile'},
+             self.CF, 'reissue of order CE20260101000001'),
+            ('sslmarket', {'token': 'Sm-Token-1', 'order_id': '123456', 'product': 'RapidSSL',
+                           'dcv': 'DNS', 'policy': 'reissue'}, self.CF,
+             'reissue of order 123456 asked for'),
+            ('sslcom', {'account_key': 'ak', 'secret_key': 'Sc-Secret-1', 'order_ref':
+                        'co-ac1ecm200', 'dcv': 'http'},
+             ('http_ssh', {'hosts': ['web1.example.com'], 'user': 'acme', 'key': 'k'}),
+             'rekeyed with acme\'s request'),
+            ('sectigo_scm', {'client_id': 'c', 'client_secret': 'Sec-Secret-1',
+                             'ssl_id': '112233', 'org_id': '1234', 'customer_uri': 'example',
+                             'dcv': 'cname'}, self.CF, 'SCM renews certificate 112233'),
+            ('sslstore', {'partner_code': '12345678', 'auth_token': 'Ss-Token-1',
+                          'order_id': 'TSSL-9876543', 'dcv': 'cname'}, self.CF,
+             'reissue inside order TSSL-9876543')]
+        for kind, cfg, dcv, said in cases:
+            evs, _s = self.run_one('issuer', kind, cfg, dcv=dcv)
+            words = [e['words'] for e in evs if e['kind'] == 'say']
+            self.assertTrue([w for w in words if said in w], (kind, words))
+            self.assertTrue([w for w in words if w.startswith('the certificate came')],
+                            (kind, words))
+            for v in cfg.values():
+                if 'Secret' in v or 'Pw' in v or 'Token' in v or 'Key-' in v or 'Pass' in v:
+                    self.assertNotIn(v, json.dumps(evs), kind)
+
+    def test_acme_source_underneath(self):
+        """SSLmarket ACME: its ACME key made through SSLmarket's API, then the ACME order with
+        the certificate's own validation in the source's run."""
+        evs, _s = self.run_one('issuer', 'sslmarket_acme', {
+            'token': 'Sm-Token-1', 'acme_product': 'RapidSSLDV_ACME', 'acme_name': 'acme',
+            'contacts': 'it@example.com'}, dcv=self.CF)
+        urls = [e['url'].rsplit('/', 2)[-1] for e in evs if e['kind'] == 'http' and
+                'cloudflare' not in e['url']]
+        for want in ('acme', 'new-account', 'new-order', '1', 'dns', 'finalize'):
+            self.assertIn(want, urls)
+        self.assertTrue([e for e in evs if e['kind'] == 'say' and
+                         'is on every name server' in e['words']])
+
+    def test_venafi_renews_in_place(self):
+        """A renewal (the certificate before, what the first issue kept): Venafi renews the
+        certificate it made in place - the DN, the certificate id."""
+        evs, _s = self.run_one('issuer', 'venafi_tpp', {
+            'url': 'https://tpp.example.com', 'user': 'u', 'password': 'Tpp-Pw-1',
+            'zone': 'Certificates\\\\Web'}, previous=True, cert_id=42)
+        self.assertTrue([e for e in evs if e['kind'] == 'http' and
+                         e['url'].endswith('/vedsdk/certificates/renew')])
+        evs, _s = self.run_one('issuer', 'venafi_cloud', {
+            'api_key': 'Vc-Key-1', 'application': 'Storefront', 'template': 'Default'},
+            previous=True, cert_id=42)
+        self.assertTrue([e for e in evs if e['kind'] == 'say' and
+                         e['words'].startswith('the service took the renewal of ')])
+
 
 
 class RenewalPathsG1(unittest.TestCase):
@@ -1848,6 +1936,29 @@ class RenewalPathsG1(unittest.TestCase):
                       'take', 'SAY the pages of a2 have no certificate of their own yet',
                       'SAY the pages of the VIP address')
         self.assertEqual([e['where'] for e in evs if e['kind'] == 'pages'], ['a1', 'a2', 'vip'])
+
+    def test_instant_ap_cli_said(self):
+        """Instant AP (every version): the lines typed into its CLI are the step's words and
+        command - not an empty command; the way the version takes is said; every call answered,
+        the one-time password masked."""
+        from acmelib.certs import runplan as R
+        cfg = {'host': 'iap', 'user': 'admin', 'auth': 'password', 'password': 'p',
+               'stage_host': 'tftp', 'stage_addr': '192.0.2.10'}
+        for ver, way, line in (('', 'Instant 8.10.0.6: the certificate imported',
+                                'crypto pki-import format pfx'),
+                               ('8.7', 'Instant 8.10.0.6: the certificate imported',
+                                'pki-cert-assign application ui'),
+                               ('8.3', 'Instant 8.6.0.18: loaded with copy tftp',
+                                'copy tftp 192.0.2.10 acme-')):
+            evs = self.record('aruba_iap', cfg, {}, version=ver, events=True)
+            self.in_order(RenewalPaths.seen(evs), 'SAY ' + way, 'rm -f -- /srv/tftp/acme-')
+            words = [st['words'] for st in R.steps_of(evs)]
+            cli = [w for w in words if w.startswith('In the CLI of iap: ')]
+            self.assertIn('In the CLI of iap: show version', cli)
+            self.assertTrue([w for w in cli if line in w], cli)
+            self.assertFalse([w for w in words if w == 'Runs a command on iap'], words)
+            self.assertTrue(all('psk' not in w or '(a password made for this run)' in w
+                                for w in cli), cli)
 
     def test_what_acme_keeps(self):
         """The plan hands the sandbox what acme keeps of a target: the acme push pin (when one
