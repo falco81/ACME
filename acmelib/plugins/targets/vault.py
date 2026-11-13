@@ -132,6 +132,11 @@ class VaultTarget(HttpTarget):
                     bool(have.get('private_key')) == as_bool(
                         self.opt(options, 'include_key', True), True):
                 return self.same(bundle, 'at %s' % path)
+            self.ctx.step('%s holds %s - a new version is written' % (
+                path, 'another certificate (version %s)' % (
+                    ((d or {}).get('data') or {}).get('metadata') or {}).get('version', '?')
+                if have.get('fingerprint') else 'no certificate yet' if st == 404 or not have
+                else 'other fields'))
         data = {'certificate': bundle.cert_pem, 'chain': ''.join(bundle.chain_pems or []),
                 'fullchain': bundle.fullchain_pem, 'fingerprint': fp, 'serial': bundle.serial,
                 'names': ','.join(bundle.names or []), 'not_before': bundle.not_before,

@@ -392,6 +392,67 @@ class TestUpload(unittest.TestCase):
                 self.assertEqual([(c['kind'], c['version'], c['does']) for c in got['classes']],
                                  [(kind,) + want], (kind, args))
 
+    def test_every_start_on_the_disk_and_uploaded(self):
+        """Every module of every family, every version (1.0.98): its override start and a
+        version of your own made from it, put in a plugins folder on the disk (/etc/acme/plugins)
+        or uploaded - each replaces exactly its version or adds one, the shipped ones and the
+        defaults stay, nothing is broken or hidden."""
+        import re
+        import shutil
+        from acmelib.plugins import base as B
+        S.registry(True)
+        ship = {f: {k: dict(v) for k, v in kinds.items()} for f, kinds in S.registry().versions.items()}
+        for where in ('disk', 'uploaded'):
+            for layout in ('override', 'version'):
+                root = tempfile.mkdtemp(prefix='acme-mv-')
+                os.chmod(root, 0o755)
+                for d in B.FOLDERS.values():
+                    os.makedirs(os.path.join(root, d))
+                    os.chmod(os.path.join(root, d), 0o755)
+                own = {}
+                for fam, kinds in ship.items():
+                    for kind, vers in kinds.items():
+                        for v in ([''] if layout == 'override' else list(vers)):
+                            if v not in vers:
+                                continue
+                            if layout == 'override':
+                                fn, text = CM.copy_as(fam, kind, override=True)
+                            else:
+                                nv = 'own_' + (re.sub(r'[^A-Za-z0-9]', '_', v) or 'plain')
+                                own[(fam, kind, v)] = nv
+                                fn, text = CM.copy_as(fam, kind, from_version=v, version=nv, label='own')
+                            p = os.path.join(root, B.FOLDERS[fam], '%s__%s' % (fam[:3], fn))
+                            with open(p, 'w') as f:
+                                f.write(text)
+                            os.chmod(p, 0o644)
+                was = B.UPLOADED_DIR
+                try:
+                    if where == 'uploaded':
+                        B.UPLOADED_DIR = root
+                    r = B.Registry(extra_dirs=['/nonexistent-acme', root] if where == 'uploaded'
+                                   else [root]).reload()
+                finally:
+                    B.UPLOADED_DIR = was
+                    shutil.rmtree(root)
+                self.assertEqual(r.broken, [], (where, layout))
+                self.assertEqual(r.shadowed, [], (where, layout))
+                for fam, kinds in ship.items():
+                    for kind, vers in kinds.items():
+                        got = r.versions[fam][kind]
+                        for v, cls in vers.items():
+                            g = got[v]
+                            if layout == 'override' and v == '':
+                                self.assertEqual((g._origin, g._source, g._replaced.__name__),
+                                                 ('custom', where, cls.__name__), (fam, kind))
+                            else:
+                                self.assertEqual((g._origin, g.__module__, g.__name__),
+                                                 ('builtin', cls.__module__, cls.__name__),
+                                                 (where, layout, fam, kind, v))
+                            if layout == 'version':
+                                self.assertEqual(got[own[(fam, kind, v)]].__name__, cls.__name__)
+                        self.assertEqual(r.found[fam][kind].module_version,
+                                         S.registry().found[fam][kind].module_version, (fam, kind))
+
     def test_bad_uploads_said(self):
         bad = self.call('POST', '/api/modules/analyse', body={
             'family': 'target', 'filename': 'x.py', 'text': 'def (:'})

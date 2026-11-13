@@ -29,6 +29,28 @@ def xmlrpc_answer(value):
     return xmlrpc.client.dumps((value,), methodresponse=True)
 
 
+def php_soap(command, value):
+    """A PHP-SOAP answer to `command` holding value (a dict a map of key/value items, a list
+    an array of items) - Subreg's."""
+    from xml.sax.saxutils import escape
+
+    def put(v):
+        if isinstance(v, dict):
+            return ''.join('<item><key>%s</key><value>%s</value></item>' % (escape(str(k)), put(x))
+                           for k, x in v.items())
+        if isinstance(v, list):
+            return ''.join('<item>%s</item>' % put(x) for x in v)
+        return escape(str(v))
+    return ('<?xml version="1.0" encoding="UTF-8"?><SOAP-ENV:Envelope xmlns:SOAP-ENV='
+            '"http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns1="http://soap.subreg.cz/soap">'
+            '<SOAP-ENV:Body><ns1:%sResponse><response>%s</response></ns1:%sResponse>'
+            '</SOAP-ENV:Body></SOAP-ENV:Envelope>' % (command, put(value), command))
+
+
+R53 = ('<?xml version="1.0" encoding="UTF-8"?>\n<%s xmlns="https://route53.amazonaws.com/doc/'
+       '2013-04-01/">%s</%s>')
+
+
 SOURCES = {
 }
 
@@ -613,6 +635,95 @@ CHALLENGES = {
             {'name': '{FQDN}.', 'type': 'TXT', 'ttl': 60, 'rrdatas': ['"{TXT}"']}]}},
         {'method': 'POST', 'url': r'/changes$', 'body': {'kind': 'dns#change', 'id': '5',
                                                          'status': 'done'}}],
+    'route53': [
+        {'method': 'GET', 'url': r'/hostedzonesbyname\?dnsname={ZONE}&', 'body': R53 % (
+            'ListHostedZonesByNameResponse', '<HostedZones><HostedZone><Id>/hostedzone/'
+            'Z0123456789ABCDEFGHIJ</Id><Name>{ZONE}.</Name><CallerReference>acme</CallerReference>'
+            '<Config><PrivateZone>false</PrivateZone></Config><ResourceRecordSetCount>8'
+            '</ResourceRecordSetCount></HostedZone></HostedZones><IsTruncated>false</IsTruncated>'
+            '<MaxItems>10</MaxItems>', 'ListHostedZonesByNameResponse')},
+        {'method': 'GET', 'url': r'/hostedzonesbyname\?', 'body': R53 % (
+            'ListHostedZonesByNameResponse', '<HostedZones/><IsTruncated>false</IsTruncated>'
+            '<MaxItems>10</MaxItems>', 'ListHostedZonesByNameResponse')},
+        {'method': 'GET', 'url': r'/rrset\?name=', 'times': 1, 'body': R53 % (
+            'ListResourceRecordSetsResponse', '<ResourceRecordSets/><IsTruncated>false'
+            '</IsTruncated><MaxItems>1</MaxItems>', 'ListResourceRecordSetsResponse')},
+        {'method': 'GET', 'url': r'/rrset\?name=', 'body': R53 % (
+            'ListResourceRecordSetsResponse', '<ResourceRecordSets><ResourceRecordSet><Name>'
+            '{FQDN}.</Name><Type>TXT</Type><TTL>60</TTL><ResourceRecords><ResourceRecord><Value>'
+            '"{TXT}"</Value></ResourceRecord></ResourceRecords></ResourceRecordSet>'
+            '</ResourceRecordSets><IsTruncated>false</IsTruncated><MaxItems>1</MaxItems>',
+            'ListResourceRecordSetsResponse')},
+        {'method': 'POST', 'url': r'/rrset$', 'body': R53 % (
+            'ChangeResourceRecordSetsResponse', '<ChangeInfo><Id>/change/C0123456789ABCDEFGH'
+            '</Id><Status>PENDING</Status><SubmittedAt>2026-01-01T00:00:00.000Z</SubmittedAt>'
+            '</ChangeInfo>', 'ChangeResourceRecordSetsResponse')},
+        {'method': 'GET', 'url': r'/change/', 'body': R53 % (
+            'GetChangeResponse', '<ChangeInfo><Id>/change/C0123456789ABCDEFGH</Id><Status>INSYNC'
+            '</Status><SubmittedAt>2026-01-01T00:00:00.000Z</SubmittedAt></ChangeInfo>',
+            'GetChangeResponse')}],
+    'scaleway': [
+        {'method': 'GET', 'url': r'/dns-zones\?page=', 'body': {'dns_zones': [
+            {'domain': '{ZONE}', 'subdomain': '', 'status': 'active'}], 'total_count': 1}},
+        {'method': 'GET', 'url': r'/records\?name=', 'times': 1, 'body': {'records': [],
+                                                                        'total_count': 0}},
+        {'method': 'GET', 'url': r'/records\?name=', 'body': {'records': [
+            {'id': RID, 'name': '{SEEN:records\?name=([^&]*)}', 'type': 'TXT',
+             'data': '"{TXT}"', 'ttl': 60}], 'total_count': 1}},
+        {'method': 'PATCH', 'url': r'/records$', 'body': {'records': []}}],
+    'simply': [
+        {'method': 'GET', 'url': r'/my/products/$', 'body': {'products': [
+            {'object': 'S123456', 'domain': {'name': '{ZONE}', 'name_idn': '{ZONE}'}}]}},
+        {'method': 'GET', 'url': r'/dns/records/$', 'times': 1, 'body': {'records': [
+            {'record_id': 5353, 'name': '@', 'type': 'A', 'data': '192.0.2.10'}]}},
+        {'method': 'GET', 'url': r'/dns/records/$', 'body': {'records': [
+            {'record_id': 5353, 'name': '@', 'type': 'A', 'data': '192.0.2.10'},
+            {'record_id': 5454, 'name': '{SEEN:"name": "([^"]*)"}', 'type': 'TXT',
+             'data': '{TXT}'}]}},
+        {'method': 'POST', 'url': r'/dns/records/$', 'body': {'record': {'id': 5454},
+                                                              'status': 200}}],
+    'subreg': [
+        {'sent': r'<ns1:Login>', 'body': php_soap('Login', {'status': 'ok', 'data': {
+            'ssid': '{SESSION}'}})},
+        {'sent': r'<ns1:Domains_List>', 'body': php_soap('Domains_List', {
+            'status': 'ok', 'data': {'count': '1', 'domains': [
+                {'name': '{ZONE}', 'expire': '2027-01-01', 'autorenew': '1'}]}})},
+        {'sent': r'<ns1:Get_DNS_Zone>', 'times': 1, 'body': php_soap('Get_DNS_Zone', {
+            'status': 'ok', 'data': {'domain': '{ZONE}', 'records': [
+                {'id': '5555', 'name': '', 'type': 'A', 'content': '192.0.2.10'}]}})},
+        {'sent': r'<ns1:Get_DNS_Zone>', 'body': php_soap('Get_DNS_Zone', {
+            'status': 'ok', 'data': {'domain': '{ZONE}', 'records': [
+                {'id': '5555', 'name': '', 'type': 'A', 'content': '192.0.2.10'},
+                {'id': '5656', 'name': '{SEEN:<name>(_acme-challenge[^<]*)</name>}',
+                 'type': 'TXT', 'content': '{TXT}'}]}})},
+        {'sent': r'<ns1:Add_DNS_Record>', 'body': php_soap('Add_DNS_Record', {
+            'status': 'ok', 'data': {'record_id': '5656'}})},
+        {'sent': r'<ns1:Delete_DNS_Record>', 'body': php_soap('Delete_DNS_Record', {
+            'status': 'ok', 'data': {}})}],
+    'technitium': [
+        {'url': r'/api/zones/list$', 'body': {'status': 'ok', 'response': {'zones': [
+            {'name': '{ZONE}', 'type': 'Primary', 'disabled': False}]}}},
+        {'url': r'/api/zones/records/get$', 'times': 1, 'body': {'status': 'ok', 'response': {
+            'zone': {'name': '{ZONE}', 'type': 'Primary'}, 'records': []}}},
+        {'url': r'/api/zones/records/get$', 'body': {'status': 'ok', 'response': {
+            'zone': {'name': '{ZONE}', 'type': 'Primary'}, 'records': [
+                {'name': '{FQDN}', 'type': 'TXT', 'ttl': 60, 'rData': {'text': '{TXT}'}}]}}},
+        {'url': r'/api/zones/records/(add|delete)$', 'body': {'status': 'ok', 'response': {}}}],
+    'tencentcloud': [
+        {'sent': r'"Offset"', 'body': {'Response': {
+            'DomainCountInfo': {'AllTotal': 1}, 'DomainList': [
+                {'DomainId': 5757, 'Name': '{ZONE}', 'Status': 'ENABLE'}],
+            'RequestId': '‹request›'}}},
+        {'sent': r'"Subdomain"', 'times': 1, 'body': {'Response': {
+            'Error': {'Code': 'ResourceNotFound.NoDataOfRecord',
+                      'Message': 'The record list is empty.'},
+            'RequestId': '‹request›'}}},
+        {'sent': r'"Subdomain"', 'body': {'Response': {'RecordList': [
+            {'RecordId': 5858, 'Name': '{SEEN:"SubDomain": "([^"]*)"}', 'Type': 'TXT',
+             'Value': '{TXT}'}], 'RequestId': '‹request›'}}},
+        {'sent': r'"SubDomain"', 'body': {'Response': {'RecordId': 5858,
+                                                       'RequestId': '‹request›'}}},
+        {'sent': r'"RecordId"', 'body': {'Response': {'RequestId': '‹request›'}}}],
 }
 
 

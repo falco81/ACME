@@ -11,7 +11,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, object_name, name_prefix, prune,
-    label_of, http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id)
+    label_of, http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id, text)
 
 SSL_DIR = '/nsconfig/ssl'
 # NITRO says an object is not there as HTTP 599 (NetScaler's own status) with an
@@ -149,6 +149,9 @@ class NetScalerTarget(HttpTarget):
             if self.unchanged(bundle, options, present=lambda: bool(cur) and
                               cur.get('cert', '').split('/')[-1] == crt):
                 return self.same(bundle, 'in %s' % ck)
+            self.ctx.step('%s is there (on %s) - updated with the new files' % (
+                ck, text(cur.get('cert')).split('/')[-1] or '?') if cur else
+                '%s is not there yet - added' % ck)
             self.upload(crt, bundle.as_format('cert-pem'))
             try:
                 key_data = bundle.as_format(options.get('key_format') or 'key-rsa')
@@ -172,8 +175,13 @@ class NetScalerTarget(HttpTarget):
                     self.upload(ca + '.crt', pem.encode())
                     self.nitro('POST', 'sslcertkey', {'sslcertkey': {
                         'certkey': ca, 'cert': ca + '.crt'}}, what='adding %s' % ca)
+                    self.ctx.step('added the intermediate %s' % ca)
+                else:
+                    self.ctx.step('the intermediate %s is there already' % ca)
                 if self.link(below, ca):
                     self.ctx.step('linked %s to %s' % (below, ca))
+                else:
+                    self.ctx.step('%s is linked to %s already' % (below, ca))
                 below = ca
             for line in lines(options.get('vservers')):
                 parts = line.split()
@@ -186,6 +194,7 @@ class NetScalerTarget(HttpTarget):
                 bound = [b.get('certkeyname') for b in
                          (d.get('sslvserver_sslcertkey_binding') or [])]
                 if ck in bound:
+                    self.ctx.step('%s is bound to %s already' % (ck, vs))
                     continue
                 b = {'vservername': vs, 'certkeyname': ck}
                 if sni:

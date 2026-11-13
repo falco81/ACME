@@ -562,7 +562,7 @@ SECRET_HEADER = re.compile(r'(authorization|cookie|key|token|secret|auth|pass|se
 SECRET_NAME = re.compile(r'(pass|secret|token|apikey|api_key|api-key|private|passphrase|'
                          r'credential|signature|hmac|session|cookie|auth|pin$|^pin|'
                          r'(^|[_.-])key$|^key(pem|data|file|_pem|_data)?$|privkey|'
-                         r'^sid$|_sid$|^sig$|^code$)', re.I)
+                         r'^sid$|_sid$|^sig$|^code$|assertion$)', re.I)
 NOT_SECRET_NAME = re.compile(r'^(public[_-]?key|key[_-]?(type|size|usage|length|alg|algorithm|'
                              r'id|name|spec)|auth[_-]?(type|method|mode|scheme|source)|'
                              r'token[_-]?(type|expires?|ttl)|session[_-]?(timeout|ttl|type))$', re.I)

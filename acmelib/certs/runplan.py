@@ -66,12 +66,18 @@ SHOWN = (('PLAN-TOKEN-from-the-CA-0000000000.PLANthumbprintOfTheAccountKey000000
 
 # Second runs: what a device answers once the certificate is there already.
 LATER = {
+    # NetScaler: its certkey there, on the files of the earlier certificate, linked to the
+    # intermediate (once that was read); the vserver bound to it already
     'netscaler': [
         {'method': 'GET', 'url': r'/nitro/v1/config/sslcertkey/[^/?]+$',
-         'body': {'errorcode': 0, 'sslcertkey': [{'certkey': '{TAIL}', 'cert': 'earlier.crt',
-                                                  'linkcertkeyname': ''}]}},
-        {'method': 'GET', 'url': r'/nitro/v1/config/systemfile\?',
-         'body': {'errorcode': 0, 'systemfile': []}},
+         'body': {'errorcode': 0, 'message': 'Done', 'sslcertkey': [
+             {'certkey': '{TAIL}', 'cert': '/nsconfig/ssl/{EARLIER}.crt',
+              'key': '/nsconfig/ssl/{EARLIER}.key', 'status': 'Valid',
+              'linkcertkeyname': '{SEEN:sslcertkey/(acme-ca-[0-9a-f]+)}'}]}},
+        {'method': 'GET', 'url': r'/nitro/v1/config/sslvserver_sslcertkey_binding/',
+         'body': {'errorcode': 0, 'message': 'Done', 'sslvserver_sslcertkey_binding': [
+             {'vservername': '{TAIL}',
+              'certkeyname': '{SEEN:"certkey": "((?!acme-ca-)[^"]+)"}'}]}},
     ],
 }
 # (a header takes no placeholder: the session in one is written as plansandbox.SESSION is)
@@ -168,12 +174,22 @@ ANSWERS = {
     'cisco_imc': [{'method': 'POST', 'url': r'/nuova$', 'headers': {'Content-Type': 'text/xml'},
                    'body': '<aaaLogin response="yes" outCookie="PLANSESSION0token" '
                            'outRefreshPeriod="600" errorCode="0"/>'}],
-    # ClearPass: the server named is one of the cluster's
+    # ClearPass: the server named is one of the cluster's; at a renewal the chain's CA is in
+    # the trust list already (refused, said - 1.0.98); each service's certificate replaced
+    # (its answer: the new one's subject and expiry)
     'aruba_clearpass': [
         {'method': 'POST', 'url': r'/api/oauth$', 'body': {
             'access_token': '{SESSION}', 'token_type': 'Bearer', 'expires_in': 28800}},
         {'method': 'GET', 'url': r'/api/cluster/server$', 'body': {'_embedded': {'items': [
-            {'server_uuid': '\u2039server uuid\u203a', 'name': '{CFG:server}'}]}}}],
+            {'server_uuid': '\u2039server uuid\u203a', 'name': '{CFG:server}'}]}}},
+        {'method': 'POST', 'url': r'/api/cert-trust-list$', 'status': 422, 'headers': {
+            'Content-Type': 'application/problem+json'}, 'body': {
+            'type': 'http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html',
+            'title': 'Unprocessable Entity', 'status': 422,
+            'detail': 'Certificate already exists in the trust list'}},
+        {'method': 'PUT', 'url': r'/api/server-cert/name/[^/]+/[^/]+$', 'body': {
+            'service_name': '{TAIL}', 'subject': 'CN={CERTNAME}', 'validity': 'Valid',
+            'expiry_date': '\u2039its expiry\u203a', 'issued_by': 'CN={CACN}'}}],
     # ESXi through vCenter's VI JSON API: its session manager, the session a header of the
     # sign-in, the host's certificate manager; the Automation API's session
     'esxi': [
@@ -238,79 +254,9 @@ ANSWERS = {
         {'method': 'PUT', 'url': r'/rest/certificates/https/pkcs12', 'status': 202, 'body': {
             'uri': '/rest/tasks/\u2039task\u203a'}},
         {'method': 'GET', 'url': r'/rest/tasks/', 'body': {'taskState': 'Completed'}}],
-    # NIOS: uploadinit gives the token and the address the file goes to
-    'infoblox': [{'method': 'POST', 'url': r'/fileop\?_function=uploadinit$', 'body': {
-        'token': '\u2039upload token\u203a',
-        'url': 'https://\u2039grid master\u203a/http_direct_file_io/req_id-UPLOAD-'
-               '\u2039id\u203a/acme.pem'}}],
-    # the iRMC answers SCCI (POST /config) in XML: status 0, no error
-    'irmc': [{'method': 'POST', 'url': r'/config$', 'headers': {'Content-Type': 'text/xml'},
-              'body': '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><Status>'
-                      '<Value>0</Value><Severity>Information</Severity><Message>No Error'
-                      '</Message></Status>'}],
-    # ONTAP: the SVM named is there; the certificate asked for by its name is not there
-    # before the install, then listed (by the name the install sent)
-    'netapp_ontap': [
-        {'method': 'GET', 'url': r'/api/svm/svms\?', 'body': {'records': [
-            {'uuid': '\u2039svm uuid\u203a', 'name': '{OPT:svm}'}], 'num_records': 1}},
-        {'method': 'GET', 'url': r'/api/security/certificates\?.*&name=', 'times': 1,
-         'body': {'records': [], 'num_records': 0}},
-        {'method': 'GET', 'url': r'/api/security/certificates\?', 'body': {'records': [
-            {'uuid': '\u2039certificate uuid\u203a', 'name': '{SENT:name}', 'type': 'server'}],
-            'num_records': 1}}],
-    # NSX: the id of the certificate imported, its validation OK
-    'nsx_manager': [
-        {'method': 'POST', 'url': r'/certificates\?action=import$', 'status': 201, 'body': {
-            'results': [{'id': '\u2039certificate id\u203a'}], 'result_count': 1}},
-        {'method': 'GET', 'url': r'\?action=validate', 'body': {'status': 'OK'}}],
-    # Prism Central: the cluster named is one of its clusters, its certificate read with an
-    # ETag, the replacement a task that succeeds
-    'nutanix': [
-        {'method': 'GET', 'url': r'/config/clusters$', 'body': {'data': [
-            {'extId': '\u2039cluster id\u203a', 'name': '{CFG:cluster}'}]}},
-        {'method': 'GET', 'url': r'/ssl-certificate$', 'body': {'data': {}},
-         'headers': {'Content-Type': 'application/json', 'ETag': '\u2039etag\u203a'}},
-        {'method': 'PUT', 'url': r'/ssl-certificate$', 'status': 202, 'body': {
-            'data': {'extId': '\u2039task\u203a'}}},
-        {'method': 'GET', 'url': r'/config/tasks/', 'body': {'data': {'status': 'SUCCEEDED'}}}],
-    # OneFS: the id of the certificate imported
-    'powerscale': [{'method': 'POST', 'url': r'/platform/\d+/certificate/server$',
-                    'status': 201, 'body': {'id': '\u2039certificate id\u203a'}}],
-    # PowerStore: the session is the DELL-EMC-TOKEN header and the cookie of the sign-in; the
-    # id of the certificate imported
-    'powerstore': [
-        {'method': 'GET', 'url': r'/api/rest/login_session$',
-         'body': [{'id': '\u2039session\u203a'}],
-         'headers': {'Content-Type': 'application/json', 'DELL-EMC-TOKEN': 'PLANSESSION0token',
-                     'Set-Cookie': 'auth_cookie=PLANSESSION0token; Path=/; Secure; HttpOnly'}},
-        {'method': 'POST', 'url': r'/api/rest/x509_certificate$', 'status': 201, 'body': {
-            'id': '\u2039certificate id\u203a'}}],
-    # Purity: the REST API versions it speaks (the newest 2.x is used), the session the
-    # x-auth-token header of the sign-in, the certificate to replace there
-    'pure_flasharray': [
-        {'method': 'GET', 'url': r'/api/api_version$', 'body': {
-            'version': ['1.19', '2.\u2039n\u203a']}},
-        {'method': 'POST', 'url': r'/login$', 'body': {'items': [{}]},
-         'headers': {'Content-Type': 'application/json', 'x-auth-token': 'PLANSESSION0token'}},
-        {'method': 'GET', 'url': r'/certificates\?names=', 'body': {'items': [
-            {'name': '{OPT:cert_name}', 'certificate': ''}]}}],
     # Redfish (and the BMCs signed in to by it): the session's token and address are headers
     # of the sign-in, so it is signed out of
-    'redfish': [_REDFISH_SESSION],
     'supermicro_bmc': [_REDFISH_SESSION],
-    'huawei_ibmc': [_REDFISH_SESSION],
-    # an iLO's one manager says it is an iLO (its firmware not said: the recording goes on)
-    'redfish@ilo': [
-        {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {'Members': [
-            {'@odata.id': '/redfish/v1/Managers/1/'}]}},
-        {'method': 'GET', 'url': r'/redfish/v1/Managers/1/?$', 'body': {
-            'Model': 'iLO 6', 'Manufacturer': 'HPE'}}],
-    # an iDRAC's manager is iDRAC.Embedded.1 (its firmware not said: the recording goes on)
-    'redfish@6.00.02': [
-        {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {'Members': [
-            {'@odata.id': '/redfish/v1/Managers/iDRAC.Embedded.1'}]}},
-        {'method': 'GET', 'url': r'/Managers/iDRAC\.Embedded\.1$', 'body': {
-            'Manufacturer': 'Dell Inc.'}}],
     # SDDC Manager: the token is accessToken of the sign-in
     'sddc_manager': [{'method': 'POST', 'url': r'/v1/tokens$', 'body': {
         'accessToken': '{SESSION}', 'refreshToken': {'id': '\u2039refresh token\u203a'}}}],
@@ -336,8 +282,6 @@ ANSWERS = {
     # Site Recovery / vSphere Replication: session_id of the sign-in
     'vmware_dr': [{'method': 'POST', 'url': r'/session$', 'body': {'session_id': '{SESSION}'}}],
 }
-# a FlashBlade answers as a FlashArray
-ANSWERS['pure_flashblade'] = ANSWERS['pure_flasharray']
 # What an SSH command prints where a module reads it (plansandbox.Answers.ssh): {command (a
 # regex), input? (a regex of what is typed in), stdout, stderr?, exit?, times?} - else nothing.
 # stdout may say {SESSION}, {SEEN:regex} (the first group of it in what was sent before) and
@@ -755,6 +699,48 @@ ANSWERS['aruba_central'] = [
     {'method': 'PUT', 'url': r'/configuration/v1/non_msp/certificate$', 'body': {
         'cert_name': '{SENT:cert_name}', 'cert_type': 'SERVER_CERT'}},
 ]
+# ClearPass's staging web server: the staged PKCS#12 removed
+SSH_ANSWERS['aruba_clearpass'] = [{'command': r"^rm -f .*acme-[0-9a-f]+\.p12", 'stdout': ''}]
+# Avi Controller: the session and CSRF cookies of the sign-in (22.1: avi-sessionid, its
+# version); the new certificate is not there yet, the chain's CA is (by the name asked); the
+# certificates listed: the new one, two earlier ones of acme, the Controller's own; each
+# virtual service asked uses the earlier one - replaced, the oldest deleted (keep 1)
+_AVI_REF = 'https://‹controller›/api/sslkeyandcertificate/'
+ANSWERS['avi'] = [
+    {'method': 'POST', 'url': r'/login$', 'headers': {
+        'Content-Type': 'application/json',
+        'Set-Cookie': 'csrftoken=PLANSESSION0token; Path=/; Secure, avi-sessionid='
+                      'PLANSESSION0token; HttpOnly; Path=/; Secure'},
+     'body': {'session_cookie_name': 'avi-sessionid', 'version': {
+         'Version': '22.1.6', 'build': 9191, 'Product': 'controller'},
+         'user': {'username': '{CFG:user}'}}},
+    {'method': 'POST', 'url': r'/logout$', 'body': ''},
+    {'method': 'GET', 'url': r'/api/sslkeyandcertificate\?name=acme-ca-', 'body': {
+        'count': 1, 'results': [{
+            'name': '{SEEN:sslkeyandcertificate\\?name=(acme-ca-[0-9a-f]+)}',
+            'uuid': 'sslkeyandcertificate-‹ca›', 'type': 'SSL_CERTIFICATE_TYPE_CA'}]}},
+    {'method': 'GET', 'url': r'/api/sslkeyandcertificate\?name=', 'body': {
+        'count': 0, 'results': []}},
+    {'method': 'POST', 'url': r'/api/sslkeyandcertificate$', 'status': 201, 'body': {
+        'uuid': 'sslkeyandcertificate-‹new›', 'name': '{SENT:name}',
+        'type': '{SENT:type}', 'url': _AVI_REF + 'sslkeyandcertificate-‹new›'}},
+    {'method': 'GET', 'url': r'/api/sslkeyandcertificate\?page_size=', 'body': {
+        'count': 4, 'results': [
+            {'name': '{SENT:name}', 'uuid': 'sslkeyandcertificate-‹new›'},
+            {'name': '{EARLIER}', 'uuid': 'sslkeyandcertificate-‹earlier›'},
+            {'name': '{EARLIER2}', 'uuid': 'sslkeyandcertificate-‹oldest›'},
+            {'name': 'System-Default-Cert', 'uuid': 'sslkeyandcertificate-‹default›'}]}},
+    {'method': 'GET', 'url': r'/api/virtualservice\?name=', 'body': {'count': 1, 'results': [
+        {'name': '{EACH:OPT:virtual_services}', 'uuid': 'virtualservice-‹uuid›',
+         'ssl_key_and_certificate_refs': [_AVI_REF + 'sslkeyandcertificate-‹earlier›']}]}},
+    {'method': 'PATCH', 'url': r'/api/virtualservice/', 'body': {
+        'uuid': 'virtualservice-‹uuid›'}},
+    {'method': 'GET', 'url': r'/api/systemconfiguration$', 'body': {'portal_configuration': {
+        'enable_https': True, 'redirect_to_https': True, 'sslkeyandcertificate_refs': [
+            _AVI_REF + 'sslkeyandcertificate-‹earlier›']}}},
+    {'method': 'PATCH', 'url': r'/api/systemconfiguration$', 'body': {}},
+    {'method': 'DELETE', 'url': r'/api/sslkeyandcertificate/', 'status': 204, 'body': ''},
+]
 # ---- end of targets a10 .. cisco_nxos ----
 # ---- targets cisco_wlc9800 .. hpe_oneview ----
 # CUCM: the CA certificates of the chain in <unit>-trust already at a renewal (the first time
@@ -1118,6 +1104,30 @@ SSH_ANSWERS['fujitsu_ism'] = [
 SSH_ANSWERS['eternus_dx'] = [
     {'command': r'^import ssl-certificate ', 'stdout': ''},
     {'command': r'^set smi-s ', 'stdout': ''}]
+# Certificate Manager: the token; the certificate of this ID there (the earlier one, the same
+# names) - updated in place (PATCH), the operation done when read again
+ANSWERS['gcp_certmanager'] = [
+    {'method': 'POST', 'url': r'oauth2\.googleapis\.com/token$', 'body': {
+        'access_token': '{SESSION}', 'expires_in': 3599, 'token_type': 'Bearer'}},
+    {'method': 'GET', 'url': r'/locations/[^/]+/certificates/[^/?]+$', 'body': {
+        'name': 'projects/\u2039project\u203a/locations/global/certificates/{TAIL}',
+        'description': 'kept by acme', 'labels': {'managed-by': 'acme'},
+        'createTime': '2026-02-14T10:00:00Z', 'updateTime': '2026-08-14T10:00:00Z',
+        'pemCertificate': '\u2039the earlier certificate, PEM\u203a',
+        'sanDnsnames': '{CERTNAMES}', 'expireTime': '2026-11-12T10:00:00Z', 'scope': 'DEFAULT',
+        'selfManaged': {}}},
+    {'method': 'PATCH', 'url': r'/certificates/[^/?]+\?updateMask=', 'body': {
+        'name': 'projects/\u2039project\u203a/locations/global/operations/operation-'
+                '\u2039id\u203a', 'metadata': {
+            '@type': 'type.googleapis.com/google.cloud.certificatemanager.v1.OperationMetadata',
+            'verb': 'update'}, 'done': False}},
+    {'method': 'POST', 'url': r'/certificates\?certificateId=', 'body': {
+        'name': 'projects/\u2039project\u203a/locations/global/operations/operation-'
+                '\u2039id\u203a', 'done': False}},
+    {'method': 'GET', 'url': r'/operations/operation-', 'body': {
+        'name': 'projects/\u2039project\u203a/locations/global/operations/operation-'
+                '\u2039id\u203a', 'done': True, 'response': {
+            '@type': 'type.googleapis.com/google.cloud.certificatemanager.v1.Certificate'}}}]
 # ---- end of targets cisco_wlc9800 .. hpe_oneview ----
 # ---- targets hpe_synergy .. redfish_idrac ----
 # ISPConfig's Remote API (JSON): the session; the website asked for (by its domain) has SSL on
@@ -1417,11 +1427,281 @@ SSH_ANSWERS['qnap'] = [
         'Shutting down stunnel:  OK\nStarting stunnel:  OK\n'},
     {'command': r'Qthttpd\.sh restart', 'stdout':
         'Shutting down Qthttpd services: OK\nStarting Qthttpd services: OK\n'}]
+# NIOS: uploadinit gives the token and the address the file goes to; the upload and
+# uploadcertificate answered as WAPI does (an empty object)
+ANSWERS['infoblox'] = [
+    {'method': 'POST', 'url': r'/fileop\?_function=uploadinit$', 'body': {
+        'token': 'eJydkE1PwzAMhv+Kz3NIm7Z0Ozf9RZDXXa',
+        'url': 'https://gm.example.local/http_direct_file_io/req_id-UPLOAD-0217164802912345/'
+               'import_file'}},
+    {'method': 'POST', 'url': r'/http_direct_file_io/', 'body': ''},
+    {'method': 'POST', 'url': r'/fileop\?_function=uploadcertificate$', 'body': {}}]
+# the iRMC answers SCCI (POST /config) in XML: status 0, no error; its reset taken
+ANSWERS['irmc'] = [
+    {'method': 'POST', 'url': r'/config$', 'headers': {'Content-Type': 'text/xml'},
+     'body': '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><Status>'
+             '<Value>0</Value><Severity>Information</Severity><Message>No Error'
+             '</Message></Status>'},
+    {'method': 'POST', 'url': r'/rest/v1/Oem/iRMC/Reset$', 'status': 204, 'body': ''},
+    {'method': 'POST', 'url': r'/Managers/iRMC/Actions/Manager\.Reset$', 'status': 204,
+     'body': ''}]
+# ONTAP: the cluster's version; the SVM named; this certificate not there before the install,
+# then listed by the name the install sent; the web services bound (a job, running, then
+# done); the SVM's certificates - acme's two earlier ones and this one
+_ONTAP_CERTS = {'records': [
+    {'uuid': '1c8e4b3a-9f2d-11ee-8c90-0242ac120002', 'name': '{CURRENT}', 'type': 'server'},
+    {'uuid': '7d2a0f14-1b6e-11ef-9a3c-005056bb4e21', 'name': '{EARLIER}', 'type': 'server'},
+    {'uuid': '3f5b9c70-5e8a-11ee-b1d4-005056bb4e21', 'name': '{EARLIER2}', 'type': 'server'}],
+    'num_records': 3}
+ANSWERS['netapp_ontap'] = [
+    {'method': 'GET', 'url': r'/api/cluster\?fields=version', 'body': {
+        'name': 'cluster1', 'version': {
+            'full': 'NetApp Release 9.14.1P3: Fri Mar 08 12:39:01 UTC 2024',
+            'generation': 9, 'major': 14, 'minor': 1}}},
+    {'method': 'GET', 'url': r'/api/svm/svms\?', 'body': {'records': [
+        {'uuid': '02c9e252-41be-11e9-81d5-00a0986138f7', 'name': '{OPT:svm}'}],
+        'num_records': 1}},
+    {'method': 'GET', 'url': r'/api/security/certificates\?.*&name=', 'times': 1,
+     'body': {'records': [], 'num_records': 0}},
+    {'method': 'GET', 'url': r'/api/security/certificates\?.*&name=', 'body': {'records': [
+        {'uuid': '1c8e4b3a-9f2d-11ee-8c90-0242ac120002', 'name': '{SENT:name}',
+         'type': 'server'}], 'num_records': 1}},
+    {'method': 'GET', 'url': r'/api/security/certificates\?', 'body': _ONTAP_CERTS},
+    {'method': 'POST', 'url': r'/api/security/certificates\?', 'status': 201, 'body': {
+        'num_records': 1, 'records': [{'uuid': '1c8e4b3a-9f2d-11ee-8c90-0242ac120002',
+                                       'name': '{SENT:name}'}]}},
+    {'method': 'PATCH', 'url': r'/api/(cluster|svm/svms/[^/?]+)(/web)?$', 'status': 202,
+     'body': {'job': {'uuid': 'b3f4a2c1-77d0-11ef-8e2a-00a098d39e12'}}},
+    {'method': 'GET', 'url': r'/api/cluster/jobs/', 'times': 1, 'body': {
+        'state': 'running', 'message': 'Restarting the web services'}},
+    {'method': 'GET', 'url': r'/api/cluster/jobs/', 'body': {'state': 'success',
+                                                             'message': 'success'}},
+    {'method': 'DELETE', 'url': r'/api/security/certificates/', 'body': {}}]
+# its 9.6 - 9.9 version: a cluster of ONTAP 9.8
+ANSWERS['netapp_ontap@9.6'] = [
+    {'method': 'GET', 'url': r'/api/cluster\?fields=version', 'body': {
+        'name': 'cluster1', 'version': {'full': 'NetApp Release 9.8P12: Thu Aug 04 2022',
+                                        'generation': 9, 'major': 8, 'minor': 0}}}]
+# NSX Manager: acme's earlier certificate applied (used_by) and an older one; imported (its
+# id), validated; applied to the node and the VIP; then the earlier ones no longer used, the
+# oldest deleted
+ANSWERS['nsx_manager'] = [
+    {'method': 'GET', 'url': r'/trust-management/certificates$', 'times': 1, 'body': {
+        'results': [
+            {'id': '8f2c1d6a-3b4e-4f5a-9c7d-1e2f3a4b5c6d', 'display_name': '{EARLIER}',
+             'used_by': [{'node_id': 'a1b2c3d4-0000-0000-0000-000000000001',
+                          'service_types': ['API', 'MGMT_CLUSTER']}]},
+            {'id': '2e4f6a8c-0b1d-4e3f-8a5c-7d9e1f3a5b7c', 'display_name': '{EARLIER2}',
+             'used_by': []}], 'result_count': 2}},
+    {'method': 'GET', 'url': r'/trust-management/certificates$', 'body': {'results': [
+        {'id': '5b7d9f1a-2c4e-4a6b-8d0f-3e5a7c9e1b3d', 'display_name': '{CURRENT}',
+         'used_by': [{'node_id': 'a1b2c3d4-0000-0000-0000-000000000001',
+                      'service_types': ['API', 'MGMT_CLUSTER']}]},
+        {'id': '8f2c1d6a-3b4e-4f5a-9c7d-1e2f3a4b5c6d', 'display_name': '{EARLIER}',
+         'used_by': []},
+        {'id': '2e4f6a8c-0b1d-4e3f-8a5c-7d9e1f3a5b7c', 'display_name': '{EARLIER2}',
+         'used_by': []}], 'result_count': 3}},
+    {'method': 'POST', 'url': r'/certificates\?action=import$', 'status': 201, 'body': {
+        'results': [{'id': '5b7d9f1a-2c4e-4a6b-8d0f-3e5a7c9e1b3d',
+                     'display_name': '{SENT:display_name}'}], 'result_count': 1}},
+    {'method': 'GET', 'url': r'\?action=validate', 'body': {'status': 'OK'}},
+    {'method': 'POST', 'url': r'\?action=apply_certificate', 'body': ''},
+    {'method': 'DELETE', 'url': r'/trust-management/certificates/', 'body': ''}]
+# Prism Central: the cluster named is one of its clusters, its certificate read with an
+# ETag, the replacement a task - running, then succeeded
+ANSWERS['nutanix'] = [
+    {'method': 'GET', 'url': r'/config/clusters$', 'body': {'data': [
+        {'extId': '00061de0-6c4e-25a1-0000-00000000aa11', 'name': '{CFG:cluster}'}]}},
+    {'method': 'GET', 'url': r'/ssl-certificate$', 'body': {'data': {
+        'privateKeyAlgorithm': 'RSA_2048', 'publicCertificate': '‹the certificate it has›'}},
+     'headers': {'Content-Type': 'application/json', 'ETag': 'YXBwbGljYXRpb24vanNvbg==:0'}},
+    {'method': 'PUT', 'url': r'/ssl-certificate$', 'status': 202, 'body': {
+        'data': {'extId': 'ZXJnb24=:7b1f3c5e-9a2d-4e6f-8b0c-1d3e5f7a9b2c'}}},
+    {'method': 'GET', 'url': r'/config/tasks/', 'times': 1, 'body': {'data': {
+        'status': 'RUNNING', 'progressPercentage': 40}}},
+    {'method': 'GET', 'url': r'/config/tasks/', 'body': {'data': {'status': 'SUCCEEDED',
+                                                                  'progressPercentage': 100}}}]
+# OneFS 9.10: acme's two earlier certificates, the earlier one the default HTTPS one; the
+# files written to /ifs and taken away, imported (its id), made the default; the oldest deleted
+ANSWERS['powerscale'] = [
+    {'method': 'GET', 'url': r'/platform/1/cluster/config$', 'body': {
+        'name': 'isilon-cl1', 'onefs_version': {'release': '9.10.0.0',
+                                                'build': 'B_9_10_0_0_001(RELEASE)'}}},
+    {'method': 'GET', 'url': r'/platform/4/certificate/server$', 'times': 1, 'body': {
+        'certificates': [
+            {'id': 'a4c7e19b2f5d8306', 'name': '{EARLIER}', 'status': 'valid'},
+            {'id': '6e2b9f0d4a1c7385', 'name': '{EARLIER2}', 'status': 'valid'}], 'total': 2}},
+    {'method': 'GET', 'url': r'/platform/4/certificate/server$', 'body': {'certificates': [
+        {'id': 'd81f3a5c7e9b0246', 'name': '{CURRENT}', 'status': 'valid'},
+        {'id': 'a4c7e19b2f5d8306', 'name': '{EARLIER}', 'status': 'valid'},
+        {'id': '6e2b9f0d4a1c7385', 'name': '{EARLIER2}', 'status': 'valid'}], 'total': 3}},
+    {'method': 'GET', 'url': r'/platform/7/certificate/settings$', 'body': {'settings': {
+        'default_https_certificate': 'a4c7e19b2f5d8306'}}},
+    {'method': 'PUT', 'url': r'/platform/7/certificate/settings$', 'status': 204, 'body': ''},
+    {'method': 'POST', 'url': r'/platform/\d+/certificate/server$', 'status': 201,
+     'body': {'id': 'd81f3a5c7e9b0246'}},
+    {'method': 'PUT', 'url': r'/namespace/', 'body': ''},
+    {'method': 'DELETE', 'url': r'/namespace/', 'status': 204, 'body': ''},
+    {'method': 'DELETE', 'url': r'/platform/4/certificate/server/', 'status': 204, 'body': ''}]
+# PowerStore: the session is the DELL-EMC-TOKEN header and the cookie of the sign-in; the
+# cluster runs PowerStoreOS 4.1; the certificate imported (its id) is the current one
+ANSWERS['powerstore'] = [
+    {'method': 'GET', 'url': r'/api/rest/login_session$',
+     'body': [{'id': '‹session›'}],
+     'headers': {'Content-Type': 'application/json', 'DELL-EMC-TOKEN': 'PLANSESSION0token',
+                 'Set-Cookie': 'auth_cookie=PLANSESSION0token; Path=/; Secure; HttpOnly'}},
+    {'method': 'GET', 'url': r'/api/rest/software_installed\?', 'body': [
+        {'release_version': '4.1.0.0', 'is_cluster': True}]},
+    {'method': 'POST', 'url': r'/api/rest/x509_certificate$', 'status': 201, 'body': {
+        'id': 'e3a7c1d9-5b2f-4e8a-9c6d-0f1b3d5e7a9c'}},
+    {'method': 'GET', 'url': r'/api/rest/x509_certificate/[^/?]+\?', 'body': {
+        'id': '{SEEN:x509_certificate/([^/?]+)\\?}', 'is_current': True, 'is_valid': True}},
+    {'method': 'POST', 'url': r'/api/rest/logout$', 'status': 204, 'body': ''}]
+# Purity: the REST API versions it speaks (the newest 2.x is used), the session the
+# x-auth-token header of the sign-in, the certificate named holds an earlier one; replaced
+ANSWERS['pure_flasharray'] = [
+    {'method': 'GET', 'url': r'/api/api_version$', 'body': {
+        'version': ['1.19', '2.0', '2.36']}},
+    {'method': 'POST', 'url': r'/login$', 'body': {'items': [{'username': 'pureuser'}]},
+     'headers': {'Content-Type': 'application/json', 'x-auth-token': 'PLANSESSION0token'}},
+    {'method': 'GET', 'url': r'/certificates\?names=', 'body': {'items': [
+        {'name': '{SEEN:names=([^&\\s]+)}', 'certificate': '{EARLIER_PEM}',
+         'common_name': '{CERTNAME}', 'status': 'imported'}]}},
+    {'method': 'PATCH', 'url': r'/certificates\?names=', 'body': {'items': [
+        {'name': '{SEEN:names=([^&\\s]+)}', 'status': 'imported'}]}},
+    {'method': 'POST', 'url': r'/logout$', 'body': {}}]
+# Redfish: the service root, the session (its token and address headers of the sign-in), the
+# first manager and its HTTPS certificate, the CertificateService's ReplaceCertificate; the
+# replacement and a reset taken, the session ended
+ANSWERS['redfish'] = [
+    _REDFISH_SESSION,
+    {'method': 'GET', 'url': r'/redfish/v1/?$', 'body': {
+        'RedfishVersion': '1.17.0',
+        'CertificateService': {'@odata.id': '/redfish/v1/CertificateService'},
+        'Managers': {'@odata.id': '/redfish/v1/Managers'},
+        'Links': {'Sessions': {'@odata.id': '/redfish/v1/SessionService/Sessions'}}}},
+    {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {'Members': [
+        {'@odata.id': '/redfish/v1/Managers/1'}], 'Members@odata.count': 1}},
+    {'method': 'GET', 'url': r'/redfish/v1/Managers/1/?$', 'body': {
+        'Id': '1', 'Manufacturer': '‹vendor›', 'Model': 'BMC', 'FirmwareVersion': '1.00',
+        'NetworkProtocol': {'@odata.id': '/redfish/v1/Managers/1/NetworkProtocol'}}},
+    {'method': 'GET', 'url': r'/NetworkProtocol/HTTPS/Certificates/?$', 'body': {'Members': [
+        {'@odata.id': '/redfish/v1/Managers/1/NetworkProtocol/HTTPS/Certificates/1'}],
+        'Members@odata.count': 1}},
+    {'method': 'GET', 'url': r'/redfish/v1/CertificateService/?$', 'body': {'Actions': {
+        '#CertificateService.GenerateCSR': {
+            'target': '/redfish/v1/CertificateService/Actions/CertificateService.GenerateCSR'},
+        '#CertificateService.ReplaceCertificate': {
+            'target': '/redfish/v1/CertificateService/Actions/'
+                      'CertificateService.ReplaceCertificate'}}}},
+    {'method': 'POST', 'url': r'CertificateService\.ReplaceCertificate$', 'body': {
+        '@odata.id': '{SENT:CertificateUri.@odata.id}', 'CertificateType': 'PEM'}},
+    {'method': 'POST', 'url': r'/Actions/Manager\.Reset$', 'status': 204, 'body': ''},
+    {'method': 'DELETE', 'url': r'/SessionService/Sessions/', 'status': 204, 'body': ''}]
+# an iLO 6 (firmware 1.62) in Production, its HttpsCert with the ImportCertificate action
+ANSWERS['redfish@ilo'] = [
+    {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {'Members': [
+        {'@odata.id': '/redfish/v1/Managers/1/'}]}},
+    {'method': 'GET', 'url': r'/redfish/v1/Managers/1/?$', 'body': {
+        'Model': 'iLO 6', 'Manufacturer': 'HPE', 'FirmwareVersion': 'iLO 6 v1.62'}},
+    {'method': 'GET', 'url': r'/SecurityService/?$', 'body': {
+        'SecurityState': 'Production', 'Links': {'HttpsCert': {
+            '@odata.id': '/redfish/v1/Managers/1/SecurityService/HttpsCert/'}}}},
+    {'method': 'GET', 'url': r'/HttpsCert/?$', 'body': {
+        'X509CertificateInformation': {'Subject': 'CN={CERTNAME}',
+                                       'ValidNotAfter': '‹when the earlier one ends›'},
+        'Actions': {'#HpeHttpsCert.ImportCertificate': {
+            'target': '/redfish/v1/Managers/1/SecurityService/HttpsCert/Actions/'
+                      'HpeHttpsCert.ImportCertificate'}}}},
+    {'method': 'POST', 'url': r'HpeHttpsCert\.ImportCertificate$', 'body': {
+        'error': {'code': 'iLO.0.10.ExtendedInfo', '@Message.ExtendedInfo': [
+            {'MessageId': 'iLO.2.16.ImportCertSuccessfuliLOResetinProgress'}]}}}]
+# an iDRAC9 (firmware 7.10.30.00): its manager iDRAC.Embedded.1, Dell's card service with
+# UploadSSLKey and ImportSSLCertificate
+ANSWERS['redfish@6.00.02'] = [
+    {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {'Members': [
+        {'@odata.id': '/redfish/v1/Managers/iDRAC.Embedded.1'}]}},
+    {'method': 'GET', 'url': r'/Managers/iDRAC\.Embedded\.1$', 'body': {
+        'Manufacturer': 'Dell Inc.', 'Model': '16G Monolithic',
+        'FirmwareVersion': '7.10.30.00'}},
+    {'method': 'GET', 'url': r'/DelliDRACCardService$', 'body': {'Actions': {
+        '#DelliDRACCardService.UploadSSLKey': {
+            'target': '/redfish/v1/Managers/iDRAC.Embedded.1/Oem/Dell/DelliDRACCardService/'
+                      'Actions/DelliDRACCardService.UploadSSLKey'},
+        '#DelliDRACCardService.ImportSSLCertificate': {
+            'target': '/redfish/v1/Managers/iDRAC.Embedded.1/Oem/Dell/DelliDRACCardService/'
+                      'Actions/DelliDRACCardService.ImportSSLCertificate'}}}},
+    {'method': 'POST', 'url': r'DelliDRACCardService\.(UploadSSLKey|ImportSSLCertificate)$',
+     'body': {'@Message.ExtendedInfo': [{'MessageId': 'IDRAC.2.9.LC067',
+                                         'Message': 'The SSL certificate is successfully '
+                                                    'imported.'}]}}]
+# the Huawei / xFusion iBMC: Redfish's root and session; the upload to /tmp/web taken (202),
+# the import said, the reset taken
+ANSWERS['huawei_ibmc'] = [
+    _REDFISH_SESSION,
+    {'method': 'GET', 'url': r'/redfish/v1/?$', 'body': {
+        'RedfishVersion': '1.0.2', 'Vendor': 'Huawei',
+        'Links': {'Sessions': {'@odata.id': '/redfish/v1/SessionService/Sessions'}}}},
+    {'method': 'POST', 'url': r'/UpdateService/FirmwareInventory$', 'status': 202, 'body': {
+        'Id': '1', 'TaskState': 'Completed'}},
+    {'method': 'POST', 'url': r'HttpsCert\.ImportCustomCertificate$', 'body': {
+        '@Message.ExtendedInfo': [{'MessageId': 'iBMC.1.0.CertImportOK',
+                                   'Message': 'The certificate has been imported.'}]}},
+    {'method': 'POST', 'url': r'/Actions/Manager\.Reset$', 'body': {
+        '@Message.ExtendedInfo': [{'MessageId': 'Base.1.0.Success'}]}},
+    {'method': 'DELETE', 'url': r'/SessionService/Sessions/', 'body': {}}]
+# the device-key controllers' sessions end, their imports are taken
+ANSWERS['lenovo_xcc'] += [
+    {'method': 'POST', 'url': r'CertificateService\.ReplaceCertificate$', 'body': {
+        '@odata.id': '{SENT:CertificateUri.@odata.id}'}},
+    {'method': 'DELETE', 'url': r'/SessionService/Sessions/', 'status': 204, 'body': ''}]
+# LXCA: the root and the intermediate in its trust store already at a renewal (409)
+ANSWERS['lenovo_lxca'] += [
+    {'method': 'POST', 'url': r'/trustedCertificates$', 'status': 409, 'body': {
+        'result': 'failed', 'messages': [{'id': 'FQXHMSE0222J',
+                                          'text': 'The certificate already exists.'}]}}]
+# Synergy: the intermediate in the trust store already; the import a task, completed
+ANSWERS['hpe_synergy'] += [
+    {'method': 'GET', 'url': r'/rest/certificates/ca/[^/?]+$', 'body': {
+        'type': 'CertificateAuthorityInfo', 'certificateDetails': {
+            'aliasName': '{TAIL}', 'commonName': '{CACN}'}}},
+    {'method': 'PUT', 'url': r'/https/certificaterequest(\?bayNumber=\d+)?$', 'status': 202,
+     'body': {'uri': '/rest/tasks/4D4B9A0C-2E1F-4A3B-9C8D-7E6F5A4B3C2D'}},
+    {'method': 'GET', 'url': r'/rest/tasks/', 'body': {'taskState': 'Completed',
+                                                       'percentComplete': 100}},
+    {'method': 'DELETE', 'url': r'/rest/login-sessions$', 'status': 204, 'body': ''}]
+# NetScaler (NITRO): signed in; every call "Done"; the vserver's bindings (the first time the
+# appliance's own certificate, at a renewal acme's certkey - FIRST / LATER); the files in
+# /nsconfig/ssl: acme's earlier pairs and this one
+ANSWERS['netscaler'] = [
+    {'method': 'POST', 'url': r'/nitro/v1/config/login$', 'status': 201, 'body': {
+        'errorcode': 0, 'message': 'Done', 'severity': 'NONE', 'sessionid': '{SESSION}'}},
+    {'method': 'GET', 'url': r'/nitro/v1/config/systemfile\?', 'body': {
+        'errorcode': 0, 'message': 'Done', 'systemfile': [
+            {'filename': 'ns-server.cert'}, {'filename': 'ns-server.key'},
+            {'filename': '{EARLIER}.crt'}, {'filename': '{EARLIER}.key'},
+            {'filename': '{EARLIER2}.crt'}, {'filename': '{EARLIER2}.key'},
+            {'filename': '{CURRENT}.crt'}, {'filename': '{CURRENT}.key'}]}},
+    {'method': 'DELETE', 'url': r'/nitro/v1/config/systemfile/', 'body': {
+        'errorcode': 0, 'message': 'Done', 'severity': 'NONE'}},
+    {'method': 'POST', 'url': r'/nitro/v1/config/', 'status': 201, 'body': {
+        'errorcode': 0, 'message': 'Done', 'severity': 'NONE'}},
+    {'method': 'PUT', 'url': r'/nitro/v1/config/', 'body': {
+        'errorcode': 0, 'message': 'Done', 'severity': 'NONE'}}]
+SSH_ANSWERS['nginx_unit'] += [{'command': r'^rm -f /tmp/\.acme-unit-', 'stdout': ''}]
+SSH_ANSWERS['qnap'] += [{'command': r'stunnel\.pem\.acme-prev && ', 'stdout': ''},
+                        {'command': r'^sh -c .rm -f /tmp/acme-', 'stdout': ''}]
+# a FlashBlade answers as a FlashArray
+ANSWERS['pure_flashblade'] = ANSWERS['pure_flasharray']
 # ---- end of targets hpe_synergy .. redfish_idrac ----
 FIRST = {
+    # NetScaler, the first time: no certkey of the name, the vserver on the appliance's own
     'netscaler': [
         {'method': 'GET', 'url': r'/nitro/v1/config/sslcertkey/', 'status': 404,
          'body': {'errorcode': 1540, 'message': 'Certificate does not exist'}},
+        {'method': 'GET', 'url': r'/nitro/v1/config/sslvserver_sslcertkey_binding/',
+         'body': {'errorcode': 0, 'message': 'Done', 'sslvserver_sslcertkey_binding': [
+             {'vservername': '{TAIL}', 'certkeyname': 'ns-server-certificate'}]}},
     ],
 }
 # ---- targets a10 .. cisco_nxos: the first deployment (FIRST: nothing there yet) and the
