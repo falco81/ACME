@@ -42,7 +42,8 @@ class SupermicroBmcTarget(RedfishTarget):
                    'X14/H14) with Supermicro\'s Redfish action SmcSSLCert.Upload - no licence '
                    'needed - and resets the BMC when asked; the server itself is not touched.')
     doc = 'targets.md'
-    fields = [f if f['key'] not in ('user', 'host') else dict(f, default='svc-cert') if f['key'] == 'user'
+    fields = [f if f['key'] not in ('user', 'host')
+              else dict(f, default='svc-cert') if f['key'] == 'user'
               else dict(f, placeholder='bmc.example.local')
               for f in RedfishTarget.fields]
     deploy_fields = [

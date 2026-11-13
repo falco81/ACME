@@ -101,6 +101,7 @@ def basic_constraints(pem):
 
 class VeeamVbrTarget(VeeamPsTarget):
     kind = 'veeam_vbr'
+    discovery = False
     title = 'Veeam Backup & Replication (backup server certificate)'
     module_version = ''
     version_label = 'any version (detects it)'

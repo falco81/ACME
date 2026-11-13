@@ -45,7 +45,6 @@ import base64
 import time
 import urllib.parse
 
-from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, text, http_fields, tls_fields, verify_fields, keep_field,
     object_name, name_prefix, prune, chain_list, as_int)
@@ -80,6 +79,7 @@ class NetAppOntapTarget(HttpTarget):
                    'API) use it and deletes older ones acme put there. Any ONTAP 9.6 and '
                    'later: where it is bound is taken from the version the cluster says.')
     doc = 'targets.md'
+    discovery = False       # nothing to find: the sign-in, and an SVM typed
     fields = http_fields(443, 'cluster1.example.local') + [
         field('user', 'User', 'text', required=True, default='svc_cert',
               help='a cluster account (admin SVM) with the http application'),
@@ -170,18 +170,6 @@ class NetAppOntapTarget(HttpTarget):
         self.check_version()
         return 'signed in to %s, %s' % ((d or {}).get('name') or self.c('host'),
                                        self._full or 'ONTAP ?')
-
-    discover_keys = ['host', 'port', 'user', 'password', 'verify_tls']
-
-    def discover_setup(self):
-        """Read-only: the version and the module version for it, the SVMs offered."""
-        out = Plugin.discover_setup(self)
-        ver = self.ontap_version()
-        if getattr(self, '_full', ''):
-            out['facts'].append(['ONTAP', self._full])
-        if ver is not None and version_for(ver)[0]:
-            out['facts'].append(['Module version for it', version_for(ver)[1]])
-        return out
 
     # -- the calls ---------------------------------------------------------------------
     def wait_job(self, d, what, options):

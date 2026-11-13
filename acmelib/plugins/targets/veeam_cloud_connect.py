@@ -34,6 +34,7 @@ from acmelib.plugins.targets._veeam import VeeamPsTarget, keep_field
 
 class VeeamCloudConnectTarget(VeeamPsTarget):
     kind = 'veeam_cloud_connect'
+    discovery = False
     title = 'Veeam Cloud Connect (cloud gateway certificate)'
     description = ('Replaces the TLS certificate of Veeam Cloud Connect on the service '
                    'provider\'s backup server (Windows, PowerShell over SSH): imported into '

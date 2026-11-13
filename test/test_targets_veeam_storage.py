@@ -796,16 +796,15 @@ class GuidesTest(unittest.TestCase):
                     self.assertGreater(len(md), 1500, p)
                     if suffix == '.cs.md':
                         self.assertTrue(re.search('[ěščřžýáíéůú]', md), p)
-                        self.assertIn('Vyplňte v acme', md, p)
+                        self.assertIn('Vyplnění v acme', md, p)
                     else:
                         self.assertIn('Fill in acme', md, p)
         for suffix in ('.md', '.cs.md'):
             p = os.path.join(GUIDES, 'nutanix@7.5' + suffix)
             self.assertTrue(os.path.isfile(p), p)
         # the existing plain guides are not touched by this group
-        for kind in ('nutanix', 'synology', 'proxmox', 'proxmox_backup', 'kubernetes'):
-            self.assertFalse([f for f in os.listdir(GUIDES) if f.startswith(kind + '@')
-                              and kind != 'nutanix'], kind)
+        for kind in ('synology', 'proxmox', 'proxmox_backup', 'kubernetes'):
+            self.assertFalse([f for f in os.listdir(GUIDES) if f.startswith(kind + '@')], kind)
 
 
 if __name__ == '__main__':

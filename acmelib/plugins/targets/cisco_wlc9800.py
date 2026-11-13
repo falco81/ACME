@@ -91,6 +91,7 @@ _DESC = ('Copies the certificate as PKCS#12 to the controller\'s bootflash: over
 
 class CiscoWlc9800Target(Wlc9800Mixin, CiscoIosXeTarget):
     kind = 'cisco_wlc9800'
+    discovery = False       # nothing to find: its fields are the sign-in
     title = 'Cisco Catalyst 9800 Wireless Controller'
     description = _DESC + (' Any IOS XE 17.3 - 26.1: the PKCS#12 kind is taken from the '
                            'version the controller says.')
@@ -99,6 +100,7 @@ class CiscoWlc9800Target(Wlc9800Mixin, CiscoIosXeTarget):
 
 class CiscoWlc9800v173Target(Wlc9800Mixin, CiscoIosXeTarget):
     kind = 'cisco_wlc9800'
+    discovery = False
     title = CiscoWlc9800Target.title
     module_version, version_label, sw_min, sw_max = RANGES.ranges[0]
     description = ('IOS XE 17.3 - 17.11: the PKCS#12 is made the old way (3DES, SHA-1 MAC) - '
@@ -110,6 +112,7 @@ class CiscoWlc9800v173Target(Wlc9800Mixin, CiscoIosXeTarget):
 
 class CiscoWlc9800v1712Target(Wlc9800Mixin, CiscoIosXeTarget):
     kind = 'cisco_wlc9800'
+    discovery = False
     title = CiscoWlc9800Target.title
     module_version, version_label, sw_min, sw_max = RANGES.ranges[1]
     description = ('IOS XE 17.12 - 26.1 (17.12, 17.15, 17.18, 26.x): the PKCS#12 is AES-256 '

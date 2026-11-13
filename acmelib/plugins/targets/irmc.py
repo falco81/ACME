@@ -75,10 +75,12 @@ def scci_result(raw):
                 st = text(el.text).strip()
                 break
         words = ' '.join(text(e.text).strip() for e in cmd.iter()
-                         if e.tag.upper() in ('MESSAGE', 'ERROR', 'ERRORMSG') and text(e.text).strip())
+                         if e.tag.upper() in ('MESSAGE', 'ERROR', 'ERRORMSG')
+                         and text(e.text).strip())
         oe = text(cmd.get('OE')).strip()
         if st not in (None, '0'):
-            errors.append('SCCI %s: status %s%s' % (oe or '?', st, (' - ' + words) if words else ''))
+            errors.append('SCCI %s: status %s%s' % (oe or '?', st,
+                                                     (' - ' + words) if words else ''))
         for tag in ('DATA', 'VALUE'):
             el = cmd.find(tag)
             if el is not None and text(el.text).strip():

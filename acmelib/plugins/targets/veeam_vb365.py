@@ -48,6 +48,7 @@ PARTS = (('rest', 'Set-VBORestAPISettings -EnableService -HTTPSPort %d -Certific
 
 class VeeamVb365Target(VeeamPsTarget):
     kind = 'veeam_vb365'
+    discovery = False
     title = 'Veeam Backup for Microsoft 365'
     description = ('Sets the REST API certificate of Veeam Backup for Microsoft 365 v8 (and, as '
                    'asked, the server, restore operator and tenant authentication ones) from a '

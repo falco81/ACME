@@ -44,7 +44,8 @@ class HuaweiIbmcTarget(RedfishTarget):
                    'action HttpsCert.ImportCustomCertificate, then restarts the iBMC so it '
                    'serves it - the server keeps running.')
     doc = 'targets.md'
-    fields = [f if f['key'] not in ('user', 'host') else dict(f, default='svc-cert') if f['key'] == 'user'
+    fields = [f if f['key'] not in ('user', 'host')
+              else dict(f, default='svc-cert') if f['key'] == 'user'
               else dict(f, placeholder='ibmc.example.local')
               for f in RedfishTarget.fields if f['key'] != 'basic_auth'] + [
         field('manager', 'Manager ID', 'text', default='1', advanced=True,

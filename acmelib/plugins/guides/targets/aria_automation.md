@@ -60,5 +60,5 @@ openssl s_client -connect vra.example.local:443 </dev/null 2>/dev/null | openssl
 |---|---|
 | `vracli does not take the certificate` | Read vracli's words in the job: a wrong SAN, the chain incomplete (give the root). |
 | it asks for `--sha256` (KB 423843) | The PEM's blocks are not on lines of their own - acme writes them so; report it. |
-| `deploy.sh` failed or is slow | Look at `/var/log/deploy.log` on the node; a standalone Orchestrator 8.18.1 with a custom certificate: KB 384243. |
+| `deploy.sh` failed or is slow | acme's job has its last output; run it again by hand on the node to see it all. A standalone Orchestrator 8.18.1 with a custom certificate: KB 384243. |
 | Other products lost trust | Use the `aria_lifecycle` target (Retrust), or update the trust in each product by hand. |

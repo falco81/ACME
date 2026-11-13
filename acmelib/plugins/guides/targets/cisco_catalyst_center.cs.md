@@ -17,7 +17,7 @@ Catalyst Center **2.3.7.x, 3.1.x a 3.3.x** - všude stejná dvě volání (Cisco
 
 ## Co se v Catalyst Center stane
 
-- Certifikát nahradí ten, který určuje *Použito pro*: **Controller** (`server`), **Disaster Recovery** (`ipsec`) nebo oba.
+- Certifikát nahradí ten, který určuje *Použití*: **Controller** (`server`), **Disaster Recovery** (`ipsec`) nebo oba.
 - Catalyst Center pak restartuje své webové služby: **všichni jsou odhlášeni**, GUI a API jsou asi **2 minuty** nedostupné. Naplánujte to mimo pracovní dobu.
 - **Zařízení a integrace věří Catalyst Center podle tohoto certifikátu** (PnP, telemetrie/Assurance, NETCONF callbacky, ISE pxGrid/ERS, ITSM, IPAM, vaše skripty): před prvním přechodem na certifikát nové CA zajistěte, aby jí věřily. Se zapnutou *device controllability* Catalyst Center zařízení obvykle aktualizuje sám.
 - Disaster Recovery: měňte na obou lokalitách současně.
@@ -41,7 +41,7 @@ curl -s -u acme -X POST https://catalyst.example.com/dna/system/api/v1/auth/toke
 | Adresa / Port HTTPS | `catalyst.example.com` / `443` |
 | Uživatel / Heslo | uživatel z kroku 1 |
 | Ověřovat certifikát zařízení | zapnuto (u soukromé CA vyplňte *Certifikát CA*); vypnuto jen dokud má vlastní self-signed |
-| Použito pro (nasazení) | *Controller* (GUI, API, PnP), *Disaster Recovery*, nebo obojí |
+| Použití (nasazení) | *Controller* (GUI, API, PnP), *Disaster Recovery*, nebo obojí |
 | Nahrát jako (rozšířené) | řetězec PEM + klíč (výchozí) nebo PKCS#12 |
 | Čekat na import (s) (rozšířené) | jak dlouho acme sleduje úlohu importu |
 

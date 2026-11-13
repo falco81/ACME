@@ -165,6 +165,7 @@ class PureFlashArrayTarget(HttpTarget):
 
 class PureFlashBladeTarget(PureFlashArrayTarget):
     kind = 'pure_flashblade'
+    discovery = False
     title = 'Pure Storage FlashBlade'
     description = ('Replaces a certificate of a Pure Storage (Everpure) FlashBlade - '
                    'Purity//FB 4.x, REST API 2.x - with its key and chain, in place.')

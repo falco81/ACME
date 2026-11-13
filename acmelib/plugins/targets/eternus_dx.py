@@ -26,9 +26,9 @@ C140-0052-03ENZ3 ("The HTTPS server of the RESTful API shares the SSL certificat
 ETERNUS Web GUI"; no certificate endpoint).
 
 One module: checked against the S6 manuals (DX S6, and the AF on the same firmware line).
-DX S5 / AF S3 / AF S2 have the same commands but no FTPS: "File transfer" FTP on DX S5 / AF S3
-sends no FTPS option (those CLIs have none - from the S6 manual's notes, not their own). Whether a certificate file may hold
-the intermediates is not said - "the certificate alone" is the default; a refused pair
+DX S5 / AF S3 / AF S2 have the same commands but no FTPS: "File transfer" FTP on DX S5 /
+AF S3 sends no FTPS option (those CLIs have none - from the S6 manual's notes, not their
+own). Whether a certificate file may hold the intermediates is not said - "the certificate alone" is the default; a refused pair
 leaves HTTPS down until a good one is registered (over SSH, as here).
 """
 from __future__ import annotations
