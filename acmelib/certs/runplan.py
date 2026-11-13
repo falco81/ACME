@@ -98,6 +98,34 @@ ANSWERS = {
     'aws_acm': [{'method': 'POST', 'body': {
         'CertificateArn': 'arn:aws:acm:\u2039region\u203a:\u2039account\u203a:certificate/'
                           '\u2039new\u203a'}}],
+    # Catalyst Center: the token is "Token" of the sign-in; the import is a task, done
+    'cisco_catalyst_center': [
+        {'method': 'POST', 'url': r'/auth/token$', 'body': {'Token': '{SESSION}'}},
+        {'method': 'POST', 'url': r'/dna/intent/api/v1/certificate', 'status': 202, 'body': {
+            'response': {'taskId': '\u2039task\u203a'}, 'version': '1.0'}},
+        {'method': 'GET', 'url': r'/dna/intent/api/v1/task/', 'body': {'response': {
+            'isError': False, 'progress': 'done', 'endTime': 1}}}],
+    # the FMC: the token and the domain are headers of the sign-in; the devices to enrol on
+    # are those named
+    'cisco_fmc': [
+        {'method': 'POST', 'url': r'/generatetoken$', 'status': 204, 'body': '',
+         'headers': {'X-auth-access-token': 'PLANSESSION0token',
+                     'DOMAIN_UUID': '\u2039domain\u203a'}},
+        {'method': 'POST', 'url': r'/object/(certenrollments|internalcertificates)$',
+         'status': 201, 'body': {'id': '\u2039new object\u203a'}},
+        {'method': 'GET', 'url': r'/devices/devicerecords\?', 'body': {'items': [
+            {'id': '\u2039device\u203a', 'name': '{EACH:OPT:enroll_devices}'}]}},
+        {'method': 'GET', 'body': {'items': []}}],
+    # the IMC answers every call of its XML API at /nuova: a session cookie, no error
+    'cisco_imc': [{'method': 'POST', 'url': r'/nuova$', 'headers': {'Content-Type': 'text/xml'},
+                   'body': '<aaaLogin response="yes" outCookie="PLANSESSION0token" '
+                           'outRefreshPeriod="600" errorCode="0"/>'}],
+    # ClearPass: the server named is one of the cluster's
+    'aruba_clearpass': [
+        {'method': 'POST', 'url': r'/api/oauth$', 'body': {
+            'access_token': '{SESSION}', 'token_type': 'Bearer', 'expires_in': 28800}},
+        {'method': 'GET', 'url': r'/api/cluster/server$', 'body': {'_embedded': {'items': [
+            {'server_uuid': '\u2039server uuid\u203a', 'name': '{CFG:server}'}]}}}],
 }
 FIRST = {
     'netscaler': [
@@ -105,6 +133,52 @@ FIRST = {
          'body': {'errorcode': 1540, 'message': 'Certificate does not exist'}},
     ],
 }
+
+
+# {CFG:key} / {OPT:key} in an answer's body: that setting (or deployment option) of the
+# module as the user gave it - the name a module looks for in a list it reads (a server, an
+# SVM, a cluster), so the list it is answered with holds it whatever the name is; an item of
+# a list in the body with {EACH:CFG:key} / {EACH:OPT:key} in it: one such item for each line
+# of that setting (none for an empty one)
+_SETTING_RE = re.compile(r'\{(EACH:)?(CFG|OPT):([A-Za-z0-9_]+)\}')
+
+
+def _setting_lines(v):
+    if isinstance(v, (list, tuple)):
+        return [str(x).strip() for x in v if str(x).strip()]
+    return [x.strip() for x in str('' if v is None else v).splitlines() if x.strip()]
+
+
+def _filled(v, cfg, opts):
+    def one(src, key):
+        got = _setting_lines((cfg if src == 'CFG' else opts).get(key))
+        return got[0] if got else ''
+    if isinstance(v, dict):
+        return {k: _filled(x, cfg, opts) for k, x in v.items()}
+    if isinstance(v, list):
+        out = []
+        for x in v:
+            m = re.search(r'\{EACH:(CFG|OPT):([A-Za-z0-9_]+)\}', json.dumps(x))
+            if not m:
+                out.append(_filled(x, cfg, opts))
+                continue
+            for line in _setting_lines((cfg if m.group(1) == 'CFG' else opts).get(m.group(2))):
+                out.append(_filled(json.loads(json.dumps(x).replace(
+                    m.group(0), json.dumps(line)[1:-1])), cfg, opts))
+        return out
+    if isinstance(v, str):
+        return _SETTING_RE.sub(lambda m: one(m.group(2), m.group(3)), v)
+    return v
+
+
+def answers_of(kind, cfg=None, opts=None, first=True, later=False):
+    """The answers a module's recording gets: FIRST (or LATER) and ANSWERS of its kind, the
+    settings put in where an answer names them."""
+    rules = (LATER.get(kind, []) if later else FIRST.get(kind, []) if first else []) + \
+        ANSWERS.get(kind, [])
+    cfg, opts = dict(cfg or {}), dict(opts or {})
+    return [dict(r, body=_filled(r['body'], cfg, opts)) if 'body' in r else dict(r)
+            for r in rules]
 
 
 # ---------------------------------------------------------------------------
@@ -1055,13 +1129,14 @@ def plan(store, cert, deploys, full=False):
             vinfo[which]['runs'].append((n, run(family='challenge', kind=crow['kind'],
                                                 name=crow['name'], op='challenge', names=[n],
                                                 config=scfg, marks=marks,
-                                                answers=ANSWERS.get(crow['kind'], []))))
+                                                answers=answers_of(crow['kind'], scfg,
+                                                                   first=False))))
     # the source, where it is not written here
     iid = None
     if irow and icls and irow.get('kind') not in ('acme', 'internal_ca', 'selfsigned'):
         scfg, marks = secrets_.stand_ins(_fields_of(icls), icfg)
         iid = run(family='issuer', kind=irow['kind'], name=irow['name'], op='issue',
-                  config=scfg, marks=marks, answers=ANSWERS.get(irow['kind'], []))
+                  config=scfg, marks=marks, answers=answers_of(irow['kind'], scfg, first=False))
     elif icfg:
         secrets_.stand_ins(_fields_of(icls), icfg)
     # the deployments
@@ -1085,9 +1160,9 @@ def plan(store, cert, deploys, full=False):
         item.update(cfg=tcfg, opts=opts)
         kw = dict(family='target', kind=trow['kind'], name=trow['name'], op='deploy',
                   config=scfg, options=sopts, marks=marks, deploy_id=dep.get('id'))
-        kw['answers'] = FIRST.get(trow['kind'], []) + ANSWERS.get(trow['kind'], [])
+        kw['answers'] = answers_of(trow['kind'], scfg, sopts)
         if trow['kind'] in LATER:
-            kw['later_answers'] = LATER[trow['kind']] + ANSWERS.get(trow['kind'], [])
+            kw['later_answers'] = answers_of(trow['kind'], scfg, sopts, later=True)
         item['run'] = run(**kw)
     # the recording
     resolvers = {}
