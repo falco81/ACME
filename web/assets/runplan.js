@@ -50,6 +50,8 @@
     deploy: 'Where it goes, in the order of its deployments: how acme connects, and everything it does there.',
     after: 'Who is told, and what happens next time.'
   };
+  /* a certificate whose key the device makes (certs.csr_from): nothing is made here */
+  var LEDE_DEVICE_KEY = 'Made on the device that keeps it: it makes the key and the request (CSR), the key never leaves it.';
 
   function data(kind, cls, text) { return noI18n(el(kind, cls, text)); }
   function tr(words) {
@@ -515,7 +517,17 @@
       f.appendChild(w);
       facts.appendChild(f);
     };
-    fact('key', 'Key', data('span', 'mono', c.key_type + (c.key_type_alt ? ' + ' + c.key_type_alt : '')));
+    var kv = el('span', '');
+    kv.appendChild(data('span', 'mono', c.key_type + (c.key_type_alt ? ' + ' + c.key_type_alt : '')));
+    if (c.csr_from) {
+      /* made by the device, not here (certs.csr_from) */
+      var kd = el('div', 'muted small');
+      kd.appendChild(el('span', '', 'key made by'));
+      kd.appendChild(document.createTextNode(' '));
+      kd.appendChild(data('span', '', c.csr_from));
+      kv.appendChild(kd);
+    }
+    fact('key', 'Key', kv);
     fact('source', 'Source', h.source ? moduleChip(h.source) : el('span', 'muted', 'none'));
     var vs = el('span', 'rp-modlist');
     (h.validations || []).forEach(function (m) { vs.appendChild(moduleChip(m)); });
@@ -627,7 +639,7 @@
     return wrap;
   }
 
-  function phaseBlock(ph, n) {
+  function phaseBlock(ph, n, cert) {
     var sec = el('section', 'rp-phase p-' + ph.key);
     sec.id = 'rp-phase-' + ph.key;
     var head = el('div', 'rp-phase-h');
@@ -639,7 +651,8 @@
     h3.appendChild(data('span', 'rp-phase-no', String(n)));
     h3.appendChild(el('span', '', ph.title));
     t.appendChild(h3);
-    if (PHASE_LEDE[ph.key]) t.appendChild(el('p', 'muted rp-lede', PHASE_LEDE[ph.key]));
+    var lede = ph.key === 'key' && cert && cert.csr_from ? LEDE_DEVICE_KEY : PHASE_LEDE[ph.key];
+    if (lede) t.appendChild(el('p', 'muted rp-lede', lede));
     head.appendChild(t);
     if (ph.module) {
       var mc = moduleChip(ph.module);
@@ -713,13 +726,15 @@
     var cols = el('div', 'rp-cols');
     cols.appendChild(nav(p, body));
     var line = el('div', 'rp-timeline');
-    (p.phases || []).forEach(function (ph, i) { line.appendChild(phaseBlock(ph, i + 1)); });
+    (p.phases || []).forEach(function (ph, i) { line.appendChild(phaseBlock(ph, i + 1, p.cert)); });
     cols.appendChild(line);
     page.appendChild(cols);
     if (p.recording) page.appendChild(el('p', 'ct-bad', p.recording));
     var foot = el('p', 'muted small rp-made');
     foot.appendChild(el('span', '', 'Worked out in'));
-    foot.appendChild(data('span', '', ' ' + ((p.took_ms || 0) / 1000).toFixed(1) + ' s'));
+    var took = ((p.took_ms || 0) / 1000).toFixed(1);
+    if (typeof numDecimal === 'function' && numDecimal() === ',') took = took.replace('.', ',');
+    foot.appendChild(data('span', '', ' ' + took + ' s'));
     page.appendChild(foot);
     body.appendChild(page);
     explainWhatWasDrawn(body);

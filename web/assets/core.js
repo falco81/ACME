@@ -38,6 +38,15 @@ function known(v) {
   return v;
 }
 
+/** What a version of a module covers (its version_label), in the page's language - the
+    product and version names in it stay as they are; the plain version of a module that
+    says nothing fits any version. Data for a node marked noI18n. */
+function versionWords(v) {
+  v = v || {};
+  if (v.version_label) return known(String(v.version_label));
+  return v.version ? '' : known('any version');
+}
+
 function el(kind, cls, text) {
   var node = document.createElement(kind);
   if (cls) node.className = cls;

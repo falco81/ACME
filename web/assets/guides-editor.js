@@ -291,7 +291,7 @@
     var kind = p.kind;
     var base = p._base || p;
     var vers = (Array.isArray(base.versions) && base.versions.length ? base.versions : [{version: p.version || '', version_label: p.version_label || ''}])
-      .map(function (v) { return [String(v.version || ''), v.version_label || (v.version ? v.version : tr('plain'))]; });
+      .map(function (v) { return [String(v.version || ''), versionWords(v) || v.version || tr('plain')]; });
     var cur = {version: version === undefined || version === null ? String(p.version || '') : String(version),
                lang: opt.lang || lang(), mode: 'visual', origin: ''};
     var area, vis, preview, said, wc, assist, dirty = false, timer = null;

@@ -295,8 +295,8 @@
   /* ---- the popup that shows one ---------------------------------------------------------- */
   function versionsOf(p) {
     var out = [];
-    (Array.isArray(p.versions) ? p.versions : []).forEach(function (v) { out.push([String(v.version || ''), v.version_label || (v.version ? v.version : tr('plain'))]); });
-    if (!out.length) out.push([String(p.version || p.default_version || ''), p.version_label || '']);
+    (Array.isArray(p.versions) ? p.versions : []).forEach(function (v) { out.push([String(v.version || ''), versionWords(v) || v.version || tr('plain')]); });
+    if (!out.length) out.push([String(p.version || p.default_version || ''), p.version_label ? versionWords(p) : '']);
     return out;
   }
   /* the version asked is among them (1.0.96: one not in the list showed "plain" over its text) */

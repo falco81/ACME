@@ -1584,7 +1584,7 @@ function drawModTab(key, live) {
           tools.appendChild(ab);
         });
         if (FULL) {
-          if (key !== 'tests' && (key !== 'targets' || deployable(r))) tools.appendChild(defaultButton(key, r));
+          if (key !== 'tests' && (key !== 'targets' || targetDefaultable(r) || r.is_default)) tools.appendChild(defaultButton(key, r));
           var e = iconButton('edit', 'Edit');
           e.onclick = function (ev) { ev.stopPropagation(); modEdit(key, r); };
           tools.appendChild(e);
@@ -2601,7 +2601,7 @@ function modForm(key, row, p, fromPick, keep) {
       }
     });
   }});
-  var df = row && key !== 'tests' ? defaultFoot(key, row, function () { closeModal(); modEdit(key, row); }) : null;
+  var df = row && key !== 'tests' && (key !== 'targets' || targetDefaultable(row) || row.is_default) ? defaultFoot(key, row, function () { closeModal(); modEdit(key, row); }) : null;
   if (df) buttons.push(df);
   /* Asked in a popup over the dialog (1.0.21): it went at once, without a word. */
   if (row && FULL) buttons.push({words: 'Take it away', cls: 'danger', icon: 'trash', once: true, go: function () {
@@ -2804,7 +2804,7 @@ function targetPeek(r) {
         body.appendChild(grid);
       },
       buttons: [{words: 'Close', close: true},
-        defaultFoot('targets', r, function () { closeModal(); targetPeek(r); }),
+        targetDefaultable(r) || r.is_default ? defaultFoot('targets', r, function () { closeModal(); targetPeek(r); }) : null,
         /* an application of ours: its Discover here too (1.0.93) - the window said "Discover
            tells which certificates it needs", only the list's row had it */
         r.kind === 'acme_push' && MANAGE ? {words: 'Discover', icon: 'search', go: function (b) { pushDiscover(r, b); }} : null,
@@ -3116,6 +3116,13 @@ function targetTestsPart(certId, t, saved, pending) {
 function deployable(t) {
   return !(plugOf('target', (t || {}).kind) || {}).connector;
 }
+/** A target that can be the default (the one a new deployment is offered first): one that takes
+    any certificate - not a connector, nor a device that makes its own key (it takes only the
+    certificate made for that key; certs/default refuses it). */
+function targetDefaultable(t) {
+  var p = plugVersion(plugOf('target', (t || {}).kind), (t || {}).version);
+  return deployable(t) && !(p && p.device_key);
+}
 /** A target's icon as the lists draw it: its vendor's colour, its letters. */
 function targetIcon(t) {
   var p = plugVersion(plugOf('target', t.kind), t.version) || {};
@@ -3405,6 +3412,8 @@ function deployEdit(o) {
         cSel.hidden = true;
         g.appendChild(cSel);
         var certChosen = el('div', 'ck-attach-row on dp-chosen');
+        /* ...and from a target's window: a certificate whose key a device makes is not offered */
+        certs = certs.filter(function (x) { return !x.csr_from || x.csr_from === tName; });
         certPick = certPickList(certs, tName, function (id) { cSel.value = String(id); paintCert(); drawFields(); }, o.have);
         var paintCert = function () {
           clear(certChosen);
@@ -3449,7 +3458,11 @@ function deployEdit(o) {
         /* The target picked from a list as "Attach a test" offers the tests (1.0.90): one at
            a time (a radio), then its options as before - Change brings the list back. The
            select stays underneath: what the rest of the form reads. */
-        var free = targets.filter(deployable);
+        /* a certificate whose key a device makes goes to that device alone; any other is not
+           taken by a device that makes its own key (as the deployment step of the wizard) */
+        var devKeyOf = function (t) { var pp = plugVersion(plugOf('target', t.kind), t.version); return !!(pp && pp.device_key); };
+        var csrFrom = (o.cert && o.cert.csr_from) || '';
+        var free = targets.filter(deployable).filter(function (t) { return csrFrom ? t.name === csrFrom : !devKeyOf(t); });
         tSel = selectBox([['', '']].concat(free.map(function (t) { return [t.name, t.name]; })), tName || '');
         tSel.hidden = true;
         var chosenBox = el('div', 'ck-attach-row on dp-chosen');
@@ -3496,6 +3509,7 @@ function deployEdit(o) {
         th.appendChild(el('label', 'dp-label', 'Target'));
         th.appendChild(chosenBox);
         th.appendChild(pickHost.node);
+        if (csrFrom) th.appendChild(el('p', 'muted small', 'Its key is made by the device of ' + csrFrom + ': it goes there alone, right after each issue - the deployment is made by itself.'));
         body.appendChild(th);
       }
       body.appendChild(g);
@@ -4234,6 +4248,18 @@ function certBody(body, c, versions, deploys, jobs, back) {
   if (valSection && !blocked) grid.appendChild(valSection);
   /* deployments */
   var ds = section('Deployments', 'Where it is put each time it is renewed.', true);
+  /* its key made by a device (certs.csr_from): without its deployment there (switched on) an
+     issue is refused - said here, in the words the issue would say (devicekey.csr_for) */
+  if (c.csr_from) {
+    var devDep = arr(deploys).filter(function (d) { return d.target === c.csr_from; })[0];
+    var devWhy = !devDep ? 'it has no deployment to {0}, whose device makes its key - the certificate would never reach the device: add it (the certificate → Deployments)'
+      : (devDep.enabled === 0 || devDep.enabled === false || devDep.enabled === '0'
+        ? 'its deployment to {0}, whose device makes its key, is switched off - the certificate would never reach the device: switch it on' : '');
+    if (devWhy) {
+      var dw = tr(devWhy).replace('{0}', c.csr_from);
+      ds._body.appendChild(data('p', 'note warn', dw.charAt(0).toUpperCase() + dw.slice(1)));
+    }
+  }
   var dHost = el('div');
   ds._body.appendChild(dHost);
   var dFind = null;
@@ -5197,7 +5223,7 @@ function certWizard(cert, detail, opts) {
       /* the device makes the key (1.0.96): a source that signs no CSR it did not make cannot
          give its certificate - said, and not taken (as the save refuses it) */
       var noCsr = !!W.d.csr_from && (SOURCE_NO_CSR.indexOf(s.kind) >= 0 || (p && p.makes_key));
-      if (noCsr) { chips.appendChild(el('span', 'tag warn', 'signs no CSR of a device')); t.disabled = true; t.classList.add('off'); }
+      if (noCsr) { chips.appendChild(el('span', 'tag warn', 'signs no CSR of a device')); t.disabled = true; t.classList.add('off'); t.classList.remove('on'); }
       w.appendChild(chips);
       t.appendChild(w);
       t.onclick = function () {
@@ -5494,7 +5520,11 @@ function certWizard(cert, detail, opts) {
         var bt = el('button', (o[0] ? !!W.d.csr_from : !W.d.csr_from) ? 'on' : '', o[1]);
         bt.type = 'button';
         bt.onclick = function () {
-          W.d.csr_from = o[0] ? (W.d.csr_from || (devs[0] || {}).name || '') : '';
+          /* back to the device: the one given (its target's "Make its certificate"), or picked
+             last - not the first in the list */
+          if (!o[0] && W.d.csr_from) W.devLast = W.d.csr_from;
+          var back = [W.devLast, opts.csrFrom, c.csr_from].filter(function (n) { return n && devs.some(function (t) { return t.name === n; }); })[0];
+          W.d.csr_from = o[0] ? (W.d.csr_from || back || (devs[0] || {}).name || '') : '';
           devDeploys();
           paint();
         };
@@ -5507,10 +5537,15 @@ function certWizard(cert, detail, opts) {
       var dsel = selectBox(devs.map(function (t) { var p = devPlug(t); return [t.name, t.name + ' · ' + tr(p ? p.title : t.kind)]; }), W.d.csr_from);
       if (!devs.some(function (t) { return t.name === W.d.csr_from; })) dsel.appendChild(new Option(W.d.csr_from, W.d.csr_from, true, true));
       noI18n(dsel);
-      dsel.onchange = function () { W.d.csr_from = dsel.value; devDeploys(); paint(); };
+      dsel.onchange = function () { W.d.csr_from = W.devLast = dsel.value; devDeploys(); paint(); };
       host.appendChild(formField('The device', dsel, 'At every issue and renewal acme asks it for a new key and CSR, and puts the certificate back right after. The key never leaves the device; acme holds none, so it cannot be exported and goes to this target alone.'));
     } else {
       host.appendChild(el('p', 'note', 'The key is made here, on this server, and never leaves it unless a full administrator exports it.'));
+      /* its device has the certificate (a deployment there): the save would be refused
+         (certs/save) - said here, with what to do */
+      if (editing && c.csr_from && rowsOf(obj(detail).deploys).some(function (r) { return r.target === c.csr_from; })) {
+        host.appendChild(data('p', 'note warn ct-devkept', tr('Its key is made by {0} and it is deployed there: the key cannot be made here while that deployment stays. Choose “Key made by the device” again, or close this, take that deployment away (the certificate → Deployments; the device keeps the certificate it has) and then change where its key is made.').replace('{0}', c.csr_from)));
+      }
     }
     var grid = el('div', 'ct-keys');
     var tiles = {};
@@ -5519,7 +5554,8 @@ function certWizard(cert, detail, opts) {
       t.type = 'button';
       t.dataset.key = k[0];
       t.appendChild(data('b', '', k[1]));
-      if (k[0] === 'ec-256') t.appendChild(el('span', 'tag ok', 'recommended'));
+      /* "recommended" only on a tile that can be chosen (taken away below when it cannot) */
+      if (k[0] === 'ec-256') t.appendChild(el('span', 'tag ok ct-keyrec', 'recommended'));
       t.appendChild(el('span', 'muted small', k[2]));
       var why = el('span', 'ct-keywhy');
       t.appendChild(why);
@@ -5529,6 +5565,8 @@ function certWizard(cert, detail, opts) {
         t.disabled = true;
         t.classList.add('off');
         why.textContent = tr('the device does not make it');
+        var rec0 = t.querySelector('.ct-keyrec');
+        if (rec0) rec0.hidden = true;
       }
       t.onclick = function () {
         if (t.disabled) return;
@@ -5549,6 +5587,8 @@ function certWizard(cert, detail, opts) {
         t.node.disabled = !k.ok;
         t.node.classList.toggle('off', !k.ok);
         t.why.textContent = k.ok ? '' : k.why;
+        var rec = t.node.querySelector('.ct-keyrec');
+        if (rec) rec.hidden = !k.ok;
       });
     });
     if (can().makesKey) host.appendChild(el('p', 'muted small', 'This source makes the key itself; the type is what is asked of it.'));
@@ -8951,7 +8991,7 @@ function modTags(family, p, row, opts) {
     vt.innerHTML = iconMarkup('history', 11);
     vt.appendChild(data('span', '', versionName(p.version || '')));
     if (opts.count && vers.length > 1) vt.appendChild(el('span', 'md-ver-n', '+' + (vers.length - 1)));
-    explain(vt, (p.version_label ? p.version_label + ' · ' : '') + tr('version of the module') + (vers.length > 1 ? ' - ' + vers.length + ' ' + tr('versions there are') : ''));
+    explain(vt, (versionWords(p) ? versionWords(p) + ' · ' : '') + tr('version of the module') + (vers.length > 1 ? ' - ' + vers.length + ' ' + tr('versions there are') : ''));
     out.push(vt);
   }
   if (row && row.version_missing) {
@@ -8974,6 +9014,18 @@ function tagsInto(node, list) {
   node.appendChild(box);
   return node;
 }
+/** What version:x of the Modules filter is matched against (1.0.96: one text of them all
+    joined matched no "version:9.10"): each version as it is named, "plain" in either
+    language for the plain one, and the version numbers its label says (ONTAP 9.10.1 - 9.19). */
+function mdVersionWords(p) {
+  var out = [];
+  (arr(p.versions).length ? arr(p.versions) : [p]).forEach(function (v) {
+    out.push(v.version ? String(v.version) : 'plain');
+    if (!v.version) out.push(tr('plain'));
+    String(v.version_label || '').replace(/\d+(?:\.\d+)+/g, function (n) { out.push(n); return n; });
+  });
+  return out;
+}
 /** The version picker of a module's form: shown when it has more than one. */
 function versionPicker(p, onPick) {
   var base = p._base || p;
@@ -8987,7 +9039,7 @@ function versionPicker(p, onPick) {
     top.appendChild(data('b', '', versionName(v.version)));
     if (v.default) top.appendChild(el('span', 'tag ok', 'default'));
     b.appendChild(top);
-    b.appendChild(data('span', 'md-vcard-l', v.version_label || v.title || ''));
+    b.appendChild(data('span', 'md-vcard-l', versionWords(v) || v.title || ''));
     var foot = el('span', 'md-vcard-f');
     tagsInto(foot, modTags(base.family, v, null, {shipped: true, marks: true}).filter(function (t) { return !t.classList.contains('md-ver'); }));
     b.appendChild(foot);
@@ -9105,7 +9157,7 @@ function drawModules(live) {
   var spec = {
     fields: [['name', 'what the module is called', 'name~NetScaler'], ['kind', 'its kind in acme', 'kind:netscaler'],
              ['vendor', 'who makes it', 'vendor:Citrix'], ['family', 'source, validation or target', 'family:target'],
-             ['origin', 'shipped, own, uploaded or override', 'origin:override'], ['version', 'one of its versions', 'version:14.1'],
+             ['origin', 'shipped, own, uploaded or override', 'origin:override'], ['version', 'one of its versions', 'version:9.10'],
              ['mark', 'tested, works or problem', 'mark:works'], ['used', 'how many use it', 'used>0', 'num']],
     rows: function () { return mdRows(); },
     value: function (r, f) {
@@ -9113,7 +9165,7 @@ function drawModules(live) {
       var m = markOf(r.fam, p.kind, p.version);
       return {name: p.title || p.kind, kind: p.kind, vendor: p.vendor || '', family: {issuer: 'source', challenge: 'validation', target: 'target', check: 'test'}[r.fam],
               origin: r.override ? 'override' : (r.custom ? (p.source === 'uploaded' ? 'uploaded' : 'own') : 'shipped'),
-              version: arr(p.versions).map(function (v) { return v.version || 'plain'; }).join(' ') || p.version || '',
+              version: mdVersionWords(p),
               mark: (m.here || m.release || {}).state || '', used: r.used}[f];
     },
     words: function (r) { return [r.p.title, tr(r.p.title || ''), r.p.kind, r.p.vendor, r.p.description, tr(r.p.description || '')].join(' '); }
@@ -9176,7 +9228,7 @@ function drawModules(live) {
         var m = markOf(r.fam, p.kind, v.version || '');
         var mm = m.here || m.release;
         if (mm && MARKS[mm.state]) chip.classList.add('m-' + mm.state);
-        explain(chip, (v.version_label || v.title || '') + (v.default ? ' · ' + tr('default') : '') + (n ? ' · ' + tr('used by {0}').replace('{0}', n) : '') + (mm ? ' · ' + tr(MARKS[mm.state][0]) : ''));
+        explain(chip, (versionWords(v) || v.title || '') + (v.default ? ' · ' + tr('default') : '') + (n ? ' · ' + tr('used by {0}').replace('{0}', n) : '') + (mm ? ' · ' + tr(MARKS[mm.state][0]) : ''));
         vc.appendChild(chip);
       });
       tr_.appendChild(vc);
@@ -9290,7 +9342,7 @@ function moduleDetail(fam, kind) {
       var left = el('div', 'md-vrow-l');
       var t = el('div', 'md-vrow-t');
       t.appendChild(data('b', '', versionName(v.version || '')));
-      if (v.version_label) t.appendChild(data('span', 'muted', ' · ' + v.version_label));
+      if (versionWords(v)) t.appendChild(data('span', 'muted', ' · ' + versionWords(v)));
       if (vers.length > 1 && v.default) {
         t.appendChild(el('span', 'tag ok', 'default'));
         if (p.default_picked) t.appendChild(explain(el('span', 'tag info', 'chosen here'), 'Made the default on this page - not by its code.'));
@@ -9509,7 +9561,7 @@ function moduleStartPick(o) {
     body.appendChild(grid);
     var opts = [];
     vers.forEach(function (v) {
-      var nm = versionName(v.version || '') + (v.version_label ? ' · ' + v.version_label : '');
+      var nm = versionName(v.version || '') + (versionWords(v) ? ' · ' + versionWords(v) : '');
       if (v.overrides) {
         opts.push(['orig:' + (v.version || ''), nm + ' · ' + tr('shipped original (replaced now)')]);
         opts.push(['v:' + (v.version || ''), nm + ' · ' + tr('your replacement (in use)')]);
@@ -9709,7 +9761,7 @@ function moduleUpload(o) {
       var bship = bvers.filter(function (v) { return v.origin !== 'custom'; })[0] || bvers[0] || {};
       var wopts = [];
       bvers.forEach(function (v) {
-        var nm = versionName(v.version || '') + (v.version_label ? ' · ' + v.version_label : '');
+        var nm = versionName(v.version || '') + (versionWords(v) ? ' · ' + versionWords(v) : '');
         if (v.overrides) {
           wopts.push(['orig:' + (v.version || ''), nm + ' · ' + tr('shipped original (replaced now)')]);
           wopts.push(['v:' + (v.version || ''), nm + ' · ' + tr('your replacement (in use)')]);

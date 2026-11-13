@@ -214,6 +214,42 @@ def auto_made(store, name):
     return bool(r and str(r.get('note') or '').endswith(AUTO_NOTE))
 
 
+def drop_auto_left(store, by, names=None, target=None):
+    """Tests acme made from a deployment (auto_made) that nothing needs any more, deleted: those
+    in `names` attached to no certificate (the certificate deleted), or those made for the
+    target `target` (their note names it) attached to none - or only where they run after no
+    deployment, left so when the deployment went (target_gone), not by a person (the target
+    deleted). A test made or changed by a person - its note is not acme's - stays, and one
+    another test runs stays. -> the names deleted."""
+    from acmelib.certs import api
+    cand = set(str(n) for n in (names or []) if n)
+    if target:
+        mine = 'what %s serves %s' % (target, AUTO_NOTE)
+        for r in store.db.rows('SELECT name, note FROM cert_tests'):
+            if str(r.get('note') or '') == mine:
+                cand.add(r['name'])
+    gone = []
+    for name in sorted(cand):
+        row = store.db.row('SELECT * FROM cert_tests WHERE name = ?', (name,))
+        if not row or not auto_made(store, name):
+            continue
+        att = store.db.rows('SELECT id, after_target FROM cert_checks WHERE test = ?', (name,))
+        loose = [a for a in att if after_list(a.get('after_target')) in ([], [AFTER_NONE])
+                 and not store.get_meta(_none_key(a['id']))]
+        if att and not (target and len(loose) == len(att)):
+            continue
+        try:
+            if any(u['where'] != 'certificate' for u in api.family_uses(store, 'check', row)):
+                continue                        # another test runs it
+            for a in loose:
+                store.db.run('DELETE FROM cert_checks WHERE id = ?', (int(a['id']),))
+            api.family_delete(store, 'check', {'id': row['id']}, by)
+            gone.append(name)
+        except Exception:                                   # noqa: BLE001
+            continue                            # left as it is - a person can delete it
+    return gone
+
+
 def verify_to_tests(store, dep, opts, by):
     """A deployment's "Check what is served" (verify, verify_sni) made into tests of its
     target (for_target) and taken out of its options (1.0.77). -> the names; `opts` changed."""

@@ -142,7 +142,10 @@ table.ct-cmap td{padding-top:3px;padding-bottom:3px}
 .ct-src:focus-visible,.ct-keyt:focus-visible{outline:2px solid var(--info);outline-offset:2px}
 .ct-src:active,.ct-keyt:active{transform:translateY(1px)}
 .ct-src.on,.ct-keyt.on{border-color:var(--info);background:var(--info-bg);box-shadow:0 0 0 1px var(--info) inset}
-.ct-src.off{opacity:.7}
+.ct-src.off,.ct-keyt.off{opacity:.45;cursor:not-allowed;border-style:dashed;background:transparent;box-shadow:none}
+.ct-src.off:hover,.ct-keyt.off:hover,.ct-src.off.on,.ct-keyt.off.on{border-color:var(--line)}
+.ct-src.off:active,.ct-keyt.off:active{transform:none}
+.ct-src.off .ct-src-ic{background:var(--panel);color:var(--tx-dim)}
 .ct-src-ic{flex:none;width:40px;height:40px;border-radius:11px;display:grid;place-items:center;
   background:var(--info-bg);color:var(--info)}
 .ct-src.on .ct-src-ic{background:var(--info);color:var(--bg)}
@@ -513,7 +516,6 @@ p > :not(:first-child).btn, td > :not(:first-child).btn, li > :not(:first-child)
 .ct-name.uri{border-color:rgba(210,153,34,.45);color:var(--warn)}
 .ct-name.cn{border-style:dashed}
 .ct-name.cn i{font-style:normal;font-weight:700}
-.ct-keyt.off{opacity:.45;cursor:not-allowed}
 .ct-keywhy{font-size:11.5px;color:var(--crit)}
 .ct-keywhy:empty{display:none}
 .ct-unfitlist{margin:6px 0 10px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;

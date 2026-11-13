@@ -777,6 +777,8 @@ def cert_drop(store, row, by):
     """A certificate gone from acme: its deployments, versions, finished jobs and
     what the portal kept of who asked for it (nothing on the targets, nothing at the CA)."""
     db = store.db
+    tested = [r['test'] for r in db.rows('SELECT test FROM cert_checks WHERE cert_id = ?',
+                                         (row['id'],))]
     db.run('DELETE FROM cert_checks WHERE cert_id = ?', (row['id'],))
     db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (row['id'],))
     db.run('DELETE FROM cert_versions WHERE cert_id = ?', (row['id'],))
@@ -793,6 +795,14 @@ def cert_drop(store, row, by):
     db.run('DELETE FROM meta WHERE k = ?', (S.HOLD_KEY % int(row['id']),))
     store.add_event('certificates', 'certificate %s deleted by %s' % (row['name'], by),
                     'warn', who=by)
+    # the tests acme made from its deployments, attached to nothing now, go with it
+    from acmelib.certs import checks as C
+    try:
+        for n in C.drop_auto_left(store, by, names=tested):
+            store.add_event('certificates', 'the test %s, made from a deployment of %s, deleted '
+                            'with it' % (n, row['name']), who=by)
+    except Exception:                                   # noqa: BLE001
+        pass
 
 
 def revocable(store, row):
@@ -2430,6 +2440,15 @@ def family_delete(store, family, b, by):
     if uses:
         _unbind(store, family, row, uses, by)
     store.db.run('DELETE FROM %s WHERE id = ?' % S.TABLE_OF[family], (row['id'],))
+    if family == 'target':
+        # the tests acme made from deployments there, needed by nothing now, go with it
+        from acmelib.certs import checks as C
+        try:
+            for n in C.drop_auto_left(store, by, target=row['name']):
+                store.add_event('certificates', 'the test %s, made from a deployment to %s, '
+                                'deleted with it' % (n, row['name']), who=by)
+        except Exception:                               # noqa: BLE001
+            pass
     # Its own rows only (1.0.44): LIKE read "_" as any character, and SQLite's ignores
     # case - deleting dc_1 took dc-1's (an aws-acm ARN) with it.
     kv = '%s%s:%s:' % (runtime.KV_PREFIX, family, row['name'])
@@ -2896,9 +2915,12 @@ def _deploy_save_in(store, b, by, full, made):
                     raise ValueError('%s is needed' % (f.get('label') or f['key']))
                 # a required one given empty is refused even with a default (1.0.95: the
                 # slots of an application, emptied, went on as "auto" - only the page said no)
+                # ...and a list of empty lines (1.0.96: members [""] of an Infoblox went through)
                 if f.get('required') and field_shown(f, opts) and f['key'] in opts and \
                         (opts[f['key']] in ('', []) or (isinstance(opts[f['key']], str) and
-                                                       not opts[f['key']].strip())):
+                                                       not opts[f['key']].strip()) or
+                         (isinstance(opts[f['key']], list) and
+                          not any(str(x).strip() for x in opts[f['key']]))):
                     raise ValueError('%s is needed' % (f.get('label') or f['key']))
                 # Of the field's own kind (1.0.45): a number for a file name broke the module
                 # inside the deployment ("join() argument must be str").
@@ -3006,7 +3028,12 @@ def _deploys(h, s):
 
 @api('POST', '/api/deploys/save', 'certadmin')
 def _deploy_save(h, s):
-    return {'id': deploy_save(h.store, h.body(), who(s), full=may(s, 'fulladmin'))}
+    b = h.body()
+    if isinstance(b, dict) and b.get('id') in (None, '', 0) and 'options' not in b:
+        # a new one sent with no options is checked as one with none (1.0.96: an Infoblox
+        # deployment with no Grid members was saved, and failed only when it ran)
+        b = dict(b, options={})
+    return {'id': deploy_save(h.store, b, who(s), full=may(s, 'fulladmin'))}
 
 
 @api('POST', '/api/deploys/delete', 'certadmin')

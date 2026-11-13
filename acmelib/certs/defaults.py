@@ -261,6 +261,13 @@ def set_default(store, what, ref, by):
         if row.get('enabled') is not None and not int(row['enabled']):
             raise ValueError('the %s %s is switched off - it cannot be the default' % (
                 word, row['name']))
+        if what == 'target':
+            # a device that makes its own key takes only the certificate made for that key
+            # (certs.csr_from) - never the one a new deployment is offered first
+            from acmelib.certs import devicekey
+            if devicekey.device_class(store, row) is not None:
+                raise ValueError('%s makes its own key and takes only the certificate made for '
+                                 'it - it cannot be the default target' % row['name'])
         store.set_meta(META[what], row['name'])
         name = row['name']
     store.add_event('certificates', '%s is now the default %s (by %s)' % (name, word, by),
