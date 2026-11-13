@@ -38,7 +38,7 @@ import base64
 import urllib.parse
 
 from acmelib.plugins.targets._common import (
-    HttpTarget, PluginError, field, as_bool, object_name, name_prefix, prune,
+    HttpTarget, PluginError, field, as_bool, object_name, name_prefix, prune, ours,
     http_fields, tls_fields, verify_fields, keep_field, text, chain_list, chain_id, random_password)
 
 ROLES = (('admin', 'Admin (its pages - restarts the node\'s services)'), ('eap', 'EAP'),
@@ -95,9 +95,16 @@ class CiscoIseTarget(HttpTarget):
         options = options or {}
         name = object_name(bundle, options, maxlen=60)
         prefix = name_prefix(bundle, options, maxlen=60)
-        have = {r.get('friendlyName'): r.get('id') for r in self.listed()}
+        rs = self.listed()
+        have = {r.get('friendlyName'): r.get('id') for r in rs}
         if self.unchanged(bundle, options, present=lambda: name in have):
             return self.same(bundle, 'as %s' % name)
+        # what is there now, said (1.0.98): the decision What happens shows
+        for r in rs:
+            n = text(r.get('friendlyName'))
+            if n != name and ours(n, prefix):
+                self.ctx.step('the node has the earlier %s (used by: %s)' % (
+                    n, text(r.get('usedBy')) or '?'))
         roles = {x.strip().lower() for x in text(self.opt(options, 'roles', '')).split()}
         bad = roles - {k for k, _ in ROLES}
         if bad:
@@ -113,7 +120,9 @@ class CiscoIseTarget(HttpTarget):
                         what='importing an intermediate as trusted')
                     self.ctx.step('imported the intermediate acme-ca-%s' % chain_id(pem))
                 except PluginError as e:
-                    self.ctx.debug('intermediate not imported (there already?): %s' % e)
+                    # said, not only in the debug log (1.0.98): What happens shows it
+                    self.ctx.step('the intermediate acme-ca-%s is not imported (there '
+                                  'already?): %s' % (chain_id(pem), e))
         key, pw = self.encrypted_key(bundle)
         body = {'name': name, 'data': text(bundle.as_format('cert-pem')),
                 'privateKeyData': key, 'password': pw,

@@ -61163,6 +61163,22 @@
   "_73": {
    "source": "has loaded",
    "text": "má načtený"
+  },
+  "_74": {
+   "source": "Unisphere serves this certificate already",
+   "text": "Unisphere už servíruje tento certifikát"
+  },
+  "_75": {
+   "source": "Unisphere serves another certificate - this one is put there",
+   "text": "Unisphere servíruje jiný certifikát – dá se tam tento"
+  },
+  "_76": {
+   "source": "(version not read)",
+   "text": "(verze nepřečtena)"
+  },
+  "_77": {
+   "source": "none read",
+   "text": "žádný nepřečten"
   }
  },
  "patterns": {
@@ -84921,6 +84937,82 @@
   "p_94": {
    "source": "{0} use {1} - they reload",
    "text": "{0} používají {1} - znovu se načtou"
+  },
+  "p_95": {
+   "source": "rule {0} updated (it used {1})",
+   "text": "pravidlo {0} změněno (používalo {1})"
+  },
+  "p_96": {
+   "source": "{0} has another certificate - installing this one",
+   "text": "{0} má jiný certifikát – instaluje se tento"
+  },
+  "p_97": {
+   "source": "{0} has no certificate acme could read - installing this one",
+   "text": "{0} nemá certifikát, který by acme přečetlo – instaluje se tento"
+  },
+  "p_98": {
+   "source": "{0} holds another certificate (version {1}) - a new version is written",
+   "text": "{0} obsahuje jiný certifikát (verze {1}) – zapisuje se nová verze"
+  },
+  "p_99": {
+   "source": "{0} holds no certificate yet - a new version is written",
+   "text": "{0} zatím neobsahuje certifikát – zapisuje se nová verze"
+  },
+  "p_100": {
+   "source": "{0} holds other fields - a new version is written",
+   "text": "{0} obsahuje jiná pole – zapisuje se nová verze"
+  },
+  "p_101": {
+   "source": "the domain {0} is ID {1} at Webglobe",
+   "text": "doména {0} má u Webglobe ID {1}"
+  },
+  "p_102": {
+   "source": "iLO {0} firmware {1}, security state {2}; it holds {3} until {4}",
+   "text": "iLO {0} firmware {1}, stav zabezpečení {2}; drží {3} do {4}"
+  },
+  "p_103": {
+   "source": "key type of the iLO certificate: {0} already",
+   "text": "typ klíče certifikátu iLO: už {0}"
+  },
+  "p_104": {
+   "source": "{0} uses {1} - it is pointed at {2}",
+   "text": "{0} používá {1} – přesměruje se na {2}"
+  },
+  "p_105": {
+   "source": "vCenter serves {0} (thumbprint {1}, valid to {2}) - it is replaced",
+   "text": "vCenter servíruje {0} (otisk {1}, platný do {2}) – nahradí se"
+  },
+  "p_106": {
+   "source": "vCenter {0} - 8.0 U2 or later: replaced without a restart",
+   "text": "vCenter {0} – 8.0 U2 nebo novější: nahrazení bez restartu"
+  },
+  "p_107": {
+   "source": "vCenter {0}: the {1} calls; the Supervisor {2} holds another certificate - it is replaced",
+   "text": "vCenter {0}: volání {1}; Supervisor {2} drží jiný certifikát – nahradí se"
+  },
+  "p_108": {
+   "source": "vCenter {0}: the {1} calls; the Supervisor {2} holds this certificate already - it is put there again",
+   "text": "vCenter {0}: volání {1}; Supervisor {2} už drží tento certifikát – dá se tam znovu"
+  },
+  "p_109": {
+   "source": "the appliance holds {0} (valid to {1}) - it is replaced",
+   "text": "appliance drží {0} (platný do {1}) – nahradí se"
+  },
+  "p_110": {
+   "source": "the workload domain {0} is {1}",
+   "text": "doména úloh {0} je {1}"
+  },
+  "p_111": {
+   "source": "the one workload domain: {0} ({1})",
+   "text": "jediná doména úloh: {0} ({1})"
+  },
+  "p_112": {
+   "source": "Veeam Backup & Replication {0}; its backup server certificate now: {1} - it is replaced",
+   "text": "Veeam Backup & Replication {0}; jeho certifikát záložního serveru teď: {1} – nahradí se"
+  },
+  "p_113": {
+   "source": "Cloud Connect uses {0} now - it is replaced",
+   "text": "Cloud Connect teď používá {0} – nahradí se"
   }
  },
  "rich": {

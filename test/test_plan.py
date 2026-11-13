@@ -555,7 +555,11 @@ class SandboxAnswers(unittest.TestCase):
                                           'password': 'stand-in'}, version='17.12')
         cmds = [e['command'] for e in evs if e['kind'] == 'ssh-run']
         self.assertTrue(any(c.startswith('show crypto pki certificates ') for c in cmds), cmds)
-        self.assertEqual(cmds[-1], 'write memory')
+        # saved; then (1.0.98: the device lists earlier trustpoints of acme's) the oldest
+        # removed - after the save, the save its last command but the listing
+        self.assertIn('write memory', cmds)
+        self.assertTrue(all(c.startswith('show running-config') or not c.strip()
+                            for c in cmds[cmds.index('write memory') + 1:]), cmds)
         self.assertFalse([e for e in evs if e['kind'] == 'wait'])
         evs = self.record('netapp_ontap', {'host': 'c1', 'user': 'u', 'password': 'p'},
                           {'svm': 'vs-prod'}, version='9.10')
@@ -960,6 +964,39 @@ print(json.dumps({'before': before == want, 'signed_in': signed_in == want, 'aft
         self.assertEqual(got['served'], ['earlier', 'earlier', 'new'])
         self.assertIn('www.example.com', json.dumps(got['names']))
 
+    def test_paths_and_placeholders_shown(self):
+        """A key's path is no key (F5's certKeyChain "key": "/Common/x.key"), a real key or a
+        key-looking value stays dots; a stand-in ‹placeholder› percent-encoded in a URL reads
+        as itself (1.0.98)."""
+        from acmelib.certs import plansandbox as P
+        got = P.mask_json({'key': '/Common/acme-www.key', 'privateKey': 'C:\\c\\a.key',
+                           'keyFile': 'www.key', 'password': '/looks/like/a/path',
+                           'apiKey': '/x', 'k2': {'key': 'Zm9vYmFy' * 10},
+                           'k3': {'key': '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----'}}, {})
+        self.assertEqual((got['key'], got['privateKey'], got['keyFile']),
+                         ('/Common/acme-www.key', 'C:\\c\\a.key', 'www.key'))
+        self.assertEqual((got['password'], got['apiKey'], got['k2']['key']), ('••••',) * 3)
+        self.assertNotIn('MIIE', json.dumps(got))
+        u = P.mask_url('https://x/zones/%E2%80%B9zone%20id%E2%80%BA/c?n=%E2%80%B9a+b%E2%80%BA'
+                       '&password=1', {})
+        self.assertEqual(u, 'https://x/zones/‹zone id›/c?n=‹a b›&password=••••')
+
+    def test_later_run_finds_what_the_first_kept(self):
+        """What a deployment kept (ctx.kv_set) is there at the renewal - as kept for an
+        earlier certificate (its fingerprint another), so the renewal's clean-up shows."""
+        from acmelib.certs import plansandbox as P
+        from acmelib.plugins.targets import _common as C
+        b = P.dummy_bundle({'names': ['www.example.com'], 'key_type': 'ec-256'})
+        fp = C.fp_of(b)
+        kv = {'cert:www': {'fp': fp, 'short': fp[:16], 'thumb': C.sha1_thumb(b), 'id': 'x1'}}
+        got = P.kv_as_earlier(kv, b)['cert:www']
+        self.assertEqual(got['id'], 'x1')
+        self.assertNotEqual(got['fp'], fp)
+        self.assertEqual(len(got['fp']), 64)
+        self.assertEqual(got['short'], got['fp'][:16])
+        self.assertNotEqual(got['thumb'], C.sha1_thumb(b))
+        self.assertTrue(got['thumb'].isupper())
+
     def test_calls_around_ctx_are_errors(self):
         """A module that goes around ctx (urllib / http.client, a socket, a program, a DNS
         lookup) is caught: recorded as an error step, never reaching the network."""
@@ -1243,7 +1280,18 @@ class RenewalPathsG4(RenewalPathsG2):
                       'state Production; it holds', 'SAY key type of the iLO certificate: RSA',
                       'HpeHttpsCert.ImportCertificate', 'SAY imported the certificate with its key')
         self.assertFalse([x for x in got if x.startswith('DELETE')])    # gone with the reset
-        got = self.record('vcf_component', dict(self.PW, domain='mgmt'), {})
+        from acmelib.certs import runplan as R
+        cfg = dict(self.PW, domain='mgmt', _version='')
+        rec, err = R.record({'runs': [{
+            'id': 'r1', 'family': 'target', 'kind': 'vcf_component', 'name': 't',
+            'op': 'deploy', 'config': cfg, 'options': {}, 'seconds': 30,
+            'answers': R.answers_of('vcf_component', cfg, {}),
+            'ssh_answers': []}], 'cert': {'names': ['www.example.com'], 'key_type': 'rsa-2048',
+                                         'csr_from': 'x'}}, timeout=120)
+        evs = rec['r1']['events']
+        self.assertFalse(rec['r1'].get('error'))
+        self.assertFalse([e for e in evs if e.get('fallback')])
+        got = RenewalPaths.seen(evs)
         self.in_order(got, 'SAY the workload domain mgmt is', 'validations',
                       'validations/', 'validations/', 'SAY SDDC Manager validated',
                       '/v1/tasks/', '/v1/tasks/', 'SAY SDDC Manager installed')
@@ -1325,6 +1373,414 @@ class SandboxPlaceholdersG4(unittest.TestCase):
         self.assertNotIn('p12pw', t)
         self.assertIn('<key name="Name">WAF</key>', t)
         self.assertIn('<Username>a</Username>', t)
+
+
+class SourcesAndValidations(unittest.TestCase):
+    """The sources and validations (1.0.98): each recorded as on a running account - the zone
+    there, the record put in, seen by every name server (the sandbox's DNS answers), taken
+    away again; a CA's answer holds a certificate for the request's key; a commercial CA's
+    DCV put in place by the certificate's own validation within the source's run; nothing
+    goes around ctx; secrets of a key's shape handed as throwaway keys of that shape."""
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+
+    def run_one(self, family, kind, cfg, names=('www.example.com',), key_type='ec-256',
+                dcv=None, settings=None):
+        from acmelib.certs import runplan as R
+        from acmelib.certs import plansources as PS
+        from acmelib.plugins import base
+        base.REGISTRY.reload()
+        cls = base.REGISTRY.get(family, kind)
+        full = {f['key']: f.get('default') for f in cls.fields or [] if f.get('key')
+                and f.get('default') not in (None, '')}
+        full.update(cfg)
+        sec = R.Secrets()
+        scfg, marks = sec.stand_ins(R._fields_of(cls), full)
+        r = {'id': 'r1', 'family': family, 'kind': kind, 'name': kind, 'seconds': 30,
+             'op': 'issue' if family == 'issuer' else 'challenge', 'config': scfg,
+             'marks': marks, 'answers': R.answers_of(kind, scfg, first=False, family=family),
+             'ssh_answers': R.ssh_answers_of(kind, scfg, family=family), 'names': list(names),
+             'pinned': PS.PINNED.get(kind, [])}
+        if dcv:
+            ck, ccfg = dcv
+            ccls = base.REGISTRY.get('challenge', ck)
+            c2, m2 = sec.stand_ins(R._fields_of(ccls), ccfg)
+            r['marks'] = dict(marks, **m2)
+            r['challenges'] = {n: {'kind': ck, 'name': ck, 'config': c2,
+                                   'answers': R.answers_of(ck, c2, first=False,
+                                                           family='challenge'),
+                                   'ssh_answers': R.ssh_answers_of(ck, c2, family='challenge')}
+                               for n in names}
+        got, err = R.record({'runs': [r], 'settings': settings or {},
+                             'cert': {'names': list(names), 'key_type': key_type}}, timeout=120)
+        self.assertEqual(err, '')
+        run = got['r1']
+        self.assertFalse(run.get('error'), '%s: %s' % (kind, run.get('error')))
+        evs = run['events']
+        self.assertFalse([e for e in evs if e.get('kind') == 'bypass'], kind)
+        self.assertFalse([e for e in evs if e.get('fallback')],
+                         '%s: unanswered %s' % (kind, [e.get('url') for e in evs
+                                                       if e.get('fallback')]))
+        return evs, sec
+
+    @staticmethod
+    def lines(evs):
+        out = []
+        for e in evs:
+            if e['kind'] == 'http':
+                out.append('%s %s' % (e['method'], e['url']))
+            elif e['kind'] == 'say':
+                out.append('SAY ' + e['words'])
+            elif e['kind'] in ('dns-ask', 'phase', 'command', 'ssh-run'):
+                out.append('%s %s' % (e['kind'], e.get('name') or e.get('what') or
+                                      e.get('command') or ' '.join(e.get('argv') or [])))
+        return out
+
+    def test_dns_providers_take_the_renewal_path(self):
+        """The zone listed, ours not there yet - put in, seen by every name server, the record
+        listed again at the cleanup and deleted by its id."""
+        evs, _s = self.run_one('challenge', 'cloudflare', {'token': 'CfTok3nVerySecret'})
+        got = self.lines(evs)
+        i = got.index('GET https://api.cloudflare.com/client/v4/zones?name=example.com')
+        self.assertTrue(got[i + 1].startswith('POST https://api.cloudflare.com/client/v4/zones/'))
+        self.assertIn('SAY _acme-challenge.www.example.com TXT is on every name server of '
+                      'example.com (ns1.example.com, ns2.example.com)', got)
+        self.assertTrue(got[-1].startswith('DELETE https://api.cloudflare.com/'), got[-1])
+        for kind, cfg in (('hetzner', {'token': 't0k3n-hetzner-xyz'}),
+                          ('route53', {'access_key_id': 'AKIAEXAMPLE',
+                                       'secret_access_key': 'secretsecretsecret'}),
+                          ('cpanel', {'host': 'cp.example.com', 'user': 'u',
+                                      'token': 'tok3n-cpanel-xyz'}),
+                          ('loopia', {'user': 'u@loopiaapi', 'password': 'pw-loopia-xyz'}),
+                          ('subreg', {'login': 'u', 'password': 'pw-subreg-xyz'})):
+            evs, _s = self.run_one('challenge', kind, cfg)
+            phases = [e.get('what') for e in evs if e['kind'] == 'phase']
+            self.assertEqual(phases, ['ready', 'cleanup'], kind)
+            said = [e['words'] for e in evs if e['kind'] == 'say']
+            self.assertTrue([w for w in said if 'on every name server' in w], (kind, said))
+
+    def test_http01_and_scripts(self):
+        evs, _s = self.run_one('challenge', 'http_webdav', {'url': 'https://web.example.com',
+                                                            'user': 'u', 'password': 'pw-dav'})
+        said = [e['words'] for e in evs if e['kind'] == 'say']
+        self.assertIn('http://www.example.com/.well-known/acme-challenge/PLAN-TOKEN-from-the-CA-'
+                      '0000000000 answers with the right value', said)
+        evs, _s = self.run_one('challenge', 'script', {'path': '/bin/true'})
+        cmds = [e['argv'][:2] for e in evs if e['kind'] == 'command']
+        self.assertEqual(cmds, [['/bin/true', 'present'], ['/bin/true', 'cleanup']])
+        evs, _s = self.run_one('challenge', 'dns_builtin', {}, settings={
+            'dns_zone': 'acme.example.net', 'dns_server': 1})
+        said = [e['words'] for e in evs if e['kind'] == 'say']
+        self.assertIn('_acme-challenge.www.example.com is a CNAME to '
+                      'www.example.com.acme.example.net, as it should be', said)
+
+    def test_shaped_secrets(self):
+        """A service account's JSON and a private JWK are handed as throwaway keys of their
+        shape; the other secrets in the JSON as stand-ins."""
+        from acmelib.certs import pki
+        from acmelib.certs import runplan as R
+        real = pki.make_key('rsa-2048')
+        sa = json.dumps({'type': 'service_account', 'project_id': 'p1', 'private_key_id':
+                         'kid-very-secret-1', 'private_key': real,
+                         'client_email': 'a@p1.iam.gserviceaccount.com',
+                         'token_uri': 'https://oauth2.googleapis.com/token'})
+        sec = R.Secrets()
+        out, marks = sec.stand_ins([{'key': 'service_account', 'type': 'secret'}],
+                                   {'service_account': sa})
+        got = json.loads(out['service_account'])
+        self.assertNotEqual(got['private_key'], real)
+        self.assertIn('PRIVATE KEY', got['private_key'])
+        self.assertNotEqual(got['private_key_id'], 'kid-very-secret-1')
+        self.assertEqual(got['token_uri'], 'https://oauth2.googleapis.com/token')
+        self.assertEqual(got['client_email'], 'a@p1.iam.gserviceaccount.com')
+        jwk = json.dumps({'kty': 'EC', 'crv': 'P-256', 'kid': 'k1', 'x': 'a', 'y': 'b',
+                          'd': 'real-d'})
+        out, _m = sec.stand_ins([{'key': 'k', 'type': 'secret'}], {'k': jwk})
+        j = json.loads(out['k'])
+        self.assertEqual((j['kty'], j['crv'], j['kid']), ('EC', 'P-256', 'k1'))
+        self.assertNotEqual(j['d'], 'real-d')
+        self.assertEqual(len(j['d']), 43)
+        # a signed token's signature never shows
+        text = R.scrub({'t': 'eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJ4In0.c2lnbmF0dXJlLXNpZ25hdHVyZQ'},
+                       set())['t']
+        self.assertTrue(text.startswith('eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJ4In0.'), text)
+        self.assertNotIn('c2lnbmF0dXJl', text)
+
+    def test_cas_of_ones_own(self):
+        evs, _s = self.run_one('issuer', 'vault_pki', {'url': 'https://vault:8200',
+                                                       'token': 'hvs.secret', 'role': 'web'})
+        self.assertTrue([e for e in evs if e['kind'] == 'say' and
+                         e['words'].startswith('the certificate came: serial ')])
+        evs, _s = self.run_one('issuer', 'est', {'url': 'https://est.example.com', 'user': 'u',
+                                                 'password': 'pw-est'})
+        self.assertEqual([e['url'].rsplit('/', 1)[1] for e in evs if e['kind'] == 'http'],
+                         ['simpleenroll', 'cacerts'])
+
+    def test_adcs_ntlm_through_ctx(self):
+        """Web Enrollment signed in with NTLM on one connection kept through ctx: the three
+        messages recorded, none around ctx, the Authorization masked."""
+        evs, _s = self.run_one('issuer', 'ms_adcs', {
+            'url': 'https://ca01.example.local/certsrv', 'user': 'svc', 'password': 'Pw-AdCs-1',
+            'domain': 'EXAMPLE', 'template': 'WebServer', 'ca_pem': ''})
+        http = [e for e in evs if e['kind'] == 'http']
+        self.assertEqual([(e['method'], e['answer']) for e in http],
+                         [('POST', 401), ('POST', 401), ('POST', 200), ('GET', 200),
+                          ('GET', 200)])
+        self.assertTrue(all(e.get('kept') for e in http))
+        self.assertEqual(http[1]['headers'].get('Authorization'), 'NTLM ••••')
+
+    def test_scep_and_cmp(self):
+        evs, _s = self.run_one('issuer', 'scep', {
+            'url': 'https://ndes.example.local/certsrv/mscep/mscep.dll', 'ca_fingerprint':
+            'ab' * 32, 'challenge': 'S3cret-scep'}, key_type='rsa-2048')
+        ops = [e['url'].split('operation=')[1].split('&')[0] for e in evs if e['kind'] == 'http']
+        self.assertEqual(ops, ['GetCACaps', 'GetCACert', 'PKIOperation'])
+        from acmelib.certs import pki
+        root = pki.self_signed(pki.make_key('ec-256'), [], subject={'CN': 'R'}, days=30,
+                               is_ca=True)
+        evs, _s = self.run_one('issuer', 'cmp', {'url': 'https://ca.example.com/pkix/',
+                                                 'trusted': root, 'reference': 'r1',
+                                                 'secret': 'Cmp-Secret-1'})
+        cmd = [e['argv'] for e in evs if e['kind'] == 'command']
+        self.assertEqual(cmd[0][:2], ['openssl', 'cmp'])
+        self.assertNotIn('Cmp-Secret-1', json.dumps(evs))
+
+    def test_commercial_dcv_in_the_source(self):
+        """DigiCert: the order reissued, its DCV record put in by the certificate's validation
+        (Cloudflare), seen, checked, the certificate downloaded, the record taken away."""
+        evs, _s = self.run_one('issuer', 'digicert', {
+            'api_key': 'Dc-Key-Very-Secret', 'order_id': '12345678', 'product': 'ssl_basic',
+            'dcv': 'dns-txt'}, dcv=('cloudflare', {'token': 'CfTok3nVerySecret'}))
+        got = [x for x in self.lines(evs) if not x.startswith('dns-ask')]
+        want = ['POST https://www.digicert.com/services/v2/order/certificate/12345678/reissue',
+                'PUT https://www.digicert.com/services/v2/order/certificate/12345678/'
+                'dcv-random-value', 'SAY _dnsauth.www.example.com TXT "', 'SAY _dnsauth.www.'
+                'example.com TXT is on every name server', '/check-dcv',
+                '/download/format/pem_all', 'SAY the certificate came', 'DELETE https://api.'
+                'cloudflare.com/']
+        at = 0
+        for w in want:
+            hit = [i for i in range(at, len(got)) if w in got[i]]
+            self.assertTrue(hit, '%s not after %d in %s' % (w, at, got))
+            at = hit[0] + 1
+        self.assertNotIn('Dc-Key-Very-Secret', json.dumps(evs))
+        self.assertNotIn('CfTok3nVerySecret', json.dumps(evs))
+
+
+class RenewalPathsG1(RenewalPathsG2):
+    """The renewal path of the targets a10 .. cisco_nxos (1.0.98): what is there found and
+    said, replaced, the older ones cleaned up - every call answered as the device does; what
+    acme keeps for a target (the acme push pin, ACM's ARN) and acme's own pages as they are;
+    a password made for the run masked."""
+    def record(self, kind, cfg, opts=None, version='', later=False, run=None, job=None,
+               events=False):
+        from acmelib.certs import runplan as R
+        cfg = dict(cfg, _version=version)
+        r = dict({'id': 'r1', 'family': 'target', 'kind': kind, 'name': 't', 'op': 'deploy',
+                  'config': cfg, 'options': opts or {}, 'seconds': 30,
+                  'answers': R.answers_of(kind, cfg, opts, first=not later, later=later,
+                                          version=version),
+                  'ssh_answers': R.ssh_answers_of(kind, cfg, opts, version=version)},
+                 **(run or {}))
+        got, err = R.record(dict({'runs': [r], 'cert': {'names': ['www.example.com'],
+                                                        'key_type': 'rsa-2048'}}, **(job or {})),
+                            timeout=120)
+        self.assertEqual(err, '')
+        out = got['r1']
+        self.assertFalse(out.get('error'), '%s: %s' % (kind, out.get('error')))
+        evs = out['events']
+        self.assertFalse([e for e in evs if e.get('fallback')],
+                         '%s: a call no answer of the module matched' % kind)
+        return evs if events else RenewalPaths.seen(evs)
+
+    def in_order(self, lines, *wants):
+        """In this order - two in a row may be in the same line (a step and its words)."""
+        i = 0
+        for w in wants:
+            while i < len(lines) and w not in lines[i]:
+                i += 1
+            self.assertLess(i, len(lines), '%r not found in order in %s' % (w, lines))
+
+    def test_http_devices(self):
+        pw = {'host': 'dev', 'user': 'acme', 'password': 'p'}
+        got = self.record('a10', pw, {'templates': 'tpl-www'})
+        self.in_order(got, 'GET https://dev/axapi/v3/file/ssl-cert/oper',
+                      'SAY imported the certificate and key acme-www.example.com-',
+                      'SAY the chain acme-ca-', 'SAY the client-SSL template tpl-www uses',
+                      'DELETE https://dev/axapi/v3/slb/template/client-ssl/tpl-www/certificate/'
+                      'acme-www.example.com-', 'SAY wrote the configuration',
+                      'SAY deleted the older acme-www.example.com-')
+        got = self.record('aria_lifecycle', pw, {'products': 'env1 vrops'})
+        self.in_order(got, 'POST https://dev/lcm/locker/api/v2/certificates/import',
+                      'pre-validate', 'SAY vrops uses acme-',
+                      'SAY deleted the older acme-www.example.com-')
+        got = self.record('aruba_aoscx', pw, {})
+        self.in_order(got, 'SAY the trust anchor profile acme-ca-',
+                      'SAY installed the certificate acme-',
+                      'SAY https-server uses acme-www.example-2', '(before: acme-www.example-',
+                      'SAY saved the configuration', 'SAY deleted the older acme-www.example-')
+        got = self.record('avi', pw, {'virtual_services': 'vs-www'})
+        self.in_order(got, 'SAY the CA certificate acme-ca-', 'SAY added acme-',
+                      'SAY vs-www uses acme-', '(before: acme-www.example.com-',
+                      'SAY deleted the older acme-www.example.com-')
+        got = self.record('barracuda_waf', pw, {'service': 'www-https'})
+        self.in_order(got, 'SAY uploaded the certificate acme-',
+                      'SAY the service www-https uses acme-', 'SAY deleted the older acme-')
+        got = self.record('barracuda_cgf', {'host': 'dev', 'token': 't'}, {'entry': 'vpn'})
+        self.in_order(got, 'SAY the entry vpn holds another certificate',
+                      'PUT https://dev:8443/rest/config/v1/box/store/certificates/vpn',
+                      'SAY imported the certificate into vpn')
+        got = self.record('checkpoint', pw, {'https_rule': 'Inbound www',
+                                             'https_layer': 'Default Layer'})
+        self.in_order(got, 'SAY imported the server certificate acme-',
+                      'SAY the HTTPS Inspection rule Inbound www uses acme-',
+                      'SAY deleted the older acme-', 'SAY publishing: succeeded')
+        got = self.record('cisco_asa', pw, {'trust_points': 'outside'})
+        self.in_order(got, 'SAY imported into the new trustpoint acme-',
+                      'SAY ssl trust-point acme-', '(before: acme-www.example.com-',
+                      'SAY removed the older trustpoint acme-', 'SAY write memory')
+        got = self.record('cisco_ftd_fdm', pw, {'ravpn': True})
+        self.in_order(got, 'SAY the CA certificate acme-ca-', 'SAY the web interface uses acme-',
+                      'SAY the RA VPN RAVPN uses acme-', 'SAY deployed (',
+                      'SAY deleted the older acme-')
+        got = self.record('cisco_ise', dict(pw, node='ise01'), {})
+        self.in_order(got, 'SAY the node has the earlier acme-', 'is not imported (there already',
+                      'SAY imported acme-', 'SAY deleted the old acme-')
+        got = self.record('cisco_nxos', pw, {})
+        self.in_order(got, 'SAY imported into the new trustpoint acme-',
+                      'SAY NX-API uses acme-', 'SAY removed the older trustpoint acme-')
+        got = self.record('cisco_fmc', pw, {'decryption_policy': 'Inbound'}, version='7.7')
+        self.in_order(got, 'GET https://dev/api/fmc_platform/v1/info/serverversion',
+                      'SAY replaced the PKCS#12 of the Cert Enrollment',
+                      'SAY RE_ENROLL of', 'SAY the rule decrypt-www of Inbound uses acme-',
+                      '(before: acme-www.example.com-', 'SAY deployment asked for ftd-1',
+                      'SAY deleted the older acme-')
+        got = self.record('cisco_imc', pw, {})
+        self.in_order(got, 'SAY the IMC took the external certificate',
+                      'SAY the external certificate is activated')
+
+    def test_cloud(self):
+        az = {'subscription_id': 's', 'resource_group': 'rg', 'tenant_id': 't',
+              'client_id': 'c', 'client_secret': 'x'}
+        got = self.record('azure_appgw', az, {'gateway': 'agw', 'listener': 'https-www'})
+        self.in_order(got, 'SAY the listener https-www uses acme-', '(before: acme-',
+                      'SAY the gateway agw is being updated', 'SAY the gateway agw is updated',
+                      'SAY took the older acme-')
+        got = self.record('azure_appservice', az, {'site': 'app', 'hostnames': 'www.example.com'})
+        self.in_order(got, 'SAY uploaded acme-', 'SAY www.example.com uses acme-',
+                      'before: the certificate 5A0E1D2C', 'SAY deleted the older acme-')
+        got = self.record('azure_keyvault', dict(az, vault='kv-firma'), {}, later=True)
+        self.in_order(got, 'SAY the vault has acme-www-example-com, version',
+                      'POST https://kv-firma.vault.azure.net/certificates/acme-www-example-com/'
+                      'import', 'SAY imported into acme-www-example-com as version')
+        got = self.record('azure_keyvault', dict(az, vault='kv-firma'), {})
+        self.in_order(got, 'SAY the vault has no certificate acme-www-example-com yet')
+        got = self.record('aruba_central', {'client_id': 'c', 'client_secret': 'x',
+                                            'refresh_token': 'r'}, {'cert_name': 'cp'},
+                          later=True)
+        self.in_order(got, 'SAY cp is in Central', 'PUT https://apigw-prod2',
+                      'SAY replaced cp into Central')
+        got = self.record('bunny', {'api_key': 'k'}, {'pull_zone': 'zone',
+                                                      'hostnames': 'cdn.example.com'})
+        self.in_order(got, 'SAY cdn.example.com has the certificate (in place of the one it had)')
+        # ACM: the ARN acme kept from the first import - the renewal re-imports into it
+        from acmelib.plugins.base import REGISTRY
+        cls = REGISTRY.get('target', 'aws_acm')
+        aws = {'access_key_id': 'AKIAX', 'secret_access_key': 's', 'region': 'eu-central-1'}
+
+        class B(object):
+            name = 'www.example.com'
+            names = ['www.example.com']
+            key_type = 'rsa-2048'
+        from acmelib.plugins.targets import aws_acm as A
+        key = cls(dict(aws), None).kv_arn(B, {}) + ':' + A.acm_key_type(B)
+        arn = 'arn:aws:acm:eu-central-1:123456789012:certificate/kept'
+        got = self.record('aws_acm', aws, {}, run={'kv': {key: arn}})
+        self.in_order(got, 'SAY %s holds another certificate (serial' % arn,
+                      'SAY re-imported into %s' % arn)
+        self.in_order(self.record('aws_acm', aws, {}), 'SAY imported as arn:aws:acm:')
+
+    def test_ssh_and_own(self):
+        ssh = {'host': 'dev', 'user': 'acme', 'auth': 'password', 'password': 'p'}
+        for ver, said in (('', 'IOS XE 17.12.4'), ('17.3', 'IOS XE 17.9.5'),
+                          ('17.12', 'IOS XE 17.12.4')):
+            got = self.record('cisco_iosxe', ssh, {}, version=ver)
+            self.in_order(got, 'SSH show version', 'SAY %s; trustpoints: TP-self-signed' % said,
+                          'SAY imported into the new trustpoint acme-',
+                          'SAY the HTTPS server uses acme-', 'SAY write memory - [OK]',
+                          'SAY removed the older trustpoint acme-www.example.com-')
+        evs = self.record('aruba_aos8', dict(ssh, stage_host='tftp', stage_auth='password',
+                                             stage_password='q'), {}, events=True)
+        got = RenewalPaths.seen(evs)
+        self.in_order(got, 'SAY the controller has the earlier ServerCert acme-',
+                      'SAY the TrustedCA acme-ca-', 'SAY imported the ServerCert acme-',
+                      'SAY write memory', 'SAY removed the older ServerCert acme-')
+        # the one-time PKCS#12 password typed in is a secret: masked
+        imp = [e for e in evs if e['kind'] == 'ssh-run' and 'pki-import pfx' in
+               json.dumps(e.get('input'))]
+        self.assertTrue(imp, evs)
+        self.assertIn('(a password made for this run)', json.dumps(imp))
+        got = self.record('aria_automation', ssh, {})
+        self.in_order(got, 'SSH sh -c \'vracli certificate ingress --list\'',
+                      'SAY the ingress certificate there now is another one',
+                      'SAY vracli set the ingress certificate', 'SAY deploy.sh finished')
+        got = self.record('caddy', ssh, {})
+        self.in_order(got, 'SAY Caddy has 2 certificates loaded through its API, 1 tagged '
+                      'acme-www.example.com - replaced', 'SAY Caddy took the certificate')
+        got = self.record('caddy', ssh, {'mode': 'files', 'cert_file': '/c/x.crt',
+                                         'key_file': '/c/x.key'})
+        self.in_order(got, 'SAY /c/x.crt: SHA-256 there 5a0e1d2c', 'SAY the files replaced kept',
+                      'SAY ran caddy reload')
+        # acme push: paired already (the pin acme keeps) - no pairing, the install; with a
+        # pairing code and no pin, the pairing goes through first
+        from acmelib.certs import runplan as R
+        got = self.record('acme_push', {'url': 'https://otp.example/admin/'}, {},
+                          run={'push_pin': dict(R.PUSH_PIN)})
+        self.assertFalse([x for x in got if 'acme-push-pair' in x], got)
+        self.in_order(got, 'GET https://otp.example/admin/?api=acme-push-hello',
+                      'is the application paired', 'POST https://otp.example/admin/?api='
+                      'acme-push-install', 'SAY node:otp1')
+        got = self.record('acme_push', {'url': 'https://otp.example/admin/',
+                                        'pair_code': 'ABCD-EFGH'}, {})
+        self.in_order(got, 'acme-push-pair', 'SAY paired with otp', 'acme-push-install')
+        # acme's own pages as they are: each node and the VIP address, what each holds
+        pages = {'where': {'node': 'a1', 'nodes': ['a1', 'a2'], 'cluster': True,
+                           'vip': {'on': True, 'fqdn': 'www.example.com', 'address': ''}},
+                 'have': {'a1': {'fingerprint': 'ab', 'cn': 'a1.example.com',
+                                 'not_after': 1790000000, 'how': 'by hand'}}}
+        evs = self.record('appliance', {}, {}, job={'pages': pages}, events=True)
+        got = RenewalPaths.seen(evs)
+        self.in_order(got, 'SAY the pages of a1 have a1.example.com until', 'SAY the pages of a1 '
+                      'take', 'SAY the pages of a2 have no certificate of their own yet',
+                      'SAY the pages of the VIP address')
+        self.assertEqual([e['where'] for e in evs if e['kind'] == 'pages'], ['a1', 'a2', 'vip'])
+
+    def test_placeholders(self):
+        """{EARLIER_PEM} (another certificate of the names) and {CAID} (the chain's CA as a
+        module named it) in an answer."""
+        from acmelib.certs import plansandbox as P
+        from acmelib.certs import pki
+        from acmelib.plugins.targets import _common as C
+        ca = pki.self_signed(pki.make_key('ec-256'), [], subject={'CN': 'Plan CA'}, days=3,
+                             is_ca=True)
+
+        class B(object):
+            name = 'www.example.com'
+            names = ['www.example.com']
+            cert_pem = pki.self_signed(pki.make_key('ec-256'), names, days=3)
+            chain_pems = [ca]
+        ans = P.Answers([{'body': {'pem': '{EARLIER_PEM}', 'ca': 'acme-ca-{CAID}'}}],
+                        [{'command': 'x', 'stdout': '{EARLIER_PEM}'}])
+        ans.bundle = B()
+        st, hd, raw = ans('GET', 'https://dev/x')
+        d = json.loads(raw)
+        self.assertIn('BEGIN CERTIFICATE', d['pem'])
+        self.assertNotEqual(d['pem'].strip(), B.cert_pem.strip())
+        self.assertEqual(d['ca'], 'acme-ca-%s' % C.chain_id(ca))
+        self.assertEqual(ans.ssh('x')[1], d['pem'])
 
 
 if __name__ == '__main__':

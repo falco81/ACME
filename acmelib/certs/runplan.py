@@ -355,10 +355,49 @@ ANSWERS = {
 # {SERIAL} (1.0.96: the serial of the last certificate sent over SSH)
 SSH_ANSWERS = {
     # IOS XE: the trustpoint imported holds its certificate; write memory says [OK]
+    # (1.0.98: a renewal) a Catalyst 9300 on IOS XE 17.12.4 (17.9.5 for the version 17.3): the
+    # running configuration holds its self-signed trustpoint and two earlier acme ones, the
+    # HTTPS server on the newer; after the binding it uses the new one, after the clean-up the
+    # oldest is gone; the import succeeds, the PKCS#12 is deleted, the configuration lines go
+    # through (IOS asks before it removes a trustpoint: the "yes" lines)
     'cisco_iosxe': [
-        {'command': r'^show crypto pki certificates ',
-         'stdout': 'Certificate\n  Status: Available\n'},
-        {'command': r'^write memory', 'stdout': 'Building configuration...\n[OK]\n'}],
+        {'command': r'^show version', 'stdout':
+            'Cisco IOS XE Software, Version 17.12.04\nCisco IOS Software [Dublin], Catalyst L3 '
+            'Switch Software (CAT9K_IOSXE), Version 17.12.4, RELEASE SOFTWARE (fc5)\n'
+            'cisco C9300-48P (X86) processor with 1331521K/6147K bytes of memory.\n'},
+        {'command': r'^show running-config \| include \^crypto pki trustpoint', 'times': 1,
+         'stdout': 'crypto pki trustpoint TP-self-signed-3045923487\n'
+                   'crypto pki trustpoint {EARLIER2:60}\ncrypto pki trustpoint {EARLIER:60}\n'
+                   'ip http secure-trustpoint {EARLIER:60}\n'},
+        {'command': r'^show running-config \| include \^crypto pki trustpoint', 'times': 1,
+         'stdout': 'crypto pki trustpoint TP-self-signed-3045923487\n'
+                   'crypto pki trustpoint {EARLIER2:60}\ncrypto pki trustpoint {EARLIER:60}\n'
+                   'crypto pki trustpoint {CURRENT:60}\nip http secure-trustpoint {CURRENT:60}\n'},
+        {'command': r'^show running-config \| include \^crypto pki trustpoint',
+         'stdout': 'crypto pki trustpoint TP-self-signed-3045923487\n'
+                   'crypto pki trustpoint {EARLIER:60}\ncrypto pki trustpoint {CURRENT:60}\n'
+                   'ip http secure-trustpoint {CURRENT:60}\n'},
+        {'command': r'^$', 'input': r'crypto pki import ', 'stdout':
+            'Enter configuration commands, one per line.  End with CNTL/Z.\n'
+            'CRYPTO_PKI: Imported PKCS12 file successfully.\n'},
+        {'command': r'^show crypto pki certificates ', 'stdout':
+            'Certificate\n  Status: Available\n  Certificate Serial Number (hex): ‹serial'
+            '›\n  Certificate Usage: General Purpose\n  Associated Trustpoints: {CURRENT:60}'
+            '\nCA Certificate\n  Status: Available\n  Associated Trustpoints: {CURRENT:60}\n'},
+        {'command': r'^delete /force ', 'stdout': ''},
+        {'command': r'^write memory', 'stdout': 'Building configuration...\n[OK]\n'},
+        {'command': r'^$', 'input': r'\nip http secure-trustpoint ', 'stdout':
+            'Enter configuration commands, one per line.  End with CNTL/Z.\n'},
+        {'command': r'^$', 'input': r'\nno crypto pki trustpoint ', 'stdout':
+            'Enter configuration commands, one per line.  End with CNTL/Z.\n'
+            '% Removing an enrolled certificate may destroy existing connection.\n'
+            'Are you sure you want to do this? [yes/no]: yes\n'
+            '% Be sure to ask the CA administrator to revoke your certificates.\n'}],
+    'cisco_iosxe@17.3': [
+        {'command': r'^show version', 'stdout':
+            'Cisco IOS XE Software, Version 17.09.05\nCisco IOS Software [Cupertino], Catalyst '
+            'L3 Switch Software (CAT9K_IOSXE), Version 17.9.5, RELEASE SOFTWARE (fc4)\n'
+            'cisco C9300-48P (X86) processor with 1331521K/6147K bytes of memory.\n'}],
 }
 # a Catalyst 9800 is an IOS XE: show version says 17.12.4 (17.9.5, 17.15.3 for those versions);
 # the running configuration holds two earlier acme trustpoints (the older with a CA's of its
@@ -1131,6 +1170,53 @@ ANSWERS['cisco_ftd_fdm'] = [
         'id': '‹deployment›', 'type': 'deploymentstatus', 'state': 'DEPLOYED',
         'statusMessage': 'Deployed successfully'}},
     {'method': 'DELETE', 'url': r'/object/internalcertificates/', 'status': 204, 'body': ''},
+]
+# Cisco ISE (OpenAPI): the node's system certificates - its self-signed one, two earlier ones of
+# acme (the newer for EAP and the portal); the chain's CA is trusted already (refused, said);
+# the import takes the roles over; the oldest (in use nowhere) deleted (keep 1)
+ANSWERS['cisco_ise'] = [
+    {'method': 'GET', 'url': r'/api/v1/certs/system-certificate/[^/?]+\?size=', 'body': {
+        'response': [
+            {'id': '‹self-signed id›', 'friendlyName':
+                'Default self-signed server certificate', 'usedBy': 'Admin, pxGrid',
+             'issuedTo': '{CFG:node}', 'expirationDate': '‹its end›'},
+            {'id': '‹earlier id›', 'friendlyName': '{EARLIER:60}',
+             'usedBy': 'EAP Authentication, Portal', 'issuedTo': '{CERTNAME}',
+             'expirationDate': '‹its end›', 'portalsUsingTheTag':
+                 'Default Portal Certificate Group'},
+            {'id': '‹oldest id›', 'friendlyName': '{EARLIER2:60}',
+             'usedBy': 'Not in use', 'issuedTo': '{CERTNAME}',
+             'expirationDate': '‹its end›'}], 'version': '1.0.0'}},
+    {'method': 'POST', 'url': r'/api/v1/certs/trusted-certificate/import$', 'status': 400,
+     'body': {'message': 'Trust certificate already exists in the Trusted Certificates store',
+              'version': '1.0.0'}},
+    {'method': 'POST', 'url': r'/api/v1/certs/system-certificate/import$', 'body': {
+        'response': {'id': '‹new id›', 'message': 'Successfully imported the system '
+                                                            'certificate', 'status': 'SUCCESS'},
+        'version': '1.0.0'}},
+    {'method': 'DELETE', 'url': r'/api/v1/certs/system-certificate/', 'body': {
+        'response': {'message': 'Successfully deleted System Certificate'},
+        'version': '1.0.0'}},
+]
+# Cisco NX-OS (NX-API JSON-RPC at /ins, one batch a call): NX-OS 10.4(3)F; the trustpoints - two
+# earlier ones of acme; the import, delete, save, the switch of NX-API go through (each command
+# answered null); NX-API answers again after its restart; show nxapi names the new trustpoint -
+# the oldest is removed (keep 1)
+_NX_OK = [{'jsonrpc': '2.0', 'result': None, 'id': 1}]
+ANSWERS['cisco_nxos'] = [
+    {'method': 'POST', 'url': r'/ins$', 'sent': r'"cmd": "show version"', 'body': [{
+        'jsonrpc': '2.0', 'id': 1, 'result': {'body': {
+            'nxos_ver_str': '10.4(3)F', 'host_name': 'n9k-1',
+            'chassis_id': 'Nexus9000 C93180YC-FX Chassis', 'bios_ver_str': '05.47'}}}]},
+    {'method': 'POST', 'url': r'/ins$', 'sent': r'"cmd": "show running-config \| include',
+     'body': [{'jsonrpc': '2.0', 'id': 1, 'result': {'msg':
+               'crypto ca trustpoint {EARLIER2:60}\ncrypto ca trustpoint {EARLIER:60}\n'}}]},
+    {'method': 'POST', 'url': r'/ins$', 'sent': r'"cmd": "show nxapi"', 'body': [{
+        'jsonrpc': '2.0', 'id': 1, 'result': {'msg':
+            'nxapi enabled\nNXAPI timeout 10\nHTTPS Listen on port 443\nCertificate '
+            'Information:\n    Trustpoint: {SEEN:nxapi certificate trustpoint ([^"\\s]+)}\n'
+            '    Issuer:   CN={CACN}\n    Expires:  \u2039its end\u203a\n'}}]},
+    {'method': 'POST', 'url': r'/ins$', 'body': _NX_OK},
 ]
 # ---- end of targets a10 .. cisco_nxos ----
 # ---- targets cisco_wlc9800 .. hpe_oneview ----
@@ -3951,11 +4037,25 @@ def acme_steps(store, irow, icls, cfg, cert, names, challenges):
     steps.append({'kind': 'wait', 'words': 'Asks again every {0} s until each name is valid (at '
                   'most {1} s)'.replace('{0}', '%g' % float(cfg.get('poll_every') or 5))
                   .replace('{1}', '%g' % float(cfg.get('wait_valid') or 180))})
+    # the order itself asked for until it is ready, and after the finalize until it is valid
+    # (1.0.98: acme.py polls the order URL both times - POST-as-GET)
+    steps.append({'kind': 'wait', 'words': 'Asks for the order until it is ready (every {0} s, '
+                  'at most {1} s)'.replace('{0}', '%g' % float(cfg.get('poll_every') or 5))
+                  .replace('{1}', '%g' % float(cfg.get('wait_valid') or 180)),
+                  'detail': {'method': 'POST', 'url': '‹order URL›', 'headers': {},
+                             'body': {'protected': dict(jws, kid=kid), 'payload': ''}}})
     steps.append({'kind': 'sign', 'words': 'Finalizes the order with the request (CSR)',
                   'detail': {'method': 'POST', 'url': '‹finalize URL of the order›',
                              'headers': {}, 'body': {'protected': dict(jws, kid=kid),
                                                      'payload': {'csr': '‹the CSR, '
                                                                  'DER, base64url›'}}}})
+    steps.append({'kind': 'wait', 'words': 'Asks for the order again while the CA makes the '
+                  'certificate (processing) until it is valid (at most {0} s)'.replace(
+                      '{0}', '%g' % float(cfg.get('wait_order') or 300)),
+                  'detail': {'method': 'POST', 'url': '‹order URL›', 'headers': {},
+                             'body': {'protected': dict(jws, kid=kid), 'payload': ''}},
+                  'note': 'not stopped from here on: a certificate the CA made is never left '
+                          'behind'})
     steps.append({'kind': 'read', 'words': 'Downloads the certificate and its chain',
                   'detail': {'method': 'POST', 'url': '‹certificate URL of the order›',
                              'headers': {'Accept': 'application/pem-certificate-chain'},

@@ -797,10 +797,26 @@ def mask_json(v, marks, key=''):
         # dots already (a private key's PEM: "•••• (private key, PEM, ...)"); a JWT whose
         # part mask_text took for a blob is dots whole (1.0.98)
         if key and secret_name(key) and v and not v.startswith('‹') and not \
-                v.startswith('••••') and not t.startswith('••••'):
+                v.startswith('••••') and not t.startswith('••••') and not key_reference(key, v):
             return '••••'
         return t
     return v
+
+
+KEYISH_NAME = re.compile(r'(^|[_.-])key$|^key(file|_file|path|_path)?$|privkey|private_?key',
+                         re.I)
+PATH_VALUE = re.compile(r'^(/|[A-Za-z]:[\\/]|~/|\./|\.\./)[^\s"\'<>|]{0,400}$|'
+                        r'^[\w.@-]{1,200}\.(key|pem|crt|cer|pfx|p12|der|jks)$')
+
+
+def key_reference(name, value):
+    """A "key" field that names where a key is (F5's certKeyChain key: /Common/acme-x.key, a
+    file name) - not key material: shown (1.0.98). Only a key's name, never a password's or a
+    token's; a value with a PEM, a long base64 run or no path shape stays dots."""
+    v = str(value or '')
+    if not KEYISH_NAME.search(str(name or '')) or not PATH_VALUE.match(v):
+        return False
+    return '-----' not in v and not re.search(r'[A-Za-z0-9+/=_-]{60,}', v)
 
 
 def mask_url(url, marks):
@@ -816,7 +832,17 @@ def mask_url(url, marks):
                  if eq else k
                  for k, eq, v in (p.partition('=') for p in u.query.split('&') if p)) \
         if u.query else ''
-    return mask_text(urllib.parse.urlunsplit((u.scheme, net, u.path, q, u.fragment)), marks)
+    return placeholders_readable(
+        mask_text(urllib.parse.urlunsplit((u.scheme, net, u.path, q, u.fragment)), marks))
+
+
+def placeholders_readable(t):
+    """A stand-in ‹like this› (and dots) a module percent-encoded into a URL, readable again:
+    %E2%80%B9zone%20id%E2%80%BA -> ‹zone id› (1.0.98)."""
+    import urllib.parse
+    t = re.sub(r'(?i)%E2%80%B9((?:(?!%E2%80%BA).){0,300})%E2%80%BA',
+               lambda m: '‹%s›' % urllib.parse.unquote_plus(m.group(1)), str(t))
+    return re.sub(r'(?i)(%E2%80%A2){4}', '••••', t)
 
 
 def _sha(data):
@@ -1802,6 +1828,41 @@ class _unrecorded(object):
 KV_AFTER = [None]               # the last run's own state (ctx.kv_set) - seeds its later run
 
 
+def kv_as_earlier(kv, bundle):
+    """What a deployment kept (ctx.kv_set) as a renewal finds it: kept for the certificate
+    deployed before - its fingerprints, thumbprint, serial (or their beginnings, 8+ hex
+    characters) those of an earlier certificate of the same names, so the renewal does not
+    take the new one for deployed already."""
+    try:
+        import hashlib
+        from acmelib.certs import pki
+        from acmelib.plugins.targets import _common as C
+        if bundle is None:
+            return dict(kv)
+        pairs = []
+        for v in C.variants_of(bundle):
+            old = C.pem_to_der(pki.self_signed(pki.make_key('ec-256'), list(bundle.names or
+                                                                            ['x.invalid']), days=90))
+            new = C.pem_to_der(v.cert_pem)
+            for fn in (hashlib.sha256, hashlib.sha1):
+                pairs.append((fn(new).hexdigest(), fn(old).hexdigest()))
+            ser = str(getattr(v, 'serial', '') or '').lower().replace(':', '')
+            if ser:
+                pairs.append((ser, hashlib.sha1(old).hexdigest()[:len(ser)]))
+
+        def swap(m):
+            t = m.group(0)
+            for new, old in pairs:
+                if len(t) <= len(new) and new.startswith(t.lower()):
+                    o = old[:len(t)]
+                    return o.upper() if t.isupper() else o
+            return t
+        text = re.sub(r'[0-9A-Fa-f]{8,}', swap, json.dumps(kv, default=str))
+        return json.loads(text)
+    except Exception:                                   # noqa: BLE001
+        return dict(kv)
+
+
 def run_one(job, r, bundle_holder):
     KV_AFTER[0] = None
     events = []
@@ -2280,7 +2341,8 @@ def main():
             # CDN, a thumbprint, a file name): the later run starts with it (1.0.98)
             if KV_AFTER[0]:
                 later['kv'] = dict(r.get('kv') or {}, **{str(k): v for k, v in
-                                                         dict(KV_AFTER[0]).items()})
+                                                         kv_as_earlier(KV_AFTER[0],
+                                                                       holder[0]).items()})
             if r.get('later_ssh_answers') is not None:
                 later['ssh_answers'] = r['later_ssh_answers']
             got['later'] = run_one(job, later, holder)['events']
