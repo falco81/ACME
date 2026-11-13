@@ -235,10 +235,26 @@ ANSWERS = {
     # FMC 7.7: its version
     'cisco_fmc@7.7': [{'method': 'GET', 'url': r'/info/serverversion$', 'body': {'items': [{
         'serverVersion': '7.7.0 (build 91)', 'type': 'ServerVersion'}]}}],
-    # the IMC answers every call of its XML API at /nuova: a session cookie, no error
-    'cisco_imc': [{'method': 'POST', 'url': r'/nuova$', 'headers': {'Content-Type': 'text/xml'},
-                   'body': '<aaaLogin response="yes" outCookie="PLANSESSION0token" '
-                           'outRefreshPeriod="600" errorCode="0"/>'}],
+    # the IMC answers every call of its XML API at /nuova (1.0.98: each as its method): the
+    # sign-in a session cookie; a configConfMo the object it changed (the dn sent); the sign-out
+    'cisco_imc': [
+        {'method': 'POST', 'url': r'/nuova$', 'sent': r'^<aaaLogin ',
+         'headers': {'Content-Type': 'text/xml'},
+         'body': '<aaaLogin response="yes" outCookie="PLANSESSION0token" '
+                 'outRefreshPeriod="600" outPriv="admin" outSessionId="15" '
+                 'outVersion="4.3(2.240009)" errorCode="0"/>'},
+        {'method': 'POST', 'url': r'/nuova$', 'sent': r'^<configConfMo ',
+         'headers': {'Content-Type': 'text/xml'},
+         'body': '<configConfMo dn="{SEEN:<configConfMo [^>]*dn="([^"]+)"}" '
+                 'cookie="PLANSESSION0token" response="yes"><outConfig><{SEEN:<inConfig><(\\w+)} '
+                 'dn="{SEEN:<configConfMo [^>]*dn="([^"]+)"}" status="modified"/></outConfig>'
+                 '</configConfMo>'},
+        {'method': 'POST', 'url': r'/nuova$', 'sent': r'^<aaaLogout ',
+         'headers': {'Content-Type': 'text/xml'},
+         'body': '<aaaLogout cookie="" response="yes" outStatus="success"> </aaaLogout>'},
+        {'method': 'POST', 'url': r'/nuova$', 'headers': {'Content-Type': 'text/xml'},
+         'body': '<aaaLogin response="yes" outCookie="PLANSESSION0token" '
+                 'outRefreshPeriod="600" errorCode="0"/>'}],
     # ClearPass: the server named is one of the cluster's; at a renewal the chain's CA is in
     # the trust list already (refused, said - 1.0.98); each service's certificate replaced
     # (its answer: the new one's subject and expiry)

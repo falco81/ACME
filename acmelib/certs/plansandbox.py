@@ -1799,7 +1799,11 @@ class _unrecorded(object):
         return False
 
 
+KV_AFTER = [None]               # the last run's own state (ctx.kv_set) - seeds its later run
+
+
 def run_one(job, r, bundle_holder):
+    KV_AFTER[0] = None
     events = []
     RECORDING[0] = events
     CURRENT[0] = r
@@ -1818,6 +1822,7 @@ def run_one(job, r, bundle_holder):
         ctx = PlanContext(dict(job, deploy_id=r.get('deploy_id'), target_name=r.get('name'),
                                push_pin=r.get('push_pin'), kv=r.get('kv')),
                           '%s:%s' % (r['family'], r.get('name')), answers)
+        KV_AFTER[0] = ctx._kv           # what it keeps: the later run starts with it (main)
         inst = cls(dict(r.get('config') or {}), ctx)
         op = r.get('op')
         if op == 'deploy':
@@ -2264,8 +2269,18 @@ def main():
     holder = [None]
     for r in job.get('runs') or []:
         got = run_one(job, r, holder)
+        # a later run: where answers of a renewal are given (LATER / SSH_LATER) - and where the
+        # first run kept state of its own (ctx.kv_set), which a renewal reads (1.0.98)
+        if r.get('op') == 'deploy' and not got.get('error') and r.get('later_answers') is None \
+                and KV_AFTER[0] and not r.get('no_later'):
+            r = dict(r, later_answers=r.get('answers') or [])
         if r.get('op') == 'deploy' and r.get('later_answers') is not None:
             later = dict(r, answers=r['later_answers'])
+            # a renewal finds what the first deployment kept in acme's own state (an id at a
+            # CDN, a thumbprint, a file name): the later run starts with it (1.0.98)
+            if KV_AFTER[0]:
+                later['kv'] = dict(r.get('kv') or {}, **{str(k): v for k, v in
+                                                         dict(KV_AFTER[0]).items()})
             if r.get('later_ssh_answers') is not None:
                 later['ssh_answers'] = r['later_ssh_answers']
             got['later'] = run_one(job, later, holder)['events']

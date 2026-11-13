@@ -81,6 +81,34 @@ SOURCES = {
             'expires': '2027-01-01 00:00:00'}},
         {'method': 'GET', 'url': r'/download/json', 'body': {'certificate.crt': '{CERT}',
                                                             'ca_bundle.crt': '{CHAIN}'}}],
+    # Sectigo Certificate Manager: the domain's validation run out (CNAME DCV again), the
+    # certificate renewed by its ID (renewById), collected once issued
+    'sectigo_scm': [
+        {'method': 'POST', 'url': r'/openid-connect/token$', 'body': {
+            'access_token': '{SESSION}', 'expires_in': 300, 'token_type': 'Bearer'}},
+        {'method': 'POST', 'url': r'/api/dcv/v2/validation/status$', 'times': 1, 'body': {
+            'status': 'EXPIRED', 'orderStatus': 'NOT_INITIATED', 'expirationDate': '2026-01-01'}},
+        {'method': 'POST', 'url': r'/api/dcv/v2/validation/status$', 'body': {
+            'status': 'VALIDATED', 'orderStatus': 'NOT_INITIATED', 'expirationDate': '2027-01-01'}},
+        {'method': 'POST', 'url': r'/api/dcv/v2/validation/start/domain/cname$', 'body': {
+            'host': '_8f2e4c6a8b1d3f5e7a9c0b2d4f6e8a1c.{SENT:domain}.',
+            'point': '1c3e5a7b9d0f2e4c6a8b1d3f5e7a9c0b.4d6f8a0c2e.sectigo.com.'}},
+        {'method': 'POST', 'url': r'/api/dcv/v2/validation/start/domain/http$', 'body': {
+            'url': 'http://{SENT:domain}/.well-known/pki-validation/8F2E4C6A8B1D3F5E7A9C.txt',
+            'firstLine': '1c3e5a7b9d0f2e4c6a8b1d3f5e7a9c0b', 'secondLine': 'sectigo.com'}},
+        {'method': 'POST', 'url': r'/api/dcv/v2/validation/submit/domain/txt$', 'body': {
+            'host': '_dnsauth.{SENT:domain}.', 'point': '1c3e5a7b9d0f2e4c6a8b1d3f5e7a9c0b'}},
+        {'method': 'POST', 'url': r'/api/dcv/v2/validation/submit/domain/', 'body': {
+            'status': 'SUBMITTED', 'orderStatus': 'SUBMITTED'}},
+        {'method': 'GET', 'url': r'/api/ssl/v2/\d+$', 'body': {
+            'sslId': '{CFG:ssl_id}', 'status': 'Issued', 'commonName': '{NAME}',
+            'subjectAlternativeNames': [], 'expires': '2027-01-01'}},
+        {'method': 'POST', 'url': r'/api/ssl/v2/renewById/\d+$', 'body': {'sslId': 445566}},
+        {'method': 'POST', 'url': r'/api/ssl/v2/replace/\d+$', 'body': ''},
+        {'method': 'POST', 'url': r'/api/ssl/v2/enroll$', 'body': {'sslId': 445566,
+                                                                   'renewId': '‹id›'}},
+        {'method': 'GET', 'url': r'/api/ssl/v2/collect/\d+', 'headers': {
+            'Content-Type': 'application/x-pem-file'}, 'body': '{CERT}{CHAIN}'}],
     'digicert': [
         {'method': 'GET', 'url': r'/order/certificate/\d+$', 'body': {
             'id': '{CFG:order_id}', 'status': 'issued', 'order_valid_till': '2028-01-01',

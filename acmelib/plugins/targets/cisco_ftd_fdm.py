@@ -202,7 +202,10 @@ class CiscoFtdFdmTarget(HttpTarget):
                 self.mark_pending(bundle)       # before the switch (1.0.88): run again if cut off
                 self.api('PUT', '/devicesettings/default/webuicertificates/%s' % q(w.get('id')),
                          body, what='switching the web interface to %s' % name)
-                self.ctx.step('the web interface uses %s' % name, 'ok')
+                # what it used before, said (1.0.98): the decision What happens shows
+                was = text((w.get('certificate') or {}).get('name'))
+                self.ctx.step('the web interface uses %s%s' % (
+                    name, ' (before: %s)' % was if was else ''), 'ok')
                 did.append('web interface')
                 changed = True
         if as_bool(self.opt(options, 'ravpn', False)):
@@ -222,7 +225,9 @@ class CiscoFtdFdmTarget(HttpTarget):
                 self.mark_pending(bundle)       # before the switch (1.0.88): run again if cut off
                 self.api('PUT', '/ravpns/%s' % q(v.get('id')), body,
                          what='switching the RA VPN %s to %s' % (v.get('name'), name))
-                self.ctx.step('the RA VPN %s uses %s' % (v.get('name'), name), 'ok')
+                was = text((gw.get('serverCertificate') or {}).get('name'))
+                self.ctx.step('the RA VPN %s uses %s%s' % (
+                    v.get('name'), name, ' (before: %s)' % was if was else ''), 'ok')
                 did.append('RA VPN %s' % v.get('name'))
                 changed = True
         deploy_on = as_bool(self.opt(options, 'fdm_deploy', True), True)
@@ -257,6 +262,8 @@ class CiscoFtdFdmTarget(HttpTarget):
                     'type': 'externalcacertificate', 'name': n, 'cert': text(pem)},
                     what='adding the CA certificate %s' % n)
                 self.ctx.step('added the CA certificate %s' % n, 'ok')
+            else:
+                self.ctx.step('the CA certificate %s is there already' % n)
             out.append(bare(obj))
         return out
 
