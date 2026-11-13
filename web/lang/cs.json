@@ -60627,6 +60627,278 @@
   "mdkhf_50": {
    "source": "imported the unified-server certificate for the array's own key",
    "text": "certifikát unified-server naimportován pro vlastní klíč pole"
+  },
+  "mdkcv_1": {
+   "source": "Cisco Unified Communications Manager (CUCM)",
+   "text": "Cisco Unified Communications Manager (CUCM)"
+  },
+  "mdkcv_2": {
+   "source": "CUCM 14 and 15 (every SU), one node: the certificate of a unit (tomcat for the web, AXL and UDS, or CallManager) for a key CUCM makes itself - at every issue and renewal acme has the platform CLI over SSH make a new key and CSR (set csr gen), imports the certificate signed for it with its CA certificates (set cert import) and restarts the unit's services.",
+   "text": "CUCM 14 a 15 (všechny SU), jeden uzel: certifikát jedné jednotky (tomcat pro web, AXL a UDS, nebo CallManager) pro klíč, který si CUCM vytvoří sám – při každém vydání a obnově acme nechá platformové CLI přes SSH vytvořit nový klíč a CSR (set csr gen), naimportuje pro něj podepsaný certifikát i s certifikáty CA (set cert import) a restartuje služby jednotky."
+  },
+  "mdkcv_3": {
+   "source": "CUCM 14 and 15, every SU (platform CLI over SSH)",
+   "text": "CUCM 14 a 15, všechny SU (platformové CLI přes SSH)"
+  },
+  "mdkcv_4": {
+   "source": "one unit a target; a CallManager restart registers the node's phones again",
+   "text": "jeden cíl = jedna jednotka; restart CallManageru znovu zaregistruje telefony uzlu"
+  },
+  "mdkcv_5": {
+   "source": "tomcat (web, AXL, UDS, SAML SP) - RSA",
+   "text": "tomcat (web, AXL, UDS, SAML SP) – RSA"
+  },
+  "mdkcv_6": {
+   "source": "tomcat-ECDSA - EC",
+   "text": "tomcat-ECDSA – EC"
+  },
+  "mdkcv_7": {
+   "source": "CallManager (SIP / SCCP TLS) - RSA",
+   "text": "CallManager (SIP / SCCP TLS) – RSA"
+  },
+  "mdkcv_8": {
+   "source": "CallManager-ECDSA - EC",
+   "text": "CallManager-ECDSA – EC"
+  },
+  "mdkcv_9": {
+   "source": "Time for a CLI command (s)",
+   "text": "Čas na příkaz CLI (s)"
+  },
+  "mdkcv_10": {
+   "source": "CUCM's CLI starts slowly; a service restart takes minutes",
+   "text": "CLI CUCM startuje pomalu; restart služby trvá minuty"
+  },
+  "mdkcv_11": {
+   "source": "Restart the services",
+   "text": "Restartovat služby"
+  },
+  "mdkcv_12": {
+   "source": "tomcat: Cisco Tomcat and Cisco Tftp; CallManager: Cisco CallManager and Cisco CTIManager (phones register again) - off: restart them yourself, CUCM keeps serving the old certificate until then",
+   "text": "tomcat: Cisco Tomcat a Cisco Tftp; CallManager: Cisco CallManager a Cisco CTIManager (telefony se znovu zaregistrují) – vypnuto: restartujte je sami, do té doby CUCM servíruje starý certifikát"
+  },
+  "mdkcv_13": {
+   "source": "the root the chain ends in, imported to <unit>-trust with the intermediates (ISRG Root X1 for Let's Encrypt); empty: the last certificate of the chain when it is a root",
+   "text": "kořen, kterým řetězec končí, importovaný do <jednotka>-trust spolu s mezilehlými (pro Let's Encrypt ISRG Root X1); prázdné: poslední certifikát řetězce, pokud je kořenový"
+  },
+  "mdkcv_14": {
+   "source": "CA file in the trust store",
+   "text": "Soubor CA v úložišti důvěry"
+  },
+  "mdkcv_15": {
+   "source": "the CA certificate \"set cert import own\" names; empty: the issuer of the certificate as found in \"show cert list trust\"",
+   "text": "certifikát CA, který uvádí „set cert import own“; prázdné: vydavatel certifikátu, jak ho najde „show cert list trust“"
+  },
+  "mdkcv_16": {
+   "source": "VMware Cloud Foundation component (SDDC Manager / VCF Operations CSR)",
+   "text": "Komponenta VMware Cloud Foundation (CSR přes SDDC Manager / VCF Operations)"
+  },
+  "mdkcv_17": {
+   "source": "The certificate of one VCF component (vCenter, NSX Manager, SDDC Manager, Aria / VCF management) through VCF's certificate management, for a key VCF makes itself: at every issue and renewal acme has SDDC Manager make a new key and CSR for the component and installs the certificate signed for it. VCF 5.2 - 9.1.1 (SDDC Manager API); the version 9.1 uses VCF Operations.",
+   "text": "Certifikát jedné komponenty VCF (vCenter, NSX Manager, SDDC Manager, Aria / VCF management) přes správu certifikátů VCF, pro klíč, který si VCF vytvoří samo: při každém vydání a obnově acme nechá SDDC Manager vytvořit pro komponentu nový klíč a CSR a nainstaluje pro něj podepsaný certifikát. VCF 5.2 – 9.1.1 (SDDC Manager API); verze 9.1 používá VCF Operations."
+  },
+  "mdkcv_18": {
+   "source": "VCF 5.2 - 9.1.1 (SDDC Manager API)",
+   "text": "VCF 5.2 – 9.1.1 (SDDC Manager API)"
+  },
+  "mdkcv_19": {
+   "source": "VCF 9.1 - 9.1.1 (VCF Operations fleet management API)",
+   "text": "VCF 9.1 – 9.1.1 (API správy flotily VCF Operations)"
+  },
+  "mdkcv_20": {
+   "source": "VCF 9.1 and 9.1.1: the certificate of one VCF component through VCF Operations → Fleet management → Certificates, for a key VCF makes itself - a new key and CSR at every issue and renewal, the certificate signed for it put back with its chain (\"Replace with imported certificate\"). Refuses VCF Operations older than 9.1.",
+   "text": "VCF 9.1 a 9.1.1: certifikát jedné komponenty VCF přes VCF Operations → Fleet management → Certificates, pro klíč, který si VCF vytvoří samo – při každém vydání a obnově nový klíč a CSR, pro něj podepsaný certifikát vrácený i s řetězcem („Replace with imported certificate“). VCF Operations starší než 9.1 odmítne."
+  },
+  "mdkcv_21": {
+   "source": "SDDC Manager: an ADMIN (or OPERATOR); VCF Operations (version 9.1): an Administrator",
+   "text": "SDDC Manager: ADMIN (nebo OPERATOR); VCF Operations (verze 9.1): Administrator"
+  },
+  "mdkcv_22": {
+   "source": "Authentication source",
+   "text": "Zdroj ověření"
+  },
+  "mdkcv_23": {
+   "source": "VCF Operations only (version 9.1): the source the user is from, e.g. the name of its VCF Identity Broker or LDAP source; empty: a local user",
+   "text": "Jen VCF Operations (verze 9.1): zdroj, ze kterého uživatel je, např. název jeho VCF Identity Broker nebo zdroje LDAP; prázdné: lokální uživatel"
+  },
+  "mdkcv_24": {
+   "source": "Component FQDN",
+   "text": "FQDN komponenty"
+  },
+  "mdkcv_25": {
+   "source": "the FQDN VCF knows the component by; empty: the first name of the certificate",
+   "text": "FQDN, pod kterým VCF komponentu zná; prázdné: první jméno certifikátu"
+  },
+  "mdkcv_26": {
+   "source": "Component type",
+   "text": "Typ komponenty"
+  },
+  "mdkcv_27": {
+   "source": "SDDC Manager's resource type",
+   "text": "typ prostředku v SDDC Manageru"
+  },
+  "mdkcv_28": {
+   "source": "vCenter",
+   "text": "vCenter"
+  },
+  "mdkcv_29": {
+   "source": "NSX Manager (NSX-T)",
+   "text": "NSX Manager (NSX-T)"
+  },
+  "mdkcv_30": {
+   "source": "NSX Manager",
+   "text": "NSX Manager"
+  },
+  "mdkcv_31": {
+   "source": "SDDC Manager",
+   "text": "SDDC Manager"
+  },
+  "mdkcv_32": {
+   "source": "Aria Suite Lifecycle (VRSLCM)",
+   "text": "Aria Suite Lifecycle (VRSLCM)"
+  },
+  "mdkcv_33": {
+   "source": "Aria Operations (VROPS)",
+   "text": "Aria Operations (VROPS)"
+  },
+  "mdkcv_34": {
+   "source": "Aria Operations for Logs (VRLI)",
+   "text": "Aria Operations for Logs (VRLI)"
+  },
+  "mdkcv_35": {
+   "source": "Aria Automation (VRA)",
+   "text": "Aria Automation (VRA)"
+  },
+  "mdkcv_36": {
+   "source": "NSX Advanced Load Balancer",
+   "text": "NSX Advanced Load Balancer"
+  },
+  "mdkcv_37": {
+   "source": "VxRail Manager",
+   "text": "VxRail Manager"
+  },
+  "mdkcv_38": {
+   "source": "ESX host",
+   "text": "Hostitel ESX"
+  },
+  "mdkcv_39": {
+   "source": "Workload domain",
+   "text": "Doména (workload domain)"
+  },
+  "mdkcv_40": {
+   "source": "SDDC Manager: the domain (name or ID) the component is in; empty: the only domain",
+   "text": "SDDC Manager: doména (název nebo ID), ve které komponenta je; prázdné: jediná doména"
+  },
+  "mdkcv_41": {
+   "source": "VCF Operations only: the certificate's ID in Fleet management → Certificates; empty: found by the component's FQDN",
+   "text": "Jen VCF Operations: ID certifikátu ve Fleet management → Certificates; prázdné: najde se podle FQDN komponenty"
+  },
+  "mdkcv_42": {
+   "source": "two letters - VCF asks for it in every CSR; the certificate's own subject (its profile) wins",
+   "text": "dvě písmena – VCF ji chce v každém CSR; vlastní subjekt certifikátu (z profilu) má přednost"
+  },
+  "mdkcv_43": {
+   "source": "the full name, not an abbreviation",
+   "text": "celý název, ne zkratka"
+  },
+  "mdkcv_44": {
+   "source": "Wait for VCF's tasks (minutes)",
+   "text": "Čekat na úlohy VCF (minuty)"
+  },
+  "mdkcv_45": {
+   "source": "replacing a vCenter's certificate restarts its services",
+   "text": "výměna certifikátu vCenteru restartuje jeho služby"
+  },
+  "mdkcv_46": {
+   "source": "the root the chain ends in (VCF wants the whole chain to the root - ISRG Root X1 for Let's Encrypt); empty: the last certificate of the chain when it is a root",
+   "text": "kořen, kterým řetězec končí (VCF chce celý řetězec až ke kořeni – pro Let's Encrypt ISRG Root X1); prázdné: poslední certifikát řetězce, pokud je kořenový"
+  },
+  "mdkcv_47": {
+   "source": "CUCM takes no wildcard certificate (Cisco's Security Guide)",
+   "text": "CUCM nepřijímá wildcard certifikát (Security Guide Cisco)"
+  },
+  "mdkcv_48": {
+   "source": "CUCM takes only a certificate for a key it made itself - let its device make the key (the certificate → Key: \"Key made by the device\")",
+   "text": "CUCM přijme jen certifikát pro klíč, který sám vytvořil – nechte klíč vytvořit zařízení (certifikát → Klíč: „Klíč vytváří zařízení“)"
+  },
+  "mdkcv_49": {
+   "source": "in mixed mode the CTL file needs an update now: utils ctl update CTLFile",
+   "text": "v mixed mode je teď potřeba aktualizovat soubor CTL: utils ctl update CTLFile"
+  },
+  "mdkcv_50": {
+   "source": ", services restarted",
+   "text": ", služby restartovány"
+  },
+  "mdkcv_51": {
+   "source": "signed in, but \"show version active\" told no version - is this CUCM's platform CLI (an OS administrator account)?",
+   "text": "přihlášeno, ale „show version active“ neřekl žádnou verzi – je to platformové CLI CUCM (účet OS administrátora)?"
+  },
+  "mdkcv_52": {
+   "source": " - acme's module is for CUCM 14 and 15",
+   "text": " – modul acme je pro CUCM 14 a 15"
+  },
+  "mdkcv_53": {
+   "source": "is there",
+   "text": "existuje"
+  },
+  "mdkcv_54": {
+   "source": "is not in \"show cert list own\"",
+   "text": "není v „show cert list own“"
+  },
+  "mdkcv_55": {
+   "source": "give the component's FQDN on the target",
+   "text": "vyplňte v cíli FQDN komponenty"
+  },
+  "mdkcv_56": {
+   "source": "reading the workload domains",
+   "text": "čtení domén (workload domains)"
+  },
+  "mdkcv_57": {
+   "source": "asking SDDC Manager for a new key and CSR",
+   "text": "žádost na SDDC Manager o nový klíč a CSR"
+  },
+  "mdkcv_58": {
+   "source": "making the CSR",
+   "text": "vytvoření CSR"
+  },
+  "mdkcv_59": {
+   "source": "asking VCF Operations for a new key and CSR",
+   "text": "žádost na VCF Operations o nový klíč a CSR"
+  },
+  "mdkcv_60": {
+   "source": "VCF wants the chain up to the root: paste the root CA certificate in the deployment's options",
+   "text": "VCF chce řetězec až ke kořeni: vložte kořenový certifikát CA do možností nasazení"
+  },
+  "mdkcv_61": {
+   "source": "VCF takes only a certificate for a key it made itself - let its device make the key (the certificate → Key: \"Key made by the device\")",
+   "text": "VCF přijme jen certifikát pro klíč, který samo vytvořilo – nechte klíč vytvořit zařízení (certifikát → Klíč: „Klíč vytváří zařízení“)"
+  },
+  "mdkcv_62": {
+   "source": "having SDDC Manager validate the certificate",
+   "text": "ověření certifikátu v SDDC Manageru"
+  },
+  "mdkcv_63": {
+   "source": "asking about the validation",
+   "text": "dotaz na ověření"
+  },
+  "mdkcv_64": {
+   "source": "the validation of the certificate",
+   "text": "ověření certifikátu"
+  },
+  "mdkcv_65": {
+   "source": "having SDDC Manager install the certificate",
+   "text": "instalace certifikátu přes SDDC Manager"
+  },
+  "mdkcv_66": {
+   "source": "having VCF Operations replace the certificate",
+   "text": "výměna certifikátu přes VCF Operations"
+  },
+  "mdkcv_67": {
+   "source": "version not read",
+   "text": "verze nepřečtena"
+  },
+  "mdkcv_68": {
+   "source": "reading SDDC Manager",
+   "text": "čtení SDDC Manageru"
   }
  },
  "patterns": {
@@ -83813,6 +84085,202 @@
   "pmdkhf_29": {
    "source": "imported the certificate of bay {0} of {1}",
    "text": "certifikát pozice {0} v {1} naimportován"
+  },
+  "pmdkcv_1": {
+   "source": "{0} is not a certificate unit acme handles ({1})",
+   "text": "{0} není jednotka certifikátu, kterou acme umí ({1})"
+  },
+  "pmdkcv_2": {
+   "source": "{0}: CUCM said \"{1}\"",
+   "text": "{0}: CUCM odpověděl „{1}“"
+  },
+  "pmdkcv_3": {
+   "source": "CUCM makes {0} keys for {1} - choose {2} for the certificate, or the unit {3}",
+   "text": "CUCM pro {1} vytváří klíče {0} – zvolte pro certifikát {2}, nebo jednotku {3}"
+  },
+  "pmdkcv_4": {
+   "source": "making the CSR (set csr gen {0})",
+   "text": "vytvoření CSR (set csr gen {0})"
+  },
+  "pmdkcv_5": {
+   "source": "CUCM printed no CSR after \"set csr gen {0}\"",
+   "text": "CUCM po „set csr gen {0}“ nevypsal žádný CSR"
+  },
+  "pmdkcv_6": {
+   "source": "CUCM made a {0} key for {1}, the certificate asks for {2} - choose {3} for the certificate",
+   "text": "CUCM vytvořil pro {1} klíč {0}, certifikát chce {2} – zvolte pro certifikát {3}"
+  },
+  "pmdkcv_7": {
+   "source": "CUCM puts {0} into its CSR for {1} (its CLI takes no names) - give the certificate exactly these names (the certificate has {2})",
+   "text": "CUCM dává do svého CSR pro {1} jména {0} (jeho CLI jména nepřebírá) – dejte certifikátu přesně tato jména (certifikát má {2})"
+  },
+  "pmdkcv_8": {
+   "source": "CUCM made a new {0} key and a CSR for {1} ({2})",
+   "text": "CUCM vytvořil nový klíč {0} a CSR pro {1} ({2})"
+  },
+  "pmdkcv_9": {
+   "source": "the CA file is <unit>-trust/<file>.pem - {0} is not",
+   "text": "soubor CA má tvar <jednotka>-trust/<soubor>.pem – {0} ho nemá"
+  },
+  "pmdkcv_10": {
+   "source": "no CA certificate to import into {0}-trust: paste the root CA certificate in the deployment's options",
+   "text": "žádný certifikát CA k importu do {0}-trust: vložte kořenový certifikát CA do možností nasazení"
+  },
+  "pmdkcv_11": {
+   "source": "reading {0}-trust",
+   "text": "čtení {0}-trust"
+  },
+  "pmdkcv_12": {
+   "source": "{0} is in {1}-trust already",
+   "text": "{0} už v {1}-trust je"
+  },
+  "pmdkcv_13": {
+   "source": "importing the CA certificates into {0}-trust",
+   "text": "import certifikátů CA do {0}-trust"
+  },
+  "pmdkcv_14": {
+   "source": "imported {0} into {1}-trust",
+   "text": "{0} naimportováno do {1}-trust"
+  },
+  "pmdkcv_15": {
+   "source": "importing the certificate (set cert import own {0})",
+   "text": "import certifikátu (set cert import own {0})"
+  },
+  "pmdkcv_16": {
+   "source": "\"show cert own {0}/{1}.pem\" does not show the new serial - look at the certificate in Cisco Unified OS Administration",
+   "text": "„show cert own {0}/{1}.pem“ neukazuje nové sériové číslo – podívejte se na certifikát v Cisco Unified OS Administration"
+  },
+  "pmdkcv_17": {
+   "source": "CUCM took the certificate for {0} ({1})",
+   "text": "CUCM přijal certifikát pro {0} ({1})"
+  },
+  "pmdkcv_18": {
+   "source": "restarting {0}",
+   "text": "restart {0}"
+  },
+  "pmdkcv_19": {
+   "source": "restart {0} yourself - CUCM serves the old certificate until then",
+   "text": "restartujte {0} sami – do té doby CUCM servíruje starý certifikát"
+  },
+  "pmdkcv_20": {
+   "source": "imported the {0} certificate for CUCM's own key{1}",
+   "text": "naimportován certifikát {0} pro vlastní klíč CUCM{1}"
+  },
+  "pmdkcv_21": {
+   "source": "signed in to {0}: CUCM {1}{2}; {3} {4}",
+   "text": "přihlášeno k {0}: CUCM {1}{2}; {3} {4}"
+  },
+  "pmdkcv_22": {
+   "source": "{0} gave no token on signing in",
+   "text": "{0} při přihlášení nedal žádný token"
+  },
+  "pmdkcv_23": {
+   "source": "SDDC Manager started {0} but said no task",
+   "text": "SDDC Manager spustil {0}, ale neuvedl žádnou úlohu"
+  },
+  "pmdkcv_24": {
+   "source": "VCF Operations started {0} but said no request",
+   "text": "VCF Operations spustilo {0}, ale neuvedlo žádný požadavek"
+  },
+  "pmdkcv_25": {
+   "source": "asking about {0}",
+   "text": "dotaz na {0}"
+  },
+  "pmdkcv_26": {
+   "source": "VCF asks for {0} in every CSR - fill them in on the target",
+   "text": "VCF chce v každém CSR {0} – vyplňte je v cíli"
+  },
+  "pmdkcv_27": {
+   "source": "VCF makes RSA keys only (2048, 3072, 4096) - {0} cannot be asked of it",
+   "text": "VCF vytváří jen klíče RSA (2048, 3072, 4096) – {0} po něm chtít nelze"
+  },
+  "pmdkcv_28": {
+   "source": "VCF does not take wildcard names for a component ({0})",
+   "text": "VCF nepřijímá pro komponentu wildcard jména ({0})"
+  },
+  "pmdkcv_29": {
+   "source": "the component's FQDN {0} is not one of the certificate's names ({1}) - VCF wants it in the SAN",
+   "text": "FQDN komponenty {0} není mezi jmény certifikátu ({1}) – VCF ho chce v SAN"
+  },
+  "pmdkcv_30": {
+   "source": "SDDC Manager has no workload domain {0} (it has {1})",
+   "text": "SDDC Manager nemá doménu {0} (má {1})"
+  },
+  "pmdkcv_31": {
+   "source": "give the workload domain on the target (SDDC Manager has {0})",
+   "text": "vyplňte v cíli doménu (SDDC Manager má {0})"
+  },
+  "pmdkcv_32": {
+   "source": "SDDC Manager made the CSR but lists none for {0}",
+   "text": "SDDC Manager CSR vytvořil, ale pro {0} žádný neuvádí"
+  },
+  "pmdkcv_33": {
+   "source": "SDDC Manager made a new {0} key and a CSR for {1} ({2})",
+   "text": "SDDC Manager vytvořil nový klíč {0} a CSR pro {1} ({2})"
+  },
+  "pmdkcv_34": {
+   "source": "VCF Operations {0} has no fleet certificate management API - choose the plain version of this target (SDDC Manager API)",
+   "text": "VCF Operations {0} nemá API správy certifikátů flotily – zvolte základní verzi tohoto cíle (SDDC Manager API)"
+  },
+  "pmdkcv_35": {
+   "source": "looking for the certificate of {0}",
+   "text": "hledání certifikátu {0}"
+  },
+  "pmdkcv_36": {
+   "source": "VCF Operations lists no TLS certificate of {0} - give the component's FQDN as VCF knows it, or the Certificate ID",
+   "text": "VCF Operations neuvádí žádný TLS certifikát {0} – vyplňte FQDN komponenty tak, jak ho zná VCF, nebo ID certifikátu"
+  },
+  "pmdkcv_37": {
+   "source": "VCF Operations lists {0} TLS certificates of {1} ({2}) - give the Certificate ID on the target",
+   "text": "VCF Operations uvádí {0} TLS certifikátů {1} ({2}) – vyplňte v cíli ID certifikátu"
+  },
+  "pmdkcv_38": {
+   "source": "VCF Operations made the CSR but gives none for {0}",
+   "text": "VCF Operations CSR vytvořilo, ale pro {0} žádný nedává"
+  },
+  "pmdkcv_39": {
+   "source": "VCF Operations made a new {0} key and a CSR for {1} (certificate {2})",
+   "text": "VCF Operations vytvořilo nový klíč {0} a CSR pro {1} (certifikát {2})"
+  },
+  "pmdkcv_40": {
+   "source": "SDDC Manager validated the certificate for {0} ({1})",
+   "text": "SDDC Manager ověřil certifikát pro {0} ({1})"
+  },
+  "pmdkcv_41": {
+   "source": "SDDC Manager installs the certificate on {0} - it restarts the component's services",
+   "text": "SDDC Manager instaluje certifikát na {0} – restartuje služby komponenty"
+  },
+  "pmdkcv_42": {
+   "source": "installing the certificate on {0}",
+   "text": "instalace certifikátu na {0}"
+  },
+  "pmdkcv_43": {
+   "source": "SDDC Manager installed the certificate on {0} ({1} s)",
+   "text": "SDDC Manager nainstaloval certifikát na {0} ({1} s)"
+  },
+  "pmdkcv_44": {
+   "source": "installed the certificate for VCF's own key on {0}",
+   "text": "nainstalován certifikát pro vlastní klíč VCF na {0}"
+  },
+  "pmdkcv_45": {
+   "source": "VCF Operations replaced the certificate of {0} (certificate {1})",
+   "text": "VCF Operations vyměnilo certifikát {0} (certifikát {1})"
+  },
+  "pmdkcv_46": {
+   "source": "replaced the certificate for VCF's own key on {0}",
+   "text": "vyměněn certifikát pro vlastní klíč VCF na {0}"
+  },
+  "pmdkcv_47": {
+   "source": "signed in to VCF Operations {0} ({1}){2}",
+   "text": "přihlášeno k VCF Operations {0} ({1}){2}"
+  },
+  "pmdkcv_48": {
+   "source": "; the certificate of {0}: {1}",
+   "text": "; certifikát {0}: {1}"
+  },
+  "pmdkcv_49": {
+   "source": "signed in to SDDC Manager {0} ({1}); workload domain {2}",
+   "text": "přihlášeno k SDDC Manageru {0} ({1}); doména {2}"
   }
  },
  "rich": {

@@ -33,7 +33,20 @@ guides"):
   certificate to the boot bank (`auto-backup.sh`) - a host rebooted within the hour came
   back with the old one; `redfish` no longer says iLO 6 takes no key, and its guide no longer
   promises Lenovo XCC, which takes only a certificate of its own request.
-- Products where acme's key cannot go (Lenovo XCC, OpenManage Enterprise, CUCM,
+- **The device makes the key** (a new kind of certificate, docs/certificates.md *Key made by
+  the device*): for devices that take only a certificate for a key they made themselves, acme
+  asks the device for a new key and CSR at every issue and renewal, has it signed by the
+  certificate's source and puts the certificate back on the device in the same job - acme never
+  holds the key, the certificate goes only to that device. In the certificate's form: *Who makes
+  the key* - acme, or the device (its target picked; only the key types it makes; only sources
+  that sign a CSR made elsewhere); a device's window: *Make its certificate*; the command line:
+  `--csr-from TARGET`; What happens shows the device making the key. Targets: **Lenovo XClarity
+  Controller** (XCC3; XCC / XCC2), **Lenovo XClarity Administrator**, **Dell OpenManage
+  Enterprise** (3.0 - 3.9, 3.10+), **HPE Synergy** (Composer and enclosures), **HPE iLO keeping
+  its own key** (older firmware, HighSecurity / FIPS / CNSA), **HPE Alletra MP / 9000**, **Cisco
+  CUCM** (tomcat, CallManager), **VMware VCF component certificates** (SDDC Manager API; VCF
+  Operations 9.1+).
+- Products where acme's key cannot go at all (Unisphere for PowerMax's own HTTPS,
   PRIMEQUEST MMB, ETERNUS LT / CS8000, Barracuda Load Balancer and Email Security...) have a
   guide of how to do it by hand in docs/vendor-guides/.
 

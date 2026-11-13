@@ -156,6 +156,13 @@ Every module here works the same way:
 | `aruba_aos8` | HPE Aruba Networking ArubaOS 8 (Mobility Conductor, controllers) | HPE Aruba Networking |
 | `aruba_iap` | HPE Aruba Networking Instant AP (AOS 8) | HPE Aruba Networking |
 | `lenovo_xcc` | Lenovo XClarity Controller (XCC, XCC2, XCC3) | Lenovo |
+| `dell_ome` | Dell OpenManage Enterprise | Dell |
+| `lenovo_lxca` | Lenovo XClarity Administrator | Lenovo |
+| `hpe_synergy` | HPE Synergy Composer / OneView - key made by the device | HPE |
+| `hpe_ilo_devkey` | HPE iLO 5 / 6 / 7 - key made by the iLO | HPE |
+| `hpe_alletra_mp` | HPE Alletra 9000 / Alletra Storage MP B10000 - key made by the array | HPE |
+| `cucm` | Cisco Unified Communications Manager (CUCM) | Cisco |
+| `vcf_component` | VMware Cloud Foundation component (SDDC Manager / VCF Operations CSR) | VMware |
 
 **A dual certificate** (ECDSA and RSA of the same names, see
 [certificates.md](certificates.md#dual-certificates-ecdsa--rsa)): the targets
@@ -3829,6 +3836,261 @@ anywhere in the answer) and the shape of `SignedCertificates` (the DER as a list
 values); which key XCC / XCC2 make when none is asked (RSA 2048 assumed); whether the role
 `nsc` alone is enough for GenerateCSR and ReplaceCertificate over Redfish.
 
+## The device makes the key - more targets (1.0.96)
+
+## `dell_ome` - Dell OpenManage Enterprise: the device makes the key
+
+OME takes only a certificate signed for a CSR it made itself (Dell's user guide: "Generate the
+CSR only from within the OpenManage Enterprise appliance") - no key, no PKCS#12 can be
+uploaded. `device_key = True` (docs/writing-a-module.md *The device makes the key*): at every
+issue and renewal of a certificate whose key it makes (`csr_from` = this target) acme asks OME
+for a new key and CSR and uploads the signed certificate right after, in the same job. The
+certificate serves OME's web interface and REST API.
+
+    POST   /api/SessionService/Sessions {UserName, Password, SessionType "API"}
+                                                   -> X-Auth-Token, {Id}
+    GET    /api/ApplicationService/Info            -> {Version}
+    POST   /api/ApplicationService/Actions/ApplicationService.GenerateCSR
+           {DistinguishedName (the common name), DepartmentName, BusinessName, Locality,
+            State, Country, Email, San: every name, comma-separated} -> {CertificateData}
+    POST   .../ApplicationService.UploadCertChain   the certificate + intermediates (+ the
+           root given), PEM, application/octet-stream             (OME 3.10 and later)
+    POST   .../ApplicationService.UploadCertificate the certificate alone (before 3.10, or
+           with "Upload the chain" off)
+    DELETE /api/SessionService/Sessions('<Id>')
+
+**Versions**: the plain one - any OME 3.x / 4.x, reads the version and uploads the chain from
+3.10 (the certificate alone before; not readable: the chain). **`3.10`** - OME 3.10 - 4.x
+(UploadCertChain). **`3.0`** - OME 3.0 - 3.9 (UploadCertificate only). The versioned ones
+refuse an appliance on another version before anything is asked of it.
+
+**Settings**: address, port, user and password (the privilege *Appliance Management* - a custom
+role of OME 4.x - or the role Administrator), the subject OME asks for in every CSR (Country,
+State, City, Business name, Department name, E-mail - all required; the certificate's own
+subject wins), TLS. Key: RSA 2048 (the form offers only that; OME has no key choice). At most 4
+names, no wildcard - refused in words before OME is asked. The deployment: *Upload the chain*
+(on), *Root CA certificate* (added at the end). OME restarts its web server for a few seconds
+after the upload: the tests wait up to two minutes (`served_wait` 12 × 10 s). *Test* signs in
+and says the version and the way the certificate will be uploaded - nothing changed.
+
+**Less certain** (not tried on an appliance; the calls are those of Dell's Ansible collection
+dellemc.openmanage - ome_application_certificate, module_utils ome.py / utils.py -, Dell's OME
+REST API reference could not be read): the key OME makes (RSA 2048 assumed); the limit of 4
+names (Dell's Ansible documentation); whether OME before 3.10 puts San names into its CSR.
+
+## `lenovo_lxca` - Lenovo XClarity Administrator: the device makes the key
+
+LXCA takes only a certificate created from its own CSR (Lenovo's REST reference for
+`/serverCertificate`) - no key can be imported. `device_key = True`: at every issue and renewal
+acme asks LXCA for a new key and CSR, and right after the issue adds the CA certificates to
+LXCA's trust store and uploads the certificate. It serves LXCA's web interface and REST API and
+is the certificate LXCA shows its managed devices (and XClarity Orchestrator). HTTP Basic.
+
+    POST /certificateSigningRequest {CommonName, Country, StateProvince, StateLocality,
+         Organization[, OrganizationUnit], subjectAlternativeNames: {generalNames:
+         [{type "dNSName" | "iPAddress", name}]}}        -> {response: [{path}], result}
+    GET  /certificateSigningRequest?path=<path>             -> the CSR
+    POST /trustedCertificates {certificate: PEM}            the root, each intermediate
+    POST /serverCertificate/tmp  multipart "uploadedfile": certificate + intermediates + root
+                                                            -> result, response.jobPath
+
+**One version** (LXCA 3.x - 4.x: the same calls; 4.0 and later restart the web server and end
+every session). Key: RSA 2048 or 3072 (the form offers these; LXCA chooses by its cryptographic
+mode, no ECDSA). **Settings**: address, port, user and password (role group
+`LXC-SECURITY-ADMIN`), the subject (Country, State, City, Organization required; Unit
+optional; the certificate's own subject wins), TLS. The deployment: *Add the CA certificates to
+the trust store* (on; one already there - an error saying so - is taken as done), *Root CA
+certificate* (when the chain does not carry the root; without one a warning, the upload goes
+on). The CA job LXCA starts for its devices is said, not waited for. `served_wait` 20 × 15 s.
+*Test* reads `GET /serverCertificate` - nothing changed. The certificate needs the EKUs Server
+**and** Client Authentication (Lenovo) - acme's own authority or an enterprise CA, not a public
+ACME CA.
+
+**Less certain** (not tried on an LXCA; from Lenovo's REST pages via the vendor guide - they
+could not be read again here): the SAN type of an IP ("iPAddress" as Lenovo's example); the
+GET of the CSR answering the PEM itself (a JSON holding it is read too); an existing trusted
+certificate answered with 400/409 and words "already"/"exists".
+
+**Not covered**: XClarity Orchestrator and XClarity One (on-premises portal, Management Hub) -
+Lenovo documents their server certificate (CSR and import) only in their web interfaces; no
+REST call for it was found. Unisphere for PowerMax's own HTTPS certificate (port 8443) has no
+API either in 10.x (only *Settings → Security → Server Certificates* in the GUI; keytool is no
+longer supported) - `unisphere_powermax` stays the Solutions Enabler certificate.
+
+## `hpe_synergy` - HPE Synergy Composer / OneView: the device makes the key
+
+`device_key = True` (docs/certificates.md *Key made by the device*): at every issue and
+renewal acme asks HPE OneView (a Synergy Composer, or the OneView VM; OneView 9.x - 11.x, REST
+API 6600 - 9200, the version the appliance says, at most 9200) for a new key and CSR, has it
+signed, and imports the certificate right after. One target (the sign-in) serves two kinds of
+certificate - the deployment's option *Certificate of* says which:
+
+- **the appliance** (Composer / OneView HTTPS, REST API, the SSO certificate passed on to the
+  iLOs and frames): RSA 2048, or RSA 3072 for CNSA (key type `rsa-3072` sends
+  `cnsaCertRequested: true`); every name of the certificate goes into `alternativeName`; the
+  intermediates go into the trust store first (*Put the intermediates into the trust store*),
+  the appliance reloads its web services after the import task.
+- **an enclosure's management module** (a Synergy frame's Frame Link Module bay, a c7000's
+  Onboard Administrator bay; options *Enclosure* - its name or URI - and *Bay*): one name
+  only (the enclosure CSR has a common name and no alternative names); no test place of its
+  own - give *Check what is served*.
+
+      POST /rest/login-sessions {userName, password, authLoginDomain, loginMsgAck}   (Auth)
+      POST /rest/certificates/https/certificaterequest {type CertificateSigningRequestV2,
+           country, state, locality, organization[, organizationalUnit], commonName,
+           alternativeName "a,b,ip"[, email], cnsaCertRequested}       -> base64Data (or a
+           task, then GET of the same URI)
+      PUT  /rest/certificates/https/certificaterequest {type CertificateDataV2, base64Data}
+      POST|GET|PUT <enclosure>/https/certificaterequest?bayNumber=N  {type CertificateDtoV2,
+           ... commonName} / {type CertificateDataV2, base64Data}
+
+The module `hpe_oneview` (a key of acme's as PKCS#12) is unchanged. Role: Infrastructure
+administrator. Unverified: the enclosure call on a Synergy frame (HPE's SDK documents it for
+the OA).
+
+## `hpe_ilo_devkey` - HPE iLO 5 / 6 / 7: the iLO makes the key
+
+HPE's own "Generate CSR and Import an SSL Certificate", for an iLO that takes no key from
+outside (iLO 5 before 2.78, iLO 6 before 1.30, iLO 6 outside Production / iLO 7 outside
+SecureStandard for RSA - HighSecurity, FIPS, CNSA) or a policy that the key stays on the iLO.
+Beside the version `ilo` of `redfish`, which puts acme's key on it.
+
+    GET   <Manager>/SecurityService/ -> SecurityState, Links.HttpsCert
+    PATCH <HttpsCert> {KeyType: RSA | ECDSA}        (iLO 6 1.70+ / iLO 7 1.17+, when another)
+    POST  #HpeHttpsCert.GenerateCSR {OrgName, OrgUnit, CommonName, Country, State, City,
+          IncludeIP}
+    GET   <HttpsCert> until CertificateSigningRequest is a new one   (up to ~10 minutes;
+          setting "Wait for the CSR at most", 900 s)
+    POST  #HpeHttpsCert.ImportCertificate {Certificate: the certificate}  -> the iLO resets
+
+The iLO's CSR carries one host name (the common name) and, with IncludeIP - sent when the
+certificate has IP addresses -, the iLO's own addresses: a certificate with more DNS names is
+refused in words. Key types `rsa-2048` and `ec-384` (ECDSA is P-384); an iLO without KeyType
+makes RSA in Production and ECDSA P-384 in HighSecurity / FIPS / CNSA / SuiteB - another key
+type is refused before anything is changed. iLO 4 is refused. Privileges: Login + Configure
+iLO Settings.
+
+## `hpe_alletra_mp` - HPE Alletra 9000 / Alletra Storage MP B10000: the array makes the key
+
+The CLI (over SSH) makes the key and CSR of the `unified-server` certificate (WSAPI, UI /
+SSMC, CIM) and imports the signed certificate; no key of acme's can go there.
+
+    SSH  createcert unified-server -csr -keysize 2048|3072|4096 -C .. -ST .. -L .. -O ..
+         [-OU ..] -CN <first name> -SAN "DNS:..,IP:.."          -> the CSR printed
+    SSH  importcert unified-server -ca stdin -f   < the intermediates  (Import the
+         intermediates first, on by default)
+    SSH  importcert unified-server -f stdin       < the certificate
+    SSH  showversion; showcert -service unified-server               (Test, read only)
+
+User: role super, domain all. The CLI syntax comes from the 3PAR / Primera CLI reference the
+OS carries on - not checked on an Alletra (the guide asks to look at `help createcert` /
+`help importcert` first); a CLI that answers otherwise stops the job with its own words.
+The subject values may not hold `"`, brackets, braces, `$` or `\` (the CLI is Tcl).
+
+## Fujitsu PRIMEQUEST 3000 MMB and ETERNUS LT - no target
+
+Both make their own key but take the signed certificate only in their web GUI (MMB: no
+certificate command in its CLI, no REST/Redfish; ETERNUS LT: "the functions related to
+certificates can only be used in the remote panel", SSH for service only). Their manual
+guides (docs/vendor-guides/primequest_mmb.md, eternus_lt.md) say how acme still helps: a
+certificate from the device's CSR sent in, renewed for the same CSR (MMB) or a new CSR sent
+at each renewal (ETERNUS LT), an alert and a TLS test.
+
+## `cucm` - Cisco Unified Communications Manager (CUCM 14 / 15): the device makes the key
+
+Cisco Unified OS Administration takes no private key for `tomcat` / `CallManager`: the key is
+made on CUCM by *Generate CSR* and only a certificate signed for it is uploaded (Admin Guide
+15, *Manage Certificates*). So `device_key = True` (docs/certificates.md *Key made by the
+device*): at every issue and renewal of a certificate whose key it makes (`csr_from` = this
+target) acme has CUCM's **platform CLI over SSH** make a new key and CSR, has it signed, and
+imports the certificate right after, in the same job; acme never holds the key. Cisco
+documents no API for these certificates acme builds on (AXL is the CM database), and CUCM 14
+and 15 (every SU) have the same CLI - one module, no versions. The lines go on the input of
+one SSH session a step (no terminal):
+
+    set csr gen <unit>                                    a new key and CSR
+    show csr own <unit>/<unit>.csr                        read back: its key type and names checked
+    show cert list trust                                  the CA certificates there already
+    set cert import trust <unit>-trust  + the CA pasted   each CA of the chain not there yet
+    set cert import own <unit> <unit>-trust/<CA file>  + the certificate pasted
+    show cert own <unit>/<unit>.pem                       the new serial looked for
+    utils service restart Cisco Tomcat / Cisco Tftp       (tomcat; CallManager: Cisco CallManager,
+                                                          Cisco CTIManager)
+
+**The names**: CUCM's CLI takes none - the CSR has the node's FQDN (and what CUCM adds: its
+domain, an alternate host name of `set web-security`). acme reads them and says them when the
+certificate's names differ ("give the certificate exactly these names"). No wildcard; a
+multi-server (SAN) certificate is uploaded in the GUI only (14SU2 and later) - one node a
+target. **Key types**: RSA 2048 for `tomcat` / `CallManager`, EC for the `-ECDSA` units (the
+form offers rsa-2048, ec-256, ec-384; the CSR's key is checked).
+
+**Settings**: SSH (address, port, a platform account of privilege 1 - `set account name`, its
+password or key, host key), *Certificate* (the unit: `tomcat`, `tomcat-ECDSA`, `CallManager`,
+`CallManager-ECDSA`), *Time for a CLI command* (600 s). The deployment: *Restart the services*
+(on), *Root CA certificate* (imported into `<unit>-trust` with the intermediates), *CA file in
+the trust store* (empty: the issuer found in `show cert list trust`). The tests after the
+deployment (`<host>:8443` for tomcat) wait up to 10 minutes while Tomcat restarts
+(`served_wait` 20 × 30 s, none when the restart is off). *Test* reads `show version active`
+and `show cert list own` - nothing changed.
+
+**Less certain** (no CUCM to try it on): that the CLI reads lines from a session without a
+terminal; that `set csr gen` asks nothing; the trust store's file name of a CA (its CN with
+"_" - the listing is read, a field gives it otherwise); CUCM's words (errors looked for, the
+serial checked). Cisco's UC Certificate Management REST API (`/platformcom/api/v1/certmgr`,
+CUCM 14 and later) was not used: its request bodies could not be read.
+
+## `vcf_component` - VMware Cloud Foundation component: the device makes the key
+
+Neither SDDC Manager (VCF 5.2) nor VCF Operations fleet management (VCF 9.x) takes a private
+key made elsewhere - they install only a certificate signed for a CSR in their locker. This
+target has VCF make a new key and CSR for **one component** (vCenter, NSX Manager, SDDC
+Manager, an Aria / VCF management component) at every issue and renewal (`device_key = True`,
+`csr_from` = this target) and has VCF install the certificate signed for it right after; VCF
+applies it on the component and restarts its services. (The kind `sddc_manager` only adds CA
+certificates to SDDC Manager's trust store.) RSA 2048 / 3072 / 4096 only; no wildcard; the
+component's FQDN must be one of the names (VCF wants it in the SAN).
+
+**Versions**: the plain one - **SDDC Manager API v1** (VCF 5.2; still in VCF 9.0 - 9.1.1):
+
+    POST /v1/tokens                                        accessToken (Bearer)
+    GET  /v1/domains                                       the domain by name or ID (or the only one)
+    PUT  /v1/domains/{id}/csrs {csrGenerationSpec: {country, state, locality, organization,
+         organizationUnit, email?, keySize "2048|3072|4096", keyAlgorithm "RSA"},
+         resources: [{fqdn, type, sans: every name}]}      -> task, GET /v1/tasks/{id} until SUCCESSFUL
+    GET  /v1/domains/{id}/csrs                             the component's CSR
+    PUT  /v1/domains/{id}/resource-certificates/validations [{resourceFqdn, resourceCertificate,
+         caCertificate: the root, certificateChain: intermediates + root}]   until COMPLETED / SUCCEEDED
+    PUT  /v1/domains/{id}/resource-certificates  (the same)  -> task until SUCCESSFUL
+
+**`9.1`** - **VCF Operations fleet management API** (VCF 9.1, 9.1.1; an older VCF Operations
+is refused before anything is changed - `GET /suite-api/api/versions/current`):
+
+    POST /suite-api/api/auth/token/acquire {username, password, authSource?}   OpsToken
+    POST .../fleet-management/certificate-management/certificates/query
+         {applianceFqdn, category TLS_CERT}               the certificate's ID (or the one given)
+    POST .../certificate-management/csrs {certificateId, generateCsrSpec: {commonName,
+         organization, orgUnit, locality, state, country, email?, keyAlgorithm RSA,
+         keySize KEY_2048|3072|4096, subjectAltNames {dns, ip}}}  -> workflow until COMPLETED
+    GET  .../certificate-management/csrs?certificateId=   certificateSignatureInfo[].csr
+    PUT  .../certificate-management/certificates/{id} {caType EXTERNAL_CA,
+         certificateChain: leaf + intermediates + root}   -> workflow until COMPLETED
+    POST /suite-api/api/auth/token/release
+
+**Settings** (one set for both versions): address (SDDC Manager, or VCF Operations for 9.1),
+port, user and password (an SDDC Manager ADMIN / OPERATOR; a VCF Operations Administrator),
+*Authentication source* (9.1), *Component FQDN* (empty: the certificate's first name),
+*Component type* and *Workload domain* (SDDC Manager), *Certificate ID* (9.1, empty: found by
+the FQDN), the subject VCF asks for in every CSR (Country, State, City, Organization, Unit;
+e-mail optional - the certificate's own subject wins), *Wait for VCF's tasks* (60 minutes),
+TLS. The deployment: *Root CA certificate* (VCF wants the chain to the root). The tests after
+the deployment (`<component FQDN>:443`) wait up to 5 minutes more (`served_wait` 10 × 30 s).
+*Test* signs in and reads the version and the domain (or the certificate ID) - nothing changed.
+
+**Less certain** (no VCF to try it on; from the API references through the vendor guide): the
+field of the CSR in `/v1/domains/{id}/csrs` (looked for anywhere next to its FQDN), the
+validation's words, the `OpsToken` prefix, `KEY_3072` / `KEY_4096`, the certificate ID being
+`certificateResourceKey`, the workflow states.
+
 ## Products with a guide but no target (1.0.96)
 
 What the vendors' guides describe where acme cannot put its own key and certificate (the
@@ -3837,7 +4099,6 @@ where another target does it - each guide says how to do it by hand, or which ta
 
 - [Barracuda Email Security Gateway - by hand (no acme module)](vendor-guides/barracuda_esg.md) ([česky](vendor-guides/barracuda_esg.cs.md))
 - [Barracuda Load Balancer ADC - by hand (no acme module)](vendor-guides/barracuda_lb.md) ([česky](vendor-guides/barracuda_lb.cs.md))
-- [Cisco Unified Communications Manager (CUCM 14 / 15) - certificates by hand (no acme target)](vendor-guides/cucm.md) ([česky](vendor-guides/cucm.cs.md))
 - [Fujitsu ETERNUS CS8000 - no automated deployment](vendor-guides/eternus_cs8000.md) ([česky](vendor-guides/eternus_cs8000.cs.md))
 - [Fujitsu ETERNUS LT (LT140, LT260) - no automated deployment](vendor-guides/eternus_lt.md) ([česky](vendor-guides/eternus_lt.cs.md))
 - [Fujitsu ETERNUS NR (NR1000, ONTAP) - setup for acme](vendor-guides/eternus_nr.md) ([česky](vendor-guides/eternus_nr.cs.md))
