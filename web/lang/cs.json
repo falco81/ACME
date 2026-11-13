@@ -61235,6 +61235,18 @@
   "_91": {
    "source": "# a shell session, these lines on its input:",
    "text": "# relace shellu, tyto řádky na jejím vstupu:"
+  },
+  "_92": {
+   "source": "the stand-in served an earlier certificate",
+   "text": "zástupce poskytl dřívější certifikát"
+  },
+  "_93": {
+   "source": "the stand-in served the new certificate",
+   "text": "zástupce poskytl nový certifikát"
+  },
+  "_94": {
+   "source": "what the module says it found or does",
+   "text": "co modul říká, že zjistil nebo dělá"
   }
  },
  "patterns": {
