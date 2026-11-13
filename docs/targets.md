@@ -153,6 +153,8 @@ Every module here works the same way:
 | `veeam_cloud_connect` | Veeam Cloud Connect (cloud gateway certificate) | Veeam |
 | `veeam_vb365` | Veeam Backup for Microsoft 365 | Veeam |
 | `13` | VBR 13.0 - 13.1 | `-Force`; web UI and REST API follow by themselves |
+| `aruba_aos8` | HPE Aruba Networking ArubaOS 8 (Mobility Conductor, controllers) | HPE Aruba Networking |
+| `aruba_iap` | HPE Aruba Networking Instant AP (AOS 8) | HPE Aruba Networking |
 
 **A dual certificate** (ECDSA and RSA of the same names, see
 [certificates.md](certificates.md#dual-certificates-ecdsa--rsa)): the targets
@@ -3720,13 +3722,70 @@ from which Prism Central v4.4 is served; the Prism Central version is not read.
   `kasten-io` named in Helm's `ingress.tls.secretName` - the `kubernetes` target
   does it as it is.
 
+## `aruba_aos8` - HPE Aruba Networking ArubaOS 8 (Mobility Conductor, controllers)
+
+AOS 8 takes a certificate file only from its own flash; its REST API documents no upload and
+the CLI reads none from the terminal. So acme puts the file on a **staging server** (a Linux
+server it reaches over SSH - the TFTP root, or any folder for `copy scp:`) and has the
+controller fetch it. Over SSH to the controller (a `root` management user; the lines go to an
+SSH shell session, one session a step, `no paging` first, `enable` + password when set):
+
+1. `show version` - ArubaOS 8.x, else refused before anything changes (AOS 6: other
+   web-server commands; AOS 10: use `aruba_central`); `show crypto-local pki ServerCert`
+   (and `IntermediateCA`, `TrustedCA`);
+2. *Import the chain*: each CA of the chain once as `acme-ca-<id>` - written to the staging
+   server, `copy tftp: <stage> <file> flash: <file>`, `crypto pki-import pem
+   IntermediateCA|TrustedCA acme-ca-<id> <file>`;
+3. the certificate, key and chain as a PKCS#12 (3DES/SHA-1 by default) with a one-time
+   alphanumeric password, the same way: `copy tftp:` (or `copy scp: <stage> <user> <path>
+   flash: <file>` + the staging user's password), `crypto pki-import pfx ServerCert
+   acme-<name>-<date>-<serial> acme-<serial>.pfx <pw>` (names at most 31 characters); it must
+   then be in `show crypto-local pki ServerCert`; the staged file is removed at once;
+4. `[cd <config node>]`, `configure terminal`, on a Conductor `crypto-local pki ServerCert
+   <name> <file>` (and the CAs), `web-server profile`: `no switch-cert` / `switch-cert <name>`
+   (*WebUI*, the web server restarts - 4343 cut for a moment) and `no captive-portal-cert` /
+   `captive-portal-cert <name>` (*Captive portal*);
+5. *Save*: `[cd <node>]` `write memory`; `delete filename <file>` for the flash copies;
+6. older acme ServerCerts beyond *keep* with reference count 0: `no crypto-local pki
+   ServerCert <old>`, `write memory` (a failure only warned).
+
+One version (`''`, any version (detects it)): ArubaOS 8.6 - 8.13 use the same commands.
+`served_places`: host:4343 (WebUI) and the captive portal name:443. *Unverified* (no device;
+the HPE techdocs were read through search excerpts only): shell input without a terminal,
+the `copy scp:` password prompt, `delete filename`, the `show crypto-local pki` layout, whether
+the PKCS#12's chain is served.
+
+## `aruba_iap` - HPE Aruba Networking Instant AP (AOS 8)
+
+Over SSH to the virtual controller of an Instant cluster (`admin`), the file on the same kind
+of staging server, fetched by the AP:
+
+- **Instant 8.7 and later** (from 8.7.0.0 a certificate works only when assigned):
+  `crypto pki-import format pfx cert-type ServerCert url <url> certname <name> psk <pw>`
+  (the URL from *URL the AP fetches it from*, default `tftp://{addr}/{file}`; the command
+  itself is the advanced field *Import command*), then `configure terminal`, `wlan
+  cert-assignment-profile`, `pki-cert-assign application ui|captive-portal cert-type
+  ServerCert certname <name>`, `exit`, `exit`, `commit apply`; `show cert assignment` must
+  name it (else a warning);
+- **Instant 8.3 - 8.6**: a PEM (key encrypted with the one-time password, certificate,
+  chain): `copy tftp <stage> <file> uiserver cert <pw> format pem` (WebUI) / `cpserver`
+  (captive portal).
+
+| Version | Label | Way |
+|---|---|---|
+| `''` | any version (detects it) | by `show version`; unknown: 8.7 (warned); AOS 10 refused |
+| `8.3` | Instant 8.3 - 8.6 | copy tftp ... uiserver / cpserver |
+| `8.7` | Instant 8.7 - 8.13 | crypto pki-import + cert-assignment-profile + commit apply |
+
+Older certificates are not removed from the AP. *Unverified*: the keyword form of the Instant
+`crypto pki-import` and the URL schemes it fetches from, `commit apply` after the assignment.
+
 ## Products with a guide but no target (1.0.96)
 
 What the vendors' guides describe where acme cannot put its own key and certificate (the
 product takes only a certificate of a request it made itself, or has no documented way), or
 where another target does it - each guide says how to do it by hand, or which target to use:
 
-- [HPE Aruba Networking AOS 8 (Mobility Conductor, controllers, Instant AP) - certificates by hand (no acme target)](vendor-guides/aos8.md) ([česky](vendor-guides/aos8.cs.md))
 - [Barracuda Email Security Gateway - by hand (no acme module)](vendor-guides/barracuda_esg.md) ([česky](vendor-guides/barracuda_esg.cs.md))
 - [Barracuda Load Balancer ADC - by hand (no acme module)](vendor-guides/barracuda_lb.md) ([česky](vendor-guides/barracuda_lb.cs.md))
 - [Cisco Unified Communications Manager (CUCM 14 / 15) - certificates by hand (no acme target)](vendor-guides/cucm.md) ([česky](vendor-guides/cucm.cs.md))

@@ -2747,7 +2747,18 @@ function targetPeek(r) {
         var sec = section('Certificates deployed here', 'Each with the options it has on this target. Run deploys it again now.', true);
         if (depsErr) sec._body.appendChild(failedBox(depsErr, 'the deployments of a target'));
         else sec._body.appendChild(deployTable(deps || [], {target: r, back: function () { targetPeek(r); }}));
-        if (MANAGE && deployable(r)) {
+        if (MANAGE && deployable(r) && p.device_key) {
+          /* the device makes the key (certs.csr_from): its certificate is made for it, not
+             picked - one whose key it made, deployed here alone */
+          sec._body.appendChild(el('p', 'muted small', 'This device makes its own key and takes only a certificate for it: acme asks it for a new key and CSR at every issue and puts the certificate back right after.'));
+          var mk = cmdButton('Make its certificate', 'add', 'primary small');
+          mk.onclick = function () {
+            var host = String(first(cfg.host, cfg.address, '') || '').trim().toLowerCase();
+            over(function () { certWizard(null, null, {csrFrom: r.name, names: host ? [host] : []}); }, function () { targetPeek(r); });
+          };
+          var mrow = el('div', 'btnrow'); mrow.appendChild(mk);
+          sec._body.appendChild(mrow);
+        } else if (MANAGE && deployable(r)) {
           var add = cmdButton('Deploy a certificate here', 'add', 'primary small');
           add.onclick = function () { over(function () { deployEdit({target: r, have: arr(deps).map(function (x) { return x.cert_id; })}); }, function () { targetPeek(r); }); };
           var row = el('div', 'btnrow'); row.appendChild(add);
@@ -3794,7 +3805,7 @@ function certRenew(c, button, back) {
       body.appendChild(el('p', 'note', 'A new certificate is asked for at once, whether it is due or not - the one in use now stays valid until it runs out (it is not revoked).'));
       var facts = [];
       if (c.issuer) facts.push(['From', data('span', '', c.issuer)]);
-      facts.push(['Its key', c.from_csr ? 'the same key - the CSR sent in is used again' : (c.reuse_key ? 'the same key is kept' : 'a new key')]);
+      facts.push(['Its key', c.csr_from ? data('span', '', tr('a new key, made by the device of') + ' ' + c.csr_from) : (c.from_csr ? 'the same key - the CSR sent in is used again' : (c.reuse_key ? 'the same key is kept' : 'a new key'))]);
       if (c.key_type_alt) facts.push(['Dual', 'both certificates - ' + (c.key_type || '') + ' and ' + c.key_type_alt]);
       var n = Array.isArray(c.deploys) ? c.deploys.length : (Number(c.deploys || c.deploy_count || c.deploys_total || 0) || 0);
       facts.push(['Then', n ? 'put in place again on its targets' : 'nothing to deploy']);
@@ -3915,7 +3926,7 @@ function detailsSection(c, back) {
         : (c.state === 'pending' || c.state === 'pending-approval' || asked(c)) ? 'once it is approved and issued'
         : (truthy(c.auto_renew) ? 'automatically' : 'only when asked')],
       ['Days before the end', c.renew_days ? String(c.renew_days) : 'as Renewal and notices says'],
-      ['Key on renewal', truthy(c.reuse_key) ? 'kept' : 'a new one each time'],
+      ['Key on renewal', c.csr_from ? data('span', '', tr('key made by') + ' ' + c.csr_from) : (truthy(c.reuse_key) ? 'kept' : 'a new one each time')],
       c.issuer_ref ? ['Its id at the source', explain(copyable(String(c.issuer_ref), 'copied'), 'Imported from its source: each renewal reissues this order (or certificate) there.')] : null,
       ['Name in acme', data('span', 'mono', c.name)],
       ['In use', c.enabled === undefined || c.enabled === null || truthy(c.enabled) ? 'yes' : 'switched off']
@@ -3943,7 +3954,7 @@ function detailsSection(c, back) {
     g.appendChild(nf);
     if (autoCan(c)) g.appendChild(formField('Renewed by itself', f.auto));
     g.appendChild(formField('Days before the end', f.days, 'Empty: as Settings → Renewal and notices says.'));
-    g.appendChild(formField('Keep the key on renewal', f.reuse));
+    if (!c.csr_from) g.appendChild(formField('Keep the key on renewal', f.reuse));
     g.appendChild(formField('Name in acme', f.name));
     g.appendChild(formField('In use', f.on, 'Off: kept, never renewed nor deployed.'));
     sec._body.appendChild(g);
@@ -4140,7 +4151,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
     ['SHA-256', sha256 ? copyable(fpWords(sha256), 'the fingerprint was copied') : '–'],
     sha1 ? ['SHA-1', copyable(fpWords(sha1), 'the fingerprint was copied')] : null,
     ['Key', keyWords(first(info.key_type, c.key_type)) + (info.key_bits ? ' · ' + info.key_bits + ' bits' : '')
-      + (c.has_key === false ? ' · not kept here' : '')],
+      + (c.csr_from ? ' · ' + tr('key made by') + ' ' + c.csr_from : (c.has_key === false ? ' · not kept here' : ''))],
     ['Valid from', c.not_before ? stamp(c.not_before) : '–'],
     ['Valid to', c.not_after ? stamp(c.not_after) : '–'],
     ['Version', c.version ? 'v' + c.version : '–'],
@@ -4162,7 +4173,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
     ['Source', c.issuer || (c.source === 'import' ? 'imported - renewed by importing again' : (c.source === 'csr' ? 'an outside CA, by a CSR' : '–'))],
     ['Validation', c.challenge ? c.challenge + (Object.keys(cmap).length ? ' · ' + Object.keys(cmap).length + ' name(s) otherwise' : '') : '–'],
     ['Renews', autoRenew(c, false, function () { if (window.CT && CT.refresh) CT.refresh(); })],
-    ['Key on renewal', truthy(c.reuse_key) ? 'kept' : 'a new one each time'],
+    ['Key on renewal', c.csr_from ? data('span', '', tr('key made by') + ' ' + c.csr_from) : (truthy(c.reuse_key) ? 'kept' : 'a new one each time')],
     ['Last renewed', c.last_ok ? stamp(c.last_ok) : 'never'],
     ['Next look', c.next_try ? stamp(c.next_try) : '–'],
     prof.days ? ['Validity asked', prof.days + ' days'] : null,
@@ -4875,6 +4886,8 @@ function certWizard(cert, detail, opts) {
   W.d = {
     issuer: c.issuer || '', name: c.name || '', names: arr(c.names).join('\n'), key_type: c.key_type || 'ec-256',
     key_type_alt: c.key_type_alt || '',
+    /* the key made by a target's device (certs.csr_from): that target's name, '' acme makes it */
+    csr_from: c.csr_from || opts.csrFrom || '',
     challenge: c.challenge || '', challenge_map: obj(c.challenge_map),
     auto_renew: c.id ? (c.auto_renew === undefined || truthy(c.auto_renew)) : true,
     renew_days: c.renew_days || 30, reuse_key: truthy(c.reuse_key),
@@ -4902,7 +4915,26 @@ function certWizard(cert, detail, opts) {
     if (!FROM) { W.d.auto_renew = true; W.d.renew_days = c.renew_days || 30; }
   }
   var hand = function () { return MOVE && W.d.issuer === HAND; };
+  if (!editing && arr(opts.names).length) W.d.sans = arr(opts.names).map(function (n) { return {type: nameKind(n) === 'ip' ? 'ip' : 'dns', value: n}; });
   if (!W.d.sans.length) W.d.sans = [{type: 'dns', value: ''}];
+  /* The targets whose device makes the key (their module's device_key), and its module. */
+  var devPlug = function (t) { var p = t ? plugVersion(plugOf('target', t.kind), t.version) : null; return p && p.device_key ? p : null; };
+  var devTargets = function () { return W.targets.filter(function (t) { return !!devPlug(t); }); };
+  var devOf = function () { return W.targets.filter(function (t) { return t.name === W.d.csr_from; })[0] || null; };
+  var devTypes = function () { var p = devPlug(devOf()); return p && arr(p.device_key_types).length ? arr(p.device_key_types) : null; };
+  /* its deployment: to that target alone; a target whose device makes keys takes no other */
+  var devDeploys = function () {
+    Object.keys(W.deploys).forEach(function (k) {
+      var t = W.targets.filter(function (x) { return x.name === k; })[0];
+      if (W.d.csr_from ? k !== W.d.csr_from : !!devPlug(t)) delete W.deploys[k];
+    });
+    /* its deployment is made with it (cert_save); here only where this form sets deployments -
+       a certificate edited keeps the options its deployment has */
+    if (W.d.csr_from && !W.deploys[W.d.csr_from] && (!editing || SETUP)) W.deploys[W.d.csr_from] = {};
+    if (W.d.csr_from) { W.d.key_type_alt = ''; W.d.reuse_key = false; }
+    var kts = devTypes();
+    if (W.d.csr_from && kts && kts.indexOf(W.d.key_type) < 0) W.d.key_type = kts[0];
+  };
   W.d.cn_san = !W.d.cn || arr(c.names).indexOf(String(W.d.cn).toLowerCase()) >= 0;
   var src = function () { return W.sources.filter(function (s) { return s.name === W.d.issuer; })[0] || null; };
   var can = function () {
@@ -5417,7 +5449,34 @@ function certWizard(cert, detail, opts) {
   }
   /* -- 3. key -- */
   function drawKey(host) {
-    host.appendChild(el('p', 'note', 'The key is made here, on this server, and never leaves it unless a full administrator exports it.'));
+    var devs = devTargets();
+    if (devs.length || W.d.csr_from) {
+      /* Who makes the key: acme, or the device the certificate is for (certs.csr_from) */
+      var who = el('div', 'set-item');
+      who.appendChild(el('label', 'k', 'Who makes the key'));
+      var wseg = el('div', 'seg');
+      [['', 'acme, here'], ['device', 'Key made by the device']].forEach(function (o) {
+        var bt = el('button', (o[0] ? !!W.d.csr_from : !W.d.csr_from) ? 'on' : '', o[1]);
+        bt.type = 'button';
+        bt.onclick = function () {
+          W.d.csr_from = o[0] ? (W.d.csr_from || (devs[0] || {}).name || '') : '';
+          devDeploys();
+          paint();
+        };
+        wseg.appendChild(bt);
+      });
+      who.appendChild(wseg);
+      host.appendChild(who);
+    }
+    if (W.d.csr_from) {
+      var dsel = selectBox(devs.map(function (t) { var p = devPlug(t); return [t.name, t.name + ' · ' + tr(p ? p.title : t.kind)]; }), W.d.csr_from);
+      if (!devs.some(function (t) { return t.name === W.d.csr_from; })) dsel.appendChild(new Option(W.d.csr_from, W.d.csr_from, true, true));
+      noI18n(dsel);
+      dsel.onchange = function () { W.d.csr_from = dsel.value; devDeploys(); paint(); };
+      host.appendChild(formField('The device', dsel, 'At every issue and renewal acme asks it for a new key and CSR, and puts the certificate back right after. The key never leaves the device; acme holds none, so it cannot be exported and goes to this target alone.'));
+    } else {
+      host.appendChild(el('p', 'note', 'The key is made here, on this server, and never leaves it unless a full administrator exports it.'));
+    }
     var grid = el('div', 'ct-keys');
     var tiles = {};
     KEY_TYPES.forEach(function (k) {
@@ -5430,6 +5489,12 @@ function certWizard(cert, detail, opts) {
       var why = el('span', 'ct-keywhy');
       t.appendChild(why);
       tiles[k[0]] = {node: t, why: why};
+      var dkt = W.d.csr_from ? devTypes() : null;
+      if (dkt && dkt.indexOf(k[0]) < 0) {
+        t.disabled = true;
+        t.classList.add('off');
+        why.textContent = tr('the device does not make it');
+      }
       t.onclick = function () {
         if (t.disabled) return;
         W.d.key_type = k[0];
@@ -5445,13 +5510,14 @@ function certWizard(cert, detail, opts) {
       if (!d || !modalStill(ktick)) return;
       arr(d.key_types).forEach(function (k) {
         var t = tiles[k.key];
-        if (!t) return;
+        if (!t || (t.node.disabled && W.d.csr_from)) return;
         t.node.disabled = !k.ok;
         t.node.classList.toggle('off', !k.ok);
         t.why.textContent = k.ok ? '' : k.why;
       });
     });
     if (can().makesKey) host.appendChild(el('p', 'muted small', 'This source makes the key itself; the type is what is asked of it.'));
+    if (W.d.csr_from) { W.d.key_type_alt = ''; return; }    /* one key on the device: no twin */
     drawTwin(host, grid);
   }
   /* A dual certificate: a twin of the same names with the other kind of key -
@@ -5654,9 +5720,10 @@ function certWizard(cert, detail, opts) {
     var days = numberBox(W.d.renew_days, '30', 1, 3650);
     g.appendChild(formField('Days before the end', days, 'Renewed this many days before it runs out. A third of its life is a good rule: 30 for 90 days.'));
     var reuse = switchBox(W.d.reuse_key);
-    g.appendChild(formField('Keep the key', reuse, 'On: the same key in every renewal - for pinning, or a device that takes only the certificate. Off (better): a new key each time.'));
+    if (!W.d.csr_from) g.appendChild(formField('Keep the key', reuse, 'On: the same key in every renewal - for pinning, or a device that takes only the certificate. Off (better): a new key each time.'));
+    else g.appendChild(formField('Key on renewal', el('span', '', tr('a new key, made by the device of') + ' ' + W.d.csr_from)));
     host.appendChild(g);
-    read = function () { W.d.auto_renew = !!auto._get(); W.d.renew_days = Number(days.value || 30); W.d.reuse_key = !!reuse._get(); };
+    read = function () { W.d.auto_renew = !!auto._get(); W.d.renew_days = Number(days.value || 30); W.d.reuse_key = !W.d.csr_from && !!reuse._get(); };
   }
   /* -- for this certificate: the settings of its source and validations (1.0.24) --
      Each module's settings a certificate may set itself (cert_fields, store.over_fields):
@@ -5965,13 +6032,18 @@ function certWizard(cert, detail, opts) {
     }
     var list = el('div', 'ct-deps');
     var forms = {};
-    W.targets.forEach(function (t) {
+    devDeploys();
+    if (W.d.csr_from) host.appendChild(el('p', 'muted small', 'Its key is made by the device of ' + W.d.csr_from + ': it goes there alone, right after each issue - the deployment is made by itself.'));
+    /* a device's own key: that target only; any other certificate: not to a target whose
+       device makes keys (it takes only a certificate for its own) */
+    W.targets.filter(function (t) { return W.d.csr_from ? t.name === W.d.csr_from : !devPlug(t); }).forEach(function (t) {
       var p = plugVersion(plugOf('target', t.kind), t.version);
       var row = el('div', 'ct-dep' + (W.deploys[t.name] ? ' on' : ''));
       var top = el('label', 'ct-dep-top');
       var cb = el('input');
       cb.type = 'checkbox';
       cb.checked = !!W.deploys[t.name];
+      if (W.d.csr_from) cb.disabled = true;
       top.appendChild(cb);
       var ic = el('span', 'ct-kind-ic v-' + String((p && p.vendor) || 'other').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
       ic.textContent = kindLetters(p, t.kind);
@@ -6035,11 +6107,12 @@ function certWizard(cert, detail, opts) {
       ['Name in acme', W.d.name || (list[0] ? certName(list[0]) : '–')],
       ['Common name (CN)', data('span', 'mono', String(W.d.cn || '').trim() || list[0] || '–')],
       ['Names', namesChips(list.concat(sanOther()))],
-      ['Key', keyWords(W.d.key_type) + (W.d.key_type_alt ? ' + ' + keyWords(W.d.key_type_alt) + ' (' + tr('dual') + ')' : '')]
+      ['Key', W.d.csr_from ? data('span', '', tr(keyWords(W.d.key_type)) + ' · ' + tr('key made by') + ' ' + W.d.csr_from)
+        : keyWords(W.d.key_type) + (W.d.key_type_alt ? ' + ' + keyWords(W.d.key_type_alt) + ' (' + tr('dual') + ')' : '')]
     ];
     if (can().challenge) pairs.push(['Validation', W.d.challenge + (Object.keys(W.d.challenge_map).length ? ' · ' + Object.keys(W.d.challenge_map).length + ' name(s) otherwise' : '')]);
     pairs.push(['Renews', W.d.auto_renew ? 'by itself, ' + W.d.renew_days + ' days before the end' : 'only when asked']);
-    pairs.push(['Key on renewal', W.d.reuse_key ? 'kept' : 'a new one each time']);
+    pairs.push(['Key on renewal', W.d.csr_from ? data('span', '', tr('a new key, made by the device of') + ' ' + W.d.csr_from) : (W.d.reuse_key ? 'kept' : 'a new one each time')]);
     if (W.d.days) pairs.push(['Valid for', W.d.days + ' days']);
     tuneMods().forEach(function (m) {
       var set = Object.keys(m.over).filter(function (k) { return m.keys.indexOf(k) >= 0; });
@@ -6350,9 +6423,10 @@ function certWizard(cert, detail, opts) {
     var useChallenge = can().challenge;
     var tw = W.compat && W.compat.source && W.compat.source.name === d.issuer ? W.compat.twin.ok : (src() && src().dual);
     return {id: c.id, name: d.name || certName(names()[0] || String(d.cn || '').trim()), names: names(), key_type: d.key_type,
-            key_type_alt: tw ? (d.key_type_alt || '') : '', issuer: d.issuer,
+            key_type_alt: tw && !d.csr_from ? (d.key_type_alt || '') : '', issuer: d.issuer,
+            csr_from: d.csr_from || '',
             challenge: useChallenge ? d.challenge : '', challenge_map: useChallenge ? d.challenge_map : {},
-            auto_renew: !!d.auto_renew, renew_days: Number(d.renew_days || 30), reuse_key: !!d.reuse_key,
+            auto_renew: !!d.auto_renew, renew_days: Number(d.renew_days || 30), reuse_key: !!d.reuse_key && !d.csr_from,
             profile: profile, tags: splitNames(d.tags), note: d.note, owner: d.owner, setup_done: SETUP || undefined};
   }
   /* What happens (runplan.js): the plan of what is set here now, over the wizard. */
@@ -6383,12 +6457,16 @@ function certWizard(cert, detail, opts) {
          and these deployments saved again - not a second of each. (1.0.19) */
       c.id = id;
       W.deployed = W.deployed || {};
-      var jobs = Object.keys(W.deploys).map(function (t) {
+      var made = W.d.csr_from && !W.deployed[W.d.csr_from]
+        ? capi('deploys' + qs({cert_id: id})).then(function (x) {
+          rowsOf(x, 'deploys').forEach(function (r) { if (r.target === W.d.csr_from) W.deployed[r.target] = r.id; });
+        }).catch(function () { }) : Promise.resolve();
+      var jobs = [function () { return made; }].concat(Object.keys(W.deploys).map(function (t) {
         return function () {
           return capi('deploys/save', {id: W.deployed[t], cert_id: id, target: t, options: W.deploys[t], enabled: true})
             .then(function (x) { W.deployed[t] = (x && x.id) || W.deployed[t]; });
         };
-      });
+      }));
       var chain = jobs.reduce(function (p, fn) { return p.then(fn); }, Promise.resolve());
       return chain.then(function () {
         toast(said(d, editing ? 'saved' : 'added'), 'good');
@@ -6420,6 +6498,7 @@ function certWizard(cert, detail, opts) {
       var dt = defaultOf(got[2]);
       W.targets = (dt ? [dt].concat(got[2].filter(function (t) { return t !== dt; })) : got[2]).filter(deployable);
       if (dt && !editing && (dt.enabled === undefined || truthy(dt.enabled))) W.deploys[dt.name] = {};
+      devDeploys();
       if (!MOVE && !W.d.issuer && W.sources.length === 1) W.d.issuer = W.sources[0].name;
       /* Let's Encrypt first: the default source and validation (is_default). */
       if (!MOVE && !W.d.issuer) W.d.issuer = (W.sources.filter(function (x) { return x.is_default; })[0] || {}).name || '';
@@ -7038,7 +7117,7 @@ function addKeyDialog(c) {
 }
 /** A certificate whose key acme does not hold: said in its window, with the way to add it. */
 function noKeyBox(c, back) {
-  var main = c.not_after && c.has_key === false && !c.from_csr && c.state !== 'pending';
+  var main = c.not_after && c.has_key === false && !c.from_csr && !c.csr_from && c.state !== 'pending';
   var twin = c.dual && c.alt_not_after && c.has_alt_key === false && !c.from_csr;
   if (!main && !twin) return null;
   var box = el('div', 'ct-keynote');

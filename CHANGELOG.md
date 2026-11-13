@@ -18,7 +18,8 @@ guides"):
   Manager (its own certificate), SDDC Manager (trust store), Aria Suite Lifecycle, Aria
   Automation, Cloud Director, Live Site Recovery / vSphere Replication, vSphere Supervisor;
   Omnissa Horizon Connection Server; Cisco IOS XE, Catalyst 9800, NX-OS, Catalyst Center;
-  HPE Aruba AOS-CX, ClearPass, Central; Barracuda CloudGen Firewall, Infoblox NIOS,
+  HPE Aruba AOS-CX, ClearPass, Central, ArubaOS 8 controllers and Instant AP (over SSH, through a
+  staging server; the CLI's exact form unverified on a device - said in the guide); Barracuda CloudGen Firewall, Infoblox NIOS,
   FortiManager / FortiAnalyzer; Windows WSUS, Hyper-V Replica, Reporting Services, Operations
   Manager, Office Online Server; NetApp ONTAP, Pure Storage FlashArray and FlashBlade, QNAP,
   Cockpit; Veeam Backup & Replication, Cloud Connect, Backup for Microsoft 365.
@@ -32,7 +33,7 @@ guides"):
   certificate to the boot bank (`auto-backup.sh`) - a host rebooted within the hour came
   back with the old one; `redfish` no longer says iLO 6 takes no key, and its guide no longer
   promises Lenovo XCC, which takes only a certificate of its own request.
-- Products where acme's key cannot go (Lenovo XCC, OpenManage Enterprise, CUCM, AOS 8,
+- Products where acme's key cannot go (Lenovo XCC, OpenManage Enterprise, CUCM,
   PRIMEQUEST MMB, ETERNUS LT / CS8000, Barracuda Load Balancer and Email Security...) have a
   guide of how to do it by hand in docs/vendor-guides/.
 

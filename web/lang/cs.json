@@ -59859,6 +59859,254 @@
   "mvmware_150": {
    "source": "where the Configuration API is on port 5480",
    "text": "kde je Configuration API na portu 5480"
+  },
+  "maos8_1": {
+   "source": "HPE Aruba Networking ArubaOS 8 (Mobility Conductor, controllers)",
+   "text": "HPE Aruba Networking ArubaOS 8 (Mobility Conductor, kontrolery)"
+  },
+  "maos8_2": {
+   "source": "ArubaOS 8.6 - 8.13 Mobility Conductor or Mobility Controller over SSH: the certificate as PKCS#12 put on a staging server, copied by the controller to its flash (copy tftp: / copy scp:), imported as a ServerCert (crypto pki-import pfx) with its chain, set as the WebUI certificate (web-server profile, switch-cert) and optionally the captive portal one, saved (write memory); older acme certificates removed. The same commands in every AOS 8.x; AOS 6 and AOS 10 are refused.",
+   "text": "Mobility Conductor nebo Mobility Controller s ArubaOS 8.6 - 8.13 přes SSH: certifikát jako PKCS#12 uložený na pomocný server, kontrolerem zkopírovaný do flash (copy tftp: / copy scp:), naimportovaný jako ServerCert (crypto pki-import pfx) i s řetězcem, nastavený jako certifikát WebUI (web-server profile, switch-cert) a volitelně captive portálu, uložený (write memory); starší certifikáty acme odstraní. Ve všech AOS 8.x stejné příkazy; AOS 6 a AOS 10 odmítne."
+  },
+  "maos8_3": {
+   "source": "server.example.local",
+   "text": "server.example.local"
+  },
+  "maos8_4": {
+   "source": "Enable password",
+   "text": "Heslo pro enable"
+  },
+  "maos8_5": {
+   "source": "only when the account lands in the non-privileged mode (\">\"): acme sends enable and this password first",
+   "text": "jen když účet skončí v neprivilegovaném režimu („>“): acme nejdřív pošle enable a toto heslo"
+  },
+  "maos8_6": {
+   "source": "Configuration node",
+   "text": "Konfigurační uzel"
+  },
+  "maos8_7": {
+   "source": "a Mobility Conductor: the node whose web-server profile is changed (cd <node>; crypto-local pki there too); empty for a standalone controller",
+   "text": "Mobility Conductor: uzel, jehož web-server profile se mění (cd <uzel>; tam i crypto-local pki); u samostatného kontroleru prázdné"
+  },
+  "maos8_8": {
+   "source": "/md/branch or /mm/mynode",
+   "text": "/md/branch nebo /mm/mynode"
+  },
+  "maos8_9": {
+   "source": "WebUI port",
+   "text": "Port WebUI"
+  },
+  "maos8_10": {
+   "source": "for the test of what is served",
+   "text": "pro test toho, co se servíruje"
+  },
+  "maos8_11": {
+   "source": "3DES with a SHA-1 MAC (what every AOS 8 reads)",
+   "text": "3DES s MAC SHA-1 (přečte každé AOS 8)"
+  },
+  "maos8_12": {
+   "source": "AES-256 with a SHA-256 MAC",
+   "text": "AES-256 s MAC SHA-256"
+  },
+  "maos8_13": {
+   "source": "The controller fetches the file with",
+   "text": "Kontroler si soubor stáhne přes"
+  },
+  "maos8_14": {
+   "source": "AOS 8 takes a certificate only from its flash: acme writes the file to the staging server and has the controller copy it from there",
+   "text": "AOS 8 bere certifikát jen ze své flash: acme soubor zapíše na pomocný server a kontroler si ho odtud zkopíruje"
+  },
+  "maos8_15": {
+   "source": "TFTP from the staging server",
+   "text": "TFTP z pomocného serveru"
+  },
+  "maos8_16": {
+   "source": "SCP from the staging server (copy scp:, with its password)",
+   "text": "SCP z pomocného serveru (copy scp:, s jeho heslem)"
+  },
+  "maos8_17": {
+   "source": "Staging server",
+   "text": "Pomocný server"
+  },
+  "maos8_18": {
+   "source": "a Linux server acme signs in to over SSH and writes the file to (it is deleted right after the controller fetched it)",
+   "text": "linuxový server, na který se acme přihlásí přes SSH a zapíše na něj soubor (smaže ho hned, jak si ho kontroler stáhne)"
+  },
+  "maos8_19": {
+   "source": "tftp.example.local",
+   "text": "tftp.example.local"
+  },
+  "maos8_20": {
+   "source": "Its address for the controller",
+   "text": "Jeho adresa pro kontroler"
+  },
+  "maos8_21": {
+   "source": "the address the controller reaches the staging server at; empty: the one above",
+   "text": "adresa, na které kontroler pomocný server najde; prázdné: ta výše"
+  },
+  "maos8_22": {
+   "source": "192.0.2.10",
+   "text": "192.0.2.10"
+  },
+  "maos8_23": {
+   "source": "Folder on the staging server",
+   "text": "Složka na pomocném serveru"
+  },
+  "maos8_24": {
+   "source": "the TFTP server's root (TFTP) or any folder the user may write to (SCP)",
+   "text": "kořen TFTP serveru (TFTP) nebo libovolná složka, kam uživatel smí zapisovat (SCP)"
+  },
+  "maos8_25": {
+   "source": "WebUI management certificate (switch-cert)",
+   "text": "Certifikát pro správu přes WebUI (switch-cert)"
+  },
+  "maos8_26": {
+   "source": "web-server profile, switch-cert: the web server restarts - WebUI and REST API sessions on 4343 are cut for a moment",
+   "text": "web-server profile, switch-cert: webový server se restartuje - relace WebUI a REST API na 4343 se na okamžik přeruší"
+  },
+  "maos8_27": {
+   "source": "Captive portal certificate (captive-portal-cert)",
+   "text": "Certifikát captive portálu (captive-portal-cert)"
+  },
+  "maos8_28": {
+   "source": "web-server profile, captive-portal-cert: new guest sign-ins get it",
+   "text": "web-server profile, captive-portal-cert: dostanou ho nová přihlášení hostů"
+  },
+  "maos8_29": {
+   "source": "Captive portal name",
+   "text": "Jméno captive portálu"
+  },
+  "maos8_30": {
+   "source": "for the test of what is served on 443; empty: not tested",
+   "text": "pro test toho, co se servíruje na 443; prázdné: netestuje se"
+  },
+  "maos8_31": {
+   "source": "captive.example.com",
+   "text": "captive.example.com"
+  },
+  "maos8_32": {
+   "source": "Import the chain (IntermediateCA, TrustedCA)",
+   "text": "Importovat řetězec (IntermediateCA, TrustedCA)"
+  },
+  "maos8_33": {
+   "source": "each CA of the chain as acme-ca-<id>, once (kept for the next ones)",
+   "text": "každou CA řetězce jako acme-ca-<id>, jednou (ponechá se pro další certifikáty)"
+  },
+  "maos8_34": {
+   "source": "www.example.com:4343",
+   "text": "www.example.com:4343"
+  },
+  "maos8_35": {
+   "source": "HPE Aruba Networking Instant AP (AOS 8)",
+   "text": "HPE Aruba Networking Instant AP (AOS 8)"
+  },
+  "maos8_36": {
+   "source": "Instant AP 8.3 - 8.13 cluster (the virtual controller) over SSH: the certificate put on a staging server and fetched by the AP - Instant 8.7 and later: crypto pki-import as a ServerCert, assigned to the WebUI and optionally the captive portal (wlan cert-assignment-profile), commit apply; Instant 8.3 - 8.6: copy tftp ... uiserver / cpserver. The way is chosen by the version show version says.",
+   "text": "Cluster Instant AP 8.3 - 8.13 (virtuální kontroler) přes SSH: certifikát uložený na pomocný server, odkud si ho AP stáhne - Instant 8.7 a novější: crypto pki-import jako ServerCert, přiřazení k WebUI a volitelně captive portálu (wlan cert-assignment-profile), commit apply; Instant 8.3 - 8.6: copy tftp ... uiserver / cpserver. Postup se volí podle verze, kterou ukáže show version."
+  },
+  "maos8_37": {
+   "source": "Import command (Instant 8.7 and later)",
+   "text": "Příkaz importu (Instant 8.7 a novější)"
+  },
+  "maos8_38": {
+   "source": "{format} {url} {name} {psk} filled in - change it only when your Instant says another syntax",
+   "text": "doplní se {format} {url} {name} {psk} - měňte jen tehdy, když váš Instant hlásí jinou syntaxi"
+  },
+  "maos8_39": {
+   "source": "a Linux server acme signs in to over SSH and writes the file to (it is deleted right after the AP fetched it)",
+   "text": "linuxový server, na který se acme přihlásí přes SSH a zapíše na něj soubor (smaže ho hned, jak si ho AP stáhne)"
+  },
+  "maos8_40": {
+   "source": "Its address for the AP",
+   "text": "Jeho adresa pro AP"
+  },
+  "maos8_41": {
+   "source": "the address the AP reaches the staging server at; empty: the one above",
+   "text": "adresa, na které AP pomocný server najde; prázdné: ta výše"
+  },
+  "maos8_42": {
+   "source": "URL the AP fetches it from",
+   "text": "URL, odkud si ho AP stáhne"
+  },
+  "maos8_43": {
+   "source": "Instant 8.7 and later: {addr} the address above, {file} the file name, {dir} the folder",
+   "text": "Instant 8.7 a novější: {addr} adresa výše, {file} název souboru, {dir} složka"
+  },
+  "maos8_44": {
+   "source": "ftp://user:password@{addr}/certs/{file}",
+   "text": "ftp://uzivatel:heslo@{addr}/certs/{file}"
+  },
+  "maos8_45": {
+   "source": "WebUI certificate",
+   "text": "Certifikát WebUI"
+  },
+  "maos8_46": {
+   "source": "the WebUI of the virtual controller on 4343 (its web server restarts)",
+   "text": "WebUI virtuálního kontroleru na 4343 (jeho webový server se restartuje)"
+  },
+  "maos8_47": {
+   "source": "Captive portal certificate",
+   "text": "Certifikát captive portálu"
+  },
+  "maos8_48": {
+   "source": "Instant 8.3 - 8.6: the AP fetches a PEM (key, certificate, chain) from the staging server's TFTP with copy tftp ... uiserver cert (WebUI) / cpserver cert (captive portal) ... format pem. Refused on an AP that says another Instant version, before anything is changed.",
+   "text": "Instant 8.3 - 8.6: AP si stáhne PEM (klíč, certifikát, řetězec) z TFTP pomocného serveru příkazem copy tftp ... uiserver cert (WebUI) / cpserver cert (captive portál) ... format pem. Na AP, které ohlásí jinou verzi Instant, odmítne dřív, než cokoli změní."
+  },
+  "maos8_49": {
+   "source": "Instant 8.3 - 8.6",
+   "text": "Instant 8.3 - 8.6"
+  },
+  "maos8_50": {
+   "source": "Instant 8.7 - 8.13: crypto pki-import of a PKCS#12 ServerCert from a URL on the staging server, pki-cert-assign to ui / captive-portal in wlan cert-assignment-profile, commit apply. Refused on an AP that says another Instant version, before anything is changed.",
+   "text": "Instant 8.7 - 8.13: crypto pki-import PKCS#12 jako ServerCert z URL na pomocném serveru, pki-cert-assign k ui / captive-portal ve wlan cert-assignment-profile, commit apply. Na AP, které ohlásí jinou verzi Instant, odmítne dřív, než cokoli změní."
+  },
+  "maos8_51": {
+   "source": "Instant 8.7 - 8.13",
+   "text": "Instant 8.7 - 8.13"
+  },
+  "maos8_52": {
+   "source": "the staging server is not set: AOS 8 fetches the certificate file from it",
+   "text": "pomocný server není nastavený: AOS 8 si z něj soubor certifikátu stahuje"
+  },
+  "maos8_53": {
+   "source": "the ArubaOS version cannot be read - going on as with AOS 8",
+   "text": "verzi ArubaOS nelze přečíst - pokračuje se jako u AOS 8"
+  },
+  "maos8_54": {
+   "source": "AOS 10 is configured in Central: use the target aruba_central",
+   "text": "AOS 10 se konfiguruje v Central: použijte cíl aruba_central"
+  },
+  "maos8_55": {
+   "source": "AOS 6 has other web-server commands",
+   "text": "AOS 6 má jiné příkazy web-server"
+  },
+  "maos8_56": {
+   "source": "copy scp: signs in to the staging server with a password: set \"Sign in with\" of the staging server to a password",
+   "text": "copy scp: se k pomocnému serveru přihlašuje heslem: u pomocného serveru nastavte „Přihlásit se přes“ na heslo"
+  },
+  "maos8_57": {
+   "source": "setting the web-server profile",
+   "text": "nastavení web-server profile"
+  },
+  "maos8_58": {
+   "source": "deleting from flash",
+   "text": "mazání z flash"
+  },
+  "maos8_59": {
+   "source": "the Instant version cannot be read - the way of Instant 8.7 and later is used",
+   "text": "verzi Instant nelze přečíst - použije se postup pro Instant 8.7 a novější"
+  },
+  "maos8_60": {
+   "source": "neither the WebUI nor the captive portal is chosen",
+   "text": "není zvolené ani WebUI, ani captive portál"
+  },
+  "maos8_61": {
+   "source": "the WebUI",
+   "text": "WebUI"
+  },
+  "maos8_62": {
+   "source": "the captive portal",
+   "text": "captive portál"
   }
  },
  "patterns": {
@@ -82561,6 +82809,134 @@
   "pmvmware_83": {
    "source": "{0}: {1}",
    "text": "{0}: {1}"
+  },
+  "pmaos8_1": {
+   "source": "deleted {0} from the staging server",
+   "text": "{0} smazáno z pomocného serveru"
+  },
+  "pmaos8_2": {
+   "source": "{0} may stay on the staging server: {1}",
+   "text": "{0} možná zůstane na pomocném serveru: {1}"
+  },
+  "pmaos8_3": {
+   "source": "the folder {0} on the staging server {1} is not there or not writable for {2}",
+   "text": "složka {0} na pomocném serveru {1} neexistuje nebo do ní {2} nesmí zapisovat"
+  },
+  "pmaos8_4": {
+   "source": "the staging folder {0} is writable",
+   "text": "do pomocné složky {0} lze zapisovat"
+  },
+  "pmaos8_5": {
+   "source": "this device runs ArubaOS {0} - the target is for AOS 8 ({1}); nothing was changed",
+   "text": "zařízení běží na ArubaOS {0} - cíl je pro AOS 8 ({1}); nic se nezměnilo"
+  },
+  "pmaos8_6": {
+   "source": "ArubaOS {0} is newer than the documents this module was checked against (8.13)",
+   "text": "ArubaOS {0} je novější než dokumenty, podle kterých byl modul ověřen (8.13)"
+  },
+  "pmaos8_7": {
+   "source": "the answer is not the show version of ArubaOS: {0}",
+   "text": "odpověď není show version ArubaOS: {0}"
+  },
+  "pmaos8_8": {
+   "source": "signed in to {0}: ArubaOS {1}; {2} server certificate(s)",
+   "text": "přihlášeno k {0}: ArubaOS {1}; serverových certifikátů: {2}"
+  },
+  "pmaos8_9": {
+   "source": "copying {0} to flash",
+   "text": "kopírování {0} do flash"
+  },
+  "pmaos8_10": {
+   "source": "the controller copied {0} to its flash",
+   "text": "kontroler zkopíroval {0} do své flash"
+  },
+  "pmaos8_11": {
+   "source": "the ServerCert {0} is not there after the import",
+   "text": "ServerCert {0} po importu chybí"
+  },
+  "pmaos8_12": {
+   "source": "imported the ServerCert {0}",
+   "text": "ServerCert {0} naimportován"
+  },
+  "pmaos8_13": {
+   "source": "the ServerCert {0} is there already",
+   "text": "ServerCert {0} už tam je"
+  },
+  "pmaos8_14": {
+   "source": "web-server profile{0}: {1}",
+   "text": "web-server profile{0}: {1}"
+  },
+  "pmaos8_15": {
+   "source": "importing the {0} {1}",
+   "text": "import {0} {1}"
+  },
+  "pmaos8_16": {
+   "source": "imported the {0} {1}",
+   "text": "{0} {1} naimportován"
+  },
+  "pmaos8_17": {
+   "source": "deleted {0} from flash",
+   "text": "{0} smazáno z flash"
+  },
+  "pmaos8_18": {
+   "source": "{0} may stay on flash: {1}",
+   "text": "{0} možná zůstane ve flash: {1}"
+  },
+  "pmaos8_19": {
+   "source": "the older certificates stay - the list cannot be read: {0}",
+   "text": "starší certifikáty zůstávají - seznam nelze přečíst: {0}"
+  },
+  "pmaos8_20": {
+   "source": "the older ServerCert {0} stays: still referenced {1} time(s)",
+   "text": "starší ServerCert {0} zůstává: stále na něj vede odkazů: {1}"
+  },
+  "pmaos8_21": {
+   "source": "removing {0}",
+   "text": "odstraňování {0}"
+  },
+  "pmaos8_22": {
+   "source": "the older ServerCert {0} may stay: {1}",
+   "text": "starší ServerCert {0} možná zůstane: {1}"
+  },
+  "pmaos8_23": {
+   "source": "removed the older ServerCert {0}",
+   "text": "starší ServerCert {0} odstraněn"
+  },
+  "pmaos8_24": {
+   "source": "this AP runs AOS {0} - AOS 10 APs are configured in Central: use the target aruba_central",
+   "text": "AP běží na AOS {0} - AP s AOS 10 se konfigurují v Central: použijte cíl aruba_central"
+  },
+  "pmaos8_25": {
+   "source": "Instant {0} is older than the documents (8.3) - the copy tftp way is used",
+   "text": "Instant {0} je starší než dokumenty (8.3) - použije se postup copy tftp"
+  },
+  "pmaos8_26": {
+   "source": "the answer is not the show version of Instant: {0}",
+   "text": "odpověď není show version Instant: {0}"
+  },
+  "pmaos8_27": {
+   "source": "signed in to {0}: Instant {1} ({2}); {3}",
+   "text": "přihlášeno k {0}: Instant {1} ({2}); {3}"
+  },
+  "pmaos8_28": {
+   "source": "assigning {0}",
+   "text": "přiřazení {0}"
+  },
+  "pmaos8_29": {
+   "source": "show cert assignment does not name {0} - check it on the AP",
+   "text": "show cert assignment neuvádí {0} - zkontrolujte to na AP"
+  },
+  "pmaos8_30": {
+   "source": "assigned {0} to {1}, commit apply",
+   "text": "{0} přiřazen k {1}, commit apply"
+  },
+  "pmaos8_31": {
+   "source": "loading the certificate of {0}",
+   "text": "načítání certifikátu pro {0}"
+  },
+  "pmaos8_32": {
+   "source": "{0} has the new certificate (copy tftp ... {1})",
+   "text": "{0} má nový certifikát (copy tftp ... {1})"
   }
  },
  "rich": {
