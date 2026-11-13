@@ -80,7 +80,7 @@ acme --renew composer
 ## Ověření
 
 - **Test** u cíle se přihlásí, přečte certifikát appliance a vypíše enclosure - nic nemění.
-- **Obnovit hned** u certifikátu: úloha ukáže *klíč a CSR vytváří zařízení*, vydání a potom
+- **Obnovit teď** u certifikátu: úloha ukáže *klíč a CSR vytváří zařízení*, vydání a potom
   úlohu importu. Appliance znovu načte webové služby (relace se odpojí, servery ani datová
   cesta se nemění):
 
@@ -98,7 +98,7 @@ acme --renew composer
 | `OneView chce v každém CSR ...` | Vyplňte u cíle Zemi, Kraj, Město a Organizaci. |
 | `CSR enclosure má jedno jméno` | Dejte certifikátu rámu jedno DNS jméno. |
 | `OneView nemá žádnou enclosure s názvem ...` | Použijte název ze stránky **Enclosures** nebo URI enclosure. |
-| Úloha importu skončí `invalid certificate` | Vydávající CA není v trust storu (nechte *Vložit mezilehlé certifikáty do trust storu* zapnuté), nebo mezitím vznikl jiný CSR (ručně v GUI) - **Obnovit hned** vytvoří nový. |
+| Úloha importu skončí `invalid certificate` | Vydávající CA není v trust storu (nechte *Vložit mezilehlé certifikáty do trust storu* zapnuté), nebo mezitím vznikl jiný CSR (ručně v GUI) - **Obnovit teď** vytvoří nový. |
 | Jen RSA | Appliance vytváří jen klíče RSA: typ klíče `rsa-2048` (`rsa-3072` pro CNSA). |
 | Nasazení pozdržena | Zařízení si nechá starý certifikát; další vydání si vyžádá nový klíč a CSR. |
 

@@ -81,8 +81,8 @@ class Registered(unittest.TestCase):
                 with open(os.path.join(root, n)) as f:
                     txt = f.read()
                 self.assertTrue(txt.startswith('# '), n)
-                self.assertTrue('Key made by the device' in txt or 'Klíč vyrobí zařízení' in txt
-                                or 'Klíč vytvoří zařízení' in txt, n)
+                self.assertTrue('Key made by the device' in txt or 'Klíč vytváří zařízení' in txt
+                                , n)
 
 
 # ---------------------------------------------------------------------------

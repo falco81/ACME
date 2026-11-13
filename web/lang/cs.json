@@ -60427,6 +60427,206 @@
   "mdkdl_48": {
    "source": "answered, without",
    "text": "odpověděl, ale bez"
+  },
+  "mdkhf_1": {
+   "source": "HPE Synergy Composer / OneView - key made by the device",
+   "text": "HPE Synergy Composer / OneView - klíč vytváří zařízení"
+  },
+  "mdkhf_2": {
+   "source": "HPE Synergy Composer (OneView for Synergy 9.x - 11.x) and HPE OneView: the appliance's HTTPS certificate, or that of an enclosure's management module (a Synergy frame's Frame Link Module bay, a c7000's Onboard Administrator), for a key the device makes - at every issue acme asks for a new key and CSR over the REST API and imports the signed certificate. The appliance makes RSA 2048 (3072 for CNSA) and reloads its web services.",
+   "text": "HPE Synergy Composer (OneView for Synergy 9.x - 11.x) a HPE OneView: HTTPS certifikát appliance nebo modulu správy enclosure (pozice Frame Link Module rámu Synergy, Onboard Administrator c7000) pro klíč, který vytváří zařízení - při každém vydání si acme přes REST API vyžádá nový klíč a CSR a naimportuje podepsaný certifikát. Appliance vytváří RSA 2048 (3072 pro CNSA) a znovu načte své webové služby."
+  },
+  "mdkhf_3": {
+   "source": "OneView for Synergy 9.x - 11.x (detects the API)",
+   "text": "OneView for Synergy 9.x - 11.x (zjistí API)"
+  },
+  "mdkhf_4": {
+   "source": "two letters - every CSR has it; the certificate's own subject (its profile) wins",
+   "text": "dvě písmena - má ji každý CSR; přednost má vlastní subjekt certifikátu (jeho profil)"
+  },
+  "mdkhf_5": {
+   "source": "the appliance's CSR only",
+   "text": "jen v CSR appliance"
+  },
+  "mdkhf_6": {
+   "source": "Certificate of",
+   "text": "Certifikát pro"
+  },
+  "mdkhf_7": {
+   "source": "each certificate deployed here is for one of them",
+   "text": "každý certifikát nasazený sem je pro jedno z nich"
+  },
+  "mdkhf_8": {
+   "source": "the appliance (Composer / OneView)",
+   "text": "appliance (Composer / OneView)"
+  },
+  "mdkhf_9": {
+   "source": "an enclosure's management module (frame / OA bay)",
+   "text": "modul správy enclosure (pozice rámu / OA)"
+  },
+  "mdkhf_10": {
+   "source": "Enclosure",
+   "text": "Enclosure"
+  },
+  "mdkhf_11": {
+   "source": "its name in OneView, or its URI (/rest/enclosures/…)",
+   "text": "jeho název v OneView nebo jeho URI (/rest/enclosures/…)"
+  },
+  "mdkhf_12": {
+   "source": "Bay",
+   "text": "Pozice"
+  },
+  "mdkhf_13": {
+   "source": "the bay of the Frame Link Module / Onboard Administrator (1 or 2)",
+   "text": "pozice Frame Link Module / Onboard Administratoru (1 nebo 2)"
+  },
+  "mdkhf_14": {
+   "source": "Wait for the tasks (s)",
+   "text": "Čekat na úlohy (s)"
+  },
+  "mdkhf_15": {
+   "source": "HPE iLO 5 / 6 / 7 - key made by the iLO",
+   "text": "HPE iLO 5 / 6 / 7 - klíč vytváří iLO"
+  },
+  "mdkhf_16": {
+   "source": "The HTTPS certificate of an HPE iLO 5, 6 or 7 for a key the iLO makes itself: at every issue acme asks the iLO for a new key and CSR over Redfish (HpeHttpsCert.GenerateCSR, a few minutes) and imports the signed certificate, after which the iLO resets (1-3 minutes, the server is not touched). For any firmware and security state (HighSecurity, FIPS, CNSA) - the key never leaves the iLO.",
+   "text": "HTTPS certifikát HPE iLO 5, 6 nebo 7 pro klíč, který si iLO vytváří samo: při každém vydání si acme od iLO přes Redfish vyžádá nový klíč a CSR (HpeHttpsCert.GenerateCSR, několik minut) a naimportuje podepsaný certifikát, po čemž se iLO resetuje (1-3 minuty, server se nemění). Pro jakýkoli firmware a bezpečnostní stav (HighSecurity, FIPS, CNSA) - klíč iLO nikdy neopustí."
+  },
+  "mdkhf_17": {
+   "source": "iLO 5, iLO 6, iLO 7 (any firmware)",
+   "text": "iLO 5, iLO 6, iLO 7 (jakýkoli firmware)"
+  },
+  "mdkhf_18": {
+   "source": "an iLO account with the privileges Login and Configure iLO Settings only",
+   "text": "účet iLO jen s oprávněními Login a Configure iLO Settings"
+  },
+  "mdkhf_19": {
+   "source": "two letters - the iLO asks for it in every CSR; the certificate's own subject (its profile) wins",
+   "text": "dvě písmena - iLO ji chce v každém CSR; přednost má vlastní subjekt certifikátu (jeho profil)"
+  },
+  "mdkhf_20": {
+   "source": "Wait for the CSR at most (s)",
+   "text": "Čekat na CSR nejvýše (s)"
+  },
+  "mdkhf_21": {
+   "source": "the iLO makes its key and CSR in up to about 10 minutes",
+   "text": "iLO vytvoří klíč a CSR zhruba do 10 minut"
+  },
+  "mdkhf_22": {
+   "source": "HPE Alletra 9000 / Alletra Storage MP B10000 - key made by the array",
+   "text": "HPE Alletra 9000 / Alletra Storage MP B10000 - klíč vytváří pole"
+  },
+  "mdkhf_23": {
+   "source": "The certificate of the unified-server service (WSAPI, UI / SSMC, CIM) of an HPE Alletra 9000 or Alletra Storage MP B10000 for a key the array makes: at every issue acme runs createcert -csr in the array's CLI over SSH and imports the signed certificate (importcert). RSA keys. The management services restart; host I/O is not touched.",
+   "text": "Certifikát služby unified-server (WSAPI, UI / SSMC, CIM) pole HPE Alletra 9000 nebo Alletra Storage MP B10000 pro klíč, který vytváří pole: při každém vydání acme spustí v CLI pole přes SSH createcert -csr a naimportuje podepsaný certifikát (importcert). Klíče RSA. Služby správy se restartují; I/O hostitelů se to nedotkne."
+  },
+  "mdkhf_24": {
+   "source": "Alletra 9000 (OS 9.x), Alletra MP B10000 (OS 10.x), Primera / 3PAR CLI",
+   "text": "Alletra 9000 (OS 9.x), Alletra MP B10000 (OS 10.x), CLI Primera / 3PAR"
+  },
+  "mdkhf_25": {
+   "source": "two letters; the certificate's own subject (its profile) wins",
+   "text": "dvě písmena; přednost má vlastní subjekt certifikátu (jeho profil)"
+  },
+  "mdkhf_26": {
+   "source": "HTTPS port of WSAPI / UI",
+   "text": "Port HTTPS pro WSAPI / UI"
+  },
+  "mdkhf_27": {
+   "source": "Import the intermediates first",
+   "text": "Nejdřív naimportovat mezilehlé certifikáty"
+  },
+  "mdkhf_28": {
+   "source": "importcert unified-server -ca: the array keeps the CA certificates of its service certificate",
+   "text": "importcert unified-server -ca: pole si drží certifikáty CA ke svému certifikátu služby"
+  },
+  "mdkhf_29": {
+   "source": "the deployment names no enclosure - give its name in OneView (or its URI)",
+   "text": "nasazení neuvádí žádnou enclosure - zadejte její název v OneView (nebo její URI)"
+  },
+  "mdkhf_30": {
+   "source": "this target takes only a certificate for a key the appliance or the enclosure made itself - let the device make the key (the certificate → Key: \"Key made by the device\"); for a key of acme's use the target HPE OneView / Synergy Composer",
+   "text": "tento cíl bere jen certifikát pro klíč, který si appliance nebo enclosure vytvořila sama - nechte klíč vytvořit zařízení (certifikát → Klíč: „Klíč vytváří zařízení“); pro klíč z acme použijte cíl HPE OneView / Synergy Composer"
+  },
+  "mdkhf_31": {
+   "source": "the common name of an enclosure's CSR is a host name - give the certificate the module's DNS name",
+   "text": "common name v CSR enclosure je jméno hostitele - dejte certifikátu DNS jméno modulu"
+  },
+  "mdkhf_32": {
+   "source": "the appliance made no CSR to read",
+   "text": "appliance nevytvořila žádný CSR ke čtení"
+  },
+  "mdkhf_33": {
+   "source": "the appliance took the certificate for its own key - it reloads its web services",
+   "text": "appliance převzala certifikát pro svůj vlastní klíč - znovu načte své webové služby"
+  },
+  "mdkhf_34": {
+   "source": "the import task completed (the SSO certificate goes to the managed iLOs and frames too)",
+   "text": "úloha importu skončila (SSO certifikát jde i do spravovaných iLO a rámů)"
+  },
+  "mdkhf_35": {
+   "source": " and its IP addresses",
+   "text": " a jeho IP adresy"
+  },
+  "mdkhf_36": {
+   "source": "the iLO made its CSR",
+   "text": "iLO vytvořilo svůj CSR"
+  },
+  "mdkhf_37": {
+   "source": "this target takes only a certificate for a key the iLO made itself - let the device make the key (the certificate → Key: \"Key made by the device\"); for a key of acme's use the target Server management (Redfish), version HPE iLO",
+   "text": "tento cíl bere jen certifikát pro klíč, který si iLO vytvořilo samo - nechte klíč vytvořit zařízení (certifikát → Klíč: „Klíč vytváří zařízení“); pro klíč z acme použijte cíl Správa serverů (Redfish), verzi HPE iLO"
+  },
+  "mdkhf_38": {
+   "source": "the iLO took the certificate for its own key - it resets (1-3 minutes, the server is not touched)",
+   "text": "iLO převzalo certifikát pro svůj vlastní klíč - resetuje se (1-3 minuty, server se nemění)"
+  },
+  "mdkhf_39": {
+   "source": "the array took the certificate for its own key - the unified-server services (WSAPI, UI, CIM) restart",
+   "text": "pole převzalo certifikát pro svůj vlastní klíč - služby unified-server (WSAPI, UI, CIM) se restartují"
+  },
+  "mdkhf_40": {
+   "source": "the array printed no CSR for createcert -csr",
+   "text": "pole na createcert -csr nevypsalo žádný CSR"
+  },
+  "mdkhf_41": {
+   "source": "the array takes only a certificate for a key it made itself - let its device make the key (the certificate → Key: \"Key made by the device\")",
+   "text": "pole bere jen certifikát pro klíč, který si vytvořilo samo - nechte klíč vytvořit zařízení (certifikát → Klíč: „Klíč vytváří zařízení“)"
+  },
+  "mdkhf_42": {
+   "source": "the intermediates imported for unified-server",
+   "text": "mezilehlé certifikáty naimportovány pro unified-server"
+  },
+  "mdkhf_43": {
+   "source": "asking the appliance for a new key and CSR",
+   "text": "žádost appliance o nový klíč a CSR"
+  },
+  "mdkhf_44": {
+   "source": "asking the iLO for a new key and CSR",
+   "text": "žádost iLO o nový klíč a CSR"
+  },
+  "mdkhf_45": {
+   "source": "reading the CSR",
+   "text": "čtení CSR"
+  },
+  "mdkhf_46": {
+   "source": "asking the array for a new key and CSR",
+   "text": "žádost pole o nový klíč a CSR"
+  },
+  "mdkhf_47": {
+   "source": "importing the intermediates",
+   "text": "import mezilehlých certifikátů"
+  },
+  "mdkhf_48": {
+   "source": "imported the appliance certificate for its own key",
+   "text": "certifikát appliance naimportován pro její vlastní klíč"
+  },
+  "mdkhf_49": {
+   "source": "imported the HTTPS certificate for the iLO's own key, the iLO resets",
+   "text": "HTTPS certifikát naimportován pro vlastní klíč iLO, iLO se resetuje"
+  },
+  "mdkhf_50": {
+   "source": "imported the unified-server certificate for the array's own key",
+   "text": "certifikát unified-server naimportován pro vlastní klíč pole"
   }
  },
  "patterns": {
@@ -83497,6 +83697,122 @@
   "pmdkdl_25": {
    "source": "signed in to {0}; LXCA {1} its server certificate",
    "text": "přihlášeno do {0}; LXCA {1} svůj serverový certifikát"
+  },
+  "pmdkhf_1": {
+   "source": "OneView asks for {0} in every CSR - fill them in on the target",
+   "text": "OneView chce v každém CSR {0} - vyplňte je u cíle"
+  },
+  "pmdkhf_2": {
+   "source": "the country must be two letters (it is \"{0}\")",
+   "text": "země musí být dvě písmena (je „{0}“)"
+  },
+  "pmdkhf_3": {
+   "source": "OneView has no enclosure named {0}",
+   "text": "OneView nemá žádnou enclosure s názvem {0}"
+  },
+  "pmdkhf_4": {
+   "source": "the bay must be a number from 1 (it is {0})",
+   "text": "pozice musí být číslo od 1 (je {0})"
+  },
+  "pmdkhf_5": {
+   "source": "the appliance makes RSA 2048 (or RSA 3072 for CNSA) keys - {0} cannot be asked of it",
+   "text": "appliance vytváří klíče RSA 2048 (nebo RSA 3072 pro CNSA) - {0} po ní nelze chtít"
+  },
+  "pmdkhf_6": {
+   "source": "the appliance made a new {0} key and a CSR for {1}",
+   "text": "appliance vytvořila nový klíč {0} a CSR pro {1}"
+  },
+  "pmdkhf_7": {
+   "source": "bay {0} of {1} made a new key and a CSR for {2}",
+   "text": "pozice {0} v {1} vytvořila nový klíč a CSR pro {2}"
+  },
+  "pmdkhf_8": {
+   "source": "an enclosure's CSR has one name, its common name - give the certificate one name (it has {0})",
+   "text": "CSR enclosure má jedno jméno, své common name - dejte certifikátu jedno jméno (má {0})"
+  },
+  "pmdkhf_9": {
+   "source": "bay {0} of the enclosure made no CSR to read",
+   "text": "pozice {0} enclosure nevytvořila žádný CSR ke čtení"
+  },
+  "pmdkhf_10": {
+   "source": "bay {0} of {1} took the certificate",
+   "text": "pozice {0} v {1} certifikát převzala"
+  },
+  "pmdkhf_11": {
+   "source": "{0} \"{1}\" is longer than the {2} characters the appliance takes",
+   "text": "{0} „{1}“ je delší než {2} znaků, které appliance bere"
+  },
+  "pmdkhf_12": {
+   "source": "this controller is not an HPE iLO ({0} {1}) - this target is for iLO 5, 6 and 7",
+   "text": "tento řadič není HPE iLO ({0} {1}) - tento cíl je pro iLO 5, 6 a 7"
+  },
+  "pmdkhf_13": {
+   "source": "this is an iLO {0} - this target is for iLO 5, 6 and 7",
+   "text": "toto je iLO {0} - tento cíl je pro iLO 5, 6 a 7"
+  },
+  "pmdkhf_14": {
+   "source": "the iLO asks for {0} in every CSR - fill them in on the target",
+   "text": "iLO chce v každém CSR {0} - vyplňte je u cíle"
+  },
+  "pmdkhf_15": {
+   "source": "the iLO puts one host name into its CSR (the common name) and, when asked, its own IP addresses - give the certificate the iLO's name and nothing else but its addresses (it has {0})",
+   "text": "iLO dá do svého CSR jedno jméno hostitele (common name) a na požádání své vlastní IP adresy - dejte certifikátu jméno iLO a kromě jeho adres nic dalšího (má {0})"
+  },
+  "pmdkhf_16": {
+   "source": "the iLO makes RSA 2048 or ECDSA P-384 keys - {0} cannot be asked of it",
+   "text": "iLO vytváří klíče RSA 2048 nebo ECDSA P-384 - {0} po něm nelze chtít"
+  },
+  "pmdkhf_17": {
+   "source": "this iLO (security state {0}, no KeyType) makes {1} keys only - choose the key type {2} for this certificate",
+   "text": "toto iLO (bezpečnostní stav {0}, bez KeyType) vytváří jen klíče {1} - zvolte pro tento certifikát typ klíče {2}"
+  },
+  "pmdkhf_18": {
+   "source": "the iLO {0} (firmware {1}) makes a new {2} key and a CSR for {3}{4} - it takes a few minutes",
+   "text": "iLO {0} (firmware {1}) vytváří nový klíč {2} a CSR pro {3}{4} - trvá to několik minut"
+  },
+  "pmdkhf_19": {
+   "source": "the iLO made no new CSR in {0} s - it may still be making it: try again later (a new request does not start another while it is busy)",
+   "text": "iLO za {0} s nevytvořilo nový CSR - možná ho ještě vytváří: zkuste to později (nový požadavek nespustí další, dokud pracuje)"
+  },
+  "pmdkhf_20": {
+   "source": "the {0} \"{1}\" cannot be given to the array's CLI (no quotes, brackets, braces, $ or \\)",
+   "text": "{0} „{1}“ nelze předat CLI pole (bez uvozovek, hranatých a složených závorek, $ a \\)"
+  },
+  "pmdkhf_21": {
+   "source": "the array made a new {0} key and a CSR for {1} (unified-server)",
+   "text": "pole vytvořilo nový klíč {0} a CSR pro {1} (unified-server)"
+  },
+  "pmdkhf_22": {
+   "source": "{0}: the array's CLI said {1}",
+   "text": "{0}: CLI pole odpovědělo {1}"
+  },
+  "pmdkhf_23": {
+   "source": "the array makes RSA keys (2048, 3072 or 4096 bits) - {0} cannot be asked of it",
+   "text": "pole vytváří klíče RSA (2048, 3072 nebo 4096 bitů) - {0} po něm nelze chtít"
+  },
+  "pmdkhf_24": {
+   "source": "the name {0} cannot be given to the array's CLI",
+   "text": "jméno {0} nelze předat CLI pole"
+  },
+  "pmdkhf_25": {
+   "source": "fill in {0} on the target - the CSR carries it",
+   "text": "vyplňte u cíle {0} - CSR ji obsahuje"
+  },
+  "pmdkhf_26": {
+   "source": "asking bay {0} of the enclosure for a new key and CSR",
+   "text": "žádost pozice {0} enclosure o nový klíč a CSR"
+  },
+  "pmdkhf_27": {
+   "source": "importing the certificate of bay {0}",
+   "text": "import certifikátu pozice {0}"
+  },
+  "pmdkhf_28": {
+   "source": "looking for the enclosure {0}",
+   "text": "hledání enclosure {0}"
+  },
+  "pmdkhf_29": {
+   "source": "imported the certificate of bay {0} of {1}",
+   "text": "certifikát pozice {0} v {1} naimportován"
   }
  },
  "rich": {

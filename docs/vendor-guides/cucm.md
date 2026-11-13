@@ -1,6 +1,6 @@
-# Cisco Unified Communications Manager (CUCM 14 / 15) - certificates by hand (no acme target)
+# Cisco Unified Communications Manager (CUCM 14 / 15) - certificates by hand
 
-acme has **no target** for CUCM: Cisco documents **no API** for the OS certificates of CUCM (AXL is the CM database, not the OS), and **Cisco Unified OS Administration does not take a private key** for `tomcat` / `CallManager` - the key is always made on CUCM by *Generate CSR*. A certificate acme issues with its own key cannot be put there. What acme can do: have CUCM's CSR signed (a request with a CSR - *Send a CSR*, docs/request-profiles.md), then you upload the certificate.
+acme now has a **target** for CUCM: *Cisco Unified Communications Manager (CUCM)* (kind `cucm`, its setup guide on the target's page). CUCM makes the key - Cisco Unified OS Administration takes **no private key** for `tomcat` / `CallManager` - so the target has CUCM's platform CLI make a new key and CSR at every issue (`set csr gen`), imports the certificate signed for it (`set cert import trust` / `own`) and restarts the services (certificate → Key: *Key made by the device*). Cisco documents no API for the OS certificates that acme builds on (AXL is the CM database, not the OS). This page is the same by hand - for a **multi-server (SAN)** certificate (uploaded in the OS Administration GUI only, 14SU2 and later), or without the target: have CUCM's CSR signed (a request with a CSR - *Send a CSR*, docs/request-profiles.md), then upload the certificate.
 
 ## The steps (CUCM 15 and SUs)
 

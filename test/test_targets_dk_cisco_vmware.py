@@ -27,7 +27,6 @@ from test_targets import FakeBundle, FakeCtx, FakeSsh  # noqa: E402
 from acmelib.plugins.base import CertRequest, PluginError, Registry  # noqa: E402
 from acmelib.plugins.targets import _common as C  # noqa: E402
 from acmelib.plugins.targets import cucm as U  # noqa: E402
-from acmelib.plugins.targets import vcf_component as VC  # noqa: E402
 from acmelib.certs import pki  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(HERE), 'acmelib', 'plugins', 'guides', 'targets')
