@@ -4310,6 +4310,15 @@ def plan(store, cert, deploys, full=False):
     # a commercial CA's domain validation (DCV, issuers/_dcv.py): the records of its own shape
     # are put in place by the validations within its issue() - recorded there (1.0.98)
     dcv_src = bool(needs and irow and irow.get('kind') != 'acme' and getattr(icls, 'dcv', None))
+    # a source that is ACME underneath (sslmarket_acme: its key made through SSLmarket's API):
+    # recorded whole, its validations within its run as acme.py puts them in place (1.0.98)
+    try:
+        from acmelib.plugins.issuers.acme import AcmeIssuer as _Acme
+        if needs and irow and irow.get('kind') != 'acme' and icls is not None and \
+                issubclass(icls, _Acme):
+            dcv_src = True
+    except Exception:                                   # noqa: BLE001
+        pass
     chal = {}
     groups = {}
     if needs:

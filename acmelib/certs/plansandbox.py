@@ -2028,6 +2028,12 @@ def run_one(job, r, bundle_holder):
                         PLACED_TXT.append(str(content))
                     return _o(kind, name, where, content)
                 chal[n].place = place
+
+                def present(name, token, key_authorization, txt_value, _o=chal[n].present):
+                    # an ACME source's own proof (sslmarket_acme): seen once it is in place
+                    PLACED_TXT.append(str(txt_value))
+                    return _o(name, token, key_authorization, txt_value)
+                chal[n].present = present
             req = base.CertRequest(names=names, sans=names, key_type=cert.get('key_type'),
                                    key_pem=key, csr_pem=csr_pem, csr_der=csr_der,
                                    subject={}, days=cert.get('days'), profile={},
