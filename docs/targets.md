@@ -116,6 +116,43 @@ Every module here works the same way:
 | `virtualmin` | Virtualmin (Remote API) | Virtualmin |
 | `froxlor` | froxlor (API) | froxlor |
 | `proxmox_backup` | Proxmox Backup Server (API) | Proxmox |
+| `hpe_oneview` | HPE OneView / Synergy Composer | HPE |
+| `hpe_nimble` | HPE Alletra 5000/6000, Nimble Storage (NimbleOS) | HPE |
+| `irmc` | Fujitsu iRMC (PRIMERGY, PRIMEQUEST 4000) | Fujitsu / Fsas Technologies |
+| `supermicro_bmc` | Supermicro BMC (SSL certificate upload) | Supermicro |
+| `cisco_imc` | Cisco IMC (UCS C-Series, standalone) | Cisco |
+| `huawei_ibmc` | Huawei / xFusion iBMC | Huawei / xFusion |
+| `fujitsu_ism` | Fujitsu Infrastructure Manager (ISM-VA) | Fujitsu / Fsas Technologies |
+| `eternus_dx` | Fujitsu ETERNUS DX / AF (Web GUI certificate) | Fujitsu / Fsas Technologies |
+| `nsx_manager` | VMware NSX Manager (its own certificate) | VMware |
+| `horizon_cs` | Omnissa Horizon Connection Server | Omnissa |
+| `sddc_manager` | VMware SDDC Manager (trust store) | VMware |
+| `aria_lifecycle` | VMware Aria Suite Lifecycle (product certificates) | VMware |
+| `aria_automation` | VMware Aria Automation / Orchestrator (vracli) | VMware |
+| `vcd` | VMware Cloud Director (cell certificate) | VMware |
+| `vmware_dr` | VMware Live Site Recovery / vSphere Replication appliance | VMware |
+| `vsphere_supervisor` | VMware vSphere Supervisor (API endpoint) | VMware |
+| `cisco_iosxe` | Cisco IOS XE (switches, routers) | Cisco |
+| `cisco_wlc9800` | Cisco Catalyst 9800 Wireless Controller | Cisco |
+| `cisco_nxos` | Cisco NX-OS (Nexus, NX-API) | Cisco |
+| `cisco_catalyst_center` | Cisco Catalyst Center (DNA Center) | Cisco |
+| `aruba_aoscx` | HPE Aruba Networking AOS-CX switch | HPE Aruba Networking |
+| `aruba_clearpass` | HPE Aruba Networking ClearPass Policy Manager | HPE Aruba Networking |
+| `aruba_central` | HPE Aruba Networking Central (AOS 10) | HPE Aruba Networking |
+| `windows_wsus` | WSUS (Windows Server Update Services) | Microsoft |
+| `windows_hyperv_replica` | Hyper-V Replica (certificate authentication) | Microsoft |
+| `windows_ssrs` | SQL Server Reporting Services / Power BI Report Server | Microsoft |
+| `windows_scom` | System Center Operations Manager (certificate) | Microsoft |
+| `windows_oos` | Office Online Server | Microsoft |
+| `netapp_ontap` | NetApp ONTAP (REST API) | NetApp |
+| `pure_flasharray` | Pure Storage FlashArray | Pure Storage |
+| `pure_flashblade` | Pure Storage FlashBlade | Pure Storage |
+| `qnap` | QNAP QTS / QuTS hero (SSH) | QNAP |
+| `cockpit` | Cockpit web console (Linux, SSH) | Linux / Unix |
+| `veeam_vbr` | Veeam Backup & Replication (backup server certificate) | Veeam |
+| `veeam_cloud_connect` | Veeam Cloud Connect (cloud gateway certificate) | Veeam |
+| `veeam_vb365` | Veeam Backup for Microsoft 365 | Veeam |
+| `13` | VBR 13.0 - 13.1 | `-Force`; web UI and REST API follow by themselves |
 
 **A dual certificate** (ECDSA and RSA of the same names, see
 [certificates.md](certificates.md#dual-certificates-ecdsa--rsa)): the targets
@@ -1258,12 +1295,14 @@ CertificateService gives for `#CertificateService.ReplaceCertificate` (the
 usual path when it says none); an **empty** HTTPS certificate collection
 ("insertable") gets a `POST` of the certificate (before: a replace of a
 made-up `.../Certificates/1`); a service listing its actions without
-ReplaceCertificate - **HPE iLO 6** has only GenerateCSR and its OEM
-`HpeHttpsCert` imports a certificate only for its own CSR - is said in
-words. Not done: Dell's own way for iDRAC (OEM `UploadSSLKey` +
-`ImportSSLCertificate`, FW 6.00.02+), which Dell documents with a reset
-("Until the iDRAC is reset, the old certificate will remain active" - set
-*Restart the controller* for iDRAC). Lenovo XCC2 takes `PEM` only.
+ReplaceCertificate is said in words. **HPE iLO 5 2.78+ / 6 1.30+ / 7** take a key made
+elsewhere through their OEM `HpeHttpsCert.ImportCertificate`: the version `ilo` of this
+target (1.0.96; before, this said iLO 6 took none - it does from 1.30). Dell's own way for
+iDRAC (OEM `UploadSSLKey` + `ImportSSLCertificate`, FW 6.00.02+, iDRAC10): the version
+`6.00.02` (1.0.96). **Lenovo XClarity Controller (XCC, XCC2, XCC3) takes only a certificate of
+a request it made itself** (Lenovo's documents) - acme's key cannot go there, whatever
+this target is given. Supermicro's standard certificate service needs the SFT-DCMS-SINGLE
+licence - else the target `supermicro_bmc`; Supermicro and OpenBMC take *Send as* `PEM`.
 **Less certain**: whether a controller takes the key inside the string (each
 vendor's own; XCC documents no key import).
 
@@ -2634,3 +2673,1067 @@ it - change it only when Flowmon refuses an upload. The API 13.1 has **no
 call for the certificate of Flowmon's own web interface**; that one is set in
 its Configuration center by hand (or over SSH with the `ssh` target and a
 script after the files).
+
+## From the vendors' guides (1.0.96)
+
+New targets and versions made from a collection of vendors' guides (HPE, Lenovo, Dell, Fujitsu,
+other BMCs, VMware, Cisco, Aruba, firewalls and ADCs, Microsoft, Veeam, storage), each checked
+against the official documents it cites; what could not be confirmed is said in each one
+("Uncertain", "Less certain"). Every one of them has a setup guide (its button in the form, the
+target's window and What happens). Existing modules that already did the documented versions
+the same way got no copy - only the versions whose calls differ.
+
+<!-- For docs/targets.md. Table rows (the list of kinds): -->
+
+
+<!-- Under the `redfish` section, after its "Checked" paragraph: -->
+
+**Version `ilo` - HPE iLO 5 (2.78+), iLO 6 (1.30+), iLO 7** (1.0.96,
+`redfish_ilo.py`): HPE gives the iLO web server certificate only through its OEM
+`HpeHttpsCert`, not through `CertificateService.ReplaceCertificate` (iLO 6 lists no
+such action; the DMTF `NetworkProtocol/HTTPS/Certificates` exists only from iLO 7
+1.19 and is not described for it). This version signs in as the plain one, reads the
+manager (`FirmwareVersion` "iLO 6 v1.62") and `SecurityService` (`SecurityState`,
+`Links.HttpsCert`), `PATCH`es `HttpsCert` `{"KeyType": "RSA" | "ECDSA"}` when it says
+another type than the key's (iLO 6 1.70+, iLO 7 1.17+; iLO 5 has none - a mismatch is
+`400 ImportCertificateFailed`), and posts `{"Certificate": certificate PEM + key PEM}`
+to the `#HpeHttpsCert.ImportCertificate` target the resource gives (the *sideload*).
+The iLO resets itself after the import (1-3 minutes; the server is not touched): no
+sign-out, the test of what is served waits up to five minutes. **Refused before any
+change**: a controller that is not an iLO, iLO 4, iLO 5 older than 2.78, iLO 6 older
+than 1.30, an RSA key on iLO 6 outside *Production* or on iLO 7 outside
+*SecureStandard*. Unchanged: the iLO already serves this certificate.
+**Rights**: *Login* + *Configure iLO Settings* (`LoginPriv`, `iLOConfigPriv`; the role
+*Operator* is not enough).
+Sources: HPE iLO security service (Redfish supplement), iLO 5 SSL certificate
+(ilo-rest-api-docs), iLO 6 1.74 / iLO 7 1.23 resource definitions, iLO 7 changelog.
+**Uncertain**: iLO 5's sideload is documented "through iLOrest" (which posts this
+action); whether iLO 5 limits RSA keys by security state; whether intermediates may
+follow the certificate (acme sends certificate + key, as HPE's example).
+
+**Lenovo XClarity Controller (XCC, XCC2, XCC3)**: Lenovo documents that only a
+certificate signed from a CSR made on the same XCC can be imported - no key of acme's
+can be put there (no PKCS#12, no key upload); the plain module's ReplaceCertificate
+with a key is not expected to work there. No version for XCC.
+
+## `hpe_oneview` - HPE OneView / Synergy Composer
+
+The appliance's HTTPS certificate (web GUI, REST API, the HPE SSO into managed
+iLOs/OAs) of HPE OneView 9.x - 11.x and of an HPE Synergy Composer (OneView for
+Synergy): reads `GET /rest/version` (`currentVersion`; `X-API-Version` sent is that, at
+most 9200 = 11.50, or the *API version* given), signs in (`POST /rest/login-sessions`
+`{userName, password, authLoginDomain, loginMsgAck}`, the `sessionID` in `Auth`), puts
+each intermediate into the trust store (`GET /rest/certificates/ca/acme-<id>`, else
+`POST /rest/certificates/ca` `CertificateAuthorityInfoCollection`), uploads key +
+certificate + chain as PKCS#12 with a one-time password
+(`PUT /rest/certificates/https/pkcs12?uploadfilename=acme.pfx`, multipart `file`,
+headers `Password` and `uploadfilename`), waits for the task (`/rest/tasks/<id>`,
+`taskState`; signed in again once when the import cut the session; its end not read in
+time is a warning - the test of what is served tells), signs out
+(`DELETE /rest/login-sessions`). The appliance reloads its web services (the VM is not
+restarted). **RSA only** (an ECDSA certificate is refused before anything is done).
+Unchanged: the appliance already serves this certificate.
+
+**Rights**: *Infrastructure administrator*, no scope.
+
+Sources: HPE POSH-HPEOneView 10.00 (`Install-OVApplianceCertificate`,
+`Add-OVApplianceTrustedCertificate`), HPE oneview-python (login, API versions,
+`endpoints-support.md`), oneview-ansible-collection 11.5.0. **Uncertain**: the least
+role (not stated by HPE); the upload headers come from the PowerShell module, not the
+API reference. HPE Compute Ops Management has no certificate API (not a target).
+
+## `hpe_nimble` - HPE Alletra 5000/6000, Nimble Storage (NimbleOS)
+
+The group's custom certificate of NimbleOS 5.x / 6.x for the HTTPS GUI (443) and/or the
+REST API (5392): `POST /v1/tokens` `{"data": {username, password, app_name}}`
+(`session_token` in `X-Auth-Token`), `POST /v1/certificates/actions/import`
+`{"data": {name: "custom", input: base64 PKCS#12, pkcs12: true, password, force: true}}`,
+`POST /v1/certificates/actions/use` `{"data": {name, https, apis}}`,
+`DELETE /v1/tokens/<id>`. The GUI and/or API reload; host I/O is not touched.
+Unchanged: both places already serve this certificate.
+
+**Rights**: the role *administrator*.
+
+Sources: HPE nimble-python-sdk (`restclient.py`), nimble-golang-sdk (`certificate.go`
+generated from the API schema, `ns_user_roles.go`). **Unverified**: the names of the
+two actions (`import`, `use`) - HPE's REST reference is behind an InfoSight sign-in;
+they are deployment settings (*Import action*, *Use action*), a 404 is said in words
+and nothing is changed then. HPE Alletra 9000 / MP B10000 make their key on the array
+(not a target).
+
+## Dell targets (1.0.96)
+
+From the vendor guides (Dell manuals, KBs, Dell's SDKs and Ansible collections, 2026-11).
+Dell OpenManage Enterprise has no target: it takes only a certificate of a CSR it made
+itself (no key import, no PKCS#12 - "Generate the CSR only from within the OpenManage
+Enterprise appliance"), which acme cannot answer with its own key.
+
+### `redfish` version `6.00.02` - Dell iDRAC9 6.00.02+ / iDRAC10 (Dell OEM)
+
+A version of the Redfish target (file `redfish_idrac.py`; the plain one stays the
+default). Same sign-in and the same fields; the key and certificate go Dell's way for a
+key made elsewhere: `POST <Manager>/Oem/Dell/DelliDRACCardService/Actions/
+DelliDRACCardService.UploadSSLKey` `{"SSLKeyString"}`, then `...ImportSSLCertificate`
+`{"CertificateType": "Server", "SSLCertificateFile"}` (*Send as* `PEMchain`: with the
+intermediates, `PEM`: the certificate alone; *Certificate URI* is not used). The iDRAC
+restarts only its web server - no reset needed (*Restart the controller afterwards* still
+sends `Manager.Reset` when ticked). The manager's `FirmwareVersion` is read first: not a
+Dell iDRAC, or iDRAC9 older than 6.00.02.00 (or iDRAC8), is refused before anything is
+changed; a firmware newer than checked (iDRAC9 7.20, iDRAC10 1.30) is warned about; a
+`DelliDRACCardService` listing actions without `UploadSSLKey` is refused in words.
+Unchanged: the iDRAC already serves this certificate.
+
+**Rights**: *Login to iDRAC* + *Configure iDRAC* (the Operator role, or a custom role -
+iDRAC10 has no role *None*).
+
+Sources: iDRAC9 7.xx / iDRAC10 1.xx RACADM CLI Guides (`sslkeyupload`, `sslcertupload`),
+Dell InfoHub "Methods to manage web server certificates on iDRAC",
+<https://github.com/dell/iDRAC-Redfish-Scripting> (`ExportImportSSLCertificateREDFISH.py`),
+Ansible `dellemc.openmanage.idrac_certificates`. **Uncertain**: whether the import takes
+the intermediates in `SSLCertificateFile` (Dell's examples show one certificate - use
+*Send as* `PEM` if refused); whether iDRAC10 refuses an uploaded RSA 2048 key (it makes only
+3072/4096 itself).
+
+## `powerscale` - Dell PowerScale OneFS
+
+OneFS 8.2 - 9.12 over the REST API on port 8080 (basic authentication). OneFS imports a
+certificate only from files on `/ifs`: the certificate + chain and the key are written
+through RAN (`PUT /namespace/ifs/local/<name>.crt|.key`, mode 0600, the folder made with
+`x-isi-ifs-target-type: container`), imported with `POST /platform/4/certificate/server`
+`{name, description, certificate_path, certificate_key_path}` under a dated name, the two
+files deleted at once (also on a failure), and the new one made the default with
+`PUT /platform/7/certificate/settings {"default_https_certificate": id}` (*Make it the
+default HTTPS certificate*, on). Older acme certificates beyond *keep* are deleted - never
+the one that is the default. The OneFS version is read first
+(`/platform/1/cluster/config`): older than 8.2 (the default was set another way) refused
+before anything is changed. Unchanged: the same certificate there and the default.
+
+**Rights**: `ISI_PRIV_LOGIN_PAPI`, `ISI_PRIV_CERTIFICATE` (write), `ISI_PRIV_NS_IFS_ACCESS`
+and write access to the folder.
+
+Sources: Dell KB 000157711, OneFS 9.5 / 9.7 CLI Administration Guides,
+<https://github.com/Isilon/isilon_sdk_python> (v9_12_0 CertificateApi), Ansible
+`dellemc.powerscale.server_certificate`. **Uncertain**: whether `isi_webui` must be restarted
+for the new default to be served (the 9.5 guide says so; acme does not restart it - its
+test of what is served shows it); the privilege names (check `isi auth privileges`).
+
+## `powerstore` - Dell PowerStore
+
+PowerStoreOS 3.0 - 4.4, the cluster management certificate (`Management_HTTP`, scope
+`External`). Signs in with `GET /api/rest/login_session` (basic auth → `DELL-EMC-TOKEN` +
+`auth_cookie`), reads the version (`software_installed`), and `POST /api/rest/x509_certificate`
+`{"type": "Server", "service": "Management_HTTP", "scope": "External", "certificate": the
+chain as one string, "private_key", "is_current": true}`, then reads it back (`is_current`,
+`is_valid`). Nothing restarts. 2.x is refused. Unchanged: the cluster already serves this
+certificate.
+
+**Rights**: Security Administrator (role id 5) or Administrator.
+
+Sources: Dell KB 000193886, 000211671, 000223823, REST API Developers Guide 4.1,
+<https://github.com/dell/python-powerstore>, Ansible `dellemc.powerstore.certificate`.
+**Uncertain - try it first**: Dell documents the management certificate only from the
+cluster's own CSR (`x509_certificate/csr`, then a PATCH of the signed chain); the
+`private_key` import is the call of Dell's SDK (`create_certificate`), not documented for
+`Management_HTTP`. A refusal (400/422) is said in words and nothing is changed.
+
+## `unity` - Dell Unity (service shell)
+
+Unity / Unity XT / UnityVSA, OE 5.x, the Unisphere management certificate - which has no
+REST call nor uemcli command. Over SSH as the `service` user (password; SSH enabled in
+*Settings → Service → Service Tasks*): the certificate (with the intermediates, or alone -
+*Include the intermediates* off for OE 5.5.0) and the RSA key (PEM) written to
+`/home/service/user/acmecert.crt` / `.pk`, then `svc_custom_cert acmecert` (must say
+"Successfully installed"), the files always deleted after. Unisphere's web server restarts;
+I/O is not touched. A non-RSA key is refused (only RSA is documented). Unchanged: Unisphere
+already serves this certificate (*Unisphere HTTPS port*, 443).
+
+Sources: Dell KB 000021122, 000429916, 000317557, 000308965. **Uncertain**: RSA 4096 / ECDSA
+with `svc_custom_cert`; the OE version cannot be read in the service shell, so the 5.5.0
+chain bug is left to the option.
+
+## `unisphere_powermax` - Dell Unisphere for PowerMax (Solutions Enabler certificate)
+
+Unisphere for PowerMax 10.x has **no API for its own HTTPS certificate** (GUI only, from its
+own CSR) - not changed. This target imports the key, certificate and trust file of the
+**Solutions Enabler server** of the embedded management nodes (*Management nodes*,
+`Semgmt0`, `Semgmt1`): `GET /univmax/restapi/version` (10.x required, 9.x refused), then per
+node a multipart `POST /univmax/restapi/<api>/serviceability/symmetrix/<array>/application/
+solutions_enabler/custom_certificate/import` with `node_name`, `keyfile`, `certfile` (the
+certificate + intermediates), `trustfile` (*Trusted CA certificates*, else the
+intermediates). Unchanged: acme deployed the same certificate there before. No test of what
+is served (the SE port is not plain TLS for acme's test).
+
+**Rights**: SecurityAdmin (or Administrator).
+
+Sources: <https://github.com/dell/PyU4V> (`serviceability.py`), PowerMax Family Security
+Configuration Guide (PowerMaxOS 10), Dell KB 000210816. **Uncertain**: the Serviceability
+paths come from PyU4V only (Unisphere's REST reference not read); whether the SE server needs
+a restart to use the new certificate.
+
+<!-- For docs/targets.md. 1) rows for the table of targets (after `redfish`): -->
+
+
+<!-- 2) the sections (after the `redfish` section): -->
+
+## `irmc` - Fujitsu iRMC (PRIMERGY, PRIMEQUEST 4000)
+
+iRMC Remote Scripting (SCCI): one `POST /config` (HTTP Basic) with the SCCI SET commands
+`ConfBMCSslPrivateKey` (0x1981, the key as PKCS#1 - "BEGIN RSA PRIVATE KEY"),
+`ConfBMCSslCertificate` (0x1982) and, when asked, `ConfBMCSslCaCertificate` (0x1983, the
+intermediate); a STATUS other than 0 in the answer is an error in words. Then the iRMC is reset
+- `POST /rest/v1/Oem/iRMC/Reset` (202), or Redfish `Manager.Reset` `GracefulRestart`, or not at
+all - because it serves the new certificate only after one (the host keeps running). Unchanged:
+the iRMC already serves this certificate. **Try** reads 0x1982 (SCCI GET). RSA keys only; files
+up to 4 KB. One module for iRMC S4 (FW 9.04+), S5 (FW 1.25+) and S6 (PRIMERGY M5 - M8,
+PRIMEQUEST 4000): the SCCI codes are the same.
+
+**Rights**: an iRMC user with *Configure iRMC Settings* and the LAN channel privilege
+*Administrator*.
+
+Sources: Fsas' Ansible collection `fsas.primergy` 3.1.0 (module `irmc_certificate`, role
+`irmc_set_certificate`), iRMC S6 Configuration and Maintenance 2.x chapter 4. **Known**: on some
+PRIMERGY M8 the SCCI SET fails until an iRMC firmware fix (Fsas' known issue - said in the
+error). **Not used**: the Redfish OEM `FTSCertificates.UploadSSLCertOrKey` (seen only in a
+mirror of Fsas' Terraform provider).
+
+## `supermicro_bmc` - Supermicro BMC (SSL certificate upload)
+
+Supermicro's own Redfish action, which needs **no licence** (the standard CertificateService
+needs SFT-DCMS-SINGLE): signs in with a Redfish session (or basic auth), `POST
+/redfish/v1/UpdateService/Oem/Supermicro/SSLCert/Actions/SmcSSLCert.Upload` as
+`multipart/form-data` with `cert_file` (certificate + chain, or the certificate alone) and
+`key_file` (the key, PEM); *Reset the BMC afterwards* sends `Manager.Reset` `GracefulRestart`.
+Unchanged: the BMC already serves this certificate. **Try** reads the manager and
+`Oem/Supermicro/SSLCert`. X12/H12, X13/H13, X14/H14; a 404/405 says the BMC has no such action
+(X11: its web interface).
+
+**Rights**: a BMC user with the role *Administrator*.
+
+Sources: Supermicro Redfish User's Guide 1.22.2-00.04 / 1.23.2-00.00 ("Updating SSL Certificate
+and Key", "Available APIs"), Redfish User Guide 4.0. **Less certain**: the guide names no HTTP
+method for the action (a Redfish action is a POST). With the licence, `redfish` with *Send as*
+`PEM` works too.
+
+## `cisco_imc` - Cisco IMC (UCS C-Series, standalone)
+
+The IMC XML API (`POST /nuova`): `aaaLogin`, `configConfMo` of `uploadExternalCertificate`
+(`sys/cert-mgmt/external-cert-upload`) and `uploadExternalPrivateKey`
+(`sys/cert-mgmt/external-pvt-key-upload`), both `adminAction="content-cert-upload"` with the PEM
+in `certificateContent` (line ends kept as `&#10;`), then `certificateManagement`
+`adminAction="activate-external-cert"` on `sys/cert-mgmt` - the IMC restarts its web and SSH
+services (the host keeps running); an `errorCode` in an answer is an error in words, the session
+is signed out. Unchanged: the IMC already serves this certificate. **Try** reads
+`sys/cert-mgmt/curr-cert`. RSA keys (2048 / 4096), files up to 8 KB. Cisco IMC 4.x and 6.0
+(M5 - M8).
+
+**Rights**: an IMC user with the role *admin* (Cisco: admin for all certificate tasks).
+
+Sources: Cisco IMC XML API Programmer's Guide 6.0 (External Certificate), CLI Configuration
+Guide 6.0 (Managing Certificates), imcsdk. **Less certain**: the request's Content-Type (Cisco's
+examples post with `curl -d`, which acme copies).
+
+## `huawei_ibmc` - Huawei / xFusion iBMC
+
+Redfish with a session: the PKCS#12 (a one-time password) uploaded to `/tmp/web` through `POST
+/redfish/v1/UpdateService/FirmwareInventory` (multipart field `imgfile`), then `POST
+/redfish/v1/Managers/<id>/SecurityService/HttpsCert/Actions/HttpsCert.ImportCustomCertificate`
+`{"Type": "URI", "Content": "/tmp/web/<file>", "Password": "…"}` (`iBMC.1.0.CertImportOK`), then
+`Manager.Reset` `ForceRestart` - the certificate takes effect only after it. *Manager ID* `1`
+(rack) or `BladeN`. **Try** reads `SecurityService/HttpsCert` and says whether the action is
+listed. iBMC V2/V3 (FusionServer V5/V6, TaiShan 200, xFusion).
+
+**Rights**: an iBMC user with the role *Administrator* (or a custom role with security
+configuration).
+
+Sources: Huawei iRM / iBMC Redfish API Description ("Importing a Custom Certificate", "Importing
+a Server Certificate"), Huawei-iBMC-Cmdlets (the `/tmp/web` upload), Huawei Ansible plug-in 2.0.6.
+**Less certain**: Huawei's portal shows only excerpts - the member name `Password` and the newest
+xFusion firmware are not confirmed from a full page.
+
+## `fujitsu_ism` - Fujitsu Infrastructure Manager (ISM-VA)
+
+As the ISM User's Guide (4.7.1) says: the key and certificate put into the ISM-VA's FTP area
+(`/<user group>/ftp`, plain FTP - the ISM-VA has no FTPS) with Python's ftplib, `ismadm sslcert
+set -key … -crt …` on its console over SSH, both files deleted again over FTP, then `ismadm power
+restart` (GUI, REST API and monitoring away for minutes). Unchanged: the ISM-VA already serves this
+certificate on 25566. **Try** lists the FTP folder and runs `ismadm sslcert show`. ISM 2.x and 3.x.
+The REST API (`PATCH /ismva/settings/sslcert`) is not used: it wants the password encrypted with
+AES-256-CBC, which the standard library cannot do.
+
+**Rights**: an ISM user in the *Administrator* group with the *Administrator* role (console
+access needs it).
+
+Sources: ISM V3.1.0 User's Guide CA92344-5875-03, V2.9.0 CA92344-5430-09, REST API Reference
+V2.7.0. **Less certain**: whether `ismadm` asks a confirmation (acme answers `y`), and whether the
+CLI takes the chain in the `.crt` (*Send the chain with the certificate* can be turned off).
+
+## `eternus_dx` - Fujitsu ETERNUS DX / AF (Web GUI certificate)
+
+The ETERNUS CLI takes the certificate only from a file server: acme puts `acme-<serial>.key`
+and `.crt` on an FTPS (explicit TLS, the S6 default) or FTP server with Python's ftplib, runs
+`import ssl-certificate -port <MNT|RMT|FST> -server … -user … -cert-filename … -key-filename …`
+(`-server-port-number`, `-disable-ftps yes` on S6 with plain FTP) over SSH answering the CLI's
+`Password :` with the file server's password, deletes both files again, and - when asked -
+restarts SMI-S on the Web GUI certificate (`set smi-s -function disable` / `enable
+-ssl-certificate shared-with-webgui`). The RESTful API (5665) shares the certificate. An `Error`
+line from the CLI is an error in words. **Try** lists the file server folder and runs `show
+ssl-version`. RSA keys; PEM only.
+
+**Rights**: an ETERNUS user with the policy *Storage Management* (a role `-policy 1,10`).
+
+Sources: ETERNUS DX S6 CLI User's Guide C140-0003-06ENZ3, Web GUI User's Guide
+C140-0005-06ENZ3, RESTful API Reference C140-0052-03ENZ3. **Less certain**: DX S5 / AF S3 / AF S2
+(checked by the S6 manuals only - *File transfer: FTP on DX S5 / AF S3* sends no FTPS option),
+whether the array takes a chain in the certificate file (off by default), and whether the CLI
+reads the FTP password from SSH's standard input as from a terminal.
+
+<!-- 3) products of this group with no module of their own (guides in mods/fujitsu_bmc/guides/):
+     ETERNUS NR -> netapp_ontap; OpenBMC / AMI MegaRAC -> redfish (Send as PEM);
+     ETERNUS SF, ServerView Operations Manager -> ssh / windows_ssh (files + commands);
+     PRIMEQUEST 3000 MMB, ETERNUS LT, ETERNUS CS8000 -> by hand (no automatable way documented). -->
+
+### Fujitsu products without a target of their own
+
+* **ETERNUS NR** (NR1000) runs NetApp ONTAP: use `netapp_ontap`.
+* **PRIMEQUEST 4000** is managed by iRMC S6: use `irmc`. **PRIMEQUEST 3000 MMB** takes a certificate
+  only through its Web-UI and only for its own CSR - not automatable.
+* **ETERNUS SF** (Web Console: `server.crt` / `server.key` of its Apache) and **ServerView
+  Operations Manager** (TomEE keystore, alias `svs_cms`): `ssh` or `windows_ssh` with files and
+  the restart commands; their setup guides say which.
+* **ETERNUS LT** (Remote Panel only, the library's own CSR) and **ETERNUS CS8000** (no documented
+  way): by hand; a TLS test watches the expiry.
+* **OpenBMC / AMI MegaRAC**: `redfish` with *Send as* `PEM`.
+
+### `vcenter` version `8.0.2` and `esxi` version `8.0.3`
+
+**vcenter:**
+
+**Versions (1.0.96).** The plain one above (vCenter 7.0 - 9.1) waits as for a restart.
+`8.0.2` - **vCenter 8.0 U2 - 9.1**: the same calls; from 8.0 U2 vCenter does not restart
+its services after `PUT .../tls` (KB 403973, VCF 9.1 Programming Guide), so the served
+certificate is checked at once (6 tries, 10 s apart). It reads vCenter's version first
+(`GET /sdk/vim25/8.0.1.0/ServiceInstance/ServiceInstance/content`, no sign-in, `about.version`)
+and refuses another one before anything changes; it refuses a non-RSA key before sending
+anything (vSphere 9.0 certificate requirements: RSA 2048 - 8192 only).
+
+**esxi:**
+
+After the files and the restart, `/sbin/auto-backup.sh` saves them to the boot bank (1.0.96;
+KB 317244, KB 341649): ESXi keeps `/etc` in memory and saves it about hourly - a reboot
+before that brought the old certificate back. A failure is a warning.
+
+**Versions (1.0.96).** `8.0.3` - **ESXi 8.0 U3 - 9.1 (through vCenter)**: no SSH, no
+maintenance mode, no restart - through vCenter's vSphere Web Services API (VI JSON):
+`SessionManager/<sm>/Login` (the session in `vmware-api-session-id`),
+`HostSystem/<host-id>/summary` (the ESX version - older than 8.0.3 refused before anything
+changes), `HostSystem/<host-id>/configManager` (its `certificateManager`), the chain added to
+vCenter's trusted roots (`POST /api/vcenter/certificate-management/vcenter/trusted-root-chains`
+- without it vCenter disconnects the host), then
+`HostCertificateManager/<hcm>/ProvisionServerPrivateKey {"key"}`,
+`InstallServerCertificate {"cert"}` and `NotifyAffectedServices {}` (API 8.0.3.0: open
+connections keep the old certificate, new ones get the new one). Its fields are vCenter's
+(address, user with *Certificate.Manage*, password), the host's managed object id
+(`host-12`), its name for the served check and the API release (`8.0.3.0`). RSA keys only.
+vCenter must be in the certificate mode `custom` (`vpxd.certmgmt.mode`), else it puts a
+VMCA certificate back. **Less certain**: `GET HostSystem/<id>/configManager` and `/summary`
+follow the API's `GET /<type>/<moId>/<property>` pattern (the reference shows it for a VM).
+
+## `nsx_manager` - VMware NSX Manager (its own certificate)
+
+NSX 4.2 - 9.1, the **NSX Manager API** (MP API, basic auth) - the manager's own HTTPS
+certificate, not the load balancer's (that is `nsx`). The certificate is imported
+(`POST /api/v1/trust-management/certificates?action=import` with `display_name`,
+`pem_encoded` - leaf, intermediates, root - and `private_key`: a platform certificate, not
+a service certificate), validated (`GET .../<id>?action=validate&usage=SERVER`, anything
+but `OK` stops it), then applied: `POST .../<id>?action=apply_certificate&service_type=API&node_id=<uuid>`
+for each node listed and `...&service_type=MGMT_CLUSTER` for the cluster's virtual IP. A
+node's HTTPS restarts when applied - a 503 or a refused connection is asked again (4 times,
+15 s apart). Older acme certificates beyond *keep* whose `used_by` is empty are deleted.
+Unchanged: a certificate of the same name is there.
+
+**Rights**: Enterprise Admin; Security Admin (`security_engineer`) has full access to
+*System → Certificates* in the RBAC matrix, but the documents say "admin privileges" for
+applying. Point the target at a node's own address, not the VIP. Node UUIDs: *System →
+Appliances → View Details* or `get cluster status`.
+
+Sources: NSX 4.2 "Replace Certificates Through API", the API reference (ImportCertificate,
+ValidateCertificate, ApplyCertificate - 4.2 and 9.0.2), KB 421552, KB 414001, KB 416689,
+KB 400892.
+
+## `horizon_cs` - Omnissa Horizon Connection Server
+
+Horizon 8 2212 - 2609, over **OpenSSH and PowerShell** (as `windows_ssh`): the PKCS#12
+uploaded with scp and imported into `Cert:\LocalMachine\My` **with an exportable key**
+(`Import-PfxCertificate -Exportable` - Horizon needs it), the intermediates into
+`Cert:\LocalMachine\CA`, the friendly name `vdm` (or `vdm.ec`) taken off the certificate
+that had it (renamed `acme-was-vdm-<thumb>`) and given to the new one, then the service
+`wsbroker` (*Omnissa Horizon Connection Server*) restarted and waited for (it interrupts
+provisioning and Blast sessions). Older certificates **acme imported** (their thumbprints
+kept by acme) beyond *keep* are removed - never the one with the friendly name, never one
+acme did not import. Unchanged: the certificate is in the store with the friendly name.
+Each Connection Server is a target of its own.
+
+**Rights**: a local administrator of the server. The Horizon REST API's
+`import-certificate` is not used: it cannot restart the service. **Less certain**: the
+service name `wsbroker` (the display name is looked for too).
+
+Sources: Horizon 8 Installation and Upgrade - Configure Horizon Connection Server to Use a
+New TLS Certificate, Modify the Certificate Friendly Name, Import ... into a Windows
+Certificate Store.
+
+## `sddc_manager` - VMware SDDC Manager (trust store)
+
+VCF 5.2 - 9.1: the **CA certificates** of the certificate (intermediates, root) added to
+SDDC Manager's trust store (`POST /v1/tokens`, `GET` / `POST /v1/sddc-manager/trusted-certificates`
+with `certificate` and `certificateUsageType` `TRUSTED_FOR_OUTBOUND`), one there already
+skipped - so VCF keeps trusting a vCenter, NSX or ESX that got acme's certificate directly.
+After an addition SDDC Manager's services must be restarted (KB 316056,
+`sddcmanager_restart_services.sh` as root) - acme says it.
+
+**Why only the trust**: neither SDDC Manager (VCF 5.2) nor VCF Operations fleet management
+(VCF 9) takes a private key made elsewhere: they install only certificates for CSRs they
+generated. **Rights**: an SDDC Manager ADMIN.
+
+## `aria_lifecycle` - VMware Aria Suite Lifecycle (product certificates)
+
+Aria Suite Lifecycle 8.18 (basic auth, `admin@local` or a *Certificate Administrator*): the
+certificate imported into the **Locker** (`POST /lcm/locker/api/v2/certificates/import` with
+`alias`, `certificateChain`, `privateKey`, `passphrase`), then for each
+`<environment id> <product id>` line *Replace Certificate*:
+`POST /lcm/lcops/api/v2/environments/<env>/products/<product>/certificates/<vmid>/pre-validate`
+and `PUT` of the same path, the request (`GET /lcm/request/api/v2/requests/<id>`) waited for
+until `COMPLETED` (30 s apart, *Wait for each request* minutes at most; `FAILED` stops it).
+Older acme certificates beyond *keep* are deleted from the Locker. The documented way for Aria
+Operations (Admin UI only otherwise), Operations for Logs (UI only), Automation and Workspace
+ONE Access; Suite Lifecycle re-trusts the other products itself.
+
+**Less certain**: the bodies of the `PUT` and `pre-validate` (sent empty), the product ids
+(`vrops`, `vra`, `vrli`, `vidm`), the request's state field (`state`/`status`).
+
+## `aria_automation` - VMware Aria Automation / Orchestrator (vracli)
+
+Aria Automation and Automation Orchestrator 8.18, over **SSH as root**: the PEM (RSA key,
+certificate, intermediates, root - each block on lines of its own, KB 325876 / 423843)
+written to `/root/acme-ingress-<random>.pem` (0600), `vracli certificate ingress --validate
+stdin --parse` (a refusal stops it), `vracli certificate ingress --set <file>`, then
+`/opt/scripts/deploy.sh` (every service redeployed - tens of minutes; off in the deployment:
+run it yourself), the file removed whatever happened. Unchanged: `vracli certificate ingress
+--list` shows this certificate. A request for `--sha256` stops it (KB 423843). RSA keys only.
+
+## `vcd` - VMware Cloud Director (cell certificate)
+
+Cloud Director 10.5.1 - 10.6.1, the OpenAPI: `POST /cloudapi/1.0.0/sessions/provider`
+(basic `user@System`; the token from `X-VMWARE-VCLOUD-ACCESS-TOKEN`, sent as Bearer;
+`Accept: application/json;version=39.0`, a field), the certificate into the **Certificates
+Library** (`POST /cloudapi/1.0.0/ssl/certificateLibrary` with `alias`, `certificate` - leaf
+and intermediates - and `privateKey`, PKCS#8), then for each cell chosen (all by default)
+`GET` and `PUT /cloudapi/1.0.0/cells/<urn>/accessEndpoints` - the object as read, only
+`apiSslCertRef` changed (202, the task in `Location` waited for). When asked, each cell is
+put in maintenance first and made active after (`PUT /cloudapi/1.0.0/cells/<urn>` with its
+`status`). Older acme library items beyond *keep* with no consumer are deleted.
+
+**Rights**: *Certificate Library: Manage*; for the endpoints the documents name only a System
+Administrator. **Less certain**: the token header's name (from the VCD API Programming Guide).
+
+## `vmware_dr` - VMware Live Site Recovery / vSphere Replication appliance
+
+VLSR 9.0 / 9.1 and vSphere Replication 9.0, the appliance's **Configuration API** on 5480
+(`<api>` = `/configure/requests` by default, a field): `POST <api>/session` (basic,
+`admin`; then `x-dr-session`), `GET <api>/appliance/certificates/server` (the same
+certificate: nothing done), `POST <api>/appliance/certificates/ca` with `[{"value": PEM}]`
+(the chain), `POST <api>/appliance/certificates/server` with
+`{"pkcs12_format": {"certificate": <base64 PKCS#12 with only the leaf and its key>, "password"}}`
+(20 characters; at most 31 allowed). Then it says what acme cannot do: vSphere Replication
+must be restarted, the site pairs reconnected (the thumbprint changed). Live Site Recovery
+wants EKU serverAuth **and** clientAuth.
+
+**Less certain**: the base path (the reference gives only `{api_host}` - *Try* signs in
+with it first), the base64 of the PKCS#12; in VLSR 9.x `POST .../server` is deprecated (its
+successor takes no key made elsewhere).
+
+## `vsphere_supervisor` - VMware vSphere Supervisor (API endpoint)
+
+vCenter 9.0 - 9.1, the vSphere Automation API (`POST /api/session`): the certificate of a
+Supervisor's **Kubernetes API endpoint** (or its default NSX ingress) with acme's key.
+Versions, as FortiGate's:
+
+| Version | vCenter | Calls |
+| `''` any version (detects it) | 9.0 - 9.1 | by `about.version` (VI JSON API, no sign-in); not known: 9.1's, then 9.0's |
+| `9.0` vCenter 9.0 | 9.0.x | `PATCH /api/vcenter/namespace-management/clusters/<cluster>` with `tls_endpoint_certificate`, `tls_endpoint_private_key` |
+| `9.1` vCenter 9.1 and later 9.x | 9.1.x | `PATCH /api/vcenter/namespace-management/supervisors/<id>/certificates` with `endpoint`, `tls_endpoint_certificate`, `tls_endpoint_private_key` |
+
+A version refuses a vCenter that says another one before anything changes; before 9.0 the
+API takes no key made elsewhere - refused by every version. Unchanged: the `GET` of the same
+path holds the certificate. **Rights**: `Namespaces.Manage`. **Less certain**: the endpoint
+names `KUBERNETES_API_SERVER` / `DEFAULT_NSX_INGRESS` (taken from the CSR types).
+
+<!-- Rows for the table of targets at the top of docs/targets.md -->
+
+
+<!-- Sections -->
+
+## `cisco_iosxe` - Cisco IOS XE (switches, routers)
+
+Over SSH (password or acme's key), user of **privilege 15**:
+
+1. `show version` - the IOS XE version; `show running-config | include ^crypto pki
+   trustpoint|^ip http secure-trustpoint` - the trustpoints and the one of the HTTPS server;
+2. the certificate, its key and chain as a PKCS#12 with a one-time password copied with
+   **SCP** (the old SCP protocol, `ip scp server enable`) to `bootflash:acme-<name>-<date>-<serial>.pfx`;
+3. in an SSH shell session (the lines on its input, no terminal): `configure terminal`,
+   `crypto pki import <tp> pkcs12 bootflash:<tp>.pfx password <pw>`, `end`;
+   `show crypto pki certificates <tp>` must show a certificate; `delete /force` the file
+   (whatever happened);
+4. *HTTPS server*: `ip http secure-trustpoint <tp>`, `no ip http secure-server`, `ip http
+   secure-server` (WebUI/RESTCONF sessions cut for a moment, traffic not);
+5. *Save*: `write memory`;
+6. older acme trustpoints beyond *keep* (and their `-rrrN` chain trustpoints) that the HTTPS
+   server does not use: `no crypto pki trustpoint` + `yes`, `crypto key zeroize <rsa|ec>` +
+   `yes` - read back from the configuration, a failure only warned.
+
+**Versions of the module** (1.0.96) - the PKCS#12 IOS XE takes is the one thing that differs
+(CSCvz41428: no SHA-256 MAC before 17.12.1):
+
+| Version | Label | PKCS#12 |
+| `''` | any version (detects it) | by `show version`: 3DES/SHA-1 MAC before 17.12, AES-256 after; unknown: 3DES (warned) |
+| `17.3` | IOS XE 17.3 - 17.11 | 3DES, SHA-1 MAC (`p12-legacy`) |
+| `17.12` | IOS XE 17.12 - 26.1 | AES-256, SHA-256 MAC |
+
+A numbered version refuses a device that says another IOS XE before anything changes, naming
+the version to choose; one newer than 26.1 is a warning. `served_places`: the host and *HTTPS
+port* (advanced, 443). Setup guides: `cisco_iosxe[@<version>][.cs].md`.
+
+**Checked** against the vendor guide (`navody/certifikaty/cisco/ios-xe-nx-os.md`, IOS XE
+17.15 - 17.18 and 26.x, differences against 17.9 / 17.12) and what it cites: the IOS XE 17.x
+PKI configuration guide, Cisco TN 213917 (PKCS#12 import, `ip http secure-trustpoint`,
+restarting the HTTPS server, CSCvz41428), the programmability guide 17.15. **Less certain**:
+configuration lines sent to an SSH shell without a terminal (as Ansible's network_cli does -
+IOS XE takes one command per exec channel); the RESTCONF RPC `Cisco-IOS-XE-rpc:crypto`
+`pki/import` the guide derives from YANG is not used, and restarting the HTTPS server over
+RESTCONF would cut RESTCONF itself; `delete /force` and the `yes` answers are IOS XE's usual
+words, not quoted.
+
+## `cisco_wlc9800` - Cisco Catalyst 9800 Wireless Controller
+
+As `cisco_iosxe` (the same versions `''`, `17.3`, `17.12`, the same PKCS#12 rule), with the
+deployment options *Web admin (GUI, RESTCONF)* (`ip http secure-trustpoint`, the HTTPS server
+restarted) and *Web authentication (guest portal)*: `parameter-map type webauth <map>`
+(default `global`), `trustpoint <tp>`, `exit`, `no ip http server`, `ip http server`. The
+trustpoints a webauth parameter map names are kept by the clean-up. The AP join certificates
+(MIC, SSC, LSC, `wireless management trustpoint`) are not touched - changing them makes every
+AP join again. `served_places`: the controller, and the *Webauth virtual host* when the portal
+is asked. Up to 17.8 the web admin and the portal send only the certificate and its issuer
+(CSCwa23606).
+
+**Checked** against the vendor guide (`navody/certifikaty/cisco/wlc-9800.md`, IOS XE 26.1,
+17.18, 17.15, notes on 17.8 - 17.12): TN 213917 (CSR, PKCS#12, web admin and webauth
+trustpoints, the PKCS#12 named like the trustpoint for chains of several CAs), TN 221047, the
+9800 configuration guide 26.1 (PKI management).
+
+## `cisco_nxos` - Cisco NX-OS (Nexus, NX-API)
+
+NX-API JSON-RPC (`POST /ins`, `application/json-rpc`, HTTP basic) and SCP with the same user
+(`feature nxapi`, `feature scp-server`):
+
+1. `show version` (`nxos_ver_str`): NX-OS before 10.2(3)F is refused - `nxapi certificate
+   trustpoint` is there from 10.2(3)F; `show running-config | include "crypto ca trustpoint"`
+   (`cli_ascii`);
+2. the PKCS#12 copied with SCP to `bootflash:<tp>.pfx`;
+3. `configure terminal`, `crypto ca trustpoint <tp>`, `exit`, `crypto ca import <tp> pkcs12
+   bootflash:<tp>.pfx <pw>` in one batch (an error said with the password left out); `delete
+   bootflash:<tp>.pfx no-prompt`; *Save*: `copy running-config startup-config`;
+4. *NX-API HTTPS*: `configure terminal`, `nxapi certificate trustpoint <tp>` - NX-API (nginx)
+   restarts; an answer cut off by the restart is a warning, the test of what is served tells;
+5. after the switch, older acme trustpoints beyond *keep*: `crypto ca trustpoint <old>`,
+   `delete certificate force`, `delete ca-certificate`, `exit`, `no crypto ca trustpoint <old>`
+   (a failure warned).
+
+`nxapi certificate` lines are not in the running configuration: after `reload ascii` or a
+config replace deploy again with *force*. One version (10.2(3)F - 10.6, the same calls).
+**Checked** against the vendor guide (`ios-xe-nx-os.md`, NX-OS 10.6, differences against
+10.2 - 10.5): the Nexus 9000 security guide 10.6 (Configuring PKI) and programmability guide
+10.6 (NX-API CLI, `nxapi certificate trustpoint`). **Less certain**: the shape of the batch's
+answer and `nxos_ver_str` are NX-API's usual ones; the trustpoint removal commands.
+
+## `cisco_catalyst_center` - Cisco Catalyst Center (DNA Center)
+
+`POST /dna/system/api/v1/auth/token` (HTTP basic → `Token`, then `X-Auth-Token`); `POST
+/dna/intent/api/v1/certificate?listOfUsers=<server|ipsec|server,ipsec>` multipart
+`certFileUpload` (the certificate then its chain, in order) and `pkFileUpload` - or with
+*Upload as: PKCS#12* `POST /dna/intent/api/v1/certificate-p12?listOfUsers=…&p12Password=…`
+`p12FileUpload`; the answer's `response.taskId` followed (`GET /dna/intent/api/v1/task/<id>`,
+`isError` → the failure reason) while Catalyst Center answers - it restarts its web services
+and signs everybody out (about 2 minutes; `served_wait` 20 × 15 s). No call lists the system
+certificate: the same certificate is known by what acme remembers. One version for 2.3.7,
+3.1 and 3.3. **Checked** against the vendor guide (`catalyst-center.md`): the Admin Guide
+3.3.x (Manage Certificates), the Intent API *Import Certificate*, `dnacentersdk` 3.1.6.0
+`authentication_management.py`, the `cisco.catalystcenter` Ansible modules. **Less certain**:
+the shape of the answer and the task; whether a key without a password needs `pkPassword`;
+whether the REST API bundle must be enabled on 3.x.
+
+## `aruba_aoscx` - HPE Aruba Networking AOS-CX switch
+
+REST API (`/rest/latest`, or the *REST API version* set), a user of the group
+`administrators`: `POST /login?username=&password=` (the cookie; an `x-csrf-token` header
+given is sent back); each CA of the chain as a trust anchor profile `acme-ca-<id>` (`POST
+/system/pki_ta_profiles` `{"name", "certificate", "revocation_check_mode": "disabled"}`,
+once); `PUT /certificates/<acme-…>` (32 characters at most) `{"certificate": key + certificate
++ chain}`; `PATCH /system {"certificate_association": {…the others as they were, <app>:
+<name>}}` for *Use it for* (`https-server` by default - the HTTPS server takes it at once and
+the session ends: acme signs in again); `certificate_association_status` must say
+`as_configured`; *Save*: `PUT /fullconfigs/startup-config?from=/rest/latest/fullconfigs/running-config`;
+older acme certificates no application uses: `DELETE /certificates/<old>`; `POST /logout`.
+One version (10.13 - 10.18). **Checked** against the vendor guide (`aruba/aos-cx.md`): the
+REST API reference v10.18 (`PUT /certificates/{name}`, `pki_ta_profiles`, `System` with
+`certificate_association`, `login`). **Less certain**: whether `PUT /certificates/<name>`
+takes a key for a name the switch made no CSR for; whether `PATCH /system` takes the attribute
+alone; saving through `fullconfigs` (not in the guide).
+
+## `aruba_clearpass` - HPE Aruba Networking ClearPass Policy Manager
+
+OAuth2 client credentials (`POST /api/oauth`); the server by name, FQDN, IP or UUID from `GET
+/api/cluster/server`; each CA of the chain `POST /api/cert-trust-list` `{"cert_file": PEM,
+"enabled": true, "cert_usage": [...]}` (a refused one - there already - is said and left);
+ClearPass takes a server certificate only from a URL (`pkcs12_file_url`), so acme writes the
+PKCS#12 over SSH to the *staging web server* (`<directory>/acme-<32 hex>.p12`, mode 0644),
+then for each of *Use it for* (`HTTPS(RSA)`, `HTTPS(ECC)`, `RADIUS`, `RadSec`) `PUT
+/api/server-cert/name/<server_uuid>/<service, URL-encoded>` `{"pkcs12_file_url",
+"pkcs12_passphrase"}`, and deletes the file whatever happened (one it cannot delete is a red
+step). `served_places`: 443 for HTTPS, 2083 for RadSec. One version (6.12 - 6.14). **Checked**
+against the vendor guide (`aruba/clearpass.md`): the API reference 6.14.1, `pyclearpass`.
+**Less certain**: whether `cert_file` is the PEM itself; the restarts after an import.
+
+## `aruba_central` - HPE Aruba Networking Central (AOS 10)
+
+Classic Central API Gateway: the token refreshed (`POST /oauth2/token?client_id=&client_secret=
+&grant_type=refresh_token&refresh_token=`) - a refresh token is used up, so the new one is
+kept in acme's state (`kv`, shared by a cluster) with the access token until it expires; a
+refused refresh asks for a new token. One name in Central's certificate store (*Name in
+Central*): `GET /configuration/v1/certificates?limit=20&offset=0&q=<name>`; absent: `POST
+/configuration/v1/certificates`, present (a `SERVER_CERT`): `PUT
+/configuration/v1/non_msp/certificate`, both `{"cert_name", "cert_type": "SERVER_CERT",
+"cert_format": "PKCS12", "passphrase": base64, "cert_data": base64}` - the profiles naming it
+keep naming it and Central pushes it to the devices. New Central (GreenLake) and MSP accounts
+are not handled; AOS 8 Mobility Conductors have no documented upload API (the guide).
+**Checked** against the vendor guide (`aruba/aos8-aos10-central.md`): the Central API reference
+(certificates: upload, get, update for non-MSP customers), `pycentral` (`base.py`, the token
+refresh).
+
+<!-- Added to the section of cisco_fmc -->
+
+**Versions of the module** (1.0.96): the plain one (above) is for FMC 7.4 - 10.0. **`7.7`** -
+*FMC 7.7 - 10.0* (file `cisco_fmc_versions.py`): reads `GET
+/api/fmc_platform/v1/info/serverversion` and refuses another FMC before anything changes;
+besides the Internal Certificate (on by *Also an Internal Certificate*) it puts the
+certificate into a **PKCS12 Cert Enrollment** object of a fixed name (*Cert Enrollment
+object*): `POST …/object/certenrollments` the first time, `PUT …/object/certenrollments/<id>`
+with the new `pkcs12Content` at each renewal (`{"type": "CertEnrollment", "enrollmentType":
+"PKCS12", "pkcs12Content": {"base64Certificate", "passPhrase"}, "validationUsage":
+{"ipsecClient": true, "sslServer": true}}`), and for each device of *Enrol on these devices*
+(`…/devices/devicerecords`) `POST …/devices/operational/managecertificates` `{"action":
+"ENROLL" | "RE_ENROLL" (when `…/devices/certificates?filter=deviceId:<id>` already shows it),
+"deviceCertificates": [{"deviceId", "certificates": [{"certificate": {"id"}}]}]}` - the
+trustpoint RA VPN names keeps its name. `managecertificates` and `devices/certificates` are
+FMC 7.7 and later (the vendor guide `fmc-ftd.md`, the REST API Quick Start Guide 10.0);
+the bodies are from Cisco's Terraform provider. **Less certain**: whether `RE_ENROLL` takes the
+PKCS#12 put by `PUT`; the task is not waited for.
+
+## `barracuda_cgf` - Barracuda CloudGen Firewall
+
+REST API of a CloudGen Firewall or a Firewall Control Center **10.0 / 10.5** on port
+8443, `X-API-Token: <token>` (or HTTP basic with an administrator and password). The
+certificate, its chain and its key are imported **in place** into one **Certificate Store
+entry** (the deployment's *Certificate Store entry*): `PUT
+/rest/config/v1/box/store/certificates/<entry>` `{"action": "import", "certificates":
+<leaf + chain PEM>, "key": <PEM>, "comment"}` - the services that use the entry (SSL VPN /
+CudaLaunch, TLS Inspection inbound, Access Control Service...) refer to it by name and
+keep it ("References to this key and certificate will be updated automatically"). A
+missing entry is made first (`POST .../store/certificates`, a self-signed placeholder of
+the key's kind) when *Make the entry when it is not there* is on; a service is pointed at
+it once in Firewall Admin (there is no REST call for that). acme reads the entry back and
+compares the SHA-256 fingerprint (`subCertificates[].fingerprint`); nothing is deleted. A
+box managed by a Control Center has no store of its own: *Certificate Store* chooses the
+Control Center's global, range or cluster store
+(`/rest/cc/v1/config/{global | ranges/<r> | ranges/<r>/clusters/<c>}/store/certificates`).
+**9.0** has only the read-only `GET /rest/config/v1/box/certificates`: a 404 on the store
+is said in words and nothing is changed.
+
+Checked against the vendor guide `barracuda-cloudgen-firewall.md` (2026-11; Campus "How to
+Manage Certificates in the Certificate Store" 10.0 / 10.5, "REST API" 10.0 / 10.5, "How to
+Create a CC Admin to Access the REST API", Swagger "Box configuration - 10.5 / 10.0 / 9.0",
+"CC Configuration - 10.5"). **Less certain**: whether a store change is active without
+*Activate* (the store endpoints list no session token), whether `PUT ... import` can make
+an entry (acme makes it first), the place and spelling of the fingerprint in the answer.
+
+## `infoblox` - Infoblox NIOS (WAPI)
+
+WAPI of the Grid Master (`/wapi/v2.11` by default - WAPI keeps its older versions; NIOS
+**8.6, 9.0, 9.1**), HTTP basic. For each Grid member listed (host names as the Grid knows
+them, the Grid Master last): `POST fileop?_function=uploadinit {"filename"}` →
+`{"token", "url"}`; the file - one PEM: the certificate, the chain and the **unencrypted**
+key - posted multipart (`file`) to the `url`'s path at the target's address (the Grid
+Master may name itself by an address acme does not reach, as Infoblox-PS's ibx-sdk
+handles it); `POST fileop?_function=uploadcertificate {"certificate_usage": "ADMIN" |
+"CAPTIVE_PORTAL", "member", "token"}`. NIOS replaces the member's HTTPS certificate (Grid
+Manager, WAPI, DoT/DoH) or its Captive Portal certificate, restarts its web server and
+signs the administrators out; nothing to delete. When the Grid Master stops answering
+after its own upload, the next member's `uploadinit` is asked again every 10 s for a
+minute. Tests: each member on port 443 (HTTPS certificate), waited for up to a minute.
+
+Checked against the vendor guide `infoblox.md` (2026-11; NIOS 9.0 / 8.6 "Managing
+Certificates", "Uploading HTTPS Certificates", "About Admin Groups", the on-box WAPI 2.13.7
+reference of `fileop` and Infoblox-PS ibx-sdk 0.8.1). **Less certain**: the least
+permission (the guide's choice: a superuser group allowed only the API), the multipart
+part's name `file`, what NIOS does with an HA pair's two nodes and a Grid Master Candidate,
+and that only the web server restarts.
+
+## `fortimanager` - FortiManager / FortiAnalyzer
+
+JSON-RPC (`POST /jsonrpc`) with an API token (`Authorization: Bearer`; FMG / FAZ
+**7.2.2 - 7.6** - the header only from 7.4.7 / 7.6.2). The certificate is added as a local
+certificate of the system under a dated name (35 characters at most): `add
+/cli/global/system/certificate/local {"name", "comment", "password", "private-key"
+(PKCS#8 encrypted with that one-time password, as the CLI takes it), "certificate"}`; the
+intermediates `add /cli/global/system/certificate/ca {"name": "acme-ca-<id>", "ca"}` (one
+refused - there already - is skipped); *HTTPS certificate of the GUI and API* sets `set
+/cli/global/system/admin/setting {"admin_server_cert"}`; older acme certificates beyond
+*keep* are deleted (`delete .../certificate/local/<name>`), never the one the GUI uses. A
+status code other than 0 is an error in words (`-11` no permission, `-3` not there).
+
+Checked against the vendor guide `fortinet.md` (2026-11; FortiManager CLI reference 7.6.3 /
+7.6.7, KB 276351, 231395, 189844, Ansible `fortinet.fortimanager`:
+`fmgr_system_certificate_local`, `fmgr_system_certificate_ca`,
+`fmgr_system_admin_setting`). **Less certain**: the JSON-RPC body of the `add` (an
+unofficial how-to; the fields are the CLI's and Ansible's), the CA field `ca`, `delete` of
+an older certificate, the least admin profile (the KB uses `Super_User`), whether the web
+server restarts.
+
+### Not here: Barracuda Load Balancer ADC, Barracuda Email Security Gateway
+
+The **Load Balancer ADC**'s REST API v2 is described only in a PDF whose certificate calls,
+sign-in and ports could not be checked (the WAF's API is another product); the **Email
+Security Gateway**'s XML-RPC API has no documented variable for its certificate, and Email
+Gateway Defense has no customer certificate. Install the certificate by hand (the steps are
+in the guides kept with the report) and add a test of what is served, so the renewal is
+watched.
+
+<!-- Rows for the table of modules (near `windows_ssh`, line ~54 of docs/targets.md) -->
+
+
+<!-- Sections, after `## `windows_ssh` - Windows over OpenSSH` and its roles -->
+
+## `windows_wsus`, `windows_hyperv_replica`, `windows_ssrs`, `windows_scom`, `windows_oos` - Windows products over OpenSSH
+
+Products `windows_ssh` has no role for, each a kind of its own on the same
+machinery (`acmelib/plugins/targets/windows_products.py`, 1.0.96): OpenSSH,
+PowerShell run as `-EncodedCommand` or an uploaded `.ps1` that deletes itself,
+the certificate uploaded as a PFX with a one-time password and imported into
+`LocalMachine\My` under the friendly name `acme-<name>-<date>-<serial>`, the
+product switched, then the older acme certificates beyond *keep* that nothing
+uses removed (IIS / HTTP.sys bindings, RDP, SQL Server, WinRM - and what the
+product itself uses). The sign-in needs a member of the local
+**Administrators** group with an elevated session (as `windows_ssh`). A
+product that fails keeps the old certificate in use and removes nothing.
+*Try* signs in, checks the session is elevated and that the product is
+installed; *Test the deployment* shows the PowerShell without running it.
+
+All documented versions use the same commands - one module each, no versions.
+
+### `windows_wsus` - WSUS (Windows Server 2016 - 2025)
+
+1. the https binding of the IIS site `WSUS Administration` (default port
+   8531): `Remove-IISSiteBinding` / `New-IISSiteBinding -CertificateThumbPrint`
+   (IISAdministration) - the old one bound again when the new one is refused;
+   a missing binding (`*:8531:`) is made;
+2. when asked, *Require SSL* (`sslFlags=Ssl`) on `SimpleAuthWebService`,
+   `DSSAuthWebService`, `ServerSyncWebService`, `APIremoting30`,
+   `ClientWebService` - never on `Content`, `Inventory`, `ReportingWebService`,
+   `SelfUpdate`;
+3. `WsusUtil.exe configuressl <FQDN>` - every time (default), only when the
+   binding changed, or never.
+
+A TLS test of `<server name>:<port>` is made with the deployment.
+
+### `windows_hyperv_replica` - Hyper-V Replica (Windows Server 2016 - 2025)
+
+Certificate-based (HTTPS) replication. The certificate must have **Server and
+Client Authentication** (checked before anything changes). As asked:
+`Set-VMReplicationServer -CertificateThumbprint -Force` (the host must be a
+Replica server allowing certificates), and for the primary VMs of the host that
+replicate with a certificate (or the ones listed) first
+`Test-VMReplicationConnection` with the new certificate against each replica
+server - a failure changes nothing - then `Set-VMReplication -VMName
+-CertificateThumbprint`. No TLS test (the listener wants a client certificate).
+
+### `windows_ssrs` - Reporting Services 2016 - 2022, Power BI Report Server
+
+Through the WMI provider (`root\Microsoft\SqlServer\ReportServer\RS_<instance>\v<newest>\Admin`,
+`MSReportServer_ConfigurationSetting`): each binding `ListSSLCertificateBindings`
+gives that is not on the new certificate is removed
+(`RemoveSSLCertificateBindings`) and made again with the new hash in small letters
+(`CreateSSLCertificateBinding`); a refusal puts the old one back. The first
+HTTPS binding is made once in Report Server Configuration Manager. A TLS test
+of `<address>:<HTTPS port to check>` (443) is made.
+
+### `windows_scom` - Operations Manager 2019 - 2025
+
+For a gateway, management server or agent authenticating with a certificate:
+RSA only (refused before anything otherwise), imported with `certutil -importPFX
+My <pfx> AT_KEYEXCHANGE` (a legacy CSP key, KeySpec 1 - Operations Manager does
+not take a KSP key), Server + Client Authentication checked, then
+`MOMCertImport.exe /SubjectName <subject>`; the serial it wrote
+(`ChannelCertificateSerialNumber`) is read back and must be this certificate's;
+the `HealthService` restarted when asked. No TLS test (5723 is its own
+channel).
+
+### `windows_oos` - Office Online Server
+
+Imported with an exportable key (required), its friendly name unique;
+`Set-OfficeWebAppsFarm -CertificateName <friendly name> -Force` (an SSL-offloaded
+farm refused); the farm takes it after its servers restart - when asked acme
+schedules `shutdown /r /t 60` and the tests after the deployment wait up to
+~6 minutes (`served_wait`). Deploy to each server of the farm, one at a time.
+A TLS test of `<address>:443` is made.
+
+Setup guides: `acmelib/plugins/guides/targets/windows_{wsus,hyperv_replica,ssrs,scom,oos}[.cs].md`.
+
+<!-- Under `windows_ssh` (its roles), a note on the documented versions it covers -->
+
+**Versions covered by `windows_ssh`** (checked against Microsoft's documents,
+2026-11): IIS 10.0 on Windows Server 2016 - 2025; RDP listener and WinRM HTTPS
+on 2016 - 2025; RDS (`Set-RDCertificate -ImportPath`, which 2016 needs - its
+`-Thumbprint` is 2019+ only) and RD Gateway on 2016 - 2025; AD FS and WAP on
+2016 - 2025 (FBL 2016+); LDAPS (NTDS store + `renewServerCertificate`) on
+2016 - 2025; RRAS SSTP / DirectAccess IP-HTTPS on 2016 - 2025; SQL Server 2017 -
+2025 (`SuperSocketNetLib\Certificate` in small letters); Exchange 2016 CU23,
+2019 CU15 and SE (UM only on 2016); Skype for Business 2015, 2019 and SE
+(`Default`, `WebServicesInternal`, `WebServicesExternal`); SharePoint SE
+(the role) and SharePoint 2016/2019 (the *IIS bindings* field - they have no
+`*-SPCertificate`); Windows Admin Center 2410+ and older (MSI). The commands do
+not differ between these versions in what acme uses, so `windows_ssh` has no
+versions.
+
+# docs/targets.md - the veeam_storage group (to merge)
+
+
+
+
+## `netapp_ontap` - NetApp ONTAP (REST API)
+
+ONTAP REST API, HTTP basic sign-in of a cluster account (application `http`):
+
+1. installs the certificate as a **server** certificate - `POST
+   /api/security/certificates?return_timeout=120` with `name`
+   (`acme-<name>-<date>-<serial>`, 63 characters at most), `type: server`,
+   `public_certificate`, `private_key` and `intermediate_certificates` (ONTAP
+   refuses a server certificate with an intermediate missing); in the cluster
+   scope, or in the data SVM of *SVM* (`svm.name`); a `202`'s job is waited for
+   (`GET /api/cluster/jobs/<uuid>`);
+2. binds it to the web services (System Manager, REST API) - by the version,
+   below; ONTAP restarts its web services, so the answer may be cut off: acme
+   then reads the binding back;
+3. deletes older acme certificates beyond *keep* (`DELETE
+   /api/security/certificates/<uuid>`), only after the switch.
+
+"The same one is there": the dated name exists and is the one bound.
+
+**Versions of the module** (1.0.96):
+
+| Version | Label | Cluster | Data SVM |
+| `''` | any version (detects it) | by `GET /api/cluster?fields=version` | |
+| `9.6` | ONTAP 9.6 - 9.9 | `PATCH /api/cluster {"certificate":{"uuid"}}` | `PATCH /api/svm/svms/<uuid>` |
+| `9.10` | ONTAP 9.10.1 - 9.19 | `PATCH /api/cluster/web` | `PATCH /api/svm/svms/<uuid>/web` |
+
+A numbered version refuses a cluster that says another ONTAP before anything
+changes (a newer one than 9.19 is a warning for `9.10`); the plain one uses
+`/web` when the version cannot be read. **Rights**: a role with `security
+certificate` all, `security ssl` all, `vserver services web` readonly (or a REST
+role on `/api/security/certificates`, `/api/cluster/web`, `/api/svm/svms`);
+the exact commands are in the setup guides. *Check what is served*: the
+cluster's address by itself; an SVM's management LIF is typed.
+
+Sources: navody/certifikaty/storage-hci/netapp-ontap.md (2026-11), citing
+<https://docs.netapp.com/us-en/ontap-restapi/ontap/post-security-certificates.html>,
+<https://docs.netapp.com/us-en/ontap-restapi/ontap/patch-cluster-web.html>,
+<https://docs.netapp.com/us-en/ontap-restapi/ontap/patch-svm-svms-web.html>,
+<https://docs.netapp.com/us-en/ontap-restapi/ontap/patch-cluster.html>.
+**Less certain**: `GET /api/cluster`'s `version` is from the general REST
+reference; the least REST role is not proven by NetApp (use `admin` when
+refused); the maximum name length is not documented.
+
+## `pure_flasharray` - Pure Storage FlashArray
+
+REST API 2.x with an API token: `GET /api/api_version` (the newest `2.x`, or
+*REST API version*), `POST /api/2.x/login` with `api-token` → `x-auth-token`,
+`GET /api/2.x/certificates?names=<name>` (the same certificate there: nothing
+done), `PATCH /api/2.x/certificates?names=<name>` with `certificate`,
+`intermediate_certificate` and `key`, `POST /api/2.x/logout`. *Certificate on the
+array*: `management` (GUI, REST API - checked on `<host>:443` by itself) or
+`vasa-ct0` / `vasa-ct1` (VASA providers: register them again in vCenter).
+Purity//FA 6.x, REST 2.x up to 2.59 - one module. **Rights**: `array_admin`.
+
+## `pure_flashblade` - Pure Storage FlashBlade
+
+The same as `pure_flasharray` with FlashBlade's differences: `POST /api/login`
+(no version in the path) and the key in `private_key`. The certificate's name is
+asked (Pure does not document the management certificate's name; `global` is
+usual). Purity//FB 4.x, REST 2.x up to 2.30.
+
+Sources (both): navody/certifikaty/storage-hci/pure-storage.md (2026-11), citing
+<https://code.purestorage.com/swagger/redoc/fa2.59-api-reference.html>,
+<https://code.purestorage.com/swagger/redoc/fb2.30-api-reference.html>.
+**Less certain**: `GET /api/api_version` is not quoted by the guide (the version
+can be set by hand); no smaller role than `array_admin` is documented.
+
+## `qnap` - QNAP QTS / QuTS hero (SSH)
+
+QNAP documents **no API** for certificates (only the GUI). Over SSH, as acme.sh's
+`ssh` deploy hook documents for QNAP: the certificate in `/etc/stunnel/stunnel.pem`
+read (the same: nothing done), the files kept as `.acme-prev`,
+`/etc/stunnel/stunnel.pem` written (key + certificate, 600) and
+`/etc/stunnel/uca.pem` (the intermediates), `/etc/init.d/stunnel.sh restart` - when
+it fails the previous files are put back; *Restart the web server too* adds
+`/etc/init.d/Qthttpd.sh restart`. *Try reaching it* checks the files are there.
+QTS 5.2, QuTS hero h5.2 / h5.3. An account of the `administrators` group.
+
+Sources: navody/certifikaty/storage-hci/qnap.md (2026-11), citing
+<https://docs.qnap.com/operating-system/qts/5.2.x/en-us/replacing-the-server-certificate-8E7C1926.html>,
+<https://github.com/acmesh-official/acme.sh/wiki/deployhooks>.
+**Less certain**: the whole mechanism (paths, script) is known from acme.sh's wiki
+(QTS 4.2.3) and the community only; QTS may write the files back at a restart or
+an update; a QuTS hero HA cluster may not copy it to the passive node.
+
+## `cockpit` - Cockpit web console (Linux, SSH)
+
+Over SSH, each command through sudo on its own (never `sh -c`), so sudoers can
+allow exactly them: the certificate + chain and the key uploaded to `/tmp` and
+installed as `/etc/cockpit/ws-certs.d/<NN>-acme-<name>-<date>-<serial>.crt`
+(0644) / `.key` (0600 root:root); `cockpit-certificate-ensure --check`
+(`/usr/libexec/…` or `/usr/lib/cockpit/…`) must name the new file - when another
+one wins the new files are removed and the deployment fails; `systemctl restart
+cockpit.service` (optional); older acme files deleted beyond *keep*. *Add its CA
+certificates to the system trust store*: `acme-ca-<id>.crt` into
+`/etc/pki/ca-trust/source/anchors` + `update-ca-trust extract` (RHEL, Fedora),
+`/usr/local/share/ca-certificates` + `update-ca-certificates` (Debian, Ubuntu) or
+`/etc/pki/trust/anchors` + `update-ca-certificates` (SLES). Checked on
+`<host>:9090`. Unlike the `ssh` target's *Cockpit* preset (one file overwritten,
+the key 0640 root:cockpit-ws, the service restarted through `sh -c`), the new
+certificate is a new file and Cockpit's own choice is checked.
+
+Sources: navody/certifikaty/storage-hci/linux-cockpit-truststore.md (2026-11),
+citing <https://docs.cockpit-project.org/cockpit-guide/latest/guide/https.html>,
+<https://docs.cockpit-project.org/cockpit-guide/latest/man/cockpit-tls.8.html>.
+**Less certain**: the output of `cockpit-certificate-ensure --check` (the file
+name is looked for in it); that the restart is needed (from the socket
+activation); SLES's anchors folder.
+
+## `veeam_vbr` - Veeam Backup & Replication (backup server certificate)
+
+Windows over OpenSSH, PowerShell (windows_ssh's machinery): the certificate
+imported from a one-time PKCS#12 into `LocalMachine\My` and its CA certificates
+into the Intermediate / Root stores; `Get-VBRBackupServerCertificate -FromStore |
+Where-Object Thumbprint -eq …`; `Add-VBRBackupServerCertificate -Certificate $c`
+(`-Force` on v13); on 12.3 `netsh http delete/add sslcert ipport=0.0.0.0:9419
+… appid={284175c4-aa3e-4c6f-a2dd-5a4c80552eb9}`; *Restart these services*
+(empty by default - a restart stops running jobs); older acme certificates
+removed, never the one used now or before. Veeam takes only a certificate with
+**Basic Constraints CA, path length 0**, RSA, from an internal CA: acme refuses
+another one before anything is done (*Deploy a certificate that is not a CA one*
+turns that off).
+
+| Version | Label | |
+| `''` | any version (detects it) | `Get-VBRBackupServerInfo`'s build, else `-Force` present = v13 |
+| `12.3` | VBR 12.3 | no `-Force`; netsh binding of 9419 |
+
+Checked on `<host>:443` (13) or `:9419` (12.3 / plain). **Rights**: a local
+administrator with the VBR role Backup Administrator, marked as a service account
+(MFA off).
+
+Sources: navody/certifikaty/veeam/vbr-server.md (2026-11), citing
+<https://helpcenter.veeam.com/docs/vbr/userguide/backup_server_certificate.html?ver=13>,
+<https://helpcenter.veeam.com/docs/vbr/powershell/add-vbrbackupservercertificate.html>,
+<https://helpcenter.veeam.com/archive/backup/120/vbr_rest/tls_certificate.html>,
+<https://www.veeam.com/kb4687>.
+**Less certain**: whether the cmdlet restarts the backup service itself; the
+service name; `Get-VBRBackupServerInfo` is not in the guide.
+
+## `veeam_cloud_connect` - Veeam Cloud Connect (cloud gateway certificate)
+
+The provider's backup server over OpenSSH: the certificate imported into
+`LocalMachine\My` (its chain into the Intermediate / Root stores - Veeam refuses
+an untrusted chain), `Get-VBRCloudGatewayCertificate -FromStore | Where-Object
+Thumbprint -eq …`, `Add-VBRCloudGatewayCertificate -Certificate $c`; the new
+thumbprint said for tenants that verify it. A public CA's certificate, a wildcard
+or several FQDNs are fine here. VBR 12.3 and 13.0 - 13.1 - one module. No TLS
+test is attached (the gateway's port 6180 speaks Veeam's protocol).
+
+Sources: navody/certifikaty/veeam/cloud-connect.md (2026-11), citing
+<https://helpcenter.veeam.com/docs/vbr/cloud/cloud_connect_ssl.html?ver=13>,
+<https://helpcenter.veeam.com/docs/vbr/powershell/add-vbrcloudgatewaycertificate.html>.
+**Less certain**: the `Thumbprint` property; the FromFile parameter set is not
+used (its reference contradicts itself).
+
+## `veeam_vb365` - Veeam Backup for Microsoft 365
+
+The VB365 server over OpenSSH, `Veeam.Archiver.PowerShell`, a one-time PKCS#12
+given to the cmdlets ticked: `Set-VBORestAPISettings -EnableService -HTTPSPort
+<port>` (the REST API, on by default; checked on `<host>:<port>`),
+`Set-VBOSecuritySettings … -Force` (the server certificate of workgroup proxies),
+`Set-VBOOperatorAuthenticationSettings` / `Set-VBOTenantAuthenticationSettings
+-EnableAuthentication`; the file deleted. VB365 8.x - one module. The Restore
+Portal's certificate is not set (it must match its Entra application).
+
+Sources: navody/certifikaty/veeam/vb365.md (2026-11), citing
+<https://helpcenter.veeam.com/docs/vbo365/guide/vbo_ssl_certificates_overview.html?ver=8>,
+<https://helpcenter.veeam.com/docs/vbo365/powershell/set-vborestapisettings.html>.
+**Less certain**: the module name `Veeam.Archiver.PowerShell`; whether the REST
+service restarts by itself.
+
+## Addition to the `nutanix` section
+
+**Versions of the module** (1.0.96): `7.5` - *Prism Central 7.3 - 7.5 (v4.4
+API)*: the v4.4 clustermgmt / prism APIs by default (`v4.0`-`v4.3` can be
+chosen), sign-in with a Prism Central service account's API key
+(`X-ntnx-api-key`) or a user, and AOS 7.5's key types (RSA 2048 / 4096, ECDSA
+P-256 / P-384 - P-521 refused before anything is sent). The calls are the
+plain module's. Source: navody/certifikaty/storage-hci/nutanix.md (official SDK
+`ntnx-clustermgmt-py-client` 4.4.1, Command Reference AOS 7.5). **Less certain**:
+from which Prism Central v4.4 is served; the Prism Central version is not read.
+
+## Addition to "Not here"
+
+- **Veeam Software Appliance / Infrastructure Appliance** (Host Management
+  certificate, 10443): no API or CLI; every change is a request a Security
+  Officer approves in the web UI - deliberately manual. 13.0's shell way (KB4813)
+  needs a temporary root shell from the console.
+- **Veeam Backup Enterprise Manager**, **Veeam ONE**, **Veeam Recovery
+  Orchestrator**: no Veeam API for their certificates; their web UI certificate
+  is an IIS binding - the `windows_ssh` target's *IIS bindings* does it (EM
+  `9443`, Veeam ONE site `VeeamReporter` port `1239`, VRO site `Veeam Recovery
+  Orchestrator Web UI` port `9898`). EM's server certificate and Veeam ONE's
+  Web API certificate have no automatable way.
+- **Veeam Backup for AWS / Azure / Google Cloud** appliances: certificate only
+  in the appliance's web UI; **Veeam Plug-ins for Nutanix AHV / Proxmox VE**: no
+  certificate of their own (Prism's and Proxmox VE's are deployed with `nutanix`
+  / `proxmox`).
+- **Veeam Kasten**: the dashboard's TLS is a `kubernetes.io/tls` secret in
+  `kasten-io` named in Helm's `ingress.tls.secretName` - the `kubernetes` target
+  does it as it is.
+
+## Products with a guide but no target (1.0.96)
+
+What the vendors' guides describe where acme cannot put its own key and certificate (the
+product takes only a certificate of a request it made itself, or has no documented way), or
+where another target does it - each guide says how to do it by hand, or which target to use:
+
+- [HPE Aruba Networking AOS 8 (Mobility Conductor, controllers, Instant AP) - certificates by hand (no acme target)](vendor-guides/aos8.md) ([česky](vendor-guides/aos8.cs.md))
+- [Barracuda Email Security Gateway - by hand (no acme module)](vendor-guides/barracuda_esg.md) ([česky](vendor-guides/barracuda_esg.cs.md))
+- [Barracuda Load Balancer ADC - by hand (no acme module)](vendor-guides/barracuda_lb.md) ([česky](vendor-guides/barracuda_lb.cs.md))
+- [Cisco Unified Communications Manager (CUCM 14 / 15) - certificates by hand (no acme target)](vendor-guides/cucm.md) ([česky](vendor-guides/cucm.cs.md))
+- [Fujitsu ETERNUS CS8000 - no automated deployment](vendor-guides/eternus_cs8000.md) ([česky](vendor-guides/eternus_cs8000.cs.md))
+- [Fujitsu ETERNUS LT (LT140, LT260) - no automated deployment](vendor-guides/eternus_lt.md) ([česky](vendor-guides/eternus_lt.cs.md))
+- [Fujitsu ETERNUS NR (NR1000, ONTAP) - setup for acme](vendor-guides/eternus_nr.md) ([česky](vendor-guides/eternus_nr.cs.md))
+- [Fujitsu ETERNUS SF (Web Console certificate) - setup for acme](vendor-guides/eternus_sf.md) ([česky](vendor-guides/eternus_sf.cs.md))
+- [OpenBMC and AMI MegaRAC - setup for acme (target "redfish")](vendor-guides/openbmc_megarac.md) ([česky](vendor-guides/openbmc_megarac.cs.md))
+- [Fujitsu PRIMEQUEST 3000 MMB - no automated deployment](vendor-guides/primequest_mmb.md) ([česky](vendor-guides/primequest_mmb.cs.md))
+- [Fujitsu ServerView Operations Manager (CMS) - setup for acme](vendor-guides/serverview_om.md) ([česky](vendor-guides/serverview_om.cs.md))

@@ -12,8 +12,13 @@ controller afterwards* pošle `Manager.Reset` `GracefulRestart` - **restartuje s
 
 **Které řadiče takto přijmou soukromý klíč, se liší.** Podle hlášení fungují: AMI MegaRAC
 (ASUS, Lenovo, Supermicro), Dell iDRAC9 s firmwarem 5.x a novějším, HPE iLO 5 2.42 a
-novější. **HPE iLO 6 nabízí jen GenerateCSR** a klíč nepřijme - acme to oznámí. Starší
-iDRAC potřebují `racadm sslkeyupload`, ne tento cíl. Lenovo XCC2 bere jen `PEM`.
+novější. **HPE iLO 6 neuvádí ReplaceCertificate**: klíč jde přes vlastní službu HPE -
+zvolte verzi **`ilo`** tohoto cíle (iLO 5 2.78+, iLO 6 1.30+, iLO 7). **Dell iDRAC9 6.00.02+ /
+iDRAC10**: verze **`6.00.02`** (vlastní nahrání Dellu). **Lenovo XClarity Controller (XCC,
+XCC2, XCC3) přijme jen certifikát k žádosti, kterou si sám vytvořil** - klíč z acme tam
+nejde (dokumentace Lenova, 2026). Starší iDRAC potřebují `racadm sslkeyupload`. Standardní
+certifikační služba Supermicro potřebuje licenci SFT-DCMS-SINGLE (jinak cíl
+`supermicro_bmc`); Supermicro a OpenBMC berou *Send as* `PEM`.
 Pro certifikát použijte typ klíče **RSA 2048**.
 
 ## Co potřebujete
@@ -85,7 +90,7 @@ Pro certifikát použijte typ klíče **RSA 2048**.
 |---|---|
 | `401` při přihlášení | Špatné jméno/heslo, vypnutý uživatel, nebo vypnutý Redfish. |
 | `403` při výměně | Uživateli chybí *Configure* / *Configure iLO Settings*. |
-| `offers no CertificateService.ReplaceCertificate` | HPE iLO 6: bere jen certifikáty k vlastnímu CSR - nepodporováno. |
+| `offers no CertificateService.ReplaceCertificate` | HPE iLO 6/7: použijte verzi `ilo` tohoto cíle. Lenovo XCC: bere jen certifikát k vlastní žádosti - nejde. |
 | Certifikát odmítnut | Zkuste *Send as* `PEM`; použijte klíč RSA 2048; starší firmware nemusí klíč přijmout vůbec - aktualizujte ho. |
 | Řadič stále ukazuje starý certifikát | Zapněte *Restart the controller afterwards* (iDRAC); kontrola na restart počká. |
 | Dosažen limit relací | Na řadiči je otevřeno příliš relací; počkejte, nebo použijte základní autentizaci. |

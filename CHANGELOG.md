@@ -6,6 +6,36 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.96 - not released
 
+**Targets from a collection of vendors' guides** - each checked against the official documents
+it cites, with a setup guide (English and Czech) for every target and version, and its run
+shown in *What happens*. Versions only where the calls differ; an existing target that already
+did the documented versions the same way got no copy (docs/targets.md, "From the vendors'
+guides"):
+
+- **New targets**: HPE OneView / Synergy Composer, HPE Alletra 5000/6000 and Nimble; Dell
+  PowerScale OneFS, PowerStore, Unity, Unisphere for PowerMax; Fujitsu iRMC, Infrastructure
+  Manager (ISM), ETERNUS DX / AF; Supermicro BMC, Cisco IMC, Huawei / xFusion iBMC; VMware NSX
+  Manager (its own certificate), SDDC Manager (trust store), Aria Suite Lifecycle, Aria
+  Automation, Cloud Director, Live Site Recovery / vSphere Replication, vSphere Supervisor;
+  Omnissa Horizon Connection Server; Cisco IOS XE, Catalyst 9800, NX-OS, Catalyst Center;
+  HPE Aruba AOS-CX, ClearPass, Central; Barracuda CloudGen Firewall, Infoblox NIOS,
+  FortiManager / FortiAnalyzer; Windows WSUS, Hyper-V Replica, Reporting Services, Operations
+  Manager, Office Online Server; NetApp ONTAP, Pure Storage FlashArray and FlashBlade, QNAP,
+  Cockpit; Veeam Backup & Replication, Cloud Connect, Backup for Microsoft 365.
+- **New versions of targets there were**: `redfish` HPE iLO 5/6/7 (HPE's own import - iLO 6
+  takes a key from 1.30) and Dell iDRAC9 6.00.02+ / iDRAC10 (Dell's own upload); `esxi` 8.0 U3
+  - 9.1 through vCenter (no SSH, no restart); `vcenter` 8.0 U2 - 9.1 (no restart waited for);
+  `cisco_fmc` 7.7 - 10.0 (device certificates by enrolment); `nutanix` Prism Central 7.3 - 7.5
+  (v4.4 API, API key); NetApp ONTAP 9.6 - 9.9 and 9.10+; IOS XE / 9800 before and from 17.12;
+  vSphere Supervisor on vCenter 9.0 and 9.1.
+- Fixed in targets there were (each confirmed by two sources): `esxi` saves the new
+  certificate to the boot bank (`auto-backup.sh`) - a host rebooted within the hour came
+  back with the old one; `redfish` no longer says iLO 6 takes no key, and its guide no longer
+  promises Lenovo XCC, which takes only a certificate of its own request.
+- Products where acme's key cannot go (Lenovo XCC, OpenManage Enterprise, CUCM, AOS 8,
+  PRIMEQUEST MMB, ETERNUS LT / CS8000, Barracuda Load Balancer and Email Security...) have a
+  guide of how to do it by hand in docs/vendor-guides/.
+
 ## 1.0.95 - 2026-11-12
 
 - **The setup guide and its editor take the screen they are given**: the text was held to

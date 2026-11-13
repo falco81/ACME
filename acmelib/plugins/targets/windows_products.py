@@ -272,6 +272,7 @@ WSUS_VDIRS = ['SimpleAuthWebService', 'DSSAuthWebService', 'ServerSyncWebService
 
 
 class WsusTarget(WinProductTarget):
+    discovery = False           # nothing to find: a server over SSH
     kind = 'windows_wsus'
     title = 'WSUS (Windows Server Update Services)'
     product = 'WSUS'
@@ -403,6 +404,7 @@ class WsusTarget(WinProductTarget):
 # Hyper-V Replica
 # ---------------------------------------------------------------------------
 class HyperVReplicaTarget(WinProductTarget):
+    discovery = False           # nothing to find: a server over SSH
     kind = 'windows_hyperv_replica'
     title = 'Hyper-V Replica (certificate authentication)'
     product = 'Hyper-V Replica'
@@ -513,6 +515,7 @@ class HyperVReplicaTarget(WinProductTarget):
 # Reporting Services / Power BI Report Server
 # ---------------------------------------------------------------------------
 class SsrsTarget(WinProductTarget):
+    discovery = False           # nothing to find: a server over SSH
     kind = 'windows_ssrs'
     title = 'SQL Server Reporting Services / Power BI Report Server'
     product = 'Reporting Services'
@@ -620,6 +623,7 @@ SCOM_SERIAL = [
 
 
 class ScomTarget(WinProductTarget):
+    discovery = False           # nothing to find: a server over SSH
     kind = 'windows_scom'
     title = 'System Center Operations Manager (certificate)'
     product = 'Operations Manager'
@@ -722,6 +726,7 @@ class ScomTarget(WinProductTarget):
 # Office Online Server
 # ---------------------------------------------------------------------------
 class OosTarget(WinProductTarget):
+    discovery = False           # nothing to find: a server over SSH
     kind = 'windows_oos'
     title = 'Office Online Server'
     product = 'Office Online Server'

@@ -57111,6 +57111,2754 @@
   "ui_2": {
    "source": "ssh-ed25519 AAAA… you@laptop",
    "text": "ssh-ed25519 AAAA… vy@notebook"
+  },
+  "mhpe_lenovo_1": {
+   "source": "HPE iLO 5 (2.78+), iLO 6 (1.30+), iLO 7",
+   "text": "HPE iLO 5 (2.78+), iLO 6 (1.30+), iLO 7"
+  },
+  "mhpe_lenovo_2": {
+   "source": "HPE iLO 5 (2.78+), iLO 6 (1.30+), iLO 7: puts the certificate and its private key on the iLO through HPE's HpeHttpsCert.ImportCertificate (the key type set to match first), after which the iLO resets itself (1-3 minutes, the server is not touched). Refused on another controller or older firmware before anything is changed.",
+   "text": "HPE iLO 5 (2.78+), iLO 6 (1.30+), iLO 7: nahraje certifikát a jeho soukromý klíč na iLO přes HpeHttpsCert.ImportCertificate od HPE (typ klíče předtím nastaví podle klíče), načež se iLO samo restartuje (1-3 minuty, serveru se to nedotkne). Na jiném řadiči nebo starším firmwaru odmítne dřív, než cokoli změní."
+  },
+  "mhpe_lenovo_3": {
+   "source": "served by the iLO",
+   "text": "servíruje ho iLO"
+  },
+  "mhpe_lenovo_4": {
+   "source": "importing the certificate and key",
+   "text": "import certifikátu a klíče"
+  },
+  "mhpe_lenovo_5": {
+   "source": "imported the certificate with its key - the iLO resets (1-3 minutes, the server is not touched)",
+   "text": "certifikát s klíčem naimportován - iLO se restartuje (1-3 minuty, serveru se to nedotkne)"
+  },
+  "mhpe_lenovo_6": {
+   "source": "imported the HTTPS certificate with its key, the iLO resets",
+   "text": "HTTPS certifikát s klíčem naimportován, iLO se restartuje"
+  },
+  "mhpe_lenovo_7": {
+   "source": "reading the security service",
+   "text": "čtení security service"
+  },
+  "mhpe_lenovo_8": {
+   "source": "reading the HTTPS certificate",
+   "text": "čtení HTTPS certifikátu"
+  },
+  "mhpe_lenovo_9": {
+   "source": "the controller offers no CertificateService.ReplaceCertificate (HPE iLO: choose the module version for HPE iLO - iLO takes a certificate with its key through its own HpeHttpsCert)",
+   "text": "řadič nenabízí CertificateService.ReplaceCertificate (HPE iLO: zvolte verzi modulu pro HPE iLO - iLO přijímá certifikát s klíčem přes vlastní HpeHttpsCert)"
+  },
+  "mhpe_lenovo_10": {
+   "source": "HPE OneView / Synergy Composer",
+   "text": "HPE OneView / Synergy Composer"
+  },
+  "mhpe_lenovo_11": {
+   "source": "HPE OneView 9.x - 11.x and HPE Synergy Composer (OneView for Synergy): imports the certificate with its key (PKCS#12) as the appliance's HTTPS certificate through the REST API, the intermediates into its trust store first. RSA keys only. The appliance reloads its web services.",
+   "text": "HPE OneView 9.x - 11.x a HPE Synergy Composer (OneView for Synergy): naimportuje certifikát s klíčem (PKCS#12) jako HTTPS certifikát appliance přes REST API, předtím mezilehlé certifikáty do jejího trust storu. Jen klíče RSA. Appliance znovu načte webové služby."
+  },
+  "mhpe_lenovo_12": {
+   "source": "Login domain",
+   "text": "Přihlašovací doména"
+  },
+  "mhpe_lenovo_13": {
+   "source": "LOCAL, or the name of the directory (LDAP / AD) login domain",
+   "text": "LOCAL, nebo název adresářové (LDAP / AD) přihlašovací domény"
+  },
+  "mhpe_lenovo_14": {
+   "source": "Put the intermediates into the trust store",
+   "text": "Vložit mezilehlé certifikáty do trust storu"
+  },
+  "mhpe_lenovo_15": {
+   "source": "POST /rest/certificates/ca - HPE wants the issuing CA there before the appliance certificate",
+   "text": "POST /rest/certificates/ca - HPE chce mít vydávající CA v trust storu před certifikátem appliance"
+  },
+  "mhpe_lenovo_16": {
+   "source": "Wait for the import task (s)",
+   "text": "Čekat na úlohu importu (s)"
+  },
+  "mhpe_lenovo_17": {
+   "source": "reading the API version",
+   "text": "čtení verze API"
+  },
+  "mhpe_lenovo_18": {
+   "source": "the appliance did not say its API version (GET /rest/version) - is this HPE OneView?",
+   "text": "appliance neřekla svou verzi API (GET /rest/version) - je to HPE OneView?"
+  },
+  "mhpe_lenovo_19": {
+   "source": "the appliance gave no sessionID on signing in",
+   "text": "appliance při přihlášení nedala sessionID"
+  },
+  "mhpe_lenovo_20": {
+   "source": "reading the appliance certificate",
+   "text": "čtení certifikátu appliance"
+  },
+  "mhpe_lenovo_21": {
+   "source": "HPE OneView takes only an RSA certificate for the appliance - choose an RSA key type for this certificate",
+   "text": "HPE OneView bere pro appliance jen certifikát RSA - zvolte pro tento certifikát typ klíče RSA"
+  },
+  "mhpe_lenovo_22": {
+   "source": "served by the appliance",
+   "text": "servíruje ho appliance"
+  },
+  "mhpe_lenovo_23": {
+   "source": "importing the appliance certificate",
+   "text": "import certifikátu appliance"
+  },
+  "mhpe_lenovo_24": {
+   "source": "the appliance certificate imported (PKCS#12) - the appliance reloads its web services",
+   "text": "certifikát appliance naimportován (PKCS#12) - appliance znovu načítá webové služby"
+  },
+  "mhpe_lenovo_25": {
+   "source": "the certificate import",
+   "text": "import certifikátu"
+  },
+  "mhpe_lenovo_26": {
+   "source": "the import task completed (the SSO certificate goes to the managed iLOs too)",
+   "text": "úloha importu dokončena (SSO certifikát jde i do spravovaných iLO)"
+  },
+  "mhpe_lenovo_27": {
+   "source": "imported the appliance certificate",
+   "text": "certifikát appliance naimportován"
+  },
+  "mhpe_lenovo_28": {
+   "source": "HPE Alletra 5000/6000, Nimble Storage (NimbleOS)",
+   "text": "HPE Alletra 5000/6000, Nimble Storage (NimbleOS)"
+  },
+  "mhpe_lenovo_29": {
+   "source": "HPE Alletra 5000/6000 and Nimble Storage, NimbleOS 5.x and 6.x: imports the certificate with its key (PKCS#12) as the group's custom certificate through the NimbleOS REST API (port 5392) and uses it for the HTTPS GUI and/or the REST API, which reload. The names of the import and use actions are not in HPE's public documents - check them (More).",
+   "text": "HPE Alletra 5000/6000 a Nimble Storage, NimbleOS 5.x a 6.x: naimportuje certifikát s klíčem (PKCS#12) jako vlastní (custom) certifikát skupiny přes REST API NimbleOS (port 5392) a použije ho pro webové rozhraní HTTPS a/nebo REST API, která se znovu načtou. Názvy akcí importu a použití nejsou ve veřejné dokumentaci HPE - ověřte je (Více)."
+  },
+  "mhpe_lenovo_30": {
+   "source": "Use it for the HTTPS GUI (443)",
+   "text": "Použít pro webové rozhraní HTTPS (443)"
+  },
+  "mhpe_lenovo_31": {
+   "source": "Use it for the REST API (5392)",
+   "text": "Použít pro REST API (5392)"
+  },
+  "mhpe_lenovo_32": {
+   "source": "clients that pin the old one (vCenter plugin, VASA, CSI, PowerShell Toolkit) must take the new one",
+   "text": "klienti, kteří si pamatují starý certifikát (plugin vCenter, VASA, CSI, PowerShell Toolkit), musí přijmout nový"
+  },
+  "mhpe_lenovo_33": {
+   "source": "Certificate name",
+   "text": "Název certifikátu"
+  },
+  "mhpe_lenovo_34": {
+   "source": "the group's certificate replaced: custom",
+   "text": "vyměňovaný certifikát skupiny: custom"
+  },
+  "mhpe_lenovo_35": {
+   "source": "Import action",
+   "text": "Akce importu"
+  },
+  "mhpe_lenovo_36": {
+   "source": "Use action",
+   "text": "Akce použití"
+  },
+  "mhpe_lenovo_37": {
+   "source": "as the NimbleOS REST API Reference of your version names it",
+   "text": "jak ji pojmenovává REST API Reference vaší verze NimbleOS"
+  },
+  "mhpe_lenovo_38": {
+   "source": "the group gave no session_token on signing in",
+   "text": "skupina při přihlášení nedala session_token"
+  },
+  "mhpe_lenovo_39": {
+   "source": "none listed",
+   "text": "žádné"
+  },
+  "mhpe_lenovo_40": {
+   "source": "neither the HTTPS GUI nor the REST API is to use the certificate - tick one",
+   "text": "certifikát nemá používat webové rozhraní HTTPS ani REST API - zaškrtněte aspoň jedno"
+  },
+  "mhpe_lenovo_41": {
+   "source": "served by the group",
+   "text": "servíruje ho skupina"
+  },
+  "mhpe_lenovo_42": {
+   "source": "the HTTPS GUI",
+   "text": "webové rozhraní HTTPS"
+  },
+  "mhpe_lenovo_43": {
+   "source": "the REST API",
+   "text": "REST API"
+  },
+  "mhpe_lenovo_44": {
+   "source": "X-API-Version sent; empty: what the appliance says it takes (at most 9200)",
+   "text": "posílaná X-API-Version; prázdné: co appliance řekne, že bere (nejvýš 9200)"
+  },
+  "mfw_adc_1": {
+   "source": "Barracuda CloudGen Firewall",
+   "text": "Barracuda CloudGen Firewall"
+  },
+  "mfw_adc_2": {
+   "source": "Imports the certificate and key into a Certificate Store entry of a CloudGen Firewall or of a Firewall Control Center (global, range or cluster store) through the REST API, in place: the services that use the entry keep it. CloudGen Firewall / Control Center 10.0 - 10.5 (9.0 has no store endpoints and is refused).",
+   "text": "Naimportuje certifikát a klíč na místo do položky Certificate Store firewallu CloudGen nebo Firewall Control Center (globální úložiště, úložiště rozsahu nebo clusteru) přes REST API: služby, které položku používají, ji drží dál. CloudGen Firewall / Control Center 10.0 - 10.5 (9.0 nemá endpointy úložiště a je odmítnuta)."
+  },
+  "mfw_adc_3": {
+   "source": "an API token (X-API-Token)",
+   "text": "API token (X-API-Token)"
+  },
+  "mfw_adc_4": {
+   "source": "an administrator and password",
+   "text": "administrátora a heslo"
+  },
+  "mfw_adc_5": {
+   "source": "Box → Infrastructure Services → REST API Service → Access Tokens",
+   "text": "Box → Infrastructure Services → REST API Service → Access Tokens"
+  },
+  "mfw_adc_6": {
+   "source": "Certificate Store",
+   "text": "Certificate Store"
+  },
+  "mfw_adc_7": {
+   "source": "a firewall managed by a Control Center has no store of its own: use the Control Center's",
+   "text": "firewall spravovaný z Control Center nemá vlastní úložiště: použijte úložiště Control Center"
+  },
+  "mfw_adc_8": {
+   "source": "of this firewall (stand-alone box)",
+   "text": "tohoto firewallu (samostatný box)"
+  },
+  "mfw_adc_9": {
+   "source": "Control Center: global",
+   "text": "Control Center: globální"
+  },
+  "mfw_adc_10": {
+   "source": "Control Center: a range",
+   "text": "Control Center: rozsah (range)"
+  },
+  "mfw_adc_11": {
+   "source": "Control Center: a cluster",
+   "text": "Control Center: cluster"
+  },
+  "mfw_adc_12": {
+   "source": "Range",
+   "text": "Rozsah (range)"
+  },
+  "mfw_adc_13": {
+   "source": "Certificate Store entry",
+   "text": "Položka Certificate Store"
+  },
+  "mfw_adc_14": {
+   "source": "the entry the services use (SSL VPN, TLS Inspection...); its certificate and key are replaced in place, the services keep pointing at it",
+   "text": "položka, kterou používají služby (SSL VPN, TLS Inspection…); její certifikát a klíč se nahradí na místě a služby na ni dál odkazují"
+  },
+  "mfw_adc_15": {
+   "source": "Make the entry when it is not there",
+   "text": "Vytvořit položku, když neexistuje"
+  },
+  "mfw_adc_16": {
+   "source": "a placeholder entry is made first (self-signed), then the certificate is imported over it; point the service at it in Firewall Admin once",
+   "text": "nejdřív se založí zástupná položka (self-signed) a pak se přes ni naimportuje certifikát; službu na ni jednou nasměrujte ve Firewall Admin"
+  },
+  "mfw_adc_17": {
+   "source": "traditional (BEGIN RSA / EC PRIVATE KEY)",
+   "text": "tradiční (BEGIN RSA / EC PRIVATE KEY)"
+  },
+  "mfw_adc_18": {
+   "source": "the Control Center range is not set",
+   "text": "rozsah (range) Control Center není nastaven"
+  },
+  "mfw_adc_19": {
+   "source": "the Control Center cluster is not set",
+   "text": "cluster Control Center není nastaven"
+  },
+  "mfw_adc_20": {
+   "source": "the firewall's store",
+   "text": "úložiště firewallu"
+  },
+  "mfw_adc_21": {
+   "source": "the Control Center's global store",
+   "text": "globální úložiště Control Center"
+  },
+  "mfw_adc_22": {
+   "source": "the firewall has no Certificate Store endpoints in its REST API (CloudGen Firewall 9.0 has only read-only certificates there) - 10.0 or later is needed; on 9.0 import it in Firewall Admin",
+   "text": "REST API firewallu nemá endpointy Certificate Store (CloudGen Firewall 9.0 tam má certifikáty jen ke čtení) - je potřeba 10.0 nebo novější; na 9.0 certifikát naimportujte ve Firewall Admin"
+  },
+  "mfw_adc_23": {
+   "source": "Infoblox NIOS (WAPI)",
+   "text": "Infoblox NIOS (WAPI)"
+  },
+  "mfw_adc_24": {
+   "source": "Uploads the certificate with its chain and key as the HTTPS certificate (Grid Manager, WAPI, DoT/DoH) or the Captive Portal certificate of Grid members through WAPI (fileop uploadcertificate). NIOS 8.6, 9.0 and 9.1.",
+   "text": "Nahraje certifikát s řetězcem a klíčem jako HTTPS certifikát (Grid Manager, WAPI, DoT/DoH) nebo certifikát Captive Portal členů Gridu přes WAPI (fileop uploadcertificate). NIOS 8.6, 9.0 a 9.1."
+  },
+  "mfw_adc_25": {
+   "source": "an admin of a group allowed the API (API - WAPI/PAPI only)",
+   "text": "administrátor skupiny s povoleným API (API - WAPI/PAPI only)"
+  },
+  "mfw_adc_26": {
+   "source": "2.11 is in NIOS 8.6 - 9.1; a newer one (2.13.7 on NIOS 9.0) works too",
+   "text": "2.11 je v NIOS 8.6 - 9.1; novější (2.13.7 na NIOS 9.0) funguje také"
+  },
+  "mfw_adc_27": {
+   "source": "Grid members",
+   "text": "Členové Gridu"
+  },
+  "mfw_adc_28": {
+   "source": "one a line: the members' host names as the Grid knows them; the Grid Master last (its WAPI restarts with the new certificate)",
+   "text": "jeden na řádek: jména hostitelů členů, jak je zná Grid; Grid Master naposled (jeho WAPI se s novým certifikátem restartuje)"
+  },
+  "mfw_adc_29": {
+   "source": "Use it as",
+   "text": "Použít jako"
+  },
+  "mfw_adc_30": {
+   "source": "the HTTPS certificate (Grid Manager, WAPI, DoT/DoH)",
+   "text": "HTTPS certifikát (Grid Manager, WAPI, DoT/DoH)"
+  },
+  "mfw_adc_31": {
+   "source": "the Captive Portal certificate",
+   "text": "certifikát Captive Portal"
+  },
+  "mfw_adc_32": {
+   "source": "the Grid Master gave no upload address",
+   "text": "Grid Master nedal adresu pro nahrání"
+  },
+  "mfw_adc_33": {
+   "source": "no Grid member is given",
+   "text": "není zadán žádný člen Gridu"
+  },
+  "mfw_adc_34": {
+   "source": "the Grid Master gave no upload token / address",
+   "text": "Grid Master nedal token / adresu pro nahrání"
+  },
+  "mfw_adc_35": {
+   "source": "FortiManager / FortiAnalyzer",
+   "text": "FortiManager / FortiAnalyzer"
+  },
+  "mfw_adc_36": {
+   "source": "Adds the certificate as a local certificate of a FortiManager or FortiAnalyzer through JSON-RPC, makes it the HTTPS certificate of the GUI and the API (admin_server_cert) and deletes older ones. FortiManager / FortiAnalyzer 7.2.2 - 7.6 (API token).",
+   "text": "Přidá certifikát jako lokální certifikát FortiManageru nebo FortiAnalyzeru přes JSON-RPC, nastaví ho jako HTTPS certifikát GUI a API (admin_server_cert) a smaže starší. FortiManager / FortiAnalyzer 7.2.2 - 7.6 (API token)."
+  },
+  "mfw_adc_37": {
+   "source": "execute api-user generate-key <user> (a user of type api, rpc-permit read-write)",
+   "text": "execute api-user generate-key <uživatel> (uživatel typu api, rpc-permit read-write)"
+  },
+  "mfw_adc_38": {
+   "source": "HTTPS certificate of the GUI and API",
+   "text": "HTTPS certifikát GUI a API"
+  },
+  "mfw_adc_39": {
+   "source": "config system admin setting / set admin_server_cert",
+   "text": "config system admin setting / set admin_server_cert"
+  },
+  "mfw_adc_40": {
+   "source": "listing the local certificates",
+   "text": "výpis lokálních certifikátů"
+  },
+  "mfw_adc_41": {
+   "source": "reading the admin setting",
+   "text": "čtení nastavení administrace"
+  },
+  "mdell_1": {
+   "source": "Dell iDRAC9 6.00.02+ / iDRAC10 (Dell OEM): uploads the key and imports the certificate through Dell's DelliDRACCardService (UploadSSLKey, then ImportSSLCertificate \"Server\"), as Dell documents for a key made elsewhere; the iDRAC restarts its web server by itself (the server is not touched). Refused on another controller or older firmware.",
+   "text": "Dell iDRAC9 6.00.02+ / iDRAC10 (Dell OEM): nahraje klíč a naimportuje certifikát přes službu Dellu DelliDRACCardService (UploadSSLKey, pak ImportSSLCertificate „Server“), jak Dell dokumentuje pro klíč vytvořený jinde; iDRAC sám restartuje svůj webový server (server se nemění). Na jiném řadiči nebo starším firmwaru odmítne."
+  },
+  "mdell_2": {
+   "source": "Dell iDRAC9 6.00.02+ / iDRAC10 (Dell OEM)",
+   "text": "Dell iDRAC9 6.00.02+ / iDRAC10 (Dell OEM)"
+  },
+  "mdell_3": {
+   "source": "Dell PowerScale OneFS",
+   "text": "Dell PowerScale OneFS"
+  },
+  "mdell_4": {
+   "source": "Dell",
+   "text": "Dell"
+  },
+  "mdell_5": {
+   "source": "Imports the certificate into Dell PowerScale OneFS 8.2 - 9.12 through its REST API (the files put on /ifs and deleted after the import) and makes it the default HTTPS certificate of the WebUI and Platform API; deletes older ones acme put there.",
+   "text": "Naimportuje certifikát do Dell PowerScale OneFS 8.2 - 9.12 přes jeho REST API (soubory uloží na /ifs a po importu smaže) a nastaví ho jako výchozí certifikát HTTPS pro WebUI a Platform API; starší, které tam dalo acme, smaže."
+  },
+  "mdell_6": {
+   "source": "Make it the default HTTPS certificate",
+   "text": "Nastavit jako výchozí certifikát HTTPS"
+  },
+  "mdell_7": {
+   "source": "the certificate of the WebUI and the Platform API (port 8080)",
+   "text": "certifikát WebUI a Platform API (port 8080)"
+  },
+  "mdell_8": {
+   "source": "Folder on /ifs for the import",
+   "text": "Složka na /ifs pro import"
+  },
+  "mdell_9": {
+   "source": "the files are written there and deleted after the import",
+   "text": "soubory se zapíší sem a po importu se smažou"
+  },
+  "mdell_10": {
+   "source": "Dell PowerStore",
+   "text": "Dell PowerStore"
+  },
+  "mdell_11": {
+   "source": "Puts the certificate with its key on Dell PowerStore 3.0 - 4.4 as the cluster management certificate (Management_HTTP: PowerStore Manager and the REST API) through the REST API. Dell documents this certificate only from the cluster's own CSR: the key import is the call of Dell's SDK - try it first.",
+   "text": "Nahraje certifikát i s klíčem na Dell PowerStore 3.0 - 4.4 jako certifikát správy clusteru (Management_HTTP: PowerStore Manager a REST API) přes REST API. Dell tento certifikát dokumentuje jen z vlastního CSR clusteru: import klíče je volání z SDK Dellu - nejdřív ho vyzkoušejte."
+  },
+  "mdell_12": {
+   "source": "Dell Unity (service shell)",
+   "text": "Dell Unity (service shell)"
+  },
+  "mdell_13": {
+   "source": "Installs the certificate as the Unisphere management certificate of Dell Unity, Unity XT and UnityVSA (Unity OE 5.x) over SSH as the service user, with Dell's svc_custom_cert; Unisphere's web server restarts (storage I/O is not touched).",
+   "text": "Nainstaluje certifikát jako certifikát správy Unisphere na Dell Unity, Unity XT a UnityVSA (Unity OE 5.x) přes SSH jako uživatel service příkazem Dellu svc_custom_cert; webový server Unisphere se restartuje (I/O úložiště se to netýká)."
+  },
+  "mdell_14": {
+   "source": "Unisphere HTTPS port",
+   "text": "Port HTTPS Unisphere"
+  },
+  "mdell_15": {
+   "source": "where the management certificate is served, for the check",
+   "text": "kde se servíruje certifikát správy, pro kontrolu"
+  },
+  "mdell_16": {
+   "source": "Include the intermediates",
+   "text": "Přiložit mezilehlé certifikáty"
+  },
+  "mdell_17": {
+   "source": "off on Unity OE 5.5.0 - it refuses a file with CA certificates in it (fixed in 5.5.1)",
+   "text": "na Unity OE 5.5.0 vypnout - odmítá soubor s certifikáty CA (opraveno v 5.5.1)"
+  },
+  "mdell_18": {
+   "source": "the base name of the .crt and .pk files in /home/service/user",
+   "text": "základ jmen souborů .crt a .pk v /home/service/user"
+  },
+  "mdell_19": {
+   "source": "Dell Unisphere for PowerMax (Solutions Enabler certificate)",
+   "text": "Dell Unisphere for PowerMax (certifikát Solutions Enabler)"
+  },
+  "mdell_20": {
+   "source": "Imports the key and certificate as the Solutions Enabler (SYMAPI) server certificate of the embedded management nodes of Unisphere for PowerMax 10.x through its Serviceability REST API. Unisphere's own HTTPS certificate has no API (only its own CSR in the GUI) and is not changed.",
+   "text": "Naimportuje klíč a certifikát jako serverový certifikát Solutions Enabler (SYMAPI) uzlů embedded management Unisphere for PowerMax 10.x přes jeho Serviceability REST API. Vlastní certifikát HTTPS Unisphere nemá API (jen vlastní CSR v GUI) a nemění se."
+  },
+  "mdell_21": {
+   "source": "Array ID",
+   "text": "ID pole"
+  },
+  "mdell_22": {
+   "source": "the 12-digit Symmetrix ID of the PowerMax",
+   "text": "dvanáctimístné Symmetrix ID pole PowerMax"
+  },
+  "mdell_23": {
+   "source": "Management nodes",
+   "text": "Uzly správy"
+  },
+  "mdell_24": {
+   "source": "one a line: the Solutions Enabler nodes of the embedded management",
+   "text": "každý na řádek: uzly Solutions Enabler embedded management"
+  },
+  "mdell_25": {
+   "source": "Trusted CA certificates",
+   "text": "Důvěryhodné certifikáty CA"
+  },
+  "mdell_26": {
+   "source": "the trust file: the CAs of the clients' certificates; empty: the intermediates of this certificate",
+   "text": "trust file: CA certifikátů klientů; prázdné: mezilehlé certifikáty tohoto certifikátu"
+  },
+  "mdell_27": {
+   "source": "the iDRAC firmware version cannot be read - the Dell OEM calls are tried",
+   "text": "verzi firmwaru iDRAC nelze přečíst - zkusí se volání Dell OEM"
+  },
+  "mdell_28": {
+   "source": "uploading the key",
+   "text": "nahrávání klíče"
+  },
+  "mdell_29": {
+   "source": "uploaded the key",
+   "text": "klíč nahrán"
+  },
+  "mdell_30": {
+   "source": "imported the certificate - the iDRAC restarts its web server",
+   "text": "certifikát naimportován - iDRAC restartuje svůj webový server"
+  },
+  "mdell_31": {
+   "source": "this iDRAC offers no DelliDRACCardService.UploadSSLKey (it came with iDRAC9 6.00.02) - update the firmware, or use the plain version of the target",
+   "text": "tento iDRAC nenabízí DelliDRACCardService.UploadSSLKey (přišla s iDRAC9 6.00.02) - aktualizujte firmware, nebo použijte základní verzi cíle"
+  },
+  "mdell_32": {
+   "source": "restarting the iDRAC",
+   "text": "restart iDRAC"
+  },
+  "mdell_33": {
+   "source": "the iDRAC restarts (a few minutes)",
+   "text": "iDRAC se restartuje (pár minut)"
+  },
+  "mdell_34": {
+   "source": "reading DelliDRACCardService",
+   "text": "čtení DelliDRACCardService"
+  },
+  "mdell_35": {
+   "source": ", the iDRAC restarts",
+   "text": ", iDRAC se restartuje"
+  },
+  "mdell_36": {
+   "source": "served by the iDRAC",
+   "text": "servíruje ho iDRAC"
+  },
+  "mdell_37": {
+   "source": "reading the certificate settings",
+   "text": "čtení nastavení certifikátů"
+  },
+  "mdell_38": {
+   "source": "listing the server certificates",
+   "text": "výpis serverových certifikátů"
+  },
+  "mdell_39": {
+   "source": "the default HTTPS certificate",
+   "text": "výchozí certifikát HTTPS"
+  },
+  "mdell_40": {
+   "source": "the OneFS version cannot be read - the calls of OneFS 9 are used",
+   "text": "verzi OneFS nelze přečíst - použijí se volání OneFS 9"
+  },
+  "mdell_41": {
+   "source": "writing the key beside it",
+   "text": "zápis klíče vedle něj"
+  },
+  "mdell_42": {
+   "source": "served by PowerStore",
+   "text": "servíruje ho PowerStore"
+  },
+  "mdell_43": {
+   "source": "PowerStore gave no DELL-EMC-TOKEN on signing in",
+   "text": "PowerStore při přihlášení nevrátil DELL-EMC-TOKEN"
+  },
+  "mdell_44": {
+   "source": "the PowerStoreOS version cannot be read - the calls of 3.0 - 4.4 are used",
+   "text": "verzi PowerStoreOS nelze přečíst - použijí se volání 3.0 - 4.4"
+  },
+  "mdell_45": {
+   "source": "importing the management certificate",
+   "text": "import certifikátu správy"
+  },
+  "mdell_46": {
+   "source": "reading it back",
+   "text": "zpětné čtení"
+  },
+  "mdell_47": {
+   "source": "PowerStore says the certificate is not valid (is_valid false) - check the chain",
+   "text": "PowerStore hlásí, že certifikát není platný (is_valid false) - zkontrolujte řetězec"
+  },
+  "mdell_48": {
+   "source": " (without the intermediates)",
+   "text": " (bez mezilehlých certifikátů)"
+  },
+  "mdell_49": {
+   "source": "served by Unisphere",
+   "text": "servíruje ho Unisphere"
+  },
+  "mdell_50": {
+   "source": "installed - Unisphere's web server restarts",
+   "text": "nainstalováno - webový server Unisphere se restartuje"
+  },
+  "mdell_51": {
+   "source": "Unity documents only RSA keys for its management certificate - give this certificate an RSA key type",
+   "text": "Unity pro certifikát správy dokumentuje jen klíče RSA - dejte tomuto certifikátu typ klíče RSA"
+  },
+  "mdell_52": {
+   "source": "on the Solutions Enabler nodes",
+   "text": "na uzlech Solutions Enabler"
+  },
+  "mdell_53": {
+   "source": "no management node is set",
+   "text": "není zadán žádný uzel správy"
+  },
+  "mdell_54": {
+   "source": "no trusted CA certificate: the certificate has no intermediates - give \"Trusted CA certificates\"",
+   "text": "žádný důvěryhodný certifikát CA: certifikát nemá mezilehlé - vyplňte „Důvěryhodné certifikáty CA“"
+  },
+  "mmicrosoft_1": {
+   "source": "WSUS (Windows Server Update Services)",
+   "text": "WSUS (Windows Server Update Services)"
+  },
+  "mmicrosoft_2": {
+   "source": "WSUS on Windows Server 2016 - 2025 (also as a Configuration Manager software update point), over OpenSSH and PowerShell: imports the certificate into the machine store, puts it on the https binding of the \"WSUS Administration\" site (8531), runs wsusutil configuressl and removes the old ones.",
+   "text": "WSUS na Windows Serveru 2016 - 2025 (i jako software update point Configuration Manageru), přes OpenSSH a PowerShell: naimportuje certifikát do úložiště počítače, dá ho na vazbu https webu „WSUS Administration“ (8531), spustí wsusutil configuressl a odstraní staré."
+  },
+  "mmicrosoft_3": {
+   "source": "IIS site of WSUS",
+   "text": "Web IIS pro WSUS"
+  },
+  "mmicrosoft_4": {
+   "source": "8531 unless WSUS was installed on 80/443 (then 443); the HTTP port is this one minus one",
+   "text": "8531, pokud WSUS nebyl nainstalován na 80/443 (pak 443); port HTTP je tento mínus jedna"
+  },
+  "mmicrosoft_5": {
+   "source": "Server name for clients",
+   "text": "Jméno serveru pro klienty"
+  },
+  "mmicrosoft_6": {
+   "source": "the FQDN clients and downstream servers use (wsusutil configuressl); empty: the first name of the certificate",
+   "text": "FQDN, které používají klienti a podřízené servery (wsusutil configuressl); prázdné: první jméno certifikátu"
+  },
+  "mmicrosoft_7": {
+   "source": "Run wsusutil configuressl",
+   "text": "Spustit wsusutil configuressl"
+  },
+  "mmicrosoft_8": {
+   "source": "every time",
+   "text": "pokaždé"
+  },
+  "mmicrosoft_9": {
+   "source": "when the binding changed",
+   "text": "když se vazba změnila"
+  },
+  "mmicrosoft_10": {
+   "source": "Require SSL on the WSUS web services",
+   "text": "Vyžadovat SSL na webových službách WSUS"
+  },
+  "mmicrosoft_11": {
+   "source": "SimpleAuthWebService, DSSAuthWebService, ServerSyncWebService, APIremoting30, ClientWebService - never Content, Inventory, ReportingWebService or SelfUpdate",
+   "text": "SimpleAuthWebService, DSSAuthWebService, ServerSyncWebService, APIremoting30, ClientWebService - nikdy Content, Inventory, ReportingWebService ani SelfUpdate"
+  },
+  "mmicrosoft_12": {
+   "source": "Hyper-V Replica (certificate authentication)",
+   "text": "Hyper-V Replica (ověřování certifikátem)"
+  },
+  "mmicrosoft_13": {
+   "source": "Hyper-V Replica on Windows Server 2016 - 2025 with certificate-based (HTTPS) authentication, over OpenSSH and PowerShell: imports the certificate, makes the Replica server and the primary VMs of this host use it (each replica server tested with it first) and removes the old ones. The certificate needs Server and Client Authentication.",
+   "text": "Hyper-V Replica na Windows Serveru 2016 - 2025 s ověřováním certifikátem (HTTPS), přes OpenSSH a PowerShell: naimportuje certifikát, nastaví ho replikačnímu serveru a primárním VM tohoto hostitele (každý replikační server s ním nejdřív otestuje) a odstraní staré. Certifikát potřebuje Server i Client Authentication."
+  },
+  "mmicrosoft_14": {
+   "source": "This host receives replication (Replica server)",
+   "text": "Tento hostitel přijímá replikaci (replikační server)"
+  },
+  "mmicrosoft_15": {
+   "source": "Set-VMReplicationServer -CertificateThumbprint",
+   "text": "Set-VMReplicationServer -CertificateThumbprint"
+  },
+  "mmicrosoft_16": {
+   "source": "Primary VMs of this host",
+   "text": "Primární VM tohoto hostitele"
+  },
+  "mmicrosoft_17": {
+   "source": "Set-VMReplication -CertificateThumbprint for the VMs that replicate with a certificate",
+   "text": "Set-VMReplication -CertificateThumbprint pro VM, které replikují s certifikátem"
+  },
+  "mmicrosoft_18": {
+   "source": "Only these VMs",
+   "text": "Jen tyto VM"
+  },
+  "mmicrosoft_19": {
+   "source": "VM names, one a line; empty: every primary VM using a certificate",
+   "text": "jména VM, jedno na řádek; prázdné: všechny primární VM s certifikátem"
+  },
+  "mmicrosoft_20": {
+   "source": "Test each replica server first",
+   "text": "Nejdřív otestovat každý replikační server"
+  },
+  "mmicrosoft_21": {
+   "source": "Test-VMReplicationConnection with the new certificate; a failure changes nothing",
+   "text": "Test-VMReplicationConnection s novým certifikátem; při selhání se nic nezmění"
+  },
+  "mmicrosoft_22": {
+   "source": "SQL Server Reporting Services / Power BI Report Server",
+   "text": "SQL Server Reporting Services / Power BI Report Server"
+  },
+  "mmicrosoft_23": {
+   "source": "SQL Server Reporting Services 2016 - 2022 and Power BI Report Server, over OpenSSH and PowerShell: imports the certificate and moves every HTTPS binding of the report server (web service and web portal) to it through its WMI provider, then removes the old ones. HTTPS is set up once in Report Server Configuration Manager.",
+   "text": "SQL Server Reporting Services 2016 - 2022 a Power BI Report Server, přes OpenSSH a PowerShell: naimportuje certifikát, přes poskytovatele WMI na něj převede všechny vazby HTTPS serveru sestav (webovou službu i webový portál) a odstraní staré. HTTPS se jednou nastaví v Report Server Configuration Manageru."
+  },
+  "mmicrosoft_24": {
+   "source": "Report server instance",
+   "text": "Instance serveru sestav"
+  },
+  "mmicrosoft_25": {
+   "source": "SSRS, PBIRS, MSSQLSERVER...; empty: the only one on the server",
+   "text": "SSRS, PBIRS, MSSQLSERVER...; prázdné: jediná na serveru"
+  },
+  "mmicrosoft_26": {
+   "source": "HTTPS port to check",
+   "text": "Port HTTPS ke kontrole"
+  },
+  "mmicrosoft_27": {
+   "source": "where the report server serves it, for the test made with the deployment; 0: none",
+   "text": "kde ho server sestav nabízí, pro test vytvořený s nasazením; 0: žádný"
+  },
+  "mmicrosoft_28": {
+   "source": "System Center Operations Manager (certificate)",
+   "text": "System Center Operations Manager (certifikát)"
+  },
+  "mmicrosoft_29": {
+   "source": "System Center Operations Manager 2019, 2022 and 2025 - a management server, gateway or agent authenticating with a certificate - over OpenSSH and PowerShell: imports the certificate with its key in a legacy CSP (AT_KEYEXCHANGE, as Operations Manager needs), runs MOMCertImport, restarts the Microsoft Monitoring Agent and removes the old ones. RSA, with Server and Client Authentication.",
+   "text": "System Center Operations Manager 2019, 2022 a 2025 - management server, brána nebo agent ověřovaný certifikátem - přes OpenSSH a PowerShell: naimportuje certifikát s klíčem ve starém CSP (AT_KEYEXCHANGE, jak Operations Manager potřebuje), spustí MOMCertImport, restartuje Microsoft Monitoring Agent a odstraní staré. RSA, se Server i Client Authentication."
+  },
+  "mmicrosoft_30": {
+   "source": "MOMCertImport.exe",
+   "text": "MOMCertImport.exe"
+  },
+  "mmicrosoft_31": {
+   "source": "its path on the server (from the installation media, SupportTools\\amd64); empty: the Gateway folder of Operations Manager",
+   "text": "jeho cesta na serveru (z instalačního média, SupportTools\\amd64); prázdné: složka Gateway Operations Manageru"
+  },
+  "mmicrosoft_32": {
+   "source": "Restart the Microsoft Monitoring Agent",
+   "text": "Restartovat Microsoft Monitoring Agent"
+  },
+  "mmicrosoft_33": {
+   "source": "HealthService, when the certificate changed - it loads it on start",
+   "text": "HealthService, když se certifikát změnil - načítá ho při startu"
+  },
+  "mmicrosoft_34": {
+   "source": "WSUS: name the IIS site",
+   "text": "WSUS: zadejte web IIS"
+  },
+  "mmicrosoft_35": {
+   "source": "WSUS: give the server name for clients (wsusutil configuressl)",
+   "text": "WSUS: zadejte jméno serveru pro klienty (wsusutil configuressl)"
+  },
+  "mmicrosoft_36": {
+   "source": "Hyper-V Replica: choose the Replica server, the primary VMs or both",
+   "text": "Hyper-V Replica: zvolte replikační server, primární VM, nebo obojí"
+  },
+  "mmicrosoft_37": {
+   "source": "WSUS: the binding did not change - wsusutil not run",
+   "text": "WSUS: vazba se nezměnila - wsusutil se nespouštěl"
+  },
+  "mmicrosoft_38": {
+   "source": "the WsusService service is not here - is the WSUS role installed?",
+   "text": "služba WsusService tu není - je role WSUS nainstalovaná?"
+  },
+  "mmicrosoft_39": {
+   "source": "Hyper-V Replica: this host is not a Replica server - enable it once (Hyper-V Settings, Replication Configuration) or turn off \"This host receives replication\"",
+   "text": "Hyper-V Replica: tento hostitel není replikační server - jednou ho zapněte (Hyper-V Settings, Replication Configuration), nebo vypněte „Tento hostitel přijímá replikaci“"
+  },
+  "mmicrosoft_40": {
+   "source": "Hyper-V Replica server already uses it",
+   "text": "Replikační server Hyper-V ho už používá"
+  },
+  "mmicrosoft_41": {
+   "source": "Hyper-V Replica server uses it",
+   "text": "Replikační server Hyper-V ho používá"
+  },
+  "mmicrosoft_42": {
+   "source": "Hyper-V Replica: no primary VM of this host replicates with a certificate",
+   "text": "Hyper-V Replica: žádná primární VM tohoto hostitele nereplikuje s certifikátem"
+  },
+  "mmicrosoft_43": {
+   "source": "the Hyper-V module is not here - is the Hyper-V role installed?",
+   "text": "modul Hyper-V tu není - je role Hyper-V nainstalovaná?"
+  },
+  "mmicrosoft_44": {
+   "source": "Reporting Services: no report server (SSRS or Power BI Report Server) is on this server",
+   "text": "Reporting Services: na tomto serveru není žádný server sestav (SSRS ani Power BI Report Server)"
+  },
+  "mmicrosoft_45": {
+   "source": "no report server (SSRS or Power BI Report Server) answers in WMI here",
+   "text": "žádný server sestav (SSRS ani Power BI Report Server) tu ve WMI neodpovídá"
+  },
+  "mmicrosoft_46": {
+   "source": "Reporting Services: there is no HTTPS binding yet - choose the HTTPS certificate once in Report Server Configuration Manager (Web Service URL, Web Portal URL), then acme replaces it",
+   "text": "Reporting Services: zatím tu není žádná vazba HTTPS - jednou zvolte certifikát HTTPS v Report Server Configuration Manageru (Web Service URL, Web Portal URL), pak ho bude acme nahrazovat"
+  },
+  "mmicrosoft_47": {
+   "source": "Operations Manager already uses it",
+   "text": "Operations Manager ho už používá"
+  },
+  "mmicrosoft_48": {
+   "source": "Operations Manager takes it when the HealthService restarts",
+   "text": "Operations Manager ho převezme po restartu HealthService"
+  },
+  "mmicrosoft_49": {
+   "source": "the HealthService (Microsoft Monitoring Agent) is not here",
+   "text": "HealthService (Microsoft Monitoring Agent) tu není"
+  },
+  "mmicrosoft_50": {
+   "source": "Office Online Server",
+   "text": "Office Online Server"
+  },
+  "mmicrosoft_51": {
+   "source": "Office Online Server (on Windows Server 2016 - 2022) for SharePoint and Exchange, over OpenSSH and PowerShell: imports the certificate with an exportable key under its own friendly name, points the farm at it (Set-OfficeWebAppsFarm -CertificateName), restarts the server when asked and removes the old ones. Deploy it to every server of the farm.",
+   "text": "Office Online Server (na Windows Serveru 2016 - 2022) pro SharePoint a Exchange, přes OpenSSH a PowerShell: naimportuje certifikát s exportovatelným klíčem pod vlastním popisným jménem, nastaví ho farmě (Set-OfficeWebAppsFarm -CertificateName), na požádání restartuje server a odstraní staré. Nasaďte ho na každý server farmy."
+  },
+  "mmicrosoft_52": {
+   "source": "Restart this server after the change",
+   "text": "Po změně restartovat tento server"
+  },
+  "mmicrosoft_53": {
+   "source": "the farm takes the certificate after its servers restart; on: a restart in a minute (shutdown /r /t 60) - deploy to one server of the farm at a time",
+   "text": "farma převezme certifikát po restartu svých serverů; zapnuto: restart za minutu (shutdown /r /t 60) - nasazujte vždy jen na jeden server farmy"
+  },
+  "mmicrosoft_54": {
+   "source": "for the test made with the deployment; 0: none",
+   "text": "pro test vytvořený s nasazením; 0: žádný"
+  },
+  "mmicrosoft_55": {
+   "source": "Office Online Server: the farm is SSL offloaded - the certificate belongs on the load balancer",
+   "text": "Office Online Server: farma používá SSL offloading - certifikát patří na load balancer"
+  },
+  "mmicrosoft_56": {
+   "source": "Office Online Server: this server restarts in a minute",
+   "text": "Office Online Server: tento server se za minutu restartuje"
+  },
+  "mmicrosoft_57": {
+   "source": "Office Online Server takes it after the servers of the farm restart",
+   "text": "Office Online Server ho převezme po restartu serverů farmy"
+  },
+  "mmicrosoft_58": {
+   "source": "this server is in no Office Online Server farm (New-OfficeWebAppsFarm)",
+   "text": "tento server není v žádné farmě Office Online Serveru (New-OfficeWebAppsFarm)"
+  },
+  "mmicrosoft_59": {
+   "source": "the OfficeWebApps module is not here - is Office Online Server installed?",
+   "text": "modul OfficeWebApps tu není - je Office Online Server nainstalovaný?"
+  },
+  "mfujitsu_bmc_1": {
+   "source": "Fujitsu iRMC (PRIMERGY, PRIMEQUEST 4000)",
+   "text": "Fujitsu iRMC (PRIMERGY, PRIMEQUEST 4000)"
+  },
+  "mfujitsu_bmc_2": {
+   "source": "Fujitsu / Fsas Technologies",
+   "text": "Fujitsu / Fsas Technologies"
+  },
+  "mfujitsu_bmc_3": {
+   "source": "Puts the HTTPS certificate of an iRMC S4, S5 or S6 (PRIMERGY M2 - M8, PRIMEQUEST 4000) in with iRMC Remote Scripting (SCCI ConfBMCSslPrivateKey / ConfBMCSslCertificate / ConfBMCSslCaCertificate), then resets the iRMC so it serves it - the server itself keeps running. Every iRMC generation takes the same calls. RSA keys only.",
+   "text": "Vloží HTTPS certifikát iRMC S4, S5 nebo S6 (PRIMERGY M2 - M8, PRIMEQUEST 4000) přes iRMC Remote Scripting (SCCI ConfBMCSslPrivateKey / ConfBMCSslCertificate / ConfBMCSslCaCertificate) a pak iRMC resetuje, aby ho servíroval - samotný server běží dál. Všechny generace iRMC berou stejná volání. Jen klíče RSA."
+  },
+  "mfujitsu_bmc_4": {
+   "source": "Supermicro BMC (SSL certificate upload)",
+   "text": "Supermicro BMC (nahrání certifikátu SSL)"
+  },
+  "mfujitsu_bmc_5": {
+   "source": "Supermicro",
+   "text": "Supermicro"
+  },
+  "mfujitsu_bmc_6": {
+   "source": "Uploads the HTTPS certificate and key of a Supermicro BMC (X12/H12, X13/H13, X14/H14) with Supermicro's Redfish action SmcSSLCert.Upload - no licence needed - and resets the BMC when asked; the server itself is not touched.",
+   "text": "Nahraje HTTPS certifikát a klíč BMC Supermicro (X12/H12, X13/H13, X14/H14) akcí Redfish SmcSSLCert.Upload od Supermicra - bez licence - a na přání BMC resetuje; samotného serveru se nedotkne."
+  },
+  "mfujitsu_bmc_7": {
+   "source": "Cisco IMC (UCS C-Series, standalone)",
+   "text": "Cisco IMC (UCS C-Series, samostatný)"
+  },
+  "mfujitsu_bmc_8": {
+   "source": "Cisco",
+   "text": "Cisco"
+  },
+  "mfujitsu_bmc_9": {
+   "source": "Puts the HTTPS certificate and its key into a standalone Cisco IMC (UCS C-Series M5 - M8, IMC 4.x - 6.0) as an External Certificate through the IMC XML API and activates it - the IMC restarts its web and SSH services, the server keeps running. RSA keys only.",
+   "text": "Vloží HTTPS certifikát s klíčem do samostatného Cisco IMC (UCS C-Series M5 - M8, IMC 4.x - 6.0) jako External Certificate přes XML API IMC a aktivuje ho - IMC restartuje své webové a SSH služby, server běží dál. Jen klíče RSA."
+  },
+  "mfujitsu_bmc_10": {
+   "source": "Huawei / xFusion iBMC",
+   "text": "Huawei / xFusion iBMC"
+  },
+  "mfujitsu_bmc_11": {
+   "source": "Huawei / xFusion",
+   "text": "Huawei / xFusion"
+  },
+  "mfujitsu_bmc_12": {
+   "source": "Imports the HTTPS certificate of a Huawei or xFusion iBMC (FusionServer, TaiShan; iBMC V2/V3) as a custom certificate (PKCS#12) with the Redfish OEM action HttpsCert.ImportCustomCertificate, then restarts the iBMC so it serves it - the server keeps running.",
+   "text": "Naimportuje HTTPS certifikát iBMC Huawei nebo xFusion (FusionServer, TaiShan; iBMC V2/V3) jako vlastní certifikát (PKCS#12) akcí Redfish OEM HttpsCert.ImportCustomCertificate a pak iBMC restartuje, aby ho servíroval - server běží dál."
+  },
+  "mfujitsu_bmc_13": {
+   "source": "Fujitsu Infrastructure Manager (ISM-VA)",
+   "text": "Fujitsu Infrastructure Manager (ISM-VA)"
+  },
+  "mfujitsu_bmc_14": {
+   "source": "Replaces the HTTPS certificate of an Infrastructure Manager virtual appliance (ISM / ISM for PRIMEFLEX 2.x and 3.x): the files over its FTP, \"ismadm sslcert set\" over SSH, then \"ismadm power restart\" - the ISM is away for a few minutes.",
+   "text": "Vymění HTTPS certifikát virtuální appliance Infrastructure Manager (ISM / ISM for PRIMEFLEX 2.x a 3.x): soubory přes její FTP, „ismadm sslcert set“ přes SSH a pak „ismadm power restart“ - ISM je na několik minut nedostupný."
+  },
+  "mfujitsu_bmc_15": {
+   "source": "Fujitsu ETERNUS DX / AF (Web GUI certificate)",
+   "text": "Fujitsu ETERNUS DX / AF (certifikát Web GUI)"
+  },
+  "mfujitsu_bmc_16": {
+   "source": "Registers the SSL certificate of ETERNUS Web GUI and RESTful API on an ETERNUS DX S6 / AF storage system: the key and certificate put on an FTPS (or FTP) server, \"import ssl-certificate\" run in the ETERNUS CLI over SSH, the files deleted again. Data access is not touched; the GUI is away for minutes. RSA keys only.",
+   "text": "Zaregistruje SSL certifikát ETERNUS Web GUI a RESTful API na úložišti ETERNUS DX S6 / AF: klíč a certifikát nahraje na server FTPS (nebo FTP), v ETERNUS CLI přes SSH spustí „import ssl-certificate“ a soubory zase smaže. Datového přístupu se nedotkne; GUI je na několik minut nedostupné. Jen klíče RSA."
+  },
+  "mfujitsu_bmc_17": {
+   "source": "an iRMC user with \"Configure iRMC Settings\" and the LAN channel privilege Administrator",
+   "text": "uživatel iRMC s „Configure iRMC Settings“ a oprávněním kanálu LAN Administrator"
+  },
+  "mfujitsu_bmc_18": {
+   "source": "Send the intermediate as the CA certificate",
+   "text": "Poslat mezilehlý certifikát jako certifikát CA"
+  },
+  "mfujitsu_bmc_19": {
+   "source": "ConfBMCSslCaCertificate (SCCI 0x1983) - the CA certificate of the iRMC",
+   "text": "ConfBMCSslCaCertificate (SCCI 0x1983) - certifikát CA v iRMC"
+  },
+  "mfujitsu_bmc_20": {
+   "source": "Reset the iRMC afterwards",
+   "text": "Potom resetovat iRMC"
+  },
+  "mfujitsu_bmc_21": {
+   "source": "the iRMC serves the new certificate only after a reset; the server and its operating system are not touched",
+   "text": "nový certifikát iRMC servíruje až po resetu; server a jeho operační systém zůstanou nedotčené"
+  },
+  "mfujitsu_bmc_22": {
+   "source": "iRMC REST: /rest/v1/Oem/iRMC/Reset (as Fsas' Ansible role)",
+   "text": "iRMC REST: /rest/v1/Oem/iRMC/Reset (jako role Ansible od Fsas)"
+  },
+  "mfujitsu_bmc_23": {
+   "source": "Redfish: Manager.Reset GracefulRestart",
+   "text": "Redfish: Manager.Reset GracefulRestart"
+  },
+  "mfujitsu_bmc_24": {
+   "source": "no reset (the old certificate is served until one)",
+   "text": "bez resetu (do resetu se servíruje starý certifikát)"
+  },
+  "mfujitsu_bmc_25": {
+   "source": "Send the chain with the certificate",
+   "text": "Poslat s certifikátem i řetězec"
+  },
+  "mfujitsu_bmc_26": {
+   "source": "cert_file holds the certificate and the intermediates (off: the certificate alone)",
+   "text": "cert_file obsahuje certifikát i mezilehlé certifikáty (vypnuto: jen certifikát)"
+  },
+  "mfujitsu_bmc_27": {
+   "source": "Reset the BMC afterwards",
+   "text": "Potom resetovat BMC"
+  },
+  "mfujitsu_bmc_28": {
+   "source": "Manager.Reset GracefulRestart (\"BMC cold reset\") - only when the BMC still serves the old certificate after the upload; the server is not touched",
+   "text": "Manager.Reset GracefulRestart („BMC cold reset“) - jen když BMC po nahrání dál servíruje starý certifikát; serveru se nedotkne"
+  },
+  "mfujitsu_bmc_29": {
+   "source": "an IMC user with the role admin (every certificate task needs it)",
+   "text": "uživatel IMC s rolí admin (vyžaduje ji každá práce s certifikáty)"
+  },
+  "mfujitsu_bmc_30": {
+   "source": "the External Certificate holds the certificate and the intermediates (off: the certificate alone)",
+   "text": "External Certificate obsahuje certifikát i mezilehlé certifikáty (vypnuto: jen certifikát)"
+  },
+  "mfujitsu_bmc_31": {
+   "source": "Manager ID",
+   "text": "ID manageru"
+  },
+  "mfujitsu_bmc_32": {
+   "source": "1 on a rack server; BladeN on a high-density or blade server",
+   "text": "1 u stojanového serveru; BladeN u serveru s vysokou hustotou nebo blade"
+  },
+  "mfujitsu_bmc_33": {
+   "source": "Restart the iBMC afterwards",
+   "text": "Potom restartovat iBMC"
+  },
+  "mfujitsu_bmc_34": {
+   "source": "Manager.Reset ForceRestart - the iBMC serves the new certificate only after a restart (iBMC.1.0.CertImportOK); the server is not touched",
+   "text": "Manager.Reset ForceRestart - nový certifikát iBMC servíruje až po restartu (iBMC.1.0.CertImportOK); serveru se nedotkne"
+  },
+  "mfujitsu_bmc_35": {
+   "source": "name or IP address of the ISM-VA",
+   "text": "jméno nebo IP adresa ISM-VA"
+  },
+  "mfujitsu_bmc_36": {
+   "source": "an ISM user with the Administrator role in the Administrator group - for the console (SSH) and the FTP area",
+   "text": "uživatel ISM s rolí Administrator ve skupině Administrator - pro konzoli (SSH) i oblast FTP"
+  },
+  "mfujitsu_bmc_37": {
+   "source": "User group",
+   "text": "Skupina uživatelů"
+  },
+  "mfujitsu_bmc_38": {
+   "source": "the files go to /<user group>/ftp",
+   "text": "soubory jdou do /<skupina uživatelů>/ftp"
+  },
+  "mfujitsu_bmc_39": {
+   "source": "FTP port",
+   "text": "Port FTP"
+  },
+  "mfujitsu_bmc_40": {
+   "source": "HTTPS port of the GUI",
+   "text": "Port HTTPS GUI"
+  },
+  "mfujitsu_bmc_41": {
+   "source": "the .crt file holds the certificate and the intermediates (off: the certificate alone)",
+   "text": "soubor .crt obsahuje certifikát i mezilehlé certifikáty (vypnuto: jen certifikát)"
+  },
+  "mfujitsu_bmc_42": {
+   "source": "Restart the ISM-VA afterwards",
+   "text": "Potom restartovat ISM-VA"
+  },
+  "mfujitsu_bmc_43": {
+   "source": "ismadm power restart - the new certificate is served only after it; GUI, REST API and monitoring are away for a few minutes",
+   "text": "ismadm power restart - nový certifikát se servíruje až po něm; GUI, REST API a monitoring jsou několik minut nedostupné"
+  },
+  "mfujitsu_bmc_44": {
+   "source": "LAN port of the array to the file server",
+   "text": "LAN port pole k souborovému serveru"
+  },
+  "mfujitsu_bmc_45": {
+   "source": "-port of import ssl-certificate",
+   "text": "-port příkazu import ssl-certificate"
+  },
+  "mfujitsu_bmc_46": {
+   "source": "MNT (maintenance)",
+   "text": "MNT (údržba)"
+  },
+  "mfujitsu_bmc_47": {
+   "source": "RMT (remote)",
+   "text": "RMT (vzdálený)"
+  },
+  "mfujitsu_bmc_48": {
+   "source": "FST",
+   "text": "FST"
+  },
+  "mfujitsu_bmc_49": {
+   "source": "File server",
+   "text": "Souborový server"
+  },
+  "mfujitsu_bmc_50": {
+   "source": "an FTPS or FTP server both acme and the array reach",
+   "text": "server FTPS nebo FTP, na který dosáhne acme i pole"
+  },
+  "mfujitsu_bmc_51": {
+   "source": "File server port",
+   "text": "Port souborového serveru"
+  },
+  "mfujitsu_bmc_52": {
+   "source": "how the array fetches the files; acme puts them there the same way",
+   "text": "jak si pole soubory stáhne; acme je tam nahraje stejně"
+  },
+  "mfujitsu_bmc_53": {
+   "source": "FTPS, explicit TLS (S6 default)",
+   "text": "FTPS, explicitní TLS (výchozí u S6)"
+  },
+  "mfujitsu_bmc_54": {
+   "source": "FTP on S6 (-disable-ftps yes)",
+   "text": "FTP na S6 (-disable-ftps yes)"
+  },
+  "mfujitsu_bmc_55": {
+   "source": "FTP on DX S5 / AF S3 / AF S2 (no FTPS option sent)",
+   "text": "FTP na DX S5 / AF S3 / AF S2 (bez volby FTPS)"
+  },
+  "mfujitsu_bmc_56": {
+   "source": "File server user",
+   "text": "Uživatel souborového serveru"
+  },
+  "mfujitsu_bmc_57": {
+   "source": "File server password",
+   "text": "Heslo souborového serveru"
+  },
+  "mfujitsu_bmc_58": {
+   "source": "Folder on the file server",
+   "text": "Složka na souborovém serveru"
+  },
+  "mfujitsu_bmc_59": {
+   "source": "empty: the user's home; the array is given the files by this path",
+   "text": "prázdné: domovská složka uživatele; poli se soubory předají touto cestou"
+  },
+  "mfujitsu_bmc_60": {
+   "source": "Check the file server's certificate",
+   "text": "Ověřovat certifikát souborového serveru"
+  },
+  "mfujitsu_bmc_61": {
+   "source": "acme's own FTPS connection (the array does not check it)",
+   "text": "vlastní spojení FTPS z acme (pole certifikát neověřuje)"
+  },
+  "mfujitsu_bmc_62": {
+   "source": "HTTPS port of the Web GUI",
+   "text": "Port HTTPS Web GUI"
+  },
+  "mfujitsu_bmc_63": {
+   "source": "the certificate file holds the intermediates too - the manual does not say the array takes them: try it once",
+   "text": "soubor certifikátu obsahuje i mezilehlé certifikáty - příručka neříká, že je pole přijme: jednou to vyzkoušejte"
+  },
+  "mfujitsu_bmc_64": {
+   "source": "Restart SMI-S on the new certificate",
+   "text": "Restartovat SMI-S s novým certifikátem"
+  },
+  "mfujitsu_bmc_65": {
+   "source": "set smi-s -function disable, then enable -ssl-certificate shared-with-webgui - only where SMI-S is on and shares the Web GUI certificate",
+   "text": "set smi-s -function disable, potom enable -ssl-certificate shared-with-webgui - jen tam, kde je SMI-S zapnuté a sdílí certifikát Web GUI"
+  },
+  "mfujitsu_bmc_66": {
+   "source": "its home",
+   "text": "jeho domovskou složku"
+  },
+  "mfujitsu_bmc_67": {
+   "source": " and the CA certificate",
+   "text": " a certifikát CA"
+  },
+  "mfujitsu_bmc_68": {
+   "source": " (on some PRIMERGY M8 machines the SCCI certificate SET fails until an iRMC firmware fix - use the iRMC web interface there)",
+   "text": " (na některých strojích PRIMERGY M8 zápis certifikátu přes SCCI selhává až do opravy firmwaru iRMC - použijte tam webové rozhraní iRMC)"
+  },
+  "mfujitsu_bmc_69": {
+   "source": "the iRMC takes RSA keys only - choose an RSA key type for this certificate",
+   "text": "iRMC bere jen klíče RSA - zvolte pro tento certifikát typ klíče RSA"
+  },
+  "mfujitsu_bmc_70": {
+   "source": "the iRMC takes RSA keys only (PKCS#1, \"BEGIN RSA PRIVATE KEY\")",
+   "text": "iRMC bere jen klíče RSA (PKCS#1, „BEGIN RSA PRIVATE KEY“)"
+  },
+  "mfujitsu_bmc_71": {
+   "source": " (turn off \"Send the intermediate as the CA certificate\")",
+   "text": " (vypněte „Poslat mezilehlý certifikát jako certifikát CA“)"
+  },
+  "mfujitsu_bmc_72": {
+   "source": "the iRMC resets (a few minutes; the server keeps running)",
+   "text": "iRMC se resetuje (několik minut; server běží dál)"
+  },
+  "mfujitsu_bmc_73": {
+   "source": "no reset asked: the iRMC serves the new certificate after its next reset",
+   "text": "reset nebyl požadován: nový certifikát iRMC použije po příštím resetu"
+  },
+  "mfujitsu_bmc_74": {
+   "source": "putting the certificate in (SCCI)",
+   "text": "vkládání certifikátu (SCCI)"
+  },
+  "mfujitsu_bmc_75": {
+   "source": "reading the iRMC certificate (SCCI)",
+   "text": "čtení certifikátu iRMC (SCCI)"
+  },
+  "mfujitsu_bmc_76": {
+   "source": "resetting the iRMC",
+   "text": "reset iRMC"
+  },
+  "mfujitsu_bmc_77": {
+   "source": "certificate put in",
+   "text": "certifikát vložen"
+  },
+  "mfujitsu_bmc_78": {
+   "source": ", the iRMC resets",
+   "text": ", iRMC se resetuje"
+  },
+  "mfujitsu_bmc_79": {
+   "source": "served by the iRMC",
+   "text": "servíruje ho iRMC"
+  },
+  "mfujitsu_bmc_80": {
+   "source": "the BMC took the certificate and the key",
+   "text": "BMC přijalo certifikát a klíč"
+  },
+  "mfujitsu_bmc_81": {
+   "source": "the BMC resets (a few minutes)",
+   "text": "BMC se resetuje (několik minut)"
+  },
+  "mfujitsu_bmc_82": {
+   "source": "uploading the certificate (SmcSSLCert.Upload)",
+   "text": "nahrávání certifikátu (SmcSSLCert.Upload)"
+  },
+  "mfujitsu_bmc_83": {
+   "source": "reading the SSL certificate (Oem/Supermicro/SSLCert)",
+   "text": "čtení certifikátu SSL (Oem/Supermicro/SSLCert)"
+  },
+  "mfujitsu_bmc_84": {
+   "source": "resetting the BMC",
+   "text": "reset BMC"
+  },
+  "mfujitsu_bmc_85": {
+   "source": "uploaded the HTTPS certificate",
+   "text": "HTTPS certifikát nahrán"
+  },
+  "mfujitsu_bmc_86": {
+   "source": ", the BMC resets",
+   "text": ", BMC se resetuje"
+  },
+  "mfujitsu_bmc_87": {
+   "source": "served by the BMC",
+   "text": "servíruje ho BMC"
+  },
+  "mfujitsu_bmc_88": {
+   "source": "the IMC gave no session cookie on signing in",
+   "text": "IMC při přihlášení nedalo cookie relace"
+  },
+  "mfujitsu_bmc_89": {
+   "source": "the IMC takes RSA keys only for an External Certificate (2048 or 4096 bits) - choose an RSA key type",
+   "text": "IMC bere pro External Certificate jen klíče RSA (2048 nebo 4096 bitů) - zvolte typ klíče RSA"
+  },
+  "mfujitsu_bmc_90": {
+   "source": "the IMC takes RSA keys only for an External Certificate - choose an RSA key type",
+   "text": "IMC bere pro External Certificate jen klíče RSA - zvolte typ klíče RSA"
+  },
+  "mfujitsu_bmc_91": {
+   "source": "the IMC took the external certificate",
+   "text": "IMC přijalo externí certifikát"
+  },
+  "mfujitsu_bmc_92": {
+   "source": "the IMC took the external private key",
+   "text": "IMC přijalo externí soukromý klíč"
+  },
+  "mfujitsu_bmc_93": {
+   "source": "the external certificate is activated - the IMC restarts its web and SSH services (a few minutes)",
+   "text": "externí certifikát je aktivován - IMC restartuje své webové a SSH služby (několik minut)"
+  },
+  "mfujitsu_bmc_94": {
+   "source": "activated the external certificate, the IMC restarts its services",
+   "text": "externí certifikát aktivován, IMC restartuje své služby"
+  },
+  "mfujitsu_bmc_95": {
+   "source": "uploading the external certificate",
+   "text": "nahrávání externího certifikátu"
+  },
+  "mfujitsu_bmc_96": {
+   "source": "uploading the external private key",
+   "text": "nahrávání externího soukromého klíče"
+  },
+  "mfujitsu_bmc_97": {
+   "source": "activating the external certificate",
+   "text": "aktivace externího certifikátu"
+  },
+  "mfujitsu_bmc_98": {
+   "source": "reading the current certificate",
+   "text": "čtení současného certifikátu"
+  },
+  "mfujitsu_bmc_99": {
+   "source": "served by the IMC",
+   "text": "servíruje ho IMC"
+  },
+  "mfujitsu_bmc_100": {
+   "source": "the Manager ID is letters and digits only (1, Blade1)",
+   "text": "ID manageru jsou jen písmena a číslice (1, Blade1)"
+  },
+  "mfujitsu_bmc_101": {
+   "source": "importing the custom certificate",
+   "text": "import vlastního certifikátu"
+  },
+  "mfujitsu_bmc_102": {
+   "source": "restarting the iBMC",
+   "text": "restart iBMC"
+  },
+  "mfujitsu_bmc_103": {
+   "source": "the iBMC restarts (a few minutes; the server keeps running)",
+   "text": "iBMC se restartuje (několik minut; server běží dál)"
+  },
+  "mfujitsu_bmc_104": {
+   "source": "no restart asked: the iBMC serves the new certificate after its next restart",
+   "text": "restart nebyl požadován: nový certifikát iBMC použije po příštím restartu"
+  },
+  "mfujitsu_bmc_105": {
+   "source": "imported the custom certificate",
+   "text": "vlastní certifikát naimportován"
+  },
+  "mfujitsu_bmc_106": {
+   "source": ", the iBMC restarts",
+   "text": ", iBMC se restartuje"
+  },
+  "mfujitsu_bmc_107": {
+   "source": "served by the iBMC",
+   "text": "servíruje ho iBMC"
+  },
+  "mfujitsu_bmc_108": {
+   "source": "reading the HTTPS certificate (SecurityService/HttpsCert)",
+   "text": "čtení HTTPS certifikátu (SecurityService/HttpsCert)"
+  },
+  "mfujitsu_bmc_109": {
+   "source": " - but it lists no HttpsCert.ImportCustomCertificate",
+   "text": " - ale nenabízí HttpsCert.ImportCustomCertificate"
+  },
+  "mfujitsu_bmc_110": {
+   "source": "the user group is letters, digits and _ . - only",
+   "text": "skupina uživatelů smí obsahovat jen písmena, číslice a _ . -"
+  },
+  "mfujitsu_bmc_111": {
+   "source": "ismadm sslcert set: the ISM-VA took the certificate",
+   "text": "ismadm sslcert set: ISM-VA certifikát přijala"
+  },
+  "mfujitsu_bmc_112": {
+   "source": "the ISM-VA restarts (a few minutes: GUI, REST API and monitoring are away)",
+   "text": "ISM-VA se restartuje (několik minut: GUI, REST API a monitoring jsou nedostupné)"
+  },
+  "mfujitsu_bmc_113": {
+   "source": "no restart asked: the ISM-VA serves the new certificate after its next restart",
+   "text": "restart nebyl požadován: nový certifikát ISM-VA použije po příštím restartu"
+  },
+  "mfujitsu_bmc_114": {
+   "source": "setting the certificate",
+   "text": "nastavení certifikátu"
+  },
+  "mfujitsu_bmc_115": {
+   "source": "restarting the ISM-VA",
+   "text": "restart ISM-VA"
+  },
+  "mfujitsu_bmc_116": {
+   "source": "reading the certificate",
+   "text": "čtení certifikátu"
+  },
+  "mfujitsu_bmc_117": {
+   "source": "certificate set",
+   "text": "certifikát nastaven"
+  },
+  "mfujitsu_bmc_118": {
+   "source": ", the ISM-VA restarts",
+   "text": ", ISM-VA se restartuje"
+  },
+  "mfujitsu_bmc_119": {
+   "source": "served by the ISM-VA",
+   "text": "servíruje ho ISM-VA"
+  },
+  "mfujitsu_bmc_120": {
+   "source": "ismadm answered",
+   "text": "ismadm odpověděl"
+  },
+  "mfujitsu_bmc_121": {
+   "source": "folder on the file server",
+   "text": "složka na souborovém serveru"
+  },
+  "mfujitsu_bmc_122": {
+   "source": "file server",
+   "text": "souborový server"
+  },
+  "mfujitsu_bmc_123": {
+   "source": "file server user",
+   "text": "uživatel souborového serveru"
+  },
+  "mfujitsu_bmc_124": {
+   "source": "LAN port",
+   "text": "LAN port"
+  },
+  "mfujitsu_bmc_125": {
+   "source": "ETERNUS DX / AF take RSA keys only (1024 - 4096 bits) - choose an RSA key type",
+   "text": "ETERNUS DX / AF berou jen klíče RSA (1024 - 4096 bitů) - zvolte typ klíče RSA"
+  },
+  "mfujitsu_bmc_126": {
+   "source": "ETERNUS DX / AF take RSA keys only - choose an RSA key type",
+   "text": "ETERNUS DX / AF berou jen klíče RSA - zvolte typ klíče RSA"
+  },
+  "mfujitsu_bmc_127": {
+   "source": "the array registered the certificate - HTTPS of the Web GUI and the RESTful API restart (a few minutes)",
+   "text": "pole certifikát zaregistrovalo - HTTPS Web GUI a RESTful API se restartují (několik minut)"
+  },
+  "mfujitsu_bmc_128": {
+   "source": "SMI-S keeps the old certificate until it is disabled and enabled again (\"Restart SMI-S on the new certificate\")",
+   "text": "SMI-S drží starý certifikát, dokud se nevypne a znovu nezapne („Restartovat SMI-S s novým certifikátem“)"
+  },
+  "mfujitsu_bmc_129": {
+   "source": "SMI-S restarted on the Web GUI certificate",
+   "text": "SMI-S restartováno s certifikátem Web GUI"
+  },
+  "mfujitsu_bmc_130": {
+   "source": "registering the certificate",
+   "text": "registrace certifikátu"
+  },
+  "mfujitsu_bmc_131": {
+   "source": "disabling SMI-S",
+   "text": "vypínání SMI-S"
+  },
+  "mfujitsu_bmc_132": {
+   "source": "enabling SMI-S",
+   "text": "zapínání SMI-S"
+  },
+  "mfujitsu_bmc_133": {
+   "source": "reading the SSL versions",
+   "text": "čtení verzí SSL"
+  },
+  "mfujitsu_bmc_134": {
+   "source": "registered the SSL certificate",
+   "text": "SSL certifikát zaregistrován"
+  },
+  "mfujitsu_bmc_135": {
+   "source": ", SMI-S restarted",
+   "text": ", SMI-S restartováno"
+  },
+  "mfujitsu_bmc_136": {
+   "source": "served by the Web GUI",
+   "text": "servíruje ho Web GUI"
+  },
+  "mfujitsu_bmc_137": {
+   "source": "the CLI answered",
+   "text": "CLI odpovědělo"
+  },
+  "mveeam_storage_1": {
+   "source": "/etc/init.d/Qthttpd.sh restart after stunnel - when the old certificate is still shown",
+   "text": "/etc/init.d/Qthttpd.sh restart po stunnelu – když se stále ukazuje starý certifikát"
+  },
+  "mveeam_storage_2": {
+   "source": "Add its CA certificates to the system trust store",
+   "text": "Přidat její certifikáty CA do systémového úložiště důvěry"
+  },
+  "mveeam_storage_3": {
+   "source": "Add the CA certificates to the machine's stores",
+   "text": "Přidat certifikáty CA do úložišť počítače"
+  },
+  "mveeam_storage_4": {
+   "source": "Admin Center > IAM > Identities > Service Accounts > the account > Add New Key (API Key); the role Cluster Admin by an authorization policy",
+   "text": "Admin Center > IAM > Identities > Service Accounts > účet > Add New Key (API Key); role Cluster Admin přes autorizační politiku"
+  },
+  "mveeam_storage_5": {
+   "source": "Certificate on the FlashBlade",
+   "text": "Certifikát na FlashBladu"
+  },
+  "mveeam_storage_6": {
+   "source": "Certificate on the array",
+   "text": "Certifikát na poli"
+  },
+  "mveeam_storage_7": {
+   "source": "Cloud Connect uses the new certificate",
+   "text": "Cloud Connect používá nový certifikát"
+  },
+  "mveeam_storage_8": {
+   "source": "Cockpit port",
+   "text": "Port Cockpitu"
+  },
+  "mveeam_storage_9": {
+   "source": "Cockpit takes the last file by name: higher than 10-ipa.cert and your own ones",
+   "text": "Cockpit vezme poslední soubor podle jména: vyšší než 10-ipa.cert a vaše vlastní"
+  },
+  "mveeam_storage_10": {
+   "source": "Cockpit web console (Linux, SSH)",
+   "text": "Webová konzole Cockpit (Linux, SSH)"
+  },
+  "mveeam_storage_11": {
+   "source": "Deploy a certificate that is not a CA one",
+   "text": "Nasadit certifikát, který není certifikátem CA"
+  },
+  "mveeam_storage_12": {
+   "source": "File name prefix",
+   "text": "Předpona jména souboru"
+  },
+  "mveeam_storage_13": {
+   "source": "HTTPS port of the NAS",
+   "text": "HTTPS port NAS"
+  },
+  "mveeam_storage_14": {
+   "source": "Installs the certificate as a server certificate of an ONTAP cluster or SVM through the REST API, makes its web services (System Manager, REST API) use it and deletes older ones acme put there. Any ONTAP 9.6 and later: where it is bound is taken from the version the cluster says.",
+   "text": "Nainstaluje certifikát jako serverový certifikát clusteru ONTAP nebo SVM přes REST API, nastaví ho jeho webovým službám (System Manager, REST API) a smaže starší, které tam dal acme. Libovolný ONTAP 9.6 a novější: kam se přiřadí, se řídí verzí, kterou cluster hlásí."
+  },
+  "mveeam_storage_15": {
+   "source": "Move the REST API binding (12.3, port 9419)",
+   "text": "Přesunout binding REST API (12.3, port 9419)"
+  },
+  "mveeam_storage_16": {
+   "source": "NetApp ONTAP (REST API)",
+   "text": "NetApp ONTAP (REST API)"
+  },
+  "mveeam_storage_17": {
+   "source": "ONTAP 9.10.1 - 9.19",
+   "text": "ONTAP 9.10.1 - 9.19"
+  },
+  "mveeam_storage_18": {
+   "source": "ONTAP 9.10.1 - 9.19: bound through PATCH /api/cluster/web or /api/svm/svms/<uuid>/web; ONTAP restarts its web services. Installs the certificate (POST /api/security/certificates), binds it, deletes older ones acme put there. Refused on a cluster that says another version.",
+   "text": "ONTAP 9.10.1 - 9.19: přiřazuje se přes PATCH /api/cluster/web nebo /api/svm/svms/<uuid>/web; ONTAP restartuje své webové služby. Nainstaluje certifikát (POST /api/security/certificates), přiřadí ho a smaže starší, které tam dal acme. Cluster, který hlásí jinou verzi, odmítne."
+  },
+  "mveeam_storage_19": {
+   "source": "ONTAP 9.6 - 9.9",
+   "text": "ONTAP 9.6 - 9.9"
+  },
+  "mveeam_storage_20": {
+   "source": "ONTAP 9.6 - 9.9: bound through the certificate field of PATCH /api/cluster or /api/svm/svms/<uuid>. Installs the certificate (POST /api/security/certificates), binds it, deletes older ones acme put there. Refused on a cluster that says another version.",
+   "text": "ONTAP 9.6 - 9.9: přiřazuje se přes pole certificate v PATCH /api/cluster nebo /api/svm/svms/<uuid>. Nainstaluje certifikát (POST /api/security/certificates), přiřadí ho a smaže starší, které tam dal acme. Cluster, který hlásí jinou verzi, odmítne."
+  },
+  "mveeam_storage_21": {
+   "source": "Prism Central 7.3 - 7.5 (v4.4 API)",
+   "text": "Prism Central 7.3 - 7.5 (v4.4 API)"
+  },
+  "mveeam_storage_22": {
+   "source": "Prism Central 7.3 - 7.5 (v4.4 API), AOS 7.x clusters: signed in with a service account's API key or a user, and the key types of AOS 7.5 (RSA 2048/4096, ECDSA P-256/P-384). Replaces the SSL certificate of a cluster (its Prism web console) and waits for the task.",
+   "text": "Prism Central 7.3 - 7.5 (v4.4 API), clustery AOS 7.x: přihlášení API klíčem servisního účtu nebo uživatelem a typy klíčů AOS 7.5 (RSA 2048/4096, ECDSA P-256/P-384). Vymění SSL certifikát clusteru (jeho webové konzole Prism) a počká na úlohu."
+  },
+  "mveeam_storage_23": {
+   "source": "Pure Storage FlashArray",
+   "text": "Pure Storage FlashArray"
+  },
+  "mveeam_storage_24": {
+   "source": "Pure Storage FlashBlade",
+   "text": "Pure Storage FlashBlade"
+  },
+  "mveeam_storage_25": {
+   "source": "Puts the certificate into /etc/cockpit/ws-certs.d over SSH under a name Cockpit takes (checked by cockpit-certificate-ensure), restarts Cockpit and deletes older ones; can add the CA certificates to the system trust store. RHEL 8 - 10, Fedora, Debian, Ubuntu, SLES.",
+   "text": "Uloží certifikát přes SSH do /etc/cockpit/ws-certs.d pod jménem, které Cockpit použije (ověří cockpit-certificate-ensure), restartuje Cockpit a smaže starší; umí přidat certifikáty CA do systémového úložiště důvěry. RHEL 8 – 10, Fedora, Debian, Ubuntu, SLES."
+  },
+  "mveeam_storage_26": {
+   "source": "QNAP QTS / QuTS hero (SSH)",
+   "text": "QNAP QTS / QuTS hero (SSH)"
+  },
+  "mveeam_storage_27": {
+   "source": "REST API HTTPS port",
+   "text": "HTTPS port REST API"
+  },
+  "mveeam_storage_28": {
+   "source": "REST API certificate",
+   "text": "Certifikát REST API"
+  },
+  "mveeam_storage_29": {
+   "source": "REST API version",
+   "text": "Verze REST API"
+  },
+  "mveeam_storage_30": {
+   "source": "Replaces a certificate of a Pure Storage (Everpure) FlashBlade - Purity//FB 4.x, REST API 2.x - with its key and chain, in place.",
+   "text": "Vymění certifikát Pure Storage (Everpure) FlashBladu – Purity//FB 4.x, REST API 2.x – i s klíčem a řetězcem, na místě."
+  },
+  "mveeam_storage_31": {
+   "source": "Replaces the TLS certificate of Veeam Cloud Connect on the service provider's backup server (Windows, PowerShell over SSH): imported into the machine store, set by Add-VBRCloudGatewayCertificate. Veeam Backup & Replication 12.3 and 13.0 - 13.1.",
+   "text": "Vymění TLS certifikát Veeam Cloud Connect na backup serveru poskytovatele služby (Windows, PowerShell přes SSH): naimportuje ho do úložiště počítače a nastaví přes Add-VBRCloudGatewayCertificate. Veeam Backup & Replication 12.3 a 13.0 – 13.1."
+  },
+  "mveeam_storage_32": {
+   "source": "Replaces the backup server certificate of Veeam Backup & Replication on Windows through its PowerShell module over SSH (also the web UI and REST API certificate of v13). Any version: v13 or 12.3 is told from the cmdlet, and the 12.3 REST API binding moved too.",
+   "text": "Vymění certifikát backup serveru Veeam Backup & Replication na Windows přes jeho modul PowerShellu po SSH (ve v13 i certifikát webového UI a REST API). Libovolná verze: v13 nebo 12.3 se pozná podle cmdletu a na 12.3 se přesune i binding REST API."
+  },
+  "mveeam_storage_33": {
+   "source": "Replaces the management certificate of a Pure Storage (Everpure) FlashArray - Purity//FA 6.x, REST API 2.x - with its key and chain, in place; the GUI and REST API use it at once.",
+   "text": "Vymění management certifikát pole Pure Storage (Everpure) FlashArray – Purity//FA 6.x, REST API 2.x – i s klíčem a řetězcem, na místě; GUI a REST API ho používají okamžitě."
+  },
+  "mveeam_storage_34": {
+   "source": "Restart cockpit.service",
+   "text": "Restartovat cockpit.service"
+  },
+  "mveeam_storage_35": {
+   "source": "Restart the web server too (Qthttpd)",
+   "text": "Restartovat i webový server (Qthttpd)"
+  },
+  "mveeam_storage_36": {
+   "source": "Restart these services",
+   "text": "Restartovat tyto služby"
+  },
+  "mveeam_storage_37": {
+   "source": "Restore operator authentication certificate",
+   "text": "Certifikát ověřování restore operátorů"
+  },
+  "mveeam_storage_38": {
+   "source": "SVM",
+   "text": "SVM"
+  },
+  "mveeam_storage_39": {
+   "source": "Server certificate (workgroup backup proxies)",
+   "text": "Certifikát serveru (backup proxy ve workgroup)"
+  },
+  "mveeam_storage_40": {
+   "source": "Set-VBORestAPISettings: the REST service enabled on the HTTPS port below",
+   "text": "Set-VBORestAPISettings: služba REST zapnutá na HTTPS portu níže"
+  },
+  "mveeam_storage_41": {
+   "source": "Set-VBOSecuritySettings; VB365 tells the proxies by itself",
+   "text": "Set-VBOSecuritySettings; VB365 to proxy oznámí sám"
+  },
+  "mveeam_storage_42": {
+   "source": "Sets the REST API certificate of Veeam Backup for Microsoft 365 v8 (and, as asked, the server, restore operator and tenant authentication ones) from a PKCS#12 through its PowerShell cmdlets over SSH.",
+   "text": "Nastaví certifikát REST API Veeam Backup for Microsoft 365 v8 (a na požádání i certifikát serveru a ověřování restore operátorů a tenantů) z PKCS#12 jeho cmdlety PowerShellu přes SSH."
+  },
+  "mveeam_storage_43": {
+   "source": "Tenant authentication certificate",
+   "text": "Certifikát ověřování tenantů"
+  },
+  "mveeam_storage_44": {
+   "source": "VBR 12.3",
+   "text": "VBR 12.3"
+  },
+  "mveeam_storage_45": {
+   "source": "VBR 12.3: Add-VBRBackupServerCertificate without -Force, and the REST API binding on port 9419 moved with netsh. Imports the certificate into LocalMachine\\My over SSH, makes it the backup server certificate (Add-VBRBackupServerCertificate) and removes older ones acme put there. Refused on a server that says another version.",
+   "text": "VBR 12.3: Add-VBRBackupServerCertificate bez -Force a binding REST API na portu 9419 přesunutý přes netsh. Přes SSH naimportuje certifikát do LocalMachine\\My, nastaví ho jako certifikát backup serveru (Add-VBRBackupServerCertificate) a odstraní starší, které tam dal acme. Server, který hlásí jinou verzi, odmítne."
+  },
+  "mveeam_storage_46": {
+   "source": "VBR 12.x: netsh http sslcert on 0.0.0.0:9419 to the new certificate",
+   "text": "VBR 12.x: netsh http sslcert na 0.0.0.0:9419 na nový certifikát"
+  },
+  "mveeam_storage_47": {
+   "source": "VBR 13.0 - 13.1",
+   "text": "VBR 13.0 - 13.1"
+  },
+  "mveeam_storage_48": {
+   "source": "VBR 13.0 - 13.1: Add-VBRBackupServerCertificate -Force; the web UI and REST API (443, 9419) use the backup server certificate by themselves. Imports the certificate into LocalMachine\\My over SSH, makes it the backup server certificate (Add-VBRBackupServerCertificate) and removes older ones acme put there. Refused on a server that says another version.",
+   "text": "VBR 13.0 - 13.1: Add-VBRBackupServerCertificate -Force; webové UI a REST API (443, 9419) používají certifikát backup serveru samy. Přes SSH naimportuje certifikát do LocalMachine\\My, nastaví ho jako certifikát backup serveru (Add-VBRBackupServerCertificate) a odstraní starší, které tam dal acme. Server, který hlásí jinou verzi, odmítne."
+  },
+  "mveeam_storage_49": {
+   "source": "Veeam Backup & Replication (backup server certificate)",
+   "text": "Veeam Backup & Replication (certifikát backup serveru)"
+  },
+  "mveeam_storage_50": {
+   "source": "Veeam Backup for Microsoft 365",
+   "text": "Veeam Backup for Microsoft 365"
+  },
+  "mveeam_storage_51": {
+   "source": "Veeam Cloud Connect (cloud gateway certificate)",
+   "text": "Veeam Cloud Connect (certifikát cloud gateway)"
+  },
+  "mveeam_storage_52": {
+   "source": "Veeam takes only a certificate with Basic Constraints CA (path length 0); acme refuses another one unless this is on",
+   "text": "Veeam vezme jen certifikát s Basic Constraints CA (délka cesty 0); jiný acme odmítne, pokud tohle není zapnuté"
+  },
+  "mveeam_storage_53": {
+   "source": "Wait for a job (s)",
+   "text": "Čekat na úlohu (s)"
+  },
+  "mveeam_storage_54": {
+   "source": "Writes the NAS's system certificate over SSH (stunnel.pem and uca.pem in /etc/stunnel, as acme.sh's hook does - QNAP documents no API) and restarts stunnel; the previous files come back when it does not start. QTS 5.2, QuTS hero h5.2 / h5.3.",
+   "text": "Zapíše systémový certifikát NAS přes SSH (stunnel.pem a uca.pem v /etc/stunnel, jako to dělá hook acme.sh – QNAP žádné API nedokumentuje) a restartuje stunnel; když nenaběhne, vrátí předchozí soubory. QTS 5.2, QuTS hero h5.2 / h5.3."
+  },
+  "mveeam_storage_55": {
+   "source": "a cluster account (admin SVM) with the http application",
+   "text": "účet clusteru (admin SVM) s aplikací http"
+  },
+  "mveeam_storage_56": {
+   "source": "a service account's API key",
+   "text": "API klíčem servisního účtu"
+  },
+  "mveeam_storage_57": {
+   "source": "a user and a password are needed",
+   "text": "je potřeba uživatel a heslo"
+  },
+  "mveeam_storage_58": {
+   "source": "after the certificate is set, one service name a line (Restart-Service): Veeam says the backup service must restart - every running job is stopped, so empty keeps it for your maintenance window; the Veeam AHV Service too when the Nutanix AHV plug-in is used",
+   "text": "po nastavení certifikátu, jedno jméno služby na řádek (Restart-Service): Veeam uvádí, že se backup služba musí restartovat – zastaví se každá běžící úloha, proto prázdné to nechá na vaše servisní okno; při použití plug-inu pro Nutanix AHV i Veeam AHV Service"
+  },
+  "mveeam_storage_59": {
+   "source": "cockpit.service restarted",
+   "text": "cockpit.service restartována"
+  },
+  "mveeam_storage_60": {
+   "source": "empty: the cluster's own web services (the admin SVM); a data SVM's name: its web services",
+   "text": "prázdné: webové služby samotného clusteru (admin SVM); jméno datového SVM: jeho webové služby"
+  },
+  "mveeam_storage_61": {
+   "source": "empty: the newest 2.x the FlashBlade lists (GET /api/api_version)",
+   "text": "prázdné: nejnovější 2.x, kterou FlashBlade uvádí (GET /api/api_version)"
+  },
+  "mveeam_storage_62": {
+   "source": "empty: the newest 2.x the array lists (GET /api/api_version)",
+   "text": "prázdné: nejnovější 2.x, kterou pole uvádí (GET /api/api_version)"
+  },
+  "mveeam_storage_63": {
+   "source": "imported the certificate into LocalMachine\\My",
+   "text": "certifikát je naimportovaný do LocalMachine\\My"
+  },
+  "mveeam_storage_64": {
+   "source": "it has no Basic Constraints CA (Veeam: Subject Type = CA, path length 0 - a certificate from a template made from Subordinate Certification Authority)",
+   "text": "nemá Basic Constraints CA (Veeam: Subject Type = CA, délka cesty 0 – certifikát ze šablony odvozené od Subordinate Certification Authority)"
+  },
+  "mveeam_storage_65": {
+   "source": "its name as GET /api/2.x/certificates (purecert list) shows it",
+   "text": "jeho jméno, jak ho ukazuje GET /api/2.x/certificates (purecert list)"
+  },
+  "mveeam_storage_66": {
+   "source": "management (the GUI and REST API), or vasa-ct0 / vasa-ct1 on a FlashArray",
+   "text": "management (GUI a REST API), nebo vasa-ct0 / vasa-ct1 na FlashArray"
+  },
+  "mveeam_storage_67": {
+   "source": "nothing to set: tick at least one certificate",
+   "text": "není co nastavit: zaškrtněte aspoň jeden certifikát"
+  },
+  "mveeam_storage_68": {
+   "source": "of an array_admin account",
+   "text": "účtu s rolí array_admin"
+  },
+  "mveeam_storage_69": {
+   "source": "of an array_admin account: pureadmin create --api-token, or POST /api/2.x/admins/api-tokens",
+   "text": "účtu s rolí array_admin: pureadmin create --api-token, nebo POST /api/2.x/admins/api-tokens"
+  },
+  "mveeam_storage_70": {
+   "source": "open Cockpit sessions are signed out; off: taken when cockpit-tls starts again by itself",
+   "text": "otevřené relace Cockpitu se odhlásí; vypnuto: převezme se, až cockpit-tls sám znovu naběhne"
+  },
+  "mveeam_storage_71": {
+   "source": "restart the backup service (it stops running jobs) and the consoles in a maintenance window - Veeam needs it for the new certificate",
+   "text": "restartujte backup službu (zastaví běžící úlohy) a konzole v servisním okně – Veeam to pro nový certifikát potřebuje"
+  },
+  "mveeam_storage_72": {
+   "source": "server.example.local ssh-ed25519 AAAA…",
+   "text": "server.example.local ssh-ed25519 AAAA…"
+  },
+  "mveeam_storage_73": {
+   "source": "stunnel restarted",
+   "text": "stunnel restartován"
+  },
+  "mveeam_storage_74": {
+   "source": "the REST API (0.0.0.0:9419) uses it",
+   "text": "REST API (0.0.0.0:9419) ho používá"
+  },
+  "mveeam_storage_75": {
+   "source": "the REST API version is 2.<n> (like 2.59)",
+   "text": "verze REST API je 2.<n> (např. 2.59)"
+  },
+  "mveeam_storage_76": {
+   "source": "the Restore Portal's address uses the same port",
+   "text": "adresa Restore Portalu používá stejný port"
+  },
+  "mveeam_storage_77": {
+   "source": "the VASA provider in vCenter may need to be registered again",
+   "text": "poskytovatele VASA ve vCenter bude možná potřeba zaregistrovat znovu"
+  },
+  "mveeam_storage_78": {
+   "source": "the array gave no x-auth-token",
+   "text": "pole nevrátilo x-auth-token"
+  },
+  "mveeam_storage_79": {
+   "source": "the backup server certificate is set",
+   "text": "certifikát backup serveru je nastaven"
+  },
+  "mveeam_storage_80": {
+   "source": "the certificate has no CA certificates to trust",
+   "text": "certifikát nemá žádné certifikáty CA, kterým by se mělo důvěřovat"
+  },
+  "mveeam_storage_81": {
+   "source": "the certificate is in LocalMachine\\My already",
+   "text": "certifikát už v LocalMachine\\My je"
+  },
+  "mveeam_storage_82": {
+   "source": "the chain's CA certificates as trust anchors (update-ca-trust / update-ca-certificates) - for a certificate of your own CA",
+   "text": "certifikáty CA z řetězce jako důvěryhodné kotvy (update-ca-trust / update-ca-certificates) – pro certifikát vlastní CA"
+  },
+  "mveeam_storage_83": {
+   "source": "the connection dropped while ONTAP restarts its web services - reading what is bound",
+   "text": "spojení spadlo, zatímco ONTAP restartuje webové služby – čtu, co je přiřazeno"
+  },
+  "mveeam_storage_84": {
+   "source": "the file name prefix is letters and digits only",
+   "text": "předpona jména souboru smí mít jen písmena a číslice"
+  },
+  "mveeam_storage_85": {
+   "source": "the files are put here first, then installed with sudo install - the sudoers lines of the setup guide name this folder",
+   "text": "soubory se nejdřív uloží sem a pak se nainstalují přes sudo install – řádky sudoers v návodu k nastavení tuto složku uvádějí"
+  },
+  "mveeam_storage_86": {
+   "source": "the intermediates into Intermediate Certification Authorities, a root into Trusted Root: Veeam refuses a certificate whose chain is not trusted there",
+   "text": "mezilehlé do Intermediate Certification Authorities, kořen do Trusted Root: Veeam odmítne certifikát, jehož řetězci se tam nedůvěřuje"
+  },
+  "mveeam_storage_87": {
+   "source": "the web server restarted",
+   "text": "webový server restartován"
+  },
+  "mveeam_storage_88": {
+   "source": "v4.4",
+   "text": "v4.4"
+  },
+  "mveeam_storage_89": {
+   "source": "where acme checks what is served",
+   "text": "kde acme kontroluje, co se servíruje"
+  },
+  "mveeam_storage_90": {
+   "source": "where acme checks what is served (Control Panel > System > General Settings > System Administration)",
+   "text": "kde acme kontroluje, co se servíruje (Control Panel > System > General Settings > System Administration)"
+  },
+  "mveeam_storage_91": {
+   "source": "where the one-time PKCS#12 is put before the import; it is deleted right after",
+   "text": "kam se před importem uloží jednorázový PKCS#12; hned potom se smaže"
+  },
+  "mcisco_aruba_1": {
+   "source": "Cisco IOS XE (switches, routers)",
+   "text": "Cisco IOS XE (switche, routery)"
+  },
+  "mcisco_aruba_2": {
+   "source": "Copies the certificate as PKCS#12 to bootflash: over SCP, imports it into a new trustpoint, points the HTTPS server (WebUI, RESTCONF) at it and restarts it, saves the configuration and removes the older acme trustpoints - over SSH. Any IOS XE 17.3 - 26.1: the PKCS#12 kind is taken from the version the device says.",
+   "text": "Zkopíruje certifikát jako PKCS#12 přes SCP do bootflash:, naimportuje ho do nového trustpointu, nasměruje na něj HTTPS server (WebUI, RESTCONF) a restartuje ho, uloží konfiguraci a odstraní starší trustpointy acme - přes SSH. Libovolné IOS XE 17.3 - 26.1: druh PKCS#12 se řídí verzí, kterou zařízení ohlásí."
+  },
+  "mcisco_aruba_3": {
+   "source": "File system",
+   "text": "Souborový systém"
+  },
+  "mcisco_aruba_4": {
+   "source": "where the PKCS#12 is copied for the import (bootflash: or flash:)",
+   "text": "kam se PKCS#12 kvůli importu zkopíruje (bootflash: nebo flash:)"
+  },
+  "mcisco_aruba_5": {
+   "source": "the port of the WebUI (ip http secure-port), for the test of what is served",
+   "text": "port WebUI (ip http secure-port) pro test toho, co se servíruje"
+  },
+  "mcisco_aruba_6": {
+   "source": "HTTPS server (WebUI, RESTCONF)",
+   "text": "HTTPS server (WebUI, RESTCONF)"
+  },
+  "mcisco_aruba_7": {
+   "source": "ip http secure-trustpoint, then the HTTPS server restarted (WebUI and RESTCONF sessions are cut for a moment; traffic is not)",
+   "text": "ip http secure-trustpoint, pak restart HTTPS serveru (relace WebUI a RESTCONF se na okamžik přeruší; provoz ne)"
+  },
+  "mcisco_aruba_8": {
+   "source": "IOS XE 17.3 - 17.11: the PKCS#12 is made the old way (3DES, SHA-1 MAC) - these versions refuse a SHA-256 MAC (CSCvz41428). Copies it to bootflash: over SCP, imports it into a new trustpoint, points the HTTPS server at it, saves and removes older acme trustpoints. Refused on a device that says another IOS XE.",
+   "text": "IOS XE 17.3 - 17.11: PKCS#12 se vytvoří postaru (3DES, MAC SHA-1) - tyto verze MAC SHA-256 odmítají (CSCvz41428). Zkopíruje ho přes SCP do bootflash:, naimportuje do nového trustpointu, nasměruje na něj HTTPS server, uloží a odstraní starší trustpointy acme. Na zařízení, které ohlásí jiné IOS XE, odmítne."
+  },
+  "mcisco_aruba_9": {
+   "source": "IOS XE 17.3 - 17.11",
+   "text": "IOS XE 17.3 - 17.11"
+  },
+  "mcisco_aruba_10": {
+   "source": "IOS XE 17.12 - 26.1 (17.12, 17.15, 17.18, 26.x): the PKCS#12 is AES-256 with a SHA-256 MAC. Copies it to bootflash: over SCP, imports it into a new trustpoint, points the HTTPS server at it, saves and removes older acme trustpoints. Refused on a device that says another IOS XE.",
+   "text": "IOS XE 17.12 - 26.1 (17.12, 17.15, 17.18, 26.x): PKCS#12 je AES-256 s MAC SHA-256. Zkopíruje ho přes SCP do bootflash:, naimportuje do nového trustpointu, nasměruje na něj HTTPS server, uloží a odstraní starší trustpointy acme. Na zařízení, které ohlásí jiné IOS XE, odmítne."
+  },
+  "mcisco_aruba_11": {
+   "source": "IOS XE 17.12 - 26.1",
+   "text": "IOS XE 17.12 - 26.1"
+  },
+  "mcisco_aruba_12": {
+   "source": "Cisco Catalyst 9800 Wireless Controller",
+   "text": "Cisco Catalyst 9800 Wireless Controller"
+  },
+  "mcisco_aruba_13": {
+   "source": "Copies the certificate as PKCS#12 to the controller's bootflash: over SCP, imports it into a new trustpoint, uses it for the web admin (GUI, RESTCONF) and, when asked, the guest portal (webauth parameter map), restarts the HTTP(S) server, saves and removes the older acme trustpoints - over SSH. Any IOS XE 17.3 - 26.1: the PKCS#12 kind is taken from the version the controller says.",
+   "text": "Zkopíruje certifikát jako PKCS#12 přes SCP do bootflash: kontroleru, naimportuje ho do nového trustpointu, použije ho pro webovou administraci (GUI, RESTCONF) a na požádání i pro portál hostů (parameter-map webauth), restartuje HTTP(S) server, uloží a odstraní starší trustpointy acme - přes SSH. Libovolné IOS XE 17.3 - 26.1: druh PKCS#12 se řídí verzí, kterou kontroler ohlásí."
+  },
+  "mcisco_aruba_14": {
+   "source": "Web admin (GUI, RESTCONF)",
+   "text": "Webová administrace (GUI, RESTCONF)"
+  },
+  "mcisco_aruba_15": {
+   "source": "ip http secure-trustpoint, then the HTTPS server restarted (GUI sessions are cut for a moment; APs and clients are not)",
+   "text": "ip http secure-trustpoint, pak restart HTTPS serveru (relace GUI se na okamžik přeruší; AP a klienti ne)"
+  },
+  "mcisco_aruba_16": {
+   "source": "Web authentication (guest portal)",
+   "text": "Webová autentizace (portál pro hosty)"
+  },
+  "mcisco_aruba_17": {
+   "source": "the trustpoint of a webauth parameter map, then the HTTP server restarted (guest sign-ins under way are redirected again)",
+   "text": "trustpoint parameter-map webauth, pak restart HTTP serveru (rozpracovaná přihlášení hostů se přesměrují znovu)"
+  },
+  "mcisco_aruba_18": {
+   "source": "Webauth parameter map",
+   "text": "Parameter-map pro webauth"
+  },
+  "mcisco_aruba_19": {
+   "source": "parameter-map type webauth <name>; its virtual IP and virtual-host must be set and match the certificate's name",
+   "text": "parameter-map type webauth <název>; jeho virtuální IP a virtual-host musí být nastavené a odpovídat jménu v certifikátu"
+  },
+  "mcisco_aruba_20": {
+   "source": "Webauth virtual host",
+   "text": "Virtuální host webauth"
+  },
+  "mcisco_aruba_21": {
+   "source": "the virtual-host name of the portal, for the test of what is served",
+   "text": "jméno virtual-host portálu pro test toho, co se servíruje"
+  },
+  "mcisco_aruba_22": {
+   "source": "IOS XE 17.3 - 17.11: the PKCS#12 is made the old way (3DES, SHA-1 MAC) - these versions refuse a SHA-256 MAC (CSCvz41428). Copies the certificate as PKCS#12 to the controller's bootflash: over SCP, imports it into a new trustpoint, uses it for the web admin (GUI, RESTCONF) and, when asked, the guest portal (webauth parameter map), restarts the HTTP(S) server, saves and removes the older acme trustpoints - over SSH. Refused on a controller that says another IOS XE.",
+   "text": "IOS XE 17.3 - 17.11: PKCS#12 se vytvoří postaru (3DES, MAC SHA-1) - tyto verze MAC SHA-256 odmítají (CSCvz41428). Zkopíruje certifikát jako PKCS#12 přes SCP do bootflash: kontroleru, naimportuje ho do nového trustpointu, použije ho pro webovou administraci (GUI, RESTCONF) a na požádání i pro portál hostů (parameter-map webauth), restartuje HTTP(S) server, uloží a odstraní starší trustpointy acme - přes SSH. Na kontroleru, který ohlásí jiné IOS XE, odmítne."
+  },
+  "mcisco_aruba_23": {
+   "source": "IOS XE 17.12 - 26.1 (17.12, 17.15, 17.18, 26.x): the PKCS#12 is AES-256 with a SHA-256 MAC. Copies the certificate as PKCS#12 to the controller's bootflash: over SCP, imports it into a new trustpoint, uses it for the web admin (GUI, RESTCONF) and, when asked, the guest portal (webauth parameter map), restarts the HTTP(S) server, saves and removes the older acme trustpoints - over SSH. Refused on a controller that says another IOS XE.",
+   "text": "IOS XE 17.12 - 26.1 (17.12, 17.15, 17.18, 26.x): PKCS#12 je AES-256 s MAC SHA-256. Zkopíruje certifikát jako PKCS#12 přes SCP do bootflash: kontroleru, naimportuje ho do nového trustpointu, použije ho pro webovou administraci (GUI, RESTCONF) a na požádání i pro portál hostů (parameter-map webauth), restartuje HTTP(S) server, uloží a odstraní starší trustpointy acme - přes SSH. Na kontroleru, který ohlásí jiné IOS XE, odmítne."
+  },
+  "mcisco_aruba_24": {
+   "source": "Cisco NX-OS (Nexus, NX-API)",
+   "text": "Cisco NX-OS (Nexus, NX-API)"
+  },
+  "mcisco_aruba_25": {
+   "source": "Copies the certificate as PKCS#12 to the Nexus's bootflash: over SCP, imports it into a new trustpoint through NX-API, makes NX-API serve it (nxapi certificate trustpoint), saves and removes the older acme trustpoints. NX-OS 10.2(3)F - 10.6.",
+   "text": "Zkopíruje certifikát jako PKCS#12 přes SCP do bootflash: Nexusu, přes NX-API ho naimportuje do nového trustpointu, nechá ho servírovat NX-API (nxapi certificate trustpoint), uloží a odstraní starší trustpointy acme. NX-OS 10.2(3)F - 10.6."
+  },
+  "mcisco_aruba_26": {
+   "source": "a user with the role network-admin, or a role of its own that may run crypto, nxapi certificate, copy and configure terminal",
+   "text": "uživatel s rolí network-admin, nebo s vlastní rolí, která smí crypto, nxapi certificate, copy a configure terminal"
+  },
+  "mcisco_aruba_27": {
+   "source": "SSH port (SCP)",
+   "text": "SSH port (SCP)"
+  },
+  "mcisco_aruba_28": {
+   "source": "the PKCS#12 is copied with SCP (feature scp-server) by the same user",
+   "text": "PKCS#12 se kopíruje přes SCP (feature scp-server) stejným uživatelem"
+  },
+  "mcisco_aruba_29": {
+   "source": "n9k01.example.local ssh-rsa AAAA…",
+   "text": "n9k01.example.local ssh-rsa AAAA…"
+  },
+  "mcisco_aruba_30": {
+   "source": "NX-API HTTPS",
+   "text": "HTTPS NX-API"
+  },
+  "mcisco_aruba_31": {
+   "source": "nxapi certificate trustpoint: NX-API (nginx) restarts, its sessions are cut",
+   "text": "nxapi certificate trustpoint: NX-API (nginx) se restartuje, jeho relace se přeruší"
+  },
+  "mcisco_aruba_32": {
+   "source": "Save the configuration (copy running-config startup-config)",
+   "text": "Uložit konfiguraci (copy running-config startup-config)"
+  },
+  "mcisco_aruba_33": {
+   "source": "Cisco Catalyst Center (DNA Center)",
+   "text": "Cisco Catalyst Center (DNA Center)"
+  },
+  "mcisco_aruba_34": {
+   "source": "Replaces the system certificate of Catalyst Center (the GUI, Intent API, PnP, telemetry) and/or its Disaster Recovery certificate through the Intent API; it restarts its web services and signs everybody out. Catalyst Center 2.3.7, 3.1 and 3.3.",
+   "text": "Vymění systémový certifikát Catalyst Center (GUI, Intent API, PnP, telemetrie) a/nebo jeho certifikát Disaster Recovery přes Intent API; Catalyst Center pak restartuje webové služby a všechny odhlásí. Catalyst Center 2.3.7, 3.1 a 3.3."
+  },
+  "mcisco_aruba_35": {
+   "source": "a user with SUPER-ADMIN-ROLE, or a role of its own with System Management and the APIs",
+   "text": "uživatel s SUPER-ADMIN-ROLE, nebo s vlastní rolí se System Management a API"
+  },
+  "mcisco_aruba_36": {
+   "source": "Controller (the system certificate: GUI, API, PnP)",
+   "text": "Controller (systémový certifikát: GUI, API, PnP)"
+  },
+  "mcisco_aruba_37": {
+   "source": "Disaster Recovery (ipsec)",
+   "text": "Disaster Recovery (ipsec)"
+  },
+  "mcisco_aruba_38": {
+   "source": "Upload as",
+   "text": "Nahrát jako"
+  },
+  "mcisco_aruba_39": {
+   "source": "PEM chain + key",
+   "text": "řetězec PEM + klíč"
+  },
+  "mcisco_aruba_40": {
+   "source": "PKCS#12",
+   "text": "PKCS#12"
+  },
+  "mcisco_aruba_41": {
+   "source": "Wait for the import (s)",
+   "text": "Čekat na import (s)"
+  },
+  "mcisco_aruba_42": {
+   "source": "Catalyst Center restarts its services after the import; acme follows the task while it answers",
+   "text": "Catalyst Center po importu restartuje své služby; acme sleduje úlohu, dokud odpovídá"
+  },
+  "mcisco_aruba_43": {
+   "source": "HPE Aruba Networking AOS-CX switch",
+   "text": "Switch HPE Aruba Networking AOS-CX"
+  },
+  "mcisco_aruba_44": {
+   "source": "Installs the certificate and its key on an AOS-CX switch through its REST API (the CAs as trust anchor profiles), uses it for the HTTPS server (WebUI, REST) and the other applications asked, saves the configuration and deletes older acme certificates. AOS-CX 10.13 - 10.18.",
+   "text": "Nainstaluje certifikát s klíčem na switch AOS-CX přes jeho REST API (CA jako trust anchor profily), použije ho pro HTTPS server (WebUI, REST) a další uvedené aplikace, uloží konfiguraci a smaže starší certifikáty acme. AOS-CX 10.13 - 10.18."
+  },
+  "mcisco_aruba_45": {
+   "source": "a user of the group administrators (REST writes need it)",
+   "text": "uživatel ze skupiny administrators (zápis přes REST ji potřebuje)"
+  },
+  "mcisco_aruba_46": {
+   "source": "latest (10.09 and later), or a version the switch lists at /rest, e.g. v10.13",
+   "text": "latest (10.09 a novější), nebo verze, kterou switch vypíše na /rest, např. v10.13"
+  },
+  "mcisco_aruba_47": {
+   "source": "one a line: https-server, syslog-client, captive-portal, radsec-client, hsc, gnmi, est-client, dot1x-supplicant",
+   "text": "po řádcích: https-server, syslog-client, captive-portal, radsec-client, hsc, gnmi, est-client, dot1x-supplicant"
+  },
+  "mcisco_aruba_48": {
+   "source": "Save the configuration",
+   "text": "Uložit konfiguraci"
+  },
+  "mcisco_aruba_49": {
+   "source": "HPE Aruba Networking ClearPass Policy Manager",
+   "text": "HPE Aruba Networking ClearPass Policy Manager"
+  },
+  "mcisco_aruba_50": {
+   "source": "Replaces the server certificates (HTTPS, RADIUS, RadSec) of a ClearPass server through its REST API: the CAs into the trust list, the PKCS#12 fetched by ClearPass from a staging web server acme puts it on for a moment. ClearPass 6.12 - 6.14.",
+   "text": "Vymění serverové certifikáty (HTTPS, RADIUS, RadSec) serveru ClearPass přes jeho REST API: CA do trust listu, PKCS#12 si ClearPass stáhne z přestupního webového serveru, kam ho acme na okamžik uloží. ClearPass 6.12 - 6.14."
+  },
+  "mcisco_aruba_51": {
+   "source": "API client ID",
+   "text": "ID klienta API"
+  },
+  "mcisco_aruba_52": {
+   "source": "Administration → API Services → API Clients, grant type Client credentials",
+   "text": "Administration → API Services → API Clients, grant type Client credentials"
+  },
+  "mcisco_aruba_53": {
+   "source": "the server of the cluster whose certificates these are: its name, FQDN, IP address or server UUID",
+   "text": "server clusteru, jehož certifikáty to jsou: jeho jméno, FQDN, IP adresa nebo UUID serveru"
+  },
+  "mcisco_aruba_54": {
+   "source": "Staging web server",
+   "text": "Přestupní webový server"
+  },
+  "mcisco_aruba_55": {
+   "source": "a server ClearPass downloads the PKCS#12 from; acme writes it there over SSH for a moment",
+   "text": "server, ze kterého si ClearPass PKCS#12 stáhne; acme ho tam na okamžik zapíše přes SSH"
+  },
+  "mcisco_aruba_56": {
+   "source": "SSH user",
+   "text": "Uživatel SSH"
+  },
+  "mcisco_aruba_57": {
+   "source": "SSH password",
+   "text": "Heslo SSH"
+  },
+  "mcisco_aruba_58": {
+   "source": "a directory the web server serves; the file is world-readable for the moment it is there, under a random name",
+   "text": "adresář, který webový server servíruje; soubor je po dobu, kdy tam leží, čitelný pro všechny, pod náhodným jménem"
+  },
+  "mcisco_aruba_59": {
+   "source": "Its URL",
+   "text": "Jeho URL"
+  },
+  "mcisco_aruba_60": {
+   "source": "the URL of that directory as ClearPass reaches it",
+   "text": "URL tohoto adresáře, jak na něj dosáhne ClearPass"
+  },
+  "mcisco_aruba_61": {
+   "source": "one a line: HTTPS(RSA), HTTPS(ECC), RADIUS, RadSec (HTTPS(ECC) takes an ECDSA certificate)",
+   "text": "po řádcích: HTTPS(RSA), HTTPS(ECC), RADIUS, RadSec (HTTPS(ECC) potřebuje certifikát ECDSA)"
+  },
+  "mcisco_aruba_62": {
+   "source": "Add the CAs to the trust list",
+   "text": "Přidat CA do trust listu"
+  },
+  "mcisco_aruba_63": {
+   "source": "Trust list usage",
+   "text": "Použití v trust listu"
+  },
+  "mcisco_aruba_64": {
+   "source": "one a line: AD/LDAP Servers, Aruba Infrastructure, Aruba Services, Database, EAP, Endpoint Context Servers, RadSec, SAML, SMTP, EST, Syslog, Others",
+   "text": "po řádcích: AD/LDAP Servers, Aruba Infrastructure, Aruba Services, Database, EAP, Endpoint Context Servers, RadSec, SAML, SMTP, EST, Syslog, Others"
+  },
+  "mcisco_aruba_65": {
+   "source": "HPE Aruba Networking Central (AOS 10)",
+   "text": "HPE Aruba Networking Central (AOS 10)"
+  },
+  "mcisco_aruba_66": {
+   "source": "Uploads the certificate (PKCS#12) into the certificate store of Aruba Central and replaces it there under the same name at each renewal, so the profiles of AOS 10 gateways and APs that name it get it. Classic Central API Gateway.",
+   "text": "Nahraje certifikát (PKCS#12) do úložiště certifikátů Aruba Central a při každé obnově ho tam nahradí pod stejným jménem, takže ho dostanou profily gatewayí a AP s AOS 10, které na něj odkazují. Classic Central API Gateway."
+  },
+  "mcisco_aruba_67": {
+   "source": "API gateway",
+   "text": "API gateway"
+  },
+  "mcisco_aruba_68": {
+   "source": "the API gateway of your Central cluster (Organization → Platform Integration → REST API shows it): US-2 https://apigw-prod2.central.arubanetworks.com, EU-1 https://eu-apigw.central.arubanetworks.com",
+   "text": "API gateway vašeho clusteru Central (ukáže ji Organization → Platform Integration → REST API): US-2 https://apigw-prod2.central.arubanetworks.com, EU-1 https://eu-apigw.central.arubanetworks.com"
+  },
+  "mcisco_aruba_69": {
+   "source": "Refresh token",
+   "text": "Refresh token"
+  },
+  "mcisco_aruba_70": {
+   "source": "of a token made for the API client; acme keeps the new one each refresh gives (a refresh token is used up) - put a new one here when acme says it is refused",
+   "text": "tokenu vytvořeného pro klienta API; acme si ponechá nový, který každé obnovení vrátí (refresh token se spotřebuje) - když acme hlásí, že byl odmítnut, vložte sem nový"
+  },
+  "mcisco_aruba_71": {
+   "source": "Name in Central",
+   "text": "Jméno v Central"
+  },
+  "mcisco_aruba_72": {
+   "source": "the name the profiles use; the first deployment uploads it, the next ones replace it under this name",
+   "text": "jméno, které používají profily; první nasazení certifikát nahraje, další ho pod tímto jménem nahradí"
+  },
+  "mcisco_aruba_73": {
+   "source": "FMC 7.7 - 10.0: besides the Internal Certificate for decryption rules (as the plain version), puts the certificate into a PKCS12 Cert Enrollment object of a fixed name and enrols it on the devices asked (Devices → Certificates), so the trustpoint RA VPN uses keeps its name and gets the new certificate. Refused on an FMC that says another version.",
+   "text": "FMC 7.7 - 10.0: kromě Internal Certificate pro dešifrovací pravidla (jako verze bez čísla) vloží certifikát do objektu Cert Enrollment typu PKCS12 se stálým jménem a zapíše ho na uvedená zařízení (Devices → Certificates), takže trustpoint, který používá RA VPN, si ponechá jméno a dostane nový certifikát. Na FMC, které ohlásí jinou verzi, odmítne."
+  },
+  "mcisco_aruba_74": {
+   "source": "FMC 7.7 - 10.0",
+   "text": "FMC 7.7 - 10.0"
+  },
+  "mcisco_aruba_75": {
+   "source": "Inbound decryption",
+   "text": "Inbound decryption"
+  },
+  "mcisco_aruba_76": {
+   "source": "Cert Enrollment object (PKCS12)",
+   "text": "Objekt Cert Enrollment (PKCS12)"
+  },
+  "mcisco_aruba_77": {
+   "source": "the name of the PKCS12 enrollment object - the trustpoint on the devices; made the first time, its PKCS#12 replaced at each renewal; empty: no device certificate",
+   "text": "jméno objektu enrollmentu PKCS12 - trustpoint na zařízeních; poprvé se vytvoří, při každé obnově se mu nahradí PKCS#12; prázdné: žádný certifikát zařízení"
+  },
+  "mcisco_aruba_78": {
+   "source": "Enrol on these devices",
+   "text": "Zapsat na tato zařízení"
+  },
+  "mcisco_aruba_79": {
+   "source": "one a line: device names as the FMC lists them",
+   "text": "po řádcích: jména zařízení, jak je vypisuje FMC"
+  },
+  "mcisco_aruba_80": {
+   "source": "Also an Internal Certificate",
+   "text": "Také Internal Certificate"
+  },
+  "mcisco_aruba_81": {
+   "source": "the Internal Certificate for decryption rules, as the plain version (off: only the device certificate)",
+   "text": "Internal Certificate pro dešifrovací pravidla jako ve verzi bez čísla (vypnuto: jen certifikát zařízení)"
+  },
+  "mcisco_aruba_82": {
+   "source": "reading the trustpoints",
+   "text": "čtu trustpointy"
+  },
+  "mcisco_aruba_83": {
+   "source": "the IOS XE version cannot be read - PKCS#12 with 3DES and a SHA-1 MAC is sent (what every 17.x takes)",
+   "text": "verzi IOS XE nelze přečíst - posílá se PKCS#12 s 3DES a MAC SHA-1 (ten přijme každé 17.x)"
+  },
+  "mcisco_aruba_84": {
+   "source": "write memory",
+   "text": "write memory"
+  },
+  "mcisco_aruba_85": {
+   "source": "deleting the PKCS#12",
+   "text": "mažu PKCS#12"
+  },
+  "mcisco_aruba_86": {
+   "source": "reading the webauth parameter maps",
+   "text": "čtu parameter-map webauth"
+  },
+  "mcisco_aruba_87": {
+   "source": "the NX-OS version cannot be read - nxapi certificate trustpoint (10.2(3)F and later) is used",
+   "text": "verzi NX-OS nelze přečíst - použije se nxapi certificate trustpoint (10.2(3)F a novější)"
+  },
+  "mcisco_aruba_88": {
+   "source": "copy running-config startup-config",
+   "text": "copy running-config startup-config"
+  },
+  "mcisco_aruba_89": {
+   "source": "Catalyst Center restarts its web services and signs everybody out (about 2 minutes)",
+   "text": "Catalyst Center restartuje webové služby a všechny odhlásí (asi 2 minuty)"
+  },
+  "mcisco_aruba_90": {
+   "source": "Catalyst Center gave no token",
+   "text": "Catalyst Center nevydal token"
+  },
+  "mcisco_aruba_91": {
+   "source": "the switch gave no session cookie",
+   "text": "switch nevydal cookie relace"
+  },
+  "mcisco_aruba_92": {
+   "source": "reading the system",
+   "text": "čtu systém"
+  },
+  "mcisco_aruba_93": {
+   "source": "saved the configuration",
+   "text": "konfigurace uložena"
+  },
+  "mcisco_aruba_94": {
+   "source": "signing out",
+   "text": "odhlášení"
+  },
+  "mcisco_aruba_95": {
+   "source": "listing the trust anchor profiles",
+   "text": "vypisuji trust anchor profily"
+  },
+  "mcisco_aruba_96": {
+   "source": "ClearPass restarts the services of the certificates replaced (HTTPS: its pages, RADIUS: authentications for a moment)",
+   "text": "ClearPass restartuje služby vyměněných certifikátů (HTTPS: své stránky, RADIUS: na okamžik ověřování)"
+  },
+  "mcisco_aruba_97": {
+   "source": "ClearPass gave no access_token",
+   "text": "ClearPass nevydal access_token"
+  },
+  "mcisco_aruba_98": {
+   "source": "listing the servers",
+   "text": "vypisuji servery"
+  },
+  "mcisco_aruba_99": {
+   "source": "put the PKCS#12 on the staging server for ClearPass to fetch",
+   "text": "PKCS#12 uložen na přestupní server, aby si ho ClearPass stáhl"
+  },
+  "mcisco_aruba_100": {
+   "source": "added a CA of the chain to the trust list",
+   "text": "CA z řetězce přidána do trust listu"
+  },
+  "mcisco_aruba_101": {
+   "source": "adding a CA to the trust list",
+   "text": "přidávám CA do trust listu"
+  },
+  "mcisco_aruba_102": {
+   "source": "Central gave no access_token",
+   "text": "Central nevydal access_token"
+  },
+  "mcisco_aruba_103": {
+   "source": "give the name the certificate has in Central",
+   "text": "zadejte jméno, které má certifikát v Central"
+  },
+  "mcisco_aruba_104": {
+   "source": "refreshing the token",
+   "text": "obnovuji token"
+  },
+  "mcisco_aruba_105": {
+   "source": "reading the FMC version",
+   "text": "čtu verzi FMC"
+  },
+  "mcisco_aruba_106": {
+   "source": "3DES, SHA-1 MAC",
+   "text": "3DES, MAC SHA-1"
+  },
+  "mcisco_aruba_107": {
+   "source": "the HTTPS server",
+   "text": "HTTPS server"
+  },
+  "mcisco_aruba_108": {
+   "source": "the certificate of Catalyst Center",
+   "text": "certifikát Catalyst Center"
+  },
+  "mcisco_aruba_109": {
+   "source": "on ClearPass",
+   "text": "na ClearPass"
+  },
+  "mcisco_aruba_110": {
+   "source": "on the FMC",
+   "text": "na FMC"
+  },
+  "mcisco_aruba_111": {
+   "source": "(the plain one, no version)",
+   "text": "(verze bez čísla)"
+  },
+  "mvmware_1": {
+   "source": " (it asks for --sha256: the PEM's blocks are not as it wants them - KB 423843)",
+   "text": " (žádá --sha256: bloky PEM nejsou tak, jak je chce - KB 423843)"
+  },
+  "mvmware_2": {
+   "source": ", services deployed",
+   "text": ", služby nasazeny"
+  },
+  "mvmware_3": {
+   "source": ", the service restarted",
+   "text": ", služba restartována"
+  },
+  "mvmware_4": {
+   "source": "0: start the request and go on",
+   "text": "0: požadavek spustit a pokračovat"
+  },
+  "mvmware_5": {
+   "source": "API release",
+   "text": "Vydání API"
+  },
+  "mvmware_6": {
+   "source": "Add the chain to the appliance's CA certificates",
+   "text": "Přidat řetězec mezi certifikáty CA appliance"
+  },
+  "mvmware_7": {
+   "source": "Add the chain to vCenter's trusted roots",
+   "text": "Přidat řetězec mezi důvěryhodné kořeny vCenteru"
+  },
+  "mvmware_8": {
+   "source": "Appliance",
+   "text": "Appliance"
+  },
+  "mvmware_9": {
+   "source": "Aria Automation and Automation Orchestrator 8.18: sets the ingress certificate with \"vracli certificate ingress --set\" over SSH (validated first) and runs /opt/scripts/deploy.sh - the services are redeployed.",
+   "text": "Aria Automation a Automation Orchestrator 8.18: nastaví ingress certifikát příkazem „vracli certificate ingress --set\" přes SSH (nejdřív ho ověří) a spustí /opt/scripts/deploy.sh - služby se znovu nasadí."
+  },
+  "mvmware_10": {
+   "source": "Aria Automation takes an RSA key for its ingress certificate: choose an RSA key for this certificate",
+   "text": "Aria Automation bere pro ingress certifikát klíč RSA: zvolte pro tento certifikát klíč RSA"
+  },
+  "mvmware_11": {
+   "source": "Aria Suite Lifecycle 8.18: imports the certificate into the Locker and runs \"Replace Certificate\" on the Aria products listed (Operations, Automation, Operations for Logs, Workspace ONE Access), waiting for each request; deletes older acme certificates from the Locker.",
+   "text": "Aria Suite Lifecycle 8.18: naimportuje certifikát do Lockeru a na uvedených produktech Aria (Operations, Automation, Operations for Logs, Workspace ONE Access) spustí „Replace Certificate\" a počká na každý požadavek; starší certifikáty acme z Lockeru smaže."
+  },
+  "mvmware_12": {
+   "source": "Cells",
+   "text": "Cely"
+  },
+  "mvmware_13": {
+   "source": "Cloud Director 10.5.1 - 10.6: imports the certificate into the Certificates Library and points each cell's HTTP endpoint (portals, API, console proxy) at it, a cell at a time (in maintenance when asked); deletes older acme items nothing uses.",
+   "text": "Cloud Director 10.5.1 - 10.6: naimportuje certifikát do Certificates Library a nastaví ho HTTP endpointu každé cely (portály, API, konzolový proxy), celu po cele (na požádání v údržbě); starší položky acme, které nic nepoužívá, smaže."
+  },
+  "mvmware_14": {
+   "source": "Cloud Director gave no X-VMWARE-VCLOUD-ACCESS-TOKEN on signing in",
+   "text": "Cloud Director při přihlášení nevrátil X-VMWARE-VCLOUD-ACCESS-TOKEN"
+  },
+  "mvmware_15": {
+   "source": "Cloud Director lists no cell",
+   "text": "Cloud Director nevypisuje žádnou celu"
+  },
+  "mvmware_16": {
+   "source": "ESX host (managed object id)",
+   "text": "Hostitel ESX (ID spravovaného objektu)"
+  },
+  "mvmware_17": {
+   "source": "ESX host name",
+   "text": "Jméno hostitele ESX"
+  },
+  "mvmware_18": {
+   "source": "ESX takes RSA keys only (2048 - 8192 bits): choose an RSA key for this certificate",
+   "text": "ESX bere jen klíče RSA (2048 - 8192 bitů): zvolte pro tento certifikát klíč RSA"
+  },
+  "mvmware_19": {
+   "source": "ESXi 8.0 U3 - 9.1 (through vCenter)",
+   "text": "ESXi 8.0 U3 - 9.1 (přes vCenter)"
+  },
+  "mvmware_20": {
+   "source": "ESXi 8.0 U3 - 9.1 (through vCenter): puts the key and the certificate on the host through vCenter's vSphere API (HostCertificateManager ProvisionServerPrivateKey, InstallServerCertificate, NotifyAffectedServices) - no SSH, no maintenance mode, no restart; the chain added to vCenter's trusted roots first. Refused on a host that says an older ESXi.",
+   "text": "ESXi 8.0 U3 - 9.1 (přes vCenter): dá klíč a certifikát hostiteli přes vSphere API vCenteru (HostCertificateManager ProvisionServerPrivateKey, InstallServerCertificate, NotifyAffectedServices) - bez SSH, bez režimu údržby, bez restartu; řetězec nejdřív přidá mezi důvěryhodné kořeny vCenteru. Hostitele, který hlásí starší ESXi, odmítne."
+  },
+  "mvmware_21": {
+   "source": "Each cell in maintenance while it changes",
+   "text": "Každou celu při změně do údržby"
+  },
+  "mvmware_22": {
+   "source": "Enterprise Admin, or Security Admin (security_engineer)",
+   "text": "Enterprise Admin, nebo Security Admin (security_engineer)"
+  },
+  "mvmware_23": {
+   "source": "Friendly name",
+   "text": "Popisný název"
+  },
+  "mvmware_24": {
+   "source": "Horizon 8 (2212 - 2609): imports the certificate into the Connection Server's machine store with an exportable key, moves the friendly name \"vdm\" to it and restarts the Connection Server service - over OpenSSH and PowerShell.",
+   "text": "Horizon 8 (2212 - 2609): naimportuje certifikát do úložiště počítače Connection Serveru s exportovatelným klíčem, přesune na něj popisný název „vdm\" a restartuje službu Connection Serveru - přes OpenSSH a PowerShell."
+  },
+  "mvmware_25": {
+   "source": "Horizon takes the certificate when its service starts; the restart interrupts provisioning and Blast sessions",
+   "text": "Horizon certifikát převezme při startu své služby; restart přeruší provisioning a relace Blast"
+  },
+  "mvmware_26": {
+   "source": "Intermediates into the machine's CA store",
+   "text": "Mezilehlé certifikáty do úložiště CA počítače"
+  },
+  "mvmware_27": {
+   "source": "Live Site Recovery (Site Recovery Manager) and vSphere Replication 9.x: replaces the appliance certificate through its Configuration API (port 5480) as a PKCS#12, the chain added to its CA certificates first; says when the appliance must be restarted and the site pairs reconnected.",
+   "text": "Live Site Recovery (Site Recovery Manager) a vSphere Replication 9.x: vymění certifikát appliance přes její Configuration API (port 5480) jako PKCS#12, řetězec nejdřív přidá mezi její certifikáty CA; řekne, kdy je třeba appliance restartovat a páry lokalit znovu připojit."
+  },
+  "mvmware_28": {
+   "source": "Manager nodes (API)",
+   "text": "Uzly manageru (API)"
+  },
+  "mvmware_29": {
+   "source": "NSX 4.2 - 9.1: imports the certificate into NSX Manager (trust management, not a service certificate), validates it and applies it to the API of the manager nodes and/or the cluster's virtual IP; deletes older acme ones nothing uses.",
+   "text": "NSX 4.2 - 9.1: naimportuje certifikát do NSX Manageru (trust management, ne servisní certifikát), ověří ho a použije pro API uzlů manageru a/nebo virtuální IP clusteru; starší certifikáty acme, které nic nepoužívá, smaže."
+  },
+  "mvmware_30": {
+   "source": "NSX Manager is restarting its web service - asking again",
+   "text": "NSX Manager restartuje webovou službu - ptám se znovu"
+  },
+  "mvmware_31": {
+   "source": "NSX gave no id for the imported certificate",
+   "text": "NSX nevrátilo ID importovaného certifikátu"
+  },
+  "mvmware_32": {
+   "source": "NSX validated it (usage SERVER)",
+   "text": "NSX ho ověřilo (použití SERVER)"
+  },
+  "mvmware_33": {
+   "source": "NotifyAffectedServices: new connections get the new certificate at once",
+   "text": "NotifyAffectedServices: nová spojení dostanou nový certifikát hned"
+  },
+  "mvmware_34": {
+   "source": "Omnissa Horizon Connection Server",
+   "text": "Omnissa Horizon Connection Server"
+  },
+  "mvmware_35": {
+   "source": "Pre-validate first",
+   "text": "Nejdřív předběžně ověřit"
+  },
+  "mvmware_36": {
+   "source": "Restart the Connection Server service",
+   "text": "Restartovat službu Connection Serveru"
+  },
+  "mvmware_37": {
+   "source": "Run /opt/scripts/deploy.sh",
+   "text": "Spustit /opt/scripts/deploy.sh"
+  },
+  "mvmware_38": {
+   "source": "SDDC Manager gave no token on signing in",
+   "text": "SDDC Manager při přihlášení nevrátil token"
+  },
+  "mvmware_39": {
+   "source": "SDDC Manager reads its trust store when its services restart (KB 316056): as root on it run /opt/vmware/vcf/operationsmanager/scripts/cli/sddcmanager_restart_services.sh",
+   "text": "SDDC Manager načte úložiště důvěry při restartu svých služeb (KB 316056): jako root na něm spusťte /opt/vmware/vcf/operationsmanager/scripts/cli/sddcmanager_restart_services.sh"
+  },
+  "mvmware_40": {
+   "source": "Supervisor",
+   "text": "Supervisor"
+  },
+  "mvmware_41": {
+   "source": "Tell the host's services",
+   "text": "Oznámit změnu službám hostitele"
+  },
+  "mvmware_42": {
+   "source": "The cluster's virtual IP (MGMT_CLUSTER)",
+   "text": "Virtuální IP clusteru (MGMT_CLUSTER)"
+  },
+  "mvmware_43": {
+   "source": "The intermediates too",
+   "text": "I mezilehlé certifikáty"
+  },
+  "mvmware_44": {
+   "source": "Trusted for",
+   "text": "Důvěřovat pro"
+  },
+  "mvmware_45": {
+   "source": "VCF 5.2 - 9.1: adds the CA certificates of the certificate (intermediates and root) to SDDC Manager's trust store, so it keeps trusting a vCenter, NSX or ESX acme gave the certificate to. SDDC Manager takes no key made elsewhere: the certificate itself goes to the component.",
+   "text": "VCF 5.2 - 9.1: přidá certifikáty CA certifikátu (mezilehlé a kořen) do úložiště důvěry SDDC Manageru, aby dál důvěřoval vCenteru, NSX nebo ESX, kterým acme certifikát dalo. SDDC Manager nepřijme klíč vytvořený jinde: samotný certifikát jde na komponentu."
+  },
+  "mvmware_46": {
+   "source": "VMware Aria Automation / Orchestrator (vracli)",
+   "text": "VMware Aria Automation / Orchestrator (vracli)"
+  },
+  "mvmware_47": {
+   "source": "VMware Aria Suite Lifecycle (product certificates)",
+   "text": "VMware Aria Suite Lifecycle (certifikáty produktů)"
+  },
+  "mvmware_48": {
+   "source": "VMware Cloud Director (cell certificate)",
+   "text": "VMware Cloud Director (certifikát cely)"
+  },
+  "mvmware_49": {
+   "source": "VMware Live Site Recovery (Site Recovery Manager)",
+   "text": "VMware Live Site Recovery (Site Recovery Manager)"
+  },
+  "mvmware_50": {
+   "source": "VMware Live Site Recovery / vSphere Replication appliance",
+   "text": "Appliance VMware Live Site Recovery / vSphere Replication"
+  },
+  "mvmware_51": {
+   "source": "VMware NSX Manager (its own certificate)",
+   "text": "VMware NSX Manager (vlastní certifikát)"
+  },
+  "mvmware_52": {
+   "source": "VMware SDDC Manager (trust store)",
+   "text": "VMware SDDC Manager (úložiště důvěry)"
+  },
+  "mvmware_53": {
+   "source": "VMware vSphere Supervisor (API endpoint)",
+   "text": "VMware vSphere Supervisor (API endpoint)"
+  },
+  "mvmware_54": {
+   "source": "Wait for deploy.sh (minutes)",
+   "text": "Čekat na deploy.sh (minut)"
+  },
+  "mvmware_55": {
+   "source": "Wait for each request (minutes)",
+   "text": "Čekat na každý požadavek (minut)"
+  },
+  "mvmware_56": {
+   "source": "a CA certificate is trusted already",
+   "text": "certifikát CA už je důvěryhodný"
+  },
+  "mvmware_57": {
+   "source": "a provider (System organisation) user; \"@System\" is added when missing",
+   "text": "uživatel poskytovatele (organizace System); „@System\" se doplní, když chybí"
+  },
+  "mvmware_58": {
+   "source": "a vCenter user with Certificates > Manage Certificates (Certificate.Manage)",
+   "text": "uživatel vCenteru s Certificates > Manage Certificates (Certificate.Manage)"
+  },
+  "mvmware_59": {
+   "source": "a vCenter user with Namespaces.Manage (Modify cluster-wide configuration)",
+   "text": "uživatel vCenteru s Namespaces.Manage (Modify cluster-wide configuration)"
+  },
+  "mvmware_60": {
+   "source": "adding a CA certificate to the trust store",
+   "text": "přidání certifikátu CA do úložiště důvěry"
+  },
+  "mvmware_61": {
+   "source": "adding the chain to the appliance's CA certificates",
+   "text": "přidání řetězce mezi certifikáty CA appliance"
+  },
+  "mvmware_62": {
+   "source": "adding the chain to vCenter's trusted roots",
+   "text": "přidání řetězce mezi důvěryhodné kořeny vCenteru"
+  },
+  "mvmware_63": {
+   "source": "admin@local, or a user with only the role Certificate Administrator",
+   "text": "admin@local, nebo uživatel jen s rolí Certificate Administrator"
+  },
+  "mvmware_64": {
+   "source": "an SDDC Manager ADMIN",
+   "text": "ADMIN SDDC Manageru"
+  },
+  "mvmware_65": {
+   "source": "apply_certificate service_type=MGMT_CLUSTER - a virtual IP must be set",
+   "text": "apply_certificate service_type=MGMT_CLUSTER - virtuální IP musí být nastavená"
+  },
+  "mvmware_66": {
+   "source": "changing the appliance certificate",
+   "text": "změna certifikátu appliance"
+  },
+  "mvmware_67": {
+   "source": "deploy.sh finished: the services use the new certificate",
+   "text": "deploy.sh skončil: služby používají nový certifikát"
+  },
+  "mvmware_68": {
+   "source": "deploy.sh was not run - the certificate is used once you run it",
+   "text": "deploy.sh nebyl spuštěn - certifikát se použije, až ho spustíte"
+  },
+  "mvmware_69": {
+   "source": "every cell had it already",
+   "text": "všechny cely ho už měly"
+  },
+  "mvmware_70": {
+   "source": "finding the host's certificate manager",
+   "text": "hledání správce certifikátů hostitele"
+  },
+  "mvmware_71": {
+   "source": "imported into LocalMachine\\My with an exportable key",
+   "text": "importováno do LocalMachine\\My s exportovatelným klíčem"
+  },
+  "mvmware_72": {
+   "source": "inbound",
+   "text": "příchozí"
+  },
+  "mvmware_73": {
+   "source": "installing the certificate",
+   "text": "instalace certifikátu"
+  },
+  "mvmware_74": {
+   "source": "its id in vCenter: in the vSphere Client address of the host, or (Get-VMHost NAME).ExtensionData.MoRef.Value in PowerCLI",
+   "text": "jeho ID ve vCenteru: v adrese hostitele ve vSphere Clientu, nebo (Get-VMHost JMÉNO).ExtensionData.MoRef.Value v PowerCLI"
+  },
+  "mvmware_75": {
+   "source": "listing the Locker",
+   "text": "výpis Lockeru"
+  },
+  "mvmware_76": {
+   "source": "listing the cells",
+   "text": "výpis cel"
+  },
+  "mvmware_77": {
+   "source": "listing the library",
+   "text": "výpis knihovny"
+  },
+  "mvmware_78": {
+   "source": "needed before the host takes the certificate - without it vCenter disconnects the host or puts a VMCA certificate back",
+   "text": "nutné dřív, než hostitel certifikát převezme - bez toho vCenter hostitele odpojí nebo vrátí certifikát VMCA"
+  },
+  "mvmware_79": {
+   "source": "no root CA certificate given and none in the chain - vCenter must trust the root already",
+   "text": "kořenový certifikát CA není vyplněn ani v řetězci - vCenter už musí kořeni důvěřovat"
+  },
+  "mvmware_80": {
+   "source": "not readable",
+   "text": "nečitelný"
+  },
+  "mvmware_81": {
+   "source": "nothing to add: the chain has no intermediates and no root was given - paste the root CA certificate",
+   "text": "není co přidat: řetězec nemá mezilehlé certifikáty a kořen nebyl zadán - vložte kořenový certifikát CA"
+  },
+  "mvmware_82": {
+   "source": "nothing to apply it to: tick the virtual IP or give the manager nodes",
+   "text": "není na co ho použít: zaškrtněte virtuální IP nebo zadejte uzly manageru"
+  },
+  "mvmware_83": {
+   "source": "one a line: the UUIDs of the manager nodes whose own API/UI takes it (System > Appliances > View Details, or \"get cluster status\")",
+   "text": "jedno na řádek: UUID uzlů manageru, jejichž vlastní API/UI ho dostane (System > Appliances > View Details, nebo „get cluster status\")"
+  },
+  "mvmware_84": {
+   "source": "one a line: the environment id and the product id (vrops, vra, vrli, vidm ...) as Suite Lifecycle names them; empty: only into the Locker",
+   "text": "jeden na řádek: ID prostředí a ID produktu (vrops, vra, vrli, vidm ...), jak je pojmenuje Suite Lifecycle; prázdné: jen do Lockeru"
+  },
+  "mvmware_85": {
+   "source": "one a line: the names (or urn:vcloud:cell:... ids) of the cells; empty: every cell",
+   "text": "jedno na řádek: jména cel (nebo ID urn:vcloud:cell:...); prázdné: všechny cely"
+  },
+  "mvmware_86": {
+   "source": "outbound (SDDC Manager connecting to the components)",
+   "text": "odchozí (SDDC Manager se připojuje ke komponentám)"
+  },
+  "mvmware_87": {
+   "source": "putting the private key on the host",
+   "text": "nahrání soukromého klíče na hostitele"
+  },
+  "mvmware_88": {
+   "source": "quiesced first and active again after (recommended behind a load balancer: no session is cut)",
+   "text": "nejdřív utlumená a potom zase aktivní (doporučeno za load balancerem: žádná relace se nepřeruší)"
+  },
+  "mvmware_89": {
+   "source": "reading the Supervisor",
+   "text": "čtení Supervisoru"
+  },
+  "mvmware_90": {
+   "source": "reading the cell",
+   "text": "čtení cely"
+  },
+  "mvmware_91": {
+   "source": "reading the host",
+   "text": "čtení hostitele"
+  },
+  "mvmware_92": {
+   "source": "reading the request",
+   "text": "čtení požadavku"
+  },
+  "mvmware_93": {
+   "source": "reading the service content",
+   "text": "čtení obsahu služby"
+  },
+  "mvmware_94": {
+   "source": "reading the trust store",
+   "text": "čtení úložiště důvěry"
+  },
+  "mvmware_95": {
+   "source": "reconnect the site pair (Site Recovery > Site Pair Summary > Reconnect): its thumbprint changed",
+   "text": "znovu připojte pár lokalit (Site Recovery > Site Pair Summary > Reconnect): změnil se jeho thumbprint"
+  },
+  "mvmware_96": {
+   "source": "replacing the certificate of the Supervisor",
+   "text": "výměna certifikátu Supervisoru"
+  },
+  "mvmware_97": {
+   "source": "restart the vSphere Replication appliance now (its documents ask for it), then reconnect its target sites (vSphere Replication > Manage)",
+   "text": "teď restartujte appliance vSphere Replication (vyžaduje to její dokumentace), pak znovu připojte cílové lokality (vSphere Replication > Manage)"
+  },
+  "mvmware_98": {
+   "source": "running /opt/scripts/deploy.sh - the services are redeployed, tens of minutes",
+   "text": "spouštím /opt/scripts/deploy.sh - služby se znovu nasazují, desítky minut"
+  },
+  "mvmware_99": {
+   "source": "saved to the boot bank (/sbin/auto-backup.sh)",
+   "text": "uloženo do boot banky (/sbin/auto-backup.sh)"
+  },
+  "mvmware_100": {
+   "source": "sent in Accept (application/json;version=...): 39.0 for 10.6, 38.1 for 10.5.1",
+   "text": "posílá se v Accept (application/json;version=...): 39.0 pro 10.6, 38.1 pro 10.5.1"
+  },
+  "mvmware_101": {
+   "source": "signing in to the vSphere Automation API",
+   "text": "přihlášení do vSphere Automation API"
+  },
+  "mvmware_102": {
+   "source": "telling the host's services",
+   "text": "oznámení změny službám hostitele"
+  },
+  "mvmware_103": {
+   "source": "the Connection Server service was not restarted - Horizon uses the certificate from its next start",
+   "text": "služba Connection Serveru nebyla restartována - Horizon certifikát použije od příštího startu"
+  },
+  "mvmware_104": {
+   "source": "the ESX version cannot be read - going on as for ESXi 8.0 U3 and later",
+   "text": "verzi ESX nelze přečíst - pokračuje se jako pro ESXi 8.0 U3 a novější"
+  },
+  "mvmware_105": {
+   "source": "the Kubernetes API endpoint (virtual IP)",
+   "text": "Kubernetes API endpoint (virtuální IP)"
+  },
+  "mvmware_106": {
+   "source": "the Supervisor's FQDN or virtual IP: where acme checks the certificate served (443)",
+   "text": "FQDN nebo virtuální IP Supervisoru: kde acme kontroluje servírovaný certifikát (443)"
+  },
+  "mvmware_107": {
+   "source": "the Supervisor's id (vCenter 9.1) or its cluster's id (vCenter 9.0)",
+   "text": "ID Supervisoru (vCenter 9.1) nebo ID jeho clusteru (vCenter 9.0)"
+  },
+  "mvmware_108": {
+   "source": "the VI JSON API release in the paths (/sdk/vim25/<release>/...); 8.0.3.0 is the first with ProvisionServerPrivateKey",
+   "text": "vydání VI JSON API v cestách (/sdk/vim25/<release>/...); 8.0.3.0 je první s ProvisionServerPrivateKey"
+  },
+  "mvmware_109": {
+   "source": "the appliance gave no session_id on signing in",
+   "text": "appliance při přihlášení nevrátila session_id"
+  },
+  "mvmware_110": {
+   "source": "the appliance's admin (the management interface's user)",
+   "text": "admin appliance (uživatel rozhraní správy)"
+  },
+  "mvmware_111": {
+   "source": "the certificate is used once the services are deployed again (tens of minutes away); off: run it yourself in a maintenance window",
+   "text": "certifikát se použije, až se služby znovu nasadí (desítky minut výpadku); vypnuto: spustíte ho sami v servisním okně"
+  },
+  "mvmware_112": {
+   "source": "the chain is among the appliance's CA certificates",
+   "text": "řetězec je mezi certifikáty CA appliance"
+  },
+  "mvmware_113": {
+   "source": "the chain is among vCenter's trusted roots",
+   "text": "řetězec je mezi důvěryhodnými kořeny vCenteru"
+  },
+  "mvmware_114": {
+   "source": "the default NSX ingress (vCenter 9.1)",
+   "text": "výchozí NSX ingress (vCenter 9.1)"
+  },
+  "mvmware_115": {
+   "source": "the host installed the certificate",
+   "text": "hostitel certifikát nainstaloval"
+  },
+  "mvmware_116": {
+   "source": "the host's services told: new connections get it",
+   "text": "služby hostitele upozorněny: nová spojení ho dostanou"
+  },
+  "mvmware_117": {
+   "source": "the intermediates are in LocalMachine\\CA",
+   "text": "mezilehlé certifikáty jsou v LocalMachine\\CA"
+  },
+  "mvmware_118": {
+   "source": "the key is on the host",
+   "text": "klíč je na hostiteli"
+  },
+  "mvmware_119": {
+   "source": "the name Horizon finds its certificate by; only one certificate may have it",
+   "text": "jméno, podle kterého Horizon svůj certifikát najde; mít ho smí jen jeden certifikát"
+  },
+  "mvmware_120": {
+   "source": "the name the host has in vCenter - where acme checks the certificate served (port 443); empty: the one vCenter says",
+   "text": "jméno, které má hostitel ve vCenteru - kde acme kontroluje servírovaný certifikát (port 443); prázdné: to, které řekne vCenter"
+  },
+  "mvmware_121": {
+   "source": "the root the chain ends in (ISRG Root X1 for Let's Encrypt), when vCenter does not trust it yet; empty: the last certificate of the chain",
+   "text": "kořen, kterým řetězec končí (pro Let's Encrypt ISRG Root X1), když mu vCenter zatím nedůvěřuje; prázdné: poslední certifikát řetězce"
+  },
+  "mvmware_122": {
+   "source": "the root the chain ends in (ISRG Root X1 for Let's Encrypt); empty: the last certificate of the chain when it is a root",
+   "text": "kořen, kterým řetězec končí (pro Let's Encrypt ISRG Root X1); prázdné: poslední certifikát řetězce, je-li kořenem"
+  },
+  "mvmware_123": {
+   "source": "the root the chain ends in, added to the appliance's CA certificates; empty: the last certificate of the chain when it is a root",
+   "text": "kořen, kterým řetězec končí, přidaný mezi certifikáty CA appliance; prázdné: poslední certifikát řetězce, je-li kořenem"
+  },
+  "mvmware_124": {
+   "source": "the root, after the intermediates (Suite Lifecycle wants the whole chain); empty: the chain as it is",
+   "text": "kořen, za mezilehlé (Suite Lifecycle chce celý řetězec); prázdné: řetězec, jak je"
+  },
+  "mvmware_125": {
+   "source": "the root, last in the PEM (KB 325876: key, certificate, intermediates, root); empty: the chain as it is",
+   "text": "kořen, poslední v PEM (KB 325876: klíč, certifikát, mezilehlé, kořen); prázdné: řetězec, jak je"
+  },
+  "mvmware_126": {
+   "source": "the root, last in the chain (an identity provider needs the whole chain); empty: the chain as it is",
+   "text": "kořen, poslední v řetězci (poskytovatel identit potřebuje celý řetězec); prázdné: řetězec, jak je"
+  },
+  "mvmware_127": {
+   "source": "the root, put after the intermediates (NSX wants leaf, intermediates, root); empty: the chain as it is",
+   "text": "kořen, vložený za mezilehlé (NSX chce koncový, mezilehlé, kořen); prázdné: řetězec, jak je"
+  },
+  "mvmware_128": {
+   "source": "the vCenter that manages the host",
+   "text": "vCenter, který hostitele spravuje"
+  },
+  "mvmware_129": {
+   "source": "the vCenter version cannot be read - going on as for 8.0 U2 and later",
+   "text": "verzi vCenteru nelze přečíst - pokračuje se jako pro 8.0 U2 a novější"
+  },
+  "mvmware_130": {
+   "source": "the virtual IP",
+   "text": "virtuální IP"
+  },
+  "mvmware_131": {
+   "source": "the virtual IP serves it",
+   "text": "virtuální IP ho servíruje"
+  },
+  "mvmware_132": {
+   "source": "vCenter 8.0 U2 - 9.1",
+   "text": "vCenter 8.0 U2 - 9.1"
+  },
+  "mvmware_133": {
+   "source": "vCenter 8.0 U2 - 9.1: replaces the machine SSL certificate through the REST API (the chain added to the trusted roots first) - vCenter keeps its services and sessions running, the certificate served is checked at once. RSA keys only. Refused on a vCenter that says another version.",
+   "text": "vCenter 8.0 U2 - 9.1: vymění certifikát machine SSL přes REST API (řetězec nejdřív přidá mezi důvěryhodné kořeny) - vCenter nechá služby i relace běžet, servírovaný certifikát se kontroluje hned. Jen klíče RSA. vCenter, který hlásí jinou verzi, odmítne."
+  },
+  "mvmware_134": {
+   "source": "vCenter 9.0",
+   "text": "vCenter 9.0"
+  },
+  "mvmware_135": {
+   "source": "vCenter 9.0 - 9.1: replaces the certificate of a Supervisor's Kubernetes API endpoint (or its default NSX ingress) with acme's key through vCenter's API; the calls of the vCenter version it reads (9.1: supervisors/<id>/certificates, 9.0: clusters/<id>).",
+   "text": "vCenter 9.0 - 9.1: vymění certifikát Kubernetes API endpointu Supervisoru (nebo jeho výchozího NSX ingressu) s klíčem acme přes API vCenteru; volání podle verze vCenteru, kterou přečte (9.1: supervisors/<id>/certificates, 9.0: clusters/<id>)."
+  },
+  "mvmware_136": {
+   "source": "vCenter 9.0 takes only the API endpoint's certificate with a key (clusters/<id>); the NSX ingress needs vCenter 9.1",
+   "text": "vCenter 9.0 bere s klíčem jen certifikát API endpointu (clusters/<id>); NSX ingress potřebuje vCenter 9.1"
+  },
+  "mvmware_137": {
+   "source": "vCenter 9.0: PATCH namespace-management/clusters/<cluster> (tls_endpoint_certificate and tls_endpoint_private_key). Replaces the certificate of the Supervisor's API endpoint with acme's key through vCenter's API. Refused on a vCenter that says another version.",
+   "text": "vCenter 9.0: PATCH namespace-management/clusters/<cluster> (tls_endpoint_certificate a tls_endpoint_private_key). Vymění certifikát API endpointu Supervisoru s klíčem acme přes API vCenteru. vCenter, který hlásí jinou verzi, odmítne."
+  },
+  "mvmware_138": {
+   "source": "vCenter 9.1 and later 9.x",
+   "text": "vCenter 9.1 a novější 9.x"
+  },
+  "mvmware_139": {
+   "source": "vCenter 9.1 and later 9.x: PATCH namespace-management/supervisors/<id>/certificates (the API endpoint or the default NSX ingress). Replaces the certificate of the Supervisor's API endpoint with acme's key through vCenter's API. Refused on a vCenter that says another version.",
+   "text": "vCenter 9.1 a novější 9.x: PATCH namespace-management/supervisors/<id>/certificates (API endpoint nebo výchozí NSX ingress). Vymění certifikát API endpointu Supervisoru s klíčem acme přes API vCenteru. vCenter, který hlásí jinou verzi, odmítne."
+  },
+  "mvmware_140": {
+   "source": "vCenter address",
+   "text": "Adresa vCenteru"
+  },
+  "mvmware_141": {
+   "source": "vCenter gave no session (no vmware-api-session-id) on signing in",
+   "text": "vCenter při přihlášení nevrátil relaci (žádné vmware-api-session-id)"
+  },
+  "mvmware_142": {
+   "source": "vCenter serves this certificate already (AlreadyExists)",
+   "text": "vCenter už tento certifikát servíruje (AlreadyExists)"
+  },
+  "mvmware_143": {
+   "source": "vCenter takes an RSA key only for its machine SSL certificate (2048 - 8192 bits): choose an RSA key for this certificate",
+   "text": "vCenter bere pro certifikát machine SSL jen klíč RSA (2048 - 8192 bitů): zvolte pro tento certifikát klíč RSA"
+  },
+  "mvmware_144": {
+   "source": "vCenter took the certificate - no restart from 8.0 U2, new connections get it",
+   "text": "vCenter certifikát převzal - od 8.0 U2 bez restartu, nová spojení ho dostanou"
+  },
+  "mvmware_145": {
+   "source": "vSphere Replication",
+   "text": "vSphere Replication"
+  },
+  "mvmware_146": {
+   "source": "vdm (Machine Identity)",
+   "text": "vdm (Machine Identity)"
+  },
+  "mvmware_147": {
+   "source": "vdm.ec (an ECDSA Machine Identity, Horizon 2312 and later)",
+   "text": "vdm.ec (Machine Identity s ECDSA, Horizon 2312 a novější)"
+  },
+  "mvmware_148": {
+   "source": "vracli set the ingress certificate",
+   "text": "vracli nastavil ingress certifikát"
+  },
+  "mvmware_149": {
+   "source": "vracli validated the certificate",
+   "text": "vracli certifikát ověřil"
+  },
+  "mvmware_150": {
+   "source": "where the Configuration API is on port 5480",
+   "text": "kde je Configuration API na portu 5480"
   }
  },
  "patterns": {
@@ -78189,6 +80937,1630 @@
   "pev_28": {
    "source": "a passkey ({0} · {1})",
    "text": "passkey ({0} · {1})"
+  },
+  "pmhpe_lenovo_1": {
+   "source": "this controller is not an HPE iLO ({0} {1}) - the module version \"{2}\" is for HPE iLO only; choose the plain Redfish version of the target",
+   "text": "tento řadič není HPE iLO ({0} {1}) - verze modulu „{2}“ je jen pro HPE iLO; zvolte u cíle prostou verzi Redfish"
+  },
+  "pmhpe_lenovo_2": {
+   "source": "this is an iLO {0} - the module version \"{1}\" is for iLO 5, 6 and 7",
+   "text": "toto je iLO {0} - verze modulu „{1}“ je pro iLO 5, 6 a 7"
+  },
+  "pmhpe_lenovo_3": {
+   "source": "the iLO {0} firmware version cannot be read - going on",
+   "text": "verzi firmwaru iLO {0} nelze přečíst - pokračuje se"
+  },
+  "pmhpe_lenovo_4": {
+   "source": "this iLO {0} runs firmware {1} - it takes a private key from {2} on; update the iLO firmware",
+   "text": "toto iLO {0} má firmware {1} - soukromý klíč přijímá až od {2}; aktualizujte firmware iLO"
+  },
+  "pmhpe_lenovo_5": {
+   "source": "iLO {0} firmware {1} is newer than the documents this version was checked against ({2})",
+   "text": "firmware iLO {0} {1} je novější než dokumentace, podle které byla tato verze ověřena ({2})"
+  },
+  "pmhpe_lenovo_6": {
+   "source": "signed in to {0}: iLO {1} firmware {2}, security state {3}, certificate {4} until {5}, Redfish {6}",
+   "text": "přihlášeno k {0}: iLO {1}, firmware {2}, bezpečnostní stav {3}, certifikát {4} platný do {5}, Redfish {6}"
+  },
+  "pmhpe_lenovo_7": {
+   "source": "this iLO {0} is in the security state {1} - it takes an RSA key only in {2}; use an ECDSA key type for this certificate",
+   "text": "toto iLO {0} je v bezpečnostním stavu {1} - klíč RSA přijímá jen ve stavu {2}; použijte pro tento certifikát typ klíče ECDSA"
+  },
+  "pmhpe_lenovo_8": {
+   "source": "setting the key type to {0}",
+   "text": "nastavení typu klíče na {0}"
+  },
+  "pmhpe_lenovo_9": {
+   "source": "key type of the iLO certificate set to {0}",
+   "text": "typ klíče certifikátu iLO nastaven na {0}"
+  },
+  "pmhpe_lenovo_10": {
+   "source": "the appliance takes API {0} - older than OneView 9.00 ({1}), which this module was checked against",
+   "text": "appliance bere API {0} - starší než OneView 9.00 ({1}), podle kterého byl modul ověřen"
+  },
+  "pmhpe_lenovo_11": {
+   "source": "reading the task of {0}",
+   "text": "čtení úlohy: {0}"
+  },
+  "pmhpe_lenovo_12": {
+   "source": "{0} ended with a warning: {1}",
+   "text": "{0} skončilo s varováním: {1}"
+  },
+  "pmhpe_lenovo_13": {
+   "source": "{0}: the task ended {1} - {2}",
+   "text": "{0}: úloha skončila stavem {1} - {2}"
+  },
+  "pmhpe_lenovo_14": {
+   "source": "the end of {0} could not be read in time - the test of what is served tells",
+   "text": "konec úlohy ({0}) se nepodařilo včas přečíst - ukáže to test toho, co se servíruje"
+  },
+  "pmhpe_lenovo_15": {
+   "source": "signed in to {0} (API {1}): appliance certificate {2}, until {3}",
+   "text": "přihlášeno k {0} (API {1}): certifikát appliance {2}, platný do {3}"
+  },
+  "pmhpe_lenovo_16": {
+   "source": "looking for the CA {0}",
+   "text": "hledání CA {0}"
+  },
+  "pmhpe_lenovo_17": {
+   "source": "adding the CA {0} to the trust store",
+   "text": "přidání CA {0} do trust storu"
+  },
+  "pmhpe_lenovo_18": {
+   "source": "the CA {0} added to the trust store",
+   "text": "CA {0} přidána do trust storu"
+  },
+  "pmhpe_lenovo_19": {
+   "source": "the intermediate CA is not in the trust store: {0}",
+   "text": "mezilehlá CA není v trust storu: {0}"
+  },
+  "pmhpe_lenovo_20": {
+   "source": "CA {0}",
+   "text": "CA {0}"
+  },
+  "pmhpe_lenovo_21": {
+   "source": "{0}: the group has no action {1} - check its name in the NimbleOS REST API Reference of this NimbleOS (InfoSight) and set it under More",
+   "text": "{0}: skupina nemá akci {1} - ověřte její název v REST API Reference této verze NimbleOS (InfoSight) a nastavte ho ve Více"
+  },
+  "pmhpe_lenovo_22": {
+   "source": "signed in to {0}: certificates {1}",
+   "text": "přihlášeno k {0}: certifikáty {1}"
+  },
+  "pmhpe_lenovo_23": {
+   "source": "importing the certificate as {0}",
+   "text": "import certifikátu jako {0}"
+  },
+  "pmhpe_lenovo_24": {
+   "source": "imported the certificate with its key as {0}",
+   "text": "certifikát s klíčem naimportován jako {0}"
+  },
+  "pmhpe_lenovo_25": {
+   "source": "putting {0} to use",
+   "text": "nasazení {0} do provozu"
+  },
+  "pmhpe_lenovo_26": {
+   "source": "{0} uses {1} - it reloads",
+   "text": "{0} používá {1} - znovu se načítá"
+  },
+  "pmhpe_lenovo_27": {
+   "source": "imported {0}, used for {1}",
+   "text": "naimportován {0}, použit pro {1}"
+  },
+  "pmfw_adc_1": {
+   "source": "the store of range {0}",
+   "text": "úložiště rozsahu {0}"
+  },
+  "pmfw_adc_2": {
+   "source": "the store of cluster {0}/{1}",
+   "text": "úložiště clusteru {0}/{1}"
+  },
+  "pmfw_adc_3": {
+   "source": "the Control Center has no such store ({0}) - check the range and cluster, and that the range / cluster has its own certificate store (Own certificate store Settings: Yes)",
+   "text": "Control Center takové úložiště nemá ({0}) - zkontrolujte rozsah a cluster a že rozsah / cluster má vlastní úložiště certifikátů (Own certificate store Settings: Yes)"
+  },
+  "pmfw_adc_4": {
+   "source": "listing {0}",
+   "text": "výpis: {0}"
+  },
+  "pmfw_adc_5": {
+   "source": "signed in to {0}; {1} answers",
+   "text": "přihlášeno k {0}; {1} odpovídá"
+  },
+  "pmfw_adc_6": {
+   "source": "reading the entry {0}",
+   "text": "čtení položky {0}"
+  },
+  "pmfw_adc_7": {
+   "source": "\"{0}\" is not a Certificate Store entry name (letters, digits, . _ -)",
+   "text": "„{0}“ není jméno položky Certificate Store (písmena, číslice, . _ -)"
+  },
+  "pmfw_adc_8": {
+   "source": "in the entry {0}",
+   "text": "v položce {0}"
+  },
+  "pmfw_adc_9": {
+   "source": "the entry {0} holds this certificate already",
+   "text": "položka {0} už tento certifikát obsahuje"
+  },
+  "pmfw_adc_10": {
+   "source": "already in {0}",
+   "text": "už v {0}"
+  },
+  "pmfw_adc_11": {
+   "source": "{0} has no entry {1} - make it in Firewall Admin, or let acme make it",
+   "text": "{0} nemá položku {1} - založte ji ve Firewall Admin, nebo ji nechte založit acme"
+  },
+  "pmfw_adc_12": {
+   "source": "making the entry {0}",
+   "text": "zakládání položky {0}"
+  },
+  "pmfw_adc_13": {
+   "source": "made the entry {0} in {1}",
+   "text": "položka {0} založena v {1}"
+  },
+  "pmfw_adc_14": {
+   "source": "importing the certificate into {0}",
+   "text": "import certifikátu do {0}"
+  },
+  "pmfw_adc_15": {
+   "source": "the entry {0} is gone after the import",
+   "text": "položka {0} po importu zmizela"
+  },
+  "pmfw_adc_16": {
+   "source": "the entry {0} does not hold the new certificate after the import (the change may wait to be activated in Firewall Admin)",
+   "text": "položka {0} po importu neobsahuje nový certifikát (změna možná čeká na aktivaci ve Firewall Admin)"
+  },
+  "pmfw_adc_17": {
+   "source": "the entry {0} says no fingerprint - the import could not be checked",
+   "text": "položka {0} neuvádí otisk - import nešlo ověřit"
+  },
+  "pmfw_adc_18": {
+   "source": "imported the certificate into {0} ({1}); the services using it keep it",
+   "text": "certifikát naimportován do {0} ({1}); služby, které ji používají, ji drží dál"
+  },
+  "pmfw_adc_19": {
+   "source": "imported into {0}",
+   "text": "naimportováno do {0}"
+  },
+  "pmfw_adc_20": {
+   "source": "the Grid Master does not answer (its web server restarts?) - asked again in 10 s: {0}",
+   "text": "Grid Master neodpovídá (restartuje se jeho webový server?) - znovu za 10 s: {0}"
+  },
+  "pmfw_adc_21": {
+   "source": "signed in to {0} (WAPI {1}){2}",
+   "text": "přihlášeno k {0} (WAPI {1}){2}"
+  },
+  "pmfw_adc_22": {
+   "source": ", grid {0}",
+   "text": ", grid {0}"
+  },
+  "pmfw_adc_23": {
+   "source": "\"{0}\" is not a use acme knows ({1})",
+   "text": "„{0}“ není použití, které acme zná ({1})"
+  },
+  "pmfw_adc_24": {
+   "source": "starting the upload for {0}",
+   "text": "zahájení nahrávání pro {0}"
+  },
+  "pmfw_adc_25": {
+   "source": "uploading the certificate for {0}",
+   "text": "nahrávání certifikátu pro {0}"
+  },
+  "pmfw_adc_26": {
+   "source": "making it the {0} certificate of {1}",
+   "text": "nastavení jako certifikát {0} člena {1}"
+  },
+  "pmfw_adc_27": {
+   "source": "{0} has the new {1} certificate (its web server restarts, the administrators are signed out)",
+   "text": "{0} má nový certifikát {1} (jeho webový server se restartuje, administrátoři jsou odhlášeni)"
+  },
+  "pmfw_adc_28": {
+   "source": "{0} certificate of {1}",
+   "text": "certifikát {0} pro {1}"
+  },
+  "pmfw_adc_29": {
+   "source": "{0}: FortiManager said {1} ({2})",
+   "text": "{0}: FortiManager odpověděl {1} ({2})"
+  },
+  "pmfw_adc_30": {
+   "source": "signed in to {0}; the GUI uses {1}",
+   "text": "přihlášeno k {0}; GUI používá {1}"
+  },
+  "pmfw_adc_31": {
+   "source": "looking for {0}",
+   "text": "hledání {0}"
+  },
+  "pmfw_adc_32": {
+   "source": "as {0}",
+   "text": "jako {0}"
+  },
+  "pmfw_adc_33": {
+   "source": "adding {0}",
+   "text": "přidávání {0}"
+  },
+  "pmfw_adc_34": {
+   "source": "added the local certificate {0}",
+   "text": "přidán lokální certifikát {0}"
+  },
+  "pmfw_adc_35": {
+   "source": "making {0} the HTTPS certificate",
+   "text": "nastavení {0} jako HTTPS certifikátu"
+  },
+  "pmfw_adc_36": {
+   "source": "the GUI and the API use {0}",
+   "text": "GUI a API používají {0}"
+  },
+  "pmfw_adc_37": {
+   "source": "already {0}",
+   "text": "už {0}"
+  },
+  "pmfw_adc_38": {
+   "source": "the older certificates cannot be listed: {0}",
+   "text": "starší certifikáty nelze vypsat: {0}"
+  },
+  "pmfw_adc_39": {
+   "source": "the older {0} stays: the GUI still uses it",
+   "text": "starší {0} zůstává: GUI ho stále používá"
+  },
+  "pmfw_adc_40": {
+   "source": "deleting {0}",
+   "text": "mazání {0}"
+  },
+  "pmfw_adc_41": {
+   "source": "deleted the older {0}",
+   "text": "smazán starší {0}"
+  },
+  "pmfw_adc_42": {
+   "source": "the older {0} stays (still used?): {1}",
+   "text": "starší {0} zůstává (stále používán?): {1}"
+  },
+  "pmdell_1": {
+   "source": "signed in to {0}: {1}, firmware {2}{3}",
+   "text": "přihlášeno k {0}: {1}, firmware {2}{3}"
+  },
+  "pmdell_2": {
+   "source": "this controller is not a Dell iDRAC ({0}) - use the plain version of the target",
+   "text": "tento řadič není Dell iDRAC ({0}) - použijte základní verzi cíle"
+  },
+  "pmdell_3": {
+   "source": "this iDRAC runs firmware {0} - the module version \"{1}\" needs iDRAC9 6.00.02 or later or iDRAC10 (an older one takes a key of its own only after a reset: use the plain version of the target with \"Restart the controller\", or update the firmware)",
+   "text": "tento iDRAC má firmware {0} - verze modulu „{1}“ potřebuje iDRAC9 6.00.02 nebo novější nebo iDRAC10 (starší přijme vlastní klíč až po resetu: použijte základní verzi cíle s volbou „Restartovat řadič“, nebo aktualizujte firmware)"
+  },
+  "pmdell_4": {
+   "source": "{0} firmware {1} is newer than the documents this module version was checked against",
+   "text": "{0} firmware {1} je novější než dokumentace, podle které byla tato verze modulu ověřena"
+  },
+  "pmdell_5": {
+   "source": "imported the key and certificate{0}",
+   "text": "klíč a certifikát naimportovány{0}"
+  },
+  "pmdell_6": {
+   "source": "signed in to {0} ({1}), OneFS {2}, default HTTPS certificate {3}",
+   "text": "přihlášeno k {0} ({1}), OneFS {2}, výchozí certifikát HTTPS {3}"
+  },
+  "pmdell_7": {
+   "source": "making the folder {0}",
+   "text": "vytváření složky {0}"
+  },
+  "pmdell_8": {
+   "source": "imported {0} ({1})",
+   "text": "naimportován {0} ({1})"
+  },
+  "pmdell_9": {
+   "source": "{0} there already",
+   "text": "{0} už tam je"
+  },
+  "pmdell_10": {
+   "source": "\"{0}\" is not a folder on /ifs",
+   "text": "„{0}“ není složka na /ifs"
+  },
+  "pmdell_11": {
+   "source": "making {0} the default HTTPS certificate",
+   "text": "nastavení {0} jako výchozího certifikátu HTTPS"
+  },
+  "pmdell_12": {
+   "source": "{0} is the default HTTPS certificate",
+   "text": "{0} je výchozí certifikát HTTPS"
+  },
+  "pmdell_13": {
+   "source": "writing {0}",
+   "text": "zápis {0}"
+  },
+  "pmdell_14": {
+   "source": "wrote the certificate and key to {0}",
+   "text": "certifikát a klíč zapsány do {0}"
+  },
+  "pmdell_15": {
+   "source": "importing {0}",
+   "text": "import {0}"
+  },
+  "pmdell_16": {
+   "source": "OneFS took {0} but gave no id of it",
+   "text": "OneFS přijal {0}, ale nevrátil jeho id"
+  },
+  "pmdell_17": {
+   "source": "this cluster runs OneFS {0} - acme needs OneFS 8.2 or later (the default HTTPS certificate is a setting from 8.2 on)",
+   "text": "tento cluster má OneFS {0} - acme potřebuje OneFS 8.2 nebo novější (výchozí certifikát HTTPS je nastavení od 8.2)"
+  },
+  "pmdell_18": {
+   "source": "the old {0} stays: it is the default HTTPS certificate",
+   "text": "starý {0} zůstává: je to výchozí certifikát HTTPS"
+  },
+  "pmdell_19": {
+   "source": "OneFS {0} is newer than the documents this module was checked against (9.12)",
+   "text": "OneFS {0} je novější než dokumentace, podle které byl modul ověřen (9.12)"
+  },
+  "pmdell_20": {
+   "source": "{0} could not be deleted - delete it by hand: {1}",
+   "text": "{0} se nepodařilo smazat - smažte ho ručně: {1}"
+  },
+  "pmdell_21": {
+   "source": "the management certificate{0}",
+   "text": "certifikát správy{0}"
+  },
+  "pmdell_22": {
+   "source": " on PowerStoreOS {0}",
+   "text": " na PowerStoreOS {0}"
+  },
+  "pmdell_23": {
+   "source": "signed in to {0}, PowerStoreOS {1}, management certificates: {2}",
+   "text": "přihlášeno k {0}, PowerStoreOS {1}, certifikáty správy: {2}"
+  },
+  "pmdell_24": {
+   "source": "imported the management certificate{0}",
+   "text": "certifikát správy naimportován{0}"
+  },
+  "pmdell_25": {
+   "source": "{0} - this PowerStoreOS does not take a key made elsewhere for the management certificate (Dell documents only its own CSR); nothing was changed",
+   "text": "{0} - tato PowerStoreOS nepřijme pro certifikát správy klíč vytvořený jinde (Dell dokumentuje jen vlastní CSR); nic se nezměnilo"
+  },
+  "pmdell_26": {
+   "source": "this cluster runs PowerStoreOS {0} - acme needs 3.0 or later (2.x took a management certificate only on a single block appliance without replication)",
+   "text": "tento cluster má PowerStoreOS {0} - acme potřebuje 3.0 nebo novější (2.x brala certifikát správy jen na samostatném blokovém appliance bez replikace)"
+  },
+  "pmdell_27": {
+   "source": "PowerStoreOS {0} is newer than the documents this module was checked against (4.4)",
+   "text": "PowerStoreOS {0} je novější než dokumentace, podle které byl modul ověřen (4.4)"
+  },
+  "pmdell_28": {
+   "source": "PowerStore took the certificate ({0}) but does not use it (is_current false)",
+   "text": "PowerStore certifikát přijal ({0}), ale nepoužívá ho (is_current false)"
+  },
+  "pmdell_29": {
+   "source": "signed in to {0} as {1}, {2} is there",
+   "text": "přihlášeno k {0} jako {1}, {2} existuje"
+  },
+  "pmdell_30": {
+   "source": "installed as the Unisphere certificate{0}",
+   "text": "nainstalován jako certifikát Unisphere{0}"
+  },
+  "pmdell_31": {
+   "source": "\"{0}\" is not a plain file name (letters, digits, - and _)",
+   "text": "„{0}“ není prosté jméno souboru (písmena, číslice, - a _)"
+  },
+  "pmdell_32": {
+   "source": "signed in to {0}, but {1} is not there ({2}) - sign in as the service user",
+   "text": "přihlášeno k {0}, ale {1} neexistuje ({2}) - přihlaste se jako uživatel service"
+  },
+  "pmdell_33": {
+   "source": "wrote {0}.crt and {1}.pk to {2}",
+   "text": "{0}.crt a {1}.pk zapsány do {2}"
+  },
+  "pmdell_34": {
+   "source": "svc_custom_cert did not install the certificate: {0}",
+   "text": "svc_custom_cert certifikát nenainstaloval: {0}"
+  },
+  "pmdell_35": {
+   "source": "signed in to {0}, Unisphere {1} (REST API {2}), array {3}",
+   "text": "přihlášeno k {0}, Unisphere {1} (REST API {2}), pole {3}"
+  },
+  "pmdell_36": {
+   "source": "the Solutions Enabler certificate on {0}",
+   "text": "certifikát Solutions Enabler na {0}"
+  },
+  "pmdell_37": {
+   "source": "reading the embedded management of {0}",
+   "text": "čtení embedded management pole {0}"
+  },
+  "pmdell_38": {
+   "source": "Unisphere did not say its REST API version ({0})",
+   "text": "Unisphere neuvedl verzi svého REST API ({0})"
+  },
+  "pmdell_39": {
+   "source": "this Unisphere is {0} (REST API {1}) - acme needs Unisphere for PowerMax 10.0 or later",
+   "text": "tento Unisphere je {0} (REST API {1}) - acme potřebuje Unisphere for PowerMax 10.0 nebo novější"
+  },
+  "pmdell_40": {
+   "source": "Unisphere {0} is newer than the documents this module was checked against (10.4)",
+   "text": "Unisphere {0} je novější než dokumentace, podle které byl modul ověřen (10.4)"
+  },
+  "pmdell_41": {
+   "source": "\"{0}\" is not an array ID",
+   "text": "„{0}“ není ID pole"
+  },
+  "pmdell_42": {
+   "source": "importing the certificate on {0}",
+   "text": "import certifikátu na {0}"
+  },
+  "pmdell_43": {
+   "source": "{0}: the Solutions Enabler certificate imported",
+   "text": "{0}: certifikát Solutions Enabler naimportován"
+  },
+  "pmdell_44": {
+   "source": "\"{0}\" is not a node name",
+   "text": "„{0}“ není jméno uzlu"
+  },
+  "pmmicrosoft_1": {
+   "source": "signed in as {0} on {1}, but {2} is not on this server: {3}",
+   "text": "přihlášen jako {0} na {1}, ale {2} na tomto serveru není: {3}"
+  },
+  "pmmicrosoft_2": {
+   "source": "signed in as {0} on {1}, PowerShell {2}; {3}{4}",
+   "text": "přihlášen jako {0} na {1}, PowerShell {2}; {3}{4}"
+  },
+  "pmmicrosoft_3": {
+   "source": "imported {0} into LocalMachine\\My",
+   "text": "{0} naimportován do LocalMachine\\My"
+  },
+  "pmmicrosoft_4": {
+   "source": "{0}: {1} - the old certificate stays in use, nothing was removed",
+   "text": "{0}: {1} - dál se používá starý certifikát, nic nebylo odstraněno"
+  },
+  "pmmicrosoft_5": {
+   "source": "imported {0}, {1} uses it",
+   "text": "naimportován {0}, {1} ho používá"
+  },
+  "pmmicrosoft_6": {
+   "source": "{0} is not on this server: {1}",
+   "text": "{0} na tomto serveru není: {1}"
+  },
+  "pmmicrosoft_7": {
+   "source": "the machine store and {0} are not touched on a test",
+   "text": "při testu se úložiště počítače ani {0} nemění"
+  },
+  "pmmicrosoft_8": {
+   "source": "the test passed: {0} is there",
+   "text": "test prošel: {0} tu je"
+  },
+  "pmmicrosoft_9": {
+   "source": "{0} needs an RSA key: this certificate's key is {1} - issue it with an RSA key",
+   "text": "{0} potřebuje klíč RSA: klíč tohoto certifikátu je {1} - vystavte ho s klíčem RSA"
+  },
+  "pmmicrosoft_10": {
+   "source": "WSUS: {0} is not a port",
+   "text": "WSUS: {0} není port"
+  },
+  "pmmicrosoft_11": {
+   "source": "Reporting Services: \"{0}\" is not an instance name",
+   "text": "Reporting Services: „{0}“ není jméno instance"
+  },
+  "pmmicrosoft_12": {
+   "source": "Reporting Services: {0} is not a port",
+   "text": "Reporting Services: {0} není port"
+  },
+  "pmmicrosoft_13": {
+   "source": "{0}: the certificate lists no extended key usage (any purpose)",
+   "text": "{0}: certifikát neuvádí žádné rozšířené použití klíče (jakýkoli účel)"
+  },
+  "pmmicrosoft_14": {
+   "source": "{0}: the certificate needs both Server Authentication and Client Authentication in its extended key usage - this one has {1}; ask the CA (a template) for one with both",
+   "text": "{0}: certifikát potřebuje v rozšířeném použití klíče Server Authentication i Client Authentication - tento má {1}; požádejte CA (šablonu) o certifikát s oběma"
+  },
+  "pmmicrosoft_15": {
+   "source": "WSUS: there is no IIS site {0}",
+   "text": "WSUS: web IIS {0} neexistuje"
+  },
+  "pmmicrosoft_16": {
+   "source": "WSUS: {0} {1} already uses it",
+   "text": "WSUS: {0} {1} ho už používá"
+  },
+  "pmmicrosoft_17": {
+   "source": "WSUS: {0} {1} uses it",
+   "text": "WSUS: {0} {1} ho používá"
+  },
+  "pmmicrosoft_18": {
+   "source": "WSUS: the binding {0} did not take the new certificate, the old one is back: {1}",
+   "text": "WSUS: vazba {0} nový certifikát nepřijala, je zpět starý: {1}"
+  },
+  "pmmicrosoft_19": {
+   "source": "WSUS: made the https binding {0} of {1}",
+   "text": "WSUS: vytvořena vazba https {0} webu {1}"
+  },
+  "pmmicrosoft_20": {
+   "source": "WSUS: {0} already requires SSL",
+   "text": "WSUS: {0} už vyžaduje SSL"
+  },
+  "pmmicrosoft_21": {
+   "source": "WSUS: {0} requires SSL",
+   "text": "WSUS: {0} vyžaduje SSL"
+  },
+  "pmmicrosoft_22": {
+   "source": "WSUS: {0} is not there",
+   "text": "WSUS: {0} tu není"
+  },
+  "pmmicrosoft_23": {
+   "source": "WSUS: wsusutil configuressl failed: {0}",
+   "text": "WSUS: wsusutil configuressl selhal: {0}"
+  },
+  "pmmicrosoft_24": {
+   "source": "WSUS: wsusutil configuressl {0} - {1}",
+   "text": "WSUS: wsusutil configuressl {0} - {1}"
+  },
+  "pmmicrosoft_25": {
+   "source": "Hyper-V Replica: the Replica server allows {0} only - choose certificate-based authentication (HTTPS) once",
+   "text": "Hyper-V Replica: replikační server povoluje jen {0} - jednou zvolte ověřování certifikátem (HTTPS)"
+  },
+  "pmmicrosoft_26": {
+   "source": "Hyper-V Replica: not primary VMs replicating with a certificate here: {0}",
+   "text": "Hyper-V Replica: tyto VM tu nejsou primární VM replikující s certifikátem: {0}"
+  },
+  "pmmicrosoft_27": {
+   "source": "Hyper-V Replica: {0} does not take the new certificate, nothing changed: {1}",
+   "text": "Hyper-V Replica: {0} nový certifikát nepřijímá, nic se nezměnilo: {1}"
+  },
+  "pmmicrosoft_28": {
+   "source": "Hyper-V Replica: {0} takes it",
+   "text": "Hyper-V Replica: {0} ho přijímá"
+  },
+  "pmmicrosoft_29": {
+   "source": "Hyper-V Replica: VM {0} already uses it",
+   "text": "Hyper-V Replica: VM {0} ho už používá"
+  },
+  "pmmicrosoft_30": {
+   "source": "Hyper-V Replica: VM {0} uses it",
+   "text": "Hyper-V Replica: VM {0} ho používá"
+  },
+  "pmmicrosoft_31": {
+   "source": "Reporting Services: there is no instance {0}; there are: {1}",
+   "text": "Reporting Services: instance {0} neexistuje; jsou tu: {1}"
+  },
+  "pmmicrosoft_32": {
+   "source": "Reporting Services: there are several instances ({0}) - name the one",
+   "text": "Reporting Services: je tu více instancí ({0}) - zadejte jednu"
+  },
+  "pmmicrosoft_33": {
+   "source": "Reporting Services: {0} has no version in WMI",
+   "text": "Reporting Services: {0} nemá ve WMI žádnou verzi"
+  },
+  "pmmicrosoft_34": {
+   "source": "Reporting Services: {0} has no MSReportServer_ConfigurationSetting",
+   "text": "Reporting Services: {0} nemá MSReportServer_ConfigurationSetting"
+  },
+  "pmmicrosoft_35": {
+   "source": "Reporting Services: {0} already uses it",
+   "text": "Reporting Services: {0} ho už používá"
+  },
+  "pmmicrosoft_36": {
+   "source": "Reporting Services: the binding {0} could not be removed: {1}",
+   "text": "Reporting Services: vazbu {0} nešlo odstranit: {1}"
+  },
+  "pmmicrosoft_37": {
+   "source": "Reporting Services: {0} did not take the new certificate, the old one is back: {1}",
+   "text": "Reporting Services: {0} nový certifikát nepřijala, je zpět starý: {1}"
+  },
+  "pmmicrosoft_38": {
+   "source": "Reporting Services: {0} uses it",
+   "text": "Reporting Services: {0} ho používá"
+  },
+  "pmmicrosoft_39": {
+   "source": "Operations Manager: the key is not in a legacy CSP as AT_KEYEXCHANGE ({0}) - it cannot be used",
+   "text": "Operations Manager: klíč není ve starém CSP jako AT_KEYEXCHANGE ({0}) - nelze ho použít"
+  },
+  "pmmicrosoft_40": {
+   "source": "Operations Manager: MOMCertImport.exe is not at {0} - copy it from the installation media (SupportTools\\amd64) and give its path",
+   "text": "Operations Manager: MOMCertImport.exe není v {0} - zkopírujte ho z instalačního média (SupportTools\\amd64) a zadejte jeho cestu"
+  },
+  "pmmicrosoft_41": {
+   "source": "Operations Manager: MOMCertImport /SubjectName {0} failed: {1}",
+   "text": "Operations Manager: MOMCertImport /SubjectName {0} selhal: {1}"
+  },
+  "pmmicrosoft_42": {
+   "source": "Operations Manager: MOMCertImport took another certificate with the subject {0} (serial {1}) - remove the other ones of that subject from LocalMachine\\My",
+   "text": "Operations Manager: MOMCertImport vzal jiný certifikát se subjektem {0} (sériové číslo {1}) - odstraňte ostatní certifikáty s tímto subjektem z LocalMachine\\My"
+  },
+  "pmmicrosoft_43": {
+   "source": "Operations Manager uses it ({0})",
+   "text": "Operations Manager ho používá ({0})"
+  },
+  "pmmicrosoft_44": {
+   "source": "certutil -importPFX failed: {0}",
+   "text": "certutil -importPFX selhal: {0}"
+  },
+  "pmmicrosoft_45": {
+   "source": "Office Online Server: the friendly name {0} is on {1} certificates - it must be unique",
+   "text": "Office Online Server: popisné jméno {0} má {1} certifikátů - musí být jedinečné"
+  },
+  "pmmicrosoft_46": {
+   "source": "Office Online Server already uses it ({0})",
+   "text": "Office Online Server ho už používá ({0})"
+  },
+  "pmmicrosoft_47": {
+   "source": "Office Online Server uses it ({0})",
+   "text": "Office Online Server ho používá ({0})"
+  },
+  "pmmicrosoft_48": {
+   "source": "Office Online Server: the restart could not be scheduled: {0}",
+   "text": "Office Online Server: restart nešlo naplánovat: {0}"
+  },
+  "pmfujitsu_bmc_1": {
+   "source": "the FTP server {0} did not let {1} in: {2}",
+   "text": "FTP server {0} nepustil {1} dovnitř: {2}"
+  },
+  "pmfujitsu_bmc_2": {
+   "source": "the FTP server {0} cannot be reached: {1}",
+   "text": "FTP server {0} není dostupný: {1}"
+  },
+  "pmfujitsu_bmc_3": {
+   "source": "the FTP server cannot list {0}: {1}",
+   "text": "FTP server nemůže vypsat {0}: {1}"
+  },
+  "pmfujitsu_bmc_4": {
+   "source": "the FTP server refused {0}: {1}",
+   "text": "FTP server odmítl {0}: {1}"
+  },
+  "pmfujitsu_bmc_5": {
+   "source": "{0} could not be written over FTP: {1}",
+   "text": "{0} nešlo zapsat přes FTP: {1}"
+  },
+  "pmfujitsu_bmc_6": {
+   "source": "{0} stays on the FTP server - delete it by hand: {1}",
+   "text": "{0} zůstává na FTP serveru - smažte ho ručně: {1}"
+  },
+  "pmfujitsu_bmc_7": {
+   "source": "the iRMC took the key and the certificate{0}",
+   "text": "iRMC přijalo klíč a certifikát{0}"
+  },
+  "pmfujitsu_bmc_8": {
+   "source": "{0}: the iRMC refused it - {1}{2}",
+   "text": "{0}: iRMC to odmítlo - {1}{2}"
+  },
+  "pmfujitsu_bmc_9": {
+   "source": "the key cannot be written as PKCS#1 (RSA): {0}",
+   "text": "klíč nejde zapsat jako PKCS#1 (RSA): {0}"
+  },
+  "pmfujitsu_bmc_10": {
+   "source": "the {0} is {1} bytes - the iRMC takes files of 4 KB at most{2}",
+   "text": "{0} má {1} bajtů - iRMC bere soubory nejvýše 4 KB{2}"
+  },
+  "pmfujitsu_bmc_11": {
+   "source": "signed in to {0}: SCCI answered, the certificate there is {1}",
+   "text": "přihlášeno k {0}: SCCI odpovědělo, certifikát tam je {1}"
+  },
+  "pmfujitsu_bmc_12": {
+   "source": "read ({0} characters)",
+   "text": "přečten ({0} znaků)"
+  },
+  "pmfujitsu_bmc_13": {
+   "source": "the iRMC did not answer in SCCI XML: {0}",
+   "text": "iRMC neodpovědělo v XML SCCI: {0}"
+  },
+  "pmfujitsu_bmc_14": {
+   "source": "SCCI {0}: status {1}{2}",
+   "text": "SCCI {0}: stav {1}{2}"
+  },
+  "pmfujitsu_bmc_15": {
+   "source": "{0} - this BMC has no SmcSSLCert.Upload (X11 and older firmware: the web interface, Configuration → SSL Certificate)",
+   "text": "{0} - toto BMC nemá SmcSSLCert.Upload (X11 a starší firmware: webové rozhraní, Configuration → SSL Certificate)"
+  },
+  "pmfujitsu_bmc_16": {
+   "source": "signed in to {0}: {1}, BMC firmware {2} - the SSL certificate upload is there",
+   "text": "přihlášeno k {0}: {1}, firmware BMC {2} - nahrávání certifikátu SSL je k dispozici"
+  },
+  "pmfujitsu_bmc_17": {
+   "source": "{0}: the IMC said error {1} - {2}",
+   "text": "{0}: IMC ohlásilo chybu {1} - {2}"
+  },
+  "pmfujitsu_bmc_18": {
+   "source": "signing in: the IMC said error {0} - {1}",
+   "text": "přihlašování: IMC ohlásilo chybu {0} - {1}"
+  },
+  "pmfujitsu_bmc_19": {
+   "source": "{0}: the IMC did not answer in XML: {1}",
+   "text": "{0}: IMC neodpovědělo v XML: {1}"
+  },
+  "pmfujitsu_bmc_20": {
+   "source": "the key cannot be written as an RSA key: {0}",
+   "text": "klíč nejde zapsat jako klíč RSA: {0}"
+  },
+  "pmfujitsu_bmc_21": {
+   "source": "the {0} is {1} bytes - the IMC takes 8 KB at most",
+   "text": "{0} má {1} bajtů - IMC bere nejvýše 8 KB"
+  },
+  "pmfujitsu_bmc_22": {
+   "source": "signed in to {0}: the IMC serves {1}, valid to {2}",
+   "text": "přihlášeno k {0}: IMC servíruje {1}, platný do {2}"
+  },
+  "pmfujitsu_bmc_23": {
+   "source": "uploaded {0} to the iBMC (/tmp/web)",
+   "text": "{0} nahrán do iBMC (/tmp/web)"
+  },
+  "pmfujitsu_bmc_24": {
+   "source": "uploading {0} to /tmp/web",
+   "text": "nahrávání {0} do /tmp/web"
+  },
+  "pmfujitsu_bmc_25": {
+   "source": "the iBMC imported the certificate{0}",
+   "text": "iBMC certifikát naimportovalo{0}"
+  },
+  "pmfujitsu_bmc_26": {
+   "source": "signed in to {0}: the iBMC serves {1}, valid to {2}{3}",
+   "text": "přihlášeno k {0}: iBMC servíruje {1}, platný do {2}{3}"
+  },
+  "pmfujitsu_bmc_27": {
+   "source": "{0}: ismadm said (exit {1}) {2}",
+   "text": "{0}: ismadm ohlásil (návratový kód {1}) {2}"
+  },
+  "pmfujitsu_bmc_28": {
+   "source": "put {0}.key and {1}.crt into /{2} over FTP",
+   "text": "{0}.key a {1}.crt nahrány přes FTP do /{2}"
+  },
+  "pmfujitsu_bmc_29": {
+   "source": "signed in to {0} (FTP and console): {1}",
+   "text": "přihlášeno k {0} (FTP i konzole): {1}"
+  },
+  "pmfujitsu_bmc_30": {
+   "source": "the {0} may hold letters, digits and _ . @ : / % - only",
+   "text": "{0} smí obsahovat jen písmena, číslice a _ . @ : / % -"
+  },
+  "pmfujitsu_bmc_31": {
+   "source": "{0}: the ETERNUS CLI said {1}",
+   "text": "{0}: ETERNUS CLI ohlásilo {1}"
+  },
+  "pmfujitsu_bmc_32": {
+   "source": "put {0}.key and {1}.crt on {2}",
+   "text": "{0}.key a {1}.crt nahrány na {2}"
+  },
+  "pmfujitsu_bmc_33": {
+   "source": "signed in to {0} and to the file server {1}: {2}",
+   "text": "přihlášeno k {0} i k souborovému serveru {1}: {2}"
+  },
+  "pmveeam_storage_1": {
+   "source": "\"{0}\" is not a certificate name of the array",
+   "text": "„{0}“ není jméno certifikátu na poli"
+  },
+  "pmveeam_storage_2": {
+   "source": "AOS 7.x takes RSA 2048/4096 and ECDSA P-256/P-384 keys, not {0} (ECDSA P-521 is gone from AOS 7.5)",
+   "text": "AOS 7.x bere klíče RSA 2048/4096 a ECDSA P-256/P-384, ne {0} (ECDSA P-521 v AOS 7.5 už není)"
+  },
+  "pmveeam_storage_3": {
+   "source": "Cloud Connect certificate {0} set",
+   "text": "certifikát Cloud Connect {0} nastaven"
+  },
+  "pmveeam_storage_4": {
+   "source": "Cockpit certificate {0}.crt in place",
+   "text": "certifikát Cockpitu {0}.crt je na místě"
+  },
+  "pmveeam_storage_5": {
+   "source": "Cockpit takes {0}.crt",
+   "text": "Cockpit použije {0}.crt"
+  },
+  "pmveeam_storage_6": {
+   "source": "Cockpit would not use the new certificate ({0}) - the new files are taken away: {1}",
+   "text": "Cockpit by nový certifikát nepoužil ({0}) – nové soubory jsou odstraněny: {1}"
+  },
+  "pmveeam_storage_7": {
+   "source": "ONTAP took {0} but does not list it",
+   "text": "ONTAP {0} přijal, ale nevypisuje ho"
+  },
+  "pmveeam_storage_8": {
+   "source": "ONTAP {0} is newer than the documents this module version was checked against ({1})",
+   "text": "ONTAP {0} je novější než dokumentace, podle které byla tato verze modulu ověřena ({1})"
+  },
+  "pmveeam_storage_9": {
+   "source": "Veeam Backup & Replication would refuse this certificate: {0}. Issue it from an internal CA as Veeam asks (see the setup guide), or turn on \"Deploy a certificate that is not a CA one\"",
+   "text": "Veeam Backup & Replication by tento certifikát odmítl: {0}. Vydejte ho z interní CA, jak Veeam požaduje (viz návod k nastavení), nebo zapněte „Nasadit certifikát, který není certifikátem CA“"
+  },
+  "pmveeam_storage_10": {
+   "source": "Veeam Backup & Replication {0} is newer than the documents this module version was checked against ({1})",
+   "text": "Veeam Backup & Replication {0} je novější než dokumentace, podle které byla tato verze modulu ověřena ({1})"
+  },
+  "pmveeam_storage_11": {
+   "source": "backup server certificate {0} set (VBR {1})",
+   "text": "certifikát backup serveru {0} nastaven (VBR {1})"
+  },
+  "pmveeam_storage_12": {
+   "source": "cockpit-certificate-ensure --check names no file: {0}",
+   "text": "cockpit-certificate-ensure --check neuvádí žádný soubor: {0}"
+  },
+  "pmveeam_storage_13": {
+   "source": "installed {0}, bound to {1}",
+   "text": "nainstalován {0}, přiřazen k {1}"
+  },
+  "pmveeam_storage_14": {
+   "source": "its key is {0} - Veeam takes RSA (2048 or more) only",
+   "text": "jeho klíč je {0} – Veeam bere jen RSA (2048 a víc)"
+  },
+  "pmveeam_storage_15": {
+   "source": "its path length is {0}, Veeam wants 0",
+   "text": "jeho délka cesty je {0}, Veeam chce 0"
+  },
+  "pmveeam_storage_16": {
+   "source": "no system trust store folder found ({0})",
+   "text": "nenalezena žádná složka systémového úložiště důvěry ({0})"
+  },
+  "pmveeam_storage_17": {
+   "source": "replaced {0}",
+   "text": "vyměněn {0}"
+  },
+  "pmveeam_storage_18": {
+   "source": "set for {0}",
+   "text": "nastaveno pro {0}"
+  },
+  "pmveeam_storage_19": {
+   "source": "signed in as {0}, but not as an administrator of the machine (elevated) - the certificate store and Veeam's cmdlets need one",
+   "text": "přihlášen jako {0}, ale ne jako administrátor stroje (se zvýšenými právy) – úložiště certifikátů a cmdlety Veeamu ho potřebují"
+  },
+  "pmveeam_storage_20": {
+   "source": "signed in, but {0} or /etc/init.d/stunnel.sh is not there - this NAS does not keep its certificate where acme writes it",
+   "text": "přihlášeno, ale {0} nebo /etc/init.d/stunnel.sh tam není – tento NAS nedrží certifikát tam, kam ho acme zapisuje"
+  },
+  "pmveeam_storage_21": {
+   "source": "stunnel did not restart (exit {0}) - the previous certificate is back: {1}",
+   "text": "stunnel se nerestartoval (návratový kód {0}) – předchozí certifikát je zpět: {1}"
+  },
+  "pmveeam_storage_22": {
+   "source": "tenants that verify the thumbprint (a self-signed or private CA certificate) need the new one: {0}",
+   "text": "tenanti, kteří ověřují otisk (self-signed certifikát nebo certifikát privátní CA), potřebují nový: {0}"
+  },
+  "pmveeam_storage_23": {
+   "source": "the ONTAP version cannot be read - the calls of {0} are used",
+   "text": "verzi ONTAP nejde přečíst – použijí se volání pro {0}"
+  },
+  "pmveeam_storage_24": {
+   "source": "the REST API port {0} is not a port",
+   "text": "port REST API {0} není port"
+  },
+  "pmveeam_storage_25": {
+   "source": "the array has no certificate \"{0}\"",
+   "text": "pole nemá certifikát „{0}“"
+  },
+  "pmveeam_storage_26": {
+   "source": "the array speaks no REST API 2.x (it said {0})",
+   "text": "pole neumí REST API 2.x (uvedlo {0})"
+  },
+  "pmveeam_storage_27": {
+   "source": "the cluster has no SVM named \"{0}\"",
+   "text": "cluster nemá SVM jménem „{0}“"
+  },
+  "pmveeam_storage_28": {
+   "source": "the system trust store is updated ({0})",
+   "text": "systémové úložiště důvěry je aktualizované ({0})"
+  },
+  "pmveeam_storage_29": {
+   "source": "the version cannot be read: the calls of VBR {0} are used",
+   "text": "verzi nejde přečíst: použijí se volání VBR {0}"
+  },
+  "pmveeam_storage_30": {
+   "source": "the version of Veeam Backup & Replication cannot be read - the calls of {0} are used",
+   "text": "verzi Veeam Backup & Replication nejde přečíst – použijí se volání pro {0}"
+  },
+  "pmveeam_storage_31": {
+   "source": "this cluster runs ONTAP {0} - the module version \"{1}\" is for {2}; choose the version \"{3}\" of the target",
+   "text": "na tomto clusteru běží ONTAP {0} – verze modulu „{1}“ je pro {2}; zvolte verzi cíle „{3}“"
+  },
+  "pmveeam_storage_32": {
+   "source": "this server runs Veeam Backup & Replication {0} - the module version \"{1}\" is for {2}; choose the version \"{3}\" of the target",
+   "text": "na tomto serveru běží Veeam Backup & Replication {0} – verze modulu „{1}“ je pro {2}; zvolte verzi cíle „{3}“"
+  },
+  "pmveeam_storage_33": {
+   "source": "wrote {0}, stunnel restarted",
+   "text": "zapsán {0}, stunnel restartován"
+  },
+  "pmveeam_storage_34": {
+   "source": "wrote {0}/{1}.crt and .key",
+   "text": "zapsány {0}/{1}.crt a .key"
+  },
+  "pmveeam_storage_35": {
+   "source": "{0} added to LocalMachine\\{1}",
+   "text": "{0} přidán do LocalMachine\\{1}"
+  },
+  "pmveeam_storage_36": {
+   "source": "{0} cannot be listed - is Cockpit installed? {1}",
+   "text": "{0} nejde vypsat – je Cockpit nainstalovaný? {1}"
+  },
+  "pmveeam_storage_37": {
+   "source": "{0} holds the new certificate",
+   "text": "{0} drží nový certifikát"
+  },
+  "pmveeam_storage_38": {
+   "source": "{0} sort after the new file - Cockpit takes the last one: raise the file name prefix",
+   "text": "{0} se řadí za nový soubor – Cockpit vezme poslední: zvyšte předponu jména souboru"
+  },
+  "pmveeam_storage_39": {
+   "source": "{0} uses the new certificate",
+   "text": "{0} používá nový certifikát"
+  },
+  "pmveeam_storage_40": {
+   "source": "{0} web services use it ({1})",
+   "text": "webové služby ({0}) ho používají ({1})"
+  },
+  "pmveeam_storage_41": {
+   "source": "{0}: the job failed - {1}",
+   "text": "{0}: úloha selhala – {1}"
+  },
+  "pmveeam_storage_42": {
+   "source": "{0}: the job {1} has not finished",
+   "text": "{0}: úloha {1} neskončila"
+  },
+  "pmcisco_aruba_1": {
+   "source": "{0}: the device said \"{1}\"",
+   "text": "{0}: zařízení odpovědělo „{1}“"
+  },
+  "pmcisco_aruba_2": {
+   "source": "the answer is not the show version of IOS XE: {0}",
+   "text": "odpověď není show version z IOS XE: {0}"
+  },
+  "pmcisco_aruba_3": {
+   "source": "copied the PKCS#12 to {0} ({1})",
+   "text": "PKCS#12 zkopírován do {0} ({1})"
+  },
+  "pmcisco_aruba_4": {
+   "source": "imported into the new trustpoint {0}",
+   "text": "naimportováno do nového trustpointu {0}"
+  },
+  "pmcisco_aruba_5": {
+   "source": "the trustpoint {0} is there already",
+   "text": "trustpoint {0} už tam je"
+  },
+  "pmcisco_aruba_6": {
+   "source": "{0} uses {1}",
+   "text": "{0} používá {1}"
+  },
+  "pmcisco_aruba_7": {
+   "source": "write memory{0}",
+   "text": "write memory{0}"
+  },
+  "pmcisco_aruba_8": {
+   "source": "the older trustpoints stay - what uses them cannot be read: {0}",
+   "text": "starší trustpointy zůstávají - nelze přečíst, co je používá: {0}"
+  },
+  "pmcisco_aruba_9": {
+   "source": "the older trustpoint {0} stays: it is still in use",
+   "text": "starší trustpoint {0} zůstává: ještě se používá"
+  },
+  "pmcisco_aruba_10": {
+   "source": "the older trustpoint {0} stays: IOS XE did not remove it",
+   "text": "starší trustpoint {0} zůstává: IOS XE ho neodstranilo"
+  },
+  "pmcisco_aruba_11": {
+   "source": "removed the older trustpoint {0}",
+   "text": "starší trustpoint {0} odstraněn"
+  },
+  "pmcisco_aruba_12": {
+   "source": "the older trustpoint {0} may stay: {1}",
+   "text": "starší trustpoint {0} možná zůstává: {1}"
+  },
+  "pmcisco_aruba_13": {
+   "source": "reading the trustpoint {0}",
+   "text": "čtu trustpoint {0}"
+  },
+  "pmcisco_aruba_14": {
+   "source": "the trustpoint {0} holds no certificate after the import",
+   "text": "trustpoint {0} po importu nemá žádný certifikát"
+  },
+  "pmcisco_aruba_15": {
+   "source": "the file {0} stays: {1}",
+   "text": "soubor {0} zůstává: {1}"
+  },
+  "pmcisco_aruba_16": {
+   "source": "this Nexus runs NX-OS {0} - `nxapi certificate trustpoint` is there from 10.2(3)F; upgrade it, or put the certificate there by hand (nxapi certificate httpscrt / httpskey)",
+   "text": "tento Nexus má NX-OS {0} - `nxapi certificate trustpoint` je až od 10.2(3)F; aktualizujte ho, nebo certifikát vložte ručně (nxapi certificate httpscrt / httpskey)"
+  },
+  "pmcisco_aruba_17": {
+   "source": "NX-OS {0} is newer than the documents this module was checked against (10.6)",
+   "text": "NX-OS {0} je novější než dokumentace, podle které byl modul ověřen (10.6)"
+  },
+  "pmcisco_aruba_18": {
+   "source": "copied the PKCS#12 to {0}",
+   "text": "PKCS#12 zkopírován do {0}"
+  },
+  "pmcisco_aruba_19": {
+   "source": "{0}: NX-OS said \"{1}\"",
+   "text": "{0}: NX-OS odpovědělo „{1}“"
+  },
+  "pmcisco_aruba_20": {
+   "source": "NX-API uses {0} (it restarts)",
+   "text": "NX-API používá {0} (restartuje se)"
+  },
+  "pmcisco_aruba_21": {
+   "source": "NX-API restarted before it answered ({0}) - the test of what is served says whether it took {1}",
+   "text": "NX-API se restartovalo dřív, než odpovědělo ({0}) - test servírovaného certifikátu řekne, zda převzalo {1}"
+  },
+  "pmcisco_aruba_22": {
+   "source": "the older trustpoint {0} stays: {1}",
+   "text": "starší trustpoint {0} zůstává: {1}"
+  },
+  "pmcisco_aruba_23": {
+   "source": "Catalyst Center took the certificate for {0}{1}",
+   "text": "Catalyst Center převzal certifikát pro {0}{1}"
+  },
+  "pmcisco_aruba_24": {
+   "source": "\"{0}\" is not what the certificate can be used for (server, ipsec)",
+   "text": "„{0}“ není použití, pro které certifikát může být (server, ipsec)"
+  },
+  "pmcisco_aruba_25": {
+   "source": "Catalyst Center refused the certificate: {0}",
+   "text": "Catalyst Center certifikát odmítl: {0}"
+  },
+  "pmcisco_aruba_26": {
+   "source": "the import is done: {0}",
+   "text": "import je hotový: {0}"
+  },
+  "pmcisco_aruba_27": {
+   "source": "the task {0} is still running: {1}",
+   "text": "úloha {0} ještě běží: {1}"
+  },
+  "pmcisco_aruba_28": {
+   "source": "reading the task {0}",
+   "text": "čtu úlohu {0}"
+  },
+  "pmcisco_aruba_29": {
+   "source": "the task {0} cannot be read any more ({1}) - Catalyst Center restarts",
+   "text": "úlohu {0} už nelze přečíst ({1}) - Catalyst Center se restartuje"
+  },
+  "pmcisco_aruba_30": {
+   "source": "not an application of AOS-CX: {0}",
+   "text": "není aplikace AOS-CX: {0}"
+  },
+  "pmcisco_aruba_31": {
+   "source": "added the trust anchor profile {0}",
+   "text": "přidán trust anchor profil {0}"
+  },
+  "pmcisco_aruba_32": {
+   "source": "installed the certificate {0}",
+   "text": "certifikát {0} nainstalován"
+  },
+  "pmcisco_aruba_33": {
+   "source": "the certificate {0} is there already",
+   "text": "certifikát {0} už tam je"
+  },
+  "pmcisco_aruba_34": {
+   "source": "adding the trust anchor {0}",
+   "text": "přidávám trust anchor {0}"
+  },
+  "pmcisco_aruba_35": {
+   "source": "installing {0}",
+   "text": "instaluji {0}"
+  },
+  "pmcisco_aruba_36": {
+   "source": "{0} use{1} {2}",
+   "text": "{0} používá {2}"
+  },
+  "pmcisco_aruba_37": {
+   "source": "the state of the applications cannot be read: {0}",
+   "text": "stav aplikací nelze přečíst: {0}"
+  },
+  "pmcisco_aruba_38": {
+   "source": "{0} does not use {1}: the switch says {2}",
+   "text": "{0} nepoužívá {1}: switch hlásí {2}"
+  },
+  "pmcisco_aruba_39": {
+   "source": "the older certificates stay - what uses them cannot be read: {0}",
+   "text": "starší certifikáty zůstávají - nelze přečíst, co je používá: {0}"
+  },
+  "pmcisco_aruba_40": {
+   "source": "the older {0} stays: an application still uses it",
+   "text": "starší {0} zůstává: některá aplikace ho ještě používá"
+  },
+  "pmcisco_aruba_41": {
+   "source": "the older {0} stays: {1}",
+   "text": "starší {0} zůstává: {1}"
+  },
+  "pmcisco_aruba_42": {
+   "source": "using {0} for {1}",
+   "text": "používám {0} pro {1}"
+  },
+  "pmcisco_aruba_43": {
+   "source": "ClearPass has no server \"{0}\" (it has: {1})",
+   "text": "ClearPass nemá server „{0}“ (má: {1})"
+  },
+  "pmcisco_aruba_44": {
+   "source": "not a service of a ClearPass server certificate: {0} ({1})",
+   "text": "není služba serverového certifikátu ClearPass: {0} ({1})"
+  },
+  "pmcisco_aruba_45": {
+   "source": "{0} of {1}: {2}, until {3}",
+   "text": "{0} serveru {1}: {2}, do {3}"
+  },
+  "pmcisco_aruba_46": {
+   "source": "a CA of the chain was not added (there already?): {0}",
+   "text": "CA z řetězce nebyla přidána (už tam je?): {0}"
+  },
+  "pmcisco_aruba_47": {
+   "source": "replacing the {0} certificate",
+   "text": "vyměňuji certifikát {0}"
+  },
+  "pmcisco_aruba_48": {
+   "source": "the staged file {0} stays - delete it: {1}",
+   "text": "přestupní soubor {0} zůstal - smažte ho: {1}"
+  },
+  "pmcisco_aruba_49": {
+   "source": "{0} into Central{1}",
+   "text": "{0} do Central{1}"
+  },
+  "pmcisco_aruba_50": {
+   "source": "Central pushes it to the devices whose profiles name {0}",
+   "text": "Central ho rozešle zařízením, jejichž profily odkazují na {0}"
+  },
+  "pmcisco_aruba_51": {
+   "source": "{0} in Central is a {1}, not a server certificate",
+   "text": "{0} je v Central {1}, ne serverový certifikát"
+  },
+  "pmcisco_aruba_52": {
+   "source": "Central refused the token refresh - make a new token for the API client and put its refresh token into the target ({0})",
+   "text": "Central odmítl obnovit token - vytvořte pro klienta API nový token a jeho refresh token vložte do cíle ({0})"
+  },
+  "pmcisco_aruba_53": {
+   "source": "the new refresh token cannot be kept: {0} - the next run needs a new one",
+   "text": "nový refresh token nelze uložit: {0} - příští běh bude potřebovat nový"
+  },
+  "pmcisco_aruba_54": {
+   "source": "uploading {0}",
+   "text": "nahrávám {0}"
+  },
+  "pmcisco_aruba_55": {
+   "source": "replacing {0}",
+   "text": "nahrazuji {0}"
+  },
+  "pmcisco_aruba_56": {
+   "source": "made the PKCS12 Cert Enrollment {0}",
+   "text": "vytvořen Cert Enrollment PKCS12 {0}"
+  },
+  "pmcisco_aruba_57": {
+   "source": "replaced the PKCS#12 of the Cert Enrollment {0}",
+   "text": "nahrazen PKCS#12 v Cert Enrollment {0}"
+  },
+  "pmcisco_aruba_58": {
+   "source": "the FMC gave no id for {0}",
+   "text": "FMC nevrátilo id pro {0}"
+  },
+  "pmcisco_aruba_59": {
+   "source": "no device to enrol {0} on - give the devices",
+   "text": "žádné zařízení, na které zapsat {0} - uveďte zařízení"
+  },
+  "pmcisco_aruba_60": {
+   "source": "the FMC has no device {0}",
+   "text": "FMC nemá zařízení {0}"
+  },
+  "pmcisco_aruba_61": {
+   "source": "{0} of {1} asked on {2}",
+   "text": "{0} pro {1} vyžádán na {2}"
+  },
+  "pmcisco_aruba_62": {
+   "source": "making the Cert Enrollment {0}",
+   "text": "vytvářím Cert Enrollment {0}"
+  },
+  "pmcisco_aruba_63": {
+   "source": "the Cert Enrollment {0} is of the type {1} - acme puts a PKCS#12 only into a PKCS12 one",
+   "text": "Cert Enrollment {0} je typu {1} - acme vkládá PKCS#12 jen do typu PKCS12"
+  },
+  "pmcisco_aruba_64": {
+   "source": "replacing the PKCS#12 of {0}",
+   "text": "nahrazuji PKCS#12 v {0}"
+  },
+  "pmcisco_aruba_65": {
+   "source": "reading the certificates of {0}",
+   "text": "čtu certifikáty zařízení {0}"
+  },
+  "pmcisco_aruba_66": {
+   "source": "{0} {1} on {2}",
+   "text": "{0} {1} na {2}"
+  },
+  "pmcisco_aruba_67": {
+   "source": "the {0} version cannot be read - the way of {1} is used",
+   "text": "verzi {0} nelze přečíst - použije se postup pro {1}"
+  },
+  "pmcisco_aruba_68": {
+   "source": "this device runs {0} {1} - the module version \"{2}\" is for {3}; choose the version \"{4}\" of the target",
+   "text": "toto zařízení má {0} {1} - verze modulu „{2}“ je pro {3}; zvolte u cíle verzi „{4}“"
+  },
+  "pmcisco_aruba_69": {
+   "source": "{0} {1} is newer than the documents this module version was checked against ({2})",
+   "text": "{0} {1} je novější než dokumentace, podle které byla tato verze modulu ověřena ({2})"
+  },
+  "pmcisco_aruba_70": {
+   "source": "any {0}",
+   "text": "libovolné {0}"
+  },
+  "pmcisco_aruba_71": {
+   "source": "{0} {1} and later",
+   "text": "{0} {1} a novější"
+  },
+  "pmcisco_aruba_72": {
+   "source": "{0} {1} - {2}",
+   "text": "{0} {1} - {2}"
+  },
+  "pmcisco_aruba_73": {
+   "source": "the webauth parameter map {0}",
+   "text": "parameter-map webauth {0}"
+  },
+  "pmcisco_aruba_74": {
+   "source": "in the trustpoint {0}",
+   "text": "v trustpointu {0}"
+  },
+  "pmcisco_aruba_75": {
+   "source": "signed in to {0}: IOS XE {1}; {2} trustpoint{3}, the HTTPS server uses {4}",
+   "text": "přihlášeno k {0}: IOS XE {1}; trustpointů: {2}, HTTPS server používá {4}"
+  },
+  "pmcisco_aruba_76": {
+   "source": "signed in to {0} ({1}): NX-OS {2}; {3} trustpoint{4}",
+   "text": "přihlášeno k {0} ({1}): NX-OS {2}; trustpointů: {3}"
+  },
+  "pmcisco_aruba_77": {
+   "source": "signed in to Catalyst Center {0}",
+   "text": "přihlášeno ke Catalyst Center {0}"
+  },
+  "pmcisco_aruba_78": {
+   "source": "the {0} certificate of Catalyst Center replaced",
+   "text": "certifikát {0} v Catalyst Center vyměněn"
+  },
+  "pmcisco_aruba_79": {
+   "source": "signed in to {0} ({1}): AOS-CX {2}; {3} certificate{4}",
+   "text": "přihlášeno k {0} ({1}): AOS-CX {2}; certifikátů: {3}"
+  },
+  "pmcisco_aruba_80": {
+   "source": "signed in to ClearPass {0}; server {1} ({2})",
+   "text": "přihlášeno ke ClearPass {0}; server {1} ({2})"
+  },
+  "pmcisco_aruba_81": {
+   "source": "replaced {0} on {1}",
+   "text": "vyměněno {0} na {1}"
+  },
+  "pmcisco_aruba_82": {
+   "source": "signed in to Central ({0}); {1} certificate{2} in its store",
+   "text": "přihlášeno do Central ({0}); certifikátů v úložišti: {1}"
+  },
+  "pmcisco_aruba_83": {
+   "source": "as {0} in Central",
+   "text": "jako {0} v Central"
+  },
+  "pmcisco_aruba_84": {
+   "source": "uploaded {0}",
+   "text": "nahráno {0}"
+  },
+  "pmcisco_aruba_85": {
+   "source": "Cert Enrollment {0}",
+   "text": "Cert Enrollment {0}"
+  },
+  "pmcisco_aruba_86": {
+   "source": "enrolled {0} on {1}",
+   "text": "{0} zapsáno na {1}"
+  },
+  "pmcisco_aruba_87": {
+   "source": "{0}; FMC {1}",
+   "text": "{0}; FMC {1}"
+  },
+  "pmvmware_1": {
+   "source": " (request {0})",
+   "text": " (požadavek {0})"
+  },
+  "pmvmware_2": {
+   "source": "\"{0}\" is {1}{2}",
+   "text": "„{0}\" je {1}{2}"
+  },
+  "pmvmware_3": {
+   "source": "/opt/scripts/deploy.sh failed (exit {0}): {1}",
+   "text": "/opt/scripts/deploy.sh selhal (návratový kód {0}): {1}"
+  },
+  "pmvmware_4": {
+   "source": "/sbin/auto-backup.sh failed - the certificate is lost if the host reboots within the hour: {0}",
+   "text": "/sbin/auto-backup.sh selhal - restartuje-li se hostitel do hodiny, certifikát se ztratí: {0}"
+  },
+  "pmvmware_5": {
+   "source": "Cloud Director has no cell \"{0}\"",
+   "text": "Cloud Director nemá celu „{0}\""
+  },
+  "pmvmware_6": {
+   "source": "ESX {0} is newer than the documents this module version was checked against ({1})",
+   "text": "ESX {0} je novější než dokumentace, podle které byla tato verze modulu ověřena ({1})"
+  },
+  "pmvmware_7": {
+   "source": "NSX does not take {0} as a server certificate: {1}",
+   "text": "NSX nebere {0} jako serverový certifikát: {1}"
+  },
+  "pmvmware_8": {
+   "source": "Supervisor {0}: {1} certificate replaced",
+   "text": "Supervisor {0}: certifikát {1} vyměněn"
+  },
+  "pmvmware_9": {
+   "source": "added a CA certificate ({0})",
+   "text": "přidán certifikát CA ({0})"
+  },
+  "pmvmware_10": {
+   "source": "applying it to {0}",
+   "text": "použití pro {0}"
+  },
+  "pmvmware_11": {
+   "source": "asking what uses {0}",
+   "text": "zjišťování, co používá {0}"
+  },
+  "pmvmware_12": {
+   "source": "deleted the older {0} from the Locker",
+   "text": "starší {0} smazán z Lockeru"
+  },
+  "pmvmware_13": {
+   "source": "deleting {0} from the Locker",
+   "text": "mazání {0} z Lockeru"
+  },
+  "pmvmware_14": {
+   "source": "imported {0} into the Certificates Library",
+   "text": "{0} importován do Certificates Library"
+  },
+  "pmvmware_15": {
+   "source": "imported {0} into the Locker",
+   "text": "{0} importován do Lockeru"
+  },
+  "pmvmware_16": {
+   "source": "importing {0} into the Certificates Library",
+   "text": "import {0} do Certificates Library"
+  },
+  "pmvmware_17": {
+   "source": "importing {0} into the Locker",
+   "text": "import {0} do Lockeru"
+  },
+  "pmvmware_18": {
+   "source": "ingress certificate set on {0}{1}",
+   "text": "ingress certifikát nastaven na {0}{1}"
+  },
+  "pmvmware_19": {
+   "source": "installed on the host {0} through vCenter",
+   "text": "nainstalováno na hostitele {0} přes vCenter"
+  },
+  "pmvmware_20": {
+   "source": "looking for {0} in the library",
+   "text": "hledání {0} v knihovně"
+  },
+  "pmvmware_21": {
+   "source": "machine SSL certificate of {0} replaced (no restart)",
+   "text": "certifikát machine SSL {0} vyměněn (bez restartu)"
+  },
+  "pmvmware_22": {
+   "source": "pre-validating {0} for {1}",
+   "text": "předběžné ověření {0} pro {1}"
+  },
+  "pmvmware_23": {
+   "source": "putting the cell {0} {1}",
+   "text": "přepnutí cely {0} na {1}"
+  },
+  "pmvmware_24": {
+   "source": "reading the endpoints of {0}",
+   "text": "čtení endpointů {0}"
+  },
+  "pmvmware_25": {
+   "source": "removed the older {0}",
+   "text": "odebrán starší {0}"
+  },
+  "pmvmware_26": {
+   "source": "replacing the certificate of {0}",
+   "text": "výměna certifikátu {0}"
+  },
+  "pmvmware_27": {
+   "source": "signed in as {0}; {1} is {2}; \"vdm\": {3}{4}",
+   "text": "přihlášeno jako {0}; {1} je {2}; „vdm\": {3}{4}"
+  },
+  "pmvmware_28": {
+   "source": "signed in as {0}; {1}; an ingress certificate is {2}",
+   "text": "přihlášeno jako {0}; {1}; ingress certifikát je {2}"
+  },
+  "pmvmware_29": {
+   "source": "signed in to Aria Suite Lifecycle {0}; {1} certificate{2} in the Locker",
+   "text": "přihlášeno do Aria Suite Lifecycle {0}; certifikátů v Lockeru: {1}"
+  },
+  "pmvmware_30": {
+   "source": "signed in to Cloud Director {0}; cells: {1}",
+   "text": "přihlášeno do Cloud Directoru {0}; cely: {1}"
+  },
+  "pmvmware_31": {
+   "source": "signed in to NSX Manager {0}; {1} certificate{2}",
+   "text": "přihlášeno do NSX Manageru {0}; certifikátů: {1}"
+  },
+  "pmvmware_32": {
+   "source": "signed in to SDDC Manager {0}; {1} trusted certificates",
+   "text": "přihlášeno do SDDC Manageru {0}; důvěryhodných certifikátů: {1}"
+  },
+  "pmvmware_33": {
+   "source": "signed in to the {0} appliance {1}; its certificate: {2}, valid to {3}",
+   "text": "přihlášeno do appliance {0} {1}; její certifikát: {2}, platný do {3}"
+  },
+  "pmvmware_34": {
+   "source": "signed in to vCenter {0} ({1}); host {2}: {3}, certificate manager {4}",
+   "text": "přihlášeno do vCenteru {0} ({1}); hostitel {2}: {3}, správce certifikátů {4}"
+  },
+  "pmvmware_35": {
+   "source": "signed in to vCenter {0}{1}; the Supervisor {2} answers ({3} calls)",
+   "text": "přihlášeno do vCenteru {0}{1}; Supervisor {2} odpovídá (volání {3})"
+  },
+  "pmvmware_36": {
+   "source": "stopped while waiting for {0}",
+   "text": "zastaveno při čekání na {0}"
+  },
+  "pmvmware_37": {
+   "source": "the Locker cannot be listed: {0}",
+   "text": "Locker nelze vypsat: {0}"
+  },
+  "pmvmware_38": {
+   "source": "the Locker does not list {0} after the import",
+   "text": "Locker po importu {0} nevypisuje"
+  },
+  "pmvmware_39": {
+   "source": "the Supervisor {0} took the certificate ({1})",
+   "text": "Supervisor {0} certifikát převzal ({1})"
+  },
+  "pmvmware_40": {
+   "source": "the cell going {0}",
+   "text": "přepnutí cely na {0}"
+  },
+  "pmvmware_41": {
+   "source": "the certificate {0} is in NSX already",
+   "text": "certifikát {0} už v NSX je"
+  },
+  "pmvmware_42": {
+   "source": "the endpoints of {0}",
+   "text": "endpointy {0}"
+  },
+  "pmvmware_43": {
+   "source": "the friendly name is vdm or vdm.ec, not {0}",
+   "text": "popisný název je vdm nebo vdm.ec, ne {0}"
+  },
+  "pmvmware_44": {
+   "source": "the host runs {0} - the module version \"{1}\" needs ESXi 8.0 U3 or later (ProvisionServerPrivateKey); choose the plain version of the target (\"VMware ESXi host (SSH)\": over SSH, any ESXi)",
+   "text": "na hostiteli běží {0} - verze modulu „{1}\" potřebuje ESXi 8.0 U3 nebo novější (ProvisionServerPrivateKey); zvolte základní verzi cíle („VMware ESXi host (SSH)\": přes SSH, libovolné ESXi)"
+  },
+  "pmvmware_45": {
+   "source": "the host {0} has no certificate manager in vCenter's answer",
+   "text": "hostitel {0} nemá v odpovědi vCenteru správce certifikátů"
+  },
+  "pmvmware_46": {
+   "source": "the library cannot be listed: {0}",
+   "text": "knihovnu nelze vypsat: {0}"
+  },
+  "pmvmware_47": {
+   "source": "the library does not list {0} after the import",
+   "text": "knihovna po importu {0} nevypisuje"
+  },
+  "pmvmware_48": {
+   "source": "the node {0}",
+   "text": "uzel {0}"
+  },
+  "pmvmware_49": {
+   "source": "the node {0} serves it",
+   "text": "uzel {0} ho servíruje"
+  },
+  "pmvmware_50": {
+   "source": "the older {0} stays in the Locker (still used?): {1}",
+   "text": "starší {0} zůstává v Lockeru (ještě se používá?): {1}"
+  },
+  "pmvmware_51": {
+   "source": "the older {0} stays: NSX still uses it",
+   "text": "starší {0} zůstává: NSX ho ještě používá"
+  },
+  "pmvmware_52": {
+   "source": "the older {0} stays: something still uses it",
+   "text": "starší {0} zůstává: ještě ho něco používá"
+  },
+  "pmvmware_53": {
+   "source": "the product line \"{0}\" is \"<environment id> <product id>\"",
+   "text": "řádek produktu „{0}\" má tvar „<ID prostředí> <ID produktu>\""
+  },
+  "pmvmware_54": {
+   "source": "the request {0} ({1})",
+   "text": "požadavek {0} ({1})"
+  },
+  "pmvmware_55": {
+   "source": "the vCenter version cannot be read - the calls of {0} are used",
+   "text": "verzi vCenteru nelze přečíst - použijí se volání pro {0}"
+  },
+  "pmvmware_56": {
+   "source": "the {0} appliance took the certificate",
+   "text": "appliance {0} certifikát převzala"
+  },
+  "pmvmware_57": {
+   "source": "there is no Horizon Connection Server service on {0}",
+   "text": "na {0} není služba Horizon Connection Server"
+  },
+  "pmvmware_58": {
+   "source": "this vCenter runs {0} - before 9.0 the Supervisor's API takes only a certificate for a CSR it made (no key made elsewhere): replace it in the vSphere Client (Supervisor > Configure > Certificates)",
+   "text": "na tomto vCenteru běží {0} - před 9.0 bere API Supervisoru jen certifikát k CSR, které sám vytvořil (žádný klíč vytvořený jinde): vyměňte ho ve vSphere Clientu (Supervisor > Configure > Certificates)"
+  },
+  "pmvmware_59": {
+   "source": "this vCenter runs {0} - the module version \"{1}\" is for vCenter 8.0 U2 - 9.1 (no restart); choose the plain version of the target (\"VMware vCenter Server\"), which waits for vCenter's restart",
+   "text": "na tomto vCenteru běží {0} - verze modulu „{1}\" je pro vCenter 8.0 U2 - 9.1 (bez restartu); zvolte základní verzi cíle („VMware vCenter Server\"), která na restart vCenteru počká"
+  },
+  "pmvmware_60": {
+   "source": "this vCenter runs {0} - the module version \"{1}\" is for {2}; choose the version \"{3}\" of the target",
+   "text": "na tomto vCenteru běží {0} - verze modulu „{1}\" je pro {2}; zvolte verzi cíle „{3}\""
+  },
+  "pmvmware_61": {
+   "source": "vCenter gave no session manager - is {0} a vCenter 8.0 U3 or later?",
+   "text": "vCenter nevrátil správce relací - je {0} vCenter 8.0 U3 nebo novější?"
+  },
+  "pmvmware_62": {
+   "source": "vCenter has no Supervisor \"{0}\"",
+   "text": "vCenter nemá Supervisor „{0}\""
+  },
+  "pmvmware_63": {
+   "source": "vCenter has no host \"{0}\" (its managed object id, as host-12)",
+   "text": "vCenter nemá hostitele „{0}\" (jeho ID spravovaného objektu, např. host-12)"
+  },
+  "pmvmware_64": {
+   "source": "vCenter {0} is newer than the documents this module version was checked against (9.1)",
+   "text": "vCenter {0} je novější než dokumentace, podle které byla tato verze modulu ověřena (9.1)"
+  },
+  "pmvmware_65": {
+   "source": "vCenter {0} is newer than the documents this module was checked against (9.1)",
+   "text": "vCenter {0} je novější než dokumentace, podle které byl modul ověřen (9.1)"
+  },
+  "pmvmware_66": {
+   "source": "validating {0}",
+   "text": "ověření {0}"
+  },
+  "pmvmware_67": {
+   "source": "vracli did not set the certificate{0}: {1}",
+   "text": "vracli certifikát nenastavil{0}: {1}"
+  },
+  "pmvmware_68": {
+   "source": "vracli does not take the certificate: {0}",
+   "text": "vracli certifikát nebere: {0}"
+  },
+  "pmvmware_69": {
+   "source": "{0} (HostConfigFault: the certificate is refused or does not match the key)",
+   "text": "{0} (HostConfigFault: certifikát je odmítnut nebo nesedí ke klíči)"
+  },
+  "pmvmware_70": {
+   "source": "{0} - is the API path ({1}) right?",
+   "text": "{0} - je cesta API ({1}) správná?"
+  },
+  "pmvmware_71": {
+   "source": "{0} CA certificate{1} added to the trust store",
+   "text": "do úložiště důvěry přidáno certifikátů CA: {0}"
+  },
+  "pmvmware_72": {
+   "source": "{0} appliance {1}: certificate changed",
+   "text": "appliance {0} {1}: certifikát změněn"
+  },
+  "pmvmware_73": {
+   "source": "{0} applied to {1}",
+   "text": "{0} použit pro {1}"
+  },
+  "pmvmware_74": {
+   "source": "{0} is active again",
+   "text": "{0} je znovu aktivní"
+  },
+  "pmvmware_75": {
+   "source": "{0} is in maintenance",
+   "text": "{0} je v údržbě"
+  },
+  "pmvmware_76": {
+   "source": "{0} is in the Certificates Library already",
+   "text": "{0} už v Certificates Library je"
+  },
+  "pmvmware_77": {
+   "source": "{0} is in the Locker already",
+   "text": "{0} už v Lockeru je"
+  },
+  "pmvmware_78": {
+   "source": "{0} is still running after {1} s - look at it on the device",
+   "text": "{0} stále běží i po {1} s - podívejte se na zařízení"
+  },
+  "pmvmware_79": {
+   "source": "{0} serves {1} (its connections restarted)",
+   "text": "{0} servíruje {1} (spojení restartována)"
+  },
+  "pmvmware_80": {
+   "source": "{0} uses {1} already",
+   "text": "{0} už používá {1}"
+  },
+  "pmvmware_81": {
+   "source": "{0}: Replace Certificate started{1}",
+   "text": "{0}: Replace Certificate spuštěno{1}"
+  },
+  "pmvmware_82": {
+   "source": "{0}: the pre-validation passed",
+   "text": "{0}: předběžné ověření prošlo"
+  },
+  "pmvmware_83": {
+   "source": "{0}: {1}",
+   "text": "{0}: {1}"
   }
  },
  "rich": {

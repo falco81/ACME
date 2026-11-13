@@ -12,8 +12,13 @@ member (or the *Certificate URI* you give) and calls
 
 **Which controllers take a private key this way varies.** Reported to work: AMI MegaRAC
 (ASUS, Lenovo, Supermicro), Dell iDRAC9 firmware 5.x and later, HPE iLO 5 2.42 and later.
-**HPE iLO 6 offers only GenerateCSR** and does not take a key - acme says so. Older iDRACs
-need `racadm sslkeyupload`, not this target. Lenovo XCC2 takes `PEM` only.
+**HPE iLO 6 lists no ReplaceCertificate**: its key goes through HPE's own service - choose
+the version **`ilo`** of this target (iLO 5 2.78+, iLO 6 1.30+, iLO 7). **Dell iDRAC9
+6.00.02+ / iDRAC10**: the version **`6.00.02`** (Dell's own upload). **Lenovo XClarity
+Controller (XCC, XCC2, XCC3) takes only a certificate of a request it made itself** - acme's
+key cannot go there (Lenovo's documents, 2026). Older iDRACs need `racadm sslkeyupload`.
+Supermicro's standard certificate service needs the SFT-DCMS-SINGLE licence (else the
+target `supermicro_bmc`); Supermicro and OpenBMC take *Send as* `PEM`.
 Use an **RSA 2048** key type for the certificate.
 
 ## What you need
@@ -85,7 +90,7 @@ Use an **RSA 2048** key type for the certificate.
 |---|---|
 | `401` on signing in | Wrong user/password, user disabled, or Redfish off. |
 | `403` on replacing | The user lacks *Configure* / *Configure iLO Settings*. |
-| `offers no CertificateService.ReplaceCertificate` | HPE iLO 6: it takes only certificates for its own CSR - not supported. |
+| `offers no CertificateService.ReplaceCertificate` | HPE iLO 6/7: use the version `ilo` of this target. Lenovo XCC: takes only a certificate of its own request - not possible. |
 | Certificate refused | Try *Send as* `PEM`; use an RSA 2048 key; older firmware may not accept a key at all - update it. |
 | Old certificate still served | Set *Restart the controller afterwards* (iDRAC); the check waits for the restart. |
 | Session limit reached | Too many open sessions on the controller; wait, or use basic authentication. |
