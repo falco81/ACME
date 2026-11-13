@@ -371,11 +371,25 @@ def _mk_temp(real):
 CLOCK = [0.0]
 
 
+# where a sleep is not the module's own wait: the standard library's polling (subprocess
+# waiting for openssl making a PKCS#12, a thread joined) - slept for real, a moment, and
+# neither recorded nor put on the clock
+_STDLIB_SLEEPERS = ('subprocess', 'threading', 'selectors', 'multiprocessing', 'asyncio',
+                    'concurrent', 'queue', 'socketserver')
+
+
 def _sleep(s):
     try:
         s = max(0.0, float(s))
     except (TypeError, ValueError):
         s = 0.0
+    try:
+        caller = str(sys._getframe(1).f_globals.get('__name__') or '')
+    except ValueError:
+        caller = ''
+    if caller.split('.', 1)[0] in _STDLIB_SLEEPERS:
+        _real.get('sleep', lambda _s: None)(min(s, 0.05))
+        return
     CLOCK[0] += s
     r = RECORDING[0]
     if r is not None and s > 0:
@@ -433,6 +447,7 @@ def lockdown(folder):
     tempfile.tempdir = SANDBOX[0]
     _real['time'] = time.time
     _real['monotonic'] = time.monotonic
+    _real['sleep'] = time.sleep
     time.sleep = _sleep
     time.time = lambda: _real['time']() + CLOCK[0]
     time.monotonic = lambda: _real['monotonic']() + CLOCK[0]
@@ -622,15 +637,61 @@ LOGIN_RE = re.compile(r'(login|logon|signin|sign-in|auth|token|session|oauth)', 
 
 class Answers(object):
     """What the recording answers an HTTP call: a module's hints first, else 200 and
-    {} (a sign-in: a session in every shape a module may look for)."""
-    def __init__(self, rules):
-        self.rules = rules or []
+    {} (a sign-in: a session in every shape a module may look for).
 
-    def __call__(self, method, url):
-        for r in self.rules:
+    A rule: {method?, url? (a regex), status?, headers?, body, times?}; "times": n - the rule
+    answers its first n matching calls, then the next matching rule does. In a body:
+    {SESSION}, {TAIL} (the last part of the path) and {SENT:key} - the value of "key"
+    (dotted for a nested one) in the JSON body the module sent last with it ('' before).
+    SSH rules (ssh()): {command (a regex), input? (a regex), stdout?, stderr?, exit?,
+    times?} - what a command matching them printed."""
+    def __init__(self, rules, ssh_rules=None):
+        self.rules = rules or []
+        self.ssh_rules = ssh_rules or []
+        self.used = {}
+        self.sent = {}
+
+    def _take(self, kind, i, r):
+        """Whether rule i may answer once more - counted when it does."""
+        n = r.get('times')
+        k = (kind, i)
+        if n is not None and self.used.get(k, 0) >= int(n):
+            return False
+        self.used[k] = self.used.get(k, 0) + 1
+        return True
+
+    def _keep_sent(self, body):
+        if isinstance(body, (bytes, bytearray)):
+            body = bytes(body).decode('utf-8', 'replace')
+        if isinstance(body, str):
+            if body.strip()[:1] not in ('{', '['):
+                return
+            try:
+                body = json.loads(body)
+            except ValueError:
+                return
+        if not isinstance(body, dict):
+            return
+
+        def walk(d, pre):
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    walk(v, pre + str(k) + '.')
+                elif isinstance(v, (str, int, float)) and not isinstance(v, bool):
+                    self.sent[pre + str(k)] = str(v)
+        walk(body, '')
+
+    def _sent(self, m):
+        return json.dumps(self.sent.get(m.group(1), ''))[1:-1]
+
+    def __call__(self, method, url, body=None):
+        self._keep_sent(body)
+        for i, r in enumerate(self.rules):
             if r.get('method') and r['method'] != method:
                 continue
             if r.get('url') and not re.search(r['url'], url):
+                continue
+            if not self._take('http', i, r):
                 continue
             body = r.get('body', {})
             if isinstance(body, (dict, list)):
@@ -638,6 +699,7 @@ class Answers(object):
                 tail = urllib.parse.unquote(url.split('?', 1)[0].rstrip('/').rsplit('/', 1)[-1])
                 body = json.dumps(body).replace('{SESSION}', SESSION).replace(
                     '{TAIL}', tail.replace('"', ''))
+                body = re.sub(r'\{SENT:([A-Za-z0-9_.-]+)\}', self._sent, body)
             return int(r.get('status', 200)), dict(r.get('headers') or {}), \
                 str(body).encode('utf-8')
         path = url.split('?', 1)[0]
@@ -650,6 +712,21 @@ class Answers(object):
                     'data': {'token': SESSION, 'access_token': SESSION}}
             return 200, h, json.dumps(body).encode()
         return 200, h, b'{}'
+
+    def ssh(self, command, input=None):
+        """(exit, stdout, stderr) of a command, None when no rule says."""
+        for i, r in enumerate(self.ssh_rules):
+            if r.get('command') is not None and not re.search(r['command'], str(command)):
+                continue
+            inp = input.decode('utf-8', 'replace') if isinstance(input, (bytes, bytearray)) \
+                else str(input or '')
+            if r.get('input') is not None and not re.search(r['input'], inp):
+                continue
+            if not self._take('ssh', i, r):
+                continue
+            return (int(r.get('exit', 0)), str(r.get('stdout', '')).replace('{SESSION}', SESSION),
+                    str(r.get('stderr', '')))
+        return None
 
 
 class FakeSsh(object):
@@ -690,6 +767,10 @@ class FakeSsh(object):
             ev['input'] = {'size': f['size'], 'format': f.get('format'),
                            'secret': bool(f.get('secret')) or 'sudo -S' in str(command)}
         rec(ev)
+        answers = getattr(self.ctx, 'answers', None)
+        got = answers.ssh(command, input) if hasattr(answers, 'ssh') else None
+        if got is not None:
+            return got
         if 'http_code' in str(command):
             return 0, '{}\n200', ''
         return 0, '', ''
@@ -743,7 +824,7 @@ class PlanContext(object):
         h = dict(headers or {})
         if isinstance(body, (dict, list)):
             h.setdefault('Content-Type', 'application/json')
-        st, hd, raw = self.answers(method, str(url))
+        st, hd, raw = self.answers(method, str(url), body)
         rec({'kind': 'http', 'method': method, 'url': str(url), 'headers': h, 'body': body,
              'verify': bool(verify), 'ca': bool(ca_pem), 'client_cert': bool(client_cert),
              'proxy': bool(proxy), 'answer': st, 'timeout': timeout})
@@ -889,7 +970,8 @@ def run_one(job, r, bundle_holder):
     try:
         cls = module(r['family'], r['kind'], (r.get('config') or {}).get('_version'))
         ctx = PlanContext(dict(job, deploy_id=r.get('deploy_id'), target_name=r.get('name')),
-                          '%s:%s' % (r['family'], r.get('name')), Answers(r.get('answers')))
+                          '%s:%s' % (r['family'], r.get('name')),
+                          Answers(r.get('answers'), r.get('ssh_answers')))
         inst = cls(dict(r.get('config') or {}), ctx)
         op = r.get('op')
         if op == 'deploy':

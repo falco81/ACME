@@ -406,5 +406,81 @@ class Answers(unittest.TestCase):
         self.assertIn('/config/tasks/', calls[3][1])
 
 
+class SandboxAnswers(unittest.TestCase):
+    """The recording's answers (plansandbox.Answers): rules used a number of times, values the
+    module sent echoed, SSH commands answered; and only the module's own sleeps are waits."""
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+
+    def test_times_and_sent(self):
+        from acmelib.certs import plansandbox as P
+        a = P.Answers([
+            {'method': 'GET', 'url': r'/list$', 'times': 1, 'body': []},
+            {'method': 'GET', 'url': r'/list$', 'body': [{'alias': '{SENT:alias}',
+                                                          'svm': '{SENT:svm.name}'}]}])
+        self.assertEqual(json.loads(a('GET', 'https://d/list')[2]), [])
+        a('POST', 'https://d/import', b'{"alias": "acme-x\\"1", "svm": {"name": "vs1"}}')
+        self.assertEqual(json.loads(a('GET', 'https://d/list')[2]),
+                         [{'alias': 'acme-x"1', 'svm': 'vs1'}])
+        self.assertEqual(json.loads(a('GET', 'https://d/list')[2])[0]['svm'], 'vs1')
+        self.assertEqual(a('GET', 'https://d/other')[2], b'{}')
+
+    def test_ssh(self):
+        from acmelib.certs import plansandbox as P
+        a = P.Answers([], [{'command': r'^show x', 'times': 1, 'stdout': 'first'},
+                           {'command': r'^show x', 'stdout': 'then {SESSION}'},
+                           {'command': '', 'input': r'import', 'exit': 1, 'stderr': 'no'}])
+        self.assertEqual(a.ssh('show x'), (0, 'first', ''))
+        self.assertEqual(a.ssh('show x'), (0, 'then %s' % P.SESSION, ''))
+        self.assertEqual(a.ssh('', b'crypto pki import t'), (1, '', 'no'))
+        self.assertIsNone(a.ssh('write memory'))
+
+    def test_only_the_modules_sleeps_wait(self):
+        from acmelib.certs import plansandbox as P
+        ev, clock = [], P.CLOCK[0]
+        P.RECORDING[0] = ev
+        try:
+            exec('sleep(0.001)', {'__name__': 'subprocess', 'sleep': P._sleep})
+            self.assertEqual((ev, P.CLOCK[0]), ([], clock))
+            exec('sleep(30)', {'__name__': 'acmelib.plugins.targets.x', 'sleep': P._sleep})
+            self.assertEqual([(e['kind'], e['seconds']) for e in ev], [('wait', 30.0)])
+        finally:
+            P.RECORDING[0] = None
+            P.CLOCK[0] = clock
+
+    def record(self, kind, cfg, opts=None, version=''):
+        from acmelib.certs import runplan as R
+        cfg = dict(cfg, _version=version)
+        got, err = R.record({'runs': [{
+            'id': 'r1', 'family': 'target', 'kind': kind, 'name': 't', 'op': 'deploy',
+            'config': cfg, 'options': opts or {}, 'seconds': 30,
+            'answers': R.answers_of(kind, cfg, opts, version=version),
+            'ssh_answers': R.ssh_answers_of(kind, cfg, opts, version=version)}],
+            'cert': {'names': ['www.example.com'], 'key_type': 'rsa-2048'}}, timeout=120)
+        self.assertEqual(err, '')
+        self.assertFalse(got['r1'].get('error'), got['r1'].get('error'))
+        return got['r1']['events']
+
+    def test_recorded_through(self):
+        """IOS XE (SSH answers) binds and saves; ONTAP installs, then finds what it installed;
+        a PKCS#12 made on the way is no wait."""
+        evs = self.record('cisco_iosxe', {'host': 'sw1', 'user': 'acme', 'auth': 'password',
+                                          'password': 'stand-in'}, version='17.12')
+        cmds = [e['command'] for e in evs if e['kind'] == 'ssh-run']
+        self.assertTrue(any(c.startswith('show crypto pki certificates ') for c in cmds), cmds)
+        self.assertEqual(cmds[-1], 'write memory')
+        self.assertFalse([e for e in evs if e['kind'] == 'wait'])
+        evs = self.record('netapp_ontap', {'host': 'c1', 'user': 'u', 'password': 'p'},
+                          {'svm': 'vs-prod'}, version='9.10')
+        calls = [(e['method'], e['url'].split('/api/', 1)[1].split('?')[0]) for e in evs
+                 if e['kind'] == 'http']
+        self.assertIn(('POST', 'security/certificates'), calls)
+        self.assertEqual(calls[-2][0], 'PATCH')
+        self.assertFalse([e for e in evs if e['kind'] == 'wait'])
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

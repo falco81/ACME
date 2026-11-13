@@ -107,6 +107,16 @@ ANSWERS = {
     'aws_acm': [{'method': 'POST', 'body': {
         'CertificateArn': 'arn:aws:acm:\u2039region\u203a:\u2039account\u203a:certificate/'
                           '\u2039new\u203a'}}],
+    # Suite Lifecycle: the Locker without the certificate before the import, with it (the
+    # alias the import sent) after; Replace Certificate a request that completes
+    'aria_lifecycle': [
+        {'method': 'GET', 'url': r'/lcm/locker/api/v2/certificates$', 'times': 1, 'body': []},
+        {'method': 'GET', 'url': r'/lcm/locker/api/v2/certificates$', 'body': [
+            {'alias': '{SENT:alias}', 'vmid': '\u2039certificate vmid\u203a'}]},
+        {'method': 'PUT', 'url': r'/products/[^/]+/certificates/[^/]+$', 'body': {
+            'requestId': '\u2039request\u203a'}},
+        {'method': 'GET', 'url': r'/lcm/request/api/v2/requests/', 'body': {
+            'state': 'COMPLETED'}}],
     # Catalyst Center: the token is "Token" of the sign-in; the import is a task, done
     'cisco_catalyst_center': [
         {'method': 'POST', 'url': r'/auth/token$', 'body': {'Token': '{SESSION}'}},
@@ -152,10 +162,13 @@ ANSWERS = {
     # vCenter, the Supervisor: the Automation API's session (as above)
     'vcenter': [_VSPHERE_SESSION],
     'vsphere_supervisor': [_VSPHERE_SESSION],
-    # FortiManager answers every JSON-RPC call at /jsonrpc alike: status 0 (OK) - its "is it
-    # there?" too, so the recording finds the certificate there and does not add it
-    'fortimanager': [{'method': 'POST', 'url': r'/jsonrpc$', 'body': {
-        'id': 1, 'result': [{'status': {'code': 0, 'message': 'OK'}, 'data': {}}]}}],
+    # FortiManager: every JSON-RPC call is at /jsonrpc - its first, "is it there?", answered
+    # -3 (Object does not exist), the others status 0 (OK)
+    'fortimanager': [
+        {'method': 'POST', 'url': r'/jsonrpc$', 'times': 1, 'body': {
+            'id': 1, 'result': [{'status': {'code': -3, 'message': 'Object does not exist'}}]}},
+        {'method': 'POST', 'url': r'/jsonrpc$', 'body': {
+            'id': 1, 'result': [{'status': {'code': 0, 'message': 'OK'}, 'data': {}}]}}],
     # NimbleOS: the token and its id in "data" of the sign-in
     'hpe_nimble': [{'method': 'POST', 'url': r'/v1/tokens$', 'status': 201, 'body': {
         'data': {'session_token': '{SESSION}', 'id': '\u2039token id\u203a'}}}],
@@ -182,13 +195,16 @@ ANSWERS = {
               'body': '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><Status>'
                       '<Value>0</Value><Severity>Information</Severity><Message>No Error'
                       '</Message></Status>'}],
-    # ONTAP: the SVM named is there; the certificate asked for by its name is listed (the
-    # same call before and after the install: the recording finds it there and binds it)
+    # ONTAP: the SVM named is there; the certificate asked for by its name is not there
+    # before the install, then listed (by the name the install sent)
     'netapp_ontap': [
         {'method': 'GET', 'url': r'/api/svm/svms\?', 'body': {'records': [
             {'uuid': '\u2039svm uuid\u203a', 'name': '{OPT:svm}'}], 'num_records': 1}},
+        {'method': 'GET', 'url': r'/api/security/certificates\?.*&name=', 'times': 1,
+         'body': {'records': [], 'num_records': 0}},
         {'method': 'GET', 'url': r'/api/security/certificates\?', 'body': {'records': [
-            {'uuid': '\u2039certificate uuid\u203a', 'type': 'server'}], 'num_records': 1}}],
+            {'uuid': '\u2039certificate uuid\u203a', 'name': '{SENT:name}', 'type': 'server'}],
+            'num_records': 1}}],
     # NSX: the id of the certificate imported, its validation OK
     'nsx_manager': [
         {'method': 'POST', 'url': r'/certificates\?action=import$', 'status': 201, 'body': {
@@ -269,6 +285,20 @@ ANSWERS = {
 }
 # a FlashBlade answers as a FlashArray
 ANSWERS['pure_flashblade'] = ANSWERS['pure_flasharray']
+# What an SSH command prints where a module reads it (plansandbox.Answers.ssh): {command (a
+# regex), input? (a regex of what is typed in), stdout, stderr?, exit?, times?} - else nothing
+SSH_ANSWERS = {
+    # IOS XE: the trustpoint imported holds its certificate; write memory says [OK]
+    'cisco_iosxe': [
+        {'command': r'^show crypto pki certificates ',
+         'stdout': 'Certificate\n  Status: Available\n'},
+        {'command': r'^write memory', 'stdout': 'Building configuration...\n[OK]\n'}],
+    # Unity: svc_custom_cert says it installed the files
+    'unity': [{'command': r'^svc_custom_cert ',
+               'stdout': 'Successfully installed custom certificate files.\n'}],
+}
+# a Catalyst 9800 is an IOS XE
+SSH_ANSWERS['cisco_wlc9800'] = SSH_ANSWERS['cisco_iosxe']
 FIRST = {
     'netscaler': [
         {'method': 'GET', 'url': r'/nitro/v1/config/sslcertkey/', 'status': 404,
@@ -321,6 +351,16 @@ def answers_of(kind, cfg=None, opts=None, first=True, later=False, version=''):
         (ANSWERS.get('%s@%s' % (kind, version), []) if version else []) + ANSWERS.get(kind, [])
     cfg, opts = dict(cfg or {}), dict(opts or {})
     return [dict(r, body=_filled(r['body'], cfg, opts)) if 'body' in r else dict(r)
+            for r in rules]
+
+
+def ssh_answers_of(kind, cfg=None, opts=None, version=''):
+    """What the SSH commands of a module's recording print: SSH_ANSWERS of its version and
+    kind, the settings put in where an answer names them."""
+    rules = (SSH_ANSWERS.get('%s@%s' % (kind, version), []) if version else []) + \
+        SSH_ANSWERS.get(kind, [])
+    cfg, opts = dict(cfg or {}), dict(opts or {})
+    return [dict(r, stdout=_filled(r['stdout'], cfg, opts)) if 'stdout' in r else dict(r)
             for r in rules]
 
 
@@ -1304,6 +1344,7 @@ def plan(store, cert, deploys, full=False):
         kw = dict(family='target', kind=trow['kind'], name=trow['name'], op='deploy',
                   config=scfg, options=sopts, marks=marks, deploy_id=dep.get('id'))
         kw['answers'] = answers_of(trow['kind'], scfg, sopts, version=_ver(tcls))
+        kw['ssh_answers'] = ssh_answers_of(trow['kind'], scfg, sopts, version=_ver(tcls))
         if trow['kind'] in LATER:
             kw['later_answers'] = answers_of(trow['kind'], scfg, sopts, later=True,
                                              version=_ver(tcls))
