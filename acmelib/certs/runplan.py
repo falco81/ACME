@@ -101,9 +101,27 @@ ANSWERS = {
     'synology': [{'url': r'auth', 'body': {'success': True, 'data': {
         'sid': '{SESSION}', 'synotoken': '{SESSION}'}}},
         {'body': {'success': True, 'data': {}}}],
+    # Cloudflare's custom certificates: the zone found by its name, a custom certificate of
+    # the certificate's names there (sni_custom, active) - replaced in place (PATCH), the
+    # answer the new id (sni_custom: "a new resource id being returned")
     'cloudflare_ssl': [{'method': 'GET', 'url': r'/zones\?name=', 'body': {
-        'success': True, 'result': [{'id': '\u2039zone id\u203a', 'name': 'zone'}]}},
-        {'body': {'success': True, 'result': []}}],
+        'success': True, 'errors': [], 'result': [
+            {'id': '\u2039zone id\u203a', 'name': '{CFG:zone}', 'status': 'active'}]}},
+        {'method': 'GET', 'url': r'/custom_certificates\?', 'body': {
+            'success': True, 'errors': [], 'result': [
+                {'id': '\u2039custom certificate id\u203a', 'hosts': '{CERTNAMES}',
+                 'type': 'sni_custom', 'status': 'active', 'bundle_method': 'force',
+                 'expires_on': '2026-12-01T00:00:00Z', 'priority': 0}],
+            'result_info': {'page': 1, 'per_page': 50, 'count': 1, 'total_count': 1,
+                            'total_pages': 1}}},
+        {'method': 'PATCH', 'url': r'/custom_certificates/', 'body': {
+            'success': True, 'errors': [], 'result': {
+                'id': '\u2039new custom certificate id\u203a', 'hosts': '{CERTNAMES}',
+                'status': 'pending'}}},
+        {'method': 'POST', 'url': r'/custom_certificates$', 'body': {
+            'success': True, 'errors': [], 'result': {
+                'id': '\u2039new custom certificate id\u203a', 'status': 'pending'}}},
+        {'body': {'success': True, 'errors': [], 'result': []}}],
     'aws_acm': [{'method': 'POST', 'body': {
         'CertificateArn': 'arn:aws:acm:\u2039region\u203a:\u2039account\u203a:certificate/'
                           '\u2039new\u203a'}}],
@@ -299,14 +317,67 @@ SSH_ANSWERS = {
     'unity': [{'command': r'^svc_custom_cert ',
                'stdout': 'Successfully installed custom certificate files.\n'}],
 }
-# a Catalyst 9800 is an IOS XE
-SSH_ANSWERS['cisco_wlc9800'] = SSH_ANSWERS['cisco_iosxe']
+# a Catalyst 9800 is an IOS XE: show version says 17.12.4 (17.9.5, 17.15.3 for those versions);
+# the running configuration holds two earlier acme trustpoints (the older with a CA's of its
+# chain), the HTTPS server uses the newer - after the import and the binding it uses the new
+# one, after the clean-up the oldest is gone; the import says it succeeded, the trustpoint
+# holds the certificate, the webauth map named, write memory [OK]
+_WLC_NEW = '{SEEN:crypto pki import (\\S+) pkcs12}'
+SSH_ANSWERS['cisco_wlc9800'] = [
+    {'command': r'^show version', 'stdout':
+        'Cisco IOS XE Software, Version 17.12.04\nCisco IOS Software [Dublin], C9800 Software '
+        '(C9800_IOSXE-K9), Version 17.12.4, RELEASE SOFTWARE (fc3)\n'
+        'cisco C9800-40-K9 (KATAR) processor with 16004362K/6147K bytes of memory.\n'},
+    {'command': r'^show running-config \| include \^crypto pki trustpoint', 'times': 1,
+     'stdout': 'crypto pki trustpoint TP-self-signed-1972538263\n'
+               'crypto pki trustpoint {EARLIER2:60}\ncrypto pki trustpoint {EARLIER2:60}-rrr1\n'
+               'crypto pki trustpoint {EARLIER:60}\nip http secure-trustpoint {EARLIER:60}\n'},
+    {'command': r'^show running-config \| include \^crypto pki trustpoint', 'times': 1,
+     'stdout': 'crypto pki trustpoint TP-self-signed-1972538263\n'
+               'crypto pki trustpoint {EARLIER2:60}\ncrypto pki trustpoint {EARLIER2:60}-rrr1\n'
+               'crypto pki trustpoint {EARLIER:60}\ncrypto pki trustpoint ' + _WLC_NEW + '\n'
+               'ip http secure-trustpoint ' + _WLC_NEW + '\n'},
+    {'command': r'^show running-config \| include \^crypto pki trustpoint',
+     'stdout': 'crypto pki trustpoint TP-self-signed-1972538263\n'
+               'crypto pki trustpoint {EARLIER:60}\ncrypto pki trustpoint ' + _WLC_NEW + '\n'
+               'ip http secure-trustpoint ' + _WLC_NEW + '\n'},
+    {'command': r'^show running-config \| section parameter-map type webauth', 'stdout':
+        'parameter-map type webauth global\n type webauth\n virtual-ip ipv4 192.0.2.1\n'
+        ' virtual-ip ipv6 1::1\n trustpoint ' + _WLC_NEW + '\n'},
+    {'command': r'^$', 'input': r'crypto pki import ', 'stdout':
+        'WLC(config)#crypto pki import ‹trustpoint› pkcs12 ‹file› password ‹password›\n'
+        'CRYPTO_PKI: Imported PKCS12 file successfully.\nWLC(config)#end\n'},
+    {'command': r'^show crypto pki certificates ', 'stdout':
+        'Certificate\n  Status: Available\n  Certificate Serial Number (hex): ‹serial›\n'
+        '  Certificate Usage: General Purpose\n  Associated Trustpoints: ' + _WLC_NEW + '\n'
+        'CA Certificate\n  Status: Available\n  Associated Trustpoints: ' + _WLC_NEW + '\n'},
+    {'command': r'^write memory', 'stdout': 'Building configuration...\n[OK]\n'}]
+SSH_ANSWERS['cisco_wlc9800@17.3'] = [
+    {'command': r'^show version', 'stdout':
+        'Cisco IOS XE Software, Version 17.09.05\nCisco IOS Software [Cupertino], C9800 '
+        'Software (C9800_IOSXE-K9), Version 17.9.5, RELEASE SOFTWARE (fc2)\n'}]
+SSH_ANSWERS['cisco_wlc9800@17.12'] = [
+    {'command': r'^show version', 'stdout':
+        'Cisco IOS XE Software, Version 17.15.03\nCisco IOS Software [IOSXE], C9800 Software '
+        '(C9800_IOSXE-K9), Version 17.15.3, RELEASE SOFTWARE (fc1)\n'}]
 # ArubaOS 8: the server certificate imported is listed by `show crypto-local pki ServerCert`
 # after the import (name, original file, references) - its name as the import command gave it
 SSH_ANSWERS['aruba_aos8'] = [
     {'input': r'crypto pki-import pfx ServerCert', 'stdout': ''},
     {'input': r'show crypto-local pki ServerCert',
      'stdout': '{SEEN:crypto pki-import pfx ServerCert (\\S+)}  acme.pfx  1  No\n'}]
+# Cockpit: ws-certs.d holds its own self-signed one and two earlier acme certificates;
+# cockpit-certificate-ensure is in /usr/libexec and would use the new one
+SSH_ANSWERS['cockpit'] = [
+    {'command': r'ls -1 /etc/cockpit/ws-certs\.d$', 'stdout':
+        '0-self-signed.cert\n0-self-signed.key\n90-{EARLIER2}.crt\n90-{EARLIER2}.key\n'
+        '90-{EARLIER}.crt\n90-{EARLIER}.key\n'},
+    {'command': r'^test -x /usr/libexec/cockpit-certificate-ensure', 'stdout':
+        '/usr/libexec/cockpit-certificate-ensure\n'},
+    {'command': r'cockpit-certificate-ensure --check$', 'stdout':
+        'Would use certificate /etc/cockpit/ws-certs.d/90-{NAME}.crt\n'},
+    {'command': r'test -d /etc/pki/ca-trust/source/anchors', 'stdout':
+        '/etc/pki/ca-trust/source/anchors\n'}]
 # Lenovo XCC: the device makes the key - its CertificateService, the HTTPS collection, the CSR
 # it answers GenerateCSR with ({CSR}: the sandbox's own for the names, plansandbox.Answers)
 ANSWERS['lenovo_xcc'] = [
@@ -433,6 +504,10 @@ SSH_ANSWERS['cucm'] = [
     {'command': r'^$', 'input': r'^utils service restart', 'stdout':
         'Service Manager is running\nCommanded Restart\n'},
 ]
+# ---- targets a10 .. cisco_nxos (1.0.98): what each device answers on a renewal - the
+# certificate acme put there before ({EARLIER}, {EARLIER2}: two older ones of its names) is
+# there, so the module takes its real path: replaced, rebound, the older ones deleted ----
+# ---- end of targets a10 .. cisco_nxos ----
 FIRST = {
     'netscaler': [
         {'method': 'GET', 'url': r'/nitro/v1/config/sslcertkey/', 'status': 404,

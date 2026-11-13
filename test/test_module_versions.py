@@ -374,6 +374,24 @@ class TestUpload(unittest.TestCase):
         self.assertNotIn('"old"', text)
         compile(text, 'm.py', 'exec')
 
+    def test_starts_of_a_file_with_several_versions(self):
+        """fortigate.py holds plain, 6.0, 7.0 and 7.4.2 (1.0.98): a start made from one of
+        them is that one only - the others of the file are imported, not defined again (they
+        replaced the shipped versions), and a version set with others at once
+        (module_version, version_label, ... = RANGES[2]) does not win over the new one."""
+        S.registry(True)
+        for kind in ('fortigate', 'redfish', 'windows_wsus', 'pure_flasharray', 'aruba_aos8'):
+            vers = S.registry().versions_of('target', kind)
+            self.assertTrue(vers, kind)
+            asks = [(dict(override=True), ('', 'override'))] + \
+                [(dict(from_version=v, version='zz9', label='x'), ('zz9', 'version')) for v in vers]
+            for args, want in asks:
+                fn, text = CM.copy_as('target', kind, **args)
+                got = CM.analyse('target', fn, text)
+                self.assertTrue(got['ok'], (kind, args, got))
+                self.assertEqual([(c['kind'], c['version'], c['does']) for c in got['classes']],
+                                 [(kind,) + want], (kind, args))
+
     def test_bad_uploads_said(self):
         bad = self.call('POST', '/api/modules/analyse', body={
             'family': 'target', 'filename': 'x.py', 'text': 'def (:'})

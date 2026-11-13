@@ -475,7 +475,8 @@ def blob_facts(data):
     if isinstance(data, str):
         data = data.encode('utf-8')
     data = data or b''
-    out = {'size': len(data)}
+    import hashlib
+    out = {'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
     try:
         t = data.decode('utf-8')
     except UnicodeDecodeError:
@@ -510,6 +511,73 @@ SECRET_KEY = re.compile(r'(pass|secret|token|apikey|api_key|api-key|private|pass
                         r'credential|signature|hmac|session|cookie|auth)', re.I)
 SECRET_HEADER = re.compile(r'(authorization|cookie|key|token|secret|auth|pass|session|'
                            r'signature|credential)', re.I)
+# a name whose value is a secret wherever it stands - a JSON key, a form field, a query
+# parameter, a multipart part (1.0.98: one rule for all of them; runtime.SECRET_PARAM's
+# words too: key, sig, code)
+SECRET_NAME = re.compile(r'(pass|secret|token|apikey|api_key|api-key|private|passphrase|'
+                         r'credential|signature|hmac|session|cookie|auth|pin$|^pin|'
+                         r'(^|[_.-])key$|^key(pem|data|file|_pem|_data)?$|privkey|'
+                         r'^sid$|_sid$|^sig$|^code$)', re.I)
+NOT_SECRET_NAME = re.compile(r'^(public[_-]?key|key[_-]?(type|size|usage|length|alg|algorithm|'
+                             r'id|name|spec)|auth[_-]?(type|method|mode|scheme|source)|'
+                             r'token[_-]?(type|expires?|ttl)|session[_-]?(timeout|ttl))$', re.I)
+HEADER_SCHEMES = re.compile(r'^(Basic|Bearer|Token|Negotiate|NTLM|Digest|SSWS|ApiKey|'
+                            r'Key|Splunk|GenieKey|Bot|AWS4-HMAC-SHA256|SharedKey|PVEAPIToken)\b',
+                            re.I)
+
+
+def secret_name(name):
+    n = str(name or '').strip()
+    return bool(n) and bool(SECRET_NAME.search(n)) and not NOT_SECRET_NAME.match(n)
+
+
+def header_shown(name, value, marks=None):
+    """A header as What happens shows it: an Authorization / Cookie / token header as
+    dots - the scheme word kept (Basic, Bearer...); a Cookie's names kept."""
+    n = str(name).lower()
+    v = str(value)
+    if n in ('content-type', 'accept', 'content-length', 'host', 'user-agent',
+             'accept-encoding', 'connection', 'content-disposition', 'keep-alive'):
+        return mask_text(v, marks)
+    if n in ('cookie', 'set-cookie'):
+        if n == 'set-cookie':
+            first, sep, rest = v.partition(';')
+            k, eq, _x = first.partition('=')
+            return '%s=••••%s%s' % (k.strip(), sep, rest) if eq else '••••'
+        return '; '.join('%s=••••' % p.partition('=')[0].strip() if '=' in p else '••••'
+                         for p in v.split(';') if p.strip())
+    if SECRET_HEADER.search(n):
+        m = HEADER_SCHEMES.match(v.strip())
+        return ('%s ••••' % m.group(1)) if m and v.strip() != m.group(1) else '••••'
+    return mask_text(v, marks)
+
+
+# a secret on a command line (1.0.98): -p 'x', --password=x, -Password 'x', pass:x,
+# ConvertTo-SecureString 'x', PASSWORD=x - whatever the module made it (a PFX's password
+# made for the one run is no stand-in the marks know)
+CMD_SECRETS = [
+    (re.compile(r"((?:^|\s)-(?:p|pw|pass)\s+)('[^']*'|\"[^\"]*\")"), True),
+    (re.compile(r"((?:^|\s)--?(?:password|passwd|passphrase|pass|secret|token|api-?key|"
+                r"key-?pass|keypass|storepass|keystore-?password|pin)(?:\s+|=))"
+                r"('[^']*'|\"[^\"]*\"|[^\s;|&()'\"]+)", re.I), True),
+    (re.compile(r"((?:^|\s)-(?:Password|PlainPassword|Pin|Secret|Token|ApiKey|Passphrase|"
+                r"CertificatePassword|PfxPassword|KeyPassword)(?::|\s+))"
+                r"('[^']*'|\"[^\"]*\"|[^\s;|&()'\"]+)", re.I), True),
+    (re.compile(r"(ConvertTo-SecureString\s+(?:-String\s+)?)('[^']*'|\"[^\"]*\")", re.I), True),
+    (re.compile(r"(\bpass:)('[^']*'|\"[^\"]*\"|[^\s'\"]+)"), False),
+    (re.compile(r"(\b[A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET|TOKEN|PASSPHRASE|API_KEY)[A-Z0-9_]*=)"
+                r"('[^']*'|\"[^\"]*\"|[^\s;|&'\"]+)"), False),
+]
+
+
+def mask_command(t, marks=None):
+    """A command line (SSH, PowerShell, a program here) with its secrets as dots."""
+    t = mask_text(t, marks)
+    for rx, quoted in CMD_SECRETS:
+        t = rx.sub(lambda m, q=quoted: m.group(0) if '••••' in m.group(2) or
+                   m.group(2).strip('\'"').startswith('$') else
+                   m.group(1) + ("'••••'" if q else '••••'), t)
+    return t
 
 
 def size_words(n):
@@ -639,10 +707,13 @@ class Answers(object):
     """What the recording answers an HTTP call: a module's hints first, else 200 and
     {} (a sign-in: a session in every shape a module may look for).
 
-    A rule: {method?, url? (a regex), status?, headers?, body, times?}; "times": n - the rule
-    answers its first n matching calls, then the next matching rule does. In a body:
+    A rule: {method?, url? (a regex), sent? (a regex of the body sent - Answers.sent_text: one
+    API address for every call, its command in the body), status?, headers?, body, times?};
+    "times": n - the rule answers its first n matching calls, then the next matching rule
+    does. In a body:
     {SESSION}, {TAIL} (the last part of the path) and {SENT:key} - the value of "key"
-    (dotted for a nested one) in the JSON body the module sent last with it ('' before).
+    (dotted for a nested one) in the JSON body the module sent last with it ('' before);
+    {SEEN:regex} - its first group in this request ("METHOD url\nbody") or one before.
     SSH rules (ssh()): {command (a regex), input? (a regex), stdout?, stderr?, exit?,
     times?} - what a command matching them printed."""
     def __init__(self, rules, ssh_rules=None):
@@ -654,6 +725,88 @@ class Answers(object):
         # the CSR it answers - a throwaway one for the names. {CSR} in a rule's body, and
         # what a call no rule answers gets (as CSRString, CSR and csr), an SSH command too.
         self.csr = ''
+        # the certificate deployed and the deployment's options (run_one): {EARLIER}
+        self.bundle, self.options = None, {}
+
+    EARLIER_RE = re.compile(r'\{(EARLIER2?|NAME)(?::(\d+))?(?::(\d+))?(?::([^}\d]))?\}')
+
+    def earlier(self, text):
+        """{EARLIER} / {EARLIER2} (1.0.98) in an answer: the name acme gave (object_name:
+        acme-<label>-<date>-<serial>) to an earlier certificate of this one - 3 (EARLIER2: 6)
+        months older, another serial - so a device answers with the certificate a renewal
+        replaces; {EARLIER:n}: of a module whose names are at most n long (63);
+        {EARLIER:n:s}: with a serial of s characters (8); {EARLIER:n:s:c}: each character
+        but A-Z a-z 0-9 _ - written as c (TrueNAS: _). {NAME...} (same arguments): the name
+        this certificate gets - listed back after it was put there. The certificate's DNS
+        names: {CERTNAME} (the first), {CERTNAMES} (all, by commas; "{CERTNAMES}" in a JSON
+        body: a list of them) - a device listing the certificate it holds for them."""
+        if self.bundle is not None and '{CERTNAME' in text:
+            dns = [str(n) for n in (getattr(self.bundle, 'names', None) or [])]
+            text = text.replace('"{CERTNAMES}"', json.dumps(dns)).replace(
+                '{CERTNAMES}', ','.join(dns)).replace('{CERTNAME}', dns[0] if dns else '')
+        if self.bundle is not None and '{FP' in text:
+            # {FP} / {FP1}: the SHA-256 / SHA-1 fingerprint (hex, lower case) of the certificate
+            # deployed - a device listing it by its fingerprint after the import (group 3)
+            import hashlib
+            from acmelib.plugins.targets import _common as C
+            try:
+                der = C.pem_to_der(self.bundle.cert_pem)
+                text = text.replace('{FP1}', hashlib.sha1(der).hexdigest()).replace(
+                    '{FP}', hashlib.sha256(der).hexdigest())
+            except Exception:                           # noqa: BLE001
+                pass
+        if '{EARLIER' not in text and '{NAME' not in text:
+            return text
+
+        def one(m):
+            from acmelib.plugins.targets import _common as C
+            back = {'EARLIER': 91, 'EARLIER2': 182}.get(m.group(1), 0)
+            nb = getattr(self.bundle, 'not_before', None) or time.time()
+            sl = int(m.group(3) or 8)
+
+            class B(object):
+                name = getattr(self.bundle, 'name', '')
+                names = list(getattr(self.bundle, 'names', None) or ['cert'])
+                not_before = float(nb) - back * 86400
+                serial = '5a0e1d2c3b4a59687%s' % ('6' if m.group(1) == 'EARLIER2' else '7')
+            try:
+                got = C.object_name(B() if back else self.bundle, self.options,
+                                    int(m.group(2) or 63), sl)
+            except Exception:                           # noqa: BLE001
+                got = 'acme-cert-%s-5a0e1d2c' % time.strftime(
+                    '%Y%m%d', time.gmtime(float(nb) - back * 86400))
+            if m.group(4):
+                got = re.sub(r'[^A-Za-z0-9_-]', m.group(4), got)
+            return got
+        return self.EARLIER_RE.sub(one, text)
+
+    # a source's and a validation's answers (1.0.98): what a CA or a DNS provider answers holds
+    # the certificate issued and the names of the run - {ZONE} (the registrable domain of the
+    # name validated), {NAME}, {FQDN} (_acme-challenge.NAME), {TXT} (the value put in); {CERT}
+    # (PEM of the certificate issued for the request's key), {CHAIN} (PEM of its intermediate),
+    # {CERT_B64} / {CHAIN_B64} (their DER in base64), {P7_B64} (a PKCS#7 of both, DER, base64),
+    # {CA_P7_B64} (one of the intermediate only), {CERT_SERIAL} (its serial, hex)
+    PLAN_RE = re.compile(r'\{(ZONE|NAME|FQDN|TXT|CERT|CHAIN|CERT_B64|CHAIN_B64|P7_B64|CA_P7_B64|'
+                         r'CERT_SERIAL)\}')
+    vname = ''
+    issued = None
+
+    def plan_fill(self, text, js):
+        if '{' not in text or not self.PLAN_RE.search(text):
+            return text
+        name = str(self.vname or '').lstrip('*.')
+        vals = {'NAME': name, 'FQDN': '_acme-challenge.' + name if name else '', 'TXT': TXT}
+        try:
+            from acmelib.plugins.challenges import _dns as D
+            vals['ZONE'] = D.registrable(name) if name else ''
+        except Exception:                               # noqa: BLE001
+            vals['ZONE'] = ''
+        vals.update(self.issued or {})
+
+        def one(m):
+            v = str(vals.get(m.group(1), ''))
+            return json.dumps(v)[1:-1] if js else v
+        return self.PLAN_RE.sub(one, text)
 
     def _take(self, kind, i, r):
         """Whether rule i may answer once more - counted when it does."""
@@ -688,12 +841,31 @@ class Answers(object):
     def _sent(self, m):
         return json.dumps(self.sent.get(m.group(1), ''))[1:-1]
 
+    @staticmethod
+    def sent_text(body):
+        """The body a module sent, as text a rule's "sent" (a regex) is matched against: as
+        sent (bytes decoded), a dict or list as JSON (json.dumps: "key": "value")."""
+        if isinstance(body, (bytes, bytearray)):
+            return bytes(body).decode('utf-8', 'replace')
+        if isinstance(body, (dict, list)):
+            return json.dumps(body, ensure_ascii=False, default=str)
+        return '' if body is None else str(body)
+
     def __call__(self, method, url, body=None):
         self._keep_sent(body)
+        # which kind of answer the last call got: None - a rule of the module's answered;
+        # 'sign-in' / 'csr' / 'empty' - no rule did, a stand-in answered (marked on the event)
+        self.fell = None
+        # {SEEN:regex} in a body: the first group of the regex in this request (its method,
+        # address and body) or one before it - a name the module asked for, answered back
+        seen = self.__dict__.setdefault('_http_seen', [])
+        seen.append('%s %s\n%s' % (method, url, self.sent_text(body)))
         for i, r in enumerate(self.rules):
             if r.get('method') and r['method'] != method:
                 continue
             if r.get('url') and not re.search(r['url'], url):
+                continue
+            if r.get('sent') and not re.search(r['sent'], self.sent_text(body)):
                 continue
             if not self._take('http', i, r):
                 continue
@@ -705,6 +877,7 @@ class Answers(object):
                     '{TAIL}', tail.replace('"', ''))
                 body = re.sub(r'\{SENT:([A-Za-z0-9_.-]+)\}', self._sent, body)
                 body = body.replace('{CSR}', json.dumps(self.csr or '')[1:-1])
+                body = self.earlier(body)
             elif isinstance(body, str) and ('{SENT:' in body or '{CSR}' in body):
                 # a text body: JSON written as text gets the values escaped as JSON strings,
                 # anything else (XML, a PEM, plain text) as they are
@@ -716,8 +889,34 @@ class Answers(object):
                     lambda m: self.sent.get(m.group(1), '')), body)
                 body = body.replace('{CSR}', json.dumps(self.csr or '')[1:-1] if js
                                     else (self.csr or ''))
-            return int(r.get('status', 200)), dict(r.get('headers') or {}), \
-                str(body).encode('utf-8')
+            if isinstance(body, str) and '{SEEN:' in body:
+                js = isinstance(r.get('body'), (dict, list))
+
+                def echo(m, js=js):
+                    pat = m.group(1)
+                    if js:              # the regex was written into the JSON: as it was
+                        try:
+                            pat = json.loads('"%s"' % pat)
+                        except ValueError:
+                            pass
+                    for old in reversed(seen):
+                        got = re.search(pat, old)
+                        if got:
+                            v = got.group(1) if got.groups() else got.group(0)
+                            return json.dumps(v)[1:-1] if js else v
+                    return ''
+                body = fill_seen(body, echo)
+            if isinstance(body, str):
+                body = self.earlier(body)
+                body = self.plan_fill(body, isinstance(r.get('body'), (dict, list)) or re.sub(
+                    r'\{[A-Z_0-9]+(?::[^}]*)?\}', '', body).lstrip()[:1] in ('{', '['))
+            raw = str(body).encode('utf-8')
+            if r.get('b64'):
+                # a binary answer (DER, PKCS#7, CMP) written in the rule in base64
+                import base64
+                raw = base64.b64decode(raw)
+            return int(r.get('status', 200)), {k: self.plan_fill(str(v), False) for k, v in (
+                r.get('headers') or {}).items()}, raw
         path = url.split('?', 1)[0]
         h = {'Content-Type': 'application/json',
              'Set-Cookie': 'NITRO_AUTH_TOKEN=%s; sessionid=%s; path=/' % (SESSION, SESSION),
@@ -726,10 +925,13 @@ class Answers(object):
             body = {'sessionid': SESSION, 'token': SESSION, 'access_token': SESSION,
                     'session': SESSION, 'sid': SESSION, 'jwt': SESSION, 'success': True,
                     'data': {'token': SESSION, 'access_token': SESSION}}
+            self.fell = 'sign-in'
             return 200, h, json.dumps(body).encode()
         if self.csr:
+            self.fell = 'csr'
             return 200, h, json.dumps({'CSRString': self.csr, 'CSR': self.csr,
                                        'csr': self.csr}).encode()
+        self.fell = 'empty'
         return 200, h, b'{}'
 
     def ssh(self, command, input=None):
@@ -764,7 +966,7 @@ class Answers(object):
             out = str(r.get('stdout', '')).replace('{SESSION}', SESSION)
             if '{SERIAL}' in out:
                 out = out.replace('{SERIAL}', sent_serial(seen))
-            out = fill_seen(out, echo)
+            out = self.earlier(fill_seen(out, echo))
             return (int(r.get('exit', 0)), out, str(r.get('stderr', '')))
         return None
 
@@ -829,6 +1031,26 @@ class _Group(object):
         return self.pat
 
 
+def _shq(s):
+    import shlex
+    return shlex.quote(str(s))
+
+
+def put_command(path, mode, owner, via, port=22):
+    """How the real session (runtime.SshSession.put) puts a file - for the debug details:
+    over the shell (cat into a temporary name, chmod, chown, mv) or with scp."""
+    if via == 'scp':
+        return 'scp -P %s -q ‹a file of its own› ‹user›@‹host›:%s' % (port, _shq(path))
+    tmp = '%s.acme-‹random›.part' % path
+    cmd = 'umask 077 && cat > %s' % _shq(tmp)
+    if mode is not None:
+        cmd += ' && chmod %o %s' % (int(mode), _shq(tmp))
+    if owner:
+        cmd += ' && chown %s %s' % (owner, _shq(tmp))
+    cmd += ' && mv -f %s %s || { rm -f %s; exit 1; }' % (_shq(tmp), _shq(path), _shq(tmp))
+    return cmd
+
+
 class FakeSsh(object):
     def __init__(self, ctx, conn):
         self.ctx = ctx
@@ -866,25 +1088,47 @@ class FakeSsh(object):
             f = blob_facts(input)
             ev['input'] = {'size': f['size'], 'format': f.get('format'),
                            'secret': bool(f.get('secret')) or 'sudo -S' in str(command)}
+            if f.get('sha256'):
+                ev['input']['sha256'] = f['sha256']
+            # what goes on its input, readable (debug details): a script, a PEM as a
+            # placeholder - sudo's password (its first line) never
+            if f.get('body') is not None:
+                body = f['body']
+                if 'sudo -S' in str(command):
+                    body = '•••• (the sudo password)' + ('\n' + body.split('\n', 1)[1]
+                                                        if '\n' in body else '')
+                ev['input']['body'] = body[:20000]
+            elif 'PEM' in str(f.get('format') or ''):
+                ev['input']['body'] = bytes(input if isinstance(input, (bytes, bytearray))
+                                            else str(input).encode('utf-8')).decode(
+                                                'utf-8', 'replace')[:60000]
         rec(ev)
         answers = getattr(self.ctx, 'answers', None)
         got = answers.ssh(command, input) if hasattr(answers, 'ssh') else None
-        if got is not None:
-            return got
-        if 'http_code' in str(command):
-            return 0, '{}\n200', ''
-        if getattr(answers, 'csr', ''):
-            return 0, answers.csr, ''           # a device asked for its CSR prints it
-        return 0, '', ''
+        if got is None:
+            # no answer was prepared for this command: a stand-in answers (marked)
+            if 'http_code' in str(command):
+                got = (0, '{}\n200', '')
+            elif getattr(answers, 'csr', ''):
+                got = (0, answers.csr, '')      # a device asked for its CSR prints it
+            else:
+                got = (0, '', '')
+            ev['fallback'] = 'empty' if got == (0, '', '') else 'stand-in'
+        ev['answer'] = {'exit': got[0], 'stdout': str(got[1])[:20000],
+                        'stderr': str(got[2])[:4000]}
+        return got
 
     def put(self, data, remote_path, mode=0o600, owner=None, via='shell'):
         ev = dict({'kind': 'ssh-put', 'host': self.host, 'path': str(remote_path),
                    'mode': '%o' % int(mode) if mode is not None else None,
                    'owner': owner or None, 'via': via}, **blob_facts(data))
+        ev['command'] = put_command(str(remote_path), mode, owner, via, self.port)
         rec(ev)
 
     def get(self, remote_path):
-        rec({'kind': 'ssh-get', 'host': self.host, 'path': str(remote_path)})
+        rec({'kind': 'ssh-get', 'host': self.host, 'path': str(remote_path),
+             'command': 'cat %s' % _shq(str(remote_path)), 'fallback': 'empty',
+             'answer': {'exit': 0, 'stdout': '', 'stderr': ''}})
         return b''
 
     def close(self):
@@ -927,9 +1171,16 @@ class PlanContext(object):
         if isinstance(body, (dict, list)):
             h.setdefault('Content-Type', 'application/json')
         st, hd, raw = self.answers(method, str(url), body)
-        rec({'kind': 'http', 'method': method, 'url': str(url), 'headers': h, 'body': body,
-             'verify': bool(verify), 'ca': bool(ca_pem), 'client_cert': bool(client_cert),
-             'proxy': bool(proxy), 'answer': st, 'timeout': timeout})
+        ev = {'kind': 'http', 'method': method, 'url': str(url), 'headers': h, 'body': body,
+              'verify': bool(verify), 'ca': bool(ca_pem), 'client_cert': bool(client_cert),
+              'proxy': bool(proxy), 'answer': st, 'timeout': timeout,
+              # what the stand-in device answered (debug details), and whether a rule of the
+              # module's did or a generic stand-in (no answer prepared for this call)
+              'answer_headers': {str(k): str(v) for k, v in dict(hd or {}).items()},
+              'answer_body': raw}
+        if getattr(self.answers, 'fell', None):
+            ev['fallback'] = self.answers.fell
+        rec(ev)
         return st, hd, raw
 
     def ssh(self, conn):
@@ -950,6 +1201,21 @@ class PlanContext(object):
 
     def kv_get(self, key, default=None):
         return self._kv.get(str(key), default)
+
+    def kv_keys(self, prefix=''):
+        return {k: v for k, v in self._kv.items() if k.startswith(str(prefix))}
+
+    def tidying(self):
+        class _T(object):
+            def __enter__(self):
+                return None
+
+            def __exit__(self, *a):
+                return False
+        return _T()
+
+    def names_using(self):
+        return []
 
     def kv_set(self, key, value, ttl_s=None):
         self._kv[str(key)] = value
@@ -1081,6 +1347,8 @@ class _unrecorded(object):
 def run_one(job, r, bundle_holder):
     events = []
     RECORDING[0] = events
+    CURRENT[0] = r
+    del PLACED_TXT[:]
     err = None
     said = None
     signal.signal(signal.SIGALRM, _alarm)
@@ -1101,6 +1369,7 @@ def run_one(job, r, bundle_holder):
                 from acmelib.certs.deployer import pick_variant
                 b = pick_variant(b, r.get('options') or {}, cls)
             opts = dict(r.get('options') or {})
+            answers.bundle, answers.options = b, dict(opts)
             if callable(getattr(inst, 'preview', None)):
                 RECORDING[0] = None
                 try:
@@ -1211,6 +1480,58 @@ def clean(ev, marks):
     return ev
 
 
+CURRENT = [None]                # the run going on (run_one): its family, its settings
+PLACED_TXT = []                 # TXT values a run wrote by DNS UPDATE: seen when asked
+
+
+def dns_answer(D, wire, r):
+    """The answer of a DNS server to a validation's question (1.0.98), as the zone of a
+    running domain gives it: the zone of a name is its registrable domain (SOA in the
+    answer at the apex, in the authority section below it); NS ns1/ns2 of the zone, their
+    addresses 192.0.2.53 / 2001:db8::53 (documentation ones); TXT at _acme-challenge (and
+    any name written by UPDATE) the value put in; no CNAME. An UPDATE: NOERROR - signed
+    back with its TSIG key when it came signed with one of the run's settings."""
+    q = D.parse(wire)
+    op = (q.flags >> 11) & 0xF
+    m = D.Message(q.id, 0x8000 | (op << 11) | 0x0400 | (q.flags & 0x0100) | 0x0080)
+    m.question = list(q.question)
+    if op == D.OP_UPDATE:
+        for x in q.authority:
+            if x.rclass == D.CLASS_IN and x.rtype == 16 and x.text:
+                PLACED_TXT.append(x.text.strip('"'))
+        out = m.to_wire()
+        if q.additional and q.additional[-1].rtype == 250:
+            keyname = D.norm(q.additional[-1].name)
+            t = D.tsig_read(wire)
+            for v in (r.get('config') or {}).values():
+                try:
+                    D.tsig_verify(wire, keyname, str(v))
+                except Exception:                       # noqa: BLE001
+                    continue
+                out, _mac = D.tsig_sign(out, keyname, str(v), t['alg'], request_mac=t['mac'])
+                break
+        return out
+    for n, t, _c in q.question:
+        n = D.norm(n)
+        zone = D.registrable(n)
+        soa = D.RR(zone, 6, D.CLASS_IN, 3600, 'ns1.%s hostmaster.%s 2026010101 7200 3600 '
+                   '1209600 300' % (zone, zone))
+        if t == 6:
+            (m.answer if n == zone else m.authority).append(soa)
+        elif t == 2 and n == zone:
+            m.answer += [D.RR(zone, 2, D.CLASS_IN, 3600, 'ns%d.%s' % (i, zone)) for i in (1, 2)]
+        elif t == 1:
+            m.answer.append(D.RR(n, 1, D.CLASS_IN, 300, '192.0.2.53'))
+        elif t == 28:
+            m.answer.append(D.RR(n, 28, D.CLASS_IN, 300, '2001:db8::53'))
+        elif t == 16 and (n.startswith('_acme-challenge.') or PLACED_TXT):
+            for v in [TXT] + [x for x in PLACED_TXT if x != TXT]:
+                m.answer.append(D.RR(n, 16, D.CLASS_IN, 60, v))
+        else:
+            m.authority.append(soa)                     # NOERROR, no such record (no CNAME)
+    return m.to_wire()
+
+
 def _patch_modules(job):
     """What reaches out is written down: DNS questions, TLS handshakes, the resolvers."""
     from acmelib.plugins.challenges import _dns as D
@@ -1237,6 +1558,15 @@ def _patch_modules(job):
                          'name': D.norm(n), 'qtype': D.type_name(t)})
         except Exception:                               # noqa: BLE001
             pass
+        r = CURRENT[0] or {}
+        if r.get('family') in ('challenge', 'issuer'):
+            # a validation's DNS (1.0.98): answered as the zone of a running domain answers -
+            # the name's zone by its SOA, its name servers, their addresses, the TXT record put
+            # in seen - so the module goes the way it goes when the record is there
+            try:
+                return dns_answer(D, wire, r)
+            except Exception:                           # noqa: BLE001
+                pass
         raise D.DnsError('the run plan asks no DNS server')
     D.exchange = exchange
     D.send_udp = _no_net

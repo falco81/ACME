@@ -141,6 +141,7 @@ class CockpitTarget(Base):
         base, prefix = self.base_of(bundle, options)
         with self.ssh() as s:
             files = self.listing(s)
+            self.ctx.step('%s holds %s' % (WS, ', '.join(files) or 'nothing'))
             there = base + '.crt' in files and base + '.key' in files
             if there and self.unchanged(bundle, options):
                 return self.same(bundle, 'as %s/%s.crt' % (WS, base))

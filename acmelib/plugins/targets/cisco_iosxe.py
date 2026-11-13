@@ -232,6 +232,8 @@ class CiscoIosXeTarget(VersionCheck, Base):
             ver = parse_iosxe(self.exec_(s, 'show version', check=False))
             self._ver = ver
             tps, cur = self.running(s)
+            self.ctx.step('IOS XE %s; trustpoints: %s; the HTTPS server uses %s' % (
+                '.'.join(map(str, ver)) if ver else '?', ', '.join(tps) or '-', cur or '-'))
             if self.unchanged(bundle, options, present=lambda: name in tps):
                 return self.same(bundle, 'in the trustpoint %s' % name)
             self.check_version(ver)

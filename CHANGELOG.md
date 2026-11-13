@@ -6,7 +6,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.98 - not released
 
-(nothing yet)
+- Fixed: *Download a start* of a module whose file holds several versions (FortiGate: plain,
+  6.0, 7.0, 7.4.2) gave a file that, uploaded, replaced every shipped version of that file
+  instead of adding one - and a new version made from 6.0, 7.0 or 7.4.2 kept the old number.
+  Now the start holds only the version it was made from (the others imported as they are);
+  checked for every module and version.
 
 ## 1.0.97 - 2026-11-13
 

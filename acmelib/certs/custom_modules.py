@@ -468,6 +468,11 @@ def source_of(family, kind, version=None, original=False):
         return os.path.basename(path), f.read().decode('utf-8', 'replace')
 
 
+def S_FAMILY_BASES():
+    from acmelib.plugins import base as _b
+    return tuple(_b.FAMILIES.values())
+
+
 def copy_as(family, kind, from_version=None, version='', label='', override=False, original=False):
     """(file name, text): the whole source of a module's version, made into a file
     of your own to change and upload (1.0.34) - its class says the version asked
@@ -493,15 +498,29 @@ def copy_as(family, kind, from_version=None, version='', label='', override=Fals
         raise ValueError('the class %s is not in its file' % cls.__name__)
     lines = text.splitlines(True)
     edits = []                               # (first line, last line, new lines), 1-based
+    ours = ('module_version', 'version_label', 'default_version')
+
+    def names_of(t):
+        if isinstance(t, ast.Name):
+            return [t.id]
+        if isinstance(t, (ast.Tuple, ast.List)):
+            return [n for e in t.elts for n in names_of(e)]
+        return []
+    last_tuple = None
     for st in node.body:
         targets = st.targets if isinstance(st, ast.Assign) else ([st.target] if isinstance(st, ast.AnnAssign) else [])
-        if any(isinstance(t, ast.Name) and t.id in ('module_version', 'version_label', 'default_version')
-               for t in targets):
+        if any(isinstance(t, ast.Name) and t.id in ours for t in targets):
             edits.append((st.lineno, st.end_lineno, []))
+        elif any(n in ours for t in targets for n in names_of(t)):
+            # module_version, version_label, ... = RANGES[2] (fortigate.py, 1.0.98): set with
+            # other names at once - kept, and ours put after it, so ours are the ones that count
+            last_tuple = st
     first = node.body[0]
     doc = isinstance(first, ast.Expr) and isinstance(getattr(first, 'value', None), ast.Constant) \
         and isinstance(first.value.value, str)
     at = first.end_lineno if doc else first.lineno - 1          # insert after this line (1-based)
+    if last_tuple is not None:
+        at = max(at, last_tuple.end_lineno)
     ind = ' ' * first.col_offset
     edits.append((at + 1, at, [
         ind + '# made from %s %s %s by acme - your own from here (docs/writing-a-module.md)\n' % (
@@ -511,12 +530,21 @@ def copy_as(family, kind, from_version=None, version='', label='', override=Fals
         ind + 'default_version = False      # True: a new one, and one that says none, take this one\n']))
     # Another module of the same file (tls.py holds tls and https) is taken as it is
     # from where it comes - defined here again, the upload would replace it too.
+    import sys as _sys
+    loaded = _sys.modules.get(cls.__module__)
     for other in tree.body:
         if other is node or not isinstance(other, ast.ClassDef):
             continue
         is_mod = any(isinstance(st, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'kind'
                                                          for t in st.targets)
                      for st in other.body)
+        # A version of the same kind in the same file (fortigate.py: FortiGate70Target(FortiGateTarget)
+        # says no kind of its own, 1.0.98): a module too - defined here again it would replace the
+        # shipped version of that number.
+        got = getattr(loaded, other.name, None) if loaded is not None else None
+        if not is_mod and isinstance(got, type) and getattr(got, 'kind', None) and \
+                any(isinstance(got, type) and issubclass(got, b) for b in S_FAMILY_BASES()):
+            is_mod = True
         if is_mod:
             start = min([other.lineno] + [d.lineno for d in other.decorator_list])
             edits.append((start, other.end_lineno, [
