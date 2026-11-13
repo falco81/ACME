@@ -116,6 +116,12 @@ class FujitsuIsmTarget(Base):
         try:
             rc, out, err = s.run('ismadm power restart', input='y\n', timeout=120, check=False)
         except PluginError as e:
+            # ssh that never got in (refused, unreachable, sign-in or host key refused): the
+            # command was not sent - that is no restart (1.0.96)
+            if str(e).startswith('ssh to ') and re.search(
+                    r'refused|could not resolve|no route|timed out|unreachable|permission denied|'
+                    r'did not let|host key|not known|network is', str(e), re.I):
+                raise
             if str(e).startswith('ssh to ') or 'took more than' in str(e):
                 self.ctx.debug('the session ended with the restart: %s' % e)
                 return

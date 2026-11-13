@@ -490,8 +490,9 @@ A certificate says where its key is made - **`csr_from`**, the name of such a ta
   approval at an AD CS, DigiCert, Sectigo, EST and other commercial orders) or a try that
   failed gets **the same CSR** again (*the CSR the device of ... made (...) is used again*),
   so the certificate that comes is for the key the device holds. Only the next issue after a
-  certificate was saved asks the device for a new key; a kept CSR that no longer fits (other
-  names, another key type) is dropped and a new one asked.
+  certificate was saved - issued, or imported by hand - asks the device for a new key; a kept
+  CSR that no longer fits (other names, another key type) is dropped and a new one asked.
+  Renaming the target keeps the CSR with the certificate.
 - Its deployment to that target is **made with it** and **runs right after the issue**, in the
   same job: the device gets the certificate (and the chain) for the key it made a moment ago,
   without a key. When its deployments are held (*Deploy now*), the device keeps its old
@@ -501,20 +502,27 @@ A certificate says where its key is made - **`csr_from`**, the name of such a ta
   have its key) - and a target whose device makes the key takes **no other certificate**.
   **One certificate per device**: the device holds one pending key, so a second certificate
   whose key the same target makes is refused (*the device ... already makes the key of the
-  certificate ...*) - give the one certificate every name instead.
+  certificate ...*) - give the one certificate every name instead. This is checked when *Key
+  made by the device* is set or changed: two certificates on one device saved by an older acme
+  can still be edited, and each renewal of one warns (job and event) that its new CSR replaces
+  the key of the other - put their names into one certificate.
 - **Switched after it was issued** (to *Key made by the device*, or back to acme): the
   version it holds fits no key where its key is made now, so the certificate is made **due
-  for a new issue** at once (a CSR given out is dropped), and the old version is not deployed
+  for a new issue** at once (a CSR given out is dropped; switched off in the same save it stays
+  off, and is made due when switched on again), and the old version is not deployed
   - a deployment of it is refused in words (*holds a key acme made* / *was issued for a key
   its device made*). *Renew now* issues it at once; renewed by itself, the next scan does.
 - **A device that lost its key.** When its deployment to the device fails three times in a
   row (about 35 minutes with the retries) - the device rebooted, someone asked it for another
   CSR - the certificate is made due for a new issue: a new key and CSR, deployed right after.
   This happens once; if that deployment fails too, nothing is issued again by itself until a
-  deployment there works - the *Deploying failed* notice says it, see to the device.
+  deployment there works - the *Deploying failed* notice says it, see to the device. A
+  certificate not renewed by itself (*Renew automatically* off, switched off, no source) is not
+  made due: the job and an event say *renew it by hand* (*Renew now*).
 - A target's module is not changed between one whose device makes the key and one that takes
   acme's while certificates use the target (its key made there, or deployed there) - take
-  them away first.
+  them away first; nor to another device module whose devices do not make the key type of a
+  certificate whose key is made there - choose one of its key types first.
 - **Refused with it**: a twin (`key_type_alt`), *Keep the key* (`reuse_key`), a CSR sent in,
   a source that cannot sign a CSR made elsewhere (*Self-signed*, CMP, SCEP and sources that
   make the key themselves), no source at all. There is no key to export, to download from the

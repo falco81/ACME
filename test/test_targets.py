@@ -1065,5 +1065,48 @@ class RedfishFixesTest(unittest.TestCase):
         self.assertEqual(seen, [('2001:db8::1', 8443)])
 
 
+def verify_asked(t, options):
+    """The (host, port) places t.verify() asks check_served for (every check_served the
+    verify methods of its classes see swapped)."""
+    seen = []
+    gs = {}
+    for c in type(t).__mro__:
+        if 'verify' in c.__dict__:
+            g = c.__dict__['verify'].__globals__
+            gs[id(g)] = g
+    olds = {k: g['check_served'] for k, g in gs.items() if 'check_served' in g}
+    for k in olds:
+        gs[k]['check_served'] = lambda ctx, b, hp, *a, **kw: seen.extend(
+            C.split_hostport(x) for x in hp) or True
+    try:
+        t.verify(FakeBundle(), options)
+    finally:
+        for k, f in olds.items():
+            gs[k]['check_served'] = f
+    return seen
+
+
+class Ipv6VerifyTest(unittest.TestCase):
+    """Round 2a: host:port joined by hand left in vsphere_supervisor, ssh's "{host}:PORT"
+    verify lines and acme_push - an IPv6 address read as a host with no port."""
+
+    def test_ssh_verify_line(self):
+        t = make('ssh', {'host': '2001:db8::5', 'user': 'u'}, FakeCtx([]))
+        self.assertEqual(verify_asked(t, {'verify': '{host}:8443'}), [('2001:db8::5', 8443)])
+
+    def test_vsphere_supervisor(self):
+        t = make('vsphere_supervisor', {'host': 'vc.example.test', 'user': 'u', 'password': 'p',
+                                        'endpoint_host': '2001:db8::5'}, FakeCtx([]))
+        self.assertEqual(verify_asked(t, {}), [('2001:db8::5', 443)])
+
+    def test_acme_push(self):
+        t = make('acme_push', {'url': 'https://[2001:db8::7]:8443', 'token': 'x'}, FakeCtx([]))
+        t._installed = [{'names': ['2001:db8::9']}]
+        t._sleep = lambda s: None
+        got = verify_asked(t, {})
+        self.assertEqual(got[0], ('2001:db8::7', 8443))
+        self.assertNotIn(('2001:db8::7:8443', 443), got)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -693,6 +693,10 @@ class SshTarget(SshMixin, Base):
             if preset.get('port'):
                 options['verify'] = join_hostport(self.c('host'), preset['port'])
         else:
-            options['verify'] = '\n'.join(subst(x, {'host': self.c('host')})
+            # an IPv6 address in brackets (1.0.96): "{host}:8443" was read as a host with no
+            # port
+            h = str(self.c('host') or '').strip()
+            h = '[%s]' % h if ':' in h and not h.startswith('[') else h
+            options['verify'] = '\n'.join(subst(x, {'host': h})
                                           for x in lines(options['verify']))
         return Base.verify(self, bundle, options)

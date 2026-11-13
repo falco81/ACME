@@ -367,6 +367,20 @@ class Nxos(unittest.TestCase):
         self.assertEqual(b_[-1], ['copy running-config startup-config'])
         self.assertEqual(state['used'], name)
 
+    def test_switch_cut_off_but_show_nxapi_names_the_new_one(self):
+        # round 2a: only the trustpoints listed before the import were looked for in show nxapi
+        # - "cannot be read" said, and the older one kept, although NX-API took the new one
+        prefix = C.name_prefix(FakeBundle(), {}, maxlen=60)
+        old = prefix + '20250101-aaaaaaaa'
+        b = FakeBundle()
+        name = C.object_name(b, {}, maxlen=60)
+        state, ans = nxapi(tps=[old], cut=True, used=name)
+        ctx = FakeCtx([('POST', r'/ins$', ans)])
+        self.nx(ctx).deploy(b, {'keep': 0})
+        self.assertTrue([x for x in state['batches']
+                         if x[-1] == 'no crypto ca trustpoint %s' % old])
+        self.assertFalse([w for lv, w in ctx.steps if 'cannot be read' in w])
+
     def test_restart_never_answers_is_a_warning(self):
         prefix = C.name_prefix(FakeBundle(), {}, maxlen=60)
         old = prefix + '20250101-aaaaaaaa'

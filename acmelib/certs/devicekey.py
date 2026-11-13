@@ -427,12 +427,14 @@ def deploy_failed(store, job, cert, dep, fails, misfit=False):
         if not misfit and int(fails or 0) != REISSUE_AFTER:
             return ''
         if misfit:
-            what = 'the version it holds fits no key on %s, whose device makes its key' % src
+            said = ('%s: the version it holds fits no key on %s, whose device makes its key; it '
+                    'is not renewed by itself (%s): renew it by hand (Renew now) for a new key '
+                    'and CSR of the device' % (cert['name'], src, by_hand))
         else:
-            what = ('its deployment to %s, whose device makes its key, failed %d times - the '
-                    'device may have lost the key it made' % (src, int(fails)))
-        said = ('%s: %s; it is not renewed by itself (%s): renew it by hand (Renew now) for a '
-                'new key and CSR of the device' % (cert['name'], what, by_hand))
+            said = ('%s: its deployment to %s, whose device makes its key, failed %d times - the '
+                    'device may have lost the key it made; it is not renewed by itself (%s): '
+                    'renew it by hand (Renew now) for a new key and CSR of the device'
+                    % (cert['name'], src, int(fails), by_hand))
         jobs.step_in(job, said, 'warn', scope='target:%s' % src)
         store.add_event('certificates', said, 'warn')
         return said

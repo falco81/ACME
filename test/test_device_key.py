@@ -879,6 +879,120 @@ class Round1e(unittest.TestCase):
             self.assertIn("b = dict(b, options={})", f.read())
 
 
+class Round2a(unittest.TestCase):
+    """The round-1 fixes of the device-made key reviewed (round 2a)."""
+
+    def test_1_legacy_twins_still_saved_and_warned(self):
+        # two certificates on one device, saved before one per device was refused: each can
+        # still be edited (csr_from not changed), and a renewal warns of the other
+        d = device()
+        a = save(name='lg1', names=['lg1.example.test'], issuer='own', csr_from=d)
+        b = save(name='lg2', names=['lg2.example.test'], issuer='own')
+        STORE.db.update('certs', b, {'csr_from': d})
+        for cid, nm in ((a, 'lg1'), (b, 'lg2')):
+            row = S.cert_get(STORE, cid)
+            save(id=cid, name=nm, names=json.loads(row['names']), issuer='own', csr_from=d,
+                 key_type='ec-256', note='only the note')
+            self.assertEqual(S.cert_get(STORE, cid)['note'], 'only the note')
+        job = renew(a)
+        self.assertIn('makes the key of the certificate lg2 too', words(job))
+        # set anew (another device, then this one again): refused
+        c = save(name='lg3', names=['lg3.example.test'], issuer='own')
+        with self.assertRaises(ValueError):
+            save(id=c, csr_from=d)
+
+    def test_2_no_auto_renewal_said_by_hand(self):
+        d = device()
+        cid = save(name='na2', names=['na2.example.test'], issuer='own', csr_from=d,
+                   auto_renew=0)
+        self.assertTrue(renew(cid).ok)
+
+        def lost(self, bundle, options):
+            raise base.PluginError('unreachable: connection timed out')
+        with Patched('deploy', lost):
+            for i in range(devicekey.REISSUE_AFTER):
+                job = deploy_now(cid)
+        self.assertNotIn('issued anew', words(job))
+        self.assertIn('renew it by hand', words(job))
+        row = S.cert_get(STORE, cid)
+        self.assertEqual(row['state'], 'ok')
+        self.assertFalse(STORE.get_meta(devicekey.REISSUE_KEY % cid))
+
+    def test_3_switched_with_on_or_off_in_one_save(self):
+        d = device()
+        cid = save(name='sw3', names=['sw3.example.test'], issuer='own', csr_from=d)
+        self.assertTrue(renew(cid).ok)
+        STORE.db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (cid,))
+        save(id=cid, enabled=0)
+        STORE.db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (cid,))
+        save(id=cid, enabled=1, csr_from='')
+        row = S.cert_get(STORE, cid)
+        self.assertEqual(row['state'], 'due')
+        self.assertTrue(renewer.main_due(row))
+        d2 = device()
+        c2 = save(name='sw4', names=['sw4.example.test'], issuer='own')
+        self.assertTrue(renew(c2).ok)
+        STORE.db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (c2,))
+        save(id=c2, enabled=0, csr_from=d2)
+        row = S.cert_get(STORE, c2)
+        self.assertEqual((row['enabled'], row['state']), (0, 'disabled'))
+        # switched on again later: the version it holds fits no key there - due
+        save(id=c2, enabled=1)
+        self.assertEqual(S.cert_get(STORE, c2)['state'], 'due')
+
+    def test_4_import_clears_the_kept_csr(self):
+        import base64
+        d = device()
+        cid = save(name='im2', names=['im2.example.test'], issuer='held', csr_from=d)
+        self.assertFalse(renew(cid).ok)
+        held = devicekey.held_csr(S.cert_get(STORE, cid), d)
+        self.assertTrue(held)
+        cert, chain = CA.ca_sign(STORE, CA_ID, held['csr_pem'], 30,
+                                 {'names': ['im2.example.test']}, by='t')
+        api.cert_import(STORE, {'id': cid, 'data_b64': base64.b64encode(
+            (cert + ''.join(chain)).encode()).decode(), 'filename': 'x.pem', 'as': 'main'},
+            'test')
+        self.assertIsNone(devicekey.held_csr(S.cert_get(STORE, cid)))
+        STORE.db.update('certs', cid, {'issuer': 'own'})
+        n = len(state('keys.json', []))
+        job = renew(cid)
+        self.assertTrue(job.ok, words(job))
+        self.assertNotIn('is used again', words(job))
+        self.assertEqual(len(state('keys.json', [])), n + 1)
+
+    def test_5_rename_keeps_the_held_csr(self):
+        d = device()
+        cid = save(name='rn2', names=['rn2.example.test'], issuer='held', csr_from=d)
+        self.assertFalse(renew(cid).ok)
+        tid = S.plugin_row(STORE, 'target', d)['id']
+        api.family_save(STORE, 'target', {'id': tid, 'name': d + 'x', 'kind': 'fakedevice',
+                                          'config': {'host': 'h'}}, 'test')
+        row = S.cert_get(STORE, cid)
+        self.assertEqual(row['csr_from'], d + 'x')
+        self.assertTrue(devicekey.held_csr(row, d + 'x'))
+        n = len(state('keys.json', []))
+        job = renew(cid)
+        self.assertTrue(job.ok, words(job))
+        self.assertEqual(len(state('keys.json', [])), n)
+
+    def test_6_device_module_with_other_key_types_refused(self):
+        class Ec384Device(FAKE):
+            kind = 'fakedevice384'
+            device_key_types = ('ec-384',)
+        base.REGISTRY.found['target'][Ec384Device.kind] = Ec384Device
+        try:
+            d = device()
+            save(name='kt1', names=['kt1.example.test'], issuer='own', csr_from=d,
+                 key_type='ec-256')
+            tid = S.plugin_row(STORE, 'target', d)['id']
+            with self.assertRaises(ValueError) as e:
+                api.family_save(STORE, 'target', {'id': tid, 'kind': 'fakedevice384',
+                                                  'config': {'host': 'h'}}, 'test')
+            self.assertIn('makes ec-384 keys only', str(e.exception))
+        finally:
+            base.REGISTRY.found['target'].pop(Ec384Device.kind, None)
+
+
 def tearDownModule():
     shutil.rmtree(TMP, ignore_errors=True)
 

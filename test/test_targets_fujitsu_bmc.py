@@ -635,6 +635,16 @@ class IsmTest(unittest.TestCase):
         with self.assertRaises(PluginError) as e:
             self.t(ssh)[0].deploy(FakeBundle(), {})
         self.assertIn('permission denied', str(e.exception))
+        # round 2a: ssh that never got in sent no command - no restart, a failure
+        for never in ('ssh to ism.test: ssh: connect to host ism.test port 22: Connection '
+                      'refused', 'ssh to ism.test: ism.test did not let administrator in '
+                      '(Permission denied (password).)'):
+            FakeFtp.reset()
+
+            def go(cmd, inp, never=never):
+                raise PluginError(never)
+            with self.assertRaises(PluginError):
+                self.t(FakeSsh([(r'power restart', go)]))[0].deploy(FakeBundle(), {})
 
     def test_ftp_refused(self):
         FakeFtp.refuse_login = True

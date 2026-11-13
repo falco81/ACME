@@ -455,6 +455,17 @@ class SandboxAnswers(unittest.TestCase):
         self.assertEqual(s.ssh('list'), (0, 'id abc12 ok', ''))
         self.assertEqual(P.fill_seen('x {SEEN:a{2', lambda m: 'never'), 'x {SEEN:a{2')
 
+    def test_text_body_starting_with_a_placeholder(self):
+        # round 2a: "{CSR}" alone (or "{SENT:x} ...") was taken for JSON - the PEM came back
+        # with \n escapes, a value sent JSON-escaped
+        from acmelib.certs import plansandbox as P
+        a = P.Answers([{'method': 'GET', 'url': 'csr$', 'body': '{CSR}'},
+                       {'method': 'GET', 'url': 'name$', 'body': '{SENT:alias} is the alias'}])
+        a.csr = '-----BEGIN CERTIFICATE REQUEST-----\nMIIB\n-----END CERTIFICATE REQUEST-----\n'
+        a('POST', 'https://x/set', {'alias': 'a"b'})
+        self.assertEqual(a('GET', 'https://x/csr')[2].decode(), a.csr)
+        self.assertEqual(a('GET', 'https://x/name')[2].decode(), 'a"b is the alias')
+
     def test_serial_of_the_certificate_sent(self):
         # {SERIAL} (1.0.96): the serial of the last certificate sent over SSH - CUCM's
         # "show cert own" after the certificate pasted to "set cert import own"

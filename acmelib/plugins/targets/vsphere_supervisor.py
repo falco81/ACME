@@ -37,7 +37,8 @@ from __future__ import annotations
 import urllib.parse
 
 from acmelib.plugins.targets._common import (
-    HttpTarget, PluginError, field, text, tls_fields, verify_fields, http_fields)
+    HttpTarget, PluginError, field, text, tls_fields, verify_fields, http_fields,
+    join_hostport)
 from acmelib.plugins.targets.vcenter import VCenterTarget
 from acmelib.plugins.targets import _vmware as V
 
@@ -212,7 +213,7 @@ class SupervisorTarget(VCenterTarget):
         options = dict(options or {})
         h = text(self.c('endpoint_host')).strip()
         if not options.get('verify') and h and not self.ingress(options):
-            options['verify'] = '%s:443' % h
+            options['verify'] = join_hostport(h, 443)
         options.setdefault('verify_tries', 6)
         options.setdefault('verify_wait', 10)
         return HttpTarget.verify(self, bundle, options)

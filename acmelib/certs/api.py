@@ -2228,6 +2228,20 @@ def _device_kind_kept(store, row, cls):
         return
     dev_was, dev_now = bool(getattr(was, 'device_key', False)), bool(getattr(cls, 'device_key',
                                                                           False))
+    if dev_was and dev_now and was is not cls:
+        # one device module for another (1.0.96): the key types the new one makes must hold
+        # those of the certificates whose key it makes
+        from acmelib.certs import devicekey
+        kts = devicekey.key_types_of(cls)
+        odd = sorted({'%s (%s)' % (r['name'], r['key_type'] or 'ec-256') for r in store.db.rows(
+            'SELECT name, key_type FROM certs WHERE csr_from = ?', (row['name'],))
+            if kts and (r['key_type'] or 'ec-256') not in kts})
+        if odd:
+            raise ValueError('the device of %s makes the key of %s - %s makes %s keys only: '
+                             'choose one of those key types for those certificates first'
+                             % (row['name'], ', '.join(odd[:10]), cls.title or cls.kind,
+                                ', '.join(kts)))
+        return
     if dev_was == dev_now:
         return
     used = [r['name'] for r in store.db.rows(

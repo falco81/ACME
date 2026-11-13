@@ -28,7 +28,7 @@ import urllib.parse
 from acmelib import engine as E
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, as_int, fp_of, text, alt_of, check_served,
-    split_hostport)
+    split_hostport, join_hostport)
 
 SLOT_WORDS = {'auto': 'every slot whose names the certificate holds',
               'nodes': 'the pages of every node', 'vip': 'the VIP address',
@@ -328,9 +328,9 @@ class AcmePushTarget(HttpTarget):
             host, port = split_hostport(n, 443)
             places = []
             if app_host and u.scheme == 'https':
-                places.append('%s:%d' % (app_host, app_port))
-            if '%s:%d' % (host, port) not in places:
-                places.append('%s:%d' % (host, port))
+                places.append(join_hostport(app_host, app_port))
+            if join_hostport(host, port) not in places:
+                places.append(join_hostport(host, port))
             seen = None
             for i, hp in enumerate(places):
                 got = check_served(self.ctx, bundle, [hp], sni=host,
@@ -339,7 +339,7 @@ class AcmePushTarget(HttpTarget):
                 if got is True:
                     if i > 0:
                         self.ctx.step('%s serves it (asked for %s)' % (hp, host), 'ok')
-                    elif hp != '%s:%d' % (host, port):
+                    elif hp != join_hostport(host, port):
                         self.ctx.step('the application at %s serves it for %s' % (hp, host), 'ok')
                     seen = True
                     break

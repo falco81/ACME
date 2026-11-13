@@ -24,6 +24,7 @@
 .rp-hf > div{min-width:0}
 .rp-hf-l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--tx-mut);font-weight:700}
 .rp-hf-v{font-size:13.5px;overflow-wrap:anywhere}
+.rp-hf-dev{display:inline-block}
 .rp-big{font-size:18px;font-weight:700}
 .rp-mod{display:inline-flex;flex-direction:column;line-height:1.3;min-width:0}
 .rp-mod b{font-weight:650;overflow-wrap:anywhere}

@@ -60951,6 +60951,22 @@
   "_20": {
    "source": "the Supervisor's FQDN or virtual IP: where acme checks the API endpoint's certificate (443); the NSX ingress's is not checked there",
    "text": "FQDN nebo virtuální IP Supervisoru: kde acme kontroluje certifikát API endpointu (443); certifikát NSX ingressu se tam nekontroluje"
+  },
+  "_21": {
+   "source": "automatic renewal is off",
+   "text": "automatické obnovování je vypnuté"
+  },
+  "_22": {
+   "source": "NX-API did not answer after its restart",
+   "text": "NX-API po svém restartu neodpovědělo"
+  },
+  "_23": {
+   "source": "the older trustpoints stay: NX-API did not answer after its restart",
+   "text": "starší trustpointy zůstávají: NX-API po svém restartu neodpovědělo"
+  },
+  "_24": {
+   "source": "the older trustpoints stay - show nxapi names none of the trustpoints, so which one NX-API uses is not known",
+   "text": "starší trustpointy zůstávají - show nxapi neuvádí žádný z trustpointů, takže není známo, který NX-API používá"
   }
  },
  "patterns": {
@@ -84453,6 +84469,30 @@
   "p_30": {
    "source": "the bay is 1 or 2 - the Frame Link Module / Onboard Administrator bay (it is {0})",
    "text": "pozice je 1 nebo 2 – pozice Frame Link Module / Onboard Administratoru (je {0})"
+  },
+  "p_31": {
+   "source": "{0}: the version it holds fits no key on {1}, whose device makes its key; it is not renewed by itself ({2}): renew it by hand (Renew now) for a new key and CSR of the device",
+   "text": "{0}: verze, kterou má, nepasuje k žádnému klíči na {1}, jehož zařízení vytváří jeho klíč; sám se neobnovuje ({2}): obnovte ho ručně (Obnovit nyní) pro nový klíč a CSR zařízení"
+  },
+  "p_32": {
+   "source": "{0}: its deployment to {1}, whose device makes its key, failed {2} times - the device may have lost the key it made; it is not renewed by itself ({3}): renew it by hand (Renew now) for a new key and CSR of the device",
+   "text": "{0}: jeho nasazení na {1}, jehož zařízení vytváří jeho klíč, selhalo {2}krát - zařízení mohlo klíč, který vytvořilo, ztratit; sám se neobnovuje ({3}): obnovte ho ručně (Obnovit nyní) pro nový klíč a CSR zařízení"
+  },
+  "p_33": {
+   "source": "{0}: the device of {1} makes the key of the certificate {2} too - it holds one pending key, so this new CSR replaces the key of the other one (whose certificate then fits no key there): put the names of both into one certificate",
+   "text": "{0}: zařízení {1} vytváří i klíč certifikátu {2} - drží jeden čekající klíč, takže tento nový CSR nahradí klíč toho druhého (jehož certifikát pak už k žádnému klíči na zařízení nepasuje): dejte názvy obou do jednoho certifikátu"
+  },
+  "p_34": {
+   "source": "the device of {0} makes the key of {1} - {2} makes {3} keys only: choose one of those key types for those certificates first",
+   "text": "zařízení {0} vytváří klíč certifikátů {1} - {2} vytváří jen klíče {3}: nejdřív těm certifikátům zvolte jeden z těchto typů klíče"
+  },
+  "p_35": {
+   "source": "NX-API did not answer within {0} s of its restart ({1})",
+   "text": "NX-API do {0} s od svého restartu neodpovědělo ({1})"
+  },
+  "p_36": {
+   "source": "the configuration was saved before NX-API was pointed at {0}, not after it ({1}) - run copy running-config startup-config on the switch",
+   "text": "konfigurace byla uložena před přepnutím NX-API na {0}, ne po něm ({1}) - spusťte na přepínači copy running-config startup-config"
   }
  },
  "rich": {

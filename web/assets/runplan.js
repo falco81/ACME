@@ -524,7 +524,7 @@
       var kd = el('div', 'muted small');
       kd.appendChild(el('span', '', 'key made by'));
       kd.appendChild(document.createTextNode(' '));
-      kd.appendChild(data('span', '', c.csr_from));
+      kd.appendChild(data('span', 'rp-hf-dev', c.csr_from));
       kv.appendChild(kd);
     }
     fact('key', 'Key', kv);
