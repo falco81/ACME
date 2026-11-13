@@ -650,6 +650,10 @@ class Answers(object):
         self.ssh_rules = ssh_rules or []
         self.used = {}
         self.sent = {}
+        # a device asked for its key and CSR (Target.device_csr, "the device makes the key"):
+        # the CSR it answers - a throwaway one for the names. {CSR} in a rule's body, and
+        # what a call no rule answers gets (as CSRString, CSR and csr), an SSH command too.
+        self.csr = ''
 
     def _take(self, kind, i, r):
         """Whether rule i may answer once more - counted when it does."""
@@ -700,6 +704,7 @@ class Answers(object):
                 body = json.dumps(body).replace('{SESSION}', SESSION).replace(
                     '{TAIL}', tail.replace('"', ''))
                 body = re.sub(r'\{SENT:([A-Za-z0-9_.-]+)\}', self._sent, body)
+                body = body.replace('{CSR}', json.dumps(self.csr or '')[1:-1])
             return int(r.get('status', 200)), dict(r.get('headers') or {}), \
                 str(body).encode('utf-8')
         path = url.split('?', 1)[0]
@@ -711,6 +716,9 @@ class Answers(object):
                     'session': SESSION, 'sid': SESSION, 'jwt': SESSION, 'success': True,
                     'data': {'token': SESSION, 'access_token': SESSION}}
             return 200, h, json.dumps(body).encode()
+        if self.csr:
+            return 200, h, json.dumps({'CSRString': self.csr, 'CSR': self.csr,
+                                       'csr': self.csr}).encode()
         return 200, h, b'{}'
 
     def ssh(self, command, input=None):
@@ -773,6 +781,8 @@ class FakeSsh(object):
             return got
         if 'http_code' in str(command):
             return 0, '{}\n200', ''
+        if getattr(answers, 'csr', ''):
+            return 0, answers.csr, ''           # a device asked for its CSR prints it
         return 0, '', ''
 
     def put(self, data, remote_path, mode=0o600, owner=None, via='shell'):
@@ -937,6 +947,8 @@ def dummy_bundle(cert):
     def one(kt):
         key = pki.make_key(kt or 'ec-256')
         pem = pki.self_signed(key, names, days=90)
+        if cert.get('csr_from'):
+            key = None                  # the device made the key: the target gets none
         chain = list(cert.get('chain') or [])
         if not chain:
             ckey = pki.make_key('ec-256')
@@ -969,9 +981,9 @@ def run_one(job, r, bundle_holder):
     signal.alarm(int(r.get('seconds') or 8))
     try:
         cls = module(r['family'], r['kind'], (r.get('config') or {}).get('_version'))
+        answers = Answers(r.get('answers'), r.get('ssh_answers'))
         ctx = PlanContext(dict(job, deploy_id=r.get('deploy_id'), target_name=r.get('name')),
-                          '%s:%s' % (r['family'], r.get('name')),
-                          Answers(r.get('answers'), r.get('ssh_answers')))
+                          '%s:%s' % (r['family'], r.get('name')), answers)
         inst = cls(dict(r.get('config') or {}), ctx)
         op = r.get('op')
         if op == 'deploy':
@@ -1004,6 +1016,24 @@ def run_one(job, r, bundle_holder):
             said = inst.deploy(b, opts)
             # no check of the module's own after it (1.0.92): what is served is looked at by
             # the tests attached to the certificate only - the Tests phase shows them
+        elif op == 'device_csr':
+            # the device asked for a new key and CSR (Target.device_csr): answered with a
+            # CSR for the names, made here with a throwaway key
+            from acmelib.certs import devicekey
+            from acmelib.plugins import base
+            cert = job.get('cert') or {}
+            names = list(cert.get('names') or ['example.invalid'])
+            RECORDING[0] = None
+            answers.csr = devicekey.dummy_csr(names, cert.get('key_type') or 'ec-256')
+            RECORDING[0] = events
+            req = base.CertRequest(names=names, sans=list(r.get('sans') or names),
+                                   key_type=cert.get('key_type') or 'ec-256',
+                                   subject=dict(r.get('subject') or {'CN': names[0]}),
+                                   profile={}, options=dict(r.get('options') or {}),
+                                   name=cert.get('name') or names[0], cert_id=cert.get('id'),
+                                   target=r.get('name'))
+            got = inst.device_csr(req)
+            said = 'the device gave its CSR' if got else None
         elif op == 'challenge':
             name = r.get('names', ['example.invalid'])[0]
             handle = inst.present(name, TOKEN, KEYAUTH, TXT)

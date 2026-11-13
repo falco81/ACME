@@ -60107,6 +60107,130 @@
   "maos8_62": {
    "source": "the captive portal",
    "text": "captive portál"
+  },
+  "mcsr_1": {
+   "source": "Who makes the key",
+   "text": "Kdo vytváří klíč"
+  },
+  "mcsr_2": {
+   "source": "acme, here",
+   "text": "acme, zde"
+  },
+  "mcsr_3": {
+   "source": "Key made by the device",
+   "text": "Klíč vytváří zařízení"
+  },
+  "mcsr_4": {
+   "source": "The device",
+   "text": "Zařízení"
+  },
+  "mcsr_5": {
+   "source": "At every issue and renewal acme asks it for a new key and CSR, and puts the certificate back right after. The key never leaves the device; acme holds none, so it cannot be exported and goes to this target alone.",
+   "text": "Při každém vystavení a obnovení ho acme požádá o nový klíč a CSR a certifikát mu hned potom vrátí. Klíč zařízení nikdy neopustí; acme žádný nemá, takže ho nelze exportovat a certifikát jde jen na tento cíl."
+  },
+  "mcsr_6": {
+   "source": "the device does not make it",
+   "text": "zařízení ho neumí vytvořit"
+  },
+  "mcsr_7": {
+   "source": "a new key, made by the device of",
+   "text": "nový klíč, vytváří ho zařízení"
+  },
+  "mcsr_8": {
+   "source": "key made by",
+   "text": "klíč vytváří"
+  },
+  "mcsr_9": {
+   "source": "This device makes its own key and takes only a certificate for it: acme asks it for a new key and CSR at every issue and puts the certificate back right after.",
+   "text": "Toto zařízení si vytváří vlastní klíč a přijme jen certifikát k němu: acme ho při každém vystavení požádá o nový klíč a CSR a certifikát mu hned potom vrátí."
+  },
+  "mcsr_10": {
+   "source": "Make its certificate",
+   "text": "Vytvořit jeho certifikát"
+  },
+  "mcsr_11": {
+   "source": "Lenovo XClarity Controller (XCC, XCC2, XCC3)",
+   "text": "Lenovo XClarity Controller (XCC, XCC2, XCC3)"
+  },
+  "mcsr_12": {
+   "source": "The HTTPS certificate of a Lenovo XClarity Controller (web, Redfish, LDAP client) for a key the XCC makes itself: at every issue and renewal acme asks it for a new key and CSR over Redfish, and imports the certificate signed for it.",
+   "text": "Certifikát HTTPS řadiče Lenovo XClarity Controller (web, Redfish, LDAP klient) ke klíči, který si XCC vytváří samo: při každém vystavení a obnovení ho acme přes Redfish požádá o nový klíč a CSR a naimportuje certifikát k němu podepsaný."
+  },
+  "mcsr_13": {
+   "source": "XCC3 (ThinkSystem V4) - the key type chosen",
+   "text": "XCC3 (ThinkSystem V4) - zvolený typ klíče"
+  },
+  "mcsr_14": {
+   "source": "XCC and XCC2 (ThinkSystem V1-V3) - RSA 2048, Lenovo OEM on older firmware",
+   "text": "XCC a XCC2 (ThinkSystem V1-V3) - RSA 2048, na starším firmwaru Lenovo OEM"
+  },
+  "mcsr_15": {
+   "source": "an XCC account with the privilege \"Configuration - Networking and BMC Security\" (nsc) - a role of its own with only that",
+   "text": "účet XCC s oprávněním „Configuration - Networking and BMC Security“ (nsc) - vlastní role jen s ním"
+  },
+  "mcsr_16": {
+   "source": "Country (C)",
+   "text": "Země (C)"
+  },
+  "mcsr_17": {
+   "source": "two letters - the XCC asks for it in every CSR; the certificate's own subject (its profile) wins",
+   "text": "dvě písmena - XCC ji vyžaduje v každém CSR; vlastní subjekt certifikátu (jeho profil) má přednost"
+  },
+  "mcsr_18": {
+   "source": "State or region (ST)",
+   "text": "Kraj (ST)"
+  },
+  "mcsr_19": {
+   "source": "City (L)",
+   "text": "Město (L)"
+  },
+  "mcsr_20": {
+   "source": "Organization (O)",
+   "text": "Organizace (O)"
+  },
+  "mcsr_21": {
+   "source": "Unit (OU)",
+   "text": "Útvar (OU)"
+  },
+  "mcsr_22": {
+   "source": "E-mail in the CSR",
+   "text": "E-mail v CSR"
+  },
+  "mcsr_23": {
+   "source": "Send the intermediates too",
+   "text": "Poslat i mezilehlé certifikáty"
+  },
+  "mcsr_24": {
+   "source": "off: the certificate alone, as Lenovo's examples import it; on: the certificate followed by its intermediate CA certificates",
+   "text": "vypnuto: jen certifikát, jak ho importují příklady Lenova; zapnuto: certifikát a za ním jeho mezilehlé certifikáty CA"
+  },
+  "mcsr_25": {
+   "source": "a certificate whose key the device makes is issued for its CSR: give it a source that signs a CSR (an ACME CA, an authority of acme's own...)",
+   "text": "certifikát, jehož klíč vytváří zařízení, se vystavuje k jeho CSR: dejte mu zdroj, který CSR podepíše (ACME CA, vlastní autoritu acme…)"
+  },
+  "mcsr_26": {
+   "source": "its key is made there",
+   "text": "vytváří se tam jeho klíč"
+  },
+  "mcsr_27": {
+   "source": "the XCC offers no CertificateService.GenerateCSR - an XCC or XCC2 with older firmware: choose the version \"xcc2\" of this target (Lenovo's own security service)",
+   "text": "XCC nenabízí CertificateService.GenerateCSR - XCC nebo XCC2 se starším firmwarem: zvolte verzi „xcc2“ tohoto cíle (vlastní bezpečnostní služba Lenova)"
+  },
+  "mcsr_28": {
+   "source": "the XCC takes only a certificate for a key it made itself - let its device make the key (the certificate → Key: \"Key made by the device\")",
+   "text": "XCC přijme jen certifikát ke klíči, který si samo vytvořilo - nechte klíč vytvořit jeho zařízení (certifikát → Klíč: „Klíč vytváří zařízení“)"
+  },
+  "mcsr_29": {
+   "source": "the CSR is checked: every name in it and no other; the certificate issued must be for its key",
+   "text": "CSR se kontroluje: musí obsahovat každé jméno a žádné jiné; vystavený certifikát musí být k jeho klíči"
+  },
+  "mcsr_30": {
+   "source": "There is no such target, or its module makes no keys: the issue is refused",
+   "text": "Takový cíl neexistuje, nebo jeho modul klíče nevytváří: vystavení se odmítne"
+  },
+  "mcsr_31": {
+   "source": "The target is switched off: the issue is refused until it is on again",
+   "text": "Cíl je vypnutý: vystavení se odmítá, dokud nebude znovu zapnutý"
   }
  },
  "patterns": {
@@ -82937,6 +83061,146 @@
   "pmaos8_32": {
    "source": "{0} has the new certificate (copy tftp ... {1})",
    "text": "{0} má nový certifikát (copy tftp ... {1})"
+  },
+  "pmcsr_1": {
+   "source": "Its key is made by the device of {0}: it goes there alone, right after each issue - the deployment is made by itself.",
+   "text": "Jeho klíč vytváří zařízení {0}: certifikát jde jen tam, hned po každém vystavení - nasazení se vytvoří samo."
+  },
+  "pmcsr_2": {
+   "source": "the device of {0} (acme holds no key)",
+   "text": "zařízení {0} (acme nemá žádný klíč)"
+  },
+  "pmcsr_3": {
+   "source": "the key and the CSR are made by the device of {0} ({1}) - the key stays there",
+   "text": "klíč a CSR vytváří zařízení {0} ({1}) - klíč zůstává tam"
+  },
+  "pmcsr_4": {
+   "source": "the device of {0} made a {1} key and its CSR ({2})",
+   "text": "zařízení {0} vytvořilo klíč {1} a jeho CSR ({2})"
+  },
+  "pmcsr_5": {
+   "source": "{0} was asked for, the device made {1}",
+   "text": "žádán byl {0}, zařízení vytvořilo {1}"
+  },
+  "pmcsr_6": {
+   "source": "the key cannot be made by {0}: {1}",
+   "text": "klíč nemůže vytvářet {0}: {1}"
+  },
+  "pmcsr_7": {
+   "source": "there is no target {0} - the key is made by a target whose device makes its own key and CSR",
+   "text": "cíl {0} neexistuje - klíč vytváří cíl, jehož zařízení si vytváří vlastní klíč a CSR"
+  },
+  "pmcsr_8": {
+   "source": "the target {0} ({1}) does not make keys: its module takes a certificate with acme's key - choose a target whose device makes the key, or let acme make it",
+   "text": "cíl {0} ({1}) klíče nevytváří: jeho modul bere certifikát s klíčem z acme - zvolte cíl, jehož zařízení klíč vytváří, nebo ho nechte vytvořit acme"
+  },
+  "pmcsr_9": {
+   "source": "it is issued for a CSR sent in - its key is where that CSR was made, not on {0}",
+   "text": "je vystaven k zaslanému CSR - jeho klíč je tam, kde CSR vznikl, ne na {0}"
+  },
+  "pmcsr_10": {
+   "source": "the device {0} makes one key - a twin with another kind of key ({1}) cannot be made: choose no twin",
+   "text": "zařízení {0} vytváří jeden klíč - dvojče s jiným druhem klíče ({1}) vytvořit nejde: dvojče nevolte"
+  },
+  "pmcsr_11": {
+   "source": "the device {0} makes a new key at every renewal - \"Keep the key\" (reuse_key) is for keys acme holds: switch it off",
+   "text": "zařízení {0} vytváří při každém obnovení nový klíč - „Ponechat klíč“ (reuse_key) je pro klíče, které má acme: vypněte ho"
+  },
+  "pmcsr_12": {
+   "source": "{0} makes {1} keys only - choose one of those (not {2})",
+   "text": "{0} vytváří jen klíče {1} - zvolte některý z nich (ne {2})"
+  },
+  "pmcsr_13": {
+   "source": "the source {0} cannot sign a CSR made elsewhere (it signs only a key it or acme makes) - choose another source for a key the device makes",
+   "text": "zdroj {0} neumí podepsat CSR vytvořený jinde (podepíše jen klíč, který vytvoří sám nebo acme) - pro klíč vytvářený zařízením zvolte jiný zdroj"
+  },
+  "pmcsr_14": {
+   "source": "it is deployed to {0} too - a certificate whose key {1} makes goes there alone (no other target can have its key): take those deployments away first",
+   "text": "je nasazen i na {0} - certifikát, jehož klíč vytváří {1}, jde jen tam (žádný jiný cíl jeho klíč mít nemůže): nejdřív ta nasazení odeberte"
+  },
+  "pmcsr_15": {
+   "source": "the key of {0} is made by {1} and stays there - it can be deployed only to {2} (no other target can have its key)",
+   "text": "klíč certifikátu {0} vytváří {1} a zůstává tam - lze ho nasadit jen na {2} (žádný jiný cíl jeho klíč mít nemůže)"
+  },
+  "pmcsr_16": {
+   "source": "its key is made by {0} and it is deployed there - take that deployment away first (the device keeps the certificate it has), then change where its key is made",
+   "text": "jeho klíč vytváří {0} a je tam nasazen - nejdřív to nasazení odeberte (zařízení si ponechá certifikát, který má), pak změňte, kde se klíč vytváří"
+  },
+  "pmcsr_17": {
+   "source": "its key is made by the target {0}, which is not there any more - choose another target whose device makes the key, or let acme make it (the certificate → Edit → Key)",
+   "text": "jeho klíč vytváří cíl {0}, který už neexistuje - zvolte jiný cíl, jehož zařízení klíč vytváří, nebo ho nechte vytvořit acme (certifikát → Upravit → Klíč)"
+  },
+  "pmcsr_18": {
+   "source": "its key is made by the target {0}, which is switched off - switch it on to issue it",
+   "text": "jeho klíč vytváří cíl {0}, který je vypnutý - zapněte ho, aby šel certifikát vystavit"
+  },
+  "pmcsr_19": {
+   "source": "it has no deployment to {0}, whose device makes its key - the certificate would never reach the device: add it (the certificate → Deployments)",
+   "text": "nemá nasazení na {0}, jehož zařízení vytváří jeho klíč - certifikát by se na zařízení nikdy nedostal: přidejte ho (certifikát → Nasazení)"
+  },
+  "pmcsr_20": {
+   "source": "its deployment to {0}, whose device makes its key, is switched off - the certificate would never reach the device: switch it on",
+   "text": "jeho nasazení na {0}, jehož zařízení vytváří jeho klíč, je vypnuté - certifikát by se na zařízení nikdy nedostal: zapněte ho"
+  },
+  "pmcsr_21": {
+   "source": "the device of {0} gave no CSR",
+   "text": "zařízení {0} nedalo žádný CSR"
+  },
+  "pmcsr_22": {
+   "source": "the CSR {0} made names {1}, which the certificate does not ask for (it asks for {2})",
+   "text": "CSR, který vytvořilo {0}, obsahuje jména {1}, o která certifikát nežádá (žádá o {2})"
+  },
+  "pmcsr_23": {
+   "source": "the CSR {0} made does not name {1} (it names {2}) - the device did not take every name; give the certificate only the names the device puts in its CSR",
+   "text": "CSR, který vytvořilo {0}, neobsahuje {1} (obsahuje {2}) - zařízení nevzalo všechna jména; dejte certifikátu jen jména, která zařízení do svého CSR dá"
+  },
+  "pmcsr_24": {
+   "source": "the CSR {0} made is not signed by the key in it",
+   "text": "CSR, který vytvořilo {0}, není podepsán klíčem v něm"
+  },
+  "pmcsr_25": {
+   "source": "the certificate {0} gave is not for the key of the CSR the device of {1} made",
+   "text": "certifikát, který dal {0}, není ke klíči CSR, který vytvořilo zařízení {1}"
+  },
+  "pmcsr_26": {
+   "source": "deploying {0} (version {1}) to {2} ({3}) - the certificate for the key its device made (acme holds no key)",
+   "text": "nasazuje se {0} (verze {1}) na {2} ({3}) - certifikát ke klíči, který vytvořilo jeho zařízení (acme klíč nemá)"
+  },
+  "pmcsr_27": {
+   "source": "its key was made by the device of {0}, which keeps its old certificate until Deploy now; the next issue asks the device for a new key and CSR, and this certificate then fits no key there any more",
+   "text": "jeho klíč vytvořilo zařízení {0}, které si do „Nasadit hned“ ponechá starý certifikát; další vystavení požádá zařízení o nový klíč a CSR a tento certifikát pak už k žádnému klíči na něm nepasuje"
+  },
+  "pmcsr_28": {
+   "source": "the key of {0} was made by the device of {1} and stays there: acme never had it, so no file with the key can be made here",
+   "text": "klíč certifikátu {0} vytvořilo zařízení {1} a zůstává tam: acme ho nikdy nemělo, takže soubor s klíčem tu vytvořit nejde"
+  },
+  "pmcsr_29": {
+   "source": "the key of {0} is made by the device of {1} - its CSR comes from there at every issue (Renew now), not from acme",
+   "text": "klíč certifikátu {0} vytváří zařízení {1} - jeho CSR přichází odtamtud při každém vystavení (Obnovit teď), ne z acme"
+  },
+  "pmcsr_30": {
+   "source": "{0} makes the key itself and takes only a certificate for it - add a certificate whose key it makes ({1})",
+   "text": "{0} si klíč vytváří samo a přijme jen certifikát k němu - přidejte certifikát, jehož klíč vytváří ({1})"
+  },
+  "pmcsr_31": {
+   "source": "the XCC made a new key{0} and a CSR for {1} ({2})",
+   "text": "XCC vytvořilo nový klíč{0} a CSR pro {1} ({2})"
+  },
+  "pmcsr_32": {
+   "source": "the XCC took the certificate ({0}) - it serves it within about 15 minutes, without a restart",
+   "text": "XCC certifikát převzalo ({0}) - začne ho podávat do zhruba 15 minut, bez restartu"
+  },
+  "pmcsr_33": {
+   "source": "the XCC asks for {0} in every CSR - fill them in on the target",
+   "text": "XCC vyžaduje {0} v každém CSR - vyplňte je u cíle"
+  },
+  "pmcsr_34": {
+   "source": "this XCC makes its CSR through Lenovo's own service, which takes one host name - give the certificate one name (it has {0})",
+   "text": "toto XCC vytváří CSR vlastní službou Lenova, která bere jedno jméno hostitele - dejte certifikátu jedno jméno (má {0})"
+  },
+  "pmcsr_35": {
+   "source": "The key and the request (CSR) are made by the device of {0} - a new key at every issue; acme holds none",
+   "text": "Klíč a žádost (CSR) vytváří zařízení {0} - při každém vystavení nový klíč; acme žádný nemá"
   }
  },
  "rich": {

@@ -435,6 +435,39 @@ class Carried(unittest.TestCase):
             devicekey.check_csr(info, ['a.example.test'])
 
 
+class WhatHappens(unittest.TestCase):
+    """The plan: the key phase says the device makes the key, its device_csr() recorded in
+    the sandbox (answered with a CSR for the names), the deployment with no key."""
+    def test_plan_of_a_device_key(self):
+        from acmelib.certs import runplan
+        add('cert_targets', 'xccplan', 'lenovo_xcc', {
+            'host': 'xcc.example.test', 'user': 'svccert', 'password': 'pw', 'csr_country': 'CZ',
+            'csr_state': 'Praha', 'csr_city': 'Praha', 'csr_org': 'Example'})
+        cid = save(name='p1', names=['xcc.example.test'], issuer='own', csr_from='xccplan')
+        row = S.cert_get(STORE, cid)
+        deps = STORE.db.rows('SELECT * FROM cert_deploys WHERE cert_id = ?', (cid,))
+        got = runplan.plan(STORE, row, deps, full=True)
+        self.assertFalse(got['recording'], got['recording'])
+        key = [p for p in got['phases'] if p['key'] == 'key'][0]
+        text = json.dumps(key)
+        self.assertIn('made by the device of xccplan', text)
+        self.assertIn('GenerateCSR', text)
+        self.assertNotIn('"stop"', text)
+        if os.environ.get("SHOW_PLAN"):
+            print(json.dumps(key, indent=1)[:3000])
+        dep = [p for p in got['phases'] if p['key'] == 'deploy'][0]
+        dtext = json.dumps(dep)
+        self.assertIn('ReplaceCertificate', dtext)
+        self.assertNotIn('"stop"', dtext)
+        # the sandbox's own answer to a device asked for its CSR, for any module
+        from acmelib.certs import plansandbox as P
+        a = P.Answers([{'url': r'/csr$', 'body': {'pem': '{CSR}'}}])
+        a.csr = devicekey.dummy_csr(['x.example.test'])
+        st, hd, body = a('POST', 'https://d/csr')
+        self.assertEqual(json.loads(body)['pem'], a.csr)
+        self.assertEqual(json.loads(a('GET', 'https://d/other')[2])['CSRString'], a.csr)
+
+
 class ApiAndCli(unittest.TestCase):
     def test_api(self):
         daemon = E.Daemon(STORE, serve=False)

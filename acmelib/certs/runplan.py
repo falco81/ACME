@@ -299,6 +299,29 @@ SSH_ANSWERS = {
 }
 # a Catalyst 9800 is an IOS XE
 SSH_ANSWERS['cisco_wlc9800'] = SSH_ANSWERS['cisco_iosxe']
+# Lenovo XCC: the device makes the key - its CertificateService, the HTTPS collection, the CSR
+# it answers GenerateCSR with ({CSR}: the sandbox's own for the names, plansandbox.Answers)
+ANSWERS['lenovo_xcc'] = [
+    _REDFISH_SESSION,
+    {'method': 'GET', 'url': r'/redfish/v1/?$', 'body': {
+        'RedfishVersion': '1.22.0', 'CertificateService': {
+            '@odata.id': '/redfish/v1/CertificateService'},
+        'Links': {'Sessions': {'@odata.id': '/redfish/v1/SessionService/Sessions'}}}},
+    {'method': 'GET', 'url': r'/redfish/v1/Managers/?$', 'body': {
+        'Members': [{'@odata.id': '/redfish/v1/Managers/1'}]}},
+    {'method': 'GET', 'url': r'/redfish/v1/Managers/1/?$', 'body': {
+        'Manufacturer': 'Lenovo', 'Model': 'XClarity Controller',
+        'NetworkProtocol': {'@odata.id': '/redfish/v1/Managers/1/NetworkProtocol'}}},
+    {'method': 'GET', 'url': r'/redfish/v1/CertificateService/?$', 'body': {'Actions': {
+        '#CertificateService.GenerateCSR': {
+            'target': '/redfish/v1/CertificateService/Actions/CertificateService.GenerateCSR'},
+        '#CertificateService.ReplaceCertificate': {
+            'target': '/redfish/v1/CertificateService/Actions/'
+                      'CertificateService.ReplaceCertificate'}}}},
+    {'method': 'GET', 'url': r'/HTTPS/Certificates/?$', 'body': {'Members': [
+        {'@odata.id': '/redfish/v1/Managers/1/NetworkProtocol/HTTPS/Certificates/1'}]}},
+    {'method': 'POST', 'url': r'GenerateCSR$', 'body': {'CSRString': '{CSR}'}},
+]
 FIRST = {
     'netscaler': [
         {'method': 'GET', 'url': r'/nitro/v1/config/sslcertkey/', 'status': 404,
@@ -994,7 +1017,19 @@ def key_phase(cert, profile, irow, icls):
         'key_type_alt') and not given else [])
     names = _names(cert)
     sans = S.sans_of(names, profile) if names else []
-    if given:
+    if cert.get('csr_from') and not given:
+        # the key made by a target's device (devicekey.py): its run is recorded in plan()
+        steps.append({'kind': 'key', 'words': 'The key and the request (CSR) are made by the '
+                      'device of {0} - a new key at every issue; acme holds none'.replace(
+                          '{0}', str(cert['csr_from'])),
+                      'detail': {'pairs': [['Names', ', '.join(names)],
+                                           ['Key type', cert.get('key_type') or 'ec-256'],
+                                           ['Subject', ', '.join('%s=%s' % kv for kv in (
+                                               profile.get('subject') or {}).items()) or
+                                            'CN=%s' % (names[0] if names else '?')]]},
+                      'note': 'the CSR is checked: every name in it and no other; the '
+                              'certificate issued must be for its key'})
+    elif given:
         steps.append({'kind': 'key', 'words': 'The CSR that was sent in is used - its key '
                       'stays with whoever made it, acme does not hold it',
                       'detail': {'pairs': [['Names', ', '.join(names)],
@@ -1322,6 +1357,32 @@ def plan(store, cert, deploys, full=False):
                   config=scfg, marks=marks, answers=answers_of(irow['kind'], scfg, first=False))
     elif icfg:
         secrets_.stand_ins(_fields_of(icls), icfg)
+    # the device that makes the key (certs.csr_from): its device_csr() recorded
+    devrun = None
+    if cert.get('csr_from'):
+        drow = S.plugin_row(store, 'target', cert.get('csr_from'))
+        dcls = _cls('target', drow.get('kind'), drow) if drow else None
+        if drow and dcls is not None and getattr(dcls, 'device_key', False):
+            dep0 = [d for d in deploys or [] if d.get('target') == drow['name']]
+            dopts = {}
+            if dep0:
+                dopts = dep0[0].get('_options')
+                if dopts is None:
+                    dopts = S.deploy_options(store, dep0[0]) if dep0[0].get('id') else \
+                        dict(dep0[0].get('options') or {})
+            dcfg, dmarks = secrets_.stand_ins(_fields_of(dcls), S.plugin_config('target', drow))
+            dsopts, dm2 = secrets_.stand_ins(_fields_of(dcls, 'deploy_fields'), dopts)
+            dmarks.update(dm2)
+            subj = dict(profile.get('subject') or {})
+            subj.setdefault('CN', cert.get('cn') or (names[0] if names else ''))
+            devrun = (drow, dcls, run(
+                family='target', kind=drow['kind'], name=drow['name'], op='device_csr',
+                config=dcfg, options=dsopts, marks=dmarks, subject=subj,
+                sans=S.sans_of(names, profile),
+                answers=answers_of(drow['kind'], dcfg, dsopts, version=_ver(dcls)),
+                ssh_answers=ssh_answers_of(drow['kind'], dcfg, dsopts, version=_ver(dcls))))
+        else:
+            devrun = (drow, dcls, None)
     # the deployments
     dinfo = []
     for dep in deploys or []:
@@ -1366,7 +1427,8 @@ def plan(store, cert, deploys, full=False):
                     'serial': cert.get('serial'), 'not_before': cert.get('not_before'),
                     'not_after': cert.get('not_after'), 'version': cert.get('version'),
                     'chain': chain, 'id': cert.get('id'),
-                    'ref': cert.get('issuer_ref') or None},
+                    'ref': cert.get('issuer_ref') or None,
+                    'csr_from': cert.get('csr_from') or ''},
            'runs': runs}
     got, rec_err = record(job) if runs else ({}, '')
     try:
@@ -1379,7 +1441,26 @@ def plan(store, cert, deploys, full=False):
 
     phases = []
     # 1. key
-    phases.append(key_phase(cert, profile, irow, icls))
+    kp = key_phase(cert, profile, irow, icls)
+    if devrun is not None:
+        drow, dcls, did = devrun
+        if did is None:
+            kp['steps'].append({'kind': 'stop', 'words': 'There is no such target, or its module '
+                                'makes no keys: the issue is refused'})
+        else:
+            r = result(did)
+            dsteps = steps_of(r['events'], r.get('error'), proxy_on=proxy_on)
+            if not r['events']:
+                dsteps = [{'kind': 'stop', 'words': 'The detailed steps could not be worked out',
+                           'note': r.get('error') or ''}]
+            kp['steps'] += dsteps
+            kp['module'] = {'name': drow['name'], 'kind': drow['kind'],
+                            'title': dcls.title or dcls.kind, 'family': 'target',
+                            'version': _ver(dcls)}
+            if not drow.get('enabled', 1):
+                kp['steps'].append({'kind': 'stop', 'words': 'The target is switched off: the '
+                                    'issue is refused until it is on again'})
+    phases.append(kp)
     # 2. the source
     src = {'key': 'source', 'title': 'The source', 'steps': []}
     if not irow:

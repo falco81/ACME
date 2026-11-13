@@ -155,6 +155,7 @@ Every module here works the same way:
 | `13` | VBR 13.0 - 13.1 | `-Force`; web UI and REST API follow by themselves |
 | `aruba_aos8` | HPE Aruba Networking ArubaOS 8 (Mobility Conductor, controllers) | HPE Aruba Networking |
 | `aruba_iap` | HPE Aruba Networking Instant AP (AOS 8) | HPE Aruba Networking |
+| `lenovo_xcc` | Lenovo XClarity Controller (XCC, XCC2, XCC3) | Lenovo |
 
 **A dual certificate** (ECDSA and RSA of the same names, see
 [certificates.md](certificates.md#dual-certificates-ecdsa--rsa)): the targets
@@ -1303,7 +1304,7 @@ target (1.0.96; before, this said iLO 6 took none - it does from 1.30). Dell's o
 iDRAC (OEM `UploadSSLKey` + `ImportSSLCertificate`, FW 6.00.02+, iDRAC10): the version
 `6.00.02` (1.0.96). **Lenovo XClarity Controller (XCC, XCC2, XCC3) takes only a certificate of
 a request it made itself** (Lenovo's documents) - acme's key cannot go there, whatever
-this target is given. Supermicro's standard certificate service needs the SFT-DCMS-SINGLE
+this target is given - use the target `lenovo_xcc`, whose XCC makes the key and the CSR. Supermicro's standard certificate service needs the SFT-DCMS-SINGLE
 licence - else the target `supermicro_bmc`; Supermicro and OpenBMC take *Send as* `PEM`.
 **Less certain**: whether a controller takes the key inside the string (each
 vendor's own; XCC documents no key import).
@@ -2716,7 +2717,7 @@ follow the certificate (acme sends certificate + key, as HPE's example).
 **Lenovo XClarity Controller (XCC, XCC2, XCC3)**: Lenovo documents that only a
 certificate signed from a CSR made on the same XCC can be imported - no key of acme's
 can be put there (no PKCS#12, no key upload); the plain module's ReplaceCertificate
-with a key is not expected to work there. No version for XCC.
+with a key is not expected to work there. Not a version of this target: the target `lenovo_xcc` (the device makes the key).
 
 ## `hpe_oneview` - HPE OneView / Synergy Composer
 
@@ -3779,6 +3780,54 @@ of staging server, fetched by the AP:
 
 Older certificates are not removed from the AP. *Unverified*: the keyword form of the Instant
 `crypto pki-import` and the URL schemes it fetches from, `commit apply` after the assignment.
+
+## `lenovo_xcc` - Lenovo XClarity Controller (XCC, XCC2, XCC3): the device makes the key
+
+The XCC imports only a certificate signed for a CSR made on the same XCC (Lenovo's XCC3 user
+guide, "SSL certificate handling") - no private key can be put on it. This target is the
+reference module of **"the device makes the key"** (docs/certificates.md *Key made by the
+device*, docs/writing-a-module.md *The device makes the key*): `device_key = True`. At every
+issue and renewal of a certificate whose key it makes (`csr_from` = this target) acme asks
+the XCC for a new key and CSR, has it signed, and imports the certificate right after, in the
+same job; acme never holds the key. The certificate serves the XCC's web interface, Redfish
+and LDAP client.
+
+    POST <Sessions> {UserName, Password}                              (X-Auth-Token)
+    GET  /redfish/v1/CertificateService                               its Actions
+    GET  /redfish/v1/Managers -> Members[0] -> NetworkProtocol
+    POST .../CertificateService.GenerateCSR  {CertificateCollection:
+         {"@odata.id": <NetworkProtocol>/HTTPS/Certificates}, CommonName, AlternativeNames
+         (every name), Country, State, City, Organization[, OrganizationalUnit, Email],
+         KeyPairAlgorithm TPM_ALG_ECDH + KeyCurveId TPM_ECC_NIST_P256|P384 or TPM_ALG_RSA +
+         KeyBitLength 2048|3072|4096 (XCC3)}                          -> CSRString
+    GET  <NetworkProtocol>/HTTPS/Certificates -> Members[0]
+    POST .../CertificateService.ReplaceCertificate {CertificateUri, CertificateType "PEM",
+         CertificateString: the certificate (+ intermediates when "Send the intermediates too")}
+
+**Versions**: the plain one - **XCC3** (ThinkSystem V4), every key type (ec-256, ec-384,
+rsa-2048/3072/4096; the form offers only these). **`xcc2`** - **XCC and XCC2** (ThinkSystem
+V1-V3): no key type is sent (the certificate's key type is RSA 2048), and a firmware without
+the standard GenerateCSR gets Lenovo's OEM service (`<Manager>/Oem/Lenovo/Security/Actions/
+LenovoSecurityService.GenerateCSR`, `DownloadCSR` {Format PEM}, `ImportCertificate`
+{ImportCertificateType CSR, SignedCertificates: the DER}) - which names one host only, so a
+certificate there has one name.
+
+**Settings**: address, port, user and password (a role with only *Configuration - Networking
+and BMC Security*, `custom:nsc`), the subject the XCC asks for in every CSR (Country, State,
+City, Organization; Unit and e-mail optional - the certificate's own subject wins), TLS. The
+deployment: *Send the intermediates too* (off), *Certificate URI* (empty: the first HTTPS
+certificate). The XCC serves the new certificate within about 15 minutes without a restart:
+the tests after the deployment wait up to 16 minutes (`served_wait` 32 × 30 s).
+*Test* signs in and says whether the standard GenerateCSR is offered - nothing changed.
+
+**Less certain** (not tried on a device; from Lenovo's REST API pages and its
+python-redfish-lenovo scripts): the values of KeyPairAlgorithm / KeyCurveId / KeyBitLength
+(Lenovo's page types KeyBitLength as a string, an integer is sent as the DMTF schema says);
+`CertificateType: "PEM"` (used by Lenovo's script, not said on its page); whether the
+intermediates may follow the certificate; the OEM answer's field with the CSR (looked for
+anywhere in the answer) and the shape of `SignedCertificates` (the DER as a list of byte
+values); which key XCC / XCC2 make when none is asked (RSA 2048 assumed); whether the role
+`nsc` alone is enough for GenerateCSR and ReplaceCertificate over Redfish.
 
 ## Products with a guide but no target (1.0.96)
 
