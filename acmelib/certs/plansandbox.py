@@ -732,7 +732,10 @@ class Answers(object):
     def ssh(self, command, input=None):
         """(exit, stdout, stderr) of a command, None when no rule says. An answer's stdout may
         say {SEEN:regex}: the first group of the regex in what was sent over SSH before this
-        (a name the module gave in an earlier command, listed back after the import)."""
+        (a name the module gave in an earlier command, listed back after the import); and
+        {SERIAL} (1.0.96): the serial (hex, as pki.cert_info says it) of the last certificate
+        sent over SSH - in this command's input or before - for a device that prints the
+        serial of the certificate just imported (CUCM's show cert own); '' when none was."""
         seen = getattr(self, '_ssh_seen', None)
         if seen is None:
             seen = self._ssh_seen = []
@@ -756,9 +759,27 @@ class Answers(object):
             if not self._take('ssh', i, r):
                 continue
             out = str(r.get('stdout', '')).replace('{SESSION}', SESSION)
+            if '{SERIAL}' in out:
+                out = out.replace('{SERIAL}', sent_serial(seen))
             out = fill_seen(out, echo)
             return (int(r.get('exit', 0)), out, str(r.get('stderr', '')))
         return None
+
+
+CERT_RE = re.compile(r'-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----', re.S)
+
+
+def sent_serial(seen):
+    """The serial of the last certificate in what was sent (the lines of each SSH command and
+    its input, oldest first) - '' when no certificate was sent."""
+    from acmelib.certs import pki
+    for old in reversed(seen):
+        for pem in reversed(CERT_RE.findall(old)):
+            try:
+                return str(pki.cert_info(pem + '\n').get('serial') or '')
+            except Exception:                           # noqa: BLE001
+                continue
+    return ''
 
 
 def fill_seen(text, echo):

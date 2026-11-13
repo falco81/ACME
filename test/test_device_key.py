@@ -801,6 +801,82 @@ class Wizard(unittest.TestCase):
         self.assertIn('if (!W.deploys[k]) W.deploys[k] = W.devKept[k];', self.SRC)
 
 
+class Round1e(unittest.TestCase):
+    """What the UI bug hunt of the device-made key found (round 1e): a device-key target as
+    the default target, tests made from deployments left behind, a required list field."""
+
+    def test_device_key_target_is_never_the_default(self):
+        from acmelib.certs import defaults as DF
+        with self.assertRaises(ValueError) as e:
+            DF.set_default(STORE, 'target', 'xcc1', 'test')
+        self.assertIn('xcc1 makes its own key and takes only the certificate made for it - it '
+                      'cannot be the default target', str(e.exception))
+        self.assertNotEqual(DF.default_name(STORE, 'target'), 'xcc1')
+        self.assertEqual(DF.set_default(STORE, 'target', 'web', 'test'), 'web')
+        DF.set_default(STORE, 'target', '', 'test')
+
+    def _served(self, cname, target):
+        from acmelib.certs import checks as C
+        cid = save(name=cname, names=[cname + '.example.test'], issuer='own', key_type='ec-256')
+        api.deploy_save(STORE, {'cert_id': cid, 'target': target, 'options': {}}, 'test')
+        name = C.for_target(STORE, cid, target, 'test', 'tls', cname + '.example.test', 443)
+        self.assertTrue(C.auto_made(STORE, name))
+        return cid, name
+
+    def test_auto_tests_go_with_the_certificate(self):
+        from acmelib.certs import checks as C
+        cid, name = self._served('autogo', 'web')
+        # a test of a person's own, attached too, stays
+        add('cert_tests', 'mine-autogo', 'tls', {'host': 'autogo.example.test', 'port': 8443})
+        C.attach(STORE, cid, ['mine-autogo'], 'test')
+        api.cert_drop(STORE, S.cert_get(STORE, cid), 'test')
+        self.assertIsNone(S.plugin_row(STORE, 'check', name))
+        self.assertIsNotNone(S.plugin_row(STORE, 'check', 'mine-autogo'))
+        # one another certificate still uses stays
+        cid2, name2 = self._served('autokeep', 'web')
+        cid3 = save(name='autokeep2', names=['autokeep.example.test'], issuer='own')
+        C.attach(STORE, cid3, [name2], 'test')
+        api.cert_drop(STORE, S.cert_get(STORE, cid2), 'test')
+        self.assertIsNotNone(S.plugin_row(STORE, 'check', name2))
+
+    def test_auto_tests_go_with_the_target(self):
+        from acmelib.certs import checks as C
+        add('cert_targets', 'gone1', 'plaintarget', {})
+        cid, name = self._served('tgone', 'gone1')
+        # its deployment taken away (the test stays attached, run by its schedule only)
+        dep = STORE.db.row('SELECT id FROM cert_deploys WHERE cert_id = ? AND target = ?',
+                           (cid, 'gone1'))
+        STORE.db.run('DELETE FROM cert_deploys WHERE id = ?', (dep['id'],))
+        C.target_gone(STORE, cid, 'gone1')
+        self.assertIsNotNone(S.plugin_row(STORE, 'check', name))
+        row = S.plugin_row(STORE, 'target', 'gone1')
+        api.family_delete(STORE, 'target', {'id': row['id']}, 'test')
+        self.assertIsNone(S.plugin_row(STORE, 'check', name))
+        self.assertIsNone(STORE.db.row('SELECT id FROM cert_checks WHERE test = ?', (name,)))
+        # one a person chose "only by its schedule" for stays
+        add('cert_targets', 'gone2', 'plaintarget', {})
+        cid2, name2 = self._served('tgone2', 'gone2')
+        chk = STORE.db.row('SELECT id FROM cert_checks WHERE cert_id = ? AND test = ?',
+                           (cid2, name2))
+        C.after(STORE, chk['id'], C.AFTER_NONE, 'person')
+        STORE.db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (cid2,))
+        api.family_delete(STORE, 'target', {'id': S.plugin_row(STORE, 'target', 'gone2')['id']},
+                          'test')
+        self.assertIsNotNone(S.plugin_row(STORE, 'check', name2))
+
+    def test_required_list_of_blank_lines(self):
+        add('cert_targets', 'ib1', 'infoblox', {'host': '192.0.2.35', 'user': 'u', 'password': 'p'})
+        cid = save(name='ibc', names=['ibc.example.test'], issuer='own')
+        for members in ([''], [' ', ''], '\n'):
+            with self.assertRaises(ValueError) as e:
+                api.deploy_save(STORE, {'cert_id': cid, 'target': 'ib1',
+                                        'options': {'members': members}}, 'test')
+            self.assertIn('Grid members is needed', str(e.exception))
+        self.assertIsNone(STORE.db.row('SELECT id FROM cert_deploys WHERE cert_id = ?', (cid,)))
+        with open(os.path.join(ROOT, 'acmelib', 'certs', 'api.py'), encoding='utf-8') as f:
+            self.assertIn("b = dict(b, options={})", f.read())
+
+
 def tearDownModule():
     shutil.rmtree(TMP, ignore_errors=True)
 

@@ -797,6 +797,14 @@ class SupervisorTest(unittest.TestCase):
                  **dict(SUPCFG, endpoint_host='sup.example.test'))
         self.assertIn('supervisors calls', t.test())
         self.assertEqual(t.served_places({}), [('sup.example.test', 443)])
+        self.assertEqual(t.served_places({'endpoint': 'KUBERNETES_API_SERVER'}),
+                         [('sup.example.test', 443)])
+        # 1.0.96: the API endpoint serves its own certificate, not the NSX ingress's - no test
+        # made there for an ingress deployment
+        for v in ('', '9.1'):
+            t = make('vsphere_supervisor', v, FakeCtx(), **dict(SUPCFG,
+                                                               endpoint_host='sup.example.test'))
+            self.assertEqual(t.served_places({'endpoint': 'DEFAULT_NSX_INGRESS'}), [])
 
 
 def verify_asked(t, options=None):

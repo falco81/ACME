@@ -19,7 +19,8 @@ CLI (SSH, an OS platform account of privilege level 1):
         <the certificate pasted, an empty line>
     show cert own <unit>/<unit>.pem                       the serial checked
     utils service restart Cisco Tomcat | Cisco Tftp       (tomcat; CallManager: Cisco CallManager,
-                                                          Cisco CTIManager - when asked)
+                                                          Cisco CTIManager, Cisco HAProxy - when
+                                                          asked)
 
 The CLI makes the CSR with CUCM's own names: the node's FQDN as the common name, and the
 names CUCM adds (its domain, an alternate host name set with `set web-security`) - it takes
@@ -67,8 +68,8 @@ UNITS = ('tomcat', 'tomcat-ECDSA', 'CallManager', 'CallManager-ECDSA')
 RESTART = {
     'tomcat': ['Cisco Tomcat', 'Cisco Tftp'],
     'tomcat-ECDSA': ['Cisco Tomcat', 'Cisco Tftp'],
-    'CallManager': ['Cisco CallManager', 'Cisco CTIManager'],
-    'CallManager-ECDSA': ['Cisco CallManager', 'Cisco CTIManager'],
+    'CallManager': ['Cisco CallManager', 'Cisco CTIManager', 'Cisco HAProxy'],
+    'CallManager-ECDSA': ['Cisco CallManager', 'Cisco CTIManager', 'Cisco HAProxy'],
 }
 # what CUCM's CLI says when a command did not do its work
 BAD = re.compile(r'^\s*(.*(?:Executed command unsuccessfully|Invalid command|[Ii]nvalid '
@@ -129,9 +130,9 @@ class CucmTarget(Base):
     ]
     deploy_fields = [
         field('restart', 'Restart the services', 'bool', default=True,
-              help='tomcat: Cisco Tomcat and Cisco Tftp; CallManager: Cisco CallManager and '
-                   'Cisco CTIManager (phones register again) - off: restart them yourself, '
-                   'CUCM keeps serving the old certificate until then'),
+              help='tomcat: Cisco Tomcat and Cisco Tftp; CallManager: Cisco CallManager, '
+                   'Cisco CTIManager and Cisco HAProxy (phones register again) - off: restart '
+                   'them yourself, CUCM keeps serving the old certificate until then'),
         field('root_pem', 'Root CA certificate', 'pem',
               help='the root the chain ends in, imported to <unit>-trust with the '
                    'intermediates (ISRG Root X1 for Let\'s Encrypt); empty: the last '
@@ -150,7 +151,9 @@ class CucmTarget(Base):
     def served_places(self, options):
         if not self.c('host') or not self.unit().startswith('tomcat'):
             return []
-        return [(self.c('host'), 8443)]
+        # Cisco Tomcat serves tomcat (RSA) and tomcat-ECDSA on the same port, the one the
+        # client offers: the test asks for the key of the unit (1.0.96)
+        return [(self.c('host'), 8443, 'ecdsa' if self.unit().endswith('-ECDSA') else 'rsa')]
 
     # -- the CLI --------------------------------------------------------------------------
     def unit(self):

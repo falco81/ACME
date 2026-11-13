@@ -13,7 +13,9 @@ certificate - each deployment says which:
 - **an enclosure's management module** - a Synergy frame's **Frame Link Module** bay or a
   c7000's **Onboard Administrator** bay, which take no key at all, only a certificate for their
   own CSR: `POST /rest/enclosures/{id}/https/certificaterequest?bayNumber=N`, then `PUT`.
-  **One name** only (the common name - OneView's enclosure CSR carries no other names).
+  **One name** only (the common name - OneView's enclosure CSR carries no other names: acme puts
+  the certificate's name there, whatever the profile's CN), **RSA 2048** only (the enclosure's
+  CSR asks for no key size), bay `1` or `2`.
 
 Versions: HPE OneView for Synergy and OneView **9.x - 11.x** (REST API 6600 - 9200); acme sends
 the API version the appliance says it takes. To put a key of acme's on the appliance instead,
@@ -100,6 +102,8 @@ acme --renew composer
 | `OneView has no enclosure named ...` | Use the name shown in **Enclosures**, or the enclosure's URI. |
 | The import task ends `invalid certificate` | The issuing CA is not in the trust store (leave *Put the intermediates into the trust store* on), or another CSR was made since (by hand in the GUI) - **Renew now** makes a new one. |
 | Only RSA | The appliance makes RSA keys only: key type `rsa-2048` (`rsa-3072` for CNSA). |
+| `an enclosure's management module makes RSA 2048 keys only` | Choose key type `rsa-2048` for an enclosure's certificate - refused before the bay is asked. |
+| `the bay is 1 or 2` | Give the bay of the Frame Link Module / Onboard Administrator: `1` or `2`. |
 | Deployments held | The device keeps its old certificate; the next issue asks for a new key and CSR. |
 
 The enclosure call is documented by HPE's SDK for the Onboard Administrator; on a Synergy

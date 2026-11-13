@@ -47,7 +47,7 @@ FQDN Supervisoru a virtuální IP v SAN, celý řetězec (koncový → mezilehl�
 | Adresa / Port HTTPS | FQDN vCenteru, `443` |
 | Uživatel / Heslo | `svc-wcp-cert@vsphere.local` a jeho heslo |
 | Supervisor | ID clusteru, `domain-c8` |
-| API endpoint | FQDN nebo VIP Supervisoru |
+| API endpoint | FQDN nebo VIP Supervisoru - kde acme testuje servírovaný certifikát |
 | Který certifikát (nasazení) | Kubernetes API endpoint |
 | Kořenový certifikát CA (nasazení) | kořenový PEM, když jím řetězec nekončí |
 

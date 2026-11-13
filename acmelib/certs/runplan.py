@@ -416,7 +416,9 @@ ANSWERS['vcf_component@9.1'] = [
 ]
 # CUCM's CLI (one session a step, the lines on its input): the version, an empty trust
 # store, the imports and restarts as Cisco's TechNote 200753 shows them; set csr gen /
-# show csr own print the sandbox's CSR (what an unanswered command prints)
+# show csr own print the sandbox's CSR (what an unanswered command prints); show cert own
+# prints the serial of the certificate just pasted ({SERIAL}, 1.0.96 - no warning that CUCM
+# shows another)
 SSH_ANSWERS['cucm'] = [
     {'command': r'^$', 'input': r'^show version active', 'stdout':
         'Active Master Version: 15.0.1.13900-234\n'},
@@ -424,7 +426,8 @@ SSH_ANSWERS['cucm'] = [
     {'command': r'^$', 'input': r'^set cert import trust', 'stdout':
         'Paste the Certificate and Hit Enter\nImport of trust certificate is successful\n'},
     {'command': r'^$', 'input': r'^set cert import own', 'stdout':
-        'Paste the Certificate and Hit Enter\nSuccessfully imported certificate for tomcat.\n'},
+        'Paste the Certificate and Hit Enter\nSuccessfully imported certificate for tomcat.\n'
+        '[\n  Version: V3\n  SerialNumber: [ {SERIAL} ]\n]\n'},
     {'command': r'^$', 'input': r'^utils service restart', 'stdout':
         'Service Manager is running\nCommanded Restart\n'},
 ]

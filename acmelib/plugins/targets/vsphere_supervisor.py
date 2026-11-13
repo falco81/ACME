@@ -77,8 +77,8 @@ class SupervisorTarget(VCenterTarget):
         field('supervisor', 'Supervisor', 'text', required=True, placeholder='domain-c8',
               help='the Supervisor\'s id (vCenter 9.1) or its cluster\'s id (vCenter 9.0)'),
         field('endpoint_host', 'API endpoint', 'text', placeholder='supervisor.example.local',
-              help='the Supervisor\'s FQDN or virtual IP: where acme checks the certificate '
-                   'served (443)'),
+              help='the Supervisor\'s FQDN or virtual IP: where acme checks the API '
+                   'endpoint\'s certificate (443); the NSX ingress\'s is not checked there'),
     ] + tls_fields()
     deploy_fields = [
         field('endpoint', 'Which certificate', 'select', default='KUBERNETES_API_SERVER',
@@ -198,14 +198,20 @@ class SupervisorTarget(VCenterTarget):
 
     served_wait = (6, 10)
 
+    @staticmethod
+    def ingress(options):
+        return text((options or {}).get('endpoint')) == 'DEFAULT_NSX_INGRESS'
+
     def served_places(self, options):
+        # the API endpoint serves its own certificate, not the NSX ingress's (1.0.96: the
+        # ingress deployment was tested there and failed) - no test made for the ingress
         h = text(self.c('endpoint_host')).strip()
-        return [(h, 443)] if h else []
+        return [(h, 443)] if h and not self.ingress(options) else []
 
     def verify(self, bundle, options):
         options = dict(options or {})
         h = text(self.c('endpoint_host')).strip()
-        if not options.get('verify') and h:
+        if not options.get('verify') and h and not self.ingress(options):
             options['verify'] = '%s:443' % h
         options.setdefault('verify_tries', 6)
         options.setdefault('verify_wait', 10)

@@ -96,5 +96,5 @@ AF S3*. RESTful API nemá endpoint pro certifikáty, proto CLI.
 | V událostech `Network service startup error. service=GUI` | Pár byl odmítnut: nasaďte znovu (vynuceně) - acme registruje přes SSH, které funguje i bez HTTPS; nebo `create ssl-certificate` obnoví self-signed certifikát. |
 | Řetězec je odmítnut | Vypněte *Poslat s certifikátem i řetězec*. |
 | SMI-S servíruje starý certifikát | Zapněte *Restartovat SMI-S s novým certifikátem*, nebo ručně `set smi-s -function disable` / `enable`. |
-| `takes RSA keys only` | Změňte typ klíče certifikátu na RSA. |
+| `berou jen klíče RSA` (`take RSA keys only`) | Změňte typ klíče certifikátu na RSA. |
 | Starší pole odmítá `-disable-ftps` | Zvolte *Přenos souborů: FTP na DX S5 / AF S3 / AF S2*. |

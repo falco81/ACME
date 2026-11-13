@@ -48,7 +48,7 @@ The certificate is there already (read first with `GET`): nothing done. Kubeconf
 | Address / HTTPS port | vCenter's FQDN, `443` |
 | User / Password | `svc-wcp-cert@vsphere.local` and its password |
 | Supervisor | `domain-c8` (9.1: the Supervisor's id; 9.0: its cluster's id) |
-| API endpoint | `supervisor.example.local` (or the VIP) - where acme checks the certificate served |
+| API endpoint | `supervisor.example.local` (or the VIP) - where acme tests the API endpoint's certificate after a deployment; the NSX ingress's certificate is not tested there (no test is made for it - add one for the ingress's name in Certificates → Tests) |
 | Which certificate (deploy) | the Kubernetes API endpoint; the default NSX ingress on vCenter 9.1 |
 | Root CA certificate (deploy) | the root PEM, when the chain does not end in it |
 

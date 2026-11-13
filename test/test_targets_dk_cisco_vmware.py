@@ -144,7 +144,10 @@ class Cucm(unittest.TestCase):
         self.assertTrue(d['device_key'])
         self.assertEqual(d['device_key_types'], ['rsa-2048', 'ec-256', 'ec-384'])
         t = make('cucm', '', FakeCtx(), UCFG)
-        self.assertEqual(t.served_places({}), [('cucm-pub.example.test', 8443)])
+        # 1.0.96: the key of the unit asked for - Tomcat serves tomcat-ECDSA on 8443 too
+        self.assertEqual(t.served_places({}), [('cucm-pub.example.test', 8443, 'rsa')])
+        self.assertEqual(make('cucm', '', FakeCtx(), dict(UCFG, unit='tomcat-ECDSA'))
+                         .served_places({}), [('cucm-pub.example.test', 8443, 'ecdsa')])
         self.assertEqual(U.CucmTarget.served_wait({}), (20, 30))
         self.assertIsNone(U.CucmTarget.served_wait({'restart': False}))
         self.assertEqual(make('cucm', '', FakeCtx(), dict(UCFG, unit='CallManager'))
@@ -255,7 +258,22 @@ class Cucm(unittest.TestCase):
         typed = dev.typed()
         self.assertIn('utils service restart Cisco CallManager', typed)
         self.assertIn('utils service restart Cisco CTIManager', typed)
+        # 1.0.96: Cisco HAProxy too (Admin Guide 15, Table 5)
+        self.assertIn('utils service restart Cisco HAProxy', typed)
+        self.assertNotIn('utils service restart Cisco Tomcat', typed)
         self.assertTrue(any('CTLFile' in w for _l, w in ctx.steps))
+
+    def test_plan_shows_the_serial_imported(self):
+        # What happens: the sandbox's show cert own prints the serial of the certificate
+        # pasted ({SERIAL}, 1.0.96) - no warning a real CUCM would not give
+        from acmelib.certs import plansandbox as P, runplan as R
+        b = device_bundle()
+        a = P.Answers([], R.ssh_answers_of('cucm', dict(UCFG), {}))
+        dev = FakeSsh(answers=[(r'', lambda cmd, inp: a.ssh(cmd, inp) or (0, '', ''))])
+        ctx = FakeCtx(ssh=dev)
+        make('cucm', '', ctx, UCFG).deploy(b, {'restart': False})
+        self.assertFalse([w for lv, w in ctx.steps if lv == 'warn' and 'serial' in w])
+        self.assertTrue(any('took the certificate' in w for _l, w in ctx.steps))
 
     def test_an_error_said(self):
         dev = FakeCucm()
@@ -327,6 +345,9 @@ class Sddc(unittest.TestCase):
             self.assertEqual(v.fields, vers[''].fields, 'saved settings fit both')
         t = make('vcf_component', '', FakeCtx(), VCFG)
         self.assertEqual(t.served_places({}), [('vc01.example.test', 443)])
+        # 1.0.96: no Component FQDN - deployed for the certificate's first name, tested there
+        t = make('vcf_component', '', FakeCtx(), dict(VCFG, resource_fqdn=''))
+        self.assertEqual(t.served_places({}), [(t.CERT_NAME, 443)])
 
     def test_csr(self):
         want = a_csr(['vc01.example.test', '10.0.0.10'], 'rsa-3072')
@@ -405,6 +426,52 @@ class Sddc(unittest.TestCase):
                                  'caCertificate': r, 'certificateChain': r}])
         self.assertNotIn('PRIVATE KEY', ctx.calls[4]['body'].decode())
 
+    def test_wait_rides_out_errors_and_signs_in_again(self):
+        # 1.0.96: SDDC Manager restarting its services (a 502, a refused connection) or the
+        # token run out (401) while polling the install task did end the deployment while VCF
+        # went on installing - asked again, signed in again once
+        polls = {'n': 0}
+
+        def task(call):
+            polls['n'] += 1
+            if polls['n'] == 1:
+                return (502, '<html>Bad Gateway</html>')
+            if polls['n'] == 2:
+                raise OSError('connection refused')
+            if polls['n'] == 3:
+                return (200, {'id': 't-2', 'status': 'IN_PROGRESS'})
+            if call['headers'].get('Authorization') == 'Bearer JWT':
+                return (401, {'message': 'token expired'})
+            return (200, {'id': 't-2', 'status': 'SUCCESSFUL'})
+        tokens = iter(['JWT', 'JWT2'])
+        routes = [r for r in sddc_routes() if r[1] not in (r'/v1/tasks/t-2$', r'/v1/tokens$')]
+        routes[:0] = [('GET', r'/v1/tasks/t-2$', task),
+                      ('POST', r'/v1/tokens$', lambda c: (200, {'accessToken': next(tokens)}))]
+        ctx = FakeCtx(routes)
+        words = make('vcf_component', '', ctx, dict(VCFG, resource_type='SDDC_MANAGER')).deploy(
+            device_bundle(), {})
+        self.assertIn('vc01.example.test', words)
+        self.assertEqual(polls['n'], 5)
+        self.assertEqual(len(ctx.find('POST', r'/v1/tokens$')), 2)
+        # a second 401 after signing in again, or a 4xx, still ends it
+        routes[0] = ('GET', r'/v1/tasks/t-2$', (401, {'message': 'no'}))
+        tokens = iter(['JWT', 'JWT2'])
+        with self.assertRaises(PluginError) as e:
+            make('vcf_component', '', FakeCtx(routes), VCFG).deploy(device_bundle(), {})
+        self.assertIn('401', str(e.exception))
+        routes[0] = ('GET', r'/v1/tasks/t-2$', (404, {'message': 'no such task'}))
+        tokens = iter(['JWT', 'JWT2'])
+        with self.assertRaises(PluginError) as e:
+            make('vcf_component', '', FakeCtx(routes), VCFG).deploy(device_bundle(), {})
+        self.assertIn('404', str(e.exception))
+        # always failing: still running, said with the last error
+        routes[0] = ('GET', r'/v1/tasks/t-2$', (503, 'down'))
+        tokens = iter(['JWT', 'JWT2'])
+        with self.assertRaises(PluginError) as e:
+            make('vcf_component', '', FakeCtx(routes), dict(VCFG, task_minutes=1)).deploy(
+                device_bundle(), {})
+        self.assertIn('still running', str(e.exception))
+
     def test_validation_refused(self):
         with self.assertRaises(PluginError) as e:
             make('vcf_component', '', FakeCtx(sddc_routes(validation='FAILED')), VCFG).deploy(
@@ -477,6 +544,27 @@ class Ops(unittest.TestCase):
                                                        'ip': ['10.0.0.10']}}})
         self.assertEqual(ctx.calls[3]['headers']['Authorization'], 'OpsToken OPS')
         self.assertEqual(ctx.calls[5]['query'], {'certificateId': ['c-77']})
+
+    def test_workflow_wait_signs_in_again(self):
+        # 1.0.96: the token run out while the replace workflow runs - signed in again once
+        n = {'poll': 0, 'tok': 0}
+
+        def wf(call):
+            n['poll'] += 1
+            if call['headers'].get('Authorization') == 'OpsToken OPS':
+                return (401, {'message': 'expired'})
+            return (200, {'state': 'COMPLETED'})
+
+        def tok(call):
+            n['tok'] += 1
+            return (200, {'token': 'OPS' if n['tok'] == 1 else 'OPS2'})
+        routes = [r for r in ops_routes() if r[1] not in (r'/workflows/requests/w-[12]$',
+                                                          r'/auth/token/acquire$')]
+        routes[:0] = [('GET', r'/workflows/requests/w-2$', wf),
+                      ('POST', r'/auth/token/acquire$', tok)]
+        ctx = FakeCtx(routes)
+        make('vcf_component', '9.1', ctx, OCFG).deploy(device_bundle(), {})
+        self.assertEqual((n['poll'], n['tok']), (2, 2))
 
     def test_old_version_refused(self):
         ctx = FakeCtx(ops_routes(version=(9, 0)))

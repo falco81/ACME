@@ -48,7 +48,7 @@ Je-li certifikát už nasazený (nejdřív se přečte přes `GET`), nic neděl�
 | Adresa / Port HTTPS | FQDN vCenteru, `443` |
 | Uživatel / Heslo | `svc-wcp-cert@vsphere.local` a jeho heslo |
 | Supervisor | `domain-c8` (9.1: ID Supervisoru; 9.0: ID jeho clusteru) |
-| API endpoint | `supervisor.example.local` (nebo VIP) - kde acme kontroluje servírovaný certifikát |
+| API endpoint | `supervisor.example.local` (nebo VIP) - kde acme po nasazení testuje certifikát API endpointu; certifikát NSX ingressu se tam netestuje (test se pro něj nevytvoří - přidejte si test jména ingressu v Certifikáty → Testy) |
 | Který certifikát (nasazení) | Kubernetes API endpoint; výchozí NSX ingress na vCenteru 9.1 |
 | Kořenový certifikát CA (nasazení) | kořenový PEM, když jím řetězec nekončí |
 

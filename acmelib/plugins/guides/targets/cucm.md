@@ -90,7 +90,7 @@ The deployment's options:
 
 | Option | Meaning |
 |---|---|
-| Restart the services | On: `utils service restart Cisco Tomcat` and `Cisco Tftp` (tomcat), `Cisco CallManager` and `Cisco CTIManager` (CallManager). Off: you restart them; CUCM serves the old certificate until then |
+| Restart the services | On: `utils service restart Cisco Tomcat` and `Cisco Tftp` (tomcat), `Cisco CallManager`, `Cisco CTIManager` and `Cisco HAProxy` (CallManager). Off: you restart them; CUCM serves the old certificate until then |
 | Root CA certificate | The root the chain ends in, imported into `<unit>-trust` with the intermediates |
 | CA file in the trust store | Empty: the issuer found in `show cert list trust`; else e.g. `tomcat-trust/Example_Issuing_CA.pem` |
 
@@ -102,7 +102,9 @@ The deployment's options:
   imports and the restarts. Then:
 
   ```sh
-  openssl s_client -connect cucm-pub.example.local:8443 -servername cucm-pub.example.local -showcerts </dev/null | openssl x509 -noout -subject -issuer -dates -ext subjectAltName
+  # tomcat (RSA) - Cisco Tomcat serves tomcat-ECDSA on 8443 too, by what the client offers;
+  # for tomcat-ECDSA give -sigalgs ECDSA+SHA256 (acme's test asks the same way - TLS 1.2, the unit's key)
+  openssl s_client -connect cucm-pub.example.local:8443 -servername cucm-pub.example.local -tls1_2 -sigalgs RSA+SHA256 -showcerts </dev/null | openssl x509 -noout -subject -issuer -dates -ext subjectAltName
   ```
 
   ```text

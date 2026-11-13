@@ -169,8 +169,9 @@ class VcfComponentTarget(HttpTarget):
     token = None
 
     def served_places(self, options):
-        fq = text(self.c('resource_fqdn')).strip()
-        return [(fq, 443)] if fq else []
+        # no Component FQDN: deploy() installs for the certificate's first name - tested there
+        fq = text(self.c('resource_fqdn')).strip().rstrip('.')
+        return [(fq or self.CERT_NAME, 443)]
 
     # -- signing in ------------------------------------------------------------------------
     def auth_headers(self):
@@ -226,7 +227,13 @@ class VcfComponentTarget(HttpTarget):
             self, lambda: self.req('GET', '/v1/tasks/%s' % tid, what='asking about %s' % what)[2],
             lambda x: _status(x, 'status') in DONE,
             lambda x: _status(x, 'status') in FAILED,
-            tries=self._tries(), every=10.0, what=what)
+            tries=self._tries(), every=10.0, what=what, tolerate=True, relogin=self._relogin)
+
+    def _relogin(self):
+        """Signing in again while waiting: the token may have run out during a long task
+        (the waits add up to more than an hour), or SDDC Manager restarted its services."""
+        self.token = None
+        self.login()
 
     def wait_request(self, d, what):
         """A VCF Operations workflow request until it ends."""
@@ -239,7 +246,7 @@ class VcfComponentTarget(HttpTarget):
                                    what='asking about %s' % what)[2],
             lambda x: _status(x, 'state', 'status') in DONE,
             lambda x: _status(x, 'state', 'status') in FAILED,
-            tries=self._tries(), every=10.0, what=what)
+            tries=self._tries(), every=10.0, what=what, tolerate=True, relogin=self._relogin)
 
     # -- what the CSR is for -----------------------------------------------------------------
     def fqdn(self, req=None):
@@ -466,7 +473,8 @@ class VcfComponentTarget(HttpTarget):
                 self, lambda: self.req('GET', base + '/validations/%s' % vid,
                                        what='asking about the validation')[2],
                 lambda x: _status(x, 'executionStatus') in DONE and not failed(x),
-                failed, tries=60, every=5.0, what='the validation of the certificate')
+                failed, tries=60, every=5.0, what='the validation of the certificate',
+                tolerate=True, relogin=self._relogin)
             self.ctx.step('SDDC Manager validated the certificate for %s (%s)' % (
                 fq, _status(got, 'resultStatus') or 'done'), 'ok')
         st, hd, d = self.req('PUT', base, body, what='having SDDC Manager install the '

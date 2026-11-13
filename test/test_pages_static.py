@@ -183,5 +183,76 @@ class Phone(unittest.TestCase):
                       'minmax(min(360px,100%),1fr))}', css)
 
 
+class DeviceKeyRound1e(unittest.TestCase):
+    """What the UI bug hunt of the versions and the device-made key found (round 1e)."""
+
+    def test_version_labels_in_the_page_language(self):
+        core = read('web', 'assets', 'core.js')
+        certs = read('web', 'assets', 'certs.js')
+        guides = read('web', 'assets', 'guides.js')
+        self.assertIn('function versionWords(v)', core)
+        # drawn as data, so translated before: the picker, the module's version rows, the guide
+        self.assertIn("data('span', 'md-vcard-l', versionWords(v) || v.title || '')", certs)
+        self.assertIn("t.appendChild(data('span', 'muted', ' · ' + versionWords(v)))", certs)
+        self.assertIn("versionWords(v) || v.version || tr('plain')", guides)
+        for src in (certs, guides, read('web', 'assets', 'guides-editor.js')):
+            self.assertNotRegex(src, r"(data\('[a-z]+', '[^']*', |, )v\.version_label \|\|")
+        # the plain version of a module that says nothing: "any version"
+        node = shutil.which('node')
+        if node:
+            fn = re.search(r'\nfunction versionWords[\s\S]*?\n}\n', core).group(0)
+            js = ('function known(x) { return x === "any version" ? "jakákoli verze" : x; }' + fn +
+                  'console.log(JSON.stringify([versionWords({version: ""}), versionWords({version: "8.0.2"}),'
+                  ' versionWords({version: "", version_label: "X 1"})]));')
+            got = subprocess.run([node, '-e', js], capture_output=True, text=True, timeout=60)
+            self.assertEqual(json.loads(got.stdout), ['jakákoli verze', '', 'X 1'], got.stderr)
+
+    def test_modules_filter_by_version(self):
+        certs = read('web', 'assets', 'certs.js')
+        self.assertIn("version: mdVersionWords(p),", certs)
+        self.assertIn("'version:9.10'", certs)
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        fn = re.search(r'\nfunction mdVersionWords[\s\S]*?\n}\n', certs).group(0)
+        js = ('function arr(x) { return Array.isArray(x) ? x : []; } function tr(x) { return x; }' + fn +
+              'console.log(JSON.stringify(mdVersionWords({versions: [{version: ""}, {version: "9.10",'
+              ' version_label: "ONTAP 9.10.1 - 9.19"}]})));')
+        got = subprocess.run([node, '-e', js], capture_output=True, text=True, timeout=60)
+        out = json.loads(got.stdout)
+        for want in ('plain', '9.10', '9.10.1', '9.19'):
+            self.assertIn(want, out)
+
+    def test_what_happens_for_a_device_key(self):
+        rp = read('web', 'assets', 'runplan.js')
+        self.assertIn("ph.key === 'key' && cert && cert.csr_from ? LEDE_DEVICE_KEY", rp)
+        self.assertIn("phaseBlock(ph, i + 1, p.cert)", rp)
+        self.assertIn("kd.appendChild(el('span', '', 'key made by'));", rp)
+        # a decimal comma in Czech
+        self.assertIn("numDecimal() === ',') took = took.replace('.', ',')", rp)
+
+    def test_the_wizard_and_the_deployment(self):
+        certs = read('web', 'assets', 'certs.js')
+        # back to "Key made by the device": the device given or picked last, not the first
+        self.assertNotIn("W.d.csr_from = o[0] ? (W.d.csr_from || (devs[0] || {}).name || '') : '';", certs)
+        self.assertIn("[W.devLast, opts.csrFrom, c.csr_from]", certs)
+        self.assertIn("W.d.csr_from = W.devLast = dsel.value;", certs)
+        # "acme, here" on a certificate deployed to its device: said in the key step
+        self.assertIn("rowsOf(obj(detail).deploys).some(function (r) { return r.target === c.csr_from; })", certs)
+        # Deploy it on a target: its device only, or no device that makes its own key
+        self.assertIn("return csrFrom ? t.name === csrFrom : !devKeyOf(t);", certs)
+        self.assertIn("return !x.csr_from || x.csr_from === tName;", certs)
+        # no deployment to the device: said
+        self.assertIn("it has no deployment to {0}, whose device makes its key", certs)
+        # not the default target
+        self.assertIn('function targetDefaultable(t)', certs)
+        self.assertNotIn("(key !== 'targets' || deployable(r))", certs)
+        # a key tile that cannot be chosen is not "recommended"; off tiles look off
+        self.assertIn("if (rec) rec.hidden = !k.ok;", certs)
+        css = read('web', 'assets', 'certs.css')
+        self.assertIn('.ct-src.off,.ct-keyt.off{opacity:.45;cursor:not-allowed;border-style:dashed', css)
+        self.assertIn('.ct-src.off.on,.ct-keyt.off.on{border-color:var(--line)}', css)
+
+
 if __name__ == '__main__':
     sys.exit(unittest.main())

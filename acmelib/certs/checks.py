@@ -140,11 +140,13 @@ def attach(store, cert_id, names, by, after_target=''):
 
 @_one_at_a_time
 def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='', via=None,
-               auto=False):
+               auto=False, key_want=''):
     """A test of what a target serves (1.0.77, in place of the deployment's "Check what is
     served"): made - or the same one found - attached to the certificate, run after a
     deployment on that target, and through the target's connector when it has one. A
-    failing one fails the deployment there (deployer.run_deploys). -> the test's name."""
+    failing one fails the deployment there (deployer.run_deploys). `key_want` ('rsa', 'ecdsa'
+    or '' - whichever the server picks): the key the test asks for, where the target serves
+    an RSA and an ECDSA certificate on one port (1.0.96, served_places). -> the test's name."""
     from acmelib.certs import api
     trow = S.plugin_row(store, 'target', target)
     if not trow:
@@ -160,7 +162,11 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
     if not 0 < port < 65536:
         raise ValueError('the port %s is not one' % port)
     cfg = {'port': port}
-    for k, v in (('host', host), ('sni', str(sni or '').strip()), ('via', str(via or '').strip())):
+    key_want = str(key_want or '').strip().lower()
+    if key_want not in ('', 'rsa', 'ecdsa', 'both'):
+        raise ValueError('the key asked for is rsa, ecdsa or both - not %s' % key_want)
+    for k, v in (('host', host), ('sni', str(sni or '').strip()), ('via', str(via or '').strip()),
+                 ('key_want', key_want)):
         if v:
             cfg[k] = v
     # the certificate must be deployed there - checked before a test is made (1.0.78: a test
@@ -170,10 +176,12 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
     name = None
     for r in store.db.rows('SELECT name, config FROM cert_tests WHERE kind = ?', (kind,)):
         c = S.jload(r.get('config'), {}) or {}
-        if all(str(c.get(k) or '') == str(cfg.get(k) or '') for k in ('host', 'port', 'sni', 'via')):
+        if all(str(c.get(k) or '') == str(cfg.get(k) or '')
+               for k in ('host', 'port', 'sni', 'via', 'key_want')):
             name = r['name']
             break
-    base = re.sub(r'[^A-Za-z0-9_.-]+', '-', '%s-%s-%d' % (target, host or 'name', port)).strip('-')
+    base = re.sub(r'[^A-Za-z0-9_.-]+', '-', '%s-%s-%d%s' % (
+        target, host or 'name', port, ('-' + key_want) if key_want else '')).strip('-')
     base = base[:60] or 'test'
     # made by acme by itself (auto, served_tests): one a person took off stays off - looked at
     # before anything is made (1.0.96: made again in Tests, attached to nothing)
@@ -206,6 +214,8 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
 
 
 AUTO_NOTE = '(made from its deployment)'
+# a served place's host meaning "the certificate's first name" (1.0.96, plugins/base.py)
+CERT_NAME = '{name}'
 
 
 def auto_made(store, name):
@@ -306,8 +316,16 @@ def served_tests(store, dep, by):
     except Exception as e:                              # noqa: BLE001
         E.log('where %s serves could not be read: %s' % (dep['target'], e), 'warn')
         return []
-    for host, port in places[:5]:
+    for place in places[:5]:
+        # (host, port) - or (host, port, key): the key the test asks for, 'rsa' / 'ecdsa', where
+        # one port serves both (1.0.96: CUCM's tomcat and tomcat-ECDSA); host CERT_NAME: the
+        # certificate's first name (the test made with no host connects to it)
+        host, port = place[0], place[1]
+        want = str(place[2] or '') if len(place) > 2 else ''
         host = str(host or '').strip()
+        first = host == CERT_NAME
+        if first:
+            host = ''
         if '://' in host:
             from urllib.parse import urlsplit
             try:
@@ -316,11 +334,11 @@ def served_tests(store, dep, by):
             except ValueError:
                 continue
         host = host.strip('[]').rstrip('/')
-        if not host:
+        if not host and not first:
             continue
         try:
             got = for_target(store, dep['cert_id'], dep['target'], by, 'tls', host, int(port),
-                             auto=True)
+                             auto=True, key_want=want)
             if got:
                 made.append(got)
         except (LookupError, ValueError) as e:

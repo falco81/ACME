@@ -42,7 +42,7 @@ DELETE /api/session
 | Adresa / Port HTTPS | FQDN vCenteru, `443` |
 | Uživatel / Heslo | `svc-wcp-cert@vsphere.local` a jeho heslo |
 | Supervisor | jeho ID, např. `domain-c8` |
-| API endpoint | FQDN nebo VIP Supervisoru (u ingressu jméno ingressu) |
+| API endpoint | FQDN nebo VIP Supervisoru - kde se testuje certifikát API endpointu; certifikát ingressu se tam netestuje (test se pro něj nevytvoří - přidejte si test jména ingressu v Certifikáty → Testy) |
 | Který certifikát (nasazení) | Kubernetes API endpoint, nebo výchozí NSX ingress - každý jedním nasazením |
 | Kořenový certifikát CA (nasazení) | kořenový PEM, když jím řetězec nekončí |
 

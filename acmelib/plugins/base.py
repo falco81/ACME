@@ -1014,9 +1014,18 @@ class Target(Plugin):
     # Or a function of the deployment's options giving that (1.0.95: a BMC only when reset).
     served_wait = None
 
+    # a served place's host meaning "the certificate's first name" (1.0.96): for a target that
+    # deploys to a name taken from the certificate when its field is empty
+    CERT_NAME = '{name}'
+
     def served_places(self, options):
         """Where this target serves the certificate it was given, for the tests made with a
-        new deployment (1.0.93, in place of the check the module made itself): [(host, port)]."""
+        new deployment (1.0.93, in place of the check the module made itself): [(host, port)].
+        A place may say a third thing (1.0.96): the key the test asks for, 'rsa' or 'ecdsa' -
+        where one port serves an RSA and an ECDSA certificate (CUCM's tomcat and
+        tomcat-ECDSA), so the test gets the one this deployment put there; without it the test
+        takes whichever the server picks. The host self.CERT_NAME: the certificate's first
+        name."""
         return []
 
     def remove(self, bundle, options):

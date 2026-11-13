@@ -47,7 +47,7 @@ The Supervisor's FQDN(s) and virtual IP in the SAN, the whole chain (leaf → in
 | Address / HTTPS port | vCenter's FQDN, `443` |
 | User / Password | `svc-wcp-cert@vsphere.local` and its password |
 | Supervisor | the cluster's id, `domain-c8` |
-| API endpoint | the Supervisor's FQDN or VIP |
+| API endpoint | the Supervisor's FQDN or VIP - where acme tests the certificate served |
 | Which certificate (deploy) | the Kubernetes API endpoint |
 | Root CA certificate (deploy) | the root PEM, when the chain does not end in it |
 

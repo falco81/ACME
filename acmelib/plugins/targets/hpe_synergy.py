@@ -149,10 +149,15 @@ class HpeSynergyTarget(HpeOneViewTarget):
         return 'enclosure' if text((options or {}).get('part')).strip() == 'enclosure' \
             else 'appliance'
 
-    def subject(self, req, longest=True):
+    def subject(self, req, longest=True, enclosure=False):
         subj = dict(getattr(req, 'subject', None) or {})
         names = list(getattr(req, 'names', None) or [])
         cn = text(subj.get('CN') or (names[0] if names else '')).strip()
+        if enclosure and names:
+            # an enclosure's CSR has no SAN: its one name is the common name - the
+            # certificate's name, not another CN of the profile, which acme's check of the CSR
+            # would refuse only after the bay made its key (1.0.96)
+            cn = text(names[0]).strip()
         if not cn:
             raise PluginError('the certificate has no name for the CSR', retry=False)
         out = {}
@@ -194,9 +199,12 @@ class HpeSynergyTarget(HpeOneViewTarget):
         return text(e['uri']).rstrip('/')
 
     def bay(self, options):
+        # an enclosure has two management bays: a Synergy frame's Frame Link Modules, a
+        # c7000's Onboard Administrators (1.0.96: 1 to 8 was taken, "a number from 1" said)
         b = as_int((options or {}).get('bay'), 1) or 1
-        if b < 1 or b > 8:
-            raise PluginError('the bay must be a number from 1 (it is %s)' % b, retry=False)
+        if b not in (1, 2):
+            raise PluginError('the bay is 1 or 2 - the Frame Link Module / Onboard '
+                              'Administrator bay (it is %s)' % b, retry=False)
         return b
 
     def seconds(self, options):
@@ -210,8 +218,15 @@ class HpeSynergyTarget(HpeOneViewTarget):
         if kt not in self.device_key_types:
             raise PluginError('the appliance makes RSA 2048 (or RSA 3072 for CNSA) keys - %s '
                               'cannot be asked of it' % kt, retry=False)
-        subj = self.subject(req)
-        if self.part(options) == 'enclosure':
+        enclosure = self.part(options) == 'enclosure'
+        if enclosure and kt != 'rsa-2048':
+            # its CSR body has no key size: the bay makes RSA 2048 - refused before it drops
+            # its pending key (1.0.96)
+            raise PluginError('an enclosure\'s management module makes RSA 2048 keys only - '
+                              'choose rsa-2048 for the certificate (it asks for %s)' % kt,
+                              retry=False)
+        subj = self.subject(req, enclosure=enclosure)
+        if enclosure:
             if len(names) > 1:
                 raise PluginError('an enclosure\'s CSR has one name, its common name - give the '
                                   'certificate one name (it has %s)' % ', '.join(names),
@@ -219,6 +234,7 @@ class HpeSynergyTarget(HpeOneViewTarget):
             if _is_ip(names[0]):
                 raise PluginError('the common name of an enclosure\'s CSR is a host name - '
                                   'give the certificate the module\'s DNS name', retry=False)
+            self.bay(options)                   # said before signing in
             return self._enclosure_csr(req, subj, options)
         return self._appliance_csr(req, subj, options)
 

@@ -10,7 +10,8 @@ Small things the VMware targets share - not a module: the registry skips "_" fil
     root_of(bundle, pem)     the root the chain ends in: the one given, else the last of the chain
                              when it signs itself, else ''
     intermediates(bundle)    the chain without its root
-    wait_task(...)           asks a task until it says it is done (or failed), a while at most
+    wait_task(...)           asks a task until it says it is done (or failed), a while at most;
+                             tolerate=True rides out errors that pass (and a 401, relogin)
 
 The VI JSON API (vCenter 8.0 U1 and later): GET /sdk/vim25/<release>/ServiceInstance/
 ServiceInstance/content needs no sign-in and says "about": {"version", "build", "apiVersion"}
@@ -78,21 +79,48 @@ def intermediates(bundle):
     return split_chain(bundle, '')[0]
 
 
-def wait_task(t, ask, done, failed, tries=60, every=10.0, what='the task'):
+def wait_task(t, ask, done, failed, tries=60, every=10.0, what='the task', tolerate=False,
+              relogin=None):
     """Ask `ask()` -> data until `done(data)` (returned) or `failed(data)` (a PluginError with
     words), `tries` times `every` seconds at most - then a PluginError that it is still running.
-    A stopped job gives up."""
+    A stopped job gives up.
+
+    `tolerate`: an error of asking that may pass (a PluginError with retry - a 5xx, a refused
+    connection: the device restarting its services) does not end the wait, it is asked again
+    on the next try; with `relogin` (a function signing in again), a 401 signs in again once
+    and the wait goes on. Any other error ends it as before."""
     sleep = getattr(t, '_sleep', time.sleep)
-    last = None
+    last, err, relogged = None, None, False
     for i in range(max(1, tries)):
         if i:
             if t.ctx.cancelled():
                 raise PluginError('stopped while waiting for %s' % what)
             sleep(every)
-        last = ask()
+        try:
+            last = ask()
+        except PluginError as e:
+            if not tolerate:
+                raise
+            if '(401)' in str(e) and relogin is not None and not relogged:
+                relogged = True
+                t.ctx.debug('%s: signing in again - %s' % (what, e))
+                try:
+                    relogin()
+                except PluginError as e2:
+                    if not getattr(e2, 'retry', True):
+                        raise
+                    t.ctx.debug('signing in again: %s' % e2)
+                err = e
+                continue
+            if not getattr(e, 'retry', True):
+                raise
+            t.ctx.debug('%s cannot be read now: %s' % (what, e))
+            err = e
+            continue
+        err = None
         if failed(last):
             raise PluginError('%s failed' % what, detail=text(last)[:4000], retry=False)
         if done(last):
             return last
     raise PluginError('%s is still running after %d s - look at it on the device' % (
-        what, int(tries * every)), detail=text(last)[:4000])
+        what, int(tries * every)), detail=text(err if err is not None else last)[:4000])

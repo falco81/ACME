@@ -98,5 +98,5 @@ RESTful API has no certificate endpoint, hence the CLI.
 | `Network service startup error. service=GUI` in the events | The pair was refused: deploy again (force) - acme registers over SSH, which works while HTTPS is down; or `create ssl-certificate` restores a self-signed one. |
 | The chain is refused | Turn *Send the chain with the certificate* off. |
 | SMI-S still serves the old certificate | Turn on *Restart SMI-S on the new certificate*, or `set smi-s -function disable` / `enable` by hand. |
-| `takes RSA keys only` | Change the certificate's key type to RSA. |
+| `take RSA keys only` | Change the certificate's key type to RSA. |
 | An older array rejects `-disable-ftps` | Choose *File transfer: FTP on DX S5 / AF S3 / AF S2*. |

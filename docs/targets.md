@@ -3174,7 +3174,10 @@ Versions, as FortiGate's:
 
 A version refuses a vCenter that says another one before anything changes; before 9.0 the
 API takes no key made elsewhere - refused by every version. Unchanged: the `GET` of the same
-path holds the certificate. **Rights**: `Namespaces.Manage`. **Less certain**: the endpoint
+path holds the certificate. **Rights**: `Namespaces.Manage`. The test made with a deployment
+is of *API endpoint*`:443` - for the API endpoint's certificate only: that address serves no
+NSX ingress certificate, so a `DEFAULT_NSX_INGRESS` deployment gets no test (1.0.96; attach one
+of the ingress's name yourself). **Less certain**: the endpoint
 names `KUBERNETES_API_SERVER` / `DEFAULT_NSX_INGRESS` (taken from the CSR types).
 
 <!-- Rows for the table of targets at the top of docs/targets.md -->
@@ -3977,7 +3980,7 @@ SSMC, CIM) and imports the signed certificate; no key of acme's can go there.
 
     SSH  createcert unified-server -csr -keysize 2048|3072|4096 -C .. -ST .. -L .. -O ..
          [-OU ..] -CN <first name> -SAN "DNS:..,IP:.."          -> the CSR printed
-    SSH  importcert unified-server -ca stdin -f   < the intermediates  (Import the
+    SSH  importcert unified-server -f -ca stdin   < the intermediates  (Import the
          intermediates first, on by default)
     SSH  importcert unified-server -f stdin       < the certificate
     SSH  showversion; showcert -service unified-server               (Test, read only)
@@ -4015,7 +4018,8 @@ one SSH session a step (no terminal):
     set cert import own <unit> <unit>-trust/<CA file>  + the certificate pasted
     show cert own <unit>/<unit>.pem                       the new serial looked for
     utils service restart Cisco Tomcat / Cisco Tftp       (tomcat; CallManager: Cisco CallManager,
-                                                          Cisco CTIManager)
+                                                          Cisco CTIManager, Cisco HAProxy -
+                                                          Admin Guide 15, Table 5)
 
 **The names**: CUCM's CLI takes none - the CSR has the node's FQDN (and what CUCM adds: its
 domain, an alternate host name of `set web-security`). acme reads them and says them when the
@@ -4030,7 +4034,10 @@ password or key, host key), *Certificate* (the unit: `tomcat`, `tomcat-ECDSA`, `
 (on), *Root CA certificate* (imported into `<unit>-trust` with the intermediates), *CA file in
 the trust store* (empty: the issuer found in `show cert list trust`). The tests after the
 deployment (`<host>:8443` for tomcat) wait up to 10 minutes while Tomcat restarts
-(`served_wait` 20 × 30 s, none when the restart is off). *Test* reads `show version active`
+(`served_wait` 20 × 30 s, none when the restart is off). Cisco Tomcat serves `tomcat` (RSA) and
+`tomcat-ECDSA` on that one port, the one the client offers: the test made asks for the unit's
+key (*Key asked for* RSA or ECDSA, 1.0.96 - before, it took whichever Tomcat picked and a
+`tomcat` deployment could be tested against `tomcat-ECDSA`). *Test* reads `show version active`
 and `show cert list own` - nothing changed.
 
 **Less certain** (no CUCM to try it on): that the CLI reads lines from a session without a
@@ -4083,7 +4090,12 @@ port, user and password (an SDDC Manager ADMIN / OPERATOR; a VCF Operations Admi
 the FQDN), the subject VCF asks for in every CSR (Country, State, City, Organization, Unit;
 e-mail optional - the certificate's own subject wins), *Wait for VCF's tasks* (60 minutes),
 TLS. The deployment: *Root CA certificate* (VCF wants the chain to the root). The tests after
-the deployment (`<component FQDN>:443`) wait up to 5 minutes more (`served_wait` 10 × 30 s).
+the deployment (`<component FQDN>:443`, or the certificate's first name when *Component FQDN* is
+empty - 1.0.96) wait up to 5 minutes more (`served_wait` 10 × 30 s). While VCF's tasks run
+(the CSR, the validation, the install) an answer that may pass - a 5xx, a refused connection:
+SDDC Manager restarting its own services - is asked again on the next poll, and a `401` (the
+token run out in a long wait) signs in again once (1.0.96: one failed poll ended the
+deployment while VCF went on installing).
 *Test* signs in and reads the version and the domain (or the certificate ID) - nothing changed.
 
 **Less certain** (no VCF to try it on; from the API references through the vendor guide): the

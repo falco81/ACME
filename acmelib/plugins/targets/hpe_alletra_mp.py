@@ -12,7 +12,7 @@ arrays makes the key and a CSR (createcert -csr) and imports the certificate sig
     SSH  CLI%  createcert unified-server -csr -keysize 2048|3072|4096 -C CZ -ST "…" -L "…"
                -O "…" -OU "…" -CN alletra01.example.local
                -SAN "DNS:alletra01.example.local,IP:10.0.0.60"           -> the CSR (PEM)
-    SSH  CLI%  importcert unified-server -ca stdin -f   < the intermediates (when asked)
+    SSH  CLI%  importcert unified-server -f -ca stdin   < the intermediates (when asked)
     SSH  CLI%  importcert unified-server -f stdin       < the certificate
                -> the services of unified-server restart (WSAPI / UI away for a moment)
 
@@ -185,7 +185,10 @@ class HpeAlletraMpTarget(SshMixin, Base):
         did = []
         with self.ssh() as s:
             if chain and as_bool(self.opt(options, 'import_chain', True), True):
-                self.cli(s, 'importcert %s -ca stdin -f' % SERVICE,
+                # the options before the file, as in both forms the guide gives
+                # (importcert <service> -ca <file>, importcert <service> <file>): -f first, then
+                # "-ca stdin" - one order in both commands (1.0.96: -f came after the file)
+                self.cli(s, 'importcert %s -f -ca stdin' % SERVICE,
                          'importing the intermediates', data=chain + '\n')
                 self.ctx.step('the intermediates imported for unified-server', 'ok')
                 did.append('the intermediates')

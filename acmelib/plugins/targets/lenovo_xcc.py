@@ -255,10 +255,14 @@ class LenovoXccTarget(RedfishTarget):
             raise PluginError('this XCC makes its CSR through Lenovo\'s own service, which takes '
                               'one host name - give the certificate one name (it has %s)'
                               % ', '.join(names), retry=False)
+        # its CSR has no SAN - its one name is HostName (the CN): the certificate's name, not
+        # another CN of the profile, which acme's check of the CSR would refuse only after the
+        # XCC made its key (1.0.96, as hpe_ilo_devkey)
+        host = text(names[0]).strip() if names else subj['CommonName']
         base = self.manager().rstrip('/') + OEM
         need = {'Service': 'Server', 'CountryName': subj['Country'],
                 'StateOrProvinceName': subj['State'], 'LocalityName': subj['City'],
-                'OrganizationName': subj['Organization'], 'HostName': subj['CommonName']}
+                'OrganizationName': subj['Organization'], 'HostName': host}
         more = {}
         if subj.get('OrganizationalUnit'):
             more['OrganizationalUnitName'] = subj['OrganizationalUnit']

@@ -89,7 +89,7 @@ Možnosti nasazení:
 
 | Možnost | Význam |
 |---|---|
-| Restartovat služby | Zapnuto: `utils service restart Cisco Tomcat` a `Cisco Tftp` (tomcat), `Cisco CallManager` a `Cisco CTIManager` (CallManager). Vypnuto: restartujete sami; do té doby CUCM servíruje starý certifikát |
+| Restartovat služby | Zapnuto: `utils service restart Cisco Tomcat` a `Cisco Tftp` (tomcat), `Cisco CallManager`, `Cisco CTIManager` a `Cisco HAProxy` (CallManager). Vypnuto: restartujete sami; do té doby CUCM servíruje starý certifikát |
 | Kořenový certifikát CA | Kořen, kterým řetězec končí; importuje se do `<jednotka>-trust` spolu s mezilehlými |
 | Soubor CA v úložišti důvěry | Prázdné: vydavatel nalezený v `show cert list trust`; jinak např. `tomcat-trust/Example_Issuing_CA.pem` |
 
@@ -100,7 +100,9 @@ Možnosti nasazení:
   restarty. Pak:
 
   ```sh
-  openssl s_client -connect cucm-pub.example.local:8443 -servername cucm-pub.example.local -showcerts </dev/null | openssl x509 -noout -subject -issuer -dates -ext subjectAltName
+  # tomcat (RSA) - Cisco Tomcat servíruje na 8443 i tomcat-ECDSA, podle toho, co klient nabídne;
+  # pro tomcat-ECDSA dejte -sigalgs ECDSA+SHA256 (acme se v testu ptá stejně - TLS 1.2, klíč jednotky)
+  openssl s_client -connect cucm-pub.example.local:8443 -servername cucm-pub.example.local -tls1_2 -sigalgs RSA+SHA256 -showcerts </dev/null | openssl x509 -noout -subject -issuer -dates -ext subjectAltName
   ```
 
   ```text

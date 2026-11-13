@@ -158,6 +158,22 @@ combined-pem p7b pfx p12 p12-legacy jks`.
 
 They are acme's own and may grow; what is listed here stays.
 
+**`served_places(options)`** (1.0.93) returns `[(host, port)]`: where the deployment with
+these options serves the certificate - each becomes a test (Certificates → Tests) attached
+with a new deployment and run after it (`acmelib/certs/checks.py` `served_tests`, through
+`for_target`). Return `[]` where the address the module knows does not serve this certificate
+(vSphere Supervisor's NSX ingress: its API endpoint serves another). Two things may be added
+(1.0.96), both left out by every module before - their places mean what they meant:
+
+- a third item, the key the test asks for: `(host, port, 'rsa')` or `(host, port, 'ecdsa')`
+  - where one port serves an RSA and an ECDSA certificate and picks by what the client offers
+  (CUCM's Cisco Tomcat: `tomcat` and `tomcat-ECDSA` on 8443). The test is made with *Key
+  asked for* set so (TLS 1.2 with ciphers of that key only, `checks/_tls.py`); without it the
+  test takes whichever the server picks and may get the other unit's certificate;
+- the host `self.CERT_NAME` (`'{name}'`): the certificate's first name - for a module that
+  deploys to the name taken from the certificate when its field is empty (`vcf_component`
+  without *Component FQDN*); the test is made with no host and connects to that name.
+
 ## A complete example
 
 A load balancer with a REST API: `GET /api/v1/system/version`,

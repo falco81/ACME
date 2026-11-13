@@ -171,7 +171,30 @@ class Synergy(unittest.TestCase):
             make('hpe_synergy', ctx, **dict(SY, csr_country='CZE')).device_csr(
                 req(['composer.example.test']))
         self.assertIn('two letters', str(e.exception))
+        # 1.0.96: an enclosure's CSR asks for no key size (the bay makes RSA 2048) - another
+        # key type refused before signing in, not after the bay dropped its pending key
+        with self.assertRaises(PluginError) as e:
+            t.device_csr(req(['frame1-flm1.example.test'], key_type='rsa-3072',
+                             options={'part': 'enclosure', 'enclosure': 'Frame1', 'bay': 1}))
+        self.assertIn('RSA 2048 keys only', str(e.exception))
+        # the bay: 1 or 2 (the Frame Link Module / Onboard Administrator), said so
+        for bay in (-1, 3, 8):
+            with self.assertRaises(PluginError) as e:
+                t.device_csr(req(['frame1-flm1.example.test'],
+                                 options={'part': 'enclosure', 'enclosure': 'Frame1',
+                                          'bay': bay}))
+            self.assertIn('1 or 2', str(e.exception))
         self.assertEqual(ctx.calls, [])
+
+    def test_enclosure_cn_is_the_name(self):
+        # 1.0.96: the enclosure's CSR has no SAN - its CN is the certificate's name, not the
+        # profile's other CN (acme's check of the CSR would refuse it after the bay made its key)
+        ctx = FakeCtx(sy_routes())
+        make('hpe_synergy', ctx, **SY).device_csr(
+            req(['frame1-flm1.example.test'], CN='Other Name',
+                options={'part': 'enclosure', 'enclosure': 'Frame1', 'bay': 1}))
+        posted = ctx.find('POST', r'certificaterequest\?bayNumber=1$')
+        self.assertEqual(ctx.json(posted[0])['commonName'], 'frame1-flm1.example.test')
 
     def test_enclosure_csr_and_import(self):
         ctx = FakeCtx(sy_routes())
@@ -412,7 +435,8 @@ class Alletra(unittest.TestCase):
         ssh = FakeSsh()
         words = make('hpe_alletra_mp', FakeCtx(ssh=ssh), **AL).deploy(b, {})
         self.assertIn('own key', words)
-        self.assertEqual([c for c, _i in ssh.runs], ['importcert unified-server -ca stdin -f',
+        # 1.0.96: one order in both - the options before the file (-f was after "stdin")
+        self.assertEqual([c for c, _i in ssh.runs], ['importcert unified-server -f -ca stdin',
                                                      'importcert unified-server -f stdin'])
         self.assertEqual(C.pem_blocks(ssh.runs[0][1]), C.pem_blocks(''.join(b.chain_pems)))
         self.assertEqual(C.pem_blocks(ssh.runs[1][1]), C.pem_blocks(b.cert_pem)[:1])

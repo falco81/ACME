@@ -13,7 +13,9 @@ nedrží. Jeden cíl (přihlášení do OneView) obslouží dva druhy certifiká
 - **modul správy enclosure** - pozice **Frame Link Module** rámu Synergy nebo **Onboard
   Administrator** c7000; ty žádný klíč nepřijmou, jen certifikát ke svému CSR:
   `POST /rest/enclosures/{id}/https/certificaterequest?bayNumber=N`, potom `PUT`.
-  **Jen jedno jméno** (common name - CSR enclosure v OneView jiná jména nenese).
+  **Jen jedno jméno** (common name - CSR enclosure v OneView jiná jména nenese: acme tam dá
+  jméno certifikátu, ať je CN v profilu jakékoli), jen **RSA 2048** (CSR enclosure velikost
+  klíče neudává), pozice `1` nebo `2`.
 
 Verze: HPE OneView for Synergy a OneView **9.x - 11.x** (REST API 6600 - 9200); acme posílá
 verzi API, kterou appliance uvede. Chcete-li na appliance dát klíč z acme, použijte cíl
@@ -100,6 +102,8 @@ acme --renew composer
 | `OneView nemá žádnou enclosure s názvem ...` | Použijte název ze stránky **Enclosures** nebo URI enclosure. |
 | Úloha importu skončí `invalid certificate` | Vydávající CA není v trust storu (nechte *Vložit mezilehlé certifikáty do trust storu* zapnuté), nebo mezitím vznikl jiný CSR (ručně v GUI) - **Obnovit teď** vytvoří nový. |
 | Jen RSA | Appliance vytváří jen klíče RSA: typ klíče `rsa-2048` (`rsa-3072` pro CNSA). |
+| `modul správy enclosure vytváří jen klíče RSA 2048` | Pro certifikát enclosure zvolte typ klíče `rsa-2048` - odmítne se dřív, než se pozice na cokoli zeptá. |
+| `pozice je 1 nebo 2` | Zadejte pozici Frame Link Module / Onboard Administratoru: `1` nebo `2`. |
 | Nasazení pozdržena | Zařízení si nechá starý certifikát; další vydání si vyžádá nový klíč a CSR. |
 
 Volání pro enclosure dokumentuje SDK HPE pro Onboard Administrator; na Frame Link Module rámu

@@ -42,7 +42,7 @@ DELETE /api/session
 | Address / HTTPS port | vCenter's FQDN, `443` |
 | User / Password | `svc-wcp-cert@vsphere.local` and its password |
 | Supervisor | its id, e.g. `domain-c8` |
-| API endpoint | the Supervisor's FQDN or VIP (for the ingress: the ingress's name) |
+| API endpoint | the Supervisor's FQDN or VIP - where the API endpoint's certificate is tested; the ingress's certificate is not tested there (no test is made for it - add one for the ingress's name in Certificates → Tests) |
 | Which certificate (deploy) | the Kubernetes API endpoint, or the default NSX ingress - one deployment each |
 | Root CA certificate (deploy) | the root PEM, when the chain does not end in it |
 
