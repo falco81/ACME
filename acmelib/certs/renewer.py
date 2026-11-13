@@ -742,7 +742,11 @@ def _renew_failed(store, job, cert_id, only, e):
                 'state': 'failed', 'state_at': time.time(), 'fails': fails,
                 'last_error': why[:2000], 'next_try': time.time() + wait})
             job.step('tried again in %s' % E.human_span(wait), 'warn')
-            store.add_event('certificates', 'renewing %s failed: %s' % (cert['name'], why), 'bad')
+            # an issue, not a renewal, for one never issued (1.0.96: "renewing x failed" for a
+            # certificate the job issued for the first time)
+            first = not cert.get('cert_pem') and not cert.get('not_after')
+            store.add_event('certificates', '%s %s failed: %s' % (
+                'issuing' if first else 'renewing', cert['name'], why), 'bad')
             readiness.mark(store, cert['id'], readiness.failed_on_validation(e))
             try:
                 irow = S.plugin_row(store, 'issuer', cert['issuer'])

@@ -1,14 +1,14 @@
-# Cisco Catalyst 9800 Wireless Controller (libovolná verze (zjistí ji)) - nastavení pro acme
+# Cisco Catalyst 9800 Wireless Controller (jakákoli verze (zjistí ji)) - nastavení pro acme
 
 acme se k zařízení přihlásí přes **SSH**, zkopíruje certifikát s klíčem a řetězcem jako **PKCS#12** přes **SCP** do `bootflash:`, naimportuje ho do nového trustpointu `acme-<název>-<datum>-<sériové číslo>` (`crypto pki import ... pkcs12`), nasměruje na něj web administraci (GUI, RESTCONF) a když to zaškrtnete, i portál pro hosty (web authentication), ten server restartuje, uloží konfiguraci (`write memory`) a odstraní starší trustpointy acme nad počet *ponechat*. Soubor PKCS#12 z `bootflash:` hned po importu smaže.
 
 ## Pro které IOS XE je tento návod
 
-Verze modulu **„libovolná verze (zjistí ji)“**: IOS XE **17.3 - 26.1**. acme přečte `show version` a PKCS#12 vytvoří podle něj: před 17.12 3DES s MAC SHA-1, od 17.12 AES-256 s MAC SHA-256. Když verzi přečíst nejde, pošle variantu 3DES.
+Verze modulu **„jakákoli verze (zjistí ji)“**: IOS XE **17.3 - 26.1**. acme přečte `show version` a PKCS#12 vytvoří podle něj: před 17.12 3DES s MAC SHA-1, od 17.12 AES-256 s MAC SHA-256. Když verzi přečíst nejde, pošle variantu 3DES.
 
 | Verze modulu | IOS XE | PKCS#12, který acme posílá |
 |---|---|---|
-| libovolná verze (zjistí ji) | 17.3 - 26.1 | podle verze, kterou ukáže `show version` |
+| jakákoli verze (zjistí ji) | 17.3 - 26.1 | podle verze, kterou ukáže `show version` |
 | IOS XE 17.3 - 17.11 | 17.3 - 17.11 | 3DES, MAC SHA-1 |
 | IOS XE 17.12 - 26.1 | 17.12 - 26.1 | AES-256, MAC SHA-256 |
 
@@ -84,7 +84,7 @@ write memory
 
 | Pole v acme | Co do něj patří |
 |---|---|
-| Verze modulu | **libovolná verze (zjistí ji)** |
+| Verze modulu | **jakákoli verze (zjistí ji)** |
 | Adresa | adresa správy zařízení, např. `wlc01.example.com` |
 | SSH port / Uživatel | `22` / `acme` |
 | Přihlásit se přes, SSH klíč / Heslo | klíč acme (krok 2) nebo heslo |
@@ -119,7 +119,7 @@ openssl s_client -connect wlc01.example.com:443 -servername wlc01.example.com -s
 | Co acme hlásí | Význam | Řešení |
 |---|---|---|
 | `scp to ...: ...` | SCP odmítnuto | `ip scp server enable`; účet potřebuje privilege 15 |
-| `... Bad HMAC` / `PKCS12 import failed` | IOS XE tento PKCS#12 nepřijme | před 17.12.1 zvolte *IOS XE 17.3 - 17.11* (nebo *libovolná verze*) |
+| `... Bad HMAC` / `PKCS12 import failed` | IOS XE tento PKCS#12 nepřijme | před 17.12.1 zvolte *IOS XE 17.3 - 17.11* (nebo *jakákoli verze*) |
 | `the device said "% Invalid input ..."` | příkaz není povolený nebo známý | privilege 15 / sada příkazů TACACS+; zkontrolujte verzi IOS XE |
 | *the module version ... is for IOS XE ...* | zařízení má jiné IOS XE | zvolte verzi uvedenou ve zprávě |
 | test servírovaného certifikátu hned poté selže | HTTPS server se ještě restartuje | acme sám počká; jinak `show ip http server secure status` |

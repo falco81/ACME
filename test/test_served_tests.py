@@ -415,5 +415,105 @@ class Served(unittest.TestCase):
             self.assertEqual((cfg['host'], cfg['port']), ('2001:db8::16', 8443))
 
 
+class RoundThreeB(unittest.TestCase):
+    """What the final UI sweep (round 3b) found in What happens and the events."""
+
+    def test_1_the_module_checked_it_itself_only_for_a_module_there_then(self):
+        from acmelib.certs import runplan as R
+        A.family_save(STORE, 'target', {'kind': 'esxi', 'name': 'esx3b', 'config': {
+            'host': 'esx3b.example.test', 'user': 'root', 'password': 'x'}}, 'tester')
+        A.family_save(STORE, 'target', {'kind': 'netapp_ontap', 'name': 'ontap3b', 'config': {
+            'host': 'ontap3b.example.test', 'user': 'admin', 'password': 'x'}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['esx3b.example.test', 'ontap3b.example.test']},
+                          'tester')
+        A.deploy_save(STORE, {'cert_id': cid, 'target': 'esx3b', 'options': {}}, 'tester')
+        A.deploy_save(STORE, {'cert_id': cid, 'target': 'ontap3b', 'options': {}}, 'tester')
+        cert = S.cert_get(STORE, cid)
+        ph = R.checks_phase(STORE, cert, ['esx3b.example.test', 'ontap3b.example.test'])
+        notes = {}
+        for g in ph['groups']:
+            for st in g['steps']:
+                if st['words'].startswith('Made by acme from a deployment'):
+                    notes[g['title']] = st['note']
+        old = [n for t, n in notes.items() if 'esx3b' in t]
+        new = [n for t, n in notes.items() if 'ontap3b' in t]
+        self.assertEqual(len(old), 1, notes)
+        self.assertEqual(len(new), 1, notes)
+        self.assertIn('until 1.0.92', old[0])
+        self.assertNotIn('1.0.92', new[0])
+        self.assertIn('esxi', R.KINDS_BY_1092)
+        self.assertNotIn('netapp_ontap', R.KINDS_BY_1092)
+
+    def test_2_the_waits_said_once(self):
+        from acmelib.certs import runplan as R
+        self.assertEqual(R.waits_words((3, 10, 20)), 'after 3, 10, 20 s')
+        self.assertEqual(R.waits_words((3,) + (30,) * 31),
+                         'after 3 s, then 31 more times, 30 s apart')
+
+    def test_3_added_only_is_not_issued_by_itself(self):
+        from acmelib.certs import runplan as R
+        # "Add only" keeps it held (certs/save hold=1 with a source)
+        cid = A.cert_save(STORE, {'names': ['held3b.example.test']}, 'tester')
+        STORE.db.update('certs', cid, {'state': 'held', 'auto_renew': 1})
+        cert = dict(S.cert_get(STORE, cid))
+        self.assertFalse(cert.get('not_after'))
+        words = [x['words'] for x in R.after_phase(STORE, cert, None, {})['steps']]
+        self.assertTrue(any(w.startswith('Not issued by itself') for w in words), words)
+        self.assertFalse(any(w.startswith('Issued at the next look') for w in words), words)
+        cert['state'] = 'new'
+        words = [x['words'] for x in R.after_phase(STORE, cert, None, {})['steps']]
+        self.assertTrue(any(w.startswith('Issued at the next look') for w in words), words)
+
+    def test_4_a_first_issue_failed_is_not_a_renewal(self):
+        from acmelib.certs import renewer
+        from acmelib.plugins import base
+
+        class Job(object):
+            def step(self, *a, **k):
+                pass
+        saved = renewer.notify
+        renewer.notify = lambda *a, **k: None
+        try:
+            for name, pem, want in (('first3b.example.test', None, 'issuing'),
+                                    ('again3b.example.test', 'PEM', 'renewing')):
+                cid = A.cert_save(STORE, {'names': [name]}, 'tester')
+                STORE.db.update('certs', cid, {'state': 'renewing', 'cert_pem': pem,
+                                               'not_after': 2e9 if pem else None})
+                with self.assertRaises(base.PluginError):
+                    renewer._renew_failed(STORE, Job(), cid, None, base.PluginError('no'))
+                ev = STORE.db.row("SELECT * FROM events WHERE words LIKE ? ORDER BY id DESC",
+                                  ('%' + name + ' failed%',))
+                self.assertTrue(ev and ev['words'].startswith(want + ' ' + name), ev)
+        finally:
+            renewer.notify = saved
+
+    def test_5_the_job_says_the_error_without_its_number(self):
+        from acmelib.certs import jobs
+        self.assertEqual(jobs.said_plainly(Exception(
+            '192.0.2.75 could not be reached: [Errno 113] No route to host')),
+            '192.0.2.75 could not be reached: No route to host')
+
+    def test_6_a_required_field_in_words_for_any_label(self):
+        A.family_save(STORE, 'target', {'kind': 'infoblox', 'name': 'ib3b', 'config': {
+            'host': '192.0.2.35', 'user': 'u', 'password': 'p'}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['ib3b.example.test']}, 'tester')
+        with self.assertRaises(ValueError) as e:
+            A.deploy_save(STORE, {'cert_id': cid, 'target': 'ib3b',
+                                  'options': {'members': ['']}}, 'tester')
+        self.assertEqual(str(e.exception), 'fill in \u201cGrid members\u201d')
+
+    def test_7_words_of_their_own_for_the_page(self):
+        # the family in words of its own in the Test job (a word alone in a slot stays English)
+        with open(os.path.join(os.path.dirname(HERE), 'acmelib', 'certs', 'api.py'),
+                  encoding='utf-8') as f:
+            src = f.read()
+        self.assertIn("'target': 'trying the target %s (%s)'", src)
+        self.assertNotIn("job.step('trying %s %s (%s)' % (family, name, kind))", src)
+        # the Synergy's note on the key step: an enclosure's certificate only
+        from acmelib.plugins.targets import hpe_synergy
+        self.assertTrue(hpe_synergy.HpeSynergyTarget.device_key_names.startswith(
+            'only when the deployment\'s "Certificate of" is an enclosure\'s management module'))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

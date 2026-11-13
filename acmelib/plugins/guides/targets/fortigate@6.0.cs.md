@@ -8,7 +8,7 @@ Verze modulu **„FortiOS 6.0 - 6.4“** (`6.0`): FortiOS **6.0.x, 6.2.x a 6.4.x
 
 | Verze modulu | FortiOS | `server-cert` inspekčního profilu | `ssl-certificate` VIP |
 |---|---|---|---|
-| libovolná verze (zjistí ji) | 6.0 - 8.0 | podle verze | podle verze |
+| jakákoli verze (zjistí ji) | 6.0 - 8.0 | podle verze | podle verze |
 | FortiOS 6.0 - 6.4 | 6.0.x - 6.4.x | jméno | jméno |
 | FortiOS 7.0 - 7.4.1 | 7.0.0 - 7.4.1 | seznam `{name}` | jméno |
 | FortiOS 7.4.2 - 8.0 | 7.4.2 - 8.0 | seznam `{name}` | seznam `{name}` |
@@ -162,7 +162,7 @@ diagnose debug reset
 | `424` (Failed Dependency) | neplatná hodnota: např. jméno certifikátu, který v této VDOM není, nebo špatný tvar `server-cert` / `ssl-certificate` | importujte *globálně* (nebo do správné VDOM); zvolte verzi modulu pro FortiOS, který na krabici běží |
 | `429` | omezení počtu požadavků po mnoha špatných tokenech | počkejte, opravte token |
 | `500` s `"error": <záporné číslo>` | FortiOS změnu odmítl (např. CA už existuje při importu - to acme ignoruje) | přečtěte detail v úloze acme a ladění `httpsd` |
-| *the module version ... is for FortiOS ...* | na krabici běží jiný FortiOS, než pro který je tato verze cíle | zvolte verzi uvedenou ve zprávě (nebo *libovolnou verzi*) |
+| *the module version ... is for FortiOS ...* | na krabici běží jiný FortiOS, než pro který je tato verze cíle | zvolte verzi uvedenou ve zprávě (nebo *jakoukoli verzi*) |
 
 *Nejisté*: zda je po změně přes REST potřeba uložení, když je `cfg-save` nastaveno na `manual` (ve výchozím stavu se ukládá); přesná záporná čísla chyb FortiOS se mezi verzemi liší.
 

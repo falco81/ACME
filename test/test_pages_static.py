@@ -281,5 +281,94 @@ class DeviceKeyRound1e(unittest.TestCase):
         self.assertIn("The tests acme made from its deployments go with it", certs)
 
 
+class FinalSweep3b(unittest.TestCase):
+    """What the final UI sweep (round 3b) found in the wizard, the Deploy dialog and the
+    Modules page."""
+
+    def node_js(self, js):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        got = subprocess.run([node, '-e', js], capture_output=True, text=True, timeout=60)
+        self.assertEqual(got.returncode, 0, got.stderr)
+        return json.loads(got.stdout)
+
+    def test_form_check_holds_min_and_max(self):
+        certs = read('web', 'assets', 'certs.js')
+        self.assertIn("' is ' + lo + ' at least (not ' + v + ')'", certs)
+        self.assertIn("' is ' + hi + ' at most (not ' + v + ')'", certs)
+        # a value kept as saved is not asked again, as the daemon does
+        self.assertIn("var was = opts.kept && Object.prototype.hasOwnProperty.call(opts.kept, it.f.key)", certs)
+        self.assertIn("kept: d.id && t.name === d.target ? obj(d.options) : null", certs)
+        # the required one in words for any label (no "Grid members is needed")
+        self.assertIn("bad = 'fill in \\u201c' + tr(it.f.label || it.f.key) + '\\u201d';", certs)
+        self.assertNotIn("tr(it.f.label || it.f.key) + ' is needed'", certs)
+
+    def test_refusal_marks_its_field_in_the_page_language(self):
+        certs = read('web', 'assets', 'certs.js')
+        fn = re.search(r'\n    refused: function \(words\) \{[\s\S]*?\n      return msg;\n    \}', certs).group(0)
+        js = ('var tr = function (x) { return {Bay: "Pozice", "Grid members": "Členové Gridu"}[x] || x; };'
+              'function mk(f) { return {f: f, item: {classList: {s: {}, add: function (c) { this.s[c] = 1; },'
+              ' remove: function (c) { delete this.s[c]; }}}, input: {focus: function () {}}}; }'
+              'var items = [mk({key: "bay", label: "Bay"}), mk({key: "members", label: "Grid members"})];'
+              'var more = {}; var shown = function () { return true; }; var current = function () { return {}; };'
+              'var o = {' + fn.strip() + '};'
+              'var a = o.refused("Bay is 2 at most (not 3)");'
+              'var b = o.refused("fill in “Grid members”");'
+              'console.log(JSON.stringify([a, !!items[0].item.classList.s.refused, b,'
+              ' !!items[1].item.classList.s.refused, !!items[0].item.classList.s.refused]));')
+        self.assertEqual(self.node_js(js), ['Pozice is 2 at most (not 3)', False,
+                                            'fill in “Členové Gridu”', True, False])
+        # used where the daemon refuses: the Deploy dialog and the wizard
+        self.assertIn("if (form && form.refused && e && e.message) e.message = form.refused(e.message);", certs)
+        self.assertIn("var why = f && f.refused ? f.refused(e.message) : e.message;", certs)
+
+    def test_wizard_checks_the_deployments_before_saving(self):
+        certs = read('web', 'assets', 'certs.js')
+        fin = re.search(r'\n  function finish\(b, issue, hold\) \{[\s\S]*?capi\(\'certs/save\', sent\)', certs).group(0)
+        self.assertIn("var dbad = dstep && dstep.check ? dstep.check() : '';", fin)
+        self.assertIn("if (dbad) { backToDeploy(dbad); toast(dbad, 'bad'); return; }", fin)
+        # refused after the save: said, and the wizard back on the deployment step
+        self.assertIn("backToDeploy(e.message, e.deployOf, e.raw);", certs)
+        self.assertIn("'The certificate is saved, but its deployment to ' + W.depRefused.target", certs)
+        # the wizard's deployment step leaves out "Check what is served" as the Deploy dialog does
+        self.assertIn("(!x.dual_only || W.d.key_type_alt) && VERIFY_KEYS.indexOf(x.key) < 0", certs)
+
+    def test_deploy_asks_for_the_target_before_the_confirmation(self):
+        core = read('web', 'assets', 'core.js')
+        certs = read('web', 'assets', 'certs.js')
+        act = re.search(r"if \(b\.act && b\.go && !b\.once\) \{[\s\S]*?var strip", core).group(0)
+        self.assertIn("if (typeof b.ready === 'function' && b.ready(button) === false) return;", act)
+        self.assertIn("buttons.push({words: 'Save and deploy now', cls: 'primary', icon: 'deploy', ready: ready,", certs)
+
+    def test_toast_above_the_popup_buttons(self):
+        core = read('web', 'assets', 'core.js')
+        fn = re.search(r'\nfunction toast\(words, kind\) \{[\s\S]*?\n\}\n', core).group(0)
+        self.assertIn("foot.getBoundingClientRect().top", fn)
+        self.assertIn("node.style.bottom =", fn)
+
+    def test_long_choices_are_not_cut(self):
+        certs = read('web', 'assets', 'certs.js')
+        self.assertIn("if (pairs.some(function (p) { return String(p[1] || '').length > 32; })) wide = true;", certs)
+
+    def test_version_filter_inside_ranges(self):
+        core = read('web', 'assets', 'core.js')
+        certs = read('web', 'assets', 'certs.js')
+        g = lambda src, rx: re.search(rx, src).group(0)
+        js = ('function arr(x) { return Array.isArray(x) ? x : []; } function tr(x) { return x; }'
+              + g(certs, r'\nfunction mdVersionWords[\s\S]*?\n}\n') + g(core, r'\nfunction qVerCmp[\s\S]*?\n}\n')
+              + g(core, r'\nfunction qWild[\s\S]*?\n}\n') + g(core, r'\nfunction qOneMatch[\s\S]*?\n}\n')
+              + 'var P = {ontap: {versions: [{version: ""}, {version: "9.10", version_label: "ONTAP 9.10.1 - 9.19"}]},'
+              ' iosxe: {versions: [{version: "17.12", version_label: "IOS XE 17.12 - 26.1"}]},'
+              ' aria: {description: "Aria Automation and Automation Orchestrator 8.18: sets the ingress"},'
+              ' syn: {version_label: "OneView for Synergy 9.x - 11.x (detects the API)"}};'
+              'var out = {}; Object.keys(P).forEach(function (k) { var w = mdVersionWords(P[k]);'
+              ' out[k] = ["9.15", "17.15", "8.18", "9.10", "9.9", "26.2", "10.2"].filter(function (q) {'
+              ' return qOneMatch("text", ":", q, w, "version"); }); });'
+              'console.log(JSON.stringify(out));')
+        self.assertEqual(self.node_js(js), {'ontap': ['9.15', '9.10'], 'iosxe': ['17.15'],
+                                            'aria': ['8.18'], 'syn': ['9.15', '9.10', '9.9', '10.2']})
+
+
 if __name__ == '__main__':
     sys.exit(unittest.main())

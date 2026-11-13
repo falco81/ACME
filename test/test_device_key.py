@@ -873,7 +873,7 @@ class Round1e(unittest.TestCase):
             with self.assertRaises(ValueError) as e:
                 api.deploy_save(STORE, {'cert_id': cid, 'target': 'ib1',
                                         'options': {'members': members}}, 'test')
-            self.assertIn('Grid members is needed', str(e.exception))
+            self.assertIn('fill in \u201cGrid members\u201d', str(e.exception))
         self.assertIsNone(STORE.db.row('SELECT id FROM cert_deploys WHERE cert_id = ?', (cid,)))
         with open(os.path.join(ROOT, 'acmelib', 'certs', 'api.py'), encoding='utf-8') as f:
             self.assertIn("b = dict(b, options={})", f.read())

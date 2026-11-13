@@ -4,7 +4,7 @@ acme se přes **SSH** přihlásí k **virtuálnímu kontroleru** clusteru Instan
 
 | Verze modulu | Instant | Co acme posílá |
 |---|---|---|
-| libovolná verze (zjistí ji) | 8.3 - 8.13 | podle `show version`: od 8.7 postup pro 8.7, dříve postup pro 8.3; neznámá: 8.7 (s upozorněním) |
+| jakákoli verze (zjistí ji) | 8.3 - 8.13 | podle `show version`: od 8.7 postup pro 8.7, dříve postup pro 8.3; neznámá: 8.7 (s upozorněním) |
 | Instant 8.3 - 8.6 | 8.3 - 8.6 | `copy tftp <server> <soubor> uiserver cert <heslo> format pem` (WebUI), `... cpserver ...` (captive portál) - PEM s klíčem zašifrovaným jednorázovým heslem, certifikátem a řetězcem |
 | Instant 8.7 - 8.13 | 8.7 - 8.13 | `crypto pki-import format pfx cert-type ServerCert url <url> certname <název> psk <heslo>`, pak `wlan cert-assignment-profile` / `pki-cert-assign application ui` (a `captive-portal`) `cert-type ServerCert certname <název>`, `commit apply` |
 
@@ -45,7 +45,7 @@ AP musí dosáhnout na UDP **69** serveru. Soubor (privátní klíč zašifrovan
 
 | Pole v acme | Co do něj patří |
 |---|---|
-| Verze modulu | **libovolná verze (zjistí ji)** (nebo ta pro váš Instant) |
+| Verze modulu | **jakákoli verze (zjistí ji)** (nebo ta pro váš Instant) |
 | Adresa | adresa virtuálního kontroleru, např. `iap.example.com` |
 | SSH port / Uživatel | `22` / `admin` |
 | Přihlásit se přes, Heslo | heslo |

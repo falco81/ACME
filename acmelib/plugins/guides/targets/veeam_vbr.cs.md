@@ -1,4 +1,4 @@
-# Veeam Backup & Replication (libovolná verze) - nastavení pro acme
+# Veeam Backup & Replication (jakákoli verze) - nastavení pro acme
 
 acme vymění **certifikát backup serveru** Veeam Backup & Replication na **Windows** – TLS certifikát, podle kterého backup serveru důvěřují komponenty, agenti, plug-iny a konzole; ve **v13** zároveň certifikát **webového UI a REST API** (443, 9419). Přihlásí se na server přes **OpenSSH** a spustí tam PowerShell:
 
@@ -10,7 +10,7 @@ acme vymění **certifikát backup serveru** Veeam Backup & Replication na **Win
 
 ## Pro které verze
 
-Verze modulu **libovolná verze (zjistí ji)**: VBR **13.0 – 13.1** a **12.3**. Rozliší je podle `Get-VBRBackupServerInfo` (build), a když chybí, podle toho, zda `Add-VBRBackupServerCertificate` má `-Force` (v13). Verze *VBR 12.3* a *VBR 13.0 - 13.1* posílají jen svá volání a server, který hlásí jinou verzi, odmítnou.
+Verze modulu **jakákoli verze (zjistí ji)**: VBR **13.0 – 13.1** a **12.3**. Rozliší je podle `Get-VBRBackupServerInfo` (build), a když chybí, podle toho, zda `Add-VBRBackupServerCertificate` má `-Force` (v13). Verze *VBR 12.3* a *VBR 13.0 - 13.1* posílají jen svá volání a server, který hlásí jinou verzi, odmítnou.
 
 ## Certifikát, který Veeam vezme – přečtěte si před vydáním
 
@@ -40,7 +40,7 @@ Pak v konzoli Veeam: *Main menu > Users and Roles > Add* → `.\svc-veeam`, role
 
 | Pole v acme | Co tam patří |
 |---|---|
-| Verze modulu | *libovolná verze (zjistí ji)*, nebo *VBR 12.3* / *VBR 13.0 - 13.1* |
+| Verze modulu | *jakákoli verze (zjistí ji)*, nebo *VBR 12.3* / *VBR 13.0 - 13.1* |
 | Adresa / SSH port / Uživatel | server VBR, `22`, `svc-veeam` |
 | Přihlásit se přes / SSH klíč / Heslo | klíč vytvořený v acme (u administrátora do `administrators_authorized_keys`) nebo heslo |
 | Složka pro nahrávání (pokročilé) | `C:/Windows/Temp` – PKCS#12 tam leží jen sekundy |

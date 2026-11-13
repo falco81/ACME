@@ -14,7 +14,7 @@ Je-li certifikát už nasazený (nejdřív se přečte přes `GET`), nic neděl�
 
 | Verze modulu | vCenter | Volání |
 |---|---|---|
-| **libovolná verze (zjistí ji)** | 9.0 - 9.1 | podle verze, kterou vCenter řekne; neznámá: volání 9.1, pak 9.0 |
+| **jakákoli verze (zjistí ji)** | 9.0 - 9.1 | podle verze, kterou vCenter řekne; neznámá: volání 9.1, pak 9.0 |
 | vCenter 9.0 | 9.0.x | `clusters/<cluster>` |
 | vCenter 9.1 a novější 9.x | 9.1, 9.1.1 | `supervisors/<id>/certificates` |
 
@@ -44,7 +44,7 @@ Je-li certifikát už nasazený (nejdřív se přečte přes `GET`), nic neděl�
 
 | Pole v acme | Co tam patří |
 |---|---|
-| Verze modulu | **libovolná verze (zjistí ji)** - nebo ta pro váš vCenter |
+| Verze modulu | **jakákoli verze (zjistí ji)** - nebo ta pro váš vCenter |
 | Adresa / Port HTTPS | FQDN vCenteru, `443` |
 | Uživatel / Heslo | `svc-wcp-cert@vsphere.local` a jeho heslo |
 | Supervisor | `domain-c8` (9.1: ID Supervisoru; 9.0: ID jeho clusteru) |

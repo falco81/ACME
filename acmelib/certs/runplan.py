@@ -1889,6 +1889,33 @@ def _test_steps(cls, cfg, names, via=None):
     return steps
 
 
+# The target modules there were in 1.0.92 - the last version whose modules checked what is
+# served themselves after a deployment ("verify"); a test made from a deployment on a module
+# added later never was the module's own check.
+KINDS_BY_1092 = frozenset((
+    'a10', 'acme_push', 'appliance', 'avi', 'aws_acm', 'azure_appgw', 'azure_appservice',
+    'azure_keyvault', 'barracuda_waf', 'bunny', 'caddy', 'checkpoint', 'cisco_asa', 'cisco_fmc',
+    'cisco_ftd_fdm', 'cisco_ise', 'cloudflare_ssl', 'cpanel_ssl', 'digitalocean_lb',
+    'directadmin_ssl', 'docker_swarm', 'esxi', 'f5', 'fastly', 'flowmon', 'fortiadc',
+    'fortigate', 'fortiweb', 'fritzbox', 'froxlor', 'gcp_certmanager', 'haproxy', 'hestiacp',
+    'hetzner_lb', 'ispconfig', 'juniper_srx', 'kemp', 'kong', 'kubernetes', 'local', 'mikrotik',
+    'netscaler', 'nginx_proxy_manager', 'nginx_unit', 'nsx', 'nutanix', 'omnissa_uag',
+    'opnsense', 'paloalto', 'pfsense', 'plesk', 'proxmox', 'proxmox_backup', 'redfish',
+    'simple', 'sophos', 'ssh', 'ssh_connector', 'strongswan', 'synology', 'traefik', 'truenas',
+    'unifi_os', 'vault', 'vcenter', 'virtualmin', 'webglobe', 'webhook', 'windows_ssh',
+    'zimbra'))
+
+
+def waits_words(waits):
+    """The waits of the tests after a deployment, in words: "after 3, 10, 20 s", and a long
+    run of the same wait said once (1.0.96: "after 3, 30, 30, 30..." - 31 times "30")."""
+    waits = [int(x) if float(x) == int(x) else x for x in waits or []]
+    if len(waits) > 2 and len(set(waits[1:])) == 1:
+        return 'after {0} s, then {1} more times, {2} s apart'.replace(
+            '{0}', str(waits[0])).replace('{1}', str(len(waits) - 1)).replace('{2}', str(waits[1]))
+    return 'after %s s' % ', '.join(str(x) for x in waits)
+
+
 def checks_phase(store, cert, names):
     """The tests attached to the certificate: one group each (a connector: the tests it
     carries, from its server), as the deployments are."""
@@ -1958,8 +1985,14 @@ def checks_phase(store, cert, names):
                 waits = CK.AFTER_DEPLOY_TRIES
             made = CK.auto_made(store, r['test'])
             if made:
+                # "until 1.0.92 its module checked it" - only of a module there was then (1.0.96:
+                # said of a module new in 1.0.96 too)
+                at = CK.auto_target(store, r['test'])
+                arow = S.plugin_row(store, 'target', at) if at else None
                 steps.append({'kind': 'info', 'words': 'Made by acme from a deployment: what the '
                               'target serves', 'note': 'its module checked it itself until 1.0.92; '
+                              'taken off, it is not attached again' if arow and
+                              arow.get('kind') in KINDS_BY_1092 else
                               'taken off, it is not attached again'})
             if tied:
                 steps.append({'kind': 'wait', 'words': 'Runs only after a deployment on {0}'.replace(
@@ -1974,8 +2007,7 @@ def checks_phase(store, cert, names):
                               'its targets', 'note': 'when it fails, the deployments of this run '
                               'fail - tried again later'})
             steps.append({'kind': 'wait', 'words': 'Asked {0} times while the services restart'
-                          .replace('{0}', str(len(waits))), 'note': 'after %s s%s' % (
-                              ', '.join(str(x) for x in waits),
+                          .replace('{0}', str(len(waits))), 'note': waits_words(waits) + (
                               ' - its target restarts for long' if tuple(waits) !=
                               tuple(CK.AFTER_DEPLOY_TRIES) else '')})
         steps.append({'kind': 'wait', 'words': ('By itself every {0} min'.replace(
@@ -2041,6 +2073,10 @@ def after_phase(store, cert, irow, dinfo):
             '{0}', time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(max(at, time.time())))),
             'note': '%d days before the end, or sooner in the window its CA suggests (ARI)'
             % days})
+    elif cert.get('state') == 'held' or (not cert.get('id') and cert.get('hold')):
+        # "Add only" (1.0.26): never issued by itself (1.0.96: said it would be, at the next look)
+        steps.append({'kind': 'wait', 'words': 'Not issued by itself: it was only added - it '
+                      'waits until Issue now is pressed in its window'})
     else:
         steps.append({'kind': 'wait', 'words': 'Issued at the next look (within minutes), or '
                       'at once with Issue now'})

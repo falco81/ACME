@@ -8,7 +8,7 @@ Verze modulu **„IOS XE 17.3 - 17.11“**: IOS XE **17.3 - 17.11** (17.3, 17.6,
 
 | Verze modulu | IOS XE | PKCS#12, který acme posílá |
 |---|---|---|
-| libovolná verze (zjistí ji) | 17.3 - 26.1 | podle verze, kterou ukáže `show version` |
+| jakákoli verze (zjistí ji) | 17.3 - 26.1 | podle verze, kterou ukáže `show version` |
 | IOS XE 17.3 - 17.11 | 17.3 - 17.11 | 3DES, MAC SHA-1 |
 | IOS XE 17.12 - 26.1 | 17.12 - 26.1 | AES-256, MAC SHA-256 |
 
@@ -119,7 +119,7 @@ openssl s_client -connect wlc01.example.com:443 -servername wlc01.example.com -s
 | Co acme hlásí | Význam | Řešení |
 |---|---|---|
 | `scp to ...: ...` | SCP odmítnuto | `ip scp server enable`; účet potřebuje privilege 15 |
-| `... Bad HMAC` / `PKCS12 import failed` | IOS XE tento PKCS#12 nepřijme | před 17.12.1 zvolte *IOS XE 17.3 - 17.11* (nebo *libovolná verze*) |
+| `... Bad HMAC` / `PKCS12 import failed` | IOS XE tento PKCS#12 nepřijme | před 17.12.1 zvolte *IOS XE 17.3 - 17.11* (nebo *jakákoli verze*) |
 | `the device said "% Invalid input ..."` | příkaz není povolený nebo známý | privilege 15 / sada příkazů TACACS+; zkontrolujte verzi IOS XE |
 | *the module version ... is for IOS XE ...* | zařízení má jiné IOS XE | zvolte verzi uvedenou ve zprávě |
 | test servírovaného certifikátu hned poté selže | HTTPS server se ještě restartuje | acme sám počká; jinak `show ip http server secure status` |

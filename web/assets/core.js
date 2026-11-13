@@ -216,6 +216,11 @@ function toast(words, kind) {
     document.body.appendChild(node);
   }
   node.textContent = words;
+  /* Over a popup: above its buttons, never over them (1.0.96: "Close" was under the
+     refusal) - at the bottom of the window otherwise. */
+  var pop = $('modal'), foot = $('modal-foot');
+  var top = pop && !pop.hidden && foot && foot.getBoundingClientRect ? foot.getBoundingClientRect().top : 0;
+  node.style.bottom = top > 0 && top < window.innerHeight ? Math.max(26, Math.round(window.innerHeight - top + 10)) + 'px' : '';
   node.className = 'toast show' + (kind ? ' ' + kind : '');
   clearTimeout(node._away);
   node._away = setTimeout(function () { node.className = 'toast' + (kind ? ' ' + kind : ''); },
@@ -403,6 +408,9 @@ function modal(title, build, buttons, narrow) {
     }
     if (b.act && b.go && !b.once) {
       button.onclick = function () {
+        /* what it needs, looked at before it is asked (1.0.96: "It starts at once - go on?",
+           and only after Yes "choose the target") - `ready` says what is missing itself */
+        if (typeof b.ready === 'function' && b.ready(button) === false) return;
         var strip = el('div', 'sure-strip act');
         strip.appendChild(el('span', 'sure-q', typeof b.confirm === 'string' ? b.confirm : 'It starts at once - go on?'));
         var no = el('button', 'btn cmd', 'No, leave it');
@@ -2316,6 +2324,16 @@ var Q_TERM = /^([-!]?)([A-Za-z_][\w]*)(!=|>=|<=|[:~=<>])([\s\S]*)$/;
 function qWild(low) {
   return new RegExp('^' + low.split('*').map(function (p) { return p.replace(/[.+?^${}()|[\]\\]/g, '\\$&'); }).join('.*') + '$', 'i');
 }
+/** Two versions number by number, as far as the shorter one goes: 9.19 holds 9.19.1, and
+    9.10 is 9.10.1's. -1, 0, 1. */
+function qVerCmp(a, b) {
+  var x = String(a).split('.'), y = String(b).split('.');
+  for (var i = 0; i < Math.min(x.length, y.length); i++) {
+    var d = Number(x[i]) - Number(y[i]);
+    if (d) return d < 0 ? -1 : 1;
+  }
+  return 0;
+}
 function qOneMatch(kind, op, item, have, name) {
   var low = String(item).toLowerCase();
   var cmp = (op === ':' || op === '=') && low.match(/^(>=|<=|>|<)\s*([\s\S]+)$/);
@@ -2339,6 +2357,11 @@ function qOneMatch(kind, op, item, have, name) {
     return vals.some(function (v) { return (v === true || v === 1 || v === '1' || v === 'true' || v === 'on' || v === 'yes' ? 1 : 0) === want; });
   }
   return vals.some(function (v) {
+    /* a range of versions (the Modules page: {vlo, vhi}): a version inside it, number by
+       number - 9.15 within 9.10.1 - 9.19, 17.15 within 17.12 - 26.1 (1.0.96) */
+    if (v && typeof v === 'object' && v.vlo !== undefined && op !== '~' && /^\d+(\.\d+)*$/.test(low)) {
+      return qVerCmp(low, v.vlo) >= 0 && qVerCmp(low, v.vhi) <= 0;
+    }
     var t = String(v === null || v === undefined ? '' : v).toLowerCase();
     if (op === '~') return t.indexOf(low) >= 0;
     if (low.indexOf('*') >= 0) return qWild(low).test(t);

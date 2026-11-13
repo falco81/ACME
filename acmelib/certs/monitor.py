@@ -394,6 +394,8 @@ PATTERNS = [
                 r'(?P<until>[^)]*)\)\Z'), {'result': 'ok'}),
     (re.compile(r'^renewing (?P<cert>\S.*?) failed: (?P<error>.*)\Z', re.S),
      {'action': 'renew', 'result': 'failed'}),
+    (re.compile(r'^issuing (?P<cert>\S.*?) failed: (?P<error>.*)\Z', re.S),
+     {'action': 'issue', 'result': 'failed'}),
     (re.compile(r'^(?P<cert>\S.*?) has expired\Z'), {'action': 'expired', 'result': 'expired'}),
     (re.compile(r'^(?P<cert>\S.*?) ends in (?P<left>.+?)( and is not renewed by itself)?\Z'),
      {'action': 'expiring', 'result': 'warn'}),

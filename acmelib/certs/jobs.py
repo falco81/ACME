@@ -18,6 +18,7 @@ from __future__ import annotations
 import concurrent.futures
 import json
 import os
+import re
 import threading
 import time
 import traceback
@@ -203,6 +204,15 @@ def _iso(t):
         return None
 
 
+ERRNO_RE = re.compile(r'\[Errno -?\d+\]\s*')
+
+
+def said_plainly(e):
+    """What a module said, with the system's error number left out (1.0.96: "could not be
+    reached: [Errno 113] No route to host" - the number said nothing, only the words do)."""
+    return ERRNO_RE.sub('', str(e))
+
+
 def step_in(job, words, level='info', scope=None):
     """A step said for a module (scope 'challenge:<name>', 'target:<name>'...): isemon's line
     names it (1.0.44). Any other kind of job takes the step as it is."""
@@ -280,10 +290,10 @@ def _work(job, fn):
             job.finish(False, str(e))
             return job
         except base.PluginError as e:
-            job.step(str(e), 'bad')
+            job.step(said_plainly(e), 'bad')
             if e.detail:
                 job.step(str(e.detail)[:4000], 'debug')
-            job.finish(False, str(e))
+            job.finish(False, said_plainly(e))
             return job
         except Exception as e:                          # noqa: BLE001
             job.step('%s: %s' % (type(e).__name__, e), 'bad')

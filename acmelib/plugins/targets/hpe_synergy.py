@@ -114,9 +114,12 @@ class HpeSynergyTarget(HpeOneViewTarget):
     # the device makes the key (docs/writing-a-module.md "The device makes the key")
     device_key = True
     device_key_types = ('rsa-2048', 'rsa-3072')
-    device_key_names = ('an enclosure\'s certificate (the deployment\'s "Certificate of"): one '
-                        'name, the DNS name of its management module - not an IP address, and '
-                        'not the appliance\'s address the target has - and an RSA 2048 key')
+    # only an enclosure's certificate is held to these (1.0.96: the note read as if every
+    # certificate of a Synergy were - the appliance's, the default, takes any names)
+    device_key_names = ('only when the deployment\'s "Certificate of" is an enclosure\'s '
+                        'management module (not the appliance, the default): one name, the DNS '
+                        'name of that management module - not an IP address, and not the '
+                        'appliance\'s address the target has - and an RSA 2048 key')
 
     @classmethod
     def device_key_problem(cls, names, key_type, options):

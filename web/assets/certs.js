@@ -773,6 +773,10 @@ function fieldForm(fields, values, secrets, opts) {
       if (!f.required && !pairs.some(function (p) { return p[0] === ''; }) && (v === undefined || v === '')) pairs.unshift(['', '–']);
       input = selectBox(pairs, v === undefined ? (pairs[0] ? pairs[0][0] : '') : v);
       get = function () { return input.value; };
+      /* a choice of long words across the form, the box as wide as its cell (1.0.96: Infoblox's
+         "Use it as" was cut to "HTTPS certifikát (Grid Manager, W…" - the box kept the width of
+         the English) */
+      if (pairs.some(function (p) { return String(p[1] || '').length > 32; })) wide = true;
     } else if (type === 'number') {
       input = numberBox(v, f.placeholder, f.min, f.max);
       get = function () { return input.value === '' ? null : Number(input.value); };
@@ -967,8 +971,31 @@ function fieldForm(fields, values, secrets, opts) {
       var cur = current(), bad = '';
       items.forEach(function (it) {
         it.item.classList.remove('refused');
-        if (!it.f.required || !shown(it, cur)) return;
+        if (!shown(it, cur)) return;
         var v = cur[it.f.key];
+        /* a number within the field's min and max (1.0.96: a Synergy enclosure's bay 3 passed
+           the wizard's step and the Deploy dialog, and only the daemon refused it - after the
+           certificate was saved). As the daemon: a value kept as it was is not asked again. */
+        if (it.f.type === 'number' && v !== null && v !== undefined && v !== '' && !isNaN(Number(v))) {
+          /* opts.kept: the options saved before (a deployment edited) - the wizard's values
+             are only what was typed */
+          var was = opts.kept && Object.prototype.hasOwnProperty.call(opts.kept, it.f.key) ? opts.kept[it.f.key] : undefined;
+          var lo = it.f.min, hi = it.f.max, n = Number(v), why = '';
+          if (was === undefined || was === null || was === '' || Number(was) !== n) {
+            if (typeof lo === 'number' && n < lo) why = tr(it.f.label || it.f.key) + ' is ' + lo + ' at least (not ' + v + ')';
+            else if (typeof hi === 'number' && n > hi) why = tr(it.f.label || it.f.key) + ' is ' + hi + ' at most (not ' + v + ')';
+          }
+          if (why) {
+            it.item.classList.add('refused');
+            if (it.f.advanced) more.open = true;
+            if (!bad) {
+              bad = why;
+              try { (it.input._input || it.input).focus(); } catch (e) { }
+            }
+            return;
+          }
+        }
+        if (!it.f.required) return;
         var empty = v === '' || v === null || v === undefined || (Array.isArray(v) && !v.length);
         if ((it.f.type === 'secret' || it.f.secret) && secrets[it.f.key]) empty = false;
         if (it.f.type === 'bool') empty = false;
@@ -976,13 +1003,36 @@ function fieldForm(fields, values, secrets, opts) {
           it.item.classList.add('refused');
           if (it.f.advanced) more.open = true;
           if (!bad) {
-            bad = tr(it.f.label || it.f.key) + ' is needed';   /* the field as it is shown (1.0.88) */
+            /* the field as it is shown (1.0.88), in words for any label - "Grid members is
+               needed" (1.0.96) */
+            bad = 'fill in \u201c' + tr(it.f.label || it.f.key) + '\u201d';
             var box = it.input._input || it.input;
             try { box.focus(); } catch (e) { }
           }
         }
       });
       return bad;
+    },
+    /* The daemon's refusal of these options (deploys/save): the field it names marked, and
+       its label in the page's language - a label of one word stays English in a slot
+       ("Bay is 2 at most (not 3)" with the field called Pozice, 1.0.96). */
+    refused: function (words) {
+      var cur = current(), msg = String(words || ''), hit = null;
+      items.forEach(function (it) {
+        if (hit || !shown(it, cur)) return;
+        var lab = String(it.f.label || it.f.key || '');
+        if (!lab) return;
+        var to = tr(lab);
+        if (msg.indexOf(lab + ' is ') === 0) { hit = it; msg = to + msg.slice(lab.length); }
+        else if (msg.indexOf('\u201c' + lab + '\u201d') >= 0) { hit = it; msg = msg.replace('\u201c' + lab + '\u201d', '\u201c' + to + '\u201d'); }
+      });
+      if (hit) {
+        items.forEach(function (it) { it.item.classList.remove('refused'); });
+        hit.item.classList.add('refused');
+        if (hit.f.advanced) more.open = true;
+        try { (hit.input._input || hit.input).focus(); } catch (e) { }
+      }
+      return msg;
     }
   };
 }
@@ -3362,7 +3412,8 @@ function deployEdit(o) {
       /* family, row, plug: a field of the type catalog in a deployment's form asks its
          target for the list (api_catalog.py) */
       form = fieldForm(fields, opts, secretsOf(d), {noneWords: 'This target needs nothing more: the certificate goes where the module puts it.',
-                                                     family: 'target', row: t, plug: p});
+                                                     family: 'target', row: t, plug: p,
+                                                     kept: d.id && t.name === d.target ? obj(d.options) : null});
       formHost.appendChild(form.node);
     };
     var deployDual = function () {
@@ -3371,12 +3422,20 @@ function deployEdit(o) {
       var cid = cSel ? cSel.value : '';
       return !!(cid && arr(certs).some(function (c) { return String(c.id) === String(cid) && c.key_type_alt; }));
     };
+    /* what the save needs, said before anything is asked or sent (1.0.96: "Save and deploy
+       now" asked "It starts at once - go on?" first, and only then said "choose the target") */
+    var ready = function () {
+      var t = target();
+      var cid = cSel ? cSel.value : certId;
+      if (!cid) { toast('choose the certificate', 'bad'); return false; }
+      if (!t.name) { toast('choose the target', 'bad'); return false; }
+      if (form) { var bad = form.check(); if (bad) { toast(bad, 'bad'); return false; } }
+      return true;
+    };
     var save = function (b, run) {
       var t = target();
       var cid = cSel ? cSel.value : certId;
-      if (!cid) { toast('choose the certificate', 'bad'); return; }
-      if (!t.name) { toast('choose the target', 'bad'); return; }
-      if (form) { var bad = form.check(); if (bad) { toast(bad, 'bad'); return; } }
+      if (!ready()) return;
       busy(b, true);
       capi('deploys/save', {id: d.id, cert_id: isNaN(Number(cid)) ? cid : Number(cid), target: t.name,
                             options: form ? form.read() : {}, enabled: on._get()}).then(function (x) {
@@ -3388,7 +3447,11 @@ function deployEdit(o) {
           if (!run) { toast(said(x, 'saved'), 'good'); closeModal(); CT.refresh(); return; }
           return capi('deploys/run', {id: id}).then(function (y) { closeModal(); jobStarted(y, 'deploying'); });
         });
-      }).catch(fail).then(function () { busy(b, false); });
+      }).catch(function (e) {
+        /* the field the daemon refused marked, its label in the page's language */
+        if (form && form.refused && e && e.message) e.message = form.refused(e.message);
+        fail(e);
+      }).then(function () { busy(b, false); });
     };
     var buttons = [{words: 'Close', close: true}];
     var testBtn = null;
@@ -3400,7 +3463,7 @@ function deployEdit(o) {
     }});
     if (MANAGE) {
       buttons.push({words: 'Save', icon: 'save', go: function (b) { save(b, false); }});
-      buttons.push({words: 'Save and deploy now', cls: 'primary', icon: 'deploy', go: function (b) { save(b, true); }});
+      buttons.push({words: 'Save and deploy now', cls: 'primary', icon: 'deploy', ready: ready, go: function (b) { save(b, true); }});
     }
     var certName = first(d.cert_name, o.cert && o.cert.name, certId ? '#' + certId : '');
     if (certId) CERT_NAME_OF[certId] = certName;
@@ -6164,8 +6227,13 @@ function certWizard(cert, detail, opts) {
       return;
     }
     var list = el('div', 'ct-deps');
-    var forms = {};
+    var forms = W.depForms = {};
     devDeploys();
+    /* the certificate saved, a deployment's options refused by the daemon (1.0.96: the
+       wizard stayed on Review with a toast that faded, and the device's deployment was made
+       without them) - said here, where they are corrected, until it is saved again */
+    if (W.depRefused) host.appendChild(el('p', 'note warn ct-deprefused', 'The certificate is saved, but its deployment to ' + W.depRefused.target
+      + ' is not as set here: ' + W.depRefused.why + '. Correct it below and save again.'));
     if (W.d.csr_from) host.appendChild(el('p', 'muted small', 'Its key is made by the device of ' + W.d.csr_from + ': it goes there alone, right after each issue - the deployment is made by itself.'));
     /* a device's own key: that target only; any other certificate: not to a target whose
        device makes keys (it takes only a certificate for its own) */
@@ -6202,7 +6270,9 @@ function certWizard(cert, detail, opts) {
         forms[t.name] = null;
         if (!cb.checked) return;
         if (!p) { fh.appendChild(el('p', 'ct-bad', 'Its module is not installed.')); return; }
-        var dfs = arr(p.deploy_fields).filter(function (x) { return !x.dual_only || W.d.key_type_alt; });
+        /* "Check what is served" is a test of the target (1.0.77), as in the Deploy dialog:
+           not a field here either (1.0.96: the wizard still showed it) */
+        var dfs = arr(p.deploy_fields).filter(function (x) { return (!x.dual_only || W.d.key_type_alt) && VERIFY_KEYS.indexOf(x.key) < 0; });
         var f = p.files_ui && window.ACME_DEPLOY_UI
           ? window.ACME_DEPLOY_UI.form(p, dfs, W.deploys[t.name] || {}, {}, {target: t.name, targetRow: t, names: names(),
               key_type: W.d.key_type, key_type_alt: W.d.key_type_alt, dual: !!W.d.key_type_alt, sudo: truthy((t.config || {}).sudo)})
@@ -6570,10 +6640,33 @@ function certWizard(cert, detail, opts) {
     sent.deploys = W.deploys;
     ACME_RUNPLAN.open({id: c.id || undefined, draft: sent, name: sent.name});
   }
+  /* The deployment step again, its refusal marked on its field (forms drawn anew). */
+  function backToDeploy(why, target, raw) {
+    if (steps().map(function (x) { return x.key; }).indexOf('deploy') < 0) return false;
+    if (target) W.depRefused = {target: target, why: why};
+    var draw = function () {
+      /* where it is now: the steps shown hang on the modules too */
+      var at = steps().map(function (x) { return x.key; }).indexOf('deploy');
+      if (at >= 0) go(at);
+      var f = (W.depForms || {})[target || ''];
+      if (f && f.refused) f.refused(raw || why);
+      else Object.keys(W.depForms || {}).forEach(function (k) { if (W.depForms[k] && W.depForms[k].check) W.depForms[k].check(); });
+    };
+    /* after a save the modules are asked again (forgetAll): drawn once they are here, or the
+       step said "Its module is not installed" */
+    if (PLUG) draw();
+    else plugins().then(draw, draw);
+    return true;
+  }
   function finish(b, issue, hold) {
     var bad = checkNames() || (!W.d.issuer ? 'choose where it comes from' : '') ||
       ((compatProblems()[0] || {}).what || '');
     if (bad) { toast(bad, 'bad'); return; }
+    /* the deployments' options looked at before anything is saved (1.0.96: a bay out of
+       range passed, the certificate was saved, and its deployment made without them) */
+    var dstep = steps().filter(function (x) { return x.key === 'deploy'; })[0];
+    var dbad = dstep && dstep.check ? dstep.check() : '';
+    if (dbad) { backToDeploy(dbad); toast(dbad, 'bad'); return; }
     busy(b, true);
     var sent = body();
     if (hold && !editing) sent.hold = true;     /* "Add only": not issued by itself (1.0.26) */
@@ -6598,6 +6691,7 @@ function certWizard(cert, detail, opts) {
       c.id = id;
       var skip = {};
       if (devT && d && d.device_deploy) { W.deployed[devT] = d.device_deploy; skip[devT] = 1; }
+      W.depRefused = null;
       var made = W.d.csr_from && !W.deployed[W.d.csr_from]
         ? capi('deploys' + qs({cert_id: id})).then(function (x) {
           rowsOf(x, 'deploys').forEach(function (r) { if (r.target === W.d.csr_from) W.deployed[r.target] = r.id; });
@@ -6605,7 +6699,17 @@ function certWizard(cert, detail, opts) {
       var jobs = [function () { return made; }].concat(Object.keys(W.deploys).filter(function (t) { return !skip[t]; }).map(function (t) {
         return function () {
           return capi('deploys/save', {id: W.deployed[t], cert_id: id, target: t, options: W.deploys[t], enabled: true})
-            .then(function (x) { W.deployed[t] = (x && x.id) || W.deployed[t]; });
+            .then(function (x) { W.deployed[t] = (x && x.id) || W.deployed[t]; }, function (e) {
+              /* refused: the certificate is saved - said so, on the step where it is put right */
+              if (e && !e.stopped && e.status >= 400 && e.status < 500 && e.message) {
+                var f = (W.depForms || {})[t];
+                var why = f && f.refused ? f.refused(e.message) : e.message;
+                e.raw = e.message;
+                e.message = why;
+                e.deployOf = t;
+              }
+              throw e;
+            });
         };
       }));
       var chain = jobs.reduce(function (p, fn) { return p.then(fn); }, Promise.resolve());
@@ -6620,7 +6724,15 @@ function certWizard(cert, detail, opts) {
         closeModal();
         if (typeof opts.after === 'function') opts.after(id); else certPeek(id);
       });
-    }).catch(fail).then(function () { busy(b, false); });
+    }).catch(function (e) {
+      if (e && e.deployOf) {
+        CT.refresh();
+        backToDeploy(e.message, e.deployOf, e.raw);
+        toast('The certificate is saved, but its deployment to ' + e.deployOf + ' is not as set here: ' + e.message + '. Correct it below and save again.', 'bad');
+        return;
+      }
+      fail(e);
+    }).then(function () { busy(b, false); });
   }
 
   modal(MOVE ? 'Change the source of ' + c.name : (SETUP ? 'Set up ' + c.name : (editing ? 'Edit ' + c.name : 'Add a certificate')), function (bd) { bd.appendChild(el('p', 'center muted', 'Asking…')); }, [{words: 'Close', close: true}], 'large');
@@ -9083,13 +9195,30 @@ function tagsInto(node, list) {
 /** What version:x of the Modules filter is matched against (1.0.96: one text of them all
     joined matched no "version:9.10"): each version as it is named, "plain" in either
     language for the plain one, and the version numbers its label says (ONTAP 9.10.1 - 9.19). */
+/* ...and a range its label or description says ("9.10.1 - 9.19", "17.12 - 26.1", "3.x"):
+   version:9.15 is inside it, compared number by number (qOneMatch: {vlo, vhi}). (1.0.96:
+   only the numbers written were found - 9.15 in ONTAP 9.10.1 - 9.19 was not) */
 function mdVersionWords(p) {
   var out = [];
+  var range = /(\d+(?:\.\d+)*)(?:\.x)?\s*(?:-|\u2013|to)\s*(\d+(?:\.\d+)*)(?:\.x)?(?![\d.])/g;
+  var said = function (text) {
+    text = String(text || '');
+    text.replace(/\d+(?:\.\d+)+/g, function (n) { out.push(n); return n; });
+    /* "3.x": any 3 */
+    text.replace(/\b(\d+(?:\.\d+)*)\.x\b/g, function (all, n) { out.push({vlo: n, vhi: n, toString: function () { return all; }}); return all; });
+    text.replace(range, function (all, lo, hi) {
+      if (lo.indexOf('.') < 0 && hi.indexOf('.') < 0 && !/\.x/.test(all)) return all;   /* "2 - 4" is not a version */
+      out.push({vlo: lo, vhi: hi, toString: function () { return all; }});
+      return all;
+    });
+  };
   (arr(p.versions).length ? arr(p.versions) : [p]).forEach(function (v) {
     out.push(v.version ? String(v.version) : 'plain');
     if (!v.version) out.push(tr('plain'));
-    String(v.version_label || '').replace(/\d+(?:\.\d+)+/g, function (n) { out.push(n); return n; });
+    said(v.version_label);
+    said(v.description);
   });
+  said(p.description);
   return out;
 }
 /** The version picker of a module's form: shown when it has more than one. */

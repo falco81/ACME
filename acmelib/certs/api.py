@@ -2337,7 +2337,7 @@ def _family_fill(store, family, table, row, name, kind, cls, given, fields, secr
             for f in cls.fields or []:
                 if f.get('required') and field_shown(f, cfg) and \
                         cfg.get(f['key']) in (None, '') and f.get('default') in (None, ''):
-                    raise ValueError('%s: %s is needed' % (name, f.get('label') or f['key']))
+                    raise ValueError('%s: fill in \u201c%s\u201d' % (name, f.get('label') or f['key']))
         if len(json.dumps(cfg)) > 200000:
             raise ValueError('those settings are too big')
         if family == 'target' and cfg.get('script_body'):
@@ -2694,7 +2694,12 @@ def family_test(store, family, b, by, echo=None):
             ctx = runtime.RunContext(store, job, scope='%s:%s' % (family, name),
                                      on_hostkey=None if (row and not tried_other) else False)
         try:
-            job.step('trying %s %s (%s)' % (family, name, kind))
+            # the family in words of its own, one pattern each (1.0.96: "zkouší se target
+            # r3-xcc" - a word alone in a slot is a name to the page, and stays as it is)
+            job.step({'target': 'trying the target %s (%s)', 'issuer': 'trying the source %s (%s)',
+                      'challenge': 'trying the validation %s (%s)',
+                      'check': 'trying check %s (%s)'}.get(family, 'trying ' + family + ' %s (%s)')
+                     % (name, kind))
             said = cls(cfg, ctx).test()
             job.step(str(said or 'it works'), 'ok')
             return True, str(said or 'it works')
@@ -3029,7 +3034,7 @@ def _deploy_save_in(store, b, by, full, made):
             for f in cls.deploy_fields or []:
                 if f.get('required') and field_shown(f, opts) and \
                         opts.get(f['key']) in (None, '') and f.get('default') in (None, ''):
-                    raise ValueError('%s is needed' % (f.get('label') or f['key']))
+                    raise ValueError('fill in \u201c%s\u201d' % (f.get('label') or f['key']))
                 # a required one given empty is refused even with a default (1.0.95: the
                 # slots of an application, emptied, went on as "auto" - only the page said no)
                 # ...and a list of empty lines (1.0.96: members [""] of an Infoblox went through)
@@ -3038,7 +3043,7 @@ def _deploy_save_in(store, b, by, full, made):
                                                        not opts[f['key']].strip()) or
                          (isinstance(opts[f['key']], list) and
                           not any(str(x).strip() for x in opts[f['key']]))):
-                    raise ValueError('%s is needed' % (f.get('label') or f['key']))
+                    raise ValueError('fill in \u201c%s\u201d' % (f.get('label') or f['key']))
                 # Of the field's own kind (1.0.45): a number for a file name broke the module
                 # inside the deployment ("join() argument must be str").
                 v = opts.get(f['key'])

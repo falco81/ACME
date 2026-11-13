@@ -11,7 +11,7 @@ acme se ke kontroleru přihlásí přes **SSH** a posílá řádky CLI do shello
 
 ## Pro které AOS 8 je tento návod
 
-Verze modulu **„libovolná verze (zjistí ji)“** - jediná: **ArubaOS 8.6 - 8.13** (Mobility Conductor, Mobility Controller i samostatný kontroler). Žádný přečtený dokument neukazuje v těchto příkazech rozdíl mezi 8.10, 8.12 a 8.13. acme přečte `show version`: **AOS 6** (jiné příkazy `web-server`) a **AOS 10** (konfiguruje se z Central - použijte cíl `aruba_central`) odmítne dřív, než cokoli změní; novější než 8.13 jen upozorní.
+Verze modulu **„jakákoli verze (zjistí ji)“** - jediná: **ArubaOS 8.6 - 8.13** (Mobility Conductor, Mobility Controller i samostatný kontroler). Žádný přečtený dokument neukazuje v těchto příkazech rozdíl mezi 8.10, 8.12 a 8.13. acme přečte `show version`: **AOS 6** (jiné příkazy `web-server`) a **AOS 10** (konfiguruje se z Central - použijte cíl `aruba_central`) odmítne dřív, než cokoli změní; novější než 8.13 jen upozorní.
 
 ## Co acme na kontroleru mění
 
@@ -64,7 +64,7 @@ Na Conductoru se certifikát WebUI nastavuje ve `web-server profile` uzlu, kde s
 
 | Pole v acme | Co do něj patří |
 |---|---|
-| Verze modulu | **libovolná verze (zjistí ji)** |
+| Verze modulu | **jakákoli verze (zjistí ji)** |
 | Adresa | adresa správy kontroleru, např. `mcr01.example.com` |
 | SSH port / Uživatel | `22` / `acme` |
 | Přihlásit se přes, Heslo | heslo (krok 1) |

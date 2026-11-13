@@ -16,7 +16,7 @@ DELETE /api/session
 
 | Verze modulu | vCenter | Volání |
 |---|---|---|
-| libovolná verze (zjistí ji) | 9.0 - 9.1 | podle verze |
+| jakákoli verze (zjistí ji) | 9.0 - 9.1 | podle verze |
 | vCenter 9.0 | 9.0.x | `clusters/<cluster>` |
 | **vCenter 9.1 a novější 9.x** | 9.1, 9.1.1 | `supervisors/<id>/certificates` - tento návod |
 
@@ -57,7 +57,7 @@ curl -s -H "vmware-api-session-id: $TOKEN" "https://vcenter.example.local/api/vc
 
 | Potíž | Řešení |
 |---|---|
-| `this vCenter runs 9.0.2 ... choose the version "vCenter 9.0"` | Změňte verzi modulu (nebo zvolte *libovolná verze*). |
+| `this vCenter runs 9.0.2 ... choose the version "vCenter 9.0"` | Změňte verzi modulu (nebo zvolte *jakákoli verze*). |
 | `vCenter has no Supervisor` | Použijte ID Supervisoru ze `supervisors/summaries`. |
 | `400` kvůli `endpoint` | Jméno endpointu se v tomto buildu liší - dejte nám vědět; mezitím použijte vSphere Client. |
 | `403` | Chybí `Namespaces.Manage`. |

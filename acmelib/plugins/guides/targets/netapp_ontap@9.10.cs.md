@@ -87,7 +87,7 @@ security certificate show -vserver cluster1 -type server -fields common-name,ser
 | `Failed to read the X509 from BIO` | formát, který ONTAP neumí přečíst (PKCS#7) | acme posílá PEM – zkontrolujte certifikát v acme |
 | instalace selže na řetězci | chybí mezilehlý certifikát | řetězec vydavatele musí být v acme úplný |
 | `403` na `/api/cluster/web` | REST role nemá tuto cestu | přidejte ji (`read_modify`) nebo použijte roli `admin` |
-| *the module version ... is for ONTAP ...* | cluster běží na jiné verzi ONTAP | zvolte verzi uvedenou ve zprávě (nebo *libovolnou verzi*) |
+| *the module version ... is for ONTAP ...* | cluster běží na jiné verzi ONTAP | zvolte verzi uvedenou ve zprávě (nebo *jakoukoli verzi*) |
 | System Manager vás odhlásí | webové služby se po přiřazení restartují | očekávané; přihlaste se znovu |
 | starý certifikát se nesmaže | je stále někde přiřazený | acme ho ponechá a řekne to; smažte ho později ručně |
 

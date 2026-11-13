@@ -9370,7 +9370,7 @@
   },
   "s2341": {
    "source": "Take it off",
-   "text": "Vyřadit"
+   "text": "Odebrat"
   },
   "s2342": {
    "source": "Take it off the list",
@@ -23062,11 +23062,11 @@
   },
   "sc0695": {
    "source": "Imports the certificate through the DSM web API, replacing the one acme put there before, and can make it the default certificate.",
-   "text": "Importuje certifikát přes webové API DSM, nahradí ten, který tam acme dal minule, a může ho nastavit jako výchozí certifikát."
+   "text": "Importuje certifikát přes webové API DSM, nahradí ten, který tam acme dalo minule, a může ho nastavit jako výchozí certifikát."
   },
   "sc0696": {
    "source": "Imports the certificate through the FortiOS REST API and uses it for the admin GUI, SSL VPN, inspection profiles and virtual IPs; deletes older ones acme put there.",
-   "text": "Importuje certifikát přes FortiOS REST API a použije ho pro administrační GUI, SSL VPN, inspekční profily a virtuální IP; smaže starší, které tam dal acme."
+   "text": "Importuje certifikát přes FortiOS REST API a použije ho pro administrační GUI, SSL VPN, inspekční profily a virtuální IP; smaže starší, které tam dalo acme."
   },
   "sc0697": {
    "source": "Imports the certificate through the OPNsense API (System → Trust); can make the web GUI use it (over SSH).",
@@ -23334,7 +23334,7 @@
   },
   "sc0763": {
    "source": "older certificates acme put there (named acme-…-date-serial) are deleted beyond this many; -1 keeps all",
-   "text": "starší certifikáty, které tam acme dal (pojmenované acme-…-datum-sériové číslo), se nad tento počet mažou; -1 ponechá všechny"
+   "text": "starší certifikáty, které tam acme dalo (pojmenované acme-…-datum-sériové číslo), se nad tento počet mažou; -1 ponechá všechny"
   },
   "sc0764": {
    "source": "On every web server: find nginx, write the server block for /.well-known/acme-challenge/ (nginx_conf) and make the webroot, check it with nginx -t, reload nginx - then the probe of Test. Needs root or sudo there.",
@@ -41826,7 +41826,7 @@
   },
   "rp20s138": {
    "source": "Issued at the next look (within minutes), or at once with Issue now",
-   "text": "Vydá se při příští kontrole (do několika minut), nebo hned tlačítkem Vydat nyní"
+   "text": "Vystaví se při příští kontrole (do několika minut), nebo hned tlačítkem Vystavit hned"
   },
   "rp20s139": {
    "source": "At each renewal all of the above repeats - the steps marked \"only the first time\" are not done again",
@@ -45990,7 +45990,7 @@
   },
   "sup115": {
    "source": "Take this deployment off?",
-   "text": "Vyřadit toto nasazení?"
+   "text": "Odebrat toto nasazení?"
   },
   "sup116": {
    "source": "acme no longer puts the certificate there, nor after its renewals. What is on the target now stays there.",
@@ -58506,7 +58506,7 @@
   },
   "mveeam_storage_14": {
    "source": "Installs the certificate as a server certificate of an ONTAP cluster or SVM through the REST API, makes its web services (System Manager, REST API) use it and deletes older ones acme put there. Any ONTAP 9.6 and later: where it is bound is taken from the version the cluster says.",
-   "text": "Nainstaluje certifikát jako serverový certifikát clusteru ONTAP nebo SVM přes REST API, nastaví ho jeho webovým službám (System Manager, REST API) a smaže starší, které tam dal acme. Libovolný ONTAP 9.6 a novější: kam se přiřadí, se řídí verzí, kterou cluster hlásí."
+   "text": "Nainstaluje certifikát jako serverový certifikát clusteru ONTAP nebo SVM přes REST API, nastaví ho jeho webovým službám (System Manager, REST API) a smaže starší, které tam dalo acme. Libovolný ONTAP 9.6 a novější: kam se přiřadí, se řídí verzí, kterou cluster hlásí."
   },
   "mveeam_storage_15": {
    "source": "Move the REST API binding (12.3, port 9419)",
@@ -58522,7 +58522,7 @@
   },
   "mveeam_storage_18": {
    "source": "ONTAP 9.10.1 - 9.19: bound through PATCH /api/cluster/web or /api/svm/svms/<uuid>/web; ONTAP restarts its web services. Installs the certificate (POST /api/security/certificates), binds it, deletes older ones acme put there. Refused on a cluster that says another version.",
-   "text": "ONTAP 9.10.1 - 9.19: přiřazuje se přes PATCH /api/cluster/web nebo /api/svm/svms/<uuid>/web; ONTAP restartuje své webové služby. Nainstaluje certifikát (POST /api/security/certificates), přiřadí ho a smaže starší, které tam dal acme. Cluster, který hlásí jinou verzi, odmítne."
+   "text": "ONTAP 9.10.1 - 9.19: přiřazuje se přes PATCH /api/cluster/web nebo /api/svm/svms/<uuid>/web; ONTAP restartuje své webové služby. Nainstaluje certifikát (POST /api/security/certificates), přiřadí ho a smaže starší, které tam dalo acme. Cluster, který hlásí jinou verzi, odmítne."
   },
   "mveeam_storage_19": {
    "source": "ONTAP 9.6 - 9.9",
@@ -58530,7 +58530,7 @@
   },
   "mveeam_storage_20": {
    "source": "ONTAP 9.6 - 9.9: bound through the certificate field of PATCH /api/cluster or /api/svm/svms/<uuid>. Installs the certificate (POST /api/security/certificates), binds it, deletes older ones acme put there. Refused on a cluster that says another version.",
-   "text": "ONTAP 9.6 - 9.9: přiřazuje se přes pole certificate v PATCH /api/cluster nebo /api/svm/svms/<uuid>. Nainstaluje certifikát (POST /api/security/certificates), přiřadí ho a smaže starší, které tam dal acme. Cluster, který hlásí jinou verzi, odmítne."
+   "text": "ONTAP 9.6 - 9.9: přiřazuje se přes pole certificate v PATCH /api/cluster nebo /api/svm/svms/<uuid>. Nainstaluje certifikát (POST /api/security/certificates), přiřadí ho a smaže starší, které tam dalo acme. Cluster, který hlásí jinou verzi, odmítne."
   },
   "mveeam_storage_21": {
    "source": "Prism Central 7.3 - 7.5 (v4.4 API)",
@@ -58630,7 +58630,7 @@
   },
   "mveeam_storage_45": {
    "source": "VBR 12.3: Add-VBRBackupServerCertificate without -Force, and the REST API binding on port 9419 moved with netsh. Imports the certificate into LocalMachine\\My over SSH, makes it the backup server certificate (Add-VBRBackupServerCertificate) and removes older ones acme put there. Refused on a server that says another version.",
-   "text": "VBR 12.3: Add-VBRBackupServerCertificate bez -Force a binding REST API na portu 9419 přesunutý přes netsh. Přes SSH naimportuje certifikát do LocalMachine\\My, nastaví ho jako certifikát backup serveru (Add-VBRBackupServerCertificate) a odstraní starší, které tam dal acme. Server, který hlásí jinou verzi, odmítne."
+   "text": "VBR 12.3: Add-VBRBackupServerCertificate bez -Force a binding REST API na portu 9419 přesunutý přes netsh. Přes SSH naimportuje certifikát do LocalMachine\\My, nastaví ho jako certifikát backup serveru (Add-VBRBackupServerCertificate) a odstraní starší, které tam dalo acme. Server, který hlásí jinou verzi, odmítne."
   },
   "mveeam_storage_46": {
    "source": "VBR 12.x: netsh http sslcert on 0.0.0.0:9419 to the new certificate",
@@ -58642,7 +58642,7 @@
   },
   "mveeam_storage_48": {
    "source": "VBR 13.0 - 13.1: Add-VBRBackupServerCertificate -Force; the web UI and REST API (443, 9419) use the backup server certificate by themselves. Imports the certificate into LocalMachine\\My over SSH, makes it the backup server certificate (Add-VBRBackupServerCertificate) and removes older ones acme put there. Refused on a server that says another version.",
-   "text": "VBR 13.0 - 13.1: Add-VBRBackupServerCertificate -Force; webové UI a REST API (443, 9419) používají certifikát backup serveru samy. Přes SSH naimportuje certifikát do LocalMachine\\My, nastaví ho jako certifikát backup serveru (Add-VBRBackupServerCertificate) a odstraní starší, které tam dal acme. Server, který hlásí jinou verzi, odmítne."
+   "text": "VBR 13.0 - 13.1: Add-VBRBackupServerCertificate -Force; webové UI a REST API (443, 9419) používají certifikát backup serveru samy. Přes SSH naimportuje certifikát do LocalMachine\\My, nastaví ho jako certifikát backup serveru (Add-VBRBackupServerCertificate) a odstraní starší, které tam dalo acme. Server, který hlásí jinou verzi, odmítne."
   },
   "mveeam_storage_49": {
    "source": "Veeam Backup & Replication (backup server certificate)",
@@ -60126,7 +60126,7 @@
   },
   "mcsr_5": {
    "source": "At every issue and renewal acme asks it for a new key and CSR, and puts the certificate back right after. The key never leaves the device; acme holds none, so it cannot be exported and goes to this target alone.",
-   "text": "Při každém vystavení a obnovení ho acme požádá o nový klíč a CSR a certifikát mu hned potom vrátí. Klíč zařízení nikdy neopustí; acme žádný nemá, takže ho nelze exportovat a certifikát jde jen na tento cíl."
+   "text": "Při každém vydání a obnovení ho acme požádá o nový klíč a CSR a certifikát mu hned potom vrátí. Klíč zařízení nikdy neopustí; acme žádný nemá, takže ho nelze exportovat a certifikát jde jen na tento cíl."
   },
   "mcsr_6": {
    "source": "the device does not make it",
@@ -60142,7 +60142,7 @@
   },
   "mcsr_9": {
    "source": "This device makes its own key and takes only a certificate for it: acme asks it for a new key and CSR at every issue and puts the certificate back right after.",
-   "text": "Toto zařízení si vytváří vlastní klíč a přijme jen certifikát k němu: acme ho při každém vystavení požádá o nový klíč a CSR a certifikát mu hned potom vrátí."
+   "text": "Toto zařízení si vytváří vlastní klíč a přijme jen certifikát k němu: acme ho při každém vydání požádá o nový klíč a CSR a certifikát mu hned potom vrátí."
   },
   "mcsr_10": {
    "source": "Make its certificate",
@@ -60154,7 +60154,7 @@
   },
   "mcsr_12": {
    "source": "The HTTPS certificate of a Lenovo XClarity Controller (web, Redfish, LDAP client) for a key the XCC makes itself: at every issue and renewal acme asks it for a new key and CSR over Redfish, and imports the certificate signed for it.",
-   "text": "Certifikát HTTPS řadiče Lenovo XClarity Controller (web, Redfish, LDAP klient) ke klíči, který si XCC vytváří samo: při každém vystavení a obnovení ho acme přes Redfish požádá o nový klíč a CSR a naimportuje certifikát k němu podepsaný."
+   "text": "Certifikát HTTPS řadiče Lenovo XClarity Controller (web, Redfish, LDAP klient) ke klíči, který si XCC vytváří samo: při každém vydání a obnovení ho acme přes Redfish požádá o nový klíč a CSR a naimportuje certifikát k němu podepsaný."
   },
   "mcsr_13": {
    "source": "XCC3 (ThinkSystem V4) - the key type chosen",
@@ -60242,7 +60242,7 @@
   },
   "mdkdl_2": {
    "source": "The HTTPS certificate of a Dell OpenManage Enterprise appliance (web interface and REST API) for a key OME makes itself: at every issue and renewal acme asks it for a new key and CSR over its REST API and uploads the certificate signed for it. Any OME 3.x or 4.x: the version is read - the chain is uploaded on 3.10 and later, the certificate alone before.",
-   "text": "HTTPS certifikát appliance Dell OpenManage Enterprise (webové rozhraní a REST API) pro klíč, který si OME vytvoří samo: při každém vystavení a obnovení si acme přes jeho REST API řekne o nový klíč a CSR a nahraje k nim podepsaný certifikát. Jakékoli OME 3.x nebo 4.x: verze se přečte - od 3.10 se nahraje řetězec, dřív samotný certifikát."
+   "text": "HTTPS certifikát appliance Dell OpenManage Enterprise (webové rozhraní a REST API) pro klíč, který si OME vytvoří samo: při každém vydání a obnovení si acme přes jeho REST API řekne o nový klíč a CSR a nahraje k nim podepsaný certifikát. Jakékoli OME 3.x nebo 4.x: verze se přečte - od 3.10 se nahraje řetězec, dřív samotný certifikát."
   },
   "mdkdl_3": {
    "source": "OpenManage Enterprise 3.0 - 3.9: the key and CSR made by OME, the certificate uploaded alone (UploadCertificate - no chain upload before 3.10). Refuses an appliance on another version.",
@@ -60354,7 +60354,7 @@
   },
   "mdkdl_30": {
    "source": "The server certificate of a Lenovo XClarity Administrator (LXCA 3.x, 4.x: web interface, REST API, the certificate its managed devices see) for a key LXCA makes itself: at every issue and renewal acme asks it for a new key and CSR over its REST API, puts the CA certificates in its trust store and uploads the certificate signed for it.",
-   "text": "Serverový certifikát Lenovo XClarity Administratoru (LXCA 3.x, 4.x: webové rozhraní, REST API, certifikát, který vidí jeho spravovaná zařízení) pro klíč, který si LXCA vytvoří sám: při každém vystavení a obnovení si acme přes jeho REST API řekne o nový klíč a CSR, přidá certifikáty CA do jeho úložiště důvěryhodných certifikátů a nahraje k nim podepsaný certifikát."
+   "text": "Serverový certifikát Lenovo XClarity Administratoru (LXCA 3.x, 4.x: webové rozhraní, REST API, certifikát, který vidí jeho spravovaná zařízení) pro klíč, který si LXCA vytvoří sám: při každém vydání a obnovení si acme přes jeho REST API řekne o nový klíč a CSR, přidá certifikáty CA do jeho úložiště důvěryhodných certifikátů a nahraje k nim podepsaný certifikát."
   },
   "mdkdl_31": {
    "source": "LXCA 3.x - 4.x",
@@ -60434,7 +60434,7 @@
   },
   "mdkhf_2": {
    "source": "HPE Synergy Composer (OneView for Synergy 9.x - 11.x) and HPE OneView: the appliance's HTTPS certificate, or that of an enclosure's management module (a Synergy frame's Frame Link Module bay, a c7000's Onboard Administrator), for a key the device makes - at every issue acme asks for a new key and CSR over the REST API and imports the signed certificate. The appliance makes RSA 2048 (3072 for CNSA) and reloads its web services.",
-   "text": "HPE Synergy Composer (OneView for Synergy 9.x - 11.x) a HPE OneView: HTTPS certifikát appliance nebo modulu správy enclosure (pozice Frame Link Module rámu Synergy, Onboard Administrator c7000) pro klíč, který vytváří zařízení - při každém vydání si acme přes REST API vyžádá nový klíč a CSR a naimportuje podepsaný certifikát. Appliance vytváří RSA 2048 (3072 pro CNSA) a znovu načte své webové služby."
+   "text": "HPE Synergy Composer (OneView for Synergy 9.x - 11.x) a HPE OneView: HTTPS certifikát appliance nebo modulu správy enclosure (pozice Frame Link Module rámu Synergy, Onboard Administrator c7000) pro klíč, který vytváří zařízení – při každém vydání si acme přes REST API vyžádá nový klíč a CSR a naimportuje podepsaný certifikát. Appliance vytváří RSA 2048 (3072 pro CNSA) a znovu načte své webové služby."
   },
   "mdkhf_3": {
    "source": "OneView for Synergy 9.x - 11.x (detects the API)",
@@ -60550,7 +60550,7 @@
   },
   "mdkhf_31": {
    "source": "the common name of an enclosure's CSR is a host name - give the certificate the module's DNS name",
-   "text": "common name v CSR enclosure je jméno hostitele - dejte certifikátu DNS jméno modulu"
+   "text": "jméno (CN) v CSR modulu správy enclosure je jméno hostitele – dejte certifikátu DNS jméno modulu"
   },
   "mdkhf_32": {
    "source": "the appliance made no CSR to read",
@@ -60634,7 +60634,7 @@
   },
   "mdkcv_2": {
    "source": "CUCM 14 and 15 (every SU), one node: the certificate of a unit (tomcat for the web, AXL and UDS, or CallManager) for a key CUCM makes itself - at every issue and renewal acme has the platform CLI over SSH make a new key and CSR (set csr gen), imports the certificate signed for it with its CA certificates (set cert import) and restarts the unit's services.",
-   "text": "CUCM 14 a 15 (všechny SU), jeden uzel: certifikát jedné jednotky (tomcat pro web, AXL a UDS, nebo CallManager) pro klíč, který si CUCM vytvoří sám – při každém vydání a obnově acme nechá platformové CLI přes SSH vytvořit nový klíč a CSR (set csr gen), naimportuje pro něj podepsaný certifikát i s certifikáty CA (set cert import) a restartuje služby jednotky."
+   "text": "CUCM 14 a 15 (všechny SU), jeden uzel: certifikát jedné jednotky (tomcat pro web, AXL a UDS, nebo CallManager) pro klíč, který si CUCM vytvoří sám – při každém vydání a obnovení acme nechá platformové CLI přes SSH vytvořit nový klíč a CSR (set csr gen), naimportuje pro něj podepsaný certifikát i s certifikáty CA (set cert import) a restartuje služby jednotky."
   },
   "mdkcv_3": {
    "source": "CUCM 14 and 15, every SU (platform CLI over SSH)",
@@ -60694,7 +60694,7 @@
   },
   "mdkcv_17": {
    "source": "The certificate of one VCF component (vCenter, NSX Manager, SDDC Manager, Aria / VCF management) through VCF's certificate management, for a key VCF makes itself: at every issue and renewal acme has SDDC Manager make a new key and CSR for the component and installs the certificate signed for it. VCF 5.2 - 9.1.1 (SDDC Manager API); the version 9.1 uses VCF Operations.",
-   "text": "Certifikát jedné komponenty VCF (vCenter, NSX Manager, SDDC Manager, Aria / VCF management) přes správu certifikátů VCF, pro klíč, který si VCF vytvoří samo: při každém vydání a obnově acme nechá SDDC Manager vytvořit pro komponentu nový klíč a CSR a nainstaluje pro něj podepsaný certifikát. VCF 5.2 – 9.1.1 (SDDC Manager API); verze 9.1 používá VCF Operations."
+   "text": "Certifikát jedné komponenty VCF (vCenter, NSX Manager, SDDC Manager, Aria / VCF management) přes správu certifikátů VCF, pro klíč, který si VCF vytvoří samo: při každém vydání a obnovení acme nechá SDDC Manager vytvořit pro komponentu nový klíč a CSR a nainstaluje pro něj podepsaný certifikát. VCF 5.2 – 9.1.1 (SDDC Manager API); verze 9.1 používá VCF Operations."
   },
   "mdkcv_18": {
    "source": "VCF 5.2 - 9.1.1 (SDDC Manager API)",
@@ -60706,7 +60706,7 @@
   },
   "mdkcv_20": {
    "source": "VCF 9.1 and 9.1.1: the certificate of one VCF component through VCF Operations → Fleet management → Certificates, for a key VCF makes itself - a new key and CSR at every issue and renewal, the certificate signed for it put back with its chain (\"Replace with imported certificate\"). Refuses VCF Operations older than 9.1.",
-   "text": "VCF 9.1 a 9.1.1: certifikát jedné komponenty VCF přes VCF Operations → Fleet management → Certificates, pro klíč, který si VCF vytvoří samo – při každém vydání a obnově nový klíč a CSR, pro něj podepsaný certifikát vrácený i s řetězcem („Replace with imported certificate“). VCF Operations starší než 9.1 odmítne."
+   "text": "VCF 9.1 a 9.1.1: certifikát jedné komponenty VCF přes VCF Operations → Fleet management → Certificates, pro klíč, který si VCF vytvoří samo – při každém vydání a obnovení nový klíč a CSR, pro něj podepsaný certifikát vrácený i s řetězcem („Replace with imported certificate“). VCF Operations starší než 9.1 odmítne."
   },
   "mdkcv_21": {
    "source": "SDDC Manager: an ADMIN (or OPERATOR); VCF Operations (version 9.1): an Administrator",
@@ -60986,7 +60986,7 @@
   },
   "_29": {
    "source": "an enclosure's certificate (the deployment's \"Certificate of\"): one name, the DNS name of its management module - not an IP address, and not the appliance's address the target has - and an RSA 2048 key",
-   "text": "certifikát skříně (v nasazení „Certifikát pro“): jedno jméno, DNS jméno jejího management modulu – ne IP adresa a ne adresa appliance, kterou má cíl – a klíč RSA 2048"
+   "text": "certifikát modulu správy enclosure (v nasazení „Certifikát pro“): jedno jméno, DNS jméno toho modulu správy – ne IP adresa a ne adresa appliance, kterou má cíl – a klíč RSA 2048"
   },
   "_30": {
    "source": "Where its key is made changes: the certificate it holds fits no key there any more, so right after Save it is issued anew (a new key and certificate) - not at its next renewal.",
@@ -61007,6 +61007,26 @@
   "_34": {
    "source": "acme made this test from a deployment and keeps it in step with it. Changed here in any way, it is a test of yours, which acme leaves as it is.",
    "text": "Tento test vytvořilo acme z nasazení a udržuje ho s ním v souladu. Jakmile ho tu jakkoli změníte, je to váš test, který acme nechá, jak je."
+  },
+  "_35": {
+   "source": "Not issued by itself: it was only added - it waits until Issue now is pressed in its window",
+   "text": "Sám se nevystaví: byl jen přidán – čeká, až v jeho okně stisknete Vystavit hned"
+  },
+  "_36": {
+   "source": "taken off, it is not attached again",
+   "text": "po odpojení se znovu nepřipojí"
+  },
+  "_37": {
+   "source": "only when the deployment's \"Certificate of\" is an enclosure's management module (not the appliance, the default): one name, the DNS name of that management module - not an IP address, and not the appliance's address the target has - and an RSA 2048 key",
+   "text": "jen když je v nasazení „Certifikát pro“ modul správy enclosure (ne appliance, která je výchozí): jedno jméno, DNS jméno toho modulu správy – ne IP adresa a ne adresa appliance, kterou má cíl – a klíč RSA 2048"
+  },
+  "_38": {
+   "source": "Temporary failure in name resolution",
+   "text": "Dočasná chyba překladu jména"
+  },
+  "_39": {
+   "source": "No address associated with hostname",
+   "text": "Ke jménu není přiřazena adresa"
   }
  },
  "patterns": {
@@ -67232,7 +67252,7 @@
   },
   "pc0005": {
    "source": "{0} is needed",
-   "text": "{0} je potřeba"
+   "text": "je potřeba: {0}"
   },
   "pc0006": {
    "source": "module missing: {0}",
@@ -80732,7 +80752,7 @@
   },
   "pb2u_8": {
    "source": "trying check {0} ({1})",
-   "text": "zkouším test {0} ({1})"
+   "text": "zkouší se test {0} ({1})"
   },
   "pb2u_9": {
    "source": "dry run: {0}",
@@ -81648,7 +81668,7 @@
   },
   "pf85_2": {
    "source": "a few times while the services restart (after {0} s) - a failure is a warning of the job",
-   "text": "několikrát, než se služby restartují (po {0} s) – selhání je varování úlohy"
+   "text": "několikrát během restartu služeb (po {0} s) – selhání je varování úlohy"
   },
   "pf85_3": {
    "source": "By itself every {0} min",
@@ -81960,7 +81980,7 @@
   },
   "pged_1": {
    "source": "Asked {0} times while the services restart",
-   "text": "Dotázáno {0}krát, než se služby restartují"
+   "text": "Dotázáno {0}× během restartu služeb"
   },
   "pl1_1": {
    "source": "after {0} s",
@@ -83840,7 +83860,7 @@
   },
   "pmcsr_1": {
    "source": "Its key is made by the device of {0}: it goes there alone, right after each issue - the deployment is made by itself.",
-   "text": "Jeho klíč vytváří zařízení {0}: certifikát jde jen tam, hned po každém vystavení - nasazení se vytvoří samo."
+   "text": "Jeho klíč vytváří zařízení {0}: certifikát jde jen tam, hned po každém vydání – nasazení se vytvoří samo."
   },
   "pmcsr_2": {
    "source": "the device of {0} (acme holds no key)",
@@ -83952,7 +83972,7 @@
   },
   "pmcsr_29": {
    "source": "the key of {0} is made by the device of {1} - its CSR comes from there at every issue (Renew now), not from acme",
-   "text": "klíč certifikátu {0} vytváří zařízení {1} - jeho CSR přichází odtamtud při každém vystavení (Obnovit teď), ne z acme"
+   "text": "klíč certifikátu {0} vytváří zařízení {1} – jeho CSR přichází odtamtud při každém vydání (Obnovit teď), ne z acme"
   },
   "pmcsr_30": {
    "source": "{0} makes the key itself and takes only a certificate for it - add a certificate whose key it makes ({1})",
@@ -83976,7 +83996,7 @@
   },
   "pmcsr_35": {
    "source": "The key and the request (CSR) are made by the device of {0} - a new key at every issue; acme holds none",
-   "text": "Klíč a žádost (CSR) vytváří zařízení {0} - při každém vystavení nový klíč; acme žádný nemá"
+   "text": "Klíč a žádost (CSR) vytváří zařízení {0} – při každém vydání nový klíč; acme žádný nemá"
   },
   "pmdkdl_1": {
    "source": "the OME version cannot be read - the calls of {0} are used",
@@ -84108,11 +84128,11 @@
   },
   "pmdkhf_8": {
    "source": "an enclosure's CSR has one name, its common name - give the certificate one name (it has {0})",
-   "text": "CSR enclosure má jedno jméno, své common name - dejte certifikátu jedno jméno (má {0})"
+   "text": "CSR modulu správy enclosure má jediné jméno, své CN – dejte certifikátu jedno jméno (má {0})"
   },
   "pmdkhf_9": {
    "source": "bay {0} of the enclosure made no CSR to read",
-   "text": "pozice {0} enclosure nevytvořila žádný CSR ke čtení"
+   "text": "pozice {0} modulu správy enclosure nevytvořila žádný CSR ke čtení"
   },
   "pmdkhf_10": {
    "source": "bay {0} of {1} took the certificate",
@@ -84180,7 +84200,7 @@
   },
   "pmdkhf_26": {
    "source": "asking bay {0} of the enclosure for a new key and CSR",
-   "text": "žádost pozice {0} enclosure o nový klíč a CSR"
+   "text": "žádost pozice {0} modulu správy enclosure o nový klíč a CSR"
   },
   "pmdkhf_27": {
    "source": "importing the certificate of bay {0}",
@@ -84589,6 +84609,42 @@
   "p_50": {
    "source": "It makes the key of the certificate {0} - a device holds one pending key: to add names, change that certificate.",
    "text": "Vytváří klíč certifikátu {0} – zařízení drží jeden čekající klíč: chcete-li přidat jména, změňte ten certifikát."
+  },
+  "p_51": {
+   "source": "fill in “{0}”",
+   "text": "vyplňte „{0}“"
+  },
+  "p_52": {
+   "source": "{0}: fill in “{1}”",
+   "text": "{0}: vyplňte „{1}“"
+  },
+  "p_53": {
+   "source": "The certificate is saved, but its deployment to {0} is not as set here: {1}. Correct it below and save again.",
+   "text": "Certifikát je uložený, ale jeho nasazení na {0} není takové, jak je tu nastavené: {1}. Opravte ho níže a uložte znovu."
+  },
+  "p_54": {
+   "source": "trying the target {0} ({1})",
+   "text": "zkouší se cíl {0} ({1})"
+  },
+  "p_55": {
+   "source": "trying the source {0} ({1})",
+   "text": "zkouší se zdroj {0} ({1})"
+  },
+  "p_56": {
+   "source": "trying the validation {0} ({1})",
+   "text": "zkouší se validace {0} ({1})"
+  },
+  "p_57": {
+   "source": "after {0} s, then {1} more times, {2} s apart",
+   "text": "po {0} s, pak ještě {1}× po {2} s"
+  },
+  "p_58": {
+   "source": "after {0} s, then {1} more times, {2} s apart - its target restarts for long",
+   "text": "po {0} s, pak ještě {1}× po {2} s – jeho cíl se restartuje dlouho"
+  },
+  "p_59": {
+   "source": "issuing {0} failed: {1}",
+   "text": "vydání {0} selhalo: {1}"
   }
  },
  "rich": {

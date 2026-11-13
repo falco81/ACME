@@ -15,7 +15,7 @@ DELETE /api/session
 
 | Verze modulu | vCenter | Volání |
 |---|---|---|
-| libovolná verze (zjistí ji) | 9.0 - 9.1 | podle verze |
+| jakákoli verze (zjistí ji) | 9.0 - 9.1 | podle verze |
 | **vCenter 9.0** | 9.0.x | `clusters/<cluster>` - tento návod |
 | vCenter 9.1 a novější 9.x | 9.1, 9.1.1 | `supervisors/<id>/certificates` |
 
@@ -61,7 +61,7 @@ echo | openssl s_client -connect supervisor.example.local:443 2>/dev/null | open
 
 | Potíž | Řešení |
 |---|---|
-| `this vCenter runs 9.1.0 ... choose the version "vCenter 9.1 and later 9.x"` | vCenter byl aktualizován: změňte verzi modulu (nebo zvolte *libovolná verze*). |
+| `this vCenter runs 9.1.0 ... choose the version "vCenter 9.1 and later 9.x"` | vCenter byl aktualizován: změňte verzi modulu (nebo zvolte *jakákoli verze*). |
 | `the vCenter version cannot be read` | `/sdk` není dosažitelné: acme pokračuje s voláními 9.0. |
 | `vCenter has no Supervisor` | Špatné ID clusteru. |
 | `403` | Chybí `Namespaces.Manage`. |
