@@ -617,7 +617,7 @@ SECRET_HEADER = re.compile(r'(authorization|cookie|key|token|secret|auth|pass|se
 # parameter, a multipart part (1.0.98: one rule for all of them; runtime.SECRET_PARAM's
 # words too: key, sig, code)
 SECRET_NAME = re.compile(r'(pass|secret|token|apikey|api_key|api-key|private|passphrase|'
-                         r'credential|signature|hmac|session|cookie|auth(?!or)|'
+                         r'credential|signature|hmac|session|cookie|auth(?!or(?!i[sz]))|'
                          r'(^|[_.-])pin$|^pin([_.-]|$)|'
                          r'(^|[_.-])key$|^key(pem|data|file|_pem|_data)?$|privkey|'
                          r'^sid$|_sid$|^sig$|assertion$)', re.I)
@@ -737,6 +737,15 @@ def encoded_script(command):
     return re.sub(r"(-(?:Password|PlainPassword|Pin)\s+)'[^']*'", r"\1'••••'", text, flags=re.I)
 
 
+def _is_cert_der(raw):
+    """A certificate in DER (no key with it): shown as one, not dots (1.0.98)."""
+    try:
+        from acmelib.certs import pki
+        return bool(pki.cert_info(bytes(raw)).get('serial'))
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
 def mask_text(t, marks):
     """Secrets out of a piece of text: the stand-ins, PEM keys, long base64."""
     t = str(t)
@@ -769,6 +778,8 @@ def mask_text(t, marks):
         if inner and 'CERTIFICATE' in inner:
             return '‹certificate PEM, base64, %s›' % size_words(len(raw))
         if inner is None:
+            if raw[:1] == b'\x30' and _is_cert_der(raw):
+                return '‹certificate, DER, base64, %s›' % size_words(len(raw))
             return '•••• (binary, base64, %s)' % size_words(len(raw))
         return s
     t = B64_RUN.sub(b64, t)
@@ -1132,12 +1143,13 @@ class Answers(object):
     # {CERT_B64} / {CHAIN_B64} (their DER in base64), {P7_B64} (a PKCS#7 of both, DER, base64),
     # {CA_P7_B64} (one of the intermediate only), {CERT_SERIAL} (its serial, hex); {ZONE_B64},
     # {FQDN_B64}, {TXT_B64}: those three in base64 (the names absolute, "name."); {KEYAUTH}:
-    # the key authorization an HTTP-01 file holds
+    # the key authorization an HTTP-01 file holds; {PLACED}: what a CA's DCV put in place last
+    # (the content of its file, the value of its record)
     # {EARLIER_PEM} / {EARLIER_B64}: another certificate of the deployed one's names (its own
     # key; PEM / DER in base64) - the one a device holds and lists before a renewal
     PLAN_RE = re.compile(r'\{(ZONE|NAME|FQDN|TXT|CERT|CHAIN|CERT_B64|CHAIN_B64|P7_B64|CA_P7_B64|'
                          r'CERT_SERIAL|EARLIER_PEM|EARLIER_B64|ZONE_B64|FQDN_B64|TXT_B64|'
-                         r'KEYAUTH)\}')
+                         r'KEYAUTH|PLACED)\}')
     _earlier_pem = None
 
     def earlier_pem(self):
@@ -1167,7 +1179,7 @@ class Answers(object):
             return text
         name = str(self.vname or '').lstrip('*.')
         vals = {'NAME': name, 'FQDN': '_acme-challenge.' + name if name else '', 'TXT': TXT,
-                'KEYAUTH': KEYAUTH}
+                'KEYAUTH': KEYAUTH, 'PLACED': PLACED_TXT[-1] if PLACED_TXT else ''}
         try:
             from acmelib.plugins.challenges import _dns as D
             vals['ZONE'] = D.registrable(name) if name else ''
@@ -2355,6 +2367,13 @@ def main():
     out = {}
     holder = [None]
     for r in job.get('runs') or []:
+        if r.get('op') == 'issue' and r.get('previous') and not r.get('kv'):
+            # a renewal at a source that keeps state of its own (Venafi's DN / certificate
+            # id): what its first issue kept is there - the renewal in place shown (1.0.98);
+            # that first one is not shown
+            run_one(job, r, holder)
+            if KV_AFTER[0]:
+                r = dict(r, kv={str(k): v for k, v in dict(KV_AFTER[0]).items()})
         got = run_one(job, r, holder)
         # a later run: where answers of a renewal are given (LATER / SSH_LATER) - and where the
         # first run kept state of its own (ctx.kv_set), which a renewal reads (1.0.98)

@@ -53,7 +53,10 @@ R53 = ('<?xml version="1.0" encoding="UTF-8"?>\n<%s xmlns="https://route53.amazo
 # an HTTP-01 file put in place: the name's own web server answers it (what a validation's
 # ready() asks before the CA is told)
 HTTP01 = [{'method': 'GET', 'url': r'^http://[^/]+/\.well-known/acme-challenge/[^/]+$',
-           'headers': {'Content-Type': 'text/plain'}, 'body': '{KEYAUTH}'}]
+           'headers': {'Content-Type': 'text/plain'}, 'body': '{KEYAUTH}'},
+          # a CA's DCV file (pki-validation): what the CA asked to be put there
+          {'method': 'GET', 'url': r'^https?://[^/]+/\.well-known/pki-validation/[^/]+$',
+           'headers': {'Content-Type': 'text/plain'}, 'body': '{PLACED}'}]
 
 
 SOURCES = {
@@ -130,6 +133,81 @@ SOURCES = {
             'AuthResponse': {'isError': False}, 'Certificates': [
                 {'FileName': '{NAME}.crt', 'FileContent': '{CERT}'},
                 {'FileName': 'Intermediate.crt', 'FileContent': '{CHAIN}'}]}}],
+    # GoGetSSL: an order bought before, reissued inside it; its CNAME DCV; the status asked
+    # until the reissue is active again with the new certificate in it
+    'gogetssl': [
+        {'method': 'POST', 'url': r'/auth(\?|$)', 'body': {'key': '{SESSION}', 'success': True}},
+        {'method': 'GET', 'url': r'/orders/status/\d+', 'times': 1, 'body': {
+            'order_id': '{CFG:order_id}', 'status': 'active', 'domain': '{NAME}',
+            'valid_from': '2026-01-01', 'valid_till': '2027-01-01', 'end_date': '2028-01-01',
+            'success': True}},
+        {'method': 'POST', 'url': r'/orders/ssl/reissue/\d+', 'body': {
+            'order_id': '{CFG:order_id}', 'order_status': 'reissue', 'success': True,
+            'approver_method': {'dns': {
+                'record': '_8F2E4C6A8B1D3F5E7A9C0B2D4F6E8A1C.{NAME} CNAME '
+                          '1c3e5a7b9d0f2e4c6a8b1d3f5e7a9c0b.4d6f8a0c2e.sectigo.com'}}}},
+        {'method': 'POST', 'url': r'/orders/ssl/revalidate/\d+', 'body': {
+            'success': True, 'message': 'Domain revalidation started'}},
+        {'method': 'GET', 'url': r'/orders/status/\d+', 'times': 1, 'body': {
+            'order_id': '{CFG:order_id}', 'status': 'reissue', 'success': True}},
+        {'method': 'GET', 'url': r'/orders/status/\d+', 'body': {
+            'order_id': '{CFG:order_id}', 'status': 'active', 'domain': '{NAME}',
+            'end_date': '2028-01-01', 'crt_code': '{CERT}', 'ca_code': '{CHAIN}',
+            'success': True}}],
+    # SSL.com: an order bought before, rekeyed with the request; its HTTP DCV file; the order
+    # read until issued, the chain from its PKCS#7 form
+    'sslcom': [
+        {'method': 'GET', 'url': r'/certificate/[A-Za-z0-9-]+(\?(?!.*response_type)|$)',
+         'body': {'order_status': 'issued', 'common_name': '{NAME}',
+                  'expiration_date': '2027-01-01', 'effective_date': '2026-01-01'}},
+        {'method': 'PUT', 'url': r'/certificate/[A-Za-z0-9-]+', 'body': {
+            'ref': '{CFG:order_ref}', 'registrant': {}, 'order_status': 'validating, please wait',
+            'validations': None}},
+        {'method': 'GET', 'url': r'/validations/methods', 'body': {'dcv_methods': {'{NAME}': {
+            'email_addresses': ['admin@{ZONE}', 'webmaster@{ZONE}'],
+            'http_csr_hash': {'http': 'http://{NAME}/.well-known/pki-validation/'
+                                      '0F2E4C6A8B1D3F5E7A9C0B2D4F6E8A1C.txt',
+                              'contents': '1c3e5a7b9d0f2e4c6a8b1d3f5e7a9c0b4d6f8a0c2e\n'
+                                          'comodoca.com\n‹unique value›'},
+            'cname_csr_hash': {'name': '_0F2E4C6A8B1D3F5E7A9C0B2D4F6E8A1C.{NAME}',
+                               'value': '1c3e5a7b9d0f2e4c6a8b1d3f5e7a9c0b.4d6f8a0c2e.'
+                                        'comodoca.com'}}}}},
+        {'method': 'GET', 'url': r'response_type=individually', 'times': 1, 'body': {
+            'order_status': 'validating, please wait', 'common_name': '{NAME}'}},
+        {'method': 'GET', 'url': r'response_type=individually', 'body': {
+            'order_status': 'issued', 'common_name': '{NAME}', 'certificates': '{CERT_B64}',
+            'effective_date': '2026-01-01', 'expiration_date': '2027-01-01'}},
+        {'method': 'GET', 'url': r'response_type=pkcs7', 'body': {
+            'order_status': 'issued', 'certificates': '{P7_B64}'}}],
+    # SSLS.cz: the certificate bought before reissued (quickReissue, free) while its
+    # subscription runs; its CNAME DCV; the state asked until reissued and active (R)
+    'ssls': [
+        {'url': r'/v2/certStatus/$', 'times': 1, 'body': {'status': {
+            'status': 'A', 'certID': '{CFG:cert_reuse}', 'commonName': '{NAME}',
+            'NVA': 1798761600, 'SNVA': 1830297600}}},
+        {'url': r'/v2/quickReissue/$', 'body': {
+            'certID': '{CFG:cert_reuse}', 'method': 'dns', 'dnsAuth': {
+                'type': 'CNAME', 'code': '_8F2E4C6A8B1D3F5E7A9C0B2D4F6E8A1C.{NAME}. CNAME '
+                                         '1c3e5a7b9d0f2e4c6a8b1d3f5e7a9c0b.4d6f8a0c2e.sectigo.com.'}}},
+        {'url': r'/v2/certStatus/$', 'times': 1, 'body': {'status': {
+            'status': 'P', 'certID': '{CFG:cert_reuse}', 'message': 'waiting for the DCV',
+            'SNVA': 1830297600}}},
+        {'url': r'/v2/certStatus/$', 'body': {'status': {
+            'status': 'R', 'certID': '{CFG:cert_reuse}', 'NVA': 1830297600,
+            'SNVA': 1830297600}}},
+        {'url': r'/v2/getCert/$', 'body': {'certificates': [
+            {'Type': 'certificate', 'Contents': '{CERT}'},
+            {'Type': 'intermediate', 'Contents': '{CHAIN}'}]}}],
+    # Namecheap SSL: the certificate bought before reissued (free; a new certificate ID
+    # replaces it), its CNAME DCV, the new one read until active
+    'namecheap_ssl': [
+        {'sent': r'Command=namecheap\.ssl\.getInfo&CertificateID=\d+$', 'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.ssl.getinfo</RequestedCommand><CommandResponse Type="namecheap.ssl.getInfo"><SSLGetInfoResult Status="active" StatusDescription="Certificate is active" Type="PositiveSSL" IssuedOn="01/01/2026" Expires="01/01/2027" ActivationExpireDate="" OrderId="98765" ReplacedBy="0" SANSCount="0"><CertificateDetails><CommonName>{NAME}</CommonName></CertificateDetails></SSLGetInfoResult></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.2</ExecutionTime></ApiResponse>'},
+        {'sent': r'Command=namecheap\.ssl\.resendApproverEmail', 'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.ssl.resendapproveremail</RequestedCommand><CommandResponse Type="namecheap.ssl.resendApproverEmail"><SSLResendApproverEmailResult ID="{CFG:cert_id}" IsSuccess="true" /></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.1</ExecutionTime></ApiResponse>'},
+        {'sent': r'Command=namecheap\.ssl\.reissue', 'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.ssl.reissue</RequestedCommand><CommandResponse Type="namecheap.ssl.reissue"><SSLReissueResult ID="{CFG:cert_id}" IsSuccess="true"><DNSDCValidation ValueAvailable="true"><DNS domain="{NAME}"><HostName>_8F2E4C6A8B1D3F5E7A9C0B2D4F6E8A1C.{NAME}</HostName><Target>1c3e5a7b9d0f2e4c6a8b1d3f5e7a9c0b.4d6f8a0c2e.comodoca.com</Target></DNS></DNSDCValidation><HttpDCValidation ValueAvailable="true"><DNS domain="{NAME}"><FileName>8F2E4C6A8B1D3F5E7A9C0B2D4F6E8A1C.txt</FileName><FileContent>1c3e5a7b9d0f2e4c6a8b1d3f5e7a9c0b4d6f8a0c2e comodoca.com</FileContent></DNS></HttpDCValidation></SSLReissueResult></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.2</ExecutionTime></ApiResponse>'},
+        {'sent': r'Command=namecheap\.ssl\.getInfo&CertificateID=7654322&', 'times': 1,
+         'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.ssl.getinfo</RequestedCommand><CommandResponse Type="namecheap.ssl.getInfo"><SSLGetInfoResult Status="newpurchase" StatusDescription="Awaiting domain validation" Type="PositiveSSL" ReplacedBy="0" SANSCount="0" /></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.2</ExecutionTime></ApiResponse>'},
+        {'sent': r'Command=namecheap\.ssl\.getInfo&CertificateID=7654322&', 'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.ssl.getinfo</RequestedCommand><CommandResponse Type="namecheap.ssl.getInfo"><SSLGetInfoResult Status="active" StatusDescription="Certificate is active" Type="PositiveSSL" Expires="02/11/2027" ReplacedBy="0" SANSCount="0"><Certificates CertificateReturned="true" ReturnType="INDIVIDUAL"><Certificate>{CERT}</Certificate><CaCertificates><Certificate Type="INTERMEDIATE"><Certificate>{CHAIN}</Certificate></Certificate></CaCertificates></Certificates></SSLGetInfoResult></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.2</ExecutionTime></ApiResponse>'},
+        {'sent': r'Command=namecheap\.ssl\.getInfo&CertificateID=\d+&', 'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.ssl.getinfo</RequestedCommand><CommandResponse Type="namecheap.ssl.getInfo"><SSLGetInfoResult Status="replaced" StatusDescription="Certificate was replaced" Type="PositiveSSL" ReplacedBy="7654322" SANSCount="0" /></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.2</ExecutionTime></ApiResponse>'}],
     'digicert': [
         {'method': 'GET', 'url': r'/order/certificate/\d+$', 'body': {
             'id': '{CFG:order_id}', 'status': 'issued', 'order_valid_till': '2028-01-01',

@@ -932,7 +932,11 @@ print(json.dumps([P.clean(e, {'STANDIN': 'the password'}) for e in ev]))
                  'sessionTimeout', 'passwordPolicy', 'hasPassword', 'enable_syno_token',
                  'isPrivate', 'authType', 'author', 'certificateAuthority', 'pinned',
                  'keyAlgorithm', 'token_type', 'password_expires', 'privateKeyFormat']
+        secrets += ['auth', 'authorization', 'Authorization', 'auth_token', 'authkey']
+        alike += ['issuingCertificateAuthorityId', 'authority', 'certificateAuthorityName']
         self.assertEqual([n for n in secrets if not P.secret_name(n)], [])
+        self.assertEqual(P.mask_url('https://p/v1/x?issuingCertificateAuthorityId=ca1&auth=s', {}),
+                         'https://p/v1/x?issuingCertificateAuthorityId=ca1&auth=••••')
         self.assertEqual([n for n in alike if P.secret_name(n)], [])
         got = P.mask_json({'code': 'ok', 'privateKeyAlgorithm': 'RSA_2048', 'password': 'x'}, {})
         self.assertEqual(got, {'code': 'ok', 'privateKeyAlgorithm': 'RSA_2048', 'password': '••••'})
