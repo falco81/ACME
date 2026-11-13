@@ -119,7 +119,10 @@ def issued(cid):
     t = time.time()
     STORE.db.update('certs', cid, {'cert_pem': 'PEM', 'version': 3, 'state': 'ok',
                                    'not_before': t - 86400, 'not_after': t + 80 * 86400,
-                                   'serial': 'AB', 'fingerprint': 'FP'})
+                                   'serial': 'AB', 'fingerprint': 'FP',
+                                   # acme's key (1.0.96: a version with no key and no CSR
+                                   # given was issued for a device's key)
+                                   'key_sealed': 'sealed'})
     STORE.db.insert('cert_versions', {'cert_id': cid, 'version': 3, 'cert_pem': 'PEM',
                                       'created': t, 'why': 'issue'})
 
