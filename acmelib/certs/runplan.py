@@ -106,7 +106,7 @@ ANSWERS = {
         {'method': 'GET', 'url': r'/dna/intent/api/v1/task/', 'body': {'response': {
             'isError': False, 'progress': 'done', 'endTime': 1}}}],
     # the FMC: the token and the domain are headers of the sign-in; the devices to enrol on
-    # are those named
+    # and the decryption policies are those named
     'cisco_fmc': [
         {'method': 'POST', 'url': r'/generatetoken$', 'status': 204, 'body': '',
          'headers': {'X-auth-access-token': 'PLANSESSION0token',
@@ -115,6 +115,9 @@ ANSWERS = {
          'status': 201, 'body': {'id': '\u2039new object\u203a'}},
         {'method': 'GET', 'url': r'/devices/devicerecords\?', 'body': {'items': [
             {'id': '\u2039device\u203a', 'name': '{EACH:OPT:enroll_devices}'}]}},
+        {'method': 'GET', 'url': r'/policy/decryptionpolicies\?', 'body': {'items': [
+            {'id': '\u2039policy\u203a', 'name': '{EACH:OPT:decryption_policy}'},
+            {'id': '\u2039policy\u203a', 'name': '{EACH:OPT:decryption_policies}'}]}},
         {'method': 'GET', 'body': {'items': []}}],
     # the IMC answers every call of its XML API at /nuova: a session cookie, no error
     'cisco_imc': [{'method': 'POST', 'url': r'/nuova$', 'headers': {'Content-Type': 'text/xml'},
@@ -126,7 +129,94 @@ ANSWERS = {
             'access_token': '{SESSION}', 'token_type': 'Bearer', 'expires_in': 28800}},
         {'method': 'GET', 'url': r'/api/cluster/server$', 'body': {'_embedded': {'items': [
             {'server_uuid': '\u2039server uuid\u203a', 'name': '{CFG:server}'}]}}}],
+    # ESXi through vCenter's VI JSON API: its session manager, the session a header of the
+    # sign-in, the host's certificate manager; the Automation API's session a JSON string
+    'esxi': [
+        {'method': 'GET', 'url': r'/ServiceInstance/ServiceInstance/content$', 'body': {
+            'sessionManager': {'type': 'SessionManager', 'value': 'SessionManager'}}},
+        {'method': 'POST', 'url': r'/SessionManager/[^/]+/Login$', 'body': {},
+         'headers': {'Content-Type': 'application/json',
+                     'vmware-api-session-id': 'PLANSESSION0token'}},
+        {'method': 'GET', 'url': r'/HostSystem/[^/]+/configManager$', 'body': {
+            'certificateManager': {'type': 'HostCertificateManager',
+                                   'value': '\u2039certificate manager\u203a'}}},
+        {'method': 'POST', 'url': r'/api/session$', 'status': 201,
+         'body': '"PLANSESSION0token"'}],
+    # FortiManager answers every JSON-RPC call at /jsonrpc alike: status 0 (OK) - its "is it
+    # there?" too, so the recording finds the certificate there and does not add it
+    'fortimanager': [{'method': 'POST', 'url': r'/jsonrpc$', 'body': {
+        'id': 1, 'result': [{'status': {'code': 0, 'message': 'OK'}, 'data': {}}]}}],
+    # NimbleOS: the token and its id in "data" of the sign-in
+    'hpe_nimble': [{'method': 'POST', 'url': r'/v1/tokens$', 'status': 201, 'body': {
+        'data': {'session_token': '{SESSION}', 'id': '‹token id›'}}}],
+    # OneView: its API version (that of OneView 9.00), the sessionID, the CA not in the trust
+    # store yet, the tasks of the calls completed
+    'hpe_oneview': [
+        {'method': 'GET', 'url': r'/rest/version$', 'body': {
+            'currentVersion': 6600, 'minimumVersion': 120}},
+        {'method': 'POST', 'url': r'/rest/login-sessions$', 'body': {'sessionID': '{SESSION}'}},
+        {'method': 'GET', 'url': r'/rest/certificates/ca/', 'status': 404, 'body': {
+            'errorCode': 'RESOURCE_NOT_FOUND'}},
+        {'method': 'POST', 'url': r'/rest/certificates/ca$', 'status': 202, 'body': {
+            'uri': '/rest/tasks/‹task›'}},
+        {'method': 'PUT', 'url': r'/rest/certificates/https/pkcs12', 'status': 202, 'body': {
+            'uri': '/rest/tasks/‹task›'}},
+        {'method': 'GET', 'url': r'/rest/tasks/', 'body': {'taskState': 'Completed'}}],
+    # NIOS: uploadinit gives the token and the address the file goes to
+    'infoblox': [{'method': 'POST', 'url': r'/fileop\?_function=uploadinit$', 'body': {
+        'token': '‹upload token›',
+        'url': 'https://‹grid master›/http_direct_file_io/req_id-UPLOAD-'
+               '‹id›/acme.pem'}}],
+    # the iRMC answers SCCI (POST /config) in XML: status 0, no error
+    'irmc': [{'method': 'POST', 'url': r'/config$', 'headers': {'Content-Type': 'text/xml'},
+              'body': '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><Status>'
+                      '<Value>0</Value><Severity>Information</Severity><Message>No Error'
+                      '</Message></Status>'}],
+    # ONTAP: the SVM named is there; the certificate asked for by its name is listed (the
+    # same call before and after the install: the recording finds it there and binds it)
+    'netapp_ontap': [
+        {'method': 'GET', 'url': r'/api/svm/svms\?', 'body': {'records': [
+            {'uuid': '‹svm uuid›', 'name': '{OPT:svm}'}], 'num_records': 1}},
+        {'method': 'GET', 'url': r'/api/security/certificates\?', 'body': {'records': [
+            {'uuid': '‹certificate uuid›', 'type': 'server'}], 'num_records': 1}}],
+    # NSX: the id of the certificate imported, its validation OK
+    'nsx_manager': [
+        {'method': 'POST', 'url': r'/certificates\?action=import$', 'status': 201, 'body': {
+            'results': [{'id': '‹certificate id›'}], 'result_count': 1}},
+        {'method': 'GET', 'url': r'\?action=validate', 'body': {'status': 'OK'}}],
+    # Prism Central: the cluster named is one of its clusters, its certificate read with an
+    # ETag, the replacement a task that succeeds
+    'nutanix': [
+        {'method': 'GET', 'url': r'/config/clusters$', 'body': {'data': [
+            {'extId': '‹cluster id›', 'name': '{CFG:cluster}'}]}},
+        {'method': 'GET', 'url': r'/ssl-certificate$', 'body': {'data': {}},
+         'headers': {'Content-Type': 'application/json', 'ETag': '‹etag›'}},
+        {'method': 'PUT', 'url': r'/ssl-certificate$', 'status': 202, 'body': {
+            'data': {'extId': '‹task›'}}},
+        {'method': 'GET', 'url': r'/config/tasks/', 'body': {'data': {'status': 'SUCCEEDED'}}}],
+    # OneFS: the id of the certificate imported
+    'powerscale': [{'method': 'POST', 'url': r'/platform/\d+/certificate/server$',
+                    'status': 201, 'body': {'id': '‹certificate id›'}}],
+    # PowerStore: the session is the DELL-EMC-TOKEN header and the cookie of the sign-in; the
+    # id of the certificate imported
+    'powerstore': [
+        {'method': 'GET', 'url': r'/api/rest/login_session$', 'body': [{'id': '‹session›'}],
+         'headers': {'Content-Type': 'application/json', 'DELL-EMC-TOKEN': 'PLANSESSION0token',
+                     'Set-Cookie': 'auth_cookie=PLANSESSION0token; Path=/; Secure; HttpOnly'}},
+        {'method': 'POST', 'url': r'/api/rest/x509_certificate$', 'status': 201, 'body': {
+            'id': '‹certificate id›'}}],
+    # Purity: the REST API versions it speaks (the newest 2.x is used), the session the
+    # x-auth-token header of the sign-in, the certificate to replace there
+    'pure_flasharray': [
+        {'method': 'GET', 'url': r'/api/api_version$', 'body': {
+            'version': ['1.19', '2.‹n›']}},
+        {'method': 'POST', 'url': r'/login$', 'body': {'items': [{}]},
+         'headers': {'Content-Type': 'application/json', 'x-auth-token': 'PLANSESSION0token'}},
+        {'method': 'GET', 'url': r'/certificates\?names=', 'body': {'items': [
+            {'name': '{OPT:cert_name}', 'certificate': ''}]}}],
 }
+# a FlashBlade answers as a FlashArray
+ANSWERS['pure_flashblade'] = ANSWERS['pure_flasharray']
 FIRST = {
     'netscaler': [
         {'method': 'GET', 'url': r'/nitro/v1/config/sslcertkey/', 'status': 404,
@@ -171,11 +261,12 @@ def _filled(v, cfg, opts):
     return v
 
 
-def answers_of(kind, cfg=None, opts=None, first=True, later=False):
-    """The answers a module's recording gets: FIRST (or LATER) and ANSWERS of its kind, the
-    settings put in where an answer names them."""
+def answers_of(kind, cfg=None, opts=None, first=True, later=False, version=''):
+    """The answers a module's recording gets: FIRST (or LATER) and ANSWERS of its kind - those
+    of its version ("kind@version") before those of the kind -, the settings put in where an
+    answer names them."""
     rules = (LATER.get(kind, []) if later else FIRST.get(kind, []) if first else []) + \
-        ANSWERS.get(kind, [])
+        (ANSWERS.get('%s@%s' % (kind, version), []) if version else []) + ANSWERS.get(kind, [])
     cfg, opts = dict(cfg or {}), dict(opts or {})
     return [dict(r, body=_filled(r['body'], cfg, opts)) if 'body' in r else dict(r)
             for r in rules]
@@ -1160,9 +1251,10 @@ def plan(store, cert, deploys, full=False):
         item.update(cfg=tcfg, opts=opts)
         kw = dict(family='target', kind=trow['kind'], name=trow['name'], op='deploy',
                   config=scfg, options=sopts, marks=marks, deploy_id=dep.get('id'))
-        kw['answers'] = answers_of(trow['kind'], scfg, sopts)
+        kw['answers'] = answers_of(trow['kind'], scfg, sopts, version=_ver(tcls))
         if trow['kind'] in LATER:
-            kw['later_answers'] = answers_of(trow['kind'], scfg, sopts, later=True)
+            kw['later_answers'] = answers_of(trow['kind'], scfg, sopts, later=True,
+                                             version=_ver(tcls))
         item['run'] = run(**kw)
     # the recording
     resolvers = {}
