@@ -273,7 +273,8 @@ class AzureAppGwTarget(CloudTarget):
                 if cur == name:
                     continue
                 lp['sslCertificate'] = {'id': new_id}
-                self.ctx.step('the listener %s uses %s' % (ln, name), 'ok')
+                self.ctx.step('the listener %s uses %s%s' % (
+                    ln, name, ' (before: %s)' % cur if cur else ''), 'ok')
                 did.append(ln)
                 change = True
         missing = [x for x in want if x not in found]

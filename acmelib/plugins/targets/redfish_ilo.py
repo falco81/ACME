@@ -174,6 +174,11 @@ class RedfishIloTarget(RedfishTarget):
                     'use an ECDSA key type for this certificate' % (gen, state, need),
                     retry=False)
             hc = self.get(hc_uri, what='reading the HTTPS certificate')
+            x = hc.get('X509CertificateInformation') or {}
+            # the decisions said (What happens): which iLO, its state, what it holds now
+            self.ctx.step('iLO %d firmware %s, security state %s; it holds %s until %s' % (
+                gen, fw_words(fw) if fw else '?', state or '?', x.get('Subject') or '?',
+                x.get('ValidNotAfter') or '?'))
             act = ((hc.get('Actions') or {}).get('#HpeHttpsCert.ImportCertificate') or {})
             target = text(act.get('target')) or \
                 hc_uri.rstrip('/') + '/Actions/HpeHttpsCert.ImportCertificate'
@@ -181,6 +186,8 @@ class RedfishIloTarget(RedfishTarget):
                 self.req('PATCH', hc_uri, {'KeyType': fam},
                          what='setting the key type to %s' % fam)
                 self.ctx.step('key type of the iLO certificate set to %s' % fam, 'ok')
+            elif 'KeyType' in hc:
+                self.ctx.step('key type of the iLO certificate: %s already' % hc.get('KeyType'))
             pem = text(bundle.as_format('cert-pem')).strip() + '\n' + \
                 text(bundle.as_format('key-pem')).strip() + '\n'
             self.req('POST', target, {'Certificate': pem}, timeout=120,

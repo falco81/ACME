@@ -234,6 +234,9 @@ class HpeIloDeviceKeyTarget(RedfishIloTarget):
             mgr, m, (gen, fw) = self.manager_info()
             hc_uri, state = self.https_cert(mgr)
             hc = self.get(hc_uri, what='reading the HTTPS certificate')
+            x = hc.get('X509CertificateInformation') or {}
+            self.ctx.step('the iLO %d (firmware %s) serves %s until %s - replaced' % (
+                gen, fw_words(fw), x.get('Subject') or '?', x.get('ValidNotAfter') or '?'))
             act = ((hc.get('Actions') or {}).get(IMPORT) or {})
             target = text(act.get('target')) or \
                 hc_uri.rstrip('/') + '/Actions/HpeHttpsCert.ImportCertificate'

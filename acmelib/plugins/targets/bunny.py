@@ -110,11 +110,15 @@ class BunnyTarget(CloudTarget):
                                   retry=False)
         cert = b64(bundle.as_format('fullchain-pem'))
         key = b64(bundle.as_format('key-pem'))
+        had = dict((text(x.get('Value')).lower(), bool(x.get('HasCertificate'))) for x in custom)
         for h in want:
             self.api('POST', '/pullzone/%s/addCertificate' % zid,
                      {'Hostname': h, 'Certificate': cert, 'CertificateKey': key},
                      what='putting the certificate on %s' % h)
-            self.ctx.step('%s has the certificate' % h, 'ok')
+            # what was there, said (1.0.98): the decision What happens shows
+            self.ctx.step('%s has the certificate%s' % (
+                h, ' (in place of the one it had)' if had.get(h.lower()) else
+                ' (it had none)'), 'ok')
         self.remember(bundle, options)
         return 'pull zone %s: %s' % (z.get('Name'), ', '.join(want))
 

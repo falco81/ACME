@@ -175,7 +175,8 @@ class HpeNimbleTarget(HttpTarget):
                 'name': name, 'https': https, 'apis': apis}, 'putting %s to use' % name)
             uses = ' and '.join(w for w, on in (('the HTTPS GUI', https),
                                                 ('the REST API', apis)) if on)
-            self.ctx.step('%s uses %s - it reloads' % (uses, name), 'ok')
+            self.ctx.step(('%s use %s - they reload' if https and apis else
+                           '%s uses %s - it reloads') % (uses, name), 'ok')
         finally:
             self.logout()
         self.remember(bundle, options)

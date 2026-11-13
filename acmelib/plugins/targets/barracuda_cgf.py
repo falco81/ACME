@@ -205,6 +205,11 @@ class BarracudaCgfTarget(HttpTarget):
             self.remember(bundle, options)
             return 'already in %s' % name
         did = []
+        if cur is not None:
+            # what is there now, said (1.0.98): the decision What happens shows
+            self.ctx.step('the entry %s holds another certificate%s - it is replaced in place'
+                          % (name, ' (%s)' % ', '.join(x[:16] for x in fingerprints_of(cur))
+                             if fingerprints_of(cur) else ''))
         if cur is None:
             if not as_bool(self.opt(options, 'create', True), True):
                 raise PluginError('%s has no entry %s - make it in Firewall Admin, or let acme '

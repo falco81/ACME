@@ -160,6 +160,13 @@ class AwsAcmTarget(CloudTarget):
                         % (arn, have, want, arn, (' - used by %s' % ', '.join(
                             info.get('InUseBy') or [])) if info.get('InUseBy') else ''),
                         retry=False)
+                else:
+                    # what is there now, said (1.0.98): the decision What happens shows
+                    self.ctx.step('%s holds another certificate (serial %s%s) - this one is '
+                                  're-imported into it, so what uses it takes it' % (
+                                      arn, info.get('Serial') or '?', '; used by %s' % ', '.join(
+                                          info.get('InUseBy') or []) if info.get('InUseBy')
+                                      else '; not used yet'))
             except PluginError as e:
                 if 'ResourceNotFound' not in str(e):
                     raise

@@ -183,6 +183,13 @@ class SupervisorTarget(VCenterTarget):
                                   retry=False)
             if self.unchanged(bundle, options, present=lambda: V.has_cert(cur, bundle)):
                 return self.same(bundle, 'on the Supervisor')
+            # the decisions said (What happens): which calls, what is there now
+            ver = self.vc_version()
+            self.ctx.step('vCenter %s: the %s calls; the Supervisor %s holds %s' % (
+                V.version_words(ver) if ver else '(its version not read)',
+                'supervisors/<id>/certificates' if g == '9.1' else 'clusters/<id>',
+                self.c('supervisor'), 'this certificate already - it is put there again'
+                if V.has_cert(cur, bundle) else 'another certificate - it is replaced'))
             _get, patch = self.paths(g)
             body = {'tls_endpoint_certificate': self.chain(bundle, options),
                     'tls_endpoint_private_key': text(bundle.as_format('key-pem'))}

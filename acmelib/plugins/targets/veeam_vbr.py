@@ -221,6 +221,11 @@ class VeeamVbrTarget(VeeamPsTarget):
             if self.unchanged(bundle, options, present=lambda: info.get('current') == thumb):
                 return self.same(bundle, 'as the backup server certificate')
             self.check_version(info)
+            # the decision said (What happens): the version read, the certificate there now
+            self.ctx.step('Veeam Backup & Replication %s; its backup server certificate now: %s '
+                          '- it is replaced' % (info.get('build') or (
+                              'v%s' % info['gen'] if info.get('gen') else '(version not read)'),
+                              info.get('current') or 'none read'))
             gen = self.generation or info.get('gen')
             if gen is None:
                 gen = 13 if info.get('force') else 12

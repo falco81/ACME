@@ -94,9 +94,15 @@ class UnityTarget(SshMixin, Base):
             # 1.0.96: the host and the port apart - "2001:db8::1:443" read back by
             # split_hostport is another address (an IPv6 host was never asked)
             host = text(self.c('host')).strip().strip('[]')
-            return served_fingerprint(host, self.served_port(), None) == fp_of(bundle)
-        except (OSError, ValueError):
+            same = served_fingerprint(host, self.served_port(), None) == fp_of(bundle)
+        except (OSError, ValueError) as e:
+            # the decision said (What happens), as targets/redfish.py says it
+            self.ctx.step('what %s serves cannot be read (%s) - the certificate is put there'
+                          % (self.c('host'), e))
             return False
+        self.ctx.step('Unisphere serves this certificate already' if same else
+                      'Unisphere serves another certificate - this one is put there')
+        return same
 
     def deploy(self, bundle, options):
         options = options or {}

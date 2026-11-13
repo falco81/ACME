@@ -275,8 +275,10 @@ def _patch_ftplib():
 
     def storbinary(self, cmd, fp, blocksize=8192, callback=None, rest=None):
         data = fp.read() if hasattr(fp, 'read') else b''
+        f = blob_facts(data or b'')
         rec({'kind': 'ftp-put', 'host': str(getattr(self, 'host', '')), 'cmd': str(cmd),
-             'bytes': len(data or b'')})
+             'bytes': len(data or b''), 'format': f.get('format'), 'sha256': f.get('sha256'),
+             'secret': bool(f.get('secret'))})
         return '226 ‹transfer complete›'
 
     def storlines(self, cmd, fp, callback=None):
@@ -564,7 +566,7 @@ SECRET_NAME = re.compile(r'(pass|secret|token|apikey|api_key|api-key|private|pas
                          r'(^|[_.-])key$|^key(pem|data|file|_pem|_data)?$|privkey|'
                          r'^sid$|_sid$|^sig$|^code$|assertion$)', re.I)
 NOT_SECRET_NAME = re.compile(r'^(public[_-]?key|key[_-]?(type|size|usage|length|alg|algorithm|'
-                             r'id|name|spec)|auth[_-]?(type|method|mode|scheme|source)|'
+                             r'id|name|spec)|auth[_-]?(type|method|mode|scheme|source|login[_-]?domain|domain|provider)|'
                              r'token[_-]?(type|expires?|ttl)|session[_-]?(timeout|ttl|type))$', re.I)
 HEADER_SCHEMES = re.compile(r'^(Basic|Bearer|Token|Negotiate|NTLM|Digest|SSWS|ApiKey|'
                             r'Key|Splunk|GenieKey|Bot|AWS4-HMAC-SHA256|SharedKey|PVEAPIToken)\b',
@@ -990,11 +992,14 @@ class Answers(object):
     # name validated), {NAME}, {FQDN} (_acme-challenge.NAME), {TXT} (the value put in); {CERT}
     # (PEM of the certificate issued for the request's key), {CHAIN} (PEM of its intermediate),
     # {CERT_B64} / {CHAIN_B64} (their DER in base64), {P7_B64} (a PKCS#7 of both, DER, base64),
-    # {CA_P7_B64} (one of the intermediate only), {CERT_SERIAL} (its serial, hex)
+    # {CA_P7_B64} (one of the intermediate only), {CERT_SERIAL} (its serial, hex); {ZONE_B64},
+    # {FQDN_B64}, {TXT_B64}: those three in base64 (the names absolute, "name."); {KEYAUTH}:
+    # the key authorization an HTTP-01 file holds
     # {EARLIER_PEM} / {EARLIER_B64}: another certificate of the deployed one's names (its own
     # key; PEM / DER in base64) - the one a device holds and lists before a renewal
     PLAN_RE = re.compile(r'\{(ZONE|NAME|FQDN|TXT|CERT|CHAIN|CERT_B64|CHAIN_B64|P7_B64|CA_P7_B64|'
-                         r'CERT_SERIAL|EARLIER_PEM|EARLIER_B64)\}')
+                         r'CERT_SERIAL|EARLIER_PEM|EARLIER_B64|ZONE_B64|FQDN_B64|TXT_B64|'
+                         r'KEYAUTH)\}')
     _earlier_pem = None
 
     def earlier_pem(self):
@@ -1023,7 +1028,8 @@ class Answers(object):
         if '{' not in text or not self.PLAN_RE.search(text):
             return text
         name = str(self.vname or '').lstrip('*.')
-        vals = {'NAME': name, 'FQDN': '_acme-challenge.' + name if name else '', 'TXT': TXT}
+        vals = {'NAME': name, 'FQDN': '_acme-challenge.' + name if name else '', 'TXT': TXT,
+                'KEYAUTH': KEYAUTH}
         try:
             from acmelib.plugins.challenges import _dns as D
             vals['ZONE'] = D.registrable(name) if name else ''
@@ -1034,6 +1040,11 @@ class Answers(object):
             pem = self.earlier_pem()
             vals['EARLIER_PEM'] = pem
             vals['EARLIER_B64'] = ''.join(l for l in pem.splitlines() if l and '-----' not in l)
+        if '_B64}' in text:
+            import base64                   # {ZONE_B64}...: as a cPanel zone holds them
+            for k in ('ZONE', 'FQDN', 'TXT'):           # a name absolute: with its dot
+                vals[k + '_B64'] = base64.b64encode((str(vals.get(k) or '') + (
+                    '.' if k != 'TXT' else '')).encode()).decode()
 
         def one(m):
             v = str(vals.get(m.group(1), ''))
@@ -1529,6 +1540,11 @@ class PlanContext(object):
     def dns_put(self, name, type, value, ttl=60):
         rec({'kind': 'own-dns', 'name': str(name).rstrip('.').lower(),
              'type': str(type or 'TXT').upper(), 'value': str(value), 'ttl': ttl})
+        # acme's own DNS server answers it from now on; the name's _acme-challenge is a CNAME
+        # to it on a running setup (dns_answer)
+        if str(type or 'TXT').upper() == 'TXT':
+            PLACED_TXT.append(str(value))
+            OWN_DNS.append(str(name).rstrip('.').lower())
 
     def dns_drop(self, name, type, value=None):
         rec({'kind': 'own-dns-drop', 'name': str(name).rstrip('.').lower(),
@@ -1656,6 +1672,7 @@ def run_one(job, r, bundle_holder):
     CURRENT[0] = r
     del PLACED_TXT[:]
     PLACED_CNAME.clear()
+    del OWN_DNS[:]
     err = None
     said = None
     signal.signal(signal.SIGALRM, _alarm)
@@ -1914,6 +1931,7 @@ def issued_for(csr_pem, names):
 CURRENT = [None]                # the run going on (run_one): its family, its settings
 PLACED_TXT = []                 # TXT values a run wrote (UPDATE, a CA's DCV): seen when asked
 PLACED_CNAME = {}               # CNAMEs a CA's DCV put in place: {name: target}
+OWN_DNS = []                    # names acme's own DNS server was given a TXT record at
 
 
 def dns_answer(D, wire, r):
@@ -1958,7 +1976,9 @@ def dns_answer(D, wire, r):
             m.answer.append(D.RR(n, 28, D.CLASS_IN, 300, '2001:db8::53'))
         elif t == 5 and n in PLACED_CNAME:
             m.answer.append(D.RR(n, 5, D.CLASS_IN, 300, PLACED_CNAME[n]))
-        elif t == 16 and (n.startswith('_acme-challenge.') or PLACED_TXT):
+        elif t == 5 and n.startswith('_acme-challenge.') and [x for x in OWN_DNS if x != n]:
+            m.answer.append(D.RR(n, 5, D.CLASS_IN, 300, [x for x in OWN_DNS if x != n][-1]))
+        elif t == 16:                                   # the value put in, seen
             for v in [TXT] + [x for x in PLACED_TXT if x != TXT]:
                 m.answer.append(D.RR(n, 16, D.CLASS_IN, 60, v))
         else:

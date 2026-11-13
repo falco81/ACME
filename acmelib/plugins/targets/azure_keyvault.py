@@ -110,7 +110,11 @@ class AzureKeyVaultTarget(CloudTarget):
         st, hd, d = self.req('GET', self.url('/certificates/%s' % name), ok=(200, 404),
                              what='reading %s' % name)
         if st == 404 or not isinstance(d, dict):
+            self.ctx.step('the vault has no certificate %s yet' % name)
             return None
+        # what is there now, said (1.0.98): the decision What happens shows
+        self.ctx.step('the vault has %s, version %s (thumbprint %s)' % (
+            name, text(d.get('id')).rsplit('/', 1)[-1] or '?', d.get('x5t') or '?'))
         return d.get('x5t')
 
     def current_type(self, name):

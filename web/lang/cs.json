@@ -61031,6 +61031,110 @@
   "_40": {
    "source": "keepalived stopped",
    "text": "keepalived zastaven"
+  },
+  "_41": {
+   "source": "request",
+   "text": "požadavek"
+  },
+  "_42": {
+   "source": "form fields",
+   "text": "pole formuláře"
+  },
+  "_43": {
+   "source": "multipart parts",
+   "text": "části multipart"
+  },
+  "_44": {
+   "source": "binary",
+   "text": "binární"
+  },
+  "_45": {
+   "source": "What it printed",
+   "text": "Co vypsal"
+  },
+  "_46": {
+   "source": "here: from the stand-in device",
+   "text": "zde: od zástupného zařízení"
+  },
+  "_47": {
+   "source": "no answer was prepared for this call - a stand-in answered",
+   "text": "pro toto volání nebyla připravená odpověď – odpověděl zástupce"
+  },
+  "_48": {
+   "source": "What happens has no prepared answer of this device for this call: a generic one stood in (an empty success). The real device answers with its own data - what the module does next may differ.",
+   "text": "Co se stane nemá pro toto volání připravenou odpověď tohoto zařízení: zastoupila ji obecná (prázdný úspěch). Skutečné zařízení odpoví svými daty – co modul udělá dál, se může lišit."
+  },
+  "_49": {
+   "source": "Output",
+   "text": "Výstup"
+  },
+  "_50": {
+   "source": "nothing printed",
+   "text": "nic nevypsal"
+  },
+  "_51": {
+   "source": "no body",
+   "text": "bez těla"
+  },
+  "_52": {
+   "source": "The body as it is sent",
+   "text": "Tělo, jak se posílá"
+  },
+  "_53": {
+   "source": "On its input",
+   "text": "Na jeho vstupu"
+  },
+  "_54": {
+   "source": "As it is run",
+   "text": "Jak se spustí"
+  },
+  "_55": {
+   "source": "an error of the module",
+   "text": "chyba modulu"
+  },
+  "_56": {
+   "source": "the sudo password",
+   "text": "heslo pro sudo"
+  },
+  "_57": {
+   "source": "a file of its own",
+   "text": "vlastní soubor"
+  },
+  "_58": {
+   "source": "user",
+   "text": "uživatel"
+  },
+  "_59": {
+   "source": "host",
+   "text": "hostitel"
+  },
+  "_60": {
+   "source": "random",
+   "text": "náhodné"
+  },
+  "_61": {
+   "source": "HTTP of its own (http.client / urllib)",
+   "text": "vlastní HTTP (http.client / urllib)"
+  },
+  "_62": {
+   "source": "a connection of its own",
+   "text": "vlastní spojení"
+  },
+  "_63": {
+   "source": "UDP of its own",
+   "text": "vlastní UDP"
+  },
+  "_64": {
+   "source": "a DNS lookup of its own",
+   "text": "vlastní dotaz do DNS"
+  },
+  "_65": {
+   "source": "a program run by itself",
+   "text": "program spuštěný jím samým"
+  },
+  "_66": {
+   "source": "refused here and not recorded as acme would make it - the module must make this call through acme (ctx)",
+   "text": "tady odmítnuto a nezaznamenáno tak, jak by ho udělalo acme – modul musí toto volání dělat přes acme (ctx)"
   }
  },
  "patterns": {
@@ -84649,6 +84753,10 @@
   "p_59": {
    "source": "issuing {0} failed: {1}",
    "text": "vydání {0} selhalo: {1}"
+  },
+  "p_60": {
+   "source": "The module went around acme's connection layer: {0}",
+   "text": "Modul obešel vrstvu spojení acme: {0}"
   }
  },
  "rich": {

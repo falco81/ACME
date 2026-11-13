@@ -148,6 +148,10 @@ class PureFlashArrayTarget(HttpTarget):
             if blocks and pem_to_der(blocks[0]) == want and not as_bool(options.get('force')):
                 self.remember(bundle, options)
                 return self.same(bundle, 'as %s' % name)
+            self.ctx.step('%s holds this certificate already - replaced again (forced)' % name
+                          if blocks and pem_to_der(blocks[0]) == want else
+                          '%s holds another certificate - replacing it' % name if blocks else
+                          '%s holds no certificate yet - putting it there' % name)
             body = {'certificate': text(bundle.as_format('cert-pem')),
                     self.key_field: text(bundle.as_format('key-pem'))}
             chain = text(bundle.as_format('chain-pem')).strip()

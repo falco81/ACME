@@ -274,7 +274,10 @@ class BarracudaWafTarget(HttpTarget):
                     continue
                 self.api('PUT', 'services/%s/ssl-security' % q(svc), ssl,
                          what='pointing %s at %s' % (svc, name))
-                self.ctx.step('the service %s uses %s' % (svc, name), 'ok')
+                was = [text(before.get(k)) for k in ('certificate', 'ecdsa-certificate')
+                       if before.get(k) and before.get(k) != ssl.get(k)]
+                self.ctx.step('the service %s uses %s%s' % (svc, name, ' (before: %s)' % ', '.join(
+                    was) if was else ''), 'ok')
                 did.append(svc)
             self.cleanup(prefix, name, self.keep(options))
             self.remember(bundle, options)

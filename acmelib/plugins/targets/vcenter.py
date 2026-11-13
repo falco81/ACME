@@ -97,6 +97,13 @@ class VCenterTarget(HttpTarget):
         st, hd, d = self.req('GET', TLS, what='reading the certificate there now')
         return d if isinstance(d, dict) else {}
 
+    def said_current(self, info):
+        """The decision said (What happens): what vCenter serves now - replaced."""
+        if info.get('thumbprint') or info.get('subject_dn'):
+            self.ctx.step('vCenter serves %s (thumbprint %s, valid to %s) - it is replaced' % (
+                info.get('subject_dn') or '?', info.get('thumbprint') or '?',
+                info.get('valid_to') or '?'))
+
     def is_current(self, bundle, info):
         tp = norm_fp(info.get('thumbprint'))
         return bool(tp) and tp in (sha1_thumb(bundle).lower(), fp_of(bundle))
@@ -115,9 +122,11 @@ class VCenterTarget(HttpTarget):
         force = as_bool(options.get('force'))
         self.login()
         try:
-            if not force and self.is_current(bundle, self.current()):
+            info = self.current()
+            if not force and self.is_current(bundle, info):
                 self.remember(bundle, options)
                 return self.same(bundle, 'served by vCenter')
+            self.said_current(info)
             chain, root = split_chain(bundle, options.get('root_pem'))
             if as_bool(self.opt(options, 'trust_chain', True), True):
                 certs = chain + ([root] if root else [])

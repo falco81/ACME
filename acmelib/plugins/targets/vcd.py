@@ -193,6 +193,9 @@ class VcdTarget(HttpTarget):
             if text((ep.get('apiSslCertRef') or {}).get('id')) == ref['id']:
                 self.ctx.step('%s uses %s already' % (name, alias))
                 continue
+            self.ctx.step('%s uses %s - it is pointed at %s' % (
+                name, text((ep.get('apiSslCertRef') or {}).get('name')) or
+                text((ep.get('apiSslCertRef') or {}).get('id')) or 'another certificate', alias))
             maint = as_bool(self.opt(options, 'maintenance', False))
             if maint:
                 self.set_status(cell, 'MAINTENANCE')

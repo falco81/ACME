@@ -384,7 +384,9 @@ class Answers(unittest.TestCase):
         self.assertNotIn('{CFG:', json.dumps(R.answers_of('aruba_clearpass', {}, {})))
         ilo = R.answers_of('redfish', {}, {}, version='ilo')
         self.assertIn('iLO', json.dumps(ilo[:2]))
-        self.assertEqual(ilo[-1]['url'], R.ANSWERS['redfish'][0]['url'])
+        # the version's rules first, then the kind's
+        self.assertEqual(ilo[len(ilo) - len(R.ANSWERS['redfish'])]['url'],
+                         R.ANSWERS['redfish'][0]['url'])
         self.assertNotIn('iLO', json.dumps(R.answers_of('redfish', {}, {})))
 
     def test_recorded_to_the_end(self):
@@ -402,9 +404,11 @@ class Answers(unittest.TestCase):
         self.assertFalse(run.get('error'), run.get('error'))
         calls = [(e['method'], e['url'].split('/api/', 1)[-1]) for e in run['events']
                  if e['kind'] == 'http']
-        self.assertEqual([m for m, u in calls], ['GET', 'GET', 'PUT', 'GET'])
+        # the task asked for while it runs, then done
+        self.assertEqual([m for m, u in calls], ['GET', 'GET', 'PUT', 'GET', 'GET'])
         self.assertTrue(calls[2][1].endswith('/ssl-certificate'), calls)
         self.assertIn('/config/tasks/', calls[3][1])
+        self.assertEqual([e['seconds'] for e in run['events'] if e['kind'] == 'wait'], [5.0])
 
 
 class SandboxAnswers(unittest.TestCase):
@@ -558,9 +562,166 @@ class SandboxAnswers(unittest.TestCase):
         calls = [(e['method'], e['url'].split('/api/', 1)[1].split('?')[0]) for e in evs
                  if e['kind'] == 'http']
         self.assertIn(('POST', 'security/certificates'), calls)
-        self.assertEqual(calls[-2][0], 'PATCH')
-        self.assertFalse([e for e in evs if e['kind'] == 'wait'])
+        # bound (a job, asked for again after its 3 s), then acme's oldest one deleted
+        i = calls.index(('PATCH', 'svm/svms/02c9e252-41be-11e9-81d5-00a0986138f7/web'))
+        self.assertEqual([m for m, u in calls[i + 1:]], ['GET', 'GET', 'GET', 'DELETE'])
+        self.assertEqual([e['seconds'] for e in evs if e['kind'] == 'wait'], [3.0])
 
+
+
+class RenewalPaths(unittest.TestCase):
+    """What happens takes the real renewal path of each module: the certificate acme put there
+    before found, replaced, the old one cleaned up - every call answered as the device does
+    (no stand-in answer), the decisions said (group: hpe_synergy .. redfish_idrac)."""
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+
+    def record(self, kind, cfg, opts=None, version='', later=False):
+        from acmelib.certs import runplan as R
+        cfg = dict(cfg, _version=version)
+        got, err = R.record({'runs': [{
+            'id': 'r1', 'family': 'target', 'kind': kind, 'name': 't', 'op': 'deploy',
+            'config': cfg, 'options': opts or {}, 'seconds': 30,
+            'answers': R.answers_of(kind, cfg, opts, later=later, version=version),
+            'ssh_answers': R.ssh_answers_of(kind, cfg, opts, version=version)}],
+            'cert': {'names': ['www.example.com'], 'key_type': 'rsa-2048'}}, timeout=120)
+        self.assertEqual(err, '')
+        run = got['r1']
+        self.assertFalse(run.get('error'), '%s: %s' % (kind, run.get('error')))
+        evs = run['events']
+        self.assertFalse([e for e in evs if e.get('fallback')],
+                         '%s: a call no answer of the module matched' % kind)
+        return evs
+
+    @staticmethod
+    def seen(evs):
+        """Each call and step as one line: "GET url", "SSH command", "SAY words"."""
+        out = []
+        for e in evs:
+            if e['kind'] == 'http':
+                out.append('%s %s' % (e['method'], e['url']))
+            elif e['kind'] == 'ssh-run':
+                out.append('SSH %s' % e['command'])
+            elif e['kind'] == 'say':
+                out.append('SAY %s' % e['words'])
+        return out
+
+    def in_order(self, evs, *wants):
+        lines, i = self.seen(evs), 0
+        for w in wants:
+            while i < len(lines) and w not in lines[i]:
+                i += 1
+            self.assertLess(i, len(lines), '%r not found in order in %s' % (w, lines))
+
+    def test_device_lists_kept_and_old_deleted(self):
+        pw = {'host': 'dev.example.test', 'user': 'acme', 'password': 'stand-in'}
+        evs = self.record('kemp', {'host': 'lm', 'apikey': 'k'},
+                          {'virtual_services': '192.0.2.10:443'})
+        self.in_order(evs, 'POST https://lm/accessv2', 'SAY added acme-',
+                      'SAY the intermediate acme-ca-', 'SAY 192.0.2.10:443 uses',
+                      'SAY deleted the old acme-')
+        evs = self.record('mikrotik', dict(pw), {'services': 'www-ssl'})
+        self.in_order(evs, 'GET https://dev.example.test/rest/certificate',
+                      'POST https://dev.example.test/rest/certificate/import',
+                      'DELETE https://dev.example.test/rest/file/', 'SAY imported as acme-',
+                      'PATCH https://dev.example.test/rest/ip/service/',
+                      'DELETE https://dev.example.test/rest/certificate/')
+        evs = self.record('mikrotik', dict(pw, mode='ssh'), {'services': 'www-ssl'})
+        self.in_order(evs, 'SSH :foreach c in=[/certificate find', 'SSH /certificate import',
+                      'SSH /ip service set', 'SSH /certificate remove')
+        evs = self.record('nginx_proxy_manager', {'url': 'http://npm:81', 'user': 'a@b',
+                                                  'password': 'p'}, {})
+        self.in_order(evs, 'POST http://npm:81/api/nginx/certificates',
+                      'PUT http://npm:81/api/nginx/proxy-hosts/3',
+                      'DELETE http://npm:81/api/nginx/certificates/4')
+        evs = self.record('nsx', dict(pw), {'virtual_server': 'vs1'})
+        self.in_order(evs, 'GET https://dev.example.test/policy/api/v1/infra/certificates/acme-',
+                      'PUT https://dev.example.test/policy/api/v1/infra/lb-virtual-servers/vs1',
+                      'DELETE https://dev.example.test/policy/api/v1/infra/certificates/acme-')
+        evs = self.record('juniper_srx', dict(pw), {'ike_policies': 'ike1'})
+        self.in_order(evs, 'GET https://dev.example.test:3443/rpc/get-pki-local-certificate',
+                      'SAY loaded the local certificate acme-',
+                      'SAY delete security ike policy ike1 certificate local-certificate acme-',
+                      'SAY removed the older acme-')
+        evs = self.record('nginx_unit', dict(pw, auth='password'), {})
+        self.in_order(evs, 'http://localhost/certificates', 'SAY uploaded the bundle',
+                      'SAY listener *:443 uses', 'SAY deleted the old bundle')
+
+    def test_decisions_said(self):
+        evs = self.record('ispconfig', {'host': 'panel', 'user': 'r', 'password': 'p'},
+                          {'website': 'shop.example.com'})
+        self.in_order(evs, 'sites_web_domain_get',
+                      'SAY shop.example.com has another certificate - replacing it',
+                      'sites_web_domain_update', 'POST https://panel:8080/remote/json.php?logout')
+        evs = self.record('proxmox', {'host': 'pve', 'token_id': 'a@pve!t', 'token_secret': 's'},
+                          {})
+        self.in_order(evs, 'GET https://pve:8006/api2/json/nodes',
+                      'SAY pve1 serves another certificate - replacing it',
+                      'SAY pve2 serves another certificate - replacing it')
+        evs = self.record('qnap', {'host': 'nas', 'user': 'admin', 'password': 'p'}, {})
+        self.in_order(evs, 'SAY /etc/stunnel/stunnel.pem holds another certificate',
+                      'SSH sh -c \'/etc/init.d/stunnel.sh restart\'', 'SAY stunnel restarted')
+        evs = self.record('pure_flasharray', {'host': 'fa', 'api_token': 't'}, {})
+        self.in_order(evs, 'GET https://fa/api/2.36/certificates?names=management',
+                      'SAY management holds another certificate - replacing it',
+                      'PATCH https://fa/api/2.36/certificates?names=management')
+        evs = self.record('redfish', {'host': 'bmc', 'user': 'u', 'password': 'p'},
+                          {'reset': True})
+        self.in_order(evs, 'SAY what bmc serves cannot be read',
+                      'GET https://bmc/redfish/v1/Managers/1/NetworkProtocol/HTTPS/Certificates',
+                      'POST https://bmc/redfish/v1/CertificateService/Actions/'
+                      'CertificateService.ReplaceCertificate', 'Manager.Reset')
+        evs = self.record('paloalto', {'host': 'pa', 'auth': 'password', 'user': 'admin',
+                                       'password': 'p'}, {'keep': 1})
+        self.in_order(evs, 'SAY imported acme-', 'SAY the intermediate acme-ca-',
+                      'SAY deleted the old acme-', 'SAY commit job 1234 started',
+                      'SAY committed (job 1234)')
+
+    def test_first_and_later(self):
+        k8s = {'host': 'https://k8s:6443', 'token': 't'}
+        first = self.seen(self.record('kubernetes', k8s, {'secret': 'web-tls'}))
+        later = self.seen(self.record('kubernetes', k8s, {'secret': 'web-tls'}, later=True))
+        self.assertIn('SAY made default/web-tls', first)
+        self.assertIn('SAY updated default/web-tls', later)
+        ns = {'host': 'ns', 'user': 'acme', 'password': 'p'}
+        opts = {'certkey': 'www', 'vservers': 'vs1'}
+        first = self.seen(self.record('netscaler', ns, opts))
+        later = self.seen(self.record('netscaler', ns, opts, later=True))
+        self.assertIn('SAY www is not there yet - added', first)
+        self.assertIn('SAY bound www to vs1', first)
+        self.assertTrue([x for x in later if x.startswith('SAY www is there (on acme-')], later)
+        self.assertIn('SAY www is bound to vs1 already', later)
+        self.assertTrue([x for x in later if x.startswith('SAY www is linked to acme-ca-')])
+
+    def test_sent_fingerprint_and_names(self):
+        """Answers told apart by the body sent (one address, the command in the body); {FP} the
+        fingerprint of the certificate deployed; a module's own names (plan_name)."""
+        from acmelib.certs import plansandbox as P
+        a = P.Answers([{'url': r'/api$', 'sent': r'"cmd": "list"', 'body': {'n': 1}},
+                       {'url': r'/api$', 'sent': r'type=op', 'body': '<ok/>'},
+                       {'url': r'/api$', 'body': {'n': 0}}])
+        self.assertEqual(json.loads(a('POST', 'https://d/api', b'{"cmd": "list"}')[2]), {'n': 1})
+        self.assertEqual(a('POST', 'https://d/api', b'type=op&cmd=x')[2], b'<ok/>')
+        self.assertEqual(json.loads(a('POST', 'https://d/api', {'cmd': 'add'})[2]), {'n': 0})
+        from acmelib.certs import pki
+        from acmelib.plugins.targets import _common as C, juniper_srx as J
+        key = pki.make_key('ec-256')
+
+        class B(object):
+            cert_pem = pki.self_signed(key, ['fp.example.test'], days=3)
+            names = ['fp.example.test']
+            name = 'fp.example.test'
+            not_before = 1760000000
+            serial = '0a1b2c3d4e5f'
+        a.bundle, a.options = B(), {}
+        self.assertEqual(a.earlier('{FP}'), C.fp_of(B()))
+        a.namer = J.JuniperSrxTarget.plan_name
+        self.assertEqual(a.earlier('{CURRENT}'), J.srx_id(B(), {}))
+        self.assertTrue(C.ours(a.earlier('{EARLIER}'), J.srx_prefix(B(), {})))
+        self.assertNotEqual(a.earlier('{EARLIER}'), J.srx_id(B(), {}))
 
 
 class OwnVersionAnswers(unittest.TestCase):

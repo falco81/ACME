@@ -302,10 +302,13 @@ class VcfComponentTarget(HttpTarget):
         if want:
             for x in doms:
                 if want in (text(x.get('id')), text(x.get('name'))):
+                    self.ctx.step('the workload domain %s is %s' % (want, text(x.get('id'))))
                     return text(x.get('id'))
             raise PluginError('SDDC Manager has no workload domain %s (it has %s)' % (
                 want, ', '.join(text(x.get('name')) for x in doms) or 'none'), retry=False)
         if len(doms) == 1:
+            self.ctx.step('the one workload domain: %s (%s)' % (text(doms[0].get('name')),
+                                                               text(doms[0].get('id'))))
             return text(doms[0].get('id'))
         raise PluginError('give the workload domain on the target (SDDC Manager has %s)' % (
             ', '.join(text(x.get('name')) for x in doms) or 'none'), retry=False)

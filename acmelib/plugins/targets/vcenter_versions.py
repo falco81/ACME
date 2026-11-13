@@ -67,6 +67,9 @@ class VCenter802Target(VCenterTarget):
         if ver[:2] > self.vc_checked_to:
             self.ctx.step('vCenter %s is newer than the documents this module version was '
                           'checked against (9.1)' % V.version_words(ver), 'warn')
+        else:
+            self.ctx.step('vCenter %s - 8.0 U2 or later: replaced without a restart'
+                          % V.version_words(ver))
 
     def test(self):
         self.check_version()
@@ -84,9 +87,11 @@ class VCenter802Target(VCenterTarget):
         force = as_bool(options.get('force'))
         self.login()
         try:
-            if not force and self.is_current(bundle, self.current()):
+            info = self.current()
+            if not force and self.is_current(bundle, info):
                 self.remember(bundle, options)
                 return self.same(bundle, 'served by vCenter')
+            self.said_current(info)
             chain, root = split_chain(bundle, options.get('root_pem'))
             if as_bool(self.opt(options, 'trust_chain', True), True):
                 certs = chain + ([root] if root else [])

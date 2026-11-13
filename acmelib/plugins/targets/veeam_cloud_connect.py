@@ -69,6 +69,8 @@ class VeeamCloudConnectTarget(VeeamPsTarget):
             cur = self.current(s)
             if self.unchanged(bundle, options, present=lambda: cur == thumb):
                 return self.same(bundle, 'as the Cloud Connect certificate')
+            # the decision said (What happens): the certificate there now
+            self.ctx.step('Cloud Connect uses %s now - it is replaced' % (cur or 'none read'))
             pfx, pw = self.upload_pfx(s, bundle, options)
             sc = [self.module_line()] + self.import_lines(
                 bundle, options, pfx, pw,

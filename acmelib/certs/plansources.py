@@ -50,8 +50,82 @@ def php_soap(command, value):
 R53 = ('<?xml version="1.0" encoding="UTF-8"?>\n<%s xmlns="https://route53.amazonaws.com/doc/'
        '2013-04-01/">%s</%s>')
 
+# an HTTP-01 file put in place: the name's own web server answers it (what a validation's
+# ready() asks before the CA is told)
+HTTP01 = [{'method': 'GET', 'url': r'^http://[^/]+/\.well-known/acme-challenge/[^/]+$',
+           'headers': {'Content-Type': 'text/plain'}, 'body': '{KEYAUTH}'}]
+
 
 SOURCES = {
+    # -- CAs of one's own: the request signed at once, the certificate in the answer --------
+    'vault_pki': [
+        {'method': 'POST', 'url': r'/v1/auth/[^/]+/login$', 'body': {'auth': {
+            'client_token': '{SESSION}', 'lease_duration': 3600, 'renewable': True}}},
+        {'method': 'POST', 'url': r'/sign/[^/]+$', 'body': {
+            'request_id': '‹request›', 'lease_duration': 0, 'data': {
+                'certificate': '{CERT}', 'issuing_ca': '{CHAIN}', 'ca_chain': ['{CHAIN}'],
+                'serial_number': '{CERT_SERIAL}', 'expiration': 1798761600},
+            'warnings': None}}],
+    'ejbca': [
+        {'method': 'POST', 'url': r'/v1/certificate/pkcs10enroll$', 'status': 201, 'body': {
+            'certificate': '{CERT_B64}', 'serial_number': '{CERT_SERIAL}',
+            'response_format': 'DER', 'certificate_chain': ['{CHAIN_B64}']}}],
+    'est': [
+        {'method': 'POST', 'url': r'/simple(re)?enroll$', 'headers': {
+            'Content-Type': 'application/pkcs7-mime; smime-type=certs-only',
+            'Content-Transfer-Encoding': 'base64'}, 'body': '{P7_B64}'},
+        {'method': 'GET', 'url': r'/cacerts$', 'headers': {
+            'Content-Type': 'application/pkcs7-mime', 'Content-Transfer-Encoding': 'base64'},
+         'body': '{CA_P7_B64}'}],
+    'freeipa': [
+        {'method': 'POST', 'url': r'/ipa/session/login_password$', 'headers': {
+            'Set-Cookie': 'ipa_session=MagBearerToken=PLANSESSION0token; path=/ipa; '
+                          'httponly; secure;'}, 'body': ''},
+        {'method': 'POST', 'url': r'/ipa/session/json$', 'body': {
+            'result': {'result': {'certificate': '{CERT_B64}', 'certificate_chain': [
+                '{CERT_B64}', '{CHAIN_B64}'], 'request_id': '42', 'serial_number': 4242,
+                'subject': 'CN={NAME},O=EXAMPLE.COM'}, 'value': '', 'summary': None},
+            'error': None, 'id': 0, 'principal': 'admin@EXAMPLE.COM', 'version': '4.12.2'}}],
+    'step_ca': [
+        {'method': 'GET', 'url': r'/1\.0/provisioners', 'body': {'provisioners': [
+            {'type': 'JWK', 'name': '{CFG:provisioner}', 'key': {
+                'kty': 'EC', 'crv': 'P-256', 'use': 'sig', 'kid': '‹key id›'}}],
+            'nextCursor': ''}},
+        {'method': 'POST', 'url': r'/1\.0/sign$', 'status': 201, 'body': {
+            'crt': '{CERT}', 'ca': '{CHAIN}', 'certChain': ['{CERT}', '{CHAIN}']}}],
+    'aws_pca': [
+        {'sent': r'^\{"CertificateAuthorityArn": "[^"]*"\}$', 'body': {
+            'CertificateAuthority': {'Arn': '{CFG:ca_arn}', 'Status': 'ACTIVE',
+                                     'Type': 'SUBORDINATE', 'CertificateAuthorityConfiguration': {
+                                         'KeyAlgorithm': 'EC_prime256v1',
+                                         'SigningAlgorithm': 'SHA256WITHECDSA',
+                                         'Subject': {'CommonName': 'Private Issuing CA'}}}}},
+        {'sent': r'"Csr"', 'body': {'CertificateArn': '{CFG:ca_arn}/certificate/'
+                                                      '‹certificate id›'}},
+        {'sent': r'"CertificateArn"', 'times': 1, 'status': 400, 'body': {
+            '__type': 'RequestInProgressException',
+            'message': 'The request to issue the certificate is still in progress.'}},
+        {'sent': r'"CertificateArn"', 'body': {'Certificate': '{CERT}',
+                                               'CertificateChain': '{CHAIN}'}}],
+    'google_cas': [
+        {'method': 'POST', 'url': r'oauth2\.googleapis\.com/token$', 'body': {
+            'access_token': '{SESSION}', 'expires_in': 3599, 'token_type': 'Bearer'}},
+        {'method': 'POST', 'url': r'/certificates\?certificateId=', 'body': {
+            'name': 'projects/{CFG:project}/locations/{CFG:location}/caPools/{CFG:pool}/'
+                    'certificates/‹certificate id›',
+            'pemCertificate': '{CERT}', 'pemCertificateChain': ['{CHAIN}'],
+            'lifetime': '7776000s', 'issuerCertificateAuthority': 'projects/{CFG:project}/'
+                                                                  'locations/{CFG:location}/'
+                                                                  'caPools/{CFG:pool}/'
+                                                                  'certificateAuthorities/ca-1'}}],
+    'cloudflare_origin_ca': [
+        {'method': 'POST', 'url': r'/client/v4/certificates$', 'body': {
+            'success': True, 'errors': [], 'messages': [], 'result': {
+                'id': '‹certificate id›', 'certificate': '{CERT}',
+                'hostnames': ['{NAME}'], 'request_type': 'origin-ecc',
+                'requested_validity': 5475, 'expires_on': '2041-01-01 00:00:00 +0000 UTC'}}},
+        {'method': 'GET', 'url': r'developers\.cloudflare\.com/ssl/static/', 'headers': {
+            'Content-Type': 'application/x-pem-file'}, 'body': '{CHAIN}'}],
 }
 
 CHALLENGES = {
@@ -808,6 +882,37 @@ CHALLENGES = {
                      'ttl': '300', 'rdtype': 'TXT', 'rdata': '{TXT}'}]}}}},
         {'sent': r'dns-(row-add|row-delete|domain-commit)', 'body': {'response': {
             'code': 1000, 'result': 'OK', 'data': {}}}}],
+    'cpanel': [
+        {'url': r'/execute/DomainInfo/list_domains', 'body': {'result': {
+            'status': 1, 'errors': None, 'data': {'main_domain': '{ZONE}', 'addon_domains': [],
+                                                  'parked_domains': [], 'sub_domains': []}}}},
+        {'url': r'/execute/DNS/parse_zone\?zone={ZONE}$', 'times': 2, 'body': {'result': {
+            'status': 1, 'errors': None, 'data': [
+                {'type': 'record', 'line_index': 3, 'record_type': 'SOA', 'dname_b64': '{ZONE_B64}',
+                 'data_b64': ['bnMxLmV4YW1wbGUuY29tLg==', 'aG9zdG1hc3Rlci5leGFtcGxlLmNvbS4=',
+                              'MjAyNjAxMDEwMQ==', 'ODY0MDA=', 'NzIwMA==', 'MzYwMDAwMA==',
+                              'ODY0MDA=']}]}}},
+        {'url': r'/execute/DNS/parse_zone\?zone={ZONE}$', 'times': 1, 'body': {'result': {
+            'status': 1, 'errors': None, 'data': [
+                {'type': 'record', 'line_index': 3, 'record_type': 'SOA', 'dname_b64': '{ZONE_B64}',
+                 'data_b64': ['bnMxLmV4YW1wbGUuY29tLg==', 'aG9zdG1hc3Rlci5leGFtcGxlLmNvbS4=',
+                              'MjAyNjAxMDEwMg==', 'ODY0MDA=', 'NzIwMA==', 'MzYwMDAwMA==',
+                              'ODY0MDA=']},
+                {'type': 'record', 'line_index': 21, 'record_type': 'TXT', 'ttl': 60,
+                 'dname_b64': '{FQDN_B64}', 'data_b64': ['{TXT_B64}']}]}}},
+        {'url': r'/execute/DNS/parse_zone\?', 'body': {'result': {
+            'status': 0, 'errors': ['The zone does not exist.'], 'data': None}}},
+        {'url': r'/execute/DNS/mass_edit_zone', 'body': {'result': {
+            'status': 1, 'errors': None, 'data': {'new_serial': '2026010103'}}}}],
+    'http_ssh': HTTP01,
+    'http_ftp': HTTP01,
+    'http_s3': HTTP01 + [{'method': 'DELETE', 'status': 204, 'body': ''}],
+    'http_azure_blob': HTTP01 + [{'method': 'PUT', 'status': 201, 'body': ''},
+                                 {'method': 'DELETE', 'status': 202, 'body': ''}],
+    # the folders are there already: MKCOL is refused (405), the file is made (201)
+    'http_webdav': HTTP01 + [{'method': 'MKCOL', 'status': 405, 'body': ''},
+                             {'method': 'PUT', 'status': 201, 'body': ''},
+                             {'method': 'DELETE', 'status': 204, 'body': ''}],
 }
 
 

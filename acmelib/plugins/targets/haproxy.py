@@ -130,6 +130,7 @@ class HaproxyTarget(SshMixin, Base):
         rc, out = self.runtime(s, 'show ssl cert')
         listed = [x.strip().lstrip('*') for x in out.splitlines()]
         new = path not in listed
+        self.ctx.step('HAProxy %s %s' % ('has not loaded' if new else 'has loaded', path))
         if new:
             lst = text(options.get('crt_list')).strip()
             if not lst:

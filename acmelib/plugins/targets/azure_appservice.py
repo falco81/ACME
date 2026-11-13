@@ -189,7 +189,9 @@ class AzureAppServiceTarget(CloudTarget):
                 urllib.parse.quote(app, safe=''), urllib.parse.quote(h, safe='')),
                 {'properties': {'sslState': 'SniEnabled', 'thumbprint': thumb}},
                 what='binding %s' % h)
-            self.ctx.step('%s uses %s (SNI SSL)' % (h, name), 'ok')
+            self.ctx.step('%s uses %s (SNI SSL)%s' % (h, name, ' - before: the certificate %s'
+                                                     % text(p['thumbprint']).upper()
+                                                     if p.get('thumbprint') else ''), 'ok')
             did.append(h)
         self.cleanup(prefix, name, self.keep(options))
         self.remember(bundle, options)

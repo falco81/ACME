@@ -799,6 +799,23 @@ those acme adds too, and the body; *Copy the whole request*), the ssh command as
 runs, and each test's settings and comparison. It changes what is shown, not what is
 worked out. *Work it out again* asks anew with the settings as they are now.
 
+Since 1.0.98 the debug details show every call completely: the request line and every
+header as a table (Host, Content-Length, User-Agent, Accept... the ones acme adds
+dimmed), the body read as what it is - JSON, form fields, the parts of a multipart
+upload (each its field name, file name, type, size), binary data as its size and
+SHA-256, a certificate in PEM as a placeholder - and the answer the stand-in device
+gave (status, headers, body). An SSH command shows what goes on its input and what it
+printed; a file put over SSH the command that puts it there. A call for which no
+answer of that device was prepared is marked *no answer was prepared for this call -
+a stand-in answered*. Secrets are masked the same way everywhere: Authorization
+(its scheme word kept: `Basic ••••`), cookies, token and key headers, secret names in
+a query, a JSON body, form fields or multipart parts (password, secret, token, key,
+passphrase, p12Password, client_secret...), passwords on a command line (`-p '…'`,
+`--password=…`, `-Password …`, `pass:…`, `ConvertTo-SecureString '…'`) and private
+keys. A module that goes around acme's connection layer (its own HTTP with
+http.client or urllib, a socket, a program, a DNS lookup) is stopped there and shown
+as an error step - nothing it does is ever left out unseen.
+
 ## Jobs
 
 Jobs run in a pool of `certs_parallel` threads (4). At most one job works

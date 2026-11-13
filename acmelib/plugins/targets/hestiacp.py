@@ -127,6 +127,8 @@ class HestiaCpTarget(SshMixin, Base):
                     next((v for v in info.values() if isinstance(v, dict)), {})
                 ssl_on = text(d.get('SSL')).lower() == 'yes'
                 le_on = text(d.get('LETSENCRYPT')).lower() == 'yes'
+                self.ctx.step('%s: SSL %s, Hestia\'s Let\'s Encrypt %s' % (
+                    dom, 'on' if ssl_on else 'off', 'on' if le_on else 'off'))
                 if ssl_on and not le_on and not options.get('force'):
                     rc, out, err = self.sh(s, self.cmd('v-list-web-domain-ssl', user, dom,
                                                        'json'), check=False)

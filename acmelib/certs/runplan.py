@@ -66,6 +66,14 @@ SHOWN = (('PLAN-TOKEN-from-the-CA-0000000000.PLANthumbprintOfTheAccountKey000000
 
 # Second runs: what a device answers once the certificate is there already.
 LATER = {
+    'hpe_oneview': [],          # the CA in the trust store already (ANSWERS)
+    # Kubernetes: the TLS secret there, the earlier certificate in it
+    'kubernetes': [
+        {'method': 'GET', 'url': r'/api/v1/namespaces/[^/]+/secrets/[^/?]+$', 'body': {
+            'kind': 'Secret', 'apiVersion': 'v1', 'type': 'kubernetes.io/tls',
+            'metadata': {'name': '{TAIL}', 'resourceVersion': '81723',
+                         'labels': {'app.kubernetes.io/managed-by': 'acme'}},
+            'data': {'tls.crt': '{EARLIER_B64}', 'tls.key': '‹its key, base64›'}}}],
     # NetScaler: its certkey there, on the files of the earlier certificate, linked to the
     # intermediate (once that was read); the vserver bound to it already
     'netscaler': [
@@ -128,9 +136,21 @@ ANSWERS = {
             'success': True, 'errors': [], 'result': {
                 'id': '\u2039new custom certificate id\u203a', 'status': 'pending'}}},
         {'body': {'success': True, 'errors': [], 'result': []}}],
-    'aws_acm': [{'method': 'POST', 'body': {
-        'CertificateArn': 'arn:aws:acm:\u2039region\u203a:\u2039account\u203a:certificate/'
-                          '\u2039new\u203a'}}],
+    # ACM (JSON 1.1, the action a header): the ARN imported before (asked for, or kept) holds
+    # the earlier certificate, used by a load balancer - re-imported into it (1.0.98); a first
+    # import (no ARN) gets a new one
+    'aws_acm': [
+        {'method': 'POST', 'sent': r'^\{"CertificateArn": "[^"]*"\}$', 'body': {
+            'Certificate': {
+                'CertificateArn': '{SENT:CertificateArn}', 'DomainName': '{CERTNAME}',
+                'Serial': '5a:0e:1d:2c:3b:4a:59:68:77', 'Type': 'IMPORTED', 'Status': 'ISSUED',
+                'InUseBy': ['arn:aws:elasticloadbalancing:\u2039region\u203a:\u2039account'
+                            '\u203a:loadbalancer/app/\u2039load balancer\u203a/\u2039id\u203a']}}},
+        {'method': 'POST', 'sent': r'"CertificateArn": "arn:', 'body': {
+            'CertificateArn': '{SENT:CertificateArn}'}},
+        {'method': 'POST', 'body': {
+            'CertificateArn': 'arn:aws:acm:\u2039region\u203a:\u2039account\u203a:certificate/'
+                              '\u2039new\u203a'}}],
     # Suite Lifecycle: the Locker with two earlier certificates of acme before the import, with
     # the new one (the alias the import sent) too after; the pre-validation passes; Replace
     # Certificate a request that completes; the oldest deleted (1.0.98: the renewal's path)
@@ -240,15 +260,25 @@ ANSWERS = {
             'id': 1, 'result': [{'status': {'code': 0, 'message': 'OK'}, 'data': {}}]}}],
     # NimbleOS: the token and its id in "data" of the sign-in
     'hpe_nimble': [{'method': 'POST', 'url': r'/v1/tokens$', 'status': 201, 'body': {
-        'data': {'session_token': '{SESSION}', 'id': '\u2039token id\u203a'}}}],
+        'data': {'session_token': '{SESSION}', 'id': '2a0e1d2c3b4a596870000000000000000000015',
+                 'app_name': 'acme', 'username': '{CFG:user}'}}},
+        # the import replaces the certificate of that name (force), "use" puts it to use
+        {'method': 'POST', 'url': r'/v1/certificates/actions/import$', 'body': {
+            'data': {'id': '2b0e1d2c3b4a596870000000000000000000003', 'name': '{SENT:data.name}',
+                     'usage': 'https,apis', 'is_custom': True}}},
+        {'method': 'POST', 'url': r'/v1/certificates/actions/use$', 'body': {'data': {}}}],
     # OneView: its API version (that of OneView 9.00), the sessionID, the CA not in the trust
     # store yet, the tasks of the calls completed
     'hpe_oneview': [
         {'method': 'GET', 'url': r'/rest/version$', 'body': {
             'currentVersion': 6600, 'minimumVersion': 120}},
         {'method': 'POST', 'url': r'/rest/login-sessions$', 'body': {'sessionID': '{SESSION}'}},
-        {'method': 'GET', 'url': r'/rest/certificates/ca/', 'status': 404, 'body': {
-            'errorCode': 'RESOURCE_NOT_FOUND'}},
+        # the CA in the trust store already (a renewal - FIRST: not yet, added)
+        {'method': 'GET', 'url': r'/rest/certificates/ca/', 'body': {
+            'type': 'CertificateAuthorityInfo', 'certificateDetails': {
+                'type': 'CertificateDetailV2', 'aliasName': '{TAIL}',
+                'commonName': '\u2039the intermediate\u203a'},
+            'uri': '/rest/certificates/ca/{TAIL}'}},
         {'method': 'POST', 'url': r'/rest/certificates/ca$', 'status': 202, 'body': {
             'uri': '/rest/tasks/\u2039task\u203a'}},
         {'method': 'PUT', 'url': r'/rest/certificates/https/pkcs12', 'status': 202, 'body': {
@@ -456,8 +486,22 @@ ANSWERS['hpe_synergy'] = [
     {'method': 'POST', 'url': r'/https/certificaterequest(\?bayNumber=\d+)?$', 'body': {
         'type': 'CertificateSigningRequestV2', 'base64Data': '{CSR}'}},
     {'method': 'GET', 'url': r'/rest/enclosures\?filter=', 'body': {'members': [
-        {'name': '{OPT:enclosure}', 'uri': '/rest/enclosures/‹enclosure›'}]}},
+        {'name': '{OPT:enclosure}', 'uri': '/rest/enclosures/0000000000A66101'}]}},
 ]
+# (its HttpsCert: the certificate it serves now - the earlier one -, its two actions)
+_ILO_HTTPS_CERT = {
+    '@odata.id': '/redfish/v1/Managers/1/SecurityService/HttpsCert/', 'Id': 'HttpsCert',
+    'X509CertificateInformation': {
+        'Issuer': "/C=US/O=Let's Encrypt/CN=R11", 'Subject': '/CN={CERTNAME}',
+        'SerialNumber': '5a:0e:1d:2c:3b:4a:59:68:77', 'ValidNotBefore': '2026-08-14T10:00:00Z',
+        'ValidNotAfter': '2026-11-12T10:00:00Z'},
+    'Actions': {
+        '#HpeHttpsCert.GenerateCSR': {
+            'target': '/redfish/v1/Managers/1/SecurityService/HttpsCert/Actions/'
+                      'HpeHttpsCert.GenerateCSR'},
+        '#HpeHttpsCert.ImportCertificate': {
+            'target': '/redfish/v1/Managers/1/SecurityService/HttpsCert/Actions/'
+                      'HpeHttpsCert.ImportCertificate'}}}
 # HPE iLO with its own key: the manager is an iLO 6 in Production; its HttpsCert has no CSR
 # before GenerateCSR and the new one ({CSR}) after it
 ANSWERS['hpe_ilo_devkey'] = [
@@ -469,9 +513,16 @@ ANSWERS['hpe_ilo_devkey'] = [
     {'method': 'GET', 'url': r'/SecurityService/?$', 'body': {
         'SecurityState': 'Production', 'Links': {'HttpsCert': {
             '@odata.id': '/redfish/v1/Managers/1/SecurityService/HttpsCert/'}}}},
-    {'method': 'GET', 'url': r'/HttpsCert/?$', 'times': 1, 'body': {
-        'CertificateSigningRequest': ''}},
-    {'method': 'GET', 'url': r'/HttpsCert/?$', 'body': {'CertificateSigningRequest': '{CSR}'}},
+    {'method': 'GET', 'url': r'/HttpsCert/?$', 'times': 1, 'body': dict(
+        _ILO_HTTPS_CERT, CertificateSigningRequest='')},
+    {'method': 'GET', 'url': r'/HttpsCert/?$', 'body': dict(
+        _ILO_HTTPS_CERT, CertificateSigningRequest='{CSR}')},
+    {'method': 'POST', 'url': r'/HpeHttpsCert\.GenerateCSR$', 'body': {'error': {
+        'code': 'iLO.0.10.ExtendedInfo', '@Message.ExtendedInfo': [
+            {'MessageId': 'iLO.2.27.GeneratingCertificate'}]}}},
+    {'method': 'POST', 'url': r'/HpeHttpsCert\.ImportCertificate$', 'body': {'error': {
+        'code': 'iLO.0.10.ExtendedInfo', '@Message.ExtendedInfo': [
+            {'MessageId': 'iLO.2.27.ImportCertSuccessfuliLOResetinProgress'}]}}},
 ]
 # Dell OpenManage Enterprise, key made by the device: the session (X-Auth-Token, Id), the
 # version (4.6: the chain uploaded), the CSR in CertificateData
@@ -595,6 +646,34 @@ def pages_of(store):
             except Exception:                           # noqa: BLE001
                 have[one] = None
         return {'where': where, 'have': have}
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def kept_of(store, trow, cls, cfg, opts, cert):
+    """What a target kept between its deployments that decides the way its run takes, as
+    it is ({key: value} for the sandbox's kv) - ACM's ARN of the certificate imported
+    before (aws_acm: a renewal re-imports into it); None for the others."""
+    if trow.get('kind') != 'aws_acm':
+        return None
+    try:
+        from acmelib.certs import runtime
+        from acmelib.plugins.targets import aws_acm as A
+        ctx = runtime.RunContext.__new__(runtime.RunContext)
+        ctx.store, ctx.scope = store, 'target:%s' % trow['name']
+
+        class B(object):
+            name = cert.get('name') or ''
+            names = _names(cert)
+            key_type = cert.get('key_type') or ''
+        mod = cls(dict(cfg or {}), ctx)
+        out = {}
+        for k in (mod.kv_arn(B, opts or {}) + ':' + A.acm_key_type(B),
+                  mod.kv_arn(B, opts or {})):
+            v = ctx.kv_get(k)
+            if v:
+                out[k] = v
+        return out or None
     except Exception:                                   # noqa: BLE001
         return None
 
@@ -740,6 +819,162 @@ ANSWERS['avi'] = [
             _AVI_REF + 'sslkeyandcertificate-‹earlier›']}}},
     {'method': 'PATCH', 'url': r'/api/systemconfiguration$', 'body': {}},
     {'method': 'DELETE', 'url': r'/api/sslkeyandcertificate/', 'status': 204, 'body': ''},
+]
+# Microsoft Entra: an app registration's client-credentials token
+_ENTRA = {'method': 'POST', 'url': r'/oauth2/v2\.0/token$', 'body': {
+    'token_type': 'Bearer', 'expires_in': 3599, 'ext_expires_in': 3599,
+    'access_token': '{SESSION}'}}
+# Azure Application Gateway: a running gateway (Succeeded, with a managed identity) holding two
+# earlier acme certificates (uploaded) and the Key Vault one (its secret as set), its HTTPS
+# listeners asked for on the newer earlier one; the PUT starts an update (Updating), the next
+# read says Succeeded; the oldest certificate, used by no listener, taken out (keep 1)
+_AGW = '/subscriptions/{CFG:subscription_id}/resourceGroups/{CFG:resource_group}/providers/' \
+       'Microsoft.Network/applicationGateways/{OPT:gateway}'
+
+
+def _agw(state):
+    return {'name': '{OPT:gateway}', 'id': _AGW, 'location': 'westeurope',
+            'etag': 'W/"‹etag›"', 'tags': {'acme-certificate': '5a0e1d2c3b4a5968'},
+            'identity': {'type': 'UserAssigned', 'userAssignedIdentities': {
+                '/subscriptions/{CFG:subscription_id}/resourceGroups/{CFG:resource_group}/'
+                'providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-agw': {}}},
+            'properties': {
+                'provisioningState': state, 'operationalState': 'Running',
+                'sslCertificates': [
+                    {'name': '{EARLIER:80}', 'id': _AGW + '/sslCertificates/{EARLIER:80}',
+                     'properties': {'publicCertData': '‹PKCS#7, base64›'}},
+                    {'name': '{EARLIER2:80}', 'id': _AGW + '/sslCertificates/{EARLIER2:80}',
+                     'properties': {'publicCertData': '‹PKCS#7, base64›'}},
+                    {'name': 'acme-{LABEL:70}', 'id': _AGW + '/sslCertificates/acme-{LABEL:70}',
+                     'properties': {'keyVaultSecretId': '{OPT:key_vault_secret_id}'}},
+                    {'name': '{EACH:OPT:cert_name}', 'id': _AGW + '/sslCertificates/'
+                     '{EACH:OPT:cert_name}', 'properties': {
+                         'publicCertData': '\u2039PKCS#7, base64\u203a'}}],
+                'httpListeners': [
+                    {'name': '{EACH:OPT:listener}', 'properties': {
+                        'protocol': 'Https', 'hostName': '{CERTNAME}', 'sslCertificate': {
+                            'id': _AGW + '/sslCertificates/{EARLIER:80}'}}},
+                    {'name': '{EACH:OPT:listeners}', 'properties': {
+                        'protocol': 'Https', 'hostName': '{CERTNAME}', 'sslCertificate': {
+                            'id': _AGW + '/sslCertificates/{EARLIER:80}'}}},
+                    {'name': 'http-www', 'properties': {'protocol': 'Http'}}]}}
+
+
+ANSWERS['azure_appgw'] = [
+    _ENTRA,
+    {'method': 'GET', 'url': r'/applicationGateways/[^/?]+\?', 'times': 1,
+     'body': _agw('Succeeded')},
+    {'method': 'PUT', 'url': r'/applicationGateways/[^/?]+\?', 'body': _agw('Updating')},
+    {'method': 'GET', 'url': r'/applicationGateways/[^/?]+\?', 'times': 1,
+     'body': _agw('Updating')},
+    {'method': 'GET', 'url': r'/applicationGateways/[^/?]+\?', 'body': _agw('Succeeded')},
+    {'method': 'PATCH', 'url': r'/applicationGateways/[^/?]+\?', 'body': _agw('Succeeded')},
+]
+# Azure App Service: the new certificate is not there yet (404), the web app runs on its plan;
+# its custom hostnames (those asked, the certificate's first name) are bound SNI SSL to the
+# earlier certificate; the list holds two earlier ones - the oldest deleted (keep 1)
+_ASP = '/subscriptions/{CFG:subscription_id}/resourceGroups/{CFG:resource_group}/providers/' \
+       'Microsoft.Web'
+_ASP_BIND = {'properties': {'sslState': 'SniEnabled', 'thumbprint':
+                            '5A0E1D2C3B4A59687706F5E4D3C2B1A098877665', 'hostNameType': 'Verified',
+                            'customHostNameDnsRecordType': 'CName'}}
+ANSWERS['azure_appservice'] = [
+    _ENTRA,
+    {'method': 'GET', 'url': r'/Microsoft\.Web/certificates/[^/?]+\?', 'status': 404, 'body': {
+        'error': {'code': 'ResourceNotFound', 'message': "The Resource 'Microsoft.Web/"
+                  "certificates/{TAIL}' under resource group '{CFG:resource_group}' was not "
+                  "found."}}},
+    {'method': 'GET', 'url': r'/Microsoft\.Web/sites/[^/?]+\?', 'body': {
+        'name': '{OPT:site}', 'location': 'West Europe', 'id': _ASP + '/sites/{OPT:site}',
+        'properties': {'state': 'Running', 'serverFarmId': _ASP + '/serverfarms/asp-www',
+                       'hostNames': ['{CERTNAME}', '{OPT:site}.azurewebsites.net']}}},
+    {'method': 'PUT', 'url': r'/Microsoft\.Web/certificates/[^/?]+\?', 'body': {
+        'name': '{TAIL}', 'location': 'West Europe', 'properties': {
+            'thumbprint': '{FP1}', 'subjectName': '{CERTNAME}', 'hostNames': ['{CERTNAMES}']}}},
+    {'method': 'GET', 'url': r'/hostNameBindings\?', 'body': {'value': [
+        dict(_ASP_BIND, name='{OPT:site}/{CERTNAME}'),
+        dict(_ASP_BIND, name='{OPT:site}/{EACH:OPT:hostnames}'),
+        {'name': '{OPT:site}/{OPT:site}.azurewebsites.net', 'properties': {
+            'sslState': 'Disabled', 'hostNameType': 'Verified'}}]}},
+    {'method': 'PUT', 'url': r'/hostNameBindings/[^/?]+\?', 'body': {
+        'properties': {'sslState': 'SniEnabled', 'thumbprint': '{SENT:properties.thumbprint}'}}},
+    {'method': 'GET', 'url': r'/Microsoft\.Web/certificates\?', 'body': {'value': [
+        {'name': '{CURRENT}'}, {'name': '{EARLIER}'}, {'name': '{EARLIER2}'}]}},
+    {'method': 'DELETE', 'url': r'/Microsoft\.Web/certificates/', 'body': ''},
+]
+# Azure Key Vault: the certificate's current version is an earlier one (another thumbprint) -
+# a new version imported (FIRST: none of that name yet, 404)
+_AKV_CERT = {'attributes': {'enabled': True, 'nbf': 1786000000, 'exp': 1793776000,
+                            'recoveryLevel': 'Recoverable+Purgeable'},
+             'policy': {'key_props': {'exportable': True, 'kty': 'RSA', 'reuse_key': False},
+                        'secret_props': {'contentType': 'application/x-pem-file'}},
+             'tags': {'managed-by': 'acme'}}
+ANSWERS['azure_keyvault'] = [
+    _ENTRA,
+    {'method': 'GET', 'url': r'/certificates/[^/?]+\?api-version=', 'body': dict(
+        _AKV_CERT, id='https://‹vault›/certificates/{TAIL}/‹earlier version›',
+        x5t='Wg4dLDtKWWh3BvXk08KxoJiHdmU')},
+    {'method': 'POST', 'url': r'/certificates/[^/?]+/import\?', 'body': dict(
+        _AKV_CERT, id='https://‹vault›/certificates/{SEEN:/certificates/([^/?]+)/import}/'
+                      '‹new version›', x5t='‹its thumbprint›')},
+]
+# Barracuda CGF: the store entry holds the earlier certificate before the import, the new one
+# (its fingerprint) after it
+ANSWERS['barracuda_cgf'] = [
+    {'method': 'GET', 'url': r'/store/certificates/[^/?]+$', 'times': 1, 'body': {
+        'name': '{TAIL}', 'comment': 'acme 5a0e1d2c3b4a5968', 'subCertificates': [{
+            'subject': 'CN={CERTNAME}', 'issuer': 'CN={CACN}', 'fingerprint':
+                '5a0e1d2c3b4a59687706f5e4d3c2b1a0988776655443322110ffeeddccbbaa99'}]}},
+    {'method': 'GET', 'url': r'/store/certificates/[^/?]+$', 'body': {
+        'name': '{TAIL}', 'comment': '{SENT:comment}', 'subCertificates': [{
+            'subject': 'CN={CERTNAME}', 'issuer': 'CN={CACN}', 'fingerprint': '{FP}'}]}},
+    {'method': 'GET', 'url': r'/store/certificates(\?expand=true)?$', 'body': {
+        'certificates': ['{OPT:entry}']}},
+    {'method': 'POST', 'url': r'/store/certificates$', 'status': 201, 'body': ''},
+    {'method': 'PUT', 'url': r'/store/certificates/[^/?]+$', 'status': 204, 'body': ''},
+]
+# Barracuda WAF: the token of the sign-in; the new certificate is not there yet (404); each
+# service's SSL security uses the earlier acme certificate; the list holds two earlier ones -
+# the oldest, used by no service, deleted (keep 1)
+_BWAF_OK = {'id': '{TAIL}', 'token': '{SESSION}', 'msg': 'Configuration updated'}
+_BWAF_SSL = {'status': 'On', 'certificate': '{EARLIER}', 'ecdsa-certificate': '',
+             'enable-sni': 'No', 'sni-certificate': [], 'sni-ecdsa-certificate': [],
+             'domain': [], 'enable-tls-1-2': 'Yes', 'enable-tls-1-3': 'Yes'}
+ANSWERS['barracuda_waf'] = [
+    {'method': 'POST', 'url': r'/restapi/v[\d.]+/login$', 'status': 201, 'body': {
+        'token': '{SESSION}'}},
+    {'method': 'DELETE', 'url': r'/restapi/v[\d.]+/logout$', 'body': {'msg': 'Logged out'}},
+    {'method': 'GET', 'url': r'/restapi/v[\d.]+/certificates(/signed-certificate)?$', 'body': {
+        'data': {'{CURRENT}': {'name': '{CURRENT}'}, '{EARLIER}': {'name': '{EARLIER}'},
+                 '{EARLIER2}': {'name': '{EARLIER2}'}}}},
+    {'method': 'GET', 'url': r'/certificates(/signed-certificate)?/[^/?]+$', 'status': 404,
+     'body': {'msg': 'Certificate {TAIL} does not exist', 'id': '{TAIL}'}},
+    {'method': 'POST', 'url': r'/restapi/v[\d.]+/certificates', 'status': 201,
+     'body': _BWAF_OK},
+    {'method': 'GET', 'url': r'/services/[^/]+/ssl-security$', 'body': {'data': {
+        '{SEEN:services/([^/\\s]+)/ssl-security}': {'SSL Security': _BWAF_SSL}}}},
+    {'method': 'PUT', 'url': r'/services/[^/]+/ssl-security$', 'body': _BWAF_OK},
+    {'method': 'GET', 'url': r'/restapi/v[\d.]+/services$', 'body': {'data': [
+        {'name': '{EACH:OPT:service}', 'status': 'On'},
+        {'name': '{EACH:OPT:services}', 'status': 'On'}]}},
+    {'method': 'DELETE', 'url': r'/certificates(/signed-certificate)?/', 'body': _BWAF_OK},
+]
+# bunny.net: the pull zone (by its name or ID) with its system hostname and the custom ones -
+# the certificate's first name and those asked - each with a certificate already; the new one
+# takes its place (204)
+_BUNNY_HOST = {'Id': 4207001, 'HasCertificate': True, 'IsSystemHostname': False,
+               'ForceSSL': True, 'Certificate': '‹the one there›'}
+_BUNNY_ZONE = {'Id': 1234567, 'Name': '{OPT:pull_zone}', 'OriginUrl': 'https://origin.{CERTNAME}',
+               'Enabled': True, 'Hostnames': [
+                   {'Id': 4207000, 'Value': '{OPT:pull_zone}.b-cdn.net', 'IsSystemHostname': True,
+                    'HasCertificate': True, 'ForceSSL': False},
+                   dict(_BUNNY_HOST, Value='{CERTNAME}'),
+                   dict(_BUNNY_HOST, Value='{EACH:OPT:hostnames}')]}
+ANSWERS['bunny'] = [
+    {'method': 'GET', 'url': r'api\.bunny\.net/pullzone/\d+$', 'body': _BUNNY_ZONE},
+    {'method': 'GET', 'url': r'api\.bunny\.net/pullzone\?search=', 'body': {
+        'Items': [_BUNNY_ZONE], 'CurrentPage': 1, 'TotalItems': 1, 'HasMoreItems': False}},
+    {'method': 'POST', 'url': r'/pullzone/\d+/addCertificate$', 'status': 204, 'body': ''},
 ]
 # ---- end of targets a10 .. cisco_nxos ----
 # ---- targets cisco_wlc9800 .. hpe_oneview ----
@@ -1128,6 +1363,97 @@ ANSWERS['gcp_certmanager'] = [
         'name': 'projects/\u2039project\u203a/locations/global/operations/operation-'
                 '\u2039id\u203a', 'done': True, 'response': {
             '@type': 'type.googleapis.com/google.cloud.certificatemanager.v1.Certificate'}}}]
+# HAProxy: the PEM there (an earlier certificate: another SHA-256), replaced; the Runtime API
+# lists it among its certificates - set ssl cert makes a transaction, commit says Success!
+SSH_ANSWERS['haproxy'] = [
+    {'command': r'sha256sum ', 'stdout':
+        '7c2b0e9d4f1a3b5c6d7e8f9012a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5  {OPT:cert_path}\n'},
+    {'command': r'echo "PLACED 0"', 'stdout': 'EXISTED 0\nPLACED 0\n'},
+    {'command': r"'show ssl cert'", 'stdout':
+        '# filename\n/etc/haproxy/certs/default.pem\n{OPT:cert_path}\n'},
+    {'command': r"'show ssl cert /", 'stdout':
+        'Filename: {OPT:cert_path}\nStatus: Used\nSerial: 03A1B2C3D4E5F60718293A4B5C6D7E8F9012\n'
+        'notBefore: Aug 14 10:00:00 2026 GMT\nnotAfter: Nov 12 10:00:00 2026 GMT\n'},
+    {'command': r'set ssl cert ', 'stdout':
+        'Transaction created for certificate {OPT:cert_path}!\n'},
+    {'command': r"'commit ssl cert ", 'stdout':
+        'Committing {OPT:cert_path}\nSuccess!\n'},
+    {'command': r"'new ssl cert ", 'stdout': 'New empty certificate store \'{OPT:cert_path}\'!\n'},
+    {'command': r"'add ssl crt-list ", 'stdout':
+        'Inserting certificate \'{OPT:cert_path}\' in crt-list \'{OPT:crt_list}\'.\nSuccess!\n'}]
+# HestiaCP: each web domain has SSL on with a certificate of its own (not Hestia's Let's
+# Encrypt) - the earlier one; a private folder made for the files; the certificate changed
+_HESTIA_DOM = '{SEEN:v-list-web-domain(?:-ssl)? [^ ]+ ([^ \']+) json}'
+SSH_ANSWERS['hestiacp'] = [
+    {'command': r'/v-list-web-domain ', 'stdout':
+        '{\n    "' + _HESTIA_DOM + '": {\n        "IP": "192.0.2.10",\n        "ALIAS": "",\n'
+        '        "TPL": "default",\n        "SSL": "yes",\n        "SSL_FORCE": "yes",\n'
+        '        "SSL_HOME": "same",\n        "LETSENCRYPT": "no",\n        "SUSPENDED": "no"\n'
+        '    }\n}\n'},
+    {'command': r'/v-list-web-domain-ssl ', 'stdout':
+        '{\n    "' + _HESTIA_DOM + '": {\n        "CRT": "\u2039the earlier certificate\u203a",\n'
+        '        "KEY": "",\n        "CA": "",\n        "SUBJECT": "' + _HESTIA_DOM + '",\n'
+        '        "NOT_AFTER": "Nov 12 10:00:00 2026 GMT"\n    }\n}\n'},
+    {'command': r'mktemp -d$', 'stdout': '/tmp/tmp.Xa8k2LmQ0p\n'}]
+# Hetzner Cloud: the certificate of this name not there yet, then uploaded (its id); each
+# load balancer named has an HTTPS service on the earlier certificate (and an HTTP one); the
+# update an action that is running, then done; the project's certificates: the two earlier
+# ones (the older used by nothing - deleted), the new one
+_HZ_PAGE = {'pagination': {'page': 1, 'per_page': 50, 'previous_page': None,
+                           'next_page': None, 'last_page': 1, 'total_entries': 1}}
+_HZ_LB = {'id': 4711, 'name': '{EACH:OPT:load_balancers}', 'location': {'name': 'fsn1'},
+          'load_balancer_type': {'name': 'lb11'}, 'services': [
+              {'protocol': 'https', 'listen_port': 443, 'destination_port': 80,
+               'proxyprotocol': False, 'http': {'certificates': [102],
+                                                'redirect_http': True, 'sticky_sessions': False}},
+              {'protocol': 'http', 'listen_port': 80, 'destination_port': 80,
+               'proxyprotocol': False, 'http': {'certificates': []}}]}
+_HZ_CERT = {'type': 'uploaded', 'labels': {'managed-by': 'acme'},
+            'domain_names': '{CERTNAMES}', 'status': None}
+ANSWERS['hetzner_lb'] = [
+    {'method': 'GET', 'url': r'/v1/certificates\?name=', 'body': {
+        'certificates': [], 'meta': _HZ_PAGE}},
+    {'method': 'POST', 'url': r'/v1/certificates$', 'status': 201, 'body': {'certificate': dict(
+        _HZ_CERT, id=897, name='{SENT:name}', used_by=[])}},
+    {'method': 'GET', 'url': r'/v1/certificates\?page=', 'body': {'certificates': [
+        dict(_HZ_CERT, id=101, name='{EARLIER2}', used_by=[]),
+        dict(_HZ_CERT, id=102, name='{EARLIER}', used_by=[{'id': 4711, 'type': 'load_balancer'}]),
+        dict(_HZ_CERT, id=897, name='{CURRENT}', used_by=[{'id': 4711, 'type': 'load_balancer'}])],
+        'meta': _HZ_PAGE}},
+    {'method': 'GET', 'url': r'/v1/load_balancers\?name=', 'body': {
+        'load_balancers': [_HZ_LB], 'meta': _HZ_PAGE}},
+    {'method': 'GET', 'url': r'/v1/load_balancers/\d+$', 'body': {
+        'load_balancer': dict(_HZ_LB, id='{TAIL}', name='lb-www')}},
+    {'method': 'POST', 'url': r'/actions/update_service$', 'status': 201, 'body': {'action': {
+        'id': 13, 'command': 'update_service', 'status': 'running', 'progress': 0,
+        'resources': [{'id': 4711, 'type': 'load_balancer'}], 'error': None}}},
+    {'method': 'GET', 'url': r'/v1/load_balancers/actions/\d+$', 'body': {'action': {
+        'id': 13, 'command': 'update_service', 'status': 'success', 'progress': 100,
+        'error': None}}},
+    {'method': 'DELETE', 'url': r'/v1/certificates/\d+$', 'status': 204, 'body': ''}]
+# Horizon Connection Server (PowerShell over SSH): the import says what it did - imported,
+# the intermediates in LocalMachine\CA, the friendly name taken off the earlier certificate
+# and put on the new one; the service restarted
+SSH_ANSWERS['horizon_cs'] = [
+    {'command': r'^powershell', 'script': r'Import-PfxCertificate', 'stdout':
+        'STEP ok imported into LocalMachine\\My with an exportable key\n'
+        'STEP info the intermediates are in LocalMachine\\CA\n'
+        'STEP info {SEEN:\\$_\\.FriendlyName -eq \'([^\']+)\'} taken off '
+        '5A0E1D2C3B4A5968776A0E1D2C3B4A5968776A0E\n'
+        'STEP ok the friendly name {SEEN:\\$_\\.FriendlyName -eq \'([^\']+)\'} is on '
+        '{SEEN:\\$thumb = \'([0-9A-Fa-f]+)\'}\n'},
+    {'command': r'^powershell', 'script': r'Restart-Service', 'stdout':
+        'STEP ok restarted VMware Horizon Connection Server\n'},
+    {'command': r'^powershell', 'script': r"if \(\$c -and \$c\.FriendlyName", 'stdout': 'NO\n'}]
+# Alletra MP / Primera: createcert -csr prints the new CSR (the sandbox's {CSR}); importcert
+# takes the CA certificates and the certificate (the services restart)
+SSH_ANSWERS['hpe_alletra_mp'] = [
+    {'command': r'^createcert unified-server -csr ', 'stdout': '{CSR}\n'},
+    {'command': r'^importcert unified-server -f -ca stdin', 'stdout':
+        'Importing CA certificate(s) for service unified-server\n'},
+    {'command': r'^importcert unified-server -f stdin', 'stdout':
+        'Importing certificate for service unified-server\nThe affected services will be '
+        'restarted\n'}]
 # ---- end of targets cisco_wlc9800 .. hpe_oneview ----
 # ---- targets hpe_synergy .. redfish_idrac ----
 # ISPConfig's Remote API (JSON): the session; the website asked for (by its domain) has SSL on
@@ -1244,7 +1570,7 @@ ANSWERS['nginx_proxy_manager'] = [
         {'id': 6, 'domain_names': ['{EACH:OPT:dead_hosts}'], 'certificate_id': 7}]},
     {'method': 'PUT', 'url': r'/api/nginx/[a-z-]+-hosts/\d+$', 'body': {
         'id': '{TAIL}', 'certificate_id': 12}},
-    {'method': 'DELETE', 'url': r'/api/nginx/certificates/\d+$', 'body': True}]
+    {'method': 'DELETE', 'url': r'/api/nginx/certificates/\d+$', 'body': 'true'}]
 # NSX Policy API: this certificate's id not there yet (404); imported; the virtual server
 # with a client SSL binding on the earlier one; acme's certificates, the oldest used by none
 ANSWERS['nsx'] = [
@@ -1324,13 +1650,15 @@ ANSWERS['plesk'] = [
              '<{SEEN:<(install|remove)>}><result><status>ok</status></result>'
              '</{SEEN:<(install|remove)>}></certificate></packet>'}]
 # NGINX Unit's control API through curl over SSH (the answer, then its status on the last
-# line): acme's earlier bundle and an older one, the listener on the earlier one
+# line): acme's earlier bundle and an older one, the listener (the default one, and the first
+# named) on the earlier one
 SSH_ANSWERS['nginx_unit'] = [
     {'command': r"-X GET .*http://localhost/certificates'?$", 'stdout':
         '{"{EARLIER}": {"key": "RSA (2048 bits)", "chain": []}, '
         '"{EARLIER2}": {"key": "RSA (2048 bits)", "chain": []}}\n200'},
     {'command': r"-X GET .*http://localhost/config/listeners'?$", 'stdout':
-        '{"{OPT:listeners}": {"pass": "routes", "tls": {"certificate": "{EARLIER}"}}}\n200'},
+        '{"*:443": {"pass": "routes", "tls": {"certificate": "{EARLIER}"}}, '
+        '"{OPT:listeners}": {"pass": "routes", "tls": {"certificate": "{EARLIER}"}}}\n200'},
     {'command': r"-X PUT .*http://localhost/certificates/", 'stdout':
         '{"success": "Certificate chain uploaded."}\n200'},
     {'command': r"-X PUT .*http://localhost/config/listeners/", 'stdout':
@@ -1360,15 +1688,12 @@ ANSWERS['juniper_srx'] = [
         '<rpc-reply><ok/></rpc-reply>'},
     {'method': 'POST', 'url': r'/rpc\?stop-on-error=1$', 'headers': {
         'Content-Type': 'application/xml'}, 'body': '<rpc-reply><ok/></rpc-reply>'}]
-# Kubernetes: the TLS secret is there (the earlier certificate in it) - patched; a deployment
-# restarted
+# Kubernetes: the TLS secret made (the first time, FIRST) or patched (at a renewal it is there
+# with the earlier certificate, LATER); a deployment restarted
 ANSWERS['kubernetes'] = [
-    {'method': 'GET', 'url': r'/api/v1/namespaces/[^/]+/secrets/[^/?]+$', 'body': {
+    {'method': 'POST', 'url': r'/api/v1/namespaces/[^/]+/secrets$', 'status': 201, 'body': {
         'kind': 'Secret', 'apiVersion': 'v1', 'type': 'kubernetes.io/tls',
-        'metadata': {'name': '{TAIL}', 'resourceVersion': '81723',
-                     'labels': {'app.kubernetes.io/managed-by': 'acme'}},
-        'data': {'tls.crt': '‹the earlier certificate, base64›',
-                 'tls.key': '‹its key, base64›'}}},
+        'metadata': {'name': '{SENT:metadata.name}', 'resourceVersion': '81723'}}},
     {'method': 'PATCH', 'url': r'/api/v1/namespaces/[^/]+/secrets/[^/?]+$', 'body': {
         'kind': 'Secret', 'apiVersion': 'v1', 'type': 'kubernetes.io/tls',
         'metadata': {'name': '{TAIL}', 'resourceVersion': '81802'}}},
@@ -1595,7 +1920,8 @@ ANSWERS['redfish'] = [
             'target': '/redfish/v1/CertificateService/Actions/'
                       'CertificateService.ReplaceCertificate'}}}},
     {'method': 'POST', 'url': r'CertificateService\.ReplaceCertificate$', 'body': {
-        '@odata.id': '{SENT:CertificateUri.@odata.id}', 'CertificateType': 'PEM'}},
+        '@odata.id': '/redfish/v1/Managers/1/NetworkProtocol/HTTPS/Certificates/1',
+        'CertificateType': 'PEM'}},
     {'method': 'POST', 'url': r'/Actions/Manager\.Reset$', 'status': 204, 'body': ''},
     {'method': 'DELETE', 'url': r'/SessionService/Sessions/', 'status': 204, 'body': ''}]
 # an iLO 6 (firmware 1.62) in Production, its HttpsCert with the ImportCertificate action
@@ -1653,7 +1979,7 @@ ANSWERS['huawei_ibmc'] = [
 # the device-key controllers' sessions end, their imports are taken
 ANSWERS['lenovo_xcc'] += [
     {'method': 'POST', 'url': r'CertificateService\.ReplaceCertificate$', 'body': {
-        '@odata.id': '{SENT:CertificateUri.@odata.id}'}},
+        '@odata.id': '/redfish/v1/Managers/1/NetworkProtocol/HTTPS/Certificates/1'}},
     {'method': 'DELETE', 'url': r'/SessionService/Sessions/', 'status': 204, 'body': ''}]
 # LXCA: the root and the intermediate in its trust store already at a renewal (409)
 ANSWERS['lenovo_lxca'] += [
@@ -1693,8 +2019,35 @@ SSH_ANSWERS['qnap'] += [{'command': r'stunnel\.pem\.acme-prev && ', 'stdout': ''
                         {'command': r'^sh -c .rm -f /tmp/acme-', 'stdout': ''}]
 # a FlashBlade answers as a FlashArray
 ANSWERS['pure_flashblade'] = ANSWERS['pure_flasharray']
+# RouterOS 6 over SSH (the mode "SSH only"): acme's two earlier certificates by name before
+# the import, this one too after it; the imports said; the services on this one after the
+# binding, the VPN servers on none
+SSH_ANSWERS['mikrotik'] = [
+    {'command': r'^:foreach c in=\[/certificate find where name~', 'times': 1,
+     'stdout': '{EARLIER}\n{EARLIER2}\n'},
+    {'command': r'^:foreach c in=\[/certificate find where name~"[^"]*-"\] do=\{:put',
+     'stdout': '{EARLIER}\n{EARLIER2}\n{CURRENT}\n'},
+    {'command': r'^/certificate import ', 'stdout':
+        '     certificates-imported: 1\n     private-keys-imported: 0\n            '
+        'files-imported: 1\n       decryption-failures: 0\n  keys-with-no-certificate: 0\n'},
+    {'command': r'^:foreach i in=\[/ip service find\]', 'stdout':
+        'USED none\nUSED none\nUSED none\nUSED none\nUSED none\nUSED {CURRENT}\n'
+        'USED {CURRENT}\n'},
+    {'command': r'^:do \{:put \("USED "', 'stdout': 'USED none\n'},
+    {'command': r'^(:foreach c in=|/file remove |/ip service set |/certificate remove |'
+                r'/interface (sstp|ovpn)-server server set )', 'stdout': ''}]
 # ---- end of targets hpe_synergy .. redfish_idrac ----
 FIRST = {
+    # OneView: the CA of the chain not in its trust store yet the first time (added)
+    'hpe_oneview': [
+        {'method': 'GET', 'url': r'/rest/certificates/ca/', 'status': 404, 'body': {
+            'errorCode': 'RESOURCE_NOT_FOUND', 'message': 'The requested resource could '
+            'not be found.'}}],
+    # Kubernetes, the first time: no secret of the name yet
+    'kubernetes': [
+        {'method': 'GET', 'url': r'/api/v1/namespaces/[^/]+/secrets/[^/?]+$', 'status': 404,
+         'body': {'kind': 'Status', 'apiVersion': 'v1', 'status': 'Failure',
+                  'message': 'secrets "{TAIL}" not found', 'reason': 'NotFound', 'code': 404}}],
     # NetScaler, the first time: no certkey of the name, the vserver on the appliance's own
     'netscaler': [
         {'method': 'GET', 'url': r'/nitro/v1/config/sslcertkey/', 'status': 404,
@@ -1710,6 +2063,13 @@ FIRST = {
 FIRST['aruba_central'] = [{'method': 'GET', 'url': r'/configuration/v1/certificates\?',
                            'body': {'items': [], 'total': 0}}]
 LATER['aruba_central'] = []
+# Azure Key Vault: no certificate of the name the first time, a new version of it then
+FIRST['azure_keyvault'] = [{'method': 'GET', 'url': r'/certificates/[^/?]+\?api-version=',
+                            'status': 404, 'body': {'error': {
+                                'code': 'CertificateNotFound', 'message':
+                                    'A certificate with (name/id) {TAIL} was not found in this '
+                                    'key vault.'}}}]
+LATER['azure_keyvault'] = []
 # ---- end of targets a10 .. cisco_nxos (FIRST / LATER) ----
 
 
@@ -1841,10 +2201,28 @@ class Secrets(object):
                 kt = 'rsa-2048' if 'RSA' in pem else 'ec-256'
             return pki.make_key(kt if str(kt).startswith(('rsa', 'ec', 'ed')) else 'ec-256')
 
+        def ec_jwk(jwk):
+            # a throwaway P-256 key as a private JWK, the other members (kid, use) kept
+            out = pki.openssl(['ec', '-text', '-noout'], pki.make_key('ec-256'))
+            out = out.decode() if isinstance(out, bytes) else out
+            hx = {}
+            for part in ('priv', 'pub'):
+                m = re.search(part + r':\s*\n((?:\s+[0-9a-f:]+\n)+)', out)
+                hx[part] = bytes.fromhex(re.sub(r'[^0-9a-f]', '', m.group(1)))
+            d = hx['priv'].rjust(32, b'\0')[-32:]
+            pub = hx['pub'][1:]
+
+            def b64u(b):
+                return base64.urlsafe_b64encode(b).decode().rstrip('=')
+            return dict(jwk, kty='EC', crv='P-256', x=b64u(pub[:32]), y=b64u(pub[32:]),
+                        d=b64u(d))
+
         def walk(x, path):
             if isinstance(x, dict):
                 if x.get('kty') and x.get('d'):
-                    return key_like('EC' if x.get('kty') == 'EC' else 'RSA')
+                    if x.get('kty') == 'EC':
+                        return ec_jwk(x)
+                    return key_like('RSA')
                 return {a: walk(b, path + [str(a)]) for a, b in x.items()}
             if isinstance(x, list):
                 return [walk(b, path) for b in x]
@@ -2247,6 +2625,13 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
         elif k == 'ftp-put':
             st = {'kind': 'file', 'words': 'Uploads over FTP to {0}'.replace('{0}', ev.get('host') or ''),
                   'detail': {'text': '→ %s   (%d bytes, binary)' % (ev.get('cmd'), ev.get('bytes') or 0)}}
+            # what it uploads (1.0.98): its format, size and sha256 - a key marked
+            path = re.sub(r'^\s*(STOR|APPE|STOU)\s+', '', str(ev.get('cmd') or ''), flags=re.I)
+            if ev.get('format'):
+                st['detail'] = {'path': path, 'format': ev.get('format'), 'size': ev.get('bytes'),
+                                'sha256': ev.get('sha256'), 'text': '→ %s' % ev.get('cmd')}
+            if ev.get('secret'):
+                st['secret'] = True
         elif k == 'socket':
             hp = '%s:%s' % (ev.get('host'), ev.get('port'))
             if ev.get('hex'):
@@ -2973,6 +3358,15 @@ def plan(store, cert, deploys, full=False):
            'runs': runs}
     if any(r.get('kind') == 'appliance' for r in runs):
         job['pages'] = pages_of(store)
+    if any(r.get('kind') == 'dns_builtin' or 'dns_builtin' in [
+            c.get('kind') for c in (r.get('challenges') or {}).values()] for r in runs):
+        # acme's own DNS server (1.0.98): its zone and addresses, as ctx.dns_server_info()
+        # gives them to the validation (plansandbox.PlanContext) - none secret
+        try:
+            from acmelib.certs import dnsserver
+            job['settings']['_dns_server'] = dnsserver.server_info(store)
+        except Exception:                               # noqa: BLE001
+            pass
     got, rec_err = record(job) if runs else ({}, '')
     try:
         proxy_on = bool(E.proxy_full('acme'))

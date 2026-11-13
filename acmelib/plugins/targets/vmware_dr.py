@@ -127,9 +127,14 @@ class VmwareDrApplianceTarget(HttpTarget):
     def deploy(self, bundle, options):
         options = options or {}
         self.login()
-        if not as_bool(options.get('force')) and self.is_current(bundle, self.current()):
+        info = self.current()
+        if not as_bool(options.get('force')) and self.is_current(bundle, info):
             self.remember(bundle, options)
             return self.same(bundle, 'served by the appliance')
+        if info.get('subject_dn') or info.get('certificate'):
+            # the decision said (What happens): what the appliance holds now - replaced
+            self.ctx.step('the appliance holds %s (valid to %s) - it is replaced' % (
+                info.get('subject_dn') or 'another certificate', info.get('not_after') or '?'))
         if as_bool(self.opt(options, 'add_ca', True), True):
             root = V.root_of(bundle, options.get('root_pem'))
             cas = list(V.intermediates(bundle)) + ([root] if root else [])
