@@ -58,7 +58,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     PluginError, field, as_bool, as_int, verify_fields, text, chain_list, chain_id,
-    pem_blocks)
+    pem_blocks, served_fingerprint, fp_of, split_hostport, join_hostport)
 from acmelib.plugins.targets.hpe_oneview import HpeOneViewTarget
 
 APPLIANCE_CSR = '/rest/certificates/https/certificaterequest'
@@ -388,6 +388,20 @@ class HpeSynergyTarget(HpeOneViewTarget):
                            ', '.join(encs) or 'none listed')
         finally:
             self.logout()
+
+    def served_now(self, bundle):
+        """HpeOneViewTarget's, the decision said (What happens)."""
+        host = text(self.c('host')).strip()
+        try:
+            h, port = split_hostport(join_hostport(self.c('host'), self.c('port') or 443))
+            same = served_fingerprint(h, port, None) == fp_of(bundle)
+        except (OSError, ValueError) as e:
+            self.ctx.step('what %s serves cannot be read (%s) - the certificate is put there'
+                          % (host, e))
+            return False
+        self.ctx.step('%s serves this certificate already' % host if same else
+                      '%s serves another certificate - this one is put there' % host)
+        return same
 
     def served_places(self, options):
         if self.part(options) == 'enclosure':

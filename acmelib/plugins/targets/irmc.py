@@ -166,14 +166,21 @@ class IrmcTarget(HttpTarget):
         return values
 
     def served_now(self, bundle):
+        # 1.0.96: the host and the port apart - "2001:db8::1:443" read back by
+        # split_hostport is another address (an IPv6 host was never asked)
+        host = text(self.c('host')).strip().strip('[]')
         try:
-            # 1.0.96: the host and the port apart - "2001:db8::1:443" read back by
-            # split_hostport is another address (an IPv6 host was never asked)
-            host = text(self.c('host')).strip().strip('[]')
-            return served_fingerprint(host, as_int(self.c('port') or 443, 443),
+            same = served_fingerprint(host, as_int(self.c('port') or 443, 443),
                                       None) == fp_of(bundle)
-        except (OSError, ValueError):
+        except (OSError, ValueError) as e:
+            self.ctx.step('what %s serves cannot be read (%s) - the certificate is put there'
+                          % (host, e))
             return False
+        # the decision said (What happens): the same one served - nothing to do; another -
+        # put there
+        self.ctx.step('%s serves this certificate already' % host if same else
+                      '%s serves another certificate - this one is put there' % host)
+        return same
 
     def test(self):
         values = self.scci([scci_get(CERT_OE)], 'reading the iRMC certificate (SCCI)')

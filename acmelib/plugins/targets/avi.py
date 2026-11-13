@@ -234,6 +234,7 @@ class AviTarget(HttpTarget):
                     mine.update(x['uuid'] for x in listed
                                 if x.get('name') != name and ours(x.get('name'), prefix))
             new = set(uuid_of(r) for r in refs)
+            names = dict((x.get('uuid'), x.get('name')) for x in listed or [])
             for vs_name in lines(options.get('virtual_services')):
                 vs = self.find('virtualservice', vs_name)
                 if vs is None:
@@ -249,7 +250,11 @@ class AviTarget(HttpTarget):
                 self.req('PATCH', '/api/virtualservice/%s' % vs['uuid'], {
                     'replace': {'ssl_key_and_certificate_refs': keep + refs}},
                     what='pointing %s at %s' % (vs_name, wanted[0][1]))
-                self.ctx.step('%s uses %s' % (vs_name, ', '.join(n for _b, n, _p in wanted)),
+                # what it used before, said (1.0.98): the decision What happens shows
+                was = [text(names.get(uuid_of(r)) or uuid_of(r)) for r in cur
+                       if r not in keep] if cur else []
+                self.ctx.step('%s uses %s%s' % (vs_name, ', '.join(n for _b, n, _p in wanted),
+                                                ' (before: %s)' % ', '.join(was) if was else ''),
                               'ok')
                 did.append(vs_name)
             if as_bool(options.get('portal')):

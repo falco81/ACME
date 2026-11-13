@@ -668,7 +668,7 @@ CHALLENGES = {
         {'method': 'GET', 'url': r'/records\?name=', 'times': 1, 'body': {'records': [],
                                                                         'total_count': 0}},
         {'method': 'GET', 'url': r'/records\?name=', 'body': {'records': [
-            {'id': RID, 'name': '{SEEN:records\?name=([^&]*)}', 'type': 'TXT',
+            {'id': RID, 'name': '{SEEN:records[?]name=([^&]*)}', 'type': 'TXT',
              'data': '"{TXT}"', 'ttl': 60}], 'total_count': 1}},
         {'method': 'PATCH', 'url': r'/records$', 'body': {'records': []}}],
     'simply': [
@@ -724,6 +724,47 @@ CHALLENGES = {
         {'sent': r'"SubDomain"', 'body': {'Response': {'RecordId': 5858,
                                                        'RequestId': '‹request›'}}},
         {'sent': r'"RecordId"', 'body': {'Response': {'RequestId': '‹request›'}}}],
+    'transip': [
+        {'method': 'POST', 'url': r'/v6/auth$', 'status': 201, 'body': {'token': '{SESSION}'}},
+        {'method': 'GET', 'url': r'/v6/domains$', 'body': {'domains': [
+            {'name': '{ZONE}', 'authCode': None, 'isTransferLocked': False}]}},
+        {'method': 'GET', 'url': r'/dns$', 'times': 1, 'body': {'dnsEntries': [
+            {'name': '@', 'expire': 86400, 'type': 'A', 'content': '192.0.2.10'}]}},
+        {'method': 'GET', 'url': r'/dns$', 'body': {'dnsEntries': [
+            {'name': '@', 'expire': 86400, 'type': 'A', 'content': '192.0.2.10'},
+            {'name': '{SEEN:"name": "(_acme-challenge[^"]*)"}', 'expire': 60, 'type': 'TXT',
+             'content': '{TXT}'}]}},
+        {'method': 'POST', 'url': r'/dns$', 'status': 201, 'body': ''},
+        {'method': 'DELETE', 'url': r'/dns$', 'status': 204, 'body': ''}],
+    'ultradns': [
+        {'method': 'POST', 'url': r'/v1/authorization/token$', 'body': {
+            'tokenType': 'Bearer', 'accessToken': '{SESSION}', 'expiresIn': '3600'}},
+        {'method': 'GET', 'url': r'/v3/zones\?', 'body': {'zones': [
+            {'properties': {'name': '{ZONE}.', 'type': 'PRIMARY'}}], 'cursorInfo': {}}},
+        {'method': 'GET', 'url': r'/rrsets/TXT/', 'times': 1, 'status': 404, 'body': [
+            {'errorCode': 70002, 'errorMessage': 'Data not found.'}]},
+        {'method': 'GET', 'url': r'/rrsets/TXT/', 'body': {'rrSets': [
+            {'ownerName': '{FQDN}.', 'rrtype': 'TXT (16)', 'ttl': 60, 'rdata': ['{TXT}']}]}},
+        {'method': 'POST', 'url': r'/rrsets/TXT/', 'status': 201, 'body': {
+            'message': 'Successful'}}],
+    'vercel': [
+        {'method': 'GET', 'url': r'/v5/domains', 'body': {'domains': [
+            {'name': '{ZONE}', 'serviceType': 'zeit.world'}], 'pagination': {'next': None}}},
+        {'method': 'GET', 'url': r'/records', 'times': 1, 'body': {'records': [],
+                                                                  'pagination': {}}},
+        {'method': 'GET', 'url': r'/records', 'body': {'records': [
+            {'id': 'rec_‹id›', 'name': '{SEEN:"name": "(_acme-challenge[^"]*)"}',
+             'type': 'TXT', 'value': '{TXT}'}], 'pagination': {}}},
+        {'method': 'POST', 'url': r'/records', 'body': {'uid': 'rec_‹id›'}}],
+    'virtualmin': [
+        {'sent': r'program=list-domains', 'body': '{ZONE}\nExit status: 0\n'},
+        {'sent': r'program=get-dns', 'times': 1, 'body':
+            '{ZONE}. TXT "v=spf1 a mx -all"\nExit status: 0\n'},
+        {'sent': r'program=get-dns', 'times': 2, 'body':
+            '{ZONE}. TXT "v=spf1 a mx -all"\n{FQDN}. TXT "{TXT}"\nExit status: 0\n'},
+        {'sent': r'program=get-dns', 'body': '{ZONE}. TXT "v=spf1 a mx -all"\nExit status: 0\n'},
+        {'sent': r'program=modify-dns', 'body': 'Updating DNS records ..\n.. done\n\n'
+                                                'Exit status: 0\n'}],
 }
 
 

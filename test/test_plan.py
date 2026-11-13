@@ -583,5 +583,189 @@ class OwnVersionAnswers(unittest.TestCase):
         self.assertEqual(RP._answer_ver(shipped), '3.0')
         self.assertEqual(RP._answer_ver(None), '')
 
+
+class DebugDetails(unittest.TestCase):
+    """1.0.98: in debug mode every request shows as it is sent - every header, the ones the
+    transport adds too, the body (JSON, form fields, multipart parts, binary as size and
+    sha256, a PEM as a placeholder) - and the stand-in's answer; secrets masked the same way
+    everywhere; a call no prepared answer matched is marked."""
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+
+    def test_masking_everywhere(self):
+        from acmelib.certs import plansandbox as P
+        self.assertEqual(P.header_shown('Authorization', 'Basic YWRtaW46c2VjcmV0'), 'Basic ••••')
+        self.assertEqual(P.header_shown('Authorization', 'Bearer abc.def'), 'Bearer ••••')
+        self.assertEqual(P.header_shown('Cookie', 'sid=abc; csrf=def'), 'sid=••••; csrf=••••')
+        self.assertEqual(P.header_shown('X-Auth-Token', 'zz'), '••••')
+        self.assertEqual(P.header_shown('X-Api-Key', 'zz'), '••••')
+        self.assertEqual(P.header_shown('Content-Type', 'application/json'), 'application/json')
+        u = P.mask_url('https://u:pw@h/api?client_secret=a&p12Password=b&sid=c&key=d&page=2', {})
+        for v in ('pw', '=a', '=b', '=c', '=d'):
+            self.assertNotIn(v, u)
+        self.assertIn('page=2', u)
+        j = P.mask_json({'password': 'x1', 'p12Password': 'x2', 'client_secret': 'x3',
+                         'passphrase': 'x4', 'token': 'x5', 'key': 'x6', 'privateKey': 'x7',
+                         'keyType': 'RSA', 'name': 'n', 'nested': {'secret': 'x8'},
+                         'SI': 'STANDIN-1'}, {'STANDIN-1': 'the password'})
+        for k in ('password', 'p12Password', 'client_secret', 'passphrase', 'token', 'key',
+                  'privateKey'):
+            self.assertEqual(j[k], '••••', k)
+        self.assertEqual((j['keyType'], j['name'], j['nested']['secret']), ('RSA', 'n', '••••'))
+        self.assertEqual(j['SI'], '•••• (the password)')
+        # form fields, PEM, command lines
+        shown, facts = P.mask_body(b'user=a&password=b&x=1', {})
+        self.assertEqual((shown, facts['format']), ({'user': 'a', 'password': '••••', 'x': '1'},
+                                                    'form'))
+        key = '-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----'
+        cert = '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----'
+        t = P.mask_text(key + '\n' + cert, {})
+        self.assertNotIn('MIIE', t)
+        self.assertIn('private key', t)
+        self.assertIn('‹certificate, PEM', t)
+        for cmd, gone in ((("sshpass -p 'Sec1' ssh h"), 'Sec1'),
+                          ('openssl pkcs12 -export -passout pass:Sec2 -in a', 'Sec2'),
+                          ("Import-PfxCertificate -Password (ConvertTo-SecureString 'Sec3' "
+                           "-AsPlainText -Force)", 'Sec3'),
+                          ('keytool -importkeystore -storepass Sec4 -x', 'Sec4'),
+                          ("Set-Thing -Password 'Sec5'", 'Sec5'),
+                          ('PFX_PASSWORD=Sec6 ./import', 'Sec6'),
+                          ('x --password="Sec7" y', 'Sec7')):
+            self.assertNotIn(gone, P.mask_command(cmd, {}), cmd)
+        self.assertEqual(P.mask_command('ssh -p 22 host', {}), 'ssh -p 22 host')
+        self.assertEqual(P.mask_command('$c = Get-Credential -Password $pw', {}),
+                         '$c = Get-Credential -Password $pw')
+
+    def test_multipart_and_binary(self):
+        from acmelib.certs import plansandbox as P
+        from acmelib.plugins.targets import _common as C
+        body, ctype = C.multipart([('password', 'Pfx-Secret-9'),
+                                   ('file', ('www.pfx', b'\x30\x82\x05\x00\xff\xfe', 'application/x-pkcs12')),
+                                   ('cert', ('www.pem', b'-----BEGIN CERTIFICATE-----\nMIIB\n'
+                                             b'-----END CERTIFICATE-----\n', 'text/plain'))])
+        shown, facts = P.mask_body(body, {}, ctype)
+        self.assertEqual(facts['format'], 'multipart')
+        self.assertEqual([(p['name'], p['filename'], p['type'], p['size']) for p in facts['parts']],
+                         [('password', None, None, 12), ('file', 'www.pfx', 'application/x-pkcs12', 6),
+                          ('cert', 'www.pem', 'text/plain', 55)])
+        self.assertNotIn('Pfx-Secret-9', shown)
+        self.assertIn('file "www.pfx"', shown)
+        self.assertIn('sha256', shown)
+        self.assertIn('‹certificate, PEM', shown)
+        shown, facts = P.mask_body(b'\x00\xff\x10binary', {})
+        self.assertEqual(facts['format'], 'binary')
+        self.assertIn(facts['sha256'][:16], shown)
+
+    def record_in(self, code):
+        import subprocess
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        lst = Listener()
+        full = ('import json, os, sys\nsys.path.insert(0, %r)\nfrom acmelib.certs import '
+                'plansandbox as P\nimport tempfile\nP.lockdown(tempfile.mkdtemp())\nPORT = %d\n'
+                % (root, lst.port)) + code
+        got = subprocess.run([sys.executable, '-I', '-c', full], capture_output=True, timeout=60)
+        lst.stop = True
+        self.assertEqual(got.returncode, 0, got.stderr.decode()[-800:])
+        self.assertEqual(lst.seen, 0, 'something reached the network')
+        return json.loads(got.stdout.decode().strip().splitlines()[-1])
+
+    def test_request_as_sent_and_its_answer(self):
+        evs = self.record_in(r"""
+P.RECORDING[0] = ev = []
+a = P.Answers([{'method': 'GET', 'url': '/known$', 'status': 404,
+                'headers': {'Content-Type': 'application/json', 'X-Request-Id': 'r1'},
+                'body': {'message': 'Certificate does not exist'}}],
+              [{'command': '^show', 'stdout': 'shown'}])
+ctx = P.PlanContext({}, 'target:t', a)
+ctx.http('POST', 'https://dev.example.test/api/login?api_key=STANDIN', body=b'user=u&password=STANDIN',
+         headers={'Authorization': 'Basic dTpw', 'Cookie': 'sid=1', 'Content-Type':
+                  'application/x-www-form-urlencoded', 'X-Auth-Token': 'tok'})
+ctx.http('GET', 'https://dev.example.test/known')
+ctx.http('PUT', 'https://dev.example.test/x', body={'p12Password': 'pw', 'name': 'n'})
+s = ctx.ssh({'host': 'h', 'user': 'u', 'password': 'p'})
+s.run('show x')
+s.run("sudo -S -p '' sh -c 'cat > /x'", input=b'STANDIN\n-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n')
+s.put(b'-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n', '/etc/k.pem', 0o600, 'root:root')
+P.RECORDING[0] = None
+print(json.dumps([P.clean(e, {'STANDIN': 'the password'}) for e in ev]))
+""")
+        text = json.dumps(evs)
+        for gone in ('STANDIN', 'dTpw', '"tok"', 'sid=1', 'MIIE', '"pw"'):
+            self.assertNotIn(gone, text)
+        login, known, put = [e for e in evs if e['kind'] == 'http']
+        names = [h[0] for h in login['wire']['headers']]
+        for h in ('Host', 'Content-Length', 'User-Agent', 'Accept-Encoding', 'Connection',
+                  'Content-Type', 'Authorization', 'Cookie', 'X-Auth-Token'):
+            self.assertIn(h, names)
+        hv = {h[0]: h[1] for h in login['wire']['headers']}
+        self.assertEqual(hv['Authorization'], 'Basic ••••')
+        self.assertEqual(hv['Content-Length'], str(len(b'user=u&password=STANDIN')))
+        self.assertTrue(login['wire']['line'].startswith('POST /api/login?api_key=••••'))
+        self.assertEqual(login['wire']['body'], 'user=u&password=•••• (the password)')
+        self.assertEqual(login['body_facts']['format'], 'form')
+        # a sign-in no rule answered: a stand-in session, marked
+        self.assertEqual(login['fallback'], 'sign-in')
+        self.assertNotIn('fallback', known)
+        self.assertEqual(known['answered']['status'], 404)
+        self.assertEqual(known['answered']['body'], {'message': 'Certificate does not exist'})
+        self.assertIn(['X-Request-Id', 'r1'], known['answered']['headers'])
+        self.assertEqual(put['fallback'], 'empty')
+        self.assertEqual(put['body']['p12Password'], '••••')
+        runs = [e for e in evs if e['kind'] == 'ssh-run']
+        self.assertEqual(runs[0]['answer']['stdout'], 'shown')
+        self.assertNotIn('fallback', runs[0])
+        self.assertEqual(runs[1]['fallback'], 'empty')
+        self.assertTrue(runs[1]['input']['body'].startswith('•••• (the sudo password)'))
+        self.assertIn('‹certificate, PEM', runs[1]['input']['body'])
+        putev = [e for e in evs if e['kind'] == 'ssh-put'][0]
+        self.assertIn("chmod 600", putev['command'])
+        self.assertIn('chown root:root', putev['command'])
+        # the steps carry it all to the page
+        from acmelib.certs import runplan as R
+        steps = R.steps_of(evs)
+        http = [s for s in steps if (s.get('detail') or {}).get('url')]
+        self.assertEqual(http[0]['detail']['answer']['fallback'], 'sign-in')
+        self.assertEqual(http[1]['detail']['answer']['status'], 404)
+        self.assertTrue(http[0]['detail']['wire']['headers'])
+        cmds = [s for s in steps if (s.get('detail') or {}).get('command') and
+                s['kind'] in ('command', 'delete')]
+        self.assertEqual(cmds[1]['detail']['answer']['fallback'], 'empty')
+        self.assertIn('input_body', cmds[1]['detail'])
+
+    def test_calls_around_ctx_are_errors(self):
+        """A module that goes around ctx (urllib / http.client, a socket, a program, a DNS
+        lookup) is caught: recorded as an error step, never reaching the network."""
+        evs = self.record_in(r"""
+import socket, subprocess, urllib.request
+P.RECORDING[0] = ev = []
+P.ANSWERS[0] = P.Answers([{'url': '/v1/x$', 'body': {'ok': 1}}])
+def tryit(fn):
+    try:
+        return fn()
+    except Exception as e:
+        return type(e).__name__
+got = tryit(lambda: urllib.request.urlopen('http://127.0.0.1:%d/v1/x' % PORT, timeout=2).read())
+tryit(lambda: socket.create_connection(('127.0.0.1', PORT), 2))
+tryit(lambda: subprocess.run(['curl', 'http://127.0.0.1:%d/' % PORT]))
+tryit(lambda: os.system('curl http://127.0.0.1:%d/' % PORT))
+tryit(lambda: socket.getaddrinfo('example.com', 443))
+P.RECORDING[0] = None
+P.ANSWERS[0] = None
+print(json.dumps({'got': got.decode() if isinstance(got, bytes) else got, 'ev': [P.clean(e, {}) for e in ev]}))
+""")
+        ev = evs['ev']
+        self.assertEqual(json.loads(evs['got']), {'ok': 1}, 'answered as ctx.http would be')
+        by = [(e['how'], e['what'].split(' ')[0]) for e in ev if e['kind'] == 'bypass']
+        self.assertEqual([b[0] for b in by], ['http.client', 'socket', 'program', 'program', 'dns'])
+        from acmelib.certs import runplan as R
+        steps = R.steps_of(ev)
+        errs = [s for s in steps if s.get('error')]
+        self.assertEqual(len(errs), 5)
+        self.assertTrue(all(s['words'].startswith('The module went around acme') for s in errs))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

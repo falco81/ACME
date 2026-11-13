@@ -705,8 +705,11 @@ def mask_json(v, marks, key=''):
         return [mask_json(x, marks, key) for x in v]
     if isinstance(v, str):
         t = mask_text(v, marks)
-        if key and secret_name(key) and v and t == v and not v.startswith('‹') and not \
-                v.startswith('••••'):
+        # a secret's name: dots - unless what mask_text made of it says what it was in
+        # dots already (a private key's PEM: "•••• (private key, PEM, ...)"); a JWT whose
+        # part mask_text took for a blob is dots whole (1.0.98)
+        if key and secret_name(key) and v and not v.startswith('‹') and not \
+                v.startswith('••••') and not t.startswith('••••'):
             return '••••'
         return t
     return v

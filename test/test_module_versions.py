@@ -401,7 +401,11 @@ class TestUpload(unittest.TestCase):
         import shutil
         from acmelib.plugins import base as B
         S.registry(True)
-        ship = {f: {k: dict(v) for k, v in kinds.items()} for f, kinds in S.registry().versions.items()}
+        # the shipped ones only (other tests here put modules of their own in)
+        ship = {f: {k: dict(v) for k, v in kinds.items()
+                    if all(c._origin == 'builtin' for c in v.values())}
+                for f, kinds in S.registry().versions.items()}
+        self.assertGreater(sum(len(k) for k in ship.values()), 200)
         for where in ('disk', 'uploaded'):
             for layout in ('override', 'version'):
                 root = tempfile.mkdtemp(prefix='acme-mv-')

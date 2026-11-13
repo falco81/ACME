@@ -74,6 +74,7 @@ class WebglobeTarget(Base):
         if did is None:
             raise PluginError('the domain %s is not in this Webglobe account (or the login may '
                               'not see it)' % name, retry=False)
+        self.ctx.step('the domain %s is ID %s at Webglobe' % (name, did))
         self._did = did
         return did
 
