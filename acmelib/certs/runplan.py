@@ -1112,7 +1112,8 @@ ANSWERS['cisco_asa'] = [
      'times': 1, 'headers': _ASA_TEXT, 'body': 'ssl trust-point {EARLIER:128} '
                                                '{OPT:trust_points}\n'},
     {'method': 'GET', 'url': r'/admin/exec/show\+running-config\+ssl\+trust-point$',
-     'headers': _ASA_TEXT, 'body': 'ssl trust-point {SEEN:(?:^|\\n)ssl trust-point (\\S+ [^\\n]*)}\n'},
+     'headers': _ASA_TEXT,
+     'body': 'ssl trust-point {SEEN:(?:^|\\n)ssl trust-point (\\S+ [^\\n]*)}\n'},
     {'method': 'POST', 'url': r'/admin/config$', 'sent': r'crypto ca import \S+ pkcs12',
      'headers': _ASA_TEXT, 'body': 'Enter the base 64 encoded pkcs12.\nEnd with the word "quit" '
                                    'on a line by itself:\nINFO: Import PKCS12 operation '
