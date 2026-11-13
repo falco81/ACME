@@ -210,7 +210,7 @@ class HpeOneViewTarget(HttpTarget):
         st, hd, d = self.req('GET', '/rest/certificates/ca/%s' % urllib.parse.quote(alias, safe=''),
                              ok=(200, 404), what='looking for the CA %s' % alias)
         if st == 200:
-            self.ctx.debug('the CA %s is in the trust store already' % alias)
+            self.ctx.step('the CA %s is in the trust store already' % alias)
             return False
         st, hd, d = self.req('POST', '/rest/certificates/ca', {
             'type': 'CertificateAuthorityInfoCollection',

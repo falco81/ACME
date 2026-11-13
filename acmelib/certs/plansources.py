@@ -765,6 +765,49 @@ CHALLENGES = {
         {'sent': r'program=get-dns', 'body': '{ZONE}. TXT "v=spf1 a mx -all"\nExit status: 0\n'},
         {'sent': r'program=modify-dns', 'body': 'Updating DNS records ..\n.. done\n\n'
                                                 'Exit status: 0\n'}],
+    'vultr': [
+        {'method': 'GET', 'url': r'/domains\?per_page', 'body': {'domains': [
+            {'domain': '{ZONE}', 'dns_sec': 'disabled'}], 'meta': {'total': 1, 'links': {
+                'next': '', 'prev': ''}}}},
+        {'method': 'GET', 'url': r'/records\?per_page', 'times': 1, 'body': {
+            'records': [], 'meta': {'total': 0, 'links': {'next': ''}}}},
+        {'method': 'POST', 'url': r'/records$', 'status': 201, 'body': {'record': {
+            'id': '‹record id›', 'type': 'TXT', 'data': '"{TXT}"'}}}],
+    'webglobe': [
+        {'method': 'POST', 'url': r'/auth/login$', 'body': {'success': True, 'data': {
+            'token': '{SESSION}', 'expires_in': 3600}}},
+        {'method': 'GET', 'url': r'/domains\?per_page', 'body': {'success': True, 'data': [
+            {'domain': '{ZONE}', 'domain_id': 1001}]}},
+        {'method': 'GET', 'url': r'/\d+/dns$', 'times': 1, 'body': {'success': True, 'data': {
+            'records': [{'id': 6060, 'name': '@', 'type': 'A', 'data': '192.0.2.10'}],
+            'soa': {'primary': 'ns1.{ZONE}'}}}},
+        {'method': 'GET', 'url': r'/\d+/dns$', 'body': {'success': True, 'data': {
+            'records': [{'id': 6060, 'name': '@', 'type': 'A', 'data': '192.0.2.10'},
+                        {'id': 6161, 'name': '{FQDN}', 'type': 'TXT', 'data': '{TXT}'}],
+            'soa': {'primary': 'ns1.{ZONE}'}}}},
+        {'method': 'POST', 'url': r'/\d+/dns$', 'body': {'success': True, 'new_id': 6161}},
+        {'method': 'DELETE', 'url': r'/\d+/dns/\d+$', 'body': {'success': True}}],
+    'websupport': [
+        {'method': 'GET', 'url': r'/v1/user/self/zone$', 'body': {'items': [
+            {'id': 6262, 'name': '{ZONE}'}]}},
+        {'method': 'GET', 'url': r'/record$', 'times': 1, 'body': {'items': [
+            {'id': 6363, 'type': 'A', 'name': '@', 'content': '192.0.2.10'}]}},
+        {'method': 'POST', 'url': r'/record$', 'body': {'status': 'success', 'item': {
+            'id': 6464, 'type': 'TXT', 'content': '{TXT}'}}}],
+    'wedos': [
+        {'sent': r'dns-domains-list', 'body': {'response': {'code': 1000, 'result': 'OK',
+                                                           'data': {'domain': [
+                                                               {'name': '{ZONE}',
+                                                                'type': 'primary',
+                                                                'status': 'active'}],
+                                                               'total': 1}}}},
+        {'sent': r'dns-rows-list', 'times': 1, 'body': {'response': {
+            'code': 1000, 'result': 'OK', 'data': {'row': []}}}},
+        {'sent': r'dns-rows-list', 'body': {'response': {'code': 1000, 'result': 'OK', 'data': {
+            'row': [{'ID': '6565', 'name': '{SEEN:%22name%22%3A[+]%22(_acme-challenge[^%]*)%22}',
+                     'ttl': '300', 'rdtype': 'TXT', 'rdata': '{TXT}'}]}}}},
+        {'sent': r'dns-(row-add|row-delete|domain-commit)', 'body': {'response': {
+            'code': 1000, 'result': 'OK', 'data': {}}}}],
 }
 
 

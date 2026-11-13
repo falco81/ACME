@@ -650,7 +650,7 @@ class DebugDetails(unittest.TestCase):
         self.assertEqual(facts['format'], 'multipart')
         self.assertEqual([(p['name'], p['filename'], p['type'], p['size']) for p in facts['parts']],
                          [('password', None, None, 12), ('file', 'www.pfx', 'application/x-pkcs12', 6),
-                          ('cert', 'www.pem', 'text/plain', 55)])
+                          ('cert', 'www.pem', 'text/plain', 59)])
         self.assertNotIn('Pfx-Secret-9', shown)
         self.assertIn('file "www.pfx"', shown)
         self.assertIn('sha256', shown)

@@ -2942,6 +2942,9 @@ def plan(store, cert, deploys, full=False):
         kw['ssh_answers'] = ssh_answers_of(trow['kind'], scfg, sopts, version=_answer_ver(tcls))
         if trow['kind'] == 'acme_push':
             kw['push_pin'] = push_pin_of(store, tcls, tcfg)
+        kept = kept_of(store, trow, tcls, tcfg, opts, cert)
+        if kept:
+            kw['kv'] = kept
         if trow['kind'] in LATER or trow['kind'] in SSH_LATER:
             kw['later_answers'] = answers_of(trow['kind'], scfg, sopts, later=True,
                                              version=_answer_ver(tcls))

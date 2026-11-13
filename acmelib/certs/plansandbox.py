@@ -1357,16 +1357,15 @@ class FakeSsh(object):
                 ev['input']['sha256'] = f['sha256']
             # what goes on its input, readable (debug details): a script, a PEM as a
             # placeholder - sudo's password (its first line) never
-            if f.get('body') is not None:
-                body = f['body']
+            body = f.get('body')
+            if body is None and 'PEM' in str(f.get('format') or ''):
+                body = bytes(input if isinstance(input, (bytes, bytearray))
+                             else str(input).encode('utf-8')).decode('utf-8', 'replace')[:60000]
+            if body is not None:
                 if 'sudo -S' in str(command):
                     body = '•••• (the sudo password)' + ('\n' + body.split('\n', 1)[1]
                                                         if '\n' in body else '')
-                ev['input']['body'] = body[:20000]
-            elif 'PEM' in str(f.get('format') or ''):
-                ev['input']['body'] = bytes(input if isinstance(input, (bytes, bytearray))
-                                            else str(input).encode('utf-8')).decode(
-                                                'utf-8', 'replace')[:60000]
+                ev['input']['body'] = body[:60000]
         rec(ev)
         answers = getattr(self.ctx, 'answers', None)
         got = answers.ssh(command, input) if hasattr(answers, 'ssh') else None
@@ -1440,7 +1439,9 @@ class PlanContext(object):
         self.record_names, self.tokens, self.children = [], [], []
         self.deploy_id = job.get('deploy_id')
         self.target_name = job.get('target_name')
-        self._kv = {}
+        # what the target kept between its deployments that decides its way (runplan.kept_of:
+        # the ARN of ACM's certificate imported before) - else nothing, as at the first one
+        self._kv = dict(job.get('kv') or {})
         # acme push (targets/acme_push.py): the pin acme keeps of the application when it is
         # paired already (runplan.PUSH_PIN, the one its hello is answered with) - else none
         self._push_pin = job.get('push_pin') or None
@@ -1664,7 +1665,7 @@ def run_one(job, r, bundle_holder):
         answers = Answers(r.get('answers'), r.get('ssh_answers'))
         ANSWERS[0] = answers
         ctx = PlanContext(dict(job, deploy_id=r.get('deploy_id'), target_name=r.get('name'),
-                               push_pin=r.get('push_pin')),
+                               push_pin=r.get('push_pin'), kv=r.get('kv')),
                           '%s:%s' % (r['family'], r.get('name')), answers)
         inst = cls(dict(r.get('config') or {}), ctx)
         op = r.get('op')
