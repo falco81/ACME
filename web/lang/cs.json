@@ -60939,6 +60939,10 @@
   "_17": {
    "source": "an Ed25519",
    "text": "Ed25519"
+  },
+  "_18": {
+   "source": "it is due for a new issue",
+   "text": "je na řadě nové vystavení"
   }
  },
  "patterns": {
@@ -84365,6 +84369,74 @@
   "p_11": {
    "source": "{0} takes {1} certificate, this one has {2} key - choose the key type or the service",
    "text": "{0} přijímá {1} certifikát, tento má {2} klíč – zvolte jiný typ klíče nebo jinou službu"
+  },
+  "p_12": {
+   "source": "the device {0} already makes the key of the certificate {1} - a device holds one pending key, so a second certificate would replace the key of the first: change that certificate (add these names to it), or choose another target",
+   "text": "zařízení {0} už vytváří klíč certifikátu {1} - zařízení drží jeden čekající klíč, takže druhý certifikát by nahradil klíč prvního: změňte ten certifikát (přidejte mu tyto názvy), nebo zvolte jiný cíl"
+  },
+  "p_13": {
+   "source": "version {0} of {1} holds a key acme made, but its key is made by the device of {2} now - that version fits no key there: it is issued anew for a key the device makes (Renew now issues it at once)",
+   "text": "verze {0} certifikátu {1} má klíč vytvořený v acme, ale jeho klíč teď vytváří zařízení {2} - ta verze tam k žádnému klíči nepasuje: vystaví se znovu pro klíč, který vytvoří zařízení (Obnovit nyní ho vystaví hned)"
+  },
+  "p_14": {
+   "source": "version {0} of {1} was issued for a key its device made, which acme does not hold - acme makes its key now: it is issued anew with acme's key first (Renew now issues it at once)",
+   "text": "verze {0} certifikátu {1} byla vystavena pro klíč, který vytvořilo jeho zařízení a acme ho nemá - teď klíč vytváří acme: nejdřív se vystaví znovu s klíčem z acme (Obnovit nyní ho vystaví hned)"
+  },
+  "p_15": {
+   "source": "the CSR the device of {0} made for the issue before does not fit any more ({1}) - a new one is asked",
+   "text": "CSR, který zařízení {0} vytvořilo pro předchozí vystavení, už nepasuje ({1}) - žádá se o nový"
+  },
+  "p_16": {
+   "source": "the CSR the device of {0} made ({1}) is used again (its issue was not finished; the device keeps that key until its certificate comes)",
+   "text": "CSR, který zařízení {0} vytvořilo ({1}), se použije znovu (jeho vystavení nebylo dokončeno; zařízení si ten klíč drží, dokud nepřijde jeho certifikát)"
+  },
+  "p_17": {
+   "source": "the device of {0} made a weak {1} key (RSA with {2} bits) - a CA refuses it and it can be broken: set the device to make {3} keys (or choose another key type for the certificate)",
+   "text": "zařízení {0} vytvořilo slabý klíč {1} (RSA s {2} bity) - certifikační autorita ho odmítne a dá se prolomit: nastavte zařízení, aby vytvářelo klíče {3} (nebo certifikátu zvolte jiný typ klíče)"
+  },
+  "p_18": {
+   "source": "the device of {0} made a {1} key, which its module does not list (it makes {2}) - choose one of those key types for the certificate",
+   "text": "zařízení {0} vytvořilo klíč {1}, který jeho modul neuvádí (vytváří {2}) - zvolte certifikátu jeden z těchto typů klíče"
+  },
+  "p_19": {
+   "source": "the device of {0} made a {1} key, but {2} was asked for - the certificate would not say what its key is: choose {3} as its key type, or set the device to make {4} keys",
+   "text": "zařízení {0} vytvořilo klíč {1}, ale žádán byl {2} - certifikát by neříkal, jaký má klíč: zvolte mu typ klíče {3}, nebo nastavte zařízení, aby vytvářelo klíče {4}"
+  },
+  "p_20": {
+   "source": "{0}: the version it holds fits no key on {1}, whose device makes its key - it is issued anew for a new key and CSR of the device",
+   "text": "{0}: verze, kterou má, nepasuje k žádnému klíči na {1}, jehož zařízení vytváří jeho klíč - vystaví se znovu pro nový klíč a CSR zařízení"
+  },
+  "p_21": {
+   "source": "{0}: its deployment to {1}, whose device makes its key, failed {2} times - the device may have lost the key it made: it is issued anew (a new key and CSR asked of the device), once; should that fail too, see to the device",
+   "text": "{0}: jeho nasazení na {1}, jehož zařízení vytváří jeho klíč, selhalo {2}krát - zařízení mohlo klíč, který vytvořilo, ztratit: vystaví se znovu (zařízení se požádá o nový klíč a CSR), jednou; pokud selže i to, podívejte se na zařízení"
+  },
+  "p_22": {
+   "source": "its key is made by the device of {0}: it has no twin",
+   "text": "jeho klíč vytváří zařízení {0}: nemá dvojče"
+  },
+  "p_23": {
+   "source": "a new issue could not be made due: {0}",
+   "text": "nové vystavení nešlo naplánovat: {0}"
+  },
+  "p_24": {
+   "source": "the key of {0} is made by the device of {1} - a certificate for a CSR acme gave out does not fit there; it is issued for the device's CSR (Renew now)",
+   "text": "klíč certifikátu {0} vytváří zařízení {1} - certifikát pro CSR, který vydalo acme, tam nepasuje; vystavuje se pro CSR zařízení (Obnovit nyní)"
+  },
+  "p_25": {
+   "source": "the key of {0} is made by the device of {1} - it has no twin: import the certificate alone (or as a certificate of its own)",
+   "text": "klíč certifikátu {0} vytváří zařízení {1} - nemá dvojče: importujte certifikát samotný (nebo jako samostatný certifikát)"
+  },
+  "p_26": {
+   "source": "the key of {0} is made by the device of {1}, and acme holds none - import the certificate without its key (the device has the key), or import it as a certificate of its own",
+   "text": "klíč certifikátu {0} vytváří zařízení {1} a acme žádný nemá - importujte certifikát bez klíče (klíč má zařízení), nebo ho importujte jako samostatný certifikát"
+  },
+  "p_27": {
+   "source": "the device of {0} makes the key of {1} - its module cannot be changed to {2}, which takes a certificate with acme's key: let acme make the key of those certificates (and take their deployments to {3} away) first",
+   "text": "zařízení {0} vytváří klíč certifikátů {1} - jeho modul nejde změnit na {2}, který bere certifikát s klíčem z acme: nejdřív nechte klíč těch certifikátů vytvářet acme (a odeberte jejich nasazení na {3})"
+  },
+  "p_28": {
+   "source": "{0} takes certificates with acme's key ({1}) - its module cannot be changed to {2}, whose device makes the key itself: take those deployments away first",
+   "text": "{0} bere certifikáty s klíčem z acme ({1}) - jeho modul nejde změnit na {2}, jehož zařízení si klíč vytváří samo: nejdřív ta nasazení odeberte"
   }
  },
  "rich": {
