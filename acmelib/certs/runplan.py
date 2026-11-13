@@ -299,6 +299,12 @@ SSH_ANSWERS = {
 }
 # a Catalyst 9800 is an IOS XE
 SSH_ANSWERS['cisco_wlc9800'] = SSH_ANSWERS['cisco_iosxe']
+# ArubaOS 8: the server certificate imported is listed by `show crypto-local pki ServerCert`
+# after the import (name, original file, references) - its name as the import command gave it
+SSH_ANSWERS['aruba_aos8'] = [
+    {'input': r'crypto pki-import pfx ServerCert', 'stdout': ''},
+    {'input': r'show crypto-local pki ServerCert',
+     'stdout': '{SEEN:crypto pki-import pfx ServerCert (\\S+)}  acme.pfx  1  No\n'}]
 # Lenovo XCC: the device makes the key - its CertificateService, the HTTPS collection, the CSR
 # it answers GenerateCSR with ({CSR}: the sandbox's own for the names, plansandbox.Answers)
 ANSWERS['lenovo_xcc'] = [

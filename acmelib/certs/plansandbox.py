@@ -722,7 +722,22 @@ class Answers(object):
         return 200, h, b'{}'
 
     def ssh(self, command, input=None):
-        """(exit, stdout, stderr) of a command, None when no rule says."""
+        """(exit, stdout, stderr) of a command, None when no rule says. An answer's stdout may
+        say {SEEN:regex}: the first group of the regex in what was sent over SSH before this
+        (a name the module gave in an earlier command, listed back after the import)."""
+        seen = getattr(self, '_ssh_seen', None)
+        if seen is None:
+            seen = self._ssh_seen = []
+        sent = str(command) + '\n' + (input.decode('utf-8', 'replace')
+                                      if isinstance(input, (bytes, bytearray)) else str(input or ''))
+
+        def echo(m):
+            for old in reversed(seen):
+                got = re.search(m.group(1), old)
+                if got:
+                    return got.group(1) if got.groups() else got.group(0)
+            return ''
+        seen.append(sent)
         for i, r in enumerate(self.ssh_rules):
             if r.get('command') is not None and not re.search(r['command'], str(command)):
                 continue
@@ -732,8 +747,9 @@ class Answers(object):
                 continue
             if not self._take('ssh', i, r):
                 continue
-            return (int(r.get('exit', 0)), str(r.get('stdout', '')).replace('{SESSION}', SESSION),
-                    str(r.get('stderr', '')))
+            out = str(r.get('stdout', '')).replace('{SESSION}', SESSION)
+            out = re.sub(r'\{SEEN:(.+?)\}(?!\})', echo, out)
+            return (int(r.get('exit', 0)), out, str(r.get('stderr', '')))
         return None
 
 
