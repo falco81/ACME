@@ -1921,9 +1921,12 @@ function maskEye(box) {
   eye.tabIndex = -1;                           /* Tab goes from box to box, not to each eye */
   var say = function () {
     var open = box._open && box._open();
+    var words = open ? 'Hide it' : 'Show it';
     eye.innerHTML = iconMarkup(open ? 'eyeoff' : 'eye', 16);
-    eye.title = open ? 'Hide it' : 'Show it';
-    eye.setAttribute('aria-label', eye.title);
+    explain(eye, words);                       /* the page's own panel, its words read fresh */
+    eye.setAttribute('aria-label', (typeof i18nText === 'function' && i18nText(words)) || words);
+    /* pointed at as it changes: the panel says the new words at once */
+    if (eye.matches && eye.matches(':hover')) eye.dispatchEvent(new Event('mouseenter'));
     eye.setAttribute('aria-pressed', open ? 'true' : 'false');
     wrap.classList.toggle('open', !!open);
   };
