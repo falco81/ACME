@@ -57095,6 +57095,22 @@
   "ged_92": {
    "source": "\"v=spf1 -all\" or 192.0.2.10",
    "text": "\"v=spf1 -all\" nebo 192.0.2.10"
+  },
+  "ev_1": {
+   "source": "this device",
+   "text": "toto zařízení"
+  },
+  "ty_1": {
+   "source": "Leave what was typed here?",
+   "text": "Zahodit, co je zde napsáno?"
+  },
+  "ui_1": {
+   "source": "This request profile picks RSA - what the devices it is for take; EC P-256 suits nearly everything else.",
+   "text": "Tento profil žádosti volí RSA - to, co berou zařízení, pro která je; EC P-256 se hodí skoro na všechno ostatní."
+  },
+  "ui_2": {
+   "source": "ssh-ed25519 AAAA… you@laptop",
+   "text": "ssh-ed25519 AAAA… vy@notebook"
   }
  },
  "patterns": {
@@ -78061,6 +78077,118 @@
   "pl1_3": {
    "source": "test {0} could not reach what is served ({1}) - the deployment stands; a test of your own fails it",
    "text": "test {0} se nedostal k tomu, co cíl poskytuje ({1}) - nasazení platí; vlastní test by ho zhodil"
+  },
+  "pev_1": {
+   "source": "{0} added a passkey ({1}) for {2}",
+   "text": "{0} přidal(a) passkey ({1}) pro {2}"
+  },
+  "pev_2": {
+   "source": "{0} added a passkey ({1}) for {2} - in place of {3}",
+   "text": "{0} přidal(a) passkey ({1}) pro {2} - místo {3}"
+  },
+  "pev_3": {
+   "source": "{0} took a passkey away ({1})",
+   "text": "{0} odebral(a) passkey ({1})"
+  },
+  "pev_4": {
+   "source": "certificate {0}: its twin ({1}) imported with it by {2} (version {3})",
+   "text": "certifikát {0}: jeho dvojče ({1}) importoval(a) spolu s ním {2} (verze {3})"
+  },
+  "pev_5": {
+   "source": "module {0} uploaded by {1} ({2})",
+   "text": "modul {0} nahrál(a) {1} ({2})"
+  },
+  "pev_6": {
+   "source": "module {0} marked {1} by {2}",
+   "text": "modul {0} označil(a) {2}: {1}"
+  },
+  "pev_7": {
+   "source": "{0} made {1} full admin",
+   "text": "{0} udělal(a) z {1} plného správce"
+  },
+  "pev_8": {
+   "source": "{0} made {1} cert admin",
+   "text": "{0} udělal(a) z {1} správce certifikátů"
+  },
+  "pev_9": {
+   "source": "{0} made {1} read only",
+   "text": "{0} nastavil(a) účtu {1} jen čtení"
+  },
+  "pev_10": {
+   "source": "{0} made {1} enrolment pages only",
+   "text": "{0} nastavil(a) účtu {1} jen stránky registrace"
+  },
+  "pev_11": {
+   "source": "{0}: del user on the command line",
+   "text": "{0}: účet odebrán na příkazové řádce"
+  },
+  "pev_12": {
+   "source": "{0}: set role on the command line",
+   "text": "{0}: role nastavena na příkazové řádce"
+  },
+  "pev_13": {
+   "source": "{0}: disable user on the command line",
+   "text": "{0}: účet vypnut na příkazové řádce"
+  },
+  "pev_14": {
+   "source": "{0}: enable user on the command line",
+   "text": "{0}: účet zapnut na příkazové řádce"
+  },
+  "pev_15": {
+   "source": "{0} {1}: a new SSH key was made ({2}) by {3}",
+   "text": "{0} {1}: nový klíč SSH vytvořen ({2}), kdo: {3}"
+  },
+  "pev_16": {
+   "source": "{0} {1}: the SSH key given in the form was put in place by {2}",
+   "text": "{0} {1}: klíč SSH zadaný ve formuláři je na místě, kdo: {2}"
+  },
+  "pev_17": {
+   "source": "{0} {1}: the SSH key made in the form was put in place by {2}",
+   "text": "{0} {1}: klíč SSH vytvořený ve formuláři je na místě, kdo: {2}"
+  },
+  "pev_18": {
+   "source": "{0}: names are looked up through the DNS set {1} (by {2})",
+   "text": "{0}: jména se vyhledávají přes sadu DNS {1} (kdo: {2})"
+  },
+  "pev_19": {
+   "source": "{0}: names are looked up through the DNS set {1} (its default) (by {2})",
+   "text": "{0}: jména se vyhledávají přes sadu DNS {1} (výchozí) (kdo: {2})"
+  },
+  "pev_20": {
+   "source": "{0} reset the second step of the account {1} (it was {2})",
+   "text": "{0} resetoval(a) druhý krok přihlášení účtu {1} (byl to {2})"
+  },
+  "pev_21": {
+   "source": "(it was {0})",
+   "text": "(byl to {0})"
+  },
+  "pev_22": {
+   "source": "{0} reset the second step of signing in of {1} (it was {2})",
+   "text": "{0} resetoval(a) druhý krok přihlášení účtu {1} (byl to {2})"
+  },
+  "pev_23": {
+   "source": "{0} reset the second step of signing in of {1} (none was set up)",
+   "text": "{0} resetoval(a) druhý krok přihlášení účtu {1} (žádný nebyl nastaven)"
+  },
+  "pev_24": {
+   "source": "{0} added a passkey ({1} · {2}) for {3}",
+   "text": "{0} přidal(a) passkey ({1} · {2}) pro {3}"
+  },
+  "pev_25": {
+   "source": "{0} added a passkey ({1} · {2}) for {3} - in place of {4}",
+   "text": "{0} přidal(a) passkey ({1} · {2}) pro {3} - místo {4}"
+  },
+  "pev_26": {
+   "source": "{0} took a passkey away ({1} · {2})",
+   "text": "{0} odebral(a) passkey ({1} · {2})"
+  },
+  "pev_27": {
+   "source": "a passkey ({0} · {1}) for {2}",
+   "text": "passkey ({0} · {1}) pro {2}"
+  },
+  "pev_28": {
+   "source": "a passkey ({0} · {1})",
+   "text": "passkey ({0} · {1})"
   }
  },
  "rich": {

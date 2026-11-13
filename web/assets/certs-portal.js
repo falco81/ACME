@@ -1060,7 +1060,10 @@ function profileDialog(p, fromPicker) {
     f.names = el('textarea', 'cp-names');
     f.names.rows = Math.min(4, Math.max(2, p.max_names));
     f.names.spellcheck = false;
-    f.names.placeholder = 'www.' + (p.suffixes[0] || 'example.com') + (p.max_names > 1 ? '\n' + 'app.' + (p.suffixes[0] || 'example.com') : '');
+    /* a client's certificate (VPN, a device) is named after it, not after a web site (1.0.96) */
+    var clientOnly = arr(p.eku).length && arr(p.eku).indexOf('serverAuth') < 0;
+    f.names.placeholder = (clientOnly ? 'device1.' : 'www.') + (p.suffixes[0] || 'example.com') +
+      (p.max_names > 1 ? '\n' + (clientOnly ? 'device2.' : 'app.') + (p.suffixes[0] || 'example.com') : '');
     f.names.oninput = drawChips;
     keyHost.appendChild(formField(p.max_names > 1 ? 'Its names' : 'Its name', f.names, ''));
     var hint = el('div', 'says small muted');
@@ -1074,7 +1077,10 @@ function profileDialog(p, fromPicker) {
     keyHost.lastChild.appendChild(f.chips);
     var g = el('div', 'formgrid');
     f.key = selectBox(p.key_types.map(function (k) { return [k, KEY_WORDS[k] || k]; }), p.key_default);
-    if (p.key_types.length > 1) g.appendChild(formField('Its key', f.key, 'EC P-256 suits nearly everything; RSA 2048 for old devices that know nothing else.'));
+    /* the hint says what the profile picks (1.0.96: it praised EC P-256 over RSA 2048 picked) */
+    if (p.key_types.length > 1) g.appendChild(formField('Its key', f.key, /^rsa/.test(String(p.key_default || ''))
+      ? 'This request profile picks RSA - what the devices it is for take; EC P-256 suits nearly everything else.'
+      : 'EC P-256 suits nearly everything; RSA 2048 for old devices that know nothing else.'));
     (p.subject || []).filter(function (x) { return x.mode === 'person'; }).forEach(function (x) {
       var b = textBox(x.value, x.field === 'C' ? 'CZ' : (x.field === 'emailAddress' ? 'it@example.cz' : ''), '');
       noI18n(b);

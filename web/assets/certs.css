@@ -1517,3 +1517,5 @@ code.gd-ccopy.gd-copied::after{content:'✓';font-size:10px;margin-left:4px;colo
   .gd-main{grid-template-columns:300px minmax(0,1fr)}
   .gd-assist{width:420px}
 }
+/* the question over any popup (1.0.96: modalSure) */
+#modal-box:has(> .gd-sure){position:relative}

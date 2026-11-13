@@ -240,7 +240,11 @@ def _acme_do(h):
             acme_care_set(h.store, target, bool(b.get('on')), s['name'])
             return acme_view(h.store)
         if act == 'probe':
-            return acme_reach_probe(h.store, str(b.get('target') or ''))
+            # what port 80 answered under `reached`: the answer itself went (1.0.96) - "ok":
+            # false read as a failed request, and the page said only "HTTP 200"
+            got = dict(acme_reach_probe(h.store, str(b.get('target') or '')))
+            got['reached'] = bool(got.pop('ok', False))
+            return got
         if act == 'name':
             # Every certificate's name from one page (1.0.170): the other
             # node's and the VIP address's too, not only this node's.

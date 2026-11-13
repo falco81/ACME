@@ -250,6 +250,8 @@ var MODAL_CLOSE = null;
 /* A popup that holds what is not kept yet asks before it goes (1.0.95): Close, its x and
    Escape. modalLeaveGuard(fn) - fn(go) returns true when it asked (and calls go on yes). */
 var MODAL_LEAVE = null;
+/* The opening of the popup something was typed into (1.0.96) - 0: nothing typed */
+var MODAL_TYPED = 0;
 function modalLeaveGuard(fn) { MODAL_LEAVE = {gen: MODAL_GEN, fn: fn}; }
 /* Which opening of the popup is the current one. Every open and every close
    is a new number, and anything that put up a placeholder and then went to
@@ -307,6 +309,16 @@ function modal(title, build, buttons, narrow) {
     : (narrow ? ' narrow' : ''));
   var body = $('modal-body');
   clear(body);
+  MODAL_TYPED = 0;
+  if (!body._typedHook) {
+    body._typedHook = true;
+    body.addEventListener('input', function (ev) {
+      var t = ev.target;
+      /* a search over a list is not something typed to keep */
+      if (!t || t.type === 'search' || (t.closest && t.closest('.msect-find, .ct-kind-find, .gd-editor'))) return;
+      MODAL_TYPED = MODAL_GEN;
+    }, true);
+  }
   if (typeof build === 'function') build(body); else if (build) body.appendChild(build);
   labelsFromPlaceholders(body);
   var keep = modalKeepOn(body);
@@ -352,6 +364,7 @@ function modal(title, build, buttons, narrow) {
     if (b.says) explain(button, b.says);
     var run = function () {
       var was = MODAL_GEN;
+      if (b.go) MODAL_TYPED = 0;           /* what was typed is being used */
       if (b.go) b.go(button);
       /* ...unless what the button did was open another popup in this one's
          place: closing then closed that one. (1.10.168) */
@@ -523,11 +536,60 @@ function modalOverNow() {
   MODAL_CLOSE = null;
   MODAL_FROM = document.activeElement;
 }
+/* a question over the window that is open (not the browser's own dialog): yes runs go */
+function modalSure(words, go, yesWords) {
+  var host = document.getElementById('modal-box') || document.body;
+  var old = host.querySelector(':scope > .gd-sure');
+  if (old && old._end) old._end(); else if (old) old.remove();
+  var veil = el('div', 'gd-sure');
+  var box = el('div', 'gd-sure-box');
+  box.setAttribute('role', 'alertdialog');
+  box.appendChild(el('p', 'gd-sure-w', (typeof i18nText === 'function' && i18nText(words)) || words));
+  var row = el('div', 'gd-sure-row');
+  /* what is asked here throws something away: red, and the focus on No (1.0.95: one Enter
+     after Escape lost the edits) - as the other questions of the pages */
+  var no = cmdButton('No, leave it', 'x', 'gd-sure-no');
+  var yes = cmdButton(yesWords || 'Yes', 'check', 'danger gd-sure-yes');
+  var end = function () { veil.remove(); document.removeEventListener('keydown', key, true); };
+  var key = function (ev) {
+    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); end(); }
+    else if (ev.key === 'Enter') {
+      /* Enter presses what has the focus - "No" too; nothing focused in it: no */
+      ev.preventDefault(); ev.stopPropagation();
+      if (document.activeElement === yes) { end(); go(); } else end();
+    } else if (ev.key === 'Tab') {
+      /* the focus stays on its two buttons */
+      ev.preventDefault();
+      (document.activeElement === yes ? no : yes).focus();
+    }
+  };
+  veil._end = end;
+  no.onclick = end;
+  yes.onclick = function () { end(); go(); };
+  row.appendChild(no); row.appendChild(yes);
+  box.appendChild(row);
+  veil.appendChild(box);
+  veil.addEventListener('mousedown', function (ev) { if (ev.target === veil) end(); });
+  host.appendChild(veil);
+  document.addEventListener('keydown', key, true);
+  setTimeout(function () { no.focus(); }, 0);
+}
+
 function closeModal(sure) {
-  if (sure !== true && MODAL_LEAVE && MODAL_LEAVE.gen === MODAL_GEN && $('modal') && !$('modal').hidden) {
+  var guarded = MODAL_LEAVE && MODAL_LEAVE.gen === MODAL_GEN;
+  if (sure !== true && guarded && $('modal') && !$('modal').hidden) {
     var guard = MODAL_LEAVE;
     try { if (guard.fn(function () { MODAL_LEAVE = null; closeModal(true); }) === true) return; } catch (e) { /* closes */ }
   }
+  /* Something typed into the popup and not sent (1.0.96): Escape, its x or Close ask first -
+     a half-filled form went with a stray Escape. Its own buttons that do something do not. */
+  if (sure !== true && !guarded && MODAL_TYPED && MODAL_TYPED === MODAL_GEN && $('modal') &&
+      !$('modal').hidden) {
+    modalSure('Leave what was typed here?', function () { MODAL_TYPED = 0; closeModal(true); },
+                            'Leave it');
+    return;
+  }
+  MODAL_TYPED = 0;
   MODAL_LEAVE = null;
   MODAL_OVER_WANTED = null;
   MODAL_KEEP = null;

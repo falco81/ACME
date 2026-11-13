@@ -555,7 +555,18 @@ function srcText(el) {
 (function () {
   var pack = window.ACME_LANG_PACK;
   var root = document.documentElement;
-  var release = function () { root.classList.remove('i18n-wait'); };
+  var release = function () {
+    /* a box focused while the page was hidden got nothing (1.0.96: the name to sign in with
+       was not focused in Czech, only in English): focused again once it shows */
+    root.classList.remove('i18n-wait');
+    var box = window.I18N_FOCUS || null;
+    if (!box && (!document.activeElement || document.activeElement === document.body)) {
+      /* the sign-in pages: the second step's code, else the name */
+      var all = document.querySelectorAll('#mfa-box input:not([type=hidden]), #in-name');
+      for (var i = 0; i < all.length && !box; i++) if (all[i].offsetParent !== null) box = all[i];
+    }
+    if (box && box.focus && document.activeElement !== box) { try { box.focus(); } catch (e) { } }
+  };
   try {
     if (!i18nInit(pack)) { release(); return; }
   } catch (e) {

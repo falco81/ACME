@@ -3943,3 +3943,14 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
   #us-table td.rowtools { min-width: 9.5em; }
   #us-table td select { min-width: 10em; }
 }
+/* Events on a phone (1.0.96): what happened was a column off the screen, behind the time,
+   kind and who - each event a block now: when, kind and who on a line, what below them */
+@media (max-width: 640px) {
+  #ev-table table, #ev-table tbody { display: block; width: 100%; }
+  #ev-table thead { display: none; }
+  #ev-table tr { display: block; padding: 8px 2px; border-bottom: 1px solid var(--line); }
+  #ev-table td { display: inline-block; border: 0; padding: 0 8px 0 0; vertical-align: middle; }
+  #ev-table td:nth-child(4) { display: block; padding: 4px 0 0; white-space: normal; overflow-wrap: anywhere; }
+}
+/* the daemon's own log (1.0.96): words broken between any two letters - at spaces first */
+pre.lines { word-break: normal; overflow-wrap: anywhere; }

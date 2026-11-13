@@ -223,43 +223,9 @@
     close();
     return L;
   }
-  /* a question over the window that is open (not the browser's own dialog): yes runs go */
+  /* the question over the window (core.js modalSure, 1.0.96: the pages' popups ask it too) */
   function sure(words, go, yesWords) {
-    var host = document.getElementById('modal-box') || document.body;
-    var old = host.querySelector(':scope > .gd-sure');
-    if (old && old._end) old._end(); else if (old) old.remove();
-    var veil = el('div', 'gd-sure');
-    var box = el('div', 'gd-sure-box');
-    box.setAttribute('role', 'alertdialog');
-    box.appendChild(el('p', 'gd-sure-w', tr(words)));
-    var row = el('div', 'gd-sure-row');
-    /* what is asked here throws something away: red, and the focus on No (1.0.95: one Enter
-       after Escape lost the edits) - as the other questions of the pages */
-    var no = cmdButton('No, leave it', 'x', 'gd-sure-no');
-    var yes = cmdButton(yesWords || 'Yes', 'check', 'danger gd-sure-yes');
-    var end = function () { veil.remove(); document.removeEventListener('keydown', key, true); };
-    var key = function (ev) {
-      if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); end(); }
-      else if (ev.key === 'Enter') {
-        /* Enter presses what has the focus - "No" too; nothing focused in it: no */
-        ev.preventDefault(); ev.stopPropagation();
-        if (document.activeElement === yes) { end(); go(); } else end();
-      } else if (ev.key === 'Tab') {
-        /* the focus stays on its two buttons */
-        ev.preventDefault();
-        (document.activeElement === yes ? no : yes).focus();
-      }
-    };
-    veil._end = end;
-    no.onclick = end;
-    yes.onclick = function () { end(); go(); };
-    row.appendChild(no); row.appendChild(yes);
-    box.appendChild(row);
-    veil.appendChild(box);
-    veil.addEventListener('mousedown', function (ev) { if (ev.target === veil) end(); });
-    host.appendChild(veil);
-    document.addEventListener('keydown', key, true);
-    setTimeout(function () { no.focus(); }, 0);
+    if (typeof modalSure === 'function') return modalSure(words, go, yesWords);
   }
   /* the clipboard: the browser's own where the page is https, else the old way */
   function copyText(text, done) {

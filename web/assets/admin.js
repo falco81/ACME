@@ -1468,9 +1468,21 @@ function firstPane() {
 function showPane(name) {
   if (!name || !$('pane-' + name)) name = firstPane();
   PANE = name;
+  var onBtn = null;
   document.querySelectorAll('#ctl-nav button[data-pane]').forEach(function (b) {
     b.classList.toggle('on', b.dataset.pane === name);
+    if (b.dataset.pane === name) { b.setAttribute('aria-current', 'page'); onBtn = b; }
+    else b.removeAttribute('aria-current');
   });
+  /* the row of sections on a narrow screen scrolls sideways (1.0.96): the one shown brought
+     into it - it stayed at its start, the section open far to the right, unseen */
+  var nav = $('ctl-nav');
+  if (onBtn && nav && nav.scrollWidth > nav.clientWidth + 4) {
+    var nr = nav.getBoundingClientRect(), br = onBtn.getBoundingClientRect();
+    if (br.left < nr.left || br.right > nr.right) {
+      nav.scrollLeft += (br.left - nr.left) - (nav.clientWidth - br.width) / 2;
+    }
+  }
   document.querySelectorAll('.ctl-pane').forEach(function (p) { p.hidden = p.id !== 'pane-' + name; });
   writeHash();
   if (SN.d) snPills(); else snLoad();
@@ -16923,7 +16935,9 @@ function drawAcme() {
       probe.onclick = function () {
         busy(probe, true);
         api('acme', {action: 'probe', target: t.target}).then(function (x) {
-          busy(probe, false); x.at = Date.now() / 1000; AC.probe[t.target] = x; drawAcme();
+          busy(probe, false); x.at = Date.now() / 1000;
+          x.ok = x.reached !== undefined ? !!x.reached : x.ok;   /* port 80 answered as asked (1.0.96) */
+          AC.probe[t.target] = x; drawAcme();
         }).catch(function (e) { busy(probe, false); oops(e); });
       };
       var order = cmdButton('Order it now', 'download', 'small primary');
