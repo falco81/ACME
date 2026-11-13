@@ -6,6 +6,21 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.98 - not released
 
+- **What happens shows everything, for every module** - checked module by module (every target,
+  version, source, validation and test): the run takes the real renewal path (the certificate
+  there already found, the device serving an earlier one, replaced, the older ones cleaned up,
+  first issue and later renewals told apart), every decision the module makes is a step, and
+  with *Show debug details* every request is shown exactly as sent - method, address, every
+  header (also those the connection adds), the body (JSON, form, multipart, XML; a certificate
+  and a key named, never shown) - and the answer (status, headers, body); SSH commands with
+  their input, output and exit code, lines typed into a device's command line, files put with
+  the command that writes them. The ACME source is recorded whole (directory, account, order,
+  authorizations, challenges, finalize, the chain; JWS decoded, signatures hidden; ARI and
+  replaces at renewals where the CA offers them). One rule hides secrets everywhere (headers,
+  addresses, bodies, command lines, passwords made for the run) and nothing that is not one. A
+  module going around acme's connections is stopped and shown in red; a call with no prepared
+  answer is marked. The window: copy buttons the same everywhere, files as cards on a phone,
+  long values wrapped, no English left in Czech.
 - *Your account*, the password to choose first and the enrolment pages change your own password
   in one form: the one you have now, the new one and the new one again side by side (one under
   the other on a phone), each with an eye to show what is typed; under the new ones, as you type,

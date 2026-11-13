@@ -61387,6 +61387,14 @@
   "_129": {
    "source": "root will not be able to sign in over SSH while it is not among AllowUsers - add root to them, let root not sign in at all, or save it so on purpose (ok_no_root)",
    "text": "root se přes SSH nebude moci přihlásit, dokud nebude mezi AllowUsers – přidejte ho k nim, rootovi přihlášení vůbec nepovolte, nebo to tak uložte záměrně (ok_no_root)"
+  },
+  "_130": {
+   "source": "input",
+   "text": "vstup"
+  },
+  "_131": {
+   "source": "a shell session, these lines on its input:",
+   "text": "relace shellu, tyto řádky na jejím vstupu:"
   }
  },
  "patterns": {
@@ -85413,6 +85421,18 @@
   "p_161": {
    "source": "{0}: root is not among the accounts that may sign in over SSH (AllowUsers) - the keys below are not used there until it is.",
    "text": "{0}: root není mezi účty, které se smějí přihlásit přes SSH (AllowUsers) – klíče níže se tam nepoužijí, dokud mezi nimi nebude."
+  },
+  "p_162": {
+   "source": "test: {0}",
+   "text": "test: {0}"
+  },
+  "p_163": {
+   "source": "reload: {0}",
+   "text": "znovunačtení: {0}"
+  },
+  "p_164": {
+   "source": "reload with the previous files: {0}",
+   "text": "znovunačtení s předchozími soubory: {0}"
   }
  },
  "rich": {
