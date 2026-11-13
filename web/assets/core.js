@@ -554,11 +554,14 @@ function modalOverNow() {
   MODAL_FROM = document.activeElement;
 }
 /* a question over the window that is open (not the browser's own dialog): yes runs go */
-function modalSure(words, go, yesWords) {
-  var host = document.getElementById('modal-box') || document.body;
+function modalSure(words, go, yesWords, noGo) {
+  /* No popup open (a pane's save, 1.0.98): over the page itself. noGo runs on No. */
+  var pop = document.getElementById('modal');
+  var onPage = !pop || pop.hidden;
+  var host = onPage ? document.body : (document.getElementById('modal-box') || document.body);
   var old = host.querySelector(':scope > .gd-sure');
   if (old && old._end) old._end(); else if (old) old.remove();
-  var veil = el('div', 'gd-sure');
+  var veil = el('div', 'gd-sure' + (onPage ? ' on-page' : ''));
   var box = el('div', 'gd-sure-box');
   box.setAttribute('role', 'alertdialog');
   box.appendChild(el('p', 'gd-sure-w', (typeof i18nText === 'function' && i18nText(words)) || words));
@@ -568,25 +571,26 @@ function modalSure(words, go, yesWords) {
   var no = cmdButton('No, leave it', 'x', 'gd-sure-no');
   var yes = cmdButton(yesWords || 'Yes', 'check', 'danger gd-sure-yes');
   var end = function () { veil.remove(); document.removeEventListener('keydown', key, true); };
+  var nay = function () { end(); if (noGo) noGo(); };
   var key = function (ev) {
-    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); end(); }
+    if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); nay(); }
     else if (ev.key === 'Enter') {
       /* Enter presses what has the focus - "No" too; nothing focused in it: no */
       ev.preventDefault(); ev.stopPropagation();
-      if (document.activeElement === yes) { end(); go(); } else end();
+      if (document.activeElement === yes) { end(); go(); } else nay();
     } else if (ev.key === 'Tab') {
       /* the focus stays on its two buttons */
       ev.preventDefault();
       (document.activeElement === yes ? no : yes).focus();
     }
   };
-  veil._end = end;
-  no.onclick = end;
+  veil._end = nay;
+  no.onclick = nay;
   yes.onclick = function () { end(); go(); };
   row.appendChild(no); row.appendChild(yes);
   box.appendChild(row);
   veil.appendChild(box);
-  veil.addEventListener('mousedown', function (ev) { if (ev.target === veil) end(); });
+  veil.addEventListener('mousedown', function (ev) { if (ev.target === veil) nay(); });
   host.appendChild(veil);
   document.addEventListener('keydown', key, true);
   setTimeout(function () { no.focus(); }, 0);
@@ -848,6 +852,9 @@ var ICONS = {
   first: '<path d="M17 18l-6-6 6-6M7 6v12"/>',
   eye: '<path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12z"/>'
     + '<circle cx="12" cy="12" r="2.8"/>',
+  /* The eye struck through: what is shown is hidden again (a password box's eye). */
+  eyeoff: '<path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12z"/>'
+    + '<circle cx="12" cy="12" r="2.8"/><path d="M4 4l16 16"/>',
   out: '<path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"/><path d="M10 16l4-4-4-4"/>'
     + '<path d="M14 12H3"/>',
   pulse: '<path d="M3 12h4l3-7 4 14 3-7h4"/>',
@@ -1897,10 +1904,143 @@ function maskBox(value, placeholder, cls, keepLines) {
   i.addEventListener('copy', function (e) { e.preventDefault(); });
   i.addEventListener('cut', function (e) { e.preventDefault(); });
   i._show = function () { open = true; paint(); };
+  /* ...and hidden again (its eye, maskEye) - what was typed meanwhile is kept. */
+  i._hide = function () { if (open) real = MASK_PROTO.get.call(i); open = false; paint(); };
+  i._open = function () { return open; };
   real = value === null || value === undefined ? '' : String(value);
   paint();
   return i;
 }
+/** A masked box with its eye: pressed, what is typed is seen; pressed again, dots. The box
+    keeps the focus and the caret where they were. formField's label still names the box. */
+function maskEye(box) {
+  var wrap = el('div', 'mask-eye');
+  wrap.appendChild(box);
+  var eye = el('button', 'mask-eye-btn');
+  eye.type = 'button';
+  eye.tabIndex = -1;                           /* Tab goes from box to box, not to each eye */
+  var say = function () {
+    var open = box._open && box._open();
+    eye.innerHTML = iconMarkup(open ? 'eyeoff' : 'eye', 16);
+    eye.title = open ? 'Hide it' : 'Show it';
+    eye.setAttribute('aria-label', eye.title);
+    eye.setAttribute('aria-pressed', open ? 'true' : 'false');
+    wrap.classList.toggle('open', !!open);
+  };
+  eye.addEventListener('mousedown', function (e) { e.preventDefault(); });   /* the focus stays */
+  eye.onclick = function () {
+    var at = box.selectionStart;
+    if (box._open && box._open()) box._hide(); else if (box._show) box._show();
+    say();
+    if (document.activeElement === box && at !== null) {
+      try { box.setSelectionRange(at, at); } catch (e) { }
+    }
+  };
+  say();
+  wrap.appendChild(eye);
+  wrap._input = box;
+  return wrap;
+}
+
+/* ---- a person's own new password (1.0.98) ------------------------------------
+   One form wherever somebody changes their OWN password - Your account, the password to
+   choose first, the enrolment pages: the one they have now, the new one and the new one
+   again; side by side on a wide screen, one under the other on a phone; each box with its
+   eye. What the new one still lacks is said under it as it is typed - the rules of the
+   accounts of these pages (password_problem: 8 characters at least, 200 at most), and not
+   the one they have now; under the one typed again, whether it is the same. The button
+   is pressed only when all is right; Enter in any box presses it then. The daemon checks
+   every one of these again and its refusal is said under the boxes, in words.
+   o: {oldLabel, words, icon, go({old, new, again}) -> a promise, more: [buttons after it]} */
+var PW_MIN = 8, PW_MAX = 200;
+function pwChangeForm(host, o) {
+  o = o || {};
+  var form = el('div', 'pwc');
+  var grid = el('div', 'pwc-grid');
+  var old = maskBox('', '', 'mono'), nw = maskBox('', '', 'mono'), again = maskBox('', '', 'mono');
+  old.classList.add('pwc-old'); nw.classList.add('pwc-new'); again.classList.add('pwc-again');
+  var hNew = el('ul', 'pwc-hints'), hAgain = el('ul', 'pwc-hints');
+  hNew.setAttribute('aria-live', 'polite'); hAgain.setAttribute('aria-live', 'polite');
+  grid.appendChild(formField(o.oldLabel || 'The password you have now', maskEye(old)));
+  var fNew = formField('The new password', maskEye(nw));
+  fNew.appendChild(hNew);
+  grid.appendChild(fNew);
+  var fAgain = formField('The new password again', maskEye(again));
+  fAgain.appendChild(hAgain);
+  grid.appendChild(fAgain);
+  form.appendChild(grid);
+  var said = el('p', 'said pwc-said');
+  said.setAttribute('role', 'alert');
+  said.hidden = true;
+  form.appendChild(said);
+  var row = el('div', 'btnrow pwc-row');
+  var go = cmdButton(o.words || 'Change the password', o.icon || 'lock', 'primary pwc-go');
+  row.appendChild(go);
+  (o.more || []).forEach(function (b) { row.appendChild(b); });
+  form.appendChild(row);
+  host.appendChild(form);
+  var working = false;
+  /* One line: a mark (a tick, a cross, or a dot while there is nothing to say yet) and words. */
+  var line = function (ul, state, words) {
+    var li = el('li', 'pwc-hint ' + state);
+    var mark = el('span', 'pwc-mark');
+    if (state === 'ok') mark.innerHTML = iconMarkup('check', 13);
+    else if (state === 'bad') mark.innerHTML = iconMarkup('close', 13);
+    li.appendChild(mark);
+    li.appendChild(el('span', '', words));
+    ul.appendChild(li);
+    return state;
+  };
+  var check = function () {
+    var c = old.value, n = nw.value, a = again.value, states = [];
+    clear(hNew); clear(hAgain);
+    states.push(line(hNew, !n ? 'wait' : (n.length >= PW_MIN ? 'ok' : 'bad'),
+      'At least ' + PW_MIN + ' characters' + (n && n.length < PW_MIN ? ' (' + n.length + ' now)' : '')));
+    if (n.length > PW_MAX) states.push(line(hNew, 'bad', 'At most ' + PW_MAX + ' characters'));
+    states.push(line(hNew, !n || !c ? 'wait' : (n !== c ? 'ok' : 'bad'), 'Not the same as the one you have now'));
+    /* typed again, and still on the way there: nothing wrong yet */
+    states.push(line(hAgain, !a || (a.length < n.length && n.indexOf(a) === 0) ? 'wait'
+      : (a === n ? 'ok' : 'bad'), a && a !== n && n.indexOf(a) !== 0 ? 'Not the same as the new one' : 'The same as the new one'));
+    var ready = !!c && states.every(function (x) { return x === 'ok'; });
+    form.classList.toggle('ready', ready);
+    go.disabled = working || !ready;
+    return ready;
+  };
+  [old, nw, again].forEach(function (x) {
+    x.addEventListener('input', function () { said.hidden = true; check(); });
+    /* Enter changes it when all is right, and otherwise goes to the box that is not (1.0.80) */
+    x.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (check()) { go.click(); return; }
+      var first = !old.value ? old : (nw.value.length < PW_MIN || nw.value === old.value || nw.value.length > PW_MAX ? nw : again);
+      first.focus();
+    });
+  });
+  go.onclick = function () {
+    if (working || !check()) return;
+    working = true;
+    busy(go, true);
+    said.hidden = true;
+    MODAL_TYPED = 0;                   /* what was typed is being used: closed after, not asked */
+    Promise.resolve(o.go({old: old.value, 'new': nw.value, again: again.value}, go)).then(function () {
+      working = false;
+      busy(go, false);
+      check();
+    }, function (e) {
+      working = false;
+      busy(go, false);
+      said.className = 'said bad pwc-said';
+      said.textContent = String((e && e.message) || e);
+      said.hidden = false;
+      check();
+    });
+  };
+  check();
+  return {old: old, nw: nw, again: again, go: go, said: said,
+          focus: function () { setTimeout(function () { old.focus(); }, 60); }};
+}
+
 function selectBox(pairs, value) {
   var s = el('select');
   pairs.forEach(function (p) {

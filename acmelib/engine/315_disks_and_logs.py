@@ -912,20 +912,47 @@ def sshd_hash(c, at):
                            repr(at)).encode()).hexdigest()[:24]
 
 
+def sshd_root_listed(users):
+    """Whether AllowUsers lets root in, as sshd reads it: none at all lets everybody in; each
+    is USER or USER@HOST, with * and ? ("r*" names root too). A list, or the words of
+    sshd -T ("jan eva")."""
+    if isinstance(users, str):
+        users = users.split()
+    users = [str(u) for u in users or [] if u]
+    if not users:
+        return True
+    for u in users:
+        pat = '^' + ''.join('.*' if ch == '*' else '.' if ch == '?' else re.escape(ch)
+                            for ch in u.split('@', 1)[0]) + '\\Z'
+        if re.match(pat, 'root'):
+            return True
+    return False
+
+
+def sshd_root_shut(c):
+    """Root may sign in over SSH as set, but is not among AllowUsers: sshd lets it in nowhere
+    (1.0.98: saved only when asked for - ok_no_root)."""
+    return bool(c.get('manage') and c.get('allow_users') and c.get('permit_root') != 'no'
+                and not sshd_root_listed(c.get('allow_users')))
+
+
 def sshd_save(store, b, by):
     c = sshd_checked_conf(b)
     hisec_sshd(c)                           # 1.0.168
-    if c['manage'] and c['allow_users'] and c['permit_root'] != 'no' and \
-            not any(u in ('root', '*') for u in c['allow_users']) and not b.get('ok_no_root'):
-        raise ValueError('AllowUsers without root lets nobody in as root - add root to it, or '
-                         'let root not sign in at all')
+    # AllowUsers without root (1.0.98): root then signs in nowhere over SSH - saved when
+    # that is what is asked for (ok_no_root: the page asks first, in words).
+    if sshd_root_shut(c) and not b.get('ok_no_root'):
+        raise ValueError('root will not be able to sign in over SSH while it is not among '
+                         'AllowUsers - add root to them, let root not sign in at all, or save '
+                         'it so on purpose (ok_no_root)')
     if c['radius']:
         ssh_gate_secret(store, make=True)
     at = time.time()
     c.update(hash=sshd_hash(c, at), at=at, by=by)
     store.set_meta('host:sshd:conf', json.dumps(c))
     what = ('root %s, passwords %s, port %d%s' % (
-        c['permit_root'], 'on' if c['password'] else 'off', c['port'],
+        'not at all - not in AllowUsers' if sshd_root_shut(c) else c['permit_root'],
+        'on' if c['password'] else 'off', c['port'],
         ', AllowUsers ' + ' '.join(c['allow_users']) if c['allow_users'] else '')
         if c['manage'] else 'the SSH server as the system has it')
     if c['radius']:

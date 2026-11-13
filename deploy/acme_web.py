@@ -3467,7 +3467,10 @@ def sshd_says():
         k, _, v = ln.partition(' ')
         if k in ('permitrootlogin', 'pubkeyauthentication', 'passwordauthentication', 'port'):
             said[k] = v.strip()
+        elif k == 'allowusers':             # one line each (1.0.98): root among them or not
+            said[k] = (said.get(k, '') + ' ' + v.strip()).strip()
     return {'there': True, 'permit_root': said.get('permitrootlogin', ''),
+            'allow_users': said.get('allowusers', ''),
             'pubkey': said.get('pubkeyauthentication', ''),
             'password': said.get('passwordauthentication', ''), 'port': said.get('port', '')}
 
@@ -5103,6 +5106,52 @@ def sshd_apply_files(c, r, drop, now_dropin, paths, before):
     return said
 
 
+def sshd_root_listed(users):
+    """Whether AllowUsers lets root in: none at all lets everybody in; each is USER or
+    USER@HOST with * and ? - as the daemon reads it (sshd_root_listed, 315)."""
+    if isinstance(users, str):
+        users = users.split()
+    users = [str(u) for u in users or [] if u]
+    if not users:
+        return True
+    for u in users:
+        pat = '^' + ''.join('.*' if ch == '*' else '.' if ch == '?' else re.escape(ch)
+                            for ch in u.split('@', 1)[0]) + '\\Z'
+        if re.match(pat, 'root'):
+            return True
+    return False
+
+
+def sshd_lockout(c, keys, no_keys_ok=False):
+    """Why a change of the SSH server would leave nobody a way in, or ''. Root's keys matter
+    only where root may sign in: left out of AllowUsers on purpose (1.0.98), it signs in
+    nowhere and its keys are no way in either way - AllowUsers naming nobody who is here is
+    still refused (1.0.44)."""
+    root_in = c['permit_root'] != 'no' and sshd_root_listed(c.get('allow_users'))
+    if root_in and not c['password'] and not keys and not no_keys_ok:
+        return ('root has no SSH key here, and passwords would be off: nobody would '
+                'reach this machine as root over SSH - add a key first')
+    if root_in and c['permit_root'] == 'prohibit-password' and not keys and not no_keys_ok:
+        return 'root may sign in only with a key and has none here - add a key first'
+    # AllowUsers naming nobody who is here (1.0.44): sshd -t takes it, and nobody signs in.
+    if c.get('allow_users'):
+        import pwd
+
+        def there(u):
+            u = u.split('@', 1)[0]
+            if any(ch in u for ch in '*?'):
+                return True
+            try:
+                pwd.getpwnam(u)
+                return True
+            except KeyError:
+                return False
+        if not any(there(u) for u in c['allow_users']):
+            return ('none of AllowUsers (%s) is an account of this machine: nobody '
+                    'would sign in over SSH' % ', '.join(c['allow_users'])[:200])
+    return ''
+
+
 def sshd_do(r):
     do = r.get('do')
     if do == 'apply':
@@ -5113,29 +5162,9 @@ def sshd_do(r):
             if not sshd_reads_dropins():
                 raise Refused('this sshd does not read sshd_config.d (OpenSSH before 8.2, or an '
                               'Include taken out of %s) - set it there by hand' % sshd_conf_path())
-            if c['permit_root'] != 'no' and not c['password'] and not keys and \
-                    not r.get('no_keys_ok'):
-                raise Refused('root has no SSH key here, and passwords would be off: nobody would '
-                              'reach this machine as root over SSH - add a key first')
-            if c['permit_root'] == 'prohibit-password' and not keys and not r.get('no_keys_ok'):
-                raise Refused('root may sign in only with a key and has none here - add a key '
-                              'first')
-            # AllowUsers naming nobody who is here (1.0.44): sshd -t takes it, and nobody signs in.
-            if c['allow_users']:
-                import pwd
-
-                def there(u):
-                    u = u.split('@', 1)[0]
-                    if any(ch in u for ch in '*?'):
-                        return True
-                    try:
-                        pwd.getpwnam(u)
-                        return True
-                    except KeyError:
-                        return False
-                if not any(there(u) for u in c['allow_users']):
-                    raise Refused('none of AllowUsers (%s) is an account of this machine: nobody '
-                                  'would sign in over SSH' % ', '.join(c['allow_users'])[:200])
+            bad = sshd_lockout(c, keys, r.get('no_keys_ok'))
+            if bad:
+                raise Refused(bad)
         old = sshd_trial_read()
         # A change on trial changed again: one timer, the first state - its timer
         # stopped only once the new change is in (1.0.205). Stopped before it,

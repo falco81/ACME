@@ -494,6 +494,50 @@ class PortalLocal(unittest.TestCase):
         st, me = self.call('GET', '/api/portal/me', None, local)
         self.assertIsNone(me.get('me'), me)
 
+    def test_38_own_password_typed_again(self):
+        """One's own new password (1.0.98): the one typed again the same as the new one, the
+        rules of these accounts, not the one there is now - each said in words; in the
+        administration, on the enrolment pages and where an administrator types one in."""
+        self.py('st.add_account("pwself", "certadmin", %r, must_change=0); print(1)' % PW)
+        try:
+            st, got = self.call('POST', '/api/auth/login', {'name': 'pwself', 'password': PW})
+            self.assertEqual(st, 200, got)
+            tok = got['token']
+            new = 'Pw-Self-Own-2026!'
+            for body, said in (
+                    ({'old': PW, 'new': new, 'again': new + 'x'}, 'typed again are not the same'),
+                    ({'old': PW, 'new': 'short', 'again': 'short'}, 'at least eight characters'),
+                    ({'old': PW, 'new': PW, 'again': PW}, 'the one you have now'),
+                    ({'old': 'wrong-one', 'new': new, 'again': new}, 'is not right')):
+                st, got = self.call('POST', '/api/auth/password', body, tok)
+                self.assertEqual(st, 400, got)
+                self.assertIn(said, got.get('error') or json.dumps(got))
+            st, got = self.call('POST', '/api/auth/password', {'old': PW, 'new': new, 'again': new}, tok)
+            self.assertEqual(st, 200, got)
+            # ...and without "again" (an older page, the API): as before
+            st, got = self.call('POST', '/api/auth/password', {'old': new, 'new': PW}, tok)
+            self.assertEqual(st, 200, got)
+            # the enrolment pages
+            st, got = self.portal_in('pwself')
+            self.assertEqual(st, 200, got)
+            ptok = got['token']
+            st, got = self.call('POST', '/api/portal/password', {'old': PW, 'new': new, 'again': new[:-1]}, ptok)
+            self.assertEqual(st, 400, got)
+            self.assertIn('typed again are not the same', got.get('error') or json.dumps(got))
+            # an administrator typing one in for somebody else, and a new account's first one
+            st, got = self.call('POST', '/api/users', {'action': 'password', 'name': 'pwself',
+                                                       'password': new, 'again': new + '1'}, self.admin)
+            self.assertEqual(st, 400, got)
+            st, got = self.call('POST', '/api/users', {'action': 'add', 'name': 'pwtwice', 'role': 'readonly',
+                                                       'password': new, 'again': 'other-one-1'}, self.admin)
+            self.assertEqual(st, 400, got)
+            self.assertIn('typed again are not the same', got.get('error') or json.dumps(got))
+            self.ok('POST', '/api/users', {'action': 'password', 'name': 'pwself', 'password': new,
+                                           'again': new, 'must_change': 0})
+        finally:
+            for name in ('pwself', 'pwtwice'):
+                self.call('POST', '/api/users', {'action': 'delete', 'name': name}, self.admin)
+
     def test_32_not_approved_is_not_renewed_by_itself(self):
         """A request waiting for approval, or declined, cannot be switched to renew by
         itself (on the portal or in the administration) - the renewer issued it then."""

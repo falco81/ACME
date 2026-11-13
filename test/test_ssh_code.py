@@ -458,6 +458,30 @@ class TestSshdConf(unittest.TestCase):
         with self.assertRaises(ValueError):
             E.sshd_checked_conf({'manage': True, 'radius': True, 'radius_users': ['jan;rm']})
 
+    def test_allow_users_without_root(self):
+        """AllowUsers without root (1.0.98): refused unless asked for on purpose (ok_no_root, the
+        page asks in words first) - then saved, and said so in the event."""
+        self.assertTrue(E.sshd_root_listed([]))
+        self.assertTrue(E.sshd_root_listed(['jan', 'root']))
+        self.assertTrue(E.sshd_root_listed(['r*']))
+        self.assertTrue(E.sshd_root_listed('jan root@10.0.0.*'))
+        self.assertFalse(E.sshd_root_listed(['jan', 'eva']))
+        self.assertFalse(E.sshd_root_listed('jan ro'))
+        b = {'manage': True, 'permit_root': 'prohibit-password', 'password': True,
+             'allow_users': ['jan']}
+        with self.assertRaises(ValueError) as e:
+            E.sshd_save(STORE, dict(b), 'admin')
+        self.assertIn('root will not be able to sign in over SSH', str(e.exception))
+        c = E.sshd_save(STORE, dict(b, ok_no_root=True), 'admin')
+        self.assertEqual(c['allow_users'], ['jan'])
+        self.assertNotIn('ok_no_root', c)
+        self.assertTrue(E.sshd_root_shut(c))
+        ev = STORE.db.rows("SELECT words FROM events WHERE kind = 'settings' ORDER BY id DESC LIMIT 1")[0]['words']
+        self.assertIn('root not at all - not in AllowUsers', ev)
+        # root not signing in at all, or among them: nothing to ask
+        self.assertFalse(E.sshd_root_shut(E.sshd_save(STORE, dict(b, permit_root='no'), 'admin')))
+        self.assertFalse(E.sshd_root_shut(E.sshd_save(STORE, dict(b, allow_users=['jan', 'root']), 'admin')))
+
     def test_saved_makes_the_secret(self):
         self.assertEqual(E.ssh_gate_secret(STORE), '')
         E.sshd_save(STORE, {'manage': True, 'radius': True, 'permit_root': 'prohibit-password'}, 'admin')
@@ -506,6 +530,18 @@ class TestHighSecurity(unittest.TestCase):
         # No code asked at all: keyboard-interactive is the password, as before.
         STORE.set_meta('host:sshd:conf', json.dumps({'manage': True, 'radius': False}))
         self.assertTrue(self.rules()['sshd:password'])
+
+    def test_root_left_out_of_allow_users(self):
+        """Root with a password, but not among AllowUsers (1.0.98): it signs in nowhere - not
+        "root may sign in over SSH with a password"."""
+        me = E.node_name()
+        vals = {'passwordauthentication': 'yes', 'permitrootlogin': 'yes', 'maxauthtries': '4'}
+        STORE.set_meta('host:sshd:now:' + me, json.dumps({'values': vals}))
+        self.assertTrue(self.rules()['sshd:root'])
+        STORE.set_meta('host:sshd:now:' + me, json.dumps({'values': dict(vals, allowusers='jan eva')}))
+        self.assertFalse(self.rules()['sshd:root'])
+        STORE.set_meta('host:sshd:now:' + me, json.dumps({'values': dict(vals, allowusers='jan root')}))
+        self.assertTrue(self.rules()['sshd:root'])
 
 
 def read(path):
@@ -602,6 +638,23 @@ class TestHelper(unittest.TestCase):
         self.H.pam_set({'radius': False}, '', 0)
         self.assertEqual(read(pam), before)
         self.assertFalse(os.path.exists(self.H.pam_radius_conf_path()))
+
+    def test_lockout_and_root_left_out(self):
+        """Root's keys matter only where root may sign in (1.0.98): left out of AllowUsers, no
+        key of root is no refusal; AllowUsers naming nobody of this machine still is."""
+        c = self.conf(radius=False, allow_users=['root'])
+        self.assertIn('has none here', self.H.sshd_lockout(c, 0))
+        self.assertEqual(self.H.sshd_lockout(c, 1), '')
+        c = self.conf(radius=False, password=False, permit_root='yes')
+        self.assertIn('nobody would reach', self.H.sshd_lockout(c, 0))
+        me = __import__('pwd').getpwuid(os.getuid()).pw_name
+        other = 'nobody' if me == 'root' else me
+        c = self.conf(radius=False, allow_users=[other])
+        self.assertFalse(self.H.sshd_root_listed(c['allow_users']))
+        self.assertEqual(self.H.sshd_lockout(c, 0), '')
+        c = self.conf(radius=False, allow_users=['no-such-user-here-x'])
+        self.assertIn('none of AllowUsers', self.H.sshd_lockout(c, 0))
+        self.assertTrue(self.H.sshd_root_listed(['r*']))
 
     def test_selinux_needs_known(self):
         self.assertIn('authlogin_radius', self.H.SE_BOOLEANS)

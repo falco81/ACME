@@ -290,7 +290,7 @@ function aboutMe() {
 function changePassword() {
   modal('Change the password', function (body) {
     passwordForm(body, false, closeModal).focus();
-  }, [{words: 'Close', close: true}]);
+  }, [{words: 'Close', close: true}], 'medium');
 }
 
 var ROLE_WORDS_P = {portal: 'an account of acme’s own - the enrolment pages only',
@@ -314,37 +314,16 @@ function stateCard(kind, title, words) {
    enrolment pages only has nowhere else to do it. In the page, not a dialog:
    until it is changed there is nothing else to show. */
 function passwordForm(host, first, done) {
-  var g = el('div', 'formgrid');
-  var old = secretBox('', '', 'mono'), pw = secretBox('', '8 characters at least', 'mono'),
-    again = secretBox('', '', 'mono');
-  g.appendChild(formField(first ? 'The password you were given' : 'The password you have now', old));
-  g.appendChild(formField('A new password', pw));
-  g.appendChild(formField('The new password again', again));
-  host.appendChild(g);
-  var said = el('p', 'said');
-  host.appendChild(said);
-  var row = el('div', 'btnrow');
-  var go = cmdButton('Change the password', 'key', 'primary');
-  row.appendChild(go);
-  host.appendChild(row);
-  /* Enter in any of the three changes it (1.0.80) */
-  [old, pw, again].forEach(function (x) {
-    x.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
-  });
-  go.onclick = function () {
-    said.className = 'said';
-    said.textContent = '';
-    if (pw.value !== again.value) { said.className = 'said bad'; said.textContent = 'The two new passwords are not the same.'; return; }
-    busy(go, true);
-    api('password', {old: old.value, 'new': pw.value}).then(function () {
-      toast('The password is changed.', 'good');
-      done();
-    }).catch(function (e) {
-      said.className = 'said bad';
-      said.textContent = String(e.message || e);
-    }).then(function () { busy(go, false); });
-  };
-  return old;
+  /* The form every change of one's own password has (pwChangeForm, core.js): the three boxes,
+     what the new one lacks said as it is typed, Enter in any of them (1.0.80). */
+  var f = pwChangeForm(host, {oldLabel: first ? 'The password you were given' : 'The password you have now',
+    icon: 'key', go: function (v) {
+      return api('password', v).then(function () {
+        toast('The password is changed.', 'good');
+        done();
+      });
+    }});
+  return f.old;
 }
 
 function drawPortal() {

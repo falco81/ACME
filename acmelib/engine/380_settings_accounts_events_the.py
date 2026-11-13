@@ -269,6 +269,9 @@ def _users_do(h):
     act, name = b.get('action'), str(b.get('name') or '').strip()
     who = s['name']
     if act == 'add':
+        if 'again' in b and str(b.get('again') or '') != str(b.get('password') or ''):
+            raise ApiError(400, 'the new password and the one typed again are not the same - '
+                           'type them again')
         mail, mobile = account_contact_checked(b)
         h.store.add_account(name, b.get('role') or 'readonly', b.get('password'),
                             note=b.get('note') or '', must_change=b.get('must_change', 1))
@@ -320,6 +323,10 @@ def _users_do(h):
         return {'message': 'the columns of %s are back as they come; they see it at their '
                            'next page load' % acc['name']}
     if act == 'password':
+        # Typed twice on the page: the two the same, said in words (the API alone may send one).
+        if 'again' in b and str(b.get('again') or '') != str(b.get('password') or ''):
+            raise ApiError(400, 'the new password and the one typed again are not the same - '
+                           'type them again')
         h.store.set_account(name, password=b.get('password'), must_change=int(bool(
             b.get('must_change', 1))))
         h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ?',

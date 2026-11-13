@@ -1234,7 +1234,7 @@ class Answers(object):
     # key; PEM / DER in base64) - the one a device holds and lists before a renewal
     PLAN_RE = re.compile(r'\{(ZONE|NAME|FQDN|TXT|CERT|CHAIN|CERT_B64|CHAIN_B64|P7_B64|CA_P7_B64|'
                          r'CERT_SERIAL|EARLIER_PEM|EARLIER_B64|ZONE_B64|FQDN_B64|TXT_B64|'
-                         r'KEYAUTH|PLACED)\}')
+                         r'KEYAUTH|PLACED|ALT_ROOT)\}')
     _earlier_pem = None
 
     def earlier_pem(self):
@@ -2169,7 +2169,9 @@ def run_one(job, r, bundle_holder):
                 chal[n].cleanup = cleanup
             req = base.CertRequest(names=names, sans=names, key_type=cert.get('key_type'),
                                    key_pem=key, csr_pem=csr_pem, csr_der=csr_der,
-                                   subject={}, days=cert.get('days'), profile={},
+                                   subject={}, days=cert.get('days'),
+                                   profile={'acme_profile': acme['profile']} if acme and
+                                   acme.get('profile') else {},
                                    challenges=chal, previous=previous, cert_id=cert.get('id'),
                                    ref=cert.get('ref') or None)
             if previous and acme is not None and acme.get('ari'):

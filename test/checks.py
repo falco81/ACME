@@ -80,6 +80,15 @@ check('sealing: and opens again', acme.unseal_secret(sealed) == 'JBSWY3DPEHPK3PX
 h = acme.password_hash('Correct-Horse-1', rounds=1000)
 check('passwords: the right one is taken', acme.password_ok('Correct-Horse-1', h))
 check('passwords: a wrong one is not', not acme.password_ok('correct-horse-1', h))
+# One's own new one (1.0.98): typed again the same, and the rules of these accounts.
+check('passwords: the new one typed again not the same is said',
+      'typed again' in acme.password_change_problem({'new': 'Correct-Horse-2', 'again': 'Correct-Horse-3'}))
+check('passwords: eight characters at least, 200 at most',
+      'eight' in acme.password_change_problem({'new': 'short', 'again': 'short'})
+      and 'longer' in acme.password_change_problem({'new': 'x' * 201}))
+check('passwords: the new one typed twice the same will do',
+      acme.password_change_problem({'new': 'Correct-Horse-2', 'again': 'Correct-Horse-2'}) == ''
+      and acme.password_change_problem({'new': 'Correct-Horse-2'}) == '')
 
 # ---- what goes to isemon ----------------------------------------------------
 line = acme.event_kv('certificates', 'www.example.cz renewed "now"\nnext', 'warn', 'acme', 'n1')

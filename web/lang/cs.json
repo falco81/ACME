@@ -61247,6 +61247,90 @@
   "_94": {
    "source": "what the module says it found or does",
    "text": "co modul říká, že zjistil nebo dělá"
+  },
+  "_95": {
+   "source": "Back at the CA: the order",
+   "text": "Zpět u CA: objednávka"
+  },
+  "_96": {
+   "source": "Before a renewal: when the CA wants it renewed (ARI)",
+   "text": "Před obnovou: kdy ji chce CA obnovit (ARI)"
+  },
+  "_97": {
+   "source": "The order",
+   "text": "Objednávka"
+  },
+  "_98": {
+   "source": "It puts each proof in place within the source's run, when the CA asks for it: The source shows each call, the wait until it can be seen and its taking away",
+   "text": "Každý důkaz vkládá na místo v průběhu zdroje, když o něj CA požádá: Zdroj ukazuje každé volání, čekání, dokud není vidět, a jeho odebrání"
+  },
+  "_99": {
+   "source": "The exchange with the CA could not be recorded here - what it does is described instead",
+   "text": "Výměnu s CA se tu nepodařilo zaznamenat - místo toho je popsáno, co dělá"
+  },
+  "_100": {
+   "source": "not recorded",
+   "text": "nezaznamenáno"
+  },
+  "_101": {
+   "source": "the recording went wrong",
+   "text": "záznam se nepovedl"
+  },
+  "_102": {
+   "source": "Recorded against a stand-in of the CA at its directory URL: each request is what acme sends, the answers are made up as the CA gives them",
+   "text": "Zaznamenáno proti náhradě CA na adrese jejího adresáře: každý požadavek je ten, který acme posílá, odpovědi jsou vymyšlené tak, jak je CA dává"
+  },
+  "_103": {
+   "source": "the account key and every signature are not shown",
+   "text": "klíč účtu ani žádný podpis se neukazují"
+  },
+  "_104": {
+   "source": "A renewal could not be recorded: it goes the same way, the account kept",
+   "text": "Obnovu se nepodařilo zaznamenat: probíhá stejně, s ponechaným účtem"
+  },
+  "_105": {
+   "source": "Asks the CA when to renew it (ARI, RFC 9773)",
+   "text": "Ptá se CA, kdy ho obnovit (ARI, RFC 9773)"
+  },
+  "_106": {
+   "source": "Asks ZeroSSL for EAB credentials for the contact e-mail",
+   "text": "Žádá ZeroSSL o údaje EAB pro kontaktní e-mail"
+  },
+  "_107": {
+   "source": "Makes an ACME account at the CA, bound to the CA's account (EAB)",
+   "text": "Zakládá u CA účet ACME, svázaný s účtem u CA (EAB)"
+  },
+  "_108": {
+   "source": "Makes an ACME account at the CA",
+   "text": "Zakládá u CA účet ACME"
+  },
+  "_109": {
+   "source": "Orders the certificate for its names, as the renewal of the one before (replaces)",
+   "text": "Objednává certifikát pro jeho jména jako obnovu toho předchozího (replaces)"
+  },
+  "_110": {
+   "source": "Changes the contacts of the ACME account",
+   "text": "Mění kontakty účtu ACME"
+  },
+  "_111": {
+   "source": "Tells the CA to check the proof",
+   "text": "Říká CA, ať důkaz zkontroluje"
+  },
+  "_112": {
+   "source": "‹the account's public key (jwk, as in the header)›",
+   "text": "‹veřejný klíč účtu (jwk, jako v hlavičce)›"
+  },
+  "_113": {
+   "source": "•••• (HMAC-SHA256 with the EAB key)",
+   "text": "•••• (HMAC-SHA256 klíčem EAB)"
+  },
+  "_114": {
+   "source": "•••• (signature)",
+   "text": "•••• (podpis)"
+  },
+  "_115": {
+   "source": "‹the certificate, DER, base64url›",
+   "text": "‹certifikát, DER, base64url›"
   }
  },
  "patterns": {
@@ -85233,6 +85317,22 @@
   "p_151": {
    "source": "Instant {0}: {1}",
    "text": "Instant {0}: {1}"
+  },
+  "p_152": {
+   "source": "Reads the authorization of {0}: {1}",
+   "text": "Čte autorizaci {0}: {1}"
+  },
+  "p_153": {
+   "source": "Reads the order: {0}",
+   "text": "Čte objednávku: {0}"
+  },
+  "p_154": {
+   "source": "Reads from {0} (signed: POST-as-GET)",
+   "text": "Čte z {0} (podepsaně: POST-as-GET)"
+  },
+  "p_155": {
+   "source": "‹the certificate request (CSR), DER, base64url, {0}›",
+   "text": "‹žádost o certifikát (CSR), DER, base64url, {0}›"
   }
  },
  "rich": {

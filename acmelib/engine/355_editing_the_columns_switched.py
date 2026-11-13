@@ -166,6 +166,10 @@ def _password(h):
     if acc.get('source') == 'directory':
         raise ApiError(400, 'this account signs in with its directory password, which is '
                        'changed in the directory')
+    # The new one and the one typed again first, in words (as the form says them).
+    bad = password_change_problem(b)
+    if bad:
+        raise ApiError(400, bad)
     # Counted as sign-ins are (1.0.57): a session left open was a way to
     # guess the password without end.
     key = h.throttle('password', split_limit('login_tries', 5), 5, name=acc['name'])
@@ -175,7 +179,10 @@ def _password(h):
     if password_ok(str(b.get('new') or ''), acc.get('pw')):
         # a change asked (must change) kept by "changing" it to itself (1.0.51)
         raise ApiError(400, 'the new password is the one you have now - choose another')
-    h.store.set_account(acc['name'], password=str(b.get('new') or ''), must_change=0)
+    try:
+        h.store.set_account(acc['name'], password=str(b.get('new') or ''), must_change=0)
+    except ValueError as e:
+        raise ApiError(400, str(e))
     # Every other sign-in with the old password ends (1.0.33).
     h.store.db.run('DELETE FROM sessions WHERE kind = ? AND LOWER(name) = ? AND token_hash <> ?',
                    ('admin', acc['name'].lower(), hashlib.sha256(

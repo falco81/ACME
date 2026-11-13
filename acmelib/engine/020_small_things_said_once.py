@@ -106,3 +106,14 @@ def password_problem(password):
     return ''
 
 
+def password_change_problem(b):
+    """What is wrong with a person's own new password as the pages send it - the new one,
+    and the new one typed again (its words for every form a person changes their own in) -
+    before the one they have now is looked at: '' when nothing is. The new one the same as
+    the one they have is said after that one is found right."""
+    new = str(b.get('new') or '')
+    if 'again' in b and str(b.get('again') or '') != new:
+        return 'the new password and the one typed again are not the same - type them again'
+    return password_problem(new)
+
+

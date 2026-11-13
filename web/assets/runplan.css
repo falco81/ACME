@@ -118,7 +118,7 @@
 .rp-step + .rp-step{border-top:1px dashed var(--line)}
 .rp-step.branched{background:linear-gradient(90deg,rgba(210,153,34,.07),transparent 40%)}
 .rp-mark{flex:none;width:30px;height:30px;border-radius:9px;display:flex;align-items:center;
-  justify-content:center;background:var(--info-bg);color:var(--info)}
+  justify-content:center;background:var(--info-bg);color:var(--info);margin-top:-5px}
 .rp-mark.small{width:20px;height:20px;border-radius:6px}
 .k-read .rp-mark{background:rgba(139,148,163,.14);color:var(--tx-dim)}
 .k-connect .rp-mark{background:var(--violet-bg);color:var(--violet)}
@@ -136,7 +136,7 @@
 .rp-w{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
 .rp-top{display:flex;gap:10px;align-items:baseline}
 .rp-n{flex:none;font:600 11.5px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--tx-mut);
-  min-width:34px}
+  min-width:max(34px,var(--rp-nw,0px))}
 .rp-words{font-size:14px;font-weight:600;overflow-wrap:anywhere;flex:1 1 0;min-width:0}
 .rp-top .rp-tags{flex:0 1 auto}
 .k-stop .rp-words{color:var(--warn)}
@@ -146,15 +146,16 @@
 
 /* the data: a call, a command, a file */
 .rp-http,.rp-cmd,.rp-filefacts,.rp-pairs{display:flex;flex-direction:column;gap:6px;min-width:0}
-.rp-http-line{display:flex;gap:8px;align-items:center;min-width:0;padding:5px 6px 5px 5px;
+.rp-http-line{display:flex;gap:8px;align-items:flex-start;min-width:0;padding:5px;
   border-radius:9px;background:var(--bg);border:1px solid var(--line)}
-.rp-method{flex:none;font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:5px 7px;
+.rp-method{flex:none;font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:5px 7px;margin-top:5.5px;
   border-radius:6px;background:var(--info-bg);color:var(--info);letter-spacing:.3px}
 .rp-method.m-get,.rp-method.m-head{background:rgba(139,148,163,.16);color:var(--tx-dim)}
 .rp-method.m-post{background:var(--ok-bg);color:var(--ok)}
 .rp-method.m-put,.rp-method.m-patch{background:var(--warn-bg);color:var(--warn)}
 .rp-method.m-delete{background:var(--crit-bg);color:var(--crit)}
-.rp-url{flex:1;min-width:0;font-size:12.5px;overflow-wrap:anywhere;word-break:break-all}
+.rp-url{flex:1;min-width:0;font-size:12.5px;line-height:1.5;padding:6.5px 0;overflow-wrap:anywhere;word-break:break-all}
+.rp-filefacts .rp-http-line > .rp-url:first-child{padding-left:5px}
 .rp-code{position:relative;border:1px solid var(--line);border-radius:9px;background:var(--bg);min-width:0}
 .rp-code-h{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-mut);font-weight:700;
   padding:6px 10px 0}
@@ -164,10 +165,11 @@
 .rp-shell pre::before{content:"$ ";color:var(--tx-mut)}
 .rp-code.folded pre{max-height:17.5em;overflow:hidden;
   -webkit-mask-image:linear-gradient(#000 75%,transparent);mask-image:linear-gradient(#000 75%,transparent)}
-.rp-more{margin:0 10px 8px;align-self:flex-start;gap:4px}
+.rp-more{margin:4px 10px 10px;align-self:flex-start;gap:4px}
 .rp-more-n{font-variant-numeric:tabular-nums;color:var(--tx-dim)}
 .rp-code .rp-copy,.rp-http-line .rp-copy{flex:none}
-.rp-code .rp-copy{position:absolute;top:4px;right:4px}
+.rp-code .rp-copy{position:absolute;top:5px;right:5px}
+.rp-code > pre:first-child{box-sizing:border-box;min-height:42px;padding-top:11px;padding-bottom:11px}
 .rp-input{padding-left:4px}
 .rp-chips{display:flex;flex-wrap:wrap;gap:6px}
 .rp-chip{display:inline-flex;gap:6px;align-items:baseline;padding:2px 9px;border-radius:7px;
@@ -178,8 +180,9 @@
 .rp-files th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--tx-mut);
   text-align:left;padding:7px 10px;font-weight:700}
 .rp-files td{padding:6px 10px;font-size:12.5px;border-top:1px solid var(--line);vertical-align:top}
-.rp-files td:not(:first-child){white-space:nowrap}
-.rp-files td:first-child{overflow-wrap:anywhere}
+.rp-page table.rp-files td:not(:first-child){white-space:nowrap}
+.rp-page table.rp-files td:first-child{width:auto;white-space:normal;overflow-wrap:anywhere}
+.rp-page table.rp-files td:first-child > .mono{white-space:normal;overflow-wrap:anywhere;word-break:break-all}
 .rp-files .tag{margin-left:8px}
 .rp-made{text-align:right;margin:0}
 
@@ -203,8 +206,7 @@
   .rp-phase-mod{display:none}
   .rp-phase-b{margin-left:0}
   .rp-step{padding:10px 10px;gap:9px}
-  .rp-mark{width:26px;height:26px}
-  .rp-n{min-width:0}
+  .rp-mark{width:26px;height:26px;margin-top:-3px}
   .rp-group-h{padding:11px 12px}
   .rp-group-facts{padding:8px 12px 0}
   .rp-legend{display:none}
@@ -212,11 +214,12 @@
   .rp-files th:nth-child(4),.rp-files td:nth-child(4){display:none}
   /* the tags under the words, not beside them: the words kept their width (1.0.20) */
   .rp-top{flex-wrap:wrap}
-  .rp-top .rp-words{flex:1 1 calc(100% - 40px);min-width:0}
-  .rp-top .rp-tags{flex:1 1 100%;align-self:flex-start}
+  .rp-top .rp-words{flex:1 1 0;min-width:0}
+  .rp-top .rp-tags{flex:1 1 100%;align-self:flex-start;padding-left:calc(max(34px,var(--rp-nw,0px)) + 10px)}
 }
-.rp-page .rp-val{overflow-wrap:anywhere;word-break:break-word}
-.rp-raw{margin-top:6px}.rp-raw summary{cursor:pointer;padding:2px 0}
+.rp-page .rp-val,.rp-page td > .rp-val{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
+.rp-raw summary{cursor:pointer;padding:2px 0;width:max-content;max-width:100%}
+.rp-raw[open] > summary{margin-bottom:6px}
 
 /* The junction of several deployments (1.0.23): the plan's line runs on as a rail
    across the top; a curved track branches off it to each station. */
@@ -246,7 +249,7 @@
 .rp-station-t b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
 .rp-station-ic{color:var(--accent);display:inline-flex}
 .rp-station-s{display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-width:0}
-.rp-station-s .mono{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.rp-station-s .mono,.rp-station-s .rp-tag{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;min-width:0}
 .rp-station-m{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .rp-station-all .rp-station-ic{color:var(--tx-dim)}
 .rp-junction-shown{min-width:0}
@@ -267,10 +270,11 @@
   .rp-page table.plain td{padding:0 4px;border:0;white-space:normal;overflow-wrap:anywhere}
   .rp-page table.plain td:first-child{font-size:12px;color:var(--tx-mut)}
 }
-@media (max-width:720px){.rp-page .rp-val{display:inline-block;max-width:100%;word-break:break-all;white-space:normal}}
-@media (max-width:720px){.rp-code pre{overflow-wrap:anywhere;word-break:break-all;overflow-x:auto}}
+@media (max-width:720px){.rp-page .rp-val,.rp-page td > .rp-val{display:inline-block;max-width:100%}}
+@media (max-width:720px){.rp-code pre{overflow-wrap:anywhere;overflow-x:auto}}
 /* how a request is connected (1.0.37): a row of facts above it */
-.rp-conn{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
+.rp-conn{display:flex;flex-wrap:wrap;gap:6px;margin:0}
+.rp-withconn{display:flex;flex-direction:column;gap:6px;min-width:0}
 .rp-conn-c{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:7px;
   background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);font-size:11.5px;white-space:nowrap}
 .rp-conn-k{color:var(--tx-mut);font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:10px}
@@ -328,7 +332,7 @@
 .rp-htab{width:100%;border-collapse:collapse;table-layout:fixed}
 .rp-htab td{padding:3px 10px;font-size:12px;line-height:1.5;vertical-align:top;border-top:1px solid var(--line)}
 .rp-htab tr:first-child td{border-top:0}
-.rp-htab .rp-hk{width:32%;max-width:240px;color:var(--tx-mut);font-weight:600;overflow-wrap:anywhere;word-break:break-word}
+.rp-htab .rp-hk{width:25%;color:var(--tx-mut);font-weight:600;overflow-wrap:anywhere;word-break:break-word}
 .rp-htab .rp-hv{color:var(--tx);overflow-wrap:anywhere;word-break:break-all;white-space:pre-wrap}
 .rp-htab tr.auto td{opacity:.6}
 .rp-code-h{padding-right:44px}
@@ -361,10 +365,23 @@
 }
 /* the module's own words (ctx.step, 1.0.98): what it found and decided, quieter than a call */
 .rp-step.rp-said{padding-top:6px;padding-bottom:6px}
-.rp-step.rp-said .rp-mark{width:22px;height:22px;margin-left:4px;border-radius:7px}
+.rp-step.rp-said .rp-mark{width:22px;height:22px;margin-left:4px;border-radius:7px;margin-top:0}
 .rp-step.rp-said .rp-words{font-weight:500;font-size:13px;color:var(--tx-dim)}
 .rp-step.rp-said.lv-ok .rp-mark{background:var(--ok-bg);color:var(--ok)}
 .rp-step.rp-said.lv-warn .rp-mark{background:var(--warn-bg);color:var(--warn)}
 .rp-step.rp-said.lv-warn .rp-words{color:var(--warn)}
 .rp-step.rp-said.lv-bad .rp-mark{background:var(--crit-bg);color:var(--crit)}
 .rp-step.rp-said.lv-bad .rp-words{color:var(--crit)}
+
+/* the files written, on a phone (1.0.98): a card a file - its path on a line of its own,
+   what it is, its mode and size under it (a column of paths 100 px wide, cut letter by letter,
+   was what the stacked table made of it) */
+@media (max-width:720px){
+  .rp-page table.rp-files thead{display:none}
+  .rp-page table.rp-files tr{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 12px;padding:7px 10px}
+  .rp-page table.rp-files tr:last-child{border-bottom:0}
+  .rp-page table.rp-files td{display:block;width:auto;padding:0;border:0;font-size:12.5px}
+  .rp-page table.rp-files td:first-child{flex:1 1 100%;font-size:12.5px;color:var(--tx)}
+  .rp-page table.rp-files td:nth-child(4){display:none}
+}
+.rp-said-cmd{font-size:12.5px;overflow-wrap:anywhere;word-break:break-word}

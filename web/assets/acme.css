@@ -3954,3 +3954,28 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 }
 /* the daemon's own log (1.0.96): words broken between any two letters - at spaces first */
 pre.lines { word-break: normal; overflow-wrap: anywhere; }
+/* A password box with its eye (maskEye, core.js): pressed, what is typed is seen. */
+.mask-eye { position: relative; display: flex; min-width: 0; }
+.mask-eye > input { flex: 1 1 auto; width: 100%; min-width: 0; padding-right: 40px; }
+.mask-eye-btn { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px;
+  background: transparent; color: var(--tx-mut); cursor: pointer; }
+.mask-eye-btn:hover { color: var(--info); background: var(--info-bg); }
+.mask-eye.open .mask-eye-btn { color: var(--info); }
+/* One's own new password (pwChangeForm, core.js): the three boxes side by side, what the new
+   one still lacks under it - a dot while there is nothing to say, a tick, a cross. */
+.pwc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 16px; align-items: start; }
+.pwc-hints { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pwc-hint { display: flex; align-items: flex-start; gap: 7px; font-size: 12px; line-height: 16px; color: var(--tx-mut); }
+.pwc-mark { flex: none; width: 16px; height: 16px; border-radius: 50%; display: inline-flex; align-items: center;
+  justify-content: center; background: var(--panel2); border: 1px solid var(--line); box-sizing: border-box; }
+.pwc-hint.wait .pwc-mark::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--tx-mut); }
+.pwc-hint.ok { color: var(--ok); }
+.pwc-hint.ok .pwc-mark { background: var(--ok-bg); border-color: transparent; }
+.pwc-hint.bad { color: var(--crit); }
+.pwc-hint.bad .pwc-mark { background: var(--crit-bg); border-color: transparent; }
+.pwc-said { margin: 12px 0 0; }
+.pwc-row { margin-top: 14px; }
+@media (max-width: 720px) { .pwc-grid { grid-template-columns: 1fr; } }
+/* A question over the page, not over a popup (modalSure with no popup open). */
+.gd-sure.on-page { position: fixed; z-index: 350; border-radius: 0; }

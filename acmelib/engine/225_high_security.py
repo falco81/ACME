@@ -240,7 +240,8 @@ def hisec_rules(store, conf=None):
             (v.get('kbdinteractiveauthentication') == 'yes' and not code_only)
         if pw:
             hit['sshd:password'].append(n)
-        if v.get('permitrootlogin') == 'yes' and pw:
+        # ...and root among AllowUsers (1.0.98): left out of them, it signs in nowhere.
+        if v.get('permitrootlogin') == 'yes' and pw and sshd_root_listed(v.get('allowusers')):
             hit['sshd:root'].append(n)
         try:
             if v and int(v.get('maxauthtries') or 6) > 4:

@@ -215,13 +215,16 @@ class Plan(core.CertsCore):
         groups = {g['title']: g for g in ph['validation']['groups']}
         self.assertEqual(set(groups), {'wg', 'cf'})
         self.assertEqual(groups['wg']['names'], ['www.example.cz'])
-        wg = json.dumps(groups['wg']['per_name'], ensure_ascii=False)
-        self.assertIn('http://127.0.0.1:%d/auth/login' % self.listener.port, wg)
-        self.assertIn('_acme-challenge', wg)
-        self.assertIn('computed at the time from the token', wg)
-        cf = json.dumps(groups['cf']['per_name'], ensure_ascii=False)
-        self.assertIn('/zones/zone123/dns_records', cf)
-        self.assertNotIn(SECRETS['cf'], cf)
+        # 1.0.98: the ACME exchange recorded, each name's validation within it (the source
+        # shows its calls); the validation phase says so
+        self.assertIn('Recorded against a stand-in of the CA', src)
+        self.assertIn('http://127.0.0.1:%d/auth/login' % self.listener.port, src)
+        self.assertIn('_acme-challenge', src)
+        self.assertIn('/zones/zone123/dns_records', src)
+        self.assertNotIn(SECRETS['cf'], src)
+        self.assertNotIn(SECRETS['wg'], src)
+        for g in groups.values():
+            self.assertIn('within the source\'s run', g['steps'][0]['words'])
         self.assertEqual(self.listener.seen, 0)
         self.assertFalse(os.path.exists(out))
 
@@ -2026,6 +2029,240 @@ class RenewalPathsG1(unittest.TestCase):
         self.assertNotEqual(d['pem'].strip(), B.cert_pem.strip())
         self.assertEqual(d['ca'], 'acme-ca-%s' % C.chain_id(ca))
         self.assertEqual(ans.ssh('x')[1], d['pem'])
+
+
+class AcmeRecorded(unittest.TestCase):
+    """The plain ACME source (issuers/acme.py, 1.0.98): recorded whole against a stand-in of
+    the CA at the directory URL it is set to - each request with its JWS decoded (the
+    signatures and keys never shown), the answers, the waits, each name's validation put in
+    place within it; a renewal after the first issue: ARI asked, the order replaces the
+    certificate before, the account kept."""
+    HMAC = 'Eab-Hmac-Very-Secret-0123456789abcdefghijklmn'
+    CF = ('cloudflare', {'token': 'CfTok3nVerySecret'})
+    DAV = ('http_webdav', {'url': 'https://web.example.com', 'user': 'u',
+                           'password': 'Dav-Pw-Very-Secret'})
+
+    @classmethod
+    def setUpClass(cls):
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+
+    def record(self, cfg, names=('www.example.com',), val=None, key_type='ec-256',
+               account=None):
+        from acmelib.certs import runplan as R
+        from acmelib.certs import plansources as PS
+        from acmelib.plugins import base
+        from acmelib.plugins.issuers import _acme_client as ac
+        base.REGISTRY.reload()
+        cls = base.REGISTRY.get('issuer', 'acme')
+        full = {f['key']: f.get('default') for f in cls.fields or [] if f.get('key')
+                and f.get('default') not in (None, '')}
+        full.update(cfg)
+        sec = R.Secrets()
+        scfg, marks = sec.stand_ins(R._fields_of(cls), full)
+        ck, ccfg = val or self.CF
+        ccls = base.REGISTRY.get('challenge', ck)
+        c2, m2 = sec.stand_ins(R._fields_of(ccls), ccfg)
+        d = full['directory']
+        url = full.get('directory_url') if d == 'custom' else ac.DIRECTORIES[d]
+        r = {'id': 'r1', 'family': 'issuer', 'kind': 'acme', 'name': 'ca', 'seconds': 40,
+             'op': 'issue', 'config': scfg, 'marks': dict(marks, **m2), 'previous': False,
+             'answers': PS.acme_directory_flow(url, d, list(names), profile=cfg.get(
+                 'profile'), eab=bool(cfg.get('eab_hmac'))), 'ssh_answers': [],
+             'names': list(names),
+             'acme': {'account': account, 'preferred': cfg.get('preferred_chain') or '',
+                      'profile': cfg.get('profile') or '', 'later': True},
+             'challenges': {n: {'kind': ck, 'name': ck, 'config': c2,
+                                'answers': R.answers_of(ck, c2, first=False,
+                                                        family='challenge'),
+                                'ssh_answers': R.ssh_answers_of(ck, c2, family='challenge')}
+                            for n in names}}
+        got, err = R.record({'runs': [r], 'settings': {}, 'cert': {
+            'names': list(names), 'key_type': key_type}}, timeout=150)
+        self.assertEqual(err, '')
+        run = got['r1']
+        self.assertFalse(run.get('error'), run.get('error'))
+        self.assertIsNotNone(run.get('later'), run.get('later_error'))
+        for evs in (run['events'], run['later']):
+            self.assertFalse([e for e in evs if e.get('kind') == 'bypass'])
+            self.assertFalse([e.get('url') for e in evs if e.get('fallback')])
+        text = R.scrub(run, set(sec.real))
+        return run, url, json.dumps(text, ensure_ascii=False)
+
+    @staticmethod
+    def calls(evs, host=None):
+        return [(e['method'], e['url']) for e in evs if e['kind'] == 'http' and
+                (host is None or ('//' + host + '/') in e['url'])]
+
+    def in_order(self, got, want):
+        at = 0
+        for w in want:
+            hit = [i for i in range(at, len(got)) if w in got[i]]
+            self.assertTrue(hit, '%s not after %d in %s' % (w, at, got))
+            at = hit[0] + 1
+
+    def test_le_dns01_first_issue_and_renewal(self):
+        run, url, text = self.record({'directory': 'letsencrypt',
+                                      'contacts': ['it@example.com']})
+        evs = run['events']
+        host = 'acme-v02.api.letsencrypt.org'
+        got = ['%s %s' % c for c in self.calls(evs)]
+        self.in_order(got, ['GET %s' % url, 'HEAD https://%s/acme/new-nonce' % host,
+                            'POST https://%s/acme/new-acct' % host,
+                            'POST https://%s/acme/new-order' % host, '/acme/authz/',
+                            'POST https://api.cloudflare.com/client/v4/zones/',
+                            '/acme/chall/', '/acme/authz/', '/acme/authz/',
+                            'DELETE https://api.cloudflare.com/', '/acme/order/',
+                            '/acme/finalize/', '/acme/order/', '/acme/order/', '/acme/cert/'])
+        # the waits the CA asks for (Retry-After), the validation's phases within
+        self.assertEqual([e['seconds'] for e in evs if e['kind'] == 'wait'], [3.0, 2.0])
+        self.assertEqual([e['what'] for e in evs if e['kind'] == 'phase'],
+                         ['ready', 'cleanup', 'order'])
+        said = [e['words'] for e in evs if e['kind'] == 'say']
+        self.assertTrue([w for w in said if 'is on every name server' in w], said)
+        # the JWS decoded: a new account with its public jwk, then the kid
+        acct = [e for e in evs if e['kind'] == 'http' and e['url'].endswith('/new-acct')][0]
+        self.assertEqual(acct['body_facts']['format'], 'jws')
+        p = acct['body']['protected']
+        self.assertEqual((p['alg'], p['url'], p['jwk']['kty']), ('ES256', acct['url'], 'EC'))
+        self.assertTrue(p['nonce'])
+        self.assertEqual(acct['body']['payload'], {'termsOfServiceAgreed': True,
+                                                   'contact': ['mailto:it@example.com']})
+        self.assertTrue(acct['body']['signature'].startswith('••••'))
+        loc = dict(acct['answered']['headers'])['Location']
+        order = [e for e in evs if e['kind'] == 'http' and e['url'].endswith('/new-order')][0]
+        self.assertEqual(order['body']['protected']['kid'], loc)
+        self.assertNotIn('jwk', order['body']['protected'])
+        self.assertEqual(order['body']['payload'], {'identifiers': [
+            {'type': 'dns', 'value': 'www.example.com'}]})
+        self.assertEqual(dict(order['answered']['headers'])['Location'],
+                         [e['url'] for e in evs if e['kind'] == 'http' and
+                          '/acme/order/' in e['url']][0])
+        fin = [e for e in evs if '/acme/finalize/' in e.get('url', '')][0]
+        self.assertIn('certificate request (CSR)', fin['body']['payload']['csr'])
+        self.assertEqual(dict(fin['answered']['headers'])['Retry-After'], '2')
+        # the renewal: ARI first, the account kept (no new one), the order replaces
+        later = run['later']
+        lg = ['%s %s' % c for c in self.calls(later)]
+        self.in_order(lg, ['GET %s' % url, '/draft-ietf-acme-ari-03/renewalInfo/',
+                           'POST https://%s/acme/new-order' % host, '/acme/cert/'])
+        self.assertFalse([x for x in lg if x.endswith('/new-acct')])
+        o2 = [e for e in later if e['kind'] == 'http' and e['url'].endswith('/new-order')][0]
+        ari = [e for e in later if '/renewalInfo/' in e.get('url', '')][0]['url']
+        ari = ari.rsplit('/', 1)[1]
+        self.assertEqual(o2['body']['payload']['replaces'], ari)
+        self.assertEqual(o2['body']['protected']['kid'], loc)
+        # as steps: in order, the first issue's and the renewal's own marked
+        from acmelib.certs import runplan as R
+        steps = R.steps_of(evs, None, later=later)
+        words = [s['words'] for s in steps]
+        self.in_order(words, ['Reads the CA\'s directory', 'Asks for a nonce',
+                              'Makes an ACME account at the CA', 'Orders the certificate',
+                              'Reads the authorization of www.example.com: pending',
+                              'Until it can be seen', 'Tells the CA to check the proof',
+                              'Reads the authorization of www.example.com: valid',
+                              'After the CA has looked', 'Back at the CA: the order',
+                              'Reads the order: ready', 'Finalizes the order',
+                              'Reads the order: processing', 'Waits 2 s',
+                              'Reads the order: valid', 'Downloads the certificate'])
+        br = {s['words']: s.get('branch') for s in steps}
+        self.assertIn('first time', br['Makes an ACME account at the CA'])
+        self.assertIn('later renewals', br['Asks the CA when to renew it (ARI, RFC 9773)'])
+        self.assertIn('later renewals', br['Orders the certificate for its names, as the '
+                                           'renewal of the one before (replaces)'])
+        self.assertTrue(all(s['detail'].get('note_jws') for s in steps
+                            if (s.get('detail') or {}).get('method') == 'POST' and
+                            'letsencrypt' in s['detail']['url']))
+        self.assertNotIn('CfTok3nVerySecret', text)
+        self.assertNotIn('PRIVATE KEY', text)
+
+    def test_eab_http01_rsa(self):
+        """An EAB CA (Google): the account bound with the EAB (its HMAC never shown), HTTP-01
+        put in place and checked, an RSA certificate's request, the chain preferred."""
+        run, url, text = self.record({'directory': 'google', 'eab_kid': 'kid-123',
+                                      'eab_hmac': self.HMAC, 'preferred_chain': 'GTS Root R4'},
+                                     names=('www.example.com', 'example.com'), val=self.DAV,
+                                     key_type='rsa-2048')
+        evs = run['events']
+        self.assertEqual(self.calls(evs)[0], ('GET', url))
+        acct = [e for e in evs if e['kind'] == 'http' and e['url'].endswith('/new-account')][0]
+        self.assertTrue(acct['url'].startswith('https://dv.acme-v02.api.pki.goog/'))
+        eab = acct['body']['payload']['externalAccountBinding']
+        self.assertEqual(eab['protected'], {'alg': 'HS256', 'kid': 'kid-123',
+                                            'url': acct['url']})
+        self.assertTrue(eab['signature'].startswith('••••'))
+        self.assertNotIn(self.HMAC, text)
+        self.assertNotIn('Dav-Pw-Very-Secret', text)
+        wire = json.loads(acct['wire']['body'])
+        self.assertEqual(wire['signature'], '••••')
+        said = [e['words'] for e in evs if e['kind'] == 'say']
+        for n in ('www.example.com', 'example.com'):
+            self.assertIn('http://%s/.well-known/acme-challenge/PLAN-TOKEN-from-the-CA-'
+                          '0000000000 answers with the right value' % n, said)
+        # the alternate chain fetched (Link: rel="alternate") and taken: no warning
+        certs = [e['url'] for e in evs if e['kind'] == 'http' and '/certificate/' in e['url']]
+        self.assertEqual(len(certs), 2)
+        self.assertFalse([w for w in said if 'no chain of the CA ends at' in w], said)
+        self.assertTrue([w for w in said if w.startswith('the certificate came')])
+        # the request is for the certificate's own key type
+        fin = [e for e in evs if e['kind'] == 'http' and e['url'].endswith('/finalize')][0]
+        self.assertIn('CSR', fin['body']['payload']['csr'])
+        import re
+        self.assertTrue(int(re.search(r'(\d+) B', fin['body']['payload']['csr']).group(1)) > 500)
+
+    def test_account_made_before_and_other_directories(self):
+        """An account made before is used as it is (its kid, no new account); every preset
+        is asked at its own directory URL, its requests on that CA's host."""
+        acct = 'https://acme-staging-v02.api.letsencrypt.org/acme/acct/99887766'
+        run, url, _t = self.record({'directory': 'letsencrypt-staging'}, account=acct)
+        evs = run['events']
+        self.assertFalse([e for e in evs if e['kind'] == 'http' and '/new-acct' in e['url']])
+        order = [e for e in evs if e['kind'] == 'http' and e['url'].endswith('/new-order')][0]
+        self.assertEqual(order['body']['protected']['kid'], acct)
+        import urllib.parse
+        for cfg in ({'directory': 'zerossl', 'contacts': ['it@example.com']},
+                    {'directory': 'buypass'},
+                    {'directory': 'sslcom-ecc', 'eab_kid': 'k1', 'eab_hmac': self.HMAC},
+                    {'directory': 'digicert', 'eab_kid': 'k1', 'eab_hmac': self.HMAC},
+                    {'directory': 'custom', 'directory_url':
+                     'https://ca.example.local/acme/acme/directory', 'profile': 'tls'}):
+            run, url, text = self.record(cfg, names=('*.example.com',))
+            host = urllib.parse.urlsplit(url).hostname
+            got = self.calls(run['events'])
+            self.assertEqual(got[0], ('GET', url), cfg)
+            ca = [u for _m, u in got if 'cloudflare' not in u and 'zerossl.com/acme/eab' not in u]
+            self.assertTrue(all(urllib.parse.urlsplit(u).hostname == host for u in ca),
+                            (cfg, ca))
+            self.assertTrue([u for _m, u in got if u.endswith('dns01')], cfg)
+            self.assertNotIn(self.HMAC, text)
+            if cfg['directory'] == 'zerossl':
+                self.assertIn(('POST', 'https://api.zerossl.com/acme/eab-credentials-email'),
+                              got)
+            if cfg['directory'] == 'custom':
+                o = [e for e in run['events'] if e['kind'] == 'http' and
+                     e['url'].endswith('/new-order')][0]
+                self.assertEqual(o['body']['payload']['profile'], 'tls')
+            # no ARI at a CA without renewalInfo: the renewal orders without replaces
+            o2 = [e for e in run['later'] if e['kind'] == 'http' and
+                  e['url'].endswith('/new-order')][0]
+            self.assertEqual('replaces' in o2['body']['payload'],
+                             cfg['directory'] in ('custom',), cfg)
+
+    def test_not_recorded_falls_back(self):
+        """A recording that failed: the description, said so - never a broken phase."""
+        from acmelib.certs import runplan as R
+        described = [{'kind': 'read', 'words': 'Reads the CA\'s directory'}]
+        for res in (None, {'events': [], 'error': 'this CA needs External Account Binding'},
+                    {'events': [{'kind': 'bypass', 'how': 'socket', 'what': 'x'}]}):
+            steps, ok = R.acme_recorded(described, res, {}, False, False)
+            self.assertFalse(ok)
+            self.assertIn('could not be recorded', steps[0]['words'])
+            self.assertEqual(steps[1:], described)
+        steps, ok = R.acme_recorded(described, {'events': [
+            {'kind': 'http', 'method': 'GET', 'url': 'https://ca/directory'}]}, {}, False, False)
+        self.assertTrue(ok)
+        self.assertIn('A renewal could not be recorded', steps[1]['words'])
 
 
 if __name__ == '__main__':

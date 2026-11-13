@@ -370,5 +370,80 @@ class FinalSweep3b(unittest.TestCase):
                                             'aria': ['8.18'], 'syn': ['9.15', '9.10', '9.9', '10.2']})
 
 
+
+class OwnPasswordAndSshRoot(unittest.TestCase):
+    """One's own new password in one form everywhere (1.0.98), and AllowUsers without root
+    saved only when asked for in the page's own question."""
+
+    def node_js(self, js):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        got = subprocess.run([node, '-e', js], capture_output=True, text=True, timeout=60)
+        self.assertEqual(got.returncode, 0, got.stderr)
+        return json.loads(got.stdout)
+
+    def test_one_form_wherever_a_person_changes_their_own(self):
+        core = read('web', 'assets', 'core.js')
+        admin = read('web', 'assets', 'admin.js')
+        portal = read('web', 'assets', 'portal.js')
+        form = re.search(r'\nfunction pwChangeForm\(host, o\) \{[\s\S]*?\n\}\n', core).group(0)
+        # three boxes, each with its eye; the hints; the button only when all is right; Enter
+        for words in ("maskEye(old)", "maskEye(nw)", "maskEye(again)", "'At least ' + PW_MIN + ' characters'",
+                      "'Not the same as the one you have now'", "'The same as the new one'",
+                      "go.disabled = working || !ready;", "if (e.key !== 'Enter') return;",
+                      "busy(go, true);", "said.textContent = String((e && e.message) || e);",
+                      "again: again.value"):
+            self.assertIn(words, form)
+        # the rules of these accounts, as password_problem has them
+        small = read('acmelib', 'engine', '020_small_things_said_once.py')
+        self.assertIn("var PW_MIN = 8, PW_MAX = 200;", core)
+        self.assertIn("if len(p) < 8:", small)
+        self.assertIn("if len(p) > 200:", small)
+        # Your account, the password to choose first, the enrolment pages: that form
+        me = re.search(r'\nfunction showMe\(\) \{[\s\S]*?\n\}\n', admin).group(0)
+        must = re.search(r'\nfunction mustChange\(\) \{[\s\S]*?\n\}\n', admin).group(0)
+        pf = re.search(r'\nfunction passwordForm\(host, first, done\) \{[\s\S]*?\n\}\n', portal).group(0)
+        for fn in (me, must, pf):
+            self.assertIn('pwChangeForm(', fn)
+            self.assertNotIn('maskBox(', fn)
+            self.assertNotIn('secretBox(', fn)
+        # an administrator typing one in: twice, sent twice
+        self.assertIn("password: v[0], again: v[1], must_change: 1", admin)
+        self.assertIn("password: pw.value, again: pw2.value", admin)
+        self.assertIn("var shown = f.type === 'password' ? maskEye(input) : input;", admin)
+        # the daemon takes "again"
+        self.assertIn("'old', 'new', 'again'", read('acmelib', 'engine', '345_the_api_the_web.py'))
+        self.assertIn("bad = password_change_problem(b)", read('acmelib', 'engine', '355_editing_the_columns_switched.py'))
+        self.assertIn("bad = password_change_problem(b)", read('acmelib', 'engine', '390_the_portal_sign_in.py'))
+
+    def test_eye_shows_and_hides(self):
+        core = read('web', 'assets', 'core.js')
+        self.assertIn("i._hide = function () {", core)
+        eye = re.search(r'\nfunction maskEye\(box\) \{[\s\S]*?\n\}\n', core).group(0)
+        self.assertIn("iconMarkup(open ? 'eyeoff' : 'eye', 16)", eye)
+        self.assertIn("wrap._input = box;", eye)
+        self.assertIn("eyeoff: ", core)
+
+    def test_ssh_root_left_out_asked_first(self):
+        admin = read('web', 'assets', 'admin.js')
+        core = read('web', 'assets', 'core.js')
+        save = re.search(r'\nfunction sdSave\(\) \{[\s\S]*?\n\}\n', admin).group(0)
+        self.assertIn("modalSure('Root will not be able to sign in over SSH while it is not among these accounts - save anyway?'", save)
+        self.assertIn("conf.ok_no_root = true;", save)
+        self.assertIn("function () { resolve(false); }", save)
+        # the question over the page when no popup is open
+        sure = re.search(r'\nfunction modalSure\(words, go, yesWords, noGo\) \{[\s\S]*?\n\}\n', core).group(0)
+        self.assertIn("var onPage = !pop || pop.hidden;", sure)
+        self.assertIn(".gd-sure.on-page", read('web', 'assets', 'acme.css'))
+        # said in the pane, the node cards and SSH keys
+        self.assertIn("'Root cannot sign in over SSH'", admin)
+        self.assertEqual(admin.count("'no - not in AllowUsers'"), 2)
+        fn = re.search(r'\nfunction sdRootListed\(users\) \{[\s\S]*?\n\}\n', admin).group(0)
+        got = self.node_js(fn + 'console.log(JSON.stringify([[], ["jan"], ["jan", "root"], ["r*"], '
+                           '"jan root@10.0.0.*", "jan ro", ["ro?t"], ["a.b"]].map(sdRootListed)));')
+        self.assertEqual(got, [True, False, True, True, True, False, True, False])
+
+
 if __name__ == '__main__':
     sys.exit(unittest.main())

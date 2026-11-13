@@ -164,6 +164,27 @@
     var head = tr(label || 'Body') + (f ? ' · ' + tr(f) : '') + (facts && facts.size ? ' · ' + bytes(facts.size) : '');
     return codeBlock(bodyText(body, facts), 'rp-body', head);
   }
+  /* a stand-in's label in words ("•••• (a password made for this run)") in the page's language */
+  function masked(text) {
+    return String(text).replace(/•••• \(([^()]{1,80})\)/g, function (m, w) { return '•••• (' + tr(w) + ')'; });
+  }
+  /* The module's own words with a command in them (ssh: "ran <command>", "test: <command>"):
+     the words translated, the command left as it is - translated whole, a command full of
+     English-looking words was taken for a sentence and the step stayed in English. */
+  var SAID_CMD = /^(ran|test|reload|reload with the previous files)(:? )([\s\S]+)$/;
+  function saidWords(words) {
+    words = masked(words);
+    var m = SAID_CMD.exec(words);
+    if (!m) return el('span', 'rp-words', words);
+    var shape = tr(m[1] + m[2] + '{0}');
+    if (shape.indexOf('{0}') < 0) shape = m[1] + m[2] + '{0}';
+    var at = shape.indexOf('{0}');
+    var span = data('span', 'rp-words');
+    if (at > 0) span.appendChild(document.createTextNode(shape.slice(0, at)));
+    span.appendChild(data('span', 'mono rp-said-cmd', m[3]));
+    if (at + 3 < shape.length) span.appendChild(document.createTextNode(shape.slice(at + 3)));
+    return span;
+  }
   function present(v) { return v !== null && v !== undefined && v !== ''; }
   /* what the stand-in device answered (debug details) */
   function answerBlock(a, ssh) {
@@ -456,7 +477,7 @@
     var w = el('div', 'rp-w');
     var top = el('div', 'rp-top');
     top.appendChild(data('span', 'rp-n', n));
-    top.appendChild(el('span', 'rp-words', st.words || ''));
+    top.appendChild(st.said ? saidWords(st.words || '') : el('span', 'rp-words', masked(st.words || '')));
     w.appendChild(top);
     var tags = el('span', 'rp-tags');
     if (st.branch) {
@@ -481,11 +502,15 @@
   }
   function stepList(steps, prefix) {
     var box = el('div', 'rp-steps');
-    var i = 0;
+    var i = 0, widest = 0;
     (steps || []).forEach(function (st) {
       if (st.kind !== 'head') i += 1;
-      box.appendChild(stepRow(st, prefix + '.' + i));
+      var n = prefix + '.' + i;
+      widest = Math.max(widest, n.length);
+      box.appendChild(stepRow(st, n));
     });
+    /* the numbers of a list in one column: 4.1.9 and 4.1.10 start their words at one place */
+    box.style.setProperty('--rp-nw', widest + 'ch');
     return box;
   }
 
@@ -686,7 +711,12 @@
       top.appendChild(data('b', '', g.title));
       st.appendChild(top);
       var sub = el('span', 'rp-station-s');
-      if (g.module) sub.appendChild(el('span', 'tag info rp-tag', g.module.title || g.module.kind));
+      if (g.module) {
+        /* a long module name cut in its card: the whole of it pointed at */
+        var mt = el('span', 'tag info rp-tag', g.module.title || g.module.kind);
+        mt.title = tr(g.module.title || g.module.kind);
+        sub.appendChild(mt);
+      }
       if (g.host) sub.appendChild(data('span', 'mono small muted', g.host));
       st.appendChild(sub);
       var steps = countSteps(g);

@@ -3460,6 +3460,8 @@ def _sig(ev):
             inner = next(iter(b.values())) if len(b) == 1 else None
             if isinstance(inner, dict):
                 keys += ':' + ','.join(sorted(inner))
+            if isinstance(b.get('payload'), dict):          # an ACME request (JWS, 1.0.98)
+                keys += ':' + ','.join(sorted(b['payload']))
         return 'http %s %s %s' % (ev.get('method'), u, keys)
     if k == 'ssh-run':
         return 'run ' + re.sub(r'[0-9a-f]{8,}', '#', ev.get('command') or '')[:200]
@@ -3592,6 +3594,13 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                 out.append({'kind': 'head', 'words': 'Until it can be seen'})
             elif sub == 'cleanup':
                 out.append({'kind': 'head', 'words': 'After the CA has looked: taken away again'})
+            elif sub == 'order':                # an ACME source's run (1.0.98)
+                out.append({'kind': 'head', 'words': 'Back at the CA: the order'})
+            elif sub == 'ari':
+                out.append({'kind': 'head', 'words': 'Before a renewal: when the CA wants it '
+                            'renewed (ARI)'})
+            elif sub == 'issue':
+                out.append({'kind': 'head', 'words': 'The order'})
             i += 1
             continue
         if k == 'http':
@@ -3615,6 +3624,9 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
             st = {'kind': kind, 'words': words.replace('{0}', host),
                   'detail': {'method': m, 'url': url, 'headers': ev.get('headers') or {},
                              'body': ev.get('body')}}
+            aw = _acme_words(ev, m, url)
+            if aw:
+                st['words'], st['kind'] = aw
             if ev.get('body_facts'):
                 st['detail']['body_facts'] = ev['body_facts']
             st['detail']['conn'] = _conn_of(url, ev, proxy_on)
@@ -3658,6 +3670,10 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                 notes.append('signed in with a client certificate')
             if ev.get('proxy') and proxy_on:
                 notes.append('through the proxy of Settings → Proxy')
+            if (ev.get('body_facts') or {}).get('format') == 'jws':
+                st['detail']['note_jws'] = True
+                notes.append('shown as it is signed (JWS): protected header and payload; the '
+                             'signature is made with the account key')
             if notes:
                 st['note'] = '; '.join(notes)
             if m == 'GET' and invented_note and later is None:
@@ -4217,6 +4233,139 @@ def acme_steps(store, irow, icls, cfg, cert, names, challenges):
     return steps, pairs
 
 
+ACME_NAMES_MOST = 20            # names an ACME order is recorded for (more: described)
+
+
+def acme_run(store, irow, icls, cfg, cert, names, chal, vinfo, secrets_, run):
+    """The plain ACME source's recording (1.0.98): issues/acme.py against a stand-in of the CA
+    at the directory URL it is set to (plansources.acme_directory_flow), the validation of
+    each name put in place within it, the account made before used as it is (else made, with
+    the EAB set), and a renewal after it (ARI, replaces). -> the run's id, or None where it
+    is not recorded (described by acme_steps)."""
+    scfg, marks = secrets_.stand_ins(_fields_of(icls), cfg)
+    try:
+        from acmelib.certs import plansources as PS
+        from acmelib.plugins.issuers import _acme_client as ac
+        d = str(cfg.get('directory') or 'letsencrypt')
+        url = str(cfg.get('directory_url') or '').strip() if d == 'custom' else \
+            ac.DIRECTORIES.get(d, '')
+        if not url or not names or len(names) > ACME_NAMES_MOST:
+            return None
+        dcv = {}
+        for n in names:
+            vi = vinfo.get(chal.get(n)) or {}
+            if not (vi.get('row') and vi.get('cls') and 'scfg' in vi) or \
+                    vi['row'].get('kind') == 'dns_persist':
+                return None             # no validation, or dns-persist-01: described
+            dcv[n] = {'kind': vi['row']['kind'], 'name': chal.get(n), 'config': vi['scfg'],
+                      'answers': answers_of(vi['row']['kind'], vi['scfg'], first=False,
+                                            family='challenge'),
+                      'ssh_answers': ssh_answers_of(vi['row']['kind'], vi['scfg'],
+                                                    family='challenge')}
+            marks = dict(marks, **vi['marks'])
+        prof = cert.get('profile')
+        prof = (S.jload(prof, {}) if isinstance(prof, str) else dict(prof or {})) or {}
+        prof = str(prof.get('acme_profile') or cfg.get('profile') or '').strip()
+        acct = None
+        try:
+            from acmelib.certs import runtime
+            inst = icls(cfg, runtime.RunContext(store, None, scope='issuer:%s' % irow['name']))
+            acct = inst.ctx.kv_get(inst.account_slot(url))
+            if isinstance(acct, (str, bytes)):
+                acct = json.loads(acct)
+        except Exception:                               # noqa: BLE001
+            acct = None
+        rules = PS.acme_directory_flow(url, d, names, profile=prof or None,
+                                       eab=bool(cfg.get('eab_kid') and cfg.get('eab_hmac')))
+        return run(family='issuer', kind='acme', name=irow['name'], op='issue', config=scfg,
+                   marks=marks, answers=rules, ssh_answers=[], challenges=dcv, previous=False,
+                   seconds=max(RUN_S, 25),
+                   acme={'account': str((acct or {}).get('url') or '') or None
+                         if isinstance(acct, dict) else None,
+                         'preferred': str(cfg.get('preferred_chain') or '').strip(),
+                         'profile': prof, 'later': True})
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def acme_recorded(described, res, cfg, proxy_on, renewing):
+    """The plain ACME source's steps: the recording (the first issue, a renewal's
+    differences marked) - or, where it could not be recorded, the description, said so.
+    -> (steps, recorded)."""
+    why = None
+    steps = []
+    if not res:
+        why = 'not recorded'
+    elif res.get('error') or not res.get('events'):
+        why = res.get('error') or 'not recorded'
+    else:
+        try:
+            steps = steps_of(res['events'], None, later=res.get('later'), proxy_on=proxy_on)
+        except Exception as e:                          # noqa: BLE001
+            why = '%s' % e
+        if not why and (any(s.get('error') for s in steps) or not [
+                s for s in steps if (s.get('detail') or {}).get('method')]):
+            why = 'the recording went wrong'
+    if why:
+        return [{'kind': 'info', 'words': 'The exchange with the CA could not be recorded here '
+                 '- what it does is described instead', 'note': why}] + list(described), False
+    lead = [{'kind': 'info', 'words': 'Recorded against a stand-in of the CA at its directory '
+             'URL: each request is what acme sends, the answers are made up as the CA gives '
+             'them', 'note': 'the account key and every signature are not shown'}]
+    if res.get('later') is None:
+        lead.append({'kind': 'info', 'words': 'A renewal could not be recorded: it goes the same '
+                     'way, the account kept', 'note': res.get('later_error') or ''})
+    return lead + steps, True
+
+
+def _acme_words(ev, m, url):
+    """What an ACME request does, in words (1.0.98) - or None: not one."""
+    facts = ev.get('body_facts') or {}
+    ans = (ev.get('answered') or {}).get('body')
+    ans = ans if isinstance(ans, dict) else {}
+    path = urllib.parse.urlsplit(url).path.lower()
+    if m == 'GET' and 'newNonce' in ans and 'newOrder' in ans:
+        return 'Reads the CA\'s directory', 'read'
+    if m == 'HEAD' and 'nonce' in path.replace('-', '').lower():
+        return 'Asks for a nonce (each signed request uses one)', 'read'
+    if m == 'GET' and 'renewalinfo' in path.replace('-', '') and 'suggestedWindow' in ans:
+        return 'Asks the CA when to renew it (ARI, RFC 9773)', 'read'
+    if m == 'POST' and 'eab-credentials' in path:
+        return 'Asks ZeroSSL for EAB credentials for the contact e-mail', 'connect'
+    if facts.get('format') != 'jws' or not isinstance(ev.get('body'), dict):
+        return None
+    prot = ev['body'].get('protected') or {}
+    pay = ev['body'].get('payload')
+    if isinstance(pay, dict) and 'termsOfServiceAgreed' in pay:
+        return ('Makes an ACME account at the CA, bound to the CA\'s account (EAB)'
+                if 'externalAccountBinding' in pay else 'Makes an ACME account at the CA'), \
+            'connect'
+    if isinstance(pay, dict) and 'identifiers' in pay:
+        return (('Orders the certificate for its names, as the renewal of the one before '
+                 '(replaces)') if pay.get('replaces') else
+                'Orders the certificate for its names'), 'call'
+    if isinstance(pay, dict) and 'csr' in pay:
+        return 'Finalizes the order with the request (CSR)', 'sign'
+    if isinstance(pay, dict) and 'contact' in pay:
+        return 'Changes the contacts of the ACME account', 'call'
+    if pay == {}:
+        return 'Tells the CA to check the proof', 'call'
+    if pay == '':
+        if isinstance(ans.get('identifier'), dict):
+            v = str(ans['identifier'].get('value') or '?')
+            return ('Reads the authorization of {0}: {1}'.replace(
+                '{0}', ('*.' + v) if ans.get('wildcard') else v).replace(
+                '{1}', str(ans.get('status') or '?'))), 'read'
+        if 'finalize' in ans:
+            return 'Reads the order: {0}'.replace('{0}', str(ans.get('status') or '?')), 'read'
+        if 'pem-certificate-chain' in str((ev.get('headers') or {}).get('Accept') or ''):
+            return 'Downloads the certificate and its chain', 'read'
+        return 'Reads from {0} (signed: POST-as-GET)'.replace('{0}', _host(url)), 'read'
+    if prot.get('kid') or prot.get('jwk'):
+        return None
+    return None
+
+
 def internal_ca_steps(store, cfg, cert, names, profile):
     from acmelib.certs import ca as CA
     pairs, steps = [], []
@@ -4539,6 +4688,7 @@ def plan(store, cert, deploys, full=False):
     phases.append(kp)
     # 2. the source
     src = {'key': 'source', 'title': 'The source', 'steps': []}
+    acme_ok = False
     if not irow:
         src['steps'].append({'kind': 'info', 'words': 'It has no source acme asks: it is '
                              'imported, or answered by an outside CA - nothing is ordered'})
@@ -4550,6 +4700,9 @@ def plan(store, cert, deploys, full=False):
                                    (vinfo.get(chal.get(n)) or {}).get('cls'), 'types', ())
                                    or ())} for n in names})
         src['steps'], src['facts'] = st, pairs
+        # recorded (1.0.98): the exchange as it goes - else the description above, said so
+        src['steps'], acme_ok = acme_recorded(st, result(iid) if iid else None, icfg,
+                                              proxy_on, bool(cert.get('cert_pem')))
     elif irow['kind'] == 'internal_ca':
         st, pairs = internal_ca_steps(store, icfg, cert, names, profile)
         src['steps'], src['facts'] = st, pairs
@@ -4588,6 +4741,12 @@ def plan(store, cert, deploys, full=False):
         g['facts'] = facts_of(cls, vi['cfg'])
         if vi['row'].get('kind') == 'dns_persist':
             g['steps'] = persist_steps(store, vi['row'], vi['cfg'], ns, irow)
+            val['groups'].append(g)
+            continue
+        if acme_ok:
+            g['steps'] = [{'kind': 'info', 'words': 'It puts each proof in place within the '
+                           'source\'s run, when the CA asks for it: The source shows each call, '
+                           'the wait until it can be seen and its taking away'}]
             val['groups'].append(g)
             continue
         if dcv_src:

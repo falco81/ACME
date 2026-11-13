@@ -190,8 +190,9 @@ def acme_directory_flow(dir_url, preset, names, profile=None, eab=None):
         return chp(i) + t.replace('-', '')
     if preset not in ACME_ARI:
         ep.pop('renewalInfo')
-    meta = {'termsOfService': base.split('/acme')[0] + '/terms.pdf' if le else base + '/terms',
-            'website': base.split('/acme')[0] if le else base.rsplit('/', 1)[0]}
+    root = '/'.join(u.split('/')[:3])
+    meta = {'termsOfService': 'https://letsencrypt.org/documents/LE-SA-v1.5-February-24-2025.pdf'
+            if le else root + '/terms', 'website': 'https://letsencrypt.org' if le else root}
     if preset in ACME_EAB:
         meta['externalAccountRequired'] = True
     profs = list(ACME_PROFILES.get(preset) or ([profile] if profile and preset == 'custom'

@@ -975,6 +975,10 @@ def _portal_password(h):
                             'changed in the directory')
     acc = h.store.account(s["name"], checked=True)
     b = h.body()
+    # The new one and the one typed again first, in words (as the form says them).
+    bad = password_change_problem(b)
+    if bad:
+        raise ApiError(400, bad)
     key = h.throttle('password', split_limit('login_tries', 5), 5, name=acc['name'])
     if not password_ok(str(b.get('old') or ''), acc.get('pw')):
         h.failed(key)

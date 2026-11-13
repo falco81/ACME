@@ -702,20 +702,11 @@ function showMe() {
     if (ME.source !== 'directory') {
       var pwsec = el('div', 'me-sec');
       pwsec.appendChild(el('h3', '', 'A new password'));
-      var old = maskBox('', '', '');
-      var nw = maskBox('', '', '');
-      var g = el('div', 'formgrid');
-      g.appendChild(formField('The one you have now', old));
-      g.appendChild(formField('The new one (8 characters at least)', nw));
-      pwsec.appendChild(g);
-      var go = cmdButton('Change the password', 'lock', 'primary');
-      go.style.marginTop = '10px';
-      go.onclick = function () {
-        api('password', {old: old.value, 'new': nw.value}).then(function (d) {
-          toast(d.message, 'good'); closeModal();
-        }).catch(oops);
-      };
-      pwsec.appendChild(go);
+      /* The one you have, the new one and the new one again - the form every change of
+         one's own password has (pwChangeForm, core.js). */
+      pwChangeForm(pwsec, {go: function (v) {
+        return api('password', v).then(function (d) { toast(d.message, 'good'); closeModal(); });
+      }});
       body.appendChild(pwsec);
     }
   }, null, 'medium');
@@ -3036,6 +3027,7 @@ function askInModal(title, lede, fields, words, icon, go) {
     var g = el('div', 'formgrid');
     fields.forEach(function (f) {
       var input = f.type === 'password' ? maskBox('', '', '') : el('input');
+      var shown = f.type === 'password' ? maskEye(input) : input;      /* with its eye */
       if (f.type !== 'password') input.type = f.type || 'text';
       input.placeholder = f.placeholder || '';
       input.autocomplete = 'off';
@@ -3045,7 +3037,7 @@ function askInModal(title, lede, fields, words, icon, go) {
         if (e.key === 'Enter') { e.preventDefault(); $('modal-foot').querySelector('.btn.primary').click(); }
       });
       boxes.push(input);
-      g.appendChild(formField(f.label, input, f.says));
+      g.appendChild(formField(f.label, shown, f.says));
       if (f.people) personSuggest(input, f.people);
     });
     body.appendChild(g);
@@ -3424,11 +3416,11 @@ function loadUsers() {
           pw.onclick = function () {
             askInModal('A new password for ' + u.name, 'They choose their own at the next sign-in.',
               [{label: 'The new one (8 characters at least)', type: 'password'},
-               {label: 'Again', type: 'password'}], 'Set it', 'lock', function (v) {
-                if (v[0].length < 8) { toast('8 characters at least', 'bad'); return; }
-                if (v[0] !== v[1]) { toast('the two are not the same', 'bad'); return; }
+               {label: 'The new one again', type: 'password'}], 'Set it', 'lock', function (v) {
+                if (v[0].length < PW_MIN) { toast('8 characters at least', 'bad'); return; }
+                if (v[0] !== v[1]) { toast('the new password and the one typed again are not the same - type them again', 'bad'); return; }
                 closeModal();
-                userDo({action: 'password', name: u.name, password: v[0], must_change: 1});
+                userDo({action: 'password', name: u.name, password: v[0], again: v[1], must_change: 1});
               });
           };
           tools.appendChild(pw);
@@ -3971,6 +3963,7 @@ $('us-add').onclick = function () {
     var name = textBox('', '', 'mono');
     var role = selectBox([['portal', 'enrolment pages only'], ['readonly', 'read only'], ['certadmin', 'cert admin'], ['fulladmin', 'full admin']], 'certadmin');
     var pw = secretBox('', '8 characters at least', 'mono');
+    var pw2 = secretBox('', '', 'mono');            /* typed twice, as every password typed in */
     var note = textBox('', '', '');
     var mail = textBox('', 'novak@example.cz', 'mono');
     mail.type = 'email';
@@ -3978,14 +3971,16 @@ $('us-add').onclick = function () {
     mobile.type = 'tel';
     g.appendChild(formField('Name', name));
     g.appendChild(formField('Role', role, 'Enrolment pages only: never gets into the administration - signs in on the enrolment pages and sees and asks for what the teams it is in give it (Owners and teams).'));
-    g.appendChild(formField('A first password', pw, 'They choose their own at the first sign-in.'));
+    g.appendChild(formField('A first password', maskEye(pw), 'They choose their own at the first sign-in.'));
+    g.appendChild(formField('The first password again', maskEye(pw2)));
     g.appendChild(formField('E-mail address', mail, 'Where the portal’s one-time code goes when it goes by mail - needed then (A one-time code for acme’s own accounts).'));
     g.appendChild(formField('Mobile number', mobile, 'Where the portal’s one-time code goes when it goes by SMS - needed then: without it the account cannot sign in there.'));
     g.appendChild(formField('Note', note));
     body.appendChild(g);
     MODAL_GO = function (b) {
+      if (pw.value !== pw2.value) { toast('the new password and the one typed again are not the same - type them again', 'bad'); pw2.focus(); return; }
       if (b) busy(b, true);         // one account per press (1.0.61)
-      api('users', {action: 'add', name: name.value, role: role.value, password: pw.value, note: note.value, must_change: 1,
+      api('users', {action: 'add', name: name.value, role: role.value, password: pw.value, again: pw2.value, note: note.value, must_change: 1,
                     mail: mail.value.trim(), mobile: mobile.value.trim()})
         .then(function (d) { toast(d.message, 'good'); closeModal(); loadUsers(); }).catch(oops)
         .then(function () { if (b) busy(b, false); });
@@ -11952,35 +11947,20 @@ function mustChange() {
   modal('Choose your own password first', function (body) {
     body.appendChild(el('p', '', 'This account was given a password by somebody else. Before anything '
       + 'else, choose one only you know - every page waits for it.'));
-    var old = maskBox('', '', '');
-    var nw = maskBox('', '', '');
-    var nw2 = maskBox('', '', '');
-    var g = el('div', 'formgrid');
-    g.appendChild(formField('The one you were given', old));
-    g.appendChild(formField('The new one (8 characters at least)', nw));
-    g.appendChild(formField('The new one again', nw2));
-    body.appendChild(g);
-    var go = cmdButton('Change the password', 'lock', 'primary');
-    go.id = 'mc-go';
-    [old, nw, nw2].forEach(function (x) {         /* Enter changes it (1.0.80) */
-      x.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); go.click(); } });
-    });
-    var row = el('div', 'me-acts');
-    row.style.marginTop = '14px';
-    go.onclick = function () {
-      if (nw.value !== nw2.value) { toast('the two new ones are not the same', 'bad'); return; }
-      busy(go, true);
-      api('password', {old: old.value, 'new': nw.value}).then(function (d) {
+    var out = cmdButton('Sign out', 'out', '');
+    out.onclick = function () { api('logout', {}).then(function () { location.reload(); }, function () { location.reload(); }); };
+    /* The form every change of one's own password has (pwChangeForm, core.js); Enter in
+       any of its boxes changes it once all is right (1.0.80). */
+    var f = pwChangeForm(body, {oldLabel: 'The one you were given', more: [out], go: function (v) {
+      return api('password', v).then(function (d) {
         toast(d.message, 'good');
         ME.must_change = false;
         setTimeout(function () { location.reload(); }, 600);
-      }).catch(function (e) { busy(go, false); toast(String(e && e.message || e), 'bad'); });
-    };
-    row.appendChild(go);
-    var out = cmdButton('Sign out', 'out', '');
-    out.onclick = function () { api('logout', {}).then(function () { location.reload(); }, function () { location.reload(); }); };
-    row.appendChild(out);
-    body.appendChild(row);
+        return new Promise(function () { });   /* busy until the page loads again */
+      });
+    }});
+    f.go.id = 'mc-go';
+    f.focus();
   }, null, 'medium');
 }
 setTimeout(mustChange, 300);
@@ -14518,6 +14498,8 @@ function drawSshKeys(live) {
       if (n.error) host.appendChild(el('p', 'note bad', n.name + ': ' + n.error));
       if (sd.there && sd.permit_root === 'no' && SK.user === 'root')
         host.appendChild(el('p', 'note warn', n.name + ': sshd does not let root sign in at all (PermitRootLogin no) - the keys below are not used there until it does.'));
+      else if (sd.there && sd.permit_root && sd.permit_root !== 'no' && SK.user === 'root' && !sdRootListed(sd.allow_users))
+        host.appendChild(el('p', 'note warn', n.name + ': root is not among the accounts that may sign in over SSH (AllowUsers) - the keys below are not used there until it is.'));
       if (sd.there && sd.pubkey === 'no')
         host.appendChild(el('p', 'note warn', n.name + ': sshd takes no keys (PubkeyAuthentication no).'));
       /* Built again (1.0.43): the keys of root its machine had that are not on it now - only
@@ -14650,7 +14632,7 @@ function drawSshKeys(live) {
       }
       c.appendChild(netFacts([
         ['Keys', String((n.keys || []).length)],
-        ['Root may sign in', sd.there ? (sd.permit_root || '?') : 'sshd is not here'],
+        ['Root may sign in', sd.there ? (sd.permit_root && sd.permit_root !== 'no' && !sdRootListed(sd.allow_users) ? 'no - not in AllowUsers' : (sd.permit_root || '?')) : 'sshd is not here'],
         ['With a password', sd.there ? (sd.password || '?') : ''],
         ['SSH port', sd.port || '', true],
         ['The file', n.file || '/root/.ssh/authorized_keys', true],
@@ -15941,10 +15923,67 @@ function sdDirty() {
     SD.draft = JSON.parse(JSON.stringify(SD.d.conf)); drawSshd();
   }});
 }
+/* Whether AllowUsers lets root in, as sshd reads it (1.0.98, as sshd_root_listed of the daemon):
+   none at all lets everybody in; each is USER or USER@HOST, with * and ? - a list, or sshd -T's
+   words ("jan eva"). */
+function sdRootListed(users) {
+  if (typeof users === 'string') users = users.split(/\s+/);
+  users = (users || []).filter(function (u) { return u; });
+  if (!users.length) return true;
+  return users.some(function (u) {
+    var pat = String(u).split('@')[0].replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
+    return new RegExp('^' + pat + '$').test('root');
+  });
+}
+/* Root may sign in as set, but is not among AllowUsers: it signs in nowhere over SSH. */
+function sdRootShut(c) {
+  return !!(c && c.manage && (c.allow_users || []).length && c.permit_root !== 'no' && !sdRootListed(c.allow_users));
+}
 function sdSave() {
   var dr = SD.draft;
-  return api('sshd', {action: 'save', conf: dr}).then(function (r) {
-    toast(r.message, 'good'); SD.d = r; SD.draft = JSON.parse(JSON.stringify(r.conf)); drawSshd(); sdPoll(true); return true;
+  var send = function (noRoot) {
+    var conf = JSON.parse(JSON.stringify(dr));
+    if (noRoot) conf.ok_no_root = true;
+    return api('sshd', {action: 'save', conf: conf}).then(function (r) {
+      toast(r.message, 'good'); SD.d = r; SD.draft = JSON.parse(JSON.stringify(r.conf)); drawSshd(); sdPoll(true); return true;
+    });
+  };
+  /* AllowUsers without root (1.0.98): asked first, in the page's own question - No saves nothing. */
+  if (sdRootShut(dr)) return new Promise(function (resolve, reject) {
+    modalSure('Root will not be able to sign in over SSH while it is not among these accounts - save anyway?',
+      function () { send(true).then(resolve, reject); }, 'Save anyway', function () { resolve(false); });
+  });
+  return send(false);
+}
+/* What "Who may sign in" leaves (1.0.98): root left out - said, not refused; and a warning
+   when none of the accounts named could get in - none of them on the nodes, or passwords
+   off and no key known for any of them. Drawn again as accounts are picked. */
+function sdWhoSays(holder, dr, nodes) {
+  clear(holder);
+  if (!dr.manage) return;
+  var users = dr.allow_users || [];
+  if (sdRootShut(dr)) {
+    var p = el('p', 'note warn sd-noroot');
+    p.appendChild(el('b', '', 'Root cannot sign in over SSH'));
+    p.appendChild(document.createTextNode(' - '));
+    p.appendChild(el('span', '', 'it is not among these accounts (AllowUsers). Add root to them for it to sign in, or set Root signs in to Not at all.'));
+    holder.appendChild(p);
+  }
+  if (!users.length) return;
+  var gen = holder._gen = (holder._gen || 0) + 1;
+  sdAccounts(function (names) {
+    if (holder._gen !== gen) return;
+    var pattern = function (u) { return /[*?]/.test(u); };
+    var rootIn = sdRootListed(users) && dr.permit_root !== 'no';
+    var known = users.filter(function (u) { var n = u.split('@')[0]; return pattern(n) || n === 'root' || names.indexOf(n) >= 0; });
+    if (names.length && !known.length) {
+      holder.appendChild(el('p', 'note bad sd-nobody', 'None of these accounts is a user of the nodes - nobody would sign in over SSH (each node refuses to put it in).'));
+      return;
+    }
+    if (!dr.password) {
+      var rootKeys = rootIn && nodes.length && nodes.every(function (n) { return n.keys; });
+      if (!rootKeys) holder.appendChild(el('p', 'note warn sd-keysonly', 'Passwords are off: these accounts sign in with an SSH key only - make sure at least one of them has a key on every node (Settings → SSH keys) before you save, and keep the session you have open.'));
+    }
   });
 }
 function sdAct(action, b) {
@@ -16248,7 +16287,8 @@ function drawSshd(live) {
       var v = (n.now || {}).values || {};
       c.appendChild(netFacts([
         ['Port', v.port || '', true],
-        ['Root may sign in', v.permitrootlogin ? ({'without-password': 'with a key only', 'prohibit-password': 'with a key only', 'yes': 'yes', 'no': 'no'})[v.permitrootlogin] || v.permitrootlogin : (n.now.there === false ? 'sshd is not here' : '')],
+        ['Root may sign in', v.permitrootlogin ? (v.permitrootlogin !== 'no' && !sdRootListed(v.allowusers) ? 'no - not in AllowUsers'
+          : ({'without-password': 'with a key only', 'prohibit-password': 'with a key only', 'yes': 'yes', 'no': 'no'})[v.permitrootlogin] || v.permitrootlogin) : (n.now.there === false ? 'sshd is not here' : '')],
         ['Passwords', v.passwordauthentication || ''],
         ['Tries a connection', v.maxauthtries || '', true],
         ['Who may sign in', v.allowusers || 'everybody'],
@@ -16292,16 +16332,21 @@ function drawSshd(live) {
     tries.oninput = function () { dr.tries = parseInt(tries.value, 10) || 4; sdDirty(); };
     g.appendChild(formField('Tries a connection', tries, 'Wrong passwords or keys before sshd closes it (MaxAuthTries).'));
     /* Picked, not typed (1.0.242): the accounts of the nodes, several, or everybody. */
+    var whoSays = el('div', 'sd-who-says');
     var au = accountPicker(dr.allow_users || [], {every: 'Everybody', root: true, disabled: !dr.manage,
-      change: function (v) { dr.allow_users = v; sdDirty(); }});
-    g.appendChild(formField('Who may sign in', au, 'The accounts that may sign in over SSH (AllowUsers) - or everybody.'));
+      change: function (v) { dr.allow_users = v; sdDirty(); sdWhoSays(whoSays, dr, nodes); }});
+    var whoF = formField('Who may sign in', au, 'The accounts that may sign in over SSH (AllowUsers) - or everybody.');
+    whoF.appendChild(whoSays);
+    sdWhoSays(whoSays, dr, nodes);
+    g.appendChild(whoF);
     var tm = textBox(String(dr.trial_min === undefined ? 5 : dr.trial_min), '5', 'mono');
     tm.disabled = !dr.manage;
     tm.oninput = function () { dr.trial_min = Math.max(0, parseInt(tm.value, 10) || 0); sdDirty(); };
     g.appendChild(formField('On trial for (min)', tm, 'Unless kept within this, each node puts back what it had. 0: no trial - not advised.'));
     fc.appendChild(g);
     var none = nodes.filter(function (n) { return !n.keys; }).map(function (n) { return n.name; });
-    if (dr.manage && none.length && (dr.permit_root === 'prohibit-password' || !dr.password))
+    /* root's keys matter only where root may sign in (1.0.98: left out of AllowUsers, not) */
+    if (dr.manage && none.length && (dr.permit_root === 'prohibit-password' || !dr.password) && dr.permit_root !== 'no' && sdRootListed(dr.allow_users))
       fc.appendChild(el('p', 'note bad', 'Root has no key on ' + none.join(', ') + ' - add one on SSH keys of root first, or this is refused there.'));
     if (dr.manage && !dr.password && dr.permit_root === 'yes')
       fc.appendChild(el('p', 'note', 'Passwords off: root signs in with a key either way.'));
