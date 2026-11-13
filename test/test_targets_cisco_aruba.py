@@ -125,7 +125,7 @@ class Guides(unittest.TestCase):
                     self.assertTrue(md.startswith('# '), p)
                     self.assertIn('```', md, p)
                     self.assertIn('| ', md, p)
-                    self.assertIn('Vyplňte v acme' if suffix == '.cs.md' else 'Fill in acme',
+                    self.assertIn('Vyplnění v acme' if suffix == '.cs.md' else 'Fill in acme',
                                   md, p)
                     if suffix == '.cs.md':
                         self.assertTrue(re.search('[ěščřžýáíéůú]', md), p)
