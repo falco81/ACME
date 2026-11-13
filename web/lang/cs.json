@@ -61191,6 +61191,38 @@
   "_80": {
    "source": "(signature)",
    "text": "(podpis)"
+  },
+  "_81": {
+   "source": "the ingress certificate there now is another one - it is replaced",
+   "text": "certifikát ingress, který tam teď je, je jiný - nahradí se"
+  },
+  "_82": {
+   "source": "vracli lists no ingress certificate there now - it is set",
+   "text": "vracli teď žádný certifikát ingress neuvádí - nastaví se"
+  },
+  "_83": {
+   "source": "a password made for this run",
+   "text": "heslo vytvořené pro tento běh"
+  },
+  "_84": {
+   "source": "; not used yet",
+   "text": "; zatím se nepoužívá"
+  },
+  "_85": {
+   "source": " (in place of the one it had)",
+   "text": " (místo toho, který měl)"
+  },
+  "_86": {
+   "source": " (it had none)",
+   "text": " (žádný neměl)"
+  },
+  "_87": {
+   "source": "replaced by this one",
+   "text": "nahradí ho tento"
+  },
+  "_88": {
+   "source": "this one is added",
+   "text": "tento se přidá"
   }
  },
  "patterns": {
@@ -85041,6 +85073,134 @@
   "p_117": {
    "source": "openssl cmp sends its messages ({0}, then certConf unless implicit confirmation; pollReq while the CA waits) to acme's relay on 127.0.0.1, which posts each to {1} with acme's connection (Content-Type: application/pkixcmp) and hands back the answer",
    "text": "openssl cmp posílá své zprávy ({0}, pak certConf, není-li implicitní potvrzení; pollReq, dokud autorita čeká) přes předávací server acme na 127.0.0.1, který každou pošle na {1} spojením acme (Content-Type: application/pkixcmp) a vrátí odpověď"
+  },
+  "p_118": {
+   "source": "{0} {1} at {2} is the application paired ({3}): its id and key are the ones kept",
+   "text": "{0} {1} na {2} je spárovaná aplikace ({3}): její id a klíč jsou ty uchované"
+  },
+  "p_119": {
+   "source": "the pages of {0} have {1} until {2} ({3}) - it is replaced",
+   "text": "stránky {0} mají {1} do {2} ({3}) - nahradí se"
+  },
+  "p_120": {
+   "source": "the pages of {0} have no certificate of their own yet",
+   "text": "stránky {0} zatím nemají vlastní certifikát"
+  },
+  "p_121": {
+   "source": "the controller has the earlier ServerCert {0} of this certificate - {1} takes its place",
+   "text": "kontrolér má dřívější ServerCert {0} tohoto certifikátu - nahradí ho {1}"
+  },
+  "p_122": {
+   "source": "{0} use{1} {2}{3}",
+   "text": "{0} používá {2}{3}"
+  },
+  "p_123": {
+   "source": " (before: {0})",
+   "text": " (dříve: {0})"
+  },
+  "p_124": {
+   "source": "{0} is in Central{1} - it is replaced under that name",
+   "text": "{0} v Central je{1} - nahradí se pod tímto jménem"
+  },
+  "p_125": {
+   "source": " (until {0})",
+   "text": " (do {0})"
+  },
+  "p_126": {
+   "source": "{0} is not in Central yet - it is uploaded",
+   "text": "{0} v Central zatím není - nahraje se"
+  },
+  "p_127": {
+   "source": "{0} uses {1}{2}",
+   "text": "{0} používá {1}{2}"
+  },
+  "p_128": {
+   "source": "{0} holds another certificate (serial {1}{2}) - this one is re-imported into it, so what uses it takes it",
+   "text": "{0} obsahuje jiný certifikát (sériové číslo {1}{2}) - tento se do něj znovu importuje, takže ho převezme vše, co ho používá"
+  },
+  "p_129": {
+   "source": "; used by {0}",
+   "text": "; používá ho {0}"
+  },
+  "p_130": {
+   "source": "the listener {0} uses {1}{2}",
+   "text": "posluchač {0} používá {1}{2}"
+  },
+  "p_131": {
+   "source": "{0} uses {1} (SNI SSL){2}",
+   "text": "{0} používá {1} (SNI SSL){2}"
+  },
+  "p_132": {
+   "source": " - before: the certificate {0}",
+   "text": " - dříve: certifikát {0}"
+  },
+  "p_133": {
+   "source": "the vault has no certificate {0} yet",
+   "text": "trezor zatím nemá certifikát {0}"
+  },
+  "p_134": {
+   "source": "the vault has {0}, version {1} (thumbprint {2})",
+   "text": "trezor má {0}, verzi {1} (otisk {2})"
+  },
+  "p_135": {
+   "source": "the entry {0} holds another certificate{1} - it is replaced in place",
+   "text": "položka {0} obsahuje jiný certifikát{1} - nahradí se na místě"
+  },
+  "p_136": {
+   "source": "the service {0} uses {1}{2}",
+   "text": "služba {0} používá {1}{2}"
+  },
+  "p_137": {
+   "source": "{0} has the certificate{1}",
+   "text": "{0} má certifikát{1}"
+  },
+  "p_138": {
+   "source": "Caddy has {0} certificate{1} loaded through its API{2} - {3}",
+   "text": "Caddy má přes své API načteno certifikátů: {0}{2} - {3}"
+  },
+  "p_139": {
+   "source": ", {0} tagged {1}",
+   "text": ", {0} se značkou {1}"
+  },
+  "p_140": {
+   "source": "ssl trust-point {0} {1}{2}",
+   "text": "ssl trust-point {0} {1}{2}"
+  },
+  "p_141": {
+   "source": "the rule {0} of {1} uses {2}{3}",
+   "text": "pravidlo {0} politiky {1} používá {2}{3}"
+  },
+  "p_142": {
+   "source": "the {0} {1} is there already",
+   "text": "{0} {1} tam už je"
+  },
+  "p_143": {
+   "source": "the trust anchor profile {0} is there already",
+   "text": "profil důvěryhodné kotvy {0} tam už je"
+  },
+  "p_144": {
+   "source": "the chain {0} is there already",
+   "text": "řetězec {0} tam už je"
+  },
+  "p_145": {
+   "source": "the CA certificate {0} is there already",
+   "text": "certifikát CA {0} tam už je"
+  },
+  "p_146": {
+   "source": "the web interface uses {0}{1}",
+   "text": "webové rozhraní používá {0}{1}"
+  },
+  "p_147": {
+   "source": "the RA VPN {0} uses {1}{2}",
+   "text": "RA VPN {0} používá {1}{2}"
+  },
+  "p_148": {
+   "source": "the node has the earlier {0} (used by: {1})",
+   "text": "uzel má dřívější {0} (používá ho: {1})"
+  },
+  "p_149": {
+   "source": "the intermediate acme-ca-{0} is not imported (there already?): {1}",
+   "text": "mezilehlý certifikát acme-ca-{0} se neimportoval (už tam je?): {1}"
   }
  },
  "rich": {

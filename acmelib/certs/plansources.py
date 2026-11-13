@@ -59,6 +59,26 @@ HTTP01 = [{'method': 'GET', 'url': r'^http://[^/]+/\.well-known/acme-challenge/[
            'headers': {'Content-Type': 'text/plain'}, 'body': '{PLACED}'}]
 
 
+def certum_soap(op, inner):
+    """Certum PartnerApi's answer to `op` (SOAP 1.1, the operation's element in its namespace,
+    its children unqualified): successCode 0 and `inner`."""
+    return ('<?xml version="1.0" encoding="UTF-8"?><S:Envelope xmlns:S="http://schemas.'
+            'xmlsoap.org/soap/envelope/"><S:Body><ns2:%sResponse xmlns:ns2="http://webservice.'
+            'api.muc.unizeto.pl/"><responseHeader><successCode>0</successCode><timestamp>'
+            '2026-11-13T12:00:00.000+01:00</timestamp></responseHeader>%s</ns2:%sResponse>'
+            '</S:Body></S:Envelope>' % (op, inner, op))
+
+
+def gs_soap(op, inner, query=True):
+    """GlobalSign's (MSSL / GAS) answer to `op`: its header with SuccessCode 0, then `inner`."""
+    head = 'QueryResponseHeader' if query else 'OrderResponseHeader'
+    return ('<?xml version="1.0" encoding="UTF-8"?><soap:Envelope xmlns:soap="http://schemas.'
+            'xmlsoap.org/soap/envelope/"><soap:Body><ns2:%sResponse xmlns:ns2="https://system.'
+            'globalsign.com/kb/ws/v1/"><Response><%s><SuccessCode>0</SuccessCode><Errors/>'
+            '<Timestamp>2026-11-13T12:00:00.000+00:00</Timestamp></%s>%s</Response>'
+            '</ns2:%sResponse></soap:Body></soap:Envelope>' % (op, head, head, inner, op))
+
+
 SOURCES = {
     # -- commercial CAs: an order bought before, reissued inside it at each renewal; the
     #    domain's validation run out, so the CA asks for its DCV record again (put in place by
@@ -208,6 +228,78 @@ SOURCES = {
          'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.ssl.getinfo</RequestedCommand><CommandResponse Type="namecheap.ssl.getInfo"><SSLGetInfoResult Status="newpurchase" StatusDescription="Awaiting domain validation" Type="PositiveSSL" ReplacedBy="0" SANSCount="0" /></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.2</ExecutionTime></ApiResponse>'},
         {'sent': r'Command=namecheap\.ssl\.getInfo&CertificateID=7654322&', 'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.ssl.getinfo</RequestedCommand><CommandResponse Type="namecheap.ssl.getInfo"><SSLGetInfoResult Status="active" StatusDescription="Certificate is active" Type="PositiveSSL" Expires="02/11/2027" ReplacedBy="0" SANSCount="0"><Certificates CertificateReturned="true" ReturnType="INDIVIDUAL"><Certificate>{CERT}</Certificate><CaCertificates><Certificate Type="INTERMEDIATE"><Certificate>{CHAIN}</Certificate></Certificate></CaCertificates></Certificates></SSLGetInfoResult></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.2</ExecutionTime></ApiResponse>'},
         {'sent': r'Command=namecheap\.ssl\.getInfo&CertificateID=\d+&', 'body': '<?xml version="1.0" encoding="utf-8"?>\n<ApiResponse Status="OK" xmlns="http://api.namecheap.com/xml.response"><Errors /><Warnings /><RequestedCommand>namecheap.ssl.getinfo</RequestedCommand><CommandResponse Type="namecheap.ssl.getInfo"><SSLGetInfoResult Status="replaced" StatusDescription="Certificate was replaced" Type="PositiveSSL" ReplacedBy="7654322" SANSCount="0" /></CommandResponse><Server>PHX01APIEXT01</Server><ExecutionTime>0.2</ExecutionTime></ApiResponse>'}],
+    # Certum PartnerApi: the order bought before, its certificate reissued inside it (free);
+    # the DCV code put in place by the certificate's validation, verification asked for, the
+    # order read until ENROLLED, the certificate fetched
+    'certum': [
+        {'sent': r':getOrderByOrderID>', 'body': certum_soap('getOrderByOrderID',
+            '<orders><Order><orderStatus><orderStatus>ENROLLED</orderStatus><serialNumber>'
+            '5A0E1D2C3B4A5968</serialNumber><productValidityDate>2028-01-01T00:00:00'
+            '</productValidityDate></orderStatus><certificateDetails><serialNumber>'
+            '5A0E1D2C3B4A5968</serialNumber><DNSNames>{NAME}</DNSNames></certificateDetails>'
+            '</Order></orders>')},
+        {'sent': r':reissueCertificate>', 'body': certum_soap('reissueCertificate',
+            '<orderID>{CFG:order_id}</orderID><SANVerification><approverMethod>DNS_TXT_PREFIX'
+            '</approverMethod><code>c3f1a8e2b7d94f06a5e1</code><FQDNs><FQDN>{NAME}</FQDN>'
+            '</FQDNs></SANVerification>')},
+        {'sent': r':performSanVerification>', 'body': certum_soap('performSanVerification', '')},
+        {'sent': r':getOrderState>', 'times': 1, 'body': certum_soap('getOrderState',
+            '<orderStatus>VERIFICATION</orderStatus>')},
+        {'sent': r':getOrderState>', 'body': certum_soap('getOrderState',
+            '<orderStatus>ENROLLED</orderStatus>')},
+        {'sent': r':getSanVerificationState>', 'body': certum_soap('getSanVerificationState',
+            '<sanVerifications><sanVerification><FQDN>{NAME}</FQDN><manualVerification>'
+            '<state>VERIFIED</state></manualVerification></sanVerification>'
+            '</sanVerifications>')},
+        {'sent': r':getCertificate>', 'body': certum_soap('getCertificate',
+            '<certificateDetails><X509Cert>{CERT}</X509Cert></certificateDetails><caBundle>'
+            '<X509Cert>{CHAIN}</X509Cert></caBundle>')}],
+    # GlobalSign MSSL: the profile's domain approved already (Can Issue), the order bought
+    # before reissued (GAS ReIssue, no purchase), read until issued (4) with its certificates
+    'globalsign_mssl': [
+        {'sent': r':GetDomains>', 'body': gs_soap('GetDomains',
+            '<DomainDetails><DomainDetail><DomainID>DSMS20000012345</DomainID><DomainName>'
+            '{ZONE}</DomainName><DomainStatus>3</DomainStatus></DomainDetail></DomainDetails>')},
+        {'sent': r':GetOrderByOrderID>', 'times': 1, 'body': gs_soap('GetOrderByOrderID',
+            '<OrderID>{CFG:order_id}</OrderID><OrderDetail><OrderInfo><OrderStatus>4'
+            '</OrderStatus><DomainName>{NAME}</DomainName></OrderInfo><CertificateInfo>'
+            '<CommonName>{NAME}</CommonName><StartDate>2026-01-01T00:00:00.000+00:00</StartDate>'
+            '<EndDate>2027-06-01T00:00:00.000+00:00</EndDate></CertificateInfo></OrderDetail>')},
+        {'sent': r':ReIssue>', 'body': gs_soap('ReIssue',
+            '<OrderID>CE20261113123456</OrderID>', query=False)},
+        {'sent': r':GetOrderByOrderID>', 'times': 1, 'body': gs_soap('GetOrderByOrderID',
+            '<OrderID>CE20261113123456</OrderID><OrderDetail><OrderInfo><OrderStatus>2'
+            '</OrderStatus></OrderInfo></OrderDetail>')},
+        {'sent': r':GetOrderByOrderID>', 'body': gs_soap('GetOrderByOrderID',
+            '<OrderID>CE20261113123456</OrderID><OrderDetail><OrderInfo><OrderStatus>4'
+            '</OrderStatus></OrderInfo><CertificateInfo><CommonName>{NAME}</CommonName>'
+            '</CertificateInfo><Fulfillment><CACertificates><CACertificate><CACertType>Inter'
+            '</CACertType><CACert>{CHAIN}</CACert></CACertificate></CACertificates>'
+            '<ServerCertificate><X509Cert>{CERT}</X509Cert></ServerCertificate></Fulfillment>'
+            '</OrderDetail>')}],
+    # SSLmarket: the order bought before reissued (free); its DCV value (dv_auth_content) read
+    # from the order, put in place by the certificate's validation; the order read until the
+    # reissue is through (a new serial), the certificate and its intermediate downloaded
+    'sslmarket': [
+        {'method': 'GET', 'url': r'/order/order_id/\d+$', 'times': 1, 'body': {
+            'order_id': '{CFG:order_id}', 'state': 'Issued', 'product_code': '{CFG:product}',
+            'common_name': '{NAME}', 'certificate_serial_number': '0A1B2C3D4E5F60718293',
+            'expired': '2028-01-01', 'has_child': False, 'reissue_pending': False,
+            'dv_auth_method': 'DNS', 'dv_auth_content': ''}},
+        {'method': 'POST', 'url': r'/reissue$', 'body': {'status': 'ok'}},
+        {'method': 'GET', 'url': r'/order/order_id/\d+$', 'times': 2, 'body': {
+            'order_id': '{CFG:order_id}', 'state': 'Reissue - waiting for the DCV',
+            'certificate_serial_number': '0A1B2C3D4E5F60718293', 'expired': '2028-01-01',
+            'reissue_pending': True, 'dv_auth_method': 'DNS',
+            'dv_auth_content': '_dnsauth.{NAME} TXT 20261113000000abcdef0123456789abcdef'}},
+        {'method': 'GET', 'url': r'/order/order_id/\d+$', 'body': {
+            'order_id': '{CFG:order_id}', 'state': 'Issued',
+            'certificate_serial_number': '{CERT_SERIAL}', 'expired': '2028-01-01',
+            'reissue_pending': False, 'dv_auth_method': 'DNS'}},
+        {'method': 'GET', 'url': r'/format/pem_server$', 'headers': {
+            'Content-Type': 'text/plain'}, 'body': '{CERT}'},
+        {'method': 'GET', 'url': r'/format/pem_intermediate$', 'headers': {
+            'Content-Type': 'text/plain'}, 'body': '{CHAIN}'}],
     'digicert': [
         {'method': 'GET', 'url': r'/order/certificate/\d+$', 'body': {
             'id': '{CFG:order_id}', 'status': 'issued', 'order_valid_till': '2028-01-01',
