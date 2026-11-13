@@ -1071,6 +1071,51 @@ ANSWERS['cisco_asa'] = [
         'Building configuration...\nCryptochecksum: 5a0e1d2c 3b4a5968 7706f5e4 d3c2b1a0\n\n'
         '21834 bytes copied in 0.230 secs\n[OK]\n'},
 ]
+# FTD Device Manager: the token; the Internal Certificates - the device's default and two
+# earlier ones of acme; the chain's CA is an External CA Certificate already; the web interface
+# (and the RA VPN) use the newer earlier one - switched, deployed (QUEUED, then DEPLOYED), the
+# oldest (used by nothing) deleted (keep 1) and that deployed too
+_FDM_EARLIER = {'id': '‹earlier object›', 'name': '{EARLIER:128}',
+                'type': 'internalcertificate', 'version': '‹version›'}
+ANSWERS['cisco_ftd_fdm'] = [
+    {'method': 'POST', 'url': r'/fdm/token$', 'body': {
+        'access_token': '{SESSION}', 'expires_in': 1800, 'token_type': 'Bearer',
+        'refresh_token': '{SESSION}', 'refresh_expires_in': 2400}},
+    {'method': 'GET', 'url': r'/object/internalcertificates\?', 'body': {'items': [
+        {'id': '‹default object›', 'name': 'DefaultInternalCertificate',
+         'type': 'internalcertificate'},
+        _FDM_EARLIER,
+        {'id': '‹oldest object›', 'name': '{EARLIER2:128}',
+         'type': 'internalcertificate', 'version': '‹version›'}],
+        'paging': {'prev': [], 'next': [], 'limit': 10, 'offset': 0, 'count': 3, 'pages': 0}}},
+    {'method': 'POST', 'url': r'/object/internalcertificates$', 'body': {
+        'id': '‹new object›', 'name': '{SENT:name}', 'type': 'internalcertificate',
+        'version': '‹version›', 'certType': 'UPLOAD'}},
+    {'method': 'GET', 'url': r'/object/externalcacertificates\?', 'body': {'items': [
+        {'id': '‹ca object›', 'name': 'acme-ca-{CAID}', 'type': 'externalcacertificate',
+         'version': '‹version›'}],
+        'paging': {'limit': 10, 'offset': 0, 'count': 1, 'pages': 0}}},
+    {'method': 'POST', 'url': r'/object/externalcacertificates$', 'body': {
+        'id': '‹ca object›', 'name': '{SENT:name}', 'type': 'externalcacertificate'}},
+    {'method': 'GET', 'url': r'/devicesettings/default/webuicertificates$', 'body': {'items': [{
+        'id': '‹web ui setting›', 'type': 'webuicertificate',
+        'version': '‹version›', 'certificate': _FDM_EARLIER, 'trustChain': []}]}},
+    {'method': 'PUT', 'url': r'/devicesettings/default/webuicertificates/', 'body': {
+        'id': '‹web ui setting›', 'type': 'webuicertificate'}},
+    {'method': 'GET', 'url': r'/ravpns\?', 'body': {'items': [{
+        'id': '‹ra vpn›', 'name': 'RAVPN', 'type': 'ravpn',
+        'version': '‹version›', 'vpnGatewaySettings': {
+            'serverCertificate': _FDM_EARLIER, 'type': 'vpngatewaysettings'}}],
+        'paging': {'limit': 10, 'offset': 0, 'count': 1, 'pages': 0}}},
+    {'method': 'PUT', 'url': r'/ravpns/', 'body': {'id': '‹ra vpn›', 'type': 'ravpn'}},
+    {'method': 'POST', 'url': r'/operational/deploy$', 'body': {
+        'id': '‹deployment›', 'type': 'deploymentstatus', 'state': 'QUEUED',
+        'statusMessage': 'Deployment queued'}},
+    {'method': 'GET', 'url': r'/operational/deploy/', 'body': {
+        'id': '‹deployment›', 'type': 'deploymentstatus', 'state': 'DEPLOYED',
+        'statusMessage': 'Deployed successfully'}},
+    {'method': 'DELETE', 'url': r'/object/internalcertificates/', 'status': 204, 'body': ''},
+]
 # ---- end of targets a10 .. cisco_nxos ----
 # ---- targets cisco_wlc9800 .. hpe_oneview ----
 # CUCM: the CA certificates of the chain in <unit>-trust already at a renewal (the first time

@@ -60,6 +60,27 @@ SOURCES = {
     # -- commercial CAs: an order bought before, reissued inside it at each renewal; the
     #    domain's validation run out, so the CA asks for its DCV record again (put in place by
     #    the certificate's validation), checked, issued, downloaded ---------------------------
+    'zerossl': [
+        {'method': 'POST', 'url': r'/certificates(\?|$)', 'body': {
+            'id': 'a1b2c3d4e5f60718293a4b5c6d7e8f90', 'type': '1', 'common_name': '{NAME}',
+            'status': 'draft', 'validation': {'email_validation': {'{NAME}': [
+                'admin@{ZONE}', 'webmaster@{ZONE}']}, 'other_methods': {'{NAME}': {
+                    'file_validation_url_http': 'http://{NAME}/.well-known/pki-validation/'
+                                                '0F2E4C6A8B1D3F5E7A9C0B2D4F6E8A1C.txt',
+                    'file_validation_content': ['b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0',
+                                                'comodoca.com', '‹unique value›'],
+                    'cname_validation_p1': '_0F2E4C6A8B1D3F5E7A9C0B2D4F6E8A1C.{NAME}',
+                    'cname_validation_p2': 'b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0.'
+                                           '9a8b7c6d5e4f3a2b1c0d.zerossl.com'}}}}},
+        {'method': 'POST', 'url': r'/challenges(\?|$)', 'body': {
+            'id': 'a1b2c3d4e5f60718293a4b5c6d7e8f90', 'status': 'pending_validation'}},
+        {'method': 'GET', 'url': r'/certificates/[0-9a-f]+(\?|$)', 'times': 1, 'body': {
+            'id': 'a1b2c3d4e5f60718293a4b5c6d7e8f90', 'status': 'pending_validation'}},
+        {'method': 'GET', 'url': r'/certificates/[0-9a-f]+(\?|$)', 'body': {
+            'id': 'a1b2c3d4e5f60718293a4b5c6d7e8f90', 'status': 'issued',
+            'expires': '2027-01-01 00:00:00'}},
+        {'method': 'GET', 'url': r'/download/json', 'body': {'certificate.crt': '{CERT}',
+                                                            'ca_bundle.crt': '{CHAIN}'}}],
     'digicert': [
         {'method': 'GET', 'url': r'/order/certificate/\d+$', 'body': {
             'id': '{CFG:order_id}', 'status': 'issued', 'order_valid_till': '2028-01-01',
