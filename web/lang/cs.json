@@ -61003,6 +61003,10 @@
   "_33": {
    "source": "The tests acme made from its deployments go with it, unless another certificate has them too; tests of yours stay.",
    "text": "Testy, které acme vytvořilo z jeho nasazení, se smažou s ním, pokud je nemá i jiný certifikát; vaše testy zůstanou."
+  },
+  "_34": {
+   "source": "acme made this test from a deployment and keeps it in step with it. Changed here in any way, it is a test of yours, which acme leaves as it is.",
+   "text": "Tento test vytvořilo acme z nasazení a udržuje ho s ním v souladu. Jakmile ho tu jakkoli změníte, je to váš test, který acme nechá, jak je."
   }
  },
  "patterns": {

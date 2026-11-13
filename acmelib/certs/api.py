@@ -2219,6 +2219,11 @@ def family_save(store, family, b, by):
     if family == 'target' and ('tags' in b or not row):
         fields['tags'] = json.dumps(_tags_of(b))
     made = None
+    served_before = None
+    if family == 'target' and row is not None and given is not None:
+        # where its deployments serve the certificate, by the target's settings too (a host, a
+        # CUCM unit): the tests acme made of a place no longer served follow (1.0.96)
+        served_before = _served_by_cert(store, row['name'])
     if row is None:
         fields.update({'config': '{}', 'state': '{}', 'created': t, 'created_by': str(by)[:190]})
         ident = store.db.insert(table, fields)
@@ -2226,14 +2231,49 @@ def family_save(store, family, b, by):
         fields = {}
         made = ident
     try:
-        return _family_fill(store, family, table, row, name, kind, cls, given, fields,
-                            secrets_, by)
+        got = _family_fill(store, family, table, row, name, kind, cls, given, fields,
+                           secrets_, by)
+        if served_before:
+            _served_moved(store, name, served_before, by)
+        return got
     except BaseException:
         if made is not None:
             # A new one refused (1.0.45): not left half made - "there is one called X already"
             # at every try after.
             store.db.run('DELETE FROM %s WHERE id = ?' % table, (made,))
         raise
+
+
+def _served_by_cert(store, target):
+    """{cert_id: [(host, port, key_want)]} - where the deployments to `target` serve each
+    certificate (checks.served_places); a certificate whose places could not be read left out."""
+    from acmelib.certs import checks as C
+    out = {}
+    for dep in store.db.rows('SELECT * FROM cert_deploys WHERE target = ?', (target,)):
+        got = C.served_places(store, dep)
+        if got is None:
+            out[dep['cert_id']] = None
+        elif out.get(dep['cert_id'], []) is not None:
+            out[dep['cert_id']] = sorted(set(out.get(dep['cert_id']) or []) | set(got))
+    return {k: v for k, v in out.items() if v is not None}
+
+
+def _served_moved(store, target, before, by):
+    """The target's settings saved: a certificate served elsewhere now gets the test of the new
+    place, and the tests acme made of the old one follow (checks.served_follow)."""
+    from acmelib.certs import checks as C
+    now = _served_by_cert(store, target)
+    for cert_id, was in before.items():
+        if cert_id not in now or set(now[cert_id]) == set(was):
+            continue
+        try:
+            for dep in store.db.rows('SELECT * FROM cert_deploys WHERE cert_id = ? AND target = ?',
+                                     (cert_id, target)):
+                C.served_tests(store, dep, by)
+            C.served_follow(store, cert_id, target, was, by)
+        except Exception as e:                          # noqa: BLE001
+            E.log('the tests of what %s serves did not follow its settings: %s' % (target, e),
+                  'warn')
 
 
 def _device_kind_kept(store, row, cls):
@@ -2351,6 +2391,9 @@ def _renamed(store, family, old, new):
             if isinstance(pend, dict) and pend.get('device') == old:
                 pend['device'] = new
                 db.update('certs', r['id'], {'csr_pending': json.dumps(pend)})
+        # the tests acme made of what it serves name it still (1.0.96, checks.auto_target)
+        from acmelib.certs import checks as C
+        C.auto_target_renamed(store, old, new)
         # the tests run after a deployment on it (1.0.77): they never ran again, silently
         for r in db.rows('SELECT id, after_target FROM cert_checks WHERE after_target LIKE ?',
                          ('%' + old + '%',)):

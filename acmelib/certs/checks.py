@@ -199,10 +199,8 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
                 loose, took = r['name'], dict(c, key_want=key_want)
     if name is None and loose is not None:
         name = loose
-        if took is not None:
-            trow_ = store.db.row('SELECT id FROM cert_tests WHERE name = ?', (name,))
-            store.db.update('cert_tests', trow_['id'], {'config': json.dumps(took)})
-            mark_auto(store, name, auto_target(store, name) or target)
+    else:
+        took = None
     base = re.sub(r'[^A-Za-z0-9_.-]+', '-', '%s-%s-%d%s' % (
         target, host or 'name', port, ('-' + key_want) if key_want else '')).strip('-')
     base = base[:60] or 'test'
@@ -210,9 +208,14 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
     base_was = re.sub(r'[^A-Za-z0-9_.-]+', '-', '%s-%s-%d' % (
         target, host or 'name', port)).strip('-')[:60] or 'test'
     # made by acme by itself (auto, served_tests): one a person took off stays off - looked at
-    # before anything is made (1.0.96: made again in Tests, attached to nothing)
+    # before anything is made (1.0.96: made again in Tests, attached to nothing) - also under
+    # the name it had before the key asked for was in it
     if auto and any(store.get_meta(_off_key(cert_id, n)) for n in {name or base, base, base_was}):
         return None
+    if took is not None:
+        trow_ = store.db.row('SELECT id FROM cert_tests WHERE name = ?', (name,))
+        store.db.update('cert_tests', trow_['id'], {'config': json.dumps(took)})
+        mark_auto(store, name, auto_target(store, name) or target)
     if name is None:
         name, n = base, 2
         while S.plugin_row(store, 'check', name):
@@ -299,6 +302,16 @@ def auto_target(store, name):
     r = store.db.row('SELECT note FROM cert_tests WHERE name = ?', (name,))
     m = re.match(r'^what (.+) serves %s$' % re.escape(AUTO_NOTE), str((r or {}).get('note') or ''))
     return m.group(1) if m else ''
+
+
+def auto_target_renamed(store, old, new):
+    """The target `old` renamed `new`: the marks of the tests acme made for it name it."""
+    pre = _auto_key('')
+    for r in store.db.rows('SELECT k, v FROM meta WHERE k LIKE ?', (pre + '%',)):
+        got = S.jload(r.get('v'), None)
+        if r['k'].startswith(pre) and isinstance(got, dict) and got.get('target') == old:
+            got['target'] = new
+            store.set_meta(r['k'], json.dumps(got))
 
 
 def test_meta_out(store, name):

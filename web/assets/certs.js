@@ -2638,7 +2638,7 @@ function modForm(key, row, p, fromPick, keep) {
     g.appendChild(formField('In use', on, 'Off: kept, but not used for anything.'));
     var note0 = keep && keep.note !== undefined ? keep.note : (row ? row.note : '');
     note = textBox(autoNote && note0 === autoNote ? '' : note0, autoNote ? tr(autoNote) : '', '');
-    var nf = autoNote ? formField('Note', note, 'acme made this test from a deployment and keeps it in step with it. A note written here makes it a test of yours, which acme leaves as it is.') : formField('Note', note);
+    var nf = autoNote ? formField('Note', note, 'acme made this test from a deployment and keeps it in step with it. Changed here in any way, it is a test of yours, which acme leaves as it is.') : formField('Note', note);
     if (key === 'targets') {
       tags = tagsBox(row ? arr(row.tags) : []);
       noI18n(tags);

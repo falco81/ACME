@@ -218,6 +218,202 @@ class Served(unittest.TestCase):
         A.deploy_save(STORE, {'cert_id': cid, 'target': 'files8',
                               'options': {'backup_keep': 0}}, 'tester')
 
+    def test_9_a_test_with_another_key_asked_is_not_made_twice(self):
+        # round 3: a person's "Key asked for" on acme's test made a second one at the next save
+        A.family_save(STORE, 'target', {'kind': 'esxi', 'name': 'esx9', 'config': {
+            'host': 'esx9.example.test', 'user': 'root', 'password': 'x'}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['esx9.example.test']}, 'tester')
+        did = A.deploy_save(STORE, {'cert_id': cid, 'target': 'esx9', 'options': {}}, 'tester')
+        t = STORE.db.row('SELECT * FROM cert_tests WHERE name = ?', ('esx9-esx9.example.test-443',))
+        self.assertTrue(C.auto_made(STORE, t['name']))
+        cfg = dict(json.loads(t['config']), key_want='rsa')
+        A.family_save(STORE, 'check', {'id': t['id'], 'name': t['name'], 'kind': 'tls',
+                                       'config': cfg, 'note': t['note']}, 'person')
+        self.assertFalse(C.auto_made(STORE, t['name']), 'changed by a person: theirs')
+        A.deploy_save(STORE, {'id': did, 'cert_id': cid, 'target': 'esx9', 'options': {}},
+                      'tester')
+        self.assertEqual(STORE.db.value('SELECT COUNT(*) FROM cert_checks WHERE cert_id = ?',
+                                        (cid,)), 1)
+        # a CUCM test made by 1.0.95 (no key asked for): taken over, not doubled
+        A.family_save(STORE, 'target', {'kind': 'cucm', 'name': 'cu9', 'config': {
+            'host': 'cucm9.example.test', 'user': 'svc', 'auth': 'password', 'password': 'x',
+            'unit': 'tomcat-ECDSA'}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['cucm9.example.test'], 'key_type': 'ec-256'},
+                          'tester')
+        A.family_save(STORE, 'check', {'name': 'cu9-cucm9.example.test-8443', 'kind': 'tls',
+                                       'config': {'port': 8443, 'host': 'cucm9.example.test'},
+                                       'note': 'what cu9 serves (made from its deployment)'},
+                      'acme')
+        STORE.db.insert('cert_deploys', {'cert_id': cid, 'target': 'cu9', 'options': '{}',
+                                         'enabled': 1, 'state': 'ok'})
+        C.attach(STORE, cid, ['cu9-cucm9.example.test-8443'], 'acme', after_target='cu9')
+        dep = STORE.db.row("SELECT * FROM cert_deploys WHERE target = 'cu9'")
+        self.assertEqual(C.served_tests(STORE, dep, 'tester'), ['cu9-cucm9.example.test-8443'])
+        self.assertEqual(STORE.db.value('SELECT COUNT(*) FROM cert_checks WHERE cert_id = ?',
+                                        (cid,)), 1)
+        self.assertEqual(json.loads(S.plugin_row(STORE, 'check', 'cu9-cucm9.example.test-8443')
+                                    ['config']).get('key_want'), 'ecdsa')
+        self.assertTrue(C.auto_made(STORE, 'cu9-cucm9.example.test-8443'))
+        # taken off by a person under its old name: the new one with the key is not made
+        cid2 = A.cert_save(STORE, {'names': ['cucm9b.example.test'], 'key_type': 'ec-256'},
+                           'tester')
+        A.family_save(STORE, 'target', {'kind': 'cucm', 'name': 'cu9b', 'config': {
+            'host': 'cucm9b.example.test', 'user': 'svc', 'auth': 'password', 'password': 'x',
+            'unit': 'tomcat-ECDSA'}}, 'tester')
+        STORE.db.insert('cert_deploys', {'cert_id': cid2, 'target': 'cu9b', 'options': '{}',
+                                         'enabled': 1, 'state': 'ok'})
+        STORE.set_meta(C._off_key(cid2, 'cu9b-cucm9b.example.test-8443'), '{}')
+        dep = STORE.db.row("SELECT * FROM cert_deploys WHERE target = 'cu9b'")
+        self.assertEqual(C.served_tests(STORE, dep, 'tester'), [])
+
+    def test_10_after_any_deployment_is_not_loose(self):
+        # round 3: deleting a target deleted a test a person attached elsewhere "after any"
+        for n in ('e10a', 'e10b'):
+            A.family_save(STORE, 'target', {'kind': 'esxi', 'name': n, 'config': {
+                'host': '%s.example.test' % n, 'user': 'root', 'password': 'x'}}, 'tester')
+        a = A.cert_save(STORE, {'names': ['e10a.example.test']}, 'tester')
+        b = A.cert_save(STORE, {'names': ['e10b.example.test']}, 'tester')
+        da = A.deploy_save(STORE, {'cert_id': a, 'target': 'e10a', 'options': {}}, 'tester')
+        A.deploy_save(STORE, {'cert_id': b, 'target': 'e10b', 'options': {}}, 'tester')
+        name = 'e10a-e10a.example.test-443'
+        C.attach(STORE, b, [name], 'person', after_target='')
+        STORE.db.run('DELETE FROM cert_deploys WHERE id = ?', (da,))
+        C.target_gone(STORE, a, 'e10a')
+        A.family_delete(STORE, 'target', {'id': S.plugin_row(STORE, 'target', 'e10a')['id']},
+                        'person')
+        self.assertIsNotNone(S.plugin_row(STORE, 'check', name))
+        self.assertTrue(STORE.db.row('SELECT 1 AS x FROM cert_checks WHERE cert_id = ? AND '
+                                     'test = ?', (b, name)))
+
+    def test_11_schedule_only_kept_carried_and_cleaned(self):
+        # round 3: a '-' whose origin is not known to be target_gone stays with the target
+        # deleted; the marks go with the configuration's file and with the certificate
+        import collections
+        for n in ('e11a', 'e11b'):
+            A.family_save(STORE, 'target', {'kind': 'esxi', 'name': n, 'config': {
+                'host': '%s.example.test' % n, 'user': 'root', 'password': 'x'}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['e11.example.test']}, 'tester')
+        da = A.deploy_save(STORE, {'cert_id': cid, 'target': 'e11a', 'options': {}}, 'tester')
+        A.deploy_save(STORE, {'cert_id': cid, 'target': 'e11b', 'options': {}}, 'tester')
+        name = 'e11a-e11a.example.test-443'
+        chk = STORE.db.row('SELECT * FROM cert_checks WHERE test = ?', (name,))
+        C.after(STORE, chk['id'], '-', 'person')              # a person's "only by its schedule"
+        STORE.db.run('DELETE FROM cert_deploys WHERE id = ?', (da,))
+        C.target_gone(STORE, cid, 'e11a')
+        self.assertIsNone(STORE.get_meta(C._gone_key(cid, name)), 'not tied: not acme\'s')
+        A.family_delete(STORE, 'target', {'id': S.plugin_row(STORE, 'target', 'e11a')['id']},
+                        'person')
+        self.assertIsNotNone(S.plugin_row(STORE, 'check', name), 'a person\'s - stays')
+        # one tied to the target, left with none when the deployment went: acme's - deleted
+        other = 'e11b-e11b.example.test-443'
+        did = STORE.db.value("SELECT id FROM cert_deploys WHERE target = 'e11b'")
+        STORE.db.run('DELETE FROM cert_deploys WHERE id = ?', (did,))
+        C.target_gone(STORE, cid, 'e11b')
+        self.assertTrue(STORE.get_meta(C._gone_key(cid, other)))
+        # carried in the configuration's file, by the test's name (with a taken-off one)
+        STORE.set_meta(C._off_key(cid, 'some-test'), '{"at": 1}')
+        tables = json.loads(json.dumps(E.carry_export(STORE, False)))
+        row = [r for r in tables['certs'] if r['id'] == cid][0]
+        self.assertIn(other, row['_meta']['after_gone'])
+        self.assertIn('some-test', row['_meta']['served_off'])
+        trow = [r for r in tables['cert_tests'] if r['name'] == other][0]
+        self.assertIn('auto', trow['_meta'])
+        STORE.db.run("DELETE FROM meta WHERE k LIKE 'certs:%'")
+        E.carry_import(STORE, tables, 'test', False, collections.Counter())
+        self.assertTrue(STORE.get_meta(C._gone_key(cid, other)))
+        self.assertTrue(STORE.get_meta(C._off_key(cid, 'some-test')))
+        self.assertTrue(C.auto_made(STORE, other))
+        A.family_delete(STORE, 'target', {'id': S.plugin_row(STORE, 'target', 'e11b')['id']},
+                        'person')
+        self.assertIsNone(S.plugin_row(STORE, 'check', other))
+        self.assertIsNone(STORE.get_meta(C._gone_key(cid, other)))
+        self.assertIsNone(STORE.get_meta(C._auto_key(other)))
+        # the certificate deleted: its marks by test name go with it
+        A.cert_drop(STORE, S.cert_need(STORE, cid), 'tester')
+        self.assertIsNone(STORE.get_meta(C._off_key(cid, 'some-test')))
+
+    def test_12_a_test_a_person_edited_stays_with_the_certificate_deleted(self):
+        # round 3: the page keeps acme's note when its box is left empty - an edited test was
+        # still "acme's" and deleted with the certificate
+        A.family_save(STORE, 'target', {'kind': 'esxi', 'name': 'e12', 'config': {
+            'host': 'e12.example.test', 'user': 'root', 'password': 'x'}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['e12.example.test']}, 'tester')
+        A.deploy_save(STORE, {'cert_id': cid, 'target': 'e12', 'options': {}}, 'tester')
+        t = S.plugin_row(STORE, 'check', 'e12-e12.example.test-443')
+        A.family_save(STORE, 'check', {'id': t['id'], 'name': t['name'], 'kind': 'tls',
+                                       'config': {'port': 9443, 'host': 'e12.example.test',
+                                                  'timeout': 60}, 'note': t['note']}, 'person')
+        A.cert_drop(STORE, S.cert_need(STORE, cid), 'tester')
+        self.assertIsNotNone(S.plugin_row(STORE, 'check', t['name']))
+        # one made by 1.0.95 (no mark) and saved since by a person: theirs too
+        A.family_save(STORE, 'check', {'name': 'old12', 'kind': 'tls', 'config': {
+            'port': 443, 'host': 'o12.example.test'}, 'note': 'what e12 serves '
+            '(made from its deployment)'}, 'acme')
+        self.assertTrue(C.auto_made(STORE, 'old12'))
+        STORE.db.run("UPDATE cert_tests SET updated = updated + 100 WHERE name = 'old12'")
+        self.assertFalse(C.auto_made(STORE, 'old12'))
+
+    def test_13_the_target_changed_the_tests_follow(self):
+        # round 3: the target's own host changed - acme's test of the old one stayed
+        A.family_save(STORE, 'target', {'kind': 'esxi', 'name': 'e13', 'config': {
+            'host': 'e13.example.test', 'user': 'root', 'password': 'x'}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['e13.example.test']}, 'tester')
+        A.deploy_save(STORE, {'cert_id': cid, 'target': 'e13', 'options': {}}, 'tester')
+        t = S.plugin_row(STORE, 'target', 'e13')
+        A.family_save(STORE, 'target', {'id': t['id'], 'config': {
+            'host': 'e13-new.example.test', 'user': 'root', 'password': 'x'}}, 'tester')
+        self.assertEqual(tests_of(cid), {('e13-new.example.test', 443): 'e13'})
+        self.assertIsNone(S.plugin_row(STORE, 'check', 'e13-e13.example.test-443'))
+        # renamed: its tests are still known as made for it
+        A.family_save(STORE, 'target', {'id': t['id'], 'name': 'e13r'}, 'tester')
+        self.assertEqual(C.auto_target(STORE, 'e13-e13-new.example.test-443'), 'e13r')
+
+    def test_14_the_first_name_one_test_per_target(self):
+        # round 3: VCF targets with no Component FQDN shared the first one's test
+        for n in ('vcf14a', 'vcf14b'):
+            A.family_save(STORE, 'target', {'kind': 'vcf_component', 'name': n, 'config': {
+                'host': 'sddc.example.test', 'user': 'u', 'password': 'x',
+                'csr_country': 'CZ', 'csr_state': 'P', 'csr_city': 'P', 'csr_org': 'O',
+                'csr_ou': 'IT'}}, 'tester')
+        a = A.cert_save(STORE, {'names': ['v14a.example.test']}, 'tester')
+        b = A.cert_save(STORE, {'names': ['v14b.example.test']}, 'tester')
+        self.assertEqual(new_deployment(a, 'vcf14a'), ['vcf14a-name-443'])
+        self.assertEqual(new_deployment(b, 'vcf14b'), ['vcf14b-name-443'])
+        STORE.db.run("DELETE FROM cert_deploys WHERE target = 'vcf14b'")
+        C.target_gone(STORE, b, 'vcf14b')
+        A.family_delete(STORE, 'target', {'id': S.plugin_row(STORE, 'target', 'vcf14b')['id']},
+                        'tester')
+        self.assertEqual(tests_of(b), {})
+        self.assertIsNone(S.plugin_row(STORE, 'check', 'vcf14b-name-443'))
+
+    def test_15_min_max_held_for_a_value_changed_only(self):
+        # round 3: a deployment saved before 1.0.96 with backup_keep -1 could not be changed
+        A.family_save(STORE, 'target', {'kind': 'local', 'name': 'files15', 'config': {
+            'base': os.path.join(TMP, 'out15')}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['files15.example.test']}, 'tester')
+        did = A.deploy_save(STORE, {'cert_id': cid, 'target': 'files15',
+                                    'options': {'backup_keep': 2}}, 'tester')
+        STORE.db.update('cert_deploys', did, {'options': json.dumps({'backup_keep': -1})})
+        A.deploy_save(STORE, {'id': did, 'cert_id': cid, 'target': 'files15', 'note': 'x',
+                              'options': {'backup_keep': -1}}, 'tester')
+        with self.assertRaises(ValueError):
+            A.deploy_save(STORE, {'id': did, 'cert_id': cid, 'target': 'files15',
+                                  'options': {'backup_keep': -2}}, 'tester')
+
+    def test_16_an_ipv6_host_in_brackets_already(self):
+        # round 3: "[{host}]:8443" became [[2001:db8::10]]:8443 - a test that never passed
+        A.family_save(STORE, 'target', {'kind': 'ssh', 'name': 'web16', 'config': {
+            'host': '2001:db8::16', 'user': 'root', 'password': 'x'}}, 'tester')
+        cid = A.cert_save(STORE, {'names': ['web16.example.test']}, 'tester')
+        did = A.deploy_save(STORE, {'cert_id': cid, 'target': 'web16', 'options': {}}, 'tester')
+        for line in ('[{host}]:8443', '{host}:8443'):
+            dep = dict(STORE.db.row('SELECT * FROM cert_deploys WHERE id = ?', (did,)))
+            opts = {'verify': line}
+            made = C.verify_to_tests(STORE, dep, opts, 'tester')
+            self.assertEqual(opts, {})
+            cfg = json.loads(S.plugin_row(STORE, 'check', made[0])['config'])
+            self.assertEqual((cfg['host'], cfg['port']), ('2001:db8::16', 8443))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

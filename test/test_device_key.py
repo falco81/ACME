@@ -1086,6 +1086,60 @@ class Round2c(unittest.TestCase):
         self.assertIn('(version v2) makes rsa-2048 keys only', str(e.exception))
 
 
+class Round3a(unittest.TestCase):
+    """1.0.96, round 3a: where the version's key was made recorded, not guessed; a misfit's
+    "renew it by hand" said once."""
+
+    def test_1_an_ordinary_certificate_without_its_key_is_not_a_device_one(self):
+        # a configuration put in without its secrets drops key_sealed: switched off and on, it
+        # was "issued for a key its device made" and issued anew
+        cid = save(name='r3n', names=['r3n.example.test'], issuer='own')
+        self.assertTrue(renew(cid).ok)
+        STORE.db.update('certs', cid, {'key_sealed': None})
+        cert = S.cert_get(STORE, cid)
+        self.assertEqual(devicekey.version_problem(STORE, cert), '')
+        save(id=cid, enabled=0)
+        save(id=cid, enabled=1)
+        self.assertEqual(S.cert_get(STORE, cid)['state'], 'ok')
+
+    def test_2_the_device_version_recorded(self):
+        d = device()
+        cid = save(name='r3d', names=['r3d.example.test'], issuer='own', csr_from=d)
+        self.assertTrue(renew(cid).ok)
+        cert = S.cert_get(STORE, cid)
+        self.assertTrue(devicekey.device_made(STORE, cert))
+        rec = json.loads(STORE.get_meta(S.CERT_META['devmade'] % cid))
+        self.assertEqual((rec['version'], rec['device']), (cert['version'], d))
+        # where its key is made taken away (by the database): the recorded version says so
+        STORE.db.update('certs', cid, {'csr_from': None})
+        self.assertIn('issued for a key its device made',
+                      devicekey.version_problem(STORE, S.cert_get(STORE, cid)))
+        # a version from before the record: a device's when its key is made by one
+        STORE.db.run('DELETE FROM meta WHERE k = ?', (S.CERT_META['devmade'] % cid,))
+        self.assertEqual(devicekey.version_problem(STORE, S.cert_get(STORE, cid)), '')
+        STORE.db.update('certs', cid, {'csr_from': d})
+        self.assertEqual(devicekey.version_problem(STORE, S.cert_get(STORE, cid)), '')
+
+    def test_3_a_misfit_said_once_for_the_version(self):
+        d = device()
+        cid = save(name='r3m', names=['r3m.example.test'], issuer='own', csr_from=d,
+                   auto_renew=0)
+        self.assertTrue(renew(cid).ok)
+        cert = S.cert_get(STORE, cid)
+        dep = STORE.db.row('SELECT * FROM cert_deploys WHERE cert_id = ?', (cid,))
+
+        class J(object):
+            def step(self, *a, **k):
+                pass
+        said = [devicekey.deploy_failed(STORE, J(), cert, dep, 0, misfit=True)
+                for _ in range(3)]
+        self.assertIn('renew it by hand', said[0])
+        self.assertEqual(said[1:], ['', ''])
+        devicekey.deploy_worked(STORE, cert, dep)
+        self.assertIn('renew it by hand',
+                      devicekey.deploy_failed(STORE, J(), cert, dep, 0, misfit=True))
+
+
 def tearDownModule():
     shutil.rmtree(TMP, ignore_errors=True)
 

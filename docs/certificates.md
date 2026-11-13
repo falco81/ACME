@@ -512,13 +512,19 @@ A certificate says where its key is made - **`csr_from`**, the name of such a ta
   off, and is made due when switched on again), and the old version is not deployed
   - a deployment of it is refused in words (*holds a key acme made* / *was issued for a key
   its device made*). *Renew now* issues it at once; renewed by itself, the next scan does.
+  Which versions a device's key is in is recorded when they are issued (1.0.96) - not guessed
+  from a key acme does not hold: an ordinary certificate whose key was not carried (a
+  configuration put in without its secrets) is not "issued for a key its device made" and is
+  not issued anew when switched on again. A version from before the record is a device's when
+  a device makes the certificate's key and acme holds none of it.
 - **A device that lost its key.** When its deployment to the device fails three times in a
   row (about 35 minutes with the retries) - the device rebooted, someone asked it for another
   CSR - the certificate is made due for a new issue: a new key and CSR, deployed right after.
   This happens once; if that deployment fails too, nothing is issued again by itself until a
   deployment there works - the *Deploying failed* notice says it, see to the device. A
   certificate not renewed by itself (*Renew automatically* off, switched off, no source) is not
-  made due: the job and an event say *renew it by hand* (*Renew now*).
+  made due: the job and an event say *renew it by hand* (*Renew now*), once for the version
+  (not at every try of the deployment).
 - A target's module is not changed between one whose device makes the key and one that takes
   acme's while certificates use the target (its key made there, or deployed there) - take
   them away first; nor to another device module whose devices do not make the key type of a
@@ -699,6 +705,32 @@ deployment's options, with its secrets opened. The module:
    where it serves (an ESXi, a vCenter, a BMC, a FRITZ!Box, a domain
    controller's LDAPS on 636...) gets that test attached with a new deployment
    (1.0.93; once for the deployments made before).
+
+**The tests acme made from a deployment** (1.0.96) follow it: where the deployment's
+options or the target's own settings (its address, a CUCM unit, a VCF component) change
+what is served, the test of the new place is attached and acme's test of the old one is
+taken off - deleted once nothing has it. They go with the certificate, and with the target
+when only acme left them there. What counts as acme's:
+
+- a test acme made and nobody changed since. acme keeps what the test was when it made it
+  (a mark in the database, carried in the configuration's file); a test changed in any way -
+  its settings, its note, its name - is the person's and acme leaves it alone, whatever its
+  note says. A test made before 1.0.96 is acme's while its note is acme's and it was never
+  saved again;
+- one place, one test: a person's test of the same address and port is used as it is (also
+  when it asks for a key), unless it asks for the other key than the place (RSA / ECDSA);
+  acme's test made before 1.0.96 with no key asked for is given the key (a CUCM's), not
+  doubled. A test of the certificate's first name (no *Connect to*) is one per target;
+- *Only by its schedule* ('-'): a person's stays as it is (also through the configuration's
+  file); only a '-' acme left when the deployment went is tied to the target again by the
+  next deployment there, or deleted with the target. *After any deployment* is never "left
+  over". A test a person took off is not attached again (also under its name before
+  1.0.96).
+
+A number of a deployment's options outside its field's range (*Copies kept*, a Synergy bay)
+is refused when it is set or changed; a deployment saved before with such a value can still
+be changed otherwise (the module clamps it as before). A line of *Check what is served* may
+write an IPv6 target address as `[{host}]:8443` or `{host}:8443`.
 
 A deployment started by a person (the page, `acme --deploy`, the console)
 passes `options['force'] = True`, so a target that skips an unchanged
