@@ -33,7 +33,7 @@ import json
 import re
 import secrets
 
-from acmelib.plugins.targets._common import (
+from acmelib.plugins.targets._common import (join_hostport, 
     Base, SshMixin, PluginError, field, as_bool, object_name, name_prefix, prune,
     ssh_fields, verify_fields, keep_field, quote, text)
 
@@ -177,6 +177,6 @@ class TrueNasTarget(SshMixin, Base):
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify') and as_bool(self.opt(options, 'ui', True), True):
-            options['verify'] = '%s:443' % self.c('host')
+            options['verify'] = join_hostport(self.c('host'), 443)
             options.setdefault('verify_tries', 8)
         return Base.verify(self, bundle, options)

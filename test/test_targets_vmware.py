@@ -438,8 +438,9 @@ class HorizonTest(unittest.TestCase):
         staged = [p for p, d, m in ssh.puts if re.search(r'acme-hz-\w+\.(pfx|cer)$', p)]
         self.assertTrue(any(p.endswith('.pfx') for p in staged))
         self.assertTrue(any(p.endswith('.cer') for p in staged))
-        rm = [s for s in ps_scripts(ssh) if s.lstrip().startswith('Remove-Item') or
-              '\nRemove-Item' in s]
+        # a run of its own: the import script, which removes them itself, failed
+        rm = [s for s in ps_scripts(ssh) if 'Remove-Item' in s and
+              'Import-PfxCertificate' not in s]
         self.assertTrue(rm)
         for p in staged:
             self.assertIn(p.replace("'", "''"), rm[-1], p)

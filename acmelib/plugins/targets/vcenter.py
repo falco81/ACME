@@ -35,7 +35,7 @@ from __future__ import annotations
 import base64
 import re
 
-from acmelib.plugins.targets._common import (
+from acmelib.plugins.targets._common import (join_hostport, 
     HttpTarget, PluginError, field, as_bool, fp_of, norm_fp, sha1_thumb,
     http_fields, tls_fields, verify_fields, text, as_int)
 from acmelib.plugins.targets._x509 import split_chain
@@ -160,7 +160,7 @@ class VCenterTarget(HttpTarget):
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify'):
-            options['verify'] = '%s:%d' % (self.c('host'), as_int(self.c('port', 443), 443))
+            options['verify'] = join_hostport(self.c('host'), as_int(self.c('port', 443), 443))
         options.setdefault('verify_tries', 20)
         options.setdefault('verify_wait', 15)
         return HttpTarget.verify(self, bundle, options)

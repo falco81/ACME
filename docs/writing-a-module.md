@@ -342,8 +342,10 @@ Rules for the module:
   (refuse more than one name in `device_csr()` - the check after it would refuse the CSR
   anyway, less clearly).
 - Do not import anything in `device_csr()`: making the CSR is all. A device that drops its
-  pending key when asked for a CSR a second time is fine - acme asks once per issue and
-  deploys right after.
+  pending key when asked for a CSR a second time is fine - acme asks once per issue (an issue
+  not finished, a request a source holds, uses the CSR it got again) and deploys right after.
+- Make the key type asked (`req.key_type`, one of `device_key_types`): a CSR with another key,
+  or a weak one (RSA under 2048 bits), is refused.
 - `deploy()` must work with no key; refuse a bundle that has one (`bundle.key_pem` set) with
   words saying to let the device make the key - it cannot use acme's.
 - `served_wait` / `served_places` as for any target (a device that switches to the new

@@ -481,8 +481,17 @@ A certificate says where its key is made - **`csr_from`**, the name of such a ta
 - **At every issue and renewal** the device is asked for a **new key and CSR** (the job says
   *the key and the CSR are made by the device of ...*). The CSR is used as one sent in is
   (request profiles): acme holds no key; every name of the certificate must be in it and no
-  other; the subject is the profile's where the source sets it; the certificate issued must
-  be for the CSR's key.
+  other; its key must be of the key type the certificate asks for (one the device's module
+  lists) and not weak (RSA under 2048 bits) - otherwise the issue is refused in words; the
+  subject is the profile's where the source sets it; the certificate issued must be for the
+  CSR's key.
+- **An issue not finished keeps its CSR.** The CSR is kept with the certificate until the
+  version issued for it is saved: a source that holds the request between tries (a manager's
+  approval at an AD CS, DigiCert, Sectigo, EST and other commercial orders) or a try that
+  failed gets **the same CSR** again (*the CSR the device of ... made (...) is used again*),
+  so the certificate that comes is for the key the device holds. Only the next issue after a
+  certificate was saved asks the device for a new key; a kept CSR that no longer fits (other
+  names, another key type) is dropped and a new one asked.
 - Its deployment to that target is **made with it** and **runs right after the issue**, in the
   same job: the device gets the certificate (and the chain) for the key it made a moment ago,
   without a key. When its deployments are held (*Deploy now*), the device keeps its old
@@ -490,10 +499,27 @@ A certificate says where its key is made - **`csr_from`**, the name of such a ta
   fits no key there.
 - It goes to **that target only** - a deployment to another target is refused (no other can
   have its key) - and a target whose device makes the key takes **no other certificate**.
+  **One certificate per device**: the device holds one pending key, so a second certificate
+  whose key the same target makes is refused (*the device ... already makes the key of the
+  certificate ...*) - give the one certificate every name instead.
+- **Switched after it was issued** (to *Key made by the device*, or back to acme): the
+  version it holds fits no key where its key is made now, so the certificate is made **due
+  for a new issue** at once (a CSR given out is dropped), and the old version is not deployed
+  - a deployment of it is refused in words (*holds a key acme made* / *was issued for a key
+  its device made*). *Renew now* issues it at once; renewed by itself, the next scan does.
+- **A device that lost its key.** When its deployment to the device fails three times in a
+  row (about 35 minutes with the retries) - the device rebooted, someone asked it for another
+  CSR - the certificate is made due for a new issue: a new key and CSR, deployed right after.
+  This happens once; if that deployment fails too, nothing is issued again by itself until a
+  deployment there works - the *Deploying failed* notice says it, see to the device.
+- A target's module is not changed between one whose device makes the key and one that takes
+  acme's while certificates use the target (its key made there, or deployed there) - take
+  them away first.
 - **Refused with it**: a twin (`key_type_alt`), *Keep the key* (`reuse_key`), a CSR sent in,
   a source that cannot sign a CSR made elsewhere (*Self-signed*, CMP, SCEP and sources that
   make the key themselves), no source at all. There is no key to export, to download from the
-  portal or to add later.
+  portal or to add later: an import into it takes the certificate alone (a key or a twin is
+  refused), and the answer to a CSR acme gave out is refused.
 - Renewal, ARI, retries, notices, events, isemon lines and *What happens* are as for any
   certificate. A certificate whose target is switched off, deleted, no longer of a module that
   makes keys, or whose deployment there is gone or switched off is not issued - the job says

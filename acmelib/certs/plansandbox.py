@@ -705,6 +705,14 @@ class Answers(object):
                     '{TAIL}', tail.replace('"', ''))
                 body = re.sub(r'\{SENT:([A-Za-z0-9_.-]+)\}', self._sent, body)
                 body = body.replace('{CSR}', json.dumps(self.csr or '')[1:-1])
+            elif isinstance(body, str) and ('{SENT:' in body or '{CSR}' in body):
+                # a text body: JSON written as text gets the values escaped as JSON strings,
+                # anything else (XML, a PEM, plain text) as they are
+                js = body.lstrip()[:1] in ('{', '[')
+                body = re.sub(r'\{SENT:([A-Za-z0-9_.-]+)\}', self._sent if js else (
+                    lambda m: self.sent.get(m.group(1), '')), body)
+                body = body.replace('{CSR}', json.dumps(self.csr or '')[1:-1] if js
+                                    else (self.csr or ''))
             return int(r.get('status', 200)), dict(r.get('headers') or {}), \
                 str(body).encode('utf-8')
         path = url.split('?', 1)[0]
@@ -748,9 +756,53 @@ class Answers(object):
             if not self._take('ssh', i, r):
                 continue
             out = str(r.get('stdout', '')).replace('{SESSION}', SESSION)
-            out = re.sub(r'\{SEEN:(.+?)\}(?!\})', echo, out)
+            out = fill_seen(out, echo)
             return (int(r.get('exit', 0)), out, str(r.get('stderr', '')))
         return None
+
+
+def fill_seen(text, echo):
+    """{SEEN:regex} in `text` replaced by echo(match) - the regex may hold braces of its own
+    ({2}, {1,3}, \\{): it ends at the brace that closes the placeholder."""
+    out, i = [], 0
+    while True:
+        j = text.find('{SEEN:', i)
+        if j < 0:
+            out.append(text[i:])
+            return ''.join(out)
+        out.append(text[i:j])
+        k, depth, esc = j + 6, 0, False
+        while k < len(text):
+            c = text[k]
+            if esc:
+                esc = False
+            elif c == '\\':
+                esc = True
+            elif c == '{':
+                depth += 1
+            elif c == '}':
+                if depth == 0:
+                    break
+                depth -= 1
+            k += 1
+        if k >= len(text):                  # not closed: left as it is
+            out.append(text[j:])
+            return ''.join(out)
+        pat = text[j + 6:k]
+        try:
+            out.append(echo(_Group(pat)) if pat else '')
+        except re.error:                    # not a regex: nothing seen
+            out.append('')
+        i = k + 1
+
+
+class _Group(object):
+    """What echo() reads of a match: group(1), the regex."""
+    def __init__(self, pat):
+        self.pat = pat
+
+    def group(self, n=0):
+        return self.pat
 
 
 class FakeSsh(object):
@@ -988,6 +1040,20 @@ def module(family, kind, version=None):
     return base.REGISTRY.get(family, kind, version)
 
 
+class _unrecorded(object):
+    """What acme itself does in a run (a throwaway key, a CSR) not recorded - the recording
+    on again afterwards, also when it raised."""
+    def __init__(self, events):
+        self.events = events
+
+    def __enter__(self):
+        RECORDING[0] = None
+
+    def __exit__(self, *exc):
+        RECORDING[0] = self.events
+        return False
+
+
 def run_one(job, r, bundle_holder):
     events = []
     RECORDING[0] = events
@@ -1004,9 +1070,8 @@ def run_one(job, r, bundle_holder):
         op = r.get('op')
         if op == 'deploy':
             if bundle_holder[0] is None:
-                RECORDING[0] = None
-                bundle_holder[0] = dummy_bundle(job.get('cert') or {})
-                RECORDING[0] = events
+                with _unrecorded(events):
+                    bundle_holder[0] = dummy_bundle(job.get('cert') or {})
             b = bundle_holder[0]
             if b.alt is not None and not getattr(cls, 'dual', False):
                 from acmelib.certs.deployer import pick_variant
@@ -1039,9 +1104,8 @@ def run_one(job, r, bundle_holder):
             from acmelib.plugins import base
             cert = job.get('cert') or {}
             names = list(cert.get('names') or ['example.invalid'])
-            RECORDING[0] = None
-            answers.csr = devicekey.dummy_csr(names, cert.get('key_type') or 'ec-256')
-            RECORDING[0] = events
+            with _unrecorded(events):
+                answers.csr = devicekey.dummy_csr(names, cert.get('key_type') or 'ec-256')
             req = base.CertRequest(names=names, sans=list(r.get('sans') or names),
                                    key_type=cert.get('key_type') or 'ec-256',
                                    subject=dict(r.get('subject') or {'CN': names[0]}),
@@ -1065,10 +1129,9 @@ def run_one(job, r, bundle_holder):
             from acmelib.plugins import base
             cert = job.get('cert') or {}
             names = list(cert.get('names') or ['example.invalid'])
-            RECORDING[0] = None
-            key = pki.make_key(cert.get('key_type') or 'ec-256')
-            csr_pem, csr_der = pki.make_csr(key, names)
-            RECORDING[0] = events
+            with _unrecorded(events):
+                key = pki.make_key(cert.get('key_type') or 'ec-256')
+                csr_pem, csr_der = pki.make_csr(key, names)
             req = base.CertRequest(names=names, sans=names, key_type=cert.get('key_type'),
                                    key_pem=key, csr_pem=csr_pem, csr_der=csr_der,
                                    subject={}, days=cert.get('days'), profile={},

@@ -438,6 +438,59 @@ class SandboxAnswers(unittest.TestCase):
         self.assertEqual(a.ssh('', b'crypto pki import t'), (1, '', 'no'))
         self.assertIsNone(a.ssh('write memory'))
 
+    def test_text_bodies_and_seen_with_braces(self):
+        from acmelib.certs import plansandbox as P
+        a = P.Answers([
+            {'url': r'/xml$', 'body': '<r><alias>{SENT:alias}</alias><csr>{CSR}</csr></r>'},
+            {'url': r'/jtext$', 'body': '{"csr": "{CSR}", "alias": "{SENT:alias}"}'}])
+        a.csr = '-----BEGIN CERTIFICATE REQUEST-----\nAAA\n-----END CERTIFICATE REQUEST-----\n'
+        a('POST', 'https://d/import', b'{"alias": "acme-1"}')
+        self.assertEqual(a('GET', 'https://d/xml')[2].decode(),
+                         '<r><alias>acme-1</alias><csr>%s</csr></r>' % a.csr)
+        got = json.loads(a('GET', 'https://d/jtext')[2])
+        self.assertEqual((got['csr'], got['alias']), (a.csr, 'acme-1'))
+        # {SEEN:regex} whose regex holds braces of its own
+        s = P.Answers([], [{'command': '^list', 'stdout': 'id {SEEN:import ([a-z]{3}\\d{1,2})} ok'}])
+        s.ssh('import abc12 now')
+        self.assertEqual(s.ssh('list'), (0, 'id abc12 ok', ''))
+        self.assertEqual(P.fill_seen('x {SEEN:a{2', lambda m: 'never'), 'x {SEEN:a{2')
+
+    def test_recording_on_again_after_acme_own_work_failed(self):
+        from acmelib.certs import plansandbox as P, devicekey
+        from acmelib.plugins import base
+
+        class PlanDevice(base.Target):
+            kind = 'plandevice_t'
+            device_key = True
+
+            def device_csr(self, req):
+                return 'never asked'
+        base.REGISTRY.found.setdefault('target', {})[PlanDevice.kind] = PlanDevice
+        was = devicekey.dummy_csr
+
+        def broken(*a, **k):
+            raise ValueError('no CSR here')
+        devicekey.dummy_csr = broken
+        seen = []
+        real = P._unrecorded.__exit__
+
+        def spy(self, *exc):
+            r = real(self, *exc)
+            seen.append(P.RECORDING[0] is self.events)
+            return r
+        P._unrecorded.__exit__ = spy
+        try:
+            got = P.run_one({'cert': {'names': ['a.example.test']}},
+                            {'family': 'target', 'kind': 'plandevice_t', 'op': 'device_csr',
+                             'config': {}, 'name': 'x'}, [None])
+        finally:
+            devicekey.dummy_csr = was
+            P._unrecorded.__exit__ = real
+            base.REGISTRY.found['target'].pop(PlanDevice.kind, None)
+        self.assertIn('no CSR here', got['error'])
+        self.assertEqual(seen, [True])
+        self.assertIsNone(P.RECORDING[0])
+
     def test_only_the_modules_sleeps_wait(self):
         from acmelib.certs import plansandbox as P
         ev, clock = [], P.CLOCK[0]

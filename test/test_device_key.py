@@ -691,7 +691,8 @@ class Found(unittest.TestCase):
         cid = save(name='k1', names=['k1.example.test'], issuer='own', csr_from=d,
                    key_type='ec-256')
         for made, said in (('rsa-1024', 'weak rsa-1024 key'),
-                           ('ec-384', 'made a ec-384 key, but ec-256 was asked for')):
+                           ('ec-384', 'made a ec-384 key, which its module does not list'),
+                           ('rsa-2048', 'made a rsa-2048 key, but ec-256 was asked for')):
             def dcsr(self, req, made=made):
                 if made == 'rsa-1024':
                     key = sp.run(['openssl', 'genrsa', '1024'], capture_output=True,
@@ -770,6 +771,34 @@ class Found(unittest.TestCase):
             self.assertEqual(S.cert_get(STORE, cid)['state'], 'ok')
         self.assertTrue(deploy_now(cid).ok)
         self.assertFalse(STORE.get_meta(devicekey.REISSUE_KEY % cid))
+
+
+class Wizard(unittest.TestCase):
+    """The certificate form (web/assets/certs.js): a target's address as the name without its
+    port; devices switched off not offered; a source that signs no CSR cleared; the default
+    deployment back when acme makes the key again."""
+    SRC = open(os.path.join(ROOT, 'web', 'assets', 'certs.js'), encoding='utf-8').read()
+
+    def test_bare_host(self):
+        import re
+        import shutil as sh
+        if not sh.which('node'):
+            self.skipTest('no node')
+        fn = re.search(r'\nfunction bareHost[\s\S]*?\n}\n', self.SRC).group(0)
+        cases = {'https://admin@xcc1.example.com:8443/redfish': 'xcc1.example.com',
+                 'xcc1.example.com:443': 'xcc1.example.com', '[2001:db8::1]:443': '2001:db8::1',
+                 '2001:db8::1': '2001:db8::1', 'Host.Example.': 'host.example'}
+        js = fn + 'console.log(JSON.stringify(%s.map(bareHost)));' % json.dumps(list(cases))
+        got = subprocess.run(['node', '-e', js], capture_output=True, text=True, timeout=60)
+        self.assertEqual(json.loads(got.stdout), list(cases.values()), got.stderr)
+        self.assertIn('bareHost(first(cfg.host, cfg.address', self.SRC)
+
+    def test_the_form(self):
+        self.assertIn("!!devPlug(t) && t.enabled !== 0 && t.enabled !== false", self.SRC)
+        self.assertIn('var devSource = function () { if (W.d.csr_from && W.d.issuer && '
+                      'signsNoCsr(W.d.issuer)) W.d.issuer = \'\'; };', self.SRC)
+        self.assertIn('if (W.d.csr_from && !devPlug(t)) W.devKept[k] = W.deploys[k];', self.SRC)
+        self.assertIn('if (!W.deploys[k]) W.deploys[k] = W.devKept[k];', self.SRC)
 
 
 def tearDownModule():

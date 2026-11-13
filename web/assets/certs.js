@@ -114,6 +114,16 @@ function first() {
   }
   return undefined;
 }
+/* A target's address as a certificate's name: no scheme, user, path or port
+   ("https://admin@xcc1.example.com:8443/" -> xcc1.example.com, "[2001:db8::1]:443" -> 2001:db8::1). */
+function bareHost(v) {
+  var h = String(v || '').trim().toLowerCase();
+  h = h.replace(/^[a-z][a-z0-9+.-]*:\/\//, '').replace(/[\/?#].*$/, '').replace(/^[^@]*@/, '');
+  var m = /^\[([^\]]+)\](:\d*)?$/.exec(h);
+  if (m) return m[1];
+  if ((h.match(/:/g) || []).length === 1) h = h.replace(/:\d*$/, '');
+  return h.replace(/\.$/, '');
+}
 function said(d, fallback) {
   return (d && (d.message || d.said || d.result || d.words)) || fallback || 'done';
 }
@@ -2753,7 +2763,7 @@ function targetPeek(r) {
           sec._body.appendChild(el('p', 'muted small', 'This device makes its own key and takes only a certificate for it: acme asks it for a new key and CSR at every issue and puts the certificate back right after.'));
           var mk = cmdButton('Make its certificate', 'add', 'primary small');
           mk.onclick = function () {
-            var host = String(first(cfg.host, cfg.address, '') || '').trim().toLowerCase();
+            var host = bareHost(first(cfg.host, cfg.address, ''));
             over(function () { certWizard(null, null, {csrFrom: r.name, names: host ? [host] : []}); }, function () { targetPeek(r); });
           };
           var mrow = el('div', 'btnrow'); mrow.appendChild(mk);
@@ -4919,15 +4929,33 @@ function certWizard(cert, detail, opts) {
   if (!W.d.sans.length) W.d.sans = [{type: 'dns', value: ''}];
   /* The targets whose device makes the key (their module's device_key), and its module. */
   var devPlug = function (t) { var p = t ? plugVersion(plugOf('target', t.kind), t.version) : null; return p && p.device_key ? p : null; };
-  var devTargets = function () { return W.targets.filter(function (t) { return !!devPlug(t); }); };
+  /* ...switched on: an issue asks the device, and one switched off is refused */
+  var devTargets = function () { return W.targets.filter(function (t) { return !!devPlug(t) && t.enabled !== 0 && t.enabled !== false && t.enabled !== '0'; }); };
   var devOf = function () { return W.targets.filter(function (t) { return t.name === W.d.csr_from; })[0] || null; };
   var devTypes = function () { var p = devPlug(devOf()); return p && arr(p.device_key_types).length ? arr(p.device_key_types) : null; };
   /* its deployment: to that target alone; a target whose device makes keys takes no other */
+  /* a source that signs no CSR made elsewhere cannot give the device's certificate */
+  var signsNoCsr = function (name) {
+    var s = arr(W.sources).filter(function (x) { return x.name === name; })[0];
+    var p = s ? plugOf('issuer', s.kind) : null;
+    return !!s && (SOURCE_NO_CSR.indexOf(s.kind) >= 0 || !!(p && p.makes_key));
+  };
+  var devSource = function () { if (W.d.csr_from && W.d.issuer && signsNoCsr(W.d.issuer)) W.d.issuer = ''; };
   var devDeploys = function () {
+    W.devKept = W.devKept || {};
     Object.keys(W.deploys).forEach(function (k) {
       var t = W.targets.filter(function (x) { return x.name === k; })[0];
-      if (W.d.csr_from ? k !== W.d.csr_from : !!devPlug(t)) delete W.deploys[k];
+      if (W.d.csr_from ? k !== W.d.csr_from : !!devPlug(t)) {
+        /* kept aside: "acme, here" chosen again puts it back (the default target's) */
+        if (W.d.csr_from && !devPlug(t)) W.devKept[k] = W.deploys[k];
+        delete W.deploys[k];
+      }
     });
+    if (!W.d.csr_from) {
+      Object.keys(W.devKept).forEach(function (k) { if (!W.deploys[k]) W.deploys[k] = W.devKept[k]; });
+      W.devKept = {};
+    }
+    devSource();
     /* its deployment is made with it (cert_save); here only where this form sets deployments -
        a certificate edited keeps the options its deployment has */
     if (W.d.csr_from && !W.deploys[W.d.csr_from] && (!editing || SETUP)) W.deploys[W.d.csr_from] = {};
@@ -6509,6 +6537,7 @@ function certWizard(cert, detail, opts) {
       if (!MOVE && !W.d.issuer && W.sources.length === 1) W.d.issuer = W.sources[0].name;
       /* Let's Encrypt first: the default source and validation (is_default). */
       if (!MOVE && !W.d.issuer) W.d.issuer = (W.sources.filter(function (x) { return x.is_default; })[0] || {}).name || '';
+      devSource();      /* the device makes the key: not a source that signs no CSR */
       if (!W.d.challenge && (!editing || MOVE)) W.d.challenge = (W.vals.filter(function (x) { return x.is_default; })[0] || {}).name || '';
       if (MOVE) W.tests = rowsOf(obj(got[4]).checks);
       paint();

@@ -27,7 +27,7 @@ import hashlib
 import re
 import urllib.parse
 
-from acmelib.plugins.targets._common import (
+from acmelib.plugins.targets._common import (join_hostport, 
     HttpTarget, PluginError, field, as_bool, as_int, http_fields, tls_fields, verify_fields,
     multipart, form, text, served_fingerprint, fp_of)
 
@@ -142,5 +142,5 @@ class FritzBoxTarget(HttpTarget):
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify'):
-            options['verify'] = '%s:%d' % (self.c('host'), as_int(self.c('port', 443), 443))
+            options['verify'] = join_hostport(self.c('host'), as_int(self.c('port', 443), 443))
         return HttpTarget.verify(self, bundle, options)

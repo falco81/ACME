@@ -266,7 +266,7 @@ def csr_for(store, job, cert, names, sans, subject, key_type, profile, needs_cha
                          'any more (%s) - a new one is asked' % (what, trow['name'], e), 'warn',
                          scope=scope)
         else:
-            jobs.step_in(job, '%sthe CSR the device of %s made %s is used again (its issue was '
+            jobs.step_in(job, '%sthe CSR the device of %s made (%s) is used again (its issue was '
                          'not finished; the device keeps that key until its certificate comes)'
                          % (what, trow['name'], _when(kept.get('at'))), 'ok', scope=scope)
             return info
@@ -327,7 +327,7 @@ def _when(at):
     try:
         return time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(float(at)))
     except (TypeError, ValueError):
-        return 'before'
+        return '?'
 
 
 WEAK = ('rsa-1024', 'rsa-512', 'rsa-768')
@@ -343,14 +343,17 @@ def check_key(info, key_type, trow, cls=None):
                                'refuses it and it can be broken: set the device to make %s keys '
                                '(or choose another key type for the certificate)'
                                % (trow['name'], made, bits, key_type), retry=False)
+    kts = key_types_of(cls) if cls is not None else None
+    if kts and made not in kts:
+        raise base.PluginError('the device of %s made a %s key, which its module does not list '
+                               '(it makes %s) - choose one of those key types for the certificate'
+                               % (trow['name'], made or '?', ', '.join(kts)), retry=False)
     if made != key_type:
-        kts = key_types_of(cls) if cls is not None else None
         raise base.PluginError('the device of %s made a %s key, but %s was asked for - the '
                                'certificate would not say what its key is: choose %s as its key '
-                               'type%s, or set the device to make %s keys'
-                               % (trow['name'], made or '?', key_type, made or '?',
-                                  ' (the device makes %s)' % ', '.join(kts) if kts else '',
-                                  key_type), retry=False)
+                               'type, or set the device to make %s keys'
+                               % (trow['name'], made or '?', key_type, made or '?', key_type),
+                               retry=False)
 
 
 def dummy_csr(names, key_type='ec-256', subject=None):

@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import re
 
-from acmelib.plugins.targets._common import (
+from acmelib.plugins.targets._common import (join_hostport, 
     HttpTarget, PluginError, as_bool, text, as_int, family_of)
 from acmelib.plugins.targets._x509 import split_chain
 from acmelib.plugins.targets.vcenter import VCenterTarget, TLS, ROOTS
@@ -123,7 +123,7 @@ class VCenter802Target(VCenterTarget):
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify'):
-            options['verify'] = '%s:%d' % (self.c('host'), as_int(self.c('port', 443), 443))
+            options['verify'] = join_hostport(self.c('host'), as_int(self.c('port', 443), 443))
         options.setdefault('verify_tries', 6)
         options.setdefault('verify_wait', 10)
         return HttpTarget.verify(self, bundle, options)

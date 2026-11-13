@@ -19,7 +19,7 @@ before 8.0 takes RSA keys only - choose an RSA key type for the certificate.
 """
 from __future__ import annotations
 
-from acmelib.plugins.targets._common import (
+from acmelib.plugins.targets._common import (join_hostport, 
     Base, SshMixin, PluginError, field, as_bool, ssh_fields, verify_fields, text)
 from acmelib.plugins.targets import _files as F
 
@@ -98,7 +98,7 @@ class EsxiTarget(SshMixin, Base):
     def verify(self, bundle, options):
         options = dict(options or {})
         if not options.get('verify'):
-            options['verify'] = '%s:443' % self.c('host')
+            options['verify'] = join_hostport(self.c('host'), 443)
         options.setdefault('verify_tries', 10)
         options.setdefault('verify_wait', 6)
         return Base.verify(self, bundle, options)

@@ -60911,6 +60911,34 @@
   "_10": {
    "source": "reading the workload domains: SDDC Manager did not answer with JSON",
    "text": "čtení domén (workload domains): SDDC Manager neodpověděl v JSON"
+  },
+  "_11": {
+   "source": "the import action",
+   "text": "akce importu"
+  },
+  "_12": {
+   "source": "the use action",
+   "text": "akce použití"
+  },
+  "_13": {
+   "source": "reading the NX-API settings",
+   "text": "čtení nastavení NX-API"
+  },
+  "_14": {
+   "source": "the older trustpoints stay - which one NX-API uses cannot be read (show nxapi)",
+   "text": "starší trustpointy zůstávají – nelze zjistit, který používá NX-API (show nxapi)"
+  },
+  "_15": {
+   "source": "an RSA",
+   "text": "RSA"
+  },
+  "_16": {
+   "source": "an ECDSA",
+   "text": "ECDSA"
+  },
+  "_17": {
+   "source": "an Ed25519",
+   "text": "Ed25519"
   }
  },
  "patterns": {
@@ -84317,6 +84345,26 @@
   "p_6": {
    "source": "looking for the certificate of {0}: VCF Operations did not answer with JSON",
    "text": "hledání certifikátu {0}: VCF Operations neodpověděl v JSON"
+  },
+  "p_7": {
+   "source": "{0}/{1}.crt and .key may stay: {2}",
+   "text": "{0}/{1}.crt a .key možná zůstanou: {2}"
+  },
+  "p_8": {
+   "source": "{0} may stay: {1}",
+   "text": "{0} možná zůstane: {1}"
+  },
+  "p_9": {
+   "source": "{0}: {1} is not a path of the NimbleOS REST API - it starts with /v1/ (no address, no query)",
+   "text": "{0}: {1} není cesta REST API NimbleOS – začíná /v1/ (bez adresy, bez dotazu)"
+  },
+  "p_10": {
+   "source": "the older trustpoint {0} stays: NX-API uses it",
+   "text": "starší trustpoint {0} zůstává: používá ho NX-API"
+  },
+  "p_11": {
+   "source": "{0} takes {1} certificate, this one has {2} key - choose the key type or the service",
+   "text": "{0} přijímá {1} certifikát, tento má {2} klíč – zvolte jiný typ klíče nebo jinou službu"
   }
  },
  "rich": {

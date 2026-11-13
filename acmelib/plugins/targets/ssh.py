@@ -26,7 +26,7 @@ import json
 import secrets
 import time
 
-from acmelib.plugins.targets._common import (
+from acmelib.plugins.targets._common import (join_hostport, 
     Base, SshMixin, PluginError, field, lines, as_bool, label_of, stamp,
     parse_outputs, subst, quote, ssh_fields, verify_fields, PFX_FORMATS, alt_of, family_of,
     variants_of, outputs_for, service_of)
@@ -691,7 +691,7 @@ class SshTarget(SshMixin, Base):
         if not lines(options.get('verify')):
             preset = PRESETS.get(options.get('preset') or 'custom') or {}
             if preset.get('port'):
-                options['verify'] = '%s:%d' % (self.c('host'), preset['port'])
+                options['verify'] = join_hostport(self.c('host'), preset['port'])
         else:
             options['verify'] = '\n'.join(subst(x, {'host': self.c('host')})
                                           for x in lines(options['verify']))
