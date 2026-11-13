@@ -49,6 +49,22 @@ guides"):
 - Products where acme's key cannot go at all (Unisphere for PowerMax's own HTTPS,
   PRIMEQUEST MMB, ETERNUS LT / CS8000, Barracuda Load Balancer and Email Security...) have a
   guide of how to do it by hand in docs/vendor-guides/.
+- **Tests made from a deployment follow it**: when a deployment's options or its target's
+  settings change where the certificate is served, the test acme made for it follows (a new
+  place gets its test, one no longer served is taken off); acme's own tests go with their
+  certificate or target when those are deleted. A test you changed in any way is yours and
+  stays. A target serving RSA and ECDSA certificates side by side (CUCM) gets a test that asks
+  for the right key.
+- Deployment options with a range (copies kept, a bay) are checked when saved and in the
+  form - only values that changed, so a deployment saved earlier still saves.
+- A device whose deployment keeps failing (it lost its pending key) gets its certificate issued
+  anew once; with renewal by hand acme says to renew it by hand.
+- Fixed: files with the key left on a device after a failed step (ETERNUS, ISM, ArubaOS 8,
+  Cockpit, Horizon, QNAP, Veeam B&R); a client secret or PKCS#12 password in the debug log;
+  checks of what is served on IPv6 addresses; NX-OS saving its configuration while NX-API
+  restarts; VCF failing a deployment on one bad poll; a certificate only added said to be issued
+  by itself in *What happens*; version names untranslated on Czech pages; the Modules filter
+  `version:` matching nothing.
 
 ## 1.0.95 - 2026-11-12
 
