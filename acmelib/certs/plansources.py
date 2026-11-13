@@ -57,6 +57,27 @@ HTTP01 = [{'method': 'GET', 'url': r'^http://[^/]+/\.well-known/acme-challenge/[
 
 
 SOURCES = {
+    # -- commercial CAs: an order bought before, reissued inside it at each renewal; the
+    #    domain's validation run out, so the CA asks for its DCV record again (put in place by
+    #    the certificate's validation), checked, issued, downloaded ---------------------------
+    'digicert': [
+        {'method': 'GET', 'url': r'/order/certificate/\d+$', 'body': {
+            'id': '{CFG:order_id}', 'status': 'issued', 'order_valid_till': '2028-01-01',
+            'product': {'name_id': '{CFG:product}'},
+            'certificate': {'id': 987654321, 'common_name': '{NAME}', 'dns_names': ['{NAME}'],
+                            'valid_till': '2027-01-01'}}},
+        {'method': 'POST', 'url': r'/order/certificate/\d+/reissue$', 'status': 201, 'body': {
+            'id': '{CFG:order_id}', 'requests': [{'id': 7654321, 'status': 'pending'}]}},
+        {'method': 'PUT', 'url': r'/dcv-random-value$', 'body': {
+            'dcv_random_value': 'f3e9a1b2c4d5e6f708192a3b4c5d6e7f'}},
+        {'method': 'GET', 'url': r'/domain\?include_validation', 'body': {'domains': [
+            {'id': 1, 'name': '{ZONE}', 'is_active': True, 'validations': [
+                {'type': 'ov', 'status': 'expired', 'validated_until': '2026-01-01'}],
+             'dcv_expiration': {'ov': '2026-01-01'}}]}},
+        {'method': 'PUT', 'url': r'/check-dcv$', 'body': {'order_status': 'issued',
+                                                         'dcv_status': 'complete'}},
+        {'method': 'GET', 'url': r'/download/format/pem_all$', 'headers': {
+            'Content-Type': 'application/x-pem-file'}, 'body': '{CERT}{CHAIN}'}],
     # -- CAs of one's own: the request signed at once, the certificate in the answer --------
     'vault_pki': [
         {'method': 'POST', 'url': r'/v1/auth/[^/]+/login$', 'body': {'auth': {

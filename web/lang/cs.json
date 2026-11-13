@@ -61147,6 +61147,22 @@
   "_69": {
    "source": "PBS has no certificate it says the fingerprint of - uploading it",
    "text": "PBS neuvádí otisk žádného certifikátu – nahrává se"
+  },
+  "_70": {
+   "source": "certificate and its chain",
+   "text": "certifikát i s řetězcem"
+  },
+  "_71": {
+   "source": "(its version not read)",
+   "text": "(verze nezjištěna)"
+  },
+  "_72": {
+   "source": "has not loaded",
+   "text": "nemá načtený"
+  },
+  "_73": {
+   "source": "has loaded",
+   "text": "má načtený"
   }
  },
  "patterns": {
@@ -84841,6 +84857,70 @@
   "p_78": {
    "source": "{0} is not there yet - added",
    "text": "{0} zatím neexistuje – přidává se"
+  },
+  "p_79": {
+   "source": "IOS XE {0}; trustpoints: {1}; the HTTPS server uses {2}",
+   "text": "IOS XE {0}; trustpointy: {1}; HTTPS server používá {2}"
+  },
+  "p_80": {
+   "source": "{0} holds {1}",
+   "text": "{0} obsahuje {1}"
+  },
+  "p_81": {
+   "source": "OpenManage Enterprise {0}: the {1} is uploaded",
+   "text": "OpenManage Enterprise {0}: nahraje se {1}"
+  },
+  "p_82": {
+   "source": "{0} has one certificate: {1} - replacing it",
+   "text": "{0} má jeden certifikát: {1} - nahradí se"
+  },
+  "p_83": {
+   "source": "of the certificates of {0} ({1}), {2} is the one for {3} - replacing it",
+   "text": "z certifikátů {0} ({1}) je {2} ten pro {3} - nahradí se"
+  },
+  "p_84": {
+   "source": "vCenter {0}; the host {1}: {2}",
+   "text": "vCenter {0}; hostitel {1}: {2}"
+  },
+  "p_85": {
+   "source": "{0}: its cert-key-chain entry {1} holds {2} - pointed at {3}",
+   "text": "{0}: jeho položka cert-key-chain {1} obsahuje {2} - nasměruje se na {3}"
+  },
+  "p_86": {
+   "source": "the CA certificate is not imported (there already?): {0}",
+   "text": "certifikát CA se nenaimportoval (už tam je?): {0}"
+  },
+  "p_87": {
+   "source": "FortiOS {0}",
+   "text": "FortiOS {0}"
+  },
+  "p_88": {
+   "source": "the CA {0} is not added (there already?): {1}",
+   "text": "CA {0} se nepřidala (už tam je?): {1}"
+  },
+  "p_89": {
+   "source": "the intermediate CA group {0} is there already",
+   "text": "skupina zprostředkujících CA {0} už existuje"
+  },
+  "p_90": {
+   "source": "the server policy {0} uses {1} (it used {2})",
+   "text": "server policy {0} používá {1} (předtím {2})"
+  },
+  "p_91": {
+   "source": "HAProxy {0} {1}",
+   "text": "HAProxy {0} {1}"
+  },
+  "p_92": {
+   "source": "{0}: SSL {1}, Hestia's Let's Encrypt {2}",
+   "text": "{0}: SSL {1}, Let's Encrypt Hestie {2}"
+  },
+  "p_93": {
+   "source": "the iLO {0} (firmware {1}) serves {2} until {3} - replaced",
+   "text": "iLO {0} (firmware {1}) poskytuje {2} do {3} - nahradí se"
+  },
+  "p_94": {
+   "source": "{0} use {1} - they reload",
+   "text": "{0} používají {1} - znovu se načtou"
   }
  },
  "rich": {

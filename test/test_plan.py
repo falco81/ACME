@@ -670,7 +670,8 @@ class RenewalPaths(unittest.TestCase):
                       'PATCH https://fa/api/2.36/certificates?names=management')
         evs = self.record('redfish', {'host': 'bmc', 'user': 'u', 'password': 'p'},
                           {'reset': True})
-        self.in_order(evs, 'SAY what bmc serves cannot be read',
+        # what it serves is read (1.0.98: an earlier certificate, served_der) - replaced
+        self.in_order(evs, 'SAY bmc serves another certificate - this one is put there',
                       'GET https://bmc/redfish/v1/Managers/1/NetworkProtocol/HTTPS/Certificates',
                       'POST https://bmc/redfish/v1/CertificateService/Actions/'
                       'CertificateService.ReplaceCertificate', 'Manager.Reset')
@@ -1240,7 +1241,8 @@ class RenewalPathsG4(RenewalPathsG2):
         got = self.record('redfish', dict(self.PW), {}, version='ilo')
         self.in_order(got, 'GET https://dev/redfish/v1/', 'SAY iLO 6 firmware 1.62, security '
                       'state Production; it holds', 'SAY key type of the iLO certificate: RSA',
-                      'HpeHttpsCert.ImportCertificate', 'DELETE https://dev/redfish/v1/Session')
+                      'HpeHttpsCert.ImportCertificate', 'SAY imported the certificate with its key')
+        self.assertFalse([x for x in got if x.startswith('DELETE')])    # gone with the reset
         got = self.record('vcf_component', dict(self.PW, domain='mgmt'), {})
         self.in_order(got, 'SAY the workload domain mgmt is', 'validations',
                       'validations/', 'validations/', 'SAY SDDC Manager validated',
@@ -1257,7 +1259,7 @@ class RenewalPathsG4(RenewalPathsG2):
         first = self.record('traefik', dict(self.SSH), {})
         self.assertFalse([x for x in first if 'SHA-256 there' in x])
         got = self.record('unity', dict(self.SSH), {})
-        self.in_order(got, 'SAY what dev serves cannot be read', 'SSH svc_custom_cert acmecert',
+        self.in_order(got, 'SAY Unisphere serves another certificate', 'SSH svc_custom_cert acmecert',
                       'SSH rm -f ', 'SAY installed')
         got = self.record('windows_ssh', dict(self.SSH),
                           {'iis': 'Default Web Site | www.example.com | 443', 'rdp': True})

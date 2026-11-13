@@ -216,6 +216,8 @@ class AviTarget(HttpTarget):
                             'name': ca, 'type': KIND_CA, 'certificate': {'certificate': pem}},
                             what='adding the CA certificate %s' % ca)
                         self.ctx.step('added the CA certificate %s' % ca)
+                    else:
+                        self.ctx.step('the CA certificate %s is there already' % ca)
             refs = []
             for b, name, prefix in wanted:
                 obj = have.get(name)

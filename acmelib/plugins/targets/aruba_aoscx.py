@@ -184,6 +184,7 @@ class ArubaAosCxTarget(HttpTarget):
         for pem in chain_list(bundle):
             ta = 'acme-ca-%s' % chain_id(pem)
             if ta in tas:
+                self.ctx.step('the trust anchor profile %s is there already' % ta)
                 continue
             self.api('POST', '/system/pki_ta_profiles', {
                 'name': ta, 'certificate': text(pem), 'revocation_check_mode': 'disabled'},

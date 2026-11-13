@@ -713,7 +713,8 @@ ANSWERS['a10'] = [
         'ssl-cert': {'oper': {'file-list': [
             {'file': '{SENT:certificate.cert}', 'type': 'certificate'},
             {'file': '{EARLIER}', 'type': 'certificate'},
-            {'file': '{EARLIER2}', 'type': 'certificate'}]}},
+            {'file': '{EARLIER2}', 'type': 'certificate'},
+            {'file': 'acme-ca-{CAID}', 'type': 'certificate'}]}},
         'ssl-key': {'oper': {'file-list': [
             {'file': '{SENT:certificate.key}'}, {'file': '{EARLIER}'}, {'file': '{EARLIER2}'}]}}}},
     {'method': 'POST', 'url': r'/axapi/v3/file/ssl-(cert|key)$', 'body': _A10_OK},
@@ -2833,7 +2834,11 @@ _SOPHOS_FIRST_LIST = (
 # Sophos: only the appliance's own certificate the first time (the rule on it)
 FIRST['sophos'] = [
     {'method': 'POST', 'url': r'/webconsole/APIController$', 'sent': r'<Get><Certificate>',
-     'times': 1, 'headers': {'Content-Type': 'application/xml'}, 'body': _SOPHOS_FIRST_LIST}]
+     'times': 1, 'headers': {'Content-Type': 'application/xml'}, 'body': _SOPHOS_FIRST_LIST},
+    {'method': 'POST', 'url': r'/webconsole/APIController$', 'sent': r'<Get><Certificate>',
+     'headers': {'Content-Type': 'application/xml'}, 'body': _SOPHOS_FIRST_LIST.replace(
+         '</Response>', '<Certificate transactionid=""><Name>{CURRENT:50:6}</Name>'
+                        '</Certificate></Response>')}]
 LATER['sophos'] = []
 # UniFi OS: no certificate added the first time
 FIRST['unifi_os'] = [{'method': 'GET', 'url': r'/api/userCertificates$', 'times': 1,

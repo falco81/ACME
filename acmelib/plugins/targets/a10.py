@@ -170,6 +170,8 @@ class A10Target(HttpTarget):
                     pems = ''.join(chain_list(bundle))
                     self.upload('ssl-cert', chain, pems.encode(), {'certificate-type': 'pem'})
                     self.ctx.step('imported the chain %s' % chain)
+                else:
+                    self.ctx.step('the chain %s is there already' % chain)
             for t in lines(options.get('templates')):
                 cert = {'cert': name, 'key': name}
                 if chain:

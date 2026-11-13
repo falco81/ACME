@@ -428,6 +428,7 @@ class ArubaAos8Target(_Aos8):
             cname, cfile = 'acme-ca-%s' % cid, 'acme-ca-%s.pem' % cid
             out.append((typ, cname, cfile))
             if cname in have[typ]:
+                self.ctx.step('the %s %s is there already' % (typ, cname))
                 continue
             flash.append(cfile)
             self.bring(s, st, cfile, pem.encode('ascii'),
