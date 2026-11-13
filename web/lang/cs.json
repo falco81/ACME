@@ -60967,6 +60967,22 @@
   "_24": {
    "source": "the older trustpoints stay - show nxapi names none of the trustpoints, so which one NX-API uses is not known",
    "text": "starší trustpointy zůstávají - show nxapi neuvádí žádný z trustpointů, takže není známo, který NX-API používá"
+  },
+  "_25": {
+   "source": "FortiOS 6.0 - 6.4",
+   "text": "FortiOS 6.0 - 6.4"
+  },
+  "_26": {
+   "source": "FortiOS 7.0 - 7.4.1",
+   "text": "FortiOS 7.0 - 7.4.1"
+  },
+  "_27": {
+   "source": "FortiOS 7.4.2 - 8.0",
+   "text": "FortiOS 7.4.2 - 8.0"
+  },
+  "_28": {
+   "source": "Made on the device that keeps it: it makes the key and the request (CSR), the key never leaves it.",
+   "text": "Vytváří se na zařízení, které ho drží: zařízení vytvoří klíč i žádost (CSR), klíč ho nikdy neopustí."
   }
  },
  "patterns": {
@@ -84493,6 +84509,22 @@
   "p_36": {
    "source": "the configuration was saved before NX-API was pointed at {0}, not after it ({1}) - run copy running-config startup-config on the switch",
    "text": "konfigurace byla uložena před přepnutím NX-API na {0}, ne po něm ({1}) - spusťte na přepínači copy running-config startup-config"
+  },
+  "p_37": {
+   "source": "Its key is made by {0} and it is deployed there: the key cannot be made here while that deployment stays. Choose “Key made by the device” again, or close this, take that deployment away (the certificate → Deployments; the device keeps the certificate it has) and then change where its key is made.",
+   "text": "Jeho klíč vytváří {0} a je tam nasazen: dokud to nasazení zůstává, klíč nelze vytvářet zde. Zvolte znovu „Klíč vytváří zařízení“, nebo toto zavřete, odeberte to nasazení (certifikát → Nasazení; zařízení si ponechá certifikát, který má) a pak změňte, kde se klíč vytváří."
+  },
+  "p_38": {
+   "source": "{0} makes its own key and takes only the certificate made for it - it cannot be the default target",
+   "text": "{0} si vytváří vlastní klíč a přijme jen certifikát vytvořený pro něj - nemůže být výchozím cílem"
+  },
+  "p_39": {
+   "source": "the test {0}, made from a deployment of {1}, deleted with it",
+   "text": "test {0}, vytvořený z nasazení certifikátu {1}, smazán spolu s ním"
+  },
+  "p_40": {
+   "source": "the test {0}, made from a deployment to {1}, deleted with it",
+   "text": "test {0}, vytvořený z nasazení na {1}, smazán spolu s ním"
   }
  },
  "rich": {
