@@ -15,18 +15,27 @@ from __future__ import annotations
 #     directory by sAMAccountName (switched off, locked, expired, more than one, a computer:
 #     refused), who may sign in decides as for a password, and the second step (the
 #     administration's) or the one-time code (the portal's) is asked after it every time.
-#   - Once in the cluster: sha256 of the whole token kept a day in the shared database (a row of
-#     each node, read across all of them) - MIT's own replay cache is one host's, and behind the
-#     VIP address a token caught on its way could be sent to the other node.
+#   - Once in the cluster: sha256 of the AP-REQ's authenticator (its cipher octets - the SPNEGO
+#     and GSS-API wrappers taken off first, so the same request wrapped another way is the same
+#     key; a token that cannot be taken apart is refused) kept a day in the shared database (a
+#     row of each node, read across all of them) - MIT's own replay cache is one host's, and
+#     behind the VIP address a token caught on its way could be sent to the other node.
 #   - The keytab is put in on the pages (or acme --kerberos-keytab), kept in the database sealed
 #     with the installation's key and signed (db_guard), and written out by each node itself
 #     (0600, the service's own user) - a node put back from a backup or joined later too.
 #   - Every refusal: 401 here, which the page turns into 403 for the browser - never a second 401
 #     with Negotiate, which would make the browser try again, offer NTLM or open a password
-#     window of its own.
+#     window of its own. Its words are "Windows sign-in refused: " and a kind (not allowed,
+#     ticket not accepted, replay, not available just now) - the reason itself only in Events.
+#   - The keytab keeps only keys of web services (HTTP/...) of AES; the rest is left out, said.
+#   - The person found in the directory is of the ticket's realm: the DC= parts of the entry's
+#     DN (or its userPrincipalName's suffix) are the realm.
 #   - "Only Windows" (admin_password_off, portal_password_off): switched on only by somebody signed
-#     in with Windows to that part, in effect only while Kerberos is on with a keytab - switching
-#     Kerberos off (as root) brings the passwords back.
+#     in with Windows to that part (the portal: the administrator's own portal sign-in), in effect
+#     only while Kerberos is on with a keytab - switching Kerberos off (as root) brings the
+#     passwords back. Not known yet whether a keytab is there: in effect (fail closed). Coming
+#     into effect ends that part's sign-ins not made with Windows (but the one doing it); Kerberos
+#     going off or the keytab taken away ends those made with it (but the one doing it).
 #
 # The system's GSS-API library (libgssapi_krb5, MIT Kerberos) through ctypes: nothing to install.
 
@@ -34,8 +43,13 @@ import ctypes          # noqa: E402  (the system's GSS-API library, 1.0.99)
 import ctypes.util     # noqa: E402
 
 KRB5_MECH = bytes.fromhex('2a864886f712010202')          # 1.2.840.113554.1.2.2 (Kerberos 5)
-KRB_TOKEN_MAX = 65536                                     # bytes: more than any ticket with a PAC
-KRB_HEADER_MAX = 90000                                    # its base64 and "Negotiate "
+KRB5_MS_MECH = bytes.fromhex('2a864882f712010202')       # 1.2.840.48018.1.2.2 (Microsoft's)
+SPNEGO_MECH = bytes.fromhex('2b0601050502')              # 1.3.6.1.5.5.2
+# AD's MaxTokenSize (48000 bytes): its base64 and "Negotiate " are 64010 characters - one line of
+# nginx's header buffers (large_client_header_buffers 4 64k) and the page's cap (acme-api.php)
+# hold it, so a ticket that large is refused here with words, never by nginx's bare 400.
+KRB_TOKEN_MAX = 48000
+KRB_HEADER_MAX = 65000
 KRB_KEYTAB_MAX = 64 * 1024
 KRB_META = 'krb:keytab'
 KRB_BIND = 'krb:keytab'
@@ -47,14 +61,19 @@ KRB_ENCTYPES = {1: 'des-cbc-crc', 3: 'des-cbc-md5', 16: 'des3-cbc-sha1', 17: 'ae
                 18: 'aes256-cts-hmac-sha1-96', 19: 'aes128-cts-hmac-sha256-128',
                 20: 'aes256-cts-hmac-sha384-192', 23: 'rc4-hmac', 24: 'rc4-hmac-exp'}
 KRB_WEAK = (1, 3, 16, 23, 24)
+KRB_AES = (17, 18, 19, 20)                                 # the only keys kept of a keytab
+KRB_REFUSED = 'Windows sign-in refused'
+KRB_KINDS = {'allowed': 'not allowed', 'ticket': 'ticket not accepted', 'replay': 'replay',
+             'unavailable': 'not available just now'}
 KRB_ONLY_SAID = 'only Windows: these pages take no password - sign in with Windows'
 KRB_PROOF_SAID = {
     'admin': 'admin_password_off: "only Windows" is switched on only from a sign-in made with '
              'Windows (Kerberos) to these pages - sign in with Windows first, so it is seen to '
              'work for you',
     'portal': 'portal_password_off: "only Windows" on the portal is switched on only by somebody '
-              'signed in to the portal with Windows in this browser - open the portal, sign in '
-              'with Windows there first, then switch it on here'}
+              'signed in to the portal with Windows in this browser, as the same person signed '
+              'in here from the directory - open the portal, sign in with Windows there first, '
+              'then switch it on here'}
 
 
 class KrbError(Exception):
@@ -62,13 +81,20 @@ class KrbError(Exception):
 
 
 class KrbRefused(Exception):
-    """A sign-in with a ticket refused: `said` for the person, `why` for Events."""
+    """A sign-in with a ticket refused: `why` for Events (and an administrator trying a ticket),
+    `said` for whoever sent it - "Windows sign-in refused: " and the kind only, nothing of the
+    keytab, the directory or the library told to somebody not signed in."""
 
-    def __init__(self, said, why=None, status=401):
-        Exception.__init__(self, said)
-        self.said = said
-        self.why = why or said
-        self.status = status
+    def __init__(self, why, kind='ticket', status=None, more=''):
+        Exception.__init__(self, why)
+        self.kind = kind if kind in KRB_KINDS else 'ticket'
+        self.status = status or (503 if self.kind == 'unavailable' else 401)
+        self.why = why + ('' if not more else ' (%s)' % more)
+        self.said = krb_refused_words(self.kind)
+
+
+def krb_refused_words(kind):
+    return '%s: %s' % (KRB_REFUSED, KRB_KINDS.get(kind, KRB_KINDS['ticket']))
 
 
 class _KrbBuf(ctypes.Structure):
@@ -153,6 +179,98 @@ def krb_is_ntlm(token):
     return b'NTLMSSP\x00' in bytes(token or b'')
 
 
+def _krb_der(buf, i, end=None):
+    """(tag, start of its body, end of its body) of the DER element at buf[i] - ValueError for
+    anything else: a tag of more than one byte, an indefinite length (BER), a length past the
+    end."""
+    end = len(buf) if end is None else end
+    if i + 2 > end:
+        raise ValueError('cut short')
+    tag = buf[i]
+    if tag & 0x1f == 0x1f:
+        raise ValueError('a tag of more than one byte')
+    n = buf[i + 1]
+    j = i + 2
+    if n & 0x80:
+        k = n & 0x7f
+        if k == 0 or k > 4 or j + k > end:
+            raise ValueError('a length that is not DER')
+        n = int.from_bytes(buf[j:j + k], 'big')
+        j += k
+    if j + n > end:
+        raise ValueError('a length past the end')
+    return tag, j, j + n
+
+
+def _krb_children(buf, start, end):
+    """{tag: (start, end)} of the elements of a SEQUENCE's body - a tag twice refused."""
+    out, i = {}, start
+    while i < end:
+        tag, s, e = _krb_der(buf, i, end)
+        if tag in out:
+            raise ValueError('a field twice')
+        out[tag] = (s, e)
+        i = e
+    return out
+
+
+def krb_ap_req_key(token):
+    """The key the cluster keeps a ticket's use under: sha256 of the AP-REQ's authenticator
+    (EncryptedData's cipher octets) - found under SPNEGO's NegTokenInit (its mechToken) and the
+    GSS-API InitialContextToken header, so a request wrapped again (bare, or with another list of
+    mechanisms) is the same key; nobody can change those octets without the ticket's session key.
+    ValueError for a token that cannot be taken apart (refused - never let through unkept)."""
+    raw = bytes(token or b'')
+
+    def framed(buf, start, end):
+        tag, s, e = _krb_der(buf, start, end)
+        if tag != 0x60 or e != end:
+            raise ValueError('no GSS-API token')
+        tag, os_, oe = _krb_der(buf, s, e)
+        if tag != 0x06:
+            raise ValueError('no mechanism')
+        return bytes(buf[os_:oe]), oe, e
+    mech, i, end = framed(raw, 0, len(raw))
+    if mech == SPNEGO_MECH:
+        tag, s, e = _krb_der(raw, i, end)
+        if tag != 0xa0 or e != end:
+            raise ValueError('no NegTokenInit')
+        tag, s, e = _krb_der(raw, s, e)
+        if tag != 0x30:
+            raise ValueError('no NegTokenInit')
+        kids = _krb_children(raw, s, e)
+        if 0xa2 not in kids:
+            raise ValueError('no mechToken')
+        tag, s, e = _krb_der(raw, *kids[0xa2])
+        if tag != 0x04 or e != kids[0xa2][1]:
+            raise ValueError('no mechToken')
+        raw = raw[s:e]
+        mech, i, end = framed(raw, 0, len(raw))
+    if mech not in (KRB5_MECH, KRB5_MS_MECH):
+        raise ValueError('not Kerberos 5')
+    if raw[i:i + 2] != b'\x01\x00':
+        raise ValueError('no AP-REQ')
+    tag, s, e = _krb_der(raw, i + 2, end)
+    if tag != 0x6e or e != end:
+        raise ValueError('no AP-REQ')
+    tag, s, e = _krb_der(raw, s, e)
+    if tag != 0x30:
+        raise ValueError('no AP-REQ')
+    kids = _krb_children(raw, s, e)
+    if 0xa4 not in kids:
+        raise ValueError('no authenticator')
+    tag, s, e = _krb_der(raw, *kids[0xa4])
+    if tag != 0x30 or e != kids[0xa4][1]:
+        raise ValueError('no authenticator')
+    enc = _krb_children(raw, s, e)
+    if 0xa2 not in enc:
+        raise ValueError('no cipher')
+    tag, s, e = _krb_der(raw, *enc[0xa2])
+    if tag != 0x04 or e != enc[0xa2][1] or e - s < 16:
+        raise ValueError('no cipher')
+    return hashlib.sha256(raw[s:e]).hexdigest()
+
+
 def krb_accept(token, keytab):
     """The principal a ticket proves ('novak@CORP.EXAMPLE'), checked with the keys of `keytab`
     (a file) - or KrbError. Any principal whose key is in the keytab is taken (no name of our
@@ -218,7 +336,8 @@ def krb_split(principal):
     user, realm = p.split('@', 1)
     if not user or not realm or user.endswith('$') or len(user) > 190:
         raise KrbError('%s is not the name of a person' % p[:200])
-    return user, realm.upper()
+    # The realm as the ticket says it: Kerberos realms are case-sensitive, compared exactly.
+    return user, realm
 
 
 def krb_token_from_header(value):
@@ -243,6 +362,11 @@ def krb_token_from_header(value):
 def keytab_entries(raw):
     """[{principal, kvno, kind, weak}] of a keytab (format 0x0502) - the keys skipped, never
     kept or shown. ValueError when it is no keytab."""
+    return [e for e, _rec, _enc in _keytab_records(raw)]
+
+
+def _keytab_records(raw):
+    """[(entry, the record's bytes, its enctype)] of a keytab - ValueError when it is none."""
     raw = bytes(raw or b'')
     if len(raw) < 2 or raw[0] != 5 or raw[1] != 2:
         raise ValueError('that is not a keytab (a keytab starts with the bytes 05 02)')
@@ -277,8 +401,9 @@ def keytab_entries(raw):
         take(struct.unpack('>H', take(2))[0])     # the key itself: skipped
         if len(rec) - j[0] >= 4:
             kvno = struct.unpack('>I', rec[j[0]:j[0] + 4])[0] or kvno
-        out.append({'principal': '%s@%s' % ('/'.join(comps), realm), 'kvno': kvno,
-                    'kind': KRB_ENCTYPES.get(enc, 'type %d' % enc), 'weak': enc in KRB_WEAK})
+        out.append(({'principal': '%s@%s' % ('/'.join(comps), realm), 'kvno': kvno,
+                     'kind': KRB_ENCTYPES.get(enc, 'type %d' % enc), 'weak': enc in KRB_WEAK},
+                    rec, enc))
         i = end
     if not out:
         raise ValueError('the keytab holds no key')
@@ -318,44 +443,79 @@ def krb_keytab_view(row):
     if not row:
         return None
     return {'entries': row.get('entries') or [], 'at': row.get('at'), 'by': row.get('by') or '',
-            'sha': str(row.get('sha') or '')[:12], 'name': row.get('name') or ''}
+            'sha': str(row.get('sha') or '')[:12], 'name': row.get('name') or '',
+            'dropped': row.get('dropped') or []}
 
 
-def krb_keytab_put(store, raw, by, name=''):
-    """A keytab put in (the pages, acme --kerberos-keytab, a configuration file): checked, sealed
-    and signed in the database; this node writes it out at once, the others within seconds."""
+def krb_keytab_check(raw):
+    """(the keytab kept, its entries, the entries left out) - only keys of a web service
+    (HTTP/name@REALM) of AES are kept: an RC4 or DES key, or one of another service (host/,
+    cifs/) or of a person, is never written out for the acceptor, which takes any principal of
+    its keytab. ValueError when it is no keytab, or nothing is left. Run before anything is
+    saved - the pages, the command line, and the first check of a configuration put in."""
     raw = bytes(raw or b'')
     if not raw:
         raise ValueError('the keytab is empty')
     if len(raw) > KRB_KEYTAB_MAX:
         raise ValueError('the keytab is %s - one service account\'s is a few hundred bytes'
                          % bytes_words(len(raw)))
-    entries = keytab_entries(raw)
-    services = [e for e in entries if e['principal'].upper().startswith('HTTP/')]
-    if not services:
-        raise ValueError('the keytab holds no key of a web service (HTTP/name@REALM) - it has: %s'
-                         % ', '.join(sorted({e['principal'] for e in entries}))[:300])
-    if all(e['weak'] for e in services):
-        raise ValueError('the keytab holds only weak keys (DES or RC4) - make it with '
-                         '-crypto AES256-SHA1, and switch on "This account supports Kerberos AES '
-                         '256 bit encryption" on the service account')
+    recs = _keytab_records(raw)
+    kept, dropped = [], []
+    for e, rec, enc in recs:
+        if not e['principal'].startswith('HTTP/'):
+            dropped.append(dict(e, why='not a web service (HTTP/)'))
+        elif enc not in KRB_AES:
+            dropped.append(dict(e, why='a weak key (RC4 or DES)' if enc in KRB_WEAK
+                                else 'not an AES key'))
+        else:
+            kept.append((e, rec))
+    if not kept:
+        services = [e for e, _r, _n in recs if e['principal'].startswith('HTTP/')]
+        if not services:
+            raise ValueError('the keytab holds no key of a web service (HTTP/name@REALM) - it '
+                             'has: %s' % ', '.join(sorted({e['principal'] for e, _r, _n in recs}))[:300])
+        raise ValueError('the keytab holds no AES key of a web service, only weak ones (DES or '
+                         'RC4) - make it with -crypto AES256-SHA1, and switch on "This account '
+                         'supports Kerberos AES 256 bit encryption" on the service account')
+    if dropped:
+        raw = b'\x05\x02' + b''.join(struct.pack('>i', len(rec)) + rec for _e, rec in kept)
+    return raw, [e for e, _r in kept], dropped
+
+
+def krb_dropped_words(dropped):
+    return ', '.join('%s %s (%s)' % (d['principal'], d['kind'], d['why'])
+                     for d in dropped)[:600]
+
+
+def krb_keytab_put(store, raw, by, name='', keep=None):
+    """A keytab put in (the pages, acme --kerberos-keytab, a configuration file): checked (only
+    the HTTP/ keys of AES kept), sealed and signed in the database; this node writes it out at
+    once, the others within seconds."""
+    before = krb_state_now(store)
+    raw, entries, dropped = krb_keytab_check(raw)
     row = {'sealed': seal_secret(base64.b64encode(raw).decode('ascii'), KRB_BIND),
            'sha': hashlib.sha256(raw).hexdigest(), 'entries': entries, 'at': time.time(),
-           'by': str(by or '')[:120], 'name': os.path.basename(str(name or ''))[:120]}
+           'by': str(by or '')[:120], 'name': os.path.basename(str(name or ''))[:120],
+           'dropped': [{k: d[k] for k in ('principal', 'kvno', 'kind', 'why')}
+                       for d in dropped][:50]}
     store.set_meta(KRB_META, json.dumps(row))
     KRB_STATE.update(have=True, checked=0.0)
-    store.add_event('settings', '%s put in the keytab of the sign-in with Windows: %s'
+    store.add_event('settings', '%s put in the keytab of the sign-in with Windows: %s%s'
                     % (by, ', '.join(sorted({'%s (kvno %s)' % (e['principal'], e['kvno'])
-                                              for e in services}))[:600]), 'warn', who=by)
+                                              for e in entries}))[:600],
+                       '; left out: %s' % krb_dropped_words(dropped) if dropped else ''),
+                    'warn', who=by)
     if KRB_STATE['writer']:
         try:
             krb_write_out(store)
         except Exception as e:                          # noqa: BLE001
             log('the keytab could not be written out on %s: %s' % (node_name(), e), 'warn')
+    krb_sessions_settle(store, before, keep, by)
     return krb_keytab_view(row)
 
 
-def krb_keytab_drop(store, by):
+def krb_keytab_drop(store, by, keep=None):
+    before = krb_state_now(store)
     had = krb_keytab_row(store) is not None or store.db.value(
         'SELECT 1 FROM meta WHERE k = ?', (KRB_META,))
     meta_drop(store, KRB_META)
@@ -368,6 +528,7 @@ def krb_keytab_drop(store, by):
             krb_write_out(store)
         except Exception as e:                          # noqa: BLE001
             log('the keytab could not be taken away on %s: %s' % (node_name(), e), 'warn')
+    krb_sessions_settle(store, before, keep, by)
     return bool(had)
 
 
@@ -470,11 +631,30 @@ def krb_once_tidy(store):
             store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (r['k'], r['v']))
 
 
-def krb_have(store=None):
-    """Whether a keytab is put in - as this node last read it (the health check asks it often)."""
+def krb_have(store=None, unknown=False):
+    """Whether a keytab is put in - as this node last read it (the health check asks it often);
+    not read yet, the database is asked. `unknown`: the answer when that cannot be known (no
+    store, or the database not answering) - "only Windows" fails closed on it."""
     if KRB_STATE['have'] is None and store is not None:
-        KRB_STATE['have'] = krb_keytab_row(store) is not None
+        try:
+            KRB_STATE['have'] = krb_keytab_row(store) is not None
+        except Exception as e:                          # noqa: BLE001
+            log_sparing('krb-have', 'whether a keytab is put in could not be read: %s' % e,
+                        'warn', every=300)
+    if KRB_STATE['have'] is None:
+        return unknown
     return bool(KRB_STATE['have'])
+
+
+def krb_startup(store):
+    """At the daemon's start, before it serves anybody: whether a keytab is put in - until it is
+    known, "only Windows" was not in effect for the first seconds of every start."""
+    try:
+        KRB_STATE['have'] = krb_keytab_row(store) is not None
+    except Exception as e:                              # noqa: BLE001
+        KRB_STATE['have'] = None                        # fails closed: krb_have(unknown=True)
+        log('whether a keytab of the sign-in with Windows is put in could not be read: %s' % e,
+            'warn')
 
 
 # ---- each part's switches ------------------------------------------------------------------
@@ -494,16 +674,78 @@ def krb_on(part):
 
 def krb_password_off(part, store=None):
     """"Only Windows" in effect: switched on, and Kerberos able to sign anybody in - on, with a
-    keytab. Off, or Kerberos off (the way back), and passwords are taken again."""
-    return bool(CONFIG.get(part + '_password_off') and krb_on(part) and krb_have(store))
+    keytab. Off, or Kerberos off (the way back), and passwords are taken again. Whether a keytab
+    is there not known (and no database to ask): in effect - closed, never open."""
+    return bool(CONFIG.get(part + '_password_off') and krb_on(part) and
+                krb_have(store, unknown=True))
 
 
-def krb_page_info(part):
+def krb_usable(part, store=None):
+    """Whether a part signs anybody in with Windows now: switched on, with a keytab."""
+    return bool(krb_on(part) and krb_have(store))
+
+
+def krb_page_info(part, store=None):
     """What a sign-in page shows of it: the button, tried by itself, no password - nothing else
     (asked before anybody is signed in)."""
-    on = krb_on(part) and krb_have()
+    only = krb_password_off(part, store)
+    on = krb_usable(part, store) or only
     return {'on': bool(on), 'auto': bool(on and CONFIG.get(part + '_krb_auto')),
-            'only': bool(on and krb_password_off(part))}
+            'only': bool(only)}
+
+
+def krb_state_now(store):
+    """{part: (signs in with Windows, "only Windows" in effect)} - before and after a change."""
+    return {part: (krb_usable(part, store), krb_password_off(part, store)) for part in KRB_PARTS}
+
+
+def krb_sessions_settle(store, before, keep=None, by=''):
+    """After a change (the settings, the keytab put in or taken away): "only Windows" come into
+    effect ends that part's sign-ins not made with Windows; Kerberos gone (switched off, the
+    keytab taken away) ends those made with it. The sign-in of whoever did it (`keep`, a session
+    id) stays either way - marked, so that the check of every request leaves it too."""
+    after = krb_state_now(store)
+    keep = int(keep or 0)
+    for part in KRB_PARTS:
+        (usable_was, only_was), (usable, only) = before.get(part, (False, False)), after[part]
+        if usable == usable_was and (only == only_was or not only):
+            continue
+        ended = 0
+        try:
+            for r in store.db.rows('SELECT id, data FROM sessions WHERE kind = ?', (part,)):
+                try:
+                    data = json.loads(r.get('data') or '{}')
+                except ValueError:
+                    data = {}
+                kerb = isinstance(data, dict) and data.get('how') == 'Kerberos'
+                if (only and not only_was and not kerb) or (usable_was and not usable and kerb):
+                    if part == 'admin' and int(r['id']) == keep:
+                        if kerb:
+                            store.session_merge(r['id'], {'krb_kept': time.time()})
+                        continue
+                    store.db.run('DELETE FROM sessions WHERE id = ?', (r['id'],))
+                    ended += 1
+        except Exception as e:                          # noqa: BLE001
+            log('the sign-ins could not be ended after a change of the sign-in with Windows: %s'
+                % e, 'warn')
+            continue
+        if ended:
+            store.add_event('accounts' if part == 'admin' else 'portal', '%s: %d sign-in(s) to %s '
+                            'ended - %s' % (
+                                by or 'acme', ended,
+                                'these pages' if part == 'admin' else 'the enrolment pages',
+                                'only Windows now, and they were made with a password'
+                                if only and not only_was else
+                                'Windows no longer signs anybody in, and they were made with it'),
+                            'warn', who=by or None)
+
+
+def krb_session_gone(part, s, store):
+    """Whether a sign-in made with Windows outlived it (switched off, the keytab taken away) -
+    the one of whoever did it kept."""
+    data = (s or {}).get('data') or {}
+    return bool(data.get('how') == 'Kerberos' and not data.get('krb_kept') and
+                not krb_usable(part, store))
 
 
 def realm_from_base(base):
@@ -528,10 +770,58 @@ def krb_realm(d, part):
     return got, ('directory' if got else '')
 
 
+def krb_base_realm(d, part):
+    """The domain of the part's directory's base DN, as a realm ('' when it has no DC= parts)."""
+    name = krb_directory_name(part)
+    ad = d.dirs.get(name.lower()) if name else None
+    if ad is None:
+        row = d.store.directory(name) if name else None
+        base = (row or {}).get('base') or ''
+    else:
+        base = ad.base
+    return realm_from_base(base)
+
+
+def krb_realm_warning(d, part):
+    """Words for the card when the realm set is no domain of the directory's base - its people
+    are then never found in that realm, and nobody signs in."""
+    own = str(CONFIG.get(part + '_krb_realm') or '').strip().upper()
+    base = krb_base_realm(d, part)
+    if not own or not base or own == base or own.endswith('.' + base):
+        return ''
+    return ('the realm %s is not the domain of the directory\'s base DN (%s), nor one under it: '
+            'only people whose entry is in the domain %s sign in - and the directory has none '
+            'there' % (own, base, own.lower()))
+
+
+def krb_entry_domain(entry):
+    """The DNS domain of a directory entry: the DC= parts of its DN, else the suffix of its
+    userPrincipalName - lower-case, '' when neither says."""
+    got = realm_from_base((entry or {}).get('dn') or '')
+    if not got:
+        upn = str((entry or {}).get('upn') or '')
+        got = upn.rsplit('@', 1)[1] if '@' in upn else ''
+    return got.strip().strip('.').lower()
+
+
+def krb_entry_in_realm(h, part, entry, principal):
+    """The person found is of the ticket's realm (DNS domains compared without regard to case):
+    of realm X, never the same-named account of domain Y in a forest-wide base. KrbRefused."""
+    want, _ = krb_realm(h.d, part)
+    dom = krb_entry_domain(entry)
+    if not dom or dom != want.lower():
+        raise KrbRefused('%s was found in the directory as %s, of the domain %s - not of the realm '
+                         '%s, so not taken as the same person'
+                         % (principal, (entry or {}).get('dn') or '?', dom or '(none)', want),
+                         'allowed')
+
+
 def krb_proof_of(h, s):
     """Whether this save may switch "only Windows" on, part by part: the administrator's own
     sign-in made with Windows; for the portal, a sign-in to the portal made with Windows in the
-    same browser (its cookie, passed on by the page as X-Acme-Portal-Session)."""
+    same browser (its cookie, passed on by the page as X-Acme-Portal-Session) of the same person:
+    the administrator an account of the directory, the same entry (its DN; its name where the
+    account has none kept) - not anybody's portal sign-in that happened to be in that browser."""
     proof = {'admin': str((s.get('data') or {}).get('how') or '') == 'Kerberos', 'portal': False}
     token = str(h.headers.get('X-Acme-Portal-Session') or '')
     if token:
@@ -541,7 +831,18 @@ def krb_proof_of(h, s):
         except Exception:                               # noqa: BLE001
             ps = None
         data = (ps or {}).get('data') or {}
-        proof['portal'] = bool(ps and data.get('how') == 'Kerberos' and not data.get('gate_wait'))
+        acc = s.get('account') or h.store.account(s.get('name') or '') or {}
+        same = False
+        if ps and acc.get('source') == 'directory':
+            pdn = str(data.get('dn') or '').strip().lower()
+            adn = str(acc.get('dn') or '').strip().lower()
+            if adn:
+                same = bool(pdn) and pdn == adn
+            else:
+                sam = str((data.get('about') or {}).get('sam') or data.get('login') or '')
+                same = bool(sam) and sam.lower() == str(acc.get('name') or '').lower()
+        proof['portal'] = bool(ps and same and data.get('how') == 'Kerberos' and
+                               not data.get('gate_wait'))
     return proof
 
 
@@ -557,36 +858,47 @@ def krb_ticket(h, part, b, try_only=False):
         token = krb_token_from_header(header)
     except KrbError as e:
         raise KrbRefused(str(e))
+    if len(token) > KRB_TOKEN_MAX:
+        raise KrbRefused('larger than any Kerberos ticket')
+    if krb_is_ntlm(token):
+        raise KrbRefused('NTLM is never taken - only Kerberos')
+    # The key it is kept under in the cluster, before the library is asked: a token that
+    # cannot be taken apart is refused, never let through unkept.
+    try:
+        once = krb_ap_req_key(token)
+    except ValueError as e:
+        raise KrbRefused('not taken: not a Kerberos request that can be read (%s)' % e)
     row = krb_keytab_row(h.store)
     if not row:
         raise KrbRefused('no keytab is put in yet (Settings → Accounts → Signing in with Windows)',
-                         status=503)
+                         'unavailable')
     if not KRB_STATE.get('written') or KRB_STATE.get('sha') != row.get('sha'):
         try:
             krb_write_out(h.store)
         except Exception as e:                          # noqa: BLE001
-            raise KrbRefused('the keytab could not be written out on this node', str(e), 503)
+            raise KrbRefused('the keytab could not be written out on this node', 'unavailable',
+                             more=str(e))
         if not KRB_STATE.get('written'):
-            raise KrbRefused('the keytab could not be written out on this node',
-                             KRB_STATE.get('error') or '', 503)
+            raise KrbRefused('the keytab could not be written out on this node', 'unavailable',
+                             more=KRB_STATE.get('error') or '')
     try:
         principal = krb_accept(token, krb_keytab_path())
         user, realm = krb_split(principal)
     except KrbError as e:
-        raise KrbRefused(str(e))
+        raise KrbRefused(str(e), 'replay' if 'replay' in str(e).lower() else 'ticket')
     want, _ = krb_realm(h.d, part)
     if not want:
         raise KrbRefused('the realm is not known: set it, or a base DN of the directory',
-                         status=503)
+                         'unavailable')
+    # Exactly (Kerberos realms are case-sensitive; the one set is kept in capitals, as AD's).
     if realm != want:
         raise KrbRefused('%s is of the realm %s, and only %s signs in here' % (principal, realm,
-                                                                               want))
-    # Once in the whole cluster (as otp 1.0.274): a hash of the whole token - unique to one
-    # request, it carries an authenticator of its own - kept a day.
-    if not node_key_add(h.store, KRB_ONCE, hashlib.sha256(token).hexdigest(), KRB_ONCE_S,
-                        limit=1):
-        raise KrbRefused('this ticket was used already (sent again?)',
-                         'the ticket of %s was used already - sent again (a replay?)' % principal)
+                                                                               want), 'allowed')
+    # Once in the whole cluster (as otp 1.0.274): the AP-REQ's authenticator - unique to one
+    # request, whatever it is wrapped in - kept a day.
+    if not node_key_add(h.store, KRB_ONCE, once, KRB_ONCE_S, limit=1):
+        raise KrbRefused('the ticket of %s was used already - sent again (a replay?)' % principal,
+                         'replay')
     return user, principal
 
 
@@ -611,21 +923,27 @@ def krb_local_same(h, user):
 def krb_admin_would(h, user, principal):
     """Who the ticket signs in to the administration, and as what - nothing made. KrbRefused."""
     if krb_local_same(h, user):
-        raise KrbRefused('%s is an account of this server - it signs in with its password' % user)
-    said = admin_ask_directory(h, user, None, ticket=True)
+        raise KrbRefused('%s is an account of this server - it signs in with its password' % user,
+                         'allowed')
+    try:
+        said = admin_ask_directory(h, user, None, ticket=True)
+    except ApiError as e:
+        raise KrbRefused('the directory cannot be reached just now', 'unavailable', more=str(e))
     if said is None:
-        raise KrbRefused('no directory is set (or switched on) for administrators', status=503)
+        raise KrbRefused('no directory is set (or switched on) for administrators', 'unavailable')
     if not said['ok']:
-        raise KrbRefused('the directory does not let %s in: %s' % (user, said.get('said') or '?'))
+        raise KrbRefused('the directory does not let %s in: %s' % (user, said.get('said') or '?'),
+                         'allowed')
+    krb_entry_in_realm(h, 'admin', said.get('entry') or {'dn': said.get('dn')}, principal)
     if said['role'] == 'portal':
         raise KrbRefused('%s signs in on the enrolment pages only, not here' % principal,
-                         status=403)
+                         'allowed')
     if not said['role']:
         raise KrbRefused('%s is known to the directory, and none of the groups given a role here '
-                         'holds them' % principal)
+                         'holds them' % principal, 'allowed')
     bad = name_letters_problem(said['name'])
     if bad:
-        raise KrbRefused('%s: %s' % (principal, bad))
+        raise KrbRefused('%s: %s' % (principal, bad), 'allowed')
     return said
 
 
@@ -633,24 +951,29 @@ def krb_portal_would(h, user, principal):
     """Who the ticket signs in to the portal - the portal's directory, its rules of who may - and
     the entry; nothing made. KrbRefused."""
     if krb_local_same(h, user):
-        raise KrbRefused('%s is an account of this server - it signs in with its password' % user)
+        raise KrbRefused('%s is an account of this server - it signs in with its password' % user,
+                         'allowed')
     ad = portal_directory(h)
     if not ad:
-        raise KrbRefused('no directory is set (or switched on) for the enrolment pages', status=503)
+        raise KrbRefused('no directory is set (or switched on) for the enrolment pages',
+                         'unavailable')
     try:
         entry = ad.find_user(user, 'sam')
     except LdapUnreachable:
-        raise KrbRefused('the directory cannot be reached just now', status=503)
+        raise KrbRefused('the directory cannot be reached just now', 'unavailable')
     if not entry:
-        raise KrbRefused('the directory does not let %s in: there is no such account' % user)
+        raise KrbRefused('the directory does not let %s in: there is no such account' % user,
+                         'allowed')
     if entry.get('many'):
         raise KrbRefused('the directory does not let %s in: more than one account answers to '
-                         'that name' % user)
+                         'that name' % user, 'allowed')
     if entry_unusable(entry):
-        raise KrbRefused('the directory does not let %s in: %s' % (user, entry_unusable(entry)))
+        raise KrbRefused('the directory does not let %s in: %s' % (user, entry_unusable(entry)),
+                         'allowed')
+    krb_entry_in_realm(h, 'portal', entry, principal)
     bad = name_letters_problem(user)
     if bad:
-        raise KrbRefused('%s: %s' % (principal, bad))
+        raise KrbRefused('%s: %s' % (principal, bad), 'allowed')
     groups = []
     if (CONFIG.get('portal_who') or 'anyone') == 'groups':
         wanted = [{'group': g} for g in dn_list(CONFIG.get('portal_groups'))]
@@ -665,7 +988,7 @@ def krb_portal_would(h, user, principal):
                 pass
         if not groups:
             raise KrbRefused('%s is known to the directory, and in none of the groups that may '
-                             'use the enrolment pages' % principal, status=403)
+                             'use the enrolment pages' % principal, 'allowed')
     return ad, entry, groups
 
 
@@ -696,15 +1019,15 @@ def _auth_kerberos(h):
         acc = admin_directory_account(h, said)
         if not acc:
             raise KrbRefused('%s is an account of this server - it signs in with its password'
-                             % user)
+                             % user, 'allowed')
         if acc.get('disabled'):
-            raise KrbRefused('%s is switched off here (Accounts)' % acc['name'])
+            raise KrbRefused('%s is switched off here (Accounts)' % acc['name'], 'allowed')
         if acc.get('role') == 'portal':
-            raise KrbRefused(PORTAL_ONLY_SAID, status=403)
+            raise KrbRefused('%s: %s' % (acc['name'], PORTAL_ONLY_SAID), 'allowed')
     except KrbRefused as e:
         h.failed(key)
         krb_refused_event(h, 'admin', e.why, principal)
-        raise ApiError(401 if e.status == 403 else e.status, e.said)
+        raise ApiError(e.status, e.said)
     # The second step, as after a password (1.0.125): Kerberos takes the password's place only.
     stage = mfa_stage(h.store, acc['name']) if CONFIG.get('admin_2fa') else ''
     if stage == 'lost':
@@ -746,7 +1069,7 @@ def _portal_kerberos(h):
     except KrbRefused as e:
         h.failed(key)
         krb_refused_event(h, 'portal', e.why, principal)
-        raise ApiError(401 if e.status == 403 else e.status, e.said)
+        raise ApiError(e.status, e.said)
     # Somebody else signed in in this browser before (a shared machine): that one ends.
     if h.headers.get('X-Acme-Session'):
         h.store.session_end(h.headers.get('X-Acme-Session'))
@@ -754,7 +1077,8 @@ def _portal_kerberos(h):
         got = portal_open_dir(h, key, user, ad, entry, how='Kerberos')
     except ApiError as e:
         krb_refused_event(h, 'portal', str(e), principal)
-        raise ApiError(401 if e.status in (401, 403) else e.status, str(e))
+        raise ApiError(503 if e.status == 503 else 401,
+                       krb_refused_words('unavailable' if e.status == 503 else 'allowed'))
     return dict(got, how='Kerberos')
 
 
@@ -776,7 +1100,7 @@ def _kerberos_try(h):
         user, principal = krb_ticket(h, part, b, try_only=True)
     except KrbRefused as e:
         h.failed(key)
-        return dict(out, ok=False, ticket=False, said=e.said)
+        return dict(out, ok=False, ticket=False, said=e.why)
     out.update(ticket=True, principal=principal)
     try:
         if part == 'admin':
@@ -790,7 +1114,7 @@ def _kerberos_try(h):
                        role='portal', display=entry.get('display') or '', groups=groups[:10],
                        second=portal_gate_needed())
     except KrbRefused as e:
-        out.update(ok=False, said=e.said)
+        out.update(ok=False, said=e.why)
     return out
 
 
@@ -855,6 +1179,7 @@ def krb_view(h):
             'password_off': bool(CONFIG.get(part + '_password_off')),
             'only_in_effect': krb_password_off(part, store),
             'realm': realm, 'realm_from': where, 'directory': krb_directory_name(part),
+            'realm_warn': krb_realm_warning(h.d, part),
             'second': bool(CONFIG.get('admin_2fa')) if part == 'admin' else portal_gate_needed()}
     parts['portal']['portal'] = bool(CONFIG.get('portal'))
     parts['portal']['who'] = CONFIG.get('portal_who') or 'anyone'
@@ -907,12 +1232,17 @@ def _kerberos_do(h):
         except (binascii.Error, ValueError):
             raise ApiError(400, 'the keytab did not arrive whole')
         try:
-            krb_keytab_put(h.store, raw, s['name'], str(b.get('name') or ''))
+            view = krb_keytab_put(h.store, raw, s['name'], str(b.get('name') or ''),
+                                  keep=s.get('id'))
         except ValueError as e:
             raise ApiError(400, str(e))
-        return {'message': 'the keytab is put in', 'view': krb_view(h)}
+        msg = 'the keytab is put in'
+        if view.get('dropped'):
+            msg += ' - left out (only AES keys of HTTP/ names are kept): %s' % \
+                krb_dropped_words(view['dropped'])
+        return {'message': msg, 'dropped': view.get('dropped') or [], 'view': krb_view(h)}
     if act == 'drop':
-        if not krb_keytab_drop(h.store, s['name']):
+        if not krb_keytab_drop(h.store, s['name'], keep=s.get('id')):
             raise ApiError(404, 'there is no keytab to take away')
         return {'message': 'the keytab is taken away', 'view': krb_view(h)}
     raise ApiError(400, 'no such thing to do')

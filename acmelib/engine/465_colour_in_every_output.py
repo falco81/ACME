@@ -2573,6 +2573,9 @@ def cli_kerberos(args, pal, store):
         for e in view['entries']:
             print('  %-50s kvno %-4s %s%s' % (e['principal'], e['kvno'], e['kind'],
                                                '  (weak)' if e.get('weak') else ''))
+        for e in view.get('dropped') or []:
+            print(pal.warn_line('left out: %s kvno %s %s - %s' % (e['principal'], e['kvno'],
+                                                                  e['kind'], e['why'])))
         return 0
     if args.kerberos_keytab_off:
         cli_sure(args, 'the keytab taken away: nobody signs in with Windows until another is put in')
@@ -2594,6 +2597,8 @@ def cli_kerberos(args, pal, store):
             p['directory'] or '-', 'yes' if p['auto'] else 'no',
             'ON' if p['only_in_effect'] else ('set, not in effect' if p['password_off'] else 'no'),
             ('  (the way back: acme --set %s_password_off=0)' % part) if p['password_off'] else ''))
+        if p.get('realm_warn'):
+            print(pal.warn_line('  ' + p['realm_warn']))
     kt = v['keytab']
     if not kt:
         print(pal.warn_line('no keytab is put in (acme --kerberos-keytab FILE)'))
@@ -2602,6 +2607,9 @@ def cli_kerberos(args, pal, store):
         for e in kt['entries']:
             print('    %-50s kvno %-4s %s%s' % (e['principal'], e['kvno'], e['kind'],
                                                  '  (weak)' if e.get('weak') else ''))
+        for e in kt.get('dropped') or []:
+            print('    left out: %s kvno %s %s - %s' % (e['principal'], e['kvno'], e['kind'],
+                                                       e['why']))
     for n in v['names']:
         print('  name %-40s %-10s %s  %s' % (n['name'], n['of'], n['spn'],
                                             {'name': 'in the keytab', 'key': 'by the account\'s key?',

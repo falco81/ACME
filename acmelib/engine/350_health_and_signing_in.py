@@ -581,7 +581,7 @@ def _health(h):
            'maintenance': maint,
            # What the sign-in page offers of Windows (Kerberos, 1.0.99): the button, tried by
            # itself, no password at all - nothing more (no realm, no name).
-           'kerberos': krb_page_info('admin')}
+           'kerberos': krb_page_info('admin', h.store)}
     # For monitoring (1.0.47) - asked for - whether replication runs.
     if h.arg('check') == 'all' and CONFIG.get('ha_mode') == 'replicated':
         try:
@@ -813,7 +813,7 @@ def _login(h):
     password = str(b.get('password') or '')
     # "Only Windows" (1.0.99): no password signs anybody in while Kerberos can - root's way
     # back is acme --set admin_password_off=0 (or Kerberos switched off).
-    if krb_password_off('admin'):
+    if krb_password_off('admin', h.store):
         h.store.add_event('sign-ins', 'a password for %s from %s refused: these pages are '
                           'signed in to with Windows only' % (name or '(nobody)', h.client_ip()),
                           'warn')

@@ -285,7 +285,9 @@ function acme_kerberos_relay(string $path, array $more = [], bool $session = tru
     header('Cache-Control: no-store');
     $auth = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? ''));
     $payload = $more;
-    if (strlen($auth) > 90000) {
+    /* 65000: the daemon's cap (KRB_HEADER_MAX) - AD's MaxTokenSize in base64, one line of
+       nginx's 64 kB header buffers. */
+    if (strlen($auth) > 65000) {
         $payload['too_big'] = true;           /* said so, never cut and sent on */
     } elseif ($auth !== '') {
         $payload['header'] = $auth;

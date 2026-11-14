@@ -346,6 +346,11 @@ class ApiHandler(BaseHTTPRequestHandler):
             raise ApiError(401, 'that account may no longer sign in')
         if acc.get('source') == 'directory':
             acc = self.directory_recheck(acc)
+        # Signed in with Windows, and that switched off or the keytab taken away since (1.0.99):
+        # the sign-in ends - but the one of whoever did it (kept, marked).
+        if krb_session_gone('admin', s, self.store):
+            self.store.session_end(self.headers.get('X-Acme-Session'))
+            raise ApiError(401, 'sign in again')
         s['role'] = acc['role']
         if s['role'] not in ROLE_RANK or not ROLE_RANK[s['role']]:
             # Given the role of the enrolment pages only (1.0.14) while signed

@@ -269,7 +269,7 @@ def _users_do(h):
     b = h.body()
     act, name = b.get('action'), str(b.get('name') or '').strip()
     who = s['name']
-    if act in ('add', 'password') and b.get('password') and krb_password_off('admin'):
+    if act in ('add', 'password') and b.get('password') and krb_password_off('admin', h.store):
         # "Only Windows" (1.0.99): no account signs in with a password now - none is given one.
         raise ApiError(403, KRB_ONLY_SAID)
     if act == 'add':
@@ -1248,7 +1248,8 @@ def _import(h):
     def not_me_out(acc):
         access_not_me_out(h, h.store, acc, {})
     said = config_import(h.store, h.d, conf, s['name'], keep_account=s['name'],
-                         access_check=not_me_out, replace=bool(h.body().get('replace')))
+                         access_check=not_me_out, replace=bool(h.body().get('replace')),
+                         keep_session=s.get('id'))
     return {'message': 'imported: %s%s' % (
         ', '.join('%s %d' % kv for kv in sorted(said.items()) if ':' not in kv[0]) or 'nothing',
         ''.join('; %d %s' % (v, k) for k, v in sorted(said.items()) if ':' in k)),

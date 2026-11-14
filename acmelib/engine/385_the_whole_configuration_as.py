@@ -292,7 +292,7 @@ def config_export(store, whole):
 
 
 def config_import(store, daemon, conf, by, keep_account='', access_check=None, nodes_as=None,
-                  replace=False):
+                  replace=False, keep_session=None):
     """A configuration file put in. Checked whole before anything is saved;
     whatever was saved is in use even where something after it stopped.
     Returns what was imported, counted."""
@@ -382,9 +382,13 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
     krb_in = conf.get('kerberos')
     if krb_in is not None and not isinstance(krb_in, dict):
         raise ApiError(400, 'kerberos in the file is not an object')
+    krb_raw = None
     if isinstance(krb_in, dict) and krb_in.get('keytab'):
+        # Every check of the keytab here, before anything is applied (1.0.99): the web
+        # service's names and the strength of its keys stopped the import halfway.
         try:
-            keytab_entries(base64.b64decode(str(krb_in['keytab']), validate=True))
+            krb_raw = base64.b64decode(str(krb_in['keytab']), validate=True)
+            krb_keytab_check(krb_raw)
         except (binascii.Error, ValueError) as e:
             raise ApiError(400, 'the keytab in the file: %s' % e)
     pem = str(conf.get('mail_ca') or '').strip()
@@ -588,13 +592,12 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
             store.set_meta('web:vip', json.dumps(dict(vip, at=time.time(), by=by)))
             said['VIP address'] += 1
         krb_in = conf.get('kerberos')
-        if isinstance(krb_in, dict) and krb_in.get('keytab'):
-            krb_keytab_put(store, base64.b64decode(str(krb_in['keytab']), validate=True), by,
-                           str(krb_in.get('name') or ''))
+        if krb_raw is not None:
+            krb_keytab_put(store, krb_raw, by, str(krb_in.get('name') or ''), keep=keep_session)
             said['keytab of the sign-in with Windows'] += 1
         elif isinstance(krb_in, dict) and replace and not krb_in.get('entries') and \
                 krb_keytab_row(store):
-            krb_keytab_drop(store, by)
+            krb_keytab_drop(store, by, keep=keep_session)
         if fw is not None:
             fw_trial_begin(store, by)
             store.set_meta('fw:conf', json.dumps(dict(fw, at=time.time(), by=by)))

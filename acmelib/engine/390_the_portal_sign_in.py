@@ -37,8 +37,9 @@ def portal_me(h, gate_ok=False):
     if (s.get('data') or {}).get('sso') and not CONFIG.get('portal_sso'):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         raise ApiError(401, 'sign in again')
-    # ...and signed in with Windows, that switched off meanwhile (1.0.99): it ends too.
-    if (s.get('data') or {}).get('how') == 'Kerberos' and not krb_on('portal'):
+    # ...and signed in with Windows, that switched off (or the keytab taken away) meanwhile
+    # (1.0.99): it ends too.
+    if krb_session_gone('portal', s, h.store):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         raise ApiError(401, 'sign in again')
     if portal_mfa_pending(s):
@@ -511,7 +512,7 @@ def _portal_info(h):
             if CONFIG.get('portal_sso') and CONFIG.get('portal') else None,
             # Signed in with Windows (Kerberos, 1.0.99): the button, tried by itself, no
             # password at all - the portal's own switches, not the administration's.
-            'kerberos': krb_page_info('portal')}
+            'kerberos': krb_page_info('portal', h.store)}
 
 
 def portal_directory(h):
@@ -533,7 +534,7 @@ def _portal_login(h):
     password = str(b.get('password') or '')
     # "Only Windows" on the portal (1.0.99): no password signs anybody in here, acme's own
     # accounts neither - while Kerberos can (acme --set portal_password_off=0 back).
-    if krb_password_off('portal'):
+    if krb_password_off('portal', h.store):
         h.store.add_event('portal', 'a password for %s from %s refused: the enrolment pages are '
                           'signed in to with Windows only' % (name or '(nobody)', h.client_ip()),
                           'warn')
@@ -988,7 +989,7 @@ def _portal_password(h):
     if (s.get('data') or {}).get('kind') != 'local':
         raise ApiError(400, 'this account signs in with its directory password, which is '
                             'changed in the directory')
-    if krb_password_off('portal'):
+    if krb_password_off('portal', h.store):
         raise ApiError(403, KRB_ONLY_SAID)
     acc = h.store.account(s["name"], checked=True)
     b = h.body()
@@ -1102,6 +1103,10 @@ def _portal_whoami(h):
         return {'me': None}
     if (s.get('data') or {}).get('sso') and not CONFIG.get('portal_sso'):
         # Signed in by the balancer, and that switched off meanwhile (otp 1.0.239): it ends.
+        h.store.session_end(h.headers.get('X-Acme-Session'))
+        return {'me': None}
+    if krb_session_gone('portal', s, h.store):
+        # Signed in with Windows, and that switched off meanwhile (1.0.99): as portal_me.
         h.store.session_end(h.headers.get('X-Acme-Session'))
         return {'me': None}
     if portal_mfa_pending(s):

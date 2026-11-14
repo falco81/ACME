@@ -852,8 +852,12 @@ if admin in text and 'client_max_body_size 4g' not in text:
 if 'large_client_header_buffers' not in text and 'client_max_body_size 8m;' in text:
     text = text.replace('client_max_body_size 8m;', 'client_max_body_size 8m;\n'
                         '    # A Kerberos ticket of a person in many AD groups is more than 8 kB (1.0.99).\n'
-                        '    large_client_header_buffers 4 32k;', 1)
-    said.append('room for a Kerberos ticket of a person in many groups (32 kB headers)')
+                        '    large_client_header_buffers 4 64k;', 1)
+    said.append('room for a Kerberos ticket of a person in many groups (64 kB headers)')
+# acme's own 32 kB of before raised: AD's MaxTokenSize (48000 bytes) is 64 kB in base64.
+if re.search(r'(?m)^[ \t]*large_client_header_buffers[ \t]+4[ \t]+32k;', text):
+    text = re.sub(r'(?m)^([ \t]*large_client_header_buffers[ \t]+4[ \t]+)32k;', r'\g<1>64k;', text)
+    said.append('room for a Kerberos ticket as large as AD makes one (64 kB headers)')
 if 'location = /healthz' not in text and 'location /assets/' in text:
     block = """    # The load balancer's question: does this node answer? (acme 1.0.13)
     location = /healthz {

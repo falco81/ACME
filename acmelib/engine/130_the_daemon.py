@@ -181,6 +181,7 @@ class Daemon(object):
                       split_card=False, krb_proof=None):
         checked = {}
         was_2fa = bool(CONFIG.get('admin_2fa'))
+        krb_before = krb_state_now(self.store)          # 1.0.99: the sign-ins it ends after
         # What the nodes do when they lose each other (1.0.77): only through its card - "try
         # the arbiter first" and "no new preferred node while apart" were passed by with
         # --set and the settings' own save.
@@ -386,6 +387,10 @@ class Daemon(object):
                                          'sign-in(s) to the pages ended' % gone, 'warn', who=by)
             except Exception as e:                      # noqa: BLE001
                 log('the sign-ins to the pages could not be ended: %s' % e, 'warn')
+        # Signing in with Windows (1.0.99): "only Windows" come into effect ends the sign-ins
+        # made with a password, Kerberos switched off ends those made with it - the one saving
+        # it kept either way.
+        krb_sessions_settle(self.store, krb_before, keep_session, by)
         return {'message': ' '.join(['%d setting(s) saved.' % len(checked)] + said),
                 'saved': sorted(checked)}
 
@@ -601,6 +606,9 @@ class Daemon(object):
             # one the other node does not have yet stopped what goes to it
             # until it was upgraded too. Old code there never reads them.
             threading.Thread(target=ha_peer_columns, name='peer-columns', daemon=True).start()
+        # Whether a keytab is put in, known before anybody is served (1.0.99): "only Windows"
+        # was not in effect for the first seconds of every start.
+        krb_startup(self.store)
         self.api = ApiServer(self)
         self.api.start()
         for fn in HOOKS['daemon_start']:

@@ -669,20 +669,25 @@ def sso_peer_into(main, on):
     return main[:where[0]] + new + main[where[1]:]
 
 
-KRB_BUFFERS = '    large_client_header_buffers 4 32k;   # ACME-KRB-BUFFERS\n'
+KRB_BUFFERS = '    large_client_header_buffers 4 64k;   # ACME-KRB-BUFFERS\n'
+# acme's own line of before (1.0.99's first: 32 kB) - a ticket as large as AD's MaxTokenSize
+# (48000 bytes, 64 kB in base64) is more; raised. A value a person set is left as it is.
+KRB_BUFFERS_OLD = re.compile(r'(?m)^([ \t]*large_client_header_buffers[ \t]+4[ \t]+)32k;')
 
 
 def krb_buffers_into(main):
     """Room for a Kerberos ticket (1.0.99): a person in many AD groups sends more than nginx's
     8 kB of header, and the sign-in with Windows ended in "400 Request Header Or Cookie Too
     Large". Put into this node's HTTPS server (the VIP address's server is made from it) when
-    neither install.sh nor a person has set it there."""
+    neither install.sh nor a person has set it there; acme's own 32 kB of before raised to 64 kB
+    (a ticket as large as AD's MaxTokenSize, 64 kB in base64, the page's cap)."""
     where = server_block(main)
     if not where:
         return main
     block = main[where[0]:where[1]]
     if 'large_client_header_buffers' in block:
-        return main
+        new = KRB_BUFFERS_OLD.sub(r'\g<1>64k;', block)
+        return main[:where[0]] + new + main[where[1]:]
     m = re.search(r'(?m)^[ \t]*client_max_body_size[ \t]+8m;[^\n]*\n', block)
     if m:
         new = block[:m.end()] + KRB_BUFFERS + block[m.end():]
@@ -1160,7 +1165,7 @@ def nginx_part(r, last):
         if new_main != main:
             write_root(NGINX_MAIN, new_main, 0o644)
             main, changed = new_main, True
-            said.append('nginx: room for a Kerberos ticket of a person in many groups (32 kB headers)')
+            said.append('nginx: room for a Kerberos ticket of a person in many groups (64 kB headers)')
         if r.get('pki'):
             new_main = pki_into(main)
             if new_main != main:
