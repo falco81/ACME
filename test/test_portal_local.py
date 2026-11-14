@@ -225,6 +225,49 @@ class PortalLocal(unittest.TestCase):
             self.settings(admin_2fa=0)
             self.py('st.db.run("DELETE FROM meta WHERE k LIKE \'adm2fa:%\'"); print(1)')
 
+    def test_06_second_step_switched_on_ends_the_password_ones(self):
+        """admin_2fa switched on (1.0.101): a portal sign-in of an account here made with the
+        password alone ends - as the administration's do - and so does one whose portal code
+        was taken away under it; a directory person's stays."""
+        st, got = self.portal_in('cadm')
+        self.assertEqual((st, got.get('mfa')), (200, ''), got)
+        tok = got['token']
+        st, dgot = self.portal_in('falco', 'falco-password-1')
+        self.assertEqual(st, 200, dgot)
+        names, d = self.certs_of(tok)
+        self.assertTrue(d['sees_all'])
+        self.settings(admin_2fa=1)
+        try:
+            st, me = self.call('GET', '/api/portal/me', None, tok)
+            self.assertIsNone(me['me'])
+            st, _ = self.call('GET', '/api/portal/certs', None, tok)
+            self.assertEqual(st, 401)
+            self.assertTrue(any('without it ended' in w for w in self.events('without it ended')))
+            # the directory's person has no second step here: not concerned
+            st, _ = self.call('GET', '/api/portal/certs', None, dgot['token'])
+            self.assertEqual(st, 200)
+            # Asked at every request too (a setting saved past this node's pages): a session
+            # without the step, put in as one made before, ends at its next request.
+            st, got = self.portal_in('cadm')
+            half = got['token']
+            self.assertEqual(got.get('mfa'), 'enrol', got)
+            self.py("""
+import hashlib
+th = hashlib.sha256(%r.encode()).hexdigest()
+r = st.db.row("SELECT id, data FROM sessions WHERE token_hash = ?", (th,))
+d = json.loads(r['data']); d.pop('mfa', None)
+st.db.run('UPDATE sessions SET data = ? WHERE id = ?', (json.dumps(d), r['id']))
+print(1)""" % half)
+            st, _ = self.call('GET', '/api/portal/certs', None, half)
+            self.assertEqual(st, 401)
+            st, me = self.call('GET', '/api/portal/me', None, half)
+            self.assertIsNone(me['me'])
+        finally:
+            self.settings(admin_2fa=0)
+            self.py('st.db.run("DELETE FROM meta WHERE k LIKE \'adm2fa:%\'"); print(1)')
+        self.assertFalse(self.py('print(json.dumps(E.portal_local_step_missing({"data": {'
+                                 '"kind": "local"}})))'))
+
     # ---- who sees what --------------------------------------------------------------------
     def test_10_owner_only_for_a_reader(self):
         st, got = self.portal_in('viewer')

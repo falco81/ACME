@@ -147,6 +147,104 @@ class TestAccountsAndSignIns(unittest.TestCase):
                                      'last': t, 'expires': t + 3600, 'ip': '', 'data': '{}'})
         self.assertIsNone(STORE.session_get(forged, 'admin', 3600))
 
+    def test_a_portal_sign_in_put_in_by_somebody_else(self):
+        """The portal's sign-ins signed too (1.0.101): one put in past acme opened the
+        enrolment pages - and every certificate's private key they hand out."""
+        import hashlib
+        import secrets
+        tok = STORE.session_new('portal', 'carol', 'portal', '127.0.0.1', 1,
+                                {'kind': 'directory', 'dn': 'CN=carol,DC=x'})
+        guard(True)
+        self.assertIsNotNone(STORE.session_get(tok, 'portal', 3600))
+        forged = secrets.token_urlsafe(32)
+        t = time.time()
+        th = hashlib.sha256(forged.encode()).hexdigest()
+        STORE.db.insert('sessions', {'token_hash': th, 'kind': 'portal', 'name': 'carol',
+                                     'role': 'portal', 'created': t, 'last': t, 'expires': t + 3600,
+                                     'ip': '', 'data': json.dumps({'kind': 'directory', 'dn': '',
+                                                                   'gate_ok': t})})
+        self.assertIsNone(STORE.session_get(forged, 'portal', 3600))
+        # ...and ended (as one opened before 1.0.101 while the guard was on is)
+        self.assertIsNone(STORE.db.value('SELECT id FROM sessions WHERE token_hash = ?', (th,)))
+        # Its name changed in the table: refused as well.
+        STORE.db.run("UPDATE sessions SET name = 'mallory' WHERE token_hash = ?",
+                     (hashlib.sha256(tok.encode()).hexdigest(),))
+        self.assertIsNone(STORE.session_get(tok, 'portal', 3600))
+        # The guard off: as before.
+        guard(False)
+        tok2 = secrets.token_urlsafe(32)
+        STORE.db.insert('sessions', {'token_hash': hashlib.sha256(tok2.encode()).hexdigest(),
+                                     'kind': 'portal', 'name': 'carol', 'role': 'portal',
+                                     'created': t, 'last': t, 'expires': t + 3600, 'ip': '',
+                                     'data': '{}'})
+        self.assertIsNotNone(STORE.session_get(tok2, 'portal', 3600))
+        # Switched on: what is there is signed as it is (dbguard_resign), every kind.
+        E.dbguard_resign(STORE)
+        guard(True)
+        self.assertIsNotNone(STORE.session_get(tok2, 'portal', 3600))
+
+    def test_the_portal_settings_are_guarded(self):
+        """The settings that let people in to the portal or hand out keys (1.0.101)."""
+        for k in ('portal', 'portal_cert', 'portal_cert_keys', 'portal_local', 'portal_admins_all',
+                  'portal_directory', 'portal_who', 'portal_groups', 'portal_enrolers',
+                  'portal_sso', 'portal_sso_key', 'portal_krb', 'portal_certlogin',
+                  'portal_password_off', 'portal_code', 'portal_local_code', 'portal_cert_auto'):
+            self.assertTrue(E.dbguard_setting_kept(k), k)
+        self.assertFalse(E.dbguard_setting_kept('portal_title'))
+        E.DBGUARD['adopted'] = dict(E.DBGUARD.get('adopted') or {})
+        E.DBGUARD['adopted'][E.DBGUARD_ADOPT3_MARK] = time.time()
+        STORE.save_setting('portal_cert_keys', 0, 'test')
+        guard(True)
+        self.assertEqual(E.dbguard_settings(STORE.settings_saved(), STORE)['portal_cert_keys'], 0)
+        STORE.db.upsert('settings', 'k', {'k': 'portal_cert_keys', 'v': json.dumps(1),
+                                          'at': time.time(), 'by_who': 'x'})
+        got = E.dbguard_settings(STORE.settings_saved(), STORE)
+        self.assertEqual(got['portal_cert_keys'], 0)
+
+    def test_the_portal_settings_taken_under_it_once(self):
+        """Unsigned from before 1.0.101: taken as they are until this node signs them once
+        (dbguard_adopt), checked from then on."""
+        guard(False)
+        STORE.db.upsert('settings', 'k', {'k': 'portal_who', 'v': json.dumps('groups'),
+                                          'at': time.time(), 'by_who': 'old'})
+        E.DBGUARD['adopted'] = {k: v for k, v in (E.DBGUARD.get('adopted') or {}).items()
+                                if k != E.DBGUARD_ADOPT3_MARK}
+        guard(True)
+        self.assertEqual(E.dbguard_settings(STORE.settings_saved(), STORE)['portal_who'], 'groups')
+        E._dbguard_adopt3(STORE)
+        self.assertTrue(E.DBGUARD['adopted'].get(E.DBGUARD_ADOPT3_MARK))
+        self.assertEqual(E.dbguard_settings(STORE.settings_saved(), STORE)['portal_who'], 'groups')
+        STORE.db.upsert('settings', 'k', {'k': 'portal_who', 'v': json.dumps('anyone'),
+                                          'at': time.time(), 'by_who': 'x'})
+        self.assertEqual(E.dbguard_settings(STORE.settings_saved(), STORE)['portal_who'], 'groups')
+        guard(False)
+
+    def test_the_portal_asks_only_a_directory_acme_wrote(self):
+        """portal_directory (every way of signing in to the portal) and the recheck (1.0.101)."""
+        class Dir(object):
+            name = 'corpp'
+
+        class H(object):
+            store = STORE
+            d = type('D', (), {'dirs': {'corpp': Dir()}})()
+        E.CONFIG['portal_directory'] = 'corpp'
+        try:
+            STORE.db.run("DELETE FROM directories WHERE LOWER(name) = 'corpp'")
+            STORE.db.insert('directories', {'name': 'corpp', 'hosts': 'ldap.example', 'port': 636,
+                                            'tls': 'ldaps', 'base': 'DC=x', 'user_attr': 'auto',
+                                            'enabled': 1})
+            self.assertIsNotNone(E.portal_directory(H()))      # the guard off: as before
+            guard(True)
+            self.assertIsNone(E.portal_directory(H()))         # not acme's: not asked
+            E.dbguard_directory_sign(STORE.db, 'corpp')
+            self.assertIsNotNone(E.portal_directory(H()))
+            # A sign-in of the directory without its DN is no sign-in acme made.
+            self.assertFalse(E.portal_dir_still(H(), {'name': 'x', 'data': {'kind': 'directory'}}))
+            self.assertTrue(E.portal_dir_still(H(), {'name': 'x', 'data': {'kind': 'local'}}))
+        finally:
+            E.CONFIG.pop('portal_directory', None)
+            guard(False)
+
 
 class TestResign(unittest.TestCase):
     def test_switched_on_signs_what_is_there(self):

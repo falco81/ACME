@@ -86957,6 +86957,30 @@
   "p_241": {
    "source": "The way back from \"no password at all\", as root: acme --set {0}_password_off=0 (or this part switched off). More: docs/kerberos-sso.md in the package.",
    "text": "Cesta zpět ze „žádného hesla“, jako root: acme --set {0}_password_off=0 (nebo tuto část vypnout). Víc: docs/kerberos-sso.md v balíčku."
+  },
+  "p_242": {
+   "source": "the request waiting at the CA ({0}) has the key of a version revoked - dropped, a new one is made with a new key",
+   "text": "požadavek čekající u CA ({0}) má klíč zneplatněné verze – zahozen, vytvoří se nový s novým klíčem"
+  },
+  "p_243": {
+   "source": "the request {0} held at the source (with the key revoked) dropped",
+   "text": "požadavek {0} čekající u zdroje (se zneplatněným klíčem) zahozen"
+  },
+  "p_244": {
+   "source": "the request held could not be dropped: {0}",
+   "text": "čekající požadavek se nepodařilo zahodit: {0}"
+  },
+  "p_245": {
+   "source": "the validation of the request held could not be made ready: {0}",
+   "text": "ověření čekajícího požadavku se nepodařilo připravit: {0}"
+  },
+  "p_246": {
+   "source": "version {0} of {1} was issued for a key the device of {2} made, but its key is made by the device of {3} now - that version fits no key there: it is issued anew for a key the device makes (Renew now issues it at once)",
+   "text": "verze {0} certifikátu {1} byla vystavena pro klíč, který vytvořilo zařízení {2}, ale jeho klíč teď vytváří zařízení {3} - ta verze tam k žádnému klíči nepasuje: vystaví se znovu pro klíč, který vytvoří zařízení (Obnovit nyní ho vystaví hned)"
+  },
+  "p_247": {
+   "source": "a connection to {0}://{1}:{2}",
+   "text": "spojení na {0}://{1}:{2}"
   }
  },
  "rich": {

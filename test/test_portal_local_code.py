@@ -71,6 +71,24 @@ class PortalLocalCode(unittest.TestCase):
         with open(files[-1], encoding='utf-8') as f:
             return re.search(r'\b(\d{6})\b', f.read()).group(1)
 
+    def test_00_code_taken_away_asks_the_second_step(self):
+        """An account here signed in with the portal's code, that code taken away while the
+        administration's second step is on (1.0.101): the sign-in lacks the step asked now."""
+        keep = {k: EN.CONFIG.get(k) for k in ('admin_2fa', 'portal_local_code', 'portal_code')}
+        try:
+            EN.CONFIG.update(admin_2fa=1, portal_local_code='sms', portal_code='off')
+            s = {'data': {'kind': 'local', 'gate_ok': time.time()}}
+            self.assertFalse(EN.portal_local_step_missing(s))
+            EN.CONFIG['portal_local_code'] = 'off'
+            self.assertTrue(EN.portal_local_step_missing(s))
+            self.assertFalse(EN.portal_local_step_missing({'data': {'kind': 'local', 'mfa_ok': 1}}))
+            self.assertFalse(EN.portal_local_step_missing({'data': {'kind': 'local', 'mfa': 'check'}}))
+            self.assertFalse(EN.portal_local_step_missing({'data': {'kind': 'directory'}}))
+            EN.CONFIG['admin_2fa'] = 0
+            self.assertFalse(EN.portal_local_step_missing(s))
+        finally:
+            EN.CONFIG.update(keep)
+
     def test_01_off_as_until_now(self):
         self.settings(portal_code='off', portal_local_code='same')
         st, got = self.sign_in()
@@ -102,6 +120,10 @@ class PortalLocalCode(unittest.TestCase):
         self.assertEqual(st, 403, bad)
         st, ok = self.call('POST', '/api/portal/gate', {'code': self.last_code()}, tok)
         self.assertEqual(st, 200, ok)
+        # a new sign-in once the code is typed (1.0.101): the old token is over
+        st, me = self.call('GET', '/api/portal/me', None, tok)
+        self.assertIsNone(me['me'])
+        tok = ok['token']
         st, me = self.call('GET', '/api/portal/me', None, tok)
         self.assertEqual(st, 200)
         self.assertNotIn('gate', me['me'])

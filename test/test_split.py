@@ -365,6 +365,26 @@ class Freeze(unittest.TestCase):
         h._split_noted('/api/certs/compat')
         self.assertEqual(len(STORE.db.rows("SELECT k FROM meta WHERE k LIKE 'split:took:%'")), 1)
 
+    def test_the_portal_exactly(self):
+        """The portal's entries by their exact paths (1.0.101): '/api/portal/cert' (the sign-in
+        with a certificate) let every portal certificate write through; the one-time code, the
+        balancer's sign-in and the portal's own password change go on, as /api/auth/* do."""
+        reset(split_freeze=1, ha_slot=2)
+        apart()
+        self.assertTrue(E.split_frozen())
+        for path in ('/api/portal/cert_request', '/api/portal/cert_approve', '/api/portal/cert_auto',
+                     '/api/portal/cert_revoke', '/api/portal/cert_renew', '/api/portal/cert_csr',
+                     '/api/portal/certx', '/api/portal/login2', '/api/portal/gate/x',
+                     '/api/portal-sso', '/api/healthz', '/api/splitx', '/api/certs/export2'):
+            self.assertIn('cannot reach each other', E.split_refuses('POST', path), path)
+        for path in ('/api/portal/cert', '/api/portal/cert_download', '/api/portal/login',
+                     '/api/portal/kerberos', '/api/portal/logout', '/api/portal/mfa',
+                     '/api/portal/gate', '/api/portal/gate/again', '/api/portal/sso',
+                     '/api/portal/password', '/api/auth/password', '/api/auth/passkeys',
+                     '/api/auth/cert', '/api/acme-push/pair', '/api/acme-push', '/api/ha',
+                     '/api/split', '/api/health'):
+            self.assertEqual(E.split_refuses('POST', path), '', path)
+
     def test_reads_go_on_while_frozen(self):
         """The page of a job, a copy downloaded, the wizard's choices, a preview: POSTs that
         only read - not refused on the node that is frozen (1.0.19)."""

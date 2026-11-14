@@ -88,8 +88,16 @@ class PortalCode(unittest.TestCase):
             code = self.last_code()
             st, ok = self.call('POST', '/api/portal/gate', {'code': code[:3] + ' ' + code[3:]}, tok)
             self.assertEqual(st, 200, ok)
+            # A sign-in of its own once the code is typed (1.0.101): the one the password
+            # opened is over - whoever had its cookie has nothing.
+            self.assertTrue(ok.get('token') and ok['token'] != tok)
+            st, me = self.call('GET', '/api/portal/me', None, tok)
+            self.assertIsNone(me['me'])
+            tok = ok['token']
             st, me = self.call('GET', '/api/portal/me', None, tok)
             self.assertNotIn('gate', me['me'])
+            st, _ = self.call('GET', '/api/portal/certs', None, tok)
+            self.assertNotEqual(st, 401)
             time.sleep(1.1)
 
     def test_04_sent_again(self):

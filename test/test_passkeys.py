@@ -278,6 +278,36 @@ class Passkeys(unittest.TestCase):
             acc('GET')
         self.assertEqual(cm.exception.status, 403)
 
+    def test_your_account_as_every_route(self):
+        """Your account's passkeys ask the sign-in as every route of the pages does (1.0.101,
+        me()): a password to change first, the role of the enrolment pages only - refused."""
+        token = STORE.session_new('admin', 'boss', 'fulladmin', '127.0.0.1', 1, data={})
+
+        class H(E.ApiHandler):
+            def __init__(self, path):
+                self.headers = {'X-Acme-Session': token, 'X-Acme-Host': HOST}
+                self.server = type('S', (), {'daemon': DAEMON})()
+                self.route_path = path
+                self.args = {}
+                self._body = {}
+
+        def ask(method):
+            return E.ROUTES[(method, '/api/auth/passkeys')](H('/api/auth/passkeys'))
+        self.assertIn('keys', ask('GET'))
+        try:
+            STORE.set_account('boss', must_change=1)
+            for method in ('GET', 'POST'):
+                with self.assertRaises(E.ApiError) as cm:
+                    ask(method)
+                self.assertEqual(cm.exception.status, 403, method)
+            STORE.set_account('boss', must_change=0)
+            STORE.set_account('boss', role='portal')
+            with self.assertRaises(E.ApiError) as cm:
+                ask('GET')
+            self.assertEqual(cm.exception.status, 401)
+        finally:
+            STORE.set_account('boss', must_change=0, role='fulladmin')
+
     def test_reset_as_the_others(self):
         self.enrol(Device())
         self.assertTrue(E.mfa_reset(STORE, 'boss', 'admin'))
