@@ -2060,6 +2060,10 @@ function drawSettings() {
   });
   /* Signed in by the balancer (otp 1.0.239): its card under the enrolment pages' settings. */
   loadSso();
+  /* "No password at all" - one switch of both ways (1.0.100): the same in the card of the
+     certificate as in the card of Windows. */
+  ssoMirror('admin_password_off', 'sect-admincert');
+  ssoMirror('portal_password_off', 'sect-portalcert');
   /* Signing in with Windows (1.0.99): a card under Accounts and one under the enrolment pages. */
   loadKrb();
   /* ...and with a certificate (1.0.100), the same. */
@@ -3967,7 +3971,7 @@ function userDo(body) {
 }
 $('us-add').onclick = function () {
   /* "Only Windows" (1.0.99): an account made here would need a password nobody may use. */
-  if (ME && ME.password_off) { toast('only Windows: no account signs in with a password now - the people of the directory sign in with Windows', 'warn'); return; }
+  if (ME && ME.password_off) { toast('no password at all: no account signs in with a password now - the people of the directory sign in with Windows or a certificate', 'warn'); return; }
   modal('A new account', function (body) {
     var g = el('div', 'formgrid');
     var name = textBox('', '', 'mono');
@@ -7847,6 +7851,62 @@ function krbTry(part, btn) {
     drawKrb(part);
   });
 }
+/* The sign-in page of a part, as it is now (1.0.100) - the same summary in the card of Windows
+   and in the card of the certificate: a password or not, and each way - a button, at once when
+   the page opens, or off - with the order of those tried by themselves. */
+var SSO_MODE_WORDS = {off: 'off', button: 'a button', auto: 'at once - when the page opens'};
+function ssoSummary(host, part, p) {
+  var m = p.signin;
+  if (!m) return;
+  host.appendChild(el('h3', 'peek-h', part === 'admin' ? 'The sign-in page' : 'The portal’s sign-in page'));
+  var pw = m.password ? (p.password_off ? 'yes - "no password at all" is switched on, but not in effect (neither Windows nor a certificate signs anybody in)' : 'yes - the name and password form')
+    : 'no - no password at all, only Windows or a certificate';
+  var rows = [['A password', pw], ['Windows', SSO_MODE_WORDS[m.windows] || m.windows], ['A certificate', SSO_MODE_WORDS[m.certificate] || m.certificate]];
+  if ((m.order || []).length > 1) rows.push(['When the page opens', 'Windows first (it asks nothing); the certificate only when Windows did not sign in']);
+  else if ((m.order || []).length === 1 && m.windows !== 'off' && m.certificate !== 'off') rows.push(['When the page opens', m.order[0] === 'windows' ? 'Windows; the certificate is a button' : 'the certificate; Windows is a button']);
+  krbFacts(host, rows);
+}
+/* "No password at all": the switch of the card of Windows shown again in the card of the
+   certificate - a mirror, never a setting of its own: flipped, it flips that one (saved by the
+   save bar as every other), and shows what that one shows (changed, not in use). */
+function ssoMirror(key, where) {
+  var host = $(where), real = $('set-' + key), s = settingByKey(key);
+  if (!host || !real || !real._input || !s) return;
+  var realItem = real.closest('.set-item');
+  var item = el('div', 'set-item set-bool sso-mirror');
+  item.dataset.mirror = key;
+  var sw = switchBox(real._input.checked);
+  sw.id = 'set-' + key + '-mirror';
+  sw._input.id = sw.id + '-sw';
+  var label = el('label', '');
+  label.appendChild(el('span', 'lbl-txt', s.name || key));
+  label.setAttribute('for', sw._input.id);
+  explain(label, s.says || '');
+  item.appendChild(label);
+  item.appendChild(sw);
+  var tail = el('div', 'set-tail');
+  tail.appendChild(el('div', 'says', 'The same switch as in the card of Windows (Kerberos): one for both ways.'));
+  item.appendChild(tail);
+  var sync = function () {
+    sw._input.checked = real._input.checked;
+    sw._input.disabled = real._input.disabled;
+    if (realItem) {
+      item.classList.toggle('changed', realItem.classList.contains('changed'));
+      item.classList.toggle('asleep', realItem.classList.contains('asleep'));
+    }
+  };
+  sw._input.addEventListener('change', function () {
+    real._input.checked = sw._input.checked;
+    real._input.dispatchEvent(new Event('change'));
+    sync();
+  });
+  real._input.addEventListener('change', sync);
+  if (realItem && window.MutationObserver) new MutationObserver(sync).observe(realItem, {attributes: true, attributeFilter: ['class']});
+  sync();
+  var grid = host.querySelector('.set-grid');
+  if (!grid) grid = host.appendChild(el('div', 'set-grid'));
+  grid.appendChild(item);
+}
 function drawKrb(part) {
   var host = $('krb-host-' + part), d = KRB.d;
   if (!host || !d) return;
@@ -7857,7 +7917,7 @@ function drawKrb(part) {
   var chip = function (cls, words) { var c = el('span', 'cchip ' + cls); c.appendChild(el('span', '', words)); head.appendChild(c); return c; };
   chip(p.on ? 'good' : 'dim', p.on ? 'On' : 'Off');
   chip(d.keytab ? 'good' : 'warn', d.keytab ? 'A keytab is put in' : 'No keytab yet');
-  if (p.only_in_effect) chip('warn', 'Only Windows');
+  if (p.only_in_effect) chip('warn', 'No password at all');
   host.appendChild(head);
   if (part === 'admin' && !p.directory) host.appendChild(el('p', 'note warn', 'Choose the directory administrators sign in against first (above): only accounts of the directory sign in with Windows.'));
   if (part === 'portal' && !p.portal) host.appendChild(el('p', 'note warn', 'The enrolment pages are switched off (above): nobody signs in to them with Windows either.'));
@@ -7868,13 +7928,12 @@ function drawKrb(part) {
     rw.appendChild(noI18n(el('span', 'small', p.realm_warn)));
     host.appendChild(rw);
   }
+  ssoSummary(host, part, p);
   var realm = noI18n(el('span', 'mono', p.realm || '-'));
   krbFacts(host, [
     ['Realm', [realm, el('span', 'muted small krb-from', {set: 'set above', directory: 'from the directory’s base DN'}[p.realm_from] || 'not known - set it above')]],
     ['Directory', noI18n(el('span', '', p.directory || '-'))],
     [part === 'admin' ? 'Second step after it' : 'One-time code after it', p.second ? 'yes - asked after Windows too, every time' : 'off'],
-    ['By itself on the sign-in page', p.auto ? 'yes - tried at once, the form if it did not work' : 'no - a button under the form'],
-    ['A password on the sign-in page', p.only_in_effect ? 'none - only Windows' : (p.password_off ? 'none set, but not in effect (Kerberos off or no keytab)' : 'offered beside it')],
     ['NTLM', 'never taken'],
     [part === 'admin' ? 'The enrolment pages' : 'The administration', other.on ? 'on there too - their own switch' : 'off there - their own switch']
   ]);
@@ -7977,7 +8036,7 @@ function drawKrb(part) {
     ul.appendChild(li);
   });
   host.appendChild(ul);
-  host.appendChild(el('p', 'note', 'The way back from "only Windows", as root: acme --set ' + part + '_password_off=0 (or Kerberos switched off). More: docs/kerberos-sso.md in the package.'));
+  host.appendChild(el('p', 'note', 'The way back from "no password at all", as root: acme --set ' + part + '_password_off=0 (or this part switched off). More: docs/kerberos-sso.md in the package.'));
 }
 
 /* ---- signing in with a certificate - a smart card, a YubiKey (1.0.100, as otp 1.0.275) ------
@@ -8065,19 +8124,20 @@ function drawCert(part) {
   chip(d.cas.length ? 'good' : 'warn', d.cas.length ? 'Authorities put in' : 'No authority yet');
   if (p.only_in_effect) chip('warn', 'No password at all');
   if (!p.crl) chip('warn', 'Revocation not checked');
+  if (p.match !== 'strong') chip('warn', 'Not strong');
   host.appendChild(head);
+  if (p.match !== 'strong') host.appendChild(el('p', 'note warn', 'Not strong: a certificate without the SID of KB5014754 is taken by its UPN alone - anybody who may ask an authority put in here for a certificate with a name of their choosing (a template where the requester supplies the subject) signs in as whoever they name, a full administrator too. Windows itself requires the SID since September 2025.'));
   if (part === 'admin' && !p.directory) host.appendChild(el('p', 'note warn', 'Choose the directory administrators sign in against first (above): only accounts of the directory sign in with a certificate.'));
   if (part === 'portal' && !p.portal) host.appendChild(el('p', 'note warn', 'The enrolment pages are switched off (above): nobody signs in to them with a certificate either.'));
   if (p.switch && !d.cas.length) host.appendChild(el('p', 'note warn', 'Switched on, but no authority is put in yet: the button is not offered and the port not served until one is.'));
+  ssoSummary(host, part, p);
   var port = noI18n(el('span', 'mono', String(d.port)));
   krbFacts(host, [
     ['The port', [port, el('span', 'muted small krb-from', 'nginx asks for a certificate there, and nowhere else')]],
     ['Directory', noI18n(el('span', '', p.directory || '-'))],
     ['Which account', [el('span', '', p.match_words), noI18n(el('span', 'muted small krb-from', part + '_certlogin_match: ' + p.match))]],
-    ['Revocation', p.crl ? 'checked - the CRL of each certificate, no CRL no sign-in' : 'not checked - a lost card signs in until its account is switched off'],
+    ['Revocation', p.crl ? 'checked - the CRL and the delta CRL of the certificate and of the authorities above it, fetched again every ten minutes at most; no CRL no sign-in' : 'not checked - a lost card signs in until its account is switched off'],
     [part === 'admin' ? 'Second step after it' : 'One-time code after it', p.second ? 'yes - asked after the certificate too, every time' : 'off'],
-    ['A password on the sign-in page', p.only_in_effect ? 'none - only Windows or a certificate' : (p.password_off ? 'none set, but not in effect (neither Windows nor a certificate on)' : 'offered beside it')],
-    ['Windows (Kerberos)', p.krb ? 'on too - its own switch' : 'off - its own switch'],
     [part === 'admin' ? 'The enrolment pages' : 'The administration', other.usable ? 'on there too - their own switch, the same port' : 'off there - their own switch']
   ]);
   /* The authorities. */

@@ -256,6 +256,8 @@ $krb_only = $krb_on && !empty($krb['only']);
 /* ...and with a certificate (1.0.100): the button; "no password at all" is one switch for both. */
 $cl = ($alive && is_array($info['certlogin'] ?? null)) ? $info['certlogin'] : [];
 $cl_on = !empty($cl['on']);
+/* Gone to by itself when the page opens (1.0.100) - after Windows, when that is tried by itself too. */
+$cl_auto = $cl_on && !empty($cl['auto']);
 $pw_off = ($krb_on && !empty($krb['only'])) || ($cl_on && !empty($cl['only']));
 $krb_only = $krb_on && $pw_off;
 // No title of the site's own: a heading of the page's own, in the page's language.
@@ -324,6 +326,10 @@ if ($title_ours) {
           ><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M14 12h7"/><path
           d="M18 9l3 3-3 3"/></svg><span>Sign in</span></button>
         <div class="said" id="in-said"></div>
+        <?php if ($cl_auto && $mfa === '' && $gate === null): ?>
+        <!-- The certificate gone to by itself (1.0.100): this tab stays with the password. -->
+        <p class="cert-pw small"><a href="?nocert" id="cert-pw">Use a password instead</a></p>
+        <?php endif; ?>
       </form>
       <?php endif; ?>
       <?php if ($krb_on && $mfa === '' && $gate === null): ?>
@@ -338,7 +344,7 @@ if ($title_ours) {
       </div>
       <?php endif; ?>
       <?php if ($cl_on && $mfa === '' && $gate === null): ?>
-      <div class="krb-box cert-box" id="cert-box" data-part="portal" data-only="<?= $pw_off ? '1' : '0' ?>">
+      <div class="krb-box cert-box" id="cert-box" data-part="portal" data-auto="<?= $cl_auto ? '1' : '0' ?>" data-only="<?= $pw_off ? '1' : '0' ?>">
         <?php if (!$pw_off && !$krb_on): ?><div class="krb-or"><span>or</span></div><?php endif; ?>
         <button class="btn cmd<?= $pw_off && !$krb_on ? ' primary' : '' ?>" type="button" id="cert-go"><svg
           viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"

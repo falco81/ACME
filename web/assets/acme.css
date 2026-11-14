@@ -1246,6 +1246,9 @@
   .signin .krb-or::before,.signin .krb-or::after{content:"";flex:1;height:1px;background:var(--line)}
   .signin .krb-box .btn{width:100%}
   .signin .krb-box + .cert-box{margin-top:10px}
+  /* "Use a password instead" (1.0.100): the certificate gone to by itself, not in this tab. */
+  .signin .cert-pw{margin:8px 0 0;text-align:center;font-size:12.5px}
+  .signin .cert-pw a{color:var(--tx-dim)}
 
   .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);z-index:400;
     background:var(--panel);border:1px solid var(--line);border-radius:12px;
@@ -2987,7 +2990,7 @@ body.mfa-on .signin{padding-top:24px}
 #lo-table th:nth-child(4), #gd-table th:nth-child(4){width:13%}
 #lo-table th:nth-last-child(2), #gd-table th:nth-last-child(2){width:10%}
 #lo-table th:last-child, #gd-table th:last-child{width:104px}
-#se-table table{table-layout:fixed;min-width:760px}
+#se-table table{table-layout:fixed;min-width:820px}
 #se-table th:nth-child(1){width:18%}
 #se-table th:nth-child(2){width:15%}
 #se-table th:nth-child(3){width:20%}

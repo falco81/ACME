@@ -324,9 +324,10 @@ function acme_kerberos_relay(string $path, array $more = [], bool $session = tru
  * Signing in with a certificate - a smart card, a YubiKey (1.0.100, as otp 1.0.275). Two halves:
  *
  * 1. On 443, POST ?api=cert-nonce (acme_guard_post before it: this page's own JSON, same
- *    origin): a nonce in an HttpOnly SameSite=Strict cookie of this page's path, five minutes,
- *    one use, bound by a MAC to the part (and the daemon's API token, which only this pool and
- *    the daemon read), and the address of the certificate's own port with it. The page goes
+ *    origin): a nonce, five minutes, bound by a MAC to the part and to a random value of its
+ *    own in an HttpOnly SameSite=Strict __Host- cookie of this browser (the daemon's API token
+ *    the MAC's key, which only this pool and the daemon read), used once in the whole cluster
+ *    (the daemon keeps it), and the address of the certificate's own port with it. The page goes
  *    there as a top-level navigation: the browser shows its certificate chooser, the card's PIN.
  * 2. On the certificate's port (ACME_CERT_PORT set by nginx - a parameter of nginx's, never a
  *    header of the browser's): the nonce of the address checked against the cookie (login CSRF:
@@ -346,10 +347,18 @@ function acme_cert_host(): string
         ? $host : '';
 }
 
-function acme_cert_mac(string $for, string $rand, string $at): string
+function acme_cert_mac(string $for, string $rand, string $at, string $bind): string
 {
-    return substr(hash_hmac('sha256', 'acme-cert-nonce|' . $for . '|' . $rand . '|' . $at,
+    return substr(hash_hmac('sha256', 'acme-cert-nonce|' . $for . '|' . $rand . '|' . $at . '|' . $bind,
                             (string) acme_token()), 0, 32);
+}
+
+/** The cookie that binds a nonce to this browser (security review F7): __Host- - set by this
+    host alone over https, path /, no Domain (a sibling name or a page over http cannot plant
+    one); a random value of its own, never the nonce. One for each part. */
+function acme_cert_cookie(string $part): string
+{
+    return '__Host-acme_certn_' . $part;
 }
 
 /** The nonce (POST ?api=cert-nonce on 443), and where the browser goes with it. $info: what the
@@ -372,11 +381,12 @@ function acme_cert_nonce(string $part, array $info, string $try = ''): void
         return;
     }
     $rand = bin2hex(random_bytes(16));
+    $bind = bin2hex(random_bytes(16));
     $at = (string) time();
     $for = $try !== '' ? 'try-' . $try : $part;
-    $n = $rand . '.' . $at . '.' . acme_cert_mac($for, $rand, $at);
-    setcookie('acme_certn_' . $part, $n, [
-        'expires' => time() + 300, 'path' => ACME_COOKIE_PATH, 'secure' => true,
+    $n = $rand . '.' . $at . '.' . acme_cert_mac($for, $rand, $at, $bind);
+    setcookie(acme_cert_cookie($part), $bind, [
+        'expires' => time() + 300, 'path' => '/', 'secure' => true,
         'httponly' => true, 'samesite' => 'Strict',
     ]);
     echo json_encode(['ok' => true, 'url' => 'https://' . $host . ':' . $port
@@ -411,9 +421,9 @@ function acme_cert_port(string $part): void
         http_response_code(404);
         exit;
     }
-    $cookie = 'acme_certn_' . $part;
+    $cookie = acme_cert_cookie($part);
     $c = (string) ($_COOKIE[$cookie] ?? '');
-    setcookie($cookie, '', ['expires' => time() - 3600, 'path' => ACME_COOKIE_PATH, 'secure' => true,
+    setcookie($cookie, '', ['expires' => time() - 3600, 'path' => '/', 'secure' => true,
                             'httponly' => true, 'samesite' => 'Strict']);
     $n = (string) ($_GET['n'] ?? '');
     $try = $what === 'cert-try' ? (string) ($_GET['part'] ?? '') : '';
@@ -421,17 +431,18 @@ function acme_cert_port(string $part): void
         acme_cert_back($part, 'certificate');
     }
     $ok = false;
-    if (preg_match('/^([0-9a-f]{32})\.([0-9]{10})\.([0-9a-f]{32})\z/', $n, $m) === 1 && $c !== ''
-            && acme_token() !== null) {
+    if (preg_match('/^([0-9a-f]{32})\.([0-9]{10})\.([0-9a-f]{32})\z/', $n, $m) === 1
+            && preg_match('/^[0-9a-f]{32}\z/', $c) === 1 && acme_token() !== null) {
         $age = time() - (int) $m[2];
-        $ok = hash_equals($c, $n) && $age >= 0 && $age <= 300
-            && hash_equals(acme_cert_mac($try !== '' ? 'try-' . $try : $part, $m[1], $m[2]), $m[3]);
+        $ok = $age >= 0 && $age <= 300
+            && hash_equals(acme_cert_mac($try !== '' ? 'try-' . $try : $part, $m[1], $m[2], $c), $m[3]);
     }
     if (!$ok) {
         acme_cert_back($part, 'nonce');
     }
     $raw = (string) ($_SERVER['ACME_CERT_PEM'] ?? '');
-    $payload = [];
+    /* Once in the whole cluster: the daemon keeps the nonce's random part (review F7). */
+    $payload = ['once' => $m[1]];
     if ($fail) {
         $payload['failed'] = substr(preg_replace('/[^\x20-\x7e]/', '', (string) ($_SERVER['ACME_CERT_VERIFY'] ?? '')), 0, 200) ?: 'FAILED';
     } elseif (strlen($raw) > 65536) {

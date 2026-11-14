@@ -587,7 +587,9 @@ def _health(h):
            # itself, no password at all - nothing more (no realm, no name).
            'kerberos': krb_page_info('admin', h.store),
            # ...and of a certificate (1.0.100): the button and the port it leads to.
-           'certlogin': cl_page_info('admin', h.store)}
+           'certlogin': cl_page_info('admin', h.store),
+           # Each way's mode on the page, and the order of those tried by themselves (1.0.100).
+           'signin': sso_signin_modes('admin', h.store)}
     # For monitoring (1.0.47) - asked for - whether replication runs.
     if h.arg('check') == 'all' and CONFIG.get('ha_mode') == 'replicated':
         try:

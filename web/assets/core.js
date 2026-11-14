@@ -3450,7 +3450,10 @@ function mfaWay(body, d, kind) {
    api(): its 401 means "signed out". The administration and the portal alike: the box
    (#krb-box) says the part (data-part), whether to try at once (data-auto) and whether a
    password is offered at all (data-only). Tried by itself once a tab, never after Sign out
-   there (otherwise signing out would sign you straight back in). */
+   there (otherwise signing out would sign you straight back in).
+   Both ways tried by themselves (1.0.100): Windows first - this request asks the person nothing -
+   and only when it did not sign in the certificate (next(), certDoor's: a visible trip to its
+   port, the chooser, the PIN). Windows not tried by itself: next() at once. */
 function krbAsk(what) {
   return fetch('?api=' + what, {method: 'POST', credentials: 'same-origin',
     headers: {'Content-Type': 'application/json'}, body: '{}'})
@@ -3472,11 +3475,16 @@ function krbFlag(part, which, on) {
 }
 /* Signed out on purpose: never by itself again in this tab. */
 function krbSignedOut(part) { krbFlag(part, 'out', true); }
-function krbDoor(done) {
+function krbDoor(done, next) {
+  next = next || function () { return false; };
   var box = $('krb-box');
-  if (!box) return;
+  if (!box) { next(); return; }
   var part = box.dataset.part || 'admin', go = $('krb-go'), said = $('krb-said');
   var words = go.querySelector('span');
+  /* Refused by itself just before the certificate was gone to: said here once back. */
+  var kept = '';
+  try { kept = sessionStorage.getItem('acme.krb.said.' + part) || ''; sessionStorage.removeItem('acme.krb.said.' + part); } catch (e) { kept = ''; }
+  if (kept) { said.className = 'said bad'; said.textContent = kept; }
   var tryIt = function (auto) {
     go.disabled = true;
     said.className = 'said';
@@ -3487,10 +3495,17 @@ function krbDoor(done) {
       go.disabled = false;
       words.textContent = 'Sign in with Windows';
       if (!x.ok) {
+        var why = String(x.d.error || 'refused');
+        /* Not signed in by itself: on to the certificate, when that goes by itself too. */
+        if (auto && next()) {
+          if (x.d.code !== 'no_ticket') { try { sessionStorage.setItem('acme.krb.said.' + part, why); } catch (e) { } }
+          said.textContent = '';
+          return;
+        }
         /* Tried by itself on a computer outside the domain: nothing said - the form is there. */
         if (auto && x.d.code === 'no_ticket' && box.dataset.only !== '1') { said.textContent = ''; return; }
         said.className = 'said bad';
-        said.textContent = String(x.d.error || 'refused');
+        said.textContent = why;
         return;
       }
       krbFlag(part, 'out', false);
@@ -3499,6 +3514,7 @@ function krbDoor(done) {
   };
   go.onclick = function () { tryIt(false); };
   if (box.dataset.auto === '1' && !krbFlag(part, 'tried') && !krbFlag(part, 'out')) tryIt(true);
+  else next();
 }
 
 /* ---- signing in with a certificate - a smart card, a YubiKey (1.0.100, as otp 1.0.275) ------
@@ -3543,15 +3559,68 @@ function certGo(what, body, btn, said) {
       return '';
     });
 }
+/* Gone to by itself when the page opens (1.0.100, data-auto) - never in a loop: not after a
+   refusal or a certificate not chosen (back here with ?certsaid), not after Sign out in this tab,
+   not with ?nocert ("Use a password instead"), and in any case at most once in ten minutes and
+   three times in a tab (a sign-in that never sticks, a browser's own error page and Back). */
+var CERT_AUTO_GAP = 600000, CERT_AUTO_MOST = 3;
+function certAutoRead(part) {
+  var got = null;
+  try { got = JSON.parse(sessionStorage.getItem('acme.cert.auto.' + part) || 'null'); } catch (e) { got = null; }
+  if (!got || typeof got !== 'object') got = {};
+  return {at: Array.isArray(got.at) ? got.at.filter(function (t) { return typeof t === 'number'; }) : [], no: !!got.no};
+}
+function certAutoWrite(part, st) {
+  try { sessionStorage.setItem('acme.cert.auto.' + part, JSON.stringify({at: st.at.slice(-CERT_AUTO_MOST), no: !!st.no})); } catch (e) { }
+}
+/* Not by itself again in this tab: refused, not chosen, a password wanted. */
+function certAutoNo(part) { var st = certAutoRead(part); st.no = true; certAutoWrite(part, st); }
+function certAutoMay(part, auto, said, search, now) {
+  if (!auto || said) return false;
+  if (/(^|[?&])nocert([=&]|$)/.test(search || '')) return false;
+  if (krbFlag(part, 'out')) return false;
+  var st = certAutoRead(part);
+  if (st.no || st.at.length >= CERT_AUTO_MOST) return false;
+  return !st.at.some(function (t) { return now - t >= 0 && now - t < CERT_AUTO_GAP; });
+}
+/* The button (and the words of a refusal, back here); its answer is the page's next step after
+   Windows: a function - true when it went to the certificate by itself (the page is leaving). */
 function certDoor() {
   var words = certSaid(), box = $('cert-box');
   var said = box ? $('cert-said') : $('in-said');
   if (words && said) { said.className = 'said bad'; said.textContent = words; }
-  if (!box) return;
-  var go = $('cert-go');
-  go.onclick = function () {
+  if (!box) return function () { return false; };
+  var part = box.dataset.part || 'admin', go = $('cert-go'), pw = $('cert-pw'), wait = null;
+  if (words || /(^|[?&])nocert([=&]|$)/.test(location.search)) certAutoNo(part);
+  var leave = function () {
     said.className = 'said';
     said.textContent = '';
     certGo('cert-nonce', {}, go, said).then(function (url) { if (url) location.href = url; });
+  };
+  go.onclick = function () { if (wait) { clearTimeout(wait); wait = null; } leave(); };
+  if (pw) pw.onclick = function (e) {
+    /* This tab stays with the password: nothing gone to by itself, the address says so. */
+    e.preventDefault();
+    if (wait) { clearTimeout(wait); wait = null; }
+    certAutoNo(part);
+    go.disabled = false;
+    said.className = 'said';
+    said.textContent = '';
+    try { history.replaceState(null, '', location.pathname + '?nocert' + location.hash); } catch (e2) { }
+    pw.parentNode.hidden = true;
+    if ($('in-name')) $('in-name').focus();
+  };
+  if (pw && /(^|[?&])nocert([=&]|$)/.test(location.search)) pw.parentNode.hidden = true;
+  return function () {
+    if (!certAutoMay(part, box.dataset.auto === '1', words, location.search, Date.now())) return false;
+    var st = certAutoRead(part);
+    st.at.push(Date.now());
+    certAutoWrite(part, st);
+    /* A moment to read it - and to press "Use a password instead" before the chooser opens. */
+    go.disabled = true;
+    said.className = 'said';
+    said.textContent = 'Going to your certificate…';
+    wait = setTimeout(function () { wait = null; leave(); }, 700);
+    return true;
   };
 }

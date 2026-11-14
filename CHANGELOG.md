@@ -32,11 +32,26 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   to start). `acme --cert-login`, `--cert-login-ca FILE`, `--cert-login-ca-off SHA256`; carried
   by the exported configuration, backups and the cluster ([docs/certificate-sign-in.md](docs/certificate-sign-in.md)).
 - **No password at all - only Windows or a certificate**: `admin_password_off` /
-  `portal_password_off` are one switch for both ways now (moved to *Accounts* and *The
-  enrolment pages*): switched on only from a sign-in made with Windows or a certificate, in
+  `portal_password_off` are one switch for both ways now - shown in **both cards** (the card of
+  Windows and the card of the certificate, *...and no password at all - only Windows or a
+  certificate*; the same switch, saved once): switched on only from a sign-in made with Windows or a certificate, in
   effect while either can sign anybody in (fail closed at the start), the way back for root
   `acme --set admin_password_off=0`. Sessions made with a certificate (`how: certificate`) end
   when certificates are switched off or the last authority taken away, but the switcher's.
+- **The certificate at once when the sign-in page opens** (`admin_certlogin_auto`,
+  `portal_certlogin_auto`; off by default), as Windows' `*_krb_auto`: the page goes to the
+  certificate's port by itself - the chooser, the PIN - and shows the form only when it did not
+  sign in. Never by itself again in that tab after *Sign out*, after a refusal or a certificate
+  not chosen, nor with `?nocert` (*Use a password instead* under the form); at most once in ten
+  minutes and three times a tab whatever happens - a setup that never signs in cannot loop.
+- **Windows and a certificate on one part**: both buttons under the form (with no password at
+  all, both buttons and no form); both by themselves - **Windows first** (it asks nothing), the
+  certificate only when Windows did not sign in; one by itself, the other a button. A refusal by
+  one way still offers the other (Windows' words kept for when the page is back). Each card
+  shows **the sign-in page** of its part as it is now - a password yes or no, Windows and a
+  certificate each a button, at once or off - and `/api/health`, `/api/portal/info` (`signin`),
+  `acme --kerberos` and `acme --cert-login` say the same ([docs/certificate-sign-in.md](docs/certificate-sign-in.md),
+  *Combining Windows and a certificate*).
 - The directory's `objectSid` is read (as bytes) with every account.
 
 ## 1.0.99 - 2026-11-14

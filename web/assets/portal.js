@@ -80,15 +80,16 @@ function portalDoor() {
     });
   });
   if (window.PORTAL_GATE) { gateForm(window.PORTAL_GATE); return; }
-  /* Signed in with Windows (1.0.99): then the one-time code, as after a password. */
+  /* Signed in with a certificate (1.0.100): back here from its port - or why not. */
+  var certNext = certDoor();
+  /* Signed in with Windows (1.0.99): then the one-time code, as after a password. Both tried by
+     themselves: Windows first, the certificate only when it did not sign in. */
   krbDoor(function (d) {
     if (d && d.gate) { var kb = $('krb-box'); if (kb) kb.hidden = true; gateForm(d.gate); return; }
     said.className = 'said good';
     said.textContent = 'Welcome.';
     location.reload();
-  });
-  /* Signed in with a certificate (1.0.100): back here from its port - or why not. */
-  certDoor();
+  }, certNext);
   if ($('mfa-box') && $('mfa-box').dataset.stage) { form.hidden = true; mfaStep(); }
   else if ($('in-name')) $('in-name').focus();
   /* Sent back here because the sign-in ran out (1.0.48): said, not a page that just changed. */

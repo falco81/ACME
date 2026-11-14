@@ -715,9 +715,9 @@ def krb_page_info(part, store=None):
 
 def krb_state_now(store):
     """{part: (signs in with Windows, "no password at all" in effect, signs in with a
-    certificate)} - before and after a change."""
+    certificate, how strictly it takes one - cl_rule)} - before and after a change."""
     return {part: (krb_usable(part, store), krb_password_off(part, store),
-                   cl_usable(part, store)) for part in KRB_PARTS}
+                   cl_usable(part, store), cl_rule(part)) for part in KRB_PARTS}
 
 
 def krb_sessions_settle(store, before, keep=None, by=''):
@@ -730,7 +730,16 @@ def krb_sessions_settle(store, before, keep=None, by=''):
     for part in KRB_PARTS:
         was = tuple(before.get(part, (False, False, False))) + (False,) * 3
         usable_was, only_was, cert_was = was[:3]
-        usable, only, cert = after[part]
+        usable, only, cert = after[part][:3]
+        # Certificates taken more strictly now (revocation switched on, matching made stricter -
+        # strong): the sign-ins made with one before end, but the doer's (review F8).
+        if cert and cert_was and cl_rule_stricter(was[3], after[part][3]):
+            cl_sessions_end(store, lambda p, _d, part=part: p == part, keep, by,
+                            'certificates are taken more strictly now (%s)' % ', '.join(
+                                w for w, on in (('revocation checked', after[part][3][0] >
+                                                 was[3][0]), ('matched %s' % cl_match(part),
+                                                              after[part][3][1] > was[3][1]))
+                                if on))
         krb_gone, cert_gone = usable_was and not usable, cert_was and not cert
         if not krb_gone and not cert_gone and (only == only_was or not only):
             continue
@@ -1234,6 +1243,7 @@ def krb_view(h):
             'auto': bool(CONFIG.get(part + '_krb_auto')),
             'password_off': bool(CONFIG.get(part + '_password_off')),
             'only_in_effect': krb_password_off(part, store),
+            'cert': cl_usable(part, store), 'signin': sso_signin_modes(part, store),
             'realm': realm, 'realm_from': where, 'directory': krb_directory_name(part),
             'realm_warn': krb_realm_warning(h.d, part),
             'second': bool(CONFIG.get('admin_2fa')) if part == 'admin' else portal_gate_needed()}

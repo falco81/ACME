@@ -514,7 +514,9 @@ def _portal_info(h):
             # password at all - the portal's own switches, not the administration's.
             'kerberos': krb_page_info('portal', h.store),
             # ...and with a certificate (1.0.100): the portal's own switches.
-            'certlogin': cl_page_info('portal', h.store)}
+            'certlogin': cl_page_info('portal', h.store),
+            # Each way's mode on the page, and the order of those tried by themselves (1.0.100).
+            'signin': sso_signin_modes('portal', h.store)}
 
 
 def portal_directory(h):
@@ -616,7 +618,7 @@ def _portal_login(h):
     return portal_open_dir(h, key, name, ad, entry)
 
 
-def portal_open_dir(h, key, name, ad, entry, sso=False, how=''):
+def portal_open_dir(h, key, name, ad, entry, sso=False, how='', more=None):
     """The directory has said who it is (the password right, or the balancer in front signed
     them in, otp 1.0.239, or a Kerberos ticket, 1.0.99 - how='Kerberos', kept in the
     session): who may use these pages decides, and the sign-in is made."""
@@ -684,7 +686,9 @@ def portal_open_dir(h, key, name, ad, entry, sso=False, how=''):
                                  'gate': gate,
                                  'gate_wait': {'kind': gate['kind'], 'dest': gate['dest']}
                                  if gate else None,
-                                 'sso': 1 if sso else 0, 'how': how or ''})
+                                 'sso': 1 if sso else 0, 'how': how or '',
+                                 # A certificate's: the authorities of its chain (1.0.100).
+                                 **(more or {})})
     if gate:
         return {'token': token, 'name': who,
                 'gate': {'kind': gate['kind'], 'dest': dest_masked(gate['kind'], gate['dest']),

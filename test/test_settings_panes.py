@@ -64,6 +64,7 @@ READ_OTHERWISE = {
     # Signing in with a certificate (1.0.100): CONFIG.get(part + '_certlogin_match') ...
     'admin_certlogin_match', 'admin_certlogin_crl', 'portal_certlogin_match',
     'portal_certlogin_crl',
+    'admin_certlogin_auto', 'portal_certlogin_auto',  # CONFIG.get(part + '_certlogin_auto')
 }
 
 

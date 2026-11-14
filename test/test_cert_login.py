@@ -23,6 +23,7 @@ import importlib.util
 import json
 import os
 import re
+import secrets
 import shutil
 import socket
 import ssl
@@ -87,6 +88,42 @@ basicConstraints = critical,CA:TRUE,pathlen:0
 keyUsage = critical,keyCertSign,cRLSign
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid
+crlDistributionPoints = URI:@ROOTCRL@
+[nc_ext]
+basicConstraints = critical,CA:TRUE,pathlen:0
+keyUsage = critical,keyCertSign,cRLSign
+crlDistributionPoints = URI:@ROOTCRL@
+nameConstraints = critical,permitted;email:partner.example,permitted;DNS:partner.example
+[person_fresh]
+basicConstraints = CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = clientAuth
+subjectAltName = otherName:1.3.6.1.4.1.311.20.2.3;UTF8:\${ENV::UPN}
+crlDistributionPoints = URI:@CRL@
+freshestCRL = URI:@DELTA@
+1.3.6.1.4.1.311.25.2 = ASN1:SEQUENCE:sidext
+[person_sansid]
+basicConstraints = CA:FALSE
+keyUsage = critical,digitalSignature
+extendedKeyUsage = clientAuth
+subjectAltName = otherName:1.3.6.1.4.1.311.20.2.3;UTF8:\${ENV::UPN},otherName:1.3.6.1.4.1.311.25.2.1;OCTETSTRING:\${ENV::SID}
+crlDistributionPoints = URI:@CRL@
+[person_sanurl]
+basicConstraints = CA:FALSE
+keyUsage = critical,digitalSignature
+extendedKeyUsage = clientAuth
+subjectAltName = @san_url
+crlDistributionPoints = URI:@CRL@
+1.3.6.1.4.1.311.25.2 = ASN1:SEQUENCE:sidext
+[san_url]
+otherName.1 = 1.3.6.1.4.1.311.20.2.3;UTF8:\${ENV::UPN}
+URI.1 = tag:microsoft.com,2022-09-14:sid:$SID_NESTED
+[person_5upn]
+basicConstraints = CA:FALSE
+keyUsage = critical,digitalSignature
+extendedKeyUsage = clientAuth
+subjectAltName = otherName:1.3.6.1.4.1.311.20.2.3;UTF8:falco@corpnet.cz,otherName:1.3.6.1.4.1.311.20.2.3;UTF8:falco@corpnet.cz,otherName:1.3.6.1.4.1.311.20.2.3;UTF8:falco@corpnet.cz,otherName:1.3.6.1.4.1.311.20.2.3;UTF8:falco@corpnet.cz,otherName:1.3.6.1.4.1.311.20.2.3;UTF8:nested@corpnet.cz
+crlDistributionPoints = URI:@CRL@
 [person]
 basicConstraints = CA:FALSE
 keyUsage = critical,digitalSignature,keyEncipherment
@@ -178,6 +215,79 @@ openssl x509 -req -in stranger.csr -CA other.pem -CAkey other.key -CAcreateseria
   -days 365 -extfile ca.cnf -extensions person 2>/dev/null
 openssl x509 -in issuing.pem -outform DER -out issuing.der
 openssl crl2pkcs7 -nocrl -certfile cas.pem -out cas.p7b
+# The security review's cases (1.0.100): every UPN looked at, the SID of the SAN, a delta CRL,
+# the root's CRL (an issuing authority revoked by it), name constraints.
+cat >> ca.cnf <<EOF
+[person_sub]
+basicConstraints = CA:FALSE
+keyUsage = critical,digitalSignature
+extendedKeyUsage = clientAuth
+subjectAltName = otherName:1.3.6.1.4.1.311.20.2.3;UTF8:\${ENV::UPN}
+crlDistributionPoints = URI:@SUBCRL@
+EOF
+person five falco@corpnet.cz - person_5upn
+person esc1 nested@corpnet.cz $SID_NESTED person_sansid
+person falco-sansid falco@corpnet.cz $SID_FALCO person_sansid
+person falco-sanurl falco@corpnet.cz $SID_FALCO person_sanurl
+person falco-sansid2 falco@corpnet.cz $SID_NESTED person_sansid
+person fresh falco@corpnet.cz $SID_FALCO person_fresh
+person lost falco@corpnet.cz $SID_FALCO person
+openssl ca -config ca.cnf -gencrl -out issuing.crl.pem >/dev/null 2>&1
+openssl crl -in issuing.crl.pem -outform DER -out www/issuing.crl
+mkcnf() { # file folder certificate key
+  cat > "$1" <<EOF
+[ca]
+default_ca = c
+[c]
+dir = $D/$2
+database = \$dir/index.txt
+new_certs_dir = \$dir/new
+serial = \$dir/serial
+crlnumber = \$dir/crlnumber
+certificate = $D/$3
+private_key = $D/$4
+default_md = sha256
+default_days = 365
+default_crl_days = 30
+policy = anything
+copy_extensions = none
+unique_subject = no
+[anything]
+commonName = supplied
+EOF
+  mkdir -p "$2/new"; : > "$2/index.txt"; echo 2000 > "$2/serial"; echo 2000 > "$2/crlnumber"
+}
+mkcnf root.cnf rdb root.pem root.key
+# An issuing authority of the root's that the root revokes, and a person of it.
+openssl req -newkey rsa:2048 -nodes -keyout sub.key -out sub.csr -subj "/DC=loc/DC=corpnet/CN=Corpnet Old CA" 2>/dev/null
+openssl x509 -req -in sub.csr -CA root.pem -CAkey root.key -CAcreateserial -out sub.pem \
+  -days 1000 -extfile ca.cnf -extensions issuing_ext 2>/dev/null
+mkcnf sub.cnf sdb sub.pem sub.key
+openssl req -newkey rsa:2048 -nodes -keyout subling.key -out subling.csr -subj "/CN=subling" 2>/dev/null
+openssl ca -batch -config sub.cnf -extfile ca.cnf -extensions person_sub -in subling.csr -out subling.pem -notext >/dev/null 2>&1
+openssl ca -config sub.cnf -gencrl -out sub.crl.pem >/dev/null 2>&1
+openssl crl -in sub.crl.pem -outform DER -out www/sub.crl
+openssl ca -config root.cnf -revoke sub.pem >/dev/null 2>&1
+openssl ca -config root.cnf -gencrl -out root.crl.pem >/dev/null 2>&1
+openssl crl -in root.crl.pem -outform DER -out www/root.crl
+cat issuing.pem root.pem sub.pem > cas-sub.pem
+# A partner's authority constrained to partner.example, a person of it with a corpnet UPN
+# (openssl itself does not look at the UPN), and one within.
+openssl req -newkey rsa:2048 -nodes -keyout nc.key -out nc.csr -subj "/CN=Partner NC CA" 2>/dev/null
+openssl x509 -req -in nc.csr -CA root.pem -CAkey root.key -CAcreateserial -out nc.pem -days 1000 \
+  -extfile ca.cnf -extensions nc_ext 2>/dev/null
+for p in ncp:nested@corpnet.cz ncok:anna@partner.example; do
+  export UPN=${p#*:}
+  openssl req -newkey rsa:2048 -nodes -keyout ${p%%:*}.key -out ${p%%:*}.csr -subj "/CN=${p%%:*}" 2>/dev/null
+  openssl x509 -req -in ${p%%:*}.csr -CA nc.pem -CAkey nc.key -CAcreateserial -out ${p%%:*}.pem \
+    -days 100 -extfile ca.cnf -extensions person_nosid 2>/dev/null
+done
+cat issuing.pem root.pem nc.pem > cas-nc.pem
+# The delta CRL of the issuing authority (Freshest CRL of "fresh"): nothing new in it yet.
+BASE=$(openssl crl -in issuing.crl.pem -noout -crlnumber | cut -d= -f2)
+( cat ca.cnf; printf '[delta_ext]\n2.5.29.27 = critical,ASN1:INTEGER:%s\n' "$BASE" ) > delta.cnf
+openssl ca -config delta.cnf -gencrl -crlexts delta_ext -crldays 1 -out delta.crl.pem >/dev/null 2>&1
+openssl crl -in delta.crl.pem -outform DER -out www/issuing-delta.crl
 cat web.pem issuing.pem > web-chain.pem
 mkdir -p otherdir && cp other.pem otherdir/ && openssl rehash otherdir >/dev/null 2>&1 || true
 '''
@@ -215,8 +325,11 @@ class CertLogin(unittest.TestCase):
     def pki_up(cls):
         d = cls.pki = tempfile.mkdtemp(prefix='acme-pki-')
         cls.crl_port, nocrl = free_port(), free_port()
-        script = PKI_SH.replace('@CRL@', 'http://127.0.0.1:%d/issuing.crl' % cls.crl_port) \
-            .replace('@NOCRL@', 'http://127.0.0.1:%d/nowhere.crl' % nocrl)
+        here = 'http://127.0.0.1:%d/' % cls.crl_port
+        script = PKI_SH.replace('@CRL@', here + 'issuing.crl') \
+            .replace('@NOCRL@', 'http://127.0.0.1:%d/nowhere.crl' % nocrl) \
+            .replace('@ROOTCRL@', here + 'root.crl').replace('@SUBCRL@', here + 'sub.crl') \
+            .replace('@DELTA@', here + 'issuing-delta.crl')
         with open(os.path.join(d, 'pki.sh'), 'w') as f:
             f.write(script)
         got = subprocess.run(['bash', os.path.join(d, 'pki.sh'), d], capture_output=True,
@@ -244,10 +357,13 @@ class CertLogin(unittest.TestCase):
         # The system's roots, as openssl finds them by default, hold "Somebody Else CA": the
         # sign-in must trust only the authorities put in (openssl verify -no-CApath).
         os.environ['SSL_CERT_DIR'] = os.path.join(cls.pki, 'otherdir')
+        # The CRLs are served on this machine: loopback is no address a CDP may have otherwise.
+        os.environ['ACME_CDP_LOOPBACK_OK'] = '1'
         try:
             TCC.CertsCore.setUpClass.__func__(cls)
         finally:
             os.environ.pop('SSL_CERT_DIR', None)
+            os.environ.pop('ACME_CDP_LOOPBACK_OK', None)
         cls.must('POST', '/api/directories', {'action': 'save', 'directory': {
             'name': 'corp', 'hosts': '127.0.0.1', 'port': cls.ldap_port, 'tls': 'none',
             'verify': 0, 'base': BASE, 'bind_dn': 'CN=isemon,OU=Service,' + BASE,
@@ -309,7 +425,9 @@ class CertLogin(unittest.TestCase):
 
     def sign(self, part, name, session=None):
         path = '/api/auth/cert' if part == 'admin' else '/api/portal/cert'
-        return self.call('POST', path, {'cert': self.pem(name) if name else ''}, session)
+        # The page's nonce, as acme-api.php hands it on (once only - the daemon keeps it).
+        return self.call('POST', path, {'cert': self.pem(name) if name else '',
+                                        'once': secrets.token_hex(16)}, session)
 
     def events(self, text):
         got = self.ok('GET', '/api/events', args={'q': text})
@@ -351,12 +469,14 @@ class CertLogin(unittest.TestCase):
         self.assertEqual(self.py(
             'print(json.dumps([E.DEFAULTS[k] for k in ("admin_certlogin", "portal_certlogin", '
             '"admin_certlogin_crl", "admin_certlogin_match", "certlogin_port", '
-            '"alerts_certlogin")]))'), [0, 0, 1, 'compat', 8443, 0])
+            '"alerts_certlogin")]))'), [0, 0, 1, 'strong', 8443, 0])
         for part in ('admin', 'portal'):
             st, got = self.sign(part, 'nested')
             self.assertEqual(st, 404, got)
         st, h = self.call('GET', '/api/health')
-        self.assertEqual(h['certlogin'], {'on': False, 'only': False, 'port': 0})
+        self.assertEqual(h['certlogin'], {'on': False, 'auto': False, 'only': False, 'port': 0})
+        self.assertEqual(h['signin'], {'password': True, 'windows': 'off', 'certificate': 'off',
+                                       'order': []})
         st, info = self.call('GET', '/api/portal/info')
         self.assertFalse(info['certlogin']['on'])
         # No port: nothing asked of root, no opening in the firewall.
@@ -423,7 +543,7 @@ class CertLogin(unittest.TestCase):
             self.assertEqual(rules[0]['key'], 'certlogin')
             self.assertTrue(all(r['port'] == '8443' and r['proto'] == 'tcp' for r in rules[0]['rules']))
             st, h = self.call('GET', '/api/health')
-            self.assertEqual(h['certlogin'], {'on': True, 'only': False, 'port': 8443})
+            self.assertEqual(h['certlogin'], {'on': True, 'auto': False, 'only': False, 'port': 8443})
         finally:
             self.on(admin_certlogin=0)
         # Off again: root is asked to take the port away ({port: 0}).
@@ -473,7 +593,8 @@ class CertLogin(unittest.TestCase):
             st, got = self.call('POST', '/api/auth/cert', {'cert': 'x' * 20000}, None)
             self.assertEqual(got.get('error'), REFUSED + 'certificate not accepted', got)
             # nginx's own refusal (an expired one, 495), said as nginx said it.
-            st, got = self.call('POST', '/api/auth/cert', {'failed': 'FAILED:certificate has expired'})
+            st, got = self.call('POST', '/api/auth/cert', {'failed': 'FAILED:certificate has expired',
+                                                           'once': secrets.token_hex(16)})
             self.assertEqual(got.get('error'), REFUSED + 'run out', got)
             words = self.events('a sign-in with a certificate was refused')
             self.assertTrue(len(words) >= 10, words)
@@ -483,9 +604,9 @@ class CertLogin(unittest.TestCase):
 
     def test_06_how_matched(self):
         self.put()
-        self.on(admin_certlogin=1)
+        self.on(admin_certlogin=1, admin_certlogin_match='compat')
         try:
-            # compat: no SID - taken; another's SID - refused.
+            # compat (an opt-down): no SID - taken; another's SID - refused.
             self.assertEqual(self.sign('admin', 'falco-nosid')[0], 200)
             self.refused('admin', 'falco-sid2', 'not allowed')
             self.on(admin_certlogin_match='strong')
@@ -501,7 +622,7 @@ class CertLogin(unittest.TestCase):
             self.on(admin_certlogin_crl=1)
             self.refused('admin', 'falco-rev', 'revoked')
         finally:
-            self.on(admin_certlogin=0, admin_certlogin_match='compat', admin_certlogin_crl=1)
+            self.on(admin_certlogin=0, admin_certlogin_match='strong', admin_certlogin_crl=1)
 
     def test_07_second_step(self):
         self.put()
@@ -570,7 +691,7 @@ class CertLogin(unittest.TestCase):
             st, h = self.call('GET', '/api/health')
             self.assertFalse(h['certlogin']['on'])
             st, info = self.call('GET', '/api/portal/info')
-            self.assertEqual(info['certlogin'], {'on': True, 'only': False, 'port': 8443})
+            self.assertEqual(info['certlogin'], {'on': True, 'auto': False, 'only': False, 'port': 8443})
             want = self.py('print(json.dumps(E.certlogin_desired(st)))')
             self.assertEqual((want['admin'], want['portal']), (False, True))
         finally:
@@ -581,12 +702,14 @@ class CertLogin(unittest.TestCase):
         self.on(admin_certlogin=0)
         st, got = self.call('POST', '/api/certlogin/try', {'cert': self.pem('nested'), 'part': 'admin'}, None)
         self.assertEqual(st, 401, got)
-        got = self.ok('POST', '/api/certlogin/try', {'cert': self.pem('nested'), 'part': 'admin'},
+        got = self.ok('POST', '/api/certlogin/try', {'cert': self.pem('nested'), 'part': 'admin',
+                                                     'once': secrets.token_hex(16)},
                       session=self.ro)
         self.assertEqual((got['ok'], got['name'], got['role'], got['on']),
                          (True, 'nested', 'fulladmin', False))
         st, got2 = self.call('POST', '/api/certlogin/try', {'cert': self.pem('outsider'),
-                                                            'part': 'portal'}, self.ro)
+                                                            'part': 'portal',
+                                                            'once': secrets.token_hex(16)}, self.ro)
         self.assertFalse(got2['ok'])
         self.assertIn('none of the groups', got2['said'])
         # Nobody signed in by it; the card reads it back (its own only).
@@ -678,6 +801,10 @@ class CertLogin(unittest.TestCase):
             return [c.split(';')[0] for c in headers.get_all('Set-Cookie') or []
                     if c.split(';')[0].split('=', 1)[1]]
 
+        def bound(headers, part):
+            name = '__Host-acme_certn_%s=' % part
+            return [c for c in jar(headers) if c.startswith(name)][0]
+
         def port_get(path, n, cert, cookies, fail=False):
             hd = {'X-Test-Port': '1', 'X-Test-Cert': urllib.parse.quote(self.pem(cert)) if cert else ''}
             if fail:
@@ -709,17 +836,22 @@ class CertLogin(unittest.TestCase):
             self.assertEqual(st, 200, body)
             url = json.loads(body)['url']
             self.assertTrue(url.startswith('https://%s:8443/admin/?api=cert-login&n=' % HOST), url)
-            raw = [c for c in hd.get_all('Set-Cookie') if c.startswith('acme_certn_admin=')][0]
-            for want in ('HttpOnly', 'SameSite=Strict', 'secure', 'path=/admin/', 'Max-Age=300'):
-                self.assertIn(want.lower(), raw.lower())
+            # The nonce bound to a random value of its own in a __Host- cookie of this browser
+            # (path /, no Domain: no sibling name can plant one) - never the nonce itself.
+            raw = [c for c in hd.get_all('Set-Cookie') if c.startswith('__Host-acme_certn_admin=')][0]
+            for want in ('HttpOnly', 'SameSite=Strict', 'secure', 'path=/;', 'Max-Age=300'):
+                self.assertIn(want.lower(), raw.lower() + ';')
+            self.assertNotIn('domain=', raw.lower())
             n = url.split('n=', 1)[1]
-            cookie = 'acme_certn_admin=' + n
+            cookie = bound(hd, 'admin')
+            self.assertNotIn(n.split('.')[0], cookie)
             # On 443 the sign-in itself is no endpoint at all.
             self.assertEqual(go('/admin/?api=cert-login&n=' + n)[0], 404)
             # No nonce, a wrong one, another browser's cookie: refused, the daemon not asked.
             for path, cookies in (('/admin/?api=cert-login&n=%s', []),
-                                  ('/admin/?api=cert-login&n=%s', ['acme_certn_admin=' + 'a' * 32 + '.1.' + 'b' * 32]),
-                                  ('/admin/?api=cert-login&n=%s', [cookie.replace(n[:4], 'ffff')])):
+                                  ('/admin/?api=cert-login&n=%s', ['__Host-acme_certn_admin=' + 'a' * 32]),
+                                  ('/admin/?api=cert-login&n=%s', ['acme_certn_admin=' + n]),
+                                  ('/admin/?api=cert-login&n=%s', [cookie[:-4] + 'ffff'])):
                 st, hd, _ = port_get(path, n, 'nested', cookies)
                 self.assertEqual(st, 303)
                 self.assertEqual(hd['Location'], 'https://%s/admin/?certsaid=nonce' % HOST)
@@ -735,15 +867,27 @@ class CertLogin(unittest.TestCase):
             self.assertNotIn('8443', raw)
             st, me = self.call('GET', '/api/auth/whoami', None, sess[0].split('=', 1)[1])
             self.assertEqual((me['who']['name'], me['who']['how']), ('nested', 'certificate'))
-            # The nonce once only: the cookie went with it.
-            self.assertIn('acme_certn_admin=;', ' '.join(hd.get_all('Set-Cookie')).replace('=deleted;', '=;'))
+            # The nonce once only: the cookie went with it - and sent again with the cookie kept
+            # (another tab, a replay), the daemon refuses it: it keeps the nonce (review F7).
+            self.assertIn('__Host-acme_certn_admin=;', ' '.join(hd.get_all('Set-Cookie')).replace('=deleted;', '=;'))
+            st, hd, _ = port_get('/admin/?api=cert-login&n=%s', n, 'nested', [cookie])
+            self.assertEqual(hd['Location'], 'https://%s/admin/?certsaid=certificate' % HOST)
+            self.assertFalse(any(c.startswith('acme_session=') for c in jar(hd)))
+            self.assertTrue(any('used already' in w for w in self.events('used already')))
+            # A nonce of another browser (an attacker's, the cookie planted): its MAC is bound to
+            # that browser's own value - refused.
+            st, hd2, body = go('/admin/?api=cert-nonce', 'POST', {})
+            n_other = json.loads(body)['url'].split('n=', 1)[1]
+            st, hd, body = go('/admin/?api=cert-nonce', 'POST', {})
+            st, hd, _ = port_get('/admin/?api=cert-login&n=%s', n_other, 'falco', [bound(hd, 'admin')])
+            self.assertEqual(hd['Location'], 'https://%s/admin/?certsaid=nonce' % HOST)
             # Refused: back to 443 with the kind only.
             for cert, kind, fail in (('falco-rev', 'revoked', False), ('outsider', 'allowed', False),
                                      ('stranger', 'certificate', False), (None, 'certificate', False),
                                      ('falco-old', 'expired', True)):
                 st, hd, body = go('/admin/?api=cert-nonce', 'POST', {})
                 n = json.loads(body)['url'].split('n=', 1)[1]
-                st, hd, _ = port_get('/admin/?api=cert-login&n=%s', n, cert, ['acme_certn_admin=' + n], fail)
+                st, hd, _ = port_get('/admin/?api=cert-login&n=%s', n, cert, [bound(hd, 'admin')], fail)
                 self.assertEqual(hd['Location'], 'https://%s/admin/?certsaid=%s' % (HOST, kind), cert)
                 self.assertFalse(any(c.startswith('acme_session=') for c in jar(hd)))
             # The port serves the sign-in only, even with the page's other names asked.
@@ -756,12 +900,13 @@ class CertLogin(unittest.TestCase):
             url = json.loads(body)['url']
             self.assertTrue(url.startswith('https://%s:8443/?api=cert-login&n=' % HOST), url)
             n = url.split('n=', 1)[1]
-            # The admin's nonce is no portal's.
-            st, hd, _ = port_get('/?api=cert-login&n=%s', n, 'falco', ['acme_certn_admin=' + n])
+            # The portal's nonce with the admin's cookie: no portal's.
+            st, hd, _ = port_get('/?api=cert-login&n=%s', n, 'falco',
+                                 [bound(hd, 'portal').replace('_portal=', '_admin=')])
             self.assertEqual(hd['Location'], 'https://%s/?certsaid=nonce' % HOST)
             st, hd, body = go('/?api=cert-nonce', 'POST', {})
             n = json.loads(body)['url'].split('n=', 1)[1]
-            st, hd, _ = port_get('/?api=cert-login&n=%s', n, 'falco', ['acme_certn_portal=' + n])
+            st, hd, _ = port_get('/?api=cert-login&n=%s', n, 'falco', [bound(hd, 'portal')])
             self.assertEqual(hd['Location'], 'https://%s/' % HOST)
             self.assertTrue(any(c.startswith('acme_portal=') for c in jar(hd)))
             # Try my certificate: from the card (signed in), through the port, back to the card.
@@ -773,7 +918,7 @@ class CertLogin(unittest.TestCase):
             self.assertTrue(url.endswith('&part=portal'))
             n = url.split('n=', 1)[1].split('&')[0]
             st, hd, _ = go('/admin/?api=cert-try&n=%s&part=portal' % n, cookies=[
-                'acme_certn_admin=' + n, 'acme_session=' + self.ro], headers={
+                bound(hd, 'admin'), 'acme_session=' + self.ro], headers={
                 'X-Test-Port': '1', 'X-Test-Cert': urllib.parse.quote(self.pem('falco'))})
             m = re.match(r'^https://%s/admin/\?certtried=([0-9a-f]{24})#settings/portal$' % re.escape(HOST),
                          hd['Location'])
@@ -905,7 +1050,9 @@ class CertLogin(unittest.TestCase):
                 st, hd, body = ask(p443, page + '?api=cert-nonce', method='POST', body={})
                 self.assertEqual(st, 200, body)
                 url = json.loads(body)['url']
-                return url.split(':8443', 1)[1], url.split('n=', 1)[1].split('&')[0]
+                # The path on the port, and the __Host- cookie that binds its nonce to this browser.
+                return url.split(':8443', 1)[1], [c.split(';')[0] for c in hget(hd, 'Set-Cookie')
+                                                  if c.startswith('__Host-acme_certn_')][0]
             # Nothing but the sign-in on the port.
             for path in ('/', '/admin/', '/admin/?api=settings', '/assets/core.js', '/healthz',
                          '/admin/?api=cert-login&n=1&api=settings', '/index.php', '/pki/'):
@@ -913,7 +1060,7 @@ class CertLogin(unittest.TestCase):
                 self.assertEqual(st, 404, path)
             # Signed in, back on 443.
             path, n = nonce()
-            st, hd, body = ask(8443, path, 'nested', ['acme_certn_admin=' + n])
+            st, hd, body = ask(8443, path, 'nested', [n])
             self.assertEqual((st, hget(hd, 'Location')), (303, ['https://%s/admin/' % HOST]), body)
             sess = [c.split(';')[0] for c in hget(hd, 'Set-Cookie') if c.startswith('acme_session=')]
             self.assertEqual(len(sess), 1)
@@ -921,19 +1068,19 @@ class CertLogin(unittest.TestCase):
             self.assertIn('id="signout"', body)
             # No certificate at all: refused, said.
             path, n = nonce()
-            st, hd, body = ask(8443, path, None, ['acme_certn_admin=' + n])
+            st, hd, body = ask(8443, path, None, [n])
             self.assertEqual(hget(hd, 'Location'), ['https://%s/admin/?certsaid=certificate' % HOST])
             # Expired: nginx refuses it itself (495) - the page says why.
             path, n = nonce()
-            st, hd, body = ask(8443, path, 'falco-old', ['acme_certn_admin=' + n])
+            st, hd, body = ask(8443, path, 'falco-old', [n])
             self.assertEqual(hget(hd, 'Location'), ['https://%s/admin/?certsaid=expired' % HOST])
             # Another authority's (nginx lets it through with optional_no_ca; acme refuses it).
             path, n = nonce()
-            st, hd, body = ask(8443, path, 'stranger', ['acme_certn_admin=' + n])
+            st, hd, body = ask(8443, path, 'stranger', [n])
             self.assertEqual(hget(hd, 'Location'), ['https://%s/admin/?certsaid=certificate' % HOST])
             # The portal on the same port.
             path, n = nonce('/')
-            st, hd, body = ask(8443, path, 'falco', ['acme_certn_portal=' + n])
+            st, hd, body = ask(8443, path, 'falco', [n])
             self.assertEqual(hget(hd, 'Location'), ['https://%s/' % HOST], body)
             self.assertTrue(any(c.startswith('acme_portal=') for c in hget(hd, 'Set-Cookie')))
         finally:
@@ -995,6 +1142,36 @@ class CertLogin(unittest.TestCase):
         finally:
             busy.close()
             self.on(admin_certlogin=0, certlogin_port=8443)
+
+    def test_16_by_itself_when_the_page_opens(self):
+        """admin_certlogin_auto / portal_certlogin_auto (1.0.100): off by default, each part's
+        own, said to the page only while the certificate is offered at all."""
+        self.assertEqual(self.py('print(json.dumps([E.DEFAULTS["admin_certlogin_auto"], '
+                                 'E.DEFAULTS["portal_certlogin_auto"]]))'), [0, 0])
+        self.put()
+        self.on(admin_certlogin_auto=1)
+        try:
+            st, h = self.call('GET', '/api/health')
+            self.assertFalse(h['certlogin']['auto'], 'not while the certificate is off')
+            self.on(admin_certlogin=1)
+            st, h = self.call('GET', '/api/health')
+            self.assertEqual(h['certlogin'], {'on': True, 'auto': True, 'only': False, 'port': 8443})
+            self.assertEqual(h['signin'], {'password': True, 'windows': 'off',
+                                           'certificate': 'auto', 'order': ['certificate']})
+            st, info = self.call('GET', '/api/portal/info')
+            self.assertFalse(info['certlogin']['auto'], 'the portal has its own switch')
+            self.on(portal_certlogin=1)
+            st, info = self.call('GET', '/api/portal/info')
+            self.assertEqual(info['signin']['certificate'], 'button')
+            self.on(portal_certlogin_auto=1)
+            st, info = self.call('GET', '/api/portal/info')
+            self.assertEqual(info['signin']['certificate'], 'auto')
+            v = self.ok('GET', '/api/certlogin')
+            self.assertTrue(v['parts']['admin']['auto'])
+            self.assertEqual(v['parts']['portal']['signin']['order'], ['certificate'])
+        finally:
+            self.on(admin_certlogin=0, admin_certlogin_auto=0, portal_certlogin=0,
+                    portal_certlogin_auto=0)
 
     def test_14_kerberos_untouched(self):
         """The shared code: a Kerberos sign-in's session and its words as before."""

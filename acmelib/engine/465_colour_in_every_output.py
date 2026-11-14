@@ -2601,13 +2601,14 @@ def cli_kerberos(args, pal, store):
     for part, words in (('admin', 'the administration'), ('portal', 'the enrolment pages')):
         p = v['parts'][part]
         print(pal.ok_line('signing in with Windows to %s: %s' % (words, 'ON' if p['on'] else 'off')))
-        print('  realm %s (%s), directory %s, by itself %s, only Windows %s%s' % (
+        print('  realm %s (%s), directory %s, by itself %s, no password at all %s%s' % (
             p['realm'] or '-', {'set': 'set', 'directory': 'from the directory'}.get(p['realm_from'], '-'),
             p['directory'] or '-', 'yes' if p['auto'] else 'no',
             'ON' if p['only_in_effect'] else ('set, not in effect' if p['password_off'] else 'no'),
             ('  (the way back: acme --set %s_password_off=0)' % part) if p['password_off'] else ''))
         if p.get('realm_warn'):
             print(pal.warn_line('  ' + p['realm_warn']))
+        print('  ' + sso_signin_line(p.get('signin')))
     kt = v['keytab']
     if not kt:
         print(pal.warn_line('no keytab is put in (acme --kerberos-keytab FILE)'))
@@ -2629,6 +2630,16 @@ def cli_kerberos(args, pal, store):
             'written' if n['written'] else 'not written', 'there' if n['lib'] else 'MISSING',
             ('  (%s)' % n['error']) if n['error'] else ''))
     return 0
+
+
+def sso_signin_line(m):
+    """The sign-in page of a part in one line (1.0.100), as the cards' summary says it."""
+    m = m or {}
+    words = {'off': 'off', 'button': 'a button', 'auto': 'at once'}
+    return 'the sign-in page: a password %s, Windows %s, a certificate %s%s' % (
+        'yes' if m.get('password', True) else 'no', words.get(m.get('windows'), '-'),
+        words.get(m.get('certificate'), '-'),
+        ' (when it opens: %s)' % ' then '.join(m['order']) if len(m.get('order') or []) > 1 else '')
 
 
 def cli_cert_login(args, pal, store):
@@ -2674,6 +2685,7 @@ def cli_cert_login(args, pal, store):
                                                    else 'no'),
                  ('  (the way back: acme --set %s_password_off=0)' % part)
                  if p['password_off'] else ''))
+        print('  ' + sso_signin_line(p.get('signin')))
     print('  the port: %d (nginx asks for a certificate there and nowhere else)' % v['port'])
     if not v['cas']:
         print(pal.warn_line('no authority is put in (acme --cert-login-ca FILE)'))

@@ -53,16 +53,45 @@ CL_OID_KU = '2.5.29.15'
 CL_OID_UPN = '1.3.6.1.4.1.311.20.2.3'
 CL_OID_SID_EXT = '1.3.6.1.4.1.311.25.2'
 CL_OID_SID = '1.3.6.1.4.1.311.25.2.1'
+CL_OID_FRESHEST = '2.5.29.46'       # Freshest CRL: where the delta CRL is
+CL_OID_DELTA = '2.5.29.27'          # Delta CRL Indicator (of a CRL)
+CL_OID_NC = '2.5.29.30'             # nameConstraints (of an authority)
+# The SID in the Subject Alternative Name (an otherName of CL_OID_SID, or the URL form of 2025)
+# is written by whoever asks for the certificate on a template where the requester supplies the
+# subject - never taken as the account's SID: only the extension CL_OID_SID_EXT, which the
+# authority writes itself, is (security review F1).
+CL_SID_URL = 'tag:microsoft.com,2022-09-14:sid:'
+# A CRL fetched is used for this long at most (or until its next update, if sooner), then fetched
+# again; while its CDP does not answer, the last good one until its next update (fail closed
+# after it). The delta CRL (Freshest CRL) the same way. Review F3.
+CL_CRL_FRESH_S = 600
+CL_CRL_FETCH_S = 15                 # one CRL: the whole fetch, connecting and reading
+# Names of clouds' metadata services, and their addresses that are not link-local (F5).
+CL_CDP_NAMES_NO = ('metadata', 'metadata.google.internal', 'metadata.goog', 'instance-data',
+                   'instance-data.ec2.internal', 'metadata.azure.com', 'metadata.oraclecloud.com')
+CL_CDP_IPS_NO = ('169.254.169.254', '169.254.170.2', 'fd00:ec2::254', '100.100.100.200')
+# The nonce of the page, once in the whole cluster (as Kerberos' authenticator): F7.
+CL_ONCE = 'certonce'
+CL_ONCE_S = 330
 CL_EKU_SIGN_IN = {'1.3.6.1.5.5.7.3.2': 'Client Authentication',
                   '1.3.6.1.4.1.311.20.2.2': 'Smart Card Logon'}
 # Extensions a person's certificate may have marked critical and still be read here.
-CL_CRIT_KNOWN = (CL_OID_SAN, CL_OID_EKU, CL_OID_BC, CL_OID_KU, CL_OID_CDP, '2.5.29.32')
+CL_CRIT_KNOWN = (CL_OID_SAN, CL_OID_EKU, CL_OID_BC, CL_OID_KU, CL_OID_CDP, '2.5.29.32',
+                 CL_OID_FRESHEST)
 CL_REFUSED = 'Certificate sign-in refused'
 CL_KINDS = {'certificate': 'certificate not accepted', 'revoked': 'revoked', 'expired': 'run out',
             'allowed': 'not allowed', 'unavailable': 'not available just now'}
 CL_MATCH_WORDS = {'compat': 'the UPN; the SID in it must be the account\'s when it is there',
                   'strong': 'the UPN and the SID in it - a certificate without the SID is refused',
                   'upn': 'the UPN alone - the SID in it is not looked at'}
+CL_MATCH_RANK = {'upn': 0, 'compat': 1, 'strong': 2}
+# On the card (and in the docs) while a part is not strong: who may ask the authority for a
+# certificate naming any UPN may sign in as that person (F2).
+CL_MATCH_WARN = ('Not strong: a certificate without the SID of KB5014754 is taken by its UPN '
+                 'alone - anybody who may ask an authority put in here for a certificate with a '
+                 'name of their choosing (a template where the requester supplies the subject) '
+                 'signs in as whoever they name, a full administrator too. Windows itself '
+                 'requires the SID since September 2025.')
 CL_CRL_CACHE = {}
 CL_CRL_LOCK = threading.Lock()
 CL_STATE = {'have': None, 'sha': None, 'checked': 0.0, 'said_at': 0.0, 'said': None,
@@ -194,7 +223,7 @@ def cl_facts(pem):
                 exts[oid] = (crit, parts[-1][1])
         except (ValueError, IndexError):
             raise CertRefused('the extensions of the certificate cannot be read')
-    upns, mails, sid = [], [], ''
+    upns, mails, sid, san_sids = [], [], '', []
     if CL_OID_SAN in exts:
         try:
             for gt, gv in _cl_der_all(_cl_der(exts[CL_OID_SAN][1])[1]):
@@ -205,11 +234,16 @@ def cl_facts(pem):
                         if inner:
                             upns.append(inner[0][1].decode('utf-8', 'replace'))
                     elif p and _cl_oid(p[0][1]) == CL_OID_SID and len(p) > 1:
+                        # Written by the requester (F1): never the account's SID - only
+                        # compared, below and with the account.
                         inner = _cl_der_all(p[1][1])
-                        if inner:
-                            sid = sid or inner[0][1].decode('ascii', 'replace')
+                        san_sids.append(inner[0][1].decode('ascii', 'replace') if inner else '?')
                 elif gt == 0x81:                    # rfc822Name
                     mails.append(gv.decode('ascii', 'replace'))
+                elif gt == 0x86:                    # URI - the SID's URL form of 2025
+                    u = gv.decode('ascii', 'replace')
+                    if u.lower().startswith(CL_SID_URL):
+                        san_sids.append(u[len(CL_SID_URL):])
         except (ValueError, IndexError):
             raise CertRefused('the Subject Alternative Name of the certificate cannot be read')
     if CL_OID_SID_EXT in exts:
@@ -237,6 +271,9 @@ def cl_facts(pem):
             is_ca = False
     cdp = [u.decode('ascii', 'replace') for u in _cl_der_find(exts[CL_OID_CDP][1], 0x86)] \
         if CL_OID_CDP in exts else []
+    freshest = [u.decode('ascii', 'replace') for u in _cl_der_find(exts[CL_OID_FRESHEST][1], 0x86)] \
+        if CL_OID_FRESHEST in exts else []
+    nc = cl_name_constraints(exts[CL_OID_NC][1]) if CL_OID_NC in exts else None
     try:
         txt = _cl_openssl(['x509', '-noout', '-subject', '-issuer', '-serial', '-startdate',
                            '-enddate', '-fingerprint', '-sha256', '-nameopt', 'RFC2253'],
@@ -249,13 +286,89 @@ def cl_facts(pem):
         return m.group(1).strip() if m else ''
     fp = (re.search(r'(?mi)^sha256 Fingerprint=([0-9A-F:]+)', txt) or [None, ''])[1]
     sid = sid if re.match(r'^S-1-[0-9-]{1,180}\Z', sid or '') else ('?' if sid else '')
+    san_sids = [x if re.match(r'^S-1-[0-9-]{1,180}\Z', x or '') else '?' for x in san_sids]
+    # Every UPN, never a few of them (F6): "more than one user" is told from all of them.
     return {'pem': pem, 'subject': one('subject'), 'issuer': one('issuer'), 'serial': one('serial'),
             'not_before': one('notBefore'), 'not_after': one('notAfter'),
             'not_after_t': cl_time(one('notAfter')), 'not_before_t': cl_time(one('notBefore')),
-            'sha256': fp.replace(':', '').lower(), 'upn': upns[:4], 'mail': mails[:4], 'sid': sid,
-            'eku': eku, 'ca': is_ca, 'cdp': cdp[:6],
+            'sha256': fp.replace(':', '').lower(), 'upn': upns, 'mail': mails[:4], 'sid': sid,
+            'san_sids': san_sids[:8] + (['?'] if len(san_sids) > 8 else []),
+            'eku': eku, 'ca': is_ca, 'cdp': cdp[:6], 'freshest': freshest[:6], 'nc': nc,
             'unknown_critical': sorted(k for k, (c, _v) in exts.items()
                                        if c and k not in CL_CRIT_KNOWN)}
+
+
+def cl_name_constraints(v):
+    """{permitted: [(kind, value)], excluded: [...]} of an authority's nameConstraints - kind
+    'email' (rfc822Name), 'dns', 'upn' (an otherName of the UPN) or 'other' (anything else:
+    a directory name, an address, a URI). CertRefused when it cannot be read."""
+    out = {'permitted': [], 'excluded': []}
+    try:
+        for t, trees in _cl_der_all(_cl_der(v)[1]):
+            key = {0xa0: 'permitted', 0xa1: 'excluded'}.get(t)
+            if not key:
+                continue
+            for _t, sub in _cl_der_all(trees):
+                base = _cl_der_all(sub)
+                if not base:
+                    continue
+                gt, gv = base[0]
+                if gt == 0x81:
+                    out[key].append(('email', gv.decode('ascii', 'replace')))
+                elif gt == 0x82:
+                    out[key].append(('dns', gv.decode('ascii', 'replace')))
+                elif gt == 0xa0:
+                    p = _cl_der_all(gv)
+                    if p and _cl_oid(p[0][1]) == CL_OID_UPN and len(p) > 1:
+                        inner = _cl_der_all(p[1][1])
+                        out[key].append(('upn', inner[0][1].decode('utf-8', 'replace')
+                                         if inner else ''))
+                    else:
+                        out[key].append(('other', ''))
+                else:
+                    out[key].append(('other', ''))
+    except (ValueError, IndexError):
+        raise CertRefused('the name constraints of an authority cannot be read')
+    return out
+
+
+def _cl_nc_hit(kind, base, upn):
+    """Whether a UPN (name@domain) is within one subtree. rfc822Name (RFC 5280 4.2.1.10): a
+    mailbox exactly, a host exactly, or ".domain" any host under it; dNSName: the domain and
+    every name under it; the UPN's own otherName: as rfc822Name."""
+    name, _, dom = upn.lower().rpartition('@')
+    base = str(base or '').strip().lower()
+    if not base:
+        return kind == 'dns'                        # an empty dNSName: every name
+    if kind in ('email', 'upn'):
+        if '@' in base:
+            return upn.lower() == base
+        if base.startswith('.'):
+            return dom.endswith(base)
+        return dom == base
+    if kind == 'dns':
+        base = base.lstrip('.')
+        return dom == base or dom.endswith('.' + base)
+    return False
+
+
+def cl_nc_check(upn, cas):
+    """openssl does not apply an authority's name constraints to the UPN (an otherName): acme
+    does, for the names they can say of it - rfc822Name, dNSName and the UPN's otherName. An
+    authority of the chain that constrains any of those: the UPN within one permitted subtree of
+    them, and in none excluded. CertRefused."""
+    for ca in cas:
+        nc = ca.get('nc')
+        if not nc:
+            continue
+        mine = ('email', 'dns', 'upn')
+        allowed = [(k, b) for k, b in nc['permitted'] if k in mine]
+        if allowed and not any(_cl_nc_hit(k, b, upn) for k, b in allowed):
+            raise CertRefused('the UPN %s is outside the names the authority %s may issue for '
+                              '(its name constraints)' % (upn, ca.get('subject') or '?'))
+        if any(_cl_nc_hit(k, b, upn) for k, b in nc['excluded'] if k in mine):
+            raise CertRefused('the UPN %s is among the names the authority %s may not issue for '
+                              '(its name constraints)' % (upn, ca.get('subject') or '?'))
 
 
 def cl_time(words):
@@ -273,52 +386,179 @@ def cl_who_words(f):
 
 
 # ---- the CRL at a certificate's CRL Distribution Point ------------------------------------------
+def cl_addr_no(ip):
+    """Why acme fetches no CRL from an address ('' when it does): loopback, link-local
+    (169.254/16, fe80::/10 - a cloud's metadata service), multicast, unspecified, reserved, "this
+    network", a cloud's metadata address. AD CS's CDPs are mostly inside: private addresses
+    (RFC 1918, fc00::/7) are fetched from (security review F5)."""
+    if isinstance(ip, str):
+        ip = ipaddress.ip_address(ip.split('%', 1)[0])
+    if getattr(ip, 'ipv4_mapped', None):
+        ip = ip.ipv4_mapped
+    if any(ip == ipaddress.ip_address(x) for x in CL_CDP_IPS_NO):
+        return 'a cloud\'s metadata service'
+    if ip.is_loopback:
+        # The tests' CRL is served on this machine (never set by acme itself).
+        return '' if os.environ.get('ACME_CDP_LOOPBACK_OK') == '1' else 'loopback'
+    if ip.is_link_local:
+        return 'link-local'
+    if ip.is_multicast:
+        return 'multicast'
+    if ip.is_unspecified or (ip.version == 4 and ip in ipaddress.ip_network('0.0.0.0/8')):
+        return 'unspecified'
+    if ip.is_reserved:
+        return 'reserved'
+    return ''
+
+
 def cl_cdp_ok(url):
-    """http only, a name or an address that is no link-local one (a cloud's metadata)."""
+    """An address a CRL is fetched from: http only, no user or password in it, no name of a
+    cloud's metadata service, a number in it none of cl_addr_no's - in whatever form it is
+    written. Its name's addresses are checked again when it is fetched (cl_http_get)."""
     try:
         u = urllib.parse.urlsplit(url)
+        u.port
     except ValueError:
         return False
     if u.scheme != 'http' or not u.hostname or u.username or u.password:
         return False
+    host = u.hostname.lower().rstrip('.')
+    if host in CL_CDP_NAMES_NO or any(host.endswith('.' + n) for n in CL_CDP_NAMES_NO
+                                      if '.' in n):
+        return False
     try:
-        ip = ipaddress.ip_address(u.hostname)
-        if ip.is_link_local or ip.is_multicast or ip.is_unspecified:
-            return False
+        return not cl_addr_no(ipaddress.ip_address(host.split('%', 1)[0]))
     except ValueError:
-        pass
-    return True
+        return True
 
 
-def cl_crl_fetch(url):
-    """The CRL at url as PEM and its next update - kept until then (an hour when it says
-    nothing), and used while still good when the address does not answer. CertRefused
-    ('unavailable') when there is none to be had."""
-    now = time.time()
-    with CL_CRL_LOCK:
-        got = CL_CRL_CACHE.get(url)
-    if got and got.get('pem') and now < got['next'] and now - got['at'] < 86400:
-        return got
+def cl_http_get(url):
+    """The body at a CRL's http address: every address its name has looked up and checked
+    (cl_addr_no - 2852039166 or 0251.0376.0251.0376 as the resolver reads them, a name that
+    resolves to 169.254.169.254) and the connection made to the address checked, never looked up
+    again; no redirect followed, CL_CRL_MOST at most, CL_CRL_FETCH_S for the whole of it.
+    ValueError says why not."""
+    import http.client as _hc
+    if not cl_cdp_ok(url):
+        raise ValueError('not an address acme fetches a CRL from (http; no loopback, link-local '
+                         'or metadata address)')
+    u = urllib.parse.urlsplit(url)
+    host, port = u.hostname, u.port or 80
+    deadline = time.monotonic() + CL_CRL_FETCH_S
     try:
-        raw = b''
-        req = urllib.request.Request(url, headers={'User-Agent': 'acme/%s' % __version__})
-        with url_open(req, timeout=10) as r:
-            while len(raw) <= CL_CRL_MOST:
-                part = r.read(65536)
+        infos = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+    except (OSError, UnicodeError) as e:
+        raise ValueError('%s cannot be looked up (%s)' % (host, e))
+    addrs = []
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(str(info[4][0]).split('%', 1)[0])
+        except ValueError:
+            raise ValueError('%s has an address acme cannot read (%s)' % (host, info[4][0]))
+        if ip not in addrs:
+            addrs.append(ip)
+    if not addrs:
+        raise ValueError('%s has no address' % host)
+    for ip in addrs:
+        why = cl_addr_no(ip)
+        if why:
+            raise ValueError('%s is %s, a %s address - no CRL is fetched from it' % (host, ip, why))
+    path = (u.path or '/') + ('?' + u.query if u.query else '')
+    last = None
+    for ip in addrs[:4]:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            break
+        conn = _hc.HTTPConnection(str(ip), port, timeout=min(5.0, left))
+        try:
+            conn.request('GET', path, headers={
+                'Host': ('[%s]' % host if ':' in host else host) + (':%d' % port if u.port else ''),
+                'User-Agent': 'acme/%s' % __version__, 'Accept': '*/*', 'Connection': 'close'})
+            r = conn.getresponse()
+            if 300 <= r.status < 400:
+                raise ValueError('it answers with a redirect (HTTP %d to %s) - not followed'
+                                 % (r.status, str(r.getheader('Location') or '?')[:120]))
+            if r.status != 200:
+                raise ValueError('HTTP %d' % r.status)
+            try:
+                if int(r.getheader('Content-Length') or 0) > CL_CRL_MOST:
+                    raise ValueError('larger than %d MB' % (CL_CRL_MOST >> 20))
+            except (TypeError, ValueError) as e:
+                if 'larger' in str(e):
+                    raise
+            raw = b''
+            while True:
+                if time.monotonic() > deadline:
+                    raise ValueError('it took longer than %d s' % CL_CRL_FETCH_S)
+                part = r.read1(65536)
                 if not part:
                     break
                 raw += part
-        if len(raw) > CL_CRL_MOST:
-            raise ValueError('larger than %d MB' % (CL_CRL_MOST >> 20))
+                if len(raw) > CL_CRL_MOST:
+                    raise ValueError('larger than %d MB' % (CL_CRL_MOST >> 20))
+            return raw
+        except (OSError, _hc.HTTPException) as e:
+            last = e
+        finally:
+            conn.close()
+    raise ValueError(('%s' % last)[:200] if last else 'it took longer than %d s' % CL_CRL_FETCH_S)
+
+
+def cl_crl_info(pem):
+    """Of a CRL (PEM): its next update (seconds, or None), the Freshest CRL it names (where its
+    delta is), whether it is a delta CRL itself."""
+    out = {'next': None, 'freshest': [], 'delta': False}
+    m = re.search(r'-----BEGIN X509 CRL-----([A-Za-z0-9+/=\s]+)-----END X509 CRL-----', pem)
+    try:
+        der = base64.b64decode(re.sub(r'\s+', '', m.group(1))) if m else b''
+        _t, body, _ = _cl_der(der)
+        _t, tbs, _ = _cl_der(body)
+        for t, v in _cl_der_all(tbs):
+            if t != 0xa0:
+                continue
+            for _t, one in _cl_der_all(_cl_der(v)[1]):
+                parts = _cl_der_all(one)
+                oid = _cl_oid(parts[0][1])
+                if oid == CL_OID_FRESHEST:
+                    out['freshest'] = [u.decode('ascii', 'replace')
+                                       for u in _cl_der_find(parts[-1][1], 0x86)][:6]
+                elif oid == CL_OID_DELTA:
+                    out['delta'] = True
+    except (ValueError, IndexError, binascii.Error, AttributeError):
+        pass
+    try:
+        nu = _cl_openssl(['crl', '-noout', '-nextupdate'], pem.encode(), what='the CRL').decode()
+        m = re.search(r'nextUpdate=(.+)', nu)
+        if m and 'NONE' not in m.group(1):
+            out['next'] = cl_time(m.group(1)) or None
+    except ValueError:
+        pass
+    return out
+
+
+def cl_crl_fetch(url):
+    """The CRL at url as PEM: fetched again after CL_CRL_FRESH_S (ten minutes) at most - sooner
+    at its next update; while the address does not answer, the last good one until its next update,
+    then nothing. CertRefused ('unavailable') when there is none to be had - a CRL already past
+    its next update is none (a delta CRL past it openssl would leave out without a word)."""
+    now = time.time()
+    with CL_CRL_LOCK:
+        got = CL_CRL_CACHE.get(url)
+    good = bool(got and got.get('pem') and now < got['next'])
+    if good and (now - got['at'] < CL_CRL_FRESH_S or now - float(got.get('tried') or 0) < 60):
+        return got
+    try:
+        raw = cl_http_get(url)
         form = 'PEM' if b'-----BEGIN X509 CRL' in raw else 'DER'
         pem = _cl_openssl(['crl', '-inform', form, '-outform', 'PEM'], raw,
                           what='the CRL').decode('ascii', 'replace')
-        nu = _cl_openssl(['crl', '-noout', '-nextupdate'], pem.encode(), what='the CRL').decode()
-        m = re.search(r'nextUpdate=(.+)', nu)
-        nxt = now + 3600
-        if m and 'NONE' not in m.group(1):
-            nxt = cl_time(m.group(1)) or nxt
-        one = {'at': now, 'pem': pem, 'next': nxt, 'url': url, 'err': ''}
+        info = cl_crl_info(pem)
+        nxt = info['next'] or now + 3600
+        if nxt <= now:
+            raise ValueError('it has run out (its next update was %s)'
+                             % time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(nxt)))
+        one = {'at': now, 'pem': pem, 'next': nxt, 'url': url, 'err': '', 'tried': 0,
+               'freshest': info['freshest'], 'delta': info['delta']}
         with CL_CRL_LOCK:
             if len(CL_CRL_CACHE) > 50:
                 CL_CRL_CACHE.clear()
@@ -326,20 +566,62 @@ def cl_crl_fetch(url):
         return one
     except Exception as e:                              # noqa: BLE001
         why = str(e)[:200] or e.__class__.__name__
-        if got and got.get('pem') and now < got['next']:
-            return got                                  # still good: the last one
+        if good:
+            kept = dict(got, err=why, tried=now)        # the last good one, said why
+            with CL_CRL_LOCK:
+                CL_CRL_CACHE[url] = kept
+            return kept
         with CL_CRL_LOCK:
             CL_CRL_CACHE[url] = {'at': now, 'pem': '', 'next': 0, 'url': url, 'err': why}
         raise CertRefused('the CRL at %s could not be had (%s) - nobody signs in while the '
                           'certificate cannot be checked for revocation' % (url, why), 'unavailable')
 
 
-def _cl_verify(ca_file, leaf, crl_file=None):
+def _cl_crl_any(urls):
+    last = None
+    for u in urls[:3]:
+        try:
+            return cl_crl_fetch(u)
+        except CertRefused as e:
+            last = e
+    raise last
+
+
+def cl_crls_of(c, what):
+    """The CRL of one certificate (a person's, or an authority's above it), and its delta CRL
+    when it or the CRL names one (Freshest CRL): [PEM], and whether a delta is among them.
+    CertRefused - no CRL, no sign-in; a delta named and not to be had neither (review F3)."""
+    named = list(c.get('cdp') or [])
+    urls = [u for u in named if u.lower().startswith('http://')]
+    if not urls:
+        raise CertRefused('%s names no CRL over http (CRL Distribution Points) - it cannot be '
+                          'checked for revocation' % what)
+    urls = [u for u in urls if cl_cdp_ok(u)]
+    if not urls:
+        raise CertRefused('the CRL Distribution Point of %s is not an address acme fetches from '
+                          '(http; no loopback, link-local or metadata address)' % what)
+    base = _cl_crl_any(urls)
+    out = [base['pem']]
+    named = list(dict.fromkeys(list(c.get('freshest') or []) + list(base.get('freshest') or [])))
+    if not named:
+        return out, False
+    urls = [u for u in named if u.lower().startswith('http://') and cl_cdp_ok(u)]
+    if not urls:
+        raise CertRefused('the delta CRL (Freshest CRL) of %s is at no address acme fetches '
+                          'from (http; no loopback, link-local or metadata address) - its '
+                          'revocations of the last days cannot be seen' % what, 'unavailable')
+    out.append(_cl_crl_any(urls)['pem'])
+    return out, True
+
+
+def _cl_verify(ca_file, leaf, crl_file=None, deltas=False):
     """openssl verify against the authorities put in and nothing else - never the system's own
-    store (-CAfile alone still reads the default folder of roots): CertRefused, or None."""
+    store (-CAfile alone still reads the default folder of roots): CertRefused, or None. With
+    CRLs: every certificate of the chain checked (-crl_check_all: an issuing authority its root
+    revoked too; the root itself, its own anchor, is not), deltas applied (-use_deltas)."""
     args = ['openssl', 'verify', '-no-CApath', '-no-CAstore', '-CAfile', str(ca_file)]
     if crl_file:
-        args += ['-crl_check', '-CRLfile', crl_file]
+        args += ['-crl_check_all', '-CRLfile', crl_file] + (['-use_deltas'] if deltas else [])
     args.append(leaf)
     try:
         got = subprocess.run(args, capture_output=True, text=True, timeout=30,
@@ -353,12 +635,52 @@ def _cl_verify(ca_file, leaf, crl_file=None):
     m = re.search(r'error (\d+) at (\d+) depth lookup:\s*(.+)', words)
     code = int(m.group(1)) if m else 0
     kind = {23: 'revoked', 10: 'expired', 9: 'certificate', 12: 'unavailable',
-            11: 'unavailable'}.get(code, 'certificate')
+            11: 'unavailable', 3: 'unavailable'}.get(code, 'certificate')
     if code in (10, 23) and m.group(2) != '0':
         kind = 'certificate'
     why = ('%s%s' % (m.group(3).strip(), '' if m.group(2) == '0' else ' (an authority above it)')) \
         if m else re.sub(r'\S*acme-cert-\S*:?\s*', '', words).strip()[:300]
     raise CertRefused('the certificate is not taken: %s' % why, kind)
+
+
+CL_CA_FACTS = {'sha': None, 'cas': []}
+
+
+def cl_ca_facts(ca_file):
+    """The facts of every authority in the file (cl_facts), read once for each content."""
+    try:
+        with open(str(ca_file), 'rb') as fh:
+            raw = fh.read(CL_CA_FILE_MOST + 1)
+    except OSError:
+        return []
+    sha = hashlib.sha256(raw).hexdigest()
+    if CL_CA_FACTS['sha'] == sha:
+        return CL_CA_FACTS['cas']
+    out = []
+    for body in CL_PEM_RE.findall(raw.decode('ascii', 'replace'))[:CL_CAS_MOST * 2]:
+        try:
+            out.append(cl_facts('-----BEGIN CERTIFICATE-----%s-----END CERTIFICATE-----' % body))
+        except CertRefused:
+            continue
+    CL_CA_FACTS.update(sha=sha, cas=out)
+    return out
+
+
+def cl_chain(f, cas):
+    """The authorities above a certificate among those put in, the nearest first - by subject
+    and issuer, as openssl built it (every one of a name, should two have it); a root ends it."""
+    out, want, seen = [], f.get('issuer'), set()
+    for _ in range(8):
+        hit = [c for c in cas if c['subject'] == want and c['sha256'] not in seen]
+        if not hit:
+            break
+        for c in hit:
+            seen.add(c['sha256'])
+            out.append(c)
+        if any(c['subject'] == c['issuer'] for c in hit):
+            break
+        want = hit[0]['issuer']
+    return out
 
 
 def cl_check(pem, ca_file, crl=True):
@@ -381,6 +703,19 @@ def cl_check(pem, ca_file, crl=True):
                           'Smart Card Logon among its key usages)')
     if not os.path.exists(str(ca_file)):
         raise CertRefused('no authority is put in', 'unavailable')
+    # Every UPN first, all of them (F6), and the SIDs of the SAN against the extension (F1).
+    if not f['upn']:
+        raise CertRefused('the certificate names no user (no UPN in its Subject Alternative Name)')
+    if len(set(u.strip().lower() for u in f['upn'])) > 1:
+        raise CertRefused('the certificate names more than one user (UPN)')
+    if f['san_sids'] and f['sid'] and (f['sid'] == '?' or
+                                       any(s.upper() != f['sid'].upper() for s in f['san_sids'])):
+        raise CertRefused('the SID in the Subject Alternative Name of the certificate (%s) is not '
+                          'the one of its SID extension (%s) - the requester writes the first: '
+                          'not taken' % (', '.join(f['san_sids'])[:120], f['sid']))
+    upn = f['upn'][0].strip()
+    if not re.match(r'^[^@\s\\/\x00-\x1f\x7f]{1,190}@[A-Za-z0-9.-]{1,253}\Z', upn):
+        raise CertRefused('the UPN in the certificate is not a name@domain')
     work = tempfile.mkdtemp(prefix='acme-cert-')
     try:
         leaf = os.path.join(work, 'leaf.pem')
@@ -389,38 +724,26 @@ def cl_check(pem, ca_file, crl=True):
         # The chain first, without the CRL: a CDP is fetched only for a certificate of the
         # authorities put in - never an address written into anybody's certificate.
         _cl_verify(ca_file, leaf)
+        chain = cl_chain(f, cl_ca_facts(ca_file))
+        # The authorities' name constraints for the UPN: openssl does not apply them to it.
+        cl_nc_check(upn, chain)
         if crl:
-            urls = [u for u in f['cdp'] if u.lower().startswith('http://')]
-            if not urls:
-                raise CertRefused('the certificate names no CRL over http (CRL Distribution '
-                                  'Points) - it cannot be checked for revocation')
-            urls = [u for u in urls if cl_cdp_ok(u)]
-            if not urls:
-                raise CertRefused('the CRL Distribution Point of the certificate is not an '
-                                  'address acme fetches from (http, no link-local address)')
-            got, last = None, None
-            for u in urls[:3]:
-                try:
-                    got = cl_crl_fetch(u)
-                    break
-                except CertRefused as e:
-                    last = e
-            if got is None:
-                raise last
+            pems, deltas = cl_crls_of(f, 'the certificate')
+            # ...and every authority's above it but the root's (F4): an issuing authority its
+            # root revoked signs nobody in.
+            for c in chain:
+                if c['subject'] != c['issuer']:
+                    more, d = cl_crls_of(c, 'the authority %s' % c['subject'])
+                    pems += more
+                    deltas = deltas or d
             cp = os.path.join(work, 'crl.pem')
             with open(cp, 'w') as fh:
-                fh.write(got['pem'])
-            _cl_verify(ca_file, leaf, cp)
+                fh.write(''.join(p if p.endswith('\n') else p + '\n' for p in pems))
+            _cl_verify(ca_file, leaf, cp, deltas)
     finally:
         shutil.rmtree(work, ignore_errors=True)
-    if not f['upn']:
-        raise CertRefused('the certificate names no user (no UPN in its Subject Alternative Name)')
-    if len(set(u.lower() for u in f['upn'])) > 1:
-        raise CertRefused('the certificate names more than one user (UPN)')
-    upn = f['upn'][0].strip()
-    if not re.match(r'^[^@\s\\/\x00-\x1f\x7f]{1,190}@[A-Za-z0-9.-]{1,253}\Z', upn):
-        raise CertRefused('the UPN in the certificate is not a name@domain')
     f['upn_one'] = upn
+    f['cas'] = [c['sha256'] for c in chain]
     return f
 
 
@@ -558,6 +881,11 @@ def cl_cas_drop(store, sha, by, keep=None):
                                    ' - nobody signs in with a certificate until another is put in'))
     if not left:
         meta_drop(store, CL_META)
+    else:
+        # Those made with a certificate of it end (one made before the chain was kept, too).
+        gone = hit[0]['sha256'][:16]
+        cl_sessions_end(store, lambda _p, data: gone in (data.get('cas') or [gone]), keep, by,
+                        'the authority %s was taken away' % hit[0]['subject'][:200])
     return cl_ca_view(hit[0])
 
 
@@ -819,11 +1147,61 @@ def cl_port_users(port):
     return out
 
 
+# The system's nginx, the one acme's root helper writes for (review F8): its master's pid file,
+# and the configuration it is started with.
+CL_NGINX_PID_FILES = ['/run/nginx.pid', '/var/run/nginx.pid']
+CL_NGINX_CONF = '/etc/nginx/nginx.conf'
+
+
+def _cl_proc(pid):
+    """(comm, ppid, argv) of a process, or None."""
+    try:
+        with open('/proc/%d/stat' % int(pid)) as f:
+            st = f.read()
+        comm = st[st.index('(') + 1:st.rindex(')')]
+        ppid = int(st[st.rindex(')') + 2:].split()[1])
+        with open('/proc/%d/cmdline' % int(pid), 'rb') as f:
+            argv = [a.decode('utf-8', 'replace') for a in f.read().split(b'\0') if a]
+        return comm, ppid, argv
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def cl_nginx_ours(pid):
+    """Whether a process named nginx is acme's: the master the system's pid file names (or a
+    worker of it), started with the system's configuration - not any other nginx on this machine
+    (a container's, another product's) that only shares the name."""
+    me = _cl_proc(pid)
+    if not me or me[0] != 'nginx':
+        return False
+    master = int(pid)
+    up = _cl_proc(me[1]) if me[1] > 1 else None
+    if up and up[0] == 'nginx':
+        master, me = me[1], up
+    pids = set()
+    for name in CL_NGINX_PID_FILES:
+        try:
+            with open(name) as f:
+                pids.add(int(f.read().strip() or 0))
+        except (OSError, ValueError):
+            continue
+    if master not in pids:
+        return False
+    words = ' '.join(me[2])
+    # The master's title: "nginx: master process /usr/sbin/nginx -c /etc/nginx/nginx.conf".
+    m = re.search(r'(?:^|\s)-c\s+(\S+)', words)
+    if m and os.path.realpath(m.group(1)) != os.path.realpath(CL_NGINX_CONF):
+        return False
+    return not re.search(r'(?:^|\s)-p\s+(?!/etc/nginx/?(?:\s|$))', words)
+
+
 def cl_port_busy(port, served=False):
-    """Words when something other than nginx listens on `port` here - '' when nothing does, or
-    nginx (ours, once served; a listener that cannot be seen counts as ours only while `served`)."""
+    """Words when something other than acme's nginx listens on `port` here - '' when nothing
+    does, or acme's nginx (cl_nginx_ours; a listener that cannot be seen counts as it only while
+    `served`)."""
     users = cl_port_users(port)
-    others = [u for u in users if u[0] and u[0] != 'nginx']
+    others = [(n if n != 'nginx' else 'nginx that is not acme\'s (not the system\'s service)', p)
+              for n, p in users if n and not (n == 'nginx' and cl_nginx_ours(p))]
     if not others and ('', 0) in users and not served:
         others = [('another program (not to be seen as this user)', 0)]
     if not others:
@@ -873,11 +1251,31 @@ def cl_usable(part, store=None):
 
 
 def cl_page_info(part, store=None):
-    """What a sign-in page shows of it: the button, no password - and the port the button
-    leads to (nothing else; asked before anybody is signed in)."""
+    """What a sign-in page shows of it: the button, gone to by itself, no password - and the
+    port the button leads to (nothing else; asked before anybody is signed in)."""
     only = krb_password_off(part, store)
     on = cl_usable(part, store) or (only and cl_on(part))
-    return {'on': bool(on), 'only': bool(only), 'port': cl_port() if on else 0}
+    return {'on': bool(on), 'auto': bool(on and CONFIG.get(part + '_certlogin_auto')),
+            'only': bool(only), 'port': cl_port() if on else 0}
+
+
+# Both ways by themselves on one sign-in page: Windows first - a request of the page's own that
+# asks the person nothing - and the certificate (a visible trip to its port: the chooser, the
+# PIN) only when Windows did not sign in. No setting: the other order would ask for a card where
+# Windows would have signed the person in without a word.
+SSO_AUTO_ORDER = ('windows', 'certificate')
+
+
+def sso_signin_modes(part, store=None):
+    """What a part's sign-in page offers, in effect now: {password: offered or not, windows and
+    certificate: 'off', 'button' or 'auto', order: those tried by themselves, in the order
+    tried}. The cards' summary and the page's own facts (/api/health, /api/portal/info)."""
+    def mode(i):
+        return 'off' if not i.get('on') else ('auto' if i.get('auto') else 'button')
+    k, c = krb_page_info(part, store), cl_page_info(part, store)
+    got = {'windows': mode(k), 'certificate': mode(c)}
+    return dict(got, password=not krb_password_off(part, store),
+                order=[w for w in SSO_AUTO_ORDER if got[w] == 'auto'])
 
 
 def cl_session_gone(part, s, store):
@@ -886,9 +1284,63 @@ def cl_session_gone(part, s, store):
                 not cl_usable(part, store))
 
 
+def cl_session_cas(f):
+    """What a session made with a certificate keeps of its chain: the authorities' SHA-256 (the
+    first 16), so that taking one of them away ends it (review F8)."""
+    return [str(x)[:16] for x in (f.get('cas') or [])][:8]
+
+
+def cl_sessions_end(store, which, keep=None, by='', why=''):
+    """The sign-ins made with a certificate that which(part, data) picks, ended - the one of
+    whoever did it (`keep`, a session id of the administration) left, marked as the other
+    changes leave it. The number ended."""
+    keep = int(keep or 0)
+    ended = {}
+    try:
+        rows = store.db.rows('SELECT id, kind, data FROM sessions')
+    except Exception as e:                              # noqa: BLE001
+        log('the sign-ins made with a certificate could not be ended: %s' % e, 'warn')
+        return 0
+    for r in rows:
+        part = str(r.get('kind') or '')
+        if part not in CL_PARTS:
+            continue
+        try:
+            data = json.loads(r.get('data') or '{}')
+        except ValueError:
+            data = {}
+        if not isinstance(data, dict) or data.get('how') != 'certificate' or \
+                not which(part, data):
+            continue
+        if part == 'admin' and int(r['id']) == keep:
+            store.session_merge(r['id'], {'krb_kept': time.time()})
+            continue
+        store.db.run('DELETE FROM sessions WHERE id = ?', (r['id'],))
+        ended[part] = ended.get(part, 0) + 1
+    for part, n in ended.items():
+        store.add_event('accounts' if part == 'admin' else 'portal', '%s: %d sign-in(s) to %s made '
+                        'with a certificate ended - %s' % (
+                            by or 'acme', n, 'these pages' if part == 'admin' else
+                            'the enrolment pages', why), 'warn', who=by or None)
+    return sum(ended.values())
+
+
+def cl_rule(part):
+    """How strictly a part takes a certificate: (revocation checked, the rank of its matching) -
+    made stricter, the sign-ins made with a certificate before end (review F8)."""
+    return (1 if CONFIG.get(part + '_certlogin_crl', 1) else 0, CL_MATCH_RANK.get(cl_match(part), 2))
+
+
+def cl_rule_stricter(was, now):
+    try:
+        return bool(was) and bool(now) and (now[0] > was[0] or now[1] > was[1])
+    except (TypeError, IndexError):
+        return False
+
+
 def cl_match(part):
-    m = str(CONFIG.get(part + '_certlogin_match') or 'compat')
-    return m if m in CL_MATCH_WORDS else 'compat'
+    m = str(CONFIG.get(part + '_certlogin_match') or 'strong')
+    return m if m in CL_MATCH_WORDS else 'strong'
 
 
 # ---- a certificate taken -----------------------------------------------------------------------
@@ -926,9 +1378,24 @@ def cl_entry_same(h, part, f, entry_upn):
             return
         have = str((entry or {}).get('sid') or entry_upn.get('sid') or '')
         if not f['sid']:
+            # A SID in the Subject Alternative Name only is the requester's word (F1): never
+            # strong - compat still refuses one that is not the account's.
             if match == 'strong':
-                raise CertRefused('the certificate of %s has no SID (KB5014754), and "Which '
-                                  'account a certificate is" is strong' % f['upn_one'], 'allowed')
+                raise CertRefused('the certificate of %s has no SID extension (KB5014754)%s, and '
+                                  '"Which account a certificate is" is strong' % (
+                                      f['upn_one'], ' - a SID in its Subject Alternative Name '
+                                      'is not taken for it' if f.get('san_sids') else ''),
+                                  'allowed')
+            if f.get('san_sids'):
+                if not have:
+                    raise CertRefused('the directory did not say the SID (objectSid) of %s - the '
+                                      'SID in its certificate cannot be compared' % f['upn_one'],
+                                      'unavailable')
+                if any(s.upper() != have.upper() for s in f['san_sids']):
+                    raise CertRefused('the SID in the Subject Alternative Name of the certificate '
+                                      '(%s) is not the one of %s in the directory (%s)' % (
+                                          ', '.join(f['san_sids'])[:120], f['upn_one'], have),
+                                      'allowed')
             return
         if f['sid'] == '?':
             raise CertRefused('the SID in the certificate of %s cannot be read' % f['upn_one'],
@@ -991,14 +1458,27 @@ def cl_body(h):
     """{cert, failed} as the page relays them from nginx - capped before anything is read."""
     b = h.body()
     pem = str(b.get('cert') or '')
+    once = str(b.get('once') or '')[:64]
     if len(pem) > CL_CERT_MOST:
-        return {'too_big': True}
-    return {'cert': pem, 'failed': str(b.get('failed') or '')[:200]}
+        return {'too_big': True, 'once': once}
+    return {'cert': pem, 'failed': str(b.get('failed') or '')[:200], 'once': once}
+
+
+def cl_once(h, b):
+    """The page's nonce, used once in the whole cluster (review F7): the random part of it the
+    page checked against its cookie, kept five minutes and a half (as long as the nonce lives) -
+    a second request with it, from wherever, is refused. CertRefused."""
+    once = str(b.get('once') or '')
+    if not re.match(r'^[0-9a-f]{32}\Z', once):
+        raise CertRefused('no nonce of the page came with the certificate')
+    if not node_key_add(h.store, CL_ONCE, once, CL_ONCE_S, limit=1):
+        raise CertRefused('the nonce of the page was used already - sent again (a replay?)')
 
 
 def cl_take(h, part, b):
     """The certificate of a request, checked - the facts, or CertRefused (nginx's own refusal
-    of one, said as it said it, too)."""
+    of one, said as it said it, too). The page's nonce first: once only."""
+    cl_once(h, b)
     if b.get('too_big'):
         raise CertRefused('larger than any certificate of a person')
     if b.get('failed'):
@@ -1038,7 +1518,7 @@ def _auth_cert(h):
         raise ApiError(e.status, e.said)
     return sso_admin_open(h, key, acc, 'certificate',
                           {'subject': f['subject'][:200], 'serial': f['serial'][:64],
-                           'principal': f['upn_one']},
+                           'principal': f['upn_one'], 'cas': cl_session_cas(f)},
                           'with a certificate (%s)' % cl_who_words(f), 'with a certificate')
 
 
@@ -1063,7 +1543,8 @@ def _portal_cert(h):
     if h.headers.get('X-Acme-Session'):
         h.store.session_end(h.headers.get('X-Acme-Session'))
     try:
-        got = portal_open_dir(h, key, entry['sam'], ad, entry, how='certificate')
+        got = portal_open_dir(h, key, entry['sam'], ad, entry, how='certificate',
+                              more={'cas': cl_session_cas(f)})
     except ApiError as e:
         cl_refused_event(h, 'portal', str(e), who)
         raise ApiError(503 if e.status == 503 else 401,
@@ -1145,13 +1626,16 @@ def cl_view(h, tried=''):
     for part in CL_PARTS:
         parts[part] = {
             'on': cl_on(part), 'switch': bool(CONFIG.get(part + '_certlogin')),
+            'auto': bool(CONFIG.get(part + '_certlogin_auto')),
             'usable': cl_usable(part, store), 'match': cl_match(part),
             'match_words': CL_MATCH_WORDS[cl_match(part)],
+            'match_warn': '' if cl_match(part) == 'strong' else CL_MATCH_WARN,
             'crl': bool(CONFIG.get(part + '_certlogin_crl', 1)),
             'directory': krb_directory_name(part),
             'password_off': bool(CONFIG.get(part + '_password_off')),
             'only_in_effect': krb_password_off(part, store),
             'krb': krb_usable(part, store),
+            'signin': sso_signin_modes(part, store),
             'second': bool(CONFIG.get('admin_2fa')) if part == 'admin' else portal_gate_needed()}
     parts['portal']['portal'] = bool(CONFIG.get('portal'))
     now = time.time()

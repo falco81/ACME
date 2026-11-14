@@ -113,10 +113,13 @@ DEFAULTS = {
     # Each part its own switches; one port of nginx's own for both (the nonce says which part),
     # the authorities put in once for both (Settings -> Accounts). Off - as until now.
     'admin_certlogin': 0,
-    'admin_certlogin_match': 'compat',
+    'admin_certlogin_auto': 0,      # the sign-in page goes to the certificate by itself
+    # strong by default (security review F2): compat and upn are opt-downs, warned on the card.
+    'admin_certlogin_match': 'strong',
     'admin_certlogin_crl': 1,
     'portal_certlogin': 0,
-    'portal_certlogin_match': 'compat',
+    'portal_certlogin_auto': 0,
+    'portal_certlogin_match': 'strong',
     'portal_certlogin_crl': 1,
     'certlogin_port': 8443,
     # --- isemon ---------------------------------------------------------------
@@ -455,9 +458,9 @@ TUNABLE = {
     'admin_krb': (0, 1), 'admin_krb_auto': (0, 1), 'admin_password_off': (0, 1),
     'portal_krb': (0, 1), 'portal_krb_auto': (0, 1), 'portal_password_off': (0, 1),
     'alerts_certlogin': (0, 1),
-    'admin_certlogin': (0, 1), 'admin_certlogin_crl': (0, 1),
+    'admin_certlogin': (0, 1), 'admin_certlogin_crl': (0, 1), 'admin_certlogin_auto': (0, 1),
     'admin_certlogin_match': ('compat', 'strong', 'upn'),
-    'portal_certlogin': (0, 1), 'portal_certlogin_crl': (0, 1),
+    'portal_certlogin': (0, 1), 'portal_certlogin_crl': (0, 1), 'portal_certlogin_auto': (0, 1),
     'portal_certlogin_match': ('compat', 'strong', 'upn'),
     'certlogin_port': (1024, 65535),
     'report': (0, 1), 'report_every': ('daily', 'weekly', 'monthly'),
@@ -693,15 +696,17 @@ NAMES = {
     'admin_krb': 'Sign administrators in with Windows (Kerberos)',
     'admin_krb_auto': '...by itself when the sign-in page opens',
     'admin_krb_realm': 'Kerberos realm',
-    'admin_password_off': 'No password at all - only Windows or a certificate',
+    'admin_password_off': '...and no password at all - only Windows or a certificate',
     'portal_krb': 'Sign people in with Windows (Kerberos)',
     'portal_krb_auto': '...by itself when the portal opens',
     'portal_krb_realm': 'Kerberos realm of the portal',
-    'portal_password_off': 'No password at all on the portal - only Windows or a certificate',
+    'portal_password_off': '...and no password at all on the portal - only Windows or a certificate',
     'admin_certlogin': 'Sign administrators in with a certificate (a smart card, a YubiKey)',
+    'admin_certlogin_auto': '...by itself when the sign-in page opens',
     'admin_certlogin_match': 'Which account a certificate is',
     'admin_certlogin_crl': 'Check that a certificate is not revoked (CRL)',
     'portal_certlogin': 'Sign people in with a certificate (a smart card, a YubiKey)',
+    'portal_certlogin_auto': '...by itself when the portal opens',
     'portal_certlogin_match': 'Which account a certificate is (the portal)',
     'portal_certlogin_crl': 'Check that a certificate is not revoked (CRL) (the portal)',
     'certlogin_port': 'The certificate\u2019s own port',
@@ -1216,11 +1221,15 @@ SAYS = {
     'admin_krb_auto': 'On: the sign-in page tries Windows at once, and shows the form only when it '
                       'did not work. Off: a button "Sign in with Windows" under the form. After '
                       'Sign out it is never tried by itself in that tab again (or Sign out would '
-                      'sign you straight back in).',
+                      'sign you straight back in). With the certificate by itself as well: '
+                      'Windows first (it asks nothing), the certificate only when it did not '
+                      'sign in.',
     'admin_krb_realm': 'The realm whose people may sign in, in capitals (CORP.EXAMPLE). Empty: '
                        'taken from the base DN of the directory above (DC=corp,DC=example → '
                        'CORP.EXAMPLE). A ticket of any other realm is refused.',
-    'admin_password_off': 'On: the sign-in page offers no name and password - nobody signs in '
+    'admin_password_off': 'One switch of both ways - the same in the card of Windows and in the '
+                          'card of the certificate. '
+                          'On: the sign-in page offers no name and password - nobody signs in '
                           'with a password, local accounts neither; only Windows (Kerberos) or a '
                           'certificate, then the second step when it is on. No password is set or '
                           'changed on these pages either. Switched on only from a sign-in made '
@@ -1244,7 +1253,9 @@ SAYS = {
                         'taken from the base DN of the portal\'s directory (Which directory '
                         'people sign in against, else the administrators\'). A ticket of any '
                         'other realm is refused.',
-    'portal_password_off': 'On: the portal offers no name and password - nobody signs in to it '
+    'portal_password_off': 'One switch of both ways - the same in the card of Windows and in the '
+                           'card of the certificate. '
+                           'On: the portal offers no name and password - nobody signs in to it '
                            'with a password, acme\'s own accounts neither; only Windows '
                            '(Kerberos) or a certificate, then the one-time code when it is on. '
                            'Switched on only by an administrator who is signed in to the portal '
@@ -1260,11 +1271,28 @@ SAYS = {
                        'up in the directory above - the role of its groups. The second step, '
                        'when it is on, is asked after it just the same. Off: nothing of it is '
                        'offered. Its own switch: the enrolment pages have theirs.',
-    'admin_certlogin_match': 'compat: the SID an AD CS writes into a certificate since KB5014754 '
-                             'must be the account\'s when it is there; strong: it must be there '
-                             '(Microsoft\'s full enforcement); upn: the UPN alone.',
-    'admin_certlogin_crl': 'The CRL at the certificate\'s CRL Distribution Point (http), kept until '
-                           'its next update: no CRL to be had, no sign-in. Off: revocation is '
+    'admin_certlogin_auto': 'On: the sign-in page goes to the certificate at once when it opens - '
+                            'the browser asks which certificate, the card its PIN - and shows the '
+                            'form only when it did not sign in. Off: a button "Sign in with a '
+                            'certificate" under the form. Never by itself again in that tab after '
+                            'Sign out, after a refusal or a certificate not chosen, nor with '
+                            '"Use a password instead" (?nocert). With Windows by itself as '
+                            'well: Windows is tried first, the certificate only when it did not '
+                            'sign in.',
+    'admin_certlogin_match': 'strong (the default): the SID an AD CS writes into a certificate '
+                             'since KB5014754 (its own extension) must be there and be the '
+                             'account\'s - Microsoft\'s full enforcement, what Windows requires '
+                             'since September 2025. compat: it must be the account\'s when it is '
+                             'there; upn: the UPN alone. Both are opt-downs: whoever may ask the '
+                             'authority for a certificate with a name of their choosing signs in '
+                             'as whoever they name. A SID in the Subject Alternative Name is the '
+                             'requester\'s word, never taken for the extension.',
+    'admin_certlogin_crl': 'The CRL at the certificate\'s CRL Distribution Point (http) and its '
+                           'delta CRL (Freshest CRL), and those of the authorities above it, '
+                           'fetched again every ten minutes at most: a revocation is seen within '
+                           'ten minutes of the authority publishing it. No CRL to be had (the '
+                           'last good one kept until its next update), no sign-in. Off: '
+                           'revocation is '
                            'not checked - a lost card signs in until its account is switched off '
                            'in the directory.',
     'portal_certlogin': 'A certificate of the domain\'s authority signs its person in to the '
@@ -1274,7 +1302,14 @@ SAYS = {
                         'Who may sign in, the groups, the role Enrolment pages only - exactly as '
                         'for a password; the one-time code, when it is on, is sent after it just '
                         'the same. Independent of the administration\'s switch.',
-    'portal_certlogin_match': 'As the administration\'s, for the portal: compat, strong or upn.',
+    'portal_certlogin_auto': 'On: the portal goes to the certificate at once when it opens, and '
+                             'shows the form only when it did not sign in. Off: a button "Sign in '
+                             'with a certificate" under the form. Never by itself again in that '
+                             'tab after Sign out, after a refusal or a certificate not chosen, nor '
+                             'with "Use a password instead". With Windows by itself as well: '
+                             'Windows first, the certificate only when it did not sign in.',
+    'portal_certlogin_match': 'As the administration\'s, for the portal: strong (the default), '
+                              'or the opt-downs compat and upn.',
     'portal_certlogin_crl': 'As the administration\'s, for the portal: no CRL to be had, no '
                             'sign-in. Off: revocation is not checked.',
     'certlogin_port': 'Where nginx asks the browser for a certificate (8443: SELinux lets nginx '
@@ -1631,7 +1666,7 @@ PANES = {
                'portal_groups', 'portal_code',
                'portal_session_min', 'portal_tries', 'portal_wait_min',
                'portal_enrolers', 'portal_local', 'portal_local_code', 'portal_admins_all',
-               'portal_password_off', 'portal_help'],
+               'portal_help'],
     # Signed in by the balancer (otp 1.0.239): a card of its own on the enrolment pages' pane.
     'portalsso': ['portal_sso', 'portal_sso_from', 'portal_sso_header', 'portal_sso_key',
                   'portal_sso_logout'],
@@ -1648,16 +1683,19 @@ PANES = {
                # the other after them), then the directory and its groups
                'names_czsk_letters', 'names_any_letters',
                'admin_directory', 'admin_group_full', 'admin_group_cert',
-               'admin_group_readonly', 'admin_group_portal', 'admin_password_off'],
+               'admin_group_readonly', 'admin_group_portal'],
     # Signing in with Windows (1.0.99): the administration's switches on the card of their own
     # under Accounts, the portal's on the card under the enrolment pages.
-    'adminkrb': ['admin_krb', 'admin_krb_auto', 'admin_krb_realm'],
-    'portalkrb': ['portal_krb', 'portal_krb_auto', 'portal_krb_realm'],
+    # "No password at all" is one switch of both ways (1.0.100): drawn here, in the card of
+    # Windows, and the same switch again in the card of the certificate (admin.js, a mirror).
+    'adminkrb': ['admin_krb', 'admin_krb_auto', 'admin_krb_realm', 'admin_password_off'],
+    'portalkrb': ['portal_krb', 'portal_krb_auto', 'portal_krb_realm', 'portal_password_off'],
     # Signing in with a certificate (1.0.100): the same - a card of its own under Accounts (with
     # the port, one for both parts), and one under the enrolment pages.
-    'admincert': ['admin_certlogin', 'certlogin_port', 'admin_certlogin_match',
-                  'admin_certlogin_crl'],
-    'portalcert': ['portal_certlogin', 'portal_certlogin_match', 'portal_certlogin_crl'],
+    'admincert': ['admin_certlogin', 'admin_certlogin_auto', 'certlogin_port',
+                  'admin_certlogin_match', 'admin_certlogin_crl'],
+    'portalcert': ['portal_certlogin', 'portal_certlogin_auto', 'portal_certlogin_match',
+                   'portal_certlogin_crl'],
     'db': ['db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password',
            'db_timeout_s', 'db_tls', 'db_tls_ca', 'db_path', 'backup_daily', 'backup_keep',
            'backup_at',
@@ -1761,6 +1799,7 @@ ONLY_WHEN = {
     'alerts_kerberos': ['alerts', '1'], 'alerts_certlogin': ['alerts', '1'],
     'admin_certlogin': ['admin_directory', '*'],
     'admin_certlogin_match': ['admin_certlogin', '1'], 'admin_certlogin_crl': ['admin_certlogin', '1'],
+    'admin_certlogin_auto': ['admin_certlogin', '1'], 'portal_certlogin_auto': ['portal_certlogin', '1'],
     'portal_certlogin': ['portal', '1'],
     'portal_certlogin_match': ['portal_certlogin', '1'],
     'portal_certlogin_crl': ['portal_certlogin', '1'],

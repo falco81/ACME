@@ -10,7 +10,8 @@ controller is asked for it, nothing is installed: the system's GSS-API library (
 
 **With a certificate** (a smart card, a YubiKey) the same pages are signed in to on a port of
 its own since 1.0.100 - [certificate-sign-in.md](certificate-sign-in.md); both may be on, and
-"no password at all" is one switch for both (*only Windows or a certificate*).
+"no password at all" is one switch for both (*only Windows or a certificate*) - see *Combining
+Windows and a certificate* below.
 
 **Two parts, each with its own switches** - the administration and the portal can be switched
 on each by itself, or both, or neither. **Off by default**: nothing changes until an
@@ -38,12 +39,13 @@ administrator switches it on. One keytab serves both.
    offer NTLM, or open a password window of its own. The page says only *Windows sign-in
    refused* and the kind - *not allowed*, *ticket not accepted*, *replay*, *not available just
    now*; the reason is written in *Events*, for the administrators.
-6. **"Only Windows"** (optional, each part its own): no password at all - switched on only from a
-   sign-in made with Windows, in effect only while Kerberos is on with a keytab (from the first
+6. **"No password at all"** (optional, each part its own; one switch with the certificate's
+   sign-in): switched on only from a sign-in made with Windows or a certificate, in effect only
+   while Kerberos is on with a keytab, or the certificate with authorities (from the first
    moment after every start); the way back for root is `acme --set admin_password_off=0`
    (`portal_password_off=0`).
-7. **Sign-ins end with what opened them.** "Only Windows" coming into effect ends that part's
-   sign-ins made with a password; Kerberos switched off or the keytab taken away ends those
+7. **Sign-ins end with what opened them.** "No password at all" coming into effect ends that
+   part's sign-ins made with a password; Kerberos switched off or the keytab taken away ends those
    made with Windows. Whoever made the change keeps their own sign-in.
 
 ## What the person sees
@@ -64,7 +66,8 @@ administrator switches it on. One keytab serves both.
   ticket* on the card says it to an administrator. The form stays.
 - **The second step** (the administration) or **the code that was sent** (the portal), exactly as
   after a password.
-- **"Only Windows"**: no name and no password on the page at all - only *Sign in with Windows*.
+- **"No password at all"**: no name and no password on the page at all - only *Sign in with
+  Windows* (and *Sign in with a certificate*, when that is on too).
   In the administration no *A new password* in *Your account*, no password for an account; the
   server refuses a change of a password too.
 
@@ -75,9 +78,9 @@ administrator switches it on. One keytab serves both.
 | Setting | Default | What |
 |---|---|---|
 | `admin_krb` - *Sign administrators in with Windows (Kerberos)* | off | The switch. Means something only once a directory is chosen in *Sign administrators in against the directory*. |
-| `admin_krb_auto` - *...by itself when the sign-in page opens* | off | The page tries Windows at once; the form only when it did not work. Never again in that tab after *Sign out*. |
+| `admin_krb_auto` - *...by itself when the sign-in page opens* | off | The page tries Windows at once; the form only when it did not work. Never again in that tab after *Sign out*. With the certificate by itself too: Windows first (below). |
 | `admin_krb_realm` - *Kerberos realm* | empty | The realm whose people may sign in, in capitals. Empty: taken from the directory's base DN (`DC=corp,DC=example` → `CORP.EXAMPLE`). Any other realm is refused - compared exactly, as realms are case-sensitive. A realm that is neither the base DN's domain nor one under it is warned of on the card: nobody of it is found in the directory. |
-| `admin_password_off` - *...and no password at all - only Windows* | off | See *Only Windows* below. |
+| `admin_password_off` - *...and no password at all - only Windows or a certificate* | off | See *No password at all* below. **One switch of both ways**: the same in this card and in the card of the certificate. |
 
 ### The portal - *Settings → The enrolment pages → Signing in with Windows (Kerberos)*
 
@@ -86,7 +89,7 @@ administrator switches it on. One keytab serves both.
 | `portal_krb` - *Sign people in with Windows (Kerberos)* | off | The portal's own switch; the portal must be on, and a directory set for it (*Which directory*, else the administrators'). |
 | `portal_krb_auto` - *...by itself when the portal opens* | off | As the administration's, for the portal. |
 | `portal_krb_realm` - *Kerberos realm of the portal* | empty | Its own: empty is the realm of the **portal's** directory's base DN - which may be another domain than the administrators'. |
-| `portal_password_off` - *...and no password at all on the portal - only Windows* | off | As the administration's, for the portal; acme's own accounts then do not sign in to the portal either. |
+| `portal_password_off` - *...and no password at all on the portal - only Windows or a certificate* | off | As the administration's, for the portal; acme's own accounts then do not sign in to the portal either. |
 
 The person is looked up in the **portal's directory** (`portal_directory`, else the
 administrators'), and let in by `portal_who` / `portal_groups` and the group of the enrolment-only
@@ -104,9 +107,11 @@ off by default) mails each refusal, of either part.
 
 Under each part's switches:
 
+- **the sign-in page** of that part as it is now - the same table in the card of the
+  certificate: *a password* yes or no, *Windows* and *a certificate* each **a button**, **at
+  once** or **off**, and, with both at once, the order;
 - each fact of that part: the realm and where it comes from, the directory, the second step or
-  code after it, by itself or a button, a password offered or not, NTLM never taken, and whether
-  the other part is on;
+  code after it, NTLM never taken, and whether the other part is on;
 - **the keytab** - its principals, key versions and kinds of key; never a key. Only **AES keys
   of web services** (`HTTP/name@REALM`) are kept and written out: an RC4 or DES key, a key of
   another service (`host/`, `cifs/`) or of a person is left out - said when it is put in, and
@@ -226,20 +231,45 @@ its own, takes a ticket for any principal whose key is in the keytab.
    not have the name, its SPN is missing on the service account.
 3. The part's switch on, and saved. The button is on its sign-in page from then on.
 
-## Only Windows
+## Combining Windows and a certificate
 
-*...and no password at all - only Windows* (`admin_password_off`, `portal_password_off`):
+Both ways may be on for one part, each by its own switches (the certificate's:
+[certificate-sign-in.md](certificate-sign-in.md)):
 
-- switched on **only by somebody signed in with Windows** to that part - so whoever switches it
+| Windows (`*_krb_auto`) | A certificate (`*_certlogin_auto`) | When the page opens |
+|---|---|---|
+| a button | a button | nothing by itself: the form, then both buttons |
+| at once | a button | Windows is tried; the certificate stays a button |
+| a button | at once | the page goes to the certificate; Windows stays a button |
+| at once | at once | **Windows first**, the certificate only when Windows did not sign in |
+
+The order is fixed: Windows asks the person nothing (outside the domain it simply does not sign
+in), the certificate is a visible trip to its port with the chooser and the PIN - the other
+order would ask for a card where Windows would have signed in without a word. A refusal by one
+way still offers the other: Windows refused by itself, the page goes on to the certificate and,
+back, says both; a certificate refused or not chosen, both buttons stay and nothing is tried by
+itself again in that tab (nor after *Sign out*, nor with `?nocert` - *Use a password instead*).
+With "no password at all": both buttons, no form. The pages are told each mode by
+`/api/health` and `/api/portal/info` (`signin: {password, windows, certificate, order}`);
+`acme --kerberos` prints the same line.
+
+## No password at all
+
+*...and no password at all - only Windows or a certificate* (`admin_password_off`,
+`portal_password_off`) - one switch of both ways, shown in the card of Windows and in the card
+of the certificate:
+
+- switched on **only by somebody signed in with Windows** (or a certificate) to that part - so whoever switches it
   on has seen it work for them. For the portal: an administrator of the directory signed in to
   the portal with Windows **as themselves** in the same browser (the page passes that sign-in's
   cookie with the save; its directory entry must be the administrator's own - somebody else's
   portal sign-in in that browser is refused). Never from the command line or from a
   configuration file read back - there it is only switched off;
 - **in effect only while Kerberos can sign anybody in** - the part switched on, a directory, a
-  keytab. Switching Kerberos off (or taking the keytab away) brings the passwords back at once.
+  keytab - **or the certificate** (on, with authorities). Switching Kerberos off (or taking the
+  keytab away) brings the passwords back at once when the certificate is not on either.
   Whether a keytab is there is read before the daemon serves anybody after a start; not known,
-  "only Windows" counts as in effect (closed, never open);
+  "no password at all" counts as in effect (closed, never open);
 - coming into effect, it **ends that part's sign-ins made with a password** (the one switching
   it on is signed in with Windows); Kerberos going off ends the sign-ins made with Windows, but
   that of whoever switched it off;
@@ -264,7 +294,7 @@ acme --kerberos-keytab FILE         put in the keytab - every node writes it out
 acme --kerberos-keytab-off --yes    take it away
 acme --set admin_krb=1              the switches as any other setting: admin_krb_auto,
 acme --set portal_krb=1               admin_krb_realm, portal_krb_auto, portal_krb_realm
-acme --set admin_password_off=0     the way back from "only Windows" (switched on only from the pages)
+acme --set admin_password_off=0     the way back from "no password at all" (switched on only from the pages)
 ```
 
 ## Backups, the configuration, the cluster
@@ -275,8 +305,8 @@ acme --set admin_password_off=0     the way back from "only Windows" (switched o
   keytab out by itself.
 - **The exported configuration** (`acme --export-config FILE`, `--with-secrets`; the pages' export) carries what
   the keytab holds always, and the keytab itself only in a file **with the secrets** (sealed again
-  with the key of the machine it is put in on). A file read back never switches "only Windows"
-  on.
+  with the key of the machine it is put in on). A file read back never switches "no password at
+  all" on.
 
 ## Testing without a domain
 

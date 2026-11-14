@@ -606,6 +606,8 @@ $krb_only = $krb_on && !empty($krb['only']);
 /* ...and with a certificate (1.0.100): the button; "no password at all" is one switch for both. */
 $cl = (!$me && $alive && is_array($health['certlogin'] ?? null)) ? $health['certlogin'] : [];
 $cl_on = !empty($cl['on']);
+/* Gone to by itself when the page opens (1.0.100) - after Windows, when that is tried by itself too. */
+$cl_auto = $cl_on && !empty($cl['auto']);
 $pw_off = ($krb_on && !empty($krb['only'])) || ($cl_on && !empty($cl['only']));
 $krb_only = $krb_on && $pw_off;
 /* The sign-in's picture, when it is to be shown here too (1.0.71). */
@@ -694,6 +696,10 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         ><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M14 12h7"/><path
         d="M18 9l3 3-3 3"/></svg><span>Sign in</span></button>
       <div class="said" id="in-said"></div>
+      <?php if ($cl_auto && $mfa === ''): ?>
+      <!-- The certificate gone to by itself (1.0.100): this tab stays with the password. -->
+      <p class="cert-pw small"><a href="?nocert" id="cert-pw">Use a password instead</a></p>
+      <?php endif; ?>
     </form>
     <?php endif; ?>
     <?php if ($krb_on && $mfa === ''): ?>
@@ -708,7 +714,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     </div>
     <?php endif; ?>
     <?php if ($cl_on && $mfa === ''): ?>
-    <div class="krb-box cert-box" id="cert-box" data-part="admin" data-only="<?= $pw_off ? '1' : '0' ?>">
+    <div class="krb-box cert-box" id="cert-box" data-part="admin" data-auto="<?= $cl_auto ? '1' : '0' ?>" data-only="<?= $pw_off ? '1' : '0' ?>">
       <?php if (!$pw_off && !$krb_on): ?><div class="krb-or"><span>or</span></div><?php endif; ?>
       <button class="btn cmd<?= $pw_off && !$krb_on ? ' primary' : '' ?>" type="button" id="cert-go"><svg
         viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"
@@ -766,13 +772,14 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       $('in-pass').focus();
     });
   });
-  /* Signed in with Windows (1.0.99): the second step next, exactly as after a password. */
+  /* Signed in with a certificate (1.0.100): back here from its port - the second step next. */
+  var certNext = certDoor();
+  /* Signed in with Windows (1.0.99): the second step next, exactly as after a password. Both
+     tried by themselves: Windows first, the certificate only when it did not sign in. */
   krbDoor(function (d) {
     if (d && d.mfa) { form.hidden = true; var kb = $('krb-box'); if (kb) kb.hidden = true; mfaStep(); return; }
     location.reload();
-  });
-  /* Signed in with a certificate (1.0.100): back here from its port - the second step next. */
-  certDoor();
+  }, certNext);
   if ($('mfa-box').dataset.stage) mfaStep(); else if ($('in-name')) $('in-name').focus();
 }());
 </script>

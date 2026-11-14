@@ -1063,9 +1063,57 @@ def certlogin_port_users(port):
     return out
 
 
+# The system's nginx - the one this helper writes for and reloads: its master's pid file and
+# its configuration (an nginx of a container or of another product only shares the name).
+NGINX_PID_FILES = ['/run/nginx.pid', '/var/run/nginx.pid']
+NGINX_CONF = '/etc/nginx/nginx.conf'
+
+
+def _proc_of(pid):
+    """(comm, ppid, argv) of a process, or None."""
+    try:
+        with open('/proc/%d/stat' % int(pid)) as f:
+            st = f.read()
+        comm = st[st.index('(') + 1:st.rindex(')')]
+        ppid = int(st[st.rindex(')') + 2:].split()[1])
+        with open('/proc/%d/cmdline' % int(pid), 'rb') as f:
+            argv = [a.decode('utf-8', 'replace') for a in f.read().split(b'\0') if a]
+        return comm, ppid, argv
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def certlogin_nginx_ours(pid):
+    """Whether a process named nginx is the system's nginx: the master its pid file names (or a
+    worker of it), started with the system's configuration."""
+    me = _proc_of(pid)
+    if not me or me[0] != 'nginx':
+        return False
+    master = int(pid)
+    up = _proc_of(me[1]) if me[1] > 1 else None
+    if up and up[0] == 'nginx':
+        master, me = me[1], up
+    pids = set()
+    for name in NGINX_PID_FILES:
+        try:
+            with open(name) as f:
+                pids.add(int(f.read().strip() or 0))
+        except (OSError, ValueError):
+            continue
+    if master not in pids:
+        return False
+    words = ' '.join(me[2])
+    m = re.search(r'(?:^|\s)-c\s+(\S+)', words)
+    if m and os.path.realpath(m.group(1)) != os.path.realpath(NGINX_CONF):
+        return False
+    return not re.search(r'(?:^|\s)-p\s+(?!/etc/nginx/?(?:\s|$))', words)
+
+
 def certlogin_busy(port, node):
-    """Words when something other than nginx listens on the port here, else ''."""
-    others = [u for u in certlogin_port_users(port) if u[0] != 'nginx']
+    """Words when something other than the system's nginx listens on the port here, else ''."""
+    others = [(n if n != 'nginx' else 'nginx that is not the system\'s service', p)
+              for n, p in certlogin_port_users(port)
+              if not (n == 'nginx' and certlogin_nginx_ours(p))]
     if not others:
         return ''
     return 'port %d is used by %s on %s - choose another port' % (

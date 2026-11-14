@@ -76,6 +76,14 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 
 - **The sign-in page**: the form, and under it *or* and **Sign in with a certificate** (beside
   *Sign in with Windows* when that is on too). With "no password at all", the buttons only.
+- **At once when the page opens** (`admin_certlogin_auto`, `portal_certlogin_auto`, off): the
+  page says *Going to your certificate…* and goes to the port by itself - the chooser, the PIN -
+  without a click; *Use a password instead* under the form stops it (the address then says
+  `?nocert`, and the tab stays with the password). Never by itself again in that tab after **Sign
+  out**, after a **refusal** or a **certificate not chosen** (back with `?certsaid=`), nor with
+  `?nocert`; and in any case at most once in ten minutes and three times a tab - a setup where
+  the sign-in never sticks (or the browser's own error page and Back) never loops. With Windows
+  by itself too: see *Combining Windows and a certificate* below.
 - The browser goes to `https://<the name>:8443/...`, shows its certificate chooser (Windows: the
   card's PIN), and comes back to the page on 443 **signed in** - then the second step or the
   one-time code, as after a password.
@@ -88,18 +96,20 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 | Setting | Default | What |
 |---|---|---|
 | `admin_certlogin` - *Sign administrators in with a certificate* | off | The switch; means something only once a directory is chosen for administrators. |
+| `admin_certlogin_auto` - *...by itself when the sign-in page opens* | off | On: the page goes to the certificate at once (above); off: the button. |
 | `certlogin_port` - *The certificate's own port* | 8443 | **One port for both parts** (the nonce and the address say which part). 80, 443, 22, 53, 161, 1812, 5432, 3306, acme's API, its SSH gate, its DNS server's and SNMP's ports are refused, and so is a port **another program listens on** (below). 8443 is SELinux's `http_port_t` already; another port is given to nginx with `semanage port -a -t http_port_t`. |
 | `admin_certlogin_match` - *Which account a certificate is* | compat | compat / strong / upn (rule 5). |
 | `admin_certlogin_crl` - *Check that a certificate is not revoked (CRL)* | on | Rule 3. |
-| `admin_password_off` - *No password at all - only Windows or a certificate* | off | Rule 10 (in *Accounts*, beside the directory). |
+| `admin_password_off` - *...and no password at all - only Windows or a certificate* | off | Rule 10. **One switch of both ways**: the same in this card and in the card of Windows. |
 
 ### The portal - *Settings → The enrolment pages → Signing in with a certificate*
 
 | Setting | Default | What |
 |---|---|---|
 | `portal_certlogin` - *Sign people in with a certificate* | off | The portal's own switch; the portal must be on, and a directory set for it. |
+| `portal_certlogin_auto` - *...by itself when the portal opens* | off | As the administration's, for the portal. |
 | `portal_certlogin_match`, `portal_certlogin_crl` | compat, on | As the administration's, for the portal. |
-| `portal_password_off` | off | As the administration's, for the portal. |
+| `portal_password_off` - *...and no password at all on the portal - only Windows or a certificate* | off | As the administration's, for the portal - one switch of both ways. |
 
 **Alerts**: *Alerts and reports → Sign-ins with a certificate refused* (`alerts_certlogin`, off)
 mails each refusal, of either part.
@@ -114,8 +124,11 @@ switched on, the other part's address there answers that it is off.
 
 Under each part's switches, as otp's (*the authorities* are shared):
 
+- **the sign-in page** of that part as it is now - the same table in the card of Windows: *a
+  password* yes or no, *Windows* and *a certificate* each **a button**, **at once** or **off**,
+  and, with both at once, the order;
 - each fact of that part: the port, the directory, how a certificate is matched, revocation, the
-  second step or code after it, a password offered or not, Windows on or off, the other part;
+  second step or code after it, the other part;
 - **the authorities** - subject, issued by, valid to, SHA-256; **Put in an authority…** (PEM,
   DER or `.p7b`; a person's certificate is refused; the same one twice changes nothing) and
   **taken away one by one** (a full administrator). Where the people's certificates come from an
@@ -129,6 +142,35 @@ Under each part's switches, as otp's (*the authorities* are shared):
 - **each node** - heard from, the authorities written out (the same set as the database's),
   nginx listening on the port, or **the program that holds the port there**;
 - the guides: the AD CS template, a YubiKey, the browsers and the network.
+
+## Combining Windows and a certificate
+
+Both ways may be on for the same part, each by its own switches, with or without a password:
+
+| Windows (`*_krb_auto`) | A certificate (`*_certlogin_auto`) | When the page opens |
+|---|---|---|
+| a button | a button | nothing by itself: the form, then both buttons |
+| at once | a button | Windows is tried (asks nothing); the certificate stays a button |
+| a button | at once | the page goes to the certificate; Windows stays a button |
+| at once | at once | **Windows first**, and only when it did not sign in the certificate |
+
+**The order is fixed, Windows first**: Windows is a request of the page's own that asks the
+person nothing - on a computer outside the domain it simply does not sign in - while the
+certificate is a visible trip to its port (the chooser, the PIN). The other order would ask for a
+card where Windows would have signed the person in without a word, so there is no setting for
+it. A refusal by one way still offers the other: Windows refused by itself, the page goes on to
+the certificate and, back here, says both - Windows' words under its button, the certificate's
+under its own; a certificate refused or not chosen, both buttons stay (and the form, when a
+password is taken), and nothing is tried by itself again in that tab.
+
+**No password at all** is one switch for both ways (`admin_password_off`,
+`portal_password_off`) - shown in both cards as *...and no password at all - only Windows or a
+certificate*; in effect while either way can sign anybody in, so switching one of them off keeps
+the other as the way in. The sign-in page then shows the two buttons and no form (and gone to by
+itself, as above). `/api/health` (the administration) and `/api/portal/info` (the portal) say it
+to the pages: `signin: {password, windows, certificate, order}` - `off`, `button` or `auto`,
+and the order of those tried by themselves; `acme --kerberos` and `acme --cert-login` print the
+same line.
 
 ## How it works
 
@@ -261,7 +303,7 @@ acme --cert-login                     each part on or off, the port, the authori
 acme --cert-login-ca FILE             put in authorities (PEM, DER or .p7b) - every node writes them out
 acme --cert-login-ca-off SHA256 --yes take one away (the first 12 characters of it or more)
 acme --set admin_certlogin=1          the switches as any other setting: portal_certlogin,
-acme --set certlogin_port=8443          admin_certlogin_match, admin_certlogin_crl, ...
+acme --set certlogin_port=8443          admin_certlogin_auto, admin_certlogin_match, admin_certlogin_crl, ...
 acme --set admin_password_off=0       the way back from "no password at all" (switched on only from the pages)
 ```
 
@@ -295,6 +337,12 @@ hands them the certificate): no nonce, a wrong one, another part's, one use, the
 443; and **a real nginx with php-fpm** with the servers the root helper writes: the authorities'
 names sent on the port, 443 asking nobody, nothing but the sign-in served, an expired
 certificate (nginx's 495) said as *run out*, signed in to both parts.
+
+`test/test_signin_modes.py` puts the two ways together (the realm of `test_kerberos.py`, the PKI
+of this one): what the pages are told of each part, the order, both sign-ins with "no password at
+all" and a password refused, the pages through php -S; and the page's own logic run with node -
+Windows first, no loop after a refusal, a certificate not chosen, Sign out, `?nocert`, or a setup
+that never signs in.
 
 A real browser: Playwright's `newContext({clientCertificates: [{origin: 'https://name:8443',
 certPath, keyPath}]})`.
