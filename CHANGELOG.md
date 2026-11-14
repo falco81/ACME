@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.104 - not released
+
+(nothing yet)
+
 ## 1.0.103 - 2026-11-14
 
 - **The sign-in with a certificate: "port 8443 taken by another program" when it was acme's own
