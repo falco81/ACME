@@ -92,8 +92,9 @@ class Read(unittest.TestCase):
             if key in indirect or key in WIRING:
                 continue
             k = re.escape(key)
-            if not re.search(r"(\.get\(\s*['\"]%s['\"]|\[\s*['\"]%s['\"]\s*\]|_alerts_to\('%s'\))"
-                             % (k, k, k), src):
+            # ...or a secret among the settings opened for its name (setting_secret, 1.0.102)
+            if not re.search(r"(\.get\(\s*['\"]%s['\"]|\[\s*['\"]%s['\"]\s*\]|_alerts_to\('%s'\)|"
+                             r"setting_secret\(\s*['\"]%s['\"])" % (k, k, k, k), src):
                 unread.append(key)
         self.assertEqual(unread, [])
 
