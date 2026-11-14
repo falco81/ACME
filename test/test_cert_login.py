@@ -852,6 +852,7 @@ class CertLogin(unittest.TestCase):
                 hd.update({'X-Test-Fail': '1', 'X-Test-Verify': 'FAILED:certificate has expired'})
             return go(path % n, cookies=cookies, headers=hd)
 
+        lsn = None
         try:
             for _ in range(50):
                 try:
@@ -867,9 +868,24 @@ class CertLogin(unittest.TestCase):
             self.assertNotIn('id="cert-box"', body)
             st, hd, body = go('/admin/?api=cert-nonce', 'POST', {})
             self.assertEqual(st, 404, body)
-            # On: the button; the nonce in an HttpOnly SameSite=Strict cookie of the page's path.
-            self.on(admin_certlogin=1)
+            # On, but nothing answers on the port (hunt M round 3): the button greyed with a
+            # note, nothing gone to by itself, and no nonce - the browser was sent to "connection
+            # refused", every new tab with the certificate gone to by itself.
+            self.on(admin_certlogin=1, admin_certlogin_auto=1)
+            self.not_serving()
             st, hd, body = go('/admin/')
+            self.assertIn('data-ready="0"', body)
+            self.assertIn('id="cert-go" disabled', body)
+            self.assertIn('not available just now', body)
+            self.assertIn('data-auto="0"', body)
+            st, hd, body = go('/admin/?api=cert-nonce', 'POST', {})
+            self.assertEqual(st, 503, body)
+            self.on(admin_certlogin_auto=0)
+            lsn = self.serving()
+            # On: the button; the nonce in an HttpOnly SameSite=Strict cookie of the page's path.
+            st, hd, body = go('/admin/')
+            self.assertIn('data-ready="1"', body)
+            self.assertNotIn('id="cert-go" disabled', body)
             self.assertIn('id="cert-box"', body)
             self.assertIn('id="in-pass"', body)
             self.assertNotIn('id="cert-box"', go('/')[2])
@@ -982,6 +998,8 @@ class CertLogin(unittest.TestCase):
             finally:
                 self.back_to_passwords()
         finally:
+            if lsn is not None:
+                lsn.close()
             self.on(admin_certlogin=0, portal_certlogin=0)
             php.terminate()
             php.wait(10)
@@ -1058,6 +1076,11 @@ class CertLogin(unittest.TestCase):
                 if os.path.exists(sock) and self._open(8443):
                     break
                 time.sleep(0.2)
+            # the daemon sees the port answer (asked at most every 5 s): the button offered
+            for _ in range(30):
+                if (self.call('GET', '/api/health')[1].get('certlogin') or {}).get('ready'):
+                    break
+                time.sleep(0.5)
             self.assertIn('ssl_verify_client      optional_no_ca', cert_conf)
             self.assertNotIn('ssl_verify_client', main)
             # The authorities' names sent on the port; 443 asks nobody.

@@ -144,7 +144,7 @@ def check_value(k, value):
     if k == 'C' and not re.match(r'^[A-Za-z]{2}\Z', value):
         raise ValueError('the country (C) is two letters (CZ, SK, DE…)')
     if k == 'emailAddress' and not SUBJECT_MAIL_RE.match(value):
-        raise ValueError('%r is not a mail address' % value)
+        raise ValueError('\u201c%s\u201d is not a mail address' % str(value)[:120])
     return value.upper() if k == 'C' else value
 
 
@@ -175,7 +175,13 @@ def check_subject(subj, where='profile.subject'):
                 continue
             key = pki._SUBJECT_ALIAS.get(str(k).strip().lower().replace(' ', ''), str(k).strip())
             if key in known:
-                one = check_value(key, one)
+                try:
+                    one = check_value(key, one)
+                except ValueError as e:
+                    # the field it is about (hunt M round 3): the wizard marks it on its
+                    # profile step, not only a toast at the last one
+                    e.field = 'subject.' + key
+                    raise
             elif any(ord(c) < 32 for c in one) or len(one) > 128:
                 raise ValueError('%s: 128 characters at most, no control characters' % k)
             good.append(one)

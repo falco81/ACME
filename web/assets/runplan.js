@@ -509,14 +509,18 @@
       w.appendChild(det);
     }
     row.appendChild(w);
+    /* a step that is a debug detail whole - what the module printed (hunt M round 3): with
+       debug off, not a step with nothing under it */
+    if (st.debug_step) row.classList.add('rp-dbg');
     return row;
   }
   function stepList(steps, prefix) {
     var box = el('div', 'rp-steps');
     var i = 0, widest = 0;
     (steps || []).forEach(function (st) {
-      if (st.kind !== 'head') i += 1;
-      var n = prefix + '.' + i;
+      /* (no number of its own: hidden with debug off, the numbers would skip one) */
+      if (st.kind !== 'head' && !st.debug_step) i += 1;
+      var n = st.debug_step ? '' : prefix + '.' + i;
       widest = Math.max(widest, n.length);
       box.appendChild(stepRow(st, n));
     });

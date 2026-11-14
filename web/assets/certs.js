@@ -159,7 +159,8 @@ function certName(first, taken) { return safeName(String(first || '').replace(/^
 function nameProblem(v, required, taken) {
   v = String(v || '').trim();
   if (!v) return required ? 'it needs a name' : '';
-  if (!NAME_OK.test(v)) return 'letters, digits, spaces and . _ @ + - only (no quotes, no brackets), starting with a letter or a digit - e.g. ' + safeName(v);
+  /* a-z said so (hunt M round 3): "í" is a letter, and "Interní" was refused as "letters" */
+  if (!NAME_OK.test(v)) return 'letters a-z without accents, digits, spaces and . _ @ + - only (no quotes, no brackets), starting with a letter or a digit - e.g. ' + safeName(v);
   if (taken && arr(taken).indexOf(v) >= 0) return 'there is one called ' + v + ' already';
   return '';
 }
@@ -6219,6 +6220,7 @@ function certWizard(cert, detail, opts) {
       sb[f[0]] = b;
       sg.appendChild(formField(f[1], b));
     });
+    W.subjBoxes = sb;
     host.appendChild(sg);
     if (cn.challenge) host.appendChild(el('p', 'muted small', 'A public ACME CA puts only the names in; the subject is for an authority of your own, AD CS or SCEP.'));
     read = function () {
@@ -6655,6 +6657,19 @@ function certWizard(cert, detail, opts) {
     sent.deploys = W.deploys;
     ACME_RUNPLAN.open({id: c.id || undefined, draft: sent, name: sent.name});
   }
+  /* The profile step again, the subject's field the daemon refused marked. */
+  function backToSubject(key) {
+    var at = steps().map(function (x) { return x.key; }).indexOf('profile');
+    if (at < 0) return false;
+    go(at);
+    var box = (W.subjBoxes || {})[key];
+    if (!box) return false;
+    var item = box.closest ? box.closest('.set-item') : null;
+    if (item) item.classList.add('refused');
+    box.addEventListener('input', function () { if (item) item.classList.remove('refused'); });
+    try { box.focus(); } catch (e2) { }
+    return true;
+  }
   /* The deployment step again, its refusal marked on its field (forms drawn anew). */
   function backToDeploy(why, target, raw, field, label) {
     if (steps().map(function (x) { return x.key; }).indexOf('deploy') < 0) return false;
@@ -6746,6 +6761,9 @@ function certWizard(cert, detail, opts) {
         toast('The certificate is saved, but its deployment to ' + e.deployOf + ' is not as set here: ' + e.message + '. Correct it below and save again.', 'bad');
         return;
       }
+      /* a field of the subject refused (hunt M round 3): its box marked on the profile step,
+         not only a toast at the last one */
+      if (e && /^subject\./.test(e.field || '')) backToSubject(e.field.slice(8));
       fail(e);
     }).then(function () { busy(b, false); });
   }
@@ -9092,6 +9110,14 @@ function loadCertSettings() {
      on what they apply to, where the overview says it. */
   var box = $('cset-summary');
   if (!box) return;
+  /* Its place kept while the overview is asked (hunt M round 3): drawn after the answer, the
+     settings below it dropped by 388 px at 420 px wide. The same card with dashes first. */
+  if (!box.firstChild) {
+    box.appendChild(el('h2', '', 'What these apply to'));
+    box.appendChild(factsRow([['Certificates', '\u2013'], ['Renewed by themselves', '\u2013'],
+                              ['Due now', '\u2013'], ['Failing', '\u2013']]));
+    box.hidden = false;
+  }
   capi('certs/overview').then(function (d) {
     var counts = d.counts || d.by_state || {};
     var auto = first(d.auto_renew, d.auto, null);

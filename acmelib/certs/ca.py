@@ -1120,8 +1120,10 @@ def ca_edit(store, ca_id, changes, by='', remake_crl=True):
             from acmelib.certs import store as S
             v = str(v or '').strip()
             if not S.NAME_RE.match(v):
-                raise PkiError('the name of an authority: letters, digits, spaces and . _ @ + - '
-                               '(120 at most), starting with a letter or a digit', retry=False)
+                # a-z (hunt M round 3): "í" is a letter, and was refused as "letters" said
+                raise PkiError('the name of an authority: letters a-z without accents, digits, '
+                               'spaces and . _ @ + - (120 at most), starting with a letter or a '
+                               'digit', retry=False)
             v = _check_name(store, v, but=row['id'])
         elif k in ('days_default', 'crl_days'):
             try:

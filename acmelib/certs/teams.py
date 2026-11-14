@@ -428,7 +428,7 @@ def clean_mails(v):
     got = [w for w in re.split(r'[\s,;]+', str(v or '')) if w]
     for w in got:
         if not MAIL_RE.match(w):
-            raise ValueError('%r is not a mail address' % w)
+            raise ValueError('\u201c%s\u201d is not a mail address' % str(w)[:120])
     if len(got) > 20:
         raise ValueError('20 addresses at most')
     return ', '.join(got)

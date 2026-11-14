@@ -2952,7 +2952,7 @@ def acme_contact(store, email, by, every=False):
     if email.startswith('mailto:'):
         email = email[7:]
     if not re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+\Z', email) or len(email) > 254:
-        raise ValueError('%r is not an e-mail address' % email)
+        raise ValueError('\u201c%s\u201d is not an e-mail address' % email[:120])
     missing = set(DF.contact_missing(store))
     done = []
     for r in store.db.rows("SELECT * FROM cert_issuers WHERE kind = 'acme' ORDER BY name"):

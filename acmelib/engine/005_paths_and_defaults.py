@@ -1982,11 +1982,11 @@ def check_setting(key, value):
         # an address of the machine too (root@localhost, ops@intranet): as it was taken before
         for one in [w for w in re.split(r'[\s,;]+', str(got)) if w]:
             if not re.match(r'^[^@\s<>"]{1,64}@[A-Za-z0-9.-]{1,253}\Z', one):
-                raise BadSetting('%s: %r is not a mail address' % (key, one))
+                raise BadSetting('%s: \u201c%s\u201d is not a mail address' % (key, one[:120]))
     if key in ('alerts_to', 'report_to'):
         for one in [w for w in re.split(r'[\s,;]+', str(got)) if w]:
             if not re.match(r'^[^@\s<>"]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}\Z', one):
-                raise BadSetting('%s: %r is not a mail address' % (key, one))
+                raise BadSetting('%s: \u201c%s\u201d is not a mail address' % (key, one[:120]))
         if len([w for w in re.split(r'[\s,;]+', str(got)) if w]) > 20:
             raise BadSetting('%s: 20 addresses at most' % key)
     if key == 'mail_helo' and str(got).strip():
@@ -2253,7 +2253,7 @@ def check_setting(key, value):
         import email.utils as _eu
         addr = _eu.parseaddr(str(got).strip())[1]
         if not re.match(r'^[^@\s<>"]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}\Z', addr or ''):
-            raise BadSetting('%s: %r is not a mail address' % (key, got))
+            raise BadSetting('%s: \u201c%s\u201d is not a mail address' % (key, str(got)[:120]))
         got = addr
     if isinstance(got, str) and key in SETTING_STRIPPED:
         # As it was checked (1.0.206): "127.0.0.1 " passed as an address and was

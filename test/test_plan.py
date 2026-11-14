@@ -261,6 +261,10 @@ class Plan(core.CertsCore):
                                 session=self.admin)
             self.assertEqual(st, 400, (subj, got))
             self.assertIn(words, json.dumps(got), subj)
+            # the field named for the wizard's profile step (hunt M round 3), no Python quotes
+            if words != 'is words' and list(subj)[0] in ('C', 'emailAddress', 'O', 'OU'):
+                self.assertEqual(got.get('field'), 'subject.' + list(subj)[0], got)
+            self.assertNotIn("'notanemail'", got['error'])
             st, got = self.call('POST', '/api/certs/run_plan', {'draft': dict(
                 base, profile={'subject': subj})}, session=self.admin)
             self.assertEqual(st, 400, (subj, got))
@@ -2524,6 +2528,8 @@ class SandboxLimits(unittest.TestCase):
         st = [x for x in steps if x.get('words', '').startswith('What the module printed')]
         self.assertEqual(len(st), 1)
         self.assertTrue(st[0]['debug'])
+        # the whole step hidden with debug off, not only its details (hunt M round 3)
+        self.assertTrue(st[0]['debug_step'])
 
     def test_stdout_flood(self):
         import resource
@@ -2533,6 +2539,10 @@ class SandboxLimits(unittest.TestCase):
         out = [e for e in run['events'] if e['kind'] == 'output'][0]
         self.assertLessEqual(len(out['text']), 4000)
         self.assertGreater(out['over'], 0)
+        # "1133 more character(s)" is words, translated (hunt M round 3)
+        from acmelib.certs import runplan as R
+        st = [x for x in R.steps_of(run['events']) if x.get('words', '').startswith('What the module printed')]
+        self.assertEqual(st[0]['detail']['pairs'][-1][2], 'words')
         grown = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before
         self.assertLess(grown, 200 * 1024, 'the test process grew by %d kB' % grown)
 

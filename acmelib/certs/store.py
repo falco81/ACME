@@ -831,14 +831,15 @@ def san_typed(item):
         return 'dns', got[0]
     if t == 'email':
         if len(v) > 254 or not EMAIL_RE.match(v):
-            raise ValueError('%r is not an e-mail address' % v)
+            raise ValueError('\u201c%s\u201d is not an e-mail address' % v[:120])
         local, _, dom = v.rpartition('@')
         try:
             dom = clean_names([dom])[0]
         except (ValueError, IndexError):
-            raise ValueError('%r is not an e-mail address (its domain)' % v)
+            raise ValueError('\u201c%s\u201d is not an e-mail address (its domain)' % v[:120])
         if '.' not in dom and dom != 'localhost':
-            raise ValueError('%r is not an e-mail address (its domain has no dot)' % v)
+            raise ValueError('\u201c%s\u201d is not an e-mail address (its domain has no dot)'
+                             % v[:120])
         return 'email', '%s@%s' % (local, dom)
     if len(v) > 2048 or not URI_RE.match(v) or '://' in v and not re.match(
             r'^[A-Za-z][A-Za-z0-9+.-]*://[^/?#\s]+', v):
@@ -908,8 +909,10 @@ def safe_name(text, taken=(), most=120, fallback='unnamed'):
 def clean_name(name, what='a name'):
     name = str(name or '').strip()
     if not NAME_RE.match(name):
-        raise ValueError('%s: letters, digits, spaces and . _ @ + - (120 at most), starting '
-                         'with a letter or a digit' % what)
+        # a-z (hunt M round 3): names reach shell commands, files and devices (an F5 object,
+        # a Kubernetes secret) - "Interní" was refused as "letters" said, "í" being one
+        raise ValueError('%s: letters a-z without accents, digits, spaces and . _ @ + - (120 at '
+                         'most), starting with a letter or a digit' % what)
     return name
 
 

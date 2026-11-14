@@ -4118,9 +4118,11 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                 continue
             pairs = [['Printed', text]]
             if ev.get('over'):
-                pairs.append(['Not kept', '%s more character(s)' % ev['over'], 'dim'])
+                pairs.append(['Not kept', '%s more character(s)' % ev['over'], 'words'])
+            # the whole step a debug detail (hunt M round 3: with debug off the step stood
+            # there with nothing under it)
             st = {'kind': 'info', 'words': 'What the module printed (acme does not use it)',
-                  'debug': True, 'detail': {'pairs': pairs}}
+                  'debug': True, 'debug_step': True, 'detail': {'pairs': pairs}}
         elif k == 'pages':
             st = {'kind': 'save', 'words': 'Puts it into acme\'s own pages ({0})'.replace(
                 '{0}', ev.get('where') or '')}

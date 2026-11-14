@@ -18234,7 +18234,7 @@
   },
   "s4560": {
    "source": "the country is two letters (CZ)",
-   "text": "země jsou dvě písmena (CZ)"
+   "text": "země má dvě písmena (CZ)"
   },
   "s4561": {
    "source": "the daemon is not answering — is acme.service running?",
@@ -34936,10 +34936,6 @@
    "source": "a PKCS#12 of an authority needs a password",
    "text": "PKCS#12 autority potřebuje heslo"
   },
-  "sx8108": {
-   "source": "the name of an authority: letters, digits, spaces and . _ @ + - (120 at most), starting with a letter or a digit",
-   "text": "název autority: písmena, číslice, mezery a . _ @ + - (nejvýš 120), začíná písmenem nebo číslicí"
-  },
   "sx8109": {
    "source": "the path length is a number (empty: no limit)",
    "text": "délka cesty je číslo (prázdné: bez omezení)"
@@ -41274,7 +41270,7 @@
   },
   "srp156": {
    "source": "the country (C) is two letters (CZ, SK, DE…)",
-   "text": "země (C) jsou dvě písmena (CZ, SK, DE…)"
+   "text": "země (C) má dvě písmena (CZ, SK, DE…)"
   },
   "srp157": {
    "source": "a subject field is off, fixed or person",
@@ -62700,97 +62696,17 @@
    "source": "a virtual server's name: no /, \\, ?, #, %, ..",
    "text": "název virtuálního serveru: žádné /, \\, ?, #, %, .."
   },
-  "_459": {
-   "source": "%s is one line: a line break or control character (%s) in it is refused",
-   "text": "%s je jeden řádek: zalomení řádku nebo řídicí znak (%s) v něm se odmítá"
-  },
-  "_460": {
-   "source": "%s: a control character (%s) in \"%s\"",
-   "text": "%s: řídicí znak (%s) v „%s“"
-  },
-  "_461": {
-   "source": "%s: one line an item (a line break in a line)",
-   "text": "%s: jedna položka na řádek (zalomení řádku v řádku)"
-  },
-  "_462": {
-   "source": "%s: \"%s\" is refused - %s",
-   "text": "%s: „%s“ se odmítá - %s"
-  },
   "_463": {
    "source": "not of the form the device takes",
    "text": "není v podobě, jakou zařízení bere"
-  },
-  "_464": {
-   "source": "\"%s\" is not a name of a webauth parameter map (letters, digits, _ . - only)",
-   "text": "„%s“ není název webauth parameter mapy (jen písmena, číslice, _ . -)"
-  },
-  "_465": {
-   "source": "Operations Manager: \"%s\" is not the path of MOMCertImport.exe on a drive of the server (C:\\...\\MOMCertImport.exe; no share, WebDAV or ..)",
-   "text": "Operations Manager: „%s“ není cesta k MOMCertImport.exe na disku serveru (C:\\...\\MOMCertImport.exe; žádná sdílená složka, WebDAV ani ..)"
-  },
-  "_466": {
-   "source": "Operations Manager: \"%s\" is not the path of MOMCertImport.exe on a drive of the server",
-   "text": "Operations Manager: „%s“ není cesta k MOMCertImport.exe na disku serveru"
-  },
-  "_467": {
-   "source": "%s \"%s\" cannot be a part of the device's address: no /, \\, ?, #, %%, control characters, and not . or ..",
-   "text": "%s „%s“ nemůže být částí adresy zařízení: žádné /, \\, ?, #, %%, řídicí znaky, ani . nebo .."
   },
   "_468": {
    "source": "the address has a space or a control character in it",
    "text": "adresa obsahuje mezeru nebo řídicí znak"
   },
-  "_469": {
-   "source": "the address has a \"%s\" part in its path",
-   "text": "cesta adresy obsahuje část „%s“"
-  },
-  "_470": {
-   "source": "%s answered more than %d MB - not read",
-   "text": "%s odpověděl víc než %d MB - nečte se"
-  },
   "_471": {
    "source": "the CA's web server answered more than 16 MB - not read",
    "text": "webový server CA odpověděl víc než 16 MB - nečte se"
-  },
-  "_472": {
-   "source": "the CA certificate of the web server cannot be read: %s",
-   "text": "certifikát CA webového serveru nejde přečíst: %s"
-  },
-  "_473": {
-   "source": "%s \"%s\" is not a BIG-IP name (%s)",
-   "text": "%s „%s“ není název BIG-IP (%s)"
-  },
-  "_474": {
-   "source": "%s \"%s\" is not a Kubernetes name (a-z, 0-9, - and .)",
-   "text": "%s „%s“ není název v Kubernetes (a-z, 0-9, - a .)"
-  },
-  "_475": {
-   "source": "\"%s\" is not the URI of an enclosure (/rest/enclosures/<id>)",
-   "text": "„%s“ není URI enclosure (/rest/enclosures/<id>)"
-  },
-  "_476": {
-   "source": "a certificate %s sent does not read: %s",
-   "text": "certifikát, který poslal %s, nejde přečíst: %s"
-  },
-  "_477": {
-   "source": "the chain %s sent does not read: %s",
-   "text": "řetězec, který poslal %s, nejde přečíst: %s"
-  },
-  "_478": {
-   "source": "the certificates in the SCEP answer do not read: %s",
-   "text": "certifikáty v odpovědi SCEP nejdou přečíst: %s"
-  },
-  "_479": {
-   "source": "the signer of the SCEP answer does not read: %s",
-   "text": "podepisující certifikát odpovědi SCEP nejde přečíst: %s"
-  },
-  "_480": {
-   "source": "the EST server's cacerts does not read: %s",
-   "text": "cacerts serveru EST nejde přečíst: %s"
-  },
-  "_481": {
-   "source": "%s does not read (%s)",
-   "text": "%s nejde přečíst (%s)"
   },
   "_482": {
    "source": "the deployment",
@@ -62855,6 +62771,18 @@
   "_497": {
    "source": "BIG-IP names: letters, digits, _ . - : (as /Partition/name), no ..",
    "text": "názvy BIG-IP: písmena, číslice, _ . - : (jako /Partition/název), žádné .."
+  },
+  "_459": {
+   "source": "Signing in with a certificate is not available just now.",
+   "text": "Přihlášení certifikátem teď není k dispozici."
+  },
+  "_460": {
+   "source": "signing in with a certificate is not available just now",
+   "text": "přihlášení certifikátem teď není k dispozici"
+  },
+  "_461": {
+   "source": "the name of an authority: letters a-z without accents, digits, spaces and . _ @ + - (120 at most), starting with a letter or a digit",
+   "text": "název autority: písmena a-z bez diakritiky, číslice, mezery a . _ @ + - (nejvýš 120), začíná písmenem nebo číslicí"
   }
  },
  "patterns": {
@@ -70610,10 +70538,6 @@
    "source": "HTTP-01 check of {0} ({1})",
    "text": "kontrola HTTP-01 jména {0} ({1})"
   },
-  "pc0368": {
-   "source": "letters, digits, spaces and . _ @ + - only (no quotes, no brackets), starting with a letter or a digit - e.g. {0}",
-   "text": "jen písmena, číslice, mezery a . _ @ + - (žádné uvozovky ani závorky), na začátku písmeno nebo číslice – např. {0}"
-  },
   "pc0369": {
    "source": "names made safe (letters, digits, spaces and . _ @ + - only - no quotes, no brackets): {0}",
    "text": "jména upravena na bezpečná (jen písmena, číslice, mezery a . _ @ + - – žádné uvozovky ani závorky): {0}"
@@ -73544,7 +73468,7 @@
   },
   "px2507": {
    "source": "the country (C) is two letters: {0}",
-   "text": "země (C) jsou dvě písmena: {0}"
+   "text": "země (C) má dvě písmena: {0}"
   },
   "px2508": {
    "source": "not an IP address: {0}",
@@ -73857,10 +73781,6 @@
   "px2585": {
    "source": "{0} is a DNS name or an address: it goes among the names",
    "text": "{0} je DNS jméno nebo adresa: patří mezi jména"
-  },
-  "px2586": {
-   "source": "{0}: letters, digits, spaces and . _ @ + - (120 at most), starting with a letter or a digit",
-   "text": "{0}: písmena, číslice, mezery a . _ @ + - (nejvýš 120), začíná písmenem nebo číslicí"
   },
   "px2587": {
    "source": "{0} has no twin (no second certificate)",
@@ -85932,7 +85852,7 @@
   },
   "pmdkhf_2": {
    "source": "the country must be two letters (it is \"{0}\")",
-   "text": "země musí být dvě písmena (je „{0}“)"
+   "text": "země musí mít dvě písmena (je „{0}“)"
   },
   "pmdkhf_3": {
    "source": "OneView has no enclosure named {0}",
@@ -87337,6 +87257,86 @@
   "p_275": {
    "source": "the guard against writes signs the settings of the enrolment pages again, {0} row(s), as they are: acme {1} ran here since they were signed",
    "text": "ochrana proti zápisům znovu podepisuje nastavení stránek registrace, {0} {0:řádek|řádky|řádků}, tak jak jsou: od jejich podpisu tu běžel acme {1}"
+  },
+  "p_276": {
+   "source": "{0} is one line: a line break or control character ({1}) in it is refused",
+   "text": "{0} musí být jeden řádek: zalomení řádku ani řídicí znak ({1}) v něm nesmí být"
+  },
+  "p_277": {
+   "source": "{0}: a control character ({1}) in \"{2}\"",
+   "text": "{0}: řídicí znak ({1}) v „{2}“"
+  },
+  "p_278": {
+   "source": "{0}: one line an item (a line break in a line)",
+   "text": "{0}: jedna položka na řádek (v řádku je zalomení řádku)"
+  },
+  "p_279": {
+   "source": "{0}: \"{1}\" is refused - {2}",
+   "text": "{0}: „{1}“ se odmítá – {2}"
+  },
+  "p_280": {
+   "source": "\"{0}\" is not a name of a webauth parameter map (letters, digits, _ . - only)",
+   "text": "„{0}“ není název webauth parameter mapy (jen písmena, číslice, _ . -)"
+  },
+  "p_281": {
+   "source": "Operations Manager: \"{0}\" is not the path of MOMCertImport.exe on a drive of the server (C:\\...\\MOMCertImport.exe; no share, WebDAV or ..)",
+   "text": "Operations Manager: „{0}“ není cesta k MOMCertImport.exe na disku serveru (C:\\...\\MOMCertImport.exe; žádná sdílená složka, WebDAV ani ..)"
+  },
+  "p_282": {
+   "source": "Operations Manager: \"{0}\" is not the path of MOMCertImport.exe on a drive of the server",
+   "text": "Operations Manager: „{0}“ není cesta k MOMCertImport.exe na disku serveru"
+  },
+  "p_283": {
+   "source": "the address has a \"{0}\" part in its path",
+   "text": "cesta adresy obsahuje část „{0}“"
+  },
+  "p_284": {
+   "source": "{0} answered more than {1} MB - not read",
+   "text": "{0} odpověděl víc než {1} MB – nečte se"
+  },
+  "p_285": {
+   "source": "the CA certificate of the web server cannot be read: {0}",
+   "text": "certifikát CA webového serveru nejde přečíst: {0}"
+  },
+  "p_286": {
+   "source": "{0} \"{1}\" is not a BIG-IP name ({2})",
+   "text": "{0} „{1}“ není název BIG-IP ({2})"
+  },
+  "p_287": {
+   "source": "{0} \"{1}\" is not a Kubernetes name (a-z, 0-9, - and .)",
+   "text": "{0} „{1}“ není název v Kubernetes (a-z, 0-9, - a .)"
+  },
+  "p_288": {
+   "source": "\"{0}\" is not the URI of an enclosure (/rest/enclosures/<id>)",
+   "text": "„{0}“ není URI enclosure (/rest/enclosures/<id>)"
+  },
+  "p_289": {
+   "source": "a certificate {0} sent does not read: {1}",
+   "text": "certifikát, který poslal {0}, nejde přečíst: {1}"
+  },
+  "p_290": {
+   "source": "the chain {0} sent does not read: {1}",
+   "text": "řetězec, který poslal {0}, nejde přečíst: {1}"
+  },
+  "p_291": {
+   "source": "the signer of the SCEP answer does not read: {0}",
+   "text": "podepisující certifikát odpovědi SCEP nejde přečíst: {0}"
+  },
+  "p_292": {
+   "source": "the EST server's cacerts does not read: {0}",
+   "text": "cacerts serveru EST nejde přečíst: {0}"
+  },
+  "p_293": {
+   "source": "{0} does not read ({1})",
+   "text": "{0} nejde přečíst ({1})"
+  },
+  "p_294": {
+   "source": "letters a-z without accents, digits, spaces and . _ @ + - only (no quotes, no brackets), starting with a letter or a digit - e.g. {0}",
+   "text": "jen písmena a-z bez diakritiky, číslice, mezery a . _ @ + - (žádné uvozovky ani závorky), na začátku písmeno nebo číslice – např. {0}"
+  },
+  "p_295": {
+   "source": "{0}: letters a-z without accents, digits, spaces and . _ @ + - (120 at most), starting with a letter or a digit",
+   "text": "{0}: písmena a-z bez diakritiky, číslice, mezery a . _ @ + - (nejvýš 120), začíná písmenem nebo číslicí"
   }
  },
  "rich": {

@@ -306,22 +306,34 @@ class FinalSweep3b(unittest.TestCase):
 
     def test_refusal_marks_its_field_in_the_page_language(self):
         certs = read('web', 'assets', 'certs.js')
-        fn = re.search(r'\n    refused: function \(words\) \{[\s\S]*?\n      return msg;\n    \}', certs).group(0)
-        js = ('var tr = function (x) { return {Bay: "Pozice", "Grid members": "Členové Gridu"}[x] || x; };'
+        fn = re.search(r'\n    refused: function \(words, field, label\) \{[\s\S]*?\n      return msg;\n    \}', certs).group(0)
+        js = ('var tr = function (x) { return {Bay: "Pozice", "Grid members": "Členové Gridu", '
+              '"Secret name": "Název secretu", "Restart these": "Restartovat tyto"}[x] || x; };'
               'function mk(f) { return {f: f, item: {classList: {s: {}, add: function (c) { this.s[c] = 1; },'
               ' remove: function (c) { delete this.s[c]; }}}, input: {focus: function () {}}}; }'
-              'var items = [mk({key: "bay", label: "Bay"}), mk({key: "members", label: "Grid members"})];'
+              'var items = [mk({key: "bay", label: "Bay"}), mk({key: "members", label: "Grid members"}),'
+              ' mk({key: "secret", label: "Secret name"}), mk({key: "restart", label: "Restart these", advanced: true})];'
               'var more = {}; var shown = function () { return true; }; var current = function () { return {}; };'
               'var o = {' + fn.strip() + '};'
               'var a = o.refused("Bay is 2 at most (not 3)");'
+              'var a0 = !!items[0].item.classList.s.refused;'
               'var b = o.refused("fill in “Grid members”");'
-              'console.log(JSON.stringify([a, !!items[0].item.classList.s.refused, b,'
-              ' !!items[1].item.classList.s.refused, !!items[0].item.classList.s.refused]));')
-        self.assertEqual(self.node_js(js), ['Pozice is 2 at most (not 3)', False,
-                                            'fill in “Členové Gridu”', True, False])
+              'var b1 = !!items[1].item.classList.s.refused, b0 = !!items[0].item.classList.s.refused;'
+              'var c = o.refused("Secret name: \\"Bad_Name!\\" is refused - a Kubernetes name");'
+              'var c1 = !!items[2].item.classList.s.refused;'
+              'var d = o.refused("Restart these: one line an item (a line break in a line)", "restart", "Restart these");'
+              'console.log(JSON.stringify([a, a0, b, b1, b0, c, c1, d,'
+              ' !!items[3].item.classList.s.refused, !!items[2].item.classList.s.refused, !!more.open]));')
+        # hunt M round 3: "<label>: ..." found too, and the field the daemon names marked - with
+        # "More" opened where it is one of those
+        self.assertEqual(self.node_js(js), ['Pozice is 2 at most (not 3)', True,
+                                            'fill in “Členové Gridu”', True, False,
+                                            'Název secretu: "Bad_Name!" is refused - a Kubernetes name', True,
+                                            'Restartovat tyto: one line an item (a line break in a line)',
+                                            True, False, True])
         # used where the daemon refuses: the Deploy dialog and the wizard
-        self.assertIn("if (form && form.refused && e && e.message) e.message = form.refused(e.message);", certs)
-        self.assertIn("var why = f && f.refused ? f.refused(e.message) : e.message;", certs)
+        self.assertIn("if (form && form.refused && e && e.message) e.message = form.refused(e.message, e.field, e.label);", certs)
+        self.assertIn("var why = f && f.refused ? f.refused(e.message, e.field, e.label) : e.message;", certs)
 
     def test_wizard_checks_the_deployments_before_saving(self):
         certs = read('web', 'assets', 'certs.js')
@@ -329,7 +341,7 @@ class FinalSweep3b(unittest.TestCase):
         self.assertIn("var dbad = dstep && dstep.check ? dstep.check() : '';", fin)
         self.assertIn("if (dbad) { backToDeploy(dbad); toast(dbad, 'bad'); return; }", fin)
         # refused after the save: said, and the wizard back on the deployment step
-        self.assertIn("backToDeploy(e.message, e.deployOf, e.raw);", certs)
+        self.assertIn("backToDeploy(e.message, e.deployOf, e.raw, e.field, e.label);", certs)
         self.assertIn("'The certificate is saved, but its deployment to ' + W.depRefused.target", certs)
         # the wizard's deployment step leaves out "Check what is served" as the Deploy dialog does
         self.assertIn("(!x.dual_only || W.d.key_type_alt) && VERIFY_KEYS.indexOf(x.key) < 0", certs)
@@ -620,6 +632,40 @@ class HuntM1UI(unittest.TestCase):
         self.assertEqual(out['again'], {'got': out['got'], 'said': out['said']})
         js = read('web', 'assets', 'i18n.js')
         self.assertIn('return single ? undefined : i18nSentences(s);', js)
+
+    def test_round3_ui_pass(self):
+        """Hunt M round 3, the final UI pass: a deployment option refused names its field (marked,
+        "More" opened, its label translated - "<label>: ..." was not found), the paste box's
+        hint translated, the module-output step hidden whole with debug off, the settings'
+        summary card keeping its place, the certificate button only with something on its port,
+        names said to be a-z, and a subject field refused marked on the wizard's profile step."""
+        certs = read('web', 'assets', 'certs.js')
+        core = read('web', 'assets', 'core.js')
+        self.assertIn("if (data.field) { err.field = String(data.field); err.label = String(data.label || ''); }", core)
+        self.assertIn("refused: function (words, field, label) {", certs)
+        self.assertIn("msg.indexOf(lab + ': ') === 0", certs)
+        self.assertIn("form.refused(e.message, e.field, e.label)", certs)
+        self.assertIn("f.refused(e.message, e.field, e.label)", certs)
+        self.assertIn("refused: function (words, field, label) { return rest.refused ? rest.refused(words, field, label) : words; }",
+                      read('web', 'assets', 'deployfiles.js'))
+        api = read('acmelib', 'engine', '345_the_api_the_web.py')
+        self.assertIn("got['field'] = e.field", api)
+        self.assertIn("box.setAttribute('data-i18n-hint', '');", certs)
+        rp = read('web', 'assets', 'runplan.js')
+        self.assertIn("if (st.debug_step) row.classList.add('rp-dbg');", rp)
+        self.assertIn("'debug_step': True", read('acmelib', 'certs', 'runplan.py'))
+        self.assertIn("['Not kept', '%s more character(s)' % ev['over'], 'words']",
+                      read('acmelib', 'certs', 'runplan.py'))
+        at = certs.index('function loadCertSettings()')
+        self.assertLess(certs.index("['Due now', '\\u2013']", at), certs.index("capi('certs/overview')", at))
+        self.assertIn("if (box.dataset.ready === '0') { go.disabled = true; return function () { return false; }; }", core)
+        for page in (('web', 'index.php'), ('web', 'admin', 'index.php')):
+            php = read(*page)
+            self.assertIn("$cl_auto = $cl_ready && !empty($cl['auto']);", php)
+            self.assertIn('id="cert-go"<?= $cl_ready ? \'\' : \' disabled\' ?>>', php)
+        self.assertIn("array_key_exists('ready', $info) && empty($info['ready'])", read('web', 'acme-api.php'))
+        self.assertIn("'letters a-z without accents, digits, spaces", certs)
+        self.assertIn("if (e && /^subject\\./.test(e.field || '')) backToSubject(e.field.slice(8));", certs)
 
     def test_joined_words_and_refused_connection_in_czech(self):
         """"done · 0 s" stayed English ({0} · {1} keeps one word as a name), and "{0} refused"
