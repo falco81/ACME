@@ -32,7 +32,8 @@ Even with the guard on, it is defence in depth, not a wall between `acme` and ro
 holds `secrets.key` (it seals every secret with it) and may write `config.json`. Code that
 runs as `acme` can still sign an ask, or switch the guard off. What the guard stops is an
 ask that did not come through acme's own signed rows: anybody who can only write the
-database, or only drop a file into the helper's folder. See
+database, or only drop a file into the helper's folder. A key of a member of wheel/sudo is
+taken the same way (1.0.101), and each signed ask only once. See
 [High security](high-security.md) (*What the acme account can do as root*).
 
 ## Every user who may sign in (1.0.240)

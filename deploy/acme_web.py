@@ -4149,15 +4149,17 @@ SIG_REFUSED = 'not signed by acme'      # the daemon asks again for this one (a 
 
 def ask_signed(r, head, fits, what):
     """Refused unless the ask comes from a row of `head` the daemon signed, holding an ask of
-    that id for which `fits(ask)` - not older than an hour, and not done here before.
+    that id for which `fits(ask)` - not older than an hour, and not done here before. `what`:
+    the words when it carries no row.
     -> what ask_once_note() keeps once it is done."""
     signed = r.get('signed')
     if not isinstance(signed, dict):
-        raise Refused('db_guard is on: %s only as asked on the pages (a signed row of the '
-                      'database) - this ask carries none' % what)
+        raise Refused(what)
     k, v, aid = str(signed.get('k') or ''), signed.get('v'), str(signed.get('aid') or '')
     if not k.startswith(head) or not isinstance(v, str) or not aid:
-        raise Refused('db_guard is on: the row this ask comes from is not one such asks are '
+        raise Refused('db_guard is on: the row this ask comes from is not one of root\'s keys'
+                      if head == 'host:sshkeys:want:' else
+                      'db_guard is on: the row this ask comes from is not one such asks are '
                       'kept in')
     key = guard_key()
     if not key:
@@ -4195,7 +4197,9 @@ def ask_signed(r, head, fits, what):
                 raise Refused('db_guard is on: that ask was done here already - not again (asked '
                               'again on the pages, it is taken)')
             return done
-    raise Refused('db_guard is on: the signed row does not ask for this')
+    raise Refused('db_guard is on: the signed row does not ask for this key'
+                  if head == 'host:sshkeys:want:' else
+                  'db_guard is on: the signed row does not ask for this')
 
 
 def _once_key(done):
@@ -4251,8 +4255,10 @@ def rootkey_signed(r, line, user='root'):
     return ask_signed(r, 'host:sshkeys:want:', lambda a: a.get('do') == 'add' and
                       str(a.get('user') or 'root') == user and
                       str(a.get('line') or '').strip() == line,
-                      'a key of root\'s is added' if user == 'root'
-                      else 'a key of %s (who may use sudo) is added' % user)
+                      'db_guard is on: a key of root\'s is added only as asked on the pages (a '
+                      'signed row of the database) - this ask carries none' if user == 'root' else
+                      'db_guard is on: a key of a user who may use sudo is added only as asked on '
+                      'the pages (a signed row of the database) - this ask carries none')
 
 
 def sshkeys_do(r):
@@ -4409,7 +4415,8 @@ def users_signed(r):
                 bool(a.get('hash') or a.get('hash_gone')) == bool(r.get('hash'))
         return bool(a.get('hash') or a.get('hash_gone'))
     return ask_signed(r, 'host:users:want:', fits,
-                      'a user is made, given a password or sudo')
+                      'db_guard is on: a user is made, given a password or sudo only as asked on '
+                      'the pages (a signed row of the database) - this ask carries none')
 
 
 def lu_shells():

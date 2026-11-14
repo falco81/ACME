@@ -62659,6 +62659,170 @@
   "_447": {
    "source": "Not kept",
    "text": "Neuloženo"
+  },
+  "_448": {
+   "source": "parameter-map type webauth <name>; its virtual IP and virtual-host must be set and match the certificate's name. Letters, digits, _ . - only",
+   "text": "parameter-map type webauth <název>; jeho virtuální IP a virtual-host musí být nastavené a odpovídat názvu certifikátu. Jen písmena, číslice, _ . -"
+  },
+  "_449": {
+   "source": "a parameter map's name is letters, digits, _ . - (64 at most)",
+   "text": "název parameter mapy jsou písmena, číslice, _ . - (nejvýš 64)"
+  },
+  "_450": {
+   "source": "its path on a drive of the server (from the installation media, SupportTools\\amd64), ending in \\MOMCertImport.exe; empty: the Gateway folder of Operations Manager. Run as Administrator: set by a full administrator only",
+   "text": "jeho cesta na disku serveru (z instalačního média, SupportTools\\amd64), končící \\MOMCertImport.exe; prázdné: složka Gateway nástroje Operations Manager. Spouští se jako Administrator: nastavuje jen úplný správce"
+  },
+  "_451": {
+   "source": "the path of MOMCertImport.exe on a drive of the server (C:\\...\\MOMCertImport.exe) - no share, no WebDAV, no ..",
+   "text": "cesta k MOMCertImport.exe na disku serveru (C:\\...\\MOMCertImport.exe) - žádná sdílená složka, žádný WebDAV, žádné .."
+  },
+  "_452": {
+   "source": "Your internal root, for the TLS of the CA's IIS: when given, the only CA trusted for it (the system's CAs are not); empty: the system's CAs.",
+   "text": "Vaše interní kořenová CA pro TLS IIS certifikační autority: když je zadaná, je jediná, které se věří (systémovým CA ne); prázdné: systémové CA."
+  },
+  "_453": {
+   "source": "BIG-IP names: letters, digits, _ . - (as /Partition/name), no ..",
+   "text": "názvy BIG-IP: písmena, číslice, _ . - (jako /Partition/název), žádné .."
+  },
+  "_454": {
+   "source": "a Kubernetes name: a-z, 0-9, - and ., starting and ending with a letter or digit",
+   "text": "název v Kubernetes: a-z, 0-9, - a ., na začátku a na konci písmeno nebo číslice"
+  },
+  "_455": {
+   "source": "a part of the device's address: no /, \\, ?, #, %, control characters, not . or ..",
+   "text": "část adresy zařízení: žádné /, \\, ?, #, %, řídicí znaky, ani . nebo .."
+  },
+  "_456": {
+   "source": "an enclosure's name in OneView, or /rest/enclosures/<id>",
+   "text": "název enclosure v OneView, nebo /rest/enclosures/<id>"
+  },
+  "_457": {
+   "source": "a NetScaler name: no /, \\, ?, #, %, ..",
+   "text": "název v NetScaleru: žádné /, \\, ?, #, %, .."
+  },
+  "_458": {
+   "source": "a virtual server's name: no /, \\, ?, #, %, ..",
+   "text": "název virtuálního serveru: žádné /, \\, ?, #, %, .."
+  },
+  "_459": {
+   "source": "%s is one line: a line break or control character (%s) in it is refused",
+   "text": "%s je jeden řádek: zalomení řádku nebo řídicí znak (%s) v něm se odmítá"
+  },
+  "_460": {
+   "source": "%s: a control character (%s) in \"%s\"",
+   "text": "%s: řídicí znak (%s) v „%s“"
+  },
+  "_461": {
+   "source": "%s: one line an item (a line break in a line)",
+   "text": "%s: jedna položka na řádek (zalomení řádku v řádku)"
+  },
+  "_462": {
+   "source": "%s: \"%s\" is refused - %s",
+   "text": "%s: „%s“ se odmítá - %s"
+  },
+  "_463": {
+   "source": "not of the form the device takes",
+   "text": "není v podobě, jakou zařízení bere"
+  },
+  "_464": {
+   "source": "\"%s\" is not a name of a webauth parameter map (letters, digits, _ . - only)",
+   "text": "„%s“ není název webauth parameter mapy (jen písmena, číslice, _ . -)"
+  },
+  "_465": {
+   "source": "Operations Manager: \"%s\" is not the path of MOMCertImport.exe on a drive of the server (C:\\...\\MOMCertImport.exe; no share, WebDAV or ..)",
+   "text": "Operations Manager: „%s“ není cesta k MOMCertImport.exe na disku serveru (C:\\...\\MOMCertImport.exe; žádná sdílená složka, WebDAV ani ..)"
+  },
+  "_466": {
+   "source": "Operations Manager: \"%s\" is not the path of MOMCertImport.exe on a drive of the server",
+   "text": "Operations Manager: „%s“ není cesta k MOMCertImport.exe na disku serveru"
+  },
+  "_467": {
+   "source": "%s \"%s\" cannot be a part of the device's address: no /, \\, ?, #, %%, control characters, and not . or ..",
+   "text": "%s „%s“ nemůže být částí adresy zařízení: žádné /, \\, ?, #, %%, řídicí znaky, ani . nebo .."
+  },
+  "_468": {
+   "source": "the address has a space or a control character in it",
+   "text": "adresa obsahuje mezeru nebo řídicí znak"
+  },
+  "_469": {
+   "source": "the address has a \"%s\" part in its path",
+   "text": "cesta adresy obsahuje část „%s“"
+  },
+  "_470": {
+   "source": "%s answered more than %d MB - not read",
+   "text": "%s odpověděl víc než %d MB - nečte se"
+  },
+  "_471": {
+   "source": "the CA's web server answered more than 16 MB - not read",
+   "text": "webový server CA odpověděl víc než 16 MB - nečte se"
+  },
+  "_472": {
+   "source": "the CA certificate of the web server cannot be read: %s",
+   "text": "certifikát CA webového serveru nejde přečíst: %s"
+  },
+  "_473": {
+   "source": "%s \"%s\" is not a BIG-IP name (%s)",
+   "text": "%s „%s“ není název BIG-IP (%s)"
+  },
+  "_474": {
+   "source": "%s \"%s\" is not a Kubernetes name (a-z, 0-9, - and .)",
+   "text": "%s „%s“ není název v Kubernetes (a-z, 0-9, - a .)"
+  },
+  "_475": {
+   "source": "\"%s\" is not the URI of an enclosure (/rest/enclosures/<id>)",
+   "text": "„%s“ není URI enclosure (/rest/enclosures/<id>)"
+  },
+  "_476": {
+   "source": "a certificate %s sent does not read: %s",
+   "text": "certifikát, který poslal %s, nejde přečíst: %s"
+  },
+  "_477": {
+   "source": "the chain %s sent does not read: %s",
+   "text": "řetězec, který poslal %s, nejde přečíst: %s"
+  },
+  "_478": {
+   "source": "the certificates in the SCEP answer do not read: %s",
+   "text": "certifikáty v odpovědi SCEP nejdou přečíst: %s"
+  },
+  "_479": {
+   "source": "the signer of the SCEP answer does not read: %s",
+   "text": "podepisující certifikát odpovědi SCEP nejde přečíst: %s"
+  },
+  "_480": {
+   "source": "the EST server's cacerts does not read: %s",
+   "text": "cacerts serveru EST nejde přečíst: %s"
+  },
+  "_481": {
+   "source": "%s does not read (%s)",
+   "text": "%s nejde přečíst (%s)"
+  },
+  "_482": {
+   "source": "the deployment",
+   "text": "nasazení (deployment)"
+  },
+  "_483": {
+   "source": "the namespace",
+   "text": "jmenný prostor"
+  },
+  "_484": {
+   "source": "the secret",
+   "text": "secret"
+  },
+  "_485": {
+   "source": "the partition",
+   "text": "oddíl (partition)"
+  },
+  "_486": {
+   "source": "the profile",
+   "text": "profil"
+  },
+  "_487": {
+   "source": "the certkey",
+   "text": "certkey"
+  },
+  "_488": {
+   "source": "the virtual server",
+   "text": "virtuální server"
   }
  },
  "patterns": {

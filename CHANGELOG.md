@@ -6,6 +6,32 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.101 - not released
 
+- **More of root's ways only from acme's signed word, each done once.** With `db_guard` on, the
+  root helper now also makes a local user, gives one a password or `sudo`, and adds a key of a
+  member of wheel/sudo only from a signed row of the database (`host:users:want:*`,
+  `host:sshkeys:want:*`), as it does root's own keys. Each signed ask is done once: a cleared
+  list of asks done (`host:sshkeys:now:*`, `host:users:now:*`) no longer has an ask of the last
+  hour done again - a key taken away put back. A key of root's added while something else was
+  asked of the node at the same moment (the page's own refresh) was refused as "not signed" and
+  never added: the row is now read again with its signatures, and an ask refused for its
+  signature is asked again (three times) instead of being marked done.
+- **Renaming a target whose device makes the key** no longer made the version that device made
+  count as "fits no key": refused for deployment and issued again.
+- **Requests held at SSLmarket and SSLS.cz** with the key of a version revoked since are no
+  longer finished: dropped, and a new request with a new key sent. At a revoke, a request held
+  at any source is dropped only when it has the key revoked (or its key cannot be told) - one
+  held for a new key stays, so the next renewal does not pay for a second order.
+- **During a rolling upgrade to 1.0.101** a portal sign-in made on a node still on 1.0.100 is no
+  longer ended by the first request that lands on an upgraded node: the portal's sign-ins are
+  checked against their signatures once every node runs 1.0.101 (as the portal's settings).
+- **`guard.json` no longer grows with every sign-in.** The counters seen of sign-ins that are
+  over are taken out with their signatures.
+- **`/healthz` no longer says the node's name** to anybody: `ok up`, `maintenance`,
+  `degraded: replication ...`, `down: ...`. A balancer matching `^ok ` (as the guides say) is
+  unaffected.
+- **An IP address on a validation that proves names in DNS only** (DNS-01) is refused when the
+  certificate is saved, in words, not later by the CA. A pattern of names (`.0.1`, `*.0.0.1`)
+  never chooses the validation of an IP address - only the address's own key does.
 - **A key of root's only from acme's signed word, with the guard against writes to the
   database on.** The root helper (`acme_web.py`) added any key line the `acme` account wrote
   into its folder to root's `authorized_keys`. With `db_guard` on, it now adds one only when the

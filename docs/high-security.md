@@ -142,8 +142,11 @@ sshd, the network, the updates, the local users and **root's `authorized_keys`**
 **A key of root's** is the one ask that makes `acme` root outright. With `db_guard` **on**,
 the helper adds one only from a row of the database acme signed, and checks the signature
 itself (see [SSH keys](ssh-keys.md), *Who can add a key of root's*). A forged ask, laid
-in the folder by itself or written into the database, is refused. With `db_guard`
-**off**, the `acme` account can add a key of root's.
+in the folder by itself or written into the database, is refused. Since 1.0.101 the same
+holds for the other ways to root: a local user made, given a password or `sudo`, and a key
+of a member of wheel/sudo. Each signed ask is done once (the helper remembers those done in
+the last hour in a file of root's), so a cleared list of asks done does not replay one. With
+`db_guard` **off**, the `acme` account can add a key of root's.
 
 This is defence in depth, not a wall. `acme` holds `secrets.key` and may write
 `config.json`, so code that runs as `acme` can still sign an ask or switch the guard off.

@@ -74,6 +74,8 @@ def helper(state, flag):
                                                   os.path.join(ROOT, 'deploy', 'acme_web.py'))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    mod.GUARD_ONCE = os.path.join(state, 'asks-done.json')    # never root's own here
+    mod.CONFIG_PATH = os.path.join(state, 'helper-config.json')
     return mod
 
 
@@ -204,6 +206,44 @@ class Helper(unittest.TestCase):
         with self.assertRaises(self.W.Refused):
             self.W.sshkeys_do({'do': 'list', 'user': k})
         self.W.lu_do({'do': 'drop', 'name': k, 'home': True})
+
+    def test_05b_with_db_guard_only_from_a_signed_row(self):
+        """db_guard on (1.0.101): a user made, given a password or sudo, and a key of a member of
+        wheel/sudo, only from a signed row - an ask laid down by itself is refused before anything
+        is done; the rest (lock, a key of a user without sudo) as before."""
+        W = self.W
+        a, k = self.names[1], self.names[3]
+        with open(W.CONFIG_PATH, 'w') as f:
+            json.dump({'db_guard': 1}, f)
+        try:
+            self.refused({'do': 'add', 'name': a, 'shell': '/bin/bash', 'sudo': True})
+            with self.assertRaises(KeyError):
+                pwd.getpwnam(a)
+            with open(W.CONFIG_PATH, 'w') as f:
+                json.dump({'db_guard': 0}, f)
+            W.lu_do({'do': 'add', 'name': k, 'shell': '/bin/bash'})
+            with open(W.CONFIG_PATH, 'w') as f:
+                json.dump({'db_guard': 1}, f)
+            self.refused({'do': 'password', 'name': k, 'hash': sha512('Long-Enough-1')})
+            self.refused({'do': 'sudo', 'name': k, 'on': True})
+            self.assertTrue(self.user(W.lu_do({'do': 'lock', 'name': k}), k)['locked'])
+            line = keyline(self.tmp, 'guarded@laptop')
+            self.assertEqual(len(W.sshkeys_do({'do': 'add', 'line': line, 'user': k})['keys']), 1)
+            if W.lu_admin_group():
+                with open(W.CONFIG_PATH, 'w') as f:
+                    json.dump({'db_guard': 0}, f)
+                W.lu_do({'do': 'sudo', 'name': k, 'on': True})
+                with open(W.CONFIG_PATH, 'w') as f:
+                    json.dump({'db_guard': 1}, f)
+                self.assertTrue(W.lu_may_sudo(k))
+                with self.assertRaises(W.Refused) as e:
+                    W.sshkeys_do({'do': 'add', 'line': keyline(self.tmp, 'two@laptop'), 'user': k})
+                self.assertIn('db_guard', str(e.exception))
+        finally:
+            with open(W.CONFIG_PATH, 'w') as f:
+                json.dump({'db_guard': 0}, f)
+            gone(a)
+            gone(k)
 
     def test_06_the_console_file(self):
         W = self.W

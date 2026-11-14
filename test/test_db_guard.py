@@ -155,6 +155,13 @@ class TestAccountsAndSignIns(unittest.TestCase):
         tok = STORE.session_new('portal', 'carol', 'portal', '127.0.0.1', 1,
                                 {'kind': 'directory', 'dn': 'CN=carol,DC=x'})
         guard(True)
+        # A single node (or a cluster all on 1.0.101): taken under the guard at once, at the
+        # daemon's start (dbguard_adopt) - the portal's sign-ins checked from then on.
+        E.DBGUARD['adopted'] = {k: v for k, v in (E.DBGUARD.get('adopted') or {}).items()
+                                if k != E.DBGUARD_ADOPT3_MARK}
+        self.assertFalse(E.dbguard_adopted3())
+        E.dbguard_adopt(STORE)
+        self.assertTrue(E.dbguard_adopted3())
         self.assertIsNotNone(STORE.session_get(tok, 'portal', 3600))
         forged = secrets.token_urlsafe(32)
         t = time.time()
@@ -182,6 +189,64 @@ class TestAccountsAndSignIns(unittest.TestCase):
         E.dbguard_resign(STORE)
         guard(True)
         self.assertIsNotNone(STORE.session_get(tok2, 'portal', 3600))
+
+    def test_a_portal_sign_in_of_a_node_still_on_1_0_100(self):
+        """A rolling upgrade (1.0.101): until every node runs 1.0.101 (the adoption's mark) a
+        portal's sign-in made unsigned on the old node is taken - not ended at the first request
+        that lands here; the administration's are checked as before."""
+        import hashlib
+        import secrets
+        guard(True)
+        saved = dict(E.DBGUARD.get('adopted') or {})
+        E.DBGUARD['adopted'] = {k: v for k, v in saved.items() if k != E.DBGUARD_ADOPT3_MARK}
+        try:
+            t = time.time()
+            toks = {}
+            for kind in ('portal', 'admin'):
+                toks[kind] = secrets.token_urlsafe(32)
+                STORE.db.insert('sessions', {
+                    'token_hash': hashlib.sha256(toks[kind].encode()).hexdigest(), 'kind': kind,
+                    'name': 'old', 'role': kind if kind == 'portal' else 'fulladmin', 'created': t,
+                    'last': t, 'expires': t + 3600, 'ip': '', 'data': '{}'})
+            self.assertIsNotNone(STORE.session_get(toks['portal'], 'portal', 3600))
+            self.assertIsNone(STORE.session_get(toks['admin'], 'admin', 3600))
+            # the whole cluster on 1.0.101: checked
+            E.DBGUARD['adopted'][E.DBGUARD_ADOPT3_MARK] = time.time()
+            self.assertIsNone(STORE.session_get(toks['portal'], 'portal', 3600))
+        finally:
+            E.DBGUARD['adopted'] = saved
+            guard(False)
+
+    def test_seen_of_sign_ins_over_tidied(self):
+        """guard.json (1.0.101): the counter seen of every sign-in ever made stayed - one entry
+        each, the whole file written again at each new one. Those of sign-ins over go."""
+        import hashlib
+        guard(True)
+        try:
+            toks = [STORE.session_new('portal' if i % 2 else 'admin', 'u%d' % i, 'portal', '', 1)
+                    for i in range(300)]
+            for i, tok in enumerate(toks):
+                STORE.session_get(tok, 'portal' if i % 2 else 'admin', 3600)
+            seen = lambda: [s for s in E.DBGUARD['seen'] if s.startswith('sig:x:')]  # noqa: E731
+            self.assertGreaterEqual(len(seen()), 300)
+            keep = toks[:5]
+            for tok in toks[5:]:
+                STORE.db.run('DELETE FROM sessions WHERE token_hash = ?',
+                             (hashlib.sha256(tok.encode()).hexdigest(),))
+            E.dbguard_tidy(STORE)
+            held = {'sig:x:%s:*' % E._dbguard_hash(r['token_hash'])
+                    for r in STORE.db.rows('SELECT token_hash FROM sessions')}
+            self.assertTrue(set(seen()) <= held)
+            self.assertFalse([s for s in E.DBGUARD['seen_h'] if s.startswith('sig:x:')
+                              and s not in held])
+            for i, tok in enumerate(keep):
+                self.assertIsNotNone(STORE.session_get(tok, 'portal' if i % 2 else 'admin', 3600))
+            E.dbguard_flush(force=True)
+            with open(E.DBGUARD_FILE) as f:
+                self.assertLessEqual(len([s for s in json.load(f)['seen'] if s.startswith('sig:x:')]),
+                                     len(held))
+        finally:
+            guard(False)
 
     def test_the_portal_settings_are_guarded(self):
         """The settings that let people in to the portal or hand out keys (1.0.101)."""
@@ -333,6 +398,7 @@ def helper():
     spec.loader.exec_module(mod)
     mod.ROOT_AUTH = os.path.join(TMP, 'root-ssh', 'authorized_keys')
     mod.CONFIG_PATH = os.path.join(TMP, 'helper-config.json')
+    mod.GUARD_ONCE = os.path.join(TMP, 'root-ssh', 'asks-done.json')
     mod.sshd_says = lambda: {'there': False}
     return mod
 
@@ -377,7 +443,7 @@ class TestRootKeys(unittest.TestCase):
         """The ask the daemon lays down for the helper, as sshkeys_tick makes it."""
         E.sshkeys_ask(STORE, [E.node_name()], 'add', 'tester', line=line)
         for r in E.node_key_rows(STORE, 'host:sshkeys:want', E.node_name()):
-            for a in json.loads(r['v']):
+            for a in reversed(json.loads(r['v'])):          # the newest of that line
                 if a.get('line') == line:
                     return E.sshkeys_root_data(STORE, dict(a, _row=(r['k'], r['v'])))
         self.fail('the ask is not in the database')
@@ -431,6 +497,112 @@ class TestRootKeys(unittest.TestCase):
         with self.assertRaises(self.W.Refused):
             self.W.sshkeys_do(bad)
         self.assertEqual(self.fps(), [])
+
+    def test_another_ask_written_between_is_no_refusal(self):
+        """The row read by the tick, another ask written to it before the helper is asked (the
+        page's own refresh): the row is read again with its signatures (1.0.101 - refused as
+        "not signed", and marked done: the key was never added)."""
+        line = pubkey('raced')
+        E.sshkeys_ask(STORE, [E.node_name()], 'add', 'tester', line=line)
+        r = next(iter(E.node_key_rows(STORE, 'host:sshkeys:want', E.node_name())))
+        a = next(x for x in json.loads(r['v']) if x.get('line') == line)
+        E.sshkeys_ask(STORE, [E.node_name()], 'list', 'tester')          # in between
+        got = self.W.sshkeys_do(E.sshkeys_root_data(STORE, dict(a, _row=(r['k'], r['v']))))
+        self.assertIn('raced', [k['comment'] for k in got['keys']])
+        # a refusal for the signature is asked again (a few times), any other is done
+        tries = {}
+        said = 'db_guard is on: the row this ask comes from is not signed by acme - not acted on'
+        self.assertTrue(E.sig_retry(tries, {'id': 'a1'}, said))
+        self.assertTrue(E.sig_retry(tries, {'id': 'a1'}, said))
+        self.assertFalse(E.sig_retry(tries, {'id': 'a1'}, said))
+        self.assertFalse(E.sig_retry(tries, {'id': 'a2'}, 'that ask is older than an hour'))
+        self.assertEqual(E.SIG_REFUSED, self.W.SIG_REFUSED)
+
+    def test_a_signed_ask_is_done_once(self):
+        """The list of asks done is the node's own row: cleared, the daemon sent a signed add of
+        the last hour again - a key taken away came back. The helper does each once (1.0.101)."""
+        line = pubkey('once')
+        data = self.asked(line)
+        fp = self.W.sshkeys_do(data)['keys'][0]['fp']
+        self.W.sshkeys_do({'do': 'drop', 'fp': fp, 'user': 'root', 'last_ok': True})
+        with self.assertRaises(self.W.Refused) as e:
+            self.W.sshkeys_do(data)
+        self.assertIn('done here already', str(e.exception))
+        self.assertEqual(self.fps(), [])
+        # asked again on the pages: a new ask, taken
+        got = self.W.sshkeys_do(self.asked(line))
+        self.assertEqual(len(got['keys']), 1)
+        # the file is root's own: one of somebody else's is not read
+        self.assertTrue(self.W._once_read())
+
+    def test_a_key_of_a_sudo_member_needs_the_signed_row(self):
+        """A member of wheel/sudo is root with a password (1.0.101): their key as root's."""
+        import pwd
+        me = pwd.getpwuid(os.geteuid())
+        home = os.path.join(TMP, 'home-sudo')
+        os.makedirs(home, exist_ok=True)
+        W = self.W
+        saved = (W.ssh_user, W.lu_may_sudo, W.user_auth_read, W.user_auth_write, W.user_auth_paths,
+                 W.normal_users)
+        kept = []
+        W.ssh_user = lambda name: me
+        W.user_auth_read = lambda pw: list(kept)
+        W.user_auth_write = lambda pw, lines: kept.__setitem__(slice(None), lines)
+        W.user_auth_paths = lambda pw: (home, os.path.join(home, 'authorized_keys'))
+        W.normal_users = lambda: []
+        try:
+            line = pubkey('sudoer')
+            W.lu_may_sudo = lambda name: True
+            with self.assertRaises(W.Refused):
+                W.sshkeys_do({'do': 'add', 'line': line, 'user': 'opsuser'})
+            self.assertEqual(kept, [])
+            E.sshkeys_ask(STORE, [E.node_name()], 'add', 'tester', line=line, user='opsuser')
+            r = next(iter(E.node_key_rows(STORE, 'host:sshkeys:want', E.node_name())))
+            a = next(x for x in json.loads(r['v']) if x.get('line') == line)
+            data = E.sshkeys_root_data(STORE, dict(a, _row=(r['k'], r['v'])))
+            self.assertEqual(len(W.sshkeys_do(data)['keys']), 1)
+            # ...not a member: as before, no row needed
+            kept[:] = []
+            W.lu_may_sudo = lambda name: False
+            self.assertEqual(len(W.sshkeys_do({'do': 'add', 'line': line,
+                                               'user': 'opsuser'})['keys']), 1)
+        finally:
+            (W.ssh_user, W.lu_may_sudo, W.user_auth_read, W.user_auth_write, W.user_auth_paths,
+             W.normal_users) = saved
+
+    def test_users_made_given_a_password_or_sudo_need_the_signed_row(self):
+        """users.ask (1.0.101): add, password and sudo only from a signed row of
+        host:users:want, each once; the rest as before."""
+        W = self.W
+        for r in ({'do': 'add', 'name': 'opsx', 'sudo': True},
+                  {'do': 'password', 'name': 'opsx', 'hash': '$6$x'},
+                  {'do': 'sudo', 'name': 'opsx', 'on': True}):
+            with self.assertRaises(W.Refused) as e:
+                W.users_signed(r)
+            self.assertIn('db_guard', str(e.exception))
+        self.assertIsNone(W.users_signed({'do': 'lock', 'name': 'opsx'}))
+        k = E.node_key('host:users:want', E.node_name())
+        ask = {'id': 'u1', 'do': 'sudo', 'name': 'opsx', 'on': True, 'at': time.time(), 'by': 't'}
+        STORE.set_meta(k, json.dumps([ask]))
+        STORE.set_meta(k, json.dumps([ask, dict(ask, id='u2', do='lock')]))   # written between
+        q = {'do': 'sudo', 'name': 'opsx', 'on': True,
+             'signed': E.signed_ask_row(STORE, (k, json.dumps([ask])), 'u1')}
+        once = W.users_signed(q)
+        self.assertTrue(once)
+        with self.assertRaises(W.Refused):              # another thing than was asked
+            W.users_signed(dict(q, on=False))
+        W.ask_once_note(once)
+        with self.assertRaises(W.Refused) as e:
+            W.users_signed(q)
+        self.assertIn('done here already', str(e.exception))
+        # a row written past acme
+        forged_meta(k, json.dumps([dict(ask, id='u3')]))
+        with self.assertRaises(W.Refused) as e:
+            W.users_signed({'do': 'sudo', 'name': 'opsx', 'on': True, 'signed': E.signed_ask_row(
+                STORE, (k, json.dumps([dict(ask, id='u3')])), 'u3')})
+        self.assertIn('not signed by acme', str(e.exception))
+        self.helper_guard(False)
+        self.assertIsNone(W.users_signed({'do': 'sudo', 'name': 'opsx', 'on': True}))
 
     def test_unreadable_config_counts_as_on(self):
         with open(self.W.CONFIG_PATH, 'w') as f:
