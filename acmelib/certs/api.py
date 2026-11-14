@@ -495,6 +495,9 @@ def cert_save(store, b, by, full=False, out=None):
                 continue
             if not S.plugin_row(store, 'challenge', v):
                 raise ValueError('there is no challenge %s (for %s)' % (v, k))
+            no = S.map_ip_refused(store, k, v)
+            if no:
+                raise ValueError(no)
             cmap[k] = v
         fields['challenge_map'] = json.dumps(cmap)
     elif not row:
@@ -1111,7 +1114,7 @@ def _option_line_check(f, v, what):
     one line - a "\\n" in Cisco 9800's webauth parameter map was one more line of the
     controller's configuration ("username x privilege 15 ...") - each line of a list alike,
     and the field's own pattern= (a name, a part of a URL path) when it has one."""
-    from acmelib.plugins.targets._common import control_char, lines
+    from acmelib.plugins.targets._common import control_char, lines, SEG_PATTERN, SEG_WORDS
     t = f.get('type')
     if v is None or v == '' or t in ('bool', 'number', 'secret', 'pem', 'sshkey'):
         return
@@ -1139,7 +1142,8 @@ def _option_line_check(f, v, what):
         for ln in rows:
             if not re.fullmatch(pat, ln):
                 raise ValueError('%s: "%s" is refused - %s' % (
-                    what, ln[:80], f.get('pattern_words') or 'not of the form the device takes'))
+                    what, ln[:80], f.get('pattern_words') or (
+                        SEG_WORDS if pat == SEG_PATTERN else 'not of the form the device takes')))
 
 
 def _deploy_key_check(cls, given, old):
@@ -2426,6 +2430,9 @@ def _renamed(store, family, old, new):
     elif family == 'target':
         db.run('UPDATE cert_deploys SET target = ? WHERE target = ?', (new, old))
         db.run('UPDATE certs SET csr_from = ? WHERE csr_from = ?', (new, old))
+        # ...and the record of the device each version was made for (1.0.101)
+        from acmelib.certs import devicekey as DK
+        DK.device_renamed(store, old, new)
         # the CSR its device made for an issue a source still holds (1.0.96): kept under the
         # old name, the device was asked for a new key and the held request fit no key
         for r in db.rows("SELECT id, csr_pending FROM certs WHERE csr_pending LIKE ?",

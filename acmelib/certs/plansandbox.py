@@ -2009,6 +2009,7 @@ def run_one(job, r, bundle_holder):
     del OWN_DNS[:]
     err = None
     said = None
+    PRINTED.take()                  # what was printed before this run is not its own
     signal.signal(signal.SIGALRM, _alarm)
     signal.alarm(int(r.get('seconds') or 8))
     try:
@@ -2216,6 +2217,10 @@ def run_one(job, r, bundle_holder):
         signal.alarm(0)
         RECORDING[0] = None
         ANSWERS[0] = None
+    printed, over = PRINTED.take()
+    if printed.strip():
+        # what the module printed, aside (1.0.101): shown with the debug details
+        events.append({'kind': 'output', 'text': printed, 'over': over})
     marks = r.get('marks') or {}
     return {'events': [clean(ev, marks) for ev in events], 'error': mask_text(err, marks)
             if err else None, 'said': mask_text(said, marks) if isinstance(said, str) else None}
@@ -2312,6 +2317,8 @@ def clean(ev, marks):
         ev['what'] = mask_command(ev.get('what') or '', marks)
     elif k == 'say':
         ev['words'] = mask_text(ev['words'], marks)
+    elif k == 'output':
+        ev['text'] = mask_text(str(ev.get('text') or ''), marks)
     elif k in ('dns-ask', 'dns-update'):
         ev = mask_json(ev, marks)
     for key in ('path', 'host'):
@@ -2531,9 +2538,127 @@ def _patch_modules(job):
         pass
 
 
+class Printed(io.TextIOBase):
+    """sys.stdout and sys.stderr while modules run (1.0.101): what a module prints kept aside,
+    at most CAP characters a run - never in the recording's own output (one print() lost the
+    whole plan; one writing in a loop filled the daemon's memory)."""
+    CAP = 4000
+
+    def __init__(self):
+        super().__init__()
+        self.kept = []
+        self.n = 0
+        self.over = 0
+
+    def writable(self):
+        return True
+
+    @property
+    def encoding(self):
+        return 'utf-8'
+
+    @property
+    def buffer(self):
+        me = self
+
+        class _Bytes:
+            def write(self, b):
+                me.write(bytes(b).decode('utf-8', 'replace'))
+                return len(b)
+
+            def flush(self):
+                pass
+        return _Bytes()
+
+    def write(self, t):
+        t = t if isinstance(t, str) else str(t)
+        room = self.CAP - self.n
+        if room > 0:
+            self.kept.append(t[:room])
+            self.n += min(len(t), room)
+        self.over += max(0, len(t) - max(room, 0))
+        return len(t)
+
+    def take(self):
+        out = (''.join(self.kept), self.over)
+        self.kept, self.n, self.over = [], 0, 0
+        return out
+
+
+PRINTED = Printed()
+RESULT_FD = [None]
+
+
+def limits(lim):
+    """The process's own limits, before any module is loaded (1.0.101): its memory, its
+    processor time, the size of a file it writes (a bigger write fails, the process goes on).
+    Programs it may start (openssl) have them too."""
+    import resource
+    lim = lim or {}
+
+    def cap(what, soft, hard=None):
+        try:
+            _s, h = resource.getrlimit(what)
+            hard = soft if hard is None else hard
+            if h != resource.RLIM_INFINITY:
+                soft, hard = min(soft, h), min(hard, h)
+            resource.setrlimit(what, (soft, hard))
+        except (ValueError, OSError):
+            pass
+    mem = int(lim.get('mem_mb') or 1024) << 20
+    cap(resource.RLIMIT_AS, mem)
+    if hasattr(resource, 'RLIMIT_DATA'):
+        cap(resource.RLIMIT_DATA, mem)
+    cpu = int(lim.get('cpu_s') or 80)
+    cap(resource.RLIMIT_CPU, cpu, cpu + 5)
+    try:
+        signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
+    except (AttributeError, ValueError, OSError):
+        pass
+    cap(resource.RLIMIT_FSIZE, int(lim.get('file_mb') or 64) << 20)
+    # RLIMIT_NPROC is not set: it counts every process of the user (the daemon's threads too),
+    # and starting programs is shut off by lockdown() already.
+
+
+def shut_output():
+    """The recording's own answer to a copy of stdout kept aside; stdout and stderr, as files
+    and as sys.stdout / sys.stderr, go nowhere (1.0.101) - what the modules print is kept in
+    PRINTED; the end of the process's own trouble goes to the real stderr (see main())."""
+    RESULT_FD[0] = os.dup(1)
+    err = os.dup(2)
+    null = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(null, 1)
+    os.dup2(null, 2)
+    os.close(null)
+    sys.stdout = PRINTED
+    sys.stderr = PRINTED
+    return err
+
+
+def answer(data):
+    fd = RESULT_FD[0]
+    view = memoryview(data)
+    while view:
+        n = os.write(fd, view)
+        view = view[n:]
+
+
 def main():
     raw = sys.stdin.buffer.read()
     job = json.loads(raw.decode('utf-8'))
+    limits(job.get('limits'))
+    err_fd = shut_output()
+    try:
+        _main(job)
+    except BaseException:                               # noqa: BLE001
+        try:
+            os.write(err_fd, traceback.format_exc()[-4000:].encode('utf-8', 'replace'))
+        except OSError:
+            pass
+        os._exit(1)
+
+
+def _main(job):
     folder = os.environ.get('TMPDIR') or job.get('folder')
     lockdown(folder)
     sys.path.insert(0, job['root'])
@@ -2580,8 +2705,7 @@ def main():
             else:
                 got['later_error'] = lg['error']
         out[r['id']] = got
-    sys.stdout.write(json.dumps({'runs': out}, default=str))
-    sys.stdout.flush()
+    answer(json.dumps({'runs': out}, default=str).encode('utf-8'))
 
 
 if __name__ == '__main__':

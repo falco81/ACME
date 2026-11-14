@@ -361,14 +361,20 @@ def _revoked_keys(store, cert_id):
     return sorted(out)
 
 
-HELD_RE = re.compile(r'-pending:[0-9a-f]{12}:(\d+)(?::|$)')
+# '<kind>-pending:<hash of the CA>:<the certificate>[:...]' (_source_common.pending_slot), and
+# SSLmarket's and SSLS.cz's own '<kind>-pending:<the certificate>:<key family>' (1.0.101: missed).
+HELD_RE = re.compile(r'-pending:(?:[0-9a-f]{12}:)?(\d+)(?::|$)')
 
 
 def drop_held(store, job, cert, ctx, issuer):
-    """Every request the source holds for this certificate dropped (1.0.101: revoked, the
-    order held at the CA - with the key revoked - was finished by the next renewal), its DCV
-    records taken away. -> how many."""
+    """The requests the source holds for this certificate with a key revoked dropped (1.0.101:
+    revoked, the order held at the CA - with the key revoked - was finished by the next renewal),
+    their DCV records taken away. One held for another key (a new one, asked since) stays: only
+    acme's record of it would go, the order staying open at the CA - and the next renewal paid a
+    second one. One whose key cannot be told goes. -> how many."""
     from acmelib.plugins.issuers import _source_common as sc
+    from acmelib.plugins.issuers.acme import _unseal
+    refused = {str(k).upper() for k in _revoked_keys(store, cert['id'])}
     n, contexts = 0, []
     try:
         held = ctx.kv_keys('')
@@ -381,6 +387,15 @@ def drop_held(store, job, cert, ctx, issuer):
         if isinstance(v, str):
             v = sc.parse_json(v)
         v = v if isinstance(v, dict) else {}
+        try:
+            kp = _unseal(ctx, v['key'], key) if v.get('key') else None
+        except Exception:                               # noqa: BLE001
+            kp = None
+        pub = sc._held_pub({'key_pem': kp, 'csr_pem': v.get('csr_pem')})
+        if pub is not None and str(pub).upper() not in refused:
+            job.step('the request %s held at the source is for another key (not revoked) - kept'
+                     % (v.get('id') or v.get('order_id') or v.get('cert_id') or key))
+            continue
         names = list(v.get('names') or S.jload(cert.get('names'), []) or [])
         challenges = {}
         if v.get('dcv'):
@@ -392,12 +407,15 @@ def drop_held(store, job, cert, ctx, issuer):
         req = base.CertRequest(names=names, challenges=challenges, cert_id=cert['id'])
         try:
             sc._drop_held(ctx, key, req, v, issuer)
+            hook = getattr(issuer, 'held_dropped', None)
+            if callable(hook):
+                hook(v)                 # its own list of those waiting (SSLmarket, SSLS.cz)
         except Exception as e:                          # noqa: BLE001
             job.step('the request held could not be dropped: %s' % e, 'warn')
             continue
         n += 1
         job.step('the request %s held at the source (with the key revoked) dropped'
-                 % (v.get('id') or key), 'ok')
+                 % (v.get('id') or v.get('order_id') or v.get('cert_id') or key), 'ok')
     for c in contexts:
         try:
             c.tidy()

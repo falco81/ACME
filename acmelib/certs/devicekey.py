@@ -212,6 +212,21 @@ def made_by_device(store, cert_id, version, device):
                    json.dumps({'version': int(version), 'device': str(device)[:190]}))
 
 
+def device_renamed(store, old, new):
+    """A target renamed (1.0.101): the record of the device a version was made for names it by
+    its new name - kept under the old one, the version its device made fit no key of it any
+    more, was refused for deployment and issued again."""
+    head = S.CERT_META['devmade'].split('%', 1)[0]
+    n = 0
+    for r in store.db.rows('SELECT k, v FROM meta WHERE k LIKE ?', (head + '%',)):
+        rec = S.jload(r['v'], None)
+        if isinstance(rec, dict) and str(rec.get('device') or '') == str(old):
+            rec['device'] = str(new)[:190]
+            store.set_meta(r['k'], json.dumps(rec))
+            n += 1
+    return n
+
+
 def version_problem(store, cert):
     """Why the version the certificate holds does not fit where its key is made - words, or ''.
     Switched to "Key made by the device" (or away from it) after it was issued, the version

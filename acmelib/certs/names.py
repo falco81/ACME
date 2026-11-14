@@ -174,6 +174,9 @@ def _references(store, fam, old, new):
     elif fam == 'target':
         db.run('UPDATE cert_deploys SET target = ? WHERE target = ?', (new, old))
         db.run('UPDATE certs SET csr_from = ? WHERE csr_from = ?', (new, old))
+        # the device each version was made for, by its new name (1.0.101)
+        from acmelib.certs import devicekey as DK
+        DK.device_renamed(store, old, new)
     meta = {'issuer': 'certs:default_issuer', 'challenge': 'certs:default_challenge',
             'target': 'certs:default_target',
             'ca': DF.META.get('ca', 'certs:default_ca')}.get(fam)   # the authority too (1.0.51)

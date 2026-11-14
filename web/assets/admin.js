@@ -7427,7 +7427,7 @@ function drawHaLb(d) {
     lb: LB_UI.lb || trusted.replace(/\/(32|128)$/, '') || '192.0.2.5',
     name: LB_UI.name || (lb.vip && lb.vip.fqdn) || lb.server_name || location.hostname,
     tls: LB_UI.tls || 'end', hc: LB_UI.hc || '/healthz'};
-  host.appendChild(el('p', 'note', 'Both nodes answer everything, so any balancer spreads the pages round robin, without sticky sessions. Each node says GET /healthz: 200 "ok NODE" while it really works (the daemon, its database), 503 in maintenance or an upgrade - so the balancer takes it out by itself. Pick yours below: the configuration is filled in with this cluster\'s own names, addresses and ports, marked in colour, and follows what you type here.'));
+  host.appendChild(el('p', 'note', 'Both nodes answer everything, so any balancer spreads the pages round robin, without sticky sessions. Each node says GET /healthz: 200 "ok up" while it really works (the daemon, its database), 503 in maintenance or an upgrade - so the balancer takes it out by itself. Pick yours below: the configuration is filled in with this cluster\'s own names, addresses and ports, marked in colour, and follows what you type here.'));
   if (lb.vip && lb.vip.on) {
     host.appendChild(el('p', 'note warn', 'The built-in VIP address ' + lb.vip.address + ' is on: the pages need no balancer of yours. Use one or the other.'));
   }

@@ -306,7 +306,7 @@ Step-by-step procedures for every situation (a node down, lost, rebuilt,
 leaving the cluster): [operations.md](operations.md).
 
 - **HTTPS**: round robin to both nodes on 443. No stickiness is needed. For the
-  health check use `GET /healthz`: it answers `200 ok NODE` while the node and
+  health check use `GET /healthz`: it answers `200 ok up` while the node and
   its database work, and `503` when they do not.
 
   The nodes must see the address of whoever is signing in, not the

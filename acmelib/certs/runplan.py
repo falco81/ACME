@@ -52,6 +52,13 @@ from acmelib.certs import store as S
 
 RUN_S = 8                       # each module's recording at most
 ALL_S = 75                      # the whole recording at most
+# What the recording's process may take (1.0.101): a module's own code runs there. Its memory
+# (address space; ACME_PLAN_MEM_MB), its processor time, the size of a file it writes - and
+# what the daemon reads back from it, beyond which it is stopped.
+SANDBOX_MEM_MB = 1024
+SANDBOX_FILE_MB = 64
+SANDBOX_OUT_BYTES = 32 << 20
+SANDBOX_ERR_BYTES = 64 << 10
 NAMES_MOST = 8                  # names whose validation is recorded one by one
 DOTS = '••••'
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -3426,6 +3433,89 @@ def _header_masked(line):
 # ---------------------------------------------------------------------------
 # The recording
 # ---------------------------------------------------------------------------
+def sandbox_limits(timeout=ALL_S):
+    """The limits the recording's process puts on itself before any module is loaded."""
+    try:
+        mem = int(os.environ.get('ACME_PLAN_MEM_MB') or SANDBOX_MEM_MB)
+    except ValueError:
+        mem = SANDBOX_MEM_MB
+    return {'mem_mb': max(256, mem), 'cpu_s': int(timeout) + 5, 'file_mb': SANDBOX_FILE_MB}
+
+
+def run_capped(argv, data, timeout, env=None, cwd=None, cap=SANDBOX_OUT_BYTES,
+               err_cap=SANDBOX_ERR_BYTES):
+    """A process given `data` on its input, its output read up to `cap` bytes (1.0.101: read
+    whole, a module writing to it in a loop took the daemon to gigabytes) -> (returncode,
+    stdout bytes, the end of stderr, why) - why '' or 'time' or 'size' (it was stopped)."""
+    import selectors
+    import signal
+    import threading
+    p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                         stderr=subprocess.PIPE, env=env, cwd=cwd, start_new_session=True)
+
+    def feed():
+        try:
+            p.stdin.write(data)
+        except (BrokenPipeError, OSError, ValueError):
+            pass
+        finally:
+            try:
+                p.stdin.close()
+            except (BrokenPipeError, OSError):
+                pass
+    threading.Thread(target=feed, daemon=True).start()
+    out, err = bytearray(), bytearray()
+    why = ''
+    end = time.monotonic() + timeout
+    sel = selectors.DefaultSelector()
+    sel.register(p.stdout, selectors.EVENT_READ, 'out')
+    sel.register(p.stderr, selectors.EVENT_READ, 'err')
+    try:
+        while sel.get_map():
+            left = end - time.monotonic()
+            if left <= 0:
+                why = 'time'
+                break
+            for key, _ev in sel.select(min(left, 1.0)):
+                chunk = os.read(key.fileobj.fileno(), 65536)
+                if not chunk:
+                    sel.unregister(key.fileobj)
+                    continue
+                if key.data == 'out':
+                    out += chunk
+                    if len(out) > cap:
+                        why = 'size'
+                        break
+                else:
+                    err += chunk
+                    if len(err) > err_cap:
+                        del err[:len(err) - err_cap]
+            if why:
+                break
+    finally:
+        sel.close()
+        if why:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except OSError:
+                pass
+        try:
+            p.wait(timeout=max(0.1, end - time.monotonic()) if not why else 10)
+        except subprocess.TimeoutExpired:
+            why = why or 'time'
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            p.wait()
+        for f in (p.stdout, p.stderr):
+            try:
+                f.close()
+            except OSError:
+                pass
+    return p.returncode, bytes(out[:cap]), bytes(err), why
+
+
 def record(job, timeout=ALL_S):
     """The sandbox run: plansandbox.main() in a process of its own -> {id: result}."""
     folder = tempfile.mkdtemp(prefix='acme-plan-')
@@ -3435,22 +3525,23 @@ def record(job, timeout=ALL_S):
         for k in ('ACME_PLAN_TRACE',):
             if os.environ.get(k):
                 env[k] = os.environ[k]
-        job = dict(job, root=ROOT, folder=folder,
+        job = dict(job, root=ROOT, folder=folder, limits=sandbox_limits(timeout),
                    plugin_dirs=[d for d in base.REGISTRY.dirs[1:] if os.path.isdir(d)])
         code = ('import sys; sys.path.insert(0, %r); '
                 'from acmelib.certs import plansandbox as m; m.main()' % ROOT)
-        try:
-            got = subprocess.run([sys.executable, '-I', '-c', code],
-                                 input=json.dumps(job, default=str).encode('utf-8'),
-                                 capture_output=True, timeout=timeout, env=env, cwd=folder,
-                                 start_new_session=True)
-        except subprocess.TimeoutExpired:
+        rc, out, err, why = run_capped([sys.executable, '-I', '-c', code],
+                                       json.dumps(job, default=str).encode('utf-8'),
+                                       timeout, env=env, cwd=folder)
+        if why == 'time':
             return {}, 'the recording took more than %d s' % timeout
-        if got.returncode != 0:
-            tail = got.stderr.decode('utf-8', 'replace').strip().splitlines()[-1:]
-            return {}, 'the recording failed: %s' % (' '.join(tail)[:300] or got.returncode)
+        if why == 'size':
+            return {}, 'the recording said more than %d MB - it was stopped' % (
+                SANDBOX_OUT_BYTES >> 20)
+        if rc != 0:
+            tail = err.decode('utf-8', 'replace').strip().splitlines()[-1:]
+            return {}, 'the recording failed: %s' % (' '.join(tail)[:300] or rc)
         try:
-            return json.loads(got.stdout.decode('utf-8')).get('runs') or {}, ''
+            return json.loads(out.decode('utf-8')).get('runs') or {}, ''
         except ValueError:
             return {}, 'the recording said nothing that can be read'
     finally:
@@ -4016,6 +4107,18 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
             st = {'kind': 'info', 'words': words, 'said': True}
             if lv in ('ok', 'warn', 'bad'):
                 st['level'] = lv
+        elif k == 'output':
+            # what the module printed (1.0.101): kept aside, capped - never the recording's
+            # own words; a debug detail only
+            text = str(ev.get('text') or '')
+            if not text.strip():
+                i += 1
+                continue
+            pairs = [['Printed', text]]
+            if ev.get('over'):
+                pairs.append(['Not kept', '%s more character(s)' % ev['over'], 'dim'])
+            st = {'kind': 'info', 'words': 'What the module printed (acme does not use it)',
+                  'debug': True, 'detail': {'pairs': pairs}}
         elif k == 'pages':
             st = {'kind': 'save', 'words': 'Puts it into acme\'s own pages ({0})'.replace(
                 '{0}', ev.get('where') or '')}

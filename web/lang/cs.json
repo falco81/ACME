@@ -1981,8 +1981,8 @@
    "text": "Oba nody"
   },
   "s0494": {
-   "source": "Both nodes answer everything, so any balancer spreads the pages round robin, without sticky sessions. Each node says GET /healthz: 200 \"ok NODE\" while it really works (the daemon, its database), 503 in maintenance or an upgrade - so the balancer takes it out by itself. Pick yours below: the configuration is filled in with this cluster's own names, addresses and ports, marked in colour, and follows what you type here.",
-   "text": "Oba uzly odpovídají na vše, takže jakýkoli balancer rozkládá stránky round robin, bez sticky sessions. Každý uzel na GET /healthz odpoví 200 „ok UZEL“, dokud opravdu funguje (démon, databáze), a 503 v údržbě či při aktualizaci – balancer ho tak vyřadí sám. Vyberte si svůj níže: konfigurace je vyplněná skutečnými jmény, adresami a porty tohoto clusteru, barevně zvýrazněnými, a mění se podle toho, co zde zadáte."
+   "source": "Both nodes answer everything, so any balancer spreads the pages round robin, without sticky sessions. Each node says GET /healthz: 200 \"ok up\" while it really works (the daemon, its database), 503 in maintenance or an upgrade - so the balancer takes it out by itself. Pick yours below: the configuration is filled in with this cluster's own names, addresses and ports, marked in colour, and follows what you type here.",
+   "text": "Oba uzly odpovídají na vše, takže jakýkoli balancer rozkládá stránky round robin, bez sticky sessions. Každý uzel na GET /healthz odpoví 200 „ok up“, dokud opravdu funguje (démon, databáze), a 503 v údržbě či při aktualizaci – balancer ho tak vyřadí sám. Vyberte si svůj níže: konfigurace je vyplněná skutečnými jmény, adresami a porty tohoto clusteru, barevně zvýrazněnými, a mění se podle toho, co zde zadáte."
   },
   "s0495": {
    "source": "Both nodes are switched off. Nothing answers - RADIUS, the pages - until somebody switches them on again at the machines.",
@@ -87025,6 +87025,14 @@
   "p_251": {
    "source": "the sign-ins to the portal could not be ended: {0}",
    "text": "přihlášení na portál se nepodařilo ukončit: {0}"
+  },
+  "p_252": {
+   "source": "Put your certificate for {0} into the clientssl profile.",
+   "text": "Vložte svůj certifikát pro {0} do profilu clientssl."
+  },
+  "p_253": {
+   "source": "the node {0} runs on another machine than before: the SSH server, the time, the console at login, the password policy and the rest saved are put in there again",
+   "text": "uzel {0} běží na jiném stroji než předtím: SSH server, čas, konzole při přihlášení, politika hesel a zbytek uloženého se tam znovu nastaví"
   }
  },
  "rich": {

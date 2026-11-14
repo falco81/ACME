@@ -931,6 +931,30 @@ def map_key(k):
     return k
 
 
+def _map_is_ip(k):
+    try:
+        ipaddress.ip_address(str(k or '').strip('[]'))
+        return True
+    except ValueError:
+        return False
+
+
+def map_ip_refused(store, key, challenge):
+    """Words when `key` of challenge_map is an IP address and the validation `challenge` proves
+    names by DNS only (1.0.101): DNS-01 cannot prove an address, and the CA said so only later,
+    in words of its own. '' when it may be."""
+    if not _map_is_ip(key):
+        return ''
+    row = plugin_row(store, 'challenge', challenge)
+    cls = row_class('challenge', row) if row else None
+    types = tuple(getattr(cls, 'types', ()) or ()) if cls else ()
+    if types and not any(t in types for t in ('http-01', 'tls-alpn-01')):
+        return ('%s is an IP address: the validation %s proves names in DNS only (%s), which '
+                'cannot prove an address - choose an HTTP-01 validation for it'
+                % (key, row['name'], ', '.join(types)))
+    return ''
+
+
 def _map_key_soft(k):
     try:
         return map_key(k)
@@ -947,6 +971,10 @@ def challenge_for(cert, name):
     n = _map_key_soft(name)
     if n in cmap:
         return cmap[n]
+    if _map_is_ip(n):
+        # An address by its own key only (1.0.101): a pattern of names ('.0.1', '*.0.0.1') is
+        # no pattern of addresses - 10.0.0.1 was proved by the validation of '.0.1'.
+        return cert.get('challenge') or None
     bare = n[2:] if n.startswith('*.') else n
     if '.' in bare:
         parent = bare.split('.', 1)[1]

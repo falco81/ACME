@@ -2384,5 +2384,135 @@ class AcmeRecorded(unittest.TestCase):
         self.assertIn('A renewal could not be recorded', steps[1]['words'])
 
 
+HOG = r"""
+import os
+import sys
+from acmelib.plugins.base import Target
+
+
+class Hog(Target):
+    kind = 'planhog'
+    label = 'A module that misbehaves'
+    fields = []
+
+    def deploy(self, bundle, options):
+        what = (options or {}).get('what')
+        if what == 'print':
+            print('hello from the module')
+            sys.stderr.write('and its stderr\n')
+            os.write(1, b'straight to the file of stdout\n')
+            return 'ok'
+        if what == 'mem':
+            keep = []
+            for _i in range(40):
+                keep.append(bytearray(100 * 1024 * 1024))
+            return 'ok %d' % len(keep)
+        if what == 'stdout':
+            while True:
+                sys.stdout.write('x' * 65536)
+                os.write(1, b'y' * 65536)
+        if what == 'loop':
+            while True:
+                pass
+        return 'ok'
+"""
+
+
+class SandboxLimits(unittest.TestCase):
+    """The recording's process kept in bounds (1.0.101): a module's print() is no longer the
+    recording's answer (one lost the whole plan) - it is kept aside, capped, and shown with the
+    debug details; its memory is limited; one writing to stdout in a loop no longer fills the
+    daemon's memory; one that loops is stopped."""
+
+    @classmethod
+    def setUpClass(cls):
+        import tempfile
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        from acmelib.plugins import base
+        cls.base = base
+        cls.dir = tempfile.mkdtemp(prefix='acme-plan-hog-')
+        os.makedirs(os.path.join(cls.dir, 'targets'))
+        with open(os.path.join(cls.dir, 'targets', 'planhog.py'), 'w') as f:
+            f.write(HOG)
+        cls.dirs = list(base.REGISTRY.dirs)
+        base.REGISTRY.dirs = base.REGISTRY.dirs[:1] + [cls.dir]
+        base.REGISTRY.reload()
+
+    @classmethod
+    def tearDownClass(cls):
+        import shutil
+        cls.base.REGISTRY.dirs = cls.dirs
+        cls.base.REGISTRY.reload()
+        shutil.rmtree(cls.dir, ignore_errors=True)
+
+    def record(self, what, seconds=4, timeout=60):
+        from acmelib.certs import runplan as R
+        got, err = R.record({'runs': [{
+            'id': 'r1', 'family': 'target', 'kind': 'planhog', 'name': 'h', 'op': 'deploy',
+            'config': {}, 'options': {'what': what}, 'seconds': seconds, 'answers': [],
+            'ssh_answers': []}], 'cert': {'names': ['www.example.com'], 'key_type': 'ec-256'}},
+            timeout=timeout)
+        self.assertEqual(err, '')
+        return got['r1']
+
+    def test_print_kept_aside(self):
+        from acmelib.certs import runplan as R
+        run = self.record('print')
+        self.assertIsNone(run['error'])
+        self.assertEqual(run['said'], 'ok')
+        out = [e for e in run['events'] if e['kind'] == 'output']
+        self.assertEqual(len(out), 1)
+        self.assertIn('hello from the module', out[0]['text'])
+        self.assertIn('and its stderr', out[0]['text'])
+        self.assertNotIn('straight to the file', out[0]['text'])     # that went nowhere
+        steps = R.steps_of(run['events'])
+        st = [x for x in steps if x.get('words', '').startswith('What the module printed')]
+        self.assertEqual(len(st), 1)
+        self.assertTrue(st[0]['debug'])
+
+    def test_stdout_flood(self):
+        import resource
+        before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        run = self.record('stdout', seconds=2)
+        self.assertIn('took too long', run['error'])
+        out = [e for e in run['events'] if e['kind'] == 'output'][0]
+        self.assertLessEqual(len(out['text']), 4000)
+        self.assertGreater(out['over'], 0)
+        grown = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before
+        self.assertLess(grown, 200 * 1024, 'the test process grew by %d kB' % grown)
+
+    def test_memory_capped(self):
+        with unittest.mock.patch.dict(os.environ, {'ACME_PLAN_MEM_MB': '512'}):
+            run = self.record('mem', seconds=20)
+        self.assertIn('MemoryError', run['error'] or '')
+        self.assertIsNone(run['said'])
+
+    def test_loop_stopped(self):
+        run = self.record('loop', seconds=2)
+        self.assertIn('it was stopped after 2 s', run['error'])
+
+    def test_output_read_with_a_cap(self):
+        """What the daemon reads of the process at most: beyond it, the process is stopped."""
+        import time
+        from acmelib.certs import runplan as R
+        t0 = time.monotonic()
+        rc, out, err, why = R.run_capped(
+            [sys.executable, '-c', 'import os\nwhile True: os.write(1, b"z" * 65536)'],
+            b'', 60, cap=1 << 20)
+        self.assertEqual(why, 'size')
+        self.assertLessEqual(len(out), 1 << 20)
+        self.assertNotEqual(rc, 0)
+        self.assertLess(time.monotonic() - t0, 30)
+        rc, out, err, why = R.run_capped(
+            [sys.executable, '-c', 'import sys, time; sys.stdout.write(sys.stdin.read()); '
+             'sys.stderr.write("e" * 200000); time.sleep(0.2)'], b'echo', 60, err_cap=1000)
+        self.assertEqual((rc, out, why, len(err)), (0, b'echo', '', 1000))
+        rc, out, err, why = R.run_capped([sys.executable, '-c', 'import time; time.sleep(30)'],
+                                         b'', 1)
+        self.assertEqual(why, 'time')
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

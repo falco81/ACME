@@ -29,14 +29,14 @@ never cached, and checks the whole path a real request takes:
 | `/healthz` | nginx → PHP-FPM → the acme daemon → the database all answer; the node is not in maintenance | anything on that path is down; the database does not open; the node is in maintenance or being upgraded |
 | `/healthz?check=all` | the same, and replication runs both ways | the above, or `degraded: replication not running / lost` - for **monitoring** only, not for a balancer (a node cannot fix its peer's replication, and both would be taken out) |
 
-The body says why, on one line: `ok acme1`, `maintenance acme1`,
+The body says why, on one line: `ok up`, `maintenance`,
 `down: the daemon is not answering`, `down: the database does not open`,
 `down: the pages cannot read the daemon's API token`. Anything else after
 `?check=` is the same as `/healthz`. Match on the status code, or on the
 body starting with `ok `.
 
-`/healthz` asks the daemon's `/api/health` with the daemon's API token, so the
-node's name is still in its body. Since 1.0.101, `/api/health` asked **without** the
+`/healthz` says words only - never the node's name (since 1.0.101; it said `ok acme1`
+before). Since 1.0.101, `/api/health` asked **without** the
 token (the only route of the daemon's API that answers without it) says no node
 name and not whether any account exists. It still says whether the daemon answers,
 whether the database opens, whether the node is in maintenance, the language, and
@@ -260,9 +260,9 @@ bind ssl vserver acme_vs -certkeyName acme.example.cz
 ## After setting one up
 
 ```bash
-for n in 192.0.2.11 192.0.2.12; do curl -sk https://$n/healthz; done   # ok acme1 / ok acme2
+for n in 192.0.2.11 192.0.2.12; do curl -sk https://$n/healthz; done   # ok up / ok up
 acme --maintenance on --why "balancer test"        # on acme1: the balancer must take it out
-curl -sk https://192.0.2.11/healthz                # 503 maintenance acme1
+curl -sk https://192.0.2.11/healthz                # 503 maintenance
 acme --maintenance off
 ```
 

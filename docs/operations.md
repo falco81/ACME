@@ -155,7 +155,7 @@ What lives where:
    ```bash
    acme --status
    acme --check
-   curl -sk https://127.0.0.1/healthz        # "ok acme1"
+   curl -sk https://127.0.0.1/healthz        # "ok up"
    ```
 
 4. Sign in at `https://acme1.example.cz/admin/` and change the password.
@@ -373,7 +373,7 @@ Things to watch (a monitoring system can ask the same over HTTP):
 
 | What | How | Healthy |
 |---|---|---|
-| node answers the pages | `GET https://NODE/healthz` | `200 ok NODE` |
+| node answers the pages | `GET https://NODE/healthz` | `200 ok up` |
 | replication | `GET https://NODE/healthz?check=all` | `200` (`503 degraded: replication ...` when not) |
 | certificates | `acme --web-status`, *Settings → Certificates* | more than 21 days left |
 | disk | `df -h /var/lib/pgsql /var/lib/acme` | replication keeps up to 16 GB for a node that is away |

@@ -43,7 +43,7 @@ __all__ = [
     'PFX_FORMATS', 'quote', 'chain_list', 'tls_fields', 'put_scp',
     'alt_of', 'variant_of', 'variants_of', 'family_of', 'dual_fp', 'VARIANT_WORDS',
     'outputs_for', 'ours', 'covers', 'service_of', 'join_hostport', 'debug_url',
-    'seg', 'SEG_PATTERN', 'NAME_PATTERN', 'control_char', 'url_path_problem',
+    'seg', 'SEG_PATTERN', 'SEG_WORDS', 'NAME_PATTERN', 'control_char', 'url_path_problem',
 ]
 
 PFX_FORMATS = ('pfx', 'p12', 'p12-legacy', 'jks')
@@ -208,6 +208,8 @@ def chain_list(bundle):
 _CONTROL = re.compile('[\x00-\x1f\x7f\x85  ]')
 # a field's pattern= (acmelib/plugins/base.py) for an option that becomes a part of a URL path
 SEG_PATTERN = r'^(?!\s*\.\.?\s*$)[^/\\?#%\x00-\x1f\x7f]{1,255}\Z'
+SEG_WORDS = ('a part of the device\'s address: no /, \\, ?, #, %, control characters, '
+             'not . or ..')
 # ...and for a name on a device's command line: letters, digits, _ . - only
 NAME_PATTERN = r'^[A-Za-z0-9_.-]{1,64}\Z'
 

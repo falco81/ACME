@@ -60,6 +60,9 @@ def _draft(store, b):
         for k, v in m.items():
             k, v = S.map_key(k), str(v or '').strip()
             if k and v:
+                no = S.map_ip_refused(store, k, v)       # as a save refuses it (1.0.101)
+                if no:
+                    raise ValueError(no)
                 cm[k] = v
         cert['challenge_map'] = json.dumps(cm)
     if 'profile' in d:

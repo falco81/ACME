@@ -1239,6 +1239,27 @@ class HuntM1(unittest.TestCase):
         STORE.db.update('certs', cid, {'csr_from': None})
         self.assertTrue(devicekey.device_made(STORE, S.cert_need(STORE, cid)))
 
+    def test_3b_a_device_renamed_still_made_the_version(self):
+        """A target renamed (1.0.101): the version its device made still fits it - by the
+        renaming on the pages and by names.migrate's alike."""
+        from acmelib.certs import names as NM
+        a = device()
+        cid = save(name='hm3b', names=['hm3b.example.test'], issuer='own', csr_from=a)
+        self.assertTrue(renew(cid).ok)
+        self.assertTrue(devicekey.device_made(STORE, S.cert_need(STORE, cid)))
+        for old, new, how in ((a, a + 'x', 'api'), (a + 'x', a + 'y', 'names')):
+            STORE.db.run('UPDATE cert_targets SET name = ? WHERE name = ?', (new, old))
+            if how == 'api':
+                api._renamed(STORE, 'target', old, new)
+            else:
+                NM._references(STORE, 'target', old, new)
+            cert = S.cert_need(STORE, cid)
+            self.assertEqual(cert['csr_from'], new)
+            self.assertTrue(devicekey.device_made(STORE, cert), how)
+            self.assertEqual(devicekey.version_problem(STORE, cert), '', how)
+            self.assertEqual(devicekey.deploy_problem(STORE, cert, S.plugin_row(
+                STORE, 'target', new)), '', how)
+
     def test_4_an_ip_address_has_a_validation_of_its_own(self):
         add('cert_challenges', 'hmweb', 'http01', {})
         cid = save(name='hm4', names=['www.hm4.example.test', '2001:db8::10', '192.0.2.44'],
@@ -1264,6 +1285,23 @@ class HuntM1(unittest.TestCase):
         with self.assertRaises(ValueError):
             api_runplan._draft(STORE, {'draft': {'names': ['x.example.test'], 'issuer': 'own',
                                                  'challenge_map': {'bad name!': 'hmweb'}}})
+        # An address on a validation of DNS only: refused in words, a name on it taken
+        add('cert_challenges', 'hmdns', 'manual', {})
+        with self.assertRaises(ValueError) as e:
+            save(id=cid, challenge_map={'192.0.2.44': 'hmdns'})
+        self.assertIn('192.0.2.44 is an IP address', str(e.exception))
+        with self.assertRaises(ValueError):
+            api_runplan._draft(STORE, {'draft': {'names': ['2001:db8::10'], 'issuer': 'own',
+                                                 'challenge_map': {'2001:db8::10': 'hmdns'}}})
+        save(id=cid, challenge_map={'www.hm4.example.test': 'hmdns', '192.0.2.44': 'hmweb'})
+        # A pattern of names never proves an address: only its own key does
+        cert = dict(S.cert_need(STORE, cid), challenge='hmweb',
+                    challenge_map=json.dumps({'.0.1': 'hmdns', '*.0.0.1': 'hmdns',
+                                              '.example.test': 'hmdns'}))
+        self.assertEqual(S.challenge_for(cert, '10.0.0.1'), 'hmweb')
+        self.assertEqual(S.challenge_for(cert, 'a.example.test'), 'hmdns')
+        cert['challenge_map'] = json.dumps({'10.0.0.1': 'hmdns'})
+        self.assertEqual(S.challenge_for(cert, '10.0.0.1'), 'hmdns')
 
 
 def tearDownModule():

@@ -790,6 +790,37 @@ class SilentAtOnce(unittest.TestCase):
         reset()
 
 
+class HealthzSaysNoName(unittest.TestCase):
+    """/healthz is public: words only, never the node's name (1.0.101) - and still what the
+    balancers' matches, split_peer_says and the VIP check look for ("ok ", "maintenance")."""
+
+    def say(self, got):
+        import shutil
+        import subprocess
+        if not shutil.which('php'):
+            self.skipTest('no php here')
+        with tempfile.TemporaryDirectory() as d:
+            shutil.copy(os.path.join(ROOT, 'web', 'healthz.php'), d)
+            with open(os.path.join(d, 'acme-api.php'), 'w') as f:
+                f.write('<?php\nfunction acme_token() { return "t"; }\n'
+                        'function acme_get($p, $t) { return json_decode(%r, true); }\n'
+                        % json.dumps(got))
+            r = subprocess.run(['php', os.path.join(d, 'healthz.php')], capture_output=True,
+                               text=True, timeout=30)
+            return r.stdout
+
+    def test_words_only(self):
+        ok = self.say({'ok': True, 'node': 'secretnode', 'database': {'ok': True}})
+        self.assertTrue(ok.startswith('ok '), ok)
+        self.assertNotIn('secretnode', ok)
+        m = self.say({'ok': True, 'node': 'secretnode', 'maintenance': True})
+        self.assertTrue(m.startswith('maintenance'), m)
+        self.assertNotIn('secretnode', m)
+        with open(os.path.join(ROOT, 'web', 'healthz.php')) as f:
+            src = f.read()
+        self.assertNotIn("$got['node']", src)
+
+
 # ---------------------------------------------------------------------------
 class Card(unittest.TestCase):
     def call(self, method, path, body=None):

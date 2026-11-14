@@ -1098,6 +1098,68 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         st, got = self.call('POST', '/api/net', {'action': 'read'}, session=self.admin)
         self.assertEqual(st, 400, got)
         self.assertIn('the root helper is not set up on this node', json.dumps(got))
+    def test_21_deploy_options_one_line_and_names(self):
+        """Hunt M round 2 (1.0.101): a deployment's option of text is one line - Cisco 9800's
+        webauth parameter map "global\\nusername x privilege 15 ..." was one more line of the
+        controller's configuration; its name is a name; MOMCertImport.exe is a full
+        administrator's (run as Administrator) and a path on a drive; a part of a URL path is
+        one part."""
+        web = self.ok('GET', '/api/certs/one', args={'name': 'web'})['cert']
+        ssh = {'host': 'dev.example.test', 'user': 'acme', 'auth': 'password', 'password': 'x'}
+        self.ok('POST', '/api/targets/save', {'name': 'wlc21', 'kind': 'cisco_wlc9800',
+                                              'config': ssh})
+        did = self.ok('POST', '/api/deploys/save', {'cert_id': web['id'], 'target': 'wlc21',
+                                                    'options': {'webauth': True}})['id']
+        inj = ('global\nusername pwned privilege 15 secret 0 Pwn3d!\n'
+               'parameter-map type webauth global')
+        for who in (self.cert_admin, self.admin):
+            st, got = self.call('POST', '/api/deploys/save', {'id': did, 'options': {
+                'webauth': True, 'webauth_map': inj}}, who)
+            self.assertEqual(st, 400, got)
+            self.assertIn('one line', json.dumps(got))
+        st, got = self.call('POST', '/api/deploys/save', {'id': did, 'options': {
+            'webauth': True, 'webauth_map': 'global trustpoint x'}}, self.cert_admin)
+        self.assertEqual(st, 400, got)
+        self.assertIn('letters, digits', json.dumps(got))
+        self.ok('POST', '/api/deploys/save', {'id': did, 'options': {
+            'webauth': True, 'webauth_map': 'guest-portal_1'}}, session=self.cert_admin)
+        stored = self.py('print(json.loads(st.db.value("SELECT options FROM cert_deploys WHERE '
+                         'id = %d"))["webauth_map"])' % did)
+        self.assertEqual(stored, 'guest-portal_1')
+        # Operations Manager's MOMCertImport.exe: a full administrator's, a path on a drive
+        self.ok('POST', '/api/targets/save', {'name': 'scom21', 'kind': 'windows_scom',
+                                              'config': ssh})
+        sid = self.ok('POST', '/api/deploys/save', {'cert_id': web['id'], 'target': 'scom21',
+                                                    'options': {}})['id']
+        st, got = self.call('POST', '/api/deploys/save', {'id': sid, 'options': {
+            'scom_tool': '\\\\attacker.example\\share\\evil.exe'}}, self.cert_admin)
+        self.assertEqual(st, 403, got)
+        self.assertIn('only a full administrator', json.dumps(got))
+        for bad in ('\\\\attacker.example\\share\\MOMCertImport.exe', 'C:\\evil.exe',
+                    '\\\\h@SSL\\DavWWWRoot\\MOMCertImport.exe'):
+            st, got = self.call('POST', '/api/deploys/save', {'id': sid, 'options': {
+                'scom_tool': bad}}, self.admin)
+            self.assertEqual(st, 400, (bad, got))
+            self.assertIn('MOMCertImport.exe', json.dumps(got))
+        self.ok('POST', '/api/deploys/save', {'id': sid, 'options': {
+            'scom_tool': 'C:\\Tools\\MOMCertImport.exe'}})
+        # a part of a URL path (Kubernetes' deployments to restart), each line of a list
+        self.ok('POST', '/api/targets/save', {'name': 'k8s21', 'kind': 'kubernetes', 'config': {
+            'host': 'https://k8s.example.test:6443', 'token': 't'}})
+        kid = self.ok('POST', '/api/deploys/save', {'cert_id': web['id'], 'target': 'k8s21',
+                                                    'options': {}})['id']
+        for bad in ('web\n../../namespaces/kube-system/deployments/coredns',
+                    ['web', '../../namespaces/kube-system/deployments/coredns'],
+                    ['web\nother'], 'web\x00x'):
+            st, got = self.call('POST', '/api/deploys/save', {'id': kid, 'options': {
+                'restart': bad}}, self.cert_admin)
+            self.assertEqual(st, 400, (bad, got))
+        self.ok('POST', '/api/deploys/save', {'id': kid, 'options': {'restart': 'web\napi'}},
+                session=self.cert_admin)
+        for d in (did, sid, kid):
+            self.ok('POST', '/api/deploys/delete', {'id': d})
+        for t in ('wlc21', 'scom21', 'k8s21'):
+            self.cli_ok('--target-del', t, '--yes')
 
 
 if __name__ == '__main__':

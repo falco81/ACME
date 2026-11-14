@@ -599,7 +599,7 @@ def _health(h):
            # Each way's mode on the page, and the order of those tried by themselves (1.0.100).
            'signin': sso_signin_modes('admin', h.store)}
     # Whether any account exists (the sign-in page's "make the first one") and this node's
-    # name (/healthz's "ok NODE") only to those holding the API token - the pages' PHP, which
+    # name only to those holding the API token - the pages' PHP, which
     # asks with it (1.0.101). Without it, nobody else learns the node's name or that there is
     # nobody to sign in yet.
     if health_token_ok(h):

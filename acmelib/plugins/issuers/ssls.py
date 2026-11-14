@@ -964,6 +964,16 @@ class SslsIssuer(Issuer):
             self._waiting(held.get('cert_id'), None)
             self._put(slot, None)
             held = None
+        if held and self._held_revoked(req, slot, held):
+            # Its key revoked since (1.0.101, as the other sources' held requests): a revoke for
+            # keyCompromise, then "issue a new one" - finished with the compromised key.
+            self._say('the certificate %s waiting at SSLS.cz has the key of a version revoked - '
+                      'it is let go, and a new request with a new key is sent'
+                      % held.get('cert_id'), 'warn')
+            _dcv.Placer(self).cleanup(req, held.get('dcv') or [])
+            self.held_dropped(held)
+            self._put(slot, None)
+            held = None
         if held:
             cert_id = str(held['cert_id'])
             key_pem = _unseal(self.ctx, held['key'], slot) if held.get('key') else None
@@ -1016,6 +1026,20 @@ class SslsIssuer(Issuer):
         if not held.get('placed'):
             self._place(req, slot, held)
         return self._await(req, slot, held, cert_id, key_pem)
+
+    def _held_revoked(self, req, slot, held):
+        """Whether the certificate held has the key of a version revoked (req.no_held_key)."""
+        from acmelib.plugins.issuers import _source_common as sc
+        if not getattr(req, 'no_held_key', None) or not held.get('key'):
+            return False
+        key_pem = _unseal(self.ctx, held['key'], slot)
+        return bool(key_pem) and sc.held_refused(req, {'key_pem': key_pem})
+
+    def held_dropped(self, held):
+        """The renewer dropped this held certificate (a revoke, renewer.drop_held): off the list
+        of those waiting."""
+        if isinstance(held, dict) and held.get('cert_id'):
+            self._waiting(held.get('cert_id'), None)
 
     def _waiting(self, cert_id, names):
         """The certificates waiting here, for the action "State of the waiting certificates"."""
