@@ -269,24 +269,72 @@ function i18nText(s, depth) {
   if (!I18N.on || !I18N.exact) return null;     /* nothing remembered for English */
   var got = I18N_SEEN.get(s);
   if (got !== undefined) return got;
-  var outer = I18N_RUN;
-  var run = I18N_RUN = {memo: new Map(), left: I18N_BUDGET, out: false};
-  try {
-    got = i18nWork(s, 0);
-    /* Out of work before the end: the text by its sentences, each by what was
-       worked out of it already and a little more, the rest in English. */
-    if (run.out) {
-      run.left = I18N_BUDGET;
-      run.out = false;
-      var byParts = i18nParts(i18nFold(s), 0);
-      if (byParts !== null) got = byParts;
-    }
-  } finally {
-    I18N_RUN = outer;
-  }
+  got = i18nWhole(s, I18N_BUDGET);
+  /* Out of work before the end (hunt M round 3): never what was worked out so far - that
+     was a sentence half Czech, half English, a weaker pattern winning where the work for
+     the stronger one ran out ("aplikace odpověděl 422", then "aplikace said 422"). The
+     text by its sentences instead, each worked out whole with work of its own, or left
+     wholly in English. */
+  if (got === undefined) got = i18nSentences(s);
   if (I18N_SEEN.size > 50000) I18N_SEEN.clear();
   I18N_SEEN.set(s, got);
   return got;
+}
+/** A text worked out with at most `budget` of work: its translation, null for none,
+    undefined when the work ran out (nothing of it used then). */
+function i18nWhole(s, budget) {
+  var outer = I18N_RUN;
+  var run = I18N_RUN = {memo: new Map(), left: budget, out: false};
+  try {
+    var got = i18nWork(s, 0);
+    I18N_SPENT = budget - run.left;
+    return run.out ? undefined : got;
+  } finally {
+    I18N_RUN = outer;
+  }
+}
+var I18N_SPENT = 0;
+/** A text too long to work out at once, by its sentences: cut where the daemon joins
+    what it says ("; ", " - ", ". ") - never inside brackets or quotes - and each
+    sentence translated whole or kept wholly in English. All of them together take at
+    most four texts' worth of work; the ones past that stay in English. The same text
+    comes out the same every time: the work is counted, not timed. */
+function i18nSentences(s) {
+  var key = i18nFold(s), parts = [], deep = 0, from = 0, i, c;
+  for (i = 0; i < key.length; i++) {
+    c = key.charAt(i);
+    if (c === '(' || c === '[' || c === '{' || c === '\u201c' || c === '\u201e') deep++;
+    else if ((c === ')' || c === ']' || c === '}' || c === '\u201d') && deep > 0) deep--;
+    if (deep) continue;
+    var cut = 0;
+    if (/[;.!?]/.test(c) && key.charAt(i + 1) === ' ' && (c !== '.' || /[a-z0-9)\]]/.test(key.charAt(i - 1) || ''))) cut = 1;
+    else if (c === ' ' && /^ [-\u2013\u2014\u00b7] /.test(key.substr(i, 3))) cut = 3;
+    if (!cut) continue;
+    var end = c === ' ' ? i : i + 1;
+    parts.push(key.slice(from, end));
+    parts.push(key.substr(end, c === ' ' ? 3 : 1));
+    from = end + (c === ' ' ? 3 : 1);
+    i = from - 1;
+  }
+  parts.push(key.slice(from));
+  if (parts.length < 2) return null;
+  var left = I18N_BUDGET * 4, any = false;
+  for (i = 0; i < parts.length; i += 2) {
+    var bit = parts[i];
+    if (!bit || !/[A-Za-z]{2}/.test(bit)) continue;
+    var one = I18N_SEEN.get(bit);
+    if (one === undefined) {
+      if (left <= 0) continue;
+      one = i18nWhole(bit, Math.min(I18N_BUDGET, left));
+      left -= I18N_SPENT;
+      if (one === undefined) continue;          /* this one wholly in English */
+      I18N_SEEN.set(bit, one);
+    }
+    if (one !== null) { parts[i] = one; any = true; }
+  }
+  if (!any) return null;
+  for (i = 1; i < parts.length; i += 2) if (parts[i] === ' - ') parts[i] = ' \u2013 ';
+  return parts.join('');
 }
 /** A piece of a text being worked out (a slot, a sentence of it), once. */
 function i18nPiece(s, depth) {

@@ -4184,10 +4184,6 @@
    "source": "HTTP-01: the CA asks port 80 of each name - so each name points at the node, or the web address, and port 80 is open to the CA.",
    "text": "HTTP-01: CA se ptá na portu 80 každého jména – takže každé jméno ukazuje na uzel nebo webovou adresu a port 80 je pro CA otevřený."
   },
-  "s1045": {
-   "source": "HTTPS: round robin to both nodes, no stickiness needed - every sign-in and everything half done is in the database. Ask each node GET /healthz: 200 and \"ok NODE\" while it answers and its database opens, 503 when not. TLS passed through (both nodes then show the same certificate) or ended on the balancer and sent on to port 443 - either works.",
-   "text": "HTTPS: round robin na oba uzly, perzistence není potřeba – každé přihlášení i vše rozpracované je v databázi. Zdraví uzlu zjišťujte přes GET /healthz: 200 a „ok UZEL“, dokud odpovídá a jeho databáze se otevře, jinak 503. TLS propuštěné skrz (oba uzly pak ukazují stejný certifikát) nebo ukončené na balanceru a poslané dál na port 443 – funguje obojí."
-  },
   "s1046": {
    "source": "Headers",
    "text": "Hlavičky"
@@ -62843,6 +62839,22 @@
   "_493": {
    "source": "db_guard is on: the signed row does not ask for this",
    "text": "db_guard je zapnutá: podepsaný řádek o toto nežádá"
+  },
+  "_494": {
+   "source": "a part of the device's address: no control characters, not . or ..",
+   "text": "část adresy zařízení: žádné řídicí znaky, ani . nebo .."
+  },
+  "_495": {
+   "source": "a NetScaler name: no control characters, not . or ..",
+   "text": "název v NetScaleru: žádné řídicí znaky, ani . nebo .."
+  },
+  "_496": {
+   "source": "a virtual server's name: no control characters, not . or ..",
+   "text": "název virtuálního serveru: žádné řídicí znaky, ani . nebo .."
+  },
+  "_497": {
+   "source": "BIG-IP names: letters, digits, _ . - : (as /Partition/name), no ..",
+   "text": "názvy BIG-IP: písmena, číslice, _ . - : (jako /Partition/název), žádné .."
   }
  },
  "patterns": {
@@ -87313,6 +87325,18 @@
   "p_272": {
    "source": "{0} is an IP address: the validation {1} proves names in DNS only ({2}), which cannot prove an address - choose an HTTP-01 validation for it",
    "text": "{0} je IP adresa: ověření {1} prokazuje jména jen v DNS ({2}), čímž adresu prokázat nelze - zvolte pro ni ověření HTTP-01"
+  },
+  "p_273": {
+   "source": "{0} \"{1}\" cannot be a part of the device's address: empty, . or .., or a control character in it",
+   "text": "{0} „{1}“ nemůže být částí adresy zařízení: je prázdné, . nebo .., nebo v něm je řídicí znak"
+  },
+  "p_274": {
+   "source": "{0}: {1} characters at most, no control characters",
+   "text": "{0}: nejvýše {1} {1:znak|znaky|znaků}, žádné řídicí znaky"
+  },
+  "p_275": {
+   "source": "the guard against writes signs the settings of the enrolment pages again, {0} row(s), as they are: acme {1} ran here since they were signed",
+   "text": "ochrana proti zápisům znovu podepisuje nastavení stránek registrace, {0} {0:řádek|řádky|řádků}, tak jak jsou: od jejich podpisu tu běžel acme {1}"
   }
  },
  "rich": {
