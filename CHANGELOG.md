@@ -6,7 +6,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.103 - not released
 
-(nothing yet)
+- **The sign-in with a certificate: "port 8443 taken by another program" when it was acme's own
+  nginx.** The card asked as the acme account, which cannot see whose a listener is, and took
+  root's last word only when it said the port was served. Now the card shows root's own words
+  (root names the program and its pid), root knows the system's nginx also by the service's main
+  process (a pid file elsewhere made it "not the system's"), nginx listening there with acme's own
+  server of the port loaded counts as acme's, and when the port is truly taken acme's earlier
+  server of it is taken away (nginx would not start again with it).
 
 ## 1.0.102 - 2026-11-14
 

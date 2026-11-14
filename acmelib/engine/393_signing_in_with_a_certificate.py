@@ -1009,7 +1009,7 @@ def cl_tick(d):
     listening = bool(cl_any_on() and cl_listening(port))
     said = {'written': bool(CL_STATE['written']), 'sha': str(CL_STATE['sha'] or '')[:12],
             'error': CL_STATE['error'], 'port': port, 'listening': listening,
-            'busy': cl_port_busy(port, served=listening and cl_web_served(port)),
+            'busy': cl_busy_now(port, listening),
             'crls': cl_crls_now(), 'version': __version__}
     if said != CL_STATE['said'] or now - CL_STATE['said_at'] > 300:
         d.store.set_meta(CL_NODE_META + node_name(), json.dumps(dict(said, at=now)))
@@ -1028,6 +1028,19 @@ def cl_web_served(port):
         return int((web_status().get('certlogin') or {}).get('port') or 0) == int(port)
     except Exception:                                   # noqa: BLE001
         return False
+
+
+def cl_busy_now(port, listening):
+    """Why the port is not served here, for the card (1.0.103): root's own words first - root
+    sees every process, so it names what listens there (and its pid) - else what this account
+    can see."""
+    try:
+        said = web_status().get('certlogin') or {}
+    except Exception:                                   # noqa: BLE001
+        said = {}
+    if said.get('busy') and not int(said.get('port') or 0):
+        return str(said['busy'])[:300]
+    return cl_port_busy(port, served=listening and cl_web_served(port))
 
 
 def cl_crls_now():
@@ -1751,7 +1764,7 @@ def cl_view(h, tried=''):
             st = dict(st, written=bool(CL_STATE['written']), error=CL_STATE['error'],
                       sha=str(CL_STATE['sha'] or '')[:12], crls=cl_crls_now(),
                       listening=listening, port=port, at=st.get('at') or now,
-                      busy=cl_port_busy(port, served=listening and cl_web_served(port)))
+                      busy=cl_busy_now(port, listening))
         for c in st.get('crls') or []:
             if c.get('url') and (c['url'] not in crls or float(c.get('at') or 0) >
                                  float(crls[c['url']].get('at') or 0)):

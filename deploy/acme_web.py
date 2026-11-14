@@ -1066,7 +1066,7 @@ def certlogin_port_users(port):
 
 # The system's nginx - the one this helper writes for and reloads: its master's pid file and
 # its configuration (an nginx of a container or of another product only shares the name).
-NGINX_PID_FILES = ['/run/nginx.pid', '/var/run/nginx.pid']
+NGINX_PID_FILES = ['/run/nginx.pid', '/var/run/nginx.pid', '/run/nginx/nginx.pid']
 NGINX_CONF = '/etc/nginx/nginx.conf'
 
 
@@ -1082,6 +1082,18 @@ def _proc_of(pid):
         return comm, ppid, argv
     except (OSError, ValueError, IndexError):
         return None
+
+
+def nginx_main_pid():
+    """The main pid systemd has for nginx.service, or 0."""
+    if NO_SERVICES:
+        return 0
+    try:
+        out = subprocess.run(['systemctl', 'show', '-p', 'MainPID', '--value', 'nginx'],
+                             capture_output=True, text=True, timeout=10).stdout
+        return int(out.strip() or 0)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 0
 
 
 def certlogin_nginx_ours(pid):
@@ -1101,6 +1113,9 @@ def certlogin_nginx_ours(pid):
                 pids.add(int(f.read().strip() or 0))
         except (OSError, ValueError):
             continue
+    # The service's own main process too (1.0.103): a pid file elsewhere (the unit's PIDFile=,
+    # a package of its own) made the system's nginx "another program" on its own port.
+    pids.add(nginx_main_pid())
     if master not in pids:
         return False
     words = ' '.join(me[2])
@@ -1110,10 +1125,26 @@ def certlogin_nginx_ours(pid):
     return not re.search(r'(?:^|\s)-p\s+(?!/etc/nginx/?(?:\s|$))', words)
 
 
+def certlogin_ours_loaded(port):
+    """Whether acme's server of the certificate's port is written for this port."""
+    try:
+        with open(NGINX_CERTLOGIN) as f:
+            text = f.read()
+    except OSError:
+        return False
+    return bool(re.search(r'^\s*listen\s+(?:\S+:)?%d\b' % int(port), text, re.M))
+
+
 def certlogin_busy(port, node):
     """Words when something other than the system's nginx listens on the port here, else ''."""
+    users = certlogin_port_users(port)
+    # nginx listening there with acme's own server of the port loaded (1.0.103): that is ours,
+    # however the system names its master - nginx would not have taken it with the port held
+    # by anything else.
+    if users and all(n == 'nginx' for n, _p in users) and certlogin_ours_loaded(port):
+        return ''
     others = [(n if n != 'nginx' else 'nginx that is not the system\'s service', p)
-              for n, p in certlogin_port_users(port)
+              for n, p in users
               if not (n == 'nginx' and certlogin_nginx_ours(p))]
     if not others:
         return ''
@@ -1570,6 +1601,13 @@ def nginx_part(r, last):
             said.append('nginx: NOT given the certificate\'s own port: %s' % busy)
             CERTLOGIN_NOW.update(port=0, busy=busy)
             c = None
+            # Its servers of an earlier time taken away too (1.0.103): left, nginx would not
+            # start again with the port taken by the other program.
+            gone = [p for p in (NGINX_CERTLOGIN, CERTLOGIN_CA) if os.path.exists(p)]
+            for p in gone:
+                os.unlink(p)
+            if gone:
+                changed = True
         if c is not None:
             CERTLOGIN_NOW.update(port=c['port'], busy='')
             if c['port']:
