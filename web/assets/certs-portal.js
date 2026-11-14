@@ -358,7 +358,9 @@ function certDialog(id, fresh) {
       : stateNote('warn', 'Waiting for approval', approve && c.may_approve !== false
         ? 'Someone asked for it; you may approve or decline it. They are told by mail.'
         : 'Someone asked for it; an approver of its team, or an administrator, approves it (or not).'));
-    if (waiting && approve && !c.asked_by_me && c.may_approve === false && c.approve_why)
+    /* why its Approve is off - unless the note on the names of another owner below says it */
+    if (waiting && approve && !c.asked_by_me && c.may_approve === false && c.approve_why
+        && !(c.held_words && c.held_words.length))
       body.appendChild(stateNote('crit', 'You cannot approve it', c.approve_why));
     /* Names another owner's certificates hold (1.0.102): only that owner's approver approves it. */
     if (c.state === 'pending-approval' && c.held_words && c.held_words.length) {

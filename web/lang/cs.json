@@ -62903,6 +62903,70 @@
   "_510": {
    "source": "the CSR: this system's crypto policy refuses SHA-1 - make the request with SHA-256",
    "text": "CSR: kryptografická politika tohoto systému odmítá SHA-1 – vytvořte požadavek s SHA-256"
+  },
+  "_511": {
+   "source": "directories' passwords",
+   "text": "hesla adresářů"
+  },
+  "_512": {
+   "source": "modules' own state",
+   "text": "vlastní stav modulů"
+  },
+  "_513": {
+   "source": "certificates' keys",
+   "text": "klíče certifikátů"
+  },
+  "_514": {
+   "source": "the twin certificates' keys",
+   "text": "klíče certifikátů-dvojčat"
+  },
+  "_515": {
+   "source": "keys of earlier versions of certificates",
+   "text": "klíče dřívějších verzí certifikátů"
+  },
+  "_516": {
+   "source": "keys of the CAs kept here",
+   "text": "klíče zdejších certifikačních autorit"
+  },
+  "_517": {
+   "source": "issuers' settings",
+   "text": "nastavení vydavatelů"
+  },
+  "_518": {
+   "source": "challenges' settings",
+   "text": "nastavení ověřování"
+  },
+  "_519": {
+   "source": "targets' settings",
+   "text": "nastavení cílů"
+  },
+  "_520": {
+   "source": "deployments' settings",
+   "text": "nastavení nasazení"
+  },
+  "_521": {
+   "source": "tests' settings",
+   "text": "nastavení testů"
+  },
+  "_522": {
+   "source": "Waiting for approval",
+   "text": "Čeká na schválení"
+  },
+  "_523": {
+   "source": "Someone asked for it; you may approve or decline it. They are told by mail.",
+   "text": "Někdo o něj požádal; můžete ho schválit nebo zamítnout. Dostane o tom e-mail."
+  },
+  "_524": {
+   "source": "Someone asked for it; an approver of its team, or an administrator, approves it (or not).",
+   "text": "Někdo o něj požádal; schválí ho (nebo ne) schvalovatel jeho týmu nebo správce."
+  },
+  "_525": {
+   "source": "You cannot approve it",
+   "text": "Nemůžete ho schválit"
+  },
+  "_526": {
+   "source": "secret settings",
+   "text": "tajná nastavení"
   }
  },
  "patterns": {
@@ -87745,6 +87809,50 @@
   "p_367": {
    "source": "acme's block in {0} is not whole (a \"{1}\" line without its \"{2}\" line, or the other way) - edited by hand? Not rewritten: which lines are acme's is not known. Take acme's lines out by hand and the \"#acme# \" in front of the file's own, or put the missing line back, then save again",
    "text": "blok acme v {0} není celý (řádek „{1}“ bez svého řádku „{2}“, nebo naopak) – upraven ručně? Soubor se nepřepisuje: není známo, které řádky jsou acme. Odstraňte řádky acme ručně a „#acme# “ před vlastními řádky souboru, nebo chybějící řádek vraťte, a pak uložte znovu"
+  },
+  "p_368": {
+   "source": "its names are not the ones asked for: {0} missing",
+   "text": "jeho jména nejsou ta požadovaná: chybí {0}"
+  },
+  "p_369": {
+   "source": "its names are not the ones asked for: {0} missing, {1} not asked for",
+   "text": "jeho jména nejsou ta požadovaná: chybí {0}, nepožadováno: {1}"
+  },
+  "p_370": {
+   "source": "its names are not the ones asked for: {0} not asked for",
+   "text": "jeho jména nejsou ta požadovaná: nepožadováno: {0}"
+  },
+  "p_371": {
+   "source": "its names are held by {0}; {1} - an approver of that team (the right approve or manage on it), or a full administrator, approves it",
+   "text": "jeho jména mají {0}; {1} – schválí ho schvalovatel toho týmu (právo schvalovat nebo spravovat v něm), nebo plný správce"
+  },
+  "p_372": {
+   "source": "its names are held by certificates of another owner: only someone who may approve (or manage) for that owner, or a full administrator, approves it - {0}",
+   "text": "jeho jména mají certifikáty jiného vlastníka: schválit ho smí jen ten, kdo smí za toho vlastníka schvalovat (nebo spravovat), nebo plný správce – {0}"
+  },
+  "p_373": {
+   "source": "Renewing {0} failed",
+   "text": "Obnova {0} selhala"
+  },
+  "p_374": {
+   "source": "{0} (kept in clear): {1}",
+   "text": "{0} (uloženo nešifrovaně): {1}"
+  },
+  "p_375": {
+   "source": "{0} (sealed without a place): {1}",
+   "text": "{0} (zapečetěno bez místa): {1}"
+  },
+  "p_376": {
+   "source": "{0} (not opened with the key here): {1}",
+   "text": "{0} (nejde otevřít zdejším klíčem): {1}"
+  },
+  "p_377": {
+   "source": "{0} (not signed by acme, left as they are): {1}",
+   "text": "{0} (nepodepsáno acme, ponecháno beze změny): {1}"
+  },
+  "p_378": {
+   "source": "secrets in {0}",
+   "text": "tajemství v {0}"
   }
  },
  "rich": {

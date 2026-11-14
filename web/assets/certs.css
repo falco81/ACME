@@ -1528,5 +1528,5 @@ code.gd-ccopy.gd-copied::after{content:'✓';font-size:10px;margin-left:4px;colo
 
 /* A request whose names another owner holds (approveDialog): the list inside its warning,
    and why Approve is off (may_approve) */
-.note.warn.ct-held{margin-top:8px}
+.note.warn.ct-held{margin:8px 0}
 .note.warn ul{margin:6px 0 0;padding-left:18px;font-size:13px}
