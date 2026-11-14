@@ -24,6 +24,7 @@ import threading
 import time
 import unittest
 import urllib.parse
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
@@ -1877,6 +1878,82 @@ class TestHuntN2Dns(unittest.TestCase):
             self.assertEqual(m.target('_acme-challenge.www.example.com'), 'acme.dns.example.net')
         finally:
             D.follow_cname = old
+
+
+class TestHuntN3Dns(unittest.TestCase):
+    """Hunt N3 (1.0.102): the wait for name servers not asked ends within the caller's own
+    wait (a source's shorter wait_ready failed the order); a name starting with '-' refused
+    where a record is written; the manual guide looks now, without waiting."""
+    mod = TestHuntN2Dns.mod
+
+    def test_wait_within_the_callers(self):
+        def txt_at(server, name, port=53, timeout=3.0, rd=False):
+            if server == '192.0.2.1':
+                return ['VALUE']
+            raise OSError('unreachable')
+        old = D.txt_at
+        D.txt_at = txt_at
+        try:
+            m = self.mod({'propagation': 'auth'})
+            h = {'fqdn': '_acme-challenge.www.example.com', 'rr': '_acme-challenge.www.example.com',
+                 'txt': 'VALUE', 'at': time.time()}
+            self.assertFalse(m.ready('www.example.com', h))
+            m.ready_until = time.time() - 1                      # the caller's wait ends now
+            self.assertTrue(m.ready('www.example.com', h))
+            self.assertEqual(m.asked, ['the resolvers'])
+            # the ACME source: a wait_ready shorter than auth_unreachable_wait is ready
+            import acmelib.plugins.issuers.acme as A
+            m2 = self.mod({'propagation': 'auth'})
+            clock = [time.time()]
+            with mock.patch.object(A.time, 'time', lambda: clock[0]), \
+                    mock.patch.object(A.time, 'sleep', lambda s: clock.__setitem__(0, clock[0] + s)):
+                iss = A.AcmeIssuer.__new__(A.AcmeIssuer)
+                iss.config = {'wait_ready': 60, 'poll_every': 5}
+                iss.ctx = m2.ctx
+                iss.ctx.cancelled = lambda: False
+                iss._say = lambda *a, **k: None
+                iss._num = lambda k, d: float(iss.config.get(k, d))
+                h2 = dict(h, at=clock[0])
+                iss._wait_ready([{'mod': m2, 'name': 'www.example.com', 'handle': h2,
+                                  'shown': 'www.example.com'}])
+            self.assertEqual(m2.asked, ['the resolvers'])
+            self.assertIsNone(m2.ready_until)                    # the wait's end not kept
+        finally:
+            D.txt_at = old
+
+    def test_dash_label_refused(self):
+        old = D.follow_cname
+        try:
+            m = self.mod({'follow_cname': True})
+            for end in ('-oops.example.net', 'a.-x.example.net'):
+                D.follow_cname = lambda rr, res, end=end: [rr, end]
+                with self.assertRaises(PluginError):
+                    m.target('_acme-challenge.www.example.com')
+            D.follow_cname = lambda rr, res: [rr, '_acme-challenge.x.acme-dns.io']
+            self.assertEqual(m.target('_acme-challenge.www.example.com'),
+                             '_acme-challenge.x.acme-dns.io')
+        finally:
+            D.follow_cname = old
+        with self.assertRaises(PluginError):
+            m.place('txt', 'www.example.com', '-x.example.com', 'abc')
+        with self.assertRaises(PluginError):
+            m.place('cname', 'www.example.com', '_acme-challenge.www.example.com', '-x.example.net')
+
+    def test_manual_guide_does_not_wait(self):
+        from acmelib.plugins.challenges.manual import Manual
+        got = {}
+
+        class M(Manual):
+            def seen_by_authority(self, fqdn, txt, since=None):
+                got['since'] = since
+                return None
+
+            def zone_for(self, fqdn):
+                return 'example.com'
+        m = M({}, self.mod({}).ctx)
+        m.ctx.kv_get = lambda k: 'VALUE'
+        m.guide_txt('_acme-challenge.www.example.com')
+        self.assertEqual(got['since'], 0)                   # a look now, not a wait begun
 
 
 if __name__ == '__main__':

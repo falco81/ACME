@@ -62875,6 +62875,10 @@
   "_503": {
    "source": "path",
    "text": "cesta"
+  },
+  "_504": {
+   "source": "the certificate that came is not signed by the CA of the fingerprint - someone in between? The request is kept: asked for again at the next try",
+   "text": "vydaný certifikát není podepsán CA s tímto otiskem – je někdo mezi? Žádost zůstává uložena: při dalším pokusu se o certifikát požádá znovu"
   }
  },
  "patterns": {
@@ -87669,6 +87673,14 @@
   "p_355": {
    "source": "the HTTP answer took more than {0} s",
    "text": "odpověď HTTP trvala déle než {0} s"
+  },
+  "p_356": {
+   "source": "the RA certificate {0} the SCEP server sent expired on {1} - the server's RA certificate needs renewing",
+   "text": "certifikát RA {0}, který server SCEP poslal, vypršel {1} – certifikát RA serveru je třeba obnovit"
+  },
+  "p_357": {
+   "source": "the RA certificate {0} the SCEP server sent is valid only from {1} - a clock is off",
+   "text": "certifikát RA {0}, který server SCEP poslal, platí až od {1} – někde jdou špatně hodiny"
   }
  },
  "rich": {

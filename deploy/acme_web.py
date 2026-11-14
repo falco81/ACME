@@ -3498,6 +3498,7 @@ def ntp_conf_text(text, n):
     """chrony.conf with acme's block (or without it, put back as it was)."""
     lines = text.splitlines()
     out, inside = [], False
+    whole = ntp_block_whole(text) if NTP_BEGIN in text else True
     for l in lines:
         if l.strip() == NTP_BEGIN:
             inside = True
@@ -3505,6 +3506,11 @@ def ntp_conf_text(text, n):
         if l.strip() == NTP_END:
             inside = False
             continue
+        if inside and not whole and l.strip() and \
+                (l.split() or [''])[0] not in ('server', 'pool', 'allow', 'makestep', 'minsources'):
+            # 1.0.102: the end line gone (edited by hand) - the block ends at the first line
+            # acme never writes there, so the file's own lines after it are kept.
+            inside = False
         if inside:
             continue
         if l.startswith('#acme# '):

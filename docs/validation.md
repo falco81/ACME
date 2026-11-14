@@ -123,7 +123,12 @@ before the CA is told to look:
    1.1.1.1, 8.8.8.8, 9.9.9.9 - [dns-sets.md](dns-sets.md)); `resolvers` asks only the
    resolvers set; `none` asks nothing. When the name servers cannot be reached
    from acme (an outbound firewall), the resolvers are asked instead, and the
-   job says so.
+   job says so. When only some can be (an IPv6-only or firewalled secondary),
+   those that answer must have the value, and acme waits up to 3 minutes after
+   the record went in - one not asked may be the one the CA asks - then the
+   resolvers decide; that wait ends within the source's own wait (*Wait for the
+   proof*), so a shorter one is not failed by it. The job names the servers
+   not asked.
 4. **Delay**: at least that many seconds after the record is put in.
 
 The ACME issuer decides how long it waits in all (its own setting); the job

@@ -25,6 +25,12 @@ class Daemon(object):
         self.api = None
         self.serial = 0
         self.conf_serial = store.get_meta('conf_serial', '0')
+        # Whether every secret here was sealed for its place when the settings were read in
+        # (1.0.102): read again once it turns so - see sealed_bound_tick.
+        try:
+            self.seal_bound_seen = seal_bound(store.db, fresh=True)
+        except Exception:                               # noqa: BLE001
+            self.seal_bound_seen = False
         # When this node last read the settings in (1.0.42): said in its heartbeat with the
         # mark it read, so that every card of Settings can say whether the other node has
         # what is saved.
@@ -52,8 +58,22 @@ class Daemon(object):
         try:
             if seal_bind_all(self.store):
                 self.reload_all('the secrets sealed for their places')
+                self.seal_bound_seen = True
         except Exception as e:                          # noqa: BLE001
             log('the secrets could not be sealed for their places: %s' % e, 'warn')
+
+    def sealed_bound_tick(self):
+        """The settings read again once, when every secret here turns sealed for its place
+        (1.0.102) - done by another node, whose mark may come before its conf_serial (or a
+        node of an older version's conf_serial was taken as read): until then this process
+        held them sealed without a place, refused from the mark on."""
+        if self.seal_bound_seen:
+            return False
+        if not seal_bound(self.store.db):
+            return False
+        self.seal_bound_seen = True
+        self.reload_all('every secret sealed for its place')
+        return True
 
     def reload_directories(self):
         self.store._dirs = None
@@ -734,7 +754,10 @@ class Daemon(object):
                     beat_now = False
                     if self.store.get_meta('conf_serial', '0') != self.conf_serial:
                         self.reload_all('changed elsewhere')
+                        self.seal_bound_seen = self.seal_bound_seen or seal_bound(self.store.db)
                         beat_now = True     # said at once (1.0.42): the cards wait for it
+                    elif self.sealed_bound_tick():
+                        beat_now = True
                     asked = beat_asked_last(self.store)
                     try:
                         load_peer_tick(self.store)      # the meter of another node's pages (1.0.48)

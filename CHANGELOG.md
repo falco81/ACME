@@ -6,7 +6,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.102 - not released
 
-- **Every secret sealed for its place.** The settings' secrets (the proxy, SMTP, SMS, DNS and
+- (security) **Every secret sealed for its place.** The settings' secrets (the proxy, SMTP, SMS, DNS and
   SNMP passwords and keys, the portal's SSO key) and the directories' passwords were sealed
   without the place they belong to, and a value never sealed was taken as it was: somebody who
   could write the database without `secrets.key` (what the guard against writes is for) copied
@@ -26,7 +26,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   P-256, P-384 or P-521 (Ed25519 is signed), a request signed with MD5 or SHA-1. An authority
   imported, or its certificate installed, with such a key (or signed with MD5/SHA-1 by the CA
   above) is refused too. The portal and devices' keys were checked already.
-- **Name constraints read as OpenSSL reads them.** A wildcard is compared as written:
+- (security) **Name constraints read as OpenSSL reads them.** A wildcard is compared as written:
   `*.corp.example` is signed under a permitted `.corp.example` (it was refused), and
   `*.example.com` refused under an excluded `.example.com` (it was signed, and every client
   refused it). A URI's host is the one a URI parser finds - `https://evil.com#.corp.example`
@@ -37,7 +37,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   Windows 10 1709 / Server 2019 and Java 8u301 and later read them; `p12-legacy` is unchanged
   for older devices. The ZIP for isemon (WinZip AES) keeps the 1,000 rounds its format fixes -
   the docs now say to give it a long random passphrase.
-- **What an issuer gives back is checked:** a certificate whose names are not the ones asked
+- (security) **What an issuer gives back is checked:** a certificate whose names are not the ones asked
   for (a name missing or one more - the `www.` twin or the base of a wildcard a commercial CA
   adds is taken), or that does not verify against the chain it came with, is refused in words
   and not tried again by itself. An ACME CA asking to prove a name that was not ordered is
@@ -46,8 +46,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   the genuine CA by someone in between (plain HTTP) got the request and its challenge password,
   and a CertRep signed by it with a certificate of an impostor CA of the same name was taken.
   Now the RA, the answer's signer and the certificate that comes are checked by their signatures
-  against the pinned CA. Without a fingerprint, plain HTTP trusts the first answer (the field's
-  help says so).
+  against the pinned CA (signatures, not dates: a certificate dated a little ahead by the CA's
+  clock is taken, an expired RA is said as expired; a certificate refused keeps the request held,
+  asked for again at the next try). Without a fingerprint, plain HTTP trusts the first answer
+  (the field's help says so).
 - **A DigiCert order whose DCV record could not be placed** (the DNS API down, a stop) places it
   and asks for the check at the next try - it waited "pending" for 120 days. **Sectigo SCM**
   takes its placed records away when the validation's submit fails.
@@ -60,7 +62,6 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   of their zone lists.
 - **Tests:** SNI "-" sends none in the MSSQL test and opens XMPP without `to=`; the HTTPS test
   refuses a line break in the method, path or Host header, and its answer is read in 120 s at most.
-
 - **A key revoked is known after a configuration's export and import.** A certificate put
   in from the file has no versions, so a revoke there changed none, and after a failed new issue
   "keep the key" issued the revoked key again. The public keys and fingerprints revoked are now
@@ -138,7 +139,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   LDAPS trusted them after acme was gone. Its password policy, time servers, journald drop-in and
   sysctl file go too; sshd's drop-in, the firewall chain `ACME-IN` and the cluster's authorities
   (`/etc/pki/acme/ha-ca.pem`) are named, with how to take them out.
-- **The plugin examples are written through the folder itself**, opened without following a
+- (security) **The plugin examples are written through the folder itself**, opened without following a
   link and checked root's: a link put in place of `/etc/acme/plugins` had root delete and write
   an `examples/` wherever it pointed.
 

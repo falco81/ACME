@@ -194,10 +194,47 @@ def bool_fields(cls, attr='fields'):
 def config_open(cfg, place, secrets):
     """A module's settings with its secrets opened; `place` is '<table>:<id>'."""
     out = dict(cfg or {})
+    clear = {}
     for k, v in list(out.items()):
         if isinstance(v, str) and (v.startswith('sealed:') or k in secrets):
+            if v and not v.startswith('sealed:') and E.seal_bound():
+                # Kept in clear after every secret was sealed for its place (1.0.102): its
+                # module was not loaded then, or the field was marked secret since - it was
+                # '' from then on, saying nothing. These tables are not under the guard
+                # against writes (what the module is pointed at is not either): taken as it
+                # is, and sealed for its place now.
+                clear[k] = v
+                continue
             out[k] = E.unseal_secret(v, '%s:%s' % (place, k)) or ''
+    if clear:
+        _config_seal_clear(place, clear)
     return out
+
+
+def _config_seal_clear(place, clear):
+    """The secrets of a module's settings found in clear (config_open), sealed for their place
+    in the row - those still as they were found."""
+    table, _, ident = str(place).partition(':')
+    col = JSON_SECRET_COLS.get(table)
+    db = E.SEAL_GUARD.get('db')
+    if not col or db is None or not ident.isdigit():
+        return
+    try:
+        row = db.row('SELECT * FROM %s WHERE id = ?' % table, (int(ident),))
+        cfg = jload((row or {}).get(col), {})
+        if not isinstance(cfg, dict):
+            return
+        done = sorted(k for k, v in clear.items() if cfg.get(k) == v)
+        if not done:
+            return
+        for k in done:
+            cfg[k] = E.seal_secret(clear[k], '%s:%s' % (place, k))
+        db.update(table, int(ident), {col: json.dumps(cfg)})
+        E.log('%s %s: %s kept in clear, sealed for its place now' % (
+            table, (row or {}).get('name') or ident, ', '.join(done)), 'warn')
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('config-seal:%s' % place, 'the secrets of %s kept in clear could not be '
+                      'sealed: %s' % (place, e), 'warn', every=3600)
 
 
 def config_seal(new, old, place, secrets):
@@ -241,7 +278,9 @@ def config_masked(cfg, secrets, place=None, full=False):
         if k in secrets or (isinstance(v, str) and v.startswith('sealed:')):
             plain = None
             if v and full and place:
-                plain = E.unseal_secret(v, '%s:%s' % (place, k))
+                # one kept in clear as config_open takes it (sealed at its next use, 1.0.102)
+                plain = E.unseal_secret(v, '%s:%s' % (place, k)) \
+                    if not isinstance(v, str) or v.startswith('sealed:') else v
             out[k] = secret_view(plain, True) if plain else (SECRET_DOTS if v else '')
             if v:
                 is_set.append(k)

@@ -30,6 +30,13 @@ def _seal_again(value, bind):
     return seal_secret(value, bind), 'clear'
 
 
+def seal_again_path():
+    """This node's own note that a run put back (a copy, `force`) is not done yet: tried again
+    at the next tick, whatever the marks say - kept in a file of its own, never the database
+    (a row written there would have every value written in clear sealed as acme's own)."""
+    return Path(STATE_DIR) / 'seal-bound.again'
+
+
 def _seal_bound_note(store):
     """The mark that it is done: in the database (signed with the guard on) and this node's."""
     try:
@@ -47,6 +54,10 @@ def _seal_bound_note(store):
     except Exception as e:                              # noqa: BLE001
         log('the mark that every secret is sealed for its place could not be written to %s: %s'
             % (seal_bound_path(), e), 'warn')
+    try:
+        seal_again_path().unlink()
+    except OSError:
+        pass
     seal_bound_forget()
 
 
@@ -55,16 +66,34 @@ def seal_bind_all(store, force=False, why='the upgrade to 1.0.102'):
     done already (or cannot be done yet: a node of the cluster still on an older version, no
     key). `force` (a backup or copy put back): again, whatever the marks say."""
     db = store.db
-    if not force and seal_bound(db, fresh=True):
+    # A copy put back whose run did not get to the end (a module's step failed): again, though
+    # this node's file says it is done.
+    try:
+        again = not force and seal_again_path().exists()
+    except OSError:
+        again = False
+    if again:
+        try:
+            why = seal_again_path().read_text().strip() or why
+        except OSError:
+            pass
+    if not force and not again and seal_bound(db, fresh=True):
         _seal_bound_note(store)                     # the other mark too (a node of a cluster)
         return None
     # Not while a node of the cluster runs an older version: it opens the settings sealed
     # without a place only. A node that did it already does it again after a copy put back.
-    if not (force and seal_bound_path().exists()) and not cluster_runs_at_least(store, '1.0.102'):
+    if not ((force or again) and seal_bound_path().exists()) and \
+            not cluster_runs_at_least(store, '1.0.102'):
         return None                                 # tried again at the next tick
     if not sealing_key():
         return None
+    if force:
+        try:
+            write_replacing(seal_again_path(), '%s\n' % why, 0o600)
+        except Exception as e:                          # noqa: BLE001
+            log('%s could not be written: %s' % (seal_again_path(), e), 'warn')
     said = collections.Counter()
+    clear = []                                      # the settings found in clear, by name
 
     def count(how, what):
         if how:
@@ -89,6 +118,8 @@ def seal_bind_all(store, force=False, why='the upgrade to 1.0.102'):
             continue
         new, how = _seal_again(value, setting_bind(base))
         count(how, 'setting')
+        if how == 'clear':
+            clear.append(str(r['k']))
         if new:
             store.save_setting(r['k'], new, by=r.get('by_who') or '')
     # The directories' passwords, for their rows.
@@ -129,7 +160,19 @@ def seal_bind_all(store, force=False, why='the upgrade to 1.0.102'):
             return None                                 # not marked: tried again
     _seal_bound_note(store)
     done = {k: n for k, n in said.items() if n}
+    if clear:
+        # A secret among the settings is never kept in clear by acme: written into the
+        # database so (by hand, or past acme) - taken as it is, sealed now, and said by name.
+        log('secret settings were kept in clear in the database, sealed for their names now: %s'
+            ' - if nobody here put them there, type them again' % ', '.join(sorted(clear)),
+            'warn')
     if done:
+        # Every node reads its settings again (1.0.102): one that read them before holds them
+        # sealed without a place, refused once the mark is seen - every secret was ''.
+        try:
+            store.set_meta('conf_serial', '%.6f:%s' % (time.time(), node_name()))
+        except Exception as e:                          # noqa: BLE001
+            log('the other nodes could not be told to read the settings again: %s' % e, 'warn')
         lost = sum(n for k, n in done.items() if k.endswith(' lost'))
         log('every secret is sealed for its place now (%s): %s' % (
             why, ', '.join('%s %d' % kv for kv in sorted(done.items()))),

@@ -83,7 +83,10 @@ DBGUARD_SETTINGS = frozenset((
        'portal_local', 'portal_local_code', 'portal_code', 'portal_admins_all', 'portal_cert',
        'portal_cert_keys', 'portal_cert_auto', 'portal_cert_issuers', 'portal_cert_suffixes',
        'portal_cert_challenge', 'portal_cert_max', 'portal_session_min', 'portal_tries',
-       'portal_wait_min', 'code_digits', 'code_tries', 'code_ttl_s'))
+       'portal_wait_min', 'code_digits', 'code_tries', 'code_ttl_s')
+    # The secrets of the metrics and of SNMPv3 (1.0.102): every other secret among the settings
+    # was - one written past acme was a token or a passphrase of somebody else's let in.
+    + ('metrics_token', 'snmp_auth_pass', 'snmp_priv_pass'))
 # Taken under the guard by a version after it was switched on (1.0.44): signed once as they are
 # at its first start - unsigned, they were refused, and the backups stopped.
 DBGUARD_ADOPT = {'m': ('rbackup:targets',),
@@ -107,6 +110,10 @@ DBGUARD_ADOPT3 = {'s': ('portal', 'portal_directory', 'portal_who', 'portal_grou
                         'portal_cert_max', 'portal_session_min', 'portal_tries',
                         'portal_wait_min', 'code_digits', 'code_tries', 'code_ttl_s')}
 DBGUARD_ADOPT3_MARK = 'dbguard:adopted:1.0.101'
+# Taken under the guard by 1.0.102: the secrets of the metrics and of SNMPv3 - signed once as
+# they are, on a node whose cluster all runs 1.0.102.
+DBGUARD_ADOPT4 = {'s': ('metrics_token', 'snmp_auth_pass', 'snmp_priv_pass')}
+DBGUARD_ADOPT4_MARK = 'dbguard:adopted:1.0.102'
 DBGUARD_FILE = STATE_DIR / 'guard.json'
 DBGUARD = {'seen': None, 'good': None, 'seen_h': None, 'adopted': None, 'dirty': 0.0,
            'refused': {}, 'nodes': {},
@@ -203,6 +210,12 @@ def _dbguard_load():
                 DBGUARD['adopted'].pop(DBGUARD_ADOPT3_MARK, None)
                 DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
                 DBGUARD['readopt'] = ran or 'an older version'
+            # ...and those of 1.0.102 so (the secrets of the metrics and of SNMPv3).
+            if DBGUARD['adopted'].get(DBGUARD_ADOPT4_MARK) and \
+                    _ver_tuple(ran or '0') < _ver_tuple(DBGUARD_ADOPT4_MARK.rsplit(':', 1)[1]):
+                DBGUARD['adopted'].pop(DBGUARD_ADOPT4_MARK, None)
+                DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
+                DBGUARD['readopt4'] = ran or 'an older version'
 
 
 def dbguard_flush(force=False):
@@ -555,6 +568,10 @@ def dbguard_resign(store, why=''):
             _dbguard_load()
             with DBGUARD['lock']:
                 DBGUARD.setdefault('adopted', {}).setdefault(DBGUARD_ADOPT3_MARK, time.time())
+        if cluster_runs_at_least(store, '1.0.102'):
+            _dbguard_load()
+            with DBGUARD['lock']:
+                DBGUARD.setdefault('adopted', {}).setdefault(DBGUARD_ADOPT4_MARK, time.time())
     except Exception:                                   # noqa: BLE001
         pass
     if why:
@@ -570,6 +587,9 @@ def dbguard_adopted_ok(kind, ident):
     """Whether a row this version took under the guard is checked yet: only once this node
     has signed it as it was (dbguard_adopt) - until then it is as unguarded as before."""
     ident = str(ident)
+    if ident.split('@', 1)[0] in (DBGUARD_ADOPT4.get(kind) or ()):
+        _dbguard_load()
+        return bool((DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT4_MARK))
     if ident.split('@', 1)[0] in (DBGUARD_ADOPT3.get(kind) or ()):
         _dbguard_load()
         return bool((DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT3_MARK))
@@ -653,6 +673,31 @@ def _dbguard_adopt3(store):
     return n
 
 
+def _dbguard_adopt4(store):
+    """The settings 1.0.102 took under the guard (the secrets of the metrics and of SNMPv3),
+    signed once as they are - those of a node too (key@node)."""
+    if (DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT4_MARK):
+        return 0
+    if not cluster_runs_at_least(store, '1.0.102'):
+        return 0
+    db, n = store.db, 0
+    for r in db.rows('SELECT k, v FROM settings'):
+        if str(r['k']).split('@', 1)[0] in DBGUARD_ADOPT4['s']:
+            n += bool(dbguard_sign(db, 's', r['k'], r['v']))
+    with DBGUARD['lock']:
+        DBGUARD.setdefault('adopted', {})[DBGUARD_ADOPT4_MARK] = time.time()
+        DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
+    dbguard_flush(force=True)
+    back = DBGUARD.pop('readopt4', None)
+    if back:
+        log('the guard against writes signs the secrets of the metrics and of SNMPv3 again, %d '
+            'row(s), as they are: acme %s ran here since they were signed' % (n, back))
+    elif n:
+        log('the guard against writes now signs the secrets of the metrics and of SNMPv3, %d '
+            'row(s), as they were (upgrade)' % n)
+    return n
+
+
 def dbguard_adopt(store):
     """Rows taken under the guard by this version (1.0.44), signed once as they are now - and
     from then on checked. Not before every node runs this version: a 1.0.43 node saving them
@@ -662,7 +707,7 @@ def dbguard_adopt(store):
     if not dbguard_on() or not dbguard_key():
         return 0
     _dbguard_load()
-    n2 = _dbguard_adopt2(store) + _dbguard_adopt3(store)
+    n2 = _dbguard_adopt2(store) + _dbguard_adopt3(store) + _dbguard_adopt4(store)
     if (DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT_MARK):
         return n2
     if not cluster_runs_at_least(store, '1.0.44'):

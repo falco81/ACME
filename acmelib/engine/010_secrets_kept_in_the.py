@@ -227,6 +227,7 @@ def setting_secret(key, value=None):
     its name; sealed without one or in clear only as config.json has it (written there by
     whoever runs the machine), or until every secret here is sealed for its place. One written
     into the database past acme so is refused, in words in the log."""
+    held = value is None
     if value is None:
         value = CONFIG.get(key)
     if value in (None, ''):
@@ -237,6 +238,13 @@ def setting_secret(key, value=None):
         got = unseal_secret(v, setting_bind(base))
     else:
         from_file = v == str(FILE_CONFIG.get(base) or '')
+        if not from_file and held and seal_bound():
+            # Sealed for its name meanwhile by another node (or process), not read in here yet
+            # (1.0.102): the row as the database has it now - this process reads the settings
+            # again in a moment; until then every secret was '' (mail, SMS, the proxy...).
+            fresh = _setting_sealed_now(key)
+            if fresh is not None:
+                return unseal_secret(fresh, setting_bind(base)) or ''
         if not from_file and seal_bound():
             log_sparing('seal-setting:' + base, 'the setting %s is kept %s, and acme seals it '
                         'for its name: refused (written into the database past acme?) - type it '
@@ -245,6 +253,31 @@ def setting_secret(key, value=None):
             return ''
         got = unseal_secret(v) if v.startswith(SEALED) else v
     return got or ''
+
+
+def _setting_sealed_now(key):
+    """The setting `key` as the database holds it now, when sealed for its name there (and,
+    with the guard on, as acme signed it) - else None."""
+    db = SEAL_GUARD.get('db')
+    if db is None:
+        return None
+    base = str(key or '').split('@', 1)[0]
+    try:
+        names = [key] if '@' in str(key) else ['%s@%s' % (base, node_name()), base]
+        for k in names:
+            raw = db.value('SELECT v FROM settings WHERE k = ?', (k,))
+            if raw is None:
+                continue
+            got = json.loads(raw)
+            if not isinstance(got, str) or not got.startswith(SEALED2):
+                return None
+            if dbguard_on() and dbguard_setting_kept(k) and \
+                    not dbguard_ok(db, 's', k, raw, quiet=True):
+                return None
+            return got
+    except Exception:                                   # noqa: BLE001
+        return None
+    return None
 
 
 def sealed_held(db):

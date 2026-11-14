@@ -24,7 +24,8 @@
 # --dry-run prints what would happen and changes nothing. --upgrade replaces
 # the program and the pages, brings PHP up to the fixed release and restarts,
 # keeping the database, the configuration and the accounts. --uninstall
-# removes the service and the pages and keeps everything recorded.
+# removes the service and the pages (and what acme put into the system that is
+# its alone) and keeps everything recorded.
 #
 set -Eeuo pipefail
 
@@ -298,7 +299,12 @@ Usage: sudo ./install.sh [options]
   --rewrite-nginx           write the nginx file afresh even where one is there
                             (it is otherwise kept, and only brought up to date)
   --uninstall               remove the service and the pages; keep the database
-                            (with --yes it still asks: removing is never a default)
+                            (with --yes it still asks: removing is never a default).
+                            Also takes out what acme put into the system: its CAs in
+                            the system's trust, the password policy, its time servers
+                            in chrony.conf, the journald drop-in, the sysctl file;
+                            lists (left as they are, with how to remove them) sshd's
+                            drop-in, the firewall chain ACME-IN, ha-ca.pem
   --dry-run                 print what would happen and change nothing
   --yes                     never ask; take the defaults
   --help                    this
