@@ -486,9 +486,13 @@ def issued_names_refused(pki, cert_pem, sans):
     missing = sorted(v for t, v in asked - got if t in ('DNS', 'IP'))
     extra = sorted(v for t, v in got - asked if not _www_twin(t, v, asked))
     if missing or extra:
-        return 'its names are not the ones asked for:%s%s' % (
-            ' %s missing' % ', '.join(missing) if missing else '',
-            '%s %s not asked for' % (',' if missing else '', ', '.join(extra)) if extra else '')
+        # whole sentences, each one translated as it is (not pieces joined)
+        if missing and extra:
+            return 'its names are not the ones asked for: %s missing, %s not asked for' % (
+                ', '.join(missing), ', '.join(extra))
+        if missing:
+            return 'its names are not the ones asked for: %s missing' % ', '.join(missing)
+        return 'its names are not the ones asked for: %s not asked for' % ', '.join(extra)
     return None
 
 

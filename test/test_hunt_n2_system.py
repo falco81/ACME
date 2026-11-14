@@ -204,6 +204,59 @@ sys.stdout.write('\x00'.join(out))
         self.assertEqual(W.notice_raw('motd', 'a \\\\ b\n'), 'a \\\\ b\n')
 
 
+def web_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('acme_web_ntp_test', WEB)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class ChronyNotWhole(unittest.TestCase):
+    """Hunt N4 (1.0.102): acme's block of chrony.conf not whole - the time servers saved on
+    the pages are refused, in words, instead of guessed (a server of the file's own after a
+    lost end line taken out; acme's lines kept as the file's own after a lost begin line)."""
+
+    def setUp(self):
+        self.w = web_module()
+        self.conf = os.path.join(tempfile.mkdtemp(dir=TMP), 'chrony.conf')
+        self.w.CHRONY_CONF = self.conf
+        self.w.NO_SERVICES = True
+        self.n = {'manage': True, 'servers': [{'host': 'new.example', 'pool': 0, 'iburst': 1,
+                                               'prefer': 0, 'nts': 0}],
+                  'peers': [], 'allow': [], 'makestep': [1, 3], 'minsources': 1, 'timezone': ''}
+
+    def test_refused_not_guessed(self):
+        B, N = self.w.NTP_BEGIN, self.w.NTP_END
+        for broken in ('#acme# pool 2.pool.ntp.org iburst\n%s\nserver ntp.acme.example iburst\n'
+                       'makestep 1 3\nserver my.own.ntp iburst\nrtcsync\n' % B,
+                       '#acme# pool 2.pool.ntp.org iburst\nserver ntp.acme.example iburst\n'
+                       'makestep 1 3\n%s\n' % N,
+                       '%s\n%s\nserver x iburst\n%s\n' % (N, B, N)):
+            with open(self.conf, 'w') as f:
+                f.write(broken)
+            for n in (self.n, dict(self.n, manage=False)):
+                with self.assertRaises(self.w.Refused) as got:
+                    self.w.ntp_apply(n)
+                self.assertIn('not whole', str(got.exception))
+                with self.assertRaises(self.w.Refused):
+                    self.w.ntp_conf_text(broken, n)
+            self.assertEqual(cat(self.conf), broken)
+            self.assertTrue(self.w.ntp_marked(broken))
+            self.assertFalse(os.path.exists(self.conf + '.acme-before'))
+
+    def test_whole_as_before(self):
+        own = 'pool 2.pool.ntp.org iburst\ndriftfile /var/lib/chrony/drift\n'
+        with open(self.conf, 'w') as f:
+            f.write(own)
+        self.w.ntp_apply(self.n)
+        text = cat(self.conf)
+        self.assertIn('server new.example iburst', text)
+        self.assertIn('#acme# pool 2.pool.ntp.org iburst', text)
+        self.w.ntp_apply(dict(self.n, manage=False))
+        self.assertEqual(cat(self.conf), own)
+
+
 @unittest.skipUnless(AS_ROOT, 'acme_web.py runs as root only')
 class Uninstall(unittest.TestCase):
     def setUp(self):
@@ -313,6 +366,17 @@ class Uninstall(unittest.TestCase):
         self.assertNotIn('acme', cat(self.p['chrony']))
         self.assertFalse(os.path.exists(before))
         self.assertIn('chrony.conf.acme-before', out)
+
+    def test_chrony_block_without_its_begin_line(self):
+        """Hunt N4 (1.0.102): only the end line left - acme's too (it was not looked at: the
+        file's own lines and acme's server kept as they were, the end line too) - said."""
+        broken = ('#acme# pool 2.pool.ntp.org iburst\nserver ntp.example iburst\n'
+                  'makestep 1 3\n# ---- acme: end ----\nlogdir /var/log/chrony\n')
+        with open(self.p['chrony'], 'w') as f:
+            f.write(broken)
+        out = self.run_it()
+        self.assertEqual(cat(self.p['chrony']), broken)
+        self.assertRegex(out, r'(?m)^left: acme\'s time servers in .*not whole')
 
     def test_trust_tool_failed_hunt_n3(self):
         """Hunt N3 (1.0.102): the anchors removed but the system's tool did not run - said as

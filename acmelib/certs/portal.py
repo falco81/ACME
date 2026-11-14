@@ -265,7 +265,18 @@ def mine(h, s, rows=None):
             # whose names it asks for (1.0.102) - the certificates read once for the list
             if not held_rows:
                 held_rows.append(holder_rows(st_))
-            one.update(held_public(st_, r, held_rows[0], defined))
+            held = held_of(st_, r, held_rows[0])
+            one.update(held_public(st_, r, held_rows[0], defined, held))
+            # whether its Approve would be refused, and why (said, not offered and then refused)
+            if one['asked_by_me']:
+                one['may_approve'], one['approve_why'] = False, (
+                    'you asked for it yourself, or sent its CSR or names - someone else '
+                    'approves it')
+            elif E.portal_sees_all(s):
+                one['may_approve'], one['approve_why'] = True, ''
+            else:
+                why = held_refused(st_, r, portal_may_owner(names, tms, defined), held, defined)
+                one['may_approve'], one['approve_why'] = not why, why
         if not key_may(s, via, one['may'], asker(st_, r['id']).get('who')):
             one['formats'] = [f for f in one.get('formats') or [] if f != KEY_FORMAT]
         return one
@@ -484,12 +495,13 @@ def held_words(held, defined=()):
     return out
 
 
-def held_public(store, row, rows=None, defined=None):
+def held_public(store, row, rows=None, defined=None, held=None):
     """What the approval dialogs show of a request held by others' names (1.0.102). `rows`
-    (holder_rows) and `defined` (defined_teams) where a list read them once already."""
+    (holder_rows), `defined` (defined_teams) and `held` (held_of) where read once already."""
     if defined is None:
         defined = defined_teams(store)
-    held = held_of(store, row, rows)
+    if held is None:
+        held = held_of(store, row, rows)
     return {'held': [{'team': o['owner'] if o['owner'].lower() in defined else '',
                       'names': o['names']} for o in held],
             'held_words': held_words(held, defined)}
@@ -500,15 +512,52 @@ def need_held_ok(store, row, may_owner, who):
     who may approve (or manage) for that owner, or a full administrator (1.0.102: any
     approver of the asker's own team approved mail.example of the Mail team's - and the asker
     took its key). `may_owner(owner)`: whether the one approving may for that owner."""
-    held = held_of(store, row)
-    bad = [o for o in held if not may_owner(o['owner'])]
-    if not bad:
+    why = held_refused(store, row, may_owner)
+    if not why:
         return
     store.add_event('certificates', '%s was refused: approving %s, whose names are held by '
                     'another owner\'s certificates' % (who, row['name']), 'warn', who=who)
-    raise E.ApiError(403, 'its names are held by %s - an approver of that team (the right '
-                          'approve or manage on it), or a full administrator, approves it'
-                     % '; '.join(held_words(bad, defined_teams(store))))
+    raise E.ApiError(403, why)
+
+
+def held_refused(store, row, may_owner, held=None, defined=None):
+    """Why need_held_ok refuses this one approving it, in words - '' when it does not; nothing
+    said or written (the lists offer Approve by it: may_approve). The owners are the list
+    after the dash, one sentence each, so it reads (and is translated) for any number."""
+    held = held_of(store, row) if held is None else held
+    bad = [o for o in held if not may_owner(o['owner'])]
+    if not bad:
+        return ''
+    return ('its names are held by certificates of another owner: only someone who may approve '
+            '(or manage) for that owner, or a full administrator, approves it - %s'
+            % '; '.join(held_words(bad, defined_teams(store) if defined is None else defined)))
+
+
+def portal_may_owner(names, tms, defined):
+    """Whether a portal sign-in (my_names, my_teams, defined_teams) may approve for an owner
+    holding a request's names: an approver (or manager) of that team, or the person himself."""
+    def may_owner(o):
+        o = str(o or '').strip().lower()
+        if o and o in tms and tms[o][1] & {'approve', 'manage'}:
+            return True
+        return bool(o) and o in names and o not in defined     # their own certificate
+    return may_owner
+
+
+def admin_may_approve(store, row, s, held=None, defined=None):
+    """(whether this session of the administration may approve the request, why not) - the
+    checks of /api/certs/approve, said beforehand (the list and the view: no Approve offered
+    that is then refused)."""
+    if asked_by_admin(store, row, s):
+        return False, ('you asked for it yourself, or gave it its CSR or names - have another '
+                       'administrator approve or decline it (a full administrator who needs a '
+                       'certificate adds it here: Add a certificate)')
+    if s.get('role') == 'fulladmin' or s.get('cli'):
+        return True, ''
+    from acmelib.certs import teams as T
+    why = held_refused(store, row, lambda o: T.cert_may(store, s, {'owner': o}, 'approve')
+                       or T.cert_may(store, s, {'owner': o}, 'manage'), held, defined)
+    return (not why), why
 
 
 def askers_of(store, cid):
@@ -1000,13 +1049,7 @@ def _portal_approve(h):
         raise E.ApiError(403, 'you asked for it yourself, or sent its CSR or names - someone else '
                               'approves it')
     if ok and row.get('state') == WAITING and not E.portal_sees_all(s):
-        names, tms, defined = my_names(s), my_teams(h, s), defined_teams(h.store)
-
-        def may_owner(o):
-            o = str(o or '').strip().lower()
-            if o and o in tms and tms[o][1] & {'approve', 'manage'}:
-                return True
-            return bool(o) and o in names and o not in defined     # their own certificate
+        may_owner = portal_may_owner(my_names(s), my_teams(h, s), defined_teams(h.store))
         need_held_ok(h.store, row, may_owner, s['name'])
     return approve_request(h.store, row, portal_by(s), A._flag(b.get('ok')),
                            str(b.get('why') or '').strip()[:500])
@@ -1039,39 +1082,52 @@ def _cert_approve(h, s):
 
 
 def _bare(n):
-    """A directory name without its domain: DOMAIN\\name, name@domain -> name."""
-    return str(n or '').strip().lower().split('\\')[-1].split('@')[0]
+    """A directory name without its domain: DOMAIN\\name -> name."""
+    return str(n or '').strip().lower().split('\\')[-1]
+
+
+def _sam_like(n):
+    """Whether a name is a sAMAccountName (name or DOMAIN\\name): not a UPN or a mail
+    (name@domain), not a DN, not an account of acme's own (local:)."""
+    n = str(n or '')
+    return bool(n) and '@' not in n and '=' not in n and not n.startswith('local:')
 
 
 def admin_names(s):
     """The names a session of the administration asks for certificates under on the portal
-    (lower case): local:NAME of an account of acme's own; of the directory, its name, the
-    name without its domain, its DN and mail - matched against every name an asker is known by
-    (asker_ids: the portal's UPN, sAMAccountName and DN)."""
-    from acmelib.certs import teams as T
+    (lower case): local:NAME of an account of acme's own only; of the directory, its name, the
+    name without its domain (a sAMAccountName's only), its DN and mail - matched against every
+    name an asker is known by (asker_ids: the portal's UPN, sAMAccountName and DN)."""
     acc = s.get('account') or {}
     name = str(s.get('name') or '').strip().lower()
-    out = set(T.admin_principal(s)[0]) | {'local:' + name}
-    if acc.get('source') == 'directory':
-        out |= {name, _bare(name)}
-        for k in ('mail', 'dn'):
-            if acc.get(k):
-                out.add(str(acc[k]).strip().lower())
+    if acc.get('source') != 'directory':
+        return {'local:' + name} if name else set()
+    out = {name}
+    if _sam_like(name):
+        out.add(_bare(name))
+    for k in ('mail', 'dn'):
+        if acc.get(k):
+            out.add(str(acc[k]).strip().lower())
     out.discard('')
-    out.discard('local:')
     return out
 
 
 def asked_by_admin(store, row, s):
     """Whether this session of the administration asked for the request on the portal, or
-    sent its CSR or names (1.0.102)."""
+    sent its CSR or names (1.0.102). An account of acme's own is matched by local:NAME only, one
+    of the directory never by a local: name; a UPN, DN or mail only as it is - a name without
+    its domain only for a sAMAccountName against a sAMAccountName (jan@corp is not
+    jan@partner, nor CORP\\jan's mail jan@gmail)."""
+    acc = s.get('account') or {}
     mine = admin_names(s)
     who = askers_of(store, row['id'])
+    if acc.get('source') != 'directory':
+        return bool({w for w in who if w.startswith('local:')} & mine)
+    who = {w for w in who if not w.startswith('local:')}
     if who & mine:
         return True
-    acc = s.get('account') or {}
-    if acc.get('source') == 'directory' and {_bare(w) for w in who
-                                             if not w.startswith('local:')} & mine:
+    sams = {_bare(n) for n in mine if _sam_like(n)}
+    if sams and {_bare(w) for w in who if _sam_like(w)} & sams:
         return True
     mail = str(acc.get('mail') or '').strip().lower()
     return bool(mail and str(asker(store, row['id']).get('mail') or '').strip().lower() == mail)

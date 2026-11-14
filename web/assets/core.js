@@ -376,6 +376,8 @@ function modal(title, build, buttons, narrow) {
         || /deploy|issue|renew|restart|revoke|delete|run|send/i.test(b.words || '')) button.setAttribute('data-no-enter', '1');
     if (b === lastLeft) button.classList.add('left');
     if (b.says) explain(button, b.says);
+    /* offered but not to be done by this one (why in `title`, and said in the popup) */
+    if (b.disabled) { button.disabled = true; if (b.title) button.title = b.title; }
     var run = function () {
       var was = MODAL_GEN;
       if (b.go) MODAL_TYPED = 0;           /* what was typed is being used */

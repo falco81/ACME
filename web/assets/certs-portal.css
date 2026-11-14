@@ -103,3 +103,5 @@ td.cp-changed{color:var(--warn);font-weight:600}
 @media (max-width: 640px) {
   .cp-table td .ct-names { min-width: 140px; }
 }
+/* the list inside a note (the owners holding a request's names) */
+.cp-note ul{margin:4px 0 0;padding-left:18px;color:var(--tx-dim)}

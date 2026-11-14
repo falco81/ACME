@@ -3706,30 +3706,39 @@ function approveDialog(c, ok, back) {
   popup(ok ? 'Approve the request' : 'Decline the request', null, function () {
     var why = areaBox('', ok ? 'a word to the person (not needed)' : 'why - the person who asked is told', 3);
     var s = el('div', 'said');
+    /* who is told: the person who asked on the portal (created_by portal:WHO), not the team
+       that owns it */
+    var by = String(c.created_by || '');
+    var asker = by.indexOf('portal:') === 0 ? by.slice(7) : String(c.owner || '');
     return {
       size: 'medium',
       build: function (body) {
         body.appendChild(namesChips(c.names));
         /* Names another owner's certificates hold (1.0.102): that owner's approver approves it. */
         if (c.held_words && c.held_words.length) {
-          body.appendChild(el('p', 'note warn', 'Its names are held by certificates of another owner - only someone who may approve (or manage) for that owner, or a full administrator, approves it:'));
-          var hl = el('ul', 'note');
+          /* the list in its warning, not apart from it below */
+          var hn = el('div', 'note warn ct-held');
+          hn.appendChild(el('div', '', 'Its names are held by certificates of another owner - only someone who may approve (or manage) for that owner, or a full administrator, approves it:'));
+          var hl = el('ul', '');
           c.held_words.forEach(function (w) { hl.appendChild(el('li', '', w)); });
-          body.appendChild(hl);
+          hn.appendChild(hl);
+          body.appendChild(hn);
         }
+        /* refused if tried (may_approve, from the server): said, and Approve not offered */
+        if (ok && c.may_approve === false && c.approve_why) body.appendChild(el('p', 'note bad', c.approve_why));
         body.appendChild(el('p', 'note', ok
           /* as it is (1.0.48): "renewed by itself" for one renewed only when asked, "the directory's
              mail" for an account of acme's own */
           ? (truthy(c.auto_renew) ? 'It is issued now from ' + (c.issuer || '?') + ' and renewed by itself after.'
                                   : 'It is issued now from ' + (c.issuer || '?') + ' and renewed only when asked.')
-            + ' ' + (String(c.owner || '').indexOf('local:') === 0
-              ? (c.owner.slice(6) || 'the person') + ' is told by mail, if their account has an e-mail address.'
-              : (c.owner || 'the person') + ' is told by mail, if the directory has their mail.')
-          : 'It is not issued. ' + (c.owner || 'The person') + ' sees it declined on the portal, with what you write, and is told by mail.'));
+            + ' ' + (String(asker).indexOf('local:') === 0
+              ? (asker.slice(6) || 'the person') + ' is told by mail, if their account has an e-mail address.'
+              : (asker || 'the person') + ' is told by mail, if the directory has their mail.')
+          : 'It is not issued. ' + (asker || 'The person') + ' sees it declined on the portal, with what you write, and is told by mail.'));
         body.appendChild(wideField(ok ? 'A word to them' : 'Why', why, ''));
         body.appendChild(s);
       },
-      buttons: [{words: 'Close', close: true}, {words: ok ? 'Approve and issue' : 'Decline', cls: ok ? 'primary' : 'danger', once: true, icon: ok ? 'check' : 'ban', go: function (b) {
+      buttons: [{words: 'Close', close: true}, {words: ok ? 'Approve and issue' : 'Decline', cls: ok ? 'primary' : 'danger', once: true, icon: ok ? 'check' : 'ban', disabled: ok && c.may_approve === false, go: function (b) {
         busy(b, true);
         capi('certs/approve', {id: c.id, ok: ok, why: why.value}).then(function (d) {
           CT.refresh();
@@ -4026,7 +4035,9 @@ function certPeek(id) {
     if (MANAGE && c.issuer && c.state !== 'revoked' && c.state !== 'revoke-failed' && !waiting && !asked(c)) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
     if (MANAGE && c.state === 'pending-approval') {
       buttons.push({words: 'Decline', icon: 'ban', go: function () { over(function () { approveDialog(c, false, back); }, back); }});
-      buttons.push({words: 'Approve', cls: 'primary', icon: 'check', go: function () { over(function () { approveDialog(c, true, back); }, back); }});
+      /* one it may not approve (its own, or names another owner holds): not offered, the why said */
+      var noOk = c.may_approve === false;
+      buttons.push({words: 'Approve', cls: 'primary', icon: 'check', disabled: noOk, title: noOk ? c.approve_why : '', go: function () { over(function () { approveDialog(c, true, back); }, back); }});
     }
     return {
       title: c.name,
@@ -4167,6 +4178,13 @@ function certBody(body, c, versions, deploys, jobs, back) {
     lw.appendChild(lifeBar(c.not_before, c.not_after));
     lw.appendChild(el('span', 'muted small', dayOnly(c.not_after)));
     body.appendChild(lw);
+  }
+  /* waiting for approval, but not by this one (may_approve): why its Approve is off */
+  if (c.state === 'pending-approval' && c.may_approve === false && c.approve_why && MANAGE) {
+    var na = el('div', 'note warn ct-held');
+    na.appendChild(el('b', '', 'You cannot approve it'));
+    na.appendChild(el('div', '', c.approve_why));
+    body.appendChild(na);
   }
   var nk = noKeyBox(c, back);
   if (nk) body.appendChild(nk);

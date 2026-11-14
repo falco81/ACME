@@ -296,10 +296,23 @@ JSON_SECRET_COLS = {'cert_issuers': 'config', 'cert_challenges': 'config',
                     'cert_tests': 'config'}
 
 
-def carry_out(table, row, whole):
+def _row_secrets(store, table, row):
+    """The keys of a row's settings its module keeps secret (set() when it cannot be told)."""
+    try:
+        if table == 'cert_deploys':
+            return deploy_secrets(store, row) if store is not None else set()
+        fam = FAMILY_OF.get(table)
+        return secret_fields(row_class(fam, row)) if fam else set()
+    except Exception:                                   # noqa: BLE001
+        return set()
+
+
+def carry_out(table, row, whole, store=None):
     """A row as the configuration's file carries it: each sealed value in its
     settings opened (`whole`, a file locked with a passphrase) or eight dots
-    (secret_shown last=False) - never sealed for a row of this machine."""
+    (secret_shown last=False) - never sealed for a row of this machine. Without the secrets,
+    every field its module keeps secret is dots too - one still in clear (sealed at its next
+    use) went out as it was (1.0.102)."""
     if table == 'certs' and row.get('csr_pending'):
         row = _csr_pending_out(row, whole)
     col = JSON_SECRET_COLS.get(table)
@@ -308,12 +321,15 @@ def carry_out(table, row, whole):
     cfg = jload(row.get(col), {})
     if not isinstance(cfg, dict):
         return row
+    secrets = set() if whole else _row_secrets(store, table, row)
     for k, v in list(cfg.items()):
         if isinstance(v, str) and v.startswith('sealed:'):
             if whole:
                 cfg[k] = E.unseal_secret(v, '%s:%s:%s' % (table, row.get('id'), k)) or ''
             else:
                 cfg[k] = E.secret_shown(v, last=False)
+        elif k in secrets and v not in (None, '') and not E.is_masked(v):
+            cfg[k] = E.secret_shown(v if isinstance(v, str) else json.dumps(v), last=False)
     return dict(row, **{col: json.dumps(cfg)})
 
 

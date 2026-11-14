@@ -277,6 +277,7 @@ class SealBinds(unittest.TestCase):
     def test_9_the_row_now_read_once_and_the_settings_own(self):
         """r_setting_now.py: a secret is never a node's key - a row key@node put there was read
         before the setting; and a row in clear left there was read twice on every call."""
+        from acmelib import engine as EN      # its CONFIG: the one load_config makes
         self.assertTrue(E.seal_bound(STORE.db, fresh=True))
         me = E.node_name()
         bind = E.setting_bind('smtp_password')
@@ -285,7 +286,7 @@ class SealBinds(unittest.TestCase):
         E.SEAL_GUARD['db'] = STORE.db
         try:
             E.load_config(saved=STORE.settings_saved())
-            E.CONFIG['smtp_password'] = E.seal_secret('the-cluster')      # not read in yet
+            EN.CONFIG['smtp_password'] = E.seal_secret('the-cluster')      # not read in yet
             self.assertEqual(E.setting_secret('smtp_password'), 'the-cluster')
             # a row in clear: refused, and the database asked once - until the settings are read
             STORE.db.run('DELETE FROM settings WHERE k = ?', ('smtp_password@' + me,))
@@ -324,22 +325,39 @@ class SealBinds(unittest.TestCase):
         STORE.db.upsert('settings', 'k', {'k': 'acme_dns_key@' + me, 'by_who': 'x', 'at': 0,
                                           'v': json.dumps(E.seal_secret('planted', bind))})
         E.SEAL_GUARD['db'] = STORE.db
-        was = E.CONFIG.get('db_guard')
+        was = EN.CONFIG.get('db_guard')
         try:
-            E.CONFIG['db_guard'] = 1
+            EN.CONFIG['db_guard'] = 1
             E.dbguard_adopt(STORE)
             E.dbguard_resign(STORE)
             STORE.db.upsert('settings', 'k', {'k': 'acme_dns_key@' + me, 'by_who': 'x',
                                               'at': 0,
                                               'v': json.dumps(E.seal_secret('planted2', bind))})
-            E.CONFIG['db_guard'] = 1
+            EN.CONFIG['db_guard'] = 1
             self.assertTrue(E.dbguard_setting_kept('acme_dns_key@' + me))
             self.assertEqual(E._setting_sealed_now('acme_dns_key'),
                              raw_setting('acme_dns_key'))
         finally:
-            E.CONFIG['db_guard'] = was
+            EN.CONFIG['db_guard'] = was
             E.SEAL_GUARD['db'] = None
             STORE.db.run('DELETE FROM settings WHERE k = ?', ('acme_dns_key@' + me,))
+
+    def test_9c_an_export_without_secrets_masks_one_in_clear(self):
+        """A module's secret still kept in clear (sealed at its next use) went out as it was in
+        an export without the secrets (1.0.102): dots, as a sealed one."""
+        tid = STORE.db.insert('cert_targets', {
+            'name': 'mt-clear', 'kind': 'mikrotik', 'enabled': 1, 'created': time.time(),
+            'config': json.dumps({'host': 'mt2.example.test', 'ssh_key': 'CLEAR-KEY-OUT'})})
+        try:
+            bare = [r for r in E.carry_export(STORE, False)['cert_targets'] if r['id'] == tid][0]
+            cfg = json.loads(bare['config'])
+            self.assertNotIn('CLEAR-KEY-OUT', bare['config'])
+            self.assertTrue(E.is_masked(cfg['ssh_key']), cfg)
+            self.assertEqual(cfg['host'], 'mt2.example.test')
+            whole = [r for r in E.carry_export(STORE, True)['cert_targets'] if r['id'] == tid][0]
+            self.assertEqual(json.loads(whole['config'])['ssh_key'], 'CLEAR-KEY-OUT')
+        finally:
+            STORE.db.run('DELETE FROM cert_targets WHERE id = ?', (tid,))
 
 
 if __name__ == '__main__':

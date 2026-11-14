@@ -56,7 +56,10 @@ def carry_export(store, whole):
             # Secrets inside a column of its own (a module's settings as JSON):
             # opened for the file with the secrets, dots only without them.
             for fn in HOOKS.get('carry_row_out', []):
-                row = fn(table, row, whole) or row
+                try:
+                    row = fn(table, row, whole, store=store) or row
+                except TypeError:               # one of a module that takes no store
+                    row = fn(table, row, whole) or row
             # its rows in meta, by its number (1.0.88: a held deployment, a move, the portal's)
             for fn in HOOKS.get('carry_meta_out', []):
                 try:

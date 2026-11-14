@@ -62891,6 +62891,18 @@
   "_507": {
    "source": "every secret sealed for its place",
    "text": "každé tajemství zapečetěno pro své místo"
+  },
+  "_508": {
+   "source": "this system's crypto policy refuses SHA-1 - make the request with SHA-256",
+   "text": "kryptografická politika tohoto systému odmítá SHA-1 – vytvořte požadavek s SHA-256"
+  },
+  "_509": {
+   "source": "the request: this system's crypto policy refuses SHA-1 - make the request with SHA-256",
+   "text": "požadavek: kryptografická politika tohoto systému odmítá SHA-1 – vytvořte požadavek s SHA-256"
+  },
+  "_510": {
+   "source": "the CSR: this system's crypto policy refuses SHA-1 - make the request with SHA-256",
+   "text": "CSR: kryptografická politika tohoto systému odmítá SHA-1 – vytvořte požadavek s SHA-256"
   }
  },
  "patterns": {
@@ -87725,6 +87737,14 @@
   "p_365": {
    "source": "the guard against writes now signs the secrets of the metrics and of SNMPv3, {0} row(s), as they were (upgrade)",
    "text": "ochrana proti zápisům nyní podepisuje i tajemství metrik a SNMPv3, řádků: {0}, tak jak byla (upgrade)"
+  },
+  "p_366": {
+   "source": "the CSR {0} made: this system's crypto policy refuses SHA-1 - make the request with SHA-256",
+   "text": "CSR, který vytvořilo {0}: kryptografická politika tohoto systému odmítá SHA-1 – vytvořte požadavek s SHA-256"
+  },
+  "p_367": {
+   "source": "acme's block in {0} is not whole (a \"{1}\" line without its \"{2}\" line, or the other way) - edited by hand? Not rewritten: which lines are acme's is not known. Take acme's lines out by hand and the \"#acme# \" in front of the file's own, or put the missing line back, then save again",
+   "text": "blok acme v {0} není celý (řádek „{1}“ bez svého řádku „{2}“, nebo naopak) – upraven ručně? Soubor se nepřepisuje: není známo, které řádky jsou acme. Odstraňte řádky acme ručně a „#acme# “ před vlastními řádky souboru, nebo chybějící řádek vraťte, a pak uložte znovu"
   }
  },
  "rich": {

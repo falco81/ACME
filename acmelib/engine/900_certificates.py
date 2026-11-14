@@ -382,8 +382,8 @@ def certs_carry_refs(*_args):
 
 
 @_certs_hook('carry_row_out')
-def certs_carry_row_out(table, row, whole):
-    return certs_mod('store').carry_out(table, row, whole)
+def certs_carry_row_out(table, row, whole, store=None):
+    return certs_mod('store').carry_out(table, row, whole, store=store)
 
 
 @_certs_hook('carry_row_in')

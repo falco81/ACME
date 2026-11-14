@@ -3440,7 +3440,7 @@ def ntp_read():
     try:
         with open(CHRONY_CONF) as f:
             text = f.read()
-        out['managed'] = NTP_BEGIN in text
+        out['managed'] = ntp_marked(text)
         out['own'] = [l.strip() for l in text.splitlines()
                       if l.strip().split(' ')[0] in ('server', 'pool', 'peer')][:20]
     except OSError:
@@ -3494,11 +3494,27 @@ def ntp_checked(r):
     return out
 
 
+def ntp_marked(text):
+    """Whether chrony.conf holds a mark of acme's block - its begin line or its end line: one
+    with only its end line left is acme's (damaged) too."""
+    return NTP_BEGIN in text or NTP_END in text
+
+
+def ntp_not_whole_words():
+    return ('acme\'s block in %s is not whole (a "%s" line without its "%s" line, or the other '
+            'way) - edited by hand? Not rewritten: which lines are acme\'s is not known. Take '
+            'acme\'s lines out by hand and the "#acme# " in front of the file\'s own, or put the '
+            'missing line back, then save again' % (CHRONY_CONF, NTP_BEGIN, NTP_END))
+
+
 def ntp_conf_text(text, n):
-    """chrony.conf with acme's block (or without it, put back as it was)."""
+    """chrony.conf with acme's block (or without it, put back as it was). A block that is not
+    whole is refused (1.0.102): which lines were acme's was guessed - a server of the file's own
+    after it taken out, or acme's lines kept as the file's own when the begin line was lost."""
     lines = text.splitlines()
     out, inside = [], False
-    whole = ntp_block_whole(text) if NTP_BEGIN in text else True
+    if ntp_marked(text) and not ntp_block_whole(text):
+        raise Refused(ntp_not_whole_words())
     for l in lines:
         if l.strip() == NTP_BEGIN:
             inside = True
@@ -3506,11 +3522,6 @@ def ntp_conf_text(text, n):
         if l.strip() == NTP_END:
             inside = False
             continue
-        if inside and not whole and l.strip() and \
-                (l.split() or [''])[0] not in ('server', 'pool', 'allow', 'makestep', 'minsources'):
-            # 1.0.102: the end line gone (edited by hand) - the block ends at the first line
-            # acme never writes there, so the file's own lines after it are kept.
-            inside = False
         if inside:
             continue
         if l.startswith('#acme# '):
@@ -3571,9 +3582,11 @@ def ntp_apply(n):
             had = f.read()
     except FileNotFoundError:
         had = 'driftfile /var/lib/chrony/drift\nrtcsync\nlogdir /var/log/chrony\n'
+    if ntp_marked(had) and not ntp_block_whole(had):
+        raise Refused(ntp_not_whole_words())        # said, not guessed (1.0.102)
     new = ntp_conf_text(had, n)
     if new != had:
-        if NTP_BEGIN not in had:
+        if not ntp_marked(had):
             try:
                 write_root(CHRONY_CONF + '.acme-before', had, 0o644)
             except OSError:
@@ -7737,7 +7750,7 @@ def leftovers(dry=False):
     text = _read_or(CHRONY_CONF)
     before = CHRONY_CONF + '.acme-before'
     keep_before = False
-    if text is not None and NTP_BEGIN in text:
+    if text is not None and ntp_marked(text):
         what = 'acme\'s time servers in %s (its own lines back)' % CHRONY_CONF
         if not ntp_block_whole(text):
             # Hunt N3 (1.0.102): a mark lost (the block edited by hand) - nothing taken out,

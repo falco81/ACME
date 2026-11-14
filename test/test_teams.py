@@ -460,6 +460,49 @@ class Approvals(unittest.TestCase):
         return status(E.ROUTES[('POST', '/api/portal/cert_approve')],
                       FakeH(portal=s, body={'id': cid, 'ok': 1}))
 
+    def test_may_approve_said_before(self):
+        """Approve is not offered and then refused (hunt N): each waiting row says
+        may_approve and why - on the portal and in the administration's list and view - by
+        the same checks the approve routes make, and saying it changes nothing."""
+        cid = self.ask(self.person('eva'), ['mail.example.test', 'w2.example.test'])['id']
+
+        def portal_row(s):
+            rows = E.ROUTES[('GET', '/api/portal/certs')](FakeH(portal=s))['rows']
+            return [r for r in rows if r['id'] == cid][0]
+        # an approver of Web alone: not hers to approve - and the route agrees
+        one = portal_row(self.person('appr'))
+        self.assertIs(one['may_approve'], False)
+        self.assertIn('the team Mail (mail.example.test)', one['approve_why'])
+        self.assertTrue(one['approve_why'].startswith('its names are held by certificates of '
+                                                      'another owner'))
+        self.assertEqual(self.approve(self.person('appr'), cid), 403)
+        # the one who asked: never
+        one = portal_row(self.person('eva'))
+        self.assertIs(one['may_approve'], False)
+        self.assertIn('you asked for it yourself', one['approve_why'])
+        # an approver of both teams: yes
+        one = portal_row(self.person('both'))
+        self.assertIs(one['may_approve'], True)
+        self.assertEqual(one['approve_why'], '')
+        # the administration: a scoped certadmin of Web alone no, a full administrator yes
+        n = int(STORE.db.value("SELECT COUNT(*) FROM events WHERE words LIKE '%was refused%'",
+                               (), 0) or 0)
+        adm = call('GET', '/api/certs/one', args={'id': cid}, who='cweb', role='certadmin')
+        self.assertIs(adm['cert']['may_approve'], False)
+        self.assertIn('the team Mail (mail.example.test)', adm['cert']['approve_why'])
+        listed = call('GET', '/api/certs', args={'state': 'pending-approval'}, who='cweb',
+                      role='certadmin')['rows']
+        self.assertEqual([(r['may_approve'], r['approve_why']) for r in listed],
+                         [(False, adm['cert']['approve_why'])])
+        # nothing said or written by asking (only the route refuses with an event)
+        self.assertEqual(int(STORE.db.value(
+            "SELECT COUNT(*) FROM events WHERE words LIKE '%was refused%'", (), 0) or 0), n)
+        self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': cid, 'ok': 1},
+                                who='cweb', role='certadmin'), 403)
+        full = call('GET', '/api/certs/one', args={'id': cid})['cert']
+        self.assertIs(full['may_approve'], True)
+        self.assertEqual(S_state(cid), 'pending-approval')
+
     def test_a_held_name_is_approved_by_its_team(self):
         got = self.ask(self.person('eva'), ['mail.example.test'])
         cid = got['id']
@@ -636,6 +679,37 @@ class Approvals(unittest.TestCase):
         except E.ApiError as e:
             self.assertIn('another administrator approve or decline it', str(e))
         self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': cid, 'ok': 1}), 200)
+
+    def test_asked_by_admin_no_false_matches(self):
+        """r_asker.py (1.0.102): another person's request read as the administrator's own -
+        jan@partner for jan@corp, local:jan for the directory's jan, a mail jan@gmail for
+        CORP\\jan."""
+        got = {}
+        was = _portal.asker
+        _portal.asker = lambda store, cid: got
+        self.addCleanup(setattr, _portal, 'asker', was)
+
+        def adm(name, source='directory', **acc):
+            return {'name': name, 'role': 'certadmin', 'account': dict(source=source, **acc)}
+
+        def asked(who, ids, a):
+            got.clear()
+            got.update(who=who, ids=ids)
+            return _portal.asked_by_admin(None, {'id': 1}, a)
+        self.assertFalse(asked('jan@partner.example', ['jan@partner.example'],
+                               adm('jan@corp.example', dn='cn=jan,dc=corp')))
+        self.assertFalse(asked('local:jan', ['local:jan'], adm('jan')))
+        self.assertFalse(asked('novakj', ['novakj', 'jan@gmail.example'], adm('corp\\jan')))
+        # a local administrator is no directory person of the same name
+        self.assertFalse(asked('jan', ['jan', 'cn=jan,dc=corp'], adm('jan', source='local')))
+        # the true ones
+        self.assertTrue(asked('local:jan', ['local:jan'], adm('jan', source='local')))
+        self.assertTrue(asked('jan@corp.example', ['jan@corp.example', 'jan'], adm('corp\\jan')))
+        self.assertTrue(asked('x', ['other\\jan'], adm('corp\\jan')))
+        self.assertTrue(asked('jan@corp.example', ['jan@corp.example'],
+                              adm('jan@corp.example')))
+        self.assertTrue(asked('x', ['cn=jan,dc=corp'], adm('admin-jan', dn='CN=Jan,DC=corp')))
+        self.assertTrue(asked('x', ['jan@corp.example'], adm('jn', mail='Jan@corp.example')))
 
     def test_no_owner_run_out_revoked_hold_nothing(self):
         """1.0.102 decisions: a certificate without an owner, one run out, or one revoked or

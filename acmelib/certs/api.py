@@ -243,7 +243,12 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
             # whose names it asks for (1.0.102) - the certificates read once for the list
             if not held_rows:
                 held_rows.extend([_portal.holder_rows(store), _portal.defined_teams(store)])
-            one.update(_portal.held_public(store, r, held_rows[0], held_rows[1]))
+            held = _portal.held_of(store, r, held_rows[0])
+            one.update(_portal.held_public(store, r, held_rows[0], held_rows[1], held))
+            if s is not None:
+                # whether its Approve would be refused here, and why (offered, then refused)
+                one['may_approve'], one['approve_why'] = _portal.admin_may_approve(
+                    store, r, s, held, held_rows[1])
         out.append(one)
     return {'rows': out, 'total': total, 'page': page, 'per': per}
 
@@ -429,7 +434,14 @@ def key_type_alt_of(v, key_type):
 
 @api('GET', '/api/certs/one')
 def _cert_one(h, s):
-    return cert_one(h.store, h.arg('id') or h.arg('name'), may(s, 'fulladmin'))
+    out = cert_one(h.store, h.arg('id') or h.arg('name'), may(s, 'fulladmin'))
+    c = out['cert']
+    if c.get('state') == 'pending-approval':
+        # whether its Approve would be refused here, and why (the list says it too)
+        from acmelib.certs import portal as _portal
+        c['may_approve'], c['approve_why'] = _portal.admin_may_approve(
+            h.store, S.cert_need(h.store, c['id']), s)
+    return out
 
 
 KEEP_STATES = ('revoked', 'pending-approval', 'declined', 'pending', 'deleting', 'revoke-failed',

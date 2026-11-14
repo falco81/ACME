@@ -30,6 +30,37 @@ def _seal_again(value, bind):
     return seal_secret(value, bind), 'clear'
 
 
+# What seal_bind_all counted, in words (the log and the security event): {what how: n} is
+# "setting clear", "certs.key_sealed v1"... - said as "settings (kept in clear): 2".
+_SEAL_WHAT = {'setting': 'secret settings', 'directory password': "directories' passwords",
+              'module state': "modules' own state", 'certs.key_sealed': "certificates' keys",
+              'certs.alt_key_sealed': "the twin certificates' keys",
+              'cert_versions.key_sealed': "keys of earlier versions of certificates",
+              'cert_cas.key_sealed': "keys of the CAs kept here",
+              'cert_issuers.config': "issuers' settings",
+              'cert_challenges.config': "challenges' settings",
+              'cert_targets.config': "targets' settings",
+              'cert_deploys.options': "deployments' settings",
+              'cert_tests.config': "tests' settings"}
+_SEAL_HOW = (('refused (not signed)', 'not signed by acme, left as they are'),
+             ('clear', 'kept in clear'), ('v1', 'sealed without a place'),
+             ('lost', 'not opened with the key here'))
+
+
+def seal_said_words(done):
+    """{what how: n} as words, each piece a sentence of its own joined by "; "."""
+    out = []
+    for k, n in sorted(done.items()):
+        what, how = k, ''
+        for key, words in _SEAL_HOW:
+            if k.endswith(' ' + key):
+                what, how = k[:-len(key) - 1], words
+                break
+        noun = _SEAL_WHAT.get(what) or 'secrets in %s' % what
+        out.append('%s (%s): %d' % (noun, how, n) if how else '%s: %d' % (noun, n))
+    return '; '.join(out)
+
+
 def seal_again_path():
     """This node's own note that a run put back (a copy, `force`) is not done yet: tried again
     at the next tick, whatever the marks say - kept in a file of its own, never the database
@@ -174,13 +205,11 @@ def seal_bind_all(store, force=False, why='the upgrade to 1.0.102'):
         except Exception as e:                          # noqa: BLE001
             log('the other nodes could not be told to read the settings again: %s' % e, 'warn')
         lost = sum(n for k, n in done.items() if k.endswith(' lost'))
-        log('every secret is sealed for its place now (%s): %s' % (
-            why, ', '.join('%s %d' % kv for kv in sorted(done.items()))),
+        log('every secret is sealed for its place now (%s): %s' % (why, seal_said_words(done)),
             'warn' if lost else 'info')
         try:
             store.add_event('security', 'the secrets kept here are sealed for their places now '
-                            '(%s): %s' % (why, ', '.join('%s %d' % kv for kv in
-                                                         sorted(done.items()))),
+                            '(%s): %s' % (why, seal_said_words(done)),
                             'warn' if lost else 'info')
         except Exception:                               # noqa: BLE001
             pass

@@ -303,7 +303,9 @@ function certDialog(id, fresh) {
   var waiting = c.state === 'pending-approval';
   if (approve && waiting && !c.asked_by_me) {
     buttons.push({words: 'Decline', icon: 'ban', go: function () { modalOver(function () { declineDialog(c); }, function () { certDialog(c.id); }); }});
-    buttons.push({words: 'Approve', cls: 'primary', icon: 'check', go: function (b) {
+    /* one it would refuse (names another owner holds: may_approve): offered off, the why said */
+    var noOk = c.may_approve === false;
+    buttons.push({words: 'Approve', cls: 'primary', icon: 'check', disabled: noOk, title: noOk ? c.approve_why : '', go: function (b) {
       busy(b, true);
       api('cert-approve', {id: c.id, ok: 1}).then(function () {
         toast('approved - it is being issued', 'good');
@@ -350,7 +352,14 @@ function certDialog(id, fresh) {
       lw.appendChild(el('span', 'muted small', dayOnly(c.not_after)));
       body.appendChild(lw);
     }
-    if (c.state === 'pending-approval') body.appendChild(stateNote('warn', 'Waiting for an administrator', 'You asked for it; an administrator approves it (or not). You are told by mail when they have.'));
+    /* "You asked for it" only to the one who did - an approver of the team sees it waiting */
+    if (c.state === 'pending-approval') body.appendChild(c.asked_by_me
+      ? stateNote('warn', 'Waiting for an administrator', 'You asked for it; an administrator approves it (or not). You are told by mail when they have.')
+      : stateNote('warn', 'Waiting for approval', approve && c.may_approve !== false
+        ? 'Someone asked for it; you may approve or decline it. They are told by mail.'
+        : 'Someone asked for it; an approver of its team, or an administrator, approves it (or not).'));
+    if (waiting && approve && !c.asked_by_me && c.may_approve === false && c.approve_why)
+      body.appendChild(stateNote('crit', 'You cannot approve it', c.approve_why));
     /* Names another owner's certificates hold (1.0.102): only that owner's approver approves it. */
     if (c.state === 'pending-approval' && c.held_words && c.held_words.length) {
       var hn = stateNote('warn', 'Names of another owner', 'Its names are held by certificates of another owner - only someone who may approve (or manage) for that owner, or a full administrator, approves it:');

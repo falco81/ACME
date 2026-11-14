@@ -23,13 +23,20 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   replication are unchanged. Until every node of a cluster runs 1.0.102 nothing changes; then
   every node reads its settings again - one that read them before is never left with every
   secret empty (mail, SMS, the proxy, the remote backup) until a restart. The secrets of the
-  metrics and of SNMPv3 are under the guard against writes too (signed once as they are).
+  metrics and of SNMPv3 are under the guard against writes too (signed once as they are - and
+  still checked when the guard is switched on as the first thing a process does, which lost
+  this node's marks of the rows taken under the guard). A secret is read from its own row only,
+  never from a node's (`key@node`), and a row that is no better is asked for again only once the
+  settings are read again. An export without the secrets carries a module's secret still kept
+  in clear as dots too.
 - **An ACME account key, or a key held at a commercial source, is never kept in clear** inside
   acme: a key that cannot be sealed (`secrets.key` missing) stops the order in words, before
   anything is ordered. Only a tool of its own outside acme keeps it as it is.
 - **The own CA refuses weak requests:** an RSA key under 2048 bits, DSA, a curve other than
   P-256, P-384 or P-521 (Ed25519 is signed), a request signed with MD2, MD4 or MD5 (SHA-1 is
-  taken: a request's signature only proves the key, and the CA signs with its own). An authority
+  taken: a request's signature only proves the key, and the CA signs with its own - also where
+  the system's crypto policy refuses SHA-1, as RHEL 9/10's DEFAULT does; if it still refuses, it
+  says so instead of "not signed by its own key"). An authority
   imported, or its certificate installed, with such a key (or signed with MD5/SHA-1 by the CA
   above) is refused too. The portal and devices' keys were checked already.
 - (security) **Name constraints read as OpenSSL reads them.** A wildcard is compared as written:
@@ -100,9 +107,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - (security) **Nobody approves a request of their own - on either side.** One who sends a new CSR or other
   names for a request is one of those who asked for it: a member who may manage sent his own CSR
   with a name of another team's for someone else's request, and approved it himself. The
-  administration's Approve now refuses the one who asked too (by the account's name, its name
-  without the domain, its DN, its mail - matched against every name the asker is known by on the
-  portal: the UPN, the sAMAccountName and the DN) - a certificate administrator who also signs
+  administration's Approve now refuses the one who asked too (by the account's name, its DN, its
+  mail, its sAMAccountName without the domain - matched against every name the asker is known by
+  on the portal: the UPN, the sAMAccountName and the DN; a UPN or mail only as it is, an account
+  of acme's own only as local:NAME, never a person of the directory of the same name) - a
+  certificate administrator who also signs
   in to the portal approved his own wildcard there and took its key on the portal. A full
   administrator is no exception: one who needs a certificate adds it in the administration, and
   one who gave a waiting request other names has another administrator approve or decline it.
@@ -147,7 +156,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - (security) **`install.sh --uninstall` takes acme's certificate authorities out of the system's
   trust** (`acme-*` anchors, then `update-ca-trust` / `update-ca-certificates`) - curl, dnf and
   LDAPS trusted them after acme was gone. Its password policy, time servers, journald drop-in and
-  sysctl file go too; sshd's drop-in, the firewall chain `ACME-IN` and the cluster's authorities
+  sysctl file go too (acme's block in `chrony.conf` only when whole - with its begin or its end
+  line lost it is named and left, and Settings - Time refuses to rewrite the file, in words,
+  instead of guessing which lines were acme's); sshd's drop-in, the firewall chain `ACME-IN` and the cluster's authorities
   (`/etc/pki/acme/ha-ca.pem`) are named, with how to take them out.
 - (security) **The plugin examples are written through the folder itself**, opened without following a
   link and checked root's: a link put in place of `/etc/acme/plugins` had root delete and write
