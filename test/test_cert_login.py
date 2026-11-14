@@ -1478,6 +1478,22 @@ print(json.dumps([go("ncp", "cas-nc", False), go("ncok", "cas-nc", False), WHY, 
             self.assertIn(me, W.certlogin_busy(port, 'testnode'))
             self.assertEqual(W.certlogin_busy(free_port(), 'testnode'), '')
             self.assertIn((me, os.getpid()), W.certlogin_port_users(port))
+            # 1.0.103: a listener root cannot tell ('?') while nginx runs with acme's own server
+            # of the port is acme's - not "used by ?" (the card said another program's).
+            W.NO_SERVICES = True
+            old_users, old_file = W.certlogin_port_users, W.NGINX_CERTLOGIN
+            try:
+                W.certlogin_port_users = lambda p: [('?', 0)]
+                W.NGINX_CERTLOGIN = os.path.join(tempfile.mkdtemp(prefix='acme-clt-'), 'acme_certlogin.conf')
+                self.assertIn('cannot be told', W.certlogin_busy(8443, 'testnode'))
+                with open(W.NGINX_CERTLOGIN, 'w') as f:
+                    f.write('server {\n    listen [::]:8443 ssl;\n    listen 8443 ssl;\n}\n')
+                self.assertEqual(W.certlogin_busy(8443, 'testnode'), '')
+                self.assertIn('cannot be told', W.certlogin_busy(9443, 'testnode'))
+                W.certlogin_port_users = lambda p: [('java', 77), ('?', 0)]
+                self.assertIn('java (pid 77)', W.certlogin_busy(8443, 'testnode'))
+            finally:
+                W.certlogin_port_users, W.NGINX_CERTLOGIN = old_users, old_file
         finally:
             busy.close()
             self.on(admin_certlogin=0, certlogin_port=8443)

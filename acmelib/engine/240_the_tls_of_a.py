@@ -423,6 +423,13 @@ def web_tick(store):
             # a machine put back from its own backup, nginx set up again or
             # a file changed by hand is given what the database says again.
             drift = web_drift(desired)
+            # The certificate's port refused as taken (1.0.103): asked again now and then - the
+            # other program may be gone, or root (a newer one) tells acme's nginx better.
+            cw, cs = desired.get('certlogin') or {}, st.get('certlogin') or {}
+            if not drift and int(cw.get('port') or 0) and not int(cs.get('port') or 0) and \
+                    cs.get('busy') and time.time() - float(st.get('at') or 0) >= WEB_RETRY_S:
+                drift = 'the certificate\'s port %s was not given to nginx: %s' % (
+                    cw.get('port'), str(cs.get('busy'))[:200])
             if not drift or time.time() - WEB_DRIFT['at'] < 1800:
                 return
             WEB_DRIFT['at'] = time.time()

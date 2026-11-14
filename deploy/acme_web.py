@@ -1064,6 +1064,11 @@ def certlogin_port_users(port):
     return out
 
 
+def certlogin_users_words(users):
+    return ', '.join('a program that cannot be told (its /proc not readable)' if n == '?' else
+                     '%s%s' % (n, ' (pid %d)' % p if p else '') for n, p in users)
+
+
 # The system's nginx - the one this helper writes for and reloads: its master's pid file and
 # its configuration (an nginx of a container or of another product only shares the name).
 NGINX_PID_FILES = ['/run/nginx.pid', '/var/run/nginx.pid', '/run/nginx/nginx.pid']
@@ -1125,6 +1130,17 @@ def certlogin_nginx_ours(pid):
     return not re.search(r'(?:^|\s)-p\s+(?!/etc/nginx/?(?:\s|$))', words)
 
 
+def nginx_active():
+    """Whether nginx.service runs (tests: assumed)."""
+    if NO_SERVICES:
+        return True
+    try:
+        return subprocess.run(['systemctl', 'is-active', '--quiet', 'nginx'],
+                              timeout=10).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def certlogin_ours_loaded(port):
     """Whether acme's server of the certificate's port is written for this port."""
     try:
@@ -1141,7 +1157,13 @@ def certlogin_busy(port, node):
     # nginx listening there with acme's own server of the port loaded (1.0.103): that is ours,
     # however the system names its master - nginx would not have taken it with the port held
     # by anything else.
-    if users and all(n == 'nginx' for n, _p in users) and certlogin_ours_loaded(port):
+    if users and all(n in ('nginx', '?') for n, _p in users) and certlogin_ours_loaded(port) \
+            and nginx_active():
+        # A listener whose process cannot be told ('?': its /proc/PID/fd not readable even to
+        # root - a security module, a process leaving at that moment) counts as ours too while
+        # nginx runs with acme's server of the port: had anything else held the port, nginx
+        # could not have taken it. Without this the server was left without a word (1.0.102:
+        # "used by ?") and the card said the port was another program's.
         return ''
     others = [(n if n != 'nginx' else 'nginx that is not the system\'s service', p)
               for n, p in users
@@ -1149,7 +1171,7 @@ def certlogin_busy(port, node):
     if not others:
         return ''
     return 'port %d is used by %s on %s - choose another port' % (
-        port, ', '.join('%s%s' % (n, ' (pid %d)' % p if p else '') for n, p in others), node)
+        port, certlogin_users_words(others), node)
 
 
 def certlogin_listening(port):

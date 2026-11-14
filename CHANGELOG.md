@@ -4,15 +4,17 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.103 - not released
+## 1.0.103 - 2026-11-14
 
 - **The sign-in with a certificate: "port 8443 taken by another program" when it was acme's own
-  nginx.** The card asked as the acme account, which cannot see whose a listener is, and took
-  root's last word only when it said the port was served. Now the card shows root's own words
-  (root names the program and its pid), root knows the system's nginx also by the service's main
-  process (a pid file elsewhere made it "not the system's"), nginx listening there with acme's own
-  server of the port loaded counts as acme's, and when the port is truly taken acme's earlier
-  server of it is taken away (nginx would not start again with it).
+  nginx.** Root could not tell which process held the port (its /proc not readable at that moment
+  - "used by ?") and so did not give the port to nginx, while acme's earlier server of it stayed
+  loaded and nginx went on listening; the card then called it another program's. Now a listener
+  root cannot tell, while nginx runs with acme's own server of that port, is acme's; the system's
+  nginx is also known by the service's main process; the card shows root's own words (the
+  program and its pid); when the port is truly taken acme's earlier server of it is taken away
+  (nginx would not start again with it); and a port refused as taken is asked for again every
+  15 minutes, so a node fixes itself after the upgrade.
 
 ## 1.0.102 - 2026-11-14
 
