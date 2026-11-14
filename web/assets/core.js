@@ -1085,7 +1085,7 @@ function settle(host) {
    Room the page lost under the frame (a row closed at the very bottom) is
    kept as empty room until the reader scrolls. A box emptied for "Loading…"
    keeps its height until what it was waiting for is in. */
-var VIEW = {at: null, user: 0, scrolled: 0, mut: 0, busy: false, held: false, tops: null,
+var VIEWKEEP = {at: null, user: 0, scrolled: 0, mut: 0, busy: false, held: false, tops: null,
             rooms: [], locks: [], focus: null, own: null};
 var VIEW_ST = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
 var VIEW_FOCUS = HTMLElement.prototype.focus;
@@ -1142,8 +1142,21 @@ function viewHold(n, sc) {
   for (var a = n.parentElement; a && a !== sc && up.length < 12; a = a.parentElement) {
     up.push({el: a, top: a.getBoundingClientRect().top - base});
   }
-  return {el: n, sc: sc, path: path, tag: n.tagName, text: viewText(n),
-          top: n.getBoundingClientRect().top - base, up: up, t: viewNow()};
+  return {el: n, sc: sc, path: path, tag: n.tagName, cls: viewKind(n), key: viewKey(n),
+          text: viewText(n), top: n.getBoundingClientRect().top - base, up: up, t: viewNow()};
+}
+/* What tells an element from its neighbours when it has no words (a switch): its id, or the
+   id or name of the box in it. */
+function viewKey(n) {
+  var c = n.id ? n : (n.querySelector && n.querySelector('input, select, textarea'));
+  if (!c) return '';
+  if (c.id && document.querySelectorAll('[id="' + c.id.replace(/["\\]/g, '') + '"]').length === 1) return '#' + c.id;
+  return c.getAttribute('name') ? '@' + c.getAttribute('name') : '';
+}
+function viewKind(n) { return String(n.getAttribute && n.getAttribute('class') || '').split(/\s+/)[0] || ''; }
+function viewSame(n, a) {
+  /* the kind of element: its first class - "open", "on" come and go with what was clicked */
+  return n.tagName === a.tag && viewKind(n) === a.cls && viewKey(n) === a.key;
 }
 /* What is in the middle of the frame of the box the reader looks at. */
 function viewPick() {
@@ -1175,29 +1188,43 @@ function viewPick() {
 }
 function viewTake(node) {
   if (node && node.nodeType !== 1) node = node.parentElement;
-  if (node) {
-    var w = viewScroller(node);
-    if (w && w.inner && w.inner.contains(node)) node = w.inner;
-    VIEW.at = w ? viewHold(node, w.sc) : null;
-  } else VIEW.at = viewPick();
+  var w = node ? viewScroller(node) : null;
+  /* a bar that sticks (the save bar) stays put by itself: what is read is around it */
+  for (var a = node; w && a && a !== w.sc; a = a.parentElement) {
+    if (getComputedStyle(a).position === 'sticky') { w = null; node = null; break; }
+  }
+  if (node && w) {
+    if (w.inner && w.inner.contains(node)) node = w.inner;
+    VIEWKEEP.at = viewHold(node, w.sc);
+  } else VIEWKEEP.at = viewPick();
   viewTops();
 }
 /* The element held, found again: the same one, else the one drawn in its place (the same
    place in the tree, the same words - beside it when a row came or went before it). */
 function viewFind(a) {
   if (a.el.isConnected && a.sc.contains(a.el) && viewShown(a.el)) return {el: a.el, top: a.top};
+  /* by its own name first: a switch, a box - wherever it is drawn now */
+  if (a.key) {
+    var named = null;
+    try {
+      named = a.key.charAt(0) === '#' ? document.getElementById(a.key.slice(1))
+        : a.sc.querySelector('[name="' + a.key.slice(1).replace(/["\\]/g, '') + '"]');
+    } catch (e) { named = null; }
+    for (var up = 0; named && up < 4 && !viewSame(named, a); up++) named = named.parentElement;
+    if (named && a.sc.contains(named) && viewShown(named) && viewSame(named, a)) return {el: named, top: a.top};
+  }
   var n = a.sc;
   for (var i = 0; i < a.path.length && n; i++) n = n.children[a.path[i]];
-  if (n && n.tagName === a.tag && viewShown(n)) {
-    if (viewText(n) !== a.text && n.parentElement) {
-      var kids = n.parentElement.children, at = a.path[a.path.length - 1], best = null;
-      for (var k = 0; k < kids.length; k++) {
-        if (kids[k].tagName === a.tag && viewText(kids[k]) === a.text
-            && (!best || Math.abs(k - at) < Math.abs(best.k - at))) best = {k: k, el: kids[k]};
-      }
-      if (best) n = best.el;
+  if (n && viewShown(n) && n.parentElement) {
+    /* the same place in the tree: the same words, else the same kind of element (a time that
+       says "3 s ago" now) - or, when a row came or went before it, the one beside it */
+    var kids = n.parentElement.children, at = a.path[a.path.length - 1], best = null;
+    for (var k = 0; k < kids.length; k++) {
+      if (viewSame(kids[k], a) && viewText(kids[k]) === a.text
+          && (!best || Math.abs(k - at) < Math.abs(best.k - at))) best = {k: k, el: kids[k]};
     }
-    return {el: n, top: a.top};
+    if (best) return {el: best.el, top: a.top};
+    if (viewSame(n, a) && (a.text || !a.key)) return {el: n, top: a.top};
   }
   /* gone and nothing in its place: whatever held it, still there */
   for (var u = 0; u < a.up.length; u++) {
@@ -1207,18 +1234,18 @@ function viewFind(a) {
 }
 function viewTops() {
   /* where each box was, so a move of its own (not the reader's) is told apart */
-  var m = VIEW.tops = new Map();
-  if (VIEW.at) m.set(VIEW.at.sc, VIEW.at.sc.scrollTop);
+  var m = VIEWKEEP.tops = new Map();
+  if (VIEWKEEP.at) m.set(VIEWKEEP.at.sc, VIEWKEEP.at.sc.scrollTop);
 }
 function viewSet(sc, y) {
-  VIEW.own = {sc: sc, y: y};
+  VIEWKEEP.own = {sc: sc, y: y};
   VIEW_ST.set.call(sc, y);
-  if (VIEW.tops) VIEW.tops.set(sc, sc.scrollTop);
+  if (VIEWKEEP.tops) VIEWKEEP.tops.set(sc, sc.scrollTop);
 }
 /* Empty room under the end of the page, so a frame the content no longer reaches stays where it is. */
 function viewRoom(sc, more) {
   var room = null;
-  VIEW.rooms = VIEW.rooms.filter(function (r) { if (r.isConnected && r._sc === sc) room = r; return r.isConnected; });
+  VIEWKEEP.rooms = VIEWKEEP.rooms.filter(function (r) { if (r.isConnected && r._sc === sc) room = r; return r.isConnected; });
   if (!room) {
     room = document.createElement('div');
     room.className = 'view-room';
@@ -1227,13 +1254,13 @@ function viewRoom(sc, more) {
     room.style.cssText = 'display:block;flex:none;width:1px;height:0px;margin:0;padding:0;border:0;'
       + 'pointer-events:none;visibility:hidden';
     (sc === viewRoot() ? document.body : sc).appendChild(room);
-    VIEW.rooms.push(room);
+    VIEWKEEP.rooms.push(room);
   }
   room.style.height = Math.ceil((parseFloat(room.style.height) || 0) + more) + 'px';
 }
 /* ...given back as the reader scrolls up out of it. */
 function viewRoomBack() {
-  VIEW.rooms = VIEW.rooms.filter(function (room) {
+  VIEWKEEP.rooms = VIEWKEEP.rooms.filter(function (room) {
     if (!room.isConnected) return false;
     var sc = room._sc, h = parseFloat(room.style.height) || 0;
     var view = sc === viewRoot() ? window.innerHeight : sc.clientHeight;
@@ -1249,11 +1276,11 @@ function viewLock(node) {
   if (!node || node.nodeType !== 1 || !node.isConnected || !node.firstChild || node.style.minHeight) return;
   if (node === document.body || node === document.documentElement) return;
   var h = node.offsetHeight;
-  if (h > 24) VIEW.locks.push({el: node, h: h, t: viewNow()});
+  if (h > 24) VIEWKEEP.locks.push({el: node, h: h, t: viewNow()});
 }
 function viewLocks() {
   var now = viewNow();
-  VIEW.locks = VIEW.locks.filter(function (l) {
+  VIEWKEEP.locks = VIEWKEEP.locks.filter(function (l) {
     if (!l.el.isConnected) { if (l.on) l.el.style.minHeight = ''; return false; }
     var words = viewText(l.el);
     if (l.on) {
@@ -1273,21 +1300,21 @@ function viewLocks() {
 }
 /* The focus, put back on what was drawn in place of the element that had it. */
 function viewRefocus() {
-  var f = VIEW.focus, on = document.activeElement;
+  var f = VIEWKEEP.focus, on = document.activeElement;
   if (!f || f.el.isConnected || (on && on !== document.body && on !== document.documentElement)) return;
-  if (viewNow() - f.t > 60000) { VIEW.focus = null; return; }
+  if (viewNow() - f.t > 60000) { VIEWKEEP.focus = null; return; }
   var got = viewFind(f);
-  if (!got || got.up || !got.el.isConnected || got.el.tabIndex < 0 || got.el.disabled) { VIEW.focus = null; return; }
+  if (!got || got.up || !got.el.isConnected || got.el.tabIndex < 0 || got.el.disabled) { VIEWKEEP.focus = null; return; }
   try { VIEW_FOCUS.call(got.el, {preventScroll: true}); } catch (e) { /* none */ }
   f.el = got.el;
 }
 function viewKeep() {
-  if (VIEW.busy) return;
-  VIEW.busy = true;
+  if (VIEWKEEP.busy) return;
+  VIEWKEEP.busy = true;
   try {
-    if (VIEW.locks.length) viewLocks();
+    if (VIEWKEEP.locks.length) viewLocks();
     viewRefocus();
-    var a = VIEW.at;
+    var a = VIEWKEEP.at;
     if (!a || !a.sc.isConnected || (a.sc !== viewRoot() && !viewShown(a.sc))) { viewTake(null); return; }
     var got = viewFind(a);
     if (!got) { viewTake(null); return; }
@@ -1303,20 +1330,20 @@ function viewKeep() {
     if (!got.up && got.el !== a.el) {
       /* held from now on: the element drawn in its place */
       var again = viewHold(got.el, a.sc);
-      if (again) { again.top = a.top; again.t = a.t; VIEW.at = again; }
+      if (again) { again.top = a.top; again.t = a.t; VIEWKEEP.at = again; }
     }
   } catch (e) {
-    VIEW.at = null;
+    VIEWKEEP.at = null;
   } finally {
-    VIEW.busy = false;
-    if (VIEW.watch) VIEW.watch.takeRecords();
+    VIEWKEEP.busy = false;
+    if (VIEWKEEP.watch) VIEWKEEP.watch.takeRecords();
   }
 }
 (function () {
   if (typeof MutationObserver !== 'function' || typeof Map !== 'function' || !VIEW_ST || !VIEW_ST.set) return;
   var opt = {capture: true, passive: true};
   /* what the reader does that moves the page */
-  var mine = function () { VIEW.user = viewNow(); };
+  var mine = function () { VIEWKEEP.user = viewNow(); };
   ['wheel', 'touchstart', 'touchmove', 'touchend'].forEach(function (k) { document.addEventListener(k, mine, opt); });
   document.addEventListener('keydown', function (e) {
     var t = e.target, typing = t && (liveControl(t) || t.isContentEditable);
@@ -1324,50 +1351,56 @@ function viewKeep() {
     else if (e.key === ' ' && !typing && !(t && /^(BUTTON|SUMMARY|A)$/.test(t.tagName))) mine();
     else if (e.key === 'Tab') mine();
     /* a key that works the thing focused: that thing is held */
-    if ((e.key === 'Enter' || e.key === ' ') && t && t !== document.body && !VIEW.busy) viewTake(t);
+    if ((e.key === 'Enter' || e.key === ' ') && t && t !== document.body && !VIEWKEEP.busy) viewTake(t);
   }, opt);
   document.addEventListener('pointerdown', function (e) {
     var t = e.target;
-    VIEW.held = true;
+    VIEWKEEP.held = true;
     /* the scrollbar, a middle button: the reader scrolls */
     if (e.button === 1 || (t && t.nodeType === 1 && (t === viewRoot() || (viewScrolls(t) && e.offsetX >= t.clientWidth)))) mine();
+    /* the thing pressed, not the icon inside it */
+    var c = t && t.closest ? t.closest('button, a, label, summary, tr, li, input, select, textarea, [role=button], [tabindex]') : null;
+    if (c) t = c;
     if (t && t !== document.documentElement && t !== document.body) viewTake(t);
   }, opt);
-  document.addEventListener('pointerup', function () { VIEW.held = false; }, opt);
-  document.addEventListener('pointercancel', function () { VIEW.held = false; }, opt);
+  document.addEventListener('pointerup', function () { VIEWKEEP.held = false; }, opt);
+  document.addEventListener('pointercancel', function () { VIEWKEEP.held = false; }, opt);
   document.addEventListener('focusin', function (e) {
     var t = e.target, w = t && t.nodeType === 1 && t !== document.body ? viewScroller(t) : null;
     var h = w ? viewHold(t, w.sc) : null;
-    if (h) VIEW.focus = h;
+    if (h) VIEWKEEP.focus = h;
   }, opt);
-  window.addEventListener('resize', function () { VIEW.at = null; }, opt);
+  window.addEventListener('resize', function () { VIEWKEEP.at = null; }, opt);
   document.addEventListener('scroll', function (e) {
     var sc = e.target === document ? viewRoot() : e.target;
     if (!sc || sc.nodeType !== 1) return;
-    var was = VIEW.tops && VIEW.tops.get(sc);
+    var was = VIEWKEEP.tops && VIEWKEEP.tops.get(sc);
     if (was !== undefined && Math.abs(sc.scrollTop - was) < 0.5) return;   /* sideways, or ours */
     var now = viewNow();
-    var reader = VIEW.held || now - VIEW.user < 500 || now - VIEW.scrolled < 250;
-    var a = VIEW.at;
-    if (!reader && a && a.sc === sc && now - VIEW.mut < 1000) {
-      /* moved by nobody: by what was drawn - put back */
+    var reader = VIEWKEEP.held || now - VIEWKEEP.user < 500 || now - VIEWKEEP.scrolled < 250;
+    var a = VIEWKEEP.at;
+    if (!reader && a && a.sc === sc && now - VIEWKEEP.mut < 100) {
+      /* moved by nobody, in the frame something was drawn: by the drawing - put back. Later
+         than that it is the browser's own finding (Ctrl+F) or a tool: the place is taken. */
       viewKeep();
       return;
     }
     if (a && a.sc !== sc && !sc.contains(a.sc) && !reader) return;    /* a box of its own */
-    VIEW.scrolled = now;
-    if (!VIEW.busy) { viewTake(null); viewRoomBack(); }
+    VIEWKEEP.scrolled = now;
+    if (!VIEWKEEP.busy) { viewTake(null); viewRoomBack(); }
   }, opt);
   /* the page scrolling on purpose: what is in view after it is held */
   /* `target` scrolled itself (`inside`: scrolled into view - the boxes around it move) */
   var meant = function (target, inside) {
-    var a = VIEW.at;
+    var a = VIEWKEEP.at;
     if (!a || !a.sc.isConnected) return;
     if (!target || target === window || target === document || target === viewRoot()
         || target === document.body || target === a.sc || (target.contains && target.contains(a.sc))
         || (inside && a.sc.contains(target))) {
-      VIEW.at = null;
-      VIEW.scrolled = viewNow();
+      VIEWKEEP.at = null;
+      VIEWKEEP.scrolled = viewNow();
+      /* the new place held once it is there - before anything is drawn over it */
+      requestAnimationFrame(function () { if (!VIEWKEEP.at && !VIEWKEEP.busy) viewTake(null); });
     }
   };
   var wrap = function (proto, name, who) {
@@ -1389,12 +1422,17 @@ function viewKeep() {
   Object.defineProperty(Element.prototype, 'scrollTop', {
     configurable: true, enumerable: VIEW_ST.enumerable,
     get: VIEW_ST.get,
-    set: function (y) { VIEW_ST.set.call(this, y); meant(this); }
+    set: function (y) {
+      /* put back where it was (by code of its own) is not going anywhere */
+      var was = VIEWKEEP.tops && VIEWKEEP.tops.get(this);
+      VIEW_ST.set.call(this, y);
+      if (was === undefined || Math.abs(Number(y) - was) >= 1) meant(this);
+    }
   });
   /* a box focused out of sight is scrolled to by the browser: on purpose */
   HTMLElement.prototype.focus = function (o) {
     var out = false;
-    if (!(o && o.preventScroll) && VIEW.at && this.isConnected) {
+    if (!(o && o.preventScroll) && VIEWKEEP.at && this.isConnected) {
       var r0 = this.getBoundingClientRect();
       out = r0.bottom < 0 || r0.top > window.innerHeight;
     }
@@ -1402,12 +1440,12 @@ function viewKeep() {
     if (out) meant(this, true);
     return r;
   };
-  VIEW.watch = new MutationObserver(function () {
-    VIEW.mut = viewNow();
+  VIEWKEEP.watch = new MutationObserver(function () {
+    VIEWKEEP.mut = viewNow();
     viewKeep();
   });
   var go = function () {
-    VIEW.watch.observe(document.documentElement, {childList: true, subtree: true, characterData: true,
+    VIEWKEEP.watch.observe(document.documentElement, {childList: true, subtree: true, characterData: true,
                                                   attributes: true, attributeFilter: ['class', 'style', 'hidden', 'open']});
   };
   if (document.documentElement) go();
@@ -3475,12 +3513,11 @@ function liveFill(host, build, live, after) {
       var neu = Array.prototype.slice.call(box.childNodes);
       if (old.length === neu.length) old.forEach(function (c, i) { liveCarry(c, neu[i]); });
     }
-    /* Where the page was scrolled to, kept (1.0.190): emptied for a moment, the
-       pane was short, and a switch changed half-way down sent it to the top. */
-    var held = scrollHeld(host);
+    /* Where the page was scrolled to is kept by the page itself (1.0.105, viewKeep): the
+       scroll put back here after the swap came too late - the browser had already cut it
+       to the shorter page, and a switch near the end still pulled the page up. */
     clear(host);
     while (box.firstChild) host.appendChild(box.firstChild);
-    scrollBack(held);
   } else {
     var path = livePath(host, keep);
     var twin = path && liveAt(box, path);

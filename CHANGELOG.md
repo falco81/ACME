@@ -6,7 +6,18 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.105 - not released
 
-(nothing yet)
+- **The page no longer scrolls under your hands.** Whatever is redrawn - a card refreshing by
+  itself, the answers of Fetch now coming in, a row opened or closed, a switch turned - what you
+  are looking at (the thing you just clicked, else what is in the middle of the screen) stays
+  exactly where it is on the screen, on every page of the administration and the certificate
+  portal, on a desk and on a phone. Opening a CRL row in Settings → Accounts → *Signing in with a
+  certificate* moved the page by 595 px (972 px on a phone) and Fetch now by 490 px; a switch
+  near the end of a settings page pulled the page up by 40-80 px. Only you move the page now (the
+  wheel, a finger, the keys, the scrollbar), and the page itself where it means to (a jump to a
+  row, a box focused out of sight). The answers of Fetch now / Clear are shown under the CRL
+  table rather than over it, a box waiting for "Loading…" keeps its height, the focus stays on
+  the row that was redrawn, and the CRL table fits the card in Czech too (a long address is
+  shortened with … instead of pushing Fetch/Clear past the card's edge).
 
 ## 1.0.104 - 2026-11-14
 

@@ -8329,8 +8329,10 @@ function certCrls(host, p) {
     head.appendChild(row);
   }
   host.appendChild(head);
-  certCrlSaid(host);
+  /* What each node answered goes UNDER the table (1.0.105): over it, it pushed every row
+     down by its height the moment Fetch now was pressed - the row being read went with it. */
   if (!crls.length) {
+    certCrlSaid(host);
     host.appendChild(el('p', 'note', p.crl ? 'None yet: the CRL at a certificate’s CRL Distribution Point is fetched at its first sign-in and kept until its next update.' : 'Revocation is not checked for this part.'));
     return;
   }
@@ -8463,6 +8465,7 @@ function certCrls(host, p) {
   var wrap = el('div', 'krb-tw cert-crl-tw');
   wrap.appendChild(t);
   host.appendChild(wrap);
+  certCrlSaid(host);
 }
 
 /* ---- making the pair: the bundle on the first node, the join on the second (1.0.210) ----

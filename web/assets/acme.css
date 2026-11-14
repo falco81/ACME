@@ -4059,13 +4059,21 @@ table.cert-crl-t th:first-child, table.cert-crl-t td.cert-crl-chev{width:14px;pa
 .cert-crl-arrow{display:inline-block;color:var(--tx-mut);font-size:11px;transition:transform .15s}
 tr.cert-crl-row.open .cert-crl-arrow{transform:rotate(90deg)}
 .cert-crl-url-in{display:flex;align-items:center;gap:6px;min-width:0}
-td.cert-crl-url{max-width:340px}
-td.cert-crl-url .cert-crl-url-in{max-width:340px}
+/* The address takes what the other columns leave - cut short with … rather than pushing
+   Fetch/Clear past the card's edge (Czech headings are wider, 1.0.105) - and its copy
+   button stays at the column's right edge in every row. */
+table.cert-crl-t{width:100%}
+td.cert-crl-url{width:100%;max-width:0;min-width:160px}
+td.cert-crl-url .cert-crl-url-in{max-width:none}
 td.cert-crl-url .mono{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 td.cert-crl-url .iconbtn, td.cert-crl-act .iconbtn{flex:none;padding:4px 5px}
 td.cert-crl-iss{max-width:230px;min-width:140px}
 td.cert-crl-iss .mono{white-space:normal;overflow-wrap:anywhere}
-td.cert-crl-next, td.cert-crl-at{white-space:nowrap}
+/* on one line where there is room; the date under its pill where there is not, rather
+   than Fetch/Clear off the card */
+td.cert-crl-at{white-space:nowrap}
+td.cert-crl-next{white-space:normal;min-width:96px}
+td.cert-crl-next .small{display:inline-block;white-space:nowrap}
 table.cert-crl-t td.cert-crl-next .tag{margin:0 8px 0 0}
 td.cert-crl-num{text-align:right;font-variant-numeric:tabular-nums}
 td.cert-crl-act{white-space:nowrap;text-align:right}
