@@ -245,7 +245,9 @@ In the API dispatcher, before a POST runs: apart, switched on, this node aside o
 preferred node → **409** `{"ok": false, "split": true, "error": "the two nodes cannot reach
 each other: changes are made on <preferred> only until they do (…)"}`. Always allowed:
 `/api/auth/*`, `/api/split`, `/api/ha*`, `/api/power`, `/api/acme-push/*`, `/api/health`,
-`/api/alerts`, `/api/logs`, the portal's sign-in (`/api/portal/login|logout|mfa`),
+`/api/alerts`, `/api/logs`, the portal's sign-in (`/api/portal/login|logout|mfa|kerberos|cert|sso`,
+the one-time code `/api/portal/gate` and `/api/portal/gate/again`, and the password changed by its
+own account `/api/portal/password`, as `/api/auth/password`),
 `/api/console-login`, a node into maintenance (`/api/upgrade` action `maintenance`), and what
 only reads (`/api/certs/parse|dry_run|export`, `/api/cas/export|pki_check`,
 `/api/deploys/dry_run|preview`, `/api/sshkey/show|download`, `/api/portal/cert_download`,
@@ -253,7 +255,11 @@ only reads (`/api/certs/parse|dry_run|export`, `/api/cas/export|pki_check`,
 `check`, `tune_plan`), `/api/rbackup` (`job`, `list`, `verified`, `restore_md`), `/api/texts`
 and `/api/metrics` (`preview`), `/api/firewall` (`rule_check`), `/api/directories`
 (`lookup`)). GET is never refused. What only reads is not
-written down for the report either.
+written down for the report either. Each of these is matched as the whole path (1.0.101) -
+only `/api/auth/`, `/api/acme-push/` and `/api/ha` cover what is under them: until then
+`/api/portal/cert` (the sign-in with a certificate) let every certificate write of the portal
+(`cert_request`, `cert_approve`, `cert_auto`, `cert_renew`, `cert_revoke`, `cert_csr`)
+through on the frozen node; only `/api/portal/cert_download` reads.
 
 ### 7.5 Warning and report (`split_report`)
 

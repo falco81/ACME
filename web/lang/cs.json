@@ -62611,6 +62611,30 @@
   "_435": {
    "source": "this browser had no Windows ticket - press the button to try again",
    "text": "tento prohlížeč neměl lístek Windows - stiskněte tlačítko a zkuste to znovu"
+  },
+  "_436": {
+   "source": "db_guard is on: a key of root's is added only as asked on the pages (a signed row of the database) - this ask carries none",
+   "text": "db_guard je zapnutá: klíč roota se přidá jen tak, jak byl zadán na stránkách (podepsaný řádek databáze) - tento požadavek žádný nenese"
+  },
+  "_437": {
+   "source": "db_guard is on: the row this ask comes from is not one of root's keys",
+   "text": "db_guard je zapnutá: řádek, ze kterého požadavek pochází, nepatří ke klíčům roota"
+  },
+  "_438": {
+   "source": "db_guard is on, and there is no key here to check the ask with (secrets.key)",
+   "text": "db_guard je zapnutá a není tu klíč, kterým by se požadavek ověřil (secrets.key)"
+  },
+  "_439": {
+   "source": "db_guard is on: the row this ask comes from is not signed by acme - not acted on",
+   "text": "db_guard je zapnutá: řádek, ze kterého požadavek pochází, nepodepsal acme - nic se neprovede"
+  },
+  "_440": {
+   "source": "db_guard is on: that ask is older than an hour - asked again on the pages, it is taken",
+   "text": "db_guard je zapnutá: požadavek je starší než hodinu - zadejte ho na stránkách znovu a přijme se"
+  },
+  "_441": {
+   "source": "db_guard is on: the signed row does not ask for this key",
+   "text": "db_guard je zapnutá: podepsaný řádek o tento klíč nežádá"
   }
  },
  "patterns": {

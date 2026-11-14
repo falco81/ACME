@@ -278,7 +278,8 @@ browser (443)                    browser (:8443)                     acme daemon
  │                               │                                              │   the same DN, on, groups
  │                               │                                              │ SID ext == objectSid
  │                               │ ◄────────────────────── {token, mfa}        │ session (how: certificate)
- │                               │ Set-Cookie session (no port in a cookie: good on 443 too)
+ │                               │ Set-Cookie __Host-acme_session / __Host-acme_portal (1.0.101;
+ │                               │   no port in a cookie: good on 443 too)
  │ ◄──── 303 https://name/admin/ (signed in, or ?certsaid=<kind>)
  │ mfa? → the second step (the portal: the one-time code)
 ```

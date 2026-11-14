@@ -229,7 +229,8 @@ class PortalLocal(unittest.TestCase):
         """admin_2fa switched on (1.0.101): a portal sign-in of an account here made with the
         password alone ends - as the administration's do - and so does one whose portal code
         was taken away under it; a directory person's stays."""
-        st, got = self.portal_in('cadm')
+        self.py('st.add_account("pl06", "certadmin", %r); print(1)' % PW)
+        st, got = self.portal_in('pl06')
         self.assertEqual((st, got.get('mfa')), (200, ''), got)
         tok = got['token']
         st, dgot = self.portal_in('falco', 'falco-password-1')
@@ -248,7 +249,7 @@ class PortalLocal(unittest.TestCase):
             self.assertEqual(st, 200)
             # Asked at every request too (a setting saved past this node's pages): a session
             # without the step, put in as one made before, ends at its next request.
-            st, got = self.portal_in('cadm')
+            st, got = self.portal_in('pl06')
             half = got['token']
             self.assertEqual(got.get('mfa'), 'enrol', got)
             self.py("""
@@ -264,7 +265,8 @@ print(1)""" % half)
             self.assertIsNone(me['me'])
         finally:
             self.settings(admin_2fa=0)
-            self.py('st.db.run("DELETE FROM meta WHERE k LIKE \'adm2fa:%\'"); print(1)')
+            self.py('st.db.run("DELETE FROM meta WHERE k LIKE \'adm2fa:%\'"); '
+                    'st.db.run("DELETE FROM accounts WHERE name = \'pl06\'"); print(1)')
         self.assertFalse(self.py('print(json.dumps(E.portal_local_step_missing({"data": {'
                                  '"kind": "local"}})))'))
 

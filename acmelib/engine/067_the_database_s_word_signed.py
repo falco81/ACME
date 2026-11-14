@@ -517,6 +517,15 @@ def dbguard_resign(store, why=''):
         DBGUARD['good'] = {}
         DBGUARD['refused'] = {}
         DBGUARD['dirty'] = time.time()
+    # The portal's settings were signed just now with the rest (1.0.101): checked from here on,
+    # not an hour later - once no node of 1.0.100 would save them unsigned.
+    try:
+        if cluster_runs_at_least(store, '1.0.101'):
+            _dbguard_load()
+            with DBGUARD['lock']:
+                DBGUARD.setdefault('adopted', {}).setdefault(DBGUARD_ADOPT3_MARK, time.time())
+    except Exception:                                   # noqa: BLE001
+        pass
     if why:
         try:
             store.add_event('security', 'the rows of the database that reach root signed again '

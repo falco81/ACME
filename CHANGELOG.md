@@ -25,6 +25,39 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   `/healthz` ask with the token and are unchanged.
 - **Signing out of the portal ends a portal sign-in only.** `POST /api/portal/logout` ended
   any sign-in whose token it was given, an administrator's too.
+- **The portal under the guard against writes to the database.** With `db_guard` on, only the
+  administration's sign-ins were signed: a portal sign-in written into the database past acme
+  (with `portal_cert_keys` set the same way) handed out every certificate's private key. Every
+  sign-in is signed now and checked at each request; the portal's directory is asked only as
+  acme wrote it (every way of signing in to the portal, and the recheck); the portal's settings
+  (`portal`, `portal_directory`, `portal_who`, `portal_groups`, `portal_enrolers`,
+  `portal_local`, `portal_local_code`, `portal_code`, `portal_admins_all`, `portal_cert`,
+  `portal_cert_keys`, `portal_cert_auto`, `portal_cert_issuers`, `portal_cert_suffixes`,
+  `portal_cert_challenge`, `portal_cert_max`, `portal_session_min`, `portal_tries`,
+  `portal_wait_min`, `code_digits`, `code_tries`, `code_ttl_s`) are signed, taken under the
+  guard once every node runs 1.0.101; a portal sign-in of the directory without its DN is
+  refused. **Upgrading with the guard on, the portal's open sign-ins end** - people sign in to
+  the portal again.
+- **Session cookies `__Host-acme_session` and `__Host-acme_portal` over https.** A cookie of the
+  same name planted by a sibling host or over http was sent first and taken: the person then
+  worked in somebody else's account. The cookies are `__Host-` now (Secure, `Path=/` - the
+  administration's no longer of `/admin/` alone - no `Domain`), and a request with two cookies
+  of one name counts as signed out. Plain http (a test server) keeps the old names. **After the
+  upgrade everybody signs in again** (the old cookies are not read over https).
+- **The portal's one-time code typed, a new sign-in.** As the second step does, the sign-in the
+  password opened is ended and a new one handed out.
+- **The second step switched on ends the portal sign-ins without it.** `admin_2fa` switched on
+  (or the portal's code for acme's own accounts taken away while it is on) ended the
+  administration's sign-ins only; a portal sign-in of acme's own account, made with the password
+  alone, kept seeing - with *Administrators see every certificate* - every certificate.
+- **While the nodes are apart, the portal's certificate requests wait as other changes do.**
+  The free path `/api/portal/cert` (the sign-in with a certificate) let every portal
+  certificate write through on the frozen node; the paths are matched whole now. The portal's
+  one-time code, the balancer's sign-in and the portal's own password change go on there
+  (as `/api/auth/*` does).
+- **Your passkeys ask the sign-in as every page does.** An account that must change its
+  password first, or given the role of the enrolment pages only, could still list and change
+  its passkeys.
 
 - **A request held at the CA is never finished with a revoked key.** With "Keep the key", a
   renewal waiting at the CA (DigiCert, Sectigo, Certum, GoGetSSL, SSL.com, The SSL Store,

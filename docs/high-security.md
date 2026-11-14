@@ -74,12 +74,23 @@ versions before 1.0.40 leave those rows alone. With `db_guard` **on**, a node:
 
 | Row | Not signed, or an older one put back |
 |-----|--------------------------------------|
-| a sign-in to these pages (`sessions`) | not taken - "not signed in" |
+| a sign-in to these pages or to the portal (`sessions`, every kind - the portal's since 1.0.101) | not taken - "not signed in"; ended where the node has the key |
 | an account (`accounts`: name, role, password, source, switched off, DN) | cannot sign in |
-| the directory administrators sign in against | not asked |
-| a setting that reaches root, or who may sign in (firewall ports, proxy, updates, restarts, logs, the HTTP-01 challenge here, SNMP, mail and SMS, the administrators' groups and second step, high security, the balancers) | its last good value stays (else config.json and the default) |
+| the directory administrators sign in against, and the portal's (1.0.101: every way of signing in to the portal - password, Windows, a certificate, the balancer - and its recheck) | not asked |
+| a setting that reaches root, or who may sign in (firewall ports, proxy, updates, restarts, logs, the HTTP-01 challenge here, SNMP, mail and SMS, the administrators' groups and second step, high security, the balancers; since 1.0.101 the portal's: `portal`, `portal_directory`, `portal_who`, `portal_groups`, `portal_enrolers`, `portal_local`, `portal_local_code`, `portal_code`, `portal_admins_all`, `portal_cert`, `portal_cert_keys`, `portal_cert_auto`, `portal_cert_issuers`, `portal_cert_suffixes`, `portal_cert_challenge`, `portal_cert_max`, `portal_session_min`, `portal_tries`, `portal_wait_min`, `code_digits`, `code_tries`, `code_ttl_s` - beside `portal_sso*`, `portal_krb*`, `portal_certlogin*`, `portal_password_off`) | its last good value stays (else config.json and the default) |
 | a row of `meta` that root acts on (`web:vip`, `web:tls:*`, `web:access`, `fw:conf`, `ntp:conf`, `net:*`, `power:plan`, `host:sshkeys:want:*`, `host:sshd:conf`, `host:osup:plan`, `hatls:*`, `readdress:*`, `console:want:*`, `upgrade:plan`, `ask:want:*`, `adm2fa:*` ...) | read as not there - nothing is done |
 | another node's heartbeat | its address not let through the firewall, not into nginx's lists, not taken for the VIP's or chrony's peer |
+
+**The portal under the guard (1.0.101).** Until 1.0.100 only the administration's sign-ins
+were signed: a row of `sessions` of kind `portal` written past acme (with `portal_cert_keys`
+set the same way) handed out every certificate's private key. Now every sign-in is signed
+when it is made and checked at every request; a portal sign-in of the directory without its
+entry's DN is refused too. **Upgrading with the guard on**, the portal sign-ins opened before
+the upgrade are not signed: they are ended at their next request - people sign in to the
+portal again (an administrator's were signed already). The portal's settings listed above are
+signed once as they are, by each node, when every node of the cluster runs 1.0.101 (until
+then they are taken as before); a sign-in made by a node still on 1.0.100 is not signed and is
+refused by an upgraded one.
 
 Each node remembers, in its own file (`/var/lib/acme/guard.json`, not in the
 database), the newest signature it has seen of each row: a row taken from an

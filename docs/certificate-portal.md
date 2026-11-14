@@ -44,6 +44,18 @@ The sign-in is the engine's (`acmelib/engine/390_the_portal_sign_in.py`):
 a session of kind `portal`, the same on both nodes of a cluster. Its data
 carries `{kind: "directory" | "local", role}`.
 
+* **The cookie** (1.0.101): `__Host-acme_portal` over https (the administration's
+  `__Host-acme_session`) - Secure, `Path=/`, no `Domain`, HttpOnly, SameSite=Strict - so a
+  sibling host (`Domain=.example.local`) or a page over http cannot plant one beside it. A
+  request that carries two cookies of the same name is taken as signed out. Over plain http
+  (a test server) the names stay `acme_portal` / `acme_session`. Cookies of before 1.0.101
+  are not read over https any more: people sign in again after the upgrade.
+* **The one-time code typed** (1.0.101): the portal hands a new sign-in (a new cookie), as the
+  second step does - the one the password opened is ended.
+* **With `db_guard` on** (1.0.101) the portal's sign-ins are signed as the administration's,
+  and the portal's directory and settings (who may sign in, the keys handed out) are taken
+  only as acme wrote them - [high-security.md](high-security.md).
+
 ### acme's own accounts (`portal_local`)
 
 Off by default: only the directory's people sign in. On, the sign-in tries
@@ -75,7 +87,9 @@ written there - not `DOMAIN\name` or a UPN), then the directory:
   own way, the same one it uses at `/admin/`. With none set up yet the
   sign-in page sets one up, as the administration's does. Until it is given
   the sign-in can do nothing else (`GET/POST /api/portal/mfa`, relayed as
-  `?api=mfa`; wrong codes count as wrong passwords);
+  `?api=mfa`; wrong codes count as wrong passwords). Switched on (`admin_2fa`), or the
+  portal's code taken away while it is on, the sign-ins of acme's own accounts made without
+  it end (1.0.101) - as the administration's do;
 * High security: it keeps the second step on (`admin_2fa`) and allows only
   the app, so it holds for these sign-ins too - the portal's code by mail or
   SMS is not used then, the app is asked;
