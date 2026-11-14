@@ -108,11 +108,43 @@ function i18nPattern(source, text, rich) {
     || source.replace(/\{\d+\}/g, '').trim().length < 10;
   return c;
 }
+/** The patterns by a word of their own (hunt M): a word their fixed words hold
+    whole, with something not a letter on both sides of it - so where the
+    pattern's words are in a text, that word is one of the text's words.
+    Patterns without such a word are looked at for every text. Each text was
+    held against every one of six thousand patterns before, a few ms each time,
+    and a long message is worked out in a few hundred pieces. */
+function i18nIndex(pats) {
+  var by = new Map(), always = [];
+  pats.forEach(function (p, i) {
+    var lit = p.lit || '', re = /[A-Za-z]+/g, w, best = '';
+    while ((w = re.exec(lit))) {
+      if (w.index > 0 && w.index + w[0].length < lit.length && w[0].length > best.length) best = w[0];
+    }
+    if (!best) { always.push(i); return; }
+    if (!by.has(best)) by.set(best, []);
+    by.get(best).push(i);
+  });
+  return {by: by, always: always};
+}
+/** The patterns that may take a text, in their order. */
+function i18nCandidates(key) {
+  var idx = I18N.patIdx;
+  if (!idx) return I18N.pats.map(function (p, i) { return i; });
+  var out = idx.always.slice(), seen = new Set(), re = /[A-Za-z]+/g, w;
+  while ((w = re.exec(key))) {
+    if (seen.has(w[0])) continue;
+    seen.add(w[0]);
+    var l = idx.by.get(w[0]);
+    if (l) for (var j = 0; j < l.length; j++) out.push(l[j]);
+  }
+  return out.sort(function (a, b) { return a - b; });
+}
 function i18nWordy(m, depth) {
   for (var i = 1; i < m.length; i++) {
     /* a slot with ": " in it is a sentence of its own (1.0.80): "{0} refused" took
        "x:5514/tcp: [Errno 111] Connection" and said "Connection odmítnuto" */
-    if (/\S: \S/.test(m[i] || '') && (depth || 0) < I18N_DEEP && i18nWork(m[i], (depth || 0) + 1) === null) return true;
+    if (/\S: \S/.test(m[i] || '') && (depth || 0) < I18N_DEEP && i18nText(m[i], (depth || 0) + 1) === null) return true;
     /* Words, apart by a space, of letters only (1.0.48): "certs_certadmin_all=1" or a team "HB1
        tym" are a name, not a sentence - a weak pattern refused them and stayed in English. */
     if (!/(^|\s)[A-Za-z]{2,}[,;:]?\s+[A-Za-z]{2,}(\s|$|[.,;:])/.test(m[i] || '')) continue;
@@ -121,7 +153,7 @@ function i18nWordy(m, depth) {
     if (!/(^|\s)[a-z][A-Za-z]*[,;:]?(\s|$)/.test(m[i] || '') && /^[\sA-Z0-9][\s\S]*$/.test(m[i] || '')) continue;
     /* Several words are still a slot's worth when they are a text of the
        page's own: "Started {0}." around "2 min ago". */
-    if ((depth || 0) < I18N_DEEP && i18nWork(m[i], (depth || 0) + 1) !== null) continue;
+    if ((depth || 0) < I18N_DEEP && i18nText(m[i], (depth || 0) + 1) !== null) continue;
     return true;
   }
   return false;
@@ -195,6 +227,7 @@ function i18nInit(pack) {
     I18N.back.push([i18nFold(pair[1].replace(/\{\d+\}/g, ' ')).toLowerCase(), bits[0]]);
   });
   I18N.pats.sort(function (a, b) { return b.own - a.own; });
+  I18N.patIdx = i18nIndex(I18N.pats);
   /* One look for any pattern's fixed words at all: most texts on a page
      are data, contain none of them, and are turned away by this alone. */
   try {
@@ -214,14 +247,49 @@ function i18nInit(pack) {
    same few hundred things over and over, and each is worked out once. */
 var I18N_SEEN = (typeof Map === 'function') ? new Map() : null;
 var I18N_DEEP = 6;          /* how far a slot inside a slot is still translated */
+/* One text being worked out (1.0.x, hunt M): every piece of it a pattern's slot or a
+   sentence of it is tried as, remembered by its depth - a weak pattern tries its slot,
+   that slot's own patterns try theirs, and without this "4 of 4 deployment(s) failed -
+   a: ...; b: ...; c: ..." worked the same pieces out again and again, each name more
+   multiplying it: the Czech admin page stood still for 47 s on one such job. And how
+   much work one text may take at most (`left`): past that a piece not worked out yet
+   is left in English, the rest as far as it came - no text ever holds the page. */
+var I18N_RUN = null, I18N_STAT = {max: 0, out: 0};
+var I18N_BUDGET = 100000;    /* work for one text, at most: a pattern tried on 64 characters is 1 */
 function i18nText(s, depth) {
-  if (depth) return i18nWork(s, depth);
+  if (depth) return i18nPiece(s, depth);
   if (!I18N.on || !I18N.exact) return null;     /* nothing remembered for English */
   var got = I18N_SEEN.get(s);
   if (got !== undefined) return got;
-  got = i18nWork(s, 0);
+  var outer = I18N_RUN;
+  var run = I18N_RUN = {memo: new Map(), left: I18N_BUDGET, out: false};
+  try {
+    got = i18nWork(s, 0); I18N_STAT.max = Math.max(I18N_STAT.max, I18N_BUDGET - run.left);
+    /* Out of work before the end: the text by its sentences, each by what was
+       worked out of it already and a little more, the rest in English. */
+    if (run.out) {
+      I18N_STAT.out++; run.left = I18N_BUDGET;
+      run.out = false;
+      got = i18nParts(i18nFold(s), 0);
+    }
+  } finally {
+    I18N_RUN = outer;
+  }
   if (I18N_SEEN.size > 50000) I18N_SEEN.clear();
   I18N_SEEN.set(s, got);
+  return got;
+}
+/** A piece of a text being worked out (a slot, a sentence of it), once. */
+function i18nPiece(s, depth) {
+  var run = I18N_RUN;
+  if (!run) return i18nWork(s, depth);
+  var key = depth + '\u0002' + s;
+  var got = run.memo.get(key);
+  if (got !== undefined) return got;
+  if (run.left <= 0) { run.out = true; return null; }
+  run.left -= 1;
+  got = i18nWork(s, depth);
+  run.memo.set(key, got);
   return got;
 }
 function i18nWork(s, depth) {
@@ -255,11 +323,14 @@ function i18nWork(s, depth) {
      not be reached: {1}" came first and took "deploying x to y failed: 192.0.2.20" for its
      slot, where "deploying {0} to {1} failed: {2}" says the whole sentence. */
   var best = null, bestLen = 0;
-  for (var i = 0; tryPats && i < I18N.pats.length * 2; i++) {
-    var p = I18N.pats[i % I18N.pats.length];
-    if (!p.pre !== (i < I18N.pats.length)) continue;
-    if (best && i >= I18N.pats.length) break;      /* a whole-text one found: no pre ones */
+  /* only the patterns a word of the text points at, in their order (hunt M) */
+  var cand = tryPats ? i18nCandidates(key) : [], nc = cand.length, run = I18N_RUN;
+  for (var i = 0; i < nc * 2; i++) {
+    var p = I18N.pats[cand[i % nc]];
+    if (!p.pre !== (i < nc)) continue;
+    if (best && i >= nc) break;      /* a whole-text one found: no pre ones */
     if (p.lit && key.indexOf(p.lit) < 0) continue;
+    if (run) run.left -= 1 + (key.length >> 6);     /* a long text costs more to look through */
     var m = p.re.exec(key);
     if (!m || (p.weak && i18nWordy(m, depth))) continue;
     /* the most words of its own wins - the most of the sentence it says itself */
@@ -314,22 +385,26 @@ function i18nWork(s, depth) {
       var rest = i18nText(named[2], depth + 1);
       if (rest !== null) return named[1] + ': ' + rest;
     }
-    /* ...or joined by a dash, as the daemon joins what it says: "nothing
-       to deploy - the target is switched off" (1.0.9). */
-    var parts = key.replace(/([.!?:;])\s+/g, '$1\u0001')
-      .split(/(\s+[\u00b7\u2022|\u2014\u2013-]\s+|\u0001)/)
-      .map(function (bit) { return bit === '\u0001' ? ' ' : bit; });
-    if (parts.length > 1) {
-      var any = false;
-      for (var k = 0; k < parts.length; k += 2) {
-        if (!parts[k]) continue;
-        var one = i18nText(parts[k], depth + 1);
-        if (one !== null) { parts[k] = one; any = true; }
-      }
-      if (any) {
-        for (var q = 1; q < parts.length; q += 2) if (/^\s+-\s+$/.test(parts[q])) parts[q] = ' \u2013 ';
-        return parts.join('');
-      }
+    return i18nParts(key, depth);
+  }
+  return null;
+}
+/* ...or joined by a dash, as the daemon joins what it says: "nothing
+   to deploy - the target is switched off" (1.0.9). */
+function i18nParts(key, depth) {
+  var parts = key.replace(/([.!?:;])\s+/g, '$1\u0001')
+    .split(/(\s+[\u00b7\u2022|\u2014\u2013-]\s+|\u0001)/)
+    .map(function (bit) { return bit === '\u0001' ? ' ' : bit; });
+  if (parts.length > 1) {
+    var any = false;
+    for (var k = 0; k < parts.length; k += 2) {
+      if (!parts[k]) continue;
+      var one = i18nText(parts[k], depth + 1);
+      if (one !== null) { parts[k] = one; any = true; }
+    }
+    if (any) {
+      for (var q = 1; q < parts.length; q += 2) if (/^\s+-\s+$/.test(parts[q])) parts[q] = ' \u2013 ';
+      return parts.join('');
     }
   }
   return null;
