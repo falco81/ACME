@@ -63367,6 +63367,22 @@
   "_626": {
    "source": "nginx started again (it was not running)",
    "text": "nginx znovu spuštěn (neběžel)"
+  },
+  "_627": {
+   "source": "of no number",
+   "text": "bez čísla"
+  },
+  "_628": {
+   "source": "the answer is out of date (its next update has passed, or its this update is ahead)",
+   "text": "odpověď je zastaralá (její příští aktualizace už minula, nebo její aktuální aktualizace je v budoucnu)"
+  },
+  "_629": {
+   "source": "the answer has no this update",
+   "text": "odpověď nemá datum aktualizace (this update)"
+  },
+  "_630": {
+   "source": "the answer's next update is not after its this update",
+   "text": "příští aktualizace odpovědi není až po její aktuální aktualizaci"
   }
  },
  "patterns": {
@@ -88341,6 +88357,30 @@
   "p_400": {
    "source": "SELinux: the port {0} is {1} (another service's) - not given to nginx; choose another port",
    "text": "SELinux: port {0} je {1} (patří jiné službě) – nginxu nepřidělen; zvolte jiný port"
+  },
+  "p_401": {
+   "source": "the CRL at {0} is being fetched and that takes too long - nobody signs in while the certificate cannot be checked for revocation",
+   "text": "CRL na {0} se právě stahuje a trvá to příliš dlouho – dokud nejde ověřit zneplatnění certifikátu, nikdo se nepřihlásí"
+  },
+  "p_402": {
+   "source": "the delta CRL of {0} is of the base CRL number {1}, and the base CRL to be had is {2} - its revocations cannot be seen",
+   "text": "rozdílový (delta) CRL {0} patří k základnímu CRL číslo {1}, ale k dispozici je základní CRL {2} – jeho zneplatnění nejsou vidět"
+  },
+  "p_403": {
+   "source": "number {0}",
+   "text": "číslo {0}"
+  },
+  "p_404": {
+   "source": "the delta CRL of {0} is of another authority ({1}) than its base CRL ({2})",
+   "text": "rozdílový (delta) CRL {0} je od jiné autority ({1}) než jeho základní CRL ({2})"
+  },
+  "p_405": {
+   "source": "the answer has no next update and was made {0} - more than {1} minutes ago",
+   "text": "odpověď nemá příští aktualizaci a byla vytvořena {0} – před více než {1} minutami"
+  },
+  "p_406": {
+   "source": "{0}, carried in an IPv6 address",
+   "text": "{0}, nesená v adrese IPv6"
   }
  },
  "rich": {
