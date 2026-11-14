@@ -34,6 +34,7 @@ descriptor, never a path the acme account could swap for a link.
 """
 import errno
 import hashlib
+import hmac
 import io
 import ipaddress
 import json
@@ -4058,6 +4059,127 @@ def sshkeys_user_do(r, name):
             'file': user_auth_paths(pw)[1], 'users': normal_users(), 'sshd': sshd_says()}
 
 
+# ---- a key of root's only from the database's word, signed (1.0.101) -------------------
+# With db_guard on, the daemon acts as root only on rows of the database it signed (1.0.231 of
+# otp; 067_the_database_s_word_signed.py) - and a key of root's put in here is root itself. A
+# key is added to root's authorized_keys only when the ask carries the signed row of
+# `host:sshkeys:want:...` it comes from (its value and its signatures), the signature checked
+# here with the key worked out from secrets.key as the daemon works it out, and the row holding
+# that very ask (its id, add, root, the same line) not older than an hour. A file laid in this
+# folder by itself - not from a page's ask written to the database - is refused.
+# What it is not against: the acme account holds secrets.key and may write config.json, so a
+# daemon taken over can still sign (or switch the guard off) - see docs/high-security.md.
+CONFIG_PATH = os.environ.get('ACME_CONFIG', '/etc/acme/config.json')
+GUARD_ASK_HOURS = 1.0
+
+
+def guard_on():
+    """Whether db_guard is on in config.json. Not there: off (as the daemon has it). There and
+    not read as a plain JSON object: on - never off because the file could not be read."""
+    try:
+        fd = os.open(CONFIG_PATH, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return True
+        raw = os.read(fd, 1 << 20)
+    finally:
+        os.close(fd)
+    try:
+        conf = json.loads(raw.decode('utf-8'))
+    except ValueError:
+        return True
+    if not isinstance(conf, dict):
+        return True
+    v = conf.get('db_guard')
+    if isinstance(v, str):
+        return v.strip().lower() not in ('', '0', 'false', 'no', 'off')
+    return bool(v)
+
+
+def guard_key():
+    """The key the daemon signs its rows with: HMAC(secrets.key, 'acme-db-guard-1'). Read from
+    the state folder never through a link, a plain file only. None where there is none."""
+    try:
+        top = os.open(STATE_DIR, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError:
+        return None
+    try:
+        fd = os.open('secrets.key', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=top)
+    except OSError:
+        return None
+    finally:
+        os.close(top)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        raw = os.read(fd, 4096)
+    finally:
+        os.close(fd)
+    try:
+        sealing = bytes.fromhex(raw.decode('ascii').strip())
+    except (UnicodeDecodeError, ValueError):
+        return None
+    if len(sealing) != 32:
+        return None
+    return hmac.new(sealing, b'acme-db-guard-1', hashlib.sha256).digest()
+
+
+def guard_mac(key, kind, ident, n, value):
+    """As _dbguard_mac of the daemon."""
+    body = b'\x00' + str(value).encode('utf-8', 'surrogatepass')
+    msg = ('%s\x00%s\x00%d' % (kind, ident, int(n))).encode('utf-8', 'surrogatepass') + body
+    return hmac.new(key, msg, hashlib.sha256).hexdigest()
+
+
+def rootkey_signed(r, line):
+    """Refused unless the ask to add `line` for root comes from a row the daemon signed."""
+    signed = r.get('signed')
+    if not isinstance(signed, dict):
+        raise Refused('db_guard is on: a key of root\'s is added only as asked on the pages (a '
+                      'signed row of the database) - this ask carries none')
+    k, v, aid = str(signed.get('k') or ''), signed.get('v'), str(signed.get('aid') or '')
+    if not k.startswith('host:sshkeys:want:') or not isinstance(v, str) or not aid:
+        raise Refused('db_guard is on: the row this ask comes from is not one of root\'s keys')
+    key = guard_key()
+    if not key:
+        raise Refused('db_guard is on, and there is no key here to check the ask with '
+                      '(secrets.key)')
+    sigs = signed.get('sigs')
+    good = False
+    for s in (sigs if isinstance(sigs, list) else [])[:16]:
+        try:
+            n, m = int(s.get('n')), str(s.get('m') or '')
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if m and hmac.compare_digest(m, guard_mac(key, 'm', k, n, v)):
+            good = True
+            break
+    if not good:
+        raise Refused('db_guard is on: the row this ask comes from is not signed by acme - '
+                      'not acted on')
+    try:
+        asks = json.loads(v)
+    except ValueError:
+        asks = None
+    asks = asks if isinstance(asks, list) else [asks]
+    for a in asks:
+        if isinstance(a, dict) and str(a.get('id') or '') == aid and a.get('do') == 'add' and \
+                str(a.get('user') or 'root') == 'root' and str(a.get('line') or '').strip() == line:
+            try:
+                at = float(a.get('at') or 0)
+            except (TypeError, ValueError):
+                at = 0
+            if abs(time.time() - at) > GUARD_ASK_HOURS * 3600:
+                raise Refused('db_guard is on: that ask is older than an hour - asked again on the '
+                              'pages, it is taken')
+            return
+    raise Refused('db_guard is on: the signed row does not ask for this key')
+
+
 def sshkeys_do(r):
     user = str(r.get('user') or 'root')
     if user != 'root':
@@ -4066,6 +4188,8 @@ def sshkeys_do(r):
     lines = auth_lines()
     if do == 'add':
         line = str(r.get('line') or '').strip()
+        if guard_on():
+            rootkey_signed(r, line)
         m = KEY_LINE_RE.match(line)
         if not m or m.group('type') not in KEY_TYPES:
             raise Refused('that is not one public key line (ssh-ed25519 AAAA... comment) - '
@@ -4106,7 +4230,7 @@ def sshkeys_do(r):
 def sshkeys_part():
     d = web_fd()
     try:
-        raw = read_req(SSHKEYS_ASK, 65536)
+        raw = read_req(SSHKEYS_ASK, 1 << 20)   # with the signed row it came from (1.0.101)
     except FileNotFoundError:
         return
     except (Refused, OSError):

@@ -392,6 +392,24 @@ class TestUpload(unittest.TestCase):
                 self.assertEqual([(c['kind'], c['version'], c['does']) for c in got['classes']],
                                  [(kind,) + want], (kind, args))
 
+    def test_override_started_from_a_version(self):
+        """An override started from a version asked for (1.0.101): it overrides that version -
+        every start of fortigate came out as an override of the plain module ('')."""
+        S.registry(True)
+        vers = S.registry().versions_of('target', 'fortigate')
+        for v in ('6.0', '7.0', '7.4.2'):
+            self.assertIn(v, vers)
+            fn, text = CM.copy_as('target', 'fortigate', from_version=v, override=True)
+            got = CM.analyse('target', fn, text)
+            self.assertTrue(got['ok'], (v, got))
+            self.assertEqual([(c['version'], c['does']) for c in got['classes']],
+                             [(v, 'override')], v)
+            self.assertIn('module_version = %r' % v, text)
+            self.assertEqual(fn, 'fortigate_%s.py' % v.replace('.', '_'))
+        fn, text = CM.copy_as('target', 'fortigate', from_version='', override=True)
+        self.assertEqual((fn, CM.analyse('target', fn, text)['classes'][0]['version']),
+                         ('fortigate_override.py', ''))
+
     def test_every_start_on_the_disk_and_uploaded(self):
         """Every module of every family, every version (1.0.98): its override start and a
         version of your own made from it, put in a plugins folder on the disk (/etc/acme/plugins)

@@ -106,6 +106,25 @@ class PortalCode(unittest.TestCase):
         st, got = self.call('POST', '/api/portal/login', {'name': 'falco', 'password': 'falco-password-1'})
         self.assertEqual(st, 403, got)
 
+    def test_06_portal_logout_ends_portal_sign_ins_only(self):
+        """POST /api/portal/logout ends a sign-in of the portal - never an administrator's
+        given to it (1.0.101)."""
+        admin = self.login('tester')
+        st, _ = self.call('POST', '/api/portal/logout', {}, admin)
+        self.assertEqual(st, 200)
+        st, who = self.call('GET', '/api/auth/whoami', None, admin)
+        self.assertEqual(st, 200, who)
+        self.must('POST', '/api/settings', {'settings': {'portal_code': 'off'}})
+        st, got = self.call('POST', '/api/portal/login', {'name': 'marta', 'password': 'marta-password-1'})
+        self.assertEqual(st, 200, got)
+        tok = got['token']
+        st, me = self.call('GET', '/api/portal/me', None, tok)
+        self.assertTrue(me['me'])
+        st, _ = self.call('POST', '/api/portal/logout', {}, tok)
+        self.assertEqual(st, 200)
+        st, me = self.call('GET', '/api/portal/me', None, tok)
+        self.assertIsNone(me['me'])
+
 
 if __name__ == '__main__':
     unittest.main()

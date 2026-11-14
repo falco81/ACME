@@ -240,6 +240,9 @@ class CertRequest(object):
                      ID) where acme keeps one - a certificate imported from the source
                      (Import from a source): the order a renewal reissues. None: the
                      source finds its order as it always did (its settings, its state)
+        no_held_key  the public keys (pub_sha256, as pki gives them) a request held at the
+                     source must not carry - those of the versions revoked (1.0.101): a
+                     request held with one is dropped, never finished
     """
     def __init__(self, **kw):
         self.names = []
@@ -255,6 +258,7 @@ class CertRequest(object):
         self.previous = None
         self.cert_id = None
         self.ref = None
+        self.no_held_key = []
         self.__dict__.update(kw)
 
 

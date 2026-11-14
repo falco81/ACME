@@ -489,12 +489,10 @@ def cert_save(store, b, by, full=False, out=None):
     if 'challenge_map' in b:
         cmap = {}
         for k, v in _dict(b.get('challenge_map'), 'challenge_map').items():
-            k = str(k).strip().lower().rstrip('.')
+            k = S.map_key(k)            # a name, a pattern or an address (IPv6 too, 1.0.101)
             v = str(v or '').strip()
             if not k or not v:
                 continue
-            if not re.match(r'^(\*\.|\.)?[a-z0-9_.-]{1,253}\Z', k):
-                raise ValueError('%r is not a name or a pattern of names' % k)
             if not S.plugin_row(store, 'challenge', v):
                 raise ValueError('there is no challenge %s (for %s)' % (v, k))
             cmap[k] = v
@@ -636,6 +634,10 @@ def cert_save(store, b, by, full=False, out=None):
                                                                              'failed'):
             fields.update({'state': 'due', 'state_at': t, 'next_try': None})
         store.db.run('DELETE FROM meta WHERE k = ?', (S.CERT_META['devkey'] % int(row['id']),))
+        # "renew it by hand" said for the device before (1.0.101): said for the new one too.
+        # The record of the device that made the version (devmade) stays - it names that
+        # device, so the version is no fit for another one (devicekey.device_made).
+        store.db.run('DELETE FROM meta WHERE k = ?', (S.CERT_META['devhand'] % int(row['id']),))
     elif row and fields.get('state') == 'ok' and row.get('state') == 'disabled' and \
             row.get('cert_pem') and (dev_now or row.get('csr_from') or
                                      not row.get('key_sealed')):

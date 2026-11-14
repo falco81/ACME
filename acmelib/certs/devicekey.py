@@ -191,14 +191,18 @@ def device_made(store, cert):
     without its secrets - was "issued for a device's key", issued anew when switched on.)"""
     rec = S.jload(store.get_meta(S.CERT_META['devmade'] % int(cert['id'])), None) \
         if cert.get('id') else None
+    src = str(cert.get('csr_from') or '').strip()
     try:
         if isinstance(rec, dict) and int(rec.get('version')) == int(cert.get('version') or 0):
-            return True
+            # ...by the device that makes its key now (1.0.101): switched from device A to B,
+            # the version made for A's key was taken as fitting B and deployed there. Its key
+            # made by acme now: made by a device all the same (version_problem says so).
+            return not src or str(rec.get('device') or '').strip() == src
     except (TypeError, ValueError):
         pass
     if cert.get('key_sealed'):
         return False                        # acme holds its key
-    return bool(str(cert.get('csr_from') or '').strip())
+    return bool(src)
 
 
 def made_by_device(store, cert_id, version, device):
@@ -217,6 +221,15 @@ def version_problem(store, cert):
         return ''
     src = str(cert.get('csr_from') or '').strip()
     dev = device_made(store, cert)
+    rec = S.jload(store.get_meta(S.CERT_META['devmade'] % int(cert['id'])), None) \
+        if cert.get('id') and src and not dev else None
+    other = str(rec.get('device') or '').strip() if isinstance(rec, dict) and \
+        str(rec.get('version')) == str(cert.get('version') or 0) else ''
+    if src and not dev and other:
+        return ('version %s of %s was issued for a key the device of %s made, but its key is made '
+                'by the device of %s now - that version fits no key there: it is issued anew for '
+                'a key the device makes (Renew now issues it at once)'
+                % (cert.get('version'), cert['name'], other, src))
     if src and not dev:
         return ('version %s of %s holds a key acme made, but its key is made by the device of %s '
                 'now - that version fits no key there: it is issued anew for a key the device '

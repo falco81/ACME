@@ -1096,6 +1096,52 @@ print(json.dumps({'got': got.decode() if isinstance(got, bytes) else got, 'ev': 
         self.assertEqual(len(errs), 5)
         self.assertTrue(all(s['words'].startswith('The module went around acme') for s in errs))
 
+    def test_own_http_connection_is_a_bypass(self):
+        """http.client's putrequest/endheaders of a module's own (1.0.101): refused at connect,
+        and written down as going around acme too (it was refused unmarked)."""
+        evs = self.record_in(r"""
+import http.client
+P.RECORDING[0] = ev = []
+def tryit(fn):
+    try:
+        return fn()
+    except Exception as e:
+        return type(e).__name__
+def own():
+    c = http.client.HTTPConnection('127.0.0.1', PORT, timeout=2)
+    c.putrequest('GET', '/x')
+    c.endheaders()
+got = tryit(own)
+P.RECORDING[0] = None
+print(json.dumps({'got': got, 'ev': [P.clean(e, {}) for e in ev]}))
+""")
+        self.assertNotEqual(evs['got'], None)
+        by = [(e['how'], e['what']) for e in evs['ev'] if e['kind'] == 'bypass']
+        self.assertEqual(len(by), 1, evs)
+        self.assertEqual(by[0][0], 'http.client')
+        self.assertIn('127.0.0.1', by[0][1])
+
+    def test_json_secrets_are_stand_ins(self):
+        """A secret that is JSON (1.0.101): every string in it a stand-in but for where and
+        who - a password kept as a JSON list, pwd/apiToken/accessKey members reached the
+        module as they were, and the scrub knew only the compact text."""
+        from acmelib.certs import runplan as R
+        cfg = {'password': '["Hunter2-real"]',
+               'creds': '{"user":"svc","pwd":"RealPwd-777","apiToken":"AT-real-999",'
+                        '"accessKey":"AK-real-1","server_url":"https://h.example.com"}'}
+        sec = R.Secrets()
+        out, marks = sec.stand_ins([{'key': 'password', 'type': 'secret'},
+                                    {'key': 'creds', 'type': 'secret'}], cfg)
+        handed = json.dumps(out)
+        for real in ('Hunter2-real', 'RealPwd-777', 'AT-real-999', 'AK-real-1'):
+            self.assertNotIn(real, handed)
+            self.assertIn(real, sec.real)
+        got = json.loads(out['creds'])
+        self.assertEqual((got['user'], got['server_url']), ('svc', 'https://h.example.com'))
+        self.assertEqual(len(json.loads(out['password'])), 1)
+        spaced = json.dumps(json.loads(cfg['creds']))
+        self.assertNotIn('RealPwd-777', json.dumps(R.scrub({'t': 'said: ' + spaced}, sec.real)))
+
 
 class RenewalPathsG2(unittest.TestCase):
     """The renewal path of the targets cisco_wlc9800 .. hpe_oneview (1.0.98): the earlier

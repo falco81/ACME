@@ -201,6 +201,22 @@ def sshkeys_ask(store, nodes, do, by, line='', fp='', last_ok=False, user='root'
     return nodes
 
 
+def sshkeys_root_data(store, a):
+    """The ask for the root helper. A key added for root carries the signed row it comes from
+    (1.0.101): with db_guard on the helper adds none whose row acme did not sign."""
+    user = str(a.get('user') or 'root')
+    data = {'do': a.get('do'), 'line': a.get('line') or '', 'fp': a.get('fp') or '',
+            'last_ok': bool(a.get('last_ok')), 'user': user}
+    row = a.get('_row')
+    if a.get('do') == 'add' and user == 'root' and row:
+        try:
+            sigs = [{'n': n, 'm': m} for _k, n, m in _dbguard_sigs(store.db, 'm', row[0])]
+        except Exception:                               # noqa: BLE001
+            sigs = []
+        data['signed'] = {'k': row[0], 'v': row[1], 'aid': a.get('id') or '', 'sigs': sigs[:16]}
+    return data
+
+
 def sshkeys_tick(daemon):
     store = daemon.store
     me = node_name()
@@ -228,7 +244,7 @@ def sshkeys_tick(daemon):
         for a in asks if isinstance(asks, list) else [asks]:
             if isinstance(a, dict) and a.get('id') and a['id'] not in done and \
                     time.time() - float(a.get('at') or 0) < 3600:
-                todo.append(a)
+                todo.append(dict(a, _row=(r['k'], r['v'])))
     todo.sort(key=lambda a: float(a.get('at') or 0))
     stale = time.time() - HOST_WORK['ssh_seen'] > 300 or not now
     if not todo and not stale:
@@ -251,9 +267,7 @@ def sshkeys_tick(daemon):
                 err, got = '', None
                 user = str(a.get('user') or 'root')
                 try:
-                    got = root_ask('sshkeys.ask', 'sshkeys.json', {
-                        'do': a.get('do'), 'line': a.get('line') or '', 'fp': a.get('fp') or '',
-                        'last_ok': bool(a.get('last_ok')), 'user': user}, 60)
+                    got = root_ask('sshkeys.ask', 'sshkeys.json', sshkeys_root_data(store, a), 60)
                 except Exception as e:                  # noqa: BLE001
                     err = str(e)[:300] or e.__class__.__name__
                     log('the SSH keys of %s: %s' % (user, err), 'warn')

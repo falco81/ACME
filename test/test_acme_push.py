@@ -255,6 +255,14 @@ class Receiver(unittest.TestCase):
         self.assertEqual(st, 200)
         self.assertFalse(out['on'])
         self.assertNotIn('enc_key', out)
+        # Nor the version, to anybody asking without a sign-in (1.0.101)...
+        self.assertNotIn('version', out)
+        self.assertEqual((out['protocol'], out['app']), ([1], E.PUSH_APP))
+        # ...said once it is switched on, as the protocol has it.
+        receiver_reset()
+        st, out = E.push_handle(STORE, 'hello', b'', {})
+        self.assertEqual((st, out['on'], out['version']), (200, True, E.__version__))
+        receiver_reset(on=False)
         t, _ = target()
         with self.assertRaises(base.PluginError) as e:
             t.test()
@@ -499,6 +507,33 @@ class Receiver(unittest.TestCase):
             E.CONFIG.clear()
             E.CONFIG.update(was)
             STORE.db.run('DELETE FROM meta WHERE k = ?', ('web:vip',))
+
+
+class HealthUntokened(unittest.TestCase):
+    """/api/health, the one route asked without the API token (1.0.101): without it, neither
+    this node's name nor whether any account exists - with it (the pages' PHP, /healthz), both."""
+
+    def ask(self, token):
+        class H(object):
+            store = STORE
+            headers = {'X-Acme-Token': token} if token is not None else {}
+
+            def arg(self, k, default=None):
+                return default
+        return E.ROUTES[('GET', '/api/health')](H())
+
+    def test_without_the_token(self):
+        tok = E.api_token(make=True)
+        for given in (None, '', 'not-the-token'):
+            out = self.ask(given)
+            self.assertTrue(out['ok'])
+            self.assertIn('database', out)
+            self.assertNotIn('node', out)
+            self.assertNotIn('users', out)
+            self.assertNotIn('version', out)
+        out = self.ask(tok)
+        self.assertEqual(out['node'], E.node_name())
+        self.assertIn(out['users'], (0, 1))
 
 
 class ServedWhere(unittest.TestCase):

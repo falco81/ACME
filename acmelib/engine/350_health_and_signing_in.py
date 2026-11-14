@@ -558,12 +558,20 @@ def _lockouts_do(h):
     return {'message': 'cleared', 'told': told}
 
 
+def health_token_ok(h):
+    """Whether /api/health was asked with the API token (1.0.101) - it alone is asked without."""
+    want = api_token()
+    given = str(h.headers.get('X-Acme-Token') or '')
+    return bool(want) and hmac.compare_digest(want.encode('utf-8'), given.encode('utf-8', 'replace'))
+
+
 @route('GET', '/api/health')
 def _health(h):
     """Asked without the API token, so it says only what the pages need
     before anybody is signed in: that the database opens, whether any
     account exists at all (the sign-in page says how to make the first one
-    otherwise), the language and this node's name. No version, no count."""
+    otherwise), the language and this node's name - those two only with the
+    token (1.0.101). No version, no count."""
     # The database asked at most once a second (1.0.57): /healthz is public,
     # and every load balancer, monitor and the VIP address's own check ask it.
     got = HEALTH_SEEN.get('db')
@@ -580,8 +588,8 @@ def _health(h):
         except Exception:                               # noqa: BLE001
             maint = False
         HEALTH_SEEN['db'] = (time.time(), (users, db_ok, maint))
-    out = {'ok': True, 'users': users, 'database': {'ok': db_ok},
-           'lang': CONFIG.get('ui_lang') or 'cs', 'node': node_name(),
+    out = {'ok': True, 'database': {'ok': db_ok},
+           'lang': CONFIG.get('ui_lang') or 'cs',
            'maintenance': maint,
            # What the sign-in page offers of Windows (Kerberos, 1.0.99): the button, tried by
            # itself, no password at all - nothing more (no realm, no name).
@@ -590,6 +598,12 @@ def _health(h):
            'certlogin': cl_page_info('admin', h.store),
            # Each way's mode on the page, and the order of those tried by themselves (1.0.100).
            'signin': sso_signin_modes('admin', h.store)}
+    # Whether any account exists (the sign-in page's "make the first one") and this node's
+    # name (/healthz's "ok NODE") only to those holding the API token - the pages' PHP, which
+    # asks with it (1.0.101). Without it, nobody else learns the node's name or that there is
+    # nobody to sign in yet.
+    if health_token_ok(h):
+        out.update(users=users, node=node_name())
     # For monitoring (1.0.47) - asked for - whether replication runs.
     if h.arg('check') == 'all' and CONFIG.get('ha_mode') == 'replicated':
         try:

@@ -913,13 +913,38 @@ def clean_name(name, what='a name'):
     return name
 
 
+def map_key(k):
+    """A key of challenge_map, as kept: a name, a pattern of names ('*.example.com',
+    '.example.com') or an IP address (1.0.101: an IPv6 one was refused - a certificate with
+    DNS names on dns-01 and an IPv6 address on http-01 could not be set up), written as
+    clean_names writes it. '' for none; ValueError when it is none of these."""
+    k = str(k or '').strip().lower().rstrip('.')
+    if not k:
+        return ''
+    if '%' not in k:
+        try:
+            return clean_names([str(ipaddress.ip_address(k))])[0]
+        except ValueError:
+            pass
+    if not re.match(r'^(\*\.|\.)?[a-z0-9_.-]{1,253}\Z', k):
+        raise ValueError('%r is not a name or a pattern of names' % k)
+    return k
+
+
+def _map_key_soft(k):
+    try:
+        return map_key(k)
+    except ValueError:
+        return str(k).lower().rstrip('.')
+
+
 def challenge_for(cert, name):
     """The challenge (its name in cert_challenges) that proves `name`: the
     exact name in challenge_map, then a '*.parent' pattern there, then the
     longest suffix there, then the certificate's own `challenge`."""
     cmap = jload(cert.get('challenge_map'), {}) or {}
-    cmap = {str(k).lower().rstrip('.'): v for k, v in cmap.items() if v}
-    n = str(name).lower().rstrip('.')
+    cmap = {_map_key_soft(k): v for k, v in cmap.items() if v}
+    n = _map_key_soft(name)
     if n in cmap:
         return cmap[n]
     bare = n[2:] if n.startswith('*.') else n

@@ -922,9 +922,13 @@ class Storage(object):
     def session_set_data(self, ident, data):
         self.db.run('UPDATE sessions SET data = ? WHERE id = ?', (json.dumps(data), ident))
 
-    def session_end(self, token):
-        self.db.run('DELETE FROM sessions WHERE token_hash = ?',
-                    (hashlib.sha256(str(token or '').encode()).hexdigest(),))
+    def session_end(self, token, kind=None):
+        """A sign-in ended - of that kind alone when one is named (1.0.101)."""
+        th = hashlib.sha256(str(token or '').encode()).hexdigest()
+        if kind:
+            self.db.run('DELETE FROM sessions WHERE token_hash = ? AND kind = ?', (th, kind))
+        else:
+            self.db.run('DELETE FROM sessions WHERE token_hash = ?', (th,))
 
     def sessions(self, kind=None):
         sql, args = 'SELECT id, kind, name, role, created, last, expires, ip FROM sessions', []

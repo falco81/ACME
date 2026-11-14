@@ -353,7 +353,39 @@ def pending_get(ctx, slot, req, issuer=None):
         if not v['key_pem']:
             _drop_held(ctx, slot, req, v, issuer)
             return None
+    if held_refused(req, v):
+        # Its key revoked since (1.0.101): a revoke for keyCompromise, then "issue a new one" -
+        # the order held at the CA was finished with the compromised key all the same.
+        say(ctx, 'the request waiting at the CA (%s) has the key of a version revoked - '
+                 'dropped, a new one is made with a new key' % (v.get('id') or '?'), 'warn')
+        _drop_held(ctx, slot, req, v, issuer)
+        return None
     return v
+
+
+def _held_pub(held):
+    """The public key (pub_sha256) of a held request - its key, else its CSR's; None when
+    neither tells."""
+    from acmelib.certs import pki as _pki
+    try:
+        if held.get('key_pem'):
+            return _pki.key_info(held['key_pem'])['pub_sha256']
+        if held.get('csr_pem'):
+            return _pki.csr_info(held['csr_pem'])['sha256']
+    except Exception:                                   # noqa: BLE001
+        return None
+    return None
+
+
+def held_refused(req, held):
+    """True when the held request must not be finished: its key is one of
+    `req.no_held_key` (a version revoked). One whose key cannot be told is left: those held
+    when a version was revoked were dropped then (renewer.drop_held)."""
+    refused = {str(k).upper() for k in (getattr(req, 'no_held_key', None) or []) if k}
+    if not refused or not held:
+        return False
+    pub = _held_pub(held)
+    return pub is not None and str(pub).upper() in refused
 
 
 def pending_put(ctx, slot, req, value, ttl_days=90):
@@ -374,7 +406,7 @@ def pending_drop(ctx, slot):
 
 def held_request(req, held):
     """The request as it was when it was held (its key and CSR), for finish()."""
-    if not held:
+    if not held or held_refused(req, held):
         return req
     from acmelib.plugins.base import CertRequest
     r = CertRequest(**dict(req.__dict__))

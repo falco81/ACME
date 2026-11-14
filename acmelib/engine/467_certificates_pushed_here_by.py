@@ -677,10 +677,12 @@ def push_body(raw):
 
 def push_hello(store):
     conf = push_conf(store)
-    out = {'ok': True, 'protocol': [PUSH_PROTOCOL], 'app': PUSH_APP, 'version': __version__,
-           'on': conf['on']}
+    out = {'ok': True, 'protocol': [PUSH_PROTOCOL], 'app': PUSH_APP, 'on': conf['on']}
     if not conf['on']:
+        # Switched off, not the version either (1.0.101): asked by anybody, without a sign-in -
+        # it told which release (and so which of its known faults) a server runs.
         return out
+    out['version'] = __version__
     box = push_box(store)
     cl = push_cluster(store)
     out.update(app_id=box['app_id'], enc_key=push_b64(box['pub']), enc_alg=PUSH_ENC_ALG,

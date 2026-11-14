@@ -54,7 +54,14 @@ def _draft(store, b):
         m = d.get('challenge_map') or {}
         if not isinstance(m, dict):
             raise ValueError('challenge_map is {name: validation}')
-        cert['challenge_map'] = json.dumps({str(k): str(v) for k, v in m.items() if v})
+        # checked and written as a save does (1.0.101: taken unchecked, the plan and the save
+        # disagreed)
+        cm = {}
+        for k, v in m.items():
+            k, v = S.map_key(k), str(v or '').strip()
+            if k and v:
+                cm[k] = v
+        cert['challenge_map'] = json.dumps(cm)
     if 'profile' in d:
         p = d.get('profile') or {}
         if not isinstance(p, dict):

@@ -279,6 +279,14 @@ def _patch_http_client():
         return r
 
     def connect(self):
+        # putrequest/endheaders of its own (1.0.101): refused, but not written down as going
+        # around acme's connection layer
+        if RECORDING[0] is not None:
+            tls = isinstance(self, HC.HTTPSConnection)
+            host = getattr(self, '_tunnel_host', None) or self.host
+            port = getattr(self, '_tunnel_port', None) or self.port or (443 if tls else 80)
+            bypass('http.client', 'a connection to %s://%s:%s' % ('https' if tls else 'http',
+                                                                  host, port))
         raise Blocked('the run plan contacts nothing')
     HC.HTTPConnection.request = request
     HC.HTTPConnection.getresponse = getresponse

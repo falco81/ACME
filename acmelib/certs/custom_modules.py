@@ -481,7 +481,11 @@ def copy_as(family, kind, from_version=None, version='', label='', override=Fals
     import ast
     cls = class_of(family, kind, from_version, original)
     _name, text = source_of(family, kind, from_version, original)
-    if override:
+    if override and from_version is not None and str(from_version) != '':
+        # started from a version asked for (1.0.101): that version is the one overridden - the
+        # first shipped one was written, and a FortiGate 7.0 start replaced the plain module
+        version = (getattr(cls, '_replaced', None) or cls).module_version or ''
+    elif override:
         shipped = [getattr(c, '_replaced', None) or c
                    for c in (S.registry().versions.get(family, {}).get(kind) or {}).values()
                    if getattr(c, '_origin', 'builtin') == 'builtin' or getattr(c, '_replaced', None)]
@@ -555,7 +559,9 @@ def copy_as(family, kind, from_version=None, version='', label='', override=Fals
     out = ''.join(lines)
     if not out.endswith('\n'):
         out += '\n'
-    fname = '%s_%s.py' % (kind, 'override' if override else re.sub(r'[^a-z0-9]+', '_', version.lower()))
+    # an override of a version named as the upload dialog names it (fortigate_7_0.py)
+    fname = '%s_%s.py' % (kind, 'override' if override and not version
+                          else re.sub(r'[^a-z0-9]+', '_', version.lower()))
     return fname, out
 
 

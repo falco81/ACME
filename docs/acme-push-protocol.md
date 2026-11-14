@@ -285,8 +285,13 @@ Only then is the body parsed (JSON object, no NaN/Infinity).
 No signature. Switched off, only:
 
 ```json
-{"ok": true, "protocol": [1], "app": "otp", "version": "1.0.210", "on": false}
+{"ok": true, "protocol": [1], "app": "otp", "on": false}
 ```
+
+Switched off, `version` is left out (acme 1.0.101 as the receiver): `hello` is
+answered to anybody without a sign-in, and the exact release says which known
+faults a server has. A client must not need it - acme shows it only when it is
+there. Older receivers still send it.
 
 Switched on:
 

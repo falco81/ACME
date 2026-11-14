@@ -49,6 +49,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import threading
 import time
 import traceback
@@ -342,6 +343,69 @@ def _challenges(store, job, cert, names, contexts):
     return out
 
 
+def _revoked_keys(store, cert_id):
+    """The public keys (pub_sha256) of the certificate's revoked versions (1.0.101): a request
+    held at the source with one of them is never finished (CertRequest.no_held_key)."""
+    out = set()
+    try:
+        from acmelib.certs import pki as _pki
+        for v in store.db.rows('SELECT cert_pem FROM cert_versions WHERE cert_id = ? AND '
+                               'revoked IS NOT NULL AND revoked <> 0 ORDER BY version DESC '
+                               'LIMIT 20', (cert_id,)):
+            try:
+                out.add(_pki.cert_info(v['cert_pem'])['pub_sha256'])
+            except Exception:                           # noqa: BLE001
+                continue
+    except Exception:                                   # noqa: BLE001
+        pass
+    return sorted(out)
+
+
+HELD_RE = re.compile(r'-pending:[0-9a-f]{12}:(\d+)(?::|$)')
+
+
+def drop_held(store, job, cert, ctx, issuer):
+    """Every request the source holds for this certificate dropped (1.0.101: revoked, the
+    order held at the CA - with the key revoked - was finished by the next renewal), its DCV
+    records taken away. -> how many."""
+    from acmelib.plugins.issuers import _source_common as sc
+    n, contexts = 0, []
+    try:
+        held = ctx.kv_keys('')
+    except Exception:                                   # noqa: BLE001
+        return 0
+    for key, v in sorted(held.items()):
+        m = HELD_RE.search(str(key))
+        if not m or int(m.group(1)) != int(cert['id']):
+            continue
+        if isinstance(v, str):
+            v = sc.parse_json(v)
+        v = v if isinstance(v, dict) else {}
+        names = list(v.get('names') or S.jload(cert.get('names'), []) or [])
+        challenges = {}
+        if v.get('dcv'):
+            try:
+                challenges = _challenges(store, job, cert, names, contexts)
+            except Exception as e:                      # noqa: BLE001
+                job.step('the validation of the request held could not be made ready: %s' % e,
+                         'warn')
+        req = base.CertRequest(names=names, challenges=challenges, cert_id=cert['id'])
+        try:
+            sc._drop_held(ctx, key, req, v, issuer)
+        except Exception as e:                          # noqa: BLE001
+            job.step('the request held could not be dropped: %s' % e, 'warn')
+            continue
+        n += 1
+        job.step('the request %s held at the source (with the key revoked) dropped'
+                 % (v.get('id') or key), 'ok')
+    for c in contexts:
+        try:
+            c.tidy()
+        except Exception:                               # noqa: BLE001
+            pass
+    return n
+
+
 def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_type,
                kept_key, previous, what='', ref=None):
     """One certificate of `key_type` from the issuer: a key (or `kept_key`), a CSR,
@@ -393,7 +457,8 @@ def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_t
                            csr_pem=csr_pem,
                            csr_der=csr_der, subject=subject, days=profile.get('days'),
                            profile=profile, challenges=challenges,
-                           previous=previous or None, cert_id=cert['id'], ref=ref or None)
+                           previous=previous or None, cert_id=cert['id'], ref=ref or None,
+                           no_held_key=_revoked_keys(store, cert['id']))
     if ref:
         job.step('%sthe source\'s own certificate %s is renewed (imported from %s)'
                  % (what, ref, irow['name']))
@@ -851,6 +916,8 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
     store.db.update('certs', cert['id'], revoked)
     store.db.run('UPDATE cert_versions SET revoked = ? WHERE cert_id = ? AND version = ?',
                  (t, cert['id'], cert.get('version') or 0))
+    # A request held at the source has the key revoked (1.0.101): dropped here, never finished.
+    drop_held(store, job, cert, ctx, issuer)
     store.add_event('certificates', '%s revoked (%s) by %s' % (cert['name'], reason, by or '?'),
                     'warn')
     E.split_note(store, 'revoke', cert['name'], 'revoke:%s' % cert['id'])

@@ -3212,6 +3212,15 @@ def _stand_in(n):
     return base64.b64encode(('plansecret%02d' % n).encode()).decode()
 
 
+# The members of a secret's JSON that are not secrets (1.0.101): where and who - every other
+# string in it is a stand-in in a plan (a service account's type, project, e-mail and URLs;
+# acme-dns's names and allowfrom; a JWK's public members).
+PLAIN_MEMBER = (r'^(type|kty|crv|alg|use|kid|x|y|n|e|key_ops|x5u|'
+                r'.*_?(url|uri|endpoint|email|e_mail|domain|host|hostname|server|region|zone)s?|'
+                r'subdomain|fulldomain|allowfrom|project(_?id)?|client_?id|user(_?name)?|login|'
+                r'account(_?id)?|tenant(_?id)?|name|label|description|scope)$')
+
+
 class Secrets(object):
     """Every secret of the modules taking part: the real ones (masked out at the
     end) and the stand-ins the recording gets instead."""
@@ -3295,19 +3304,26 @@ class Secrets(object):
                 return [walk(b, path) for b in x]
             if isinstance(x, str) and '-----BEGIN' in x and 'PRIVATE KEY' in x:
                 return key_like(x)
-            if isinstance(x, str) and x and path and (re.search(
+            if isinstance(x, str) and x and (not path or re.search(
                     r'(pass|secret|private|apikey|credential)', path[-1], re.I) or re.search(
-                    r'(^|_)(key|token)$', path[-1], re.I)):
+                    r'(^|_)(key|token)$', path[-1], re.I) or not re.search(PLAIN_MEMBER,
+                                                                          path[-1], re.I)):
+                # every string of a secret's JSON a stand-in (1.0.101), but for the members
+                # that say where and who (a URL, an e-mail, a domain, a type): pwd, apiToken,
+                # accessKey and a list of passwords reached the module as they were
                 self.keep(x)
                 self.n += 1
                 si = _stand_in(self.n)
-                marks[si] = '%s: %s' % (label, path[-1])
+                marks[si] = '%s: %s' % (label, path[-1]) if path else label
                 return si
             return x
         try:
             if isinstance(v, str) and v.strip()[:1] in ('{', '['):
                 got = json.loads(v)
                 if isinstance(got, (dict, list)):
+                    # the real one as a module may write it out again, for the scrub (1.0.101)
+                    self.keep(json.dumps(got))
+                    self.keep(json.dumps(got, separators=(',', ':')))
                     w = walk(got, [])
                     return w if isinstance(w, str) else json.dumps(w)
             if isinstance(v, str) and '-----BEGIN' in v and 'PRIVATE KEY' in v:

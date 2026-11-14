@@ -973,7 +973,9 @@ def _portal_sso_do(h):
 
 @route('POST', '/api/portal/logout')
 def _portal_logout(h):
-    h.store.session_end(h.headers.get('X-Acme-Session'))
+    # A sign-in of the portal alone (1.0.101): any token given was ended here, an
+    # administrator's too.
+    h.store.session_end(h.headers.get('X-Acme-Session'), 'portal')
     return {}
 
 
