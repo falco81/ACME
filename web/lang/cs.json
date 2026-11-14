@@ -63139,6 +63139,218 @@
   "_569": {
    "source": "no CRL at that address is known here (acme --cert-login-crl lists them)",
    "text": "žádný CRL na této adrese tu není znám (vypíše je acme --cert-login-crl)"
+  },
+  "_570": {
+   "source": "http, then the directory (LDAP)",
+   "text": "http, pak adresář (LDAP)"
+  },
+  "_571": {
+   "source": "http",
+   "text": "http"
+  },
+  "_572": {
+   "source": "one responder for all",
+   "text": "jeden respondér pro všechny"
+  },
+  "_573": {
+   "source": "each certificate’s responder",
+   "text": "respondér každého certifikátu"
+  },
+  "_574": {
+   "source": "none to be had",
+   "text": "nic k dispozici"
+  },
+  "_575": {
+   "source": "no sign-in",
+   "text": "žádné přihlášení"
+  },
+  "_576": {
+   "source": "unknown",
+   "text": "neznámý"
+  },
+  "_577": {
+   "source": "last answer kept",
+   "text": "ponechána poslední odpověď"
+  },
+  "_578": {
+   "source": "Online status (OCSP)",
+   "text": "Stav online (OCSP)"
+  },
+  "_579": {
+   "source": "Every responder asked again now - on every node, each itself - for every certificate it answered for. One that does not answer changes nothing that lets anybody in.",
+   "text": "Všechny respondéry se hned zeptají znovu – na každém uzlu, každý sám – na každý certifikát, na který odpověděly. Respondér, který neodpoví, nikoho nepustí dovnitř."
+  },
+  "_580": {
+   "source": "Forget the OCSP answers kept on every node: the next sign-in asks the responder again.",
+   "text": "Zapomenout uložené odpovědi OCSP na všech uzlech: další přihlášení se respondéru zeptá znovu."
+  },
+  "_581": {
+   "source": "Clear every OCSP answer?",
+   "text": "Vymazat všechny odpovědi OCSP?"
+  },
+  "_582": {
+   "source": "Every node forgets the answers it keeps; the next sign-in asks the responder again. While it does not answer then, its last good answer is gone too.",
+   "text": "Každý uzel zapomene uložené odpovědi; další přihlášení se respondéru zeptá znovu. Pokud pak neodpovídá, je pryč i jeho poslední platná odpověď."
+  },
+  "_583": {
+   "source": "The responder set is not an address acme asks: ",
+   "text": "Nastavený respondér není adresa, které se acme ptá: "
+  },
+  "_584": {
+   "source": "The responder set is not an address acme asks:",
+   "text": "Nastavený respondér není adresa, které se acme ptá:"
+  },
+  "_585": {
+   "source": "None yet: a responder is asked at the first sign-in, and its answer is used ten minutes at most.",
+   "text": "Zatím žádné: respondéru se acme zeptá při prvním přihlášení a jeho odpověď používá nejvýše deset minut."
+  },
+  "_586": {
+   "source": "Asked at a sign-in, at most every ten minutes; the answer is signed by the authority or a responder it named, and checked by openssl against the authorities put in. A row opens to its details.",
+   "text": "Ptá se při přihlášení, nejvýše jednou za deset minut; odpověď podepisuje autorita nebo jí pověřený respondér a openssl ji ověřuje proti vloženým autoritám. Řádek se rozbalí do podrobností."
+  },
+  "_587": {
+   "source": "Ask the responder again - on every node",
+   "text": "Zeptat se respondéru znovu – na každém uzlu"
+  },
+  "_588": {
+   "source": "Clear this answer on every node - asked again at the next sign-in",
+   "text": "Vymazat tuto odpověď na všech uzlech – při dalším přihlášení se acme zeptá znovu"
+  },
+  "_589": {
+   "source": "the responder says it is not revoked",
+   "text": "respondér říká, že není odvolán"
+  },
+  "_590": {
+   "source": "the responder says it is revoked: nobody signs in with it",
+   "text": "respondér říká, že je odvolán: nikdo se s ním nepřihlásí"
+  },
+  "_591": {
+   "source": "the responder does not know it: nobody signs in with it",
+   "text": "respondér ho nezná: nikdo se s ním nepřihlásí"
+  },
+  "_592": {
+   "source": "no answer to be had: by its CRL instead when OCSP comes first, else nobody signs in with it",
+   "text": "odpověď nelze získat: když je OCSP první, rozhodne místo něj jeho CRL, jinak se s ním nikdo nepřihlásí"
+  },
+  "_593": {
+   "source": "its next update has passed: asked again at the next sign-in",
+   "text": "jeho další aktualizace už minula: při dalším přihlášení se acme zeptá znovu"
+  },
+  "_594": {
+   "source": "the last good answer is used until its next update; the latest asking failed",
+   "text": "do své další aktualizace se používá poslední platná odpověď; poslední dotaz se nezdařil"
+  },
+  "_595": {
+   "source": "Responder",
+   "text": "Respondér"
+  },
+  "_596": {
+   "source": "Ask every responder again",
+   "text": "Zeptat se znovu všech respondérů"
+  },
+  "_597": {
+   "source": "Ask one responder again",
+   "text": "Zeptat se znovu jednoho respondéru"
+  },
+  "_598": {
+   "source": "Clear every OCSP answer",
+   "text": "Vymazat všechny odpovědi OCSP"
+  },
+  "_599": {
+   "source": "Clear one OCSP answer",
+   "text": "Vymazat jednu odpověď OCSP"
+  },
+  "_600": {
+   "source": "answered",
+   "text": "odpověděl"
+  },
+  "_601": {
+   "source": "every responder answered",
+   "text": "všechny respondéry odpověděly"
+  },
+  "_602": {
+   "source": "asked - not every responder answered",
+   "text": "dotázáno – ne všechny respondéry odpověděly"
+  },
+  "_603": {
+   "source": "LDAP",
+   "text": "LDAP"
+  },
+  "_604": {
+   "source": " A CRL Distribution Point in the directory is read too, with the directory’s connection above, when no http one answers.",
+   "text": " Když neodpovídá žádný http bod, čte se i distribuční bod CRL v adresáři, spojením adresáře uvedeného výše."
+  },
+  "_605": {
+   "source": "A CRL Distribution Point in the directory is read too, with the directory’s connection above, when no http one answers.",
+   "text": "Když neodpovídá žádný http bod, čte se i distribuční bod CRL v adresáři, spojením adresáře uvedeného výše."
+  },
+  "_606": {
+   "source": "Read from",
+   "text": "Přečteno z"
+  },
+  "_607": {
+   "source": "the directory (LDAP), with its connection above - never the host in the address",
+   "text": "adresáře (LDAP), jeho spojením uvedeným výše – nikdy ze serveru uvedeného v adrese"
+  },
+  "_608": {
+   "source": "CRLs from the directory (LDAP) too",
+   "text": "CRL také z adresáře (LDAP)"
+  },
+  "_609": {
+   "source": "Ask an OCSP responder",
+   "text": "Ptát se respondéru OCSP"
+  },
+  "_610": {
+   "source": "OCSP responder of its own",
+   "text": "Vlastní respondér OCSP"
+  },
+  "_611": {
+   "source": "CRLs from the directory (LDAP) too (the portal)",
+   "text": "CRL také z adresáře (LDAP) (portál)"
+  },
+  "_612": {
+   "source": "Ask an OCSP responder (the portal)",
+   "text": "Ptát se respondéru OCSP (portál)"
+  },
+  "_613": {
+   "source": "OCSP responder of its own (the portal)",
+   "text": "Vlastní respondér OCSP (portál)"
+  },
+  "_614": {
+   "source": "On: a CRL Distribution Point in the directory (ldap:///CN=...,CN=CDP,CN=Public Key Services,...) is read with the connection of the directory administrators sign in against when no http one answers - for an authority that publishes no http CDP. Only CDP objects of the configuration are read, and never the host written in the address.",
+   "text": "Zapnuto: když neodpovídá žádný http bod, čte se distribuční bod CRL v adresáři (ldap:///CN=...,CN=CDP,CN=Public Key Services,...) spojením adresáře, proti kterému se přihlašují správci – pro autoritu, která http CDP nezveřejňuje. Čtou se jen objekty CDP konfigurace a nikdy server zapsaný v adrese."
+  },
+  "_615": {
+   "source": "off: the CRLs alone. first: the OCSP responder (AD CS Online Responder) is asked, and the CRL only when it does not answer. only: the responder alone - no answer, no sign-in. both: the responder and the CRL, both must say good. The certificate and every authority above it but the root.",
+   "text": "off: jen CRL. first: zeptá se respondéru OCSP (AD CS Online Responder) a CRL použije, jen když neodpoví. only: jen respondér – bez odpovědi žádné přihlášení. both: respondér i CRL, oba musí říct platný. Certifikát a každá autorita nad ním kromě kořenové."
+  },
+  "_616": {
+   "source": "Empty: the responder each certificate names (Authority Information Access). Or an http address of a responder for all of them (http://pki.corp.example/ocsp).",
+   "text": "Prázdné: respondér, kterého uvádí každý certifikát (Authority Information Access). Nebo http adresa respondéru pro všechny (http://pki.corp.example/ocsp)."
+  },
+  "_617": {
+   "source": "As the administration's, for the portal - read with the connection of the portal's directory.",
+   "text": "Jako u administrace, pro portál – čte se spojením adresáře portálu."
+  },
+  "_618": {
+   "source": "As the administration's, for the portal: off, first, only or both.",
+   "text": "Jako u administrace, pro portál: off, first, only nebo both."
+  },
+  "_619": {
+   "source": "As the administration's, for the portal: empty - the responder each certificate names.",
+   "text": "Jako u administrace, pro portál: prázdné – respondér, kterého uvádí každý certifikát."
+  },
+  "_620": {
+   "source": "every node asks the OCSP responders again",
+   "text": "každý uzel se znovu ptá respondérů OCSP"
+  },
+  "_621": {
+   "source": "the OCSP answers are cleared on every node",
+   "text": "odpovědi OCSP jsou vymazány na všech uzlech"
+  },
+  "_622": {
+   "source": "no OCSP answer of that is kept here (acme --cert-login-ocsp lists them)",
+   "text": "taková odpověď OCSP tu uložená není (vypíše je acme --cert-login-ocsp)"
   }
  },
  "patterns": {
@@ -88049,6 +88261,30 @@
   "p_384": {
    "source": "{0} cleared the CRLs of the sign-in with a certificate on every node - each is fetched again at the next sign-in",
    "text": "{0} vymazal CRL přihlašování certifikátem na všech uzlech – každý se stáhne znovu při dalším přihlášení"
+  },
+  "p_385": {
+   "source": "{0} of {1} answered",
+   "text": "odpovědělo {0} z {1}"
+  },
+  "p_386": {
+   "source": "{0}: an http address of an OCSP responder (http://pki.corp.example/ocsp) - no loopback, link-local or metadata address, no user or password",
+   "text": "{0}: http adresa respondéru OCSP (http://pki.corp.example/ocsp) – žádná adresa loopback, link-local ani metadat, žádné jméno ani heslo"
+  },
+  "p_387": {
+   "source": "{0} asked the OCSP responder at {1} again on every node",
+   "text": "{0} se na všech uzlech znovu zeptal(a) respondéru OCSP na {1}"
+  },
+  "p_388": {
+   "source": "{0} asked every OCSP responder of the sign-in with a certificate again on every node",
+   "text": "{0} se na všech uzlech znovu zeptal(a) všech respondérů OCSP přihlašování certifikátem"
+  },
+  "p_389": {
+   "source": "{0} cleared an OCSP answer of {1} on every node - asked again at the next sign-in",
+   "text": "{0} vymazal(a) na všech uzlech odpověď OCSP od {1} – při dalším přihlášení se acme zeptá znovu"
+  },
+  "p_390": {
+   "source": "{0} cleared the OCSP answers of the sign-in with a certificate on every node - each is asked again at the next sign-in",
+   "text": "{0} vymazal(a) na všech uzlech odpovědi OCSP přihlašování certifikátem – při dalším přihlášení se acme zeptá znovu"
   }
  },
  "rich": {

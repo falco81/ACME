@@ -2122,12 +2122,21 @@ def cl_sessions_end(store, which, keep=None, by='', why=''):
 def cl_rule(part):
     """How strictly a part takes a certificate: (revocation checked, the rank of its matching) -
     made stricter, the sign-ins made with a certificate before end (review F8)."""
-    return (1 if CONFIG.get(part + '_certlogin_crl', 1) else 0, CL_MATCH_RANK.get(cl_match(part), 2))
+    # The OCSP mode too (1.0.105): off < first < only < both - made stricter, the same.
+    ocsp = {'off': 0, 'first': 1, 'only': 2, 'both': 3}.get(
+        str(CONFIG.get(part + '_certlogin_ocsp') or 'off'), 0)
+    return (1 if CONFIG.get(part + '_certlogin_crl', 1) else 0, CL_MATCH_RANK.get(cl_match(part), 2),
+            ocsp)
 
 
 def cl_rule_stricter(was, now):
     try:
-        return bool(was) and bool(now) and (now[0] > was[0] or now[1] > was[1])
+        if not (bool(was) and bool(now)):
+            return False
+        if now[0] > was[0] or now[1] > was[1]:
+            return True
+        # A rule kept before 1.0.105 has no OCSP part: it was off then.
+        return len(now) > 2 and now[2] > (was[2] if len(was) > 2 else 0)
     except (TypeError, IndexError):
         return False
 

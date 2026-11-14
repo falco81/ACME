@@ -753,7 +753,10 @@ def krb_sessions_settle(store, before, keep=None, by=''):
                             'certificates are taken more strictly now (%s)' % ', '.join(
                                 w for w, on in (('revocation checked', after[part][3][0] >
                                                  was[3][0]), ('matched %s' % cl_match(part),
-                                                              after[part][3][1] > was[3][1]))
+                                                              after[part][3][1] > was[3][1]),
+                                                 ('OCSP %s' % CONFIG.get(part + '_certlogin_ocsp'),
+                                                  len(after[part][3]) > 2 and after[part][3][2] >
+                                                  (was[3][2] if len(was[3]) > 2 else 0)))
                                 if on))
         krb_gone, cert_gone = usable_was and not usable, cert_was and not cert
         if not krb_gone and not cert_gone and (only == only_was or not only):
