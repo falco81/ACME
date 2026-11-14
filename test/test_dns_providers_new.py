@@ -106,9 +106,12 @@ class ConstellixFake(RRsetFake):
         self.t.assertEqual((key, mac), ('ckey', want))
         self.t.assertEqual(len(ms), 13)                 # milliseconds
         self.t.assertTrue(url.startswith(self.BASE), url)
-        p = url[len(self.BASE):].strip('/').split('/')
+        p = url[len(self.BASE):].split('?')[0].strip('/').split('/')
         if p == ['']:
-            return 200, [{'id': 70 + i, 'name': z} for i, z in enumerate(ZONES)]
+            # offset and max, at most two a page - the zone is on the last
+            off, most = int(q(url).get('offset') or 0), int(q(url).get('max') or 100)
+            zs = [{'id': 70 + i, 'name': z} for i, z in enumerate(ZONES)][::-1]
+            return 200, zs[off:off + min(most, 2)]
         zone = ZONES[int(p[0]) - 70]
         self.t.assertEqual(p[1:3], ['records', 'txt'])
         if method == 'GET':

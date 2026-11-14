@@ -411,7 +411,11 @@ class DmeFake(IdFake):
         u = urllib.parse.urlsplit(url)
         p = u.path[len('/V2.0/dns/managed/'):].strip('/').split('/')
         if p == ['']:
-            return 200, {'data': [{'id': self.zid(z), 'name': z} for z in ZONES]}
+            # two a page from 0, as DNS Made Easy pages its lists - the zone is on the last
+            page = int(q(url).get('page') or 0)
+            zs = list(reversed(ZONES))
+            return 200, {'data': [{'id': self.zid(z), 'name': z} for z in zs[page * 2:page * 2 + 2]],
+                         'page': page, 'totalPages': (len(zs) + 1) // 2, 'totalRecords': len(zs)}
         zone = self.zone(p[0])
         if method == 'GET':
             n = q(url).get('recordName', '')
@@ -434,7 +438,10 @@ class GcoreFake(Fake):
         u = urllib.parse.urlsplit(url)
         p = [urllib.parse.unquote(x) for x in u.path[len('/dns/v2/'):].split('/')]
         if p == ['zones']:
-            return 200, {'zones': [{'name': z} for z in ZONES], 'total_amount': 3}
+            # at most two a page whatever the limit - the zone is on the last
+            off = int(q(url).get('offset') or 0)
+            zs = list(reversed(ZONES))
+            return 200, {'zones': [{'name': z} for z in zs[off:off + 2]], 'total_amount': len(zs)}
         zone, fqdn = p[1], p[2]
         have = [r['value'] for r in self.recs if r['name'] == fqdn]
         if method == 'GET':

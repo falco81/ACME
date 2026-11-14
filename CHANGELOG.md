@@ -42,6 +42,24 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   adds is taken), or that does not verify against the chain it came with, is refused in words
   and not tried again by itself. An ACME CA asking to prove a name that was not ordered is
   refused before any TXT record or HTTP file is written for it.
+- (security) **SCEP with a CA fingerprint trusts only what that CA signed.** An RA sent next to
+  the genuine CA by someone in between (plain HTTP) got the request and its challenge password,
+  and a CertRep signed by it with a certificate of an impostor CA of the same name was taken.
+  Now the RA, the answer's signer and the certificate that comes are checked by their signatures
+  against the pinned CA. Without a fingerprint, plain HTTP trusts the first answer (the field's
+  help says so).
+- **A DigiCert order whose DCV record could not be placed** (the DNS API down, a stop) places it
+  and asks for the check at the next try - it waited "pending" for 120 days. **Sectigo SCM**
+  takes its placed records away when the validation's submit fails.
+- **"Seen by the zone's own name servers" waits for those it cannot ask** (IPv6-only, a
+  firewalled secondary): not "every name server" while some are not asked; after 3 minutes the
+  resolvers decide, and the job says which servers were not asked. The end of a CNAME chain is
+  checked as a record name before anything is written there.
+- **AWS Private CA keeps the request it holds** on a 5xx or throttling while fetching it - the
+  next try made a new (paid) certificate. **DNS Made Easy, Constellix and Gcore** read every page
+  of their zone lists.
+- **Tests:** SNI "-" sends none in the MSSQL test and opens XMPP without `to=`; the HTTPS test
+  refuses a line break in the method, path or Host header, and its answer is read in 120 s at most.
 
 - **A key revoked is known after a configuration's export and import.** A certificate put
   in from the file has no versions, so a revoke there changed none, and after a failed new issue
@@ -97,6 +115,24 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - (security) **A scoped certificate administrator gives no names another team's certificates hold** to a
   certificate in the administration (refused in words, as the portal makes such a request wait);
   a full administrator, or one who sees every certificate, may.
+- (security) **The floor for going back is 1.0.102.** 1.0.101 shut holes of the root helper
+  and left the floor at 1.0.44: the acme account, which writes root's helper its asks, could take
+  the server back to 1.0.100 and its holes. A version with an entry marked "(security)" here now
+  raises the floor to itself (a test fails otherwise; docs/releasing.md).
+- **An upgrade keeps how many logs are kept.** install.sh wrote `/etc/logrotate.d/acme` back to
+  30 logs of 200 MB, and logrotate's next run deleted every log beyond 30 before the daemon set
+  *Settings → Disks and logs* again (6 hours later): the values there are carried over, and the
+  daemon writes them again at once after a version change.
+- **A notice at the console keeps its backslashes** when a change of sshd on trial is put back -
+  each put-back doubled them.
+- (security) **`install.sh --uninstall` takes acme's certificate authorities out of the system's
+  trust** (`acme-*` anchors, then `update-ca-trust` / `update-ca-certificates`) - curl, dnf and
+  LDAPS trusted them after acme was gone. Its password policy, time servers, journald drop-in and
+  sysctl file go too; sshd's drop-in, the firewall chain `ACME-IN` and the cluster's authorities
+  (`/etc/pki/acme/ha-ca.pem`) are named, with how to take them out.
+- **The plugin examples are written through the folder itself**, opened without following a
+  link and checked root's: a link put in place of `/etc/acme/plugins` had root delete and write
+  an `examples/` wherever it pointed.
 
 ## 1.0.101 - 2026-11-14
 
