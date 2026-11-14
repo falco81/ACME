@@ -1179,7 +1179,7 @@ def put_back(snap):
                 subprocess.run(['restorecon', p], capture_output=True)
 
 
-SYSCTL_FILE = '/etc/sysctl.d/90-acme-vip.conf'
+SYSCTL_FILE = os.environ.get('ACME_SYSCTL_FILE', '/etc/sysctl.d/90-acme-vip.conf')
 
 
 def nonlocal_bind(family, also=None):
@@ -7654,6 +7654,100 @@ def serve():
     return 0
 
 
+# ---- acme taken away: what it put into the system beside its own files (1.0.102) --------
+# install.sh --uninstall runs this. Taken out: what is acme's alone and whose going changes
+# nothing anybody else relies on - the trust anchors acme-<fp> (and the system's tool run),
+# the password policy (as pwp_apply takes it out: the files' own lines and authselect's
+# features back), acme's block of chrony.conf (the file's own servers back), the journald
+# drop-in, the sysctl file of the web address. Only said, with how to take it out: what can
+# shut somebody out or stop the database - sshd's drop-in (its port, AllowUsers, root's
+# sign-in), the firewall chain ACME-IN, the authorities PostgreSQL's replication reads.
+def leftovers(dry=False):
+    out = []
+
+    def gone(what):
+        out.append(('[would remove] ' if dry else 'removed: ') + what)
+
+    def left(what, how):
+        out.append('left: %s - %s' % (what, how))
+
+    def restart(unit):
+        if not dry and not NO_SERVICES and shutil.which('systemctl'):
+            subprocess.run(['systemctl', 'try-restart', unit], capture_output=True, timeout=120)
+
+    w = osroots_where()
+    if w and os.path.isdir(w['dir']):
+        mine = sorted(rel for rel, _p in osroots_files(w['dir']) if OSROOTS_NAME_RE.match(rel))
+        if mine:
+            what = 'the system\'s trust: %s in %s' % (', '.join(mine), w['dir'])
+            if dry:
+                gone(what + ', then ' + ' '.join(w['tool']))
+            else:
+                try:
+                    said, _r = osroots_sync(w, [])
+                    gone('the system\'s trust: ' + ', '.join(said))
+                except (Refused, OSError, subprocess.SubprocessError) as e:
+                    left(what, 'not taken out (%s): rm -f %s/acme-*%s; %s'
+                         % (e, w['dir'], w['ext'], ' '.join(w['tool'])))
+    pwq = [p for p in (os.path.join(SEC_DIR, PWQ_DROPIN), os.path.join(SEC_DIR, PWQ_LEGACY))
+           if os.path.lexists(p)]
+    for f in ('pwhistory.conf', 'faillock.conf', LOGIN_DEFS):
+        text = _read_or(os.path.join(SEC_DIR, f)) or ''
+        if PWP_MARK_A in text:
+            pwq.append(os.path.join(SEC_DIR, f))
+    if pwq or (pwp_orig_read().get('features')):
+        what = 'the password policy: %s' % ', '.join(pwq or ['authselect\'s features'])
+        if dry:
+            gone(what + ' (the files\' own lines back)')
+        else:
+            try:
+                gone('the password policy: ' + '; '.join(pwp_apply({'managed': False})))
+            except (Refused, OSError, subprocess.SubprocessError) as e:
+                left(what, 'not taken out (%s): take the lines between "# ---- acme:" out' % e)
+    text = _read_or(CHRONY_CONF)
+    if text is not None and NTP_BEGIN in text:
+        what = 'acme\'s time servers in %s (its own lines back)' % CHRONY_CONF
+        if not dry:
+            try:
+                write_root(CHRONY_CONF, ntp_conf_text(text, {'manage': False}), 0o644)
+                restart('chronyd.service')
+            except OSError as e:
+                left(what, 'not taken out (%s): the block between "%s" and "%s"' % (e, NTP_BEGIN, NTP_END))
+                what = ''
+        if what:
+            gone(what)
+    jd = os.path.join(ETC_DIR, JOURNAL_DROPIN)
+    if (_read_or(jd) or '').startswith('# Written by acme'):
+        if not dry:
+            _drop(jd)
+            restart('systemd-journald.service')
+        gone('%s (the journal\'s size as the system has it)' % jd)
+    if (_read_or(SYSCTL_FILE) or '').startswith(MARK):
+        if not dry:
+            _drop(SYSCTL_FILE)
+        gone('%s (ip_nonlocal_bind stays 1 until the next start)' % SYSCTL_FILE)
+    drop = os.path.join(SSH_DIR, SSHD_DROPIN)
+    if os.path.lexists(drop):
+        left(drop, 'sshd\'s port, AllowUsers and root\'s sign-in as acme set them; to remove: '
+             'rm -f %s; systemctl reload sshd (only once you know you get in without it)' % drop)
+    fw = [f for f in FW_FILES.values() if FW_MARK in (_read_or(f, 1 << 20) or '')]
+    if not NO_SERVICES:
+        for fam in (4, 6):
+            tool = FW_TOOLS[fam][0]
+            if shutil.which(tool) and subprocess.run([tool, '-n', '-S', FW_CHAIN],
+                                                     capture_output=True).returncode == 0:
+                fw.append('%s chain %s' % (tool, FW_CHAIN))
+    if fw:
+        left('the firewall: %s' % ', '.join(fw),
+             'what acme opened (sshd\'s port too, maybe); to remove: iptables -D INPUT -j %s; '
+             'iptables -F %s; iptables -X %s (ip6tables the same), and the lines of %s and "%s" '
+             'out of the saved files' % (FW_CHAIN, FW_CHAIN, FW_CHAIN, FW_CHAIN, FW_MARK))
+    if os.path.lexists(HA_CA_FILE):
+        left(HA_CA_FILE, 'the cluster\'s authorities - PostgreSQL\'s replication may still read '
+             'it (ssl_ca_file, sslrootcert); once it does not: rm -f %s' % HA_CA_FILE)
+    return out or ['nothing of acme\'s was left in the system']
+
+
 def main(argv):
     if argv[:1] == ['--status']:
         print(json.dumps({'keepalived': ka_ours(), 'nginx_vip': os.path.exists(NGINX_VIP),
@@ -7733,6 +7827,11 @@ def main(argv):
             sshd_disarm(t)
             _drop(SSHD_STATE)
         print(said or 'sshd\'s PAM had nothing of acme in it')
+        return 0
+    if argv[:1] == ['--leftovers']:
+        # install.sh --uninstall (1.0.102): what acme put into the system, taken out or said.
+        for line in leftovers(dry=argv[1:2] == ['--dry-run']):
+            print(line)
         return 0
     if argv[:1] == ['--os-job'] and len(argv) >= 3 and argv[2] in ('check', 'upgrade'):
         return osup_job(re.sub(r'[^A-Za-z0-9]', '', argv[1])[:40], argv[2],

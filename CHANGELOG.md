@@ -6,6 +6,43 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.102 - not released
 
+- **Every secret sealed for its place.** The settings' secrets (the proxy, SMTP, SMS, DNS and
+  SNMP passwords and keys, the portal's SSO key) and the directories' passwords were sealed
+  without the place they belong to, and a value never sealed was taken as it was: somebody who
+  could write the database without `secrets.key` (what the guard against writes is for) copied
+  the sealed proxy password into a module's secret field pointed at their own server, or wrote a
+  key they knew, in clear, over a certificate's. Once every node runs 1.0.102, every secret kept
+  is sealed again for its place (the settings for their names, a directory's password for its
+  row, the keys, the modules' secrets and the ACME accounts held) - said in the events - and from
+  then on one sealed without a place, or kept in clear, is refused there (in words in the log).
+  A secret written in clear into `config.json` is still taken. A backup or copy made before is
+  sealed so when it is put back; the backup's check, the configuration's export and import and
+  the cluster's replication are unchanged. Until every node of a cluster runs 1.0.102 nothing
+  changes.
+- **An ACME account key, or a key held at a commercial source, is never kept in clear** inside
+  acme: a key that cannot be sealed (`secrets.key` missing) stops the order in words, before
+  anything is ordered. Only a tool of its own outside acme keeps it as it is.
+- **The own CA refuses weak requests:** an RSA key under 2048 bits, DSA, a curve other than
+  P-256, P-384 or P-521 (Ed25519 is signed), a request signed with MD5 or SHA-1. An authority
+  imported, or its certificate installed, with such a key (or signed with MD5/SHA-1 by the CA
+  above) is refused too. The portal and devices' keys were checked already.
+- **Name constraints read as OpenSSL reads them.** A wildcard is compared as written:
+  `*.corp.example` is signed under a permitted `.corp.example` (it was refused), and
+  `*.example.com` refused under an excluded `.example.com` (it was signed, and every client
+  refused it). A URI's host is the one a URI parser finds - `https://evil.com#.corp.example`
+  passed `.corp.example`; a URI without a host is refused under URI constraints.
+- **Keys and PKCS#12 files locked with a password are harder to guess:** a key exported
+  encrypted (`key-pem-enc`, an authority's key) takes PBKDF2-HMAC-SHA256 with 600,000 rounds,
+  `pfx`/`p12` 600,000 rounds for the encryption and the MAC (openssl's default was 2048).
+  Windows 10 1709 / Server 2019 and Java 8u301 and later read them; `p12-legacy` is unchanged
+  for older devices. The ZIP for isemon (WinZip AES) keeps the 1,000 rounds its format fixes -
+  the docs now say to give it a long random passphrase.
+- **What an issuer gives back is checked:** a certificate whose names are not the ones asked
+  for (a name missing or one more - the `www.` twin or the base of a wildcard a commercial CA
+  adds is taken), or that does not verify against the chain it came with, is refused in words
+  and not tried again by itself. An ACME CA asking to prove a name that was not ordered is
+  refused before any TXT record or HTTP file is written for it.
+
 - **A key revoked is known after a configuration's export and import.** A certificate put
   in from the file has no versions, so a revoke there changed none, and after a failed new issue
   "keep the key" issued the revoked key again. The public keys and fingerprints revoked are now

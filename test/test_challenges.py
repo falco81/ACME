@@ -1805,5 +1805,79 @@ class TestDnsServerVip(unittest.TestCase):
             srv.stop()
 
 
+
+class TestHuntN2Dns(unittest.TestCase):
+    """Hunt N2 (1.0.102): a name server not asked is not "every name server"; the end of a CNAME
+    chain checked as a record name."""
+
+    def mod(self, conf):
+        from acmelib.plugins.challenges._common import DnsChallenge
+
+        class Ctx(object):
+            settings = {}
+
+            def __init__(self):
+                self.steps = []
+
+            def step(self, w, level='info'):
+                self.steps.append(w)
+
+            def debug(self, *a):
+                pass
+
+        class Mod(DnsChallenge):
+            kind = 'x'
+            fields = []
+            asked = []
+
+            def authority(self, fqdn):
+                return 'example.com', [('ns1.example.com', ['192.0.2.1']),
+                                       ('ns2.example.com', ['192.0.2.2']),
+                                       ('ns3.example.com', ['2001:db8::3'])]
+
+            def seen_by(self, servers, name, txt, who):
+                self.asked.append(who)
+                return True
+        return Mod(conf, Ctx())
+
+    def test_partly_unreachable_name_servers(self):
+        def txt_at(server, name, port=53, timeout=3.0, rd=False):
+            if server == '192.0.2.1':
+                return ['VALUE']
+            raise (D.DnsError('timed out') if server == '192.0.2.2' else OSError('unreachable'))
+        old = D.txt_at
+        D.txt_at = txt_at
+        try:
+            m = self.mod({'propagation': 'auth'})
+            h = {'fqdn': '_acme-challenge.www.example.com', 'rr': '_acme-challenge.www.example.com',
+                 'txt': 'VALUE', 'at': time.time()}
+            self.assertFalse(m.ready('www.example.com', h))          # not yet: 2 of 3 not asked
+            self.assertEqual(m.asked, [])
+            said = m.ctx.steps[-1]
+            self.assertIn('not asked (cannot be reached from here): ns2.example.com, ns3.example.com',
+                          said)
+            self.assertNotIn('every name server', said)
+            h['at'] = time.time() - m.auth_unreachable_wait - 1      # the time is over
+            self.assertTrue(m.ready('www.example.com', h))
+            self.assertEqual(m.asked, ['the resolvers'])            # they decided
+            self.assertIn('not asked', m.ctx.steps[-1])
+            self.assertFalse(any('every name server' in w for w in m.ctx.steps))
+        finally:
+            D.txt_at = old
+
+    def test_cname_end_checked(self):
+        old = D.follow_cname
+        try:
+            m = self.mod({'follow_cname': True})
+            for end in ('x;rm -rf.example.net', "a'b.example.net", '*.example.net'):
+                D.follow_cname = lambda rr, res, end=end: [rr, end]
+                with self.assertRaises(PluginError):
+                    m.target('_acme-challenge.www.example.com')
+            D.follow_cname = lambda rr, res: [rr, 'acme.dns.example.net']
+            self.assertEqual(m.target('_acme-challenge.www.example.com'), 'acme.dns.example.net')
+        finally:
+            D.follow_cname = old
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

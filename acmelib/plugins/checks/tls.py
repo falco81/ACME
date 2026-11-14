@@ -4,6 +4,7 @@ path, Host header and headers, the status and words expected back."""
 from __future__ import annotations
 
 import re
+import time
 
 from acmelib.plugins.base import Check, PluginError, field
 from acmelib.plugins.checks import _tls
@@ -95,6 +96,10 @@ class HttpsCheck(TlsCheck):
             path = '/' + path
         hosth = str(self.c('host_header') or '').strip() or (
             name if int(port) == 443 else '%s:%s' % (name, port))
+        # Hunt N2 (1.0.102): no line break in the request line or Host - it would add lines
+        for what, v in (('method', method), ('path', path), ('Host header', hosth)):
+            if '\r' in v or '\n' in v:
+                raise PluginError('the %s holds a line break' % what, retry=False)
         lines = ['%s %s HTTP/1.1' % (method, path), 'Host: %s' % hosth]
         extra = self.c('headers') or []
         if isinstance(extra, str):
@@ -117,10 +122,17 @@ class HttpsCheck(TlsCheck):
         lines, method, path, hosth = self.http_lines(name, port)
         lines = lines + ['', '']
         s.settimeout(timeout)
+        # the whole answer in time too (Hunt N2, 1.0.102), as Lines.WHOLE_S: a server dripping
+        # a byte at a time held the test for as long as it liked
+        until = time.monotonic() + _tls.Lines.WHOLE_S
         try:
             s.sendall('\r\n'.join(lines).encode('utf-8'))
             got = b''
             while len(got) < 65536:
+                left = until - time.monotonic()
+                if left <= 0:
+                    raise PluginError('the HTTP answer took more than %d s' % _tls.Lines.WHOLE_S)
+                s.settimeout(min(float(timeout), left))
                 part = s.recv(16384)
                 if not part:
                     break

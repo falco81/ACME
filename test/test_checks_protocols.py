@@ -544,6 +544,15 @@ class TestXmpp(Base):
         f, _ = self.works(xmpp.XmppCheck, xmpp_server())
         self.assertIn(b"to='localhost'", f.seen[0])
 
+    def test_sni_none_opens_without_to(self):
+        """Hunt N2 (1.0.102): SNI "-" (send none) - the stream has no to='-'."""
+        f = self.serve(xmpp_server())
+        m = self.module(xmpp.XmppCheck)
+        out = m.served('127.0.0.1', f.port, '-', verify=False)
+        self.assertEqual(hashlib.sha256(out['chain'][0]).hexdigest(), SHA)
+        self.assertNotIn(b' to=', f.seen[0])
+        self.assertNotIn(b' to=', m.talk('127.0.0.1', '-')[0]['send'].encode())
+
     def test_no_starttls(self):
         self.says(xmpp.XmppCheck, xmpp_server(False),
                   'the server does not offer STARTTLS (it said: <stream:features>')
@@ -635,6 +644,23 @@ class TestMssql(Base):
     def test_not_supported(self):
         self.says(mssql.MssqlCheck, tds_server(mssql.ENCRYPT_NOT_SUP),
                   'does not do encryption')
+
+    def test_sni_none_sends_none(self):
+        """Hunt N2 (1.0.102): SNI "-" means none sent, not "-"."""
+        seen = []
+        was = ssl.SSLContext.wrap_bio
+
+        def wrap_bio(ctx, inc, out, server_side=False, server_hostname=None, **kw):
+            seen.append(server_hostname)
+            return was(ctx, inc, out, server_side=server_side, server_hostname=server_hostname, **kw)
+        ssl.SSLContext.wrap_bio = wrap_bio
+        try:
+            f = self.serve(tds_server())
+            self.module(mssql.MssqlCheck).served('127.0.0.1', f.port, '-', verify=False)
+        finally:
+            ssl.SSLContext.wrap_bio = was
+        self.assertTrue(seen)
+        self.assertNotIn('-', seen)
 
 
 class TestTalkSaysWhatIsSent(Base):

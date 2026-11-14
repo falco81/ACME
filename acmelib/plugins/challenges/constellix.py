@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """DNS-01 at Constellix (DigiCert), through its DNS API v1:
 
-    GET    https://api.dns.constellix.com/v1/domains                     [{id, name}]
+    GET    https://api.dns.constellix.com/v1/domains?offset=N&max=M      [{id, name}]
     GET    .../v1/domains/{id}/records/txt                               [{id, name, ttl, roundRobin: [{value}]}]
     POST   .../v1/domains/{id}/records/txt  {name, ttl, roundRobin: [{value, disableFlag}]}
     PUT    .../v1/domains/{id}/records/txt/{record id}  {name, ttl, roundRobin}   the record written whole
@@ -14,6 +14,11 @@ keeps every value of its name ("roundRobin", each value in quotes): ours is
 added to it, cleanup writes it back without ours, or deletes it when ours
 was its last value - one change at a time on this node. "name" is relative
 to the domain ("" the apex).
+
+The domain list (1.0.102): v1 takes offset and max (as lego's constellix client sends
+them; the reference was not reachable to say what the most a page is). Pages are
+read until one is empty or brings no domain not seen - a server that ignores the
+two answers the whole list twice and the reading stops there; at most 50.
 
 Sources: Constellix's official Go client (https://github.com/Constellix/
 constellix-go-client: client/client.go - the base address and getToken();
@@ -74,10 +79,18 @@ class Constellix(ApiDns):
 
     def _domains(self):
         if getattr(self, '_doms', None) is None:
-            got = self._call('GET', '/v1/domains') or []
-            self._doms = {D.norm(d.get('name')): d.get('id') for d in got
-                          if isinstance(d, dict) and d.get('name')}
+            doms = {}
+            for _n in range(50):
+                got = self._call('GET', '/v1/domains?offset=%d&max=%d' % (len(doms), self.PAGE))
+                new = {D.norm(d.get('name')): d.get('id') for d in (got or [])
+                       if isinstance(d, dict) and d.get('name')}
+                if not set(new) - set(doms):
+                    break
+                doms.update(new)
+            self._doms = doms
         return self._doms
+
+    PAGE = 100
 
     def zone_names(self):
         return list(self._domains())

@@ -233,6 +233,11 @@ class AwsPcaIssuer(Issuer):
                                       'fetches it at the next try')
                 time.sleep(2)
                 continue
+            if status >= 500 or status == 429 or kind in ('ThrottlingException',
+                                                          'LimitExceededException'):
+                # Hunt N2 (1.0.102): a passing error - the request stays held, the next try
+                # fetches it (a new IssueCertificate would be another paid certificate)
+                raise self._error('GetCertificate', status, kind, got)
             sc.pending_drop(self.ctx, slot)
             raise self._error('GetCertificate', status, kind, got)
         sc.pending_drop(self.ctx, slot)

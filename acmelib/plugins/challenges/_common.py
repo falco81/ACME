@@ -445,7 +445,13 @@ class DnsChallenge(Challenge):
         except D.DnsError as e:
             self.ctx.debug('the CNAME of %s could not be looked up (%s): written there' % (rr, e))
             return rr
+        end = D.norm(chain[-1])
         if len(chain) > 1:
+            # Hunt N2 (1.0.102): the end of the chain is a name from DNS - checked as place()
+            # checks its names before it reaches an API path, a script or a command line
+            if not SAFE_NAME.match(end) or '*' in end:
+                raise PluginError('%s is a CNAME to "%s" - not a name acme writes a record at'
+                                  % (rr, chain[-1][:80]), retry=False)
             self.ctx.step('%s is a CNAME to %s: the TXT record goes there' % (rr, chain[-1]))
         return chain[-1]
 
@@ -652,11 +658,11 @@ class DnsChallenge(Challenge):
             # Hunt N2 (1.0.102): one server having it is not "every name server" - the CA may
             # ask one of those not asked. Waited for a while, then the resolvers decide.
             if since is None:
-                since = self._partial_since.setdefault(fqdn, time.time())
+                since = self.__dict__.setdefault('_partial_since', {}).setdefault(fqdn, time.time())
             until = float(since or 0) + self.auth_unreachable_wait
             if time.time() < until:
-                self.say_once('auth:' + fqdn, '%s TXT: on %s%s - waited until %s, then the '
-                              'resolvers are asked' % (fqdn, ', '.join(have), not_asked,
+                self.say_once('auth:' + fqdn, '%s TXT: on %s%s - acme waits until %s, then '
+                              'asks the resolvers' % (fqdn, ', '.join(have), not_asked,
                                                        time.strftime('%H:%M:%S',
                                                                      time.localtime(until))))
                 return False
@@ -933,7 +939,7 @@ class DnsChallenge(Challenge):
         except PluginError:
             zone = fqdn
         try:
-            ok = self.seen_by_authority(fqdn, txt)
+            ok = self.seen_by_authority(fqdn, txt, since=0)    # a look now: no waiting
         except PluginError as e:
             ok, self._said['auth:' + fqdn] = False, str(e)
         out.append(guide_step(

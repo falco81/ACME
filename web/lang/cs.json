@@ -62803,6 +62803,38 @@
   "_467": {
    "source": "; a new one is issued at once",
    "text": "; hned se vydá nový"
+  },
+  "_469": {
+   "source": "you asked for it yourself, or sent its CSR or names - someone else approves it",
+   "text": "požádali jste o něj sami, nebo jste poslali jeho CSR či jména – schválí ho někdo jiný"
+  },
+  "_470": {
+   "source": "you asked for it yourself, or sent its CSR or names - someone else approves it (a full administrator who needs it adds it as a certificate here, Add a certificate)",
+   "text": "požádali jste o něj sami, nebo jste poslali jeho CSR či jména – schválí ho někdo jiný (plný správce, který ho potřebuje, si ho přidá jako certifikát tady, Přidat certifikát)"
+  },
+  "_472": {
+   "source": "that name cannot be used - choose another",
+   "text": "tento název nejde použít – zvolte jiný"
+  },
+  "_473": {
+   "source": "the last deployment to it failed - of a certificate of another owner",
+   "text": "poslední nasazení na něj selhalo – šlo o certifikát jiného vlastníka"
+  },
+  "_474": {
+   "source": "it asks to be a certificate authority (basicConstraints CA:TRUE)",
+   "text": "žádá, aby byl certifikační autoritou (basicConstraints CA:TRUE)"
+  },
+  "_475": {
+   "source": "an entry that is not a GeneralName",
+   "text": "položka, která není GeneralName"
+  },
+  "_476": {
+   "source": "Its names are held by certificates of another owner - only someone who may approve (or manage) for that owner, or a full administrator, approves it:",
+   "text": "Jeho jména mají certifikáty jiného vlastníka – schválit ho smí jen ten, kdo smí za toho vlastníka schvalovat (nebo spravovat), nebo plný správce:"
+  },
+  "_477": {
+   "source": "Names of another owner",
+   "text": "Jména jiného vlastníka"
   }
  },
  "patterns": {
@@ -87397,6 +87429,86 @@
   "p_305": {
    "source": "the certificate {0} is revoked at {1} ({2}) - it cannot be taken back - then deleted, with its versions and deployments",
    "text": "certifikát {0} se odvolá u {1} ({2}) – nelze to vzít zpět – a pak smaže i s verzemi a nasazeními"
+  },
+  "p_306": {
+   "source": "a job is working on {0} now - send the CSR again when it is done",
+   "text": "na {0} teď pracuje úloha – CSR pošlete znovu, až skončí"
+  },
+  "p_307": {
+   "source": "the CSR is refused: {0}",
+   "text": "CSR se odmítá: {0}"
+  },
+  "p_308": {
+   "source": "its names are held by {0} - an approver of that team (the right approve or manage on it), or a full administrator, approves it",
+   "text": "jeho jména má {0} – schválí ho schvalovatel toho týmu (právo schvalovat nebo spravovat v něm), nebo plný správce"
+  },
+  "p_309": {
+   "source": "the team {0} ({1})",
+   "text": "tým {0} ({1})"
+  },
+  "p_310": {
+   "source": "a certificate of a person ({0})",
+   "text": "certifikát osoby ({0})"
+  },
+  "p_311": {
+   "source": "a certificate without an owner ({0})",
+   "text": "certifikát bez vlastníka ({0})"
+  },
+  "p_312": {
+   "source": "these names are held by certificates of another owner: {0} - a full administrator gives them to a certificate, or the team that holds them asks for it",
+   "text": "tato jména mají certifikáty jiného vlastníka: {0} – do certifikátu je dá plný správce, nebo o něj požádá tým, který je má"
+  },
+  "p_313": {
+   "source": "the device {0} already makes the key of another certificate - a device holds one pending key: choose another target",
+   "text": "zařízení {0} už vyrábí klíč jiného certifikátu – zařízení drží jeden čekající klíč: zvolte jiný cíl"
+  },
+  "p_314": {
+   "source": "the CSR has the attribute {0} more than once - which one a CA reads is its own choice: make the CSR again",
+   "text": "CSR má atribut {0} víc než jednou – který z nich CA přečte, je na ní: vytvořte CSR znovu"
+  },
+  "p_315": {
+   "source": "the CSR's extension request has {0} sets of extensions - one is read: make the CSR again",
+   "text": "žádost o rozšíření v CSR má {0} sad rozšíření – čte se jedna: vytvořte CSR znovu"
+  },
+  "p_316": {
+   "source": "the CSR asks for the extension {0} more than once - which one a CA reads is its own choice: make the CSR again",
+   "text": "CSR žádá o rozšíření {0} víc než jednou – které z nich CA přečte, je na ní: vytvořte CSR znovu"
+  },
+  "p_317": {
+   "source": "names of a kind no profile gives (only DNS names and IP addresses): {0}",
+   "text": "jména druhu, který žádný profil nedává (jen jména DNS a IP adresy): {0}"
+  },
+  "p_318": {
+   "source": "extensions that cannot be read: {0}",
+   "text": "rozšíření, která nejde přečíst: {0}"
+  },
+  "p_319": {
+   "source": "it asks for the extended key usage {0} - the profile gives {1}",
+   "text": "žádá o rozšířené použití klíče {0} – profil dává {1}"
+  },
+  "p_320": {
+   "source": "a name of the type [{0}]",
+   "text": "jméno typu [{0}]"
+  },
+  "p_321": {
+   "source": "a name of the type [{0}] that cannot be read",
+   "text": "jméno typu [{0}], které nejde přečíst"
+  },
+  "p_322": {
+   "source": "{0} waits for approval by the team {1}: its names {2} are held by a certificate of that team",
+   "text": "{0} čeká na schválení týmem {1}: jeho jména {2} má certifikát toho týmu"
+  },
+  "p_323": {
+   "source": "{0} was refused: approving {1}, whose names are held by another owner's certificates",
+   "text": "{0} byl odmítnut: schválení {1}, jehož jména mají certifikáty jiného vlastníka"
+  },
+  "p_324": {
+   "source": "{0} was refused: approving {1}, asked for by themselves",
+   "text": "{0} byl odmítnut: schválení {1}, o který požádal sám"
+  },
+  "p_325": {
+   "source": "{0} was refused: names held by another owner's certificates ({1})",
+   "text": "{0} byl odmítnut: jména, která mají certifikáty jiného vlastníka ({1})"
   }
  },
  "rich": {

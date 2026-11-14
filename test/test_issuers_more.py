@@ -641,6 +641,8 @@ class TestAwsPca(Base):
                 state['issued'] = self.sign(csr_der_of(csr), ['www.example.test'])
                 return 200, {}, {'CertificateArn': ARN + '/certificate/abc'}
             if action == 'GetCertificate':
+                if state.get('glitch'):
+                    return state['glitch'].pop(0)
                 if state['in_progress']:
                     state['in_progress'] -= 1
                     return 400, {}, {'__type': 'RequestInProgressException', 'message': 'wait'}
@@ -659,6 +661,13 @@ class TestAwsPca(Base):
         with self.assertRaises(PluginError) as e:
             pca.issue(req)                      # still being made: fetched at the next try
         self.assertTrue(e.exception.retry)
+        # Hunt N2 (1.0.102): a 5xx or throttling keeps the held request - no second certificate
+        state['glitch'] = [(503, {}, {'__type': 'ServiceUnavailable', 'message': 'busy'}),
+                           (400, {}, {'__type': 'ThrottlingException', 'message': 'slow down'})]
+        for _ in range(2):
+            with self.assertRaises(PluginError) as e:
+                pca.issue(req_for(['www.example.test']))
+            self.assertTrue(e.exception.retry)
         out = pca.issue(req_for(['www.example.test']))    # a new key: the held one comes back
         self.assertEqual(out.key_pem, req.key_pem)
         self.assertEqual(p7.Cert(out.cert_pem).spki_der, p7.csr_spki(req.csr_der))

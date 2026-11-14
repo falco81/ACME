@@ -75,24 +75,31 @@ class XmppCheck(Check):
                    'addresses. Empty: the name asked for (SNI), else the address.'),
     ])
 
+    def _domain(self, host, sni):
+        """The stream's to=: the domain set, else the SNI, else the address; none when the
+        SNI is "-" (send none - Hunt N2, 1.0.102)."""
+        d = str(self.c('domain') or '').strip()
+        if d or sni == '-':
+            return d
+        return (sni or host or '').strip()
+
+    def _open(self, host, sni):
+        domain = self._domain(host, sni)
+        return ("<?xml version='1.0'?><stream:stream %sxmlns='jabber:client' "
+                "xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>"
+                % (("to='%s' " % quote(domain)) if domain else ''))
+
     def talk(self, host, sni):
-        domain = (self.c('domain') or sni or host or '').strip()
-        return [{'send': ("<?xml version='1.0'?><stream:stream to='%s' xmlns='jabber:client' "
-                          "xmlns:stream='http://etherx.jabber.org/streams' version='1.0'>"
-                          % quote(domain))},
+        return [{'send': self._open(host, sni)},
                 {'wait': 'its stream and <stream:features> with <starttls>'},
                 {'send': "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>"},
                 {'wait': '<proceed/> - then TLS'}]
 
     def served(self, host, port, sni, verify=True):
         t = _wire.timeout(self)
-        domain = (self.c('domain') or sni or host or '').strip()
         sock = _tls.connect(host, port, t)
         with _wire.closing(sock):
-            _wire.send(sock, ("<?xml version='1.0'?><stream:stream to='%s' "
-                              "xmlns='jabber:client' "
-                              "xmlns:stream='http://etherx.jabber.org/streams' "
-                              "version='1.0'>" % quote(domain)).encode('utf-8'), WHAT)
+            _wire.send(sock, self._open(host, sni).encode('utf-8'), WHAT)
             r = Reader(sock)
             _, head = r.until(STREAM_HEAD)
             said = STREAM_HEAD.search(head).group(0).decode('utf-8', 'replace')

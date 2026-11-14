@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """DNS-01 at Gcore Managed DNS, through its API v2:
 
-    GET    https://api.gcore.com/dns/v2/zones                            {zones: [{name}]}
+    GET    https://api.gcore.com/dns/v2/zones?limit=L&offset=O           {zones: [{name}], total_amount}
     GET    .../dns/v2/zones/{zone}/{fqdn}/TXT                            {name, type, ttl, resource_records: [{content: [v]}]}  (404: none)
     POST   .../dns/v2/zones/{zone}/{fqdn}/TXT  {ttl, resource_records}  the RRset made
     PUT    .../dns/v2/zones/{zone}/{fqdn}/TXT  {ttl, resource_records}  the RRset written whole
@@ -14,7 +14,9 @@ Sources: https://api.gcore.com/docs/dns (the RRset calls) - not reachable
 from where this was written; as lego's providers/dns/internal/gcore and
 acme.sh's dnsapi/dns_gcore.sh send them. Less certain: the zone list
 (GET /v2/zones, its "zones" field) - when it fails, the zone is found by
-asking GET /v2/zones/{name} name by name.
+asking GET /v2/zones/{name} name by name. The list in pages (1.0.102): limit and
+offset, read until total_amount zones are had, a page is empty or brings no zone
+not seen (a server that ignores offset); at most 50 pages.
 """
 from __future__ import annotations
 
@@ -52,8 +54,19 @@ class Gcore(ApiDns):
         return None if st == 404 and missing_ok else (got if got is not None else {})
 
     def zone_names(self):
-        got = self._call('GET', '/v2/zones?limit=1000') or {}
-        return [z.get('name') for z in got.get('zones') or [] if isinstance(z, dict)]
+        out = []
+        for _n in range(50):
+            got = self._call('GET', '/v2/zones?limit=1000&offset=%d' % len(out)) or {}
+            new = [z.get('name') for z in got.get('zones') or []
+                   if isinstance(z, dict) and z.get('name') and z.get('name') not in out]
+            out += new
+            try:
+                total = int(got.get('total_amount') or 0)
+            except (TypeError, ValueError):
+                total = 0
+            if not new or len(out) >= total:
+                break
+        return out
 
     def zone_hint(self, fqdn):
         try:

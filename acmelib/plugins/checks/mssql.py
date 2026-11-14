@@ -115,6 +115,7 @@ class MssqlCheck(Check):
             return self._handshake(sock, sni, verify, t, said, pid)
 
     def _handshake(self, sock, sni, verify, t, said, pid):
+        sni = _tls.server_name(sni)                 # "-": no SNI sent (Hunt N2, 1.0.102)
         ctx = _tls.context(sni, verify)
         inc, out = ssl.MemoryBIO(), ssl.MemoryBIO()
         obj = ctx.wrap_bio(inc, out, server_side=False, server_hostname=sni or None)

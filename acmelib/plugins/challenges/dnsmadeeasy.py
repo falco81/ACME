@@ -5,13 +5,15 @@
     x-dnsme-requestDate: an HTTP date (Sat, 12 Feb 2011 20:59:04 GMT)
     x-dnsme-hmac: hex(HMAC-SHA1(secret, that date))
 
-    GET    https://api.dnsmadeeasy.com/V2.0/dns/managed/                       {data: [{id, name}]}
+    GET    https://api.dnsmadeeasy.com/V2.0/dns/managed/?page=N                {data: [{id, name}], page, totalPages}
     GET    .../dns/managed/{id}/records?type=TXT&recordName={name}             {data: [{id, name, type, value, ttl}]}
     POST   .../dns/managed/{id}/records   {name, type: "TXT", value, ttl}      {id, ...}
     DELETE .../dns/managed/{id}/records/{record id}
 
 "name" is relative to the domain ("" the apex); a TXT value comes back in
-quotes. This machine's clock has to be right (the date is checked).
+quotes. The domain list comes in pages (page from 0, totalPages, totalRecords in
+each answer, as the V2.0 list answers are documented): every page is read, at
+most 50 (1.0.102); an answer without totalPages is the whole list. This machine's clock has to be right (the date is checked).
 
 Sources: https://api-docs.dnsmadeeasy.com/ - not reachable from where this
 was written; as lego's providers/dns/dnsmadeeasy and Posh-ACME's DMEasy
@@ -66,8 +68,24 @@ class DnsMadeEasy(RecordApiDns):
 
     def _domains(self):
         if getattr(self, '_doms', None) is None:
-            got = self._call('GET', '/dns/managed/') or {}
-            self._doms = {D.norm(d.get('name')): d.get('id') for d in got.get('data') or []}
+            doms, page, first = {}, None, None
+            for _n in range(50):
+                got = self._call('GET', '/dns/managed/' + ('' if page is None else
+                                                           '?page=%d' % page)) or {}
+                new = {D.norm(d.get('name')): d.get('id') for d in got.get('data') or []
+                       if isinstance(d, dict) and d.get('name')}
+                if not set(new) - set(doms):         # nothing new: the end (or no paging)
+                    break
+                doms.update(new)
+                try:
+                    now, pages = int(got.get('page') or 0), int(got.get('totalPages') or 0)
+                except (TypeError, ValueError):
+                    break
+                first = now if first is None else first     # pages counted from 0 (or 1)
+                if now + 1 - first >= pages:
+                    break
+                page = now + 1
+            self._doms = doms
         return self._doms
 
     def zone_names(self):

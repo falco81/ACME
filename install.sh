@@ -458,6 +458,18 @@ if [[ -n "$DO_UNINSTALL" ]]; then
     # over SSH was refused after it - keys alone went on working.
     if [[ -f "$SOURCE_DIR/deploy/acme_web.py" ]]; then
         run python3 -I "$SOURCE_DIR/deploy/acme_web.py" --pam-off || warn "sshd's PAM could not be put back: take acme's block out of /etc/pam.d/sshd by hand"
+        # What else it put into the system (1.0.102): its roots in the system's trust (curl,
+        # dnf, LDAPS trusted them after it was gone), the password policy, its time servers,
+        # the journal's and sysctl's files taken out; what could shut somebody out or stop
+        # the database (sshd's drop-in, the firewall chain, the cluster's authorities) said,
+        # with how to take it out.
+        while IFS= read -r one; do
+            case "$one" in
+                left:*) warn "$one";;
+                *)      say "  $one";;
+            esac
+        done < <(python3 -I "$SOURCE_DIR/deploy/acme_web.py" --leftovers ${DRY_RUN:+--dry-run} 2>&1 \
+                 || echo "left: what acme put into the system could not be looked at (acme_web.py --leftovers)")
     fi
     # acme's SELinux module (as otp 1.0.233): its labels and rules gone with it. The mode SELinux is in,
     # its booleans and the ports labelled are the machine's, left as they are.
@@ -1556,13 +1568,102 @@ PY
     esac
 }
 
+# README and examples/ written through one descriptor of the plugins folder,
+# opened without following a link and checked root's (1.0.102): /etc/acme is
+# the acme group's to write in, and by the name a "plugins" renamed away and a
+# link put there between plugin_dir_take and the copy had root delete an
+# examples/ and write files wherever the link pointed.
+plugin_examples_put() {
+    local src="$SOURCE_DIR/deploy/plugins"
+    if [[ -n "$DRY_RUN" ]]; then
+        note "[would write] $PLUGINS_DIR/README and $PLUGINS_DIR/examples/ (made anew)"
+        return 0
+    fi
+    python3 -I - "$PLUGINS_DIR" "$src" <<'PY' || fail "$PLUGINS_DIR changed while the examples were written (a link put there?) - look at it, then run this again"
+import os, stat, sys
+top, src = sys.argv[1], sys.argv[2]
+D = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+fd = os.open(top, D)
+st = os.fstat(fd)
+if st.st_uid != 0 or st.st_mode & 0o022:
+    sys.exit('%s is not root\'s alone' % top)
+
+
+def rm_tree(parent, name):
+    sub = os.open(name, D, dir_fd=parent)
+    try:
+        for e in list(os.scandir(sub)):
+            if e.is_dir(follow_symlinks=False):
+                rm_tree(sub, e.name)
+            else:
+                os.unlink(e.name, dir_fd=sub)
+    finally:
+        os.close(sub)
+    os.rmdir(name, dir_fd=parent)
+
+
+def put(parent, name, path):
+    with open(path, 'rb') as f:
+        data = f.read()
+    try:
+        os.unlink(name, dir_fd=parent)
+    except FileNotFoundError:
+        pass
+    out = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=parent)
+    with os.fdopen(out, 'wb') as f:
+        os.fchown(f.fileno(), 0, 0)
+        os.fchmod(f.fileno(), 0o644)
+        f.write(data)
+
+
+def sub_dir(parent, name):
+    try:
+        os.mkdir(name, 0o755, dir_fd=parent)
+    except FileExistsError:
+        pass
+    sub = os.open(name, D, dir_fd=parent)
+    os.fchown(sub, 0, 0)
+    os.fchmod(sub, 0o755)
+    return sub
+
+
+if os.path.isfile(os.path.join(src, 'README')):
+    put(fd, 'README', os.path.join(src, 'README'))
+ex = os.path.join(src, 'examples')
+if os.path.isdir(ex):
+    try:
+        st = os.stat('examples', dir_fd=fd, follow_symlinks=False)
+        if stat.S_ISDIR(st.st_mode):
+            rm_tree(fd, 'examples')
+        else:
+            os.unlink('examples', dir_fd=fd)
+    except FileNotFoundError:
+        pass
+    efd = sub_dir(fd, 'examples')
+    for here, dirs, files in os.walk(ex):
+        dirs.sort()
+        rel = os.path.relpath(here, ex)
+        cur, opened = efd, []
+        for part in ([] if rel == '.' else rel.split(os.sep)):
+            cur = sub_dir(cur, part)
+            opened.append(cur)
+        for n in sorted(files):
+            if n.endswith('.py.example'):
+                put(cur, n, os.path.join(here, n))
+        for o in opened:
+            os.close(o)
+    os.close(efd)
+os.close(fd)
+PY
+}
+
 # Your own modules: /etc/acme/plugins/{issuers,challenges,targets,checks}/*.py, kept
 # across upgrades (one with the same kind and version as a shipped one takes its
 # place). Root's alone: root's own acme command loads them too, so the acme
 # account must not be able to put code there. README and examples/ are acme's:
 # written again at every install (1.0.34), your own files are never touched.
 install_plugin_dirs() {
-    local d f rel
+    local d
     not_a_link "$PLUGINS_DIR" "$PLUGINS_DIR/issuers" "$PLUGINS_DIR/challenges" "$PLUGINS_DIR/targets" \
         "$PLUGINS_DIR/checks" "$PLUGINS_DIR/examples"
     for d in "$PLUGINS_DIR" "$PLUGINS_DIR/issuers" "$PLUGINS_DIR/challenges" "$PLUGINS_DIR/targets" \
@@ -1573,19 +1674,7 @@ install_plugin_dirs() {
             run install -d -m 0755 -o root -g root "$d"
         fi
     done
-    if [[ -f "$SOURCE_DIR/deploy/plugins/README" ]]; then
-        run install -m 0644 -o root -g root "$SOURCE_DIR/deploy/plugins/README" "$PLUGINS_DIR/README"
-    fi
-    if [[ -d "$SOURCE_DIR/deploy/plugins/examples" ]]; then
-        # the examples as this release has them: the folder made anew
-        [[ -d "$PLUGINS_DIR/examples" ]] && run rm -rf -- "$PLUGINS_DIR/examples"
-        run install -d -m 0755 -o root -g root "$PLUGINS_DIR/examples"
-        while IFS= read -r -d '' f; do
-            rel="${f#"$SOURCE_DIR/deploy/plugins/examples/"}"
-            run install -d -m 0755 -o root -g root "$PLUGINS_DIR/examples/$(dirname "$rel")"
-            run install -m 0644 -o root -g root "$f" "$PLUGINS_DIR/examples/$rel"
-        done < <(find "$SOURCE_DIR/deploy/plugins/examples" -type f -name '*.py.example' -print0)
-    fi
+    plugin_examples_put
     good "$PLUGINS_DIR/{issuers,challenges,targets,checks} - your own modules (root's); README, examples/"
 }
 

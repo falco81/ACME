@@ -280,6 +280,35 @@ class TestJudged(Base):
         self.assertIn('503', got['said'])
         self.srv.status = 200
 
+    def test_http_lines_and_read_limited_hunt_n2(self):
+        """Hunt N2 (1.0.102): no line break in the method, path or Host; the answer read in an
+        overall time, not only each recv's."""
+        from acmelib.plugins.base import PluginError
+        from acmelib.plugins.checks import _tls as T, tls as TL
+        for cfg in ({'path': '/a\r\nX-Evil: 1'}, {'method': 'GET\nX'},
+                    {'host_header': 'h.example.test\r\nX: y'}):
+            with self.assertRaises(PluginError):
+                TL.HttpsCheck(cfg, None).http_lines('www.example.test', 443)
+
+        class Drip(object):
+            def settimeout(self, t):
+                self.t = t
+
+            def sendall(self, data):
+                pass
+
+            def recv(self, n):
+                time.sleep(0.02)
+                return b'x'
+        was = T.Lines.WHOLE_S
+        T.Lines.WHOLE_S = 0.2
+        try:
+            with self.assertRaises(PluginError) as e:
+                TL.HttpsCheck({'method': 'GET'}, None).request(Drip(), 'www.example.test', 443, 5)
+            self.assertIn('took more than', str(e.exception))
+        finally:
+            T.Lines.WHOLE_S = was
+
     def test_empty_address_is_the_first_name(self):
         cls = __import__('acmelib.plugins.checks._tls', fromlist=['x'])
         i = self.add(host='')
