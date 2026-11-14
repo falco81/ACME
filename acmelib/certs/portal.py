@@ -370,26 +370,189 @@ def _covers(pattern, host):
     return False
 
 
-def held_by_others(store, names, who):
-    """Whether a certificate of another owner names one of these (1.0.51): asked for on the
-    portal and issued at once, mail.corp.example of the IT team's - and its key taken. It waits
-    for approval then. Under a wildcard of theirs, or a wildcard asked over a name of theirs,
-    too (1.0.80): only the very same name was looked for."""
-    me = str(who or '').lower()
+def holders(store, names, who, exclude=None, waiting=True):
+    """{owner (as the certificate says it, '' for none): [the names of these it holds]} of
+    every certificate of another owner naming one of these (1.0.51) - under a wildcard of
+    theirs, or a wildcard asked over a name of theirs, too (1.0.80). `exclude`: the id of the
+    certificate asked about itself; `waiting`: requests that wait for approval count too."""
+    me = str(who or '').strip().lower()
     want = [str(n).lower() for n in names or [] if n]
+    out = {}
     if not want:
-        return False
-    for r in store.db.rows("SELECT owner, names FROM certs WHERE "
+        return out
+    for r in store.db.rows("SELECT id, owner, names, state FROM certs WHERE "
                            "state NOT IN ('revoked', 'declined')"):
-        if str(r.get('owner') or '').lower() == me:
+        if exclude is not None and r.get('id') == exclude:
+            continue
+        if not waiting and r.get('state') == WAITING:
+            continue
+        owner = str(r.get('owner') or '').strip()
+        if owner.lower() == me:
             continue
         theirs = [str(x).lower() for x in (S.jload(r.get('names'), []) or [])]
         for n in want:
             for t in theirs:
                 if _covers(t, n) or _covers(n, t) or \
                         (n.startswith('*.') and t.startswith('*.') and n == t):
-                    return True
-    return False
+                    got = out.setdefault(owner, [])
+                    if n not in got:
+                        got.append(n)
+    return out
+
+
+def held_by_others(store, names, who, exclude=None):
+    """Whether a certificate of another owner names one of these (1.0.51): asked for on the
+    portal and issued at once, mail.corp.example of the IT team's - and its key taken. It waits
+    for approval then - by the owner that holds the name (1.0.102), see may_approve_held."""
+    return bool(holders(store, names, who, exclude))
+
+
+def held_list(got):
+    """holders() as it is kept in the request's meta and shown: [{owner, names}]."""
+    return [{'owner': o, 'names': sorted(n)} for o, n in sorted(got.items())]
+
+
+def held_of(store, row):
+    """[{owner, names}] of a request waiting for approval: what was kept when it began to
+    wait, and what holds its names now (another owner's certificate issued since)."""
+    kept = asker(store, row['id']).get('held')
+    out = {}
+    for one in kept if isinstance(kept, list) else []:
+        if isinstance(one, dict):
+            out.setdefault(str(one.get('owner') or '').strip(), set()).update(
+                str(n) for n in one.get('names') or [])
+    if row.get('state') == WAITING:
+        for o, ns in holders(store, S.jload(row.get('names'), []) or [], row.get('owner'),
+                             row['id'], waiting=False).items():
+            out.setdefault(o, set()).update(ns)
+    return [{'owner': o, 'names': sorted(ns)} for o, ns in sorted(out.items())]
+
+
+def held_words(held, defined=()):
+    """The owners holding the names, in words: a team by its name; a person or no owner not
+    named (1.0.102: another team's certificates are not named to a scoped session)."""
+    out = []
+    for one in held:
+        o = str(one.get('owner') or '').strip()
+        if o and o.lower() in defined:
+            out.append('the team %s (%s)' % (o, ', '.join(one.get('names') or [])))
+        elif o:
+            out.append('a certificate of a person (%s)' % ', '.join(one.get('names') or []))
+        else:
+            out.append('a certificate without an owner (%s)' % ', '.join(one.get('names') or []))
+    return out
+
+
+def held_public(store, row):
+    """What the approval dialogs show of a request held by others' names (1.0.102)."""
+    defined = defined_teams(store)
+    held = held_of(store, row)
+    return {'held': [{'team': o['owner'] if o['owner'].lower() in defined else '',
+                      'names': o['names']} for o in held],
+            'held_words': held_words(held, defined)}
+
+
+def need_held_ok(store, row, may_owner, who):
+    """A request whose names another owner's certificate holds is approved only by someone
+    who may approve (or manage) for that owner, or a full administrator (1.0.102: any
+    approver of the asker's own team approved mail.example of the Mail team's - and the asker
+    took its key). `may_owner(owner)`: whether the one approving may for that owner."""
+    held = held_of(store, row)
+    bad = [o for o in held if not may_owner(o['owner'])]
+    if not bad:
+        return
+    store.add_event('certificates', '%s was refused: approving %s, whose names are held by '
+                    'another owner\'s certificates' % (who, row['name']), 'warn', who=who)
+    raise E.ApiError(403, 'its names are held by %s - an approver of that team (the right '
+                          'approve or manage on it), or a full administrator, approves it'
+                     % '; '.join(held_words(bad, defined_teams(store))))
+
+
+def askers_of(store, cid):
+    """Who asked for it, and everyone who sent a new CSR or names for it since (1.0.102: a
+    member who may manage sent his own CSR with other names for another's request, and approved
+    it himself) - lower case."""
+    a = asker(store, cid)
+    out = {str(a.get('who') or '').strip().lower()}
+    out |= {str(x).strip().lower() for x in (a.get('askers') or []) if x}
+    out.discard('')
+    return out
+
+
+def note_asker(store, cid, who, held=None):
+    """`who` (owner_word) sent a CSR or names for it: one of its askers from now; `held`
+    (holders()) kept as why it waits, where given."""
+    a = asker(store, cid)
+    lst = [str(x) for x in (a.get('askers') or []) if x]
+    if who and str(who).lower() not in {x.lower() for x in lst}:
+        lst.append(str(who)[:190])
+    a['askers'] = lst[-50:]
+    if held is not None:
+        a['held'] = held_list(held)
+    store.set_meta(META + str(cid), json.dumps(a))
+
+
+HELD_WORDS = {
+    'en': ('A request for names of %(team)s waits for your approval',
+           '%(who)s asked on %(site)s for a certificate with names that a certificate of the team '
+           '%(team)s holds:\n\n  %(names)s\n\nIt is issued only when someone who may approve '
+           'for %(team)s (or a full administrator) approves it - on the portal (%(url)s) or in '
+           'the administration, Certificates, waiting for approval.'),
+    'cs': ('Žádost o jména týmu %(team)s čeká na vaše schválení',
+           '%(who)s požádal na %(site)s o certifikát se jmény, která má certifikát týmu '
+           '%(team)s:\n\n  %(names)s\n\nVydá se, až ho schválí někdo, kdo smí schvalovat za '
+           '%(team)s (nebo plný správce) - na portálu (%(url)s) nebo ve správě, Certifikáty, '
+           'čeká na schválení.'),
+}
+
+
+def tell_holders(store, cid, held, who):
+    """A mail to each team whose certificate holds a name of a request that waits (its
+    contact mail, Settings → Owners and teams), and an event (1.0.102: the team holding the
+    name was never asked nor told). Never raises; run in a thread of its own."""
+    defined = defined_teams(store)
+    teams_ = [(o, ns) for o, ns in sorted((held or {}).items()) if o and o.lower() in defined]
+    if not teams_:
+        return
+
+    def go():
+        from acmelib.certs import teams as T
+        try:
+            row = S.cert_get(store, cid)
+            if not row:
+                return
+            for team, ns in teams_:
+                store.add_event('certificates', '%s waits for approval by the team %s: its names '
+                                '%s are held by a certificate of that team' % (
+                                    row['name'], team, ', '.join(ns)), 'warn', who=who)
+                to = T.contact_mails(store, {'owner': team})
+                if not to:
+                    continue
+                if (E.CONFIG.get('mail_mode') or 'off') == 'off':
+                    E.log('the certificate portal would have mailed %s (names of %s asked for): '
+                          'mail is switched off' % (', '.join(to), team))
+                    continue
+                subject, body = HELD_WORDS.get(str(E.CONFIG.get('ui_lang') or 'cs'),
+                                               HELD_WORDS['en'])
+                site = str(E.CONFIG.get('portal_title') or E.CONFIG.get('site_name') or 'acme')
+                fill = {'team': team, 'who': who, 'site': site, 'url': portal_url(),
+                        'names': ', '.join(ns)}
+                from email.message import EmailMessage
+                msg = EmailMessage()
+                msg['Subject'] = subject % fill
+                msg['From'] = E.mail_sender() or 'acme@%s' % E.node_name()
+                msg['To'] = ', '.join(to)
+                msg.set_content((body % fill) + '\n\n-- acme, %s\n' % site)
+                try:
+                    E.mail_deliver(store, msg, to, kind='certs', name=team,
+                                   purpose='portal certificate held names')
+                except E.MailError as e:
+                    if getattr(e, 'queued', None) != 'waiting':
+                        raise
+        except Exception as e:                          # noqa: BLE001
+            E.log('the certificate portal could not tell the team holding the names of %s: %s'
+                  % (cid, e), 'warn')
+    threading.Thread(target=go, name='portal-mail-held', daemon=True).start()
 
 
 def asker(store, cid):

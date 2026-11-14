@@ -398,6 +398,86 @@ def carry_in(store, table, ident, old):
         store.db.update(table, ident, {col: json.dumps(out)})
 
 
+# The modules' own state (ctx.kv_set) that holds a key or a secret, by the slot it is kept
+# under: sealed for 'certs:<slot>' (plugins/issuers/acme.py _seal).
+KV_SEALED_SLOTS = ('acme-account:', 'ssls-pending:', 'sslmarket-pending:', 'sslmarket-acme:')
+KV_SEALED_FIELDS = ('key', 'hmac')
+
+
+def _sealed_again(v, place):
+    """`v` sealed for `place` where it was sealed without one or kept in clear: (new, how) -
+    (None, 'lost') where it does not open here, (None, '') where nothing is to be done."""
+    if not isinstance(v, str) or not v or v.startswith(E.SEALED2):
+        return None, ''
+    if v.startswith(E.SEALED):
+        plain = E.unseal_secret(v)
+        if plain is None:
+            return None, 'lost'
+        return E.seal_secret(plain, place), 'v1'
+    return E.seal_secret(v, place), 'clear'
+
+
+def seal_migrate(store):
+    """Every secret inside a module's settings (JSON) and inside its own state sealed for its
+    place (1.0.102, the engine's seal_bind_all): {what how: count}."""
+    said = {}
+
+    def count(what, how):
+        if how:
+            said['%s %s' % (what, how)] = said.get('%s %s' % (what, how), 0) + 1
+    db = store.db
+    for table, col in JSON_SECRET_COLS.items():
+        if table not in db.tables():
+            continue
+        for row in db.rows('SELECT * FROM %s' % table):
+            cfg = jload(row.get(col), {})
+            if not isinstance(cfg, dict) or not cfg:
+                continue
+            try:
+                if table == 'cert_deploys':
+                    secrets = deploy_secrets(store, row)
+                else:
+                    fam = FAMILY_OF.get(table)
+                    secrets = secret_fields(row_class(fam, row)) if fam else set()
+            except Exception:                           # noqa: BLE001
+                secrets = set()
+            out = dict(cfg)
+            for k, v in cfg.items():
+                if not isinstance(v, str) or not v or not (k in secrets or v.startswith('sealed:')):
+                    continue
+                new, how = _sealed_again(v, '%s:%s:%s' % (table, row['id'], k))
+                count('%s.%s' % (table, col), how)
+                if new:
+                    out[k] = new
+            if out != cfg:
+                db.update(table, row['id'], {col: json.dumps(out)})
+    for r in db.rows("SELECT k, v FROM meta WHERE k LIKE 'certs:kv:%'"):
+        k = str(r['k'])
+        at = min([k.find(p_) for p_ in KV_SEALED_SLOTS if k.find(p_) >= 0] or [-1])
+        if at < 0 or '~' in k[at:]:
+            continue                        # kept under a key cut short: its slot is not known
+        slot = k[at:]
+        got = jload(r['v'], None)
+        if not isinstance(got, dict):
+            continue
+        inner, as_text = got.get('v'), False
+        if isinstance(inner, str):
+            inner, as_text = jload(inner, None), True
+        if not isinstance(inner, dict):
+            continue
+        changed = False
+        for f in KV_SEALED_FIELDS:
+            new, how = _sealed_again(inner.get(f), 'certs:' + slot)
+            count('module state', how)
+            if new:
+                inner[f] = new
+                changed = True
+        if changed:
+            got['v'] = json.dumps(inner) if as_text else inner
+            store.set_meta(k, json.dumps(got, default=str))
+    return said
+
+
 def plugin_row(store, family, ref):
     """A row of cert_issuers / cert_challenges / cert_targets by id or name."""
     table = TABLE_OF[family]

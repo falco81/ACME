@@ -391,6 +391,12 @@ def certs_carry_row_in(store, table, ident, old):
     return certs_mod('store').carry_in(store, table, ident, old)
 
 
+@_certs_hook('seal_bind_all')
+def certs_seal_bind_all(store):
+    """The modules' secrets sealed for their places (1.0.102, seal_bind_all)."""
+    return certs_mod('store').seal_migrate(store)
+
+
 @_certs_hook('carry_meta_out')
 def certs_carry_meta_out(store, table, row):
     """A certificate's rows in meta, with it in the file (1.0.88)."""
