@@ -3500,3 +3500,58 @@ function krbDoor(done) {
   go.onclick = function () { tryIt(false); };
   if (box.dataset.auto === '1' && !krbFlag(part, 'tried') && !krbFlag(part, 'out')) tryIt(true);
 }
+
+/* ---- signing in with a certificate - a smart card, a YubiKey (1.0.100, as otp 1.0.275) ------
+   "Sign in with a certificate": a nonce first (POST ?api=cert-nonce, this page's own), then the
+   certificate's own port as a top-level navigation - the browser's chooser, the card's PIN. The
+   answer comes back here on 443: signed in (the second step next, as after a password), or
+   ?certsaid=<kind> - a kind only, said in this page's words, never words of the address's. */
+var CERT_SAID = {
+  certificate: 'Certificate sign-in refused: certificate not accepted',
+  revoked: 'Certificate sign-in refused: revoked',
+  expired: 'Certificate sign-in refused: run out',
+  allowed: 'Certificate sign-in refused: not allowed',
+  unavailable: 'Certificate sign-in refused: not available just now',
+  nonce: 'Certificate sign-in refused: not started from this sign-in page - try again',
+  wait: 'Certificate sign-in refused: too many tries - wait a while',
+  off: 'signing in with a certificate is switched off here',
+  signin: 'sign in to these pages first, then try your certificate'
+};
+function certSaid() {
+  var said = '';
+  try {
+    var q = new URLSearchParams(location.search);
+    said = q.get('certsaid') || '';
+    if (said) {
+      q.delete('certsaid');
+      var rest = q.toString();
+      history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+    }
+  } catch (e) { said = ''; }
+  return said && CERT_SAID.hasOwnProperty(said) ? CERT_SAID[said] : (said ? CERT_SAID.certificate : '');
+}
+function certGo(what, body, btn, said) {
+  if (btn) btn.disabled = true;
+  return fetch('?api=' + what, {method: 'POST', credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body || {})})
+    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return {ok: r.ok, d: d}; }); },
+          function () { return {ok: false, d: {error: 'the server could not be reached'}}; })
+    .then(function (x) {
+      if (x.ok && x.d && /^https:\/\//.test(String(x.d.url || ''))) return x.d.url;
+      if (btn) btn.disabled = false;
+      if (said) { said.className = 'said bad'; said.textContent = String((x.d && x.d.error) || 'refused'); }
+      return '';
+    });
+}
+function certDoor() {
+  var words = certSaid(), box = $('cert-box');
+  var said = box ? $('cert-said') : $('in-said');
+  if (words && said) { said.className = 'said bad'; said.textContent = words; }
+  if (!box) return;
+  var go = $('cert-go');
+  go.onclick = function () {
+    said.className = 'said';
+    said.textContent = '';
+    certGo('cert-nonce', {}, go, said).then(function (url) { if (url) location.href = url; });
+  };
+}

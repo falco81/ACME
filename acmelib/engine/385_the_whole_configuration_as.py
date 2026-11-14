@@ -288,7 +288,9 @@ def config_export(store, whole):
                 "SELECT k, v FROM meta WHERE k LIKE 'guide:%'")},
             # The keytab of the sign-in with Windows (1.0.99): its keys only in a file with the
             # secrets (sealed again by the machine it is put in on); what it holds always.
-            'kerberos': krb_export(store, whole)}
+            'kerberos': krb_export(store, whole),
+            # The authorities of the sign-in with a certificate (1.0.100): public, always whole.
+            'certlogin': cl_export(store)}
 
 
 def config_import(store, daemon, conf, by, keep_account='', access_check=None, nodes_as=None,
@@ -391,6 +393,7 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
             krb_keytab_check(krb_raw)
         except (binascii.Error, ValueError) as e:
             raise ApiError(400, 'the keytab in the file: %s' % e)
+    cl_pems = cl_import_checked(conf)                    # 1.0.100: checked before anything
     pem = str(conf.get('mail_ca') or '').strip()
     if pem and not all(describe_certificate(b) for b in split_certificates(pem)):
         raise ApiError(400, 'the mail server\'s authorities in the file are not certificates')
@@ -598,6 +601,8 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
         elif isinstance(krb_in, dict) and replace and not krb_in.get('entries') and \
                 krb_keytab_row(store):
             krb_keytab_drop(store, by, keep=keep_session)
+        if cl_import_apply(store, cl_pems, by, replace, keep=keep_session):
+            said['authorities of the sign-in with a certificate'] += 1
         if fw is not None:
             fw_trial_begin(store, by)
             store.set_meta('fw:conf', json.dumps(dict(fw, at=time.time(), by=by)))

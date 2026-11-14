@@ -512,7 +512,9 @@ def _portal_info(h):
             if CONFIG.get('portal_sso') and CONFIG.get('portal') else None,
             # Signed in with Windows (Kerberos, 1.0.99): the button, tried by itself, no
             # password at all - the portal's own switches, not the administration's.
-            'kerberos': krb_page_info('portal', h.store)}
+            'kerberos': krb_page_info('portal', h.store),
+            # ...and with a certificate (1.0.100): the portal's own switches.
+            'certlogin': cl_page_info('portal', h.store)}
 
 
 def portal_directory(h):
@@ -536,9 +538,10 @@ def _portal_login(h):
     # accounts neither - while Kerberos can (acme --set portal_password_off=0 back).
     if krb_password_off('portal', h.store):
         h.store.add_event('portal', 'a password for %s from %s refused: the enrolment pages are '
-                          'signed in to with Windows only' % (name or '(nobody)', h.client_ip()),
+                          'signed in to with Windows or a certificate only' % (name or '(nobody)',
+                                                                h.client_ip()),
                           'warn')
-        raise ApiError(403, KRB_ONLY_SAID)
+        raise ApiError(403, sso_only_said('portal', h.store))
     key = h.throttle('portal', split_limit('portal_tries', 5),
                      int(CONFIG.get('portal_wait_min') or 15), name=name)
     if name and name_letters_problem(name):
@@ -690,7 +693,8 @@ def portal_open_dir(h, key, name, ad, entry, sso=False, how=''):
                          'sso': bool(sso)}}
     h.store.add_event('portal', '%s signed in to the enrolment pages from %s%s'
                       % (who, h.client_ip(), ' (signed in by the load balancer)' if sso else
-                         (' with Windows (Kerberos)' if how == 'Kerberos' else '')), who=who)
+                         (' with Windows (Kerberos)' if how == 'Kerberos' else
+                          ' with a certificate' if how == 'certificate' else '')), who=who)
     split_note(h.store, 'signin', who, 'signin:portal:' + str(who).lower())
     return {'token': token, 'name': who}
 
@@ -990,7 +994,7 @@ def _portal_password(h):
         raise ApiError(400, 'this account signs in with its directory password, which is '
                             'changed in the directory')
     if krb_password_off('portal', h.store):
-        raise ApiError(403, KRB_ONLY_SAID)
+        raise ApiError(403, sso_only_said('portal', h.store))
     acc = h.store.account(s["name"], checked=True)
     b = h.body()
     # The new one and the one typed again first, in words (as the form says them).

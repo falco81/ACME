@@ -14,7 +14,10 @@ AD_NEVER = (0, 0x7FFFFFFFFFFFFFFF)
 USER_ATTRS = ('distinguishedName', 'sAMAccountName', 'userPrincipalName', 'displayName',
               'mail', 'userAccountControl', 'accountExpires', 'memberOf', 'lockoutTime',
               'pwdLastSet', 'department', 'title', 'mobile', 'telephoneNumber',
-              'objectClass', 'msDS-User-Account-Control-Computed')
+              'objectClass', 'msDS-User-Account-Control-Computed',
+              # the account's SID (1.0.100): a certificate's SID extension (KB5014754) is
+              # compared with it
+              'objectSid')
 # msDS-User-Account-Control-Computed (1.0.101): what AD works out now -
 # locked out (0x10) and the password expired (0x800000). lockoutTime alone
 # stays set after the lockout is over.
@@ -364,6 +367,8 @@ class Directory(object):
                      'mobile': entry_first(a, self.mobile_attrs),
                      'phone': first('telephoneNumber'),
                      'pw_set': ad_time(first('pwdLastSet')),
+                     # S-1-5-21-... (1.0.100), '' when the directory did not say
+                     'sid': sid_text(first('objectSid')),
                      'many': len(rows) > 1}
         with self.lock:
             self.cache[key] = (time.time(), entry)
@@ -702,6 +707,20 @@ class Directory(object):
             out.append('"Take old, weak certificates" is on: Windows Server 2025 speaks TLS 1.2 '
                        'and 1.3 only - switch it off once the domain controllers are new.')
         return out
+
+
+def sid_text(raw):
+    """S-1-5-21-... of a SID in its binary form (objectSid, bytes or the hex the LDAP reading
+    keeps it in), or ''."""
+    try:
+        b = bytes.fromhex(raw) if isinstance(raw, str) else bytes(raw or b'')
+        if len(b) < 8 or b[0] != 1 or len(b) != 8 + 4 * b[1]:
+            return ''
+        auth = int.from_bytes(b[2:8], 'big')
+        subs = [int.from_bytes(b[8 + 4 * i:12 + 4 * i], 'little') for i in range(b[1])]
+        return 'S-%d-%d' % (b[0], auth) + ''.join('-%d' % s for s in subs)
+    except (TypeError, ValueError):
+        return ''
 
 
 def entry_unusable(entry, locked=True):

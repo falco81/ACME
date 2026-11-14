@@ -17,6 +17,12 @@ require_once __DIR__ . '/acme-page.php';
 require_once __DIR__ . '/acme-api.php';
 require_once __DIR__ . '/acme-art.php';
 
+/* The certificate's own port (1.0.100): the sign-in with a certificate, nothing else. */
+if (($_SERVER['ACME_CERT_PORT'] ?? '') === '1') {
+    acme_cert_port('portal');
+    exit;
+}
+
 /* ---- signed in by the load balancer or WAF in front (otp 1.0.239) ----------
    Off unless switched on in the administration: then /api/portal/info names the header the
    balancer puts the name it signed in into. The name, the key it sends with it, and the
@@ -133,6 +139,12 @@ if (isset($_GET['api'])) {
         echo json_encode(is_array($data) ? $data : ['ok' => false, 'error' => 'sign-in failed']);
         exit;
     }
+    if ($what === 'cert-nonce' && $post) {
+        /* Signing in with a certificate (1.0.100): the nonce, and the port's address with it. */
+        $i = acme_get('/api/portal/info', 5.0);
+        acme_cert_nonce('portal', is_array($i['certlogin'] ?? null) ? $i['certlogin'] : []);
+        exit;
+    }
     if ($what === 'kerberos-login' && $post) {
         /* Signing in with Windows (Kerberos, 1.0.99): the portal's own switch - 404 while off,
            401 Negotiate without a ticket, 403 for every refusal. */
@@ -241,6 +253,11 @@ $title = (string) ($info['title'] ?? '');
 $krb = ($alive && is_array($info['kerberos'] ?? null)) ? $info['kerberos'] : [];
 $krb_on = !empty($krb['on']);
 $krb_only = $krb_on && !empty($krb['only']);
+/* ...and with a certificate (1.0.100): the button; "no password at all" is one switch for both. */
+$cl = ($alive && is_array($info['certlogin'] ?? null)) ? $info['certlogin'] : [];
+$cl_on = !empty($cl['on']);
+$pw_off = ($krb_on && !empty($krb['only'])) || ($cl_on && !empty($cl['only']));
+$krb_only = $krb_on && $pw_off;
 // No title of the site's own: a heading of the page's own, in the page's language.
 $title_ours = $title === '';
 if ($title_ours) {
@@ -267,7 +284,11 @@ if ($title_ours) {
     <?= acme_art_for(is_array($info) ? ($info['art'] ?? null) : null, 'portal', $title) ?>
     <div class="card">
       <h1<?= $title_ours ? '' : ' data-no-i18n' ?>><?= h($title) ?></h1>
-      <?php if ($krb_only): ?>
+      <?php if ($pw_off && $krb_on && $cl_on): ?>
+      <p class="lede">Sign in with Windows or a certificate to see your certificates.</p>
+      <?php elseif ($pw_off && $cl_on): ?>
+      <p class="lede">Sign in with a certificate to see your certificates.</p>
+      <?php elseif ($krb_only): ?>
       <p class="lede">Sign in with Windows to see your certificates.</p>
       <?php else: ?>
       <p class="lede">Sign in with your name and password to see your certificates.</p>
@@ -285,8 +306,8 @@ if ($title_ours) {
         <p class="note small" id="sso-again">You signed out. <a href="/?sso=1">Sign in through the company sign-in again</a>, or with your name and password below.</p>
       <?php endif; ?>
       <div id="mfa-box" data-stage="<?= h($mfa) ?>" hidden></div>
-      <?php if ($krb_only): ?>
-      <!-- Only Windows (1.0.99): no name and no password on the page at all. -->
+      <?php if ($pw_off): ?>
+      <!-- No password at all (1.0.99, 1.0.100): no name and no password on the page at all. -->
       <form id="signin-form" hidden></form>
       <?php else: ?>
       <form id="signin-form" autocomplete="on"<?= $mfa !== '' ? ' hidden' : '' ?>>
@@ -314,6 +335,16 @@ if ($title_ours) {
           x="13" y="4" width="7" height="7" rx="0.6"/><rect x="4" y="13" width="7" height="7" rx="0.6"/><rect
           x="13" y="13" width="7" height="7" rx="0.6"/></svg><span>Sign in with Windows</span></button>
         <div class="said" id="krb-said"></div>
+      </div>
+      <?php endif; ?>
+      <?php if ($cl_on && $mfa === '' && $gate === null): ?>
+      <div class="krb-box cert-box" id="cert-box" data-part="portal" data-only="<?= $pw_off ? '1' : '0' ?>">
+        <?php if (!$pw_off && !$krb_on): ?><div class="krb-or"><span>or</span></div><?php endif; ?>
+        <button class="btn cmd<?= $pw_off && !$krb_on ? ' primary' : '' ?>" type="button" id="cert-go"><svg
+          viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle
+          cx="8.5" cy="12" r="2"/><path d="M13 10h5M13 14h3"/></svg><span>Sign in with a certificate</span></button>
+        <div class="said" id="cert-said"></div>
       </div>
       <?php endif; ?>
       <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center">

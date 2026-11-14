@@ -26,6 +26,9 @@ LOCKOUT_KINDS = {
     # Tickets refused (1.0.99), counted per address as wrong passwords are.
     'kerberos': 'signing in to these pages with Windows (Kerberos)',
     'portal-kerberos': 'signing in to the enrolment pages with Windows (Kerberos)',
+    # Certificates refused (1.0.100), the same way.
+    'certlogin': 'signing in to these pages with a certificate',
+    'portal-certlogin': 'signing in to the enrolment pages with a certificate',
 }
 LOCKOUTS_SENT = {'sig': None, 'at': 0.0}
 THROTTLE_GUARD = threading.Lock()
@@ -35,7 +38,8 @@ THROTTLE_GUARD = threading.Lock()
 # to these pages and to the certificate portal) ------------------------------------------------
 GUARD_KIND = 'guard-src'
 # The sign-ins counted by the place they come from: these pages, the portal, the second step.
-GUARD_KINDS = ('admin', 'portal', 'mfa', 'portal-sso', 'kerberos', 'portal-kerberos')
+GUARD_KINDS = ('admin', 'portal', 'mfa', 'portal-sso', 'kerberos', 'portal-kerberos',
+               'certlogin', 'portal-certlogin')
 
 
 def guard_on():
@@ -581,7 +585,9 @@ def _health(h):
            'maintenance': maint,
            # What the sign-in page offers of Windows (Kerberos, 1.0.99): the button, tried by
            # itself, no password at all - nothing more (no realm, no name).
-           'kerberos': krb_page_info('admin', h.store)}
+           'kerberos': krb_page_info('admin', h.store),
+           # ...and of a certificate (1.0.100): the button and the port it leads to.
+           'certlogin': cl_page_info('admin', h.store)}
     # For monitoring (1.0.47) - asked for - whether replication runs.
     if h.arg('check') == 'all' and CONFIG.get('ha_mode') == 'replicated':
         try:
@@ -815,9 +821,10 @@ def _login(h):
     # back is acme --set admin_password_off=0 (or Kerberos switched off).
     if krb_password_off('admin', h.store):
         h.store.add_event('sign-ins', 'a password for %s from %s refused: these pages are '
-                          'signed in to with Windows only' % (name or '(nobody)', h.client_ip()),
+                          'signed in to with Windows or a certificate only' % (name or '(nobody)',
+                                                                h.client_ip()),
                           'warn')
-        raise ApiError(403, KRB_ONLY_SAID)
+        raise ApiError(403, sso_only_said('admin', h.store))
     key = h.throttle('admin', split_limit('login_tries', 5),
                      int(CONFIG.get('login_wait_min') or 15), name=name)
     acc = h.store.account(name, checked=True) or (h.store.account(admin_name_parts(name)[0], checked=True)

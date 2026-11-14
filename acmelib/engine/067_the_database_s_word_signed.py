@@ -30,7 +30,10 @@ DBGUARD_META_EXACT = frozenset(('host:pwpolicy:conf', 'rbackup:targets',
     'module-files:sig',
     # The keytab of the sign-in with Windows (1.0.99): a key of somebody else's put in, and
     # their tickets would sign anybody in.
-    'krb:keytab'))
+    'krb:keytab',
+    # The authorities of the sign-in with a certificate (1.0.100): one of somebody else's put in,
+    # and their certificates would sign anybody in.
+    'certlogin:cas'))
 DBGUARD_META_PREFIXES = (
     'web:tls:', 'web:retry:', 'ntp:sync:', 'net:want:', 'net:job:', 'net:undo:', 'net:keep:',
     'net:back:', 'readdress:dropold:', 'hatls:node:', 'dbtls:server:', 'ask:want:',
@@ -56,7 +59,10 @@ DBGUARD_SETTINGS = frozenset((
     'admin_2fa_sms', 'admin_2fa_passkey',
     # Who signs in with Windows, and whether a password still does (1.0.99).
     'admin_krb', 'admin_krb_realm', 'admin_password_off', 'portal_krb', 'portal_krb_realm',
-    'portal_password_off', 'session_hours', 'session_idle_min', 'login_tries', 'login_wait_min',
+    'portal_password_off',
+    # ...and with a certificate (1.0.100): the switches, the port root opens, how one is matched.
+    'admin_certlogin', 'admin_certlogin_match', 'admin_certlogin_crl', 'portal_certlogin',
+    'portal_certlogin_match', 'portal_certlogin_crl', 'certlogin_port', 'session_hours', 'session_idle_min', 'login_tries', 'login_wait_min',
     'mail_mode', 'mail_from', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_auth',
     'smtp_user', 'smtp_password', 'sms_mode', 'sms_url', 'sms_token', 'sms_spool_dir',
     'sms_tel_host', 'sms_tel_user', 'sms_tel_password', 'sms_tel_https', 'sms_tel_verify',

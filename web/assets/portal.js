@@ -87,6 +87,8 @@ function portalDoor() {
     said.textContent = 'Welcome.';
     location.reload();
   });
+  /* Signed in with a certificate (1.0.100): back here from its port - or why not. */
+  certDoor();
   if ($('mfa-box') && $('mfa-box').dataset.stage) { form.hidden = true; mfaStep(); }
   else if ($('in-name')) $('in-name').focus();
   /* Sent back here because the sign-in ran out (1.0.48): said, not a page that just changed. */

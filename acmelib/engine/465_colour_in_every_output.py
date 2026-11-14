@@ -758,6 +758,15 @@ def build_parser():
                         'parts, every node writes it out itself')
     g.add_argument('--kerberos-keytab-off', action='store_true',
                    help='take the keytab away: nobody signs in with Windows until another is put in')
+    g.add_argument('--cert-login', action='store_true',
+                   help='signing in with a certificate (a smart card, a YubiKey): each part on or '
+                        'off, the port, the authorities put in, the CRLs fetched, each node')
+    g.add_argument('--cert-login-ca', metavar='FILE',
+                   help='put in the authorities of the people\'s certificates (the issuing one and '
+                        'its root; PEM, DER or .p7b) - for both parts, every node writes them out')
+    g.add_argument('--cert-login-ca-off', metavar='SHA256',
+                   help='take one authority away, by its SHA-256 (the first 12 characters or more, '
+                        'as acme --cert-login shows it)')
     g.add_argument('--api', nargs='+', metavar=('METHOD PATH', 'BODY'), help='any page\'s question '
                    'as the pages ask it: GET /api/ntp, or POST /api/osup \'{"action": "check"}\' '
                    '(BODY - : read from stdin, for one holding a secret) - the answer as JSON')
@@ -2622,6 +2631,68 @@ def cli_kerberos(args, pal, store):
     return 0
 
 
+def cli_cert_login(args, pal, store):
+    """acme --cert-login, --cert-login-ca FILE, --cert-login-ca-off SHA256 (1.0.100)."""
+    by = 'root on %s' % node_name()
+    if args.cert_login_ca:
+        try:
+            with open(args.cert_login_ca, 'rb') as f:
+                raw = f.read(CL_CA_FILE_MOST + 1)
+            added, cas = cl_cas_put(store, raw, by, args.cert_login_ca)
+        except (OSError, ValueError) as e:
+            raise SystemExit('acme: %s' % e)
+        if args.json:
+            print(json.dumps({'added': added, 'cas': cas}))
+            return 0
+        print(pal.ok_line('%d authorit%s put in - every node writes them out within seconds'
+                          % (len(added), 'y' if len(added) == 1 else 'ies') if added else
+                          'those authorities are put in already'))
+        for c in cas:
+            print('  %-60s %s  to %s' % (c['subject'][:60], c['sha256'][:16], c['not_after']))
+        return 0
+    if args.cert_login_ca_off:
+        cli_sure(args, 'the authority taken away from the sign-in with a certificate')
+        gone = cl_cas_drop(store, args.cert_login_ca_off, by)
+        if not gone:
+            raise SystemExit('acme: there is no one authority of that SHA-256 (acme --cert-login '
+                             'shows them)')
+        print(pal.ok_line('%s taken away - on every node within seconds' % gone['subject']))
+        return 0
+    d = Daemon(store, serve=False)
+    d.reload_directories()
+    v = cl_view(_CliHere(store, d))
+    if args.json:
+        print(json.dumps(v, default=str))
+        return 0
+    for part, words in (('admin', 'the administration'), ('portal', 'the enrolment pages')):
+        p = v['parts'][part]
+        print(pal.ok_line('signing in with a certificate to %s: %s' % (
+            words, 'ON' if p['usable'] else ('on, no authority yet' if p['on'] else 'off'))))
+        print('  directory %s, which account: %s, revocation (CRL) %s, no password at all %s%s'
+              % (p['directory'] or '-', p['match'], 'checked' if p['crl'] else 'NOT checked',
+                 'ON' if p['only_in_effect'] else ('set, not in effect' if p['password_off']
+                                                   else 'no'),
+                 ('  (the way back: acme --set %s_password_off=0)' % part)
+                 if p['password_off'] else ''))
+    print('  the port: %d (nginx asks for a certificate there and nowhere else)' % v['port'])
+    if not v['cas']:
+        print(pal.warn_line('no authority is put in (acme --cert-login-ca FILE)'))
+    for c in v['cas']:
+        print('  authority %-55s issued by %-40s to %s  %s' % (
+            c['subject'][:55], (c['issuer'] or '')[:40], c['not_after'], c['sha256'][:16]))
+    for c in v['crls']:
+        print('  CRL %-60s %s%s' % (c['url'][:60], 'good, next update %s' % stamp(c['next'])
+                                    if c.get('ok') else 'NOT HAD', ('  (%s)' % c['err'])
+                                    if c.get('err') else ''))
+    for n in v['nodes']:
+        print('  node %-12s %s, authorities %s, nginx on %s %s%s' % (
+            n['node'], 'heard from' if n['heard'] else 'NOT heard from',
+            'written' if n['written'] else 'not written', n['port'],
+            'listening' if n['listening'] else 'not listening',
+            ('  (%s)' % n['error']) if n['error'] else ''))
+    return 0
+
+
 def cli_main(argv=None):
     global _LOG_TO_STDERR
     if CLI_STARTED_ROOT[0] is None:
@@ -2835,6 +2906,8 @@ def cli_main(argv=None):
         return cli_sso(args, pal, store)
     if args.kerberos or args.kerberos_keytab or args.kerberos_keytab_off:
         return cli_kerberos(args, pal, store)
+    if args.cert_login or args.cert_login_ca or args.cert_login_ca_off:
+        return cli_cert_login(args, pal, store)
     if args.web_status or args.tls_import or args.tls_preset or args.tls_dh or \
             args.tls_hsts is not None or args.vip_set or args.vip or args.vip_move or args.vip_return or \
             args.web_retry:

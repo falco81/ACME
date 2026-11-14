@@ -169,7 +169,7 @@ def _password(h):
     if krb_password_off('admin', h.store):
         # "Only Windows" (1.0.99): no password is taken here, so none is changed either - said
         # first, to whoever asks (an account of the directory, signed in with Windows, too).
-        raise ApiError(403, KRB_ONLY_SAID)
+        raise ApiError(403, sso_only_said('admin', h.store))
     if acc.get('source') == 'directory':
         raise ApiError(400, 'this account signs in with its directory password, which is '
                        'changed in the directory')

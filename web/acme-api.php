@@ -321,6 +321,147 @@ function acme_kerberos_relay(string $path, array $more = [], bool $session = tru
 }
 
 /**
+ * Signing in with a certificate - a smart card, a YubiKey (1.0.100, as otp 1.0.275). Two halves:
+ *
+ * 1. On 443, POST ?api=cert-nonce (acme_guard_post before it: this page's own JSON, same
+ *    origin): a nonce in an HttpOnly SameSite=Strict cookie of this page's path, five minutes,
+ *    one use, bound by a MAC to the part (and the daemon's API token, which only this pool and
+ *    the daemon read), and the address of the certificate's own port with it. The page goes
+ *    there as a top-level navigation: the browser shows its certificate chooser, the card's PIN.
+ * 2. On the certificate's port (ACME_CERT_PORT set by nginx - a parameter of nginx's, never a
+ *    header of the browser's): the nonce of the address checked against the cookie (login CSRF:
+ *    a link of somebody else's signs nobody in), the certificate nginx handed on sent to the
+ *    daemon, which decides everything; the session cookie set (cookies are not kept apart by
+ *    port: the one set here is the one of 443) and back to 443 - signed in, or ?certsaid=<kind>.
+ *    Nothing else is ever served there.
+ */
+const ACME_CERT_KINDS = ['certificate not accepted' => 'certificate', 'revoked' => 'revoked',
+                         'run out' => 'expired', 'not allowed' => 'allowed',
+                         'not available just now' => 'unavailable'];
+
+function acme_cert_host(): string
+{
+    $host = preg_replace('/:\d{1,5}\z/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
+    return preg_match('/^([A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?|\[[0-9A-Fa-f:.]{2,45}\])\z/', $host) === 1
+        ? $host : '';
+}
+
+function acme_cert_mac(string $for, string $rand, string $at): string
+{
+    return substr(hash_hmac('sha256', 'acme-cert-nonce|' . $for . '|' . $rand . '|' . $at,
+                            (string) acme_token()), 0, 32);
+}
+
+/** The nonce (POST ?api=cert-nonce on 443), and where the browser goes with it. $info: what the
+    daemon says of the part ({on, port}); $try: 'admin' or 'portal' for Try my certificate. */
+function acme_cert_nonce(string $part, array $info, string $try = ''): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    $port = (int) ($info['port'] ?? 0);
+    if (empty($info['on']) || $port < 1024 || $port > 65535 || $port === 443) {
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'error' => 'signing in with a certificate is switched off here']);
+        return;
+    }
+    $host = acme_cert_host();
+    if ($host === '' || acme_token() === null) {
+        http_response_code($host === '' ? 400 : 503);
+        echo json_encode(['ok' => false, 'error' => $host === '' ? 'the name this page was opened by cannot be used'
+                                                    : 'the server is not answering - try again in a while']);
+        return;
+    }
+    $rand = bin2hex(random_bytes(16));
+    $at = (string) time();
+    $for = $try !== '' ? 'try-' . $try : $part;
+    $n = $rand . '.' . $at . '.' . acme_cert_mac($for, $rand, $at);
+    setcookie('acme_certn_' . $part, $n, [
+        'expires' => time() + 300, 'path' => ACME_COOKIE_PATH, 'secure' => true,
+        'httponly' => true, 'samesite' => 'Strict',
+    ]);
+    echo json_encode(['ok' => true, 'url' => 'https://' . $host . ':' . $port
+        . ($part === 'admin' ? '/admin/' : '/') . '?api=' . ($try !== '' ? 'cert-try' : 'cert-login')
+        . '&n=' . $n . ($try !== '' ? '&part=' . $try : '')]);
+}
+
+/** Back to 443: signed in, or why not (a kind of ACME_CERT_KINDS, never words of anybody's). */
+function acme_cert_back(string $part, string $said = '', string $more = ''): void
+{
+    $host = acme_cert_host();
+    if ($host === '') {
+        $host = 'localhost';
+    }
+    $q = $said !== '' ? '?certsaid=' . rawurlencode($said) : $more;
+    header('Location: https://' . $host . ($part === 'admin' ? '/admin/' : '/') . $q, true, 303);
+    header('Cache-Control: no-store');
+    exit;
+}
+
+/** The certificate's port: the whole of what this page does there. */
+function acme_cert_port(string $part): void
+{
+    header('Cache-Control: no-store');
+    header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");
+    $said_part = (string) ($_SERVER['ACME_CERT_PART'] ?? '');
+    $fail = (string) ($_SERVER['ACME_CERT_FAIL'] ?? '') === '1';
+    $what = (string) ($_GET['api'] ?? '');
+    if ($said_part !== $part || ($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET'
+            || (!$fail && !in_array($what, ['cert-login', 'cert-try'], true))
+            || ($what === 'cert-try' && $part !== 'admin')) {
+        http_response_code(404);
+        exit;
+    }
+    $cookie = 'acme_certn_' . $part;
+    $c = (string) ($_COOKIE[$cookie] ?? '');
+    setcookie($cookie, '', ['expires' => time() - 3600, 'path' => ACME_COOKIE_PATH, 'secure' => true,
+                            'httponly' => true, 'samesite' => 'Strict']);
+    $n = (string) ($_GET['n'] ?? '');
+    $try = $what === 'cert-try' ? (string) ($_GET['part'] ?? '') : '';
+    if ($what === 'cert-try' && !in_array($try, ['admin', 'portal'], true)) {
+        acme_cert_back($part, 'certificate');
+    }
+    $ok = false;
+    if (preg_match('/^([0-9a-f]{32})\.([0-9]{10})\.([0-9a-f]{32})\z/', $n, $m) === 1 && $c !== ''
+            && acme_token() !== null) {
+        $age = time() - (int) $m[2];
+        $ok = hash_equals($c, $n) && $age >= 0 && $age <= 300
+            && hash_equals(acme_cert_mac($try !== '' ? 'try-' . $try : $part, $m[1], $m[2]), $m[3]);
+    }
+    if (!$ok) {
+        acme_cert_back($part, 'nonce');
+    }
+    $raw = (string) ($_SERVER['ACME_CERT_PEM'] ?? '');
+    $payload = [];
+    if ($fail) {
+        $payload['failed'] = substr(preg_replace('/[^\x20-\x7e]/', '', (string) ($_SERVER['ACME_CERT_VERIFY'] ?? '')), 0, 200) ?: 'FAILED';
+    } elseif (strlen($raw) > 65536) {
+        $payload['cert'] = str_repeat('x', 16385);       /* said so by the daemon, never cut */
+    } else {
+        $payload['cert'] = rawurldecode($raw);
+    }
+    if ($try !== '') {
+        [$status, $body] = acme_call('/api/certlogin/try', 'POST', $payload + ['part' => $try], 60.0);
+        $d = json_decode((string) $body, true);
+        if ($status === 200 && is_array($d) && preg_match('/^[0-9a-f]{24}\z/', (string) ($d['id'] ?? '')) === 1) {
+            acme_cert_back('admin', '', '?certtried=' . $d['id'] . '#settings/' . ($try === 'admin' ? 'people' : 'portal'));
+        }
+        acme_cert_back('admin', $status === 401 ? 'signin' : 'unavailable');
+    }
+    [$status, $body] = acme_call($part === 'admin' ? '/api/auth/cert' : '/api/portal/cert', 'POST', $payload, 60.0);
+    $d = json_decode((string) $body, true);
+    if ($status === 200 && is_array($d) && !empty($d['token'])) {
+        acme_set_session((string) $d['token']);
+        acme_cert_back($part);
+    }
+    $words = is_array($d) ? (string) ($d['error'] ?? '') : '';
+    $kind = ACME_CERT_KINDS[preg_replace('/^.*: /', '', $words)] ?? '';
+    if ($kind === '') {
+        $kind = $status === 429 ? 'wait' : ($status === 404 ? 'off' : 'unavailable');
+    }
+    acme_cert_back($part, $kind);
+}
+
+/**
  * A large answer, compressed for a browser that says it takes gzip.
  *
  * A page of failed attempts with every field in it is a few hundred kilobytes

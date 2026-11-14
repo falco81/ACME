@@ -109,6 +109,16 @@ DEFAULTS = {
     'portal_krb_auto': 0,
     'portal_krb_realm': '',
     'portal_password_off': 0,
+    # --- signing in with a certificate - a smart card, a YubiKey (1.0.100, as otp 1.0.275) ------
+    # Each part its own switches; one port of nginx's own for both (the nonce says which part),
+    # the authorities put in once for both (Settings -> Accounts). Off - as until now.
+    'admin_certlogin': 0,
+    'admin_certlogin_match': 'compat',
+    'admin_certlogin_crl': 1,
+    'portal_certlogin': 0,
+    'portal_certlogin_match': 'compat',
+    'portal_certlogin_crl': 1,
+    'certlogin_port': 8443,
     # --- isemon ---------------------------------------------------------------
     'isemon': 0,
     'isemon_targets': '',
@@ -233,6 +243,7 @@ DEFAULTS = {
     'alerts_hand': 1,
     'alerts_sso': 0,
     'alerts_kerberos': 0,
+    'alerts_certlogin': 0,
     'alerts_url': '',
     'alerts_lang': '',
     'report_lang': '',
@@ -443,6 +454,12 @@ TUNABLE = {
     'alerts_sso': (0, 1), 'alerts_kerberos': (0, 1),
     'admin_krb': (0, 1), 'admin_krb_auto': (0, 1), 'admin_password_off': (0, 1),
     'portal_krb': (0, 1), 'portal_krb_auto': (0, 1), 'portal_password_off': (0, 1),
+    'alerts_certlogin': (0, 1),
+    'admin_certlogin': (0, 1), 'admin_certlogin_crl': (0, 1),
+    'admin_certlogin_match': ('compat', 'strong', 'upn'),
+    'portal_certlogin': (0, 1), 'portal_certlogin_crl': (0, 1),
+    'portal_certlogin_match': ('compat', 'strong', 'upn'),
+    'certlogin_port': (1024, 65535),
     'report': (0, 1), 'report_every': ('daily', 'weekly', 'monthly'),
     'report_day': ('1', '2', '3', '4', '5', '6', '7'),
     'alerts_lang': ('', 'cs', 'en'), 'report_lang': ('', 'cs', 'en'),
@@ -676,11 +693,18 @@ NAMES = {
     'admin_krb': 'Sign administrators in with Windows (Kerberos)',
     'admin_krb_auto': '...by itself when the sign-in page opens',
     'admin_krb_realm': 'Kerberos realm',
-    'admin_password_off': '...and no password at all - only Windows',
+    'admin_password_off': 'No password at all - only Windows or a certificate',
     'portal_krb': 'Sign people in with Windows (Kerberos)',
     'portal_krb_auto': '...by itself when the portal opens',
     'portal_krb_realm': 'Kerberos realm of the portal',
-    'portal_password_off': '...and no password at all on the portal - only Windows',
+    'portal_password_off': 'No password at all on the portal - only Windows or a certificate',
+    'admin_certlogin': 'Sign administrators in with a certificate (a smart card, a YubiKey)',
+    'admin_certlogin_match': 'Which account a certificate is',
+    'admin_certlogin_crl': 'Check that a certificate is not revoked (CRL)',
+    'portal_certlogin': 'Sign people in with a certificate (a smart card, a YubiKey)',
+    'portal_certlogin_match': 'Which account a certificate is (the portal)',
+    'portal_certlogin_crl': 'Check that a certificate is not revoked (CRL) (the portal)',
+    'certlogin_port': 'The certificate\u2019s own port',
     'isemon': 'Send the logs to isemon',
     'isemon_targets': 'isemon’s syslog receivers',
     'isemon_hostname': 'The name this machine is written under',
@@ -749,6 +773,7 @@ NAMES = {
     'alerts_hand': 'A step waiting for a person',
     'alerts_sso': 'Sign-ins by the load balancer refused',
     'alerts_kerberos': 'Sign-ins with Windows (Kerberos) refused',
+    'alerts_certlogin': 'Sign-ins with a certificate refused',
     'alerts_url': 'The administration’s address in the mails',
     'alerts_lang': 'Language of the alerts',
     'report_lang': 'Language of the report',
@@ -1196,12 +1221,13 @@ SAYS = {
                        'taken from the base DN of the directory above (DC=corp,DC=example → '
                        'CORP.EXAMPLE). A ticket of any other realm is refused.',
     'admin_password_off': 'On: the sign-in page offers no name and password - nobody signs in '
-                          'with a password, local accounts neither; only Windows (Kerberos), then '
-                          'the second step when it is on. No password is set or changed on these '
-                          'pages either. Switched on only from a sign-in made with Windows (so '
-                          'whoever switches it on has seen it work); in effect only while '
-                          'Kerberos is on and a keytab is put in. The way back, as root: '
-                          'acme --set admin_password_off=0.',
+                          'with a password, local accounts neither; only Windows (Kerberos) or a '
+                          'certificate, then the second step when it is on. No password is set or '
+                          'changed on these pages either. Switched on only from a sign-in made '
+                          'with Windows or a certificate (so whoever switches it on has seen it '
+                          'work); in effect only while Kerberos is on with a keytab, or the '
+                          'certificate sign-in is on with authorities put in. The way back, as '
+                          'root: acme --set admin_password_off=0.',
     'portal_krb': 'A browser on a computer in the domain signs its person in to the certificate '
                   'portal without a password, with the same keytab as the administration (one '
                   'service account, an SPN for every name the pages are opened by). The person '
@@ -1220,11 +1246,41 @@ SAYS = {
                         'other realm is refused.',
     'portal_password_off': 'On: the portal offers no name and password - nobody signs in to it '
                            'with a password, acme\'s own accounts neither; only Windows '
-                           '(Kerberos), then the one-time code when it is on. Switched on only by '
-                           'an administrator who is signed in to the portal with Windows in the '
-                           'same browser; in effect only while Kerberos is on for the portal and '
-                           'a keytab is put in. The way back, as root: acme --set '
+                           '(Kerberos) or a certificate, then the one-time code when it is on. '
+                           'Switched on only by an administrator who is signed in to the portal '
+                           'with Windows or a certificate in the same browser; in effect only '
+                           'while Kerberos (with a keytab) or the certificate sign-in (with '
+                           'authorities) is on for the portal. The way back, as root: acme --set '
                            'portal_password_off=0.',
+    'admin_certlogin': 'A certificate of the domain\'s authority - on a smart card, a YubiKey or in '
+                       'the computer - signs its person in without a password: nginx asks for it '
+                       'on a port of its own (below), never on 443, so nobody else is ever asked '
+                       'for a certificate. Checked here: the chain to an authority put in, its '
+                       'dates, a key usage for signing in, not revoked, and the UPN in it looked '
+                       'up in the directory above - the role of its groups. The second step, '
+                       'when it is on, is asked after it just the same. Off: nothing of it is '
+                       'offered. Its own switch: the enrolment pages have theirs.',
+    'admin_certlogin_match': 'compat: the SID an AD CS writes into a certificate since KB5014754 '
+                             'must be the account\'s when it is there; strong: it must be there '
+                             '(Microsoft\'s full enforcement); upn: the UPN alone.',
+    'admin_certlogin_crl': 'The CRL at the certificate\'s CRL Distribution Point (http), kept until '
+                           'its next update: no CRL to be had, no sign-in. Off: revocation is '
+                           'not checked - a lost card signs in until its account is switched off '
+                           'in the directory.',
+    'portal_certlogin': 'A certificate of the domain\'s authority signs its person in to the '
+                        'certificate portal without a password, on the same port and with the '
+                        'same authorities as the administration. The person is looked up in the '
+                        'portal\'s directory by the UPN in it, and who may sign in here decides - '
+                        'Who may sign in, the groups, the role Enrolment pages only - exactly as '
+                        'for a password; the one-time code, when it is on, is sent after it just '
+                        'the same. Independent of the administration\'s switch.',
+    'portal_certlogin_match': 'As the administration\'s, for the portal: compat, strong or upn.',
+    'portal_certlogin_crl': 'As the administration\'s, for the portal: no CRL to be had, no '
+                            'sign-in. Off: revocation is not checked.',
+    'certlogin_port': 'Where nginx asks the browser for a certificate (8443: SELinux lets nginx '
+                      'have it already). One port for both parts. Opened in the firewall for the '
+                      'networks that may reach the pages while either part is on; 80, 443 and '
+                      'acme\'s own ports are refused.',
     'isemon': 'Send what happens to the certificates - a renewal, a deployment, a failure, '
               'one running out - to isemon, as syslog lines of the program '
               '<code>acme-certs</code>, one event a line with key=value fields (and with '
@@ -1359,6 +1415,7 @@ SAYS = {
     'alerts_hisec': 'What Settings → High security finds less safe than it could be - said once a day while it stays so.',
     'alerts_hand': 'What acme cannot do by itself and waits for a person - a command to run as root after an update, SELinux switched off, the root helper not there. Also shown in Settings → Upgrades and maintenance.',
     'alerts_sso': 'Each sign-in by the load balancer or WAF the enrolment pages refuse, as it is refused - wrong key, not from a balancer, a name the directory does not know.',
+    'alerts_certlogin': 'Each sign-in with a certificate refused - to the administration or to the enrolment pages - as it is refused: revoked, run out, another authority, no UPN, a CRL that cannot be had, nobody of that UPN in the directory.',
     'alerts_kerberos': 'Each sign-in with Windows (Kerberos) refused - to the administration or to the enrolment pages - as it is refused: NTLM, a ticket used again, another realm, a name not in the keytab, nobody of that name in the directory. Noisy where many try before it is set up right.',
     'alerts_url': 'Where the links in the mails lead, <code>https://acme.example.cz/admin/</code>. '
                   'Empty: this machine’s name.',
@@ -1574,7 +1631,7 @@ PANES = {
                'portal_groups', 'portal_code',
                'portal_session_min', 'portal_tries', 'portal_wait_min',
                'portal_enrolers', 'portal_local', 'portal_local_code', 'portal_admins_all',
-               'portal_help'],
+               'portal_password_off', 'portal_help'],
     # Signed in by the balancer (otp 1.0.239): a card of its own on the enrolment pages' pane.
     'portalsso': ['portal_sso', 'portal_sso_from', 'portal_sso_header', 'portal_sso_key',
                   'portal_sso_logout'],
@@ -1591,11 +1648,16 @@ PANES = {
                # the other after them), then the directory and its groups
                'names_czsk_letters', 'names_any_letters',
                'admin_directory', 'admin_group_full', 'admin_group_cert',
-               'admin_group_readonly', 'admin_group_portal'],
+               'admin_group_readonly', 'admin_group_portal', 'admin_password_off'],
     # Signing in with Windows (1.0.99): the administration's switches on the card of their own
     # under Accounts, the portal's on the card under the enrolment pages.
-    'adminkrb': ['admin_krb', 'admin_krb_auto', 'admin_krb_realm', 'admin_password_off'],
-    'portalkrb': ['portal_krb', 'portal_krb_auto', 'portal_krb_realm', 'portal_password_off'],
+    'adminkrb': ['admin_krb', 'admin_krb_auto', 'admin_krb_realm'],
+    'portalkrb': ['portal_krb', 'portal_krb_auto', 'portal_krb_realm'],
+    # Signing in with a certificate (1.0.100): the same - a card of its own under Accounts (with
+    # the port, one for both parts), and one under the enrolment pages.
+    'admincert': ['admin_certlogin', 'certlogin_port', 'admin_certlogin_match',
+                  'admin_certlogin_crl'],
+    'portalcert': ['portal_certlogin', 'portal_certlogin_match', 'portal_certlogin_crl'],
     'db': ['db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password',
            'db_timeout_s', 'db_tls', 'db_tls_ca', 'db_path', 'backup_daily', 'backup_keep',
            'backup_at',
@@ -1632,7 +1694,7 @@ PANES = {
                'alerts_shipping', 'alerts_snmp', 'alerts_acme', 'alerts_upgrade', 'alerts_trial',
                'alerts_dbguard', 'alerts_mailq', 'alerts_split', 'alerts_clock',
                'alerts_repl_behind_mb', 'alerts_selinux', 'alerts_hisec', 'alerts_hand', 'alerts_sso',
-               'alerts_kerberos',
+               'alerts_kerberos', 'alerts_certlogin',
                'alerts_lang', 'alerts_url', 'report', 'report_to', 'report_lang', 'report_every', 'report_day', 'report_at'],
     'codes': ['code_digits', 'code_ttl_s', 'code_tries', 'code_send_max',
               'code_send_window_min', 'code_lang', 'code_mail_fmt', 'sms_mode', 'sms_url', 'sms_method',
@@ -1693,10 +1755,15 @@ ONLY_WHEN = {
     'admin_2fa_app': ['admin_2fa', '1'], 'admin_2fa_mail': ['admin_2fa', '1'],
     'admin_2fa_sms': ['admin_2fa', '1'], 'admin_2fa_passkey': ['admin_2fa', '1'],
     'admin_krb': ['admin_directory', '*'], 'admin_krb_auto': ['admin_krb', '1'],
-    'admin_krb_realm': ['admin_krb', '1'], 'admin_password_off': ['admin_krb', '1'],
+    'admin_krb_realm': ['admin_krb', '1'], 'admin_password_off': ['admin_directory', '*'],
     'portal_krb': ['portal', '1'], 'portal_krb_auto': ['portal_krb', '1'],
-    'portal_krb_realm': ['portal_krb', '1'], 'portal_password_off': ['portal_krb', '1'],
-    'alerts_kerberos': ['alerts', '1'],
+    'portal_krb_realm': ['portal_krb', '1'], 'portal_password_off': ['portal', '1'],
+    'alerts_kerberos': ['alerts', '1'], 'alerts_certlogin': ['alerts', '1'],
+    'admin_certlogin': ['admin_directory', '*'],
+    'admin_certlogin_match': ['admin_certlogin', '1'], 'admin_certlogin_crl': ['admin_certlogin', '1'],
+    'portal_certlogin': ['portal', '1'],
+    'portal_certlogin_match': ['portal_certlogin', '1'],
+    'portal_certlogin_crl': ['portal_certlogin', '1'],
     'db_host': ['db_engine', 'sqlite-not'], 'db_port': ['db_engine', 'sqlite-not'],
     'db_name': ['db_engine', 'sqlite-not'], 'db_user': ['db_engine', 'sqlite-not'],
     'db_password': ['db_engine', 'sqlite-not'], 'db_timeout_s': ['db_engine', 'sqlite-not'],
@@ -2014,6 +2081,13 @@ def check_setting(key, value):
                 ipaddress.ip_network(one, strict=False)
             except ValueError:
                 raise BadSetting('web_proxy_from: %r is not an address or a network' % one)
+    if key == 'certlogin_port':
+        # The certificate's own port (1.0.100): never one nginx or acme already serves
+        # something else on - nginx would ask every visitor there for a certificate.
+        taken = certlogin_port_taken(int(got))
+        if taken:
+            raise BadSetting('certlogin_port: %s is %s - choose a port of its own (8443)'
+                             % (got, taken))
     if key in ('admin_krb_realm', 'portal_krb_realm') and str(got).strip():
         # A realm as AD names it (1.0.99): CORP.EXAMPLE - kept in capitals, as tickets say it.
         got = str(got).strip().upper()

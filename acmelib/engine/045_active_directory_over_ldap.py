@@ -122,6 +122,10 @@ def _ber_str(text, tag=0x04):
     return _ber(tag, str(text or '').encode('utf-8'))
 
 
+# Attributes whose values are bytes (1.0.100), handed on in hex.
+LDAP_BINARY_ATTRS = ('objectsid',)
+
+
 def _ber_bool(value, tag=0x01):
     return _ber(tag, b'\xff' if value else b'\x00')
 
@@ -1001,10 +1005,14 @@ class Ldap(object):
             _t, values, _ = _ber_read(one, where)
             got = []
             deep = 0
+            attr = name.decode('utf-8', 'replace')
+            # A value that is bytes, not words (1.0.100): objectSid in hex, as it came - read
+            # as UTF-8 it was gone (the SID of a certificate is compared with it).
+            raw = attr.lower() in LDAP_BINARY_ATTRS
             while deep < len(values):
                 _t, value, deep = _ber_read(values, deep)
-                got.append(value.decode('utf-8', 'replace'))
-            entry['attrs'][name.decode('utf-8', 'replace')] = got
+                got.append(value.hex() if raw else value.decode('utf-8', 'replace'))
+            entry['attrs'][attr] = got
         return entry
 
 

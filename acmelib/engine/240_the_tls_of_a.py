@@ -359,6 +359,10 @@ def web_desired(store):
     sp = sso_peer_desired(store)
     if sp is not None:
         out['sso_peer'] = sp
+    # The certificate's own port (1.0.100): asked once switched on, or off after.
+    cl = certlogin_desired(store)
+    if cl is not None:
+        out['certlogin'] = cl
     if fw is not None:
         out['fw'] = fw
     if access is not None:
@@ -402,7 +406,8 @@ def web_tick(store):
     # Nothing ever asked and nothing to ask: no request at all.
     st = web_status()
     if not st and not desired['vip']['on'] and not desired['tls']['node'] and \
-            'fw' not in desired and 'access' not in desired and 'acme' not in desired:
+            'fw' not in desired and 'access' not in desired and 'acme' not in desired and \
+            'certlogin' not in desired:
         return
     h = web_hash(desired)
     if st.get('state') == 'done':

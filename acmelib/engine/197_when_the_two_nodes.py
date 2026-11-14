@@ -722,7 +722,7 @@ def split_issue_refused():
 # certificates pushed here, and what only reads (a PEM taken apart, a dry run, an export).
 SPLIT_FREE = ('/api/auth/', '/api/split', '/api/ha', '/api/power', '/api/acme-push/',
               '/api/health', '/api/alerts', '/api/logs', '/api/portal/login',
-              '/api/portal/kerberos',
+              '/api/portal/kerberos', '/api/portal/cert',
               '/api/portal/logout', '/api/portal/mfa', '/api/console-login',
               '/api/certs/parse', '/api/certs/dry_run', '/api/certs/export', '/api/cas/export',
               '/api/cas/pki_check', '/api/deploys/dry_run', '/api/deploys/preview',

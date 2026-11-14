@@ -271,7 +271,7 @@ def _users_do(h):
     who = s['name']
     if act in ('add', 'password') and b.get('password') and krb_password_off('admin', h.store):
         # "Only Windows" (1.0.99): no account signs in with a password now - none is given one.
-        raise ApiError(403, KRB_ONLY_SAID)
+        raise ApiError(403, sso_only_said('admin', h.store))
     if act == 'add':
         if 'again' in b and str(b.get('again') or '') != str(b.get('password') or ''):
             raise ApiError(400, 'the new password and the one typed again are not the same - '

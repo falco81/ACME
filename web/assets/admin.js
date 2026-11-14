@@ -1507,8 +1507,8 @@ function showPane(name) {
   if (name === 'upgrade') { loadUpgrade(); attLoad(); }
   if (name === 'web') loadWeb();
   if (name === 'fw') loadFw();
-  if (name === 'portal') { $('portal-url').textContent = location.protocol + '//' + location.host + '/'; loadArt(); loadKrb(); }
-  if (name === 'people') loadKrb();
+  if (name === 'portal') { $('portal-url').textContent = location.protocol + '//' + location.host + '/'; loadArt(); loadKrb(); loadCert(); }
+  if (name === 'people') { loadKrb(); loadCert(); }
   /* A pane plugged in (ACME_EXTRA_PANES) draws itself. */
   var extra = (window.ACME_EXTRA_PANES || {})[name];
   if (typeof extra === 'function') { try { extra(name); } catch (e) { if (window.console) console.error(e); } }
@@ -1675,7 +1675,7 @@ var TALL = {portal_help: 1, portal_groups: 1, sms_body: 1, sms_headers: 1, isemo
 /* A pane drawn in sections (1.0.88): what belongs together side by side,
    and what only one choice uses in a panel of its own that is there only
    while that choice is made - not a page of greyed-out boxes. */
-var SET_PANE_HOME = {portalsso: 'portal', adminkrb: 'people', portalkrb: 'portal'};
+var SET_PANE_HOME = {portalsso: 'portal', adminkrb: 'people', portalkrb: 'portal', admincert: 'people', portalcert: 'portal'};
 var PANE_LAYOUT = {
   portalsso: [
     {title: 'Who is believed', icon: 'shield', cols: 4,
@@ -2062,6 +2062,8 @@ function drawSettings() {
   loadSso();
   /* Signing in with Windows (1.0.99): a card under Accounts and one under the enrolment pages. */
   loadKrb();
+  /* ...and with a certificate (1.0.100), the same. */
+  loadCert();
   var rest = SETTINGS.settings.filter(function (s) { return !shown[s.key]; });
   var host = $('sect-rest');
   clear(host);
@@ -7976,6 +7978,223 @@ function drawKrb(part) {
   });
   host.appendChild(ul);
   host.appendChild(el('p', 'note', 'The way back from "only Windows", as root: acme --set ' + part + '_password_off=0 (or Kerberos switched off). More: docs/kerberos-sso.md in the package.'));
+}
+
+/* ---- signing in with a certificate - a smart card, a YubiKey (1.0.100, as otp 1.0.275) ------
+   A card for each part - the administration's under Accounts, the portal's under the enrolment
+   pages - with its own switches (drawn by drawSettings into sect-admincert / sect-portalcert) and,
+   below them, what both share: the authorities put in (subject, issuer, valid to, SHA-256 - put
+   in, taken away one by one), Try my certificate (the port in a new tab: who it would sign in to
+   this part, and as what - nobody signed in), the CRLs fetched, each node (the authorities
+   written out, nginx listening on the port) and the guides: AD CS, a YubiKey, the browsers, the
+   network. */
+var CERTC = {d: null, tried: null, tried_id: ''};
+(function () {
+  try {
+    var q = new URLSearchParams(location.search), t = q.get('certtried') || '';
+    if (/^[0-9a-f]{24}$/.test(t)) {
+      CERTC.tried_id = t;
+      q.delete('certtried');
+      var rest = q.toString();
+      history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+    }
+  } catch (e) { /* none */ }
+}());
+function loadCert() {
+  if (!$('cert-host-admin') && !$('cert-host-portal')) return;
+  var ask = 'certlogin' + (CERTC.tried_id ? '&tried=' + CERTC.tried_id : '');
+  api(ask).then(function (d) {
+    CERTC.d = d;
+    if (d.tried) { CERTC.tried = d.tried; CERTC.tried_id = ''; }
+    drawCert('admin'); drawCert('portal');
+  }).catch(function (e) {
+    ['admin', 'portal'].forEach(function (part) {
+      var host = $('cert-host-' + part);
+      if (!host) return;
+      clear(host);
+      host.appendChild(el('p', 'note bad', String(e.message || e)));
+    });
+  });
+}
+function certPut() {
+  var f = el('input');
+  f.type = 'file';
+  f.accept = '.pem,.crt,.cer,.der,.p7b,.p7c,application/x-x509-ca-cert,application/x-pkcs7-certificates';
+  f.onchange = function () {
+    var file = f.files && f.files[0];
+    if (!file) return;
+    if (file.size > 1048576) { toast(file.name + ' is too big to be authorities', 'bad'); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var bytes = new Uint8Array(reader.result || new ArrayBuffer(0)), bin = '';
+      for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      api('certlogin', {action: 'put', data: btoa(bin), name: file.name}).then(function (x) {
+        CERTC.d = x.view;
+        toast(x.message || 'put in', (x.added || []).length ? 'good' : 'warn');
+        drawCert('admin'); drawCert('portal');
+      }).catch(oops);
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  f.click();
+}
+function certTry(part, btn) {
+  /* The tab opened at once (a popup blocker lets a click's own window through), sent on once the
+     nonce is had. */
+  var w = window.open('about:blank', '_blank');
+  certGo('cert-try-nonce', {part: part}, btn, null).then(function (url) {
+    btn.disabled = false;
+    if (url && w) { w.location.href = url; return; }
+    if (w) w.close();
+    if (url) location.href = url;
+    else toast('the certificate’s port is not served yet - switch one of the parts on first', 'warn');
+  });
+}
+function certRole(part, t) {
+  return part === 'admin' ? ({fulladmin: 'full admin', certadmin: 'cert admin', readonly: 'read only'}[t.role] || t.role) : 'the enrolment pages';
+}
+function drawCert(part) {
+  var host = $('cert-host-' + part), d = CERTC.d;
+  if (!host || !d) return;
+  if (host.contains(document.activeElement) && liveControl(document.activeElement)) return;
+  clear(host);
+  var p = d.parts[part], other = d.parts[part === 'admin' ? 'portal' : 'admin'];
+  var head = el('div', 'lb-facts');
+  var chip = function (cls, words) { var c = el('span', 'cchip ' + cls); c.appendChild(el('span', '', words)); head.appendChild(c); return c; };
+  chip(p.usable ? 'good' : 'dim', p.usable ? 'On' : 'Off');
+  chip(d.cas.length ? 'good' : 'warn', d.cas.length ? 'Authorities put in' : 'No authority yet');
+  if (p.only_in_effect) chip('warn', 'No password at all');
+  if (!p.crl) chip('warn', 'Revocation not checked');
+  host.appendChild(head);
+  if (part === 'admin' && !p.directory) host.appendChild(el('p', 'note warn', 'Choose the directory administrators sign in against first (above): only accounts of the directory sign in with a certificate.'));
+  if (part === 'portal' && !p.portal) host.appendChild(el('p', 'note warn', 'The enrolment pages are switched off (above): nobody signs in to them with a certificate either.'));
+  if (p.switch && !d.cas.length) host.appendChild(el('p', 'note warn', 'Switched on, but no authority is put in yet: the button is not offered and the port not served until one is.'));
+  var port = noI18n(el('span', 'mono', String(d.port)));
+  krbFacts(host, [
+    ['The port', [port, el('span', 'muted small krb-from', 'nginx asks for a certificate there, and nowhere else')]],
+    ['Directory', noI18n(el('span', '', p.directory || '-'))],
+    ['Which account', [el('span', '', p.match_words), noI18n(el('span', 'muted small krb-from', part + '_certlogin_match: ' + p.match))]],
+    ['Revocation', p.crl ? 'checked - the CRL of each certificate, no CRL no sign-in' : 'not checked - a lost card signs in until its account is switched off'],
+    [part === 'admin' ? 'Second step after it' : 'One-time code after it', p.second ? 'yes - asked after the certificate too, every time' : 'off'],
+    ['A password on the sign-in page', p.only_in_effect ? 'none - only Windows or a certificate' : (p.password_off ? 'none set, but not in effect (neither Windows nor a certificate on)' : 'offered beside it')],
+    ['Windows (Kerberos)', p.krb ? 'on too - its own switch' : 'off - its own switch'],
+    [part === 'admin' ? 'The enrolment pages' : 'The administration', other.usable ? 'on there too - their own switch, the same port' : 'off there - their own switch']
+  ]);
+  /* The authorities. */
+  host.appendChild(el('h3', 'peek-h', 'The authorities'));
+  if (d.cas.length) {
+    host.appendChild(el('p', 'note', 'Put in once for both parts and every node: the certificate of a person is taken when its chain ends in one of these - nothing else, not the system’s roots. nginx sends their names to the browser, so it offers only fitting certificates.'));
+    krbTable(host, ['Authority', 'Issued by', 'Valid to', 'SHA-256', ''], d.cas.map(function (c) {
+      var sha = noI18n(el('span', 'mono small', c.sha256.slice(0, 16) + '…'));
+      sha.title = c.sha256;
+      var del = null;
+      if (ADMIN) {
+        del = cmdButton('', 'trash', 'small danger');
+        del.title = 'Take this authority away';
+        del.onclick = function () {
+          confirmThen('Take the authority away?', 'A certificate of it no longer signs anybody in - on every node within seconds. ' + (d.cas.length === 1 ? 'It is the last one: nobody signs in with a certificate until another is put in.' : ''), 'Take it away', function () {
+            api('certlogin', {action: 'drop', sha256: c.sha256}).then(function (x) { CERTC.d = x.view; drawCert('admin'); drawCert('portal'); }).catch(oops);
+          }, true);
+        };
+      }
+      return [noI18n(el('span', 'mono', c.subject)), noI18n(el('span', 'mono small', c.issuer)), noI18n(el('span', '', c.not_after)), sha, del];
+    }));
+  } else {
+    host.appendChild(el('p', 'note', 'None yet. Put in the issuing authority of the people’s certificates and its root (PEM, DER or .p7b - from the authority’s Certificate tab, or certutil -ca.cert) - once, for both parts and every node.'));
+  }
+  var row = el('div', 'btnrow krb-btns');
+  if (ADMIN) {
+    var put = cmdButton('Put in an authority…', 'upload', 'small' + (d.cas.length ? '' : ' primary'));
+    put.onclick = certPut;
+    row.appendChild(put);
+    (d.own_cas || []).forEach(function (o) {
+      var b = cmdButton('Trust acme’s own authority ' + o.name, 'shield', 'small');
+      explain(b, 'The people’s certificates are issued by an authority of acme’s own (Certificates → Authorities): its certificate and the chain above it put in here.');
+      b.onclick = function () {
+        api('certlogin', {action: 'own', id: o.id}).then(function (x) { CERTC.d = x.view; toast(x.message, 'good'); drawCert('admin'); drawCert('portal'); }).catch(oops);
+      };
+      row.appendChild(b);
+    });
+  }
+  var tb = cmdButton('Try my certificate', 'person', 'small');
+  explain(tb, 'Opens the certificate’s port in a new tab: the browser offers its certificate (the card asks for its PIN) and this card says who it would sign in to ' + (part === 'admin' ? 'these pages' : 'the enrolment pages') + ' and as what - nobody is signed in. The best way to find a wrong template before switching this part on (the port is served while either part is on).');
+  tb.onclick = function () { certTry(part, tb); };
+  if (d.cas.length && d.any_on) row.appendChild(tb);
+  host.appendChild(row);
+  if (d.cas.length && !d.any_on) host.appendChild(el('p', 'note', 'Try my certificate comes once one of the parts is switched on: nginx serves the port only then.'));
+  var t = CERTC.tried;
+  if (t && t.part === part) {
+    var res = el('div', 'krb-tried');
+    if (t.ok) {
+      res.appendChild(krbTag('ok', 'Would sign in'));
+      res.appendChild(noI18n(el('span', 'mono', t.upn + ' → ')));
+      res.appendChild(noI18n(el('b', 'mono', t.name)));
+      res.appendChild(krbTag('dim', certRole(part, t)));
+      if (t.second) res.appendChild(el('span', 'muted small', part === 'admin' ? 'then the second step' : 'then the one-time code'));
+      if (!t.on) res.appendChild(el('span', 'muted small', '- once switched on'));
+    } else {
+      res.appendChild(krbTag('crit', t.cert ? 'Would not sign in' : 'Certificate not taken'));
+      if (t.upn) res.appendChild(noI18n(el('span', 'mono', t.upn)));
+      res.appendChild(el('span', 'small', t.said || ''));
+    }
+    host.appendChild(res);
+    if (t.subject) {
+      krbFacts(host, [['Subject', noI18n(el('span', 'mono', t.subject))], ['Issuer', noI18n(el('span', 'mono', t.issuer || ''))],
+        ['Serial', noI18n(el('span', 'mono', t.serial || ''))], ['Valid to', noI18n(el('span', 'mono', t.not_after || ''))],
+        ['SID', noI18n(el('span', 'mono', t.sid || '-'))]]);
+    }
+  }
+  /* The CRLs. */
+  host.appendChild(el('h3', 'peek-h', 'Revocation lists fetched'));
+  if (d.crls.length) {
+    krbTable(host, ['Address', 'State', 'Fetched', 'Next update', ''], d.crls.map(function (c) {
+      return [noI18n(el('span', 'mono', c.url)), krbTag(c.ok ? 'ok' : 'crit', c.ok ? 'good' : 'not had'),
+        noI18n(el('span', '', stamp(c.at))), noI18n(el('span', '', c.next ? stamp(c.next) : '-')), el('span', 'small muted', c.err || '')];
+    }));
+  } else {
+    host.appendChild(el('p', 'note', p.crl ? 'None yet: the CRL at a certificate’s CRL Distribution Point is fetched at its first sign-in and kept until its next update.' : 'Revocation is not checked for this part.'));
+  }
+  /* Each node. */
+  host.appendChild(el('h3', 'peek-h', 'Each node'));
+  krbTable(host, ['Node', 'Heard from', 'The authorities', 'nginx on port ' + d.port, 'Trouble'], d.nodes.map(function (n) {
+    return [noI18n(el('span', 'mono', n.node)), krbTag(n.heard ? 'ok' : 'crit', n.heard ? 'yes' : 'no'),
+      d.cas.length ? krbTag(n.written && n.same ? 'ok' : 'warn', n.written && n.same ? 'written' : (n.written ? 'an older set' : 'not written')) : krbTag('dim', 'none to write'),
+      d.any_on ? krbTag(n.listening ? 'ok' : 'warn', n.listening ? 'listening' : 'not listening') : krbTag('dim', 'not served (off)'),
+      el('span', 'small muted', n.error || '')];
+  }));
+  /* AD CS and a YubiKey. */
+  host.appendChild(el('h3', 'peek-h', 'The people’s certificates (AD CS)'));
+  var ul = el('ul', 'krb-ul');
+  ['A template from "Smartcard Logon" (or "User"): Subject Alternative Name built from Active Directory with the User principal name (UPN); key usages Client Authentication and Smart Card Logon.',
+   'Since KB5014754 the authority writes the account’s SID into each certificate it issues from AD: "Which account" compat (the default) checks it, strong requires it.',
+   'A CRL Distribution Point over http in the certificates (the authority’s Extensions tab), reachable from the nodes.',
+   'A YubiKey (PIV): enrolled from Windows with certreq or the template’s smart card enrolment, or with YubiKey Manager (a CSR from slot 9a, signed by the authority, imported back to 9a). Windows asks for its PIN when the browser offers it.'].forEach(function (x) { ul.appendChild(el('li', '', x)); });
+  host.appendChild(ul);
+  host.appendChild(lbBlock('ykman piv keys generate --algorithm ECCP256 9a pub.pem\nykman piv certificates request --subject "CN={who}" 9a pub.pem req.csr\ncertreq -submit -attrib "CertificateTemplate:SmartcardLogon" req.csr person.cer\nykman piv certificates import 9a person.cer',
+    {who: 'jnovak'}, 'A YubiKey by hand (YubiKey Manager, certreq)'));
+  /* The browsers and the network. */
+  host.appendChild(el('h3', 'peek-h', 'The browsers and the network'));
+  var names = (d.names || []).map(function (n) { return n.name; });
+  if (!names.length) names = [location.hostname];
+  var ul2 = el('ul', 'krb-ul');
+  var li = el('li', '');
+  li.appendChild(el('span', '', 'The button "Sign in with a certificate" opens '));
+  li.appendChild(noI18n(el('span', 'mono', names.map(function (n) { return 'https://' + n + ':' + d.port + '/'; }).join(', '))));
+  ul2.appendChild(li);
+  [['The firewall of each node lets the port in for the networks that may reach the pages of the parts switched on - nothing else is served there: ', String(d.port)],
+   ['Behind a load balancer the port is passed through as TCP - TLS ends on the nodes, which alone see the certificate: ', String(d.port)],
+   ['Edge, Chrome: no setting - a policy can pick the certificate by itself: ', 'AutoSelectCertificateForUrls'],
+   ['Firefox: the card through its PKCS#11 module (OpenSC), or security.osclientcerts.autoload for the certificates of Windows', '']].forEach(function (x) {
+    var li2 = el('li', '');
+    li2.appendChild(el('span', '', x[0]));
+    if (x[1]) li2.appendChild(noI18n(el('span', 'mono', x[1])));
+    ul2.appendChild(li2);
+  });
+  host.appendChild(ul2);
+  host.appendChild(lbBlock(names.map(function (n) { return '{"pattern":"https://' + n + ':' + d.port + '","filter":{"ISSUER":{"CN":"{issuer}"}}}'; }).join('\n'),
+    {issuer: ((d.cas[0] || {}).subject || 'CN=Corp Issuing CA').replace(/^.*?CN=([^,]+).*$/, '$1')}, 'AutoSelectCertificateForUrls (Edge, Chrome - by group policy)'));
+  host.appendChild(el('p', 'note', 'The way back from "no password at all", as root: acme --set ' + part + '_password_off=0 (or this part switched off). More: docs/certificate-sign-in.md in the package.'));
+  dressButtons(host);
 }
 
 /* ---- making the pair: the bundle on the first node, the join on the second (1.0.210) ----

@@ -609,6 +609,7 @@ class Daemon(object):
         # Whether a keytab is put in, known before anybody is served (1.0.99): "only Windows"
         # was not in effect for the first seconds of every start.
         krb_startup(self.store)
+        cl_startup(self.store)          # ...and whether authorities of the certificates (1.0.100)
         self.api = ApiServer(self)
         self.api.start()
         for fn in HOOKS['daemon_start']:
@@ -862,6 +863,11 @@ class Daemon(object):
                 except Exception as e:          # noqa: BLE001
                     log_sparing('krb-tick', 'the keytab of the sign-in with Windows: %s' % e,
                                 'warn', every=600)
+                try:
+                    cl_tick(self)               # the authorities written out here (1.0.100)
+                except Exception as e:          # noqa: BLE001
+                    log_sparing('cl-tick', 'the authorities of the sign-in with a certificate: '
+                                '%s' % e, 'warn', every=600)
                 try:
                     lockouts_tick(self)         # who is locked out, for the pages (1.0.112)
                 except Exception as e:          # noqa: BLE001

@@ -56,6 +56,8 @@ KA_DROPIN = os.environ.get('ACME_VIP_KA_DROPIN',
 NGINX_DIR = os.environ.get('ACME_VIP_NGINX_DIR', '/etc/nginx/conf.d')
 NGINX_MAIN = os.path.join(NGINX_DIR, 'acme.conf')
 NGINX_VIP = os.path.join(NGINX_DIR, 'acme_vip.conf')   # read after acme.conf: never the default server
+# The certificate's own port (1.0.100): its servers in a file of their own, after acme_vip.conf.
+NGINX_CERTLOGIN = os.path.join(NGINX_DIR, 'acme_certlogin.conf')
 CERT_DIR = os.environ.get('ACME_VIP_CERT_DIR', '/etc/nginx/certs')
 # Where SELinux lets keepalived run it; the program's own folder otherwise.
 CHECK = os.environ.get('ACME_VIP_CHECK') or next(
@@ -359,6 +361,7 @@ def checked(r):
     sp = r.get('sso_peer')
     out['sso_peer'] = None if sp is None else bool(sp)
     out['pki'] = bool(r.get('pki'))
+    out['certlogin'] = certlogin_checked(r.get('certlogin'))
     names = r.get('acme')
     if names is None:
         out['acme'] = None
@@ -863,6 +866,176 @@ VIP_FILES = {'cert': os.path.join(CERT_DIR, 'acme-vip.pem'),
              'dh': os.path.join(CERT_DIR, 'acme-vip-dh.pem')}
 
 
+CERTLOGIN_CA = os.path.join(CERT_DIR, 'acme-certlogin-ca.pem')
+# Ports never the certificate's own: nginx would ask everybody there for a certificate.
+CERTLOGIN_NOT = (80, 443, 22, 25, 53, 161, 162, 1812, 1813, 3306, 5432, 9861)
+# What a server of the port keeps of the HTTPS server it is made from: its names, its TLS.
+CERTLOGIN_KEEP = re.compile(r'^\s*(listen|server_name|ssl_certificate|ssl_certificate_key|'
+                            r'ssl_protocols|ssl_ciphers|ssl_prefer_server_ciphers|ssl_dhparam|'
+                            r'ssl_ecdh_curve|ssl_session_cache|ssl_session_timeout|'
+                            r'ssl_session_tickets|ssl_conf_command|root|server_tokens)\s')
+
+
+def certlogin_checked(c):
+    """{port, cas, admin, portal}, or {port: 0} (taken away), or None (never asked)."""
+    if c is None:
+        return None
+    if not isinstance(c, dict):
+        raise Refused('the certificate\'s port is not an object')
+    try:
+        port = int(c.get('port') or 0)
+    except (TypeError, ValueError):
+        raise Refused('the certificate\'s port is a number')
+    if port == 0:
+        return {'port': 0}
+    if not 1024 <= port <= 65535 or port in CERTLOGIN_NOT or 18129 <= port <= 18199:
+        raise Refused('%d cannot be the certificate\'s port' % port)
+    cas = str(c.get('cas') or '')
+    if len(cas) > 1 << 20 or not CERT_RE.match(cas):
+        raise Refused('the authorities of the certificate\'s port are certificates in PEM')
+    out = {'port': port, 'cas': cas.strip() + '\n', 'admin': bool(c.get('admin')),
+           'portal': bool(c.get('portal'))}
+    if not out['admin'] and not out['portal']:
+        return {'port': 0}
+    return out
+
+
+def _location_text(text, head):
+    """The body of the first `location ... {` that starts with `head` in text, or ''."""
+    i = text.find(head)
+    if i < 0:
+        return ''
+    j, depth = text.index('{', i), 0
+    k = j
+    while k < len(text):
+        if text[k] == '{':
+            depth += 1
+        elif text[k] == '}':
+            depth -= 1
+            if depth == 0:
+                break
+        k += 1
+    return text[j + 1:k]
+
+
+def certlogin_server(block, main, c, pad='    '):
+    """A server of the certificate's port, made from an HTTPS server of acme's (the node's, or the
+    VIP address's): its names and its certificate, listening on the port instead of 443; nginx
+    asks for a certificate of the authorities (their names sent) and lets the page check it; who
+    may reach it as who may reach those pages; nothing served but the sign-in."""
+    keep, depth = [], 0
+    for line in block.split('\n'):
+        if depth == 1 and CERTLOGIN_KEEP.match(line):
+            if re.match(r'^\s*listen\s', line):
+                line = re.sub(r'(^\s*listen\s+(?:\[[^\]]*\]:|[0-9.]+:)?)443\b', r'\g<1>%d' % c['port'],
+                              line)
+                line = re.sub(r'\s+default_server\b', '', line)
+                if not re.search(r'\b%d\b' % c['port'], line):
+                    continue
+            keep.append(line)
+        depth += line.count('{') - line.count('}')
+    sock = re.search(r'(?m)^\s*fastcgi_pass\s+([^;]+);', _location_text(main, 'location = /admin/ {')
+                     or main)
+    sock = sock.group(1).strip() if sock else 'unix:/run/php-fpm/acme.sock'
+
+    def allow(head):
+        lines = [x.strip() for x in _location_text(main, head).split('\n')
+                 if re.match(r'^\s*(allow|deny)\s+[^;]+;', x)]
+        return lines or ['allow 127.0.0.1;', 'allow ::1;', 'deny  all;']
+
+    def loc(path, script, part, allow_lines):
+        p2 = pad * 2
+        return ''.join([
+            '%slocation = %s {\n' % (pad, path),
+            ''.join('%s%s\n' % (p2, x) for x in allow_lines),
+            '%slimit_req zone=acme_all burst=20 nodelay;\n' % p2,
+            '%slimit_req_status 429;\n' % p2,
+            # Only the sign-in: a nonce, and the part tried (Try my certificate) - the query
+            # string as the page builds it, nothing else (not $arg_api: two api= or %%61pi).
+            '%sif ($args !~ "^api=cert-(login|try)&n=[0-9a-f.]{20,120}(&part=(admin|portal))?$") '
+            '{ return 404; }\n' % p2,
+            '%sif ($request_method != GET) { return 405; }\n' % p2,
+            '%sfastcgi_pass   %s;\n' % (p2, sock),
+            '%sfastcgi_param  SCRIPT_FILENAME $document_root%s;\n' % (p2, script),
+            '%sfastcgi_param  HTTPS on;\n' % p2,
+            '%sinclude        fastcgi_params;\n' % p2,
+            '%sfastcgi_param  ACME_CERT_PORT 1;\n' % p2,
+            '%sfastcgi_param  ACME_CERT_PART %s;\n' % (p2, part),
+            '%sfastcgi_param  ACME_CERT_PEM $ssl_client_escaped_cert;\n' % p2,
+            '%sfastcgi_param  ACME_CERT_VERIFY $ssl_client_verify;\n' % p2,
+            '%sfastcgi_read_timeout 60s;\n' % p2,
+            '%s}\n' % pad])
+    admin_allow, portal_allow = allow('location = /admin/ {'), allow('location = / {')
+    out = ['server {'] + keep + [
+        '%sssl_client_certificate %s;   # the authorities: their names sent to the browser' % (pad, CERTLOGIN_CA),
+        '%sssl_verify_client      optional_no_ca;   # asked here; acme checks it' % pad,
+        '%sssl_verify_depth       4;' % pad,
+        '%serror_page 495 = @acme_certfail;   # one nginx refuses itself: the page says why' % pad,
+        '%sadd_header X-Content-Type-Options "nosniff" always;' % pad,
+        '%sadd_header X-Frame-Options "DENY" always;' % pad,
+        '%sadd_header Referrer-Policy "no-referrer" always;' % pad]
+    body = ''
+    if c['admin'] or c['portal']:
+        # "Try my certificate" goes through the administration's page, for both parts.
+        body += loc('/admin/', '/admin/index.php', 'admin', admin_allow)
+    if c['portal']:
+        body += loc('/', '/index.php', 'portal', portal_allow)
+    p2 = pad * 2
+    fail_allow = list(dict.fromkeys((admin_allow if c['admin'] or c['portal'] else []) +
+                                    (portal_allow if c['portal'] else [])))
+    fail_allow = [x for x in fail_allow if not x.startswith('deny')] + ['deny  all;']
+    body += ''.join([
+        '%slocation @acme_certfail {\n' % pad,
+        ''.join('%s%s\n' % (p2, x) for x in fail_allow),
+        '%sset $acme_cert_script /admin/index.php;\n' % p2,
+        '%sset $acme_cert_part admin;\n' % p2,
+        ('%sif ($uri = /) { set $acme_cert_script /index.php; }\n' % p2 +
+         '%sif ($uri = /) { set $acme_cert_part portal; }\n' % p2) if c['portal'] else '',
+        '%sfastcgi_pass   %s;\n' % (p2, sock),
+        '%sfastcgi_param  SCRIPT_FILENAME $document_root$acme_cert_script;\n' % p2,
+        '%sfastcgi_param  HTTPS on;\n' % p2,
+        '%sinclude        fastcgi_params;\n' % p2,
+        '%sfastcgi_param  ACME_CERT_PORT 1;\n' % p2,
+        '%sfastcgi_param  ACME_CERT_FAIL 1;\n' % p2,
+        '%sfastcgi_param  ACME_CERT_PART $acme_cert_part;\n' % p2,
+        '%sfastcgi_param  ACME_CERT_VERIFY $ssl_client_verify;\n' % p2,
+        '%s}\n' % pad,
+        '%slocation / { return 404; }\n' % pad])
+    return '\n'.join(out) + '\n\n' + body + '}\n'
+
+
+def certlogin_text(main, vip_block, c):
+    where = server_block(main)
+    if not where:
+        raise Refused('no HTTPS server { } was found in %s' % NGINX_MAIN)
+    text = ('%s\n# The certificate\'s own port (1.0.100): nginx asks for a client certificate here '
+            'and nowhere else, and\n# serves nothing here but the sign-in with it. A server for '
+            'this node\'s name%s.\n\n' % (MARK, ' and one for the VIP address\'s' if vip_block else ''))
+    text += certlogin_server(main[where[0]:where[1]], main, c)
+    if vip_block:
+        text += '\n' + certlogin_server(vip_block, main, c)
+    return text
+
+
+def certlogin_selinux(port):
+    """SELinux lets nginx have the port (http_port_t) - 8443 is already; another one is added."""
+    if NO_SERVICES or not shutil.which('selinuxenabled') or \
+            subprocess.run(['selinuxenabled']).returncode != 0 or not shutil.which('semanage'):
+        return ''
+    got = subprocess.run(['semanage', 'port', '-l'], capture_output=True, text=True)
+    for line in (got.stdout or '').splitlines():
+        if line.startswith('http_port_t ') and re.search(r'(?<![0-9-])%d(?![0-9-])' % port, line):
+            return ''
+    r = subprocess.run(['semanage', 'port', '-a', '-t', 'http_port_t', '-p', 'tcp', str(port)],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        r = subprocess.run(['semanage', 'port', '-m', '-t', 'http_port_t', '-p', 'tcp', str(port)],
+                           capture_output=True, text=True)
+    return ('SELinux: nginx may listen on %d (http_port_t)' % port) if r.returncode == 0 else \
+        ('SELinux: the port %d could not be given to nginx (semanage: %s)'
+         % (port, (r.stderr or '').strip()[-200:]))
+
+
 def snapshot(paths):
     got = {}
     for p in paths:
@@ -1144,7 +1317,8 @@ def nginx_part(r, last):
             DH_READY[files['dh']] = files['dh']
             continue
         DH_READY[files['dh']] = dh_file(t['dh'], files['dh'], (last.get('dh') or {}).get(which))
-    paths = [NGINX_MAIN, NGINX_VIP] + list(NODE_FILES.values()) + list(VIP_FILES.values())
+    paths = [NGINX_MAIN, NGINX_VIP, NGINX_CERTLOGIN, CERTLOGIN_CA] + list(NODE_FILES.values()) + \
+        list(VIP_FILES.values())
     snap = snapshot(paths)
     changed = False
     TLS_FILES_NEW[0] = False
@@ -1272,6 +1446,38 @@ def nginx_part(r, last):
             changed = True
             said.append('nginx: the web address\'s own server taken away (it answers with this '
                         'node\'s certificate)')
+        # The certificate's own port (1.0.100): a server of it for this node's name and for
+        # the VIP address's, with the certificate each has on 443; taken away when switched off.
+        c = r.get('certlogin')
+        if c is not None:
+            if c['port']:
+                vip_block = None
+                if vip['on'] and tv and tv['pem'] and os.path.exists(NGINX_VIP):
+                    with open(NGINX_VIP) as f:
+                        vt = f.read()
+                    w2 = server_block(vt)
+                    vip_block = vt[w2[0]:w2[1]] if w2 else None
+                with open(NGINX_MAIN) as f:
+                    main = f.read()
+                text = certlogin_text(main, vip_block, c)
+                if snap.get(CERTLOGIN_CA) is None or snap[CERTLOGIN_CA][0].decode('ascii', 'replace') \
+                        != c['cas']:
+                    write_root(CERTLOGIN_CA, c['cas'], 0o600)
+                    changed = True
+                if snap.get(NGINX_CERTLOGIN) is None or \
+                        snap[NGINX_CERTLOGIN][0].decode('utf-8', 'replace') != text:
+                    write_root(NGINX_CERTLOGIN, text, 0o644)
+                    changed = True
+                    said.append('nginx: the certificate\'s own port %d (%s)' % (
+                        c['port'], ', '.join(p for p in ('admin', 'portal') if c[p])))
+                    said.append(certlogin_selinux(c['port']))
+            else:
+                gone = [p for p in (NGINX_CERTLOGIN, CERTLOGIN_CA) if os.path.exists(p)]
+                for p in gone:
+                    os.unlink(p)
+                if gone:
+                    changed = True
+                    said.append('nginx: the certificate\'s own port taken away')
         # A certificate renewed changes no line of nginx's (1.0.205): its files
         # alone were written, nginx was not reloaded, and went on giving the
         # old one until it ran out.

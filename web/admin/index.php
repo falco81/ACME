@@ -21,6 +21,13 @@ if (is_file(__DIR__ . '/certs-ui.php')) {
     require_once __DIR__ . '/certs-ui.php';
 }
 
+/* The certificate's own port (1.0.100): the sign-in with a certificate, and nothing else of
+   these pages - ACME_CERT_PORT is nginx's parameter of that server alone. */
+if (($_SERVER['ACME_CERT_PORT'] ?? '') === '1') {
+    acme_cert_port('admin');
+    exit;
+}
+
 /* nginx's question before it takes a big body (1.0.98, auth_request): is a
    full administrator signed in? Nothing else is answered here. */
 if (($_SERVER['ACME_AUTH_ONLY'] ?? '') === '1') {
@@ -236,6 +243,22 @@ if (isset($_GET['api'])) {
        nobody in. */
     if ($what === 'kerberos-login' && $post) {
         acme_kerberos_relay('/api/auth/kerberos');
+        exit;
+    }
+    /* Signing in with a certificate (1.0.100): the nonce, and the address of the certificate's
+       own port with it - the page goes there. Try my certificate (the card): the same, for a
+       signed-in administrator, before or after either part is switched on (the port is served
+       while one of them is). */
+    if ($what === 'cert-nonce' && $post) {
+        $h = acme_get('/api/health', 5.0);
+        acme_cert_nonce('admin', is_array($h['certlogin'] ?? null) ? $h['certlogin'] : []);
+        exit;
+    }
+    if ($what === 'cert-try-nonce' && $post) {
+        $v = acme_get('/api/certlogin', 10.0);
+        $part = (string) (sent_body()['part'] ?? 'admin');
+        acme_cert_nonce('admin', is_array($v) ? ['on' => !empty($v['any_on']), 'port' => (int) ($v['port'] ?? 0)] : [],
+                        $part === 'portal' ? 'portal' : 'admin');
         exit;
     }
     if ($what === 'kerberos-try' && $post) {
@@ -467,6 +490,7 @@ if (isset($_GET['api'])) {
         'sshkeys' => '/api/sshkeys', 'osusers' => '/api/osusers', 'osup' => '/api/osup', 'alerts' => '/api/alerts', 'sshd' => '/api/sshd', 'hisec' => '/api/hisec', 'acme' => '/api/acme', 'siem' => '/api/siem', 'isemon' => '/api/isemon', 'proxy' => '/api/proxy', 'logs' => '/api/logs',
         'portal-sso' => '/api/portal-sso',
         'kerberos' => '/api/kerberos',              /* signing in with Windows (1.0.99) */
+        'certlogin' => '/api/certlogin',            /* ...with a certificate (1.0.100) */
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'acme-push' => '/api/acme-push',
         'osroots' => '/api/osroots',                /* the system's trusted roots (1.0.59) */
@@ -491,6 +515,7 @@ if (isset($_GET['api'])) {
         'sshkeys' => '/api/sshkeys', 'osusers' => '/api/osusers', 'osup' => '/api/osup', 'alerts' => '/api/alerts', 'sshd' => '/api/sshd', 'hisec' => '/api/hisec', 'acme' => '/api/acme', 'siem' => '/api/siem', 'proxy' => '/api/proxy', 'logs' => '/api/logs',
         'portal-sso' => '/api/portal-sso',
         'kerberos' => '/api/kerberos',              /* signing in with Windows (1.0.99) */
+        'certlogin' => '/api/certlogin',            /* ...with a certificate (1.0.100) */
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'acme-push' => '/api/acme-push',
         'osroots' => '/api/osroots',                /* the system's trusted roots (1.0.59) */
@@ -570,13 +595,19 @@ if (!$me && !acme_local()) {
        (1.0.19: only the language was kept, and the page then read the
        missing database as one that will not open.) */
     $health = ['lang' => (string) ($health['lang'] ?? 'cs'), 'database' => ['ok' => true],
-               'users' => 1, 'kerberos' => $health['kerberos'] ?? null];
+               'users' => 1, 'kerberos' => $health['kerberos'] ?? null,
+               'certlogin' => $health['certlogin'] ?? null];
 }
 $initial = $me ? (acme_get('/api/status', 8.0) ?: null) : null;
 /* Signing in with Windows (1.0.99): the button, tried by itself, or no password at all. */
 $krb = (!$me && $alive && is_array($health['kerberos'] ?? null)) ? $health['kerberos'] : [];
 $krb_on = !empty($krb['on']);
 $krb_only = $krb_on && !empty($krb['only']);
+/* ...and with a certificate (1.0.100): the button; "no password at all" is one switch for both. */
+$cl = (!$me && $alive && is_array($health['certlogin'] ?? null)) ? $health['certlogin'] : [];
+$cl_on = !empty($cl['on']);
+$pw_off = ($krb_on && !empty($krb['only'])) || ($cl_on && !empty($cl['only']));
+$krb_only = $krb_on && $pw_off;
 /* The sign-in's picture, when it is to be shown here too (1.0.71). */
 $art_info = $me ? null : acme_get('/api/portal/info', 3.0);
 $art_here = $me ? '' : acme_art_for(is_array($art_info) ? ($art_info['admin_art'] ?? null) : null, 'admin', 'acme');
@@ -648,8 +679,8 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         <span class="mono">acme --add-user yourname --role fulladmin</span></div>
     <?php endif; ?>
     <div id="mfa-box" data-stage="<?= h($mfa) ?>" hidden></div>
-    <?php if ($krb_only): ?>
-    <!-- Only Windows (1.0.99): no name and no password on the page at all. -->
+    <?php if ($pw_off): ?>
+    <!-- No password at all (1.0.99, 1.0.100): no name and no password on the page at all. -->
     <form id="signin-form" hidden></form>
     <?php else: ?>
     <form id="signin-form" autocomplete="on"<?= $mfa !== '' ? ' hidden' : '' ?>>
@@ -674,6 +705,16 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         x="13" y="4" width="7" height="7" rx="0.6"/><rect x="4" y="13" width="7" height="7" rx="0.6"/><rect
         x="13" y="13" width="7" height="7" rx="0.6"/></svg><span>Sign in with Windows</span></button>
       <div class="said" id="krb-said"></div>
+    </div>
+    <?php endif; ?>
+    <?php if ($cl_on && $mfa === ''): ?>
+    <div class="krb-box cert-box" id="cert-box" data-part="admin" data-only="<?= $pw_off ? '1' : '0' ?>">
+      <?php if (!$pw_off && !$krb_on): ?><div class="krb-or"><span>or</span></div><?php endif; ?>
+      <button class="btn cmd<?= $pw_off && !$krb_on ? ' primary' : '' ?>" type="button" id="cert-go"><svg
+        viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle
+        cx="8.5" cy="12" r="2"/><path d="M13 10h5M13 14h3"/></svg><span>Sign in with a certificate</span></button>
+      <div class="said" id="cert-said"></div>
     </div>
     <?php endif; ?>
     <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center">
@@ -730,6 +771,8 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     if (d && d.mfa) { form.hidden = true; var kb = $('krb-box'); if (kb) kb.hidden = true; mfaStep(); return; }
     location.reload();
   });
+  /* Signed in with a certificate (1.0.100): back here from its port - the second step next. */
+  certDoor();
   if ($('mfa-box').dataset.stage) mfaStep(); else if ($('in-name')) $('in-name').focus();
 }());
 </script>

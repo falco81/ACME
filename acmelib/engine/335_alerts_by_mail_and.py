@@ -665,6 +665,12 @@ ALERT_EVENTS = [
     ('alerts_kerberos', 'portal', ('a sign-in with Windows (Kerberos) was refused',),
      'Přihlášení přes Windows (Kerberos) do portálu odmítnuto',
      'A sign-in with Windows (Kerberos) to the portal refused', 'portal', 'info'),
+    # ...and with a certificate (1.0.100).
+    ('alerts_certlogin', 'sign-ins', ('a sign-in with a certificate was refused',),
+     'Přihlášení certifikátem odmítnuto', 'A sign-in with a certificate refused', 'people', 'info'),
+    ('alerts_certlogin', 'portal', ('a sign-in with a certificate was refused',),
+     'Přihlášení certifikátem do portálu odmítnuto',
+     'A sign-in with a certificate to the portal refused', 'portal', 'info'),
 ]
 
 def alert_problems_more(store, lang, add, names, health, beats, cluster, quiet, now):

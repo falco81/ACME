@@ -66,14 +66,22 @@ KRB_REFUSED = 'Windows sign-in refused'
 KRB_KINDS = {'allowed': 'not allowed', 'ticket': 'ticket not accepted', 'replay': 'replay',
              'unavailable': 'not available just now'}
 KRB_ONLY_SAID = 'only Windows: these pages take no password - sign in with Windows'
+# "No password at all" with certificates too (1.0.100): said by what signs people in instead.
+SSO_ONLY_SAID = {(True, False): KRB_ONLY_SAID,
+                 (False, True): 'only a certificate: these pages take no password - sign in '
+                                'with a certificate',
+                 (True, True): 'only Windows or a certificate: these pages take no password - '
+                               'sign in with Windows or a certificate'}
+# How a sign-in was made that may switch "no password at all" on (the session's data['how']).
+SSO_HOWS = ('Kerberos', 'certificate')
 KRB_PROOF_SAID = {
-    'admin': 'admin_password_off: "only Windows" is switched on only from a sign-in made with '
-             'Windows (Kerberos) to these pages - sign in with Windows first, so it is seen to '
-             'work for you',
-    'portal': 'portal_password_off: "only Windows" on the portal is switched on only by somebody '
-              'signed in to the portal with Windows in this browser, as the same person signed '
-              'in here from the directory - open the portal, sign in with Windows there first, '
-              'then switch it on here'}
+    'admin': 'admin_password_off: "no password at all" is switched on only from a sign-in made '
+             'with Windows (Kerberos) or with a certificate to these pages - sign in that way '
+             'first, so it is seen to work for you',
+    'portal': 'portal_password_off: "no password at all" on the portal is switched on only by '
+              'somebody signed in to the portal with Windows or a certificate in this browser, '
+              'as the same person signed in here from the directory - open the portal, sign in '
+              'that way there first, then switch it on here'}
 
 
 class KrbError(Exception):
@@ -674,11 +682,21 @@ def krb_on(part):
 
 
 def krb_password_off(part, store=None):
-    """"Only Windows" in effect: switched on, and Kerberos able to sign anybody in - on, with a
-    keytab. Off, or Kerberos off (the way back), and passwords are taken again. Whether a keytab
-    is there not known (and no database to ask): in effect - closed, never open."""
-    return bool(CONFIG.get(part + '_password_off') and krb_on(part) and
-                krb_have(store, unknown=True))
+    """"No password at all" in effect: switched on, and Kerberos (on, with a keytab) or the
+    sign-in with a certificate (on, with authorities, 1.0.100) able to sign anybody in. Off, or
+    both of them off (the way back), and passwords are taken again. Whether a keytab or the
+    authorities are there not known (and no database to ask): in effect - closed, never open."""
+    if not CONFIG.get(part + '_password_off'):
+        return False
+    return bool((krb_on(part) and krb_have(store, unknown=True)) or
+                (cl_on(part) and cl_have(store, unknown=True)))
+
+
+def sso_only_said(part, store=None):
+    """The words of a password refused while "no password at all" is in effect."""
+    k = (bool(krb_on(part) and krb_have(store, unknown=True)),
+         bool(cl_on(part) and cl_have(store, unknown=True)))
+    return SSO_ONLY_SAID.get(k, KRB_ONLY_SAID)
 
 
 def krb_usable(part, store=None):
@@ -690,14 +708,16 @@ def krb_page_info(part, store=None):
     """What a sign-in page shows of it: the button, tried by itself, no password - nothing else
     (asked before anybody is signed in)."""
     only = krb_password_off(part, store)
-    on = krb_usable(part, store) or only
+    on = krb_usable(part, store) or (only and krb_on(part))
     return {'on': bool(on), 'auto': bool(on and CONFIG.get(part + '_krb_auto')),
             'only': bool(only)}
 
 
 def krb_state_now(store):
-    """{part: (signs in with Windows, "only Windows" in effect)} - before and after a change."""
-    return {part: (krb_usable(part, store), krb_password_off(part, store)) for part in KRB_PARTS}
+    """{part: (signs in with Windows, "no password at all" in effect, signs in with a
+    certificate)} - before and after a change."""
+    return {part: (krb_usable(part, store), krb_password_off(part, store),
+                   cl_usable(part, store)) for part in KRB_PARTS}
 
 
 def krb_sessions_settle(store, before, keep=None, by=''):
@@ -708,8 +728,11 @@ def krb_sessions_settle(store, before, keep=None, by=''):
     after = krb_state_now(store)
     keep = int(keep or 0)
     for part in KRB_PARTS:
-        (usable_was, only_was), (usable, only) = before.get(part, (False, False)), after[part]
-        if usable == usable_was and (only == only_was or not only):
+        was = tuple(before.get(part, (False, False, False))) + (False,) * 3
+        usable_was, only_was, cert_was = was[:3]
+        usable, only, cert = after[part]
+        krb_gone, cert_gone = usable_was and not usable, cert_was and not cert
+        if not krb_gone and not cert_gone and (only == only_was or not only):
             continue
         ended = 0
         try:
@@ -718,10 +741,12 @@ def krb_sessions_settle(store, before, keep=None, by=''):
                     data = json.loads(r.get('data') or '{}')
                 except ValueError:
                     data = {}
-                kerb = isinstance(data, dict) and data.get('how') == 'Kerberos'
-                if (only and not only_was and not kerb) or (usable_was and not usable and kerb):
+                how = data.get('how') if isinstance(data, dict) else ''
+                kerb, card = how == 'Kerberos', how == 'certificate'
+                if (only and not only_was and not (kerb or card)) or (krb_gone and kerb) or \
+                        (cert_gone and card):
                     if part == 'admin' and int(r['id']) == keep:
-                        if kerb:
+                        if kerb or card:
                             store.session_merge(r['id'], {'krb_kept': time.time()})
                         continue
                     store.db.run('DELETE FROM sessions WHERE id = ?', (r['id'],))
@@ -735,9 +760,16 @@ def krb_sessions_settle(store, before, keep=None, by=''):
                             'ended - %s' % (
                                 by or 'acme', ended,
                                 'these pages' if part == 'admin' else 'the enrolment pages',
-                                'only Windows now, and they were made with a password'
-                                if only and not only_was else
-                                'Windows no longer signs anybody in, and they were made with it'),
+                                '%s now, and they were made with a password' % (
+                                    'only Windows or a certificate' if usable and cert else
+                                    'only a certificate' if cert and not usable else
+                                    'only Windows') if only and not only_was else
+                                'Windows no longer signs anybody in, and they were made with it'
+                                if krb_gone and not cert_gone else
+                                'a certificate no longer signs anybody in, and they were made '
+                                'with one' if cert_gone and not krb_gone else
+                                'neither Windows nor a certificate signs anybody in any more, '
+                                'and they were made with one of them'),
                             'warn', who=by or None)
 
 
@@ -745,8 +777,9 @@ def krb_session_gone(part, s, store):
     """Whether a sign-in made with Windows outlived it (switched off, the keytab taken away) -
     the one of whoever did it kept."""
     data = (s or {}).get('data') or {}
+    # ...and one made with a certificate, that switched off or its authorities gone (1.0.100).
     return bool(data.get('how') == 'Kerberos' and not data.get('krb_kept') and
-                not krb_usable(part, store))
+                not krb_usable(part, store)) or cl_session_gone(part, s, store)
 
 
 def realm_from_base(base):
@@ -823,7 +856,7 @@ def krb_proof_of(h, s):
     same browser (its cookie, passed on by the page as X-Acme-Portal-Session) of the same person:
     the administrator an account of the directory, the same entry (its DN; its name where the
     account has none kept) - not anybody's portal sign-in that happened to be in that browser."""
-    proof = {'admin': str((s.get('data') or {}).get('how') or '') == 'Kerberos', 'portal': False}
+    proof = {'admin': str((s.get('data') or {}).get('how') or '') in SSO_HOWS, 'portal': False}
     token = str(h.headers.get('X-Acme-Portal-Session') or '')
     if token:
         try:
@@ -842,7 +875,7 @@ def krb_proof_of(h, s):
             else:
                 sam = str((data.get('about') or {}).get('sam') or data.get('login') or '')
                 same = bool(sam) and sam.lower() == str(acc.get('name') or '').lower()
-        proof['portal'] = bool(ps and same and data.get('how') == 'Kerberos' and
+        proof['portal'] = bool(ps and same and data.get('how') in SSO_HOWS and
                                not data.get('gate_wait'))
     return proof
 
@@ -923,58 +956,73 @@ def krb_local_same(h, user):
 
 def krb_admin_would(h, user, principal):
     """Who the ticket signs in to the administration, and as what - nothing made. KrbRefused."""
+    return sso_admin_would(h, user, principal, KrbRefused,
+                           lambda entry: krb_entry_in_realm(h, 'admin', entry, principal))
+
+
+def sso_admin_would(h, user, who, refused, entry_check):
+    """Who a person proved without a password (a Kerberos ticket, a certificate - 1.0.100)
+    signs in to the administration as: looked up in its directory by sAMAccountName, as a
+    password is; `entry_check(entry)` the way's own check of the entry found (the realm, the
+    certificate's DN and SID); `refused` its refusal. The directory's answer, nothing made."""
     if krb_local_same(h, user):
-        raise KrbRefused('%s is an account of this server - it signs in with its password' % user,
-                         'allowed')
+        raise refused('%s is an account of this server - it signs in with its password' % user,
+                      'allowed')
     try:
         said = admin_ask_directory(h, user, None, ticket=True)
     except ApiError as e:
-        raise KrbRefused('the directory cannot be reached just now', 'unavailable', more=str(e))
+        raise refused('the directory cannot be reached just now', 'unavailable', more=str(e))
     if said is None:
-        raise KrbRefused('no directory is set (or switched on) for administrators', 'unavailable')
+        raise refused('no directory is set (or switched on) for administrators', 'unavailable')
     if not said['ok']:
-        raise KrbRefused('the directory does not let %s in: %s' % (user, said.get('said') or '?'),
-                         'allowed')
-    krb_entry_in_realm(h, 'admin', said.get('entry') or {'dn': said.get('dn')}, principal)
+        raise refused('the directory does not let %s in: %s' % (user, said.get('said') or '?'),
+                      'allowed')
+    entry_check(said.get('entry') or {'dn': said.get('dn')})
     if said['role'] == 'portal':
-        raise KrbRefused('%s signs in on the enrolment pages only, not here' % principal,
-                         'allowed')
+        raise refused('%s signs in on the enrolment pages only, not here' % who, 'allowed')
     if not said['role']:
-        raise KrbRefused('%s is known to the directory, and none of the groups given a role here '
-                         'holds them' % principal, 'allowed')
+        raise refused('%s is known to the directory, and none of the groups given a role here '
+                      'holds them' % who, 'allowed')
     bad = name_letters_problem(said['name'])
     if bad:
-        raise KrbRefused('%s: %s' % (principal, bad), 'allowed')
+        raise refused('%s: %s' % (who, bad), 'allowed')
     return said
 
 
 def krb_portal_would(h, user, principal):
     """Who the ticket signs in to the portal - the portal's directory, its rules of who may - and
     the entry; nothing made. KrbRefused."""
+    return sso_portal_would(h, user, principal, KrbRefused,
+                            lambda entry: krb_entry_in_realm(h, 'portal', entry, principal))
+
+
+def sso_portal_would(h, user, who, refused, entry_check):
+    """Who a person proved without a password signs in to the portal as - the portal's
+    directory by sAMAccountName, its rules of who may. (ad, entry, groups); `refused`."""
     if krb_local_same(h, user):
-        raise KrbRefused('%s is an account of this server - it signs in with its password' % user,
-                         'allowed')
+        raise refused('%s is an account of this server - it signs in with its password' % user,
+                      'allowed')
     ad = portal_directory(h)
     if not ad:
-        raise KrbRefused('no directory is set (or switched on) for the enrolment pages',
-                         'unavailable')
+        raise refused('no directory is set (or switched on) for the enrolment pages',
+                      'unavailable')
     try:
         entry = ad.find_user(user, 'sam')
     except LdapUnreachable:
-        raise KrbRefused('the directory cannot be reached just now', 'unavailable')
+        raise refused('the directory cannot be reached just now', 'unavailable')
     if not entry:
-        raise KrbRefused('the directory does not let %s in: there is no such account' % user,
-                         'allowed')
+        raise refused('the directory does not let %s in: there is no such account' % user,
+                      'allowed')
     if entry.get('many'):
-        raise KrbRefused('the directory does not let %s in: more than one account answers to '
-                         'that name' % user, 'allowed')
+        raise refused('the directory does not let %s in: more than one account answers to '
+                      'that name' % user, 'allowed')
     if entry_unusable(entry):
-        raise KrbRefused('the directory does not let %s in: %s' % (user, entry_unusable(entry)),
-                         'allowed')
-    krb_entry_in_realm(h, 'portal', entry, principal)
+        raise refused('the directory does not let %s in: %s' % (user, entry_unusable(entry)),
+                      'allowed')
+    entry_check(entry)
     bad = name_letters_problem(user)
     if bad:
-        raise KrbRefused('%s: %s' % (principal, bad), 'allowed')
+        raise refused('%s: %s' % (who, bad), 'allowed')
     groups = []
     if (CONFIG.get('portal_who') or 'anyone') == 'groups':
         wanted = [{'group': g} for g in dn_list(CONFIG.get('portal_groups'))]
@@ -988,8 +1036,8 @@ def krb_portal_would(h, user, principal):
             except Exception:                           # noqa: BLE001
                 pass
         if not groups:
-            raise KrbRefused('%s is known to the directory, and in none of the groups that may '
-                             'use the enrolment pages' % principal, 'allowed')
+            raise refused('%s is known to the directory, and in none of the groups that may '
+                          'use the enrolment pages' % who, 'allowed')
     return ad, entry, groups
 
 
@@ -1029,27 +1077,34 @@ def _auth_kerberos(h):
         h.failed(key)
         krb_refused_event(h, 'admin', e.why, principal)
         raise ApiError(e.status, e.said)
-    # The second step, as after a password (1.0.125): Kerberos takes the password's place only.
+    return sso_admin_open(h, key, acc, 'Kerberos', {'principal': principal},
+                          'with Windows (Kerberos, %s)' % principal, 'with Windows')
+
+
+def sso_admin_open(h, key, acc, how, data, words, way):
+    """The administration's sign-in made for a person proved without a password (Kerberos, a
+    certificate - 1.0.100): the second step, as after a password (1.0.125) - the way takes the
+    password's place only; the session says how it was made."""
     stage = mfa_stage(h.store, acc['name']) if CONFIG.get('admin_2fa') else ''
     if stage == 'lost':
         h.failed(key)
-        h.store.add_event('sign-ins', '%s could not sign in with Windows from %s: the second step '
-                          'it had set up is gone without a reset' % (acc['name'], h.client_ip()),
+        h.store.add_event('sign-ins', '%s could not sign in %s from %s: the second step it had '
+                          'set up is gone without a reset' % (acc['name'], way, h.client_ip()),
                           'bad')
         raise ApiError(401, MFA_LOST_SAID)
-    data = {'how': 'Kerberos', 'principal': principal}
+    data = dict(data, how=how)
     if stage:
         data['mfa'] = stage
     token = h.store.session_new('admin', acc['name'], acc['role'], h.client_ip(),
                                 CONFIG.get('session_hours') or 12, data=data)
     h.store.set_account(acc['name'], last_in=time.time(), last_from=h.client_ip())
-    h.store.add_event('sign-ins', '%s signed in from %s with Windows (Kerberos, %s)%s' % (
-        acc['name'], h.client_ip(), principal, {'check': ' - the second step to give',
-                                                 'enrol': ' - the second step to set up'}
+    h.store.add_event('sign-ins', '%s signed in from %s %s%s' % (
+        acc['name'], h.client_ip(), words, {'check': ' - the second step to give',
+                                            'enrol': ' - the second step to set up'}
         .get(stage, '')), who=acc['name'])
     split_note(h.store, 'signin', acc['name'], 'signin:admin:' + str(acc['name']).lower())
     return {'token': token, 'who': {'name': acc['name'], 'role': acc['role'] if not stage else ''},
-            'must_change': False, 'mfa': stage, 'how': 'Kerberos'}
+            'must_change': False, 'mfa': stage, 'how': how}
 
 
 @route('POST', '/api/portal/kerberos')
