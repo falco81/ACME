@@ -25,6 +25,9 @@ def _net_do(h):
                     net_publish(h.store)
                 except ValueError as e:
                     raise ApiError(502, str(e))
+                except FileNotFoundError as e:
+                    # no root helper on this node: said, as logs, osusers and sshd say it (hunt M)
+                    raise ApiError(400, str(e))
             return net_view(h.store)
         if act == 'plan':
             got = net_check(h.store, node, b.get('want') or {})

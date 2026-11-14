@@ -9973,7 +9973,7 @@ function moduleUpload(o) {
         var wv = String(wfrom.value || 'v:');
         moduleCopy(o.family, o.base, wv.replace(/^(orig|v):/, ''), {override: o.mode === 'override', version: o.version, label: o.label, original: /^orig:/.test(wv)}).then(function (d) {
           code.value = d.text; st.text = d.text; st.checked = null; if (go) go.disabled = true;
-          if (!fileName.value.trim() || fileName._auto !== false) fileName.value = d.file;
+          if (!fileName.value.trim() || !fileName._edited) fileName.value = d.file;   /* a name typed is kept (hunt M) */
           codeHost.open = true;
           check();
         }).catch(fail).then(function () { busy(whole, false); });

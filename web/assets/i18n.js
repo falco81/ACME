@@ -99,6 +99,9 @@ function i18nPattern(source, text, rich) {
   for (var i = 0; i < bits.length; i++) if (bits[i].length > lit.length) lit = bits[i];
   c.lit = lit;
   c.own = source.replace(/\{\d+\}/g, '').length;
+  /* Texts the code only joins, saying nothing itself - "{0} · {1}", "{0}: {1}", the same in
+     every language (hunt M): a word of the page's own in a slot is translated, "done · 0 s". */
+  c.join = String(text) === source && !/[A-Za-z]/.test(source.replace(/\{\d+\}/g, ''));
   /* With hardly any words of its own ("from {0}", "{0} was {1}") a pattern
      would take a whole sentence for a slot; then a slot is one word or
      number at most, which is what such a pattern is ever written around. */
@@ -144,7 +147,12 @@ function i18nWordy(m, depth) {
   for (var i = 1; i < m.length; i++) {
     /* a slot with ": " in it is a sentence of its own (1.0.80): "{0} refused" took
        "x:5514/tcp: [Errno 111] Connection" and said "Connection odmítnuto" */
-    if (/\S: \S/.test(m[i] || '') && (depth || 0) < I18N_DEEP && i18nText(m[i], (depth || 0) + 1) === null) return true;
+    /* ...and "translated" only into itself, by a pattern that only joins ("{0}: {1}"), is
+       no translation either (hunt M: "x:5514/tcp: [Errno 111] Connection odmítnuto") */
+    if (/\S: \S/.test(m[i] || '') && (depth || 0) < I18N_DEEP) {
+      var said = i18nText(m[i], (depth || 0) + 1);
+      if (said === null || i18nFold(said) === i18nFold(m[i])) return true;
+    }
     /* Words, apart by a space, of letters only (1.0.48): "certs_certadmin_all=1" or a team "HB1
        tym" are a name, not a sentence - a weak pattern refused them and stayed in English. */
     if (!/(^|\s)[A-Za-z]{2,}[,;:]?\s+[A-Za-z]{2,}(\s|$|[.,;:])/.test(m[i] || '')) continue;
@@ -356,7 +364,7 @@ function i18nWork(s, depth) {
       + i18nPlural(p.text, p.slots, m).replace(/\{(\d+)\}/g, function (all, n) {
         var at = p.slots.indexOf(Number(n));
         if (at < 0) return all;
-        return i18nSlot(m[at + 1], depth);
+        return i18nSlot(m[at + 1], depth, p.join);
       });
   }
   /* Words with a number before or after them, where no pattern took them
@@ -411,7 +419,7 @@ function i18nParts(key, depth) {
 }
 /* What fills a pattern's slot: a number or a name stays as it is; words
    the page put there out of its own texts are translated too. */
-function i18nSlot(got, depth) {
+function i18nSlot(got, depth, join) {
   if (!got || depth >= I18N_DEEP || !/[A-Za-z]{2}/.test(got)) return got;
   /* A setting's name in quotes (1.0.48): "“Wrong sign-ins from one place…” must be between 2
      and 10000" kept its name in English - the quotes were part of what was looked up. */
@@ -424,7 +432,15 @@ function i18nSlot(got, depth) {
      and a name is never translated: "Account “settings”" is somebody's
      account called settings. Words the page put there are several.
      (1.10.155) */
-  if (!/\S\s+\S/.test(got.trim())) return got;
+  if (!/\S\s+\S/.test(got.trim())) {
+    /* ...except a word of the page's own in a text only joined together (hunt M):
+       "done · 0 s", "failed · 3 s" in the last job of a certificate */
+    if (join && /^[a-z]{3,}$/.test(got.trim())) {
+      var w = I18N.exact.get(got.trim());
+      if (w) return /^\s*/.exec(got)[0] + w + /\s*$/.exec(got)[0];
+    }
+    return got;
+  }
   var lead = /^\s*/.exec(got)[0], tail = /\s*$/.exec(got)[0];
   var to = i18nText(got, depth + 1);
   return to === null ? got : lead + to + tail;

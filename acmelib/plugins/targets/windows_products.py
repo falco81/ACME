@@ -622,6 +622,18 @@ SCOM_SERIAL = [
 ]
 
 
+# MOMCertImport.exe, run as Administrator (1.0.101): a path on a drive of the server only -
+# \\host\share\evil.exe (or WebDAV) ran another program; a full administrator's option
+# (api.DEPLOY_COMMANDS) besides
+SCOM_TOOL_RE = (r'(?i)^[A-Za-z]:\\(?:[^\\/:*?"<>|\x00-\x1f]+\\)*MOMCertImport\.exe\Z')
+
+
+def scom_tool_ok(tool):
+    t = text(tool).strip()
+    return bool(re.match(SCOM_TOOL_RE, t)) and \
+        not any(p.strip() in ('.', '..') for p in t[3:].split('\\'))
+
+
 class ScomTarget(WinProductTarget):
     discovery = False           # nothing to find: a server over SSH
     kind = 'windows_scom'
@@ -636,9 +648,13 @@ class ScomTarget(WinProductTarget):
                    'Client Authentication.')
     deploy_fields = [
         field('scom_tool', 'MOMCertImport.exe', 'text',
-              placeholder='C:\\Tools\\MOMCertImport.exe',
-              help='its path on the server (from the installation media, SupportTools\\amd64); '
-                   'empty: the Gateway folder of Operations Manager'),
+              placeholder='C:\\Tools\\MOMCertImport.exe', pattern=SCOM_TOOL_RE,
+              pattern_words='the path of MOMCertImport.exe on a drive of the server '
+                            '(C:\\...\\MOMCertImport.exe) - no share, no WebDAV, no ..',
+              help='its path on a drive of the server (from the installation media, '
+                   'SupportTools\\amd64), ending in \\MOMCertImport.exe; empty: the Gateway '
+                   'folder of Operations Manager. Run as Administrator: set by a full '
+                   'administrator only'),
         field('scom_restart', 'Restart the Microsoft Monitoring Agent', 'bool', default=True,
               help='HealthService, when the certificate changed - it loads it on start'),
     ] + WinProductTarget.common_deploy_fields
@@ -677,8 +693,20 @@ class ScomTarget(WinProductTarget):
         ]
         self.run_ps(s, '\n'.join(sc), 'importing the certificate')
 
+    def check_options(self, options, bundle=None):
+        bad = WinProductTarget.check_options(self, options, bundle)
+        tool = text((options or {}).get('scom_tool')).strip()
+        if tool and not scom_tool_ok(tool):
+            bad.append('Operations Manager: "%s" is not the path of MOMCertImport.exe on a drive '
+                       'of the server (C:\\...\\MOMCertImport.exe; no share, WebDAV or ..)'
+                       % tool.encode('unicode_escape').decode('ascii')[:120])
+        return bad
+
     def body(self, bundle, options):
         tool = text(options.get('scom_tool')).strip()
+        if tool and not scom_tool_ok(tool):
+            raise PluginError('Operations Manager: "%s" is not the path of MOMCertImport.exe on '
+                              'a drive of the server' % tool[:120], retry=False)
         sc = ["Need-Service 'HealthService' 'Operations Manager' | Out-Null",
               "$what = 'Operations Manager'"] + EKU_BOTH + SCOM_SERIAL + [
             "$ks = ''; try { $ks = [string]$cert.PrivateKey.CspKeyContainerInfo.KeyNumber } "

@@ -387,6 +387,10 @@ pre.ct-dnslines{margin:4px 0;width:100%;white-space:pre;overflow-x:auto}
 .msect table.tight td:last-child{white-space:normal;overflow-wrap:anywhere;word-break:break-word}
 .msect table.tight td .mono{white-space:pre-wrap;overflow-wrap:anywhere}
 .msect{min-width:0;overflow:hidden}
+/* a pill in a section's table wraps rather than being cut by the section's edge (hunt M: a long
+   owner's name pushed the Details table past it - the owner and the note were cut, no hint) */
+.msect table.tight td .tag{white-space:normal;overflow-wrap:anywhere;word-break:break-word;max-width:100%}
+.msect table.tight{max-width:100%}
 
 .msects.ct-two{grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr))}
 @media (min-width: 760px){.msects.ct-two{grid-template-columns:1fr 1fr}}

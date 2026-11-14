@@ -146,6 +146,10 @@ def _deploys_dry_run(h, s):
         diff = {k: opts.get(k) for k in ('outputs',) + A.key_options(cls)
                 if k in opts and opts.get(k) != saved.get(k)}
         A._deploy_key_check(cls, diff, saved)
+    for f in (cls.deploy_fields or []):
+        # a line of text one line, a name of the device's form (1.0.101), as a save checks it
+        if f.get('key'):
+            A._option_line_check(f, opts.get(f['key']), f.get('label') or f['key'])
     by = A.who(s)
     run_script = A._flag(b.get('run_script'), 1)
     if opts.get('pfx_password_mode') == 'generate' and not opts.get('pfx_password'):

@@ -546,6 +546,10 @@ def cert_save(store, b, by, full=False, out=None):
             else:
                 subj.pop('CN')
             prof['subject'] = subj
+        if subj:
+            # every field as a request profile's and as the CSR will have it (hunt M)
+            from acmelib.certs import reqprofiles as RP
+            prof['subject'] = RP.check_subject(subj)
         if prof.get('san_other') not in (None, '', []):
             prof['san_other'] = S.clean_sans(prof.get('san_other'))
         else:
@@ -1099,6 +1103,42 @@ def _key_lines(v):
         if fmt in KEY_FORMATS or 'key' in fmt or 'keystore' in fmt:
             out.add(tuple([fmt] + w[1:4]))
     return out
+
+
+def _option_line_check(f, v, what):
+    """A deployment's option of text (1.0.101): no line break or other control character in
+    one line - a "\\n" in Cisco 9800's webauth parameter map was one more line of the
+    controller's configuration ("username x privilege 15 ...") - each line of a list alike,
+    and the field's own pattern= (a name, a part of a URL path) when it has one."""
+    from acmelib.plugins.targets._common import control_char, lines
+    t = f.get('type')
+    if v is None or v == '' or t in ('bool', 'number', 'secret', 'pem', 'sshkey'):
+        return
+    if t in ('list', 'textarea'):
+        items = v if isinstance(v, list) else [v]
+        if t == 'list' and isinstance(v, list) and any(
+                isinstance(x, str) and re.search('[\r\n\x0b\x0c\x1c-\x1e\x85\u2028\u2029]', x)
+                for x in v):
+            raise ValueError('%s: one line an item (a line break in a line)' % what)
+        for x in items:
+            for ln in str(x).splitlines():
+                bad = control_char(ln, tab=True)
+                if bad:
+                    raise ValueError('%s: a control character (%s) in "%s"' % (
+                        what, bad, ln.encode('unicode_escape').decode('ascii')[:80]))
+        rows = lines(v) if t == 'list' else []
+    else:
+        bad = control_char(v)
+        if bad:
+            raise ValueError('%s is one line: a line break or control character (%s) in it is '
+                             'refused' % (what, bad))
+        rows = [str(v).strip()] if str(v).strip() else []
+    pat = f.get('pattern')
+    if pat:
+        for ln in rows:
+            if not re.fullmatch(pat, ln):
+                raise ValueError('%s: "%s" is refused - %s' % (
+                    what, ln[:80], f.get('pattern_words') or 'not of the form the device takes'))
 
 
 def _deploy_key_check(cls, given, old):
@@ -3050,6 +3090,7 @@ def _deploy_save_in(store, b, by, full, made):
                 # inside the deployment ("join() argument must be str").
                 v = opts.get(f['key'])
                 what = f.get('label') or f['key']
+                _option_line_check(f, v, what)
                 if v is None or f.get('type') in ('bool', 'catalog'):
                     continue
                 if f.get('type') == 'number':

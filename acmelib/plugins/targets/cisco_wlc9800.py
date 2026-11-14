@@ -37,8 +37,13 @@ from __future__ import annotations
 
 import re
 
+from acmelib.plugins.base import PluginError
 from acmelib.plugins.targets._common import field, as_bool, text, verify_fields, keep_field
 from acmelib.plugins.targets.cisco_iosxe import CiscoIosXeTarget, RANGES
+
+# A parameter map's name (1.0.101): it goes into the controller's configuration mode as a
+# line - "global\nusername x privilege 15 ..." was one more line of configuration
+MAP_RE = r'^[A-Za-z0-9_.-]{1,64}\Z'
 
 WLC_FIELDS = [
     field('web_admin', 'Web admin (GUI, RESTCONF)', 'bool', default=True,
@@ -48,8 +53,10 @@ WLC_FIELDS = [
           help='the trustpoint of a webauth parameter map, then the HTTP server restarted '
                '(guest sign-ins under way are redirected again)'),
     field('webauth_map', 'Webauth parameter map', 'text', default='global', advanced=True,
+          pattern=MAP_RE, pattern_words='a parameter map\'s name is letters, digits, _ . - '
+                                        '(64 at most)',
           help='parameter-map type webauth <name>; its virtual IP and virtual-host must be '
-               'set and match the certificate\'s name'),
+               'set and match the certificate\'s name. Letters, digits, _ . - only'),
     field('webauth_host', 'Webauth virtual host', 'text', advanced=True,
           placeholder='guest.example.com',
           help='the virtual-host name of the portal, for the test of what is served'),
@@ -63,6 +70,10 @@ class Wlc9800Mixin(object):
         out = CiscoIosXeTarget.binds(self, options, name)
         if as_bool(self.opt(options, 'webauth', False)):
             pm = text(self.opt(options, 'webauth_map', 'global')).strip() or 'global'
+            if not re.match(MAP_RE, pm):
+                raise PluginError('"%s" is not a name of a webauth parameter map (letters, '
+                                  'digits, _ . - only)' % pm.encode('unicode_escape').decode(
+                                      'ascii')[:80], retry=False)
             out.append(('the webauth parameter map %s' % pm, [
                 'parameter-map type webauth %s' % pm, 'trustpoint %s' % name, 'exit',
                 'no ip http server', 'ip http server']))

@@ -43,6 +43,7 @@ __all__ = [
     'PFX_FORMATS', 'quote', 'chain_list', 'tls_fields', 'put_scp',
     'alt_of', 'variant_of', 'variants_of', 'family_of', 'dual_fp', 'VARIANT_WORDS',
     'outputs_for', 'ours', 'covers', 'service_of', 'join_hostport', 'debug_url',
+    'seg', 'SEG_PATTERN', 'NAME_PATTERN', 'control_char', 'url_path_problem',
 ]
 
 PFX_FORMATS = ('pfx', 'p12', 'p12-legacy', 'jks')
@@ -197,6 +198,54 @@ def chain_list(bundle):
     for p in list(getattr(bundle, 'chain_pems', None) or []):
         out.extend(pem_blocks(p))
     return out
+
+
+# ---------------------------------------------------------------------------
+# What an option may hold (1.0.101): a line of text has no control character (a "\n" in a
+# name was one more line of a device's configuration), and a part of a device's URL path is
+# one part - no "/", "?", "#", "%", ".." (a deployment's option went to another endpoint)
+# ---------------------------------------------------------------------------
+_CONTROL = re.compile('[\x00-\x1f\x7f\x85  ]')
+# a field's pattern= (acmelib/plugins/base.py) for an option that becomes a part of a URL path
+SEG_PATTERN = r'^(?!\s*\.\.?\s*$)[^/\\?#%\x00-\x1f\x7f]{1,255}\Z'
+# ...and for a name on a device's command line: letters, digits, _ . - only
+NAME_PATTERN = r'^[A-Za-z0-9_.-]{1,64}\Z'
+
+
+def control_char(v, tab=False):
+    """The first control character in v (as \\xNN words), or '' when it has none.
+    tab: a tab is let through (a line of a list, a script)."""
+    for m in _CONTROL.finditer(text(v)):
+        if tab and m.group(0) == '\t':
+            continue
+        return repr(m.group(0))[1:-1]
+    return ''
+
+
+def seg(v, what='a name'):
+    """One part of a device's URL path from an option, quoted (/ too): refused with words when
+    it is empty, "." or "..", or has a "/", "\\", "?", "#", "%" or a control character
+    - urllib.parse.quote() keeps "/" and "..", so "x/../../other" reached another endpoint."""
+    s = text(v).strip()
+    if not re.match(SEG_PATTERN, s):
+        raise PluginError('%s "%s" cannot be a part of the device\'s address: no /, \\, ?, #, '
+                          '%%, control characters, and not . or ..'
+                          % (what, s.encode('unicode_escape').decode('ascii')[:100]),
+                          retry=False)
+    return urllib.parse.quote(s, safe='')
+
+
+def url_path_problem(url):
+    """Words when an address acme is about to ask is not one: a control character or a space
+    in it, or a "." / ".." part of its path (as written or %2e-encoded) - '' when fine."""
+    u = text(url)
+    if re.search('[\x00-\x20\x7f]', u):
+        return 'the address has a space or a control character in it'
+    path = re.sub(r'^[A-Za-z][A-Za-z0-9+.-]*://[^/?#]*', '', u).split('?', 1)[0].split('#', 1)[0]
+    for part in path.split('/'):
+        if urllib.parse.unquote(part) in ('.', '..'):
+            return 'the address has a "%s" part in its path' % urllib.parse.unquote(part)
+    return ''
 
 
 # ---------------------------------------------------------------------------

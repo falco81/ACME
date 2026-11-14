@@ -42,6 +42,12 @@ import traceback
 #    'show_if': {'auth': ['password']},             # shown only when another field holds one of these
 #    'advanced': False}                             # folded away under "More"
 #
+# A deployment's option (deploy_fields) of text is one line: a line break or another control
+# character in it is refused when it is saved, in each line of a list too (1.0.101). Give it
+# pattern=r'^...$' (and pattern_words='what it is') when the device takes only some values -
+# the value, or each line of a list, must match: _common.NAME_PATTERN for a name on a command
+# line, _common.SEG_PATTERN for one that becomes a part of a URL path (and seg() it there).
+#
 # type: text | secret | number | bool | select | textarea | pem | list | hostport
 #   secret    sealed in the database, never sent back in clear: a full administrator is
 #             shown eight dots and its last two characters, anybody else eight dots; saved

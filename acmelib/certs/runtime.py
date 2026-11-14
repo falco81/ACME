@@ -258,6 +258,13 @@ class RunContext(base.Context):
         from acmelib.plugins import limits as L
         if not re.match(r'^https?://', str(url or '')):
             raise base.PluginError('%r is not an http(s) address' % url, retry=False)
+        # (1.0.101) an option of a deployment that became "x/../../other" in a module's path,
+        # or a line break in it, went to another endpoint of the device - refused, any module
+        from acmelib.plugins.targets._common import url_path_problem, debug_url
+        bad_url = url_path_problem(url)
+        if bad_url:
+            raise base.PluginError('%s: %s' % (bad_url, debug_url(str(url))[:200].encode(
+                'unicode_escape').decode('ascii')), retry=False)
         if isinstance(body, str):
             body = body.encode('utf-8')
         elif isinstance(body, (dict, list)):

@@ -139,6 +139,46 @@ def check_value(k, value):
     return value.upper() if k == 'C' else value
 
 
+def check_subject(subj, where='profile.subject'):
+    """A certificate's own subject ({C: .., O: .., OU: [..]}) checked as a request profile's
+    fields are and as pki.py writes it into a CSR (hunt M): saved with C "Czech Republic" or
+    an e-mail that is none, it was taken, What happens drew a CSR with it, and every renewal
+    failed. The same dict back, C in capitals."""
+    from acmelib.certs import pki
+    if not subj:
+        return {}
+    if not isinstance(subj, dict):
+        raise ValueError('%s is {field: value}' % where)
+    known = dict(SUBJECT_FIELDS)
+    out = {}
+    for k, v in subj.items():
+        vals = v if isinstance(v, (list, tuple)) else [v]
+        if len(vals) > 20:
+            raise ValueError('%s: %s has 20 values at most' % (where, k))
+        good = []
+        for one in vals:
+            if one in (None, ''):
+                continue
+            if isinstance(one, bool) or not isinstance(one, (str, int, float)):
+                raise ValueError('%s: %s is words, not %s' % (where, k, type(one).__name__))
+            one = str(one).strip()
+            if not one:
+                continue
+            key = pki._SUBJECT_ALIAS.get(str(k).strip().lower().replace(' ', ''), str(k).strip())
+            if key in known:
+                one = check_value(key, one)
+            elif any(ord(c) < 32 for c in one) or len(one) > 128:
+                raise ValueError('%s: 128 characters at most, no control characters' % k)
+            good.append(one)
+        if good:
+            out[k] = good if isinstance(v, (list, tuple)) else good[0]
+    try:
+        pki.subject_pairs(out)
+    except pki.PkiError as e:
+        raise ValueError('%s: %s' % (where, e))
+    return out
+
+
 def clean_suffixes(v):
     if isinstance(v, str):
         v = re.split(r'[\s,;]+', v)
