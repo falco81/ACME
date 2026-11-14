@@ -187,6 +187,15 @@ def _dbguard_mac(key, kind, ident, n, value):
     return hmac.new(key, msg, hashlib.sha256).hexdigest()
 
 
+def _dbguard_adopted_map():
+    """The marks of the rows taken under the guard, in memory - the caller holds the lock and
+    loaded the file first. Never a setdefault: the key is there from the start as None, and
+    setdefault gave that None back (1.0.102)."""
+    if DBGUARD.get('adopted') is None:
+        DBGUARD['adopted'] = {}
+    return DBGUARD['adopted']
+
+
 def _dbguard_load():
     with DBGUARD['lock']:
         if DBGUARD['seen'] is None:
@@ -542,6 +551,10 @@ def dbguard_resign(store, why=''):
     n = 0
     if not dbguard_key():
         return 0
+    # The file read first (1.0.102): the counters are started again below, and a 'seen' set
+    # before it is read left the marks of the rows taken under the guard unread - lost, and
+    # those rows not checked.
+    _dbguard_load()
     for r in db.rows('SELECT k, v FROM meta'):
         if dbguard_meta_signed(r['k']):
             n += bool(dbguard_sign(db, 'm', r['k'], r['v']))
@@ -567,11 +580,11 @@ def dbguard_resign(store, why=''):
         if cluster_runs_at_least(store, '1.0.101'):
             _dbguard_load()
             with DBGUARD['lock']:
-                DBGUARD.setdefault('adopted', {}).setdefault(DBGUARD_ADOPT3_MARK, time.time())
+                _dbguard_adopted_map().setdefault(DBGUARD_ADOPT3_MARK, time.time())
         if cluster_runs_at_least(store, '1.0.102'):
             _dbguard_load()
             with DBGUARD['lock']:
-                DBGUARD.setdefault('adopted', {}).setdefault(DBGUARD_ADOPT4_MARK, time.time())
+                _dbguard_adopted_map().setdefault(DBGUARD_ADOPT4_MARK, time.time())
     except Exception:                                   # noqa: BLE001
         pass
     if why:
@@ -639,7 +652,7 @@ def _dbguard_adopt2(store):
         if k in DBGUARD_ADOPT2['m'] or k.startswith(DBGUARD_ADOPT2_PREFIXES['m']):
             n += bool(dbguard_sign(db, 'm', k, r['v']))
     with DBGUARD['lock']:
-        DBGUARD.setdefault('adopted', {})[DBGUARD_ADOPT2_MARK] = time.time()
+        _dbguard_adopted_map()[DBGUARD_ADOPT2_MARK] = time.time()
         DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
     dbguard_flush(force=True)
     if n:
@@ -660,7 +673,7 @@ def _dbguard_adopt3(store):
         if str(r['k']).split('@', 1)[0] in DBGUARD_ADOPT3['s']:
             n += bool(dbguard_sign(db, 's', r['k'], r['v']))
     with DBGUARD['lock']:
-        DBGUARD.setdefault('adopted', {})[DBGUARD_ADOPT3_MARK] = time.time()
+        _dbguard_adopted_map()[DBGUARD_ADOPT3_MARK] = time.time()
         DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
     dbguard_flush(force=True)
     back = DBGUARD.pop('readopt', None)
@@ -685,7 +698,7 @@ def _dbguard_adopt4(store):
         if str(r['k']).split('@', 1)[0] in DBGUARD_ADOPT4['s']:
             n += bool(dbguard_sign(db, 's', r['k'], r['v']))
     with DBGUARD['lock']:
-        DBGUARD.setdefault('adopted', {})[DBGUARD_ADOPT4_MARK] = time.time()
+        _dbguard_adopted_map()[DBGUARD_ADOPT4_MARK] = time.time()
         DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
     dbguard_flush(force=True)
     back = DBGUARD.pop('readopt4', None)
@@ -723,7 +736,7 @@ def dbguard_adopt(store):
             if row is not None:
                 n += bool(dbguard_sign(db, kind, k, row['v']))
     with DBGUARD['lock']:
-        DBGUARD.setdefault('adopted', {})[DBGUARD_ADOPT_MARK] = time.time()
+        _dbguard_adopted_map()[DBGUARD_ADOPT_MARK] = time.time()
         DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
     dbguard_flush(force=True)
     for r in good:

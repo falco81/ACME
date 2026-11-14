@@ -389,6 +389,40 @@ class TestResign(unittest.TestCase):
         guard(True)
         self.assertEqual(STORE.get_meta('power:plan'), '{"at": 1}')
 
+    def test_resign_first_in_the_process_keeps_the_marks(self):
+        """Signing again as the first call of the guard in a process (1.0.102): the counters
+        were started again before the file was read - its marks of the rows taken under the
+        guard lost, those rows not checked, the hourly adopt a TypeError."""
+        guard(True)
+        try:
+            E.dbguard_adopt(STORE)
+            E.DBGUARD['dirty'] = time.time()
+            E.dbguard_flush(force=True)
+            marks = dict(json.load(open(os.path.join(TMP, 'guard.json')))['adopted'])
+            self.assertIn(E.DBGUARD_ADOPT4_MARK, marks)
+            with E.DBGUARD['lock']:              # as a process just started
+                for k in ('seen', 'good', 'seen_h', 'adopted'):
+                    E.DBGUARD[k] = None
+            E.dbguard_resign(STORE, 'test')
+            for mark in marks:
+                self.assertIn(mark, E.DBGUARD['adopted'])
+            self.assertTrue(E.dbguard_adopted_ok('s', 'metrics_token'))
+            self.assertTrue(E.dbguard_adopted_ok('s', 'portal'))
+            E.dbguard_adopt(STORE)               # no TypeError
+            E.DBGUARD['dirty'] = time.time()
+            E.dbguard_flush(force=True)
+            kept = json.load(open(os.path.join(TMP, 'guard.json')))['adopted']
+            for mark in marks:
+                self.assertIn(mark, kept)
+            # with no file at all: no TypeError either, and marks set
+            with E.DBGUARD['lock']:
+                E.DBGUARD['seen'] = {}
+                E.DBGUARD['adopted'] = None
+            E.dbguard_adopt(STORE)
+            self.assertIn(E.DBGUARD_ADOPT_MARK, E.DBGUARD['adopted'])
+        finally:
+            guard(False)
+
     def test_forget_seen_signs_nothing(self):
         guard(False)
         forged_meta('fw:trial', 'x')
