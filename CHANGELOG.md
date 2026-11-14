@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.102 - not released
+## 1.0.102 - 2026-11-14
 
 - (security) **Every secret sealed for its place.** The settings' secrets (the proxy, SMTP, SMS, DNS and
   SNMP passwords and keys, the portal's SSO key) and the directories' passwords were sealed
