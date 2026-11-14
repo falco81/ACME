@@ -63351,6 +63351,10 @@
   "_622": {
    "source": "no OCSP answer of that is kept here (acme --cert-login-ocsp lists them)",
    "text": "taková odpověď OCSP tu uložená není (vypíše je acme --cert-login-ocsp)"
+  },
+  "_623": {
+   "source": "its request profile is gone - ask again with another one",
+   "text": "jeho profil žádosti už neexistuje – požádejte znovu s jiným"
   }
  },
  "patterns": {
@@ -88285,6 +88289,22 @@
   "p_390": {
    "source": "{0} cleared the OCSP answers of the sign-in with a certificate on every node - each is asked again at the next sign-in",
    "text": "{0} vymazal(a) na všech uzlech odpovědi OCSP přihlašování certifikátem – při dalším přihlášení se acme zeptá znovu"
+  },
+  "p_391": {
+   "source": "{0} waits for approval - approve it first",
+   "text": "{0} čeká na schválení – nejdřív ho schvalte"
+  },
+  "p_392": {
+   "source": "{0} was declined - approve it first",
+   "text": "{0} byl zamítnut – nejdřív ho schvalte"
+  },
+  "p_393": {
+   "source": "{0} was never approved - approve it first",
+   "text": "{0} nebyl nikdy schválen – nejdřív ho schvalte"
+  },
+  "p_394": {
+   "source": "openssl {0} has no -iter: a PKCS#12 is made with its own count of 2048 rounds, not {1} - openssl 3.0 or later makes it stronger",
+   "text": "openssl {0} nemá -iter: PKCS#12 se vytvoří s jeho vlastním počtem 2048 kol, ne {1} – openssl 3.0 nebo novější ho vytvoří silnější"
   }
  },
  "rich": {

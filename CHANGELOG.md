@@ -49,6 +49,30 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   gets openssl's own count (2048 rounds, said in the log once); 3.0 and later 250,000 as before.
 - **A SHA-1 CSR on a system whose openssl.cnf is in a folder with `$`, a backslash, a quote or
   `#` in its name** is verified - the file was not read by the configuration made for it.
+- **--uninstall no longer leaves nginx unable to start.** The certificate's own port's server
+  (`acme_certlogin.conf`) stayed in `/etc/nginx/conf.d` with `acme-certlogin-ca.pem`, and it uses a
+  limit acme.conf defined: `nginx -t` failed, and after the next reboot nginx did not start. Every
+  file of conf.d acme wrote is taken away now with the authorities, `nginx -t` is asked before
+  nginx is reloaded (what it still names is said), and the SELinux ports acme labelled are listed
+  with how to take them out.
+- **The sign-in with a certificate: the port.** A listener on two addresses (`0.0.0.0` and `[::]`)
+  was one program plus "a program that cannot be told" - the real cause of 1.0.102's "used by ?";
+  every socket of a process is matched now, and such a listener counts as acme's only while every
+  one that can be told is the system's nginx. nginx listening on the node's own address or on
+  IPv6 only was "could not listen": the port was taken away and nginx reloaded twice at every
+  request - its listeners are looked at on every address now. **Another site of nginx on the same
+  port** was taken for acme's own, and acme's `listen … ssl` made that plain-HTTP site TLS only:
+  refused now, its file named (*another site of nginx listens on …*). The card says *nginx could
+  not listen* or *another site of nginx* rather than *taken by another program*, and root's words
+  only for the port asked for.
+- **A port refused as taken is really asked for again.** 1.0.103 said it would every 15 minutes;
+  Events said "the certificate nginx has … is not the one saved: put in again" every 30 minutes and
+  nothing was asked (a certificate nginx did not have was not put in again either). Both are asked
+  for now, the port with its own words and its own 15 minutes.
+- **nginx's reload is said as it went** ("nginx reloaded" was said whatever systemctl answered); an
+  nginx that failed to start (its port taken at boot) is started again once acme's server is out.
+- **SELinux: a port another service has is never taken from it** (`semanage port -m` relabelled it
+  `http_port_t`); it is said, choose another port.
 
 ## 1.0.105 - 2026-11-14
 
