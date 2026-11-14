@@ -269,6 +269,21 @@ class TestCsrCrafted(unittest.TestCase):
         with self.assertRaises(PkiError) as e:
             pki.csr_info(csr)
         self.assertIn('extensionRequest more than once', str(e.exception))
+        # read again later (a CSR stored before 1.0.102, renewed): listed, the first one read -
+        # as OpenSSL reads it
+        info = pki.csr_info(csr, strict=False)
+        self.assertEqual(info['attr_twice'], ['extensionRequest'])
+        self.assertEqual(info['san'], [('UPN', 'administrator@corp.test')])
+
+    def test_windows_name_value_pairs_repeat(self):
+        # certreq / ConfigMgr: each enrollment name-value pair an attribute of its own
+        csr = self.C.windows_csr(self.k)
+        self.assertTrue(pki.csr_verify(csr))
+        info = pki.csr_info(csr)
+        self.assertEqual(info['san'], [('DNS', 'web01.example.test')])
+        self.assertEqual(info['attr_twice'], [])
+        from acmelib.certs import reqprofiles
+        self.assertEqual(reqprofiles.csr_refusals(info), [])
 
     def test_names_and_extensions_reported(self):
         info = pki.csr_info(self.C.csr(self.k, 'www.example.test', self.C.UPN_SAN,

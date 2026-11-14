@@ -399,7 +399,7 @@ def _held_pub(held):
         if held.get('key_pem'):
             return _pki.key_info(held['key_pem'])['pub_sha256']
         if held.get('csr_pem'):
-            return _pki.csr_info(held['csr_pem'])['sha256']
+            return _pki.csr_info(held['csr_pem'], strict=False)['sha256']
     except Exception:                                   # noqa: BLE001
         return None
     return None

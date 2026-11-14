@@ -712,7 +712,7 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         if key_out and cert.get('csr_given') and cert.get('cert_pem'):
             # a new CSR sent since (a new key): the revoked one's key is not this one
             from acmelib.certs import pki as _pk
-            key_out = _pk.csr_info(cert['csr_given']).get('pub_sha256') == \
+            key_out = _pk.csr_info(cert['csr_given'], strict=False).get('pub_sha256') == \
                 _pk.cert_info(cert['cert_pem']).get('pub_sha256')
     except Exception:                                   # noqa: BLE001
         key_out = False
@@ -724,8 +724,8 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             mine = str(_pk.cert_info(cert['cert_pem']).get('pub_sha256') or '').upper()
             key_out = bool(mine) and mine in S.revoked_keys_meta(store, cert['id'])
             if key_out and cert.get('csr_given'):
-                key_out = str(_pk.csr_info(cert['csr_given']).get('pub_sha256') or '').upper() \
-                    == mine
+                key_out = str(_pk.csr_info(cert['csr_given'], strict=False).get(
+                    'pub_sha256') or '').upper() == mine
         except Exception:                               # noqa: BLE001
             pass
     if (was == 'revoked' or key_out) and cert.get('csr_given'):

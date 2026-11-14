@@ -77,3 +77,50 @@ def two_ext_requests(key_pem, first, second, cn='www.example.test'):
     b64 = base64.b64encode(der).decode()
     return '-----BEGIN CERTIFICATE REQUEST-----\n%s\n-----END CERTIFICATE REQUEST-----\n' % \
         '\n'.join(b64[i:i + 64] for i in range(0, len(b64), 64))
+
+
+def _oid(s):
+    p = [int(x) for x in s.split('.')]
+    out = bytes([40 * p[0] + p[1]])
+    for n in p[2:]:
+        b = [n & 0x7f]
+        n >>= 7
+        while n:
+            b.insert(0, 0x80 | (n & 0x7f))
+            n >>= 7
+        out += bytes(b)
+    return _tlv(0x06, out)
+
+
+def _attr(o, *vals):
+    return _tlv(0x30, _oid(o) + _tlv(0x31, b''.join(vals)))
+
+
+def _sign(key_pem, cri):
+    with tempfile.TemporaryDirectory() as d:
+        kf = os.path.join(d, 'k.pem')
+        with open(kf, 'w') as f:
+            f.write(key_pem)
+        sig = _ossl(['dgst', '-sha256', '-sign', kf], cri)
+    alg = _tlv(0x30, _tlv(0x06, bytes.fromhex('2a8648ce3d040302')))     # ecdsa-with-SHA256
+    der = _tlv(0x30, cri + alg + _tlv(0x03, b'\x00' + sig))
+    b64 = base64.b64encode(der).decode()
+    return '-----BEGIN CERTIFICATE REQUEST-----\n%s\n-----END CERTIFICATE REQUEST-----\n' % \
+        '\n'.join(b64[i:i + 64] for i in range(0, len(b64), 64))
+
+
+def windows_csr(key_pem, cn='web01.example.test', pairs=(('CertificateTemplate', 'WebServer'),
+                                                         ('SAN', 'dns=web01.example.test'))):
+    """A CSR as Windows certreq -new / ConfigMgr makes it: the OS version attribute, each
+    enrollment name-value pair (1.3.6.1.4.1.311.13.2.1) an attribute of its own, then the
+    extensionRequest (subjectAltName DNS:cn)."""
+    def bmp(s):
+        return _tlv(0x1e, s.encode('utf-16-be'))
+    base = csr(key_pem, cn, 'subjectAltName=DNS:%s' % cn)
+    it = _items(_items(_items(_der(base))[0][2])[0][2])
+    ext_attr = [w for _t, w, _c in _items(it[3][2])][0]
+    attrs = _attr('1.3.6.1.4.1.311.13.2.3', _tlv(0x16, b'10.0.20348.2'))
+    for n, v in pairs:
+        attrs += _attr('1.3.6.1.4.1.311.13.2.1', _tlv(0x30, bmp(n) + bmp(v)))
+    cri = _tlv(0x30, it[0][1] + it[1][1] + it[2][1] + _tlv(0xa0, attrs + ext_attr))
+    return _sign(key_pem, cri)

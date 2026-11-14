@@ -548,9 +548,20 @@ def cert_info(pem_or_der):
     return info
 
 
-def csr_info(pem):
+# Attributes of a CSR that may be there once only (1.0.102): the extension request
+# (PKCS#9 and Microsoft's own) and the challenge password - of two, which one a CA reads is
+# its own choice. Any other may repeat: Windows certreq / ConfigMgr writes each enrollment
+# name-value pair (1.3.6.1.4.1.311.13.2.1) as an attribute of its own.
+CSR_ATTR_ONCE = ('1.2.840.113549.1.9.14', '1.3.6.1.4.1.311.2.1.14', '1.2.840.113549.1.9.7')
+
+
+def csr_info(pem, strict=True):
     """What a request says: subject_dn, subject, cn, names, san, key_type,
-    key_bits, sha256 (= pub_sha256, of the public key), eku, must_staple."""
+    key_bits, sha256 (= pub_sha256, of the public key), eku, must_staple.
+    `strict` (the default, for a CSR coming in): PkiError when an extension request,
+    msExtReq or challenge password is there twice, or an extension is asked for twice.
+    strict=False (a CSR stored earlier, read again - its key, its names): those are only
+    listed in 'attr_twice' / 'ext_twice'."""
     if isinstance(pem, str) or b'-----BEGIN' in pem:
         blocks = [b for b in split_pem(pem) if 'REQUEST' in b[0]]
         if not blocks:
@@ -566,6 +577,7 @@ def csr_info(pem):
         exts = parse_extensions([])
         challenge = ''
         seen = set()
+        twice = []
         for x in cri.children[3:]:
             if x.is_ctx(0):
                 attrs = x.children if x.constructed else A.parse_all(x.content)
@@ -574,14 +586,21 @@ def csr_info(pem):
                     # One attribute once, with one value (1.0.102): of two extensionRequests acme
                     # checked the last, OpenSSL and a CA that takes the CSR as it is read the
                     # first - a UPN and smart-card logon past the profile's checks.
-                    if o in seen:
-                        raise PkiError('the CSR has the attribute %s more than once - which one a '
-                                       'CA reads is its own choice: make the CSR again'
-                                       % A.oid_name(o))
-                    seen.add(o)
-                    if o == '1.2.840.113549.1.9.14' and len(attr[1]) != 1:
-                        raise PkiError('the CSR\'s extension request has %d sets of extensions '
-                                       '- one is read: make the CSR again' % len(attr[1]))
+                    # Only those read as one (CSR_ATTR_ONCE): other attributes may repeat.
+                    if o in CSR_ATTR_ONCE:
+                        if o in seen or len(attr[1]) != 1:
+                            twice.append(A.oid_name(o))
+                            if strict and o in seen:
+                                raise PkiError('the CSR has the attribute %s more than once - '
+                                               'which one a CA reads is its own choice: make '
+                                               'the CSR again' % A.oid_name(o))
+                            if strict:
+                                raise PkiError('the CSR\'s attribute %s has %d values - one is '
+                                               'read: make the CSR again'
+                                               % (A.oid_name(o), len(attr[1])))
+                        if o in seen or not len(attr[1]):
+                            continue
+                        seen.add(o)
                     if o == '1.2.840.113549.1.9.14':
                         exts = parse_extensions(attr[1][0])
                     elif o == '1.2.840.113549.1.9.7':
@@ -589,7 +608,7 @@ def csr_info(pem):
         sig_alg = A.oid_name(req[1][0].oid())
     except (A.Asn1Error, IndexError, ValueError) as e:
         raise PkiError('this is not a certificate request that can be read: %s' % e)
-    if exts['twice']:
+    if exts['twice'] and strict:
         raise PkiError('the CSR asks for the extension %s more than once - which one a CA reads '
                        'is its own choice: make the CSR again' % ', '.join(sorted(set(
                            exts['twice']))))
@@ -605,7 +624,7 @@ def csr_info(pem):
             # extension twice or not read
             'is_ca': exts['is_ca'], 'path_len': exts['path_len'],
             'extensions': exts['extensions'], 'san_bad': exts['san_bad'],
-            'ext_twice': exts['twice'], 'ext_unread': exts['unread'],
+            'ext_twice': exts['twice'], 'ext_unread': exts['unread'], 'attr_twice': twice,
             'pem': der_to_pem(der, 'CERTIFICATE REQUEST'), 'der': der}
 
 
