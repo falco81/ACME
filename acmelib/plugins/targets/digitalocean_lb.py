@@ -108,7 +108,8 @@ class DigitalOceanLbTarget(CloudTarget):
 
     def lb(self, ref):
         ref = text(ref).strip()
-        if re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-', ref):
+        # an id whole (1.0.101): "<8>-<4>-" and anything after it went into the path
+        if re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z', ref):
             st, d = self.api('GET', '/v2/load_balancers/%s' % ref, ok=(200, 404),
                              what='reading the load balancer %s' % ref)
             if st == 200 and d.get('load_balancer'):

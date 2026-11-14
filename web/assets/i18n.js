@@ -99,9 +99,9 @@ function i18nPattern(source, text, rich) {
   for (var i = 0; i < bits.length; i++) if (bits[i].length > lit.length) lit = bits[i];
   c.lit = lit;
   c.own = source.replace(/\{\d+\}/g, '').length;
-  /* Texts the code only joins, saying nothing itself - "{0} · {1}", "{0}: {1}", the same in
+  /* Texts the code only joins by a dot, saying nothing itself - "{0} · {1}", the same in
      every language (hunt M): a word of the page's own in a slot is translated, "done · 0 s". */
-  c.join = String(text) === source && !/[A-Za-z]/.test(source.replace(/\{\d+\}/g, ''));
+  c.join = String(text) === source && /^[\s\u00b7\u2022]+$/.test(source.replace(/\{\d+\}/g, ''));
   /* With hardly any words of its own ("from {0}", "{0} was {1}") a pattern
      would take a whole sentence for a slot; then a slot is one word or
      number at most, which is what such a pattern is ever written around. */
@@ -262,7 +262,7 @@ var I18N_DEEP = 6;          /* how far a slot inside a slot is still translated 
    multiplying it: the Czech admin page stood still for 47 s on one such job. And how
    much work one text may take at most (`left`): past that a piece not worked out yet
    is left in English, the rest as far as it came - no text ever holds the page. */
-var I18N_RUN = null, I18N_STAT = {max: 0, out: 0};
+var I18N_RUN = null;
 var I18N_BUDGET = 100000;    /* work for one text, at most: a pattern tried on 64 characters is 1 */
 function i18nText(s, depth) {
   if (depth) return i18nPiece(s, depth);
@@ -272,11 +272,11 @@ function i18nText(s, depth) {
   var outer = I18N_RUN;
   var run = I18N_RUN = {memo: new Map(), left: I18N_BUDGET, out: false};
   try {
-    got = i18nWork(s, 0); I18N_STAT.max = Math.max(I18N_STAT.max, I18N_BUDGET - run.left);
+    got = i18nWork(s, 0);
     /* Out of work before the end: the text by its sentences, each by what was
        worked out of it already and a little more, the rest in English. */
     if (run.out) {
-      I18N_STAT.out++; run.left = I18N_BUDGET;
+      run.left = I18N_BUDGET;
       run.out = false;
       got = i18nParts(i18nFold(s), 0);
     }

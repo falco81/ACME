@@ -276,6 +276,12 @@ class Daemon(object):
         # The certificate's own port free here (1.0.100): nothing but nginx listening on it.
         if any(k in checked for k in ('certlogin_port', 'admin_certlogin', 'portal_certlogin')):
             cl_save_check(self.store, checked)
+        if 'api_port' in checked or 'certlogin_port' in checked:
+            # Never one port for both on any node (1.0.101): api_port is each node's own.
+            clash = cl_api_port_clash(self.store.settings_saved(), checked, node,
+                                      many and not cluster_wide)
+            if clash:
+                raise BadSetting(clash)
         if any(k in checked for k in PORTAL_CODE_KEYS):
             # The code at every sign-in only with a way to send it (as otp 1.0.228): switched on
             # without one, or the mail or the SMS switched off under it, nobody could sign in.

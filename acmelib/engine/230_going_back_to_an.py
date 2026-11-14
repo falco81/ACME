@@ -59,6 +59,40 @@ def downgrade_root_floor():
     return text if re.match(r'^\d+\.\d+\.\d+\Z', text) else None
 
 
+# The ways of signing in an older version does not know (1.0.101): going back with one on, it
+# was dropped without a word - with "no password" on, passwords signed people in again.
+DOWNGRADE_SIGNIN = (('admin_krb', (1, 0, 99), 'signing in to the administration with Windows'),
+                    ('portal_krb', (1, 0, 99), 'signing in to the portal with Windows'),
+                    ('admin_password_off', (1, 0, 99), 'no password for the administration'),
+                    ('portal_password_off', (1, 0, 99), 'no password for the portal'),
+                    ('admin_certlogin', (1, 0, 100),
+                     'signing in to the administration with a certificate'),
+                    ('portal_certlogin', (1, 0, 100), 'signing in to the portal with a certificate'))
+
+
+def downgrade_signin_lost(v):
+    """'' or the words for the sign-in settings switched on here that acme `v` (a tuple) would
+    lose: each one older than the version that brought it. And with the guard on, the portal's
+    ones are signed only from 1.0.101."""
+    gone = ['%s (%s, from %s)' % (k, words, '.'.join(map(str, since)))
+            for k, since, words in DOWNGRADE_SIGNIN if CONFIG.get(k) and v < since]
+    if gone:
+        return ('older than the version that brought %s, switched on here: %s would not know %s '
+                'and %s - passwords would sign people in again where they are switched off. '
+                'Switch %s off first' % (
+                    'it' if len(gone) == 1 else 'them', '.'.join(map(str, v)),
+                    'it' if len(gone) == 1 else 'them', 'drop it' if len(gone) == 1 else
+                    'drop them', 'it' if len(gone) == 1 else 'them') + ': ' + ', '.join(gone))
+    portal = [k for k in ('portal_krb', 'portal_password_off', 'portal_certlogin')
+              if CONFIG.get(k)]
+    if portal and CONFIG.get('db_guard') and v < (1, 0, 101):
+        return ('older than 1.0.101 while the guard against writes to the database is on with '
+                '%s: the portal\'s settings and sign-ins would no longer be signed - written '
+                'into the database past acme, they would be taken. Switch %s off first (or the '
+                'guard)' % (', '.join(portal), 'it' if len(portal) == 1 else 'them'))
+    return ''
+
+
 def downgrade_why_not(store, version):
     """What stands in the way of going back to `version` - before the package
     is fetched: [] when nothing does."""
@@ -79,6 +113,9 @@ def downgrade_why_not(store, version):
         if on:
             why.append('older than 1.0.40 while the guard against writes to the database is on '
                        '(%s): switch it off on every node first' % ', '.join(on))
+    lost = downgrade_signin_lost(v)
+    if lost:
+        why.append(lost)
     floor, by = downgrade_db_floor(store)
     if v < _ver_tuple(floor):
         why.append('older than %s: acme %s, which ran on this database, wrote what older '

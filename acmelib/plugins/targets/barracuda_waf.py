@@ -54,7 +54,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, text, object_name, name_prefix, ours, prune,
-    http_fields, tls_fields, verify_fields, keep_field, chain_list, family_of, multipart)
+    http_fields, tls_fields, verify_fields, keep_field, chain_list, family_of, multipart, SEG_PATTERN)
 
 
 def b64(data):
@@ -90,10 +90,10 @@ class BarracudaWafTarget(HttpTarget):
               options=[['v3.2', 'v3.2'], ['v3.1', 'v3.1'], ['v3', 'v3']]),
     ] + tls_fields()
     deploy_fields = [
-        field('service', 'Service', 'catalog', catalog='services', autoload=False,
+        field('service', 'Service', 'catalog', pattern=SEG_PATTERN, catalog='services', autoload=False,
               help='the service (web application) to use the certificate; picked from the '
                    'list or typed'),
-        field('services', 'More services', 'list', placeholder='www-https',
+        field('services', 'More services', 'list', pattern=SEG_PATTERN, placeholder='www-https',
               help='one a line: more services'),
         field('slot', 'As', 'select', default='certificate',
               options=[['certificate', 'the certificate of the service'],

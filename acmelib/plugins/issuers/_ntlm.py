@@ -215,8 +215,11 @@ def channel_bindings_hash(server_cert_der):
 
 def authenticate_message(negotiate, challenge, user, password, domain=None, workstation='',
                          client_challenge=None, exported_key=None, server_cert_der=None,
-                         now=None):
-    """The AUTHENTICATE_MESSAGE (NTLMv2, a MIC where the server sent a time)."""
+                         now=None, target_host=None):
+    """The AUTHENTICATE_MESSAGE (NTLMv2, a MIC where the server sent a time).
+    target_host: the host of the address acme was given - MsvAvTargetName is HTTP/<it>, the
+    service acme means to reach (MS-NLMP 3.1.5.2.1). Taken from the server's own CHALLENGE
+    until 1.0.101, a relay forwarding the CA's challenge got a name the CA took."""
     if isinstance(challenge, (bytes, bytearray)):
         challenge = Challenge(bytes(challenge))
     cc = client_challenge or os.urandom(8)
@@ -238,8 +241,11 @@ def authenticate_message(negotiate, challenge, user, password, domain=None, work
         pairs.append((AV_CHANNEL_BINDINGS, channel_bindings_hash(server_cert_der)))
     else:
         pairs.append((AV_CHANNEL_BINDINGS, b'\x00' * 16))
-    pairs.append((AV_TARGET_NAME, ('HTTP/' + ((challenge.av(AV_DNS_COMPUTER) or b'')
-                                              .decode('utf-16-le'))).encode('utf-16-le')))
+    if target_host:
+        spn_host = str(target_host).strip().strip('[]').rstrip('.').lower()
+    else:                       # (without a host: the server's name, as before)
+        spn_host = (challenge.av(AV_DNS_COMPUTER) or b'').decode('utf-16-le')
+    pairs.append((AV_TARGET_NAME, ('HTTP/' + spn_host).encode('utf-16-le')))
     nt, _proof, session_base = ntlmv2_response(key, challenge.server_challenge, cc, ts,
                                                av_pairs_build(pairs))
     lm = b'\x00' * 24 if use_mic else lmv2_response(key, challenge.server_challenge, cc)

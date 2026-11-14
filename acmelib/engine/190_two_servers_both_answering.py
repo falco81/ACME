@@ -642,6 +642,11 @@ def ha_join(data, name='', even_if_data=False, by='', say=None, root_now=False):
     if name:
         changes['node_name'] = name
     write_file_settings(changes)
+    # The guard's counters and the settings it last found good were this node's own database's
+    # (1.0.101): kept, every row of the cluster's this node had seen newer was refused as "an
+    # older one put back". Started again empty - the process ends soon, on its old database.
+    dbguard_forget_seen('this node joins the cluster of %s' % (
+        (data.get('peer') or {}).get('name') or '?'), hold=True)
     say('key', True, 'the key that opens the sealed secrets is the cluster\'s now')
     return {'where': db_where(db), 'rows': got.get('rows'), 'peer': data.get('peer') or {},
             'message': 'this node joins the cluster: it starts again on %s' % db_where(db)}

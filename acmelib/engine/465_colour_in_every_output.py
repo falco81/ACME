@@ -1118,7 +1118,11 @@ def cli_ha(args, pal):
         if args.trusted_proxy:
             nginx_trusted_proxies(args.trusted_proxy, pal)
         if not os.environ.get('ACME_HA_NO_RESTART'):
-            subprocess.run(['systemctl', 'restart', 'acme'], capture_output=True)
+            # Stopped first, the guard's file emptied again while it is (1.0.101): the daemon
+            # running meanwhile could write back what it had counted on its old database.
+            subprocess.run(['systemctl', 'stop', 'acme'], capture_output=True)
+            dbguard_forget_seen('this node joined the cluster on the command line', hold=True)
+            subprocess.run(['systemctl', 'start', 'acme'], capture_output=True)
             print(pal.ok_line('acme started again on it as %s' % name))
         print(pal.dim('  Both nodes are in the list:  acme --ha-status'))
         print(pal.dim('  Sign in with the accounts of the cluster - the ones of this node were '
@@ -1456,6 +1460,10 @@ def cli_ha_join_replicated(args, pal, data, ask):
                          name, user, pw, lambda t: print(pal.dim('  ' + t)))
         remote.close()
         local.close()
+        # The rows are the other node's now, as the pages' rebuild has it (1.0.101): what the
+        # guard had seen here forgotten, or each row seen newer here is refused as put back.
+        dbguard_forget_seen('this node joined the cluster on the command line, its rows taken '
+                            'from %s' % (peer.get('name') or peer['address']))
     except (ValueError, DbError) as e:
         if os.geteuid() == 0 and not os.environ.get('ACME_HA_NO_RESTART'):
             subprocess.run(['systemctl', 'start', 'acme'], capture_output=True)
@@ -1550,6 +1558,10 @@ def cli_ha_resync(args, pal):
                          int(CONFIG.get('ha_peer_port') or 5432), CONFIG.get('db_name'),
                          CONFIG.get('db_user'), CONFIG.get('db_password'),
                          lambda t: print(pal.dim('  ' + t)))
+        # As the pages' rebuild does (1.0.101): the rows are the other node's, as old as they
+        # are there - what the guard had seen here forgotten before acme starts again, or each
+        # row seen newer here is refused as an older one put back.
+        dbguard_forget_seen('this node was rebuilt from the other on the command line')
     except (ValueError, DbError) as e:
         raise SystemExit('acme: %s' % e)
     finally:

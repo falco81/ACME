@@ -2009,6 +2009,15 @@ def check_setting(key, value):
                 pass
         if int(got) in taken:
             raise BadSetting('api_port: %s is the port of another service here' % got)
+        # Nor the certificate sign-in's (1.0.101), as that one refuses the API's: nginx listens
+        # there on every address, and at the next start one of the two could not.
+        try:
+            cl = int(CONFIG.get('certlogin_port') or 8443)
+        except (TypeError, ValueError):
+            cl = 8443
+        if int(got) == cl:
+            raise BadSetting('api_port: %s is the port of the sign-in with a certificate '
+                             '(certlogin_port), where nginx listens - choose another one' % got)
     if key in ('dns_port', 'snmp_port'):
         # the other way round too (1.0.80): the API took the port first and the DNS server
         # (or SNMP) could not listen on it

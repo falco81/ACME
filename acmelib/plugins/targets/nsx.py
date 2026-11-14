@@ -46,7 +46,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, text, object_name, name_prefix, ours, prune,
-    http_fields, tls_fields, verify_fields, keep_field, fp_of)
+    http_fields, tls_fields, verify_fields, keep_field, fp_of, SEG_PATTERN)
 
 API = '/policy/api/v1'
 
@@ -69,11 +69,11 @@ class NsxTarget(HttpTarget):
         field('password', 'Password', 'secret', required=True),
     ] + tls_fields()
     deploy_fields = [
-        field('virtual_server', 'Virtual server', 'catalog', catalog='virtual_servers',
+        field('virtual_server', 'Virtual server', 'catalog', pattern=SEG_PATTERN, catalog='virtual_servers',
               autoload=False,
               help='the id of the LB virtual server to use the certificate; picked from the '
                    'list or typed'),
-        field('virtual_servers', 'More virtual servers', 'list', placeholder='vs-www-443',
+        field('virtual_servers', 'More virtual servers', 'list', pattern=SEG_PATTERN, placeholder='vs-www-443',
               help='one a line: the ids of more virtual servers'),
         field('place', 'As', 'select', default='default',
               options=[['default', 'the default certificate of the virtual server'],

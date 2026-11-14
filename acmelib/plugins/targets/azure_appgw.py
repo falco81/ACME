@@ -55,7 +55,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     PluginError, field, lines, as_bool, as_int, label_of, object_name, name_prefix, ours, prune, text,
-    verify_fields, keep_field, random_password, fp_of)
+    verify_fields, keep_field, random_password, fp_of, SEG_PATTERN)
 from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._cloud import (
     CloudTarget, cloud_fields, entra_token, arm_list, arm_groups)
@@ -89,12 +89,12 @@ class AzureAppGwTarget(CloudTarget):
                        ['usgov', 'Azure US Government']]),
     ] + cloud_fields()
     deploy_fields = [
-        field('gateway', 'Application gateway', 'text', required=True, placeholder='agw-www',
+        field('gateway', 'Application gateway', 'text', pattern=SEG_PATTERN, required=True, placeholder='agw-www',
               help='the name of the application gateway'),
-        field('listener', 'Listener', 'catalog', catalog='listeners', autoload=False,
+        field('listener', 'Listener', 'catalog', pattern=SEG_PATTERN, catalog='listeners', autoload=False,
               help='an HTTPS (or TLS) listener of the gateway to use the certificate; picked '
                    'from the list or typed'),
-        field('listeners', 'More listeners', 'list', placeholder='https-www',
+        field('listeners', 'More listeners', 'list', pattern=SEG_PATTERN, placeholder='https-www',
               help='one a line; with none given, the listeners that use an older acme '
                    'certificate of this one are switched'),
         field('source', 'The certificate goes', 'select', default='upload',

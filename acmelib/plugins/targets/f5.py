@@ -21,6 +21,18 @@ from acmelib.plugins.targets._common import (
     family_of, label_of, text)
 
 CHUNK = 512 * 1024
+# A partition, a profile (1.0.101): BIG-IP's names - letters, digits, _ . - - in folders; no
+# "..", "?", "#" or a line break (they went into the iControl REST path)
+F5_PATH = r'^/?[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*/?\Z'
+F5_WORDS = 'BIG-IP names: letters, digits, _ . - (as /Partition/name), no ..'
+
+
+def f5_path(v, what):
+    p = text(v).strip()
+    if not re.match(F5_PATH, p) or set(p.strip('/').split('/')) & {'.', '..'}:
+        raise PluginError('%s "%s" is not a BIG-IP name (%s)' % (
+            what, p.encode('unicode_escape').decode('ascii')[:100], F5_WORDS), retry=False)
+    return p
 DOWNLOADS = '/var/config/rest/downloads'
 
 
@@ -49,11 +61,13 @@ class F5Target(HttpTarget):
     ] + tls_fields()
     deploy_fields = [
         field('profiles', 'Client SSL profiles', 'list', placeholder='/Common/www_clientssl',
+              pattern=F5_PATH, pattern_words=F5_WORDS,
               help='one a line; the cert-key-chain entry of the old acme certificate (or '
                    'the only/default one) is replaced'),
         field('create_profile', 'Make missing profiles', 'bool', default=False, advanced=True,
               help='a profile not found is made with clientssl as its parent'),
         field('partition', 'Partition', 'text', advanced=True,
+              pattern=F5_PATH, pattern_words=F5_WORDS,
               help='empty: the target\'s'),
         keep_field(2),
     ] + verify_fields()
@@ -285,7 +299,10 @@ class F5Target(HttpTarget):
 
     def deploy(self, bundle, options):
         options = options or {}
-        part = (options.get('partition') or self.c('partition') or 'Common').strip('/')
+        part = f5_path(options.get('partition') or self.c('partition') or 'Common',
+                       'the partition').strip('/')
+        for p in lines(options.get('profiles')):
+            f5_path(p, 'the profile')
         name = object_name(bundle, options)
         prefix = name_prefix(bundle, options)
         cert_path = '/%s/%s' % (part, name)
@@ -348,7 +365,8 @@ class F5Target(HttpTarget):
                 self.ctx.step('the old %s stays: %s' % (n, e), 'warn')
 
     def remove(self, bundle, options):
-        part = ((options or {}).get('partition') or self.c('partition') or 'Common').strip('/')
+        part = f5_path((options or {}).get('partition') or self.c('partition') or 'Common',
+                       'the partition').strip('/')
         path = tilde('/%s/%s' % (part, object_name(bundle, options)))
         self.login()
         try:

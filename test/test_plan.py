@@ -244,6 +244,40 @@ class Plan(core.CertsCore):
         self.assertNotIn('draft.example.cz', json.dumps(n))     # nothing saved
         self.assertEqual(self.listener.seen, 0)
 
+    def test_52b_subject_checked_as_the_csr_will_have_it(self):
+        """Hunt M: a subject with C "Czech Republic" or an e-mail that is none was saved, and
+        What happens drew a CSR with it - every renewal then failed. Refused by the save and
+        the draft alike, in words; a right one is kept (C in capitals)."""
+        self.setup_world()
+        base = {'names': ['subj.example.cz'], 'issuer': 'own', 'auto_renew': 0}
+        for subj, words in (({'C': 'Czech Republic'}, 'two letters'),
+                            ({'emailAddress': 'notanemail'}, 'not a mail address'),
+                            ({'O': 'x' * 65}, '64 characters'),
+                            ({'OU': 'a\nb'}, 'control characters'),
+                            ({'O': {'x': 1}}, 'is words'),
+                            ({'Bad Field!': 'x'}, 'unknown subject field')):
+            st, got = self.call('POST', '/api/certs/save', dict(base, name='subj-bad',
+                                                                 profile={'subject': subj}),
+                                session=self.admin)
+            self.assertEqual(st, 400, (subj, got))
+            self.assertIn(words, json.dumps(got), subj)
+            st, got = self.call('POST', '/api/certs/run_plan', {'draft': dict(
+                base, profile={'subject': subj})}, session=self.admin)
+            self.assertEqual(st, 400, (subj, got))
+            self.assertIn(words, json.dumps(got), subj)
+        n = self.call('GET', '/api/certs', session=self.admin)[1]
+        self.assertNotIn('subj-bad', json.dumps(n))
+        cid = self.ok('POST', '/api/certs/save', dict(base, name='subj-good', profile={'subject': {
+            'C': 'cz', 'O': 'Example s.r.o.', 'OU': ['IT', 'Web'],
+            'emailAddress': 'it@example.cz'}}))['id']
+        prof = self.ok('GET', '/api/certs/one', args={'id': cid})['cert'].get('profile')
+        subj = (json.loads(prof) if isinstance(prof, str) else prof or {}).get('subject')
+        self.assertEqual(subj, {'C': 'CZ', 'O': 'Example s.r.o.', 'OU': ['IT', 'Web'],
+                                'emailAddress': 'it@example.cz'})
+        plan = self.ok('POST', '/api/certs/run_plan', {'draft': dict(
+            base, profile={'subject': {'C': 'cz', 'O': 'Example'}})})['plan']
+        self.assertTrue(plan['cert']['draft'])
+
     def test_53_own_pages_as_they_are(self):
         """1.0.98: a deployment to acme's own pages is recorded with the nodes and what their
         pages hold now (runplan.pages_of) - not a made-up node."""

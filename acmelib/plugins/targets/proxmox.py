@@ -9,7 +9,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, field, lines, as_bool, http_fields, tls_fields, verify_fields,
-    norm_fp, fp_of, form, text)
+    norm_fp, fp_of, form, text, SEG_PATTERN)
 
 
 class ProxmoxTarget(HttpTarget):
@@ -26,7 +26,7 @@ class ProxmoxTarget(HttpTarget):
         field('token_secret', 'API token secret', 'secret', required=True),
     ] + tls_fields()
     deploy_fields = [
-        field('nodes', 'Nodes', 'list', help='one a line; empty: every node of the cluster'),
+        field('nodes', 'Nodes', 'list', pattern=SEG_PATTERN, help='one a line; empty: every node of the cluster'),
         field('restart', 'Restart pveproxy', 'bool', default=True),
     ] + verify_fields(8006)
 

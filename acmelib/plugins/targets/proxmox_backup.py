@@ -34,7 +34,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, text, norm_fp, fp_of, form, http_fields, tls_fields,
-    verify_fields)
+    verify_fields, SEG_PATTERN)
 
 
 def colons(fp):
@@ -57,7 +57,7 @@ class ProxmoxBackupTarget(HttpTarget):
         field('token_secret', 'API token secret', 'secret', required=True),
     ] + tls_fields()
     deploy_fields = [
-        field('node', 'Node', 'text', default='localhost', advanced=True,
+        field('node', 'Node', 'text', pattern=SEG_PATTERN, default='localhost', advanced=True,
               help='the node name, or localhost'),
     ] + verify_fields(8007)
 

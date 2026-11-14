@@ -54,6 +54,7 @@ role (Infrastructure administrator, unscoped).
 from __future__ import annotations
 
 import ipaddress
+import re
 import urllib.parse
 
 from acmelib.plugins.targets._common import (
@@ -156,6 +157,8 @@ class HpeSynergyTarget(HpeOneViewTarget):
                        ['enclosure', 'an enclosure\'s management module (frame / OA bay)']],
               help='each certificate deployed here is for one of them'),
         field('enclosure', 'Enclosure', 'text', placeholder='Frame1',
+              pattern=r'^(/rest/enclosures/[A-Za-z0-9_-]+/?|[^/\\?#%\x00-\x1f\x7f]{1,255})\Z',
+              pattern_words='an enclosure\'s name in OneView, or /rest/enclosures/<id>',
               show_if={'part': ['enclosure']},
               help='its name in OneView, or its URI (/rest/enclosures/…)'),
         field('bay', 'Bay', 'number', default=1, min=1, max=2,
@@ -209,6 +212,11 @@ class HpeSynergyTarget(HpeOneViewTarget):
             raise PluginError('the deployment names no enclosure - give its name in OneView '
                               '(or its URI)', retry=False)
         if given.startswith('/rest/enclosures/'):
+            # one id after it (1.0.101): "/rest/enclosures/x/../../users?..." went elsewhere
+            if not re.match(r'^/rest/enclosures/[A-Za-z0-9_-]+/?\Z', given):
+                raise PluginError('"%s" is not the URI of an enclosure (/rest/enclosures/<id>)'
+                                  % given.encode('unicode_escape').decode('ascii')[:100],
+                                  retry=False)
             return given.rstrip('/')
         st, hd, d = self.req('GET', '/rest/enclosures?filter=%s' % urllib.parse.quote(
             "name='%s'" % given.replace("'", ''), safe=''), what='looking for the enclosure %s'

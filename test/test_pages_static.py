@@ -558,5 +558,65 @@ class SteadyFacts(unittest.TestCase):
         self.assertIn('table-layout:fixed', self.rule(css, '#se-table table'))
 
 
+class HuntM1UI(unittest.TestCase):
+    """What the UI hunt M round 1 found."""
+
+    def cs(self, *texts):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        got = subprocess.run([node, os.path.join(ROOT, 'test', 'i18n_cs_speed.js'), ROOT] + list(texts),
+                             capture_output=True, text=True, timeout=120)
+        self.assertEqual(got.returncode, 0, got.stderr)
+        return json.loads(got.stdout)
+
+    def test_long_failure_message_translated_at_once(self):
+        """One job's message of a deployment that failed on 3 targets took 52 s to translate,
+        on 4 minutes: each slot of a weak pattern was worked out again at every depth. Now
+        each piece once per text, and how much one text may cost is capped."""
+        out = self.cs()
+        for n, ms in out['ms'].items():
+            self.assertLess(ms, 400, 'translating the message of %s failed targets took %d ms' % (n, ms))
+        # 1 and 2 targets: the Czech as before
+        self.assertEqual(out['got']['1'], '1 z 1 nasazení selhalo – my-api: 10.1.2.3:8443 není '
+                                          'dosažitelný: Spojení odmítnuto')
+        self.assertEqual(out['got']['2'], '2 z 2 nasazení selhala – my-api: 10.1.2.3:8443 není '
+                                          'dosažitelný: [Errno 111] Connection refused; mikrotik-gw: '
+                                          '192.0.2.3 není dosažitelný: Cesta k hostiteli neexistuje')
+        for n in ('3', '4', '10', '40'):
+            self.assertTrue(out['got'][n].startswith('%s z %s nasazení selhal' % (n, n)),
+                            out['got'][n][:80])
+        js = read('web', 'assets', 'i18n.js')
+        self.assertIn('var I18N_BUDGET = ', js)
+        self.assertIn("if (run.left <= 0) { run.out = true; return null; }", js)
+
+    def test_joined_words_and_refused_connection_in_czech(self):
+        """"done · 0 s" stayed English ({0} · {1} keeps one word as a name), and "{0} refused"
+        took "x:5514/tcp: [Errno 111] Connection" for its slot in the problems banner."""
+        said = self.cs('done · 0 s', 'failed · 3 s',
+                       'x:5514/tcp: [Errno 111] Connection refused - tried again in 30 s, 4 line(s) held for it',
+                       'Put your certificate for web1.example.com into the clientssl profile.',
+                       'the node acme2 runs on another machine than before: the SSH server, the time, the '
+                       'console at login, the password policy and the rest saved are put in there again')['said']
+        self.assertEqual(said['done · 0 s'], 'hotovo · 0 s')
+        self.assertEqual(said['failed · 3 s'], 'selhalo · 3 s')
+        self.assertEqual(said['x:5514/tcp: [Errno 111] Connection refused - tried again in 30 s, 4 line(s) '
+                              'held for it'], 'x:5514/tcp: Spojení odmítnuto – další pokus za 30 s, 4 řádky čekají')
+        for k, v in said.items():
+            self.assertIsNotNone(v, k)
+            self.assertNotEqual(v, k)
+
+    def test_typed_module_file_name_kept(self):
+        """"Start from the whole code of" kept no file name typed: _auto was set nowhere."""
+        certs = read('web', 'assets', 'certs.js')
+        self.assertNotIn('fileName._auto', certs)
+        self.assertIn('if (!fileName.value.trim() || !fileName._edited) fileName.value = d.file;', certs)
+
+    def test_pills_in_a_section_wrap(self):
+        """A long owner (a pill, nowrap) pushed the Details table past its section, which cut it."""
+        css = read('web', 'assets', 'certs.css')
+        self.assertIn('.msect table.tight td .tag{white-space:normal;overflow-wrap:anywhere', css)
+
+
 if __name__ == '__main__':
     sys.exit(unittest.main())

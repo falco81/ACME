@@ -14,7 +14,20 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, label_of, tls_fields, verify_fields,
-    alt_of, family_of, dual_fp)
+    alt_of, family_of, dual_fp, text)
+
+# A name of Kubernetes (1.0.101): a namespace, a secret, a deployment - RFC 1123, as the API
+# server takes them; "x/../../namespaces/kube-system/deployments/y" went to another one
+K8S_NAME = r'^[a-z0-9]([-a-z0-9.]{0,251}[a-z0-9])?\Z'
+K8S_WORDS = 'a Kubernetes name: a-z, 0-9, - and ., starting and ending with a letter or digit'
+
+
+def k8s_name(v, what):
+    n = text(v).strip()
+    if not re.match(K8S_NAME, n) or '..' in n:
+        raise PluginError('%s "%s" is not a Kubernetes name (a-z, 0-9, - and .)' % (
+            what, n.encode('unicode_escape').decode('ascii')[:100]), retry=False)
+    return n
 
 
 def b64(data):
@@ -38,10 +51,13 @@ class KubernetesTarget(HttpTarget):
         field('namespace', 'Namespace', 'text', default='default'),
     ] + tls_fields()
     deploy_fields = [
-        field('secret', 'Secret name', 'text', help='empty: the certificate\'s name'),
-        field('namespace', 'Namespace', 'text', help='empty: the target\'s'),
+        field('secret', 'Secret name', 'text', help='empty: the certificate\'s name',
+              pattern=K8S_NAME, pattern_words=K8S_WORDS),
+        field('namespace', 'Namespace', 'text', help='empty: the target\'s',
+              pattern=K8S_NAME, pattern_words=K8S_WORDS),
         field('ca', 'Add ca.crt (the chain)', 'bool', default=False),
         field('restart', 'Restart these deployments', 'list', advanced=True,
+              pattern=K8S_NAME, pattern_words=K8S_WORDS,
               help='one a line, deployment names in the namespace (a rollout restart)'),
     ] + verify_fields()
 
@@ -60,11 +76,14 @@ class KubernetesTarget(HttpTarget):
 
     def deploy(self, bundle, options):
         options = options or {}
-        ns = self.ns(options)
+        ns = k8s_name(self.ns(options), 'the namespace')
         name = (options.get('secret') or '').strip() or label_of(bundle, options, 63).replace(
             '_', '-')
-        url = '/api/v1/namespaces/%s/secrets/%s' % (urllib.parse.quote(ns),
-                                                     urllib.parse.quote(name))
+        name = k8s_name(name, 'the secret')
+        for dep in lines(options.get('restart')):
+            k8s_name(dep, 'the deployment')
+        url = '/api/v1/namespaces/%s/secrets/%s' % (urllib.parse.quote(ns, safe=''),
+                                                     urllib.parse.quote(name, safe=''))
         data = {'tls.crt': b64(bundle.as_format('fullchain-pem')),
                 'tls.key': b64(bundle.as_format('key-pem'))}
         if as_bool(options.get('ca')):
@@ -112,7 +131,7 @@ class KubernetesTarget(HttpTarget):
         stamp_ = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
         for dep in lines(options.get('restart')):
             self.req('PATCH', '/apis/apps/v1/namespaces/%s/deployments/%s' % (
-                urllib.parse.quote(ns), urllib.parse.quote(dep)),
+                urllib.parse.quote(ns, safe=''), urllib.parse.quote(dep, safe='')),
                 {'spec': {'template': {'metadata': {'annotations': {
                     'kubectl.kubernetes.io/restartedAt': stamp_}}}}},
                 {'Content-Type': 'application/strategic-merge-patch+json'},

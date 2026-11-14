@@ -93,9 +93,17 @@ class AdcsHttp(object):
             self.work = None
 
     def _ssl(self):
-        sc = ssl.create_default_context()
+        # The CA certificate given is the only one trusted (1.0.101), as everywhere else in acme
+        # (runtime.http): it was added to the system's CAs here - any public CA's certificate
+        # for the name was taken too, by NTLM and by client certificates alike.
         if self.ca_pem:
-            sc.load_verify_locations(cadata=self.ca_pem)
+            try:
+                sc = ssl.create_default_context(cadata=self.ca_pem)
+            except (ssl.SSLError, ValueError) as e:
+                raise PluginError('the CA certificate of the web server cannot be read: %s' % e,
+                                  retry=False)
+        else:
+            sc = ssl.create_default_context()
         if not self.verify:
             sc.check_hostname = False
             sc.verify_mode = ssl.CERT_NONE
@@ -225,7 +233,8 @@ class AdcsHttp(object):
         elif '@' in user and not domain:
             domain = ''             # user@domain: the name as it is, no domain
         auth = _ntlm.authenticate_message(neg, tok, user, self.password, domain,
-                                          workstation='ACME', server_cert_der=self.server_cert())
+                                          workstation='ACME', server_cert_der=self.server_cert(),
+                                          target_host=self.host)
         h2 = dict(h, Authorization='%s %s' % (scheme, base64.b64encode(auth).decode()))
         status, hdrs, data = self._send(method, path, body, h2)
         if status != 401:
@@ -289,7 +298,8 @@ class MsAdcsIssuer(Issuer):
         field('client_cert', 'Client certificate', 'pem', show_if={'auth': ['cert']}),
         field('client_key', 'Client certificate\'s key', 'secret', show_if={'auth': ['cert']}),
         field('ca_pem', 'CA certificate of the web server', 'pem', advanced=True,
-              help='Your internal root, for the TLS of the CA\'s IIS.'),
+              help='Your internal root, for the TLS of the CA\'s IIS: when given, the only CA '
+                   'trusted for it (the system\'s CAs are not); empty: the system\'s CAs.'),
         field('verify', 'Check the web server\'s TLS certificate', 'bool', default=True, advanced=True),
         field('attributes', 'More attributes', 'list', advanced=True, placeholder='SAN:dns=www.example.com',
               help='Lines added to CertAttrib (e.g. SAN:..., where the CA takes them).'),

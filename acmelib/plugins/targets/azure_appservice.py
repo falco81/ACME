@@ -28,7 +28,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     PluginError, field, lines, object_name, name_prefix, prune, text, verify_fields,
-    keep_field, random_password, sha1_thumb, covers)
+    keep_field, random_password, sha1_thumb, covers, SEG_PATTERN)
 from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._cloud import (
     CloudTarget, cloud_fields, entra_token, arm_list, arm_groups)
@@ -61,9 +61,9 @@ class AzureAppServiceTarget(CloudTarget):
                        ['usgov', 'Azure US Government']]),
     ] + cloud_fields()
     deploy_fields = [
-        field('site', 'Web app', 'text', required=True, placeholder='app-www',
+        field('site', 'Web app', 'text', pattern=SEG_PATTERN, required=True, placeholder='app-www',
               help='the name of the App Service web app'),
-        field('hostnames', 'Hostnames', 'list', placeholder='www.example.com',
+        field('hostnames', 'Hostnames', 'list', pattern=SEG_PATTERN, placeholder='www.example.com',
               help='one a line: the custom hostnames of the app to bind; empty: each of them '
                    'the certificate covers'),
         field('pfx_format', 'PKCS#12 kind', 'select', default='p12-legacy', advanced=True,

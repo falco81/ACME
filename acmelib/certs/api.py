@@ -1056,7 +1056,8 @@ def _cert_deploy(h, s):
 DEPLOY_COMMANDS = ('pre_cmd', 'test_cmd', 'reload_cmd', 'post_cmd', 'script_path',
                    'script_args', 'script_mode', 'script_interp',
                    'post_ps',       # Windows' PowerShell after (1.0.45): run as Administrator
-                   'wac_msi')       # an installer run as Administrator (1.0.51)
+                   'wac_msi',       # an installer run as Administrator (1.0.51)
+                   'scom_tool')     # MOMCertImport.exe, run as Administrator (1.0.101)
 
 
 # Where the private key goes, and its password (1.0.48): a full administrator's, as the commands.

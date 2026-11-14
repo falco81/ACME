@@ -1213,6 +1213,44 @@ def cl_port_busy(port, served=False):
         node_name())
 
 
+def cl_api_port_clash(saved, checked, node, per_node):
+    """'' or why the API's port of a node would be the certificate sign-in's (1.0.101): api_port
+    is each node's own (api_port@node), certlogin_port the cluster's - nginx listens on it on
+    every node, and the daemon of a node whose API is there could not start (or the sign-in with
+    a certificate was lost on it). Every node is looked at, both ways."""
+    def num(v, dflt):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return dflt
+    cl = num(checked.get('certlogin_port', CONFIG.get('certlogin_port')) or 8443, 8443)
+    shared = num(saved.get('api_port', FILE_CONFIG.get('api_port', DEFAULTS['api_port'])), 9861)
+    if 'api_port' in checked and not per_node:
+        shared = num(checked['api_port'], shared)
+    ports = {node_name(): num(CONFIG.get('api_port'), 9861)}
+    if 'api_port' in checked and not per_node:
+        ports[node_name()] = shared
+    own = {}
+    for k, v in saved.items():
+        if str(k).startswith('api_port@'):
+            own[str(k).split('@', 1)[1]] = num(v, shared)
+    if 'api_port' in checked and per_node:
+        own[node] = num(checked['api_port'], shared)
+    ports.update(own)
+    ports.setdefault('', shared)          # every node without a port of its own
+    for n in sorted(ports, key=lambda x: (x != node, x)):
+        if ports[n] != cl:
+            continue
+        where = ('on %s' % n) if n else 'of every node without one of its own'
+        if 'certlogin_port' in checked:
+            return ('certlogin_port: %s is acme\'s API %s (api_port) - choose a port of its own '
+                    '(8443)' % (cl, where))
+        return ('api_port: %s is the port of the sign-in with a certificate (certlogin_port), '
+                'where nginx listens on every node - choose another one for the API %s'
+                % (cl, where))
+    return ''
+
+
 def cl_save_check(store, checked):
     """Before the settings are saved: the port the certificates would be served on is free on
     this node (nothing but nginx listening there) - checked when it changes, or when a part is

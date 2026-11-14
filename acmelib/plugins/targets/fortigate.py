@@ -40,7 +40,7 @@ import urllib.parse
 from acmelib.plugins.base import Plugin
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
-    http_fields, tls_fields, verify_fields, keep_field, chain_list, random_password, text, ours)
+    http_fields, tls_fields, verify_fields, keep_field, chain_list, random_password, text, ours, SEG_PATTERN)
 
 
 def b64(data):
@@ -89,9 +89,9 @@ class FortiGateTarget(HttpTarget):
               help='system global admin-server-cert'),
         field('sslvpn', 'SSL VPN certificate', 'bool', default=False,
               help='vpn ssl settings servercert'),
-        field('ssl_ssh_profiles', 'SSL/SSH inspection profiles', 'list',
+        field('ssl_ssh_profiles', 'SSL/SSH inspection profiles', 'list', pattern=SEG_PATTERN,
               help='firewall ssl-ssh-profile names (server certificate of inbound inspection)'),
-        field('vips', 'Virtual IPs', 'list', help='firewall vip names (ssl-certificate)'),
+        field('vips', 'Virtual IPs', 'list', pattern=SEG_PATTERN, help='firewall vip names (ssl-certificate)'),
         field('vdom', 'VDOM', 'text', advanced=True, help='empty: the target\'s'),
         field('scope', 'Import into', 'select', default='global', advanced=True,
               options=[['global', 'global (every VDOM, the admin GUI)'], ['vdom', 'the VDOM']]),

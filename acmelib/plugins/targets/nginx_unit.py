@@ -26,7 +26,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     Base, SshMixin, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
-    ssh_fields, verify_fields, keep_field, quote, text, ours)
+    ssh_fields, verify_fields, keep_field, quote, text, ours, SEG_PATTERN)
 
 
 class NginxUnitTarget(SshMixin, Base):
@@ -43,7 +43,7 @@ class NginxUnitTarget(SshMixin, Base):
         field('timeout', 'Timeout (s)', 'number', default=30, advanced=True),
     ]
     deploy_fields = [
-        field('listeners', 'Listeners', 'list', default='*:443',
+        field('listeners', 'Listeners', 'list', pattern=SEG_PATTERN, default='*:443',
               help='one a line, as in Unit\'s config ("*:443", "127.0.0.1:8443")'),
         keep_field(1),
     ] + verify_fields()

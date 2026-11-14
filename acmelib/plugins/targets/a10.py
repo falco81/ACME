@@ -48,7 +48,7 @@ import urllib.parse
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, object_name, name_prefix, prune,
     http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id, text, multipart,
-    ours)
+    ours, SEG_PATTERN)
 
 
 class A10Target(HttpTarget):
@@ -67,7 +67,7 @@ class A10Target(HttpTarget):
               help='the partition of the templates and files; shared: the shared one'),
     ] + tls_fields()
     deploy_fields = [
-        field('templates', 'Client-SSL templates', 'list', placeholder='tpl-www-clientssl',
+        field('templates', 'Client-SSL templates', 'list', pattern=SEG_PATTERN, placeholder='tpl-www-clientssl',
               help='one a line: the client-SSL templates to use the certificate'),
         field('write_memory', 'Write the configuration', 'bool', default=True,
               help='write memory after the change, so it survives a reboot'),

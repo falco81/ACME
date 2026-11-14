@@ -192,7 +192,7 @@ def _dbguard_load():
 
 def dbguard_flush(force=False):
     """The counters seen and the settings last found good, to this node's own file."""
-    if DBGUARD['seen'] is None or not DBGUARD['dirty']:
+    if DBGUARD['seen'] is None or not DBGUARD['dirty'] or DBGUARD.get('hold'):
         return
     if not force and time.time() - DBGUARD['dirty'] < 3:
         return
@@ -282,7 +282,7 @@ def dbguard_ok(db, kind, ident, value, quiet=False):
                 # there for good, though nothing had changed.
                 if n < seen and hs.get(sid) != vh:
                     why = 'it is an older one put back'
-                elif n > seen:
+                elif n > seen and not DBGUARD.get('hold'):
                     DBGUARD['seen'][sid] = n
                     hs[sid] = vh
                     DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
@@ -476,16 +476,32 @@ def meta_drop(store, k):
     return n
 
 
-def dbguard_forget_seen(why=''):
+def dbguard_forget_seen(why='', hold=False):
     """The newest signatures seen of each row forgotten, nothing signed (1.0.234): after this
-    node's database was taken from the other node, its rows are as old as they are there."""
+    node's database was taken from the other node, its rows are as old as they are there.
+    The settings last found good are forgotten too (1.0.101): they were this node's own.
+    `hold` (1.0.101): this process goes on with the database it had until it starts again on
+    the other one (a join from the pages) - guard.json is left empty, and nothing more is
+    counted or written to it by this process (what it acts on meanwhile stays as it was)."""
     _dbguard_load()
-    with DBGUARD['lock']:
-        DBGUARD['seen'] = {}
-        DBGUARD['seen_h'] = {}
-        DBGUARD['refused'] = {}
-        DBGUARD['dirty'] = time.time()
-    dbguard_flush(force=True)
+    if hold:
+        with DBGUARD['lock']:
+            DBGUARD['hold'] = True
+            data = json.dumps({'seen': {}, 'good': {}, 'seen_h': {},
+                               'adopted': DBGUARD.get('adopted') or {}})
+        try:
+            write_replacing(DBGUARD_FILE, data, 0o600)
+        except Exception as e:                          # noqa: BLE001
+            log('the counters of signed rows could not be written to %s: %s'
+                % (DBGUARD_FILE, e), 'warn')
+    else:
+        with DBGUARD['lock']:
+            DBGUARD['seen'] = {}
+            DBGUARD['seen_h'] = {}
+            DBGUARD['good'] = {}
+            DBGUARD['refused'] = {}
+            DBGUARD['dirty'] = time.time()
+        dbguard_flush(force=True)
     if why:
         log('the guard against writes to the database starts its counts again: %s' % why)
 

@@ -1089,6 +1089,16 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         self.assertEqual(self.ok('GET', '/api/certs/one', args={'id': cid})['cert']['state'], 'ok')
         self.ok('POST', '/api/certs/delete', {'id': cid})
 
+    def test_20_net_read_without_the_root_helper(self):
+        """Hunt M: Settings → Network "Read again" on a node without the root helper said 500
+        ("it broke"); logs, osusers and sshd say 400 with the reason."""
+        web_dir = self.py('print(json.dumps(str(E.WEB_DIR)))')
+        if os.path.isdir(web_dir):
+            self.skipTest('the root helper\'s folder is here')
+        st, got = self.call('POST', '/api/net', {'action': 'read'}, session=self.admin)
+        self.assertEqual(st, 400, got)
+        self.assertIn('the root helper is not set up on this node', json.dumps(got))
+
 
 if __name__ == '__main__':
     import urllib.parse  # noqa: F401

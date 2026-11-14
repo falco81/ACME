@@ -27,7 +27,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, as_bool, label_of, fp_of, tls_fields,
-    verify_fields, keep_field, prune, text, alt_of, stamp, short_serial)
+    verify_fields, keep_field, prune, text, alt_of, stamp, short_serial, SEG_PATTERN)
 
 
 class KongTarget(HttpTarget):
@@ -50,7 +50,7 @@ class KongTarget(HttpTarget):
               help='Kong Gateway Enterprise: the workspace; empty: the default one'),
     ] + tls_fields()
     deploy_fields = [
-        field('snis', 'SNIs', 'list', placeholder='www.example.com\n*.example.com',
+        field('snis', 'SNIs', 'list', pattern=SEG_PATTERN, placeholder='www.example.com\n*.example.com',
               help='one a line: the server names Kong serves this certificate for; empty: '
                    'the names of the certificate'),
         keep_field(1),

@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 import urllib.error
 from unittest import mock
@@ -109,6 +110,145 @@ class Edges(unittest.TestCase):
                 self.assertTrue(STORE.get_meta('pwpolicy:migrated:2'))
         finally:
             E.CONFIG['ha_mode'] = saved
+
+
+class GuardAfterRebuild(unittest.TestCase):
+    """`acme --ha-resync` and `acme --ha-join` start the guard's counts again (1.0.101), as the
+    pages' rebuild does: node B, rebuilt from node A, had seen its own newer signatures and
+    refused A's rows as older ones put back - it went on acting on its own old values. Both
+    nodes are played on this SQLite database, each signing as itself."""
+
+    PROXY = 'proxy_url'
+
+    def setUp(self):
+        self.saved = {k: E.CONFIG.get(k) for k in ('db_guard', 'ha_mode', 'ha_peer', 'ha_slot')}
+        E.CONFIG.update(db_guard=1, ha_mode='replicated', ha_peer='192.0.2.1', ha_slot=2)
+        E.dbguard_forget_seen('test')
+
+    def tearDown(self):
+        E.CONFIG.update(self.saved)
+        E.DBGUARD.pop('hold', None)
+        E.dbguard_forget_seen('test')
+
+    def save_as(self, node, value):
+        with mock.patch.dict(N, {'node_name': lambda: node}):
+            v = json.dumps(value)
+            STORE.db.run('DELETE FROM settings WHERE k = ?', (self.PROXY,))
+            STORE.db.run('INSERT INTO settings (k, v) VALUES (?, ?)', (self.PROXY, v))
+            E.dbguard_sign(STORE.db, 's', self.PROXY, v)
+            time.sleep(0.01)
+            return E.dbguard_settings(STORE.settings_saved(), STORE).get(self.PROXY)
+
+    def tables(self):
+        return {t: [dict(r) for r in STORE.db.rows('SELECT k, v FROM %s' % t)]
+                for t in ('settings', 'meta')}
+
+    def put(self, rows):
+        for t, got in rows.items():
+            STORE.db.run('DELETE FROM %s' % t)
+            for r in got:
+                STORE.db.run('INSERT INTO %s (k, v) VALUES (?, ?)' % t, (r['k'], r['v']))
+
+    def acted_on(self):
+        with mock.patch.dict(N, {'node_name': lambda: 'acme2'}):
+            got = E.dbguard_settings(STORE.settings_saved(), STORE).get(self.PROXY)
+        return got, [v['why'] for v in E.DBGUARD['refused'].values()]
+
+    def apart(self):
+        """A saves the proxy, then B: B's database is replaced with A's rows."""
+        self.assertEqual(self.save_as('acme1', 'http://proxy-a.example.test:3128'),
+                         'http://proxy-a.example.test:3128')
+        a_rows = self.tables()
+        self.assertEqual(self.save_as('acme2', 'http://proxy-b.example.test:3128'),
+                         'http://proxy-b.example.test:3128')
+        return a_rows
+
+    def test_the_trouble_itself(self):
+        a_rows = self.apart()
+        self.put(a_rows)
+        got, refused = self.acted_on()
+        self.assertEqual(got, 'http://proxy-b.example.test:3128')
+        self.assertIn('it is an older one put back', refused)
+
+    def test_ha_resync_on_the_command_line(self):
+        a_rows = self.apart()
+
+        def rebuild(local, remote, *a):
+            self.put(a_rows)
+            return {'rows': 2}
+        args = type('A', (), {'yes': True})()
+        with mock.patch.dict(N, {'load_config': lambda *a, **k: None, 'open_db': lambda: STORE.db,
+                                 'make_backup': lambda st, why: 'kept.tar',
+                                 'ha_peer_db': lambda: object(), 'ha_rebuild': rebuild}), \
+                mock.patch('os.geteuid', return_value=0), \
+                mock.patch.dict(os.environ, {'ACME_HA_NO_RESTART': '1'}), \
+                mock.patch('sys.stdout', io.StringIO()):
+            self.assertEqual(E.cli_ha_resync(args, E.Palette(False)), 0)
+        got, refused = self.acted_on()
+        self.assertEqual(got, 'http://proxy-a.example.test:3128')
+        self.assertEqual(refused, [])
+        # as the daemon started again reads it: from guard.json
+        E.DBGUARD['seen'] = None
+        got, refused = self.acted_on()
+        self.assertEqual((got, refused), ('http://proxy-a.example.test:3128', []))
+
+    def test_shared_join_starts_from_an_empty_guard_file(self):
+        self.apart()
+        E.dbguard_flush(force=True)
+        self.assertTrue(json.loads(E.DBGUARD_FILE.read_text())['seen'])
+        key = E.sealing_key_path().read_text()
+        data = {'db': {'db_engine': 'postgres', 'db_host': '192.0.2.1', 'db_port': 5432,
+                       'db_name': 'acme', 'db_user': 'acme', 'db_password': 'pw'},
+                'key': os.urandom(32).hex(), 'peer': {'name': 'acme1', 'address': '192.0.2.1'}}
+        try:
+            with mock.patch.dict(N, {'ha_join_open': lambda *a: {'state': 'off', 'said': ''},
+                                     'db_try': lambda db: {'reached': True, 'rows': 3},
+                                     'write_file_settings': lambda ch: None}):
+                E.ha_join(data, even_if_data=True, by='test')
+            on_disk = json.loads(E.DBGUARD_FILE.read_text())
+            self.assertEqual((on_disk['seen'], on_disk['good'], on_disk['seen_h']), ({}, {}, {}))
+            # The process going on with its old database until it restarts writes nothing more.
+            E.DBGUARD['dirty'] = time.time()
+            E.dbguard_flush(force=True)
+            self.assertEqual(json.loads(E.DBGUARD_FILE.read_text())['seen'], {})
+        finally:
+            E.sealing_key_path().write_text(key)
+
+
+class ApiPortNotTheCertificates(unittest.TestCase):
+    """api_port never the certificate sign-in's port (1.0.101), on any node, both ways: nginx
+    listens on certlogin_port on every node, the daemon on 127.0.0.1:api_port."""
+
+    def test_check_setting(self):
+        with self.assertRaises(E.BadSetting) as e:
+            E.check_setting('api_port', '8443')
+        self.assertIn('certlogin_port', str(e.exception))
+        self.assertEqual(E.check_setting('api_port', '9862'), 9862)
+
+    def test_saved_on_this_node(self):
+        d = E.Daemon(STORE, serve=False)
+        with self.assertRaises(E.BadSetting) as e:
+            d.save_settings({'api_port': 8443}, by='test')
+        self.assertIn('sign-in with a certificate', str(e.exception))
+        self.assertNotEqual(int(E.CONFIG.get('api_port') or 9861), 8443)
+
+    def test_every_node(self):
+        saved = {'api_port@acme2': 8444}
+        # certlogin_port onto another node's API port
+        why = E.cl_api_port_clash(saved, {'certlogin_port': 8444}, 'acme1', True)
+        self.assertIn('on acme2', why)
+        self.assertIn('certlogin_port: 8444', why)
+        self.assertEqual(E.cl_api_port_clash(saved, {'certlogin_port': 8445}, 'acme1', True), '')
+        # another node's own api_port onto the certificate's port
+        why = E.cl_api_port_clash({}, {'api_port': 8443}, 'acme2', True)
+        self.assertIn('api_port: 8443', why)
+        self.assertIn('on acme2', why)
+        # the cluster's own value, for every node without one of its own
+        why = E.cl_api_port_clash({'api_port@acme2': 9870}, {'api_port': 8443}, 'acme1', False)
+        self.assertIn('api_port: 8443', why)
+        # a node's own port elsewhere is fine, even with the cluster's one changing
+        self.assertEqual(E.cl_api_port_clash({'api_port@acme2': 9870}, {'api_port': 9871},
+                                             'acme1', False), '')
 
 
 if __name__ == '__main__':

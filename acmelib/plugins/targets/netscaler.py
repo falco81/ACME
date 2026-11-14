@@ -11,7 +11,8 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, object_name, name_prefix, prune,
-    label_of, http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id, text)
+    label_of, http_fields, tls_fields, verify_fields, keep_field, chain_list, chain_id, text,
+    seg, SEG_PATTERN)
 
 SSL_DIR = '/nsconfig/ssl'
 # NITRO says an object is not there as HTTP 599 (NetScaler's own status) with an
@@ -40,9 +41,11 @@ class NetScalerTarget(HttpTarget):
         field('password', 'Password', 'secret', required=True),
     ] + tls_fields()
     deploy_fields = [
-        field('certkey', 'Certkey name', 'text',
+        field('certkey', 'Certkey name', 'text', pattern=SEG_PATTERN,
+              pattern_words='a NetScaler name: no /, \\, ?, #, %, ..',
               help='the certkey kept across renewals; empty: acme-<certificate name>'),
         field('vservers', 'SSL virtual servers', 'list', placeholder='vs_www_ssl\nvs_mail sni',
+              pattern=SEG_PATTERN, pattern_words='a virtual server\'s name: no /, \\, ?, #, %, ..',
               help='one a line; "name sni" binds it as an SNI certificate'),
         field('key_format', 'Key as', 'select', default='key-rsa', advanced=True,
               options=[['key-rsa', 'traditional RSA (BEGIN RSA PRIVATE KEY; EC keys go as PKCS#8)'],
@@ -118,7 +121,7 @@ class NetScalerTarget(HttpTarget):
             'fileencoding': 'BASE64'}}, what='uploading %s' % filename)
 
     def certkey(self, name):
-        st, d = self.nitro('GET', 'sslcertkey/%s' % urllib.parse.quote(name), ok=(200,),
+        st, d = self.nitro('GET', 'sslcertkey/%s' % seg(name, 'the certkey'), ok=(200,),
                            what='reading %s' % name, missing_ok=True)
         if st != 200:
             return None
@@ -140,6 +143,9 @@ class NetScalerTarget(HttpTarget):
     def deploy(self, bundle, options):
         options = options or {}
         ck = (options.get('certkey') or '').strip() or ('acme-' + label_of(bundle, options, 26))
+        seg(ck, 'the certkey')
+        for line in lines(options.get('vservers')):
+            seg(line.split()[0], 'the virtual server')
         stem = object_name(bundle, options)
         prefix = name_prefix(bundle, options)
         crt, key = stem + '.crt', stem + '.key'
@@ -187,7 +193,7 @@ class NetScalerTarget(HttpTarget):
                 parts = line.split()
                 vs, sni = parts[0], len(parts) > 1 and parts[1].lower() == 'sni'
                 st, d = self.nitro('GET', 'sslvserver_sslcertkey_binding/%s'
-                                   % urllib.parse.quote(vs), ok=(200,),
+                                   % seg(vs, 'the virtual server'), ok=(200,),
                                    what='reading %s' % vs, missing_ok=True)
                 if st == 404:
                     raise PluginError('there is no SSL virtual server %s' % vs, retry=False)
