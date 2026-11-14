@@ -188,9 +188,13 @@ class AutoRenewAfterRevoke(unittest.TestCase):
     def test_by_hand_stays_by_hand(self):
         cid = cert('ah', ['ah.example'], auto_renew=0)
         self.assertTrue(renew(cid).ok)
-        job = revoke(cid, 'superseded', again=True)
+        self.assertTrue(revoke(cid, 'superseded').ok)
+        job = renew(cid)
         self.assertTrue(job.ok, words(job))
         self.assertEqual(S.cert_get(STORE, cid)['auto_renew'], 0)
+        # revoked and a new one at once: renewed by itself (as since 1.0.77)
+        self.assertTrue(revoke(cid, 'superseded', again=True).ok)
+        self.assertEqual(S.cert_get(STORE, cid)['auto_renew'], 1)
         drop(cid)
 
 

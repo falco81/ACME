@@ -1313,9 +1313,9 @@ def revoke_job(row, reason, by, again=False):
         # A new one at once (the key got out: a new key too, whatever reuse_key says),
         # deployed where the revoked one is - and renewed by itself again.
         job.step('issuing a new one in its place')
-        # renewed by itself again - as it was before the revoke when that is known (1.0.102)
-        job.store.db.update('certs', row['id'], {'auto_renew': 0 if job.store.get_meta(
-            S.CERT_META['revauto'] % int(row['id'])) == '0' else 1})
+        job.store.db.update('certs', row['id'], {'auto_renew': 1})
+        # (not put back to what it was before the revoke by the issue - renewer.revauto)
+        job.store.set_meta(S.CERT_META['revauto'] % int(row['id']), '1')
         return renewer.renew_cert(job.store, job, row['id'], True, by)
     return fn
 
