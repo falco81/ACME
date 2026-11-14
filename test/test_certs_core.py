@@ -1123,8 +1123,8 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
         self.assertIn('letters, digits', json.dumps(got))
         self.ok('POST', '/api/deploys/save', {'id': did, 'options': {
             'webauth': True, 'webauth_map': 'guest-portal_1'}}, session=self.cert_admin)
-        stored = self.py('print(json.loads(st.db.value("SELECT options FROM cert_deploys WHERE '
-                         'id = %d"))["webauth_map"])' % did)
+        stored = self.py('print(json.dumps(json.loads(st.db.value("SELECT options FROM '
+                         'cert_deploys WHERE id = %d"))["webauth_map"]))' % did)
         self.assertEqual(stored, 'guest-portal_1')
         # Operations Manager's MOMCertImport.exe: a full administrator's, a path on a drive
         self.ok('POST', '/api/targets/save', {'name': 'scom21', 'kind': 'windows_scom',
