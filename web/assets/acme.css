@@ -4045,5 +4045,80 @@ table.krb-t .tag{margin-left:6px}
   .krb-facts th{padding:0 0 1px}
   .krb-facts td{padding:0}
 }
+/* The CRLs of the sign-in with a certificate (1.0.104): a row each, opened to its details; on a
+   phone each row a block of its own, every value under its label. */
+.cert-crl-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:18px 0 8px}
+.cert-crl-head h3.peek-h{margin:0}
+.cert-crl-head .btnrow{margin:0;gap:8px}
+table.cert-crl-t td{vertical-align:middle}
+table.cert-crl-t tr.cert-crl-row{cursor:pointer}
+table.cert-crl-t tr.cert-crl-row:hover td{background:var(--panel2)}
+table.cert-crl-t tr.cert-crl-row:focus-visible{outline:2px solid var(--info);outline-offset:-2px}
+table.cert-crl-t tr.cert-crl-row.open td{border-bottom-color:transparent;background:var(--panel2)}
+table.cert-crl-t th:first-child, table.cert-crl-t td.cert-crl-chev{width:14px;padding-right:0}
+.cert-crl-arrow{display:inline-block;color:var(--tx-mut);font-size:11px;transition:transform .15s}
+tr.cert-crl-row.open .cert-crl-arrow{transform:rotate(90deg)}
+.cert-crl-url-in{display:flex;align-items:center;gap:6px;min-width:0}
+td.cert-crl-url{max-width:460px}
+td.cert-crl-url .mono{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+td.cert-crl-url .iconbtn, td.cert-crl-act .iconbtn{flex:none;padding:4px 5px}
+td.cert-crl-iss{max-width:230px;min-width:140px}
+td.cert-crl-iss .mono{white-space:normal;overflow-wrap:anywhere}
+td.cert-crl-next, td.cert-crl-at{white-space:nowrap}
+table.cert-crl-t td.cert-crl-next .tag{margin:0 8px 0 0}
+td.cert-crl-num{text-align:right;font-variant-numeric:tabular-nums}
+td.cert-crl-act{white-space:nowrap;text-align:right}
+td.cert-crl-act .iconbtn + .iconbtn{margin-left:4px}
+.cert-crl-lab{display:none}
+tr.cert-crl-more > td{background:var(--panel2);padding:4px 16px 14px 38px}
+.cert-crl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 24px;margin:2px 0 4px}
+.cert-crl-fact{min-width:0}
+.cert-crl-k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx-mut);font-weight:650;margin-bottom:3px}
+.cert-crl-v{font-size:13px;overflow-wrap:anywhere;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+.cert-crl-v .tag{margin:0}
+.cert-crl-addr{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;min-width:0}
+.cert-crl-addr .mono{overflow-wrap:anywhere;min-width:0}
+.cert-crl-fact:has(.cert-crl-addr){grid-column:1/-1}
+.cert-crl-nw{margin-top:12px}
+table.cert-crl-nodes{width:auto;min-width:min(100%,640px);border-collapse:collapse;font-size:12.5px}
+table.cert-crl-nodes th{text-align:left;font-weight:600;color:var(--tx-dim);padding:4px 12px 4px 0;border-bottom:1px solid var(--line)}
+table.cert-crl-nodes td{padding:5px 12px 5px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+table.cert-crl-nodes tr:last-child td{border-bottom:0}
+table.cert-crl-nodes .tag{margin:0}
+.cert-crl-said{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 10px;font-size:13px;background:var(--panel2)}
+.cert-crl-said-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cert-crl-said-h .iconbtn{margin-left:auto;padding:3px 4px}
+.cert-crl-said-n{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+.cert-crl-said-n .tag{margin:0}
+.cert-crl-said-e{flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap;padding-left:2px}
+.cert-crl-said-e .mono{overflow-wrap:anywhere;min-width:0}
+@media (max-width:640px){
+  /* A phone: no table - each CRL a block, its values under their labels. */
+  .cert-crl-tw{overflow-x:visible}
+  table.cert-crl-t, table.cert-crl-t tbody{display:block;width:100%}
+  table.cert-crl-t tr.cert-crl-hr{display:none}
+  table.cert-crl-t tr.cert-crl-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 12px;
+    padding:12px 4px;border-bottom:1px solid var(--line);position:relative}
+  table.cert-crl-t tr.cert-crl-row.open{border-bottom:0;background:var(--panel2)}
+  table.cert-crl-t tr.cert-crl-row td{display:block;padding:0;border:0;min-width:0;max-width:none;background:none}
+  table.cert-crl-t tr.cert-crl-row td.cert-crl-chev{position:absolute;left:4px;top:19px;width:auto}
+  table.cert-crl-t tr.cert-crl-row td.cert-crl-url{grid-column:1/-1;padding:0 70px 0 18px}
+  table.cert-crl-t tr.cert-crl-row td.cert-crl-act{position:absolute;right:4px;top:10px}
+  table.cert-crl-t tr.cert-crl-row td.cert-crl-iss{grid-column:1/-1}
+  table.cert-crl-t tr.cert-crl-row td.cert-crl-next{white-space:normal}
+  table.cert-crl-t tr.cert-crl-row td.cert-crl-num{text-align:left}
+  table.cert-crl-t td .cert-crl-lab{display:block;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--tx-mut);font-weight:650;margin-bottom:2px}
+  table.cert-crl-t tr.cert-crl-more{display:block;border-bottom:1px solid var(--line);background:var(--panel2)}
+  table.cert-crl-t tr.cert-crl-more > td{display:block;padding:2px 4px 14px 18px;border:0}
+  .cert-crl-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px 14px}
+  .cert-crl-fact:has(.mono){grid-column:1/-1}
+  table.cert-crl-nodes, table.cert-crl-nodes tbody{display:block;min-width:0}
+  table.cert-crl-nodes tr:first-child{display:none}
+  table.cert-crl-nodes tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 12px;padding:6px 0;border-bottom:1px solid var(--line)}
+  table.cert-crl-nodes tr:last-child{border-bottom:0}
+  table.cert-crl-nodes td{border:0;padding:0;min-width:0}
+  table.cert-crl-nodes td:last-child{grid-column:1/-1}
+}
 .cchip.good{color:var(--ok);border-color:rgba(63,185,80,.4)}
 .cchip.bad{color:var(--crit);border-color:rgba(248,81,73,.4)}

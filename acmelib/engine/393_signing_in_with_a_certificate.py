@@ -66,6 +66,7 @@ CL_SID_URL = 'tag:microsoft.com,2022-09-14:sid:'
 # after it). The delta CRL (Freshest CRL) the same way. Review F3.
 CL_CRL_FRESH_S = 600
 CL_CRL_FETCH_S = 15                 # one CRL: the whole fetch, connecting and reading
+CL_CRLS_SAID = 24                   # CRLs on the card (each node's, the authorities' named)
 # Names of clouds' metadata services, and their addresses that are not link-local (F5).
 CL_CDP_NAMES_NO = ('metadata', 'metadata.google.internal', 'metadata.goog', 'instance-data',
                    'instance-data.ec2.internal', 'metadata.azure.com', 'metadata.oraclecloud.com')
@@ -504,16 +505,33 @@ def cl_http_get(url):
     raise ValueError(('%s' % last)[:200] if last else 'it took longer than %d s' % CL_CRL_FETCH_S)
 
 
+def _cl_der_count(b):
+    """How many elements a DER SEQUENCE OF holds (its body): the revoked entries of a CRL."""
+    n, i = 0, 0
+    while i < len(b):
+        _t, _v, i = _cl_der(b, i)
+        n += 1
+    return n
+
+
 def cl_crl_info(pem):
     """Of a CRL (PEM): its next update (seconds, or None), the Freshest CRL it names (where its
-    delta is), whether it is a delta CRL itself."""
-    out = {'next': None, 'freshest': [], 'delta': False}
+    delta is), whether it is a delta CRL itself; for the card (1.0.104) its issuer, number, this
+    update and how many certificates it lists as revoked."""
+    out = {'next': None, 'freshest': [], 'delta': False, 'issuer': '', 'number': '',
+           'this': None, 'revoked': None}
     m = re.search(r'-----BEGIN X509 CRL-----([A-Za-z0-9+/=\s]+)-----END X509 CRL-----', pem)
     try:
         der = base64.b64decode(re.sub(r'\s+', '', m.group(1))) if m else b''
         _t, body, _ = _cl_der(der)
         _t, tbs, _ = _cl_der(body)
-        for t, v in _cl_der_all(tbs):
+        items = _cl_der_all(tbs)
+        times = [i for i, (t, _v) in enumerate(items) if t in (0x17, 0x18)]
+        if times:
+            after = times[-1] + 1
+            out['revoked'] = _cl_der_count(items[after][1]) \
+                if after < len(items) and items[after][0] == 0x30 else 0
+        for t, v in items:
             if t != 0xa0:
                 continue
             for _t, one in _cl_der_all(_cl_der(v)[1]):
@@ -527,25 +545,60 @@ def cl_crl_info(pem):
     except (ValueError, IndexError, binascii.Error, AttributeError):
         pass
     try:
-        nu = _cl_openssl(['crl', '-noout', '-nextupdate'], pem.encode(), what='the CRL').decode()
+        nu = _cl_openssl(['crl', '-noout', '-issuer', '-crlnumber', '-lastupdate', '-nextupdate',
+                          '-nameopt', 'RFC2253'], pem.encode(), what='the CRL') \
+            .decode('utf-8', 'replace')
         m = re.search(r'nextUpdate=(.+)', nu)
         if m and 'NONE' not in m.group(1):
             out['next'] = cl_time(m.group(1)) or None
+        m = re.search(r'lastUpdate=(.+)', nu)
+        if m:
+            out['this'] = cl_time(m.group(1)) or None
+        m = re.search(r'(?m)^issuer=\s*(.*)$', nu)
+        out['issuer'] = m.group(1).strip()[:300] if m else ''
+        m = re.search(r'crlNumber=(\S+)', nu)
+        out['number'] = m.group(1)[:80] if m and 'NONE' not in m.group(1) else ''
     except ValueError:
         pass
     return out
 
 
-def cl_crl_fetch(url):
+def cl_crl_sig(pem):
+    """Whether a CRL's signature is good by the authorities put in, as openssl crl -CAfile says
+    it (1.0.104, for the card): 'ok', 'bad', 'unknown' (its authority is not among them) or ''
+    (no authority written out on this node). Only said - openssl verify checks it again at every
+    sign-in, and a CRL it does not take signs nobody in."""
+    ca = cl_ca_path()
+    if not ca.exists():
+        return ''
+    try:
+        r = subprocess.run(['openssl', 'crl', '-noout', '-CAfile', str(ca), '-no-CApath',
+                            '-no-CAstore'], input=pem.encode(), capture_output=True, timeout=30,
+                           env=dict(os.environ, SSL_CERT_DIR='/nonexistent',
+                                    SSL_CERT_FILE='/nonexistent'))
+    except (OSError, subprocess.SubprocessError):
+        return ''
+    words = (r.stdout or b'').decode('utf-8', 'replace') + (r.stderr or b'').decode('utf-8', 'replace')
+    if 'verify OK' in words:
+        return 'ok'
+    if 'verify fail' in words:
+        return 'bad'
+    return 'unknown'
+
+
+def cl_crl_fetch(url, force=False):
     """The CRL at url as PEM: fetched again after CL_CRL_FRESH_S (ten minutes) at most - sooner
     at its next update; while the address does not answer, the last good one until its next update,
     then nothing. CertRefused ('unavailable') when there is none to be had - a CRL already past
-    its next update is none (a delta CRL past it openssl would leave out without a word)."""
+    its next update is none (a delta CRL past it openssl would leave out without a word).
+    `force` (Fetch now, 1.0.104): fetched whatever is kept - failing, the same as ever: the last
+    good one until its next update, else none."""
     now = time.time()
     with CL_CRL_LOCK:
         got = CL_CRL_CACHE.get(url)
     good = bool(got and got.get('pem') and now < got['next'])
-    if good and (now - got['at'] < CL_CRL_FRESH_S or now - float(got.get('tried') or 0) < 60):
+    if good and not force and (now - got['at'] < CL_CRL_FRESH_S or
+                               now - float(got.get('tried') or 0) < 60):
         return got
     try:
         raw = cl_http_get(url)
@@ -558,7 +611,9 @@ def cl_crl_fetch(url):
             raise ValueError('it has run out (its next update was %s)'
                              % time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(nxt)))
         one = {'at': now, 'pem': pem, 'next': nxt, 'url': url, 'err': '', 'tried': 0,
-               'freshest': info['freshest'], 'delta': info['delta']}
+               'freshest': info['freshest'], 'delta': info['delta'], 'issuer': info['issuer'],
+               'number': info['number'], 'this': info['this'], 'revoked': info['revoked'],
+               'size': len(raw), 'sig': cl_crl_sig(pem)}
         with CL_CRL_LOCK:
             if len(CL_CRL_CACHE) > 50:
                 CL_CRL_CACHE.clear()
@@ -567,12 +622,13 @@ def cl_crl_fetch(url):
     except Exception as e:                              # noqa: BLE001
         why = str(e)[:200] or e.__class__.__name__
         if good:
-            kept = dict(got, err=why, tried=now)        # the last good one, said why
+            kept = dict(got, err=why, tried=now, err_at=now)    # the last good one, said why
             with CL_CRL_LOCK:
                 CL_CRL_CACHE[url] = kept
             return kept
         with CL_CRL_LOCK:
-            CL_CRL_CACHE[url] = {'at': now, 'pem': '', 'next': 0, 'url': url, 'err': why}
+            CL_CRL_CACHE[url] = {'at': now, 'pem': '', 'next': 0, 'url': url, 'err': why,
+                                 'err_at': now}
         raise CertRefused('the CRL at %s could not be had (%s) - nobody signs in while the '
                           'certificate cannot be checked for revocation' % (url, why), 'unavailable')
 
@@ -1005,21 +1061,30 @@ def cl_tick(d):
         cl_write_out(d.store)
     except Exception as e:                              # noqa: BLE001
         CL_STATE.update(written=False, error=str(e)[:300])
-    port = cl_port()
-    listening = bool(cl_any_on() and cl_listening(port))
-    said = {'written': bool(CL_STATE['written']), 'sha': str(CL_STATE['sha'] or '')[:12],
-            'error': CL_STATE['error'], 'port': port, 'listening': listening,
-            'busy': cl_busy_now(port, listening),
-            'crls': cl_crls_now(), 'version': __version__}
-    if said != CL_STATE['said'] or now - CL_STATE['said_at'] > 300:
-        d.store.set_meta(CL_NODE_META + node_name(), json.dumps(dict(said, at=now)))
-        CL_STATE.update(said=said, said_at=now)
+    if cl_say(d.store):
         for r in d.store.db.rows("SELECT k, v FROM meta WHERE k LIKE ?", (CL_TRIED_META + '%',)):
             try:
                 if now - float(json.loads(r['v'] or '{}').get('at') or 0) > 600:
                     d.store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
             except (ValueError, TypeError, AttributeError):
                 d.store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
+
+
+def cl_say(store, now_too=False):
+    """This node's state for the card (CL_NODE_META + node), written when it changed or every
+    five minutes - at once after Fetch now or Clear (now_too). Whether it was written."""
+    now = time.time()
+    port = cl_port()
+    listening = bool(cl_any_on() and cl_listening(port))
+    said = {'written': bool(CL_STATE['written']), 'sha': str(CL_STATE['sha'] or '')[:12],
+            'error': CL_STATE['error'], 'port': port, 'listening': listening,
+            'busy': cl_busy_now(port, listening),
+            'crls': cl_crls_now(), 'version': __version__}
+    if now_too or said != CL_STATE['said'] or now - CL_STATE['said_at'] > 300:
+        store.set_meta(CL_NODE_META + node_name(), json.dumps(dict(said, at=now)))
+        CL_STATE.update(said=said, said_at=now)
+        return True
+    return False
 
 
 def cl_web_served(port):
@@ -1044,11 +1109,142 @@ def cl_busy_now(port, listening):
 
 
 def cl_crls_now():
+    """The CRLs kept on this node, as the card shows them: facts and dates only, never a CRL
+    (the meta row stays small) - CL_CRLS_SAID at most."""
     with CL_CRL_LOCK:
         got = list(CL_CRL_CACHE.values())
-    return [{'url': c['url'], 'ok': bool(c.get('pem')), 'at': c.get('at'),
-             'next': c.get('next') or None, 'err': c.get('err') or ''}
-            for c in sorted(got, key=lambda c: c['url'])][:20]
+    out = []
+    for c in sorted(got, key=lambda c: c['url'])[:CL_CRLS_SAID]:
+        one = {'url': c['url'], 'ok': bool(c.get('pem')), 'at': c.get('at'),
+               'next': c.get('next') or None, 'err': c.get('err') or ''}
+        for k in ('err_at', 'this', 'size', 'revoked', 'number', 'issuer', 'sig', 'delta'):
+            if c.get(k) not in (None, ''):
+                one[k] = c[k]
+        if c.get('freshest'):
+            one['freshest'] = list(c['freshest'])[:3]
+        out.append(one)
+    return out
+
+
+# ---- the CRLs on the card: Fetch now, Clear (1.0.104) ------------------------------------------
+CL_CA_CDPS = {}
+
+
+def cl_crl_known(store):
+    """The CRLs the authorities put in name (their CRL Distribution Points, Freshest CRL) - those
+    a sign-in fetches for the authorities above a person's certificate (the roots' own, never
+    looked at, left out): [{url, of: [subject], delta}], each address one acme fetches from."""
+    out = {}
+    for c in cl_cas_row(store):
+        f = CL_CA_CDPS.get(c.get('sha256'))
+        if f is None:
+            try:
+                got = cl_facts(c['pem'])
+                f = {'cdp': got['cdp'], 'freshest': got['freshest'],
+                     'root': got['subject'] == got['issuer']}
+            except CertRefused:
+                f = {'cdp': [], 'freshest': [], 'root': True}
+            if len(CL_CA_CDPS) > 200:
+                CL_CA_CDPS.clear()
+            CL_CA_CDPS[c.get('sha256')] = f
+        if f['root']:
+            continue
+        for delta, urls in ((False, f['cdp']), (True, f['freshest'])):
+            for u in urls:
+                if u.lower().startswith('http://') and cl_cdp_ok(u):
+                    one = out.setdefault(u, {'url': u, 'of': [], 'delta': delta})
+                    if c.get('subject') and c['subject'] not in one['of']:
+                        one['of'].append(c['subject'])
+    return [out[u] for u in sorted(out)][:CL_CRLS_SAID]
+
+
+def cl_crl_urls_here(store):
+    """Every CRL Fetch now fetches on this node: those kept here (and the delta CRLs they name)
+    and those the authorities name."""
+    with CL_CRL_LOCK:
+        got = list(CL_CRL_CACHE.values())
+    urls = [c['url'] for c in got]
+    for c in got:
+        urls += [u for u in c.get('freshest') or [] if u.lower().startswith('http://')]
+    urls += [k['url'] for k in cl_crl_known(store)]
+    return [u for u in dict.fromkeys(urls) if cl_cdp_ok(u)][:CL_CRLS_SAID]
+
+
+def cl_crl_do(store, act, url=''):
+    """Fetch now ('fetch') or Clear ('clear') on this node - every CRL, or the one at url.
+    Fetched whatever is kept; a fetch that fails changes nothing that lets anybody in (the last
+    good CRL until its next update, else none - no sign-in). Cleared, the next sign-in (or Fetch
+    now) fetches it again. [{url, ok, err}]; this node's state written at once."""
+    out = []
+    if act == 'clear':
+        with CL_CRL_LOCK:
+            gone = [u for u in CL_CRL_CACHE if not url or u == url]
+            for u in gone:
+                CL_CRL_CACHE.pop(u, None)
+        out = [{'url': u, 'ok': True, 'err': ''} for u in sorted(gone)]
+    elif act == 'fetch':
+        todo, done = ([url] if url else cl_crl_urls_here(store)), set()
+        while todo and len(done) < CL_CRLS_SAID:
+            u = todo.pop(0)
+            if u in done:
+                continue
+            done.add(u)
+            try:
+                got = cl_crl_fetch(u, force=True)
+                out.append({'url': u, 'ok': not got.get('err'), 'err': got.get('err') or '',
+                            'number': got.get('number') or ''})
+                if not url:
+                    todo += [f for f in got.get('freshest') or []
+                             if f.lower().startswith('http://') and cl_cdp_ok(f)]
+            except CertRefused as e:
+                with CL_CRL_LOCK:
+                    why = (CL_CRL_CACHE.get(u) or {}).get('err') or e.why
+                out.append({'url': u, 'ok': False, 'err': str(why)[:200]})
+            except Exception as e:                      # noqa: BLE001
+                out.append({'url': u, 'ok': False, 'err': str(e)[:200]})
+    try:
+        cl_say(store, now_too=True)
+    except Exception as e:                              # noqa: BLE001
+        log_sparing('cl-say', 'the state of the sign-in with a certificate: %s' % e, 'warn',
+                    every=300)
+    return out
+
+
+@node_ask_kind('crl_fetch')
+def _ask_crl_fetch(daemon, args):
+    got = cl_crl_do(daemon.store, 'fetch', str(args.get('url') or ''))
+    return {'ok': all(x['ok'] for x in got), 'crls': got}
+
+
+@node_ask_kind('crl_clear')
+def _ask_crl_clear(daemon, args):
+    got = cl_crl_do(daemon.store, 'clear', str(args.get('url') or ''))
+    return {'ok': True, 'crls': got}
+
+
+def cl_crl_ask(d, act, url, by):
+    """Fetch now or Clear asked of every node (each does it itself; this one at once, from the
+    pages): the ask {id, nodes}, the event written. ValueError for an address not known."""
+    url = str(url or '').strip()
+    if url:
+        known = {k['url'] for k in cl_crl_known(d.store)}
+        for n in sorted(set([node_name()] + [x['name'] for x in ha_nodes(d.store)])):
+            known.update(c.get('url') for c in cl_node_state(d.store, n).get('crls') or [])
+        if CL_STATE['writer'] or getattr(d, 'serving', False):
+            known.update(c['url'] for c in cl_crls_now())
+        if url not in known:
+            raise ValueError('no CRL at that address is known here (acme --cert-login-crl lists '
+                             'them)')
+    if act == 'fetch':
+        words = ('%s asked every node to fetch the CRL at %s again' % (by, url) if url else
+                 '%s asked every node to fetch every CRL of the sign-in with a certificate again'
+                 % by)
+    else:
+        words = ('%s cleared the CRL at %s on every node - it is fetched again at the next sign-in'
+                 % (by, url) if url else '%s cleared the CRLs of the sign-in with a certificate '
+                 'on every node - each is fetched again at the next sign-in' % by)
+    d.store.add_event('settings', words[:600], 'info', who=by)
+    return node_ask(d, 'crl_' + act, {'url': url, 'by': by}, by)
 
 
 def cl_have(store=None, unknown=False):
@@ -1765,10 +1961,12 @@ def cl_view(h, tried=''):
                       sha=str(CL_STATE['sha'] or '')[:12], crls=cl_crls_now(),
                       listening=listening, port=port, at=st.get('at') or now,
                       busy=cl_busy_now(port, listening))
+        elif n == node_name() and getattr(getattr(h, 'd', None), 'serving', False):
+            # The daemon before its first round (writer not yet): its CRLs are its own.
+            st = dict(st, crls=cl_crls_now())
         for c in st.get('crls') or []:
-            if c.get('url') and (c['url'] not in crls or float(c.get('at') or 0) >
-                                 float(crls[c['url']].get('at') or 0)):
-                crls[c['url']] = dict(c, node=n)
+            if isinstance(c, dict) and c.get('url'):
+                crls.setdefault(c['url'], []).append(dict(c, node=n))
         nodes.append({'node': n, 'me': n == node_name(),
                       'heard': bool(st) and now - float(st.get('at') or 0) < 900,
                       'at': st.get('at'), 'written': bool(st.get('written')),
@@ -1777,7 +1975,7 @@ def cl_view(h, tried=''):
                       'busy': st.get('busy') or '',
                       'error': st.get('error') or '', 'version': st.get('version') or ''})
     out = {'cas': [cl_ca_view(c) for c in cas], 'parts': parts, 'port': cl_port(),
-           'nodes': nodes, 'crls': sorted(crls.values(), key=lambda c: c['url']),
+           'nodes': nodes, 'crls': cl_crl_rows(store, crls),
            'names': cl_names(store), 'any_on': cl_any_on(),
            'access': {k: (access_conf(store).get(k) or {}) for k in ('admin', 'portal')},
            'own_cas': cl_own_authorities(store)}
@@ -1791,6 +1989,30 @@ def cl_view(h, tried=''):
             got.pop('by', None)
             out['tried'] = got
     return out
+
+
+def cl_crl_rows(store, seen):
+    """One row of the card for each CRL: as kept on each node (seen: {url: [its state on a node,
+    node=...]}) - the facts of the newest good one, else of the newest - and those the authorities
+    name, not fetched yet."""
+    known = {k['url']: k for k in cl_crl_known(store)}
+    out = []
+    for url in sorted(set(seen) | set(known)):
+        each = sorted(seen.get(url) or [], key=lambda c: c['node'])
+        good = [c for c in each if c.get('ok') and float(c.get('next') or 0) > time.time()]
+        best = max(good or each, key=lambda c: float(c.get('at') or 0)) if each else {}
+        k = known.get(url) or {}
+        row = {'url': url, 'fetched': bool(each), 'ok': bool(good),
+               'of': k.get('of') or [], 'named': bool(k),
+               'delta': bool(best.get('delta') if best else k.get('delta')),
+               'err': next((c.get('err') for c in sorted(each, key=lambda c: -float(
+                   c.get('err_at') or c.get('at') or 0)) if c.get('err')), '') if each else '',
+               'nodes': [{x: c.get(x) for x in ('node', 'ok', 'at', 'next', 'err', 'err_at',
+                                               'number')} for c in each]}
+        for x in ('at', 'next', 'this', 'issuer', 'number', 'size', 'revoked', 'sig', 'err_at'):
+            row[x] = best.get(x) if best else None
+        out.append(row)
+    return out[:CL_CRLS_SAID * 2]
 
 
 def cl_own_authorities(store):
@@ -1859,6 +2081,20 @@ def _certlogin_do(h):
                % (len(added), 'y' if len(added) == 1 else 'ies')) if added else \
             'those authorities are put in already'
         return {'message': msg, 'added': added, 'view': cl_view(h)}
+    if act in ('crl_fetch', 'crl_clear'):
+        try:
+            asked = cl_crl_ask(h.d, act[4:], b.get('url'), s['name'])
+        except ValueError as e:
+            raise ApiError(404, str(e))
+        return dict(asked, message=('every node fetches the CRLs again' if act == 'crl_fetch'
+                                    else 'the CRLs are cleared on every node'))
+    if act == 'result':
+        # What each node answered to Fetch now or Clear (the page's askNodes).
+        ident = str(b.get('id') or '')
+        got = node_ask_results(h.store, 'crl_fetch', ident)
+        for n, v in node_ask_results(h.store, 'crl_clear', ident).items():
+            got[n] = got.get(n) or v
+        return {'nodes': got}
     if act == 'drop':
         try:
             gone = cl_cas_drop(h.store, b.get('sha256'), s['name'], keep=s.get('id'))

@@ -224,6 +224,9 @@ As the card on *Settings → Accounts* and *Settings → The enrolment pages*
 | `--cert-login` | each part on or off, its directory, how a certificate is matched, revocation, "no password at all", the sign-in page (a password, Windows and a certificate - a button, at once or off); the port; the authorities (subject, issuer, valid to, SHA-256); the CRLs fetched; each node - heard from, the authorities written out, nginx listening on the port (`--json` too) |
 | `--cert-login-ca FILE` | put in authorities (the issuing one and its root; PEM, DER or `.p7b`) - a person's certificate is refused; every node writes them out itself |
 | `--cert-login-ca-off SHA256` | take one away, by its SHA-256 or the first 12 characters of it or more (asks; `--yes`) |
+| `--cert-login-crl` | the CRLs, as the card's table: each address, base or delta, its issuer, number, this and next update, the revoked entries, size, the signature (checked by openssl against the authorities put in), each node's fetch and last error; those the authorities name and not fetched yet too (`--json`) |
+| `--cert-login-crl-fetch [URL]` | Fetch now: every CRL (or the one at URL) fetched again on every node, each itself - each node's answer waited for (a minute at most); exit 1 when one could not be fetched. A failed fetch loosens nothing: the last good CRL until its next update |
+| `--cert-login-crl-clear [URL]` | Clear: every node forgets its CRLs (all of them: asks; `--yes`) or the one at URL - the next sign-in fetches them again |
 | `--set admin_certlogin=1`, `--set portal_certlogin=1` | each part's switch; `certlogin_port`, `admin_certlogin_match`, `admin_certlogin_crl`, `portal_certlogin_match`, `portal_certlogin_crl` the same way |
 | `--set admin_password_off=0`, `--set portal_password_off=0` | the way back from "no password at all - only Windows or a certificate"; switched **on** only from the pages, by somebody signed in with Windows or a certificate |
 

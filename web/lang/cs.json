@@ -62967,6 +62967,178 @@
   "_526": {
    "source": "secret settings",
    "text": "tajná nastavení"
+  },
+  "_527": {
+   "source": "Revocation lists (CRL)",
+   "text": "Seznamy zneplatněných certifikátů (CRL)"
+  },
+  "_528": {
+   "source": "Fetch now",
+   "text": "Stáhnout nyní"
+  },
+  "_529": {
+   "source": "Fetching…",
+   "text": "Stahuje se…"
+  },
+  "_530": {
+   "source": "Clear all",
+   "text": "Vymazat vše"
+  },
+  "_531": {
+   "source": "Every CRL fetched again now - on every node of the cluster, each itself: those kept and those the authorities name. One that cannot be fetched lets nobody in: the last good one is kept until its next update, else nobody signs in with a certificate of it.",
+   "text": "Všechny CRL se hned stáhnou znovu – na každém uzlu clusteru, každý sám: ty uložené i ty, které uvádějí autority. Seznam, který nejde stáhnout, nikoho nepustí: poslední platný zůstává do své další aktualizace, jinak se certifikátem dané autority nikdo nepřihlásí."
+  },
+  "_532": {
+   "source": "Forget the CRLs kept on every node: the next sign-in (or Fetch now) fetches them again.",
+   "text": "Zapomenout uložené CRL na všech uzlech: další přihlášení (nebo Stáhnout nyní) je stáhne znovu."
+  },
+  "_533": {
+   "source": "Clear every CRL?",
+   "text": "Vymazat všechny CRL?"
+  },
+  "_534": {
+   "source": "Every node forgets the CRLs it keeps; the next sign-in fetches them again. While an address does not answer then, nobody signs in with a certificate of its authority - the last good CRL is gone too.",
+   "text": "Každý uzel zapomene uložené CRL; další přihlášení je stáhne znovu. Pokud pak některá adresa neodpovídá, nikdo se certifikátem její autority nepřihlásí – poslední platný CRL je pryč také."
+  },
+  "_535": {
+   "source": "Fetched at a sign-in, at most every ten minutes, and kept until the next update; its signature is checked by openssl against the authorities put in. A row opens to its details and each node’s fetch.",
+   "text": "Stahuje se při přihlášení, nejvýš jednou za deset minut, a drží se do další aktualizace; jeho podpis ověřuje openssl proti vloženým autoritám. Řádek se rozbalí do podrobností a stažení na každém uzlu."
+  },
+  "_536": {
+   "source": "not fetched yet",
+   "text": "zatím nestažen"
+  },
+  "_537": {
+   "source": "run out",
+   "text": "vypršel"
+  },
+  "_538": {
+   "source": "within a day",
+   "text": "do jednoho dne"
+  },
+  "_539": {
+   "source": "last fetch failed",
+   "text": "poslední stažení selhalo"
+  },
+  "_540": {
+   "source": "cleared on every node",
+   "text": "vymazáno na všech uzlech"
+  },
+  "_541": {
+   "source": "fetched - not everything on every node",
+   "text": "staženo – ne vše na všech uzlech"
+  },
+  "_542": {
+   "source": "fetched on every node",
+   "text": "staženo na všech uzlech"
+  },
+  "_543": {
+   "source": "Clear one CRL",
+   "text": "Vymazání jednoho CRL"
+  },
+  "_544": {
+   "source": "Clear every CRL",
+   "text": "Vymazání všech CRL"
+  },
+  "_545": {
+   "source": "Fetch one CRL now",
+   "text": "Stažení jednoho CRL"
+  },
+  "_546": {
+   "source": "Fetch every CRL now",
+   "text": "Stažení všech CRL"
+  },
+  "_547": {
+   "source": "asked of every node…",
+   "text": "požádány všechny uzly…"
+  },
+  "_548": {
+   "source": "fetched",
+   "text": "staženo"
+  },
+  "_549": {
+   "source": "not everything",
+   "text": "ne vše"
+  },
+  "_550": {
+   "source": "the address copied",
+   "text": "adresa zkopírována"
+  },
+  "_551": {
+   "source": "named by ",
+   "text": "uvádí "
+  },
+  "_552": {
+   "source": "delta",
+   "text": "rozdílový"
+  },
+  "_553": {
+   "source": "base",
+   "text": "základní"
+  },
+  "_554": {
+   "source": "Fetch this CRL now - on every node",
+   "text": "Stáhnout tento CRL hned – na každém uzlu"
+  },
+  "_555": {
+   "source": "Clear this CRL on every node - fetched again at the next sign-in",
+   "text": "Vymazat tento CRL na všech uzlech – stáhne se znovu při dalším přihlášení"
+  },
+  "_556": {
+   "source": "good - checked by openssl against the authorities put in",
+   "text": "v pořádku – ověřeno nástrojem openssl proti vloženým autoritám"
+  },
+  "_557": {
+   "source": "NOT good - openssl does not take it: nobody signs in by it",
+   "text": "NENÍ v pořádku – openssl ho nepřijme: podle něj se nikdo nepřihlásí"
+  },
+  "_558": {
+   "source": "not checked - its authority is not put in",
+   "text": "neověřeno – jeho autorita není vložena"
+  },
+  "_559": {
+   "source": "bad",
+   "text": "chybný"
+  },
+  "_560": {
+   "source": "checked by openssl at each sign-in",
+   "text": "ověřuje ho openssl při každém přihlášení"
+  },
+  "_561": {
+   "source": "not had - nobody signs in with a certificate whose revocation it should say",
+   "text": "nezískán – nikdo se nepřihlásí certifikátem, o jehož zneplatnění má rozhodnout"
+  },
+  "_562": {
+   "source": "not fetched yet - at the first sign-in that needs it, or Fetch now",
+   "text": "zatím nestažen – stáhne se při prvním přihlášení, které ho potřebuje, nebo tlačítkem Stáhnout nyní"
+  },
+  "_563": {
+   "source": "Named by the authority",
+   "text": "Uvádí ho autorita"
+  },
+  "_564": {
+   "source": "delta CRL (Freshest CRL) - applied over its base CRL",
+   "text": "rozdílový CRL (Freshest CRL) – použije se nad svým základním CRL"
+  },
+  "_565": {
+   "source": "base CRL",
+   "text": "základní CRL"
+  },
+  "_566": {
+   "source": "Last error",
+   "text": "Poslední chyba"
+  },
+  "_567": {
+   "source": "every node fetches the CRLs again",
+   "text": "každý uzel znovu stáhne CRL"
+  },
+  "_568": {
+   "source": "the CRLs are cleared on every node",
+   "text": "CRL jsou vymazány na všech uzlech"
+  },
+  "_569": {
+   "source": "no CRL at that address is known here (acme --cert-login-crl lists them)",
+   "text": "žádný CRL na této adrese tu není znám (vypíše je acme --cert-login-crl)"
   }
  },
  "patterns": {
@@ -87853,6 +88025,30 @@
   "p_378": {
    "source": "secrets in {0}",
    "text": "tajemství v {0}"
+  },
+  "p_379": {
+   "source": "{0} forgotten",
+   "text": "zapomenuto: {0}"
+  },
+  "p_380": {
+   "source": "{0} of {1} fetched",
+   "text": "staženo {0} z {1}"
+  },
+  "p_381": {
+   "source": "{0} asked every node to fetch the CRL at {1} again",
+   "text": "{0} požádal všechny uzly, aby znovu stáhly CRL z {1}"
+  },
+  "p_382": {
+   "source": "{0} asked every node to fetch every CRL of the sign-in with a certificate again",
+   "text": "{0} požádal všechny uzly, aby znovu stáhly všechny CRL přihlašování certifikátem"
+  },
+  "p_383": {
+   "source": "{0} cleared the CRL at {1} on every node - it is fetched again at the next sign-in",
+   "text": "{0} vymazal CRL z {1} na všech uzlech – stáhne se znovu při dalším přihlášení"
+  },
+  "p_384": {
+   "source": "{0} cleared the CRLs of the sign-in with a certificate on every node - each is fetched again at the next sign-in",
+   "text": "{0} vymazal CRL přihlašování certifikátem na všech uzlech – každý se stáhne znovu při dalším přihlášení"
   }
  },
  "rich": {

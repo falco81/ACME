@@ -767,6 +767,16 @@ def build_parser():
     g.add_argument('--cert-login-ca-off', metavar='SHA256',
                    help='take one authority away, by its SHA-256 (the first 12 characters or more, '
                         'as acme --cert-login shows it)')
+    g.add_argument('--cert-login-crl', action='store_true',
+                   help='the CRLs of the sign-in with a certificate: each address, its authority, '
+                        'number, this and next update, revoked entries, signature, and each node\'s '
+                        'fetch - those the authorities name and not fetched yet too')
+    g.add_argument('--cert-login-crl-fetch', metavar='URL', nargs='?', const='',
+                   help='fetch every CRL again now (or the one at URL) - on every node, each '
+                        'itself; a fetch that fails lets nobody in that was not before')
+    g.add_argument('--cert-login-crl-clear', metavar='URL', nargs='?', const='',
+                   help='forget the CRLs kept (or the one at URL) on every node - the next sign-in '
+                        'fetches them again (all of them: asks; --yes)')
     g.add_argument('--api', nargs='+', metavar=('METHOD PATH', 'BODY'), help='any page\'s question '
                    'as the pages ask it: GET /api/ntp, or POST /api/osup \'{"action": "check"}\' '
                    '(BODY - : read from stdin, for one holding a secret) - the answer as JSON')
@@ -2728,6 +2738,87 @@ def cli_cert_login(args, pal, store):
     return 0
 
 
+def cli_cert_login_crl(args, pal, store):
+    """acme --cert-login-crl, --cert-login-crl-fetch [URL], --cert-login-crl-clear [URL]
+    (1.0.104): as the card's table of the CRLs, its Fetch now and Clear."""
+    by = 'root on %s' % node_name()
+    d = Daemon(store, serve=False)
+    act = 'fetch' if args.cert_login_crl_fetch is not None else (
+        'clear' if args.cert_login_crl_clear is not None else '')
+    if act:
+        url = (args.cert_login_crl_fetch if act == 'fetch' else args.cert_login_crl_clear) or ''
+        if act == 'clear' and not url:
+            cli_sure(args, 'every CRL kept forgotten on every node - while an address does not '
+                           'answer, nobody signs in with a certificate of it')
+        try:
+            asked = cl_crl_ask(d, act, url, by)
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        got = cli_ask_wait(store, 'crl_' + act, asked, 60)
+        if args.json:
+            print(json.dumps({'nodes': got}, default=str))
+            return 0 if all(v and v.get('ok') for v in got.values()) else 1
+        bad = False
+        for n, v in sorted(got.items()):
+            if not v:
+                bad = True
+                print(pal.warn_line('%s: no answer in a minute - is acme running there?' % n))
+                continue
+            rows = v.get('crls') or []
+            if v.get('error'):
+                bad = True
+                print(pal.warn_line('%s: %s' % (n, v['error'])))
+            elif act == 'clear':
+                print(pal.ok_line('%s: %d CRL%s cleared' % (n, len(rows), '' if len(rows) == 1
+                                                                else 's')))
+            else:
+                print((pal.ok_line if v.get('ok') else pal.warn_line)(
+                    '%s: %d of %d CRL%s fetched' % (n, sum(1 for r in rows if r.get('ok')),
+                                                    len(rows), '' if len(rows) == 1 else 's')))
+                bad = bad or not v.get('ok')
+            for r in rows:
+                print('  %-64s %s' % (r['url'][:64], ('number %s' % r['number'] if r.get('number')
+                                                     else 'ok') if r.get('ok') else
+                                      'NOT FETCHED: %s' % r.get('err')))
+        return 1 if bad else 0
+    v = cl_view(_CliHere(store, d))
+    if args.json:
+        print(json.dumps({'crls': v['crls']}, default=str))
+        return 0
+    if not v['crls']:
+        print(pal.ok_line('no CRL kept or named yet - a CRL is fetched at the first sign-in of a '
+                          'certificate naming it (or acme --cert-login-crl-fetch)'))
+        return 0
+    now = time.time()
+    for c in v['crls']:
+        if not c['fetched']:
+            state = 'not fetched yet'
+        elif not c['ok']:
+            state = 'NOT HAD'
+        elif float(c.get('next') or 0) - now < 86400:
+            state = 'good, its next update within a day'
+        else:
+            state = 'good'
+        line = '%s %s  %s' % ('delta CRL' if c['delta'] else 'CRL', c['url'], state)
+        print(pal.ok_line(line) if c['ok'] and state == 'good' else pal.warn_line(line))
+        if c.get('issuer'):
+            print('  issued by     %s' % c['issuer'])
+        elif c.get('of'):
+            print('  named by      %s' % '; '.join(c['of']))
+        if c['fetched'] and c.get('this'):
+            print('  number %s, this update %s, next update %s' % (
+                c.get('number') or '-', stamp(c['this']), stamp(c.get('next'))))
+            print('  %s revoked, %s bytes, signature %s' % (
+                '-' if c.get('revoked') is None else c['revoked'], c.get('size') or '-',
+                {'ok': 'good (openssl, by the authorities put in)', 'bad': 'NOT GOOD',
+                 'unknown': 'not checked - its authority is not put in'}.get(c.get('sig'), '-')))
+        for n in c.get('nodes') or []:
+            print('  node %-12s %s%s' % (
+                n['node'], 'fetched %s' % stamp(n.get('at')) if n.get('ok') else 'not had',
+                ('  (%s, %s)' % (n['err'], stamp(n.get('err_at')))) if n.get('err') else ''))
+    return 0
+
+
 def cli_main(argv=None):
     global _LOG_TO_STDERR
     if CLI_STARTED_ROOT[0] is None:
@@ -2943,6 +3034,9 @@ def cli_main(argv=None):
         return cli_kerberos(args, pal, store)
     if args.cert_login or args.cert_login_ca or args.cert_login_ca_off:
         return cli_cert_login(args, pal, store)
+    if args.cert_login_crl or args.cert_login_crl_fetch is not None or \
+            args.cert_login_crl_clear is not None:
+        return cli_cert_login_crl(args, pal, store)
     if args.web_status or args.tls_import or args.tls_preset or args.tls_dh or \
             args.tls_hsts is not None or args.vip_set or args.vip or args.vip_move or args.vip_return or \
             args.web_retry:

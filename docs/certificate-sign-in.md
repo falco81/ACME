@@ -176,10 +176,41 @@ Under each part's switches, as otp's (*the authorities* are shared):
   the tab comes back to this card saying who it would sign in to *this part* and as what (or
   why not, in full) - nobody is signed in. It works for a part not switched on yet, as long as
   the port is served (one part on); the best way to find a wrong template first;
-- **the CRLs fetched** - address, good or not had, fetched, next update;
+- **the revocation lists (CRL)** - see [The CRLs on the card](#the-crls-on-the-card) below;
 - **each node** - heard from, the authorities written out (the same set as the database's),
   nginx listening on the port, or **the program that holds the port there**;
 - the guides: the AD CS template, a YubiKey, the browsers and the network.
+
+### The CRLs on the card
+
+One row for each CRL a node keeps, and for each one the authorities put in name (their own CRL
+Distribution Point or Freshest CRL - a root's own is never looked at) that is **not fetched yet**:
+
+- **the address** (copy button beside it), **issued by** (the CRL's issuer as openssl reads it -
+  or the authority that names it, before it is fetched), **base or delta** (a delta CRL - *Freshest
+  CRL* - is applied over its base), **the next update** as a pill: green *good*, amber *within a
+  day* or *last fetch failed* (the last good one is kept), red *not had* or *run out* - and the
+  revoked entries and when it was fetched;
+- **a row opens** to its this update, CRL number, size, the revoked entries, **its signature** -
+  checked by `openssl crl -CAfile` against the authorities put in when it is fetched (good, not
+  good, or not checked: its authority is not put in; `openssl verify` checks it again at every
+  sign-in either way), the last error and when, the address to copy, and **each node's** fetch:
+  when, its next update and number, its error.
+
+Each node publishes only these facts (never a CRL, 24 at most) with its state, every few seconds
+after a change.
+
+**Fetch now** (the header, or a row's own button - a full administrator) fetches every CRL again
+- those kept and those the authorities name, and the delta CRLs they name - **on every node of the
+cluster, each by itself**: asked through the database, the node the page is on does it at once,
+the others within seconds, and the card shows each node's answer as it comes (a CRL that could
+not be fetched, and why). A fetch that fails loosens nothing: the last good CRL is kept until its
+next update, and without one nobody signs in with a certificate it should say about - as at a
+sign-in.
+
+**Clear all** (asks first) and a row's **clear** button make every node forget the CRLs it keeps:
+the next sign-in (or Fetch now) fetches them again. While an address does not answer then, its
+certificates sign nobody in - the last good CRL is gone too. Both are written to Events.
 
 ## The sign-in page - the variants
 
@@ -410,6 +441,10 @@ acme --cert-login                     each part on or off, the port, the authori
                                       fetched, each node (--json)
 acme --cert-login-ca FILE             put in authorities (PEM, DER or .p7b) - every node writes them out
 acme --cert-login-ca-off SHA256 --yes take one away (the first 12 characters of it or more)
+acme --cert-login-crl                 the CRLs: address, issuer, number, this and next update,
+                                      revoked entries, signature, each node's fetch (--json)
+acme --cert-login-crl-fetch [URL]     Fetch now - every CRL (or the one at URL), on every node
+acme --cert-login-crl-clear [URL]     Clear - every CRL (asks; --yes) or the one at URL, on every node
 acme --set admin_certlogin=1          the switches as any other setting: portal_certlogin,
 acme --set certlogin_port=8443          admin_certlogin_auto, admin_certlogin_match, admin_certlogin_crl, ...
 acme --set admin_password_off=0       the way back from "no password at all" (switched on only from the pages)

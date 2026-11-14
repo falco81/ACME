@@ -1539,6 +1539,145 @@ print(json.dumps([go("ncp", "cas-nc", False), go("ncok", "cas-nc", False), WHY, 
             self.on(admin_certlogin=0, admin_certlogin_auto=0, portal_certlogin=0,
                     portal_certlogin_auto=0)
 
+    # ---- the CRLs on the card: the list, Fetch now, Clear (1.0.104) -----------------------------
+    def crl_ask(self, act, url='', session=None):
+        """Fetch now or Clear asked of every node, and every node's answer waited for."""
+        x = self.must('POST', '/api/certlogin', {'action': 'crl_' + act, 'url': url},
+                      session=session)
+        self.assertTrue(x['id'] and x['nodes'], x)
+        for _ in range(120):
+            got = self.must('POST', '/api/certlogin', {'action': 'result', 'id': x['id']})['nodes']
+            if all(got.get(n) for n in x['nodes']):
+                return x, got
+            time.sleep(0.5)
+        self.fail('no answer to %s: %s' % (act, got))
+
+    def crl_rows(self):
+        return {c['url']: c for c in self.must('GET', '/api/certlogin', session=self.ro)['crls']}
+
+    def gencrl(self):
+        """A new CRL of the issuing authority at its CDP: its number one up."""
+        env = dict(os.environ, UPN='x', SID='x')
+        subprocess.run(['openssl', 'ca', '-config', 'ca.cnf', '-gencrl', '-out', 'issuing.crl.pem'],
+                       cwd=self.pki, check=True, capture_output=True, env=env)
+        subprocess.run(['openssl', 'crl', '-in', 'issuing.crl.pem', '-outform', 'DER', '-out',
+                        'www/issuing.crl'], cwd=self.pki, check=True, capture_output=True)
+        return subprocess.run(['openssl', 'crl', '-in', 'issuing.crl.pem', '-noout', '-crlnumber'],
+                              cwd=self.pki, capture_output=True, text=True).stdout.strip().split('=')[1]
+
+    def test_29_the_crls_on_the_card(self):
+        self.put()
+        self.on(admin_certlogin=1)
+        here = 'http://127.0.0.1:%d/' % self.crl_port
+        base, root = here + 'issuing.crl', here + 'root.crl'
+        try:
+            self.crl_ask('clear')                  # nothing of the tests before (nowhere.crl)
+            self.assertEqual(self.sign('admin', 'nested')[0], 200)
+            rows = self.crl_rows()
+            self.assertIn(base, rows, rows)
+            c = rows[base]
+            self.assertTrue(c['fetched'] and c['ok'], c)
+            self.assertFalse(c['delta'])
+            self.assertIn('Corpnet Issuing CA', c['issuer'])
+            self.assertRegex(c['number'], r'^0x[0-9A-F]+$')
+            self.assertTrue(c['this'] < time.time() < c['next'], c)
+            self.assertIsInstance(c['revoked'], int)
+            self.assertGreaterEqual(c['revoked'], 1)              # falco-rev
+            self.assertGreater(c['size'], 100)
+            self.assertEqual(c['sig'], 'ok')
+            self.assertEqual([n['node'] for n in c['nodes']], ['testnode'])
+            # The authority's own CDP (the root's CRL): named by it, fetched for it too.
+            self.assertTrue(rows[root]['named'], rows[root])
+            self.assertIn('Corpnet Issuing CA', rows[root]['of'][0])
+            # Small: facts and dates only - never a CRL in the node's row.
+            for _ in range(40):                                    # the daemon's first round
+                st = self.py('print(json.dumps(E.cl_node_state(st, "testnode")))')
+                if st.get('crls'):
+                    break
+                time.sleep(0.5)
+            self.assertNotIn('BEGIN X509 CRL', json.dumps(st))
+            self.assertTrue(all('pem' not in x for x in st['crls']), st)
+            # Only a full administrator.
+            for who in (self.login('viewer'), self.login('certer')):
+                for act in ('crl_fetch', 'crl_clear'):
+                    st_, got = self.call('POST', '/api/certlogin', {'action': act}, who)
+                    self.assertEqual(st_, 403, got)
+            st_, got = self.call('POST', '/api/certlogin', {'action': 'crl_fetch',
+                                                            'url': 'http://10.9.9.9/x.crl'}, self.admin)
+            self.assertEqual(st_, 404, got)
+            # Fetch now: the CRL published since is had at once - its number one up.
+            was = c['number']
+            number = self.gencrl()
+            self.assertEqual(self.crl_rows()[base]['number'], was)      # kept ten minutes
+            x, got = self.crl_ask('fetch')
+            ans = got['testnode']
+            self.assertTrue(ans['ok'], ans)
+            self.assertIn(base, [r['url'] for r in ans['crls']])
+            self.assertIn(root, [r['url'] for r in ans['crls']])
+            c = self.crl_rows()[base]
+            self.assertEqual(c['number'], number)
+            self.assertNotEqual(number, was)
+            self.assertTrue(any('fetch every CRL' in w for w in self.events('fetch every CRL')))
+            # Asked once, done once: the node's answer and its fetch stay as they were.
+            at = c['at']
+            time.sleep(7)
+            again = self.must('POST', '/api/certlogin', {'action': 'result', 'id': x['id']})
+            self.assertEqual(again['nodes']['testnode']['at'], ans['at'])
+            self.assertEqual(self.crl_rows()[base]['at'], at)
+            # One row fetched: the CDP gone - the last good one kept, the error said; no sign-in
+            # lost by it (fail closed as ever: until its next update).
+            os.rename(os.path.join(self.pki, 'www', 'issuing.crl'),
+                      os.path.join(self.pki, 'www', 'issuing.away'))
+            try:
+                x, got = self.crl_ask('fetch', base)
+                self.assertFalse(got['testnode']['ok'])
+                c = self.crl_rows()[base]
+                self.assertTrue(c['ok'], c)
+                self.assertIn('HTTP 404', c['err'])
+                self.assertTrue(c['err_at'])
+                self.assertEqual(self.sign('admin', 'nested')[0], 200)
+                # Cleared, and the CDP not answering: nobody signs in (no CRL, no sign-in).
+                x, got = self.crl_ask('clear', base)
+                self.assertEqual([r['url'] for r in got['testnode']['crls']], [base])
+                self.assertNotIn(base, self.crl_rows())
+                self.refused('admin', 'nested', 'not available just now')
+            finally:
+                os.rename(os.path.join(self.pki, 'www', 'issuing.away'),
+                          os.path.join(self.pki, 'www', 'issuing.crl'))
+            # ...and the next sign-in fetches it again.
+            self.assertEqual(self.sign('admin', 'nested')[0], 200)
+            self.assertTrue(self.crl_rows()[base]['ok'])
+            # Clear every one: those the authorities name stay listed, not fetched.
+            self.crl_ask('clear')
+            rows = self.crl_rows()
+            self.assertNotIn(base, rows)
+            self.assertFalse(rows[root]['fetched'], rows[root])
+            self.assertTrue(any('cleared the CRLs' in w for w in self.events('cleared the CRLs')))
+            # The command line.
+            got = self.cli('--cert-login-crl-fetch')
+            self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+            self.assertIn('testnode', got.stdout)
+            self.assertIn(root, got.stdout)
+            got = self.cli('--cert-login-crl')
+            self.assertEqual(got.returncode, 0, got.stderr)
+            self.assertIn(root, got.stdout)
+            self.assertIn('issued by', got.stdout)
+            self.assertIn('signature good', got.stdout)
+            v = json.loads(self.cli('--cert-login-crl', '--json').stdout)
+            self.assertTrue(any(c['url'] == root and c['fetched'] for c in v['crls']), v)
+            got = self.cli('--cert-login-crl-clear')
+            self.assertNotEqual(got.returncode, 0)                 # asks; --yes
+            got = self.cli('--cert-login-crl-clear', root)
+            self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+            self.assertIn('1 CRL cleared', got.stdout)
+            got = self.cli('--cert-login-crl-clear', '--yes')
+            self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+            got = self.cli('--cert-login-crl-fetch', 'http://10.9.9.9/x.crl')
+            self.assertNotEqual(got.returncode, 0)
+            self.assertIn('no CRL at that address', got.stderr)
+        finally:
+            self.on(admin_certlogin=0)
+
     def test_14_kerberos_untouched(self):
         """The shared code: a Kerberos sign-in's session and its words as before."""
         self.assertEqual(self.py('print(json.dumps(E.sso_only_said("admin")))'),

@@ -6,7 +6,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.104 - not released
 
-(nothing yet)
+- **The sign-in with a certificate: the CRLs on the card, Fetch now and Clear.** Settings →
+  Accounts (and the enrolment pages) → *Signing in with a certificate* lists every CRL a node
+  keeps and every one the authorities put in name (not fetched yet, until then): its address (to
+  copy), issuer, base or delta, the next update as a pill (good, within a day or its last fetch
+  failed, not had or run out), the revoked entries and when it was fetched; a row opens to its
+  this update, number, size, the signature checked by openssl against the authorities, and each
+  node's fetch and last error. **Fetch now** and **Clear** (all, or one row; a full
+  administrator; in Events) are done by every node of the cluster itself, the card following
+  their answers; a fetch that fails loosens nothing - the last good CRL until its next update,
+  else no sign-in, as before. The same from the command line: `acme --cert-login-crl`,
+  `--cert-login-crl-fetch [URL]`, `--cert-login-crl-clear [URL]`.
 
 ## 1.0.103 - 2026-11-14
 
