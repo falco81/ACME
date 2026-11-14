@@ -316,6 +316,12 @@ function acme_kerberos_relay(string $path, array $more = [], bool $session = tru
         return;
     }
     unset($data['token']);
+    /* NTLM, a password typed into the browser's own dialog, another mechanism (1.0.100): no
+       Kerberos ticket at all, as a computer outside the domain sends - said as no_ticket, so
+       the page tells it from a refusal of a real ticket (the words stay the generic ones). */
+    if ($status === 401 && preg_match('/: no Kerberos ticket\z/', (string) ($data['error'] ?? '')) === 1) {
+        $data['code'] = 'no_ticket';
+    }
     http_response_code($status === 401 ? 403 : $status);
     echo json_encode($data);
 }

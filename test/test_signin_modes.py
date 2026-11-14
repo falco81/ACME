@@ -58,6 +58,9 @@ HARNESS = r'''
 var CODE = %(code)s;
 var STORE = {}, NOW = 1700000000000, LOG = [];
 var KRB_ANSWER = 'no_ticket';
+var LSTORE = {};
+global.localStorage = {getItem: function (k) { return Object.prototype.hasOwnProperty.call(LSTORE, k) ? LSTORE[k] : null; },
+  setItem: function (k, v) { LSTORE[k] = String(v); }, removeItem: function (k) { delete LSTORE[k]; }};
 global.sessionStorage = {getItem: function (k) { return Object.prototype.hasOwnProperty.call(STORE, k) ? STORE[k] : null; },
   setItem: function (k, v) { STORE[k] = String(v); }, removeItem: function (k) { delete STORE[k]; }};
 Date.now = function () { return NOW; };
@@ -103,7 +106,8 @@ function load(page) {
           pw_hidden: ELS['cert-pw'] ? ELS['cert-pw'].parentNode.hidden : null, search: location.search});
   }); }); });
 }
-function tab() { STORE = {}; }
+// A new tab: sessionStorage gone; localStorage is the browser's - kept only when asked.
+function tab(sameBrowser) { STORE = {}; if (!sameBrowser) LSTORE = {}; }
 (async function () {
   var out = {};
   var both = {krb: 'auto', cert: 'auto'};
@@ -155,6 +159,33 @@ function tab() { STORE = {}; }
   // 11. Neither by itself: nothing asked.
   tab();
   out.buttons = await load({krb: 'button', cert: 'button'});
+  // 12. No ticket in this browser: remembered; Windows not tried by itself for 30 days (the
+  //     certificate by itself follows as after no ticket), again after them; a refusal of a real
+  //     ticket is not remembered; a Windows sign-in clears it.
+  tab(); KRB_ANSWER = 'no_ticket';
+  out.nt_first = await load({krb: 'auto'});
+  out.nt_kept = Object.keys(LSTORE);
+  tab(true);
+  out.nt_next_tab = await load({krb: 'auto', cert: 'auto'});
+  NOW += 29 * 86400000; tab(true);
+  out.nt_29_days = await load({krb: 'auto'});
+  NOW += 2 * 86400000; tab(true);
+  out.nt_31_days = await load({krb: 'auto'});
+  tab(); KRB_ANSWER = 'deny';
+  await load({krb: 'auto'});
+  out.nt_refusal = Object.keys(LSTORE);
+  tab(); KRB_ANSWER = 'no_ticket';
+  await load({krb: 'auto'});
+  tab(true); KRB_ANSWER = 'ok';
+  var pressed = await load({krb: 'auto'});
+  ELS['krb-go'].onclick();
+  await new Promise(function (r) { setImmediate(function () { setImmediate(r); }); });
+  out.nt_button = {asked_by_itself: pressed.log, kept_after: Object.keys(LSTORE)};
+  // ...Windows the only way (no password): the button, not tried by itself, and why.
+  tab(); KRB_ANSWER = 'no_ticket';
+  await load({krb: 'auto', only: true});
+  tab(true);
+  out.nt_only = await load({krb: 'auto', only: true});
   console.log(JSON.stringify(out));
 })().catch(function (e) { console.log('FAILED ' + e.stack); process.exit(1); });
 '''
@@ -219,6 +250,25 @@ class PageLogic(unittest.TestCase):
         self.assertEqual(self.out['cert_only_auto']['log'][0], 'ask cert-nonce')
         self.assertNotIn('ask kerberos-login', self.out['cert_only_auto']['log'])
         self.assertEqual(self.out['buttons']['log'], [])
+
+    def test_no_ticket_remembered_for_30_days(self):
+        o = self.out
+        self.assertEqual(o['nt_first']['log'], ['ask kerberos-login'])
+        self.assertEqual(o['nt_kept'], ['acme.krb.noticket.admin'])
+        # The next tab of that browser: Windows not by itself; the certificate (by itself) goes.
+        self.assertEqual(o['nt_next_tab']['log'][0], 'ask cert-nonce')
+        self.assertNotIn('ask kerberos-login', o['nt_next_tab']['log'])
+        self.assertEqual(o['nt_29_days']['log'], [])
+        self.assertEqual(o['nt_31_days']['log'], ['ask kerberos-login'])
+        # A refusal of a real ticket is said, never remembered.
+        self.assertEqual(o['nt_refusal'], [])
+        # The button still works, and a Windows sign-in clears the memory.
+        self.assertEqual(o['nt_button']['asked_by_itself'], [])
+        self.assertEqual(o['nt_button']['kept_after'], [])
+        # Windows the only way: its button, not tried by itself, and why.
+        self.assertEqual(o['nt_only']['log'], [])
+        self.assertEqual(o['nt_only']['krb_said'],
+                         'this browser had no Windows ticket - press the button to try again')
 
     def test_the_pages_run_it_in_that_order(self):
         for page, src in (('web/admin/index.php', read('web', 'admin', 'index.php')),

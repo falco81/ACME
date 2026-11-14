@@ -63,7 +63,14 @@ KRB_ENCTYPES = {1: 'des-cbc-crc', 3: 'des-cbc-md5', 16: 'des3-cbc-sha1', 17: 'ae
 KRB_WEAK = (1, 3, 16, 23, 24)
 KRB_AES = (17, 18, 19, 20)                                 # the only keys kept of a keytab
 KRB_REFUSED = 'Windows sign-in refused'
+# 'no_ticket' (1.0.100): no Kerberos ticket at all - NTLM, a password typed into the browser's
+# own dialog (Basic), another mechanism - what a computer outside the domain sends. The page tells
+# it from a refusal of a real ticket: it remembers "no ticket in this browser" and stops trying
+# Windows by itself (core.js); a refusal is only said.
+KRB_NO_TICKET = ('NTLM', 'no Negotiate ticket', 'a mechanism that is not Kerberos 5',
+                 'more than one round')
 KRB_KINDS = {'allowed': 'not allowed', 'ticket': 'ticket not accepted', 'replay': 'replay',
+             'no_ticket': 'no Kerberos ticket',
              'unavailable': 'not available just now'}
 KRB_ONLY_SAID = 'only Windows: these pages take no password - sign in with Windows'
 # "No password at all" with certificates too (1.0.100): said by what signs people in instead.
@@ -898,6 +905,11 @@ def krb_proof_of(h, s):
 
 
 # ---- a ticket taken -------------------------------------------------------------------------
+def krb_kind_of(why):
+    """'no_ticket' for what is no Kerberos ticket at all (KRB_NO_TICKET), else 'ticket'."""
+    return 'no_ticket' if any(w in str(why) for w in KRB_NO_TICKET) else 'ticket'
+
+
 def krb_ticket(h, part, b, try_only=False):
     """The checks both parts share: the header read, the ticket accepted with the keytab (written
     out first if this node has not yet), the realm the part takes, and the ticket never seen
@@ -908,11 +920,11 @@ def krb_ticket(h, part, b, try_only=False):
     try:
         token = krb_token_from_header(header)
     except KrbError as e:
-        raise KrbRefused(str(e))
+        raise KrbRefused(str(e), krb_kind_of(str(e)))
     if len(token) > KRB_TOKEN_MAX:
         raise KrbRefused('larger than any Kerberos ticket')
     if krb_is_ntlm(token):
-        raise KrbRefused('NTLM is never taken - only Kerberos')
+        raise KrbRefused('NTLM is never taken - only Kerberos', 'no_ticket')
     # The key it is kept under in the cluster, before the library is asked: a token that
     # cannot be taken apart is refused, never let through unkept.
     try:
@@ -936,7 +948,7 @@ def krb_ticket(h, part, b, try_only=False):
         principal = krb_accept(token, krb_keytab_path())
         user, realm = krb_split(principal)
     except KrbError as e:
-        raise KrbRefused(str(e), 'replay' if 'replay' in str(e).lower() else 'ticket')
+        raise KrbRefused(str(e), 'replay' if 'replay' in str(e).lower() else krb_kind_of(str(e)))
     want, _ = krb_realm(h.d, part)
     if not want:
         raise KrbRefused('the realm is not known: set it, or a base DN of the directory',

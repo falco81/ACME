@@ -3479,6 +3479,22 @@ function krbFlag(part, which, on) {
 }
 /* Signed out on purpose: never by itself again in this tab. */
 function krbSignedOut(part) { krbFlag(part, 'out', true); }
+/* No ticket in this browser (1.0.100): a try by itself that ended with no Kerberos ticket at all -
+   the browser sent nothing (or its own Sign in dialog was cancelled), or NTLM / a password typed
+   into that dialog - is remembered in this browser (localStorage, per part, when) for 30 days:
+   Windows is then not tried by itself any more - on a computer outside the domain the browser's
+   dialog would pop up on every visit. The button stays; a Windows sign-in clears it. A refusal
+   of a real ticket is never remembered (it is said, per tab). */
+var KRB_NO_TICKET_MS = 30 * 86400000;
+function krbNoTicket(part, now, set) {
+  var k = 'acme.krb.noticket.' + part;
+  try {
+    if (set === true) { localStorage.setItem(k, String(now)); return true; }
+    if (set === false) { localStorage.removeItem(k); return false; }
+    var at = Number(localStorage.getItem(k) || 0);
+    return !!at && now - at >= 0 && now - at < KRB_NO_TICKET_MS;
+  } catch (e) { return false; }
+}
 function krbDoor(done, next) {
   next = next || function () { return false; };
   var box = $('krb-box');
@@ -3498,6 +3514,7 @@ function krbDoor(done, next) {
         var why = String(x.d.error || 'refused');
         /* No ticket at all (a computer outside the domain): on to the certificate, when that
            goes by itself too. A refusal is said, and nothing else starts. */
+        if (auto && x.d.code === 'no_ticket') krbNoTicket(part, Date.now(), true);
         if (auto && x.d.code === 'no_ticket' && next()) { said.textContent = ''; return; }
         /* Tried by itself on a computer outside the domain: nothing said - the form is there. */
         if (auto && x.d.code === 'no_ticket' && box.dataset.only !== '1') { said.textContent = ''; return; }
@@ -3506,12 +3523,22 @@ function krbDoor(done, next) {
         return;
       }
       krbFlag(part, 'out', false);
+      krbNoTicket(part, Date.now(), false);
       done(x.d);
     });
   };
   go.onclick = function () { tryIt(false); };
-  if (box.dataset.auto === '1' && !krbFlag(part, 'tried') && !krbFlag(part, 'out')) tryIt(true);
-  else next();
+  var remembered = krbNoTicket(part, Date.now());
+  if (box.dataset.auto === '1' && !krbFlag(part, 'tried') && !krbFlag(part, 'out') && !remembered) tryIt(true);
+  else {
+    /* Windows the only way, and no ticket in this browser lately: the button, and why it was
+       not tried by itself (the browser's own dialog is not sprung again). */
+    if (remembered && box.dataset.auto === '1' && box.dataset.only === '1') {
+      said.className = 'said';
+      said.textContent = 'this browser had no Windows ticket - press the button to try again';
+    }
+    next();
+  }
 }
 
 /* ---- signing in with a certificate - a smart card, a YubiKey (1.0.100, as otp 1.0.275) ------

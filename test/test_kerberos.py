@@ -491,11 +491,16 @@ class Kerberos(unittest.TestCase):
         got = self.refused('admin', self.neg('jnovak', 'other.corpnet.loc'), 'ticket not accepted',
                            'not found in keytab')
         self.assertNotIn('keytab', got['error'])
-        # NTLM: bare (in Negotiate and as its own scheme), inside SPNEGO; garbage; 20 kB.
+        # NTLM: bare (in Negotiate and as its own scheme), inside SPNEGO - and a password typed
+        # into the browser's own dialog (Basic): no Kerberos ticket at all (1.0.100: a category
+        # of its own, so the page tells a computer outside the domain from a refusal).
         for header, why in (('Negotiate ' + base64.b64encode(NTLM_NEGOTIATE).decode(), 'NTLM'),
                             ('NTLM ' + base64.b64encode(NTLM_NEGOTIATE).decode(), 'NTLM'),
                             ('Negotiate ' + base64.b64encode(ntlm_in_spnego()).decode(), 'NTLM'),
-                            ('Negotiate ' + base64.b64encode(os.urandom(300)).decode(),
+                            ('Basic dXNlcjpwYXNz', 'no Negotiate ticket')):
+            self.refused('admin', header, 'no Kerberos ticket', why)
+        # Garbage, 20 kB: a ticket not accepted.
+        for header, why in (('Negotiate ' + base64.b64encode(os.urandom(300)).decode(),
                              'not a Kerberos request that can be read'),
                             ('Negotiate %%%%-not-base64', 'not base64'),
                             ('Negotiate ' + base64.b64encode(os.urandom(15000)).decode(),
@@ -803,11 +808,16 @@ class Kerberos(unittest.TestCase):
             self.assertNotIn('token', got)
             self.assertTrue(any(c.startswith('acme_session=') and 'HttpOnly' in c and
                                 'SameSite=Strict' in c for c in cookies), cookies)
-            for auth in (self.neg('nogroups'), 'NTLM ' + base64.b64encode(NTLM_NEGOTIATE).decode(),
+            no_ticket = ('NTLM ' + base64.b64encode(NTLM_NEGOTIATE).decode(),
                          'Negotiate ' + base64.b64encode(ntlm_in_spnego()).decode(),
-                         'Negotiate ' + 'A' * 20000, 'Basic dXNlcjpwYXNz'):
+                         'Basic dXNlcjpwYXNz')
+            for auth in (self.neg('nogroups'), 'Negotiate ' + 'A' * 20000) + no_ticket:
                 st, hd, cookies, got = post('/admin/?api=kerberos-login', auth)
                 self.assertEqual(st, 403, (auth[:20], got))
+                # No Kerberos ticket at all (NTLM, Basic) is said as such to the page (1.0.100);
+                # a refusal of a real ticket, or garbage, is not.
+                self.assertEqual(got.get('code'), 'no_ticket' if auth in no_ticket else None,
+                                 (auth[:20], got))
                 self.assertNotIn('WWW-Authenticate', hd)
                 self.assertFalse(any(c.startswith('acme_session=') and 'expires' not in c.lower()
                                      for c in cookies))
