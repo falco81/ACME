@@ -166,12 +166,13 @@ def _password(h):
     s = h.me()
     b = h.body()
     acc = s['account']
+    if krb_password_off('admin', h.store):
+        # "Only Windows" (1.0.99): no password is taken here, so none is changed either - said
+        # first, to whoever asks (an account of the directory, signed in with Windows, too).
+        raise ApiError(403, KRB_ONLY_SAID)
     if acc.get('source') == 'directory':
         raise ApiError(400, 'this account signs in with its directory password, which is '
                        'changed in the directory')
-    if krb_password_off('admin', h.store):
-        # "Only Windows" (1.0.99): no password is taken here, so none is changed either.
-        raise ApiError(403, KRB_ONLY_SAID)
     # The new one and the one typed again first, in words (as the form says them).
     bad = password_change_problem(b)
     if bad:

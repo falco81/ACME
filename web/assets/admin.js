@@ -7823,7 +7823,9 @@ function krbPut(part) {
       for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
       api('kerberos', {action: 'put', data: btoa(bin), name: file.name}).then(function (x) {
         KRB.d = x.view; KRB.tried = {};
-        toast('the keytab is put in - every node writes it out within seconds', 'good');
+        var left = (x.dropped || []).length;
+        toast(left ? 'the keytab is put in - ' + left + ' of its keys left out (only AES keys of HTTP/ names are kept): see the card'
+          : 'the keytab is put in - every node writes it out within seconds', left ? 'warn' : 'good');
         drawKrb('admin'); drawKrb('portal');
       }).catch(oops);
     };
@@ -7858,6 +7860,12 @@ function drawKrb(part) {
   if (part === 'admin' && !p.directory) host.appendChild(el('p', 'note warn', 'Choose the directory administrators sign in against first (above): only accounts of the directory sign in with Windows.'));
   if (part === 'portal' && !p.portal) host.appendChild(el('p', 'note warn', 'The enrolment pages are switched off (above): nobody signs in to them with Windows either.'));
   if (p.switch && !d.keytab) host.appendChild(el('p', 'note warn', 'Switched on, but no keytab is put in yet: the button is not offered until one is.'));
+  if (p.realm_warn) {
+    var rw = el('p', 'note warn');
+    rw.appendChild(document.createTextNode('The realm set is not the domain of the directory’s base DN, nor one under it: a person is taken only when their entry in the directory is of the ticket’s realm, so nobody would sign in. '));
+    rw.appendChild(noI18n(el('span', 'small', p.realm_warn)));
+    host.appendChild(rw);
+  }
   var realm = noI18n(el('span', 'mono', p.realm || '-'));
   krbFacts(host, [
     ['Realm', [realm, el('span', 'muted small krb-from', {set: 'set above', directory: 'from the directory’s base DN'}[p.realm_from] || 'not known - set it above')]],
@@ -7882,6 +7890,12 @@ function drawKrb(part) {
       if (e.weak) { var w = el('span', ''); w.appendChild(k); w.appendChild(krbTag('warn', 'weak')); k = w; }
       return [noI18n(el('span', 'mono', e.principal)), String(e.kvno), k];
     }));
+    if ((d.keytab.dropped || []).length) {
+      host.appendChild(el('p', 'note warn', 'Left out of the file put in - only AES keys of web services (HTTP/) are kept and written out:'));
+      krbTable(host, ['Principal', 'Key version', 'Kind of key', 'Why'], d.keytab.dropped.map(function (e) {
+        return [noI18n(el('span', 'mono', e.principal)), String(e.kvno), noI18n(el('span', 'mono', e.kind)), e.why];
+      }));
+    }
   } else {
     host.appendChild(el('p', 'note', 'None yet. Make it in AD (below) and put it in here - once, for both parts and every node.'));
   }

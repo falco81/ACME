@@ -61899,6 +61899,62 @@
   "_258": {
    "source": "written out",
    "text": "zapsán"
+  },
+  "_256": {
+   "source": "Windows sign-in refused: not allowed",
+   "text": "Přihlášení přes Windows odmítnuto: není povoleno"
+  },
+  "_259": {
+   "source": "Windows sign-in refused: ticket not accepted",
+   "text": "Přihlášení přes Windows odmítnuto: lístek nepřijat"
+  },
+  "_260": {
+   "source": "Windows sign-in refused: replay",
+   "text": "Přihlášení přes Windows odmítnuto: opakované použití"
+  },
+  "_261": {
+   "source": "Windows sign-in refused: not available just now",
+   "text": "Přihlášení přes Windows odmítnuto: teď není k dispozici"
+  },
+  "_262": {
+   "source": "portal_password_off: \"only Windows\" on the portal is switched on only by somebody signed in to the portal with Windows in this browser, as the same person signed in here from the directory - open the portal, sign in with Windows there first, then switch it on here",
+   "text": "portal_password_off: „jen Windows“ na portálu zapne jen ten, kdo je v tomto prohlížeči přihlášen na portál přes Windows, a to jako tatáž osoba, která je zde přihlášena z adresáře – otevřete portál, nejdřív se tam přihlaste přes Windows a pak to zapněte zde"
+  },
+  "_263": {
+   "source": "Left out of the file put in - only AES keys of web services (HTTP/) are kept and written out:",
+   "text": "Vynecháno z vloženého souboru – ponechávají se a zapisují jen klíče AES webových služeb (HTTP/):"
+  },
+  "_264": {
+   "source": "not a web service (HTTP/)",
+   "text": "není webová služba (HTTP/)"
+  },
+  "_265": {
+   "source": "a weak key (RC4 or DES)",
+   "text": "slabý klíč (RC4 nebo DES)"
+  },
+  "_266": {
+   "source": "not an AES key",
+   "text": "není klíč AES"
+  },
+  "_267": {
+   "source": "the keytab holds no AES key of a web service, only weak ones (DES or RC4) - make it with -crypto AES256-SHA1, and switch on \"This account supports Kerberos AES 256 bit encryption\" on the service account",
+   "text": "keytab neobsahuje žádný klíč AES webové služby, jen slabé (DES nebo RC4) – vytvořte ho s -crypto AES256-SHA1 a na servisním účtu zapněte „This account supports Kerberos AES 256 bit encryption“"
+  },
+  "_268": {
+   "source": "The realm set is not the domain of the directory’s base DN, nor one under it: a person is taken only when their entry in the directory is of the ticket’s realm, so nobody would sign in. ",
+   "text": "Nastavená sféra není doménou základního DN adresáře ani doménou pod ní: osoba se přijme jen tehdy, je-li její záznam v adresáři ze sféry lístku, takže by se nepřihlásil nikdo. "
+  },
+  "_269": {
+   "source": "room for a Kerberos ticket as large as AD makes one (64 kB headers)",
+   "text": "místo pro lístek Kerbera tak velký, jaký AD vytvoří (hlavičky 64 kB)"
+  },
+  "_270": {
+   "source": "room for a Kerberos ticket of a person in many groups (64 kB headers)",
+   "text": "místo pro lístek Kerbera osoby v mnoha skupinách (hlavičky 64 kB)"
+  },
+  "_271": {
+   "source": "nginx: room for a Kerberos ticket of a person in many groups (64 kB headers)",
+   "text": "nginx: místo pro lístek Kerbera osoby v mnoha skupinách (hlavičky 64 kB)"
   }
  },
  "patterns": {
@@ -86041,6 +86097,62 @@
   "p_190": {
    "source": "settings left out: switched on only from a sign-in with Windows ({0})",
    "text": "vynechaná nastavení: zapínají se jen z přihlášení přes Windows ({0})"
+  },
+  "p_191": {
+   "source": "the keytab is put in - left out (only AES keys of HTTP/ names are kept): {0}",
+   "text": "keytab je vložen – vynecháno (ponechávají se jen klíče AES jmen HTTP/): {0}"
+  },
+  "p_192": {
+   "source": "the keytab is put in - {0} of its keys left out (only AES keys of HTTP/ names are kept): see the card",
+   "text": "keytab je vložen – {0} z jeho klíčů vynecháno (ponechávají se jen klíče AES jmen HTTP/): viz karta"
+  },
+  "p_193": {
+   "source": "left out: {0} kvno {1} {2} - {3}",
+   "text": "vynecháno: {0} kvno {1} {2} – {3}"
+  },
+  "p_194": {
+   "source": "{0} put in the keytab of the sign-in with Windows: {1}; left out: {2}",
+   "text": "{0} vložil(a) keytab přihlášení přes Windows: {1}; vynecháno: {2}"
+  },
+  "p_195": {
+   "source": "the realm {0} is not the domain of the directory's base DN ({1}), nor one under it: only people whose entry is in the domain {2} sign in - and the directory has none there",
+   "text": "sféra {0} není doménou základního DN adresáře ({1}) ani doménou pod ní: přihlásí se jen lidé, jejichž záznam je v doméně {2} – a ten tam adresář nemá žádný"
+  },
+  "p_196": {
+   "source": "{0} was found in the directory as {1}, of the domain {2} - not of the realm {3}, so not taken as the same person",
+   "text": "{0} byl(a) v adresáři nalezen(a) jako {1}, z domény {2} – ne ze sféry {3}, proto se nebere jako tatáž osoba"
+  },
+  "p_197": {
+   "source": "not taken: not a Kerberos request that can be read ({0})",
+   "text": "nepřijato: není to čitelný požadavek Kerbera ({0})"
+  },
+  "p_198": {
+   "source": "the ticket of {0} was used already - sent again (a replay?)",
+   "text": "lístek {0} už byl použit – poslán znovu (opakování?)"
+  },
+  "p_199": {
+   "source": "{0}: {1} sign-in(s) to these pages ended - only Windows now, and they were made with a password",
+   "text": "{0}: ukončeno přihlášení na tyto stránky: {1} – teď jen Windows a byla provedena heslem"
+  },
+  "p_200": {
+   "source": "{0}: {1} sign-in(s) to the enrolment pages ended - only Windows now, and they were made with a password",
+   "text": "{0}: ukončeno přihlášení na stránky žádostí: {1} – teď jen Windows a byla provedena heslem"
+  },
+  "p_201": {
+   "source": "{0}: {1} sign-in(s) to these pages ended - Windows no longer signs anybody in, and they were made with it",
+   "text": "{0}: ukončeno přihlášení na tyto stránky: {1} – Windows už nikoho nepřihlašuje a byla provedena přes ně"
+  },
+  "p_202": {
+   "source": "{0}: {1} sign-in(s) to the enrolment pages ended - Windows no longer signs anybody in, and they were made with it",
+   "text": "{0}: ukončeno přihlášení na stránky žádostí: {1} – Windows už nikoho nepřihlašuje a byla provedena přes ně"
+  },
+  "p_203": {
+   "source": "whether a keytab of the sign-in with Windows is put in could not be read: {0}",
+   "text": "nepodařilo se zjistit, zda je vložen keytab přihlášení přes Windows: {0}"
+  },
+  "p_204": {
+   "source": "the sign-ins could not be ended after a change of the sign-in with Windows: {0}",
+   "text": "přihlášení se po změně přihlašování přes Windows nepodařilo ukončit: {0}"
   }
  },
  "rich": {

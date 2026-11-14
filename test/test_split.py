@@ -325,6 +325,9 @@ class Freeze(unittest.TestCase):
                                    ('POST', '/api/auth/login', {'name': 'x', 'password': 'y'}),
                                    ('POST', '/api/split', {'action': 'save'}),
                                    ('POST', '/api/portal/login', {'name': 'x', 'password': 'y'}),
+                                   # signing in with Windows, both parts (1.0.99)
+                                   ('POST', '/api/portal/kerberos', {}),
+                                   ('POST', '/api/auth/kerberos', {}),
                                    ('POST', '/api/upgrade', {'action': 'maintenance'})):
             got = Dispatch(method, path, body).sent
             self.assertNotEqual(got[0], 409, path)

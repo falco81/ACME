@@ -472,8 +472,9 @@ def krb_keytab_check(raw):
     if not kept:
         services = [e for e, _r, _n in recs if e['principal'].startswith('HTTP/')]
         if not services:
+            names = sorted({e['principal'] for e, _r, _n in recs})
             raise ValueError('the keytab holds no key of a web service (HTTP/name@REALM) - it '
-                             'has: %s' % ', '.join(sorted({e['principal'] for e, _r, _n in recs}))[:300])
+                             'has: %s' % ', '.join(names)[:300])
         raise ValueError('the keytab holds no AES key of a web service, only weak ones (DES or '
                          'RC4) - make it with -crypto AES256-SHA1, and switch on "This account '
                          'supports Kerberos AES 256 bit encryption" on the service account')

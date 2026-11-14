@@ -33,9 +33,18 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   in effect only while Kerberos can sign anybody in; root's way back is `acme --set
   admin_password_off=0`. Never switched on by a configuration file read back.
 - The session says how it was opened (`how: Kerberos`). The exported configuration carries the
-  keytab with the secrets only. nginx takes headers up to 32 kB (`large_client_header_buffers 4
-  32k` - a ticket of a person in many groups is more than 8 kB): new installations, the upgrade
-  and the pages' root helper put it in.
+  keytab with the secrets only. nginx takes headers up to 64 kB (`large_client_header_buffers 4
+  64k` - a ticket of a person in many groups is more than 8 kB, and AD's largest is 64 kB in
+  base64): new installations, the upgrade and the pages' root helper put it in.
+- Kept tight: the cluster's "once" is the Kerberos request itself (the same one sent in another
+  wrapper is refused on the other node too); "only Windows" in effect from the first moment after
+  a start, ending the part's password sign-ins when it comes into effect - and Kerberos off or
+  the keytab taken away ending those made with Windows (whoever did it keeps theirs); the keytab
+  keeps only AES keys of HTTP/ names (the rest left out, said); the person found must be of the
+  ticket's realm (compared exactly); the portal's proof is the administrator's own portal
+  sign-in; a configuration with a keytab that would be refused changes nothing; the caller of a
+  refused sign-in is told only the kind (not allowed, ticket not accepted, replay), the reason is
+  in Events.
 
 ## 1.0.98 - 2026-11-13
 

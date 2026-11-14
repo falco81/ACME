@@ -24,15 +24,23 @@ administrator switches it on. One keytab serves both.
 3. **Only accounts of the directory**, by the same rules as a password: the administration - the
    role of the first group of a role they are in; the portal - *Who may sign in*, the groups,
    the role *Enrolment pages only*. A local account of acme keeps its password (a ticket of the
-   same name is refused).
+   same name is refused). **The entry found is of the ticket's realm**: the `DC=` parts of its
+   DN (or, without them, the suffix of its `userPrincipalName`) are the realm's domain - with a
+   forest-wide base, `novak@CHILD.CORP.EXAMPLE` is never the `novak` of `CORP.EXAMPLE`.
 4. **Once in the cluster.** A token used once is refused again on the same node and on the other
-   one, also after the VIP address moved.
+   one, also after the VIP address moved - also sent again in another wrapper (bare instead of
+   SPNEGO, SPNEGO with another list of mechanisms): the key is the Kerberos request itself.
 5. **Refused with 403, never a second 401** - a second 401 would make the browser try again,
-   offer NTLM, or open a password window of its own. The reason is said on the page and written
-   in *Events*.
+   offer NTLM, or open a password window of its own. The page says only *Windows sign-in
+   refused* and the kind - *not allowed*, *ticket not accepted*, *replay*, *not available just
+   now*; the reason is written in *Events*, for the administrators.
 6. **"Only Windows"** (optional, each part its own): no password at all - switched on only from a
-   sign-in made with Windows, in effect only while Kerberos is on with a keytab; the way back for
-   root is `acme --set admin_password_off=0` (`portal_password_off=0`).
+   sign-in made with Windows, in effect only while Kerberos is on with a keytab (from the first
+   moment after every start); the way back for root is `acme --set admin_password_off=0`
+   (`portal_password_off=0`).
+7. **Sign-ins end with what opened them.** "Only Windows" coming into effect ends that part's
+   sign-ins made with a password; Kerberos switched off or the keytab taken away ends those
+   made with Windows. Whoever made the change keeps their own sign-in.
 
 ## What the person sees
 
@@ -43,9 +51,13 @@ administrator switches it on. One keytab serves both.
   otherwise signing out would sign the person straight back in.
 - **Signed in** with the role of the AD groups (the administration) or to their certificates
   (the portal).
-- **Refused, and why** - "known to the directory, and none of the groups given a role here holds
-  them", "the directory does not let ghost in: the directory has nobody called ghost", "NTLM is
-  never taken", "this ticket was used already". The form stays.
+- **Refused** - *Windows sign-in refused: not allowed* (the directory or the groups do not let
+  them in, another realm, a local account of that name), *...: ticket not accepted* (NTLM, a
+  name not in the keytab, a token that is no Kerberos request), *...: replay* (the ticket was
+  used already), *...: not available just now* (no keytab, the directory not answering). Nothing
+  more to somebody not signed in: why exactly ("known to the directory, and none of the groups
+  given a role here holds them", "not found in keytab") is in *Events*, and *Try my browser's
+  ticket* on the card says it to an administrator. The form stays.
 - **The second step** (the administration) or **the code that was sent** (the portal), exactly as
   after a password.
 - **"Only Windows"**: no name and no password on the page at all - only *Sign in with Windows*.
@@ -60,7 +72,7 @@ administrator switches it on. One keytab serves both.
 |---|---|---|
 | `admin_krb` - *Sign administrators in with Windows (Kerberos)* | off | The switch. Means something only once a directory is chosen in *Sign administrators in against the directory*. |
 | `admin_krb_auto` - *...by itself when the sign-in page opens* | off | The page tries Windows at once; the form only when it did not work. Never again in that tab after *Sign out*. |
-| `admin_krb_realm` - *Kerberos realm* | empty | The realm whose people may sign in, in capitals. Empty: taken from the directory's base DN (`DC=corp,DC=example` → `CORP.EXAMPLE`). Any other realm is refused. |
+| `admin_krb_realm` - *Kerberos realm* | empty | The realm whose people may sign in, in capitals. Empty: taken from the directory's base DN (`DC=corp,DC=example` → `CORP.EXAMPLE`). Any other realm is refused - compared exactly, as realms are case-sensitive. A realm that is neither the base DN's domain nor one under it is warned of on the card: nobody of it is found in the directory. |
 | `admin_password_off` - *...and no password at all - only Windows* | off | See *Only Windows* below. |
 
 ### The portal - *Settings → The enrolment pages → Signing in with Windows (Kerberos)*
@@ -91,8 +103,10 @@ Under each part's switches:
 - each fact of that part: the realm and where it comes from, the directory, the second step or
   code after it, by itself or a button, a password offered or not, NTLM never taken, and whether
   the other part is on;
-- **the keytab** - its principals, key versions and kinds of key; never a key (DES and RC4 are
-  marked weak; a keytab of nothing but weak keys is refused);
+- **the keytab** - its principals, key versions and kinds of key; never a key. Only **AES keys
+  of web services** (`HTTP/name@REALM`) are kept and written out: an RC4 or DES key, a key of
+  another service (`host/`, `cifs/`) or of a person is left out - said when it is put in, and
+  listed on the card under *Left out of the file put in*. A keytab with nothing left is refused;
 - **Put in a keytab… / Take the keytab away** (a full administrator only) - for both parts;
 - **Try my browser's ticket** - asks this browser for its ticket and says who it would sign in
   to *this part* and as what, without signing anybody in. It works before the part is switched
@@ -134,8 +148,8 @@ browser                         nginx + PHP (the relay)              acme daemon
 - **The relay** (`acme_kerberos_relay` in `web/acme-api.php`, `?api=kerberos-login` on both
   pages, `?api=kerberos-try` for the card) decides nothing: without `Authorization` it asks the
   daemon (off → 404 and nothing more; on → 401 with `WWW-Authenticate: Negotiate`); with it, the
-  header goes to the daemon as it came (more than 90 000 characters: said so, never cut and sent
-  on); every refusal is 403. The ticket is never written anywhere.
+  header goes to the daemon as it came (more than 65 000 characters: said so, never cut and sent
+  on - the daemon's own cap is the same, `KRB_HEADER_MAX`); every refusal is 403. The ticket is never written anywhere.
 - **The daemon** (`acmelib/engine/392_signing_in_with_windows.py`): `POST /api/auth/kerberos`
   (the administration), `POST /api/portal/kerberos` (the portal), `POST /api/kerberos/try`
   (the card), `GET/POST /api/kerberos` (the card's view; put in, take away).
@@ -145,10 +159,15 @@ browser                         nginx + PHP (the relay)              acme daemon
   `/var/lib/acme/kerberos/http.keytab` (0600, the service's own user, the folder 0700) within
   seconds - a node put back from a backup, a node joined later, a database put back: the same.
   Taken away, every node deletes its copy. The library's own replay cache is in the same folder.
-- **Once in the cluster**: `sha256` of the whole token (unique to one request - it carries an
-  authenticator) kept a day in `meta` rows `krbonce:<hash>@@<node>`, one row per node, checked
-  across all of them before anybody is signed in. MIT's own replay cache is one host's; behind
-  the VIP address a token caught on its way could otherwise be sent to the other node.
+- **Once in the cluster**: `sha256` of the AP-REQ's authenticator (the cipher octets of its
+  `EncryptedData`) kept a day in `meta` rows `krbonce:<hash>@@<node>`, one row per node, checked
+  across all of them before anybody is signed in. SPNEGO's `NegTokenInit` and the GSS-API header
+  are taken off first (the DER read strictly: a token that cannot be taken apart is refused), so
+  the same request sent bare, or with another list of mechanisms, is the same key - and nobody
+  can change those octets without the ticket's session key. MIT's own replay cache is one
+  host's; behind the VIP address a token caught on its way could otherwise be sent to the other
+  node. The portal's `/api/portal/kerberos` is let through while the nodes are apart, as its
+  password sign-in.
 - **The sign-in protection** is the same as for passwords ([sign-in-protection.md](sign-in-protection.md)):
   refused tickets are counted per address (`kerberos`, `portal-kerberos` under *Locked out*),
   *Block a place that keeps guessing* counts them too, every refusal and every sign-in is an
@@ -156,9 +175,11 @@ browser                         nginx + PHP (the relay)              acme daemon
 - **The session records how it was opened**: `how: Kerberos` (shown by `whoami`), and it stays
   after the second step is given.
 - **nginx**: a ticket of a person in many AD groups (a large PAC) is more than nginx's 8 kB header
-  buffer; acme's nginx file has `large_client_header_buffers 4 32k;` (`install.sh` puts it into
-  an older file at the upgrade, and the pages' root helper into the HTTPS server if it is
-  missing). The sign-in is limited per address as the password sign-in is.
+  buffer; acme's nginx file has `large_client_header_buffers 4 64k;` - AD's largest token
+  (`MaxTokenSize`, 48 000 bytes) is 64 000 characters in base64, one line of it; acme takes
+  tokens up to that size (`KRB_TOKEN_MAX`). `install.sh` puts it into an older file at the
+  upgrade (and raises acme's own `4 32k` of before), the pages' root helper into the HTTPS server
+  if it is missing. The sign-in is limited per address as the password sign-in is.
 
 ## Setting up AD
 
@@ -206,12 +227,18 @@ its own, takes a ticket for any principal whose key is in the keytab.
 *...and no password at all - only Windows* (`admin_password_off`, `portal_password_off`):
 
 - switched on **only by somebody signed in with Windows** to that part - so whoever switches it
-  on has seen it work for them. For the portal: an administrator signed in to the portal with
-  Windows in the same browser (the page passes that sign-in's cookie with the save, and the
-  daemon looks at nothing more). Never from the command line or from a configuration file read
-  back - there it is only switched off;
+  on has seen it work for them. For the portal: an administrator of the directory signed in to
+  the portal with Windows **as themselves** in the same browser (the page passes that sign-in's
+  cookie with the save; its directory entry must be the administrator's own - somebody else's
+  portal sign-in in that browser is refused). Never from the command line or from a
+  configuration file read back - there it is only switched off;
 - **in effect only while Kerberos can sign anybody in** - the part switched on, a directory, a
-  keytab. Switching Kerberos off (or taking the keytab away) brings the passwords back at once;
+  keytab. Switching Kerberos off (or taking the keytab away) brings the passwords back at once.
+  Whether a keytab is there is read before the daemon serves anybody after a start; not known,
+  "only Windows" counts as in effect (closed, never open);
+- coming into effect, it **ends that part's sign-ins made with a password** (the one switching
+  it on is signed in with Windows); Kerberos going off ends the sign-ins made with Windows, but
+  that of whoever switched it off;
 - in effect: no password field on that part's sign-in page, every password sign-in refused
   (403), no password changed or set (*Your account*, *Accounts*, the portal's own change). The
   other part is not concerned.
@@ -254,12 +281,17 @@ acme --set admin_password_off=0     the way back from "only Windows" (switched o
 one key - and checks: off → 404 and no button (each part); no ticket → 401 Negotiate; the right
 person → their role, or their portal; no group, not in the directory, locked out, switched off
 in AD, a local account of the same name, another realm, a ticket for a name not in the keytab,
-the same ticket again (on the same node, and on "the other node" through the database), NTLM
-bare, as its own scheme and inside SPNEGO, garbage, a 20 kB header → refused (403 through the
-pages); one key for two names; the second step and the portal's code after it; "only Windows"
-refused from a password sign-in, switched on from a Kerberos one, passwords refused then,
-Kerberos off brings them back, root's way back; the parts independent; the keytab written out,
-put in from the command line, exported, taken away.
+the same ticket again (on the same node, and on "the other node" through the database - also
+wrapped again: bare, SPNEGO with another list of mechanisms), NTLM bare, as its own scheme and
+inside SPNEGO, garbage, a 20 kB header → refused (403 through the pages, the kind only, the
+reason in Events); a person of the right name in another domain of the directory; one key for
+two names; the second step and the portal's code after it; "only Windows" refused from a
+password sign-in (and with somebody else's portal sign-in), switched on from a Kerberos one,
+passwords refused then - from the first answer after a restart too - and the password sign-ins
+ended, Kerberos off brings them back and ends its own sign-ins (but the switcher's), root's way
+back; the parts independent; a keytab with RC4 and other services' keys kept to its AES keys of
+HTTP/; a configuration with a bad keytab changing nothing; the keytab written out, put in from
+the command line, exported, taken away.
 
 A real browser: Chromium with `--auth-server-allowlist=acme.corpnet.loc`, `KRB5_CONFIG` and
 `KRB5CCNAME` in its environment, the name in `/etc/hosts` (with `--host-resolver-rules` Chromium

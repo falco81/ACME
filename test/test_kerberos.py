@@ -17,7 +17,6 @@ Skipped as a whole where krb5kdc, kadmin.local or libgssapi_krb5 are not there.
 import base64
 import ctypes
 import ctypes.util
-import hashlib
 import json
 import os
 import shutil
@@ -108,6 +107,54 @@ def der(tag, body):
 
 
 NTLM_NEGOTIATE = b'NTLMSSP\x00\x01\x00\x00\x00\x97\x82\x08\xe2' + b'\x00' * 16
+
+
+KRB5_OID = bytes.fromhex('2a864886f712010202')
+MSKRB5_OID = bytes.fromhex('2a864882f712010202')      # 1.2.840.48018.1.2.2
+SPNEGO_OID = bytes.fromhex('2b0601050502')
+REFUSED = 'Windows sign-in refused: '
+
+
+def spnego(inner, mechs):
+    """A NegTokenInit offering `mechs`, `inner` as its mechToken (None: none)."""
+    init = der(0x30, der(0xa0, der(0x30, b''.join(der(0x06, m) for m in mechs)))
+               + (der(0xa2, der(0x04, inner)) if inner is not None else b''))
+    return der(0x60, der(0x06, SPNEGO_OID) + der(0xa0, init))
+
+
+def b64neg(raw):
+    return 'Negotiate ' + base64.b64encode(raw).decode()
+
+
+def keytab_records(raw):
+    """[(principal, enctype, record bytes)] of a keytab - the test's own reading, to make mixed
+    ones of: a weak key and another service's name beside the web service's AES keys."""
+    out, i = [], 2
+    while i + 4 <= len(raw):
+        size = int.from_bytes(raw[i:i + 4], 'big', signed=True)
+        i += 4
+        if size <= 0:
+            break
+        rec = raw[i:i + size]
+        j, count = 2, int.from_bytes(rec[0:2], 'big')
+        n = int.from_bytes(rec[j:j + 2], 'big')
+        realm = rec[j + 2:j + 2 + n].decode()
+        j += 2 + n
+        comps = []
+        for _ in range(count):
+            n = int.from_bytes(rec[j:j + 2], 'big')
+            comps.append(rec[j + 2:j + 2 + n].decode())
+            j += 2 + n
+        j += 4 + 4 + 1
+        enc_at = j
+        out.append(('/'.join(comps) + '@' + realm, int.from_bytes(rec[j:j + 2], 'big'), rec,
+                    enc_at))
+        i += size
+    return out
+
+
+def keytab_of(recs):
+    return b'\x05\x02' + b''.join(len(r).to_bytes(4, 'big') + r for r in recs)
 
 
 def ntlm_in_spnego():
@@ -273,8 +320,8 @@ class Kerberos(unittest.TestCase):
     def neg(self, person, host=HOST, mech='spnego'):
         return 'Negotiate ' + self.ticket(person, host, mech)
 
-    def events(self, text):
-        got = self.ok('GET', '/api/events', args={'q': text})
+    def events(self, text, session=None):
+        got = self.ok('GET', '/api/events', args={'q': text}, session=session)
         return [e.get('words') or '' for e in got.get('events') or got.get('rows') or []]
 
     def put_keytab(self, name='http.keytab'):
@@ -285,6 +332,59 @@ class Kerberos(unittest.TestCase):
 
     def keytab_file(self):
         return os.path.join(self.tmp, 'state', 'kerberos', 'http.keytab')
+
+    def refused(self, part, header, kind, why=None, session=None):
+        """A sign-in refused: the caller told only the kind, the reason in Events."""
+        st, got = self.krb(part, header, session)
+        self.assertEqual(st, 401, got)
+        self.assertNotIn('token', got)
+        self.assertEqual(got.get('error'), REFUSED + kind, got)
+        if why:
+            self.assertTrue(any(why in w for w in self.events(why)), why)
+        return got
+
+    def restart_daemon(self):
+        """The daemon stopped and started again (an upgrade, a failover): the time it was
+        started; the caller asks from the first moment it answers."""
+        d = type(self).daemon
+        d.terminate()
+        d.wait(30)
+        if d.stdout:
+            d.stdout.close()
+        old = self.token
+        t0 = time.time()
+        type(self).daemon = subprocess.Popen([sys.executable, os.path.join(ROOT, 'acme.py'),
+                                              '--daemon'], env=self.env, stdout=subprocess.DEVNULL,
+                                             stderr=subprocess.STDOUT, cwd=self.tmp)
+        return t0, old
+
+    def new_token(self, old):
+        tok = ''
+        for _ in range(200):
+            try:
+                with open(os.path.join(self.tmp, 'run', 'api-token')) as f:
+                    tok = f.read().strip()
+                if tok and tok != old:
+                    break
+            except OSError:
+                pass
+            time.sleep(0.02)
+        type(self).token = tok or old
+
+    def back_to_passwords(self, part='admin'):
+        """Root's way back (acme --set <part>_password_off=0), and the test's sign-ins anew."""
+        cli = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py'), '--set',
+                              '%s_password_off=0' % part], env=self.env, capture_output=True,
+                             text=True, timeout=120)
+        self.assertEqual(cli.returncode, 0, cli.stdout + cli.stderr)
+        for _ in range(40):                 # the daemon reads the settings again within seconds
+            st, got = self.call('POST', '/api/auth/login', {'name': 'tester', 'password': self.pw})
+            if st == 200:
+                break
+            time.sleep(0.5)
+        self.assertEqual(st, 200, got)
+        type(self).admin = got['token']
+        type(self).ro = self.login('viewer')
 
     def forget_rcache(self):
         """This node's own replay cache (the library's) gone - as on the other node of a cluster,
@@ -375,6 +475,8 @@ class Kerberos(unittest.TestCase):
     def test_04_refused(self):
         self.put_keytab()
         self.must('POST', '/api/settings', {'settings': {'admin_krb': 1}})
+        # The caller is told the kind only ("Windows sign-in refused: not allowed"); the reason
+        # is in Events, for the administrators.
         cases = [
             ('nogroups', 'none of the groups'),          # known, no role
             ('falco', 'none of the groups'),             # a portal person, no role here
@@ -384,30 +486,32 @@ class Kerberos(unittest.TestCase):
             ('tester', 'account of this server'),        # a local account of the same name
         ]
         for person, why in cases:
-            st, got = self.krb('admin', self.neg(person))
-            self.assertEqual(st, 401, (person, got))
-            self.assertNotIn('token', got)
-            self.assertIn(why, got.get('error', ''), person)
+            self.refused('admin', self.neg(person), 'not allowed', why)
         # A ticket for a name that is not in the keytab.
-        st, got = self.krb('admin', self.neg('jnovak', 'other.corpnet.loc'))
-        self.assertEqual(st, 401, got)
-        self.assertIn('not found in keytab', got['error'])
+        got = self.refused('admin', self.neg('jnovak', 'other.corpnet.loc'), 'ticket not accepted',
+                           'not found in keytab')
+        self.assertNotIn('keytab', got['error'])
         # NTLM: bare (in Negotiate and as its own scheme), inside SPNEGO; garbage; 20 kB.
         for header, why in (('Negotiate ' + base64.b64encode(NTLM_NEGOTIATE).decode(), 'NTLM'),
                             ('NTLM ' + base64.b64encode(NTLM_NEGOTIATE).decode(), 'NTLM'),
                             ('Negotiate ' + base64.b64encode(ntlm_in_spnego()).decode(), 'NTLM'),
-                            ('Negotiate ' + base64.b64encode(os.urandom(300)).decode(), 'not taken'),
+                            ('Negotiate ' + base64.b64encode(os.urandom(300)).decode(),
+                             'not a Kerberos request that can be read'),
                             ('Negotiate %%%%-not-base64', 'not base64'),
-                            ('Negotiate ' + base64.b64encode(os.urandom(15000)).decode(), 'not taken')):
-            st, got = self.krb('admin', header)
-            self.assertEqual(st, 401, (header[:30], got))
-            self.assertIn(why, got.get('error', ''))
-        # Another realm only is taken.
+                            ('Negotiate ' + base64.b64encode(os.urandom(15000)).decode(),
+                             'not a Kerberos request that can be read')):
+            self.refused('admin', header, 'ticket not accepted', why)
+        # Another realm only is taken - and the card warns of a realm the directory is not of.
         self.must('POST', '/api/settings', {'settings': {'admin_krb_realm': 'example.com'}})
-        st, got = self.krb('admin', self.neg('jnovak'))
-        self.assertEqual(st, 401, got)
-        self.assertIn('only EXAMPLE.COM signs in here', got['error'])
+        self.refused('admin', self.neg('jnovak'), 'not allowed', 'only EXAMPLE.COM signs in here')
+        v = self.ok('GET', '/api/kerberos')
+        self.assertIn('not the domain of the directory', v['parts']['admin']['realm_warn'])
         self.must('POST', '/api/settings', {'settings': {'admin_krb_realm': ''}})
+        v = self.ok('GET', '/api/kerberos')
+        self.assertEqual(v['parts']['admin']['realm_warn'], '')
+        # The realm as the ticket says it, compared exactly (realms are case-sensitive).
+        self.assertEqual(self.py('print(json.dumps(E.krb_split("jnovak@corpnet.loc")))'),
+                         ['jnovak', 'corpnet.loc'])
         # Every refusal in Events, never a token in them.
         words = self.events('with Windows (Kerberos) was refused')
         self.assertTrue(len(words) >= 10, words)
@@ -425,17 +529,15 @@ class Kerberos(unittest.TestCase):
         self.assertIn('replay', got['error'].lower())
         # ...and on "the other node", which shares only the database: the cluster's table.
         self.forget_rcache()
-        st, got = self.krb('admin', header)
-        self.assertEqual(st, 401, got)
-        self.assertIn('used already', got['error'])
-        # A token the other node took (its row, in the shared database): refused here.
+        self.refused('admin', header, 'replay', 'was used already')
+        # A token the other node took (its row, in the shared database): refused here. The row
+        # is the AP-REQ's authenticator, whatever wrapped it.
         header = self.neg('jnovak')
-        raw = base64.b64decode(header.split()[1])
+        key = self.py('import base64; print(json.dumps(E.krb_ap_req_key(base64.b64decode(%r))))'
+                      % header.split()[1])
         self.py('st.db.run("INSERT INTO meta (k, v) VALUES (?, ?)", (%r, json.dumps([time.time()])));'
-                ' print("1")' % ('krbonce:%s@@node2' % hashlib.sha256(raw).hexdigest()))
-        st, got = self.krb('admin', header)
-        self.assertEqual(st, 401, got)
-        self.assertIn('used already', got['error'])
+                ' print("1")' % ('krbonce:%s@@node2' % key))
+        self.refused('admin', header, 'replay')
 
     def test_06_one_key_for_two_names(self):
         """The keytab of svc1 alone takes a ticket for svc2: one account's key serves every SPN."""
@@ -481,12 +583,15 @@ class Kerberos(unittest.TestCase):
             st, got = self.call('POST', '/api/auth/login', {'name': 'tester', 'password': self.pw})
             self.assertEqual(st, 403, got)
             self.assertIn('only Windows', got['error'])
+            # The password sign-ins open before are ended with it (test_16).
+            st, got = self.call('GET', '/api/auth/whoami', None, self.admin)
+            self.assertNotEqual((got.get('who') or {}).get('name'), 'tester', got)
             st, got = self.call('POST', '/api/auth/password', {'old': self.pw, 'new': 'An-0ther-Pass!',
-                                                               'again': 'An-0ther-Pass!'}, self.admin)
+                                                               'again': 'An-0ther-Pass!'}, kerb)
             self.assertEqual(st, 403, got)
             st, got = self.call('POST', '/api/users', {'action': 'add', 'name': 'newone',
                                                        'role': 'readonly', 'password': 'Xx-123456789!'},
-                                self.admin)
+                                kerb)
             self.assertEqual(st, 403, got)
             st, me = self.call('GET', '/api/auth/whoami', None, kerb)
             self.assertTrue(me['who']['password_off'])
@@ -500,22 +605,13 @@ class Kerberos(unittest.TestCase):
             self.assertEqual(st, 200, got)
             st, got = self.call('POST', '/api/auth/login', {'name': 'tester', 'password': self.pw})
             self.assertEqual(st, 200, got)
+            type(self).admin = got['token']
             self.must('POST', '/api/settings', {'settings': {'admin_krb': 1}})
             st, got = self.call('POST', '/api/auth/login', {'name': 'tester', 'password': self.pw})
             self.assertEqual(st, 403, got)
         finally:
             # Root's way back: acme --set admin_password_off=0.
-            cli = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py'), '--set',
-                                  'admin_password_off=0'], env=self.env, capture_output=True,
-                                 text=True, timeout=120)
-            self.assertEqual(cli.returncode, 0, cli.stdout + cli.stderr)
-        for _ in range(40):                 # the daemon reads the settings again within seconds
-            st, got = self.call('POST', '/api/auth/login', {'name': 'tester', 'password': self.pw})
-            if st == 200:
-                break
-            time.sleep(0.5)
-        self.assertEqual(st, 200, got)
-        type(self).admin = got['token']
+            self.back_to_passwords()
 
     def test_09_portal_on_admin_off(self):
         self.put_keytab()
@@ -540,9 +636,7 @@ class Kerberos(unittest.TestCase):
             # A full administrator of the administration, in none of the portal's groups: out.
             for person, why in (('jnovak', 'none of the groups'), ('gone', 'disabled'),
                                 ('ghost', 'no such account'), ('tester', 'account of this server')):
-                st, got = self.krb('portal', self.neg(person))
-                self.assertEqual(st, 401, (person, got))
-                self.assertIn(why, got['error'], person)
+                self.refused('portal', self.neg(person), 'not allowed', why)
             # Both on: each part by its own rules - falco is no administrator, jnovak no portal user.
             self.must('POST', '/api/settings', {'settings': {'admin_krb': 1}})
             st, got = self.krb('admin', self.neg('falco'))
@@ -588,18 +682,43 @@ class Kerberos(unittest.TestCase):
             self.must('POST', '/api/settings', {'settings': {'portal_code': 'off', 'portal_krb': 0}})
 
     def test_11_only_windows_portal(self):
+        """Switched on by an administrator of the directory with their own portal sign-in made
+        with Windows - somebody else's portal sign-in in that browser is no proof."""
         self.put_keytab()
-        self.must('POST', '/api/settings', {'settings': {'portal_krb': 1}})
+        # Anybody of the directory on the portal: jnovak, an administrator, may sign in there too.
+        self.must('POST', '/api/settings', {'settings': {'portal_krb': 1, 'admin_krb': 1,
+                                                         'portal_who': 'anyone'}})
         st, got = self.krb('portal', self.neg('falco'))
         self.assertEqual(st, 200, got)
         ptok = got['token']
+        st, got = self.krb('portal', self.neg('jnovak'))
+        self.assertEqual(st, 200, got)
+        mine = got['token']
+        st, got = self.krb('admin', self.neg('jnovak'))
+        self.assertEqual(st, 200, got)
+        kerb = got['token']
+        st, got = self.call('POST', '/api/portal/login', {'name': 'falco',
+                                                          'password': 'falco-password-1'})
+        self.assertEqual(st, 200, got)
+        falco_pw = got['token']
         st, got = self.settings(portal_password_off=1)
         self.assertEqual(st, 400, got)
+        # tester (an account of this server) with falco's portal sign-in; jnovak with falco's.
         st, got = self.settings(portal=ptok, portal_password_off=1)
+        self.assertEqual(st, 400, got)
+        st, got = self.settings(session=kerb, portal=ptok, portal_password_off=1)
+        self.assertEqual(st, 400, got)
+        self.assertIn('same person', got['error'])
+        st, got = self.settings(session=kerb, portal=mine, portal_password_off=1)
         self.assertEqual(st, 200, got)
         try:
             st, info = self.call('GET', '/api/portal/info')
             self.assertTrue(info['kerberos']['only'])
+            # The portal's password sign-in open before is ended; the ones made with Windows stay.
+            st, me = self.call('GET', '/api/portal/me', None, falco_pw)
+            self.assertIsNone(me.get('me'), me)
+            st, me = self.call('GET', '/api/portal/me', None, ptok)
+            self.assertEqual(me['me']['name'], 'falco@corpnet.cz')
             st, got = self.call('POST', '/api/portal/login', {'name': 'falco',
                                                               'password': 'falco-password-1'})
             self.assertEqual(st, 403, got)
@@ -612,7 +731,8 @@ class Kerberos(unittest.TestCase):
             self.assertEqual(st, 200, got)
         finally:
             self.must('POST', '/api/settings', {'settings': {'portal_password_off': 0,
-                                                             'portal_krb': 0}})
+                                                             'portal_krb': 0, 'admin_krb': 0,
+                                                             'portal_who': 'groups'}})
 
     def test_12_through_the_pages(self):
         """web/admin/index.php and web/index.php through php -S: 404 while off, 401 Negotiate
@@ -701,8 +821,15 @@ class Kerberos(unittest.TestCase):
             st, hd, cookies, got = post('/?api=kerberos-login', self.neg('falco'))
             self.assertEqual(st, 200, got)
             self.assertTrue(any(c.startswith('acme_portal=') for c in cookies), cookies)
+            # "Only Windows" on the portal by jnovak, an administrator signed in to the portal
+            # with Windows too (anybody of the directory may use it, for this).
+            self.must('POST', '/api/settings', {'settings': {'portal_who': 'anyone'}})
+            st, hd, cookies, got = post('/?api=kerberos-login', self.neg('jnovak'))
+            self.assertEqual(st, 200, got)
             ptok = [c for c in cookies if c.startswith('acme_portal=')][0].split(';')[0].split('=', 1)[1]
-            st, got = self.settings(portal=ptok, portal_password_off=1)
+            st, got = self.krb('admin', self.neg('jnovak'))
+            self.assertEqual(st, 200, got)
+            st, got = self.settings(session=got['token'], portal=ptok, portal_password_off=1)
             self.assertEqual(st, 200, got)
             p = page('/')
             self.assertNotIn('id="in-pass"', p)
@@ -711,7 +838,7 @@ class Kerberos(unittest.TestCase):
         finally:
             self.must('POST', '/api/settings', {'settings': {'portal_password_off': 0,
                                                              'portal_krb': 0, 'portal_krb_auto': 0,
-                                                             'admin_krb': 0}})
+                                                             'admin_krb': 0, 'portal_who': 'groups'}})
             php.terminate()
             php.wait(10)
             shutil.rmtree(web, ignore_errors=True)
@@ -767,6 +894,282 @@ class Kerberos(unittest.TestCase):
         v = self.ok('GET', '/api/kerberos')
         self.assertEqual(v['keytab']['entries'][0]['principal'], 'HTTP/svc1.corpnet.loc@%s' % REALM)
         self.put_keytab()
+
+    # ---- the findings of the review (1.0.99) ------------------------------------------------
+    def test_14_replay_wrapped_again(self):
+        """Finding 1: the cluster's key is the AP-REQ's authenticator - the same request sent
+        bare, or in SPNEGO with another list of mechanisms, is the same request on the other
+        node (which has only the database)."""
+        self.put_keytab()
+        self.must('POST', '/api/settings', {'settings': {'admin_krb': 1}})
+        try:
+            inner = base64.b64decode(self.ticket('jnovak', mech='krb5'))
+            keys = self.py('import base64; print(json.dumps([E.krb_ap_req_key(base64.b64decode(x)) '
+                           'for x in %r]))' % [base64.b64encode(t).decode() for t in (
+                               inner, spnego(inner, [KRB5_OID]),
+                               spnego(inner, [KRB5_OID, MSKRB5_OID]),
+                               spnego(inner, [MSKRB5_OID, KRB5_OID]))])
+            self.assertEqual(len(set(keys)), 1, keys)
+            st, got = self.krb('admin', b64neg(spnego(inner, [KRB5_OID])))
+            self.assertEqual(st, 200, got)
+            for again in (inner, spnego(inner, [KRB5_OID, MSKRB5_OID]),
+                          spnego(inner, [MSKRB5_OID, KRB5_OID])):
+                self.forget_rcache()            # "the other node"
+                self.refused('admin', b64neg(again), 'replay')
+            # A token that cannot be taken apart is refused before the library is asked.
+            self.refused('admin', b64neg(spnego(None, [KRB5_OID])), 'ticket not accepted',
+                         'no mechToken')
+            # Windows' own form (Microsoft's OID first, the standard inner token): still taken.
+            st, got = self.krb('admin', b64neg(spnego(base64.b64decode(
+                self.ticket('jnovak', mech='krb5')), [MSKRB5_OID, KRB5_OID])))
+            self.assertEqual(st, 200, got)
+        finally:
+            self.must('POST', '/api/settings', {'settings': {'admin_krb': 0}})
+
+    def test_15_only_windows_from_the_first_moment(self):
+        """Finding 2: "only Windows" in effect from the daemon's first answer after a start -
+        the keytab's presence read before it serves anybody."""
+        self.put_keytab()
+        self.must('POST', '/api/settings', {'settings': {'admin_krb': 1}})
+        st, got = self.krb('admin', self.neg('jnovak'))
+        kerb = got['token']
+        st, got = self.settings(session=kerb, admin_password_off=1)
+        self.assertEqual(st, 200, got)
+        try:
+            t0, old = self.restart_daemon()
+            while time.time() - t0 < 60:
+                try:
+                    urllib.request.urlopen('http://127.0.0.1:%d/api/health' % self.port, timeout=2)
+                    break
+                except urllib.error.HTTPError:
+                    break
+                except OSError:
+                    time.sleep(0.05)
+            self.new_token(old)
+            seen, first = [], None
+            while not seen or time.time() - seen[0][0] < 7:     # past the old window (~6 s)
+                st, h = self.call('GET', '/api/health')
+                if first is None:
+                    first = h.get('kerberos')
+                st, got = self.call('POST', '/api/auth/login', {'name': 'tester', 'password': self.pw})
+                seen.append((time.time(), st))
+            self.assertEqual(first, {'on': True, 'auto': False, 'only': True})
+            self.assertTrue(len(seen) > 5, seen)
+            self.assertEqual({x[1] for x in seen}, {403}, seen)
+        finally:
+            self.back_to_passwords()
+            self.must('POST', '/api/settings', {'settings': {'admin_krb': 0}})
+
+    def test_16_only_windows_ends_password_sign_ins(self):
+        """Finding 3: switched on, the part's sign-ins made with a password end - the one who
+        switched it on (signed in with Windows) and the others made with Windows stay."""
+        self.put_keytab()
+        self.must('POST', '/api/settings', {'settings': {'admin_krb': 1}})
+        st, got = self.krb('admin', self.neg('jnovak'))
+        kerb = got['token']
+        st, got = self.krb('admin', self.neg('edvorak'))
+        other_kerb = got['token']
+        pw1, pw2 = self.admin, self.login('viewer')
+        try:
+            st, got = self.settings(session=kerb, admin_password_off=1)
+            self.assertEqual(st, 200, got)
+            for tok in (pw1, pw2):
+                st, got = self.call('GET', '/api/status', None, tok)
+                self.assertEqual(st, 401, got)
+            for tok in (kerb, other_kerb):
+                st, got = self.call('GET', '/api/status', None, tok)
+                self.assertEqual(st, 200, got)
+            self.assertTrue(any('only Windows now' in w
+                                for w in self.events('only Windows now', session=kerb)))
+        finally:
+            self.back_to_passwords()
+            self.must('POST', '/api/settings', {'settings': {'admin_krb': 0}})
+
+    def test_17_kerberos_off_ends_its_sign_ins(self):
+        """Finding 4: Kerberos switched off, or the keytab taken away, ends the sign-ins made
+        with it - but the one of whoever did it; the portal's GET /api/portal/me too."""
+        self.put_keytab()
+        self.must('POST', '/api/settings', {'settings': {'admin_krb': 1}})
+        st, got = self.krb('admin', self.neg('jnovak'))
+        mine = got['token']
+        st, got = self.krb('admin', self.neg('edvorak'))
+        theirs = got['token']
+        st, got = self.settings(session=mine, admin_krb=0)
+        self.assertEqual(st, 200, got)
+        st, got = self.call('GET', '/api/status', None, mine)
+        self.assertEqual(st, 200, got)                  # whoever switched it off stays
+        st, got = self.call('GET', '/api/status', None, theirs)
+        self.assertEqual(st, 401, got)
+        # The keytab taken away (by a password sign-in): every sign-in made with Windows ends.
+        self.must('POST', '/api/settings', {'settings': {'admin_krb': 1}})
+        st, got = self.krb('admin', self.neg('edvorak'))
+        theirs = got['token']
+        self.must('POST', '/api/kerberos', {'action': 'drop'})
+        for tok in (mine, theirs):
+            st, got = self.call('GET', '/api/status', None, tok)
+            self.assertEqual(st, 401, got)
+        st, got = self.call('GET', '/api/status', None, self.admin)
+        self.assertEqual(st, 200, got)
+        # Ended at the next request even where nothing ended it (a node whose settings came
+        # from elsewhere): a sign-in made with Windows, Kerberos off under it.
+        self.put_keytab()
+        st, got = self.krb('admin', self.neg('edvorak'))
+        theirs = got['token']
+        self.py('st.save_setting("admin_krb", 0, "root"); '
+                'st.set_meta("conf_serial", "%.6f:elsewhere" % time.time()); print(1)')
+        for _ in range(40):
+            st, got = self.call('GET', '/api/status', None, theirs)
+            if st == 401:
+                break
+            time.sleep(0.5)
+        self.assertEqual(st, 401, got)
+        # The portal: GET /api/portal/me as portal_me.
+        self.must('POST', '/api/settings', {'settings': {'portal_krb': 1}})
+        try:
+            st, got = self.krb('portal', self.neg('falco'))
+            ptok = got['token']
+            st, me = self.call('GET', '/api/portal/me', None, ptok)
+            self.assertEqual(me['me']['name'], 'falco@corpnet.cz')
+            self.must('POST', '/api/settings', {'settings': {'portal_krb': 0}})
+            st, me = self.call('GET', '/api/portal/me', None, ptok)
+            self.assertIsNone(me.get('me'), me)
+            st, x = self.call('GET', '/api/portal/certs', None, ptok)
+            self.assertEqual(st, 401, x)
+        finally:
+            self.must('POST', '/api/settings', {'settings': {'portal_krb': 0, 'admin_krb': 0}})
+
+    def test_18_split_lets_the_portal_sign_in(self):
+        """Finding 5: the portal's sign-in with Windows is free while the nodes are apart, as its
+        password sign-in (test/test_split.py asks the dispatcher too)."""
+        got = self.py('print(json.dumps([E.split_free_path(p) for p in ("/api/portal/kerberos", '
+                      '"/api/portal/login", "/api/auth/kerberos")]))')
+        self.assertEqual(got, [True, True, True])
+
+    def test_19_import_checks_the_keytab_first(self):
+        """Finding 6: a configuration whose keytab would be refused changes nothing at all."""
+        self.put_keytab()
+        bare = self.ok('GET', '/api/export')['config']
+        sets = dict(bare.get('settings') or {})
+        was = self.py('print(json.dumps(E.CONFIG.get("site_name")))')
+        sets['site_name'] = 'CHANGED-BY-IMPORT'
+        with open(os.path.join(self.kdc, 'http.keytab'), 'rb') as f:
+            recs = keytab_records(f.read())
+        weak = []
+        for _p, _enc, rec, at in recs:
+            weak.append(rec[:at] + (23).to_bytes(2, 'big') + rec[at + 2:])
+        for keytab, why in ((self.keytab_b64('jnovak.keytab'), 'no key of a web service'),
+                            (base64.b64encode(keytab_of(weak)).decode(), 'only weak ones')):
+            conf = dict(bare, settings=sets, kerberos={'keytab': keytab, 'name': 'x'})
+            st, got = self.call('POST', '/api/import', {'config': conf}, self.admin)
+            self.assertEqual(st, 400, got)
+            self.assertIn(why, got['error'])
+            self.assertNotIn('imported before it stopped', got['error'])
+            self.assertEqual(self.py('print(json.dumps(E.CONFIG.get("site_name")))'), was)
+            v = self.ok('GET', '/api/kerberos')
+            self.assertEqual(sorted({e['principal'] for e in v['keytab']['entries']}),
+                             ['HTTP/%s@%s' % (HOST, REALM), 'HTTP/node2.corpnet.loc@%s' % REALM])
+
+    def test_20_keytab_keeps_aes_of_http_only(self):
+        """Finding 7: of a keytab with RC4 and another service's keys beside the web service's AES
+        ones, only those are kept and written out; what was left out is said, on the card too."""
+        with open(os.path.join(self.kdc, 'http.keytab'), 'rb') as f:
+            good = f.read()
+        recs = keytab_records(good)
+        with open(os.path.join(self.kdc, 'jnovak.keytab'), 'rb') as f:
+            person = keytab_records(f.read())
+        _p, _enc, rec, at = recs[0]
+        rc4 = rec[:at] + (23).to_bytes(2, 'big') + rec[at + 2:]
+        host = rec.replace(b'\x00\x04HTTP', b'\x00\x04host', 1)
+        mixed = keytab_of([r for _p, _e, r, _a in recs] + [rc4, host, person[0][2]])
+        st, got = self.call('POST', '/api/kerberos', {'action': 'put', 'name': 'mixed.keytab',
+                                                      'data': base64.b64encode(mixed).decode()},
+                            self.admin)
+        self.assertEqual(st, 200, got)
+        self.assertIn('left out', got['message'])
+        kept = got['view']['keytab']['entries']
+        self.assertTrue(all(e['principal'].startswith('HTTP/') and not e['weak'] for e in kept))
+        self.assertEqual(len(kept), len(recs))
+        dropped = got['view']['keytab']['dropped']
+        whys = sorted((d['principal'].split('/')[0].split('@')[0], d['why']) for d in dropped)
+        self.assertEqual(whys, [('HTTP', 'a weak key (RC4 or DES)'),
+                                ('host', 'not a web service (HTTP/)'),
+                                ('jnovak', 'not a web service (HTTP/)')])
+        self.assertEqual(self.ok('GET', '/api/kerberos')['keytab']['dropped'], dropped)
+        for _ in range(60):
+            try:
+                with open(self.keytab_file(), 'rb') as f:
+                    out = f.read()
+                if out == good:
+                    break
+            except OSError:
+                pass
+            time.sleep(0.5)
+        self.assertEqual(out, good)                     # the AES keys of HTTP/, nothing else
+        self.assertTrue(any('left out' in w and 'rc4-hmac' in w
+                            for w in self.events('left out')))
+        # Nothing left: refused, the keytab before kept.
+        st, got = self.call('POST', '/api/kerberos', {'action': 'put', 'name': 'weak.keytab',
+                                                      'data': base64.b64encode(keytab_of(
+                                                          [rc4, host])).decode()}, self.admin)
+        self.assertEqual(st, 400, got)
+        self.assertEqual(len(self.ok('GET', '/api/kerberos')['keytab']['entries']), len(recs))
+        self.put_keytab()
+
+    def test_21_the_person_of_the_realm(self):
+        """Finding 8: the entry found must be of the ticket's realm - a same-named account of
+        another domain under a forest-wide base is not that person."""
+        self.put_keytab()
+        old_dn = 'CN=Outsider,OU=People,' + BASE
+        new_dn = 'CN=Outsider,OU=People,DC=child,' + BASE
+        entry = mockldap.PEOPLE.pop(old_dn)
+        entry = dict(entry, memberOf=[ADMINS, CERT_USERS])
+        mockldap.PEOPLE[new_dn] = entry
+        mockldap.GROUPS[ADMINS]['member'].append(new_dn)
+        mockldap.GROUPS[CERT_USERS]['member'].append(new_dn)
+        self.must('POST', '/api/settings', {'settings': {'admin_krb': 1, 'portal_krb': 1}})
+        try:
+            self.refused('admin', self.neg('outsider'), 'not allowed', 'not of the realm')
+            self.refused('portal', self.neg('outsider'), 'not allowed', 'not of the realm')
+            st, t = self.call('POST', '/api/kerberos/try', {'part': 'admin',
+                                                            'header': self.neg('outsider')},
+                              self.admin)
+            self.assertEqual((st, t['ok']), (200, False), t)
+            self.assertIn('DC=child', t['said'])
+            # The people of the realm's own domain still sign in.
+            st, got = self.krb('admin', self.neg('jnovak'))
+            self.assertEqual(st, 200, got)
+        finally:
+            mockldap.GROUPS[ADMINS]['member'].remove(new_dn)
+            mockldap.GROUPS[CERT_USERS]['member'].remove(new_dn)
+            mockldap.PEOPLE.pop(new_dn)
+            entry['memberOf'] = []
+            mockldap.PEOPLE[old_dn] = entry
+            self.must('POST', '/api/settings', {'settings': {'admin_krb': 0, 'portal_krb': 0}})
+
+    def test_22_the_rest(self):
+        """The review's remarks: nginx's header room, the page's and the daemon's caps alike."""
+        with open(os.path.join(ROOT, 'deploy', 'nginx-acme.conf')) as f:
+            self.assertIn('large_client_header_buffers 4 64k;', f.read())
+        with open(os.path.join(ROOT, 'install.sh')) as f:
+            text = f.read()
+        self.assertIn("large_client_header_buffers 4 64k;', 1)", text)
+        self.assertIn('32k;', text)                      # acme's own of before, raised
+        with open(os.path.join(ROOT, 'web', 'acme-api.php')) as f:
+            php = f.read()
+        caps = self.py('print(json.dumps([E.KRB_HEADER_MAX, E.KRB_TOKEN_MAX]))')
+        self.assertIn('strlen($auth) > %d' % caps[0], php)
+        # The largest ticket taken fits in the header, and the header in one buffer of nginx's.
+        self.assertLessEqual(len('Negotiate ') + 4 * ((caps[1] + 2) // 3), caps[0])
+        self.assertLessEqual(len('Authorization: ') + caps[0], 64 * 1024)
+        sys.path.insert(0, os.path.join(ROOT, 'deploy'))
+        try:
+            import acme_web
+        finally:
+            sys.path.pop(0)
+        main = ('server {\n    listen 443 ssl;\n    client_max_body_size 8m;\n'
+                '    large_client_header_buffers 4 32k;\n}\n')
+        self.assertIn('4 64k;', acme_web.krb_buffers_into(main))
+        self.assertNotIn('32k', acme_web.krb_buffers_into(main))
 
 
 if __name__ == '__main__':
