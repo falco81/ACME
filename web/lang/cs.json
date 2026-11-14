@@ -62887,6 +62887,10 @@
   "_506": {
    "source": "the CSR carries Microsoft's old extension request (msExtReq) - make it with a standard extensionRequest",
    "text": "CSR obsahuje starou žádost o rozšíření od Microsoftu (msExtReq) – vytvořte ho se standardním extensionRequest"
+  },
+  "_507": {
+   "source": "every secret sealed for its place",
+   "text": "každé tajemství zapečetěno pro své místo"
   }
  },
  "patterns": {
@@ -87697,6 +87701,30 @@
   "p_359": {
    "source": "names of a kind no profile gives (only DNS names, IP addresses, e-mail addresses and URIs are read): {0}",
    "text": "jména druhu, který žádný profil nedává (čtou se jen jména DNS, adresy IP, e-mailové adresy a URI): {0}"
+  },
+  "p_360": {
+   "source": "secret settings were kept in clear in the database, sealed for their names now: {0} - if nobody here put them there, type them again",
+   "text": "tajná nastavení byla v databázi uložena nezapečetěná, nyní jsou zapečetěna pro své názvy: {0} – pokud je tam nikdo zde nevložil, zadejte je znovu"
+  },
+  "p_361": {
+   "source": "the other nodes could not be told to read the settings again: {0}",
+   "text": "ostatním uzlům se nepodařilo oznámit, aby znovu načetly nastavení: {0}"
+  },
+  "p_362": {
+   "source": "{0} {1}: {2} kept in clear, sealed for its place now",
+   "text": "{0} {1}: {2} uloženo nezapečetěné, nyní zapečetěno pro své místo"
+  },
+  "p_363": {
+   "source": "the secrets of {0} kept in clear could not be sealed: {1}",
+   "text": "nezapečetěná tajemství {0} nebylo možné zapečetit: {1}"
+  },
+  "p_364": {
+   "source": "the guard against writes signs the secrets of the metrics and of SNMPv3 again, {0} row(s), as they are: acme {1} ran here since they were signed",
+   "text": "ochrana proti zápisům znovu podepisuje tajemství metrik a SNMPv3, řádků: {0}, tak jak jsou: od jejich podepsání zde běželo acme {1}"
+  },
+  "p_365": {
+   "source": "the guard against writes now signs the secrets of the metrics and of SNMPv3, {0} row(s), as they were (upgrade)",
+   "text": "ochrana proti zápisům nyní podepisuje i tajemství metrik a SNMPv3, řádků: {0}, tak jak byla (upgrade)"
   }
  },
  "rich": {
