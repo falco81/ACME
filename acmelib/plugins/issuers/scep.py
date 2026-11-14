@@ -154,6 +154,19 @@ class ScepIssuer(Issuer):
             parsed = good
         # The RA (NDES): not a CA; for encryption the one with keyEncipherment.
         ras = [c for c in parsed if not c.is_ca]
+        now = time.time()
+        for c in ras:
+            # Hunt N3 (1.0.102): an RA out of its dates is said as such (it was dropped as "not
+            # signed by the CA" with a pin) - still used: the server decides what it accepts
+            if c.not_after and c.not_after < now:
+                self._say('the RA certificate %s the SCEP server sent expired on %s - the server\'s '
+                          'RA certificate needs renewing' % (
+                              c.subject_cn or '?', time.strftime('%Y-%m-%d', time.gmtime(c.not_after))),
+                          'warn')
+            elif c.not_before and c.not_before > now + 300:
+                self._say('the RA certificate %s the SCEP server sent is valid only from %s - '
+                          'a clock is off' % (c.subject_cn or '?', time.strftime(
+                              '%Y-%m-%d %H:%M', time.gmtime(c.not_before))), 'warn')
         enc = [c for c in ras if c.key_usage is None or c.key_usage & (1 << 2)]
         if not ca:
             if ras:
@@ -175,8 +188,10 @@ class ScepIssuer(Issuer):
 
     def _issued_by(self, cr, cert_der, ca, others=()):
         """Whether `cert_der` verifies (its signature, through `others` if need be) up to
-        the certificate `ca` - checked by openssl verify, not by names."""
-        args = ['verify', '-partial_chain', '-trusted', cr.file(p7.pem(ca.der))]
+        the certificate `ca` - checked by openssl verify, not by names. Signatures only, not
+        dates (-no_check_time, Hunt N3): a certificate the CA dated a little ahead (its clock
+        ahead of this one), or an expired RA, is still the CA's."""
+        args = ['verify', '-partial_chain', '-no_check_time', '-trusted', cr.file(p7.pem(ca.der))]
         others = [o for o in others if o != cert_der and o != ca.der]
         if others:
             args += ['-untrusted', cr.file(''.join(p7.pem(o) for o in others))]
@@ -263,9 +278,8 @@ class ScepIssuer(Issuer):
                 got = self._operation(cr, caps, ci, dg, 'CertPoll',
                                       p7.seq(ca.subject_der, p7.csr_subject(req.csr_der)),
                                       tid, signer, key_file, rcpt, ca, all_certs)
-            if got[0] in ('SUCCESS', 'FAILURE'):
-                sc.pending_drop(self.ctx, slot)
             if got[0] == 'FAILURE':
+                sc.pending_drop(self.ctx, slot)
                 fi = got[1]
                 raise PluginError('the CA refused the request: %s%s' % (
                     p7.FAIL_WORDS.get(fi, 'no reason given'), (' (failInfo %s)' % fi) if fi else ''),
@@ -282,13 +296,24 @@ class ScepIssuer(Issuer):
                     chain.append(c)
             chain = p7.order_chain(leaf, chain)
             x = p7.Cert(leaf)
+        except PluginError:
+            sc.pending_drop(self.ctx, slot)
+            raise
         except p7.DerError as e:
+            sc.pending_drop(self.ctx, slot)
             raise PluginError('the certificates in the SCEP answer do not read: %s' % e)
         if self._pin():
             with p7.Crypto(self._openssl) as cr:
                 if not self._issued_by(cr, leaf, ca, [c for c in chain if p7.Cert(c).is_ca]):
+                    # Hunt N3 (1.0.102): the request is kept held (CertPoll at the next try) - had
+                    # the CA issued it after all, the certificate is not lost
+                    if not held:
+                        sc.pending_put(self.ctx, slot, req, {'tid': tid, 'csr_pem': req.csr_pem},
+                                       ttl_days=30)
                     raise PluginError('the certificate that came is not signed by the CA of the '
-                                      'fingerprint - someone in between?', retry=False)
+                                      'fingerprint - someone in between? The request is kept: '
+                                      'asked for again at the next try')
+        sc.pending_drop(self.ctx, slot)
         self._say('the certificate came: serial %x, until %s, from %s' % (
             x.serial, time.strftime('%Y-%m-%d', time.gmtime(x.not_after)), x.issuer_cn or '?'), 'ok')
         return Issued(p7.pem(leaf), [p7.pem(c) for c in chain], info={'transaction_id': tid},

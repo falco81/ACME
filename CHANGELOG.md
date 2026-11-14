@@ -92,29 +92,37 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   names for a request is one of those who asked for it: a member who may manage sent his own CSR
   with a name of another team's for someone else's request, and approved it himself. The
   administration's Approve now refuses the one who asked too (by the account's name, its name
-  without the domain, its mail) - a certificate administrator who also signs in to the portal
-  approved his own wildcard there and took its key on the portal. A full administrator is no
-  exception: one who needs a certificate adds it in the administration.
+  without the domain, its DN, its mail - matched against every name the asker is known by on the
+  portal: the UPN, the sAMAccountName and the DN) - a certificate administrator who also signs
+  in to the portal approved his own wildcard there and took its key on the portal. A full
+  administrator is no exception: one who needs a certificate adds it in the administration, and
+  one who gave a waiting request other names has another administrator approve or decline it.
 - (security) **A name another team's certificate holds is approved by that team.** A request that waits
   because of it is approved only by someone who may approve (or manage) for the team holding
   the name, or by a full administrator - an approver of the asker's own team let it through and
-  the asker took the key. The approval windows (portal and administration) say whose names they
-  are; the holding team is told (an event, and a mail to its contact address).
+  the asker took the key. A certificate without an owner, one run out, revoked or declined holds
+  no names (a request for a name of one without an owner still waits for approval, by any
+  approver). The approval windows (portal and administration) say whose names they are; the
+  holding team is told (an event, and a mail to its contact address).
 - (security) **A new CSR sent on the portal while a job works on the certificate** is refused (409) with
   nothing of it kept - it was kept, and the job running then issued the old one.
 - (security) **CSRs made to get past a request profile are refused:** two extension requests (acme checked
   the last, OpenSSL and a CA taking the CSR as it is read the first - a UPN with smart-card
-  logon), an attribute or extension twice, a UPN or another otherName, a directory name, an OID,
+  logon), an extension request, msExtReq or challenge password twice, an extension twice, a UPN
+  or another otherName, a directory name, an OID,
   an x400 or EDI party name or a name that does not read, a certificate authority asked for
   (`CA:TRUE`), and - for a source that takes the CSR as it is - extended key usages the profile
-  does not give.
+  does not give. Other attributes may repeat: a Windows certreq or ConfigMgr CSR writes each
+  enrollment name-value pair as an attribute of its own. A CSR kept from before is still read
+  for its key when a certificate is renewed or revoked.
 - (security) **A scoped session is not told of another team's certificates:** the targets' list says
   "another owner's certificate" for the one whose key a device makes and a generic phrase for a
   target's last error naming one; a name taken by another team's certificate, or a device making
   its key, is refused without naming it.
 - (security) **A scoped certificate administrator gives no names another team's certificates hold** to a
-  certificate in the administration (refused in words, as the portal makes such a request wait);
-  a full administrator, or one who sees every certificate, may.
+  certificate in the administration (refused in words, as the portal makes such a request wait) -
+  only the names given to it now are looked at, unless it is given to another owner; a full
+  administrator, or one who sees every certificate, may.
 - (security) **The floor for going back is 1.0.102.** 1.0.101 shut holes of the root helper
   and left the floor at 1.0.44: the acme account, which writes root's helper its asks, could take
   the server back to 1.0.100 and its holes. A version with an entry marked "(security)" here now

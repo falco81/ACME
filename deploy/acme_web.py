@@ -3537,6 +3537,21 @@ def ntp_conf_text(text, n):
     return '\n'.join([l.rstrip() for l in kept]).rstrip('\n') + '\n\n' + '\n'.join(block) + '\n'
 
 
+def ntp_block_whole(text):
+    """Whether acme's block(s) in chrony.conf each have their begin and end lines, in order."""
+    inside, seen = False, False
+    for l in text.splitlines():
+        if l.strip() == NTP_BEGIN:
+            if inside:
+                return False
+            inside = seen = True
+        elif l.strip() == NTP_END:
+            if not inside:
+                return False
+            inside = False
+    return seen and not inside
+
+
 def ntp_apply(n):
     said = []
     if not shutil.which(CHRONYC) and not NO_SERVICES:
@@ -7658,8 +7673,9 @@ def serve():
 # install.sh --uninstall runs this. Taken out: what is acme's alone and whose going changes
 # nothing anybody else relies on - the trust anchors acme-<fp> (and the system's tool run),
 # the password policy (as pwp_apply takes it out: the files' own lines and authselect's
-# features back), acme's block of chrony.conf (the file's own servers back), the journald
-# drop-in, the sysctl file of the web address. Only said, with how to take it out: what can
+# features back), acme's block of chrony.conf (the file's own servers back; only a whole
+# block) and the chrony.conf.acme-before copy ntp_apply kept, the journald drop-in, the
+# sysctl file of the web address. Only said, with how to take it out: what can
 # shut somebody out or stop the database - sshd's drop-in (its port, AllowUsers, root's
 # sign-in), the firewall chain ACME-IN, the authorities PostgreSQL's replication reads.
 def leftovers(dry=False):
@@ -7687,8 +7703,16 @@ def leftovers(dry=False):
                     said, _r = osroots_sync(w, [])
                     gone('the system\'s trust: ' + ', '.join(said))
                 except (Refused, OSError, subprocess.SubprocessError) as e:
-                    left(what, 'not taken out (%s): rm -f %s/acme-*%s; %s'
-                         % (e, w['dir'], w['ext'], ' '.join(w['tool'])))
+                    still = sorted(rel for rel, _p in osroots_files(w['dir'])
+                                   if OSROOTS_NAME_RE.match(rel)) if os.path.isdir(w['dir']) else []
+                    if still:
+                        left(what, 'not taken out (%s): rm -f %s/acme-*%s; %s'
+                             % (e, w['dir'], w['ext'], ' '.join(w['tool'])))
+                    else:
+                        # Hunt N3 (1.0.102): the files went, the system's tool did not run -
+                        # said so (it was "not taken out")
+                        gone('the system\'s trust: %s in %s, but %s must be run (%s)'
+                             % (', '.join(mine), w['dir'], ' '.join(w['tool']), e))
     pwq = [p for p in (os.path.join(SEC_DIR, PWQ_DROPIN), os.path.join(SEC_DIR, PWQ_LEGACY))
            if os.path.lexists(p)]
     for f in ('pwhistory.conf', 'faillock.conf', LOGIN_DEFS):
@@ -7705,17 +7729,33 @@ def leftovers(dry=False):
             except (Refused, OSError, subprocess.SubprocessError) as e:
                 left(what, 'not taken out (%s): take the lines between "# ---- acme:" out' % e)
     text = _read_or(CHRONY_CONF)
+    before = CHRONY_CONF + '.acme-before'
+    keep_before = False
     if text is not None and NTP_BEGIN in text:
         what = 'acme\'s time servers in %s (its own lines back)' % CHRONY_CONF
-        if not dry:
+        if not ntp_block_whole(text):
+            # Hunt N3 (1.0.102): a mark lost (the block edited by hand) - nothing taken out,
+            # it took the file's own lines after the block with it to the end of the file
+            left('acme\'s time servers in %s' % CHRONY_CONF,
+                 'its block is not whole (a "%s" line without its "%s" line, or the other way) - '
+                 'not taken out; take acme\'s lines out by hand and the "#acme# " in front of the '
+                 'file\'s own%s' % (NTP_BEGIN, NTP_END, (' (the file as it was before acme: %s)'
+                                                         % before) if os.path.isfile(before) else ''))
+            what, keep_before = '', True
+        elif not dry:
             try:
                 write_root(CHRONY_CONF, ntp_conf_text(text, {'manage': False}), 0o644)
                 restart('chronyd.service')
             except OSError as e:
                 left(what, 'not taken out (%s): the block between "%s" and "%s"' % (e, NTP_BEGIN, NTP_END))
-                what = ''
+                what, keep_before = '', True
         if what:
             gone(what)
+    # the copy ntp_apply kept of the file before acme first wrote its block (acme's own)
+    if not keep_before and os.path.isfile(before) and not os.path.islink(before):
+        if not dry:
+            _drop(before)
+        gone('%s (the copy of chrony.conf before acme\'s servers)' % before)
     jd = os.path.join(ETC_DIR, JOURNAL_DROPIN)
     if (_read_or(jd) or '').startswith('# Written by acme'):
         if not dry:

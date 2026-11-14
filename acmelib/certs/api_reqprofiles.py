@@ -137,7 +137,7 @@ def _cert_csr(h):
             held_now = P.holders(h.store, names, row.get('owner'), row['id'], waiting=False)
             fields.update(state=P.WAITING, state_at=t, auto_renew=0)
             h.store.db.update('certs', row['id'], fields)
-            P.note_asker(h.store, row['id'], sender, held_now)
+            P.note_asker(h.store, row['id'], sender, held_now, P.asker_ids(s))
             h.store.add_event('certificates', '%s sent a new CSR for %s from the portal with other '
                               'names (%s) - it waits for approval' % (s['name'], row['name'],
                                                                      ', '.join(names)),
@@ -154,7 +154,7 @@ def _cert_csr(h):
         # refused: nothing of it kept (1.0.102)
         h.store.db.update('certs', row['id'], old)
         raise E.ApiError(409, str(e))
-    P.note_asker(h.store, row['id'], sender)
+    P.note_asker(h.store, row['id'], sender, ids=P.asker_ids(s))
     h.store.add_event('certificates', '%s sent a new CSR for %s from the portal (%s) - it is '
                       'issued again' % (s['name'], row['name'], kt), 'warn', who=s['name'])
     return {'job_id': job_id, 'message': 'the new CSR was taken - %s is being issued again'

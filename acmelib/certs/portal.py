@@ -104,6 +104,20 @@ def my_names(s):
     return out
 
 
+def asker_ids(s):
+    """Every name a portal session's person is known by (lower case), kept with a request they
+    ask for or give a CSR or names to (1.0.102): my_names and, of the directory, the DN - an
+    administrator whose account is their sAMAccountName (jnovak) and whose portal sign-in is their
+    UPN (jan.novak@corp) is found by either."""
+    out = set(my_names(s))
+    if not is_local(s):
+        dn = str((s.get('data') or {}).get('dn') or '').strip().lower()
+        if dn:
+            out.add(dn)
+    out.discard('')
+    return sorted(out)
+
+
 def my_groups(h, s):
     """[(dn, cn)] of every group the person is in (nested), asked of the
     directory at most every GROUPS_KEEP_S and kept in the session; what was
@@ -238,15 +252,20 @@ def mine(h, s, rows=None):
     groups = my_groups(h, s)
     tms = my_teams(h, s)
     defined = defined_teams(store)
+    ids = set(asker_ids(s))
+    held_rows = []
 
     def public(st_, r, via):
         one = public_row(st_, r, via)
         one['may'] = [w for w in ALL_RIGHTS if w in rights_of(s, r, names, groups, tms, defined)]
         one['team'] = str(r.get('owner') or '').strip().lower() in tms
         # asked for by this very person (1.0.80): its Approve was offered, then refused
-        one['asked_by_me'] = bool(askers_of(st_, r['id']) & names)
+        one['asked_by_me'] = bool(askers_of(st_, r['id']) & ids)
         if r.get('state') == WAITING:
-            one.update(held_public(st_, r))         # whose names it asks for (1.0.102)
+            # whose names it asks for (1.0.102) - the certificates read once for the list
+            if not held_rows:
+                held_rows.append(holder_rows(st_))
+            one.update(held_public(st_, r, held_rows[0], defined))
         if not key_may(s, via, one['may'], asker(st_, r['id']).get('who')):
             one['formats'] = [f for f in one.get('formats') or [] if f != KEY_FORMAT]
         return one
@@ -372,26 +391,45 @@ def _covers(pattern, host):
     return False
 
 
-def holders(store, names, who, exclude=None, waiting=True):
-    """{owner (as the certificate says it, '' for none): [the names of these it holds]} of
-    every certificate of another owner naming one of these (1.0.51) - under a wildcard of
-    theirs, or a wildcard asked over a name of theirs, too (1.0.80). `exclude`: the id of the
-    certificate asked about itself; `waiting`: requests that wait for approval count too."""
+def holder_rows(store):
+    """The certificates that may hold names (holders' `rows`): [(id, owner, state, [names])]
+    - read once for a whole list (1.0.102), not once a row. Revoked and declined ones, and
+    ones run out (not_after past), hold none."""
+    now = time.time()
+    out = []
+    for r in store.db.rows("SELECT id, owner, names, state, not_after FROM certs WHERE "
+                           "state NOT IN ('revoked', 'declined')"):
+        try:
+            na = float(r.get('not_after') or 0)
+        except (TypeError, ValueError):
+            na = 0
+        if na and na < now:
+            continue
+        out.append((r.get('id'), str(r.get('owner') or '').strip(), r.get('state'),
+                    [str(x).lower() for x in (S.jload(r.get('names'), []) or [])]))
+    return out
+
+
+def holders(store, names, who, exclude=None, waiting=True, rows=None, unowned=False):
+    """{owner (as the certificate says it): [the names of these it holds]} of every
+    certificate of another owner naming one of these (1.0.51) - under a wildcard of theirs,
+    or a wildcard asked over a name of theirs, too (1.0.80). `exclude`: the id of the
+    certificate asked about itself; `waiting`: requests that wait for approval count too;
+    `rows`: holder_rows() read already. A certificate without an owner holds nothing (no team
+    to ask - any approver approves), unless `unowned` (then under ''): a request for its names
+    still waits for approval (1.0.51). One run out, revoked or declined holds nothing."""
     me = str(who or '').strip().lower()
     want = [str(n).lower() for n in names or [] if n]
     out = {}
     if not want:
         return out
-    for r in store.db.rows("SELECT id, owner, names, state FROM certs WHERE "
-                           "state NOT IN ('revoked', 'declined')"):
-        if exclude is not None and r.get('id') == exclude:
+    for rid, owner, state, theirs in (holder_rows(store) if rows is None else rows):
+        if exclude is not None and rid == exclude:
             continue
-        if not waiting and r.get('state') == WAITING:
+        if not waiting and state == WAITING:
             continue
-        owner = str(r.get('owner') or '').strip()
-        if owner.lower() == me:
+        if owner.lower() == me or (not owner and not unowned):
             continue
-        theirs = [str(x).lower() for x in (S.jload(r.get('names'), []) or [])]
         for n in want:
             for t in theirs:
                 if _covers(t, n) or _covers(n, t) or \
@@ -406,7 +444,7 @@ def held_by_others(store, names, who, exclude=None):
     """Whether a certificate of another owner names one of these (1.0.51): asked for on the
     portal and issued at once, mail.corp.example of the IT team's - and its key taken. It waits
     for approval then - by the owner that holds the name (1.0.102), see may_approve_held."""
-    return bool(holders(store, names, who, exclude))
+    return bool(holders(store, names, who, exclude, unowned=True))
 
 
 def held_list(got):
@@ -414,18 +452,19 @@ def held_list(got):
     return [{'owner': o, 'names': sorted(n)} for o, n in sorted(got.items())]
 
 
-def held_of(store, row):
+def held_of(store, row, rows=None):
     """[{owner, names}] of a request waiting for approval: what was kept when it began to
-    wait, and what holds its names now (another owner's certificate issued since)."""
+    wait, and what holds its names now (another owner's certificate issued since). No owner
+    holds nothing (holders). `rows`: holder_rows() read already."""
     kept = asker(store, row['id']).get('held')
     out = {}
     for one in kept if isinstance(kept, list) else []:
-        if isinstance(one, dict):
+        if isinstance(one, dict) and str(one.get('owner') or '').strip():
             out.setdefault(str(one.get('owner') or '').strip(), set()).update(
                 str(n) for n in one.get('names') or [])
     if row.get('state') == WAITING:
         for o, ns in holders(store, S.jload(row.get('names'), []) or [], row.get('owner'),
-                             row['id'], waiting=False).items():
+                             row['id'], waiting=False, rows=rows).items():
             out.setdefault(o, set()).update(ns)
     return [{'owner': o, 'names': sorted(ns)} for o, ns in sorted(out.items())]
 
@@ -445,10 +484,12 @@ def held_words(held, defined=()):
     return out
 
 
-def held_public(store, row):
-    """What the approval dialogs show of a request held by others' names (1.0.102)."""
-    defined = defined_teams(store)
-    held = held_of(store, row)
+def held_public(store, row, rows=None, defined=None):
+    """What the approval dialogs show of a request held by others' names (1.0.102). `rows`
+    (holder_rows) and `defined` (defined_teams) where a list read them once already."""
+    if defined is None:
+        defined = defined_teams(store)
+    held = held_of(store, row, rows)
     return {'held': [{'team': o['owner'] if o['owner'].lower() in defined else '',
                       'names': o['names']} for o in held],
             'held_words': held_words(held, defined)}
@@ -477,18 +518,27 @@ def askers_of(store, cid):
     a = asker(store, cid)
     out = {str(a.get('who') or '').strip().lower()}
     out |= {str(x).strip().lower() for x in (a.get('askers') or []) if x}
+    # every name each of them is known by (1.0.102): the DN, sAMAccountName, UPN
+    out |= {str(x).strip().lower() for x in (a.get('ids') or []) if x}
     out.discard('')
     return out
 
 
-def note_asker(store, cid, who, held=None):
-    """`who` (owner_word) sent a CSR or names for it: one of its askers from now; `held`
-    (holders()) kept as why it waits, where given."""
+def note_asker(store, cid, who, held=None, ids=()):
+    """`who` (owner_word) sent a CSR or names for it: one of its askers from now; `ids` every
+    other name they are known by (asker_ids, admin_names); `held` (holders()) kept as why it
+    waits, where given."""
     a = asker(store, cid)
     lst = [str(x) for x in (a.get('askers') or []) if x]
     if who and str(who).lower() not in {x.lower() for x in lst}:
         lst.append(str(who)[:190])
     a['askers'] = lst[-50:]
+    known = [str(x) for x in (a.get('ids') or []) if x]
+    for x in ids or ():
+        x = str(x).strip().lower()[:400]
+        if x and x not in known:
+            known.append(x)
+    a['ids'] = known[-200:]
     if held is not None:
         a['held'] = held_list(held)
     store.set_meta(META + str(cid), json.dumps(a))
@@ -799,7 +849,7 @@ def _portal_request(h):
         owner = tm[0]
     # A wildcard waits for an administrator whatever portal_cert_auto says (1.0.45): issued at
     # once, with its key to take, it covered every host under the name.
-    held = holders(store, names, owner)
+    held = holders(store, names, owner, unowned=True)
     auto = bool(E.CONFIG.get('portal_cert_auto')) and not any(n.startswith('*.') for n in names) \
         and not held
     # a name the rules take (1.0.79: "_svc.example.test" stayed as it was, and every save of the
@@ -844,7 +894,7 @@ def _portal_request(h):
     held_now = holders(store, names, owner, cid, waiting=False)
     store.set_meta(META + str(cid), json.dumps({
         'who': who, 'display': data.get('display') or '', 'mail': data.get('mail') or '',
-        'at': t, 'note': note, 'held': held_list(held_now)}))
+        'at': t, 'note': note, 'held': held_list(held_now), 'ids': asker_ids(s)}))
     job_id = None
     if not auto and held_now:
         tell_holders(store, cid, held_now, who)
@@ -946,7 +996,7 @@ def _portal_approve(h):
     # ...nor one they sent a new CSR or names for (1.0.102): a member who may manage sent his
     # own CSR with other names for another's request, and approved it himself.
     ok = A._flag(b.get('ok'))
-    if ok and askers_of(h.store, row['id']) & my_names(s):
+    if ok and askers_of(h.store, row['id']) & set(asker_ids(s)):
         raise E.ApiError(403, 'you asked for it yourself, or sent its CSR or names - someone else '
                               'approves it')
     if ok and row.get('state') == WAITING and not E.portal_sees_all(s):
@@ -977,9 +1027,10 @@ def _cert_approve(h, s):
         if asked_by_admin(h.store, row, s):
             h.store.add_event('certificates', '%s was refused: approving %s, asked for by '
                               'themselves' % (A.who(s), row['name']), 'warn', who=A.who(s))
-            raise E.ApiError(403, 'you asked for it yourself, or sent its CSR or names - someone '
-                                  'else approves it (a full administrator who needs it adds it '
-                                  'as a certificate here, Add a certificate)')
+            raise E.ApiError(403, 'you asked for it yourself, or gave it its CSR or names - have '
+                                  'another administrator approve or decline it (a full '
+                                  'administrator who needs a certificate adds it here: Add a '
+                                  'certificate)')
         if not (s.get('role') == 'fulladmin' or s.get('cli')):
             from acmelib.certs import teams as T
             need_held_ok(h.store, row, lambda o: T.cert_may(h.store, s, {'owner': o}, 'approve')
@@ -995,7 +1046,8 @@ def _bare(n):
 def admin_names(s):
     """The names a session of the administration asks for certificates under on the portal
     (lower case): local:NAME of an account of acme's own; of the directory, its name, the
-    name without its domain, its DN and mail."""
+    name without its domain, its DN and mail - matched against every name an asker is known by
+    (asker_ids: the portal's UPN, sAMAccountName and DN)."""
     from acmelib.certs import teams as T
     acc = s.get('account') or {}
     name = str(s.get('name') or '').strip().lower()

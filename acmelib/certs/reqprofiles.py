@@ -612,8 +612,8 @@ def csr_refusals(info):
     odd = ['%s:%s' % (t, v) for t, v in info.get('san') or [] if t not in SAN_TAKEN]
     odd += list(info.get('san_bad') or [])
     if odd:
-        out.append('names of a kind no profile gives (only DNS names and IP addresses): %s'
-                   % ', '.join(odd))
+        out.append('names of a kind no profile gives (only DNS names, IP addresses, e-mail '
+                   'addresses and URIs are read): %s' % ', '.join(odd))
     unread = [x for x in info.get('ext_unread') or []]
     if unread:
         out.append('extensions that cannot be read: %s' % ', '.join(unread))
@@ -896,7 +896,7 @@ def request(h, s, b):
     store.set_meta(P.META + str(cid), json.dumps({
         'who': who, 'display': data.get('display') or '', 'mail': data.get('mail') or '',
         'at': t, 'note': note, 'profile': r['name'], 'pfx': bool(cfg.get('pfx')) and not csr_pem,
-        'auto': auto, 'held': P.held_list(held_now)}))
+        'auto': auto, 'held': P.held_list(held_now), 'ids': P.asker_ids(s)}))
     if waits and held_now:
         P.tell_holders(store, cid, held_now, who)
     what = '%s asked on the portal for %s (%s) from the request profile %s%s' % (

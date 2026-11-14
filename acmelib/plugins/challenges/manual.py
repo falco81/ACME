@@ -100,7 +100,7 @@ class Manual(DnsChallenge):
                               done=None, blocking=False,
                               said='at each order acme shows the value and waits until the '
                                    'name servers of %s have it' % zone)
-        state = self.seen_by_authority(fqdn, waiting)
+        state = self.seen_by_authority(fqdn, waiting, since=0)    # a look now: no waiting
         return guide_step('txt', what, where=where,
                           record={'name': fqdn, 'type': 'TXT', 'value': waiting, 'ttl': 60},
                           done=state, blocking=False,

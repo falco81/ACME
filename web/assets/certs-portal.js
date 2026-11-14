@@ -814,6 +814,7 @@ function csrCard(rv) {
   var ch = csrSection('Against the profile');
   var list = el('div', 'cp-checks');
   var WHAT = {signature: 'Signature', name: 'DNS name', names: 'Names', count: 'How many names', other: 'Other names',
+              refused: 'Refused', eku: 'Extended key usage',
               key: 'Key type', subject: 'Subject', fit: 'Source and validation', csr: 'CSR'};
   (rv.checks || []).forEach(function (x) {
     var line = el('div', 'cp-check ' + (x.ok === true ? 'ok' : (x.ok === false ? 'bad' : 'note')));

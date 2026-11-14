@@ -72,6 +72,14 @@ SAFE_NAME = re.compile(r'^[A-Za-z0-9_*.-]{1,253}$')
 SAFE_TXT = re.compile(r'^[A-Za-z0-9_.+/=-]{1,255}$')
 
 
+def safe_place_name(n):
+    """A name acme writes a record at (place(), the end of a CNAME chain): SAFE_NAME, no '*',
+    and no label starting with '-' (Hunt N3, 1.0.102: never read as an option by a script or
+    a command line)."""
+    return bool(n and SAFE_NAME.match(n) and '*' not in n and
+                not any(l.startswith('-') for l in n.split('.')))
+
+
 def url_host(n):
     """A name or address as the host of a URL: an IPv6 address in brackets (1.0.79)."""
     n = str(n or '')
@@ -365,6 +373,8 @@ class DnsChallenge(Challenge):
     auth_port = 53                  # where the zone's name servers are asked (a test changes it)
     auth_unreachable_wait = 180     # s: while some name servers cannot be asked, not ready for so
                                     # long after the value was put in - then the resolvers decide
+    ready_until = None              # time.time() the caller waits for ready() until (it sets it):
+                                    # the wait above ends by then, the resolvers have their turn
 
     def __init__(self, config, ctx):
         Challenge.__init__(self, config, ctx)
@@ -449,7 +459,7 @@ class DnsChallenge(Challenge):
         if len(chain) > 1:
             # Hunt N2 (1.0.102): the end of the chain is a name from DNS - checked as place()
             # checks its names before it reaches an API path, a script or a command line
-            if not SAFE_NAME.match(end) or '*' in end:
+            if not safe_place_name(end):
                 raise PluginError('%s is a CNAME to "%s" - not a name acme writes a record at'
                                   % (rr, chain[-1][:80]), retry=False)
             self.ctx.step('%s is a CNAME to %s: the TXT record goes there' % (rr, chain[-1]))
@@ -553,7 +563,7 @@ class DnsChallenge(Challenge):
 
     def place(self, kind, name, where, content):
         fqdn = D.norm(where)
-        if not SAFE_NAME.match(fqdn) or '*' in fqdn:
+        if not safe_place_name(fqdn):
             raise PluginError('"%s" is not a name acme writes a record at' % where, retry=False)
         content = str(content or '').strip()
         if kind == 'txt':
@@ -566,7 +576,7 @@ class DnsChallenge(Challenge):
                     'at': time.time(), 'h': h}
         if kind == 'cname':
             tgt = D.norm(content)
-            if not SAFE_NAME.match(tgt) or '*' in tgt:
+            if not safe_place_name(tgt):
                 raise PluginError('"%s" is not a name a CNAME points at' % content, retry=False)
             if not self.writes_cname():
                 raise NotImplementedError('%s writes no CNAME records' % (self.title or self.kind))
@@ -627,8 +637,8 @@ class DnsChallenge(Challenge):
     def seen_by_authority(self, fqdn, txt, since=None):
         """True: every name server of the zone has it; False: not yet; None:
         none of them could be reached from here - or only some, and the time
-        (auth_unreachable_wait after `since`, the value put in) is over: the
-        caller asks the resolvers then."""
+        (auth_unreachable_wait after `since`, the value put in, and never past
+        the caller's own ready_until) is over: the caller asks the resolvers then."""
         zone, servers = self.authority(fqdn)
         if not servers:
             return None
@@ -660,6 +670,10 @@ class DnsChallenge(Challenge):
             if since is None:
                 since = self.__dict__.setdefault('_partial_since', {}).setdefault(fqdn, time.time())
             until = float(since or 0) + self.auth_unreachable_wait
+            if self.ready_until:
+                # Hunt N3 (1.0.102): a source waiting less (its wait_ready) failed the order
+                # although every server reachable had it - the resolvers decide in its time
+                until = min(until, float(self.ready_until))
             if time.time() < until:
                 self.say_once('auth:' + fqdn, '%s TXT: on %s%s - acme waits until %s, then '
                               'asks the resolvers' % (fqdn, ', '.join(have), not_asked,

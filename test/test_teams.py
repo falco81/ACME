@@ -510,7 +510,7 @@ class Approvals(unittest.TestCase):
                 self.fail('approved by the one who asked (%s)' % role)
             except E.ApiError as e:
                 self.assertEqual(e.status, 403)
-                self.assertIn('someone else approves it', str(e))
+                self.assertIn('have another administrator approve or decline it', str(e))
         self.assertEqual(S_state(cid), 'pending-approval')
         # declined by oneself: fine
         self.assertEqual(status(call, 'POST', '/api/certs/approve',
@@ -588,6 +588,109 @@ class Approvals(unittest.TestCase):
         E.CONFIG.update(certs_certadmin_all=1)
         self.assertEqual(status(call, 'POST', '/api/certs/save', dict(new, name='mine2'),
                                 who='cweb', role='certadmin'), 200)
+
+
+    def dir_person(self, upn, sam, dn):
+        """A portal sign-in of the directory: its name the UPN, as the portal makes it."""
+        return {'name': upn, 'kind': 'portal',
+                'data': {'kind': 'directory', 'mail': '', 'dn': dn, 'dir_checked': time.time(),
+                         'about': {'upn': upn, 'sam': sam}, 'cert_groups': [],
+                         'cert_groups_at': time.time()}}
+
+    def test_directory_admin_by_upn_sam_and_dn(self):
+        """1.0.102: a directory administrator whose portal UPN (jan.novak@corp) is not their
+        account's name (jnovak) approved their own request."""
+        E.CONFIG.update(portal_cert_auto=0)
+        dn = 'CN=Jan Novak,OU=People,' + BASE
+        jan = self.dir_person('jan.novak@corp.test', 'jnovak', dn)
+        cid = self.ask(jan, ['jn.example.test'], team='')['id']
+        ids = _portal.askers_of(STORE, cid)
+        self.assertTrue({'jan.novak@corp.test', 'jnovak', dn.lower()} <= ids)
+        # by the DN alone: an account named otherwise
+        adm = {'name': 'novak-admin', 'role': 'fulladmin',
+               'account': {'name': 'novak-admin', 'source': 'directory', 'dn': dn}}
+        self.assertTrue(_portal.asked_by_admin(STORE, {'id': cid}, adm))
+        adm['account']['dn'] = 'CN=Someone Else,' + BASE
+        self.assertFalse(_portal.asked_by_admin(STORE, {'id': cid}, adm))
+        # by the sAMAccountName: the administration's account jnovak (its DN another spelling)
+        self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': cid, 'ok': 1},
+                                who='jnovak', role='fulladmin', source='directory'), 403)
+        self.assertEqual(S_state(cid), 'pending-approval')
+        # the other way: names given in the administration, approved on the portal
+        T.save_team(STORE, {'name': 'Web', 'old_name': 'Web', 'members': [
+            'local:eva=request', 'jnovak=approve', 'jan.novak@corp.test=approve']}, 'x')
+        cid = self.ask(self.person('eva'), ['e2.example.test'])['id']
+        call('POST', '/api/certs/save', {'id': cid, 'names': ['e3.example.test']},
+             who='jnovak', role='fulladmin', source='directory')
+        self.assertIn('cn=jnovak,ou=people,' + BASE.lower(), _portal.askers_of(STORE, cid))
+        other = self.dir_person('jan.novak@corp.test', 'jn2', 'CN=jnovak,OU=People,' + BASE)
+        self.assertEqual(self.approve(other, cid), 403)          # the same DN
+        self.assertEqual(self.approve(self.dir_person('jnovak@corp.test', 'jnovak',
+                                                      'CN=x,' + BASE), cid), 403)   # its sam
+        self.assertEqual(S_state(cid), 'pending-approval')
+        # nor in the administration: another administrator approves or declines it
+        try:
+            call('POST', '/api/certs/approve', {'id': cid, 'ok': 1}, who='jnovak',
+                 role='fulladmin', source='directory')
+            self.fail('approved by the one who gave it its names')
+        except E.ApiError as e:
+            self.assertIn('another administrator approve or decline it', str(e))
+        self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': cid, 'ok': 1}), 200)
+
+    def test_no_owner_run_out_revoked_hold_nothing(self):
+        """1.0.102 decisions: a certificate without an owner, one run out, or one revoked or
+        declined holds no names - any approver approves."""
+        free = cert('freecert', '', names=['free.example.test'])
+        got = self.ask(self.person('eva'), ['free.example.test'])
+        self.assertTrue(got['waits'])                    # waits all the same (1.0.51)...
+        self.assertEqual(_portal.asker(STORE, got['id'])['held'], [])
+        self.assertEqual(self.approve(self.person('appr'), got['id']), 200)   # ...any approver
+        self.assertEqual(_portal.holders(STORE, ['free.example.test'], 'Web'), {})
+        self.assertEqual(list(_portal.holders(STORE, ['free.example.test'], 'Web',
+                                              unowned=True)), [''])
+        STORE.db.run('DELETE FROM certs WHERE id = ?', (free,))
+        # run out
+        STORE.db.update('certs', self.held, {'not_after': time.time() - 60})
+        self.assertEqual(_portal.holders(STORE, ['mail.example.test'], 'Web'), {})
+        got = self.ask(self.person('eva'), ['mail.example.test'])
+        self.assertFalse(got['waits'])
+        STORE.db.update('certs', self.held, {'not_after': time.time() + 86400})
+        self.assertEqual(list(_portal.holders(STORE, ['mail.example.test'], 'Web')), ['Mail'])
+        for st in ('revoked', 'declined'):
+            STORE.db.update('certs', self.held, {'state': st})
+            self.assertEqual(_portal.holders(STORE, ['mail.example.test'], 'Web'), {}, st)
+
+    def test_held_read_once_for_a_list(self):
+        E.CONFIG.update(portal_cert_auto=0)
+        for n in ('l1', 'l2', 'l3'):
+            self.ask(self.person('eva'), ['%s.example.test' % n])
+        calls = []
+        real = _portal.holder_rows
+
+        def counted(store):
+            calls.append(1)
+            return real(store)
+        _portal.holder_rows = counted
+        try:
+            rows = call('GET', '/api/certs', args={'state': 'pending-approval'})['rows']
+            self.assertEqual((len(rows), len(calls)), (3, 1))
+            del calls[:]
+            rows = E.ROUTES[('GET', '/api/portal/certs')](FakeH(portal=self.person('appr')))
+            self.assertEqual(len(calls), 1)
+        finally:
+            _portal.holder_rows = real
+
+    def test_scoped_administrator_keeps_names_held_since(self):
+        """1.0.102: only the names given now are looked at - a name the certificate had
+        already, held by another team's since, does not refuse every change of its names."""
+        cid = call('POST', '/api/certs/save', {'names': ['w.example.test', 'mail.example.test'],
+                                               'issuer': '', 'owner': 'Web', 'name': 'wm'})['id']
+        self.assertEqual(status(call, 'POST', '/api/certs/save', {
+            'id': cid, 'names': ['w.example.test', 'mail.example.test', 'w2.example.test']},
+            who='cweb', role='certadmin'), 200)
+        self.assertEqual(status(call, 'POST', '/api/certs/save', {
+            'id': cid, 'names': ['w.example.test', 'mail.example.test', '*.example.test']},
+            who='cweb', role='certadmin'), 403)
 
 
 def S_state(cid):

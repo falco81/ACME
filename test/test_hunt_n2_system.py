@@ -291,6 +291,39 @@ class Uninstall(unittest.TestCase):
         out = self.run_it()
         self.assertNotIn('removed', out)
 
+    def test_chrony_block_not_whole_hunt_n3(self):
+        """Hunt N3 (1.0.102): a block of chrony.conf without its end line is left whole (it was
+        cut to the end of the file, the file's own lines with it) and said; the copy ntp_apply
+        kept (chrony.conf.acme-before) goes once the block went."""
+        broken = ('#acme# pool 2.pool.ntp.org iburst\n'
+                  '# ---- acme: the time servers, set on its pages (Settings - Time) ----\n'
+                  'server ntp.example iburst\nkeyfile /etc/chrony.keys\nlogdir /var/log/chrony\n')
+        with open(self.p['chrony'], 'w') as f:
+            f.write(broken)
+        before = self.p['chrony'] + '.acme-before'
+        with open(before, 'w') as f:
+            f.write('pool 2.pool.ntp.org iburst\n')
+        out = self.run_it()
+        self.assertEqual(cat(self.p['chrony']), broken)
+        self.assertRegex(out, r'(?m)^left: acme\'s time servers in .*not whole')
+        self.assertTrue(os.path.exists(before))
+        with open(self.p['chrony'], 'w') as f:
+            f.write(self.files[self.p['chrony']])
+        out = self.run_it()
+        self.assertNotIn('acme', cat(self.p['chrony']))
+        self.assertFalse(os.path.exists(before))
+        self.assertIn('chrony.conf.acme-before', out)
+
+    def test_trust_tool_failed_hunt_n3(self):
+        """Hunt N3 (1.0.102): the anchors removed but the system's tool did not run - said as
+        removed, with the tool to run (it was "not taken out")."""
+        self.env['ACME_OSROOTS_EXTRACT'] = 'no-such-tool-acme-test'
+        out = self.run_it()
+        self.assertFalse(os.path.exists(os.path.join(self.p['anchors'], 'acme-0123456789abcdef.pem')))
+        self.assertRegex(out, r'(?m)^removed: the system\'s trust: acme-0123456789abcdef\.pem .*'
+                              r'but no-such-tool-acme-test must be run')
+        self.assertNotIn('not taken out', out)
+
     def test_install_sh_runs_it(self):
         sh = read('install.sh')
         self.assertIn('--leftovers ${DRY_RUN:+--dry-run}', sh)

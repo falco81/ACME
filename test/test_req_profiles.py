@@ -482,6 +482,33 @@ class Csr(unittest.TestCase):
         fits, got = checks(C.csr(key, 'www.example.test', dns, C.SMARTCARD_EKU), 'AD')
         self.assertEqual((fits, got), (False, {'eku': False}))
         self.assertEqual(checks(C.csr(key, 'www.example.test', dns), 'AD'), (True, {}))
+        # the words of a refused name say which kinds are read
+        got = portal(EVA, 'POST', '/api/portal/csr_decode', {'profile': 'Web servers', 'csr': C.csr(
+            key, 'www.example.test', dns + ',RID:1.2.3.4')})
+        said = [c['said'] for c in got['checks'] if c['what'] == 'refused'][0]
+        self.assertIn('DNS names, IP addresses, e-mail addresses and URIs', said)
+
+    def test_windows_csr_taken_and_renewed(self):
+        """1.0.102: a CSR of Windows certreq / ConfigMgr repeats the enrollment name-value pair
+        attribute (1.3.6.1.4.1.311.13.2.1) - taken, issued, and renewed with it."""
+        sys.path.insert(0, HERE)
+        import csr_craft as C
+        key = pki.make_key('ec-256')
+        csr = C.windows_csr(key)
+        got = portal(EVA, 'POST', '/api/portal/csr_decode', {'profile': 'Web servers',
+                                                              'csr': csr})
+        self.assertTrue(got['fits'], got['checks'])
+        got = portal(EVA, 'POST', '/api/portal/cert_request', {
+            'profile': 'Web servers', 'csr': csr, 'team': 'Web'})
+        row = wait_cert(got['id'])
+        self.assertEqual(pki.cert_info(row['cert_pem'])['pub_sha256'],
+                         pki.key_info(key)['pub_sha256'])
+        jobs.run_now(STORE, 'renew', renewer.renew_job(row['id'], True, 'test'),
+                     cert_id=row['id'])
+        row2 = S.cert_get(STORE, row['id'])
+        self.assertEqual(row2['version'], 2)
+        self.assertEqual(pki.cert_info(row2['cert_pem'])['pub_sha256'],
+                         pki.key_info(key)['pub_sha256'])
 
     def test_a_new_csr_makes_its_sender_one_who_asked(self):
         """1.0.102: a member who may manage sent his own CSR with other names for another's

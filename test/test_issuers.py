@@ -1258,6 +1258,85 @@ class TestScep(unittest.TestCase):
             mitm.close()
             real.close()
 
+    def test_pinned_ca_dates_hunt_n3(self):
+        """Hunt N3 (1.0.102): with a pinned CA the signatures are checked, not the dates - a
+        certificate dated a little ahead (the CA's clock ahead) is taken, an expired RA is said as
+        expired (not as 'not signed by the CA'); a certificate refused keeps the request held."""
+        try:
+            import datetime
+            from cryptography import x509
+            from cryptography.hazmat.primitives import hashes, serialization
+            from cryptography.x509.oid import NameOID
+        except ImportError:
+            self.skipTest('no cryptography module')
+        srv = MockScep()
+        try:
+            cak = serialization.load_pem_private_key(rd(srv.ca.key).encode(), None)
+            cac = x509.load_pem_x509_certificate(rd(srv.ca.crt).encode())
+            now = datetime.datetime.now(datetime.timezone.utc)
+
+            def ahead(csr_der, names=(), **k):
+                csr = x509.load_der_x509_csr(csr_der)
+                c = (x509.CertificateBuilder().subject_name(csr.subject).issuer_name(cac.subject)
+                     .public_key(csr.public_key()).serial_number(x509.random_serial_number())
+                     .not_valid_before(now + datetime.timedelta(minutes=2))
+                     .not_valid_after(now + datetime.timedelta(days=7))
+                     .add_extension(x509.SubjectAlternativeName([x509.DNSName(n) for n in names]), False)
+                     .sign(cak, hashes.SHA256()))
+                return c.public_bytes(serialization.Encoding.PEM).decode()
+            plain_sign = srv.ca.sign_csr
+            srv.ca.sign_csr = ahead
+            pin = p7.Cert(srv.ca.pem).fingerprint()
+            iss = ScepIssuer({'url': srv.base, 'challenge': MockScep.PASSWORD, 'ca_fingerprint': pin},
+                             self.ctx)
+            got = iss.issue(self.req())
+            self.assertEqual(p7.Cert(got.cert_pem).issuer_cn, 'Example SCEP CA')
+            # an expired RA (signed by the CA): used, and said as expired
+            srv.ca.sign_csr = plain_sign
+            rak = serialization.load_pem_private_key(rd(srv.ra_key).encode(), None)
+            old = (x509.CertificateBuilder()
+                   .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'Old RA')]))
+                   .issuer_name(cac.subject).public_key(rak.public_key()).serial_number(77)
+                   .not_valid_before(datetime.datetime(2020, 1, 1))
+                   .not_valid_after(datetime.datetime(2021, 1, 1))
+                   .add_extension(x509.BasicConstraints(False, None), True)
+                   .add_extension(x509.KeyUsage(True, False, True, False, False, False, False, False,
+                                                False), True)
+                   .sign(cak, hashes.SHA256())).public_bytes(serialization.Encoding.PEM).decode()
+            srv.cacert = [p7.cert_der(old), p7.cert_der(srv.ca.pem)]
+            self.ctx.steps = []
+            ca, rcpt, certs = iss.ca_certs()
+            self.assertEqual(rcpt.subject_cn, 'Old RA')
+            said = ' '.join(w for _, w in self.ctx.steps)
+            self.assertIn('expired on 2021-01-01', said)
+            self.assertNotIn('not signed by the CA', said)
+            srv.cacert = None
+            # the certificate that came from another CA: refused, but the request is kept held
+            # and asked for again (CertPoll) at the next try - not sent anew
+            other = TestCA('Example SCEP CA', rsa=True)
+            try:
+                srv.ca.sign_csr = other.sign_csr
+                r = self.req()
+                with self.assertRaises(PluginError) as cm:
+                    iss.issue(r)
+                self.assertIn('not signed by the CA of the fingerprint', str(cm.exception))
+                self.assertTrue(cm.exception.retry)
+                self.assertTrue(any(k.startswith('scep-pending:') for k in self.ctx.kv))
+                srv.ca.sign_csr = plain_sign
+                srv.ops = []
+                # the CA's answer to the CertPoll: the mock answers a poll from what it held
+                tid = json.loads(next(v for k, v in self.ctx.kv.items()
+                                      if k.startswith('scep-pending:')))['tid']
+                srv.held[tid] = r.csr_der
+                got = iss.issue(r)
+                self.assertEqual(srv.ops, ['20'])
+                self.assertEqual(p7.Cert(got.cert_pem).spki_der, p7.csr_spki(r.csr_der))
+                self.assertFalse(any(k.startswith('scep-pending:') for k in self.ctx.kv))
+            finally:
+                other.close()
+        finally:
+            srv.close()
+
 
 class TestHunt102(unittest.TestCase):
     """Hunt N (1.0.102): an authorization for a name not ordered refused; the account key never

@@ -667,6 +667,22 @@ class AcmeIssuer(Issuer):
         end = time.time() + span
         every = self._num('poll_every', 5)
         left = list(group)
+        # the modules' own waits (a name server that cannot be asked) end before this one does
+        for t in group:
+            try:
+                t['mod'].ready_until = end - every
+            except Exception:                           # noqa: BLE001
+                pass
+        try:
+            self._wait_ready_loop(left, end, every, span)
+        finally:
+            for t in group:
+                try:
+                    t['mod'].ready_until = None
+                except Exception:                       # noqa: BLE001
+                    pass
+
+    def _wait_ready_loop(self, left, end, every, span):
         said = False
         while left:
             if self.ctx.cancelled():

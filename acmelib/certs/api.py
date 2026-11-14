@@ -222,6 +222,7 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
     rows = store.db.rows('SELECT %s FROM certs%s ORDER BY %s LIMIT %d OFFSET %d' % (
         ', '.join(LIST_COLS), w, store.db.name_order(), per, (page - 1) * per), tuple(args))
     out = []
+    held_rows = []
     for r in rows:
         one = S.cert_public(r)
         one['deploys'] = int(store.db.value('SELECT COUNT(*) FROM cert_deploys WHERE cert_id = ?',
@@ -239,7 +240,10 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
         one['last_job'] = _portal.last_job(store, r['id'])
         one['deploy_hold'] = S.deploy_hold(store, r['id']) is not None   # the console (1.0.88)
         if r.get('state') == 'pending-approval':
-            one.update(_portal.held_public(store, r))   # whose names it asks for (1.0.102)
+            # whose names it asks for (1.0.102) - the certificates read once for the list
+            if not held_rows:
+                held_rows.extend([_portal.holder_rows(store), _portal.defined_teams(store)])
+            one.update(_portal.held_public(store, r, held_rows[0], held_rows[1]))
         out.append(one)
     return {'rows': out, 'total': total, 'page': page, 'per': per}
 
@@ -715,10 +719,18 @@ def cert_save(store, b, by, full=False, out=None, s=None):
     names_now = S.jload(fields['names'], []) if 'names' in fields else \
         S.jload((row or {}).get('names'), []) or []
     owner_now = fields['owner'] if 'owner' in fields else (row or {}).get('owner')
-    if not row or ('names' in fields and fields['names'] != row.get('names')) or \
-            ('owner' in fields and str(owner_now or '').strip().lower() !=
-             str(row.get('owner') or '').strip().lower()):
+    owner_moved = row is not None and 'owner' in fields and \
+        str(owner_now or '').strip().lower() != str(row.get('owner') or '').strip().lower()
+    if not row or owner_moved:
+        # a new certificate, or one given to another owner: every name it has
         held_refused(store, s, names_now, owner_now, row['id'] if row else None)
+    elif 'names' in fields and fields['names'] != row.get('names'):
+        # only the names given to it now - those it had stay (1.0.102: one name another
+        # owner's certificate held since refused every change of its names)
+        had = {str(n).lower() for n in S.jload(row.get('names'), []) or []}
+        added = [n for n in names_now if str(n).lower() not in had]
+        if added:
+            held_refused(store, s, added, owner_now, row['id'])
     fields['updated'], fields['updated_by'] = t, str(by)[:190]
     if row:
         store.db.update('certs', row['id'], fields)
@@ -728,7 +740,8 @@ def cert_save(store, b, by, full=False, out=None, s=None):
             from acmelib.certs import portal as P
             acc = s.get('account') or {}
             P.note_asker(store, row['id'], str(s.get('name') or '') if acc.get('source') ==
-                         'directory' else 'local:%s' % (s.get('name') or ''))
+                         'directory' else 'local:%s' % (s.get('name') or ''),
+                         ids=P.admin_names(s))
         if moved:
             # The version in use came from the old source (1.0.77): the new one cannot revoke it.
             if row.get('issuer'):          # from by hand: its imported version says so itself
