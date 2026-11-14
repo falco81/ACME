@@ -7496,9 +7496,9 @@ function drawHaLb(d) {
     clear(list);
     LB_GUIDES.concat([['check', 'Check it', 'after', function () {
       return [['From any machine: each node, then through the balancer; maintenance must take a node out',
-        lbServers(v, function (n, i) { return 'curl -sk https://{a' + i + '}{hc}            # ok {n' + i + '}'; })
+        lbServers(v, function (n, i) { return 'curl -sk https://{a' + i + '}{hc}            # ok up'; })
         + '\ncurl -sk https://{name}{hc}\n\n# on {n0}, as root:\nacme --maintenance on --why "balancer test"\n'
-        + 'curl -sk https://{a0}/healthz             # 503 maintenance {n0} - the balancer sends everything to {n1}\nacme --maintenance off']];
+        + 'curl -sk https://{a0}/healthz             # 503 maintenance - the balancer sends everything to {n1}\nacme --maintenance off']];
     }]]).forEach(function (g) {
       var det = el('details', 'lb-guide');
       det.dataset.k = g[0];

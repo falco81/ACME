@@ -188,6 +188,18 @@ def _dbguard_load():
             DBGUARD['good'] = dict(got.get('good') or {}) if isinstance(got, dict) else {}
             DBGUARD['seen_h'] = dict(got.get('seen_h') or {}) if isinstance(got, dict) else {}
             DBGUARD['adopted'] = dict(got.get('adopted') or {}) if isinstance(got, dict) else {}
+            # Gone back below 1.0.101 and up again (1.0.101): the version that wrote the file
+            # last is in it ('ran', which acme 1.0.100 and older do not keep when they write
+            # it). Written by one of those after 1.0.101 took the portal's settings under the
+            # guard, the settings saved meanwhile were unsigned - refused as written past acme
+            # until somebody saved them again. The mark is dropped: they are signed once more
+            # as they are, as at the first upgrade (once every node runs 1.0.101 again).
+            ran = got.get('ran') if isinstance(got, dict) else None
+            if DBGUARD['adopted'].get(DBGUARD_ADOPT3_MARK) and \
+                    _ver_tuple(ran or '0') < _ver_tuple(DBGUARD_ADOPT3_MARK.rsplit(':', 1)[1]):
+                DBGUARD['adopted'].pop(DBGUARD_ADOPT3_MARK, None)
+                DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
+                DBGUARD['readopt'] = ran or 'an older version'
 
 
 def dbguard_flush(force=False):
@@ -199,7 +211,7 @@ def dbguard_flush(force=False):
     with DBGUARD['lock']:
         data = json.dumps({'seen': DBGUARD['seen'], 'good': DBGUARD['good'],
                            'seen_h': DBGUARD['seen_h'] or {},
-                           'adopted': DBGUARD.get('adopted') or {}})
+                           'adopted': DBGUARD.get('adopted') or {}, 'ran': __version__})
         DBGUARD['dirty'] = 0.0
     try:
         write_replacing(DBGUARD_FILE, data, 0o600)
@@ -488,7 +500,7 @@ def dbguard_forget_seen(why='', hold=False):
         with DBGUARD['lock']:
             DBGUARD['hold'] = True
             data = json.dumps({'seen': {}, 'good': {}, 'seen_h': {},
-                               'adopted': DBGUARD.get('adopted') or {}})
+                               'adopted': DBGUARD.get('adopted') or {}, 'ran': __version__})
         try:
             write_replacing(DBGUARD_FILE, data, 0o600)
         except Exception as e:                          # noqa: BLE001
@@ -628,7 +640,11 @@ def _dbguard_adopt3(store):
         DBGUARD.setdefault('adopted', {})[DBGUARD_ADOPT3_MARK] = time.time()
         DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
     dbguard_flush(force=True)
-    if n:
+    back = DBGUARD.pop('readopt', None)
+    if back:
+        log('the guard against writes signs the settings of the enrolment pages again, %d '
+            'row(s), as they are: acme %s ran here since they were signed' % (n, back))
+    elif n:
         log('the guard against writes now signs the settings of the enrolment pages, %d row(s), '
             'as they were (upgrade)' % n)
     return n

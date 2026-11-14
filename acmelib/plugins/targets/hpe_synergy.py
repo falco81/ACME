@@ -157,7 +157,10 @@ class HpeSynergyTarget(HpeOneViewTarget):
                        ['enclosure', 'an enclosure\'s management module (frame / OA bay)']],
               help='each certificate deployed here is for one of them'),
         field('enclosure', 'Enclosure', 'text', placeholder='Frame1',
-              pattern=r'^(/rest/enclosures/[A-Za-z0-9_-]+/?|[^/\\?#%\x00-\x1f\x7f]{1,255})\Z',
+              # a name goes quoted into a filter (any character OneView takes, but control
+              # characters); a URI is one id
+              pattern=r'^(/rest/enclosures/[A-Za-z0-9_-]+/?'
+                      r'|(?!/rest/enclosures/)[^\x00-\x1f\x7f]{1,255})\Z',
               pattern_words='an enclosure\'s name in OneView, or /rest/enclosures/<id>',
               show_if={'part': ['enclosure']},
               help='its name in OneView, or its URI (/rest/enclosures/…)'),

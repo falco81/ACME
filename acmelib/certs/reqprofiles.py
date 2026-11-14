@@ -129,12 +129,21 @@ def clean_subject(v):
     return out
 
 
+# The longest value of a subject field (RFC 5280's upper bounds, 1.0.101): L and ST 128, the
+# e-mail 255, the others (CN, O, OU, ...) 64 - L and ST of 65 to 128 renewed and were refused
+SUBJECT_MAX = {'L': 128, 'ST': 128, 'emailAddress': 255}
+# an e-mail in the subject: local@domain without spaces (a domain without a dot, pki@corp,
+# is one inside a company)
+SUBJECT_MAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\Z')
+
+
 def check_value(k, value):
-    if any(ord(c) < 32 for c in value) or len(value) > 64:
-        raise ValueError('%s: 64 characters at most, no control characters' % k)
+    most = SUBJECT_MAX.get(k, 64)
+    if any(ord(c) < 32 or ord(c) == 127 for c in value) or len(value) > most:
+        raise ValueError('%s: %d characters at most, no control characters' % (k, most))
     if k == 'C' and not re.match(r'^[A-Za-z]{2}\Z', value):
         raise ValueError('the country (C) is two letters (CZ, SK, DE…)')
-    if k == 'emailAddress' and not MAIL_RE.match(value):
+    if k == 'emailAddress' and not SUBJECT_MAIL_RE.match(value):
         raise ValueError('%r is not a mail address' % value)
     return value.upper() if k == 'C' else value
 

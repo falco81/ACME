@@ -44,7 +44,7 @@ import urllib.parse
 
 from acmelib.plugins.targets._common import (
     HttpTarget, PluginError, field, lines, label_of, http_fields, tls_fields,
-    verify_fields, chain_list, text, multipart, SEG_PATTERN)
+    verify_fields, chain_list, text, multipart)
 
 
 class FlowmonTarget(HttpTarget):
@@ -69,7 +69,7 @@ class FlowmonTarget(HttpTarget):
                    'Flowmon refuses an upload'),
     ] + tls_fields()
     deploy_fields = [
-        field('tls_setting', 'Reusable TLS setting', 'text', pattern=SEG_PATTERN, placeholder='Web servers',
+        field('tls_setting', 'Reusable TLS setting', 'text', placeholder='Web servers',
               help='its name in Configuration center -> Reusable settings -> TLS: the '
                    'certificate pair goes there (made, with the issuing authority as its CA, '
                    'when there is none of that name). Empty: none'),

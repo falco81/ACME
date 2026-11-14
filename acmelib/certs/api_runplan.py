@@ -69,8 +69,10 @@ def _draft(store, b):
         p = d.get('profile') or {}
         if not isinstance(p, dict):
             raise ValueError('profile is an object')
-        if p.get('subject'):
-            # checked as a save checks it: What happens drew a CSR the save refuses (hunt M)
+        if p.get('subject') and p.get('subject') != (
+                (S.jload((row or {}).get('profile'), {}) or {}).get('subject') if row else None):
+            # checked as a save checks it: What happens drew a CSR the save refuses (hunt M) -
+            # a subject given or changed only, as a save
             from acmelib.certs import reqprofiles as RP
             p = dict(p, subject=RP.check_subject(p.get('subject')))
         cert['profile'] = json.dumps(p)

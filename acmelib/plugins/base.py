@@ -46,7 +46,10 @@ import traceback
 # character in it is refused when it is saved, in each line of a list too (1.0.101). Give it
 # pattern=r'^...$' (and pattern_words='what it is') when the device takes only some values -
 # the value, or each line of a list, must match: _common.NAME_PATTERN for a name on a command
-# line, _common.SEG_PATTERN for one that becomes a part of a URL path (and seg() it there).
+# line, _common.SEG_PATTERN for one that becomes a part of a URL path, quoted whole with
+# urllib.parse.quote(x, safe='') or seg() (only "." / ".." and control characters refused - a
+# name may hold what the device allows). A value given or changed is matched; one saved before
+# and sent back as it was is not (the page sends every option back with each save).
 #
 # type: text | secret | number | bool | select | textarea | pem | list | hostport
 #   secret    sealed in the database, never sent back in clear: a full administrator is

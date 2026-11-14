@@ -1156,6 +1156,41 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
             self.assertEqual(st, 400, (bad, got))
         self.ok('POST', '/api/deploys/save', {'id': kid, 'options': {'restart': 'web\napi'}},
                 session=self.cert_admin)
+        # Round 3: a value saved before that the field's pattern refuses now (the device took
+        # it) does not block every later save and test of the deployment - the page sends
+        # every option back; given or changed, it is refused; a control character always.
+        self.py('o = json.loads(st.db.value("SELECT options FROM cert_deploys WHERE id = %d")); '
+                'o["webauth_map"] = "guest portal!"; st.db.run("UPDATE cert_deploys SET options '
+                '= ? WHERE id = %d", (json.dumps(o),)); print(1)' % (did, did))
+        self.ok('POST', '/api/deploys/save', {'id': did, 'options': {
+            'webauth': True, 'webauth_map': 'guest portal!', 'save': False}},
+            session=self.cert_admin)
+        for who in (self.cert_admin, self.admin):
+            st, got = self.call('POST', '/api/deploys/save', {'id': did, 'options': {
+                'webauth': True, 'webauth_map': 'guest portal 2!'}}, who)
+            self.assertEqual(st, 400, got)
+            self.assertIn('letters, digits', json.dumps(got))
+        # ...and a test of it (SCOM's tool on a share, saved before)
+        unc = '\\\\fs\\tools\\MOMCertImport.exe'
+        self.py('o = json.loads(st.db.value("SELECT options FROM cert_deploys WHERE id = %d")); '
+                'o["scom_tool"] = %r; st.db.run("UPDATE cert_deploys SET options '
+                '= ? WHERE id = %d", (json.dumps(o),)); print(1)' % (sid, unc, sid))
+        self.ok('POST', '/api/deploys/save', {'id': sid, 'options': {'scom_tool': unc}},
+                session=self.cert_admin)
+        st, got = self.call('POST', '/api/deploys/dry_run', {'id': sid, 'options': {
+            'scom_tool': unc}}, self.admin)
+        self.assertNotIn('on a drive', json.dumps(got))
+        st, got = self.call('POST', '/api/deploys/dry_run', {'id': sid, 'options': {
+            'scom_tool': unc.replace('fs', 'fs2')}}, self.admin)
+        self.assertEqual(st, 400, got)
+        self.assertIn('on a drive', json.dumps(got))
+        self.py('o = json.loads(st.db.value("SELECT options FROM cert_deploys WHERE id = %d")); '
+                'o["webauth_map"] = "global\\nx"; st.db.run("UPDATE cert_deploys SET options '
+                '= ? WHERE id = %d", (json.dumps(o),)); print(1)' % (did, did))
+        st, got = self.call('POST', '/api/deploys/save', {'id': did, 'options': {
+            'webauth': True, 'webauth_map': 'global\nx'}}, self.admin)
+        self.assertEqual(st, 400, got)
+        self.assertIn('one line', json.dumps(got))
         for d in (did, sid, kid):
             self.ok('POST', '/api/deploys/delete', {'id': d})
         for t in ('wlc21', 'scom21', 'k8s21'):

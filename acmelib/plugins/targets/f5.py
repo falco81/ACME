@@ -21,10 +21,11 @@ from acmelib.plugins.targets._common import (
     family_of, label_of, text)
 
 CHUNK = 512 * 1024
-# A partition, a profile (1.0.101): BIG-IP's names - letters, digits, _ . - - in folders; no
-# "..", "?", "#" or a line break (they went into the iControl REST path)
-F5_PATH = r'^(?!(.*/)?\.\.?(/|\Z))/?[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*/?\Z'
-F5_WORDS = 'BIG-IP names: letters, digits, _ . - (as /Partition/name), no ..'
+# A partition, a profile (1.0.101): BIG-IP's names - letters, digits, _ . - and : (a name made
+# from an IPv6 address) - in folders; no "..", "?", "#" or a line break (they went into the
+# iControl REST path)
+F5_PATH = r'^(?!(.*/)?\.\.?(/|\Z))/?[A-Za-z0-9_.:-]+(/[A-Za-z0-9_.:-]+)*/?\Z'
+F5_WORDS = 'BIG-IP names: letters, digits, _ . - : (as /Partition/name), no ..'
 
 
 def f5_path(v, what):

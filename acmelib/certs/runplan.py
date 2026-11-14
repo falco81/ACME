@@ -3520,8 +3520,10 @@ def record(job, timeout=ALL_S):
     """The sandbox run: plansandbox.main() in a process of its own -> {id: result}."""
     folder = tempfile.mkdtemp(prefix='acme-plan-')
     try:
+        # MALLOC_ARENA_MAX=2 (1.0.101): two malloc arenas, not 8 a processor, for a module that
+        # starts threads - the memory a thread's own arena keeps aside is not taken for nothing
         env = {'PATH': '/usr/local/bin:/usr/bin:/bin', 'LANG': 'C.UTF-8', 'TMPDIR': folder,
-               'HOME': folder}
+               'HOME': folder, 'MALLOC_ARENA_MAX': '2'}
         for k in ('ACME_PLAN_TRACE',):
             if os.environ.get(k):
                 env[k] = os.environ[k]

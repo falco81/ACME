@@ -284,6 +284,49 @@ class TestAccountsAndSignIns(unittest.TestCase):
         self.assertEqual(E.dbguard_settings(STORE.settings_saved(), STORE)['portal_who'], 'groups')
         guard(False)
 
+    def test_the_portal_settings_signed_again_after_going_back(self):
+        """Gone back below 1.0.101 and up again (1.0.101): the version that wrote guard.json
+        last is in it; one written by 1.0.100 (no 'ran') with the adoption's mark has the
+        portal's settings saved unsigned meanwhile signed once more, not refused."""
+        guard(True)
+        E.DBGUARD['adopted'] = dict(E.DBGUARD.get('adopted') or {})
+        E.DBGUARD['adopted'][E.DBGUARD_ADOPT3_MARK] = time.time()
+        E.DBGUARD['dirty'] = time.time()
+        E.dbguard_flush(force=True)
+        with open(E.DBGUARD_FILE) as f:
+            got = json.load(f)
+        self.assertEqual(got.get('ran'), E.__version__)
+        try:
+            # 1.0.100 ran here: it saved portal_who unsigned and wrote guard.json without 'ran'
+            STORE.db.upsert('settings', 'k', {'k': 'portal_who', 'v': json.dumps('groups'),
+                                              'at': time.time(), 'by_who': 'old'})
+            got.pop('ran')
+            with open(E.DBGUARD_FILE, 'w') as f:
+                json.dump(got, f)
+            E.DBGUARD['seen'] = None                    # this version starting again
+            E._dbguard_load()
+            self.assertFalse(E.dbguard_adopted3())
+            E.dbguard_adopt(STORE)
+            self.assertTrue(E.dbguard_adopted3())
+            self.assertEqual(E.dbguard_settings(STORE.settings_saved(), STORE)['portal_who'],
+                             'groups')
+            with open(E.DBGUARD_FILE) as f:
+                got = json.load(f)
+            self.assertEqual(got.get('ran'), E.__version__)
+            self.assertTrue(got['adopted'].get(E.DBGUARD_ADOPT3_MARK))
+            # ...and checked from then on
+            STORE.db.upsert('settings', 'k', {'k': 'portal_who', 'v': json.dumps('anyone'),
+                                              'at': time.time(), 'by_who': 'x'})
+            self.assertEqual(E.dbguard_settings(STORE.settings_saved(), STORE)['portal_who'],
+                             'groups')
+            # written by 1.0.101 last: the mark stays at the next start (nothing signed again)
+            E.dbguard_flush(force=True)
+            E.DBGUARD['seen'] = None
+            E._dbguard_load()
+            self.assertTrue(E.dbguard_adopted3())
+        finally:
+            guard(False)
+
     def test_the_portal_asks_only_a_directory_acme_wrote(self):
         """portal_directory (every way of signing in to the portal) and the recheck (1.0.101)."""
         class Dir(object):

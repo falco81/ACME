@@ -42,10 +42,11 @@ class NetScalerTarget(HttpTarget):
     ] + tls_fields()
     deploy_fields = [
         field('certkey', 'Certkey name', 'text', pattern=SEG_PATTERN,
-              pattern_words='a NetScaler name: no /, \\, ?, #, %, ..',
+              pattern_words='a NetScaler name: no control characters, not . or ..',
               help='the certkey kept across renewals; empty: acme-<certificate name>'),
         field('vservers', 'SSL virtual servers', 'list', placeholder='vs_www_ssl\nvs_mail sni',
-              pattern=SEG_PATTERN, pattern_words='a virtual server\'s name: no /, \\, ?, #, %, ..',
+              pattern=SEG_PATTERN,
+              pattern_words='a virtual server\'s name: no control characters, not . or ..',
               help='one a line; "name sni" binds it as an SNI certificate'),
         field('key_format', 'Key as', 'select', default='key-rsa', advanced=True,
               options=[['key-rsa', 'traditional RSA (BEGIN RSA PRIVATE KEY; EC keys go as PKCS#8)'],

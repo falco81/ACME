@@ -1118,10 +1118,18 @@ class PathPartsTest(unittest.TestCase):
         from acmelib.plugins.targets import _common as C
         self.assertEqual(C.seg('vs www 443'), 'vs%20www%20443')
         self.assertEqual(C.seg('*.example.test'), '%2A.example.test')
-        for bad in ('', '.', '..', ' .. ', 'a/b', 'a\\b', 'a?b', 'a#b', 'a%2fb', 'a\nb', 'a\x00'):
+        for bad in ('', '.', '..', ' .. ', 'a\nb', 'a\x00', 'a\x7f'):
             with self.assertRaises(PluginError, msg=repr(bad)):
                 C.seg(bad, 'the profile')
             self.assertFalse(re.match(C.SEG_PATTERN, bad), repr(bad))
+        with self.assertRaises(PluginError):
+            C.seg('a\u2028b')
+        # round 3: what the device allows in a name goes through, quoted whole - one part
+        for good, part in (('vs_www#1', 'vs_www%231'), ('a/../b', 'a%2F..%2Fb'),
+                           ('a\\b', 'a%5Cb'), ('a?b', 'a%3Fb'), ('TLS 100%', 'TLS%20100%25'),
+                           ('a%2fb', 'a%252fb'), ('..a', '..a')):
+            self.assertEqual(C.seg(good), part, good)
+            self.assertTrue(re.match(C.SEG_PATTERN, good), repr(good))
         self.assertTrue(re.match(C.SEG_PATTERN, 'Web servers'))
         for bad in ('https://h/a/../b', 'https://h/a/%2e%2E/b', 'https://h/./a', 'https://h/a b',
                     'https://h/a\r\nX: y', 'https://h/a\x00'):
@@ -1145,8 +1153,8 @@ class PathPartsTest(unittest.TestCase):
             self.assertEqual(ctx.calls, [], opts)
 
     def test_netscaler_names(self):
-        for opts in ({'certkey': 'x/../../systemuser'}, {'vservers': 'vs?x sni'},
-                     {'vservers': 'a/b'}):
+        for opts in ({'certkey': '..'}, {'vservers': '.. sni'}, {'vservers': '.'},
+                     {'certkey': 'a\x01b'}):
             ctx = FakeCtx([])
             t = make('netscaler', {'host': 'adc', 'user': 'u', 'password': 'p'}, ctx)
             with self.assertRaises(PluginError, msg=opts):
@@ -1174,6 +1182,7 @@ class PathPartsTest(unittest.TestCase):
 
     def test_patterns_on_the_fields(self):
         """Each module's own pattern= takes what it takes and refuses a path in it."""
+        from acmelib.plugins.targets import _common as C
         reg = Registry(extra_dirs=[]).reload()
         some = {('kubernetes', 'restart'): 'web', ('netscaler', 'certkey'): 'www cert',
                 ('f5', 'partition'): 'Common', ('f5', 'profiles'): '/Common/www_ssl',
@@ -1182,7 +1191,25 @@ class PathPartsTest(unittest.TestCase):
         for (kind, key), good in some.items():
             f = [x for x in reg.get('target', kind).deploy_fields if x['key'] == key][0]
             self.assertTrue(re.fullmatch(f['pattern'], good), (kind, key))
-            self.assertFalse(re.fullmatch(f['pattern'], 'a/../b'), (kind, key))
+            if kind != 'cisco_wlc9800':                 # a name on its command line there
+                self.assertFalse(re.fullmatch(f['pattern'], '..'), (kind, key))
+            self.assertFalse(re.fullmatch(f['pattern'], 'a\x00b'), (kind, key))
+            if f['pattern'] != C.SEG_PATTERN:           # a URL part is quoted whole there
+                self.assertFalse(re.fullmatch(f['pattern'], 'a/../b'), (kind, key))
+        # names the devices allow (round 3): NetScaler's "#", a FortiGate VIP with "/", an
+        # enclosure's name in OneView; Flowmon's TLS setting is a name in JSON (no pattern)
+        for kind, key, good in (('netscaler', 'certkey', 'www#2026'),
+                                ('netscaler', 'vservers', 'vs_www#1 sni'),
+                                ('fortigate', 'vips', 'vip-10.0.0.5/443'),
+                                ('fortigate', 'ssl_ssh_profiles', 'TLS 100%'),
+                                ('hpe_synergy', 'enclosure', 'Frame 1 / rack #2'),
+                                ('f5', 'profiles', '/Common/vs_2001:db8::1_ssl')):
+            f = [x for x in reg.get('target', kind).deploy_fields if x['key'] == key][0]
+            self.assertTrue(re.fullmatch(f['pattern'], good), (kind, key, good))
+        f = [x for x in reg.get('target', 'flowmon').deploy_fields if x['key'] == 'tls_setting']
+        self.assertFalse(f[0].get('pattern'))
+        f = [x for x in reg.get('target', 'hpe_synergy').deploy_fields if x['key'] == 'enclosure']
+        self.assertFalse(re.fullmatch(f[0]['pattern'], '/rest/enclosures/x/../../users'))
 
 
 if __name__ == '__main__':

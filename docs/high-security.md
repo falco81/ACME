@@ -91,6 +91,12 @@ portal again (an administrator's were signed already). The portal's settings lis
 signed once as they are, by each node, when every node of the cluster runs 1.0.101 (until
 then they are taken as before); a sign-in made by a node still on 1.0.100 is not signed and is
 refused by an upgraded one.
+**Going back below 1.0.101 and up again** with the guard on: the portal's settings saved
+while the older version ran are not signed. Each node keeps in `guard.json` the version that
+wrote it last (`ran`, which 1.0.100 and older do not keep); finding the file written by an
+older version after its portal settings were taken under the guard, 1.0.101 and newer take
+them again - signed once more as they are, when every node runs 1.0.101 - instead of refusing
+them as written past acme (the last good value used, the security light on).
 
 Each node remembers, in its own file (`/var/lib/acme/guard.json`, not in the
 database), the newest signature it has seen of each row: a row taken from an

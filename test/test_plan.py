@@ -278,6 +278,44 @@ class Plan(core.CertsCore):
             base, profile={'subject': {'C': 'cz', 'O': 'Example'}})})['plan']
         self.assertTrue(plan['cert']['draft'])
 
+    def test_52c_subject_saved_before_kept(self):
+        """Hunt M round 3 (1.0.101): RFC 5280's lengths (L and ST 128, the e-mail 255, the
+        rest 64), an e-mail without a dot in its domain; and a subject saved before that the
+        check refuses (it renews: pki makes its CSR) does not block every later save and plan
+        of the certificate - the page sends the profile back. Given or changed, it is checked."""
+        self.setup_world()
+        base = {'names': ['subj3.example.cz'], 'issuer': 'own', 'auto_renew': 0}
+        cid = self.ok('POST', '/api/certs/save', dict(base, name='subj3', profile={'subject': {
+            'L': 'L' * 128, 'ST': 'S' * 128, 'O': 'O' * 64, 'OU': 'U' * 64,
+            'emailAddress': 'pki@corp'}}))['id']
+        for subj, words in (({'L': 'L' * 129}, '128 characters'),
+                            ({'ST': 'S' * 129}, '128 characters'),
+                            ({'O': 'O' * 65}, '64 characters'),
+                            ({'OU': 'U' * 65}, '64 characters'),
+                            ({'emailAddress': 'pki corp@x'}, 'not a mail address'),
+                            ({'emailAddress': 'no-at-sign'}, 'not a mail address')):
+            st, got = self.call('POST', '/api/certs/save', {'id': cid, 'profile': {
+                'subject': subj}}, session=self.admin)
+            self.assertEqual(st, 400, (subj, got))
+            self.assertIn(words, json.dumps(got), subj)
+        # saved before the check (or by an older version): the C of a whole word
+        old = {'C': 'Czech Republic', 'ST': 'S' * 150, 'emailAddress': 'notanemail'}
+        self.py('import json as J; r = st.db.row("SELECT profile FROM certs WHERE id = %d"); '
+                'p = J.loads(r["profile"] or "{}"); p["subject"] = %r; '
+                'st.db.run("UPDATE certs SET profile = ? WHERE id = %d", (J.dumps(p),)); '
+                'print(1)' % (cid, old, cid))
+        prof = self.ok('GET', '/api/certs/one', args={'id': cid})['cert'].get('profile')
+        prof = json.loads(prof) if isinstance(prof, str) else prof
+        self.assertEqual(prof['subject'], old)
+        self.ok('POST', '/api/certs/save', {'id': cid, 'profile': prof, 'renew_days': 20})
+        self.ok('POST', '/api/certs/run_plan', {'id': cid, 'draft': dict(base, profile=prof)})
+        st, got = self.call('POST', '/api/certs/save', {'id': cid, 'profile': dict(
+            prof, subject=dict(old, O='x'))}, session=self.admin)
+        self.assertEqual(st, 400, got)
+        st, got = self.call('POST', '/api/certs/run_plan', {'id': cid, 'draft': dict(
+            base, profile=dict(prof, subject=dict(old, O='x')))}, session=self.admin)
+        self.assertEqual(st, 400, got)
+
     def test_53_own_pages_as_they_are(self):
         """1.0.98: a deployment to acme's own pages is recorded with the nodes and what their
         pages hold now (runplan.pages_of) - not a made-up node."""
@@ -2407,6 +2445,21 @@ class Hog(Target):
             for _i in range(40):
                 keep.append(bytearray(100 * 1024 * 1024))
             return 'ok %d' % len(keep)
+        if what == 'threads':
+            import threading
+            go = threading.Event()
+            got = []
+
+            def work():
+                got.append([bytearray(4096) for _ in range(64)])
+                go.wait(10)
+            ts = [threading.Thread(target=work) for _ in range(32)]
+            for t in ts:
+                t.start()
+            go.set()
+            for t in ts:
+                t.join()
+            return 'ok %d threads' % len(got)
         if what == 'stdout':
             while True:
                 sys.stdout.write('x' * 65536)
@@ -2488,6 +2541,13 @@ class SandboxLimits(unittest.TestCase):
             run = self.record('mem', seconds=20)
         self.assertIn('MemoryError', run['error'] or '')
         self.assertIsNone(run['said'])
+
+    def test_threads_run(self):
+        """A module starting threads (an SDK's transfers) runs: the limit is of the memory it
+        writes, not of its address space (RLIMIT_AS stopped it at about 13 threads)."""
+        run = self.record('threads', seconds=20)
+        self.assertIsNone(run['error'])
+        self.assertEqual(run['said'], 'ok 32 threads')
 
     def test_loop_stopped(self):
         run = self.record('loop', seconds=2)

@@ -28,7 +28,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   over are taken out with their signatures.
 - **`/healthz` no longer says the node's name** to anybody: `ok up`, `maintenance`,
   `degraded: replication ...`, `down: ...`. A balancer matching `^ok ` (as the guides say) is
-  unaffected.
+  unaffected; the balancer guide's check on the pages shows the new answers.
 - **An IP address on a validation that proves names in DNS only** (DNS-01) is refused when the
   certificate is saved, in words, not later by the CA. A pattern of names (`.0.1`, `*.0.0.1`)
   never chooses the validation of an IP address - only the address's own key does.
@@ -63,7 +63,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   `portal_wait_min`, `code_digits`, `code_tries`, `code_ttl_s`) are signed, taken under the
   guard once every node runs 1.0.101; a portal sign-in of the directory without its DN is
   refused. **Upgrading with the guard on, the portal's open sign-ins end** - people sign in to
-  the portal again.
+  the portal again. Gone back below 1.0.101 and up again, the portal's settings saved meanwhile
+  (unsigned) are signed once more as they are - each node keeps in `guard.json` the version
+  that wrote it last - instead of being refused as written past acme (*High security*).
 - **Session cookies `__Host-acme_session` and `__Host-acme_portal` over https.** A cookie of the
   same name planted by a sibling host or over http was sent first and taken: the person then
   worked in somebody else's account. The cookies are `__Host-` now (Secure, `Path=/` - the
@@ -119,7 +121,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   cluster (pages or command line), whose `secrets.key` is replaced, starts from an empty
   `guard.json` as well.
 - **What happens: the recording's process kept in bounds.** A module's own code runs there. Its
-  memory is limited (1 GB of address space, `ACME_PLAN_MEM_MB`), its processor time and the
+  memory is limited (1 GB of memory it writes, `ACME_PLAN_MEM_MB` - not of its address space,
+  so a module may start threads; two malloc arenas at most), its processor time and the
   size of a file it writes too; what the daemon reads back from it is capped (the process is
   stopped beyond it). What a module prints (`print()`, stdout, stderr) is no longer mixed into
   the recording's answer - one `print()` lost the whole plan, a module writing to stdout in a
@@ -144,7 +147,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   module, and in each line of a list (a tab is let through there), whoever saves it; the
   parameter map's name is letters, digits, `_ . -` (64 at most), checked again before anything
   is copied to the controller. A module's field can now say the form the device takes
-  (`pattern=`); the test of a deployment that changes nothing checks the same.
+  (`pattern=`), checked for a value given or changed only (as a number's minimum and maximum:
+  a value saved before that the device took does not block every later save of the
+  deployment); the test of a deployment checks the same.
 - **MOMCertImport.exe is a full administrator's.** Operations Manager's *MOMCertImport.exe* is
   run as Administrator; a certificate administrator could point it at another program, or one
   on a share (`\\host\share\x.exe`). It is set by a full administrator only now, as the
@@ -153,11 +158,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - **A part of a device's address is one part.** Options that become a part of the path of a
   device's API - Kubernetes' namespace, secret and deployments to restart, NetScaler's certkey
   and virtual servers, F5's partition and profiles, A10's templates, FortiGate's virtual IPs
-  and profiles, NSX's virtual servers, Barracuda WAF's services, Flowmon's TLS setting, NGINX
-  Unit's listeners, Proxmox's nodes, Azure's web app, gateway and listeners, Kong's SNIs - are
-  refused with a `/`, `\`, `?`, `#`, `%`, a control character, or as `.` / `..` when saved
-  (and by the module); Kubernetes' deployment `x/../../namespaces/kube-system/...` restarted
-  one in another namespace. A OneView enclosure given as a URI is `/rest/enclosures/<id>`, a
+  and profiles, NSX's virtual servers, Barracuda WAF's services, NGINX Unit's listeners,
+  Proxmox's nodes, Azure's web app, gateway and listeners, Kong's SNIs - are encoded whole (a
+  `/`, `?`, `#` or `%` in a name the device allows goes through as part of it: NetScaler's
+  `www#2026`, a FortiGate VIP `vip-10.0.0.5/443`) and refused as `.` / `..` or with a control
+  character when saved (and by the module). Kubernetes' names are its own (`a-z 0-9 - .`), F5's
+  are letters, digits, `_ . - :` in folders; Kubernetes' deployment
+  `x/../../namespaces/kube-system/...` restarted one in another namespace. A OneView enclosure
+  given as a URI is `/rest/enclosures/<id>` (its name may hold any character but a control
+  one), a
   DigitalOcean load balancer is taken as an id only when it is a whole one. Besides, acme
   itself no longer asks any address with a `.` or `..` part in its path, a space or a control
   character, and reads at most 64 MB of an answer.
@@ -169,6 +178,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   besides the system's CAs, unlike everywhere else in acme; a public CA's certificate for the
   name was taken too. When given, it is the only one (the field's help says so); empty, the
   system's CAs as before.
+- **A certificate's own subject is checked as the CSR will have it.** Saved with C "Czech
+  Republic" or an e-mail that is none, it was taken, What happens drew a CSR with it, and every
+  renewal failed. A subject given or changed (a save, a draft in What happens) is refused in
+  words now: C two letters, each field to RFC 5280's length (L and ST 128 characters, the
+  e-mail 255, the rest 64), no control characters, an e-mail `local@domain` without spaces
+  (`pki@corp` too). One saved before is not checked again while it stays as it is - the page
+  sends it back with every save. A request profile's subject fields take the same lengths.
 - **SCEP, EST, CMP: a malformed answer said in words.** A cut certificate, a month 13 or a byte
   that is not ASCII in a time was an `IndexError` or `UnicodeDecodeError` from deep in the
   parsing; it is "a certificate the CA sent does not read" now.

@@ -2605,8 +2605,10 @@ def limits(lim):
             resource.setrlimit(what, (soft, hard))
         except (ValueError, OSError):
             pass
+    # the memory it writes (RLIMIT_DATA: the heap and private mappings), not its address space:
+    # RLIMIT_AS counted the 64 MB glibc reserves for each malloc arena and the stack of each
+    # thread, and a module starting threads (an SDK's transfers) stopped at about 13 of them
     mem = int(lim.get('mem_mb') or 1024) << 20
-    cap(resource.RLIMIT_AS, mem)
     if hasattr(resource, 'RLIMIT_DATA'):
         cap(resource.RLIMIT_DATA, mem)
     cpu = int(lim.get('cpu_s') or 80)

@@ -203,13 +203,15 @@ def chain_list(bundle):
 # ---------------------------------------------------------------------------
 # What an option may hold (1.0.101): a line of text has no control character (a "\n" in a
 # name was one more line of a device's configuration), and a part of a device's URL path is
-# one part - no "/", "?", "#", "%", ".." (a deployment's option went to another endpoint)
+# one part - quoted whole (urllib.parse.quote(x, safe=''): "/", "?", "#", "%" are encoded), so
+# only "." and ".." (left as they are, the path went up) are refused, with control characters
 # ---------------------------------------------------------------------------
-_CONTROL = re.compile('[\x00-\x1f\x7f\x85  ]')
-# a field's pattern= (acmelib/plugins/base.py) for an option that becomes a part of a URL path
-SEG_PATTERN = r'^(?!\s*\.\.?\s*$)[^/\\?#%\x00-\x1f\x7f]{1,255}\Z'
-SEG_WORDS = ('a part of the device\'s address: no /, \\, ?, #, %, control characters, '
-             'not . or ..')
+_CONTROL = re.compile('[\x00-\x1f\x7f\x85\u2028\u2029]')
+# a field's pattern= (acmelib/plugins/base.py) for an option that becomes a part of a URL path,
+# quoted with safe='' (1.0.101 round 3: "/ \\ ? # %" were refused too - a NetScaler name with
+# "#", a FortiGate VIP "vip-10.0.0.5/443" the device allows and quote() encoded)
+SEG_PATTERN = r'^(?!\s*\.\.?\s*\Z)[^\x00-\x1f\x7f]{1,255}\Z'
+SEG_WORDS = 'a part of the device\'s address: no control characters, not . or ..'
 # ...and for a name on a device's command line: letters, digits, _ . - only
 NAME_PATTERN = r'^[A-Za-z0-9_.-]{1,64}\Z'
 
@@ -225,13 +227,14 @@ def control_char(v, tab=False):
 
 
 def seg(v, what='a name'):
-    """One part of a device's URL path from an option, quoted (/ too): refused with words when
-    it is empty, "." or "..", or has a "/", "\\", "?", "#", "%" or a control character
-    - urllib.parse.quote() keeps "/" and "..", so "x/../../other" reached another endpoint."""
+    """One part of a device's URL path from an option, quoted whole (/ too): refused with words
+    when it is empty, "." or "..", or has a control character - urllib.parse.quote() keeps
+    "..", so ".." reached another endpoint. Any other character the device allows in a name
+    (NetScaler: "#", ":", "@", "=", a space) is encoded and goes through."""
     s = text(v).strip()
-    if not re.match(SEG_PATTERN, s):
-        raise PluginError('%s "%s" cannot be a part of the device\'s address: no /, \\, ?, #, '
-                          '%%, control characters, and not . or ..'
+    if not re.match(SEG_PATTERN, s) or control_char(s):
+        raise PluginError('%s "%s" cannot be a part of the device\'s address: empty, . or .., '
+                          'or a control character in it'
                           % (what, s.encode('unicode_escape').decode('ascii')[:100]),
                           retry=False)
     return urllib.parse.quote(s, safe='')

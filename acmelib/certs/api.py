@@ -549,8 +549,11 @@ def cert_save(store, b, by, full=False, out=None):
             else:
                 subj.pop('CN')
             prof['subject'] = subj
-        if subj:
-            # every field as a request profile's and as the CSR will have it (hunt M)
+        old_subj = (S.jload(row.get('profile'), {}) or {}).get('subject') if row else None
+        if subj and subj != old_subj:
+            # every field as a request profile's and as the CSR will have it (hunt M) - a
+            # subject given or changed only: one saved before renews as it is, and every
+            # other change of the certificate was refused for it (the page sends it back)
             from acmelib.certs import reqprofiles as RP
             prof['subject'] = RP.check_subject(subj)
         if prof.get('san_other') not in (None, '', []):
@@ -1109,11 +1112,15 @@ def _key_lines(v):
     return out
 
 
-def _option_line_check(f, v, what):
+def _option_line_check(f, v, what, pattern=True):
     """A deployment's option of text (1.0.101): no line break or other control character in
     one line - a "\\n" in Cisco 9800's webauth parameter map was one more line of the
     controller's configuration ("username x privilege 15 ...") - each line of a list alike,
-    and the field's own pattern= (a name, a part of a URL path) when it has one."""
+    and the field's own pattern= (a name, a part of a URL path) when it has one.
+    pattern: False for a value saved before and not changed - as the number's min and max, an
+    old value the device took is not refused on every later save of the deployment (the page
+    sends every option back); a control character is refused in any value (no field held one
+    a device took: the page's one-line inputs cannot hold a line break)."""
     from acmelib.plugins.targets._common import control_char, lines, SEG_PATTERN, SEG_WORDS
     t = f.get('type')
     if v is None or v == '' or t in ('bool', 'number', 'secret', 'pem', 'sshkey'):
@@ -1137,7 +1144,7 @@ def _option_line_check(f, v, what):
             raise ValueError('%s is one line: a line break or control character (%s) in it is '
                              'refused' % (what, bad))
         rows = [str(v).strip()] if str(v).strip() else []
-    pat = f.get('pattern')
+    pat = f.get('pattern') if pattern else None
     if pat:
         for ln in rows:
             if not re.fullmatch(pat, ln):
@@ -3098,7 +3105,8 @@ def _deploy_save_in(store, b, by, full, made):
                 # inside the deployment ("join() argument must be str").
                 v = opts.get(f['key'])
                 what = f.get('label') or f['key']
-                _option_line_check(f, v, what)
+                _option_line_check(f, v, what, pattern=bool(
+                    made or f['key'] not in old or not _same_value(f, v, old.get(f['key']))))
                 if v is None or f.get('type') in ('bool', 'catalog'):
                     continue
                 if f.get('type') == 'number':
