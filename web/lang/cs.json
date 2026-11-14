@@ -62635,6 +62635,10 @@
   "_441": {
    "source": "db_guard is on: the signed row does not ask for this key",
    "text": "db_guard je zapnutá: podepsaný řádek o tento klíč nežádá"
+  },
+  "_442": {
+   "source": "sign in again: the second step is asked now",
+   "text": "přihlaste se znovu: teď se vyžaduje druhý krok"
   }
  },
  "patterns": {
@@ -87005,6 +87009,22 @@
   "p_247": {
    "source": "a connection to {0}://{1}:{2}",
    "text": "spojení na {0}://{1}:{2}"
+  },
+  "p_248": {
+   "source": "the second step is asked of accounts here on the portal now: {0} sign-in(s) to the portal without it ended",
+   "text": "druhý krok se teď na portálu vyžaduje i od účtů tohoto serveru: {0} {0:přihlášení na portál bez něj skončilo|přihlášení na portál bez něj skončila|přihlášení na portál bez něj skončilo}"
+  },
+  "p_249": {
+   "source": "the enrolment pages do not ask the directory {0}: its row is not as acme wrote it",
+   "text": "stránky registrace se adresáře {0} neptají: jeho řádek není takový, jak ho zapsal acme"
+  },
+  "p_250": {
+   "source": "the guard against writes now signs the settings of the enrolment pages, {0} row(s), as they were (upgrade)",
+   "text": "ochrana proti zápisům teď podepisuje nastavení stránek registrace, {0} {0:řádek|řádky|řádků}, tak jak byly (aktualizace)"
+  },
+  "p_251": {
+   "source": "the sign-ins to the portal could not be ended: {0}",
+   "text": "přihlášení na portál se nepodařilo ukončit: {0}"
   }
  },
  "rich": {
