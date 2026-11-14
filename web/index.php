@@ -133,6 +133,12 @@ if (isset($_GET['api'])) {
         echo json_encode(is_array($data) ? $data : ['ok' => false, 'error' => 'sign-in failed']);
         exit;
     }
+    if ($what === 'kerberos-login' && $post) {
+        /* Signing in with Windows (Kerberos, 1.0.99): the portal's own switch - 404 while off,
+           401 Negotiate without a ticket, 403 for every refusal. */
+        acme_kerberos_relay('/api/portal/kerberos');
+        exit;
+    }
     if ($what === 'mfa' && $post) {
         /* The second step of an account of acme's own (portal_local), as the
            administration's: given, the daemon hands a new sign-in - its cookie
@@ -231,6 +237,10 @@ if ($gate !== null) {
 $lang = acme_lang_pick(null, (string) ($info['lang'] ?? 'cs'));
 $load = $lang !== 'en' && acme_lang_pack($lang) !== null;
 $title = (string) ($info['title'] ?? '');
+/* Signing in with Windows (1.0.99): the button, tried by itself, or no password at all. */
+$krb = ($alive && is_array($info['kerberos'] ?? null)) ? $info['kerberos'] : [];
+$krb_on = !empty($krb['on']);
+$krb_only = $krb_on && !empty($krb['only']);
 // No title of the site's own: a heading of the page's own, in the page's language.
 $title_ours = $title === '';
 if ($title_ours) {
@@ -257,7 +267,11 @@ if ($title_ours) {
     <?= acme_art_for(is_array($info) ? ($info['art'] ?? null) : null, 'portal', $title) ?>
     <div class="card">
       <h1<?= $title_ours ? '' : ' data-no-i18n' ?>><?= h($title) ?></h1>
+      <?php if ($krb_only): ?>
+      <p class="lede">Sign in with Windows to see your certificates.</p>
+      <?php else: ?>
       <p class="lede">Sign in with your name and password to see your certificates.</p>
+      <?php endif; ?>
       <?php if (!$alive): ?>
         <div class="offline">The server is not answering just now. Try again in a while, or tell
           the administrator.</div>
@@ -271,6 +285,10 @@ if ($title_ours) {
         <p class="note small" id="sso-again">You signed out. <a href="/?sso=1">Sign in through the company sign-in again</a>, or with your name and password below.</p>
       <?php endif; ?>
       <div id="mfa-box" data-stage="<?= h($mfa) ?>" hidden></div>
+      <?php if ($krb_only): ?>
+      <!-- Only Windows (1.0.99): no name and no password on the page at all. -->
+      <form id="signin-form" hidden></form>
+      <?php else: ?>
       <form id="signin-form" autocomplete="on"<?= $mfa !== '' ? ' hidden' : '' ?>>
         <input type="text" id="in-name" name="username" placeholder="name" aria-label="Name" autocomplete="username"
                autocapitalize="none" spellcheck="false" required>
@@ -286,6 +304,18 @@ if ($title_ours) {
           d="M18 9l3 3-3 3"/></svg><span>Sign in</span></button>
         <div class="said" id="in-said"></div>
       </form>
+      <?php endif; ?>
+      <?php if ($krb_on && $mfa === '' && $gate === null): ?>
+      <div class="krb-box" id="krb-box" data-part="portal" data-auto="<?= !empty($krb['auto']) ? '1' : '0' ?>" data-only="<?= $krb_only ? '1' : '0' ?>">
+        <?php if (!$krb_only): ?><div class="krb-or"><span>or</span></div><?php endif; ?>
+        <button class="btn cmd<?= $krb_only ? ' primary' : '' ?>" type="button" id="krb-go"><svg
+          viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"
+          stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="0.6"/><rect
+          x="13" y="4" width="7" height="7" rx="0.6"/><rect x="4" y="13" width="7" height="7" rx="0.6"/><rect
+          x="13" y="13" width="7" height="7" rx="0.6"/></svg><span>Sign in with Windows</span></button>
+        <div class="said" id="krb-said"></div>
+      </div>
+      <?php endif; ?>
       <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center">
         <span class="muted small">acme <?= h(ACME_VERSION) ?> · <a class="muted" href="/admin/">Administration</a></span>
         <span class="langpick" id="langpick"></span>

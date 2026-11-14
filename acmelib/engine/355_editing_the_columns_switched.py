@@ -155,7 +155,10 @@ def _whoami(h):
                     'perf_meter': bool(CONFIG.get('perf_meter')),
                     'passkeys_on': bool(CONFIG.get('admin_2fa') and CONFIG.get('admin_2fa_passkey')),
                     'cols': h.store.user_cols(acc['name']),
-                    'cols_edit': cols_editing(h.headers.get('X-Acme-Session') or '')}}
+                    'cols_edit': cols_editing(h.headers.get('X-Acme-Session') or ''),
+                    # How this sign-in was opened (1.0.99): "Kerberos", or '' for a password.
+                    'how': str((s.get('data') or {}).get('how') or ''),
+                    'password_off': krb_password_off('admin')}}
 
 
 @route('POST', '/api/auth/password')
@@ -166,6 +169,9 @@ def _password(h):
     if acc.get('source') == 'directory':
         raise ApiError(400, 'this account signs in with its directory password, which is '
                        'changed in the directory')
+    if krb_password_off('admin'):
+        # "Only Windows" (1.0.99): no password is taken here, so none is changed either.
+        raise ApiError(403, KRB_ONLY_SAID)
     # The new one and the one typed again first, in words (as the form says them).
     bad = password_change_problem(b)
     if bad:

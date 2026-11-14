@@ -22,6 +22,15 @@ Settings → The portal (`sect-portal`, `PANES['portal']`):
 | `portal_admins_all` | 1 | (with `portal_local`) their certificate and full administrators see every certificate |
 | `portal_local_code` | same | the one-time code for acme's own accounts: as `portal_code`, off, or `mail` / `sms` / `sms_mail` / `mail_sms` |
 | `portal_enrolers` | 1 | accounts of the role *enrolment pages only* sign in (acme's own, and the directory's group `admin_group_portal`) |
+| `portal_krb`, `portal_krb_auto`, `portal_krb_realm`, `portal_password_off` | 0, 0, , 0 | **signing in with Windows (Kerberos)** - the portal's own switches, independent of the administration's ([kerberos-sso.md](kerberos-sso.md)) |
+
+**Signing in with Windows** (1.0.99): with `portal_krb` on and a keytab put in, a browser of the
+domain signs its person in without a password - *Sign in with Windows* under the form, or at
+once with `portal_krb_auto`. The person is looked up in this pane's directory by
+sAMAccountName, and `portal_who` / `portal_groups` and the enrolment-only group decide as for a
+password; the one-time code (`portal_code`) is sent after it every time. *...and no password at
+all on the portal* takes the form away. Signed in by a load balancer ([portal-sso.md](portal-sso.md))
+may be on beside it - each by itself. The whole of it in [kerberos-sso.md](kerberos-sso.md).
 
 The sign-in is the engine's (`acmelib/engine/390_the_portal_sign_in.py`):
 a session of kind `portal`, the same on both nodes of a cluster. Its data

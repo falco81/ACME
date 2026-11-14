@@ -658,6 +658,13 @@ ALERT_EVENTS = [
      'Změna na zkoušku se vrátila', 'A change on trial went back', 'network', 'warn'),
     ('alerts_sso', 'portal', ('a sign-in by the load balancer was refused',),
      'Přihlášení přes load balancer odmítnuto', 'A sign-in by the load balancer refused', 'portal', 'info'),
+    # Signing in with Windows refused (1.0.99), the administration's and the portal's.
+    ('alerts_kerberos', 'sign-ins', ('a sign-in with Windows (Kerberos) was refused',),
+     'Přihlášení přes Windows (Kerberos) odmítnuto', 'A sign-in with Windows (Kerberos) refused',
+     'people', 'info'),
+    ('alerts_kerberos', 'portal', ('a sign-in with Windows (Kerberos) was refused',),
+     'Přihlášení přes Windows (Kerberos) do portálu odmítnuto',
+     'A sign-in with Windows (Kerberos) to the portal refused', 'portal', 'info'),
 ]
 
 def alert_problems_more(store, lang, add, names, health, beats, cluster, quiet, now):

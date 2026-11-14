@@ -23,6 +23,9 @@ LOCKOUT_KINDS = {
     'guard-src': 'signing in to these pages or the portal, from one place',
     # Wrong directory passwords per person, for the whole cluster (as otp 1.0.230).
     'dir-passwords': 'directory passwords tried on the pages',
+    # Tickets refused (1.0.99), counted per address as wrong passwords are.
+    'kerberos': 'signing in to these pages with Windows (Kerberos)',
+    'portal-kerberos': 'signing in to the enrolment pages with Windows (Kerberos)',
 }
 LOCKOUTS_SENT = {'sig': None, 'at': 0.0}
 THROTTLE_GUARD = threading.Lock()
@@ -32,7 +35,7 @@ THROTTLE_GUARD = threading.Lock()
 # to these pages and to the certificate portal) ------------------------------------------------
 GUARD_KIND = 'guard-src'
 # The sign-ins counted by the place they come from: these pages, the portal, the second step.
-GUARD_KINDS = ('admin', 'portal', 'mfa', 'portal-sso')
+GUARD_KINDS = ('admin', 'portal', 'mfa', 'portal-sso', 'kerberos', 'portal-kerberos')
 
 
 def guard_on():
@@ -575,7 +578,10 @@ def _health(h):
         HEALTH_SEEN['db'] = (time.time(), (users, db_ok, maint))
     out = {'ok': True, 'users': users, 'database': {'ok': db_ok},
            'lang': CONFIG.get('ui_lang') or 'cs', 'node': node_name(),
-           'maintenance': maint}
+           'maintenance': maint,
+           # What the sign-in page offers of Windows (Kerberos, 1.0.99): the button, tried by
+           # itself, no password at all - nothing more (no realm, no name).
+           'kerberos': krb_page_info('admin')}
     # For monitoring (1.0.47) - asked for - whether replication runs.
     if h.arg('check') == 'all' and CONFIG.get('ha_mode') == 'replicated':
         try:
@@ -624,18 +630,23 @@ def admin_name_parts(name):
     return name, ('upn' if '@' in name else 'sam')
 
 
-def admin_ask_directory(h, name, password):
+def admin_ask_directory(h, name, password, ticket=False):
     """One sign-in, asked of the directory in `admin_directory`, and what it
-    earns here. Nothing is made and no session is opened."""
+    earns here. Nothing is made and no session is opened. ticket (1.0.99): the
+    person proved by a Kerberos ticket, not a password - looked up by
+    sAMAccountName (the principal's name before the @, whatever the UPN), no
+    password asked and none counted."""
     ad = h.d.dirs.get(str(CONFIG.get('admin_directory') or '').lower())
     if not ad:
         return None
     who, how = admin_name_parts(name)
+    if ticket:
+        how = 'sam'
     try:
         entry = ad.find_user(who, how)
     except LdapUnreachable as e:
         raise ApiError(503, 'the directory cannot be reached', str(e))
-    if not entry or entry.get('many') or entry_unusable(entry):
+    if not ticket and (not entry or entry.get('many') or entry_unusable(entry)):
         # Counted as a wrong password of a name that exists is (as otp 1.0.234): only those
         # were held back, so a name the directory lacks answered 401 for ever - which said
         # who exists.
@@ -658,6 +669,11 @@ def admin_ask_directory(h, name, password):
         # there, anybody would be an administrator here.
         return {'ok': False, 'said': 'the directory %s is not as acme wrote it - not asked' % ad.name,
                 'directory': ad.name}
+    if ticket:
+        have = ad.groups_of(entry, True)
+        return {'ok': True, 'name': who, 'role': admin_role_for(have, ad), 'dn': entry['dn'],
+                'display': entry.get('display') or '', 'directory': ad.name, 'entry': entry,
+                'groups': sorted({cn for _, cn in have}, key=str.lower)}
     # The cap per account (as otp 1.0.230, 1.0.232, 1.0.234).
     held = dir_pw_take(h, who, ad.name, entry)
     try:
@@ -700,13 +716,21 @@ def admin_from_directory(h, name, password):
         h.store.add_event('sign-ins', 'the directory knows %s, and none of the groups given a '
                           'role here holds them (from %s)' % (said['name'], h.client_ip()), 'warn')
         raise ApiError(401, 'the name or the password is not right')
-    name, role, entry = said['name'], said['role'], said['entry']
-    bad = name_letters_problem(name)
+    bad = name_letters_problem(said['name'])
     if bad:
         # Said as a wrong password is, and written down (1.0.154).
         h.store.add_event('sign-ins', 'the directory signed %s in, refused here: %s'
-                          % (name, bad), 'warn')
+                          % (said['name'], bad), 'warn')
         raise ApiError(401, 'the name or the password is not right')
+    return admin_directory_account(h, said)
+
+
+def admin_directory_account(h, said):
+    """The account here of a person the directory let in with a role (`said` of
+    admin_ask_directory): found by the DN, made on the first sign-in, its role and
+    groups as the directory says now. None for a local account of that name. Shared
+    by the password and the Kerberos sign-in (1.0.99)."""
+    name, role, entry = said['name'], said['role'], said['entry']
     # One person, one account, whatever way the name was typed (1.0.101):
     # novak, novak@corp.cz and CORP\novak are the same entry in the
     # directory - found by its DN. Kept under their typed name, each
@@ -787,6 +811,13 @@ def _login(h):
     # No account has a longer name (1.0.146): megabytes typed went into the log.
     name = str(b.get('name') or '').strip()[:190]
     password = str(b.get('password') or '')
+    # "Only Windows" (1.0.99): no password signs anybody in while Kerberos can - root's way
+    # back is acme --set admin_password_off=0 (or Kerberos switched off).
+    if krb_password_off('admin'):
+        h.store.add_event('sign-ins', 'a password for %s from %s refused: these pages are '
+                          'signed in to with Windows only' % (name or '(nobody)', h.client_ip()),
+                          'warn')
+        raise ApiError(403, KRB_ONLY_SAID)
     key = h.throttle('admin', split_limit('login_tries', 5),
                      int(CONFIG.get('login_wait_min') or 15), name=name)
     acc = h.store.account(name, checked=True) or (h.store.account(admin_name_parts(name)[0], checked=True)

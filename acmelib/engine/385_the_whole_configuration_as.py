@@ -285,7 +285,10 @@ def config_export(store, whole):
             'admin_art': art_read(store, 'admin'),
             # the setup guides written on the page Modules (1.0.94)
             'guides': {r['k']: r['v'] for r in store.db.rows(
-                "SELECT k, v FROM meta WHERE k LIKE 'guide:%'")}}
+                "SELECT k, v FROM meta WHERE k LIKE 'guide:%'")},
+            # The keytab of the sign-in with Windows (1.0.99): its keys only in a file with the
+            # secrets (sealed again by the machine it is put in on); what it holds always.
+            'kerberos': krb_export(store, whole)}
 
 
 def config_import(store, daemon, conf, by, keep_account='', access_check=None, nodes_as=None,
@@ -376,6 +379,14 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                 raise ApiError(400, 'the picture of the sign-in in the file: %s' % e)
         elif one is not None and not isinstance(one, dict):
             raise ApiError(400, 'the picture of the sign-in in the file is not an object')
+    krb_in = conf.get('kerberos')
+    if krb_in is not None and not isinstance(krb_in, dict):
+        raise ApiError(400, 'kerberos in the file is not an object')
+    if isinstance(krb_in, dict) and krb_in.get('keytab'):
+        try:
+            keytab_entries(base64.b64decode(str(krb_in['keytab']), validate=True))
+        except (binascii.Error, ValueError) as e:
+            raise ApiError(400, 'the keytab in the file: %s' % e)
     pem = str(conf.get('mail_ca') or '').strip()
     if pem and not all(describe_certificate(b) for b in split_certificates(pem)):
         raise ApiError(400, 'the mail server\'s authorities in the file are not certificates')
@@ -436,6 +447,13 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                 # "replace" then taken away again.
                 # one that is not taken here any more left out and said, not the whole file
                 # refused (1.0.88: a value saved before a check came, from this same machine)
+                # "Only Windows" is never switched on by a file (1.0.99): only by somebody signed
+                # in with Windows - left out and said; switched off, it is taken.
+                for k_ in ('admin_password_off', 'portal_password_off'):
+                    if want.get(k_) and not CONFIG.get(k_):
+                        want.pop(k_)
+                        said['settings left out: switched on only from a sign-in with Windows '
+                             '(%s)' % k_] += 1
                 for k_ in list(want):
                     try:
                         check_setting(k_, want[k_])
@@ -569,6 +587,14 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                 vip['on'] = False       # a VIP address is a cluster's
             store.set_meta('web:vip', json.dumps(dict(vip, at=time.time(), by=by)))
             said['VIP address'] += 1
+        krb_in = conf.get('kerberos')
+        if isinstance(krb_in, dict) and krb_in.get('keytab'):
+            krb_keytab_put(store, base64.b64decode(str(krb_in['keytab']), validate=True), by,
+                           str(krb_in.get('name') or ''))
+            said['keytab of the sign-in with Windows'] += 1
+        elif isinstance(krb_in, dict) and replace and not krb_in.get('entries') and \
+                krb_keytab_row(store):
+            krb_keytab_drop(store, by)
         if fw is not None:
             fw_trial_begin(store, by)
             store.set_meta('fw:conf', json.dumps(dict(fw, at=time.time(), by=by)))

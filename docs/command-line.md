@@ -197,6 +197,19 @@ Who certificates belong to, what their members may do, and the tags - [teams.md]
 | `acme --tag-add TAG [--colour dim\|info\|ok\|warn\|crit\|violet] [--note TEXT]` · `acme --tag-del TAG [--strip]` | the tags of the catalog |
 | `acme --teams-adopt` | owners and tags made from what certificates say now |
 
+## Signing in with Windows - Kerberos (1.0.99)
+
+The engine's own options (group **WHAT THE PAGES DO, HERE TOO**), as the card on *Settings →
+Accounts* and *Settings → The enrolment pages* ([kerberos-sso.md](kerberos-sso.md)):
+
+| | |
+|---|---|
+| `--kerberos` | each part (the administration, the portal) on or off, its realm and where it comes from, its directory, by itself or a button, "only Windows"; the keytab's principals, key versions and kinds of key (never a key); the names the pages are opened by with their SPN; each node - heard from, the keytab written out, the Kerberos library there (`--json` too) |
+| `--kerberos-keytab FILE` | put in the keytab of the service account (as `ktpass` made it) - for both parts; every node writes it out itself within seconds |
+| `--kerberos-keytab-off` | take it away (asks; `--yes`) |
+| `--set admin_krb=1`, `--set portal_krb=1` | each part's switch; `admin_krb_auto`, `admin_krb_realm`, `portal_krb_auto`, `portal_krb_realm` the same way |
+| `--set admin_password_off=0`, `--set portal_password_off=0` | root's way back from "only Windows". Switching it **on** is refused here: only somebody signed in with Windows to that part switches it on, on the pages |
+
 ## Examples
 
 ```

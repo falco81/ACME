@@ -46,8 +46,8 @@ function portalDoor() {
   drawLangPick();
   var h = $('help-text');
   if (h) drawHelp(h, h.getAttribute('data-help'));
-  var form = $('signin-form'), said = $('in-said'), go = $('in-go');
-  form.addEventListener('submit', function (e) {
+  var form = $('signin-form'), said = $('in-said') || $('krb-said'), go = $('in-go');
+  if (go) form.addEventListener('submit', function (e) {
     e.preventDefault();
     said.className = 'said';
     said.textContent = '';
@@ -80,7 +80,15 @@ function portalDoor() {
     });
   });
   if (window.PORTAL_GATE) { gateForm(window.PORTAL_GATE); return; }
-  if ($('mfa-box') && $('mfa-box').dataset.stage) { form.hidden = true; mfaStep(); } else $('in-name').focus();
+  /* Signed in with Windows (1.0.99): then the one-time code, as after a password. */
+  krbDoor(function (d) {
+    if (d && d.gate) { var kb = $('krb-box'); if (kb) kb.hidden = true; gateForm(d.gate); return; }
+    said.className = 'said good';
+    said.textContent = 'Welcome.';
+    location.reload();
+  });
+  if ($('mfa-box') && $('mfa-box').dataset.stage) { form.hidden = true; mfaStep(); }
+  else if ($('in-name')) $('in-name').focus();
   /* Sent back here because the sign-in ran out (1.0.48): said, not a page that just changed. */
   try {
     if (sessionStorage.getItem('acme-signed-out')) {
@@ -215,6 +223,7 @@ var ME = null;
 /* Signed out - and, signed in by the balancer (otp 1.0.239), on to its own sign-out when one is
    set: otherwise the next page would sign the person straight back in. */
 function portalSignOut(sso) {
+  krbSignedOut('portal');               /* never by itself again in this tab (1.0.99) */
   var done = function (d) {
     if (d && d.go) location.href = d.go;
     else location.reload();

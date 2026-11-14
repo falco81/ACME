@@ -226,9 +226,10 @@ function acme_get(string $path, float $timeout = 30.0): ?array
     return is_array($data) ? $data : null;
 }
 
-/** Pass a daemon reply straight through to the browser. */
+/** Pass a daemon reply straight through to the browser. $extra: headers of the
+    caller's own, as acme_call takes them. */
 function acme_relay(string $path, string $method = 'GET', array|object|null $payload = null,
-                      float $timeout = 30.0): void
+                      float $timeout = 30.0, array $extra = []): void
 {
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
@@ -243,7 +244,7 @@ function acme_relay(string $path, string $method = 'GET', array|object|null $pay
             : 'the daemon is not answering — is acme.service running?']);
         return;
     }
-    [$status, $body] = acme_call($path, $method, $payload, $timeout);
+    [$status, $body] = acme_call($path, $method, $payload, $timeout, $extra);
     if ($status === 0) {
         http_response_code(503);
         echo json_encode(['ok' => false, 'error' =>
@@ -258,6 +259,63 @@ function acme_relay(string $path, string $method = 'GET', array|object|null $pay
        is really gone; signing out takes the cookie away. */
     http_response_code($status);
     echo acme_squeeze($body);
+}
+
+/**
+ * Signing in with Windows - Kerberos (1.0.99, as otp 1.0.274): the relay between the
+ * browser and the daemon, for the administration and the portal alike. POST of these pages
+ * only (acme_guard_post before it).
+ *
+ * - No "Authorization" yet: the daemon is asked first whether that part signs in with
+ *   Windows at all - off, 404 and nothing more; on, 401 with "WWW-Authenticate: Negotiate",
+ *   and a browser that may send a ticket to this name sends it at once (the same request
+ *   again, with the header).
+ * - With it: the header as it came (its length capped) to the daemon, which decides
+ *   everything - NTLM, the ticket, the realm, the person. The session goes into the HttpOnly
+ *   cookie, never to the page.
+ * - Refused: 403, NEVER 401 again - a second 401 makes the browser try again, fall back to
+ *   NTLM, or open a password window of its own.
+ * The ticket is never written anywhere here.
+ *
+ * $session: false for "Try my browser's ticket" (nobody is signed in by it).
+ */
+function acme_kerberos_relay(string $path, array $more = [], bool $session = true): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    $auth = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? ''));
+    $payload = $more;
+    if (strlen($auth) > 90000) {
+        $payload['too_big'] = true;           /* said so, never cut and sent on */
+    } elseif ($auth !== '') {
+        $payload['header'] = $auth;
+    }
+    [$status, $body] = acme_call($path, 'POST', (object) $payload, 30.0);
+    if ($status === 0) {
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'error' => 'the server is not answering - try again in a while']);
+        return;
+    }
+    $data = json_decode($body, true);
+    if (!is_array($data)) {
+        $data = ['ok' => false, 'error' => 'refused'];
+    }
+    if ($status === 401 && $auth === '') {
+        http_response_code(401);
+        header('WWW-Authenticate: Negotiate');
+        echo json_encode(['ok' => false, 'code' => 'no_ticket',
+                          'error' => 'the browser sent no Kerberos ticket - is this computer in the domain, and this name among the browser\'s intranet sites?']);
+        return;
+    }
+    if ($status === 200 && $session && !empty($data['token'])) {
+        acme_set_session((string) $data['token']);
+        unset($data['token']);
+        echo json_encode($data);
+        return;
+    }
+    unset($data['token']);
+    http_response_code($status === 401 ? 403 : $status);
+    echo json_encode($data);
 }
 
 /**

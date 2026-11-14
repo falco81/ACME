@@ -17,6 +17,10 @@ the account's own, set up for these pages.
 When more than one way is offered, the account chooses the one it wants when it sets the step
 up - the first time it signs in after the second step was switched on.
 
+**Signed in with Windows** (Kerberos, 1.0.99 - [kerberos-sso.md](kerberos-sso.md)): the ticket
+takes the place of the password only - the second step is asked after it just the same, every
+time.
+
 ## Signing in
 
 1. The name and the password, as always. Right, the sign-in can do nothing

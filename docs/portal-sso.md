@@ -50,6 +50,10 @@ client's address, signed in or refused and why (`acme --sso-status` on the comma
 A password sign-in stays possible: somebody who reaches a node directly (inside the network)
 signs in as before.
 
+**Signing in with Windows (Kerberos)** (1.0.99, [kerberos-sso.md](kerberos-sso.md)) may be on
+beside it: the two do not touch each other - each has its own switch and its own refusals, and
+switching one off ends only its own sign-ins.
+
 ## Switching it on
 
 1. *Settings → Firewall and access → Behind a load balancer or WAF*: the balancer's address,

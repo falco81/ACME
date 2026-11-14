@@ -762,6 +762,9 @@ var ICONS = {
   /* A pencil: change it. Used for every Edit in the pages (1.0.8). */
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
+  /* Four panes: signing in with Windows (1.0.99). */
+  windows: '<rect x="4" y="4" width="7" height="7" rx="0.6"/><rect x="13" y="4" width="7" height="7" rx="0.6"/>'
+    + '<rect x="4" y="13" width="7" height="7" rx="0.6"/><rect x="13" y="13" width="7" height="7" rx="0.6"/>',
   /* A socket, a radio, and a plug with nothing behind it: the three doors
      that are the network rather than somebody signing in to something. */
   ethernet: '<rect x="4" y="9" width="16" height="10" rx="2"/>'
@@ -3439,4 +3442,61 @@ function mfaWay(body, d, kind) {
   dest.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); send.click(); } });
   body.appendChild(drow);
   body.appendChild(sent);
+}
+
+/* ---- signing in with Windows - Kerberos (1.0.99, as otp 1.0.274) ------------------------------
+   fetch() of the same origin: the browser answers the page's 401 "WWW-Authenticate: Negotiate"
+   by itself when this name is among its intranet sites - no code here ever sees the ticket. Not
+   api(): its 401 means "signed out". The administration and the portal alike: the box
+   (#krb-box) says the part (data-part), whether to try at once (data-auto) and whether a
+   password is offered at all (data-only). Tried by itself once a tab, never after Sign out
+   there (otherwise signing out would sign you straight back in). */
+function krbAsk(what) {
+  return fetch('?api=' + what, {method: 'POST', credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json'}, body: '{}'})
+    .then(function (r) {
+      return r.text().then(function (t) {
+        var d = {};
+        try { d = JSON.parse(t) || {}; } catch (e) { d = {error: r.status === 404 ? 'signing in with Windows is switched off here' : 'refused'}; }
+        return {ok: r.ok, status: r.status, d: d};
+      });
+    }, function () { return {ok: false, status: 0, d: {error: 'the server could not be reached'}}; });
+}
+function krbFlag(part, which, on) {
+  var k = 'acme.krb.' + which + '.' + part;
+  try {
+    if (on === undefined) return !!sessionStorage.getItem(k);
+    if (on) sessionStorage.setItem(k, '1'); else sessionStorage.removeItem(k);
+  } catch (e) { }
+  return false;
+}
+/* Signed out on purpose: never by itself again in this tab. */
+function krbSignedOut(part) { krbFlag(part, 'out', true); }
+function krbDoor(done) {
+  var box = $('krb-box');
+  if (!box) return;
+  var part = box.dataset.part || 'admin', go = $('krb-go'), said = $('krb-said');
+  var words = go.querySelector('span');
+  var tryIt = function (auto) {
+    go.disabled = true;
+    said.className = 'said';
+    said.textContent = auto ? '' : 'Asking Windows…';
+    words.textContent = 'Signing in…';
+    krbFlag(part, 'tried', true);
+    krbAsk('kerberos-login').then(function (x) {
+      go.disabled = false;
+      words.textContent = 'Sign in with Windows';
+      if (!x.ok) {
+        /* Tried by itself on a computer outside the domain: nothing said - the form is there. */
+        if (auto && x.d.code === 'no_ticket' && box.dataset.only !== '1') { said.textContent = ''; return; }
+        said.className = 'said bad';
+        said.textContent = String(x.d.error || 'refused');
+        return;
+      }
+      krbFlag(part, 'out', false);
+      done(x.d);
+    });
+  };
+  go.onclick = function () { tryIt(false); };
+  if (box.dataset.auto === '1' && !krbFlag(part, 'tried') && !krbFlag(part, 'out')) tryIt(true);
 }

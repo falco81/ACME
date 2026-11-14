@@ -178,7 +178,7 @@ class Daemon(object):
             return [node_name()]
 
     def save_settings(self, changes, by='', node=None, drawn_by=None, keep_session=None,
-                      split_card=False):
+                      split_card=False, krb_proof=None):
         checked = {}
         was_2fa = bool(CONFIG.get('admin_2fa'))
         # What the nodes do when they lose each other (1.0.77): only through its card - "try
@@ -265,6 +265,13 @@ class Daemon(object):
                                      'balancers first (The balancers that sign people in)')
                 if not unseal_secret(str(after.get('portal_sso_key') or '')):
                     raise BadSetting('signed in by the load balancer: make the key first (Make a key)')
+        # "Only Windows" switched on only by somebody signed in with Windows to that part
+        # (1.0.99, as otp 1.0.274): they have proved it works for them. Never from the command
+        # line or a file read back - there it is only switched off (the way back).
+        for part in ('admin', 'portal'):
+            k = part + '_password_off'
+            if checked.get(k) and not CONFIG.get(k) and not (krb_proof or {}).get(part):
+                raise BadSetting(KRB_PROOF_SAID[part])
         if any(k in checked for k in PORTAL_CODE_KEYS):
             # The code at every sign-in only with a way to send it (as otp 1.0.228): switched on
             # without one, or the mail or the SMS switched off under it, nobody could sign in.
@@ -842,6 +849,11 @@ class Daemon(object):
                     net_tick(self)              # the network, restart, power off (1.0.119)
                 except Exception as e:          # noqa: BLE001
                     log_sparing('net-tick', 'the network: %s' % e, 'warn', every=600)
+                try:
+                    krb_tick(self)              # the keytab written out on this node (1.0.99)
+                except Exception as e:          # noqa: BLE001
+                    log_sparing('krb-tick', 'the keytab of the sign-in with Windows: %s' % e,
+                                'warn', every=600)
                 try:
                     lockouts_tick(self)         # who is locked out, for the pages (1.0.112)
                 except Exception as e:          # noqa: BLE001

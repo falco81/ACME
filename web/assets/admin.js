@@ -417,6 +417,8 @@ $('updated').onclick = function () {
   if (LIVE) tick();
 };
 $('signout').onclick = function () {
+  /* Never signed in with Windows by itself again in this tab (1.0.99). */
+  krbSignedOut('admin');
   api('logout', {}).then(function () { location.reload(); }, function () { location.reload(); });
 };
 
@@ -699,7 +701,8 @@ function showMe() {
     mine.appendChild(io);
     body.appendChild(mine);
 
-    if (ME.source !== 'directory') {
+    /* "Only Windows" (1.0.99): no password is changed here - the server refuses it anyway. */
+    if (ME.source !== 'directory' && !ME.password_off) {
       var pwsec = el('div', 'me-sec');
       pwsec.appendChild(el('h3', '', 'A new password'));
       /* The one you have, the new one and the new one again - the form every change of
@@ -1504,7 +1507,8 @@ function showPane(name) {
   if (name === 'upgrade') { loadUpgrade(); attLoad(); }
   if (name === 'web') loadWeb();
   if (name === 'fw') loadFw();
-  if (name === 'portal') { $('portal-url').textContent = location.protocol + '//' + location.host + '/'; loadArt(); }
+  if (name === 'portal') { $('portal-url').textContent = location.protocol + '//' + location.host + '/'; loadArt(); loadKrb(); }
+  if (name === 'people') loadKrb();
   /* A pane plugged in (ACME_EXTRA_PANES) draws itself. */
   var extra = (window.ACME_EXTRA_PANES || {})[name];
   if (typeof extra === 'function') { try { extra(name); } catch (e) { if (window.console) console.error(e); } }
@@ -1671,7 +1675,7 @@ var TALL = {portal_help: 1, portal_groups: 1, sms_body: 1, sms_headers: 1, isemo
 /* A pane drawn in sections (1.0.88): what belongs together side by side,
    and what only one choice uses in a panel of its own that is there only
    while that choice is made - not a page of greyed-out boxes. */
-var SET_PANE_HOME = {portalsso: 'portal'};
+var SET_PANE_HOME = {portalsso: 'portal', adminkrb: 'people', portalkrb: 'portal'};
 var PANE_LAYOUT = {
   portalsso: [
     {title: 'Who is believed', icon: 'shield', cols: 4,
@@ -2056,6 +2060,8 @@ function drawSettings() {
   });
   /* Signed in by the balancer (otp 1.0.239): its card under the enrolment pages' settings. */
   loadSso();
+  /* Signing in with Windows (1.0.99): a card under Accounts and one under the enrolment pages. */
+  loadKrb();
   var rest = SETTINGS.settings.filter(function (s) { return !shown[s.key]; });
   var host = $('sect-rest');
   clear(host);
@@ -3411,7 +3417,7 @@ function loadUsers() {
       }
       tools.appendChild(info);
       if (ADMIN) {
-        if (u.source !== 'directory') {
+        if (u.source !== 'directory' && !ME.password_off) {
           var pw = iconButton('lock', 'Set a new password');
           pw.onclick = function () {
             askInModal('A new password for ' + u.name, 'They choose their own at the next sign-in.',
@@ -3958,6 +3964,8 @@ function userDo(body) {
     .catch(function (e) { oops(e); loadUsers(); });
 }
 $('us-add').onclick = function () {
+  /* "Only Windows" (1.0.99): an account made here would need a password nobody may use. */
+  if (ME && ME.password_off) { toast('only Windows: no account signs in with a password now - the people of the directory sign in with Windows', 'warn'); return; }
   modal('A new account', function (body) {
     var g = el('div', 'formgrid');
     var name = textBox('', '', 'mono');
@@ -7749,6 +7757,212 @@ function drawSso() {
   host.appendChild(el('p', 'note', 'More, with the reasons: docs/portal-sso.md in the package.'));
 }
 
+
+/* ---- signing in with Windows - Kerberos (1.0.99, as otp 1.0.274) -----------------------------
+   A card for each part - the administration's under Accounts, the portal's under the enrolment
+   pages - with its own switches (drawn by drawSettings into sect-adminkrb / sect-portalkrb) and,
+   below them, what both share: the keytab (its principals, never a key), Put in / Take away, Try
+   my browser's ticket (who it would sign in to this part, and as what - nobody signed in), the
+   names the pages are opened by with their SPN, each node, the commands for AD and the browsers'
+   settings filled in. */
+var KRB = {d: null, tried: {}};
+function loadKrb() {
+  if (!$('krb-host-admin') && !$('krb-host-portal')) return;
+  api('kerberos').then(function (d) { KRB.d = d; drawKrb('admin'); drawKrb('portal'); }).catch(function (e) {
+    ['admin', 'portal'].forEach(function (part) {
+      var host = $('krb-host-' + part);
+      if (!host) return;
+      clear(host);
+      host.appendChild(el('p', 'note bad', String(e.message || e)));
+    });
+  });
+}
+function krbTag(cls, words) { return el('span', 'tag ' + cls, words); }
+function krbFacts(host, rows) {
+  var t = el('table', 'krb-facts');
+  rows.forEach(function (r) {
+    var tr = el('tr', '');
+    tr.appendChild(el('th', '', r[0]));
+    var td = el('td', '');
+    (Array.isArray(r[1]) ? r[1] : [r[1]]).forEach(function (x) { td.appendChild(typeof x === 'string' ? el('span', '', x) : x); });
+    tr.appendChild(td);
+    t.appendChild(tr);
+  });
+  host.appendChild(t);
+}
+function krbTable(host, heads, rows) {
+  var t = el('table', 'rows krb-t');
+  var hr = el('tr', '');
+  heads.forEach(function (h) { hr.appendChild(el('th', '', h)); });
+  t.appendChild(hr);
+  rows.forEach(function (cells) {
+    var tr = el('tr', '');
+    cells.forEach(function (c) {
+      var td = el('td', '');
+      if (c === null || c === undefined) { /* empty */ } else if (typeof c === 'string') td.appendChild(document.createTextNode(c));
+      else td.appendChild(c);
+      tr.appendChild(td);
+    });
+    t.appendChild(tr);
+  });
+  var wrap = el('div', 'krb-tw');
+  wrap.appendChild(t);
+  host.appendChild(wrap);
+}
+function krbPut(part) {
+  var f = el('input');
+  f.type = 'file';
+  f.accept = '.keytab,application/octet-stream';
+  f.onchange = function () {
+    var file = f.files && f.files[0];
+    if (!file) return;
+    if (file.size > 65536) { toast(file.name + ' is too big to be a keytab', 'bad'); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var bytes = new Uint8Array(reader.result || new ArrayBuffer(0)), bin = '';
+      for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      api('kerberos', {action: 'put', data: btoa(bin), name: file.name}).then(function (x) {
+        KRB.d = x.view; KRB.tried = {};
+        toast('the keytab is put in - every node writes it out within seconds', 'good');
+        drawKrb('admin'); drawKrb('portal');
+      }).catch(oops);
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  f.click();
+}
+function krbTry(part, btn) {
+  busy(btn, true);
+  krbAsk('kerberos-try&part=' + part).then(function (x) {
+    busy(btn, false);
+    var d = x.d || {};
+    if (!x.ok) d = {ok: false, ticket: false, said: d.code === 'no_ticket'
+      ? 'this browser sent no Kerberos ticket: open these pages by a name below, from a computer in the domain, with that name among the browser’s intranet sites'
+      : String(d.error || 'refused')};
+    KRB.tried[part] = d;
+    drawKrb(part);
+  });
+}
+function drawKrb(part) {
+  var host = $('krb-host-' + part), d = KRB.d;
+  if (!host || !d) return;
+  if (host.contains(document.activeElement) && liveControl(document.activeElement)) return;
+  clear(host);
+  var p = d.parts[part], other = d.parts[part === 'admin' ? 'portal' : 'admin'];
+  var head = el('div', 'lb-facts');
+  var chip = function (cls, words) { var c = el('span', 'cchip ' + cls); c.appendChild(el('span', '', words)); head.appendChild(c); return c; };
+  chip(p.on ? 'good' : 'dim', p.on ? 'On' : 'Off');
+  chip(d.keytab ? 'good' : 'warn', d.keytab ? 'A keytab is put in' : 'No keytab yet');
+  if (p.only_in_effect) chip('warn', 'Only Windows');
+  host.appendChild(head);
+  if (part === 'admin' && !p.directory) host.appendChild(el('p', 'note warn', 'Choose the directory administrators sign in against first (above): only accounts of the directory sign in with Windows.'));
+  if (part === 'portal' && !p.portal) host.appendChild(el('p', 'note warn', 'The enrolment pages are switched off (above): nobody signs in to them with Windows either.'));
+  if (p.switch && !d.keytab) host.appendChild(el('p', 'note warn', 'Switched on, but no keytab is put in yet: the button is not offered until one is.'));
+  var realm = noI18n(el('span', 'mono', p.realm || '-'));
+  krbFacts(host, [
+    ['Realm', [realm, el('span', 'muted small krb-from', {set: 'set above', directory: 'from the directory’s base DN'}[p.realm_from] || 'not known - set it above')]],
+    ['Directory', noI18n(el('span', '', p.directory || '-'))],
+    [part === 'admin' ? 'Second step after it' : 'One-time code after it', p.second ? 'yes - asked after Windows too, every time' : 'off'],
+    ['By itself on the sign-in page', p.auto ? 'yes - tried at once, the form if it did not work' : 'no - a button under the form'],
+    ['A password on the sign-in page', p.only_in_effect ? 'none - only Windows' : (p.password_off ? 'none set, but not in effect (Kerberos off or no keytab)' : 'offered beside it')],
+    ['NTLM', 'never taken'],
+    [part === 'admin' ? 'The enrolment pages' : 'The administration', other.on ? 'on there too - their own switch' : 'off there - their own switch']
+  ]);
+  if (part === 'portal' && p.sso) host.appendChild(el('p', 'note', 'Signed in by a load balancer is on too: both work side by side, each by itself - a browser through the balancer comes in signed in by it, one in the domain by Windows.'));
+  /* The keytab. */
+  host.appendChild(el('h3', 'peek-h', 'The keytab'));
+  if (d.keytab) {
+    var line = el('p', 'note');
+    line.appendChild(document.createTextNode('Put in ' + (d.keytab.at ? new Date(d.keytab.at * 1000).toLocaleString() : '') + ' by '));
+    line.appendChild(noI18n(el('b', '', d.keytab.by || '?')));
+    line.appendChild(document.createTextNode(' - kept sealed in the database; its keys are never shown. One for both parts.'));
+    host.appendChild(line);
+    krbTable(host, ['Principal', 'Key version', 'Kind of key'], d.keytab.entries.map(function (e) {
+      var k = noI18n(el('span', 'mono', e.kind));
+      if (e.weak) { var w = el('span', ''); w.appendChild(k); w.appendChild(krbTag('warn', 'weak')); k = w; }
+      return [noI18n(el('span', 'mono', e.principal)), String(e.kvno), k];
+    }));
+  } else {
+    host.appendChild(el('p', 'note', 'None yet. Make it in AD (below) and put it in here - once, for both parts and every node.'));
+  }
+  var row = el('div', 'btnrow krb-btns');
+  if (ADMIN) {
+    var put = cmdButton(d.keytab ? 'Put in another keytab…' : 'Put in a keytab…', 'upload', 'small' + (d.keytab ? '' : ' primary'));
+    put.onclick = function () { krbPut(part); };
+    row.appendChild(put);
+    if (d.keytab) {
+      var drop = cmdButton('Take the keytab away', 'trash', 'small danger');
+      drop.onclick = function () {
+        confirmThen('Take the keytab away?', 'Nobody signs in with Windows - to the administration or the portal - until another one is put in. Every node takes its copy away.', 'Take it away', function () {
+          api('kerberos', {action: 'drop'}).then(function (x) { KRB.d = x.view; KRB.tried = {}; drawKrb('admin'); drawKrb('portal'); }).catch(oops);
+        }, true);
+      };
+      row.appendChild(drop);
+    }
+  }
+  var tb = cmdButton('Try my browser’s ticket', 'person', 'small');
+  explain(tb, 'Asks this browser for its ticket and says who it would sign in to ' + (part === 'admin' ? 'these pages' : 'the enrolment pages') + ' and as what - nobody is signed in. The best way to find a wrong SPN before switching it on.');
+  tb.onclick = function () { krbTry(part, tb); };
+  if (d.keytab) row.appendChild(tb);
+  host.appendChild(row);
+  var t = KRB.tried[part];
+  if (t) {
+    var res = el('div', 'krb-tried');
+    if (t.ok) {
+      res.appendChild(krbTag('ok', 'Would sign in'));
+      res.appendChild(noI18n(el('span', 'mono', t.principal + ' → ')));
+      res.appendChild(noI18n(el('b', 'mono', t.name)));
+      res.appendChild(krbTag('dim', part === 'admin' ? ({fulladmin: 'full admin', certadmin: 'cert admin', readonly: 'read only'}[t.role] || t.role) : 'the enrolment pages'));
+      if (t.second) res.appendChild(el('span', 'muted small', part === 'admin' ? 'then the second step' : 'then the one-time code'));
+      if (!t.on) res.appendChild(el('span', 'muted small', '- once switched on'));
+    } else {
+      res.appendChild(krbTag('crit', t.ticket ? 'Would not sign in' : 'No ticket taken'));
+      if (t.principal) res.appendChild(noI18n(el('span', 'mono', t.principal)));
+      res.appendChild(el('span', 'small', t.said || ''));
+    }
+    host.appendChild(res);
+  }
+  /* The names. */
+  host.appendChild(el('h3', 'peek-h', 'The names the pages are opened by'));
+  host.appendChild(el('p', 'note', 'The browser asks for a ticket of HTTP/<the name in its address bar>. Each name needs its SPN on the service account in AD; one key of that account in the keytab serves them all. Never an address: there is no SPN for one, and Windows then offers NTLM - which is refused.'));
+  krbTable(host, ['Name', 'Of', 'SPN', 'In the keytab'], d.names.map(function (n) {
+    var tag = n.in_keytab === 'name' ? krbTag('ok', 'by name') : (n.in_keytab === 'key' ? krbTag('dim', 'by the account’s key, if the SPN is on it') : krbTag('warn', 'no keytab'));
+    var of = n.of === 'this page' ? el('span', '', 'this page') : noI18n(el('span', '', n.of === 'vip' ? 'VIP' : n.of));
+    return [noI18n(el('span', 'mono', n.name)), of, noI18n(el('span', 'mono', n.spn)), tag];
+  }));
+  /* Each node. */
+  host.appendChild(el('h3', 'peek-h', 'Each node'));
+  krbTable(host, ['Node', 'Heard from', 'The keytab', 'Kerberos library', 'Trouble'], d.nodes.map(function (n) {
+    return [noI18n(el('span', 'mono', n.node)), krbTag(n.heard ? 'ok' : 'crit', n.heard ? 'yes' : 'no'),
+      d.keytab ? krbTag(n.written && n.same ? 'ok' : 'warn', n.written && n.same ? 'written out' : (n.written ? 'an older one' : 'not written')) : krbTag('dim', 'none to write'),
+      krbTag(n.lib ? 'ok' : 'crit', n.lib ? 'there' : 'missing'), el('span', 'small muted', n.error || n.lib_said || '')];
+  }));
+  /* AD. */
+  var names = d.names.filter(function (n) { return n.of !== 'this page' || d.names.length === 1; }).map(function (n) { return n.name; });
+  if (!names.length) names = d.names.map(function (n) { return n.name; });
+  var realmV = p.realm || 'CORP.EXAMPLE', dom = d.domain || 'CORP', acct = d.account || 'svc-acme-http';
+  host.appendChild(el('h3', 'peek-h', 'Making the keytab in AD'));
+  host.appendChild(el('p', 'note', 'On a domain controller, as a domain administrator: a service account of its own (a normal user, password never expires, AES allowed), the SPN of each name, and the keytab of the first one - the others are served by the same key. Changing the account’s password later makes a new key version: make the keytab again.'));
+  var ad = '# 1. the account (once): {dom}\\{acct}, "This account supports Kerberos AES 256 bit encryption"\n'
+    + names.map(function (n) { return 'setspn -S HTTP/' + n + ' {dom}\\{acct}'; }).join('\n') + '\n'
+    + 'ktpass -princ HTTP/' + (names[0] || 'acme.corp.example') + '@{realm} -mapuser {dom}\\{acct} -crypto AES256-SHA1 -ptype KRB5_NT_PRINCIPAL -pass * -out acme-http.keytab';
+  host.appendChild(lbBlock(ad, {dom: dom, acct: acct, realm: realmV}, 'cmd.exe on a domain controller'));
+  /* The browsers. */
+  host.appendChild(el('h3', 'peek-h', 'Telling the browsers'));
+  var list = names.join(',');
+  var ul = el('ul', 'krb-ul');
+  [['Edge and Chrome (Windows, by group policy): ', 'AuthServerAllowlist = ' + list],
+   ['...or Internet Options → Security → Local intranet → Sites: ', names.join(', ')],
+   ['Firefox (policy or about:config): ', 'network.negotiate-auth.trusted-uris = ' + list],
+   ['NTLM: nothing to set here - it is refused whatever the browser offers', '']].forEach(function (x) {
+    var li = el('li', '');
+    li.appendChild(el('span', '', x[0]));
+    if (x[1]) li.appendChild(noI18n(el('span', 'mono', x[1])));
+    ul.appendChild(li);
+  });
+  host.appendChild(ul);
+  host.appendChild(el('p', 'note', 'The way back from "only Windows", as root: acme --set ' + part + '_password_off=0 (or Kerberos switched off). More: docs/kerberos-sso.md in the package.'));
+}
 
 /* ---- making the pair: the bundle on the first node, the join on the second (1.0.210) ----
    Each popup says what it will do, takes what it needs with the checks as it

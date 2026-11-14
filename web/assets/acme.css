@@ -1233,6 +1233,12 @@
     white-space:pre-wrap;overflow-wrap:anywhere;text-decoration:none;
     box-shadow:0 12px 30px rgba(0,0,0,.45)}
   .signin .said.why:hover .whybox,.signin .said.why:focus .whybox{display:block}
+  /* Signing in with Windows (1.0.99, as otp 1.0.274): "or", then one button under the form. */
+  .signin .krb-box{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+  .signin .krb-or{display:flex;align-items:center;gap:12px;color:var(--tx-dim);font-size:12px;
+    text-transform:uppercase;letter-spacing:.08em;margin:6px 0 2px}
+  .signin .krb-or::before,.signin .krb-or::after{content:"";flex:1;height:1px;background:var(--line)}
+  .signin .krb-box .btn{width:100%}
 
   .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);z-index:400;
     background:var(--panel);border:1px solid var(--line);border-radius:12px;
@@ -3979,3 +3985,28 @@ pre.lines { word-break: normal; overflow-wrap: anywhere; }
 @media (max-width: 720px) { .pwc-grid { grid-template-columns: 1fr; } }
 /* A question over the page, not over a popup (modalSure with no popup open). */
 .gd-sure.on-page { position: fixed; z-index: 350; border-radius: 0; }
+
+/* ---- signing in with Windows - the cards (1.0.99, as otp 1.0.274) ------------------------- */
+.krb-facts{border-collapse:collapse;margin:10px 0 4px;font-size:13.5px}
+.krb-facts th{text-align:left;font-weight:500;color:var(--tx-dim);padding:5px 28px 5px 0;vertical-align:top;white-space:nowrap;
+  text-transform:none;letter-spacing:0;font-size:13.5px;border:0;background:none}
+.krb-facts td{border:0}
+.krb-facts td{padding:5px 0}
+.krb-facts td .mono{margin-right:8px}
+.krb-from{margin-left:2px}
+.krb-tw{overflow-x:auto;margin:6px 0 10px}
+table.krb-t{width:100%;border-collapse:collapse;font-size:13px}
+table.krb-t th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--tx-mut);
+  font-weight:650;padding:7px 12px;border-bottom:1px solid var(--line)}
+table.krb-t td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+table.krb-t tr:last-child td{border-bottom:0}
+table.krb-t .tag{margin-left:6px}
+.krb-btns{margin:4px 0 10px;flex-wrap:wrap}
+.krb-tried{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0 12px;font-size:13.5px}
+.krb-ul{margin:6px 0 10px;padding-left:20px;line-height:1.9;font-size:13.5px}
+.krb-ul .mono{overflow-wrap:anywhere}
+@media (max-width:640px){
+  .krb-facts th{white-space:normal;padding-right:14px}
+}
+.cchip.good{color:var(--ok);border-color:rgba(63,185,80,.4)}
+.cchip.bad{color:var(--crit);border-color:rgba(248,81,73,.4)}

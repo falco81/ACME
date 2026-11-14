@@ -99,6 +99,16 @@ DEFAULTS = {
     'admin_2fa_mail': 1,
     'admin_2fa_sms': 1,
     'admin_2fa_passkey': 0,         # 1.0.51: Face ID, Touch ID... as the second step
+    # --- signing in with Windows - Kerberos SSO (1.0.99, as otp 1.0.274) -------
+    # Each part its own switches; one keytab for both (Settings -> Accounts). Off - as until now.
+    'admin_krb': 0,
+    'admin_krb_auto': 0,
+    'admin_krb_realm': '',
+    'admin_password_off': 0,
+    'portal_krb': 0,
+    'portal_krb_auto': 0,
+    'portal_krb_realm': '',
+    'portal_password_off': 0,
     # --- isemon ---------------------------------------------------------------
     'isemon': 0,
     'isemon_targets': '',
@@ -222,6 +232,7 @@ DEFAULTS = {
     'alerts_hisec': 0,
     'alerts_hand': 1,
     'alerts_sso': 0,
+    'alerts_kerberos': 0,
     'alerts_url': '',
     'alerts_lang': '',
     'report_lang': '',
@@ -429,7 +440,9 @@ TUNABLE = {
     'alerts_upgrade': (0, 1), 'alerts_trial': (0, 1), 'alerts_dbguard': (0, 1),
     'alerts_mailq': (0, 1), 'alerts_split': (0, 1), 'alerts_clock': (0, 1),
     'alerts_repl_behind_mb': (0, 100000), 'alerts_selinux': (0, 1), 'alerts_hisec': (0, 1), 'alerts_hand': (0, 1),
-    'alerts_sso': (0, 1),
+    'alerts_sso': (0, 1), 'alerts_kerberos': (0, 1),
+    'admin_krb': (0, 1), 'admin_krb_auto': (0, 1), 'admin_password_off': (0, 1),
+    'portal_krb': (0, 1), 'portal_krb_auto': (0, 1), 'portal_password_off': (0, 1),
     'report': (0, 1), 'report_every': ('daily', 'weekly', 'monthly'),
     'report_day': ('1', '2', '3', '4', '5', '6', '7'),
     'alerts_lang': ('', 'cs', 'en'), 'report_lang': ('', 'cs', 'en'),
@@ -660,6 +673,14 @@ NAMES = {
     'admin_2fa_mail': '...with a code by e-mail',
     'admin_2fa_sms': '...with a code by SMS',
     'admin_2fa_passkey': '...with Face ID or Touch ID (a passkey)',
+    'admin_krb': 'Sign administrators in with Windows (Kerberos)',
+    'admin_krb_auto': '...by itself when the sign-in page opens',
+    'admin_krb_realm': 'Kerberos realm',
+    'admin_password_off': '...and no password at all - only Windows',
+    'portal_krb': 'Sign people in with Windows (Kerberos)',
+    'portal_krb_auto': '...by itself when the portal opens',
+    'portal_krb_realm': 'Kerberos realm of the portal',
+    'portal_password_off': '...and no password at all on the portal - only Windows',
     'isemon': 'Send the logs to isemon',
     'isemon_targets': 'isemon’s syslog receivers',
     'isemon_hostname': 'The name this machine is written under',
@@ -727,6 +748,7 @@ NAMES = {
     'alerts_hisec': 'The security check finding something',
     'alerts_hand': 'A step waiting for a person',
     'alerts_sso': 'Sign-ins by the load balancer refused',
+    'alerts_kerberos': 'Sign-ins with Windows (Kerberos) refused',
     'alerts_url': 'The administration’s address in the mails',
     'alerts_lang': 'Language of the alerts',
     'report_lang': 'Language of the report',
@@ -1159,6 +1181,50 @@ SAYS = {
                          'Only on the pages opened by their name over HTTPS with a certificate the '
                          'browser trusts - and on that name only: a passkey set up on '
                          'acme.example.cz does not work on acme1.example.cz or on an address.',
+    'admin_krb': 'A browser on a computer in the domain signs its person in without a password: '
+                 'it sends a Kerberos ticket for the name it opened, checked against the keytab '
+                 'put in below (<i>Signing in with Windows</i>). Only accounts of the directory '
+                 'above get in, with the role of their groups - looked up by their '
+                 'sAMAccountName - and the second step, when it is on, is asked after it just '
+                 'the same. A local account keeps its password. NTLM is never taken. Off: '
+                 'nothing of it is offered. Its own switch: the enrolment pages have theirs.',
+    'admin_krb_auto': 'On: the sign-in page tries Windows at once, and shows the form only when it '
+                      'did not work. Off: a button "Sign in with Windows" under the form. After '
+                      'Sign out it is never tried by itself in that tab again (or Sign out would '
+                      'sign you straight back in).',
+    'admin_krb_realm': 'The realm whose people may sign in, in capitals (CORP.EXAMPLE). Empty: '
+                       'taken from the base DN of the directory above (DC=corp,DC=example → '
+                       'CORP.EXAMPLE). A ticket of any other realm is refused.',
+    'admin_password_off': 'On: the sign-in page offers no name and password - nobody signs in '
+                          'with a password, local accounts neither; only Windows (Kerberos), then '
+                          'the second step when it is on. No password is set or changed on these '
+                          'pages either. Switched on only from a sign-in made with Windows (so '
+                          'whoever switches it on has seen it work); in effect only while '
+                          'Kerberos is on and a keytab is put in. The way back, as root: '
+                          'acme --set admin_password_off=0.',
+    'portal_krb': 'A browser on a computer in the domain signs its person in to the certificate '
+                  'portal without a password, with the same keytab as the administration (one '
+                  'service account, an SPN for every name the pages are opened by). The person '
+                  'is looked up in the portal\'s directory by sAMAccountName, and who may sign '
+                  'in here decides - Who may sign in, the groups, the role Enrolment pages only - '
+                  'exactly as for a password; the one-time code, when it is on, is sent after '
+                  'it just the same. acme\'s own accounts keep their password. Independent of '
+                  'the administration\'s switch, and of the sign-in by a load balancer (both may '
+                  'be on). Off: nothing of it is offered on the portal.',
+    'portal_krb_auto': 'On: the portal tries Windows at once when it opens, and shows the form '
+                       'only when it did not work. Off: a button "Sign in with Windows" under the '
+                       'form. Never by itself again in that tab after Sign out.',
+    'portal_krb_realm': 'The realm whose people may sign in to the portal, in capitals. Empty: '
+                        'taken from the base DN of the portal\'s directory (Which directory '
+                        'people sign in against, else the administrators\'). A ticket of any '
+                        'other realm is refused.',
+    'portal_password_off': 'On: the portal offers no name and password - nobody signs in to it '
+                           'with a password, acme\'s own accounts neither; only Windows '
+                           '(Kerberos), then the one-time code when it is on. Switched on only by '
+                           'an administrator who is signed in to the portal with Windows in the '
+                           'same browser; in effect only while Kerberos is on for the portal and '
+                           'a keytab is put in. The way back, as root: acme --set '
+                           'portal_password_off=0.',
     'isemon': 'Send what happens to the certificates - a renewal, a deployment, a failure, '
               'one running out - to isemon, as syslog lines of the program '
               '<code>acme-certs</code>, one event a line with key=value fields (and with '
@@ -1293,6 +1359,7 @@ SAYS = {
     'alerts_hisec': 'What Settings → High security finds less safe than it could be - said once a day while it stays so.',
     'alerts_hand': 'What acme cannot do by itself and waits for a person - a command to run as root after an update, SELinux switched off, the root helper not there. Also shown in Settings → Upgrades and maintenance.',
     'alerts_sso': 'Each sign-in by the load balancer or WAF the enrolment pages refuse, as it is refused - wrong key, not from a balancer, a name the directory does not know.',
+    'alerts_kerberos': 'Each sign-in with Windows (Kerberos) refused - to the administration or to the enrolment pages - as it is refused: NTLM, a ticket used again, another realm, a name not in the keytab, nobody of that name in the directory. Noisy where many try before it is set up right.',
     'alerts_url': 'Where the links in the mails lead, <code>https://acme.example.cz/admin/</code>. '
                   'Empty: this machine’s name.',
     'report': 'A report of the period by mail: the certificates (renewed, deployed, failed, '
@@ -1525,6 +1592,10 @@ PANES = {
                'names_czsk_letters', 'names_any_letters',
                'admin_directory', 'admin_group_full', 'admin_group_cert',
                'admin_group_readonly', 'admin_group_portal'],
+    # Signing in with Windows (1.0.99): the administration's switches on the card of their own
+    # under Accounts, the portal's on the card under the enrolment pages.
+    'adminkrb': ['admin_krb', 'admin_krb_auto', 'admin_krb_realm', 'admin_password_off'],
+    'portalkrb': ['portal_krb', 'portal_krb_auto', 'portal_krb_realm', 'portal_password_off'],
     'db': ['db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password',
            'db_timeout_s', 'db_tls', 'db_tls_ca', 'db_path', 'backup_daily', 'backup_keep',
            'backup_at',
@@ -1561,6 +1632,7 @@ PANES = {
                'alerts_shipping', 'alerts_snmp', 'alerts_acme', 'alerts_upgrade', 'alerts_trial',
                'alerts_dbguard', 'alerts_mailq', 'alerts_split', 'alerts_clock',
                'alerts_repl_behind_mb', 'alerts_selinux', 'alerts_hisec', 'alerts_hand', 'alerts_sso',
+               'alerts_kerberos',
                'alerts_lang', 'alerts_url', 'report', 'report_to', 'report_lang', 'report_every', 'report_day', 'report_at'],
     'codes': ['code_digits', 'code_ttl_s', 'code_tries', 'code_send_max',
               'code_send_window_min', 'code_lang', 'code_mail_fmt', 'sms_mode', 'sms_url', 'sms_method',
@@ -1620,6 +1692,11 @@ ONLY_WHEN = {
     'admin_group_portal': ['admin_directory', '*'],
     'admin_2fa_app': ['admin_2fa', '1'], 'admin_2fa_mail': ['admin_2fa', '1'],
     'admin_2fa_sms': ['admin_2fa', '1'], 'admin_2fa_passkey': ['admin_2fa', '1'],
+    'admin_krb': ['admin_directory', '*'], 'admin_krb_auto': ['admin_krb', '1'],
+    'admin_krb_realm': ['admin_krb', '1'], 'admin_password_off': ['admin_krb', '1'],
+    'portal_krb': ['portal', '1'], 'portal_krb_auto': ['portal_krb', '1'],
+    'portal_krb_realm': ['portal_krb', '1'], 'portal_password_off': ['portal_krb', '1'],
+    'alerts_kerberos': ['alerts', '1'],
     'db_host': ['db_engine', 'sqlite-not'], 'db_port': ['db_engine', 'sqlite-not'],
     'db_name': ['db_engine', 'sqlite-not'], 'db_user': ['db_engine', 'sqlite-not'],
     'db_password': ['db_engine', 'sqlite-not'], 'db_timeout_s': ['db_engine', 'sqlite-not'],
@@ -1937,6 +2014,11 @@ def check_setting(key, value):
                 ipaddress.ip_network(one, strict=False)
             except ValueError:
                 raise BadSetting('web_proxy_from: %r is not an address or a network' % one)
+    if key in ('admin_krb_realm', 'portal_krb_realm') and str(got).strip():
+        # A realm as AD names it (1.0.99): CORP.EXAMPLE - kept in capitals, as tickets say it.
+        got = str(got).strip().upper()
+        if not re.match(r'^(?=.{1,253}\Z)[A-Z0-9]([A-Z0-9-]{0,62})(\.[A-Z0-9]([A-Z0-9-]{0,62}))*\Z', got):
+            raise BadSetting('%s: a realm as CORP.EXAMPLE (letters, digits, dots)' % key)
     if key == 'portal_sso_from':
         for one in [w for w in re.split(r'[\s,;]+', str(got)) if w]:
             try:

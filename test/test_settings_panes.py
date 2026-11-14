@@ -56,6 +56,10 @@ READ_OTHERWISE = {
     'portal_tries', 'login_tries',                     # split_limit('...')
     'certs_certadmin_all', 'certs_readonly_all',       # acmelib/certs/teams.py _setting()
     'alerts_trial', 'alerts_sso',                      # ALERT_EVENTS: CONFIG.get(r[0]) (1.0.40)
+    'alerts_kerberos',                                 # ALERT_EVENTS too (1.0.99)
+    # Signing in with Windows (1.0.99): each part's, CONFIG.get(part + '_krb_auto') ...
+    'admin_krb_auto', 'admin_krb_realm', 'admin_password_off',
+    'portal_krb_auto', 'portal_krb_realm', 'portal_password_off',
 }
 
 

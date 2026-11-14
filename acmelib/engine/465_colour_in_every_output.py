@@ -750,6 +750,14 @@ def build_parser():
     g.add_argument('--sso-key', action='store_true',
                    help='make a new key for the balancer to send in X-Acme-Sso-Key, shown once '
                         '(the one before is no longer taken)')
+    g.add_argument('--kerberos', action='store_true',
+                   help='signing in with Windows (Kerberos): each part on or off, its realm, the '
+                        'keytab\'s principals (never a key), the names and their SPNs, each node')
+    g.add_argument('--kerberos-keytab', metavar='FILE',
+                   help='put in the keytab of the service account (made by ktpass) - for both '
+                        'parts, every node writes it out itself')
+    g.add_argument('--kerberos-keytab-off', action='store_true',
+                   help='take the keytab away: nobody signs in with Windows until another is put in')
     g.add_argument('--api', nargs='+', metavar=('METHOD PATH', 'BODY'), help='any page\'s question '
                    'as the pages ask it: GET /api/ntp, or POST /api/osup \'{"action": "check"}\' '
                    '(BODY - : read from stdin, for one holding a secret) - the answer as JSON')
@@ -2541,6 +2549,71 @@ def cli_sso(args, pal, store):
     return 0
 
 
+class _CliHere(object):
+    """What the card's view asks of a request, for the command line (1.0.99)."""
+
+    def __init__(self, store, d):
+        self.store, self.d, self.headers = store, d, {}
+
+
+def cli_kerberos(args, pal, store):
+    """acme --kerberos, --kerberos-keytab FILE, --kerberos-keytab-off (1.0.99)."""
+    by = 'root on %s' % node_name()
+    if args.kerberos_keytab:
+        try:
+            with open(args.kerberos_keytab, 'rb') as f:
+                raw = f.read(KRB_KEYTAB_MAX + 1)
+            view = krb_keytab_put(store, raw, by, args.kerberos_keytab)
+        except (OSError, ValueError) as e:
+            raise SystemExit('acme: %s' % e)
+        if args.json:
+            print(json.dumps(view))
+            return 0
+        print(pal.ok_line('the keytab is put in - every node writes it out within seconds'))
+        for e in view['entries']:
+            print('  %-50s kvno %-4s %s%s' % (e['principal'], e['kvno'], e['kind'],
+                                               '  (weak)' if e.get('weak') else ''))
+        return 0
+    if args.kerberos_keytab_off:
+        cli_sure(args, 'the keytab taken away: nobody signs in with Windows until another is put in')
+        if not krb_keytab_drop(store, by):
+            raise SystemExit('acme: there is no keytab to take away')
+        print(pal.ok_line('the keytab is taken away - on every node within seconds'))
+        return 0
+    d = Daemon(store, serve=False)
+    d.reload_directories()
+    v = krb_view(_CliHere(store, d))
+    if args.json:
+        print(json.dumps(v, default=str))
+        return 0
+    for part, words in (('admin', 'the administration'), ('portal', 'the enrolment pages')):
+        p = v['parts'][part]
+        print(pal.ok_line('signing in with Windows to %s: %s' % (words, 'ON' if p['on'] else 'off')))
+        print('  realm %s (%s), directory %s, by itself %s, only Windows %s%s' % (
+            p['realm'] or '-', {'set': 'set', 'directory': 'from the directory'}.get(p['realm_from'], '-'),
+            p['directory'] or '-', 'yes' if p['auto'] else 'no',
+            'ON' if p['only_in_effect'] else ('set, not in effect' if p['password_off'] else 'no'),
+            ('  (the way back: acme --set %s_password_off=0)' % part) if p['password_off'] else ''))
+    kt = v['keytab']
+    if not kt:
+        print(pal.warn_line('no keytab is put in (acme --kerberos-keytab FILE)'))
+    else:
+        print('  the keytab: put in %s by %s' % (stamp(kt['at']), kt['by'] or '?'))
+        for e in kt['entries']:
+            print('    %-50s kvno %-4s %s%s' % (e['principal'], e['kvno'], e['kind'],
+                                                 '  (weak)' if e.get('weak') else ''))
+    for n in v['names']:
+        print('  name %-40s %-10s %s  %s' % (n['name'], n['of'], n['spn'],
+                                            {'name': 'in the keytab', 'key': 'by the account\'s key?',
+                                             '': 'no keytab'}[n['in_keytab']]))
+    for n in v['nodes']:
+        print('  node %-12s %s, keytab %s, Kerberos library %s%s' % (
+            n['node'], 'heard from' if n['heard'] else 'NOT heard from',
+            'written' if n['written'] else 'not written', 'there' if n['lib'] else 'MISSING',
+            ('  (%s)' % n['error']) if n['error'] else ''))
+    return 0
+
+
 def cli_main(argv=None):
     global _LOG_TO_STDERR
     if CLI_STARTED_ROOT[0] is None:
@@ -2752,6 +2825,8 @@ def cli_main(argv=None):
         return cli_ha_compare(store, pal, args.json)
     if args.sso_status or args.sso_key:
         return cli_sso(args, pal, store)
+    if args.kerberos or args.kerberos_keytab or args.kerberos_keytab_off:
+        return cli_kerberos(args, pal, store)
     if args.web_status or args.tls_import or args.tls_preset or args.tls_dh or \
             args.tls_hsts is not None or args.vip_set or args.vip or args.vip_move or args.vip_return or \
             args.web_retry:

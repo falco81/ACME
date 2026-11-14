@@ -231,6 +231,18 @@ if (isset($_GET['api'])) {
         echo json_encode(is_array($data) ? $data : ['ok' => false, 'error' => 'sign-in failed']);
         exit;
     }
+    /* Signing in with Windows (Kerberos, 1.0.99): 401 Negotiate without a ticket, 403 for
+       every refusal, the session into the cookie. Try my browser's ticket (the card) signs
+       nobody in. */
+    if ($what === 'kerberos-login' && $post) {
+        acme_kerberos_relay('/api/auth/kerberos');
+        exit;
+    }
+    if ($what === 'kerberos-try' && $post) {
+        $part = (string) ($_GET['part'] ?? 'admin');
+        acme_kerberos_relay('/api/kerberos/try', ['part' => $part === 'portal' ? 'portal' : 'admin'], false);
+        exit;
+    }
     if ($what === 'mfa' && $post) {
         /* The second step given (1.0.149): the daemon ends the sign-in the
            password opened and hands a new one - its cookie set here, the
@@ -454,6 +466,7 @@ if (isset($_GET['api'])) {
         'mfa' => '/api/auth/mfa',
         'sshkeys' => '/api/sshkeys', 'osusers' => '/api/osusers', 'osup' => '/api/osup', 'alerts' => '/api/alerts', 'sshd' => '/api/sshd', 'hisec' => '/api/hisec', 'acme' => '/api/acme', 'siem' => '/api/siem', 'isemon' => '/api/isemon', 'proxy' => '/api/proxy', 'logs' => '/api/logs',
         'portal-sso' => '/api/portal-sso',
+        'kerberos' => '/api/kerberos',              /* signing in with Windows (1.0.99) */
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'acme-push' => '/api/acme-push',
         'osroots' => '/api/osroots',                /* the system's trusted roots (1.0.59) */
@@ -477,6 +490,7 @@ if (isset($_GET['api'])) {
         'mfa' => '/api/auth/mfa', 'passkeys' => '/api/auth/passkeys',
         'sshkeys' => '/api/sshkeys', 'osusers' => '/api/osusers', 'osup' => '/api/osup', 'alerts' => '/api/alerts', 'sshd' => '/api/sshd', 'hisec' => '/api/hisec', 'acme' => '/api/acme', 'siem' => '/api/siem', 'proxy' => '/api/proxy', 'logs' => '/api/logs',
         'portal-sso' => '/api/portal-sso',
+        'kerberos' => '/api/kerberos',              /* signing in with Windows (1.0.99) */
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'acme-push' => '/api/acme-push',
         'osroots' => '/api/osroots',                /* the system's trusted roots (1.0.59) */
@@ -506,7 +520,15 @@ if (isset($_GET['api'])) {
             echo json_encode(['ok' => false, 'error' => 'unknown endpoint']);
             exit;
         }
-        acme_relay($writes[$what], 'POST', sent_json(), 90.0);
+        /* The settings saved with the portal's sign-in of this browser, when there is one
+           (1.0.99): "only Windows" on the portal is switched on only by somebody signed in to
+           the portal with Windows - the daemon looks at that sign-in, nothing more. */
+        $extra = [];
+        $portal = (string) ($_COOKIE['acme_portal'] ?? '');
+        if ($what === 'settings' && preg_match('/^[A-Za-z0-9_-]{16,128}\z/', $portal) === 1) {
+            $extra[] = 'X-Acme-Portal-Session: ' . $portal;
+        }
+        acme_relay($writes[$what], 'POST', sent_json(), 90.0, $extra);
         exit;
     }
     if (!isset($reads[$what])) {
@@ -548,9 +570,13 @@ if (!$me && !acme_local()) {
        (1.0.19: only the language was kept, and the page then read the
        missing database as one that will not open.) */
     $health = ['lang' => (string) ($health['lang'] ?? 'cs'), 'database' => ['ok' => true],
-               'users' => 1];
+               'users' => 1, 'kerberos' => $health['kerberos'] ?? null];
 }
 $initial = $me ? (acme_get('/api/status', 8.0) ?: null) : null;
+/* Signing in with Windows (1.0.99): the button, tried by itself, or no password at all. */
+$krb = (!$me && $alive && is_array($health['kerberos'] ?? null)) ? $health['kerberos'] : [];
+$krb_on = !empty($krb['on']);
+$krb_only = $krb_on && !empty($krb['only']);
 /* The sign-in's picture, when it is to be shown here too (1.0.71). */
 $art_info = $me ? null : acme_get('/api/portal/info', 3.0);
 $art_here = $me ? '' : acme_art_for(is_array($art_info) ? ($art_info['admin_art'] ?? null) : null, 'admin', 'acme');
@@ -622,6 +648,10 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         <span class="mono">acme --add-user yourname --role fulladmin</span></div>
     <?php endif; ?>
     <div id="mfa-box" data-stage="<?= h($mfa) ?>" hidden></div>
+    <?php if ($krb_only): ?>
+    <!-- Only Windows (1.0.99): no name and no password on the page at all. -->
+    <form id="signin-form" hidden></form>
+    <?php else: ?>
     <form id="signin-form" autocomplete="on"<?= $mfa !== '' ? ' hidden' : '' ?>>
       <input type="text" id="in-name" name="username" placeholder="name" autocomplete="username"
              autocapitalize="none" spellcheck="false" required>
@@ -634,6 +664,18 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         d="M18 9l3 3-3 3"/></svg><span>Sign in</span></button>
       <div class="said" id="in-said"></div>
     </form>
+    <?php endif; ?>
+    <?php if ($krb_on && $mfa === ''): ?>
+    <div class="krb-box" id="krb-box" data-part="admin" data-auto="<?= !empty($krb['auto']) ? '1' : '0' ?>" data-only="<?= $krb_only ? '1' : '0' ?>">
+      <?php if (!$krb_only): ?><div class="krb-or"><span>or</span></div><?php endif; ?>
+      <button class="btn cmd<?= $krb_only ? ' primary' : '' ?>" type="button" id="krb-go"><svg
+        viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="0.6"/><rect
+        x="13" y="4" width="7" height="7" rx="0.6"/><rect x="4" y="13" width="7" height="7" rx="0.6"/><rect
+        x="13" y="13" width="7" height="7" rx="0.6"/></svg><span>Sign in with Windows</span></button>
+      <div class="said" id="krb-said"></div>
+    </div>
+    <?php endif; ?>
     <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center">
       <span class="muted small">acme <?= h(ACME_VERSION) ?></span>
       <span class="langpick" id="langpick"></span>
@@ -662,7 +704,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       host.appendChild(b);
     });
   }
-  form.addEventListener('submit', function (e) {
+  if (go) form.addEventListener('submit', function (e) {
     e.preventDefault();
     said.className = 'said';
     said.textContent = '';
@@ -683,7 +725,12 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       $('in-pass').focus();
     });
   });
-  if ($('mfa-box').dataset.stage) mfaStep(); else $('in-name').focus();
+  /* Signed in with Windows (1.0.99): the second step next, exactly as after a password. */
+  krbDoor(function (d) {
+    if (d && d.mfa) { form.hidden = true; var kb = $('krb-box'); if (kb) kb.hidden = true; mfaStep(); return; }
+    location.reload();
+  });
+  if ($('mfa-box').dataset.stage) mfaStep(); else if ($('in-name')) $('in-name').focus();
 }());
 </script>
 </body>
@@ -861,6 +908,16 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <div id="sect-portalsso"></div>
       <div id="sso-host"></div>
     </div>
+    <div class="card full" id="krb-card-portal">
+      <h2>Signing in with Windows (Kerberos)</h2>
+      <p class="note">A browser on a computer in the domain signs its person in to the portal
+        without a password, with a Kerberos ticket - the same keytab as the administration's, the
+        portal's own switches. Who may sign in here decides as for a password, and the one-time
+        code, when it is on, is sent after it just the same. NTLM is never taken. Off, nothing of
+        it is offered on the portal.</p>
+      <div id="sect-portalkrb"></div>
+      <div id="krb-host-portal"></div>
+    </div>
   </div>
 
   <div class="ctl-pane" id="pane-alerts" hidden>
@@ -1037,6 +1094,17 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       </div>
     </div>
     <div class="card full"><div id="sect-people"></div></div>
+    <div class="card full" id="krb-card-admin">
+      <h2>Signing in with Windows (Kerberos)</h2>
+      <p class="note">A browser on a computer in the domain signs its person in to these pages
+        without a password: it sends a Kerberos ticket for the name it opened, checked here against
+        the keytab of that name. Only accounts of the directory chosen above get in, with the role
+        of their groups - and the second step, when it is on, is asked after it just the same.
+        NTLM is never taken. Off, nothing of it is offered. The enrolment pages have switches of
+        their own (The enrolment pages); the keytab is one for both.</p>
+      <div id="sect-adminkrb"></div>
+      <div id="krb-host-admin"></div>
+    </div>
     <div class="card full">
       <h2>The groups, and what each one may do</h2>
       <p class="note">Choose the directory in Sign administrators in against the directory above, then press Find the groups and pick them out of the directory rather than typing a distinguished name by hand — that is how a role ends up pointing at a group that does not exist, and nobody finds out until the first person cannot sign in.</p>

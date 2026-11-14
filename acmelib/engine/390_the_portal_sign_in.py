@@ -37,6 +37,10 @@ def portal_me(h, gate_ok=False):
     if (s.get('data') or {}).get('sso') and not CONFIG.get('portal_sso'):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         raise ApiError(401, 'sign in again')
+    # ...and signed in with Windows, that switched off meanwhile (1.0.99): it ends too.
+    if (s.get('data') or {}).get('how') == 'Kerberos' and not krb_on('portal'):
+        h.store.session_end(h.headers.get('X-Acme-Session'))
+        raise ApiError(401, 'sign in again')
     if portal_mfa_pending(s):
         raise ApiError(401, 'the second step of signing in is not done yet')
     # The one-time code at every sign-in (1.0.40, as otp 1.0.228): until it is typed, the sign-in
@@ -504,7 +508,10 @@ def _portal_info(h):
             # name from - only while it is switched on.
             'sso': {'header': CONFIG.get('portal_sso_header') or 'X-Acme-User',
                     'logout': CONFIG.get('portal_sso_logout') or ''}
-            if CONFIG.get('portal_sso') and CONFIG.get('portal') else None}
+            if CONFIG.get('portal_sso') and CONFIG.get('portal') else None,
+            # Signed in with Windows (Kerberos, 1.0.99): the button, tried by itself, no
+            # password at all - the portal's own switches, not the administration's.
+            'kerberos': krb_page_info('portal')}
 
 
 def portal_directory(h):
@@ -524,6 +531,13 @@ def _portal_login(h):
     # megabytes typed went into the log and to the directory.
     name = str(b.get('name') or '').strip()[:190]
     password = str(b.get('password') or '')
+    # "Only Windows" on the portal (1.0.99): no password signs anybody in here, acme's own
+    # accounts neither - while Kerberos can (acme --set portal_password_off=0 back).
+    if krb_password_off('portal'):
+        h.store.add_event('portal', 'a password for %s from %s refused: the enrolment pages are '
+                          'signed in to with Windows only' % (name or '(nobody)', h.client_ip()),
+                          'warn')
+        raise ApiError(403, KRB_ONLY_SAID)
     key = h.throttle('portal', split_limit('portal_tries', 5),
                      int(CONFIG.get('portal_wait_min') or 15), name=name)
     if name and name_letters_problem(name):
@@ -598,9 +612,10 @@ def _portal_login(h):
     return portal_open_dir(h, key, name, ad, entry)
 
 
-def portal_open_dir(h, key, name, ad, entry, sso=False):
+def portal_open_dir(h, key, name, ad, entry, sso=False, how=''):
     """The directory has said who it is (the password right, or the balancer in front signed
-    them in, otp 1.0.239): who may use these pages decides, and the sign-in is made."""
+    them in, otp 1.0.239, or a Kerberos ticket, 1.0.99 - how='Kerberos', kept in the
+    session): who may use these pages decides, and the sign-in is made."""
     let_in = []
     if (CONFIG.get('portal_who') or 'anyone') == 'groups':
         wanted = [{'group': g} for g in dn_list(CONFIG.get('portal_groups'))]
@@ -665,7 +680,7 @@ def portal_open_dir(h, key, name, ad, entry, sso=False):
                                  'gate': gate,
                                  'gate_wait': {'kind': gate['kind'], 'dest': gate['dest']}
                                  if gate else None,
-                                 'sso': 1 if sso else 0})
+                                 'sso': 1 if sso else 0, 'how': how or ''})
     if gate:
         return {'token': token, 'name': who,
                 'gate': {'kind': gate['kind'], 'dest': dest_masked(gate['kind'], gate['dest']),
@@ -673,8 +688,8 @@ def portal_open_dir(h, key, name, ad, entry, sso=False):
                          'minutes': max(1, int(CONFIG.get('code_ttl_s') or 300) // 60),
                          'sso': bool(sso)}}
     h.store.add_event('portal', '%s signed in to the enrolment pages from %s%s'
-                      % (who, h.client_ip(), ' (signed in by the load balancer)' if sso else ''),
-                      who=who)
+                      % (who, h.client_ip(), ' (signed in by the load balancer)' if sso else
+                         (' with Windows (Kerberos)' if how == 'Kerberos' else '')), who=who)
     split_note(h.store, 'signin', who, 'signin:portal:' + str(who).lower())
     return {'token': token, 'name': who}
 
@@ -973,6 +988,8 @@ def _portal_password(h):
     if (s.get('data') or {}).get('kind') != 'local':
         raise ApiError(400, 'this account signs in with its directory password, which is '
                             'changed in the directory')
+    if krb_password_off('portal'):
+        raise ApiError(403, KRB_ONLY_SAID)
     acc = h.store.account(s["name"], checked=True)
     b = h.body()
     # The new one and the one typed again first, in words (as the form says them).

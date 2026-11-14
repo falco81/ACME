@@ -6,7 +6,36 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.99 - not released
 
-(nothing yet)
+- **Signing in with Windows (Kerberos SSO)**, as otp 1.0.274 - to the administration and to the
+  certificate portal, **each by its own switches** (both, either or neither; off by default). A
+  browser on a computer of the domain signs its person in without a password: *Sign in with
+  Windows* under the form, or at once when the page opens (never again in that tab after *Sign
+  out*). Kerberos 5 only - NTLM, bare or inside SPNEGO, is never taken, and the mechanism is
+  checked after the ticket is accepted. Only the directory's people, by the same rules as a
+  password: the administration - the role of their AD groups, looked up by sAMAccountName
+  (switched off, locked, expired, more than one entry, a computer: refused), the second step
+  asked after it every time; the portal - its own directory and realm, *Who may sign in* and the
+  groups, the one-time code sent after it every time. A local account keeps its password. Every
+  refusal is 403 (never a second 401), said on the page and written in Events; refused tickets
+  count towards the sign-in protection as wrong passwords do; *Alerts → Sign-ins with Windows
+  (Kerberos) refused* (off by default).
+- The keytab is put in once on the pages (*Settings → Accounts → Signing in with Windows*) or with
+  `acme --kerberos-keytab FILE`: kept in the database sealed with the installation's key and
+  signed (db_guard), written out by each node itself (0600, the service's user) - a node put back
+  from a backup or joined later too; its principals, key versions and kinds of key shown, never a
+  key. A ticket is taken once in the whole cluster (a day, in the shared database), also after the
+  VIP address moved. The card: the keytab, *Try my browser's ticket* (who it would sign in to that
+  part, and as what - nobody signed in), the names the pages are opened by with their SPN, each
+  node, the `setspn` / `ktpass` commands and the browsers' settings filled in. `acme --kerberos`
+  says all of it.
+- **"Only Windows"** for each part (`admin_password_off`, `portal_password_off`): no password on
+  the sign-in page, none taken, set or changed - switched on only from a sign-in made with Windows,
+  in effect only while Kerberos can sign anybody in; root's way back is `acme --set
+  admin_password_off=0`. Never switched on by a configuration file read back.
+- The session says how it was opened (`how: Kerberos`). The exported configuration carries the
+  keytab with the secrets only. nginx takes headers up to 32 kB (`large_client_header_buffers 4
+  32k` - a ticket of a person in many groups is more than 8 kB): new installations, the upgrade
+  and the pages' root helper put it in.
 
 ## 1.0.98 - 2026-11-13
 

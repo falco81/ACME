@@ -669,6 +669,29 @@ def sso_peer_into(main, on):
     return main[:where[0]] + new + main[where[1]:]
 
 
+KRB_BUFFERS = '    large_client_header_buffers 4 32k;   # ACME-KRB-BUFFERS\n'
+
+
+def krb_buffers_into(main):
+    """Room for a Kerberos ticket (1.0.99): a person in many AD groups sends more than nginx's
+    8 kB of header, and the sign-in with Windows ended in "400 Request Header Or Cookie Too
+    Large". Put into this node's HTTPS server (the VIP address's server is made from it) when
+    neither install.sh nor a person has set it there."""
+    where = server_block(main)
+    if not where:
+        return main
+    block = main[where[0]:where[1]]
+    if 'large_client_header_buffers' in block:
+        return main
+    m = re.search(r'(?m)^[ \t]*client_max_body_size[ \t]+8m;[^\n]*\n', block)
+    if m:
+        new = block[:m.end()] + KRB_BUFFERS + block[m.end():]
+    else:
+        nl = block.find('\n', block.index('{') + 1)
+        new = block[:nl + 1] + KRB_BUFFERS + block[nl + 1:]
+    return main[:where[0]] + new + main[where[1]:]
+
+
 def server_block(text):
     """(start, end) of the HTTPS server { } of an nginx file."""
     i = 0
@@ -1133,6 +1156,11 @@ def nginx_part(r, last):
                 main, changed = new_main, True
                 said.append('nginx: port 80 answers the ACME CA (%s)' % (', '.join(r['acme']) or
                                                                         'no name yet'))
+        new_main = krb_buffers_into(main)
+        if new_main != main:
+            write_root(NGINX_MAIN, new_main, 0o644)
+            main, changed = new_main, True
+            said.append('nginx: room for a Kerberos ticket of a person in many groups (32 kB headers)')
         if r.get('pki'):
             new_main = pki_into(main)
             if new_main != main:

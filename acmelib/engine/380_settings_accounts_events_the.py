@@ -102,7 +102,8 @@ def _settings_do(h):
         # The other sign-ins ended when the second step is switched on: in
         # save_settings, the one saving it kept.
         return h.d.save_settings(asked, by=s['name'], node=b.get('node'),
-                                 drawn_by=b.get('drawn_by'), keep_session=s.get('id'))
+                                 drawn_by=b.get('drawn_by'), keep_session=s.get('id'),
+                                 krb_proof=krb_proof_of(h, s))
     except NodeMoved as e:
         raise ApiError(409, str(e))
     except HiSecConflict as e:
@@ -268,6 +269,9 @@ def _users_do(h):
     b = h.body()
     act, name = b.get('action'), str(b.get('name') or '').strip()
     who = s['name']
+    if act in ('add', 'password') and b.get('password') and krb_password_off('admin'):
+        # "Only Windows" (1.0.99): no account signs in with a password now - none is given one.
+        raise ApiError(403, KRB_ONLY_SAID)
     if act == 'add':
         if 'again' in b and str(b.get('again') or '') != str(b.get('password') or ''):
             raise ApiError(400, 'the new password and the one typed again are not the same - '

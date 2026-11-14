@@ -61395,6 +61395,510 @@
   "_131": {
    "source": "a shell session, these lines on its input:",
    "text": "relace shellu, tyto řádky na jejím vstupu:"
+  },
+  "_132": {
+   "source": "Sign in with Windows",
+   "text": "Přihlásit se přes Windows"
+  },
+  "_133": {
+   "source": "Sign in with Windows to see your certificates.",
+   "text": "Přihlaste se přes Windows a uvidíte své certifikáty."
+  },
+  "_134": {
+   "source": "Asking Windows…",
+   "text": "Ptám se Windows…"
+  },
+  "_135": {
+   "source": "the browser sent no Kerberos ticket - is this computer in the domain, and this name among the browser's intranet sites?",
+   "text": "prohlížeč neposlal žádný lístek Kerberos – je tento počítač v doméně a je toto jméno mezi intranetovými weby prohlížeče?"
+  },
+  "_136": {
+   "source": "the browser sent no Kerberos ticket",
+   "text": "prohlížeč neposlal žádný lístek Kerberos"
+  },
+  "_137": {
+   "source": "signing in with Windows is switched off here",
+   "text": "přihlášení přes Windows je tu vypnuté"
+  },
+  "_138": {
+   "source": "only Windows: these pages take no password - sign in with Windows",
+   "text": "jen Windows: tyto stránky heslo nepřijímají – přihlaste se přes Windows"
+  },
+  "_139": {
+   "source": "Signing in with Windows (Kerberos)",
+   "text": "Přihlášení přes Windows (Kerberos)"
+  },
+  "_140": {
+   "source": "A browser on a computer in the domain signs its person in to these pages without a password: it sends a Kerberos ticket for the name it opened, checked here against the keytab of that name. Only accounts of the directory chosen above get in, with the role of their groups - and the second step, when it is on, is asked after it just the same. NTLM is never taken. Off, nothing of it is offered. The enrolment pages have switches of their own (The enrolment pages); the keytab is one for both.",
+   "text": "Prohlížeč na počítači v doméně přihlásí svého uživatele na tyto stránky bez hesla: pošle lístek Kerberos pro jméno, které otevřel, a ten se tu ověří proti keytabu tohoto jména. Dovnitř se dostanou jen účty adresáře vybraného výše, s rolí podle svých skupin – a druhý krok, je-li zapnutý, se po něm žádá úplně stejně. NTLM se nikdy nepřijímá. Vypnuto: nic z toho se nenabízí. Zápisové stránky mají vlastní přepínače (Zápisové stránky); keytab je jeden pro obě části."
+  },
+  "_141": {
+   "source": "A browser on a computer in the domain signs its person in to the portal without a password, with a Kerberos ticket - the same keytab as the administration's, the portal's own switches. Who may sign in here decides as for a password, and the one-time code, when it is on, is sent after it just the same. NTLM is never taken. Off, nothing of it is offered on the portal.",
+   "text": "Prohlížeč na počítači v doméně přihlásí svého uživatele do portálu bez hesla, lístkem Kerberos – stejný keytab jako pro administraci, vlastní přepínače portálu. O tom, kdo se smí přihlásit, se rozhoduje stejně jako u hesla, a jednorázový kód, je-li zapnutý, se po něm pošle úplně stejně. NTLM se nikdy nepřijímá. Vypnuto: na portálu se nic z toho nenabízí."
+  },
+  "_142": {
+   "source": "A keytab is put in",
+   "text": "Keytab je vložen"
+  },
+  "_143": {
+   "source": "No keytab yet",
+   "text": "Zatím žádný keytab"
+  },
+  "_144": {
+   "source": "Only Windows",
+   "text": "Jen Windows"
+  },
+  "_145": {
+   "source": "Choose the directory administrators sign in against first (above): only accounts of the directory sign in with Windows.",
+   "text": "Nejdřív vyberte adresář, proti kterému se administrátoři přihlašují (výše): přes Windows se přihlašují jen účty adresáře."
+  },
+  "_146": {
+   "source": "The enrolment pages are switched off (above): nobody signs in to them with Windows either.",
+   "text": "Zápisové stránky jsou vypnuté (výše): přes Windows se na ně nepřihlásí nikdo."
+  },
+  "_147": {
+   "source": "Switched on, but no keytab is put in yet: the button is not offered until one is.",
+   "text": "Zapnuto, ale zatím není vložen žádný keytab: tlačítko se nenabízí, dokud nebude."
+  },
+  "_148": {
+   "source": "set above",
+   "text": "nastaveno výše"
+  },
+  "_149": {
+   "source": "from the directory’s base DN",
+   "text": "z base DN adresáře"
+  },
+  "_150": {
+   "source": "not known - set it above",
+   "text": "neznámá – nastavte ji výše"
+  },
+  "_151": {
+   "source": "Second step after it",
+   "text": "Druhý krok potom"
+  },
+  "_152": {
+   "source": "One-time code after it",
+   "text": "Jednorázový kód potom"
+  },
+  "_153": {
+   "source": "yes - asked after Windows too, every time",
+   "text": "ano – žádá se i po Windows, pokaždé"
+  },
+  "_154": {
+   "source": "By itself on the sign-in page",
+   "text": "Sám na přihlašovací stránce"
+  },
+  "_155": {
+   "source": "yes - tried at once, the form if it did not work",
+   "text": "ano – zkusí se hned, formulář jen když to nevyšlo"
+  },
+  "_156": {
+   "source": "no - a button under the form",
+   "text": "ne – tlačítko pod formulářem"
+  },
+  "_157": {
+   "source": "A password on the sign-in page",
+   "text": "Heslo na přihlašovací stránce"
+  },
+  "_158": {
+   "source": "none - only Windows",
+   "text": "žádné – jen Windows"
+  },
+  "_159": {
+   "source": "none set, but not in effect (Kerberos off or no keytab)",
+   "text": "nastaveno žádné, ale neplatí (Kerberos vypnutý nebo chybí keytab)"
+  },
+  "_160": {
+   "source": "offered beside it",
+   "text": "nabízí se vedle"
+  },
+  "_161": {
+   "source": "never taken",
+   "text": "nikdy se nepřijímá"
+  },
+  "_162": {
+   "source": "on there too - their own switch",
+   "text": "zapnuto i tam – vlastní přepínač"
+  },
+  "_163": {
+   "source": "off there - their own switch",
+   "text": "tam vypnuto – vlastní přepínač"
+  },
+  "_164": {
+   "source": "Signed in by a load balancer is on too: both work side by side, each by itself - a browser through the balancer comes in signed in by it, one in the domain by Windows.",
+   "text": "Přihlášení load balancerem je zapnuté také: obojí funguje vedle sebe, každé samo – prohlížeč přes balancer přijde přihlášený jím, prohlížeč v doméně přes Windows."
+  },
+  "_165": {
+   "source": "The keytab",
+   "text": "Keytab"
+  },
+  "_166": {
+   "source": " - kept sealed in the database; its keys are never shown. One for both parts.",
+   "text": " – uložen zapečetěný v databázi; jeho klíče se nikdy nezobrazují. Jeden pro obě části."
+  },
+  "_167": {
+   "source": "Principal",
+   "text": "Principal"
+  },
+  "_168": {
+   "source": "Key version",
+   "text": "Verze klíče"
+  },
+  "_169": {
+   "source": "Kind of key",
+   "text": "Druh klíče"
+  },
+  "_170": {
+   "source": "weak",
+   "text": "slabý"
+  },
+  "_171": {
+   "source": "None yet. Make it in AD (below) and put it in here - once, for both parts and every node.",
+   "text": "Zatím žádný. Vytvořte ho v AD (níže) a vložte sem – jednou, pro obě části i všechny uzly."
+  },
+  "_172": {
+   "source": "Put in a keytab…",
+   "text": "Vložit keytab…"
+  },
+  "_173": {
+   "source": "Put in another keytab…",
+   "text": "Vložit jiný keytab…"
+  },
+  "_174": {
+   "source": "Take the keytab away",
+   "text": "Odebrat keytab"
+  },
+  "_175": {
+   "source": "Take the keytab away?",
+   "text": "Odebrat keytab?"
+  },
+  "_176": {
+   "source": "Nobody signs in with Windows - to the administration or the portal - until another one is put in. Every node takes its copy away.",
+   "text": "Nikdo se přes Windows nepřihlásí – do administrace ani do portálu –, dokud nebude vložen jiný. Každý uzel svou kopii smaže."
+  },
+  "_177": {
+   "source": "Try my browser’s ticket",
+   "text": "Vyzkoušet lístek mého prohlížeče"
+  },
+  "_178": {
+   "source": "Asks this browser for its ticket and says who it would sign in to these pages and as what - nobody is signed in. The best way to find a wrong SPN before switching it on.",
+   "text": "Požádá tento prohlížeč o lístek a řekne, koho by přihlásil na tyto stránky a s jakou rolí – nikdo se nepřihlásí. Nejlepší způsob, jak najít špatné SPN ještě před zapnutím."
+  },
+  "_179": {
+   "source": "Asks this browser for its ticket and says who it would sign in to the enrolment pages and as what - nobody is signed in. The best way to find a wrong SPN before switching it on.",
+   "text": "Požádá tento prohlížeč o lístek a řekne, koho by přihlásil na zápisové stránky a jak – nikdo se nepřihlásí. Nejlepší způsob, jak najít špatné SPN ještě před zapnutím."
+  },
+  "_180": {
+   "source": "Would sign in",
+   "text": "Přihlásil by"
+  },
+  "_181": {
+   "source": "Would not sign in",
+   "text": "Nepřihlásil by"
+  },
+  "_182": {
+   "source": "No ticket taken",
+   "text": "Lístek nepřijat"
+  },
+  "_183": {
+   "source": "then the second step",
+   "text": "potom druhý krok"
+  },
+  "_184": {
+   "source": "then the one-time code",
+   "text": "potom jednorázový kód"
+  },
+  "_185": {
+   "source": "- once switched on",
+   "text": "– až se zapne"
+  },
+  "_186": {
+   "source": "this browser sent no Kerberos ticket: open these pages by a name below, from a computer in the domain, with that name among the browser’s intranet sites",
+   "text": "tento prohlížeč neposlal žádný lístek Kerberos: otevřete tyto stránky některým jménem níže, z počítače v doméně, s tímto jménem mezi intranetovými weby prohlížeče"
+  },
+  "_187": {
+   "source": "The names the pages are opened by",
+   "text": "Jména, kterými se stránky otevírají"
+  },
+  "_188": {
+   "source": "The browser asks for a ticket of HTTP/<the name in its address bar>. Each name needs its SPN on the service account in AD; one key of that account in the keytab serves them all. Never an address: there is no SPN for one, and Windows then offers NTLM - which is refused.",
+   "text": "Prohlížeč žádá o lístek pro HTTP/<jméno v adresním řádku>. Každé jméno potřebuje své SPN na servisním účtu v AD; jeden klíč tohoto účtu v keytabu poslouží všem. Nikdy adresa: pro ni žádné SPN není a Windows pak nabídne NTLM – které se odmítá."
+  },
+  "_189": {
+   "source": "Of",
+   "text": "Čí"
+  },
+  "_190": {
+   "source": "SPN",
+   "text": "SPN"
+  },
+  "_191": {
+   "source": "In the keytab",
+   "text": "V keytabu"
+  },
+  "_192": {
+   "source": "by name",
+   "text": "jménem"
+  },
+  "_193": {
+   "source": "by the account’s key, if the SPN is on it",
+   "text": "klíčem účtu, má-li na sobě SPN"
+  },
+  "_194": {
+   "source": "no keytab",
+   "text": "žádný keytab"
+  },
+  "_195": {
+   "source": "Each node",
+   "text": "Každý uzel"
+  },
+  "_196": {
+   "source": "Kerberos library",
+   "text": "Knihovna Kerberos"
+  },
+  "_197": {
+   "source": "an older one",
+   "text": "starší"
+  },
+  "_198": {
+   "source": "not written",
+   "text": "nezapsán"
+  },
+  "_199": {
+   "source": "none to write",
+   "text": "není co zapsat"
+  },
+  "_200": {
+   "source": "Making the keytab in AD",
+   "text": "Jak vytvořit keytab v AD"
+  },
+  "_201": {
+   "source": "On a domain controller, as a domain administrator: a service account of its own (a normal user, password never expires, AES allowed), the SPN of each name, and the keytab of the first one - the others are served by the same key. Changing the account’s password later makes a new key version: make the keytab again.",
+   "text": "Na řadiči domény, jako správce domény: vlastní servisní účet (běžný uživatel, heslo nikdy nevyprší, AES povoleno), SPN každého jména a keytab toho prvního – ostatním poslouží stejný klíč. Pozdější změna hesla účtu vytvoří novou verzi klíče: keytab pak vytvořte znovu."
+  },
+  "_202": {
+   "source": "cmd.exe on a domain controller",
+   "text": "cmd.exe na řadiči domény"
+  },
+  "_203": {
+   "source": "Telling the browsers",
+   "text": "Nastavení prohlížečů"
+  },
+  "_204": {
+   "source": "Edge and Chrome (Windows, by group policy): ",
+   "text": "Edge a Chrome (Windows, zásadami skupiny): "
+  },
+  "_205": {
+   "source": "...or Internet Options → Security → Local intranet → Sites: ",
+   "text": "...nebo Možnosti Internetu → Zabezpečení → Místní intranet → Weby: "
+  },
+  "_206": {
+   "source": "Firefox (policy or about:config): ",
+   "text": "Firefox (zásadou nebo about:config): "
+  },
+  "_207": {
+   "source": "NTLM: nothing to set here - it is refused whatever the browser offers",
+   "text": "NTLM: tady není co nastavovat – odmítá se, ať prohlížeč nabídne cokoli"
+  },
+  "_208": {
+   "source": "the keytab is put in - every node writes it out within seconds",
+   "text": "keytab je vložen – každý uzel si ho do několika sekund zapíše"
+  },
+  "_209": {
+   "source": "only Windows: no account signs in with a password now - the people of the directory sign in with Windows",
+   "text": "jen Windows: teď se heslem nepřihlašuje žádný účet – lidé z adresáře se přihlašují přes Windows"
+  },
+  "_210": {
+   "source": "Sign administrators in with Windows (Kerberos)",
+   "text": "Přihlašovat administrátory přes Windows (Kerberos)"
+  },
+  "_211": {
+   "source": "...by itself when the sign-in page opens",
+   "text": "...samo při otevření přihlašovací stránky"
+  },
+  "_212": {
+   "source": "Kerberos realm",
+   "text": "Realm Kerberos"
+  },
+  "_213": {
+   "source": "...and no password at all - only Windows",
+   "text": "...a vůbec žádné heslo – jen Windows"
+  },
+  "_214": {
+   "source": "Sign people in with Windows (Kerberos)",
+   "text": "Přihlašovat lidi přes Windows (Kerberos)"
+  },
+  "_215": {
+   "source": "...by itself when the portal opens",
+   "text": "...samo při otevření portálu"
+  },
+  "_216": {
+   "source": "Kerberos realm of the portal",
+   "text": "Realm Kerberos portálu"
+  },
+  "_217": {
+   "source": "...and no password at all on the portal - only Windows",
+   "text": "...a v portálu vůbec žádné heslo – jen Windows"
+  },
+  "_218": {
+   "source": "Sign-ins with Windows (Kerberos) refused",
+   "text": "Odmítnutá přihlášení přes Windows (Kerberos)"
+  },
+  "_219": {
+   "source": "On: the sign-in page tries Windows at once, and shows the form only when it did not work. Off: a button \"Sign in with Windows\" under the form. After Sign out it is never tried by itself in that tab again (or Sign out would sign you straight back in).",
+   "text": "Zapnuto: přihlašovací stránka hned zkusí Windows a formulář ukáže, jen když to nevyšlo. Vypnuto: tlačítko „Přihlásit se přes Windows“ pod formulářem. Po odhlášení se v té záložce samo už nikdy nezkouší (jinak by vás odhlášení hned zase přihlásilo)."
+  },
+  "_220": {
+   "source": "The realm whose people may sign in, in capitals (CORP.EXAMPLE). Empty: taken from the base DN of the directory above (DC=corp,DC=example → CORP.EXAMPLE). A ticket of any other realm is refused.",
+   "text": "Realm, jehož lidé se smějí přihlásit, velkými písmeny (CORP.EXAMPLE). Prázdné: vezme se z base DN adresáře výše (DC=corp,DC=example → CORP.EXAMPLE). Lístek jakéhokoli jiného realmu se odmítne."
+  },
+  "_221": {
+   "source": "On: the sign-in page offers no name and password - nobody signs in with a password, local accounts neither; only Windows (Kerberos), then the second step when it is on. No password is set or changed on these pages either. Switched on only from a sign-in made with Windows (so whoever switches it on has seen it work); in effect only while Kerberos is on and a keytab is put in. The way back, as root: acme --set admin_password_off=0.",
+   "text": "Zapnuto: přihlašovací stránka nenabízí jméno a heslo – heslem se nepřihlásí nikdo, ani místní účty; jen přes Windows (Kerberos), pak druhý krok, je-li zapnutý. Na těchto stránkách se ani nenastavuje ani nemění žádné heslo. Zapne se jen z přihlášení přes Windows (kdo to zapíná, viděl, že mu to funguje); platí jen, dokud je Kerberos zapnutý a vložen keytab. Cesta zpět, jako root: acme --set admin_password_off=0."
+  },
+  "_222": {
+   "source": "On: the portal tries Windows at once when it opens, and shows the form only when it did not work. Off: a button \"Sign in with Windows\" under the form. Never by itself again in that tab after Sign out.",
+   "text": "Zapnuto: portál při otevření hned zkusí Windows a formulář ukáže, jen když to nevyšlo. Vypnuto: tlačítko „Přihlásit se přes Windows“ pod formulářem. Po odhlášení se v té záložce samo už nikdy."
+  },
+  "_223": {
+   "source": "The realm whose people may sign in to the portal, in capitals. Empty: taken from the base DN of the portal's directory (Which directory people sign in against, else the administrators'). A ticket of any other realm is refused.",
+   "text": "Realm, jehož lidé se smějí přihlásit do portálu, velkými písmeny. Prázdné: vezme se z base DN adresáře portálu (adresář, proti kterému se lidé přihlašují, jinak ten administrátorů). Lístek jakéhokoli jiného realmu se odmítne."
+  },
+  "_224": {
+   "source": "On: the portal offers no name and password - nobody signs in to it with a password, acme's own accounts neither; only Windows (Kerberos), then the one-time code when it is on. Switched on only by an administrator who is signed in to the portal with Windows in the same browser; in effect only while Kerberos is on for the portal and a keytab is put in. The way back, as root: acme --set portal_password_off=0.",
+   "text": "Zapnuto: portál nenabízí jméno a heslo – heslem se do něj nepřihlásí nikdo, ani vlastní účty acme; jen přes Windows (Kerberos), pak jednorázový kód, je-li zapnutý. Zapne ho jen administrátor, který je ve stejném prohlížeči přihlášen do portálu přes Windows; platí jen, dokud je Kerberos pro portál zapnutý a vložen keytab. Cesta zpět, jako root: acme --set portal_password_off=0."
+  },
+  "_225": {
+   "source": "Each sign-in with Windows (Kerberos) refused - to the administration or to the enrolment pages - as it is refused: NTLM, a ticket used again, another realm, a name not in the keytab, nobody of that name in the directory. Noisy where many try before it is set up right.",
+   "text": "Každé odmítnuté přihlášení přes Windows (Kerberos) – do administrace i na zápisové stránky –, hned jak je odmítnuto: NTLM, znovu použitý lístek, jiný realm, jméno, které není v keytabu, nikdo toho jména v adresáři. Hlučné, dokud to mnozí zkoušejí před správným nastavením."
+  },
+  "_226": {
+   "source": "admin_password_off: \"only Windows\" is switched on only from a sign-in made with Windows (Kerberos) to these pages - sign in with Windows first, so it is seen to work for you",
+   "text": "admin_password_off: „jen Windows“ se zapíná jen z přihlášení přes Windows (Kerberos) na tyto stránky – nejdřív se přihlaste přes Windows, ať je vidět, že vám to funguje"
+  },
+  "_227": {
+   "source": "portal_password_off: \"only Windows\" on the portal is switched on only by somebody signed in to the portal with Windows in this browser - open the portal, sign in with Windows there first, then switch it on here",
+   "text": "portal_password_off: „jen Windows“ v portálu zapne jen ten, kdo je v tomto prohlížeči přihlášen do portálu přes Windows – otevřete portál, přihlaste se tam nejdřív přes Windows a pak to zapněte tady"
+  },
+  "_228": {
+   "source": "NTLM is never taken - only Kerberos",
+   "text": "NTLM se nikdy nepřijímá – jen Kerberos"
+  },
+  "_229": {
+   "source": "no Negotiate ticket in the header",
+   "text": "v hlavičce není lístek Negotiate"
+  },
+  "_230": {
+   "source": "the ticket is not base64",
+   "text": "lístek není v base64"
+  },
+  "_231": {
+   "source": "the header is larger than any Kerberos ticket",
+   "text": "hlavička je větší než jakýkoli lístek Kerberos"
+  },
+  "_232": {
+   "source": "the browser sent a header larger than any Kerberos ticket",
+   "text": "prohlížeč poslal hlavičku větší než jakýkoli lístek Kerberos"
+  },
+  "_233": {
+   "source": "larger than any Kerberos ticket",
+   "text": "větší než jakýkoli lístek Kerberos"
+  },
+  "_234": {
+   "source": "no ticket",
+   "text": "žádný lístek"
+  },
+  "_235": {
+   "source": "more than one round - not Kerberos",
+   "text": "víc než jedno kolo – to není Kerberos"
+  },
+  "_236": {
+   "source": "a mechanism that is not Kerberos 5",
+   "text": "mechanismus, který není Kerberos 5"
+  },
+  "_237": {
+   "source": "no name that can be read",
+   "text": "žádné čitelné jméno"
+  },
+  "_238": {
+   "source": "no keytab is put in yet (Settings → Accounts → Signing in with Windows)",
+   "text": "zatím není vložen žádný keytab (Nastavení → Účty → Přihlášení přes Windows)"
+  },
+  "_239": {
+   "source": "the keytab could not be written out on this node",
+   "text": "keytab se na tomto uzlu nepodařilo zapsat"
+  },
+  "_240": {
+   "source": "the realm is not known: set it, or a base DN of the directory",
+   "text": "realm není známý: nastavte ho, nebo base DN adresáře"
+  },
+  "_241": {
+   "source": "this ticket was used already (sent again?)",
+   "text": "tento lístek už byl použit (poslán znovu?)"
+  },
+  "_242": {
+   "source": "no directory is set (or switched on) for administrators",
+   "text": "pro administrátory není nastaven (nebo zapnut) žádný adresář"
+  },
+  "_243": {
+   "source": "no directory is set (or switched on) for the enrolment pages",
+   "text": "pro zápisové stránky není nastaven (nebo zapnut) žádný adresář"
+  },
+  "_244": {
+   "source": "the keytab is put in",
+   "text": "keytab je vložen"
+  },
+  "_245": {
+   "source": "the keytab is taken away",
+   "text": "keytab je odebrán"
+  },
+  "_246": {
+   "source": "there is no keytab to take away",
+   "text": "není žádný keytab k odebrání"
+  },
+  "_247": {
+   "source": "the keytab did not arrive whole",
+   "text": "keytab nedorazil celý"
+  },
+  "_248": {
+   "source": "the keytab is empty",
+   "text": "keytab je prázdný"
+  },
+  "_249": {
+   "source": "that is not a keytab (a keytab starts with the bytes 05 02)",
+   "text": "to není keytab (keytab začíná bajty 05 02)"
+  },
+  "_250": {
+   "source": "the keytab ends in the middle of an entry",
+   "text": "keytab končí uprostřed záznamu"
+  },
+  "_251": {
+   "source": "the keytab holds no key",
+   "text": "keytab neobsahuje žádný klíč"
+  },
+  "_252": {
+   "source": "the keytab holds only weak keys (DES or RC4) - make it with -crypto AES256-SHA1, and switch on \"This account supports Kerberos AES 256 bit encryption\" on the service account",
+   "text": "keytab obsahuje jen slabé klíče (DES nebo RC4) – vytvořte ho s -crypto AES256-SHA1 a na servisním účtu zapněte „Tento účet podporuje 256bitové šifrování Kerberos AES“"
+  },
+  "_253": {
+   "source": "signing in to these pages with Windows (Kerberos)",
+   "text": "přihlašování na tyto stránky přes Windows (Kerberos)"
+  },
+  "_254": {
+   "source": "signing in to the enrolment pages with Windows (Kerberos)",
+   "text": "přihlašování na zápisové stránky přes Windows (Kerberos)"
+  },
+  "_255": {
+   "source": "refused sign-ins with Windows",
+   "text": "odmítnutá přihlášení přes Windows"
+  },
+  "_257": {
+   "source": "A browser on a computer in the domain signs its person in to the certificate portal without a password, with the same keytab as the administration (one service account, an SPN for every name the pages are opened by). The person is looked up in the portal's directory by sAMAccountName, and who may sign in here decides - Who may sign in, the groups, the role Enrolment pages only - exactly as for a password; the one-time code, when it is on, is sent after it just the same. acme's own accounts keep their password. Independent of the administration's switch, and of the sign-in by a load balancer (both may be on). Off: nothing of it is offered on the portal.",
+   "text": "Prohlížeč na počítači v doméně přihlásí svého uživatele do certifikátového portálu bez hesla, se stejným keytabem jako administrace (jeden servisní účet, SPN pro každé jméno, kterým se stránky otevírají). Člověk se dohledá v adresáři portálu podle sAMAccountName a o tom, kdo se tu smí přihlásit, rozhoduje totéž co u hesla – Kdo se smí přihlásit, skupiny, role Jen zápisové stránky; jednorázový kód, je-li zapnutý, se po něm pošle úplně stejně. Vlastní účty acme si heslo ponechávají. Nezávislé na přepínači administrace i na přihlášení load balancerem (obojí může být zapnuté). Vypnuto: v portálu se nic z toho nenabízí."
+  },
+  "_258": {
+   "source": "written out",
+   "text": "zapsán"
   }
  },
  "patterns": {
@@ -85433,6 +85937,110 @@
   "p_164": {
    "source": "reload with the previous files: {0}",
    "text": "znovunačtení s předchozími soubory: {0}"
+  },
+  "p_165": {
+   "source": "Put in {0} by ",
+   "text": "Vložen {0}, vložil "
+  },
+  "p_166": {
+   "source": "The way back from \"only Windows\", as root: acme --set {0}_password_off=0 (or Kerberos switched off). More: docs/kerberos-sso.md in the package.",
+   "text": "Cesta zpět z „jen Windows“, jako root: acme --set {0}_password_off=0 (nebo vypnutý Kerberos). Víc: docs/kerberos-sso.md v balíčku."
+  },
+  "p_167": {
+   "source": "{0} is too big to be a keytab",
+   "text": "{0} je na keytab příliš velký"
+  },
+  "p_168": {
+   "source": "{0}: a realm as CORP.EXAMPLE (letters, digits, dots)",
+   "text": "{0}: realm ve tvaru CORP.EXAMPLE (písmena, číslice, tečky)"
+  },
+  "p_169": {
+   "source": "{0} is not the name of a person",
+   "text": "{0} není jméno člověka"
+  },
+  "p_170": {
+   "source": "{0} is of the realm {1}, and only {2} signs in here",
+   "text": "{0} je z realmu {1} a přihlašuje se tu jen {2}"
+  },
+  "p_171": {
+   "source": "{0} is an account of this server - it signs in with its password",
+   "text": "{0} je účet tohoto serveru – přihlašuje se svým heslem"
+  },
+  "p_172": {
+   "source": "the directory does not let {0} in: {1}",
+   "text": "adresář {0} nepustí: {1}"
+  },
+  "p_173": {
+   "source": "{0} signs in on the enrolment pages only, not here",
+   "text": "{0} se přihlašuje jen na zápisové stránky, ne sem"
+  },
+  "p_174": {
+   "source": "{0} is known to the directory, and none of the groups given a role here holds them",
+   "text": "{0} adresář zná, ale není v žádné ze skupin, které tu dávají roli"
+  },
+  "p_175": {
+   "source": "{0} is known to the directory, and in none of the groups that may use the enrolment pages",
+   "text": "{0} adresář zná, ale není v žádné ze skupin, které smějí používat zápisové stránky"
+  },
+  "p_176": {
+   "source": "{0} is switched off here (Accounts)",
+   "text": "{0} je tu vypnutý (Účty)"
+  },
+  "p_177": {
+   "source": "the keytab is {0} - one service account's is a few hundred bytes",
+   "text": "keytab má {0} – keytab jednoho servisního účtu má pár set bajtů"
+  },
+  "p_178": {
+   "source": "the keytab holds no key of a web service (HTTP/name@REALM) - it has: {0}",
+   "text": "keytab neobsahuje klíč webové služby (HTTP/jméno@REALM) – obsahuje: {0}"
+  },
+  "p_179": {
+   "source": "the keytab holds {0} keys - one service account's are a handful",
+   "text": "keytab obsahuje {0} klíčů – jeden servisní účet jich má jen pár"
+  },
+  "p_180": {
+   "source": "a sign-in with Windows (Kerberos) was refused (from {0}): {1}",
+   "text": "přihlášení přes Windows (Kerberos) bylo odmítnuto (z {0}): {1}"
+  },
+  "p_181": {
+   "source": "a sign-in with Windows (Kerberos) was refused (from {0}, for {1}): {2}",
+   "text": "přihlášení přes Windows (Kerberos) bylo odmítnuto (z {0}, pro {1}): {2}"
+  },
+  "p_182": {
+   "source": "{0} signed in from {1} with Windows (Kerberos, {2})",
+   "text": "{0} se přihlásil z {1} přes Windows (Kerberos, {2})"
+  },
+  "p_183": {
+   "source": "{0} signed in from {1} with Windows (Kerberos, {2}) - the second step to give",
+   "text": "{0} se přihlásil z {1} přes Windows (Kerberos, {2}) – zbývá dát druhý krok"
+  },
+  "p_184": {
+   "source": "{0} signed in from {1} with Windows (Kerberos, {2}) - the second step to set up",
+   "text": "{0} se přihlásil z {1} přes Windows (Kerberos, {2}) – zbývá nastavit druhý krok"
+  },
+  "p_185": {
+   "source": "{0} signed in to the enrolment pages from {1} with Windows (Kerberos)",
+   "text": "{0} se přihlásil na zápisové stránky z {1} přes Windows (Kerberos)"
+  },
+  "p_186": {
+   "source": "{0} put in the keytab of the sign-in with Windows: {1}",
+   "text": "{0} vložil keytab přihlášení přes Windows: {1}"
+  },
+  "p_187": {
+   "source": "{0} took the keytab of the sign-in with Windows away - nobody signs in with Windows until another is put in",
+   "text": "{0} odebral keytab přihlášení přes Windows – přes Windows se nikdo nepřihlásí, dokud nebude vložen jiný"
+  },
+  "p_188": {
+   "source": "a password for {0} from {1} refused: these pages are signed in to with Windows only",
+   "text": "heslo pro {0} z {1} odmítnuto: na tyto stránky se přihlašuje jen přes Windows"
+  },
+  "p_189": {
+   "source": "a password for {0} from {1} refused: the enrolment pages are signed in to with Windows only",
+   "text": "heslo pro {0} z {1} odmítnuto: na zápisové stránky se přihlašuje jen přes Windows"
+  },
+  "p_190": {
+   "source": "settings left out: switched on only from a sign-in with Windows ({0})",
+   "text": "vynechaná nastavení: zapínají se jen z přihlášení přes Windows ({0})"
   }
  },
  "rich": {
@@ -86299,6 +86907,10 @@
   "osr_r3": {
    "source": "What <b>{0}</b> (SHA-256 <code>{1}…</code>) signs is no longer trusted by this server - unless the system's own list has it. Connections that rely on it (LDAPS, mail, syslog…) fail from their next start.",
    "text": "Tomu, co podepisuje <b>{0}</b> (SHA-256 <code>{1}…</code>), už tento server nebude důvěřovat - pokud ji nemá vlastní seznam systému. Spojení, která na ní závisí (LDAPS, pošta, syslog…), selžou od svého příštího startu."
+  },
+  "r0203": {
+   "source": "A browser on a computer in the domain signs its person in without a password: it sends a Kerberos ticket for the name it opened, checked against the keytab put in below (<i>Signing in with Windows</i>). Only accounts of the directory above get in, with the role of their groups - looked up by their sAMAccountName - and the second step, when it is on, is asked after it just the same. A local account keeps its password. NTLM is never taken. Off: nothing of it is offered. Its own switch: the enrolment pages have theirs.",
+   "text": "Prohlížeč na počítači v doméně přihlásí svého uživatele bez hesla: pošle lístek Kerberos pro jméno, které otevřel, a ten se ověří proti keytabu vloženému níže (<i>Přihlášení přes Windows</i>). Dovnitř se dostanou jen účty adresáře výše, s rolí podle svých skupin – dohledané podle sAMAccountName – a druhý krok, je-li zapnutý, se po něm žádá úplně stejně. Místní účet si heslo ponechává. NTLM se nikdy nepřijímá. Vypnuto: nic z toho se nenabízí. Vlastní přepínač: zápisové stránky mají svůj."
   }
  }
 }

@@ -15,6 +15,12 @@ Both are shown, and cleared, under *Settings → Sign-in protection → Counted 
 blocked now* (with a filter) and *Settings → Accounts → Locked out* (every kind)
 (`acme --lockouts`, `acme --lockouts-clear`).
 
+Signing in with Windows (Kerberos, 1.0.99, [kerberos-sso.md](kerberos-sso.md)) is held to the
+same: each refused ticket counts per address (kinds `kerberos` and `portal-kerberos`, at least
+20 before a pause - one office behind one address signs in with it all at once), *Block a place
+that keeps guessing* counts it as a wrong sign-in, and every refusal is an event. No directory
+password is tried by it, so it never adds to the count per person.
+
 ## 1. Wrong directory passwords per person
 
 A directory password is tried against Active Directory at each sign-in to the
