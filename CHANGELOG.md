@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.102 - not released
+
+(nothing yet)
+
 ## 1.0.101 - 2026-11-14
 
 - **More of root's ways only from acme's signed word, each done once.** With `db_guard` on, the
