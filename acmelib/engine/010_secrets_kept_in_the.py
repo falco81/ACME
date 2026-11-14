@@ -242,9 +242,18 @@ def setting_secret(key, value=None):
             # Sealed for its name meanwhile by another node (or process), not read in here yet
             # (1.0.102): the row as the database has it now - this process reads the settings
             # again in a moment; until then every secret was '' (mail, SMS, the proxy...).
-            fresh = _setting_sealed_now(key)
-            if fresh is not None:
-                return unseal_secret(fresh, setting_bind(base)) or ''
+            # A row found no better is not read again for this value until the settings are
+            # (load_config) - or a minute: a row in clear left there cost two reads a call.
+            ck = (str(key), v)
+            was = _SEAL_NOW_REFUSED.get(ck)
+            if was is None or time.time() - was > 60:
+                fresh = _setting_sealed_now(key)
+                if fresh is not None:
+                    _SEAL_NOW_REFUSED.pop(ck, None)
+                    return unseal_secret(fresh, setting_bind(base)) or ''
+                if len(_SEAL_NOW_REFUSED) > 200:
+                    _SEAL_NOW_REFUSED.clear()
+                _SEAL_NOW_REFUSED[ck] = time.time()
         if not from_file and seal_bound():
             log_sparing('seal-setting:' + base, 'the setting %s is kept %s, and acme seals it '
                         'for its name: refused (written into the database past acme?) - type it '
@@ -255,24 +264,42 @@ def setting_secret(key, value=None):
     return got or ''
 
 
+_SEAL_NOW_REFUSED = {}           # (key, value held) -> when the database had no better
+
+
+def seal_now_forget():
+    """The settings read again (load_config): what the database held is asked once more."""
+    _SEAL_NOW_REFUSED.clear()
+
+
 def _setting_sealed_now(key):
     """The setting `key` as the database holds it now, when sealed for its name there (and,
-    with the guard on, as acme signed it) - else None."""
+    with the guard on, as acme signed it) - else None. A node's own row (key@node) only for
+    a key that is kept per node (NODE_KEYS) - no secret is, and one put there was read before
+    the setting itself (1.0.102); one whose signature does not hold gives way to the setting."""
     db = SEAL_GUARD.get('db')
     if db is None:
         return None
     base = str(key or '').split('@', 1)[0]
     try:
-        names = [key] if '@' in str(key) else ['%s@%s' % (base, node_name()), base]
+        if '@' in str(key):
+            names = [key]
+        elif base in NODE_KEYS:
+            names = ['%s@%s' % (base, node_name()), base]
+        else:
+            names = [base]
         for k in names:
             raw = db.value('SELECT v FROM settings WHERE k = ?', (k,))
             if raw is None:
                 continue
-            got = json.loads(raw)
-            if not isinstance(got, str) or not got.startswith(SEALED2):
-                return None
+            node_row = len(names) > 1 and k != base
             if dbguard_on() and dbguard_setting_kept(k) and \
                     not dbguard_ok(db, 's', k, raw, quiet=True):
+                if node_row:
+                    continue
+                return None
+            got = json.loads(raw)
+            if not isinstance(got, str) or not got.startswith(SEALED2):
                 return None
             return got
     except Exception:                                   # noqa: BLE001

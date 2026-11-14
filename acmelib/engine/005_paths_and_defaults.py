@@ -2363,6 +2363,10 @@ def load_config(path=None, saved=None):
                     whole[key] = 1
     whole.update(FROM_ARGV)
     CONFIG = whole
+    try:
+        seal_now_forget()           # 010: the rows sealed meanwhile asked for again (1.0.102)
+    except NameError:
+        pass
     if unknown:
         sys.stderr.write('acme: %s holds settings this version does not know: %s\n'
                          % (where, ', '.join(sorted(unknown)[:12])))

@@ -94,8 +94,10 @@ def _cert_csr(h):
         names, kt, cn = rv['names'], rv['key_type'], rv['cn']
         subject = dict(rv['will'])
     else:
-        if not S.pki().csr_verify(info['pem']):
-            raise E.ApiError(400, 'the CSR is not signed by the key in it')
+        why = S.pki().csr_verify_why(info['pem'])
+        if why:
+            raise E.ApiError(400, 'the CSR: %s' % why if why == S.pki().CSR_SHA1_REFUSED
+                             else 'the CSR is not signed by the key in it')
         refused = R.csr_refusals(info)
         if refused:
             raise E.ApiError(400, 'the CSR is refused: %s' % '; '.join(refused))

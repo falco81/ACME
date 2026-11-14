@@ -665,6 +665,51 @@ class TestHunt102(Tmp, unittest.TestCase):
             args.append('-' + md)
         return ossl(args).decode()
 
+    def sha1_where_the_policy_refuses_it(self):
+        """RHEL 9/10's DEFAULT crypto policy refuses to verify a SHA-1 signature (1.0.102): the
+        request was "not signed by its own key". An openssl that refuses it as RHEL's does, and
+        takes it with rh-allow-sha1-signatures in the configuration given to it."""
+        real = shutil.which('openssl')
+        fake = self.w('fake-openssl', (
+            '#!/bin/sh\n'
+            'if [ "$1" = req ] && [ "$2" = -verify ]; then\n'
+            '  if [ -n "$OPENSSL_CONF" ] && [ "$FAKE_ALLOW" = 1 ] && '
+            'grep -q "^rh-allow-sha1-signatures = yes" "$OPENSSL_CONF"; then\n'
+            '    unset OPENSSL_CONF; exec %s "$@"\n  fi\n'
+            '  cat >/dev/null\n'
+            '  echo "40E7:error:1C8000AE:Provider routines:rsa_verify:digest not allowed:x" >&2\n'
+            '  exit 1\nfi\nexec %s "$@"\n' % (real, real)))
+        os.chmod(fake, 0o755)
+        csr = self.csr_by_openssl(['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048'],
+                                  'sha1')
+        good = self.csr_by_openssl(['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048'])
+        was, pki.OPENSSL = pki.OPENSSL, fake
+        try:
+            os.environ['FAKE_ALLOW'] = '1'
+            self.assertIsNone(pki.csr_verify_why(csr))
+            cert, _chain = CA.ca_sign(self.store, self.root, csr, 30)
+            self.assertIn('BEGIN CERTIFICATE', cert)
+            os.environ['FAKE_ALLOW'] = '0'
+            self.assertEqual(pki.csr_verify_why(csr), pki.CSR_SHA1_REFUSED)
+            with self.assertRaises(PkiError) as got:
+                CA.ca_sign(self.store, self.root, csr, 30)
+            self.assertIn('crypto policy refuses SHA-1', str(got.exception))
+            # not SHA-1: the same refusal is no policy of SHA-1's
+            self.assertEqual(pki.csr_verify_why(good), pki.CSR_NOT_SIGNED)
+        finally:
+            pki.OPENSSL = was
+            os.environ.pop('FAKE_ALLOW', None)
+        # the configuration made for it: the system's included, the section of its init
+        d = tempfile.mkdtemp(dir=self.d)
+        text = open(pki.sha1_openssl_conf(d)).read()
+        system = pki._system_openssl_conf()
+        if system:
+            self.assertIn('.include %s' % system, text)
+        self.assertIn('rh-allow-sha1-signatures = yes', text)
+        self.assertRegex(text, r'alg_section = \S+\n\[\S+\]\nrh-allow-sha1-signatures = yes')
+        # here (not RHEL) SHA-1 is verified as it is
+        self.assertTrue(pki.csr_verify(csr))
+
     def test_weak_requests_refused(self):
         for args, md, words in (
                 (['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:1024'], 'sha256', '1024 bits'),
@@ -695,6 +740,7 @@ class TestHunt102(Tmp, unittest.TestCase):
                      ['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-256']):
             cert, _chain = CA.ca_sign(self.store, self.root, self.csr_by_openssl(args, 'sha1'), 30)
             self.assertNotIn('sha1', pki.cert_info(cert).get('sig_alg', '').lower())
+        self.sha1_where_the_policy_refuses_it()
         # the good ones are signed: RSA 2048, P-384, P-521, Ed25519
         for args, md in ((['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048'], 'sha256'),
                          (['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-384'], 'sha384'),

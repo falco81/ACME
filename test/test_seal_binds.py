@@ -274,6 +274,73 @@ class SealBinds(unittest.TestCase):
         self.assertEqual(S.config_open(cfg, 'cert_targets:%d' % self.tid, {'ssh_key'})['ssh_key'],
                          '')
 
+    def test_9_the_row_now_read_once_and_the_settings_own(self):
+        """r_setting_now.py: a secret is never a node's key - a row key@node put there was read
+        before the setting; and a row in clear left there was read twice on every call."""
+        self.assertTrue(E.seal_bound(STORE.db, fresh=True))
+        me = E.node_name()
+        bind = E.setting_bind('smtp_password')
+        setting('smtp_password', E.seal_secret('the-cluster', bind))
+        setting('smtp_password@' + me, E.seal_secret('a-stray-one', bind))
+        E.SEAL_GUARD['db'] = STORE.db
+        try:
+            E.load_config(saved=STORE.settings_saved())
+            E.CONFIG['smtp_password'] = E.seal_secret('the-cluster')      # not read in yet
+            self.assertEqual(E.setting_secret('smtp_password'), 'the-cluster')
+            # a row in clear: refused, and the database asked once - until the settings are read
+            STORE.db.run('DELETE FROM settings WHERE k = ?', ('smtp_password@' + me,))
+            setting('smtp_password', 'planted-clear')
+            E.load_config(saved=STORE.settings_saved())
+            n, orig = [0], STORE.db.value
+
+            def counted(*a, **k):
+                n[0] += 1
+                return orig(*a, **k)
+            STORE.db.value = counted
+            try:
+                for _ in range(50):
+                    self.assertEqual(E.setting_secret('smtp_password'), '')
+                self.assertLessEqual(n[0], 2)
+                setting('smtp_password', E.seal_secret('typed-again', bind))
+                E.load_config(saved=dict(STORE.settings_saved(), smtp_password='planted-clear'))
+                self.assertEqual(E.setting_secret('smtp_password'), 'typed-again')
+            finally:
+                STORE.db.value = orig
+        finally:
+            E.SEAL_GUARD['db'] = None
+
+    def test_9b_a_node_row_that_does_not_hold_gives_way(self):
+        """r_setting_guard.py: with the guard on, a key kept per node whose own row is not
+        signed - the setting itself is taken."""
+        from acmelib import engine as EN
+        self.assertTrue(E.seal_bound(STORE.db, fresh=True))
+        # no secret is a node's key now: one made so, for the branch that reads key@node
+        keys = EN.NODE_KEYS
+        EN.NODE_KEYS = tuple(keys) + ('acme_dns_key',)
+        self.addCleanup(setattr, EN, 'NODE_KEYS', keys)
+        me = E.node_name()
+        bind = E.setting_bind('acme_dns_key')
+        setting('acme_dns_key', E.seal_secret('cluster-key', bind))
+        STORE.db.upsert('settings', 'k', {'k': 'acme_dns_key@' + me, 'by_who': 'x', 'at': 0,
+                                          'v': json.dumps(E.seal_secret('planted', bind))})
+        E.SEAL_GUARD['db'] = STORE.db
+        was = E.CONFIG.get('db_guard')
+        try:
+            E.CONFIG['db_guard'] = 1
+            E.dbguard_adopt(STORE)
+            E.dbguard_resign(STORE)
+            STORE.db.upsert('settings', 'k', {'k': 'acme_dns_key@' + me, 'by_who': 'x',
+                                              'at': 0,
+                                              'v': json.dumps(E.seal_secret('planted2', bind))})
+            E.CONFIG['db_guard'] = 1
+            self.assertTrue(E.dbguard_setting_kept('acme_dns_key@' + me))
+            self.assertEqual(E._setting_sealed_now('acme_dns_key'),
+                             raw_setting('acme_dns_key'))
+        finally:
+            E.CONFIG['db_guard'] = was
+            E.SEAL_GUARD['db'] = None
+            STORE.db.run('DELETE FROM settings WHERE k = ?', ('acme_dns_key@' + me,))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

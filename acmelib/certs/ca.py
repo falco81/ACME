@@ -878,8 +878,10 @@ def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
     # msExtReq (1.0.102): refused when a CSR comes to be signed; one of a certificate of acme's
     # (cert_id - checked when it came in, maybe before 1.0.102) renews - the names are acme's
     ci = pki.csr_info(csr_pem, msext_ok=cert_id is not None)
-    if not pki.csr_verify(csr_pem):
-        raise PkiError('the request is not signed by its own key', retry=False)
+    why = pki.csr_verify_why(csr_pem)
+    if why:
+        raise PkiError('the request: %s' % why if why == pki.CSR_SHA1_REFUSED
+                       else 'the request is not signed by its own key', retry=False)
     _strong_or_refused(key_refused(ci['key_type'], ci['key_bits'], 'the request'),
                        sig_refused(ci.get('sig_alg'), 'the request', sha1_ok=True))
     names = _as_list(prof.get('names')) if prof.get('names') else list(ci['names'])

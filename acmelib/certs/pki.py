@@ -639,13 +639,91 @@ def csr_info(pem, strict=True, msext_ok=False):
             'pem': der_to_pem(der, 'CERTIFICATE REQUEST'), 'der': der}
 
 
-def csr_verify(csr_pem):
-    """True when the request is signed by the key inside it."""
+CSR_NOT_SIGNED = 'not signed by its own key'
+CSR_SHA1_REFUSED = "this system's crypto policy refuses SHA-1 - make the request with SHA-256"
+_SHA1_SIGS = ('1.2.840.113549.1.1.5', '1.3.14.3.2.29', '1.2.840.10045.4.1', '1.2.840.10040.4.3')
+_POLICY_WORDS = ('digest', 'sha1', 'sha-1', 'not allowed', 'disabled', 'unsupported')
+
+
+def _csr_is_sha1(csr_pem):
+    try:
+        a = str(csr_info(csr_pem, strict=False).get('sig_alg') or '')
+    except Exception:                                   # noqa: BLE001
+        return False
+    low = a.lower()
+    return a in _SHA1_SIGS or ('sha1' in low and 'md' not in low)
+
+
+def _system_openssl_conf():
+    """The openssl.cnf this system's openssl reads: OPENSSL_CONF, else OPENSSLDIR's."""
+    conf = os.environ.get('OPENSSL_CONF')
+    if conf and os.path.isfile(conf):
+        return conf
+    try:
+        out = openssl(['version', '-d']).decode('utf-8', 'replace')
+        m = re.search(r'OPENSSLDIR:\s*"([^"]*)"', out)
+        if m and os.path.isfile(os.path.join(m.group(1), 'openssl.cnf')):
+            return os.path.join(m.group(1), 'openssl.cnf')
+    except PkiError:
+        pass
+    return None
+
+
+def sha1_openssl_conf(where):
+    """An openssl.cnf in `where` that lets this one run verify a SHA-1 signature where the
+    system's crypto policy (RHEL 9/10 DEFAULT) refuses it: the system's own file included, and
+    `rh-allow-sha1-signatures = yes` in the section its init names for the algorithms."""
+    system = _system_openssl_conf()
+    init, alg = 'openssl_init', 'evp_properties'
+    text = ''
+    if system:
+        try:
+            with open(system, encoding='utf-8', errors='replace') as f:
+                text = f.read()
+        except OSError:
+            system = None
+    m = re.search(r'^\s*openssl_conf\s*=\s*(\S+)', text, re.M)
+    if m:
+        init = m.group(1)
+    m = re.search(r'^\s*alg_section\s*=\s*(\S+)', text, re.M)
+    if m:
+        alg = m.group(1)
+    lines = ['openssl_conf = %s' % init]
+    if system:
+        lines.append('.include %s' % system)
+    lines += ['[default]', 'openssl_conf = %s' % init,
+              '[%s]' % init, 'alg_section = %s' % alg,
+              '[%s]' % alg, 'rh-allow-sha1-signatures = yes', '']
+    path = os.path.join(where, 'sha1.cnf')
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
+    return path
+
+
+def csr_verify_why(csr_pem):
+    """None when the request is signed by the key inside it, else the words why not.
+    A SHA-1 request (Windows, older devices - signed since 1.0.102) where the system's crypto
+    policy refuses SHA-1 (RHEL 9/10): verified once more with a configuration of its own that
+    lets SHA-1 signatures through; still refused, it is said so - not that it is forged."""
     try:
         openssl(['req', '-verify', '-noout'], data=csr_pem)
-        return True
-    except PkiError:
-        return False
+        return None
+    except PkiError as e:
+        detail = str(e.detail or e).lower()
+    if not any(w in detail for w in _POLICY_WORDS) or not _csr_is_sha1(csr_pem):
+        return CSR_NOT_SIGNED
+    with workdir() as d:
+        try:
+            conf = sha1_openssl_conf(d)
+            openssl(['req', '-verify', '-noout'], data=csr_pem, env={'OPENSSL_CONF': conf})
+            return None
+        except (PkiError, OSError):
+            return CSR_SHA1_REFUSED
+
+
+def csr_verify(csr_pem):
+    """True when the request is signed by the key inside it."""
+    return csr_verify_why(csr_pem) is None
 
 
 CRL_REASONS = ('unspecified', 'keyCompromise', 'CACompromise', 'affiliationChanged',

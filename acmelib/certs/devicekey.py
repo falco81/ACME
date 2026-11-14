@@ -275,8 +275,10 @@ def check_csr(info, names, sans=None, who='the device', strict_cn=False):
     """A CSR (pki.csr_info) against the certificate: every name asked in it, nothing else.
     Raises PluginError in words."""
     from acmelib.certs import pki
-    if not pki.csr_verify(info['pem']):
-        raise base.PluginError('the CSR %s made is not signed by the key in it' % who,
+    why = pki.csr_verify_why(info['pem'])
+    if why:
+        raise base.PluginError('the CSR %s made: %s' % (who, why) if why == pki.CSR_SHA1_REFUSED
+                               else 'the CSR %s made is not signed by the key in it' % who,
                                retry=False)
     want = _clean(names)
     dns = [v for t, v in info.get('san') or [] if t in ('DNS', 'IP')]

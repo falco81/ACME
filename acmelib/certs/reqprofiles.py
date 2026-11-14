@@ -641,9 +641,11 @@ def csr_review(store, r, info):
     pki = S.pki()
     cfg = config_of(r)
     checks = []
-    sig = pki.csr_verify(info['pem'])
+    why = pki.csr_verify_why(info['pem'])
+    sig = why is None
     checks.append({'what': 'signature', 'ok': sig,
-                   'said': 'signed by its own key' if sig else 'not signed by the key in it'})
+                   'said': 'signed by its own key' if sig else
+                   why if why == pki.CSR_SHA1_REFUSED else 'not signed by the key in it'})
     dns = [v for t, v in info.get('san') or [] if t in ('DNS', 'IP')]
     # e-mail and URI names: left out by acme's own CA, refused for any other (below); every
     # other kind - a UPN or another otherName, a directory name, an OID, an x400 or EDI party
