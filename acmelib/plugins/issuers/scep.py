@@ -50,7 +50,9 @@ class ScepIssuer(Issuer):
         field('ca_fingerprint', 'CA fingerprint', 'text', advanced=False,
               placeholder='SHA-256 (or SHA-1/MD5) of the CA certificate',
               help='The CA certificate the server sends must be this one - set it: SCEP is often '
-                   'over plain HTTP.'),
+                   'over plain HTTP. With it, the RA, the signer of the answers and the certificate '
+                   'that comes must all be signed by this CA. Without it, over plain HTTP acme '
+                   'trusts the first answer it gets (whoever is in between can answer instead).'),
         field('cipher', 'Encryption', 'select', default='auto', advanced=True,
               options=[['auto', 'As the CA says (AES-256, else 3DES)'], ['aes256', 'AES-256-CBC'],
                        ['aes128', 'AES-128-CBC'], ['3des', '3DES (old servers)']]),
@@ -125,7 +127,7 @@ class ScepIssuer(Issuer):
         except (p7.DerError, ValueError, IndexError) as e:
             raise PluginError('the CA certificate from GetCACert does not read: %s' % e)
         cas = [c for c in parsed if c.is_ca] or parsed
-        pin = re.sub(r'[^0-9a-fA-F]', '', str(self.c('ca_fingerprint') or '')).lower()
+        pin = self._pin()
         ca = None
         if pin:
             algo = {32: 'md5', 40: 'sha1', 64: 'sha256'}.get(len(pin))
@@ -137,6 +139,19 @@ class ScepIssuer(Issuer):
                                   '- someone in between, or another CA (it sent %s)' % ', '.join(
                                       '%s %s' % (c.subject_cn, c.fingerprint()) for c in parsed),
                                   retry=False)
+        if pin:
+            # Hunt N2 (1.0.102): only what the pinned CA signed is used - an RA (or a sub-CA)
+            # sent next to the genuine CA by whoever is in between is not, so the challenge
+            # password is never encrypted to it.
+            with p7.Crypto(self._openssl) as cr:
+                mids = [c.der for c in parsed if c.is_ca and c.der != ca.der]
+                good = [ca] + [c for c in parsed if c.der != ca.der and
+                               self._issued_by(cr, c.der, ca, mids)]
+            for c in parsed:
+                if c not in good:
+                    self._say('the certificate %s sent with the CA is not signed by the CA of the '
+                              'fingerprint - not used' % (c.subject_cn or '?'), 'warn')
+            parsed = good
         # The RA (NDES): not a CA; for encryption the one with keyEncipherment.
         ras = [c for c in parsed if not c.is_ca]
         enc = [c for c in ras if c.key_usage is None or c.key_usage & (1 << 2)]
@@ -154,6 +169,23 @@ class ScepIssuer(Issuer):
             self._say('the CA certificate is taken as the server sends it over plain HTTP - set its '
                       'fingerprint to be sure (%s)' % ca.fingerprint(), 'warn')
         return ca, recipient, [c.der for c in parsed]
+
+    def _pin(self):
+        return re.sub(r'[^0-9a-fA-F]', '', str(self.c('ca_fingerprint') or '')).lower()
+
+    def _issued_by(self, cr, cert_der, ca, others=()):
+        """Whether `cert_der` verifies (its signature, through `others` if need be) up to
+        the certificate `ca` - checked by openssl verify, not by names."""
+        args = ['verify', '-partial_chain', '-trusted', cr.file(p7.pem(ca.der))]
+        others = [o for o in others if o != cert_der and o != ca.der]
+        if others:
+            args += ['-untrusted', cr.file(''.join(p7.pem(o) for o in others))]
+        args.append(cr.file(p7.pem(cert_der)))
+        try:
+            out = self._openssl(args)
+        except PluginError:
+            return False
+        return out.strip().endswith(b': OK')
 
     def _algos(self, caps):
         ci = self.c('cipher') or 'auto'
@@ -252,6 +284,11 @@ class ScepIssuer(Issuer):
             x = p7.Cert(leaf)
         except p7.DerError as e:
             raise PluginError('the certificates in the SCEP answer do not read: %s' % e)
+        if self._pin():
+            with p7.Crypto(self._openssl) as cr:
+                if not self._issued_by(cr, leaf, ca, [c for c in chain if p7.Cert(c).is_ca]):
+                    raise PluginError('the certificate that came is not signed by the CA of the '
+                                      'fingerprint - someone in between?', retry=False)
         self._say('the certificate came: serial %x, until %s, from %s' % (
             x.serial, time.strftime('%Y-%m-%d', time.gmtime(x.not_after)), x.issuer_cn or '?'), 'ok')
         return Issued(p7.pem(leaf), [p7.pem(c) for c in chain], info={'transaction_id': tid},
@@ -329,14 +366,24 @@ class ScepIssuer(Issuer):
         if signer is None:
             raise PluginError('the SCEP answer is signed by a certificate acme does not have')
         sx = p7.Cert(signer)
-        if signer not in known and sx.issuer_der != ca.subject_der:
+        if self._pin():
+            # Hunt N2 (1.0.102): with a pinned CA the signer is the CA, an RA it signed (known
+            # from GetCACert, already checked) or a certificate that verifies up to it - never
+            # by its issuer's name only.
+            if signer not in known and not self._issued_by(
+                    cr, signer, ca, [c for c in all_certs if p7.Cert(c).is_ca]):
+                raise PluginError('the SCEP answer is signed by %s, not signed by the CA of the '
+                                  'fingerprint' % (sx.subject_cn or '?'), retry=False)
+        elif signer not in known and sx.issuer_der != ca.subject_der:
             raise PluginError('the SCEP answer is signed by %s, neither the CA nor its RA' % sx.subject_cn,
                               retry=False)
         f_msg = cr.file(data)
         f_signer = cr.file(p7.pem(signer))
         try:
-            cr.run(['cms', '-verify', '-inform', 'DER', '-in', f_msg, '-noverify', '-certfile', f_signer,
-                    '-binary', '-out', os.path.join(cr.dir, 'verified')])
+            # the signature checked with this signer's key only (-nointern: not a certificate
+            # the message carries); its chain was checked above
+            cr.run(['cms', '-verify', '-inform', 'DER', '-in', f_msg, '-noverify', '-nointern',
+                    '-certfile', f_signer, '-binary', '-out', os.path.join(cr.dir, 'verified')])
         except PluginError as e:
             raise PluginError('the signature of the SCEP answer does not verify', detail=str(e))
 
