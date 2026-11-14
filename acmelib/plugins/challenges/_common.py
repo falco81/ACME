@@ -363,6 +363,8 @@ class DnsChallenge(Challenge):
     vendor = 'DNS'
     doc = 'docs/validation.md'
     auth_port = 53                  # where the zone's name servers are asked (a test changes it)
+    auth_unreachable_wait = 180     # s: while some name servers cannot be asked, not ready for so
+                                    # long after the value was put in - then the resolvers decide
 
     def __init__(self, config, ctx):
         Challenge.__init__(self, config, ctx)
@@ -493,7 +495,7 @@ class DnsChallenge(Challenge):
         fqdn, rr, txt = handle.get('fqdn'), handle.get('rr'), handle.get('txt')
         if mode == 'resolvers':
             return self.seen_by(self.resolvers(), rr, txt, 'the resolvers')
-        ok = self.seen_by_authority(fqdn, txt)
+        ok = self.seen_by_authority(fqdn, txt, since=handle.get('at'))
         if ok is None:                          # the name servers cannot be reached from here
             ok = self.seen_by(self.resolvers(), rr, txt, 'the resolvers')
         if ok and mode == 'auth+public':
@@ -616,9 +618,11 @@ class DnsChallenge(Challenge):
                           % (zone, e), 'warn')
             return zone, []
 
-    def seen_by_authority(self, fqdn, txt):
+    def seen_by_authority(self, fqdn, txt, since=None):
         """True: every name server of the zone has it; False: not yet; None:
-        none of them could be reached from here."""
+        none of them could be reached from here - or only some, and the time
+        (auth_unreachable_wait after `since`, the value put in) is over: the
+        caller asks the resolvers then."""
         zone, servers = self.authority(fqdn)
         if not servers:
             return None
@@ -638,10 +642,27 @@ class DnsChallenge(Challenge):
                           'here - the resolvers are asked instead'
                           % (zone, ', '.join(unreachable)), 'warn')
             return None
+        not_asked = ('; not asked (cannot be reached from here): %s' % ', '.join(unreachable)) \
+            if unreachable else ''
         if lacking:
-            self.say_once('auth:' + fqdn, '%s TXT: on %s, not yet on %s' % (
-                fqdn, ', '.join(have) or 'none', ', '.join(lacking)))
+            self.say_once('auth:' + fqdn, '%s TXT: on %s, not yet on %s%s' % (
+                fqdn, ', '.join(have) or 'none', ', '.join(lacking), not_asked))
             return False
+        if unreachable:
+            # Hunt N2 (1.0.102): one server having it is not "every name server" - the CA may
+            # ask one of those not asked. Waited for a while, then the resolvers decide.
+            if since is None:
+                since = self._partial_since.setdefault(fqdn, time.time())
+            until = float(since or 0) + self.auth_unreachable_wait
+            if time.time() < until:
+                self.say_once('auth:' + fqdn, '%s TXT: on %s%s - waited until %s, then the '
+                              'resolvers are asked' % (fqdn, ', '.join(have), not_asked,
+                                                       time.strftime('%H:%M:%S',
+                                                                     time.localtime(until))))
+                return False
+            self.say_once('auth:' + fqdn, '%s TXT: on %s%s - the resolvers are asked instead'
+                          % (fqdn, ', '.join(have), not_asked), 'warn')
+            return None
         self.say_once('auth:' + fqdn, '%s TXT is on every name server of %s (%s)' % (
             fqdn, zone, ', '.join(have)), 'ok')
         return True
