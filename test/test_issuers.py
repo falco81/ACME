@@ -761,6 +761,23 @@ class TestNtlm(unittest.TestCase):
                          '86c35097ac9cec102554764a57cccc19aaaaaaaaaaaaaaaa')
         self.assertEqual(_ntlm.rc4(base, b'\x55' * 16).hex(), 'c5dad2544fc9799094ce1ce90bc9d03e')
 
+    def test_target_name_is_the_host_asked(self):
+        """Hunt M round 2 (1.0.101): MsvAvTargetName is HTTP/<the host of the address acme was
+        given>, not the name the server's CHALLENGE says - a relay forwarding the real CA's
+        challenge got a name the CA took."""
+        def target_name(auth):
+            ln, _m, off = struct.unpack('<HHI', auth[20:28])
+            nt = auth[off:off + ln]
+            return dict(_ntlm.av_pairs_parse(nt[16 + 28:])).get(_ntlm.AV_TARGET_NAME, b'') \
+                .decode('utf-16-le')
+        neg = _ntlm.negotiate_message()
+        chal = ntlm_challenge(os.urandom(8))
+        auth = _ntlm.authenticate_message(neg, chal, 'svc', 'pw', 'EXAMPLE',
+                                          target_host='CA.Example.Test.')
+        self.assertEqual(target_name(auth), 'HTTP/ca.example.test')
+        auth = _ntlm.authenticate_message(neg, chal, 'svc', 'pw', 'EXAMPLE')
+        self.assertEqual(target_name(auth), 'HTTP/ca01.example.local')
+
 
 def ntlm_challenge(server_challenge, with_time=True):
     av = [(_ntlm.AV_NB_DOMAIN, 'EXAMPLE'.encode('utf-16-le')),
@@ -951,6 +968,29 @@ class TestMsAdcs(unittest.TestCase):
             with self.assertRaises(PluginError) as cm:
                 self.issuer(ca, password='wrong').test()
             self.assertIn('401', str(cm.exception))
+        finally:
+            ca.close()
+
+    def test_ca_pem_is_a_pin(self):
+        """Hunt M round 2 (1.0.101): the CA certificate given is the only one trusted, as in
+        runtime.http - it was added to the system's CAs (any public CA's certificate for the
+        name was taken too)."""
+        ca = TestCA('Pinned Root P1', rsa=True)
+        try:
+            h = ms_adcs_mod.AdcsHttp(self.ctx, 'https://ca01.example.local/certsrv', 'ntlm',
+                                     ca_pem=ca.pem)
+            got = h._ssl().get_ca_certs()
+            self.assertEqual(len(got), 1, got)
+            self.assertIn(('commonName', 'Pinned Root P1'),
+                          [x for rdn in got[0]['subject'] for x in rdn])
+            h2 = ms_adcs_mod.AdcsHttp(self.ctx, 'https://ca01.example.local/certsrv', 'ntlm')
+            self.assertTrue(h2._ssl().verify_mode)
+            with self.assertRaises(PluginError):
+                ms_adcs_mod.AdcsHttp(self.ctx, 'https://ca01.example.local/certsrv', 'ntlm',
+                                     ca_pem='-----BEGIN CERTIFICATE-----\nnope\n'
+                                            '-----END CERTIFICATE-----\n')._ssl()
+            f = [x for x in MsAdcsIssuer.fields if x['key'] == 'ca_pem'][0]
+            self.assertIn('the only CA', f['help'])
         finally:
             ca.close()
 

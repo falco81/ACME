@@ -110,7 +110,8 @@ def logs_view(store):
 # replication wants: what is asked of a node is in a row of the asking node's
 # own ('host:sshkeys:want:NODE@@ASKER', node_key) and the node answers in rows
 # of its own ('host:sshkeys:now:NODE', 'host:osup:node:NODE').
-HOST_WORK = {'ssh': False, 'ssh_seen': 0.0, 'ssh_since': 0.0, 'osup': False, 'osup_read': 0.0}
+HOST_WORK = {'ssh': False, 'ssh_seen': 0.0, 'ssh_since': 0.0, 'osup': False, 'osup_read': 0.0,
+             'ssh_sig': {}, 'osu_sig': {}}
 
 
 def host_nodes(store):
@@ -201,19 +202,67 @@ def sshkeys_ask(store, nodes, do, by, line='', fp='', last_ok=False, user='root'
     return nodes
 
 
+def _row_holds(v, aid):
+    try:
+        asks = json.loads(v or '[]')
+    except ValueError:
+        return False
+    return any(isinstance(x, dict) and x.get('id') == aid
+               for x in (asks if isinstance(asks, list) else [asks]))
+
+
+def signed_ask_row(store, row, aid):
+    """The signed row an ask came from, for the root helper (1.0.101): read again here with its
+    signatures, the value read before and after them the same (so the signatures are of it). As
+    it is now while it still holds the ask - another ask written to the row after the tick read
+    it replaced the value and this node's signature, and the helper found the old value "not
+    signed". Else as the tick read it."""
+    k = row[0]
+    v, sigs = row[1], []
+    try:
+        for _ in range(4):
+            now = store.db.value('SELECT v FROM meta WHERE k = ?', (k,))
+            got = _dbguard_sigs(store.db, 'm', k)
+            if store.db.value('SELECT v FROM meta WHERE k = ?', (k,)) == now:
+                if now is not None and _row_holds(now, aid):
+                    v, sigs = now, got
+                else:
+                    sigs = got
+                break
+    except Exception:                                   # noqa: BLE001
+        pass
+    return {'k': k, 'v': v, 'aid': aid or '', 'sigs': [{'n': n, 'm': m} for _k, n, m in sigs][:16]}
+
+
+# The helper's refusal for a signature that is not of the row's value: a row written between the
+# read and the ask - asked again at the next tick, a few times (1.0.101: marked done, the key
+# was never added).
+SIG_REFUSED = 'not signed by acme'
+SIG_TRIES = 3
+
+
+def sig_retry(tries, a, err):
+    """Whether the ask `a` refused with `err` is asked again (not marked done)."""
+    if not a.get('id') or SIG_REFUSED not in str(err or ''):
+        return False
+    n = tries.get(a['id'], 0) + 1
+    tries[a['id']] = n
+    if len(tries) > 200:
+        for x in list(tries)[:100]:
+            tries.pop(x, None)
+    return n < SIG_TRIES
+
+
 def sshkeys_root_data(store, a):
-    """The ask for the root helper. A key added for root carries the signed row it comes from
-    (1.0.101): with db_guard on the helper adds none whose row acme did not sign."""
+    """The ask for the root helper. A key added carries the signed row it comes from (1.0.101):
+    with db_guard on the helper adds none for root (nor for a member of wheel/sudo) whose row
+    acme did not sign."""
     user = str(a.get('user') or 'root')
     data = {'do': a.get('do'), 'line': a.get('line') or '', 'fp': a.get('fp') or '',
             'last_ok': bool(a.get('last_ok')), 'user': user}
     row = a.get('_row')
-    if a.get('do') == 'add' and user == 'root' and row:
-        try:
-            sigs = [{'n': n, 'm': m} for _k, n, m in _dbguard_sigs(store.db, 'm', row[0])]
-        except Exception:                               # noqa: BLE001
-            sigs = []
-        data['signed'] = {'k': row[0], 'v': row[1], 'aid': a.get('id') or '', 'sigs': sigs[:16]}
+    if a.get('do') == 'add' and row:
+        data['signed'] = signed_ask_row(store, row, a.get('id') or '')
     return data
 
 
@@ -271,6 +320,8 @@ def sshkeys_tick(daemon):
                 except Exception as e:                  # noqa: BLE001
                     err = str(e)[:300] or e.__class__.__name__
                     log('the SSH keys of %s: %s' % (user, err), 'warn')
+                if a.get('id') and sig_retry(HOST_WORK['ssh_sig'], a, err):
+                    continue                    # asked again at the next tick, with the row then
                 if a.get('id'):
                     done.append(a['id'])
                 done.extend(x['id'] for x in lists if x.get('id') and x['id'] not in done)

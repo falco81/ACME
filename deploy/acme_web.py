@@ -4041,9 +4041,12 @@ def sshkeys_user_do(r, name):
     lines = user_auth_read(pw)
     if do == 'add':
         line = str(r.get('line') or '').strip()
+        # A member of wheel/sudo is root with a password (1.0.101): as root's own keys.
+        once = rootkey_signed(r, line, name) if guard_on() and lu_may_sudo(name) else None
         fp = key_line_checked(line)
         if not any(k['fp'] == fp for k in auth_keys(lines)):
             user_auth_write(pw, [ln for ln in lines if ln.strip()] + [line])
+        ask_once_note(once)
     elif do == 'drop':
         fp = str(r.get('fp') or '')
         hit = [k for k in auth_keys(lines) if k['fp'] and k['fp'] == fp]
@@ -4135,15 +4138,27 @@ def guard_mac(key, kind, ident, n, value):
     return hmac.new(key, msg, hashlib.sha256).hexdigest()
 
 
-def rootkey_signed(r, line):
-    """Refused unless the ask to add `line` for root comes from a row the daemon signed."""
+# Not only root's own keys (1.0.101): a user made, given a password or sudo (users.ask), and a
+# key of a member of wheel/sudo are root too - each only from its signed row. And each signed
+# ask is done once (GUARD_ONCE): `host:sshkeys:now:`/`host:users:now:` - the list of asks done -
+# is the node's own row, and cleared there it had the daemon send a signed ask of the last hour
+# again (a key taken away put back).
+GUARD_ONCE = os.environ.get('ACME_GUARD_ONCE', os.path.join(NET_SNAP_DIR, 'asks-done.json'))
+SIG_REFUSED = 'not signed by acme'      # the daemon asks again for this one (a row written since)
+
+
+def ask_signed(r, head, fits, what):
+    """Refused unless the ask comes from a row of `head` the daemon signed, holding an ask of
+    that id for which `fits(ask)` - not older than an hour, and not done here before.
+    -> what ask_once_note() keeps once it is done."""
     signed = r.get('signed')
     if not isinstance(signed, dict):
-        raise Refused('db_guard is on: a key of root\'s is added only as asked on the pages (a '
-                      'signed row of the database) - this ask carries none')
+        raise Refused('db_guard is on: %s only as asked on the pages (a signed row of the '
+                      'database) - this ask carries none' % what)
     k, v, aid = str(signed.get('k') or ''), signed.get('v'), str(signed.get('aid') or '')
-    if not k.startswith('host:sshkeys:want:') or not isinstance(v, str) or not aid:
-        raise Refused('db_guard is on: the row this ask comes from is not one of root\'s keys')
+    if not k.startswith(head) or not isinstance(v, str) or not aid:
+        raise Refused('db_guard is on: the row this ask comes from is not one such asks are '
+                      'kept in')
     key = guard_key()
     if not key:
         raise Refused('db_guard is on, and there is no key here to check the ask with '
@@ -4159,16 +4174,15 @@ def rootkey_signed(r, line):
             good = True
             break
     if not good:
-        raise Refused('db_guard is on: the row this ask comes from is not signed by acme - '
-                      'not acted on')
+        raise Refused('db_guard is on: the row this ask comes from is %s - not acted on'
+                      % SIG_REFUSED)
     try:
         asks = json.loads(v)
     except ValueError:
         asks = None
     asks = asks if isinstance(asks, list) else [asks]
     for a in asks:
-        if isinstance(a, dict) and str(a.get('id') or '') == aid and a.get('do') == 'add' and \
-                str(a.get('user') or 'root') == 'root' and str(a.get('line') or '').strip() == line:
+        if isinstance(a, dict) and str(a.get('id') or '') == aid and fits(a):
             try:
                 at = float(a.get('at') or 0)
             except (TypeError, ValueError):
@@ -4176,8 +4190,69 @@ def rootkey_signed(r, line):
             if abs(time.time() - at) > GUARD_ASK_HOURS * 3600:
                 raise Refused('db_guard is on: that ask is older than an hour - asked again on the '
                               'pages, it is taken')
-            return
-    raise Refused('db_guard is on: the signed row does not ask for this key')
+            done = (k, aid)
+            if _once_key(done) in _once_read():
+                raise Refused('db_guard is on: that ask was done here already - not again (asked '
+                              'again on the pages, it is taken)')
+            return done
+    raise Refused('db_guard is on: the signed row does not ask for this')
+
+
+def _once_key(done):
+    return hashlib.sha256(('%s\x00%s' % done).encode('utf-8', 'surrogatepass')).hexdigest()[:32]
+
+
+def _once_read():
+    """{key: when} of the signed asks done here in the last hour and a bit - root's file only."""
+    try:
+        fd = os.open(GUARD_ONCE, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return {}
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_uid != os.geteuid():
+            return {}
+        raw = os.read(fd, 1 << 20)
+    finally:
+        os.close(fd)
+    try:
+        got = json.loads(raw.decode('utf-8'))
+    except ValueError:
+        return {}
+    if not isinstance(got, dict):
+        return {}
+    keep = time.time() - GUARD_ASK_HOURS * 3600 - 900
+    out = {}
+    for k, at in got.items():
+        try:
+            if float(at) > keep:
+                out[str(k)] = float(at)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def ask_once_note(done):
+    """A signed ask done: never again here (ask_signed) - while it could be sent again at all."""
+    if not done:
+        return
+    had = _once_read()
+    had[_once_key(done)] = time.time()
+    if len(had) > 5000:
+        had = dict(sorted(had.items(), key=lambda x: x[1])[-5000:])
+    try:
+        write_root(GUARD_ONCE, json.dumps(had), 0o600)
+    except OSError:
+        pass
+
+
+def rootkey_signed(r, line, user='root'):
+    """Refused unless the ask to add `line` for `user` comes from a row the daemon signed."""
+    return ask_signed(r, 'host:sshkeys:want:', lambda a: a.get('do') == 'add' and
+                      str(a.get('user') or 'root') == user and
+                      str(a.get('line') or '').strip() == line,
+                      'a key of root\'s is added' if user == 'root'
+                      else 'a key of %s (who may use sudo) is added' % user)
 
 
 def sshkeys_do(r):
@@ -4188,8 +4263,7 @@ def sshkeys_do(r):
     lines = auth_lines()
     if do == 'add':
         line = str(r.get('line') or '').strip()
-        if guard_on():
-            rootkey_signed(r, line)
+        once = rootkey_signed(r, line) if guard_on() else None
         m = KEY_LINE_RE.match(line)
         if not m or m.group('type') not in KEY_TYPES:
             raise Refused('that is not one public key line (ssh-ed25519 AAAA... comment) - '
@@ -4207,6 +4281,7 @@ def sshkeys_do(r):
         if not any(k['fp'] == fp for k in auth_keys(lines)):
             lines = [ln for ln in lines if ln.strip()] + [line]
             auth_write(lines)
+        ask_once_note(once)
     elif do == 'drop':
         fp = str(r.get('fp') or '')
         keys = auth_keys(lines)
@@ -4286,6 +4361,55 @@ def lu_admin_group():
         except KeyError:
             continue
     return ''
+
+
+def lu_may_sudo(name):
+    """Whether `name` is a member of wheel/sudo (by the list of the group or as its own group).
+    Not told: yes - never let past the guard because it could not be read."""
+    import grp
+    import pwd
+    g = lu_admin_group()
+    if not g:
+        return False
+    try:
+        gr = grp.getgrnam(g)
+    except KeyError:
+        return False
+    if name in gr.gr_mem:
+        return True
+    try:
+        return pwd.getpwnam(name).pw_gid == gr.gr_gid
+    except KeyError:
+        return False
+    except Exception:                                   # noqa: BLE001
+        return True
+
+
+USERS_SIGNED = ('add', 'password', 'sudo')
+
+
+def users_signed(r):
+    """With db_guard on: a user made, given a password or sudo only from a row the daemon
+    signed (1.0.101) - each of them is a way to root. -> what ask_once_note() keeps."""
+    do, name = str(r.get('do') or ''), str(r.get('name') or '')
+    if do not in USERS_SIGNED or not guard_on():
+        return None
+
+    def fits(a):
+        if a.get('do') != do or str(a.get('name') or '') != name:
+            return False
+        if do == 'sudo':
+            return bool(a.get('on')) == bool(r.get('on'))
+        if do == 'add':
+            # sudo, the UID and the shell as asked; the password's hash comes sealed in the row
+            # and opened by the daemon
+            return bool(a.get('sudo')) == bool(r.get('sudo')) and \
+                str(a.get('uid') or '') == str(r.get('uid') or '') and \
+                str(a.get('shell') or '/bin/bash') == str(r.get('shell') or '/bin/bash') and \
+                bool(a.get('hash') or a.get('hash_gone')) == bool(r.get('hash'))
+        return bool(a.get('hash') or a.get('hash_gone'))
+    return ask_signed(r, 'host:users:want:', fits,
+                      'a user is made, given a password or sudo')
 
 
 def lu_shells():
@@ -4836,6 +4960,7 @@ def lu_do(r):
     p = lu_target(name)
     if r.get('hash') or do == 'password':
         lu_hash_checked(r.get('hash'))          # before anything is done
+    once = users_signed(r)
     if do == 'add':
         lo, hi = uid_range()
         uid = r.get('uid')
@@ -4883,6 +5008,7 @@ def lu_do(r):
             lu_run(['chage', '-M', '-1', '-I', '-1', name])
         if r.get('must_change'):
             lu_run(['chage', '-d', '0', name])
+        ask_once_note(once)
         return dict(lu_list(), said=said)
     if p is None:
         if do == 'drop':
@@ -4949,6 +5075,7 @@ def lu_do(r):
         said = '%s taken away%s' % (name, ' with the home folder' if r.get('home') else '')
     else:
         raise Refused('list, add, password, aging, lock, unlock, sudo, set or drop')
+    ask_once_note(once)
     return dict(lu_list(), said=said)
 
 

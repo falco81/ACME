@@ -111,6 +111,41 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   list of older versions and `acme --downgrade` now name the settings to switch off first; and
   with the guard against writes to the database on, the portal's sign-in settings stand in the
   way of 1.0.100 (its settings are signed only from 1.0.101).
+- **A deployment's option of text is one line.** A certificate administrator could put a line
+  break into Cisco Catalyst 9800's *Webauth parameter map*; it went into the controller's
+  configuration mode as more lines (a privilege-15 user, say) at the next deployment. Saving a
+  deployment now refuses a line break or another control character in any text option of any
+  module, and in each line of a list (a tab is let through there), whoever saves it; the
+  parameter map's name is letters, digits, `_ . -` (64 at most), checked again before anything
+  is copied to the controller. A module's field can now say the form the device takes
+  (`pattern=`); the test of a deployment that changes nothing checks the same.
+- **MOMCertImport.exe is a full administrator's.** Operations Manager's *MOMCertImport.exe* is
+  run as Administrator; a certificate administrator could point it at another program, or one
+  on a share (`\\host\share\x.exe`). It is set by a full administrator only now, as the
+  commands and the Windows Admin Center installer are, and it must be a path on a drive of the
+  server ending in `\MOMCertImport.exe` - no share, no WebDAV, no `..`.
+- **A part of a device's address is one part.** Options that become a part of the path of a
+  device's API - Kubernetes' namespace, secret and deployments to restart, NetScaler's certkey
+  and virtual servers, F5's partition and profiles, A10's templates, FortiGate's virtual IPs
+  and profiles, NSX's virtual servers, Barracuda WAF's services, Flowmon's TLS setting, NGINX
+  Unit's listeners, Proxmox's nodes, Azure's web app, gateway and listeners, Kong's SNIs - are
+  refused with a `/`, `\`, `?`, `#`, `%`, a control character, or as `.` / `..` when saved
+  (and by the module); Kubernetes' deployment `x/../../namespaces/kube-system/...` restarted
+  one in another namespace. A OneView enclosure given as a URI is `/rest/enclosures/<id>`, a
+  DigitalOcean load balancer is taken as an id only when it is a whole one. Besides, acme
+  itself no longer asks any address with a `.` or `..` part in its path, a space or a control
+  character, and reads at most 64 MB of an answer.
+- **AD CS: the name of the service asked is the CA's address.** NTLM's target name
+  (`MsvAvTargetName`) was `HTTP/` and the name the server's own challenge said; a relay
+  forwarding the real CA's challenge got a name the CA accepted. It is the host of the address
+  given now. Over https with the check of the certificate on, channel binding protected already.
+- **AD CS: the CA certificate of the web server is the only one trusted.** It was trusted
+  besides the system's CAs, unlike everywhere else in acme; a public CA's certificate for the
+  name was taken too. When given, it is the only one (the field's help says so); empty, the
+  system's CAs as before.
+- **SCEP, EST, CMP: a malformed answer said in words.** A cut certificate, a month 13 or a byte
+  that is not ASCII in a time was an `IndexError` or `UnicodeDecodeError` from deep in the
+  parsing; it is "a certificate the CA sent does not read" now.
 
 ## 1.0.100 - 2026-11-14
 

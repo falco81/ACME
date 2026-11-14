@@ -161,6 +161,45 @@ class TestCommon(Base):
         self.assertEqual(sc.certs_of('nothing here'), [])
         self.assertEqual(sc.certs_of(None), [])
 
+    def test_malformed_answers_said_in_words(self):
+        """Hunt M round 2 (1.0.101): a server's malformed certificate or PKCS#7 - cut, a month
+        13, a byte not ASCII in a time - is a DerError (a PluginError where an issuer reads
+        it), not an IndexError / UnicodeDecodeError past the issuer's own checks."""
+        import random
+        leaf = self.sign(make_key_csr(['m.example.test'])[2], ['m.example.test'])
+        der = p7.cert_der(leaf)
+        seeds = [der, p7.build_degenerate([der, p7.cert_der(self.ca.pem)])]
+        rnd = random.Random(101)
+        for _ in range(3000):
+            b = bytearray(rnd.choice(seeds))
+            for _k in range(rnd.randint(1, 4)):
+                r = rnd.random()
+                if r < .6:
+                    b[rnd.randrange(len(b))] = rnd.randrange(256)
+                else:
+                    del b[rnd.randrange(len(b)):]
+                if not b:
+                    b = bytearray(b'\x30')
+            data = bytes(b)
+            for fn in (p7.Cert, p7.SignedMessage, p7.certs_from_pkcs7, p7.enveloped_parts):
+                try:
+                    got = fn(data)
+                    if isinstance(got, p7.Cert):
+                        (got.is_ca, got.key_usage, got.aki_keyid, got.subject_cn)
+                except p7.DerError:
+                    pass
+        # a time of month 13 in an otherwise whole certificate
+        i = der.index(b'\x17\x0d') + 2
+        bad = der[:i + 2] + b'13' + der[i + 4:]
+        with self.assertRaises(p7.DerError):
+            p7.Cert(bad)
+        with self.assertRaises(PluginError) as e:
+            sc.existing([bad], who='the CA')
+        self.assertIn('does not read', str(e.exception))
+        req = CertRequest(names=['m.example.test'])
+        with self.assertRaises(PluginError):
+            sc.finish(None, req, [der[:-40]])
+
     def test_formats_reads_the_est_answer(self):
         from acmelib.certs import formats
         leaf = self.sign(make_key_csr(['f.example.test'])[2], ['f.example.test'])

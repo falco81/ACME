@@ -371,7 +371,9 @@ def osu_now(store, n):
     return got if isinstance(got, dict) else {}
 
 
-def osu_asks(store, n):
+def osu_asks(store, n, rows=False):
+    """The asks of the node `n`; `rows`: each with the row it came from (_row) - the root
+    helper is handed that, signed (1.0.101)."""
     out = []
     for r in node_key_rows(store, 'host:users:want', n):
         try:
@@ -380,7 +382,7 @@ def osu_asks(store, n):
             continue
         for a in asks if isinstance(asks, list) else [asks]:
             if isinstance(a, dict) and a.get('id'):
-                out.append(a)
+                out.append(dict(a, _row=(r['k'], r['v'])) if rows else a)
     return out
 
 
@@ -828,12 +830,16 @@ def osu_keep(row, got):
     row['at'] = time.time()
 
 
-def osu_one(a):
+def osu_one(a, store=None):
     """One change done by the root helper: its answer, or what went wrong (words)."""
     q = {k: v for k, v in a.items() if k in ('do', 'name', 'uid', 'gecos', 'shell', 'sudo',
                                               'must_change', 'on', 'home', 'aging', 'policy_aging',
                                               'spare',
                                               'conf')}
+    if store is not None and a.get('_row') and a.get('do') in ('add', 'password', 'sudo'):
+        # The signed row it comes from (1.0.101): with db_guard on the helper makes no user,
+        # gives no password and no sudo from a row acme did not sign.
+        q['signed'] = signed_ask_row(store, a['_row'], a.get('id') or '')
     if a.get('hash'):
         h = unseal_secret(a['hash'], 'osuser:' + str(a.get('name') or ''))
         if not str(a['hash']).startswith(SEALED2) or not h:
@@ -861,7 +867,7 @@ def osu_tick(daemon):
         return
     now = osu_now(store, me)
     done = list(now.get('done') or [])
-    todo = [a for a in osu_asks(store, me) if a['id'] not in done and
+    todo = [a for a in osu_asks(store, me, rows=True) if a['id'] not in done and
             time.time() - float(a.get('at') or 0) < 3600]
     todo.sort(key=lambda a: float(a.get('at') or 0))
     stale = time.time() - OSU_WORK['seen'] > 300 or not now
@@ -893,9 +899,11 @@ def osu_tick(daemon):
         said = list(row.get('said') or [])[-10:]
         try:
             for a in changes:
-                err, got = osu_one(a), None
+                err, got = osu_one(a, store), None
                 if isinstance(err, dict):
                     got, err = err, ''
+                if err and sig_retry(HOST_WORK['osu_sig'], a, err):
+                    continue                    # asked again at the next tick, with the row then
                 done.append(a['id'])
                 said.append({'at': time.time(), 'id': a['id'], 'do': a.get('do'),
                              'name': a.get('name') or '', 'by': a.get('by') or '',

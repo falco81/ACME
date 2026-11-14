@@ -62639,6 +62639,26 @@
   "_442": {
    "source": "sign in again: the second step is asked now",
    "text": "přihlaste se znovu: teď se vyžaduje druhý krok"
+  },
+  "_443": {
+   "source": "this node joined the cluster on the command line",
+   "text": "tento uzel se připojil ke clusteru z příkazové řádky"
+  },
+  "_444": {
+   "source": "this node was rebuilt from the other on the command line",
+   "text": "tento uzel byl znovu sestaven z druhého z příkazové řádky"
+  },
+  "_445": {
+   "source": "What the module printed (acme does not use it)",
+   "text": "Co modul vypsal (acme to nepoužívá)"
+  },
+  "_446": {
+   "source": "Printed",
+   "text": "Vypsáno"
+  },
+  "_447": {
+   "source": "Not kept",
+   "text": "Neuloženo"
   }
  },
  "patterns": {
@@ -87033,6 +87053,66 @@
   "p_253": {
    "source": "the node {0} runs on another machine than before: the SSH server, the time, the console at login, the password policy and the rest saved are put in there again",
    "text": "uzel {0} běží na jiném stroji než předtím: SSH server, čas, konzole při přihlášení, politika hesel a zbytek uloženého se tam znovu nastaví"
+  },
+  "p_254": {
+   "source": "this node joins the cluster of {0}",
+   "text": "tento uzel se připojuje ke clusteru uzlu {0}"
+  },
+  "p_255": {
+   "source": "this node joined the cluster on the command line, its rows taken from {0}",
+   "text": "tento uzel se připojil ke clusteru z příkazové řádky, jeho řádky převzaty z {0}"
+  },
+  "p_256": {
+   "source": "the guard against writes to the database starts its counts again: {0}",
+   "text": "ochrana proti zápisům do databáze začíná počítat znovu: {0}"
+  },
+  "p_257": {
+   "source": "the counters of signed rows could not be written to {0}: {1}",
+   "text": "počítadla podepsaných řádků se nepodařilo zapsat do {0}: {1}"
+  },
+  "p_258": {
+   "source": "api_port: {0} is the port of the sign-in with a certificate (certlogin_port), where nginx listens - choose another one",
+   "text": "api_port: {0} je port přihlášení certifikátem (certlogin_port), na kterém naslouchá nginx – zvolte jiný"
+  },
+  "p_259": {
+   "source": "api_port: {0} is the port of the sign-in with a certificate (certlogin_port), where nginx listens on every node - choose another one for the API on {1}",
+   "text": "api_port: {0} je port přihlášení certifikátem (certlogin_port), na kterém nginx naslouchá na každém uzlu – zvolte pro API na {1} jiný"
+  },
+  "p_260": {
+   "source": "api_port: {0} is the port of the sign-in with a certificate (certlogin_port), where nginx listens on every node - choose another one for the API",
+   "text": "api_port: {0} je port přihlášení certifikátem (certlogin_port), na kterém nginx naslouchá na každém uzlu – zvolte pro API jiný"
+  },
+  "p_261": {
+   "source": "certlogin_port: {0} is acme's API on {1} (api_port) - choose a port of its own (8443)",
+   "text": "certlogin_port: {0} je API acme na {1} (api_port) – zvolte vlastní port (8443)"
+  },
+  "p_262": {
+   "source": "certlogin_port: {0} is acme's API on every node without a port of its own (api_port) - choose a port of its own (8443)",
+   "text": "certlogin_port: {0} je API acme na každém uzlu bez vlastního portu (api_port) – zvolte vlastní port (8443)"
+  },
+  "p_263": {
+   "source": "acme {0} does not know these sign-in settings switched on here and would drop them without a word - passwords would sign people in again where they are switched off: {1}. Switch them off first",
+   "text": "acme {0} tato zde zapnutá nastavení přihlašování nezná a bez upozornění by je zahodil – hesla by znovu přihlašovala i tam, kde jsou vypnutá: {1}. Nejdřív je vypněte"
+  },
+  "p_264": {
+   "source": "acme {0} does not know these sign-in settings switched on here and would drop them without a word: {1}. Switch them off first",
+   "text": "acme {0} tato zde zapnutá nastavení přihlašování nezná a bez upozornění by je zahodil: {1}. Nejdřív je vypněte"
+  },
+  "p_265": {
+   "source": "{0} (since {1})",
+   "text": "{0} (od {1})"
+  },
+  "p_266": {
+   "source": "older than 1.0.101 while the guard against writes to the database is on with {0}: the portal's settings and sign-ins would no longer be signed - written into the database past acme, they would be taken. Switch them off first (or the guard)",
+   "text": "starší než 1.0.101, zatímco je zapnutá ochrana proti zápisům do databáze a k tomu {0}: nastavení a přihlášení portálu by už nebyla podepsaná – zapsaná do databáze mimo acme by se převzala. Nejdřív je vypněte (nebo ochranu)"
+  },
+  "p_267": {
+   "source": "{0} more character(s)",
+   "text": "{0} {0:další znak|další znaky|dalších znaků}"
+  },
+  "p_268": {
+   "source": "the recording said more than {0} MB - it was stopped",
+   "text": "záznam vypsal víc než {0} MB – byl zastaven"
   }
  },
  "rich": {
