@@ -62835,6 +62835,30 @@
   "_477": {
    "source": "Names of another owner",
    "text": "Jména jiného vlastníka"
+  },
+  "_478": {
+   "source": "the authority's key",
+   "text": "klíč autority"
+  },
+  "_479": {
+   "source": "the authority's certificate",
+   "text": "certifikát autority"
+  },
+  "_480": {
+   "source": "the certificate that came back",
+   "text": "vrácený certifikát"
+  },
+  "_481": {
+   "source": "sealed without a name",
+   "text": "zapečetěné bez názvu"
+  },
+  "_498": {
+   "source": "in clear",
+   "text": "nezašifrované"
+  },
+  "_499": {
+   "source": "the upgrade to 1.0.102",
+   "text": "přechod na 1.0.102"
   }
  },
  "patterns": {
@@ -87509,6 +87533,90 @@
   "p_325": {
    "source": "{0} was refused: names held by another owner's certificates ({1})",
    "text": "{0} byl odmítnut: jména, která mají certifikáty jiného vlastníka ({1})"
+  },
+  "p_326": {
+   "source": "{0} has an RSA key of {1} bits: fewer than 2048 bits can be broken, and clients refuse it - make a new key (RSA 2048 bits or more, or EC P-256 / P-384)",
+   "text": "{0} má klíč RSA o {1} bitech: méně než 2048 bitů lze prolomit a klienti jej odmítají – vytvořte nový klíč (RSA 2048 bitů a více, nebo EC P-256 / P-384)"
+  },
+  "p_327": {
+   "source": "{0} has a DSA key: no client takes one any more - make a new key (EC P-256 / P-384, or RSA 2048 bits or more)",
+   "text": "{0} má klíč DSA: žádný klient jej už nepřijme – vytvořte nový klíč (EC P-256 / P-384, nebo RSA 2048 bitů a více)"
+  },
+  "p_328": {
+   "source": "{0} has a {1} key: acme signs only for RSA (2048 bits or more), EC on P-256, P-384 or P-521, and Ed25519 - make a new key",
+   "text": "{0} má klíč {1}: acme podepisuje jen RSA (2048 bitů a více), EC na P-256, P-384 nebo P-521 a Ed25519 – vytvořte nový klíč"
+  },
+  "p_329": {
+   "source": "{0} is signed with {1}: MD5 and SHA-1 can be forged, and clients refuse them - make it again with SHA-256 or better",
+   "text": "{0} je podepsán algoritmem {1}: MD5 a SHA-1 lze padělat a klienti je odmítají – vytvořte jej znovu se SHA-256 nebo silnějším"
+  },
+  "p_330": {
+   "source": "the key could not be sealed, so it is not kept: {0}",
+   "text": "klíč nelze zapečetit, proto se neuloží: {0}"
+  },
+  "p_331": {
+   "source": "the CA asks to prove {0} {1}, which was not ordered ({2}) - refused: acme proves only the names it ordered",
+   "text": "CA žádá ověřit {0} {1}, které nebylo objednáno ({2}) – odmítnuto: acme ověřuje jen jména, která objednalo"
+  },
+  "p_332": {
+   "source": "the certificate {0} gave is refused - {1}",
+   "text": "certifikát, který vydal {0}, je odmítnut – {1}"
+  },
+  "p_333": {
+   "source": "the certificate has no subjectAltName (only the subject {0}) - clients take its names from there alone",
+   "text": "certifikát nemá subjectAltName (jen subjekt {0}) – klienti berou jména pouze odtud"
+  },
+  "p_334": {
+   "source": "its names are not the ones asked for:{0}{1}",
+   "text": "jeho jména nejsou ta požadovaná:{0}{1}"
+  },
+  "p_335": {
+   "source": " {0} missing",
+   "text": " chybí {0}"
+  },
+  "p_336": {
+   "source": "{0} {1} not asked for",
+   "text": "{0} nepožadováno: {1}"
+  },
+  "p_337": {
+   "source": "the certificate {0} gave is refused - none of the {1} certificate(s) of the chain it came with issued it",
+   "text": "certifikát, který vydal {0}, je odmítnut – žádný z {1} certifikátů řetězu, se kterým přišel, jej nevydal"
+  },
+  "p_338": {
+   "source": "{0}{1} gave no chain: whose signature the certificate bears could not be checked",
+   "text": "{0}{1} nevydal řetěz: čí podpis certifikát nese, nebylo možné ověřit"
+  },
+  "p_339": {
+   "source": "the certificate {0} gave is refused - it does not verify against the chain it came with ({1}): not signed by {2}",
+   "text": "certifikát, který vydal {0}, je odmítnut – neověří se proti řetězu, se kterým přišel ({1}): nepodepsal jej {2}"
+  },
+  "p_340": {
+   "source": "the setting {0} is kept {1}, and acme seals it for its name: refused (written into the database past acme?) - type it again",
+   "text": "nastavení {0} je uloženo {1}, ale acme je pečetí pro jeho název: odmítnuto (zapsáno do databáze mimo acme?) – zadejte je znovu"
+  },
+  "p_341": {
+   "source": "every secret is sealed for its place now ({0}): {1}",
+   "text": "každé tajemství je nyní zapečetěno pro své místo ({0}): {1}"
+  },
+  "p_342": {
+   "source": "the secrets kept here are sealed for their places now ({0}): {1}",
+   "text": "tajemství uložená zde jsou nyní zapečetěna pro svá místa ({0}): {1}"
+  },
+  "p_343": {
+   "source": "a copy put back by {0}",
+   "text": "kopie obnovená uživatelem {0}"
+  },
+  "p_344": {
+   "source": "the secrets could not be sealed for their places: {0}",
+   "text": "tajemství nebylo možné zapečetit pro jejich místa: {0}"
+  },
+  "p_345": {
+   "source": "the secrets put back could not be sealed for their places: {0}",
+   "text": "obnovená tajemství nebylo možné zapečetit pro jejich místa: {0}"
+  },
+  "p_346": {
+   "source": "a module's secrets could not be sealed for their places: {0}",
+   "text": "tajemství modulu nebylo možné zapečetit pro jejich místa: {0}"
   }
  },
  "rich": {
