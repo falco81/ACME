@@ -30,30 +30,42 @@ def _engine():
 
 def _seal(ctx, text, bind):
     """The account key sealed: by the Context where it offers it, else by the
-    engine's sealing key (bound to the slot), else - outside the daemon - as it is."""
+    engine's sealing key (bound to the slot). As it is only where there is no engine at all
+    (a tool of its own, outside acme): inside acme a key that cannot be sealed (secrets.key
+    missing) is refused in words (1.0.102) - it was kept in clear in the database without one."""
     fn = getattr(ctx, 'seal', None)
     if callable(fn):
         return fn(text, bind)
     E = _engine()
-    if E:
-        try:
-            return E.seal_secret(text, 'certs:' + bind)
-        except Exception:                           # noqa: BLE001
-            pass
-    return text
+    if E is None:
+        return text
+    try:
+        return E.seal_secret(text, 'certs:' + bind)
+    except Exception as e:                          # noqa: BLE001
+        raise PluginError('the key could not be sealed, so it is not kept: %s' % e, retry=False)
 
 
 def _unseal(ctx, value, bind):
+    """The key or secret opened - None where it does not open. In clear only where there is
+    no engine at all; inside acme the engine decides (unseal_secret: one in clear, or sealed
+    without a place, is refused once every secret is sealed for its place - 1.0.102)."""
     fn = getattr(ctx, 'unseal', None)
     if callable(fn):
         return fn(value, bind)
     E = _engine()
-    if E and isinstance(value, str) and not value.startswith('-----'):
-        try:
-            return E.unseal_secret(value, 'certs:' + bind)
-        except Exception:                           # noqa: BLE001
-            return None
-    return value
+    if E is None:
+        return value
+    try:
+        return E.unseal_secret(value, 'certs:' + bind)
+    except Exception:                               # noqa: BLE001
+        return None
+
+
+def _sealed_for(value):
+    """Whether `value` is sealed as acme seals it now (for its place): a key kept in clear or
+    sealed without a place (before 1.0.102) is sealed again where it is first used."""
+    E = _engine()
+    return E is None or not isinstance(value, str) or value.startswith(E.SEALED2)
 
 
 _ACCOUNT_LOCKS = {}
@@ -232,6 +244,10 @@ class AcmeIssuer(Issuer):
         if pem_text:
             cl.use_key(pem_text)
             cl.kid = row['url']
+            if not _sealed_for(row['key']):
+                # kept in clear (or sealed without a place) before 1.0.102: sealed now
+                row['key'] = _seal(self.ctx, pem_text, slot)
+                self.ctx.kv_set(slot, json.dumps(row))
             want = self.contacts()
             if sorted(row.get('contacts') or []) != sorted(want) and want:
                 try:

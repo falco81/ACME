@@ -390,6 +390,10 @@ def _keep(store, irow, p, got, kn, by, s=None):
     if p['name']:
         name = S.clean_name(p['name'], 'the certificate\'s name')
         if name in taken:
+            # not naming another team's certificate to a scoped session (1.0.102)
+            other = store.db.row('SELECT id, name, owner FROM certs WHERE name = ?', (name,))
+            if other and _named(store, s, other) != other['name']:
+                raise ValueError('that name cannot be used - choose another')
             raise ValueError('there is a certificate called %s already' % name)
     else:
         first = info.get('cn') or (names[0] if names else '') or 'imported'

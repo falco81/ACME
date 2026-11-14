@@ -735,11 +735,18 @@ def key_plain(key, password=None):
     return _key_label(out.decode('ascii'))[1]
 
 
+# PBKDF2 rounds of a key locked with a password (1.0.102; OWASP 2023 for PBKDF2-HMAC-SHA256):
+# openssl's default is 2048 - a password of eight letters tried in hours on one GPU.
+KEY_ENC_ITER = 600000
+
+
 def key_encrypt(key_pem, password, cipher='aes-256-cbc'):
-    """The key as encrypted PKCS#8 PEM (PBES2, PBKDF2)."""
+    """The key as encrypted PKCS#8 PEM (PBES2, PBKDF2-HMAC-SHA256, KEY_ENC_ITER rounds) - by
+    openssl pkcs8, which takes the count (pkey does not; OpenSSL 1.0.2 and later)."""
     if not password:
         raise PkiError('a password is needed to encrypt a key')
-    out = openssl(['pkey', '-' + cipher, '-passout', 'env:' + PASS_ENV_OUT],
+    out = openssl(['pkcs8', '-topk8', '-v2', cipher, '-v2prf', 'hmacWithSHA256',
+                   '-iter', str(KEY_ENC_ITER), '-passout', 'env:' + PASS_ENV_OUT],
                   data=key_plain(key_pem), env={PASS_ENV_OUT: password})
     return out.decode('ascii')
 
@@ -1146,6 +1153,26 @@ def verify_chain(leaf_pem, chain_pems, roots_pems=None, purpose='sslserver', at=
             if m:
                 return False, '%s (at depth %s)' % (m.group(2).strip(), m.group(1))
             return False, _said(text)
+    return (': OK' in out), out.replace(leaf, 'certificate').strip()
+
+
+def signed_by(leaf_pem, issuer_pem):
+    """(ok, words): whether `issuer_pem`'s key signed `leaf_pem` (1.0.102) - openssl verify with
+    the issuer as the only anchor, no time, no purpose: the signature and the issuer's right to
+    sign (CA, keyCertSign, its name constraints), nothing about the CA above it."""
+    with workdir() as d:
+        leaf = wfile(d, 'leaf.pem', cert_pem(leaf_pem))
+        args = ['verify', '-partial_chain', '-no_check_time', '-ignore_critical',
+                '-CAfile', wfile(d, 'issuer.pem', cert_pem(issuer_pem)), '-no-CApath']
+        if openssl_version()[:2] >= (3, 0):
+            args.append('-no-CAstore')
+        args.append(leaf)
+        try:
+            out = openssl(args).decode('utf-8', 'replace')
+        except PkiError as e:
+            text = (e.detail or str(e)).replace(leaf, 'certificate')
+            m = re.search(r'error \d+ at \d+ depth lookup: ?(.*)', text)
+            return False, (m.group(1).strip() if m else _said(text))
     return (': OK' in out), out.replace(leaf, 'certificate').strip()
 
 

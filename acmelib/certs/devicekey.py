@@ -73,11 +73,13 @@ def key_types_of(cls):
     return list(kts) if kts else None
 
 
-def save_problem(store, cert, deploys=None, one_per_device=True):
+def save_problem(store, cert, deploys=None, one_per_device=True, may_see=None):
     """Why `cert` (a row as it would be saved, with csr_from) cannot be so - words, or ''.
     `deploys`: its deployments' targets (None: read). `one_per_device`: another certificate
     whose key the same device makes refused - only when csr_from is set or changed (two saved
-    before 1.0.96 can still be edited; the renewer warns of them, devicekey.sharing)."""
+    before 1.0.96 can still be edited; the renewer warns of them, devicekey.sharing).
+    `may_see(row)`: whether the session may see a certificate - another one it may not is not
+    named (1.0.102)."""
     src = str(cert.get('csr_from') or '').strip()
     if not src:
         return ''
@@ -127,6 +129,9 @@ def save_problem(store, cert, deploys=None, one_per_device=True):
     # One certificate per device: the device holds one pending key - a second certificate's
     # CSR replaced the first one's key, and each renewal took the other's certificate away.
     twin = sharing(store, cert, trow['name']) if one_per_device else None
+    if twin and may_see is not None and not may_see(twin):
+        return ('the device %s already makes the key of another certificate - a device holds one '
+                'pending key: choose another target' % trow['name'])
     if twin:
         return ('the device %s already makes the key of the certificate %s - a device holds one '
                 'pending key, so a second certificate would replace the key of the first: '
@@ -153,7 +158,7 @@ def fit_problem(cls, cert, options):
 
 def sharing(store, cert, device):
     """Another certificate whose key the device `device` makes ({'name'}), or None."""
-    return store.db.row('SELECT name FROM certs WHERE csr_from = ? AND id <> ? ORDER BY name',
+    return store.db.row('SELECT name, owner FROM certs WHERE csr_from = ? AND id <> ? ORDER BY name',
                         (device, int(cert.get('id') or 0)))
 
 

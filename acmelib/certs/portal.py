@@ -244,7 +244,9 @@ def mine(h, s, rows=None):
         one['may'] = [w for w in ALL_RIGHTS if w in rights_of(s, r, names, groups, tms, defined)]
         one['team'] = str(r.get('owner') or '').strip().lower() in tms
         # asked for by this very person (1.0.80): its Approve was offered, then refused
-        one['asked_by_me'] = str(asker(st_, r['id']).get('who') or '').lower() in names
+        one['asked_by_me'] = bool(askers_of(st_, r['id']) & names)
+        if r.get('state') == WAITING:
+            one.update(held_public(st_, r))         # whose names it asks for (1.0.102)
         if not key_may(s, via, one['may'], asker(st_, r['id']).get('who')):
             one['formats'] = [f for f in one.get('formats') or [] if f != KEY_FORMAT]
         return one
@@ -797,8 +799,9 @@ def _portal_request(h):
         owner = tm[0]
     # A wildcard waits for an administrator whatever portal_cert_auto says (1.0.45): issued at
     # once, with its key to take, it covered every host under the name.
+    held = holders(store, names, owner)
     auto = bool(E.CONFIG.get('portal_cert_auto')) and not any(n.startswith('*.') for n in names) \
-        and not held_by_others(store, names, owner)
+        and not held
     # a name the rules take (1.0.79: "_svc.example.test" stayed as it was, and every save of the
     # certificate by an administrator was refused until it was renamed)
     base_name = S.safe_name(names[0].replace('*.', 'wildcard.'), most=80)
@@ -837,10 +840,14 @@ def _portal_request(h):
         raise E.ApiError(403, 'you have asked for as many certificates as one person may (%d)'
                          % most())
     data = s.get('data') or {}
+    # why it waits, kept with it (1.0.102): who holds which of its names - they approve it
+    held_now = holders(store, names, owner, cid, waiting=False)
     store.set_meta(META + str(cid), json.dumps({
         'who': who, 'display': data.get('display') or '', 'mail': data.get('mail') or '',
-        'at': t, 'note': note}))
+        'at': t, 'note': note, 'held': held_list(held_now)}))
     job_id = None
+    if not auto and held_now:
+        tell_holders(store, cid, held_now, who)
     if auto:
         store.add_event('certificates', '%s asked on the portal for %s (%s) from %s - issued '
                         'without approval' % (who, name, ', '.join(names), irow['name']), who=who)
@@ -936,9 +943,21 @@ def _portal_approve(h):
     row = need_right(h, s, b.get('id'), 'approve', 'approving')
     # Never one's own (1.0.51): a member with "manage" asked for a wildcard (which always waits
     # for approval) and approved it himself - and took its key. Declining one's own is fine.
-    if A._flag(b.get('ok')) and str(asker(h.store, row['id']).get('who') or '').lower() in \
-            my_names(s):
-        raise E.ApiError(403, 'you asked for it yourself - someone else approves it')
+    # ...nor one they sent a new CSR or names for (1.0.102): a member who may manage sent his
+    # own CSR with other names for another's request, and approved it himself.
+    ok = A._flag(b.get('ok'))
+    if ok and askers_of(h.store, row['id']) & my_names(s):
+        raise E.ApiError(403, 'you asked for it yourself, or sent its CSR or names - someone else '
+                              'approves it')
+    if ok and row.get('state') == WAITING and not E.portal_sees_all(s):
+        names, tms, defined = my_names(s), my_teams(h, s), defined_teams(h.store)
+
+        def may_owner(o):
+            o = str(o or '').strip().lower()
+            if o and o in tms and tms[o][1] & {'approve', 'manage'}:
+                return True
+            return bool(o) and o in names and o not in defined     # their own certificate
+        need_held_ok(h.store, row, may_owner, s['name'])
     return approve_request(h.store, row, portal_by(s), A._flag(b.get('ok')),
                            str(b.get('why') or '').strip()[:500])
 
@@ -950,8 +969,60 @@ def _portal_approve(h):
 def _cert_approve(h, s):
     b = h.body()
     row = S.cert_need(h.store, A._id(b.get('id')))
-    return approve_request(h.store, row, A.who(s), A._flag(b.get('ok')),
-                           str(b.get('why') or '').strip()[:500])
+    ok = A._flag(b.get('ok'))
+    if ok and row.get('state') == WAITING:
+        # Never one's own here either (1.0.102: a certificate administrator who also signs in
+        # to the portal asked, approved it here, and took its key there) - a full administrator
+        # included: one who needs a certificate adds it in the administration.
+        if asked_by_admin(h.store, row, s):
+            h.store.add_event('certificates', '%s was refused: approving %s, asked for by '
+                              'themselves' % (A.who(s), row['name']), 'warn', who=A.who(s))
+            raise E.ApiError(403, 'you asked for it yourself, or sent its CSR or names - someone '
+                                  'else approves it (a full administrator who needs it adds it '
+                                  'as a certificate here, Add a certificate)')
+        if not (s.get('role') == 'fulladmin' or s.get('cli')):
+            from acmelib.certs import teams as T
+            need_held_ok(h.store, row, lambda o: T.cert_may(h.store, s, {'owner': o}, 'approve')
+                         or T.cert_may(h.store, s, {'owner': o}, 'manage'), A.who(s))
+    return approve_request(h.store, row, A.who(s), ok, str(b.get('why') or '').strip()[:500])
+
+
+def _bare(n):
+    """A directory name without its domain: DOMAIN\\name, name@domain -> name."""
+    return str(n or '').strip().lower().split('\\')[-1].split('@')[0]
+
+
+def admin_names(s):
+    """The names a session of the administration asks for certificates under on the portal
+    (lower case): local:NAME of an account of acme's own; of the directory, its name, the
+    name without its domain, its DN and mail."""
+    from acmelib.certs import teams as T
+    acc = s.get('account') or {}
+    name = str(s.get('name') or '').strip().lower()
+    out = set(T.admin_principal(s)[0]) | {'local:' + name}
+    if acc.get('source') == 'directory':
+        out |= {name, _bare(name)}
+        for k in ('mail', 'dn'):
+            if acc.get(k):
+                out.add(str(acc[k]).strip().lower())
+    out.discard('')
+    out.discard('local:')
+    return out
+
+
+def asked_by_admin(store, row, s):
+    """Whether this session of the administration asked for the request on the portal, or
+    sent its CSR or names (1.0.102)."""
+    mine = admin_names(s)
+    who = askers_of(store, row['id'])
+    if who & mine:
+        return True
+    acc = s.get('account') or {}
+    if acc.get('source') == 'directory' and {_bare(w) for w in who
+                                             if not w.startswith('local:')} & mine:
+        return True
+    mail = str(acc.get('mail') or '').strip().lower()
+    return bool(mail and str(asker(store, row['id']).get('mail') or '').strip().lower() == mail)
 
 
 def approve_request(store, row, by, ok, why):

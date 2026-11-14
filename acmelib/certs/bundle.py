@@ -85,8 +85,16 @@ def p7b_der(cert_pems):
     return A.seq(A.oid('1.2.840.113549.1.7.2'), A.explicit(0, signed))
 
 
+# PBKDF2 rounds of the key's and certificates' encryption and of the MAC (1.0.102): openssl's
+# default is 2048 (and an 8-byte salt for the MAC). Windows 10 1709 / Server 2019 and later
+# and Java 8u301 / 11 and later read AES-256 / SHA-256 PKCS#12 with this count (Java reads up
+# to 5,000,000). A device that cannot: p12-legacy (3DES / SHA-1, its old count) as before.
+P12_ITER = 600000
+
+
 def pkcs12(key_pem, cert_pem, chain_pems, password, alias='', legacy=False):
-    """PKCS#12 by openssl pkcs12 -export; the password only in the environment."""
+    """PKCS#12 by openssl pkcs12 -export; the password only in the environment. AES-256 and
+    a SHA-256 MAC, both P12_ITER rounds; `legacy` as old devices read it (3DES, SHA-1)."""
     with pki.workdir() as d:
         args = ['pkcs12', '-export', '-inkey', pki.wfile(d, 'k.key', pki.key_plain(key_pem)),
                 '-in', pki.wfile(d, 'c.pem', pki.cert_pem(cert_pem)),
@@ -99,7 +107,9 @@ def pkcs12(key_pem, cert_pem, chain_pems, password, alias='', legacy=False):
         if legacy:
             args += ['-keypbe', 'PBE-SHA1-3DES', '-certpbe', 'PBE-SHA1-3DES', '-macalg', 'sha1']
         else:
-            args += ['-keypbe', 'AES-256-CBC', '-certpbe', 'AES-256-CBC', '-macalg', 'sha256']
+            # -iter is the MAC's count too (openssl 1.1.1 and 3.x); -maciter so in 1.1.1 too
+            args += ['-keypbe', 'AES-256-CBC', '-certpbe', 'AES-256-CBC', '-macalg', 'sha256',
+                     '-iter', str(P12_ITER), '-maciter']
         return pki.openssl(args, env={pki.PASS_ENV_OUT: password or ''})
 
 

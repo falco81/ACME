@@ -52,7 +52,7 @@ import urllib.parse
 
 from acmelib.plugins.base import Issuer, Issued, Plugin, PluginError, field, dual_order_field
 from acmelib.plugins.issuers import _dcv
-from acmelib.plugins.issuers.acme import AcmeIssuer, _seal, _unseal
+from acmelib.plugins.issuers.acme import AcmeIssuer, _seal, _sealed_for, _unseal
 
 API_URLS = {
     'cz': 'https://www.sslmarket.cz/api',
@@ -1402,6 +1402,9 @@ class SslmarketAcmeIssuer(_Common, AcmeIssuer):
         if row and row.get('hmac'):
             hmac = _unseal(self.ctx, row['hmac'], slot)
             if hmac:
+                if not _sealed_for(row['hmac']):
+                    # kept in clear (or sealed without a place) before 1.0.102: sealed now
+                    self._put(slot, dict(row, hmac=_seal(self.ctx, hmac, slot)))
                 self._cred = dict(row, hmac=hmac)
                 return self._cred
         product, name, days, org = self._settings()

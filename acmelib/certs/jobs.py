@@ -390,8 +390,18 @@ def _lease_take(store, cert_id):
         live = int(store.db.value("SELECT COUNT(*) FROM cert_jobs WHERE cert_id = ? AND state IN "
                                   "('queued', 'running') AND ts > ?",
                                   (cert_id, time.time() - LEASE_S), 0) or 0)
-        # (a lease of the last minute stays: its job may be about to be written)
-        if time.time() - at > LEASE_S or (not live and time.time() - at > 60):
+        # (a lease of the last minute stays: its job may be about to be written) - but one of
+        # this node's whose process is gone is taken over at once (1.0.102: 409 "a job is
+        # already working on that certificate" for a minute after a kill)
+        parts = was.split('|')
+        dead = len(parts) == 3 and _pid_gone(parts[0], parts[1])
+        if dead and live:
+            # its job still "running": ended first when the command line that ran it is gone
+            reap_cli(store)
+            live = int(store.db.value("SELECT COUNT(*) FROM cert_jobs WHERE cert_id = ? AND "
+                                      "state IN ('queued', 'running') AND ts > ?",
+                                      (cert_id, time.time() - LEASE_S), 0) or 0)
+        if time.time() - at > LEASE_S or (not live and (dead or time.time() - at > 60)):
             if store.db.run('UPDATE meta SET v = ? WHERE k = ? AND v = ?', (mine, key, was)):
                 _MY_LEASES[cert_id] = mine
                 return True
@@ -468,6 +478,104 @@ def cli_alive(ident):
     return True
 
 
+def cli_gone(ident):
+    """A job of the command line of this node whose process is gone (1.0.102): its mark is
+    there, the process in it is not - killed (SIGKILL, the ssh session closed) before the job
+    was written as ended."""
+    try:
+        if not _cli_mark(ident).exists():
+            return False
+    except OSError:
+        return False
+    return not cli_alive(ident)
+
+
+def reap_cli(store):
+    """This node's jobs left by a command line that is gone, ended as failed (1.0.102: a killed
+    `acme --renew` left its certificate "renewing" - never renewed by itself again, no alert -
+    until the daemon was started again). -> [(job id, cert id, kind)]."""
+    out = []
+    try:
+        rows = store.db.rows("SELECT id, kind, cert_id FROM cert_jobs WHERE node = ? AND state "
+                             "IN ('queued', 'running')", (E.node_name(),))
+    except Exception:                                   # noqa: BLE001
+        return out
+    t = time.time()
+    for r in rows:
+        with _LOCK:
+            if r['id'] in RUNNING:
+                continue
+        if not cli_gone(r['id']):
+            continue
+        why = 'the command line that ran it is gone (killed)'
+        if not store.db.run("UPDATE cert_jobs SET state = 'failed', ok = 0, finished = ?, "
+                            "said = ? WHERE id = ? AND state IN ('queued', 'running')",
+                            (t, why, r['id'])):
+            continue
+        try:
+            _cli_mark(r['id']).unlink()
+        except OSError:
+            pass
+        cid = r.get('cert_id')
+        if cid is not None:
+            was = store.db.run("UPDATE certs SET state = 'failed', last_error = ?, next_try = ? "
+                               "WHERE id = ? AND state = 'renewing'", (why, t + 300, cid))
+            name = store.db.value('SELECT name FROM certs WHERE id = ?', (cid,), '') or str(cid)
+            store.add_event('certificates', 'job %d (%s of %s) was left by a command line that '
+                            'is gone: marked failed' % (r['id'], r.get('kind') or '?', name),
+                            'bad' if was else 'warn')
+            if was:
+                # said as a renewal that failed is (alerts: "failed")
+                try:
+                    from acmelib.certs import notices
+                    notices.notify(store, 'renew:%s' % cid, 'Renewing %s failed' % name,
+                                   'the renewal at the command line was stopped before it was '
+                                   'done (its process is gone): it is tried again')
+                except Exception:                       # noqa: BLE001
+                    pass
+            store.db.run("UPDATE cert_deploys SET state = 'failed', last_error = ?, next_try = ? "
+                         "WHERE cert_id = ? AND state = 'deploying'", (why, t + 60, cid))
+            unstick_deleting(store, cid, why)
+            _lease_drop_dead(store, cid)
+        out.append((r['id'], cid, r.get('kind')))
+    return out
+
+
+def _pid_gone(node, pid):
+    """Whether the process `pid` of this node is gone (a lease's): False when it cannot be
+    told, or it is of another node."""
+    if node != E.node_name():
+        return False
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    if pid == os.getpid():
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    except OSError:
+        return False
+    return False
+
+
+def _lease_drop_dead(store, cert_id):
+    """A certificate's lease given back when the process of this node that took it is gone."""
+    if not _lease_on(store):
+        return
+    try:
+        was = str(store.get_meta(_lease_key(cert_id)) or '')
+        parts = was.split('|')
+        if len(parts) == 3 and _pid_gone(parts[0], parts[1]):
+            store.db.run('DELETE FROM meta WHERE k = ? AND v = ?', (_lease_key(cert_id), was))
+    except Exception:                                   # noqa: BLE001
+        pass
+
+
 def _cli_alive_ids(store):
     try:
         ids = [int(r['id']) for r in store.db.rows(
@@ -511,6 +619,10 @@ def cert_busy(store, cert_id):
     # the last two hours (a job older than that was left by a process that is gone).
     got = store.db.value("SELECT COUNT(*) FROM cert_jobs WHERE cert_id = ? AND state IN "
                          "('queued', 'running') AND ts > ?", (cert_id, time.time() - 7200), 0)
+    if int(got or 0) and any(c == cert_id for _j, c, _k in reap_cli(store)):
+        # one left by a command line that is gone (1.0.102): ended now, not busy for two hours
+        got = store.db.value("SELECT COUNT(*) FROM cert_jobs WHERE cert_id = ? AND state IN "
+                             "('queued', 'running') AND ts > ?", (cert_id, time.time() - 7200), 0)
     if int(got or 0):
         return True
     return False

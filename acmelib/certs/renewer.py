@@ -358,6 +358,12 @@ def _revoked_keys(store, cert_id):
                 continue
     except Exception:                                   # noqa: BLE001
         pass
+    try:
+        # ...and those written in meta (1.0.102): after a configuration's import it has no
+        # versions, and a key revoked there was taken for good again
+        out |= S.revoked_keys_meta(store, cert_id)
+    except Exception:                                   # noqa: BLE001
+        pass
     return sorted(out)
 
 
@@ -422,6 +428,94 @@ def drop_held(store, job, cert, ctx, issuer):
         except Exception:                               # noqa: BLE001
             pass
     return n
+
+
+def _name_typed(pki, t, v):
+    """(type, value) of a name as a certificate or a request has it, compared alike: DNS and the
+    domain of an e-mail lowercase without the last dot (IDN as xn--), an IP address written
+    one way."""
+    v = str(v or '').strip()
+    if t == 'DNS':
+        try:
+            return 'DNS', pki._idna(v)
+        except Exception:                               # noqa: BLE001
+            return 'DNS', v.rstrip('.').lower()
+    if t == 'IP':
+        try:
+            return 'IP', str(ipaddress.ip_address(v.strip('[]')))
+        except ValueError:
+            return 'IP', v.lower()
+    if t == 'email':
+        local, _, dom = v.rpartition('@')
+        return 'email', '%s@%s' % (local, dom.rstrip('.').lower())
+    return t, v
+
+
+SAN_KINDS = ('DNS', 'IP', 'email', 'URI', 'UPN')
+
+
+def _www_twin(t, v, asked):
+    """Whether (t, v) is the www. twin of a DNS name asked for (www.x for x, x for www.x) - the
+    one a commercial CA adds by itself to a certificate of one name."""
+    if t != 'DNS':
+        return False
+    twin = v[4:] if v.startswith('www.') else 'www.' + v
+    return ('DNS', twin) in asked
+
+
+def issued_names_refused(pki, cert_pem, sans):
+    """Words why the names of an issued certificate are not the ones asked for (1.0.102) -
+    None where they are. A name asked for and missing (a DNS name or an IP address), or a name
+    no one asked for (but the www. twin of one a commercial CA adds), refuses it: what the CA
+    put in would have been deployed for names nobody proved or wanted."""
+    asked = set()
+    for n in sans or []:
+        try:
+            t, v = pki.classify_name(n)
+        except Exception:                               # noqa: BLE001
+            continue
+        asked.add(_name_typed(pki, t, v))
+    if not asked:
+        return None
+    info = pki.cert_info(cert_pem)
+    got = {_name_typed(pki, t, v) for t, v in (info.get('san') or []) if t in SAN_KINDS}
+    if not got:
+        return ('the certificate has no subjectAltName (only the subject %s) - clients take its '
+                'names from there alone' % (info.get('subject_dn') or '-'))
+    missing = sorted(v for t, v in asked - got if t in ('DNS', 'IP'))
+    extra = sorted(v for t, v in got - asked if not _www_twin(t, v, asked))
+    if missing or extra:
+        return 'its names are not the ones asked for:%s%s' % (
+            ' %s missing' % ', '.join(missing) if missing else '',
+            '%s %s not asked for' % (',' if missing else '', ', '.join(extra)) if extra else '')
+    return None
+
+
+def _issued_checked(pki, job, irow, cert_pem, given_chain, chain, sans, what=''):
+    """What an issuer gave back, checked before it is kept (1.0.102): its names are the ones
+    asked for, and it is signed by the certificate above it in the chain it came with. Refused
+    in words (not tried again by itself: the same CA gives the same)."""
+    why = issued_names_refused(pki, cert_pem, sans)
+    if why:
+        raise base.PluginError('the certificate %s gave is refused - %s' % (irow['name'], why),
+                               retry=False)
+    info = pki.cert_info(cert_pem)
+    if info.get('self_signed'):
+        return
+    if not chain:
+        if given_chain:
+            raise base.PluginError('the certificate %s gave is refused - none of the %d '
+                                   'certificate(s) of the chain it came with issued it'
+                                   % (irow['name'], len(given_chain)), retry=False)
+        job.step('%s%s gave no chain: whose signature the certificate bears could not be '
+                 'checked' % (what, irow['name']), 'warn')
+        return
+    ok, said = pki.signed_by(cert_pem, chain[0])
+    if not ok:
+        raise base.PluginError('the certificate %s gave is refused - it does not verify against '
+                               'the chain it came with (%s): not signed by %s'
+                               % (irow['name'], said, pki.cert_info(chain[0])['subject_dn']),
+                               retry=False)
 
 
 def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_type,
@@ -494,6 +588,8 @@ def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_t
             chain = [p for p in ordered if p.strip() != issued.cert_pem.strip()]
     except Exception as e:                              # noqa: BLE001
         job.step('the chain could not be put in order: %s' % e, 'warn')
+    _issued_checked(pki, job, irow, issued.cert_pem, list(issued.chain_pems or []), chain, sans,
+                    what)
     if given:
         if pki.cert_info(issued.cert_pem).get('pub_sha256') != ci.get('sha256'):
             raise base.PluginError('the certificate %s gave is not for the key of the CSR %s'
@@ -619,6 +715,18 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
                 _pk.cert_info(cert['cert_pem']).get('pub_sha256')
     except Exception:                                   # noqa: BLE001
         key_out = False
+    if not key_out and cert.get('cert_pem'):
+        # its key written as revoked (1.0.102): a certificate put in from a configuration's
+        # file has no versions - the UPDATE of its version at the revoke changed nothing
+        try:
+            from acmelib.certs import pki as _pk
+            mine = str(_pk.cert_info(cert['cert_pem']).get('pub_sha256') or '').upper()
+            key_out = bool(mine) and mine in S.revoked_keys_meta(store, cert['id'])
+            if key_out and cert.get('csr_given'):
+                key_out = str(_pk.csr_info(cert['csr_given']).get('pub_sha256') or '').upper() \
+                    == mine
+        except Exception:                               # noqa: BLE001
+            pass
     if (was == 'revoked' or key_out) and cert.get('csr_given'):
         # Its key is the CSR's, and acme cannot make another: a new CSR is needed.
         raise base.PluginError('%s was revoked and is issued for a CSR sent in: send a new CSR '
@@ -718,6 +826,11 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
                     job.step('a new key: the one kept is %s, %s is asked for'
                              % (_pki.key_info(kept)['key_type'], key_type))
                     kept = None
+                elif str(_pki.key_info(kept)['pub_sha256']).upper() in \
+                        {str(k).upper() for k in _revoked_keys(store, cert['id'])}:
+                    # a key once revoked never kept (1.0.102)
+                    job.step('a new key: the one kept was revoked')
+                    kept = None
             except Exception:                           # noqa: BLE001
                 kept = None
         pem, chain, key_out, info, iinfo = _issue_one(
@@ -740,6 +853,13 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
             from acmelib.certs import devicekey
             devicekey.made_by_device(store, cert['id'], version, cert['csr_from'])
         job.version = version
+        auto_was = store.get_meta(S.CERT_META['revauto'] % int(cert['id']))
+        if auto_was is not None:
+            # issued again after a revoke (1.0.102): renewed by itself again if it was before -
+            # "Renew now" after a revoke left it "by hand" for good
+            store.db.update('certs', cert['id'], {'auto_renew': 1 if auto_was == '1' else 0})
+            store.db.run('DELETE FROM meta WHERE k = ?',
+                         (S.CERT_META['revauto'] % int(cert['id']),))
         store.db.update('cert_issuers', irow['id'], {'last_ok': time.time(), 'last_error': ''})
         readiness.mark(store, cert['id'], False)
         until = _until(info)
@@ -928,12 +1048,29 @@ def revoke_cert(store, job, cert_id, reason='unspecified', by=''):
     t = time.time()
     revoked = {'state': 'revoked', 'state_at': t, 'auto_renew': 0, 'updated': t,
                'updated_by': str(by)[:190]}
+    if store.get_meta(S.CERT_META['revauto'] % int(cert['id'])) is None:
+        # renewed by itself or not, as it was: put back when a new one is issued (1.0.102)
+        store.set_meta(S.CERT_META['revauto'] % int(cert['id']),
+                       '1' if cert.get('auto_renew') else '0')
     if cert.get('alt_cert_pem'):
         # the twin too (1.0.45): it was shown as good - as revoked only when it was (1.0.48)
         revoked['alt_state'] = 'revoked' if twin_ok else 'revoke-failed'
     store.db.update('certs', cert['id'], revoked)
     store.db.run('UPDATE cert_versions SET revoked = ? WHERE cert_id = ? AND version = ?',
                  (t, cert['id'], cert.get('version') or 0))
+    # ...and its keys and fingerprints written where they go with it (1.0.102): a certificate
+    # put in from a configuration's file has no versions - the UPDATE above changed nothing,
+    # and "keep the key" issued the key revoked again
+    try:
+        from acmelib.certs import pki as _pki
+        pubs = [_pki.cert_info(cert['cert_pem']).get('pub_sha256')]
+        fps = [cert.get('fingerprint')]
+        if cert.get('alt_cert_pem') and twin_ok:
+            pubs.append(_pki.cert_info(cert['alt_cert_pem']).get('pub_sha256'))
+            fps.append(cert.get('alt_fingerprint'))
+        S.revoked_keys_add(store, cert['id'], pubs, fps)
+    except Exception as e:                              # noqa: BLE001
+        job.step('the key revoked could not be written down: %s' % e, 'warn')
     # A request held at the source has the key revoked (1.0.101): dropped here, never finished.
     drop_held(store, job, cert, ctx, issuer)
     store.add_event('certificates', '%s revoked (%s) by %s' % (cert['name'], reason, by or '?'),
@@ -1005,7 +1142,8 @@ def orphans(store, t=None):
     there is not alive and it began more than two hours ago."""
     from acmelib.certs import jobs
     t = t or time.time()
-    n = 0
+    # this node's own left by a command line that is gone (1.0.102): a killed `acme --renew`
+    n = len(jobs.reap_cli(store))
     for c in store.db.rows("SELECT id, name, state FROM certs WHERE state IN ('renewing', 'deleting')"):
         live = store.db.rows("SELECT id, node, ts FROM cert_jobs WHERE cert_id = ? AND "
                              "state IN ('queued', 'running')", (c['id'],))

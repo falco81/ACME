@@ -351,6 +351,14 @@ function certDialog(id, fresh) {
       body.appendChild(lw);
     }
     if (c.state === 'pending-approval') body.appendChild(stateNote('warn', 'Waiting for an administrator', 'You asked for it; an administrator approves it (or not). You are told by mail when they have.'));
+    /* Names another owner's certificates hold (1.0.102): only that owner's approver approves it. */
+    if (c.state === 'pending-approval' && c.held_words && c.held_words.length) {
+      var hn = stateNote('warn', 'Names of another owner', 'Its names are held by certificates of another owner - only someone who may approve (or manage) for that owner, or a full administrator, approves it:');
+      var hl = el('ul', '');
+      c.held_words.forEach(function (w) { hl.appendChild(el('li', '', w)); });
+      hn.appendChild(hl);
+      body.appendChild(hn);
+    }
     if (c.state === 'declined') body.appendChild(stateNote('crit', 'Declined', c.why ? 'The administrator said: ' + c.why : 'An administrator declined it.'));
     if (c.state === 'failed') body.appendChild(stateNote('crit', 'It could not be issued', (c.why || '') + ' - it is tried again by itself; the administrators know.'));
     if (c.from_csr) body.appendChild(stateNote('info', 'Issued for the CSR you sent', 'Its private key is where you made the CSR - acme never had it, so there is no PFX with the key here. Every renewal uses the same CSR, so the same key; to change the key, send a new CSR.'));

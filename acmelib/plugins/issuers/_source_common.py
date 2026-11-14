@@ -364,11 +364,23 @@ def pending_get(ctx, slot, req, issuer=None):
         _drop_held(ctx, slot, req, v, issuer)
         return None
     if v.get('key'):
-        from acmelib.plugins.issuers.acme import _unseal
+        from acmelib.plugins.issuers.acme import _seal, _sealed_for, _unseal
         v['key_pem'] = _unseal(ctx, v['key'], slot)
         if not v['key_pem']:
             _drop_held(ctx, slot, req, v, issuer)
             return None
+        if not _sealed_for(v['key']):
+            # kept in clear (or sealed without a place) before 1.0.102: sealed now
+            v['key'] = _seal(ctx, v['key_pem'], slot)
+            raw = ctx.kv_get(slot)
+            held = parse_json(raw) if isinstance(raw, str) else raw
+            if isinstance(held, dict):
+                held['key'] = v['key']
+                try:
+                    left = float(held.get('at') or time.time()) + 90 * 86400 - time.time()
+                except (TypeError, ValueError):
+                    left = 90 * 86400
+                ctx.kv_set(slot, json.dumps(held), ttl_s=max(3600, int(left)))
     if held_refused(req, v):
         # Its key revoked since (1.0.101): a revoke for keyCompromise, then "issue a new one" -
         # the order held at the CA was finished with the compromised key all the same.

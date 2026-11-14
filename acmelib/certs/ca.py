@@ -39,6 +39,7 @@ import os
 import threading
 import re
 import time
+import urllib.parse
 import zipfile
 
 from acmelib.certs import formats, pki
@@ -263,9 +264,26 @@ def _nc_allows(nc, typed):
         if rt == t:
             rules[which].append(rv)
 
+    host = None
+    if t == 'URI':
+        # The host as a URI parser reads it (1.0.102): taken up to the first / or :, a # ? or @
+        # stayed in it - https://evil.com#.corp.example passed .corp.example.
+        try:
+            host = (urllib.parse.urlsplit(str(v)).hostname or '').lower().rstrip('.')
+        except ValueError:
+            host = ''
+        if not host and (rules['permitted'] or rules['excluded']):
+            return False            # no host to check: refused, as OpenSSL refuses it
+
     def hit(rv):
         if t == 'DNS':
-            name, base = v.lower().lstrip('*.'), rv.lower()
+            # Compared literally, as OpenSSL's nc_dns (1.0.102): a wildcard is a name like any
+            # other - *.corp.example is within .corp.example, and *.example.com is excluded
+            # by !.example.com (it was compared as example.com: refused where every client
+            # takes it, and signed where every client refuses it).
+            name, base = v.lower(), rv.lower()
+            if not base:
+                return True
             if base.startswith('.'):
                 return name.endswith(base)
             return name == base or name.endswith('.' + base)
@@ -282,7 +300,6 @@ def _nc_allows(nc, typed):
                 return dom.endswith(base)
             return dom == base
         if t == 'URI':
-            host = re.sub(r'^[a-z][a-z0-9+.-]*://([^/:]*).*$', r'\1', v.lower())
             base = rv.lower()
             return host.endswith(base) if base.startswith('.') else host == base
         return False
@@ -552,6 +569,9 @@ def ca_import(store, name, cert_pem, key_pem, chain_pems=None, password=None, by
     if not info['is_ca']:
         raise PkiError('this is not a CA certificate (basicConstraints CA:TRUE is missing)',
                        retry=False)
+    _strong_or_refused(key_refused(info['key_type'], info['key_bits'], 'the authority\'s key'),
+                       None if info['self_signed'] else
+                       sig_refused(info.get('sig_alg'), 'the authority\'s certificate'))
     if info['key_usage'] and 'keyCertSign' not in info['key_usage']:
         raise PkiError('this certificate may not sign certificates (keyCertSign is not in '
                        'its key usage)', retry=False)
@@ -619,6 +639,9 @@ def ca_install_cert(store, ca_id, cert_pem, chain_pems=None, by=''):
     if not info['is_ca']:
         raise PkiError('the certificate that came back is not a CA certificate (CA:TRUE is '
                        'missing - was it signed with the SubCA template?)', retry=False)
+    _strong_or_refused(key_refused(info['key_type'], info['key_bits'], 'the authority\'s key'),
+                       None if info['self_signed'] else
+                       sig_refused(info.get('sig_alg'), 'the certificate that came back'))
     chain = pki.order_chain(cert, [c for c in certs if c != cert])
     parent_id = _find_parent(store, cert)
     if not chain and parent_id:
@@ -780,6 +803,51 @@ def _as_list(v):
     return [str(x) for x in v if str(x).strip()]
 
 
+# The keys an authority here signs for, or is (1.0.102): RSA of 2048 bits or more, EC on the
+# NIST curves every client knows, Ed25519 (openssl 1.1.1 and later, as acme needs anyway).
+KEY_CURVES_OK = ('ec-256', 'ec-384', 'ec-521', 'ed25519')
+# Signatures with a digest that can be forged: MD2, MD5, SHA-1.
+WEAK_SIG_OIDS = ('1.2.840.113549.1.1.2', '1.2.840.113549.1.1.3', '1.2.840.113549.1.1.4',
+                 '1.2.840.113549.1.1.5', '1.3.14.3.2.29', '1.2.840.10045.4.1',
+                 '1.2.840.10040.4.3')
+
+
+def key_refused(key_type, key_bits, what):
+    """Words why a key is refused - None where it is one acme signs for (1.0.102: the own CA
+    signed a request of RSA 512 bits, DSA or secp256k1 as it came)."""
+    kt = str(key_type or '').lower()
+    bits = int(key_bits or 0)
+    if kt.startswith('rsa'):
+        if bits < 2048:
+            return ('%s has an RSA key of %d bits: fewer than 2048 bits can be broken, and '
+                    'clients refuse it - make a new key (RSA 2048 bits or more, or EC P-256 / '
+                    'P-384)' % (what, bits))
+        return None
+    if kt in KEY_CURVES_OK:
+        return None
+    if kt.startswith('dsa'):
+        return ('%s has a DSA key: no client takes one any more - make a new key (EC P-256 / '
+                'P-384, or RSA 2048 bits or more)' % what)
+    return ('%s has a %s key: acme signs only for RSA (2048 bits or more), EC on P-256, P-384 '
+            'or P-521, and Ed25519 - make a new key' % (what, key_type or 'unknown'))
+
+
+def sig_refused(sig_alg, what):
+    """Words why a signature is refused (MD5, SHA-1: they can be forged) - None where good."""
+    a = str(sig_alg or '')
+    low = a.lower()
+    if a in WEAK_SIG_OIDS or 'md5' in low or 'md2' in low or 'sha1' in low:
+        return ('%s is signed with %s: MD5 and SHA-1 can be forged, and clients refuse them - '
+                'make it again with SHA-256 or better' % (what, a))
+    return None
+
+
+def _strong_or_refused(*said):
+    for one in said:
+        if one:
+            raise PkiError(one, retry=False)
+
+
 def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
     """A certificate for a request -> (cert_pem, chain_pems nearest first, the
     root included).
@@ -801,6 +869,8 @@ def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
     ci = pki.csr_info(csr_pem)
     if not pki.csr_verify(csr_pem):
         raise PkiError('the request is not signed by its own key', retry=False)
+    _strong_or_refused(key_refused(ci['key_type'], ci['key_bits'], 'the request'),
+                       sig_refused(ci.get('sig_alg'), 'the request'))
     names = _as_list(prof.get('names')) if prof.get('names') else list(ci['names'])
     if prof.get('no_names'):
         names = []

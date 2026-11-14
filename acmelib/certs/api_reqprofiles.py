@@ -75,6 +75,12 @@ def _cert_csr(h):
         raise E.ApiError(409, '%s was not issued for a CSR - acme makes its key' % row['name'])
     if row.get('state') in (P.WAITING, P.DECLINED):
         raise E.ApiError(409, '%s has not been approved' % row['name'])
+    # Nothing written while a job works on it (1.0.102: the CSR and names were kept, and the
+    # call answered 409 - or the job running then issued the old one)
+    from acmelib.certs import jobs
+    if jobs.cert_busy(h.store, row['id']):
+        raise E.ApiError(409, 'a job is working on %s now - send the CSR again when it is done'
+                         % row['name'])
     try:
         info = R.read_csr(b)
     except ValueError as e:
@@ -90,6 +96,9 @@ def _cert_csr(h):
     else:
         if not S.pki().csr_verify(info['pem']):
             raise E.ApiError(400, 'the CSR is not signed by the key in it')
+        refused = R.csr_refusals(info)
+        if refused:
+            raise E.ApiError(400, 'the CSR is refused: %s' % '; '.join(refused))
         dns = [v for t, v in info.get('san') or [] if t in ('DNS', 'IP')] or \
             ([info['cn']] if info.get('cn') else [])
         names = S.clean_names(dns)
@@ -107,6 +116,9 @@ def _cert_csr(h):
               'updated_by': P.portal_by(s)[:190]}
     if row.get('state') == 'revoked':
         fields.update(state='due', state_at=t)      # a new key: it may be issued again
+    # The one who sends it is one of those who asked for it from now (1.0.102): never approves
+    # what follows from it.
+    sender = P.owner_word(s)
     # Other names as a new request (1.0.52): the profile's approval, a name another owner's
     # certificate holds - issued at once before, past both.
     changed = sorted(names) != sorted(S.jload(row.get('names'), []) or [])
@@ -114,27 +126,36 @@ def _cert_csr(h):
         if not prof.get('enabled', 1):
             raise E.ApiError(403, 'its request profile is switched off - other names are not taken')
         pcfg = R.config_of(prof)
-        if (pcfg.get('approval') or P.held_by_others(h.store, names, row.get('owner'))) and \
-                row.get('cert_pem'):
+        waits = bool(pcfg.get('approval')) or P.held_by_others(h.store, names, row.get('owner'),
+                                                                 row['id'])
+        if waits and row.get('cert_pem'):
             # one issued already is not put to approval (it would stop renewing, and declined it
             # would run out): other names are a new request
             raise E.ApiError(409, 'other names need approval: ask for a new certificate with them '
                                   '- this one is renewed as it is')
-        if pcfg.get('approval') or P.held_by_others(h.store, names, row.get('owner')):
+        if waits:
+            held_now = P.holders(h.store, names, row.get('owner'), row['id'], waiting=False)
             fields.update(state=P.WAITING, state_at=t, auto_renew=0)
             h.store.db.update('certs', row['id'], fields)
+            P.note_asker(h.store, row['id'], sender, held_now)
             h.store.add_event('certificates', '%s sent a new CSR for %s from the portal with other '
                               'names (%s) - it waits for approval' % (s['name'], row['name'],
                                                                      ', '.join(names)),
                               'warn', who=s['name'])
+            if held_now:
+                P.tell_holders(h.store, row['id'], held_now, sender)
             return {'waits': True, 'message': 'the new CSR was taken - with other names it waits '
                                               'for approval'}
+    old = {k: row.get(k) for k in fields}
     h.store.db.update('certs', row['id'], fields)
-    h.store.add_event('certificates', '%s sent a new CSR for %s from the portal (%s) - it is '
-                      'issued again' % (s['name'], row['name'], kt), 'warn', who=s['name'])
     try:
         job_id = A.start_renew(h.store, row['id'], True, P.portal_by(s))
-    except (ValueError, LookupError) as e:
+    except (ValueError, LookupError, E.ApiError) as e:
+        # refused: nothing of it kept (1.0.102)
+        h.store.db.update('certs', row['id'], old)
         raise E.ApiError(409, str(e))
+    P.note_asker(h.store, row['id'], sender)
+    h.store.add_event('certificates', '%s sent a new CSR for %s from the portal (%s) - it is '
+                      'issued again' % (s['name'], row['name'], kt), 'warn', who=s['name'])
     return {'job_id': job_id, 'message': 'the new CSR was taken - %s is being issued again'
             % row['name']}

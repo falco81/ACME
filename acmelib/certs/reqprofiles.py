@@ -843,6 +843,7 @@ def request(h, s, b):
             raise E.ApiError(403, 'choose one of your teams: %s' % (', '.join(mine) or 'none'))
         owner = got[0]
     waits = bool(cfg.get('approval')) or P.held_by_others(store, names, owner)   # (1.0.51)
+    held_now = P.holders(store, names, owner, waiting=False)       # who approves it (1.0.102)
     auto = bool(cfg.get('auto_renew', True))
     # a name the rules take (1.0.79: "_svc.example.test" stayed as it was, and every save of the
     # certificate by an administrator was refused until it was renamed)
@@ -881,7 +882,9 @@ def request(h, s, b):
     store.set_meta(P.META + str(cid), json.dumps({
         'who': who, 'display': data.get('display') or '', 'mail': data.get('mail') or '',
         'at': t, 'note': note, 'profile': r['name'], 'pfx': bool(cfg.get('pfx')) and not csr_pem,
-        'auto': auto}))
+        'auto': auto, 'held': P.held_list(held_now)}))
+    if waits and held_now:
+        P.tell_holders(store, cid, held_now, who)
     what = '%s asked on the portal for %s (%s) from the request profile %s%s' % (
         who, name, ', '.join(names), r['name'], ' with a CSR' if csr_pem else '')
     job_id = None

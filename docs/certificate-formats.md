@@ -50,13 +50,13 @@ password (or with the one given): ask for it and read again.
 | `key-rsa` | the key, PKCS#1 (`BEGIN RSA PRIVATE KEY`) - **RSA keys only** | old software, some appliances (NetScaler, old Apache) |
 | `key-traditional` | PKCS#1 for RSA, SEC1 (`BEGIN EC PRIVATE KEY`) for EC | software that wants the "traditional" key of its type |
 | `key-der` | the key, PKCS#8 DER | Java, some appliances |
-| `key-pem-enc` | the key, PKCS#8 PEM encrypted (AES-256-CBC, PBKDF2) with the password | where the key may lie on disk only encrypted |
+| `key-pem-enc` | the key, PKCS#8 PEM encrypted (AES-256-CBC, PBKDF2-HMAC-SHA256, 600,000 rounds) with the password | where the key may lie on disk only encrypted |
 | `chain-pem` | the chain above the certificate, nearest first | `SSLCertificateChainFile`, `ca.crt` |
 | `fullchain-pem` | the certificate and its chain | nginx `ssl_certificate`, most |
 | `combined-pem` | the key, the certificate, the chain in one file | HAProxy, Pound, lighttpd, Webmin |
 | `p7b` | PKCS#7, the certificate and its chain, DER (as Windows writes it) | Windows, IIS, Exchange |
 | `p7b-pem` | the same, PEM | |
-| `pfx` / `p12` | PKCS#12: AES-256-CBC, PBKDF2, MAC SHA-256 | Windows Server 2019+, recent Java, most |
+| `pfx` / `p12` | PKCS#12: AES-256-CBC, PBKDF2-HMAC-SHA256, MAC SHA-256, 600,000 rounds for both (openssl's default was 2048 until acme 1.0.102) | Windows 10 1709+ / Server 2019+, Java 8u301+ / 11+ (Java reads up to 5,000,000 rounds), most |
 | `p12-legacy` | PKCS#12: 3DES (`PBE-SHA1-3DES`) for key and certificates, MAC SHA-1 | Windows Server 2016 and older, Java 8 before 8u301, macOS Keychain before 2023, FortiGate, Palo Alto, older appliances |
 | `jks` | a Java KeyStore with one key entry (the key, the certificate, the chain); the key protected with the store password, as `keytool` does | Tomcat, old Java applications. **A password is required.** |
 
@@ -74,6 +74,8 @@ JKS; acme writes them so.
 * *"invalid password"* or *"MAC verify failure"* from an older Windows,
   Java or an appliance for a `p12`: take `p12-legacy` (AES and PBKDF2 inside
   PKCS#12 are understood only since Windows Server 2019 / Java 8u301 / OpenSSL 1.1).
+  A device that takes the AES file but is slow to open it, or refuses its
+  600,000 rounds, takes `p12-legacy` too (its count is openssl's old 2048).
 * *"unable to load private key"* for `key-pem`: the device wants PKCS#1 - take
   `key-rsa` (and an RSA key).
 * the chain is missing on the device: give it `fullchain-pem`, or `chain-pem`

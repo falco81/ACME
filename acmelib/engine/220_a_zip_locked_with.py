@@ -93,6 +93,8 @@ def _aes_ctr_le(key, data):
 
 
 def _ae_keys(passphrase, salt):
+    # 1000 rounds of PBKDF2-HMAC-SHA1: fixed by the AE-2 format (no reader takes another
+    # count) - the strength is the passphrase's (docs/isemon-tls.md says so, 1.0.102).
     k = hashlib.pbkdf2_hmac('sha1', str(passphrase).encode('utf-8'), salt, 1000, 66)
     return k[:32], k[32:64], k[64:66]
 

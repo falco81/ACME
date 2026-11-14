@@ -26,6 +26,14 @@ With **acme makes isemon a certificate**: *Make the file for isemon…* asks for
 passphrase (12 characters at least) and saves `isemon-tls.zip`, every entry
 locked with AES-256:
 
+> The ZIP is WinZip's AES format (AE-2) - what 7-Zip, WinRAR and `7z x` open. Its
+> key comes from the passphrase by PBKDF2-HMAC-SHA1 with 1,000 rounds: the format
+> fixes that count, and no program that opens these files reads another. A short
+> or guessable passphrase can therefore be tried quickly by whoever gets the file:
+> use a long random one (a password manager's 20 characters or more), move the file
+> over a channel you trust, and delete it (`shred -u`, below) once isemon has its
+> key.
+
 ```
 ca.pem           acme's own authority - it signed isemon.crt and (mutual TLS) the nodes' certificates
 isemon.crt       isemon's certificate, for the names given, good for five years

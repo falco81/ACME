@@ -261,6 +261,8 @@ def carry_out(table, row, whole):
     """A row as the configuration's file carries it: each sealed value in its
     settings opened (`whole`, a file locked with a passphrase) or eight dots
     (secret_shown last=False) - never sealed for a row of this machine."""
+    if table == 'certs' and row.get('csr_pending'):
+        row = _csr_pending_out(row, whole)
     col = JSON_SECRET_COLS.get(table)
     if not col or not row.get(col):
         return row
@@ -276,6 +278,39 @@ def carry_out(table, row, whole):
     return dict(row, **{col: json.dumps(cfg)})
 
 
+def _csr_pending_place(cert_id):
+    return 'certs:%s:csr_pending' % cert_id
+
+
+def _csr_pending_out(row, whole):
+    """The key of a CSR given out (certs.csr_pending) opened for the file with the secrets, left
+    out of one without them (1.0.102: sealed for this machine, the answer to the CSR could not
+    be taken after an import elsewhere - "the key of the CSR cannot be opened")."""
+    pend = jload(row.get('csr_pending'), None)
+    if not isinstance(pend, dict) or not pend.get('key_sealed'):
+        return row
+    pend = dict(pend)
+    sealed = pend.pop('key_sealed')
+    if whole:
+        key = E.unseal_secret(sealed, _csr_pending_place(row.get('id')))
+        if key:
+            pend['key_pem'] = key
+    return dict(row, csr_pending=json.dumps(pend))
+
+
+def _csr_pending_in(store, ident):
+    """...and sealed again for its number here when it came in clear."""
+    row = store.db.row('SELECT csr_pending FROM certs WHERE id = ?', (ident,))
+    pend = jload((row or {}).get('csr_pending'), None)
+    if not isinstance(pend, dict) or 'key_pem' not in pend:
+        return
+    pend = dict(pend)
+    key = pend.pop('key_pem')
+    if key and not str(key).startswith('sealed:'):
+        pend['key_sealed'] = E.seal_secret(key, _csr_pending_place(ident))
+    store.db.update('certs', ident, {'csr_pending': json.dumps(pend)})
+
+
 # A certificate's own rows in meta, by its number (1.0.88): carried with it in the
 # configuration's file and taken away with it.
 CERT_META = {'hold': 'certs:deploy_hold:%d', 'moved': 'cert:moved:%d', 'portal': 'certs:portal:%d',
@@ -285,7 +320,14 @@ CERT_META = {'hold': 'certs:deploy_hold:%d', 'moved': 'cert:moved:%d', 'portal':
              'devhand': 'certs:devkey:hand:%d',
              # the version issued for a key its device made, as the renewer saw it (1.0.96,
              # devicekey.device_made) - not guessed from a key acme does not hold
-             'devmade': 'certs:devkey:made:%d'}
+             'devmade': 'certs:devkey:made:%d',
+             # the public keys (pub_sha256) of what was revoked of it (1.0.102): its versions
+             # stay behind at an export, and after an import a key revoked for keyCompromise
+             # was kept by "keep the key" and issued again
+             'revkeys': 'certs:revoked_keys:%d',
+             # whether it was renewed by itself before it was revoked (1.0.102): issued again
+             # after, it is as it was - it stayed "by hand" and ran out
+             'revauto': 'certs:revoked_auto:%d'}
 
 
 # ...and by the name of a test (1.0.96, checks.py), {test: value} in the file:
@@ -366,6 +408,8 @@ def carry_in(store, table, ident, old):
     """A row put in from such a file: a secret in clear sealed for its place
     here; eight dots (a file without the secrets) - the one kept here stays,
     or none."""
+    if table == 'certs':
+        _csr_pending_in(store, ident)
     col = JSON_SECRET_COLS.get(table)
     if not col:
         return
@@ -400,7 +444,7 @@ def carry_in(store, table, ident, old):
 
 # The modules' own state (ctx.kv_set) that holds a key or a secret, by the slot it is kept
 # under: sealed for 'certs:<slot>' (plugins/issuers/acme.py _seal).
-KV_SEALED_SLOTS = ('acme-account:', 'ssls-pending:', 'sslmarket-pending:', 'sslmarket-acme:')
+KV_SEALED_SLOT_RE = re.compile(r'^(?:acme-account|sslmarket-acme|[A-Za-z0-9_.]+-pending):')
 KV_SEALED_FIELDS = ('key', 'hmac')
 
 
@@ -453,10 +497,11 @@ def seal_migrate(store):
                 db.update(table, row['id'], {col: json.dumps(out)})
     for r in db.rows("SELECT k, v FROM meta WHERE k LIKE 'certs:kv:%'"):
         k = str(r['k'])
-        at = min([k.find(p_) for p_ in KV_SEALED_SLOTS if k.find(p_) >= 0] or [-1])
-        if at < 0 or '~' in k[at:]:
+        # certs:kv:<family>:<name>:<slot> (runtime._kv_key; a name has no colon)
+        parts = k[len('certs:kv:'):].split(':', 2)
+        slot = parts[2] if len(parts) == 3 else ''
+        if not KV_SEALED_SLOT_RE.match(slot) or '~' in slot:
             continue                        # kept under a key cut short: its slot is not known
-        slot = k[at:]
         got = jload(r['v'], None)
         if not isinstance(got, dict):
             continue
@@ -1202,10 +1247,41 @@ def cert_need(store, ref):
 
 
 def revoked_fps(store, cert_id):
-    """The fingerprints (upper case) of a certificate's versions revoked at the CA."""
+    """The fingerprints (upper case) of a certificate's versions revoked at the CA - and of
+    those written as revoked in meta (1.0.102: after a configuration's import it has no
+    versions)."""
     return {str(r['fingerprint']).upper() for r in store.db.rows(
         'SELECT fingerprint FROM cert_versions WHERE cert_id = ? AND revoked IS NOT NULL AND '
-        'fingerprint IS NOT NULL', (cert_id,))}
+        'fingerprint IS NOT NULL', (cert_id,))} | revoked_keys_meta(store, cert_id, 'fps')
+
+
+def _revoked_meta(store, cert_id):
+    got = jload(store.get_meta(CERT_META['revkeys'] % int(cert_id)), {})
+    return got if isinstance(got, dict) else {}
+
+
+def revoked_keys_meta(store, cert_id, what='keys'):
+    """The public keys (pub_sha256, upper case) - `what` 'fps': the fingerprints - written as
+    revoked for a certificate (1.0.102, CERT_META 'revkeys': carried in the configuration's
+    file, unlike its versions)."""
+    got = _revoked_meta(store, cert_id).get(what)
+    return {str(x).upper() for x in got if x} if isinstance(got, list) else set()
+
+
+def revoked_keys_add(store, cert_id, pubs=(), fps=()):
+    """...more of them written (the newest 50 of each kept)."""
+    got = _revoked_meta(store, cert_id)
+    changed = False
+    for what, new in (('keys', pubs), ('fps', fps)):
+        have = [str(x).upper() for x in got.get(what) or []] \
+            if isinstance(got.get(what), list) else []
+        for p in new:
+            if p and str(p).upper() not in have:
+                have.append(str(p).upper())
+                changed = True
+        got[what] = have[-50:]
+    if changed:
+        store.set_meta(CERT_META['revkeys'] % int(cert_id), json.dumps(got))
 
 
 def current_revoked(store, cert):

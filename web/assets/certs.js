@@ -3710,6 +3710,13 @@ function approveDialog(c, ok, back) {
       size: 'medium',
       build: function (body) {
         body.appendChild(namesChips(c.names));
+        /* Names another owner's certificates hold (1.0.102): that owner's approver approves it. */
+        if (c.held_words && c.held_words.length) {
+          body.appendChild(el('p', 'note warn', 'Its names are held by certificates of another owner - only someone who may approve (or manage) for that owner, or a full administrator, approves it:'));
+          var hl = el('ul', 'note');
+          c.held_words.forEach(function (w) { hl.appendChild(el('li', '', w)); });
+          body.appendChild(hl);
+        }
         body.appendChild(el('p', 'note', ok
           /* as it is (1.0.48): "renewed by itself" for one renewed only when asked, "the directory's
              mail" for an account of acme's own */

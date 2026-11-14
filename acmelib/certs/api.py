@@ -238,6 +238,8 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
         from acmelib.certs import portal as _portal
         one['last_job'] = _portal.last_job(store, r['id'])
         one['deploy_hold'] = S.deploy_hold(store, r['id']) is not None   # the console (1.0.88)
+        if r.get('state') == 'pending-approval':
+            one.update(_portal.held_public(store, r))   # whose names it asks for (1.0.102)
         out.append(one)
     return {'rows': out, 'total': total, 'page': page, 'per': per}
 
@@ -368,6 +370,10 @@ def cert_one(store, ref, full=False):
     out['revoke_no'] = revocable(store, row)
     hold = S.deploy_hold(store, row['id'])
     out['deploy_hold'] = dict(hold, now=S.deploy_held(store, row)) if hold else None
+    if row.get('state') == 'pending-approval':
+        # whose names it asks for: they approve it (1.0.102)
+        from acmelib.certs import portal as _portal
+        out.update(_portal.held_public(store, row))
     return {'cert': out, 'versions': versions, 'deploys': deps, 'jobs': js}
 
 
@@ -426,7 +432,39 @@ KEEP_STATES = ('revoked', 'pending-approval', 'declined', 'pending', 'deleting',
                'held')
 
 
-def cert_save(store, b, by, full=False, out=None):
+def taken_words(store, s, other, name):
+    """A name of a certificate taken, in words: not naming another team's certificate to a
+    session that may not see it (1.0.102)."""
+    if s is not None:
+        from acmelib.certs import teams
+        if not teams.cert_may(store, s, other, 'view'):
+            return 'that name cannot be used - choose another'
+    return 'there is a certificate called %s already' % name
+
+
+def held_refused(store, s, names, owner, exclude=None):
+    """A scoped certificate administrator gives names another owner's certificates hold to a
+    certificate (1.0.102): refused, as the portal makes such a request wait for that owner -
+    unless the session may manage that owner's certificates too. A full administrator, and
+    one who sees all, may."""
+    if s is None or s.get('cli') or s.get('role') == 'fulladmin':
+        return
+    from acmelib.certs import teams
+    from acmelib.certs import portal as P
+    if teams.scope(store, s, 'manage') is None:
+        return
+    held = P.holders(store, names, owner, exclude, waiting=False)
+    bad = sorted({n for o, ns in held.items()
+                  if not teams.cert_may(store, s, {'owner': o}, 'manage') for n in ns})
+    if bad:
+        store.add_event('certificates', '%s was refused: names held by another owner\'s '
+                        'certificates (%s)' % (who(s), ', '.join(bad)), 'warn', who=who(s))
+        raise E.ApiError(403, 'these names are held by certificates of another owner: %s - a '
+                              'full administrator gives them to a certificate, or the team that '
+                              'holds them asks for it' % ', '.join(bad))
+
+
+def cert_save(store, b, by, full=False, out=None, s=None):
     t = time.time()
     ident = b.get('id')
     row = S.cert_need(store, _id(ident)) if ident not in (None, '', 0) else None
@@ -436,9 +474,9 @@ def cert_save(store, b, by, full=False, out=None):
         first_ = (_list(b.get('names'), 'names') or ['certificate'])[0]
         given = S.safe_name(re.sub(r'^\*\.', 'wildcard.', first_), _names_in(store, 'certs'))
     name = S.clean_name(given, 'the certificate\'s name')
-    other = store.db.row('SELECT id FROM certs WHERE name = ?', (name,))
+    other = store.db.row('SELECT id, owner FROM certs WHERE name = ?', (name,))
     if other and (not row or other['id'] != row['id']):
-        raise ValueError('there is a certificate called %s already' % name)
+        raise ValueError(taken_words(store, s, other, name))
     fields = {'name': name}
     if 'names' in b or not row:
         names = S.clean_names(b.get('names'))
@@ -631,7 +669,8 @@ def cert_save(store, b, by, full=False, out=None):
         # one certificate per device checked only when where its key is made is set or
         # changed (1.0.96): two saved before that could not be edited at all
         why = devicekey.save_problem(store, cur,
-                                     one_per_device=not row or (dev_now or '') != dev_was)
+                                     one_per_device=not row or (dev_now or '') != dev_was,
+                                     may_see=_may_see(store, s))
         if why:
             raise ValueError('the key cannot be made by %s: %s' % (dev_now, why))
     if row and 'csr_from' in fields and (dev_now or '') != dev_was:
@@ -673,9 +712,23 @@ def cert_save(store, b, by, full=False, out=None):
         fields.update({'next_try': None, 'fails': 0, 'last_error': None})
         if row.get('state') == 'failed':
             fields['state'] = 'ok' if row.get('cert_pem') else 'new'
+    names_now = S.jload(fields['names'], []) if 'names' in fields else \
+        S.jload((row or {}).get('names'), []) or []
+    owner_now = fields['owner'] if 'owner' in fields else (row or {}).get('owner')
+    if not row or ('names' in fields and fields['names'] != row.get('names')) or \
+            ('owner' in fields and str(owner_now or '').strip().lower() !=
+             str(row.get('owner') or '').strip().lower()):
+        held_refused(store, s, names_now, owner_now, row['id'] if row else None)
     fields['updated'], fields['updated_by'] = t, str(by)[:190]
     if row:
         store.db.update('certs', row['id'], fields)
+        if s is not None and row.get('state') == 'pending-approval' and \
+                'names' in fields and fields['names'] != row.get('names'):
+            # names given to a request that waits: whoever gave them never approves it (1.0.102)
+            from acmelib.certs import portal as P
+            acc = s.get('account') or {}
+            P.note_asker(store, row['id'], str(s.get('name') or '') if acc.get('source') ==
+                         'directory' else 'local:%s' % (s.get('name') or ''))
         if moved:
             # The version in use came from the old source (1.0.77): the new one cannot revoke it.
             if row.get('issuer'):          # from by hand: its imported version says so itself
@@ -721,7 +774,7 @@ def cert_save(store, b, by, full=False, out=None):
 @api('POST', '/api/certs/save', 'certadmin')
 def _cert_save(h, s):
     out = {}
-    ident = cert_save(h.store, h.body(), who(s), full=may(s, 'fulladmin'), out=out)
+    ident = cert_save(h.store, h.body(), who(s), full=may(s, 'fulladmin'), out=out, s=s)
     # the device's deployment made with its options (deploy_options): not saved again
     return dict({'id': ident}, **({'device_deploy': out['device_deploy']}
                                   if out.get('device_deploy') else {}))
@@ -741,6 +794,9 @@ def cert_auto(store, ref, on, by):
         # Asked for on the portal and not approved (1.0.19): renewed by itself, the
         # renewer issued it as one "not issued yet" - past the approval, or a decline.
         raise ValueError('%s has not been approved' % row['name'])
+    if store.get_meta(S.CERT_META['revauto'] % int(row['id'])) is not None:
+        # switched by a person since the revoke: theirs, when a new one is issued (1.0.102)
+        store.set_meta(S.CERT_META['revauto'] % int(row['id']), str(on))
     if int(row.get('auto_renew') or 0) != on:
         store.db.update('certs', row['id'], {'auto_renew': on, 'updated': time.time(),
                                              'updated_by': str(by)[:190]})
@@ -979,7 +1035,13 @@ def start_renew(store, ref, force, by):
         # it is saved): "Add and issue now", "Renew now" get that job to watch.
         running = jobs.cert_job(store, row['id'])
         if running is not None:
-            return running
+            # ...only a renewal or an issue (1.0.102: a deployment running was given back as
+            # the renewal asked for, and nothing was renewed)
+            kind = store.db.value('SELECT kind FROM cert_jobs WHERE id = ?', (running,), '')
+            if kind in ('renew', 'issue'):
+                return running
+            raise E.ApiError(409, '%s is busy with another job (%s, job %d) - renew it when that '
+                                  'job is done' % (row['name'], kind or '?', running))
         raise E.ApiError(409, str(e))
 
 
@@ -1235,7 +1297,9 @@ def _cert_revoke(h, s):
         # A new one at once (the key got out: a new key too, whatever reuse_key says),
         # deployed where the revoked one is - and renewed by itself again.
         job.step('issuing a new one in its place')
-        job.store.db.update('certs', row['id'], {'auto_renew': 1})
+        # renewed by itself again - as it was before the revoke when that is known (1.0.102)
+        job.store.db.update('certs', row['id'], {'auto_renew': 0 if job.store.get_meta(
+            S.CERT_META['revauto'] % int(row['id'])) == '0' else 1})
         return renewer.renew_cert(job.store, job, row['id'], True, by)
     try:
         return {'job_id': jobs.submit(h.store, 'revoke', fn, cert_id=row['id'], by=by,
@@ -1318,7 +1382,15 @@ def _cert_parse(h, s):
     return out
 
 
-def cert_import(store, b, by):
+def _may_see(store, s):
+    """A test of whether a session may see a certificate (a row) - None for every one."""
+    if s is None:
+        return None
+    from acmelib.certs import teams
+    return lambda r: teams.cert_may(store, s, r, 'view')
+
+
+def cert_import(store, b, by, s=None):
     data = _b64(b.get('data_b64'))
     more = _more_of(b)
     _out, got = parse_file(data, _text(b, 'filename', 300), _text(b, 'password', 1000), more)
@@ -1387,18 +1459,7 @@ def cert_import(store, b, by):
                                  % (row['name'], row['csr_from']))
         # its names, all of them, in the one brought in (1.0.88: another certificate went into
         # it - its key dropped - and the next deployment put it on the servers); `force` takes it
-        have = [str(n).lower() for n in (S.jload(row.get('names'), []) or [])]
-        brings = [str(n).lower() for n in (info.get('names') or [])] or \
-            ([str(info.get('cn')).lower()] if info.get('cn') else [])
-
-        def covered(n):
-            return any(n == m or (m.startswith('*.') and n.count('.') == m.count('.') and
-                                  n.split('.', 1)[-1] == m[2:]) for m in brings)
-        missing = [n for n in have if not covered(n)]
-        if missing and brings and b.get('force') in (None, '', 0, '0', False, 'false'):
-            raise ValueError('the certificate brought in is not for %s: it lacks %s (it is for %s)'
-                             ' - import it as a certificate of its own (or anyway, with force)'
-                             % (row['name'], ', '.join(missing[:5]), ', '.join(brings[:5])))
+        _names_covered(row, info, b.get('force'))
         if as_ == 'auto':
             as_ = 'alt' if _other_half_of(row, info) else 'main'
         if as_ == 'alt':
@@ -1429,8 +1490,9 @@ def cert_import(store, b, by):
         name = S.clean_name(b.get('name'), 'the certificate\'s name') if b.get('name') else \
             S.safe_name(info.get('cn') or (info.get('names') or [''])[0] or 'imported',
                         _names_in(store, 'certs'))
-        if store.db.row('SELECT id FROM certs WHERE name = ?', (name,)):
-            raise ValueError('there is a certificate called %s already' % name)
+        taken = store.db.row('SELECT id, owner FROM certs WHERE name = ?', (name,))
+        if taken:
+            raise ValueError(taken_words(store, s, taken, name))
         # the common name stands in for the names only when it is a DNS name or an address
         # (1.0.80: "ZZ Issuing CA" of a chain was kept as a DNS name)
         names = list(info.get('names') or [])
@@ -1530,9 +1592,28 @@ def _second_half(got, leaf, key, info):
     return None
 
 
+def _names_covered(row, info, force, what='the certificate brought in',
+                   how='import it as a certificate of its own'):
+    """Every name of the certificate in the one brought in (1.0.88) - or ValueError in words;
+    `force` takes it anyway. An answer to a CSR too (1.0.102: one for other names was taken
+    as the next version and deployed)."""
+    have = [str(n).lower() for n in (S.jload(row.get('names'), []) or [])]
+    brings = [str(n).lower() for n in (info.get('names') or [])] or \
+        ([str(info.get('cn')).lower()] if info.get('cn') else [])
+
+    def covered(n):
+        return any(n == m or (m.startswith('*.') and n.count('.') == m.count('.') and
+                              n.split('.', 1)[-1] == m[2:]) for m in brings)
+    missing = [n for n in have if not covered(n)]
+    if missing and brings and force in (None, '', 0, '0', False, 'false'):
+        raise ValueError('%s is not for %s: it lacks %s (it is for %s) - %s (or anyway, with '
+                         'force)' % (what, row['name'], ', '.join(missing[:5]),
+                                     ', '.join(brings[:5]), how))
+
+
 @api('POST', '/api/certs/import', 'certadmin')
 def _cert_import(h, s):
-    cid, version = cert_import(h.store, h.body(), who(s))
+    cid, version = cert_import(h.store, h.body(), who(s), s=s)
     return {'id': cid, 'version': version}
 
 
@@ -1691,6 +1772,8 @@ def _cert_csr_answer(h, s):
         raise ValueError('there is no certificate in that file')
     if S.pki().key_matches(leaf, key) is False:
         raise ValueError('that certificate is not the answer to the CSR (another key)')
+    _names_covered(row, S.info_of(leaf), b.get('force'), 'the answer',
+                   'have it issued for the names of the CSR')
     chain = [p for p in (got.get('chain') or []) if p.strip() != leaf.strip()]
     try:
         # nearest first, as an import puts it (1.0.48): kept in the file's order before
@@ -2238,6 +2321,43 @@ def _plugins(h, s):
 
 
 # ---- issuers (sources), challenges (validations), targets: one shape ---------------
+OTHERS_CERT = 'another owner\'s certificate'
+
+
+def targets_seen(store, s, rows):
+    """The targets as a session sees them (1.0.102): to one that does not see every
+    certificate, the certificate whose key a device makes (key_of) and the target's last
+    error (which names the certificate deployed) only of a certificate it may see."""
+    from acmelib.certs import teams
+    if teams.unscoped(s, 'view'):
+        return rows
+    owners = {}
+    hidden = None
+
+    def may_see(name):
+        if name not in owners:
+            r = store.db.row('SELECT owner FROM certs WHERE name = ?', (name,))
+            owners[name] = r is None or teams.cert_may(store, s, r, 'view')
+        return owners[name]
+    for r in rows:
+        if r.get('key_of') and not may_see(r['key_of']):
+            r['key_of'] = OTHERS_CERT
+        err = str(r.get('last_error') or '')
+        if not err:
+            continue
+        deps = store.db.rows('SELECT c.name, c.owner, d.last_error FROM cert_deploys d JOIN certs '
+                             'c ON c.id = d.cert_id WHERE d.target = ?', (r['name'],))
+        mine = [d for d in deps if str(d.get('last_error') or '')[:2000] == err[:2000]]
+        if hidden is None:
+            hidden = [str(c['name']) for c in store.db.rows('SELECT name, owner FROM certs')
+                      if not teams.cert_may(store, s, c, 'view')]
+        if all(teams.cert_may(store, s, d, 'view') for d in (mine or deps)) and \
+                r.get('key_of') != OTHERS_CERT and not any(n in err for n in hidden):
+            continue
+        r['last_error'] = 'the last deployment to it failed - of a certificate of another owner'
+    return rows
+
+
 def family_rows(store, family, full=False):
     table = S.TABLE_OF[family]
     return [S.plugin_public(store, family, r, full) for r in store.db.rows(
@@ -2845,7 +2965,10 @@ def _family_routes(family, path):
     @api('GET', '/api/%s' % path)
     def _rows(h, s):
         DF.ensure(h.store)
-        return {'rows': family_rows(h.store, family, may(s, 'fulladmin'))}
+        rows = family_rows(h.store, family, may(s, 'fulladmin'))
+        if family == 'target':
+            rows = targets_seen(h.store, s, rows)
+        return {'rows': rows}
 
     @api('POST', '/api/%s/action' % path, 'certadmin')
     def _action(h, s):
