@@ -832,11 +832,20 @@ def key_refused(key_type, key_bits, what):
             'or P-521, and Ed25519 - make a new key' % (what, key_type or 'unknown'))
 
 
-def sig_refused(sig_alg, what):
-    """Words why a signature is refused (MD5, SHA-1: they can be forged) - None where good."""
+SHA1_SIG_OIDS = ('1.2.840.113549.1.1.5', '1.3.14.3.2.29', '1.2.840.10045.4.1',
+                 '1.2.840.10040.4.3')
+
+
+def sig_refused(sig_alg, what, sha1_ok=False):
+    """Words why a signature is refused (MD5, SHA-1: they can be forged) - None where good.
+    `sha1_ok`: a request's own signature, which only proves it holds the key (the
+    certificate is signed with the authority's digest) - SHA-1 taken there (Windows, older
+    devices send it so), MD2/MD4/MD5 not."""
     a = str(sig_alg or '')
     low = a.lower()
-    if a in WEAK_SIG_OIDS or 'md5' in low or 'md2' in low or 'sha1' in low:
+    if sha1_ok and (a in SHA1_SIG_OIDS or ('sha1' in low and 'md' not in low)):
+        return None
+    if a in WEAK_SIG_OIDS or 'md5' in low or 'md4' in low or 'md2' in low or 'sha1' in low:
         return ('%s is signed with %s: MD5 and SHA-1 can be forged, and clients refuse them - '
                 'make it again with SHA-256 or better' % (what, a))
     return None
@@ -866,11 +875,13 @@ def ca_sign(store, ca_id, csr_pem, days, profile=None, cert_id=None, by=''):
     if not isinstance(csr_pem, str):
         csr_pem = pki.der_to_pem(bytes(csr_pem), 'CERTIFICATE REQUEST') \
             if b'-----BEGIN' not in csr_pem else csr_pem.decode('ascii')
-    ci = pki.csr_info(csr_pem)
+    # msExtReq (1.0.102): refused when a CSR comes to be signed; one of a certificate of acme's
+    # (cert_id - checked when it came in, maybe before 1.0.102) renews - the names are acme's
+    ci = pki.csr_info(csr_pem, msext_ok=cert_id is not None)
     if not pki.csr_verify(csr_pem):
         raise PkiError('the request is not signed by its own key', retry=False)
     _strong_or_refused(key_refused(ci['key_type'], ci['key_bits'], 'the request'),
-                       sig_refused(ci.get('sig_alg'), 'the request'))
+                       sig_refused(ci.get('sig_alg'), 'the request', sha1_ok=True))
     names = _as_list(prof.get('names')) if prof.get('names') else list(ci['names'])
     if prof.get('no_names'):
         names = []

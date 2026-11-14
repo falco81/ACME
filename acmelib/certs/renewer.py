@@ -432,9 +432,9 @@ def drop_held(store, job, cert, ctx, issuer):
 
 
 def _name_typed(pki, t, v):
-    """(type, value) of a name as a certificate or a request has it, compared alike: DNS and the
-    domain of an e-mail lowercase without the last dot (IDN as xn--), an IP address written
-    one way."""
+    """(type, value) of a name as a certificate or a request has it, compared alike: DNS
+    lowercase without the last dot (IDN as xn--), an e-mail address and a UPN lowercase whole
+    (AD CS gives them as the directory spells them), an IP address written one way."""
     v = str(v or '').strip()
     if t == 'DNS':
         try:
@@ -446,9 +446,9 @@ def _name_typed(pki, t, v):
             return 'IP', str(ipaddress.ip_address(v.strip('[]')))
         except ValueError:
             return 'IP', v.lower()
-    if t == 'email':
+    if t in ('email', 'UPN'):
         local, _, dom = v.rpartition('@')
-        return 'email', '%s@%s' % (local, dom.rstrip('.').lower())
+        return t, ('%s@%s' % (local, dom.rstrip('.')) if local else v).lower()
     return t, v
 
 
@@ -550,7 +550,8 @@ def _issue_one(store, job, cert, irow, issuer, names, profile, challenges, key_t
         # the same CSR at every renewal; the subject the profile says, the names checked.
         key_pem = ''
         job.step('%sthe CSR sent in is used - its own key, which acme does not hold' % what)
-        ci = pki.csr_info(given)
+        # msExtReq taken (1.0.102: refused when a CSR comes in, never in one kept from before)
+        ci = pki.csr_info(given, msext_ok=True)
         csr_pem, csr_der = ci['pem'], ci['der']
         subject = dict(subject)
         subject.setdefault('CN', cert.get('cn') or names[0])

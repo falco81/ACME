@@ -33,7 +33,7 @@ class SelfSignedIssuer(Issuer):
                               retry=False)
         names = list(getattr(req, 'sans', None) or req.names or [])
         if not names and req.csr_pem:
-            names = pki.csr_info(req.csr_pem)['names']
+            names = pki.csr_info(req.csr_pem, msext_ok=True)['names']
         eku = (req.profile or {}).get('eku') or self.c('eku') or ['serverAuth', 'clientAuth']
         if isinstance(eku, str):
             eku = [x for x in eku.replace(',', '\n').split() if x]

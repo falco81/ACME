@@ -607,6 +607,9 @@ def csr_refusals(info):
     a list of words: a certificate authority asked for, names of a kind a profile never
     gives, an extension that could not be read."""
     out = []
+    if info.get('ms_ext_req'):
+        # AD CS reads its names and extensions, which acme does not (1.0.102)
+        out.append(S.pki().MS_EXT_REQ_WORDS)
     if info.get('is_ca'):
         out.append('it asks to be a certificate authority (basicConstraints CA:TRUE)')
     odd = ['%s:%s' % (t, v) for t, v in info.get('san') or [] if t not in SAN_TAKEN]

@@ -124,3 +124,18 @@ def windows_csr(key_pem, cn='web01.example.test', pairs=(('CertificateTemplate',
         attrs += _attr('1.3.6.1.4.1.311.13.2.1', _tlv(0x30, bmp(n) + bmp(v)))
     cri = _tlv(0x30, it[0][1] + it[1][1] + it[2][1] + _tlv(0xa0, attrs + ext_attr))
     return _sign(key_pem, cri)
+
+
+def msext_csr(key_pem, cn='www.example.test', *addext):
+    """A CSR whose extensions (`addext`, subjectAltName DNS:cn where they name none) are in Microsoft's old
+    msExtReq attribute (1.3.6.1.4.1.311.2.1.14) instead of a standard extensionRequest: AD CS
+    reads them, acme does not (1.0.102)."""
+    if not any(a.startswith('subjectAltName') for a in addext):
+        addext = ('subjectAltName=DNS:%s' % cn,) + tuple(addext)
+    base = csr(key_pem, cn, *addext)
+    it = _items(_items(_items(_der(base))[0][2])[0][2])
+    ext_attr = _items(it[3][2])[0][2]              # OID, SET of the extensionRequest
+    the_set = _items(ext_attr)[1][1]
+    cri = _tlv(0x30, it[0][1] + it[1][1] + it[2][1] + _tlv(0xa0, _tlv(
+        0x30, _oid('1.3.6.1.4.1.311.2.1.14') + the_set)))
+    return _sign(key_pem, cri)

@@ -147,6 +147,32 @@ class TestAccountsAndSignIns(unittest.TestCase):
                                      'last': t, 'expires': t + 3600, 'ip': '', 'data': '{}'})
         self.assertIsNone(STORE.session_get(forged, 'admin', 3600))
 
+    def test_the_secrets_of_the_metrics_and_snmp_guarded(self):
+        """metrics_token, snmp_auth_pass, snmp_priv_pass under the guard (1.0.102, r5_guard.py):
+        signed once as they are (adopt), refused when written past acme after."""
+        for k in ('metrics_token', 'snmp_auth_pass', 'snmp_priv_pass'):
+            self.assertTrue(E.dbguard_setting_kept(k), k)
+            self.assertTrue(E.dbguard_setting_kept(k + '@node2'), k)
+        STORE.db.upsert('settings', 'k', {'k': 'metrics_token', 'v': json.dumps('kept-before'),
+                                          'at': 1, 'by_who': 'x'})
+        guard(True)
+        E.DBGUARD['adopted'] = {k: v for k, v in (E.DBGUARD.get('adopted') or {}).items()
+                                if k != E.DBGUARD_ADOPT4_MARK}
+        # not adopted yet: as unguarded as before
+        self.assertTrue(E.dbguard_ok(STORE.db, 's', 'metrics_token', json.dumps('kept-before')))
+        E.dbguard_adopt(STORE)
+        self.assertTrue(E.DBGUARD['adopted'].get(E.DBGUARD_ADOPT4_MARK))
+        saved = E.dbguard_settings(STORE.settings_saved(), STORE)
+        self.assertEqual(saved.get('metrics_token'), 'kept-before')
+        STORE.db.upsert('settings', 'k', {'k': 'metrics_token', 'v': json.dumps('planted'),
+                                          'at': 2, 'by_who': 'x'})
+        saved = E.dbguard_settings(STORE.settings_saved(), STORE)
+        self.assertEqual(saved.get('metrics_token'), 'kept-before')
+        STORE.save_setting('metrics_token', 'saved-by-acme', by='t')
+        saved = E.dbguard_settings(STORE.settings_saved(), STORE)
+        self.assertEqual(saved.get('metrics_token'), 'saved-by-acme')
+        STORE.drop_setting('metrics_token')
+
     def test_a_portal_sign_in_put_in_by_somebody_else(self):
         """The portal's sign-ins signed too (1.0.101): one put in past acme opened the
         enrolment pages - and every certificate's private key they hand out."""

@@ -161,7 +161,7 @@ def _csr_family(csr_pem):
         return None
     try:
         from acmelib.certs import pki
-        inf = pki.csr_info(csr_pem)
+        inf = pki.csr_info(csr_pem, msext_ok=True)        # only its key
         return _family(inf.get('key_type') or '')
     except Exception:                                   # noqa: BLE001
         return None

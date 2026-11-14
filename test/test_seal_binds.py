@@ -205,6 +205,75 @@ class SealBinds(unittest.TestCase):
         STORE._dirs = None
         self.assertEqual(STORE.directory('ad', with_secret=True)['bind_pw'], 'dir-old-copy')
 
+    def test_6_a_node_that_read_them_before(self):
+        """Rolling upgrade (r1_stale_node.py): another node sealed them for their names after
+        this one read them in - not '' meanwhile, and read in again once."""
+        setting('smtp_password', E.seal_secret('stale-mail'))
+        setting('sms_token', E.seal_secret('stale-sms'))
+        conf = E.load_config(saved=STORE.settings_saved())  # this node, holding the v1 forms
+        E.seal_bind_all(STORE, force=True, why='the other node')
+        serial = STORE.get_meta('conf_serial', '0')
+        self.assertTrue(raw_setting('smtp_password').startswith(E.SEALED2))
+        self.assertTrue(conf['smtp_password'].startswith(E.SEALED), conf['smtp_password'])
+        self.assertFalse(conf['smtp_password'].startswith(E.SEALED2))
+        E.seal_bound_forget()
+        self.assertEqual(E.setting_secret('smtp_password'), 'stale-mail')
+        self.assertEqual(E.setting_secret('sms_token'), 'stale-sms')
+        # what was changed told every node (conf_serial), so each reads its settings again
+        self.assertNotEqual(serial, '0')
+        # one written so past acme in the database is still refused
+        setting('sms_token', 'planted')
+        E.load_config(saved=STORE.settings_saved())
+        self.assertEqual(E.setting_secret('sms_token'), '')
+        # the daemon reads its settings again once, when the mark turns up
+        d = E.Daemon.__new__(E.Daemon)
+        d.store, d.seal_bound_seen, got = STORE, False, []
+        d.reload_all = lambda why='': got.append(why)
+        self.assertTrue(d.sealed_bound_tick())
+        self.assertFalse(d.sealed_bound_tick())
+        self.assertEqual(len(got), 1)
+
+    def test_7_a_copy_put_back_whose_module_step_failed(self):
+        """r4_force_retry.py: tried again at the next tick, though this node's file is there."""
+        calls = []
+
+        def flaky(_st):
+            calls.append(1)
+            if len(calls) == 1:
+                raise RuntimeError('not loaded yet')
+            return {'module state v1': 1}
+        E.HOOKS.setdefault('seal_bind_all', []).insert(0, flaky)
+        try:
+            setting('smtp_password', E.seal_secret('old-copy-2'))
+            self.assertIsNone(E.seal_bind_all(STORE, force=True, why='a copy put back by t'))
+            self.assertTrue(E.seal_again_path().exists())
+            got = E.seal_bind_all(STORE)
+            self.assertEqual(got.get('module state v1'), 1, got)
+            self.assertFalse(E.seal_again_path().exists())
+            self.assertIsNone(E.seal_bind_all(STORE))
+            self.assertEqual(len(calls), 2)
+        finally:
+            E.HOOKS['seal_bind_all'].remove(flaky)
+
+    def test_8_a_module_secret_in_clear_after_the_mark(self):
+        """r2_clear_field.py: a field kept in clear the migration did not seal (its module not
+        loaded then, or marked secret since) - taken and sealed for its place, not ''."""
+        self.assertTrue(E.seal_bound(STORE.db, fresh=True))
+        cfg = json.loads(STORE.db.value('SELECT config FROM cert_targets WHERE id = ?', (self.tid,)))
+        cfg['ssh_key'] = 'LATE-KEY-IN-CLEAR'
+        STORE.db.update('cert_targets', self.tid, {'config': json.dumps(cfg)})
+        trow = STORE.db.row('SELECT * FROM cert_targets WHERE id = ?', (self.tid,))
+        self.assertEqual(S.plugin_config('target', trow)['ssh_key'], 'LATE-KEY-IN-CLEAR')
+        kept = json.loads(STORE.db.value('SELECT config FROM cert_targets WHERE id = ?',
+                                         (self.tid,)))['ssh_key']
+        self.assertTrue(kept.startswith(E.SEALED2), kept)
+        trow = STORE.db.row('SELECT * FROM cert_targets WHERE id = ?', (self.tid,))
+        self.assertEqual(S.plugin_config('target', trow)['ssh_key'], 'LATE-KEY-IN-CLEAR')
+        # a value sealed without a place copied there is still refused
+        cfg = dict(json.loads(trow['config']), ssh_key=E.seal_secret('copied'))
+        self.assertEqual(S.config_open(cfg, 'cert_targets:%d' % self.tid, {'ssh_key'})['ssh_key'],
+                         '')
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

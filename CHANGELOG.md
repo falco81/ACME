@@ -15,15 +15,21 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   is sealed again for its place (the settings for their names, a directory's password for its
   row, the keys, the modules' secrets and the ACME accounts held) - said in the events - and from
   then on one sealed without a place, or kept in clear, is refused there (in words in the log).
-  A secret written in clear into `config.json` is still taken. A backup or copy made before is
-  sealed so when it is put back; the backup's check, the configuration's export and import and
-  the cluster's replication are unchanged. Until every node of a cluster runs 1.0.102 nothing
-  changes.
+  A secret written in clear into `config.json` is still taken; a setting found in clear in the
+  database is sealed and named in the log; a module's secret field still in clear (its module
+  not loaded then, or the field marked secret later) is taken and sealed at its next use. A
+  backup or copy made before is sealed so when it is put back (tried again at the next tick if a
+  step fails); the backup's check, the configuration's export and import and the cluster's
+  replication are unchanged. Until every node of a cluster runs 1.0.102 nothing changes; then
+  every node reads its settings again - one that read them before is never left with every
+  secret empty (mail, SMS, the proxy, the remote backup) until a restart. The secrets of the
+  metrics and of SNMPv3 are under the guard against writes too (signed once as they are).
 - **An ACME account key, or a key held at a commercial source, is never kept in clear** inside
   acme: a key that cannot be sealed (`secrets.key` missing) stops the order in words, before
   anything is ordered. Only a tool of its own outside acme keeps it as it is.
 - **The own CA refuses weak requests:** an RSA key under 2048 bits, DSA, a curve other than
-  P-256, P-384 or P-521 (Ed25519 is signed), a request signed with MD5 or SHA-1. An authority
+  P-256, P-384 or P-521 (Ed25519 is signed), a request signed with MD2, MD4 or MD5 (SHA-1 is
+  taken: a request's signature only proves the key, and the CA signs with its own). An authority
   imported, or its certificate installed, with such a key (or signed with MD5/SHA-1 by the CA
   above) is refused too. The portal and devices' keys were checked already.
 - (security) **Name constraints read as OpenSSL reads them.** A wildcard is compared as written:
@@ -33,13 +39,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   passed `.corp.example`; a URI without a host is refused under URI constraints.
 - **Keys and PKCS#12 files locked with a password are harder to guess:** a key exported
   encrypted (`key-pem-enc`, an authority's key) takes PBKDF2-HMAC-SHA256 with 600,000 rounds,
-  `pfx`/`p12` 600,000 rounds for the encryption and the MAC (openssl's default was 2048).
+  `pfx`/`p12` 250,000 rounds each for the key, the certificates and the MAC (openssl's default
+  was 2048) - under the limits of .NET 9's loader (300,000 each, 1,000,000 together).
   Windows 10 1709 / Server 2019 and Java 8u301 and later read them; `p12-legacy` is unchanged
   for older devices. The ZIP for isemon (WinZip AES) keeps the 1,000 rounds its format fixes -
   the docs now say to give it a long random passphrase.
 - (security) **What an issuer gives back is checked:** a certificate whose names are not the ones asked
   for (a name missing or one more - the `www.` twin or the base of a wildcard a commercial CA
-  adds is taken), or that does not verify against the chain it came with, is refused in words
+  adds is taken; e-mail addresses and UPNs compared whatever their case, as AD CS writes the
+  directory's), or that does not verify against the chain it came with, is refused in words
   and not tried again by itself. An ACME CA asking to prove a name that was not ordered is
   refused before any TXT record or HTTP file is written for it.
 - (security) **SCEP with a CA fingerprint trusts only what that CA signed.** An RA sent next to
@@ -109,13 +117,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   nothing of it kept - it was kept, and the job running then issued the old one.
 - (security) **CSRs made to get past a request profile are refused:** two extension requests (acme checked
   the last, OpenSSL and a CA taking the CSR as it is read the first - a UPN with smart-card
-  logon), an extension request, msExtReq or challenge password twice, an extension twice, a UPN
+  logon), an extension request or challenge password twice, an extension twice, a UPN
   or another otherName, a directory name, an OID,
   an x400 or EDI party name or a name that does not read, a certificate authority asked for
   (`CA:TRUE`), and - for a source that takes the CSR as it is - extended key usages the profile
   does not give. Other attributes may repeat: a Windows certreq or ConfigMgr CSR writes each
-  enrollment name-value pair as an attribute of its own. A CSR kept from before is still read
-  for its key when a certificate is renewed or revoked.
+  enrollment name-value pair as an attribute of its own. A CSR carrying Microsoft's old
+  extension request (msExtReq) is refused when it comes in (portal, a new CSR, a device's key,
+  signing by acme's CA) - AD CS read its names, acme did not. A CSR kept from before is still
+  read and renewed with.
 - (security) **A scoped session is not told of another team's certificates:** the targets' list says
   "another owner's certificate" for the one whose key a device makes and a generic phrase for a
   target's last error naming one; a name taken by another team's certificate, or a device making

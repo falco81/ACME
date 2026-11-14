@@ -62879,6 +62879,14 @@
   "_504": {
    "source": "the certificate that came is not signed by the CA of the fingerprint - someone in between? The request is kept: asked for again at the next try",
    "text": "vydaný certifikát není podepsán CA s tímto otiskem – je někdo mezi? Žádost zůstává uložena: při dalším pokusu se o certifikát požádá znovu"
+  },
+  "_505": {
+   "source": "you asked for it yourself, or gave it its CSR or names - have another administrator approve or decline it (a full administrator who needs a certificate adds it here: Add a certificate)",
+   "text": "požádali jste o něj sami, nebo jste mu dali jeho CSR či jména – nechte ho schválit nebo zamítnout jiného správce (úplný správce, který certifikát potřebuje, si ho přidá zde: Přidat certifikát)"
+  },
+  "_506": {
+   "source": "the CSR carries Microsoft's old extension request (msExtReq) - make it with a standard extensionRequest",
+   "text": "CSR obsahuje starou žádost o rozšíření od Microsoftu (msExtReq) – vytvořte ho se standardním extensionRequest"
   }
  },
  "patterns": {
@@ -87681,6 +87689,14 @@
   "p_357": {
    "source": "the RA certificate {0} the SCEP server sent is valid only from {1} - a clock is off",
    "text": "certifikát RA {0}, který server SCEP poslal, platí až od {1} – někde jdou špatně hodiny"
+  },
+  "p_358": {
+   "source": "the CSR's attribute {0} has {1} values - one is read: make the CSR again",
+   "text": "atribut {0} v CSR má {1} hodnot – čte se jen jedna: vytvořte CSR znovu"
+  },
+  "p_359": {
+   "source": "names of a kind no profile gives (only DNS names, IP addresses, e-mail addresses and URIs are read): {0}",
+   "text": "jména druhu, který žádný profil nedává (čtou se jen jména DNS, adresy IP, e-mailové adresy a URI): {0}"
   }
  },
  "rich": {

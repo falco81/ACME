@@ -555,13 +555,20 @@ def cert_info(pem_or_der):
 CSR_ATTR_ONCE = ('1.2.840.113549.1.9.14', '1.3.6.1.4.1.311.2.1.14', '1.2.840.113549.1.9.7')
 
 
-def csr_info(pem, strict=True):
+MS_EXT_REQ_WORDS = ('the CSR carries Microsoft\'s old extension request (msExtReq) - make it '
+                    'with a standard extensionRequest')
+
+
+def csr_info(pem, strict=True, msext_ok=False):
     """What a request says: subject_dn, subject, cn, names, san, key_type,
     key_bits, sha256 (= pub_sha256, of the public key), eku, must_staple.
     `strict` (the default, for a CSR coming in): PkiError when an extension request,
     msExtReq or challenge password is there twice, or an extension is asked for twice.
     strict=False (a CSR stored earlier, read again - its key, its names): those are only
-    listed in 'attr_twice' / 'ext_twice'."""
+    listed in 'attr_twice' / 'ext_twice'. A strict read refuses Microsoft's old extension
+    request (msExtReq) too, unless `msext_ok` (a CSR stored before, renewed; one only looked
+    at): its extensions are not read here, and AD CS takes its names unchecked - said in
+    'ms_ext_req'."""
     if isinstance(pem, str) or b'-----BEGIN' in pem:
         blocks = [b for b in split_pem(pem) if 'REQUEST' in b[0]]
         if not blocks:
@@ -608,6 +615,9 @@ def csr_info(pem, strict=True):
         sig_alg = A.oid_name(req[1][0].oid())
     except (A.Asn1Error, IndexError, ValueError) as e:
         raise PkiError('this is not a certificate request that can be read: %s' % e)
+    ms_ext = '1.3.6.1.4.1.311.2.1.14' in seen or 'msExtReq' in twice
+    if ms_ext and strict and not msext_ok:
+        raise PkiError(MS_EXT_REQ_WORDS)
     if exts['twice'] and strict:
         raise PkiError('the CSR asks for the extension %s more than once - which one a CA reads '
                        'is its own choice: make the CSR again' % ', '.join(sorted(set(
@@ -625,6 +635,7 @@ def csr_info(pem, strict=True):
             'is_ca': exts['is_ca'], 'path_len': exts['path_len'],
             'extensions': exts['extensions'], 'san_bad': exts['san_bad'],
             'ext_twice': exts['twice'], 'ext_unread': exts['unread'], 'attr_twice': twice,
+            'ms_ext_req': ms_ext,
             'pem': der_to_pem(der, 'CERTIFICATE REQUEST'), 'der': der}
 
 

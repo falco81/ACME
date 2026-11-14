@@ -488,6 +488,30 @@ class Csr(unittest.TestCase):
         said = [c['said'] for c in got['checks'] if c['what'] == 'refused'][0]
         self.assertIn('DNS names, IP addresses, e-mail addresses and URIs', said)
 
+    def test_ms_ext_req_refused_and_kept_one_renews(self):
+        """1.0.102: a CSR with msExtReq (AD CS reads its names, acme did not) is refused when it
+        comes in; one kept from before still renews."""
+        sys.path.insert(0, HERE)
+        import csr_craft as C
+        key = pki.make_key('ec-256')
+        ms = C.msext_csr(key, 'www.example.test')
+        for path in ('/api/portal/csr_decode', '/api/portal/cert_request'):
+            self.assertEqual(portal_status(EVA, 'POST', path, {
+                'profile': 'Web servers', 'csr': ms, 'team': 'Web'}), 400, path)
+        self.assertEqual(STORE.db.value('SELECT COUNT(*) FROM certs'), 0)
+        got = portal(EVA, 'POST', '/api/portal/cert_request', {
+            'profile': 'Web servers', 'csr': C.csr(key, 'www.example.test',
+                                                   'subjectAltName=DNS:www.example.test'),
+            'team': 'Web'})
+        row = wait_cert(got['id'])
+        STORE.db.update('certs', row['id'], {'csr_given': ms})      # as kept before 1.0.102
+        jobs.run_now(STORE, 'renew', renewer.renew_job(row['id'], True, 'test'),
+                     cert_id=row['id'])
+        row2 = S.cert_get(STORE, row['id'])
+        self.assertEqual(row2['version'], 2, row2.get('last_error'))
+        self.assertEqual(pki.cert_info(row2['cert_pem'])['pub_sha256'],
+                         pki.key_info(key)['pub_sha256'])
+
     def test_windows_csr_taken_and_renewed(self):
         """1.0.102: a CSR of Windows certreq / ConfigMgr repeats the enrollment name-value pair
         attribute (1.3.6.1.4.1.311.13.2.1) - taken, issued, and renewed with it."""

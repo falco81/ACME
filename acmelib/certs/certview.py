@@ -434,7 +434,7 @@ def cert_detail(der):
 
 
 def csr_detail(der, check=True):
-    info = pki.csr_info(der)
+    info = pki.csr_info(der, msext_ok=True)        # only looked at: msExtReq shown
     req = A.parse(der)
     cri = req[0]
     exts, attrs = [], []

@@ -88,8 +88,11 @@ def p7b_der(cert_pems):
 # PBKDF2 rounds of the key's and certificates' encryption and of the MAC (1.0.102): openssl's
 # default is 2048 (and an 8-byte salt for the MAC). Windows 10 1709 / Server 2019 and later
 # and Java 8u301 / 11 and later read AES-256 / SHA-256 PKCS#12 with this count (Java reads up
-# to 5,000,000). A device that cannot: p12-legacy (3DES / SHA-1, its old count) as before.
-P12_ITER = 600000
+# to 5,000,000). Each of the three (the key, the certificates, the MAC) under .NET 9's
+# X509CertificateLoader limits - 300,000 rounds each, 1,000,000 together: 600,000 each
+# (1,800,000) was refused there. A device that cannot: p12-legacy (3DES / SHA-1, its old
+# count) as before.
+P12_ITER = 250000
 
 
 def pkcs12(key_pem, cert_pem, chain_pems, password, alias='', legacy=False):

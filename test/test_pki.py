@@ -15,6 +15,7 @@ import json
 import os
 import shutil
 import sqlite3
+import re
 import subprocess
 import sys
 import tempfile
@@ -274,6 +275,20 @@ class TestCsrCrafted(unittest.TestCase):
         info = pki.csr_info(csr, strict=False)
         self.assertEqual(info['attr_twice'], ['extensionRequest'])
         self.assertEqual(info['san'], [('UPN', 'administrator@corp.test')])
+
+    def test_ms_ext_req_refused_when_it_comes_in(self):
+        csr = self.C.msext_csr(self.k, 'www.example.test', self.C.UPN_SAN)
+        self.assertTrue(pki.csr_verify(csr))
+        with self.assertRaises(PkiError) as e:
+            pki.csr_info(csr)
+        self.assertIn('msExtReq', str(e.exception))
+        # one kept from before: read (renewed, looked at), and said
+        for kw in ({'msext_ok': True}, {'strict': False}):
+            info = pki.csr_info(csr, **kw)
+            self.assertTrue(info['ms_ext_req'])
+            from acmelib.certs import reqprofiles
+            self.assertIn(pki.MS_EXT_REQ_WORDS, reqprofiles.csr_refusals(info))
+        self.assertFalse(pki.csr_info(self.C.csr(self.k, 'x.example.test'))['ms_ext_req'])
 
     def test_windows_name_value_pairs_repeat(self):
         # certreq / ConfigMgr: each enrollment name-value pair an attribute of its own
@@ -653,11 +668,14 @@ class TestHunt102(Tmp, unittest.TestCase):
     def test_weak_requests_refused(self):
         for args, md, words in (
                 (['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:1024'], 'sha256', '1024 bits'),
-                (['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048'], 'sha1', 'SHA-1'),
+                (['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:1024'], 'sha1', '1024 bits'),
                 (['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:secp256k1'], 'sha256',
                  'secp256k1'),
-                (['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-256'], 'sha1', 'SHA-1')):
-            csr = self.csr_by_openssl(args, md)
+                (['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048'], 'md5', 'MD5')):
+            try:
+                csr = self.csr_by_openssl(args, md)
+            except Exception:                           # noqa: BLE001
+                continue                                # openssl here makes no MD5 request
             with self.assertRaises(PkiError) as got:
                 CA.ca_sign(self.store, self.root, csr, 30)
             self.assertIn(words, str(got.exception))
@@ -665,6 +683,18 @@ class TestHunt102(Tmp, unittest.TestCase):
         self.assertIn('DSA', CA.key_refused('dsa-2048', 2048, 'the request'))
         self.assertIn('MD5', CA.sig_refused('md5WithRSAEncryption', 'the request'))
         self.assertIsNone(CA.sig_refused('ecdsa-with-SHA256', 'x'))
+        # a request's SHA-1 only proves it holds the key (1.0.102): taken - MD2/MD4/MD5 not, and
+        # SHA-1 is refused wherever it is a certificate's signature
+        for sha1 in ('sha1WithRSAEncryption', 'ecdsa-with-SHA1', '1.2.840.113549.1.1.5'):
+            self.assertIsNone(CA.sig_refused(sha1, 'the request', sha1_ok=True), sha1)
+            self.assertIn('SHA-1', CA.sig_refused(sha1, 'the certificate'))
+        for weak in ('md5WithRSAEncryption', 'md2WithRSAEncryption', 'md4WithRSAEncryption',
+                     '1.2.840.113549.1.1.4', '1.2.840.113549.1.1.2'):
+            self.assertTrue(CA.sig_refused(weak, 'the request', sha1_ok=True), weak)
+        for args in (['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048'],
+                     ['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-256']):
+            cert, _chain = CA.ca_sign(self.store, self.root, self.csr_by_openssl(args, 'sha1'), 30)
+            self.assertNotIn('sha1', pki.cert_info(cert).get('sig_alg', '').lower())
         # the good ones are signed: RSA 2048, P-384, P-521, Ed25519
         for args, md in ((['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048'], 'sha256'),
                          (['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-384'], 'sha384'),
@@ -723,6 +753,12 @@ class TestHunt102(Tmp, unittest.TestCase):
         said = (info.stdout + info.stderr).decode()
         self.assertIn('MAC: sha256, Iteration %d' % B.P12_ITER, said)
         self.assertIn('AES-256-CBC, Iteration %d' % B.P12_ITER, said)
+        # under .NET 9's X509CertificateLoader limits: 300,000 a KDF, 1,000,000 together (the
+        # key, the certificates and the MAC)
+        self.assertLessEqual(B.P12_ITER, 300000)
+        rounds = [int(n) for n in re.findall(r'Iteration (\d+)', said)]
+        self.assertEqual(len(rounds), 3, said)
+        self.assertLess(sum(rounds), 1000000)
         legacy = B.pkcs12(key(), pki.self_signed(key(), ['p.example']), [], 'pw', legacy=True)
         info = subprocess.run(['openssl', 'pkcs12', '-info', '-noout', '-legacy', '-passin',
                                'pass:pw'], input=legacy, capture_output=True)
@@ -751,6 +787,18 @@ class TestHunt102(Tmp, unittest.TestCase):
             'shop.example.com', 'www.shop.example.com', '*.x.example.com', 'x.example.com'])[0], 30)
         self.assertIsNone(R.issued_names_refused(pki, cert2, ['shop.example.com',
                                                               '*.x.example.com']))
+        # an e-mail address and a UPN as AD CS spells them (the directory's case): taken
+        class Given(object):
+            def __getattr__(self, name):
+                return getattr(pki, name)
+
+            def cert_info(self, _pem):
+                return {'san': [('DNS', 'a.example'), ('email', 'Jan.Novak@Corp.CZ'),
+                                ('UPN', 'Jan@CORP.cz')], 'subject_dn': 'CN=x'}
+        self.assertIsNone(R.issued_names_refused(Given(), 'x', [
+            'a.example', 'email:jan.novak@corp.cz', 'upn:jan@corp.cz']))
+        self.assertIn('not asked for', R.issued_names_refused(Given(), 'x', [
+            'a.example', 'email:petr@corp.cz', 'upn:jan@corp.cz']))
         # signed by another key than the chain's (the same name): refused
         forged = [CA.ca_get(self.store, other)['cert_pem']]
         with self.assertRaises(PluginError) as got:
