@@ -122,8 +122,9 @@ def _ber_str(text, tag=0x04):
     return _ber(tag, str(text or '').encode('utf-8'))
 
 
-# Attributes whose values are bytes (1.0.100), handed on in hex.
-LDAP_BINARY_ATTRS = ('objectsid',)
+# Attributes whose values are bytes (1.0.100), handed on in hex - a CRL of a CRL Distribution Point
+# in the directory too (1.0.105: certificateRevocationList, deltaRevocationList - ";binary" or not).
+LDAP_BINARY_ATTRS = ('objectsid', 'certificaterevocationlist', 'deltarevocationlist')
 
 
 def _ber_bool(value, tag=0x01):
@@ -1008,7 +1009,7 @@ class Ldap(object):
             attr = name.decode('utf-8', 'replace')
             # A value that is bytes, not words (1.0.100): objectSid in hex, as it came - read
             # as UTF-8 it was gone (the SID of a certificate is compared with it).
-            raw = attr.lower() in LDAP_BINARY_ATTRS
+            raw = attr.lower().split(';', 1)[0] in LDAP_BINARY_ATTRS
             while deep < len(values):
                 _t, value, deep = _ber_read(values, deep)
                 got.append(value.hex() if raw else value.decode('utf-8', 'replace'))

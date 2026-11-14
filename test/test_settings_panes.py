@@ -65,6 +65,9 @@ READ_OTHERWISE = {
     'admin_certlogin_match', 'admin_certlogin_crl', 'portal_certlogin_match',
     'portal_certlogin_crl',
     'admin_certlogin_auto', 'portal_certlogin_auto',  # CONFIG.get(part + '_certlogin_auto')
+    # ...and its revocation besides the CRL (1.0.105): CONFIG.get(part + '_certlogin_ocsp') ...
+    'admin_certlogin_ocsp', 'admin_certlogin_ocsp_url', 'admin_certlogin_crl_ldap',
+    'portal_certlogin_ocsp', 'portal_certlogin_ocsp_url', 'portal_certlogin_crl_ldap',
 }
 
 

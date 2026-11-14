@@ -777,6 +777,16 @@ def build_parser():
     g.add_argument('--cert-login-crl-clear', metavar='URL', nargs='?', const='',
                    help='forget the CRLs kept (or the one at URL) on every node - the next sign-in '
                         'fetches them again (all of them: asks; --yes)')
+    g.add_argument('--cert-login-ocsp', action='store_true',
+                   help='the OCSP answers of the sign-in with a certificate kept on each node: '
+                        'the certificate, its status, the responder, this and next update, errors')
+    g.add_argument('--cert-login-ocsp-fetch', metavar='KEY', nargs='?', const='',
+                   help='ask every OCSP responder again now (or the one answer of KEY, as '
+                        '--cert-login-ocsp --json says it) - on every node, each itself; exit 1 '
+                        'if one did not answer')
+    g.add_argument('--cert-login-ocsp-clear', metavar='KEY', nargs='?', const='',
+                   help='forget the OCSP answers kept (or the one of KEY) on every node - the next '
+                        'sign-in asks again (all of them: asks; --yes)')
     g.add_argument('--api', nargs='+', metavar=('METHOD PATH', 'BODY'), help='any page\'s question '
                    'as the pages ask it: GET /api/ntp, or POST /api/osup \'{"action": "check"}\' '
                    '(BODY - : read from stdin, for one holding a secret) - the answer as JSON')
@@ -2819,6 +2829,90 @@ def cli_cert_login_crl(args, pal, store):
     return 0
 
 
+def cli_cert_login_ocsp(args, pal, store):
+    """acme --cert-login-ocsp, --cert-login-ocsp-fetch [KEY], --cert-login-ocsp-clear [KEY]
+    (1.0.105): as the card's table "Online status (OCSP)", its Ask again and Clear."""
+    by = 'root on %s' % node_name()
+    d = Daemon(store, serve=False)
+    act = 'fetch' if args.cert_login_ocsp_fetch is not None else (
+        'clear' if args.cert_login_ocsp_clear is not None else '')
+    if act:
+        key = (args.cert_login_ocsp_fetch if act == 'fetch' else args.cert_login_ocsp_clear) or ''
+        if act == 'clear' and not key:
+            cli_sure(args, 'every OCSP answer kept forgotten on every node - while a responder '
+                           'does not answer then, its last good answer is gone too')
+        try:
+            asked = cl_ocsp_ask_all(d, act, key, by)
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        got = cli_ask_wait(store, 'ocsp_' + act, asked, 60)
+        if args.json:
+            print(json.dumps({'nodes': got}, default=str))
+            return 0 if all(v and v.get('ok') for v in got.values()) else 1
+        bad = False
+        for n, v in sorted(got.items()):
+            if not v:
+                bad = True
+                print(pal.warn_line('%s: no answer in a minute - is acme running there?' % n))
+                continue
+            rows = v.get('crls') or []
+            if v.get('error'):
+                bad = True
+                print(pal.warn_line('%s: %s' % (n, v['error'])))
+            elif act == 'clear':
+                print(pal.ok_line('%s: %d OCSP answer%s cleared' % (
+                    n, len(rows), '' if len(rows) == 1 else 's')))
+            else:
+                print((pal.ok_line if v.get('ok') else pal.warn_line)(
+                    '%s: %d of %d answered' % (n, sum(1 for r in rows if r.get('ok')), len(rows))))
+                bad = bad or not v.get('ok')
+            for r in rows:
+                print('  %-40s %s' % (r['url'][:40], (r.get('status') or 'ok') if r.get('ok')
+                                      else 'NO ANSWER: %s' % r.get('err')))
+        return 1 if bad else 0
+    v = cl_view(_CliHere(store, d))
+    if args.json:
+        print(json.dumps({'ocsp': {p: v['parts'][p]['ocsp'] for p in CL_PARTS},
+                          'answers': v['ocsp_answers']}, default=str))
+        return 0
+    for part, words in (('admin', 'the administration'), ('portal', 'the enrolment pages')):
+        p = v['parts'][part]
+        print('  OCSP for %s: %s%s' % (words, p['ocsp'], ('  (one responder for all: %s%s)' % (
+            p['ocsp_url'], '' if p['ocsp_url_ok'] else ' - NOT an address acme asks'))
+            if p['ocsp_url'] else ''))
+    if not v['ocsp_answers']:
+        print(pal.ok_line('no OCSP answer kept - a responder is asked at the first sign-in'))
+        return 0
+    now = time.time()
+    for c in v['ocsp_answers']:
+        if not c.get('status'):
+            state = 'NO ANSWER'
+        elif c['status'] != 'good':
+            state = c['status'].upper()
+        elif c.get('next') and float(c['next']) <= now:
+            state = 'RUN OUT'
+        elif c.get('err'):
+            state = 'good (the last answer kept)'
+        else:
+            state = 'good'
+        line = '%s  %s' % (c.get('subject') or '?', state)
+        print(pal.ok_line(line) if state == 'good' else pal.warn_line(line))
+        print('  issued by     %s, serial %s' % (c.get('issuer') or '-', c.get('serial') or '-'))
+        print('  responder     %s%s' % (c['url'], ('  signed by %s' % c['responder'])
+                                         if c.get('responder') else ''))
+        if c.get('status'):
+            print('  this update %s, next update %s, asked %s' % (
+                stamp(c.get('this')), stamp(c.get('next')), stamp(c.get('at'))))
+        if c.get('status') == 'revoked':
+            print('  revoked       %s%s' % (stamp(c.get('revoked_at')),
+                                          ' (%s)' % c['reason'] if c.get('reason') else ''))
+        if c.get('err'):
+            print('  last error    %s (%s)' % (c['err'], stamp(c.get('err_at'))))
+        for n in c.get('nodes') or []:
+            print('  node %-12s %s' % (n['node'], n.get('status') or 'no answer'))
+    return 0
+
+
 def cli_main(argv=None):
     global _LOG_TO_STDERR
     if CLI_STARTED_ROOT[0] is None:
@@ -3037,6 +3131,9 @@ def cli_main(argv=None):
     if args.cert_login_crl or args.cert_login_crl_fetch is not None or \
             args.cert_login_crl_clear is not None:
         return cli_cert_login_crl(args, pal, store)
+    if args.cert_login_ocsp or args.cert_login_ocsp_fetch is not None or \
+            args.cert_login_ocsp_clear is not None:
+        return cli_cert_login_ocsp(args, pal, store)
     if args.web_status or args.tls_import or args.tls_preset or args.tls_dh or \
             args.tls_hsts is not None or args.vip_set or args.vip or args.vip_move or args.vip_return or \
             args.web_retry:

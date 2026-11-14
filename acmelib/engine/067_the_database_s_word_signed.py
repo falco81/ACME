@@ -65,7 +65,11 @@ DBGUARD_SETTINGS = frozenset((
     'portal_password_off',
     # ...and with a certificate (1.0.100): the switches, the port root opens, how one is matched.
     'admin_certlogin', 'admin_certlogin_match', 'admin_certlogin_crl', 'portal_certlogin',
-    'portal_certlogin_match', 'portal_certlogin_crl', 'certlogin_port', 'session_hours', 'session_idle_min', 'login_tries', 'login_wait_min',
+    'portal_certlogin_match', 'portal_certlogin_crl', 'certlogin_port',
+    # ...and how its revocation is checked (1.0.105): OCSP, the responder, CRLs from the directory.
+    'admin_certlogin_ocsp', 'admin_certlogin_ocsp_url', 'admin_certlogin_crl_ldap',
+    'portal_certlogin_ocsp', 'portal_certlogin_ocsp_url', 'portal_certlogin_crl_ldap',
+    'session_hours', 'session_idle_min', 'login_tries', 'login_wait_min',
     'mail_mode', 'mail_from', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_auth',
     'smtp_user', 'smtp_password', 'sms_mode', 'sms_url', 'sms_token', 'sms_spool_dir',
     'sms_tel_host', 'sms_tel_user', 'sms_tel_password', 'sms_tel_https', 'sms_tel_verify',

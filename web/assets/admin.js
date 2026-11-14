@@ -8097,7 +8097,7 @@ function drawCert(part) {
   chip(p.usable ? 'good' : 'dim', p.usable ? 'On' : 'Off');
   chip(d.cas.length ? 'good' : 'warn', d.cas.length ? 'Authorities put in' : 'No authority yet');
   if (p.only_in_effect) chip('warn', 'No password at all');
-  if (!p.crl) chip('warn', 'Revocation not checked');
+  if (!p.crl && p.ocsp === 'off') chip('warn', 'Revocation not checked');
   if (p.match !== 'strong') chip('warn', 'Not strong');
   host.appendChild(head);
   if (p.match !== 'strong') host.appendChild(el('p', 'note warn', 'Not strong: a certificate without the SID of KB5014754 is taken by its UPN alone - anybody who may ask an authority put in here for a certificate with a name of their choosing (a template where the requester supplies the subject) signs in as whoever they name, a full administrator too. Windows itself requires the SID since September 2025.'));
@@ -8110,7 +8110,7 @@ function drawCert(part) {
     ['The port', [port, el('span', 'muted small krb-from', 'nginx asks for a certificate there, and nowhere else')]],
     ['Directory', noI18n(el('span', '', p.directory || '-'))],
     ['Which account', [el('span', '', p.match_words), noI18n(el('span', 'muted small krb-from', part + '_certlogin_match: ' + p.match))]],
-    ['Revocation', p.crl ? 'checked - the CRL and the delta CRL of the certificate and of the authorities above it, fetched again every ten minutes at most; no CRL no sign-in' : 'not checked - a lost card signs in until its account is switched off'],
+    ['Revocation', certRevFlow(p)],
     [part === 'admin' ? 'Second step after it' : 'One-time code after it', p.second ? 'yes - asked after the certificate too, every time' : 'off'],
     [part === 'admin' ? 'The enrolment pages' : 'The administration', other.usable ? 'on there too - their own switch, the same port' : 'off there - their own switch']
   ]);
@@ -8186,6 +8186,8 @@ function drawCert(part) {
   }
   /* The CRLs. */
   certCrls(host, p);
+  /* The OCSP answers (1.0.105). */
+  certOcsp(host, p);
   /* Each node. */
   host.appendChild(el('h3', 'peek-h', 'Each node'));
   krbTable(host, ['Node', 'Heard from', 'The authorities', 'nginx on port ' + d.port, 'Trouble'], d.nodes.map(function (n) {
@@ -8252,8 +8254,12 @@ function certCrlState(c) {
 function certCrlAsk(act, url) {
   if (CERTC.crlAsk) return;
   var ask = CERTC.crlAsk = {act: act, url: url || '', nodes: {}, done: false};
+  var ocsp = act.indexOf('ocsp_') === 0;
+  /* OCSP (1.0.105): every node heard from has its line from the first draw - the box is at its
+     final shape at once, not growing a line as each node is known. */
+  if (ocsp) (CERTC.d.nodes || []).forEach(function (n) { if (n.heard || n.me) ask.nodes[n.node] = null; });
   var redraw = function () { drawCert('admin'); drawCert('portal'); };
-  askNodes('certlogin', {action: 'crl_' + act, url: url || ''}, function (n, got) {
+  askNodes('certlogin', {action: ocsp ? act : 'crl_' + act, url: url || ''}, function (n, got) {
     ask.nodes[n] = got;
     if ((CERTC.d.nodes || []).some(function (x) { return x.me && x.node === n; })) loadCert();
     redraw();
@@ -8262,7 +8268,8 @@ function certCrlAsk(act, url) {
     CERTC.crlAsk = null;
     CERTC.crlSaid = ask;
     var bad = Object.keys(ask.nodes).filter(function (n) { return !ask.nodes[n] || !ask.nodes[n].ok; });
-    toast(act === 'clear' ? 'cleared on every node' : (bad.length ? 'fetched - not everything on every node' : 'fetched on every node'), bad.length ? 'warn' : 'good');
+    if (ocsp) toast(act === 'ocsp_clear' ? 'cleared' : (bad.length ? 'asked - not every responder answered' : 'every responder answered'), bad.length && act !== 'ocsp_clear' ? 'warn' : 'good');
+    else toast(act === 'clear' ? 'cleared on every node' : (bad.length ? 'fetched - not everything on every node' : 'fetched on every node'), bad.length ? 'warn' : 'good');
     loadCert();
   }).then(function (x) {
     (x.nodes || []).forEach(function (n) { if (!(n in ask.nodes)) ask.nodes[n] = null; });
@@ -8270,14 +8277,18 @@ function certCrlAsk(act, url) {
   }).catch(function (e) { CERTC.crlAsk = null; oops(e); redraw(); });
   redraw();
 }
-function certCrlSaid(host) {
-  /* What each node answered to the last Fetch now or Clear - while it runs and after. */
+function certCrlSaid(host, kind) {
+  /* What each node answered to the last Fetch now or Clear - while it runs and after. In the
+     section the ask belongs to (1.0.105): the CRLs' ('crl'), or the OCSP answers' ('ocsp'). */
   var ask = CERTC.crlAsk || CERTC.crlSaid;
   if (!ask) return;
+  var ocsp = ask.act.indexOf('ocsp_') === 0;
+  if (ocsp !== (kind === 'ocsp')) return;
   var box = el('div', 'cert-crl-said');
   var head = el('div', 'cert-crl-said-h');
-  head.appendChild(el('b', '', ask.act === 'clear' ? (ask.url ? 'Clear one CRL' : 'Clear every CRL') : (ask.url ? 'Fetch one CRL now' : 'Fetch every CRL now')));
-  if (ask.url) head.appendChild(noI18n(el('span', 'mono small', ask.url)));
+  head.appendChild(el('b', '', ocsp ? (ask.act === 'ocsp_clear' ? (ask.url ? 'Clear one OCSP answer' : 'Clear every OCSP answer') : (ask.url ? 'Ask one responder again' : 'Ask every responder again'))
+    : ask.act === 'clear' ? (ask.url ? 'Clear one CRL' : 'Clear every CRL') : (ask.url ? 'Fetch one CRL now' : 'Fetch every CRL now')));
+  if (ask.url) head.appendChild(noI18n(el('span', 'mono small', ocsp ? ask.url.split('|')[0] : ask.url)));
   if (!ask.done) head.appendChild(el('span', 'muted small', 'asked of every node…'));
   else {
     var x = iconButton('close', 'Hide this');
@@ -8292,9 +8303,10 @@ function certCrlSaid(host) {
     else if (got.error) { line.appendChild(krbTag('crit', 'failed')); line.appendChild(el('span', 'small bad', got.error)); }
     else {
       var rows = got.crls || [], ok = rows.filter(function (r) { return r.ok; }).length;
-      if (ask.act === 'clear') line.appendChild(krbTag('ok', 'cleared'));
-      else line.appendChild(krbTag(ok === rows.length ? 'ok' : 'crit', ok === rows.length ? 'fetched' : 'not everything'));
-      line.appendChild(el('span', 'muted small', ask.act === 'clear' ? rows.length + ' forgotten' : ok + ' of ' + rows.length + ' fetched'));
+      var clearing = ask.act === 'clear' || ask.act === 'ocsp_clear';
+      if (clearing) line.appendChild(krbTag('ok', 'cleared'));
+      else line.appendChild(krbTag(ok === rows.length ? 'ok' : 'crit', ok === rows.length ? (ocsp ? 'answered' : 'fetched') : 'not everything'));
+      line.appendChild(el('span', 'muted small', clearing ? rows.length + ' forgotten' : ok + ' of ' + rows.length + (ocsp ? ' answered' : ' fetched')));
       rows.filter(function (r) { return !r.ok; }).forEach(function (r) {
         var e = el('div', 'cert-crl-said-e small');
         e.appendChild(noI18n(el('span', 'mono', r.url)));
@@ -8331,6 +8343,13 @@ function certCrls(host, p) {
   host.appendChild(head);
   /* What each node answered goes UNDER the table (1.0.105): over it, it pushed every row
      down by its height the moment Fetch now was pressed - the row being read went with it. */
+  if (p.crl_ldap) {
+    /* CRLs read from the directory too (1.0.105). */
+    var ln = el('p', 'note cert-crl-ldapnote');
+    ln.appendChild(krbTag('info', 'LDAP'));
+    ln.appendChild(el('span', '', ' A CRL Distribution Point in the directory is read too, with the directory’s connection above, when no http one answers.'));
+    host.appendChild(ln);
+  }
   if (!crls.length) {
     certCrlSaid(host);
     host.appendChild(el('p', 'note', p.crl ? 'None yet: the CRL at a certificate’s CRL Distribution Point is fetched at its first sign-in and kept until its next update.' : 'Revocation is not checked for this part.'));
@@ -8358,9 +8377,12 @@ function certCrls(host, p) {
     var chev = cell(tr, '', 'cert-crl-chev');
     chev.appendChild(el('span', 'cert-crl-arrow', '▸'));
     var a = cell(tr, '', 'cert-crl-url');
-    var u = noI18n(el('span', 'mono', c.url));
+    /* Read from the directory (1.0.105): an LDAP tag and the authority's name stand in for the
+       long ldap:/// address - the whole of it in the tooltip and the details. */
+    var u = noI18n(el('span', 'mono', c.via === 'ldap' && c.name ? c.name : c.url));
     u.title = c.url;
     var ain = el('div', 'cert-crl-url-in');
+    if (c.via === 'ldap') ain.appendChild(krbTag('info', 'LDAP'));
     ain.appendChild(u);
     var cp = iconButton('copy', 'Copy the address');
     cp.onclick = function (ev) { ev.stopPropagation(); copyText(c.url, cp, 'the address copied'); };
@@ -8432,6 +8454,7 @@ function certCrls(host, p) {
     if ((c.of || []).length) fact('Named by the authority', noI18n(el('span', 'mono', c.of.join('; '))));
     fact('Type', c.delta ? 'delta CRL (Freshest CRL) - applied over its base CRL' : 'base CRL');
     if (c.err) fact('Last error', [noI18n(el('span', 'bad', c.err)), noI18n(el('span', 'muted small', c.err_at ? ' ' + stamp(c.err_at) : ''))]);
+    if (c.via === 'ldap') fact('Read from', 'the directory (LDAP), with its connection above - never the host in the address');
     var addr = el('div', 'cert-crl-addr');
     addr.appendChild(copyOnClick(noI18n(el('span', 'mono', c.url)), c.url, 'the address copied'));
     var cpb = cmdButton('Copy', 'copy', 'small');
@@ -8466,6 +8489,204 @@ function certCrls(host, p) {
   wrap.appendChild(t);
   host.appendChild(wrap);
   certCrlSaid(host);
+}
+
+/* ---- how revocation is checked, and the OCSP answers (1.0.105, as isemon 1.10.348) ------
+   The order as a row of steps in the card's facts (blue OCSP, green the CRL, red the end; the
+   words between them say when the next step is taken), and a table of what each responder
+   said, the same way as the CRLs: a row opens to its details, Ask again and Clear on every
+   node, the answer box under the table. Never a certificate in it - its names, serial, dates. */
+function certRevFlow(p) {
+  var box = el('div', 'rev-flow');
+  var step = function (cls, words, sub) {
+    var s = el('span', 'rev-step ' + cls);
+    s.appendChild(el('b', '', words));
+    if (sub) s.appendChild(el('span', 'rev-sub', sub));
+    box.appendChild(s);
+  };
+  var arrow = function (words) {
+    var a = el('span', 'rev-arrow');
+    a.appendChild(el('span', 'rev-arrow-l', words));
+    box.appendChild(a);
+  };
+  var crlSub = p.crl_ldap ? 'http, then the directory (LDAP)' : 'http';
+  var ocspSub = p.ocsp_url ? 'one responder for all' : 'each certificate’s responder';
+  if (!p.crl && p.ocsp === 'off') { step('off', 'not checked'); return box; }
+  if (p.ocsp === 'off') step('crl', 'CRL', crlSub);
+  else if (p.ocsp === 'only') step('ocsp', 'OCSP', ocspSub);
+  else if (p.ocsp === 'first') {
+    step('ocsp', 'OCSP', ocspSub);
+    if (p.crl) { arrow('no answer'); step('crl', 'CRL', crlSub); }
+  } else {
+    step('ocsp', 'OCSP', ocspSub);
+    arrow('and');
+    step('crl', 'CRL', crlSub);
+  }
+  arrow('none to be had');
+  step('stop', 'no sign-in');
+  return box;
+}
+function certOcspState(c) {
+  var now = Date.now() / 1000;
+  if (!c.status) return ['crit', 'no answer'];
+  if (c.status === 'revoked') return ['crit', 'revoked'];
+  if (c.status === 'unknown') return ['crit', 'unknown'];
+  if (c.next && c.next <= now) return ['crit', 'run out'];
+  if (c.err) return ['warn', 'last answer kept'];
+  return ['ok', 'good'];
+}
+function certOcsp(host, p) {
+  var d = CERTC.d, rows = d.ocsp_answers || [];
+  CERTC.ocspOpen = CERTC.ocspOpen || {};
+  var asking = CERTC.crlAsk && CERTC.crlAsk.act.indexOf('ocsp_') === 0;
+  var said = CERTC.crlSaid && CERTC.crlSaid.act.indexOf('ocsp_') === 0;
+  if (p.ocsp === 'off' && !rows.length && !asking && !said) return;
+  var head = el('div', 'cert-crl-head');
+  head.appendChild(el('h3', 'peek-h', 'Online status (OCSP)'));
+  if (ADMIN && (rows.length || asking)) {
+    var row = el('div', 'btnrow');
+    var busy = !!CERTC.crlAsk;
+    var fb = cmdButton(asking && CERTC.crlAsk.act === 'ocsp_fetch' ? 'Asking…' : 'Ask again', 'refresh', 'small');
+    explain(fb, 'Every responder asked again now - on every node, each itself - for every certificate it answered for. One that does not answer changes nothing that lets anybody in.');
+    fb.disabled = busy;
+    fb.onclick = function () { certCrlAsk('ocsp_fetch', ''); };
+    var cb = cmdButton('Clear all', 'broom', 'small danger');
+    explain(cb, 'Forget the OCSP answers kept on every node: the next sign-in asks the responder again.');
+    cb.disabled = busy || !rows.length;
+    cb.onclick = function () {
+      confirmThen('Clear every OCSP answer?', 'Every node forgets the answers it keeps; the next sign-in asks the responder again. While it does not answer then, its last good answer is gone too.', 'Clear them', function () { certCrlAsk('ocsp_clear', ''); }, true);
+    };
+    row.appendChild(fb);
+    row.appendChild(cb);
+    head.appendChild(row);
+  }
+  host.appendChild(head);
+  if (p.ocsp_url && !p.ocsp_url_ok) {
+    var bad = el('p', 'note bad');
+    bad.appendChild(el('span', '', 'The responder set is not an address acme asks: '));
+    bad.appendChild(noI18n(el('span', 'mono', p.ocsp_url)));
+    host.appendChild(bad);
+  }
+  if (!rows.length) {
+    certCrlSaid(host, 'ocsp');
+    host.appendChild(el('p', 'note', 'None yet: a responder is asked at the first sign-in, and its answer is used ten minutes at most.'));
+    return;
+  }
+  host.appendChild(el('p', 'note', 'Asked at a sign-in, at most every ten minutes; the answer is signed by the authority or a responder it named, and checked by openssl against the authorities put in. A row opens to its details.'));
+  var t = el('table', 'rows krb-t cert-crl-t ocsp-t');
+  var hr = el('tr', 'cert-crl-hr');
+  ['', 'Certificate', 'Issued by', 'Status', 'Next update', 'Serial', 'Asked', ''].forEach(function (h) { hr.appendChild(el('th', '', h)); });
+  t.appendChild(hr);
+  var cell = function (tr, label, cls) {
+    var td = el('td', cls || '');
+    if (label) td.appendChild(el('span', 'cert-crl-lab', label));
+    tr.appendChild(td);
+    return td;
+  };
+  var cn = function (dn) { var m = /(?:^|,)\s*CN\s*=\s*([^,]+)/i.exec(String(dn || '')); return m ? m[1] : String(dn || '–'); };
+  rows.forEach(function (c) {
+    var open = !!CERTC.ocspOpen[c.key], st = certOcspState(c);
+    var tr = el('tr', 'cert-crl-row' + (open ? ' open' : ''));
+    tr.tabIndex = 0;
+    tr.setAttribute('aria-expanded', open ? 'true' : 'false');
+    var toggle = function () { CERTC.ocspOpen[c.key] = !CERTC.ocspOpen[c.key]; drawCert('admin'); drawCert('portal'); };
+    tr.onclick = function (ev) { if (ev.target.closest('button,.copyable')) return; toggle(); };
+    tr.onkeydown = function (ev) { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target === tr) { ev.preventDefault(); toggle(); } };
+    cell(tr, '', 'cert-crl-chev').appendChild(el('span', 'cert-crl-arrow', '▸'));
+    var who = cell(tr, '', 'cert-crl-url');
+    var w = noI18n(el('span', 'mono', cn(c.subject)));
+    w.title = c.subject || '';
+    var win = el('div', 'cert-crl-url-in');
+    win.appendChild(w);
+    who.appendChild(win);
+    var iss = cell(tr, 'Issued by', 'cert-crl-iss');
+    var isn = noI18n(el('span', 'small', cn(c.issuer)));
+    isn.title = c.issuer || '';
+    iss.appendChild(isn);
+    cell(tr, 'Status').appendChild(krbTag(st[0], st[1]));
+    cell(tr, 'Next update', 'cert-crl-next').appendChild(noI18n(el('span', 'small', c.next ? stamp(c.next) : '–')));
+    var sn = cell(tr, 'Serial', 'cert-crl-num');
+    var snv = noI18n(el('span', 'mono small', c.serial || '–'));
+    snv.title = c.serial || '';
+    sn.appendChild(snv);
+    cell(tr, 'Asked', 'cert-crl-at').appendChild(noI18n(el('span', 'small', c.at ? stamp(c.at) : '–')));
+    var act = cell(tr, '', 'cert-crl-act');
+    if (ADMIN) {
+      var f1 = iconButton('refresh', 'Ask the responder again - on every node');
+      f1.disabled = !!CERTC.crlAsk;
+      f1.onclick = function (ev) { ev.stopPropagation(); certCrlAsk('ocsp_fetch', c.key); };
+      act.appendChild(f1);
+      var c1 = iconButton('broom', 'Clear this answer on every node - asked again at the next sign-in');
+      c1.classList.remove('go');
+      c1.disabled = !!CERTC.crlAsk;
+      c1.onclick = function (ev) { ev.stopPropagation(); certCrlAsk('ocsp_clear', c.key); };
+      act.appendChild(c1);
+    }
+    t.appendChild(tr);
+    if (!open) return;
+    var dr = el('tr', 'cert-crl-more');
+    var td = el('td', '');
+    td.colSpan = 8;
+    var grid = el('div', 'cert-crl-grid');
+    var fact = function (label, value) {
+      var f = el('div', 'cert-crl-fact');
+      f.appendChild(el('div', 'cert-crl-k', label));
+      var v = el('div', 'cert-crl-v');
+      (Array.isArray(value) ? value : [value]).forEach(function (x) { v.appendChild(typeof x === 'string' ? el('span', '', x) : x); });
+      f.appendChild(v);
+      grid.appendChild(f);
+      return f;
+    };
+    var data = function (x) { return noI18n(el('span', '', x)); };
+    fact('Status', [krbTag(st[0], st[1]), el('span', 'small muted', {
+      good: 'the responder says it is not revoked', revoked: 'the responder says it is revoked: nobody signs in with it',
+      unknown: 'the responder does not know it: nobody signs in with it',
+      'no answer': 'no answer to be had: by its CRL instead when OCSP comes first, else nobody signs in with it',
+      'run out': 'its next update has passed: asked again at the next sign-in',
+      'last answer kept': 'the last good answer is used until its next update; the latest asking failed'}[st[1]] || '')]);
+    if (c.status === 'revoked') fact('Revoked', data((c.revoked_at ? stamp(c.revoked_at) : '–') + (c.reason ? ' · ' + c.reason : '')));
+    fact('This update', data(c.this ? stamp(c.this) : '–'));
+    fact('Next update', data(c.next ? stamp(c.next) : '–'));
+    fact('Serial', noI18n(el('span', 'mono', c.serial || '–')));
+    if (c.responder) fact('Signed by', noI18n(el('span', 'mono', c.responder)));
+    if (c.size) fact('Size', data(bytes(c.size)));
+    fact('Certificate', noI18n(el('span', 'mono', c.subject || '–')));
+    fact('Issued by', noI18n(el('span', 'mono', c.issuer || '–')));
+    if (c.err) fact('Last error', [noI18n(el('span', 'bad', c.err)), noI18n(el('span', 'muted small', c.err_at ? stamp(c.err_at) : ''))]);
+    var addr = el('div', 'cert-crl-addr');
+    addr.appendChild(copyOnClick(noI18n(el('span', 'mono', c.url)), c.url, 'the address copied'));
+    var cpb = cmdButton('Copy', 'copy', 'small');
+    cpb.onclick = function () { copyText(c.url, cpb, 'the address copied'); };
+    addr.appendChild(cpb);
+    fact('Responder', addr);
+    td.appendChild(grid);
+    if ((c.nodes || []).length > 1) {
+      var nt = el('table', 'cert-crl-nodes');
+      var nh = el('tr', '');
+      ['Node', 'Status', 'Asked', 'Next update', 'Last error'].forEach(function (h) { nh.appendChild(el('th', '', h)); });
+      nt.appendChild(nh);
+      c.nodes.forEach(function (n) {
+        var r = el('tr', ''), ns = certOcspState(n);
+        var nc = function (label, x) { var ntd = el('td', ''); ntd.appendChild(el('span', 'cert-crl-lab', label)); ntd.appendChild(x); r.appendChild(ntd); };
+        nc('Node', noI18n(el('span', 'mono', n.node)));
+        nc('Status', krbTag(ns[0], ns[1]));
+        nc('Asked', noI18n(el('span', '', n.at ? stamp(n.at) : '–')));
+        nc('Next update', noI18n(el('span', '', n.next ? stamp(n.next) : '–')));
+        nc('Last error', noI18n(el('span', 'small ' + (n.err ? 'bad' : 'muted'), n.err ? n.err + (n.err_at ? ' (' + stamp(n.err_at) + ')' : '') : '–')));
+        nt.appendChild(r);
+      });
+      var nw = el('div', 'cert-crl-nw');
+      nw.appendChild(el('div', 'cert-crl-k', 'Each node'));
+      nw.appendChild(nt);
+      td.appendChild(nw);
+    }
+    dr.appendChild(td);
+    t.appendChild(dr);
+  });
+  var wrap = el('div', 'krb-tw cert-crl-tw');
+  wrap.appendChild(t);
+  host.appendChild(wrap);
+  certCrlSaid(host, 'ocsp');
 }
 
 /* ---- making the pair: the bundle on the first node, the join on the second (1.0.210) ----

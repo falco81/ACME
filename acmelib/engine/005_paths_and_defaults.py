@@ -117,10 +117,19 @@ DEFAULTS = {
     # strong by default (security review F2): compat and upn are opt-downs, warned on the card.
     'admin_certlogin_match': 'strong',
     'admin_certlogin_crl': 1,
+    # Besides the CRL (1.0.105, as isemon 1.10.348): an OCSP responder - off (the CRLs alone, as
+    # before), first, only, both - and a responder for all of them; and the CRL read from the
+    # directory (ldap:///...CN=CDP,CN=Public Key Services,...) with the part's own directory.
+    'admin_certlogin_ocsp': 'off',
+    'admin_certlogin_ocsp_url': '',
+    'admin_certlogin_crl_ldap': 0,
     'portal_certlogin': 0,
     'portal_certlogin_auto': 0,
     'portal_certlogin_match': 'strong',
     'portal_certlogin_crl': 1,
+    'portal_certlogin_ocsp': 'off',
+    'portal_certlogin_ocsp_url': '',
+    'portal_certlogin_crl_ldap': 0,
     'certlogin_port': 8443,
     # --- isemon ---------------------------------------------------------------
     'isemon': 0,
@@ -464,6 +473,8 @@ TUNABLE = {
     'admin_certlogin_match': ('compat', 'strong', 'upn'),
     'portal_certlogin': (0, 1), 'portal_certlogin_crl': (0, 1), 'portal_certlogin_auto': (0, 1),
     'portal_certlogin_match': ('compat', 'strong', 'upn'),
+    'admin_certlogin_ocsp': ('off', 'first', 'only', 'both'), 'admin_certlogin_crl_ldap': (0, 1),
+    'portal_certlogin_ocsp': ('off', 'first', 'only', 'both'), 'portal_certlogin_crl_ldap': (0, 1),
     'certlogin_port': (1024, 65535),
     'report': (0, 1), 'report_every': ('daily', 'weekly', 'monthly'),
     'report_day': ('1', '2', '3', '4', '5', '6', '7'),
@@ -707,10 +718,16 @@ NAMES = {
     'admin_certlogin_auto': '...by itself when the sign-in page opens',
     'admin_certlogin_match': 'Which account a certificate is',
     'admin_certlogin_crl': 'Check that a certificate is not revoked (CRL)',
+    'admin_certlogin_crl_ldap': 'CRLs from the directory (LDAP) too',
+    'admin_certlogin_ocsp': 'Ask an OCSP responder',
+    'admin_certlogin_ocsp_url': 'OCSP responder of its own',
     'portal_certlogin': 'Sign people in with a certificate (a smart card, a YubiKey)',
     'portal_certlogin_auto': '...by itself when the portal opens',
     'portal_certlogin_match': 'Which account a certificate is (the portal)',
     'portal_certlogin_crl': 'Check that a certificate is not revoked (CRL) (the portal)',
+    'portal_certlogin_crl_ldap': 'CRLs from the directory (LDAP) too (the portal)',
+    'portal_certlogin_ocsp': 'Ask an OCSP responder (the portal)',
+    'portal_certlogin_ocsp_url': 'OCSP responder of its own (the portal)',
     'certlogin_port': 'The certificate\u2019s own port',
     'isemon': 'Send the logs to isemon',
     'isemon_targets': 'isemon’s syslog receivers',
@@ -1321,6 +1338,25 @@ SAYS = {
                               'or the opt-downs compat and upn.',
     'portal_certlogin_crl': 'As the administration\'s, for the portal: no CRL to be had, no '
                             'sign-in. Off: revocation is not checked.',
+    'admin_certlogin_crl_ldap': 'On: a CRL Distribution Point in the directory (ldap:///CN=...,'
+                                'CN=CDP,CN=Public Key Services,...) is read with the connection '
+                                'of the directory administrators sign in against when no http '
+                                'one answers - for an authority that publishes no http CDP. Only '
+                                'CDP objects of the configuration are read, and never the host '
+                                'written in the address.',
+    'admin_certlogin_ocsp': 'off: the CRLs alone. first: the OCSP responder (AD CS Online '
+                            'Responder) is asked, and the CRL only when it does not answer. '
+                            'only: the responder alone - no answer, no sign-in. both: the '
+                            'responder and the CRL, both must say good. The certificate and '
+                            'every authority above it but the root.',
+    'admin_certlogin_ocsp_url': 'Empty: the responder each certificate names (Authority '
+                                'Information Access). Or an http address of a responder for all '
+                                'of them (http://pki.corp.example/ocsp).',
+    'portal_certlogin_crl_ldap': 'As the administration\'s, for the portal - read with the '
+                                 'connection of the portal\'s directory.',
+    'portal_certlogin_ocsp': 'As the administration\'s, for the portal: off, first, only or both.',
+    'portal_certlogin_ocsp_url': 'As the administration\'s, for the portal: empty - the responder '
+                                 'each certificate names.',
     'certlogin_port': 'Where nginx asks the browser for a certificate (8443: SELinux lets nginx '
                       'have it already). One port for both parts. Opened in the firewall for the '
                       'networks that may reach the pages while either part is on; 80, 443 and '
@@ -1704,9 +1740,11 @@ PANES = {
     # Signing in with a certificate (1.0.100): the same - a card of its own under Accounts (with
     # the port, one for both parts), and one under the enrolment pages.
     'admincert': ['admin_certlogin', 'admin_certlogin_auto', 'certlogin_port',
-                  'admin_certlogin_match', 'admin_certlogin_crl'],
+                  'admin_certlogin_match', 'admin_certlogin_crl', 'admin_certlogin_crl_ldap',
+                  'admin_certlogin_ocsp', 'admin_certlogin_ocsp_url'],
     'portalcert': ['portal_certlogin', 'portal_certlogin_auto', 'portal_certlogin_match',
-                   'portal_certlogin_crl'],
+                   'portal_certlogin_crl', 'portal_certlogin_crl_ldap', 'portal_certlogin_ocsp',
+                   'portal_certlogin_ocsp_url'],
     'db': ['db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password',
            'db_timeout_s', 'db_tls', 'db_tls_ca', 'db_path', 'backup_daily', 'backup_keep',
            'backup_at',
@@ -1814,6 +1852,12 @@ ONLY_WHEN = {
     'portal_certlogin': ['portal', '1'],
     'portal_certlogin_match': ['portal_certlogin', '1'],
     'portal_certlogin_crl': ['portal_certlogin', '1'],
+    'admin_certlogin_crl_ldap': ['admin_certlogin', '1'],
+    'admin_certlogin_ocsp': ['admin_certlogin', '1'],
+    'admin_certlogin_ocsp_url': ['admin_certlogin_ocsp', 'off-not'],
+    'portal_certlogin_crl_ldap': ['portal_certlogin', '1'],
+    'portal_certlogin_ocsp': ['portal_certlogin', '1'],
+    'portal_certlogin_ocsp_url': ['portal_certlogin_ocsp', 'off-not'],
     'db_host': ['db_engine', 'sqlite-not'], 'db_port': ['db_engine', 'sqlite-not'],
     'db_name': ['db_engine', 'sqlite-not'], 'db_user': ['db_engine', 'sqlite-not'],
     'db_password': ['db_engine', 'sqlite-not'], 'db_timeout_s': ['db_engine', 'sqlite-not'],
@@ -2029,6 +2073,13 @@ def check_setting(key, value):
             raise BadSetting('%s: %s is the port of acme\'s own API here' % (key, got))
         if key == 'dns_port' and int(got or 0) in (80, 443):
             raise BadSetting('dns_port: %s is the port of the pages' % got)
+    if key in ('admin_certlogin_ocsp_url', 'portal_certlogin_ocsp_url') and str(got).strip() \
+            and not cl_cdp_ok(str(got).strip()):
+        # An address acme asks (1.0.105): the same guards as a CRL's - http, no user or password
+        # in it, no loopback, link-local, metadata or reserved address.
+        raise BadSetting('%s: an http address of an OCSP responder (http://pki.corp.example/ocsp) '
+                         '- no loopback, link-local or metadata address, no user or password'
+                         % key)
     if key == 'alerts_url' and str(got).strip() and \
             not re.match(r'^https?://[^\s"<>]+\Z', str(got).strip()):
         raise BadSetting('alerts_url: an address starting https://')

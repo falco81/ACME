@@ -292,6 +292,12 @@ POLICIES = {
 }
 
 
+# The configuration partition's objects a test puts in (1.0.105: a CRL Distribution Point of AD CS,
+# its certificateRevocationList as bytes), and every search asked - (base, scope, attributes).
+CONFIG_OBJECTS = {}
+ASKED = []
+
+
 def below(dn, base):
     """Whether `dn` is under `base`, and how far down."""
     if not base:
@@ -410,7 +416,7 @@ def _matches(dn, attrs, want):
         return bool(attrs.get(want['attr']))
     if op == '=':
         return any(v.lower() == want['value'].lower()
-                   for v in attrs.get(want['attr'], []))
+                   for v in attrs.get(want['attr'], []) if isinstance(v, str))
     if op == '~':
         return any(want['value'].lower() in v.lower()
                    for v in attrs.get(want['attr'], []))
@@ -596,6 +602,7 @@ def serve(port=0, tls=None, stop=None):
             everything.update(CONTROLLERS)
             everything.update(POLICIES)
             everything.update(SITES)
+            everything.update(CONFIG_OBJECTS)
             # Every domain controller has a ceiling of its own on how many
             # entries it will hand back in one answer - a thousand on Active
             # Directory unless somebody has changed it - and says "there is
@@ -614,6 +621,9 @@ def serve(port=0, tls=None, stop=None):
                 scope = isemon._ber_int_of(_scope)
             except Exception:
                 scope = 2
+
+            if len(ASKED) < 500:
+                ASKED.append((base, scope, list(asked)))
 
             def in_scope(dn):
                 deep = below(dn, base)

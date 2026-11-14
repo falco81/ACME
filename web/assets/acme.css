@@ -4129,5 +4129,30 @@ table.cert-crl-nodes .tag{margin:0}
   table.cert-crl-nodes td{border:0;padding:0;min-width:0}
   table.cert-crl-nodes td:last-child{grid-column:1/-1}
 }
+/* How revocation is checked, as steps (1.0.105, as isemon 1.10.348): blue OCSP, green the CRL,
+   red the end; the words between them say when the next step is taken. */
+.rev-flow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 4px}
+.rev-step{display:inline-flex;flex-direction:column;padding:3px 10px;border-radius:8px;border:1px solid var(--line);
+  background:var(--panel2);line-height:1.3}
+.rev-step b{font-size:12.5px}
+.rev-step .rev-sub{font-size:11px;color:var(--tx-dim)}
+.rev-step.ocsp{border-color:rgba(88,166,255,.45);background:var(--info-bg)} .rev-step.ocsp b{color:var(--info)}
+.rev-step.crl{border-color:rgba(63,185,80,.4);background:var(--ok-bg)} .rev-step.crl b{color:var(--ok)}
+.rev-step.stop{border-color:rgba(248,81,73,.4);background:var(--crit-bg)} .rev-step.stop b{color:var(--crit)}
+.rev-step.off b{color:var(--tx-dim)}
+.rev-arrow{display:inline-flex;align-items:center;color:var(--tx-mut);font-size:11px;padding:0 2px}
+.rev-arrow::after{content:"\2192";font-size:15px;margin-left:4px}
+/* The OCSP answers: the CRL table's look, its own widths; an LDAP row of the CRLs. */
+table.ocsp-t th:nth-child(2){width:22%} table.ocsp-t th:nth-child(3){width:17%}
+table.ocsp-t th:nth-child(4){width:140px} table.ocsp-t th:nth-child(5){width:18%}
+table.ocsp-t th:nth-child(6){width:12%;text-align:left} table.ocsp-t td.cert-crl-num{text-align:left}
+table.ocsp-t td.cert-crl-num .mono{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table.ocsp-t td.cert-crl-next{white-space:nowrap}
+td.cert-crl-url .tag{flex:none;margin:0}
+.cert-crl-ldapnote .tag{margin:0 2px 0 0}
+@media (max-width:640px){
+  table.ocsp-t tr.cert-crl-row td.cert-crl-url{padding-right:84px}
+  table.ocsp-t td.cert-crl-next{white-space:normal}
+}
 .cchip.good{color:var(--ok);border-color:rgba(63,185,80,.4)}
 .cchip.bad{color:var(--crit);border-color:rgba(248,81,73,.4)}
