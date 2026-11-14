@@ -1070,6 +1070,9 @@ function secretPemBox(value, placeholder) {
   var wrap = el('div', 'ct-pem ct-secretpem');
   var box = maskBox(value || '', placeholder || '', 'mono', true);
   noI18n(box);
+  /* what is pasted is data, its hint words (hunt M round 3: "paste it here", "set - leave
+     empty to keep it" stayed English in the new-source popups) */
+  box.setAttribute('data-i18n-hint', '');
   wrap.appendChild(box);
   var b = cmdButton('Read from a file', 'upload', 'small');
   var input = el('input');
