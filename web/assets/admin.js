@@ -8193,7 +8193,7 @@ function drawCert(part) {
   krbTable(host, ['Node', 'Heard from', 'The authorities', 'nginx on port ' + d.port, 'Trouble'], d.nodes.map(function (n) {
     return [noI18n(el('span', 'mono', n.node)), krbTag(n.heard ? 'ok' : 'crit', n.heard ? 'yes' : 'no'),
       d.cas.length ? krbTag(n.written && n.same ? 'ok' : 'warn', n.written && n.same ? 'written' : (n.written ? 'an older set' : 'not written')) : krbTag('dim', 'none to write'),
-      n.busy ? krbTag('crit', 'taken by another program') : (d.any_on ? krbTag(n.listening ? 'ok' : 'warn', n.listening ? 'listening' : 'not listening') : krbTag('dim', 'not served (off)')),
+      n.busy ? krbTag('crit', /could not listen/.test(n.busy) ? 'nginx could not listen' : /another site of nginx/.test(n.busy) ? 'another site of nginx' : 'taken by another program') : (d.any_on ? krbTag(n.listening ? 'ok' : 'warn', n.listening ? 'listening' : 'not listening') : krbTag('dim', 'not served (off)')),
       noI18n(el('span', 'small ' + (n.busy ? 'bad' : 'muted'), n.busy || n.error || ''))];
   }));
   /* AD CS and a YubiKey. */

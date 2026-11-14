@@ -425,25 +425,45 @@ def web_tick(store):
             drift = web_drift(desired)
             # The certificate's port refused as taken (1.0.103): asked again now and then - the
             # other program may be gone, or root (a newer one) tells acme's nginx better.
+            # Its own reason and its own timer (1.0.106): it was said as the certificate nginx
+            # has, every 30 minutes, and never asked for - the gate of a failed request below
+            # returned before request.json was written.
             cw, cs = desired.get('certlogin') or {}, st.get('certlogin') or {}
+            port_busy = ''
             if not drift and int(cw.get('port') or 0) and not int(cs.get('port') or 0) and \
                     cs.get('busy') and time.time() - float(st.get('at') or 0) >= WEB_RETRY_S:
-                drift = 'the certificate\'s port %s was not given to nginx: %s' % (
-                    cw.get('port'), str(cs.get('busy'))[:200])
-            if not drift or time.time() - WEB_DRIFT['at'] < 1800:
+                port_busy = str(cs.get('busy'))[:200]
+            if drift:
+                if time.time() - WEB_DRIFT['at'] < 1800:
+                    return
+                WEB_DRIFT['at'] = time.time()
+                log('the web certificate in place is not the one wanted (%s): asked again'
+                    % drift, 'warn')
+                store.add_event('settings', 'the certificate nginx has on %s is not the one saved '
+                                '(%s): put in again' % (node_name(), drift), 'warn')
+            elif port_busy:
+                if time.time() - float(WEB_DRIFT.get('port_at') or 0) < WEB_RETRY_S:
+                    return
+                WEB_DRIFT['port_at'] = time.time()
+                log_sparing('web-certlogin-port', 'the certificate\'s port %s was not given to '
+                            'nginx (%s): asked for again' % (cw.get('port'), port_busy), 'info',
+                            every=3000)
+                # In Events once for each answer of root's, not at every try.
+                if WEB_DRIFT.get('port_said') != (cw.get('port'), port_busy):
+                    WEB_DRIFT['port_said'] = (cw.get('port'), port_busy)
+                    store.add_event('settings', 'the certificate\'s port %s was not given to nginx '
+                                    'on %s (%s): asked for again every 15 minutes'
+                                    % (cw.get('port'), node_name(), port_busy), 'info')
+            else:
                 return
-            WEB_DRIFT['at'] = time.time()
-            log('the web certificate in place is not the one wanted (%s): asked again' % drift,
-                'warn')
-            store.add_event('settings', 'the certificate nginx has on %s is not the one saved '
-                            '(%s): put in again' % (node_name(), drift), 'warn')
         # Failed with exactly this: asked again only when somebody says so.
         # Or once after a restart (1.0.120): it may have failed on what the
         # machine did not have yet - its new address, say.
         # And every 15 minutes (1.0.187): a failure on something passing - a
         # mirror that did not answer while keepalived was installed - left the
         # VIP address and the certificates as they were until somebody looked.
-        if float(store.get_meta('web:retry:' + node_name()) or 0) <= float(st.get('at') or 0):
+        # (Done and asked again above: no gate - 1.0.106.)
+        elif float(store.get_meta('web:retry:' + node_name()) or 0) <= float(st.get('at') or 0):
             if st.get('state') != 'failed':
                 return
             rebooted = not WEB_DRIFT.get('boot_retried') and boot_time() > float(st.get('at') or 0)

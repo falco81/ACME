@@ -1045,19 +1045,23 @@ def certlogin_port_users(port):
             fds = os.listdir('/proc/%s/fd' % pid)
         except OSError:
             continue
+        comm = None
+        # Every socket of the process (1.0.106), not the first one alone: a listener on two
+        # addresses (0.0.0.0 and [::] of a dual-stack node) has two, and the second was left
+        # "a program that cannot be told" - 1.0.102's "used by ?".
         for fd in fds:
             try:
                 link = os.readlink('/proc/%s/fd/%s' % (pid, fd))
             except OSError:
                 continue
             if link.startswith('socket:[') and link[8:-1] in inodes:
-                try:
-                    with open('/proc/%s/comm' % pid) as f:
-                        comm = f.read().strip()
-                except OSError:
-                    comm = '?'
+                if comm is None:
+                    try:
+                        with open('/proc/%s/comm' % pid) as f:
+                            comm = f.read().strip()
+                    except OSError:
+                        comm = '?'
                 found.setdefault(link[8:-1], (comm, int(pid)))
-                break
     out = sorted(set(found.values()))
     if len(found) < len(inodes):
         out.append(('?', 0))
@@ -1151,30 +1155,84 @@ def certlogin_ours_loaded(port):
     return bool(re.search(r'^\s*listen\s+(?:\S+:)?%d\b' % int(port), text, re.M))
 
 
+def certlogin_other_sites(port):
+    """The files of the system's nginx (other than acme's server of the certificate's port) with
+    a `listen` on `port` (1.0.106): [path]. acme's `listen N ssl` would make such a site TLS."""
+    want = re.compile(r'(?:^|[\s{;])listen\s+(?:[^\s;]*:)?%d(?![0-9.:])' % int(port), re.M)
+    roots, seen, out = [], set(), []
+    for d in (os.path.dirname(NGINX_CONF), NGINX_DIR):
+        if d and os.path.isdir(d) and os.path.realpath(d) not in roots:
+            roots.append(os.path.realpath(d))
+    mine = os.path.realpath(NGINX_CERTLOGIN)
+    for root in roots:
+        for here, dirs, files in os.walk(root):
+            dirs[:] = sorted(x for x in dirs if not x.startswith('.'))
+            for name in sorted(files):
+                p = os.path.join(here, name)
+                rp = os.path.realpath(p)
+                if rp in seen or rp == mine or name.startswith('.') or not (
+                        name.endswith('.conf') or os.path.basename(here) == 'sites-enabled'):
+                    continue
+                seen.add(rp)
+                try:
+                    if os.path.getsize(rp) > (1 << 20):
+                        continue
+                    with open(rp, errors='replace') as f:
+                        text = f.read()
+                except OSError:
+                    continue
+                if want.search(re.sub(r'#[^\n]*', '', text)):
+                    out.append(p)
+    return out
+
+
 def certlogin_busy(port, node):
-    """Words when something other than the system's nginx listens on the port here, else ''."""
+    """Words when something other than acme's own server of the port (the system's nginx with
+    acme_certlogin.conf) listens on the port here, else ''."""
+    # Another site of the system's nginx on the port (1.0.106): it was "ours", acme's
+    # `listen N ssl` was added beside it, and that site - plain HTTP - answered TLS only.
+    sites = certlogin_other_sites(port)
+    if sites:
+        return 'another site of nginx listens on %d (%s) on %s - choose another port' % (
+            port, ', '.join(sites[:3]), node)
     users = certlogin_port_users(port)
+    loaded = certlogin_ours_loaded(port)
     # nginx listening there with acme's own server of the port loaded (1.0.103): that is ours,
     # however the system names its master - nginx would not have taken it with the port held
     # by anything else.
-    if users and all(n in ('nginx', '?') for n, _p in users) and certlogin_ours_loaded(port) \
-            and nginx_active():
+    if users and loaded and nginx_active() and all(n in ('nginx', '?') for n, _p in users):
         # A listener whose process cannot be told ('?': its /proc/PID/fd not readable even to
-        # root - a security module, a process leaving at that moment) counts as ours too while
-        # nginx runs with acme's server of the port: had anything else held the port, nginx
-        # could not have taken it. Without this the server was left without a word (1.0.102:
-        # "used by ?") and the card said the port was another program's.
-        return ''
-    others = [(n if n != 'nginx' else 'nginx that is not the system\'s service', p)
-              for n, p in users
-              if not (n == 'nginx' and certlogin_nginx_ours(p))]
+        # root - a security module, a process leaving at that moment) counts as ours only
+        # while every listener that can be told is the system's nginx (1.0.106; since every
+        # socket of a process is matched, it is rare).
+        if all(n == 'nginx' for n, _p in users) or \
+                all(certlogin_nginx_ours(p) for n, p in users if n != '?'):
+            return ''
+    others = []
+    for n, p in users:
+        if n == 'nginx' and certlogin_nginx_ours(p):
+            # The system's nginx is acme's own server only when acme's file is for this port
+            # (1.0.106); otherwise one of its other sites has it.
+            if loaded:
+                continue
+            others.append(('another site of nginx (pid %d)' % p, 0))
+        else:
+            others.append((n if n != 'nginx' else 'nginx that is not the system\'s service', p))
     if not others:
         return ''
     return 'port %d is used by %s on %s - choose another port' % (
-        port, certlogin_users_words(others), node)
+        port, certlogin_users_words(sorted(set(others))), node)
 
 
 def certlogin_listening(port):
+    """Whether nginx listens on the port after the reload - on any address, IPv4 or IPv6
+    (1.0.106: 127.0.0.1 alone was asked, and a `listen` on the node's own address or on [::]
+    only was "could not listen": the port taken away, nginx reloaded twice at every request)."""
+    users = certlogin_port_users(port)
+    if any(n == 'nginx' for n, _p in users) and (
+            all(n in ('nginx', '?') for n, _p in users) or
+            any(n == 'nginx' and certlogin_nginx_ours(p) for n, p in users)):
+        return True
     import socket
     try:
         with socket.create_connection(('127.0.0.1', int(port)), timeout=1):
@@ -1183,23 +1241,64 @@ def certlogin_listening(port):
         return False
 
 
+# The ports acme labelled http_port_t itself (1.0.106): --leftovers says them at --uninstall.
+SELINUX_PORTS = os.path.join(WEB_DIR, 'selinux-ports')
+
+
+def selinux_ports_read():
+    try:
+        with open(SELINUX_PORTS) as f:
+            return sorted({int(x) for x in f.read().split() if x.isdigit() and 0 < int(x) < 65536})
+    except OSError:
+        return []
+
+
 def certlogin_selinux(port):
-    """SELinux lets nginx have the port (http_port_t) - 8443 is already; another one is added."""
+    """SELinux lets nginx have the port (http_port_t) - 8443 is already; another one is added.
+    Only added (1.0.106): a port SELinux gives another service (its own type) is never taken
+    from it with semanage -m - said instead, choose another port."""
     if NO_SERVICES or not shutil.which('selinuxenabled') or \
             subprocess.run(['selinuxenabled']).returncode != 0 or not shutil.which('semanage'):
         return ''
     got = subprocess.run(['semanage', 'port', '-l'], capture_output=True, text=True)
     for line in (got.stdout or '').splitlines():
-        if line.startswith('http_port_t ') and re.search(r'(?<![0-9-])%d(?![0-9-])' % port, line):
-            return ''
+        f = line.split(None, 2)
+        if len(f) == 3 and f[1] == 'tcp' and re.search(r'(?<![0-9-])%d(?![0-9-])' % port, f[2]):
+            if f[0] == 'http_port_t':
+                return ''
+            return ('SELinux: the port %d is %s (another service\'s) - not given to nginx; '
+                    'choose another port' % (port, f[0]))
     r = subprocess.run(['semanage', 'port', '-a', '-t', 'http_port_t', '-p', 'tcp', str(port)],
                        capture_output=True, text=True)
-    if r.returncode != 0:
-        r = subprocess.run(['semanage', 'port', '-m', '-t', 'http_port_t', '-p', 'tcp', str(port)],
-                           capture_output=True, text=True)
+    if r.returncode == 0:
+        try:
+            write_root(SELINUX_PORTS, ''.join('%d\n' % p for p in
+                                              sorted(set(selinux_ports_read()) | {port})), 0o644)
+        except OSError:
+            pass
     return ('SELinux: nginx may listen on %d (http_port_t)' % port) if r.returncode == 0 else \
         ('SELinux: the port %d could not be given to nginx (semanage: %s)'
          % (port, (r.stderr or '').strip()[-200:]))
+
+
+def nginx_reload(said):
+    """systemctl reload nginx, its answer said (1.0.106: "nginx reloaded" was said whatever it
+    answered). A unit that failed - at boot, its port taken - is started again
+    (reload-or-restart): a reload of a stopped nginx does nothing. True when nginx took it."""
+    r = subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True, text=True)
+    if r.returncode == 0:
+        said.append('nginx reloaded')
+        return True
+    if not nginx_active():
+        r2 = subprocess.run(['systemctl', 'reload-or-restart', 'nginx'], capture_output=True,
+                            text=True)
+        if r2.returncode == 0:
+            said.append('nginx started again (it was not running)')
+            return True
+        r = r2
+    said.append('nginx could NOT be reloaded: %s' % (
+        ((r.stderr or '').strip().splitlines() or ['systemctl answered %d' % r.returncode])[-1][:300]))
+    return False
 
 
 def snapshot(paths):
@@ -1621,7 +1720,7 @@ def nginx_part(r, last):
             # Something else listens there (a WAF's agent, another web server): nginx is not
             # given the port - it would not start again with it - and the page says so.
             said.append('nginx: NOT given the certificate\'s own port: %s' % busy)
-            CERTLOGIN_NOW.update(port=0, busy=busy)
+            CERTLOGIN_NOW.update(port=0, busy=busy, want=c['port'])
             c = None
             # Its servers of an earlier time taken away too (1.0.103): left, nginx would not
             # start again with the port taken by the other program.
@@ -1671,8 +1770,7 @@ def nginx_part(r, last):
             if t.returncode != 0:
                 raise Refused('nginx does not take it, so it is as it was: %s'
                               % ((t.stderr or '').strip().splitlines() or ['?'])[-1][:300])
-            subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True)
-            said.append('nginx reloaded')
+            nginx_reload(said)
             # The port bound after all (1.0.100) - or the certificate's servers taken away again,
             # never left for nginx to fail on at its next start.
             c = r.get('certlogin')
@@ -1683,10 +1781,11 @@ def nginx_part(r, last):
                     time.sleep(0.25)
                 else:
                     os.unlink(NGINX_CERTLOGIN)
-                    subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True)
-                    CERTLOGIN_NOW.update(port=0, busy='nginx could not listen on %d' % c['port'])
+                    CERTLOGIN_NOW.update(port=0, busy='nginx could not listen on %d' % c['port'],
+                                         want=c['port'])
                     said.append('nginx: could not listen on the certificate\'s own port %d - its '
                                 'servers taken away again' % c['port'])
+                    nginx_reload(said)
     except BaseException:
         put_back(snap)
         raise
@@ -7757,6 +7856,34 @@ def serve():
 # sysctl file of the web address. Only said, with how to take it out: what can
 # shut somebody out or stop the database - sshd's drop-in (its port, AllowUsers, root's
 # sign-in), the firewall chain ACME-IN, the authorities PostgreSQL's replication reads.
+def nginx_leftovers(dry=False):
+    """acme's servers of nginx and the certificate's port, for --leftovers (1.0.106):
+    acme_certlogin.conf used acme.conf's limit_req zone - left alone after --uninstall, nginx -t
+    failed and nginx did not start again. Every file of conf.d whose first line is acme's MARK,
+    the authorities of the sign-in, and the SELinux ports acme labelled (said, left)."""
+    out = []
+    for p in sorted(set([NGINX_VIP, NGINX_CERTLOGIN] + [
+            os.path.join(NGINX_DIR, f) for f in (os.listdir(NGINX_DIR) if os.path.isdir(NGINX_DIR) else [])
+            if f.endswith('.conf')])):
+        if p != NGINX_MAIN and os.path.isfile(p) and not os.path.islink(p) and \
+                (_read_or(p, 4096) or '').startswith(MARK):
+            if not dry:
+                _drop(p)
+            out.append(('[would remove] ' if dry else 'removed: ') + '%s (acme\'s server of nginx)' % p)
+    if os.path.isfile(CERTLOGIN_CA) and not os.path.islink(CERTLOGIN_CA):
+        if not dry:
+            _drop(CERTLOGIN_CA)
+        out.append(('[would remove] ' if dry else 'removed: ') +
+                   '%s (the authorities of the sign-in with a certificate)' % CERTLOGIN_CA)
+    sel = selinux_ports_read()
+    if sel:
+        out.append('left: SELinux: the port%s %s labelled http_port_t by acme - once nothing else '
+                   'of nginx listens there: %s' % ('s' if len(sel) > 1 else '', ', '.join(map(str, sel)),
+                                                   '; '.join('semanage port -d -t http_port_t -p tcp %d' % p
+                                                             for p in sel)))
+    return out
+
+
 def leftovers(dry=False):
     out = []
 
@@ -7861,6 +7988,7 @@ def leftovers(dry=False):
              'what acme opened (sshd\'s port too, maybe); to remove: iptables -D INPUT -j %s; '
              'iptables -F %s; iptables -X %s (ip6tables the same), and the lines of %s and "%s" '
              'out of the saved files' % (FW_CHAIN, FW_CHAIN, FW_CHAIN, FW_CHAIN, FW_MARK))
+    out += nginx_leftovers(dry)
     if os.path.lexists(HA_CA_FILE):
         left(HA_CA_FILE, 'the cluster\'s authorities - PostgreSQL\'s replication may still read '
              'it (ssl_ca_file, sslrootcert); once it does not: rm -f %s' % HA_CA_FILE)

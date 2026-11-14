@@ -1425,6 +1425,13 @@ print(json.dumps([go("ncp", "cas-nc", False), go("ncok", "cas-nc", False), WHY, 
             W.NGINX_PID_FILES = [pidfile + '.none']
             self.assertIn('not the system', W.certlogin_busy(port, 'testnode'))
             W.NGINX_PID_FILES = [pidfile]
+            # The system's nginx is acme's own server of the port only with acme's file for it
+            # (1.0.106) - without, another site of nginx has the port.
+            W.NGINX_CERTLOGIN = os.path.join(d, 'acme_certlogin.conf')
+            self.assertIn('another site of nginx', W.certlogin_busy(port, 'testnode'))
+            with open(W.NGINX_CERTLOGIN, 'w') as f:
+                f.write('server {\n    listen %d ssl;\n}\n' % port)
+            W.NO_SERVICES = True
             self.assertEqual(W.certlogin_busy(port, 'testnode'), '')
         finally:
             proc.kill()
@@ -1492,6 +1499,10 @@ print(json.dumps([go("ncp", "cas-nc", False), go("ncok", "cas-nc", False), WHY, 
                 self.assertIn('cannot be told', W.certlogin_busy(9443, 'testnode'))
                 W.certlogin_port_users = lambda p: [('java', 77), ('?', 0)]
                 self.assertIn('java (pid 77)', W.certlogin_busy(8443, 'testnode'))
+                # 1.0.106: '?' is ours only while every listener that can be told is the
+                # system's nginx - an nginx that is not (pid 77 names no master of it) is not.
+                W.certlogin_port_users = lambda p: [('nginx', 77), ('?', 0)]
+                self.assertIn('cannot be told', W.certlogin_busy(8443, 'testnode'))
             finally:
                 W.certlogin_port_users, W.NGINX_CERTLOGIN = old_users, old_file
         finally:
@@ -1644,7 +1655,11 @@ print(json.dumps([go("ncp", "cas-nc", False), go("ncok", "cas-nc", False), WHY, 
             finally:
                 os.rename(os.path.join(self.pki, 'www', 'issuing.away'),
                           os.path.join(self.pki, 'www', 'issuing.crl'))
-            # ...and the next sign-in fetches it again.
+            # A CDP that failed is not fetched again at every sign-in (1.0.106): within a minute
+            # the sign-in is refused at once - Fetch now fetches it, and the next sign-in is in.
+            self.refused('admin', 'nested', 'not available just now')
+            x, got = self.crl_ask('fetch', base)
+            self.assertTrue(got['testnode']['ok'], got)
             self.assertEqual(self.sign('admin', 'nested')[0], 200)
             self.assertTrue(self.crl_rows()[base]['ok'])
             # Clear every one: those the authorities name stay listed, not fetched.

@@ -754,6 +754,84 @@ class Approvals(unittest.TestCase):
         finally:
             _portal.holder_rows = real
 
+    def test_no_way_past_the_approval(self):
+        """1.0.106: a CSR given out (/api/certs/csr), a certificate imported into it, a CSR's
+        answer took a request that waits - or one declined - out of the wait ('pending', 'ok'),
+        and Renew now issued it: past the names another team holds and one's own request. And
+        one moved out of the wait all the same is never issued until approved."""
+        import base64
+        from acmelib.certs import jobs, pki, store as S
+        E.CONFIG.update(portal_cert_auto=0)
+        cid = self.ask(self.person('eva'), ['mail.example.test'])['id']
+        self.assertTrue(_portal.asker(STORE, cid)['waits'])
+        k = pki.make_key('ec-256')
+        data = (pki.self_signed(k, ['mail.example.test']) + pki.key_plain(k)).encode()
+        imp = {'id': cid, 'data_b64': base64.b64encode(data).decode(), 'filename': 'c.pem'}
+        for who_, role in (('cweb', 'certadmin'), ('boss', 'fulladmin')):
+            self.assertEqual(status(call, 'POST', '/api/certs/csr', {'id': cid}, who=who_,
+                                    role=role), 409)
+            self.assertEqual(status(call, 'POST', '/api/certs/import', imp, who=who_,
+                                    role=role), 409)
+            self.assertEqual(status(call, 'POST', '/api/certs/csr_answer', imp, who=who_,
+                                    role=role), 409)
+            self.assertEqual(S_state(cid), 'pending-approval')
+        with self.assertRaises(ValueError):
+            A.start_renew(STORE, cid, True, 'cweb')
+        with self.assertRaises(ValueError):
+            A.cert_auto(STORE, cid, 1, 'cweb')
+        # declined: the same
+        self.assertEqual(status(call, 'POST', '/api/certs/approve',
+                                {'id': cid, 'ok': 0, 'why': 'no'}), 200)
+        self.assertEqual(status(call, 'POST', '/api/certs/csr', {'id': cid}), 409)
+        self.assertEqual(status(call, 'POST', '/api/certs/import', imp), 409)
+        self.assertEqual(S_state(cid), 'declined')
+        with self.assertRaises(ValueError):
+            A.start_renew(STORE, cid, True, 'boss')
+        # out of the wait without an approval (as before 1.0.106): never issued
+        cid2 = self.ask(self.person('eva'), ['mail.example.test'])['id']
+        STORE.db.update('certs', cid2, {'state': 'pending'})
+        self.assertIn('never approved', S.unapproved_why(STORE, S.cert_get(STORE, cid2)))
+        with self.assertRaises(ValueError):
+            A.start_renew(STORE, cid2, True, 'boss')
+        self.assertEqual(status(call, 'POST', '/api/certs/import', dict(imp, id=cid2)), 409)
+        job = jobs.run_now(STORE, 'renew', renewer.renew_job(cid2, True, 'test'), cert_id=cid2)
+        self.assertFalse(job.ok)
+        self.assertEqual(int(STORE.db.value('SELECT version FROM certs WHERE id = ?', (cid2,))
+                             or 0), 0)
+        # approved: issued, renewed, imported into as any other
+        STORE.db.update('certs', cid2, {'state': 'pending-approval'})
+        self.assertEqual(self.approve(self.person('both'), cid2), 200)
+        self.assertEqual(_portal.asker(STORE, cid2)['approved']['by'], 'portal:both')
+        self.assertEqual(S.unapproved_why(STORE, S.cert_get(STORE, cid2)), '')
+        # a row from before 1.0.106 (no `waits` kept): its state alone counts
+        old = cert('oldportal', 'Web')
+        STORE.db.update('certs', old, {'created_by': 'portal:eva'})
+        STORE.set_meta(_portal.META + str(old), json.dumps({'who': 'eva'}))
+        self.assertEqual(S.unapproved_why(STORE, S.cert_get(STORE, old)), '')
+
+    def test_held_only_while_a_holder_lives(self):
+        """1.0.106: the team kept as holding a name when the request began to wait stayed its
+        only approver for good - its certificate revoked, run out or deleted since."""
+        E.CONFIG.update(portal_cert_auto=0)
+        cid = self.ask(self.person('eva'), ['mail.example.test'])['id']
+        row = lambda: STORE.db.row('SELECT * FROM certs WHERE id = ?', (cid,))   # noqa: E731
+        self.assertEqual(_portal.held_of(STORE, row()),
+                         [{'owner': 'Mail', 'names': ['mail.example.test']}])
+        STORE.db.update('certs', self.held, {'state': 'revoked'})
+        self.assertEqual(_portal.held_of(STORE, row()), [])
+        STORE.db.update('certs', self.held, {'state': 'ok', 'not_after': time.time() - 60})
+        self.assertEqual(_portal.held_of(STORE, row()), [])
+        STORE.db.update('certs', self.held, {'not_after': time.time() + 86400})
+        self.assertEqual(_portal.held_of(STORE, row()),
+                         [{'owner': 'Mail', 'names': ['mail.example.test']}])
+        # a declined one keeps what still holds its names only
+        STORE.db.run('DELETE FROM certs WHERE id = ?', (self.held,))
+        STORE.db.update('certs', cid, {'state': 'declined'})
+        self.assertEqual(_portal.held_of(STORE, row()), [])
+        STORE.db.update('certs', cid, {'state': 'pending-approval'})
+        # Web's approver alone approves it now
+        self.assertEqual(self.approve(self.person('appr'), cid), 200)
+
     def test_scoped_administrator_keeps_names_held_since(self):
         """1.0.102: only the names given now are looked at - a name the certificate had
         already, held by another team's since, does not refuse every change of its names."""

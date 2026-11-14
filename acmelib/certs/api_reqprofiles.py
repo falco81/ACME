@@ -65,15 +65,15 @@ def _csr_decode(h):
 
 @E.route('POST', '/api/portal/cert_csr')
 def _cert_csr(h):
-    """A new CSR for a certificate issued for one (a new key): checked against its profile
-    when that is still there (else the names must stay the same), then issued again."""
+    """A new CSR for a certificate issued for one (a new key): checked against its profile,
+    then issued again - refused when the profile is gone (1.0.106)."""
     from acmelib.certs import portal as P
     s = P.portal_session(h)
     b = h.body()
     row = P.need_right(h, s, b.get('id'), 'manage', 'sending a new CSR for')
     if not row.get('csr_given'):
         raise E.ApiError(409, '%s was not issued for a CSR - acme makes its key' % row['name'])
-    if row.get('state') in (P.WAITING, P.DECLINED):
+    if S.unapproved_why(h.store, row):
         raise E.ApiError(409, '%s has not been approved' % row['name'])
     # Nothing written while a job works on it (1.0.102: the CSR and names were kept, and the
     # call answered 409 - or the job running then issued the old one)
@@ -86,29 +86,16 @@ def _cert_csr(h):
     except ValueError as e:
         raise E.ApiError(400, str(e))
     prof = R.profile_get(h.store, P.asker(h.store, row['id']).get('profile'))
-    if prof:
-        rv = R.csr_review(h.store, prof, info)
-        if not rv['fits']:
-            raise E.ApiError(400, 'the CSR does not fit the profile: %s' % '; '.join(
-                c['said'] for c in rv['checks'] if c['ok'] is False))
-        names, kt, cn = rv['names'], rv['key_type'], rv['cn']
-        subject = dict(rv['will'])
-    else:
-        why = S.pki().csr_verify_why(info['pem'])
-        if why:
-            raise E.ApiError(400, 'the CSR: %s' % why if why == S.pki().CSR_SHA1_REFUSED
-                             else 'the CSR is not signed by the key in it')
-        refused = R.csr_refusals(info)
-        if refused:
-            raise E.ApiError(400, 'the CSR is refused: %s' % '; '.join(refused))
-        dns = [v for t, v in info.get('san') or [] if t in ('DNS', 'IP')] or \
-            ([info['cn']] if info.get('cn') else [])
-        names = S.clean_names(dns)
-        if sorted(names) != sorted(S.jload(row.get('names'), []) or []):
-            raise E.ApiError(400, 'the new CSR has to name the same names: %s' % ', '.join(
-                S.jload(row.get('names'), []) or []))
-        kt, cn = info.get('key_type') or row.get('key_type'), row.get('cn') or names[0]
-        subject = (S.jload(row.get('profile'), {}) or {}).get('subject') or {}
+    if not prof:
+        # Its request profile deleted (1.0.106): only the DNS names were compared - an e-mail or
+        # URI name, any extended key usage and any subject went to the source unchecked.
+        raise E.ApiError(409, 'its request profile is gone - ask again with another one')
+    rv = R.csr_review(h.store, prof, info)
+    if not rv['fits']:
+        raise E.ApiError(400, 'the CSR does not fit the profile: %s' % '; '.join(
+            c['said'] for c in rv['checks'] if c['ok'] is False))
+    names, kt, cn = rv['names'], rv['key_type'], rv['cn']
+    subject = dict(rv['will'])
     pf = S.jload(row.get('profile'), {}) or {}
     if subject:
         pf['subject'] = subject
@@ -124,7 +111,7 @@ def _cert_csr(h):
     # Other names as a new request (1.0.52): the profile's approval, a name another owner's
     # certificate holds - issued at once before, past both.
     changed = sorted(names) != sorted(S.jload(row.get('names'), []) or [])
-    if changed and prof:
+    if changed:
         if not prof.get('enabled', 1):
             raise E.ApiError(403, 'its request profile is switched off - other names are not taken')
         pcfg = R.config_of(prof)
@@ -140,6 +127,7 @@ def _cert_csr(h):
             fields.update(state=P.WAITING, state_at=t, auto_renew=0)
             h.store.db.update('certs', row['id'], fields)
             P.note_asker(h.store, row['id'], sender, held_now, P.asker_ids(s))
+            P.mark_waiting(h.store, row['id'])        # approved again before an issue (1.0.106)
             h.store.add_event('certificates', '%s sent a new CSR for %s from the portal with other '
                               'names (%s) - it waits for approval' % (s['name'], row['name'],
                                                                      ', '.join(names)),

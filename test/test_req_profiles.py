@@ -534,6 +534,49 @@ class Csr(unittest.TestCase):
         self.assertEqual(pki.cert_info(row2['cert_pem'])['pub_sha256'],
                          pki.key_info(key)['pub_sha256'])
 
+    def test_a_new_csr_with_its_profile_gone_is_refused(self):
+        """1.0.106: with the request profile deleted, a new CSR was compared by its DNS names
+        only - an e-mail or URI name, any extended key usage and any subject went to the
+        source unchecked."""
+        T.save_team(STORE, {'name': 'Web', 'old_name': 'Web', 'members': [
+            'group:WEB_ADMINS=request', 'local:mgr=manage']}, 'x')
+        _k, csr = self.csr(['gone.example.test'])
+        got = portal(EVA, 'POST', '/api/portal/cert_request', {
+            'profile': 'Web servers', 'csr': csr, 'team': 'Web'})
+        row = wait_cert(got['id'])
+        R.delete_profile(STORE, 'Web servers', 'x')
+        mgr = person('mgr', local=True)
+        _k2, csr2 = self.csr(['gone.example.test'])
+        h = FakeH(portal=mgr, body={'id': row['id'], 'csr': csr2})
+        with self.assertRaises(E.ApiError) as e:
+            E.ROUTES[('POST', '/api/portal/cert_csr')](h)
+        self.assertEqual(e.exception.status, 409)
+        self.assertIn('its request profile is gone', str(e.exception))
+        self.assertEqual(S.cert_get(STORE, row['id'])['csr_given'].strip(), csr.strip())
+
+    def test_a_new_csr_with_other_names_is_approved_again(self):
+        """1.0.106: put back to waiting by a new CSR with other names, the approval it had
+        before does not count - it is approved again before an issue."""
+        R.save_profile(STORE, base_profile(make_key=False, pfx=False, approval=True,
+                                           old_name='Web servers'), 'x')
+        T.save_team(STORE, {'name': 'Web', 'old_name': 'Web', 'members': [
+            'group:WEB_ADMINS=request', 'local:mgr=manage', 'local:appr=approve']}, 'x')
+        _k, csr = self.csr(['again.example.test'])
+        cid = portal(EVA, 'POST', '/api/portal/cert_request', {
+            'profile': 'Web servers', 'csr': csr, 'team': 'Web'})['id']
+        self.assertTrue(P.asker(STORE, cid)['waits'])
+        self.assertIn('approve it first', S.unapproved_why(STORE, S.cert_get(STORE, cid)))
+        P.mark_approved(STORE, cid, 'x')
+        STORE.db.update('certs', cid, {'state': 'failed'})     # approved; its issue failed
+        self.assertEqual(S.unapproved_why(STORE, S.cert_get(STORE, cid)), '')
+        _k2, csr2 = self.csr(['again2.example.test'])
+        got = portal(person('mgr', local=True), 'POST', '/api/portal/cert_csr',
+                     {'id': cid, 'csr': csr2})
+        self.assertTrue(got['waits'])
+        self.assertNotIn('approved', P.asker(STORE, cid))
+        STORE.db.update('certs', cid, {'state': 'failed'})     # out of the wait, not approved
+        self.assertIn('never approved', S.unapproved_why(STORE, S.cert_get(STORE, cid)))
+
     def test_a_new_csr_makes_its_sender_one_who_asked(self):
         """1.0.102: a member who may manage sent his own CSR with other names for another's
         request (put back to waiting) and approved it himself; and a CSR refused because a job
@@ -549,6 +592,7 @@ class Csr(unittest.TestCase):
         cid = got['id']
         self.assertTrue(got['waits'])
         STORE.db.update('certs', cid, {'state': 'failed'})     # approved before; its issue failed
+        P.mark_approved(STORE, cid, 'x')
         if not STORE.account('appr'):
             STORE.add_account('appr', 'readonly', 'Local-Only-Pw-77!x')
         mgr, appr = person('mgr', local=True), person('appr', local=True)

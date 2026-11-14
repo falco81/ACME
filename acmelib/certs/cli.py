@@ -1031,8 +1031,8 @@ class Cli(object):
             bad = 0
             self._jobs_json = [] if self.json else None
             for r in todo:
-                if r.get('state') in ('pending-approval', 'declined'):
-                    continue                    # never past the approval (1.0.45)
+                if S.unapproved_why(self.store, r):
+                    continue                    # never past the approval (1.0.45, 1.0.106)
                 only = 'alt' if not a.force and not renewer.main_due(r) else None
                 try:
                     # the first one is an issue, as the pages say it (1.0.102)

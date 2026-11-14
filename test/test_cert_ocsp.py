@@ -764,5 +764,419 @@ print(json.dumps(out))
             self.on(admin_certlogin=0, admin_certlogin_ocsp='off')
 
 
+# ---- hunt O (1.0.106): what a security review of the revocation checks found -----------------------
+HUNT_O = r"""
+import datetime, hashlib, http.server, json, os, sys, threading, time
+os.environ['ACME_CDP_LOOPBACK_OK'] = '1'
+sys.path.insert(0, sys.argv[2])
+from acmelib import engine as E
+from cryptography import x509
+from cryptography.x509 import ocsp
+from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+
+P = sys.argv[1]
+NOW = datetime.datetime.now(datetime.timezone.utc)
+D = datetime.timedelta
+SRV = http.server.ThreadingHTTPServer(('127.0.0.1', 0), http.server.BaseHTTPRequestHandler)
+PORT = SRV.server_address[1]
+U = 'http://127.0.0.1:%d' % PORT
+FILES, HITS, OCSP = {}, {}, {}
+
+
+def key():
+    return ec.generate_private_key(ec.SECP256R1())
+
+
+def name(cn, dc=True):
+    return x509.Name(([x509.NameAttribute(NameOID.DOMAIN_COMPONENT, 'loc')] if dc else []) +
+                     [x509.NameAttribute(NameOID.COMMON_NAME, cn)])
+
+
+def cert(subj, pub, iss, ikey, ca=False, days=(-1, 300), aki=None, ocsp_path='ocsp', cdp='i.crl',
+         fresh=None, eku=None):
+    b = (x509.CertificateBuilder().subject_name(subj).issuer_name(iss).public_key(pub)
+         .serial_number(x509.random_serial_number())
+         .not_valid_before(NOW + D(days=days[0])).not_valid_after(NOW + D(days=days[1]))
+         .add_extension(x509.BasicConstraints(ca, None), True)
+         .add_extension(x509.SubjectKeyIdentifier.from_public_key(pub), False))
+    if aki is not None:
+        b = b.add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(aki), False)
+    if ca:
+        b = b.add_extension(x509.KeyUsage(True, False, False, False, False, True, True, False,
+                                          False), True)
+    else:
+        b = (b.add_extension(x509.KeyUsage(True, False, False, False, False, False, False, False,
+                                           False), True)
+             .add_extension(x509.ExtendedKeyUsage(eku or [ExtendedKeyUsageOID.CLIENT_AUTH]), False)
+             .add_extension(x509.SubjectAlternativeName([x509.OtherName(
+                 x509.ObjectIdentifier('1.3.6.1.4.1.311.20.2.3'),
+                 b'\x0c' + bytes([len(subj.rfc4514_string().split('=')[-1] + '@corp.example')]) +
+                 (subj.rfc4514_string().split('=')[-1] + '@corp.example').encode())]), False))
+    if cdp:
+        b = b.add_extension(x509.CRLDistributionPoints([x509.DistributionPoint(
+            [x509.UniformResourceIdentifier('%s/%s' % (U, cdp))], None, None, None)]), False)
+    if fresh:
+        b = b.add_extension(x509.FreshestCRL([x509.DistributionPoint(
+            [x509.UniformResourceIdentifier('%s/%s' % (U, fresh))], None, None, None)]), False)
+    if ocsp_path:
+        b = b.add_extension(x509.AuthorityInformationAccess([x509.AccessDescription(
+            x509.oid.AuthorityInformationAccessOID.OCSP,
+            x509.UniformResourceIdentifier('%s/%s' % (U, ocsp_path)))]), False)
+    return b.sign(ikey, hashes.SHA256())
+
+
+def pem(*cs):
+    return ''.join(c.public_bytes(serialization.Encoding.PEM).decode() for c in cs)
+
+
+def crl(ca, k, number, revoked=(), delta_base=None, fresh=None):
+    b = (x509.CertificateRevocationListBuilder().issuer_name(ca.subject)
+         .last_update(NOW - D(minutes=5)).next_update(NOW + D(days=1))
+         .add_extension(x509.CRLNumber(number), False)
+         .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(k.public_key()), False))
+    if delta_base is not None:
+        b = b.add_extension(x509.DeltaCRLIndicator(delta_base), True)
+    if fresh:
+        b = b.add_extension(x509.FreshestCRL([x509.DistributionPoint(
+            [x509.UniformResourceIdentifier('%s/%s' % (U, fresh))], None, None, None)]), False)
+    for c in revoked:
+        b = b.add_revoked_certificate(x509.RevokedCertificateBuilder().serial_number(
+            c.serial_number).revocation_date(NOW - D(minutes=1)).build())
+    return b.sign(k, hashes.SHA256()).public_bytes(serialization.Encoding.DER)
+
+
+rk = key()
+root = cert(name('Corp Root CA'), rk.public_key(), name('Corp Root CA'), rk, ca=True, cdp=None,
+            ocsp_path=None)
+k1 = key()
+ca1 = cert(name('Corp Issuing CA'), k1.public_key(), root.subject, rk, ca=True,
+           aki=rk.public_key(), cdp='root.crl', ocsp_path='ocsp-root')
+alice = cert(name('alice', False), key().public_key(), ca1.subject, k1, aki=k1.public_key())
+bob = cert(name('bob', False), key().public_key(), ca1.subject, k1, aki=k1.public_key())
+# the issuing authority renewed with a new key (AD CS keeps its name): the old one put in first
+k2 = key()
+ca2 = cert(name('Corp Issuing CA'), k2.public_key(), root.subject, rk, ca=True,
+           aki=rk.public_key(), cdp='root.crl', ocsp_path='ocsp-root')
+carol = cert(name('carol', False), key().public_key(), ca2.subject, k2, aki=k2.public_key(),
+             cdp='i2.crl')
+dora = cert(name('dora', False), key().public_key(), ca2.subject, k2, aki=k2.public_key(),
+            cdp='i2.crl')
+# ...and the old one run out (renewed long ago): never of the new one's chain
+k0 = key()
+ca0 = cert(name('Corp Issuing CA'), k0.public_key(), root.subject, rk, ca=True,
+           aki=rk.public_key(), days=(-900, -10), cdp='root.crl', ocsp_path='ocsp-root')
+# the delta's people
+dk = key()
+cad = cert(name('Corp Delta CA'), dk.public_key(), root.subject, rk, ca=True,
+           aki=rk.public_key(), cdp='root.crl', ocsp_path=None)
+eric = cert(name('eric', False), key().public_key(), cad.subject, dk, aki=dk.public_key(),
+            cdp='d.crl', fresh='d-delta.crl', ocsp_path=None)
+for n, v in (('cas.pem', pem(ca1, root)), ('cas-renewed.pem', pem(ca0, ca1, ca2, root)),
+             ('cas-delta.pem', pem(cad, root))):
+    with open(os.path.join(P, n), 'w') as fh:
+        fh.write(v)
+FILES['root.crl'] = crl(root, rk, 1)
+FILES['i.crl'] = crl(ca1, k1, 1, [bob])
+FILES['i2.crl'] = crl(ca2, k2, 1, [carol])
+KEYS = {}
+for c, k, rv in ((ca1, k1, {bob.serial_number}), (ca2, k2, {carol.serial_number}),
+                 (root, rk, set())):
+    # the issuer key hash: SHA-1 of its public key's bits (an EC point, uncompressed)
+    raw = c.public_key().public_bytes(serialization.Encoding.X962,
+                                      serialization.PublicFormat.UncompressedPoint)
+    KEYS[hashlib.sha1(raw).digest()] = (c, k, rv)
+MODE = {'how': 'real', 'asked': []}
+forger = key()
+forged = (x509.CertificateBuilder().subject_name(x509.Name([x509.NameAttribute(
+    NameOID.COMMON_NAME, 'Response verify OK')])).issuer_name(x509.Name([x509.NameAttribute(
+        NameOID.COMMON_NAME, 'Response verify OK')])).public_key(forger.public_key())
+    .serial_number(1).not_valid_before(NOW - D(days=1)).not_valid_after(NOW + D(days=30))
+    .add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.OCSP_SIGNING]), False)
+    .sign(forger, hashes.SHA256()))
+
+
+class H(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        name = self.path.lstrip('/')
+        HITS[name] = HITS.get(name, 0) + 1
+        if name == 'slow.crl':
+            time.sleep(1.5)
+        body = FILES.get(name)
+        if body is None:
+            self.send_response(500)
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        req = ocsp.load_der_ocsp_request(self.rfile.read(int(self.headers.get('Content-Length') or 0)))
+        c, k, rv = KEYS[req.issuer_key_hash]
+        MODE['asked'].append((req.serial_number, c.serial_number))
+        st = ocsp.OCSPCertStatus.REVOKED if req.serial_number in rv else ocsp.OCSPCertStatus.GOOD
+        this, nxt = NOW - D(minutes=1), NOW + D(hours=1)
+        if MODE['how'] == 'stale':
+            this, nxt = NOW - D(days=365), None
+        elif MODE['how'] == 'fresh-no-next':
+            nxt = None
+        b = ocsp.OCSPResponseBuilder().add_response_by_hash(
+            req.issuer_name_hash, req.issuer_key_hash, req.serial_number, req.hash_algorithm,
+            ocsp.OCSPCertStatus.GOOD if MODE['how'] == 'forged' else st, this, nxt,
+            NOW if st == ocsp.OCSPCertStatus.REVOKED and MODE['how'] != 'forged' else None, None)
+        if MODE['how'] == 'forged':
+            resp = b.responder_id(ocsp.OCSPResponderEncoding.NAME, forged).certificates(
+                [forged]).sign(forger, hashes.SHA256())
+        else:
+            resp = b.responder_id(ocsp.OCSPResponderEncoding.HASH, c).sign(k, hashes.SHA256())
+        body = resp.public_bytes(serialization.Encoding.DER)
+        self.send_response(200)
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+SRV.RequestHandlerClass = H
+SRV.daemon_threads = True
+threading.Thread(target=SRV.serve_forever, daemon=True).start()
+OUT = {}
+
+
+def go(c, cas='cas.pem', mode='off', crl=True):
+    E.CL_OCSP_CACHE.clear()
+    E.CL_CRL_CACHE.clear()
+    try:
+        f = E.cl_check(pem(c), os.path.join(P, cas), crl=crl, ocsp=mode)
+        return 'OK ' + '+'.join(f['revocation'])
+    except E.CertRefused as e:
+        OUT.setdefault('why', {})['%s-%s' % (c.subject.rfc4514_string(), mode)] = e.why
+        return e.kind
+
+
+# 1. a forged answer from a responder named "Response verify OK"
+MODE['how'] = 'forged'
+OUT['forged'] = {m: go(bob, mode=m) for m in ('first', 'only', 'both')}
+OUT['forged_alice_only'] = go(alice, mode='only')
+OUT['forged_why'] = dict(OUT.get('why') or {})
+MODE['how'] = 'real'
+OUT['real'] = {m: [go(alice, mode=m), go(bob, mode=m)] for m in ('first', 'only', 'both')}
+# 2. the authority renewed with a new key: its issuer by key
+cas = E.cl_ca_facts(os.path.join(P, 'cas-renewed.pem'))
+fc = E.cl_facts(pem(carol))
+OUT['chain'] = [c['sha256'] for c in E.cl_chain(fc, cas)]
+OUT['want_chain'] = [E.cl_facts(pem(ca2))['sha256'], E.cl_facts(pem(root))['sha256']]
+MODE['asked'] = []
+OUT['renewed'] = {m: [go(carol, 'cas-renewed.pem', m), go(dora, 'cas-renewed.pem', m)]
+                  for m in ('off', 'first', 'only', 'both')}
+OUT['renewed_asked_of'] = sorted(set(str(s) for _x, s in MODE['asked']))
+OUT['renewed_want'] = sorted({str(ca2.serial_number), str(root.serial_number)})
+E.CL_OCSP_CACHE.clear()
+try:
+    E.cl_ocsp_ask('%s/ocsp' % U, fc, pem(carol), pem(ca2), os.path.join(P, 'cas-renewed.pem'))
+except E.CertRefused:
+    pass
+OUT['key_has_hash'] = any(E.cl_pem_key_hash(pem(ca2)) in k for k in E.CL_OCSP_CACHE)
+# 3. a delta CRL of a base newer than the one held
+fd = E.cl_facts(pem(eric))
+FILES['d.crl'] = crl(cad, dk, 10, fresh='d-delta.crl')
+FILES['d-delta.crl'] = crl(cad, dk, 12, [eric], delta_base=10)
+OUT['delta_same'] = go(eric, 'cas-delta.pem')
+FILES['d-delta.crl'] = crl(cad, dk, 12, [eric], delta_base=11)
+OUT['delta_newer'] = go(eric, 'cas-delta.pem')
+OUT['delta_newer_first'] = go(eric, 'cas-delta.pem', 'first')
+E.CL_CRL_CACHE.clear()
+FILES['d.crl'] = crl(cad, dk, 10, fresh='d-delta.crl')
+E.cl_crl_fetch('%s/d.crl' % U)                                 # #10 held...
+FILES['d.crl'] = crl(cad, dk, 11, fresh='d-delta.crl')        # ...#11 published since
+try:
+    E.cl_check(pem(eric), os.path.join(P, 'cas-delta.pem'), crl=True, ocsp='off')
+    OUT['delta_refetched'] = 'OK'
+except E.CertRefused as e:
+    OUT['delta_refetched'] = e.kind
+OUT['delta_refetched_num'] = E.CL_CRL_CACHE['%s/d.crl' % U].get('num')
+FILES['d-delta.crl'] = crl(cad, dk, 12, [], delta_base=11)
+OUT['delta_clean'] = go(eric, 'cas-delta.pem')
+# 4. an answer without next update
+fa = E.cl_facts(pem(alice))
+for how in ('stale', 'fresh-no-next'):
+    MODE['how'] = how
+    E.CL_OCSP_CACHE.clear()
+    try:
+        OUT[how] = E.cl_ocsp_ask('%s/ocsp' % U, fa, pem(alice), pem(ca1),
+                                 os.path.join(P, 'cas.pem'))['status']
+    except E.CertRefused as e:
+        OUT[how] = e.kind
+MODE['how'] = 'real'
+# 5. a CRL that failed: not fetched again within a minute; one fetch at a time
+E.CL_CRL_CACHE.clear()
+url = '%s/none.crl' % U
+for _ in range(3):
+    try:
+        E.cl_crl_fetch(url)
+    except E.CertRefused:
+        pass
+OUT['failed_hits'] = HITS.get('none.crl')
+real = time.time
+E.time.time = lambda: real() + 61
+try:
+    E.cl_crl_fetch(url)
+except E.CertRefused:
+    pass
+E.time.time = real
+OUT['failed_hits_later'] = HITS.get('none.crl')
+FILES['slow.crl'] = FILES['i.crl']
+got = []
+ts = [threading.Thread(target=lambda: got.append(E.cl_crl_fetch('%s/slow.crl' % U)['num']))
+      for _ in range(3)]
+[t.start() for t in ts]
+[t.join() for t in ts]
+OUT['slow'] = [HITS.get('slow.crl'), got]
+print(json.dumps(OUT, default=str))
+"""
+
+
+@unittest.skipUnless(shutil.which('openssl'), 'no openssl here')
+class HuntO(unittest.TestCase):
+    """The revocation checks of the sign-in with a certificate, as the review of 1.0.106 found
+    them: a forged OCSP answer, the issuer by key, a delta of a newer base, an old answer without
+    next update, a CRL that failed fetched at every sign-in. Run with the engine in a process of
+    its own (the cryptography package makes its PKI and answers)."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import cryptography                        # noqa: F401
+        except ImportError:
+            raise unittest.SkipTest('no cryptography package here')
+        cls.tmp = tempfile.mkdtemp(prefix='acme-hunt-o-')
+        with open(os.path.join(cls.tmp, 'config.json'), 'w') as fh:
+            fh.write('{}')
+        script = os.path.join(cls.tmp, 'run.py')
+        with open(script, 'w') as fh:
+            fh.write(HUNT_O)
+        env = dict(os.environ, ACME_CONFIG=os.path.join(cls.tmp, 'config.json'),
+                   ACME_STATE=cls.tmp, ACME_RUN=cls.tmp, ACME_LOGDIR=cls.tmp)
+        got = subprocess.run([sys.executable, script, cls.tmp, ROOT], capture_output=True,
+                             text=True, timeout=600, env=env, cwd=cls.tmp)
+        if got.returncode:
+            raise RuntimeError(got.stdout[-2000:] + got.stderr[-4000:])
+        cls.got = json.loads(got.stdout.strip().splitlines()[-1])
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_1_forged_answer_refused(self):
+        g = self.got
+        self.assertEqual(g['forged'], {'first': 'revoked', 'only': 'unavailable',
+                                       'both': 'unavailable'}, g.get('why'))
+        self.assertEqual(g['forged_alice_only'], 'unavailable')
+        self.assertIn('signature is not good', g['forged_why']['CN=bob-only'])
+        self.assertEqual(g['real'], {'first': ['OK ocsp+ocsp', 'revoked'],
+                                     'only': ['OK ocsp+ocsp', 'revoked'],
+                                     'both': ['OK ocsp+crl+ocsp+crl', 'revoked']})
+
+    def test_2_issuer_by_key(self):
+        g = self.got
+        self.assertEqual(g['chain'], g['want_chain'])
+        for m in ('off', 'first', 'only', 'both'):
+            self.assertEqual(g['renewed'][m][0], 'revoked', (m, g.get('why')))
+            self.assertTrue(g['renewed'][m][1].startswith('OK'), (m, g['renewed'], g.get('why')))
+        self.assertEqual(g['renewed_asked_of'], g['renewed_want'])
+        self.assertTrue(g['key_has_hash'])
+
+    def test_3_delta_of_a_newer_base(self):
+        g = self.got
+        self.assertEqual(g['delta_same'], 'revoked')
+        self.assertEqual(g['delta_newer'], 'unavailable')
+        self.assertEqual(g['delta_newer_first'], 'unavailable')
+        self.assertEqual((g['delta_refetched'], g['delta_refetched_num']), ('revoked', 11))
+        self.assertEqual(g['delta_clean'], 'OK crl')
+
+    def test_4_answer_without_next_update(self):
+        self.assertEqual(self.got['stale'], 'unavailable')
+        self.assertEqual(self.got['fresh-no-next'], 'good')
+
+    def test_5_crl_failed_and_together(self):
+        g = self.got
+        self.assertEqual(g['failed_hits'], 1)
+        self.assertEqual(g['failed_hits_later'], 2)
+        self.assertEqual(g['slow'], [1, [1, 1, 1]])
+
+    def test_6_asks_of_every_node_queued(self):
+        """Clear of one CRL, then of another, within a node's tick: both done on the other
+        nodes (the second replaced the first, 1.0.106), each answered for its own page."""
+        env = dict(os.environ, ACME_CONFIG=os.path.join(self.tmp, 'config.json'),
+                   ACME_STATE=self.tmp, ACME_RUN=self.tmp, ACME_LOGDIR=self.tmp)
+        code = r"""
+import json, sys, time
+sys.path.insert(0, %r)
+import acme
+from acmelib import engine as E
+store = E.Storage(E.open_db())
+E.HA_STORE['store'] = store
+done = []
+@E.node_ask_kind('t_hunt')
+def _t(daemon, args):
+    done.append(args['url'])
+    return {'ok': True, 'url': args['url']}
+class D(object):
+    pass
+d = D(); d.store = store; d.serving = False           # asked on another node's pages
+a = E.node_ask(d, 't_hunt', {'url': 'A'}, 't')
+b = E.node_ask(d, 't_hunt', {'url': 'B'}, 't')
+for i in range(12):
+    E.node_ask(d, 't_hunt2', {'n': i}, 't')
+row = json.loads(store.get_meta('ask:want:t_hunt2'))
+d.serving = True
+E.node_ask_tick(d)                                     # this node's loop: both, once each
+E.node_ask_tick(d)
+for _ in range(100):
+    if len(done) >= 2:
+        break
+    time.sleep(0.05)
+time.sleep(0.3)
+me = E.node_name()
+ra = E.node_ask_results(store, 't_hunt', a['id']).get(me)
+rb = E.node_ask_results(store, 't_hunt', b['id']).get(me)
+print(json.dumps([sorted(done), (ra or {}).get('url'), (rb or {}).get('url'),
+                  len(row['queue']), row['args']]))
+""" % ROOT
+        got = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True,
+                             timeout=120, env=env, cwd=self.tmp)
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        done, ra, rb, queued, last = json.loads(got.stdout.strip().splitlines()[-1])
+        self.assertEqual(done, ['A', 'B'])
+        self.assertEqual((ra, rb), ('A', 'B'))
+        self.assertEqual(queued, 7)                     # NODE_ASK_QUEUE - 1 kept before the latest
+        self.assertEqual(last, {'n': 11})
+
+    def test_5_addresses(self):
+        env = dict(os.environ, ACME_CONFIG=os.path.join(self.tmp, 'config.json'),
+                   ACME_STATE=self.tmp, ACME_RUN=self.tmp, ACME_LOGDIR=self.tmp)
+        env.pop('ACME_CDP_LOOPBACK_OK', None)
+        code = ('import json, sys\nsys.path.insert(0, %r)\nfrom acmelib import engine as E\n'
+                'ips = ["168.63.129.16", "192.0.0.192", "2002:a9fe:a9fe::1", "2002:7f00:1::1",'
+                ' "2001:0:a9fe:a9fe::5", "64:ff9b::a9fe:a9fe", "2002:a00:1::1", "10.0.0.5"]\n'
+                'dn = "ldap:///CN=X,CN=pki,CN=CDP,CN=Public Key Services,CN=Services,'
+                'CN=Configuration,%%s?certificateRevocationList?base"\n'
+                'print(json.dumps([[bool(E.cl_addr_no(i)) for i in ips], '
+                '[bool(E.cl_ldap_cdp(dn %% t)) for t in ("DC=corp,DC=loc", "DC=corp,OU=x,DC=loc",'
+                ' "DC=corp,DC=loc,CN=Users", "DC=loc")]]))' % ROOT)
+        got = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True,
+                             timeout=120, env=env, cwd=self.tmp)
+        self.assertEqual(got.returncode, 0, got.stderr)
+        ips, dns = json.loads(got.stdout.strip().splitlines()[-1])
+        self.assertEqual(ips, [True] * 6 + [False, False])
+        self.assertEqual(dns, [True, False, False, True])
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

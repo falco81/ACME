@@ -6,7 +6,49 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.106 - not released
 
-(nothing yet)
+- (security) **The sign-in with a certificate: a forged OCSP answer is no longer taken.** The
+  answer's signature was told good by the words "Response verify OK" anywhere in openssl's output
+  - its printout of the answer too, where the responder names itself: a responder of anybody's
+  named so was taken in `first` and `only`, and a revoked person signed in. Now openssl checks it
+  without printing it, and only its return code and its own line count.
+- (security) **The sign-in with a certificate: an authority renewed with a new key.** AD CS keeps
+  the name of an authority renewed with a new key; with both certificates put in, the issuer was
+  the first of that name - the OCSP request named the old key and was answered of another
+  certificate ("good"), and the old certificate run out counted as in the chain (everybody
+  refused). The issuer is now the one whose key signed it (its key identifier, its signature),
+  and OCSP answers are kept by the issuer's key.
+- (security) **The sign-in with a certificate: a delta CRL of a newer base CRL.** openssl leaves
+  such a delta out without a word, and who it lists as revoked signed in. The base CRL is fetched
+  again; still older than the delta's, nobody signs in (*not available just now*).
+- (security) **The sign-in with a certificate: an OCSP answer without a next update** is taken 15
+  minutes from when it was made - an old "good" one replayed on the plain http path was taken
+  however old.
+- (security) **A certificate asked for on the portal is never issued past its approval.** *Give
+  out a CSR*, an import into it or a CSR's answer took a request that waits for approval - or one
+  declined - out of the wait (*pending*, *valid*), and *Renew now* issued it: past the team
+  holding its names, and past "never your own request". These are refused now with "approve it
+  first" (409), and a request that needed an approval is issued, renewed or imported into only
+  once it was approved (kept with it; one issued before this version counts as approved).
+- (security) **The portal: a new CSR for a certificate whose request profile was deleted is
+  refused** ("its request profile is gone - ask again with another one"). Only its DNS names were
+  compared - an e-mail or URI name, any extended key usage and any subject went to the source
+  unchecked.
+- **The sign-in with a certificate: a CRL that cannot be had is fetched again after a minute**,
+  not at every sign-in, and one fetch of an address at a time (sign-ins together wait for it);
+  *Fetch now* fetches it at once. A CRL in the directory only under `CN=Configuration` followed
+  by the forest's `DC=` alone; no CRL or OCSP answer is fetched from Azure's WireServer
+  (168.63.129.16), Oracle's metadata address (192.0.0.192) or such an address carried in an IPv6
+  one (6to4, Teredo, NAT64).
+- **Asks of every node are queued.** Two of a kind within a few seconds - *Clear* of one CRL, then
+  of another - the second replaced the first on the other nodes, and the first page waited for an
+  answer that never came. Each is now done once on every node and answered for its own page.
+- **The team that held a request's names stays its approver only while its certificate holds
+  them.** Kept from when the request began to wait, it was its only approver for good - with its
+  certificate revoked, run out or deleted since.
+- **PKCS#12 with openssl 1.1.1** is made again: it has no `-iter`, and every PFX failed there. It
+  gets openssl's own count (2048 rounds, said in the log once); 3.0 and later 250,000 as before.
+- **A SHA-1 CSR on a system whose openssl.cnf is in a folder with `$`, a backslash, a quote or
+  `#` in its name** is verified - the file was not read by the configuration made for it.
 
 ## 1.0.105 - 2026-11-14
 

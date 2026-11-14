@@ -71,9 +71,9 @@ right *approve* (or *manage*).
 acme never has its key. The CSR is kept with the certificate
 (`certs.csr_given`) and sent again at every renewal - so the same key. To
 change the key, a member with the right *manage* sends a new CSR from the
-certificate's dialog (*Send a new CSR*): it is checked against the profile (or,
-the profile gone, it must name the same names) and the certificate is issued
-again at once. A revoked one is not issued again with the same CSR: a new CSR
+certificate's dialog (*Send a new CSR*): it is checked against the profile and
+the certificate is issued again at once. With the profile deleted, a new CSR is
+refused - ask for a new certificate from another profile. A revoked one is not issued again with the same CSR: a new CSR
 is needed.
 
 The subject is the one the profile says (an authority of acme's own puts it

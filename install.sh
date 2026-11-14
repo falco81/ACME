@@ -302,9 +302,13 @@ Usage: sudo ./install.sh [options]
                             (with --yes it still asks: removing is never a default).
                             Also takes out what acme put into the system: its CAs in
                             the system's trust, the password policy, its time servers
-                            in chrony.conf, the journald drop-in, the sysctl file;
-                            lists (left as they are, with how to remove them) sshd's
-                            drop-in, the firewall chain ACME-IN, ha-ca.pem
+                            in chrony.conf, the journald drop-in, the sysctl file,
+                            its nginx servers (acme_vip.conf, acme_certlogin.conf and
+                            every conf.d file it wrote) and acme-certlogin-ca.pem;
+                            nginx -t is asked before nginx is reloaded. Lists (left as
+                            they are, with how to remove them) sshd's drop-in, the
+                            firewall chain ACME-IN, ha-ca.pem, the SELinux ports it
+                            labelled http_port_t
   --dry-run                 print what would happen and change nothing
   --yes                     never ask; take the defaults
   --help                    this
@@ -453,6 +457,17 @@ if [[ -n "$DO_UNINSTALL" ]]; then
         run systemctl daemon-reload 2>/dev/null || true
     fi
     [[ -e /etc/nginx/conf.d/acme_vip.conf ]] && run rm -f /etc/nginx/conf.d/acme_vip.conf
+    # The certificate's own port (1.0.106): acme_certlogin.conf uses acme.conf's limit_req
+    # zone - left behind, nginx -t failed and nginx did not start again after a reboot.
+    # So every file of conf.d acme_web.py wrote (its first line acme's), and the authorities.
+    [[ -e /etc/nginx/conf.d/acme_certlogin.conf ]] && run rm -f /etc/nginx/conf.d/acme_certlogin.conf
+    for one in /etc/nginx/conf.d/*.conf; do
+        [[ -f "$one" && ! -L "$one" ]] || continue
+        if head -1 "$one" 2>/dev/null | grep -qxF '# written by acme (acme_web.py) - acme keeps this file; change it on its pages'; then
+            run rm -f "$one"
+        fi
+    done
+    [[ -e /etc/nginx/certs/acme-certlogin-ca.pem ]] && run rm -f /etc/nginx/certs/acme-certlogin-ca.pem
     [[ -e /usr/libexec/keepalived/acme-vip-check ]] && run rm -f /usr/libexec/keepalived/acme-vip-check
     for one in "$UNIT_FILE" "$LOGROTATE_FILE" "$NGINX_CONF" "$BIN_LINK" \
                "$UPGRADE_PATH_UNIT" "$UPGRADE_SERVICE_UNIT" "$WEB_PATH_UNIT" "$WEB_SERVICE_UNIT" \
@@ -487,7 +502,19 @@ if [[ -n "$DO_UNINSTALL" ]]; then
     [[ -d "$WEB_DIR" ]] && run rm -rf "$WEB_DIR"
     run systemctl daemon-reload
     for unit in $(php_fpm_units); do run systemctl try-restart "$unit" || true; done
-    command -v nginx >/dev/null && run systemctl reload nginx 2>/dev/null || true
+    # Asked before it is reloaded (1.0.106): a file of nginx's that still names something of
+    # acme's is said now, not found at the next boot with nginx down.
+    if command -v nginx >/dev/null; then
+        if [[ -n "$DRY_RUN" ]]; then
+            run systemctl reload nginx
+        elif nt=$(nginx -t 2>&1); then
+            run systemctl reload nginx 2>/dev/null || warn "nginx: systemctl reload nginx did not go - look at: systemctl status nginx"
+        else
+            warn "nginx does not take its configuration without acme - it is not reloaded, and would not start again:"
+            printf '%s\n' "$nt" | tail -3 | while IFS= read -r one; do warn "  $one"; done
+            warn "take out (or change) what it names under /etc/nginx, then: nginx -t && systemctl reload nginx"
+        fi
+    fi
     good "Gone. $STATE_DIR and $CONFIG_DIR were left alone."
     say "To remove the rest:  rm -rf $STATE_DIR $CONFIG_DIR $LOG_DIR; userdel $SERVICE_USER; userdel $POOL_USER; groupdel $WEB_GROUP"
     # What it opened and made beside it, said rather than guessed at.

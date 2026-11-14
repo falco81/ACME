@@ -95,9 +95,38 @@ def p7b_der(cert_pems):
 P12_ITER = 250000
 
 
+def p12_cipher_args(legacy=False, version=None):
+    """The ciphers and counts of openssl pkcs12 -export for the openssl program's `version`
+    ((major, minor, ...), pki.openssl_version()). 3.0 and later: -iter is the count of the
+    key's and certificates' encryption and of the MAC alike (-maciter is a no-op there, not
+    given). 1.1.1 has no -iter (1.0.102 gave it, and every PKCS#12 failed there) and its
+    -maciter only sets the count back to its 2048 - its own default count then, said in the
+    log (1.0.106)."""
+    if legacy:
+        return ['-keypbe', 'PBE-SHA1-3DES', '-certpbe', 'PBE-SHA1-3DES', '-macalg', 'sha1']
+    args = ['-keypbe', 'AES-256-CBC', '-certpbe', 'AES-256-CBC', '-macalg', 'sha256']
+    if tuple(version or (0, 0))[:2] >= (3, 0):
+        return args + ['-iter', str(P12_ITER)]
+    return args
+
+
+_P12_OLD_SAID = []
+
+
 def pkcs12(key_pem, cert_pem, chain_pems, password, alias='', legacy=False):
     """PKCS#12 by openssl pkcs12 -export; the password only in the environment. AES-256 and
-    a SHA-256 MAC, both P12_ITER rounds; `legacy` as old devices read it (3DES, SHA-1)."""
+    a SHA-256 MAC, both P12_ITER rounds (openssl 3.0 and later; 1.1.1 its 2048);
+    `legacy` as old devices read it (3DES, SHA-1)."""
+    version = pki.openssl_version()
+    if not legacy and tuple(version[:2]) < (3, 0) and not _P12_OLD_SAID:
+        _P12_OLD_SAID.append(1)
+        try:
+            from acmelib import engine as E
+            E.log('openssl %s has no -iter: a PKCS#12 is made with its own count of 2048 '
+                  'rounds, not %d - openssl 3.0 or later makes it stronger' % (
+                      '.'.join(str(x) for x in version[:3]), P12_ITER), 'warn')
+        except Exception:                               # noqa: BLE001
+            pass
     with pki.workdir() as d:
         args = ['pkcs12', '-export', '-inkey', pki.wfile(d, 'k.key', pki.key_plain(key_pem)),
                 '-in', pki.wfile(d, 'c.pem', pki.cert_pem(cert_pem)),
@@ -107,12 +136,7 @@ def pkcs12(key_pem, cert_pem, chain_pems, password, alias='', legacy=False):
                                             ''.join(pki.cert_pem(c) for c in chain_pems))]
         if alias:
             args += ['-name', alias]
-        if legacy:
-            args += ['-keypbe', 'PBE-SHA1-3DES', '-certpbe', 'PBE-SHA1-3DES', '-macalg', 'sha1']
-        else:
-            # -iter is the MAC's count too (openssl 1.1.1 and 3.x); -maciter so in 1.1.1 too
-            args += ['-keypbe', 'AES-256-CBC', '-certpbe', 'AES-256-CBC', '-macalg', 'sha256',
-                     '-iter', str(P12_ITER), '-maciter']
+        args += p12_cipher_args(legacy, version)
         return pki.openssl(args, env={pki.PASS_ENV_OUT: password or ''})
 
 

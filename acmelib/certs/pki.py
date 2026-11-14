@@ -669,6 +669,12 @@ def _system_openssl_conf():
     return None
 
 
+def conf_escape(value):
+    """A value as an openssl.cnf reads it as it is: $ (a variable), the backslash, quotes
+    and # (a comment) escaped by a backslash."""
+    return re.sub(r'([\\$"\'#])', r'\\\1', str(value))
+
+
 def sha1_openssl_conf(where):
     """An openssl.cnf in `where` that lets this one run verify a SHA-1 signature where the
     system's crypto policy (RHEL 9/10 DEFAULT) refuses it: the system's own file included, and
@@ -690,7 +696,9 @@ def sha1_openssl_conf(where):
         alg = m.group(1)
     lines = ['openssl_conf = %s' % init]
     if system:
-        lines.append('.include %s' % system)
+        # its path as the configuration reads a value (1.0.106): a $ was taken for a variable,
+        # a backslash or a quote as an escape - the file was never read then
+        lines.append('.include %s' % conf_escape(system))
     lines += ['[default]', 'openssl_conf = %s' % init,
               '[%s]' % init, 'alg_section = %s' % alg,
               '[%s]' % alg, 'rh-allow-sha1-signatures = yes', '']

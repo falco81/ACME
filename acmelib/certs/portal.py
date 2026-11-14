@@ -464,18 +464,23 @@ def held_list(got):
 
 
 def held_of(store, row, rows=None):
-    """[{owner, names}] of a request waiting for approval: what was kept when it began to
-    wait, and what holds its names now (another owner's certificate issued since). No owner
-    holds nothing (holders). `rows`: holder_rows() read already."""
+    """[{owner, names}] of a request waiting for approval: who holds its names now (another
+    owner's certificate issued since too). An owner kept when it began to wait counts only
+    while a certificate of theirs still holds one of its names (1.0.106: one revoked, run out
+    or deleted since kept its owner the approver for good). No owner holds nothing (holders).
+    `rows`: holder_rows() read already."""
     kept = asker(store, row['id']).get('held')
+    live = holders(store, S.jload(row.get('names'), []) or [], row.get('owner'), row['id'],
+                   waiting=False, rows=rows)
+    by_low = {o.lower(): o for o in live}
     out = {}
     for one in kept if isinstance(kept, list) else []:
         if isinstance(one, dict) and str(one.get('owner') or '').strip():
-            out.setdefault(str(one.get('owner') or '').strip(), set()).update(
-                str(n) for n in one.get('names') or [])
+            o = by_low.get(str(one.get('owner') or '').strip().lower())
+            if o is not None:
+                out.setdefault(o, set()).update(live[o])
     if row.get('state') == WAITING:
-        for o, ns in holders(store, S.jload(row.get('names'), []) or [], row.get('owner'),
-                             row['id'], waiting=False, rows=rows).items():
+        for o, ns in live.items():
             out.setdefault(o, set()).update(ns)
     return [{'owner': o, 'names': sorted(ns)} for o, ns in sorted(out.items())]
 
@@ -943,7 +948,10 @@ def _portal_request(h):
     held_now = holders(store, names, owner, cid, waiting=False)
     store.set_meta(META + str(cid), json.dumps({
         'who': who, 'display': data.get('display') or '', 'mail': data.get('mail') or '',
-        'at': t, 'note': note, 'held': held_list(held_now), 'ids': asker_ids(s)}))
+        'at': t, 'note': note, 'held': held_list(held_now), 'ids': asker_ids(s),
+        # it needs an approval (1.0.106): issued, imported into or given a CSR only once
+        # approved (S.unapproved_why) - `approved` set by approve_request
+        'waits': not auto}))
     job_id = None
     if not auto and held_now:
         tell_holders(store, cid, held_now, who)
@@ -1133,6 +1141,21 @@ def asked_by_admin(store, row, s):
     return bool(mail and str(asker(store, row['id']).get('mail') or '').strip().lower() == mail)
 
 
+def mark_waiting(store, cid):
+    """The request needs an approval (again): never issued, imported into or given a CSR
+    until approve_request marks it approved (1.0.106, S.unapproved_why)."""
+    a = asker(store, cid)
+    a['waits'] = True
+    a.pop('approved', None)
+    store.set_meta(META + str(cid), json.dumps(a))
+
+
+def mark_approved(store, cid, by, t=None):
+    a = asker(store, cid)
+    a['approved'] = {'by': str(by)[:190], 'at': t or time.time()}
+    store.set_meta(META + str(cid), json.dumps(a))
+
+
 def approve_request(store, row, by, ok, why):
     if row.get('state') != WAITING:
         raise E.ApiError(409, '%s is not waiting for approval' % row['name'])
@@ -1147,6 +1170,7 @@ def approve_request(store, row, by, ok, why):
                          (t, auto, t, str(by)[:190], row['id'], WAITING))
         if not n:
             raise E.ApiError(409, '%s is not waiting for approval' % row['name'])
+        mark_approved(store, row['id'], by, t)
         store.add_event('certificates', '%s approved %s, asked for on the portal by %s%s' % (
             by, row['name'], row.get('owner') or '?', (': ' + why) if why else ''), who=by)
         job_id = start_issue(store, row['id'], by, 'approved by %s' % by)

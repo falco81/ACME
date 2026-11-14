@@ -1301,6 +1301,38 @@ def cert_need(store, ref):
     return got
 
 
+def unapproved_why(store, row):
+    """'' when nothing waits for an approval of the certificate, else why it may not be
+    issued, imported into or given a CSR (1.0.106): a request that waits for approval or was
+    declined, and one whose request needed an approval it never had (the request's meta says
+    `waits`, and `approved` is set only by an approval - portal.approve_request). Rows from
+    before 1.0.106 have neither: only their state counts."""
+    state = row.get('state')
+    if state == 'pending-approval':
+        return '%s waits for approval - approve it first' % row['name']
+    if state == 'declined':
+        return '%s was declined - approve it first' % row['name']
+    if not str(row.get('created_by') or '').startswith('portal:'):
+        return ''                   # asked for on the portal only (a move keeps created_by)
+    try:
+        got = json.loads(store.get_meta(CERT_META['portal'] % int(row['id'])) or 'null')
+    except (ValueError, TypeError):
+        got = None
+    if isinstance(got, dict) and got.get('waits') and not got.get('approved'):
+        return '%s was never approved - approve it first' % row['name']
+    return ''
+
+
+def need_approved(store, row):
+    """unapproved_why() refused with 409 (1.0.106: a CSR given out, a certificate imported or a
+    CSR's answer taken moved a request that waits, or a declined one, to 'pending' or 'ok' -
+    and Renew now issued it, past the approval, the names held by another team and one's own
+    request)."""
+    why = unapproved_why(store, row)
+    if why:
+        raise E.ApiError(409, why)
+
+
 def revoked_fps(store, cert_id):
     """The fingerprints (upper case) of a certificate's versions revoked at the CA - and of
     those written as revoked in meta (1.0.102: after a configuration's import it has no
@@ -1431,6 +1463,8 @@ def save_version(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=No
     """A new certificate for a row of certs: kept in cert_versions, and made
     the current one. Returns the version's number."""
     row = cert_need(store, cert_id)
+    # never into a request not approved (1.0.106), whatever brings it in
+    need_approved(store, row)
     info = info or info_of(cert_pem)
     chain = ''.join(p if p.endswith('\n') else p + '\n' for p in (chain_pems or []))
     t = now()
@@ -1493,6 +1527,8 @@ def save_alt(store, cert_id, cert_pem, chain_pems, key_pem, why, by, info=None, 
     (variant 'alt') and made the current twin - the main certificate is left as
     it is. Returns the twin's version number."""
     row = cert_need(store, cert_id)
+    # never into a request not approved (1.0.106), whatever brings it in
+    need_approved(store, row)
     info = info or info_of(cert_pem)
     chain = ''.join(p if p.endswith('\n') else p + '\n' for p in (chain_pems or []))
     t = now()

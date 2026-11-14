@@ -703,12 +703,13 @@ def renew_cert(store, job, cert_id, force=False, by='', only=None):
         # never asked for a second key, which would replace the one it holds
         return True, 'its key is made by the device of %s: it has no twin' % cert['csr_from']
     contexts = []
+    # Never past the approval (1.0.45), whoever asks - the command line issued them too; nor
+    # one whose request needed an approval it never had (1.0.106: a CSR given out or a
+    # certificate imported took it out of the wait, and this issued it).
     was = cert.get('state')
-    if was in ('pending-approval', 'declined'):
-        # Never past the approval (1.0.45), whoever asks - the command line issued them too.
-        raise base.PluginError('%s %s - approve it first' % (
-            cert['name'], 'waits for approval' if was == 'pending-approval' else 'was declined'),
-            retry=False)
+    unapproved = S.unapproved_why(store, cert)
+    if unapproved:
+        raise base.PluginError(unapproved, retry=False)
     try:
         # Its version revoked (1.0.51): a renewal after a revoke that failed once is 'failed',
         # not 'revoked' any more - the key it holds is the revoked one all the same.

@@ -810,6 +810,74 @@ class TestHunt102(Tmp, unittest.TestCase):
                                'pass:pw'], input=legacy, capture_output=True)
         self.assertNotIn('Iteration %d' % B.P12_ITER, (info.stdout + info.stderr).decode())
 
+    def test_p12_arguments_by_openssl_version(self):
+        """1.0.106: openssl 1.1.1 has no -iter (every PKCS#12 failed there), and its -maciter
+        only set the MAC's count back to 2048 - the arguments as each version takes them."""
+        new = B.p12_cipher_args(False, (3, 0, 13))
+        self.assertEqual(new[new.index('-iter') + 1], str(B.P12_ITER))
+        self.assertNotIn('-maciter', new)
+        self.assertIn('AES-256-CBC', new)
+        old = B.p12_cipher_args(False, (1, 1, 1))
+        self.assertNotIn('-iter', old)
+        self.assertNotIn('-maciter', old)
+        self.assertEqual(old, ['-keypbe', 'AES-256-CBC', '-certpbe', 'AES-256-CBC',
+                               '-macalg', 'sha256'])
+        for v in ((1, 1, 1), (3, 0, 0)):
+            self.assertEqual(B.p12_cipher_args(True, v),
+                             ['-keypbe', 'PBE-SHA1-3DES', '-certpbe', 'PBE-SHA1-3DES',
+                              '-macalg', 'sha1'])
+        # what openssl 1.1.1 gets is what this one takes too (no option it does not know)
+        k = key()
+        with tempfile.TemporaryDirectory(prefix='acme-test-') as d:
+            kp, cp = os.path.join(d, 'k.pem'), os.path.join(d, 'c.pem')
+            with open(kp, 'w') as f:
+                f.write(pki.key_plain(k))
+            with open(cp, 'w') as f:
+                f.write(pki.self_signed(k, ['p.example']))
+            out = subprocess.run(['openssl', 'pkcs12', '-export', '-inkey', kp, '-in', cp,
+                                  '-passout', 'pass:pw'] + old, capture_output=True)
+            self.assertEqual(out.returncode, 0, out.stderr)
+
+    def test_sha1_conf_includes_odd_paths(self):
+        """1.0.106: the system's openssl.cnf in a folder with $, a backslash, a quote or # in
+        its name was not read by the configuration made to verify a SHA-1 CSR."""
+        self.assertEqual(pki.conf_escape('a\\b$c"d\'e#f g'), 'a\\\\b\\$c\\"d\\\'e\\#f g')
+        k = key()
+        was = os.environ.get('OPENSSL_CONF')
+        with tempfile.TemporaryDirectory(prefix='acme-test-') as base:
+            kp = os.path.join(base, 'k.pem')
+            with open(kp, 'w') as f:
+                f.write(pki.key_plain(k))
+            try:
+                for name in ('plain', 'with space', 'dollar$x', "quote'q", 'dq"x',
+                             'back\\slash', 'hash#x'):
+                    d = os.path.join(base, name)
+                    os.makedirs(d)
+                    sysconf = os.path.join(d, 'openssl.cnf')
+                    with open(sysconf, 'w') as f:
+                        f.write('[req]\ndistinguished_name = dn\nprompt = no\n'
+                                '[dn]\nCN = included-ok\n')
+                    os.environ['OPENSSL_CONF'] = sysconf
+                    w = tempfile.mkdtemp(dir=base)
+                    conf = pki.sha1_openssl_conf(w)
+                    with open(conf) as f:
+                        text = f.read()
+                    # not every openssl knows the Red Hat option: left out to read the rest
+                    with open(conf, 'w') as f:
+                        f.write(text.replace('rh-allow-sha1-signatures = yes', ''))
+                    env = dict(os.environ, OPENSSL_CONF=conf)
+                    p = subprocess.run(['openssl', 'req', '-new', '-key', kp, '-config', conf],
+                                       capture_output=True, env=env, stdin=subprocess.DEVNULL)
+                    self.assertEqual(p.returncode, 0, (name, p.stderr))
+                    subj = subprocess.run(['openssl', 'req', '-noout', '-subject'],
+                                          input=p.stdout, capture_output=True, env=env)
+                    self.assertIn('included-ok', subj.stdout.decode(), name)
+            finally:
+                if was is None:
+                    os.environ.pop('OPENSSL_CONF', None)
+                else:
+                    os.environ['OPENSSL_CONF'] = was
+
     def test_what_an_issuer_gives_is_checked(self):
         from acmelib.certs import renewer as R
         sub = CA.ca_create(self.store, 'Sub', 'Hunt Sub', key_type='ec-256', parent_id=self.root)

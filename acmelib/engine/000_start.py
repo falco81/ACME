@@ -94,7 +94,8 @@ from acmelib import __version__  # noqa: E402  (one place for the version)
 # its own in the database.
 # A CHANGELOG section with an entry marked "(security)" means the floor is that
 # version at least (test/test_hunt_n2_system.py checks it; docs/releasing.md).
-DOWNGRADE_FLOOR = '1.0.102'         # 1.0.101/1.0.102: root helper under db_guard, seal binds, approvals
+DOWNGRADE_FLOOR = '1.0.106'         # 1.0.106: the certificate sign-in's OCSP and CRL checks
+# (1.0.101/1.0.102: root helper under db_guard, seal binds, approvals)
 
 # ---------------------------------------------------------------------------
 # Where the modules plug in

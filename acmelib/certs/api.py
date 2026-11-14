@@ -815,7 +815,7 @@ def cert_auto(store, ref, on, by):
                          'importing a new one' % row['name'])
     if on and row.get('state') == 'revoked':
         raise ValueError('%s is revoked - issue a new one first' % row['name'])
-    if on and row.get('state') in ('pending-approval', 'declined'):
+    if on and S.unapproved_why(store, row):
         # Asked for on the portal and not approved (1.0.19): renewed by itself, the
         # renewer issued it as one "not issued yet" - past the approval, or a decline.
         raise ValueError('%s has not been approved' % row['name'])
@@ -1033,12 +1033,12 @@ def _cert_keep(h, s):
 
 def start_renew(store, ref, force, by):
     row = S.cert_need(store, ref)
-    if row.get('state') in ('pending-approval', 'declined'):
-        # Not past the approval (1.0.45): Renew now issued a portal request that was waiting,
-        # or declined, with no one told - Approve is the way.
-        raise ValueError('%s %s - approve it first' % (
-            row['name'], 'waits for approval' if row['state'] == 'pending-approval'
-            else 'was declined'))
+    # Not past the approval (1.0.45): Renew now issued a portal request that was waiting,
+    # or declined, with no one told - Approve is the way. Nor one whose request needed an
+    # approval it never had (1.0.106: given a CSR or an import, it was 'pending' or 'ok').
+    why = S.unapproved_why(store, row)
+    if why:
+        raise ValueError(why)
     if not row.get('issuer'):
         raise ValueError('%s has no issuer - it was imported or is answered by a CSR; import the '
                          'new certificate instead' % row['name'])
@@ -1480,6 +1480,8 @@ def cert_import(store, b, by, s=None):
     second = _second_half(got, leaf, key, info)
     if b.get('id') not in (None, '', 0):
         row = S.cert_need(store, _id(b.get('id')))
+        # not into a request not approved (1.0.106): 'ok' then, and Renew now issued it
+        S.need_approved(store, row)
         if row.get('csr_from'):
             # Its key made by a device: one key, there - no twin, and no key of acme's
             # (deployed, it went to the device, which takes none; a twin renewal asked the
@@ -1758,6 +1760,9 @@ def _cert_csr(h, s):
     b = h.body()
     store = h.store
     row = S.cert_need(store, _id(b.get('id')))
+    # not for a request that waits for approval or was declined (1.0.106): it went 'pending',
+    # out of the wait, and Renew now issued it past the approval
+    S.need_approved(store, row)
     if row.get('csr_from'):
         raise ValueError('the key of %s is made by the device of %s - its CSR comes from there '
                          'at every issue (Renew now), not from acme' % (row['name'],
@@ -1790,6 +1795,7 @@ def _cert_csr_answer(h, s):
     b = h.body()
     store = h.store
     row = S.cert_need(store, _id(b.get('id')))
+    S.need_approved(store, row)           # (1.0.106)
     if row.get('csr_from'):
         # its key is the device's: a version with acme's key would go to a device that cannot
         # use it (a CSR given out before "Key made by the device" was chosen)
