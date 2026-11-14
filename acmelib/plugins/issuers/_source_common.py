@@ -249,6 +249,22 @@ def fingerprint(cert_pem):
     return hashlib.sha256(p7.cert_der(cert_pem)).hexdigest()
 
 
+def parsed_certs(certs, who='the CA'):
+    """[p7.Cert] of what a server sent - one that does not read a PluginError in words
+    (1.0.101: a cut certificate, a month 13 in a time was an IndexError or a ValueError)."""
+    try:
+        return [p7.Cert(c) for c in certs]
+    except p7.DerError as e:
+        raise PluginError('a certificate %s sent does not read: %s' % (who, e), retry=False)
+
+
+def ordered_chain(leaf_der, others, who='the CA'):
+    try:
+        return p7.order_chain(leaf_der, others)
+    except p7.DerError as e:
+        raise PluginError('the chain %s sent does not read: %s' % (who, e), retry=False)
+
+
 def finish(ctx, req, certs, chain=(), info=None, key_pem=None, who='the CA'):
     """The Issued of what came: the certificate for the request's key (the
     CSR's), its chain above it in order. Raises when none is for that key."""
@@ -261,7 +277,7 @@ def finish(ctx, req, certs, chain=(), info=None, key_pem=None, who='the CA'):
         want = p7.csr_spki(csr_der(req)) if (req.csr_der or req.csr_pem) else None
     except (p7.DerError, ValueError, IndexError, PluginError):
         want = None
-    parsed = [p7.Cert(c) for c in certs]
+    parsed = parsed_certs(certs, who)
     leaf = None
     if want is not None:
         leaf = next((c for c in parsed if c.spki_der == want), None)
@@ -274,7 +290,7 @@ def finish(ctx, req, certs, chain=(), info=None, key_pem=None, who='the CA'):
     for c in [c.der for c in parsed if c.der != leaf.der] + chain:
         if c not in others and c != leaf.der:
             others.append(c)
-    ordered = p7.order_chain(leaf.der, others)
+    ordered = ordered_chain(leaf.der, others, who)
     say(ctx, 'the certificate came: serial %X, until %s, from %s' % (
         leaf.serial, time.strftime('%Y-%m-%d', time.gmtime(leaf.not_after)),
         leaf.issuer_cn or '?'), 'ok')
@@ -288,7 +304,7 @@ def existing(certs, chain=(), who='the CA', ref=None):
     certs = [c for c in certs or [] if c]
     if not certs:
         raise PluginError('%s sent no certificate' % who, retry=False)
-    parsed = [p7.Cert(c) for c in certs]
+    parsed = parsed_certs(certs, who)
     leafs = [c for c in parsed if not c.is_ca]
     if not leafs:
         raise PluginError('%s sent only certificates of authorities' % who, retry=False)
@@ -298,7 +314,7 @@ def existing(certs, chain=(), who='the CA', ref=None):
         if c not in others and c != leaf.der:
             others.append(c)
     out = {'cert_pem': p7.pem(leaf.der),
-           'chain_pems': [p7.pem(c) for c in p7.order_chain(leaf.der, others)]}
+           'chain_pems': [p7.pem(c) for c in ordered_chain(leaf.der, others, who)]}
     if ref is not None:
         out['ref'] = str(ref)
     return out

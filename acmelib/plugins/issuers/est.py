@@ -146,7 +146,10 @@ class EstIssuer(Issuer):
     # -- trying it -----------------------------------------------------------------------
     def test(self):
         certs = self.cacerts()
-        cas = [p7.Cert(c) for c in certs]
+        try:
+            cas = [p7.Cert(c) for c in certs]
+        except p7.DerError as e:
+            raise PluginError('the EST server\'s cacerts does not read: %s' % e)
         words = 'the EST server answers: CA %s' % ', '.join(c.subject_cn or '?' for c in cas)
         try:
             status, _h, data = self.call('GET', 'csrattrs')

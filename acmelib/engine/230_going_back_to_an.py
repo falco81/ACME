@@ -70,19 +70,21 @@ DOWNGRADE_SIGNIN = (('admin_krb', (1, 0, 99), 'signing in to the administration 
                     ('portal_certlogin', (1, 0, 100), 'signing in to the portal with a certificate'))
 
 
-def downgrade_signin_lost(v):
-    """'' or the words for the sign-in settings switched on here that acme `v` (a tuple) would
+def downgrade_signin_lost(version):
+    """'' or the words for the sign-in settings switched on here that acme `version` would
     lose: each one older than the version that brought it. And with the guard on, the portal's
     ones are signed only from 1.0.101."""
-    gone = ['%s (%s, from %s)' % (k, words, '.'.join(map(str, since)))
+    v = _ver_tuple(version)
+    gone = [(k, '%s (%s, since %s)' % (k, words, '.'.join(map(str, since))))
             for k, since, words in DOWNGRADE_SIGNIN if CONFIG.get(k) and v < since]
     if gone:
-        return ('older than the version that brought %s, switched on here: %s would not know %s '
-                'and %s - passwords would sign people in again where they are switched off. '
-                'Switch %s off first' % (
-                    'it' if len(gone) == 1 else 'them', '.'.join(map(str, v)),
-                    'it' if len(gone) == 1 else 'them', 'drop it' if len(gone) == 1 else
-                    'drop them', 'it' if len(gone) == 1 else 'them') + ': ' + ', '.join(gone))
+        return ('acme %s does not know %s switched on here and would drop %s without a word%s: '
+                '%s. Switch %s off first' % (
+                    version, 'a sign-in setting' if len(gone) == 1 else
+                    'the sign-in settings', 'it' if len(gone) == 1 else 'them',
+                    ' - passwords would sign people in again where they are switched off'
+                    if any(k.endswith('_password_off') for k, _w in gone) else '',
+                    ', '.join(w for _k, w in gone), 'it' if len(gone) == 1 else 'them'))
     portal = [k for k in ('portal_krb', 'portal_password_off', 'portal_certlogin')
               if CONFIG.get(k)]
     if portal and CONFIG.get('db_guard') and v < (1, 0, 101):
@@ -113,7 +115,7 @@ def downgrade_why_not(store, version):
         if on:
             why.append('older than 1.0.40 while the guard against writes to the database is on '
                        '(%s): switch it off on every node first' % ', '.join(on))
-    lost = downgrade_signin_lost(v)
+    lost = downgrade_signin_lost(version)
     if lost:
         why.append(lost)
     floor, by = downgrade_db_floor(store)

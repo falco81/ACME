@@ -121,9 +121,9 @@ class ScepIssuer(Issuer):
                 certs = p7.certs_from_pkcs7(data)
             else:
                 certs = [p7.cert_der(data)]
+            parsed = [p7.Cert(c) for c in certs]
         except (p7.DerError, ValueError, IndexError) as e:
             raise PluginError('the CA certificate from GetCACert does not read: %s' % e)
-        parsed = [p7.Cert(c) for c in certs]
         cas = [c for c in parsed if c.is_ca] or parsed
         pin = re.sub(r'[^0-9a-fA-F]', '', str(self.c('ca_fingerprint') or '')).lower()
         ca = None
@@ -239,16 +239,19 @@ class ScepIssuer(Issuer):
                     p7.FAIL_WORDS.get(fi, 'no reason given'), (' (failInfo %s)' % fi) if fi else ''),
                     retry=False)
             certs = got[1]
-        leaf = next((c for c in certs if p7.Cert(c).spki_der == spki), None)
-        if not leaf:
-            raise PluginError('the CA\'s answer holds no certificate for this key')
-        chain = [c for c in certs if c != leaf]
-        for c in all_certs:
-            x = p7.Cert(c)
-            if x.is_ca and c not in chain:
-                chain.append(c)
-        chain = p7.order_chain(leaf, chain)
-        x = p7.Cert(leaf)
+        try:
+            leaf = next((c for c in certs if p7.Cert(c).spki_der == spki), None)
+            if not leaf:
+                raise PluginError('the CA\'s answer holds no certificate for this key')
+            chain = [c for c in certs if c != leaf]
+            for c in all_certs:
+                x = p7.Cert(c)
+                if x.is_ca and c not in chain:
+                    chain.append(c)
+            chain = p7.order_chain(leaf, chain)
+            x = p7.Cert(leaf)
+        except p7.DerError as e:
+            raise PluginError('the certificates in the SCEP answer do not read: %s' % e)
         self._say('the certificate came: serial %x, until %s, from %s' % (
             x.serial, time.strftime('%Y-%m-%d', time.gmtime(x.not_after)), x.issuer_cn or '?'), 'ok')
         return Issued(p7.pem(leaf), [p7.pem(c) for c in chain], info={'transaction_id': tid},
@@ -298,7 +301,10 @@ class ScepIssuer(Issuer):
             raise PluginError('the SCEP answer does not carry our nonce (a replay?)')
         if not rep.digest_ok():
             raise PluginError('the SCEP answer\'s messageDigest does not match its content')
-        self._check_signature(cr, data, rep, ca, rcpt, all_certs)
+        try:
+            self._check_signature(cr, data, rep, ca, rcpt, all_certs)
+        except p7.DerError as e:
+            raise PluginError('the signer of the SCEP answer does not read: %s' % e)
         status = p7.PKI_STATUS.get(rep.attr_text(p7.OID_SCEP_PKI_STATUS) or '', 'FAILURE')
         if status == 'PENDING':
             return ('PENDING', None)

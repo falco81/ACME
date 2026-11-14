@@ -270,6 +270,45 @@ class TestResign(unittest.TestCase):
             guard(False)
         self.assertTrue(any('guard against writes' in w for w in why), why)
 
+    def test_downgrade_says_the_sign_in_settings_lost(self):
+        """Going back below the version of a sign-in setting switched on (1.0.101): it was
+        dropped without a word - "no password" gone, passwords signed people in again."""
+        keys = ('admin_password_off', 'portal_password_off', 'admin_certlogin',
+                'portal_certlogin', 'admin_krb', 'portal_krb')
+        was = {k: E.CONFIG.get(k) for k in keys}
+
+        def lost(version):
+            return [w for w in E.downgrade_why_not(STORE, version)
+                    if 'sign-in setting' in w or 'portal\'s settings' in w]
+        try:
+            guard(False)
+            self.assertEqual(lost('1.0.98'), [])
+            E.CONFIG['admin_password_off'] = 1
+            got = lost('1.0.98')
+            self.assertEqual(len(got), 1)
+            self.assertIn('admin_password_off', got[0])
+            self.assertIn('passwords would sign people in again', got[0])
+            self.assertEqual(lost('1.0.99'), [])
+            E.CONFIG.update(admin_password_off=0, portal_certlogin=1, admin_krb=1)
+            got = lost('1.0.99')
+            self.assertEqual(len(got), 1)
+            self.assertIn('portal_certlogin', got[0])
+            self.assertNotIn('admin_krb', got[0])
+            self.assertNotIn('passwords would', got[0])
+            got = lost('1.0.98')
+            self.assertIn('admin_krb', got[0])
+            self.assertIn('portal_certlogin', got[0])
+            self.assertEqual(lost('1.0.100'), [])
+            guard(True)                     # the portal's guard came in 1.0.101
+            got = lost('1.0.100')
+            self.assertEqual(len(got), 1)
+            self.assertIn('portal_certlogin', got[0])
+            E.CONFIG['portal_certlogin'] = 0
+            self.assertEqual(lost('1.0.100'), [])
+        finally:
+            guard(False)
+            E.CONFIG.update(was)
+
     def test_the_heartbeat_says_it(self):
         guard(True)
         try:

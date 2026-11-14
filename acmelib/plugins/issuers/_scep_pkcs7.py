@@ -30,6 +30,24 @@ class DerError(ValueError):
     pass
 
 
+def _reads(what):
+    """A parser of a server's answer: anything malformed is a DerError in words (1.0.101) -
+    a cut certificate, a month 13 or a byte not ASCII in a time was an IndexError, a
+    UnicodeDecodeError, ... past the issuer's own `except DerError`."""
+    def wrap(fn):
+        def run(*a, **k):
+            try:
+                return fn(*a, **k)
+            except DerError:
+                raise
+            except (IndexError, KeyError, TypeError, ValueError, OverflowError,
+                    AttributeError) as e:
+                raise DerError('%s does not read (%s)' % (what, type(e).__name__))
+        run.__name__, run.__doc__ = fn.__name__, fn.__doc__
+        return run
+    return wrap
+
+
 def der_read(data, pos=0):
     """One TLV at `pos`: (tag, content bytes, the whole TLV bytes, end)."""
     if pos + 2 > len(data):
@@ -215,6 +233,7 @@ OID_KU = '2.5.29.15'
 
 class Cert(object):
     """The parts of an X.509 certificate this package needs."""
+    @_reads('a certificate')
     def __init__(self, cert):
         self.der = cert_der(cert)
         _t, c, _w = der_one(self.der)
@@ -254,6 +273,7 @@ class Cert(object):
         return name_cn(self.subject_der)
 
     @property
+    @_reads('an extension of a certificate')
     def aki_keyid(self):
         ext = self.extensions.get(OID_AKI)
         if not ext:
@@ -264,6 +284,7 @@ class Cert(object):
         return None
 
     @property
+    @_reads('an extension of a certificate')
     def is_ca(self):
         ext = self.extensions.get(OID_BC)
         if not ext:
@@ -272,6 +293,7 @@ class Cert(object):
         return bool(items and items[0][0] == 0x01 and items[0][1] != b'\x00')
 
     @property
+    @_reads('an extension of a certificate')
     def key_usage(self):
         """The KeyUsage bits as an int (bit 0 = digitalSignature … as in X.509), or None."""
         ext = self.extensions.get(OID_KU)
@@ -290,6 +312,7 @@ class Cert(object):
         return spki_algorithm(self.spki_der) == '1.2.840.113549.1.1.1'
 
 
+@_reads('a name')
 def name_cn(name_der):
     """The (last) common name of an X.501 Name."""
     cn = None
@@ -301,6 +324,7 @@ def name_cn(name_der):
     return cn
 
 
+@_reads('a public key')
 def spki_algorithm(spki_der):
     alg = der_items(der_items(der_one(spki_der)[1])[0][1])
     return oid_decode(alg[0][1])
@@ -317,6 +341,7 @@ def csr_subject(csr_der):
     return info[1][2]
 
 
+@_reads('a PKCS#7 of certificates')
 def certs_from_pkcs7(data):
     """The certificates (DER) carried in a PKCS#7 / CMS SignedData - a
     degenerate one (certs only) or any other. `data` DER, PEM or base64."""
@@ -490,6 +515,7 @@ def build_degenerate(certs):
 
 class SignedMessage(object):
     """A SignedData taken apart: the content, the signer's attributes, the certificates."""
+    @_reads('a PKCS#7 SignedData')
     def __init__(self, der):
         self.der = der
         _t, ci, _w = der_one(der)
@@ -542,6 +568,7 @@ class SignedMessage(object):
         v = self.attrs.get(oid)
         return v[1] if v else None
 
+    @_reads('a certificate of the SignedData')
     def signer_cert(self):
         for c in self.certs:
             x = Cert(c)
@@ -554,6 +581,7 @@ class SignedMessage(object):
         return md is not None and md == hashlib.new(self.digest, self.content).digest()
 
 
+@_reads('a PKCS#7 EnvelopedData')
 def enveloped_parts(der):
     """(recipient issuer DER, serial, encrypted key, cipher name, iv, encrypted content)."""
     _t, ci, _w = der_one(der)
@@ -613,6 +641,7 @@ def transaction_id(spki_der):
     return hashlib.sha256(spki_der).hexdigest().upper()
 
 
+@_reads('a chain of certificates')
 def order_chain(leaf_der, others):
     """The chain above the certificate, nearest first."""
     pool = [Cert(c) for c in others]

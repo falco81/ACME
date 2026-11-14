@@ -43,6 +43,10 @@ CHAL_PREFIX = 'acme:chal:'          # read by the engine's acme_challenge() for 
 FILE_PREFIX = 'acme:file:'          # a CA's DCV file, read by the engine's acme_file() for port 80
 
 
+# The most of an answer ctx.http reads (1.0.101): an API's JSON, a certificate, a list.
+HTTP_ANSWER_MAX = 64 << 20
+
+
 def file_key(host, path):
     """The meta key of a DCV file answered for http://host/path."""
     h = hashlib.sha256(('%s|%s' % (str(host or '').strip().lower().rstrip('.'),
@@ -454,12 +458,16 @@ class RunContext(base.Context):
                 got = E.url_open(req, timeout=timeout, context=ctx,
                                  purpose='acme' if proxy else '')
             with got:
-                data = got.read()
+                # bounded (1.0.101): a server's answer read whole into memory, however big
+                data = got.read(HTTP_ANSWER_MAX + 1)
+                if len(data) > HTTP_ANSWER_MAX:
+                    raise base.PluginError('%s answered more than %d MB - not read' % (
+                        urllib.parse.urlsplit(url).netloc, HTTP_ANSWER_MAX // (1 << 20)))
                 self._http_shipped(req.get_method(), url, began, got.status, len(data))
                 return got.status, header_dict(got.headers), data
         except urllib.error.HTTPError as e:
             try:
-                data = e.read()
+                data = e.read(HTTP_ANSWER_MAX)
             except Exception:                       # noqa: BLE001
                 data = b''
             self._http_shipped(req.get_method(), url, began, e.code, len(data))

@@ -571,6 +571,13 @@ def dbguard_adopted_ok(kind, ident):
     return bool((DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT_MARK))
 
 
+def dbguard_adopted3():
+    """Whether this node took 1.0.101's rows under the guard - only once every node ran 1.0.101
+    (_dbguard_adopt3): until then a sign-in of the portal is not checked."""
+    _dbguard_load()
+    return bool((DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT3_MARK))
+
+
 def cluster_runs_at_least(store, version):
     """Whether every node of the cluster runs `version` or newer (1.0.46): every node with a
     heartbeat in the last day - not only those alive just then. A node of 1.0.43 restarting,
@@ -667,8 +674,27 @@ def dbguard_adopt(store):
 def dbguard_tidy(store):
     """Signatures of sign-ins that are over."""
     try:
-        have = {_dbguard_sid('x', r['token_hash']) for r in store.db.rows(
-            'SELECT token_hash FROM sessions')}         # every kind signed (1.0.101)
+        hashes = [r['token_hash'] for r in store.db.rows('SELECT token_hash FROM sessions')]
+    except Exception:                                   # noqa: BLE001
+        hashes = None
+    try:
+        if hashes is None:
+            raise ValueError('the sign-ins could not be read')
+        have = {_dbguard_sid('x', h) for h in hashes}   # every kind signed (1.0.101)
+        # The counters seen of sign-ins over too (1.0.101): one entry each in guard.json for
+        # every sign-in ever made, the whole file written again at each new one.
+        held = {'sig:x:%s:*' % _dbguard_hash(h) for h in hashes}
+        _dbguard_load()
+        with DBGUARD['lock']:
+            gone = [] if DBGUARD.get('hold') else \
+                [s for s in DBGUARD['seen'] if s.startswith('sig:x:') and s not in held]
+            gone += [s for s in (DBGUARD['seen_h'] or {}) if s.startswith('sig:x:') and
+                     s not in held and s not in DBGUARD['seen'] and not DBGUARD.get('hold')]
+            for s in gone:
+                DBGUARD['seen'].pop(s, None)
+                (DBGUARD['seen_h'] or {}).pop(s, None)
+            if gone:
+                DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
         for r in _dbguard_head_rows(store.db, 'sig:x:'):
             if r['k'] not in have and r['k'].endswith(':' + node_name()):
                 try:

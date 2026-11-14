@@ -255,7 +255,7 @@ function i18nInit(pack) {
    same few hundred things over and over, and each is worked out once. */
 var I18N_SEEN = (typeof Map === 'function') ? new Map() : null;
 var I18N_DEEP = 6;          /* how far a slot inside a slot is still translated */
-/* One text being worked out (1.0.x, hunt M): every piece of it a pattern's slot or a
+/* One text being worked out (hunt M): every piece of it a pattern's slot or a
    sentence of it is tried as, remembered by its depth - a weak pattern tries its slot,
    that slot's own patterns try theirs, and without this "4 of 4 deployment(s) failed -
    a: ...; b: ...; c: ..." worked the same pieces out again and again, each name more
@@ -278,7 +278,8 @@ function i18nText(s, depth) {
     if (run.out) {
       run.left = I18N_BUDGET;
       run.out = false;
-      got = i18nParts(i18nFold(s), 0);
+      var byParts = i18nParts(i18nFold(s), 0);
+      if (byParts !== null) got = byParts;
     }
   } finally {
     I18N_RUN = outer;

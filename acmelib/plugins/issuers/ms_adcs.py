@@ -148,7 +148,10 @@ class AdcsHttp(object):
             try:
                 conn.request(method, self.prefix + path, body=body, headers=headers)
                 r = conn.getresponse()
-                data = r.read()
+                data = r.read((16 << 20) + 1)    # bounded (1.0.101): a page, a certificate
+                if len(data) > 16 << 20:
+                    self.close()
+                    raise PluginError('the CA\'s web server answered more than 16 MB - not read')
                 hdrs = {}
                 for k, v in r.getheaders():
                     k = k.lower()

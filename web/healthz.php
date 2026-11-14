@@ -1,7 +1,8 @@
 <?php
 /* healthz.php - what a load balancer asks: is this node able to answer?
    200 and "ok" when the daemon answers and its database opens; 503 and why
-   otherwise. Nothing else is said, so it may be asked by anybody. (1.0.13) */
+   otherwise. Nothing else is said, so it may be asked by anybody (1.0.13) -
+   not the node's name either (1.0.101): words only. */
 declare(strict_types=1);
 require_once __DIR__ . '/acme-api.php';
 header('Content-Type: text/plain; charset=utf-8');
@@ -37,20 +38,20 @@ if (!empty($got['maintenance'])) {
     // Taken out by hand or for an upgrade (1.0.37): the balancer sends
     // nobody here until it is back.
     http_response_code(503);
-    echo 'maintenance ' . preg_replace('/[^A-Za-z0-9._-]/', '', (string) ($got['node'] ?? '')) . "\n";
+    echo "maintenance\n";
     exit;
 }
-$node = preg_replace('/[^A-Za-z0-9._-]/', '', (string) ($got['node'] ?? ''));
 if ($check === 'all' && isset($got['replication']) && empty($got['replication']['ok'])) {
     http_response_code(503);
     echo 'degraded: replication ' . (!empty($got['replication']['lost']) ? 'lost' : 'not running')
-        . " on $node\n";
+        . "\n";
     exit;
 }
 if ($check === 'dns' && empty($got['dns']['ok'])) {
     http_response_code(503);
     echo 'down: the DNS server is ' . (empty($got['dns']['on']) ? 'switched off' : 'not listening')
-        . " on $node\n";
+        . "\n";
     exit;
 }
-echo "ok $node\n";
+// "ok " and a word, as a balancer's match on "^ok " wants - never the node's name (1.0.101).
+echo "ok up\n";

@@ -809,7 +809,10 @@ class Storage(object):
         # Of every kind (1.0.101; the administration's alone until then): an unsigned one -
         # put in past acme, or a portal's opened before 1.0.101 while the guard was on - is
         # no sign-in, and is ended (only where this node has the key to tell).
-        if dbguard_on() and \
+        # Not the administration's only once every node runs 1.0.101 and signs them (the
+        # adoption's mark, as the portal's settings): during a rolling upgrade a portal's
+        # sign-in made on a node still on 1.0.100 is unsigned, and was ended here.
+        if dbguard_on() and (kind == 'admin' or dbguard_adopted3()) and \
                 not dbguard_ok(self.db, 'x', row['token_hash'], dbguard_session_text(row)):
             if dbguard_key():
                 self.db.run('DELETE FROM sessions WHERE id = ?', (row['id'],))
