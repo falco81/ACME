@@ -1153,6 +1153,19 @@ def _option_line_check(f, v, what, pattern=True):
                         SEG_WORDS if pat == SEG_PATTERN else 'not of the form the device takes')))
 
 
+def _option_field_check(f, v, what, pattern=True):
+    """_option_line_check, its refusal naming the field (hunt M round 3): the page marks that
+    field - opening "More" where it is one of those - and shows its label in the page's
+    language; the label alone in the words was not found in "<label>: ..." and stayed
+    English in a toast."""
+    try:
+        _option_line_check(f, v, what, pattern=pattern)
+    except ValueError as e:
+        e.field = f.get('key') or ''
+        e.label = str(what)
+        raise
+
+
 def _deploy_key_check(cls, given, old):
     """A certificate administrator's save of a deployment: where the key goes and its password as
     they were - or as one of the module's presets puts them. Only what was sent is looked at."""
@@ -3105,7 +3118,7 @@ def _deploy_save_in(store, b, by, full, made):
                 # inside the deployment ("join() argument must be str").
                 v = opts.get(f['key'])
                 what = f.get('label') or f['key']
-                _option_line_check(f, v, what, pattern=bool(
+                _option_field_check(f, v, what, pattern=bool(
                     made or f['key'] not in old or not _same_value(f, v, old.get(f['key']))))
                 if v is None or f.get('type') in ('bool', 'catalog'):
                     continue

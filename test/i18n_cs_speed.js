@@ -27,7 +27,8 @@ const ctx = {window: {}, Map, Set, WeakMap, console, ACME_LANG_PACK: pack,
   MutationObserver: function () { this.observe = () => {}; this.takeRecords = () => []; }, setTimeout: () => {}};
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(root, 'web', 'assets', 'i18n.js'), 'utf8')
-                + ';this.i18nText = i18nText; this.i18nInit = i18nInit;', ctx);
+                + ';this.i18nText = i18nText; this.i18nInit = i18nInit;'
+                + 'this.i18nForget = function () { I18N_SEEN.clear(); I18N_COST.clear(); };', ctx);
 ctx.i18nInit(pack);
 
 const parts = ['my-api: 10.1.2.3:8443 could not be reached: [Errno 111] Connection refused',
@@ -45,4 +46,9 @@ for (const n of [1, 2, 3, 4, 10, 40]) {
   out.got[n] = got;
 }
 for (const s of process.argv.slice(3)) out.said[s] = ctx.i18nText(s);
+// the same texts again, nothing remembered and in the other order: the same words (hunt M round 3)
+ctx.i18nForget();
+out.again = {got: {}, said: {}};
+for (const s of process.argv.slice(3).reverse()) out.again.said[s] = ctx.i18nText(s);
+for (const n of Object.keys(out.got).reverse()) out.again.got[n] = ctx.i18nText(message(Number(n)));
 console.log(JSON.stringify(out));

@@ -606,8 +606,11 @@ $krb_only = $krb_on && !empty($krb['only']);
 /* ...and with a certificate (1.0.100): the button; "no password at all" is one switch for both. */
 $cl = (!$me && $alive && is_array($health['certlogin'] ?? null)) ? $health['certlogin'] : [];
 $cl_on = !empty($cl['on']);
+/* ...served now on some node (hunt M round 3): otherwise no way to it but a note - never the
+   browser sent to a port nothing answers on. */
+$cl_ready = $cl_on && (!array_key_exists('ready', $cl) || !empty($cl['ready']));
 /* Gone to by itself when the page opens (1.0.100) - after Windows, when that is tried by itself too. */
-$cl_auto = $cl_on && !empty($cl['auto']);
+$cl_auto = $cl_ready && !empty($cl['auto']);
 $pw_off = ($krb_on && !empty($krb['only'])) || ($cl_on && !empty($cl['only']));
 $krb_only = $krb_on && $pw_off;
 /* The sign-in's picture, when it is to be shown here too (1.0.71). */
@@ -714,13 +717,13 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     </div>
     <?php endif; ?>
     <?php if ($cl_on && $mfa === ''): ?>
-    <div class="krb-box cert-box" id="cert-box" data-part="admin" data-auto="<?= $cl_auto ? '1' : '0' ?>" data-only="<?= $pw_off ? '1' : '0' ?>">
+    <div class="krb-box cert-box" id="cert-box" data-part="admin" data-auto="<?= $cl_auto ? '1' : '0' ?>" data-only="<?= $pw_off ? '1' : '0' ?>" data-ready="<?= $cl_ready ? '1' : '0' ?>">
       <?php if (!$pw_off && !$krb_on): ?><div class="krb-or"><span>or</span></div><?php endif; ?>
-      <button class="btn cmd<?= $pw_off && !$krb_on ? ' primary' : '' ?>" type="button" id="cert-go"><svg
+      <button class="btn cmd<?= $pw_off && !$krb_on ? ' primary' : '' ?>" type="button" id="cert-go"<?= $cl_ready ? '' : ' disabled' ?>><svg
         viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"
         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle
         cx="8.5" cy="12" r="2"/><path d="M13 10h5M13 14h3"/></svg><span>Sign in with a certificate</span></button>
-      <div class="said" id="cert-said"></div>
+      <div class="said" id="cert-said"><?= $cl_ready ? '' : 'Signing in with a certificate is not available just now.' ?></div>
     </div>
     <?php endif; ?>
     <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center">

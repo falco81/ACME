@@ -1212,6 +1212,8 @@
           if (preview) preview.test(null, e);
         }).then(function () { busy(button, false); });
       },
+      /* the daemon's refusal of an option of these (hunt M round 3): its field marked */
+      refused: function (words, field, label) { return rest.refused ? rest.refused(words, field, label) : words; },
       refresh: ask
     };
   }

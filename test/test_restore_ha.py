@@ -48,6 +48,7 @@ META_MOMENT = ('upgrade:', 'node:', 'maint:', 'restore', 'putback', 'conf_serial
                'host:sshd:now:', 'host:sshd:fmt:', 'ntp:', 'console:now:', 'host:users:',
                'host:sshkeys:', 'host:selinux:', 'net:', 'fw:', 'snmp:boots:', 'web:', 'vip',
                'db_sizes:', 'tune_', 'isemon:client:', 'sshotp:', 'rbackup:verified:', 'rbackup:vforgot:', 'osu',
+               'krb:node:', 'certlogin:node:',
                'lockouts:', 'power:', 'health', 'host:health', 'alerts:', 'alert', 'certs:',
                'cert_', 'job', 'mail', 'sms', 'last_', 'backup', 'dumps', 'guard',
                'custom-modules:', 'schema:', 'downgrade:', 'host:rootkey:again:', 'acme:host:')

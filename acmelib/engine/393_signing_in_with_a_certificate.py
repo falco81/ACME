@@ -1295,13 +1295,49 @@ def cl_usable(part, store=None):
     return bool(cl_on(part) and cl_have(store))
 
 
-def cl_page_info(part, store=None):
+CL_SERVED = {'at': 0.0, 'port': 0, 'yes': False}
+
+
+def cl_served(store=None):
+    """Whether the certificate's port answers somewhere now (hunt M round 3): on this node (asked
+    at most every 5 s), or on another node as it said last (cl_tick, heard in the last 15
+    minutes). With nothing on the port the button sent the browser to "connection refused" -
+    and, gone to by itself, every new tab of the sign-in page."""
+    port = cl_port()
+    now = time.time()
+    if CL_SERVED['port'] != port or now - CL_SERVED['at'] > 5:
+        CL_SERVED.update(at=now, port=port, yes=cl_listening(port))
+    if CL_SERVED['yes']:
+        return True
+    if store is None:
+        return False
+    try:
+        for n in ha_nodes(store):
+            name = n.get('name') if isinstance(n, dict) else n['name']
+            if not name or name == node_name():
+                continue
+            st = cl_node_state(store, name)
+            if st.get('listening') and int(st.get('port') or 0) == port and \
+                    now - float(st.get('at') or 0) < 900:
+                return True
+    except Exception as e:                              # noqa: BLE001
+        log_sparing('cl-served', 'whether another node serves the certificate port could not '
+                                 'be read: %s' % e, 'warn', every=300)
+    return False
+
+
+def cl_page_info(part, store=None, configured=False):
     """What a sign-in page shows of it: the button, gone to by itself, no password - and the
-    port the button leads to (nothing else; asked before anybody is signed in)."""
+    port the button leads to (nothing else; asked before anybody is signed in).
+    ready: whether some node serves the port now - not ready, no button and nothing gone to
+    by itself (the page says it is not available just now) and no port. `configured`: as
+    set, served or not (the cards' summary)."""
     only = krb_password_off(part, store)
     on = cl_usable(part, store) or (only and cl_on(part))
-    return {'on': bool(on), 'auto': bool(on and CONFIG.get(part + '_certlogin_auto')),
-            'only': bool(only), 'port': cl_port() if on else 0}
+    ready = bool(on) and (configured or cl_served(store))
+    return {'on': bool(on), 'ready': ready,
+            'auto': bool(ready and CONFIG.get(part + '_certlogin_auto')),
+            'only': bool(only), 'port': cl_port() if ready else 0}
 
 
 # Both ways by themselves on one sign-in page: Windows first - a request of the page's own that
@@ -1317,7 +1353,7 @@ def sso_signin_modes(part, store=None):
     tried}. The cards' summary and the page's own facts (/api/health, /api/portal/info)."""
     def mode(i):
         return 'off' if not i.get('on') else ('auto' if i.get('auto') else 'button')
-    k, c = krb_page_info(part, store), cl_page_info(part, store)
+    k, c = krb_page_info(part, store), cl_page_info(part, store, configured=True)
     got = {'windows': mode(k), 'certificate': mode(c)}
     # What the page decides by, as the kit's pseudo-code has it: on / auto (Windows), cert /
     # cert_port / cert_auto, only (no password at all in effect).

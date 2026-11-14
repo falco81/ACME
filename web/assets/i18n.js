@@ -99,6 +99,10 @@ function i18nPattern(source, text, rich) {
   for (var i = 0; i < bits.length; i++) if (bits[i].length > lit.length) lit = bits[i];
   c.lit = lit;
   c.own = source.replace(/\{\d+\}/g, '').length;
+  /* what stands before each slot, and whether the pattern says "; " itself (hunt M round 3) */
+  c.lits = bits;
+  c.semi = source.indexOf('; ') >= 0;
+  c.dash = bits.some(function (b, i) { return i < bits.length - 1 && /\s[-\u2013\u2014]\s*$/.test(b); });
   /* Texts the code only joins by a dot, saying nothing itself - "{0} · {1}", the same in
      every language (hunt M): a word of the page's own in a slot is translated, "done · 0 s". */
   c.join = String(text) === source && /^[\s\u00b7\u2022]+$/.test(source.replace(/\{\d+\}/g, ''));
@@ -269,68 +273,93 @@ function i18nText(s, depth) {
   if (!I18N.on || !I18N.exact) return null;     /* nothing remembered for English */
   var got = I18N_SEEN.get(s);
   if (got !== undefined) return got;
-  got = i18nWhole(s, I18N_BUDGET);
-  /* Out of work before the end (hunt M round 3): never what was worked out so far - that
-     was a sentence half Czech, half English, a weaker pattern winning where the work for
-     the stronger one ran out ("aplikace odpověděl 422", then "aplikace said 422"). The
-     text by its sentences instead, each worked out whole with work of its own, or left
-     wholly in English. */
-  if (got === undefined) got = i18nSentences(s);
-  if (I18N_SEEN.size > 50000) I18N_SEEN.clear();
+  var job = I18N_JOB;
+  if (!job) I18N_JOB = {left: I18N_BUDGET * 4};
+  try {
+    got = i18nOwn(s);
+  } finally {
+    I18N_JOB = job;
+  }
+  if (got === undefined) got = null;
+  if (I18N_SEEN.size > 50000) { I18N_SEEN.clear(); I18N_COST.clear(); }
   I18N_SEEN.set(s, got);
   return got;
 }
-/** A text worked out with at most `budget` of work: its translation, null for none,
-    undefined when the work ran out (nothing of it used then). */
-function i18nWhole(s, budget) {
-  var outer = I18N_RUN;
+/* All the work one text shown may take, its sentences worked out on their own included
+   (hunt M round 3), and what each text remembered took: a text remembered from before is
+   counted at what it cost then, so the same text comes out the same every time, whatever
+   was shown before it - the work is counted, never timed. */
+var I18N_JOB = null;
+var I18N_COST = (typeof Map === 'function') ? new Map() : null;
+/** A text or a sentence of one, worked out on its own: its translation, null for none,
+    undefined when the work ran out. Out of work, never what was worked out so far - that
+    was a sentence half Czech, half English, a weaker pattern winning where the work for the
+    stronger one ran out ("aplikace odpověděl 422", then "aplikace said 422", then "the
+    application said 422" in one message): the text by its sentences instead, each
+    translated whole or kept wholly in English. */
+function i18nOwn(s, single) {
+  var job = I18N_JOB;
+  var known = I18N_SEEN.get(s);
+  if (known !== undefined) { job.left -= I18N_COST.get(s) || 0; return known; }
+  if (job.left <= 0) return undefined;
+  var outer = I18N_RUN, budget = Math.min(I18N_BUDGET, job.left);
   var run = I18N_RUN = {memo: new Map(), left: budget, out: false};
+  var got;
   try {
-    var got = i18nWork(s, 0);
-    I18N_SPENT = budget - run.left;
-    return run.out ? undefined : got;
+    got = i18nWork(s, 0);
   } finally {
     I18N_RUN = outer;
   }
+  job.left -= budget - Math.max(run.left, 0);
+  if (!run.out) {
+    I18N_SEEN.set(s, got);
+    I18N_COST.set(s, budget - Math.max(run.left, 0));
+    return got;
+  }
+  return single ? undefined : i18nSentences(s);
 }
-var I18N_SPENT = 0;
-/** A text too long to work out at once, by its sentences: cut where the daemon joins
-    what it says ("; ", " - ", ". ") - never inside brackets or quotes - and each
-    sentence translated whole or kept wholly in English. All of them together take at
-    most four texts' worth of work; the ones past that stay in English. The same text
-    comes out the same every time: the work is counted, not timed. */
-function i18nSentences(s) {
-  var key = i18nFold(s), parts = [], deep = 0, from = 0, i, c;
+/** Where a text is cut into the sentences the daemon joined ("; ", " - ", ". "), never
+    inside brackets or quotes: [sentence, join, sentence, ...]. `semi`: at "; " only. */
+function i18nCut(key, semi) {
+  var parts = [], deep = 0, from = 0, i, c, n;
   for (i = 0; i < key.length; i++) {
     c = key.charAt(i);
-    if (c === '(' || c === '[' || c === '{' || c === '\u201c' || c === '\u201e') deep++;
-    else if ((c === ')' || c === ']' || c === '}' || c === '\u201d') && deep > 0) deep--;
-    if (deep) continue;
-    var cut = 0;
-    if (/[;.!?]/.test(c) && key.charAt(i + 1) === ' ' && (c !== '.' || /[a-z0-9)\]]/.test(key.charAt(i - 1) || ''))) cut = 1;
-    else if (c === ' ' && /^ [-\u2013\u2014\u00b7] /.test(key.substr(i, 3))) cut = 3;
-    if (!cut) continue;
-    var end = c === ' ' ? i : i + 1;
-    parts.push(key.slice(from, end));
-    parts.push(key.substr(end, c === ' ' ? 3 : 1));
-    from = end + (c === ' ' ? 3 : 1);
+    if (c === '(' || c === '[' || c === '\u201c' || c === '\u201e') deep++;
+    else if ((c === ')' || c === ']' || c === '\u201d') && deep > 0) deep--;
+    if (deep || i === 0) continue;
+    n = 0;
+    if (c === ';' && key.charAt(i + 1) === ' ') n = 1;
+    else if (!semi && /[.!?]/.test(c) && key.charAt(i + 1) === ' ' && /[a-z0-9)\]]/.test(key.charAt(i - 1))) n = 1;
+    else if (!semi && c === ' ' && /^ [-\u2013\u2014] \S/.test(key.substr(i, 4))) n = 2;
+    if (!n) continue;
+    var end = c === '.' || c === '!' || c === '?' ? i + 1 : i;
+    parts.push(key.slice(from, end), key.slice(end, i + 1 + n));
+    from = i + 1 + n;
     i = from - 1;
   }
   parts.push(key.slice(from));
-  if (parts.length < 2) return null;
-  var left = I18N_BUDGET * 4, any = false;
+  return parts;
+}
+/** A slot of the match `m` holds a sentence joined on with "; " - but the list after a
+    dash ("{0} of {1} deployment(s) failed - {2}") is a slot of the pattern. */
+function i18nSpans(p, m) {
+  var off = p.pre ? 1 : 0;
+  for (var j = off; j < p.slots.length; j++) {
+    var v = m[j + 1];
+    if (!v || v.indexOf('; ') < 0 || i18nCut(v, true).length < 3) continue;
+    if (/\s[-\u2013\u2014]\s*$/.test(p.lits[j - off] || '')) continue;
+    return true;
+  }
+  return false;
+}
+/** A text by its sentences, each translated whole by itself or left wholly in English. */
+function i18nSentences(s, semi) {
+  var parts = i18nCut(i18nFold(s), semi), any = false, i;
+  if (parts.length < 3) return null;
   for (i = 0; i < parts.length; i += 2) {
-    var bit = parts[i];
-    if (!bit || !/[A-Za-z]{2}/.test(bit)) continue;
-    var one = I18N_SEEN.get(bit);
-    if (one === undefined) {
-      if (left <= 0) continue;
-      one = i18nWhole(bit, Math.min(I18N_BUDGET, left));
-      left -= I18N_SPENT;
-      if (one === undefined) continue;          /* this one wholly in English */
-      I18N_SEEN.set(bit, one);
-    }
-    if (one !== null) { parts[i] = one; any = true; }
+    if (!parts[i] || !/[A-Za-z]{2}/.test(parts[i])) continue;
+    var one = i18nOwn(parts[i], true);
+    if (one !== null && one !== undefined) { parts[i] = one; any = true; }
   }
   if (!any) return null;
   for (i = 1; i < parts.length; i += 2) if (parts[i] === ' - ') parts[i] = ' \u2013 ';
@@ -380,6 +409,11 @@ function i18nWork(s, depth) {
      not be reached: {1}" came first and took "deploying x to y failed: 192.0.2.20" for its
      slot, where "deploying {0} to {1} failed: {2}" says the whole sentence. */
   var best = null, bestLen = 0;
+  /* Sentences the daemon joined with "; " (hunt M round 3): a pattern's slot never takes
+     the next sentence with it - "{0} could not be reached: {1}" took "[Errno 111] Connection
+     refused; mikrotik-gw: 192.0.2.3 could not be reached: ..." for its {1} - unless the
+     pattern itself says "; ", or its slot is the list after a dash ("{0} failed - {2}"). */
+  var semi = key.indexOf('; ') > 0 && i18nCut(key, true).length > 1;
   /* only the patterns a word of the text points at, in their order (hunt M) */
   var cand = tryPats ? i18nCandidates(key) : [], nc = cand.length, run = I18N_RUN;
   for (var i = 0; i < nc * 2; i++) {
@@ -387,13 +421,21 @@ function i18nWork(s, depth) {
     if (!p.pre !== (i < nc)) continue;
     if (best && i >= nc) break;      /* a whole-text one found: no pre ones */
     if (p.lit && key.indexOf(p.lit) < 0) continue;
+    /* (none but these can take sentences joined by "; " - see i18nSpans) */
+    if (semi && !p.semi && !p.dash && !p.pre) continue;
     if (run) run.left -= 1 + (key.length >> 6);     /* a long text costs more to look through */
     var m = p.re.exec(key);
     if (!m || (p.weak && i18nWordy(m, depth))) continue;
+    if (semi && !p.semi && i18nSpans(p, m)) continue;
     /* the most words of its own wins - the most of the sentence it says itself */
     /* ...and one that begins with words of its own before one that begins with a slot */
     var own = (p.lead ? 1000 : 0) + (p.own || 0);
     if (!best || own > bestLen) { best = [p, m]; bestLen = own; }
+  }
+  /* ...each such sentence then translated whole by itself, or kept wholly in English */
+  if (!best && semi) {
+    var bySemi = i18nSentences(key, true);
+    if (bySemi !== null) return bySemi;
   }
   /* A node's name, a colon and a sentence of its own (1.0.45): a weak "{0} could not be read:
      {1}" took "acme1: its users could not be read: ..." whole, and the sentence's own

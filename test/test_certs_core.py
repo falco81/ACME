@@ -1117,6 +1117,8 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
                 'webauth': True, 'webauth_map': inj}}, who)
             self.assertEqual(st, 400, got)
             self.assertIn('one line', json.dumps(got))
+            # the field named, so the page marks it (hunt M round 3)
+            self.assertEqual(got.get('field'), 'webauth_map', got)
         st, got = self.call('POST', '/api/deploys/save', {'id': did, 'options': {
             'webauth': True, 'webauth_map': 'global trustpoint x'}}, self.cert_admin)
         self.assertEqual(st, 400, got)
@@ -1154,6 +1156,8 @@ print(json.dumps({'fp': (prof.get('info') or {}).get('fingerprint'), 'how': prof
             st, got = self.call('POST', '/api/deploys/save', {'id': kid, 'options': {
                 'restart': bad}}, self.cert_admin)
             self.assertEqual(st, 400, (bad, got))
+            self.assertEqual(got.get('field'), 'restart', (bad, got))
+            self.assertTrue(got.get('label') and got['error'].startswith(got['label']), got)
         self.ok('POST', '/api/deploys/save', {'id': kid, 'options': {'restart': 'web\napi'}},
                 session=self.cert_admin)
         # Round 3: a value saved before that the field's pattern refuses now (the device took

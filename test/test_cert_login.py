@@ -447,6 +447,29 @@ class CertLogin(unittest.TestCase):
     def on(self, **kv):
         self.must('POST', '/api/settings', {'settings': kv})
 
+    def serving(self, port=8443, path='/api/health'):
+        """Something answering on the certificate's port, as nginx does once root wrote its
+        server - until then the sign-in pages offer no button (hunt M round 3). The daemon
+        asks the port at most every 5 s: waited for until it says so."""
+        lsn = socket.socket()
+        lsn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        lsn.bind(('127.0.0.1', port))
+        lsn.listen(8)
+        for _ in range(30):
+            st, h = self.call('GET', path)
+            if (h.get('certlogin') or {}).get('ready') or not (h.get('certlogin') or {}).get('on'):
+                break
+            time.sleep(0.5)
+        return lsn
+
+    def not_serving(self):
+        """Until the daemon's last look at the port (at most 5 s old) says nothing answers."""
+        for _ in range(30):
+            st, h = self.call('GET', '/api/health')
+            if not (h.get('certlogin') or {}).get('ready'):
+                return
+            time.sleep(0.5)
+
     def back_to_passwords(self, part='admin'):
         cli = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py'), '--set',
                               '%s_password_off=0' % part], env=self.env, capture_output=True,
@@ -474,7 +497,8 @@ class CertLogin(unittest.TestCase):
             st, got = self.sign(part, 'nested')
             self.assertEqual(st, 404, got)
         st, h = self.call('GET', '/api/health')
-        self.assertEqual(h['certlogin'], {'on': False, 'auto': False, 'only': False, 'port': 0})
+        self.assertEqual(h['certlogin'], {'on': False, 'ready': False, 'auto': False, 'only': False,
+                                          'port': 0})
         self.assertEqual({k: h['signin'][k] for k in ('password', 'windows', 'certificate', 'order')},
                          {'password': True, 'windows': 'off', 'certificate': 'off', 'order': []})
         st, info = self.call('GET', '/api/portal/info')
@@ -542,8 +566,20 @@ class CertLogin(unittest.TestCase):
             rules = self.py('print(json.dumps(E.cl_firewall(st, E.node_name())))')
             self.assertEqual(rules[0]['key'], 'certlogin')
             self.assertTrue(all(r['port'] == '8443' and r['proto'] == 'tcp' for r in rules[0]['rules']))
+            # Nothing answers on the port (nginx not given it yet): no button, no port - the
+            # browser was sent to "connection refused" (hunt M round 3)
+            self.not_serving()
             st, h = self.call('GET', '/api/health')
-            self.assertEqual(h['certlogin'], {'on': True, 'auto': False, 'only': False, 'port': 8443})
+            self.assertEqual(h['certlogin'], {'on': True, 'ready': False, 'auto': False,
+                                              'only': False, 'port': 0})
+            self.assertEqual(h['signin']['certificate'], 'button')
+            lsn = self.serving()
+            try:
+                st, h = self.call('GET', '/api/health')
+                self.assertEqual(h['certlogin'], {'on': True, 'ready': True, 'auto': False,
+                                                  'only': False, 'port': 8443})
+            finally:
+                lsn.close()
         finally:
             self.on(admin_certlogin=0)
         # Off again: root is asked to take the port away ({port: 0}).
@@ -690,8 +726,13 @@ class CertLogin(unittest.TestCase):
             self.refused('portal', 'falco-rev', 'revoked')
             st, h = self.call('GET', '/api/health')
             self.assertFalse(h['certlogin']['on'])
-            st, info = self.call('GET', '/api/portal/info')
-            self.assertEqual(info['certlogin'], {'on': True, 'auto': False, 'only': False, 'port': 8443})
+            lsn = self.serving(path='/api/portal/info')
+            try:
+                st, info = self.call('GET', '/api/portal/info')
+            finally:
+                lsn.close()
+            self.assertEqual(info['certlogin'], {'on': True, 'ready': True, 'auto': False,
+                                                 'only': False, 'port': 8443})
             want = self.py('print(json.dumps(E.certlogin_desired(st)))')
             self.assertEqual((want['admin'], want['portal']), (False, True))
         finally:
@@ -1429,8 +1470,18 @@ print(json.dumps([go("ncp", "cas-nc", False), go("ncok", "cas-nc", False), WHY, 
             st, h = self.call('GET', '/api/health')
             self.assertFalse(h['certlogin']['auto'], 'not while the certificate is off')
             self.on(admin_certlogin=1)
+            # gone to by itself only while something answers on the port (hunt M round 3)
+            self.not_serving()
             st, h = self.call('GET', '/api/health')
-            self.assertEqual(h['certlogin'], {'on': True, 'auto': True, 'only': False, 'port': 8443})
+            self.assertEqual(h['certlogin'], {'on': True, 'ready': False, 'auto': False,
+                                              'only': False, 'port': 0})
+            lsn = self.serving()
+            try:
+                st, h = self.call('GET', '/api/health')
+            finally:
+                lsn.close()
+            self.assertEqual(h['certlogin'], {'on': True, 'ready': True, 'auto': True, 'only': False,
+                                              'port': 8443})
             self.assertEqual({k: h['signin'][k] for k in ('password', 'windows', 'certificate', 'order')},
                              {'password': True, 'windows': 'off', 'certificate': 'auto',
                               'order': ['certificate']})

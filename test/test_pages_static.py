@@ -580,8 +580,10 @@ class HuntM1UI(unittest.TestCase):
         # 1 and 2 targets: the Czech as before
         self.assertEqual(out['got']['1'], '1 z 1 nasazení selhalo – my-api: 10.1.2.3:8443 není '
                                           'dosažitelný: Spojení odmítnuto')
+        # (round 3: "{0} could not be reached: {1}" no longer takes the next target's sentence
+        # into its {1} - each sentence joined by "; " is translated by itself)
         self.assertEqual(out['got']['2'], '2 z 2 nasazení selhala – my-api: 10.1.2.3:8443 není '
-                                          'dosažitelný: [Errno 111] Connection refused; mikrotik-gw: '
+                                          'dosažitelný: Spojení odmítnuto; mikrotik-gw: '
                                           '192.0.2.3 není dosažitelný: Cesta k hostiteli neexistuje')
         for n in ('3', '4', '10', '40'):
             self.assertTrue(out['got'][n].startswith('%s z %s nasazení selhal' % (n, n)),
@@ -589,6 +591,35 @@ class HuntM1UI(unittest.TestCase):
         js = read('web', 'assets', 'i18n.js')
         self.assertIn('var I18N_BUDGET = ', js)
         self.assertIn("if (run.left <= 0) { run.out = true; return null; }", js)
+
+    def test_long_message_each_sentence_whole(self):
+        """Hunt M round 3: past the budget the jobs list showed one message with "aplikace
+        odpověděl 422" (the weak "{0} said" won), then "aplikace said 422", then "the application
+        said 422", and "...a name this certificate obsahuje (it obsahuje ...". Each sentence is
+        now wholly Czech or wholly English, the longest pattern wins, and the same text comes
+        out the same every time - nothing remembered, or in another order."""
+        app = ('self-push: the application said 422 (names): no slot here has a name this '
+               'certificate holds (it holds a.example.com; the slots: node:acme1 localhost)')
+        what = ('the application said 422 (names): no slot here has a name this certificate '
+                'holds (it holds a.example.com; the slots: node:acme1 localhost)')
+        out = self.cs(app, what)
+        cs_app = ('aplikace řekla 422 (names): žádný slot zde nemá jméno, které tento certifikát '
+                  'obsahuje (obsahuje a.example.com; sloty: node:acme1 localhost)')
+        self.assertEqual(out['said'][what], cs_app)
+        self.assertEqual(out['said'][app], 'self-push: ' + cs_app)
+        english = re.compile(r'\bsaid\b|\bholds\b|could not be reached|cannot be reached|'
+                             r'Connection refused|No route to host|after deploying')
+        for n, got in out['got'].items():
+            self.assertNotIn('odpověděl', got, n)
+            body = got.split(' – ', 1)[1]
+            for part in re.split(r'; (?=[a-z]+-[a-z]+\d*: )', body):
+                # wholly Czech: none of the English words left in a sentence translated
+                self.assertIsNone(english.search(part), (n, part))
+                if part.startswith('self-push'):
+                    self.assertEqual(part.split(': ', 1)[1], cs_app, (n, part))
+        self.assertEqual(out['again'], {'got': out['got'], 'said': out['said']})
+        js = read('web', 'assets', 'i18n.js')
+        self.assertIn('return single ? undefined : i18nSentences(s);', js)
 
     def test_joined_words_and_refused_connection_in_czech(self):
         """"done · 0 s" stayed English ({0} · {1} keeps one word as a name), and "{0} refused"

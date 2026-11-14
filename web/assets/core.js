@@ -1624,6 +1624,8 @@ function api(what, body, wait) {
         var err = new Error(data.error || ('HTTP ' + r.status));
         err.status = r.status;
         err.detail = data.detail || '';
+        /* the field of the form a refusal is about, and its label as the daemon said it */
+        if (data.field) { err.field = String(data.field); err.label = String(data.label || ''); }
         throw err;
       }
       return data;
@@ -3615,6 +3617,9 @@ function certDoor() {
   if (words && said) { said.className = 'said bad'; said.textContent = words; }
   if (!box) return function () { return false; };
   var part = box.dataset.part || 'admin', go = $('cert-go'), pw = $('cert-pw'), wait = null;
+  /* nothing serves the certificate's port just now (hunt M round 3): the note, never the page
+     sent to a port nobody answers on - and nothing gone to by itself */
+  if (box.dataset.ready === '0') { go.disabled = true; return function () { return false; }; }
   if (words || /(^|[?&])nocert([=&]|$)/.test(location.search)) certAutoNo(part);
   var leave = function () {
     said.className = 'said';

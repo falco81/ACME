@@ -231,7 +231,13 @@ class ApiHandler(BaseHTTPRequestHandler):
                                 'cannot convert float')):
                 # Python's words for a field that is not a number (1.0.103).
                 said = 'a field that is a number holds something else'
-            self.send_json({'ok': False, 'error': said}, 400)
+            got = {'ok': False, 'error': said}
+            # the field of a form it is about, and its label as said (hunt M round 3): the
+            # page marks that field and says the label in its own language
+            if isinstance(getattr(e, 'field', None), str) and e.field:
+                got['field'] = e.field
+                got['label'] = str(getattr(e, 'label', '') or '')
+            self.send_json(got, 400)
         except LdapError as e:
             # The domain controller's name and its TLS - only to somebody
             # signed in (1.0.136), as an ApiError's detail is.

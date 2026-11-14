@@ -1015,16 +1015,28 @@ function fieldForm(fields, values, secrets, opts) {
     },
     /* The daemon's refusal of these options (deploys/save): the field it names marked, and
        its label in the page's language - a label of one word stays English in a slot
-       ("Bay is 2 at most (not 3)" with the field called Pozice, 1.0.96). */
-    refused: function (words) {
+       ("Bay is 2 at most (not 3)" with the field called Pozice, 1.0.96). `field`: the key the
+       daemon named (hunt M round 3) - "<label>: ..." was not found at all, so the field
+       sat unmarked in a closed "More" and its label stayed English in the toast. */
+    refused: function (words, field, label) {
       var cur = current(), msg = String(words || ''), hit = null;
-      items.forEach(function (it) {
+      var said = function (it) {
+        var lab = String(label || it.f.label || it.f.key || '');
+        if (!lab) return;
+        var to = tr(String(it.f.label || it.f.key || ''));
+        if (msg.indexOf(lab + ' is ') === 0 || msg.indexOf(lab + ': ') === 0) msg = to + msg.slice(lab.length);
+        else if (msg.indexOf('\u201c' + lab + '\u201d') >= 0) msg = msg.replace('\u201c' + lab + '\u201d', '\u201c' + to + '\u201d');
+      };
+      if (field) {
+        items.forEach(function (it) { if (!hit && it.f.key === field) hit = it; });
+        if (hit) said(hit);
+      }
+      if (!hit) items.forEach(function (it) {
         if (hit || !shown(it, cur)) return;
         var lab = String(it.f.label || it.f.key || '');
         if (!lab) return;
-        var to = tr(lab);
-        if (msg.indexOf(lab + ' is ') === 0) { hit = it; msg = to + msg.slice(lab.length); }
-        else if (msg.indexOf('\u201c' + lab + '\u201d') >= 0) { hit = it; msg = msg.replace('\u201c' + lab + '\u201d', '\u201c' + to + '\u201d'); }
+        if (msg.indexOf(lab + ' is ') === 0 || msg.indexOf(lab + ': ') === 0
+            || msg.indexOf('\u201c' + lab + '\u201d') >= 0) { hit = it; said(it); }
       });
       if (hit) {
         items.forEach(function (it) { it.item.classList.remove('refused'); });
@@ -3449,7 +3461,7 @@ function deployEdit(o) {
         });
       }).catch(function (e) {
         /* the field the daemon refused marked, its label in the page's language */
-        if (form && form.refused && e && e.message) e.message = form.refused(e.message);
+        if (form && form.refused && e && e.message) e.message = form.refused(e.message, e.field, e.label);
         fail(e);
       }).then(function () { busy(b, false); });
     };
@@ -6641,7 +6653,7 @@ function certWizard(cert, detail, opts) {
     ACME_RUNPLAN.open({id: c.id || undefined, draft: sent, name: sent.name});
   }
   /* The deployment step again, its refusal marked on its field (forms drawn anew). */
-  function backToDeploy(why, target, raw) {
+  function backToDeploy(why, target, raw, field, label) {
     if (steps().map(function (x) { return x.key; }).indexOf('deploy') < 0) return false;
     if (target) W.depRefused = {target: target, why: why};
     var draw = function () {
@@ -6649,7 +6661,7 @@ function certWizard(cert, detail, opts) {
       var at = steps().map(function (x) { return x.key; }).indexOf('deploy');
       if (at >= 0) go(at);
       var f = (W.depForms || {})[target || ''];
-      if (f && f.refused) f.refused(raw || why);
+      if (f && f.refused) f.refused(raw || why, field, label);
       else Object.keys(W.depForms || {}).forEach(function (k) { if (W.depForms[k] && W.depForms[k].check) W.depForms[k].check(); });
     };
     /* after a save the modules are asked again (forgetAll): drawn once they are here, or the
@@ -6703,7 +6715,7 @@ function certWizard(cert, detail, opts) {
               /* refused: the certificate is saved - said so, on the step where it is put right */
               if (e && !e.stopped && e.status >= 400 && e.status < 500 && e.message) {
                 var f = (W.depForms || {})[t];
-                var why = f && f.refused ? f.refused(e.message) : e.message;
+                var why = f && f.refused ? f.refused(e.message, e.field, e.label) : e.message;
                 e.raw = e.message;
                 e.message = why;
                 e.deployOf = t;
@@ -6727,7 +6739,7 @@ function certWizard(cert, detail, opts) {
     }).catch(function (e) {
       if (e && e.deployOf) {
         CT.refresh();
-        backToDeploy(e.message, e.deployOf, e.raw);
+        backToDeploy(e.message, e.deployOf, e.raw, e.field, e.label);
         toast('The certificate is saved, but its deployment to ' + e.deployOf + ' is not as set here: ' + e.message + '. Correct it below and save again.', 'bad');
         return;
       }

@@ -439,6 +439,13 @@ function acme_cert_nonce(string $part, array $info, string $try = ''): void
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
     $port = (int) ($info['port'] ?? 0);
+    /* Switched on, but nothing serves its port on any node just now (hunt M round 3): never
+       the browser sent to "connection refused". */
+    if (!empty($info['on']) && array_key_exists('ready', $info) && empty($info['ready'])) {
+        http_response_code(503);
+        echo json_encode(['ok' => false, 'error' => 'signing in with a certificate is not available just now']);
+        return;
+    }
     if (empty($info['on']) || $port < 1024 || $port > 65535 || $port === 443) {
         http_response_code(404);
         echo json_encode(['ok' => false, 'error' => 'signing in with a certificate is switched off here']);
