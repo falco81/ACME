@@ -62859,6 +62859,22 @@
   "_499": {
    "source": "the upgrade to 1.0.102",
    "text": "přechod na 1.0.102"
+  },
+  "_500": {
+   "source": "The CA certificate the server sends must be this one - set it: SCEP is often over plain HTTP. With it, the RA, the signer of the answers and the certificate that comes must all be signed by this CA. Without it, over plain HTTP acme trusts the first answer it gets (whoever is in between can answer instead).",
+   "text": "Certifikát CA, který server pošle, musí být právě tento – nastavte jej: SCEP běží často přes prosté HTTP. S ním musí být RA, podepisující odpovědí i vydaný certifikát podepsány touto CA. Bez něj acme přes prosté HTTP věří první odpovědi, kterou dostane (místo serveru může odpovědět kdokoli mezi)."
+  },
+  "_501": {
+   "source": "the certificate that came is not signed by the CA of the fingerprint - someone in between?",
+   "text": "vydaný certifikát není podepsán CA s tímto otiskem – je někdo mezi?"
+  },
+  "_502": {
+   "source": "method",
+   "text": "metoda"
+  },
+  "_503": {
+   "source": "path",
+   "text": "cesta"
   }
  },
  "patterns": {
@@ -87617,6 +87633,42 @@
   "p_346": {
    "source": "a module's secrets could not be sealed for their places: {0}",
    "text": "tajemství modulu nebylo možné zapečetit pro jejich místa: {0}"
+  },
+  "p_347": {
+   "source": "the certificate {0} sent with the CA is not signed by the CA of the fingerprint - not used",
+   "text": "certifikát {0} poslaný spolu s CA není podepsán CA s tímto otiskem – nepoužije se"
+  },
+  "p_348": {
+   "source": "the SCEP answer is signed by {0}, not signed by the CA of the fingerprint",
+   "text": "odpověď SCEP podepsal {0}, který není podepsán CA s tímto otiskem"
+  },
+  "p_349": {
+   "source": "{0} TXT: on {1}, not yet on {2}{3}",
+   "text": "{0} TXT: je na {1}, zatím není na {2}{3}"
+  },
+  "p_350": {
+   "source": "; not asked (cannot be reached from here): {0}",
+   "text": "; nedotázány (odsud nedostupné): {0}"
+  },
+  "p_351": {
+   "source": "{0} TXT: on {1}{2} - acme waits until {3}, then asks the resolvers",
+   "text": "{0} TXT: je na {1}{2} – acme čeká do {3}, pak se zeptá resolverů"
+  },
+  "p_352": {
+   "source": "{0} TXT: on {1}{2} - the resolvers are asked instead",
+   "text": "{0} TXT: je na {1}{2} – místo nich se ptá resolverů"
+  },
+  "p_353": {
+   "source": "{0} is a CNAME to \"{1}\" - not a name acme writes a record at",
+   "text": "{0} je CNAME na „{1}“ – na takové jméno acme záznam nezapíše"
+  },
+  "p_354": {
+   "source": "the {0} holds a line break",
+   "text": "{0} obsahuje zalomení řádku"
+  },
+  "p_355": {
+   "source": "the HTTP answer took more than {0} s",
+   "text": "odpověď HTTP trvala déle než {0} s"
   }
  },
  "rich": {
