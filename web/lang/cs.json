@@ -63355,6 +63355,18 @@
   "_623": {
    "source": "its request profile is gone - ask again with another one",
    "text": "jeho profil žádosti už neexistuje – požádejte znovu s jiným"
+  },
+  "_624": {
+   "source": "another site of nginx",
+   "text": "jiný web nginxu"
+  },
+  "_625": {
+   "source": "nginx could not listen",
+   "text": "nginx nemohl naslouchat"
+  },
+  "_626": {
+   "source": "nginx started again (it was not running)",
+   "text": "nginx znovu spuštěn (neběžel)"
   }
  },
  "patterns": {
@@ -88305,6 +88317,30 @@
   "p_394": {
    "source": "openssl {0} has no -iter: a PKCS#12 is made with its own count of 2048 rounds, not {1} - openssl 3.0 or later makes it stronger",
    "text": "openssl {0} nemá -iter: PKCS#12 se vytvoří s jeho vlastním počtem 2048 kol, ne {1} – openssl 3.0 nebo novější ho vytvoří silnější"
+  },
+  "p_395": {
+   "source": "the certificate's port {0} was not given to nginx on {1} ({2}): asked for again every 15 minutes",
+   "text": "port certifikátu {0} nebyl nginxu na {1} přidělen ({2}): žádá se o něj znovu každých 15 minut"
+  },
+  "p_396": {
+   "source": "the certificate's port {0} was not given to nginx ({1}): asked for again",
+   "text": "port certifikátu {0} nebyl nginxu přidělen ({1}): žádá se o něj znovu"
+  },
+  "p_397": {
+   "source": "another site of nginx listens on {0} ({1}) on {2} - choose another port",
+   "text": "na portu {0} už naslouchá jiný web nginxu ({1}) na {2} – zvolte jiný port"
+  },
+  "p_398": {
+   "source": "another site of nginx (pid {0})",
+   "text": "jiný web nginxu (pid {0})"
+  },
+  "p_399": {
+   "source": "nginx could NOT be reloaded: {0}",
+   "text": "nginx se NEPODAŘILO znovu načíst: {0}"
+  },
+  "p_400": {
+   "source": "SELinux: the port {0} is {1} (another service's) - not given to nginx; choose another port",
+   "text": "SELinux: port {0} je {1} (patří jiné službě) – nginxu nepřidělen; zvolte jiný port"
   }
  },
  "rich": {
