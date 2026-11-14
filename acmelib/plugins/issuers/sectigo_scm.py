@@ -453,11 +453,17 @@ class SectigoScmIssuer(Issuer):
         if mails:
             sc.say(self.ctx, 'SCM mails %s - someone there approves the domains' % ', '.join(mails))
         placed = placer.place_all(req, recs) if recs else []
-        if any(p.get('how') == 'placed' for p in placed):
-            placer.wait_visible(req, placed)
-        for kind, d in submit:
-            self.call('POST', '/api/dcv/v2/validation/submit/domain/%s' % kind, {'domain': d},
-                      what='the %s validation of %s' % (kind.upper(), d))
+        try:
+            if any(p.get('how') == 'placed' for p in placed):
+                placer.wait_visible(req, placed)
+            for kind, d in submit:
+                self.call('POST', '/api/dcv/v2/validation/submit/domain/%s' % kind, {'domain': d},
+                          what='the %s validation of %s' % (kind.upper(), d))
+        except BaseException:
+            # Hunt N2 (1.0.102): the held state is dropped (issue()) - the records placed are
+            # taken away first, not left in DNS with nothing knowing of them
+            placer.cleanup(req, placed)
+            raise
         if submit or recs:
             sc.say(self.ctx, 'SCM was asked to check %s (%s)' % (', '.join(todo),
                                                                  MODES.get(how, how)))

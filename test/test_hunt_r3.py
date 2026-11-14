@@ -38,12 +38,13 @@ def read(*p):
 
 class Upgrades(unittest.TestCase):
     def test_floor_raised(self):
-        self.assertEqual(E.DOWNGRADE_FLOOR, '1.0.44')
+        vt = lambda v: tuple(int(x) for x in v.split('.'))  # noqa: E731
+        self.assertGreaterEqual(vt(E.DOWNGRADE_FLOOR), (1, 0, 44))
         sh = read('install.sh')
         got = subprocess.run(['bash', '-c', "sed -n \"s/^DOWNGRADE_FLOOR = '\\([0-9.]*\\)'.*/\\1/p\" "
                               "%s/acmelib/engine/000_start.py" % ROOT],
                              capture_output=True, text=True).stdout.strip()
-        self.assertEqual(got, '1.0.44')
+        self.assertEqual(got, E.DOWNGRADE_FLOOR)
         self.assertIn('DOWNGRADE_FLOOR_NEW=', sh)
 
     def test_install_sh(self):

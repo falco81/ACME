@@ -69,12 +69,14 @@ def _logs_tick(daemon, force):
     k = 'host:logs:' + node_name()
     row = _meta_obj(store, k)
     age = time.time() - float(row.get('at') or 0)
-    if force or again != LOGS_WORK['again'] or row.get('hash') != h:
+    # A version put in since (install.sh rewrote /etc/logrotate.d/acme): once at once.
+    if force or again != LOGS_WORK['again'] or row.get('hash') != h \
+            or row.get('version') != __version__:
         pass
     elif age < (LOGS_EVERY if row.get('ok') else 600):
         return row
     LOGS_WORK['again'] = again
-    out = {'at': time.time(), 'hash': h, 'want': want, 'ok': False,
+    out = {'at': time.time(), 'hash': h, 'want': want, 'ok': False, 'version': __version__,
            'logdir': dir_size(LOG_DIR), 'state': dir_size(STATE_DIR)}
     try:
         got = root_ask('logs.ask', 'logs.ans', dict(want, do='apply'), wait=90)

@@ -393,7 +393,11 @@ class DigicertIssuer(Issuer):
             self._say('the order %s (%s) waits at DigiCert since %s - asked for again, nothing is '
                       'ordered' % (oid, held.get('how'), time.strftime(
                           '%Y-%m-%d %H:%M', time.gmtime(held.get('at') or 0))))
-            if held.get('dcv'):
+            if held.get('recs') and not held.get('dcv'):
+                # Hunt N2 (1.0.102): the placing failed last time (the DNS API, a stop) - the
+                # records kept are placed now and the check asked for, not 120 days of "pending"
+                self._place(req, slot, held, oid, placer, held['recs'])
+            elif held.get('dcv'):
                 placer.refresh(req, held['dcv'])
                 self._ask_check(oid)
         else:
@@ -539,6 +543,12 @@ class DigicertIssuer(Issuer):
                 self._say('validated in the account already, no DCV record: %s' % ', '.join(
                     r['domain'] for r in skip), 'ok')
             recs = [r for r in recs if r not in skip]
+        # the records kept before they are placed: a failed placing is done again next time
+        held['recs'] = recs
+        sc.pending_put(self.ctx, slot, req, held, ttl_days=120)
+        self._place(req, slot, held, oid, placer, recs)
+
+    def _place(self, req, slot, held, oid, placer, recs):
         held['dcv'] = placer.place_all(req, recs)
         sc.pending_put(self.ctx, slot, req, held, ttl_days=120)
         if any(p.get('how') == 'placed' for p in held['dcv']):

@@ -110,6 +110,28 @@ run() {
     "$@"
 }
 
+# /etc/logrotate.d/acme from deploy/, keeping how many logs are kept and how
+# big one grows (Settings - Disks and logs wrote them into the file there):
+# put back to 30 and 200M by an upgrade, logrotate's next run deleted every
+# log beyond 30 before the daemon wrote them again. Numbers only are carried.
+logrotate_put() {
+    local keep="" max="" tmp
+    if [[ -f "$LOGROTATE_FILE" && ! -L "$LOGROTATE_FILE" ]]; then
+        keep="$(sed -n 's/^[[:space:]]*rotate[[:space:]]\{1,\}\([1-9][0-9]\{0,3\}\)[[:space:]]*$/\1/p' "$LOGROTATE_FILE" | head -n 1 || true)"
+        max="$(sed -n 's/^[[:space:]]*maxsize[[:space:]]\{1,\}\([1-9][0-9]\{0,5\}[kMG]\{0,1\}\)[[:space:]]*$/\1/p' "$LOGROTATE_FILE" | head -n 1 || true)"
+    fi
+    if [[ -n "$DRY_RUN" ]]; then
+        note "[would write] $LOGROTATE_FILE${keep:+ (rotate $keep kept)}${max:+ (maxsize $max kept)}"
+        return 0
+    fi
+    tmp="$(mktemp)"
+    cp "$SOURCE_DIR/deploy/acme.logrotate" "$tmp"
+    if [[ -n "$keep" ]]; then sed -i "s/^\([[:space:]]*\)rotate[[:space:]]\{1,\}[0-9]\{1,\}[[:space:]]*\$/\1rotate $keep/" "$tmp"; fi
+    if [[ -n "$max" ]]; then sed -i "s/^\([[:space:]]*\)maxsize[[:space:]]\{1,\}[0-9]\{1,\}[kMG]\{0,1\}[[:space:]]*\$/\1maxsize $max/" "$tmp"; fi
+    install -D -m 0644 "$tmp" "$LOGROTATE_FILE"
+    rm -f "$tmp"
+}
+
 write_file() {      # write_file DEST MODE < content
     local dest="$1" mode="${2:-0644}" body
     body="$(cat)"
@@ -1476,7 +1498,7 @@ EOB
     fi
     install_plugin_dirs
     run install -D -m 0644 "$SOURCE_DIR/deploy/acme.service" "$UNIT_FILE"
-    run install -D -m 0644 "$SOURCE_DIR/deploy/acme.logrotate" "$LOGROTATE_FILE"
+    logrotate_put
     install_upgrader
     run systemctl daemon-reload
     if [[ -f "$UPGRADE_PATH_UNIT" ]]; then

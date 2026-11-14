@@ -83,7 +83,9 @@ MOMENT = ('sessions', 'events')                 # not carried / written by the r
 # host:*:before / host:rootkey:again - what the machine of the backup had, kept to be made again
 # on the new one (1.0.43).
 META_MOMENT = ('upgrade:', 'node:', 'maint:', 'restore', 'putback', 'conf_serial', 'sig:',
-               'host:rootkey:again:', 'host:users:before:', 'host:sshkeys:before:')
+               'host:rootkey:again:', 'host:users:before:', 'host:sshkeys:before:',
+               # every secret sealed for its place, marked when a copy is put back (1.0.102)
+               'seal:bound')
 
 
 def forgotten(r):

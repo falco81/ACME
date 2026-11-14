@@ -62783,6 +62783,26 @@
   "_461": {
    "source": "the name of an authority: letters a-z without accents, digits, spaces and . _ @ + - (120 at most), starting with a letter or a digit",
    "text": "název autority: písmena a-z bez diakritiky, číslice, mezery a . _ @ + - (nejvýš 120), začíná písmenem nebo číslicí"
+  },
+  "_462": {
+   "source": "a new key: the one kept was revoked",
+   "text": "nový klíč: ten ponechaný byl odvolán"
+  },
+  "_464": {
+   "source": "the command line that ran it is gone (killed)",
+   "text": "příkazová řádka, která ji spustila, už neběží (ukončena)"
+  },
+  "_465": {
+   "source": "the renewal at the command line was stopped before it was done (its process is gone): it is tried again",
+   "text": "obnova z příkazové řádky skončila dřív, než byla hotová (její proces už neběží): zkusí se znovu"
+  },
+  "_466": {
+   "source": "say why it is declined (--why TEXT) - the person who asked is told",
+   "text": "uveďte, proč se zamítá (--why TEXT) – žadatel se to dozví"
+  },
+  "_467": {
+   "source": "; a new one is issued at once",
+   "text": "; hned se vydá nový"
   }
  },
  "patterns": {
@@ -87337,6 +87357,46 @@
   "p_295": {
    "source": "{0}: letters a-z without accents, digits, spaces and . _ @ + - (120 at most), starting with a letter or a digit",
    "text": "{0}: písmena a-z bez diakritiky, číslice, mezery a . _ @ + - (nejvýš 120), začíná písmenem nebo číslicí"
+  },
+  "p_296": {
+   "source": "{0} is busy with another job ({1}, job {2}) - renew it when that job is done",
+   "text": "{0} má rozběhnutou jinou úlohu ({1}, úloha {2}) – obnovte ho, až ta úloha skončí"
+  },
+  "p_297": {
+   "source": "the answer is not for {0}: it lacks {1} (it is for {2}) - have it issued for the names of the CSR (or anyway, with force)",
+   "text": "odpověď není pro {0}: chybí v ní {1} (je pro {2}) – nechte ho vydat pro jména z CSR (nebo ho přesto vezměte, s force)"
+  },
+  "p_298": {
+   "source": "the key revoked could not be written down: {0}",
+   "text": "odvolaný klíč se nepodařilo zapsat: {0}"
+  },
+  "p_299": {
+   "source": "job {0} ({1} of {2}) was left by a command line that is gone: marked failed",
+   "text": "úlohu {0} ({1} pro {2}) zanechala příkazová řádka, která už neběží: označena jako selhaná"
+  },
+  "p_300": {
+   "source": "{0} is one of {1} (not {2})",
+   "text": "{0} je jedno z {1} (ne {2})"
+  },
+  "p_301": {
+   "source": "{0} - job {1}: {2}",
+   "text": "{0} – úloha {1}: {2}"
+  },
+  "p_302": {
+   "source": "revoke, then delete: job {0}",
+   "text": "odvolat, pak smazat: úloha {0}"
+  },
+  "p_303": {
+   "source": "issued: job {0}",
+   "text": "vydává se: úloha {0}"
+  },
+  "p_304": {
+   "source": "{0} is revoked at {1} ({2}) - it cannot be taken back{3}",
+   "text": "{0} se odvolá u {1} ({2}) – nelze to vzít zpět{3}"
+  },
+  "p_305": {
+   "source": "the certificate {0} is revoked at {1} ({2}) - it cannot be taken back - then deleted, with its versions and deployments",
+   "text": "certifikát {0} se odvolá u {1} ({2}) – nelze to vzít zpět – a pak smaže i s verzemi a nasazeními"
   }
  },
  "rich": {

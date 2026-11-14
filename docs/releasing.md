@@ -28,6 +28,15 @@ of `acmelib/__init__.py` that holds the version.
    `DOWNGRADE_FLOOR` in `acmelib/engine/000_start.py` too
    ([upgrades.md](upgrades.md), going back).
 
+   **A security fix raises the floor to its own version.** Every entry of
+   CHANGELOG.md that shuts a hole (one a user with fewer rights, the acme
+   account, a member of another team or nobody signed in could use) starts
+   with `- (security)`, and `DOWNGRADE_FLOOR` is then this version at least -
+   else the acme account (it writes root's helper its asks) could take the
+   server back to the version with the hole. `test/test_hunt_n2_system.py`
+   fails when the newest section with a `(security)` entry is newer than the
+   floor.
+
 2. **CHANGELOG.md**: a section `## X.Y.Z - YYYY-MM-DD` at the top, written for
    the people who run acme - the pages show it before an upgrade, and what
    going back gives up. `release.py` refuses a version without one.

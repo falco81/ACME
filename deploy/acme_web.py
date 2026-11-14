@@ -5257,6 +5257,15 @@ def notice_set(where, text):
     _put_file(path, (NOTICE_MARK if whole else '') + body)
 
 
+def notice_raw(where, body):
+    """The notice's text as notice_set() was given it, from the file it wrote: the
+    console's has every \\ doubled (agetty's escapes) - kept as written, a change on
+    trial put back doubled them again each time."""
+    if where == 'issue':
+        body = body.replace('\\\\', '\\')
+    return body.rstrip() + '\n'
+
+
 def root_keys_count():
     try:
         return len([k for k in auth_keys(auth_lines()) if k.get('readable')])
@@ -5812,7 +5821,7 @@ def sshd_do(r):
                 cur = _read_or(paths[where])
                 whole = os.path.basename(paths[where]) in ('issue', 'motd')
                 if cur is not None and (not whole or cur.startswith(NOTICE_MARK.strip())):
-                    before[where] = cur.split('\n', 1)[1] if whole else cur
+                    before[where] = notice_raw(where, cur.split('\n', 1)[1] if whole else cur)
         # Every file as it is now, put back on any failure (1.0.209): only sshd's
         # refusal was undone - a package that did not install, a notice that could
         # not be written or a reload that failed left the drop-in and PAM changed,

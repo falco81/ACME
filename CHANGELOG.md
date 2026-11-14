@@ -33,37 +33,37 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   where the pages refuse it (imported, moved, self-signed, being revoked now); new `--revoke NAME
   --reissue`, `--cert-del NAME --revoke-first`, `--cert-keep NAME`, `--approve NAME` and
   `--decline NAME --why TEXT` (docs/command-line.md).
-- **Nobody approves a request of their own - on either side.** One who sends a new CSR or other
+- (security) **Nobody approves a request of their own - on either side.** One who sends a new CSR or other
   names for a request is one of those who asked for it: a member who may manage sent his own CSR
   with a name of another team's for someone else's request, and approved it himself. The
   administration's Approve now refuses the one who asked too (by the account's name, its name
   without the domain, its mail) - a certificate administrator who also signs in to the portal
   approved his own wildcard there and took its key on the portal. A full administrator is no
   exception: one who needs a certificate adds it in the administration.
-- **A name another team's certificate holds is approved by that team.** A request that waits
+- (security) **A name another team's certificate holds is approved by that team.** A request that waits
   because of it is approved only by someone who may approve (or manage) for the team holding
   the name, or by a full administrator - an approver of the asker's own team let it through and
   the asker took the key. The approval windows (portal and administration) say whose names they
   are; the holding team is told (an event, and a mail to its contact address).
-- **A new CSR sent on the portal while a job works on the certificate** is refused (409) with
+- (security) **A new CSR sent on the portal while a job works on the certificate** is refused (409) with
   nothing of it kept - it was kept, and the job running then issued the old one.
-- **CSRs made to get past a request profile are refused:** two extension requests (acme checked
+- (security) **CSRs made to get past a request profile are refused:** two extension requests (acme checked
   the last, OpenSSL and a CA taking the CSR as it is read the first - a UPN with smart-card
   logon), an attribute or extension twice, a UPN or another otherName, a directory name, an OID,
   an x400 or EDI party name or a name that does not read, a certificate authority asked for
   (`CA:TRUE`), and - for a source that takes the CSR as it is - extended key usages the profile
   does not give.
-- **A scoped session is not told of another team's certificates:** the targets' list says
+- (security) **A scoped session is not told of another team's certificates:** the targets' list says
   "another owner's certificate" for the one whose key a device makes and a generic phrase for a
   target's last error naming one; a name taken by another team's certificate, or a device making
   its key, is refused without naming it.
-- **A scoped certificate administrator gives no names another team's certificates hold** to a
+- (security) **A scoped certificate administrator gives no names another team's certificates hold** to a
   certificate in the administration (refused in words, as the portal makes such a request wait);
   a full administrator, or one who sees every certificate, may.
 
 ## 1.0.101 - 2026-11-14
 
-- **More of root's ways only from acme's signed word, each done once.** With `db_guard` on, the
+- (security) **More of root's ways only from acme's signed word, each done once.** With `db_guard` on, the
   root helper now also makes a local user, gives one a password or `sudo`, and adds a key of a
   member of wheel/sudo only from a signed row of the database (`host:users:want:*`,
   `host:sshkeys:want:*`), as it does root's own keys. Each signed ask is done once: a cleared
@@ -83,13 +83,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   checked against their signatures once every node runs 1.0.101 (as the portal's settings).
 - **`guard.json` no longer grows with every sign-in.** The counters seen of sign-ins that are
   over are taken out with their signatures.
-- **`/healthz` no longer says the node's name** to anybody: `ok up`, `maintenance`,
+- (security) **`/healthz` no longer says the node's name** to anybody: `ok up`, `maintenance`,
   `degraded: replication ...`, `down: ...`. A balancer matching `^ok ` (as the guides say) is
   unaffected; the balancer guide's check on the pages shows the new answers.
 - **An IP address on a validation that proves names in DNS only** (DNS-01) is refused when the
   certificate is saved, in words, not later by the CA. A pattern of names (`.0.1`, `*.0.0.1`)
   never chooses the validation of an IP address - only the address's own key does.
-- **A key of root's only from acme's signed word, with the guard against writes to the
+- (security) **A key of root's only from acme's signed word, with the guard against writes to the
   database on.** The root helper (`acme_web.py`) added any key line the `acme` account wrote
   into its folder to root's `authorized_keys`. With `db_guard` on, it now adds one only when the
   ask carries the database row it comes from (`host:sshkeys:want:*`) with acme's signature of
@@ -101,14 +101,14 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   plainly that the `acme` account can then add a key of root's (*SSH keys*, *High security* -
   *What the acme account can do as root*). Even with the guard on this is defence in depth:
   `acme` holds `secrets.key` and may write `config.json`.
-- **Less said without a sign-in.** `GET /api/acme-push/hello` (relayed with no sign-in) no
+- (security) **Less said without a sign-in.** `GET /api/acme-push/hello` (relayed with no sign-in) no
   longer gives the exact version while *Certificates from acme* is switched off; switched on,
   it says as much as the protocol always has. The daemon's `/api/health` asked without the API
   token no longer says the node's name or whether any account exists. The pages and
   `/healthz` ask with the token and are unchanged.
 - **Signing out of the portal ends a portal sign-in only.** `POST /api/portal/logout` ended
   any sign-in whose token it was given, an administrator's too.
-- **The portal under the guard against writes to the database.** With `db_guard` on, only the
+- (security) **The portal under the guard against writes to the database.** With `db_guard` on, only the
   administration's sign-ins were signed: a portal sign-in written into the database past acme
   (with `portal_cert_keys` set the same way) handed out every certificate's private key. Every
   sign-in is signed now and checked at each request; the portal's directory is asked only as
@@ -123,15 +123,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   the portal again. Gone back below 1.0.101 and up again, the portal's settings saved meanwhile
   (unsigned) are signed once more as they are - each node keeps in `guard.json` the version
   that wrote it last - instead of being refused as written past acme (*High security*).
-- **Session cookies `__Host-acme_session` and `__Host-acme_portal` over https.** A cookie of the
+- (security) **Session cookies `__Host-acme_session` and `__Host-acme_portal` over https.** A cookie of the
   same name planted by a sibling host or over http was sent first and taken: the person then
   worked in somebody else's account. The cookies are `__Host-` now (Secure, `Path=/` - the
   administration's no longer of `/admin/` alone - no `Domain`), and a request with two cookies
   of one name counts as signed out. Plain http (a test server) keeps the old names. **After the
   upgrade everybody signs in again** (the old cookies are not read over https).
-- **The portal's one-time code typed, a new sign-in.** As the second step does, the sign-in the
+- (security) **The portal's one-time code typed, a new sign-in.** As the second step does, the sign-in the
   password opened is ended and a new one handed out.
-- **The second step switched on ends the portal sign-ins without it.** `admin_2fa` switched on
+- (security) **The second step switched on ends the portal sign-ins without it.** `admin_2fa` switched on
   (or the portal's code for acme's own accounts taken away while it is on) ended the
   administration's sign-ins only; a portal sign-in of acme's own account, made with the password
   alone, kept seeing - with *Administrators see every certificate* - every certificate.
@@ -163,7 +163,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   validations (`challenge_map`) took an IPv4 address but refused an IPv6 one; an address is
   accepted and written as the names are (`2001:DB8:0::10` as `2001:db8::10`), and What happens
   checks a draft's map the same way (it took it unchecked).
-- **What happens hands no secret that is JSON to the module.** Only members with secret-sounding
+- (security) **What happens hands no secret that is JSON to the module.** Only members with secret-sounding
   names (password, private_key, ..._token) of a secret written as JSON were stand-ins: `pwd`,
   `apiToken`, `accessKey` and a list of passwords reached the module as they were. Every string
   in it is a stand-in now, but for those that say where and who (URLs, e-mails, domains, the
@@ -177,7 +177,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   commands now forget them, as the rebuild on the pages has done; a node joining a shared
   cluster (pages or command line), whose `secrets.key` is replaced, starts from an empty
   `guard.json` as well.
-- **What happens: the recording's process kept in bounds.** A module's own code runs there. Its
+- (security) **What happens: the recording's process kept in bounds.** A module's own code runs there. Its
   memory is limited (1 GB of memory it writes, `ACME_PLAN_MEM_MB` - not of its address space,
   so a module may start threads; two malloc arenas at most), its processor time and the
   size of a file it writes too; what the daemon reads back from it is capped (the process is
@@ -197,7 +197,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   list of older versions and `acme --downgrade` now name the settings to switch off first; and
   with the guard against writes to the database on, the portal's sign-in settings stand in the
   way of 1.0.100 (its settings are signed only from 1.0.101).
-- **A deployment's option of text is one line.** A certificate administrator could put a line
+- (security) **A deployment's option of text is one line.** A certificate administrator could put a line
   break into Cisco Catalyst 9800's *Webauth parameter map*; it went into the controller's
   configuration mode as more lines (a privilege-15 user, say) at the next deployment. Saving a
   deployment now refuses a line break or another control character in any text option of any
@@ -207,12 +207,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   (`pattern=`), checked for a value given or changed only (as a number's minimum and maximum:
   a value saved before that the device took does not block every later save of the
   deployment); the test of a deployment checks the same.
-- **MOMCertImport.exe is a full administrator's.** Operations Manager's *MOMCertImport.exe* is
+- (security) **MOMCertImport.exe is a full administrator's.** Operations Manager's *MOMCertImport.exe* is
   run as Administrator; a certificate administrator could point it at another program, or one
   on a share (`\\host\share\x.exe`). It is set by a full administrator only now, as the
   commands and the Windows Admin Center installer are, and it must be a path on a drive of the
   server ending in `\MOMCertImport.exe` - no share, no WebDAV, no `..`.
-- **A part of a device's address is one part.** Options that become a part of the path of a
+- (security) **A part of a device's address is one part.** Options that become a part of the path of a
   device's API - Kubernetes' namespace, secret and deployments to restart, NetScaler's certkey
   and virtual servers, F5's partition and profiles, A10's templates, FortiGate's virtual IPs
   and profiles, NSX's virtual servers, Barracuda WAF's services, NGINX Unit's listeners,
@@ -231,7 +231,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   (`MsvAvTargetName`) was `HTTP/` and the name the server's own challenge said; a relay
   forwarding the real CA's challenge got a name the CA accepted. It is the host of the address
   given now. Over https with the check of the certificate on, channel binding protected already.
-- **AD CS: the CA certificate of the web server is the only one trusted.** It was trusted
+- (security) **AD CS: the CA certificate of the web server is the only one trusted.** It was trusted
   besides the system's CAs, unlike everywhere else in acme; a public CA's certificate for the
   name was taken too. When given, it is the only one (the field's help says so); empty, the
   system's CAs as before.

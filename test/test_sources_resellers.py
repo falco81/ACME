@@ -221,6 +221,28 @@ class TestSectigoScm(Contract, Base):
         self.check('sectigo_scm', ctx.calls)
         self.assertFalse(any('csec' in w or 'TOK' in w for _l, w in ctx.steps))
 
+    def test_failed_submit_takes_the_records_away_hunt_n2(self):
+        """Hunt N2 (1.0.102): a submit that fails after the records were placed - they are taken
+        away before the held state is dropped."""
+        h0, st = self.server()
+        fail = {'n': 1}
+
+        def h(method, url, body, headers, cc):
+            if '/validation/submit/domain/' in url and fail['n']:
+                fail['n'] -= 1
+                return 503, {}, {'description': 'temporarily unavailable'}
+            return h0(method, url, body, headers, cc)
+        ctx = CannedContext(h)
+        board = Board()
+        s = self.issuer(ctx)
+        req = req_for(['www.firma.cz'], challenges={'www.firma.cz': board})
+        with self.assertRaises(PluginError):
+            s.issue(req)
+        self.assertIn(('cname', '_abc123.www.firma.cz', 'c1.d2.sectigo.com'), board.log)
+        self.assertEqual(board.cname, {})
+        out = s.issue(req)                              # the next try starts anew
+        self.check_issued(out, req)
+
     def test_validated_skipped_and_http_file_and_waiting_kept(self):
         h, st = self.server(validated={'firma.cz'}, issue_after=3)
         ctx = Files(h)

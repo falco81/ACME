@@ -210,8 +210,10 @@ Going back is refused below the highest of these
   still counts after going back from it;
 - of any version installed on this machine - install.sh keeps it in
   `/usr/local/lib/acme/downgrade-floor` (beside `versions/`, not in a tree),
-  root's alone (1.0.44 raised the floor to 1.0.44: its root helper shuts holes
-  the older ones have). The acme account cannot
+  root's alone (1.0.102 raised the floor to 1.0.102: it and 1.0.101 shut holes
+  of the root helper, the approvals and the seals the older ones have; every
+  version with an entry marked `(security)` in CHANGELOG.md raises it to
+  itself, [releasing.md](releasing.md)). The acme account cannot
   lower it, so nobody who has only the pages (or the acme account) can take the
   server back to a version with a hole a later one fixed. An older version's
   install.sh leaves it as it is.

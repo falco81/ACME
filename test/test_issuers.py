@@ -1056,6 +1056,9 @@ class MockScep(object):
         self.pending = pending
         self.held = {}
         self.ops = []
+        self.cacert = None              # what GetCACert sends, when not its RA and CA
+        self.dec = None                 # (cert file, key file) requests are decrypted with
+        self.sign_as = None             # (cert PEM, key file) CertReps are signed with
         self.server = Server(self._handler())
         self.base = self.server.base + '/scep/pkiclient.exe'
 
@@ -1071,7 +1074,8 @@ class MockScep(object):
             # the request's signature verified by openssl
             content = openssl(['cms', '-verify', '-inform', 'DER', '-noverify', '-binary'], req_der)
             assert content == msg.content and msg.digest_ok()
-            inner = openssl(['cms', '-decrypt', '-inform', 'DER', '-recip', self.ra_crt, '-inkey', self.ra_key,
+            dec = self.dec or (self.ra_crt, self.ra_key)
+            inner = openssl(['cms', '-decrypt', '-inform', 'DER', '-recip', dec[0], '-inkey', dec[1],
                              '-binary'], content)
             mtype = msg.attr_text(p7.OID_SCEP_MESSAGE_TYPE)
             tid = msg.attr_text(p7.OID_SCEP_TRANSACTION_ID)
@@ -1103,8 +1107,9 @@ class MockScep(object):
                 leaf = self.ca.sign_csr(status[1], ['dev01.example.local'])
                 degen = p7.build_degenerate([p7.cert_der(leaf)])
                 content = p7.build_enveloped(cr, degen, signer, 'aes256')
-            ra_key_file = cr.file(rd(self.ra_key))
-            return p7.build_signed(cr, content, p7.cert_der(self.ra_pem), ra_key_file, attrs, 'sha256')
+            sign_as = self.sign_as or (self.ra_pem, self.ra_key)
+            ra_key_file = cr.file(rd(sign_as[1]))
+            return p7.build_signed(cr, content, p7.cert_der(sign_as[0]), ra_key_file, attrs, 'sha256')
         finally:
             cr.close()
 
@@ -1119,7 +1124,7 @@ class MockScep(object):
                 if op == 'GetCACaps':
                     return self.send(200, '\n'.join(app.caps), 'text/plain')
                 if op == 'GetCACert':
-                    d = p7.build_degenerate([p7.cert_der(app.ra_pem), p7.cert_der(app.ca.pem)])
+                    d = p7.build_degenerate(app.cacert or [p7.cert_der(app.ra_pem), p7.cert_der(app.ca.pem)])
                     return self.send(200, d, 'application/x-x509-ca-ra-cert')
                 if op == 'PKIOperation':
                     app.ops.append('GET')
@@ -1216,6 +1221,42 @@ class TestScep(unittest.TestCase):
             self.assertEqual(p7.Cert(got.cert_pem).spki_der, p7.csr_spki(r.csr_der))
         finally:
             srv.close()
+
+    def test_pinned_ca_hunt_n2(self):
+        """Hunt N2 (1.0.102): with a pinned CA only what that CA signed is trusted - an RA sent
+        next to it, the signer of the CertRep and the certificate that comes are checked by their
+        signatures, not by names (the impostor CA has the same name)."""
+        real = MockScep()
+        mitm = MockScep()                   # whoever is in between: an impostor CA of the same name
+        try:
+            pin = p7.Cert(real.ca.pem).fingerprint()
+            iss = ScepIssuer({'url': mitm.base, 'challenge': MockScep.PASSWORD, 'ca_fingerprint': pin},
+                             self.ctx)
+            # 1. its own RA next to the genuine CA: not used, the request is encrypted to the CA
+            mitm.cacert = [p7.cert_der(mitm.ra_pem), p7.cert_der(real.ca.pem)]
+            ca, rcpt, certs = iss.ca_certs()
+            self.assertEqual((rcpt.der, certs), (ca.der, [ca.der]))
+            with self.assertRaises(PluginError):
+                iss.issue(self.req())
+            self.assertEqual(mitm.ops, [])              # it could not read the challenge password
+            # 2. the genuine RA, but a CertRep signed by the impostor's RA
+            mitm.cacert = [p7.cert_der(real.ra_pem), p7.cert_der(real.ca.pem)]
+            mitm.dec = (real.ra_crt, real.ra_key)
+            with self.assertRaises(PluginError) as cm:
+                iss.issue(self.req())
+            self.assertIn('not signed by the CA of the fingerprint', str(cm.exception))
+            # 3. signed as the genuine RA, but the certificate from the impostor CA
+            mitm.sign_as = (real.ra_pem, real.ra_key)
+            with self.assertRaises(PluginError) as cm:
+                iss.issue(self.req())
+            self.assertIn('certificate that came is not signed', str(cm.exception))
+            self.assertEqual(mitm.ops, ['19', '19'])
+            # without a pin the help says what plain HTTP trusts
+            f = next(f for f in ScepIssuer.fields if f['key'] == 'ca_fingerprint')
+            self.assertIn('trusts the first answer', f['help'])
+        finally:
+            mitm.close()
+            real.close()
 
 
 class TestHunt102(unittest.TestCase):

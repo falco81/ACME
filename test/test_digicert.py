@@ -217,6 +217,31 @@ class TestCertCentral(Base):
         self.assertEqual(state['orders'], 1)
         self.assertEqual(board.txt, {'_dnsauth.www.firma.cz': [], '_dnsauth.firma.cz': []})
 
+    def test_failed_placing_placed_again_hunt_n2(self):
+        """Hunt N2 (1.0.102): the DNS API failed once while placing - the held order keeps its
+        records, the next run places them and asks for the check (not 120 days of pending)."""
+        class Flaky(Board):
+            fail = 1
+
+            def add_txt(self, fqdn, value):
+                if self.fail:
+                    self.fail -= 1
+                    raise PluginError('the DNS API said 500')
+                return Board.add_txt(self, fqdn, value)
+        h, state = self.central(issue_after=1)
+        ctx = CannedContext(h)
+        board = Flaky()
+        d = self.issuer(ctx, product='ssl_dv_geotrust_flex', allow_paid=True, wait_issue=0)
+        req = req_for(['www.firma.cz'], challenges={'www.firma.cz': board})
+        with self.assertRaises(PluginError):
+            d.issue(req)
+        self.assertEqual((state['orders'], state['checked'], board.log), (1, 0, []))
+        out = d.issue(req)
+        self.check_issued(out, req)
+        self.assertEqual(state['orders'], 1)
+        self.assertEqual(state['checked'], 1)
+        self.assertEqual(board.log, [('txt', '_dnsauth.www.firma.cz', 'RANDOM1')])
+
     def test_cname_and_validated_domains(self):
         h, state = self.central(validated=['firma.cz'], domain_tokens=True)
         ctx = CannedContext(h)
