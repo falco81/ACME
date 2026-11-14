@@ -462,7 +462,7 @@ def cl_http_get(url):
     for ip in addrs:
         why = cl_addr_no(ip)
         if why:
-            raise ValueError('%s is %s, a %s address - no CRL is fetched from it' % (host, ip, why))
+            raise ValueError('%s is %s (%s) - no CRL is fetched from it' % (host, ip, why))
     path = (u.path or '/') + ('?' + u.query if u.query else '')
     last = None
     for ip in addrs[:4]:
@@ -876,6 +876,8 @@ def cl_cas_drop(store, sha, by, keep=None):
     if len(hit) != 1:
         return None
     left = [c for c in cas if c is not hit[0]]
+    if not left:
+        sso_last_way_check(store, 'certificate')        # ValueError: the last way in
     cl_cas_save(store, left, by, keep, '%s took the authority %s away from the sign-in with a '
                 'certificate%s' % (by, hit[0]['subject'], '' if left else
                                    ' - nobody signs in with a certificate until another is put in'))
@@ -1274,8 +1276,30 @@ def sso_signin_modes(part, store=None):
         return 'off' if not i.get('on') else ('auto' if i.get('auto') else 'button')
     k, c = krb_page_info(part, store), cl_page_info(part, store)
     got = {'windows': mode(k), 'certificate': mode(c)}
+    # What the page decides by, as the kit's pseudo-code has it: on / auto (Windows), cert /
+    # cert_port / cert_auto, only (no password at all in effect).
     return dict(got, password=not krb_password_off(part, store),
-                order=[w for w in SSO_AUTO_ORDER if got[w] == 'auto'])
+                order=[w for w in SSO_AUTO_ORDER if got[w] == 'auto'],
+                on=bool(k['on']), auto=bool(k['auto']), only=bool(k['only'] or c['only']),
+                cert=bool(c['on']), cert_port=c['port'], cert_auto=bool(c['auto']))
+
+
+def sso_last_way_check(store, way):
+    """Before the keytab (way 'windows') or the last authority ('certificate') is taken away:
+    ValueError while it alone signs people in to a part with "no password at all" in effect -
+    nobody would get in. The switch itself may go off (the passwords come back with it)."""
+    for part in KRB_PARTS:
+        if not krb_password_off(part, store):
+            continue
+        mine = krb_usable(part, store) if way == 'windows' else cl_usable(part, store)
+        other = cl_usable(part, store) if way == 'windows' else krb_usable(part, store)
+        if mine and not other:
+            raise ValueError('%s alone signs people in to %s with no password at all - switch "no '
+                             'password at all" off first (acme --set %s_password_off=0), or put '
+                             'the other way on' % ('Windows' if way == 'windows' else
+                                                   'the certificate',
+                                                   'these pages' if part == 'admin' else
+                                                   'the enrolment pages', part))
 
 
 def cl_session_gone(part, s, store):
@@ -1744,7 +1768,10 @@ def _certlogin_do(h):
             'those authorities are put in already'
         return {'message': msg, 'added': added, 'view': cl_view(h)}
     if act == 'drop':
-        gone = cl_cas_drop(h.store, b.get('sha256'), s['name'], keep=s.get('id'))
+        try:
+            gone = cl_cas_drop(h.store, b.get('sha256'), s['name'], keep=s.get('id'))
+        except ValueError as e:
+            raise ApiError(409, str(e))
         if not gone:
             raise ApiError(404, 'there is no such authority to take away')
         return {'message': 'the authority is taken away', 'gone': gone, 'view': cl_view(h)}

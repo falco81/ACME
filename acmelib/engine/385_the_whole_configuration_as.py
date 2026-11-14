@@ -600,9 +600,15 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
             said['keytab of the sign-in with Windows'] += 1
         elif isinstance(krb_in, dict) and replace and not krb_in.get('entries') and \
                 krb_keytab_row(store):
-            krb_keytab_drop(store, by, keep=keep_session)
-        if cl_import_apply(store, cl_pems, by, replace, keep=keep_session):
-            said['authorities of the sign-in with a certificate'] += 1
+            try:
+                krb_keytab_drop(store, by, keep=keep_session)
+            except ValueError as e:                     # the last way in kept (1.0.100)
+                store.add_event('settings', 'the keytab was kept: %s' % e, 'warn', who=by)
+        try:
+            if cl_import_apply(store, cl_pems, by, replace, keep=keep_session):
+                said['authorities of the sign-in with a certificate'] += 1
+        except ValueError as e:                         # the last way in kept (1.0.100)
+            store.add_event('settings', 'the last authority was kept: %s' % e, 'warn', who=by)
         if fw is not None:
             fw_trial_begin(store, by)
             store.set_meta('fw:conf', json.dumps(dict(fw, at=time.time(), by=by)))

@@ -25,12 +25,29 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
    for signing in (*Client Authentication* or *Smart Card Logon*), no critical extension it does
    not know, not an authority's own certificate, revocation, and the UPN in the Subject
    Alternative Name.
-3. **Revocation fails closed.** The CRL at the certificate's CRL Distribution Point (http only,
-   no link-local address) is fetched **only for a certificate whose chain is good** - never an
-   address written into anybody's certificate - kept until its next update, its signature and
-   its dates checked by openssl. A CDP that does not answer: the last CRL while it is still good,
-   then no sign-in. It can be switched off per part (`*_certlogin_crl`): a lost card then signs
-   in until its account is switched off in AD - the card says so.
+3. **Revocation fails closed - and is seen within ten minutes.** The CRL at the certificate's
+   CRL Distribution Point is fetched **only for a certificate whose chain is good** - never an
+   address written into anybody's certificate - and so is the CRL of **every authority above
+   it** but the root (`openssl verify -crl_check_all`: an issuing authority its root revoked signs
+   nobody in; a root, its own anchor, needs no CDP - an issuing authority whose certificate names
+   no http CDP is refused, as a person's is). Where the certificate or its CRL names a **delta CRL**
+   (*Freshest CRL*, 2.5.29.46 - AD CS publishes a base CRL weekly and a delta daily by default) it
+   is fetched as well and applied (`-use_deltas`); one named and not to be had is no sign-in. A
+   CRL is kept **ten minutes at most** (`CL_CRL_FRESH_S`), or until its next update when that is
+   sooner, then fetched again; its signature and dates are checked by openssl. **The lag**: a
+   certificate revoked at the authority stops signing in once the authority has *published* a CRL
+   (base or delta) with it, plus at most ten minutes - so with AD CS's defaults up to a day (the
+   delta's period) unless a CRL is published by hand (`certutil -CRL`) after revoking a lost
+   card. A CDP that does not answer: the last good CRL until its next update, then no sign-in.
+   Where a CRL is fetched from: **http only**, no user or password in it, and **every address its
+   name resolves to** is checked as it is fetched - no loopback, link-local (169.254.0.0/16,
+   fe80::/10 - a cloud's metadata service), multicast, unspecified or reserved address, no
+   metadata name (`metadata.google.internal`, ...), numbers in any form (`2852039166`,
+   `0251.0376.0251.0376`) read as the resolver reads them; **private addresses (RFC 1918,
+   fc00::/7) are fetched from** - AD CS's CDPs are inside. The connection goes to the address
+   checked (never looked up again), **no redirect is followed**, 8 MB and 15 s at most. It can be
+   switched off per part (`*_certlogin_crl`): a lost card then signs in until its account is
+   switched off in AD - the card says so.
 4. **One person, one account.** The UPN is looked up in that part's directory
    (`userPrincipalName`); the account is then found by its **sAMAccountName**, exactly as a
    password or a Kerberos ticket finds it, and **the two entries must be the same DN**. Whichever
@@ -38,9 +55,18 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 5. **The SID (KB5014754).** Since May 2022 AD CS writes the account's SID into each certificate it
    issues from AD (`szOID_NTDS_CA_SECURITY_EXT`, 1.3.6.1.4.1.311.25.2). A UPN can be given to
    somebody else; the SID cannot be moved. *Which account a certificate is*
-   (`*_certlogin_match`): **compat** (the default) - the SID must be the account's `objectSid`
-   when it is in the certificate; **strong** - it must be there (Microsoft's full enforcement);
-   **upn** - the UPN alone.
+   (`*_certlogin_match`): **strong** (the default) - it must be there and be the account's
+   `objectSid` (Microsoft's full enforcement, what Windows' domain controllers require since
+   September 2025); **compat** - it must be the account's when it is in the certificate; **upn**
+   - the UPN alone. compat and upn are **opt-downs**, warned on the card (*Not strong*): on any
+   template of an authority put in that has Client Authentication and lets the requester supply
+   the subject or the SAN (ESC1), the authority adds no SID extension, and whoever may enrol
+   signs in as whatever UPN they write - a full administrator too. **Only the extension counts**:
+   a SID in the Subject Alternative Name (an otherName 1.3.6.1.4.1.311.25.2.1, or the URL
+   `tag:microsoft.com,2022-09-14:sid:<SID>`) is written by the requester and is never taken for
+   it - strong refuses a certificate with no SID extension whatever its SAN says; one whose SAN
+   SID is not the extension's is refused in every mode, and compat refuses one whose SAN SID is
+   not the account's.
 6. **Only accounts of the directory**, by the same rules as a password: the administration - the
    role of the first group of a role they are in (an account switched off, locked, expired, more
    than one entry: refused; a local account of acme of the same name keeps its password); the
@@ -49,10 +75,14 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
    administration's second step ([admin-second-step.md](admin-second-step.md)) and the portal's
    one-time code are asked after it every time.
 8. **Login CSRF closed.** The button first asks the page (POST, the page's own JSON) for a nonce:
-   random, bound by a MAC to the part (keyed with the daemon's API token), five minutes, in an
-   `HttpOnly SameSite=Strict` cookie of the page's path, one use. On the port the nonce of the
-   address must be the cookie's, compared in constant time - a link of somebody else's signs
-   nobody in with whatever certificate the browser has.
+   random, five minutes, bound by a MAC (keyed with the daemon's API token) to the part **and to
+   a random value of this browser's own** in a `__Host-acme_certn_<part>` cookie (`HttpOnly`,
+   `SameSite=Strict`, `Secure`, path `/`, no `Domain`: neither a sibling name nor a page over
+   http can plant one). On the port the nonce's MAC must be good for the cookie's value - a link
+   of somebody else's, or a nonce of another browser with its cookie planted, signs nobody in.
+   **Once in the whole cluster**: the daemon keeps the nonce's random part (as Kerberos'
+   authenticator, a row of each node in the shared database, five minutes and a half) - sent
+   again, from wherever, it is refused (*the nonce of the page was used already*).
 9. **Refused - said by kind only.** Back on 443 the page says *Certificate sign-in refused:* and
    one of *certificate not accepted*, *revoked*, *run out*, *not allowed*, *not available just
    now* (or *not started from this sign-in page*). The address carries only that kind
@@ -68,9 +98,20 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
     they are put in: in effect (closed, never open). The way back, as root:
     `acme --set admin_password_off=0`.
 11. **Sign-ins end with what opened them.** The sessions say how they were made (`how:
-    certificate`, shown by `whoami`). This part switched off, or its last authority taken away,
-    ends the sign-ins made with a certificate - but the one of whoever did it; "no password at
-    all" coming into effect ends those made with a password.
+    certificate`, shown by `whoami`) and, for a certificate, the authorities of its chain. This
+    part switched off, or its last authority taken away, ends the sign-ins made with a
+    certificate; **an authority taken away** ends those made with a certificate of it (in both
+    parts); **certificates taken more strictly** - revocation switched on, the matching made
+    stricter (upn → compat → strong) - end that part's sign-ins made with a certificate. Always
+    but the one of whoever did it. "No password at all" coming into effect ends those made with a
+    password.
+12. **Name constraints, for the UPN too.** openssl applies an authority's `nameConstraints` to
+    the names it knows (DNS, e-mail, ...) - **not to the UPN**, an otherName: an authority
+    constrained to `partner.example` would still sign in `nested@corp.example`. acme does it:
+    an authority of the chain constraining rfc822Name, dNSName (or the UPN's own otherName)
+    takes the UPN only within one permitted subtree of those (`partner.example` - that host;
+    `.partner.example` - under it; a dNSName - the domain and under it) and in none excluded.
+    Other kinds of constraints (a directory name, an address) are left to openssl.
 
 ## What the person sees
 
@@ -83,7 +124,7 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
   out**, after a **refusal** or a **certificate not chosen** (back with `?certsaid=`), nor with
   `?nocert`; and in any case at most once in ten minutes and three times a tab - a setup where
   the sign-in never sticks (or the browser's own error page and Back) never loops. With Windows
-  by itself too: see *Combining Windows and a certificate* below.
+  by itself too: see *The sign-in page - the variants* below.
 - The browser goes to `https://<the name>:8443/...`, shows its certificate chooser (Windows: the
   card's PIN), and comes back to the page on 443 **signed in** - then the second step or the
   one-time code, as after a password.
@@ -98,9 +139,9 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 | `admin_certlogin` - *Sign administrators in with a certificate* | off | The switch; means something only once a directory is chosen for administrators. |
 | `admin_certlogin_auto` - *...by itself when the sign-in page opens* | off | On: the page goes to the certificate at once (above); off: the button. |
 | `certlogin_port` - *The certificate's own port* | 8443 | **One port for both parts** (the nonce and the address say which part). 80, 443, 22, 53, 161, 1812, 5432, 3306, acme's API, its SSH gate, its DNS server's and SNMP's ports are refused, and so is a port **another program listens on** (below). 8443 is SELinux's `http_port_t` already; another port is given to nginx with `semanage port -a -t http_port_t`. |
-| `admin_certlogin_match` - *Which account a certificate is* | compat | compat / strong / upn (rule 5). |
+| `admin_certlogin_match` - *Which account a certificate is* | strong | strong / compat / upn (rule 5) - compat and upn are opt-downs, warned on the card. |
 | `admin_certlogin_crl` - *Check that a certificate is not revoked (CRL)* | on | Rule 3. |
-| `admin_password_off` - *...and no password at all - only Windows or a certificate* | off | Rule 10. **One switch of both ways**: the same in this card and in the card of Windows. |
+| `admin_password_off` - *No password at all - only Windows or a certificate* | off | Rule 10. In the card **The sign-in page** (*Accounts*) - one switch of both ways. |
 
 ### The portal - *Settings → The enrolment pages → Signing in with a certificate*
 
@@ -108,8 +149,8 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 |---|---|---|
 | `portal_certlogin` - *Sign people in with a certificate* | off | The portal's own switch; the portal must be on, and a directory set for it. |
 | `portal_certlogin_auto` - *...by itself when the portal opens* | off | As the administration's, for the portal. |
-| `portal_certlogin_match`, `portal_certlogin_crl` | compat, on | As the administration's, for the portal. |
-| `portal_password_off` - *...and no password at all on the portal - only Windows or a certificate* | off | As the administration's, for the portal - one switch of both ways. |
+| `portal_certlogin_match`, `portal_certlogin_crl` | strong, on | As the administration's, for the portal. |
+| `portal_password_off` - *No password at all on the portal - only Windows or a certificate* | off | As the administration's, in the portal's card **The sign-in page**. |
 
 **Alerts**: *Alerts and reports → Sign-ins with a certificate refused* (`alerts_certlogin`, off)
 mails each refusal, of either part.
@@ -124,9 +165,6 @@ switched on, the other part's address there answers that it is off.
 
 Under each part's switches, as otp's (*the authorities* are shared):
 
-- **the sign-in page** of that part as it is now - the same table in the card of Windows: *a
-  password* yes or no, *Windows* and *a certificate* each **a button**, **at once** or **off**,
-  and, with both at once, the order;
 - each fact of that part: the port, the directory, how a certificate is matched, revocation, the
   second step or code after it, the other part;
 - **the authorities** - subject, issued by, valid to, SHA-256; **Put in an authority…** (PEM,
@@ -143,49 +181,87 @@ Under each part's switches, as otp's (*the authorities* are shared):
   nginx listening on the port, or **the program that holds the port there**;
 - the guides: the AD CS template, a YubiKey, the browsers and the network.
 
-## Combining Windows and a certificate
+## The sign-in page - the variants
 
-Both ways may be on for the same part, each by its own switches, with or without a password:
+A password, Windows (Kerberos) and a certificate fit on one sign-in page; each part (the
+administration, the portal) by its own switches. The rules, whatever is set:
+
+1. **Everything new is off by default** - an installation that sets nothing has the name and
+   password form and nothing else.
+2. **The password stays** until it is switched off on purpose (*No password at all*); Windows and
+   the certificate are added beside the form.
+3. **One person, one account**: a password, a Windows ticket and a certificate all land in the
+   same account of the directory (its `sAMAccountName`); a local account of the same name keeps
+   its password and is never signed in by Windows or a certificate.
+4. **The second step** (the administration) **or the one-time code** (the portal) is asked after
+   every way, every time - and the other ways' buttons are not on that screen.
+5. **Nothing is tried by itself twice**: per browser tab (`sessionStorage`: Windows tried, the
+   certificate tried, signed out), never after *Sign out*, never after a refusal; `?certsaid=`
+   is shown as text and taken out of the address.
+6. **Refusals say why** on the page (the kind - *not allowed*, *revoked*, ...), the whole reason
+   in *Events*.
+7. **Never locked out**: *No password at all* is in effect only while Windows or a certificate is
+   on; the keytab, or the last authority, cannot be taken away while it alone signs people in to
+   a part with no password; the way back as root is `acme --set admin_password_off=0`
+   (`portal_password_off=0`).
+
+The variants (the same for `/admin/` and the portal):
+
+| | The page |
+|---|---|
+| 1. Only the password (the default) | the form, nothing else |
+| 2. The password and Windows | *Sign in with Windows* under the form, after *or* - a button, or tried by itself (silently: outside the domain nothing is said and the form stays) |
+| 3. The password and a certificate | *Sign in with a certificate* under the form - a button, or gone to by itself (the chooser, the PIN; back to the form with the reason when it did not work). With people who often type a password, keep it a button |
+| 4. The password, Windows and a certificate | both buttons under the form; what is tried by itself below |
+| 5. No password at all | the buttons only, no form; with Windows the only way on, Windows is tried by itself whatever its own switch says; a certificate alone stays a prominent button unless its switch says otherwise |
+
+When the page opens, with both ways on:
 
 | Windows (`*_krb_auto`) | A certificate (`*_certlogin_auto`) | When the page opens |
 |---|---|---|
-| a button | a button | nothing by itself: the form, then both buttons |
-| at once | a button | Windows is tried (asks nothing); the certificate stays a button |
-| a button | at once | the page goes to the certificate; Windows stays a button |
-| at once | at once | **Windows first**, and only when it did not sign in the certificate |
+| a button | a button | nothing - the person chooses |
+| by itself | a button | Windows, silently; outside the domain the form and the certificate's button stay |
+| a button | by itself | the certificate at once; back to the form if it does not work |
+| by itself | by itself | **Windows first, silently**; the certificate **only when this computer has no Windows ticket** (outside the domain, with a smart card) |
 
-**The order is fixed, Windows first**: Windows is a request of the page's own that asks the
-person nothing - on a computer outside the domain it simply does not sign in - while the
-certificate is a visible trip to its port (the chooser, the PIN). The other order would ask for a
-card where Windows would have signed the person in without a word, so there is no setting for
-it. A refusal by one way still offers the other: Windows refused by itself, the page goes on to
-the certificate and, back here, says both - Windows' words under its button, the certificate's
-under its own; a certificate refused or not chosen, both buttons stay (and the form, when a
-password is taken), and nothing is tried by itself again in that tab.
+**A refusal of either is not a reason to try the other**: a person whom Windows refuses (no
+group, switched off) is told so, and nothing else starts - only "this computer has no ticket at
+all" moves on to the certificate. *Use a password instead* (`?nocert`) under the form keeps the
+certificate from going by itself in that tab; and however a setup is broken, the certificate is
+gone to by itself at most once in ten minutes and three times a tab.
 
-**No password at all** is one switch for both ways (`admin_password_off`,
-`portal_password_off`) - shown in both cards as *...and no password at all - only Windows or a
-certificate*; in effect while either way can sign anybody in, so switching one of them off keeps
-the other as the way in. The sign-in page then shows the two buttons and no form (and gone to by
-itself, as above). `/api/health` (the administration) and `/api/portal/info` (the portal) say it
-to the pages: `signin: {password, windows, certificate, order}` - `off`, `button` or `auto`,
-and the order of those tried by themselves; `acme --kerberos` and `acme --cert-login` print the
-same line.
+**The settings**: each way's card keeps its own switches (*...by itself when the sign-in page
+opens* among them - "Not in use while ... is off", and not to be changed, until its way is on);
+the card **The sign-in page** (one in *Accounts*, one in *The enrolment pages*) holds the switch
+both share - *No password at all - only Windows or a certificate* - and says what a person meets
+now: name and password offered or not, each way off, a button or by itself, what is tried when
+the page opens, after a refusal and after *Sign out*, and the way back.
+
+**How the page decides**: `/api/health` (the administration) and `/api/portal/info` (the portal)
+carry `signin: {on, auto, cert, cert_port, cert_auto, only}` (and `password`, `windows`,
+`certificate` - `off` / `button` / `auto` - and `order`); `acme --kerberos` and `acme --cert-login`
+print the same line. The page: a second step owed - that only; else Windows by itself (not tried
+in this tab, not signed out) - signed in, refused (said, stop), or no ticket (on to the
+certificate when it goes by itself); else the certificate by itself (not tried, not signed out,
+not just refused); else the name field.
 
 ## How it works
 
 ```
 browser (443)                    browser (:8443)                     acme daemon
  │ "Sign in with a certificate"
- │ POST ?api=cert-nonce ──► nonce in an HttpOnly SameSite=Strict cookie, the URL of :8443 with it
+ │ POST ?api=cert-nonce ──► the URL of :8443 with a nonce; its MAC bound to a __Host- cookie's value
  │ location.href = https://name:8443/admin/?api=cert-login&n=<nonce>
  │                               │ TLS: nginx sends the authorities' names (CertificateRequest);
  │                               │ the browser offers a certificate of them - the card's PIN
  │                               │ nginx (optional_no_ca) ─► the page: ACME_CERT_PEM (escaped)
- │                               │ the page: the nonce == the cookie, its MAC, its age?
- │                               │   POST /api/auth/cert {cert} ──────────────► │ chain (authorities only)
- │                               │                                              │ dates, EKU, no CA
- │                               │                                              │ the CRL at its CDP (cached)
+ │                               │ the page: the nonce's MAC for the cookie's value, its age?
+ │                               │   POST /api/auth/cert {cert, once} ────────► │ the nonce once (cluster)
+ │                               │                                              │ chain (authorities only)
+ │                               │                                              │ dates, EKU, no CA, UPNs
+ │                               │                                              │ name constraints (UPN)
+ │                               │                                              │ CRL + delta of each
+ │                               │                                              │   in the chain (10 min)
  │                               │                                              │ UPN ─► AD ─► sAMAccountName,
  │                               │                                              │   the same DN, on, groups
  │                               │                                              │ SID ext == objectSid
@@ -230,9 +306,12 @@ browser (443)                    browser (:8443)                     acme daemon
 
 ## Another program on the port
 
-Before the port is given to nginx it is checked on every node: is anything other than nginx
-listening on it (`/proc/net/tcp` and `tcp6`, the owning process found by its socket)? A WAF's
-agent, another web server, a monitoring tool:
+Before the port is given to nginx it is checked on every node: is anything other than **acme's
+nginx** listening on it (`/proc/net/tcp` and `tcp6`, the owning process found by its socket)? A
+WAF's agent, another web server, a monitoring tool - or **another nginx** (a container's, another
+product's): a process named nginx is acme's only when it is the master the system's pid file
+names (`/run/nginx.pid`) or a worker of it, started with the system's configuration
+(`/etc/nginx/nginx.conf`, no other `-c` or `-p`); any other is *nginx that is not acme's*:
 
 - **saving** a port (or switching a part on) that another program holds on this node is refused:
   *port 8443 is used by haproxy (pid 1234) on acme1 - choose another port*;
@@ -259,6 +338,16 @@ servers (php -S, the demo) use ports of their own.
   address - another machine. The live check above is about each node only.
 - The balancer's health check of the port is a TCP connect (nginx asks for a certificate only
   when one is offered; there is nothing to fetch there).
+- **Lockouts behind an L4 balancer.** A layer-4 listener hands the nodes the balancer's address,
+  not the client's: every refused certificate is then counted against that one address, and
+  *Block a place that keeps guessing* (`certlogin`, `portal-certlogin`) would lock everybody out
+  at once - or, with the balancer's address trusted, nobody. Either let the balancer keep the
+  client's address (HAProxy `mode tcp` with `source 0.0.0.0 usesrc clientip` - transparent, the
+  nodes' route back through it; F5 SNAT off), or send the **PROXY protocol** and have nginx read
+  it: `listen 8443 ssl proxy_protocol;` with `set_real_ip_from <the balancer>;` and
+  `real_ip_header proxy_protocol;` in the port's server - not written by acme's root helper
+  today: added by hand, it is overwritten at the next change of the port's servers. Until one of
+  them is in place, raise the limits of *Sign-ins* or keep the port reachable from inside only.
 - **acme's sign-in by a load balancer** ([portal-sso.md](portal-sso.md), `portal_sso`) stays on
   443 and does not touch this: both may be on, each by its own switch.
 - The name the browser uses on the port is the one it opened the pages by (the VIP's or a
@@ -271,7 +360,13 @@ servers (php -S, the demo) use ports of their own.
    Logon; published on the issuing authority. Since KB5014754 the authority writes the SID
    extension by itself for an online template built from AD.
 2. **The authority's Extensions**: a CRL Distribution Point over **http**, reachable from the
-   nodes (the default `http://<server>/CertEnroll/...` is).
+   nodes (the default `http://<server>/CertEnroll/...` is) - with *Include in the CDP extension
+   of issued certificates* **and** *Include in CRLs. Clients use this to find Delta CRL
+   locations* ticked for that http location, so that the delta CRL is found too. The **issuing
+   authority's own certificate** needs an http CDP as well (the root's CRL - set on the root
+   before it issued it), since the issuing authority's revocation is checked too; the root needs
+   none. After revoking a lost card, publish a CRL (`certutil -CRL`, or *Revoked Certificates →
+   All Tasks → Publish*): acme sees it within ten minutes.
 3. **A YubiKey (PIV)**: enrolled from Windows (the template's smart card enrolment, `certreq`), or
    with YubiKey Manager - a CSR from slot 9a signed by the authority, imported back to 9a:
    ```
@@ -337,6 +432,19 @@ hands them the certificate): no nonce, a wrong one, another part's, one use, the
 443; and **a real nginx with php-fpm** with the servers the root helper writes: the authorities'
 names sent on the port, 443 asking nobody, nothing but the sign-in served, an expired
 certificate (nginx's 495) said as *run out*, signed in to both parts.
+
+The security review's cases (1.0.100) are in it too, the PKI made for them: the root's CRL and
+an issuing authority the root revokes (refused - F4); a SID in the SAN only (ESC1: refused by
+strong), one not the extension's or the account's (F1); five UPNs, the fifth another's (F6); a
+person revoked after its CRL was fetched - taken from the cache, refused once ten minutes have
+gone by; a revocation in the delta CRL only, a delta named and not to be had, the CDP down (the
+last good CRL until its next update) (F3); where a CRL is fetched from - `localhost`,
+`2852039166`, a redirect to 169.254.169.254, a CRL too large (F5); the nonce sent twice, a nonce
+of another browser (F7); a partner's authority constrained to `partner.example` with a corpnet
+UPN, which openssl alone takes; sign-ins ended by an authority taken away and by rules made
+stricter; a process named nginx that is not the system's on the port (F8). The tests' CRLs are
+served on 127.0.0.1: `ACME_CDP_LOOPBACK_OK=1` in the test daemon's environment lets loopback be
+a CDP there - never set by acme.
 
 `test/test_signin_modes.py` puts the two ways together (the realm of `test_kerberos.py`, the PKI
 of this one): what the pages are told of each part, the order, both sign-ins with "no password at

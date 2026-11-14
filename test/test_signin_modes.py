@@ -113,9 +113,12 @@ function tab() { STORE = {}; }
   // 2. Windows signed in: the certificate never asked.
   tab(); KRB_ANSWER = 'ok';
   out.windows_in = await load(both);
-  // 3. Back from the port refused (?certsaid): nothing by itself, both buttons there, said.
+  // 3. Windows refused (a ticket, not let in): said, and nothing else starts.
   tab(); KRB_ANSWER = 'deny';
   out.krb_refused = await load(both);
+  // ...back from the port refused (?certsaid): nothing by itself, both buttons there, said.
+  tab(); KRB_ANSWER = 'no_ticket';
+  await load(both);
   out.back_refused = await load(Object.assign({search: '?certsaid=allowed'}, both));
   // 4. ...and the page loaded again in that tab: still nothing by itself.
   out.again = await load(both);
@@ -185,13 +188,13 @@ class PageLogic(unittest.TestCase):
         self.assertTrue(self.out['windows_in']['signed'])
 
     def test_no_loop_after_a_refusal(self):
-        # Windows refused by itself: on to the certificate, and Windows' words kept ...
-        self.assertEqual(self.out['krb_refused']['log'][:2], ['ask kerberos-login', 'ask cert-nonce'])
+        # Windows refused by itself (a ticket, not let in): said why, the certificate not tried.
+        self.assertEqual(self.out['krb_refused']['log'], ['ask kerberos-login'])
+        self.assertEqual(self.out['krb_refused']['krb_said'], 'Windows sign-in refused: not allowed')
         back = self.out['back_refused']
-        # ... back here refused: nothing asked by itself, both said, both buttons offered.
+        # Back from the certificate refused: nothing asked by itself, said, both buttons offered.
         self.assertEqual(back['log'], [], back)
         self.assertEqual(back['cert_said'], 'Certificate sign-in refused: not allowed')
-        self.assertEqual(back['krb_said'], 'Windows sign-in refused: not allowed')
         self.assertEqual(back['search'], '', 'certsaid taken out of the address')
         self.assertEqual(self.out['again']['log'], [])
         # The certificate alone: not chosen - never again in that tab.
@@ -253,7 +256,12 @@ class BothWays(unittest.TestCase):
             if sam in TCL.SIDS:
                 one['objectSid'] = [TCL.sid_bytes(TCL.SIDS[sam])]
         cls.ldap_port, cls.ldap_stop = mockldap.serve(0)
-        TCC.CertsCore.setUpClass.__func__(cls)
+        # The CRLs are served on this machine: loopback is no address a CDP may have otherwise.
+        os.environ['ACME_CDP_LOOPBACK_OK'] = '1'
+        try:
+            TCC.CertsCore.setUpClass.__func__(cls)
+        finally:
+            os.environ.pop('ACME_CDP_LOOPBACK_OK', None)
         try:
             cls.both_up()
         except BaseException:
@@ -262,6 +270,7 @@ class BothWays(unittest.TestCase):
 
     @classmethod
     def both_up(cls):
+        cls.cport = TCL.free_port()
         cls.must('POST', '/api/directories', {'action': 'save', 'directory': {
             'name': 'corp', 'hosts': '127.0.0.1', 'port': cls.ldap_port, 'tls': 'none',
             'verify': 0, 'base': BASE, 'bind_dn': 'CN=isemon,OU=Service,' + BASE,
@@ -269,7 +278,9 @@ class BothWays(unittest.TestCase):
         cls.must('POST', '/api/settings', {'settings': {
             'admin_directory': 'corp', 'admin_group_full': FULL, 'admin_group_readonly': WATCH,
             'portal': 1, 'portal_directory': 'corp', 'portal_who': 'groups',
-            'portal_groups': WATCH, 'portal_tries': 50, 'login_tries': 50}})
+            'portal_groups': WATCH, 'portal_tries': 50, 'login_tries': 50,
+            # a port nothing here listens on (8443 may be another nginx's on this machine)
+            'certlogin_port': cls.cport}})
         cls.must('POST', '/api/kerberos', {'action': 'put', 'data': cls.keytab_b64('http.keytab'),
                                            'name': 'http.keytab'})
         cls.must('POST', '/api/certlogin', {'action': 'put', 'data': TCL.CertLogin.b64(cls, 'cas.pem'),
@@ -305,13 +316,21 @@ class BothWays(unittest.TestCase):
         return self.call('POST', path, {'header': 'Negotiate ' + self.ticket(person)})
 
     def cert(self, part, person):
-        path = '/api/auth/cert' if part == 'admin' else '/api/portal/cert'
-        return self.call('POST', path, {'cert': self.pem(person)})
+        st, got = TCL.CertLogin.sign(self, part, person)     # as the page hands it on
+        if st != 200:                   # the reason, from Events, for the message of a failure
+            st2, ev = self.call('GET', '/api/events', None, self.admin,
+                                args={'q': 'certificate was refused'})
+            got['why'] = [e.get('words') for e in (ev.get('events') or ev.get('rows') or [])][:1] \
+                if st2 == 200 else []
+        return st, got
 
-    def modes(self):
+    def modes(self, whole=False):
         st, h = self.call('GET', '/api/health')
         st2, info = self.call('GET', '/api/portal/info')
-        return h['signin'], info['signin']
+        if whole:
+            return h['signin'], info['signin']
+        keys = ('password', 'windows', 'certificate', 'order')
+        return tuple({k: x[k] for k in keys} for x in (h['signin'], info['signin']))
 
     def test_01_each_mode_of_each_part(self):
         self.on(admin_krb=0, admin_certlogin=0, portal_krb=0, portal_certlogin=0)
@@ -336,12 +355,17 @@ class BothWays(unittest.TestCase):
             self.assertEqual(p, {'password': True, 'windows': 'auto', 'certificate': 'button',
                                  'order': ['windows']})
             # The cards say the same.
+            a, p = self.modes(whole=True)
             v = self.ok('GET', '/api/certlogin')
             self.assertEqual(v['parts']['admin']['signin'], a)
             self.assertEqual(v['parts']['portal']['signin'], p)
             self.assertTrue(v['parts']['admin']['auto'])
             k = self.ok('GET', '/api/kerberos')
             self.assertEqual(k['parts']['portal']['signin'], p)
+            # The kit's object the page decides by: on, auto, cert, cert_port, cert_auto, only.
+            self.assertEqual({x: a[x] for x in ('on', 'auto', 'cert', 'cert_port', 'cert_auto', 'only')},
+                             {'on': True, 'auto': True, 'cert': True, 'cert_port': self.cport,
+                              'cert_auto': True, 'only': False})
             self.assertTrue(k['parts']['admin']['cert'])
             # The certificate by itself switched off with its way: nothing at once of it.
             self.on(admin_certlogin=0)
@@ -481,6 +505,49 @@ class BothWays(unittest.TestCase):
             php.wait(10)
             shutil.rmtree(web, ignore_errors=True)
 
+    def test_06_the_last_way_in(self):
+        """No password at all with Windows alone: Windows tried by itself whatever its switch
+        says, and the keytab not taken away; with the certificate alone, the last authority
+        not taken away (and the certificate stays a button unless its switch says otherwise)."""
+        self.on(admin_krb=1, admin_krb_auto=0, admin_certlogin=0)
+        try:
+            st, kerb = self.krb('admin', 'nested')
+            self.assertEqual(st, 200, kerb)
+            st, got = self.settings(session=kerb['token'], admin_password_off=1)
+            self.assertEqual(st, 200, got)
+            a = self.modes()[0]
+            self.assertEqual(a, {'password': False, 'windows': 'auto', 'certificate': 'off',
+                                 'order': ['windows']})
+            st, got = self.call('POST', '/api/kerberos', {'action': 'drop'}, kerb['token'])
+            self.assertEqual(st, 409, got)
+            self.assertIn('alone signs people in', got['error'])
+            # The certificate on as well: Windows by its own switch again (a button).
+            st, got = self.settings(session=kerb['token'], admin_certlogin=1)
+            self.assertEqual(st, 200, got)
+            a = self.modes()[0]
+            self.assertEqual((a['windows'], a['certificate']), ('button', 'button'))
+            # Windows off: the certificate alone - a button still, its authority kept.
+            st, got = self.settings(session=kerb['token'], admin_krb=0)
+            self.assertEqual(st, 200, got)
+            st, card = self.cert('admin', 'nested')
+            self.assertEqual(st, 200, card)
+            a = self.modes()[0]
+            self.assertEqual((a['password'], a['windows'], a['certificate']), (False, 'off', 'button'))
+            v = self.ok('GET', '/api/certlogin', session=card['token'])
+            for c in v['cas']:
+                st, got = self.call('POST', '/api/certlogin', {'action': 'drop', 'sha256': c['sha256']},
+                                    card['token'])
+                if st != 200:
+                    break
+            self.assertEqual(st, 409, got)
+            self.assertIn('alone signs people in', got['error'])
+            self.assertEqual(len(self.ok('GET', '/api/certlogin', session=card['token'])['cas']), 1)
+        finally:
+            self.back_to_passwords()
+            self.on(admin_krb=0, admin_certlogin=0)
+            self.must('POST', '/api/certlogin', {'action': 'put', 'data': TCL.CertLogin.b64(self, 'cas.pem'),
+                                                 'name': 'cas.pem'})
+
     def test_05_the_cards_and_the_command_line(self):
         self.on(admin_krb=1, admin_certlogin=1, admin_krb_auto=1, admin_certlogin_auto=1)
         try:
@@ -495,19 +562,31 @@ class BothWays(unittest.TestCase):
 
 
 class Static(unittest.TestCase):
-    def test_one_switch_in_both_cards(self):
+    def test_the_sign_in_page_card(self):
+        """A card The sign-in page for each part: the one switch both ways share, and the facts
+        of what a person meets (the shared facts table - columns of one width)."""
         js = read('web', 'assets', 'admin.js')
-        self.assertIn("ssoMirror('admin_password_off', 'sect-admincert');", js)
-        self.assertIn("ssoMirror('portal_password_off', 'sect-portalcert');", js)
-        # The summary of the sign-in page in both cards, in the shared facts table.
-        self.assertEqual(js.count('ssoSummary(host, part, p);'), 2)
-        self.assertIn("function ssoSummary(host, part, p) {", js)
-        self.assertIn("krbFacts(host, rows);", js)
+        page = read('web', 'admin', 'index.php')
+        for part in ('admin', 'portal'):
+            self.assertIn('id="signin-card-%s"' % part, page)
+            self.assertIn('id="sect-%ssignin"' % part, page)
+            self.assertIn('id="signin-host-%s"' % part, page)
+            # Next to the cards of Windows and of the certificate, before them.
+            self.assertLess(page.index('id="signin-card-%s"' % part), page.index('id="krb-card-%s"' % part))
+        self.assertEqual(js.count('drawSignin(part, p);'), 2)
+        fn = js[js.index('function drawSignin(part, p) {'):]
+        fn = fn[:fn.index('\n}\n')]
+        for row in ('Name and password', 'Sign in with Windows', 'Sign in with a certificate',
+                    'Tried by itself when the page opens', 'After a refusal', 'After Sign out'):
+            self.assertIn("'%s'" % row, fn)
+        self.assertIn('krbFacts(host, [', fn)
         defaults = read('acmelib', 'engine', '005_paths_and_defaults.py')
-        self.assertIn("'adminkrb': ['admin_krb', 'admin_krb_auto', 'admin_krb_realm', "
-                      "'admin_password_off'],", defaults)
-        self.assertIn("'admin_password_off': '...and no password at all - only Windows or a "
-                      "certificate',", defaults)
+        self.assertIn("'adminsignin': ['admin_password_off'],", defaults)
+        self.assertIn("'portalsignin': ['portal_password_off'],", defaults)
+
+    def test_asleep_cannot_be_changed(self):
+        js = read('web', 'assets', 'admin.js')
+        self.assertIn("if (!live && !c.disabled) { c.disabled = true; c.dataset.asleep = '1'; }", js)
 
 
 if __name__ == '__main__':

@@ -3151,6 +3151,8 @@ function mfaStep() {
   var box = $('mfa-box');
   if (!box) return;
   box.hidden = false;
+  /* The second step is no choice (1.0.100): the other ways' buttons are not on its screen. */
+  ['krb-box', 'cert-box', 'cert-pw'].forEach(function (id) { var x = $(id); if (x) (id === 'cert-pw' ? x.parentNode : x).hidden = true; });
   /* Room for it (1.0.126): the picture and the welcome line go while the
      second step is asked. */
   document.body.classList.add('mfa-on');
@@ -3452,8 +3454,10 @@ function mfaWay(body, d, kind) {
    password is offered at all (data-only). Tried by itself once a tab, never after Sign out
    there (otherwise signing out would sign you straight back in).
    Both ways tried by themselves (1.0.100): Windows first - this request asks the person nothing -
-   and only when it did not sign in the certificate (next(), certDoor's: a visible trip to its
-   port, the chooser, the PIN). Windows not tried by itself: next() at once. */
+   and the certificate (next(), certDoor's: a visible trip to its port, the chooser, the PIN) only
+   when this computer has no ticket at all. A refusal by Windows (a ticket, but not let in) stops
+   there and says why: it is no reason to try the other way. Windows not tried by itself: next()
+   at once. */
 function krbAsk(what) {
   return fetch('?api=' + what, {method: 'POST', credentials: 'same-origin',
     headers: {'Content-Type': 'application/json'}, body: '{}'})
@@ -3481,10 +3485,6 @@ function krbDoor(done, next) {
   if (!box) { next(); return; }
   var part = box.dataset.part || 'admin', go = $('krb-go'), said = $('krb-said');
   var words = go.querySelector('span');
-  /* Refused by itself just before the certificate was gone to: said here once back. */
-  var kept = '';
-  try { kept = sessionStorage.getItem('acme.krb.said.' + part) || ''; sessionStorage.removeItem('acme.krb.said.' + part); } catch (e) { kept = ''; }
-  if (kept) { said.className = 'said bad'; said.textContent = kept; }
   var tryIt = function (auto) {
     go.disabled = true;
     said.className = 'said';
@@ -3496,12 +3496,9 @@ function krbDoor(done, next) {
       words.textContent = 'Sign in with Windows';
       if (!x.ok) {
         var why = String(x.d.error || 'refused');
-        /* Not signed in by itself: on to the certificate, when that goes by itself too. */
-        if (auto && next()) {
-          if (x.d.code !== 'no_ticket') { try { sessionStorage.setItem('acme.krb.said.' + part, why); } catch (e) { } }
-          said.textContent = '';
-          return;
-        }
+        /* No ticket at all (a computer outside the domain): on to the certificate, when that
+           goes by itself too. A refusal is said, and nothing else starts. */
+        if (auto && x.d.code === 'no_ticket' && next()) { said.textContent = ''; return; }
         /* Tried by itself on a computer outside the domain: nothing said - the form is there. */
         if (auto && x.d.code === 'no_ticket' && box.dataset.only !== '1') { said.textContent = ''; return; }
         said.className = 'said bad';

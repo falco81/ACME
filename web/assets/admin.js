@@ -2060,10 +2060,6 @@ function drawSettings() {
   });
   /* Signed in by the balancer (otp 1.0.239): its card under the enrolment pages' settings. */
   loadSso();
-  /* "No password at all" - one switch of both ways (1.0.100): the same in the card of the
-     certificate as in the card of Windows. */
-  ssoMirror('admin_password_off', 'sect-admincert');
-  ssoMirror('portal_password_off', 'sect-portalcert');
   /* Signing in with Windows (1.0.99): a card under Accounts and one under the enrolment pages. */
   loadKrb();
   /* ...and with a certificate (1.0.100), the same. */
@@ -2531,6 +2527,12 @@ function applyOnlyWhen() {
     var w = wake(key, 0);
     var live = w.live, want = w.want, now = w.now;
     item.classList.toggle('asleep', !live);
+    /* ...and cannot be changed until it is (1.0.100): only what this put to sleep is woken -
+       a control disabled for its own reason (read only, high security) stays so. */
+    Array.prototype.forEach.call(item.querySelectorAll('input, select, textarea'), function (c) {
+      if (!live && !c.disabled) { c.disabled = true; c.dataset.asleep = '1'; }
+      else if (live && c.dataset.asleep) { c.disabled = false; delete c.dataset.asleep; }
+    });
     var says = item.querySelector('.asleep-why');
     // Written again on every pass (1.0.61): it went on naming the choice it
     // was first put in for.
@@ -7851,61 +7853,33 @@ function krbTry(part, btn) {
     drawKrb(part);
   });
 }
-/* The sign-in page of a part, as it is now (1.0.100) - the same summary in the card of Windows
-   and in the card of the certificate: a password or not, and each way - a button, at once when
-   the page opens, or off - with the order of those tried by themselves. */
-var SSO_MODE_WORDS = {off: 'off', button: 'a button', auto: 'at once - when the page opens'};
-function ssoSummary(host, part, p) {
-  var m = p.signin;
-  if (!m) return;
-  host.appendChild(el('h3', 'peek-h', part === 'admin' ? 'The sign-in page' : 'The portal’s sign-in page'));
-  var pw = m.password ? (p.password_off ? 'yes - "no password at all" is switched on, but not in effect (neither Windows nor a certificate signs anybody in)' : 'yes - the name and password form')
-    : 'no - no password at all, only Windows or a certificate';
-  var rows = [['A password', pw], ['Windows', SSO_MODE_WORDS[m.windows] || m.windows], ['A certificate', SSO_MODE_WORDS[m.certificate] || m.certificate]];
-  if ((m.order || []).length > 1) rows.push(['When the page opens', 'Windows first (it asks nothing); the certificate only when Windows did not sign in']);
-  else if ((m.order || []).length === 1 && m.windows !== 'off' && m.certificate !== 'off') rows.push(['When the page opens', m.order[0] === 'windows' ? 'Windows; the certificate is a button' : 'the certificate; Windows is a button']);
-  krbFacts(host, rows);
-}
-/* "No password at all": the switch of the card of Windows shown again in the card of the
-   certificate - a mirror, never a setting of its own: flipped, it flips that one (saved by the
-   save bar as every other), and shows what that one shows (changed, not in use). */
-function ssoMirror(key, where) {
-  var host = $(where), real = $('set-' + key), s = settingByKey(key);
-  if (!host || !real || !real._input || !s) return;
-  var realItem = real.closest('.set-item');
-  var item = el('div', 'set-item set-bool sso-mirror');
-  item.dataset.mirror = key;
-  var sw = switchBox(real._input.checked);
-  sw.id = 'set-' + key + '-mirror';
-  sw._input.id = sw.id + '-sw';
-  var label = el('label', '');
-  label.appendChild(el('span', 'lbl-txt', s.name || key));
-  label.setAttribute('for', sw._input.id);
-  explain(label, s.says || '');
-  item.appendChild(label);
-  item.appendChild(sw);
-  var tail = el('div', 'set-tail');
-  tail.appendChild(el('div', 'says', 'The same switch as in the card of Windows (Kerberos): one for both ways.'));
-  item.appendChild(tail);
-  var sync = function () {
-    sw._input.checked = real._input.checked;
-    sw._input.disabled = real._input.disabled;
-    if (realItem) {
-      item.classList.toggle('changed', realItem.classList.contains('changed'));
-      item.classList.toggle('asleep', realItem.classList.contains('asleep'));
-    }
-  };
-  sw._input.addEventListener('change', function () {
-    real._input.checked = sw._input.checked;
-    real._input.dispatchEvent(new Event('change'));
-    sync();
-  });
-  real._input.addEventListener('change', sync);
-  if (realItem && window.MutationObserver) new MutationObserver(sync).observe(realItem, {attributes: true, attributeFilter: ['class']});
-  sync();
-  var grid = host.querySelector('.set-grid');
-  if (!grid) grid = host.appendChild(el('div', 'set-grid'));
-  grid.appendChild(item);
+/* The sign-in page (1.0.100): a card of each part - the switch both ways share (No password at
+   all, drawn by drawSettings into sect-adminsignin / sect-portalsignin) and, in words, what a
+   person meets there now: the form or not, each way a button or tried by itself, the order, and
+   what happens after a refusal and after Sign out. Drawn from the facts of the card of Windows or
+   of the certificate, whichever came last (both carry them). */
+function drawSignin(part, p) {
+  var host = $('signin-host-' + part), m = p && p.signin;
+  if (!host || !m) return;
+  clear(host);
+  var pw = m.password ? (p.password_off ? 'offered - "no password at all" is switched on, but not in effect (neither Windows nor a certificate signs anybody in)' : 'offered')
+    : 'not offered - no password at all';
+  var under = m.password ? 'a button under the form' : 'a button';
+  var win = {off: 'off', button: under, auto: !m.password && m.certificate === 'off' ? 'tried by itself when the page opens - the only way in' : 'tried by itself when the page opens'}[m.windows];
+  var cert = {off: 'off', button: under, auto: 'gone to by itself when the page opens (the chooser, the PIN)'}[m.certificate];
+  var first = (m.order || []).length > 1 ? 'Windows silently first; the certificate only when this computer has no Windows ticket'
+    : (m.order || [])[0] === 'windows' ? 'Windows silently'
+    : (m.order || [])[0] === 'certificate' ? 'the certificate (the chooser, the PIN)' : 'nothing - the person chooses';
+  krbFacts(host, [
+    ['Name and password', pw],
+    ['Sign in with Windows', win],
+    ['Sign in with a certificate', cert],
+    ['Tried by itself when the page opens', first],
+    ['After a refusal', 'said why on the page; nothing else tried by itself'],
+    ['After Sign out', 'nothing tried by itself in that tab'],
+    [part === 'admin' ? 'The second step' : 'The one-time code', 'after every way, every time - and nothing else on that screen']
+  ]);
+  host.appendChild(el('p', 'note muted small', 'The way back from no password at all, as root: acme --set ' + part + '_password_off=0.'));
 }
 function drawKrb(part) {
   var host = $('krb-host-' + part), d = KRB.d;
@@ -7928,7 +7902,7 @@ function drawKrb(part) {
     rw.appendChild(noI18n(el('span', 'small', p.realm_warn)));
     host.appendChild(rw);
   }
-  ssoSummary(host, part, p);
+  drawSignin(part, p);
   var realm = noI18n(el('span', 'mono', p.realm || '-'));
   krbFacts(host, [
     ['Realm', [realm, el('span', 'muted small krb-from', {set: 'set above', directory: 'from the directory’s base DN'}[p.realm_from] || 'not known - set it above')]],
@@ -8130,7 +8104,7 @@ function drawCert(part) {
   if (part === 'admin' && !p.directory) host.appendChild(el('p', 'note warn', 'Choose the directory administrators sign in against first (above): only accounts of the directory sign in with a certificate.'));
   if (part === 'portal' && !p.portal) host.appendChild(el('p', 'note warn', 'The enrolment pages are switched off (above): nobody signs in to them with a certificate either.'));
   if (p.switch && !d.cas.length) host.appendChild(el('p', 'note warn', 'Switched on, but no authority is put in yet: the button is not offered and the port not served until one is.'));
-  ssoSummary(host, part, p);
+  drawSignin(part, p);
   var port = noI18n(el('span', 'mono', String(d.port)));
   krbFacts(host, [
     ['The port', [port, el('span', 'muted small krb-from', 'nginx asks for a certificate there, and nowhere else')]],

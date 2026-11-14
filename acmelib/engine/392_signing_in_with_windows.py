@@ -524,6 +524,10 @@ def krb_keytab_put(store, raw, by, name='', keep=None):
 
 
 def krb_keytab_drop(store, by, keep=None):
+    """The keytab taken away - ValueError while Windows alone signs people in to a part with
+    "no password at all" in effect (1.0.100)."""
+    if krb_keytab_row(store) is not None:
+        sso_last_way_check(store, 'windows')
     before = krb_state_now(store)
     had = krb_keytab_row(store) is not None or store.db.value(
         'SELECT 1 FROM meta WHERE k = ?', (KRB_META,))
@@ -709,7 +713,11 @@ def krb_page_info(part, store=None):
     (asked before anybody is signed in)."""
     only = krb_password_off(part, store)
     on = krb_usable(part, store) or (only and krb_on(part))
-    return {'on': bool(on), 'auto': bool(on and CONFIG.get(part + '_krb_auto')),
+    # No password at all and Windows the only way (1.0.100): tried by itself whatever its own
+    # switch says - the page has nothing else to offer. (A certificate alone stays a button
+    # unless its switch says otherwise: its chooser and PIN are not to be sprung on anybody.)
+    alone = bool(only and on and not (cl_usable(part, store) or (cl_on(part) and only)))
+    return {'on': bool(on), 'auto': bool(on and (CONFIG.get(part + '_krb_auto') or alone)),
             'only': bool(only)}
 
 
@@ -1308,7 +1316,11 @@ def _kerberos_do(h):
                 krb_dropped_words(view['dropped'])
         return {'message': msg, 'dropped': view.get('dropped') or [], 'view': krb_view(h)}
     if act == 'drop':
-        if not krb_keytab_drop(h.store, s['name'], keep=s.get('id')):
+        try:
+            had = krb_keytab_drop(h.store, s['name'], keep=s.get('id'))
+        except ValueError as e:
+            raise ApiError(409, str(e))
+        if not had:
             raise ApiError(404, 'there is no keytab to take away')
         return {'message': 'the keytab is taken away', 'view': krb_view(h)}
     raise ApiError(400, 'no such thing to do')

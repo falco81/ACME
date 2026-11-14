@@ -2588,7 +2588,11 @@ def cli_kerberos(args, pal, store):
         return 0
     if args.kerberos_keytab_off:
         cli_sure(args, 'the keytab taken away: nobody signs in with Windows until another is put in')
-        if not krb_keytab_drop(store, by):
+        try:
+            had = krb_keytab_drop(store, by)
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        if not had:
             raise SystemExit('acme: there is no keytab to take away')
         print(pal.ok_line('the keytab is taken away - on every node within seconds'))
         return 0
@@ -2663,7 +2667,10 @@ def cli_cert_login(args, pal, store):
         return 0
     if args.cert_login_ca_off:
         cli_sure(args, 'the authority taken away from the sign-in with a certificate')
-        gone = cl_cas_drop(store, args.cert_login_ca_off, by)
+        try:
+            gone = cl_cas_drop(store, args.cert_login_ca_off, by)
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
         if not gone:
             raise SystemExit('acme: there is no one authority of that SHA-256 (acme --cert-login '
                              'shows them)')

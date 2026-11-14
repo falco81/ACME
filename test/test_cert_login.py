@@ -475,8 +475,8 @@ class CertLogin(unittest.TestCase):
             self.assertEqual(st, 404, got)
         st, h = self.call('GET', '/api/health')
         self.assertEqual(h['certlogin'], {'on': False, 'auto': False, 'only': False, 'port': 0})
-        self.assertEqual(h['signin'], {'password': True, 'windows': 'off', 'certificate': 'off',
-                                       'order': []})
+        self.assertEqual({k: h['signin'][k] for k in ('password', 'windows', 'certificate', 'order')},
+                         {'password': True, 'windows': 'off', 'certificate': 'off', 'order': []})
         st, info = self.call('GET', '/api/portal/info')
         self.assertFalse(info['certlogin']['on'])
         # No port: nothing asked of root, no opening in the firewall.
@@ -1093,6 +1093,277 @@ class CertLogin(unittest.TestCase):
             self.on(admin_certlogin=0, portal_certlogin=0)
             shutil.rmtree(d, ignore_errors=True)
 
+    # ---- the security review of 1.0.100 (F1-F8) ------------------------------------------------
+    def engine(self, body, **kv):
+        """Code run with the engine against the test's PKI (its CRLs served): `P` the PKI's
+        folder, go(name, cas='cas', crl=True) 'ok' or the kind refused (and `why` its words),
+        ca(...) openssl ca of the issuing authority, pub(src, dst) a CRL put at its CDP,
+        later() the CRLs kept as if CL_CRL_FRESH_S had gone by."""
+        head = ('import os, subprocess\nP = %r\nWHY = {}\n'
+                'def go(n, cas="cas", crl=True):\n'
+                '    try:\n'
+                '        E.cl_check(open(os.path.join(P, n + ".pem")).read(), os.path.join(P, cas + ".pem"), crl=crl)\n'
+                '        return "ok"\n'
+                '    except E.CertRefused as e:\n'
+                '        WHY[n] = e.why\n'
+                '        return e.kind\n'
+                'def ca(*a, cnf="ca.cnf"):\n'
+                '    subprocess.run(["openssl", "ca", "-config", cnf] + list(a), cwd=P, check=True,\n'
+                '                   capture_output=True, env=dict(os.environ, UPN="x", SID="x"))\n'
+                'def pub(src, dst):\n'
+                '    subprocess.run(["openssl", "crl", "-in", src, "-outform", "DER", "-out", dst], cwd=P, check=True)\n'
+                'def later():\n'
+                '    for c in E.CL_CRL_CACHE.values():\n'
+                '        c["at"] -= E.CL_CRL_FRESH_S + 1\n' % self.pki)
+        return self.py(head + body % kv)
+
+    def test_20_sid_only_from_its_extension(self):
+        """F1: the SID of the SAN (an otherName 1.3.6.1.4.1.311.25.2.1, or the URL form) is the
+        requester's word - never strong; one that is not the extension's or the account's is
+        refused."""
+        self.put()
+        self.on(admin_certlogin=1)
+        try:
+            self.assertEqual(self.py('print(json.dumps(E.cl_match("admin")))'), 'strong')
+            # ESC1: nested's UPN and nested's SID - in the SAN only.
+            self.refused('admin', 'esc1', 'not allowed', 'no SID extension')
+            self.refused('admin', 'falco-sansid', 'not allowed', 'not taken for it')
+            # The URL form against the extension: refused whatever the matching.
+            self.refused('admin', 'falco-sanurl', 'certificate not accepted', 'not the one of its SID extension')
+            self.assertEqual(self.sign('admin', 'falco')[0], 200)
+            self.on(admin_certlogin_match='compat')
+            # compat: taken by its UPN (as one without a SID), but a SAN SID of another account
+            # is refused.
+            self.assertEqual(self.sign('admin', 'falco-sansid')[0], 200)
+            self.refused('admin', 'falco-sansid2', 'not allowed', 'in the Subject Alternative Name')
+            self.refused('admin', 'falco-sanurl', 'certificate not accepted')
+            v = self.ok('GET', '/api/certlogin')
+            self.assertIn('Not strong', v['parts']['admin']['match_warn'])
+        finally:
+            self.on(admin_certlogin=0, admin_certlogin_match='strong')
+        v = self.ok('GET', '/api/certlogin')
+        self.assertEqual(v['parts']['admin']['match_warn'], '')
+
+    def test_21_every_upn(self):
+        """F6: all the UPNs before anything is cut: four of falco and a fifth of nested."""
+        self.put()
+        self.on(admin_certlogin=1)
+        try:
+            self.refused('admin', 'five', 'certificate not accepted', 'more than one user')
+        finally:
+            self.on(admin_certlogin=0)
+
+    def test_22_revocation_within_ten_minutes(self):
+        """F3: the CRL kept CL_CRL_FRESH_S (ten minutes) at most - a revocation the authority
+        publishes is seen within it; the delta CRL (Freshest CRL) fetched and applied; one named
+        and not to be had, no sign-in; the CDP down - the last good CRL until its next update."""
+        got = self.engine('''
+out = {"cap": E.CL_CRL_FRESH_S}
+out["lost1"] = go("lost")
+ca("-revoke", "lost.pem")
+ca("-gencrl", "-out", "issuing.crl.pem")
+pub("issuing.crl.pem", "www/issuing.crl")
+out["lost2"] = go("lost")
+later()
+out["lost3"] = go("lost")
+# The delta: the base CRL at its CDP as it is, the revocation in the delta only.
+out["fresh1"] = go("fresh")
+ca("-revoke", "fresh.pem")
+base = subprocess.run(["openssl", "crl", "-in", "issuing.crl.pem", "-noout", "-crlnumber"], cwd=P,
+                      capture_output=True, text=True).stdout.strip().split("=")[1]
+with open(os.path.join(P, "delta.cnf"), "w") as f:
+    f.write(open(os.path.join(P, "ca.cnf")).read() + "[delta_ext]\\n2.5.29.27 = critical,ASN1:INTEGER:%%s\\n" %% base)
+ca("-gencrl", "-crlexts", "delta_ext", "-crldays", "1", "-out", "delta.crl.pem", cnf="delta.cnf")
+pub("delta.crl.pem", "www/issuing-delta.crl")
+later()
+out["fresh2"] = go("fresh")
+# The delta not to be had: no sign-in (fail closed).
+os.rename(os.path.join(P, "www/issuing-delta.crl"), os.path.join(P, "www/delta-away.crl"))
+E.CL_CRL_CACHE.clear()
+out["nodelta"] = go("fresh")
+os.rename(os.path.join(P, "www/delta-away.crl"), os.path.join(P, "www/issuing-delta.crl"))
+# The CDP down: the last good CRL until its next update, then nothing.
+E.CL_CRL_CACHE.clear()
+out["falco1"] = go("falco")
+os.rename(os.path.join(P, "www/issuing.crl"), os.path.join(P, "www/base-away.crl"))
+later()
+out["falco2"] = go("falco")
+for c in E.CL_CRL_CACHE.values():
+    c["next"] = time.time() - 1
+out["falco3"] = go("falco")
+os.rename(os.path.join(P, "www/base-away.crl"), os.path.join(P, "www/issuing.crl"))
+out["why"] = WHY
+print(json.dumps(out))
+''')
+        self.assertLessEqual(got['cap'], 600)
+        self.assertEqual([got[k] for k in ('lost1', 'lost2', 'lost3')], ['ok', 'ok', 'revoked'])
+        self.assertEqual([got[k] for k in ('fresh1', 'fresh2', 'nodelta')], ['ok', 'revoked', 'unavailable'])
+        self.assertEqual([got[k] for k in ('falco1', 'falco2', 'falco3')], ['ok', 'ok', 'unavailable'])
+
+    def test_23_the_authorities_revocation(self):
+        """F4: every certificate of the chain checked against its CRL (-crl_check_all): an issuing
+        authority its root revoked signs nobody in; the root, its own anchor, needs none."""
+        got = self.engine('''
+print(json.dumps([go("subling", "cas-sub"), go("subling", "cas-sub", False), go("falco"), WHY]))
+''')
+        self.assertEqual(got[:3], ['certificate', 'ok', 'ok'])
+        self.assertIn('revoked (an authority above it)', got[3]['subling'])
+
+    def test_24_where_a_crl_is_fetched_from(self):
+        """F5: every address of a CDP's name checked as it is fetched (no loopback, link-local,
+        metadata, multicast, unspecified - private addresses are AD CS's own), no redirect
+        followed, the size and the time limited."""
+        got = self.engine('''
+import http.server, threading
+os.environ.pop("ACME_CDP_LOOPBACK_OK", None)
+static = {u: E.cl_cdp_ok(u) for u in (
+    "http://pki.corp.example/x.crl", "http://10.1.2.3/x.crl", "http://192.168.1.1/x.crl",
+    "http://[fd12::1]/x.crl", "https://pki.corp.example/x.crl", "ldap:///CN=x", "http://u:p@pki/x.crl",
+    "http://169.254.169.254/latest", "http://metadata.google.internal/x", "http://[fe80::1]/x",
+    "http://0.0.0.0/x", "http://224.0.0.1/x", "http://127.0.0.1/x", "http://[::1]/x",
+    "http://[::ffff:169.254.169.254]/x", "http://100.100.100.200/x")}
+def get(u):
+    try:
+        E.cl_http_get(u)
+        return "ok"
+    except ValueError as e:
+        return str(e)
+fetched = {u: get(u) for u in ("http://localhost:%(port)d/issuing.crl", "http://2852039166/x.crl",
+                               "http://0251.0376.0251.0376/x.crl", "http://127.1:%(port)d/issuing.crl")}
+os.environ["ACME_CDP_LOOPBACK_OK"] = "1"
+class R(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+    def do_GET(self):
+        self.send_response(302)
+        self.send_header("Location", "http://169.254.169.254/latest/meta-data/")
+        self.end_headers()
+srv = http.server.HTTPServer(("127.0.0.1", 0), R)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+fetched["redirect"] = get("http://127.0.0.1:%%d/x.crl" %% srv.server_address[1])
+fetched["good"] = get("http://127.0.0.1:%(port)d/issuing.crl")
+E.CL_CRL_MOST = 100
+fetched["big"] = get("http://127.0.0.1:%(port)d/issuing.crl")
+print(json.dumps([static, fetched]))
+''', port=self.crl_port)
+        static, fetched = got
+        for u in ('http://pki.corp.example/x.crl', 'http://10.1.2.3/x.crl', 'http://192.168.1.1/x.crl',
+                  'http://[fd12::1]/x.crl'):
+            self.assertTrue(static[u], u)
+        for u, ok in static.items():
+            if u not in ('http://pki.corp.example/x.crl', 'http://10.1.2.3/x.crl',
+                         'http://192.168.1.1/x.crl', 'http://[fd12::1]/x.crl'):
+                self.assertFalse(ok, u)
+        for u, words in fetched.items():
+            if u == 'good':
+                self.assertEqual(words, 'ok')
+            elif u == 'redirect':
+                self.assertIn('not followed', words)
+            elif u == 'big':
+                self.assertIn('larger than', words)
+            else:
+                self.assertRegex(words, r'\((loopback|link-local|a cloud.s metadata service)\) - no CRL', u)
+
+    def test_25_name_constraints(self):
+        """F8: openssl does not apply an authority's name constraints to the UPN - acme does
+        (rfc822Name, dNSName): a partner's authority for partner.example signs in nobody of
+        corpnet."""
+        got = self.engine('''
+v = subprocess.run(["openssl", "verify", "-no-CApath", "-no-CAstore", "-CAfile", os.path.join(P, "cas-nc.pem"),
+                    os.path.join(P, "ncp.pem")], capture_output=True, text=True).stdout
+print(json.dumps([go("ncp", "cas-nc", False), go("ncok", "cas-nc", False), WHY, v]))
+''')
+        self.assertEqual(got[:2], ['certificate', 'ok'])
+        self.assertIn('outside the names the authority CN=Partner NC CA may issue for', got[2]['ncp'])
+        self.assertIn(': OK', got[3])                    # what openssl alone says
+
+    def test_26_sessions_end_with_their_rule(self):
+        """F8: an authority taken away ends the sign-ins made with its certificates; revocation
+        switched on, the matching made stricter, end those of that part - the doer's kept."""
+        self.put()
+        self.on(admin_certlogin=1, admin_certlogin_match='compat', admin_certlogin_crl=0)
+        try:
+            st, card = self.sign('admin', 'nested')
+            self.assertEqual(st, 200, card)
+            st, other = self.sign('admin', 'falco')
+            self.assertEqual(st, 200, other)
+            st, got = self.settings(session=card['token'], admin_certlogin_match='strong')
+            self.assertEqual(st, 200, got)
+            self.assertFalse(self.call('GET', '/api/auth/whoami', None, other['token'])[1].get('who'))
+            self.assertEqual(self.call('GET', '/api/auth/whoami', None, card['token'])[1]['who']['name'],
+                             'nested')
+            self.assertTrue(any('made with a certificate ended' in w and 'more strictly' in w
+                                for w in self.events('more strictly')))
+            st, other = self.sign('admin', 'falco')
+            self.on(admin_certlogin_crl=1)
+            self.assertFalse(self.call('GET', '/api/auth/whoami', None, other['token'])[1].get('who'))
+            # Made looser: nothing ends.
+            st, other = self.sign('admin', 'falco')
+            self.on(admin_certlogin_match='upn')
+            self.assertTrue(self.call('GET', '/api/auth/whoami', None, other['token'])[1].get('who'))
+            # The root taken away (the issuing one stays): its sign-ins end.
+            v = self.ok('GET', '/api/certlogin')
+            root = [c['sha256'] for c in v['cas'] if 'Root' in c['subject']][0]
+            st, got = self.call('POST', '/api/certlogin', {'action': 'drop', 'sha256': root}, self.admin)
+            self.assertEqual(st, 200, got)
+            self.assertFalse(self.call('GET', '/api/auth/whoami', None, other['token'])[1].get('who'))
+            self.assertTrue(any('was taken away' in w for w in self.events('was taken away')))
+        finally:
+            self.put()
+            self.on(admin_certlogin=0, admin_certlogin_match='strong', admin_certlogin_crl=1)
+
+    def test_27_the_nonce_once(self):
+        """F7: the page's nonce once in the whole cluster - kept by the daemon, not only by the
+        browser's cookie going."""
+        self.put()
+        self.on(admin_certlogin=1)
+        try:
+            once = secrets.token_hex(16)
+            st, got = self.call('POST', '/api/auth/cert', {'cert': self.pem('nested'), 'once': once})
+            self.assertEqual(st, 200, got)
+            st, got = self.call('POST', '/api/auth/cert', {'cert': self.pem('nested'), 'once': once})
+            self.assertEqual((st, got.get('error')), (401, REFUSED + 'certificate not accepted'), got)
+            st, got = self.call('POST', '/api/auth/cert', {'cert': self.pem('nested')})
+            self.assertEqual((st, got.get('error')), (401, REFUSED + 'certificate not accepted'), got)
+            words = self.events('nonce of the page')
+            self.assertTrue(any('used already' in w for w in words), words)
+            self.assertTrue(any('no nonce of the page' in w for w in words), words)
+        finally:
+            self.on(admin_certlogin=0)
+
+    def test_28_an_nginx_not_acmes(self):
+        """F8: the port taken by a process named nginx that is not the system's (its pid file
+        names another master): refused like any other program; the system's own is not."""
+        d = tempfile.mkdtemp(prefix='acme-nginx-name-')
+        os.symlink(sys.executable, os.path.join(d, 'nginx'))
+        with open(os.path.join(d, 'listen.py'), 'w') as f:
+            f.write('import socket, time\ns = socket.socket()\ns.bind(("127.0.0.1", 0))\ns.listen(1)\n'
+                    'print(s.getsockname()[1], flush=True)\ntime.sleep(120)\n')
+        proc = subprocess.Popen([os.path.join(d, 'nginx'), os.path.join(d, 'listen.py')],
+                                stdout=subprocess.PIPE, text=True)
+        try:
+            port = int(proc.stdout.readline())
+            pidfile = os.path.join(d, 'nginx.pid')
+            with open(pidfile, 'w') as f:
+                f.write('%d\n' % proc.pid)
+            got = self.py('E.CL_NGINX_PID_FILES[:] = [%r]\na = E.cl_port_busy(%d)\n'
+                          'E.CL_NGINX_PID_FILES[:] = [%r]\nb = E.cl_port_busy(%d)\n'
+                          'print(json.dumps([a, b]))' % (pidfile + '.none', port, pidfile, port))
+            self.assertIn('nginx that is not acme', got[0])
+            self.assertEqual(got[1], '')
+            spec = importlib.util.spec_from_file_location('acme_web_n', os.path.join(ROOT, 'deploy', 'acme_web.py'))
+            W = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(W)
+            W.NGINX_PID_FILES = [pidfile + '.none']
+            self.assertIn('not the system', W.certlogin_busy(port, 'testnode'))
+            W.NGINX_PID_FILES = [pidfile]
+            self.assertEqual(W.certlogin_busy(port, 'testnode'), '')
+        finally:
+            proc.kill()
+            proc.wait(10)
+            proc.stdout.close()
+            shutil.rmtree(d, ignore_errors=True)
+
     @staticmethod
     def _v6():
         try:
@@ -1156,8 +1427,9 @@ class CertLogin(unittest.TestCase):
             self.on(admin_certlogin=1)
             st, h = self.call('GET', '/api/health')
             self.assertEqual(h['certlogin'], {'on': True, 'auto': True, 'only': False, 'port': 8443})
-            self.assertEqual(h['signin'], {'password': True, 'windows': 'off',
-                                           'certificate': 'auto', 'order': ['certificate']})
+            self.assertEqual({k: h['signin'][k] for k in ('password', 'windows', 'certificate', 'order')},
+                             {'password': True, 'windows': 'off', 'certificate': 'auto',
+                              'order': ['certificate']})
             st, info = self.call('GET', '/api/portal/info')
             self.assertFalse(info['certlogin']['auto'], 'the portal has its own switch')
             self.on(portal_certlogin=1)

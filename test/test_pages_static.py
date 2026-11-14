@@ -550,6 +550,13 @@ class SteadyFacts(unittest.TestCase):
         self.assertIn('font-variant-numeric:tabular-nums', self.rule(css, '  .updated'))
         self.assertIn('td{font-variant-numeric:tabular-nums}', css)
 
+    def test_live_tables_of_fixed_columns(self):
+        """The lockouts (drawn again every second) and the sign-ins (drawn again at every
+        change of Accounts) have columns of fixed widths, not laid out by their words."""
+        css = read('web', 'assets', 'acme.css')
+        self.assertIn('table-layout:fixed', self.rule(css, '#lo-table table, #gd-table table'))
+        self.assertIn('table-layout:fixed', self.rule(css, '#se-table table'))
+
 
 if __name__ == '__main__':
     sys.exit(unittest.main())

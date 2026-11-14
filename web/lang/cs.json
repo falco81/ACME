@@ -62451,6 +62451,30 @@
   "_395": {
    "source": "Trust one of acme’s own authorities…",
    "text": "Důvěřovat jedné z vlastních autorit acme…"
+  },
+  "_396": {
+   "source": "strong (the default): the SID an AD CS writes into a certificate since KB5014754 (its own extension) must be there and be the account's - Microsoft's full enforcement, what Windows requires since September 2025. compat: it must be the account's when it is there; upn: the UPN alone. Both are opt-downs: whoever may ask the authority for a certificate with a name of their choosing signs in as whoever they name. A SID in the Subject Alternative Name is the requester's word, never taken for the extension.",
+   "text": "strong (výchozí): SID, který AD CS od KB5014754 zapisuje do certifikátu (do vlastního rozšíření), v něm musí být a musí patřit účtu – plné vynucení Microsoftu, které Windows vyžadují od září 2025. compat: musí patřit účtu, pokud v certifikátu je; upn: jen UPN. Obojí je oslabení: kdo si smí u autority vyžádat certifikát se jménem podle vlastní volby, přihlásí se jako kdokoli, koho do něj napíše. SID v alternativním jménu subjektu (SAN) je slovo žadatele – za rozšíření se nikdy nebere."
+  },
+  "_397": {
+   "source": "The CRL at the certificate's CRL Distribution Point (http) and its delta CRL (Freshest CRL), and those of the authorities above it, fetched again every ten minutes at most: a revocation is seen within ten minutes of the authority publishing it. No CRL to be had (the last good one kept until its next update), no sign-in. Off: revocation is not checked - a lost card signs in until its account is switched off in the directory.",
+   "text": "CRL z distribučního bodu CRL certifikátu (http) a jeho rozdílový CRL (Freshest CRL), i CRL autorit nad ním, stahované znovu nejvýš každých deset minut: zneplatnění se projeví do deseti minut od chvíle, kdy ho autorita zveřejní. Když CRL nelze získat (poslední platný se drží do své další aktualizace), nikdo se nepřihlásí. Vypnuto: zneplatnění se nekontroluje – ztracená karta přihlašuje, dokud se její účet v adresáři nevypne."
+  },
+  "_398": {
+   "source": "As the administration's, for the portal: strong (the default), or the opt-downs compat and upn.",
+   "text": "Jako u správy, pro portál: strong (výchozí), nebo oslabení compat a upn."
+  },
+  "_399": {
+   "source": "Not strong",
+   "text": "Není strong"
+  },
+  "_400": {
+   "source": "Not strong: a certificate without the SID of KB5014754 is taken by its UPN alone - anybody who may ask an authority put in here for a certificate with a name of their choosing (a template where the requester supplies the subject) signs in as whoever they name, a full administrator too. Windows itself requires the SID since September 2025.",
+   "text": "Není strong: certifikát bez SID podle KB5014754 se bere jen podle UPN – kdokoli, kdo si u zde vložené autority smí vyžádat certifikát se jménem podle vlastní volby (šablona, kde subjekt zadává žadatel), se přihlásí jako ten, koho jmenuje, i jako plný správce. Windows samy SID vyžadují od září 2025."
+  },
+  "_401": {
+   "source": "checked - the CRL and the delta CRL of the certificate and of the authorities above it, fetched again every ten minutes at most; no CRL no sign-in",
+   "text": "kontroluje se – CRL a rozdílový CRL certifikátu i autorit nad ním, stahované znovu nejvýš každých deset minut; bez CRL žádné přihlášení"
   }
  },
  "patterns": {

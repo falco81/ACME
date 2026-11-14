@@ -777,7 +777,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
   /* Signed in with Windows (1.0.99): the second step next, exactly as after a password. Both
      tried by themselves: Windows first, the certificate only when it did not sign in. */
   krbDoor(function (d) {
-    if (d && d.mfa) { form.hidden = true; var kb = $('krb-box'); if (kb) kb.hidden = true; mfaStep(); return; }
+    if (d && d.mfa) { form.hidden = true; ['krb-box', 'cert-box'].forEach(function (id) { if ($(id)) $(id).hidden = true; }); mfaStep(); return; }
     location.reload();
   }, certNext);
   if ($('mfa-box').dataset.stage) mfaStep(); else if ($('in-name')) $('in-name').focus();
@@ -957,6 +957,18 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         without a second password. Off, the pages are as until now.</p>
       <div id="sect-portalsso"></div>
       <div id="sso-host"></div>
+    </div>
+    <!-- The sign-in page (1.0.100): the switch both ways share, and what a person meets now. -->
+    <div class="card full" id="signin-card-portal">
+      <h2>The sign-in page</h2>
+      <p class="note">What the portal's sign-in page offers, with Windows and a certificate side by side: each is
+        a button under the name and password, or is tried by itself when the page opens. Both tried
+        by themselves: Windows first - silently - and the certificate only when this computer has
+        no Windows ticket. A refusal of either stops there and says why; the form stays unless
+        there is no password at all. After Sign out nothing is tried by itself again in that tab.
+        The administration has a card of its own.</p>
+      <div id="sect-portalsignin"></div>
+      <div id="signin-host-portal"></div>
     </div>
     <div class="card full" id="krb-card-portal">
       <h2>Signing in with Windows (Kerberos)</h2>
@@ -1154,6 +1166,19 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       </div>
     </div>
     <div class="card full"><div id="sect-people"></div></div>
+    <!-- The sign-in page (1.0.100): the switch both ways share, and what a person meets now. -->
+    <div class="card full" id="signin-card-admin">
+      <h2>The sign-in page</h2>
+      <p class="note">What the sign-in page of these pages offers, with Windows and a certificate side by side:
+        each is a button under the name and password, or is tried by itself when the page opens.
+        Both tried by themselves: Windows first - silently - and the certificate only when this
+        computer has no Windows ticket (a computer outside the domain with a smart card). A refusal
+        of either stops there and says why; the form stays unless there is no password at all.
+        After Sign out nothing is tried by itself again in that tab. The enrolment pages have a
+        card of their own.</p>
+      <div id="sect-adminsignin"></div>
+      <div id="signin-host-admin"></div>
+    </div>
     <div class="card full" id="krb-card-admin">
       <h2>Signing in with Windows (Kerberos)</h2>
       <p class="note">A browser on a computer in the domain signs its person in to these pages

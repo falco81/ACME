@@ -16,13 +16,25 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   acme checks the certificate itself: the chain to the authorities put in **and no store of the
   system's** (`openssl verify -no-CApath -no-CAstore`: `-CAfile` alone still trusts the system's
   roots - the kit's reference did), the dates, Client Authentication or Smart Card Logon, the
-  CRL at its CDP (http, fetched only for a certificate whose chain is good, kept until its next
-  update, no CRL no sign-in; `*_certlogin_crl` switches it off), the UPN looked up in the part's
-  directory and the account found by its sAMAccountName as a password finds it (the same DN),
-  and the SID of KB5014754 against `objectSid` - `compat` (default), `strong` or `upn`
-  (`*_certlogin_match`). The second step / the portal's one-time code after it every time. A
-  nonce of the page (HttpOnly, SameSite=Strict, five minutes, one use, MAC-bound to the part)
-  against login CSRF. Refusals say the kind only (*certificate not accepted*, *revoked*, *run
+  CRL at its CDP and its **delta CRL** (Freshest CRL), and those of **every authority above it**
+  but the root (`-crl_check_all -use_deltas`: an issuing authority its root revoked signs nobody
+  in) - fetched only for a certificate whose chain is good, **kept ten minutes at most** (a
+  revocation is seen within ten minutes of the authority publishing a CRL with it), the last
+  good one until its next update while the CDP does not answer, no CRL no sign-in;
+  `*_certlogin_crl` switches it off. Fetched over http only, **every address of the CDP's name
+  checked** as it is fetched (no loopback, link-local, metadata, multicast or unspecified address
+  in any form; private addresses allowed - AD CS's are inside), no redirect followed, 8 MB and
+  15 s at most. **Every UPN** of the certificate looked at (more than one person: refused), the
+  **name constraints** of its authorities applied to the UPN (openssl does not), the UPN looked
+  up in the part's directory and the account found by its sAMAccountName as a password finds it
+  (the same DN), and the SID of KB5014754 against `objectSid` - **`strong` by default**
+  (`*_certlogin_match`; `compat` and `upn` are opt-downs, *Not strong* warned on the card) and
+  **only from its extension**: a SID in the Subject Alternative Name (otherName or the
+  `tag:microsoft.com,2022-09-14:sid:` URL) is the requester's word, never strong, refused when it
+  is not the extension's or the account's. The second step / the portal's one-time code after it
+  every time. A nonce of the page against login CSRF - five minutes, MAC-bound to the part and to
+  a random value in a `__Host-` cookie of this browser (`HttpOnly`, `SameSite=Strict`), **used
+  once in the whole cluster** (kept by the daemon). Refusals say the kind only (*certificate not accepted*, *revoked*, *run
   out*, *not allowed*, *not available just now*), the reason in Events; counted per address,
   *Block a place that keeps guessing*, `alerts_certlogin`. The authorities put in on the card
   (PEM, DER, `.p7b`; a person's certificate refused; taken away one by one; acme's own authority
@@ -32,26 +44,48 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   to start). `acme --cert-login`, `--cert-login-ca FILE`, `--cert-login-ca-off SHA256`; carried
   by the exported configuration, backups and the cluster ([docs/certificate-sign-in.md](docs/certificate-sign-in.md)).
 - **No password at all - only Windows or a certificate**: `admin_password_off` /
-  `portal_password_off` are one switch for both ways now - shown in **both cards** (the card of
-  Windows and the card of the certificate, *...and no password at all - only Windows or a
-  certificate*; the same switch, saved once): switched on only from a sign-in made with Windows or a certificate, in
+  `portal_password_off` are one switch for both ways now, in a card of its own, **The sign-in
+  page** (one in *Accounts*, one in *The enrolment pages*, beside the cards of Windows and of the
+  certificate): switched on only from a sign-in made with Windows or a certificate, in
   effect while either can sign anybody in (fail closed at the start), the way back for root
-  `acme --set admin_password_off=0`. Sessions made with a certificate (`how: certificate`) end
-  when certificates are switched off or the last authority taken away, but the switcher's.
+  `acme --set admin_password_off=0`. The keytab, or the last authority, cannot be taken away
+  while it alone signs people in to a part with no password at all; with Windows the only way,
+  Windows is tried by itself whatever its own switch says. Sessions made with a certificate (`how: certificate`) end
+  when certificates are switched off or the last authority taken away, when **an authority of
+  their chain** is taken away, and when **certificates are taken more strictly** (revocation
+  switched on, the matching made stricter) - but the switcher's.
+- **The certificate's port, another nginx**: a port held by a process named nginx counts as
+  acme's only when it is the system's nginx (the master its pid file names, the system's
+  configuration) - any other nginx is refused like any other program. Behind a layer-4 balancer
+  the lockouts see the balancer's address: the PROXY protocol (or a transparent balancer) is
+  described in [docs/certificate-sign-in.md](docs/certificate-sign-in.md).
+- **Upgrading** (from a build of 1.0.100 before this change): *Which account a certificate is*
+  is **strong** by default. A value saved (`upn`, or `strong` - a row of the settings) is kept as
+  it is - only the default changes; `compat`, the default until now, was never kept as a row, so
+  an installation on it takes strong - choose compat again on the card to keep certificates
+  without the SID extension (a template where the requester supplies the subject, an offline
+  template) signing in, knowingly. From now on a matching chosen is kept as a row even when it
+  is the default, so a later change of the default leaves it as chosen. The issuing authority's
+  own certificate needs an http CDP (the root's CRL) while revocation is checked.
 - **The certificate at once when the sign-in page opens** (`admin_certlogin_auto`,
   `portal_certlogin_auto`; off by default), as Windows' `*_krb_auto`: the page goes to the
   certificate's port by itself - the chooser, the PIN - and shows the form only when it did not
   sign in. Never by itself again in that tab after *Sign out*, after a refusal or a certificate
   not chosen, nor with `?nocert` (*Use a password instead* under the form); at most once in ten
   minutes and three times a tab whatever happens - a setup that never signs in cannot loop.
-- **Windows and a certificate on one part**: both buttons under the form (with no password at
-  all, both buttons and no form); both by themselves - **Windows first** (it asks nothing), the
-  certificate only when Windows did not sign in; one by itself, the other a button. A refusal by
-  one way still offers the other (Windows' words kept for when the page is back). Each card
-  shows **the sign-in page** of its part as it is now - a password yes or no, Windows and a
-  certificate each a button, at once or off - and `/api/health`, `/api/portal/info` (`signin`),
-  `acme --kerberos` and `acme --cert-login` say the same ([docs/certificate-sign-in.md](docs/certificate-sign-in.md),
-  *Combining Windows and a certificate*).
+- **The sign-in page - the variants** (as isemon 1.10.343): a password, Windows and a certificate
+  on one page, the administration and the portal alike. Both ways on: both buttons under the
+  form (with no password at all, both buttons and no form); both by themselves - **Windows first,
+  silently**, the certificate only when this computer has **no Windows ticket at all**; a refusal
+  by either is said and nothing else starts; one by itself, the other a button. The second step /
+  the one-time code after every way, with no other way's button on its screen. The card **The
+  sign-in page** says what a person meets now (name and password, each way off / a button / by
+  itself, what is tried when the page opens, after a refusal, after Sign out), and
+  `/api/health`, `/api/portal/info` (`signin: {on, auto, cert, cert_port, cert_auto, only, ...}`),
+  `acme --kerberos` and `acme --cert-login` say the same. A setting that depends on a switch
+  that is off is "Not in use while ... is off" **and cannot be changed** until it is on (every
+  pane). ([docs/certificate-sign-in.md](docs/certificate-sign-in.md), *The sign-in page - the
+  variants*.)
 - The directory's `objectSid` is read (as bytes) with every account.
 
 ## 1.0.99 - 2026-11-14

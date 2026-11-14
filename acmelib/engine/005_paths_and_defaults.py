@@ -411,8 +411,10 @@ SEALED_KEYS = ('smtp_password', 'sms_token', 'sms_tel_password', 'rbackup_passwo
                'portal_sso_key')
 
 # Saved as a row even when equal to the default (otp 1.0.238): what they were before tells
-# "switched off" from "never switched on".
-KEPT_OFF_KEYS = ('proxy_update', 'proxy_os', 'web_proxy', 'portal_sso')
+# "switched off" from "never switched on". The certificate's matching too (1.0.100): a value
+# chosen is kept as chosen when a later version changes the default (compat -> strong).
+KEPT_OFF_KEYS = ('proxy_update', 'proxy_os', 'web_proxy', 'portal_sso',
+                 'admin_certlogin_match', 'portal_certlogin_match')
 
 # What each setting may be: a list of words, or the lowest and highest number.
 TUNABLE = {
@@ -696,11 +698,11 @@ NAMES = {
     'admin_krb': 'Sign administrators in with Windows (Kerberos)',
     'admin_krb_auto': '...by itself when the sign-in page opens',
     'admin_krb_realm': 'Kerberos realm',
-    'admin_password_off': '...and no password at all - only Windows or a certificate',
+    'admin_password_off': 'No password at all - only Windows or a certificate',
     'portal_krb': 'Sign people in with Windows (Kerberos)',
     'portal_krb_auto': '...by itself when the portal opens',
     'portal_krb_realm': 'Kerberos realm of the portal',
-    'portal_password_off': '...and no password at all on the portal - only Windows or a certificate',
+    'portal_password_off': 'No password at all on the portal - only Windows or a certificate',
     'admin_certlogin': 'Sign administrators in with a certificate (a smart card, a YubiKey)',
     'admin_certlogin_auto': '...by itself when the sign-in page opens',
     'admin_certlogin_match': 'Which account a certificate is',
@@ -1227,8 +1229,7 @@ SAYS = {
     'admin_krb_realm': 'The realm whose people may sign in, in capitals (CORP.EXAMPLE). Empty: '
                        'taken from the base DN of the directory above (DC=corp,DC=example → '
                        'CORP.EXAMPLE). A ticket of any other realm is refused.',
-    'admin_password_off': 'One switch of both ways - the same in the card of Windows and in the '
-                          'card of the certificate. '
+    'admin_password_off': 'One switch of both ways (The sign-in page). '
                           'On: the sign-in page offers no name and password - nobody signs in '
                           'with a password, local accounts neither; only Windows (Kerberos) or a '
                           'certificate, then the second step when it is on. No password is set or '
@@ -1253,8 +1254,7 @@ SAYS = {
                         'taken from the base DN of the portal\'s directory (Which directory '
                         'people sign in against, else the administrators\'). A ticket of any '
                         'other realm is refused.',
-    'portal_password_off': 'One switch of both ways - the same in the card of Windows and in the '
-                           'card of the certificate. '
+    'portal_password_off': 'One switch of both ways (The sign-in page of the portal). '
                            'On: the portal offers no name and password - nobody signs in to it '
                            'with a password, acme\'s own accounts neither; only Windows '
                            '(Kerberos) or a certificate, then the one-time code when it is on. '
@@ -1686,10 +1686,12 @@ PANES = {
                'admin_group_readonly', 'admin_group_portal'],
     # Signing in with Windows (1.0.99): the administration's switches on the card of their own
     # under Accounts, the portal's on the card under the enrolment pages.
-    # "No password at all" is one switch of both ways (1.0.100): drawn here, in the card of
-    # Windows, and the same switch again in the card of the certificate (admin.js, a mirror).
-    'adminkrb': ['admin_krb', 'admin_krb_auto', 'admin_krb_realm', 'admin_password_off'],
-    'portalkrb': ['portal_krb', 'portal_krb_auto', 'portal_krb_realm', 'portal_password_off'],
+    'adminkrb': ['admin_krb', 'admin_krb_auto', 'admin_krb_realm'],
+    'portalkrb': ['portal_krb', 'portal_krb_auto', 'portal_krb_realm'],
+    # "No password at all" is one switch of both ways (1.0.100): in a card of its own, The
+    # sign-in page, beside the cards of Windows and of the certificate - one for each part.
+    'adminsignin': ['admin_password_off'],
+    'portalsignin': ['portal_password_off'],
     # Signing in with a certificate (1.0.100): the same - a card of its own under Accounts (with
     # the port, one for both parts), and one under the enrolment pages.
     'admincert': ['admin_certlogin', 'admin_certlogin_auto', 'certlogin_port',

@@ -85,7 +85,7 @@ function portalDoor() {
   /* Signed in with Windows (1.0.99): then the one-time code, as after a password. Both tried by
      themselves: Windows first, the certificate only when it did not sign in. */
   krbDoor(function (d) {
-    if (d && d.gate) { var kb = $('krb-box'); if (kb) kb.hidden = true; gateForm(d.gate); return; }
+    if (d && d.gate) { ['krb-box', 'cert-box'].forEach(function (id) { if ($(id)) $(id).hidden = true; }); gateForm(d.gate); return; }
     said.className = 'said good';
     said.textContent = 'Welcome.';
     location.reload();
@@ -110,6 +110,8 @@ function gateForm(g) {
   var form = $('signin-form');
   var box = form.parentNode;
   form.hidden = true;
+  /* The one-time code is no choice (1.0.100): the other ways' buttons are not on its screen. */
+  ['krb-box', 'cert-box'].forEach(function (id) { if ($(id)) $(id).hidden = true; });
   var first = box.querySelector('p.lede');
   if (first) first.hidden = true;
   var old = $('gate-box');
