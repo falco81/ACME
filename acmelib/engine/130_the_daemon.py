@@ -273,6 +273,9 @@ class Daemon(object):
             k = part + '_password_off'
             if checked.get(k) and not CONFIG.get(k) and not (krb_proof or {}).get(part):
                 raise BadSetting(KRB_PROOF_SAID[part])
+        # The certificate's own port free here (1.0.100): nothing but nginx listening on it.
+        if any(k in checked for k in ('certlogin_port', 'admin_certlogin', 'portal_certlogin')):
+            cl_save_check(self.store, checked)
         if any(k in checked for k in PORTAL_CODE_KEYS):
             # The code at every sign-in only with a way to send it (as otp 1.0.228): switched on
             # without one, or the mail or the SMS switched off under it, nobody could sign in.

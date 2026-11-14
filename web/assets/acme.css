@@ -156,7 +156,10 @@
   header .host{color:var(--tx-dim);font-weight:400}
   .spacer{flex:1}
   .updated{color:var(--tx-mut);font-size:13px;text-align:right;line-height:1.35;
-           cursor:pointer;user-select:none}
+           cursor:pointer;user-select:none;
+           /* The clock ticks every 5 s: of digits of one width, and the box of one width
+              ("live"/"paused"), or the buttons beside it move with every tick. */
+           font-variant-numeric:tabular-nums;min-width:58px}
   .updated b{color:var(--tx-dim);font-weight:600}
 
   .pace.busy .pace-dot{background:var(--warn);opacity:1}
@@ -369,6 +372,9 @@
   .tag.load{background:rgba(240,136,62,.14);color:var(--load)}
 
   table{width:100%;border-collapse:collapse;font-size:13.5px}
+  /* Digits of one width in every table: "3 s ago", counters, times redrawn every 5 s keep
+     their width, and the columns laid out by them do not twitch. */
+  td{font-variant-numeric:tabular-nums}
   th{text-align:left;font-size:11px;letter-spacing:.7px;text-transform:uppercase;
      color:var(--tx-mut);font-weight:700;padding:6px 10px 6px 0;border-bottom:1px solid var(--line);
      white-space:nowrap}
@@ -1239,6 +1245,7 @@
     text-transform:uppercase;letter-spacing:.08em;margin:6px 0 2px}
   .signin .krb-or::before,.signin .krb-or::after{content:"";flex:1;height:1px;background:var(--line)}
   .signin .krb-box .btn{width:100%}
+  .signin .krb-box + .cert-box{margin-top:10px}
 
   .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);z-index:400;
     background:var(--panel);border:1px solid var(--line);border-radius:12px;
@@ -3987,9 +3994,14 @@ pre.lines { word-break: normal; overflow-wrap: anywhere; }
 .gd-sure.on-page { position: fixed; z-index: 350; border-radius: 0; }
 
 /* ---- signing in with Windows - the cards (1.0.99, as otp 1.0.274) ------------------------- */
-.krb-facts{border-collapse:collapse;margin:10px 0 4px;font-size:13.5px}
-.krb-facts th{text-align:left;font-weight:500;color:var(--tx-dim);padding:5px 28px 5px 0;vertical-align:top;white-space:nowrap;
+/* The label column of one width, whatever the values say (1.0.100): laid out by its words, the
+   table (100 % wide, as every table) gave the values' column what the longest value left over -
+   switching "...by itself" changed one value and the whole column moved by 140 px. */
+.krb-facts{width:100%;table-layout:fixed;border-collapse:collapse;margin:10px 0 4px;font-size:13.5px}
+.krb-facts th{width:262px;text-align:left;font-weight:500;color:var(--tx-dim);padding:5px 28px 5px 0;vertical-align:top;
+  white-space:normal;overflow-wrap:anywhere;
   text-transform:none;letter-spacing:0;font-size:13.5px;border:0;background:none}
+.krb-facts td{overflow-wrap:anywhere}
 .krb-facts td{border:0}
 .krb-facts td{padding:5px 0}
 .krb-facts td .mono{margin-right:8px}
@@ -4006,7 +4018,11 @@ table.krb-t .tag{margin-left:6px}
 .krb-ul{margin:6px 0 10px;padding-left:20px;line-height:1.9;font-size:13.5px}
 .krb-ul .mono{overflow-wrap:anywhere}
 @media (max-width:640px){
-  .krb-facts th{white-space:normal;padding-right:14px}
+  /* A phone: the label above its value, both the whole width. */
+  .krb-facts, .krb-facts tbody, .krb-facts tr, .krb-facts th, .krb-facts td{display:block;width:auto}
+  .krb-facts tr{padding:4px 0}
+  .krb-facts th{padding:0 0 1px}
+  .krb-facts td{padding:0}
 }
 .cchip.good{color:var(--ok);border-color:rgba(63,185,80,.4)}
 .cchip.bad{color:var(--crit);border-color:rgba(248,81,73,.4)}

@@ -514,5 +514,42 @@ class WhatHappensLayout(unittest.TestCase):
                                                   'wrote /a •••• (heslo pro tento běh)'], got.stderr)
 
 
+class SteadyFacts(unittest.TestCase):
+    """Nothing moves sideways when a value changes (1.0.100): the facts of the Windows
+    (Kerberos) and certificate sign-in cards were a table 100 % wide laid out by its
+    words - switching "...by itself when the sign-in page opens" changed one value and
+    the whole value column moved by 140 px. The label column is of one width."""
+
+    @staticmethod
+    def rule(css, sel):
+        m = re.search(r'(?m)^' + re.escape(sel) + r'\{([^}]*)\}', css)
+        return m.group(1) if m else ''
+
+    def test_label_column_of_one_width(self):
+        css = read('web', 'assets', 'acme.css')
+        table = self.rule(css, '.krb-facts')
+        self.assertIn('table-layout:fixed', table)
+        self.assertIn('width:100%', table)
+        th = self.rule(css, '.krb-facts th')
+        self.assertRegex(th, r'(?:^|;)width:\d+px')
+        self.assertNotIn('white-space:nowrap', th, 'a long label wraps in its column, never widens it')
+        # a phone: the label above its value
+        self.assertRegex(css, r'@media \(max-width:640px\)\{\s*/\*[^*]*\*/\s*\.krb-facts, \.krb-facts tbody, '
+                              r'\.krb-facts tr, \.krb-facts th, \.krb-facts td\{display:block')
+
+    def test_facts_drawn_by_the_shared_table(self):
+        """Every facts table of those cards is drawn by krbFacts (class krb-facts), never a
+        table of its own laid out by its words."""
+        js = read('web', 'assets', 'admin.js')
+        self.assertIn("var t = el('table', 'krb-facts');", js)
+
+    def test_digits_of_one_width(self):
+        """The clock of the header ticks every 5 s and "3 s ago" in the tables: digits of
+        one width, or the buttons beside the clock and the columns move with every tick."""
+        css = read('web', 'assets', 'acme.css')
+        self.assertIn('font-variant-numeric:tabular-nums', self.rule(css, '  .updated'))
+        self.assertIn('td{font-variant-numeric:tabular-nums}', css)
+
+
 if __name__ == '__main__':
     sys.exit(unittest.main())

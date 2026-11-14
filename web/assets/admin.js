@@ -8107,14 +8107,20 @@ function drawCert(part) {
     var put = cmdButton('Put in an authority…', 'upload', 'small' + (d.cas.length ? '' : ' primary'));
     put.onclick = certPut;
     row.appendChild(put);
-    (d.own_cas || []).forEach(function (o) {
-      var b = cmdButton('Trust acme’s own authority ' + o.name, 'shield', 'small');
-      explain(b, 'The people’s certificates are issued by an authority of acme’s own (Certificates → Authorities): its certificate and the chain above it put in here.');
-      b.onclick = function () {
-        api('certlogin', {action: 'own', id: o.id}).then(function (x) { CERTC.d = x.view; toast(x.message, 'good'); drawCert('admin'); drawCert('portal'); }).catch(oops);
+    if ((d.own_cas || []).length) {
+      /* acme's own authorities (Certificates -> Authorities): one of them chosen - not a row of buttons. */
+      var sel = el('select', 'small cert-own');
+      var first = el('option', '', 'Trust one of acme’s own authorities…');
+      first.value = '';
+      sel.appendChild(first);
+      d.own_cas.forEach(function (o) { var op = noI18n(el('option', '', o.name)); op.value = String(o.id); sel.appendChild(op); });
+      explain(sel, 'The people’s certificates are issued by an authority of acme’s own (Certificates → Authorities): its certificate and the chain above it put in here.');
+      sel.onchange = function () {
+        if (!sel.value) return;
+        api('certlogin', {action: 'own', id: Number(sel.value)}).then(function (x) { CERTC.d = x.view; toast(x.message, 'good'); drawCert('admin'); drawCert('portal'); }).catch(oops);
       };
-      row.appendChild(b);
-    });
+      row.appendChild(sel);
+    }
   }
   var tb = cmdButton('Try my certificate', 'person', 'small');
   explain(tb, 'Opens the certificate’s port in a new tab: the browser offers its certificate (the card asks for its PIN) and this card says who it would sign in to ' + (part === 'admin' ? 'these pages' : 'the enrolment pages') + ' and as what - nobody is signed in. The best way to find a wrong template before switching this part on (the port is served while either part is on).');
@@ -8159,8 +8165,8 @@ function drawCert(part) {
   krbTable(host, ['Node', 'Heard from', 'The authorities', 'nginx on port ' + d.port, 'Trouble'], d.nodes.map(function (n) {
     return [noI18n(el('span', 'mono', n.node)), krbTag(n.heard ? 'ok' : 'crit', n.heard ? 'yes' : 'no'),
       d.cas.length ? krbTag(n.written && n.same ? 'ok' : 'warn', n.written && n.same ? 'written' : (n.written ? 'an older set' : 'not written')) : krbTag('dim', 'none to write'),
-      d.any_on ? krbTag(n.listening ? 'ok' : 'warn', n.listening ? 'listening' : 'not listening') : krbTag('dim', 'not served (off)'),
-      el('span', 'small muted', n.error || '')];
+      n.busy ? krbTag('crit', 'taken by another program') : (d.any_on ? krbTag(n.listening ? 'ok' : 'warn', n.listening ? 'listening' : 'not listening') : krbTag('dim', 'not served (off)')),
+      noI18n(el('span', 'small ' + (n.busy ? 'bad' : 'muted'), n.busy || n.error || ''))];
   }));
   /* AD CS and a YubiKey. */
   host.appendChild(el('h3', 'peek-h', 'The people’s certificates (AD CS)'));
@@ -8174,7 +8180,10 @@ function drawCert(part) {
     {who: 'jnovak'}, 'A YubiKey by hand (YubiKey Manager, certreq)'));
   /* The browsers and the network. */
   host.appendChild(el('h3', 'peek-h', 'The browsers and the network'));
-  var names = (d.names || []).map(function (n) { return n.name; });
+  /* The name this page was opened by first, then the VIP address's and each node's - never a
+     bare "localhost" a node calls itself. */
+  var names = [location.hostname].concat((d.names || []).map(function (n) { return n.name; }))
+    .filter(function (n, i, all) { return n && n !== 'localhost' && all.indexOf(n) === i; });
   if (!names.length) names = [location.hostname];
   var ul2 = el('ul', 'krb-ul');
   var li = el('li', '');
@@ -8182,7 +8191,9 @@ function drawCert(part) {
   li.appendChild(noI18n(el('span', 'mono', names.map(function (n) { return 'https://' + n + ':' + d.port + '/'; }).join(', '))));
   ul2.appendChild(li);
   [['The firewall of each node lets the port in for the networks that may reach the pages of the parts switched on - nothing else is served there: ', String(d.port)],
-   ['Behind a load balancer the port is passed through as TCP - TLS ends on the nodes, which alone see the certificate: ', String(d.port)],
+   ['Behind a load balancer or a WAF the port is passed through as TCP (a TCP or SSL-bridge listener, not an HTTP profile) - TLS ends on the nodes, which alone see the certificate: ', String(d.port)],
+   ['The balancer\u2019s own ports are on its own address - another machine: they never clash with this port on the nodes. Signed in by the balancer (the portal) stays on 443.', ''],
+   ['Nothing else may listen on the port on a node: acme checks it before nginx is given it, and says here which program has it.', ''],
    ['Edge, Chrome: no setting - a policy can pick the certificate by itself: ', 'AutoSelectCertificateForUrls'],
    ['Firefox: the card through its PKCS#11 module (OpenSC), or security.osclientcerts.autoload for the certificates of Windows', '']].forEach(function (x) {
     var li2 = el('li', '');

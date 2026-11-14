@@ -19,7 +19,9 @@ up - the first time it signs in after the second step was switched on.
 
 **Signed in with Windows** (Kerberos, 1.0.99 - [kerberos-sso.md](kerberos-sso.md)): the ticket
 takes the place of the password only - the second step is asked after it just the same, every
-time.
+time. **Signed in with a certificate** (a smart card, a YubiKey, 1.0.100 -
+[certificate-sign-in.md](certificate-sign-in.md)): the same - the certificate replaces the
+password, the second step is asked after it every time.
 
 ## Signing in
 

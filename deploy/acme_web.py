@@ -1018,6 +1018,69 @@ def certlogin_text(main, vip_block, c):
     return text
 
 
+CERTLOGIN_NOW = {}          # what was done with the port, for status.json (the card)
+
+
+def certlogin_port_users(port):
+    """[(process name, pid)] of what listens on TCP `port` here (any address, IPv4 and IPv6) -
+    /proc/net/tcp and tcp6, the process found by its socket (root sees every one)."""
+    inodes = set()
+    for name in ('/proc/net/tcp', '/proc/net/tcp6'):
+        try:
+            with open(name) as f:
+                lines = f.read().splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            p = line.split()
+            try:
+                if len(p) >= 10 and p[3] == '0A' and int(p[1].rsplit(':', 1)[1], 16) == int(port):
+                    inodes.add(p[9])
+            except (ValueError, IndexError):
+                continue
+    found = {}
+    for pid in [x for x in os.listdir('/proc') if x.isdigit()] if inodes else []:
+        try:
+            fds = os.listdir('/proc/%s/fd' % pid)
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                link = os.readlink('/proc/%s/fd/%s' % (pid, fd))
+            except OSError:
+                continue
+            if link.startswith('socket:[') and link[8:-1] in inodes:
+                try:
+                    with open('/proc/%s/comm' % pid) as f:
+                        comm = f.read().strip()
+                except OSError:
+                    comm = '?'
+                found.setdefault(link[8:-1], (comm, int(pid)))
+                break
+    out = sorted(set(found.values()))
+    if len(found) < len(inodes):
+        out.append(('?', 0))
+    return out
+
+
+def certlogin_busy(port, node):
+    """Words when something other than nginx listens on the port here, else ''."""
+    others = [u for u in certlogin_port_users(port) if u[0] != 'nginx']
+    if not others:
+        return ''
+    return 'port %d is used by %s on %s - choose another port' % (
+        port, ', '.join('%s%s' % (n, ' (pid %d)' % p if p else '') for n, p in others), node)
+
+
+def certlogin_listening(port):
+    import socket
+    try:
+        with socket.create_connection(('127.0.0.1', int(port)), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
 def certlogin_selinux(port):
     """SELinux lets nginx have the port (http_port_t) - 8443 is already; another one is added."""
     if NO_SERVICES or not shutil.which('selinuxenabled') or \
@@ -1450,7 +1513,16 @@ def nginx_part(r, last):
         # The certificate's own port (1.0.100): a server of it for this node's name and for
         # the VIP address's, with the certificate each has on 443; taken away when switched off.
         c = r.get('certlogin')
+        CERTLOGIN_NOW.clear()
+        busy = certlogin_busy(c['port'], r['node']) if c and c['port'] else ''
+        if busy:
+            # Something else listens there (a WAF's agent, another web server): nginx is not
+            # given the port - it would not start again with it - and the page says so.
+            said.append('nginx: NOT given the certificate\'s own port: %s' % busy)
+            CERTLOGIN_NOW.update(port=0, busy=busy)
+            c = None
         if c is not None:
+            CERTLOGIN_NOW.update(port=c['port'], busy='')
             if c['port']:
                 vip_block = None
                 if vip['on'] and tv and tv['pem'] and os.path.exists(NGINX_VIP):
@@ -1492,6 +1564,20 @@ def nginx_part(r, last):
                               % ((t.stderr or '').strip().splitlines() or ['?'])[-1][:300])
             subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True)
             said.append('nginx reloaded')
+            # The port bound after all (1.0.100) - or the certificate's servers taken away again,
+            # never left for nginx to fail on at its next start.
+            c = r.get('certlogin')
+            if c and c['port'] and CERTLOGIN_NOW.get('port') and os.path.exists(NGINX_CERTLOGIN):
+                for _ in range(20):
+                    if certlogin_listening(c['port']):
+                        break
+                    time.sleep(0.25)
+                else:
+                    os.unlink(NGINX_CERTLOGIN)
+                    subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True)
+                    CERTLOGIN_NOW.update(port=0, busy='nginx could not listen on %d' % c['port'])
+                    said.append('nginx: could not listen on the certificate\'s own port %d - its '
+                                'servers taken away again' % c['port'])
     except BaseException:
         put_back(snap)
         raise
@@ -7237,6 +7323,8 @@ def serve():
         said_f, fw = fw_part(r['fw'])
         out.update(state='done', said=[s for s in said_n + said_v + said_f if s], applied=keep,
                    fw=fw, access=access_now())
+        if CERTLOGIN_NOW:
+            out['certlogin'] = dict(CERTLOGIN_NOW)
     except Refused as e:
         out.update(state='failed', said=[str(e)])
     except Exception as e:                              # noqa: BLE001 - said, never lost

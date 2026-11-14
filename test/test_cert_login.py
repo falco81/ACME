@@ -963,6 +963,39 @@ class CertLogin(unittest.TestCase):
         except OSError:
             return False
 
+    def test_15_port_taken_by_another_program(self):
+        """A port something else listens on (a WAF's agent, another web server): refused at the
+        save with the program named, said per node on the card, and the root helper gives nginx
+        nothing for it."""
+        self.put()
+        busy = socket.socket()
+        busy.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        busy.bind(('0.0.0.0', 0))
+        busy.listen(1)
+        port = busy.getsockname()[1]
+        with open('/proc/self/comm') as f:
+            me = f.read().strip()
+        try:
+            st, got = self.settings(certlogin_port=port, admin_certlogin=1)
+            self.assertEqual(st, 400, got)
+            self.assertIn('port %d is used by %s' % (port, me), got['error'])
+            self.assertIn('choose another port', got['error'])
+            # Switching a part on with the port taken: the same.
+            self.on(certlogin_port=8443)
+            words = self.py('print(json.dumps(E.cl_port_busy(%d)))' % port)
+            self.assertIn(me, words)
+            self.assertEqual(self.py('print(json.dumps(E.cl_port_busy(%d)))' % free_port()), '')
+            # The root helper, as root runs it: nothing written, said why.
+            spec = importlib.util.spec_from_file_location('acme_web_b', os.path.join(ROOT, 'deploy', 'acme_web.py'))
+            W = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(W)
+            self.assertIn(me, W.certlogin_busy(port, 'testnode'))
+            self.assertEqual(W.certlogin_busy(free_port(), 'testnode'), '')
+            self.assertIn((me, os.getpid()), W.certlogin_port_users(port))
+        finally:
+            busy.close()
+            self.on(admin_certlogin=0, certlogin_port=8443)
+
     def test_14_kerberos_untouched(self):
         """The shared code: a Kerberos sign-in's session and its words as before."""
         self.assertEqual(self.py('print(json.dumps(E.sso_only_said("admin")))'),

@@ -6,7 +6,38 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.100 - not released
 
-(nothing yet)
+- **Signing in with a certificate** (a smart card, a YubiKey, a certificate in the computer), as
+  otp 1.0.275 - to the administration and to the certificate portal, **each by its own
+  switches** (`admin_certlogin`, `portal_certlogin`; off by default). nginx asks for a
+  certificate on **a port of its own** (`certlogin_port`, 8443 - one for both parts), never on
+  443, and serves nothing else there; a server for each node's name and the VIP address's, with
+  the certificate each has on 443, written by the root helper, and the port opened in the
+  firewall for the networks that may reach those pages - taken away again when switched off.
+  acme checks the certificate itself: the chain to the authorities put in **and no store of the
+  system's** (`openssl verify -no-CApath -no-CAstore`: `-CAfile` alone still trusts the system's
+  roots - the kit's reference did), the dates, Client Authentication or Smart Card Logon, the
+  CRL at its CDP (http, fetched only for a certificate whose chain is good, kept until its next
+  update, no CRL no sign-in; `*_certlogin_crl` switches it off), the UPN looked up in the part's
+  directory and the account found by its sAMAccountName as a password finds it (the same DN),
+  and the SID of KB5014754 against `objectSid` - `compat` (default), `strong` or `upn`
+  (`*_certlogin_match`). The second step / the portal's one-time code after it every time. A
+  nonce of the page (HttpOnly, SameSite=Strict, five minutes, one use, MAC-bound to the part)
+  against login CSRF. Refusals say the kind only (*certificate not accepted*, *revoked*, *run
+  out*, *not allowed*, *not available just now*), the reason in Events; counted per address,
+  *Block a place that keeps guessing*, `alerts_certlogin`. The authorities put in on the card
+  (PEM, DER, `.p7b`; a person's certificate refused; taken away one by one; acme's own authority
+  offered), kept signed in the database (`db_guard`), written out 0600 by each node; *Try my
+  certificate*; the CRLs fetched and each node (written out, nginx listening, **a port another
+  program holds named** - refused at the save and by the root helper, nginx never left unable
+  to start). `acme --cert-login`, `--cert-login-ca FILE`, `--cert-login-ca-off SHA256`; carried
+  by the exported configuration, backups and the cluster ([docs/certificate-sign-in.md](docs/certificate-sign-in.md)).
+- **No password at all - only Windows or a certificate**: `admin_password_off` /
+  `portal_password_off` are one switch for both ways now (moved to *Accounts* and *The
+  enrolment pages*): switched on only from a sign-in made with Windows or a certificate, in
+  effect while either can sign anybody in (fail closed at the start), the way back for root
+  `acme --set admin_password_off=0`. Sessions made with a certificate (`how: certificate`) end
+  when certificates are switched off or the last authority taken away, but the switcher's.
+- The directory's `objectSid` is read (as bytes) with every account.
 
 ## 1.0.99 - 2026-11-14
 

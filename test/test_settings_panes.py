@@ -60,6 +60,10 @@ READ_OTHERWISE = {
     # Signing in with Windows (1.0.99): each part's, CONFIG.get(part + '_krb_auto') ...
     'admin_krb_auto', 'admin_krb_realm', 'admin_password_off',
     'portal_krb_auto', 'portal_krb_realm', 'portal_password_off',
+    'alerts_certlogin',                                # ALERT_EVENTS too (1.0.100)
+    # Signing in with a certificate (1.0.100): CONFIG.get(part + '_certlogin_match') ...
+    'admin_certlogin_match', 'admin_certlogin_crl', 'portal_certlogin_match',
+    'portal_certlogin_crl',
 }
 
 

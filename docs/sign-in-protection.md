@@ -21,6 +21,11 @@ same: each refused ticket counts per address (kinds `kerberos` and `portal-kerbe
 that keeps guessing* counts it as a wrong sign-in, and every refusal is an event. No directory
 password is tried by it, so it never adds to the count per person.
 
+Signing in with a certificate (1.0.100, [certificate-sign-in.md](certificate-sign-in.md)) the
+same: each refused certificate counts per address (kinds `certlogin` and `portal-certlogin`, at
+least 20 before a pause), *Block a place that keeps guessing* counts it, every refusal is an
+event (*Sign-ins*, *Portal*; mailed with `alerts_certlogin`).
+
 ## 1. Wrong directory passwords per person
 
 A directory password is tried against Active Directory at each sign-in to the

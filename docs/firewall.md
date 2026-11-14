@@ -52,6 +52,7 @@ and nothing else.
 | DHCPv6 client | 6 | udp 546 from fe80::/10 | yes |
 | HTTP / HTTPS | both | tcp 80,443 - from everybody when one of the three page lists is for everybody, else from the networks of the three lists; tcp 80 from everybody anyway while the pages' own certificate is renewed over HTTP-01 (the CA asks from the internet) | yes |
 | NTP (time served) | as the network | udp 123 from the networks under *Settings → Time → Serve the time to* | yes |
+| Signing in with a certificate | as the network | tcp `certlogin_port` (8443) from the networks that may reach the pages of the parts switched on (from everybody when one of them is for everybody) - only while one is on ([certificate-sign-in.md](certificate-sign-in.md)) | yes |
 | SNMPv3 | as the network | udp 161 (the port set) from the networks under *Settings → Monitoring → Only from*, from everywhere when none is set - only while SNMPv3 is on | yes |
 | The other node | as the node | everything from the other node (replication, its pages, the health check, its answers) | no |
 | VRRP | as the node | IP protocol 112 from the other node, while the VIP address is on | no |

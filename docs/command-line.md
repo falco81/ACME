@@ -210,6 +210,19 @@ Accounts* and *Settings → The enrolment pages* ([kerberos-sso.md](kerberos-sso
 | `--set admin_krb=1`, `--set portal_krb=1` | each part's switch; `admin_krb_auto`, `admin_krb_realm`, `portal_krb_auto`, `portal_krb_realm` the same way |
 | `--set admin_password_off=0`, `--set portal_password_off=0` | root's way back from "only Windows". Switching it **on** is refused here: only somebody signed in with Windows to that part switches it on, on the pages |
 
+## Signing in with a certificate - a smart card, a YubiKey (1.0.100)
+
+As the card on *Settings → Accounts* and *Settings → The enrolment pages*
+([certificate-sign-in.md](certificate-sign-in.md)):
+
+| | |
+|---|---|
+| `--cert-login` | each part on or off, its directory, how a certificate is matched, revocation, "no password at all"; the port; the authorities (subject, issuer, valid to, SHA-256); the CRLs fetched; each node - heard from, the authorities written out, nginx listening on the port (`--json` too) |
+| `--cert-login-ca FILE` | put in authorities (the issuing one and its root; PEM, DER or `.p7b`) - a person's certificate is refused; every node writes them out itself |
+| `--cert-login-ca-off SHA256` | take one away, by its SHA-256 or the first 12 characters of it or more (asks; `--yes`) |
+| `--set admin_certlogin=1`, `--set portal_certlogin=1` | each part's switch; `certlogin_port`, `admin_certlogin_match`, `admin_certlogin_crl`, `portal_certlogin_match`, `portal_certlogin_crl` the same way |
+| `--set admin_password_off=0`, `--set portal_password_off=0` | the way back from "no password at all - only Windows or a certificate"; switched **on** only from the pages, by somebody signed in with Windows or a certificate |
+
 ## Examples
 
 ```

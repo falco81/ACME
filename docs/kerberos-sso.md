@@ -8,6 +8,10 @@ person's Windows sign-in; acme checks it with the key of that name from a keytab
 controller is asked for it, nothing is installed: the system's GSS-API library (MIT Kerberos,
 `libgssapi_krb5`) through Python's standard library.
 
+**With a certificate** (a smart card, a YubiKey) the same pages are signed in to on a port of
+its own since 1.0.100 - [certificate-sign-in.md](certificate-sign-in.md); both may be on, and
+"no password at all" is one switch for both (*only Windows or a certificate*).
+
 **Two parts, each with its own switches** - the administration and the portal can be switched
 on each by itself, or both, or neither. **Off by default**: nothing changes until an
 administrator switches it on. One keytab serves both.

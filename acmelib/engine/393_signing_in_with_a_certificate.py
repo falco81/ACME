@@ -676,9 +676,10 @@ def cl_tick(d):
     except Exception as e:                              # noqa: BLE001
         CL_STATE.update(written=False, error=str(e)[:300])
     port = cl_port()
+    listening = bool(cl_any_on() and cl_listening(port))
     said = {'written': bool(CL_STATE['written']), 'sha': str(CL_STATE['sha'] or '')[:12],
-            'error': CL_STATE['error'], 'port': port,
-            'listening': bool(cl_any_on() and cl_listening(port)),
+            'error': CL_STATE['error'], 'port': port, 'listening': listening,
+            'busy': cl_port_busy(port, served=listening and cl_web_served(port)),
             'crls': cl_crls_now(), 'version': __version__}
     if said != CL_STATE['said'] or now - CL_STATE['said_at'] > 300:
         d.store.set_meta(CL_NODE_META + node_name(), json.dumps(dict(said, at=now)))
@@ -689,6 +690,14 @@ def cl_tick(d):
                     d.store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
             except (ValueError, TypeError, AttributeError):
                 d.store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
+
+
+def cl_web_served(port):
+    """Whether root's last word on this node says nginx was given the certificate's port."""
+    try:
+        return int((web_status().get('certlogin') or {}).get('port') or 0) == int(port)
+    except Exception:                                   # noqa: BLE001
+        return False
 
 
 def cl_crls_now():
@@ -756,6 +765,93 @@ def certlogin_port_taken(port):
     if 18129 <= port <= 18199:
         return 'acme\'s gate for SSH (18129-18199)'
     return ''
+
+
+def cl_port_users(port):
+    """[(process name, pid)] of what listens on TCP `port` on this machine (any address, IPv4 and
+    IPv6) - read from /proc/net/tcp and tcp6, the processes found by their sockets ('' and 0
+    for one whose process cannot be seen: another user's, when this is not root)."""
+    inodes = set()
+    for name in ('/proc/net/tcp', '/proc/net/tcp6'):
+        try:
+            with open(name) as f:
+                lines = f.read().splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            p = line.split()
+            if len(p) < 10 or p[3] != '0A':             # LISTEN
+                continue
+            try:
+                if int(p[1].rsplit(':', 1)[1], 16) == int(port):
+                    inodes.add(p[9])
+            except (ValueError, IndexError):
+                continue
+    if not inodes:
+        return []
+    found = {}
+    try:
+        pids = [x for x in os.listdir('/proc') if x.isdigit()]
+    except OSError:
+        pids = []
+    for pid in pids:
+        fd_dir = '/proc/%s/fd' % pid
+        try:
+            fds = os.listdir(fd_dir)
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                link = os.readlink('%s/%s' % (fd_dir, fd))
+            except OSError:
+                continue
+            if link.startswith('socket:[') and link[8:-1] in inodes:
+                try:
+                    with open('/proc/%s/comm' % pid) as f:
+                        comm = f.read().strip()
+                except OSError:
+                    comm = '?'
+                found.setdefault(link[8:-1], (comm, int(pid)))
+                break
+    out = sorted(set(found.values()))
+    if len(found) < len(inodes):
+        out.append(('', 0))
+    return out
+
+
+def cl_port_busy(port, served=False):
+    """Words when something other than nginx listens on `port` here - '' when nothing does, or
+    nginx (ours, once served; a listener that cannot be seen counts as ours only while `served`)."""
+    users = cl_port_users(port)
+    others = [u for u in users if u[0] and u[0] != 'nginx']
+    if not others and ('', 0) in users and not served:
+        others = [('another program (not to be seen as this user)', 0)]
+    if not others:
+        return ''
+    return 'port %d is used by %s on %s - choose another port' % (
+        int(port), ', '.join('%s%s' % (n, ' (pid %d)' % p if p else '') for n, p in others),
+        node_name())
+
+
+def cl_save_check(store, checked):
+    """Before the settings are saved: the port the certificates would be served on is free on
+    this node (nothing but nginx listening there) - checked when it changes, or when a part is
+    switched on while the port is not served yet. The other nodes say theirs on the card, and
+    their root helper writes nothing for a port taken there."""
+    after = dict(CONFIG)
+    after.update(checked)
+    wants = any(after.get(p + '_certlogin') for p in CL_PARTS)
+    if not wants:
+        return
+    port = int(after.get('certlogin_port') or 8443)
+    st = cl_node_state(store, node_name())
+    served = bool(cl_any_on()) and int(st.get('port') or cl_port()) == port and \
+        bool(st.get('listening'))
+    if served and 'certlogin_port' not in checked:
+        return
+    why = cl_port_busy(port, served=served and port == cl_port())
+    if why:
+        raise BadSetting('certlogin_port: ' + why)
 
 
 def cl_on(part):
@@ -1064,10 +1160,11 @@ def cl_view(h, tried=''):
         st = cl_node_state(store, n)
         if n == node_name() and CL_STATE['writer']:
             port = cl_port()
+            listening = bool(cl_any_on() and cl_listening(port))
             st = dict(st, written=bool(CL_STATE['written']), error=CL_STATE['error'],
                       sha=str(CL_STATE['sha'] or '')[:12], crls=cl_crls_now(),
-                      listening=bool(cl_any_on() and cl_listening(port)), port=port,
-                      at=st.get('at') or now)
+                      listening=listening, port=port, at=st.get('at') or now,
+                      busy=cl_port_busy(port, served=listening and cl_web_served(port)))
         for c in st.get('crls') or []:
             if c.get('url') and (c['url'] not in crls or float(c.get('at') or 0) >
                                  float(crls[c['url']].get('at') or 0)):
@@ -1077,6 +1174,7 @@ def cl_view(h, tried=''):
                       'at': st.get('at'), 'written': bool(st.get('written')),
                       'same': bool(cas and st.get('sha') and st.get('sha') == sha),
                       'listening': bool(st.get('listening')), 'port': st.get('port') or cl_port(),
+                      'busy': st.get('busy') or '',
                       'error': st.get('error') or '', 'version': st.get('version') or ''})
     out = {'cas': [cl_ca_view(c) for c in cas], 'parts': parts, 'port': cl_port(),
            'nodes': nodes, 'crls': sorted(crls.values(), key=lambda c: c['url']),

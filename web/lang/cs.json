@@ -61955,6 +61955,502 @@
   "_271": {
    "source": "nginx: room for a Kerberos ticket of a person in many groups (64 kB headers)",
    "text": "nginx: místo pro lístek Kerbera osoby v mnoha skupinách (hlavičky 64 kB)"
+  },
+  "_272": {
+   "source": "Sign administrators in with a certificate (a smart card, a YubiKey)",
+   "text": "Přihlašovat správce certifikátem (čipová karta, YubiKey)"
+  },
+  "_273": {
+   "source": "Which account a certificate is",
+   "text": "Kterému účtu certifikát patří"
+  },
+  "_274": {
+   "source": "Check that a certificate is not revoked (CRL)",
+   "text": "Ověřovat, že certifikát není zneplatněný (CRL)"
+  },
+  "_275": {
+   "source": "Sign people in with a certificate (a smart card, a YubiKey)",
+   "text": "Přihlašovat lidi certifikátem (čipová karta, YubiKey)"
+  },
+  "_276": {
+   "source": "Which account a certificate is (the portal)",
+   "text": "Kterému účtu certifikát patří (portál)"
+  },
+  "_277": {
+   "source": "Check that a certificate is not revoked (CRL) (the portal)",
+   "text": "Ověřovat, že certifikát není zneplatněný (CRL) (portál)"
+  },
+  "_278": {
+   "source": "The certificate’s own port",
+   "text": "Vlastní port pro certifikát"
+  },
+  "_279": {
+   "source": "No password at all - only Windows or a certificate",
+   "text": "Žádné heslo – jen Windows nebo certifikát"
+  },
+  "_280": {
+   "source": "No password at all on the portal - only Windows or a certificate",
+   "text": "Žádné heslo na portálu – jen Windows nebo certifikát"
+  },
+  "_281": {
+   "source": "Sign-ins with a certificate refused",
+   "text": "Odmítnutá přihlášení certifikátem"
+  },
+  "_282": {
+   "source": "A sign-in with a certificate refused",
+   "text": "Přihlášení certifikátem odmítnuto"
+  },
+  "_283": {
+   "source": "A sign-in with a certificate to the portal refused",
+   "text": "Přihlášení certifikátem do portálu odmítnuto"
+  },
+  "_284": {
+   "source": "On: the sign-in page offers no name and password - nobody signs in with a password, local accounts neither; only Windows (Kerberos) or a certificate, then the second step when it is on. No password is set or changed on these pages either. Switched on only from a sign-in made with Windows or a certificate (so whoever switches it on has seen it work); in effect only while Kerberos is on with a keytab, or the certificate sign-in is on with authorities put in. The way back, as root: acme --set admin_password_off=0.",
+   "text": "Zapnuto: přihlašovací stránka nenabízí jméno a heslo – heslem se nepřihlásí nikdo, ani místní účty; jen přes Windows (Kerberos) nebo certifikátem, potom druhý krok, je-li zapnutý. Žádné heslo se na těchto stránkách ani nenastavuje či nemění. Zapnout to lze jen z přihlášení přes Windows nebo certifikátem (aby ten, kdo to zapíná, viděl, že mu to funguje); platí jen, dokud je zapnutý Kerberos s keytabem nebo přihlášení certifikátem s vloženými autoritami. Cesta zpět, jako root: acme --set admin_password_off=0."
+  },
+  "_285": {
+   "source": "On: the portal offers no name and password - nobody signs in to it with a password, acme's own accounts neither; only Windows (Kerberos) or a certificate, then the one-time code when it is on. Switched on only by an administrator who is signed in to the portal with Windows or a certificate in the same browser; in effect only while Kerberos (with a keytab) or the certificate sign-in (with authorities) is on for the portal. The way back, as root: acme --set portal_password_off=0.",
+   "text": "Zapnuto: portál nenabízí jméno a heslo – heslem se do něj nepřihlásí nikdo, ani vlastní účty acme; jen přes Windows (Kerberos) nebo certifikátem, potom jednorázový kód, je-li zapnutý. Zapnout to může jen správce, který je ve stejném prohlížeči přihlášen do portálu přes Windows nebo certifikátem; platí jen, dokud je pro portál zapnutý Kerberos (s keytabem) nebo přihlášení certifikátem (s autoritami). Cesta zpět, jako root: acme --set portal_password_off=0."
+  },
+  "_286": {
+   "source": "A certificate of the domain's authority - on a smart card, a YubiKey or in the computer - signs its person in without a password: nginx asks for it on a port of its own (below), never on 443, so nobody else is ever asked for a certificate. Checked here: the chain to an authority put in, its dates, a key usage for signing in, not revoked, and the UPN in it looked up in the directory above - the role of its groups. The second step, when it is on, is asked after it just the same. Off: nothing of it is offered. Its own switch: the enrolment pages have theirs.",
+   "text": "Certifikát doménové certifikační autority – na čipové kartě, YubiKey nebo v počítači – přihlásí svého držitele bez hesla: nginx si o něj řekne na vlastním portu (níže), nikdy na 443, takže o certifikát není nikdy požádán nikdo jiný. Kontroluje se zde: řetěz k vložené autoritě, platnost, použití klíče pro přihlášení, nezneplatnění a UPN v něm vyhledané v adresáři výše – role podle jeho skupin. Druhý krok, je-li zapnutý, se po něm žádá stejně. Vypnuto: nic z toho se nenabízí. Vlastní přepínač: zápisové stránky mají svůj."
+  },
+  "_287": {
+   "source": "compat: the SID an AD CS writes into a certificate since KB5014754 must be the account's when it is there; strong: it must be there (Microsoft's full enforcement); upn: the UPN alone.",
+   "text": "compat: SID, který AD CS od KB5014754 zapisuje do certifikátu, musí patřit účtu, pokud v něm je; strong: musí v něm být (plné vynucení Microsoftu); upn: jen UPN."
+  },
+  "_288": {
+   "source": "The CRL at the certificate's CRL Distribution Point (http), kept until its next update: no CRL to be had, no sign-in. Off: revocation is not checked - a lost card signs in until its account is switched off in the directory.",
+   "text": "CRL z distribučního bodu CRL certifikátu (http), držený do jeho další aktualizace: když CRL nelze získat, nikdo se nepřihlásí. Vypnuto: zneplatnění se nekontroluje – ztracená karta přihlašuje, dokud se její účet v adresáři nevypne."
+  },
+  "_289": {
+   "source": "A certificate of the domain's authority signs its person in to the certificate portal without a password, on the same port and with the same authorities as the administration. The person is looked up in the portal's directory by the UPN in it, and who may sign in here decides - Who may sign in, the groups, the role Enrolment pages only - exactly as for a password; the one-time code, when it is on, is sent after it just the same. Independent of the administration's switch.",
+   "text": "Certifikát doménové autority přihlásí svého držitele do certifikačního portálu bez hesla, na stejném portu a se stejnými autoritami jako správa. Člověk se hledá v adresáři portálu podle UPN v certifikátu a o přístupu rozhoduje totéž co u hesla – Kdo se smí přihlásit, skupiny, role Jen zápisové stránky; jednorázový kód, je-li zapnutý, se po něm posílá stejně. Nezávislé na přepínači správy."
+  },
+  "_290": {
+   "source": "As the administration's, for the portal: compat, strong or upn.",
+   "text": "Jako u správy, pro portál: compat, strong nebo upn."
+  },
+  "_291": {
+   "source": "As the administration's, for the portal: no CRL to be had, no sign-in. Off: revocation is not checked.",
+   "text": "Jako u správy, pro portál: když CRL nelze získat, nikdo se nepřihlásí. Vypnuto: zneplatnění se nekontroluje."
+  },
+  "_292": {
+   "source": "Where nginx asks the browser for a certificate (8443: SELinux lets nginx have it already). One port for both parts. Opened in the firewall for the networks that may reach the pages while either part is on; 80, 443 and acme's own ports are refused.",
+   "text": "Kde nginx žádá prohlížeč o certifikát (8443: SELinux ho nginxu povoluje už sám). Jeden port pro obě části. Ve firewallu otevřený pro sítě, které smějí na stránky, dokud je některá část zapnutá; 80, 443 a vlastní porty acme se odmítají."
+  },
+  "_293": {
+   "source": "Each sign-in with a certificate refused - to the administration or to the enrolment pages - as it is refused: revoked, run out, another authority, no UPN, a CRL that cannot be had, nobody of that UPN in the directory.",
+   "text": "Každé odmítnuté přihlášení certifikátem – do správy nebo na zápisové stránky – hned, jak je odmítnuto: zneplatněný, prošlý, jiná autorita, bez UPN, nedostupný CRL, nikdo s tím UPN v adresáři."
+  },
+  "_294": {
+   "source": "Sign in with a certificate",
+   "text": "Přihlásit se certifikátem"
+  },
+  "_295": {
+   "source": "Sign in with Windows or a certificate to see your certificates.",
+   "text": "Přihlaste se přes Windows nebo certifikátem a uvidíte své certifikáty."
+  },
+  "_296": {
+   "source": "Sign in with a certificate to see your certificates.",
+   "text": "Přihlaste se certifikátem a uvidíte své certifikáty."
+  },
+  "_297": {
+   "source": "Certificate sign-in refused: certificate not accepted",
+   "text": "Přihlášení certifikátem odmítnuto: certifikát nebyl přijat"
+  },
+  "_298": {
+   "source": "Certificate sign-in refused: revoked",
+   "text": "Přihlášení certifikátem odmítnuto: zneplatněný"
+  },
+  "_299": {
+   "source": "Certificate sign-in refused: run out",
+   "text": "Přihlášení certifikátem odmítnuto: prošlý"
+  },
+  "_300": {
+   "source": "Certificate sign-in refused: not allowed",
+   "text": "Přihlášení certifikátem odmítnuto: nepovoleno"
+  },
+  "_301": {
+   "source": "Certificate sign-in refused: not available just now",
+   "text": "Přihlášení certifikátem odmítnuto: teď není k dispozici"
+  },
+  "_302": {
+   "source": "Certificate sign-in refused: not started from this sign-in page - try again",
+   "text": "Přihlášení certifikátem odmítnuto: nezačalo na této přihlašovací stránce – zkuste to znovu"
+  },
+  "_303": {
+   "source": "Certificate sign-in refused: too many tries - wait a while",
+   "text": "Přihlášení certifikátem odmítnuto: příliš mnoho pokusů – chvíli počkejte"
+  },
+  "_304": {
+   "source": "signing in with a certificate is switched off here",
+   "text": "přihlašování certifikátem je zde vypnuté"
+  },
+  "_305": {
+   "source": "sign in to these pages first, then try your certificate",
+   "text": "nejdřív se přihlaste na tyto stránky, pak vyzkoušejte svůj certifikát"
+  },
+  "_306": {
+   "source": "the name this page was opened by cannot be used",
+   "text": "jméno, kterým byla tato stránka otevřena, nelze použít"
+  },
+  "_307": {
+   "source": "only a certificate: these pages take no password - sign in with a certificate",
+   "text": "jen certifikát: tyto stránky heslo nepřijímají – přihlaste se certifikátem"
+  },
+  "_308": {
+   "source": "only Windows or a certificate: these pages take no password - sign in with Windows or a certificate",
+   "text": "jen Windows nebo certifikát: tyto stránky heslo nepřijímají – přihlaste se přes Windows nebo certifikátem"
+  },
+  "_309": {
+   "source": "Signing in with a certificate",
+   "text": "Přihlašování certifikátem"
+  },
+  "_310": {
+   "source": "A certificate of the domain's authority - on a smart card, a YubiKey or in the computer - signs its person in to the portal without a password, on the certificate's own port and with the authorities the administration's card puts in. Who may sign in here decides as for a password, and the one-time code, when it is on, is sent after it just the same. Off, nothing of it is offered on the portal.",
+   "text": "Certifikát doménové autority – na čipové kartě, YubiKey nebo v počítači – přihlásí svého držitele do portálu bez hesla, na vlastním portu pro certifikát a s autoritami vloženými na kartě správy. O přístupu rozhoduje totéž co u hesla a jednorázový kód, je-li zapnutý, se po něm posílá stejně. Vypnuto: na portálu se nic z toho nenabízí."
+  },
+  "_311": {
+   "source": "A certificate of the domain's authority - on a smart card, a YubiKey or in the computer - signs its person in to these pages without a password. nginx asks for it on a port of its own, never on 443: nobody else is ever asked for a certificate. Checked here: the chain to an authority put in below, its dates, a key usage for signing in, not revoked (CRL), and the UPN in it looked up in the directory chosen above - the role of its groups. The second step, when it is on, is asked after it just the same. The enrolment pages have switches of their own; the port and the authorities are one for both.",
+   "text": "Certifikát doménové autority – na čipové kartě, YubiKey nebo v počítači – přihlásí svého držitele na tyto stránky bez hesla. nginx si o něj řekne na vlastním portu, nikdy na 443: o certifikát není nikdy požádán nikdo jiný. Kontroluje se zde: řetěz k autoritě vložené níže, platnost, použití klíče pro přihlášení, nezneplatnění (CRL) a UPN v něm vyhledané v adresáři vybraném výše – role podle jeho skupin. Druhý krok, je-li zapnutý, se po něm žádá stejně. Zápisové stránky mají vlastní přepínače; port a autority jsou společné pro obě části."
+  },
+  "_312": {
+   "source": "Authorities put in",
+   "text": "Autority vloženy"
+  },
+  "_313": {
+   "source": "No authority yet",
+   "text": "Zatím žádná autorita"
+  },
+  "_314": {
+   "source": "No password at all",
+   "text": "Žádné heslo"
+  },
+  "_315": {
+   "source": "Revocation not checked",
+   "text": "Zneplatnění se nekontroluje"
+  },
+  "_316": {
+   "source": "Choose the directory administrators sign in against first (above): only accounts of the directory sign in with a certificate.",
+   "text": "Nejdřív vyberte adresář, proti kterému se správci přihlašují (výše): certifikátem se přihlašují jen účty z adresáře."
+  },
+  "_317": {
+   "source": "The enrolment pages are switched off (above): nobody signs in to them with a certificate either.",
+   "text": "Zápisové stránky jsou vypnuté (výše): certifikátem se na ně také nikdo nepřihlásí."
+  },
+  "_318": {
+   "source": "Switched on, but no authority is put in yet: the button is not offered and the port not served until one is.",
+   "text": "Zapnuto, ale zatím není vložena žádná autorita: tlačítko se nenabízí a port se neobsluhuje, dokud nějaká nebude."
+  },
+  "_319": {
+   "source": "The port",
+   "text": "Port"
+  },
+  "_320": {
+   "source": "nginx asks for a certificate there, and nowhere else",
+   "text": "nginx tam žádá o certifikát, a nikde jinde"
+  },
+  "_321": {
+   "source": "Which account",
+   "text": "Který účet"
+  },
+  "_322": {
+   "source": "Revocation",
+   "text": "Zneplatnění"
+  },
+  "_323": {
+   "source": "checked - the CRL of each certificate, no CRL no sign-in",
+   "text": "kontroluje se – CRL každého certifikátu, bez CRL žádné přihlášení"
+  },
+  "_324": {
+   "source": "not checked - a lost card signs in until its account is switched off",
+   "text": "nekontroluje se – ztracená karta přihlašuje, dokud se její účet nevypne"
+  },
+  "_325": {
+   "source": "yes - asked after the certificate too, every time",
+   "text": "ano – žádá se i po certifikátu, pokaždé"
+  },
+  "_326": {
+   "source": "none - only Windows or a certificate",
+   "text": "žádné – jen Windows nebo certifikát"
+  },
+  "_327": {
+   "source": "none set, but not in effect (neither Windows nor a certificate on)",
+   "text": "nastaveno žádné, ale neplatí (Windows ani certifikát nejsou zapnuté)"
+  },
+  "_328": {
+   "source": "Windows (Kerberos)",
+   "text": "Windows (Kerberos)"
+  },
+  "_329": {
+   "source": "on too - its own switch",
+   "text": "zapnuto také – vlastní přepínač"
+  },
+  "_330": {
+   "source": "off - its own switch",
+   "text": "vypnuto – vlastní přepínač"
+  },
+  "_331": {
+   "source": "on there too - their own switch, the same port",
+   "text": "tam zapnuto také – vlastní přepínač, stejný port"
+  },
+  "_332": {
+   "source": "The authorities",
+   "text": "Autority"
+  },
+  "_333": {
+   "source": "Put in once for both parts and every node: the certificate of a person is taken when its chain ends in one of these - nothing else, not the system’s roots. nginx sends their names to the browser, so it offers only fitting certificates.",
+   "text": "Vkládají se jednou pro obě části a všechny uzly: certifikát člověka se přijme, když jeho řetěz končí v jedné z nich – v ničem jiném, ani v kořenových certifikátech systému. nginx posílá jejich jména prohlížeči, takže nabídne jen vhodné certifikáty."
+  },
+  "_334": {
+   "source": "Take this authority away",
+   "text": "Odebrat tuto autoritu"
+  },
+  "_335": {
+   "source": "Take the authority away?",
+   "text": "Odebrat autoritu?"
+  },
+  "_336": {
+   "source": "A certificate of it no longer signs anybody in - on every node within seconds. ",
+   "text": "Její certifikát pak už nikoho nepřihlásí – na všech uzlech během několika sekund. "
+  },
+  "_337": {
+   "source": "A certificate of it no longer signs anybody in - on every node within seconds. It is the last one: nobody signs in with a certificate until another is put in.",
+   "text": "Její certifikát pak už nikoho nepřihlásí – na všech uzlech během několika sekund. Je to poslední: certifikátem se nikdo nepřihlásí, dokud nebude vložena jiná."
+  },
+  "_338": {
+   "source": "None yet. Put in the issuing authority of the people’s certificates and its root (PEM, DER or .p7b - from the authority’s Certificate tab, or certutil -ca.cert) - once, for both parts and every node.",
+   "text": "Zatím žádná. Vložte vydávající autoritu certifikátů lidí a její kořen (PEM, DER nebo .p7b – ze záložky Certifikát autority nebo certutil -ca.cert) – jednou, pro obě části i všechny uzly."
+  },
+  "_339": {
+   "source": "Put in an authority…",
+   "text": "Vložit autoritu…"
+  },
+  "_340": {
+   "source": "The people’s certificates are issued by an authority of acme’s own (Certificates → Authorities): its certificate and the chain above it put in here.",
+   "text": "Certifikáty lidí vydává vlastní autorita acme (Certifikáty → Autority): její certifikát a řetěz nad ní se vloží sem."
+  },
+  "_341": {
+   "source": "Try my certificate",
+   "text": "Vyzkoušet můj certifikát"
+  },
+  "_342": {
+   "source": "Opens the certificate’s port in a new tab: the browser offers its certificate (the card asks for its PIN) and this card says who it would sign in to these pages and as what - nobody is signed in. The best way to find a wrong template before switching this part on (the port is served while either part is on).",
+   "text": "Otevře port pro certifikát v nové záložce: prohlížeč nabídne svůj certifikát (karta si řekne o PIN) a tato karta řekne, koho by přihlásil na tyto stránky a s jakou rolí – nikdo se nepřihlásí. Nejlepší způsob, jak najít špatnou šablonu před zapnutím této části (port se obsluhuje, dokud je zapnutá některá část)."
+  },
+  "_343": {
+   "source": "Opens the certificate’s port in a new tab: the browser offers its certificate (the card asks for its PIN) and this card says who it would sign in to the enrolment pages and as what - nobody is signed in. The best way to find a wrong template before switching this part on (the port is served while either part is on).",
+   "text": "Otevře port pro certifikát v nové záložce: prohlížeč nabídne svůj certifikát (karta si řekne o PIN) a tato karta řekne, koho by přihlásil na zápisové stránky a s jakou rolí – nikdo se nepřihlásí. Nejlepší způsob, jak najít špatnou šablonu před zapnutím této části (port se obsluhuje, dokud je zapnutá některá část)."
+  },
+  "_344": {
+   "source": "Try my certificate comes once one of the parts is switched on: nginx serves the port only then.",
+   "text": "Vyzkoušet můj certifikát půjde, jakmile se zapne některá z částí: teprve pak nginx port obsluhuje."
+  },
+  "_345": {
+   "source": "the certificate’s port is not served yet - switch one of the parts on first",
+   "text": "port pro certifikát se zatím neobsluhuje – nejdřív zapněte některou z částí"
+  },
+  "_346": {
+   "source": "Certificate not taken",
+   "text": "Certifikát nepřijat"
+  },
+  "_347": {
+   "source": "SID",
+   "text": "SID"
+  },
+  "_348": {
+   "source": "Revocation lists fetched",
+   "text": "Stažené seznamy zneplatněných certifikátů"
+  },
+  "_349": {
+   "source": "Fetched",
+   "text": "Staženo"
+  },
+  "_350": {
+   "source": "good",
+   "text": "v pořádku"
+  },
+  "_351": {
+   "source": "not had",
+   "text": "nezískán"
+  },
+  "_352": {
+   "source": "None yet: the CRL at a certificate’s CRL Distribution Point is fetched at its first sign-in and kept until its next update.",
+   "text": "Zatím žádný: CRL z distribučního bodu CRL certifikátu se stáhne při jeho prvním přihlášení a drží se do své další aktualizace."
+  },
+  "_353": {
+   "source": "Revocation is not checked for this part.",
+   "text": "Pro tuto část se zneplatnění nekontroluje."
+  },
+  "_354": {
+   "source": "an older set",
+   "text": "starší sada"
+  },
+  "_355": {
+   "source": "not served (off)",
+   "text": "neobsluhuje se (vypnuto)"
+  },
+  "_356": {
+   "source": "taken by another program",
+   "text": "obsazený jiným programem"
+  },
+  "_357": {
+   "source": "The people’s certificates (AD CS)",
+   "text": "Certifikáty lidí (AD CS)"
+  },
+  "_358": {
+   "source": "A template from \"Smartcard Logon\" (or \"User\"): Subject Alternative Name built from Active Directory with the User principal name (UPN); key usages Client Authentication and Smart Card Logon.",
+   "text": "Šablona ze „Smartcard Logon“ (nebo „User“): alternativní jméno subjektu sestavené z Active Directory s hlavním jménem uživatele (UPN); použití klíče Client Authentication a Smart Card Logon."
+  },
+  "_359": {
+   "source": "Since KB5014754 the authority writes the account’s SID into each certificate it issues from AD: \"Which account\" compat (the default) checks it, strong requires it.",
+   "text": "Od KB5014754 zapisuje autorita SID účtu do každého certifikátu, který vydá z AD: „Který účet“ compat (výchozí) ho kontroluje, strong ho vyžaduje."
+  },
+  "_360": {
+   "source": "A CRL Distribution Point over http in the certificates (the authority’s Extensions tab), reachable from the nodes.",
+   "text": "Distribuční bod CRL přes http v certifikátech (záložka Rozšíření autority), dostupný z uzlů."
+  },
+  "_361": {
+   "source": "A YubiKey (PIV): enrolled from Windows with certreq or the template’s smart card enrolment, or with YubiKey Manager (a CSR from slot 9a, signed by the authority, imported back to 9a). Windows asks for its PIN when the browser offers it.",
+   "text": "YubiKey (PIV): zapsaný z Windows pomocí certreq nebo zápisem čipové karty v šabloně, nebo přes YubiKey Manager (CSR ze slotu 9a podepsaný autoritou a importovaný zpět do 9a). Windows si řekne o jeho PIN, když ho prohlížeč nabídne."
+  },
+  "_362": {
+   "source": "A YubiKey by hand (YubiKey Manager, certreq)",
+   "text": "YubiKey ručně (YubiKey Manager, certreq)"
+  },
+  "_363": {
+   "source": "The browsers and the network",
+   "text": "Prohlížeče a síť"
+  },
+  "_364": {
+   "source": "The button \"Sign in with a certificate\" opens ",
+   "text": "Tlačítko „Přihlásit se certifikátem“ otevře "
+  },
+  "_365": {
+   "source": "The firewall of each node lets the port in for the networks that may reach the pages of the parts switched on - nothing else is served there: ",
+   "text": "Firewall každého uzlu port pouští sítím, které smějí na stránky zapnutých částí – nic jiného se tam neobsluhuje: "
+  },
+  "_366": {
+   "source": "Behind a load balancer or a WAF the port is passed through as TCP (a TCP or SSL-bridge listener, not an HTTP profile) - TLS ends on the nodes, which alone see the certificate: ",
+   "text": "Za load balancerem nebo WAF se port propouští jako TCP (posluchač TCP nebo SSL-bridge, ne HTTP profil) – TLS končí na uzlech, které jediné certifikát vidí: "
+  },
+  "_367": {
+   "source": "The balancer’s own ports are on its own address - another machine: they never clash with this port on the nodes. Signed in by the balancer (the portal) stays on 443.",
+   "text": "Vlastní porty balanceru jsou na jeho vlastní adrese – na jiném stroji: s tímto portem na uzlech se nikdy nestřetnou. Přihlášení balancerem (portál) zůstává na 443."
+  },
+  "_368": {
+   "source": "Nothing else may listen on the port on a node: acme checks it before nginx is given it, and says here which program has it.",
+   "text": "Na portu uzlu nesmí naslouchat nic jiného: acme to ověří dřív, než port dostane nginx, a tady řekne, který program ho drží."
+  },
+  "_369": {
+   "source": "Edge, Chrome: no setting - a policy can pick the certificate by itself: ",
+   "text": "Edge, Chrome: žádné nastavení – certifikát může vybrat sama zásada: "
+  },
+  "_370": {
+   "source": "Firefox: the card through its PKCS#11 module (OpenSC), or security.osclientcerts.autoload for the certificates of Windows",
+   "text": "Firefox: karta přes jeho modul PKCS#11 (OpenSC), nebo security.osclientcerts.autoload pro certifikáty Windows"
+  },
+  "_371": {
+   "source": "AutoSelectCertificateForUrls (Edge, Chrome - by group policy)",
+   "text": "AutoSelectCertificateForUrls (Edge, Chrome – zásadou skupiny)"
+  },
+  "_372": {
+   "source": "the UPN; the SID in it must be the account's when it is there",
+   "text": "UPN; SID v certifikátu musí patřit účtu, pokud v něm je"
+  },
+  "_373": {
+   "source": "the UPN and the SID in it - a certificate without the SID is refused",
+   "text": "UPN a SID v certifikátu – certifikát bez SID se odmítne"
+  },
+  "_374": {
+   "source": "the UPN alone - the SID in it is not looked at",
+   "text": "jen UPN – na SID v certifikátu se nehledí"
+  },
+  "_375": {
+   "source": "nginx asks for a certificate on this port only (Settings → Accounts → Signing in with a certificate) - from the networks that may reach the pages of the parts switched on",
+   "text": "nginx žádá o certifikát jen na tomto portu (Nastavení → Účty → Přihlašování certifikátem) – ze sítí, které smějí na stránky zapnutých částí"
+  },
+  "_376": {
+   "source": "the authority is taken away",
+   "text": "autorita je odebrána"
+  },
+  "_377": {
+   "source": "those authorities are put in already",
+   "text": "tyto autority už jsou vloženy"
+  },
+  "_378": {
+   "source": "there is no such authority to take away",
+   "text": "taková autorita k odebrání není"
+  },
+  "_379": {
+   "source": "that file is too big to be authorities",
+   "text": "ten soubor je na autority příliš velký"
+  },
+  "_380": {
+   "source": "the file holds no certificate",
+   "text": "soubor neobsahuje žádný certifikát"
+  },
+  "_381": {
+   "source": "there is no such authority of acme's own",
+   "text": "taková vlastní autorita acme není"
+  },
+  "_382": {
+   "source": "no authority is put in",
+   "text": "není vložena žádná autorita"
+  },
+  "_383": {
+   "source": "the certificate is not for signing in (no Client Authentication or Smart Card Logon among its key usages)",
+   "text": "certifikát není pro přihlášení (mezi použitími klíče není Client Authentication ani Smart Card Logon)"
+  },
+  "_384": {
+   "source": "the certificate names no user (no UPN in its Subject Alternative Name)",
+   "text": "certifikát nejmenuje žádného uživatele (v alternativním jménu subjektu není UPN)"
+  },
+  "_385": {
+   "source": "the certificate names more than one user (UPN)",
+   "text": "certifikát jmenuje víc uživatelů (UPN)"
+  },
+  "_386": {
+   "source": "that is the certificate of an authority, not of a person",
+   "text": "to je certifikát autority, ne člověka"
+  },
+  "_387": {
+   "source": "no certificate was sent (none chosen, or the browser has none of the authorities put in here)",
+   "text": "žádný certifikát nebyl poslán (žádný nevybrán, nebo prohlížeč nemá žádný od zde vložených autorit)"
+  },
+  "_388": {
+   "source": "larger than any certificate of a person",
+   "text": "větší než jakýkoli certifikát člověka"
+  },
+  "_389": {
+   "source": "the certificate names no CRL over http (CRL Distribution Points) - it cannot be checked for revocation",
+   "text": "certifikát nejmenuje žádný CRL přes http (distribuční body CRL) – nelze ověřit jeho zneplatnění"
+  },
+  "_390": {
+   "source": "the UPN in the certificate is not a name@domain",
+   "text": "UPN v certifikátu není jméno@doména"
+  },
+  "_391": {
+   "source": "no authority is put in yet (Settings → Accounts → Signing in with a certificate)",
+   "text": "zatím není vložena žádná autorita (Nastavení → Účty → Přihlašování certifikátem)"
+  },
+  "_392": {
+   "source": "the authorities could not be written out on this node",
+   "text": "autority nešly na tomto uzlu zapsat"
+  },
+  "_393": {
+   "source": "admin_password_off: \"no password at all\" is switched on only from a sign-in made with Windows (Kerberos) or with a certificate to these pages - sign in that way first, so it is seen to work for you",
+   "text": "admin_password_off: „žádné heslo“ se zapíná jen z přihlášení přes Windows (Kerberos) nebo certifikátem na tyto stránky – nejdřív se tak přihlaste, ať je vidět, že vám to funguje"
+  },
+  "_394": {
+   "source": "portal_password_off: \"no password at all\" on the portal is switched on only by somebody signed in to the portal with Windows or a certificate in this browser, as the same person signed in here from the directory - open the portal, sign in that way there first, then switch it on here",
+   "text": "portal_password_off: „žádné heslo“ na portálu zapne jen ten, kdo je v tomto prohlížeči přihlášen do portálu přes Windows nebo certifikátem jako tentýž člověk z adresáře, který je přihlášen zde – otevřete portál, přihlaste se tam takto a pak to zapněte zde"
+  },
+  "_395": {
+   "source": "Trust one of acme’s own authorities…",
+   "text": "Důvěřovat jedné z vlastních autorit acme…"
   }
  },
  "patterns": {
@@ -86153,6 +86649,146 @@
   "p_204": {
    "source": "the sign-ins could not be ended after a change of the sign-in with Windows: {0}",
    "text": "přihlášení se po změně přihlašování přes Windows nepodařilo ukončit: {0}"
+  },
+  "p_205": {
+   "source": "nginx on port {0}",
+   "text": "nginx na portu {0}"
+  },
+  "p_206": {
+   "source": "The way back from \"no password at all\", as root: acme --set {0}_password_off=0 (or this part switched off). More: docs/certificate-sign-in.md in the package.",
+   "text": "Cesta zpět ze „žádné heslo“, jako root: acme --set {0}_password_off=0 (nebo tuto část vypnout). Víc: docs/certificate-sign-in.md v balíčku."
+  },
+  "p_207": {
+   "source": "{0} is too big to be authorities",
+   "text": "{0} je na autority příliš velký"
+  },
+  "p_208": {
+   "source": "{0} authority put in - every node writes them out within seconds",
+   "text": "{0} autorita vložena – každý uzel ji během několika sekund zapíše"
+  },
+  "p_209": {
+   "source": "{0} authorities put in - every node writes them out within seconds",
+   "text": "vloženo autorit: {0} – každý uzel je během několika sekund zapíše"
+  },
+  "p_210": {
+   "source": "certlogin_port: {0} is {1} - choose a port of its own (8443)",
+   "text": "certlogin_port: {0} je {1} – zvolte vlastní port (8443)"
+  },
+  "p_211": {
+   "source": "certlogin_port: port {0} is used by {1} on {2} - choose another port",
+   "text": "certlogin_port: port {0} používá {1} na {2} – zvolte jiný port"
+  },
+  "p_212": {
+   "source": "port {0} is used by {1} on {2} - choose another port",
+   "text": "port {0} používá {1} na {2} – zvolte jiný port"
+  },
+  "p_213": {
+   "source": "{0} is not an authority (basicConstraints CA:TRUE) - put in the issuing authority and its root, never a person's certificate",
+   "text": "{0} není autorita (basicConstraints CA:TRUE) – vložte vydávající autoritu a její kořen, nikdy certifikát člověka"
+  },
+  "p_214": {
+   "source": "the file holds {0} certificates - {1} at most",
+   "text": "soubor obsahuje {0} certifikátů – nejvýš {1}"
+  },
+  "p_215": {
+   "source": "the file is {0} - authorities are a few kB",
+   "text": "soubor má {0} – autority mají pár kB"
+  },
+  "p_216": {
+   "source": "{0} put in the authorities of the sign-in with a certificate: {1}",
+   "text": "{0} vložil autority přihlašování certifikátem: {1}"
+  },
+  "p_217": {
+   "source": "{0} took the authority {1} away from the sign-in with a certificate",
+   "text": "{0} odebral autoritu {1} z přihlašování certifikátem"
+  },
+  "p_218": {
+   "source": "{0} took the authority {1} away from the sign-in with a certificate - nobody signs in with a certificate until another is put in",
+   "text": "{0} odebral autoritu {1} z přihlašování certifikátem – certifikátem se nikdo nepřihlásí, dokud nebude vložena jiná"
+  },
+  "p_219": {
+   "source": "a sign-in with a certificate was refused (from {0}): {1}",
+   "text": "přihlášení certifikátem bylo odmítnuto (z {0}): {1}"
+  },
+  "p_220": {
+   "source": "a sign-in with a certificate was refused (from {0}, for {1}): {2}",
+   "text": "přihlášení certifikátem bylo odmítnuto (z {0}, pro {1}): {2}"
+  },
+  "p_221": {
+   "source": "{0} signed in from {1} with a certificate ({2}){3}",
+   "text": "{0} se přihlásil z {1} certifikátem ({2}){3}"
+  },
+  "p_222": {
+   "source": "{0} signed in to the enrolment pages from {1} with a certificate",
+   "text": "{0} se přihlásil na zápisové stránky z {1} certifikátem"
+  },
+  "p_223": {
+   "source": "a password for {0} from {1} refused: these pages are signed in to with Windows or a certificate only",
+   "text": "heslo pro {0} z {1} odmítnuto: na tyto stránky se přihlašuje jen přes Windows nebo certifikátem"
+  },
+  "p_224": {
+   "source": "a password for {0} from {1} refused: the enrolment pages are signed in to with Windows or a certificate only",
+   "text": "heslo pro {0} z {1} odmítnuto: na zápisové stránky se přihlašuje jen přes Windows nebo certifikátem"
+  },
+  "p_225": {
+   "source": "{0}: {1} sign-in(s) to {2} ended - only a certificate now, and they were made with a password",
+   "text": "{0}: ukončeno přihlášení na {2}: {1} – teď jen certifikát, a byla udělána heslem"
+  },
+  "p_226": {
+   "source": "{0}: {1} sign-in(s) to {2} ended - only Windows or a certificate now, and they were made with a password",
+   "text": "{0}: ukončeno přihlášení na {2}: {1} – teď jen Windows nebo certifikát, a byla udělána heslem"
+  },
+  "p_227": {
+   "source": "{0}: {1} sign-in(s) to {2} ended - a certificate no longer signs anybody in, and they were made with one",
+   "text": "{0}: ukončeno přihlášení na {2}: {1} – certifikát už nikoho nepřihlašuje, a byla jím udělána"
+  },
+  "p_228": {
+   "source": "{0}: {1} sign-in(s) to {2} ended - neither Windows nor a certificate signs anybody in any more, and they were made with one of them",
+   "text": "{0}: ukončeno přihlášení na {2}: {1} – Windows ani certifikát už nikoho nepřihlašují, a byla udělána jedním z nich"
+  },
+  "p_229": {
+   "source": "{0} could not sign in with a certificate from {1}: the second step it had set up is gone without a reset",
+   "text": "{0} se nemohl přihlásit certifikátem z {1}: druhý krok, který měl nastavený, zmizel bez resetu"
+  },
+  "p_230": {
+   "source": "the directory does not let {0} in: nobody has that UPN",
+   "text": "adresář {0} nepustí: nikdo nemá toto UPN"
+  },
+  "p_231": {
+   "source": "the directory does not let {0} in: more than one account has that UPN",
+   "text": "adresář {0} nepustí: toto UPN má víc účtů"
+  },
+  "p_232": {
+   "source": "the SID in the certificate ({0}) is not the one of {1} in the directory ({2})",
+   "text": "SID v certifikátu ({0}) není SID účtu {1} v adresáři ({2})"
+  },
+  "p_233": {
+   "source": "the certificate of {0} has no SID (KB5014754), and \"Which account a certificate is\" is strong",
+   "text": "certifikát {0} nemá SID (KB5014754) a „Kterému účtu certifikát patří“ je strong"
+  },
+  "p_234": {
+   "source": "the directory did not say the SID (objectSid) of {0} - the SID in its certificate cannot be compared",
+   "text": "adresář neřekl SID (objectSid) účtu {0} – SID v jeho certifikátu nelze porovnat"
+  },
+  "p_235": {
+   "source": "{0} is {1} in the directory, and its account by sAMAccountName is {2} - not taken as the same person",
+   "text": "{0} je v adresáři {1}, ale jeho účet podle sAMAccountName je {2} – nebere se jako tentýž člověk"
+  },
+  "p_236": {
+   "source": "the certificate is not taken: {0}",
+   "text": "certifikát nebyl přijat: {0}"
+  },
+  "p_237": {
+   "source": "the CRL at {0} could not be had ({1}) - nobody signs in while the certificate cannot be checked for revocation",
+   "text": "CRL na {0} nešel získat ({1}) – dokud nejde ověřit zneplatnění certifikátu, nikdo se nepřihlásí"
+  },
+  "p_238": {
+   "source": "nginx did not take the certificate: {0}",
+   "text": "nginx certifikát nepřijal: {0}"
+  },
+  "p_239": {
+   "source": "the certificate has a critical extension acme does not know ({0})",
+   "text": "certifikát má kritické rozšíření, které acme nezná ({0})"
   }
  },
  "rich": {
