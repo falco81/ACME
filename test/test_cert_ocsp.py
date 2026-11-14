@@ -543,7 +543,10 @@ E.time.time = lambda: real() + clock[0]
 def log():
     return open(os.path.join(P, "issuing.log")).read().count("Received request")
 E.CL_OCSP_CACHE.clear()
-out = {"a1": go("alice", "only"), "n1": log()}
+go("bob", "first")
+out = {"now": E.cl_ocsp_now()}
+E.CL_OCSP_CACHE.clear()
+out.update(a1=go("alice", "only"), n1=log())
 out["a2"] = go("alice", "only"); out["n2"] = log()                 # kept: not asked
 clock[0] = 601
 out["a3"] = go("alice", "only"); out["n3"] = log()                 # ten minutes: asked again
@@ -563,11 +566,6 @@ out["t3"] = E.CL_OCSP_CACHE[key]["tried"]
 clock[0] = E.CL_OCSP_CACHE[key]["next"] - real() + 5                # its next update passed
 out["a7"] = go("alice", "only")
 out["dead"] = E.CL_OCSP_CACHE[key]["status"]
-# The card never sees a certificate.
-clock[0] = 0
-E.CL_OCSP_CACHE.clear()
-go("bob", "first")
-out["now"] = E.cl_ocsp_now()
 out["why"] = WHY
 print(json.dumps(out))
 ''', pid=pid)
@@ -730,7 +728,11 @@ print(json.dumps(out))
         try:
             self.assertEqual(self.sign('alice')[0], 200)
             self.refused('bob', 'revoked')
-            got = self.cli('--cert-login-ocsp')
+            for _ in range(60):          # the daemon says its answers within 15 s (cl_tick)
+                got = self.cli('--cert-login-ocsp')
+                if 'CN=bob' in got.stdout:
+                    break
+                time.sleep(1)
             self.assertEqual(got.returncode, 0, got.stderr)
             self.assertIn('OCSP for the administration: first', got.stdout)
             self.assertIn('CN=bob  REVOKED', got.stdout)
