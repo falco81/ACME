@@ -17,6 +17,11 @@ from __future__ import annotations
 #     Point (http, fetched only for a certificate whose chain is good, kept until its next
 #     update, its signature checked by openssl; no CRL to be had, no sign-in), and the UPN in its
 #     Subject Alternative Name.
+#   - Besides the CRL (1.0.105, as isemon 1.10.348): an OCSP responder, per part off (as before),
+#     first, only or both - the certificate and every authority above it but the root, the
+#     answer checked by openssl against the authorities put in only, kept ten minutes at most,
+#     each node its own; and the CRL of a CDP object in the directory (ldap:///...CN=CDP,CN=Public
+#     Key Services,...), read with the part's own directory connection, never the host in it.
 #   - The person: the UPN looked up in that part's directory, the account then found by its
 #     sAMAccountName exactly as a password or a Kerberos ticket finds it, and the entry checked to
 #     be the same DN - one person, one account. The SID of KB5014754 (the certificate's

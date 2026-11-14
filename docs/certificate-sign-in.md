@@ -141,6 +141,9 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 | `certlogin_port` - *The certificate's own port* | 8443 | **One port for both parts** (the nonce and the address say which part). 80, 443, 22, 53, 161, 1812, 5432, 3306, acme's API, its SSH gate, its DNS server's and SNMP's ports are refused, and so is a port **another program listens on** (below). 8443 is SELinux's `http_port_t` already; another port is given to nginx with `semanage port -a -t http_port_t`. |
 | `admin_certlogin_match` - *Which account a certificate is* | strong | strong / compat / upn (rule 5) - compat and upn are opt-downs, warned on the card. |
 | `admin_certlogin_crl` - *Check that a certificate is not revoked (CRL)* | on | Rule 3. |
+| `admin_certlogin_crl_ldap` - *CRLs from the directory (LDAP) too* | off | A CRL Distribution Point in the directory (`ldap:///…,CN=CDP,CN=Public Key Services,…`) read with the connection of the directory administrators sign in against, after up to three http ones ([CRLs from the directory](#crls-from-the-directory-ldap)). |
+| `admin_certlogin_ocsp` - *Ask an OCSP responder* | off | `off` (the CRLs alone, as before), `first`, `only`, `both` ([OCSP](#ocsp-an-online-responder)). |
+| `admin_certlogin_ocsp_url` - *OCSP responder of its own* | empty | Shown while OCSP is not off. Empty: the responder each certificate names (Authority Information Access); or an http address asked for every certificate and authority - refused on save unless it passes the same guards as a CRL's address. |
 | `admin_password_off` - *No password at all - only Windows or a certificate* | off | Rule 10. In the card **The sign-in page** (*Accounts*) - one switch of both ways. |
 
 ### The portal - *Settings → The enrolment pages → Signing in with a certificate*
@@ -150,6 +153,7 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 | `portal_certlogin` - *Sign people in with a certificate* | off | The portal's own switch; the portal must be on, and a directory set for it. |
 | `portal_certlogin_auto` - *...by itself when the portal opens* | off | As the administration's, for the portal. |
 | `portal_certlogin_match`, `portal_certlogin_crl` | strong, on | As the administration's, for the portal. |
+| `portal_certlogin_crl_ldap`, `portal_certlogin_ocsp`, `portal_certlogin_ocsp_url` | off, off, empty | As the administration's, for the portal - the CRLs in the directory read with **the portal's directory** (`portal_directory`, else the administrators'). |
 | `portal_password_off` - *No password at all on the portal - only Windows or a certificate* | off | As the administration's, in the portal's card **The sign-in page**. |
 
 **Alerts**: *Alerts and reports → Sign-ins with a certificate refused* (`alerts_certlogin`, off)
@@ -176,7 +180,12 @@ Under each part's switches, as otp's (*the authorities* are shared):
   the tab comes back to this card saying who it would sign in to *this part* and as what (or
   why not, in full) - nobody is signed in. It works for a part not switched on yet, as long as
   the port is served (one part on); the best way to find a wrong template first;
+- **Revocation** in the facts, as steps: blue **OCSP** (*each certificate's responder*, or *one
+  responder for all*), green **CRL** (*http*, or *http, then the directory (LDAP)*), red **no
+  sign-in**; the words between them say when the next step is taken (*no answer*, *and*, *none to
+  be had*). *not checked* while both are off;
 - **the revocation lists (CRL)** - see [The CRLs on the card](#the-crls-on-the-card) below;
+- **online status (OCSP)** - see [The OCSP answers on the card](#the-ocsp-answers-on-the-card);
 - **each node** - heard from, the authorities written out (the same set as the database's),
   nginx listening on the port, or **the program that holds the port there**;
 - the guides: the AD CS template, a YubiKey, the browsers and the network.
@@ -211,6 +220,98 @@ sign-in.
 **Clear all** (asks first) and a row's **clear** button make every node forget the CRLs it keeps:
 the next sign-in (or Fetch now) fetches them again. While an address does not answer then, its
 certificates sign nobody in - the last good CRL is gone too. Both are written to Events.
+
+## OCSP: an online responder
+
+Besides the CRL, an **OCSP responder** (AD CS *Online Responder*) can say whether a certificate
+is revoked - within its own refresh, sooner than a base CRL. Each part chooses
+(`*_certlogin_ocsp`):
+
+| Mode | Responder says good | revoked / unknown | no answer | no responder named |
+|---|---|---|---|---|
+| `off` (default) | - | - | - | the CRLs, exactly as before (`-crl_check_all` once) |
+| `first` | OK | refused | its **CRL** (refused if CRLs are off) | its CRL |
+| `only` | OK | refused | **refused** | **refused** |
+| `both` | then its **CRL** too | refused | refused | its CRL |
+
+The rules:
+
+- **The certificate and every authority above it but the root**, each asked of its own issuer's
+  responder (its Authority Information Access → OCSP, up to two http addresses tried in turn), or
+  of *OCSP responder of its own* when one is set. Outside `off` each CRL is checked with `openssl
+  verify -crl_check` on that certificate alone - `-crl_check_all` would demand CRLs for what OCSP
+  already said. A revoked **authority** refuses as *certificate not accepted*.
+- **Asked only for a certificate whose chain is already good** (the authorities put in): the
+  address is one an authority put in signed, or the administrator's.
+- **The request has no nonce** (`openssl ocsp -no_nonce`: Windows asks without one, AD CS answers
+  without one by default), POSTed as `application/ocsp-request` with **the same guards as a CRL**
+  (http only, every address of the name checked - no loopback, link-local, metadata, multicast or
+  reserved address - the connection to the address checked, no redirect, 1 MB and 15 s at most).
+- **The answer is checked by openssl against the authorities put in, never the system's store**
+  (`-CAfile <the authorities> -no-CApath -no-CAstore`, `SSL_CERT_DIR` / `SSL_CERT_FILE` pointed
+  nowhere; retried without `-no-CAstore` on OpenSSL 1.1.1): signed by the authority, or by a
+  responder certificate it issued for *OCSP Signing* (as AD CS does). Not *successful*, a
+  signature that is not good (a forged answer: *root ca not trusted*), out of date, or saying
+  nothing of the certificate - **no answer**.
+- **Ten minutes at most.** An answer is used for 600 s, or until its next update when that is
+  sooner. A responder that failed less than 60 s ago is not asked again at every sign-in. While it
+  does not answer, its **last good** answer is used until its next update, never after.
+- **Each node keeps its own answers** (200 at most, the key `responder|issuer|serial`) and
+  publishes only their facts with its state - never a certificate.
+- **Fail closed**: revoked or unknown refuses; no answer refuses, except in `first`, where the CRL
+  decides instead.
+- **The person is told little**: *Certificate sign-in refused: revoked*, *not available just
+  now* or *certificate not accepted*; what the responder said goes to Events.
+
+### The OCSP answers on the card
+
+*Online status (OCSP)*, under the CRLs (shown while OCSP is on, or answers are kept): one row per
+answer kept on a node - **Certificate** (its CN; the authorities above appear too, e.g. *Corp
+Issuing CA* asked of the root's responder), **Issued by**, **Status**, **Next update**, **Serial**,
+**Asked**. The status pill, in this order: red *no answer* (dead responder, HTTP error, forged
+signature, out of date), red *revoked*, red *unknown*, red *run out* (its next update has passed),
+amber *last answer kept* (good, but the latest asking failed), green *good*. A row opens (click,
+Enter, Space) to the status in words, *Revoked* (time · reason), this and next update, serial,
+*Signed by* (the responder's certificate), size, the whole DNs, the last error and when, the
+responder's address to copy, and each node's answer in a cluster.
+
+**Ask again** (the header, or a row's own button) asks every responder again for every
+certificate it answered for - **on every node, each by itself**, as the CRLs' *Fetch now*; one
+that does not answer loosens nothing. **Clear all** (asks first) and a row's clear make every node
+forget the answers: the next sign-in asks again. Both are for a full administrator only (403
+otherwise, 404 for an answer not kept) and written to Events. The answer box (*Ask every
+responder again*, *n of m answered*, each responder that failed and why) is drawn under the table
+with a line for every node from the start.
+
+## CRLs from the directory (LDAP)
+
+AD CS writes a CRL Distribution Point in the directory by default:
+
+```
+ldap:///CN=Corp%20Issuing%20CA,CN=pki,CN=CDP,CN=Public%20Key%20Services,CN=Services,
+        CN=Configuration,DC=corp,DC=example?certificateRevocationList?base?objectClass=cRLDistributionPoint
+```
+
+With `*_certlogin_crl_ldap` on, such an address is used **after up to three http ones**, for the
+base CRL and for the delta (*Freshest CRL*, `deltaRevocationList`):
+
+- **Read with acme's own directory connection** - the part's: the directory administrators sign in
+  against for the administration, the portal's (`portal_directory`, else the administrators') for
+  the portal, with its reading account, its TLS and its servers. **The host written in the
+  address is never used.** A directory whose row is not as acme wrote it (db_guard) is not asked.
+- **Only a `cRLDistributionPoint` object under `CN=CDP,CN=Public Key Services,CN=Services,
+  CN=Configuration,DC=...`**, base scope, and only its `certificateRevocationList` or
+  `deltaRevocationList` (`;binary` allowed). Anything else (`userPassword`, `unicodePwd`, an
+  entry under `CN=Users`, `sub` scope) is not an address acme reads.
+- **The same rules as http**: ten minutes at most, the last good CRL until its next update,
+  openssl's check against the authorities put in, fail closed, 8 MB at most.
+- Off (the default): a certificate whose only CDP is in the directory is refused - *names no CRL
+  over http*, as before.
+
+On the card the row of such a CRL has an **LDAP** tag and the authority's name instead of the long
+address; its details say *Read from: the directory (LDAP)* and give the whole address to copy. A
+note under the heading says LDAP is on. Every account of the domain may read the configuration
+partition: the reading account needs nothing more.
 
 ## The sign-in page - the variants
 
@@ -410,8 +511,20 @@ servers (php -S, the demo) use ports of their own.
    authority's own certificate** needs an http CDP as well (the root's CRL - set on the root
    before it issued it), since the issuing authority's revocation is checked too; the root needs
    none. After revoking a lost card, publish a CRL (`certutil -CRL`, or *Revoked Certificates →
-   All Tasks → Publish*): acme sees it within ten minutes.
-3. **A YubiKey (PIV)**: enrolled from Windows (the template's smart card enrolment, `certreq`), or
+   All Tasks → Publish*): acme sees it within ten minutes - or press *Fetch now*.
+   **The LDAP CDPs** (`ldap:///CN=<CATruncatedName><CRLNameSuffix>,CN=<ServerShortName>,CN=CDP,
+   ...`) are AD CS's default: with *CRLs from the directory (LDAP) too* acme reads them with its
+   own directory connection when no http one answers.
+3. **OCSP (optional)**: add the *Online Responder* role (on the authority or another server);
+   issue it an *OCSP Response Signing* certificate (the template of that name: EKU OCSP Signing,
+   *id-pkix-ocsp-nocheck*); add a *Revocation Configuration* for the issuing authority - and, for
+   the check of the authority above it, one for the root on the root's side too, or use `first`.
+   In the authority's *Extensions* → *Authority Information Access*, add
+   `http://<responder>/ocsp` with *Include in the online certificate status protocol (OCSP)
+   extension*. Certificates issued **before** that name no responder: set *OCSP responder of its
+   own* for them, or use `first`. After revoking a lost card the Online Responder picks it up at
+   its next CRL refresh; then press *Ask again*.
+4. **A YubiKey (PIV)**: enrolled from Windows (the template's smart card enrolment, `certreq`), or
    with YubiKey Manager - a CSR from slot 9a signed by the authority, imported back to 9a:
    ```
    ykman piv keys generate --algorithm ECCP256 9a pub.pem
@@ -419,9 +532,9 @@ servers (php -S, the demo) use ports of their own.
    certreq -submit -attrib "CertificateTemplate:SmartcardLogon" req.csr person.cer
    ykman piv certificates import 9a person.cer
    ```
-4. **acme**: put in the issuing authority and its root (*Put in an authority…*, or
+5. **acme**: put in the issuing authority and its root (*Put in an authority…*, or
    `acme --cert-login-ca issuing-and-root.p7b`).
-5. **The browsers** need no setting. Edge and Chrome may pick the certificate by policy
+6. **The browsers** need no setting. Edge and Chrome may pick the certificate by policy
    (`AutoSelectCertificateForUrls`, `{"pattern":"https://acme.corp.example:8443","filter":{"ISSUER":{"CN":"Corp Issuing CA"}}}`);
    Firefox reads a card through its PKCS#11 module (OpenSC) or the certificates of Windows with
    `security.osclientcerts.autoload`.
@@ -445,6 +558,12 @@ acme --cert-login-crl                 the CRLs: address, issuer, number, this an
                                       revoked entries, signature, each node's fetch (--json)
 acme --cert-login-crl-fetch [URL]     Fetch now - every CRL (or the one at URL), on every node
 acme --cert-login-crl-clear [URL]     Clear - every CRL (asks; --yes) or the one at URL, on every node
+acme --cert-login-ocsp                the OCSP answers kept: certificate, status, responder, dates,
+                                      errors, each node's (--json)
+acme --cert-login-ocsp-fetch [KEY]    Ask again - every responder (or one answer), on every node;
+                                      exit 1 if one did not answer
+acme --cert-login-ocsp-clear [KEY]    Clear - every OCSP answer (asks; --yes) or one, on every node
+acme --set admin_certlogin_ocsp=first   admin_certlogin_ocsp_url, admin_certlogin_crl_ldap, portal_... the same way
 acme --set admin_certlogin=1          the switches as any other setting: portal_certlogin,
 acme --set certlogin_port=8443          admin_certlogin_auto, admin_certlogin_match, admin_certlogin_crl, ...
 acme --set admin_password_off=0       the way back from "no password at all" (switched on only from the pages)

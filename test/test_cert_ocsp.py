@@ -22,7 +22,6 @@ import http.server
 import json
 import os
 import shutil
-import signal
 import socket
 import subprocess
 import sys
@@ -246,7 +245,6 @@ class CertOcsp(unittest.TestCase):
 
     @classmethod
     def issuing_up(cls):
-        d = cls.pki
         return cls.responder('issuing', cls.P + 2, 'ocsp-index.txt', 'ocsp-i.pem', 'ocsp-i.key',
                              'issuing.pem')
 
@@ -281,7 +279,7 @@ class CertOcsp(unittest.TestCase):
         # Responder with a revocation configuration of each authority: openssl's answers what
         # its -CA issued, so the question goes to the issuing one, and to the root's when that
         # one does not know the certificate's issuer.
-        pki, lock = cls.pki, threading.Lock()
+        lock = threading.Lock()
 
         class Own(http.server.BaseHTTPRequestHandler):
             def log_message(self, *a):
@@ -570,6 +568,10 @@ out["why"] = WHY
 print(json.dumps(out))
 ''', pid=pid)
         finally:
+            try:
+                self.procs['issuing'].wait(10)
+            except subprocess.TimeoutExpired:
+                self.procs['issuing'].kill()
             self.issuing_up()
         self.assertEqual([got[k] for k in ('a1', 'a2', 'a3')], ['OK ocsp+ocsp'] * 3)
         self.assertEqual(got['n1'], got['n2'])
@@ -635,7 +637,7 @@ print(json.dumps(out))
         self.assertTrue(all(a == (CDP_DN, 0, ['certificateRevocationList']) for a in cdp), cdp)
         self.assertFalse([a for a in mockldap.ASKED if 'Decoy' in a[0]])
         # The parser's guard: only CDP objects of the configuration, base scope, CRL attributes.
-        got = self.py('print(json.dumps([E.cl_ldap_cdp(u) for u in %r]))' % [
+        got = self.py('print(json.dumps([E.cl_ldap_cdp(u) for u in %r]))' % ([
             LDAPCDP, LDAPCDP.replace('certificateRevocationList', 'deltaRevocationList;binary'),
             LDAPCDP.replace('certificateRevocationList', 'userPassword'),
             LDAPCDP.replace('certificateRevocationList', 'unicodePwd'),
@@ -643,7 +645,7 @@ print(json.dumps(out))
             'ldap:///CN=Administrator,CN=Users,DC=corpnet,DC=loc?certificateRevocationList?base',
             'ldap://evil.example/CN=x,CN=CDP,CN=Public%20Key%20Services,CN=Services,'
             'CN=Configuration,DC=corpnet,DC=loc?certificateRevocationList?base',
-            'http://127.0.0.1/x.crl'])
+            'http://127.0.0.1/x.crl'],))
         self.assertEqual(got[0], [CDP_DN, 'certificateRevocationList'])
         self.assertEqual(got[1], [CDP_DN, 'deltaRevocationList'])
         self.assertEqual(got[2:6], [None] * 4)

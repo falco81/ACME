@@ -6,6 +6,22 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.105 - not released
 
+- **The sign-in with a certificate: OCSP, and CRLs from the directory.** Each part (Settings →
+  Accounts, and the enrolment pages → *Signing in with a certificate*) can ask an **OCSP
+  responder** (AD CS *Online Responder*) - *Ask an OCSP responder*: `off` (the default: the CRLs
+  alone, exactly as before), `first` (the CRL only when the responder does not answer), `only`,
+  `both` - for the certificate and every authority above it but the root, at the address each
+  certificate names or at *OCSP responder of its own*. The answer is checked by openssl against
+  the authorities put in only (a forged one is no answer), kept ten minutes at most or until its
+  next update, the last good one while the responder does not answer; revoked or unknown refuses,
+  no answer refuses except in `first`. **CRLs from the directory (LDAP) too** reads AD CS's
+  default `ldap:///…,CN=CDP,CN=Public Key Services,…` CDP with acme's own directory connection
+  (that part's directory, never the host in the address; only CDP objects, base scope, the CRL
+  attributes) after up to three http ones. The card shows the order as steps under *Revocation*,
+  an **LDAP** row in the CRL table, and a new table **Online status (OCSP)** with *Ask again* and
+  *Clear* on every node (a full administrator; written to Events). `acme --cert-login-ocsp
+  [--json]`, `--cert-login-ocsp-fetch`, `--cert-login-ocsp-clear`. The person is told only
+  *revoked*, *not available just now* or *certificate not accepted*; the rest goes to Events.
 - **The page no longer scrolls under your hands.** Whatever is redrawn - a card refreshing by
   itself, the answers of Fetch now coming in, a row opened or closed, a switch turned - what you
   are looking at (the thing you just clicked, else what is in the middle of the screen) stays
