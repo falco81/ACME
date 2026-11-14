@@ -23,7 +23,7 @@ from acmelib.plugins.targets._common import (
 CHUNK = 512 * 1024
 # A partition, a profile (1.0.101): BIG-IP's names - letters, digits, _ . - - in folders; no
 # "..", "?", "#" or a line break (they went into the iControl REST path)
-F5_PATH = r'^/?[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*/?\Z'
+F5_PATH = r'^(?!(.*/)?\.\.?(/|\Z))/?[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*/?\Z'
 F5_WORDS = 'BIG-IP names: letters, digits, _ . - (as /Partition/name), no ..'
 
 

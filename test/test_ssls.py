@@ -625,6 +625,29 @@ class TestOrders(Base):
         self.assertEqual(out.key_pem, r.key_pem)
         self.assertTrue(pki.key_matches(out.cert_pem, r.key_pem))
 
+    def test_waiting_order_with_a_revoked_key_let_go(self):
+        """Held with the key of a version revoked since: not finished (1.0.101) - a new request
+        with the new key; the renewer's drop at a revoke finds its slot."""
+        from acmelib.certs import renewer
+        self.assertEqual(renewer.HELD_RE.search('ssls-pending:5:ec').group(1), '5')
+        iss = self.issuer(allow_paid=True, wait_issue=40)
+        self.sapi.pending_polls = 5
+        r = self.req()
+        with self.assertRaises(PluginError):
+            iss.issue(r)
+        self.assertIn('ssls-pending:5:ec', self.ctx.kv)
+        r2 = self.req()
+        r2.challenges = r.challenges
+        r2.no_held_key = [pki.key_info(r.key_pem)['pub_sha256']]
+        # never finished with the revoked key: let go (the CA still validating that one, nothing
+        # is ordered meanwhile - asked again at the next try)
+        with self.assertRaises(PluginError) as e:
+            self.issuer(allow_paid=True).issue(r2)
+        self.assertTrue(e.exception.retry)
+        self.assertNotIn('ssls-pending:5:ec', self.ctx.kv)
+        self.assertIn('has the key of a version revoked', self.said())
+        self.assertEqual(len(self.sapi.of('newOrder')), 1)
+
     def test_renewal_reissues_inside_the_subscription(self):
         iss = self.issuer(allow_paid=True, period='2')
         first = iss.issue(self.req())

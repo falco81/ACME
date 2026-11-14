@@ -84,6 +84,33 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   in it is a stand-in now, but for those that say where and who (URLs, e-mails, domains, the
   type, the project), and the real one is masked out however it is written. A module opening
   an HTTP connection of its own (`putrequest`/`endheaders`) is shown as going around acme too.
+- **`acme --ha-resync` and `acme --ha-join` start the guard's counts again.** With `db_guard`
+  on, a node rebuilt from the other one on the command line kept the newest signatures it had
+  seen in its own `guard.json`: every guarded row it had seen newer (settings such as the proxy,
+  the firewall, sshd and the sign-in switches, accounts, sign-ins) was refused as "an older one
+  put back", and the node went on acting on its own old values - after the restart too. Both
+  commands now forget them, as the rebuild on the pages has done; a node joining a shared
+  cluster (pages or command line), whose `secrets.key` is replaced, starts from an empty
+  `guard.json` as well.
+- **What happens: the recording's process kept in bounds.** A module's own code runs there. Its
+  memory is limited (1 GB of address space, `ACME_PLAN_MEM_MB`), its processor time and the
+  size of a file it writes too; what the daemon reads back from it is capped (the process is
+  stopped beyond it). What a module prints (`print()`, stdout, stderr) is no longer mixed into
+  the recording's answer - one `print()` lost the whole plan, a module writing to stdout in a
+  loop took the daemon to gigabytes of memory: it is kept aside (4000 characters a module) and
+  shown with the debug details as *What the module printed*.
+- **`api_port` is never the certificate sign-in's port.** `acme --set api_port=8443` was taken,
+  though `certlogin_port=9861` was refused the other way round: nginx listens on the
+  certificate's port on every address, and at the next start the daemon could not (or the sign-in
+  with a certificate was lost). Refused now on every node - a node's own `api_port`, the
+  cluster's value, and `certlogin_port` against every node's `api_port`.
+- **Going back below a sign-in setting switched on is refused, and says which.** Going back to a
+  version older than the one that brought `admin_krb` / `portal_krb` / `admin_password_off` /
+  `portal_password_off` (1.0.99) or `admin_certlogin` / `portal_certlogin` (1.0.100) while it is
+  on dropped it without a word - with "no password" on, passwords signed people in again. The
+  list of older versions and `acme --downgrade` now name the settings to switch off first; and
+  with the guard against writes to the database on, the portal's sign-in settings stand in the
+  way of 1.0.100 (its settings are signed only from 1.0.101).
 
 ## 1.0.100 - 2026-11-14
 

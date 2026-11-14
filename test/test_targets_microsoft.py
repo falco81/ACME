@@ -324,6 +324,31 @@ class ScomTest(unittest.TestCase):
         b.family = 'rsa'
         t.deploy(b, {})
 
+    def test_tool_is_momcertimport_on_a_drive(self):
+        """Hunt M round 2 (1.0.101): MOMCertImport.exe is run as Administrator - a share, a
+        WebDAV path, another program, a ".." refused before anything runs; a full
+        administrator's option (api.DEPLOY_COMMANDS)."""
+        from acmelib.certs import api as A
+        self.assertIn('scom_tool', A.DEPLOY_COMMANDS)
+        for bad in ('\\\\attacker.example\\share\\evil.exe',
+                    '\\\\attacker.example\\share\\MOMCertImport.exe',
+                    '\\\\h@SSL\\DavWWWRoot\\MOMCertImport.exe', '//h/s/MOMCertImport.exe',
+                    'C:\\evil.exe', 'C:\\T\\..\\x\\MOMCertImport.exe', 'MOMCertImport.exe',
+                    'C:MOMCertImport.exe', 'C:\\T\\MOMCertImport.exe\nx'):
+            sv = Server()
+            t, _c = make('windows_scom', sv)
+            with self.assertRaises(PluginError) as e:
+                t.deploy(FakeBundle(), {'scom_tool': bad})
+            self.assertIn('MOMCertImport.exe', str(e.exception), bad)
+            self.assertEqual(sv.scripts, [], bad)
+        field = [f for f in WP.ScomTarget.deploy_fields if f['key'] == 'scom_tool'][0]
+        self.assertTrue(re.match(field['pattern'], 'c:\\Program Files\\x\\momcertimport.exe'))
+        self.assertFalse(re.match(field['pattern'], '\\\\h\\s\\MOMCertImport.exe'))
+        sv = Server()
+        t, _c = make('windows_scom', sv)
+        t.deploy(FakeBundle(), {'scom_tool': 'D:\\Support Tools\\amd64\\MOMCertImport.exe'})
+        self.assertTrue(sv.runs('MOMCertImport'))
+
 
 class OosTest(unittest.TestCase):
     def test_script_and_exportable_key(self):

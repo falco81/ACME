@@ -562,6 +562,27 @@ class TestOrder(Base):
         self.assertNotIn('sslmarket-pending:5:ec', self.ctx.kv)
         self.assertFalse(any(self.zone.values()))
 
+    def test_pending_with_a_revoked_key_let_go(self):
+        """An order held with the key of a version revoked since is not finished (1.0.101, as the
+        other sources' held requests) - and the renewer's drop at a revoke finds its slot."""
+        from acmelib.certs import renewer
+        self.assertTrue(renewer.HELD_RE.search('sslmarket-pending:5:ec'))
+        self.assertEqual(renewer.HELD_RE.search('sslmarket-pending:5:ec').group(1), '5')
+        self.assertEqual(renewer.HELD_RE.search('acme-pending:0123456789ab:7').group(1), '7')
+        self.api.pending_polls = 10 ** 6
+        iss = self.issuer(allow_paid=True, wait_issue=0)
+        r1 = self.req()
+        with self.assertRaises(PluginError):
+            iss.issue(r1)
+        self.assertIn('sslmarket-pending:5:ec', self.ctx.kv)
+        self.api.pending_polls = 0
+        r2 = self.req()
+        r2.no_held_key = [pki.key_info(r1.key_pem)['pub_sha256']]
+        out = iss.issue(r2)
+        self.assertTrue(pki.key_matches(out.cert_pem, r2.key_pem))
+        self.assertFalse(pki.key_matches(out.cert_pem, r1.key_pem))
+        self.assertIn("has the key of a version revoked", json.dumps(self.ctx.steps))
+
     def test_dual_twin_has_its_own_order(self):
         self.assertFalse(SslmarketIssuer.dual_for(CONF))
         self.assertTrue(SslmarketIssuer.dual_for({'dual_order': True}))

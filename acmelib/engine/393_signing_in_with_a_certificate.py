@@ -1241,13 +1241,18 @@ def cl_api_port_clash(saved, checked, node, per_node):
     for n in sorted(ports, key=lambda x: (x != node, x)):
         if ports[n] != cl:
             continue
-        where = ('on %s' % n) if n else 'of every node without one of its own'
         if 'certlogin_port' in checked:
-            return ('certlogin_port: %s is acme\'s API %s (api_port) - choose a port of its own '
-                    '(8443)' % (cl, where))
+            if n:
+                return ('certlogin_port: %s is acme\'s API on %s (api_port) - choose a port of '
+                        'its own (8443)' % (cl, n))
+            return ('certlogin_port: %s is acme\'s API on every node without a port of its own '
+                    '(api_port) - choose a port of its own (8443)' % cl)
+        if n:
+            return ('api_port: %s is the port of the sign-in with a certificate (certlogin_port), '
+                    'where nginx listens on every node - choose another one for the API on %s'
+                    % (cl, n))
         return ('api_port: %s is the port of the sign-in with a certificate (certlogin_port), '
-                'where nginx listens on every node - choose another one for the API %s'
-                % (cl, where))
+                'where nginx listens on every node - choose another one for the API' % cl)
     return ''
 
 

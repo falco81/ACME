@@ -66,14 +66,25 @@ WLC_FIELDS = [
 
 
 class Wlc9800Mixin(object):
+    @staticmethod
+    def webauth_map(options):
+        pm = text((options or {}).get('webauth_map') or 'global').strip() or 'global'
+        if not re.match(MAP_RE, pm):
+            raise PluginError('"%s" is not a name of a webauth parameter map (letters, digits, '
+                              '_ . - only)' % pm.encode('unicode_escape').decode('ascii')[:80],
+                              retry=False)
+        return pm
+
+    def deploy(self, bundle, options):
+        # the name checked before anything is copied or changed (1.0.101)
+        if as_bool(self.opt(options, 'webauth', False)):
+            self.webauth_map({'webauth_map': self.opt(options, 'webauth_map', 'global')})
+        return CiscoIosXeTarget.deploy(self, bundle, options)
+
     def binds(self, options, name):
         out = CiscoIosXeTarget.binds(self, options, name)
         if as_bool(self.opt(options, 'webauth', False)):
-            pm = text(self.opt(options, 'webauth_map', 'global')).strip() or 'global'
-            if not re.match(MAP_RE, pm):
-                raise PluginError('"%s" is not a name of a webauth parameter map (letters, '
-                                  'digits, _ . - only)' % pm.encode('unicode_escape').decode(
-                                      'ascii')[:80], retry=False)
+            pm = self.webauth_map({'webauth_map': self.opt(options, 'webauth_map', 'global')})
             out.append(('the webauth parameter map %s' % pm, [
                 'parameter-map type webauth %s' % pm, 'trustpoint %s' % name, 'exit',
                 'no ip http server', 'ip http server']))

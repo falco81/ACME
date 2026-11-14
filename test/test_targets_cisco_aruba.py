@@ -36,6 +36,7 @@ from acmelib.plugins.base import PluginError, Registry  # noqa: E402
 from acmelib.plugins.targets import _common as C  # noqa: E402
 from acmelib.plugins.targets import cisco_iosxe as IX  # noqa: E402
 from acmelib.plugins.targets import cisco_nxos as NX  # noqa: E402
+from acmelib.plugins.targets import cisco_wlc9800 as C_WLC  # noqa: E402
 
 GUIDES = os.path.join(os.path.dirname(HERE), 'acmelib', 'plugins', 'guides', 'targets')
 NEW = {'cisco_iosxe': ['', '17.3', '17.12'], 'cisco_wlc9800': ['', '17.3', '17.12'],
@@ -273,6 +274,30 @@ class IosXe(unittest.TestCase):
         t = make('cisco_wlc9800', '', CFG, FakeCtx())
         self.assertEqual(t.served_places({'webauth': True, 'webauth_host': 'guest.example.test'}),
                          [('sw01.example.test', 443), ('guest.example.test', 443)])
+
+    def test_wlc_webauth_map_is_a_name(self):
+        """Hunt M round 2 (1.0.101): the parameter map's name went into configuration mode as
+        a line - a line break in it was more configuration (a privilege-15 user). Refused
+        before anything is copied or changed; a plain name goes on."""
+        for bad in ('global\nusername pwned privilege 15 secret 0 Pwn3d!',
+                    'global trustpoint x', 'a' * 65, 'map;x', 'glo\rbal'):
+            ssh = iosxe_ssh('17.12.03')
+            with self.assertRaises(PluginError) as e:
+                make('cisco_wlc9800', '', CFG, FakeCtx(ssh=ssh)).deploy(
+                    FakeBundle(), {'webauth': True, 'webauth_map': bad})
+            self.assertFalse(e.exception.retry)
+            self.assertIn('parameter map', str(e.exception))
+            self.assertEqual(ssh.puts, [])
+            self.assertEqual(self.scripts(ssh), [], 'nothing configured')
+        # off: the name is not looked at
+        self.deploy('', '17.12.03', kind='cisco_wlc9800', webauth=False, webauth_map='x y')
+        b, ssh, ctx, got = self.deploy('', '17.12.03', kind='cisco_wlc9800', webauth=True,
+                                       webauth_map='guest-portal_1.v2')
+        self.assertTrue([i for i in self.scripts(ssh)
+                         if 'parameter-map type webauth guest-portal_1.v2\n' in i])
+        field = [f for f in C_WLC.WLC_FIELDS if f['key'] == 'webauth_map'][0]
+        self.assertTrue(re.match(field['pattern'], 'global'))
+        self.assertFalse(re.match(field['pattern'], 'global\n'))
 
     def test_wlc_versions(self):
         b, ssh, ctx, got = self.deploy('17.3', '17.09.05', kind='cisco_wlc9800')

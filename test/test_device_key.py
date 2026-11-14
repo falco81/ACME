@@ -1195,6 +1195,28 @@ class HuntM1(unittest.TestCase):
         self.assertTrue(renew(cid).ok)
         self.assertNotEqual(self._pub(cid), k1, 'never the revoked key again')
 
+    def test_1b_a_request_held_for_a_new_key_is_kept_at_the_revoke(self):
+        """Only those with the key revoked go (1.0.101): one held for a new key stays - dropped,
+        the order stayed open at the CA and the next renewal paid a second one."""
+        cid = save(name='hm1b', names=['hm1b.example.test'], issuer='kepthold', challenge='',
+                   reuse_key=1)
+        self.assertTrue(renew(cid).ok)
+        cert = S.cert_need(STORE, cid)
+        from acmelib.certs import runtime
+        ctx = runtime.RunContext(STORE, None, scope='issuer:kepthold')
+        old = base.CertRequest(names=['hm1b.example.test'], key_type='ec-256',
+                               key_pem=S.cert_key(cert), cert_id=cid)
+        new = base.CertRequest(names=['hm1b.example.test'], key_type='ec-256',
+                               key_pem=pki.make_key('ec-256'), cert_id=cid)
+        s_old, s_new = SC.pending_slot('keptholdca', 'o', old), SC.pending_slot('keptholdca', 'n', new)
+        SC.pending_put(ctx, s_old, old, {'id': 'order-old'})
+        SC.pending_put(ctx, s_new, new, {'id': 'order-new'})
+        job = self._revoke(cid)
+        self.assertTrue(job.ok, words(job))
+        self.assertIsNone(ctx.kv_get(s_old), 'the revoked key: dropped')
+        self.assertIsNotNone(ctx.kv_get(s_new), 'a new key: kept')
+        self.assertIn('for another key (not revoked) - kept', words(job))
+
     def test_2_a_held_request_with_a_revoked_key_is_refused(self):
         # one held with the revoked key all the same (put back, or by another node): the
         # source drops it, the new key is used

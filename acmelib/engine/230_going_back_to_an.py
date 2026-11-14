@@ -61,13 +61,9 @@ def downgrade_root_floor():
 
 # The ways of signing in an older version does not know (1.0.101): going back with one on, it
 # was dropped without a word - with "no password" on, passwords signed people in again.
-DOWNGRADE_SIGNIN = (('admin_krb', (1, 0, 99), 'signing in to the administration with Windows'),
-                    ('portal_krb', (1, 0, 99), 'signing in to the portal with Windows'),
-                    ('admin_password_off', (1, 0, 99), 'no password for the administration'),
-                    ('portal_password_off', (1, 0, 99), 'no password for the portal'),
-                    ('admin_certlogin', (1, 0, 100),
-                     'signing in to the administration with a certificate'),
-                    ('portal_certlogin', (1, 0, 100), 'signing in to the portal with a certificate'))
+DOWNGRADE_SIGNIN = (('admin_krb', (1, 0, 99)), ('portal_krb', (1, 0, 99)),
+                    ('admin_password_off', (1, 0, 99)), ('portal_password_off', (1, 0, 99)),
+                    ('admin_certlogin', (1, 0, 100)), ('portal_certlogin', (1, 0, 100)))
 
 
 def downgrade_signin_lost(version):
@@ -75,23 +71,24 @@ def downgrade_signin_lost(version):
     lose: each one older than the version that brought it. And with the guard on, the portal's
     ones are signed only from 1.0.101."""
     v = _ver_tuple(version)
-    gone = [(k, '%s (%s, since %s)' % (k, words, '.'.join(map(str, since))))
-            for k, since, words in DOWNGRADE_SIGNIN if CONFIG.get(k) and v < since]
+    gone = [(k, '%s (since %s)' % (k, '.'.join(map(str, since))))
+            for k, since in DOWNGRADE_SIGNIN if CONFIG.get(k) and v < since]
+    if gone and any(k.endswith('_password_off') for k, _w in gone):
+        return ('acme %s does not know these sign-in settings switched on here and would drop '
+                'them without a word - passwords would sign people in again where they are '
+                'switched off: %s. Switch them off first'
+                % (version, ', '.join(w for _k, w in gone)))
     if gone:
-        return ('acme %s does not know %s switched on here and would drop %s without a word%s: '
-                '%s. Switch %s off first' % (
-                    version, 'a sign-in setting' if len(gone) == 1 else
-                    'the sign-in settings', 'it' if len(gone) == 1 else 'them',
-                    ' - passwords would sign people in again where they are switched off'
-                    if any(k.endswith('_password_off') for k, _w in gone) else '',
-                    ', '.join(w for _k, w in gone), 'it' if len(gone) == 1 else 'them'))
+        return ('acme %s does not know these sign-in settings switched on here and would drop '
+                'them without a word: %s. Switch them off first'
+                % (version, ', '.join(w for _k, w in gone)))
     portal = [k for k in ('portal_krb', 'portal_password_off', 'portal_certlogin')
               if CONFIG.get(k)]
     if portal and CONFIG.get('db_guard') and v < (1, 0, 101):
         return ('older than 1.0.101 while the guard against writes to the database is on with '
                 '%s: the portal\'s settings and sign-ins would no longer be signed - written '
-                'into the database past acme, they would be taken. Switch %s off first (or the '
-                'guard)' % (', '.join(portal), 'it' if len(portal) == 1 else 'them'))
+                'into the database past acme, they would be taken. Switch them off first (or the '
+                'guard)' % ', '.join(portal))
     return ''
 
 

@@ -1108,5 +1108,82 @@ class Ipv6VerifyTest(unittest.TestCase):
         self.assertNotIn(('2001:db8::7:8443', 443), got)
 
 
+class PathPartsTest(unittest.TestCase):
+    """Hunt M round 2 (1.0.101): an option of a deployment that becomes a part of a device's
+    URL path is one part - "x/../../other" (urllib.parse.quote keeps "/" and "..") went to
+    another endpoint of the device; any "." / ".." part or control character in an address
+    is refused by ctx.http itself."""
+
+    def test_seg_and_address(self):
+        from acmelib.plugins.targets import _common as C
+        self.assertEqual(C.seg('vs www 443'), 'vs%20www%20443')
+        self.assertEqual(C.seg('*.example.test'), '%2A.example.test')
+        for bad in ('', '.', '..', ' .. ', 'a/b', 'a\\b', 'a?b', 'a#b', 'a%2fb', 'a\nb', 'a\x00'):
+            with self.assertRaises(PluginError, msg=repr(bad)):
+                C.seg(bad, 'the profile')
+            self.assertFalse(re.match(C.SEG_PATTERN, bad), repr(bad))
+        self.assertTrue(re.match(C.SEG_PATTERN, 'Web servers'))
+        for bad in ('https://h/a/../b', 'https://h/a/%2e%2E/b', 'https://h/./a', 'https://h/a b',
+                    'https://h/a\r\nX: y', 'https://h/a\x00'):
+            self.assertTrue(C.url_path_problem(bad), bad)
+        for good in ('https://h/a/b?x=../y', 'https://h:8443/a.b/c..d', 'https://h',
+                     'https://h/a/b#..'):
+            self.assertEqual(C.url_path_problem(good), '', good)
+        self.assertEqual(C.control_char('a\tb', tab=True), '')
+        self.assertEqual(C.control_char('a\tb'), '\\t')
+        self.assertEqual(C.control_char('a\u2028b'), '\\u2028')
+
+    def test_kubernetes_names(self):
+        for opts in ({'restart': '../../namespaces/kube-system/deployments/coredns'},
+                     {'restart': 'web\na/b'}, {'namespace': 'prod/../kube-system'},
+                     {'secret': 'x?y'}):
+            ctx = FakeCtx([])
+            t = make('kubernetes', {'host': 'https://k8s:6443', 'token': 'BT'}, ctx)
+            with self.assertRaises(PluginError, msg=opts) as e:
+                t.deploy(FakeBundle(), opts)
+            self.assertIn('Kubernetes name', str(e.exception))
+            self.assertEqual(ctx.calls, [], opts)
+
+    def test_netscaler_names(self):
+        for opts in ({'certkey': 'x/../../systemuser'}, {'vservers': 'vs?x sni'},
+                     {'vservers': 'a/b'}):
+            ctx = FakeCtx([])
+            t = make('netscaler', {'host': 'adc', 'user': 'u', 'password': 'p'}, ctx)
+            with self.assertRaises(PluginError, msg=opts):
+                t.deploy(FakeBundle(), opts)
+            self.assertEqual(ctx.calls, [], opts)
+
+    def test_f5_names(self):
+        for opts in ({'partition': 'Common/../x'}, {'partition': 'Co mmon'},
+                     {'profiles': '/Common/www?x'}, {'profiles': '/Common/../../sys/x'}):
+            ctx = FakeCtx([])
+            t = make('f5', {'host': 'bigip', 'user': 'u', 'password': 'p'}, ctx)
+            with self.assertRaises(PluginError, msg=opts) as e:
+                t.deploy(FakeBundle(), opts)
+            self.assertIn('BIG-IP name', str(e.exception))
+            self.assertEqual(ctx.calls, [], opts)
+
+    def test_synergy_enclosure_uri(self):
+        t = make('hpe_synergy', {'host': 'ov', 'user': 'u', 'password': 'p'}, FakeCtx([]))
+        with self.assertRaises(PluginError):
+            t.enclosure_uri({'enclosure': '/rest/enclosures/x/../../users'})
+        with self.assertRaises(PluginError):
+            t.enclosure_uri({'enclosure': '/rest/enclosures/x?y=1'})
+        self.assertEqual(t.enclosure_uri({'enclosure': '/rest/enclosures/0000A66101/'}),
+                         '/rest/enclosures/0000A66101')
+
+    def test_patterns_on_the_fields(self):
+        """Each module's own pattern= takes what it takes and refuses a path in it."""
+        reg = Registry(extra_dirs=[]).reload()
+        some = {('kubernetes', 'restart'): 'web', ('netscaler', 'certkey'): 'www cert',
+                ('f5', 'partition'): 'Common', ('f5', 'profiles'): '/Common/www_ssl',
+                ('a10', 'templates'): 'tpl-www', ('nginx_unit', 'listeners'): '*:443',
+                ('kong', 'snis'): '*.example.test', ('cisco_wlc9800', 'webauth_map'): 'global'}
+        for (kind, key), good in some.items():
+            f = [x for x in reg.get('target', kind).deploy_fields if x['key'] == key][0]
+            self.assertTrue(re.fullmatch(f['pattern'], good), (kind, key))
+            self.assertFalse(re.fullmatch(f['pattern'], 'a/../b'), (kind, key))
+
+
 if __name__ == '__main__':
     unittest.main()
