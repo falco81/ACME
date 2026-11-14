@@ -277,6 +277,18 @@ all" moves on to the certificate. *Use a password instead* (`?nocert`) under the
 certificate from going by itself in that tab; and however a setup is broken, the certificate is
 gone to by itself at most once in ten minutes and three times a tab.
 
+**No ticket in this browser** (a computer outside the domain): when Windows tried by itself
+ends with no Kerberos ticket at all - the browser sent nothing, its own *Sign in* dialog was
+cancelled, or NTLM or a password typed into that dialog came instead (the daemon's category
+*no Kerberos ticket*, `code: no_ticket` to the page - the words stay the generic ones) - the
+browser remembers it (`localStorage`, per part, with the time) for **30 days**: Windows is not
+tried by itself there any more, so the browser's dialog does not pop up on every visit; the
+certificate by itself (if on) follows as after no ticket. The button keeps working, and a Windows
+sign-in clears the memory. A computer of the domain is not concerned (a real ticket signs in,
+nothing is remembered), and a refusal of a real ticket is never remembered. With no password and
+Windows the only way, the page then shows the button and says *this browser had no Windows ticket
+- press the button to try again* instead of trying by itself.
+
 **The settings**: each way's card keeps its own switches (*...by itself when the sign-in page
 opens* among them - "Not in use while ... is off", and not to be changed, until its way is on);
 the card **The sign-in page** (one in *Accounts*, one in *The enrolment pages*) holds the switch

@@ -1220,12 +1220,16 @@ SAYS = {
                  'sAMAccountName - and the second step, when it is on, is asked after it just '
                  'the same. A local account keeps its password. NTLM is never taken. Off: '
                  'nothing of it is offered. Its own switch: the enrolment pages have theirs.',
-    'admin_krb_auto': 'On: the sign-in page tries Windows at once, and shows the form only when it '
-                      'did not work. Off: a button "Sign in with Windows" under the form. After '
+    'admin_krb_auto': 'On: the sign-in page tries Windows at once, and shows the form only when it'
+                      ' did not work. Off: a button "Sign in with Windows" under the form. After '
                       'Sign out it is never tried by itself in that tab again (or Sign out would '
-                      'sign you straight back in). With the certificate by itself as well: '
-                      'Windows first (it asks nothing), the certificate only when it did not '
-                      'sign in.',
+                      'sign you straight back in). With the certificate by itself as well: Windows'
+                      ' first (it asks nothing), the certificate only when this computer has no '
+                      'Windows ticket at all. A browser that had no ticket at all (a computer '
+                      'outside the domain: nothing sent, its own Sign in dialog cancelled, NTLM or'
+                      ' a password typed into it) is remembered for 30 days: Windows is not tried '
+                      'by itself there any more - the button stays, and a Windows sign-in forgets '
+                      'it. A refusal of a real ticket is said, never remembered.',
     'admin_krb_realm': 'The realm whose people may sign in, in capitals (CORP.EXAMPLE). Empty: '
                        'taken from the base DN of the directory above (DC=corp,DC=example → '
                        'CORP.EXAMPLE). A ticket of any other realm is refused.',
@@ -1249,7 +1253,12 @@ SAYS = {
                   'be on). Off: nothing of it is offered on the portal.',
     'portal_krb_auto': 'On: the portal tries Windows at once when it opens, and shows the form '
                        'only when it did not work. Off: a button "Sign in with Windows" under the '
-                       'form. Never by itself again in that tab after Sign out.',
+                       'form. Never by itself again in that tab after Sign out. A browser that had'
+                       ' no ticket at all (a computer outside the domain: nothing sent, its own '
+                       'Sign in dialog cancelled, NTLM or a password typed into it) is remembered '
+                       'for 30 days: Windows is not tried by itself there any more - the button '
+                       'stays, and a Windows sign-in forgets it. A refusal of a real ticket is '
+                       'said, never remembered.',
     'portal_krb_realm': 'The realm whose people may sign in to the portal, in capitals. Empty: '
                         'taken from the base DN of the portal\'s directory (Which directory '
                         'people sign in against, else the administrators\'). A ticket of any '

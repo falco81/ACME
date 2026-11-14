@@ -84,7 +84,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   `/api/health`, `/api/portal/info` (`signin: {on, auto, cert, cert_port, cert_auto, only, ...}`),
   `acme --kerberos` and `acme --cert-login` say the same. A setting that depends on a switch
   that is off is "Not in use while ... is off" **and cannot be changed** until it is on (every
-  pane). ([docs/certificate-sign-in.md](docs/certificate-sign-in.md), *The sign-in page - the
+  pane). A browser that had **no Windows ticket at all** when Windows was tried by itself (outside
+  the domain: nothing sent, the browser's own dialog cancelled, NTLM or a password typed into it -
+  the new refusal category *no Kerberos ticket*) remembers it for 30 days and does not try Windows
+  by itself again - no browser dialog on every visit; the button stays, a Windows sign-in clears
+  it. ([docs/certificate-sign-in.md](docs/certificate-sign-in.md), *The sign-in page - the
   variants*.)
 - The directory's `objectSid` is read (as bytes) with every account.
 

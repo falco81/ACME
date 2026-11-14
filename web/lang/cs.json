@@ -62475,6 +62475,142 @@
   "_401": {
    "source": "checked - the CRL and the delta CRL of the certificate and of the authorities above it, fetched again every ten minutes at most; no CRL no sign-in",
    "text": "kontroluje se – CRL a rozdílový CRL certifikátu i autorit nad ním, stahované znovu nejvýš každých deset minut; bez CRL žádné přihlášení"
+  },
+  "_402": {
+   "source": "On: the sign-in page goes to the certificate at once when it opens - the browser asks which certificate, the card its PIN - and shows the form only when it did not sign in. Off: a button \"Sign in with a certificate\" under the form. Never by itself again in that tab after Sign out, after a refusal or a certificate not chosen, nor with \"Use a password instead\" (?nocert). With Windows by itself as well: Windows is tried first, the certificate only when it did not sign in.",
+   "text": "Zapnuto: přihlašovací stránka hned při otevření přejde k certifikátu - prohlížeč se zeptá, který certifikát, karta na svůj PIN - a formulář ukáže, jen když přihlášení nevyšlo. Vypnuto: tlačítko „Přihlásit se certifikátem“ pod formulářem. V té záložce už nikdy samo znovu po odhlášení, po odmítnutí ani po nevybraném certifikátu, ani s „Použít raději heslo“ (?nocert). Když je samo i Windows: nejdřív se zkusí Windows, certifikát jen tehdy, když Windows nepřihlásil."
+  },
+  "_403": {
+   "source": "On: the portal goes to the certificate at once when it opens, and shows the form only when it did not sign in. Off: a button \"Sign in with a certificate\" under the form. Never by itself again in that tab after Sign out, after a refusal or a certificate not chosen, nor with \"Use a password instead\". With Windows by itself as well: Windows first, the certificate only when it did not sign in.",
+   "text": "Zapnuto: portál hned při otevření přejde k certifikátu a formulář ukáže, jen když přihlášení nevyšlo. Vypnuto: tlačítko „Přihlásit se certifikátem“ pod formulářem. V té záložce už nikdy samo znovu po odhlášení, po odmítnutí ani po nevybraném certifikátu, ani s „Použít raději heslo“. Když je samo i Windows: nejdřív Windows, certifikát jen tehdy, když Windows nepřihlásil."
+  },
+  "_404": {
+   "source": "One switch of both ways (The sign-in page). On: the sign-in page offers no name and password - nobody signs in with a password, local accounts neither; only Windows (Kerberos) or a certificate, then the second step when it is on. No password is set or changed on these pages either. Switched on only from a sign-in made with Windows or a certificate (so whoever switches it on has seen it work); in effect only while Kerberos is on with a keytab, or the certificate sign-in is on with authorities put in. The way back, as root: acme --set admin_password_off=0.",
+   "text": "Jeden přepínač obou způsobů (Přihlašovací stránka). Zapnuto: přihlašovací stránka nenabízí jméno a heslo - nikdo se nepřihlásí heslem, ani místní účty; jen přes Windows (Kerberos) nebo certifikátem, potom druhý krok, je-li zapnutý. Ani heslo se na těchto stránkách nenastavuje ani nemění. Zapíná se jen z přihlášení přes Windows nebo certifikátem (aby ten, kdo ho zapíná, viděl, že mu to funguje); platí jen, dokud je zapnutý Kerberos s keytabem nebo přihlašování certifikátem s vloženými autoritami. Cesta zpět, jako root: acme --set admin_password_off=0."
+  },
+  "_405": {
+   "source": "One switch of both ways (The sign-in page of the portal). On: the portal offers no name and password - nobody signs in to it with a password, acme's own accounts neither; only Windows (Kerberos) or a certificate, then the one-time code when it is on. Switched on only by an administrator who is signed in to the portal with Windows or a certificate in the same browser; in effect only while Kerberos (with a keytab) or the certificate sign-in (with authorities) is on for the portal. The way back, as root: acme --set portal_password_off=0.",
+   "text": "Jeden přepínač obou způsobů (Přihlašovací stránka portálu). Zapnuto: portál nenabízí jméno a heslo - nikdo se na něj nepřihlásí heslem, ani vlastní účty acme; jen přes Windows (Kerberos) nebo certifikátem, potom jednorázový kód, je-li zapnutý. Zapne ho jen správce přihlášený na portál přes Windows nebo certifikátem ve stejném prohlížeči; platí jen, dokud je pro portál zapnutý Kerberos (s keytabem) nebo přihlašování certifikátem (s autoritami). Cesta zpět, jako root: acme --set portal_password_off=0."
+  },
+  "_406": {
+   "source": "The sign-in page",
+   "text": "Přihlašovací stránka"
+  },
+  "_407": {
+   "source": "What the sign-in page of these pages offers, with Windows and a certificate side by side: each is a button under the name and password, or is tried by itself when the page opens. Both tried by themselves: Windows first - silently - and the certificate only when this computer has no Windows ticket (a computer outside the domain with a smart card). A refusal of either stops there and says why; the form stays unless there is no password at all. After Sign out nothing is tried by itself again in that tab. The enrolment pages have a card of their own.",
+   "text": "Co nabízí přihlašovací stránka těchto stránek, s Windows a certifikátem vedle sebe: každý je tlačítkem pod jménem a heslem, nebo se zkusí sám při otevření stránky. Oba samy: nejdřív Windows - potichu - a certifikát jen tehdy, když tento počítač nemá lístek Windows (počítač mimo doménu s čipovou kartou). Odmítnutí kteréhokoli tím končí a řekne proč; formulář zůstává, pokud není „žádné heslo“. Po odhlášení se v té záložce už nic samo nezkouší. Stránky pro žádosti mají vlastní kartu."
+  },
+  "_408": {
+   "source": "What the portal's sign-in page offers, with Windows and a certificate side by side: each is a button under the name and password, or is tried by itself when the page opens. Both tried by themselves: Windows first - silently - and the certificate only when this computer has no Windows ticket. A refusal of either stops there and says why; the form stays unless there is no password at all. After Sign out nothing is tried by itself again in that tab. The administration has a card of its own.",
+   "text": "Co nabízí přihlašovací stránka portálu, s Windows a certifikátem vedle sebe: každý je tlačítkem pod jménem a heslem, nebo se zkusí sám při otevření stránky. Oba samy: nejdřív Windows - potichu - a certifikát jen tehdy, když tento počítač nemá lístek Windows. Odmítnutí kteréhokoli tím končí a řekne proč; formulář zůstává, pokud není „žádné heslo“. Po odhlášení se v té záložce už nic samo nezkouší. Správa má vlastní kartu."
+  },
+  "_409": {
+   "source": "Name and password",
+   "text": "Jméno a heslo"
+  },
+  "_410": {
+   "source": "Tried by itself when the page opens",
+   "text": "Samo se zkusí při otevření stránky"
+  },
+  "_411": {
+   "source": "After a refusal",
+   "text": "Po odmítnutí"
+  },
+  "_412": {
+   "source": "After Sign out",
+   "text": "Po odhlášení"
+  },
+  "_413": {
+   "source": "The one-time code",
+   "text": "Jednorázový kód"
+  },
+  "_414": {
+   "source": "offered",
+   "text": "nabízí se"
+  },
+  "_415": {
+   "source": "offered - \"no password at all\" is switched on, but not in effect (neither Windows nor a certificate signs anybody in)",
+   "text": "nabízí se - „žádné heslo“ je zapnuté, ale neplatí (nikoho nepřihlásí ani Windows, ani certifikát)"
+  },
+  "_416": {
+   "source": "not offered - no password at all",
+   "text": "nenabízí se - žádné heslo"
+  },
+  "_417": {
+   "source": "a button under the form",
+   "text": "tlačítko pod formulářem"
+  },
+  "_418": {
+   "source": "a button",
+   "text": "tlačítko"
+  },
+  "_419": {
+   "source": "tried by itself when the page opens",
+   "text": "zkusí se samo při otevření stránky"
+  },
+  "_420": {
+   "source": "tried by itself when the page opens - the only way in",
+   "text": "zkusí se samo při otevření stránky - jediná cesta dovnitř"
+  },
+  "_421": {
+   "source": "gone to by itself when the page opens (the chooser, the PIN)",
+   "text": "stránka k němu sama přejde při otevření (výběr certifikátu, PIN)"
+  },
+  "_422": {
+   "source": "Windows silently first; the certificate only when this computer has no Windows ticket",
+   "text": "nejdřív potichu Windows; certifikát jen tehdy, když tento počítač nemá lístek Windows"
+  },
+  "_423": {
+   "source": "Windows silently",
+   "text": "Windows, potichu"
+  },
+  "_424": {
+   "source": "the certificate (the chooser, the PIN)",
+   "text": "certifikát (výběr certifikátu, PIN)"
+  },
+  "_425": {
+   "source": "nothing - the person chooses",
+   "text": "nic - člověk si vybere"
+  },
+  "_426": {
+   "source": "said why on the page; nothing else tried by itself",
+   "text": "na stránce se řekne proč; nic dalšího se samo nezkouší"
+  },
+  "_427": {
+   "source": "nothing tried by itself in that tab",
+   "text": "v té záložce se nic samo nezkouší"
+  },
+  "_428": {
+   "source": "after every way, every time - and nothing else on that screen",
+   "text": "po každém způsobu, pokaždé - a na té obrazovce nic jiného"
+  },
+  "_429": {
+   "source": "Use a password instead",
+   "text": "Použít raději heslo"
+  },
+  "_430": {
+   "source": "Going to your certificate…",
+   "text": "Přecházím k vašemu certifikátu…"
+  },
+  "_431": {
+   "source": "no password at all: no account signs in with a password now - the people of the directory sign in with Windows or a certificate",
+   "text": "žádné heslo: teď se heslem nepřihlásí žádný účet - lidé z adresáře se přihlašují přes Windows nebo certifikátem"
+  },
+  "_432": {
+   "source": "On: the sign-in page tries Windows at once, and shows the form only when it did not work. Off: a button \"Sign in with Windows\" under the form. After Sign out it is never tried by itself in that tab again (or Sign out would sign you straight back in). With the certificate by itself as well: Windows first (it asks nothing), the certificate only when this computer has no Windows ticket at all. A browser that had no ticket at all (a computer outside the domain: nothing sent, its own Sign in dialog cancelled, NTLM or a password typed into it) is remembered for 30 days: Windows is not tried by itself there any more - the button stays, and a Windows sign-in forgets it. A refusal of a real ticket is said, never remembered.",
+   "text": "Zapnuto: přihlašovací stránka hned zkusí Windows a formulář ukáže, jen když to nevyšlo. Vypnuto: tlačítko „Přihlásit se přes Windows“ pod formulářem. Po odhlášení se v té záložce samo už nikdy nezkouší (jinak by vás odhlášení hned zase přihlásilo). Když je sám i certifikát: nejdřív Windows (na nic se neptá), certifikát jen tehdy, když tento počítač nemá vůbec žádný lístek Windows. Prohlížeč, který neměl vůbec žádný lístek (počítač mimo doménu: nic neposlal, jeho vlastní dialog Přihlásit se byl zrušen, přišlo NTLM nebo do něj napsané heslo), si to pamatuje 30 dní: Windows se tam už samo nezkouší - tlačítko zůstává a přihlášení přes Windows to zapomene. Odmítnutí skutečného lístku se řekne, nikdy se nepamatuje."
+  },
+  "_433": {
+   "source": "On: the portal tries Windows at once when it opens, and shows the form only when it did not work. Off: a button \"Sign in with Windows\" under the form. Never by itself again in that tab after Sign out. A browser that had no ticket at all (a computer outside the domain: nothing sent, its own Sign in dialog cancelled, NTLM or a password typed into it) is remembered for 30 days: Windows is not tried by itself there any more - the button stays, and a Windows sign-in forgets it. A refusal of a real ticket is said, never remembered.",
+   "text": "Zapnuto: portál při otevření hned zkusí Windows a formulář ukáže, jen když to nevyšlo. Vypnuto: tlačítko „Přihlásit se přes Windows“ pod formulářem. V té záložce už nikdy samo znovu po odhlášení. Prohlížeč, který neměl vůbec žádný lístek (počítač mimo doménu: nic neposlal, jeho vlastní dialog Přihlásit se byl zrušen, přišlo NTLM nebo do něj napsané heslo), si to pamatuje 30 dní: Windows se tam už samo nezkouší - tlačítko zůstává a přihlášení přes Windows to zapomene. Odmítnutí skutečného lístku se řekne, nikdy se nepamatuje."
+  },
+  "_434": {
+   "source": "Windows sign-in refused: no Kerberos ticket",
+   "text": "Přihlášení přes Windows odmítnuto: žádný lístek Kerberos"
+  },
+  "_435": {
+   "source": "this browser had no Windows ticket - press the button to try again",
+   "text": "tento prohlížeč neměl lístek Windows - stiskněte tlačítko a zkuste to znovu"
   }
  },
  "patterns": {
@@ -86813,6 +86949,14 @@
   "p_239": {
    "source": "the certificate has a critical extension acme does not know ({0})",
    "text": "certifikát má kritické rozšíření, které acme nezná ({0})"
+  },
+  "p_240": {
+   "source": "The way back from no password at all, as root: acme --set {0}_password_off=0.",
+   "text": "Cesta zpět ze „žádného hesla“, jako root: acme --set {0}_password_off=0."
+  },
+  "p_241": {
+   "source": "The way back from \"no password at all\", as root: acme --set {0}_password_off=0 (or this part switched off). More: docs/kerberos-sso.md in the package.",
+   "text": "Cesta zpět ze „žádného hesla“, jako root: acme --set {0}_password_off=0 (nebo tuto část vypnout). Víc: docs/kerberos-sso.md v balíčku."
   }
  },
  "rich": {
