@@ -286,8 +286,8 @@ def snmp_conf():
     user = str(CONFIG.get('snmp_user') or '').strip()
     auth = str(CONFIG.get('snmp_auth') or 'SHA-256')
     priv = str(CONFIG.get('snmp_priv') or 'AES-128')
-    ap = unseal_secret(CONFIG.get('snmp_auth_pass') or '') or '' if CONFIG.get('snmp_auth_pass') else ''
-    pp = unseal_secret(CONFIG.get('snmp_priv_pass') or '') or '' if CONFIG.get('snmp_priv_pass') else ''
+    ap = setting_secret('snmp_auth_pass')
+    pp = setting_secret('snmp_priv_pass')
     if not (user and ap and pp) or auth not in SNMP_AUTH or priv not in SNMP_PRIV:
         return None
     return {'user': user, 'auth': auth, 'priv': priv, 'ap': ap, 'pp': pp}

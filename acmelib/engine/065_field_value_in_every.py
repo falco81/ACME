@@ -963,7 +963,9 @@ class Storage(object):
             gen = self.cache_gen
             rows = self.db.rows('SELECT * FROM directories ORDER BY name')
             for r in rows:
-                r['_pw'] = unseal_secret(r.get('bind_pw') or '')
+                # sealed for its row (1.0.102): another's, or one in clear, opens nothing
+                r['_pw'] = unseal_secret(r.get('bind_pw') or '', seal_bind('directories', r, 'bind_pw')) \
+                    if r.get('bind_pw') else ''
             self._cache_put('_dirs', rows, gen)
         out = []
         for r in rows:
@@ -1019,6 +1021,12 @@ class Storage(object):
             if row:
                 dbguard_directory_sign(self.db, row['name'])
             self._dirs = None
+
+    def _dir_pw_sealed(self, pw, ident):
+        """A directory's password sealed for its row (1.0.102) - without one only until every
+        secret here is (a node of the cluster still on 1.0.101 opens no other)."""
+        bind = seal_bind('directories', {'id': ident}, 'bind_pw')
+        return seal_secret(pw, bind if seal_bound(self.db) else None)
 
     def directory_save(self, data, by=''):
         for k in ('name', 'hosts', 'base', 'bind_dn', 'bind_pw', 'note', 'ca', 'user_attr', 'tls',
@@ -1084,8 +1092,11 @@ class Storage(object):
             row['ca'] = ca
         hisec_directory(row)                # 1.0.168
         pw = data.get('bind_pw')
+        pw_new = None
         if pw is not None and not is_masked(pw):
-            row['bind_pw'] = seal_secret(pw) if str(pw) else ''
+            # sealed for its row (1.0.102) - a new one's once it has its number, below
+            pw_new = str(pw)
+            row['bind_pw'] = self._dir_pw_sealed(pw_new, old['id']) if old and pw_new else ''
         elif old and old.get('bind_pw') and (
                 str(old.get('hosts') or '') != row['hosts'] or int(old.get('port') or 0) != port or
                 str(old.get('tls') or '') != tls or int(old.get('verify') or 0) != row['verify'] or
@@ -1117,6 +1128,8 @@ class Storage(object):
             else:
                 row['created'] = time.time()
                 ident = self.db.insert('directories', row)
+            if pw_new and not old:
+                self.db.update('directories', ident, {'bind_pw': self._dir_pw_sealed(pw_new, ident)})
             self._dirs = None
         if old and old['name'] != name:
             dbguard_directory_sign(self.db, old['name'])

@@ -144,7 +144,7 @@ def sealed_columns():
     """(table, column) of every column that holds a sealed value: the
     settings' values, and every column of SCHEMA whose name ends in _sealed
     (a table a module appends to SCHEMA is looked at too)."""
-    out = [('settings', 'v')]
+    out = [('settings', 'v'), ('directories', 'bind_pw')]
     for table, create in SCHEMA:
         for col in re.findall(r'\b(\w+_sealed)\s+\{', create):
             out.append((table, col))
@@ -159,6 +159,8 @@ SEAL_BINDS = {}
 
 def seal_bind(table, row, col):
     """The bind `row`'s `col` of `table` was sealed under."""
+    if table == 'settings':
+        return setting_bind((row or {}).get('k'))
     fn = SEAL_BINDS.get((table, col))
     if fn is not None:
         try:
@@ -166,6 +168,83 @@ def seal_bind(table, row, col):
         except (KeyError, TypeError, ValueError):
             pass
     return '%s:%s:%s' % (table, row.get('id'), col)
+
+
+def setting_bind(key):
+    """The bind a secret among the settings is sealed under (1.0.102): its own name - a node's
+    own value (key@node) as the cluster's. Sealed without one until then, a sealed setting
+    copied into another setting, or into a module's secret field pointed at somebody's own
+    server, opened there."""
+    return 'settings:' + str(key or '').split('@', 1)[0]
+
+
+# Every secret here sealed for its place (1.0.102): from then on a value that is not, where a
+# place is given - sealed:1: (without one) or in clear - is refused, not opened. Marked in the
+# database (the cluster's) and in a file of this node's own (a mark taken out of the database
+# never has the next start seal for their places what was written there meanwhile).
+SEAL_BOUND_MARK = 'seal:bound'
+_SEAL_BOUND = {}
+
+
+def seal_bound_path():
+    return Path(STATE_DIR) / 'seal-bound'
+
+
+def seal_bound(db=None, fresh=False):
+    """Whether the secrets here are sealed for their places (seal_bind_all done): read from
+    this node's file or the database's mark, kept a few seconds."""
+    db = db if db is not None else SEAL_GUARD.get('db')
+    ck = (str(seal_bound_path()), id(db))
+    now = time.monotonic()
+    got = _SEAL_BOUND.get(ck)
+    if got and not fresh and now - got[1] < 10:
+        return got[0]
+    try:
+        on = seal_bound_path().exists()
+    except OSError:
+        on = False
+    if not on and db is not None:
+        try:
+            on = bool(db.value('SELECT v FROM meta WHERE k = ?', (SEAL_BOUND_MARK,)))
+        except Exception:                               # noqa: BLE001
+            on = False
+    _SEAL_BOUND[ck] = (on, now)
+    return on
+
+
+def seal_bound_forget():
+    _SEAL_BOUND.clear()
+
+
+def seal_setting(key, plain):
+    """A secret among the settings sealed for its name - without one only until every secret
+    here is (a node of a cluster still on 1.0.101 opens no other)."""
+    return seal_secret(plain, setting_bind(key) if seal_bound() else None)
+
+
+def setting_secret(key, value=None):
+    """A secret among the settings opened ('' when none, or when it does not open): sealed for
+    its name; sealed without one or in clear only as config.json has it (written there by
+    whoever runs the machine), or until every secret here is sealed for its place. One written
+    into the database past acme so is refused, in words in the log."""
+    if value is None:
+        value = CONFIG.get(key)
+    if value in (None, ''):
+        return ''
+    v = str(value)
+    base = str(key or '').split('@', 1)[0]
+    if v.startswith(SEALED2):
+        got = unseal_secret(v, setting_bind(base))
+    else:
+        from_file = v == str(FILE_CONFIG.get(base) or '')
+        if not from_file and seal_bound():
+            log_sparing('seal-setting:' + base, 'the setting %s is %s, not sealed for its name, '
+                        'as acme seals it - refused (written into the database past acme?): '
+                        'type it again' % (base, 'sealed without a place' if v.startswith(SEALED)
+                                           else 'in clear'), 'warn', every=3600)
+            return ''
+        got = unseal_secret(v) if v.startswith(SEALED) else v
+    return got or ''
 
 
 def sealed_held(db):
@@ -185,8 +264,8 @@ def sealed_opens(db, most=5):
     - or None when there is nothing to try. The settings sealed are tried (those
     are sealed without a place they are bound to)."""
     try:
-        rows = db.rows("SELECT v FROM settings WHERE v LIKE ? LIMIT %d" % int(most),
-                       ('%' + SEALED + '%',))
+        rows = db.rows("SELECT k, v FROM settings WHERE v LIKE ? LIMIT %d" % int(most),
+                       ('%sealed:%',))
     except Exception:                                   # noqa: BLE001
         return None
     tried = []
@@ -197,6 +276,8 @@ def sealed_opens(db, most=5):
             continue
         if isinstance(value, str) and value.startswith(SEALED):
             tried.append(unseal_secret(value) is not None)
+        elif isinstance(value, str) and value.startswith(SEALED2):     # 1.0.102: for its name
+            tried.append(unseal_secret(value, setting_bind(row['k'])) is not None)
     return any(tried) if tried else None
 
 
@@ -238,7 +319,10 @@ def seal_secret(text, bind=None):
 def unseal_secret(value, bind=None):
     """The secret back, or None where this machine's key is not the one it was
     sealed with - or, for one bound to a place, where it is not that place. A
-    value never sealed is given back as it is."""
+    value never sealed is given back as it is - where a place is given, only until every
+    secret here is sealed for its place (1.0.102, seal_bound): from then on one sealed
+    without a place, or one in clear, is refused there (a sealed setting copied into a
+    module's secret, a key of one's own written in clear over a certificate's)."""
     if not isinstance(value, str):
         return value
     if value.startswith(SEALED2):
@@ -246,8 +330,12 @@ def unseal_secret(value, bind=None):
     elif value.startswith(SEALED):
         v2, prefix = False, SEALED
     else:
+        if bind is not None and value and seal_bound():
+            return None
         return value
     if v2 and bind is None:
+        return None
+    if not v2 and bind is not None and seal_bound():
         return None
     key = sealing_key()
     try:

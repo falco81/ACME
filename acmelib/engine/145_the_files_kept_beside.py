@@ -723,6 +723,12 @@ def db_file_restore(store, path, by, key_file=None, from_name='', need_admin=Tru
                 restore_jobs_tidy(store, got)
             except Exception as e:                      # noqa: BLE001
                 log('the jobs of the copy put back could not be tidied: %s' % e, 'warn')
+            # Its secrets sealed for their places (1.0.102): a copy made before holds the
+            # settings sealed without one - refused here from then on.
+            try:
+                seal_bind_all(store, force=True, why='a copy put back by %s' % by)
+            except Exception as e:                      # noqa: BLE001
+                log('the secrets put back could not be sealed for their places: %s' % e, 'warn')
             # What the copy holds signed as this node's word now (1.0.231): put back on
             # purpose, its rows are newer than any seen before it.
             try:

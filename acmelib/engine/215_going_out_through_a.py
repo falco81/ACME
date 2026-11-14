@@ -34,7 +34,7 @@ def proxy_full(purpose='update'):
     user = str(CONFIG.get('proxy_user') or '').strip()
     if not user:
         return url
-    pw = unseal_secret(CONFIG.get('proxy_password') or '') or ''
+    pw = setting_secret('proxy_password')
     scheme, _, rest = url.partition('://')
     return '%s://%s:%s@%s' % (scheme, urllib.parse.quote(user, safe=''),
                               urllib.parse.quote(pw, safe=''), rest)

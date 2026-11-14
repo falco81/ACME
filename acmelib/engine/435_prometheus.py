@@ -197,7 +197,7 @@ def _metrics(h):
     """What metrics.php asks, with the scraper's token - not a session."""
     if not CONFIG.get('metrics'):
         raise ApiError(404, 'Prometheus metrics are off (Settings → Monitoring)')
-    want = unseal_secret(CONFIG.get('metrics_token') or '') or ''
+    want = setting_secret('metrics_token')
     given = str(h.headers.get('X-Acme-Metrics') or '')
     if not want or not hmac.compare_digest(given.encode(), want.encode()):
         raise ApiError(401, 'the token is not the one set (Authorization: Bearer ...)')

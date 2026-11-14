@@ -917,7 +917,7 @@ def _portal_sso(h):
         h.failed(key)
         sso_refuse(h, peer, name, 'not from the balancers named (%s)'
                    % (CONFIG.get('portal_sso_from') or 'none'))
-    want = unseal_secret(str(CONFIG.get('portal_sso_key') or '')) or ''
+    want = setting_secret('portal_sso_key')
     if not want:
         sso_refuse(h, peer, name, 'no key is set (Make a key)', 503)
     if not hmac.compare_digest(given.encode('utf-8', 'replace'), want.encode('utf-8', 'replace')):
@@ -983,7 +983,7 @@ def sso_view(store):
                                                  'node')})
     last.sort(key=lambda x: -float(x.get('at') or 0))
     return {'on': bool(CONFIG.get('portal_sso')), 'portal': bool(CONFIG.get('portal')),
-            'key_set': bool(unseal_secret(str(CONFIG.get('portal_sso_key') or ''))),
+            'key_set': bool(setting_secret('portal_sso_key')),
             'from': [str(n) for n in sso_nets()],
             'header': CONFIG.get('portal_sso_header') or 'X-Acme-User',
             'key_header': SSO_KEY_HEADER, 'logout': CONFIG.get('portal_sso_logout') or '',

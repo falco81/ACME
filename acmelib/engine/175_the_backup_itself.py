@@ -5,8 +5,7 @@ def rb_password():
     # Sealed in config.json like the other passwords: until 1.0.139 the sealed
     # text itself locked the backups - not the password typed, so a new
     # machine could not open them.
-    pw = str(CONFIG.get('rbackup_password') or '')
-    return (unseal_secret(pw) or '') if pw else ''
+    return setting_secret('rbackup_password')
 
 
 def rb_password_old():

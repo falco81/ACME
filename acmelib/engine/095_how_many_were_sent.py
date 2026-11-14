@@ -351,8 +351,7 @@ def tel_peer_chain():
 
 
 def _tel_password():
-    pw = CONFIG.get('sms_tel_password') or ''
-    return (unseal_secret(pw) or '') if pw else ''
+    return setting_secret('sms_tel_password')
 
 
 class _TelAnswer(object):
@@ -390,7 +389,7 @@ def _tel_hidden(words):
     # key as api_key=... was written down whole.
     for k in ('sms_tel_password', 'sms_token'):
         try:
-            sec = unseal_secret(CONFIG.get(k) or '') or ''
+            sec = setting_secret(k)
         except Exception:                               # noqa: BLE001
             sec = ''
         if len(sec) >= 4:
@@ -848,7 +847,7 @@ def sms_send(to, text):
     url = str(CONFIG.get('sms_url') or '').strip()
     if not url:
         raise SmsError('no gateway address is set - Settings → Codes by mail and SMS')
-    token = unseal_secret(CONFIG.get('sms_token') or '') or '' if CONFIG.get('sms_token') else ''
+    token = setting_secret('sms_token')
     vals = {'to': to, 'to_digits': to.lstrip('+'), 'text': text, 'token': token}
 
     def fill(tpl, how):

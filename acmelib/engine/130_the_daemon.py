@@ -46,6 +46,15 @@ class Daemon(object):
             # SSH with a code (1.0.40, as otp 1.0.181): a gate of its own on 127.0.0.1.
             self.sshgate = SshGate(self)
 
+    def seal_bind_all(self):
+        """Every secret kept here sealed for its place, once (1.0.102) - and the settings and
+        directories read again when something was."""
+        try:
+            if seal_bind_all(self.store):
+                self.reload_all('the secrets sealed for their places')
+        except Exception as e:                          # noqa: BLE001
+            log('the secrets could not be sealed for their places: %s' % e, 'warn')
+
     def reload_directories(self):
         self.store._dirs = None
         fresh = {}
@@ -245,7 +254,7 @@ class Daemon(object):
             # A secret kept in the database is sealed with this installation's
             # key (1.0.20): a copy of the database alone does not give it away.
             if key in SEALED_KEYS and checked[key]:
-                checked[key] = seal_secret(checked[key])
+                checked[key] = seal_setting(key, checked[key])
         hisec_guard_settings(self.store, checked)        # 1.0.168
         if any(k in checked for k in ('web_proxy', 'web_proxy_from')):
             # Never on without the balancers named (otp 1.0.237): the header of anybody would be
@@ -264,7 +273,7 @@ class Daemon(object):
                 if not str(after.get('portal_sso_from') or '').split():
                     raise BadSetting('signed in by the load balancer: say which addresses are the '
                                      'balancers first (The balancers that sign people in)')
-                if not unseal_secret(str(after.get('portal_sso_key') or '')):
+                if not setting_secret('portal_sso_key', str(after.get('portal_sso_key') or '')):
                     raise BadSetting('signed in by the load balancer: make the key first (Make a key)')
         # "Only Windows" switched on only by somebody signed in with Windows to that part
         # (1.0.99, as otp 1.0.274): they have proved it works for them. Never from the command
@@ -453,7 +462,7 @@ class Daemon(object):
             if key in SECRET_KEYS:
                 # Dots and the last two to a full administrator, dots alone to
                 # anybody else - never in clear, nor in what sits beside it.
-                plain = unseal_secret(value) if key in SEALED_KEYS else value
+                plain = setting_secret(key, value) if key in SEALED_KEYS else value
                 one['value'] = (secret_shown(plain or '', last=may_change) or
                                 secret_shown('x', last=False)) if value else ''
                 one['set'] = bool(value)
@@ -617,6 +626,7 @@ class Daemon(object):
                                      'secrets is missing: %s' % sealing_key_path(), 'bad')
             else:
                 sealing_key(make=True)
+        self.seal_bind_all()            # every secret sealed for its place (1.0.102), once
         if CONFIG.get('ha_mode') == 'replicated':
             # The other node's tables given the columns this version adds
             # (1.0.76): logical replication sends every column of a row, and
@@ -1054,6 +1064,7 @@ class Daemon(object):
             dbguard_adopt(self.store)                   # once every node runs 1.0.44
         except Exception as e:                          # noqa: BLE001
             log('the guard could not take its new rows: %s' % e, 'warn')
+        self.seal_bind_all()                            # once every node runs 1.0.102
         try:
             # One node of two deletes the old rows; the deletes go over to the
             # other anyway (1.0.57).

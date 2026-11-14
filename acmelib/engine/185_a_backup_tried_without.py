@@ -83,8 +83,9 @@ def copy_read_through(path, key=None, sample=50, child=False):
                     value = json.loads(got.get('v') or 'null')
                 except (TypeError, ValueError):
                     value = None
-                pairs = [(value, None)] if isinstance(value, str) and \
-                    value.startswith(SEALED) else []
+                # sealed for its name since 1.0.102 (setting_bind), without one before
+                pairs = [(value, setting_bind(got.get('k')) if value.startswith(SEALED2) else None)] \
+                    if isinstance(value, str) and value.startswith((SEALED, SEALED2)) else []
             else:
                 pairs = [(got.get(c), seal_bind(table, got, c))
                          for c in cols.get(table, ()) if got.get(c)]

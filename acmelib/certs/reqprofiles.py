@@ -599,6 +599,38 @@ def subject_for(cfg, given):
     return {k: v for k, v in out.items() if v}
 
 
+SAN_TAKEN = ('DNS', 'IP', 'email', 'URI')
+
+
+def csr_refusals(info):
+    """What makes a CSR sent on the portal refused whatever its profile says (1.0.102) -
+    a list of words: a certificate authority asked for, names of a kind a profile never
+    gives, an extension that could not be read."""
+    out = []
+    if info.get('is_ca'):
+        out.append('it asks to be a certificate authority (basicConstraints CA:TRUE)')
+    odd = ['%s:%s' % (t, v) for t, v in info.get('san') or [] if t not in SAN_TAKEN]
+    odd += list(info.get('san_bad') or [])
+    if odd:
+        out.append('names of a kind no profile gives (only DNS names and IP addresses): %s'
+                   % ', '.join(odd))
+    unread = [x for x in info.get('ext_unread') or []]
+    if unread:
+        out.append('extensions that cannot be read: %s' % ', '.join(unread))
+    return out
+
+
+def csr_eku_why(info, cfg):
+    """'' when the extended key usages the CSR asks for are among those the profile gives
+    (serverAuth and clientAuth where it says none), else why not."""
+    want = list(cfg.get('eku') or []) or ['serverAuth', 'clientAuth']
+    extra = [e for e in info.get('eku') or [] if e not in want]
+    if not extra:
+        return ''
+    return 'it asks for the extended key usage %s - the profile gives %s' % (
+        ', '.join(extra), ', '.join(want))
+
+
 def csr_review(store, r, info):
     """A CSR set beside a profile: what it says, what the certificate will say, and
     every check one by one ({what, ok, said}); fits when none of them fails."""
@@ -610,7 +642,13 @@ def csr_review(store, r, info):
     checks.append({'what': 'signature', 'ok': sig,
                    'said': 'signed by its own key' if sig else 'not signed by the key in it'})
     dns = [v for t, v in info.get('san') or [] if t in ('DNS', 'IP')]
-    other = [(t, v) for t, v in info.get('san') or [] if t not in ('DNS', 'IP')]
+    # e-mail and URI names: left out by acme's own CA, refused for any other (below); every
+    # other kind - a UPN or another otherName, a directory name, an OID, an x400 or EDI party
+    # name, one that does not read - is refused whatever the source (1.0.102: skipped, and
+    # the CSR went to the CA as it was).
+    other = [(t, v) for t, v in info.get('san') or [] if t in ('email', 'URI')]
+    for why in csr_refusals(info):
+        checks.append({'what': 'refused', 'ok': False, 'said': why})
     if not dns and info.get('cn'):
         dns = [info['cn']]
     try:
@@ -637,6 +675,16 @@ def csr_review(store, r, info):
                        'said': ('not put in the certificate: %s' if own else
                                 'names the profile does not give (the source takes the CSR as '
                                 'it is): %s') % ', '.join('%s:%s' % (t, v) for t, v in other)})
+    eku_why = csr_eku_why(info, cfg)
+    if eku_why:
+        # what the CSR asks for goes to a source that takes it as it is (1.0.102: shown, never
+        # checked); acme's own CA writes the profile's
+        irow_e = (S.plugin_row(store, 'issuer', cfg.get('issuer')) or {}).get('kind') \
+            if cfg.get('issuer') else ''
+        own_e = irow_e == 'internal_ca'
+        checks.append({'what': 'eku', 'ok': None if own_e else False,
+                       'said': ('not put in the certificate: %s' if own_e else '%s')
+                       % eku_why})
     kt = info.get('key_type') or ''
     kok = kt in (cfg.get('key_types') or [])
     checks.append({'what': 'key', 'ok': kok, 'said': '%s%s' % (
@@ -710,6 +758,7 @@ def csr_review(store, r, info):
              'cn': info.get('cn') or '', 'san': [[t, v] for t, v in info.get('san') or []],
              'key_type': kt, 'key_bits': info.get('key_bits') or 0,
              'sig_alg': info.get('sig_alg') or '', 'sig_ok': sig, 'eku': info.get('eku') or [],
+             'is_ca': bool(info.get('is_ca')),
              'key_usage': info.get('key_usage') or [],
              'must_staple': bool(info.get('must_staple')),
              'challenge_password': bool(info.get('challenge_password')),

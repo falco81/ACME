@@ -33,7 +33,10 @@ DBGUARD_META_EXACT = frozenset(('host:pwpolicy:conf', 'rbackup:targets',
     'krb:keytab',
     # The authorities of the sign-in with a certificate (1.0.100): one of somebody else's put in,
     # and their certificates would sign anybody in.
-    'certlogin:cas'))
+    'certlogin:cas',
+    # Every secret sealed for its place (1.0.102): taken out, the next start sealed for their
+    # places whatever had been written in clear meanwhile.
+    'seal:bound'))
 DBGUARD_META_PREFIXES = (
     'web:tls:', 'web:retry:', 'ntp:sync:', 'net:want:', 'net:job:', 'net:undo:', 'net:keep:',
     'net:back:', 'readdress:dropold:', 'hatls:node:', 'dbtls:server:', 'ask:want:',

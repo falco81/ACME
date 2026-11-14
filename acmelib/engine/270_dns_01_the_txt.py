@@ -131,7 +131,7 @@ def _dns_rfc2136(rr, txt):
     if not server:
         raise AcmeError('the DNS server for the updates is not set')
     keyname = str(CONFIG.get('acme_dns_tsig_name') or '').strip()
-    secret = unseal_secret(CONFIG.get('acme_dns_tsig_secret') or '') or ''
+    secret = setting_secret('acme_dns_tsig_secret')
     alg = CONFIG.get('acme_dns_tsig_alg') or 'hmac-sha256'
     # [v6]:port, a bare IPv6 address (port 53), or host:port (1.0.206): split on
     # the first colon, an IPv6 server came out as "server 2001 db8::53".
@@ -174,7 +174,7 @@ def _dns_rfc2136(rr, txt):
 
 
 def _cf(method, path, body=None):
-    tok = unseal_secret(CONFIG.get('acme_dns_token') or '') or ''
+    tok = setting_secret('acme_dns_token')
     if not tok:
         raise AcmeError('the Cloudflare API token is not set')
     base = str(os.environ.get('ACME_CF_API') or 'https://api.cloudflare.com/client/v4').rstrip('/')
@@ -223,7 +223,7 @@ def _dns_acmedns(txt):
     req = urllib.request.Request(url + '/update', method='POST', data=json.dumps(
         {'subdomain': str(CONFIG.get('acme_dns_subdomain') or ''), 'txt': txt}).encode(),
         headers={'X-Api-User': str(CONFIG.get('acme_dns_user') or ''),
-                 'X-Api-Key': unseal_secret(CONFIG.get('acme_dns_key') or '') or '',
+                 'X-Api-Key': setting_secret('acme_dns_key'),
                  'Content-Type': 'application/json'})
     try:
         with url_open(req, purpose='acme_dns', timeout=30, context=ssl.create_default_context()
@@ -239,7 +239,7 @@ def _dns_acmedns(txt):
 def _desec(method, path, body=None):
     """deSEC's API (1.0.170): Authorization: Token; a 429 waited out (it says
     how long) up to twice."""
-    tok = unseal_secret(CONFIG.get('acme_desec_token') or '') or ''
+    tok = setting_secret('acme_desec_token')
     if not tok:
         raise AcmeError('the deSEC API token is not set')
     base = str(os.environ.get('ACME_DESEC_API') or 'https://desec.io/api/v1').rstrip('/')

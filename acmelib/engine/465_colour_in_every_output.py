@@ -2312,7 +2312,7 @@ def cli_get(store, args):
             # The cluster's wiring and what a card of its own draws: not listed, still read.
             v = CONFIG.get(k)
             if k in SECRET_KEYS:
-                plain = unseal_secret(v) if k in SEALED_KEYS else v
+                plain = setting_secret(k, v) if k in SEALED_KEYS else v
                 v = (secret_shown(plain or '', last=True) or secret_shown('x', last=False)) if v else ''
             got[k] = v
     if args.json:

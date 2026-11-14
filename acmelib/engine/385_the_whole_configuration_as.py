@@ -229,7 +229,7 @@ def config_export(store, whole):
         base = k.split('@', 1)[0]
         if base in SEALED_KEYS:
             if whole and settings[k]:
-                settings[k] = unseal_secret(settings[k]) or ''
+                settings[k] = setting_secret(k, settings[k])
             else:
                 settings.pop(k)
     accounts = []

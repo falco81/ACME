@@ -670,7 +670,8 @@ def _sealed_check(db, key, progress=None):
                     value = json.loads(r['v'])
                 except (TypeError, ValueError):
                     continue
-                ok = _seal_tag_ok(key, value, None)
+                ok = _seal_tag_ok(key, value, setting_bind(r['k']) if isinstance(value, str) and
+                                  value.startswith(SEALED2) else None)      # 1.0.102
                 if ok is None:
                     continue
                 tried += 1

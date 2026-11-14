@@ -572,7 +572,7 @@ def smtp_talk(store, host, port, security, auth, msg, to, steps, helo='', verify
                                     % host, steps)
         if auth and auth != 'none' and not direct:
             user = str(CONFIG.get('smtp_user') or '')
-            pw = unseal_secret(CONFIG.get('smtp_password') or '') or ''
+            pw = setting_secret('smtp_password')
             offered = (conn.esmtp_features.get('auth') or '').upper().split()
             # smtplib's debugging prints every line sent - AUTH's base64 is the password
             # itself (1.0.44): quiet while signing in, whatever "codes" debugging says.

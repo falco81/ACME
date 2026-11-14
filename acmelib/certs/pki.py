@@ -295,13 +295,20 @@ def parse_name(node):
     return dn, d, pairs
 
 
-def _general_names(node):
-    """[(type, value)] of a GeneralNames: DNS, IP, email, URI, DirName, UPN, other."""
+def _general_names(node, bad=None):
+    """[(type, value)] of a GeneralNames: DNS, IP, email, URI, DirName, UPN, other.
+    `bad` (a list): each entry not read - x400Address, ediPartyName, one that does not
+    parse - is added to it as words (1.0.102: skipped, a CSR's SAN looked harmless)."""
     out = []
     for gn in node:
         if gn.cls != A.CONTEXT:
+            if bad is not None:
+                bad.append('an entry that is not a GeneralName')
             continue
         t = gn.tag
+        if bad is not None and t in (3, 5):
+            bad.append('x400Address' if t == 3 else 'ediPartyName')
+            continue
         try:
             if t == 2:
                 out.append(('DNS', gn.content.decode('ascii', 'replace')))
@@ -322,7 +329,11 @@ def _general_names(node):
                     out.append(('otherName', '%s;%s' % (o, val.content.hex())))
             elif t == 8:
                 out.append(('RID', A.decode_oid(gn.content)))
+            elif bad is not None:
+                bad.append('a name of the type [%d]' % t)
         except (A.Asn1Error, ValueError, IndexError):
+            if bad is not None:
+                bad.append('a name of the type [%d] that cannot be read' % t)
             continue
     return out
 
@@ -336,18 +347,23 @@ def parse_extensions(node):
     info = {'san': [], 'eku': [], 'key_usage': [], 'ski': '', 'aki': '', 'ocsp': [],
             'crl': [], 'ca_issuers': [], 'is_ca': False, 'path_len': None,
             'must_staple': False, 'sct': False, 'name_constraints': {}, 'policies': [],
-            'extensions': [], 'critical': []}
+            'extensions': [], 'critical': [], 'san_bad': [], 'twice': [], 'unread': []}
+    seen = set()
     for ext in node:
         try:
             o = ext[0].oid()
             crit = len(ext) > 2 and ext[1].is_(A.BOOLEAN) and ext[1].bool()
             val = ext[len(ext) - 1].content
+            # One extension once (RFC 5280 4.2): which of two a CA reads is its own choice
+            if o in seen:
+                info['twice'].append(A.oid_name(o))
+            seen.add(o)
             info['extensions'].append(A.oid_name(o))
             if crit:
                 info['critical'].append(A.oid_name(o))
             v = A.parse(val) if val else None
             if o == '2.5.29.17':
-                info['san'] = _general_names(v)
+                info['san'] = _general_names(v, info['san_bad'])
             elif o == '2.5.29.37':
                 info['eku'] = [A.oid_name(x.oid()) for x in v]
             elif o == '2.5.29.15':
@@ -396,6 +412,10 @@ def parse_extensions(node):
             elif o == '2.5.29.32':
                 info['policies'] = [p[0].oid() for p in v]
         except (A.Asn1Error, IndexError, ValueError):
+            try:
+                info['unread'].append(A.oid_name(ext[0].oid()))
+            except (A.Asn1Error, IndexError, ValueError):
+                info['unread'].append('?')
             continue
     return info
 
@@ -545,11 +565,23 @@ def csr_info(pem):
         spki = cri[2]
         exts = parse_extensions([])
         challenge = ''
+        seen = set()
         for x in cri.children[3:]:
             if x.is_ctx(0):
                 attrs = x.children if x.constructed else A.parse_all(x.content)
                 for attr in attrs:
                     o = attr[0].oid()
+                    # One attribute once, with one value (1.0.102): of two extensionRequests acme
+                    # checked the last, OpenSSL and a CA that takes the CSR as it is read the
+                    # first - a UPN and smart-card logon past the profile's checks.
+                    if o in seen:
+                        raise PkiError('the CSR has the attribute %s more than once - which one a '
+                                       'CA reads is its own choice: make the CSR again'
+                                       % A.oid_name(o))
+                    seen.add(o)
+                    if o == '1.2.840.113549.1.9.14' and len(attr[1]) != 1:
+                        raise PkiError('the CSR\'s extension request has %d sets of extensions '
+                                       '- one is read: make the CSR again' % len(attr[1]))
                     if o == '1.2.840.113549.1.9.14':
                         exts = parse_extensions(attr[1][0])
                     elif o == '1.2.840.113549.1.9.7':
@@ -557,6 +589,10 @@ def csr_info(pem):
         sig_alg = A.oid_name(req[1][0].oid())
     except (A.Asn1Error, IndexError, ValueError) as e:
         raise PkiError('this is not a certificate request that can be read: %s' % e)
+    if exts['twice']:
+        raise PkiError('the CSR asks for the extension %s more than once - which one a CA reads '
+                       'is its own choice: make the CSR again' % ', '.join(sorted(set(
+                           exts['twice']))))
     key_type, key_bits, pub_sha = spki_info(spki)
     cn = subject.get('CN', '')
     return {'subject_dn': subject_dn, 'subject': subject, 'subject_list': subject_list,
@@ -565,6 +601,11 @@ def csr_info(pem):
             'pub_sha256': pub_sha, 'eku': exts['eku'], 'key_usage': exts['key_usage'],
             'must_staple': exts['must_staple'], 'sig_alg': sig_alg,
             'challenge_password': bool(challenge),
+            # what a profile checks too (1.0.102): basicConstraints, names not read, an
+            # extension twice or not read
+            'is_ca': exts['is_ca'], 'path_len': exts['path_len'],
+            'extensions': exts['extensions'], 'san_bad': exts['san_bad'],
+            'ext_twice': exts['twice'], 'ext_unread': exts['unread'],
             'pem': der_to_pem(der, 'CERTIFICATE REQUEST'), 'der': der}
 
 
