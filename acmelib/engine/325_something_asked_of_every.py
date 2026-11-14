@@ -9,6 +9,10 @@ from __future__ import annotations
 # once. Each answer is made in a thread of its own.
 NODE_ASK = {'do': {}, 'done': set(), 'daemon': [None]}
 NODE_ASK_FRESH = 120
+# Asks of a kind kept pending together (1.0.106): a second ask within a node's tick replaced the
+# first - Clear of one CRL, then of another, and the first was never done on the other nodes.
+NODE_ASK_QUEUE = 8
+NODE_ASK_LOCK = threading.Lock()
 
 
 def node_ask_kind(kind):
@@ -42,8 +46,27 @@ def _node_ask_run(daemon, kind, want):
         except Exception as e:                          # noqa: BLE001
             got = {'ok': False, 'error': str(e)[:300]}
         got = dict(got or {}, id=want['id'], at=time.time(), node=node_name())
-        store.set_meta('ask:got:%s:%s' % (kind, node_name()), json.dumps(got, default=str))
+        _node_ask_got_put(store, kind, got)
     threading.Thread(target=go, name='acme-ask-' + kind, daemon=True).start()
+
+
+def _node_ask_got_put(store, kind, got):
+    """This node's answer written: the row holds the latest answer as ever, and the answers of
+    the asks just before it (1.0.106: two asks of a kind within seconds - Clear one CRL, then
+    another - each answered, each page shown its own), NODE_ASK_QUEUE at most, none older than
+    NODE_ASK_FRESH."""
+    k = 'ask:got:%s:%s' % (kind, node_name())
+    with NODE_ASK_LOCK:
+        had = _meta_obj(store, k)
+        earlier = []
+        now = time.time()
+        for one in [dict((x for x in had.items() if x[0] != 'earlier'))] + \
+                list(had.get('earlier') or [])[:NODE_ASK_QUEUE]:
+            if isinstance(one, dict) and one.get('id') and one.get('id') != got['id'] and \
+                    now - float(one.get('at') or 0) < NODE_ASK_FRESH:
+                earlier.append(one)
+        out = dict(got, earlier=earlier[:NODE_ASK_QUEUE - 1])
+        store.set_meta(k, json.dumps(out, default=str))
 
 
 def node_ask(daemon, kind, args, by):
@@ -54,7 +77,14 @@ def node_ask(daemon, kind, args, by):
         raise ValueError('there is no node %s (the nodes: %s)' % (
             only, ', '.join(sorted(set(host_nodes(daemon.store)) | {node_name()}))))
     want = {'id': secrets.token_hex(6), 'args': args or {}, 'at': time.time(), 'by': by}
-    daemon.store.set_meta('ask:want:' + kind, json.dumps(want))
+    with NODE_ASK_LOCK:
+        # The row: the latest ask as ever, and the asks before it still fresh (1.0.106) - each
+        # done once on every node (node_ask_tick), the oldest first.
+        had = _meta_obj(daemon.store, 'ask:want:' + kind)
+        now = time.time()
+        queue = [w for w in node_ask_pending(had) if now - float(w.get('at') or 0) < NODE_ASK_FRESH]
+        row = dict(want, queue=queue[-(NODE_ASK_QUEUE - 1):])     # the latest one not in it
+        daemon.store.set_meta('ask:want:' + kind, json.dumps(row))
     # Asked from the command line (1.0.188), this node's daemon does it too, as
     # the other's: not in a process that ends when the command does.
     if getattr(daemon, 'serving', True):
@@ -69,16 +99,33 @@ def node_ask(daemon, kind, args, by):
 def node_ask_tick(daemon):
     NODE_ASK['daemon'][0] = daemon
     for kind in list(NODE_ASK['do']):
-        want = _meta_obj(daemon.store, 'ask:want:' + kind)
-        if want.get('id') and time.time() - float(want.get('at') or 0) < NODE_ASK_FRESH:
-            _node_ask_run(daemon, kind, want)
+        row = _meta_obj(daemon.store, 'ask:want:' + kind)
+        for want in node_ask_pending(row):
+            if time.time() - float(want.get('at') or 0) < NODE_ASK_FRESH:
+                _node_ask_run(daemon, kind, want)
+
+
+def node_ask_pending(row):
+    """The asks of a row (1.0.106): those kept before its latest, the oldest first, then the
+    latest - each a {id, args, at, by}."""
+    out = []
+    row = row if isinstance(row, dict) else {}
+    queue = row.get('queue') if isinstance(row.get('queue'), list) else []
+    for w in queue[-NODE_ASK_QUEUE:] + [row]:
+        if isinstance(w, dict) and w.get('id') and w['id'] not in {x['id'] for x in out}:
+            out.append({k: w.get(k) for k in ('id', 'args', 'at', 'by')})
+    return out[-NODE_ASK_QUEUE:]
 
 
 def node_ask_results(store, kind, ident):
     out = {}
     for n in host_nodes(store):
         got = _meta_obj(store, 'ask:got:%s:%s' % (kind, n))
-        out[n] = got if got.get('id') == ident else None
+        if got.get('id') == ident:
+            out[n] = {k: v for k, v in got.items() if k != 'earlier'}
+            continue
+        out[n] = next((x for x in got.get('earlier') or []
+                       if isinstance(x, dict) and x.get('id') == ident), None)
     return out
 
 
