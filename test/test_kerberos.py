@@ -953,7 +953,8 @@ class Kerberos(unittest.TestCase):
                     first = h.get('kerberos')
                 st, got = self.call('POST', '/api/auth/login', {'name': 'tester', 'password': self.pw})
                 seen.append((time.time(), st))
-            self.assertEqual(first, {'on': True, 'auto': False, 'only': True})
+            # No password at all with Windows the only way in: tried by itself (1.0.100).
+            self.assertEqual(first, {'on': True, 'auto': True, 'only': True})
             self.assertTrue(len(seen) > 5, seen)
             self.assertEqual({x[1] for x in seen}, {403}, seen)
         finally:
