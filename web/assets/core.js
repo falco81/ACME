@@ -55,6 +55,7 @@ function el(kind, cls, text) {
 }
 
 function clear(node) {
+  if (typeof viewLock === 'function') viewLock(node);
   while (node && node.firstChild) node.removeChild(node.firstChild);
   /* ...and it forgets what it had drawn. `sameAsDrawn` remembers the last
      answer drawn into a host so an identical one is not redrawn; a host
@@ -1065,6 +1066,352 @@ function settle(host) {
      this is putting something back, not going somewhere. */
   if (Math.abs(now - back) > 1) window.scrollTo(0, back);
 }
+
+/* ---- the page stays where it is being read (1.0.105) ---------------------
+   "When I click in Settings the page scrolls under my hands." A card redrawn
+   - by the live refresh, by its own answer, by a click that opens a row - is
+   emptied and filled again; anything that measures the page in between (the
+   browser itself does, when the element that had the focus goes with the old
+   content) sees it short, and the browser's own scroll anchoring then picked
+   something else to hold on to: a click on a CRL row in Settings -> Accounts
+   sent the pane 595 px up. One rule for the whole page instead of one fix in
+   each of the hundreds of places that draw: what the reader is looking at
+   - the thing just clicked, else what is in the middle of the frame - stays
+   exactly where it is on the screen whatever is drawn around or in place of
+   it. It is found again after a redraw by its place in the tree and its words.
+   Only the reader moves the page: a wheel, a finger, a key, the scrollbar, or
+   the page itself on purpose (scrollIntoView, scrollTo, focusing a box out of
+   sight) - each of those takes what is in view then as the new thing held.
+   Room the page lost under the frame (a row closed at the very bottom) is
+   kept as empty room until the reader scrolls. A box emptied for "Loading…"
+   keeps its height until what it was waiting for is in. */
+var VIEW = {at: null, user: 0, scrolled: 0, mut: 0, busy: false, held: false, tops: null,
+            rooms: [], locks: [], focus: null, own: null};
+var VIEW_ST = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+var VIEW_FOCUS = HTMLElement.prototype.focus;
+function viewNow() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+function viewRoot() { return document.scrollingElement || document.documentElement; }
+function viewScrolls(n) {
+  if (n === viewRoot()) return n.scrollHeight > n.clientHeight + 1;
+  if (n.scrollHeight <= n.clientHeight + 1) return false;
+  var oy = getComputedStyle(n).overflowY;
+  return oy === 'auto' || oy === 'scroll' || oy === 'overlay';
+}
+/* The box that scrolls what `node` is in, as the reader sees it: the outermost one up to a
+   popup or a fixed panel (a dialog's own body inside a dialog), else the page. A node in a
+   small scrolled box of its own (a log, a wide table) is held by that box. */
+function viewScroller(node) {
+  var best = null, inner = null;
+  for (var n = node && node.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+    if (viewScrolls(n)) { best = n; if (!inner) inner = n; }
+    var pos = getComputedStyle(n).position;
+    if (pos === 'fixed') return best ? {sc: best, inner: inner} : null;
+  }
+  if (!best && viewScrolls(viewRoot())) best = viewRoot();
+  return best ? {sc: best, inner: inner && inner !== best ? inner : null} : null;
+}
+/* Where on the screen: a banner come in over the frame moves the frame, and what is read
+   in it stays where it was on the screen all the same. */
+function viewTopOf() { return 0; }
+function viewText(n) {
+  /* the first words only: the thing held may be a whole table */
+  var out = '', w = document.createTreeWalker(n, 4), t;
+  while (out.length < 120 && (t = w.nextNode())) out += t.nodeValue;
+  return out.replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+function viewShown(n) {
+  if (!n || !n.isConnected) return false;
+  var r = n.getBoundingClientRect();
+  return r.width > 0 || r.height > 0;
+}
+function viewPath(sc, n) {
+  var p = [];
+  for (; n && n !== sc; n = n.parentElement) {
+    var i = 0;
+    for (var s = n.previousElementSibling; s; s = s.previousElementSibling) i++;
+    p.unshift(i);
+  }
+  return n === sc ? p : null;
+}
+/* `n` as the thing held: where it is now, how to find it again. */
+function viewHold(n, sc) {
+  if (!n || !sc) return null;
+  var path = viewPath(sc, n);
+  if (!path) return null;
+  var base = viewTopOf(sc), up = [];
+  for (var a = n.parentElement; a && a !== sc && up.length < 12; a = a.parentElement) {
+    up.push({el: a, top: a.getBoundingClientRect().top - base});
+  }
+  return {el: n, sc: sc, path: path, tag: n.tagName, text: viewText(n),
+          top: n.getBoundingClientRect().top - base, up: up, t: viewNow()};
+}
+/* What is in the middle of the frame of the box the reader looks at. */
+function viewPick() {
+  var hit = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+  var where = hit && viewScroller(hit);
+  if (!where) return null;
+  var sc = where.sc, root = sc === viewRoot();
+  var r = root ? {top: 0, bottom: window.innerHeight, left: 0, right: window.innerWidth} : sc.getBoundingClientRect();
+  var top = Math.max(r.top, 0), bottom = Math.min(r.bottom, window.innerHeight);
+  var left = Math.max(r.left, 0), right = Math.min(r.right, window.innerWidth);
+  var ys = [0.33, 0.5, 0.2, 0.7], xs = [0.5, 0.3, 0.7];
+  for (var i = 0; i < ys.length; i++) {
+    for (var j = 0; j < xs.length; j++) {
+      var e = document.elementFromPoint(left + (right - left) * xs[j], top + (bottom - top) * ys[i]);
+      if (!e || e === sc || !sc.contains(e) || e === document.body) continue;
+      var w = viewScroller(e);
+      if (!w || w.sc !== sc) continue;               /* over it: a popup, a fixed bar */
+      if (w.inner) e = w.inner;                      /* a box of its own in it: the box */
+      var stuck = false;
+      for (var a = e; a && a !== sc; a = a.parentElement) {
+        if (getComputedStyle(a).position === 'sticky') { stuck = true; break; }
+      }
+      if (stuck) continue;
+      while (e.parentElement && e.parentElement !== sc && e.getBoundingClientRect().height < 6) e = e.parentElement;
+      return viewHold(e, sc);
+    }
+  }
+  return null;
+}
+function viewTake(node) {
+  if (node && node.nodeType !== 1) node = node.parentElement;
+  if (node) {
+    var w = viewScroller(node);
+    if (w && w.inner && w.inner.contains(node)) node = w.inner;
+    VIEW.at = w ? viewHold(node, w.sc) : null;
+  } else VIEW.at = viewPick();
+  viewTops();
+}
+/* The element held, found again: the same one, else the one drawn in its place (the same
+   place in the tree, the same words - beside it when a row came or went before it). */
+function viewFind(a) {
+  if (a.el.isConnected && a.sc.contains(a.el) && viewShown(a.el)) return {el: a.el, top: a.top};
+  var n = a.sc;
+  for (var i = 0; i < a.path.length && n; i++) n = n.children[a.path[i]];
+  if (n && n.tagName === a.tag && viewShown(n)) {
+    if (viewText(n) !== a.text && n.parentElement) {
+      var kids = n.parentElement.children, at = a.path[a.path.length - 1], best = null;
+      for (var k = 0; k < kids.length; k++) {
+        if (kids[k].tagName === a.tag && viewText(kids[k]) === a.text
+            && (!best || Math.abs(k - at) < Math.abs(best.k - at))) best = {k: k, el: kids[k]};
+      }
+      if (best) n = best.el;
+    }
+    return {el: n, top: a.top};
+  }
+  /* gone and nothing in its place: whatever held it, still there */
+  for (var u = 0; u < a.up.length; u++) {
+    if (a.up[u].el.isConnected && viewShown(a.up[u].el)) return {el: a.up[u].el, top: a.up[u].top, up: true};
+  }
+  return null;
+}
+function viewTops() {
+  /* where each box was, so a move of its own (not the reader's) is told apart */
+  var m = VIEW.tops = new Map();
+  if (VIEW.at) m.set(VIEW.at.sc, VIEW.at.sc.scrollTop);
+}
+function viewSet(sc, y) {
+  VIEW.own = {sc: sc, y: y};
+  VIEW_ST.set.call(sc, y);
+  if (VIEW.tops) VIEW.tops.set(sc, sc.scrollTop);
+}
+/* Empty room under the end of the page, so a frame the content no longer reaches stays where it is. */
+function viewRoom(sc, more) {
+  var room = null;
+  VIEW.rooms = VIEW.rooms.filter(function (r) { if (r.isConnected && r._sc === sc) room = r; return r.isConnected; });
+  if (!room) {
+    room = document.createElement('div');
+    room.className = 'view-room';
+    room.setAttribute('aria-hidden', 'true');
+    room._sc = sc;
+    room.style.cssText = 'display:block;flex:none;width:1px;height:0px;margin:0;padding:0;border:0;'
+      + 'pointer-events:none;visibility:hidden';
+    (sc === viewRoot() ? document.body : sc).appendChild(room);
+    VIEW.rooms.push(room);
+  }
+  room.style.height = Math.ceil((parseFloat(room.style.height) || 0) + more) + 'px';
+}
+/* ...given back as the reader scrolls up out of it. */
+function viewRoomBack() {
+  VIEW.rooms = VIEW.rooms.filter(function (room) {
+    if (!room.isConnected) return false;
+    var sc = room._sc, h = parseFloat(room.style.height) || 0;
+    var view = sc === viewRoot() ? window.innerHeight : sc.clientHeight;
+    var need = Math.max(0, Math.ceil(sc.scrollTop + view - (sc.scrollHeight - h)));
+    if (need >= h) return true;
+    if (need > 0) { room.style.height = need + 'px'; return true; }
+    room.parentNode.removeChild(room);
+    return false;
+  });
+}
+/* A box emptied for a "Loading…": its height kept until what it waited for is in. */
+function viewLock(node) {
+  if (!node || node.nodeType !== 1 || !node.isConnected || !node.firstChild || node.style.minHeight) return;
+  if (node === document.body || node === document.documentElement) return;
+  var h = node.offsetHeight;
+  if (h > 24) VIEW.locks.push({el: node, h: h, t: viewNow()});
+}
+function viewLocks() {
+  var now = viewNow();
+  VIEW.locks = VIEW.locks.filter(function (l) {
+    if (!l.el.isConnected) { if (l.on) l.el.style.minHeight = ''; return false; }
+    var words = viewText(l.el);
+    if (l.on) {
+      if (words === l.words && now - l.t < 4000) return true;
+      l.el.style.minHeight = '';
+      return false;
+    }
+    /* drawn again in the same go: nothing to hold */
+    if (!/(…|\.\.\.)$/.test(words) || words.length > 80 || l.el.offsetHeight >= l.h - 4) return false;
+    l.on = true;
+    l.words = words;
+    l.t = now;
+    l.el.style.minHeight = l.h + 'px';
+    setTimeout(function () { viewKeep(); }, 4100);
+    return true;
+  });
+}
+/* The focus, put back on what was drawn in place of the element that had it. */
+function viewRefocus() {
+  var f = VIEW.focus, on = document.activeElement;
+  if (!f || f.el.isConnected || (on && on !== document.body && on !== document.documentElement)) return;
+  if (viewNow() - f.t > 60000) { VIEW.focus = null; return; }
+  var got = viewFind(f);
+  if (!got || got.up || !got.el.isConnected || got.el.tabIndex < 0 || got.el.disabled) { VIEW.focus = null; return; }
+  try { VIEW_FOCUS.call(got.el, {preventScroll: true}); } catch (e) { /* none */ }
+  f.el = got.el;
+}
+function viewKeep() {
+  if (VIEW.busy) return;
+  VIEW.busy = true;
+  try {
+    if (VIEW.locks.length) viewLocks();
+    viewRefocus();
+    var a = VIEW.at;
+    if (!a || !a.sc.isConnected || (a.sc !== viewRoot() && !viewShown(a.sc))) { viewTake(null); return; }
+    var got = viewFind(a);
+    if (!got) { viewTake(null); return; }
+    var base = viewTopOf(a.sc);
+    var d = got.el.getBoundingClientRect().top - base - got.top;
+    if (Math.abs(d) >= 0.5) {
+      var sc = a.sc, want = sc.scrollTop + d;
+      var max = sc.scrollHeight - (sc === viewRoot() ? window.innerHeight : sc.clientHeight);
+      if (want < 0) want = 0;
+      if (want > max) viewRoom(sc, want - max);
+      viewSet(sc, want);
+    }
+    if (!got.up && got.el !== a.el) {
+      /* held from now on: the element drawn in its place */
+      var again = viewHold(got.el, a.sc);
+      if (again) { again.top = a.top; again.t = a.t; VIEW.at = again; }
+    }
+  } catch (e) {
+    VIEW.at = null;
+  } finally {
+    VIEW.busy = false;
+    if (VIEW.watch) VIEW.watch.takeRecords();
+  }
+}
+(function () {
+  if (typeof MutationObserver !== 'function' || typeof Map !== 'function' || !VIEW_ST || !VIEW_ST.set) return;
+  var opt = {capture: true, passive: true};
+  /* what the reader does that moves the page */
+  var mine = function () { VIEW.user = viewNow(); };
+  ['wheel', 'touchstart', 'touchmove', 'touchend'].forEach(function (k) { document.addEventListener(k, mine, opt); });
+  document.addEventListener('keydown', function (e) {
+    var t = e.target, typing = t && (liveControl(t) || t.isContentEditable);
+    if (/^(ArrowUp|ArrowDown|PageUp|PageDown|Home|End)$/.test(e.key) && !typing) mine();
+    else if (e.key === ' ' && !typing && !(t && /^(BUTTON|SUMMARY|A)$/.test(t.tagName))) mine();
+    else if (e.key === 'Tab') mine();
+    /* a key that works the thing focused: that thing is held */
+    if ((e.key === 'Enter' || e.key === ' ') && t && t !== document.body && !VIEW.busy) viewTake(t);
+  }, opt);
+  document.addEventListener('pointerdown', function (e) {
+    var t = e.target;
+    VIEW.held = true;
+    /* the scrollbar, a middle button: the reader scrolls */
+    if (e.button === 1 || (t && t.nodeType === 1 && (t === viewRoot() || (viewScrolls(t) && e.offsetX >= t.clientWidth)))) mine();
+    if (t && t !== document.documentElement && t !== document.body) viewTake(t);
+  }, opt);
+  document.addEventListener('pointerup', function () { VIEW.held = false; }, opt);
+  document.addEventListener('pointercancel', function () { VIEW.held = false; }, opt);
+  document.addEventListener('focusin', function (e) {
+    var t = e.target, w = t && t.nodeType === 1 && t !== document.body ? viewScroller(t) : null;
+    var h = w ? viewHold(t, w.sc) : null;
+    if (h) VIEW.focus = h;
+  }, opt);
+  window.addEventListener('resize', function () { VIEW.at = null; }, opt);
+  document.addEventListener('scroll', function (e) {
+    var sc = e.target === document ? viewRoot() : e.target;
+    if (!sc || sc.nodeType !== 1) return;
+    var was = VIEW.tops && VIEW.tops.get(sc);
+    if (was !== undefined && Math.abs(sc.scrollTop - was) < 0.5) return;   /* sideways, or ours */
+    var now = viewNow();
+    var reader = VIEW.held || now - VIEW.user < 500 || now - VIEW.scrolled < 250;
+    var a = VIEW.at;
+    if (!reader && a && a.sc === sc && now - VIEW.mut < 1000) {
+      /* moved by nobody: by what was drawn - put back */
+      viewKeep();
+      return;
+    }
+    if (a && a.sc !== sc && !sc.contains(a.sc) && !reader) return;    /* a box of its own */
+    VIEW.scrolled = now;
+    if (!VIEW.busy) { viewTake(null); viewRoomBack(); }
+  }, opt);
+  /* the page scrolling on purpose: what is in view after it is held */
+  /* `target` scrolled itself (`inside`: scrolled into view - the boxes around it move) */
+  var meant = function (target, inside) {
+    var a = VIEW.at;
+    if (!a || !a.sc.isConnected) return;
+    if (!target || target === window || target === document || target === viewRoot()
+        || target === document.body || target === a.sc || (target.contains && target.contains(a.sc))
+        || (inside && a.sc.contains(target))) {
+      VIEW.at = null;
+      VIEW.scrolled = viewNow();
+    }
+  };
+  var wrap = function (proto, name, who) {
+    var orig = proto && proto[name];
+    if (typeof orig !== 'function') return;
+    proto[name] = function () {
+      var r = orig.apply(this, arguments);
+      meant(who ? who(this, arguments) : this, name === 'scrollIntoView');
+      return r;
+    };
+  };
+  wrap(Element.prototype, 'scrollIntoView');
+  wrap(Element.prototype, 'scrollTo');
+  wrap(Element.prototype, 'scrollBy');
+  wrap(Element.prototype, 'scroll');
+  wrap(window, 'scrollTo', function () { return window; });
+  wrap(window, 'scrollBy', function () { return window; });
+  wrap(window, 'scroll', function () { return window; });
+  Object.defineProperty(Element.prototype, 'scrollTop', {
+    configurable: true, enumerable: VIEW_ST.enumerable,
+    get: VIEW_ST.get,
+    set: function (y) { VIEW_ST.set.call(this, y); meant(this); }
+  });
+  /* a box focused out of sight is scrolled to by the browser: on purpose */
+  HTMLElement.prototype.focus = function (o) {
+    var out = false;
+    if (!(o && o.preventScroll) && VIEW.at && this.isConnected) {
+      var r0 = this.getBoundingClientRect();
+      out = r0.bottom < 0 || r0.top > window.innerHeight;
+    }
+    var r = VIEW_FOCUS.apply(this, arguments);
+    if (out) meant(this, true);
+    return r;
+  };
+  VIEW.watch = new MutationObserver(function () {
+    VIEW.mut = viewNow();
+    viewKeep();
+  });
+  var go = function () {
+    VIEW.watch.observe(document.documentElement, {childList: true, subtree: true, characterData: true,
+                                                  attributes: true, attributeFilter: ['class', 'style', 'hidden', 'open']});
+  };
+  if (document.documentElement) go();
+}());
 
 /** Whether an answer is the one already on the page.
 
