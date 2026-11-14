@@ -62823,6 +62823,26 @@
   "_488": {
    "source": "the virtual server",
    "text": "virtuální server"
+  },
+  "_489": {
+   "source": "db_guard is on: a key of a user who may use sudo is added only as asked on the pages (a signed row of the database) - this ask carries none",
+   "text": "db_guard je zapnutá: klíč uživatele, který smí používat sudo, se přidá jen tak, jak byl zadán na stránkách (podepsaný řádek databáze) - tento požadavek žádný nenese"
+  },
+  "_490": {
+   "source": "db_guard is on: a user is made, given a password or sudo only as asked on the pages (a signed row of the database) - this ask carries none",
+   "text": "db_guard je zapnutá: uživatel se vytvoří, dostane heslo nebo sudo jen tak, jak bylo zadáno na stránkách (podepsaný řádek databáze) - tento požadavek žádný nenese"
+  },
+  "_491": {
+   "source": "db_guard is on: the row this ask comes from is not one such asks are kept in",
+   "text": "db_guard je zapnutá: řádek, ze kterého požadavek pochází, není řádek, ve kterém se takové požadavky uchovávají"
+  },
+  "_492": {
+   "source": "db_guard is on: that ask was done here already - not again (asked again on the pages, it is taken)",
+   "text": "db_guard je zapnutá: tento požadavek už se tu provedl - znovu se neprovede (zadaný na stránkách znovu se přijme)"
+  },
+  "_493": {
+   "source": "db_guard is on: the signed row does not ask for this",
+   "text": "db_guard je zapnutá: podepsaný řádek o toto nežádá"
   }
  },
  "patterns": {
@@ -87277,6 +87297,22 @@
   "p_268": {
    "source": "the recording said more than {0} MB - it was stopped",
    "text": "záznam vypsal víc než {0} MB – byl zastaven"
+  },
+  "p_269": {
+   "source": "the order {0} waiting at SSLmarket has the key of a version revoked - it is let go, and a new request with a new key is sent",
+   "text": "objednávka {0} čekající u SSLmarket má klíč odvolané verze - pouští se a posílá se nová žádost s novým klíčem"
+  },
+  "p_270": {
+   "source": "the certificate {0} waiting at SSLS.cz has the key of a version revoked - it is let go, and a new request with a new key is sent",
+   "text": "certifikát {0} čekající u SSLS.cz má klíč odvolané verze - pouští se a posílá se nová žádost s novým klíčem"
+  },
+  "p_271": {
+   "source": "the request {0} held at the source is for another key (not revoked) - kept",
+   "text": "žádost {0} držená u zdroje je pro jiný klíč (neodvolaný) - ponechává se"
+  },
+  "p_272": {
+   "source": "{0} is an IP address: the validation {1} proves names in DNS only ({2}), which cannot prove an address - choose an HTTP-01 validation for it",
+   "text": "{0} je IP adresa: ověření {1} prokazuje jména jen v DNS ({2}), čímž adresu prokázat nelze - zvolte pro ni ověření HTTP-01"
   }
  },
  "rich": {
