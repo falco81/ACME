@@ -289,7 +289,14 @@ class BothWays(unittest.TestCase):
     ticket = TK.Kerberos.__dict__['ticket']
     keytab_b64 = TK.Kerberos.__dict__['keytab_b64']
     must = TCL.CertLogin.__dict__['must']
-    settings = TCL.CertLogin.__dict__['settings']
+    _settings = TCL.CertLogin.__dict__['settings']
+
+    def settings(self, *a, **kv):
+        self.unserve()                  # a port another program holds is refused at a save
+        try:
+            return self._settings(*a, **kv)
+        finally:
+            self.serve()
     pem = TCL.CertLogin.__dict__['pem']
     b64 = TCL.CertLogin.__dict__['b64']
     back_to_passwords = TCL.CertLogin.__dict__['back_to_passwords']
@@ -341,6 +348,8 @@ class BothWays(unittest.TestCase):
         try:
             TCC.CertsCore.tearDownClass.__func__(cls)
         finally:
+            if getattr(cls, 'lsn', None):
+                cls.lsn.close()
             cls.ldap_stop.set()
             mockldap.PEOPLE.clear()
             mockldap.PEOPLE.update(cls.ldap_was)
@@ -359,7 +368,36 @@ class BothWays(unittest.TestCase):
         self.call('POST', '/api/lockouts', {'action': 'clear_all'}, self.admin)
 
     def on(self, **kv):
-        self.must('POST', '/api/settings', {'settings': kv})
+        # Something answers on the certificate's port, as nginx does once root wrote its server:
+        # until then the pages offer no certificate (hunt M round 3). A port another program
+        # holds is refused at a save, so it is let go for the save and taken again after it.
+        self.unserve()
+        try:
+            self.must('POST', '/api/settings', {'settings': kv})
+        finally:
+            self.serve()
+
+    def serve(self):
+        import socket as _so
+        if getattr(type(self), 'lsn', None):
+            return
+        lsn = _so.socket()
+        lsn.setsockopt(_so.SOL_SOCKET, _so.SO_REUSEADDR, 1)
+        lsn.bind(('127.0.0.1', self.cport))
+        lsn.listen(8)
+        type(self).lsn = lsn
+        for _ in range(30):                 # the daemon looks at the port at most every 5 s
+            st, h = self.call('GET', '/api/health')
+            c = (h or {}).get('certlogin') or {}
+            if c.get('ready') or not c.get('on'):
+                return
+            time.sleep(0.5)
+
+    def unserve(self):
+        lsn = getattr(type(self), 'lsn', None)
+        if lsn:
+            lsn.close()
+            type(self).lsn = None
 
     def krb(self, part, person):
         path = '/api/auth/kerberos' if part == 'admin' else '/api/portal/kerberos'
@@ -422,7 +460,7 @@ class BothWays(unittest.TestCase):
             self.assertEqual(self.modes()[0]['certificate'], 'off')
             self.assertEqual(self.modes()[0]['order'], ['windows'])
             st, h = self.call('GET', '/api/health')
-            self.assertEqual(h['certlogin'], {'on': False, 'auto': False, 'only': False, 'port': 0})
+            self.assertEqual(h['certlogin'], {'on': False, 'ready': False, 'auto': False, 'only': False, 'port': 0})
         finally:
             self.on(admin_krb=0, admin_krb_auto=0, admin_certlogin=0, admin_certlogin_auto=0,
                     portal_krb=0, portal_krb_auto=0, portal_certlogin=0)
