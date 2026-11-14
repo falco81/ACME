@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.105 - not released
+## 1.0.105 - 2026-11-14
 
 - **The sign-in with a certificate: OCSP, and CRLs from the directory.** Each part (Settings →
   Accounts, and the enrolment pages → *Signing in with a certificate*) can ask an **OCSP
