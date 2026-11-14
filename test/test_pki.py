@@ -252,6 +252,46 @@ class TestCsr(unittest.TestCase):
         self.assertEqual(info['subject_dn'], 'CN=Other,O=Acme\\, Inc.,C=CZ')
 
 
+class TestCsrCrafted(unittest.TestCase):
+    """A CSR made to get past a profile (1.0.102): read as OpenSSL and a CA read it, or
+    refused."""
+    def setUp(self):
+        sys.path.insert(0, HERE)
+        import csr_craft
+        self.C = csr_craft
+        self.k = key('ec-256')
+
+    def test_two_extension_requests_refused(self):
+        csr = self.C.two_ext_requests(self.k, [self.C.UPN_SAN, self.C.SMARTCARD_EKU],
+                                      ['subjectAltName=DNS:www.example.test'])
+        self.assertTrue(pki.csr_verify(csr))        # signed well - only read two ways
+        self.assertIn('UPN', ossl(['req', '-noout', '-text'], csr.encode()).decode())
+        with self.assertRaises(PkiError) as e:
+            pki.csr_info(csr)
+        self.assertIn('extensionRequest more than once', str(e.exception))
+
+    def test_names_and_extensions_reported(self):
+        info = pki.csr_info(self.C.csr(self.k, 'www.example.test', self.C.UPN_SAN,
+                                       'basicConstraints=critical,CA:TRUE',
+                                       self.C.SMARTCARD_EKU))
+        self.assertEqual(info['san'], [('UPN', 'administrator@corp.test')])
+        self.assertTrue(info['is_ca'])
+        self.assertEqual(info['eku'], ['clientAuth', 'msSmartcardLogin'])
+        self.assertEqual((info['san_bad'], info['ext_unread']), ([], []))
+        info = pki.csr_info(self.C.csr(self.k, 'x.example.test',
+                                       'subjectAltName=DNS:x.example.test,RID:1.2.3.4'))
+        self.assertEqual(info['san'], [('DNS', 'x.example.test'), ('RID', '1.2.3.4')])
+        self.assertFalse(info['is_ca'])
+        # x400Address [3], ediPartyName [5], a dNSName [2] then an otherName [0] that does not
+        # read: none skipped without a word
+        bad = []
+        got = pki._general_names(A.parse(bytes.fromhex(
+            '300f' 'a3020500' 'a5020500' '820178' 'a0020500')), bad)
+        self.assertEqual(got, [('DNS', 'x')])
+        self.assertEqual(bad[:2], ['x400Address', 'ediPartyName'])
+        self.assertEqual(len(bad), 3)
+
+
 class TestCertInfo(Tmp, unittest.TestCase):
     def test_self_signed(self):
         c = pki.self_signed(key(), ['host.example', '10.0.0.1'], days=30, eku=['serverAuth'])
@@ -573,6 +613,142 @@ class TestCa(Tmp, unittest.TestCase):
         self.assertTrue(pki.verify_chain(cert, [], chain)[0])
         CA.ca_revoke(self.store, ed, pki.cert_info(cert)['serial'], 'superseded')
         self.assertEqual(len(pki.crl_info(CA.ca_get(self.store, ed)['crl_pem'])['revoked']), 1)
+
+
+class TestHunt102(Tmp, unittest.TestCase):
+    """Hunt N round 1 (1.0.102): weak keys and signatures refused by the own CA, name
+    constraints of wildcards and URIs as OpenSSL reads them, the KDF of exports, and what an
+    issuer gives back checked."""
+
+    def setUp(self):
+        Tmp.setUp(self)
+        self.store = MemStore()
+        self.root = CA.ca_create(self.store, 'Root', 'Hunt Root', key_type='ec-256', by='test')
+
+    def csr_by_openssl(self, keyargs, md='sha256', names=('w.example',)):
+        k = self.w('k.pem', ossl(['genpkey'] + keyargs))
+        cnf = self.w('r.cnf', '[req]\ndistinguished_name=dn\nreq_extensions=v\nprompt=no\n'
+                     '[dn]\nCN=%s\n[v]\nsubjectAltName=%s\n'
+                     % (names[0], ','.join('DNS:' + n for n in names)))
+        args = ['req', '-new', '-key', k, '-config', cnf]
+        if md:
+            args.append('-' + md)
+        return ossl(args).decode()
+
+    def test_weak_requests_refused(self):
+        for args, md, words in (
+                (['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:1024'], 'sha256', '1024 bits'),
+                (['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048'], 'sha1', 'SHA-1'),
+                (['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:secp256k1'], 'sha256',
+                 'secp256k1'),
+                (['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-256'], 'sha1', 'SHA-1')):
+            csr = self.csr_by_openssl(args, md)
+            with self.assertRaises(PkiError) as got:
+                CA.ca_sign(self.store, self.root, csr, 30)
+            self.assertIn(words, str(got.exception))
+            self.assertFalse(got.exception.retry)
+        self.assertIn('DSA', CA.key_refused('dsa-2048', 2048, 'the request'))
+        self.assertIn('MD5', CA.sig_refused('md5WithRSAEncryption', 'the request'))
+        self.assertIsNone(CA.sig_refused('ecdsa-with-SHA256', 'x'))
+        # the good ones are signed: RSA 2048, P-384, P-521, Ed25519
+        for args, md in ((['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048'], 'sha256'),
+                         (['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-384'], 'sha384'),
+                         (['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-521'], 'sha512'),
+                         (['-algorithm', 'ED25519'], None)):
+            cert, _chain = CA.ca_sign(self.store, self.root, self.csr_by_openssl(args, md), 30)
+            self.assertIn('BEGIN CERTIFICATE', cert)
+
+    def test_weak_authority_import_refused(self):
+        k = self.w('ca.key', ossl(['genpkey', '-algorithm', 'RSA', '-pkeyopt',
+                                   'rsa_keygen_bits:1024']))
+        cnf = self.w('ca.cnf', '[req]\ndistinguished_name=dn\nx509_extensions=v\nprompt=no\n'
+                     '[dn]\nCN=Weak\n[v]\nbasicConstraints=critical,CA:TRUE\n'
+                     'keyUsage=critical,keyCertSign,cRLSign\n')
+        crt = ossl(['req', '-new', '-x509', '-key', k, '-config', cnf, '-days', '30']).decode()
+        with open(k) as f:
+            kpem = f.read()
+        with self.assertRaises(PkiError) as got:
+            CA.ca_import(self.store, 'Weak', crt, kpem)
+        self.assertIn('1024 bits', str(got.exception))
+
+    def test_name_constraints_of_wildcards_and_uris(self):
+        corp = CA.ca_create(self.store, 'Corp', 'Corp', key_type='ec-256', parent_id=self.root,
+                            name_constraints=['DNS:.corp.example', '!DNS:.bad.corp.example'])
+        cert, chain = CA.ca_sign(self.store, corp, pki.make_csr(key(), ['*.corp.example'])[0], 30)
+        self.assertTrue(pki.verify_chain(cert, chain[:-1], chain[-1:])[0])
+        with self.assertRaises(PkiError):
+            CA.ca_sign(self.store, corp, pki.make_csr(key(), ['*.bad.corp.example'])[0], 30)
+        with self.assertRaises(PkiError):       # the base itself: .corp.example is below it
+            CA.ca_sign(self.store, corp, pki.make_csr(key(), ['corp.example'])[0], 30)
+        nc = [('excluded;DNS:.example.com')]
+        self.assertFalse(CA._nc_allows(nc, ('DNS', '*.example.com')))
+        self.assertTrue(CA._nc_allows(nc, ('DNS', 'example.org')))
+        self.assertTrue(CA._nc_allows(['permitted;DNS:example.com'], ('DNS', '*.example.com')))
+        uri = ['permitted;URI:.corp.example']
+        for bad in ('https://evil.com#.corp.example', 'https://evil.com?x=.corp.example',
+                    'https://a.corp.example@evil.com/', 'urn:x:a.corp.example', 'https:///x'):
+            self.assertFalse(CA._nc_allows(uri, ('URI', bad)), bad)
+        for good in ('https://a.corp.example/x?y#z', 'https://user@B.Corp.Example:8443/'):
+            self.assertTrue(CA._nc_allows(uri, ('URI', good)), good)
+        self.assertFalse(CA._nc_allows(['excluded;URI:evil.com'], ('URI', 'mailto:x')))
+        self.assertTrue(CA._nc_allows([], ('URI', 'urn:x')))     # no constraint, nothing asked
+
+    def test_strong_kdf_of_exports(self):
+        enc = pki.key_encrypt(key(), 'pw-of-the-export')
+        der = ossl(['asn1parse', '-noout', '-out', '/dev/stdout'], enc.encode())
+        txt = ossl(['asn1parse', '-inform', 'DER'], der).decode()
+        self.assertIn('%X' % pki.KEY_ENC_ITER, txt.replace(':', ' ').upper())
+        self.assertIn('hmacWithSHA256', txt)
+        self.assertIn('PRIVATE KEY', ossl(['pkey', '-passin', 'pass:pw-of-the-export'],
+                                          enc.encode()).decode())
+        crt = CA.ca_get(self.store, self.root)['cert_pem']
+        p12 = B.pkcs12(key(), pki.self_signed(key(), ['p.example']), [crt], 'pw-of-the-p12')
+        info = subprocess.run(['openssl', 'pkcs12', '-info', '-noout', '-passin',
+                               'pass:pw-of-the-p12'], input=p12, capture_output=True)
+        said = (info.stdout + info.stderr).decode()
+        self.assertIn('MAC: sha256, Iteration %d' % B.P12_ITER, said)
+        self.assertIn('AES-256-CBC, Iteration %d' % B.P12_ITER, said)
+        legacy = B.pkcs12(key(), pki.self_signed(key(), ['p.example']), [], 'pw', legacy=True)
+        info = subprocess.run(['openssl', 'pkcs12', '-info', '-noout', '-legacy', '-passin',
+                               'pass:pw'], input=legacy, capture_output=True)
+        self.assertNotIn('Iteration %d' % B.P12_ITER, (info.stdout + info.stderr).decode())
+
+    def test_what_an_issuer_gives_is_checked(self):
+        from acmelib.certs import renewer as R
+        sub = CA.ca_create(self.store, 'Sub', 'Hunt Sub', key_type='ec-256', parent_id=self.root)
+        other = CA.ca_create(self.store, 'Other', 'Hunt Sub', key_type='ec-256')
+        names = ['www.example.com', '*.example.com', '192.0.2.1']
+        cert, chain = CA.ca_sign(self.store, sub, pki.make_csr(key(), names)[0], 30)
+        irow = {'name': 'src'}
+        job = Ctx()
+        R._issued_checked(pki, job, irow, cert, chain, chain, names)      # as asked: good
+        # the names compared alike: case, a last dot, an IP written otherwise
+        self.assertIsNone(R.issued_names_refused(pki, cert, ['WWW.example.com.', '*.Example.com',
+                                                             '192.0.2.1']))
+        # a name missing, a name not asked for
+        for asked in (names + ['api.example.com'], ['www.example.com', '*.example.com']):
+            with self.assertRaises(PluginError) as got:
+                R._issued_checked(pki, job, irow, cert, chain, chain, asked)
+            self.assertIn('not the ones asked for', str(got.exception))
+            self.assertFalse(got.exception.retry)
+        # the www. twin and the base of a wildcard a commercial CA adds: taken
+        cert2, chain2 = CA.ca_sign(self.store, sub, pki.make_csr(key(), [
+            'shop.example.com', 'www.shop.example.com', '*.x.example.com', 'x.example.com'])[0], 30)
+        self.assertIsNone(R.issued_names_refused(pki, cert2, ['shop.example.com',
+                                                              '*.x.example.com']))
+        # signed by another key than the chain's (the same name): refused
+        forged = [CA.ca_get(self.store, other)['cert_pem']]
+        with self.assertRaises(PluginError) as got:
+            R._issued_checked(pki, job, irow, cert, forged, forged, names)
+        self.assertIn('does not verify', str(got.exception))
+        # a chain of strangers: refused; no chain at all: said, not refused
+        with self.assertRaises(PluginError):
+            R._issued_checked(pki, job, irow, cert, [pki.self_signed(key(), ['z.example'])], [],
+                              names)
+        R._issued_checked(pki, job, irow, cert, [], [], names)
+        self.assertIn('gave no chain', job.steps[-1][1])
+        self.assertTrue(pki.signed_by(cert, chain[0])[0])
+        self.assertFalse(pki.signed_by(cert, forged[0])[0])
 
 
 class TestFormats(Tmp, unittest.TestCase):

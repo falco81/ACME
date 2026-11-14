@@ -862,7 +862,7 @@ def request(h, s, b):
     t = time.time()
     note = str(b.get('note') or '').strip()[:500]
     tags = ['portal'] + [x for x in cfg.get('tags') or [] if x != 'portal']
-    cid = store.db.insert('certs', {
+    row_new = {
         'name': name, 'cn': cn[:190], 'names': json.dumps(names), 'key_type': kt,
         'issuer': irow['name'], 'challenge': cfg.get('challenge') or '', 'challenge_map': '{}',
         'auto_renew': 1 if (auto and not waits) else 0, 'renew_days': cfg.get('renew_days'),
@@ -872,7 +872,21 @@ def request(h, s, b):
         'note': ('asked for on the portal by %s (request profile %s%s). %s' % (
             who, r['name'], ', with a CSR' if csr_pem else '', note)).strip(),
         'owner': owner[:190], 'created': t, 'created_by': 'portal:' + who[:180], 'enabled': 1,
-        'ari': '{}', 'csr_given': csr_pem or None})
+        'ari': '{}', 'csr_given': csr_pem or None}
+    # Two asks at once (1.0.102, as the portal's own form since 1.0.45): the name another took
+    # meanwhile is taken next - it was a 500 and a Traceback
+    cid = None
+    for _ in range(50):
+        try:
+            cid = store.db.insert('certs', dict(row_new, name=name))
+            break
+        except Exception as e:                          # noqa: BLE001
+            if not re.search(r'unique|duplicate', str(e), re.I):
+                raise
+            n += 1
+            name = '%s-%d' % (base_name, n)
+    if cid is None:
+        raise E.ApiError(409, 'no free name for the certificate - try again')
     if P.used(store, who) > P.most():
         # two asked at once both passed the count before (1.0.51, as the portal's own form)
         store.db.run('DELETE FROM certs WHERE id = ?', (cid,))

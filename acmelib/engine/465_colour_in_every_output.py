@@ -776,7 +776,8 @@ def build_parser():
     g.add_argument('--node', metavar='NAME', help='with --maintenance, --set (a node\'s own '
                    'setting; * for the cluster\'s own value), --change-keep: another node of '
                    'the cluster rather than this one')
-    g.add_argument('--why', metavar='TEXT', help='with --maintenance on: why, for the events')
+    g.add_argument('--why', metavar='TEXT', help='with --maintenance on: why, for the events; '
+                   'with --approve, --decline: what the person who asked is told')
     g.add_argument('--upgrade-status', action='store_true', help='the package sent on the pages '
                    'and how an upgrade started there is going')
     g.add_argument('--upgrade-check', action='store_true', help='look at upgrade_url now for a '

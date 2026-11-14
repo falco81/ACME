@@ -250,7 +250,8 @@ class SecretsShown(unittest.TestCase):
         # Saved back as shown: kept (opened in process to see).
         rows = {r['key']: r for r in self.ok('GET', '/api/settings')['settings']}
         self.ok('POST', '/api/settings', {'settings': {k: rows[k]['value'] for k in SETTINGS}})
-        kept = self.py('print(json.dumps({k: E.unseal_secret(v) for k, v in '
+        # sealed for their names (1.0.102): opened as acme opens them
+        kept = self.py('print(json.dumps({k: E.setting_secret(k, v) for k, v in '
                        'st.settings_saved().items() if k in E.SEALED_KEYS}))')
         self.assertEqual(kept, SETTINGS)
 

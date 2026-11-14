@@ -1218,6 +1218,83 @@ class TestScep(unittest.TestCase):
             srv.close()
 
 
+class TestHunt102(unittest.TestCase):
+    """Hunt N (1.0.102): an authorization for a name not ordered refused; the account key never
+    kept in clear inside acme."""
+
+    def test_authorization_of_a_name_not_ordered(self):
+        from acmelib.plugins.issuers import acme as acme_mod
+
+        class Key(object):
+            def thumbprint(self):
+                return 'thumb'
+
+        class Cl(object):
+            key = Key()
+            kid = 'https://ca.example/acct/1'
+            dir_url = 'https://ca.example/dir'
+
+            def __init__(self, ident, wild=False):
+                self.az = {'status': 'pending', 'identifier': ident, 'wildcard': wild,
+                           'challenges': [{'type': 'dns-01', 'token': 'A' * 43, 'url': 'x'}]}
+
+            def post_json(self, url, body):
+                return self.az, {}
+        board = {'dns': {}, 'http': {}}
+        dns = FakeChallenge(('dns-01',), board)
+        req = CertRequest(names=['a.example.com', '*.example.com', '192.0.2.10'],
+                          challenges={'a.example.com': dns, '*.example.com': dns,
+                                      '192.0.2.10': dns})
+        iss = AcmeIssuer({'directory': 'custom', 'directory_url': 'https://ca.example/dir'},
+                         FakeContext())
+        with self.assertRaises(PluginError) as got:
+            iss._authorize(Cl({'type': 'dns', 'value': 'victim.example.org'}), req,
+                           {'authorizations': ['https://ca.example/az/1']})
+        self.assertIn('not ordered', str(got.exception))
+        self.assertFalse(got.exception.retry)
+        self.assertEqual(dns.log, [])           # nothing written for it
+        with self.assertRaises(PluginError):    # a wildcard of another name
+            iss._authorize(Cl({'type': 'dns', 'value': 'other.com'}, wild=True), req,
+                           {'authorizations': ['https://ca.example/az/1']})
+        # the names ordered pass that check (any case, a last dot, a wildcard, an IP)
+        for ident, wild in (({'type': 'dns', 'value': 'A.Example.COM.'}, False),
+                            ({'type': 'dns', 'value': 'example.com'}, True),
+                            ({'type': 'ip', 'value': '192.0.2.10'}, False)):
+            self.assertIn(acme_mod._ident_key(ident, wild),
+                          {acme_mod._ident_key(i) for i in ac.identifiers(req.names)})
+
+    def test_seal_never_in_clear_inside_acme(self):
+        from acmelib.plugins.issuers import acme as acme_mod
+
+        class Ctx(object):
+            pass
+
+        class Broken(object):
+            SEALED2 = 'sealed:2:'
+
+            def seal_secret(self, text, bind):
+                raise OSError('secrets.key is missing')
+
+            def unseal_secret(self, value, bind):
+                return None
+        real = acme_mod._engine
+        try:
+            acme_mod._engine = lambda: Broken()
+            with self.assertRaises(PluginError) as got:
+                acme_mod._seal(Ctx(), '-----BEGIN PRIVATE KEY-----', 'acme-account:x')
+            self.assertIn('could not be sealed', str(got.exception))
+            # a key kept in clear is not taken as it is: the engine decides
+            self.assertIsNone(acme_mod._unseal(Ctx(), '-----BEGIN PRIVATE KEY-----', 'x'))
+            self.assertFalse(acme_mod._sealed_for('-----BEGIN PRIVATE KEY-----'))
+            self.assertTrue(acme_mod._sealed_for('sealed:2:abc'))
+            # no engine at all (a tool of its own): as it is
+            acme_mod._engine = lambda: None
+            self.assertEqual(acme_mod._seal(Ctx(), 'PEM', 'x'), 'PEM')
+            self.assertEqual(acme_mod._unseal(Ctx(), 'PEM', 'x'), 'PEM')
+        finally:
+            acme_mod._engine = real
+
+
 class TestRegistry(unittest.TestCase):
     def test_found(self):
         from acmelib.plugins.base import Registry

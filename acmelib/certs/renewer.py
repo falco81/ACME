@@ -47,6 +47,7 @@ dns_server is on, started again when one of the dns_* settings changes.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import random
 import re
@@ -455,12 +456,12 @@ SAN_KINDS = ('DNS', 'IP', 'email', 'URI', 'UPN')
 
 
 def _www_twin(t, v, asked):
-    """Whether (t, v) is the www. twin of a DNS name asked for (www.x for x, x for www.x) - the
-    one a commercial CA adds by itself to a certificate of one name."""
+    """Whether (t, v) is a name a commercial CA adds by itself: the www. twin of a DNS name
+    asked for (www.x for x, x for www.x), or x to a certificate for *.x."""
     if t != 'DNS':
         return False
     twin = v[4:] if v.startswith('www.') else 'www.' + v
-    return ('DNS', twin) in asked
+    return ('DNS', twin) in asked or ('DNS', '*.' + v) in asked
 
 
 def issued_names_refused(pki, cert_pem, sans):
@@ -1499,9 +1500,21 @@ def alerts(store):
             out.append({'key': 'cert-alt-failed:%s' % r['id'], 'level': 'bad',
                         'words': 'the twin of the certificate %s: %s' % (
                             r['name'], (r.get('alt_error') or r.get('alt_state'))[:200])})
-    for d in store.db.rows("SELECT d.id, d.target, d.last_error, c.name FROM cert_deploys d "
+    # ...only one something will try again (1.0.102: the certificate switched off or revoked,
+    # its target switched off - the scan deploys none of them, and the alert stayed for good)
+    held_revoked = {}
+    for d in store.db.rows("SELECT d.id, d.target, d.last_error, d.cert_id, c.name, c.state, "
+                           "c.fingerprint FROM cert_deploys d "
                            "JOIN certs c ON c.id = d.cert_id WHERE d.state = 'failed' AND "
-                           "COALESCE(d.enabled, 1) <> 0"):
+                           "COALESCE(d.enabled, 1) <> 0 AND COALESCE(c.enabled, 1) <> 0 AND "
+                           "c.state NOT IN ('revoked', 'disabled', 'deleting', 'revoke-failed') "
+                           "AND NOT EXISTS (SELECT 1 FROM cert_targets t WHERE t.name = d.target "
+                           "AND COALESCE(t.enabled, 1) = 0)"):
+        if d['cert_id'] not in held_revoked:
+            held_revoked[d['cert_id']] = S.current_revoked(
+                store, {'id': d['cert_id'], 'state': d['state'], 'fingerprint': d['fingerprint']})
+        if held_revoked[d['cert_id']]:
+            continue
         out.append({'key': 'cert-deploy:%s' % d['id'], 'level': 'bad',
                     'words': 'deploying %s to %s failed: %s' % (d['name'], d['target'],
                                                                 (d.get('last_error') or '')[:200])})

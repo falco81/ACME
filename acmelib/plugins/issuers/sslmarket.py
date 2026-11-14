@@ -787,6 +787,9 @@ class SslmarketIssuer(_Common, Issuer):
         else:
             how, order_id, det = self._choose(req, sub_key)
             key_pem = req.key_pem
+            # sealed before anything is ordered (1.0.102): a key that cannot be kept stops here,
+            # not after a paid order
+            key_sealed = _seal(self.ctx, key_pem, slot)
             old_serial = ''
             if how == 'reissue':
                 old_serial = str(det.get('certificate_serial_number') or '')
@@ -808,7 +811,7 @@ class SslmarketIssuer(_Common, Issuer):
                 order_id = self._new_order(req)
             self._put(sub_key, {'order_id': order_id, 'product': self.c('product'), 'at': _now()})
             held = {'order_id': order_id, 'how': how, 'at': _now(), 'names': list(req.names),
-                    'key': _seal(self.ctx, key_pem, slot), 'old_serial': old_serial, 'dcv': [],
+                    'key': key_sealed, 'old_serial': old_serial, 'dcv': [],
                     'placed': False}
             # Kept at once: whatever happens next, the order is not bought twice.
             self._put(slot, held, ttl_s=120 * 86400)

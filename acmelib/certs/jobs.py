@@ -327,8 +327,21 @@ def submit(store, kind, fn, cert_id=None, deploy_id=None, target=None, by='', sa
     except BaseException:
         _unclaim(cert_id, store)
         raise
+    if CLI_PROCESS:
+        # a job of the command line's own pool (Delete with revoke...) marked as run_now's are
+        # (1.0.102): killed, it is known left behind - not "running" for two hours
+        mark = _cli_mark_write(job.id)
+
+        def fn(j, _inner=fn, _mark=mark):
+            try:
+                return _inner(j)
+            finally:
+                _cli_mark_drop(_mark)
     _pool().submit(_work, job, fn)
     return job.id
+
+
+CLI_PROCESS = False     # set by the command line (cli.Cli.open)
 
 
 def _claim(store, cert_id):
@@ -595,20 +608,29 @@ def run_now(store, kind, fn, cert_id=None, deploy_id=None, target=None, by='', s
     except BaseException:
         _unclaim(cert_id, store)
         raise
-    mark = _cli_mark(job.id)
+    mark = _cli_mark_write(job.id)
+    try:
+        return _work(job, fn)
+    finally:
+        _cli_mark_drop(mark)
+
+
+def _cli_mark_write(ident):
+    mark = _cli_mark(ident)
     try:
         mark.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         mark.write_text('%d %s\n' % (os.getpid(), _started(os.getpid())))
     except OSError:
-        mark = None
-    try:
-        return _work(job, fn)
-    finally:
-        if mark is not None:
-            try:
-                mark.unlink()
-            except OSError:
-                pass
+        return None
+    return mark
+
+
+def _cli_mark_drop(mark):
+    if mark is not None:
+        try:
+            mark.unlink()
+        except OSError:
+            pass
 
 
 def cert_busy(store, cert_id):

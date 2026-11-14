@@ -40,6 +40,7 @@ import sys
 import time
 
 MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy', 'deploy_hold', 'revoke',
+        'cert_keep', 'approve', 'decline',
         'csr', 'csr_answer', 'import_file', 'export', 'selfsigned', 'cas', 'ca_show',
         'ca_create', 'ca_sub', 'ca_import', 'ca_revoke', 'ca_crl', 'ca_export', 'ca_sign',
         'ca_del', 'sources', 'validations', 'targets', 'target_test', 'jobs', 'job', 'job_stop',
@@ -87,7 +88,16 @@ def add_args(p):
                    'auto_renew renew_days reuse_key tags owner enabled challenge_map.NAME '
                    'profile.KEY')
     g.add_argument('--cert-del', metavar='NAME', help='delete it, its versions and deployments '
-                   '(--yes)')
+                   '(--yes); with --revoke-first revoked at its CA first (--reason)')
+    g.add_argument('--revoke-first', dest='revoke_first', action='store_true',
+                   help='with --cert-del: revoked where it was issued, then deleted - a '
+                   'revocation that fails keeps it (--cert-keep, or --cert-del again)')
+    g.add_argument('--cert-keep', dest='cert_keep', metavar='NAME', help='keep one whose '
+                   'revocation (to delete it) failed: back to valid, as before')
+    g.add_argument('--approve', metavar='NAME', help='approve a certificate asked for on the '
+                   'portal: it is issued now, the person who asked is told (--why)')
+    g.add_argument('--decline', metavar='NAME', help='decline one asked for on the portal: '
+                   '--why says why (the person who asked is told)')
     g.add_argument('--issuer', metavar='NAME', help='with --cert-add, --cert-edit: where it '
                    'comes from (acme --sources)')
     g.add_argument('--challenge', metavar='NAME', help='with --cert-add, --cert-edit: how its '
@@ -108,15 +118,20 @@ def add_args(p):
     g.add_argument('--force', action='store_true', help='with --renew all: not only those due; '
                    'with --csr: a new request; with --acme-contact: on every ACME source; '
                    'with a target\'s or a test\'s delete: taken off everywhere first; with '
-                   '--import --into: a certificate of other names')
+                   '--import --into, --csr-answer: a certificate of other names')
     g.add_argument('--deploy', metavar='NAME', help='run its deployments now')
     g.add_argument('--deploy-hold', nargs=2, metavar=('NAME', 'on|off'),
                    help='on: a new certificate of it is issued and kept, not deployed until '
                    '--deploy NAME (or Deploy now); off: deployed by itself again')
-    g.add_argument('--revoke', metavar='NAME', help='revoke it where it was issued (--reason)')
-    g.add_argument('--reason', metavar='WHY', default='unspecified', help='with --revoke, '
-                   '--ca-revoke: unspecified keyCompromise cACompromise affiliationChanged '
-                   'superseded cessationOfOperation certificateHold privilegeWithdrawn')
+    g.add_argument('--revoke', metavar='NAME', help='revoke it where it was issued (--reason; '
+                   '--reissue: a new one at once)')
+    g.add_argument('--reissue', action='store_true', help='with --revoke: a new one issued at '
+                   'once in its place (a new key), deployed where the revoked one is')
+    g.add_argument('--reason', metavar='WHY', default=None, help='with --revoke, '
+                   '--ca-revoke, --cert-del --revoke-first: unspecified keyCompromise '
+                   'cACompromise affiliationChanged superseded cessationOfOperation '
+                   'certificateHold privilegeWithdrawn [unspecified; cessationOfOperation with '
+                   '--cert-del]')
     g.add_argument('--csr', metavar='NAME|FILE', help='a request (CSR) for a certificate, for '
                    'an authority acme does not speak to: printed (or --out); with --ca-sign: '
                    'the CSR file to sign')
@@ -453,10 +468,11 @@ class Cli(object):
         E = self.E
         self.store = E.cli_store()
         from acmelib.certs import api  # noqa: F401  (the routes)
-        from acmelib.certs import defaults, notices, renewer
+        from acmelib.certs import defaults, jobs, notices, renewer
         notices.install(renewer)
         defaults.ensure(self.store)
         self.d = _Daemon(self.store)
+        jobs.CLI_PROCESS = True         # its pool's jobs marked as this process's (1.0.102)
 
     def api(self, method, path, body=None, args=None):
         return self.E.cli_api(self.d, self.WHO, method, path, body=body, args=args)
@@ -669,6 +685,8 @@ class Cli(object):
                  ('ca_pki_check', self.ca_pki_check),
                  ('import_file', self.do_import), ('renew', self.renew),
                  ('revoke', self.revoke), ('csr_answer', self.csr_answer), ('csr', self.csr),
+                 ('cert_keep', self.cert_keep), ('approve', self.approve),
+                 ('decline', self.decline),
                  ('deploy_add', self.deploy_add), ('deploy_edit', self.deploy_edit),
                  ('deploy_del', self.deploy_del), ('deploy_run', self.deploy_run),
                  ('deploy', self.deploy), ('deploy_hold', self.deploy_hold), ('deploys', self.deploys), ('export', self.export),
@@ -909,11 +927,59 @@ class Cli(object):
         return rc
 
     def cert_del(self):
-        row = self.cert_ref(self.args.cert_del)
+        a = self.args
+        row = self.cert_ref(a.cert_del)
+        if getattr(a, 'revoke_first', False):
+            # revoked at its CA first, then deleted - as Delete with "revoke it first" (1.0.102)
+            from acmelib.certs import api
+            reason = a.reason or 'cessationOfOperation'
+            if reason not in api.REVOKE_REASONS:
+                raise SystemExit('acme: the reason is one of %s' % ', '.join(api.REVOKE_REASONS))
+            self.sure('the certificate %s is revoked at %s (%s) - it cannot be taken back - then '
+                      'deleted, with its versions and deployments' % (
+                          row['name'], row.get('issuer') or '?', reason))
+            got = self.api('POST', '/api/certs/delete', body={'id': row['id'], 'revoke': True,
+                                                               'reason': reason})
+            if not self.json:
+                print(self.pal.dim('  revoke, then delete: job %s' % got['job_id']))
+            v = self._follow(got['job_id'])
+            ok = bool(v.get('ok'))
+            return self.done('job %s: %s' % (got['job_id'], v.get('said') or v.get('state')),
+                             dict(got, ok=ok, said=v.get('said')), ok)
         self.sure('the certificate %s is deleted, with its versions and deployments' %
                   row['name'])
         got = self.api('POST', '/api/certs/delete', body={'id': row['id']})
         return self.done(got.get('message') or 'deleted', got)
+
+    def cert_keep(self):
+        row = self.cert_ref(self.args.cert_keep)
+        got = self.api('POST', '/api/certs/keep', body={'id': row['id']})
+        return self.done(got.get('message') or 'kept', got)
+
+    def approve(self):
+        return self._approve(self.args.approve, True)
+
+    def decline(self):
+        return self._approve(self.args.decline, False)
+
+    def _approve(self, name, ok):
+        # a portal's request approved or declined, as on the pages (1.0.102)
+        row = self.cert_ref(name)
+        why = str(getattr(self.args, 'why', None) or '').strip()
+        if not ok and not why:
+            raise SystemExit('acme: say why it is declined (--why TEXT) - the person who asked '
+                             'is told')
+        got = self.api('POST', '/api/certs/approve', body={'id': row['id'], 'ok': ok,
+                                                            'why': why})
+        if ok and got.get('job_id'):
+            if not self.json:
+                print(self.pal.dim('  issued: job %s' % got['job_id']))
+            v = self._follow(got['job_id'])
+            got['issue'] = {'ok': bool(v.get('ok')), 'said': v.get('said')}
+            return self.done('%s - job %s: %s' % (got.get('message') or 'approved',
+                                                  got['job_id'], v.get('said') or v.get('state')),
+                             got, bool(v.get('ok')))
+        return self.done(got.get('message') or ('approved' if ok else 'declined'), got)
 
     def _run_job(self, kind, fn, cert_id, said, target=None):
         from acmelib.certs import jobs
@@ -969,8 +1035,9 @@ class Cli(object):
                     continue                    # never past the approval (1.0.45)
                 only = 'alt' if not a.force and not renewer.main_due(r) else None
                 try:
-                    job = self._run_job('renew', renewer.renew_job(r['id'], a.force, self.WHO,
-                                                                   only),
+                    # the first one is an issue, as the pages say it (1.0.102)
+                    job = self._run_job('renew' if r.get('cert_pem') else 'issue',
+                                        renewer.renew_job(r['id'], a.force, self.WHO, only),
                                         r['id'], '%s: %s' % (r['name'], renewer.due_why(r) or
                                                              'forced'))
                 except SystemExit as e:
@@ -990,7 +1057,9 @@ class Cli(object):
         if not row.get('issuer'):
             raise SystemExit('acme: %s has no issuer (imported?) - import the new one instead'
                              % row['name'])
-        job = self._run_job('renew', renewer.renew_job(row['id'], a.force, self.WHO), row['id'],
+        # the first one is an issue, as the pages say it (1.0.102: logged as a renewal)
+        job = self._run_job('renew' if row.get('cert_pem') else 'issue',
+                            renewer.renew_job(row['id'], a.force, self.WHO), row['id'],
                             '%s, asked on the command line' % S.cert_get(self.store,
                                                                          row['id'])['name'])
         return 0 if job.ok else 1
@@ -1096,18 +1165,24 @@ class Cli(object):
         return 0 if v.get('ok') else 1
 
     def revoke(self):
-        from acmelib.certs import api, renewer
+        from acmelib.certs import api
         a = self.args
         row = self.cert_ref(a.revoke)
-        if a.reason not in api.REVOKE_REASONS:
+        reason = a.reason or 'unspecified'
+        if reason not in api.REVOKE_REASONS:
             raise SystemExit('acme: the reason is one of %s' % ', '.join(api.REVOKE_REASONS))
-        self.sure('%s is revoked at %s (%s) - it cannot be taken back' % (
-            row['name'], row.get('issuer') or '?', a.reason))
-        by = self.WHO
-
-        def fn(job):
-            return renewer.revoke_cert(job.store, job, row['id'], a.reason, by)
-        job = self._run_job('revoke', fn, row['id'], 'reason: %s' % a.reason)
+        again = bool(getattr(a, 'reissue', False))
+        try:
+            # what the pages refuse, refused here too (1.0.102: imported, moved, self-signed,
+            # being revoked now)
+            api.revoke_check(self.store, row, again)
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        self.sure('%s is revoked at %s (%s) - it cannot be taken back%s' % (
+            row['name'], row.get('issuer') or '?', reason,
+            '; a new one is issued at once' if again else ''))
+        job = self._run_job('revoke', api.revoke_job(row, reason, self.WHO, again), row['id'],
+                            'reason: %s%s' % (reason, ', a new one at once' if again else ''))
         return 0 if job.ok else 1
 
     def csr(self):
@@ -1131,7 +1206,7 @@ class Cli(object):
         row = self.cert_ref(name)
         got = self.api('POST', '/api/certs/csr_answer', body={
             'id': row['id'], 'data_b64': base64.b64encode(self.files[path]).decode('ascii'),
-            'filename': os.path.basename(path)})
+            'filename': os.path.basename(path), 'force': bool(self.args.force)})
         ok = True
         if got.get('job_id'):
             if not self.json:
@@ -2243,6 +2318,7 @@ class Cli(object):
         from acmelib.certs import api
         ca, serial = self.args.ca_revoke
         r = self.ca_ref(ca)
+        self.args.reason = self.args.reason or 'unspecified'
         if self.args.reason not in api.REVOKE_REASONS:
             raise SystemExit('acme: the reason is one of %s' % ', '.join(api.REVOKE_REASONS))
         # a serial before it is asked (1.0.80)

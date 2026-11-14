@@ -68,6 +68,22 @@ def _sealed_for(value):
     return E is None or not isinstance(value, str) or value.startswith(E.SEALED2)
 
 
+def _ident_key(ident, wild=False):
+    """(type, value) of an ACME identifier compared alike: lowercase, no last dot, an IP
+    address written one way; an authorization's wildcard as the name ordered (*.x)."""
+    t = str((ident or {}).get('type') or '').lower()
+    v = str((ident or {}).get('value') or '').strip().rstrip('.').lower()
+    if t == 'ip':
+        try:
+            import ipaddress
+            v = str(ipaddress.ip_address(v.strip('[]')))
+        except ValueError:
+            pass
+    elif wild and not v.startswith('*.'):
+        v = '*.' + v
+    return t, v
+
+
 _ACCOUNT_LOCKS = {}
 _ACCOUNT_LOCKS_LOCK = threading.Lock()
 
@@ -280,10 +296,13 @@ class AcmeIssuer(Issuer):
         cl.directory()
         self._say('a new ACME account at %s (%s key)' % (url, kind))
         pem_text = cl.new_key(kind)
+        # sealed before the CA hears of it (1.0.102): a key that cannot be kept is no account
+        # made at the CA and lost
+        sealed = _seal(self.ctx, pem_text, slot)
         cl.use_key(pem_text)
         eab = self.eab(cl)
         kid, acct = cl.register(self.contacts(), eab=eab)
-        row = {'url': kid, 'key': _seal(self.ctx, pem_text, slot), 'kind': kind,
+        row = {'url': kid, 'key': sealed, 'kind': kind,
                'contacts': self.contacts(), 'at': time.time(), 'directory': url,
                'eab_kid': (eab or ('',))[0]}
         self.ctx.kv_set(slot, json.dumps(row))
@@ -508,6 +527,7 @@ class AcmeIssuer(Issuer):
     def _authorize(self, cl, req, order):
         thumb = cl.key.thumbprint()
         todo = []
+        ordered = {_ident_key(i) for i in ac.identifiers(req.names or [])}
         for az_url in order.get('authorizations') or []:
             az, _ = cl.post_json(az_url, None)
             if az.get('status') == 'valid':
@@ -519,6 +539,14 @@ class AcmeIssuer(Issuer):
             value = str(ident.get('value') or '')
             wild = bool(az.get('wildcard'))
             shown = ('*.' + value) if wild else value
+            if _ident_key(ident, wild) not in ordered:
+                # Only names ordered are proved (1.0.102): with one validation for every name,
+                # a CA (a custom directory) asking for another had acme write its TXT record or
+                # HTTP file for that name, wherever the same DNS account reaches.
+                raise PluginError('the CA asks to prove %s %s, which was not ordered (%s) - '
+                                  'refused: acme proves only the names it ordered'
+                                  % (ident.get('type') or '?', shown or '?',
+                                     ', '.join(req.names or [])), retry=False)
             chal_mod = self._challenge_for(req, value, wild)
             offered = {c.get('type'): c for c in az.get('challenges') or []}
             if callable(getattr(chal_mod, 'persist_choose', None)):

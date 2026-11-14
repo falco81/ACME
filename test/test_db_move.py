@@ -72,7 +72,7 @@ out['_sealed'] = [tried, opened, bad]
 v = st.db.row("SELECT * FROM cert_challenges WHERE name = 'cf'")
 out['_val_token'] = cs.plugin_config('challenge', dict(v)).get('token') if v else None
 raw = st.db.value("SELECT v FROM settings WHERE k = 'smtp_password'")
-out['_smtp'] = acme.unseal_secret(json.loads(raw)) if raw else None
+out['_smtp'] = acme.setting_secret('smtp_password', json.loads(raw)) if raw else None
 d = st.db.row("SELECT * FROM directories WHERE name = 'movedir'")
 out['_dir'] = bool(d)
 print(json.dumps(out, default=str))

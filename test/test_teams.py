@@ -420,6 +420,180 @@ class Portal(unittest.TestCase):
                          'Web')
 
 
+class Approvals(unittest.TestCase):
+    """Who approves a request (1.0.102): never the one who asked, on either side; a name
+    another team's certificate holds by that team's approver; what a scoped session is told
+    of another team's certificates."""
+    def setUp(self):
+        clean()
+        E.CONFIG.update(certs_certadmin_all=0, certs_readonly_all=0, portal_cert_auto=1,
+                        portal_cert_suffixes='example.test', portal_cert_issuers='self',
+                        portal_cert_max=50, mail_mode='off')
+        STORE.db.run("DELETE FROM meta WHERE k LIKE 'certs:portal:%'")
+        T.save_team(STORE, {'name': 'Web', 'members': [
+            'local:eva=request', 'local:appr=approve', 'local:both=approve',
+            'local:cweb=manage', 'local:jan=request,approve',
+            'novak=request']}, 'x')
+        T.save_team(STORE, {'name': 'Mail', 'contact_mail': 'mail-team@example.test',
+                            'members': ['local:both=approve', 'local:cmail=manage']}, 'x')
+        self.held = cert('mailcert', 'Mail', names=['mail.example.test'])
+        for n in ('eva', 'appr', 'both', 'jan'):
+            if not STORE.account(n):
+                STORE.add_account(n, 'readonly', 'Local-Only-Pw-77!x' + n)
+
+    def tearDown(self):
+        # the issues approved here done before the next test empties the tables
+        from acmelib.certs import jobs
+        E.CONFIG.update(portal_cert_auto=0, portal_cert_suffixes='', portal_cert_issuers='')
+        end = time.time() + 20
+        while time.time() < end and (jobs.RUNNING or jobs.BUSY_CERTS):
+            time.sleep(0.05)
+
+    def person(self, name, local=True, mail=''):
+        return Portal.person(None, name, local=local, mail=mail)
+
+    def ask(self, s, names, team='Web'):
+        h = FakeH(portal=s, body={'names': names, 'issuer': 'self', 'team': team})
+        return E.ROUTES[('POST', '/api/portal/cert_request')](h)
+
+    def approve(self, s, cid):
+        return status(E.ROUTES[('POST', '/api/portal/cert_approve')],
+                      FakeH(portal=s, body={'id': cid, 'ok': 1}))
+
+    def test_a_held_name_is_approved_by_its_team(self):
+        got = self.ask(self.person('eva'), ['mail.example.test'])
+        cid = got['id']
+        self.assertTrue(got['waits'])
+        self.assertEqual(_portal.asker(STORE, cid)['held'],
+                         [{'owner': 'Mail', 'names': ['mail.example.test']}])
+        # the approval dialogs say whose names they are - the portal's and the administration's
+        rows = E.ROUTES[('GET', '/api/portal/certs')](FakeH(portal=self.person('appr')))['rows']
+        one = [r for r in rows if r['id'] == cid][0]
+        self.assertEqual(one['held'], [{'team': 'Mail', 'names': ['mail.example.test']}])
+        self.assertEqual(one['held_words'], ['the team Mail (mail.example.test)'])
+        adm = call('GET', '/api/certs/one', args={'id': cid})['cert']
+        self.assertEqual(adm['held_words'], ['the team Mail (mail.example.test)'])
+        listed = [r for r in call('GET', '/api/certs', args={'state': 'pending-approval'})['rows']]
+        self.assertEqual([r.get('held_words') for r in listed],
+                         [['the team Mail (mail.example.test)']])
+        # an approver of Web alone: no - neither on the portal nor in the administration
+        self.assertEqual(self.approve(self.person('appr'), cid), 403)
+        self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': cid, 'ok': 1},
+                                who='cweb', role='certadmin'), 403)
+        self.assertEqual(S_state(cid), 'pending-approval')
+        # an approver of both teams: yes
+        self.assertEqual(self.approve(self.person('both'), cid), 200)
+        # the team that holds the name was told (an event; its mail when mail is on)
+        for _ in range(50):
+            words = [r['words'] for r in STORE.db.rows(
+                "SELECT words FROM events WHERE words LIKE '%by the team Mail%'")]
+            if words:
+                break
+            time.sleep(0.05)
+        self.assertTrue(words)
+        # in the administration: a full administrator, or one with approve on Mail too
+        got = self.ask(self.person('eva'), ['mail.example.test'])
+        self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': got['id'], 'ok': 1},
+                                who='both', role='certadmin'), 200)
+        got = self.ask(self.person('eva'), ['mail.example.test'])
+        self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': got['id'], 'ok': 1}),
+                         200)
+
+    def test_never_ones_own_on_the_administration_pages(self):
+        E.CONFIG.update(portal_cert_auto=0)
+        got = self.ask(self.person('jan'), ['jan.example.test'])
+        cid = got['id']
+        self.assertEqual(self.approve(self.person('jan'), cid), 403)
+        for role in ('certadmin', 'fulladmin'):
+            try:
+                call('POST', '/api/certs/approve', {'id': cid, 'ok': 1}, who='jan', role=role)
+                self.fail('approved by the one who asked (%s)' % role)
+            except E.ApiError as e:
+                self.assertEqual(e.status, 403)
+                self.assertIn('someone else approves it', str(e))
+        self.assertEqual(S_state(cid), 'pending-approval')
+        # declined by oneself: fine
+        self.assertEqual(status(call, 'POST', '/api/certs/approve',
+                                {'id': cid, 'ok': 0, 'why': 'not needed'}, who='jan',
+                                role='certadmin'), 200)
+        # a person of the directory, by their name without the domain or their mail
+        got = self.ask(self.person('novak', local=False, mail='novak@corp.test'),
+                       ['novak.example.test'])
+        for who, src in (('CORP\\novak', 'directory'), ('novak@corp.test', 'directory')):
+            self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': got['id'], 'ok': 1},
+                                    who=who, role='fulladmin', source=src), 403, who)
+        # ...but a local administrator of the same name is another person
+        self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': got['id'], 'ok': 1},
+                                who='novak', role='fulladmin'), 200)
+
+    def test_scoped_sessions_are_not_told_of_other_teams(self):
+        STORE.db.insert('cert_targets', {'name': 'cucm1', 'kind': 'cucm', 'config': '{}',
+                                         'enabled': 1})
+        STORE.db.insert('cert_targets', {
+            'name': 'srv', 'kind': 'local', 'config': '{}', 'enabled': 1,
+            'last_error': 'acme does not hold the private key of mailcert yet, and srv needs it'})
+        STORE.db.update('certs', self.held, {'csr_from': 'cucm1'})
+        for who, role in (('cweb', 'certadmin'), ('cweb', 'readonly')):
+            rows = {r['name']: r for r in call('GET', '/api/targets', who=who, role=role)['rows']}
+            self.assertEqual(rows['cucm1'].get('key_of'), A.OTHERS_CERT)
+            self.assertNotIn('mailcert', rows['srv']['last_error'])
+        rows = {r['name']: r for r in call('GET', '/api/targets', who='cmail',
+                                           role='certadmin')['rows']}
+        self.assertEqual(rows['cucm1'].get('key_of'), 'mailcert')
+        self.assertIn('mailcert', rows['srv']['last_error'])
+        rows = {r['name']: r for r in call('GET', '/api/targets')['rows']}
+        self.assertEqual(rows['cucm1'].get('key_of'), 'mailcert')
+        # a name taken by another team's certificate: not named
+        mine = call('POST', '/api/certs/save', {'names': ['w1.example.test'], 'issuer': '',
+                                                'owner': 'Web', 'name': 'w1'},
+                    who='cweb', role='certadmin')['id']
+        for b in ({'id': mine, 'name': 'mailcert'},
+                  {'names': ['w2.example.test'], 'issuer': '', 'owner': 'Web',
+                   'name': 'mailcert'}):
+            with self.assertRaises(ValueError) as e:
+                call('POST', '/api/certs/save', b, who='cweb', role='certadmin')
+            self.assertNotIn('mailcert', str(e.exception))
+        with self.assertRaises(ValueError) as e:
+            call('POST', '/api/certs/save', {'id': mine, 'name': 'mailcert'})
+        self.assertIn('mailcert', str(e.exception))
+        # the device that makes another team's certificate's key: not named
+        from acmelib.certs import devicekey
+        why = devicekey.save_problem(STORE, {'id': mine, 'name': 'w1', 'csr_from': 'cucm1',
+                                             'issuer': 'self', 'key_type': 'rsa-2048'},
+                                     deploys=[], may_see=lambda r: False)
+        self.assertNotIn('mailcert', why)
+        why = devicekey.save_problem(STORE, {'id': mine, 'name': 'w1', 'csr_from': 'cucm1',
+                                             'issuer': 'self', 'key_type': 'rsa-2048'},
+                                     deploys=[])
+        self.assertTrue(why)
+
+    def test_scoped_administrator_and_names_another_team_holds(self):
+        new = {'names': ['mail.example.test'], 'issuer': '', 'owner': 'Web', 'name': 'mine'}
+        self.assertEqual(status(call, 'POST', '/api/certs/save', new, who='cweb',
+                                role='certadmin'), 403)
+        self.assertIsNone(STORE.db.row("SELECT id FROM certs WHERE name = 'mine'"))
+        # under a wildcard of theirs too; its own names - fine
+        self.assertEqual(status(call, 'POST', '/api/certs/save', dict(
+            new, names=['*.example.test']), who='cweb', role='certadmin'), 403)
+        cid = call('POST', '/api/certs/save', dict(new, names=['w.example.test']), who='cweb',
+                   role='certadmin')['id']
+        self.assertEqual(status(call, 'POST', '/api/certs/save', {
+            'id': cid, 'names': ['w.example.test', 'mail.example.test']}, who='cweb',
+            role='certadmin'), 403)
+        self.assertEqual(status(call, 'POST', '/api/certs/save', {'id': cid, 'note': 'x'},
+                                who='cweb', role='certadmin'), 200)
+        # a full administrator may; and one who sees every certificate
+        self.assertEqual(status(call, 'POST', '/api/certs/save', {
+            'id': cid, 'names': ['w.example.test', 'mail.example.test']}), 200)
+        E.CONFIG.update(certs_certadmin_all=1)
+        self.assertEqual(status(call, 'POST', '/api/certs/save', dict(new, name='mine2'),
+                                who='cweb', role='certadmin'), 200)
+
+
+def S_state(cid):
+    return STORE.db.value('SELECT state FROM certs WHERE id = ?', (cid,))
+
+
 class Notices(unittest.TestCase):
     def setUp(self):
         clean()

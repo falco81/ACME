@@ -1277,7 +1277,20 @@ def _cert_revoke(h, s):
     by = who(s)
 
     again = _flag(b.get('renew'), 0)
-    no = revocable(store=h.store, row=row)
+    revoke_check(h.store, row, again)
+    fn = revoke_job(row, reason, by, again)
+    try:
+        return {'job_id': jobs.submit(h.store, 'revoke', fn, cert_id=row['id'], by=by,
+                                      said='reason: %s%s' % (reason, ', a new one at once'
+                                                             if again else ''))}
+    except ValueError as e:
+        raise E.ApiError(409, str(e))
+
+
+def revoke_check(store, row, again=False):
+    """Why it cannot be revoked here (ValueError) - the pages' and the command line's (1.0.102:
+    --revoke went past it)."""
+    no = revocable(store=store, row=row)
     if no:
         raise ValueError('%s cannot be revoked here: %s' % (row['name'], no))
     if again and (row.get('csr_given') or not row.get('issuer')) and not row.get('csr_from'):
@@ -1286,6 +1299,9 @@ def _cert_revoke(h, s):
         raise ValueError('%s was issued for a CSR sent in: a new one needs a new CSR - revoke '
                          'it alone' % row['name'])
 
+
+def revoke_job(row, reason, by, again=False):
+    """The job of a revoke - `again`: a new one issued at once in its place."""
     def fn(job):
         got = renewer.revoke_cert(job.store, job, row['id'], reason, by)
         if not again:
@@ -1301,12 +1317,7 @@ def _cert_revoke(h, s):
         job.store.db.update('certs', row['id'], {'auto_renew': 0 if job.store.get_meta(
             S.CERT_META['revauto'] % int(row['id'])) == '0' else 1})
         return renewer.renew_cert(job.store, job, row['id'], True, by)
-    try:
-        return {'job_id': jobs.submit(h.store, 'revoke', fn, cert_id=row['id'], by=by,
-                                      said='reason: %s%s' % (reason, ', a new one at once'
-                                                             if again else ''))}
-    except ValueError as e:
-        raise E.ApiError(409, str(e))
+    return fn
 
 
 def _with_more(data, filename, more):
@@ -3271,6 +3282,20 @@ def _deploy_save_in(store, b, by, full, made):
                     raise ValueError('%s is text' % what)
                 if len(json.dumps(v)) > 64000:
                     raise ValueError('%s is too long' % what)
+        if cls is not None and not getattr(cls, 'dual', False) and \
+                not any(f.get('key') == 'variant' for f in cls.deploy_fields or []) and \
+                opts.get('variant') not in (None, '') and \
+                (made or str(opts.get('variant')) != str(old.get('variant') or '')):
+            # the option the module's form gets by itself (base.VARIANT_FIELD), checked as its
+            # own are (1.0.102: "both" was saved, and every deployment then failed)
+            from acmelib.plugins.base import VARIANT_FIELD
+            allowed = [o[0] for o in VARIANT_FIELD['options']]
+            if str(opts.get('variant')) not in allowed:
+                e = ValueError('%s is one of %s (not %s)' % (
+                    VARIANT_FIELD['label'], ', '.join(allowed), opts.get('variant')))
+                e.field = 'variant'
+                e.label = VARIANT_FIELD['label']
+                raise e
         if str(cert.get('csr_from') or '') == trow['name']:
             # what the device takes, with these options (1.0.96: a Synergy enclosure's IP
             # address as the name was refused only at the issue)

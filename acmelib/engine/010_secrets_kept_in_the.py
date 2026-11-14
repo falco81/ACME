@@ -238,10 +238,10 @@ def setting_secret(key, value=None):
     else:
         from_file = v == str(FILE_CONFIG.get(base) or '')
         if not from_file and seal_bound():
-            log_sparing('seal-setting:' + base, 'the setting %s is %s, not sealed for its name, '
-                        'as acme seals it - refused (written into the database past acme?): '
-                        'type it again' % (base, 'sealed without a place' if v.startswith(SEALED)
-                                           else 'in clear'), 'warn', every=3600)
+            log_sparing('seal-setting:' + base, 'the setting %s is kept %s, and acme seals it '
+                        'for its name: refused (written into the database past acme?) - type it '
+                        'again' % (base, 'sealed without a name' if v.startswith(SEALED)
+                                   else 'in clear'), 'warn', every=3600)
             return ''
         got = unseal_secret(v) if v.startswith(SEALED) else v
     return got or ''

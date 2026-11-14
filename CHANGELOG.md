@@ -6,7 +6,60 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.102 - not released
 
-(nothing yet)
+- **A key revoked is known after a configuration's export and import.** A certificate put
+  in from the file has no versions, so a revoke there changed none, and after a failed new issue
+  "keep the key" issued the revoked key again. The public keys and fingerprints revoked are now
+  kept with the certificate (in the file too): never kept again, never deployed.
+- **A renewal killed at the command line** (`acme --renew` and the ssh session closed) no longer
+  leaves the certificate "renewing" for good: the scan marks its job failed, the certificate
+  "failed" (alerted and mailed as a failed renewal) and tried again. A lease left by a process
+  of this node that is gone is taken over at once - no 409 "a job is already working on that
+  certificate" for a minute after a restart.
+- **Issued again after a revoke** ("Renew now"), a certificate is renewed by itself again if
+  it was before the revoke - it stayed "by hand" and ran out.
+- **The answer to a CSR is checked for its names**, as an import into a certificate is: one for
+  other names is refused in words (`force` takes it anyway; `acme --csr-answer ... --force`).
+  A CSR given out before a configuration's export can be answered after the import (its key
+  goes in the file with the secrets).
+- **Two asks at once from a request profile** no longer give a 500: the next free name is taken,
+  as the portal's own form does.
+- **Alerts of failed deployments go** when nothing will try them again: the certificate switched
+  off or revoked, its target switched off.
+- **The deployment option "Which certificate (when it is dual)"** is checked when saved - a value
+  that is none of its choices failed every deployment.
+- **"Renew now" while a deployment runs** says so (409), instead of answering with the
+  deployment's job as the renewal.
+- **The command line as the pages:** a first issue is logged as an issue; `--revoke` is refused
+  where the pages refuse it (imported, moved, self-signed, being revoked now); new `--revoke NAME
+  --reissue`, `--cert-del NAME --revoke-first`, `--cert-keep NAME`, `--approve NAME` and
+  `--decline NAME --why TEXT` (docs/command-line.md).
+- **Nobody approves a request of their own - on either side.** One who sends a new CSR or other
+  names for a request is one of those who asked for it: a member who may manage sent his own CSR
+  with a name of another team's for someone else's request, and approved it himself. The
+  administration's Approve now refuses the one who asked too (by the account's name, its name
+  without the domain, its mail) - a certificate administrator who also signs in to the portal
+  approved his own wildcard there and took its key on the portal. A full administrator is no
+  exception: one who needs a certificate adds it in the administration.
+- **A name another team's certificate holds is approved by that team.** A request that waits
+  because of it is approved only by someone who may approve (or manage) for the team holding
+  the name, or by a full administrator - an approver of the asker's own team let it through and
+  the asker took the key. The approval windows (portal and administration) say whose names they
+  are; the holding team is told (an event, and a mail to its contact address).
+- **A new CSR sent on the portal while a job works on the certificate** is refused (409) with
+  nothing of it kept - it was kept, and the job running then issued the old one.
+- **CSRs made to get past a request profile are refused:** two extension requests (acme checked
+  the last, OpenSSL and a CA taking the CSR as it is read the first - a UPN with smart-card
+  logon), an attribute or extension twice, a UPN or another otherName, a directory name, an OID,
+  an x400 or EDI party name or a name that does not read, a certificate authority asked for
+  (`CA:TRUE`), and - for a source that takes the CSR as it is - extended key usages the profile
+  does not give.
+- **A scoped session is not told of another team's certificates:** the targets' list says
+  "another owner's certificate" for the one whose key a device makes and a generic phrase for a
+  target's last error naming one; a name taken by another team's certificate, or a device making
+  its key, is refused without naming it.
+- **A scoped certificate administrator gives no names another team's certificates hold** to a
+  certificate in the administration (refused in words, as the portal makes such a request wait);
+  a full administrator, or one who sees every certificate, may.
 
 ## 1.0.101 - 2026-11-14
 

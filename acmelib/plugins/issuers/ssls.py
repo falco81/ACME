@@ -989,6 +989,9 @@ class SslsIssuer(Issuer):
         else:
             how, cert_id, _st = self._choose(req, sub_key)
             key_pem = req.key_pem
+            # sealed before anything is ordered (1.0.102): a key that cannot be kept stops here,
+            # not after a paid order
+            key_sealed = _seal(self.ctx, key_pem, slot)
             if how == 'reissue':
                 params = {'certID': cert_id, 'csr': req.csr_pem.strip()}
                 if self.method() != 'email':
@@ -1018,7 +1021,7 @@ class SslsIssuer(Issuer):
                                 'product': self.product(), 'at': _now()},
                       ttl_s=6 * 366 * 86400)
             held = {'cert_id': cert_id, 'order_id': order_id, 'how': how, 'at': _now(),
-                    'names': list(req.names), 'key': _seal(self.ctx, key_pem, slot),
+                    'names': list(req.names), 'key': key_sealed,
                     'auth': self.auth_of(got), 'dcv': [], 'placed': False}
             # Kept at once: whatever happens next, nothing is bought twice.
             self._put(slot, held, ttl_s=120 * 86400)
