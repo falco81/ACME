@@ -939,7 +939,8 @@ def certlogin_server(block, main, c, pad='    '):
     sock = sock.group(1).strip() if sock else 'unix:/run/php-fpm/acme.sock'
 
     def allow(head):
-        lines = [x.strip() for x in _location_text(main, head).split('\n')
+        lines = [re.sub(r'\s+', ' ', x.split('#', 1)[0]).strip()
+                 for x in _location_text(main, head).split('\n')
                  if re.match(r'^\s*(allow|deny)\s+[^;]+;', x)]
         return lines or ['allow 127.0.0.1;', 'allow ::1;', 'deny  all;']
 

@@ -39,6 +39,7 @@ from __future__ import annotations
 CL_META = 'certlogin:cas'
 CL_NODE_META = 'certlogin:node:'
 CL_TRIED_META = 'certlogin:tried:'
+CL_SERVED_META = 'certlogin:served'
 CL_PARTS = ('admin', 'portal')
 CL_CERT_MOST = 16384            # a person's certificate in PEM: a few kB
 CL_CAS_MOST = 20                # authorities put in
@@ -1202,12 +1203,14 @@ def certlogin_desired(store):
     anybody in, {port: 0} once it was on and is no longer, None when never (nginx as it is)."""
     cas = cl_cas_row(store)
     on = {p: bool(cl_on(p) and cas) for p in CL_PARTS}
+    try:
+        served = bool(store.get_meta(CL_SERVED_META))
+        if any(on.values()) and not served:
+            # Remembered (a setting back at its default is no row at all): once served, the
+            # port is taken away again when it is no longer.
+            store.set_meta(CL_SERVED_META, '1')
+    except Exception:                                   # noqa: BLE001
+        served = True
     if any(on.values()):
         return dict(on, port=cl_port(), cas=cl_cas_pem(cas))
-    try:
-        if any(k.split('@', 1)[0].startswith(('admin_certlogin', 'portal_certlogin'))
-               for k in saved_keys(store)):
-            return {'port': 0}
-    except Exception:                                   # noqa: BLE001
-        pass
-    return None
+    return {'port': 0} if served else None

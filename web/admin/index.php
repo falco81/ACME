@@ -961,6 +961,16 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <div id="sect-portalkrb"></div>
       <div id="krb-host-portal"></div>
     </div>
+    <div class="card full" id="cert-card-portal">
+      <h2>Signing in with a certificate</h2>
+      <p class="note">A certificate of the domain's authority - on a smart card, a YubiKey or in
+        the computer - signs its person in to the portal without a password, on the certificate's
+        own port and with the authorities the administration's card puts in. Who may sign in here
+        decides as for a password, and the one-time code, when it is on, is sent after it just
+        the same. Off, nothing of it is offered on the portal.</p>
+      <div id="sect-portalcert"></div>
+      <div id="cert-host-portal"></div>
+    </div>
   </div>
 
   <div class="ctl-pane" id="pane-alerts" hidden>
@@ -1147,6 +1157,18 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         their own (The enrolment pages); the keytab is one for both.</p>
       <div id="sect-adminkrb"></div>
       <div id="krb-host-admin"></div>
+    </div>
+    <div class="card full" id="cert-card-admin">
+      <h2>Signing in with a certificate</h2>
+      <p class="note">A certificate of the domain's authority - on a smart card, a YubiKey or in
+        the computer - signs its person in to these pages without a password. nginx asks for it on
+        a port of its own, never on 443: nobody else is ever asked for a certificate. Checked here:
+        the chain to an authority put in below, its dates, a key usage for signing in, not revoked
+        (CRL), and the UPN in it looked up in the directory chosen above - the role of its groups.
+        The second step, when it is on, is asked after it just the same. The enrolment pages have
+        switches of their own; the port and the authorities are one for both.</p>
+      <div id="sect-admincert"></div>
+      <div id="cert-host-admin"></div>
     </div>
     <div class="card full">
       <h2>The groups, and what each one may do</h2>
