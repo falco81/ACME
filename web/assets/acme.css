@@ -2977,6 +2977,24 @@ body.mfa-on .signin{padding-top:24px}
 .lo-bar > i { display: block; height: 100%; background: var(--warn, #d9a400); border-radius: 3px; transition: width .4s ease; }
 .lo-bar.full > i { background: var(--crit, #d64545); }
 .lo-count { min-width: 90px; }
+/* Columns of fixed widths (as .split-scen, 1.0.100): the lockouts are drawn again every second
+   ("12 s left", "89 s ago" → "2 min ago") and the sign-ins at every change of Accounts - laid
+   out by their words, every column moved with them. On a phone the table scrolls in its box. */
+#lo-table table, #gd-table table{table-layout:fixed;min-width:900px}
+#lo-table th:nth-child(1), #gd-table th:nth-child(1){width:15%}
+#lo-table th:nth-child(2), #gd-table th:nth-child(2){width:15%}
+#lo-table th:nth-child(3), #gd-table th:nth-child(3){width:17%}
+#lo-table th:nth-child(4), #gd-table th:nth-child(4){width:13%}
+#lo-table th:nth-last-child(2), #gd-table th:nth-last-child(2){width:10%}
+#lo-table th:last-child, #gd-table th:last-child{width:104px}
+#se-table table{table-layout:fixed;min-width:760px}
+#se-table th:nth-child(1){width:18%}
+#se-table th:nth-child(2){width:15%}
+#se-table th:nth-child(3){width:20%}
+#se-table th:nth-child(4){width:20%}
+#se-table th:last-child{width:120px}
+#lo-table td, #gd-table td, #se-table td{overflow-wrap:anywhere}
+#lo-table td .mono, #gd-table td .mono, #se-table td.mono, #se-table td .mono{white-space:normal}
 
 /* A change on trial (1.0.137). */
 .trials { margin: 8px 16px 0; display: flex; flex-direction: column; gap: 8px; }
