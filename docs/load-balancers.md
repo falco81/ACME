@@ -35,6 +35,14 @@ The body says why, on one line: `ok acme1`, `maintenance acme1`,
 `?check=` is the same as `/healthz`. Match on the status code, or on the
 body starting with `ok `.
 
+`/healthz` asks the daemon's `/api/health` with the daemon's API token, so the
+node's name is still in its body. Since 1.0.101, `/api/health` asked **without** the
+token (the only route of the daemon's API that answers without it) says no node
+name and not whether any account exists. It still says whether the daemon answers,
+whether the database opens, whether the node is in maintenance, the language, and
+the sign-in ways the sign-in page offers. Point a balancer at `/healthz`, not at the
+daemon's port.
+
 Recommended: check every 2-5 s, take a node out after 2-3 failures, back in
 after 2 successes, timeout 3-5 s.
 

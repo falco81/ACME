@@ -72,7 +72,15 @@ DBGUARD_SETTINGS = frozenset((
     # the key, to a server of anybody's choosing.
     'rbackup', 'rbackup_password', 'rbackup_verify', 'acme_dns', 'acme_dns_server',
     'acme_dns_tsig_name', 'acme_dns_tsig_alg', 'acme_dns_tsig_secret', 'acme_dns_token',
-    'acme_dns_url', 'acme_dns_user', 'acme_dns_key', 'acme_desec_token', 'acme_ca', 'acme_url'))
+    'acme_dns_url', 'acme_dns_user', 'acme_dns_key', 'acme_desec_token', 'acme_ca', 'acme_url')
+    # The enrolment pages (1.0.101): who signs in there, against which directory, with which
+    # code, and what they are handed - a setting written past acme switched the portal on, let
+    # anybody's directory in, or handed out every certificate's private key.
+    + ('portal', 'portal_directory', 'portal_who', 'portal_groups', 'portal_enrolers',
+       'portal_local', 'portal_local_code', 'portal_code', 'portal_admins_all', 'portal_cert',
+       'portal_cert_keys', 'portal_cert_auto', 'portal_cert_issuers', 'portal_cert_suffixes',
+       'portal_cert_challenge', 'portal_cert_max', 'portal_session_min', 'portal_tries',
+       'portal_wait_min', 'code_digits', 'code_tries', 'code_ttl_s'))
 # Taken under the guard by a version after it was switched on (1.0.44): signed once as they are
 # at its first start - unsigned, they were refused, and the backups stopped.
 DBGUARD_ADOPT = {'m': ('rbackup:targets',),
@@ -87,6 +95,15 @@ DBGUARD_ADOPT_MARK = 'dbguard:adopted:1.0.44'
 DBGUARD_ADOPT2 = {'m': ('module-files:sig',)}
 DBGUARD_ADOPT2_PREFIXES = {'m': ('module-file:', 'module-default:')}
 DBGUARD_ADOPT2_MARK = 'dbguard:adopted:1.0.95'
+# Taken under the guard by 1.0.101: the settings of the enrolment pages - signed once as they
+# are, on a node whose cluster all runs 1.0.101 (until then, as unguarded as before).
+DBGUARD_ADOPT3 = {'s': ('portal', 'portal_directory', 'portal_who', 'portal_groups',
+                        'portal_enrolers', 'portal_local', 'portal_local_code', 'portal_code',
+                        'portal_admins_all', 'portal_cert', 'portal_cert_keys', 'portal_cert_auto',
+                        'portal_cert_issuers', 'portal_cert_suffixes', 'portal_cert_challenge',
+                        'portal_cert_max', 'portal_session_min', 'portal_tries',
+                        'portal_wait_min', 'code_digits', 'code_tries', 'code_ttl_s')}
+DBGUARD_ADOPT3_MARK = 'dbguard:adopted:1.0.101'
 DBGUARD_FILE = STATE_DIR / 'guard.json'
 DBGUARD = {'seen': None, 'good': None, 'seen_h': None, 'adopted': None, 'dirty': 0.0,
            'refused': {}, 'nodes': {},
@@ -491,7 +508,7 @@ def dbguard_resign(store, why=''):
         n += bool(dbguard_sign(db, 'a', str(r['name']).lower(), dbguard_row_text(r, account_signed_cols(r))))
     for r in db.rows('SELECT * FROM directories'):
         n += bool(dbguard_sign(db, 'd', str(r['name']).lower(), dbguard_row_text(r, DIRECTORY_SIGNED)))
-    for r in db.rows("SELECT * FROM sessions WHERE kind = 'admin'"):
+    for r in db.rows('SELECT * FROM sessions'):          # every kind (1.0.101)
         n += bool(dbguard_sign(db, 'x', r['token_hash'], dbguard_session_text(r)))
     # What is seen from now on starts here: older ones put back are older than these.
     with DBGUARD['lock']:
@@ -513,6 +530,9 @@ def dbguard_adopted_ok(kind, ident):
     """Whether a row this version took under the guard is checked yet: only once this node
     has signed it as it was (dbguard_adopt) - until then it is as unguarded as before."""
     ident = str(ident)
+    if ident.split('@', 1)[0] in (DBGUARD_ADOPT3.get(kind) or ()):
+        _dbguard_load()
+        return bool((DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT3_MARK))
     if ident in (DBGUARD_ADOPT2.get(kind) or ()) or ident.startswith(DBGUARD_ADOPT2_PREFIXES.get(kind) or ()):
         _dbguard_load()
         return bool((DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT2_MARK))
@@ -561,6 +581,27 @@ def _dbguard_adopt2(store):
     return n
 
 
+def _dbguard_adopt3(store):
+    """The settings 1.0.101 took under the guard (the enrolment pages'), signed once as they
+    are - those of a node too (key@node)."""
+    if (DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT3_MARK):
+        return 0
+    if not cluster_runs_at_least(store, '1.0.101'):
+        return 0
+    db, n = store.db, 0
+    for r in db.rows('SELECT k, v FROM settings'):
+        if str(r['k']).split('@', 1)[0] in DBGUARD_ADOPT3['s']:
+            n += bool(dbguard_sign(db, 's', r['k'], r['v']))
+    with DBGUARD['lock']:
+        DBGUARD.setdefault('adopted', {})[DBGUARD_ADOPT3_MARK] = time.time()
+        DBGUARD['dirty'] = DBGUARD['dirty'] or time.time()
+    dbguard_flush(force=True)
+    if n:
+        log('the guard against writes now signs the settings of the enrolment pages, %d row(s), '
+            'as they were (upgrade)' % n)
+    return n
+
+
 def dbguard_adopt(store):
     """Rows taken under the guard by this version (1.0.44), signed once as they are now - and
     from then on checked. Not before every node runs this version: a 1.0.43 node saving them
@@ -570,7 +611,7 @@ def dbguard_adopt(store):
     if not dbguard_on() or not dbguard_key():
         return 0
     _dbguard_load()
-    n2 = _dbguard_adopt2(store)
+    n2 = _dbguard_adopt2(store) + _dbguard_adopt3(store)
     if (DBGUARD.get('adopted') or {}).get(DBGUARD_ADOPT_MARK):
         return n2
     if not cluster_runs_at_least(store, '1.0.44'):
@@ -602,7 +643,7 @@ def dbguard_tidy(store):
     """Signatures of sign-ins that are over."""
     try:
         have = {_dbguard_sid('x', r['token_hash']) for r in store.db.rows(
-            "SELECT token_hash FROM sessions WHERE kind = 'admin'")}
+            'SELECT token_hash FROM sessions')}         # every kind signed (1.0.101)
         for r in _dbguard_head_rows(store.db, 'sig:x:'):
             if r['k'] not in have and r['k'].endswith(':' + node_name()):
                 try:
@@ -619,7 +660,9 @@ def dbguard_tidy(store):
 
 # Only rows of meta (1.0.46): a guarded setting, account or directory taken away is itself a
 # refusal - its last good value is kept, and the light must stay on.
-DBGUARD_ROW_OF = {'m': ('meta', 'k')}
+DBGUARD_ROW_OF = {'m': ('meta', 'k'),
+                  # ...and sign-ins (1.0.101): one refused is ended, off the list with it.
+                  'x': ('sessions', 'token_hash')}
 
 
 def dbguard_refused_prune(store):

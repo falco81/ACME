@@ -8,8 +8,11 @@ as before.
 
     python3 test/test_db_guard.py
 """
+import importlib.util
 import json
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -178,6 +181,135 @@ class TestResign(unittest.TestCase):
             guard(False)
         self.assertTrue(beat.get('db_guard'))
         self.assertTrue(E.dbguard_node_ok(STORE, E.node_name()))
+
+
+KEYGEN = shutil.which('ssh-keygen')
+
+
+def helper():
+    """acme_web.py (the root helper) loaded here: its state folder this test's, root's
+    authorized_keys and config.json files of the test's own."""
+    os.environ['ACME_VIP_NO_SERVICES'] = '1'
+    spec = importlib.util.spec_from_file_location('acme_web_guard_t',
+                                                  os.path.join(ROOT, 'deploy', 'acme_web.py'))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.ROOT_AUTH = os.path.join(TMP, 'root-ssh', 'authorized_keys')
+    mod.CONFIG_PATH = os.path.join(TMP, 'helper-config.json')
+    mod.sshd_says = lambda: {'there': False}
+    return mod
+
+
+def pubkey(comment):
+    path = os.path.join(TMP, 'k-%s' % comment)
+    subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', comment, '-f', path],
+                   check=True, capture_output=True)
+    with open(path + '.pub') as f:
+        return f.read().strip()
+
+
+@unittest.skipUnless(KEYGEN, 'ssh-keygen is not here')
+class TestRootKeys(unittest.TestCase):
+    """A key of root's added by the root helper (1.0.101): with db_guard on only from a row of
+    the database acme signed - an ask laid in the helper's folder by itself is refused."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.W = helper()
+        os.makedirs(os.path.join(TMP, 'web'), exist_ok=True)
+
+    def setUp(self):
+        guard(True)
+        self.helper_guard(True)
+        try:
+            os.unlink(self.W.ROOT_AUTH)
+        except FileNotFoundError:
+            pass
+
+    def tearDown(self):
+        guard(False)
+
+    def helper_guard(self, on):
+        with open(self.W.CONFIG_PATH, 'w') as f:
+            json.dump({'db_guard': 1 if on else 0}, f)
+
+    def fps(self):
+        return [k['fp'] for k in self.W.auth_keys(self.W.auth_lines())]
+
+    def asked(self, line):
+        """The ask the daemon lays down for the helper, as sshkeys_tick makes it."""
+        E.sshkeys_ask(STORE, [E.node_name()], 'add', 'tester', line=line)
+        for r in E.node_key_rows(STORE, 'host:sshkeys:want', E.node_name()):
+            for a in json.loads(r['v']):
+                if a.get('line') == line:
+                    return E.sshkeys_root_data(STORE, dict(a, _row=(r['k'], r['v'])))
+        self.fail('the ask is not in the database')
+
+    def test_signed_ask_is_taken(self):
+        line = pubkey('pages')
+        data = self.asked(line)
+        self.assertIn('signed', data)
+        got = self.W.sshkeys_do(data)
+        self.assertEqual(len(got['keys']), 1)
+        self.assertEqual(got['keys'][0]['comment'], 'pages')
+
+    def test_forged_unsigned_ask_is_refused(self):
+        line = pubkey('forged')
+        with self.assertRaises(self.W.Refused) as e:
+            self.W.sshkeys_do({'do': 'add', 'line': line, 'user': 'root'})
+        self.assertIn('db_guard', str(e.exception))
+        self.assertEqual(self.fps(), [])
+        # ...also as a file in the helper's folder, the way the acme account would lay it down.
+        with open(os.path.join(TMP, 'web', 'sshkeys.ask'), 'w') as f:
+            json.dump({'id': 'x1', 'do': 'add', 'line': line, 'user': 'root'}, f)
+        self.W.sshkeys_part()
+        with open(os.path.join(TMP, 'web', 'sshkeys.json')) as f:
+            said = json.load(f)
+        self.assertFalse(said['ok'])
+        self.assertIn('db_guard', said['said'])
+        self.assertEqual(self.fps(), [])
+
+    def test_forged_signatures_and_other_lines_are_refused(self):
+        line, other = pubkey('asked'), pubkey('other')
+        data = self.asked(line)
+        bad = json.loads(json.dumps(data))
+        bad['signed']['sigs'] = [{'n': s['n'], 'm': '0' * 64} for s in bad['signed']['sigs']]
+        with self.assertRaises(self.W.Refused):
+            self.W.sshkeys_do(bad)
+        # a row of the database written past acme: the signature is not of its value
+        bad = json.loads(json.dumps(data))
+        rows = json.loads(bad['signed']['v'])
+        rows[-1]['line'] = other
+        bad['signed']['v'] = json.dumps(rows)
+        bad['line'] = other
+        with self.assertRaises(self.W.Refused):
+            self.W.sshkeys_do(bad)
+        # a signed row, but another key in the ask
+        bad = dict(data, line=other)
+        with self.assertRaises(self.W.Refused):
+            self.W.sshkeys_do(bad)
+        # not a row of root's keys
+        bad = json.loads(json.dumps(data))
+        bad['signed']['k'] = 'fw:conf'
+        with self.assertRaises(self.W.Refused):
+            self.W.sshkeys_do(bad)
+        self.assertEqual(self.fps(), [])
+
+    def test_unreadable_config_counts_as_on(self):
+        with open(self.W.CONFIG_PATH, 'w') as f:
+            f.write('{not json')
+        with self.assertRaises(self.W.Refused):
+            self.W.sshkeys_do({'do': 'add', 'line': pubkey('broken'), 'user': 'root'})
+
+    def test_guard_off_as_until_now(self):
+        self.helper_guard(False)
+        got = self.W.sshkeys_do({'do': 'add', 'line': pubkey('plain'), 'user': 'root'})
+        self.assertEqual(len(got['keys']), 1)
+        # dropping one needs no signature
+        self.helper_guard(True)
+        fp = got['keys'][0]['fp']
+        got = self.W.sshkeys_do({'do': 'drop', 'fp': fp, 'user': 'root', 'last_ok': True})
+        self.assertEqual(got['keys'], [])
 
 
 if __name__ == '__main__':

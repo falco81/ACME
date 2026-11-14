@@ -549,8 +549,8 @@ if (isset($_GET['api'])) {
            (1.0.99): "only Windows" on the portal is switched on only by somebody signed in to
            the portal with Windows - the daemon looks at that sign-in, nothing more. */
         $extra = [];
-        $portal = (string) ($_COOKIE['acme_portal'] ?? '');
-        if ($what === 'settings' && preg_match('/^[A-Za-z0-9_-]{16,128}\z/', $portal) === 1) {
+        $portal = acme_cookie_session('acme_portal');      /* __Host- over https (1.0.101) */
+        if ($what === 'settings' && $portal !== '') {
             $extra[] = 'X-Acme-Portal-Session: ' . $portal;
         }
         acme_relay($writes[$what], 'POST', sent_json(), 90.0, $extra);

@@ -9,6 +9,32 @@ The lines of `/root/.ssh/authorized_keys`. A key made here (Ed25519, or RSA 4096
 private half shown once and kept nowhere; one of your own is put on by its public half - on
 every node or on one. Taking away the last key root signs in with is said first.
 
+### Who can add a key of root's (1.0.101)
+
+A key of root's is root itself, so the root helper (`acme_web.py`) does not add one just
+because a file asks it to:
+
+- **`db_guard` on** (*Settings → High security → Guard against writes to the database*): the
+  helper adds a key only when the ask carries the row of the database it comes from
+  (`host:sshkeys:want:*`) with acme's signature of it. The helper checks that signature
+  itself, with the key acme works out from `secrets.key`. The row must hold that very ask:
+  its id, *add*, root, the same key line, and not more than an hour old. An ask laid in
+  `/var/lib/acme/web` by itself, or one whose row somebody wrote straight into the
+  database, is refused (*db_guard is on: ...*) and nothing is added. A `config.json` that
+  cannot be read counts as on. Taking a key away needs no signature, and neither do a
+  normal user's keys.
+- **`db_guard` off** (the default): as until now, **the `acme` account can add a key of
+  root's** - as it can ask the other things root does for it (the firewall, sshd, the
+  network, the updates). Whoever runs code as `acme` (a fault in the daemon or a plugin) is
+  then effectively root. Switch the guard on, on every node, wherever that matters.
+
+Even with the guard on, it is defence in depth, not a wall between `acme` and root: `acme`
+holds `secrets.key` (it seals every secret with it) and may write `config.json`. Code that
+runs as `acme` can still sign an ask, or switch the guard off. What the guard stops is an
+ask that did not come through acme's own signed rows: anybody who can only write the
+database, or only drop a file into the helper's folder. See
+[High security](high-security.md) (*What the acme account can do as root*).
+
 ## Every user who may sign in (1.0.240)
 
 *Whose keys* picks root or a normal user of the nodes: UID_MIN to UID_MAX of

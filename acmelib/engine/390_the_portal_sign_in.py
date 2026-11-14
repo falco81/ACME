@@ -44,6 +44,11 @@ def portal_me(h, gate_ok=False):
         raise ApiError(401, 'sign in again')
     if portal_mfa_pending(s):
         raise ApiError(401, 'the second step of signing in is not done yet')
+    # An account of acme's own signed in without the second step asked of it now (1.0.101):
+    # admin_2fa switched on, or the portal's code for them taken away, after it signed in.
+    if portal_local_step_missing(s):
+        h.store.session_end(h.headers.get('X-Acme-Session'))
+        raise ApiError(401, 'sign in again: the second step is asked now')
     # The one-time code at every sign-in (1.0.40, as otp 1.0.228): until it is typed, the sign-in
     # may do that and nothing else.
     if portal_gated(s) and not gate_ok:
@@ -155,8 +160,12 @@ def portal_dir_still(h, s):
     longer in the groups that let them in here, and the sign-in ends - not when
     it runs out. A directory that cannot be reached leaves them as they are."""
     data = s.get('data') if isinstance(s.get('data'), dict) else {}
-    if data.get('kind') == 'local' or not data.get('dn'):
+    if data.get('kind') == 'local':
         return True
+    if not data.get('dn'):
+        # Every sign-in of the directory has its entry's DN (1.0.101): one without was no
+        # sign-in acme made, and was never asked about again.
+        return False
     t = time.time()
     if t - float(data.get('dir_checked') or 0) < PORTAL_DIR_CHECK_S:
         return True
@@ -200,6 +209,34 @@ def portal_mfa_pending(s):
     # step here, not the administration's.
     return str(data.get('mfa') or '') if data.get('kind') == 'local' and \
         CONFIG.get('admin_2fa') and not portal_local_ways() else ''
+
+
+def portal_local_step_missing(s):
+    """Whether a sign-in of an account of acme's own lacks the step asked of it now (1.0.101):
+    the administration's second step (admin_2fa, while the portal sends them no code of its
+    own) neither given (mfa_ok, _mfa_done) nor still to be given - it signed in before that was
+    asked. Such a sign-in ends; one that waits for its code is the portal's code's matter."""
+    data = s.get('data') if isinstance(s.get('data'), dict) else {}
+    if data.get('kind') != 'local' or not CONFIG.get('admin_2fa') or portal_local_ways():
+        return False
+    return not data.get('mfa') and not data.get('mfa_ok')
+
+
+def portal_local_sessions_settle(store, by=''):
+    """The sign-ins of acme's own accounts to the portal that lack the step asked now, ended
+    (1.0.101) - when the second step is switched on, or the portal's code for them changed."""
+    gone = 0
+    for r in store.db.rows("SELECT id, data FROM sessions WHERE kind = 'portal'"):
+        try:
+            data = json.loads(r.get('data') or '{}')
+        except ValueError:
+            continue
+        if isinstance(data, dict) and portal_local_step_missing({'data': data}):
+            gone += store.db.run('DELETE FROM sessions WHERE id = ?', (r['id'],)) or 0
+    if gone:
+        store.add_event('accounts', 'the second step is asked of accounts here on the portal now: '
+                        '%d sign-in(s) to the portal without it ended' % gone, 'warn', who=by)
+    return gone
 
 
 def portal_local_ok(h, s):
@@ -524,7 +561,15 @@ def portal_directory(h):
     for them, else the one administrators sign in against - None when there
     is none (or it is switched off)."""
     name = str(CONFIG.get('portal_directory') or CONFIG.get('admin_directory') or '').strip()
-    return h.d.dirs.get(name.lower()) if name else None
+    ad = h.d.dirs.get(name.lower()) if name else None
+    # Its row as acme wrote it (1.0.101, as the administration's since 1.0.231): another
+    # server put in past acme, and its answers signed anybody in here - every way of signing
+    # in (the password, Windows, a certificate, the balancer) and the recheck ask it here.
+    if ad is not None and not dbguard_directory_ok(h.store.db, ad.name):
+        log_sparing('portal-dir-guard', 'the enrolment pages do not ask the directory %s: its row '
+                    'is not as acme wrote it' % ad.name, 'error', every=600)
+        return None
+    return ad
 
 
 @route('POST', '/api/portal/login')
@@ -1080,10 +1125,26 @@ def _portal_gate(h):
     if not h.store.session_take(s['id'], 'gate'):
         raise ApiError(409, 'that code was taken already')
     portal_data_set(h, s, gate_wait=None, gate_ok=time.time())
+    # A sign-in of its own from here on (1.0.101, as the second step's _mfa_done): the one the
+    # password alone opened is ended - whoever had seen or planted its cookie had the portal once
+    # the code was typed.
+    token = portal_session_again(h, s)
     h.store.add_event('portal', '%s signed in to the portal from %s, with the one-time '
                       'code by %s' % (s['name'], h.client_ip(),
                                       'mail' if g.get('kind') == 'mail' else 'SMS'), who=s['name'])
-    return {'me': portal_state(h, s)}
+    return {'me': portal_state(h, s), 'token': token}
+
+
+def portal_session_again(h, s):
+    """The portal's sign-in made anew with what it holds, the old one ended: its token."""
+    hours = max(0.05, (float(s.get('expires') or 0) - time.time()) / 3600.0)
+    token = h.store.session_new('portal', s['name'], s.get('role') or 'portal', h.client_ip(),
+                                hours, data=dict(s.get('data') or {}))
+    h.store.session_drop(s['id'])
+    fresh = h.store.session_get(token, 'portal', 3600, touch=False)
+    if fresh:
+        s['id'] = fresh['id']
+    return token
 
 
 @route('POST', '/api/portal/gate/again')
@@ -1122,6 +1183,11 @@ def _portal_whoami(h):
     if portal_mfa_pending(s):
         # The password given, the second step not yet: the sign-in page asks it.
         return {'me': None, 'mfa': portal_mfa_pending(s)}
+    if portal_local_step_missing(s) or not portal_dir_still(h, s):
+        # Without the second step asked now, or a directory's sign-in no longer let in
+        # (1.0.101): as portal_me.
+        h.store.session_end(h.headers.get('X-Acme-Session'))
+        return {'me': None}
     if portal_gated(s):
         # Waiting for its one-time code (as otp 1.0.228): nothing of the person shown yet.
         return {'me': {'name': s['name'], 'gate': portal_gate_view(s)}}

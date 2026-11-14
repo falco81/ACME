@@ -79,14 +79,12 @@ function acme_sso_sign_in(array $info): string
     if ($status === 200 && is_array($data)) {
         if (!empty($data['token'])) {
             acme_set_session((string) $data['token']);
-            $_COOKIE[ACME_COOKIE] = (string) $data['token'];
         }
         return '';
     }
     if ($status === 401 || $status === 403) {
         // Not this person's any more: whoever was signed in here before is not shown.
         acme_clear_session();
-        unset($_COOKIE[ACME_COOKIE]);
     }
     return is_array($data) && !empty($data['error']) ? (string) $data['error']
         : 'the sign-in through the load balancer was not taken here';
@@ -151,13 +149,15 @@ if (isset($_GET['api'])) {
         acme_kerberos_relay('/api/portal/kerberos');
         exit;
     }
-    if ($what === 'mfa' && $post) {
+    if (($what === 'mfa' || $what === 'gate') && $post) {
         /* The second step of an account of acme's own (portal_local), as the
            administration's: given, the daemon hands a new sign-in - its cookie
-           set here, the token never shown to the page. */
+           set here, the token never shown to the page. The portal's one-time code
+           the same (1.0.101): typed, a new sign-in too. */
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store');
-        [$status, $body] = acme_call('/api/portal/mfa', 'POST', sent_json(), 90.0);
+        [$status, $body] = acme_call($what === 'mfa' ? '/api/portal/mfa' : '/api/portal/gate',
+                                     'POST', sent_json(), 90.0);
         if ($status === 0) {
             http_response_code(503);
             echo json_encode(['ok' => false, 'error' => 'the server is not answering - try again in a while']);
@@ -200,8 +200,8 @@ if (isset($_GET['api'])) {
                'cert-auto' => '/api/portal/cert_auto', 'cert-revoke' => '/api/portal/cert_revoke',
                'cert-approve' => '/api/portal/cert_approve', 'csr-decode' => '/api/portal/csr_decode',
                'cert-csr' => '/api/portal/cert_csr',
-               // The one-time code at every sign-in (1.0.40, as otp 1.0.228).
-               'gate' => '/api/portal/gate', 'gate_again' => '/api/portal/gate/again'];
+               // The one-time code at every sign-in (1.0.40, as otp 1.0.228) - typed, above.
+               'gate_again' => '/api/portal/gate/again'];
     if ($post && isset($writes[$what])) {
         acme_relay($writes[$what], 'POST', sent_json(), 120.0);
         exit;

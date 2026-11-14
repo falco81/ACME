@@ -6,7 +6,51 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.101 - not released
 
-(nothing yet)
+- **A key of root's only from acme's signed word, with the guard against writes to the
+  database on.** The root helper (`acme_web.py`) added any key line the `acme` account wrote
+  into its folder to root's `authorized_keys`. With `db_guard` on, it now adds one only when the
+  ask carries the database row it comes from (`host:sshkeys:want:*`) with acme's signature of
+  it, and checks that signature itself: the row must hold that very ask (its id, add, root, the
+  same line, at most an hour old). An ask laid in the folder by itself, or written into the
+  database past acme, is refused and nothing is added. A `config.json` that cannot be read
+  counts as on. Keys made or added on the pages work as before; taking a key away and the keys
+  of normal users need no signature. With `db_guard` off nothing changes, and the docs now say
+  plainly that the `acme` account can then add a key of root's (*SSH keys*, *High security* -
+  *What the acme account can do as root*). Even with the guard on this is defence in depth:
+  `acme` holds `secrets.key` and may write `config.json`.
+- **Less said without a sign-in.** `GET /api/acme-push/hello` (relayed with no sign-in) no
+  longer gives the exact version while *Certificates from acme* is switched off; switched on,
+  it says as much as the protocol always has. The daemon's `/api/health` asked without the API
+  token no longer says the node's name or whether any account exists. The pages and
+  `/healthz` ask with the token and are unchanged.
+- **Signing out of the portal ends a portal sign-in only.** `POST /api/portal/logout` ended
+  any sign-in whose token it was given, an administrator's too.
+
+- **A request held at the CA is never finished with a revoked key.** With "Keep the key", a
+  renewal waiting at the CA (DigiCert, Sectigo, Certum, GoGetSSL, SSL.com, The SSL Store,
+  Namecheap, GlobalSign, AWS Private CA, EST, SCEP, AD CS, Venafi...) held the key it had; revoked
+  for keyCompromise and issued again, the job said "a new key" and the source finished the held
+  order with the compromised one. A revoke now drops every request the source holds for the
+  certificate (its DCV records taken away), and a source refuses a held request whose key is
+  that of any revoked version (`CertRequest.no_held_key`).
+- **Switched from one device to another, the version made for the first one's key is no fit.**
+  A certificate whose key device A made, switched to device B, took the version made for A's key
+  as fitting B: Deploy now (and the scan, once the new issue failed) put it on B. The record of
+  the device that made the version is compared with the one that makes the key now; "renew it
+  by hand" is said again for the new device.
+- **An override started from a version overrides that version.** "Start from the whole code of"
+  FortiGate 6.0, 7.0 or 7.4.2 in override mode gave a file that overrode the plain module; it
+  now says the version asked for (and is named `fortigate_7_0.py`, as the upload dialog names it).
+- **An IPv6 address can have a validation of its own.** The names of a certificate's own
+  validations (`challenge_map`) took an IPv4 address but refused an IPv6 one; an address is
+  accepted and written as the names are (`2001:DB8:0::10` as `2001:db8::10`), and What happens
+  checks a draft's map the same way (it took it unchecked).
+- **What happens hands no secret that is JSON to the module.** Only members with secret-sounding
+  names (password, private_key, ..._token) of a secret written as JSON were stand-ins: `pwd`,
+  `apiToken`, `accessKey` and a list of passwords reached the module as they were. Every string
+  in it is a stand-in now, but for those that say where and who (URLs, e-mails, domains, the
+  type, the project), and the real one is masked out however it is written. A module opening
+  an HTTP connection of its own (`putrequest`/`endheaders`) is shown as going around acme too.
 
 ## 1.0.100 - 2026-11-14
 

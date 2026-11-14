@@ -73,35 +73,100 @@ function acme_token(): ?string
     return $token !== '' ? $token : null;
 }
 
-/** The session of whoever is signed in, from the cookie. */
-function acme_session(): string
+/** The name of a session's cookie (1.0.101): __Host-acme_session / __Host-acme_portal over
+ *  https - Secure, Path=/, no Domain, so neither a sibling name (Domain=.example.local) nor a
+ *  page over http can plant one beside it (cookie tossing: the browser sent the planted one
+ *  first, and PHP took it). Over plain http (a test server) the name as it was - __Host- needs
+ *  Secure. */
+function acme_cookie_name(string $base = ACME_COOKIE): string
 {
-    $got = (string) ($_COOKIE[ACME_COOKIE] ?? '');
+    return acme_https() ? '__Host-' . $base : $base;
+}
+
+/** The path of the session's cookie: / over https (__Host- asks it - the administration's
+ *  cookie is no longer of /admin/ alone, its name keeps it apart), the page's own over http. */
+function acme_cookie_path(): string
+{
+    return acme_https() ? '/' : ACME_COOKIE_PATH;
+}
+
+/** How many cookies of that name the browser sent (PHP's $_COOKIE keeps the first only). */
+function acme_cookie_count(string $name): int
+{
+    $n = 0;
+    foreach (explode(';', (string) ($_SERVER['HTTP_COOKIE'] ?? '')) as $part) {
+        $eq = strpos($part, '=');
+        if ($eq !== false && trim(substr($part, 0, $eq)) === $name) {
+            $n++;
+        }
+    }
+    return $n;
+}
+
+/** A session's token from its cookie (base name 'acme_session' or 'acme_portal') - '' when
+ *  there is none, it is not one, or two of the same name came (1.0.101: one of them planted;
+ *  which is whose cannot be told - signed out). */
+function acme_cookie_session(string $base): string
+{
+    $name = acme_cookie_name($base);
+    if (acme_cookie_count($name) > 1) {
+        return '';
+    }
+    $got = (string) ($_COOKIE[$name] ?? '');
     // \z, not $ (1.0.52): $ let a newline at the end through - it ended the request's headers
     return preg_match('/^[A-Za-z0-9_-]{16,128}\z/', $got) === 1 ? $got : '';
+}
+
+/** The session of whoever is signed in, from the cookie - or the one this request has just
+ *  set or ended. */
+function acme_session(): string
+{
+    if (array_key_exists('acme_session_now', $GLOBALS)) {
+        return (string) $GLOBALS['acme_session_now'];
+    }
+    return acme_cookie_session(ACME_COOKIE);
 }
 
 /** Start one. Same-site and HttpOnly, and Secure whenever the page is on TLS. */
 function acme_set_session(string $token): void
 {
-    setcookie(ACME_COOKIE, $token, [
+    setcookie(acme_cookie_name(), $token, [
         'expires'  => 0,                 /* until the browser is closed */
-        'path'     => ACME_COOKIE_PATH,
+        'path'     => acme_cookie_path(),
         'secure'   => acme_https(),
         'httponly' => true,
         'samesite' => 'Strict',
     ]);
+    $GLOBALS['acme_session_now'] = $token;
+    acme_clear_old_cookie();
 }
 
 function acme_clear_session(): void
 {
-    setcookie(ACME_COOKIE, '', [
+    setcookie(acme_cookie_name(), '', [
         'expires'  => time() - 3600,
-        'path'     => ACME_COOKIE_PATH,
+        'path'     => acme_cookie_path(),
         'secure'   => acme_https(),
         'httponly' => true,
         'samesite' => 'Strict',
     ]);
+    $GLOBALS['acme_session_now'] = '';
+    acme_clear_old_cookie();
+}
+
+/** The cookie of before 1.0.101 (its plain name, the page's path), taken away over https:
+ *  never read there any more. */
+function acme_clear_old_cookie(): void
+{
+    if (acme_https() && isset($_COOKIE[ACME_COOKIE])) {
+        setcookie(ACME_COOKIE, '', [
+            'expires'  => time() - 3600,
+            'path'     => ACME_COOKIE_PATH,
+            'secure'   => true,
+            'httponly' => true,
+            'samesite' => 'Strict',
+        ]);
+    }
 }
 
 /**

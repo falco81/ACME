@@ -720,10 +720,17 @@ def split_issue_refused():
 # The pages' requests that go on while frozen: signing in and out (the pages and the
 # portal), looking at the cluster, the card of this itself (to switch it off), restarts,
 # certificates pushed here, and what only reads (a PEM taken apart, a dry run, an export).
+# Each path exactly as it is (1.0.101) - but those of SPLIT_FREE_UNDER, every path under
+# them: '/api/portal/cert' (the sign-in with a certificate) let every certificate of the
+# portal be asked for, approved, renewed and revoked on the node that was frozen.
+SPLIT_FREE_UNDER = ('/api/auth/', '/api/acme-push/', '/api/ha')
 SPLIT_FREE = ('/api/auth/', '/api/split', '/api/ha', '/api/power', '/api/acme-push/',
               '/api/health', '/api/alerts', '/api/logs', '/api/portal/login',
-              '/api/portal/kerberos', '/api/portal/cert',
-              '/api/portal/logout', '/api/portal/mfa', '/api/console-login',
+              '/api/portal/kerberos', '/api/portal/cert', '/api/portal/sso',
+              '/api/portal/logout', '/api/portal/mfa', '/api/portal/gate',
+              '/api/portal/gate/again',
+              # A password changed by its own account (1.0.101), as /api/auth/password is.
+              '/api/portal/password', '/api/console-login',
               '/api/certs/parse', '/api/certs/dry_run', '/api/certs/export', '/api/cas/export',
               '/api/cas/pki_check', '/api/deploys/dry_run', '/api/deploys/preview',
               '/api/sshkey/show', '/api/sshkey/download', '/api/portal/cert_download')
@@ -745,7 +752,7 @@ SPLIT_READS = {'/api/certs/compat': None,
 
 
 def split_free_path(path, action=''):
-    if any(path == p.rstrip('/') or path.startswith(p) for p in SPLIT_FREE):
+    if any(path == p.rstrip('/') for p in SPLIT_FREE) or path.startswith(SPLIT_FREE_UNDER):
         return True
     if path in SPLIT_READS and (SPLIT_READS[path] is None or action in SPLIT_READS[path]):
         return True

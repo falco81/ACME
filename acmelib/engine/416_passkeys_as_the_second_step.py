@@ -370,15 +370,24 @@ def pk_mine_on():
     return bool(CONFIG.get('admin_2fa') and CONFIG.get('admin_2fa_passkey'))
 
 
-def _pk_mine(h):
+def _pk_session(h):
+    """The account signed in whole, as every other route of the pages asks it (1.0.101: me() -
+    a password to change first, the role of the enrolment pages only, Windows switched off
+    since, the directory's word again): (session, account)."""
     s = h.session('admin')
     if not s:
         raise ApiError(401, 'not signed in, or the sign-in has run out')
     if mfa_pending(s):
         raise ApiError(403, 'the second step of signing in is not done yet')
+    me = h.me()
     acc = h.store.account(s['name'], checked=True)
-    if not acc or acc.get('disabled'):
+    if not acc or acc.get('disabled') or str(me.get('name') or '').lower() != str(s['name']).lower():
         raise ApiError(401, 'that account may no longer sign in')
+    return s, acc
+
+
+def _pk_mine(h):
+    s, acc = _pk_session(h)
     if not pk_mine_on():
         raise ApiError(403, 'a passkey as the second step is switched off on this server')
     return s, acc
@@ -404,14 +413,7 @@ def pk_password_again(h, acc, password):
 @route('GET', '/api/auth/passkeys')
 def _pk_list(h):
     # the account signed in whole (1.0.79): not before its second step, nor once switched off
-    s = h.session('admin')
-    if not s:
-        raise ApiError(401, 'not signed in, or the sign-in has run out')
-    if mfa_pending(s):
-        raise ApiError(403, 'the second step of signing in is not done yet')
-    acc = h.store.account(s['name'], checked=True)
-    if not acc or acc.get('disabled'):
-        raise ApiError(401, 'that account may no longer sign in')
+    s, _acc = _pk_session(h)
     rec = mfa_get(h.store, s['name']) or {}
     host = str(h.headers.get('X-Acme-Host') or '').split(':')[0].lower()
     return {'on': pk_mine_on(), 'kind': rec.get('kind') or '',

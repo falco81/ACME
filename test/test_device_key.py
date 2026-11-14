@@ -1140,6 +1140,132 @@ class Round3a(unittest.TestCase):
                       devicekey.deploy_failed(STORE, J(), cert, dep, 0, misfit=True))
 
 
+class KeptHoldCa(base.Issuer):
+    """Holds the request (its key kept with it) while HOLD[0]; finishes the held one after."""
+    kind = 'keptholdca'
+    title = 'A CA that holds the request with its key (tests)'
+    HOLD = [False]
+
+    def issue(self, req):
+        slot = SC.pending_slot('keptholdca', 'x', req)
+        held = SC.pending_get(self.ctx, slot, req)
+        r = SC.held_request(req, held)
+        if held is None and self.HOLD[0]:
+            SC.pending_put(self.ctx, slot, req, {'id': 'order-1', 'csr_pem': SC.csr_pem(req)})
+            raise base.PluginError('the order waits for approval')
+        SC.pending_drop(self.ctx, slot)
+        return base.Issued(pki.self_signed(r.key_pem, r.names, days=30), [], key_pem=r.key_pem)
+
+    def revoke(self, cert_pem, reason='unspecified', key_pem=None):
+        return 'revoked'
+
+
+base.REGISTRY.found['issuer'][KeptHoldCa.kind] = KeptHoldCa
+add('cert_issuers', 'kepthold', 'keptholdca', {})
+
+
+class HuntM1(unittest.TestCase):
+    """1.0.101, hunt M round 1 (the certificate engine)."""
+
+    def _pub(self, cid):
+        return pki.cert_info(S.cert_need(STORE, cid)['cert_pem'])['pub_sha256']
+
+    def _revoke(self, cid):
+        return jobs.run_now(STORE, 'revoke', lambda job: renewer.revoke_cert(
+            STORE, job, cid, 'keyCompromise', 'test'), cert_id=cid, by='test')
+
+    def test_1_a_request_held_with_the_revoked_key_is_dropped(self):
+        cid = save(name='hm1', names=['hm1.example.test'], issuer='kepthold', challenge='',
+                   reuse_key=1)
+        KeptHoldCa.HOLD[0] = False
+        self.assertTrue(renew(cid).ok)
+        k1 = self._pub(cid)
+        try:
+            KeptHoldCa.HOLD[0] = True
+            self.assertFalse(renew(cid).ok)         # held at the CA, with the key k1
+        finally:
+            KeptHoldCa.HOLD[0] = False
+        held = lambda: [k for k in STORE.db.rows("SELECT k FROM meta WHERE k LIKE ?",  # noqa
+                                                  ('%keptholdca-pending:%:' + str(cid) + '%',))]
+        self.assertEqual(len(held()), 1)
+        job = self._revoke(cid)
+        self.assertTrue(job.ok, words(job))
+        self.assertEqual(held(), [], 'dropped at the revoke')
+        self.assertIn('dropped', words(job))
+        self.assertTrue(renew(cid).ok)
+        self.assertNotEqual(self._pub(cid), k1, 'never the revoked key again')
+
+    def test_2_a_held_request_with_a_revoked_key_is_refused(self):
+        # one held with the revoked key all the same (put back, or by another node): the
+        # source drops it, the new key is used
+        cid = save(name='hm2', names=['hm2.example.test'], issuer='kepthold', challenge='',
+                   reuse_key=1)
+        self.assertTrue(renew(cid).ok)
+        cert = S.cert_need(STORE, cid)
+        k1 = self._pub(cid)
+        self.assertTrue(self._revoke(cid).ok)
+        req = base.CertRequest(names=['hm2.example.test'], key_type='ec-256',
+                               key_pem=S.cert_key(cert), cert_id=cid)
+        req.csr_pem = pki.make_csr(req.key_pem, req.names)[0]
+        from acmelib.certs import runtime
+        ctx = runtime.RunContext(STORE, None, scope='issuer:kepthold')
+        SC.pending_put(ctx, SC.pending_slot('keptholdca', 'x', req), req,
+                       {'id': 'order-2', 'csr_pem': req.csr_pem})
+        job = renew(cid)
+        self.assertTrue(job.ok, words(job))
+        self.assertNotEqual(self._pub(cid), k1)
+        self.assertIn('has the key of a version revoked', words(job))
+        # a held request with a key not revoked is finished as before
+        fresh = base.CertRequest(names=req.names, key_pem=pki.make_key('ec-256'),
+                                 no_held_key=[k1])
+        self.assertFalse(SC.held_refused(fresh, {'key_pem': fresh.key_pem}))
+        self.assertTrue(SC.held_refused(fresh, {'key_pem': req.key_pem}))
+
+    def test_3_another_device_is_no_fit_for_the_version(self):
+        a, b = device(), device()
+        cid = save(name='hm3', names=['hm3.example.test'], issuer='own', csr_from=a)
+        self.assertTrue(renew(cid).ok)
+        STORE.set_meta(S.CERT_META['devhand'] % cid, '1')
+        STORE.db.run('DELETE FROM cert_deploys WHERE cert_id = ?', (cid,))
+        save(id=cid, csr_from=b)
+        cert = S.cert_need(STORE, cid)
+        self.assertEqual(cert['state'], 'due')
+        self.assertFalse(devicekey.device_made(STORE, cert))
+        why = devicekey.version_problem(STORE, cert)
+        self.assertIn('issued for a key the device of %s made' % a, why)
+        self.assertIn(why, devicekey.deploy_problem(STORE, cert, S.plugin_row(STORE, 'target', b)))
+        self.assertIsNone(STORE.get_meta(S.CERT_META['devhand'] % cid))
+        # back to acme's key: still a device's version
+        STORE.db.update('certs', cid, {'csr_from': None})
+        self.assertTrue(devicekey.device_made(STORE, S.cert_need(STORE, cid)))
+
+    def test_4_an_ip_address_has_a_validation_of_its_own(self):
+        add('cert_challenges', 'hmweb', 'http01', {})
+        cid = save(name='hm4', names=['www.hm4.example.test', '2001:db8::10', '192.0.2.44'],
+                   issuer='own', challenge='',
+                   challenge_map={'2001:DB8:0::10': 'hmweb', '192.0.2.44': 'hmweb',
+                                  '*.hm4.example.test': 'hmweb'})
+        cert = S.cert_need(STORE, cid)
+        self.assertEqual(json.loads(cert['challenge_map']),
+                         {'2001:db8::10': 'hmweb', '192.0.2.44': 'hmweb',
+                          '*.hm4.example.test': 'hmweb'})
+        self.assertEqual(S.challenge_for(cert, '2001:db8::10'), 'hmweb')
+        with self.assertRaises(ValueError):
+            save(id=cid, challenge_map={'fe80::1%eth0': 'hmweb'})
+        with self.assertRaises(ValueError):
+            save(id=cid, challenge_map={'bad name!': 'hmweb'})
+        # the run plan's draft checked and written the same way
+        from acmelib.certs import api_runplan
+        got = api_runplan._draft(STORE, {'draft': {
+            'names': ['www.hm4.example.test', '2001:db8::10'], 'issuer': 'own',
+            'challenge_map': {'2001:DB8::0:10': 'hmweb'}}})
+        cert2 = got[0] if isinstance(got, tuple) else got
+        self.assertEqual(json.loads(cert2['challenge_map']), {'2001:db8::10': 'hmweb'})
+        with self.assertRaises(ValueError):
+            api_runplan._draft(STORE, {'draft': {'names': ['x.example.test'], 'issuer': 'own',
+                                                 'challenge_map': {'bad name!': 'hmweb'}}})
+
+
 def tearDownModule():
     shutil.rmtree(TMP, ignore_errors=True)
 

@@ -121,6 +121,24 @@ checks it every 5 seconds (said in the log when it had to).
 Not against the other node of a cluster: it holds the same key, and root on it is
 root of the cluster's database anyway.
 
+### What the acme account can do as root (1.0.101)
+
+The daemon runs as `acme`. It asks the root helper (`acme_web.py`, started by systemd)
+for what needs root, through files in `/var/lib/acme/web`. The helper checks the shape of
+every value it gets. What is asked is still the `acme` account's choice: the firewall,
+sshd, the network, the updates, the local users and **root's `authorized_keys`**.
+
+**A key of root's** is the one ask that makes `acme` root outright. With `db_guard` **on**,
+the helper adds one only from a row of the database acme signed, and checks the signature
+itself (see [SSH keys](ssh-keys.md), *Who can add a key of root's*). A forged ask, laid
+in the folder by itself or written into the database, is refused. With `db_guard`
+**off**, the `acme` account can add a key of root's.
+
+This is defence in depth, not a wall. `acme` holds `secrets.key` and may write
+`config.json`, so code that runs as `acme` can still sign an ask or switch the guard off.
+Treat the `acme` account as close to root: keep the daemon and its plugins up to date,
+upload custom modules only from people you trust, and switch `db_guard` on, on every node.
+
 ## SELinux
 
 Under the settings, a card for each node says how SELinux stands there - the mode, acme's

@@ -855,16 +855,20 @@ class CertLogin(unittest.TestCase):
                 st, hd, _ = port_get(path, n, 'nested', cookies)
                 self.assertEqual(st, 303)
                 self.assertEqual(hd['Location'], 'https://%s/admin/?certsaid=nonce' % HOST)
-                self.assertFalse(any(c.startswith('acme_session=') for c in jar(hd)))
+                self.assertFalse(any(c.startswith('__Host-acme_session=') for c in jar(hd)))
             # The right one: signed in, the cookie (no port in it), back on 443.
             st, hd, _ = port_get('/admin/?api=cert-login&n=%s', n, 'nested', [cookie])
             self.assertEqual((st, hd['Location']), (303, 'https://%s/admin/' % HOST))
-            sess = [c for c in jar(hd) if c.startswith('acme_session=')]
+            sess = [c for c in jar(hd) if c.startswith('__Host-acme_session=')]
             self.assertEqual(len(sess), 1, hd.get_all('Set-Cookie'))
-            raw = [c for c in hd.get_all('Set-Cookie') if c.startswith('acme_session=')][0]
+            raw = [c for c in hd.get_all('Set-Cookie') if c.startswith('__Host-acme_session=')][0]
             self.assertIn('HttpOnly', raw)
             self.assertIn('SameSite=Strict', raw)
             self.assertNotIn('8443', raw)
+            # __Host- over https (1.0.101): Secure, Path=/, no Domain.
+            self.assertIn('secure', raw.lower())
+            self.assertIn('path=/;', raw.lower() + ';')
+            self.assertNotIn('domain', raw.lower())
             st, me = self.call('GET', '/api/auth/whoami', None, sess[0].split('=', 1)[1])
             self.assertEqual((me['who']['name'], me['who']['how']), ('nested', 'certificate'))
             # The nonce once only: the cookie went with it - and sent again with the cookie kept
@@ -872,7 +876,7 @@ class CertLogin(unittest.TestCase):
             self.assertIn('__Host-acme_certn_admin=;', ' '.join(hd.get_all('Set-Cookie')).replace('=deleted;', '=;'))
             st, hd, _ = port_get('/admin/?api=cert-login&n=%s', n, 'nested', [cookie])
             self.assertEqual(hd['Location'], 'https://%s/admin/?certsaid=certificate' % HOST)
-            self.assertFalse(any(c.startswith('acme_session=') for c in jar(hd)))
+            self.assertFalse(any(c.startswith('__Host-acme_session=') for c in jar(hd)))
             self.assertTrue(any('used already' in w for w in self.events('used already')))
             # A nonce of another browser (an attacker's, the cookie planted): its MAC is bound to
             # that browser's own value - refused.
@@ -889,7 +893,7 @@ class CertLogin(unittest.TestCase):
                 n = json.loads(body)['url'].split('n=', 1)[1]
                 st, hd, _ = port_get('/admin/?api=cert-login&n=%s', n, cert, [bound(hd, 'admin')], fail)
                 self.assertEqual(hd['Location'], 'https://%s/admin/?certsaid=%s' % (HOST, kind), cert)
-                self.assertFalse(any(c.startswith('acme_session=') for c in jar(hd)))
+                self.assertFalse(any(c.startswith('__Host-acme_session=') for c in jar(hd)))
             # The port serves the sign-in only, even with the page's other names asked.
             for q in ('/admin/', '/admin/?api=settings', '/admin/?api=whoami&n=' + n):
                 st, hd, body = go(q, headers={'X-Test-Port': '1'})
@@ -908,24 +912,24 @@ class CertLogin(unittest.TestCase):
             n = json.loads(body)['url'].split('n=', 1)[1]
             st, hd, _ = port_get('/?api=cert-login&n=%s', n, 'falco', [bound(hd, 'portal')])
             self.assertEqual(hd['Location'], 'https://%s/' % HOST)
-            self.assertTrue(any(c.startswith('acme_portal=') for c in jar(hd)))
+            self.assertTrue(any(c.startswith('__Host-acme_portal=') for c in jar(hd)))
             # Try my certificate: from the card (signed in), through the port, back to the card.
             st, hd, body = go('/admin/?api=cert-try-nonce', 'POST', {'part': 'portal'},
-                              cookies=['acme_session=' + self.ro])
+                              cookies=['__Host-acme_session=' + self.ro])
             self.assertEqual(st, 200, body)
             url = json.loads(body)['url']
             self.assertIn('api=cert-try&n=', url)
             self.assertTrue(url.endswith('&part=portal'))
             n = url.split('n=', 1)[1].split('&')[0]
             st, hd, _ = go('/admin/?api=cert-try&n=%s&part=portal' % n, cookies=[
-                bound(hd, 'admin'), 'acme_session=' + self.ro], headers={
+                bound(hd, 'admin'), '__Host-acme_session=' + self.ro], headers={
                 'X-Test-Port': '1', 'X-Test-Cert': urllib.parse.quote(self.pem('falco'))})
             m = re.match(r'^https://%s/admin/\?certtried=([0-9a-f]{24})#settings/portal$' % re.escape(HOST),
                          hd['Location'])
             self.assertTrue(m, hd['Location'])
             v = self.ok('GET', '/api/certlogin', args={'tried': m.group(1)}, session=self.ro)
             self.assertEqual((v['tried']['ok'], v['tried']['name']), (True, 'falco@corpnet.cz'))
-            self.assertFalse(any(c.startswith('acme_session=') for c in jar(hd)))
+            self.assertFalse(any(c.startswith('__Host-acme_session=') for c in jar(hd)))
             # "No password at all": no password field, the button only.
             st, got = self.sign('admin', 'nested')
             st, got = self.settings(session=got['token'], admin_password_off=1)
@@ -1062,7 +1066,7 @@ class CertLogin(unittest.TestCase):
             path, n = nonce()
             st, hd, body = ask(8443, path, 'nested', [n])
             self.assertEqual((st, hget(hd, 'Location')), (303, ['https://%s/admin/' % HOST]), body)
-            sess = [c.split(';')[0] for c in hget(hd, 'Set-Cookie') if c.startswith('acme_session=')]
+            sess = [c.split(';')[0] for c in hget(hd, 'Set-Cookie') if c.startswith('__Host-acme_session=')]
             self.assertEqual(len(sess), 1)
             st, hd, body = ask(p443, '/admin/', cookies=sess)
             self.assertIn('id="signout"', body)
@@ -1082,7 +1086,7 @@ class CertLogin(unittest.TestCase):
             path, n = nonce('/')
             st, hd, body = ask(8443, path, 'falco', [n])
             self.assertEqual(hget(hd, 'Location'), ['https://%s/' % HOST], body)
-            self.assertTrue(any(c.startswith('acme_portal=') for c in hget(hd, 'Set-Cookie')))
+            self.assertTrue(any(c.startswith('__Host-acme_portal=') for c in hget(hd, 'Set-Cookie')))
         finally:
             for p in procs:
                 p.terminate()

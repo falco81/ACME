@@ -792,9 +792,8 @@ class Storage(object):
                'name': name, 'role': role, 'created': t, 'last': t,
                'expires': t + float(hours) * 3600, 'ip': str(ip or '')[:60],
                'data': json.dumps(data or {})}
-        if kind != 'admin':
-            self.db.insert('sessions', row)
-            return token
+        # Every kind signed (1.0.101): a portal's sign-in put in the table past acme opened
+        # the enrolment pages - and with them the private keys they hand out.
         with self.db.transaction():                 # with its signature (1.0.234)
             self.db.insert('sessions', row)
             dbguard_sign(self.db, 'x', row['token_hash'], dbguard_session_text(row))     # 1.0.231
@@ -807,8 +806,13 @@ class Storage(object):
                           (hashlib.sha256(str(token).encode()).hexdigest(), kind))
         if not row:
             return None
-        if kind == 'admin' and dbguard_on() and \
+        # Of every kind (1.0.101; the administration's alone until then): an unsigned one -
+        # put in past acme, or a portal's opened before 1.0.101 while the guard was on - is
+        # no sign-in, and is ended (only where this node has the key to tell).
+        if dbguard_on() and \
                 not dbguard_ok(self.db, 'x', row['token_hash'], dbguard_session_text(row)):
+            if dbguard_key():
+                self.db.run('DELETE FROM sessions WHERE id = ?', (row['id'],))
             return None             # a sign-in acme did not open (1.0.231)
         t = time.time()
         if row['expires'] < t or t - float(row['last'] or 0) > idle_s:

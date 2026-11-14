@@ -363,6 +363,9 @@ def _mfa_done(h, s, how, kind='admin'):
     its cookie had the pages once the code was given."""
     data = {k: v for k, v in (s.get('data') or {}).items()
             if k not in ('mfa', 'mfa_new', 'mfa_code', 'mfa_sent_at', 'mfa_sent', 'mfa_pk')}
+    # That it was given (1.0.101): a portal's sign-in of an account of acme's own without it
+    # is ended once the second step is asked (portal_local_step_missing).
+    data['mfa_ok'] = time.time()
     hours = max(0.05, (float(s.get('expires') or 0) - time.time()) / 3600.0)
     token = h.store.session_new(kind, s['name'], s['role'], h.client_ip(), hours, data=data)
     h.store.session_drop(s['id'])

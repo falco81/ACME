@@ -390,6 +390,14 @@ class Daemon(object):
                                          'sign-in(s) to the pages ended' % gone, 'warn', who=by)
             except Exception as e:                      # noqa: BLE001
                 log('the sign-ins to the pages could not be ended: %s' % e, 'warn')
+        # ...and those of acme's own accounts on the portal (1.0.101), signed in with the
+        # password alone - also when the portal's code for them is taken away under them.
+        if (not was_2fa and CONFIG.get('admin_2fa')) or \
+                any(k in checked for k in ('portal_local_code', 'portal_code')):
+            try:
+                portal_local_sessions_settle(self.store, by)
+            except Exception as e:                      # noqa: BLE001
+                log('the sign-ins to the portal could not be ended: %s' % e, 'warn')
         # Signing in with Windows (1.0.99): "only Windows" come into effect ends the sign-ins
         # made with a password, Kerberos switched off ends those made with it - the one saving
         # it kept either way.
