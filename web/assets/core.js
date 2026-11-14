@@ -3607,7 +3607,8 @@ function certDoor() {
     pw.parentNode.hidden = true;
     if ($('in-name')) $('in-name').focus();
   };
-  if (pw && /(^|[?&])nocert([=&]|$)/.test(location.search)) pw.parentNode.hidden = true;
+  /* Not going by itself in this tab (refused, signed out, ?nocert, tried): no link to stop it. */
+  if (pw && !certAutoMay(part, box.dataset.auto === '1', words, location.search, Date.now())) pw.parentNode.hidden = true;
   return function () {
     if (!certAutoMay(part, box.dataset.auto === '1', words, location.search, Date.now())) return false;
     var st = certAutoRead(part);
