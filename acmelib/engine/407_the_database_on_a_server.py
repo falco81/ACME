@@ -513,6 +513,21 @@ def db_agent_mariadb_tls(store, by):
     return got
 
 
+def db_agent_mariadb_renew(store, by='acme (renewed)'):
+    """The MariaDB's certificate from acme's authority renewed through its agent 45 days before
+    it ends (1.0.111) - as a PostgreSQL's is: only one acme gave it (Database -> TLS or
+    acme --db-agent-mariadb-tls), never one its administrator put in."""
+    a = db_agent()
+    if not a or a.get('engine') != 'mariadb':
+        return None
+    had = _meta_obj(store, 'dbtls:server:' + node_name())
+    if had.get('engine') != 'mariadb' or not had.get('cert_end'):
+        return None
+    if float(had['cert_end']) - time.time() >= HATLS_RENEW_DAYS * 86400:
+        return None
+    return db_agent_mariadb_tls(store, by)
+
+
 # ---- renewing the agent's certificate and this node's ---------------------------------------
 def db_agent_renew(store, by='acme (renewed)', force=False):
     a = db_agent()
@@ -619,6 +634,11 @@ def db_agent_watch(daemon):
                 except Exception as e:                  # noqa: BLE001
                     log_sparing('dbagent-renew', 'renewing the database agent\'s certificates: '
                                 '%s' % e, 'warn', every=3600)
+                try:
+                    db_agent_mariadb_renew(daemon.store)
+                except Exception as e:                  # noqa: BLE001
+                    log_sparing('dbagent-mytls', 'renewing the certificate of MariaDB through '
+                                'its agent: %s' % e, 'warn', every=3600)
             if CONFIG.get('perf_meter') and CONFIG.get('ha_mode') and any(
                     float(v.get('until') or 0) > now for v in LOAD_WATCH['rows'].values()):
                 db_agent_load_put(daemon.store)
@@ -686,6 +706,10 @@ def db_agent_load_rows(store):
         out.append(v)
     for v in out:
         v['name'] = 'db:%s' % v['node']
+        # The server's own short name, for the meter's row (1.0.111): from its agent's facts.
+        f = _meta_obj(store, 'dbagent:node:' + v['node']).get('facts') or {}
+        v['server'] = str(f.get('host') or '').split('.')[0][:40]
+        v.setdefault('engine', f.get('engine') or '')
     out.sort(key=lambda x: x['node'])
     return out
 
@@ -731,7 +755,62 @@ def db_agent_view(store):
                            'fails': DBAGENT_STATE['fails'], 'at': DBAGENT_STATE['at']})
     # Which settings reach a database server too (their cards draw it beside the nodes).
     view['applies'] = DBAGENT_APPLIES
+    # For the card of Settings -> The database and its wizard (1.0.111): where the database is
+    # now - this machine, the agent's server, or a server no agent looks after - and the
+    # addresses of this node the database server lets in (install.sh --acme-node).
+    view['where'] = db_agent_where()
+    view['ha_mode'] = CONFIG.get('ha_mode') or ''
+    view['addresses'] = db_agent_node_addresses(store)
     return view
+
+
+def db_agent_where():
+    c = CONFIG
+    engine = str(c.get('db_engine') or 'sqlite')
+    host = str(c.get('db_host') or '')
+    local = engine == 'sqlite' or host.strip('[]').lower() in ('', 'localhost', '127.0.0.1', '::1') \
+        or host.startswith('/')
+    out = {'engine': engine, 'host': host, 'port': c.get('db_port') or '',
+           'name': c.get('db_name') or '', 'local': local, 'agent': False}
+    try:
+        out['agent'] = bool(db_agent_on() and engine != 'sqlite' and db_agent_is_target(c))
+    except Exception:                                   # noqa: BLE001
+        pass
+    if out['agent']:
+        out['kind'] = 'agent'           # a server of its own, looked after by its agent
+    elif local and engine != 'sqlite':
+        out['kind'] = 'here'            # PostgreSQL or MariaDB on this machine (the root helper)
+    elif engine == 'sqlite':
+        out['kind'] = 'file'
+    else:
+        out['kind'] = 'unmanaged'       # a server elsewhere, its administrator's
+    return out
+
+
+def db_agent_node_addresses(store=None):
+    """This node's own addresses, the one it reaches the outside with first (no loopback, no
+    link-local, not the VIP address)."""
+    out = []
+    first = node_address()
+    if first:
+        out.append(first)
+    try:
+        vip = str((vip_conf(store) or {}).get('address') or '').split('/')[0] if store else ''
+    except Exception:                                   # noqa: BLE001
+        vip = ''
+    try:
+        more = sorted(local_addresses(), key=lambda x: (':' in x, x))
+    except Exception:                                   # noqa: BLE001
+        more = []
+    for x in more:
+        try:
+            ip = ipaddress.ip_address(x)
+        except ValueError:
+            continue
+        if ip.is_loopback or ip.is_link_local or x == vip or x in out:
+            continue
+        out.append(x)
+    return out[:6]
 
 
 # The cards whose dots show the database servers too (docs/external-database.md, "The pages").
@@ -787,31 +866,52 @@ def _db_agent_post(h):
 
 # ---- alerts, metrics, status (only with an agent) ---------------------------------------------
 @hook('alerts')
-def _db_agent_alerts(store):
+def _db_agent_alerts(store, lang='en'):
+    """The database servers looked after by agents (1.0.111), in the alert's language: the
+    pages read them in English and say them in the page's own; a mail goes in alerts_lang()."""
     out = []
     if not db_agent_on() and not CONFIG.get('ha_mode'):
         return out
     now = time.time()
+    cs = lang == 'cs'
     for v in db_agent_servers(store) if db_agent_on() else []:
+        n = v['node']
+        where = '%s:%s' % (v.get('host'), v.get('port'))
         if v.get('ok') is False and now - float(v.get('down_since') or now) >= DBAGENT_DOWN_S:
-            out.append({'key': 'dbagent:' + v['node'], 'level': 'bad', 'node': v['node'],
-                        'pane': 'db', 'title': 'The database agent of %s does not answer'
-                        % v['node'],
-                        'words': 'acme-db-agent at %s:%s has not answered since %s: %s - its '
-                                 'database server can be neither renewed nor changed from acme' % (
-                                     v.get('host'), v.get('port'),
-                                     datetime.fromtimestamp(float(v['down_since'])).strftime(
-                                         '%Y-%m-%d %H:%M'), v.get('said') or '?')})
+            since = datetime.fromtimestamp(float(v['down_since'])).strftime('%Y-%m-%d %H:%M')
+            out.append({'key': 'dbagent:' + n, 'level': 'bad', 'node': n, 'pane': 'db',
+                        'title': ('Agent databázového serveru uzlu %s neodpovídá' % n) if cs else
+                                 ('The database agent of %s does not answer' % n),
+                        'words': ('acme-db-agent na %s neodpovídá od %s: %s. Databázový server '
+                                  'teď acme nemůže obnovovat ani měnit (certifikát, nastavení, '
+                                  'restart); databáze sama může běžet dál - podívejte se na '
+                                  'server (systemctl status acme-db-agent).'
+                                  % (where, since, v.get('said') or '?')) if cs else
+                                 ('acme-db-agent at %s has not answered since %s: %s. acme can '
+                                  'neither renew nor change its database server meanwhile (the '
+                                  'certificate, the settings, a restart); the database itself may '
+                                  'well go on - look at the server (systemctl status '
+                                  'acme-db-agent).' % (where, since, v.get('said') or '?'))})
         elif v.get('ok') and (v.get('facts') or {}).get('running') is False:
-            out.append({'key': 'dbserver:' + v['node'], 'level': 'bad', 'node': v['node'],
-                        'pane': 'db', 'title': 'The database server of %s is down' % v['node'],
-                        'words': 'its agent answers, the database does not: %s'
-                                 % ((v.get('facts') or {}).get('said') or '?')})
+            said = (v.get('facts') or {}).get('said') or '?'
+            out.append({'key': 'dbserver:' + n, 'level': 'bad', 'node': n, 'pane': 'db',
+                        'title': ('Databázový server uzlu %s neběží' % n) if cs else
+                                 ('The database server of %s is down' % n),
+                        'words': ('jeho agent (%s) odpovídá, databáze ne: %s' % (where, said))
+                                 if cs else ('its agent (%s) answers, the database does not: %s'
+                                             % (where, said))})
         elif v.get('ok') and float(v.get('agent_cert_end') or now + 1e9) - now < 14 * 86400:
-            out.append({'key': 'dbagent:cert:' + v['node'], 'level': 'warn', 'node': v['node'],
-                        'pane': 'db', 'title': 'The certificate of the database agent of %s '
-                        'ends soon' % v['node'], 'words': 'it is renewed by itself 45 days '
-                        'before - look at the agent (Settings -> The database)'})
+            end = datetime.fromtimestamp(float(v['agent_cert_end'])).strftime('%Y-%m-%d')
+            out.append({'key': 'dbagent:cert:' + n, 'level': 'warn', 'node': n, 'pane': 'db',
+                        'title': ('Certifikát agenta databázového serveru uzlu %s brzy vyprší'
+                                  % n) if cs else
+                                 ('The certificate of the database agent of %s ends soon' % n),
+                        'words': ('vyprší %s; obnovuje se sám 45 dní předem, a to se nepovedlo - '
+                                  'Nastavení → Databáze → Databázový server → Obnovit '
+                                  'certifikáty' % end) if cs else
+                                 ('it ends %s; it is renewed by itself 45 days before, and that '
+                                  'did not work - Settings → The database → Database server → '
+                                  'Renew the certificates' % end)})
     return out
 
 

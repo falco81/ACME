@@ -4231,7 +4231,7 @@ td.cert-crl-url .tag{flex:none;margin:0}
   .clk-seg{width:100%}
   .clk-seg button{flex:1;text-align:center}
 }
-.clk-req-h{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.clk-req-h{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:20px 0 12px}
 .clk-req-h .peek-h{margin-bottom:0}
 /* the CSR made in the browser (1.0.110) */
 .modal .box.csr-box{width:min(760px,100%)}

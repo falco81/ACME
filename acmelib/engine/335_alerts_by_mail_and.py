@@ -631,7 +631,12 @@ def alert_problems(store, lang='en'):
     # What a module sees wrong (HOOKS['alerts']): mailed like the engine's own.
     for fn in HOOKS['alerts']:
         try:
-            got = list(fn(store) or [])
+            # in the alert's language when the module says it (1.0.111: takes `lang`)
+            try:
+                takes = 'lang' in inspect.signature(fn).parameters
+            except (TypeError, ValueError):
+                takes = False
+            got = list((fn(store, lang=lang) if takes else fn(store)) or [])
         except Exception as e:                          # noqa: BLE001
             log_sparing('alerts-hook', 'a module\'s alerts could not be asked: %s: %s'
                         % (getattr(fn, '__qualname__', fn), e), 'warn', every=600)
