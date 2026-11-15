@@ -4,6 +4,11 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.111 - 2026-11-15
+
+- **Values for a person's certificate: room around "Make a CSR…".** The heading "What to put into the
+  request" and its button sat right on the box above and below; they have their space now.
+
 ## 1.0.110 - 2026-11-15
 
 - **Look up a person for their certificate**: *Look up a person…* on the card *Signing in with a
