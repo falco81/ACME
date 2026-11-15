@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.109 - not released
+
+(nothing yet)
+
 ## 1.0.108 - 2026-11-15
 
 - **A Zabbix 7.0 template, and SNMP says all the pages say.** *Settings → Monitoring → SNMPv3*
