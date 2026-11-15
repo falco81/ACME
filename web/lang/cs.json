@@ -63170,7 +63170,7 @@
   },
   "_577": {
    "source": "last answer kept",
-   "text": "ponechána poslední odpověď"
+   "text": "poslední odpověď"
   },
   "_578": {
    "source": "Online status (OCSP)",
@@ -63399,6 +63399,178 @@
   "_634": {
    "source": "the ask could not be written - another was written at the same time; try again",
    "text": "žádost se nepodařilo zapsat – současně se zapsala jiná; zkuste to znovu"
+  },
+  "_635": {
+   "source": "nginx that is not the system's service",
+   "text": "nginx, který není systémovou službou"
+  },
+  "_636": {
+   "source": "the answer says nothing of this certificate",
+   "text": "odpověď o tomto certifikátu nic neříká"
+  },
+  "_637": {
+   "source": "nginx that is not acme's (not the system's service)",
+   "text": "nginx, který nepatří acme (není systémovou službou)"
+  },
+  "_638": {
+   "source": "another program (not to be seen as this user)",
+   "text": "jiný program (pod tímto uživatelem ho nelze vidět)"
+  },
+  "_639": {
+   "source": "a program that cannot be told (its /proc not readable)",
+   "text": "program, který nelze určit (jeho /proc nejde číst)"
+  },
+  "_640": {
+   "source": "a cloud's metadata service",
+   "text": "služba metadat cloudu"
+  },
+  "_641": {
+   "source": "certificate not accepted",
+   "text": "certifikát nepřijat"
+  },
+  "_642": {
+   "source": "cut short",
+   "text": "předčasně končí"
+  },
+  "_643": {
+   "source": "a length that cannot be",
+   "text": "nemožná délka"
+  },
+  "_644": {
+   "source": "that is not one certificate (PEM)",
+   "text": "to není jeden certifikát (PEM)"
+  },
+  "_645": {
+   "source": "more than one certificate was sent",
+   "text": "byl poslán více než jeden certifikát"
+  },
+  "_646": {
+   "source": "the extensions of the certificate cannot be read",
+   "text": "rozšíření certifikátu nelze přečíst"
+  },
+  "_647": {
+   "source": "the Subject Alternative Name of the certificate cannot be read",
+   "text": "Subject Alternative Name certifikátu nelze přečíst"
+  },
+  "_648": {
+   "source": "the SID extension of the certificate cannot be read",
+   "text": "rozšíření SID certifikátu nelze přečíst"
+  },
+  "_649": {
+   "source": "the name constraints of an authority cannot be read",
+   "text": "omezení jmen (name constraints) autority nelze přečíst"
+  },
+  "_650": {
+   "source": "not an address acme fetches a CRL from (http; no loopback, link-local or metadata address)",
+   "text": "není adresa, ze které acme stahuje CRL (http; žádná adresa loopback, link-local ani metadat)"
+  },
+  "_651": {
+   "source": "not a CDP object of the directory",
+   "text": "není objekt CDP adresáře"
+  },
+  "_652": {
+   "source": "the CRL",
+   "text": "CRL"
+  },
+  "_653": {
+   "source": "not an address acme asks (http; no loopback, link-local or metadata address)",
+   "text": "není adresa, které se acme ptá (http; žádná adresa loopback, link-local ani metadat)"
+  },
+  "_654": {
+   "source": "the PKCS#7 file",
+   "text": "soubor PKCS#7"
+  },
+  "_655": {
+   "source": "that is no certificate - a key, or a request? Put in the authorities' certificates (PEM, DER or .p7b)",
+   "text": "to není certifikát – klíč, nebo žádost? Vložte certifikáty autorit (PEM, DER nebo .p7b)"
+  },
+  "_656": {
+   "source": "a certificate in the file",
+   "text": "certifikát v souboru"
+  },
+  "_657": {
+   "source": "certlogin in the file is not an object with a list of authorities",
+   "text": "certlogin v souboru není objekt se seznamem autorit"
+  },
+  "_658": {
+   "source": "the configuration file",
+   "text": "konfigurační soubor"
+  },
+  "_659": {
+   "source": "nothing to ask with",
+   "text": "není s čím se zeptat"
+  },
+  "_660": {
+   "source": "the pages (HTTPS, 443)",
+   "text": "stránky (HTTPS, 443)"
+  },
+  "_661": {
+   "source": "SNMP traps",
+   "text": "SNMP trapy"
+  },
+  "_662": {
+   "source": "acme's API",
+   "text": "API acme"
+  },
+  "_663": {
+   "source": "acme's API (api_port)",
+   "text": "API acme (api_port)"
+  },
+  "_664": {
+   "source": "acme's DNS server (dns_port)",
+   "text": "DNS server acme (dns_port)"
+  },
+  "_665": {
+   "source": "acme's gate for SSH (18129-18199)",
+   "text": "brána acme pro SSH (18129-18199)"
+  },
+  "_666": {
+   "source": "the database of the other node",
+   "text": "databáze druhého uzlu"
+  },
+  "_667": {
+   "source": "no directory is set (or switched on) for this part",
+   "text": "pro tuto část není nastaven (ani zapnut) žádný adresář"
+  },
+  "_668": {
+   "source": "no nonce of the page came with the certificate",
+   "text": "s certifikátem nepřišel žádný nonce stránky"
+  },
+  "_669": {
+   "source": "the nonce of the page was used already - sent again (a replay?)",
+   "text": "nonce stránky už byl použit – poslán znovu (replay?)"
+  },
+  "_670": {
+   "source": "with a certificate",
+   "text": "certifikátem"
+  },
+  "_671": {
+   "source": "admin or portal",
+   "text": "admin nebo portal"
+  },
+  "_672": {
+   "source": "the certificate cannot be checked: no OCSP answer, and CRLs are off",
+   "text": "certifikát nelze ověřit: žádná odpověď OCSP a CRL jsou vypnuté"
+  },
+  "_673": {
+   "source": "the certificate names no OCSP responder (Authority Information Access) and none is set - with OCSP only it cannot be checked",
+   "text": "certifikát neuvádí žádný respondér OCSP (Authority Information Access) a žádný není nastaven – jen s OCSP ho nelze ověřit"
+  },
+  "_674": {
+   "source": "the OCSP responder does not know the certificate (unknown) - it is not one its authority issued",
+   "text": "respondér OCSP certifikát nezná (unknown) – jeho autorita ho nevydala"
+  },
+  "_675": {
+   "source": "all written out",
+   "text": "zapsány"
+  },
+  "_676": {
+   "source": "cleared out",
+   "text": "vymazáno"
+  },
+  "_677": {
+   "source": "none written out",
+   "text": "nezapsány"
   }
  },
  "patterns": {
@@ -88417,6 +88589,214 @@
   "p_411": {
    "source": "the request {0} changed while it was written - try again",
    "text": "žádost {0} se během zápisu změnila – zkuste to znovu"
+  },
+  "p_412": {
+   "source": "the responder said: {0}",
+   "text": "respondér odpověděl: {0}"
+  },
+  "p_413": {
+   "source": "the answer's signature is not good by the authorities put in ({0})",
+   "text": "podpis odpovědi neplatí podle vložených autorit ({0})"
+  },
+  "p_414": {
+   "source": "systemctl answered {0}",
+   "text": "systemctl odpověděl {0}"
+  },
+  "p_415": {
+   "source": "the OCSP responder at {0} gave no answer ({1})",
+   "text": "respondér OCSP na {0} neodpověděl ({1})"
+  },
+  "p_416": {
+   "source": "{0} is revoked, the OCSP responder says ({1}{2})",
+   "text": "{0} – respondér OCSP hlásí zneplatnění ({1}{2})"
+  },
+  "p_417": {
+   "source": "the OCSP responder does not know {0} (unknown) - it is not one its authority issued",
+   "text": "{0} – respondér OCSP ho nezná (unknown): jeho autorita nic takového nevydala"
+  },
+  "p_418": {
+   "source": "{0} cannot be checked: no OCSP answer, and CRLs are off",
+   "text": "{0} nelze ověřit: žádná odpověď OCSP a CRL jsou vypnuté"
+  },
+  "p_419": {
+   "source": "{0} names no OCSP responder (Authority Information Access) and none is set - with OCSP only it cannot be checked",
+   "text": "{0} neuvádí žádný respondér OCSP (Authority Information Access) a žádný není nastaven – jen s OCSP to nelze ověřit"
+  },
+  "p_420": {
+   "source": "{0} is {1} ({2}) - no CRL is fetched from it",
+   "text": "{0} má adresu {1} ({2}) – CRL se z ní nestahuje"
+  },
+  "p_421": {
+   "source": "{0}: openssl did not run ({1})",
+   "text": "{0}: openssl se nespustil ({1})"
+  },
+  "p_422": {
+   "source": "openssl did not run: {0}",
+   "text": "openssl se nespustil: {0}"
+  },
+  "p_423": {
+   "source": "the certificate cannot be read: {0}",
+   "text": "certifikát nelze přečíst: {0}"
+  },
+  "p_424": {
+   "source": "the UPN {0} is among the names the authority {1} may not issue for (its name constraints)",
+   "text": "UPN {0} patří mezi jména, pro která autorita {1} nesmí vydávat (její omezení jmen)"
+  },
+  "p_425": {
+   "source": "the UPN {0} is outside the names the authority {1} may issue for (its name constraints)",
+   "text": "UPN {0} je mimo jména, pro která autorita {1} smí vydávat (její omezení jmen)"
+  },
+  "p_426": {
+   "source": "{0} (serial {1})",
+   "text": "{0} (sériové číslo {1})"
+  },
+  "p_427": {
+   "source": "{0} cannot be looked up ({1})",
+   "text": "{0} nelze najít v DNS ({1})"
+  },
+  "p_428": {
+   "source": "{0} has an address acme cannot read ({1})",
+   "text": "{0} má adresu, kterou acme nedokáže přečíst ({1})"
+  },
+  "p_429": {
+   "source": "it answers with a redirect (HTTP {0} to {1}) - not followed",
+   "text": "odpovídá přesměrováním (HTTP {0} na {1}) – nesleduje se"
+  },
+  "p_430": {
+   "source": "it took longer than {0} s",
+   "text": "trvalo to déle než {0} s"
+  },
+  "p_431": {
+   "source": "larger than {0} MB",
+   "text": "větší než {0} MB"
+  },
+  "p_432": {
+   "source": "larger than {0} kB",
+   "text": "větší než {0} kB"
+  },
+  "p_433": {
+   "source": "larger than {0} B",
+   "text": "větší než {0} B"
+  },
+  "p_434": {
+   "source": "the CDP object holds no {0}",
+   "text": "objekt CDP neobsahuje {0}"
+  },
+  "p_435": {
+   "source": "the directory {0} said: {1}",
+   "text": "adresář {0} odpověděl: {1}"
+  },
+  "p_436": {
+   "source": "it has run out (its next update was {0})",
+   "text": "jeho platnost vypršela (další aktualizace měla být {0})"
+  },
+  "p_437": {
+   "source": "{0} names no CRL over http (CRL Distribution Points) - it cannot be checked for revocation",
+   "text": "{0} neuvádí žádný CRL přes http (distribuční body CRL) – nelze ověřit zneplatnění"
+  },
+  "p_438": {
+   "source": "the CRL Distribution Point of {0} is not an address acme fetches from (http; no loopback, link-local or metadata address)",
+   "text": "distribuční bod CRL pro {0} není adresa, ze které acme stahuje (http; žádná adresa loopback, link-local ani metadat)"
+  },
+  "p_439": {
+   "source": "the delta CRL (Freshest CRL) of {0} is at no address acme fetches from (http; no loopback, link-local or metadata address) - its revocations of the last days cannot be seen",
+   "text": "delta CRL (Freshest CRL) pro {0} není na žádné adrese, ze které acme stahuje (http; žádná adresa loopback, link-local ani metadat) – zneplatnění z posledních dnů nejsou vidět"
+  },
+  "p_440": {
+   "source": "{0} (an authority above it)",
+   "text": "{0} (nadřízená autorita)"
+  },
+  "p_441": {
+   "source": "the authority {0}",
+   "text": "autorita {0}"
+  },
+  "p_442": {
+   "source": "the authorities could not be written out on {0}: {1}",
+   "text": "autority se na {0} nepodařilo zapsat: {1}"
+  },
+  "p_443": {
+   "source": "{0} authorities at most",
+   "text": "nejvýše {0} autorit"
+  },
+  "p_444": {
+   "source": "the authority {0} was taken away",
+   "text": "autorita {0} byla odebrána"
+  },
+  "p_445": {
+   "source": "the authorities of the sign-in with a certificate in the file: {0}",
+   "text": "autority přihlašování certifikátem v souboru: {0}"
+  },
+  "p_446": {
+   "source": "the authorities of the sign-in with a certificate are taken away on {0}",
+   "text": "autority přihlašování certifikátem jsou na {0} odebrány"
+  },
+  "p_447": {
+   "source": "the authorities of the sign-in with a certificate are written out on {0} ({1})",
+   "text": "autority přihlašování certifikátem jsou zapsány na {0} ({1})"
+  },
+  "p_448": {
+   "source": "the state of the sign-in with a certificate: {0}",
+   "text": "stav přihlašování certifikátem: {0}"
+  },
+  "p_449": {
+   "source": "{0} alone signs people in to {1} with no password at all - switch \"no password at all\" off first (acme --set {2}_password_off=0), or put the other way on",
+   "text": "{1}: {0} jako jediný přihlašuje lidi úplně bez hesla – nejdřív vypněte „Žádné heslo“ (acme --set {2}_password_off=0), nebo zapněte i druhý způsob"
+  },
+  "p_450": {
+   "source": "the sign-ins made with a certificate could not be ended: {0}",
+   "text": "přihlášení certifikátem se nepodařilo ukončit: {0}"
+  },
+  "p_451": {
+   "source": "{0}: {1} sign-in(s) to {2} made with a certificate ended - {3}",
+   "text": "{0}: ukončená přihlášení certifikátem ({2}): {1} – {3}"
+  },
+  "p_452": {
+   "source": "the SID in the Subject Alternative Name of the certificate ({0}) is not the one of {1} in the directory ({2})",
+   "text": "SID v Subject Alternative Name certifikátu ({0}) není SID účtu {1} v adresáři ({2})"
+  },
+  "p_453": {
+   "source": "the directory's entry of {0} has no sAMAccountName",
+   "text": "záznam {0} v adresáři nemá sAMAccountName"
+  },
+  "p_454": {
+   "source": "with a certificate ({0})",
+   "text": "certifikátem ({0})"
+  },
+  "p_455": {
+   "source": "acme's own authority {0}",
+   "text": "vlastní autorita acme {0}"
+  },
+  "p_456": {
+   "source": "the certificate is revoked, the OCSP responder says ({0}{1})",
+   "text": "certifikát je zneplatněn, hlásí respondér OCSP ({0}{1})"
+  },
+  "p_457": {
+   "source": "{0} is {1} (reserved) - no CRL is fetched from it",
+   "text": "{0} má adresu {1} (vyhrazená) – CRL se z ní nestahuje"
+  },
+  "p_458": {
+   "source": "{0} is {1} (unspecified) - no CRL is fetched from it",
+   "text": "{0} má adresu {1} (nespecifikovaná) – CRL se z ní nestahuje"
+  },
+  "p_459": {
+   "source": "nginx that is not acme's (not the system's service) (pid {0})",
+   "text": "nginx, který nepatří acme (není systémovou službou) (pid {0})"
+  },
+  "p_460": {
+   "source": "nginx that is not the system's service (pid {0})",
+   "text": "nginx, který není systémovou službou (pid {0})"
+  },
+  "p_461": {
+   "source": "the certificate of {0} has no SID extension (KB5014754) - a SID in its Subject Alternative Name is not taken for it, and \"Which account a certificate is\" is strong",
+   "text": "certifikát {0} nemá rozšíření SID (KB5014754) – SID v jeho Subject Alternative Name se za něj nebere – a „Kterému účtu certifikát patří“ je silné"
+  },
+  "p_462": {
+   "source": "the certificate alone signs people in to {0} with no password at all - switch \"no password at all\" off first (acme --set {1}_password_off=0), or put the other way on",
+   "text": "{0}: certifikát jako jediný přihlašuje lidi úplně bez hesla – nejdřív vypněte „Žádné heslo“ (acme --set {1}_password_off=0), nebo zapněte i druhý způsob"
+  },
+  "p_463": {
+   "source": "the certificate of {0} has no SID extension (KB5014754), and \"Which account a certificate is\" is strong",
+   "text": "certifikát {0} nemá rozšíření SID (KB5014754) a „Kterému účtu certifikát patří“ je silné"
   }
  },
  "rich": {
