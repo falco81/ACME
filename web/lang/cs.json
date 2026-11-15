@@ -63387,6 +63387,14 @@
   "_631": {
    "source": "not done here: a later ask of the same took its place",
    "text": "zde neprovedeno: jeho místo zaujal pozdější stejný požadavek"
+  },
+  "_632": {
+   "source": "nginx started again (it had failed)",
+   "text": "nginx znovu spuštěn (selhal)"
+  },
+  "_633": {
+   "source": "nginx is stopped (not failed) - left stopped; it takes the new files when it is started",
+   "text": "nginx je zastavený (neselhal) – ponechán zastavený; nové soubory převezme, až se spustí"
   }
  },
  "patterns": {
@@ -88385,6 +88393,26 @@
   "p_406": {
    "source": "{0}, carried in an IPv6 address",
    "text": "{0}, nesená v adrese IPv6"
+  },
+  "p_407": {
+   "source": "the certificate's port {0} was not given to nginx on {1} ({2}): asked for again after 15 minutes, then less often while the answer stays the same, up to every 6 hours",
+   "text": "port certifikátu {0} nebyl nginxu na {1} přidělen ({2}): žádá se o něj znovu za 15 minut, a dokud odpověď zůstává stejná, čím dál méně často, nejvýš jednou za 6 hodin"
+  },
+  "p_408": {
+   "source": "{0} approved {1}, asked for on the portal by {2} - out of the waiting state already, its approval had not been noted",
+   "text": "{0} schválil {1}, o který na portálu požádal {2} – už nečekal na schválení, ale jeho schválení nebylo zaznamenáno"
+  },
+  "p_409": {
+   "source": "{0} approved {1}, asked for on the portal by {2} - out of the waiting state already, its approval had not been noted: {3}",
+   "text": "{0} schválil {1}, o který na portálu požádal {2} – už nečekal na schválení, ale jeho schválení nebylo zaznamenáno: {3}"
+  },
+  "p_410": {
+   "source": "{0} approved",
+   "text": "{0} schválen"
+  },
+  "p_411": {
+   "source": "the request {0} changed while it was written - try again",
+   "text": "žádost {0} se během zápisu změnila – zkuste to znovu"
   }
  },
  "rich": {
