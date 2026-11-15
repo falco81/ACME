@@ -142,6 +142,28 @@ class ViewKept(unittest.TestCase):
         self.assertTrue(out.get('ok'), json.dumps(out) + got.stderr[-2000:])
 
 
+class ModalOwnHeight(unittest.TestCase):
+    """A popup is as tall as what is in it (core.js, in a browser): a long picker scrolled
+    down and a module picked, the popup drawn again as the module's form is its own height at
+    once and stays so; a part of it emptied for "Loading…" keeps no height, "More" closed
+    leaves no room - the keeper kept the picker's height as room in it and gave it back
+    seconds later, the popup grew and shrank by itself; on the page a box emptied for
+    "Loading…" still keeps its height (1.0.108)."""
+
+    def test_content_replaced_keeps_no_stale_height(self):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          timeout=60).returncode:
+            self.skipTest('no playwright for node here')
+        got = subprocess.run([node, os.path.join(ROOT, 'test', 'modal_fresh_page.js'),
+                              os.path.join(ROOT, 'web', 'assets', 'core.js')],
+                             capture_output=True, text=True, timeout=120)
+        out = json.loads((got.stdout.strip().splitlines() or ['{}'])[-1])
+        self.assertTrue(out.get('ok'), json.dumps(out) + got.stderr[-2000:])
+
+
 class ExplainSpoken(unittest.TestCase):
     """What explain() puts in aria-label in the page's language (core.js with
     i18n.js, in a browser): a setting's help with <i> or <code> in it is among

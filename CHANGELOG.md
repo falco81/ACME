@@ -6,6 +6,14 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.108 - not released
 
+- **A popup is as tall as what is in it, and stays so.** Some popups grew and shrank by
+  themselves: *Targets → Add a target* with a module picked from the list scrolled down (the
+  Barracuda WAF's form) had over a hundred pixels of nothing above its buttons and lost it a few
+  seconds later, a few pixels up and down again on every refresh of the page; a part of a popup
+  waiting for its data kept its old height for four seconds. What keeps the page from jumping
+  under the reader (1.0.105) no longer keeps room or a height in a popup or anything else that
+  floats over the page, holds what was clicked in a popup rather than its whole body, and measures
+  it within the popup, not on the screen where the popup moves as it is centred again.
 - **Root's SSH keys are only shown on the pages.** *Settings → SSH keys* for root lists the keys
   of `/root/.ssh/authorized_keys` on every node and exports each, and no longer makes, adds or
   takes one away: a note says to change them on the server itself. The pages' API answers 403 to

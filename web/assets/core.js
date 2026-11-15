@@ -1111,7 +1111,9 @@ function viewScroller(node) {
   for (var n = node && node.parentElement; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
     if (viewScrolls(n)) { best = n; if (!inner) inner = n; }
     var pos = getComputedStyle(n).position;
-    if (pos === 'fixed') return best ? {sc: best, inner: inner} : null;
+    /* (the box itself is no box of its own in it: held, a popup's whole body was what the
+       reader looked at - its place on the screen, which moves as the popup is drawn taller) */
+    if (pos === 'fixed') return best ? {sc: best, inner: inner && inner !== best ? inner : null} : null;
   }
   if (!best && viewScrolls(viewRoot())) best = viewRoot();
   return best ? {sc: best, inner: inner && inner !== best ? inner : null} : null;
@@ -1126,8 +1128,14 @@ function viewFloats(n) {
   return false;
 }
 /* Where on the screen: a banner come in over the frame moves the frame, and what is read
-   in it stays where it was on the screen all the same. */
-function viewTopOf() { return 0; }
+   in it stays where it was on the screen all the same. In a popup, where in the popup: it is
+   centred, and as it is drawn taller or shorter it moves itself - "kept" by scrolling it and
+   room under its end, it grew, moved, and was kept again on the next refresh, a few pixels
+   up and down every five seconds (1.0.108). */
+function viewTopOf(sc) {
+  if (!sc || sc === viewRoot() || !viewFloats(sc)) return 0;
+  return sc.getBoundingClientRect().top + sc.clientTop;
+}
 function viewText(n) {
   /* the first words only: the thing held may be a whole table */
   var out = '', w = document.createTreeWalker(n, 4), t;

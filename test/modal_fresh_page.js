@@ -65,7 +65,7 @@ const fs = require('fs');
         const d = el('details', 'ct-more'); d.id = 'more';
         d.appendChild(el('summary', '', 'More'));
         d.appendChild(el('div', '', 'what is in More')).style.height = '160px';
-        body.appendChild(el('div', '', 'Name, In use, Tags, Note')).style.height = '200px';
+        body.appendChild(el('div')).appendChild(el('div', '', 'Name, In use, Tags, Note')).style.height = '200px';
         body.appendChild(d);
       }, [{words: 'Back', go: window.picker}, {words: 'Close', close: true}]);
       window.picker = () => modal('Add a target', (body) => {
@@ -80,7 +80,7 @@ const fs = require('fs');
     await page.waitForTimeout(150);
     await page.mouse.move(450, 400);
     for (let i = 0; i < 15; i++) { await page.mouse.wheel(0, 200); await page.waitForTimeout(30); }
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(700);    /* the wheel's half a second over: a click, not a scroll */
     out.scrolled = await page.evaluate(() => $('modal-body').scrollTop);
     await page.mouse.click(450, 400);
     const f = [];
@@ -103,14 +103,14 @@ const fs = require('fs');
     out.checks.loading_part_keeps_no_height = l.every((s) => own(s) && Math.abs(s.h - l[0].h) <= 1);
     // 3. More opened, scrolled to its end, closed again
     await page.evaluate(() => {
-      $('part').style.height = '900px';
+      $('part').firstChild.style.height = '900px';
       $('more').open = true;
     });
     await page.waitForTimeout(100);
     await page.mouse.move(450, 400);
     for (let i = 0; i < 10; i++) { await page.mouse.wheel(0, 300); await page.waitForTimeout(30); }
     await page.waitForTimeout(300);
-    await page.evaluate(() => { $('part').style.height = '300px'; });
+    await page.evaluate(() => { $('part').firstChild.style.height = '300px'; });
     await page.click('#more summary');
     const m = [];
     for (const wait of [50, 1000, 2000]) { await page.waitForTimeout(wait); m.push(await size()); }
