@@ -136,12 +136,16 @@ function hloadDraw(d, into, asLook, opt) {
   }
   var look = asLook || HLOAD.look || 'off';
   host.className = 'hload look-' + look + (preview ? ' hl-preview' : '') + (opt.node ? ' hl-peer' : '')
-    + (opt.stale ? ' hl-stale' : '');
+    + (opt.db ? ' hl-db' : '') + (opt.stale ? ' hl-stale' : '');
   clear(host);
-  /* In a cluster each node's numbers under its name (1.0.48) */
-  if (!preview && (opt.node || (HLOAD.peers && HLOAD.peers.length))) {
-    var nn = noI18n(el('span', 'hl-node', opt.node || d.node || ''));
-    if (opt.stale) nn.title = 'not read lately - the node may be away';
+  /* In a cluster each node's numbers under its name (1.0.48) - and beside the database servers
+     of their own (1.0.112) */
+  if (!preview && (opt.node || (HLOAD.peers && HLOAD.peers.length) || (HLOAD.dbs && HLOAD.dbs.length))) {
+    var nn = noI18n(el('span', 'hl-node', opt.label || opt.node || d.node || ''));
+    if (opt.db) {
+      nn.insertBefore(el('span', 'hl-dbic'), nn.firstChild).innerHTML = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="7.5" ry="2.8"/><path d="M4.5 5.5v13c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-13M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8"/></svg>';
+      nn.title = d.down ? 'the database server - its agent does not answer' : 'the database server of ' + (d.node || '') + (d.host ? ' (' + d.host + ')' : '');
+    } else if (opt.stale) nn.title = 'not read lately - the node may be away';
     host.appendChild(nn);
   }
   var tips = {
@@ -221,12 +225,55 @@ function hloadPeersDraw() {
       box.id = id;
       box.setAttribute('aria-live', 'off');
       var after = own, sib = own.nextSibling;
-      while (sib && sib.classList && sib.classList.contains('hl-peer')) { after = sib; sib = sib.nextSibling; }
+      while (sib && sib.classList && sib.classList.contains('hl-peer') && !sib.classList.contains('hl-db')) { after = sib; sib = sib.nextSibling; }
       after.parentNode.insertBefore(box, after.nextSibling);
     }
     hloadDraw(pr, box, HLOAD.look, {live: true, hist: pr.hist, node: pr.node, stale: (pr.age || 0) > 20});
   });
-  document.querySelectorAll('.hload.hl-peer').forEach(function (b) { if (!have[b.id]) b.remove(); });
+  document.querySelectorAll('.hload.hl-peer:not(.hl-db)').forEach(function (b) { if (!have[b.id]) b.remove(); });
+  hloadFit();
+}
+/* The database servers of their own (1.0.112, /api/load dbservers): a row each after the
+   nodes, in the same look - the machine as a node's, its database on hover. Their graphs
+   from the readings this page has seen. None without an agent. */
+function hlDbLabel(r, all) {
+  var h = String(r.server || '').split('.')[0];
+  var ok = /^[A-Za-z][A-Za-z0-9-]*$/.test(h) && h !== 'localhost'
+    && (all || []).filter(function (x) { return String(x.server || '').split('.')[0] === h; }).length <= 1;
+  return ok ? h : 'db·' + (r.node || '?');
+}
+function hloadDbsDraw(rows, now) {
+  rows = Array.isArray(rows) ? rows : [];
+  HLOAD.dbs = rows;
+  HLOAD.dbhist = HLOAD.dbhist || {};
+  var own = $('hload');
+  if (!own) return;
+  var have = {};
+  rows.forEach(function (r) {
+    var key = r.name || ('db:' + r.node);
+    var id = 'hload-db-' + String(r.node).replace(/[^A-Za-z0-9_-]/g, '_');
+    have[id] = true;
+    var h = HLOAD.dbhist[key] || (HLOAD.dbhist[key] = {cpu: [], mem: [], disk: [], net: [], t: [], live: true, D: HL_PEER_D});
+    var t = (now || hlNow()) - (Number(r.age) || 0);
+    if (!r.down && r.cpu !== undefined && !(h.t.length && t <= h.t[h.t.length - 1] + 0.5)) {
+      h.cpu.push(r.cpu || 0); h.mem.push(r.mem_total ? 100 * r.mem_used / r.mem_total : 0);
+      h.disk.push((r.disk_rd || 0) + (r.disk_wr || 0)); h.net.push((r.net_rx || 0) + (r.net_tx || 0));
+      h.t.push(t);
+      while (h.t.length > 2 && h.t[1] < t - HL_WIN - 30) ['cpu', 'mem', 'disk', 'net', 't'].forEach(function (k) { h[k].shift(); });
+    }
+    var box = $(id);
+    if (!box) {
+      box = el('div', 'hload hl-peer hl-db');
+      box.id = id;
+      box.setAttribute('aria-live', 'off');
+      var after = own, sib = own.nextSibling;
+      while (sib && sib.classList && sib.classList.contains('hl-peer')) { after = sib; sib = sib.nextSibling; }
+      after.parentNode.insertBefore(box, after.nextSibling);
+    }
+    hloadDraw(r, box, HLOAD.look, {live: true, hist: h, node: key, label: hlDbLabel(r, rows), db: true,
+                                   stale: !!r.down || (Number(r.age) || 0) > 20});
+  });
+  document.querySelectorAll('.hload.hl-db').forEach(function (b) { if (!have[b.id]) b.remove(); });
   hloadFit();
 }
 /* On the row of the name and its state while it fits there with the account's buttons
@@ -348,6 +395,7 @@ function hloadPanelOpen(k, chip) {
   p.hidden = false;
   hloadPanelDraw();
   hloadPanelPlace(chip);
+  if (String(HLOAD.pnode || '').indexOf('db:') === 0) return;      /* drawn from the row (1.0.112) */
   if (HLOAD.pnode || !HLOAD.detail || Date.now() - (HLOAD.detailAt || 0) > 2500) hloadTick(true);
 }
 function hloadPanelSoon() { clearTimeout(HLOAD.shut); HLOAD.shut = setTimeout(hloadPanelClose, 350); }
@@ -404,6 +452,17 @@ function hloadPanelDraw() {
   document.querySelectorAll('.hload [data-k]').forEach(function (c) {
     c.classList.toggle('hl-open', (c.dataset.node || '') === node && (st !== 'wide' ? c.dataset.k === k : true));
   });
+  /* A database server's (1.0.112): the machine and its database, from its row. */
+  if (node.indexOf('db:') === 0) {
+    var dr = (HLOAD.dbs || []).filter(function (x) { return (x.name || 'db:' + x.node) === node; })[0];
+    if (dr) {
+      var kept = [HLOAD.last, HLOAD.hist];
+      HLOAD.last = dr; HLOAD.hist = (HLOAD.dbhist || {})[node] || {cpu: [], mem: [], disk: [], net: []};
+      try { hpDb(p, k, dr); } finally { HLOAD.last = kept[0]; HLOAD.hist = kept[1]; }
+      return;
+    }
+    HLOAD.pnode = ''; node = '';
+  }
   /* Another node's: drawn from what it wrote, as this node's own is (1.0.48) */
   var keep = null;
   if (node) {
@@ -425,6 +484,55 @@ function hloadPanelDraw() {
   }
 }
 var HP_TITLE = {cpu: 'The processor', mem: 'Memory', disk: 'The disks', net: 'The network'};
+/* The panel of a database server (1.0.112): the graph of what was pointed at, then its
+   database - the version, how long it runs, the connections, what waits to go over to the
+   other server, the size - and the machine in numbers. */
+function hpDb(p, k, r) {
+  var db = r.db || {};
+  var head = el('div', 'hp-head');
+  var t = el('div', 'hp-dbt');
+  t.appendChild(noI18n(el('b', 'hl-pnode', hlDbLabel(r, HLOAD.dbs))));
+  var who = el('span', 'muted small');
+  who.appendChild(el('span', '', 'the database server of'));
+  who.appendChild(noI18n(el('span', '', ' ' + (r.node || '') + (r.host ? ' · ' + r.host : ''))));
+  t.appendChild(who);
+  head.appendChild(t);
+  var max = hpMax(k);
+  head.appendChild(el('span', 'hp-scale muted small', k === 'cpu' || k === 'mem' ? '100 %' : hloadRate(max)));
+  p.appendChild(head);
+  if (r.down) {
+    p.appendChild(el('p', 'small hp-dbdown', 'Its agent does not answer - nothing read from it now.'));
+    if (r.said) p.appendChild(noI18n(el('p', 'muted small', r.said)));
+    return;
+  }
+  var big = el('div', 'hp-graph hl-' + k);
+  big.innerHTML = hloadSpark(HLOAD.hist, k, max).replace('width="56" height="18"', 'width="100%" height="54"');
+  p.appendChild(big);
+  p.appendChild(el('div', 'hp-span muted small', HP_TITLE[k] + ' · the last two minutes'));
+  var row = function (host, kk, v, cls) {
+    var r2 = el('div', 'hp-row hp-kv2' + (cls ? ' ' + cls : ''));
+    r2.appendChild(el('span', 'muted', kk));
+    r2.appendChild(v && v.nodeType ? v : noI18n(el('span', 'num', v === null || v === undefined || v === '' ? '–' : String(v))));
+    host.appendChild(r2);
+  };
+  var s1 = hpSec(p, 'The database');
+  var eng = (db.engine || r.engine) === 'mariadb' ? 'MariaDB' : 'PostgreSQL';
+  row(s1, 'Version', eng + (db.version ? ' ' + String(db.version).split(' ')[0] : ''));
+  var run = el('span', 'num ' + (db.running ? '' : 'hp-bad'));
+  run.appendChild(el('span', '', db.running ? 'running' : 'not running'));
+  if (db.running && db.started) run.appendChild(noI18n(el('span', '', ' · ' + hlUp(Date.now() / 1000 - db.started))));
+  row(s1, 'State', run);
+  row(s1, 'Connections', db.connections === undefined || db.connections === null ? '–' : String(db.connections));
+  if (db.repl_behind !== undefined && db.repl_behind !== null) row(s1, 'Waiting to go over (replication)', bytes(db.repl_behind));
+  if (db.size !== undefined && db.size !== null) row(s1, 'The size of acme’s database', bytes(db.size));
+  if (db.disk && db.disk.total) row(s1, 'Its data’s disk', bytes(db.disk.total - (db.disk.free || 0)) + ' / ' + bytes(db.disk.total));
+  row(s1, 'TLS', el('span', 'num', db.ssl ? 'on' : 'off'));
+  var s2 = hpSec(p, 'The machine');
+  row(s2, 'CPU', (r.cpu === undefined ? '…' : Math.round(r.cpu) + ' %') + (r.cores ? ' · ' + r.cores + ' ×' : '') + (r.load ? ' · ' + hlLoads(r.load) : ''));
+  row(s2, 'RAM', r.mem_total ? bytes(r.mem_used) + ' / ' + bytes(r.mem_total) : '–');
+  row(s2, 'Disk', '↓' + hloadRate(r.disk_rd) + ' ↑' + hloadRate(r.disk_wr));
+  row(s2, 'Net', '↓' + hloadRate(r.net_rx) + ' ↑' + hloadRate(r.net_tx));
+}
 function hpMax(k) { return hlTop(HLOAD.hist, k); }
 /* a filled graph of the last two minutes, as wide as its box */
 function hpArea(k, h, grid) {
@@ -867,6 +975,7 @@ function hloadTick(now) {
     }
     hloadDraw(d);
     hloadPeersDraw();
+    hloadDbsDraw(d.dbservers, d.now);
   }).catch(function () { }).then(function () { HLOAD.busy = false; });
 }
 function hloadLoop() {
