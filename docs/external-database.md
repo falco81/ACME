@@ -144,8 +144,9 @@ X-Acme-Node: NODE   X-Acme-Time: 1794761625.456   X-Acme-Nonce: 32 hex
 X-Acme-Sign: hex HMAC-SHA256(sign_key, "acme-db-agent/1\nPOST\n/v1/op\nNODE\nTIME\nNONCE\n" + sha256hex(body))
 ```
 
-The answer is signed back (by root): `X-Acme-Sign: HMAC(sign_key, "reply\nNONCE\n" +
-sha256(body))`. The node pins the agent's certificate by its SHA-256 fingerprint - the one in
+The answer is signed back (by root): `X-Acme-Sign: hex HMAC-SHA256(sign_key, "reply\nNONCE\n" +
+SHA-256(body))`, the body's SHA-256 here being its **32 raw bytes** (`digest()`), not the hex
+text the request's signature takes. The node pins the agent's certificate by its SHA-256 fingerprint - the one in
 the join code, then the ones the agent's signed answers announce. An answer with
 `agent_restart` means the agent starts its network side again (a node joined or was taken
 away, the authorities of a node, its next certificate in use): the node waits for it.

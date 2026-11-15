@@ -467,6 +467,22 @@ class Db(object):
                         **db_tls_args('mariadb', self.tls, self.tls_ca))
                 except Exception as e:
                     raise DbError('MariaDB at %s could not be reached: %s' % (self.where(), e))
+                want_tls = str((CONFIG.get('db_tls') if self.tls is None else self.tls) or '')
+                if want_tls in ('require', 'verify-ca', 'verify-full'):
+                    # PyMySQL goes on unencrypted when the server does not offer TLS - asked
+                    # for it, never (1.0.113): a database moved to a MariaDB without TLS yet
+                    # ran in the clear while config.json said verify-full.
+                    import ssl as _ssl
+                    if not isinstance(getattr(self.conn, '_sock', None), _ssl.SSLSocket):
+                        try:
+                            self.conn.close()
+                        except Exception:               # noqa: BLE001
+                            pass
+                        self.conn = None
+                        raise DbError('MariaDB at %s could not be reached: the connection asks '
+                                      'for TLS (%s) and the server does not offer it - turn TLS '
+                                      'on there, or the encryption off (db_tls)'
+                                      % (self.where(), want_tls))
                 for sql in ('SET SESSION innodb_lock_wait_timeout = %d' % lock_s,
                             'SET SESSION max_statement_time = %d' % stmt_s,
                             # A node stopped half way through a sign-in (otp 1.0.226), as on PG.

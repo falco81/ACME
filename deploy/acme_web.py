@@ -898,6 +898,9 @@ def certlogin_checked(c):
            'portal': bool(c.get('portal'))}
     if not out['admin'] and not out['portal']:
         return {'port': 0}
+    if c.get('watch'):
+        # The card watched (1.0.113): a key only then - the server as it was without it.
+        out['watch'] = True
     return out
 
 
@@ -925,6 +928,7 @@ def certlogin_server(block, main, c, pad='    '):
     asks for a certificate of the authorities (their names sent) and lets the page check it; who
     may reach it as who may reach those pages; nothing served but the sign-in."""
     keep, depth = [], 0
+    watch = bool(c.get('watch'))
     for line in block.split('\n'):
         if depth == 1 and CERTLOGIN_KEEP.match(line):
             if re.match(r'^\s*listen\s', line):
@@ -933,6 +937,12 @@ def certlogin_server(block, main, c, pad='    '):
                 line = re.sub(r'\s+default_server\b', '', line)
                 if not re.search(r'\b%d\b' % c['port'], line):
                     continue
+                if watch:
+                    # One request, one connection (1.0.113): HTTP/2 would keep it open.
+                    line = re.sub(r'\s+http2\b', '', line)
+            elif watch and re.match(r'^\s*(ssl_session_cache|ssl_session_timeout|'
+                                    r'ssl_session_tickets)\s', line):
+                continue
             keep.append(line)
         depth += line.count('{') - line.count('}')
     sock = re.search(r'(?m)^\s*fastcgi_pass\s+([^;]+);', _location_text(main, 'location = /admin/ {')
@@ -954,8 +964,10 @@ def certlogin_server(block, main, c, pad='    '):
             '%slimit_req_status 429;\n' % p2,
             # Only the sign-in: a nonce, and the part tried (Try my certificate) - the query
             # string as the page builds it, nothing else (not $arg_api: two api= or %%61pi).
-            '%sif ($args !~ "^api=cert-(login|try)&n=[0-9a-f.]{20,120}(&part=(admin|portal))?$") '
-            '{ return 404; }\n' % p2,
+            ('%sif ($args !~ "^(api=cert-(login|try)&n=[0-9a-f.]{20,120}(&part=(admin|portal))?|'
+             'api=cert-alive&t=[0-9]{1,16})$") { return 404; }\n' % p2 if c.get('watch') else
+             '%sif ($args !~ "^api=cert-(login|try)&n=[0-9a-f.]{20,120}(&part=(admin|portal))?$") '
+             '{ return 404; }\n' % p2),
             '%sif ($request_method != GET) { return 405; }\n' % p2,
             '%sfastcgi_pass   %s;\n' % (p2, sock),
             '%sfastcgi_param  SCRIPT_FILENAME $document_root%s;\n' % (p2, script),
@@ -976,6 +988,12 @@ def certlogin_server(block, main, c, pad='    '):
         '%sadd_header X-Content-Type-Options "nosniff" always;' % pad,
         '%sadd_header X-Frame-Options "DENY" always;' % pad,
         '%sadd_header Referrer-Policy "no-referrer" always;' % pad]
+    if c.get('watch'):
+        # The card watched (1.0.113): every check a full handshake the card's key signs - no
+        # session resumed (cache, tickets), no connection kept for the next one.
+        out += ['%sssl_session_cache      off;   # the card watched: every check a full handshake' % pad,
+                '%sssl_session_tickets    off;' % pad,
+                '%skeepalive_timeout      0;' % pad]
     body = ''
     if c['admin'] or c['portal']:
         # "Try my certificate" goes through the administration's page, for both parts.

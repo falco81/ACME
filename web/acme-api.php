@@ -485,6 +485,50 @@ function acme_cert_back(string $part, string $said = '', string $more = ''): voi
     exit;
 }
 
+/** The check of the card (1.0.113), on the certificate's port: asked by this name's own pages on
+    443 (a fetch with credentials - CORS for that origin alone), the session cookie with it
+    (cookies are not kept apart by port) and the certificate nginx took in a full handshake; the
+    daemon says whether it is the sign-in's card - alive, locked or signed out. Nothing else. */
+function acme_cert_alive(string $part, bool $fail): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+    $host = acme_cert_host();
+    $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
+    if ($host === '' || $origin !== 'https://' . $host) {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'asked only by these pages']);
+        exit;
+    }
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Access-Control-Allow-Credentials: true');
+    header('Vary: Origin');
+    $payload = ['part' => $part];
+    $raw = (string) ($_SERVER['ACME_CERT_PEM'] ?? '');
+    if ($fail) {
+        $payload['failed'] = substr(preg_replace('/[^\x20-\x7e]/', '', (string) ($_SERVER['ACME_CERT_VERIFY'] ?? '')), 0, 200) ?: 'FAILED';
+    } elseif ($raw !== '' && strlen($raw) <= 65536) {
+        $payload['cert'] = rawurldecode($raw);
+    }
+    [$status, $body] = acme_call('/api/certlogin/alive', 'POST', $payload, 15.0);
+    $d = json_decode((string) $body, true);
+    if ($status === 200 && is_array($d)) {
+        $out = ['ok' => !empty($d['ok']), 'state' => (string) ($d['state'] ?? 'unknown')];
+        foreach (['left', 'grace', 'every'] as $k) {
+            if (isset($d[$k])) {
+                $out[$k] = (int) $d[$k];
+            }
+        }
+        if (!empty($d['resumed'])) {
+            $out['resumed'] = true;
+        }
+        echo json_encode($out);
+        exit;
+    }
+    http_response_code($status === 404 ? 404 : 503);
+    echo json_encode(['ok' => false, 'state' => $status === 404 ? 'off' : 'unknown']);
+    exit;
+}
+
 /** The certificate's port: the whole of what this page does there. */
 function acme_cert_port(string $part): void
 {
@@ -494,10 +538,13 @@ function acme_cert_port(string $part): void
     $fail = (string) ($_SERVER['ACME_CERT_FAIL'] ?? '') === '1';
     $what = (string) ($_GET['api'] ?? '');
     if ($said_part !== $part || ($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET'
-            || (!$fail && !in_array($what, ['cert-login', 'cert-try'], true))
+            || (!$fail && !in_array($what, ['cert-login', 'cert-try', 'cert-alive'], true))
             || ($what === 'cert-try' && $part !== 'admin')) {
         http_response_code(404);
         exit;
+    }
+    if ($what === 'cert-alive') {
+        acme_cert_alive($part, $fail);
     }
     $cookie = acme_cert_cookie($part);
     $c = (string) ($_COOKIE[$cookie] ?? '');

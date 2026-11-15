@@ -2236,7 +2236,10 @@ function settingItemBare(s) {
   if (s.choices && s.choices.some(function (c) {
     return String((s.choice_words && s.choice_words[c]) || c).length > 30;
   })) item.classList.add('wide');
-  if (s.choices) {
+  if (s.choices && /_certlogin_card_watch$/.test(s.key)) {
+    /* The card watched (1.0.113): three ways side by side, not a list to open. */
+    input = cardWatchSeg(s, function () { markDirty(item, s); });
+  } else if (s.choices) {
     input = selectBox(s.choices.map(function (c) { return [c, (s.choice_words && s.choice_words[c]) || c]; }), s.value);
   } else if (s.key === 'admin_directory' || s.key === 'portal_directory') {
     var dl = (SETTINGS.directories || []).slice();
@@ -4374,6 +4377,7 @@ function dbMoveSteps(info, preset) {
     var hostBox = textBox(d.host, '127.0.0.1', 'mono'); hostBox.id = 'dbw-host'; noI18n(hostBox);
     hostBox.onchange = function () { if (read) read(); paint(); };
     var port = textBox(d.port, String(eng.port), 'mono'); port.id = 'dbw-port'; noI18n(port);
+    port.onchange = function () { if (read) read(); paint(); };
     var name = textBox(d.name, 'acme', 'mono'); name.id = 'dbw-name'; noI18n(name);
     var user = textBox(d.user, 'acme', 'mono'); user.id = 'dbw-user'; noI18n(user);
     var pw = maskBox(d.password, '', 'mono'); pw.id = 'dbw-password';
@@ -4426,8 +4430,22 @@ function dbMoveSteps(info, preset) {
     mk.appendChild(el('h4', 'dbw-h', 'The database and the account'));
     var said = el('div', 'dbw-make-said');
     var local = ['', 'localhost', '127.0.0.1', '::1'].indexOf(hostBox.value.trim().toLowerCase()) >= 0;
-    if (local) {
-      mk.appendChild(el('p', 'note', 'The server is on this machine: acme can make the database and the account itself, as root - ' + (d.engine === 'postgres' ? 'as postgres, with no password typed anywhere' : 'as root over its socket, with no password typed anywhere') + '. A password is made for the account if none is typed above.'));
+    /* The server of this node's database agent (1.0.113): the agent makes them there. */
+    var ag = info.agent || null;
+    var hv = hostBox.value.trim().toLowerCase().replace(/^\[|\]$/g, '');
+    var onAgent = !!ag && ag.engine === d.engine && [String(ag.db_host || '').toLowerCase(), String(ag.host || '').toLowerCase()].indexOf(hv) >= 0 &&
+      (Number(port.value) || eng.port) === Number(ag.db_port);
+    if (onAgent) {
+      var an = el('p', 'note');
+      an.appendChild(haWords('The server of this node’s database agent (', ag.host + ':' + ag.port, '): the agent makes the database and the account there and lets this node in - no password typed anywhere. A password is made for the account if none is typed above.'));
+      mk.appendChild(an);
+    } else if (ag && !local) {
+      var an2 = el('p', 'note small muted');
+      an2.appendChild(haWords('Not the server of this node’s database agent (', String(ag.db_host || ag.host) + ':' + ag.db_port, '): once moved there, acme only connects to it. To have it looked after, connect its agent first - one agent a node, it then takes the place of this one.'));
+      mk.appendChild(an2);
+    }
+    if (local || onAgent) {
+      if (!onAgent) mk.appendChild(el('p', 'note', 'The server is on this machine: acme can make the database and the account itself, as root - ' + (d.engine === 'postgres' ? 'as postgres, with no password typed anywhere' : 'as root over its socket, with no password typed anywhere') + '. A password is made for the account if none is typed above.'));
       var b = cmdButton('Make the database and the account for me', 'key', 'primary');
       b.id = 'dbw-make';
       b.onclick = function () {
@@ -4589,6 +4607,18 @@ function dbMoveSteps(info, preset) {
     });
     host.appendChild(ol);
     if (W.d.overwrite) host.appendChild(el('div', 'note bad', 'What of acme is in ' + ((x.to || {}).where || 'it') + ' now is thrown away first.'));
+    /* This node's database agent (1.0.113): let go when the database leaves its server. */
+    var ag = info.agent || null;
+    if (ag) {
+      var dd = W.d, hv = String(dd.host || '').trim().toLowerCase().replace(/^\[|\]$/g, '');
+      var toAgent = dd.engine === ag.engine && [String(ag.db_host || '').toLowerCase(), String(ag.host || '').toLowerCase()].indexOf(hv) >= 0 &&
+        (Number(dd.port) || (info.engines[dd.engine] || {}).port) === Number(ag.db_port);
+      var an = el('div', 'note info dbw-agent-what');
+      an.id = 'dbw-agent-what';
+      if (ag.here && !toAgent) an.appendChild(haWords('The database leaves the server of this node’s database agent (', ag.host + ':' + ag.port, '): once config.json is switched, the agent is let go - acme asks nothing of it any more and its server leaves this page and the meter. It keeps this node’s certificate until acme_db_agent.py --forget there; moving back means connecting it again.'));
+      else if (toAgent && !ag.here) an.appendChild(haWords('Onto the server of this node’s database agent (', ag.host + ':' + ag.port, '): acme looks after it from the restart on. Then Encryption to the database server: the server’s certificate from acme’s authority, and verify-full.'));
+      if (an.childNodes.length) host.appendChild(an);
+    }
     host.appendChild(el('p', 'note small', 'Cancel stops it at any step until the config file is switched; after that it goes through.'));
     var sw = switchBox(W.sure);
     sw._input.id = 'dbw-sure';
@@ -8882,6 +8912,49 @@ function certCsr(x) {
     }).catch(function (e) { busy(btn, false); toast(String(e && e.message || e), 'bad'); });
   }
 }
+/* The card watched (1.0.113): off / sign out at once / lock - a segmented control that reads as a
+   select (._get, .value, .disabled), so the save bar and "not in use while" treat it as one. */
+function cardWatchSeg(s, changed) {
+  var seg = el('div', 'seg card-watch-seg');
+  seg.setAttribute('role', 'radiogroup');
+  var val = String(s.value || 'off');
+  var paint = function () {
+    Array.prototype.forEach.call(seg.children, function (b) {
+      var on = b.dataset.v === val;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+  };
+  (s.choices || ['off', 'signout', 'lock']).forEach(function (c) {
+    var b = el('button', '', (s.choice_words && s.choice_words[c]) || c);
+    b.type = 'button';
+    b.dataset.v = c;
+    b.setAttribute('role', 'radio');
+    b.onclick = function () {
+      if (seg.disabled || b.disabled || seg.closest('.asleep')) return;
+      val = c;
+      paint();
+      changed();
+    };
+    seg.appendChild(b);
+  });
+  seg._get = function () { return val; };
+  Object.defineProperty(seg, 'value', {get: function () { return val; }, set: function (v) { val = String(v); paint(); }});
+  Object.defineProperty(seg, 'disabled', {
+    get: function () { return seg.classList.contains('off'); },
+    set: function (v) { seg.classList.toggle('off', !!v); Array.prototype.forEach.call(seg.children, function (b) { b.disabled = !!v; }); }});
+  paint();
+  return seg;
+}
+/* The card's facts row (1.0.113): how it is watched, and how many sign-ins are. */
+function cardWatchFacts(c) {
+  if (!c) return 'off - a sign-in made with a certificate lasts as any other';
+  var how = c.watch === 'lock' ? 'lock, wait ' + c.grace + ' s for the card' : 'sign out at once';
+  var out = el('span', '');
+  out.appendChild(el('span', '', 'every ' + c.every + ' s, ' + how));
+  out.appendChild(el('span', 'muted small krb-from', c.sessions === 1 ? '1 sign-in watched now' : c.sessions + ' sign-ins watched now'));
+  return out;
+}
 function drawCert(part) {
   var host = $('cert-host-' + part), d = CERTC.d;
   if (!host || !d) return;
@@ -8909,8 +8982,10 @@ function drawCert(part) {
     ['Which account', [el('span', '', p.match_words), noI18n(el('span', 'muted small krb-from', part + '_certlogin_match: ' + p.match))]],
     ['Revocation', certRevFlow(p)],
     [part === 'admin' ? 'Second step after it' : 'One-time code after it', p.second ? 'yes - asked after the certificate too, every time' : 'off'],
-    [part === 'admin' ? 'The enrolment pages' : 'The administration', other.usable ? 'on there too - their own switch, the same port' : 'off there - their own switch']
+    [part === 'admin' ? 'The enrolment pages' : 'The administration', other.usable ? 'on there too - their own switch, the same port' : 'off there - their own switch'],
+    ['Card watched', cardWatchFacts(p.card)]
   ]);
+  if (p.card) host.appendChild(el('p', 'note card-watch-note', 'The card watched: the page proves it every few seconds on the certificate’s port - a full TLS handshake the card’s key signs each time. Fit for a card or YubiKey whose PIN is kept for the session (the Windows smart card minidriver, the YubiKey’s PIN policy “once”); a card that asks for its PIN at every signature asks at every check. Let the browser pick the certificate by itself (Chrome and Edge: AutoSelectCertificateForUrls for this port), or it may offer its chooser. Windows’ own “Smart card removal behavior = Lock workstation” (Group Policy) locks the computer as well. Only sign-ins made with a certificate are watched.'));
   /* The authorities. */
   host.appendChild(el('h3', 'peek-h', 'The authorities'));
   if (d.cas.length) {
@@ -20247,8 +20322,9 @@ function dbaAct(btn, action) {
 }
 function dbaMove(d) {
   var me = (d.servers || []).filter(function (s) { return s.me; })[0] || {};
-  var port = (me.agent || {}).pg_port;
-  if (d.engine === 'mariadb') port = '';
+  /* The database's port on the agent's server, MariaDB's too (1.0.113): not the usual one
+     assumed - a server not looked at yet has no row, and 5432 / 3306 was another server. */
+  var port = d.db_port || (d.engine === 'mariadb' ? '' : (me.agent || {}).pg_port);
   closeModal();
   dbMoveWizard({preset: {engine: d.engine || 'postgres', host: d.db_host || d.host, port: port ? String(port) : ''}});
 }
@@ -20282,6 +20358,7 @@ function dbaWizard() {
   var W = {step: 0, engine: 'postgres', code: '', addr: '', mine: false, dbhost: '', done: null, err: '', running: false};
   dbaLoad().then(function (d) {
     var w = d.where || {};
+    W.cur = d;
     W.mine = w.kind === 'unmanaged';
     W.dbhost = W.mine ? (w.host || '') : '';
     W.addrs = (d.addresses || []).slice();
@@ -20417,6 +20494,22 @@ function dbaWizard() {
       addr.placeholder = c.host + ':' + c.port;
       dbh.placeholder = c.host;
       if (c.engine !== W.engine) W.engine = c.engine;
+      /* One agent a node (1.0.113): another one takes the place of the one joined. */
+      var cur = W.cur || {};
+      var at = (W.addr || (c.host + ':' + c.port));
+      if (cur.host && at.replace(/^\[|\]$/g, '') !== String(cur.host) + ':' + String(cur.port) && at !== String(cur.host)) {
+        var rp = el('div', 'note ' + ((cur.where || {}).kind === 'agent' ? 'warn' : 'info') + ' small dbs-replace');
+        rp.id = 'dbs-replace';
+        if ((cur.where || {}).kind === 'agent' && cur.ha_mode) {
+          rp.className = 'note bad small dbs-replace';
+          rp.appendChild(haWords('This node is one of a cluster and its database is on the server of the agent at ', cur.host + ':' + cur.port, ': another agent is not connected instead. Take the cluster apart first.'));
+        } else if ((cur.where || {}).kind === 'agent') {
+          rp.appendChild(haWords('This node is connected to the agent at ', cur.host + ':' + cur.port, ' and its database is on that server. One agent a node: this one takes its place, and until the database is moved onto the new server (Move the database onto it…, next) nothing of the old server is looked after - its certificate is not renewed. The old agent keeps this node’s certificate until acme_db_agent.py --forget there.'));
+        } else {
+          rp.appendChild(haWords('This node is connected to the agent at ', cur.host + ':' + cur.port, ' already. One agent a node: this one takes its place.'));
+        }
+        said.appendChild(rp);
+      }
     }
     ta.addEventListener('input', check);
     addr.addEventListener('input', check);
@@ -20450,6 +20543,15 @@ function dbaWizard() {
       res.appendChild(el('div', 'note good', (v.where || {}).kind === 'agent'
         ? 'Connected: this node’s database is on that server, and acme looks after it from now on.'
         : 'Connected. This node’s database is not on that server yet: move it there next - Move the database onto it…'));
+      var rp = W.done.replaced;
+      if (rp) {
+        var rn = el('div', 'note warn dbs-replaced');
+        rn.id = 'dbs-replaced';
+        var old = String(rp.db_admin || '').replace(/^agent:/, '');
+        if (rp.had_database) rn.appendChild(haWords('It takes the place of the agent at ', old, ' - this node’s database is still on ', rp.db_host, ', and nothing of that server is looked after until the database is moved onto the new one. That agent keeps this node’s certificate until acme_db_agent.py --forget ', v.node || '', ' there.'));
+        else rn.appendChild(haWords('It takes the place of the agent at ', old, ' (one agent a node); that one keeps this node’s certificate until acme_db_agent.py --forget ', v.node || '', ' there.'));
+        res.appendChild(rn);
+      }
     }
   }
   function join() {

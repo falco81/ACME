@@ -1673,6 +1673,10 @@ def cl_tick(d):
         return
     CL_STATE['checked'] = now
     try:
+        cl_card_sweep(d.store, now)                     # the card watched (1.0.113)
+    except Exception as e:                              # noqa: BLE001
+        log_sparing('cl-card-sweep', 'the watched sign-ins: %s' % e, 'warn', every=300)
+    try:
         cl_write_out(d.store)
     except Exception as e:                              # noqa: BLE001
         CL_STATE.update(written=False, error=str(e)[:300])
@@ -2309,8 +2313,9 @@ def sso_last_way_check(store, way):
 
 def cl_session_gone(part, s, store):
     data = (s or {}).get('data') or {}
+    # ...or its card taken out and not put back, or no check of it for too long (1.0.113).
     return bool(data.get('how') == 'certificate' and not data.get('krb_kept') and
-                not cl_usable(part, store))
+                not cl_usable(part, store)) or cl_card_dead(part, s, store)
 
 
 def cl_session_cas(f):
@@ -2360,8 +2365,9 @@ def cl_rule(part):
     # The OCSP mode too (1.0.105): off < first < only < both - made stricter, the same.
     ocsp = {'off': 0, 'first': 1, 'only': 2, 'both': 3}.get(
         str(CONFIG.get(part + '_certlogin_ocsp') or 'off'), 0)
+    # The card watched (1.0.113): switched on, the sign-ins made before (none kept its card) end.
     return (1 if CONFIG.get(part + '_certlogin_crl', 1) else 0, CL_MATCH_RANK.get(cl_match(part), 2),
-            ocsp)
+            ocsp, 0 if cl_card_mode(part) == 'off' else 1)
 
 
 def cl_rule_stricter(was, now):
@@ -2371,7 +2377,10 @@ def cl_rule_stricter(was, now):
         if now[0] > was[0] or now[1] > was[1]:
             return True
         # A rule kept before 1.0.105 has no OCSP part: it was off then.
-        return len(now) > 2 and now[2] > (was[2] if len(was) > 2 else 0)
+        if len(now) > 2 and now[2] > (was[2] if len(was) > 2 else 0):
+            return True
+        # ...nor one before 1.0.113 the card's watch.
+        return len(now) > 3 and now[3] > (was[3] if len(was) > 3 else 0)
     except (TypeError, IndexError):
         return False
 
@@ -2760,8 +2769,9 @@ def _auth_cert(h):
         cl_refused_event(h, 'admin', e.why, who)
         raise ApiError(e.status, e.said)
     return sso_admin_open(h, key, acc, 'certificate',
-                          {'subject': f['subject'][:200], 'serial': f['serial'][:64],
-                           'principal': f['upn_one'], 'cas': cl_session_cas(f)},
+                          dict({'subject': f['subject'][:200], 'serial': f['serial'][:64],
+                                'principal': f['upn_one'], 'cas': cl_session_cas(f)},
+                               **cl_card_data('admin', f)),
                           'with a certificate (%s)' % cl_who_words(f), 'with a certificate')
 
 
@@ -2787,7 +2797,7 @@ def _portal_cert(h):
         h.store.session_end(h.headers.get('X-Acme-Session'))
     try:
         got = portal_open_dir(h, key, entry['sam'], ad, entry, how='certificate',
-                              more={'cas': cl_session_cas(f)})
+                              more=dict({'cas': cl_session_cas(f)}, **cl_card_data('portal', f)))
     except ApiError as e:
         cl_refused_event(h, 'portal', str(e), who)
         raise ApiError(503 if e.status == 503 else 401,
@@ -2883,6 +2893,11 @@ def cl_view(h, tried=''):
             'krb': krb_usable(part, store),
             'signin': sso_signin_modes(part, store),
             'second': bool(CONFIG.get('admin_2fa')) if part == 'admin' else portal_gate_needed()}
+        if cl_card_mode(part) != 'off':
+            # The card watched (1.0.113) - a key of the answer only then.
+            parts[part]['card'] = {'watch': cl_card_mode(part), 'every': cl_card_every(part),
+                                   'grace': cl_card_grace(part), 'stale': cl_card_stale(part),
+                                   'sessions': cl_card_sessions(store, part)}
     parts['portal']['portal'] = bool(CONFIG.get('portal'))
     now = time.time()
     nodes, crls, ocsp = [], {}, {}
@@ -3124,5 +3139,346 @@ def certlogin_desired(store):
     except Exception:                                   # noqa: BLE001
         served = True
     if any(on.values()):
-        return dict(on, port=cl_port(), cas=cl_cas_pem(cas))
+        out = dict(on, port=cl_port(), cas=cl_cas_pem(cas))
+        # The card watched (1.0.113): only then the port resumes no TLS session and keeps no
+        # connection open - with it off for both parts nginx's server stays as it was.
+        if any(on[p] and cl_card_mode(p) != 'off' for p in CL_PARTS):
+            out['watch'] = True
+        return out
     return {'port': 0} if served else None
+
+
+# ---- the card watched: taken out, signed out or locked (1.0.113) -------------------------------
+# No browser tells a page that a smart card or a YubiKey was taken out, so the page proves the
+# card again every few seconds: a request of its own to the certificate's port (?api=cert-alive),
+# where nginx - with the card watched - resumes no TLS session and keeps no connection open, so
+# every check is a full handshake the card's key has to sign. The session cookie goes with it
+# (cookies are not kept apart by port), PHP relays nginx's certificate here, and the session
+# must be one made with a certificate - the SAME one (its SHA-256, kept at the sign-in). Not
+# that certificate, none at all, or no check for too long (the tab asleep or closed): signed
+# out at once (`signout`), or locked (`lock`) - nothing of the pages answered but the check -
+# until the card proves again within the grace time, signed out after it. Per part:
+#   <part>_certlogin_card_watch  off (the default: nothing of this runs) | signout | lock
+#   <part>_certlogin_card_every  seconds between two checks of the page (5-60)
+#   <part>_certlogin_card_grace  seconds a lock waits for the card (15-600)
+#   <part>_certlogin_card_stale  no good check for this long: signed out (auto: three checks
+#                                missed and 30 s, two minutes at least - a hidden tab's timers
+#                                run once a minute; off: never for that)
+# A check the page could not make at all (a network error - the card's key failing in the
+# handshake looks the same) is tried again twice, three seconds apart, and only then said to
+# the daemon over 443 (?api=cert-lost) - taken as the card gone only while this node serves the
+# certificate's port. Only sign-ins made with a certificate are watched: a password's or
+# Windows' never.
+CL_CARD_MODES = ('off', 'signout', 'lock')
+CL_CARD_GONE_META = 'certlogin:cardgone:'
+CL_CARD_GONE_S = 600                # a session ended for its card: said so to its other tabs
+CL_CARD_SWEEP = {'at': 0.0}
+CL_CARD_RETRIES = 2                 # the page: a check that could not be made, tried again
+CL_CARD_RETRY_S = 3
+
+
+def cl_card_mode(part):
+    m = str(CONFIG.get(part + '_certlogin_card_watch') or 'off')
+    return m if m in CL_CARD_MODES else 'off'
+
+
+def cl_card_any():
+    return any(cl_on(p) and cl_card_mode(p) != 'off' for p in CL_PARTS)
+
+
+def _cl_card_int(part, what, default, lo, hi):
+    try:
+        return max(lo, min(hi, int(CONFIG.get(part + '_certlogin_card_' + what) or default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def cl_card_every(part):
+    return _cl_card_int(part, 'every', 10, 5, 60)
+
+
+def cl_card_grace(part):
+    return _cl_card_int(part, 'grace', 60, 15, 600)
+
+
+def cl_card_stale(part):
+    """Seconds with no good check before the sign-in ends; 0: never for that."""
+    v = str(CONFIG.get(part + '_certlogin_card_stale') or 'auto')
+    if v == 'off':
+        return 0
+    if v == 'auto' or not v.isdigit():
+        return max(120, 3 * cl_card_every(part) + 30)
+    return max(60, min(86400, int(v)))
+
+
+def cl_card_fp(pem):
+    """The SHA-256 of a certificate in PEM (as openssl's fingerprint, lower case), or ''."""
+    try:
+        _pem, der = cl_pem_one(pem)
+    except Exception:                                   # noqa: BLE001
+        return ''
+    return hashlib.sha256(der).hexdigest()
+
+
+def cl_card_data(part, f):
+    """What a sign-in made with a certificate keeps of it for the watch: {card: SHA-256} while
+    the part watches the card - nothing otherwise (as before 1.0.113)."""
+    if cl_card_mode(part) == 'off' or not re.match(r'^[0-9a-f]{64}\Z', str(f.get('sha256') or '')):
+        return {}
+    return {'card': f['sha256']}
+
+
+def cl_card_watched(part, s):
+    """Whether this sign-in is watched: made with a certificate whose SHA-256 it kept, the part
+    watching the card - never one kept on purpose by a change of its rules (krb_kept)."""
+    data = (s or {}).get('data') or {}
+    return bool(part in CL_PARTS and cl_card_mode(part) != 'off' and
+                data.get('how') == 'certificate' and data.get('card') and
+                not data.get('krb_kept'))
+
+
+def _cl_card_pending(part, s):
+    """The second step (or the portal's one-time code) still to give: not watched yet."""
+    try:
+        if part == 'admin':
+            return bool(mfa_pending(s))
+        return bool(portal_gated(s) or portal_mfa_pending(s))
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
+def cl_card_state(part, s, now=None):
+    """('ok' | 'locked' | 'dead', why, seconds left of the lock) of a watched sign-in."""
+    now = time.time() if now is None else now
+    data = (s or {}).get('data') or {}
+    lock = float(data.get('card_lock') or 0)
+    if lock:
+        if cl_card_mode(part) == 'lock' and now - lock <= cl_card_grace(part):
+            return 'locked', '', max(0, int(cl_card_grace(part) - (now - lock)))
+        return 'dead', ('the card was not put back within %d s' % cl_card_grace(part)
+                        if cl_card_mode(part) == 'lock' else 'the card was taken out'), 0
+    stale = cl_card_stale(part)
+    ref = max(float(data.get('card_at') or 0), float((s or {}).get('created') or 0))
+    if stale and ref and now - ref > stale and not _cl_card_pending(part, s):
+        return 'dead', 'no check of the card arrived for %d s (the page closed or asleep)' % \
+            int(now - ref), 0
+    return 'ok', '', 0
+
+
+def cl_card_gone_said(store, token_hash, why):
+    try:
+        store.set_meta(CL_CARD_GONE_META + str(token_hash)[:32],
+                       json.dumps({'at': time.time(), 'why': str(why)[:200]}))
+    except Exception:                                   # noqa: BLE001
+        pass
+
+
+def cl_card_end(store, part, s, why, ip=''):
+    """A watched sign-in ended for its card: the row gone, said in Events, and remembered ten
+    minutes for the other tabs of that browser (their next check says so)."""
+    store.db.run('DELETE FROM sessions WHERE id = ?', (s['id'],))
+    cl_card_gone_said(store, s.get('token_hash') or '', why)
+    store.add_event('sign-ins' if part == 'admin' else 'portal',
+                    '%s was signed out of %s%s: %s' % (
+                        s.get('name') or '?', 'these pages' if part == 'admin' else
+                        'the enrolment pages', ' (from %s)' % ip if ip else '', why),
+                    'warn', who=s.get('name') or None)
+
+
+def cl_card_dead(part, s, store):
+    """For cl_session_gone: a watched sign-in whose lock ran out or that had no check for too
+    long - ended here (the event written), True for the caller."""
+    if not cl_card_watched(part, s):
+        return False
+    st, why, _left = cl_card_state(part, s)
+    if st != 'dead':
+        return False
+    try:
+        cl_card_gone_said(store, s.get('token_hash') or '', why)
+        store.add_event('sign-ins' if part == 'admin' else 'portal',
+                        '%s was signed out of %s: %s' % (
+                            s.get('name') or '?', 'these pages' if part == 'admin' else
+                            'the enrolment pages', why), 'warn', who=s.get('name') or None)
+    except Exception:                                   # noqa: BLE001
+        pass
+    return True
+
+
+def cl_card_hold(part, s):
+    """Every request of a locked sign-in but the check: 423, the page shows its lock."""
+    if cl_card_watched(part, s) and cl_card_state(part, s)[0] == 'locked':
+        raise ApiError(423, 'locked - put your card back')
+
+
+def cl_card_view(part, s):
+    """What the page needs to watch its card (whoami, /api/portal/me): None for a sign-in not
+    watched - and then not a key of the answer at all."""
+    if not cl_card_watched(part, s):
+        return None
+    st, _why, left = cl_card_state(part, s)
+    return {'watch': cl_card_mode(part), 'every': cl_card_every(part),
+            'grace': cl_card_grace(part), 'port': cl_port(), 'retries': CL_CARD_RETRIES,
+            'retry_s': CL_CARD_RETRY_S, 'locked': st == 'locked', 'left': left}
+
+
+def cl_card_sessions(store, part):
+    """The sign-ins of a part watched now (the card's facts)."""
+    n = 0
+    try:
+        for r in store.db.rows('SELECT data FROM sessions WHERE kind = ?', (part,)):
+            try:
+                d = json.loads(r.get('data') or '{}')
+            except ValueError:
+                continue
+            if isinstance(d, dict) and d.get('how') == 'certificate' and d.get('card') and \
+                    not d.get('krb_kept'):
+                n += 1
+    except Exception:                                   # noqa: BLE001
+        return 0
+    return n
+
+
+def cl_card_sweep(store, now=None):
+    """Every 15 s while a part watches the card: the watched sign-ins whose lock ran out or that
+    had no check for too long ended (a closed tab too), the old notes of ended ones tidied."""
+    now = time.time() if now is None else now
+    if not cl_card_any() or now - CL_CARD_SWEEP['at'] < 15:
+        return 0
+    CL_CARD_SWEEP['at'] = now
+    ended = 0
+    for part in CL_PARTS:
+        if cl_card_mode(part) == 'off':
+            continue
+        try:
+            rows = store.db.rows('SELECT * FROM sessions WHERE kind = ?', (part,))
+        except Exception as e:                          # noqa: BLE001
+            log_sparing('cl-card-sweep', 'the watched sign-ins could not be read: %s' % e,
+                        'warn', every=300)
+            return ended
+        for r in rows:
+            try:
+                r['data'] = json.loads(r.get('data') or '{}')
+            except ValueError:
+                continue
+            if not isinstance(r['data'], dict) or not cl_card_watched(part, r):
+                continue
+            st, why, _left = cl_card_state(part, r, now)
+            if st == 'dead':
+                cl_card_end(store, part, r, why)
+                ended += 1
+    try:
+        for r in store.db.rows('SELECT k, v FROM meta WHERE k LIKE ?', (CL_CARD_GONE_META + '%',)):
+            try:
+                if now - float(json.loads(r['v'] or '{}').get('at') or 0) > CL_CARD_GONE_S:
+                    store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
+            except (ValueError, TypeError, AttributeError):
+                store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
+    except Exception:                                   # noqa: BLE001
+        pass
+    return ended
+
+
+def cl_card_session(h, part):
+    """The sign-in of the request's cookie, read without touching it (a check is no activity of
+    the person: the idle time runs on), or None."""
+    token = str(h.headers.get('X-Acme-Session') or '')
+    if part == 'admin':
+        idle = int(CONFIG.get('session_idle_min') or 120) * 60
+    else:
+        idle = int(CONFIG.get('portal_session_min') or 15) * 60
+    return token, h.store.session_get(token, part, idle, touch=False)
+
+
+def cl_card_failed(h, part, s, why):
+    """A check that did not prove the card: signed out, or locked (once) - the answer."""
+    now = time.time()
+    data = s.get('data') or {}
+    if cl_card_mode(part) == 'lock':
+        st, why2, left = cl_card_state(part, s, now)
+        if st == 'dead':
+            cl_card_end(h.store, part, s, why2, h.client_ip())
+            return {'ok': False, 'state': 'gone'}
+        if not data.get('card_lock'):
+            h.store.session_merge(s['id'], {'card_lock': now})
+            h.store.add_event('sign-ins' if part == 'admin' else 'portal',
+                              '%s: the sign-in to %s is locked until the card is put back (%d s) '
+                              '- %s, from %s' % (s.get('name') or '?', 'these pages' if part ==
+                                                 'admin' else 'the enrolment pages',
+                                                 cl_card_grace(part), why, h.client_ip()),
+                              'warn', who=s.get('name') or None)
+            left = cl_card_grace(part)
+        return {'ok': False, 'state': 'locked', 'left': left, 'grace': cl_card_grace(part)}
+    cl_card_end(h.store, part, s, 'the card was taken out - %s' % why, h.client_ip())
+    return {'ok': False, 'state': 'gone'}
+
+
+def cl_card_none(h, token):
+    """No such sign-in: ended for its card a moment ago (said to every tab), or otherwise."""
+    th = hashlib.sha256(str(token).encode()).hexdigest()
+    try:
+        got = h.store.get_meta(CL_CARD_GONE_META + th[:32])
+    except Exception:                                   # noqa: BLE001
+        got = None
+    return {'ok': False, 'state': 'gone' if got else 'none'}
+
+
+@route('POST', '/api/certlogin/alive')
+def _certlogin_alive(h):
+    """The check of the card (relayed by the page on the certificate's port, nginx's certificate
+    with it): the same certificate as the sign-in's - alive; not it, or none - signed out or
+    locked. 404 while the part does not watch the card."""
+    b = h.body()
+    part = str(b.get('part') or '')
+    if part not in CL_PARTS or cl_card_mode(part) == 'off' or not cl_on(part):
+        raise ApiError(404, 'the card is not watched here')
+    token, s = cl_card_session(h, part)
+    if not s:
+        return cl_card_none(h, token)
+    if not cl_card_watched(part, s):
+        return {'ok': True, 'state': 'unwatched'}
+    pem = str(b.get('cert') or '')
+    failed = str(b.get('failed') or '')[:200]
+    fp = cl_card_fp(pem) if pem and len(pem) <= CL_CERT_MOST and not failed else ''
+    want = str((s.get('data') or {}).get('card') or '')
+    if fp and hmac.compare_digest(fp, want):
+        st, why, _left = cl_card_state(part, s)
+        if st == 'dead':
+            cl_card_end(h.store, part, s, why, h.client_ip())
+            return {'ok': False, 'state': 'gone'}
+        was = (s.get('data') or {}).get('card_lock')
+        h.store.session_merge(s['id'], {'card_at': time.time(), 'card_lock': None})
+        if was:
+            h.store.add_event('sign-ins' if part == 'admin' else 'portal',
+                              '%s: the card is back - the sign-in to %s goes on (from %s)' % (
+                                  s.get('name') or '?', 'these pages' if part == 'admin' else
+                                  'the enrolment pages', h.client_ip()), who=s.get('name') or None)
+        return {'ok': True, 'state': 'ok', 'resumed': bool(was), 'every': cl_card_every(part)}
+    why = ('nginx did not take the certificate' if failed else
+           'another certificate on the check' if fp else 'no certificate on the check')
+    return cl_card_failed(h, part, s, why)
+
+
+@route('POST', '/api/certlogin/lost')
+def _certlogin_lost(h):
+    """The page could not make its check at all, three times (over 443, this page's own): the
+    card's key failing in the handshake looks like that - taken as the card gone only while this
+    node serves the certificate's port (else a port down is no card taken out)."""
+    part = str(h.body().get('part') or '')
+    if part not in CL_PARTS or cl_card_mode(part) == 'off' or not cl_on(part):
+        raise ApiError(404, 'the card is not watched here')
+    token, s = cl_card_session(h, part)
+    if not s:
+        return cl_card_none(h, token)
+    if not cl_card_watched(part, s):
+        return {'ok': True, 'state': 'unwatched'}
+    if not cl_listening(cl_port()):
+        return {'ok': True, 'state': 'unknown'}
+    return cl_card_failed(h, part, s, 'the check could not be made (the card\'s key did not sign)')
+
+
+def _cl_portal_me_card(h, s):
+    v = cl_card_view('portal', s)
+    return {'card': v} if v else {}
+
+
+PORTAL_ME.append(_cl_portal_me_card)

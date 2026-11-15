@@ -756,7 +756,11 @@ def krb_sessions_settle(store, before, keep=None, by=''):
                                                               after[part][3][1] > was[3][1]),
                                                  ('OCSP %s' % CONFIG.get(part + '_certlogin_ocsp'),
                                                   len(after[part][3]) > 2 and after[part][3][2] >
-                                                  (was[3][2] if len(was[3]) > 2 else 0)))
+                                                  (was[3][2] if len(was[3]) > 2 else 0)),
+                                                 # the card watched (1.0.113)
+                                                 ('the card watched', len(after[part][3]) > 3 and
+                                                  after[part][3][3] > (was[3][3] if len(was[3]) > 3
+                                                                       else 0)))
                                 if on))
         krb_gone, cert_gone = usable_was and not usable, cert_was and not cert
         if not krb_gone and not cert_gone and (only == only_was or not only):

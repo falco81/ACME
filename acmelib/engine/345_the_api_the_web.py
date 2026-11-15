@@ -357,6 +357,8 @@ class ApiHandler(BaseHTTPRequestHandler):
         if krb_session_gone('admin', s, self.store):
             self.store.session_end(self.headers.get('X-Acme-Session'))
             raise ApiError(401, 'sign in again')
+        # Its card taken out, the lock waiting for it (1.0.113): nothing answered but the check.
+        cl_card_hold('admin', s)
         s['role'] = acc['role']
         if s['role'] not in ROLE_RANK or not ROLE_RANK[s['role']]:
             # Given the role of the enrolment pages only (1.0.14) while signed

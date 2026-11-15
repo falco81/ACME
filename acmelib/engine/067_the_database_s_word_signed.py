@@ -69,6 +69,10 @@ DBGUARD_SETTINGS = frozenset((
     # ...and how its revocation is checked (1.0.105): OCSP, the responder, CRLs from the directory.
     'admin_certlogin_ocsp', 'admin_certlogin_ocsp_url', 'admin_certlogin_crl_ldap',
     'portal_certlogin_ocsp', 'portal_certlogin_ocsp_url', 'portal_certlogin_crl_ldap',
+    # ...and whether its card is watched (1.0.113): unsigned, a row switched it off.
+    'admin_certlogin_card_watch', 'admin_certlogin_card_every', 'admin_certlogin_card_grace',
+    'admin_certlogin_card_stale', 'portal_certlogin_card_watch', 'portal_certlogin_card_every',
+    'portal_certlogin_card_grace', 'portal_certlogin_card_stale',
     'session_hours', 'session_idle_min', 'login_tries', 'login_wait_min',
     'mail_mode', 'mail_from', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_auth',
     'smtp_user', 'smtp_password', 'sms_mode', 'sms_url', 'sms_token', 'sms_spool_dir',

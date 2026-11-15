@@ -130,6 +130,17 @@ DEFAULTS = {
     'portal_certlogin_ocsp': 'off',
     'portal_certlogin_ocsp_url': '',
     'portal_certlogin_crl_ldap': 0,
+    # The card watched (1.0.113): a sign-in made with a certificate ends (or is locked) when its
+    # smart card or YubiKey is taken out - the page proves it again every few seconds on the
+    # certificate's port. Off - as until now: nothing of it runs.
+    'admin_certlogin_card_watch': 'off',
+    'admin_certlogin_card_every': 10,
+    'admin_certlogin_card_grace': 60,
+    'admin_certlogin_card_stale': 'auto',
+    'portal_certlogin_card_watch': 'off',
+    'portal_certlogin_card_every': 10,
+    'portal_certlogin_card_grace': 60,
+    'portal_certlogin_card_stale': 'auto',
     'certlogin_port': 8443,
     # --- isemon ---------------------------------------------------------------
     'isemon': 0,
@@ -475,6 +486,14 @@ TUNABLE = {
     'portal_certlogin_match': ('compat', 'strong', 'upn'),
     'admin_certlogin_ocsp': ('off', 'first', 'only', 'both'), 'admin_certlogin_crl_ldap': (0, 1),
     'portal_certlogin_ocsp': ('off', 'first', 'only', 'both'), 'portal_certlogin_crl_ldap': (0, 1),
+    'admin_certlogin_card_watch': ('off', 'signout', 'lock'),
+    'admin_certlogin_card_every': ('5', '10', '15', '30', '60'),
+    'admin_certlogin_card_grace': ('15', '30', '60', '120', '300', '600'),
+    'admin_certlogin_card_stale': ('auto', '60', '120', '300', '600', '1800', 'off'),
+    'portal_certlogin_card_watch': ('off', 'signout', 'lock'),
+    'portal_certlogin_card_every': ('5', '10', '15', '30', '60'),
+    'portal_certlogin_card_grace': ('15', '30', '60', '120', '300', '600'),
+    'portal_certlogin_card_stale': ('auto', '60', '120', '300', '600', '1800', 'off'),
     'certlogin_port': (1024, 65535),
     'report': (0, 1), 'report_every': ('daily', 'weekly', 'monthly'),
     'report_day': ('1', '2', '3', '4', '5', '6', '7'),
@@ -605,6 +624,21 @@ CHOICE_WORDS = {
     'report_day': {'1': 'Monday', '2': 'Tuesday', '3': 'Wednesday', '4': 'Thursday',
                    '5': 'Friday', '6': 'Saturday', '7': 'Sunday'},
 }
+# The card watched (1.0.113): the same words for both parts.
+for _p in ('admin', 'portal'):
+    CHOICE_WORDS[_p + '_certlogin_card_watch'] = {
+        'off': 'Off', 'signout': 'Sign out at once', 'lock': 'Lock, wait for the card'}
+    CHOICE_WORDS[_p + '_certlogin_card_every'] = {
+        '5': 'every 5 s', '10': 'every 10 s', '15': 'every 15 s', '30': 'every 30 s',
+        '60': 'every minute'}
+    CHOICE_WORDS[_p + '_certlogin_card_grace'] = {
+        '15': '15 s', '30': '30 s', '60': '1 minute', '120': '2 minutes', '300': '5 minutes',
+        '600': '10 minutes'}
+    CHOICE_WORDS[_p + '_certlogin_card_stale'] = {
+        'auto': 'by itself - three checks missed and 30 s (2 minutes at least)',
+        '60': '1 minute', '120': '2 minutes', '300': '5 minutes', '600': '10 minutes',
+        '1800': '30 minutes', 'off': 'never for that'}
+del _p
 
 NAMES = {
     'mail_mode': 'Sending mail',
@@ -728,6 +762,14 @@ NAMES = {
     'portal_certlogin_crl_ldap': 'CRLs from the directory (LDAP) too (the portal)',
     'portal_certlogin_ocsp': 'Ask an OCSP responder (the portal)',
     'portal_certlogin_ocsp_url': 'OCSP responder of its own (the portal)',
+    'admin_certlogin_card_watch': 'When the card is taken out',
+    'admin_certlogin_card_every': 'Check the card',
+    'admin_certlogin_card_grace': 'The lock waits for the card',
+    'admin_certlogin_card_stale': 'No check of the card for',
+    'portal_certlogin_card_watch': 'When the card is taken out (the portal)',
+    'portal_certlogin_card_every': 'Check the card (the portal)',
+    'portal_certlogin_card_grace': 'The lock waits for the card (the portal)',
+    'portal_certlogin_card_stale': 'No check of the card for (the portal)',
     'certlogin_port': 'The certificate\u2019s own port',
     'isemon': 'Send the logs to isemon',
     'isemon_targets': 'isemon’s syslog receivers',
@@ -1357,6 +1399,34 @@ SAYS = {
     'portal_certlogin_ocsp': 'As the administration\'s, for the portal: off, first, only or both.',
     'portal_certlogin_ocsp_url': 'As the administration\'s, for the portal: empty - the responder '
                                  'each certificate names.',
+    'admin_certlogin_card_watch': 'Off (the default): a sign-in made with a certificate lasts as any '
+                                  'other. Sign out at once: the page proves the card again every '
+                                  'few seconds on the certificate\'s port - taken out (no '
+                                  'certificate, another one, or its key not signing), the '
+                                  'sign-in ends and the page goes to the sign-in page. Lock: the '
+                                  'page is covered and nothing of it answered until the card is '
+                                  'back within the time below - else signed out. Only sign-ins '
+                                  'made with a certificate; a password\'s or Windows\' never. '
+                                  'Switched on, the sign-ins made with a certificate before end '
+                                  '(they kept no card to compare with).',
+    'admin_certlogin_card_every': 'How often the page proves the card. Each check is a full TLS '
+                                  'handshake the card\'s key signs (no session resumed on that '
+                                  'port while the card is watched): a card that asks for its PIN '
+                                  'at every signature is not for this.',
+    'admin_certlogin_card_grace': 'Lock: how long the covered page waits for the card before the '
+                                  'sign-in ends.',
+    'admin_certlogin_card_stale': 'No good check for this long - the tab closed, the computer '
+                                  'asleep - and the sign-in ends on the server. By itself: three '
+                                  'checks missed and 30 s, two minutes at least (a hidden tab\'s '
+                                  'timers run once a minute).',
+    'portal_certlogin_card_watch': 'As the administration\'s, for the portal: off (the default), '
+                                   'sign out at once, or lock and wait for the card.',
+    'portal_certlogin_card_every': 'As the administration\'s, for the portal: how often the page '
+                                   'proves the card.',
+    'portal_certlogin_card_grace': 'As the administration\'s, for the portal: how long a lock '
+                                   'waits for the card.',
+    'portal_certlogin_card_stale': 'As the administration\'s, for the portal: no good check for '
+                                   'this long, and the sign-in ends.',
     'certlogin_port': 'Where nginx asks the browser for a certificate (8443: SELinux lets nginx '
                       'have it already). One port for both parts. Opened in the firewall for the '
                       'networks that may reach the pages while either part is on; 80, 443 and '
@@ -1741,10 +1811,14 @@ PANES = {
     # the port, one for both parts), and one under the enrolment pages.
     'admincert': ['admin_certlogin', 'admin_certlogin_auto', 'certlogin_port',
                   'admin_certlogin_match', 'admin_certlogin_crl', 'admin_certlogin_crl_ldap',
-                  'admin_certlogin_ocsp', 'admin_certlogin_ocsp_url'],
+                  'admin_certlogin_ocsp', 'admin_certlogin_ocsp_url',
+                  'admin_certlogin_card_watch', 'admin_certlogin_card_every',
+                  'admin_certlogin_card_grace', 'admin_certlogin_card_stale'],
     'portalcert': ['portal_certlogin', 'portal_certlogin_auto', 'portal_certlogin_match',
                    'portal_certlogin_crl', 'portal_certlogin_crl_ldap', 'portal_certlogin_ocsp',
-                   'portal_certlogin_ocsp_url'],
+                   'portal_certlogin_ocsp_url', 'portal_certlogin_card_watch',
+                   'portal_certlogin_card_every', 'portal_certlogin_card_grace',
+                   'portal_certlogin_card_stale'],
     'db': ['db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password',
            'db_timeout_s', 'db_tls', 'db_tls_ca', 'db_path', 'backup_daily', 'backup_keep',
            'backup_at',
@@ -1858,6 +1932,14 @@ ONLY_WHEN = {
     'portal_certlogin_crl_ldap': ['portal_certlogin', '1'],
     'portal_certlogin_ocsp': ['portal_certlogin', '1'],
     'portal_certlogin_ocsp_url': ['portal_certlogin_ocsp', 'off-not'],
+    'admin_certlogin_card_watch': ['admin_certlogin', '1'],
+    'admin_certlogin_card_every': ['admin_certlogin_card_watch', 'off-not'],
+    'admin_certlogin_card_grace': ['admin_certlogin_card_watch', 'lock'],
+    'admin_certlogin_card_stale': ['admin_certlogin_card_watch', 'off-not'],
+    'portal_certlogin_card_watch': ['portal_certlogin', '1'],
+    'portal_certlogin_card_every': ['portal_certlogin_card_watch', 'off-not'],
+    'portal_certlogin_card_grace': ['portal_certlogin_card_watch', 'lock'],
+    'portal_certlogin_card_stale': ['portal_certlogin_card_watch', 'off-not'],
     'db_host': ['db_engine', 'sqlite-not'], 'db_port': ['db_engine', 'sqlite-not'],
     'db_name': ['db_engine', 'sqlite-not'], 'db_user': ['db_engine', 'sqlite-not'],
     'db_password': ['db_engine', 'sqlite-not'], 'db_timeout_s': ['db_engine', 'sqlite-not'],

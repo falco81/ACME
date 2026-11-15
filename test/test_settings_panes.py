@@ -68,6 +68,10 @@ READ_OTHERWISE = {
     # ...and its revocation besides the CRL (1.0.105): CONFIG.get(part + '_certlogin_ocsp') ...
     'admin_certlogin_ocsp', 'admin_certlogin_ocsp_url', 'admin_certlogin_crl_ldap',
     'portal_certlogin_ocsp', 'portal_certlogin_ocsp_url', 'portal_certlogin_crl_ldap',
+    # ...and its card watched (1.0.113): _cl_card_int(part, 'every', ...) ...
+    'admin_certlogin_card_watch', 'admin_certlogin_card_every', 'admin_certlogin_card_grace',
+    'admin_certlogin_card_stale', 'portal_certlogin_card_watch', 'portal_certlogin_card_every',
+    'portal_certlogin_card_grace', 'portal_certlogin_card_stale',
 }
 
 

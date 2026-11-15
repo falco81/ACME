@@ -93,7 +93,13 @@ def db_move_guard(store):
             'Build the cluster again afterwards if you want one: Settings → High availability.']
         return out
     if mode:
-        out['why'] = ('this node is one of a cluster (replicated - a PostgreSQL on each node): '
+        out['why'] = (('this node is one of a cluster (replicated - each node\'s database on a '
+                       'server of its own, looked after by its agent, the two replicating): its '
+                       'database is the cluster\'s. Moving it - to another engine, another '
+                       'server or back onto this machine - would break the replication and '
+                       'leave the other node on its own.') if mode == 'replicated' and
+                      _guard_agent_here() else
+                      'this node is one of a cluster (replicated - a PostgreSQL on each node): '
                       'its database is the cluster\'s. Moving it would break the replication '
                       'and leave the other node on its own.' if mode == 'replicated' else
                       'this node is one of a cluster (shared - both nodes open one PostgreSQL): '
@@ -120,6 +126,13 @@ def db_move_guard(store):
         'Then build the cluster again: Settings → High availability → Make the bundle… here, '
         'and Join a cluster… on the other node.']
     return out
+
+
+def _guard_agent_here():
+    try:
+        return db_agent_here()
+    except Exception:                                   # noqa: BLE001
+        return False
 
 
 def db_move_refuse(store):
@@ -200,7 +213,21 @@ def db_move_start_info(store):
             'backup_dir': str(BACKUP_DIR), 'config_file': str(CONFIG_FILE),
             'helper': bool(web_helper_path()), 'root': os.geteuid() == 0,
             'move': db_move_state(), 'node': node_name(),
-            'this_address': db_this_address('')}
+            'this_address': db_this_address(''), 'agent': db_move_agent_info()}
+
+
+def db_move_agent_info():
+    """This node's database agent, for the wizard (1.0.113): the server it makes a database on
+    ('make it for me'), and whether the database is there now - or None."""
+    a = db_agent()
+    if not a:
+        return None
+    eng = a.get('engine') or 'postgres'
+    return {'host': a.get('host'), 'port': a.get('port'), 'engine': eng,
+            'db_host': a.get('db_host') or a.get('host'),
+            'db_port': int(a.get('pg_port' if eng == 'postgres' else 'my_port') or
+                           MOVE_ENGINES[eng]['port']),
+            'here': db_agent_here()}
 
 
 def db_this_address(toward):
@@ -217,6 +244,26 @@ def db_this_address(toward):
 
 
 # ---- the settings the page sends -------------------------------------------------
+def db_other_server(c):
+    """Whether `c` names another database server than the one in use (its engine, address or
+    port) - not merely another database on it."""
+    eng = str(c.get('db_engine') or '')
+    if eng != str(CONFIG.get('db_engine') or 'sqlite'):
+        return True
+    if eng == 'sqlite':
+        return False
+
+    def norm(h):
+        h = str(h or '').strip().strip('[]').lower()
+        return '127.0.0.1' if h in LOCAL_HOSTS else h
+    dflt = MOVE_ENGINES.get(eng, {}).get('port') or 0
+    try:
+        return norm(c.get('db_host')) != norm(CONFIG.get('db_host')) or \
+            int(c.get('db_port') or dflt) != int(CONFIG.get('db_port') or dflt)
+    except (TypeError, ValueError):
+        return True
+
+
 def db_move_settings(given, ca_pem=''):
     """The target as engine_asked reads it, and checked a little more: the file
     of SQLite, the TLS asked for, an authority sent as PEM kept beside the
@@ -225,6 +272,15 @@ def db_move_settings(given, ca_pem=''):
     if given.get('db_engine') != 'sqlite' and given.get('db_password') is None:
         # Never the password of the database in use sent to another server.
         given['db_password'] = ''
+    if given.get('db_engine') != 'sqlite' and given.get('db_tls') is None and \
+            db_other_server(given):
+        # Nor its encryption (1.0.113): verify-full and the authority of the server in use are
+        # that server's - carried to another one (acme --db-move without --db-tls-mode), a
+        # MariaDB without TLS yet was asked for it, a PostgreSQL checked against an authority
+        # that never signed its certificate. Off unless asked; Database -> TLS turns it on there.
+        given['db_tls'] = ''
+        if given.get('db_tls_ca') is None:
+            given['db_tls_ca'] = ''
     if given.get('db_engine') == 'sqlite':
         path = str(given.get('db_path') or '').strip() or str(DB_FILE)
         if not os.path.isabs(path) or '\x00' in path or not path.endswith('.db'):
@@ -814,11 +870,22 @@ def db_move_work(store, c, by, overwrite=False, progress=None, restart=None):
                                                   (' · %d event(s) of the move carried' % carried)
                                                   if carried else ''))
         stop_if_asked()
+        if db_other_server(c):
+            # What the rows say of the database SERVER in use is not true of the new one
+            # (1.0.113): its certificate from acme's authority (renewed, alerted on), what its
+            # agent said, the meter's reading. The new server's are written as they come.
+            for k in ('dbtls:server:', 'dbagent:node:', 'load:db:'):
+                try:
+                    far.run('DELETE FROM meta WHERE k = ?', (k + node_name(),))
+                except Exception as e:                  # noqa: BLE001
+                    log('the rows of the old database server could not be left out: %s' % e,
+                        'warn')
         far.close()
         far = None
         # From here on there is no Cancel: the new database is the one.
         MOVE['state'] = 'switching'
         _mv_step('switch', 'run')
+        was_here = db_agent_here()
         write_file_settings({k: c.get(k) for k in DB_KEYS})
         if c['db_engine'] == 'sqlite':
             for sfx in ('', '-wal', '-shm'):
@@ -832,7 +899,16 @@ def db_move_work(store, c, by, overwrite=False, progress=None, restart=None):
                         'left as it was; acme starts again on the new one'
                         % (by, ENGINE_WORDS.get(c['db_engine']), db_where(c),
                            sum(loaded.values()), store.db.where()), 'warn', who=by)
-        _mv_step('switch', 'ok', '%s names the new database now: %s' % (CONFIG_FILE, db_where(c)))
+        # Moved off the server of this node's database agent: the agent is no longer this
+        # node's (1.0.113) - nothing is asked of it any more.
+        try:
+            MOVE['agent'] = db_agent_after_move(store, was_here, c, by)
+        except Exception as e:                          # noqa: BLE001
+            MOVE['agent'] = ''
+            log('the database agent could not be let go after the move: %s - acme '
+                '--db-agent-forget --yes' % e, 'warn')
+        _mv_step('switch', 'ok', '%s names the new database now: %s%s' % (
+            CONFIG_FILE, db_where(c), ('; ' + MOVE['agent']) if MOVE.get('agent') else ''))
         MOVE['state'] = 'restarting'
         _mv_step('restart', 'run', 'acme stops here and starts again on %s' % db_where(c))
         progress(whole, whole, 'restarting on the new database')
@@ -1018,9 +1094,12 @@ def db_move_api(h, s, act, b):
                                     'database and an account on it')
             said = db_make(c, who, str(b.get('admin_password') or ''))
         else:
-            if not db_is_local(c):
-                raise ApiError(400, 'only a server on this machine is made by acme itself: run '
-                                    'the SQL shown on that server, or give an administrator of it')
+            # On this machine by the root helper - or on the server of this node's database
+            # agent, by the agent (1.0.113).
+            if not db_is_local(c) and not db_agent_is_target(c):
+                raise ApiError(400, 'only a server on this machine, or the server of this '
+                                    'node\'s database agent, is made by acme itself: run the SQL '
+                                    'shown on that server, or give an administrator of it')
             said = db_make_here(c)
         store.add_event('settings', '%s made the database and the account for the move at %s'
                         % (by, db_where(c)), who=by)
@@ -1057,6 +1136,10 @@ def db_move_cli_args(p):
     g.add_argument('--db-overwrite', action='store_true', help='--db-move: what of acme is in '
                    'the other database already is thrown away first')
     g.add_argument('--db-check', action='store_true', help='--db-move: only the checks')
+    g.add_argument('--db-make', action='store_true', help='--db-move: the database and its '
+                   'account made first - on this machine by its root helper, or on the server '
+                   'of this node\'s database agent by the agent (acme --db-agent-join first); '
+                   'the account\'s password from ACME_DB_PASSWORD, or made up')
 
 
 @hook('cli_run')
@@ -1091,6 +1174,12 @@ def db_move_cli(args):
             given['db_tls'] = args.db_tls_mode
         if getattr(args, 'ca', None):
             given['db_tls_ca'] = args.ca
+        if not given['db_password'] and getattr(args, 'db_make', False):
+            # into config.json at the end - but the account in use keeps its own: made again
+            # with a new one, the database in use would no longer let acme in
+            same = not db_other_server(given) and given['db_user'] == CONFIG.get('db_user')
+            given['db_password'] = (CONFIG.get('db_password') if same else '') or \
+                db_password_made()
         if not given['db_password']:
             given['db_password'] = ask_password('the password of %s' % given['db_user'],
                                                 twice=False, env='ACME_DB_PASSWORD')
@@ -1098,6 +1187,40 @@ def db_move_cli(args):
         c = db_move_settings(given)
     except ValueError as e:
         raise SystemExit('acme: %s' % e)
+    if getattr(args, 'db_make', False):
+        if args.db_move == 'sqlite':
+            raise SystemExit('acme: --db-make: a file needs nothing made')
+        if not db_is_local(c) and not db_agent_is_target(c):
+            a = db_agent()
+            raise SystemExit(
+                'acme: --db-make: %s is neither on this machine nor the server of this node\'s '
+                'database agent%s - join its agent first (acme --db-agent-join -), or run there, '
+                'as its administrator:\n%s' % (
+                    db_where(c), (' (that is %s:%s)' % (a.get('db_host') or a.get('host'),
+                                                        a.get('pg_port') if a.get('engine') !=
+                                                        'mariadb' else a.get('my_port')))
+                    if a else '', db_move_sql(c, password_shown=False)['sql']))
+        try:
+            for line in db_make_here(c):
+                print('  made %s' % line)
+        except ValueError as e:
+            raise SystemExit('acme: --db-make: %s' % e)
+        if not args.db_check:
+            store.add_event('settings', 'command line made the database and the account for the '
+                            'move at %s' % db_where(c), who='command line')
+    elif db_agent_on() and not db_agent_is_target(c) and db_other_server(c) and \
+            not db_is_local(c):
+        a = db_agent() or {}
+        print('  note: %s is not the server of this node\'s database agent (%s): once moved '
+              'there, nothing of that server is looked after by acme - join its agent first '
+              '(acme --db-agent-join -) to have it looked after' % (db_where(c), a.get('db_host')
+                                                                     or a.get('host')))
+    if args.db_move != 'sqlite' and str(CONFIG.get('db_tls') or '') and \
+            not c.get('db_tls') and 'db_tls' not in given:
+        print('  note: the connection was %s to the database in use; to another server it is '
+              'not carried - off until it is turned on there (--db-tls-mode MODE [--ca FILE] '
+              'here, or Settings -> The database -> Encryption once moved)'
+              % CONFIG.get('db_tls'))
     got = db_move_checks(store, c, args.db_overwrite)
     for r in got['checks']:
         mark = {True: 'ok  ', False: 'FAIL', 'warn': 'warn'}[r['ok']]
@@ -1140,4 +1263,12 @@ def db_move_cli(args):
             print('  ok   %s: %s' % (s_['what'], s_['said']))
     print('acme: moved to %s; the copy made first: %s; the old database is left as it was'
           % (got['to'], got['backup']))
+    if MOVE.get('agent'):
+        print('  %s' % MOVE['agent'])
+    elif db_agent_is_target(c) and not c.get('db_tls'):
+        print('  next: the server\'s certificate from acme\'s authority and verify-full - %s'
+              % ('acme --db-agent-mariadb-tls, then Settings -> The database -> Encryption'
+                 if c['db_engine'] == 'mariadb' else
+                 'Settings -> The database -> Encryption (acme --db-tls-apply server, then '
+                 'connect)'))
     return 0

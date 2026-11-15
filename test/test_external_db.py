@@ -1085,6 +1085,31 @@ class ReplicatedExternal(unittest.TestCase):
         self.b.py("acme.db_agent_put({'peer_node': %r}); "
                   "st.db.run(\"DELETE FROM meta WHERE k LIKE 'dbagent:addr:%%'\")" % had)
 
+    def test_06_moves_refused(self):
+        """Each node's database on its own server, replicating: no move breaks it (1.0.113) -
+        not to another engine, server or this machine, from the command line nor the wizard;
+        nor another agent joined in the place of the one its database is on."""
+        for args in (['sqlite'], ['postgres', '--db-host', '127.0.0.1', '--db-port', '5'],
+                     ['mariadb', '--db-port', '6']):
+            got = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py'), '--db-move'] +
+                                 args + ['--db-make', '--yes'],
+                                 env=dict(self.a.env, ACME_DB_PASSWORD=DB_PW), capture_output=True,
+                                 text=True, timeout=120)
+            self.assertEqual(got.returncode, 3, got.stdout + got.stderr)
+            self.assertIn('each node\'s database on a server of its own', got.stderr)
+            self.assertIn('acme --ha-standalone', got.stderr)
+        g = self.a.ok('POST', '/api/db', {'action': 'wiz_start'})['guard']
+        self.assertTrue(g['refused'])
+        self.assertIn('another engine, another server or back onto this machine', g['why'])
+        st, got = self.a.call('POST', '/api/db', {'action': 'wiz_make', 'how': 'local', 'settings': {
+            'db_engine': 'postgres', 'db_host': '127.0.0.1', 'db_port': self.db2.port,
+            'db_name': 'other', 'db_user': 'other', 'db_password': DB_PW}})
+        self.assertEqual(st, 409, got)
+        got = self.a.cli('--db-agent-join', '-', stdin=self.ag2.code() + '\n')
+        self.assertNotEqual(got.returncode, 0)
+        self.assertIn('one of a cluster and its database is on', got.stderr)
+        self.assertEqual(node_conf_agent(self.a)['port'], self.ag1.port)
+
 
 def can_run_my():
     return os.geteuid() == 0 and shutil.which('mariadb-install-db') and shutil.which('mariadbd') \
@@ -1238,6 +1263,255 @@ class StandaloneMariaDb(unittest.TestCase):
         done, left = json.loads(out.strip().splitlines()[-1])
         self.assertTrue(done)
         self.assertGreater(left, 300 * 86400)
+
+
+
+def my_agent(db, cadir):
+    """An agent for a MariaDB of its own (as StandaloneMariaDb makes it), started."""
+    ag = Agent(db, cadir)
+    with open(ag.conf) as f:
+        c = json.load(f)
+    c.update(engine='mariadb', my_port=db.port, my_socket=db.sock, my_cnf_dir=db.cnf_dir,
+             my_tls_dir=os.path.join(db.top, 'tls'), my_restart_cmd=['/bin/sh', db.script])
+    c.pop('pg_restart_cmd', None)
+    with open(ag.conf, 'w') as f:
+        json.dump(c, f)
+    return ag.start()
+
+
+@unittest.skipUnless(can_run() and can_run_my(), 'needs root, PostgreSQL 16 and MariaDB')
+class EngineMoves(unittest.TestCase):
+    """Moves between engines and servers with the database servers' agents (1.0.113), from the
+    command line (acme --db-move ... --db-make): a PostgreSQL with its agent -> a MariaDB with
+    another agent and back, each made through the target's agent, the TLS of the server left
+    behind never carried; then off the agents' servers onto this machine's PostgreSQL, MariaDB
+    and SQLite - the agent let go (db_admin local), nothing asked of it any more.
+
+    One agent a node: joining another replaces the one there was (agent.json.replaced, said);
+    a move off the agent's server lets it go (agent.json.forgotten, said)."""
+
+    @classmethod
+    def setUpClass(cls):
+        set_up_or_clean(cls, cls._set_up)
+
+    @classmethod
+    def _set_up(cls):
+        cls.cadir = tempfile.mkdtemp(prefix='acme-extdb-ca-', dir=BASE)
+        os.chmod(cls.cadir, 0o755)
+        cls.pga = PgServer('mva')                       # PostgreSQL with agent A
+        cls.aga = Agent(cls.pga, cls.cadir).start()
+        cls.myb = MyServer('mvb')                       # MariaDB with agent B
+        cls.agb = my_agent(cls.myb, cls.cadir)
+        cls.pgl = PgServer('mvl')                       # "this machine's" PostgreSQL, no agent
+        cls.myl = MyServer('mvm')                       # "this machine's" MariaDB, no agent
+        cls.myl.sql("CREATE DATABASE acme CHARACTER SET utf8mb4 COLLATE utf8mb4_bin; "
+                    "CREATE USER 'acme'@'127.0.0.1' IDENTIFIED BY '%s'; "
+                    "GRANT ALL PRIVILEGES ON acme.* TO 'acme'@'127.0.0.1'; FLUSH PRIVILEGES" % DB_PW)
+        cls.n = Node('mv0', extra={'perf_meter': True})
+        cls.n.env.update(ACME_HA_NO_RESTART='1', ACME_NO_RESTART='1',
+                         ACME_HA_CA=os.path.join(cls.cadir, 'mva.pem'),
+                         ACME_DBAGENT_EVERY='2', ACME_DBAGENT_DOWN_S='3')
+        os.makedirs(os.path.join(cls.n.tmp, 'state', 'web'), exist_ok=True)
+        cls.n.add_account()
+        cls.n.py("st.add_event('settings', 'a row to carry along')")
+        got = cls.n.cli('--db-agent-join', '-', stdin=cls.aga.code() + '\n')
+        if got.returncode != 0:
+            raise RuntimeError('--db-agent-join: %s %s' % (got.stdout, got.stderr))
+        out = cls.move('postgres', cls.pga.port, make=True)
+        if 'made ' not in out:
+            raise RuntimeError('--db-make said nothing: %s' % out)
+        cls.n.start()
+        cls.tls_on()
+
+    @classmethod
+    def tearDownClass(cls):
+        quietly(*[getattr(cls, x).cleanup for x in ('n',) if getattr(cls, x, None)],
+                *[getattr(cls, x).stop for x in ('aga', 'agb') if getattr(cls, x, None)],
+                *[getattr(cls, x).cleanup for x in ('pga', 'myb', 'pgl', 'myl')
+                  if getattr(cls, x, None)],
+                lambda: shutil.rmtree(cls.cadir, ignore_errors=True))
+
+    @classmethod
+    def move(cls, engine, port=None, make=False, pw=None, more=(), ok=True):
+        """acme --db-move with the daemon stopped (it is started again by the test)."""
+        cls.n.stop()
+        args = ['--db-move', engine]
+        if engine != 'sqlite':
+            args += ['--db-host', '127.0.0.1', '--db-port', str(port)]
+        args += (['--db-make'] if make else []) + list(more) + ['--yes']
+        env = dict(cls.n.env)
+        env.pop('ACME_DB_PASSWORD', None)
+        if pw:
+            env['ACME_DB_PASSWORD'] = pw
+        got = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py')] + args, env=env,
+                             capture_output=True, text=True, timeout=300, stdin=subprocess.DEVNULL)
+        out = got.stdout + got.stderr
+        if ok and got.returncode != 0:
+            raise AssertionError('--db-move %s: %s' % (' '.join(args), out))
+        return out
+
+    @classmethod
+    def tls_on(cls):
+        for phase in ('server', 'connect'):
+            ident = cls.n.ok('POST', '/api/dbtls', {'action': 'apply', 'phase': phase,
+                                                    'mode': 'verify-full', 'ca_source': 'acme'})['id']
+            one = dbtls_wait(cls.n, ident)
+            if not one.get('ok'):
+                raise AssertionError('Database -> TLS %s: %s' % (phase, one))
+
+    def agent_dir(self):
+        return os.path.join(self.n.tmp, 'state', 'db-agent')
+
+    def view(self):
+        return self.n.ok('GET', '/api/db-agent')
+
+    def join(self, agent):
+        got = self.n.cli('--db-agent-join', '-', stdin=agent.code() + '\n')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        return got.stdout + got.stderr
+
+    def events(self):
+        return self.n.py("print(json.dumps([r['words'] for r in st.db.rows("
+                         "'SELECT words FROM events ORDER BY id')]))")
+
+    def test_01_pg_agent_to_mariadb_agent(self):
+        self.assertEqual(self.n.conf.get('db_tls'), 'verify-full')
+        # Another agent joined: it takes the place of the first, and says the database is
+        # still on the first one's server.
+        out = self.join(self.agb)
+        self.assertIn('NOTE: this node\'s database is still on 127.0.0.1', out)
+        self.assertIn('--forget mv0', out)
+        a = node_conf_agent(self.n)
+        self.assertEqual((a['engine'], a['port']), ('mariadb', self.agb.port))
+        self.assertNotIn('peer_node', a)
+        with open(os.path.join(self.agent_dir(), 'agent.json.replaced')) as f:
+            self.assertEqual(json.load(f)['port'], self.aga.port)
+        # Not on the agent's server yet: nothing of the agent is asked meanwhile.
+        self.assertIn('False', self.n.py('print(acme.db_agent_here())'))
+        out = self.move('mariadb', self.myb.port, make=True)
+        self.assertIn('made ', out)
+        self.assertIn("the account 'acme'", out)
+        self.assertIn('not carried', out)                       # verify-full of PostgreSQL
+        self.assertIn('acme --db-agent-mariadb-tls', out)
+        c = self.n.conf
+        self.assertEqual((c['db_engine'], c['db_port']), ('mariadb', self.myb.port))
+        self.assertFalse(c.get('db_tls'))
+        self.assertFalse(c.get('db_tls_ca'))
+        # A MariaDB asked for TLS it does not offer is never used in the clear.
+        out = self.n.py("c = {k: acme._engine.CONFIG.get(k) for k in acme.DB_KEYS}; "
+                        "c['db_tls'] = 'require'\n"
+                        "try:\n    acme.db_open(c).value('SELECT 1'); print('PLAIN')\n"
+                        "except acme.DbError as e:\n    print('REFUSED', e)")
+        self.assertIn('REFUSED', out)
+        self.assertIn('does not offer it', out)
+        # The rows of the PostgreSQL server were left behind; the card is the MariaDB's.
+        self.assertEqual(self.n.py("print(st.get_meta('dbtls:server:mv0'))").strip(), 'None')
+        self.n.start()
+        v = wait_for(lambda: (lambda x: x if x['servers'] else None)(self.view()), 30, 1,
+                     'the MariaDB server on the card')
+        self.assertEqual(v['where']['kind'], 'agent')
+        self.assertEqual(v['engine'], 'mariadb')
+        me = [x for x in v['servers'] if x['me']][0]
+        self.assertEqual((me['engine'], me['port']), ('mariadb', self.agb.port))
+        self.assertEqual(me['facts']['engine'], 'mariadb')
+        # TLS through the new agent, then verify-full
+        got = self.n.cli('--db-agent-mariadb-tls')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        wait_for(lambda: self.n.call('GET', '/api/dbtls')[0] == 200, 60, 1, 'the daemon back')
+        ident = self.n.ok('POST', '/api/dbtls', {'action': 'apply', 'phase': 'connect',
+                                                 'mode': 'verify-full', 'ca_source': 'acme'})['id']
+        self.assertTrue(dbtls_wait(self.n, ident)['ok'])
+        self.assertEqual(self.n.conf.get('db_tls'), 'verify-full')
+        self.assertIn('a row to carry along', self.events())
+
+    def test_02_mariadb_agent_back_to_pg_agent(self):
+        out = self.join(self.aga)
+        self.assertIn('NOTE', out)
+        self.assertEqual(node_conf_agent(self.n)['engine'], 'postgres')
+        # The old copy is still there (the way back): thrown away as said; the account made
+        # again through agent A.
+        out = self.move('postgres', self.pga.port, make=True, more=['--db-overwrite'])
+        self.assertIn('not carried', out)
+        c = self.n.conf
+        self.assertEqual((c['db_engine'], c['db_port']), ('postgres', self.pga.port))
+        self.assertFalse(c.get('db_tls'))
+        self.n.start()
+        v = self.view()
+        self.assertEqual((v['where']['kind'], v['engine']), ('agent', 'postgres'))
+        self.assertIn('True', self.n.py('print(acme.db_agent_here())'))
+        self.tls_on()
+        self.assertEqual(self.n.conf.get('db_tls'), 'verify-full')
+        self.assertIn('a row to carry along', self.events())
+
+    def test_03_agent_to_this_machines_postgres(self):
+        before = len(self.aga.audit())
+        out = self.move('postgres', self.pgl.port, make=True)
+        self.assertIn('made ', out)
+        self.assertIn('no longer looks after this node\'s database', out)
+        self.assertIn('db_admin is local again', out)
+        self.assertFalse(os.path.exists(os.path.join(self.agent_dir(), 'agent.json')))
+        self.assertTrue(os.path.exists(os.path.join(self.agent_dir(), 'agent.json.forgotten')))
+        self.assertFalse(self.n.conf.get('db_tls'))
+        self.n.start()
+        v = self.view()
+        self.assertEqual(v['db_admin'], 'local')
+        self.assertEqual(v['where']['kind'], 'here')
+        self.assertEqual(v['servers'], [])
+        got = json.loads(self.n.py(
+            "print(json.dumps([acme.db_admin(), acme.db_agent_here(), acme.dbtls_kind()]))"))
+        self.assertEqual(got, ['local', False, 'local'])
+        for path in ('/api/ha', '/api/load'):
+            self.assertNotIn('dbservers', self.n.ok('GET', path), path)
+        self.assertNotIn('dbservers', self.n.call('GET', '/api/dbtls')[1])
+        time.sleep(6)                   # the agent's look every 2 s, were it still asked
+        asked = [x.get('op') for x in self.aga.audit()[before:] if x.get('node') == 'mv0']
+        self.assertEqual(asked, [])
+        self.assertIn('a row to carry along', self.events())
+
+    def test_04_local_postgres_to_sqlite(self):
+        out = self.move('sqlite', more=['--db-path', os.path.join(self.n.tmp, 'state', 'b.db')])
+        self.assertNotIn('no longer looks after', out)
+        self.n.start()
+        self.assertEqual(self.view()['db_admin'], 'local')
+        self.assertIn('a row to carry along', self.events())
+
+    def test_05_agent_to_sqlite_and_mariadb(self):
+        # SQLite -> MariaDB with agent B -> this machine's MariaDB: the agent let go
+        self.join(self.agb)
+        self.move('mariadb', self.myb.port, make=True, more=['--db-overwrite'])
+        self.n.start()
+        self.assertEqual(self.view()['where']['kind'], 'agent')
+        out = self.move('mariadb', self.myl.port, pw=DB_PW)
+        self.assertIn('db_admin is local again', out)
+        self.n.start()
+        v = self.view()
+        self.assertEqual((v['db_admin'], v['where']['kind'], v['servers']), ('local', 'here', []))
+        # ... and agent A's server -> SQLite: let go too
+        self.join(self.aga)
+        self.move('postgres', self.pga.port, make=True, more=['--db-overwrite'])
+        out = self.move('sqlite', more=['--db-path', os.path.join(self.n.tmp, 'state', 'c.db')])
+        self.assertIn('db_admin is local again', out)
+        self.n.start()
+        v = self.view()
+        self.assertEqual((v['db_admin'], v['where']['kind']), ('local', 'file'))
+        self.assertIn('a row to carry along', self.events())
+
+    def test_06_make_refused_elsewhere(self):
+        # --db-make on a server neither here nor the agent's: refused, the SQL said
+        self.n.stop()
+        got = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py'), '--db-move', 'postgres',
+                              '--db-host', '192.0.2.77', '--db-make', '--db-check'],
+                             env=dict(self.n.env, ACME_DB_PASSWORD=DB_PW), capture_output=True,
+                             text=True, timeout=120)
+        self.assertNotEqual(got.returncode, 0)
+        self.assertIn('neither on this machine nor the server', got.stderr)
+        self.assertIn('CREATE ROLE', got.stderr)
+        self.assertNotIn(DB_PW, got.stderr)
+        # A join code on the command line still works - with a warning (1.0.113)
+        got = self.n.cli('--db-agent-join', self.aga.code())
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        self.assertIn('WARNING: the join code was given on the command line', got.stderr)
+        self.assertIn('acme --db-agent-join -', got.stderr)
 
 
 class LocalUnchanged(unittest.TestCase):

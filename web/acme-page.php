@@ -48,11 +48,35 @@ if (substr_count($acme_query, 'api=') > 1 || preg_match('/(^|&)[^=&]*%/', $acme_
 unset($acme_query);
 
 $nonce = base64_encode(random_bytes(16));
-header("Content-Security-Policy: default-src 'self'; "
-     . "script-src 'self' 'nonce-$nonce'; "
-     . "style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'nonce-$nonce'; "
-     . "img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; "
-     . "base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+/** The page's Content-Security-Policy - sent again by a page whose sign-in watches its card
+    (1.0.113), with the certificate's port of this name among the places it may ask: that one
+    check and nothing else. */
+function acme_csp(string $connect = ''): void
+{
+    global $nonce;
+    header("Content-Security-Policy: default-src 'self'; "
+         . "script-src 'self' 'nonce-$nonce'; "
+         . "style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'nonce-$nonce'; "
+         . "img-src 'self' data:; connect-src 'self'" . ($connect !== '' ? ' ' . $connect : '') . "; font-src 'self'; object-src 'none'; "
+         . "base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+}
+acme_csp();
+
+/** The certificate's port, for the check of the card (1.0.113): https://<this name>:<port>, or ''
+    when the sign-in watches no card. $card: what whoami / /api/portal/me said of it. */
+function acme_card_origin($card): string
+{
+    if (!is_array($card)) {
+        return '';
+    }
+    $port = (int) ($card['port'] ?? 0);
+    $host = preg_replace('/:\d{1,5}\z/', '', (string) ($_SERVER['HTTP_HOST'] ?? ''));
+    if ($port < 1024 || $port > 65535 || $port === 443
+            || preg_match('/^([A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?|\[[0-9A-Fa-f:.]{2,45}\])\z/', (string) $host) !== 1) {
+        return '';
+    }
+    return 'https://' . $host . ':' . $port;
+}
 
 function h($value): string
 {

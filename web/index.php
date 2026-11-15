@@ -201,7 +201,9 @@ if (isset($_GET['api'])) {
                'cert-approve' => '/api/portal/cert_approve', 'csr-decode' => '/api/portal/csr_decode',
                'cert-csr' => '/api/portal/cert_csr',
                // The one-time code at every sign-in (1.0.40, as otp 1.0.228) - typed, above.
-               'gate_again' => '/api/portal/gate/again'];
+               'gate_again' => '/api/portal/gate/again',
+               // The check of the card that could not be made (1.0.113).
+               'cert-lost' => '/api/certlogin/lost'];
     if ($post && isset($writes[$what])) {
         acme_relay($writes[$what], 'POST', sent_json(), 120.0);
         exit;
@@ -240,6 +242,10 @@ if ($alive && acme_session() !== '') {
     $me = is_array($got) ? ($got['me'] ?? null) : null;
     /* The password given, its second step not yet (an account of acme's own). */
     $mfa = (is_array($got) && !$me && !empty($got['mfa'])) ? (string) $got['mfa'] : '';
+}
+/* A sign-in that watches its card (1.0.113): the certificate's port among where the page may ask. */
+if (is_array($me) && acme_card_origin($me['card'] ?? null) !== '') {
+    acme_csp(acme_card_origin($me['card']));
 }
 // Signed in, the one-time code not typed yet (as otp 1.0.228): the sign-in page, asking for it.
 $gate = (is_array($me) && !empty($me['gate'])) ? $me['gate'] : null;

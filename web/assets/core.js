@@ -2118,6 +2118,12 @@ function api(what, body, wait) {
     throw err;
   }).then(function (r) {
     clearTimeout(timer);
+    if (r.status === 423 && typeof cardLockedSaid === 'function' && cardLockedSaid()) {
+      /* Locked until the card is back (1.0.113): the lock says so, nothing else does. */
+      var lk = new Error('locked - put your card back');
+      lk.unreachable = true;
+      throw lk;
+    }
     if (r.status === 401 && !/^(login|portal-login)/.test(what)) {
       /* Asked again before the page is left (1.0.73): behind the VIP address
          a node that is restarting, or that has just got the address, may say
@@ -4084,7 +4090,9 @@ var CERT_SAID = {
   nonce: 'Certificate sign-in refused: not started from this sign-in page - try again',
   wait: 'Certificate sign-in refused: too many tries - wait a while',
   off: 'signing in with a certificate is switched off here',
-  signin: 'sign in to these pages first, then try your certificate'
+  signin: 'sign in to these pages first, then try your certificate',
+  /* the card watched (1.0.113): taken out, and the sign-in ended for it */
+  removed: 'Signed out: your card was removed'
 };
 function certSaid() {
   var said = '';
@@ -4181,3 +4189,151 @@ function certDoor() {
     return true;
   };
 }
+
+/* ---- the card watched (1.0.113) ---------------------------------------------------------------
+   No browser tells a page that a smart card or a YubiKey was taken out: a sign-in made with a
+   certificate, in a part that watches the card (ME.card / PORTAL_ME.card - absent otherwise, and
+   then nothing here runs), proves it again every few seconds - a request of its own to the
+   certificate's port (CORS, with the cookies), where nginx resumes no TLS session and keeps no
+   connection, so each check is a full handshake the card's key signs. The answer: ok; locked
+   (the lock over the page, a countdown, the checks every 3 s until the card is back - the page
+   then reloads - or the time is up); gone (to the sign-in page, saying why). A check that could
+   not be made at all - the card's key failing in the handshake looks like a network error - is
+   tried again (card.retries times, card.retry_s apart) and then said over 443 (?api=cert-lost):
+   the daemon decides. */
+var CARD = null;
+function cardSignInPage(part) {
+  try { krbSignedOut(part); certAutoNo(part); } catch (e) { }
+  location.replace((part === 'admin' ? '/admin/' : '/') + '?certsaid=removed');
+}
+function cardLockedSaid() {
+  if (!CARD) return false;
+  if (!CARD.locked) cardCheckNow();
+  return true;
+}
+function cardCheckNow() {
+  if (!CARD || CARD.busy || CARD.done) return;
+  clearTimeout(CARD.timer);
+  CARD.busy = true;
+  var ac = typeof AbortController === 'function' ? new AbortController() : null;
+  var late = setTimeout(function () { if (ac) ac.abort(); }, 8000);
+  fetch(CARD.url + Date.now(), {credentials: 'include', mode: 'cors', cache: 'no-store',
+                                redirect: 'error', signal: ac ? ac.signal : undefined})
+    .then(function (r) {
+      return r.json().then(function (d) { return {status: r.status, d: d || {}}; },
+                           function () { return {status: r.status, d: {}}; });
+    })
+    .then(function (x) { clearTimeout(late); CARD.busy = false; CARD.fails = 0; cardSaid(x.d, x.status); },
+          function () { clearTimeout(late); CARD.busy = false; cardNotMade(); });
+}
+function cardNext(ms) {
+  if (!CARD || CARD.done) return;
+  clearTimeout(CARD.timer);
+  CARD.timer = setTimeout(cardCheckNow, ms);
+}
+function cardNotMade() {
+  CARD.fails += 1;
+  if (CARD.fails <= CARD.c.retries) { cardNext(CARD.c.retry_s * 1000); return; }
+  CARD.fails = 0;
+  fetch('?api=cert-lost', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+                           body: JSON.stringify({part: CARD.part})})
+    .then(function (r) { return r.json().then(function (d) { return {status: r.status, d: d || {}}; }, function () { return {status: r.status, d: {}}; }); })
+    .then(function (x) { cardSaid(x.d, x.status); },
+          function () { cardNext(CARD.locked ? 3000 : CARD.c.every * 1000); });   /* 443 not reached either: the network */
+}
+function cardSaid(d, status) {
+  var st = String(d.state || '');
+  if (st === 'ok') {
+    if (CARD.locked) { CARD.done = true; location.reload(); return; }
+    cardNext(CARD.c.every * 1000);
+  } else if (st === 'locked') {
+    cardLockShow(Number(d.left || 0));
+    cardNext(3000);
+  } else if (st === 'gone') {
+    CARD.done = true;
+    cardSignInPage(CARD.part);
+  } else if (st === 'none') {
+    /* signed out otherwise (run out, ended by somebody): the page as usual */
+    CARD.done = true;
+    location.reload();
+  } else if (st === 'unwatched' || st === 'off' || status === 403 || status === 404) {
+    CARD.done = true;                    /* not watched (any more): nothing more to do */
+    cardLockHide();
+  } else {
+    cardNext(CARD.locked ? 3000 : CARD.c.every * 1000);   /* the daemon not answering: again */
+  }
+}
+function cardLockHide() {
+  var o = $('card-lock');
+  if (o) o.remove();
+  Array.prototype.forEach.call(document.body.children, function (n) { if (n.dataset && n.dataset.cardInert) { n.inert = false; delete n.dataset.cardInert; } });
+  if (CARD) { CARD.locked = false; clearInterval(CARD.tick); }
+}
+function cardLockShow(left) {
+  CARD.until = Date.now() + Math.max(0, left) * 1000;
+  if (CARD.locked && $('card-lock')) return;
+  CARD.locked = true;
+  var o = el('div', 'card-lock');
+  o.id = 'card-lock';
+  var box = el('div', 'card-lock-box');
+  box.setAttribute('role', 'alertdialog');
+  box.setAttribute('aria-modal', 'true');
+  box.setAttribute('aria-labelledby', 'card-lock-h');
+  var art = el('div', 'card-lock-art');
+  art.innerHTML = '<svg viewBox="0 0 120 120" aria-hidden="true"><circle class="card-lock-track" cx="60" cy="60" r="54"/>'
+    + '<circle class="card-lock-ring" cx="60" cy="60" r="54"/>'
+    + '<g class="card-lock-card"><rect x="36" y="30" width="48" height="62" rx="7"/>'
+    + '<rect class="card-lock-chip" x="47" y="44" width="18" height="14" rx="2.5"/>'
+    + '<path d="M47 51h18M56 44v14"/></g></svg>';
+  box.appendChild(art);
+  var h = el('h2', '', 'Put your card back');
+  h.id = 'card-lock-h';
+  box.appendChild(h);
+  box.appendChild(el('p', 'card-lock-why', 'Your smart card or YubiKey was taken out, so this sign-in is locked. Put it back - the page goes on by itself, as you left it.'));
+  var left2 = el('p', 'card-lock-left', '');
+  box.appendChild(left2);
+  var row = el('div', 'btnrow card-lock-btns');
+  var out = cmdButton('Sign out', 'out', 'danger');
+  out.onclick = function () {
+    CARD.done = true;
+    api('logout', {}).then(function () { location.reload(); }, function () { location.reload(); });
+  };
+  row.appendChild(out);
+  box.appendChild(row);
+  o.appendChild(box);
+  Array.prototype.forEach.call(document.body.children, function (n) { if (!n.inert) { n.inert = true; n.dataset.cardInert = '1'; } });
+  document.body.appendChild(o);
+  var ring = o.querySelector('.card-lock-ring'), whole = 2 * Math.PI * 54;
+  var grace = Math.max(1, Number(CARD.c.grace || 60));
+  var paint = function () {
+    var s = Math.max(0, Math.ceil((CARD.until - Date.now()) / 1000));
+    left2.textContent = 'Signed out in ' + s + ' s if the card is not back';
+    if (ring) ring.style.strokeDashoffset = String(whole * (1 - Math.min(1, s / grace)));
+    o.classList.toggle('late', s <= 10);
+    if (s <= 0 && !CARD.done) cardCheckNow();     /* the daemon says gone */
+  };
+  if (ring) ring.style.strokeDasharray = String(whole);
+  paint();
+  clearInterval(CARD.tick);
+  CARD.tick = setInterval(paint, 1000);
+  try { out.focus(); } catch (e) { }
+}
+function cardWatchStart(card, part) {
+  if (CARD || !card || typeof card !== 'object' || !card.port || location.protocol !== 'https:') return;
+  CARD = {c: {every: Math.max(5, Number(card.every) || 10), grace: Number(card.grace) || 60,
+              retries: Math.max(0, Number(card.retries) || 2), retry_s: Math.max(1, Number(card.retry_s) || 3)},
+          part: part, timer: null, tick: null, busy: false, fails: 0, locked: false, done: false, until: 0,
+          url: 'https://' + location.hostname + ':' + Number(card.port) + (part === 'admin' ? '/admin/' : '/') + '?api=cert-alive&t='};
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) cardCheckNow(); });
+  if (card.locked) cardLockShow(Number(card.left || 0));
+  cardCheckNow();
+}
+(function () {
+  var go = function () {
+    var admin = /\/admin\//.test(location.pathname);
+    var me = admin ? (typeof ME === 'object' ? ME : null) : (typeof PORTAL_ME === 'object' ? PORTAL_ME : null);
+    if (me && me.card) cardWatchStart(me.card, admin ? 'admin' : 'portal');
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go);
+  else setTimeout(go, 0);
+})();

@@ -136,6 +136,10 @@ def _whoami(h):
     acc = h.store.account(s['name'])
     if not acc or acc.get('disabled'):
         return {'who': None}
+    # Its card taken out and not put back, or no check of it for too long (1.0.113).
+    if cl_card_dead('admin', s, h.store):
+        h.store.session_end(h.headers.get('X-Acme-Session'))
+        return {'who': None}
     if mfa_pending(s):
         # No role until the second step is given: the pages that ask who it
         # is (a database or a package sent) refuse it.
@@ -158,7 +162,9 @@ def _whoami(h):
                     'cols_edit': cols_editing(h.headers.get('X-Acme-Session') or ''),
                     # How this sign-in was opened (1.0.99): "Kerberos", or '' for a password.
                     'how': str((s.get('data') or {}).get('how') or ''),
-                    'password_off': krb_password_off('admin', h.store)}}
+                    'password_off': krb_password_off('admin', h.store),
+                    # The card watched (1.0.113): only for a sign-in watched, a key only then.
+                    **({'card': cl_card_view('admin', s)} if cl_card_view('admin', s) else {})}}
 
 
 @route('POST', '/api/auth/password')
