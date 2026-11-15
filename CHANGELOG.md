@@ -37,6 +37,28 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   the agent and a join code. `--db-agent` for the agent alone, `--uninstall` with either takes
   the agent away (the database stays). `--dry-run`, and safe to run again. The usual install is
   not changed.
+- **The database servers on the pages.** *Settings → The database → Database server*: where
+  this node's database is (the agent's server, still this machine, another server), a tile per
+  database server (engine and version, running, TLS, connections, the data's disk and RAM,
+  processors and load, up for, the agent's version and certificate, this node's client
+  certificate, last heard), *Look now*, *Renew the certificates*, *Restart the database…*,
+  MariaDB's *Turn TLS on*, *Forget the agent…*. **Connect a database server…**: a three-step
+  popup - the commands for the database server with this node's addresses filled in and copy
+  buttons, the join code checked as it is pasted (the agent's address, engine and certificate
+  said), the agent's address and *Use it as this node's database*, then the join and the
+  server - and *Move the database onto it…*.
+- **The database servers' dots** on the cards whose settings reach them (Database → TLS, the
+  link and replication, the server's own settings, the firewall's database port), each with
+  what its agent said; none on the other cards. **High availability** lists the two database
+  servers - the direction each sends in, what waits to go over, the link's TLS, its agent - and,
+  in *Making it two*, the commands for each node's database on a server of its own
+  (`--ha-peer` the other database server, `--ha-peer-node` the other acme node).
+- **The meter in the header** has a row for each database server (`db1`, or `db · acme1`) in
+  the same look, its database on hover: version, connections, what waits to go over, the size.
+- The alerts of the database agents in good words, in the mail's language too; MariaDB's
+  certificate from acme renewed by itself through the agent 45 days before it ends.
+- Nothing of it is drawn without an agent: the pages are as they were (a page test compares
+  the DOM).
 
 ## 1.0.112 - 2026-11-15
 

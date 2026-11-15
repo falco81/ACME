@@ -419,6 +419,9 @@ class Standalone(unittest.TestCase):
         self.assertTrue(rows[0]['db']['running'])
         v = self.n.ok('GET', '/api/db-agent')
         self.assertEqual(v['db_admin'], 'agent:127.0.0.1:%d' % self.agent.port)
+        # what the card of the database server and its wizard read (1.0.113)
+        self.assertEqual(v['where']['kind'], 'agent')
+        self.assertIsInstance(v['addresses'], list)
         wait_for(lambda: v['servers'] or self.n.ok('GET', '/api/db-agent')['servers'], 20, 1,
                  'the agent looked at')
 
@@ -439,6 +442,11 @@ class Standalone(unittest.TestCase):
                 return [a for a in json.loads(out) if a['key'] == 'dbagent:n0']
             got = wait_for(alerted, 60, 2, 'the alert of the agent away')
             self.assertEqual(got[0]['level'], 'bad')
+            # in the mail's language too (1.0.113: the hook takes lang)
+            cs = json.loads(self.n.py("print(json.dumps(acme._db_agent_alerts(st, lang='cs')))"))
+            self.assertIn('neodpovídá', [a for a in cs if a['key'] == 'dbagent:n0'][0]['title'])
+            got = json.loads(self.n.py("print(json.dumps(acme.alert_problems(st, 'cs')))"))
+            self.assertIn('neodpovídá', got['mod:dbagent:n0']['title'])
         finally:
             self.agent.start()
         wait_for(lambda: not json.loads(self.n.py("print(json.dumps(acme._db_agent_alerts(st)))")),
@@ -705,6 +713,22 @@ class StandaloneMariaDb(unittest.TestCase):
                             "WHERE VARIABLE_NAME = 'UPTIME'")
         self.assertGreaterEqual(int(later), int(started))
         self.n.ok('GET', '/api/certs/overview')
+
+    def test_03_renewed_by_itself(self):
+        """The MariaDB's certificate from acme renewed through the agent 45 days before it ends
+        (1.0.113), as the agent thread does every hour - not a day sooner."""
+        # given through the daemon's own path (as the page's Turn TLS on): its row is kept
+        self.n.py("acme.db_agent_mariadb_tls(st, 'tester')")
+        out = self.n.py("print(acme.db_agent_mariadb_renew(st) is None)")
+        self.assertIn('True', out)                              # far from its end: left alone
+        out = self.n.py(
+            "k = 'dbtls:server:' + acme.node_name(); v = json.loads(st.get_meta(k)); "
+            "v['cert_end'] = acme.time.time() + 10 * 86400; st.set_meta(k, json.dumps(v)); "
+            "got = acme.db_agent_mariadb_renew(st); "
+            "print(json.dumps([bool(got), json.loads(st.get_meta(k))['cert_end'] - acme.time.time()]))")
+        done, left = json.loads(out.strip().splitlines()[-1])
+        self.assertTrue(done)
+        self.assertGreater(left, 300 * 86400)
 
 
 class LocalUnchanged(unittest.TestCase):

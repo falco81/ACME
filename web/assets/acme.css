@@ -4298,7 +4298,7 @@ td.cert-crl-url .tag{flex:none;margin:0}
 .dbs-state .dbs-ago{font-weight:400;opacity:.8}
 .dbs-said{margin:-6px 0 12px}
 .dbs-next{display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between;margin:0 0 14px}
-.dbs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(380px,100%),1fr));gap:12px}
+.dbs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr));gap:12px}
 .dbs-tile{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel)}
 .dbs-tile.me{border-color:color-mix(in srgb,var(--violet) 45%,var(--line));box-shadow:0 0 0 1px color-mix(in srgb,var(--violet) 25%,transparent) inset}
 .dbs-tile.bad{border-color:color-mix(in srgb,var(--crit) 55%,var(--line))}
@@ -4306,9 +4306,9 @@ td.cert-crl-url .tag{flex:none;margin:0}
 .dbs-tile-top .dot{width:9px;height:9px}
 .dbs-tile-n{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px}
 .dbs-eng{margin-left:auto;font-size:12px;color:var(--tx-dim)}
-.dbs-kvs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 16px}
+.dbs-kvs{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 16px}
 .dbs-kv{display:flex;flex-direction:column;gap:1px;min-width:0;padding:3px 0;border-bottom:1px dashed var(--line)}
-.dbs-kv.wide{grid-column:1/-1}
+.dbs-kv.wide{grid-column:span 2}
 .dbs-kv .k{font-size:10.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--tx-mut);font-weight:700}
 .dbs-kv .v{font-size:13px;overflow-wrap:anywhere}
 .dbs-kv .v .good{color:var(--ok)} .dbs-kv .v .bad{color:var(--crit)}
@@ -4318,7 +4318,7 @@ td.cert-crl-url .tag{flex:none;margin:0}
 .dbs-bar.warm > span{background:var(--warn)} .dbs-bar.hot > span{background:var(--crit)}
 .dbs-tile-said{margin-top:8px;overflow-wrap:anywhere}
 .dbs-acts{margin-top:14px}
-.dbs-wiz{min-height:430px}
+.dbs-wiz{min-height:540px}
 .dbs-eng-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:10px}
 .dbs-steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:12px}
 .dbs-steps li > span,.dbs-steps li > b{display:block;margin-bottom:4px}
@@ -4348,6 +4348,7 @@ textarea.dbs-code{width:100%;font-size:12.5px;resize:vertical;min-height:72px}
   .dbs-hero{flex-wrap:wrap;padding:12px}
   .dbs-state{order:3}
   .dbs-kvs{grid-template-columns:1fr}
+  .dbs-kv.wide{grid-column:auto}
   .dbs-cmd{flex-direction:column;align-items:stretch}
   .dbs-wiz{min-height:0}
 }

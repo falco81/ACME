@@ -19116,7 +19116,8 @@ function drawDbTls() {
     sub = 'require encrypts but takes any certificate. verify-full also checks that it is the server’s.';
   } else {
     title = 'The connection to the database is not encrypted';
-    sub = d.kind === 'remote' ? 'Whoever is on the network between this node and the database server reads every row going over - the private keys sealed, but who signs in, when and from where - and can change them.'
+    sub = (d.dbservers || []).length ? 'The database is on a server of its own: whoever is on the network between the nodes and it reads every row going over, and can change them. Encrypt… has its agent put a certificate from acme’s own authority in, then moves each node’s connection to verify-full.'
+      : d.kind === 'remote' ? 'Whoever is on the network between this node and the database server reads every row going over - the private keys sealed, but who signs in, when and from where - and can change them.'
       : 'It does not leave the machine, so this matters less - but high security and the security check ask for it, and it is a few clicks.';
   }
   words.appendChild(el('b', '', title));
@@ -19209,7 +19210,7 @@ function drawDbTls() {
     var sd = el('div', 'hal-said small ' + (st[0] === 'bad' ? 'bad' : 'muted'));
     if (st[2]) sd.appendChild(noI18n(el('span', '', st[2])));
     else {
-      sd.appendChild(el('span', '', 'of'));
+      sd.appendChild(el('span', '', 'node'));
       sd.appendChild(noI18n(el('span', '', ' ' + s.node + ' · ' + (s.db_host || s.host || ''))));
     }
     row.appendChild(sd);
@@ -20065,7 +20066,11 @@ function dbaDraw(host, d) {
   var full = typeof ME === 'object' && ME && ME.role === 'fulladmin';
   if (!dbaOn(d)) {
     /* A server elsewhere, its administrator's: acme only connects to it. */
-    host.appendChild(dbaHero('plain', 'db', haWords(dbaEngine(w.engine) + ' at ', (w.host || '?') + (w.port ? ':' + w.port : ''), ' - a server no agent looks after'),
+    var t0 = el('b', '');
+    t0.appendChild(noI18n(el('span', '', dbaEngine(w.engine) + ' ')));
+    t0.appendChild(noI18n(el('span', 'mono', (w.host || '?') + (w.port ? ':' + w.port : ''))));
+    t0.appendChild(el('span', '', ' - a server no agent looks after'));
+    host.appendChild(dbaHero('plain', 'db', t0,
       'acme only connects to it: its certificate, its settings and their restart are its administrator’s. With acme-db-agent on that server acme looks after it as it would one on this machine - and the meter in the header shows it.'));
     var row = el('div', 'btnrow');
     if (full) {
@@ -20092,7 +20097,7 @@ function dbaDraw(host, d) {
     title.appendChild(haWords('This node’s database is on ', (w.host || '?'), ' - not the agent’s server'));
   }
   var sub = el('div', 'small');
-  sub.appendChild(haWords('Looked after by acme-db-agent at ', (d.host || '?') + ':' + (d.port || '?'), ' · ' + dbaEngine(d.engine) + ' ', f.version || '', ''));
+  sub.appendChild(haWords('Looked after by acme-db-agent at ', (d.host || '?') + ':' + (d.port || '?'), ' · ' + dbaEngine(d.engine) + ' ', f.version ? String(f.version).split(/[ -]/)[0] : '', ''));
   host.appendChild(dbaHero(st[0] === 'bad' ? 'bad' : (w.kind === 'agent' ? (st[0] === 'ok' ? 'good' : 'warn') : 'warn'), 'db', title, sub, chip));
   if (st[0] === 'bad' && st[2]) host.appendChild(el('div', 'note bad dbs-said', st[2]));
   if (w.kind !== 'agent' && full) {
@@ -20179,10 +20184,10 @@ function dbaTile(s, d) {
   top.appendChild(noI18n(el('b', 'dbs-tile-n', dbaLabel(s, d.servers))));
   var tag = el('span', 'tag ' + (s.me ? 'info' : 'dim'));
   if (s.me) tag.appendChild(el('span', '', 'this node’s'));
-  else { tag.appendChild(el('span', '', 'of ')); tag.appendChild(noI18n(el('span', '', s.node))); }
+  else { tag.appendChild(el('span', '', 'node')); tag.appendChild(noI18n(el('span', '', ' ' + s.node))); }
   top.appendChild(tag);
   var eng = el('span', 'dbs-eng');
-  eng.appendChild(noI18n(el('span', '', dbaEngine(s.engine || f.engine) + (f.version ? ' ' + String(f.version).split(' ')[0] : ''))));
+  eng.appendChild(noI18n(el('span', '', dbaEngine(s.engine || f.engine) + (f.version ? ' ' + String(f.version).split(/[ -]/)[0] : ''))));
   top.appendChild(eng);
   t.appendChild(top);
   var kv = el('div', 'dbs-kvs');
@@ -20190,7 +20195,7 @@ function dbaTile(s, d) {
   dbaKv(kv, 'Agent', noI18n(el('span', 'mono', (s.host || '?') + ':' + (s.port || '?') + (a.version ? ' · ' + a.version : ''))));
   var run = el('span', st[0] === 'ok' ? 'good' : (f.running === false ? 'bad' : 'muted'));
   run.appendChild(el('span', '', f.running === false ? 'not running' : (f.running ? 'running' : '–')));
-  if (f.started && f.running) { run.appendChild(document.createTextNode(' · ')); run.appendChild(el('span', '', 'for')); run.appendChild(noI18n(el('span', '', ' ' + dbaUp(Date.now() / 1000 - f.started)))); }
+  if (f.started && f.running) run.appendChild(noI18n(el('span', '', ' · ' + dbaUp(Date.now() / 1000 - f.started))));
   dbaKv(kv, 'The database', run);
   dbaKv(kv, 'TLS', el('span', f.ssl ? 'good' : 'muted', f.ssl === undefined ? '–' : (f.ssl ? 'on' : 'off')));
   dbaKv(kv, 'Connections', f.connections === undefined ? '–' : num(f.connections));
@@ -20430,7 +20435,7 @@ function dbaWizard() {
       var f = W.done.facts || {}, a = W.done.agent || {};
       steps.set('reach', 'ok', (W.done.host || '') + ':' + (W.done.port || '') + (a.version ? ' · acme-db-agent ' + a.version : ''));
       steps.set('certs', 'ok', 'the agent has its certificate; this node its client certificate and signing key');
-      steps.set('look', f.running === false ? 'warn' : 'ok', (f.engine === 'mariadb' ? 'MariaDB ' : 'PostgreSQL ') + (f.version || '') + (f.running === false ? ' - not running' : ' - running'));
+      steps.set('look', f.running === false ? 'warn' : 'ok', (f.engine === 'mariadb' ? 'MariaDB ' : 'PostgreSQL ') + String(f.version || '').split(/[ -]/)[0] + (f.running === false ? ' - not running' : ' - running'));
       var v = W.done.view || {};
       var me = (v.servers || []).filter(function (s) { return s.me; })[0];
       if (me) { var g = el('div', 'dbs-grid one'); g.appendChild(dbaTile(me, v)); res.appendChild(g); }
@@ -20487,7 +20492,7 @@ function dbaHa(d) {
       tr.appendChild(nm);
       tr.appendChild(noI18n(el('td', 'mono small', s.node)));
       tr.appendChild(noI18n(el('td', 'mono small', s.db_host || s.host || '')));
-      tr.appendChild(noI18n(el('td', 'small', dbaEngine(s.engine || f.engine) + (f.version ? ' ' + String(f.version).split(' ')[0] : '') + (f.running === false ? ' ✗' : ''))));
+      tr.appendChild(noI18n(el('td', 'small', dbaEngine(s.engine || f.engine) + (f.version ? ' ' + String(f.version).split(/[ -]/)[0] : '') + (f.running === false ? ' ✗' : ''))));
       /* The direction this server sends in: this node's subscription takes from the other one,
          this node's slot keeps for it. */
       var other = s.me ? byNode[peerNode] : (dbs.filter(function (x) { return x.me; })[0]);

@@ -508,7 +508,11 @@ function hpDb(p, k, r) {
   var big = el('div', 'hp-graph hl-' + k);
   big.innerHTML = hloadSpark(HLOAD.hist, k, max).replace('width="56" height="18"', 'width="100%" height="54"');
   p.appendChild(big);
-  p.appendChild(el('div', 'hp-span muted small', HP_TITLE[k] + ' · the last two minutes'));
+  var spn = el('div', 'hp-span muted small');
+  spn.appendChild(el('span', '', HP_TITLE[k]));
+  spn.appendChild(noI18n(el('span', '', ' · ')));
+  spn.appendChild(el('span', '', 'the last two minutes'));
+  p.appendChild(spn);
   var row = function (host, kk, v, cls) {
     var r2 = el('div', 'hp-row hp-kv2' + (cls ? ' ' + cls : ''));
     r2.appendChild(el('span', 'muted', kk));
@@ -517,7 +521,7 @@ function hpDb(p, k, r) {
   };
   var s1 = hpSec(p, 'The database');
   var eng = (db.engine || r.engine) === 'mariadb' ? 'MariaDB' : 'PostgreSQL';
-  row(s1, 'Version', eng + (db.version ? ' ' + String(db.version).split(' ')[0] : ''));
+  row(s1, 'Version', eng + (db.version ? ' ' + String(db.version).split(/[ -]/)[0] : ''));
   var run = el('span', 'num ' + (db.running ? '' : 'hp-bad'));
   run.appendChild(el('span', '', db.running ? 'running' : 'not running'));
   if (db.running && db.started) run.appendChild(noI18n(el('span', '', ' · ' + hlUp(Date.now() / 1000 - db.started))));
@@ -973,6 +977,8 @@ function hloadTick(now) {
       ['cpu', 'mem', 'disk', 'net', 't'].forEach(function (k) { seed[k] = ok ? (d.hist[k] || []).slice() : []; });
       HLOAD.hist = seed;          /* this reading, the last of them, is not added twice below */
     }
+    /* known before this node's row is drawn: it is named beside them at once (1.0.113) */
+    HLOAD.dbs = Array.isArray(d.dbservers) ? d.dbservers : [];
     hloadDraw(d);
     hloadPeersDraw();
     hloadDbsDraw(d.dbservers, d.now);

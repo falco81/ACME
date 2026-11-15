@@ -241,7 +241,12 @@ readdress: as today, the root parts through the agents.
 - Added only with an agent: `GET /api/ha` → `db_admin`, `dbservers`; `GET
   /api/dbtls` → `db_admin`, `dbservers`; `GET /api/load` → `dbservers` (each
   `{kind: "db", name, node, host, age, cpu, mem_used, mem_total, swap_used,
-  disk_rd, disk_wr, net_rx, net_tx, load, cores, over_s, db: {...}}`).
+  disk_rd, disk_wr, net_rx, net_tx, load, cores, over_s, server, db: {...}}`; `server` is the
+  database server's own short host name, from its agent's facts).
+- `GET /api/db-agent` also says, for the card and its wizard (1.0.113): `where`
+  (`{kind: agent | here | file | unmanaged, engine, host, port, name}` - this node's database
+  on the agent's server, still on this machine, the file, or on a server no agent looks
+  after), `ha_mode`, and `addresses` (this node's own, for `install.sh --acme-node`).
 
 Which cards draw the database servers beside the nodes (`applies`):
 
@@ -253,6 +258,70 @@ Which cards draw the database servers beside the nodes (`applies`):
 | Firewall - the database's port | yes (the agent's `fw_allow`) |
 | The meter in the header | yes |
 | nginx / web TLS, VIP, sshd, sign-in, SELinux, NTP, password policy, logs, OS updates, db_guard | no - the acme nodes' own (the DB server's OS is its administrator's) |
+
+### What the pages show (1.0.113)
+
+Nothing of this is drawn without an agent: Settings → The database, High availability, the
+firewall and the header are exactly as before for a database on this machine (a page test,
+`test/extdb_page.js`, compares their DOM before and after every new piece is asked to draw).
+
+- **Settings → The database → Database server** (a card above *Encryption to the database
+  server*), shown with an agent, or for a database on a server elsewhere that no agent looks
+  after (never for a shared pair). It says where this node's database is - on the agent's
+  server, still on this machine (joined, not moved yet: *Move it onto the database server…*
+  opens the move wizard filled in with the server), or on another server - and draws a tile
+  for each database server the cluster knows: its name, whose it is, the engine and its
+  version, the address and the agent's (`host:port`, its version), running and for how long,
+  TLS, the connections, the data's disk and the RAM as bars, the processors and the load, up
+  for, the agent's certificate and this node's client certificate (red under 14 days), when it
+  was last heard from, and what the agent said when it does not answer. A state pill (answers
+  · 3 s ago / its agent does not answer / its database does not run / not heard from lately).
+  Actions (full administrator): *Look now*, *Renew the certificates*, *Restart the
+  database…* (asked first), for MariaDB *Turn TLS on* / *Give MariaDB a new certificate*,
+  *Forget the agent…* (danger, asked first).
+- **Connect a database server…** - from that card, or from the move wizard's first step for a
+  database on this machine: three steps in one popup that keeps its size. 1. what to run on
+  the database server, as root, with copy buttons and this node's own addresses filled in
+  (`./install.sh --db-server postgres|mariadb --acme-node ADDRESS`, `--db-agent` for a server
+  installed already, `acme_db_agent.py --new-code`); 2. the join code, read as it is pasted
+  (`ADBA1.`, the agent's address and engine and the first characters of the certificate's
+  fingerprint said, never the secret), the agent's address if this node reaches it otherwise,
+  and *Use it as this node's database* with the database's address (`db_host`); 3. the join,
+  step by step, and the server's tile - with *Move the database onto it…* when this node's
+  database is not there yet.
+- **The dots of the database servers** - a violet-edged pill on the heading of each card in
+  the table above: a dot and a name per database server (its own short host name where that
+  tells it from the other, else `db · NODE`), green / amber (not heard from lately) / red (its
+  agent does not answer, or its database does not run); pointed at, each server's address,
+  state, what its agent said and when it was heard from, and what of the card is done on it
+  (`applies`). On Database → TLS each database server also has a row in the list (TLS on or
+  not, its agent answering); on the firewall a tile each (*its port opened by its agent to the
+  nodes*). The cards outside the table get none, and the cluster's own pill (each node's
+  settings in effect) is unchanged.
+- **High availability**: under the nodes, *The database servers* - each server's dot and name,
+  its node, address, engine and version, the direction it sends in (`db1 → db2`) and its state
+  (this node's slot: taken / waiting / lost; the other's: this node's subscription running /
+  paused), what waits to go over, the link's TLS (verify-full, its certificate's end, failed),
+  and its agent (answers · when, or what it said). The Replication card carries the pill. In
+  *Making it two, step by step*, with an agent on PostgreSQL: *Each node's database on a
+  server of its own* - the other database server, the other acme node and the names typed in,
+  the commands filled in from them (`acme --ha-setup --ha-peer DB2 --ha-peer-node ACME2
+  --node-name acme1`, `install.sh --db-server postgres --acme-node ...` on the other server,
+  `acme --db-agent-join` and `acme --ha-join` on the second node).
+- **The meter in the header**: a row per database server after the nodes', in the look chosen
+  (graphs, pills, line, rings), named with a small cylinder; pointed at, its panel says the
+  database - version, running for how long, connections, what waits to go over to the other
+  server, the size of acme's database, the data's disk, TLS - and the machine in numbers, with
+  the graph of what was pointed at. A server whose agent does not answer is dimmed and said
+  so. No rows without `dbservers`; this node's row is named as soon as there are (the same
+  reading, so nothing moves afterwards). Under 700 px the meter is not shown, as before.
+- **Alerts** (Alerts and reports): `dbagent:NODE` *The database agent of NODE does not answer*
+  (since when, what was said, that acme can neither renew nor change the server meanwhile and
+  where to look), `dbserver:NODE` *The database server of NODE is down*, `dbagent:cert:NODE`
+  *The certificate of the database agent of NODE ends soon* (and where to renew it) - in the
+  mail's language (the alert hook takes `lang`), translated on the pages.
+- The MariaDB's certificate given by acme is renewed by the node's agent thread 45 days
+  before it ends, as a PostgreSQL's is.
 
 ## Installing a database server
 

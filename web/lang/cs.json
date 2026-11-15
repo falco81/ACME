@@ -64232,6 +64232,47 @@
      "text": "%s restartoval databázový server přes jeho agenta kvůli čekajícím nastavením: %s"
     }
    }
+  },
+  "_804": {
+   "source": "patterns",
+   "text": {
+    "dbuip-001": {
+     "source": "the database server of {0} ({1})",
+     "text": "databázový server uzlu {0} ({1})"
+    },
+    "dbuip-002": {
+     "source": "The database agent of {0} does not answer",
+     "text": "Agent databázového serveru uzlu {0} neodpovídá"
+    },
+    "dbuip-003": {
+     "source": "acme-db-agent at {0} has not answered since {1}: {2}. acme can neither renew nor change its database server meanwhile (the certificate, the settings, a restart); the database itself may well go on - look at the server (systemctl status acme-db-agent).",
+     "text": "acme-db-agent na {0} neodpovídá od {1}: {2}. acme mezitím nemůže jeho databázový server obnovovat ani měnit (certifikát, nastavení, restart); samotná databáze ale může běžet dál – podívejte se na server (systemctl status acme-db-agent)."
+    },
+    "dbuip-004": {
+     "source": "The database server of {0} is down",
+     "text": "Databázový server uzlu {0} neběží"
+    },
+    "dbuip-005": {
+     "source": "its agent ({0}) answers, the database does not: {1}",
+     "text": "jeho agent ({0}) odpovídá, databáze ne: {1}"
+    },
+    "dbuip-006": {
+     "source": "The certificate of the database agent of {0} ends soon",
+     "text": "Certifikát agenta databázového serveru uzlu {0} brzy vyprší"
+    },
+    "dbuip-007": {
+     "source": "it ends {0}; it is renewed by itself 45 days before, and that did not work - Settings → The database → Database server → Renew the certificates",
+     "text": "vyprší {0}; obnovuje se sám 45 dní předem, a to se nepovedlo – Nastavení → Databáze → Databázový server → Obnovit certifikáty"
+    },
+    "dbuip-008": {
+     "source": "The agent restarts {0} on {1} and waits for it. Every connection is cut for a few seconds; replication catches up by itself afterwards.",
+     "text": "Agent restartuje {0} na {1} a počká na něj. Všechna spojení se na několik sekund přeruší; replikace to potom dožene sama."
+    },
+    "dbuip-009": {
+     "source": "The agent restarts {0} on {1} and waits for it. Every connection is cut for a few seconds - this node’s pages and RADIUS wait for it meanwhile.",
+     "text": "Agent restartuje {0} na {1} a počká na něj. Všechna spojení se na několik sekund přeruší – stránky tohoto uzlu a RADIUS na něj zatím počkají."
+    }
+   }
   }
  },
  "patterns": {

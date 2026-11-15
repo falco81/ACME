@@ -183,6 +183,28 @@ class ExplainSpoken(unittest.TestCase):
         self.assertTrue(out.get('ok'), json.dumps(out) + got.stderr[-2000:])
 
 
+class ExternalDatabaseServers(unittest.TestCase):
+    """The database on a server of its own on the pages (test/extdb_page.js, in a browser,
+    1.0.113): without an agent the database, High availability, the firewall and the header
+    are the same DOM as before; with one, the card of the database server, the dots of the
+    database servers on the cards whose settings reach them and on no other, their rows on
+    High availability, the wizard (the code checked as pasted, the popup steady between its
+    steps), the meter's rows - and nothing wider than a phone."""
+
+    def test_cards_dots_wizard_meter(self):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          timeout=60).returncode:
+            self.skipTest('no playwright for node here')
+        got = subprocess.run([node, os.path.join(ROOT, 'test', 'extdb_page.js'),
+                              os.path.join(ROOT, 'web')],
+                             capture_output=True, text=True, timeout=300)
+        out = json.loads((got.stdout.strip().splitlines() or ['{}'])[-1])
+        self.assertTrue(out.get('ok'), json.dumps(out) + got.stderr[-2000:])
+
+
 def read(*parts):
     with open(os.path.join(ROOT, *parts), encoding='utf-8') as f:
         return f.read()
