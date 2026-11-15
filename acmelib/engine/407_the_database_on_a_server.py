@@ -304,7 +304,11 @@ def db_agent_join(store, code, addr='', db_host='', by='command line', say=None)
                              ('ca.pem', trust, 0o644), ('sign.key', sign_key + '\n', 0o600)):
         write_replacing(DBAGENT_DIR / name, text, mode)
         _db_agent_own(DBAGENT_DIR / name, mode)
-    _db_agent_own(DBAGENT_DIR, None)
+    ids = service_ids()
+    if os.geteuid() == 0 and ids:
+        # the daemon's folder: it renews the certificates and writes agent.json in it
+        os.chown(str(DBAGENT_DIR), ids[0], ids[1])
+        os.chmod(str(DBAGENT_DIR), 0o700)
     engine = 'mariadb' if began.get('engine') == 'mariadb' else 'postgres'
     a = db_agent_put({'db_admin': 'agent:%s:%d' % (host, port), 'host': host, 'port': port,
                       'node': node, 'pins': [_db_agent_fp(cert)],
@@ -594,6 +598,10 @@ def db_agent_look(store):
 def db_agent_watch(daemon):
     """The thread of a node with an agent: a look every 30 s, the certificates renewed 45 days
     before they end, the meter's reading of the database server while a page watches."""
+    with DBAGENT_LOCK:
+        if DBAGENT_STATE.get('watching'):
+            return                      # one of them per process
+        DBAGENT_STATE['watching'] = True
     last_look = last_renew = 0.0
     while True:
         try:

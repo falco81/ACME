@@ -6,7 +6,37 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.110 - not released
 
-(nothing yet)
+- **The database on a server of its own, looked after as one on the same machine**
+  (docs/external-database.md). A small agent on the database server, **acme-db-agent**, does
+  there what the root helper does on acme's own machine - the database's certificate from
+  acme's authority and its renewal, `pg_hba.conf`, `ssl`, the settings and the restart, the
+  replication's settings and log, the database and its account for a move, the firewall for
+  the database's port - and nothing else: a closed set of operations, over HTTPS with
+  certificates from acme's own authority both ways, every request signed (HMAC, time, nonce),
+  its network side not running as root, an audit log. Without it nothing changes: every path
+  is the one it was, nothing new runs, nothing new is said.
+- **Two layouts**: one acme server with its database on a server of its own (PostgreSQL or
+  MariaDB), and **high availability with two database servers** - acme1 on db1, acme2 on db2,
+  db1 and db2 replicating both ways, set up, encrypted (verify-full, `hostssl`) and watched by
+  acme as today; the VIP address, the leader, the split handling are the nodes' own as ever.
+  Replicated HA stays PostgreSQL 16 or later.
+- **Joining an agent**: `acme --db-agent-join CODE` (the code printed on the database server,
+  one hour, the agent's certificate pinned by it); `acme --db-agent-status`, `--db-agent-renew`,
+  `--db-agent-restart`, `--db-agent-mariadb-tls`, `--db-agent-forget`; `--ha-setup --ha-peer
+  DB2 --ha-peer-node ACME2` for the replicated pair. The agent's certificate and the node's
+  client certificate are renewed by themselves 45 days before they end.
+- **Watched**: an alert when a node's agent has not answered for 90 s, or answers while its
+  database does not; Prometheus `acme_db_agent_up`, `acme_db_server_up`; a line in
+  `acme --status`; the database servers in the meter of the header (`/api/load` →
+  `dbservers`), on High availability and Database → TLS (`dbservers`, shaped as the nodes'
+  dots with `kind: "db"`); `GET/POST /api/db-agent`.
+- **`install.sh --db-server postgres|mariadb [--acme-node ADDRESS ...]`** on the database
+  server: PostgreSQL 16 (EL 9/10 AppStream or PGDG, Debian/Ubuntu PGDG or Ubuntu 24.04's own)
+  initialised, started, listening, `wal_level = logical`, the database and the account, the
+  nodes let in (pg_hba, firewalld); or MariaDB, secured, the database and the account; then
+  the agent and a join code. `--db-agent` for the agent alone, `--uninstall` with either takes
+  the agent away (the database stays). `--dry-run`, and safe to run again. The usual install is
+  not changed.
 
 ## 1.0.109 - 2026-11-15
 

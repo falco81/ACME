@@ -257,7 +257,10 @@ my_install() {
         run systemctl enable --now mariadb >/dev/null 2>&1 || run systemctl enable --now mariadb
     else
         warn "systemd is not running here: start MariaDB yourself (mariadbd-safe &)"
-        [[ -z "$DRY_RUN" ]] && { (command -v mysqld_safe >/dev/null && nohup mysqld_safe >/dev/null 2>&1 9>&- &) ; sleep 3; }
+        if [[ -z "$DRY_RUN" ]] && command -v mysqld_safe >/dev/null 2>&1; then
+            nohup mysqld_safe </dev/null >/dev/null 2>&1 9>&- &
+            sleep 3
+        fi
     fi
     [[ -n "$DRY_RUN" ]] && return
     local i
@@ -291,7 +294,7 @@ my_configure() {
     cnf="$cnf_dir/zz-acme-listen.cnf"
     if [[ -n "$ACME_NODES" && ! -f "$cnf" ]]; then
         printf '# written by install.sh --db-server mariadb (acme)\n[mariadb]\nbind-address = 0.0.0.0\n' | write_file "$cnf" 0644
-        if dbs_systemd; then run systemctl restart mariadb; fi
+        if dbs_systemd; then run systemctl restart mariadb; else warn "start MariaDB again for $cnf (bind-address)"; fi
         good "MariaDB listens on the network ($cnf)"
     fi
     if [[ -n "$pwd_made" ]]; then

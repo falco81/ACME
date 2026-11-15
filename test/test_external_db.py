@@ -687,6 +687,9 @@ class StandaloneMariaDb(unittest.TestCase):
         self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
         self.assertIn('restart', got.stdout.lower())
         self.assertEqual(self.db.sql('SELECT @@have_ssl'), 'YES')
+        # MariaDB was started again: the daemon's connection comes back by itself
+        wait_for(lambda: self.n.call('GET', '/api/dbtls')[0] == 200, 60, 1,
+                 'the daemon on its database again')
         ident = self.n.ok('POST', '/api/dbtls', {'action': 'apply', 'phase': 'connect',
                                                  'mode': 'verify-full', 'ca_source': 'acme'})['id']
         one = dbtls_wait(self.n, ident)
@@ -702,6 +705,39 @@ class StandaloneMariaDb(unittest.TestCase):
                             "WHERE VARIABLE_NAME = 'UPTIME'")
         self.assertGreaterEqual(int(later), int(started))
         self.n.ok('GET', '/api/certs/overview')
+
+
+class LocalUnchanged(unittest.TestCase):
+    """db_admin local (no agent file - every installation until now): nothing of it runs, no
+    key is added to what the pages get, the root helper is asked as ever."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.n = Node('l0', extra={'perf_meter': True})
+        os.makedirs(os.path.join(cls.n.tmp, 'state', 'web'), exist_ok=True)
+        cls.n.add_account()
+        cls.n.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.n.cleanup()
+
+    def test_nothing_new(self):
+        got = json.loads(self.n.py(
+            "print(json.dumps([acme.db_admin(), acme.db_agent_on(), acme._db_agent_alerts(st), "
+            "acme._db_agent_metrics(st), acme._db_agent_status_lines(st, None), "
+            "acme.dbtls_kind()]))"))
+        self.assertEqual(got, ['local', False, [], [], [], 'sqlite'])
+        for path in ('/api/ha', '/api/dbtls', '/api/load'):
+            v = self.n.ok('GET', path) if path != '/api/dbtls' else self.n.call('GET', path)[1]
+            self.assertNotIn('dbservers', v, path)
+            self.assertNotIn('db_admin', v, path)
+        self.assertNotIn('dbagent', self.n.out())
+        self.assertFalse(os.path.exists(os.path.join(self.n.tmp, 'state', 'db-agent')))
+        # pgtls_send still lays the ask down for the root helper (pgtls.ask)
+        self.n.py("acme.pgtls_send({'id': 'abcdef0123', 'do': 'hba_off', 'port': 5432, "
+                  "'db': 'acme', 'user': 'acme'})")
+        self.assertTrue(os.path.exists(os.path.join(self.n.tmp, 'state', 'web', 'pgtls.ask')))
 
 
 if __name__ == '__main__':
