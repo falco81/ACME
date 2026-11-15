@@ -11,20 +11,24 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   there what the root helper does on acme's own machine - the database's certificate from
   acme's authority and its renewal, `pg_hba.conf`, `ssl`, the settings and the restart, the
   replication's settings and log, the database and its account for a move, the firewall for
-  the database's port - and nothing else: a closed set of operations, over HTTPS with
-  certificates from acme's own authority both ways, every request signed (HMAC, time, nonce),
-  its network side not running as root, an audit log. Without it nothing changes: every path
+  the database's port - and nothing else: a closed set of operations, over HTTPS (the agent's
+  own certificate pinned by every node, each node's client certificate enrolled by its
+  fingerprint), every request signed (HMAC, time, nonce), its network side a program of its own
+  under an account of its own that never holds a signing key, an audit log (refusals too). Without it nothing changes: every path
   is the one it was, nothing new runs, nothing new is said.
 - **Two layouts**: one acme server with its database on a server of its own (PostgreSQL or
   MariaDB), and **high availability with two database servers** - acme1 on db1, acme2 on db2,
   db1 and db2 replicating both ways, set up, encrypted (verify-full, `hostssl`) and watched by
   acme as today; the VIP address, the leader, the split handling are the nodes' own as ever.
   Replicated HA stays PostgreSQL 16 or later.
-- **Joining an agent**: `acme --db-agent-join CODE` (the code printed on the database server,
-  one hour, the agent's certificate pinned by it); `acme --db-agent-status`, `--db-agent-renew`,
+- **Joining an agent**: `acme --db-agent-join -` with the code pasted on its standard input
+  (or in `ACME_DB_AGENT_CODE` - never on a command line; printed on the database server, one
+  hour, the agent's certificate pinned by it); `acme --db-agent-status`, `--db-agent-renew`,
   `--db-agent-restart`, `--db-agent-mariadb-tls`, `--db-agent-forget`; `--ha-setup --ha-peer
-  DB2 --ha-peer-node ACME2` for the replicated pair. The agent's certificate and the node's
-  client certificate are renewed by themselves 45 days before they end.
+  DB2 --ha-peer-node ACME2` for the replicated pair. Several nodes may join one agent. The
+  agent renews its own certificate (the next one announced to every node 60 days before the
+  end, put in use once every node took it in); the node's client certificate is renewed by
+  itself 45 days before it ends.
 - **Watched**: an alert when a node's agent has not answered for 90 s, or answers while its
   database does not; Prometheus `acme_db_agent_up`, `acme_db_server_up`; a line in
   `acme --status`; the database servers in the meter of the header (`/api/load` →
@@ -59,6 +63,47 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   certificate from acme renewed by itself through the agent 45 days before it ends.
 - Nothing of it is drawn without an agent: the pages are as they were (a page test compares
   the DOM).
+- **Reviewed before the release** (the agent's security and what it touched):
+  - `acme --db-agent-*` read config.json before opening the database: they opened the
+    defaults' SQLite file - on a node already on PostgreSQL or MariaDB a new one, with an
+    authority of its own written over `/etc/pki/acme/ha-ca.pem`, the certificates issued from
+    it, what was written lost. `acme --db-move` had the same fault from before: it moved the
+    defaults' `acme.db`, not the database config.json names (from MariaDB, PostgreSQL or another
+    SQLite file the move carried an old or empty file over it).
+  - A second node joining an agent locked the first out (its certificate for the agent
+    replaced the one the first pinned, its authorities replaced the first's). The agent now
+    answers every node with a certificate it made itself, renews it itself with an overlap
+    (the next one announced in the signed `status`, pinned by each node, put in use once every
+    node took it in), and lets a node in by its client certificate's fingerprint; each node's
+    authorities are its own - `trust` changes the asking node's only, refuses an empty set and
+    one its current certificate would not pass.
+  - The side of the agent that faces the network is a program started afresh (not a copy of
+    root's memory) and never holds a signing key: root works the fingerprint out of the
+    client's certificate itself, checks the signature and signs the answer.
+  - `install.sh --db-server postgres` wrote `pg_hba.conf` with `cp`/redirects in a folder of the
+    postgres account (a link put there made root write over any file): now through the agent's
+    link-safe code. Passwords are no longer on command lines (psql and mariadb read the
+    statement on standard input, not logged, masked under `--dry-run`); `--db-password-file`.
+  - Wrong join codes no longer burn every code alive: counted per address (ten an hour), and
+    against a code only when its id is right; failures do block an address for a while (they
+    never did). A finish belongs to its own begin (a token).
+  - The agent is asked only when this node's database IS the one on its server - an agent
+    joined while the database is still on this machine leaves every path the root helper's.
+  - A node's new address (the network job) is let into its database server and its firewall
+    through the agent before the network changes, and the other node's agent lets it in too.
+    The join opens the agent's firewall to the node; without `--acme-node`, `install.sh` prints
+    the `firewall-cmd` lines for the agent's port and the database's.
+  - Layout B: what is the nodes' own (the clocks' peers, the addresses the firewall always lets
+    in, the VIP's other node, the split's look at the other machine) takes the other acme node
+    (`--ha-peer-node`), not the other database server (`ha_peer`).
+  - The nonces seen are kept across a restart of the agent; an alert 14 days before the node's
+    client certificate ends; the agent's version compared with acme's (card, `--status`, an
+    alert: upgrade it with `install.sh --db-agent`); `--ha-join` says the agent does not answer
+    instead of "install PostgreSQL there"; `pg_prepare` says `pg_restart_needed` (its
+    `restart` was read as the agent's own restart).
+  - `acme-db-agent.service`: `ProtectSystem=strict` with the folders it writes,
+    `PrivateDevices`, `RestrictAddressFamilies`, a `CapabilityBoundingSet`; the network side
+    runs as `acme-db-agent` (made by `install.sh`), never `nobody`.
 
 ## 1.0.112 - 2026-11-15
 

@@ -171,7 +171,7 @@ def repl_errors(store, ask_log=True):
                      'sync_new': max(0, int(x.get('sync_errors') or 0) - int(b.get('sync') or 0)),
                      'cleared': base.get('at'), 'cleared_by': base.get('by')})
     got = {}
-    if ask_log and db_agent_on():
+    if ask_log and db_agent_here():
         got = db_agent_pglog()          # the log is on the database server (1.0.113)
     elif ask_log and WEB_DIR.is_dir():
         ask = WEB_DIR / PGLOG_ASK

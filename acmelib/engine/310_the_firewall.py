@@ -183,9 +183,10 @@ def ntp_conf(store):
 def ntp_desired(store):
     c = ntp_conf(store)
     peers = []
-    if c.get('manage') and c.get('peers') and CONFIG.get('ha_mode') and CONFIG.get('ha_peer'):
+    if c.get('manage') and c.get('peers') and CONFIG.get('ha_mode') and ha_peer_node():
         try:
-            peers = [str(ipaddress.ip_address(str(CONFIG['ha_peer'])))]
+            # the other node's clock - not its database server's (layout B, 1.0.113)
+            peers = [str(ipaddress.ip_address(ha_peer_node()))]
         except ValueError:
             peers = []
     return {'manage': bool(c.get('manage')), 'servers': c.get('servers') or [],

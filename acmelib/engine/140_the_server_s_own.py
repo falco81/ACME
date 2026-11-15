@@ -9,7 +9,7 @@ def tune_machine(c, typed):
     facts = {'local': local, 'ram_gb': None, 'cpus': None, 'disk': None, 'avail': None,
              'ram': None, 'virtual': None, 'rotational': None,
              'source': 'this machine' if local else ''}
-    if not local and db_agent_on():
+    if not local and db_agent_here(c):
         # A server of its own, told by its agent (1.0.113).
         try:
             f = db_agent_call('status', timeout=20).get('facts') or {}
@@ -339,7 +339,7 @@ def tune_restart_ready(store):
     db = store.db
     if db.engine != 'postgres':
         return {'may': False, 'unit': ''}
-    if db_agent_on():
+    if db_agent_here():
         return {'may': True, 'unit': 'acme-db-agent', 'why': ''}      # through it (1.0.113)
     host = str(CONFIG.get('db_host') or '').lower()
     if host not in ('', 'localhost', '127.0.0.1', '::1', socket.gethostname().lower()):
@@ -361,7 +361,7 @@ def tune_restart(store, by):
     only at a start - through systemd, where install.sh let this account do
     that - and waited for."""
     db = store.db
-    if db_agent_on() and db.engine == 'postgres':
+    if db_agent_here() and db.engine == 'postgres':
         # On a server of its own: its agent starts it again and waits for it (1.0.113).
         waiting = tune_pending(db)
         if not waiting:

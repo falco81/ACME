@@ -83,6 +83,8 @@ ACME_NODES=""
 DBS_NAME="acme"
 DBS_USER="acme"
 DBS_PASSWORD=""
+DBS_PASSWORD_FILE=""
+DBS_PASSWORD_ARGV=""
 DBS_ENGINE=""
 DBS_PORT=""
 
@@ -336,7 +338,10 @@ Usage: sudo ./install.sh [options]
   --db-agent-port N         the agent's port (9443)
   --acme-node ADDRESS       an acme node using this server (again for each one): let into
                             pg_hba.conf / the accounts and the firewall
-  --db-name NAME --db-user NAME --db-password PASS   acme's database (acme, acme, made up)
+  --db-name NAME --db-user NAME   acme's database and account (acme, acme)
+  --db-password-file FILE   the account's password, the first line of FILE (made up and shown
+                            once without it; --db-password PASS works too, but every account
+                            on the machine sees a command line)
   --db-server/--db-agent --uninstall   the agent taken away; the database stays
   --help                    this
 EOF
@@ -375,7 +380,8 @@ while [[ $# -gt 0 ]]; do
         --acme-node)       ACME_NODES="${ACME_NODES:+$ACME_NODES }${2:-}"; shift 2;;
         --db-name)         DBS_NAME="${2:-}"; shift 2;;
         --db-user)         DBS_USER="${2:-}"; shift 2;;
-        --db-password)     DBS_PASSWORD="${2:-}"; shift 2;;
+        --db-password)     DBS_PASSWORD="${2:-}"; DBS_PASSWORD_ARGV="yes"; shift 2;;
+        --db-password-file) DBS_PASSWORD_FILE="${2:-}"; shift 2;;
         --db-engine)       DBS_ENGINE="${2:-}"; shift 2;;
         -y|--yes)          ASSUME_YES="yes"; shift;;
         -h|--help)         usage; exit 0;;
@@ -384,6 +390,13 @@ while [[ $# -gt 0 ]]; do
         *) fail "I do not know the option $1 — try --help";;
     esac
 done
+if [[ -n "$DBS_PASSWORD_FILE" ]]; then
+    [[ -f "$DBS_PASSWORD_FILE" && -r "$DBS_PASSWORD_FILE" ]] || fail "--db-password-file: $DBS_PASSWORD_FILE cannot be read"
+    IFS= read -r DBS_PASSWORD < "$DBS_PASSWORD_FILE" || true
+    [[ -n "$DBS_PASSWORD" ]] || fail "--db-password-file: $DBS_PASSWORD_FILE has no password on its first line"
+elif [[ -n "${DBS_PASSWORD_ARGV:-}" ]]; then
+    warn "--db-password is on the command line, where every account on this machine sees it: --db-password-file FILE is better"
+fi
 if [[ -n "$PY_FORCE" && "$PY_FORCE" != /* ]]; then
     fail "--python takes the full path of a Python, such as /usr/bin/python3.14"
 fi

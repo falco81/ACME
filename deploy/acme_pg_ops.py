@@ -161,7 +161,8 @@ def op_pg_prepare(args, conf):
     (pg_prepare_local), for a server of its own: logical WAL, listening on the network,
     16 GB kept for a node away, acme's account able to replicate and to subscribe, the
     database (UTF-8), and pg_hba.conf letting in the addresses given. Never restarts:
-    says whether it has to (pg_restart)."""
+    says whether it has to (pg_restart_needed - never `restart`, nor `agent_restart`, the
+    agent's own word for starting its network side again)."""
     db = name_checked(args.get('db'), 'the database')
     user = name_checked(args.get('user'), 'the account')
     pw = password_checked(args.get('password'))
@@ -216,7 +217,7 @@ def op_pg_prepare(args, conf):
     sql(conf, 'SELECT pg_reload_conf()')
     pending = sql(conf, "SELECT string_agg(name, ',') FROM pg_settings WHERE pending_restart")
     restart = restart or bool(pending.strip())
-    return {'said': said, 'restart': restart, 'major': major}
+    return {'said': said, 'pg_restart_needed': restart, 'major': major}
 
 
 def op_pg_allow(args, conf):
@@ -226,6 +227,27 @@ def op_pg_allow(args, conf):
     user = name_checked(args.get('user'), 'the account')
     peers = addresses_checked(args.get('peers'), 'the addresses let in')
     return {'said': hba_add(conf, db, user, peers, 'allow') or ['pg_hba.conf lets them in already']}
+
+
+def op_my_allow(args, conf):
+    """MariaDB lets these addresses into acme's database: the account at each of them (made
+    with the password given, or given it), every right on that database only - as dbmake does
+    for the nodes; for a node's new address (1.0.113)."""
+    db = name_checked(args.get('db'), 'the database')
+    user = name_checked(args.get('user'), 'the account')
+    pw = password_checked(args.get('password'))
+    peers = addresses_checked(args.get('peers'), 'the addresses let in')
+    if not peers:
+        return {'said': ['no address given']}
+    sqls = ['SET SESSION sql_log_off = 1;']
+    said = []
+    for at in peers:
+        sqls += ["CREATE USER IF NOT EXISTS '%s'@'%s' IDENTIFIED BY '%s';" % (user, at, pw),
+                 "ALTER USER '%s'@'%s' IDENTIFIED BY '%s';" % (user, at, pw),
+                 "GRANT ALL PRIVILEGES ON `%s`.* TO '%s'@'%s';" % (db, user, at)]
+        said.append("the account '%s'@'%s'" % (user, at))
+    my_sql(conf, '\n'.join(sqls + ['FLUSH PRIVILEGES;']), secret=pw)
+    return {'said': said}
 
 
 def op_pg_publication(args, conf):
@@ -657,13 +679,13 @@ def op_load(args, conf):
 
 # The closed set, PostgreSQL's and MariaDB's: nothing else is ever done.
 OPS = {'status': op_status, 'load': op_load, 'pgtls': op_pgtls, 'pg_prepare': op_pg_prepare,
-       'pg_allow': op_pg_allow, 'pg_publication': op_pg_publication,
+       'pg_allow': op_pg_allow, 'my_allow': op_my_allow, 'pg_publication': op_pg_publication,
        'pg_restart': op_pg_restart, 'pg_reload': op_pg_reload, 'pglog': op_pglog,
        'dbmake': op_dbmake, 'my_tls': op_my_tls, 'my_restart': op_my_restart,
        'fw_allow': op_fw_allow}
 OPS_PG_ONLY = ('pgtls', 'pg_prepare', 'pg_allow', 'pg_publication', 'pg_restart', 'pg_reload',
                'pglog')
-OPS_MY_ONLY = ('my_tls', 'my_restart')
+OPS_MY_ONLY = ('my_tls', 'my_restart', 'my_allow')
 
 
 def run_op(op, args, conf):

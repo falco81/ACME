@@ -1063,6 +1063,10 @@ def db_move_cli_args(p):
 def db_move_cli(args):
     if not getattr(args, 'db_move', None):
         return None
+    # config.json first (1.0.113, as cli_store()): the database moved FROM is the one it names -
+    # not the defaults' SQLite file, which a node already on MariaDB or PostgreSQL (or on
+    # another SQLite file) would have moved, stale or empty, over its real data.
+    load_config(saved=None)
     try:
         store = Storage(open_db())
     except DbError as e:

@@ -20225,6 +20225,14 @@ function dbaTile(s, d) {
   dbaKv(kv, 'Last heard', hd);
   t.appendChild(kv);
   if (st[2]) t.appendChild(noI18n(el('div', 'dbs-tile-said small bad', st[2])));
+  if (s.version_skew && s.version_skew.agent) {
+    /* Its agent of another version than acme (1.0.113): upgraded on its server. */
+    var vs = el('div', 'dbs-tile-said small');
+    vs.appendChild(el('span', 'tag warn', 'Another version than acme'));
+    vs.appendChild(document.createTextNode(' '));
+    vs.appendChild(haWords('acme-db-agent ', s.version_skew.agent, ', acme ', s.version_skew.acme, ' - upgrade the agent on the database server: ', './install.sh --db-agent', ''));
+    t.appendChild(vs);
+  }
   return t;
 }
 function dbaAct(btn, action) {
@@ -20575,7 +20583,8 @@ function dbaHaMake(d) {
     ol.appendChild(l2);
     var l3 = el('li', '');
     l3.appendChild(el('b', '', 'On the second node, as root: its agent, then the join'));
-    l3.appendChild(dbaCmd('acme --db-agent-join ADBA1.…\nacme --ha-join /root/acme-join-' + a + '.json --node-name ' + b));
+    l3.appendChild(dbaCmd('acme --db-agent-join -\nacme --ha-join /root/acme-join-' + a + '.json --node-name ' + b));
+    l3.appendChild(el('div', 'small muted', 'acme --db-agent-join - reads the join code from its standard input: paste it there, it is never put on a command line.'));
     l3.appendChild(el('div', 'small muted', 'Every row is copied from this node’s server to the other one, both directions of replication set up. Then High availability → Repair encrypts the link between the two servers (verify-full) through both agents.'));
     ol.appendChild(l3);
     said.appendChild(ol);

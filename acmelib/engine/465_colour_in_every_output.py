@@ -1176,7 +1176,7 @@ def cli_ha(args, pal):
     HA_STORE['store'] = store
     host0 = str(CONFIG.get('db_host') or '')
     if store.db.engine == 'postgres' and (host0 in ('', 'localhost', '127.0.0.1', '::1') or
-                                          db_agent_on()) \
+                                          db_agent_here()) \
             and not args.ha_shared and (args.ha_setup or CONFIG.get('ha_mode') == 'replicated'):
         if not args.ha_setup and CONFIG.get('ha_mode') == 'replicated':
             return cli_ha_bundle_again(args, pal, store)
@@ -1280,7 +1280,7 @@ def cli_ha_open_now(store, peer, pal):
 
 def firewall_peer(peer, pal, port=5432):
     """firewalld letting the other node - one address - reach PostgreSQL."""
-    if db_agent_on():
+    if db_agent_here():
         # On the database server, by its agent (1.0.113): the other server and the other node.
         try:
             for line in db_agent_fw([peer] + db_agent_link_peers()).get('said') or []:
@@ -1347,7 +1347,7 @@ def cli_ha_setup_replicated(args, pal, store, ask):
         raise SystemExit('acme: %s' % e)
     port = int(CONFIG.get('db_port') or 5432)
     name, user, pw = CONFIG.get('db_name'), CONFIG.get('db_user'), CONFIG.get('db_password')
-    if db_agent_on():
+    if db_agent_here():
         # Each node's database on a server of its own (1.0.113): --ha-peer is the other
         # database server, --ha-peer-node the other acme node.
         db_agent_put({'peer_node': getattr(args, 'ha_peer_node', None) or peer})
@@ -1374,7 +1374,7 @@ def cli_ha_setup_replicated(args, pal, store, ask):
     if args.trusted_proxy:
         nginx_trusted_proxies(args.trusted_proxy, pal)
     me = args.ha_address or CONFIG.get('ha_address') or (
-        db_agent_db_host() if db_agent_on() else node_address())
+        db_agent_db_host() if db_agent_here() else node_address())
     changes = {'ha_mode': 'replicated', 'ha_slot': 1, 'ha_peer': peer,
                'ha_peer_port': int(args.ha_peer_port or 5432), 'ha_address': me}
     if args.node_name:
@@ -1399,7 +1399,7 @@ def cli_ha_setup_replicated(args, pal, store, ask):
             'db': {'db_name': name, 'db_user': user, 'db_password': pw},
             'peer': {'name': node_name(), 'address': me, 'port': port, 'slot': 1},
             'cluster': CONFIG.get('site_name') or 'acme', 'joining': peer}
-    if db_agent_on():
+    if db_agent_here():
         # The node itself, apart from its database server (1.0.113).
         data['peer']['node'] = node_address()
     phrase = ha_passphrase()
@@ -1440,7 +1440,12 @@ def cli_ha_join_replicated(args, pal, data, ask):
     port = int(FILE_CONFIG.get('db_port') or 5432) if FILE_CONFIG.get('db_engine') == 'postgres' \
         else 5432
     here = '127.0.0.1'
-    if db_agent_on():
+    # This node's database goes onto its agent's server (1.0.113) when it joined one and its
+    # database is not on another PostgreSQL already (one on this machine stays looked after
+    # by the root helper, as without an agent).
+    if db_agent_on() and (FILE_CONFIG.get('db_engine') != 'postgres' or
+                          db_agent_is_target(FILE_CONFIG)):
+        DBAGENT_STATE['target'] = True
         # This node's database on a server of its own (1.0.113): its agent prepares it, the
         # other node's own address let in there too.
         port = int((db_agent() or {}).get('pg_port') or port)

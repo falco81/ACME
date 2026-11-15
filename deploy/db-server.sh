@@ -163,6 +163,36 @@ pg_psql() {     # pg_psql DB SQL - as postgres, on its socket
     runuser -u postgres -- psql -XAtq -v ON_ERROR_STOP=1 -d "$1" -c "$2"
 }
 
+pg_psql_secret() {  # pg_psql_secret WHAT SQL - a statement holding a password: on psql's standard
+    # input (never on a command line, where ps shows it to every account), not logged by
+    # PostgreSQL even when it fails, and masked under --dry-run
+    if [[ -n "$DRY_RUN" ]]; then note "[would run as postgres] $1 (the password not shown)"; return 0; fi
+    printf "SET log_statement = 'none';\nSET log_min_error_statement = 'panic';\n%s;\n" "$2" \
+        | runuser -u postgres -- psql -XAtq -v ON_ERROR_STOP=1 -d postgres -f - >/dev/null
+}
+
+pg_hba_allow() {   # pg_hba_allow ADDRESS... - acme's lines in front of pg_hba.conf, written the
+    # link-safe way acme_pg_ops.hba_add writes it (the agent's own code): the folder is the
+    # postgres account's, and a link it put there is never followed by root
+    if [[ -n "$DRY_RUN" ]]; then
+        local a; for a in "$@"; do note "[would let $a into $DBS_NAME in pg_hba.conf (scram-sha-256)]"; done
+        return 0
+    fi
+    python3 -I - "$SOURCE_DIR/deploy" "$(pg_psql postgres 'SHOW port')" "$DBS_NAME" "$DBS_USER" "$@" <<'PY'
+import sys
+sys.dont_write_bytecode = True
+sys.path.insert(0, sys.argv[1])
+import acme_pg_ops as O
+try:
+    said = O.hba_add({'pg_port': int(sys.argv[2])}, sys.argv[3], sys.argv[4],
+                     O.addresses_checked(sys.argv[5:]), 'install')
+except O.Refused as e:
+    sys.exit('pg_hba.conf: %s' % e)
+for line in said or ['pg_hba.conf lets them in already']:
+    print(line)
+PY
+}
+
 pg_set() {      # pg_set NAME VALUE - ALTER SYSTEM when it is not so; 1 when changed
     local now
     now="$(pg_psql postgres "SHOW $1" 2>/dev/null || true)"
@@ -189,10 +219,10 @@ pg_configure() {
             DBS_PASSWORD="$(python3 -I -c 'import secrets; print(secrets.token_urlsafe(24))')"
             pwd_made=yes
         fi
-        run pg_psql postgres "SET log_statement = 'none'; CREATE ROLE \"$DBS_USER\" LOGIN PASSWORD '$DBS_PASSWORD'" >/dev/null
+        pg_psql_secret "CREATE ROLE \"$DBS_USER\" LOGIN PASSWORD '…'" "CREATE ROLE \"$DBS_USER\" LOGIN PASSWORD '$DBS_PASSWORD'"
         good "the account $DBS_USER was made"
     elif [[ -n "$DBS_PASSWORD" ]]; then
-        run pg_psql postgres "SET log_statement = 'none'; ALTER ROLE \"$DBS_USER\" LOGIN PASSWORD '$DBS_PASSWORD'" >/dev/null
+        pg_psql_secret "ALTER ROLE \"$DBS_USER\" LOGIN PASSWORD '…'" "ALTER ROLE \"$DBS_USER\" LOGIN PASSWORD '$DBS_PASSWORD'"
         good "the account $DBS_USER has the password given"
     else
         good "the account $DBS_USER is there (its password is left as it is)"
@@ -207,21 +237,11 @@ pg_configure() {
         good "the database $DBS_NAME is there"
     fi
     run pg_psql postgres "GRANT CREATE ON DATABASE \"$DBS_NAME\" TO \"$DBS_USER\"" >/dev/null
-    hba="$(pg_psql postgres 'SHOW hba_file')"
-    for a in $ACME_NODES; do
-        case "$a" in *:*) net="$a/128";; *) net="$a/32";; esac
-        if awk -v d="$DBS_NAME" -v u="$DBS_USER" -v n="$net" '($1=="host"||$1=="hostssl") && $2==d && $3==u && $4==n {f=1} END {exit !f}' "$hba"; then
-            good "pg_hba.conf lets $a in already"
-            continue
-        fi
-        line="host    $DBS_NAME    $DBS_USER    $net    scram-sha-256"
-        if [[ -n "$DRY_RUN" ]]; then note "[would put in front of $hba] $line"; continue; fi
-        cp -p "$hba" "$hba.acme-before-install"
-        { printf '# acme node %s (install.sh --db-server, %s)\n%s\n' "$a" "$(date +%F)" "$line"; cat "$hba.acme-before-install"; } > "$hba.acme-new"
-        chown --reference="$hba" "$hba.acme-new"; chmod --reference="$hba" "$hba.acme-new"
-        mv -f "$hba.acme-new" "$hba"
-        good "pg_hba.conf: $line"
-    done
+    if [[ -n "$ACME_NODES" ]]; then
+        # shellcheck disable=SC2086
+        hba="$(pg_hba_allow $ACME_NODES)" || fail "pg_hba.conf could not be changed for $ACME_NODES"
+        while IFS= read -r line; do [[ -n "$line" ]] && good "$line"; done <<< "$hba"
+    fi
     [[ -z "$DRY_RUN" ]] && pg_psql postgres "SELECT pg_reload_conf()" >/dev/null
     if [[ -n "$restart" ]]; then
         say "PostgreSQL starts again for listen_addresses / wal_level"
@@ -241,6 +261,12 @@ pg_configure() {
 
 # ---- MariaDB ------------------------------------------------------------------------------
 my_q() { mariadb --protocol=socket -u root -N -B -e "$1"; }
+
+my_q_secret() {    # my_q_secret WHAT SQL - a statement holding a password: on standard input
+    # (never on a command line), not logged, masked under --dry-run
+    if [[ -n "$DRY_RUN" ]]; then note "[would run in MariaDB] $1 (the password not shown)"; return 0; fi
+    printf 'SET SESSION sql_log_off = 1;\n%s;\n' "$2" | mariadb --protocol=socket -u root -N -B
+}
 
 my_install() {
     if command -v mariadbd >/dev/null 2>&1 || [[ -x /usr/libexec/mariadbd || -x /usr/sbin/mariadbd ]]; then
@@ -283,7 +309,7 @@ my_configure() {
     fi
     for a in localhost 127.0.0.1 $ACME_NODES; do
         if [[ -n "$DBS_PASSWORD" ]]; then
-            run my_q "SET SESSION sql_log_off = 1; CREATE USER IF NOT EXISTS '$DBS_USER'@'$a' IDENTIFIED BY '$DBS_PASSWORD'; ALTER USER '$DBS_USER'@'$a' IDENTIFIED BY '$DBS_PASSWORD'; GRANT ALL PRIVILEGES ON \`$DBS_NAME\`.* TO '$DBS_USER'@'$a'"
+            my_q_secret "CREATE USER / ALTER USER '$DBS_USER'@'$a' IDENTIFIED BY '…'; GRANT ALL ON $DBS_NAME.*" "CREATE USER IF NOT EXISTS '$DBS_USER'@'$a' IDENTIFIED BY '$DBS_PASSWORD'; ALTER USER '$DBS_USER'@'$a' IDENTIFIED BY '$DBS_PASSWORD'; GRANT ALL PRIVILEGES ON \`$DBS_NAME\`.* TO '$DBS_USER'@'$a'"
         else
             run my_q "GRANT ALL PRIVILEGES ON \`$DBS_NAME\`.* TO '$DBS_USER'@'$a'" 2>/dev/null || warn "'$DBS_USER'@'$a' is not there: give --db-password to make it"
         fi
@@ -310,7 +336,18 @@ dbs_firewall() {
         note "firewalld is not running: open TCP ${DBS_PORT:-?} and $DB_AGENT_PORT to ${ACME_NODES:-the acme nodes} in the firewall there is"
         return
     fi
-    [[ -z "$ACME_NODES" ]] && { note "no --acme-node given: the firewall is opened to each node when it joins (the agent does it)"; return; }
+    if [[ -z "$ACME_NODES" ]]; then
+        # The join itself comes to the agent's port: firewalld drops it until it is opened to the
+        # node - the exact lines, for each acme node (the agent opens the database's port, and
+        # its own, to a node once it joined).
+        warn "no --acme-node given: firewalld drops every acme node until it is let in - as root here, for each node:"
+        for port in "$DB_AGENT_PORT" ${DBS_PORT:-}; do
+            say "  firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"ACME-NODE-ADDRESS\" port port=\"$port\" protocol=\"tcp\" accept'"
+        done
+        say "  firewall-cmd --reload"
+        note "(or run this again with --acme-node ADDRESS for each node)"
+        return
+    fi
     for a in $ACME_NODES; do
         case "$a" in *:*) fam=ipv6;; *) fam=ipv4;; esac
         for port in ${DBS_PORT:-} "$DB_AGENT_PORT"; do
@@ -337,10 +374,14 @@ agent_install() {
     step "acme-db-agent (the agent acme looks after this $eng through)"
     command -v python3 >/dev/null 2>&1 || { case "$PKG" in dnf) run dnf -y -q install python3;; apt) run apt-get install -y -q python3;; esac; }
     command -v openssl >/dev/null 2>&1 || { case "$PKG" in dnf) run dnf -y -q install openssl;; apt) run apt-get install -y -q openssl;; esac; }
+    # An account of its own for the side that faces the network, always: the agent never runs
+    # it as root nor as nobody (another service's account).
     if ! id "$AGENT_USER" >/dev/null 2>&1; then
         run useradd --system --no-create-home --home-dir "$AGENT_STATE" --shell /sbin/nologin --comment "acme-db-agent (network side)" "$AGENT_USER"
     fi
     run install -d -m 0755 "$AGENT_LIB"
+    # Made here: under ProtectSystem=strict the agent can write only into folders that exist.
+    [[ -d /etc/pki/acme ]] || run install -d -m 0755 /etc/pki/acme
     run install -d -m 0700 "$AGENT_ETC" "$AGENT_STATE"
     run install -d -m 0750 "$AGENT_LOG"
     for f in acme_db_agent.py acme_pg_ops.py acme_web.py; do
@@ -392,8 +433,10 @@ agent_code() {
     [[ -n "$DRY_RUN" ]] && { note "[would print a join code for an acme node]"; return; }
     local code
     code="$(python3 -I "$AGENT_LIB/acme_db_agent.py" --config "$AGENT_ETC/agent.json" --new-code 2>/dev/null)" || { warn "no join code could be made"; return; }
-    step "On each acme node that uses this server (as root, within the hour):"
-    say "acme --db-agent-join $code"
+    step "On each acme node that uses this server (as root, within the hour) - a code each:"
+    say "acme --db-agent-join -"
+    say "and paste this code (read from standard input, never on a command line):"
+    say "$code"
     note "(a new code: python3 -I $AGENT_LIB/acme_db_agent.py --new-code)"
 }
 
@@ -418,6 +461,8 @@ db_server_main() {
         return 0
     fi
     step "A database server for acme${DB_SERVER:+ ($DB_SERVER)}${ACME_NODES:+ - acme nodes: $ACME_NODES}"
+    # python3 first: pg_hba.conf is written by the agent's own link-safe code, the codes made by it
+    command -v python3 >/dev/null 2>&1 || { case "$PKG" in dnf) run dnf -y -q install python3;; apt) apt_update_once; run apt-get install -y -q python3;; esac; }
     case "${DB_SERVER:-}" in
         postgres) pg_install; pg_find; pg_initdb_start; pg_configure;;
         mariadb) my_install; my_configure;;

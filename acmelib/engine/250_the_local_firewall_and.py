@@ -273,8 +273,10 @@ def cluster_addresses(store, node):
         if n['name'] != node and n.get('address') and dbguard_node_ok(store, n['name']):
             out.add(n['address'])
     if CONFIG.get('ha_mode'):
-        if node == me and CONFIG.get('ha_peer'):
-            out.add(CONFIG['ha_peer'])
+        # The other node (with each node's database on a server of its own, not ha_peer -
+        # the other database server - but --ha-peer-node, 1.0.113).
+        if node == me and ha_peer_node():
+            out.add(ha_peer_node())
         if node != me:
             out.add(CONFIG.get('ha_address') or node_address())
     v = vip_conf(store)

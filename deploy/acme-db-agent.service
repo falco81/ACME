@@ -5,28 +5,46 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-# Root starts it: the side that answers the network gives root up at once (to the account
-# acme-db-agent) and hands each checked request to the root side, which does only the
-# closed set of operations (acme_pg_ops.OPS) and writes the audit log.
+# Root starts it: the side that answers the network is a program of its own that gives root up
+# at once (to the account acme-db-agent - never nobody) and hands each request, as it came, to
+# the root side, which checks it all, does only the closed set of operations (acme_pg_ops.OPS),
+# signs the answer and writes the audit log. The signing keys never leave the root side.
 ExecStart=/usr/bin/python3 -I /usr/local/lib/acme-db-agent/acme_db_agent.py --config /etc/acme-db-agent/agent.json
 Restart=on-failure
 RestartSec=5s
 UMask=0077
+# Not NoNewPrivileges: runuser (SQL as postgres) and systemctl (a restart of the database) are
+# what root does; the network side sets PR_SET_NO_NEW_PRIVS on itself.
 NoNewPrivileges=no
 PrivateTmp=yes
+PrivateDevices=yes
 ProtectHome=yes
-ProtectSystem=full
+# The whole file system read-only, but what the root side writes: its own folders, PostgreSQL's
+# and MariaDB's configuration and data folders (pg_hba.conf, ALTER SYSTEM, the certificate files,
+# zz-acme-tls.cnf), the authority file of the link (/etc/pki/acme, made by install.sh), the
+# sockets of the database servers. firewalld and systemd are asked over D-Bus - nothing written.
+# A folder that is not there is left out (-): made later (another distribution's layout), the
+# agent cannot write into it until it is started again - see docs/external-database.md.
+ProtectSystem=strict
+ReadWritePaths=/etc/acme-db-agent /var/lib/acme-db-agent /var/log/acme-db-agent
+ReadWritePaths=-/etc/pki/acme -/var/lib/pgsql -/var/lib/postgresql -/etc/postgresql -/var/log/postgresql
+ReadWritePaths=-/etc/my.cnf.d -/etc/mysql -/run/postgresql -/var/run/postgresql
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
+ProtectKernelLogs=yes
 ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
 RestrictSUIDSGID=yes
 LockPersonality=yes
 RestrictRealtime=yes
 RestrictNamespaces=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 SystemCallArchitectures=native
-# What it writes: its own folders, PostgreSQL's and MariaDB's configuration and data folders
-# (pg_hba.conf, the certificate files), the authority file of the link.
-ReadWritePaths=/etc/acme-db-agent /var/lib/acme-db-agent /var/log/acme-db-agent -/etc/pki/acme -/var/lib/pgsql -/var/lib/postgresql -/etc/postgresql -/etc/my.cnf.d -/etc/mysql -/run/postgresql -/var/run/postgresql
+# What root needs and nothing more: the network side's switch to its account (SETUID, SETGID),
+# files of the postgres / mysql accounts (CHOWN, FOWNER, DAC_*), runuser's PAM session
+# (AUDIT_WRITE, SYS_RESOURCE), the network side ended (KILL), a port under 1024 if one is set.
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_CHOWN CAP_FOWNER CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_KILL CAP_AUDIT_WRITE CAP_SYS_RESOURCE CAP_NET_BIND_SERVICE
 
 [Install]
 WantedBy=multi-user.target

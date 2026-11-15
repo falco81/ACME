@@ -200,7 +200,7 @@ def vip_family_fix(store, like, own, peer):
         return (inside or good or [''])[0]
     if peer and _ip_fam(peer) != fam:
         me = node_name()
-        cands = [vip_plain(CONFIG.get('ha_peer'), like)]
+        cands = [vip_plain(ha_peer_node(), like)]          # the node, not its DB server
         for n in ha_nodes(store):
             if n['name'] == me:
                 continue
@@ -302,7 +302,7 @@ def web_desired(store):
                'address6': v.get('address6') or '',
                'vrid': int(v.get('vrid') or 51), 'auth': vip_auth(),
                'own': vip_plain(CONFIG.get('ha_address') or node_address(), v.get('address')),
-               'peer': vip_plain(CONFIG.get('ha_peer') or vip_peer_seen(store), v.get('address')),
+               'peer': vip_plain(ha_peer_node() or vip_peer_seen(store), v.get('address')),
                'iface': (v.get('ifaces') or {}).get(me, '')}
         # One shared database (1.0.56): the other node's address as it publishes it now wins
         # over ha_peer, written once at the join - see vip_peer_published.

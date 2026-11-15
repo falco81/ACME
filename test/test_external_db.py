@@ -53,9 +53,22 @@ BASE = os.environ.get('ACME_TEST_EXTDB_DIR', '/var/tmp')
 AGENT = os.path.join(ROOT, 'deploy', 'acme_db_agent.py')
 
 
+AGENT_USER = 'acme-db-agent'
+
+
 def can_run():
     return os.geteuid() == 0 and os.path.exists(os.path.join(PGBIN, 'initdb')) and \
         shutil.which('runuser') and shutil.which('psql')
+
+
+def agent_user():
+    """The agent's own account, as install.sh --db-agent makes it: its network side never runs
+    as nobody (1.0.113)."""
+    if subprocess.run(['id', AGENT_USER], capture_output=True).returncode != 0:
+        subprocess.run(['useradd', '--system', '--no-create-home', '--home-dir',
+                        '/var/lib/acme-db-agent', '--shell', '/sbin/nologin', AGENT_USER],
+                       capture_output=True, check=True)
+    return AGENT_USER
 
 
 class PgServer(object):
@@ -112,15 +125,17 @@ class PgServer(object):
 class Agent(object):
     """acme_db_agent.py for one server, as root (it gives root up on the network side)."""
 
-    def __init__(self, server, cadir):
+    def __init__(self, server, cadir, fail_burst=100000):
         self.server = server
         self.dir = os.path.join(server.top, 'agent')
         os.makedirs(self.dir, mode=0o700)
         self.port = free_port()
         self.conf = os.path.join(self.dir, 'agent.json')
         with open(self.conf, 'w') as f:
+            # Every request of the tests comes from 127.0.0.1: the refusals they make on purpose
+            # would block it (fail_burst) - a test of its own has the default.
             json.dump({'listen': '127.0.0.1', 'port': self.port, 'engine': 'postgres',
-                       'pg_port': server.port, 'user': 'nobody',
+                       'pg_port': server.port, 'user': agent_user(), 'fail_burst': fail_burst,
                        'state': os.path.join(self.dir, 'state'),
                        'log': os.path.join(self.dir, 'audit.log'),
                        'ha_ca': os.path.join(cadir, server.name + '.pem'),
@@ -236,6 +251,71 @@ def server_cert_der(port):
         return t.getpeercert(True)
     finally:
         t.close()
+
+
+def network_side_pid(agent):
+    kids = subprocess.run(['pgrep', '-P', str(agent.proc.pid)], capture_output=True,
+                          text=True).stdout.split()
+    return int(kids[0]) if kids else None
+
+
+def memory_holds(pid, needles):
+    """Which of `needles` (bytes) are anywhere in the readable memory of process `pid`."""
+    found = set()
+    with open('/proc/%d/maps' % pid) as maps, open('/proc/%d/mem' % pid, 'rb', 0) as mem:
+        for line in maps:
+            f = line.split()
+            if 'r' not in f[1]:
+                continue
+            lo, hi = (int(x, 16) for x in f[0].split('-'))
+            if hi - lo > (1 << 29):
+                continue
+            try:
+                mem.seek(lo)
+                chunk = mem.read(hi - lo)
+            except (OSError, ValueError, OverflowError):
+                continue
+            for n in needles:
+                if n in chunk:
+                    found.add(n)
+    return found
+
+
+def agent_status(agent):
+    got = subprocess.run([sys.executable, '-I', AGENT, '--config', agent.conf, '--status'],
+                         capture_output=True, text=True, check=True)
+    return json.loads(got.stdout)
+
+
+def post_plain(port, path, body, cert=None):
+    """A POST to the agent without acme's client: (status, answer)."""
+    import http.client
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    if cert:
+        ctx.load_cert_chain(*cert)
+    c = http.client.HTTPSConnection('127.0.0.1', port, context=ctx, timeout=30)
+    try:
+        c.request('POST', path, body=json.dumps(body).encode())
+        r = c.getresponse()
+        return r.status, json.loads(r.read().decode() or '{}')
+    finally:
+        c.close()
+
+
+def code_data(code):
+    raw = code[6:]
+    return json.loads(base64.urlsafe_b64decode(raw + '=' * (-len(raw) % 4)))
+
+
+def read_file(path):
+    with open(path) as f:
+        return f.read()
+
+
+def last_json(out):
+    return json.loads(out.strip().splitlines()[-1])
 
 
 def dbtls_wait(node, ident, secs=180):
@@ -365,6 +445,16 @@ class Standalone(unittest.TestCase):
         ops = [x.get('op') for x in self.agent.audit()]
         self.assertIn('enroll', ops)
         self.assertIn('status', ops)
+        # The refusals are in the audit log too (1.0.113) - never a key, a signature or a code.
+        bad = [x for x in self.agent.audit() if x.get('ok') is False]
+        said = ' '.join(str(x.get('said')) for x in bad)
+        for words in ('not signed', 'seen before', 'time', 'not enrolled', 'client certificate',
+                      'not something this agent does', 'plain addresses'):
+            self.assertIn(words, said)
+        with open(os.path.join(self.agent.dir, 'audit.log')) as f:
+            text = f.read()
+        self.assertNotIn(key, text)
+        self.assertNotIn(code_data(self.code)['s'], text)
 
     def test_03_network_side_not_root(self):
         kids = subprocess.run(['pgrep', '-P', str(self.agent.proc.pid)], capture_output=True,
@@ -447,11 +537,401 @@ class Standalone(unittest.TestCase):
             self.assertIn('neodpovídá', [a for a in cs if a['key'] == 'dbagent:n0'][0]['title'])
             got = json.loads(self.n.py("print(json.dumps(acme.alert_problems(st, 'cs')))"))
             self.assertIn('neodpovídá', got['mod:dbagent:n0']['title'])
+            # --ha-join / --ha-setup say the agent does not answer - not "install PostgreSQL
+            # there" (1.0.113).
+            out = self.n.py("try:\n    acme.pg_install_local(16, print)\nexcept ValueError as e:\n"
+                            "    print('SAID', e)")
+            self.assertIn('does not answer', out)
+            self.assertIn('acme-db-agent', out)
+            self.assertNotIn('install it there', out)
         finally:
             self.agent.start()
         wait_for(lambda: not json.loads(self.n.py("print(json.dumps(acme._db_agent_alerts(st)))")),
                  60, 2, 'the alert gone: %s' % self.n.py(
                      "print(st.get_meta('dbagent:node:n0'))"))
+
+
+    def test_10_cli_opens_the_real_database(self):
+        """acme --db-agent-* opens the database config.json names (1.0.113): on a node already
+        on PostgreSQL, not a SQLite file made anew with an authority of its own."""
+        sq = os.path.join(self.n.tmp, 'state', 'acme.db')
+        if os.path.exists(sq):
+            os.rename(sq, sq + '.gone')
+        try:
+            ca_file = self.n.env['ACME_HA_CA']
+            before = read_file(ca_file) if os.path.exists(ca_file) else None
+            for args in (('--db-agent-status',), ('--db-agent-status', '--json')):
+                got = self.n.cli(*args)
+                self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+            self.assertFalse(os.path.exists(sq), 'a SQLite file was made by the command line')
+            real = last_json(self.n.py("print(json.dumps(acme.hatls_trust(acme.hatls_ca(st))))"))
+            if before is not None:
+                self.assertEqual(read_file(ca_file), before)
+            cc = read_file(os.path.join(self.n.tmp, 'state', 'db-agent', 'client.crt'))
+            with tempfile.NamedTemporaryFile('w', dir=BASE, suffix='.pem') as t:
+                t.write(real)
+                t.flush()
+                ok = subprocess.run(['openssl', 'verify', '-CAfile', t.name], input=cc,
+                                    capture_output=True, text=True)
+            self.assertEqual(ok.returncode, 0, ok.stdout + ok.stderr)
+        finally:
+            if os.path.exists(sq + '.gone'):
+                os.rename(sq + '.gone', sq)
+
+    def test_11_nonce_kept_across_a_restart(self):
+        key = sign_key_of(self.n)
+        nonce = os.urandom(16).hex()
+        st, got = raw_op(self.agent, self.n, 'status', key_hex=key, nonce=nonce)
+        self.assertEqual(st, 200, got)
+        self.agent.stop()
+        self.agent.start()
+        st, got = raw_op(self.agent, self.n, 'status', key_hex=key, nonce=nonce)
+        self.assertEqual(st, 400, got)
+        self.assertIn('seen before', got['said'])
+
+    def test_12_trust_never_locks_out(self):
+        key = sign_key_of(self.n)
+        st, got = raw_op(self.agent, self.n, 'trust', {'ca': ''}, key_hex=key)
+        self.assertEqual(st, 400, got)
+        self.assertIn('locked out', got['said'])
+        t = tempfile.mkdtemp(dir=BASE)
+        try:
+            subprocess.run(['openssl', 'req', '-x509', '-newkey', 'ec', '-pkeyopt',
+                            'ec_paramgen_curve:prime256v1', '-nodes', '-keyout',
+                            os.path.join(t, 'k.pem'), '-out', os.path.join(t, 'c.pem'), '-days',
+                            '2', '-subj', '/CN=another authority'], capture_output=True, check=True)
+            st, got = raw_op(self.agent, self.n, 'trust',
+                             {'ca': read_file(os.path.join(t, 'c.pem'))}, key_hex=key)
+            self.assertEqual(st, 400, got)
+            self.assertIn('not from that authority', got['said'])
+        finally:
+            shutil.rmtree(t, ignore_errors=True)
+        got = self.n.cli('--db-agent-status')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+
+    def test_13_pg_prepare_restart_is_not_the_agents(self):
+        """pg_prepare says pg_restart_needed - never `restart`, read once as the agent's own
+        restart (1.0.113): the network side goes on as it was."""
+        pid = network_side_pid(self.agent)
+        st, got = raw_op(self.agent, self.n, 'pg_prepare', {
+            'db': 'acme', 'user': 'acme', 'password': DB_PW, 'peers': [], 'replicate': False},
+            key_hex=sign_key_of(self.n))
+        self.assertEqual(st, 200, got)
+        self.assertIn('pg_restart_needed', got)
+        self.assertNotIn('restart', got)
+        self.assertNotIn('agent_restart', got)
+        time.sleep(1.5)
+        self.assertEqual(network_side_pid(self.agent), pid)
+
+    def test_14_only_its_database(self):
+        """The agent is asked only when this node's database IS the one on its server: with the
+        agent joined but the database elsewhere, every path is the root helper's (1.0.113)."""
+        got = last_json(self.n.py(
+            "out = [acme.db_agent_here(), acme.dbtls_kind()]\n"
+            "acme._engine.CONFIG['db_port'] = 1\n"
+            "out += [acme.db_agent_here(), acme.db_agent_here({'db_engine': 'sqlite'}), "
+            "acme.db_agent_where()['kind']]\n"
+            "acme.pgtls_send({'id': 'abcdef0123', 'do': 'hba_off', 'port': 1, 'db': 'acme', "
+            "'user': 'acme'})\n"
+            "print(json.dumps(out))"))
+        self.assertEqual(got, [True, 'local', False, False, 'here'])
+        ask = os.path.join(self.n.tmp, 'state', 'web', 'pgtls.ask')
+        self.assertTrue(os.path.exists(ask))
+        os.unlink(ask)
+
+    def test_15_node_moved(self):
+        """This node at a new address: let into its database server (pg_hba.conf, the firewall)
+        through the agent before the network changes, and said to the other node."""
+        got = last_json(self.n.py(
+            "print(json.dumps(acme.db_agent_node_moved(st, '127.0.0.1', '192.0.2.77')))"))
+        self.assertTrue(got)
+        hba = self.db.sql('SHOW hba_file')
+        self.assertIn('192.0.2.77/32', read_file(hba))
+        ops = [x.get('op') for x in self.agent.audit()]
+        self.assertIn('pg_allow', ops)
+        self.assertIn('fw_allow', ops)
+        row = last_json(self.n.py("print(st.get_meta('dbagent:addr:' + acme.node_name()))"))
+        self.assertEqual(row['address'], '192.0.2.77')
+        self.n.py("st.db.run(\"DELETE FROM meta WHERE k LIKE 'dbagent:addr:%'\")")
+
+    def test_16_alerts_client_cert_and_version(self):
+        got = last_json(self.n.py(
+            "a = acme.db_agent(); was = a.get('client_cert_end')\n"
+            "acme.db_agent_put({'client_cert_end': acme.time.time() + 5 * 86400})\n"
+            "acme._engine.__version__ = '9.9.9'\n"
+            "row = acme.db_agent_look(st)\n"
+            "keys = [x['key'] for x in acme._db_agent_alerts(st)]\n"
+            "cs = [x['title'] for x in acme._db_agent_alerts(st, lang='cs')]\n"
+            "lines = acme._db_agent_status_lines(st, None)\n"
+            "acme.db_agent_put({'client_cert_end': was})\n"
+            "print(json.dumps([keys, row['version_skew'], lines, cs]))"))
+        keys, skew, lines, cs = got
+        self.assertIn('dbagent:client:n0', keys)
+        self.assertIn('dbagent:version:n0', keys)
+        self.assertEqual(skew['agent'], '1.0.113')
+        self.assertTrue(any('upgrade' in x for x in lines), lines)
+        self.assertTrue(any('jinou verzi' in x for x in cs), cs)
+        # The daemon's own look puts the row right again (its version is acme's).
+        wait_for(lambda: not last_json(self.n.py(
+            "print(json.dumps(acme._meta_obj(st, 'dbagent:node:n0').get('version_skew')))")),
+            30, 1, 'the version said right again')
+
+    def test_17_code_on_stdin(self):
+        """The join code read from standard input (acme --db-agent-join -) or
+        ACME_DB_AGENT_CODE - never on a command line (1.0.113)."""
+        got = self.n.cli('--db-agent-join', '-', stdin='\n')
+        self.assertNotEqual(got.returncode, 0)
+        self.assertIn('no join code', got.stderr)
+        got = self.n.cli('--db-agent-join', stdin=self.agent.code() + '\n')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        self.n.env['ACME_DB_AGENT_CODE'] = self.agent.code()
+        try:
+            got = self.n.cli('--db-agent-join', '-')
+            self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        finally:
+            del self.n.env['ACME_DB_AGENT_CODE']
+        got = self.n.cli('--db-agent-status')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        self.assertEqual(agent_status(self.agent)['clients'], ['n0'])
+
+
+@unittest.skipUnless(can_run(), 'needs root, PostgreSQL 16 (%s) and runuser' % PGBIN)
+class TwoNodesOneAgent(unittest.TestCase):
+    """Two acme nodes joined to one agent (layout A shared, or an operator joining both): the
+    second never locks the first out, the agent's certificate is renewed by itself and put in
+    use once both took it in, each node's client certificate is its own, and the side that
+    faces the network never holds a signing key."""
+
+    @classmethod
+    def setUpClass(cls):
+        set_up_or_clean(cls, cls._set_up)
+
+    @classmethod
+    def _set_up(cls):
+        cls.cadir = tempfile.mkdtemp(prefix='acme-extdb-ca-', dir=BASE)
+        os.chmod(cls.cadir, 0o755)
+        cls.db = PgServer('dbt')
+        cls.agent = Agent(cls.db, cls.cadir).start()
+        cls.nodes = []
+        for name in ('t1', 't2'):
+            n = Node(name)
+            cls.nodes.append(n)
+            n.env.update(ACME_HA_NO_RESTART='1', ACME_NO_RESTART='1',
+                         ACME_HA_CA=os.path.join(cls.cadir, 'dbt-%s.pem' % name))
+            os.makedirs(os.path.join(n.tmp, 'state', 'web'), exist_ok=True)
+            n.add_account()
+        cls.fp0 = agent_status(cls.agent)['cert_fp']
+
+    @classmethod
+    def tearDownClass(cls):
+        quietly(*[n.cleanup for n in getattr(cls, 'nodes', [])],
+                *[getattr(cls, x).stop for x in ('agent',) if getattr(cls, x, None)],
+                *[getattr(cls, x).cleanup for x in ('db',) if getattr(cls, x, None)],
+                lambda: shutil.rmtree(cls.cadir, ignore_errors=True))
+
+    def status_ok(self, n):
+        got = n.cli('--db-agent-status')
+        self.assertEqual(got.returncode, 0, '%s: %s' % (n.name, got.stdout + got.stderr))
+
+    def test_01_both_work(self):
+        t1, t2 = self.nodes
+        got = t1.cli('--db-agent-join', '-', stdin=self.agent.code() + '\n')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        self.status_ok(t1)
+        got = t2.cli('--db-agent-join', '-', stdin=self.agent.code() + '\n')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        # The second joined: the agent answers with the certificate the first pinned.
+        self.assertEqual(agent_status(self.agent)['cert_fp'], self.fp0)
+        for n in (t1, t2):
+            self.status_ok(n)
+            self.assertEqual(node_conf_agent(n)['pins'], [self.fp0])
+        self.assertEqual(sorted(agent_status(self.agent)['clients']), ['t1', 't2'])
+        # Each node's authorities its own (two clusters' authorities side by side).
+        with open(os.path.join(self.agent.dir, 'clients.json')) as f:
+            cl = json.load(f)
+        self.assertTrue(all(x.get('ca') for x in cl))
+        self.assertNotEqual(cl[0]['ca'], cl[1]['ca'])
+
+    def test_02_network_side_holds_no_key(self):
+        pid = network_side_pid(self.agent)
+        self.assertTrue(pid)
+        with open('/proc/%d/cmdline' % pid, 'rb') as f:
+            self.assertIn(b'--network-side', f.read())
+        keys = [sign_key_of(n) for n in self.nodes]
+        needles = [k.encode() for k in keys] + [bytes.fromhex(k) for k in keys]
+        # (what it does hold is found: the scan sees its memory)
+        self.assertEqual(memory_holds(pid, needles + [b'acme-db-agent/1']), {b'acme-db-agent/1'})
+
+    def test_03_renewed_by_the_agent(self):
+        """t1 asks the agent for its next certificate: announced, pinned by t1 - not in use
+        until t2 took it in too; then in use, both nodes on it."""
+        t1, t2 = self.nodes
+        got = t1.cli('--db-agent-renew')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        st = agent_status(self.agent)
+        nxt = st['cert_next_fp']
+        self.assertTrue(nxt)
+        self.assertEqual(st['cert_fp'], self.fp0)               # t2 has not taken it in yet
+        self.assertEqual(node_conf_agent(t1)['pins'], [self.fp0, nxt])
+        self.status_ok(t2)                                      # t2 takes it in: in use now
+        wait_for(lambda: agent_status(self.agent)['cert_fp'] == nxt, 30, 0.5,
+                 'the next certificate in use')
+        for n in (t1, t2):
+            self.status_ok(n)
+            self.assertEqual(node_conf_agent(n)['pins'], [nxt])
+        # t1's client certificate renewed too: t2's is untouched, both get in.
+        for n in (t1, t2):
+            self.status_ok(n)
+
+    def test_04_burning_codes_and_the_limit(self):
+        """Wrong join codes count against the address (and the code only when its id is
+        right); failures do block an address (1.0.113)."""
+        sys.path.insert(0, os.path.join(ROOT, 'deploy'))
+        import acme_db_agent as A
+        b = A.Bucket(0.2, 20)
+        for _ in range(5):
+            b.charge('x', 5)
+        self.assertFalse(b.ok('x'))
+        self.assertTrue(b.ok('y'))
+        # A stranger guessing (no id, or another): the code of the node is not burnt.
+        code = self.agent.code()
+        for _ in range(6):
+            st, got = post_plain(self.agent.port, '/v1/enroll/begin',
+                                 {'secret': 'x' * 24, 'node': 'evil'})
+            self.assertEqual(st, 400, got)
+        data = code_data(code)
+        st, got = post_plain(self.agent.port, '/v1/enroll/begin',
+                             {'secret': data['s'], 'code_id': data['i'], 'node': 'late'})
+        self.assertEqual(st, 200, got)
+        tok = got['token']
+        # A second begin with the same code (somebody who saw it): the first one's token still
+        # finishes - and a finish without a token of a begin is refused.
+        st, got2 = post_plain(self.agent.port, '/v1/enroll/begin',
+                              {'secret': data['s'], 'code_id': data['i'], 'node': 'other'})
+        self.assertEqual(st, 200, got2)
+        st, got = post_plain(self.agent.port, '/v1/enroll/finish',
+                             {'secret': data['s'], 'code_id': data['i'], 'node': 'late',
+                              'token': 'nope', 'sign_key': '0' * 64, 'ca': '', 'client_cert': ''})
+        self.assertEqual(st, 400, got)
+        self.assertIn('begun', got['said'])
+        self.assertTrue(tok)
+        # The code's id right, the secret wrong: that code is burnt after five.
+        code2 = self.agent.code()
+        d2 = code_data(code2)
+        for _ in range(5):
+            post_plain(self.agent.port, '/v1/enroll/begin',
+                       {'secret': 'y' * 24, 'code_id': d2['i'], 'node': 'evil'})
+        st, got = post_plain(self.agent.port, '/v1/enroll/begin',
+                             {'secret': d2['s'], 'code_id': d2['i'], 'node': 'late'})
+        self.assertEqual(st, 400, got)
+        # The address is refused after ten wrong codes in an hour, the right one too.
+        st, got = post_plain(self.agent.port, '/v1/enroll/begin',
+                             {'secret': data['s'], 'code_id': data['i'], 'node': 'late'})
+        self.assertEqual(st, 400, got)
+        self.assertIn('too many', got['said'])
+        refused = [x for x in self.agent.audit() if x.get('ok') is False and
+                   str(x.get('op')).startswith('enroll')]
+        self.assertGreaterEqual(len(refused), 10)
+        # The nodes joined are not disturbed.
+        for n in self.nodes:
+            self.status_ok(n)
+
+
+@unittest.skipUnless(can_run(), 'needs root, PostgreSQL 16 (%s) and runuser' % PGBIN)
+class AgentLimits(unittest.TestCase):
+    """An agent with the default limits: failures from an address do block it (429)."""
+
+    def test_failures_block(self):
+        cadir = tempfile.mkdtemp(prefix='acme-extdb-ca-', dir=BASE)
+        db = PgServer('dbl')
+        agent = None
+        try:
+            agent = Agent(db, cadir, fail_burst=20).start()
+            seen = []
+            for _ in range(8):
+                st, _ = post_plain(agent.port, '/v1/op', {'op': 'status'})
+                seen.append(st)
+            self.assertEqual(seen[0], 401)
+            self.assertIn(429, seen)
+        finally:
+            quietly(*([agent.stop] if agent else []), db.cleanup,
+                    lambda: shutil.rmtree(cadir, ignore_errors=True))
+
+    def test_never_nobody(self):
+        got = subprocess.run([sys.executable, '-I', '-c',
+                              'import sys; sys.path.insert(0, %r); import acme_db_agent as A; '
+                              'A.drop_to({"user": "nobody"})' % os.path.join(ROOT, 'deploy')],
+                             capture_output=True, text=True)
+        self.assertNotEqual(got.returncode, 0)
+        self.assertIn('not nobody', got.stderr)
+        got = subprocess.run([sys.executable, '-I', '-c',
+                              'import sys; sys.path.insert(0, %r); import acme_db_agent as A; '
+                              'A.drop_to({"user": "no-such-account-x"})'
+                              % os.path.join(ROOT, 'deploy')], capture_output=True, text=True)
+        self.assertNotEqual(got.returncode, 0)
+        self.assertIn('not there', got.stderr)
+
+
+class DeployParts(unittest.TestCase):
+    """The unit, install.sh and db-server.sh: hardening, no password on a command line, the
+    firewall's lines said, pg_hba.conf written link-safe (1.0.113)."""
+
+    def read(self, *p):
+        with open(os.path.join(ROOT, *p)) as f:
+            return f.read()
+
+    def test_unit(self):
+        u = self.read('deploy', 'acme-db-agent.service')
+        for want in ('ProtectSystem=strict', 'PrivateDevices=yes', 'CapabilityBoundingSet=',
+                     'RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK',
+                     '-/etc/pki/acme', '/etc/acme-db-agent', '-/var/lib/pgsql', '-/etc/my.cnf.d'):
+            self.assertIn(want, u)
+        self.assertNotIn('ProtectSystem=full', u)
+
+    def test_no_password_on_a_command_line(self):
+        s = self.read('deploy', 'db-server.sh')
+        for line in s.splitlines():
+            if "'$DBS_PASSWORD'" in line and not line.lstrip().startswith(
+                    ('pg_psql_secret ', 'my_q_secret ')):
+                self.fail('a password on a command line: %s' % line.strip())
+        self.assertNotIn('cp -p "$hba"', s)
+        self.assertIn('O.hba_add(', s)
+        i = self.read('install.sh')
+        self.assertIn('--db-password-file)', i)
+
+    def shell(self, script, env=None):
+        stubs = ('run() { if [[ -n "$DRY_RUN" ]]; then echo "[would run] $*"; return 0; fi; '
+                 '"$@"; }\nsay() { echo "$*"; }\nnote() { echo "$*"; }\nwarn() { echo "$*"; }\n'
+                 'good() { echo "$*"; }\nstep() { echo "$*"; }\nfail() { echo "FAIL $*"; '
+                 'exit 1; }\nC_BAD=""; C_OFF=""\n')
+        return subprocess.run(['bash', '-c', stubs + '. %s\n' % os.path.join(
+            ROOT, 'deploy', 'db-server.sh') + script], capture_output=True, text=True,
+            env=dict(os.environ, **(env or {})))
+
+    def test_dry_run_masks_the_password(self):
+        got = self.shell('DRY_RUN=yes; DBS_PASSWORD="Secret-Pw-4711"; DBS_USER=acme\n'
+                         'pg_psql_secret "CREATE ROLE acme LOGIN PASSWORD \'…\'" '
+                         '"CREATE ROLE acme LOGIN PASSWORD \'$DBS_PASSWORD\'"\n'
+                         'my_q_secret "CREATE USER" "CREATE USER x IDENTIFIED BY \'$DBS_PASSWORD\'"\n')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        self.assertIn('the password not shown', got.stdout)
+        self.assertNotIn('Secret-Pw-4711', got.stdout + got.stderr)
+
+    def test_firewall_lines_without_acme_node(self):
+        t = tempfile.mkdtemp(dir=BASE)
+        try:
+            with open(os.path.join(t, 'firewall-cmd'), 'w') as f:
+                f.write('#!/bin/sh\nexit 0\n')
+            os.chmod(os.path.join(t, 'firewall-cmd'), 0o755)
+            got = self.shell('ACME_NODES=""; DB_AGENT_PORT=9443; DBS_PORT=5432; DRY_RUN=\n'
+                             'dbs_firewall\n', env={'PATH': t + ':' + os.environ['PATH']})
+        finally:
+            shutil.rmtree(t, ignore_errors=True)
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        self.assertIn('port port="9443" protocol="tcp" accept', got.stdout)
+        self.assertIn('port port="5432" protocol="tcp" accept', got.stdout)
+        self.assertIn('firewall-cmd --permanent --add-rich-rule=', got.stdout)
+        self.assertIn('firewall-cmd --reload', got.stdout)
 
 
 @unittest.skipUnless(can_run(), 'needs root, PostgreSQL 16 (%s) and runuser' % PGBIN)
@@ -575,6 +1055,35 @@ class ReplicatedExternal(unittest.TestCase):
         self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
         self.b.start()
         self.sync()
+
+    def test_04_the_other_node_is_peer_node(self):
+        """Layout B: ha_peer is the other DATABASE server; what is the nodes' own (the clocks'
+        peers, the addresses the firewall always lets in, the VIP's other node) takes the other
+        acme node (--ha-peer-node) - the database server only for the database (1.0.113)."""
+        got = last_json(self.a.py(
+            "a = acme.db_agent(); a['peer_node'] = '192.0.2.50'\n"
+            "c = acme._engine.CONFIG; c['ha_peer'] = '192.0.2.60'\n"
+            "print(json.dumps([acme.ha_peer_node(), sorted(acme.cluster_addresses(st, "
+            "acme.node_name())), acme.db_agent_link_peers()]))"))
+        node, addrs, link = got
+        self.assertEqual(node, '192.0.2.50')
+        self.assertIn('192.0.2.50', addrs)
+        self.assertNotIn('192.0.2.60', addrs)
+        self.assertEqual(link, ['192.0.2.60', '192.0.2.50'])     # the database's: both
+
+    def test_05_other_node_moved(self):
+        """acme1 at a new address: acme2's agent lets it into db2 (pg_hba.conf, firewall) and
+        acme2's peer_node follows."""
+        had = node_conf_agent(self.b).get('peer_node')
+        self.assertTrue(had)
+        self.a.py("st.set_meta('dbagent:addr:n1', json.dumps({'address': '192.0.2.88', "
+                  "'old': %r, 'at': 1}))" % had)
+        wait_for(lambda: node_conf_agent(self.b).get('peer_node') == '192.0.2.88', 90, 2,
+                 'acme2 letting acme1 in at its new address')
+        self.assertIn('192.0.2.88/32', read_file(self.db2.sql('SHOW hba_file')))
+        self.assertIn('fw_allow', [x.get('op') for x in self.ag2.audit()])
+        self.b.py("acme.db_agent_put({'peer_node': %r}); "
+                  "st.db.run(\"DELETE FROM meta WHERE k LIKE 'dbagent:addr:%%'\")" % had)
 
 
 def can_run_my():
@@ -752,6 +1261,14 @@ class LocalUnchanged(unittest.TestCase):
             "acme._db_agent_metrics(st), acme._db_agent_status_lines(st, None), "
             "acme.dbtls_kind()]))"))
         self.assertEqual(got, ['local', False, [], [], [], 'sqlite'])
+        # The gates of 1.0.113 say nothing either: no agent, its database not the agent's, the
+        # other node ha_peer as ever.
+        got = json.loads(self.n.py(
+            "print(json.dumps([acme.db_agent_here(), acme.ha_peer_node() == "
+            "str(acme._engine.CONFIG.get('ha_peer') or ''), "
+            "acme.db_agent_node_moved(st, '127.0.0.1', '192.0.2.9'), "
+            "acme.db_agent_peer_moved(st)]))"))
+        self.assertEqual(got, [False, True, [], None])
         for path in ('/api/ha', '/api/dbtls', '/api/load'):
             v = self.n.ok('GET', path) if path != '/api/dbtls' else self.n.call('GET', path)[1]
             self.assertNotIn('dbservers', v, path)

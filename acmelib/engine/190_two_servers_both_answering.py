@@ -132,7 +132,7 @@ def heartbeat(store, daemon=None):
         pend = ha_pending(store)
         if pend:
             heard = {str(n.get('address') or '') for n in ha_nodes(store)
-                     if not n.get('me') and n.get('alive')} | {str(CONFIG.get('ha_peer') or '')}
+                     if not n.get('me') and n.get('alive')} | {ha_peer_node()}
             for x in pend:
                 if x['address'] in heard and CONFIG.get('ha_mode'):
                     ha_pending_drop(store, x['address'])

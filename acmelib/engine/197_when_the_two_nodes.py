@@ -182,7 +182,8 @@ def split_preferred_unable(store, now=None):
         # both nodes served and led.
         was = SPLIT.get('there')
         if not was or now - was[0] > 10 or now < was[0]:
-            host = str(CONFIG.get('ha_peer') or '')
+            # The other node's machine - not its database server (layout B, 1.0.113).
+            host = ha_peer_node()
             got = bool(host) and split_machine_there(host) and split_peer_says(host) == 'down'
             SPLIT['there'] = was = (now, got)
         if was[1]:

@@ -273,6 +273,13 @@ def net_job_run(daemon, ask):
             CONFIG['node_name'] = me
             _job_put(store, job, 'the node\'s name %s kept in config.json, whatever the host '
                      'name' % me, 8)
+        # 1b. The database on a server of its own (1.0.113): the new address let into it and
+        # through its firewall by its agent before anything changes - and the other node told,
+        # whose agent lets it in too. Without an agent nothing of it runs.
+        if w.get('ip_changed') and w.get('new_ip') and db_agent_here():
+            said = db_agent_node_moved(store, w.get('old_ip') or '', w['new_ip'])
+            _job_put(store, job, 'the database server lets %s in (acme-db-agent): %s' % (
+                w['new_ip'], '; '.join(said) or 'it did already'), 9)
         # 2. Out of the way first (1.0.56), before the other node is told: told,
         # its keepalived goes to the new address and no longer hears this one
         # - both held the VIP address. And not while nobody else serves.

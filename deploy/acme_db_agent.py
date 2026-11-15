@@ -7,28 +7,41 @@ replication's settings. When the database is on a server of its own, this
 agent does the same there - and nothing else:
 
   * it answers HTTPS on a port of its own (9443), only to acme nodes that
-    joined it: each shows a client certificate from acme's own authority
-    (mutual TLS), its fingerprint one of those enrolled, and signs every
-    request (HMAC-SHA256 with a key of its own, given at enrollment) with the
-    time and a nonce - a request seen before, or older than two minutes, is
-    refused;
-  * it does a closed set of operations (acme_pg_ops.OPS: status, pgtls,
-    pg_prepare, pg_allow, pg_publication, pg_restart, pg_reload, pglog,
-    dbmake, my_tls, my_restart, fw_allow; agent_csr, agent_cert, trust,
+    joined it. It answers with a certificate it made itself (no authority:
+    every node pins its fingerprint, from the join code on), the same for
+    every node that joined - several nodes may join one agent. It renews it
+    by itself: the next one is made 60 days before the end and announced to
+    every node in the signed answer of `status`; it is put in use once every
+    node joined took it in (7 days before the end at the latest).
+  * each node shows a client certificate (mutual TLS) whose fingerprint is
+    one enrolled - a list of fingerprints, each node's own (the authorities
+    that issued them are only what TLS needs to ask for them; one node's
+    never replaces another's) - and signs every request (HMAC-SHA256 with a
+    key of its own, given at enrollment) with the time and a nonce: a request
+    seen before (also before the agent last started), or older than two
+    minutes, is refused;
+  * it does a closed set of operations (acme_pg_ops.OPS: status, load, pgtls,
+    pg_prepare, pg_allow, my_allow, pg_publication, pg_restart, pg_reload,
+    pglog, dbmake, my_tls, my_restart, fw_allow; agent_renew, trust,
     clients). Every value is checked against the one shape it may have; no
     shell, no file named by the request, SQL only as the postgres account;
-  * the side that faces the network runs as an account of its own
-    (acme-db-agent, or nobody): it terminates TLS, checks the certificate,
-    the signature and the rate, and hands the request to the root side over a
-    socket pair. The root side checks it all again (the signature, the
-    nonce) before it does anything, and writes the audit log;
+  * two processes. The side that faces the network is a program started
+    afresh (never a copy of root's memory), runs as an account of its own
+    (acme-db-agent - never nobody, never root): it terminates TLS and rate-
+    limits, and hands the request as it came - method, path, headers, body
+    and the client's certificate - to the root side over a socket pair. It
+    holds no signing key. The root side works the fingerprint out of the
+    certificate itself, checks it is enrolled, checks the signature, the
+    time and the nonce, runs the operation, signs the answer, and writes the
+    audit log - refusals too;
   * joining: `acme_db_agent.py --new-code` prints a one-time code (an hour)
-    holding this server's address, a secret and the fingerprint of the
-    certificate it answers with - acme pins it, so nobody in between can
-    pose as the agent. `acme --db-agent-join CODE` on the acme node gets a
-    certificate request from here, issues this server's certificate and its
-    own client certificate from acme's authority, and sends them back with
-    its signing key. The code is then used up.
+    holding this server's address, a secret, the code's id and the
+    fingerprint of the certificate it answers with - acme pins it, so nobody
+    in between can pose as the agent. `acme --db-agent-join -` on the acme
+    node (the code pasted on its standard input) begins (a token of its own
+    for this node's finish), sends its client certificate, the authorities
+    that issued it and its signing key. The code is then used up. Wrong codes
+    are counted per address (and per code when the code's id is right).
 
   acme_db_agent.py [--config FILE]          serve (systemd: acme-db-agent.service)
   acme_db_agent.py --new-code [--minutes N] a one-time join code for an acme node
@@ -44,6 +57,7 @@ import hmac
 import http.server
 import json
 import os
+import re
 import secrets
 import signal
 import socket
@@ -60,13 +74,20 @@ CONF_FILE = os.environ.get('ACME_DB_AGENT_CONFIG', '/etc/acme-db-agent/agent.jso
 PROTO = 'acme-db-agent/1'
 SKEW = 120                      # a request's time this far from ours at most (s)
 CODE_MINUTES = 60
-CODE_TRIES = 5
+CODE_TRIES = 5                  # wrong tries of one code (its id right) before it is void
+ADDR_TRIES = 10                 # wrong codes from one address in an hour before it is refused
 BODY_MOST = 262144
-AGENT_OPS = ('agent_csr', 'agent_cert', 'trust', 'clients')
+AGENT_CERT_DAYS = 825
+AGENT_NEXT_DAYS = 60            # the next certificate made and announced this long before the end
+AGENT_FORCE_DAYS = 7            # put in use then even if a node never took it in
+AGENT_OPS = ('agent_renew', 'trust', 'clients')
 DEFAULTS = {'listen': '0.0.0.0', 'port': 9443, 'engine': 'postgres', 'pg_port': 5432,
             'my_port': 3306, 'user': 'acme-db-agent', 'state': '/var/lib/acme-db-agent',
             'log': '/var/log/acme-db-agent/audit.log', 'ha_ca': '/etc/pki/acme/ha-ca.pem',
-            'advertise': '', 'names': [], 'rate': 20, 'burst': 60}
+            'advertise': '', 'names': [], 'rate': 20, 'burst': 60,
+            'fail_rate': 0.2, 'fail_burst': 20}
+HEX64 = re.compile(r'[0-9a-f]{64}\Z')
+PEM_RE = re.compile(r'-----BEGIN CERTIFICATE-----[A-Za-z0-9+/=\s]+?-----END CERTIFICATE-----')
 
 
 def conf_read(path=None):
@@ -79,7 +100,8 @@ def conf_read(path=None):
             c.update(got)
     except FileNotFoundError:
         pass
-    c['dir'] = os.path.dirname(os.path.abspath(path))
+    c['path'] = os.path.abspath(path)
+    c['dir'] = os.path.dirname(c['path'])
     return c
 
 
@@ -126,6 +148,10 @@ def _openssl(args, data=None):
     return got.stdout
 
 
+def _sha(text):
+    return hashlib.sha256(str(text or '').encode()).hexdigest()
+
+
 def fp_of_pem(pem):
     return hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem.strip() + '\n')).hexdigest()
 
@@ -133,6 +159,15 @@ def fp_of_pem(pem):
 def cert_end(pem):
     out = _openssl(['x509', '-noout', '-enddate'], pem)
     return float(ssl.cert_time_to_seconds(out.strip().split('=', 1)[-1]))
+
+
+def pem_blocks(text):
+    out = []
+    for b in PEM_RE.findall(str(text or '')):
+        b = b.strip() + '\n'
+        if b not in out:
+            out.append(b)
+    return out
 
 
 def my_names(c):
@@ -152,30 +187,58 @@ def my_names(c):
     return out
 
 
-def boot_cert(c):
-    """The certificate it answers with until an acme node issued it one: self-signed, made
-    once; its fingerprint goes into the join code."""
-    crt, key = _p(c, 'boot.crt'), _p(c, 'boot.key')
+# ---- the agent's own certificate: made here, pinned by every node, renewed here -----------
+def _make_cert(crt, key):
+    with tempfile.TemporaryDirectory() as t:
+        k = os.path.join(t, 'k.pem')
+        _openssl(['ecparam', '-name', 'prime256v1', '-genkey', '-noout', '-out', k])
+        pem = _openssl(['req', '-new', '-x509', '-key', k, '-days', str(AGENT_CERT_DAYS),
+                        '-subj', '/CN=acme-db-agent %s' % socket.gethostname()[:40]])
+        with open(k) as f:
+            _write(key, f.read())
+    _write(crt, pem, 0o644)
+
+
+def agent_cert(c):
+    """(crt, key) the agent answers with - to every node alike. Made here once (before 1.0.113
+    was released it was boot.crt: taken over)."""
+    crt, key = _p(c, 'agent.crt'), _p(c, 'agent.key')
     if not (os.path.exists(crt) and os.path.exists(key)):
-        with tempfile.TemporaryDirectory() as t:
-            k = os.path.join(t, 'k.pem')
-            _openssl(['ecparam', '-name', 'prime256v1', '-genkey', '-noout', '-out', k])
-            pem = _openssl(['req', '-new', '-x509', '-key', k, '-days', '3650', '-subj',
-                            '/CN=acme-db-agent %s' % socket.gethostname()[:40]])
-            _write(key, open(k).read())
-        _write(crt, pem, 0o644)
+        old_c, old_k = _p(c, 'boot.crt'), _p(c, 'boot.key')
+        if os.path.exists(old_c) and os.path.exists(old_k):
+            os.replace(old_k, key)
+            os.replace(old_c, crt)
+        else:
+            _make_cert(crt, key)
     return crt, key
 
 
-def served_cert(c):
-    if os.path.exists(_p(c, 'server.crt')) and os.path.exists(_p(c, 'server.key')):
-        return _p(c, 'server.crt'), _p(c, 'server.key')
-    return boot_cert(c)
+def next_cert(c):
+    """(crt, key) of the next certificate when one is made and announced, else None."""
+    crt, key = _p(c, 'agent-next.crt'), _p(c, 'agent-next.key')
+    return (crt, key) if os.path.exists(crt) and os.path.exists(key) else None
+
+
+def cert_facts(c):
+    crt, _ = agent_cert(c)
+    pem = _read(crt, '') or ''
+    out = {'cert_fp': fp_of_pem(pem) if pem else '', 'cert_end': cert_end(pem) if pem else None,
+           'cert_next_fp': '', 'cert_next_end': None}
+    nxt = next_cert(c)
+    if nxt:
+        npem = _read(nxt[0], '') or ''
+        if npem:
+            out.update(cert_next_fp=fp_of_pem(npem), cert_next_end=cert_end(npem))
+    return out
 
 
 def clients(c):
     got = _json(_p(c, 'clients.json'), [])
     return [x for x in got if isinstance(x, dict) and x.get('fp') and x.get('key')]
+
+
+def clients_put(c, cl):
+    _write(_p(c, 'clients.json'), json.dumps(cl, indent=1))
 
 
 def audit(c, **kw):
@@ -201,11 +264,12 @@ def reply_sig(key, nonce, body):
 
 # ---- the root side -------------------------------------------------------------------------
 class Root(object):
-    """What root does: checks a request once more and carries it out."""
+    """What root does: every check of a request, the operation, the signed answer. Every key
+    stays here."""
 
     def __init__(self, c):
         self.c = c
-        self.seen = {}                  # nonce -> time (replays)
+        self.code_fails = {}            # address -> [times of wrong codes]
         os.environ['ACME_HA_CA'] = c['ha_ca']
         if c.get('my_socket'):
             # MariaDB's socket where it is not the usual one: the clients root runs (the root
@@ -219,6 +283,41 @@ class Root(object):
         sys.dont_write_bytecode = True          # nothing written into the program's folder
         import acme_pg_ops
         self.ops = acme_pg_ops
+        self.seen = self._nonces_load()
+
+    # -- the nonces seen, kept across a restart (a request captured is never taken twice) ---
+    def _nonces_path(self):
+        return os.path.join(self.c['state'], 'nonces.json')
+
+    def _nonces_load(self):
+        got = _json(self._nonces_path(), {})
+        now = time.time()
+        if not isinstance(got, dict):
+            return {}
+        return {str(k): float(v) for k, v in got.items()
+                if isinstance(v, (int, float)) and v > now - 2 * SKEW}
+
+    def _nonce_keep(self, nonce, now):
+        self.seen = {k: v for k, v in self.seen.items() if v > now - 2 * SKEW}
+        self.seen[nonce] = now
+        try:
+            os.makedirs(self.c['state'], mode=0o700, exist_ok=True)
+            _write(self._nonces_path(), json.dumps(self.seen))
+        except OSError:
+            pass
+
+    # -- what the network side is given: no key, only what TLS and the first check need ----
+    def for_network_side(self):
+        cl = clients(self.c)
+        fps, cas = [], []
+        for x in cl:
+            for f in (x.get('fp'), x.get('fp_next')):
+                if f and f not in fps:
+                    fps.append(f)
+            for b in pem_blocks(x.get('ca')):
+                if b not in cas:
+                    cas.append(b)
+        return {'kind': 'init', 'fps': fps, 'cas': ''.join(cas)}
 
     def handle(self, msg):
         kind = msg.get('kind')
@@ -227,197 +326,293 @@ class Root(object):
                 return self.op(msg)
             if kind in ('enroll_begin', 'enroll_finish'):
                 return self.enroll(msg)
-            return {'ok': False, 'said': 'not a request this agent knows'}
-        except self.ops.Refused as e:
-            return {'ok': False, 'said': str(e)[:400]}
+            if kind == 'refused':
+                audit(self.c, ip=msg.get('ip'), op='refused', ok=False,
+                      said=str(msg.get('why') or '')[:200])
+                return {'code': 0}
+            return self.reply(404, {'ok': False, 'said': 'not a request this agent knows'})
         except Exception as e:                          # noqa: BLE001
-            return {'ok': False, 'said': 'it went wrong: %s' % str(e)[:300]}
+            audit(self.c, ip=msg.get('ip'), op=str(kind)[:20], ok=False,
+                  said=('it went wrong: %s' % e)[:300])
+            return self.reply(400, {'ok': False, 'said': 'it went wrong: %s' % str(e)[:300]},
+                              penalty=1)
 
-    def _client(self, msg):
-        """The enrolled acme node this is: its certificate, its signature, a fresh nonce."""
-        fp = str(msg.get('fp') or '')
-        node = str(msg.get('node') or '')
-        cl = clients(self.c)
-        one = next((x for x in cl if hmac.compare_digest(x['fp'], fp)), None)
-        nxt = next((x for x in cl if hmac.compare_digest(str(x.get('fp_next') or ''), fp)), None)
-        if nxt is not None and nxt.get('name') == node:
-            # Its renewed certificate in use: the old one is no longer let in.
-            nxt['fp'], nxt['fp_next'], one = fp, None, nxt
-            _write(_p(self.c, 'clients.json'), json.dumps(cl, indent=1))
-        if not one or one.get('name') != node:
-            raise self.ops.Refused('this client certificate is not one enrolled here')
-        body = base64.b64decode(msg.get('body') or '')
-        try:
-            ts = float(msg.get('ts'))
-        except (TypeError, ValueError):
-            raise self.ops.Refused('the request has no time')
-        now = time.time()
-        if abs(now - ts) > SKEW:
-            raise self.ops.Refused('the request\'s time is %d s from this server\'s' % (now - ts))
-        nonce = str(msg.get('nonce') or '')
-        if not (16 <= len(nonce) <= 64) or nonce in self.seen:
-            raise self.ops.Refused('the request was seen before')
-        want = hmac.new(bytes.fromhex(one['key']), sign_text(msg.get('method', 'POST'),
-                                                             msg.get('path', ''), node, msg['ts'],
-                                                             nonce, body), 'sha256').hexdigest()
-        if not hmac.compare_digest(want, str(msg.get('sig') or '')):
-            raise self.ops.Refused('the request is not signed by %s' % node)
-        self.seen = {k: v for k, v in self.seen.items() if v > now - 2 * SKEW}
-        self.seen[nonce] = now
-        return one, json.loads(body.decode() or '{}')
+    @staticmethod
+    def reply(code, obj, key=None, nonce='', restart=False, penalty=0):
+        body = json.dumps(obj)
+        return {'code': code, 'body': body,
+                'sig': reply_sig(bytes.fromhex(key), nonce, body.encode()) if key else '',
+                'restart': bool(restart), 'penalty': int(penalty)}
+
+    def _refused(self, msg, code, said, node='', op='', penalty=3):
+        audit(self.c, ip=msg.get('ip'), node=node or None, op=op or 'refused', ok=False,
+              said=said[:300])
+        return self.reply(code, {'ok': False, 'said': said}, penalty=penalty)
 
     def op(self, msg):
-        one, req = self._client(msg)
-        op, args = str(req.get('op') or ''), req.get('args') or {}
-        if op in AGENT_OPS:
-            out = getattr(self, 'a_' + op)(args, one)
-        else:
-            out = self.ops.run_op(op, args, self.c)
-        if op == 'status':
-            out.update(agent=self.agent_facts())
+        h = msg.get('headers') if isinstance(msg.get('headers'), dict) else {}
+        node = str(h.get('node') or '')[:64]
+        try:
+            der = base64.b64decode(msg.get('der') or '')
+            body = base64.b64decode(msg.get('body') or '')
+        except (ValueError, TypeError):
+            return self._refused(msg, 400, 'the request is not one this agent reads', node)
+        if not der:
+            return self._refused(msg, 401, 'a client certificate is needed', node, penalty=5)
+        # The fingerprint worked out here, from the certificate itself - not taken from the
+        # network side.
+        fp = hashlib.sha256(der).hexdigest()
+        cl = clients(self.c)
+        one = next((x for x in cl if x.get('name') == node and (
+            hmac.compare_digest(x['fp'], fp) or hmac.compare_digest(str(x.get('fp_next') or ''), fp))),
+            None)
+        if one is None:
+            return self._refused(msg, 403, 'this client certificate is not one enrolled here',
+                                 node, penalty=5)
+        try:
+            ts = float(h.get('ts'))
+        except (TypeError, ValueError):
+            return self._refused(msg, 400, 'the request has no time', node)
+        now = time.time()
+        if abs(now - ts) > SKEW:
+            return self._refused(msg, 400, 'the request\'s time is %d s from this server\'s'
+                                 % (now - ts), node)
+        nonce = str(h.get('nonce') or '')
+        if not (16 <= len(nonce) <= 64) or not re.fullmatch(r'[0-9A-Za-z_-]+', nonce) or \
+                nonce in self.seen:
+            return self._refused(msg, 400, 'the request was seen before', node)
+        want = hmac.new(bytes.fromhex(one['key']), sign_text(
+            str(msg.get('method') or 'POST'), str(msg.get('path') or ''), node, h.get('ts'),
+            nonce, body), 'sha256').hexdigest()
+        if not hmac.compare_digest(want, str(h.get('sig') or '')):
+            return self._refused(msg, 400, 'the request is not signed by %s' % node, node)
+        self._nonce_keep(nonce, now)
+        if one.get('fp_next') and hmac.compare_digest(str(one['fp_next']), fp):
+            # Its renewed certificate in use: the old one is no longer let in.
+            one['fp'], one['fp_next'] = fp, None
+            clients_put(self.c, cl)
+        key = one['key']
+        try:
+            req = json.loads(body.decode() or '{}')
+            if not isinstance(req, dict):
+                raise ValueError('not an object')
+        except (ValueError, UnicodeDecodeError):
+            return self._refused(msg, 400, 'the request is not JSON', node)
+        op, args = str(req.get('op') or '')[:40], req.get('args') or {}
+        restart = False
+        try:
+            if op in AGENT_OPS:
+                out = getattr(self, 'a_' + op)(args if isinstance(args, dict) else {}, one, cl,
+                                               der)
+                restart = bool(out.pop('agent_restart', False))
+            else:
+                out = self.ops.run_op(op, args, self.c)
+                out.pop('agent_restart', None)          # the agent's own word only
+            if op == 'status':
+                restart = self.pins_taken(one, cl, args) or restart
+                out.update(agent=self.agent_facts())
+        except self.ops.Refused as e:
+            audit(self.c, node=node, ip=msg.get('ip'), op=op, ok=False, said=str(e)[:300])
+            return self.reply(400, {'ok': False, 'said': str(e)[:400]}, key, nonce)
         said = out.get('said')
-        audit(self.c, node=one['name'], ip=msg.get('ip'), op=op, ok=True,
+        audit(self.c, node=node, ip=msg.get('ip'), op=op, ok=True,
               said=(said if isinstance(said, str) else '; '.join(map(str, said or [])))[:300],
               do=args.get('do') if isinstance(args, dict) else None)
-        return dict(out, ok=True, key=one['key'])
+        if restart:
+            out['agent_restart'] = True
+        return self.reply(200, dict(out, ok=True), key, nonce, restart=restart)
 
     def agent_facts(self):
-        crt, _ = served_cert(self.c)
-        pem = _read(crt, '')
-        return {'version': VERSION, 'port': self.c['port'], 'engine': self.c['engine'],
-                'pg_port': self.c['pg_port'], 'cert_end': cert_end(pem) if pem else None,
-                'cert_fp': fp_of_pem(pem) if pem else '', 'boot': crt.endswith('boot.crt'),
-                'clients': [{'name': x['name'], 'addr': x.get('addr'), 'at': x.get('at'),
-                             'cert_end': x.get('cert_end')} for x in clients(self.c)],
-                'uid': os.geteuid()}
+        f = cert_facts(self.c)
+        return dict(f, version=VERSION, port=self.c['port'], engine=self.c['engine'],
+                    pg_port=self.c['pg_port'],
+                    clients=[{'name': x['name'], 'addr': x.get('addr'), 'at': x.get('at'),
+                              'cert_end': x.get('cert_end'),
+                              'next_taken': bool(f['cert_next_fp']) and
+                              f['cert_next_fp'] in (x.get('pinned') or [])}
+                             for x in clients(self.c)],
+                    uid=os.geteuid())
 
-    # -- enrollment: a one-time code, then this server's certificate and the node's ---------
-    def _code(self, secret):
+    # -- the agent's certificate renewed here: the next one announced, then put in use -----
+    def next_make(self, force=False):
+        """The next certificate made when the one in use ends within 60 days (or asked)."""
+        if next_cert(self.c):
+            return False
+        crt, _ = agent_cert(self.c)
+        left = cert_end(_read(crt, '')) - time.time()
+        if not force and left > AGENT_NEXT_DAYS * 86400:
+            return False
+        _make_cert(_p(self.c, 'agent-next.crt'), _p(self.c, 'agent-next.key'))
+        audit(self.c, op='agent_next', ok=True, said='the next certificate of the agent: %s'
+              % fp_of_pem(_read(_p(self.c, 'agent-next.crt'))))
+        return True
+
+    def pins_taken(self, one, cl, args):
+        """A node's `status` says which of the agent's certificates it pins: kept, and once
+        every node took the next one in (or the one in use ends within 7 days) it is put in
+        use - True: the network side starts again with it."""
+        self.next_make()
+        pins = args.get('pins') if isinstance(args, dict) else None
+        f = cert_facts(self.c)
+        if isinstance(pins, list):
+            mine = [p for p in pins if isinstance(p, str) and p in (f['cert_fp'], f['cert_next_fp'])
+                    and p]
+            if sorted(mine) != sorted(one.get('pinned') or []):
+                one['pinned'] = mine
+                clients_put(self.c, cl)
+        nxt = f['cert_next_fp']
+        if not nxt:
+            return False
+        everyone = all(nxt in (x.get('pinned') or []) for x in cl)
+        late = (f['cert_end'] or 0) - time.time() < AGENT_FORCE_DAYS * 86400
+        if not (everyone or late):
+            return False
+        crt, key = agent_cert(self.c)
+        ncrt, nkey = next_cert(self.c)
+        os.replace(nkey, key)
+        os.replace(ncrt, crt)
+        audit(self.c, op='agent_cert', ok=True, said='the agent answers with its next certificate '
+              '%s%s' % (nxt, '' if everyone else ' (not every node took it in: it ends soon)'))
+        return True
+
+    # -- enrollment: a one-time code, a token per begin, then the node's certificate --------
+    def _addr_ok(self, ip):
+        now = time.time()
+        got = [t for t in self.code_fails.get(ip, []) if t > now - 3600]
+        self.code_fails[ip] = got
+        if len(got) >= ADDR_TRIES:
+            raise self.ops.Refused('too many wrong join codes from %s - wait an hour' % ip)
+
+    def _code(self, req, ip):
         codes = _json(_p(self.c, 'join.json'), [])
         now = time.time()
-        h = hashlib.sha256(str(secret or '').encode()).hexdigest()
-        left = []
-        hit = None
+        h = _sha(req.get('secret'))
+        cid = str(req.get('code_id') or '')
+        left, hit = [], None
         for x in codes:
-            if float(x.get('until') or 0) < now or int(x.get('tries') or 0) >= CODE_TRIES:
+            if not isinstance(x, dict) or float(x.get('until') or 0) < now or \
+                    int(x.get('tries') or 0) >= CODE_TRIES:
                 continue
-            if hmac.compare_digest(x['hash'], h):
+            same_id = not cid or not x.get('id') or hmac.compare_digest(str(x['id']), cid)
+            if hmac.compare_digest(str(x.get('hash') or ''), h) and same_id:
                 hit = x
             left.append(x)
         if hit is None:
-            for x in left:              # every code living takes a wrong try
-                x['tries'] = int(x.get('tries') or 0) + 1
+            # The address counts the wrong try - and the code only when its id was right: a
+            # stranger guessing burns no code of somebody else's.
+            self.code_fails.setdefault(ip, []).append(now)
+            if cid:
+                for x in left:
+                    if x.get('id') and hmac.compare_digest(str(x['id']), cid):
+                        x['tries'] = int(x.get('tries') or 0) + 1
             _write(_p(self.c, 'join.json'), json.dumps(left))
             raise self.ops.Refused('the join code is not one this agent gave, or it was used up '
                                    'or ran out: make a new one (acme_db_agent.py --new-code)')
         return hit, left
 
     def enroll(self, msg):
-        req = json.loads(base64.b64decode(msg.get('body') or '').decode() or '{}')
-        hit, left = self._code(req.get('secret'))
-        node = str(req.get('node') or '')
-        if not node or len(node) > 63 or not node.replace('-', '').replace('_', '').replace('.', '').isalnum():
-            raise self.ops.Refused('the node\'s name is a plain name')
-        if msg['kind'] == 'enroll_begin':
-            csr = self.new_csr()
-            audit(self.c, node=node, ip=msg.get('ip'), op='enroll_begin', ok=True)
-            return {'ok': True, 'csr': csr, 'names': my_names(self.c), 'version': VERSION,
-                    'engine': self.c['engine'], 'pg_port': self.c['pg_port'],
-                    'my_port': self.c['my_port']}
-        ca = str(req.get('ca') or '')
-        client = str(req.get('client_cert') or '')
-        key = str(req.get('sign_key') or '')
-        if len(key) != 64 or any(ch not in '0123456789abcdef' for ch in key):
-            raise self.ops.Refused('the signing key is 32 bytes in hex')
-        self.check_issued(ca, client, 'sslclient')
-        self.install_cert(str(req.get('cert') or ''), ca)
+        ip = str(msg.get('ip') or '')
+        what = msg['kind']
+        try:
+            req = json.loads(base64.b64decode(msg.get('body') or '').decode() or '{}')
+            if not isinstance(req, dict):
+                raise ValueError
+        except (ValueError, UnicodeDecodeError):
+            return self._refused(msg, 400, 'the request is not JSON', op=what)
+        node = str(req.get('node') or '')[:80]
+        try:
+            self._addr_ok(ip)
+            hit, left = self._code(req, ip)
+            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,62}', node):
+                raise self.ops.Refused('the node\'s name is a plain name')
+            if what == 'enroll_begin':
+                token = secrets.token_urlsafe(18)
+                now = time.time()
+                hit['begun'] = [b for b in hit.get('begun') or [] if isinstance(b, dict) and
+                                float(b.get('at') or 0) > now - 900][-4:] + [{'h': _sha(token),
+                                                                               'at': now}]
+                _write(_p(self.c, 'join.json'), json.dumps(left))
+                audit(self.c, node=node, ip=ip, op='enroll_begin', ok=True)
+                f = cert_facts(self.c)
+                return self.reply(200, {'ok': True, 'token': token, 'names': my_names(self.c),
+                                        'version': VERSION, 'engine': self.c['engine'],
+                                        'pg_port': self.c['pg_port'], 'my_port': self.c['my_port'],
+                                        'cert_fp': f['cert_fp'], 'cert_next_fp': f['cert_next_fp']})
+            token = _sha(req.get('token'))
+            if not any(hmac.compare_digest(str(b.get('h') or ''), token) for b in
+                       hit.get('begun') or [] if isinstance(b, dict) and
+                       float(b.get('at') or 0) > time.time() - 900):
+                self.code_fails.setdefault(ip, []).append(time.time())
+                raise self.ops.Refused('the join was not begun with this code from here (or more '
+                                       'than 15 minutes ago) - join again')
+            ca = str(req.get('ca') or '')
+            client = str(req.get('client_cert') or '')
+            key = str(req.get('sign_key') or '')
+            if not HEX64.match(key):
+                raise self.ops.Refused('the signing key is 32 bytes in hex')
+            if not pem_blocks(ca):
+                raise self.ops.Refused('the authorities of the node\'s certificate are missing')
+            self.check_issued(ca, client, 'sslclient')
+        except self.ops.Refused as e:
+            return self._refused(msg, 400, str(e), node, what)
         now = time.time()
         cl = [x for x in clients(self.c) if x.get('name') != node]
-        cl.append({'name': node, 'fp': fp_of_pem(client), 'key': key, 'at': now,
-                   'addr': msg.get('ip'), 'cert_end': cert_end(client)})
-        _write(_p(self.c, 'clients.json'), json.dumps(cl, indent=1))
+        cl.append({'name': node, 'fp': fp_of_pem(client), 'key': key, 'at': now, 'addr': ip,
+                   'ca': ''.join(pem_blocks(ca)), 'cert_end': cert_end(client), 'pinned': []})
+        clients_put(self.c, cl)
         _write(_p(self.c, 'join.json'), json.dumps([x for x in left if x is not hit]))
-        audit(self.c, node=node, ip=msg.get('ip'), op='enroll', ok=True,
-              said='enrolled; the code is used up')
-        return {'ok': True, 'restart': True, 'said': '%s joined this agent' % node,
-                'facts': self.agent_facts()}
-
-    def new_csr(self):
-        with tempfile.TemporaryDirectory() as t:
-            k = os.path.join(t, 'k.pem')
-            _openssl(['ecparam', '-name', 'prime256v1', '-genkey', '-noout', '-out', k])
-            csr = _openssl(['req', '-new', '-key', k, '-subj', '/CN=acme-db-agent'])
-            _write(_p(self.c, 'pending.key'), open(k).read())
-        return csr
+        audit(self.c, node=node, ip=ip, op='enroll', ok=True, said='enrolled; the code is used up')
+        return self.reply(200, {'ok': True, 'agent_restart': True,
+                                'said': '%s joined this agent' % node,
+                                'facts': self.agent_facts()}, restart=True)
 
     def check_issued(self, ca, pem, purpose):
-        if '-----BEGIN CERTIFICATE-----' not in ca or '-----BEGIN CERTIFICATE-----' not in pem:
+        if not pem_blocks(ca) or not pem_blocks(pem):
             raise self.ops.Refused('the authority and the certificate are PEM')
         with tempfile.TemporaryDirectory() as t:
-            for n, v in (('ca.pem', ca), ('c.pem', pem)):
+            for n, v in (('ca.pem', ''.join(pem_blocks(ca))), ('c.pem', pem_blocks(pem)[0])):
                 with open(os.path.join(t, n), 'w') as f:
-                    f.write(v.strip() + '\n')
+                    f.write(v)
             try:
                 _openssl(['verify', '-purpose', purpose, '-CAfile', os.path.join(t, 'ca.pem'),
                           os.path.join(t, 'c.pem')])
             except ValueError as e:
                 raise self.ops.Refused('the certificate is not from that authority: %s' % e)
 
-    def install_cert(self, cert, ca):
-        pending = _p(self.c, 'pending.key')
-        if not os.path.exists(pending):
-            raise self.ops.Refused('no certificate request is waiting here')
-        self.check_issued(ca, cert, 'sslserver')
-        a = _openssl(['x509', '-noout', '-pubkey'], cert)
-        b = _openssl(['pkey', '-in', pending, '-pubout'])
-        if a.strip() != b.strip():
-            raise self.ops.Refused('the certificate is not for the key this agent asked with')
-        trust = _read(_p(self.c, 'ca.pem'), '') or ''
-        if ca.strip() not in trust:
-            trust = ca.strip() + '\n' + trust
-        _write(_p(self.c, 'ca.pem'), trust, 0o644)
-        _write(_p(self.c, 'server.key'), _read(pending))
-        _write(_p(self.c, 'server.crt'), cert.strip() + '\n', 0o644)
-        os.unlink(pending)
-
     # -- what an enrolled node may ask of the agent itself --------------------------------
-    def a_agent_csr(self, args, one):
-        return {'csr': self.new_csr(), 'names': my_names(self.c)}
+    def a_agent_renew(self, args, one, cl, der):
+        """The agent's next certificate made now (it is announced to every node, and put in
+        use once every node took it in)."""
+        self.next_make(force=True)
+        f = cert_facts(self.c)
+        return {'said': 'the agent\'s next certificate is announced to every node joined',
+                'cert_next_fp': f['cert_next_fp'], 'cert_next_end': f['cert_next_end']}
 
-    def a_agent_cert(self, args, one):
-        self.install_cert(str(args.get('cert') or ''), str(args.get('ca') or '').strip() or
-                          _read(_p(self.c, 'ca.pem'), ''))
-        return {'said': 'the agent answers with its new certificate', 'restart': True,
-                'cert_end': cert_end(str(args.get('cert')))}
-
-    def a_trust(self, args, one):
-        """The authorities client certificates are checked against, replaced - refused when
-        the asking node's own certificate would no longer pass (never locked out)."""
-        ca = str(args.get('ca') or '').strip()
-        mine = str(args.get('client_cert') or '')
-        if mine:
-            if fp_of_pem(mine) != one['fp']:
-                raise self.ops.Refused('that is not the certificate this node asks with')
-        cl = clients(self.c)
-        if args.get('client_cert_new'):
-            new = str(args['client_cert_new'])
+    def a_trust(self, args, one, cl, der):
+        """The authorities that issue THIS node's client certificates (each node's own - one
+        node never replaces another's), with its next certificate announced. Refused when
+        empty, or when the certificate the node asks with now would not pass with them (never
+        locked out)."""
+        ca = ''.join(pem_blocks(args.get('ca')))
+        if not ca:
+            raise self.ops.Refused('no authority given: refused - this node would be locked out')
+        self.check_issued(ca, ssl.DER_cert_to_PEM_cert(der), 'sslclient')
+        new = str(args.get('client_cert_new') or '')
+        if new:
             self.check_issued(ca, new, 'sslclient')
-            for x in cl:
-                if x['name'] == one['name']:
-                    x['fp_next'] = fp_of_pem(new)
-            _write(_p(self.c, 'clients.json'), json.dumps(cl, indent=1))
-        _write(_p(self.c, 'ca.pem'), ca + '\n', 0o644)
-        return {'said': 'the authorities are replaced', 'restart': True}
+            one['fp_next'] = fp_of_pem(new)
+        one['ca'] = ca
+        clients_put(self.c, cl)
+        return {'said': 'the authorities of %s are replaced' % one['name'], 'agent_restart': True}
 
-    def a_clients(self, args, one):
+    def a_clients(self, args, one, cl, der):
         drop = str(args.get('drop') or '')
-        cl = clients(self.c)
         if drop:
             if drop == one['name']:
                 raise self.ops.Refused('a node does not take itself away')
             cl = [x for x in cl if x['name'] != drop]
-        _write(_p(self.c, 'clients.json'), json.dumps(cl, indent=1))
-        return {'clients': [x['name'] for x in cl], 'restart': bool(drop)}
+            clients_put(self.c, cl)
+        return {'clients': [x['name'] for x in cl], 'agent_restart': bool(drop)}
 
 
 # ---- the side that faces the network ------------------------------------------------------
@@ -447,16 +642,30 @@ class Bucket(object):
     def __init__(self, rate, burst):
         self.rate, self.burst, self.b, self.lock = float(rate), float(burst), {}, threading.Lock()
 
+    def _now(self, key, now):
+        left, at = self.b.get(key, (self.burst, now))
+        return min(self.burst, left + (now - at) * self.rate)
+
     def take(self, key, n=1.0):
         now = time.monotonic()
         with self.lock:
-            left, at = self.b.get(key, (self.burst, now))
-            left = min(self.burst, left + (now - at) * self.rate)
+            left = self._now(key, now)
             if left < n:
                 self.b[key] = (left, now)
                 return False
             self.b[key] = (left - n, now)
             return True
+
+    def charge(self, key, n):
+        """A penalty: taken whatever is left (it may go below nothing, to wait it off)."""
+        now = time.monotonic()
+        with self.lock:
+            self.b[key] = (max(-self.burst, self._now(key, now) - n), now)
+
+    def ok(self, key, need=1.0):
+        """Is there `need` left - nothing taken."""
+        with self.lock:
+            return self._now(key, time.monotonic()) >= need
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -467,17 +676,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def answer(self, code, obj, key=None, nonce=''):
-        body = json.dumps(obj).encode()
+    def answer_raw(self, code, body, sig=''):
         self.send_response(code)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', str(len(body)))
-        if key:
-            self.send_header('X-Acme-Sign', reply_sig(bytes.fromhex(key), nonce, body))
+        if sig:
+            self.send_header('X-Acme-Sign', sig)
         self.send_header('Connection', 'close')
         self.end_headers()
         self.wfile.write(body)
         self.wfile.flush()
+
+    def answer(self, code, obj):
+        self.answer_raw(code, json.dumps(obj).encode())
+
+    def ask_root(self, msg):
+        srv = self.server
+        with srv.root_lock:
+            try:
+                _send(srv.root, msg)
+                return _recv(srv.root)
+            except (EOFError, OSError):
+                # root is gone or starting this side again: this one ends
+                threading.Thread(target=lambda: (time.sleep(0.3), os._exit(4)), daemon=True).start()
+                return None
 
     def do_GET(self):
         if self.path == '/v1/hello':
@@ -488,54 +710,50 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         srv = self.server
         ip = self.client_address[0]
-        if not srv.bucket.take(ip) or not srv.fails.take(ip, 0):
-            return self.answer(429, {'ok': False, 'said': 'too many requests - wait a moment'})
         try:
             n = int(self.headers.get('Content-Length') or 0)
         except ValueError:
             n = -1
         if not 0 <= n <= BODY_MOST:
             return self.answer(413, {'ok': False, 'said': 'the request is too big'})
-        body = self.rfile.read(n)
-        msg = {'ip': ip, 'path': self.path, 'method': 'POST',
-               'body': base64.b64encode(body).decode()}
-        der = self.connection.getpeercert(True)
+        body = self.rfile.read(n)       # read before any answer: unread, the close resets it
+        if not srv.fails.ok(ip) or not srv.bucket.take(ip):
+            return self.answer(429, {'ok': False, 'said': 'too many requests - wait a moment'})
+        der = self.connection.getpeercert(True) or b''
         if self.path in ('/v1/enroll/begin', '/v1/enroll/finish'):
-            msg['kind'] = 'enroll_begin' if self.path.endswith('begin') else 'enroll_finish'
+            kind = 'enroll_begin' if self.path.endswith('begin') else 'enroll_finish'
         elif self.path == '/v1/op':
-            if not der:
-                srv.fails.take(ip, 5)
-                return self.answer(401, {'ok': False, 'said': 'a client certificate from acme\'s '
-                                                              'authority is needed'})
-            msg.update(kind='op', fp=hashlib.sha256(der).hexdigest(),
-                       node=self.headers.get('X-Acme-Node') or '',
-                       ts=self.headers.get('X-Acme-Time') or '',
-                       nonce=self.headers.get('X-Acme-Nonce') or '',
-                       sig=self.headers.get('X-Acme-Sign') or '')
-            if not any(hmac.compare_digest(x['fp'], msg['fp']) or
-                       hmac.compare_digest(str(x.get('fp_next') or ''), msg['fp'])
-                       for x in srv.clients):
-                srv.fails.take(ip, 5)
-                return self.answer(403, {'ok': False, 'said': 'this client certificate is not '
-                                                              'one enrolled here'})
+            kind = 'op'
+            why = '' if der else 'no client certificate'
+            if der and hashlib.sha256(der).hexdigest() not in srv.fps:
+                why = 'a client certificate not enrolled here'
+            if why:
+                srv.fails.charge(ip, 5)
+                if self.ask_root({'kind': 'refused', 'ip': ip, 'why': why}) is None:
+                    return self.answer(503, {'ok': False, 'said': 'the agent is starting again'})
+                return self.answer(401 if not der else 403, {'ok': False, 'said': (
+                    'a client certificate from acme\'s authority is needed' if not der else
+                    'this client certificate is not one enrolled here')})
         else:
             return self.answer(404, {'ok': False, 'said': 'not here'})
         if getattr(srv, 'closing', False):
             return self.answer(503, {'ok': False, 'said': 'the agent is starting again'})
-        with srv.root_lock:
-            try:
-                _send(srv.root, msg)
-                got = _recv(srv.root)
-            except (EOFError, OSError):
-                # root is gone or starting this side again: this one ends
-                threading.Thread(target=lambda: (time.sleep(0.3), os._exit(4)), daemon=True).start()
-                return self.answer(503, {'ok': False, 'said': 'the agent is starting again'})
-        key = got.pop('key', None)
-        if not got.get('ok'):
-            srv.fails.take(ip, 3)
+        # Handed over as it came: root works everything out of it itself.
+        msg = {'kind': kind, 'ip': ip, 'path': self.path, 'method': 'POST',
+               'headers': {'node': self.headers.get('X-Acme-Node') or '',
+                           'ts': self.headers.get('X-Acme-Time') or '',
+                           'nonce': self.headers.get('X-Acme-Nonce') or '',
+                           'sig': self.headers.get('X-Acme-Sign') or ''},
+               'body': base64.b64encode(body).decode(), 'der': base64.b64encode(der).decode()}
+        got = self.ask_root(msg)
+        if got is None:
+            return self.answer(503, {'ok': False, 'said': 'the agent is starting again'})
+        if got.get('penalty'):
+            srv.fails.charge(ip, float(got['penalty']))
         if got.get('restart'):
             srv.closing = True
-        self.answer(200 if got.get('ok') else 400, got, key, msg.get('nonce', ''))
+        self.answer_raw(int(got.get('code') or 500), str(got.get('body') or '').encode(),
+                        str(got.get('sig') or ''))
         if got.get('restart'):
             # Its new certificate or clients: this side started again by root with them.
             threading.Thread(target=lambda: (time.sleep(0.5), os._exit(3)), daemon=True).start()
@@ -545,16 +763,12 @@ class Server(http.server.ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def get_request(self):
-        sock, addr = self.socket.accept()
-        return sock, addr
-
     def finish_request(self, request, client_address):
         request.settimeout(30)
         try:
             tls = self.ctx.wrap_socket(request, server_side=True)
         except (ssl.SSLError, OSError):
-            self.fails.take(client_address[0], 2)
+            self.fails.charge(client_address[0], 2)
             try:
                 request.close()
             except OSError:
@@ -572,27 +786,33 @@ class Server(http.server.ThreadingHTTPServer):
         pass
 
 
-def make_ctx(c):
+def make_ctx(c, cas):
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-    crt, key = served_cert(c)
+    crt, key = agent_cert(c)
     ctx.load_cert_chain(crt, key)
-    ca = _read(_p(c, 'ca.pem'), '')
-    if ca and '-----BEGIN CERTIFICATE-----' in ca:
-        ctx.load_verify_locations(cadata=ca)
+    if cas:
+        # Only what TLS needs to ask for the nodes' certificates: who is let in is the
+        # fingerprint, checked by root.
+        ctx.load_verify_locations(cadata=cas)
         ctx.verify_mode = ssl.CERT_OPTIONAL      # enrollment comes without one
     return ctx
 
 
 def drop_to(c):
-    """Root no more: the agent's own account (or nobody), no other groups."""
+    """Root no more: the agent's own account - never root, never nobody - no other groups."""
     if os.geteuid() != 0:
         return
     import pwd
+    name = str(c.get('user') or 'acme-db-agent')
     try:
-        pw = pwd.getpwnam(str(c.get('user') or 'acme-db-agent'))
+        pw = pwd.getpwnam(name)
     except KeyError:
-        pw = pwd.getpwnam('nobody')
+        raise SystemExit('acme-db-agent: the account %s is not there (install.sh --db-agent '
+                         'makes it): the side that faces the network does not run as root' % name)
+    if pw.pw_uid == 0 or name == 'nobody':
+        raise SystemExit('acme-db-agent: the side that faces the network runs as an account of '
+                         'its own, not %s' % name)
     os.setgroups([])
     os.setgid(pw.pw_gid)
     os.setuid(pw.pw_uid)
@@ -605,18 +825,21 @@ def drop_to(c):
         pass
 
 
-def child(c, sock, cl):
-    # Not root's handlers: this side ends at SIGTERM, and with root (PR_SET_PDEATHSIG).
+def network_side(c, fd):
+    """The side that faces the network: a program of its own (started by root with the socket
+    pair), not a copy of root's memory - no signing key was ever in it."""
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     try:
         import ctypes
-        ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)
+        ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)    # PR_SET_PDEATHSIG: dies with root
     except Exception:                                   # noqa: BLE001
         pass
     if os.getppid() == 1:
         os._exit(2)
-    ctx = make_ctx(c)
+    sock = socket.socket(fileno=fd)
+    init = _recv(sock)
+    ctx = make_ctx(c, str(init.get('cas') or ''))
     listener = Server((c['listen'], int(c['port'])), Handler, bind_and_activate=False)
     if ':' in c['listen']:
         listener.address_family = socket.AF_INET6
@@ -628,14 +851,15 @@ def child(c, sock, cl):
     listener.ctx = ctx
     listener.root = sock
     listener.root_lock = threading.Lock()
-    listener.clients = cl
+    listener.fps = set(str(x) for x in init.get('fps') or [])
     listener.bucket = Bucket(c['rate'], c['burst'])
-    listener.fails = Bucket(0.2, 20)
+    listener.fails = Bucket(c.get('fail_rate') or 0.2, c.get('fail_burst') or 20)
     listener.serve_forever()
 
 
 def serve(c):
     os.makedirs(c['state'], mode=0o700, exist_ok=True)
+    agent_cert(c)
     root = Root(c)
     stop = {'now': False}
 
@@ -651,21 +875,17 @@ def serve(c):
     signal.signal(signal.SIGINT, bye)
     audit(c, op='start', ok=True, said='acme-db-agent %s on %s:%s' % (VERSION, c['listen'],
                                                                        c['port']))
+    me = os.path.realpath(__file__)
     while not stop['now']:
         mine, theirs = socket.socketpair()
-        # The clients read as root, before giving it up: the file is root's alone.
-        cl = clients(c)
-        pid = os.fork()
-        if pid == 0:
-            mine.close()
-            try:
-                child(c, theirs, cl)
-            finally:
-                os._exit(2)
+        proc = subprocess.Popen([sys.executable, '-I', me, '--config', c['path'],
+                                 '--network-side', str(theirs.fileno())],
+                                pass_fds=(theirs.fileno(),), close_fds=True, cwd='/')
         theirs.close()
-        stop['pid'] = pid
+        stop['pid'] = proc.pid
         began = time.monotonic()
         try:
+            _send(mine, root.for_network_side())
             while True:
                 try:
                     msg = _recv(mine)
@@ -675,30 +895,34 @@ def serve(c):
                     _send(mine, root.handle(msg))
                 except OSError:
                     break               # that side went (it starts again with what is new)
+        except OSError:
+            pass
         finally:
             mine.close()
             try:
-                os.kill(pid, signal.SIGTERM)
+                proc.terminate()
             except OSError:
                 pass
             try:
-                os.waitpid(pid, 0)
-            except ChildProcessError:
-                pass
+                proc.wait(20)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(5)
         if not stop['now'] and time.monotonic() - began < 2:
             time.sleep(2)               # one that dies at once is not started 100 times a second
     return 0
 
 
 def new_code(c, minutes=CODE_MINUTES):
-    crt, _ = served_cert(c)
+    crt, _ = agent_cert(c)
     host = c.get('advertise') or (my_names(c) or ['127.0.0.1'])[-1]
     secret = secrets.token_urlsafe(18)
-    codes = [x for x in _json(_p(c, 'join.json'), []) if float(x.get('until') or 0) > time.time()]
-    codes.append({'hash': hashlib.sha256(secret.encode()).hexdigest(),
-                  'until': time.time() + minutes * 60, 'tries': 0})
+    cid = secrets.token_hex(4)
+    codes = [x for x in _json(_p(c, 'join.json'), []) if isinstance(x, dict) and
+             float(x.get('until') or 0) > time.time()]
+    codes.append({'id': cid, 'hash': _sha(secret), 'until': time.time() + minutes * 60, 'tries': 0})
     _write(_p(c, 'join.json'), json.dumps(codes))
-    data = {'h': host, 'p': int(c['port']), 's': secret, 'f': fp_of_pem(_read(crt)),
+    data = {'h': host, 'p': int(c['port']), 's': secret, 'i': cid, 'f': fp_of_pem(_read(crt)),
             'e': c['engine']}
     return 'ADBA1.' + base64.urlsafe_b64encode(json.dumps(data, separators=(',', ':'))
                                                .encode()).decode().rstrip('=')
@@ -711,22 +935,26 @@ def main(argv):
         path = argv[i + 1]
         del argv[i:i + 2]
     c = conf_read(path)
+    if argv[:1] == ['--network-side'] and len(argv) == 2:
+        return network_side(c, int(argv[1]))
     if argv[:1] == ['--new-code']:
         minutes = int(argv[argv.index('--minutes') + 1]) if '--minutes' in argv else CODE_MINUTES
         code = new_code(c, minutes)
         print(code)
-        sys.stderr.write('acme-db-agent: give this code to the acme node within %d minutes:\n'
-                         '  acme --db-agent-join %s\n' % (minutes, code))
+        sys.stderr.write('acme-db-agent: give this code to the acme node within %d minutes - as '
+                         'root there:\n  acme --db-agent-join -\nand paste it (it is read from '
+                         'standard input, never put on a command line)\n' % minutes)
         return 0
     if argv[:1] == ['--status']:
-        crt, _ = served_cert(c)
+        crt, _ = agent_cert(c)
+        f = cert_facts(c)
         print(json.dumps({'version': VERSION, 'port': c['port'], 'engine': c['engine'],
-                          'cert': crt, 'cert_fp': fp_of_pem(_read(crt)),
+                          'cert': crt, 'cert_fp': f['cert_fp'], 'cert_next_fp': f['cert_next_fp'],
                           'clients': [x['name'] for x in clients(c)]}, indent=1))
         return 0
     if argv[:1] == ['--forget'] and len(argv) > 1:
         cl = [x for x in clients(c) if x['name'] != argv[1]]
-        _write(_p(c, 'clients.json'), json.dumps(cl, indent=1))
+        clients_put(c, cl)
         print('%s is no longer let in (restart acme-db-agent)' % argv[1])
         return 0
     if argv:

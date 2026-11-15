@@ -412,6 +412,19 @@ class CancelAndRefusals(unittest.TestCase):
             self.assertEqual(after['_sealed'][2], [])
             st, s = node.call('POST', '/api/db', {'action': 'wiz_state'})
             self.assertEqual(s['move']['state'], 'done', s)
+            # Moved again from there (1.0.113): the database moved FROM is the one config.json
+            # names now (cli.db) - not the defaults' acme.db, opened before config.json was read.
+            node.stop()
+            node.py('st.set_meta("move:marker", "only-in-cli-db")')
+            third = os.path.join(node.tmp, 'state', 'third.db')
+            got = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py'), '--db-move',
+                                  'sqlite', '--db-path', third, '--yes'], env=env_cli,
+                                 capture_output=True, text=True, timeout=600)
+            self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+            self.assertEqual(node.conf['db_path'], third)
+            out = node.py('print(st.db.where(), st.get_meta("move:marker"))')
+            self.assertIn('third.db', out)
+            self.assertIn('only-in-cli-db', out)
         finally:
             node.cleanup()
 
