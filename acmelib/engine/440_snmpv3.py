@@ -352,12 +352,19 @@ def snmp_mib(daemon, agent):
     except Exception:                                   # noqa: BLE001
         probs = {}
     rows += [(B + (5, 1, 0), 'gauge', sum(1 for p in probs.values() if p.get('level') == 'bad')),
-             (B + (5, 2, 0), 'gauge', sum(1 for p in probs.values() if p.get('level') == 'warn'))]
+             (B + (5, 2, 0), 'gauge', sum(1 for p in probs.values() if p.get('level') == 'warn')),
+             # the worst of them as a number (1.0.108)
+             (B + (5, 4, 0), 'int', max([SNMP_LEVELS.get(p.get('level'), 2) for p in probs.values()]
+                                        or [0]) if db_ok else 0)]
     for i, (k, p) in enumerate(sorted(probs.items()), 1):
         rows += [(B + (5, 3, 1, 1, i), 'int', i), (B + (5, 3, 1, 2, i), 'str', k),
                  (B + (5, 3, 1, 3, i), 'str', p.get('level') or ''),
                  (B + (5, 3, 1, 4, i), 'str', str(p.get('title') or '')[:255]),
-                 (B + (5, 3, 1, 5, i), 'str', str(p.get('said') or '')[:255])]
+                 (B + (5, 3, 1, 5, i), 'str', str(p.get('said') or '')[:255]),
+                 # its level as a number, its node, its part of Settings (1.0.108)
+                 (B + (5, 3, 1, 6, i), 'int', SNMP_LEVELS.get(p.get('level'), 2)),
+                 (B + (5, 3, 1, 7, i), 'str', str(p.get('node') or '')[:255]),
+                 (B + (5, 3, 1, 8, i), 'str', str(p.get('pane') or '')[:255])]
     try:
         i = 0
         for t in tls_targets(store) if db_ok else []:
@@ -378,7 +385,7 @@ def snmp_mib(daemon, agent):
         try:
             for sub, kind, value in list(fn(store) or []):
                 sub = tuple(int(x) for x in sub)
-                if sub and sub[0] not in (1, 3, 5, 7, 9) and kind in (
+                if sub and sub[0] not in SNMP_ENGINE_PARTS and kind in (
                         'int', 'str', 'oid', 'counter', 'gauge', 'ticks', 'counter64'):
                     rows.append((B + sub, kind, value))
         except Exception as e:                          # noqa: BLE001
@@ -392,6 +399,13 @@ def snmp_mib(daemon, agent):
                          (B + (7, 1, 1, 4, i), 'gauge', int(float(n.get('age') or 0)))]
         except Exception:                               # noqa: BLE001
             pass
+    # All the pages show of the node (1.0.108): acmeSystem, acmeBackup, acmeSignIn,
+    # acmeServices and more of acmeInfo, acmeDatabase and acmeCluster (441).
+    if db_ok:
+        try:
+            rows += [(B + sub, kind, value) for sub, kind, value in snmp_more_rows(daemon)]
+        except Exception as e:                          # noqa: BLE001
+            log_sparing('snmp-more', 'SNMP, the objects of the node: %s' % e, 'warn', every=600)
     # Every sample Prometheus gets, as a table (name, labels, value) - nothing
     # it has is missing here.
     try:
@@ -884,6 +898,14 @@ def snmp_view(store):
 @route('GET', '/api/snmp')
 def _snmp(h):
     h.me()
+    # The files for the monitoring (1.0.108): ?get=mib (ACME-MIB) or ?get=zabbix (the Zabbix
+    # 7.0 template made from it) - nothing secret in either, every role may take them.
+    what = h.arg('get')
+    if what:
+        try:
+            return snmp_file(what)
+        except ValueError as e:
+            raise ApiError(400, str(e))
     return snmp_view(h.store)
 
 

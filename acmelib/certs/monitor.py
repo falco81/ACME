@@ -262,24 +262,40 @@ def metrics(store):
 #                 3 target, 4 test), 2 family, 3 name, 4 kind, 5 enabled, 6 lastOk, 7 lastError
 #   6.7.1.C.<id>  acmeCaEntry: 1 index, 2 name, 3 subject, 4 notAfter, 5 daysLeft, 6 enabled,
 #                 7 signs (has its key), 8 crlNext
+# 1.0.108: 6.2 16 owner, 17 source, 18 lastOk, 19 lastTry, 20 fails, 21 lastError, 22 nextTry,
+#          23 version, 24 serial, 25 deploys, 26 tests, 27 notBefore, 28 names, 29 state (enum);
+#          6.3 17 jobs ok (24 h), 18 last scan, 19 revoked, 20 pending approval, 21 renewals
+#          failed (24 h), 22 renewals ok (24 h), 23 deployments ok (24 h), 24 deployments
+#          failed (24 h); 6.4 12 state as a number; 6.5 13 state as a number; 6.6 8 failing;
+#          6.7 9 external, 10 hours until the CRL is due; 6.8 acme's own DNS server
 SNMP_TABLE = (6, 2, 1)
 SNMP_COUNTS = (6, 3)
 SNMP_DEPLOYS = (6, 4, 1)
 SNMP_TESTS = (6, 5, 1)
 SNMP_MODULES = (6, 6, 1)
 SNMP_CAS = (6, 7, 1)
+SNMP_DNS = (6, 8)
+TEST_STATES = ('', 'ok', 'warn', 'old', 'other', 'answer', 'unreachable')
 
 
 def snmp_rows(store):
     t = time.time()
     rows = store.db.rows("SELECT id, name, cn, issuer, state, not_after, auto_renew, key_type, "
-                         "key_type_alt, alt_not_after FROM certs WHERE COALESCE(enabled, 1) <> 0 "
-                         "ORDER BY id")
+                         "key_type_alt, alt_not_after, owner, source, last_ok, last_try, fails, "
+                         "last_error, next_try, version, serial, not_before, names FROM certs "
+                         "WHERE COALESCE(enabled, 1) <> 0 ORDER BY id")
     tests_all = test_rows(store)
     tfail = {}
+    tests_on = {}
     for r in tests_all:
         if test_failing(r):
             tfail[int(r['cert_id'])] = tfail.get(int(r['cert_id']), 0) + 1
+        if r.get('enabled') != 0 and r.get('test_enabled') != 0:
+            tests_on[int(r['cert_id'])] = tests_on.get(int(r['cert_id']), 0) + 1
+    deps_on = {}
+    for r in store.db.rows("SELECT cert_id, COUNT(*) AS n FROM cert_deploys WHERE "
+                           "COALESCE(enabled, 1) <> 0 GROUP BY cert_id"):
+        deps_on[int(r['cert_id'])] = int(r['n'])
     failed_by = {}
     for r in store.db.rows("SELECT cert_id, COUNT(*) AS n FROM cert_deploys WHERE state = "
                            "'failed' AND COALESCE(enabled, 1) <> 0 GROUP BY cert_id"):
@@ -304,7 +320,22 @@ def snmp_rows(store):
                 (T + (13, i), 'int', _i32(r.get('alt_not_after') or 0)),
                 (T + (14, i), 'int', int((float(r['alt_not_after']) - t) // 86400)
                  if r.get('alt_not_after') else 0),
-                (T + (15, i), 'gauge', tfail.get(i, 0))]
+                (T + (15, i), 'gauge', tfail.get(i, 0)),
+                # 1.0.108: whose it is, how it came, its last renewal and failures, its serial
+                (T + (16, i), 'str', str(r.get('owner') or '')[:255]),
+                (T + (17, i), 'str', str(r.get('source') or '')[:255]),
+                (T + (18, i), 'int', _i32(r.get('last_ok') or 0)),
+                (T + (19, i), 'int', _i32(r.get('last_try') or 0)),
+                (T + (20, i), 'gauge', max(0, _n(r.get('fails')))),
+                (T + (21, i), 'str', E.detail_redact(str(r.get('last_error') or ''))[:255]),
+                (T + (22, i), 'int', _i32(r.get('next_try') or 0)),
+                (T + (23, i), 'int', _i32(r.get('version') or 0)),
+                (T + (24, i), 'str', str(r.get('serial') or '')[:255]),
+                (T + (25, i), 'gauge', deps_on.get(i, 0)),
+                (T + (26, i), 'gauge', tests_on.get(i, 0)),
+                (T + (27, i), 'int', _i32(r.get('not_before') or 0)),
+                (T + (28, i), 'gauge', len(S.jload(r.get('names'), []) or [])),
+                (T + (29, i), 'int', STATE_NUM.get(st, 0))]
     c = counts(store)
     days = int(E.CONFIG.get('certs_notify_days') or 14)
     soon = sum(1 for r in rows if r.get('not_after') and
@@ -335,6 +366,33 @@ def snmp_rows(store):
             (C + (15, 0), 'gauge', sum(1 for r in cas if r.get('not_after') and not r.get('disabled')
                                         and float(r['not_after']) < t + ends)),
             (C + (16, 0), 'gauge', len(deps_all))]
+    # 1.0.108: the jobs of the last 24 hours by what and how, the last scan, the revoked and
+    # those waiting for an approval
+    day = {}
+    for r in store.db.rows('SELECT kind, ok, COUNT(*) AS n FROM cert_jobs WHERE ts > ? AND '
+                           'finished IS NOT NULL GROUP BY kind, ok', (t - 86400,)):
+        day[(r['kind'], bool(r['ok']))] = day.get((r['kind'], bool(r['ok'])), 0) + int(r['n'])
+    scan = S.jload(store.get_meta('certs:last_scan'), None) or {}
+    out += [(C + (17, 0), 'gauge', sum(n for (k, ok), n in day.items() if ok)),
+            (C + (18, 0), 'int', _i32(scan.get('at') or 0)),
+            (C + (19, 0), 'gauge', c.get('revoked', 0)),
+            (C + (20, 0), 'gauge', c.get('pending-approval', 0)),
+            (C + (21, 0), 'gauge', day.get(('renew', False), 0) + day.get(('issue', False), 0)),
+            (C + (22, 0), 'gauge', day.get(('renew', True), 0) + day.get(('issue', True), 0)),
+            (C + (23, 0), 'gauge', day.get(('deploy', True), 0)),
+            (C + (24, 0), 'gauge', day.get(('deploy', False), 0))]
+    # 6.8 acme's own DNS server, this node's
+    D8 = SNMP_DNS
+    stats = st.get('stats') or {}
+    on = bool(E.CONFIG.get('dns_server'))
+    out += [(D8 + (1, 0), 'int', 1 if on else 0),
+            (D8 + (2, 0), 'int', 1 if on and (st.get('ok') or (st.get('running') and
+                                                              st.get('listening'))) else 0),
+            (D8 + (3, 0), 'gauge', _n(st.get('records'))),
+            (D8 + (4, 0), 'counter', _n(stats.get('answered'))),
+            (D8 + (5, 0), 'counter', _n(stats.get('refused'))),
+            (D8 + (6, 0), 'counter', sum(_n(stats.get(k)) for k in ('servfail', 'formerr', 'notimp'))),
+            (D8 + (7, 0), 'counter', sum(_n(stats.get(k)) for k in ('rate_limited', 'dropped')))]
     # 6.4 deployments, 6.5 tests, 6.6 modules, 6.7 authorities (1.0.78)
     for r in deps_all:
         i = int(r['id'])
@@ -348,7 +406,9 @@ def snmp_rows(store):
                 (D + (8, i), 'int', _i32(r.get('last_ok') or 0)),
                 (D + (9, i), 'int', _i32(r.get('last_try') or 0)),
                 (D + (10, i), 'gauge', max(0, _n(r.get('fails')))),
-                (D + (11, i), 'str', E.detail_redact(str(r.get('last_error') or ''))[:255])]
+                (D + (11, i), 'str', E.detail_redact(str(r.get('last_error') or ''))[:255]),
+                (D + (12, i), 'int', DEPLOY_STATES.index(r.get('state')) if r.get('state') in
+                 DEPLOY_STATES else 0)]
     for r in tests_all:
         i = int(r['id'])
         K = SNMP_TESTS
@@ -363,7 +423,9 @@ def snmp_rows(store):
                 (K + (9, i), 'int', _i32(r.get('last_at') or 0)),
                 (K + (10, i), 'int', _i32(r.get('last_ok') or 0)),
                 (K + (11, i), 'gauge', max(0, _n(r.get('fails')))),
-                (K + (12, i), 'str', E.detail_redact(str(r.get('last_said') or ''))[:255])]
+                (K + (12, i), 'str', E.detail_redact(str(r.get('last_said') or ''))[:255]),
+                (K + (13, i), 'int', TEST_STATES.index(r.get('last_state') or '') if
+                 (r.get('last_state') or '') in TEST_STATES else 0)]
     for r in mods:
         i = r['code'] * 1000000 + int(r['id'])
         M = SNMP_MODULES
@@ -371,7 +433,8 @@ def snmp_rows(store):
                 (M + (3, i), 'str', str(r['name'])[:255]), (M + (4, i), 'str', str(r.get('kind') or '')),
                 (M + (5, i), 'int', 0 if r.get('enabled') == 0 else 1),
                 (M + (6, i), 'int', _i32(r.get('last_ok') or 0)),
-                (M + (7, i), 'str', E.detail_redact(str(r.get('last_error') or ''))[:255])]
+                (M + (7, i), 'str', E.detail_redact(str(r.get('last_error') or ''))[:255]),
+                (M + (8, i), 'int', 1 if r.get('last_error') else 0)]
     for r in cas:
         i = int(r['id'])
         A = SNMP_CAS
@@ -382,7 +445,9 @@ def snmp_rows(store):
                 (A + (5, i), 'int', int((float(r['not_after']) - t) // 86400) if r.get('not_after') else 0),
                 (A + (6, i), 'int', 0 if r.get('disabled') else 1),
                 (A + (7, i), 'int', 1 if r.get('key_sealed') else 0),
-                (A + (8, i), 'int', _i32(crl_next(r)))]
+                (A + (8, i), 'int', _i32(crl_next(r))),
+                (A + (9, i), 'int', 1 if r.get('external') else 0),
+                (A + (10, i), 'int', _i32((crl_next(r) - t) // 3600) if crl_next(r) else 0)]
     return out
 
 

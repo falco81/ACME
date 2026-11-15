@@ -709,6 +709,11 @@ def build_parser():
                    'manager would ask it')
     g.add_argument('--snmp-trap', action='store_true', help='a test trap from every node to the '
                    'receivers set')
+    g.add_argument('--snmp-mib', action='store_true', help='ACME-MIB, the objects the SNMPv3 '
+                   'agent answers - to stdout, or into --out FILE')
+    g.add_argument('--snmp-zabbix-template', action='store_true', help='the template "acme by '
+                   'SNMP" for Zabbix 7.0 (YAML, made from ACME-MIB) - to stdout, or into --out '
+                   'FILE; import it in Zabbix: Data collection, Templates, Import')
     g.add_argument('--db-tls', action='store_true', help='encryption to the database server: how '
                    'each node reaches it, and its certificates')
     g.add_argument('--db-tls-probe', metavar='MODE', choices=('require', 'verify-ca', 'verify-full'),
@@ -3013,6 +3018,9 @@ def cli_main(argv=None):
         if others:
             raise SystemExit('acme: --set goes on its own - not with --%s (nothing was done)'
                              % others[0].replace('_', '-'))
+    # The files for the monitoring (1.0.108): made here, nothing asked of the daemon.
+    if args.snmp_mib or args.snmp_zabbix_template:
+        return cli_snmp_file('mib' if args.snmp_mib else 'zabbix', getattr(args, 'out', None))
     for fn in HOOKS['cli_run']:
         got = fn(args)
         if got is not None:

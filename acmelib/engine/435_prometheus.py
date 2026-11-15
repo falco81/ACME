@@ -168,6 +168,11 @@ def metrics_text(daemon):
                                                        round(float(CLOCK['ref']), 3))])
     except Exception:                                   # noqa: BLE001
         pass
+    # What SNMP has of the node, Prometheus too (1.0.108): the same facts, read once (441).
+    try:
+        metrics_more(m, daemon)
+    except Exception as e:                              # noqa: BLE001
+        log_sparing('metrics-more', 'Prometheus, the node: %s' % e, 'warn', every=600)
     m.put('acme_high_security', 'gauge', 'Whether high security is on.',
           [({}, 1 if CONFIG.get('high_security') else 0)])
     m.put('acme_scrape_seconds', 'gauge', 'How long this answer took.',

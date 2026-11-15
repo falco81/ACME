@@ -1529,6 +1529,7 @@ function showPane(name, opts) {
   if (name === 'fw') loadFw();
   if (name === 'portal') { $('portal-url').textContent = location.protocol + '//' + location.host + '/'; loadArt(); loadKrb(); loadCert(); }
   if (name === 'people') { loadKrb(); loadCert(); }
+  if (name === 'people' || name === 'portal') signinSettle(0);
   /* A pane plugged in (ACME_EXTRA_PANES) draws itself. */
   var extra = (window.ACME_EXTRA_PANES || {})[name];
   if (typeof extra === 'function') { try { extra(name); } catch (e) { if (window.console) console.error(e); } }
@@ -2612,6 +2613,7 @@ $('set-save').onclick = function () {
       markDirtyCount();
       loadSettings(Object.keys(left).length ? false : undefined);
       if (paneLive('upgrade')) loadUpgrade();      /* the card to go back shown or not (1.0.144) */
+      signinSettle();                              /* the sign-in cards: what the nodes do next (1.0.108) */
       tick();
       return true;
     }).catch(function (e) {
@@ -7786,6 +7788,86 @@ function drawSso() {
 }
 
 
+/* ---- the sign-in cards drawn again without F5 (1.0.108) ---------------------------------
+   The cards of Windows, of the certificate and of the sign-in page are drawn from two answers
+   (/api/kerberos, /api/certlogin) that each carry the facts of both ways. What a change does
+   shows at once: a keytab or an authority put in or taken away asks for the other card's answer
+   too (its "No password at all", the sign-in page); an answer asked before another that came
+   back already is not drawn over it; and what each node does after a change by itself - writes
+   the keytab and the authorities out, nginx taking the port (root's helper, seconds later), a
+   node's state published every 15 s - is looked at again every 3 s for a short while after the
+   change (and while it is not settled), the cards drawn again only when the answer is another.
+   "No password at all" in effect also goes to the Users card (Set a new password, Add). */
+function signinSig(d) {
+  return JSON.stringify(d, function (k, v) { return k === 'at' && this && 'heard' in this ? undefined : v; });
+}
+function signinStale(kind) {
+  return ['admin', 'portal'].some(function (part) { var h = $(kind + '-host-' + part); return h && h.dataset.stale === '1'; });
+}
+function signinMe(d) {
+  var a = d && d.parts && d.parts.admin;
+  if (!a || typeof ME === 'undefined' || !ME) return;
+  var off = !!a.only_in_effect;
+  if (!!ME.password_off === off) return;
+  ME.password_off = off;
+  if ($('pane-people') && typeof loadUsers === 'function') loadUsers();
+}
+function krbTake(seq, d, onlyChanged, mine) {
+  if (!mine && seq < KRB.had) return false;
+  KRB.had = mine ? KRB.seq : seq;
+  if (onlyChanged && KRB.d && signinSig(KRB.d) === signinSig(d) && !signinStale('krb')) return false;
+  KRB.d = d;
+  signinMe(d);
+  drawKrb('admin'); drawKrb('portal');
+  return true;
+}
+function certTake(seq, d, onlyChanged, mine) {
+  if (!mine && seq < CERTC.had) return false;
+  CERTC.had = mine ? CERTC.seq : seq;
+  if (onlyChanged && CERTC.d && signinSig(CERTC.d) === signinSig(d) && !signinStale('cert')) return false;
+  CERTC.d = d;
+  signinMe(d);
+  drawCert('admin'); drawCert('portal');
+  return true;
+}
+/* A keytab or an authority changed: the other card's answer too, then the short watch. */
+function signinOther(changed) {
+  if (changed === 'krb') loadCert(true, true); else loadKrb(true, true);
+  signinSettle();
+}
+/* Whether a node has yet to do what the cards say it will (only nodes heard from). */
+function signinUnsettled() {
+  var k = KRB.d, c = CERTC.d;
+  var krb = !!k && (k.nodes || []).some(function (n) {
+    return n.heard && (k.keytab ? !(n.written && n.same) : n.written);
+  });
+  var cert = !!c && (c.nodes || []).some(function (n) {
+    if (!n.heard) return false;
+    if (c.cas.length ? !(n.written && n.same) : n.written) return true;
+    if (n.busy) return false;
+    return c.any_on && c.cas.length ? !n.listening : !!n.listening;
+  });
+  return krb || cert;
+}
+var SIGNIN_SETTLE = {timer: 0, until: 0, left: 0};
+/* min: the looks taken whatever the answers say (a node publishes its state on its own round);
+   after them, only while something is not settled - and a minute at most. */
+function signinSettle(min) {
+  SIGNIN_SETTLE.until = Date.now() + 60000;
+  SIGNIN_SETTLE.left = Math.max(SIGNIN_SETTLE.left, min === undefined ? 5 : min);
+  if (!SIGNIN_SETTLE.timer) SIGNIN_SETTLE.timer = setTimeout(signinSettleTick, 3000);
+}
+function signinSettleTick() {
+  SIGNIN_SETTLE.timer = 0;
+  var here = typeof TAB !== 'undefined' && TAB === 'settings' && (PANE === 'people' || PANE === 'portal');
+  if (!here || Date.now() > SIGNIN_SETTLE.until || (!SIGNIN_SETTLE.left && !signinUnsettled())) { SIGNIN_SETTLE.left = 0; return; }
+  if (document.hidden) { SIGNIN_SETTLE.timer = setTimeout(signinSettleTick, 3000); return; }
+  SIGNIN_SETTLE.left = Math.max(0, SIGNIN_SETTLE.left - 1);
+  Promise.all([loadKrb(true, true), loadCert(true, true)]).then(function () {
+    if (!SIGNIN_SETTLE.timer && (SIGNIN_SETTLE.left || signinUnsettled())) SIGNIN_SETTLE.timer = setTimeout(signinSettleTick, 3000);
+  });
+}
+
 /* ---- signing in with Windows - Kerberos (1.0.99, as otp 1.0.274) -----------------------------
    A card for each part - the administration's under Accounts, the portal's under the enrolment
    pages - with its own switches (drawn by drawSettings into sect-adminkrb / sect-portalkrb) and,
@@ -7793,10 +7875,12 @@ function drawSso() {
    my browser's ticket (who it would sign in to this part, and as what - nobody signed in), the
    names the pages are opened by with their SPN, each node, the commands for AD and the browsers'
    settings filled in. */
-var KRB = {d: null, tried: {}};
-function loadKrb() {
-  if (!$('krb-host-admin') && !$('krb-host-portal')) return;
-  api('kerberos').then(function (d) { KRB.d = d; drawKrb('admin'); drawKrb('portal'); }).catch(function (e) {
+var KRB = {d: null, tried: {}, seq: 0, had: 0};
+function loadKrb(quiet, onlyChanged) {
+  if (!$('krb-host-admin') && !$('krb-host-portal')) return Promise.resolve();
+  var seq = ++KRB.seq;
+  return api('kerberos').then(function (d) { krbTake(seq, d, onlyChanged); }).catch(function (e) {
+    if (quiet || seq < KRB.had) return;
     ['admin', 'portal'].forEach(function (part) {
       var host = $('krb-host-' + part);
       if (!host) return;
@@ -7849,12 +7933,14 @@ function krbPut(part) {
     reader.onload = function () {
       var bytes = new Uint8Array(reader.result || new ArrayBuffer(0)), bin = '';
       for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      var seq = ++KRB.seq;
       api('kerberos', {action: 'put', data: btoa(bin), name: file.name}).then(function (x) {
-        KRB.d = x.view; KRB.tried = {};
+        KRB.tried = {};
+        krbTake(seq, x.view, false, true);
+        signinOther('krb');
         var left = (x.dropped || []).length;
         toast(left ? 'the keytab is put in - ' + left + ' of its keys left out (only AES keys of HTTP/ names are kept): see the card'
           : 'the keytab is put in - every node writes it out within seconds', left ? 'warn' : 'good');
-        drawKrb('admin'); drawKrb('portal');
       }).catch(oops);
     };
     reader.readAsArrayBuffer(file);
@@ -7904,7 +7990,8 @@ function drawSignin(part, p) {
 function drawKrb(part) {
   var host = $('krb-host-' + part), d = KRB.d;
   if (!host || !d) return;
-  if (host.contains(document.activeElement) && liveControl(document.activeElement)) return;
+  if (host.contains(document.activeElement) && liveControl(document.activeElement)) { host.dataset.stale = '1'; return; }
+  delete host.dataset.stale;
   clear(host);
   var p = d.parts[part], other = d.parts[part === 'admin' ? 'portal' : 'admin'];
   var head = el('div', 'lb-facts');
@@ -7963,7 +8050,8 @@ function drawKrb(part) {
       var drop = cmdButton('Take the keytab away', 'trash', 'small danger');
       drop.onclick = function () {
         confirmThen('Take the keytab away?', 'Nobody signs in with Windows - to the administration or the portal - until another one is put in. Every node takes its copy away.', 'Take it away', function () {
-          api('kerberos', {action: 'drop'}).then(function (x) { KRB.d = x.view; KRB.tried = {}; drawKrb('admin'); drawKrb('portal'); }).catch(oops);
+          var seq = ++KRB.seq;
+          api('kerberos', {action: 'drop'}).then(function (x) { KRB.tried = {}; krbTake(seq, x.view, false, true); signinOther('krb'); }).catch(oops);
         }, true);
       };
       row.appendChild(drop);
@@ -8041,7 +8129,7 @@ function drawKrb(part) {
    this part, and as what - nobody signed in), the CRLs fetched, each node (the authorities
    written out, nginx listening on the port) and the guides: AD CS, a YubiKey, the browsers, the
    network. */
-var CERTC = {d: null, tried: null, tried_id: ''};
+var CERTC = {d: null, tried: null, tried_id: '', seq: 0, had: 0};
 (function () {
   try {
     var q = new URLSearchParams(location.search), t = q.get('certtried') || '';
@@ -8053,14 +8141,15 @@ var CERTC = {d: null, tried: null, tried_id: ''};
     }
   } catch (e) { /* none */ }
 }());
-function loadCert() {
-  if (!$('cert-host-admin') && !$('cert-host-portal')) return;
+function loadCert(quiet, onlyChanged) {
+  if (!$('cert-host-admin') && !$('cert-host-portal')) return Promise.resolve();
   var ask = 'certlogin' + (CERTC.tried_id ? '&tried=' + CERTC.tried_id : '');
-  api(ask).then(function (d) {
-    CERTC.d = d;
-    if (d.tried) { CERTC.tried = d.tried; CERTC.tried_id = ''; }
-    drawCert('admin'); drawCert('portal');
+  var seq = ++CERTC.seq;
+  return api(ask).then(function (d) {
+    if (d.tried) { CERTC.tried = d.tried; CERTC.tried_id = ''; onlyChanged = false; }
+    certTake(seq, d, onlyChanged);
   }).catch(function (e) {
+    if (quiet || seq < CERTC.had) return;
     ['admin', 'portal'].forEach(function (part) {
       var host = $('cert-host-' + part);
       if (!host) return;
@@ -8081,10 +8170,11 @@ function certPut() {
     reader.onload = function () {
       var bytes = new Uint8Array(reader.result || new ArrayBuffer(0)), bin = '';
       for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      var seq = ++CERTC.seq;
       api('certlogin', {action: 'put', data: btoa(bin), name: file.name}).then(function (x) {
-        CERTC.d = x.view;
         toast(x.message || 'put in', (x.added || []).length ? 'good' : 'warn');
-        drawCert('admin'); drawCert('portal');
+        certTake(seq, x.view, false, true);
+        signinOther('cert');
       }).catch(oops);
     };
     reader.readAsArrayBuffer(file);
@@ -8109,7 +8199,8 @@ function certRole(part, t) {
 function drawCert(part) {
   var host = $('cert-host-' + part), d = CERTC.d;
   if (!host || !d) return;
-  if (host.contains(document.activeElement) && liveControl(document.activeElement)) return;
+  if (host.contains(document.activeElement) && liveControl(document.activeElement)) { host.dataset.stale = '1'; return; }
+  delete host.dataset.stale;
   clear(host);
   var p = d.parts[part], other = d.parts[part === 'admin' ? 'portal' : 'admin'];
   var head = el('div', 'lb-facts');
@@ -8147,7 +8238,8 @@ function drawCert(part) {
         del.title = 'Take this authority away';
         del.onclick = function () {
           confirmThen('Take the authority away?', 'A certificate of it no longer signs anybody in - on every node within seconds. ' + (d.cas.length === 1 ? 'It is the last one: nobody signs in with a certificate until another is put in.' : ''), 'Take it away', function () {
-            api('certlogin', {action: 'drop', sha256: c.sha256}).then(function (x) { CERTC.d = x.view; drawCert('admin'); drawCert('portal'); }).catch(oops);
+            var seq = ++CERTC.seq;
+            api('certlogin', {action: 'drop', sha256: c.sha256}).then(function (x) { certTake(seq, x.view, false, true); signinOther('cert'); }).catch(oops);
           }, true);
         };
       }
@@ -8171,7 +8263,9 @@ function drawCert(part) {
       explain(sel, 'The people’s certificates are issued by an authority of acme’s own (Certificates → Authorities): its certificate and the chain above it put in here.');
       sel.onchange = function () {
         if (!sel.value) return;
-        api('certlogin', {action: 'own', id: Number(sel.value)}).then(function (x) { CERTC.d = x.view; toast(x.message, 'good'); drawCert('admin'); drawCert('portal'); }).catch(oops);
+        var seq = ++CERTC.seq;
+        sel.blur();
+        api('certlogin', {action: 'own', id: Number(sel.value)}).then(function (x) { toast(x.message, 'good'); certTake(seq, x.view, false, true); signinOther('cert'); }).catch(oops);
       };
       row.appendChild(sel);
     }
@@ -18773,6 +18867,25 @@ function drawSnmp() {
   card.appendChild(el('h3', 'peek-h', 'In the monitoring'));
   card.appendChild(noI18n(el('pre', 'wrap mono small', lines.join('\n'))));
   card.appendChild(el('p', 'muted small', 'The passphrases are not shown here - they are those set above (kept sealed). AES-256 is net-snmp\'s AES256 and Zabbix\'s AES256, not Cisco\'s AES256C.'));
+  /* The files for the monitoring (1.0.108): the MIB, and the Zabbix 7.0 template made from it. */
+  card.appendChild(el('h3', 'peek-h', 'For the monitoring system'));
+  card.appendChild(el('p', 'note', 'The template "acme by SNMP" for Zabbix 7.0 is made from ACME-MIB when it is downloaded: every certificate, deployment, test, authority, node, disk, backup place and CRL discovered, with triggers, graphs, value maps and dashboards. In Zabbix: Data collection → Templates → Import, then link it to each node (its own address, SNMPv3 as above).'));
+  var files = el('div', 'btnrow');
+  [['Zabbix 7 template', 'zabbix', 'The template for Zabbix 7.0 (YAML), made now from ACME-MIB - nothing secret in it.'],
+   ['ACME-MIB', 'mib', 'The MIB of acme\'s objects, for the monitoring system and snmptrapd (load it with -m +ACME-MIB).']].forEach(function (f) {
+    var b = cmdButton(f[0], 'download', 'small');
+    b.id = 'snmp-get-' + f[1];
+    explain(b, f[2]);
+    b.onclick = function () {
+      busy(b, true);
+      api('snmp&get=' + f[1]).then(function (x) {
+        saveFile(x.name, x.text);
+        toast(x.name, 'good');
+      }).catch(oops).then(function () { busy(b, false); });
+    };
+    files.appendChild(b);
+  });
+  card.appendChild(files);
   host.appendChild(card);
 }
 function drawMonitor() {

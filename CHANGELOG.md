@@ -6,6 +6,25 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.108 - not released
 
+- **A Zabbix 7.0 template, and SNMP says all the pages say.** *Settings → Monitoring → SNMPv3*
+  has *Zabbix 7 template* and *ACME-MIB* to download (any role - nothing secret; also `acme
+  --snmp-zabbix-template --out FILE`, `acme --snmp-mib`). "acme by SNMP" is made from the MIB
+  each time: SNMP walks with everything dependent on them, eleven discoveries (certificates,
+  deployments, tests, modules, authorities, the pages' certificates, nodes, file systems, backup
+  places, CRLs, log destinations) with item, trigger and graph prototypes, about 75 triggers
+  (a certificate ending within `{$ACME.CERT.WARN}` / `{$ACME.CERT.CRIT}` days - per certificate
+  with a context -, a renewal or deployment failed, a test failing, a node down, the replication
+  lost or behind, the nodes apart, no recent backup, a newer acme, the keytab or a CRL...), value
+  maps for every state, tags, the traps, and a dashboard of five pages (docs/monitoring.md,
+  Zabbix). ACME-MIB gains, without moving anything: `acmeSystem` (disks, CPU, load, memory,
+  disk and network bytes, the clock, SELinux, the firewall, the updates of the system),
+  `acmeBackup`, `acmeSignIn` (accounts, sessions, lockouts, Kerberos keytab, certificate
+  sign-in and its CRLs), `acmeServices` (isemon and syslog, the mail queue, directories, SMS),
+  `acmeDnsServer`, more of the cluster (VIP holders, replication, split, each node's version and
+  role) and of the database (size, guard), each alert's level, node and area, a certificate's
+  owner, last renewal, failures, error and serial, every state as a number with a textual
+  convention, conformance groups. Prometheus has the same new facts. The MIB loads in net-snmp
+  again: two comments ended early (`--`) and `snmptranslate -m +ACME-MIB` stopped at them.
 - **A popup is as tall as what is in it, and stays so.** Some popups grew and shrank by
   themselves: *Targets → Add a target* with a module picked from the list scrolled down (the
   Barracuda WAF's form) had over a hundred pixels of nothing above its buttons and lost it a few
@@ -26,6 +45,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   and the Ed25519 / RSA 4096 choice root's had; *Add a key* and taking a key away as before, on
   the nodes chosen. Still only for users who may sign in (UID 1000 and up, a login shell), their
   file written as they are, never through a link.
+- **The cards of signing in follow a change without F5.** *Signing in with Windows (Kerberos)*,
+  *Signing in with a certificate* and *The sign-in page* (*Settings → Accounts* and the portal's)
+  look again by themselves for a short while after a change: what the nodes do next - nginx taking
+  the certificate's port a few seconds later, or finding it taken, the keytab and the authorities
+  written out on the other node - shows on the card, where it stayed *not listening* until the
+  page was opened again. A keytab put in or taken away also brings the certificate's card the new
+  facts of Windows (and an authority Windows'), each card's *No password at all* with them; an
+  older answer no longer draws over a newer one; and *No password at all* coming into effect or
+  going reaches *Users* (*Set a new password*, *Add*) at once.
 
 ## 1.0.107 - 2026-11-15
 

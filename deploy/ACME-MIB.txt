@@ -11,20 +11,38 @@ ACME-MIB DEFINITIONS ::= BEGIN
 
 IMPORTS
     MODULE-IDENTITY, OBJECT-TYPE, NOTIFICATION-TYPE,
-    Integer32, Gauge32, Counter32, TimeTicks
+    Integer32, Gauge32, Counter32, Counter64, TimeTicks
         FROM SNMPv2-SMI
-    DisplayString
+    DisplayString, TEXTUAL-CONVENTION
         FROM SNMPv2-TC
+    MODULE-COMPLIANCE, OBJECT-GROUP, NOTIFICATION-GROUP
+        FROM SNMPv2-CONF
+    CounterBasedGauge64
+        FROM HCNUM-TC
     netSnmpPlaypen
         FROM NET-SNMP-MIB;
 
 acme MODULE-IDENTITY
-    LAST-UPDATED "202611120000Z"
+    LAST-UPDATED "202611150000Z"
     ORGANIZATION "acme"
     CONTACT-INFO "The administrators of the acme servers - Settings, Monitoring."
     DESCRIPTION  "acme, certificates kept, renewed and deployed by themselves:
                   the database, the alerts, the certificates of the pages, the
                   cluster and every metric of one node."
+    REVISION     "202611150000Z"
+    DESCRIPTION  "1.0.108: everything the pages show of a node, as objects of their own -
+                  acmeSystem (the disks, the processor, the memory, the clock, SELinux, the
+                  firewall, the updates of the system), acmeBackup (the backups made here,
+                  sent away and tried), acmeSignIn (the accounts, the lockouts, Windows and
+                  certificate sign-ins, their CRLs), acmeServices (isemon and the syslog
+                  servers, the mail queue, the directories, the SMS gateway), acmeDnsServer;
+                  more of the cluster (the VIP address, the replication, the split, each
+                  node's version and role), of the database (its size, the guard), of acme
+                  itself (a newer version, maintenance); the level, node and area of each
+                  alert as columns; the owner, last renewal, failures and serial of each
+                  certificate kept; the states of the deployments and the tests as numbers;
+                  textual conventions for every state; conformance groups. Nothing before
+                  moved or changed."
     REVISION     "202611120000Z"
     DESCRIPTION  "1.0.78: acmeDeployTable, acmeTestTable, acmeModuleTable, acmeCaTable; the key
                   and the twin of a dual certificate and its failing tests in
@@ -46,8 +64,79 @@ acmeCertificates  OBJECT IDENTIFIER ::= { acme 6 }
 acmeCluster       OBJECT IDENTIFIER ::= { acme 7 }
 acmeTrapObjects   OBJECT IDENTIFIER ::= { acme 8 }
 acmeMetrics       OBJECT IDENTIFIER ::= { acme 9 }
+acmeSystem        OBJECT IDENTIFIER ::= { acme 10 }
+acmeBackup        OBJECT IDENTIFIER ::= { acme 11 }
+acmeSignIn        OBJECT IDENTIFIER ::= { acme 12 }
+acmeServices      OBJECT IDENTIFIER ::= { acme 13 }
+acmeConformance   OBJECT IDENTIFIER ::= { acme 20 }
 
--- acmeInfo ------------------------------------------------------------------------
+-- Textual conventions (1.0.108): every state a number, as a monitoring system wants it; the
+-- objects of before keep their syntax.
+
+AcmeTruth ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION "No or yes; off or on."
+    SYNTAX INTEGER { no(0), yes(1) }
+
+AcmeCertState ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION "The state of a certificate kept, as acmeManagedCertStateNum has it."
+    SYNTAX INTEGER { new(0), ok(1), due(2), renewing(3), failed(4), expired(5), pending(6),
+                     revoked(7), disabled(8), revokeFailed(9), deleting(10),
+                     pendingApproval(11), declined(12), held(13) }
+
+AcmeDeployStatus ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION "The state of a deployment (acmeDeployState as a number)."
+    SYNTAX INTEGER { new(0), ok(1), changed(2), deploying(3), failed(4) }
+
+AcmeTestResult ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION "How a test of a certificate went last (acmeTestState as a number): none - not
+                 run yet; old - an older version is served; other - another certificate;
+                 answer - a wrong answer; unreachable - the server did not answer."
+    SYNTAX INTEGER { none(0), ok(1), warn(2), old(3), other(4), answer(5), unreachable(6) }
+
+AcmeSeverity ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION "How bad a thing the alerts see is: ok - nothing; info; warn; bad."
+    SYNTAX INTEGER { ok(0), info(1), warn(2), bad(3) }
+
+AcmeResult ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION "How the last try went: none - never tried (or not set up); ok; failed."
+    SYNTAX INTEGER { none(0), ok(1), failed(2) }
+
+AcmeReplication ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION "The replication between two nodes: notReplicated - one database or one node;
+                 healthy - both ways running; broken - a way stopped; lost - a slot lost, the
+                 other node has to be made again from this one."
+    SYNTAX INTEGER { notReplicated(0), healthy(1), broken(2), lost(3) }
+
+AcmeSplit ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION "Two replicating nodes that lost each other (docs/split-brain.md): inactive -
+                 not a replicated pair, or nothing of it switched on; together; apart."
+    SYNTAX INTEGER { inactive(0), together(1), apart(2) }
+
+AcmeVrrpRole ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION "What keepalived said of the VIP address on a node last."
+    SYNTAX INTEGER { none(0), master(1), backup(2), fault(3) }
+
+AcmeSelinux ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION "SELinux on a node: unknown - not looked at yet; absent - no SELinux on the
+                 machine; disabled; permissive; enforcing."
+    SYNTAX INTEGER { unknown(0), absent(1), disabled(2), permissive(3), enforcing(4) }
+
+AcmeTimeSync ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION "Whether the clock is kept in time (chrony, or timedatectl without it)."
+    SYNTAX INTEGER { unknown(0), synced(1), notSynced(2) }
+
+-- acmeInfo
 
 acmeVersion OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
@@ -70,8 +159,28 @@ acmeInCluster OBJECT-TYPE
 acmeUptime OBJECT-TYPE
     SYNTAX TimeTicks MAX-ACCESS read-only STATUS current
     DESCRIPTION "Since the daemon started." ::= { acmeInfo 7 }
+acmeNewestVersion OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The newest version of acme the upgrades' address offers, as last looked
+                 (Maintenance, Upgrade); empty when never looked." ::= { acmeInfo 8 }
+acmeUpdateAvailable OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when a version newer than this one was found." ::= { acmeInfo 9 }
+acmeStartTime OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When the daemon started, unix time." ::= { acmeInfo 10 }
+acmeMaintenance OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes while this node is in maintenance." ::= { acmeInfo 11 }
+acmeAlertsLead OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when this node is the one that sends the alerts (mails and traps) for
+                 every node." ::= { acmeInfo 12 }
+acmeUpdateChecked OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When the upgrades' address was last looked at, unix time; 0: never." ::= { acmeInfo 13 }
 
--- acmeDatabase --------------------------------------------------------------------
+-- acmeDatabase
 
 acmeDbUp OBJECT-TYPE
     SYNTAX Integer32 (0..1) MAX-ACCESS read-only STATUS current
@@ -79,8 +188,22 @@ acmeDbUp OBJECT-TYPE
 acmeDbLatency OBJECT-TYPE
     SYNTAX Gauge32 UNITS "microseconds" MAX-ACCESS read-only STATUS current
     DESCRIPTION "How long SELECT 1 took." ::= { acmeDatabase 2 }
+acmeDbSize OBJECT-TYPE
+    SYNTAX CounterBasedGauge64 UNITS "bytes" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How big the database is: the file of SQLite, the tables of MariaDB, the
+                 database of PostgreSQL." ::= { acmeDatabase 3 }
+acmeDbGuard OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes while the guard against rows not written by acme is on (db_guard)." ::= { acmeDatabase 4 }
+acmeDbGuardRefused OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Rows the guard refused on this node in the last hour." ::= { acmeDatabase 5 }
+acmeDbTrouble OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "What the database said when the daemon lost it in the last 5 minutes;
+                 empty when it did not." ::= { acmeDatabase 6 }
 
--- acmeAlerts ----------------------------------------------------------------------
+-- acmeAlerts
 
 acmeAlertsBad OBJECT-TYPE
     SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
@@ -88,6 +211,9 @@ acmeAlertsBad OBJECT-TYPE
 acmeAlertsWarn OBJECT-TYPE
     SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
     DESCRIPTION "What the alerts see wrong now: warnings." ::= { acmeAlerts 2 }
+acmeAlertsWorst OBJECT-TYPE
+    SYNTAX AcmeSeverity MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The worst of what the alerts see now; ok when nothing." ::= { acmeAlerts 4 }
 
 acmeAlertTable OBJECT-TYPE
     SYNTAX SEQUENCE OF AcmeAlertEntry MAX-ACCESS not-accessible STATUS current
@@ -96,7 +222,8 @@ acmeAlertEntry OBJECT-TYPE
     SYNTAX AcmeAlertEntry MAX-ACCESS not-accessible STATUS current
     DESCRIPTION "One thing wrong." INDEX { acmeAlertIndex } ::= { acmeAlertTable 1 }
 AcmeAlertEntry ::= SEQUENCE { acmeAlertIndex Integer32, acmeAlertKey DisplayString,
-    acmeAlertLevel DisplayString, acmeAlertTitle DisplayString, acmeAlertSaid DisplayString }
+    acmeAlertLevel DisplayString, acmeAlertTitle DisplayString, acmeAlertSaid DisplayString,
+    acmeAlertLevelNum AcmeSeverity, acmeAlertNode DisplayString, acmeAlertArea DisplayString }
 acmeAlertIndex OBJECT-TYPE
     SYNTAX Integer32 (1..65535) MAX-ACCESS read-only STATUS current
     DESCRIPTION "Its number now." ::= { acmeAlertEntry 1 }
@@ -112,8 +239,18 @@ acmeAlertTitle OBJECT-TYPE
 acmeAlertSaid OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "More of it." ::= { acmeAlertEntry 5 }
+acmeAlertLevelNum OBJECT-TYPE
+    SYNTAX AcmeSeverity MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its level as a number." ::= { acmeAlertEntry 6 }
+acmeAlertNode OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The node it is about; empty when it is about the whole cluster." ::= { acmeAlertEntry 7 }
+acmeAlertArea OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The part of Settings it belongs to: ha, db, backup, web, osup, time,
+                 monitor, hisec, certs..." ::= { acmeAlertEntry 8 }
 
--- acmeCertificates ----------------------------------------------------------------
+-- acmeCertificates
 
 acmeCertTable OBJECT-TYPE
     SYNTAX SEQUENCE OF AcmeCertEntry MAX-ACCESS not-accessible STATUS current
@@ -141,7 +278,7 @@ acmeCertEnd OBJECT-TYPE
     DESCRIPTION "When it ends, unix time." ::= { acmeCertEntry 5 }
 
 -- The certificates the certificate manager keeps (Certificates on the pages,
--- acme --certs), switched on ones; the index is the certificate's id in acme,
+-- and acme's option certs on the command line), switched on ones; the index is the certificate's id in acme,
 -- the same while it is kept.
 
 acmeManagedCertTable OBJECT-TYPE
@@ -157,7 +294,14 @@ AcmeManagedCertEntry ::= SEQUENCE { acmeManagedCertIndex Integer32,
     acmeManagedCertStateNum Integer32, acmeManagedCertAutoRenew Integer32,
     acmeManagedCertDeploysFailed Gauge32, acmeManagedCertKeyType DisplayString,
     acmeManagedCertKeyTypeAlt DisplayString, acmeManagedCertAltNotAfter Integer32,
-    acmeManagedCertAltDaysLeft Integer32, acmeManagedCertTestsFailed Gauge32 }
+    acmeManagedCertAltDaysLeft Integer32, acmeManagedCertTestsFailed Gauge32,
+    acmeManagedCertOwner DisplayString, acmeManagedCertSource DisplayString,
+    acmeManagedCertLastOk Integer32, acmeManagedCertLastTry Integer32,
+    acmeManagedCertFails Gauge32, acmeManagedCertLastError DisplayString,
+    acmeManagedCertNextTry Integer32, acmeManagedCertVersion Integer32,
+    acmeManagedCertSerial DisplayString, acmeManagedCertDeploys Gauge32,
+    acmeManagedCertTests Gauge32, acmeManagedCertNotBefore Integer32,
+    acmeManagedCertNames Gauge32, acmeManagedCertStateEnum AcmeCertState }
 acmeManagedCertIndex OBJECT-TYPE
     SYNTAX Integer32 (1..2147483647) MAX-ACCESS read-only STATUS current
     DESCRIPTION "The certificate's id in acme." ::= { acmeManagedCertEntry 1 }
@@ -212,6 +356,50 @@ acmeManagedCertTestsFailed OBJECT-TYPE
     SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
     DESCRIPTION "Its tests (switched on) whose last run failed - what a server serves is not
                  this certificate, or cannot be reached." ::= { acmeManagedCertEntry 15 }
+acmeManagedCertOwner OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Who it belongs to (an owner or a team, Settings, Owners and teams);
+                 empty when nobody." ::= { acmeManagedCertEntry 16 }
+acmeManagedCertSource OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How it came: ordered here, imported, pushed, from the portal..." ::= { acmeManagedCertEntry 17 }
+acmeManagedCertLastOk OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When it was last issued or renewed, unix time; 0: never here." ::= { acmeManagedCertEntry 18 }
+acmeManagedCertLastTry OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When it was last tried, unix time; 0: never." ::= { acmeManagedCertEntry 19 }
+acmeManagedCertFails OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Renewals that failed in a row." ::= { acmeManagedCertEntry 20 }
+acmeManagedCertLastError OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "What the last failure said (nothing secret); empty after a renewal that
+                 went through." ::= { acmeManagedCertEntry 21 }
+acmeManagedCertNextTry OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When it is tried again after a failure, unix time; 0: not waiting." ::= { acmeManagedCertEntry 22 }
+acmeManagedCertVersion OBJECT-TYPE
+    SYNTAX Integer32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its version: 1 the first issued, one more each renewal; 0: none yet." ::= { acmeManagedCertEntry 23 }
+acmeManagedCertSerial OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The serial number of the one in use, in hex." ::= { acmeManagedCertEntry 24 }
+acmeManagedCertDeploys OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its deployments (switched on)." ::= { acmeManagedCertEntry 25 }
+acmeManagedCertTests OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its tests (switched on)." ::= { acmeManagedCertEntry 26 }
+acmeManagedCertNotBefore OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "From when it is valid, unix time; 0 when not issued yet." ::= { acmeManagedCertEntry 27 }
+acmeManagedCertNames OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How many names it has (the common name and the alternative names)." ::= { acmeManagedCertEntry 28 }
+acmeManagedCertStateEnum OBJECT-TYPE
+    SYNTAX AcmeCertState MAX-ACCESS read-only STATUS current
+    DESCRIPTION "acmeManagedCertStateNum with the names of the states." ::= { acmeManagedCertEntry 29 }
 
 acmeManagedCounts OBJECT IDENTIFIER ::= { acmeCertificates 3 }
 
@@ -267,6 +455,30 @@ acmeManagedCasEnding OBJECT-TYPE
 acmeManagedDeploys OBJECT-TYPE
     SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
     DESCRIPTION "Deployments (a certificate on a target)." ::= { acmeManagedCounts 16 }
+acmeManagedJobsOk OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Certificate jobs that went through in the last 24 hours." ::= { acmeManagedCounts 17 }
+acmeManagedLastScan OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When the node that renews last looked for what is due, unix time." ::= { acmeManagedCounts 18 }
+acmeManagedRevoked OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Certificates revoked." ::= { acmeManagedCounts 19 }
+acmeManagedPendingApproval OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Requests waiting for an approval (the portal)." ::= { acmeManagedCounts 20 }
+acmeManagedRenewalsFailed OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Renewals and first issues that failed in the last 24 hours." ::= { acmeManagedCounts 21 }
+acmeManagedRenewalsOk OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Renewals and first issues that went through in the last 24 hours." ::= { acmeManagedCounts 22 }
+acmeManagedDeploysOk24h OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Deployment jobs that went through in the last 24 hours." ::= { acmeManagedCounts 23 }
+acmeManagedDeploysFailed24h OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Deployment jobs that failed in the last 24 hours." ::= { acmeManagedCounts 24 }
 
 -- Each deployment: a certificate on a target (the index is the deployment's id).
 
@@ -279,7 +491,8 @@ acmeDeployEntry OBJECT-TYPE
 AcmeDeployEntry ::= SEQUENCE { acmeDeployIndex Integer32, acmeDeployCertId Integer32,
     acmeDeployCert DisplayString, acmeDeployTarget DisplayString, acmeDeployState DisplayString,
     acmeDeployEnabled Integer32, acmeDeployVersion Integer32, acmeDeployLastOk Integer32,
-    acmeDeployLastTry Integer32, acmeDeployFails Gauge32, acmeDeployLastError DisplayString }
+    acmeDeployLastTry Integer32, acmeDeployFails Gauge32, acmeDeployLastError DisplayString,
+    acmeDeployStateNum AcmeDeployStatus }
 acmeDeployIndex OBJECT-TYPE
     SYNTAX Integer32 (1..2147483647) MAX-ACCESS read-only STATUS current
     DESCRIPTION "The deployment's id in acme." ::= { acmeDeployEntry 1 }
@@ -313,6 +526,9 @@ acmeDeployFails OBJECT-TYPE
 acmeDeployLastError OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "What the last failure said (nothing secret)." ::= { acmeDeployEntry 11 }
+acmeDeployStateNum OBJECT-TYPE
+    SYNTAX AcmeDeployStatus MAX-ACCESS read-only STATUS current
+    DESCRIPTION "acmeDeployState as a number." ::= { acmeDeployEntry 12 }
 
 -- Each test of a certificate: what a server serves, compared with it (the index is the id of
 -- the test's attachment to the certificate).
@@ -327,7 +543,7 @@ AcmeTestEntry ::= SEQUENCE { acmeTestIndex Integer32, acmeTestCertId Integer32,
     acmeTestCert DisplayString, acmeTestName DisplayString, acmeTestKind DisplayString,
     acmeTestState DisplayString, acmeTestEnabled Integer32, acmeTestAfter DisplayString,
     acmeTestLastAt Integer32, acmeTestLastOk Integer32, acmeTestFails Gauge32,
-    acmeTestSaid DisplayString }
+    acmeTestSaid DisplayString, acmeTestStateNum AcmeTestResult }
 acmeTestIndex OBJECT-TYPE
     SYNTAX Integer32 (1..2147483647) MAX-ACCESS read-only STATUS current
     DESCRIPTION "Its id in acme." ::= { acmeTestEntry 1 }
@@ -368,6 +584,9 @@ acmeTestFails OBJECT-TYPE
 acmeTestSaid OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "What it said last." ::= { acmeTestEntry 12 }
+acmeTestStateNum OBJECT-TYPE
+    SYNTAX AcmeTestResult MAX-ACCESS read-only STATUS current
+    DESCRIPTION "acmeTestState as a number." ::= { acmeTestEntry 13 }
 
 -- Each module set up: the sources, validations, targets and tests (the index is the family
 -- times 1000000 plus the id: 1 source, 2 validation, 3 target, 4 test).
@@ -380,7 +599,7 @@ acmeModuleEntry OBJECT-TYPE
     DESCRIPTION "One of them." INDEX { acmeModuleIndex } ::= { acmeModuleTable 1 }
 AcmeModuleEntry ::= SEQUENCE { acmeModuleIndex Integer32, acmeModuleFamily DisplayString,
     acmeModuleName DisplayString, acmeModuleKind DisplayString, acmeModuleEnabled Integer32,
-    acmeModuleLastOk Integer32, acmeModuleLastError DisplayString }
+    acmeModuleLastOk Integer32, acmeModuleLastError DisplayString, acmeModuleFailing AcmeTruth }
 acmeModuleIndex OBJECT-TYPE
     SYNTAX Integer32 (1..2147483647) MAX-ACCESS read-only STATUS current
     DESCRIPTION "family * 1000000 + its id." ::= { acmeModuleEntry 1 }
@@ -404,6 +623,9 @@ acmeModuleLastError OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "What its last failure said; empty when its last use worked."
     ::= { acmeModuleEntry 7 }
+acmeModuleFailing OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when its last use failed." ::= { acmeModuleEntry 8 }
 
 -- Each authority of acme's own (Authorities).
 
@@ -415,7 +637,8 @@ acmeCaEntry OBJECT-TYPE
     DESCRIPTION "One authority." INDEX { acmeCaIndex } ::= { acmeCaTable 1 }
 AcmeCaEntry ::= SEQUENCE { acmeCaIndex Integer32, acmeCaName DisplayString,
     acmeCaSubject DisplayString, acmeCaNotAfter Integer32, acmeCaDaysLeft Integer32,
-    acmeCaEnabled Integer32, acmeCaSigns Integer32, acmeCaCrlNext Integer32 }
+    acmeCaEnabled Integer32, acmeCaSigns Integer32, acmeCaCrlNext Integer32,
+    acmeCaExternal AcmeTruth, acmeCaCrlHoursLeft Integer32 }
 acmeCaIndex OBJECT-TYPE
     SYNTAX Integer32 (1..2147483647) MAX-ACCESS read-only STATUS current
     DESCRIPTION "Its id in acme." ::= { acmeCaEntry 1 }
@@ -440,8 +663,40 @@ acmeCaSigns OBJECT-TYPE
 acmeCaCrlNext OBJECT-TYPE
     SYNTAX Integer32 MAX-ACCESS read-only STATUS current
     DESCRIPTION "When its CRL is due again, unix time; 0: none made here." ::= { acmeCaEntry 8 }
+acmeCaExternal OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes for an authority only known here (its key elsewhere)." ::= { acmeCaEntry 9 }
+acmeCaCrlHoursLeft OBJECT-TYPE
+    SYNTAX Integer32 UNITS "hours" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Hours until its CRL is due again (below 0: late); 0 when none is made here." ::= { acmeCaEntry 10 }
 
--- acmeCluster ---------------------------------------------------------------------
+-- acme's own DNS server (dns-01 for the certificates): this node's (1.0.108).
+
+acmeDnsServer OBJECT IDENTIFIER ::= { acmeCertificates 8 }
+
+acmeDnsServerOn OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when it is switched on." ::= { acmeDnsServer 1 }
+acmeDnsServerUp OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when it answers on this node." ::= { acmeDnsServer 2 }
+acmeDnsRecords OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Records it answers with." ::= { acmeDnsServer 3 }
+acmeDnsAnswered OBJECT-TYPE
+    SYNTAX Counter32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Queries it answered since the daemon started." ::= { acmeDnsServer 4 }
+acmeDnsRefused OBJECT-TYPE
+    SYNTAX Counter32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Queries it refused (not its zone)." ::= { acmeDnsServer 5 }
+acmeDnsFailed OBJECT-TYPE
+    SYNTAX Counter32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Queries it could not answer (servfail, formerr, notimp)." ::= { acmeDnsServer 6 }
+acmeDnsRateLimited OBJECT-TYPE
+    SYNTAX Counter32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Queries dropped or held back by its rate limit." ::= { acmeDnsServer 7 }
+
+-- acmeCluster
 
 acmeNodeTable OBJECT-TYPE
     SYNTAX SEQUENCE OF AcmeNodeEntry MAX-ACCESS not-accessible STATUS current
@@ -450,7 +705,9 @@ acmeNodeEntry OBJECT-TYPE
     SYNTAX AcmeNodeEntry MAX-ACCESS not-accessible STATUS current
     DESCRIPTION "One node." INDEX { acmeNodeIndex } ::= { acmeNodeTable 1 }
 AcmeNodeEntry ::= SEQUENCE { acmeNodeIndex Integer32, acmeNodeName DisplayString,
-    acmeNodeUp Integer32, acmeNodeAge Gauge32 }
+    acmeNodeUp Integer32, acmeNodeAge Gauge32, acmeNodeVersion DisplayString,
+    acmeNodeMaintenance AcmeTruth, acmeNodeVipHere AcmeTruth, acmeNodeVrrpRole AcmeVrrpRole,
+    acmeNodeIsThis AcmeTruth, acmeNodeStarted Integer32, acmeNodeAddress DisplayString }
 acmeNodeIndex OBJECT-TYPE
     SYNTAX Integer32 (1..65535) MAX-ACCESS read-only STATUS current
     DESCRIPTION "Its number." ::= { acmeNodeEntry 1 }
@@ -463,8 +720,386 @@ acmeNodeUp OBJECT-TYPE
 acmeNodeAge OBJECT-TYPE
     SYNTAX Gauge32 UNITS "seconds" MAX-ACCESS read-only STATUS current
     DESCRIPTION "Since it was last heard from." ::= { acmeNodeEntry 4 }
+acmeNodeVersion OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The version of acme it runs." ::= { acmeNodeEntry 5 }
+acmeNodeMaintenance OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes while it is in maintenance." ::= { acmeNodeEntry 6 }
+acmeNodeVipHere OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when it holds the VIP address." ::= { acmeNodeEntry 7 }
+acmeNodeVrrpRole OBJECT-TYPE
+    SYNTAX AcmeVrrpRole MAX-ACCESS read-only STATUS current
+    DESCRIPTION "What keepalived said there last." ::= { acmeNodeEntry 8 }
+acmeNodeIsThis OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes for the node answering." ::= { acmeNodeEntry 9 }
+acmeNodeStarted OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When its daemon started, unix time." ::= { acmeNodeEntry 10 }
+acmeNodeAddress OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its address in the cluster." ::= { acmeNodeEntry 11 }
 
--- what the traps carry -----------------------------------------------------------
+-- The cluster as a whole (1.0.108).
+
+acmeHaMode OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "empty: one node; shared: one database for both; replicated: each its own,
+                 replicated." ::= { acmeCluster 2 }
+acmeVipAddress OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The VIP address; empty when it is not used." ::= { acmeCluster 3 }
+acmeVipHolders OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How many nodes hold the VIP address now: 1 as it should be, 0 none, 2 both." ::= { acmeCluster 4 }
+acmeVipOwner OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The node holding the VIP address; empty when none." ::= { acmeCluster 5 }
+acmeReplState OBJECT-TYPE
+    SYNTAX AcmeReplication MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The replication, as this node sees it." ::= { acmeCluster 6 }
+acmeReplBehind OBJECT-TYPE
+    SYNTAX CounterBasedGauge64 UNITS "bytes" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How far the other node is behind in taking this one's rows (the
+                 furthest slot)." ::= { acmeCluster 7 }
+acmeReplErrors OBJECT-TYPE
+    SYNTAX Counter32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Errors of this node taking the other's rows." ::= { acmeCluster 8 }
+acmeSplitState OBJECT-TYPE
+    SYNTAX AcmeSplit MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Whether the two nodes are apart (split-brain guard)." ::= { acmeCluster 9 }
+acmeSplitRole OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "What this node does while apart (as the guard decided); empty when together." ::= { acmeCluster 10 }
+acmeCertLeader OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The node that renews and deploys the certificates (holds the lease)." ::= { acmeCluster 11 }
+acmeNodesUp OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Nodes heard from lately (this one counted)." ::= { acmeCluster 12 }
+acmeNodesKnown OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Nodes of the cluster (1 without one)." ::= { acmeCluster 13 }
+
+-- acmeSystem: this node's own machine, as Settings shows it (1.0.108)
+
+acmeDiskTable OBJECT-TYPE
+    SYNTAX SEQUENCE OF AcmeDiskEntry MAX-ACCESS not-accessible STATUS current
+    DESCRIPTION "The file systems acme lives on (/, its state, its logs, the database), each once." ::= { acmeSystem 1 }
+acmeDiskEntry OBJECT-TYPE
+    SYNTAX AcmeDiskEntry MAX-ACCESS not-accessible STATUS current
+    DESCRIPTION "One file system." INDEX { acmeDiskIndex } ::= { acmeDiskTable 1 }
+AcmeDiskEntry ::= SEQUENCE { acmeDiskIndex Integer32, acmeDiskPath DisplayString, acmeDiskSize CounterBasedGauge64, acmeDiskUsed CounterBasedGauge64, acmeDiskFree CounterBasedGauge64, acmeDiskUsedPct Gauge32, acmeDiskInodesPct Gauge32 }
+acmeDiskIndex OBJECT-TYPE
+    SYNTAX Integer32 (1..65535) MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its number now." ::= { acmeDiskEntry 1 }
+acmeDiskPath OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Where it is mounted, as acme looks at it." ::= { acmeDiskEntry 2 }
+acmeDiskSize OBJECT-TYPE
+    SYNTAX CounterBasedGauge64 UNITS "bytes" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its size." ::= { acmeDiskEntry 3 }
+acmeDiskUsed OBJECT-TYPE
+    SYNTAX CounterBasedGauge64 UNITS "bytes" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Used." ::= { acmeDiskEntry 4 }
+acmeDiskFree OBJECT-TYPE
+    SYNTAX CounterBasedGauge64 UNITS "bytes" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Free for acme (not the reserved part)." ::= { acmeDiskEntry 5 }
+acmeDiskUsedPct OBJECT-TYPE
+    SYNTAX Gauge32 (0..100) UNITS "percent" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How full it is." ::= { acmeDiskEntry 6 }
+acmeDiskInodesPct OBJECT-TYPE
+    SYNTAX Gauge32 (0..100) UNITS "percent" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How many of its inodes are used." ::= { acmeDiskEntry 7 }
+acmeCpuCores OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Processors (cores) of the machine." ::= { acmeSystem 2 }
+acmeCpuBusy OBJECT-TYPE
+    SYNTAX Gauge32 (0..100) UNITS "percent" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How busy the processors were since the agent last looked (at most every
+                 10 s)." ::= { acmeSystem 3 }
+acmeLoad1 OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The load average of 1 minute, times 100." ::= { acmeSystem 4 }
+acmeLoad5 OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The load average of 5 minutes, times 100." ::= { acmeSystem 5 }
+acmeLoad15 OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The load average of 15 minutes, times 100." ::= { acmeSystem 6 }
+acmeMemTotal OBJECT-TYPE
+    SYNTAX CounterBasedGauge64 UNITS "bytes" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The memory of the machine." ::= { acmeSystem 7 }
+acmeMemUsed OBJECT-TYPE
+    SYNTAX CounterBasedGauge64 UNITS "bytes" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Memory used (what is not available)." ::= { acmeSystem 8 }
+acmeSwapUsed OBJECT-TYPE
+    SYNTAX CounterBasedGauge64 UNITS "bytes" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Swap used." ::= { acmeSystem 9 }
+acmeDiskRead OBJECT-TYPE
+    SYNTAX Counter64 UNITS "bytes" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Read from the disks since the machine started." ::= { acmeSystem 10 }
+acmeDiskWritten OBJECT-TYPE
+    SYNTAX Counter64 UNITS "bytes" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Written to the disks since the machine started." ::= { acmeSystem 11 }
+acmeNetIn OBJECT-TYPE
+    SYNTAX Counter64 UNITS "bytes" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Received by the network cards since the machine started." ::= { acmeSystem 12 }
+acmeNetOut OBJECT-TYPE
+    SYNTAX Counter64 UNITS "bytes" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Sent by the network cards since the machine started." ::= { acmeSystem 13 }
+acmeBootTime OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When the machine started, unix time." ::= { acmeSystem 14 }
+acmeClockSkew OBJECT-TYPE
+    SYNTAX Integer32 UNITS "milliseconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How far this clock is from the one it is compared with (the other node,
+                 or the reference); 0 when not known." ::= { acmeSystem 15 }
+acmeClockOffset OBJECT-TYPE
+    SYNTAX Integer32 UNITS "milliseconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "This clock against its time reference (NTP); 0 when not known." ::= { acmeSystem 16 }
+acmeClockSync OBJECT-TYPE
+    SYNTAX AcmeTimeSync MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Whether the clock is kept in time." ::= { acmeSystem 17 }
+acmeClockProblem OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "What is wrong with the time, as the node said it; empty when nothing." ::= { acmeSystem 18 }
+acmeSelinuxMode OBJECT-TYPE
+    SYNTAX AcmeSelinux MAX-ACCESS read-only STATUS current
+    DESCRIPTION "SELinux on this node." ::= { acmeSystem 19 }
+acmeSelinuxDenials OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "What SELinux refused acme, as last looked." ::= { acmeSystem 20 }
+acmeFirewallOn OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when acme's firewall is switched on here." ::= { acmeSystem 21 }
+acmeOsUpdates OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Updates of the system waiting, as last looked." ::= { acmeSystem 22 }
+acmeOsSecurityUpdates OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Of them security updates." ::= { acmeSystem 23 }
+acmeOsRebootNeeded OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when a new kernel or libraries wait for a restart." ::= { acmeSystem 24 }
+acmeOsUpdatesChecked OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When the updates were last looked for, unix time; 0: never." ::= { acmeSystem 25 }
+acmeSshdState OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "sshd as acme set it up here: done, waiting, trial, failed or back
+                 (put back); empty when unknown." ::= { acmeSystem 26 }
+acmeKeyLost OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when the key that opens the sealed secrets is missing here." ::= { acmeSystem 27 }
+acmeNameClash OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Another machine answering to the name of this node; empty when none." ::= { acmeSystem 28 }
+acmeSnmpAsked OBJECT-TYPE
+    SYNTAX Counter32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Requests this agent was asked since the daemon started." ::= { acmeSystem 29 }
+acmeSnmpAnswered OBJECT-TYPE
+    SYNTAX Counter32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Requests it answered." ::= { acmeSystem 30 }
+acmeSnmpTraps OBJECT-TYPE
+    SYNTAX Counter32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Traps it sent." ::= { acmeSystem 31 }
+acmeHandWaiting OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Things waiting for a person on this node (a command after an update,
+                 SELinux switched off...)." ::= { acmeSystem 32 }
+
+-- acmeBackup: the copies of this node, kept here and sent away (1.0.108)
+
+acmeBackupLast OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When the newest copy kept on this node was made, unix time; 0: none." ::= { acmeBackup 1 }
+acmeBackupAge OBJECT-TYPE
+    SYNTAX Gauge32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How old it is; 0 when there is none." ::= { acmeBackup 2 }
+acmeBackupsKept OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Copies kept on this node." ::= { acmeBackup 3 }
+acmeBackupDaily OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when a copy is made every night (backup_daily)." ::= { acmeBackup 4 }
+acmeRemoteBackupOn OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when backups are sent away (Backup to another machine)." ::= { acmeBackup 5 }
+acmeRemoteBackupLast OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When the last one from this node was sent, unix time; 0: never." ::= { acmeBackup 6 }
+acmeRemoteBackupLastOk OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When the last good one went, unix time; 0: never." ::= { acmeBackup 7 }
+acmeRemoteBackupResult OBJECT-TYPE
+    SYNTAX AcmeResult MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How the last one went." ::= { acmeBackup 8 }
+acmeRemoteBackupError OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "What its failure said; empty when it went." ::= { acmeBackup 9 }
+acmeBackupVerify OBJECT-TYPE
+    SYNTAX AcmeResult MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How the last try of putting a backup back went (tried without putting
+                 it back)." ::= { acmeBackup 10 }
+acmeBackupVerifyAt OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When it was tried, unix time; 0: never." ::= { acmeBackup 11 }
+acmeRemoteBackupTable OBJECT-TYPE
+    SYNTAX SEQUENCE OF AcmeRemoteBackupEntry MAX-ACCESS not-accessible STATUS current
+    DESCRIPTION "Where the backups of this node go, each as its last backup found it." ::= { acmeBackup 12 }
+acmeRemoteBackupEntry OBJECT-TYPE
+    SYNTAX AcmeRemoteBackupEntry MAX-ACCESS not-accessible STATUS current
+    DESCRIPTION "One place." INDEX { acmeRemoteBackupIndex } ::= { acmeRemoteBackupTable 1 }
+AcmeRemoteBackupEntry ::= SEQUENCE { acmeRemoteBackupIndex Integer32, acmeRemoteBackupName DisplayString, acmeRemoteBackupTargetResult AcmeResult, acmeRemoteBackupTargetAt Integer32, acmeRemoteBackupTargetLastOk Integer32, acmeRemoteBackupTargetError DisplayString }
+acmeRemoteBackupIndex OBJECT-TYPE
+    SYNTAX Integer32 (1..65535) MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its number now." ::= { acmeRemoteBackupEntry 1 }
+acmeRemoteBackupName OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its name (Backup to another machine)." ::= { acmeRemoteBackupEntry 2 }
+acmeRemoteBackupTargetResult OBJECT-TYPE
+    SYNTAX AcmeResult MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How the last backup there went." ::= { acmeRemoteBackupEntry 3 }
+acmeRemoteBackupTargetAt OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When it was sent, unix time." ::= { acmeRemoteBackupEntry 4 }
+acmeRemoteBackupTargetLastOk OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When the last good one went there, unix time; 0: never." ::= { acmeRemoteBackupEntry 5 }
+acmeRemoteBackupTargetError OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "What its failure said." ::= { acmeRemoteBackupEntry 6 }
+
+-- acmeSignIn: who may sign in, who is held back, the sign-ins with Windows and with a
+-- certificate (1.0.108)
+
+acmeAccounts OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Accounts of these pages." ::= { acmeSignIn 1 }
+acmeAccountsLocal OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Of them local ones (not of a directory)." ::= { acmeSignIn 2 }
+acmeSessions OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Sign-ins open now (the pages and the portal)." ::= { acmeSignIn 3 }
+acmeLockedOut OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Addresses and names held back on this node now." ::= { acmeSignIn 4 }
+acmeFailsCounted OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Wrong sign-ins still counted on this node." ::= { acmeSignIn 5 }
+acmeKerberosOn OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when signing in with Windows (Kerberos) is usable." ::= { acmeSignIn 6 }
+acmeKeytabWritten OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when its keytab is written out on this node." ::= { acmeSignIn 7 }
+acmeKeytabEntries OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Keys in the keytab." ::= { acmeSignIn 8 }
+acmeKerberosError OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "What went wrong with it on this node; empty when nothing." ::= { acmeSignIn 9 }
+acmeCertLoginOn OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when signing in with a certificate is usable." ::= { acmeSignIn 10 }
+acmeCertLoginListening OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when its port is open on this node." ::= { acmeSignIn 11 }
+acmeCertLoginAuthorities OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Authorities whose certificates are taken." ::= { acmeSignIn 12 }
+acmeCertLoginError OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "What went wrong with it on this node; empty when nothing." ::= { acmeSignIn 13 }
+acmeCrlTable OBJECT-TYPE
+    SYNTAX SEQUENCE OF AcmeCrlEntry MAX-ACCESS not-accessible STATUS current
+    DESCRIPTION "The CRLs kept on this node for the sign-in with a certificate." ::= { acmeSignIn 14 }
+acmeCrlEntry OBJECT-TYPE
+    SYNTAX AcmeCrlEntry MAX-ACCESS not-accessible STATUS current
+    DESCRIPTION "One CRL." INDEX { acmeCrlIndex } ::= { acmeCrlTable 1 }
+AcmeCrlEntry ::= SEQUENCE { acmeCrlIndex Integer32, acmeCrlUrl DisplayString, acmeCrlOk AcmeTruth, acmeCrlFetched Integer32, acmeCrlNextUpdate Integer32, acmeCrlHoursLeft Integer32, acmeCrlError DisplayString }
+acmeCrlIndex OBJECT-TYPE
+    SYNTAX Integer32 (1..65535) MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its number now." ::= { acmeCrlEntry 1 }
+acmeCrlUrl OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Where it is fetched from." ::= { acmeCrlEntry 2 }
+acmeCrlOk OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when one is kept and it was read." ::= { acmeCrlEntry 3 }
+acmeCrlFetched OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When it was last fetched, unix time; 0: never." ::= { acmeCrlEntry 4 }
+acmeCrlNextUpdate OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Its next update, unix time; 0: none said." ::= { acmeCrlEntry 5 }
+acmeCrlHoursLeft OBJECT-TYPE
+    SYNTAX Integer32 UNITS "hours" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Hours until its next update (below 0: out of date)." ::= { acmeCrlEntry 6 }
+acmeCrlError OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "What its last fetch said; empty when it went." ::= { acmeCrlEntry 7 }
+
+-- acmeServices: where the logs, the mails and the codes go, and the directories (1.0.108)
+
+acmeShipTable OBJECT-TYPE
+    SYNTAX SEQUENCE OF AcmeShipEntry MAX-ACCESS not-accessible STATUS current
+    DESCRIPTION "Where the logs of this node go: isemon and the syslog servers (SIEM)." ::= { acmeServices 1 }
+acmeShipEntry OBJECT-TYPE
+    SYNTAX AcmeShipEntry MAX-ACCESS not-accessible STATUS current
+    DESCRIPTION "One place." INDEX { acmeShipIndex } ::= { acmeShipTable 1 }
+AcmeShipEntry ::= SEQUENCE { acmeShipIndex Integer32, acmeShipKind DisplayString, acmeShipTarget DisplayString, acmeShipSent Counter32, acmeShipTrouble AcmeTruth, acmeShipSaid DisplayString }
+acmeShipIndex OBJECT-TYPE
+    SYNTAX Integer32 (1..2147483647) MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The kind times 1000 plus its number: 1 isemon, 2 syslog." ::= { acmeShipEntry 1 }
+acmeShipKind OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "isemon or siem." ::= { acmeShipEntry 2 }
+acmeShipTarget OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "host:port/protocol." ::= { acmeShipEntry 3 }
+acmeShipSent OBJECT-TYPE
+    SYNTAX Counter32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Lines sent there since the daemon started." ::= { acmeShipEntry 4 }
+acmeShipTrouble OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes while it is in trouble." ::= { acmeShipEntry 5 }
+acmeShipSaid OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "What the trouble is." ::= { acmeShipEntry 6 }
+acmeIsemonOn OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when the logs go to isemon." ::= { acmeServices 2 }
+acmeSiemOn OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when the logs go to syslog servers (SIEM)." ::= { acmeServices 3 }
+acmeShipDropped OBJECT-TYPE
+    SYNTAX Counter32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Lines dropped, a queue full, since the daemon started." ::= { acmeServices 4 }
+acmeMailWaiting OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Mails waiting or being sent." ::= { acmeServices 5 }
+acmeMailFailed OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Mails that failed or ran out." ::= { acmeServices 6 }
+acmeDirectories OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Directories (Active Directory) switched on." ::= { acmeServices 7 }
+acmeDirectoriesDown OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Of them none of whose servers answers this node." ::= { acmeServices 8 }
+acmeSmsFails OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "SMS that failed in a row on this node." ::= { acmeServices 9 }
+acmeMailSent OBJECT-TYPE
+    SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Mails sent, of those still kept in the queue." ::= { acmeServices 10 }
+
+-- what the traps carry
 
 acmeTrapKey OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS accessible-for-notify STATUS current
@@ -498,7 +1133,7 @@ acmeTestTrap NOTIFICATION-TYPE
     DESCRIPTION "Sent from Settings, Monitoring, to try the receiver."
     ::= { acmeNotifications 3 }
 
--- acmeMetrics: every Prometheus sample ---------------------------------------------
+-- acmeMetrics: every Prometheus sample
 
 acmeMetricTable OBJECT-TYPE
     SYNTAX SEQUENCE OF AcmeMetricEntry MAX-ACCESS not-accessible STATUS current
@@ -520,5 +1155,145 @@ acmeMetricLabels OBJECT-TYPE
 acmeMetricValue OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "Its value, as text." ::= { acmeMetricEntry 4 }
+
+-- Conformance (1.0.108)
+
+acmeCompliances OBJECT IDENTIFIER ::= { acmeConformance 1 }
+acmeGroups      OBJECT IDENTIFIER ::= { acmeConformance 2 }
+
+acmeInfoGroup OBJECT-GROUP
+    OBJECTS { acmeVersion, acmeNode, acmeSite, acmeDbEngine, acmeHighSecurity, acmeInCluster,
+              acmeUptime, acmeNewestVersion, acmeUpdateAvailable, acmeStartTime, acmeMaintenance,
+              acmeAlertsLead, acmeUpdateChecked }
+    STATUS current
+    DESCRIPTION "acme itself."
+    ::= { acmeGroups 1 }
+
+acmeDatabaseGroup OBJECT-GROUP
+    OBJECTS { acmeDbUp, acmeDbLatency, acmeDbSize, acmeDbGuard, acmeDbGuardRefused, acmeDbTrouble }
+    STATUS current
+    DESCRIPTION "The database."
+    ::= { acmeGroups 2 }
+
+acmeAlertsGroup OBJECT-GROUP
+    OBJECTS { acmeAlertsBad, acmeAlertsWarn, acmeAlertsWorst, acmeAlertIndex, acmeAlertKey,
+              acmeAlertLevel, acmeAlertTitle, acmeAlertSaid, acmeAlertLevelNum, acmeAlertNode,
+              acmeAlertArea }
+    STATUS current
+    DESCRIPTION "The alerts."
+    ::= { acmeGroups 3 }
+
+acmeCertificatesGroup OBJECT-GROUP
+    OBJECTS { acmeCertIndex, acmeCertTarget, acmeCertName, acmeCertDaysLeft, acmeCertEnd,
+              acmeManagedCertIndex, acmeManagedCertName, acmeManagedCertCN,
+              acmeManagedCertNotAfter, acmeManagedCertDaysLeft, acmeManagedCertState,
+              acmeManagedCertIssuer, acmeManagedCertStateNum, acmeManagedCertAutoRenew,
+              acmeManagedCertDeploysFailed, acmeManagedCertKeyType, acmeManagedCertKeyTypeAlt,
+              acmeManagedCertAltNotAfter, acmeManagedCertAltDaysLeft, acmeManagedCertTestsFailed,
+              acmeManagedCertOwner, acmeManagedCertSource, acmeManagedCertLastOk,
+              acmeManagedCertLastTry, acmeManagedCertFails, acmeManagedCertLastError,
+              acmeManagedCertNextTry, acmeManagedCertVersion, acmeManagedCertSerial,
+              acmeManagedCertDeploys, acmeManagedCertTests, acmeManagedCertNotBefore,
+              acmeManagedCertNames, acmeManagedCertStateEnum, acmeManagedTotal, acmeManagedOk,
+              acmeManagedFailed, acmeManagedExpired, acmeManagedExpiring,
+              acmeManagedDeploysFailed, acmeManagedLeader, acmeManagedJobsFailed,
+              acmeManagedDnsQueries, acmeManagedWaiting, acmeManagedTests, acmeManagedTestsFailed,
+              acmeManagedJobsRunning, acmeManagedModulesFailing, acmeManagedCasEnding,
+              acmeManagedDeploys, acmeManagedJobsOk, acmeManagedLastScan, acmeManagedRevoked,
+              acmeManagedPendingApproval, acmeManagedRenewalsFailed, acmeManagedRenewalsOk,
+              acmeManagedDeploysOk24h, acmeManagedDeploysFailed24h, acmeDeployIndex,
+              acmeDeployCertId, acmeDeployCert, acmeDeployTarget, acmeDeployState,
+              acmeDeployEnabled, acmeDeployVersion, acmeDeployLastOk, acmeDeployLastTry,
+              acmeDeployFails, acmeDeployLastError, acmeDeployStateNum, acmeTestIndex,
+              acmeTestCertId, acmeTestCert, acmeTestName, acmeTestKind, acmeTestState,
+              acmeTestEnabled, acmeTestAfter, acmeTestLastAt, acmeTestLastOk, acmeTestFails,
+              acmeTestSaid, acmeTestStateNum, acmeModuleIndex, acmeModuleFamily, acmeModuleName,
+              acmeModuleKind, acmeModuleEnabled, acmeModuleLastOk, acmeModuleLastError,
+              acmeModuleFailing, acmeCaIndex, acmeCaName, acmeCaSubject, acmeCaNotAfter,
+              acmeCaDaysLeft, acmeCaEnabled, acmeCaSigns, acmeCaCrlNext, acmeCaExternal,
+              acmeCaCrlHoursLeft, acmeDnsServerOn, acmeDnsServerUp, acmeDnsRecords,
+              acmeDnsAnswered, acmeDnsRefused, acmeDnsFailed, acmeDnsRateLimited }
+    STATUS current
+    DESCRIPTION "The certificates, deployments, tests, modules, authorities and the DNS server."
+    ::= { acmeGroups 4 }
+
+acmeClusterGroup OBJECT-GROUP
+    OBJECTS { acmeNodeIndex, acmeNodeName, acmeNodeUp, acmeNodeAge, acmeNodeVersion,
+              acmeNodeMaintenance, acmeNodeVipHere, acmeNodeVrrpRole, acmeNodeIsThis,
+              acmeNodeStarted, acmeNodeAddress, acmeHaMode, acmeVipAddress, acmeVipHolders,
+              acmeVipOwner, acmeReplState, acmeReplBehind, acmeReplErrors, acmeSplitState,
+              acmeSplitRole, acmeCertLeader, acmeNodesUp, acmeNodesKnown }
+    STATUS current
+    DESCRIPTION "The cluster."
+    ::= { acmeGroups 5 }
+
+acmeTrapObjectsGroup OBJECT-GROUP
+    OBJECTS { acmeTrapKey, acmeTrapLevel, acmeTrapTitle, acmeTrapSaid, acmeTrapNode }
+    STATUS current
+    DESCRIPTION "What the traps carry."
+    ::= { acmeGroups 6 }
+
+acmeMetricsGroup OBJECT-GROUP
+    OBJECTS { acmeMetricIndex, acmeMetricName, acmeMetricLabels, acmeMetricValue }
+    STATUS current
+    DESCRIPTION "Every Prometheus sample."
+    ::= { acmeGroups 7 }
+
+acmeSystemGroup OBJECT-GROUP
+    OBJECTS { acmeDiskIndex, acmeDiskPath, acmeDiskSize, acmeDiskUsed, acmeDiskFree,
+              acmeDiskUsedPct, acmeDiskInodesPct, acmeCpuCores, acmeCpuBusy, acmeLoad1, acmeLoad5,
+              acmeLoad15, acmeMemTotal, acmeMemUsed, acmeSwapUsed, acmeDiskRead, acmeDiskWritten,
+              acmeNetIn, acmeNetOut, acmeBootTime, acmeClockSkew, acmeClockOffset, acmeClockSync,
+              acmeClockProblem, acmeSelinuxMode, acmeSelinuxDenials, acmeFirewallOn,
+              acmeOsUpdates, acmeOsSecurityUpdates, acmeOsRebootNeeded, acmeOsUpdatesChecked,
+              acmeSshdState, acmeKeyLost, acmeNameClash, acmeSnmpAsked, acmeSnmpAnswered,
+              acmeSnmpTraps, acmeHandWaiting }
+    STATUS current
+    DESCRIPTION "This node's machine."
+    ::= { acmeGroups 8 }
+
+acmeBackupGroup OBJECT-GROUP
+    OBJECTS { acmeBackupLast, acmeBackupAge, acmeBackupsKept, acmeBackupDaily, acmeRemoteBackupOn,
+              acmeRemoteBackupLast, acmeRemoteBackupLastOk, acmeRemoteBackupResult,
+              acmeRemoteBackupError, acmeBackupVerify, acmeBackupVerifyAt, acmeRemoteBackupIndex,
+              acmeRemoteBackupName, acmeRemoteBackupTargetResult, acmeRemoteBackupTargetAt,
+              acmeRemoteBackupTargetLastOk, acmeRemoteBackupTargetError }
+    STATUS current
+    DESCRIPTION "The backups."
+    ::= { acmeGroups 9 }
+
+acmeSignInGroup OBJECT-GROUP
+    OBJECTS { acmeAccounts, acmeAccountsLocal, acmeSessions, acmeLockedOut, acmeFailsCounted,
+              acmeKerberosOn, acmeKeytabWritten, acmeKeytabEntries, acmeKerberosError,
+              acmeCertLoginOn, acmeCertLoginListening, acmeCertLoginAuthorities,
+              acmeCertLoginError, acmeCrlIndex, acmeCrlUrl, acmeCrlOk, acmeCrlFetched,
+              acmeCrlNextUpdate, acmeCrlHoursLeft, acmeCrlError }
+    STATUS current
+    DESCRIPTION "The sign-ins."
+    ::= { acmeGroups 10 }
+
+acmeServicesGroup OBJECT-GROUP
+    OBJECTS { acmeShipIndex, acmeShipKind, acmeShipTarget, acmeShipSent, acmeShipTrouble,
+              acmeShipSaid, acmeIsemonOn, acmeSiemOn, acmeShipDropped, acmeMailWaiting,
+              acmeMailFailed, acmeDirectories, acmeDirectoriesDown, acmeSmsFails, acmeMailSent }
+    STATUS current
+    DESCRIPTION "Logs, mails, directories and SMS."
+    ::= { acmeGroups 11 }
+
+acmeNotificationsGroup NOTIFICATION-GROUP
+    NOTIFICATIONS { acmeAlertRaised, acmeAlertCleared, acmeTestTrap }
+    STATUS current
+    DESCRIPTION "The traps."
+    ::= { acmeGroups 12 }
+
+acmeCompliance MODULE-COMPLIANCE
+    STATUS current
+    DESCRIPTION "What every node of acme answers (1.0.108 and later)."
+    MODULE -- this module
+        MANDATORY-GROUPS { acmeInfoGroup, acmeDatabaseGroup, acmeAlertsGroup,
+                           acmeCertificatesGroup, acmeClusterGroup, acmeTrapObjectsGroup, acmeMetricsGroup,
+                           acmeSystemGroup, acmeBackupGroup, acmeSignInGroup, acmeServicesGroup,
+                           acmeNotificationsGroup }
+    ::= { acmeCompliances 1 }
 
 END

@@ -131,6 +131,25 @@ own - no snmpd, nothing in the renewals' way. *Settings → Monitoring → SNMPv
 | `1.3.6.1.6.3.10.2.1` | the engine: its ID, boots, time |
 | `1.3.6.1.6.3.15.1.1` | usmStats: unknown users, wrong digests, not in the time window... |
 | `1.3.6.1.4.1.8072.9999.9999.7` | **ACME-MIB** (`deploy/ACME-MIB.txt`): the version, node, database engine, high security, in a cluster or not, uptime; the database (up, latency); the alerts (how many bad and warn, and a table of each); the pages' certificates (days left); the certificates the manager keeps (`acmeManagedCertTable`: index = the certificate's id, name, CN, notAfter, daysLeft, state, issuer, state as a number, renewed by itself, deployments failed; its key, the twin's key, notAfter and days left of a dual one, tests failing; and `acmeManagedCounts`: total, ok, failed, expired, expiring, deployments failed, this node leads, jobs failed in 24 h, DNS queries, waiting, tests, tests failing, jobs running, modules failing, authorities ending within 90 days, deployments); since 1.0.78 also **`acmeDeployTable`** (`.6.4`: each deployment - certificate, target, state, in use, version deployed, last OK, last try, failures, last error), **`acmeTestTable`** (`.6.5`: each test of a certificate - its kind, state, in use, after which deployments, last run, last pass, failures, what it said), **`acmeModuleTable`** (`.6.6`: each source, validation, target and test - in use, last OK, last error; index = family × 1000000 + id) and **`acmeCaTable`** (`.6.7`: each authority of acme's own - subject, notAfter, days left, in use, signs here, CRL due); the nodes of the cluster; and `acmeMetricTable` - every sample of `/metrics`, name, labels and value |
+| `.7.1`, `.7.3` (1.0.108) | more of acme: the newest version offered and whether it is newer (`acmeUpdateAvailable`), when the daemon started, in maintenance, whether this node sends the alerts, when the upgrades were looked for; the database's size (`acmeDbSize`, bytes), its guard on and the rows it refused in the last hour, what the database said when the daemon lost it |
+| `.7.5` (1.0.108) | `acmeAlertsWorst` (ok, info, warn, bad as a number) and three new columns of `acmeAlertTable`: the level as a number, the node, the part of Settings |
+| `.7.6` (1.0.108) | of each certificate kept also its owner, source, last renewal, last try, failures in a row, last error, next try, version, serial, deployments, tests, valid from, number of names and the state with the names of the states (`acmeManagedCertTable` .16-.29); the counts of the last 24 hours (jobs done, renewals done and failed, deployments done and failed), the last look for what is due, revoked, waiting for an approval (`acmeManagedCounts` .17-.24); each deployment's and test's state as a number (`acmeDeployStateNum`, `acmeTestStateNum`), a module failing (`acmeModuleFailing`), an authority only known here and the hours until its CRL is due; **`acmeDnsServer`** (`.6.8`: on, answers, records, answers, refused, failed, rate limited) |
+| `.7.7` (1.0.108) | each node's version, maintenance, VIP address held, keepalived's role, this node, started, address (`acmeNodeTable` .5-.11); the cluster: its mode, the VIP address, how many hold it and who, the replication (not replicated, healthy, broken, lost), how far behind, its errors, the split (inactive, together, apart) and what this node does then, the node that renews, nodes up and known |
+| `.7.10` (1.0.108) | **`acmeSystem`** - this node's machine: `acmeDiskTable` (each file system acme lives on: size, used, free, % used, % inodes), cores, CPU busy %, the load averages (× 100), memory total and used, swap used, bytes read and written by the disks and through the network cards (Counter64), when it started, the clock's skew and offset (ms) and whether it is in sync, SELinux's mode and denials, acme's firewall on, the updates of the system waiting (all, security), a restart needed, when they were looked for, sshd as acme set it, the sealing key missing, a name clash, this agent's requests, answers and traps, things to do by hand |
+| `.7.11` (1.0.108) | **`acmeBackup`**: the newest backup kept on the node and its age, how many, every night or not; the backups sent away (on, last, last good, result, error) and `acmeRemoteBackupTable` (each place: result, sent, last good, error); the last try of putting one back |
+| `.7.12` (1.0.108) | **`acmeSignIn`**: accounts (local), sign-ins open, addresses and names locked out, wrong sign-ins counted; Windows (Kerberos): usable, keytab written here, its keys, its error; a certificate: usable, its port open, the authorities, its error, and `acmeCrlTable` (each CRL kept: kept, fetched, next update, hours left, error) |
+| `.7.13` (1.0.108) | **`acmeServices`**: `acmeShipTable` (each place the logs go - isemon, syslog: lines sent, in trouble and why), isemon and syslog on, lines dropped; mails waiting, failed and sent; directories and those not answering; SMS failed in a row |
+
+Every state is a number with a textual convention of the MIB (`AcmeTruth`, `AcmeCertState`,
+`AcmeDeployStatus`, `AcmeTestResult`, `AcmeSeverity`, `AcmeResult`, `AcmeReplication`,
+`AcmeSplit`, `AcmeVrrpRole`, `AcmeSelinux`, `AcmeTimeSync`); the module has conformance groups
+(`acmeConformance`, `.7.20`) and passes `smilint -l 6` but for the indexes, which are readable on
+purpose (a walk says each row's id). Nothing of before moved: 1.0.108 only adds. Prometheus has
+the same facts (`acme_load`, `acme_memory_bytes`, `acme_os_updates`, `acme_os_reboot_needed`,
+`acme_update_available`, `acme_accounts`, `acme_sessions`, `acme_signin_locked`,
+`acme_backups_kept`, `acme_rbackup_last_result`, `acme_backup_verify_result`,
+`acme_vip_holders`, `acme_split_apart`, `acme_selinux_mode`, `acme_firewall_on`,
+`acme_directories_down`, `acme_certlogin_crl_next_timestamp_seconds`...) - read once for both.
 
 acme has no enterprise number of its own: its objects are under net-snmp's
 `netSnmpPlaypen` (`.1.3.6.1.4.1.8072.9999.9999`), `.7`. Load `ACME-MIB.txt` into
@@ -143,9 +162,8 @@ snmpget  -v3 -l authPriv -u acmemon -a SHA-256 -A '...' -x AES -X '...' acme1 \
          1.3.6.1.4.1.8072.9999.9999.7.5.1.0 1.3.6.1.4.1.8072.9999.9999.7.3.1.0
 ```
 
-Zabbix: an SNMP interface on each node, SNMPv3, security level authPriv, the
-user, *SHA256* and *AES128* (or what was chosen) with the passphrases; items with
-the OIDs above (`acmeAlertsBad.0` > 0, `acmeDbUp.0` = 0...).
+The MIB is on the page too: *Settings → Monitoring → SNMPv3 → ACME-MIB* (or
+`acme --snmp-mib --out ACME-MIB.txt`). For Zabbix there is a whole template - below.
 
 ### Traps
 
@@ -177,6 +195,156 @@ authUser log,execute acmemon priv
 ```
 
 The page writes those lines with the engine IDs filled in.
+
+## Zabbix 7.0 (1.0.108)
+
+*Settings → Monitoring → SNMPv3 → Zabbix 7 template* downloads **"acme by SNMP"**
+(`acme_zabbix7_template.yaml`, Zabbix 7.0's YAML export) - or `acme --snmp-zabbix-template
+--out acme_zabbix7_template.yaml` on any node (it asks nothing of the daemon). It is made from
+`ACME-MIB.txt` each time: every OID, unit, value map and description is the MIB's, so the two
+always agree. Any role may download it - nothing secret is in it.
+
+What it holds:
+
+- **SNMP walks, everything else dependent on them** (Zabbix 7.0's `walk[...]` items, *SNMP walk
+  value*, *SNMP walk to JSON*): one bulk walk of the node every `{$ACME.INTERVAL}` (1m), one of
+  each table every `{$ACME.INTERVAL.TABLES}` (5m) - not a GET for each value.
+- **Items of the node** (about 150): version and a newer one, uptime, maintenance; the database
+  (up, latency, size, guard); the alerts (bad, warnings, the worst, and *Alerts now* - the list,
+  one a line); the certificates counted; acme's DNS server; the cluster (mode, VIP address and
+  who holds it, replication, split, the node that renews); CPU, load, memory, disks, network,
+  clock, SELinux, firewall, the updates of the system; the backups; the sign-ins (accounts,
+  sessions, lockouts, Kerberos keytab, certificate sign-in); logs, mails, directories, SMS;
+  calculated: memory %, load per core, certificates valid %; *SNMP agent availability*.
+- **Discoveries** (11), each with item, trigger and graph prototypes: *Certificates*
+  (`{#CERT.NAME}`, `{#CERT.CN}`, `{#CERT.ISSUER}`, `{#CERT.OWNER}`...: days left, expires,
+  state, renewed by itself, deployments and tests failing, failures in a row, last error, last
+  renewal, serial, the twin of a dual one - only discovered for a dual certificate),
+  *Deployments*, *Tests*, *Sources, validations, targets and tests* (the modules),
+  *Authorities*, *Certificates of the pages*, *Cluster nodes*, *File systems*, *Backup places*,
+  *CRLs* of the sign-in with a certificate, *Log destinations*. Filters by macros
+  (`{$ACME.CERT.NAME.MATCHES}`, `{$ACME.CERT.NAME.NOT_MATCHES}`, `{$ACME.CERT.OWNER.MATCHES}`,
+  `{$ACME.TARGET.MATCHES}`..., those switched off left out unless `{$ACME.*.ENABLED.MATCHES}`
+  is `.*`).
+- **Triggers** (about 75): a certificate expired (disaster), ending within
+  `{$ACME.CERT.CRIT}` (7) days (high) or `{$ACME.CERT.WARN}` (30) days (warning) - per
+  certificate with a context, `{$ACME.CERT.WARN:"web"}` = 60; its renewal failed (with the
+  error); deployments or tests failing; a deployment failed or waiting a day; a test failing or
+  not run lately; a module failing; an authority ending (`{$ACME.CA.WARN}`, `{$ACME.CA.CRIT}`)
+  or its CRL late; the certificate of the pages ending; a node not heard from, on another
+  version, keepalived in fault; the VIP address held by no node or both; replication broken,
+  lost or behind (`{$ACME.REPL.BEHIND.MAX}`); the nodes apart; the database down, slow, lost
+  lately, rows refused by its guard; the alerts of acme (bad: high, a warning: warning);
+  a newer acme; CPU, memory, load; a file system full (`{$ACME.DISK.PUSED.WARN}` 85,
+  `{$ACME.DISK.PUSED.CRIT}` 95, per path), inodes; the clock not in sync or off
+  (`{$ACME.CLOCK.OFFSET.MAX}`); security updates waiting, a restart needed; the sealing key
+  missing; a name clash; things to do by hand; SELinux not enforcing; no recent backup
+  (`{$ACME.BACKUP.AGE.MAX}`), a backup sent away failed or none lately
+  (`{$ACME.RBACKUP.AGE.MAX}`), a backup that cannot be put back, a place that failed; the
+  keytab not written; the certificate sign-in's port closed; a CRL out of date or not fetched;
+  a directory not answering; mails not going; the SMS gateway; logs not reaching isemon or
+  syslog, lines dropped; the daemon restarted; no SNMP data collection; and the traps.
+- **Value maps** for every state (the MIB's textual conventions), **graphs** (CPU, load,
+  memory, disk I/O, network, certificates by state, the jobs of 24 hours, deployments and tests,
+  alerts, database latency and size, replication, the agent's requests, the DNS server,
+  sign-ins, the mail queue) and graph prototypes (a certificate's days left and failures, a
+  file system's space as a pie, an authority's days left...).
+- **Tags** on everything: `component` (certificate, deployment, test, module, authority, web,
+  cluster, storage, backup, signin, logs, cpu, memory...), and `cert`, `owner`, `issuer`,
+  `target`, `node`, `filesystem` on what was discovered; `scope` on the triggers.
+- **A dashboard** (*acme*, on each host linked) with five pages: *Overview* (tiles of the
+  version, alerts, certificates kept, valid, expiring, failed, expired, deployments and tests
+  failing, the database; a honeycomb of every certificate's days left; gauges of CPU and memory;
+  graphs; the alerts now), *Certificates* (honeycombs of days left, deployments, tests,
+  authorities, modules, the pages' certificates; a pie of the states), *System*, *Cluster and
+  backups*, *Sign-in and services*.
+
+### Importing it
+
+1. Zabbix 7.0: *Data collection → Templates → Import*, choose the file, *Import*. (Imported
+   again after an upgrade of acme, it updates itself - the same UUIDs; tick *Delete missing* to
+   drop what a newer template no longer has.)
+2. *Data collection → Hosts → Create host* for **each node** (by its own address, not the VIP
+   address - each node answers for itself): *Templates*: `acme by SNMP`; *Interfaces → Add →
+   SNMP*: the node's address, port 161 (or the one set), *SNMP version* SNMPv3, *Security name*
+   the user of *Settings → Monitoring*, *Security level* authPriv, *Authentication protocol*
+   SHA256 (SHA1, SHA512 - as set), *Privacy protocol* AES128 (or AES256 - net-snmp's AES256,
+   which acme speaks; not AES256C), the two passphrases, *Use combined requests* on. The fields
+   can hold the template's macros: `{$ACME.SNMP.USER}`, `{$ACME.SNMP.AUTHPASS}` and
+   `{$ACME.SNMP.PRIVPASS}` (secret text), set on the host. acme answers no SNMPv1 or v2c.
+3. *Only from* (*Settings → Monitoring*) must take the Zabbix server's (or proxy's) address.
+4. *Macros*: the thresholds above, per host or per context.
+
+An importable host, for the API or a second import (*Data collection → Hosts → Import*):
+
+```yaml
+zabbix_export:
+  version: '7.0'
+  host_groups:
+    - uuid: 6f6799aa69e844b4b3918f779f2abf08
+      name: acme
+  hosts:
+    - host: acme1
+      name: 'acme1 (node 1)'
+      templates:
+        - name: 'acme by SNMP'
+      groups:
+        - name: acme
+      interfaces:
+        - type: SNMP
+          ip: 192.0.2.11
+          port: '161'
+          details:
+            version: SNMPV3
+            securityname: '{$ACME.SNMP.USER}'
+            securitylevel: AUTHPRIV
+            authprotocol: SHA256
+            authpassphrase: '{$ACME.SNMP.AUTHPASS}'
+            privprotocol: AES128
+            privpassphrase: '{$ACME.SNMP.PRIVPASS}'
+          interface_ref: if1
+      macros:
+        - macro: '{$ACME.SNMP.USER}'
+          value: acmemon
+        - macro: '{$ACME.SNMP.AUTHPASS}'
+          type: SECRET_TEXT
+          value: '...'
+        - macro: '{$ACME.SNMP.PRIVPASS}'
+          type: SECRET_TEXT
+          value: '...'
+```
+
+### The traps in Zabbix
+
+The template's *SNMP traps of acme* (`snmptrap["acmeAlertRaised|..."]`, a log) takes
+`acmeAlertRaised`, `acmeAlertCleared` and `acmeTestTrap`; *Trap: something went wrong* (high) and
+*Trap: a warning* raise a problem for each trap (closed by hand), *Trap: the test trap came*
+says the receiver works. *SNMP traps (fallback)* keeps the rest. On the Zabbix server (or
+proxy):
+
+1. snmptrapd with the users of each node's engine (the page writes the lines, above) and
+   Zabbix's receiver: `perl do "/usr/share/zabbix/zabbix_trap_receiver.pl";` (or
+   `traphandle default /usr/sbin/zabbix_trap_handler.sh`) in `snmptrapd.conf`; load
+   `ACME-MIB.txt` (`mibs +ACME-MIB`, the file in `/usr/share/snmp/mibs`) to see names, not
+   numbers - the template takes both.
+2. `zabbix_server.conf`: `StartSNMPTrapper=1`, `SNMPTrapperFile=` the receiver's file
+   (`/var/log/snmptrap/snmptrap.log`).
+3. *Settings → Monitoring → SNMPv3*: *Traps when something is wrong* on, *Where traps go* the
+   Zabbix server, then *Send a test trap* - *Trap: the test trap came* opens for
+   `{$ACME.TRAP.TEST.WINDOW}` (10m).
+
+The trap is matched to the host by its source address: the node's own.
+
+### What was checked
+
+The template is made the same way each time and checked by `test/test_snmp.py`: YAML that
+parses, every UUID a UUIDv4 of its own, every key once, every OID it walks or reads an object of
+ACME-MIB and answered by a running agent, every value map, item, graph and macro it names
+there, every table of the MIB discovered. It was also put through Zabbix 7.0's own import code
+(7.0.32: the YAML reader, the import schema, the converters and normalizer of an import, the
+item key parser, the trigger expression and calculated formula parsers and validators, the
+API's checks of preprocessing steps and UUIDs, the fields each dashboard widget has) - not
+imported into a running Zabbix server.
 
 ## The alerts of the database and of the VIP address (1.0.194)
 

@@ -1693,6 +1693,63 @@ print(json.dumps([go("ncp", "cas-nc", False), go("ncok", "cas-nc", False), WHY, 
         finally:
             self.on(admin_certlogin=0)
 
+    def test_30_the_cards_drawn_again(self):
+        """Settings -> Accounts in Chromium (Playwright, test/signin_redraw_page.js): every change
+        on the cards of Windows, of a certificate and of the sign-in page shows without F5 - a
+        switch saved, a keytab and the authorities put in and taken away, the port, Which
+        account, and the port taken by something a moment after the switch (as nginx takes it
+        once root's helper wrote its server) - the card looks again by itself for a while."""
+        node = shutil.which('node')
+        if not node or not shutil.which('php'):
+            self.skipTest('no node or php here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          cwd=ROOT).returncode != 0:
+            self.skipTest('no playwright for node here')
+        # A keytab as ktpass makes it: HTTP/<name>@<realm>, one AES-256 key (no KDC needed).
+        realm, comps = b'CORPNET.LOC', [b'HTTP', HOST.encode()]
+        rec = len(comps).to_bytes(2, 'big') + len(realm).to_bytes(2, 'big') + realm + \
+            b''.join(len(c).to_bytes(2, 'big') + c for c in comps) + (1).to_bytes(4, 'big') + \
+            int(time.time()).to_bytes(4, 'big') + b'\x02' + (18).to_bytes(2, 'big') + \
+            (32).to_bytes(2, 'big') + os.urandom(32) + (2).to_bytes(4, 'big')
+        work = tempfile.mkdtemp(prefix='acme-redraw-')
+        keytab = os.path.join(work, 'http.keytab')
+        with open(keytab, 'wb') as f:
+            f.write(b'\x05\x02' + len(rec).to_bytes(4, 'big') + rec)
+        web = os.path.join(work, 'web')
+        shutil.copytree(os.path.join(ROOT, 'web'), web)
+        api_php = os.path.join(web, 'acme-api.php')
+        with open(api_php, encoding='utf-8') as f:
+            text = f.read()
+        with open(api_php, 'w', encoding='utf-8') as f:
+            f.write(text.replace('/run/acme/', os.path.join(self.tmp, 'run') + '/'))
+        port, cport = free_port(), free_port()
+        php = subprocess.Popen(['php', '-S', '127.0.0.1:%d' % port], cwd=web,
+                               env=dict(os.environ, PHP_CLI_SERVER_WORKERS='4'),
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            for _ in range(60):
+                try:
+                    urllib.request.urlopen('http://127.0.0.1:%d/admin/index.php' % port, timeout=2)
+                    break
+                except OSError:
+                    time.sleep(0.3)
+            got = subprocess.run([node, os.path.join(HERE, 'signin_redraw_page.js'),
+                                  'http://127.0.0.1:%d' % port, 'tester', self.pw, keytab,
+                                  os.path.join(self.pki, 'cas.pem'), str(cport)],
+                                 capture_output=True, text=True, timeout=300, cwd=ROOT)
+            self.assertEqual(got.returncode, 0, got.stderr[-2000:])
+            seen = json.loads(got.stdout.strip().splitlines()[-1])
+        finally:
+            php.terminate()
+            php.wait(10)
+            self.on(admin_krb=0, admin_certlogin=0, admin_certlogin_match='strong',
+                    certlogin_port=8443)
+            self.call('POST', '/api/kerberos', {'action': 'drop'}, self.admin)
+            shutil.rmtree(work, ignore_errors=True)
+        self.assertNotIn('error', seen, seen.get('error'))
+        self.assertEqual([k for k, v in seen['checks'].items() if not v], [], seen)
+        self.assertTrue(seen['ok'], seen)
+
     def test_14_kerberos_untouched(self):
         """The shared code: a Kerberos sign-in's session and its words as before."""
         self.assertEqual(self.py('print(json.dumps(E.sso_only_said("admin")))'),

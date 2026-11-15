@@ -1090,7 +1090,8 @@ function settle(host) {
    sight) - each of those takes what is in view then as the new thing held.
    Room the page lost under the frame (a row closed at the very bottom) is
    kept as empty room until the reader scrolls. A box emptied for "Loading…"
-   keeps its height until what it was waiting for is in. */
+   keeps its height until what it was waiting for is in. Neither in a popup: it is as tall as
+   what is in it (1.0.108). */
 var VIEWKEEP = {at: null, user: 0, scrolled: 0, mut: 0, busy: false, held: false, tops: null,
             rooms: [], locks: [], focus: null, own: null, roomWait: 8000, drag: false};
 var VIEW_ST = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
