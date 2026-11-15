@@ -261,7 +261,18 @@ def mine(h, s, rows=None):
         one['team'] = str(r.get('owner') or '').strip().lower() in tms
         # asked for by this very person (1.0.80): its Approve was offered, then refused
         one['asked_by_me'] = bool(askers_of(st_, r['id']) & ids)
-        if r.get('state') == WAITING:
+        # out of the waiting state with its approval never noted (1.0.107): offered Approve
+        # and Decline as a waiting one - only `acme --decline` declined it before
+        stuck = r.get('state') != WAITING and approval_missing(st_, r)
+        if stuck:
+            one['stuck'] = True
+        if r.get('state') == WAITING or stuck:
+            # Approve and Decline both need the right approve (or manage) - need_right
+            no_right = not ({'approve', 'manage'} & set(one['may']))
+            right_why = ('you may not approve this certificate - its team gives you the right '
+                         'approve for that')
+            one['may_decline'], one['decline_why'] = (False, right_why) if no_right \
+                else decline_may(r)
             # whose names it asks for (1.0.102) - the certificates read once for the list
             if not held_rows:
                 held_rows.append(holder_rows(st_))
@@ -274,6 +285,8 @@ def mine(h, s, rows=None):
                     'approves it')
             elif E.portal_sees_all(s):
                 one['may_approve'], one['approve_why'] = True, ''
+            elif no_right:
+                one['may_approve'], one['approve_why'] = False, right_why
             else:
                 why = held_refused(st_, r, portal_may_owner(names, tms, defined), held, defined)
                 one['may_approve'], one['approve_why'] = not why, why
@@ -559,10 +572,34 @@ def admin_may_approve(store, row, s, held=None, defined=None):
                        'certificate adds it here: Add a certificate)')
     if s.get('role') == 'fulladmin' or s.get('cli'):
         return True, ''
+    why = admin_may_act(store, row, s)
+    if why:
+        return False, why
     from acmelib.certs import teams as T
     why = held_refused(store, row, lambda o: T.cert_may(store, s, {'owner': o}, 'approve')
                        or T.cert_may(store, s, {'owner': o}, 'manage'), held, defined)
     return (not why), why
+
+
+def admin_may_act(store, row, s):
+    """Why this session of the administration may not approve or decline the request at all -
+    '' when it may (1.0.107): the role and the team's right /api/certs/approve checks (need,
+    teams.guard), said beforehand."""
+    if s.get('role') == 'fulladmin' or s.get('cli'):
+        return ''
+    if not A.may(s, 'certadmin'):
+        return A.ROLE_WORDS['certadmin']
+    from acmelib.certs import teams as T
+    if not (T.cert_may(store, s, row, 'approve') or T.cert_may(store, s, row, 'manage')):
+        return ('you may not do that with this certificate: its team does not give you the '
+                'right "approve"')
+    return ''
+
+
+def admin_may_decline(store, row, s):
+    """(whether this session of the administration may decline the request, why not)."""
+    why = admin_may_act(store, row, s)
+    return (False, why) if why else decline_may(row)
 
 
 def askers_of(store, cid):
@@ -1218,6 +1255,16 @@ def approval_missing(store, row):
         return False
     a = asker(store, row['id'])
     return bool(a.get('waits') and a.get('approved') is None)
+
+
+def decline_may(row):
+    """(whether Decline is taken for a request waiting for approval or stuck (approval_missing),
+    why not): one stuck with a certificate issued already is revoked instead (approve_request).
+    `row` the whole row - its cert_pem read."""
+    if row.get('state') != WAITING and row.get('cert_pem'):
+        return False, ('a certificate was issued for it already - it is not declined: revoke it '
+                       'instead')
+    return True, ''
 
 
 def approve_request(store, row, by, ok, why):

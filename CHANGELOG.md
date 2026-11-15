@@ -6,7 +6,14 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.107 - not released
 
-(nothing yet)
+- **A request stuck without its approval is approved or declined on the pages.** One asked for
+  on the portal that left the waiting state but whose approval was never recorded could be
+  declined only with `acme --decline`. Now the certificate list tags it "approval missing", and
+  its detail - in the administration and on the portal - says so and offers Approve and Decline
+  through the same dialogs as a waiting one, by the same checks (not by the one who asked, names
+  another owner holds by that owner's approver, the right approve); a button that would be
+  refused is off with the reason, and one with a certificate issued is revoked instead of
+  declined.
 
 ## 1.0.106 - 2026-11-15
 

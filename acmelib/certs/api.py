@@ -239,16 +239,24 @@ def cert_list(store, search='', state='', issuer='', tag='', owner='', page=1, p
         from acmelib.certs import portal as _portal
         one['last_job'] = _portal.last_job(store, r['id'])
         one['deploy_hold'] = S.deploy_hold(store, r['id']) is not None   # the console (1.0.88)
-        if r.get('state') == 'pending-approval':
+        # out of the waiting state with its approval never noted (1.0.107): offered Approve
+        # and Decline as a waiting one, and tagged in the list
+        full = r
+        if r.get('state') != 'pending-approval' and _portal.approval_missing(store, r):
+            one['stuck'] = True
+            full = S.cert_need(store, r['id'])          # its cert_pem (not in the list's columns)
+        if r.get('state') == 'pending-approval' or one.get('stuck'):
             # whose names it asks for (1.0.102) - the certificates read once for the list
             if not held_rows:
                 held_rows.extend([_portal.holder_rows(store), _portal.defined_teams(store)])
             held = _portal.held_of(store, r, held_rows[0])
             one.update(_portal.held_public(store, r, held_rows[0], held_rows[1], held))
             if s is not None:
-                # whether its Approve would be refused here, and why (offered, then refused)
+                # whether its Approve (and Decline) would be refused here, and why (offered,
+                # then refused)
                 one['may_approve'], one['approve_why'] = _portal.admin_may_approve(
                     store, r, s, held, held_rows[1])
+                one['may_decline'], one['decline_why'] = _portal.admin_may_decline(store, full, s)
         out.append(one)
     return {'rows': out, 'total': total, 'page': page, 'per': per}
 
@@ -436,11 +444,15 @@ def key_type_alt_of(v, key_type):
 def _cert_one(h, s):
     out = cert_one(h.store, h.arg('id') or h.arg('name'), may(s, 'fulladmin'))
     c = out['cert']
-    if c.get('state') == 'pending-approval':
-        # whether its Approve would be refused here, and why (the list says it too)
-        from acmelib.certs import portal as _portal
-        c['may_approve'], c['approve_why'] = _portal.admin_may_approve(
-            h.store, S.cert_need(h.store, c['id']), s)
+    from acmelib.certs import portal as _portal
+    row = S.cert_need(h.store, c['id'])
+    # out of the waiting state with its approval never noted (1.0.107): as a waiting one
+    if c.get('state') != 'pending-approval' and _portal.approval_missing(h.store, row):
+        c['stuck'] = True
+    if c.get('state') == 'pending-approval' or c.get('stuck'):
+        # whether its Approve (and Decline) would be refused here, and why (the list says it too)
+        c['may_approve'], c['approve_why'] = _portal.admin_may_approve(h.store, row, s)
+        c['may_decline'], c['decline_why'] = _portal.admin_may_decline(h.store, row, s)
     return out
 
 

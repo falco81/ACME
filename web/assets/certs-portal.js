@@ -261,6 +261,13 @@ function row(c) {
     nc.appendChild(document.createTextNode(' '));
     nc.appendChild(g);
   }
+  /* out of the waiting state with its approval never recorded (1.0.107) */
+  if (c.stuck) {
+    var am = el('span', 'tag warn', 'approval missing');
+    explain(am, 'It left the waiting for approval, but its approval was never recorded - nothing is issued for it until it is approved.');
+    nc.appendChild(document.createTextNode(' '));
+    nc.appendChild(am);
+  }
   nc.appendChild(namesChips(c.names, 3));
   tr.appendChild(nc);
   tr.appendChild(data('td', 'muted', c.issuer || '–'));
@@ -301,14 +308,18 @@ function certDialog(id, fresh) {
   var may = c.may || ['view'];
   var manage = may.indexOf('manage') >= 0, approve = manage || may.indexOf('approve') >= 0;
   var waiting = c.state === 'pending-approval';
-  if (approve && waiting && !c.asked_by_me) {
-    buttons.push({words: 'Decline', icon: 'ban', go: function () { modalOver(function () { declineDialog(c); }, function () { certDialog(c.id); }); }});
+  /* out of the waiting state, its approval never recorded (1.0.107): approved or declined as a
+     waiting one - Decline off, the why said, for one with a certificate (revoked instead) */
+  var stuck = !!c.stuck;
+  if (approve && (waiting || stuck) && !c.asked_by_me) {
+    var noNo = c.may_decline === false;
+    buttons.push({words: 'Decline', icon: 'ban', disabled: noNo, title: noNo ? c.decline_why : '', go: function () { modalOver(function () { declineDialog(c); }, function () { certDialog(c.id); }); }});
     /* one it would refuse (names another owner holds: may_approve): offered off, the why said */
     var noOk = c.may_approve === false;
     buttons.push({words: 'Approve', cls: 'primary', icon: 'check', disabled: noOk, title: noOk ? c.approve_why : '', go: function (b) {
       busy(b, true);
-      api('cert-approve', {id: c.id, ok: 1}).then(function () {
-        toast('approved - it is being issued', 'good');
+      api('cert-approve', {id: c.id, ok: 1}).then(function (d) {
+        toast(d && d.job_id ? 'approved - it is being issued' : 'approved', 'good');
         load();
       }).catch(oops).then(function () { busy(b, false); });
     }});
@@ -358,12 +369,20 @@ function certDialog(id, fresh) {
       : stateNote('warn', 'Waiting for approval', approve && c.may_approve !== false
         ? 'Someone asked for it; you may approve or decline it. They are told by mail.'
         : 'Someone asked for it; an approver of its team, or an administrator, approves it (or not).'));
+    if (stuck) body.appendChild(c.asked_by_me
+      ? stateNote('warn', 'Its approval was never recorded', 'You asked for it; it left the waiting for approval, but its approval was not recorded - an administrator approves it (or not).')
+      : stateNote('warn', 'Its approval was never recorded', approve && c.may_decline === false
+        ? 'It left the waiting for approval, but its approval was not recorded - approve it, or revoke it.'
+        : approve ? 'It left the waiting for approval, but its approval was not recorded - nothing is issued for it until it is approved. Approve it, or decline it.'
+        : 'It left the waiting for approval, but its approval was not recorded - an approver of its team, or an administrator, approves it (or not).'));
+    if (stuck && approve && !c.asked_by_me && c.may_decline === false && c.decline_why)
+      body.appendChild(stateNote('crit', 'You cannot decline it', c.decline_why));
     /* why its Approve is off - unless the note on the names of another owner below says it */
-    if (waiting && approve && !c.asked_by_me && c.may_approve === false && c.approve_why
+    if ((waiting || stuck) && approve && !c.asked_by_me && c.may_approve === false && c.approve_why
         && !(c.held_words && c.held_words.length))
       body.appendChild(stateNote('crit', 'You cannot approve it', c.approve_why));
     /* Names another owner's certificates hold (1.0.102): only that owner's approver approves it. */
-    if (c.state === 'pending-approval' && c.held_words && c.held_words.length) {
+    if ((waiting || stuck) && c.held_words && c.held_words.length) {
       var hn = stateNote('warn', 'Names of another owner', 'Its names are held by certificates of another owner - only someone who may approve (or manage) for that owner, or a full administrator, approves it:');
       var hl = el('ul', '');
       c.held_words.forEach(function (w) { hl.appendChild(el('li', '', w)); });

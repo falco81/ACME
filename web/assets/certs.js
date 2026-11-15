@@ -3710,6 +3710,8 @@ function approveDialog(c, ok, back) {
        that owns it */
     var by = String(c.created_by || '');
     var asker = by.indexOf('portal:') === 0 ? by.slice(7) : String(c.owner || '');
+    var noIssue = !!c.stuck && c.state !== 'new';
+    var off = ok ? c.may_approve === false : c.may_decline === false;
     return {
       size: 'medium',
       build: function (body) {
@@ -3726,19 +3728,25 @@ function approveDialog(c, ok, back) {
         }
         /* refused if tried (may_approve, from the server): said, and Approve not offered */
         if (ok && c.may_approve === false && c.approve_why) body.appendChild(el('p', 'note bad', c.approve_why));
-        body.appendChild(el('p', 'note', ok
+        /* ...and Decline of a stuck one with a certificate issued (may_decline, 1.0.107) */
+        if (!ok && c.may_decline === false && c.decline_why) body.appendChild(el('p', 'note bad', c.decline_why));
+        /* out of the waiting state, its approval never recorded (1.0.107): issued now only if
+           it never was - otherwise its approval is only recorded */
+        if (c.stuck) body.appendChild(el('p', 'note warn', 'It left the waiting for approval, but its approval was never recorded.'));
+        var told = String(asker).indexOf('local:') === 0
+          ? (asker.slice(6) || 'the person') + ' is told by mail, if their account has an e-mail address.'
+          : (asker || 'the person') + ' is told by mail, if the directory has their mail.';
+        body.appendChild(el('p', 'note', ok && noIssue ? 'Its approval is recorded now - nothing is issued at once. ' + told
+          : ok
           /* as it is (1.0.48): "renewed by itself" for one renewed only when asked, "the directory's
              mail" for an account of acme's own */
           ? (truthy(c.auto_renew) ? 'It is issued now from ' + (c.issuer || '?') + ' and renewed by itself after.'
-                                  : 'It is issued now from ' + (c.issuer || '?') + ' and renewed only when asked.')
-            + ' ' + (String(asker).indexOf('local:') === 0
-              ? (asker.slice(6) || 'the person') + ' is told by mail, if their account has an e-mail address.'
-              : (asker || 'the person') + ' is told by mail, if the directory has their mail.')
+                                  : 'It is issued now from ' + (c.issuer || '?') + ' and renewed only when asked.') + ' ' + told
           : 'It is not issued. ' + (asker || 'The person') + ' sees it declined on the portal, with what you write, and is told by mail.'));
         body.appendChild(wideField(ok ? 'A word to them' : 'Why', why, ''));
         body.appendChild(s);
       },
-      buttons: [{words: 'Close', close: true}, {words: ok ? 'Approve and issue' : 'Decline', cls: ok ? 'primary' : 'danger', once: true, icon: ok ? 'check' : 'ban', disabled: ok && c.may_approve === false, go: function (b) {
+      buttons: [{words: 'Close', close: true}, {words: ok ? (noIssue ? 'Approve' : 'Approve and issue') : 'Decline', cls: ok ? 'primary' : 'danger', once: true, icon: ok ? 'check' : 'ban', disabled: off, go: function (b) {
         busy(b, true);
         capi('certs/approve', {id: c.id, ok: ok, why: why.value}).then(function (d) {
           CT.refresh();
@@ -3784,6 +3792,13 @@ function certRow(c) {
     su.style.marginLeft = '6px';
     explain(su, 'Imported from its source: its validation, profile, renewal and targets are not set up yet - open it and press Set it up.');
     nc.appendChild(su);
+  }
+  /* out of the waiting state with its approval never recorded (1.0.107): found in the list */
+  if (c.stuck) {
+    var am = el('span', 'tag warn', 'approval missing');
+    am.style.marginLeft = '6px';
+    explain(am, 'It left the waiting for approval, but its approval was never recorded - nothing is issued for it until it is approved. Open it to approve or decline it.');
+    nc.appendChild(am);
   }
   tr.appendChild(nc);
   tr.appendChild(td('', namesChips(c.names || c.cn, 2)));
@@ -4033,8 +4048,11 @@ function certPeek(id) {
     if (MANAGE && deploys.length && c.not_after && c.state !== 'revoked') buttons.push({words: 'Deploy now', icon: 'deploy', go: function (b) { certDeploy(c, b, back); }});
     if (MANAGE && c.issuer && c.state === 'revoked') buttons.push({words: 'Issue a new one', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
     if (MANAGE && c.issuer && c.state !== 'revoked' && c.state !== 'revoke-failed' && !waiting && !asked(c)) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
-    if (MANAGE && c.state === 'pending-approval') {
-      buttons.push({words: 'Decline', icon: 'ban', go: function () { over(function () { approveDialog(c, false, back); }, back); }});
+    /* ...and one out of the waiting state whose approval was never recorded (1.0.107: only
+       `acme --decline` declined it) - Decline off, the why said, for one with a certificate */
+    if (MANAGE && (c.state === 'pending-approval' || c.stuck)) {
+      var noNo = c.may_decline === false;
+      buttons.push({words: 'Decline', icon: 'ban', disabled: noNo, title: noNo ? c.decline_why : '', go: function () { over(function () { approveDialog(c, false, back); }, back); }});
       /* one it may not approve (its own, or names another owner holds): not offered, the why said */
       var noOk = c.may_approve === false;
       buttons.push({words: 'Approve', cls: 'primary', icon: 'check', disabled: noOk, title: noOk ? c.approve_why : '', go: function () { over(function () { approveDialog(c, true, back); }, back); }});
@@ -4179,8 +4197,19 @@ function certBody(body, c, versions, deploys, jobs, back) {
     lw.appendChild(el('span', 'muted small', dayOnly(c.not_after)));
     body.appendChild(lw);
   }
+  /* out of the waiting state, its approval never recorded (1.0.107): said, Approve and Decline
+     offered below */
+  if (c.stuck && MANAGE) {
+    var sn = el('div', 'note warn ct-held');
+    sn.appendChild(el('b', '', 'Its approval was never recorded'));
+    sn.appendChild(el('div', '', c.may_decline === false
+      ? 'It left the waiting for approval, but its approval was not recorded - approve it, or revoke it.'
+      : 'It left the waiting for approval, but its approval was not recorded - nothing is issued for it until it is approved. Approve it, or decline it.'));
+    if (c.may_decline === false && c.decline_why) sn.appendChild(el('div', 'muted', c.decline_why));
+    body.appendChild(sn);
+  }
   /* waiting for approval, but not by this one (may_approve): why its Approve is off */
-  if (c.state === 'pending-approval' && c.may_approve === false && c.approve_why && MANAGE) {
+  if ((c.state === 'pending-approval' || c.stuck) && c.may_approve === false && c.approve_why && MANAGE) {
     var na = el('div', 'note warn ct-held');
     na.appendChild(el('b', '', 'You cannot approve it'));
     na.appendChild(el('div', '', c.approve_why));

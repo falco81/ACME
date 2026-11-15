@@ -906,6 +906,113 @@ class Approvals(unittest.TestCase):
                                 {'id': cid, 'ok': 0, 'why': 'no'}), 409)
         self.assertEqual(S_state(cid), 'new')
 
+    def test_stuck_offered_approve_and_decline(self):
+        """1.0.107: a request stuck out of the wait (approval_missing) could be declined only
+        with `acme --decline` - the pages offered neither button. Now its rows say `stuck`, and
+        may_approve / may_decline with why, by the checks of the routes: the asker, names
+        another owner holds, the rights; one with a certificate is not declined (revoked)."""
+        from acmelib.certs import store as S
+        E.CONFIG.update(portal_cert_auto=0)
+        T.save_team(STORE, {'name': 'Web', 'old_name': 'Web', 'members': [
+            'local:eva=request', 'local:appr=approve', 'local:both=approve',
+            'local:cweb=manage', 'local:jan=request,approve', 'novak=request',
+            'local:vera=view']}, 'x')
+        if not STORE.account('vera'):
+            STORE.add_account('vera', 'readonly', 'Local-Only-Pw-77!xvera')
+
+        def stuck(name, state='pending', **more):
+            cid = self.ask(self.person('eva'), [name])['id']
+            _portal.mark_waiting(STORE, cid)
+            STORE.db.update('certs', cid, dict(state=state, **more))
+            self.assertTrue(_portal.approval_missing(STORE, S.cert_get(STORE, cid)))
+            return cid
+        a = stuck('s1.example.test', 'new')
+        b = stuck('s2.example.test', 'ok', cert_pem='PEM')
+        h = stuck('mail.example.test')
+
+        def portal_row(s, cid):
+            rows = E.ROUTES[('GET', '/api/portal/certs')](FakeH(portal=s))['rows']
+            return [r for r in rows if r['id'] == cid][0]
+        appr = self.person('appr')
+        one = portal_row(appr, a)
+        self.assertIs(one['stuck'], True)
+        self.assertEqual((one['may_approve'], one['may_decline']), (True, True))
+        one = portal_row(appr, b)
+        self.assertEqual((one['may_approve'], one['may_decline']), (True, False))
+        self.assertIn('revoke it instead', one['decline_why'])
+        one = portal_row(appr, h)
+        self.assertIs(one['may_approve'], False)
+        self.assertIn('the team Mail (mail.example.test)', one['approve_why'])
+        one = portal_row(self.person('eva'), a)                     # the asker
+        self.assertIs(one['may_approve'], False)
+        self.assertIn('you asked for it yourself', one['approve_why'])
+        one = portal_row(self.person('vera'), a)                    # may only look
+        self.assertEqual((one['may_approve'], one['may_decline']), (False, False))
+        self.assertIn('the right approve', one['approve_why'])
+        self.assertEqual(one['approve_why'], one['decline_why'])
+        self.assertEqual(status(E.ROUTES[('POST', '/api/portal/cert_approve')],
+                                FakeH(portal=self.person('vera'),
+                                      body={'id': a, 'ok': 0, 'why': 'no'})), 403)
+        # a row not stuck says nothing of it
+        self.assertNotIn('stuck', portal_row(self.person('both'), self.held))
+        # the administration: the list and the view
+        listed = {r['id']: r for r in call('GET', '/api/certs')['rows']}
+        self.assertTrue(listed[a]['stuck'] and listed[b]['stuck'] and listed[h]['stuck'])
+        self.assertNotIn('stuck', listed[self.held])
+        self.assertNotIn('may_approve', listed[self.held])
+        self.assertEqual((listed[a]['may_approve'], listed[a]['may_decline']), (True, True))
+        self.assertEqual((listed[b]['may_approve'], listed[b]['may_decline']), (True, False))
+        self.assertIn('revoke it instead', listed[b]['decline_why'])
+        view = call('GET', '/api/certs/one', args={'id': b})['cert']
+        self.assertIs(view['stuck'], True)
+        self.assertEqual(view['decline_why'], listed[b]['decline_why'])
+        self.assertNotIn('stuck', call('GET', '/api/certs/one', args={'id': self.held})['cert'])
+        # a scoped certificate administrator of Web alone: not the held one
+        view = call('GET', '/api/certs/one', args={'id': h}, who='cweb', role='certadmin')['cert']
+        self.assertIs(view['may_approve'], False)
+        self.assertIn('the team Mail (mail.example.test)', view['approve_why'])
+        self.assertIs(view['may_decline'], True)
+        # ...of Mail alone: none of Web's is seen, stuck or not
+        seen = call('GET', '/api/certs', who='cmail', role='certadmin')['rows']
+        self.assertEqual({r['id'] for r in seen} & {a, b, h}, set())
+        self.assertEqual(status(call, 'GET', '/api/certs/one', args={'id': a}, who='cmail',
+                                role='certadmin'), 403)
+        # a read-only account: neither, and why
+        E.CONFIG.update(certs_readonly_all=1)
+        try:
+            ro = call('GET', '/api/certs/one', args={'id': a}, who='ro', role='readonly')['cert']
+            self.assertEqual((ro['may_approve'], ro['may_decline']), (False, False))
+            self.assertIn('certificate administrator', ro['approve_why'])
+            row = [r for r in call('GET', '/api/certs', who='ro', role='readonly')['rows']
+                   if r['id'] == a][0]
+            self.assertEqual((row['may_approve'], row['approve_why']),
+                             (False, ro['approve_why']))
+        finally:
+            E.CONFIG.update(certs_readonly_all=0)
+        # Approve and Decline through the routes - the portal's and the administration's
+        got = E.ROUTES[('POST', '/api/portal/cert_approve')](FakeH(portal=appr,
+                                                                   body={'id': a, 'ok': 1}))
+        self.assertTrue(got.get('job_id'))                          # 'new': issued now
+        self.assertEqual(S.unapproved_why(STORE, S.cert_get(STORE, a)), '')
+        c = stuck('s3.example.test')
+        self.assertEqual(status(E.ROUTES[('POST', '/api/portal/cert_approve')],
+                                FakeH(portal=appr, body={'id': c, 'ok': 0, 'why': 'no'})), 200)
+        self.assertEqual(S_state(c), 'declined')
+        d = stuck('s4.example.test')
+        self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': d, 'ok': 1}), 200)
+        self.assertEqual(S.unapproved_why(STORE, S.cert_get(STORE, d)), '')
+        e = stuck('s5.example.test')
+        self.assertEqual(status(call, 'POST', '/api/certs/approve',
+                                {'id': e, 'ok': 0, 'why': 'no'}), 200)
+        self.assertEqual(S_state(e), 'declined')
+        # the one with a certificate: as said - not declined
+        self.assertEqual(status(call, 'POST', '/api/certs/approve',
+                                {'id': b, 'ok': 0, 'why': 'no'}), 409)
+        # repaired or declined: stuck no more
+        listed = {r['id']: r for r in call('GET', '/api/certs')['rows']}
+        for cid in (a, c, d, e):
+            self.assertNotIn('stuck', listed[cid])
+
     def test_meta_read_locked_in_a_mariadb_transaction(self):
         """1.0.106 (final review): on MariaDB (REPEATABLE READ) each try of the compare-and-
         swap inside approve_request's transaction read the snapshot again - never what another

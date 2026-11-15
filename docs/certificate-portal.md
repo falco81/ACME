@@ -212,6 +212,16 @@ In a certificate's detail, **Approve** (a word to the person, optional) issues
 it at once and shows its job; **Decline** (why - required) puts it in the
 state **`declined`**, with the reason shown to the person on the portal.
 
+A request that left the waiting state but whose approval was never recorded
+(a stop at the wrong moment before 1.0.106) is tagged **approval missing** in
+the list; its detail - in the administration and on the portal, for those who
+may approve it - offers **Approve** (its approval recorded; issued if it never
+was) and **Decline** as for a waiting one, by the same checks: never by the one
+who asked, names another owner holds by that owner's approver, and not
+declined once it has a certificate (revoke it instead). Each such row carries
+`stuck: true`, `may_approve`/`approve_why` and `may_decline`/`decline_why` -
+an off button says why. `acme --decline NAME --why TEXT` still declines one too.
+
 `POST /api/certs/approve {id, ok, why}` (role `certadmin`) →
 `{job_id, message}`.
 
