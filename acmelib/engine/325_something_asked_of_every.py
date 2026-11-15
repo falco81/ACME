@@ -7,12 +7,25 @@ from __future__ import annotations
 # sees it within seconds and writes its own answer ('ask:got:KIND:NODE'), the
 # page shows every node's as they come. The node the page is on answers at
 # once. Each answer is made in a thread of its own.
-NODE_ASK = {'do': {}, 'done': set(), 'daemon': [None]}
+NODE_ASK = {'do': {}, 'done': set(), 'daemon': [None], 'line': {}, 'busy': set()}
 NODE_ASK_FRESH = 120
 # Asks of a kind kept pending together (1.0.106): a second ask within a node's tick replaced the
 # first - Clear of one CRL, then of another, and the first was never done on the other nodes.
 NODE_ASK_QUEUE = 8
 NODE_ASK_LOCK = threading.Lock()
+# The asks of a kind done one after another, the oldest first, in one thread of the kind's
+# (1.0.106): each in a thread of its own, two queued asks of dbtls_apply ran at once and the
+# older one could be the last to finish - the switch undone left switched.
+NODE_ASK_RUN_LOCK = threading.Lock()
+# Kinds where every ask matters (1.0.106): Clear or Fetch of one CRL / one OCSP answer, then of
+# another - each done. Every other kind queued too, but after a restart only its latest ask is
+# done of those asked before the process began (a test trap was sent again for each).
+NODE_ASK_EVERY = ('crl_fetch', 'crl_clear', 'ocsp_fetch', 'ocsp_clear')
+# Kinds that change what a node is (1.0.106): of the asks of one phase only the latest is done,
+# the earlier ones answered as left out - the latest is what was meant.
+NODE_ASK_LATEST = {'dbtls_apply': lambda args: str(args.get('phase') or '')}
+NODE_ASK_BEGAN = time.time()
+NODE_ASK_SKIPPED = 'not done here: a later ask of the same took its place'
 
 
 def node_ask_kind(kind):
@@ -21,6 +34,53 @@ def node_ask_kind(kind):
         NODE_ASK['do'][kind] = fn
         return fn
     return put
+
+
+def _node_ask_args(want):
+    args = want.get('args')
+    return args if isinstance(args, dict) else {}
+
+
+def _node_ask_for_me(want):
+    only = _node_ask_args(want).get('only')
+    return not only or only == node_name()
+
+
+def _node_ask_answered(store, kind, ident):
+    """This node's answer to an ask already in its row (1.0.106): written by this node's
+    process before a restart - not done again."""
+    got = _meta_obj(store, 'ask:got:%s:%s' % (kind, node_name()))
+    return got.get('id') == ident or any(isinstance(x, dict) and x.get('id') == ident
+                                         for x in got.get('earlier') or [])
+
+
+def _node_ask_skip(store, kind, want):
+    """An ask left out (a later one of the same took its place) answered as such, so its page
+    is not left waiting."""
+    NODE_ASK['done'].add('%s:%s' % (kind, want.get('id')))
+    if _node_ask_answered(store, kind, want.get('id')):
+        return
+    _node_ask_got_put(store, kind, {'ok': False, 'skipped': True, 'error': NODE_ASK_SKIPPED,
+                                    'id': want['id'], 'at': time.time(), 'node': node_name()})
+
+
+def node_ask_superseded(kind, wants):
+    """The ids of the asks of a row (oldest first) not to be done on this node (1.0.106): of a
+    kind that changes what a node is, each ask with a later one of its phase; of any kind but
+    the CRLs' and the OCSP answers', after a restart, each ask from before the process began
+    with a later one of the same."""
+    latest = NODE_ASK_LATEST.get(kind)
+    mine = [w for w in wants if _node_ask_for_me(w)]
+    out = set()
+    for i, w in enumerate(mine):
+        later = mine[i + 1:]
+        if latest:
+            if any(latest(_node_ask_args(x)) == latest(_node_ask_args(w)) for x in later):
+                out.add(w['id'])
+        elif kind not in NODE_ASK_EVERY and later and \
+                float(w.get('at') or 0) < NODE_ASK_BEGAN:
+            out.add(w['id'])
+    return out
 
 
 def _node_ask_run(daemon, kind, want):
@@ -32,22 +92,48 @@ def _node_ask_run(daemon, kind, want):
         # fresh within NODE_ASK_FRESH is offered again, and done again it only
         # writes this node's answer over itself.
         NODE_ASK['done'].clear()
-    args = want.get('args')
-    only = (args if isinstance(args, dict) else {}).get('only')
-    if only and only != node_name():
-        NODE_ASK['done'].add(key)
-        return
     NODE_ASK['done'].add(key)
+    if not _node_ask_for_me(want):
+        return
     store = daemon.store
+    latest = NODE_ASK_LATEST.get(kind)
+    gone = []
+    with NODE_ASK_RUN_LOCK:
+        line = NODE_ASK['line'].setdefault(kind, [])
+        if latest:
+            # the same phase asked again before the earlier one began: only the later done
+            mark = latest(_node_ask_args(want))
+            gone = [w for w in line if latest(_node_ask_args(w)) == mark]
+            line[:] = [w for w in line if w not in gone]
+        line.append(want)
+        start = kind not in NODE_ASK['busy']
+        NODE_ASK['busy'].add(kind)
+    for w in gone:
+        _node_ask_skip(store, kind, w)
+    if start:
+        threading.Thread(target=_node_ask_line, args=(daemon, kind),
+                         name='acme-ask-' + kind, daemon=True).start()
 
-    def go():
+
+def _node_ask_line(daemon, kind):
+    """The asks of a kind done one after another, as they came (the oldest first)."""
+    store = daemon.store
+    while True:
+        with NODE_ASK_RUN_LOCK:
+            line = NODE_ASK['line'].get(kind) or []
+            if not line:
+                NODE_ASK['busy'].discard(kind)
+                return
+            want = line.pop(0)
         try:
-            got = NODE_ASK['do'][kind](daemon, want.get('args') or {})
+            got = NODE_ASK['do'][kind](daemon, _node_ask_args(want))
         except Exception as e:                          # noqa: BLE001
             got = {'ok': False, 'error': str(e)[:300]}
         got = dict(got or {}, id=want['id'], at=time.time(), node=node_name())
-        _node_ask_got_put(store, kind, got)
-    threading.Thread(target=go, name='acme-ask-' + kind, daemon=True).start()
+        try:
+            _node_ask_got_put(store, kind, got)
+        except Exception as e:                          # noqa: BLE001
+            log('the answer to an ask (%s) not written: %s' % (kind, e), 'warn')
 
 
 def _node_ask_got_put(store, kind, got):
@@ -100,8 +186,19 @@ def node_ask_tick(daemon):
     NODE_ASK['daemon'][0] = daemon
     for kind in list(NODE_ASK['do']):
         row = _meta_obj(daemon.store, 'ask:want:' + kind)
-        for want in node_ask_pending(row):
-            if time.time() - float(want.get('at') or 0) < NODE_ASK_FRESH:
+        now = time.time()
+        wants = [w for w in node_ask_pending(row) if now - float(w.get('at') or 0) < NODE_ASK_FRESH]
+        if all('%s:%s' % (kind, w['id']) in NODE_ASK['done'] for w in wants):
+            continue
+        gone = node_ask_superseded(kind, wants)     # by a later one, done here or not
+        for want in wants:                      # the oldest first
+            if '%s:%s' % (kind, want['id']) in NODE_ASK['done']:
+                continue
+            if want['id'] in gone:
+                _node_ask_skip(daemon.store, kind, want)
+            elif _node_ask_answered(daemon.store, kind, want['id']):
+                NODE_ASK['done'].add('%s:%s' % (kind, want['id']))
+            else:
                 _node_ask_run(daemon, kind, want)
 
 

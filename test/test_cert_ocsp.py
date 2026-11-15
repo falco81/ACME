@@ -927,6 +927,8 @@ class H(http.server.BaseHTTPRequestHandler):
             this, nxt = NOW - D(days=365), None
         elif MODE['how'] == 'fresh-no-next':
             nxt = None
+        elif MODE['how'] == 'expired':
+            this, nxt = NOW - D(hours=2), NOW - D(hours=1)
         b = ocsp.OCSPResponseBuilder().add_response_by_hash(
             req.issuer_name_hash, req.issuer_key_hash, req.serial_number, req.hash_algorithm,
             ocsp.OCSPCertStatus.GOOD if MODE['how'] == 'forged' else st, this, nxt,
@@ -967,6 +969,16 @@ OUT['forged_alice_only'] = go(alice, mode='only')
 OUT['forged_why'] = dict(OUT.get('why') or {})
 MODE['how'] = 'real'
 OUT['real'] = {m: [go(alice, mode=m), go(bob, mode=m)] for m in ('first', 'only', 'both')}
+# 2b. renewed with the SAME key (AD CS): the old one, run out, put in first - the one valid now
+ca1old = cert(name('Corp Issuing CA'), k1.public_key(), root.subject, rk, ca=True,
+              aki=rk.public_key(), days=(-900, -10), cdp='root.crl', ocsp_path='ocsp-root')
+with open(os.path.join(P, 'cas-samekey.pem'), 'w') as fh:
+    fh.write(pem(ca1old, ca1, root))
+OUT['samekey_chain'] = [c['sha256'] for c in E.cl_chain(
+    E.cl_facts(pem(alice)), E.cl_ca_facts(os.path.join(P, 'cas-samekey.pem')))]
+OUT['samekey_want'] = [E.cl_facts(pem(ca1))['sha256'], E.cl_facts(pem(root))['sha256']]
+OUT['samekey'] = {m: go(alice, 'cas-samekey.pem', m) for m in ('off', 'first', 'only')}
+OUT['samekey_bob'] = go(bob, 'cas-samekey.pem', 'first')
 # 2. the authority renewed with a new key: its issuer by key
 cas = E.cl_ca_facts(os.path.join(P, 'cas-renewed.pem'))
 fc = E.cl_facts(pem(carol))
@@ -1005,7 +1017,7 @@ FILES['d-delta.crl'] = crl(cad, dk, 12, [], delta_base=11)
 OUT['delta_clean'] = go(eric, 'cas-delta.pem')
 # 4. an answer without next update
 fa = E.cl_facts(pem(alice))
-for how in ('stale', 'fresh-no-next'):
+for how in ('stale', 'fresh-no-next', 'expired'):
     MODE['how'] = how
     E.CL_OCSP_CACHE.clear()
     try:
@@ -1013,6 +1025,7 @@ for how in ('stale', 'fresh-no-next'):
                                  os.path.join(P, 'cas.pem'))['status']
     except E.CertRefused as e:
         OUT[how] = e.kind
+        OUT[how + '_why'] = e.why
 MODE['how'] = 'real'
 # 5. a CRL that failed: not fetched again within a minute; one fetch at a time
 E.CL_CRL_CACHE.clear()
@@ -1103,6 +1116,19 @@ class HuntO(unittest.TestCase):
     def test_4_answer_without_next_update(self):
         self.assertEqual(self.got['stale'], 'unavailable')
         self.assertEqual(self.got['fresh-no-next'], 'good')
+        # openssl's "<file>: WARNING: Status times invalid." read as such (1.0.106)
+        self.assertEqual(self.got['expired'], 'unavailable')
+        self.assertIn('out of date', self.got['expired_why'])
+
+    def test_7_renewed_with_the_same_key(self):
+        """AD CS renewal with the same key, the old certificate (run out) first: the chain and
+        the OCSP checks take the one valid now - nobody was signed in with OCSP on (1.0.106)."""
+        g = self.got
+        self.assertEqual(g['samekey_chain'], g['samekey_want'])
+        self.assertEqual(g['samekey']['off'], 'OK crl')
+        self.assertTrue(g['samekey']['first'].startswith('OK ocsp'), g['samekey'])
+        self.assertTrue(g['samekey']['only'].startswith('OK ocsp'), g['samekey'])
+        self.assertEqual(g['samekey_bob'], 'revoked')
 
     def test_5_crl_failed_and_together(self):
         g = self.got
@@ -1176,6 +1202,127 @@ print(json.dumps([sorted(done), (ra or {}).get('url'), (rb or {}).get('url'),
         ips, dns = json.loads(got.stdout.strip().splitlines()[-1])
         self.assertEqual(ips, [True] * 6 + [False, False])
         self.assertEqual(dns, [True, False, False, True])
+
+
+
+class HuntO2(unittest.TestCase):
+    """The second review of 1.0.106: the asks of every node done in order, the latest of a
+    switch only; the issuer of one renewed with the same key; NAT64's addresses."""
+
+    def run_code(self, code):
+        tmp = tempfile.mkdtemp(prefix='acme-hunt-o2-')
+        self.addCleanup(shutil.rmtree, tmp, True)
+        with open(os.path.join(tmp, 'config.json'), 'w') as fh:
+            fh.write('{}')
+        env = dict(os.environ, ACME_CONFIG=os.path.join(tmp, 'config.json'),
+                   ACME_STATE=tmp, ACME_RUN=tmp, ACME_LOGDIR=tmp)
+        env.pop('ACME_CDP_LOOPBACK_OK', None)
+        got = subprocess.run([sys.executable, '-c', 'import sys\nsys.path.insert(0, %r)\n' % ROOT
+                              + code], capture_output=True, text=True, timeout=120, env=env,
+                             cwd=tmp)
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        return json.loads(got.stdout.strip().splitlines()[-1])
+
+    def test_1_asks_in_order_latest_of_a_switch(self):
+        got = self.run_code(r"""
+import json, random, threading, time
+import acme
+from acmelib import engine as E
+store = E.Storage(E.open_db())
+E.HA_STORE['store'] = store
+E.host_alive = lambda st: {E.node_name(): True}
+ran, busy, overlap = [], [0], [0]
+lock = threading.Lock()
+
+
+def slow(name):
+    def fn(daemon, args):
+        with lock:
+            busy[0] += 1
+            overlap[0] = max(overlap[0], busy[0])
+        time.sleep(random.uniform(0, 0.15))
+        ran.append((name, args['n']))
+        with lock:
+            busy[0] -= 1
+        return {'ok': True}
+    return fn
+
+
+E.node_ask_kind('t_switch')(slow('switch'))
+E.node_ask_kind('t_test')(slow('test'))
+E.NODE_ASK_LATEST['t_switch'] = lambda a: str(a.get('phase') or '')
+class D(object):
+    pass
+d = D(); d.store = store; d.serving = False           # asked on another node's pages
+ids = [E.node_ask(d, 't_switch', {'n': i, 'phase': 'connect'}, 't')['id'] for i in range(3)]
+E.node_ask(d, 't_switch', {'n': 9, 'phase': 'server'}, 't')
+for i in range(4):
+    E.node_ask(d, 't_test', {'n': i}, 't')
+d.serving = True
+E.node_ask_tick(d)
+E.node_ask_tick(d)
+for _ in range(200):
+    if len(ran) >= 6:
+        break
+    time.sleep(0.05)
+time.sleep(0.3)
+me = E.node_name()
+skipped = [(E.node_ask_results(store, 't_switch', i).get(me) or {}).get('skipped') for i in ids]
+# a restart: what this node answered is not done again; of those asked before it began only
+# the latest (a test trap sent again for each)
+E.NODE_ASK['done'].clear()
+n_before = len(ran)
+E.node_ask_tick(d)
+time.sleep(0.5)
+again = len(ran) - n_before
+E.NODE_ASK['done'].clear()
+store.set_meta('ask:got:t_test:' + me, '{}')
+E.NODE_ASK_BEGAN = time.time() + 1
+E.node_ask_tick(d)
+time.sleep(0.8)
+print(json.dumps([[x for x in ran[:n_before] if x[0] == 'switch'],
+                  [x[1] for x in ran[:n_before] if x[0] == 'test'], overlap[0] <= 2,
+                  skipped, again, ran[n_before:]]))
+""")
+        switch, tests, overlap_ok, skipped, again, after = got
+        self.assertEqual(switch, [['switch', 2], ['switch', 9]])     # the latest of a phase
+        self.assertEqual(tests, [0, 1, 2, 3])                          # every one, in order
+        self.assertTrue(overlap_ok)                                    # one at a time a kind
+        self.assertEqual(skipped, [True, True, None])
+        self.assertEqual(again, 0)
+        self.assertEqual(after, [['test', 3]])
+
+    def test_2_issuer_renewed_with_the_same_key(self):
+        got = self.run_code(r"""
+import json, time
+from acmelib import engine as E
+now = time.time()
+def ca(sha, nb, na):
+    return {'sha256': sha, 'subject': 'CN=I', 'issuer': 'CN=R', 'ski': 'AA',
+            'not_before_t': nb, 'not_after_t': na, 'pem': ''}
+E.cl_signed_by = lambda c, p: p['sha256'] != 'other'
+c = {'sha256': 'leaf', 'subject': 'CN=u', 'issuer': 'CN=I', 'aki': 'AA'}
+old, new, newer = ca('old', now - 900 * 86400, now - 86400), ca('new', now - 86400, now + 9e7), \
+    ca('newer', now - 3600, now + 9e8)
+print(json.dumps([E.cl_issuer_of(c, [old, new])['sha256'],
+                  E.cl_issuer_of(c, [old, newer, new])['sha256'],
+                  E.cl_issuer_of(c, [old, ca('other', 0, now + 9e7)])['sha256'],
+                  E.cl_issuer_of(c, [ca('other', 0, now + 9e7)]) is None]))
+""")
+        self.assertEqual(got, ['new', 'newer', 'old', False])
+
+    def test_3_nat64(self):
+        got = self.run_code(r"""
+import json
+from acmelib import engine as E
+ips = ['64:ff9b::808:808', '64:ff9b::a00:5', '64:ff9b::a9fe:a9fe', '64:ff9b::7f00:1',
+       '64:ff9b:1::808:808', '64:ff9b::e000:1']
+print(json.dumps([E.cl_addr_no(i) for i in ips]))
+""")
+        self.assertEqual(got[:2], ['', ''])
+        self.assertTrue(all(got[2:]), got)
+        self.assertIn('carried in an IPv6 address', got[2])
+        self.assertEqual(got[4], 'reserved')
 
 
 if __name__ == '__main__':

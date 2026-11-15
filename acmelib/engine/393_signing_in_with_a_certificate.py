@@ -474,7 +474,11 @@ def cl_addr_no(ip):
         inner = [ip.sixtofour] if ip.sixtofour else []
         inner += list(ip.teredo) if ip.teredo else []
         if ip in ipaddress.ip_network('64:ff9b::/96'):
-            inner.append(ipaddress.IPv4Address(int(ip) & 0xffffffff))
+            # NAT64 by its IPv4 address alone (1.0.106): on an IPv6-only host with DNS64 every
+            # CDP is reached so, and 64:ff9b::/96 is in ::/8 - each was refused as reserved.
+            # (64:ff9b:1::/48, the local-use prefix, stays refused.)
+            why = cl_addr_no(ipaddress.IPv4Address(int(ip) & 0xffffffff))
+            return '%s, carried in an IPv6 address' % why if why else ''
         for v4 in inner:
             why = cl_addr_no(v4)
             if why:
@@ -1053,7 +1057,10 @@ def cl_issuer_of(c, cas):
     those of its name the one whose Subject Key Identifier is c's Authority Key Identifier; two
     of a name (an authority renewed with a new key - AD CS keeps its name), the one whose key
     verifies c's signature. Never the first of a name: an OCSP request with the old key's hash
-    is asked of another certificate, and the answer "good"."""
+    is asked of another certificate, and the answer "good". Of those that verify (an authority
+    renewed with the same key - two of a name and key, the old one expired), the one whose dates
+    hold now, then the one that ends last: the expired one only when no other verifies (its
+    signature is checked with no regard to dates, and the chain checked with it said expired)."""
     named = [p for p in cas if p['subject'] == c.get('issuer') and p['sha256'] != c.get('sha256')]
     if c.get('subject') == c.get('issuer') and not named:
         return None
@@ -1066,13 +1073,22 @@ def cl_issuer_of(c, cas):
     if len(named) == 1 and cands == named:
         # one of that name, its key the one named (or none named): openssl built the chain with it
         return named[0]
-    return next((p for p in cands if cl_signed_by(c, p)), None)
+    good = [p for p in cands if cl_signed_by(c, p)]
+    if not good:
+        return None
+    now = time.time()
+
+    def rank(p):
+        nb, na = float(p.get('not_before_t') or 0), float(p.get('not_after_t') or 0)
+        return (bool(na) and nb <= now <= na, na)
+    return max(good, key=rank)          # the first of the best, as they were put in
 
 
 def cl_chain(f, cas):
     """The authorities above a certificate among those put in, the nearest first - each the one
     whose key signed the one below it (cl_issuer_of, 1.0.106: an authority of the same name and
-    another key - the old certificate of one renewed - is not in its chain); a root ends it."""
+    another key - the old certificate of one renewed - is not in its chain; of one renewed with
+    the same key, the one valid now); a root ends it."""
     out, cur, seen = [], f, {f.get('sha256')}
     for _ in range(8):
         if cur.get('subject') == cur.get('issuer') and cur is not f:
@@ -1179,7 +1195,10 @@ def cl_ocsp_ask(url, f, pem, issuer_pem, ca_file, force=False):
             # Only now read: who answered (its text, for the card - never a check).
             told = _cl_ocsp_args(['openssl', 'ocsp', '-respin', rs, '-noverify', '-resp_text'],
                                  env)
-        if re.search(r'(?mi)^WARNING: Status times invalid', out):
+        # openssl says it after the certificate's file (1.0.106: "<file>: WARNING: Status times
+        # invalid." - a line's start alone never matched, and it was "says nothing of this
+        # certificate")
+        if re.search(r'(?mi)^(?:%s: )?WARNING: Status times invalid' % re.escape(cp), out):
             raise ValueError('the answer is out of date (its next update has passed, or its '
                              'this update is ahead)')
         lines = out.splitlines()

@@ -63383,6 +63383,10 @@
   "_630": {
    "source": "the answer's next update is not after its this update",
    "text": "příští aktualizace odpovědi není až po její aktuální aktualizaci"
+  },
+  "_631": {
+   "source": "not done here: a later ask of the same took its place",
+   "text": "zde neprovedeno: jeho místo zaujal pozdější stejný požadavek"
   }
  },
  "patterns": {

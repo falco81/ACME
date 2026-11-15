@@ -16,13 +16,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   the first of that name - the OCSP request named the old key and was answered of another
   certificate ("good"), and the old certificate run out counted as in the chain (everybody
   refused). The issuer is now the one whose key signed it (its key identifier, its signature),
-  and OCSP answers are kept by the issuer's key.
+  and OCSP answers are kept by the issuer's key. Renewed with the same key (two certificates of
+  one name and key), the one valid now is taken - the old one run out is taken only when no other
+  signed it (with OCSP on, the expired one put in first refused everybody).
 - (security) **The sign-in with a certificate: a delta CRL of a newer base CRL.** openssl leaves
   such a delta out without a word, and who it lists as revoked signed in. The base CRL is fetched
   again; still older than the delta's, nobody signs in (*not available just now*).
 - (security) **The sign-in with a certificate: an OCSP answer without a next update** is taken 15
   minutes from when it was made - an old "good" one replayed on the plain http path was taken
-  however old.
+  however old. An answer whose next update has passed is said to be *out of date* (it was "says
+  nothing of this certificate").
 - (security) **A certificate asked for on the portal is never issued past its approval.** *Give
   out a CSR*, an import into it or a CSR's answer took a request that waits for approval - or one
   declined - out of the wait (*pending*, *valid*), and *Renew now* issued it: past the team
@@ -38,10 +41,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   *Fetch now* fetches it at once. A CRL in the directory only under `CN=Configuration` followed
   by the forest's `DC=` alone; no CRL or OCSP answer is fetched from Azure's WireServer
   (168.63.129.16), Oracle's metadata address (192.0.0.192) or such an address carried in an IPv6
-  one (6to4, Teredo, NAT64).
+  one (6to4, Teredo, NAT64). A NAT64 address (64:ff9b::/96) is judged by the IPv4 address in it:
+  on an IPv6-only host with DNS64 every CRL's address was refused as reserved.
 - **Asks of every node are queued.** Two of a kind within a few seconds - *Clear* of one CRL, then
   of another - the second replaced the first on the other nodes, and the first page waited for an
-  answer that never came. Each is now done once on every node and answered for its own page.
+  answer that never came. Each is now done once on every node and answered for its own page -
+  one after another, the oldest first. Of the encryption to the database server's switches only
+  the latest of a step is done (the earlier ones answered as left out: run together, an older one
+  could finish last), and a node restarted does again none it answered, and of a test only the
+  latest.
 - **The team that held a request's names stays its approver only while its certificate holds
   them.** Kept from when the request began to wait, it was its only approver for good - with its
   certificate revoked, run out or deleted since.
