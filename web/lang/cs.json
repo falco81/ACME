@@ -64515,6 +64515,238 @@
   "dbui-112": {
    "source": "the database server - its agent does not answer",
    "text": "databázový server – jeho agent neodpovídá"
+  },
+  "z_1": {
+   "source": "The database agent of %s does not answer",
+   "text": "Agent databáze uzlu %s neodpovídá"
+  },
+  "z_2": {
+   "source": "acme-db-agent at %s:%s has not answered since %s: %s - its database server can be neither renewed nor changed from acme",
+   "text": "acme-db-agent na %s:%s neodpovídá od %s: %s – jeho databázový server teď acme nemůže obnovovat ani měnit"
+  },
+  "z_3": {
+   "source": "The database server of %s is down",
+   "text": "Databázový server uzlu %s neběží"
+  },
+  "z_4": {
+   "source": "its agent answers, the database does not: %s",
+   "text": "jeho agent odpovídá, databáze ne: %s"
+  },
+  "z_5": {
+   "source": "The certificate of the database agent of %s ends soon",
+   "text": "Certifikát agenta databáze uzlu %s brzy vyprší"
+  },
+  "z_6": {
+   "source": "it is renewed by itself 45 days before - look at the agent (Settings -> The database)",
+   "text": "obnovuje se sám 45 dní předem – podívejte se na agenta (Nastavení → Databáze)"
+  },
+  "z_7": {
+   "source": "the database agent of %s (%s:%s) does not answer: %s",
+   "text": "agent databáze uzlu %s (%s:%s) neodpovídá: %s"
+  },
+  "z_8": {
+   "source": "the database agent of %s (%s:%s) answers again",
+   "text": "agent databáze uzlu %s (%s:%s) opět odpovídá"
+  },
+  "z_9": {
+   "source": "%s: %s looks after its database server %s through acme-db-agent (%s:%d) from now on",
+   "text": "%s: %s od teď spravuje svůj databázový server %s přes acme-db-agent (%s:%d)"
+  },
+  "z_10": {
+   "source": "%s: %s no longer looks after its database server through acme-db-agent (%s)",
+   "text": "%s: %s už nespravuje svůj databázový server přes acme-db-agent (%s)"
+  },
+  "z_11": {
+   "source": "%s: renewed for acme-db-agent: %s",
+   "text": "%s: obnoveno pro acme-db-agent: %s"
+  },
+  "z_12": {
+   "source": "%s restarted the database server through its agent",
+   "text": "%s restartoval databázový server přes jeho agenta"
+  },
+  "z_13": {
+   "source": "%s: the MariaDB of %s was given a certificate from acme's authority (acme-db-agent)",
+   "text": "%s: MariaDB uzlu %s dostala certifikát od autority acme (acme-db-agent)"
+  },
+  "z_14": {
+   "source": "this node has no database agent (db_admin is local)",
+   "text": "tento uzel nemá agenta databáze (db_admin je local)"
+  },
+  "z_15": {
+   "source": "the database agent at %s:%s does not answer: %s",
+   "text": "agent databáze na %s:%s neodpovídá: %s"
+  },
+  "z_16": {
+   "source": "the database agent said: %s",
+   "text": "agent databáze odpověděl: %s"
+  },
+  "z_17": {
+   "source": "the database agent's answer is not signed with this node's key",
+   "text": "odpověď agenta databáze není podepsaná klíčem tohoto uzlu"
+  },
+  "z_18": {
+   "source": "the agent at %s:%s answers with a certificate acme did not pin (%s…) - not the agent that joined, or somebody in between",
+   "text": "agent na %s:%s odpovídá certifikátem, který acme nemá připnutý (%s…) – není to připojený agent, nebo je někdo mezi"
+  },
+  "z_19": {
+   "source": "that is not a join code of acme-db-agent (it starts with ADBA1.)",
+   "text": "to není připojovací kód acme-db-agent (začíná ADBA1.)"
+  },
+  "z_20": {
+   "source": "the join code is cut short or mistyped",
+   "text": "připojovací kód je zkrácený nebo překlepnutý"
+  },
+  "z_21": {
+   "source": "the join code is not one this agent gave, or it was used up or ran out: make a new one (acme_db_agent.py --new-code)",
+   "text": "připojovací kód nevydal tento agent, nebo už byl použit či vypršel: vytvořte nový (acme_db_agent.py --new-code)"
+  },
+  "z_22": {
+   "source": "the signing key of the database agent is not in %s - join the agent again (acme --db-agent-join)",
+   "text": "podpisový klíč agenta databáze není v %s – připojte agenta znovu (acme --db-agent-join)"
+  },
+  "z_23": {
+   "source": "this node's database agent does not look after a MariaDB",
+   "text": "agent databáze tohoto uzlu nespravuje MariaDB"
+  },
+  "z_24": {
+   "source": "PostgreSQL does not answer on the database server %s: install it there (install.sh --db-server postgres) and start it",
+   "text": "PostgreSQL na databázovém serveru %s neodpovídá: nainstalujte ho tam (install.sh --db-server postgres) a spusťte"
+  },
+  "z_25": {
+   "source": "the action is join, look, renew, restart, mariadb_tls or forget",
+   "text": "akce je join, look, renew, restart, mariadb_tls nebo forget"
+  },
+  "z_26": {
+   "source": "the database's certificate from acme's authority, ssl on, its renewal",
+   "text": "certifikát databáze od autority acme, zapnuté ssl, jeho obnova"
+  },
+  "z_27": {
+   "source": "the link between the databases: certificate, verify-full, pg_hba hostssl",
+   "text": "spojení mezi databázemi: certifikát, verify-full, pg_hba hostssl"
+  },
+  "z_28": {
+   "source": "wal_level, listen_addresses, the account, the publication",
+   "text": "wal_level, listen_addresses, účet, publikace"
+  },
+  "z_29": {
+   "source": "the database's port opened to the acme nodes and the other server",
+   "text": "port databáze otevřený uzlům acme a druhému serveru"
+  },
+  "z_30": {
+   "source": "the database server's own settings and their restart",
+   "text": "vlastní nastavení databázového serveru a jeho restart"
+  },
+  "z_31": {
+   "source": "PostgreSQL's log of the replication",
+   "text": "log replikace PostgreSQL"
+  },
+  "z_32": {
+   "source": "how busy the database server is",
+   "text": "jak je databázový server vytížený"
+  },
+  "z_33": {
+   "source": "the database server (acme-db-agent)",
+   "text": "databázový server (acme-db-agent)"
+  },
+  "z_34": {
+   "source": "Whether the database agent of a node answers (1) or not (0)",
+   "text": "Zda agent databáze uzlu odpovídá (1), nebo ne (0)"
+  },
+  "z_35": {
+   "source": "Whether the database server behind the agent runs",
+   "text": "Zda databázový server za agentem běží"
+  },
+  "z_36": {
+   "source": "database server: %s through acme-db-agent %s:%s - %s",
+   "text": "databázový server: %s přes acme-db-agent %s:%s – %s"
+  },
+  "z_37": {
+   "source": "acme-db-agent restarted the database server and waited for it",
+   "text": "acme-db-agent restartoval databázový server a počkal na něj"
+  },
+  "z_38": {
+   "source": "%s restarted the database server through its agent for the settings waiting for it: %s",
+   "text": "%s restartoval databázový server přes jeho agenta kvůli čekajícím nastavením: %s"
+  },
+  "z_39": {
+   "source": "%s is one line: a line break or control character (%s) in it is refused",
+   "text": "%s je jeden řádek: zalomení řádku nebo řídicí znak (%s) v něm se odmítá"
+  },
+  "z_40": {
+   "source": "%s: a control character (%s) in \"%s\"",
+   "text": "%s: řídicí znak (%s) v „%s“"
+  },
+  "z_41": {
+   "source": "%s: one line an item (a line break in a line)",
+   "text": "%s: jedna položka na řádek (zalomení řádku v řádku)"
+  },
+  "z_42": {
+   "source": "%s: \"%s\" is refused - %s",
+   "text": "%s: „%s“ se odmítá - %s"
+  },
+  "z_43": {
+   "source": "\"%s\" is not a name of a webauth parameter map (letters, digits, _ . - only)",
+   "text": "„%s“ není název webauth parameter mapy (jen písmena, číslice, _ . -)"
+  },
+  "z_44": {
+   "source": "Operations Manager: \"%s\" is not the path of MOMCertImport.exe on a drive of the server (C:\\...\\MOMCertImport.exe; no share, WebDAV or ..)",
+   "text": "Operations Manager: „%s“ není cesta k MOMCertImport.exe na disku serveru (C:\\...\\MOMCertImport.exe; žádná sdílená složka, WebDAV ani ..)"
+  },
+  "z_45": {
+   "source": "Operations Manager: \"%s\" is not the path of MOMCertImport.exe on a drive of the server",
+   "text": "Operations Manager: „%s“ není cesta k MOMCertImport.exe na disku serveru"
+  },
+  "z_46": {
+   "source": "%s \"%s\" cannot be a part of the device's address: no /, \\, ?, #, %%, control characters, and not . or ..",
+   "text": "%s „%s“ nemůže být částí adresy zařízení: žádné /, \\, ?, #, %%, řídicí znaky, ani . nebo .."
+  },
+  "z_47": {
+   "source": "the address has a \"%s\" part in its path",
+   "text": "cesta adresy obsahuje část „%s“"
+  },
+  "z_48": {
+   "source": "%s answered more than %d MB - not read",
+   "text": "%s odpověděl víc než %d MB - nečte se"
+  },
+  "z_49": {
+   "source": "the CA certificate of the web server cannot be read: %s",
+   "text": "certifikát CA webového serveru nejde přečíst: %s"
+  },
+  "z_50": {
+   "source": "%s \"%s\" is not a BIG-IP name (%s)",
+   "text": "%s „%s“ není název BIG-IP (%s)"
+  },
+  "z_51": {
+   "source": "%s \"%s\" is not a Kubernetes name (a-z, 0-9, - and .)",
+   "text": "%s „%s“ není název v Kubernetes (a-z, 0-9, - a .)"
+  },
+  "z_52": {
+   "source": "\"%s\" is not the URI of an enclosure (/rest/enclosures/<id>)",
+   "text": "„%s“ není URI enclosure (/rest/enclosures/<id>)"
+  },
+  "z_53": {
+   "source": "a certificate %s sent does not read: %s",
+   "text": "certifikát, který poslal %s, nejde přečíst: %s"
+  },
+  "z_54": {
+   "source": "the chain %s sent does not read: %s",
+   "text": "řetězec, který poslal %s, nejde přečíst: %s"
+  },
+  "z_55": {
+   "source": "the certificates in the SCEP answer do not read: %s",
+   "text": "certifikáty v odpovědi SCEP nejdou přečíst: %s"
+  },
+  "z_56": {
+   "source": "the signer of the SCEP answer does not read: %s",
+   "text": "podepisující certifikát odpovědi SCEP nejde přečíst: %s"
+  },
+  "z_57": {
+   "source": "the EST server's cacerts does not read: %s",
+   "text": "cacerts serveru EST nejde přečíst: %s"
+  },
+  "z_58": {
+   "source": "%s does not read (%s)",
+   "text": "%s nejde přečíst (%s)"
   }
  },
  "patterns": {
