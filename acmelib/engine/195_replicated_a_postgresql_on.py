@@ -68,6 +68,8 @@ def pg_admin(sql, port=5432, db='postgres', secret=False):
 
 
 def pg_local_running(port=5432):
+    if db_agent_on():
+        return db_agent_running()       # on a server of its own (1.0.110)
     try:
         return pg_admin('SELECT 1', port) == '1'
     except Exception:                                   # noqa: BLE001
@@ -76,6 +78,9 @@ def pg_local_running(port=5432):
 
 def pg_install_local(major, say):
     """PostgreSQL `major` on this machine, installed, initialised and running."""
+    if db_agent_on():
+        raise ValueError('PostgreSQL does not answer on the database server %s: install it there '
+                         '(install.sh --db-server postgres) and start it' % db_agent_db_host())
     if shutil.which('dnf'):
         say('installing PostgreSQL %s (dnf)' % major)
         subprocess.run(['dnf', '-y', 'module', 'reset', 'postgresql'], capture_output=True)
@@ -109,6 +114,9 @@ def pg_install_local(major, say):
 
 
 def pg_restart_local(port=5432):
+    if db_agent_on():
+        db_agent_restart()              # through the agent of its server (1.0.110)
+        return
     unit = tune_restart_unit()
     if unit:
         subprocess.run(['systemctl', 'restart', unit], capture_output=True)
@@ -132,6 +140,9 @@ def pg_prepare_local(port, peer, name, user, password, say):
     WAL, listening on the network, the peer let in, the account able to
     replicate and to subscribe, the database there. True when it has to be
     restarted for it."""
+    if db_agent_on():
+        # The same on a server of its own, by its agent (1.0.110).
+        return db_agent_prepare(peer, name, user, password, say)
     major = int(pg_admin('SHOW server_version_num', port)) // 10000
     if major < 16:
         raise ValueError('PostgreSQL %d is here; replicating both ways needs 16 or later '
@@ -195,6 +206,9 @@ def pg_prepare_local(port, peer, name, user, password, say):
 
 
 def pg_publication(port, name):
+    if db_agent_on():
+        db_agent_publication(name)      # FOR ALL TABLES needs a superuser: the agent's (1.0.110)
+        return
     if pg_admin("SELECT 1 FROM pg_publication WHERE pubname = '%s'" % HA_PUB_OLD, port, name) == '1':
         pg_admin('ALTER PUBLICATION %s RENAME TO %s' % (HA_PUB_OLD, HA_PUB), port, name)
     if pg_admin("SELECT 1 FROM pg_publication WHERE pubname = '%s'" % HA_PUB, port, name) != '1':

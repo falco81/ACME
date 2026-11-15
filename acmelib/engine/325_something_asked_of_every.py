@@ -362,6 +362,9 @@ def dbtls_kind(conf=None):
     local = host.strip('[]') in ('127.0.0.1', 'localhost', '::1')
     if c.get('db_engine') == 'postgres' and local:
         return 'replicated' if c.get('ha_mode') == 'replicated' else 'local'
+    if conf is None and c.get('db_engine') == 'postgres' and db_agent_on():
+        # On a server of its own, looked after by its agent (1.0.110): as one on this machine.
+        return 'replicated' if c.get('ha_mode') == 'replicated' else 'local'
     return 'remote'
 
 
@@ -927,6 +930,13 @@ def dbtls_view(store):
         hat = hatls_view(store)
         link_done = len(hat['nodes']) >= 2 and all(x.get('step') == 'done' for x in hat['nodes'])
     own_ca = bool(hatls_trust(hatls_ca(store))) if CONFIG.get('db_engine') == 'postgres' else False
+    if db_agent_on():
+        return dict(_dbtls_view(store, nodes, link_done, own_ca), db_admin=db_admin(),
+                    dbservers=db_agent_servers(store))
+    return _dbtls_view(store, nodes, link_done, own_ca)
+
+
+def _dbtls_view(store, nodes, link_done, own_ca):
     return {'kind': dbtls_kind(), 'engine': CONFIG.get('db_engine'), 'nodes': nodes,
             'mode': str(CONFIG.get('db_tls') or ''), 'ha_mode': CONFIG.get('ha_mode') or '',
             'host': str(CONFIG.get('db_host') or ''), 'link_done': link_done,

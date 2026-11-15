@@ -554,4 +554,7 @@ def _load(h):
     if CONFIG.get('ha_mode') and h.arg('nodes') in ('1', 'true', 'yes'):
         load_watch_note(h.store, [x for x in str(h.arg('detail_of') or '').split(',') if x])
         out['peers'] = load_peers(h.store)
+    if db_agent_on():
+        # The database servers of their own, read by their agents (1.0.110).
+        out['dbservers'] = db_agent_load_rows(h.store)
     return out

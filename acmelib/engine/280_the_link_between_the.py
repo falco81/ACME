@@ -133,7 +133,7 @@ def hatls_trust(ca):
 def hatls_names(peer_host=''):
     names = [node_name(), 'localhost', '127.0.0.1', '::1']
     for n in (CONFIG.get('ha_address'), node_address(), socket.gethostname(), socket.getfqdn(),
-              peer_host):
+              peer_host) + ((db_agent_db_host(),) if db_agent_on() else ()):
         n = str(n or '').strip()
         if n and n not in names:
             names.append(n)
@@ -462,6 +462,10 @@ def pgtls_send(data):
     and not yet read is not written over - the change of the addresses and the
     link's TLS used the same file and the same temporary name, and one of
     them waited for an answer that never came."""
+    if db_agent_on():
+        # The database on a server of its own (1.0.110): its agent does it, the answer
+        # written to the same file.
+        return db_agent_pgtls_send(data)
     with PGTLS_LOCK:
         end = time.time() + 30
         while (WEB_DIR / PGTLS_ASK).exists() and time.time() < end:
@@ -519,7 +523,8 @@ def hatls_own_cert(store):
         raise ValueError('the cluster has no authority that is still good')
     ctx = ssl.create_default_context(cadata=trust)
     ctx.check_hostname = False
-    s = socket.create_connection(('127.0.0.1', int(CONFIG.get('db_port') or 5432)), timeout=5)
+    s = socket.create_connection((db_agent_db_host() if db_agent_on() else '127.0.0.1',
+                                  int(CONFIG.get('db_port') or 5432)), timeout=5)
     try:
         s.sendall(struct.pack('!II', 8, 80877103))           # SSLRequest
         if s.recv(1) != b'S':

@@ -552,8 +552,111 @@ def op_status(args, conf):
     return {'facts': facts(conf)}
 
 
+# ---- how busy the machine is: the header's meter, the same shape as a node's ---------------
+LOAD_LAST = {'raw': None}
+
+
+def _load_raw():
+    raw = {'at': time.time()}
+    try:
+        with open('/proc/stat') as f:
+            v = [int(x) for x in f.readline().split()[1:9]]
+        v += [0] * (8 - len(v))
+        raw['cpu_idle'], raw['cpu_all'] = v[3] + v[4], sum(v)
+    except (OSError, ValueError):
+        pass
+    try:
+        mem = {}
+        with open('/proc/meminfo') as f:
+            for line in f:
+                k, _s, rest = line.partition(':')
+                mem[k] = int(rest.split()[0]) * 1024
+        raw['mem_total'] = mem.get('MemTotal', 0)
+        raw['mem_used'] = mem.get('MemTotal', 0) - mem.get('MemAvailable', mem.get('MemFree', 0))
+        raw['swap_used'] = mem.get('SwapTotal', 0) - mem.get('SwapFree', 0)
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        rd = wr = 0
+        whole = set(os.listdir('/sys/block'))
+        with open('/proc/diskstats') as f:
+            for line in f:
+                x = line.split()
+                if len(x) < 10 or x[2] not in whole or \
+                        x[2].startswith(('loop', 'ram', 'dm-', 'zram', 'sr')):
+                    continue
+                rd += int(x[5]) * 512
+                wr += int(x[9]) * 512
+        raw['disk_rd'], raw['disk_wr'] = rd, wr
+    except (OSError, ValueError):
+        pass
+    try:
+        rx = tx = 0
+        with open('/proc/net/dev') as f:
+            for line in f.readlines()[2:]:
+                name, _s, rest = line.partition(':')
+                name = name.strip()
+                if name == 'lo' or name.startswith(('veth', 'docker', 'br-', 'virbr', 'cni', 'flannel')):
+                    continue
+                x = rest.split()
+                rx += int(x[0])
+                tx += int(x[8])
+        raw['net_rx'], raw['net_tx'] = rx, tx
+    except (OSError, ValueError, IndexError):
+        pass
+    return raw
+
+
+def op_load(args, conf):
+    """What the header's meter shows of a node (acme's server_load(): cpu %, mem_used /
+    mem_total, swap_used, disk_rd / disk_wr and net_rx / net_tx in B/s, load, cores), of this
+    database server - and the database's own: its version, since when it runs, connections,
+    how far behind replication is, the size of acme's database, the disk it is on."""
+    raw = _load_raw()
+    was = LOAD_LAST['raw']
+    out = {'at': raw['at'], 'cores': os.cpu_count() or 1, 'mem_total': raw.get('mem_total'),
+           'mem_used': raw.get('mem_used'), 'swap_used': raw.get('swap_used')}
+    try:
+        out['load'] = [round(x, 2) for x in os.getloadavg()]
+    except OSError:
+        out['load'] = None
+    if was:
+        dt = max(0.2, raw['at'] - was['at'])
+        if raw.get('cpu_all') and was.get('cpu_all') and raw['cpu_all'] > was['cpu_all']:
+            busy = 1 - (raw['cpu_idle'] - was['cpu_idle']) / float(raw['cpu_all'] - was['cpu_all'])
+            out['cpu'] = round(max(0.0, min(1.0, busy)) * 100, 1)
+        for k in ('disk_rd', 'disk_wr', 'net_rx', 'net_tx'):
+            if k in raw and k in was and raw[k] >= was[k]:
+                out[k] = round((raw[k] - was[k]) / dt)
+        out['over_s'] = round(dt, 1)
+    LOAD_LAST['raw'] = raw
+    f = facts(conf)
+    db = {'engine': f.get('engine'), 'running': f.get('running'), 'version': f.get('version'),
+          'started': f.get('started'), 'connections': f.get('connections'), 'ssl': f.get('ssl'),
+          'disk': f.get('disk')}
+    name = str(args.get('db') or '')
+    if f.get('running') and f.get('engine') == 'postgres':
+        try:
+            lag = sql(conf, "SELECT COALESCE(max(pg_wal_lsn_diff(pg_current_wal_lsn(), "
+                            "confirmed_flush_lsn)), 0)::bigint FROM pg_replication_slots")
+            db['repl_behind'] = int(lag or 0)
+            if name and W.PG_NAME_RE.match(name):
+                db['size'] = int(sql(conf, 'SELECT pg_database_size(%s)' % W.pg_lit(name)) or 0)
+        except (Refused, ValueError):
+            pass
+    elif f.get('running') and name and W.PG_NAME_RE.match(name):
+        try:
+            db['size'] = int(my_sql(conf, "SELECT COALESCE(SUM(data_length + index_length), 0) "
+                                          "FROM information_schema.tables WHERE table_schema = "
+                                          "'%s'" % name) or 0)
+        except (Refused, ValueError):
+            pass
+    out['db'] = db
+    return out
+
+
 # The closed set, PostgreSQL's and MariaDB's: nothing else is ever done.
-OPS = {'status': op_status, 'pgtls': op_pgtls, 'pg_prepare': op_pg_prepare,
+OPS = {'status': op_status, 'load': op_load, 'pgtls': op_pgtls, 'pg_prepare': op_pg_prepare,
        'pg_allow': op_pg_allow, 'pg_publication': op_pg_publication,
        'pg_restart': op_pg_restart, 'pg_reload': op_pg_reload, 'pglog': op_pglog,
        'dbmake': op_dbmake, 'my_tls': op_my_tls, 'my_restart': op_my_restart,

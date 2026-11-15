@@ -571,6 +571,8 @@ def db_make_here(c):
     """The database and its account made on the server on this machine, by root
     (the root helper, acme_web.py --dbmake): PostgreSQL as postgres, MariaDB as
     root over its socket. Returns what was made."""
+    if db_agent_is_target(c):
+        return db_agent_dbmake(c)       # on the agent's server (1.0.110)
     req = {'engine': c['db_engine'], 'name': c['db_name'], 'user': c['db_user'],
            'password': c['db_password'], 'port': int(c.get('db_port') or 0)}
     helper = web_helper_path()

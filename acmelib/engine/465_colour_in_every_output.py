@@ -1167,7 +1167,8 @@ def cli_ha(args, pal):
     load_config(saved=store.settings_saved())
     HA_STORE['store'] = store
     host0 = str(CONFIG.get('db_host') or '')
-    if store.db.engine == 'postgres' and host0 in ('', 'localhost', '127.0.0.1', '::1') \
+    if store.db.engine == 'postgres' and (host0 in ('', 'localhost', '127.0.0.1', '::1') or
+                                          db_agent_on()) \
             and not args.ha_shared and (args.ha_setup or CONFIG.get('ha_mode') == 'replicated'):
         if not args.ha_setup and CONFIG.get('ha_mode') == 'replicated':
             return cli_ha_bundle_again(args, pal, store)
@@ -1271,6 +1272,14 @@ def cli_ha_open_now(store, peer, pal):
 
 def firewall_peer(peer, pal, port=5432):
     """firewalld letting the other node - one address - reach PostgreSQL."""
+    if db_agent_on():
+        # On the database server, by its agent (1.0.110): the other server and the other node.
+        try:
+            for line in db_agent_fw([peer] + db_agent_link_peers()).get('said') or []:
+                print(pal.ok_line('the database server: %s' % line))
+        except ValueError as e:
+            print(pal.bad_line('the database server\'s firewall: %s' % e))
+        return
     if shutil.which('firewall-cmd'):
         a = peer_address(peer)
         rule = ('rule family="%s" source address="%s/%d" port port="%d" protocol="tcp" accept'
@@ -1330,6 +1339,10 @@ def cli_ha_setup_replicated(args, pal, store, ask):
         raise SystemExit('acme: %s' % e)
     port = int(CONFIG.get('db_port') or 5432)
     name, user, pw = CONFIG.get('db_name'), CONFIG.get('db_user'), CONFIG.get('db_password')
+    if db_agent_on():
+        # Each node's database on a server of its own (1.0.110): --ha-peer is the other
+        # database server, --ha-peer-node the other acme node.
+        db_agent_put({'peer_node': getattr(args, 'ha_peer_node', None) or peer})
     try:
         restart, major = pg_prepare_local(port, peer, name, user, pw, say)
         if restart:
@@ -1352,7 +1365,8 @@ def cli_ha_setup_replicated(args, pal, store, ask):
     cli_ha_open_now(store, peer, pal)
     if args.trusted_proxy:
         nginx_trusted_proxies(args.trusted_proxy, pal)
-    me = args.ha_address or CONFIG.get('ha_address') or node_address()
+    me = args.ha_address or CONFIG.get('ha_address') or (
+        db_agent_db_host() if db_agent_on() else node_address())
     changes = {'ha_mode': 'replicated', 'ha_slot': 1, 'ha_peer': peer,
                'ha_peer_port': int(args.ha_peer_port or 5432), 'ha_address': me}
     if args.node_name:
@@ -1377,6 +1391,9 @@ def cli_ha_setup_replicated(args, pal, store, ask):
             'db': {'db_name': name, 'db_user': user, 'db_password': pw},
             'peer': {'name': node_name(), 'address': me, 'port': port, 'slot': 1},
             'cluster': CONFIG.get('site_name') or 'acme', 'joining': peer}
+    if db_agent_on():
+        # The node itself, apart from its database server (1.0.110).
+        data['peer']['node'] = node_address()
     phrase = ha_passphrase()
     target = Path(args.ha_bundle or '/root/acme-join-%s.json' % node_name())
     write_private(target, json.dumps(dict(bundle_lock(data, phrase), about=ha_bundle_about(data)),
@@ -1414,6 +1431,15 @@ def cli_ha_join_replicated(args, pal, data, ask):
     node = args.node_name or ask('This node\'s name', socket.gethostname().split('.')[0])
     port = int(FILE_CONFIG.get('db_port') or 5432) if FILE_CONFIG.get('db_engine') == 'postgres' \
         else 5432
+    here = '127.0.0.1'
+    if db_agent_on():
+        # This node's database on a server of its own (1.0.110): its agent prepares it, the
+        # other node's own address let in there too.
+        port = int((db_agent() or {}).get('pg_port') or port)
+        here = db_agent_db_host()
+        db_agent_put({'peer_node': str(peer.get('node') or peer.get('address') or '')})
+        if not args.ha_address:
+            args.ha_address = here
     # Marked as begun (1.0.210): a join that stops half way left a PostgreSQL
     # account with the cluster's password and config.json without it, and
     # every command said only "password authentication failed".
@@ -1468,7 +1494,7 @@ def cli_ha_join_replicated(args, pal, data, ask):
                     whose, ha_subscribe_trouble(e, whose, src if whose.startswith('this')
                                                 else '')))
             say('the database of %s answers from here' % whose)
-        local = db_open({'db_engine': 'postgres', 'db_host': '127.0.0.1', 'db_port': port,
+        local = db_open({'db_engine': 'postgres', 'db_host': here, 'db_port': port,
                          'db_name': name, 'db_user': user, 'db_password': pw})
         local.make_tables()
         local.add_missing_columns()
@@ -1511,7 +1537,7 @@ def cli_ha_join_replicated(args, pal, data, ask):
                         0o600)
     write_replacing(sealing_key_path(), data['key'] + '\n', 0o600)
     chown_to_service(sealing_key_path(), 0o600)
-    write_file_settings({'db_engine': 'postgres', 'db_host': '127.0.0.1', 'db_port': port,
+    write_file_settings({'db_engine': 'postgres', 'db_host': here, 'db_port': port,
                          'db_name': name, 'db_user': user, 'db_password': pw,
                          'node_name': node, 'ha_mode': 'replicated',
                          'ha_slot': int(data.get('slot') or 2), 'ha_peer': peer['address'],

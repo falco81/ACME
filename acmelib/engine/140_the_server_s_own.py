@@ -9,6 +9,16 @@ def tune_machine(c, typed):
     facts = {'local': local, 'ram_gb': None, 'cpus': None, 'disk': None, 'avail': None,
              'ram': None, 'virtual': None, 'rotational': None,
              'source': 'this machine' if local else ''}
+    if not local and db_agent_on():
+        # A server of its own, told by its agent (1.0.110).
+        try:
+            f = db_agent_call('status', timeout=20).get('facts') or {}
+            facts.update(ram=f.get('ram'), avail=f.get('avail'), cpus=f.get('cpus'),
+                         virtual=f.get('virtual'), source='the database server (acme-db-agent)')
+            if facts['ram']:
+                facts['ram_gb'] = round(facts['ram'] / 1073741824.0, 1)
+        except ValueError:
+            pass
     if local:
         try:
             with open('/proc/meminfo') as f:
@@ -329,6 +339,8 @@ def tune_restart_ready(store):
     db = store.db
     if db.engine != 'postgres':
         return {'may': False, 'unit': ''}
+    if db_agent_on():
+        return {'may': True, 'unit': 'acme-db-agent', 'why': ''}      # through it (1.0.110)
     host = str(CONFIG.get('db_host') or '').lower()
     if host not in ('', 'localhost', '127.0.0.1', '::1', socket.gethostname().lower()):
         return {'may': False, 'unit': 'postgresql',
@@ -349,6 +361,18 @@ def tune_restart(store, by):
     only at a start - through systemd, where install.sh let this account do
     that - and waited for."""
     db = store.db
+    if db_agent_on() and db.engine == 'postgres':
+        # On a server of its own: its agent starts it again and waits for it (1.0.110).
+        waiting = tune_pending(db)
+        if not waiting:
+            raise ValueError('nothing waits for a restart')
+        said = db_agent_restart().get('said') or 'started again'
+        store.add_event('settings', '%s restarted the database server through its agent for '
+                        'the settings waiting for it: %s' % (by, ', '.join(waiting)), 'warn', who=by)
+        left = tune_pending(db)
+        return {'unit': 'acme-db-agent', 'waiting': waiting, 'still': left,
+                'message': '%s%s' % (said, '; still waiting: ' + ', '.join(left) if left else
+                                     ': every setting is in effect')}
     ready = tune_restart_ready(store)
     if db.engine != 'postgres' or not ready['unit']:
         raise ValueError('no database server is running as a service on this machine')
