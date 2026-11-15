@@ -1116,6 +1116,15 @@ function viewScroller(node) {
   if (!best && viewScrolls(viewRoot())) best = viewRoot();
   return best ? {sc: best, inner: inner && inner !== best ? inner : null} : null;
 }
+/* In something that floats over the page (fixed: a popup, a menu, a panel): such a box is as tall
+   as what is in it - room or a height kept in it made the popup itself grow and shrink by itself
+   (1.0.108: "A new target" a frame taller, then shorter again on the next refresh). */
+function viewFloats(n) {
+  for (; n && n.nodeType === 1 && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+    if (getComputedStyle(n).position === 'fixed') return true;
+  }
+  return false;
+}
 /* Where on the screen: a banner come in over the frame moves the frame, and what is read
    in it stays where it was on the screen all the same. */
 function viewTopOf() { return 0; }
@@ -1250,6 +1259,7 @@ function viewSet(sc, y) {
 }
 /* Empty room under the end of the page, so a frame the content no longer reaches stays where it is. */
 function viewRoom(sc, more, el) {
+  if (sc !== viewRoot() && viewFloats(sc)) return;
   var room = null;
   VIEWKEEP.rooms = VIEWKEEP.rooms.filter(function (r) { if (r.isConnected && r._sc === sc) room = r; return r.isConnected; });
   /* what it is room for: the part of the box shown now (a Settings pane) - the box is shared,
@@ -1322,7 +1332,9 @@ function viewLock(node) {
   if (!node || node.nodeType !== 1 || !node.isConnected || !node.firstChild || node.style.minHeight) return;
   if (node === document.body || node === document.documentElement) return;
   var h = node.offsetHeight;
-  if (h > 24) VIEWKEEP.locks.push({el: node, h: h, t: viewNow()});
+  /* ...never in a popup: drawn anew by what the reader did (a module picked, a part opened), it
+     stayed as tall as before for seconds and then shrank by itself */
+  if (h > 24 && !viewFloats(node)) VIEWKEEP.locks.push({el: node, h: h, t: viewNow()});
 }
 function viewLocks() {
   var now = viewNow();
@@ -1404,6 +1416,8 @@ function viewKeep() {
       var view = root ? window.innerHeight : sc.clientHeight;
       var max = sc.scrollHeight - view;
       if (want < 0) want = 0;
+      /* a popup: as tall as what is in it, so no room - the end is the end */
+      if (want > max && !root && viewFloats(sc)) want = max;
       if (want > max) {
         /* room only as far as what is held stays in sight (a third of the frame of it at least,
            all of it when it is smaller), and never more than half a frame - never a frame with
