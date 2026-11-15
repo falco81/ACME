@@ -73,6 +73,19 @@ PHP_UPDATE="yes"
 PHP_STREAM="8.3"
 USE_REMI=""
 
+# A database server of its own for acme, and its agent (1.0.110, deploy/db-server.sh):
+# nothing of it runs without --db-server or --db-agent.
+DB_SERVER=""
+DB_AGENT=""
+DB_AGENT_PORT="9443"
+DB_AGENT_PORT_GIVEN=""
+ACME_NODES=""
+DBS_NAME="acme"
+DBS_USER="acme"
+DBS_PASSWORD=""
+DBS_ENGINE=""
+DBS_PORT=""
+
 SERVER_NAME="acme.example.local"
 ADMIN_ALLOW=""
 PORTAL_ALLOW=""
@@ -311,6 +324,20 @@ Usage: sudo ./install.sh [options]
                             labelled http_port_t
   --dry-run                 print what would happen and change nothing
   --yes                     never ask; take the defaults
+
+  A database server of its own for acme (docs/external-database.md) - run on THAT
+  server, never on the acme node; nothing of acme itself is installed:
+  --db-server ENGINE        postgres: PostgreSQL 16 (EL: postgresql:16 module or PGDG;
+                            Debian/Ubuntu: PGDG), initialised, started, listening, wal_level
+                            logical, the database and the account for acme;
+                            mariadb: the distribution's MariaDB, secured, the same
+                            ...and acme-db-agent, the firewall for the acme nodes, a join code
+  --db-agent                acme-db-agent alone, for a database server installed already
+  --db-agent-port N         the agent's port (9443)
+  --acme-node ADDRESS       an acme node using this server (again for each one): let into
+                            pg_hba.conf / the accounts and the firewall
+  --db-name NAME --db-user NAME --db-password PASS   acme's database (acme, acme, made up)
+  --db-server/--db-agent --uninstall   the agent taken away; the database stays
   --help                    this
 EOF
 }
@@ -342,6 +369,14 @@ while [[ $# -gt 0 ]]; do
         --rewrite-nginx)   REWRITE_NGINX="yes"; shift;;
         --uninstall)       DO_UNINSTALL="yes"; shift;;
         --dry-run)         DRY_RUN="yes"; shift;;
+        --db-server)       DB_SERVER="${2:-}"; shift 2;;
+        --db-agent)        DB_AGENT="yes"; shift;;
+        --db-agent-port)   DB_AGENT_PORT="${2:-}"; DB_AGENT_PORT_GIVEN="yes"; shift 2;;
+        --acme-node)       ACME_NODES="${ACME_NODES:+$ACME_NODES }${2:-}"; shift 2;;
+        --db-name)         DBS_NAME="${2:-}"; shift 2;;
+        --db-user)         DBS_USER="${2:-}"; shift 2;;
+        --db-password)     DBS_PASSWORD="${2:-}"; shift 2;;
+        --db-engine)       DBS_ENGINE="${2:-}"; shift 2;;
         -y|--yes)          ASSUME_YES="yes"; shift;;
         -h|--help)         usage; exit 0;;
         --radius-from|--import-legacy|--system-python)
@@ -389,6 +424,13 @@ apt_update_once() {
     APT_UPDATED=yes
     run apt-get update -q >/dev/null 2>&1 || run apt-get update
 }
+if [[ -n "$DB_SERVER" || -n "$DB_AGENT" ]]; then
+    # A database server of its own and its agent (1.0.110): this, and nothing else.
+    # shellcheck source=deploy/db-server.sh
+    . "$SOURCE_DIR/deploy/db-server.sh"
+    db_server_main
+    exit 0
+fi
 # ---------------------------------------------------------------------------
 # Taking it away
 # ---------------------------------------------------------------------------

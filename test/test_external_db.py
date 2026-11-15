@@ -553,9 +553,13 @@ class ReplicatedExternal(unittest.TestCase):
             self.assertIn("sslmode='verify-full'", conn)
         self.assertIn('pgtls', [x.get('op') for x in self.ag1.audit()])
         self.sync()
-        v = self.a.ok('GET', '/api/ha')
-        self.assertEqual(sorted(x['node'] for x in v.get('dbservers') or []), [])\
-            if not v.get('dbservers') else self.assertEqual(v['dbservers'][0]['kind'], 'db')
+        # Both database servers beside the nodes, each node's agent's word (carried over).
+        got = wait_for(lambda: [x for x in self.a.ok('GET', '/api/ha').get('dbservers') or []
+                                if x.get('alive')] if len(self.a.ok('GET', '/api/ha')
+                                                         .get('dbservers') or []) == 2 else None,
+                       90, 2, 'both database servers on the High availability page')
+        self.assertEqual(sorted(x['node'] for x in got), ['n1', 'n2'])
+        self.assertTrue(all(x['kind'] == 'db' for x in got))
 
     def test_03_rebuild_second(self):
         self.b.stop()

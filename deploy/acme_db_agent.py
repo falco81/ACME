@@ -216,6 +216,7 @@ class Root(object):
             os.environ['HOME'] = home
             os.environ['MYSQL_UNIX_PORT'] = str(c['my_socket'])
         sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+        sys.dont_write_bytecode = True          # nothing written into the program's folder
         import acme_pg_ops
         self.ops = acme_pg_ops
 

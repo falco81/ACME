@@ -1,0 +1,32 @@
+[Unit]
+Description=acme-db-agent - this database server looked after by acme (docs/external-database.md)
+After=network-online.target postgresql.service postgresql-16.service mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Root starts it: the side that answers the network gives root up at once (to the account
+# acme-db-agent) and hands each checked request to the root side, which does only the
+# closed set of operations (acme_pg_ops.OPS) and writes the audit log.
+ExecStart=/usr/bin/python3 -I /usr/local/lib/acme-db-agent/acme_db_agent.py --config /etc/acme-db-agent/agent.json
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+NoNewPrivileges=no
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native
+# What it writes: its own folders, PostgreSQL's and MariaDB's configuration and data folders
+# (pg_hba.conf, the certificate files), the authority file of the link.
+ReadWritePaths=/etc/acme-db-agent /var/lib/acme-db-agent /var/log/acme-db-agent -/etc/pki/acme -/var/lib/pgsql -/var/lib/postgresql -/etc/postgresql -/etc/my.cnf.d -/etc/mysql -/run/postgresql -/var/run/postgresql
+
+[Install]
+WantedBy=multi-user.target
