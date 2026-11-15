@@ -63571,6 +63571,54 @@
   "_677": {
    "source": "none written out",
    "text": "nezapsány"
+  },
+  "_678": {
+   "source": "approval missing",
+   "text": "chybí schválení"
+  },
+  "_679": {
+   "source": "It left the waiting for approval, but its approval was never recorded - nothing is issued for it until it is approved. Open it to approve or decline it.",
+   "text": "Už nečeká na schválení, ale jeho schválení se nikdy nezaznamenalo – dokud ho někdo neschválí, nic se pro něj nevystaví. Otevřete ho a schvalte, nebo zamítněte."
+  },
+  "_680": {
+   "source": "It left the waiting for approval, but its approval was never recorded - nothing is issued for it until it is approved.",
+   "text": "Už nečeká na schválení, ale jeho schválení se nikdy nezaznamenalo – dokud ho někdo neschválí, nic se pro něj nevystaví."
+  },
+  "_681": {
+   "source": "It left the waiting for approval, but its approval was never recorded.",
+   "text": "Už nečeká na schválení, ale jeho schválení se nikdy nezaznamenalo."
+  },
+  "_682": {
+   "source": "Its approval is recorded now - nothing is issued at once.",
+   "text": "Teď se zaznamená jeho schválení – hned se nic nevystaví."
+  },
+  "_683": {
+   "source": "Its approval was never recorded",
+   "text": "Schválení se nikdy nezaznamenalo"
+  },
+  "_684": {
+   "source": "It left the waiting for approval, but its approval was not recorded - approve it, or revoke it.",
+   "text": "Už nečeká na schválení, ale jeho schválení se nezaznamenalo – schvalte ho, nebo ho zneplatněte."
+  },
+  "_685": {
+   "source": "It left the waiting for approval, but its approval was not recorded - nothing is issued for it until it is approved. Approve it, or decline it.",
+   "text": "Už nečeká na schválení, ale jeho schválení se nezaznamenalo – dokud ho někdo neschválí, nic se pro něj nevystaví. Schvalte ho, nebo zamítněte."
+  },
+  "_686": {
+   "source": "You asked for it; it left the waiting for approval, but its approval was not recorded - an administrator approves it (or not).",
+   "text": "Požádali jste o něj; už nečeká na schválení, ale jeho schválení se nezaznamenalo – schválí ho (nebo ne) administrátor."
+  },
+  "_687": {
+   "source": "It left the waiting for approval, but its approval was not recorded - an approver of its team, or an administrator, approves it (or not).",
+   "text": "Už nečeká na schválení, ale jeho schválení se nezaznamenalo – schválí ho (nebo ne) schvalovatel jeho týmu nebo administrátor."
+  },
+  "_688": {
+   "source": "You cannot decline it",
+   "text": "Nemůžete ho zamítnout"
+  },
+  "_689": {
+   "source": "a certificate was issued for it already - it is not declined: revoke it instead",
+   "text": "certifikát pro něj už byl vystaven – nezamítá se: místo toho ho zneplatněte"
   }
  },
  "patterns": {

@@ -4047,7 +4047,8 @@ function certPeek(id) {
     if (MANAGE && !c.issuer && !waiting) buttons.push({words: 'Import a new one', icon: 'upload', go: function () { over(function () { importDialog(c); }, back); }});
     if (MANAGE && deploys.length && c.not_after && c.state !== 'revoked') buttons.push({words: 'Deploy now', icon: 'deploy', go: function (b) { certDeploy(c, b, back); }});
     if (MANAGE && c.issuer && c.state === 'revoked') buttons.push({words: 'Issue a new one', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
-    if (MANAGE && c.issuer && c.state !== 'revoked' && c.state !== 'revoke-failed' && !waiting && !asked(c)) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
+    /* not for one whose approval was never recorded (1.0.107): refused until it is approved */
+    if (MANAGE && c.issuer && c.state !== 'revoked' && c.state !== 'revoke-failed' && !waiting && !asked(c) && !c.stuck) buttons.push({words: c.not_after ? 'Renew now' : 'Issue now', cls: 'primary', icon: 'refresh', go: function (b) { certRenew(c, b, back); }});
     /* ...and one out of the waiting state whose approval was never recorded (1.0.107: only
        `acme --decline` declined it) - Decline off, the why said, for one with a certificate */
     if (MANAGE && (c.state === 'pending-approval' || c.stuck)) {
