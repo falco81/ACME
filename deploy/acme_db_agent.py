@@ -518,6 +518,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 _send(srv.root, msg)
                 got = _recv(srv.root)
             except (EOFError, OSError):
+                # root is gone or starting this side again: this one ends
+                threading.Thread(target=lambda: (time.sleep(0.3), os._exit(4)), daemon=True).start()
                 return self.answer(503, {'ok': False, 'said': 'the agent is starting again'})
         key = got.pop('key', None)
         if not got.get('ok'):
@@ -593,6 +595,16 @@ def drop_to(c):
 
 
 def child(c, sock, cl):
+    # Not root's handlers: this side ends at SIGTERM, and with root (PR_SET_PDEATHSIG).
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    try:
+        import ctypes
+        ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)
+    except Exception:                                   # noqa: BLE001
+        pass
+    if os.getppid() == 1:
+        os._exit(2)
     ctx = make_ctx(c)
     listener = Server((c['listen'], int(c['port'])), Handler, bind_and_activate=False)
     if ':' in c['listen']:

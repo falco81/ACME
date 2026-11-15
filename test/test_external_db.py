@@ -288,7 +288,8 @@ class Standalone(unittest.TestCase):
         # The code is used up.
         again = self.n.cli('--db-agent-join', self.code)
         self.assertNotEqual(again.returncode, 0)
-        self.assertIn('used up', again.stdout + again.stderr)
+        # refused: the code is used up, and it pins the certificate the agent no longer has
+        self.assertRegex(again.stdout + again.stderr, 'used up|did not pin')
         self.assertEqual(self.db.sql("SELECT rolname FROM pg_roles WHERE rolname = 'acme'"), 'acme')
 
     def test_02_refused(self):
@@ -420,7 +421,8 @@ class Standalone(unittest.TestCase):
         finally:
             self.agent.start()
         wait_for(lambda: not json.loads(self.n.py("print(json.dumps(acme._db_agent_alerts(st)))")),
-                 60, 2, 'the alert gone')
+                 60, 2, 'the alert gone: %s' % self.n.py(
+                     "print(st.get_meta('dbagent:node:n0'))"))
 
 
 @unittest.skipUnless(can_run(), 'needs root, PostgreSQL 16 (%s) and runuser' % PGBIN)

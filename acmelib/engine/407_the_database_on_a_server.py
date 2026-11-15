@@ -158,7 +158,7 @@ def db_agent_call(op, args=None, timeout=90, conf=None):
                                          {'X-Acme-Node': node, 'X-Acme-Time': ts,
                                           'X-Acme-Nonce': nonce, 'X-Acme-Sign': sig}, timeout)
             break
-        except (OSError, ssl.SSLError) as e:
+        except Exception as e:                          # noqa: BLE001  (http.client's too)
             last = e
             # the agent starting its listening side again (a new certificate): once more
             if attempt == 0 and op in ('status', 'load') :
