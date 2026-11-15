@@ -7,7 +7,7 @@ def _ha(h):
     nodes = [dict(n, web=web_unmapped(n['web'], me)) if isinstance(n, dict) and 'web' in n else n
              for n in ha_nodes(h.store)]
     if db_agent_on():
-        # The database servers of their own beside the nodes (1.0.110).
+        # The database servers of their own beside the nodes (1.0.111).
         return dict(_ha_view(h, nodes), db_admin=db_admin(), dbservers=db_agent_servers(h.store))
     return _ha_view(h, nodes)
 

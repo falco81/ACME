@@ -463,7 +463,7 @@ def pgtls_send(data):
     link's TLS used the same file and the same temporary name, and one of
     them waited for an answer that never came."""
     if db_agent_on():
-        # The database on a server of its own (1.0.110): its agent does it, the answer
+        # The database on a server of its own (1.0.111): its agent does it, the answer
         # written to the same file.
         return db_agent_pgtls_send(data)
     with PGTLS_LOCK:

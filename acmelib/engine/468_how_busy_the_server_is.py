@@ -555,6 +555,6 @@ def _load(h):
         load_watch_note(h.store, [x for x in str(h.arg('detail_of') or '').split(',') if x])
         out['peers'] = load_peers(h.store)
     if db_agent_on():
-        # The database servers of their own, read by their agents (1.0.110).
+        # The database servers of their own, read by their agents (1.0.111).
         out['dbservers'] = db_agent_load_rows(h.store)
     return out

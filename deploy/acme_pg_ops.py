@@ -1,4 +1,4 @@
-"""acme_pg_ops.py - what root does to a database server on its own machine (1.0.110).
+"""acme_pg_ops.py - what root does to a database server on its own machine (1.0.111).
 
 Shared by the root helper's PostgreSQL parts and by acme-db-agent (the small
 agent on a database server of its own, docs/external-database.md). The root

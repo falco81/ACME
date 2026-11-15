@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
-# ---- the database on a server of its own, looked after by acme-db-agent (1.0.110) ----------
+# ---- the database on a server of its own, looked after by acme-db-agent (1.0.111) ----------
 # docs/external-database.md. Until now acme looked after a PostgreSQL (or MariaDB) only on its
 # own machine, through the root helper (acme_web.py): the certificate of the database, its
 # pg_hba.conf, its settings and restarts, the replication's TLS. With the database on a server
