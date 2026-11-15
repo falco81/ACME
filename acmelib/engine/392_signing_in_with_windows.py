@@ -1253,6 +1253,66 @@ def krb_node_state(store, n):
     return got if isinstance(got, dict) else {}
 
 
+KRB_NAMES_META = 'krb:domain:'          # the domain's names last read from a directory
+KRB_ACCOUNT_DEFAULT = 'svc-acme-http'
+
+
+def krb_domain_names(h, part):
+    """The NetBIOS name and DNS domain of the part's directory for the card's commands (1.0.110):
+    read from AD (the crossRef's nETBIOSName and dnsRoot), kept with the directory's state - the
+    last read used while the directory does not answer - else guessed from the realm's first
+    label, said so. {'netbios', 'dns', 'from': directory|kept|guessed, 'said'}."""
+    name = krb_directory_name(part)
+    ad = h.d.dirs.get(name.lower()) if name else None
+    realm = krb_realm(h.d, part)[0]
+    guess = {'netbios': (realm.split('.', 1)[0] if realm else 'CORP').upper(),
+             'dns': realm.lower(), 'from': 'guessed', 'said': ''}
+    if ad is None:
+        guess['said'] = 'no directory is set (or switched on) for this part'
+        return guess
+    key = KRB_NAMES_META + ad.name.lower()
+    try:
+        got = ad.domain_names()
+    except LdapError as e:
+        try:
+            kept = json.loads(h.store.get_meta(key) or 'null')
+        except (ValueError, TypeError):
+            kept = None
+        if isinstance(kept, dict) and kept.get('netbios'):
+            return {'netbios': kept['netbios'], 'dns': kept.get('dns') or '', 'from': 'kept',
+                    'at': kept.get('at'), 'said': ''}
+        guess['said'] = 'unreachable' if isinstance(e, LdapUnreachable) else 'not readable'
+        return guess
+    try:
+        kept = json.loads(h.store.get_meta(key) or 'null') or {}
+        if not isinstance(kept, dict) or kept.get('netbios') != got['netbios'] or \
+                kept.get('dns') != got['dns'] or time.time() - float(kept.get('at') or 0) > 86400:
+            h.store.set_meta(key, json.dumps({'netbios': got['netbios'], 'dns': got['dns'],
+                                              'at': time.time()}))
+    except Exception:                                   # noqa: BLE001
+        pass
+    return {'netbios': got['netbios'], 'dns': got['dns'], 'from': 'directory', 'said': ''}
+
+
+def krb_account_check(h, part, name):
+    """The service account typed on the card, looked up in the part's directory (1.0.110):
+    {found, sam, upn, aes256, pw_never_expires, disabled, spns, netbios}. ValueError for a name
+    that is none; LdapError from the directory."""
+    who = str(name if name is not None else '').strip()
+    if '\\' in who:
+        who = who.split('\\', 1)[1].strip()
+    if not who or len(who) > 64 or re.search(r'[\x00-\x1f\x7f*()"/\\\[\]:;|=,+?<>@]', who):
+        raise ValueError('type the sAMAccountName of the service account (svc-acme-http)')
+    dname = krb_directory_name(part)
+    ad = h.d.dirs.get(dname.lower()) if dname else None
+    if ad is None:
+        raise LookupError('no directory is set (or switched on) for this part')
+    acc = ad.service_account(who)
+    if not acc:
+        return {'found': False, 'name': who, 'directory': ad.name}
+    return dict(acc, found=True, name=who, directory=ad.name)
+
+
 def krb_view(h):
     store = h.store
     row = krb_keytab_row(store)
@@ -1269,6 +1329,7 @@ def krb_view(h):
             'cert': cl_usable(part, store), 'signin': sso_signin_modes(part, store),
             'realm': realm, 'realm_from': where, 'directory': krb_directory_name(part),
             'realm_warn': krb_realm_warning(h.d, part),
+            'names': krb_domain_names(h, part),
             'second': bool(CONFIG.get('admin_2fa')) if part == 'admin' else portal_gate_needed()}
     parts['portal']['portal'] = bool(CONFIG.get('portal'))
     parts['portal']['who'] = CONFIG.get('portal_who') or 'anyone'
@@ -1295,9 +1356,12 @@ def krb_view(h):
                       'same': bool(keytab and st.get('sha') and st.get('sha') == keytab['sha']),
                       'lib': bool(st.get('lib')), 'lib_said': st.get('lib_said') or '',
                       'error': st.get('error') or '', 'version': st.get('version') or ''})
-    domain = realms[0].split('.', 1)[0] if realms else 'CORP'
+    # The NetBIOS name of the domain as AD has it (1.0.110) - not the realm's first label, which
+    # is MERIT for merit.cz where the domain is MERIT_NT.
+    domain = parts['admin']['names']['netbios'] if parts['admin']['directory'] else \
+        parts['portal']['names']['netbios']
     return {'keytab': keytab, 'parts': parts, 'names': names, 'nodes': nodes, 'realms': realms,
-            'domain': domain, 'account': 'svc-acme-http', 'lib': krb_lib_state(),
+            'domain': domain, 'account': KRB_ACCOUNT_DEFAULT, 'lib': krb_lib_state(),
             'ntlm': 'never taken'}
 
 
@@ -1309,9 +1373,25 @@ def _kerberos_view(h):
 
 @route('POST', '/api/kerberos')
 def _kerberos_do(h):
-    s = h.me('fulladmin')
     b = h.body()
     act = str(b.get('action') or '')
+    if act == 'account':
+        # The service account typed on the card looked up (1.0.110): read only, whoever may look
+        # a name up in the directory card.
+        s = h.me('certadmin')
+        part = str(b.get('part') or 'admin')
+        if part not in KRB_PARTS:
+            raise ApiError(400, 'admin or portal')
+        try:
+            return {'account': krb_account_check(h, part, b.get('name'))}
+        except ValueError as e:
+            raise ApiError(400, str(e))
+        except LookupError as e:
+            raise ApiError(404, str(e))
+        except LdapError as e:
+            log('the service account of the keytab looked up: %s' % e, 'warn')
+            raise ApiError(503, 'the directory cannot be reached just now')
+    s = h.me('fulladmin')
     if act == 'put':
         data = str(b.get('data') or '')
         if data.startswith('data:'):

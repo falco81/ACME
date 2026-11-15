@@ -122,7 +122,8 @@ Under each part's switches:
   opened by, with their SPN and whether the keytab has that name or (only) a key of the account;
 - **each node** - heard from, the keytab written out (the same one as the database's), the
   Kerberos library there;
-- **the commands for AD** (`setspn`, `ktpass`) filled in with these names and the realm;
+- **the commands for AD** (`setspn`, `ktpass`) filled in with these names, the realm, the
+  domain's **NetBIOS name as AD has it** and the service account - see below;
 - **the browsers' settings** filled in with these names.
 
 ## How it works
@@ -206,6 +207,24 @@ On a domain controller, as a domain administrator (the card shows these filled i
    ```
 4. **Put it in**: *Settings → Accounts → Signing in with Windows → Put in a keytab…*, or
    `acme --kerberos-keytab acme-http.keytab` as root. Once, for both parts and every node.
+
+**The domain in `DOMAIN\account`** is the domain's NetBIOS name (*Domain name (pre-Windows
+2000)*), which need not be the first label of its DNS name: `merit.cz` may well be `MERIT_NT`.
+The card reads it from the directory - the domain's crossRef in the configuration partition
+(`CN=Partitions,CN=Configuration,<forest root>`, the one whose `nCName` is the domain: its
+`nETBIOSName` and `dnsRoot`; the partition found from the rootDSE's
+`configurationNamingContext`), kept an hour and, while the directory does not answer, as last
+read (*as last read from the directory*). Where it cannot be read at all (the reading account may
+not, or the directory is no AD) it is guessed from the realm and the card says so in amber:
+*guessed: could not read it from the directory* - check it before running the commands.
+`acme --kerberos` says it too.
+
+**The service account** is typed on the card (`svc-acme-http` unless changed - kept in the
+browser) and the commands use it; **Check in AD** (a certificate administrator) looks it up by
+its sAMAccountName and says whether it is there, its userPrincipalName, whether *This account
+supports Kerberos AES 256 bit encryption* is set (msDS-SupportedEncryptionTypes 0x10), whether
+its *Password never expires* (userAccountControl 0x10000), whether it is switched off, and its
+SPNs.
 
 Changing the account's password later makes a new key version: make the keytab again and put it
 in. Do not make a keytab per node - one key serves every name: MIT's acceptor, given no name of

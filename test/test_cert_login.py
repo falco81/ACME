@@ -353,6 +353,11 @@ class CertLogin(unittest.TestCase):
             sam = (one.get('sAMAccountName') or [''])[0]
             if sam in SIDS:
                 one['objectSid'] = [sid_bytes(SIDS[sam])]
+        # The domain's NetBIOS name is not its first DNS label (1.0.110): the Kerberos card's
+        # commands say what AD has.
+        cls.cross_was = json.dumps(mockldap.CROSSREFS)
+        for one in mockldap.CROSSREFS.values():
+            one['nETBIOSName'] = ['MERIT_NT']
         cls.ldap_port, cls.ldap_stop = mockldap.serve(0)
         # The system's roots, as openssl finds them by default, hold "Somebody Else CA": the
         # sign-in must trust only the authorities put in (openssl verify -no-CApath).
@@ -383,6 +388,8 @@ class CertLogin(unittest.TestCase):
             mockldap.PEOPLE.update(cls.ldap_was)
             mockldap.GROUPS.clear()
             mockldap.GROUPS.update(json.loads(cls.groups_was))
+            mockldap.CROSSREFS.clear()
+            mockldap.CROSSREFS.update(json.loads(cls.cross_was))
             cls.crl_srv.shutdown()
             shutil.rmtree(cls.pki, ignore_errors=True)
 
@@ -1749,6 +1756,231 @@ print(json.dumps([go("ncp", "cas-nc", False), go("ncok", "cas-nc", False), WHY, 
         self.assertNotIn('error', seen, seen.get('error'))
         self.assertEqual([k for k, v in seen['checks'].items() if not v], [], seen)
         self.assertTrue(seen['ok'], seen)
+
+    # ---- a person looked up for their certificate (1.0.110) ---------------------------------
+    def lookup(self, name, part='admin', session=None):
+        return self.call('POST', '/api/certlogin', {'action': 'lookup', 'name': name, 'part': part},
+                         session or self.admin)
+
+    def test_31_look_a_person_up(self):
+        url = 'tag:microsoft.com,2022-09-14:sid:'
+        st, got = self.lookup('nested')
+        self.assertEqual(st, 200, got)
+        x = got['lookup']
+        self.assertEqual((x['found'], x['cn'], x['sam'], x['upn'], x['dn']),
+                         ('one', 'Nested Person', 'nested', 'nested@corpnet.cz',
+                          'CN=Nested Person,OU=People,' + BASE))
+        self.assertEqual(x['sid'], SIDS['nested'])
+        self.assertEqual(x['san_upn'], 'nested@corpnet.cz')
+        self.assertEqual(x['san_url'], url + SIDS['nested'])
+        self.assertEqual(x['role'], 'fulladmin')
+        self.assertFalse(x['disabled'] or x['locked'] or x['expired'])
+        self.assertGreaterEqual(x['groups_count'], 2)
+        # Never the bytes of objectSid: the SID as a string only.
+        self.assertNotIn('objectsid', json.dumps(got).lower())
+        # The request: the SAN with the UPN and the URL, as openssl and certreq take them.
+        sn = x['snippets']
+        self.assertIn('otherName.1 = 1.3.6.1.4.1.311.20.2.3;UTF8:nested@corpnet.cz', sn['openssl_cnf'])
+        self.assertIn('URI.1 = ' + url + SIDS['nested'], sn['openssl_cnf'])
+        self.assertIn('_continue_ = "upn=nested@corpnet.cz&"', sn['certreq_inf'])
+        self.assertIn('_continue_ = "url=%s%s"' % (url, SIDS['nested']), sn['certreq_inf'])
+        self.assertIn('2.5.29.17 = "{text}"', sn['certreq_inf'])
+        # What openssl makes of it: a request with exactly these in its SAN.
+        work = tempfile.mkdtemp(prefix='acme-lookup-')
+        try:
+            got_ssl = subprocess.run(['bash', '-c', sn['openssl']], cwd=work, capture_output=True,
+                                     text=True, timeout=120)
+            self.assertEqual(got_ssl.returncode, 0, got_ssl.stderr)
+            text = subprocess.run(['openssl', 'req', '-in', os.path.join(work, 'nested.csr'),
+                                   '-noout', '-text'], capture_output=True, text=True).stdout
+            self.assertIn('UPN::nested@corpnet.cz', text)
+            self.assertIn('URI:' + url + SIDS['nested'], text)
+            self.assertIn('CN = Nested Person', text)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+        # Which mode takes which: the SID extension every mode, the SAN URL never strong - and
+        # the sign-in's own checks say so (strong is set).
+        self.assertEqual(x['accepts']['sid_extension'], ['upn', 'compat', 'strong'])
+        self.assertEqual(x['accepts']['san_url'], ['upn', 'compat'])
+        self.assertEqual(x['would']['sid_extension'], {'ok': True, 'role': 'fulladmin'})
+        self.assertFalse(x['would']['san_url']['ok'])
+        self.assertIn('strong', x['would']['san_url']['why'])
+        self.on(admin_certlogin_match='compat')
+        try:
+            x2 = self.lookup('nested@corpnet.cz')[1]['lookup']
+            self.assertTrue(x2['would']['san_url']['ok'], x2['would'])
+        finally:
+            self.on(admin_certlogin_match='strong')
+        # By the UPN, DOMAIN\name and the e-mail address too.
+        self.assertEqual(self.lookup('CORPNET\\falco')[1]['lookup']['role'], 'readonly')
+        x3 = self.lookup('marta.mobilni@corpnet.cz')[1]['lookup']
+        self.assertEqual((x3['found'], x3['sam'], x3['how']), ('one', 'marta', 'mail'))
+        self.assertIn('email.1 = marta.mobilni@corpnet.cz', x3['snippets_mail']['openssl_cnf'])
+        self.assertNotIn('email', x3['snippets']['openssl_cnf'])
+        # The portal: whether its rules let them in, and why not.
+        xp = self.lookup('falco', 'portal')[1]['lookup']
+        self.assertTrue(xp['would']['sid_extension']['ok'], xp)
+        xo = self.lookup('outsider', 'portal')[1]['lookup']
+        self.assertIn('none of the groups', xo['would']['sid_extension']['why'])
+        # Written down: who looked whom up.
+        self.assertTrue(any('looked nested up' in w for w in self.events('for a certificate request')))
+
+    def test_32_look_up_not_found_several_disabled(self):
+        x = self.lookup('nobody-here')[1]['lookup']
+        self.assertEqual(x['found'], 'none')
+        self.assertNotIn('sid', x)
+        g = self.lookup('gone')[1]['lookup']
+        self.assertTrue(g['disabled'])
+        self.assertIn('disabled', g['unusable'])
+        self.assertFalse(g['would']['sid_extension']['ok'])
+        self.assertEqual(g['san_url'], 'tag:microsoft.com,2022-09-14:sid:' + SIDS['gone'])
+        twin = 'CN=Marta Twin,OU=People,' + BASE
+        mockldap.PEOPLE[twin] = {'sAMAccountName': ['marta2'], 'userPrincipalName': ['marta2@corpnet.cz'],
+                                 'objectClass': ['top', 'person', 'user'],
+                                 'mail': ['shared@corpnet.cz'], 'userAccountControl': ['512'],
+                                 'memberOf': [], '_password': 'x-password-1'}
+        mockldap.PEOPLE['CN=Marta Mobilni,OU=People,' + BASE]['mail'] = ['shared@corpnet.cz']
+        try:
+            x = self.lookup('shared@corpnet.cz')[1]['lookup']
+            self.assertEqual(x['found'], 'many')
+            self.assertNotIn('dn', x)
+        finally:
+            mockldap.PEOPLE.pop(twin)
+            mockldap.PEOPLE['CN=Marta Mobilni,OU=People,' + BASE]['mail'] = ['marta.mobilni@corpnet.cz']
+
+    def test_33_look_up_refused(self):
+        # A filter in the name never reaches the directory: refused as typed.
+        before = len(mockldap.ASKED)
+        for bad in ('*', 'nest*', 'a)(objectClass=*', 'x(|(sAMAccountName=*))', 'cn=x,dc=y',
+                    'a\x00b', 'a\\b\\c', 'x' * 300, '', '  '):
+            st, got = self.lookup(bad)
+            self.assertEqual(st, 400, (bad, got))
+        self.assertEqual(len(mockldap.ASKED), before)
+        st, got = self.lookup('nested', 'elsewhere')
+        self.assertEqual(st, 400, got)
+        # As Look a name up in the directory card: a certificate administrator may, read only not.
+        st, got = self.lookup('nested', session=self.ro)
+        self.assertEqual(st, 403, got)
+        st, got = self.call('POST', '/api/certlogin', {'action': 'lookup', 'name': 'nested'}, None)
+        self.assertEqual(st, 401, got)
+        certer = self.login('certer')
+        st, got = self.lookup('nested', session=certer)
+        self.assertEqual(st, 200, got)
+        # ...and nothing else of the card's actions for them.
+        st, got = self.call('POST', '/api/certlogin', {'action': 'drop', 'sha256': 'x'}, certer)
+        self.assertEqual(st, 403, got)
+        # The directory not answering: said in general words, nothing of it.
+        self.must('POST', '/api/directories', {'action': 'save', 'directory': {
+            'name': 'dead', 'hosts': '127.0.0.1', 'port': free_port(), 'tls': 'none',
+            'verify': 0, 'base': BASE, 'bind_dn': 'CN=isemon,OU=Service,' + BASE,
+            'bind_pw': 'the-service-password', 'enabled': 1, 'timeout_s': 2}})
+        self.on(portal_directory='dead')
+        try:
+            st, got = self.lookup('nested', 'portal')
+            self.assertEqual(st, 503, got)
+            self.assertEqual(got.get('error'), 'the directory cannot be reached just now')
+        finally:
+            self.on(portal_directory='corp')
+
+    def test_34_look_up_from_the_command_line(self):
+        got = self.cli('--cert-login-lookup', 'nested', '--json')
+        self.assertEqual(got.returncode, 0, got.stderr)
+        v = json.loads(got.stdout)
+        self.assertEqual(v['san_url'], 'tag:microsoft.com,2022-09-14:sid:' + SIDS['nested'])
+        got = self.cli('--cert-login-lookup', 'falco', '--part', 'portal')
+        self.assertEqual(got.returncode, 0, got.stderr)
+        self.assertIn('tag:microsoft.com,2022-09-14:sid:' + SIDS['falco'], got.stdout)
+        self.assertIn('falco@corpnet.cz', got.stdout)
+        self.assertIn('[Extensions]', got.stdout)
+        got = self.cli('--cert-login-lookup', 'nobody-here')
+        self.assertEqual(got.returncode, 1, got.stdout + got.stderr)
+        got = self.cli('--cert-login-lookup', 'a*')
+        self.assertNotEqual(got.returncode, 0)
+        self.assertIn('no account name', got.stderr)
+
+    def test_35_the_popup_and_a_csr_made_in_the_browser(self):
+        """Look up a person… and Make a CSR… in Chromium (test/cert_lookup_page.js): the CSRs it
+        downloads checked by openssl - the signature, the subject, the SAN (the UPN, the SAN URL),
+        the key usages, the key encrypted with the passphrase and the CSR's own; nothing of the
+        key sent anywhere. And the Kerberos card's commands with MERIT_NT, read from AD."""
+        node = shutil.which('node')
+        if not node or not shutil.which('php'):
+            self.skipTest('no node or php here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          cwd=ROOT).returncode != 0:
+            self.skipTest('no playwright for node here')
+        svc = 'CN=svc-web,OU=Service,' + BASE
+        mockldap.PEOPLE[svc] = {
+            'sAMAccountName': ['svc-web'], 'userPrincipalName': ['svc-web@corpnet.loc'],
+            'objectClass': ['top', 'person', 'user'], 'userAccountControl': [str(0x200 | 0x10000)],
+            'msDS-SupportedEncryptionTypes': ['24'], 'memberOf': [],
+            'servicePrincipalName': ['HTTP/' + HOST], '_password': 'svc-web-password-1'}
+        work = tempfile.mkdtemp(prefix='acme-lookup-page-')
+        web = os.path.join(work, 'web')
+        shutil.copytree(os.path.join(ROOT, 'web'), web)
+        api_php = os.path.join(web, 'acme-api.php')
+        with open(api_php, encoding='utf-8') as f:
+            text = f.read()
+        with open(api_php, 'w', encoding='utf-8') as f:
+            f.write(text.replace('/run/acme/', os.path.join(self.tmp, 'run') + '/'))
+        port = free_port()
+        php = subprocess.Popen(['php', '-S', '127.0.0.1:%d' % port], cwd=web,
+                               env=dict(os.environ, PHP_CLI_SERVER_WORKERS='4'),
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        outd = os.path.join(work, 'out')
+        try:
+            for _ in range(60):
+                try:
+                    urllib.request.urlopen('http://127.0.0.1:%d/admin/index.php' % port, timeout=2)
+                    break
+                except OSError:
+                    time.sleep(0.3)
+            got = subprocess.run([node, os.path.join(HERE, 'cert_lookup_page.js'),
+                                  'http://127.0.0.1:%d' % port, 'tester', self.pw, outd],
+                                 capture_output=True, text=True, timeout=600, cwd=ROOT)
+            self.assertEqual(got.returncode, 0, got.stderr[-2000:])
+            seen = json.loads(got.stdout.strip().splitlines()[-1])
+            self.assertNotIn('error', seen, seen.get('error'))
+            self.assertEqual([k for k, v in seen['checks'].items() if not v], [], seen)
+            self.assertEqual(seen['errors'], [], seen)
+
+            def ssl(*a, **kw):
+                r = subprocess.run(['openssl'] + list(a), capture_output=True, text=True, timeout=60,
+                                   **kw)
+                self.assertEqual(r.returncode, 0, (a, r.stderr))
+                return r.stdout + r.stderr
+            for tag, curve in (('en1400', ''), ('en420', 'P-256')):
+                csr = os.path.join(outd, tag, 'nested.csr')
+                key = os.path.join(outd, tag, 'nested.key')
+                self.assertIn('verify OK', ssl('req', '-in', csr, '-verify', '-noout'))
+                t = ssl('req', '-in', csr, '-noout', '-text')
+                self.assertIn('UPN::nested@corpnet.cz', t)
+                self.assertIn('URI:tag:microsoft.com,2022-09-14:sid:' + SIDS['nested'], t)
+                self.assertIn('TLS Web Client Authentication, Microsoft Smartcard Login', t)
+                self.assertIn('CN = Nested Person' if curve else 'C = CZ, CN = Nested Person', t)
+                with open(key) as f:
+                    kp = f.read()
+                if curve:
+                    self.assertIn('BEGIN PRIVATE KEY', kp)
+                    self.assertIn('ecdsa-with-SHA256', t)
+                    self.assertIn('Digital Signature', t)
+                    self.assertNotIn('Key Encipherment', t)
+                    pub = ssl('pkey', '-in', key, '-pubout')
+                else:
+                    self.assertIn('BEGIN ENCRYPTED PRIVATE KEY', kp)
+                    self.assertIn('sha256WithRSAEncryption', t)
+                    self.assertIn('Public-Key: (2048 bit)', t)
+                    self.assertIn('Digital Signature, Key Encipherment', t)
+                    pub = ssl('pkey', '-in', key, '-passin', 'pass:a-good-passphrase', '-pubout')
+                    r = subprocess.run(['openssl', 'pkey', '-in', key, '-passin', 'pass:wrong-one'],
+                                       capture_output=True, text=True)
+                    self.assertNotEqual(r.returncode, 0)
+                self.assertEqual(pub.strip(), ssl('req', '-in', csr, '-noout', '-pubkey').strip())
+        finally:
+            php.terminate()
+            php.wait(10)
+            mockldap.PEOPLE.pop(svc, None)
+            shutil.rmtree(work, ignore_errors=True)
 
     def test_14_kerberos_untouched(self):
         """The shared code: a Kerberos sign-in's session and its words as before."""

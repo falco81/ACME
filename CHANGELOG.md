@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.110 - not released
+## 1.0.111 - not released
 
 - **The database on a server of its own, looked after as one on the same machine**
   (docs/external-database.md). A small agent on the database server, **acme-db-agent**, does
@@ -37,6 +37,32 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   the agent and a join code. `--db-agent` for the agent alone, `--uninstall` with either takes
   the agent away (the database stays). `--dry-run`, and safe to run again. The usual install is
   not changed.
+
+## 1.0.110 - 2026-11-15
+
+- **Look up a person for their certificate**: *Look up a person…* on the card *Signing in with a
+  certificate* (the administration's and the enrolment pages') finds an account in the directory
+  (`novak`, `DOMAIN\novak`, a UPN or an e-mail address) and shows what goes into their
+  certificate request, each value with its own Copy button: the CN, the UPN of the SAN (otherName
+  msUPN), the SAN URL of the strong mapping `tag:microsoft.com,2022-09-14:sid:<SID>`
+  (KB5014754), the SID, the sAMAccountName, the DN and the mail; whether the account is enabled,
+  locked or expired, the role it gets here (or whether the portal lets it in), whether a
+  certificate from AD CS and one with the SAN URL only would sign in and under which *Which
+  account* mode; and the request itself for openssl (a `.cnf`) and certreq (an INF). Read only,
+  for a certificate administrator; written to the events. `acme --cert-login-lookup NAME [--part
+  admin|portal] [--json]` the same (docs/certificate-sign-in.md).
+- **Make a CSR… in the browser**: from the person found, a second popup with the key (RSA 2048 by
+  default, 3072, 4096, ECDSA P-256, P-384), the subject and the SAN filled in from AD (the UPN, the
+  strong-mapping URL, the mail, a DNS name - each ticked or not) and the key usages (Client
+  Authentication and Smart Card Logon ticked); the key pair is made by the browser (WebCrypto) and
+  the request written and signed in the page - the private key never leaves it - and both are
+  downloaded: the `.csr` and the `.key` (PKCS#8, encrypted with the passphrase typed, or not when
+  so ticked). For a smart card or a YubiKey it shows the commands that make it on the card.
+- **The Kerberos card's commands use the domain's real NetBIOS name**: `setspn` and `ktpass
+  -mapuser` said `MERIT\svc-acme-http` for `merit.cz` where the domain is `MERIT_NT` - the name is
+  now read from the directory (the domain's crossRef: nETBIOSName, dnsRoot), and where it cannot
+  be read the card says it is guessed. The service account can be typed on the card and checked in
+  AD: its UPN, AES 256 allowed, password never expires, its SPNs (docs/kerberos-sso.md).
 
 ## 1.0.109 - 2026-11-15
 

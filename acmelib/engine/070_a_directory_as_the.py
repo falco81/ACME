@@ -405,6 +405,90 @@ class Directory(object):
             self.cache[key] = (time.time(), out)
         return out
 
+    # The domain's own names as AD has them (1.0.110): kept an hour, a failure five minutes - the
+    # Kerberos card asks on every look.
+    NAMES_CACHE_S = 3600
+    NAMES_FAIL_S = 300
+
+    def domain_names(self):
+        """{'netbios', 'dns', 'nc'} of the domain the base is in, as its crossRef in the
+        configuration partition says (CN=Partitions,CN=Configuration,<forest root>: nETBIOSName,
+        dnsRoot) - MERIT_NT for merit.cz where it is so, never the first DNS label guessed.
+        LdapError when it cannot be read."""
+        key = ('names',)
+        with self.lock:
+            got = self.cache.get(key)
+            if got and time.time() - got[0] < (self.NAMES_CACHE_S if got[1].get('netbios')
+                                                else self.NAMES_FAIL_S):
+                if got[1].get('error'):
+                    raise LdapError(got[1]['error'])
+                return dict(got[1])
+
+        def do(link):
+            root = link.search('', ldap_present('objectClass'),
+                               ('defaultNamingContext', 'configurationNamingContext',
+                                'rootDomainNamingContext'), scope=0, limit=1)
+            a = {k.lower(): v for k, v in (root[0]['attrs'] if root else {}).items()}
+            dom = self.domain_dn() or (a.get('defaultnamingcontext') or [''])[0]
+            conf = (a.get('configurationnamingcontext') or [''])[0] or (
+                'CN=Configuration,' + ((a.get('rootdomainnamingcontext') or [''])[0] or dom))
+            if not dom:
+                raise LdapError('the domain is not known: the base names no DC=')
+            rows = link.search('CN=Partitions,' + conf,
+                               ldap_and(ldap_equal('objectClass', 'crossRef'),
+                                        ldap_equal('nCName', dom)),
+                               ('nETBIOSName', 'dnsRoot', 'nCName'), scope=1, limit=5)
+            return dom, rows
+        try:
+            dom, rows = self.asked(do)
+            out = {}
+            for r in rows:
+                a = {k.lower(): v for k, v in r['attrs'].items()}
+                nb = str((a.get('netbiosname') or [''])[0] or '').strip()
+                if nb and re.match(r'^[A-Za-z0-9!@#$%^&()\-_\'{}.~ ]{1,15}\Z', nb):
+                    out = {'netbios': nb.upper(),
+                           'dns': str((a.get('dnsroot') or [''])[0] or '').strip().lower(),
+                           'nc': dom}
+                    break
+            if not out:
+                raise LdapError('the configuration partition has no crossRef of %s with a '
+                                'NetBIOS name (or this account may not read it)' % dom)
+        except LdapError as e:
+            with self.lock:
+                self.cache[key] = (time.time(), {'error': str(e)[:300]})
+            raise
+        with self.lock:
+            self.cache[key] = (time.time(), dict(out))
+        return out
+
+    def service_account(self, name):
+        """The service account of the keytab (1.0.110): its sAMAccountName, UPN, whether AES 256
+        is allowed (msDS-SupportedEncryptionTypes 0x10), its password never expires
+        (userAccountControl 0x10000), switched off, and its SPNs - or None."""
+        flt = ldap_and(ldap_equal('objectClass', 'user'), ldap_equal('sAMAccountName', name))
+        rows = self.asked(lambda link: link.search(
+            self.domain_root(), flt, ('sAMAccountName', 'userPrincipalName', 'userAccountControl',
+                                      'msDS-SupportedEncryptionTypes', 'servicePrincipalName'),
+            scope=2, limit=2))
+        if not rows:
+            return None
+        a = {k.lower(): v for k, v in rows[0]['attrs'].items()}
+        first = lambda k: (a.get(k.lower()) or [''])[0]
+        try:
+            uac = int(first('userAccountControl') or 0)
+        except ValueError:
+            uac = 0
+        enc_said = first('msDS-SupportedEncryptionTypes')
+        try:
+            enc = int(enc_said or 0)
+        except ValueError:
+            enc = 0
+        return {'dn': rows[0]['dn'], 'sam': first('sAMAccountName'),
+                'upn': first('userPrincipalName'), 'many': len(rows) > 1,
+                'aes256': bool(enc & 0x10), 'enc_known': bool(str(enc_said).strip()),
+                'pw_never_expires': bool(uac & 0x10000), 'disabled': bool(uac & AD_UAC_DISABLED),
+                'spns': sorted(str(x) for x in (a.get('serviceprincipalname') or []))[:50]}
+
     def domain_root(self):
         """DC=corpnet,DC=loc out of the base the people are looked for under."""
         dcs = [p for p in re.split(r'(?<!\\),', str(self.base or '')) if

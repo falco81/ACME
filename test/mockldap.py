@@ -56,6 +56,15 @@ PARTITIONS = {
     'objectClass': ['top', 'crossRefContainer'],
 }
 
+# ...and in it, a crossRef of each domain of the forest (1.0.110): its NetBIOS name, which need not
+# be the first label of its DNS name (MERIT_NT for merit.cz) - a test changes it.
+CROSSREFS = {
+    'CN=CORPNET,CN=Partitions,CN=Configuration,DC=corpnet,DC=loc': {
+        'objectClass': ['top', 'crossRef'], 'cn': ['CORPNET'],
+        'nCName': ['DC=corpnet,DC=loc'], 'nETBIOSName': ['CORPNET'], 'dnsRoot': ['corpnet.loc'],
+        'systemFlags': ['3'],
+    },
+}
 
 # One small domain: two people, three groups, one of them inside another.
 BASE = 'DC=corpnet,DC=loc'
@@ -583,7 +592,12 @@ def serve(port=0, tls=None, stop=None):
             # Active Directory answers both, and what it says about its name
             # suffixes is how a program can know which names belong here
             # without anybody typing them in.
-            if not base or base.lower().startswith('cn=partitions,'):
+            try:
+                scope0 = isemon._ber_int_of(_scope) == 0
+            except Exception:
+                scope0 = True
+            # The container itself asked for (scope 0); a search below it finds the crossRefs.
+            if not base or (base.lower().startswith('cn=partitions,') and scope0):
                 one = ROOTDSE if not base else PARTITIONS
                 pairs = b''
                 for name, values in one.items():
@@ -603,6 +617,7 @@ def serve(port=0, tls=None, stop=None):
             everything.update(POLICIES)
             everything.update(SITES)
             everything.update(CONFIG_OBJECTS)
+            everything.update(CROSSREFS)
             # Every domain controller has a ceiling of its own on how many
             # entries it will hand back in one answer - a thousand on Active
             # Directory unless somebody has changed it - and says "there is
