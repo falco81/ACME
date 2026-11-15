@@ -1281,7 +1281,7 @@ def cli_ha_open_now(store, peer, pal):
 def firewall_peer(peer, pal, port=5432):
     """firewalld letting the other node - one address - reach PostgreSQL."""
     if db_agent_on():
-        # On the database server, by its agent (1.0.111): the other server and the other node.
+        # On the database server, by its agent (1.0.112): the other server and the other node.
         try:
             for line in db_agent_fw([peer] + db_agent_link_peers()).get('said') or []:
                 print(pal.ok_line('the database server: %s' % line))
@@ -1348,7 +1348,7 @@ def cli_ha_setup_replicated(args, pal, store, ask):
     port = int(CONFIG.get('db_port') or 5432)
     name, user, pw = CONFIG.get('db_name'), CONFIG.get('db_user'), CONFIG.get('db_password')
     if db_agent_on():
-        # Each node's database on a server of its own (1.0.111): --ha-peer is the other
+        # Each node's database on a server of its own (1.0.112): --ha-peer is the other
         # database server, --ha-peer-node the other acme node.
         db_agent_put({'peer_node': getattr(args, 'ha_peer_node', None) or peer})
     try:
@@ -1400,7 +1400,7 @@ def cli_ha_setup_replicated(args, pal, store, ask):
             'peer': {'name': node_name(), 'address': me, 'port': port, 'slot': 1},
             'cluster': CONFIG.get('site_name') or 'acme', 'joining': peer}
     if db_agent_on():
-        # The node itself, apart from its database server (1.0.111).
+        # The node itself, apart from its database server (1.0.112).
         data['peer']['node'] = node_address()
     phrase = ha_passphrase()
     target = Path(args.ha_bundle or '/root/acme-join-%s.json' % node_name())
@@ -1441,7 +1441,7 @@ def cli_ha_join_replicated(args, pal, data, ask):
         else 5432
     here = '127.0.0.1'
     if db_agent_on():
-        # This node's database on a server of its own (1.0.111): its agent prepares it, the
+        # This node's database on a server of its own (1.0.112): its agent prepares it, the
         # other node's own address let in there too.
         port = int((db_agent() or {}).get('pg_port') or port)
         here = db_agent_db_host()

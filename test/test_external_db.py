@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The database on servers of their own, looked after by acme-db-agent (1.0.111).
+"""The database on servers of their own, looked after by acme-db-agent (1.0.112).
 
     python3 test/test_external_db.py        (as root, with PostgreSQL 16 installed)
 

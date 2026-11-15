@@ -69,7 +69,7 @@ def pg_admin(sql, port=5432, db='postgres', secret=False):
 
 def pg_local_running(port=5432):
     if db_agent_on():
-        return db_agent_running()       # on a server of its own (1.0.111)
+        return db_agent_running()       # on a server of its own (1.0.112)
     try:
         return pg_admin('SELECT 1', port) == '1'
     except Exception:                                   # noqa: BLE001
@@ -115,7 +115,7 @@ def pg_install_local(major, say):
 
 def pg_restart_local(port=5432):
     if db_agent_on():
-        db_agent_restart()              # through the agent of its server (1.0.111)
+        db_agent_restart()              # through the agent of its server (1.0.112)
         return
     unit = tune_restart_unit()
     if unit:
@@ -141,7 +141,7 @@ def pg_prepare_local(port, peer, name, user, password, say):
     replicate and to subscribe, the database there. True when it has to be
     restarted for it."""
     if db_agent_on():
-        # The same on a server of its own, by its agent (1.0.111).
+        # The same on a server of its own, by its agent (1.0.112).
         return db_agent_prepare(peer, name, user, password, say)
     major = int(pg_admin('SHOW server_version_num', port)) // 10000
     if major < 16:
@@ -207,7 +207,7 @@ def pg_prepare_local(port, peer, name, user, password, say):
 
 def pg_publication(port, name):
     if db_agent_on():
-        db_agent_publication(name)      # FOR ALL TABLES needs a superuser: the agent's (1.0.111)
+        db_agent_publication(name)      # FOR ALL TABLES needs a superuser: the agent's (1.0.112)
         return
     if pg_admin("SELECT 1 FROM pg_publication WHERE pubname = '%s'" % HA_PUB_OLD, port, name) == '1':
         pg_admin('ALTER PUBLICATION %s RENAME TO %s' % (HA_PUB_OLD, HA_PUB), port, name)

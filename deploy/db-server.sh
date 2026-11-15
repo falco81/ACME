@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# deploy/db-server.sh - a database server of its own for acme, and its agent (1.0.111).
+# deploy/db-server.sh - a database server of its own for acme, and its agent (1.0.112).
 #
 # Sourced by install.sh for  --db-server postgres|mariadb  and  --db-agent  (never on its
 # normal path): it uses install.sh's run, step, say, note, good, warn, fail, confirm, PKG,

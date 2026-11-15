@@ -73,7 +73,7 @@ PHP_UPDATE="yes"
 PHP_STREAM="8.3"
 USE_REMI=""
 
-# A database server of its own for acme, and its agent (1.0.111, deploy/db-server.sh):
+# A database server of its own for acme, and its agent (1.0.112, deploy/db-server.sh):
 # nothing of it runs without --db-server or --db-agent.
 DB_SERVER=""
 DB_AGENT=""
@@ -425,7 +425,7 @@ apt_update_once() {
     run apt-get update -q >/dev/null 2>&1 || run apt-get update
 }
 if [[ -n "$DB_SERVER" || -n "$DB_AGENT" ]]; then
-    # A database server of its own and its agent (1.0.111): this, and nothing else.
+    # A database server of its own and its agent (1.0.112): this, and nothing else.
     # shellcheck source=deploy/db-server.sh
     . "$SOURCE_DIR/deploy/db-server.sh"
     db_server_main

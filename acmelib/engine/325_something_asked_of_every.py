@@ -363,7 +363,7 @@ def dbtls_kind(conf=None):
     if c.get('db_engine') == 'postgres' and local:
         return 'replicated' if c.get('ha_mode') == 'replicated' else 'local'
     if conf is None and c.get('db_engine') == 'postgres' and db_agent_on():
-        # On a server of its own, looked after by its agent (1.0.111): as one on this machine.
+        # On a server of its own, looked after by its agent (1.0.112): as one on this machine.
         return 'replicated' if c.get('ha_mode') == 'replicated' else 'local'
     return 'remote'
 

@@ -172,7 +172,7 @@ def repl_errors(store, ask_log=True):
                      'cleared': base.get('at'), 'cleared_by': base.get('by')})
     got = {}
     if ask_log and db_agent_on():
-        got = db_agent_pglog()          # the log is on the database server (1.0.111)
+        got = db_agent_pglog()          # the log is on the database server (1.0.112)
     elif ask_log and WEB_DIR.is_dir():
         ask = WEB_DIR / PGLOG_ASK
         t0 = time.time()

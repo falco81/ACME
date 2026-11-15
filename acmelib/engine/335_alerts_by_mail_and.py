@@ -631,7 +631,7 @@ def alert_problems(store, lang='en'):
     # What a module sees wrong (HOOKS['alerts']): mailed like the engine's own.
     for fn in HOOKS['alerts']:
         try:
-            # in the alert's language when the module says it (1.0.111: takes `lang`)
+            # in the alert's language when the module says it (1.0.112: takes `lang`)
             try:
                 takes = 'lang' in inspect.signature(fn).parameters
             except (TypeError, ValueError):

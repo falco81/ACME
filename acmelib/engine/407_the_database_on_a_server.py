@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
-# ---- the database on a server of its own, looked after by acme-db-agent (1.0.111) ----------
+# ---- the database on a server of its own, looked after by acme-db-agent (1.0.112) ----------
 # docs/external-database.md. Until now acme looked after a PostgreSQL (or MariaDB) only on its
 # own machine, through the root helper (acme_web.py): the certificate of the database, its
 # pg_hba.conf, its settings and restarts, the replication's TLS. With the database on a server
@@ -515,7 +515,7 @@ def db_agent_mariadb_tls(store, by):
 
 def db_agent_mariadb_renew(store, by='acme (renewed)'):
     """The MariaDB's certificate from acme's authority renewed through its agent 45 days before
-    it ends (1.0.111) - as a PostgreSQL's is: only one acme gave it (Database -> TLS or
+    it ends (1.0.112) - as a PostgreSQL's is: only one acme gave it (Database -> TLS or
     acme --db-agent-mariadb-tls), never one its administrator put in."""
     a = db_agent()
     if not a or a.get('engine') != 'mariadb':
@@ -706,7 +706,7 @@ def db_agent_load_rows(store):
         out.append(v)
     for v in out:
         v['name'] = 'db:%s' % v['node']
-        # The server's own short name, for the meter's row (1.0.111): from its agent's facts.
+        # The server's own short name, for the meter's row (1.0.112): from its agent's facts.
         f = _meta_obj(store, 'dbagent:node:' + v['node']).get('facts') or {}
         v['server'] = str(f.get('host') or '').split('.')[0][:40]
         v.setdefault('engine', f.get('engine') or '')
@@ -755,7 +755,7 @@ def db_agent_view(store):
                            'fails': DBAGENT_STATE['fails'], 'at': DBAGENT_STATE['at']})
     # Which settings reach a database server too (their cards draw it beside the nodes).
     view['applies'] = DBAGENT_APPLIES
-    # For the card of Settings -> The database and its wizard (1.0.111): where the database is
+    # For the card of Settings -> The database and its wizard (1.0.112): where the database is
     # now - this machine, the agent's server, or a server no agent looks after - and the
     # addresses of this node the database server lets in (install.sh --acme-node).
     view['where'] = db_agent_where()
@@ -867,7 +867,7 @@ def _db_agent_post(h):
 # ---- alerts, metrics, status (only with an agent) ---------------------------------------------
 @hook('alerts')
 def _db_agent_alerts(store, lang='en'):
-    """The database servers looked after by agents (1.0.111), in the alert's language: the
+    """The database servers looked after by agents (1.0.112), in the alert's language: the
     pages read them in English and say them in the page's own; a mail goes in alerts_lang()."""
     out = []
     if not db_agent_on() and not CONFIG.get('ha_mode'):

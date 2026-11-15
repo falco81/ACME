@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.111 - not released
+## 1.0.112 - not released
 
 - **The database on a server of its own, looked after as one on the same machine**
   (docs/external-database.md). A small agent on the database server, **acme-db-agent**, does
@@ -37,6 +37,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   the agent and a join code. `--db-agent` for the agent alone, `--uninstall` with either takes
   the agent away (the database stays). `--dry-run`, and safe to run again. The usual install is
   not changed.
+
+## 1.0.111 - 2026-11-15
+
+- **Values for a person's certificate: room around "Make a CSR…".** The heading "What to put into the
+  request" and its button sat right on the box above and below; they have their space now.
 
 ## 1.0.110 - 2026-11-15
 
