@@ -64068,211 +64068,453 @@
    "source": "The request, to paste into the authority",
    "text": "Žádost, k vložení do autority"
   },
-  "_802": {
-   "source": "_meta",
-   "text": {
-    "code": "cs",
-    "for": "acme 1.0.110 - the database on a server of its own (acme-db-agent): server strings",
-    "about": "Merge into web/lang/cs.json (new ids). Agent-side strings (deploy/acme_db_agent.py, acme_pg_ops.py) and install.sh stay English, like acme_web.py."
-   }
+  "dbui-001": {
+   "source": "Database server",
+   "text": "Databázový server"
   },
-  "_803": {
-   "source": "strings",
-   "text": {
-    "dbagent-001": {
-     "source": "The database agent of %s does not answer",
-     "text": "Agent databáze uzlu %s neodpovídá"
-    },
-    "dbagent-002": {
-     "source": "acme-db-agent at %s:%s has not answered since %s: %s - its database server can be neither renewed nor changed from acme",
-     "text": "acme-db-agent na %s:%s neodpovídá od %s: %s – jeho databázový server teď acme nemůže obnovovat ani měnit"
-    },
-    "dbagent-003": {
-     "source": "The database server of %s is down",
-     "text": "Databázový server uzlu %s neběží"
-    },
-    "dbagent-004": {
-     "source": "its agent answers, the database does not: %s",
-     "text": "jeho agent odpovídá, databáze ne: %s"
-    },
-    "dbagent-005": {
-     "source": "The certificate of the database agent of %s ends soon",
-     "text": "Certifikát agenta databáze uzlu %s brzy vyprší"
-    },
-    "dbagent-006": {
-     "source": "it is renewed by itself 45 days before - look at the agent (Settings -> The database)",
-     "text": "obnovuje se sám 45 dní předem – podívejte se na agenta (Nastavení → Databáze)"
-    },
-    "dbagent-007": {
-     "source": "the database agent of %s (%s:%s) does not answer: %s",
-     "text": "agent databáze uzlu %s (%s:%s) neodpovídá: %s"
-    },
-    "dbagent-008": {
-     "source": "the database agent of %s (%s:%s) answers again",
-     "text": "agent databáze uzlu %s (%s:%s) opět odpovídá"
-    },
-    "dbagent-009": {
-     "source": "%s: %s looks after its database server %s through acme-db-agent (%s:%d) from now on",
-     "text": "%s: %s od teď spravuje svůj databázový server %s přes acme-db-agent (%s:%d)"
-    },
-    "dbagent-010": {
-     "source": "%s: %s no longer looks after its database server through acme-db-agent (%s)",
-     "text": "%s: %s už nespravuje svůj databázový server přes acme-db-agent (%s)"
-    },
-    "dbagent-011": {
-     "source": "%s: renewed for acme-db-agent: %s",
-     "text": "%s: obnoveno pro acme-db-agent: %s"
-    },
-    "dbagent-012": {
-     "source": "%s restarted the database server through its agent",
-     "text": "%s restartoval databázový server přes jeho agenta"
-    },
-    "dbagent-013": {
-     "source": "%s: the MariaDB of %s was given a certificate from acme's authority (acme-db-agent)",
-     "text": "%s: MariaDB uzlu %s dostala certifikát od autority acme (acme-db-agent)"
-    },
-    "dbagent-014": {
-     "source": "this node has no database agent (db_admin is local)",
-     "text": "tento uzel nemá agenta databáze (db_admin je local)"
-    },
-    "dbagent-015": {
-     "source": "the database agent at %s:%s does not answer: %s",
-     "text": "agent databáze na %s:%s neodpovídá: %s"
-    },
-    "dbagent-016": {
-     "source": "the database agent said: %s",
-     "text": "agent databáze odpověděl: %s"
-    },
-    "dbagent-017": {
-     "source": "the database agent's answer is not signed with this node's key",
-     "text": "odpověď agenta databáze není podepsaná klíčem tohoto uzlu"
-    },
-    "dbagent-018": {
-     "source": "the agent at %s:%s answers with a certificate acme did not pin (%s…) - not the agent that joined, or somebody in between",
-     "text": "agent na %s:%s odpovídá certifikátem, který acme nemá připnutý (%s…) – není to připojený agent, nebo je někdo mezi"
-    },
-    "dbagent-019": {
-     "source": "that is not a join code of acme-db-agent (it starts with ADBA1.)",
-     "text": "to není připojovací kód acme-db-agent (začíná ADBA1.)"
-    },
-    "dbagent-020": {
-     "source": "the join code is cut short or mistyped",
-     "text": "připojovací kód je zkrácený nebo překlepnutý"
-    },
-    "dbagent-021": {
-     "source": "the join code is not one this agent gave, or it was used up or ran out: make a new one (acme_db_agent.py --new-code)",
-     "text": "připojovací kód nevydal tento agent, nebo už byl použit či vypršel: vytvořte nový (acme_db_agent.py --new-code)"
-    },
-    "dbagent-022": {
-     "source": "the signing key of the database agent is not in %s - join the agent again (acme --db-agent-join)",
-     "text": "podpisový klíč agenta databáze není v %s – připojte agenta znovu (acme --db-agent-join)"
-    },
-    "dbagent-023": {
-     "source": "this node's database agent does not look after a MariaDB",
-     "text": "agent databáze tohoto uzlu nespravuje MariaDB"
-    },
-    "dbagent-024": {
-     "source": "PostgreSQL does not answer on the database server %s: install it there (install.sh --db-server postgres) and start it",
-     "text": "PostgreSQL na databázovém serveru %s neodpovídá: nainstalujte ho tam (install.sh --db-server postgres) a spusťte"
-    },
-    "dbagent-025": {
-     "source": "the action is join, look, renew, restart, mariadb_tls or forget",
-     "text": "akce je join, look, renew, restart, mariadb_tls nebo forget"
-    },
-    "dbagent-026": {
-     "source": "the database's certificate from acme's authority, ssl on, its renewal",
-     "text": "certifikát databáze od autority acme, zapnuté ssl, jeho obnova"
-    },
-    "dbagent-027": {
-     "source": "the link between the databases: certificate, verify-full, pg_hba hostssl",
-     "text": "spojení mezi databázemi: certifikát, verify-full, pg_hba hostssl"
-    },
-    "dbagent-028": {
-     "source": "wal_level, listen_addresses, the account, the publication",
-     "text": "wal_level, listen_addresses, účet, publikace"
-    },
-    "dbagent-029": {
-     "source": "the database's port opened to the acme nodes and the other server",
-     "text": "port databáze otevřený uzlům acme a druhému serveru"
-    },
-    "dbagent-030": {
-     "source": "the database server's own settings and their restart",
-     "text": "vlastní nastavení databázového serveru a jeho restart"
-    },
-    "dbagent-031": {
-     "source": "PostgreSQL's log of the replication",
-     "text": "log replikace PostgreSQL"
-    },
-    "dbagent-032": {
-     "source": "how busy the database server is",
-     "text": "jak je databázový server vytížený"
-    },
-    "dbagent-033": {
-     "source": "the database server (acme-db-agent)",
-     "text": "databázový server (acme-db-agent)"
-    },
-    "dbagent-034": {
-     "source": "Whether the database agent of a node answers (1) or not (0)",
-     "text": "Zda agent databáze uzlu odpovídá (1), nebo ne (0)"
-    },
-    "dbagent-035": {
-     "source": "Whether the database server behind the agent runs",
-     "text": "Zda databázový server za agentem běží"
-    },
-    "dbagent-036": {
-     "source": "database server: %s through acme-db-agent %s:%s - %s",
-     "text": "databázový server: %s přes acme-db-agent %s:%s – %s"
-    },
-    "dbagent-037": {
-     "source": "acme-db-agent restarted the database server and waited for it",
-     "text": "acme-db-agent restartoval databázový server a počkal na něj"
-    },
-    "dbagent-038": {
-     "source": "%s restarted the database server through its agent for the settings waiting for it: %s",
-     "text": "%s restartoval databázový server přes jeho agenta kvůli čekajícím nastavením: %s"
-    }
-   }
+  "dbui-002": {
+   "source": "The database servers: what this card does reaches them through their agents, and each answers.",
+   "text": "Databázové servery: co tato karta dělá, se k nim dostává přes jejich agenty, a každý odpovídá."
   },
-  "_804": {
-   "source": "patterns",
-   "text": {
-    "dbuip-001": {
-     "source": "the database server of {0} ({1})",
-     "text": "databázový server uzlu {0} ({1})"
-    },
-    "dbuip-002": {
-     "source": "The database agent of {0} does not answer",
-     "text": "Agent databázového serveru uzlu {0} neodpovídá"
-    },
-    "dbuip-003": {
-     "source": "acme-db-agent at {0} has not answered since {1}: {2}. acme can neither renew nor change its database server meanwhile (the certificate, the settings, a restart); the database itself may well go on - look at the server (systemctl status acme-db-agent).",
-     "text": "acme-db-agent na {0} neodpovídá od {1}: {2}. acme mezitím nemůže jeho databázový server obnovovat ani měnit (certifikát, nastavení, restart); samotná databáze ale může běžet dál – podívejte se na server (systemctl status acme-db-agent)."
-    },
-    "dbuip-004": {
-     "source": "The database server of {0} is down",
-     "text": "Databázový server uzlu {0} neběží"
-    },
-    "dbuip-005": {
-     "source": "its agent ({0}) answers, the database does not: {1}",
-     "text": "jeho agent ({0}) odpovídá, databáze ne: {1}"
-    },
-    "dbuip-006": {
-     "source": "The certificate of the database agent of {0} ends soon",
-     "text": "Certifikát agenta databázového serveru uzlu {0} brzy vyprší"
-    },
-    "dbuip-007": {
-     "source": "it ends {0}; it is renewed by itself 45 days before, and that did not work - Settings → The database → Database server → Renew the certificates",
-     "text": "vyprší {0}; obnovuje se sám 45 dní předem, a to se nepovedlo – Nastavení → Databáze → Databázový server → Obnovit certifikáty"
-    },
-    "dbuip-008": {
-     "source": "The agent restarts {0} on {1} and waits for it. Every connection is cut for a few seconds; replication catches up by itself afterwards.",
-     "text": "Agent restartuje {0} na {1} a počká na něj. Všechna spojení se na několik sekund přeruší; replikace to potom dožene sama."
-    },
-    "dbuip-009": {
-     "source": "The agent restarts {0} on {1} and waits for it. Every connection is cut for a few seconds - this node’s pages and RADIUS wait for it meanwhile.",
-     "text": "Agent restartuje {0} na {1} a počká na něj. Všechna spojení se na několik sekund přeruší – stránky tohoto uzlu a RADIUS na něj zatím počkají."
-    }
-   }
+  "dbui-003": {
+   "source": "The database servers: what this card does reaches them through their agents - not every one answers now.",
+   "text": "Databázové servery: co tato karta dělá, se k nim dostává přes jejich agenty – teď ale neodpovídají všechny."
+  },
+  "dbui-004": {
+   "source": "Done on them:",
+   "text": "Co se na nich dělá:"
+  },
+  "dbui-005": {
+   "source": "heard from",
+   "text": "ozval se"
+  },
+  "dbui-006": {
+   "source": "agent",
+   "text": "agent"
+  },
+  "dbui-007": {
+   "source": "its agent does not answer",
+   "text": "jeho agent neodpovídá"
+  },
+  "dbui-008": {
+   "source": "not heard from lately",
+   "text": "poslední dobou se neozval"
+  },
+  "dbui-009": {
+   "source": "its database does not run",
+   "text": "jeho databáze neběží"
+  },
+  "dbui-010": {
+   "source": "not looked at yet",
+   "text": "zatím nezjištěno"
+  },
+  "dbui-011": {
+   "source": " - a server no agent looks after",
+   "text": " – server, o který se nestará žádný agent"
+  },
+  "dbui-012": {
+   "source": "acme only connects to it: its certificate, its settings and their restart are its administrator’s. With acme-db-agent on that server acme looks after it as it would one on this machine - and the meter in the header shows it.",
+   "text": "acme se k němu jen připojuje: jeho certifikát, nastavení i restart má na starosti jeho správce. S acme-db-agent na tom serveru se o něj acme stará jako o databázi na tomto stroji – a ukazuje ho i měřič v záhlaví."
+  },
+  "dbui-013": {
+   "source": "Connect a database server…",
+   "text": "Připojit databázový server…"
+  },
+  "dbui-014": {
+   "source": "Connect a database server",
+   "text": "Připojit databázový server"
+  },
+  "dbui-015": {
+   "source": "This node’s database is on",
+   "text": "Databáze tohoto uzlu je na"
+  },
+  "dbui-016": {
+   "source": "This node’s database is still the file on this machine",
+   "text": "Databáze tohoto uzlu je zatím soubor na tomto stroji"
+  },
+  "dbui-017": {
+   "source": "This node’s database is still on this machine",
+   "text": "Databáze tohoto uzlu je zatím na tomto stroji"
+  },
+  "dbui-018": {
+   "source": "- not the agent’s server",
+   "text": "– to není server agenta"
+  },
+  "dbui-019": {
+   "source": "Looked after by acme-db-agent at",
+   "text": "Spravuje ho acme-db-agent na"
+  },
+  "dbui-020": {
+   "source": "The agent’s server is ready, but this node uses another database server. Move the database onto the agent’s server to have it looked after.",
+   "text": "Server agenta je připravený, ale tento uzel používá jiný databázový server. Přesuňte databázi na server agenta, aby se o ni acme staral."
+  },
+  "dbui-021": {
+   "source": "The agent’s server is ready: move this node’s database onto it - a copy made first, every row copied and checked, acme started again on it.",
+   "text": "Server agenta je připravený: přesuňte na něj databázi tohoto uzlu – nejdřív se udělá kopie, každý řádek se zkopíruje a zkontroluje a acme se na něm znovu spustí."
+  },
+  "dbui-022": {
+   "source": "Move it onto the database server…",
+   "text": "Přesunout ji na databázový server…"
+  },
+  "dbui-023": {
+   "source": "Not looked at yet - it is looked at every 30 s.",
+   "text": "Zatím nezjištěno – zjišťuje se každých 30 s."
+  },
+  "dbui-024": {
+   "source": "Ask the agent now what its server is like, rather than within 30 s.",
+   "text": "Zeptat se agenta na stav jeho serveru hned, ne až do 30 s."
+  },
+  "dbui-025": {
+   "source": "A new certificate for the agent (a new key, made on its server) and a new client certificate for this node, now, both from acme’s own authority - rather than 45 days before they end. Nothing stops.",
+   "text": "Nový certifikát pro agenta (s novým klíčem vytvořeným na jeho serveru) a nový klientský certifikát pro tento uzel, hned a oba od vlastní autority acme – ne až 45 dní před vypršením. Nic se nezastaví."
+  },
+  "dbui-026": {
+   "source": "Restart the database…",
+   "text": "Restartovat databázi…"
+  },
+  "dbui-027": {
+   "source": "The database server restarted by its agent, and waited for. Every connection to it is cut for a few seconds.",
+   "text": "Databázový server restartuje jeho agent a počká na něj. Všechna spojení k němu se na několik sekund přeruší."
+  },
+  "dbui-028": {
+   "source": "Restart the database server?",
+   "text": "Restartovat databázový server?"
+  },
+  "dbui-029": {
+   "source": "Give MariaDB a new certificate",
+   "text": "Dát MariaDB nový certifikát"
+  },
+  "dbui-030": {
+   "source": "Turn TLS on",
+   "text": "Zapnout TLS"
+  },
+  "dbui-031": {
+   "source": "MariaDB given a certificate from acme’s own authority by its agent (restarted the first time, reloaded after) - renewed by itself 45 days before it ends. Then Database → TLS moves this node’s connection to verify-full.",
+   "text": "Agent dá MariaDB certifikát od vlastní autority acme (poprvé s restartem, potom jen s načtením) – obnovuje se sám 45 dní před vypršením. Potom Databáze → TLS převede spojení tohoto uzlu na verify-full."
+  },
+  "dbui-032": {
+   "source": "Forget the agent…",
+   "text": "Zapomenout agenta…"
+  },
+  "dbui-033": {
+   "source": "This node goes back to looking after a database on this machine only. The agent keeps this node’s certificate until it is taken away there (acme_db_agent.py --forget NODE); the database and its data are not touched.",
+   "text": "Tento uzel se vrátí ke správě databáze jen na tomto stroji. Agent si certifikát tohoto uzlu ponechá, dokud ho tam neodeberete (acme_db_agent.py --forget UZEL); databáze a její data zůstanou nedotčené."
+  },
+  "dbui-034": {
+   "source": "Forget the database agent?",
+   "text": "Zapomenout agenta databáze?"
+  },
+  "dbui-035": {
+   "source": "acme no longer renews the database server’s certificate, changes its settings or restarts it, and its row leaves the meter. The database itself is not touched, and this node goes on using it. Connected again with a new join code.",
+   "text": "acme už nebude obnovovat certifikát databázového serveru, měnit jeho nastavení ani ho restartovat a jeho řádek zmizí z měřiče. Samotná databáze zůstane nedotčená a tento uzel ji dál používá. Znovu se připojí novým připojovacím kódem."
+  },
+  "dbui-036": {
+   "source": "this node’s",
+   "text": "tohoto uzlu"
+  },
+  "dbui-037": {
+   "source": "Agent",
+   "text": "Agent"
+  },
+  "dbui-038": {
+   "source": "Connections",
+   "text": "Spojení"
+  },
+  "dbui-039": {
+   "source": "Its data’s disk",
+   "text": "Disk s jeho daty"
+  },
+  "dbui-040": {
+   "source": "RAM",
+   "text": "RAM"
+  },
+  "dbui-041": {
+   "source": "Agent’s certificate ends",
+   "text": "Certifikát agenta vyprší"
+  },
+  "dbui-042": {
+   "source": "Node’s client certificate ends",
+   "text": "Klientský certifikát uzlu vyprší"
+  },
+  "dbui-043": {
+   "source": "looked at now",
+   "text": "zjištěno"
+  },
+  "dbui-044": {
+   "source": "forgotten: this node looks after a database on this machine only",
+   "text": "zapomenuto: tento uzel spravuje jen databázi na tomto stroji"
+  },
+  "dbui-045": {
+   "source": "a join code starts with ADBA1. - the one the database server printed",
+   "text": "připojovací kód začíná ADBA1. – ten, který vypsal databázový server"
+  },
+  "dbui-046": {
+   "source": "cut short or mistyped: copy all of it, from ADBA1. to the end",
+   "text": "zkrácený nebo překlepnutý: zkopírujte ho celý, od ADBA1. až do konce"
+  },
+  "dbui-047": {
+   "source": "On the database server",
+   "text": "Na databázovém serveru"
+  },
+  "dbui-048": {
+   "source": "The join code",
+   "text": "Připojovací kód"
+  },
+  "dbui-049": {
+   "source": "Connecting",
+   "text": "Připojení"
+  },
+  "dbui-050": {
+   "source": "I have the code",
+   "text": "Kód mám"
+  },
+  "dbui-051": {
+   "source": "Connect it",
+   "text": "Připojit"
+  },
+  "dbui-052": {
+   "source": "Move the database onto it…",
+   "text": "Přesunout na něj databázi…"
+  },
+  "dbui-053": {
+   "source": "acme-db-agent on the database server looks after it for acme",
+   "text": "acme-db-agent na databázovém serveru se o něj stará za acme"
+  },
+  "dbui-054": {
+   "source": "Its certificate from acme’s own authority and its renewal, pg_hba.conf, its settings and restart, the replication, its firewall - the closed set of things the root helper does on this machine, and nothing else. Every request goes over HTTPS with certificates both ways and is signed; the agent does not run as root on the network side.",
+   "text": "Jeho certifikát od vlastní autority acme a jeho obnova, pg_hba.conf, nastavení a restart, replikace, firewall – uzavřený výčet toho, co na tomto stroji dělá pomocník s právy roota, a nic víc. Každý požadavek jde přes HTTPS s certifikáty na obou stranách a je podepsaný; síťová strana agenta neběží jako root."
+  },
+  "dbui-055": {
+   "source": "Which database",
+   "text": "Která databáze"
+  },
+  "dbui-056": {
+   "source": "Standalone, or the two servers of high availability replicating",
+   "text": "Samostatně, nebo dva servery vysoké dostupnosti, které se replikují"
+  },
+  "dbui-057": {
+   "source": "Standalone only",
+   "text": "Jen samostatně"
+  },
+  "dbui-058": {
+   "source": "On the database server, as root",
+   "text": "Na databázovém serveru jako root"
+  },
+  "dbui-059": {
+   "source": "Copy acme’s installation folder there (the same version), then install the database and the agent:",
+   "text": "Zkopírujte tam instalační složku acme (stejnou verzi) a nainstalujte databázi a agenta:"
+  },
+  "dbui-060": {
+   "source": "PostgreSQL 16 installed, initialised, listening, wal_level = logical; the database and its account; the nodes let in (pg_hba.conf, firewalld); the agent. It prints a join code at the end.",
+   "text": "PostgreSQL 16 se nainstaluje, inicializuje, poslouchá na síti, wal_level = logical; databáze a její účet; uzly mají přístup (pg_hba.conf, firewalld); agent. Na konci vypíše připojovací kód."
+  },
+  "dbui-061": {
+   "source": "MariaDB installed and secured; the database and its account for the nodes; the agent. It prints a join code at the end.",
+   "text": "MariaDB se nainstaluje a zabezpečí; databáze a její účet pro uzly; agent. Na konci vypíše připojovací kód."
+  },
+  "dbui-062": {
+   "source": "A database server installed already: the agent alone -",
+   "text": "Databázový server už nainstalovaný: jen agent –"
+  },
+  "dbui-063": {
+   "source": "The code runs out in an hour; a new one any time:",
+   "text": "Kód platí hodinu; nový kdykoli:"
+  },
+  "dbui-064": {
+   "source": "--acme-node is the address the database server sees this node by:",
+   "text": "--acme-node je adresa, pod kterou databázový server vidí tento uzel:"
+  },
+  "dbui-065": {
+   "source": "Printed by install.sh --db-server on the database server (or acme_db_agent.py --new-code). One hour, once.",
+   "text": "Vypíše ho install.sh --db-server na databázovém serveru (nebo acme_db_agent.py --new-code). Platí hodinu a jednou."
+  },
+  "dbui-066": {
+   "source": "The agent’s address (optional)",
+   "text": "Adresa agenta (nepovinné)"
+  },
+  "dbui-067": {
+   "source": "Only when this node reaches the agent by another address than the code says - a NAT, another network. HOST or HOST:PORT.",
+   "text": "Jen když tento uzel dosáhne na agenta jinou adresou, než uvádí kód – NAT, jiná síť. HOST nebo HOST:PORT."
+  },
+  "dbui-068": {
+   "source": "Use it as this node’s database",
+   "text": "Použít ho jako databázi tohoto uzlu"
+  },
+  "dbui-069": {
+   "source": "This node’s database is on that server (or is moved there next): acme looks after the server it connects to. The address below is the one the database is reached at - the agent’s when left empty.",
+   "text": "Databáze tohoto uzlu je na tom serveru (nebo se tam hned potom přesune): acme se stará o server, ke kterému se připojuje. Adresa níže je ta, na které je databáze dostupná – prázdná znamená adresu agenta."
+  },
+  "dbui-070": {
+   "source": "The database’s address, as this node reaches it",
+   "text": "Adresa databáze, jak ji vidí tento uzel"
+  },
+  "dbui-071": {
+   "source": "paste the code - it is checked as it is pasted",
+   "text": "vložte kód – zkontroluje se hned při vložení"
+  },
+  "dbui-072": {
+   "source": "acme-db-agent at",
+   "text": "acme-db-agent na"
+  },
+  "dbui-073": {
+   "source": "Reaching the agent, its certificate checked against the code",
+   "text": "Spojení s agentem, jeho certifikát ověřený podle kódu"
+  },
+  "dbui-074": {
+   "source": "Certificates from acme’s own authority, both ways",
+   "text": "Certifikáty od vlastní autority acme, oběma směry"
+  },
+  "dbui-075": {
+   "source": "Looking at the server",
+   "text": "Zjištění stavu serveru"
+  },
+  "dbui-076": {
+   "source": "Nothing was changed on this node. Put right what it says - a new code if this one ran out or was used - and connect again.",
+   "text": "Na tomto uzlu se nic nezměnilo. Napravte, co se píše – nový kód, pokud tento vypršel nebo už byl použit – a připojte znovu."
+  },
+  "dbui-077": {
+   "source": "the agent has its certificate; this node its client certificate and signing key",
+   "text": "agent má svůj certifikát; tento uzel svůj klientský certifikát a podpisový klíč"
+  },
+  "dbui-078": {
+   "source": "Connected: this node’s database is on that server, and acme looks after it from now on.",
+   "text": "Připojeno: databáze tohoto uzlu je na tom serveru a acme se o něj od teď stará."
+  },
+  "dbui-079": {
+   "source": "Connected. This node’s database is not on that server yet: move it there next - Move the database onto it…",
+   "text": "Připojeno. Databáze tohoto uzlu na tom serveru zatím není: přesuňte ji tam – Přesunout na něj databázi…"
+  },
+  "dbui-080": {
+   "source": "paste the join code first",
+   "text": "nejdřív vložte připojovací kód"
+  },
+  "dbui-081": {
+   "source": "the agent’s address: HOST or HOST:PORT",
+   "text": "adresa agenta: HOST nebo HOST:PORT"
+  },
+  "dbui-082": {
+   "source": "the database server is connected",
+   "text": "databázový server je připojený"
+  },
+  "dbui-083": {
+   "source": "The database servers",
+   "text": "Databázové servery"
+  },
+  "dbui-084": {
+   "source": "Of node",
+   "text": "Uzlu"
+  },
+  "dbui-085": {
+   "source": "The link’s TLS",
+   "text": "TLS spojení"
+  },
+  "dbui-086": {
+   "source": "Its agent",
+   "text": "Jeho agent"
+  },
+  "dbui-087": {
+   "source": "lost",
+   "text": "ztraceno"
+  },
+  "dbui-088": {
+   "source": "Each node’s database on a server of its own",
+   "text": "Databáze každého uzlu na vlastním serveru"
+  },
+  "dbui-089": {
+   "source": "This node’s database is looked after by acme-db-agent. Replicated, each node has its own database server: this node on its own, the second node on another - the two servers replicate both ways, set up and encrypted by acme through their agents. --ha-peer is then the other database server, --ha-peer-node the other acme node.",
+   "text": "O databázi tohoto uzlu se stará acme-db-agent. Při replikaci má každý uzel svůj databázový server: tento uzel svůj, druhý uzel jiný – oba servery se replikují oběma směry a acme je přes jejich agenty nastaví i zašifruje. --ha-peer je pak druhý databázový server, --ha-peer-node druhý uzel acme."
+  },
+  "dbui-090": {
+   "source": "The other database server",
+   "text": "Druhý databázový server"
+  },
+  "dbui-091": {
+   "source": "Its address: where the second node’s database runs, with its own agent.",
+   "text": "Jeho adresa: tam běží databáze druhého uzlu s vlastním agentem."
+  },
+  "dbui-092": {
+   "source": "The other acme node",
+   "text": "Druhý uzel acme"
+  },
+  "dbui-093": {
+   "source": "The second acme server’s own address - let into this node’s database server too.",
+   "text": "Vlastní adresa druhého serveru acme – dostane přístup i k databázovému serveru tohoto uzlu."
+  },
+  "dbui-094": {
+   "source": "The second node’s name",
+   "text": "Jméno druhého uzlu"
+  },
+  "dbui-095": {
+   "source": "On this node, as root",
+   "text": "Na tomto uzlu jako root"
+  },
+  "dbui-096": {
+   "source": "Its agent prepares this node’s database server (wal_level, listening, pg_hba.conf for the other server and the other node), restarts it, publishes the tables and opens its firewall; the bundle for the second node is written to /root.",
+   "text": "Jeho agent připraví databázový server tohoto uzlu (wal_level, poslouchání na síti, pg_hba.conf pro druhý server a druhý uzel), restartuje ho, zveřejní tabulky a otevře jeho firewall; balíček pro druhý uzel se zapíše do /root."
+  },
+  "dbui-097": {
+   "source": "On the other database server, as root",
+   "text": "Na druhém databázovém serveru jako root"
+  },
+  "dbui-098": {
+   "source": "On the second node, as root: its agent, then the join",
+   "text": "Na druhém uzlu jako root: jeho agent, potom připojení"
+  },
+  "dbui-099": {
+   "source": "Every row is copied from this node’s server to the other one, both directions of replication set up. Then High availability → Repair encrypts the link between the two servers (verify-full) through both agents.",
+   "text": "Každý řádek se zkopíruje ze serveru tohoto uzlu na druhý a nastaví se oba směry replikace. Potom Vysoká dostupnost → Opravit zašifruje spojení mezi oběma servery (verify-full) přes oba agenty."
+  },
+  "dbui-100": {
+   "source": "database server",
+   "text": "databázový server"
+  },
+  "dbui-101": {
+   "source": "its port opened by its agent to the nodes",
+   "text": "port otevřel uzlům jeho agent"
+  },
+  "dbui-102": {
+   "source": "The database server’s own firewall (firewalld) is its administrator’s; acme lets the nodes and the other database server reach the database’s port there through its agent - when the cluster is made, and when an address changes.",
+   "text": "Vlastní firewall databázového serveru (firewalld) patří jeho správci; acme přes agenta otevře port databáze uzlům a druhému databázovému serveru – při vytvoření clusteru a při změně adresy."
+  },
+  "dbui-103": {
+   "source": "TLS on",
+   "text": "TLS zapnuto"
+  },
+  "dbui-104": {
+   "source": "its agent answers",
+   "text": "jeho agent odpovídá"
+  },
+  "dbui-105": {
+   "source": "A database server acme should look after itself (its certificate, settings, restarts, the meter)? Connect its agent first:",
+   "text": "Databázový server, o který se má acme starat sám (certifikát, nastavení, restarty, měřič)? Nejdřív připojte jeho agenta:"
+  },
+  "dbui-106": {
+   "source": "the database server of",
+   "text": "databázový server uzlu"
+  },
+  "dbui-107": {
+   "source": "Its agent does not answer - nothing read from it now.",
+   "text": "Jeho agent neodpovídá – teď se z něj nic nečte."
+  },
+  "dbui-108": {
+   "source": "Waiting to go over (replication)",
+   "text": "Čeká na přenos (replikace)"
+  },
+  "dbui-109": {
+   "source": "The size of acme’s database",
+   "text": "Velikost databáze acme"
+  },
+  "dbui-110": {
+   "source": "The machine",
+   "text": "Stroj"
+  },
+  "dbui-111": {
+   "source": "The database is on a server of its own: whoever is on the network between the nodes and it reads every row going over, and can change them. Encrypt… has its agent put a certificate from acme’s own authority in, then moves each node’s connection to verify-full.",
+   "text": "Databáze je na vlastním serveru: kdokoli je v síti mezi uzly a ním, čte každý řádek, který jde přes síť, a může ho změnit. Šifrovat… nechá jeho agenta vložit certifikát od vlastní autority acme a potom převede spojení každého uzlu na verify-full."
+  },
+  "dbui-112": {
+   "source": "the database server - its agent does not answer",
+   "text": "databázový server – jeho agent neodpovídá"
   }
  },
  "patterns": {
@@ -89539,6 +89781,42 @@
   "p_467": {
    "source": "A smart card in Windows: certreq -new {0}.inf {1}.csr",
    "text": "Čipová karta ve Windows: certreq -new {0}.inf {1}.csr"
+  },
+  "dbuip-001": {
+   "source": "the database server of {0} ({1})",
+   "text": "databázový server uzlu {0} ({1})"
+  },
+  "dbuip-002": {
+   "source": "The database agent of {0} does not answer",
+   "text": "Agent databázového serveru uzlu {0} neodpovídá"
+  },
+  "dbuip-003": {
+   "source": "acme-db-agent at {0} has not answered since {1}: {2}. acme can neither renew nor change its database server meanwhile (the certificate, the settings, a restart); the database itself may well go on - look at the server (systemctl status acme-db-agent).",
+   "text": "acme-db-agent na {0} neodpovídá od {1}: {2}. acme mezitím nemůže jeho databázový server obnovovat ani měnit (certifikát, nastavení, restart); samotná databáze ale může běžet dál – podívejte se na server (systemctl status acme-db-agent)."
+  },
+  "dbuip-004": {
+   "source": "The database server of {0} is down",
+   "text": "Databázový server uzlu {0} neběží"
+  },
+  "dbuip-005": {
+   "source": "its agent ({0}) answers, the database does not: {1}",
+   "text": "jeho agent ({0}) odpovídá, databáze ne: {1}"
+  },
+  "dbuip-006": {
+   "source": "The certificate of the database agent of {0} ends soon",
+   "text": "Certifikát agenta databázového serveru uzlu {0} brzy vyprší"
+  },
+  "dbuip-007": {
+   "source": "it ends {0}; it is renewed by itself 45 days before, and that did not work - Settings → The database → Database server → Renew the certificates",
+   "text": "vyprší {0}; obnovuje se sám 45 dní předem, a to se nepovedlo – Nastavení → Databáze → Databázový server → Obnovit certifikáty"
+  },
+  "dbuip-008": {
+   "source": "The agent restarts {0} on {1} and waits for it. Every connection is cut for a few seconds; replication catches up by itself afterwards.",
+   "text": "Agent restartuje {0} na {1} a počká na něj. Všechna spojení se na několik sekund přeruší; replikace to potom dožene sama."
+  },
+  "dbuip-009": {
+   "source": "The agent restarts {0} on {1} and waits for it. Every connection is cut for a few seconds - this node’s pages and RADIUS wait for it meanwhile.",
+   "text": "Agent restartuje {0} na {1} a počká na něj. Všechna spojení se na několik sekund přeruší – stránky tohoto uzlu a RADIUS na něj zatím počkají."
   }
  },
  "rich": {
