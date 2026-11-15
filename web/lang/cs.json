@@ -63619,6 +63619,22 @@
   "_689": {
    "source": "a certificate was issued for it already - it is not declined: revoke it instead",
    "text": "certifikát pro něj už byl vystaven – nezamítá se: místo toho ho zneplatněte"
+  },
+  "_690": {
+   "source": "The keys of root",
+   "text": "Klíče roota"
+  },
+  "_692": {
+   "source": "root's SSH keys are only shown on the pages - change them on the server itself, in /root/.ssh/authorized_keys",
+   "text": "SSH klíče roota se na stránkách jen zobrazují – změňte je přímo na serveru, v /root/.ssh/authorized_keys"
+  },
+  "_693": {
+   "source": "The keys that may sign in to each node over SSH - root's shown, a user's who may sign in there made here, added or taken away.",
+   "text": "Klíče, kterými se lze přes SSH přihlásit na každý uzel – rootovy jen zobrazené, klíče uživatele, který se tam smí přihlásit, se zde vytvářejí, přidávají i odebírají."
+  },
+  "_694": {
+   "source": "The keys that may sign in to each node over SSH - as root (the lines of /root/.ssh/authorized_keys, only shown here) or as any user who may sign in there (their own ~/.ssh/authorized_keys, written as they are), read from every node. A user's key made here is shown once, to be kept by you, and kept nowhere on the server; one of your own is put on by its public half - on every node or on one. Every change is written into Events.",
+   "text": "Klíče, kterými se lze přes SSH přihlásit na každý uzel – jako root (řádky /root/.ssh/authorized_keys, zde jen zobrazené) nebo jako kterýkoli uživatel, který se tam smí přihlásit (jeho vlastní ~/.ssh/authorized_keys, zapsaný jako on), načtené z každého uzlu. Klíč uživatele vytvořený tady se ukáže jednou, uschováte si ho vy a na serveru se neuchovává nikde; vlastní klíč se přidá svou veřejnou polovinou – na všechny uzly nebo na jeden. Každá změna se zapíše do Událostí."
   }
  },
  "patterns": {
@@ -88845,6 +88861,38 @@
   "p_463": {
    "source": "the certificate of {0} has no SID extension (KB5014754), and \"Which account a certificate is\" is strong",
    "text": "certifikát {0} nemá rozšíření SID (KB5014754) a „Kterému účtu certifikát patří“ je silné"
+  },
+  "p_464": {
+   "source": "{0} was built again: root had these keys there before, which are not on it now - put them back on the server itself if they are still wanted:",
+   "text": "{0} byl postaven znovu: root tam dřív měl tyto klíče, které teď na něm nejsou – pokud jsou pořád potřeba, vraťte je přímo na serveru:"
+  },
+  "p_465": {
+   "source": "{0} is not a user who may sign in on {1}.",
+   "text": "{0} není uživatel, který se smí přihlásit na {1}."
+  },
+  "p_470": {
+   "source": "Make a fresh pair here - Ed25519, or RSA 4096 where something old needs RSA. Its private half is shown to you once; its public half goes into {0}'s authorized_keys of every node {1} is on.",
+   "text": "Vytvoří zde nový pár – Ed25519, nebo RSA 4096, kde něco staršího vyžaduje RSA. Soukromá část se vám zobrazí jen jednou; veřejná se zapíše do authorized_keys uživatele {0} na všech uzlech, kde {1} je."
+  },
+  "p_471": {
+   "source": "Make a fresh pair here - Ed25519, or RSA 4096 where something old needs RSA. Its private half is shown to you once; its public half goes into {0}'s authorized_keys of {1} only.",
+   "text": "Vytvoří zde nový pár – Ed25519, nebo RSA 4096, kde něco staršího vyžaduje RSA. Soukromá část se vám zobrazí jen jednou; veřejná se zapíše do authorized_keys uživatele {0} jen na {1}."
+  },
+  "p_472": {
+   "source": "Make a key for {0} on every node",
+   "text": "Vytvořit klíč pro {0} na všech uzlech"
+  },
+  "p_473": {
+   "source": "Make a key for {0} only on {1}",
+   "text": "Vytvořit klíč pro {0} jen na {1}"
+  },
+  "p_475": {
+   "source": "{0} is not a user who may sign in on the nodes (as read there)",
+   "text": "{0} není uživatel, který se smí přihlásit na uzlech (podle toho, co se tam načetlo)"
+  },
+  "p_476": {
+   "source": "{0} is not a user who may sign in on {1} (as read there)",
+   "text": "{0} není uživatel, který se smí přihlásit na {1} (podle toho, co se tam načetlo)"
   }
  },
  "rich": {
@@ -89715,6 +89763,30 @@
   "r0203": {
    "source": "A browser on a computer in the domain signs its person in without a password: it sends a Kerberos ticket for the name it opened, checked against the keytab put in below (<i>Signing in with Windows</i>). Only accounts of the directory above get in, with the role of their groups - looked up by their sAMAccountName - and the second step, when it is on, is asked after it just the same. A local account keeps its password. NTLM is never taken. Off: nothing of it is offered. Its own switch: the enrolment pages have theirs.",
    "text": "Prohlížeč na počítači v doméně přihlásí svého uživatele bez hesla: pošle lístek Kerberos pro jméno, které otevřel, a ten se ověří proti keytabu vloženému níže (<i>Přihlášení přes Windows</i>). Dovnitř se dostanou jen účty adresáře výše, s rolí podle svých skupin – dohledané podle sAMAccountName – a druhý krok, je-li zapnutý, se po něm žádá úplně stejně. Místní účet si heslo ponechává. NTLM se nikdy nepřijímá. Vypnuto: nic z toho se nenabízí. Vlastní přepínač: zápisové stránky mají svůj."
+  },
+  "r0218": {
+   "source": "Root's keys are only shown here - they are not made, added or taken away on these pages. Change them on the server itself, as root: <code>/root/.ssh/authorized_keys</code> of each node. The keys of the other users who may sign in are made and added here - pick one in <b>Whose keys</b>.",
+   "text": "Klíče roota se zde jen zobrazují – na těchto stránkách se nevytvářejí, nepřidávají ani neodebírají. Změňte je přímo na serveru, jako root: <code>/root/.ssh/authorized_keys</code> na každém uzlu. Klíče ostatních uživatelů, kteří se smějí přihlásit, se zde vytvářejí i přidávají – vyberte uživatele v <b>Čí klíče</b>."
+  },
+  "r0219": {
+   "source": "Its <b>public</b> half goes into <code>~{0}/.ssh/authorized_keys</code> of <b>{1}</b> only - written as {2}, so that the folder and the file are theirs. The <b>private</b> half is never kept here: it is shown to you once, to download or copy. The key is then in the list below - exported or taken away there; a key of your own is added there too.",
+   "text": "Jeho <b>veřejná</b> část se zapíše jen do <code>~{0}/.ssh/authorized_keys</code> uzlu <b>{1}</b> – jako {2}, aby složka i soubor patřily jemu. <b>Soukromá</b> část se zde nikdy neukládá: zobrazí se vám jen jednou ke stažení nebo zkopírování. Klíč pak najdete v seznamu níže – tam se exportuje nebo odebírá; tam se přidává i vlastní klíč."
+  },
+  "r0220": {
+   "source": "Its <b>public</b> half goes into <code>~{0}/.ssh/authorized_keys</code> of this server - written as {1}, so that the folder and the file are theirs. The <b>private</b> half is never kept here: it is shown to you once, to download or copy. The key is then in the list below - exported or taken away there; a key of your own is added there too.",
+   "text": "Jeho <b>veřejná</b> část se zapíše do <code>~{0}/.ssh/authorized_keys</code> tohoto serveru – jako {1}, aby složka i soubor patřily jemu. <b>Soukromá</b> část se zde nikdy neukládá: zobrazí se vám jen jednou ke stažení nebo zkopírování. Klíč pak najdete v seznamu níže – tam se exportuje nebo odebírá; tam se přidává i vlastní klíč."
+  },
+  "r0221": {
+   "source": "Its <b>public</b> half goes into <code>~{0}/.ssh/authorized_keys</code> of every node - the same key, written as {1}, so that the folder and the file are theirs. The <b>private</b> half is never kept here: it is shown to you once, to download or copy. The key is then in the list below - exported or taken away there; a key of your own is added there too.",
+   "text": "Jeho <b>veřejná</b> část se zapíše do <code>~{0}/.ssh/authorized_keys</code> na všech uzlech – stejný klíč, zapsaný jako {1}, aby složka i soubor patřily jemu. <b>Soukromá</b> část se zde nikdy neukládá: zobrazí se vám jen jednou ke stažení nebo zkopírování. Klíč pak najdete v seznamu níže – tam se exportuje nebo odebírá; tam se přidává i vlastní klíč."
+  },
+  "r0222": {
+   "source": "Its <b>public</b> half goes into <code>~{0}/.ssh/authorized_keys</code> of the nodes {1} is on: {2} - the same key, written as {3}, so that the folder and the file are theirs. The <b>private</b> half is never kept here: it is shown to you once, to download or copy. The key is then in the list below - exported or taken away there; a key of your own is added there too.",
+   "text": "Jeho <b>veřejná</b> část se zapíše do <code>~{0}/.ssh/authorized_keys</code> na uzlech, kde {1} je: {2} – stejný klíč, zapsaný jako {3}, aby složka i soubor patřily jemu. <b>Soukromá</b> část se zde nikdy neukládá: zobrazí se vám jen jednou ke stažení nebo zkopírování. Klíč pak najdete v seznamu níže – tam se exportuje nebo odebírá; tam se přidává i vlastní klíč."
+  },
+  "r0223": {
+   "source": "A fresh pair is made here. Its <b>private</b> half is shown to you once, to download or copy, and kept nowhere; its <b>public</b> half goes into {0}'s authorized_keys of {1}. A key there before stays until it is taken away in the list below.",
+   "text": "Zde se vytvoří nový pár. Jeho <b>soukromá</b> část se vám zobrazí jen jednou ke stažení nebo zkopírování a nikde se neuloží; <b>veřejná</b> část se zapíše do authorized_keys uživatele {0} na {1}. Klíč, který tam už je, zůstane, dokud ho neodeberete v seznamu níže."
   }
  }
 }

@@ -893,7 +893,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <button type="button" class="fulladmin-only" data-pane="acme" data-icon="lock" title="The certificates ordered from Let's Encrypt (or another ACME CA) and renewed by themselves.">Automatic certificates</button>
     <button type="button" data-pane="fw" data-icon="wall" title="Who may reach the portal, the administration and the health check; and the machine's firewall (iptables, IPv4 and IPv6) - what acme's functions need opens by itself.">Firewall and access</button>
     <button type="button" class="fulladmin-only" data-pane="sshd" data-icon="shield" title="How the SSH server lets people in - root, passwords, the port - and the notice shown before and after signing in.">SSH server and notices</button>
-    <button type="button" class="fulladmin-only" data-pane="sshkeys" data-icon="key" title="The keys that may sign in to each node over SSH - as root or as a user who may sign in there: made here, added or taken away.">SSH keys</button>
+    <button type="button" class="fulladmin-only" data-pane="sshkeys" data-icon="key" title="The keys that may sign in to each node over SSH - root's shown, a user's who may sign in there made here, added or taken away.">SSH keys</button>
     <button type="button" class="fulladmin-only" data-pane="osusers" data-icon="people" title="The users of each node's own system: root shown, the others made, given a password or sudo, locked or taken away - on every node or on one.">Local users</button>
     <div class="ctl-group">Server</div>
     <button type="button" class="fulladmin-only" data-pane="network" data-icon="net" title="Each node's address, gateway, DNS servers, host name and IPv6 - put in by the node itself, a cluster kept whole.">Network</button>
@@ -1495,10 +1495,10 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
   <div class="ctl-pane" id="pane-sshkeys" hidden>
     <div class="ctl-head"><h2 class="ctl-title">SSH keys</h2>
       <p class="ctl-lede">The keys that may sign in to each node over SSH - as root (the lines of
-        /root/.ssh/authorized_keys) or as any user who may sign in there (their own
-        ~/.ssh/authorized_keys, written as they are), read from every node. A key made here is shown once,
-        to be kept by you, and kept nowhere on the server; one of your own is put on by its public half - on
-        every node or on one. Every change is written into Events.</p></div>
+        /root/.ssh/authorized_keys, only shown here) or as any user who may sign in there (their own
+        ~/.ssh/authorized_keys, written as they are), read from every node. A user's key made here is shown
+        once, to be kept by you, and kept nowhere on the server; one of your own is put on by its public half -
+        on every node or on one. Every change is written into Events.</p></div>
     <div id="sk-host"></div>
   </div>
   <div class="ctl-pane" id="pane-osusers" hidden>
