@@ -105,6 +105,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   moved everything up by its height). The focus is put back only when a redraw took it - not after a click
   on the page, where Space opened and closed a CRL row instead of turning the page. A popup whose
   main button cannot be pressed (*Approve* of a request not yours) focuses its *Close*.
+- **The sign-in with a certificate's card, in Czech and on a phone.** What the daemon says there -
+  the trouble of a node, a CRL's or an OCSP answer's last error, a node's answer to *Fetch now* or
+  *Ask again* - is translated (its address, name and time kept as they are) and in red; the OCSP
+  refusals, the ports' and CRL addresses' words were English in Czech. A node's authorities are
+  *zapsány* (it said *ZÁPIS*), cleared answers *vymazáno*. The OCSP table no longer runs past the
+  card (the serial cut short with …), a CRL's address no longer under its two buttons on a phone,
+  and *Each node* is a block a node there, not a table to scroll sideways. A Settings pane chosen
+  on the rail opens at its top - it opened where the one before was scrolled to; *Find a setting*
+  still goes to the setting, and a pane drawn again stays where it is.
 
 ## 1.0.105 - 2026-11-14
 
