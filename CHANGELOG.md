@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.110 - not released
+## 1.0.110 - 2026-11-15
 
 - **Look up a person for their certificate**: *Look up a person…* on the card *Signing in with a
   certificate* (the administration's and the enrolment pages') finds an account in the directory
