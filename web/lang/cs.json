@@ -64747,6 +64747,134 @@
   "z_58": {
    "source": "%s does not read (%s)",
    "text": "%s nejde přečíst (%s)"
+  },
+  "z_59": {
+   "source": "Another version than acme",
+   "text": "Jiná verze než acme"
+  },
+  "z_60": {
+   "source": "- upgrade the agent on the database server:",
+   "text": "- aktualizujte agenta na databázovém serveru:"
+  },
+  "z_61": {
+   "source": "acme --db-agent-join - reads the join code from its standard input: paste it there, it is never put on a command line.",
+   "text": "acme --db-agent-join - čte připojovací kód ze standardního vstupu: vložte ho tam, nikdy se nedává na příkazový řádek."
+  },
+  "z_62": {
+   "source": "The client certificate of %s for its database agent ends soon",
+   "text": "Klientský certifikát uzlu %s pro agenta databázového serveru brzy vyprší"
+  },
+  "z_63": {
+   "source": "it ends %s; it is renewed by itself 45 days before, and that did not work - without it the agent no longer lets the node in. Settings → The database → Database server → Renew the certificates (acme --db-agent-renew)",
+   "text": "vyprší %s; obnovuje se sám 45 dní předem, a to se nepovedlo - bez něj agent uzel nepustí. Nastavení → Databáze → Databázový server → Obnovit certifikáty (acme --db-agent-renew)"
+  },
+  "z_64": {
+   "source": "The database agent of %s is another version than acme",
+   "text": "Agent databázového serveru uzlu %s má jinou verzi než acme"
+  },
+  "z_65": {
+   "source": "acme-db-agent %s, acme %s - upgrade the agent on the database server: ./install.sh --db-agent (from this version of acme)",
+   "text": "acme-db-agent %s, acme %s - aktualizujte agenta na databázovém serveru: ./install.sh --db-agent (z instalace této verze acme)"
+  },
+  "z_66": {
+   "source": "%s - start it on the database server %s (systemctl start acme-db-agent), then run this again",
+   "text": "%s - spusťte ho na databázovém serveru %s (systemctl start acme-db-agent) a pak to spusťte znovu"
+  },
+  "z_67": {
+   "source": "PostgreSQL does not answer on the database server %s (its agent does): install it there (install.sh --db-server postgres) and start it",
+   "text": "PostgreSQL na databázovém serveru %s neodpovídá (jeho agent ano): nainstalujte ho tam (install.sh --db-server postgres) a spusťte"
+  },
+  "z_68": {
+   "source": "the database server lets %s in (acme-db-agent): %s",
+   "text": "databázový server pouští %s (acme-db-agent): %s"
+  },
+  "z_69": {
+   "source": "it did already",
+   "text": "pouštěl už předtím"
+  },
+  "z_70": {
+   "source": "the new address is one plain address, not %r",
+   "text": "nová adresa je jedna prostá adresa, ne %r"
+  },
+  "z_71": {
+   "source": "the other node is at %s now (was %s): its database server lets it in through acme-db-agent",
+   "text": "druhý uzel je teď na %s (byl na %s): jeho databázový server ho pouští přes acme-db-agent"
+  },
+  "z_72": {
+   "source": "the database server's firewall was not opened to this node: %s",
+   "text": "firewall databázového serveru se pro tento uzel neotevřel: %s"
+  },
+  "z_73": {
+   "source": "the firewall of the database server was not opened to this node: %s",
+   "text": "firewall databázového serveru se pro tento uzel neotevřel: %s"
+  },
+  "z_74": {
+   "source": "the agent knows this node by its client certificate from acme's authority",
+   "text": "agent zná tento uzel podle jeho klientského certifikátu od autority acme"
+  },
+  "z_75": {
+   "source": "the agent's certificate: the next one announced to every node",
+   "text": "certifikát agenta: další je oznámený všem uzlům"
+  },
+  "z_76": {
+   "source": "the agent's certificate: the next one announced to every node, in use now",
+   "text": "certifikát agenta: další je oznámený všem uzlům a už se používá"
+  },
+  "z_77": {
+   "source": "this node's client certificate",
+   "text": "klientský certifikát tohoto uzlu"
+  },
+  "z_78": {
+   "source": "no join code: paste it on standard input (acme --db-agent-join -) or put it in ACME_DB_AGENT_CODE",
+   "text": "chybí připojovací kód: vložte ho na standardní vstup (acme --db-agent-join -) nebo do ACME_DB_AGENT_CODE"
+  },
+  "z_79": {
+   "source": "The join code (acme_db_agent.py --new-code printed it):",
+   "text": "Připojovací kód (vypsal ho acme_db_agent.py --new-code):"
+  },
+  "z_80": {
+   "source": "NOTE: the agent is acme-db-agent %s, this node acme %s - upgrade it on the database server (./install.sh --db-agent, of this version)",
+   "text": "POZOR: agent je acme-db-agent %s, tento uzel acme %s - aktualizujte ho na databázovém serveru (./install.sh --db-agent z této verze)"
+  },
+  "z_81": {
+   "source": "database agent: acme-db-agent %s, acme %s - upgrade it on the database server (./install.sh --db-agent)",
+   "text": "agent databáze: acme-db-agent %s, acme %s - aktualizujte ho na databázovém serveru (./install.sh --db-agent)"
+  },
+  "z_82": {
+   "source": "letting the other node in at its new address through the database agent: %s",
+   "text": "puštění druhého uzlu na jeho nové adrese přes agenta databáze: %s"
+  },
+  "z_83": {
+   "source": "too many wrong join codes from %s - wait an hour",
+   "text": "příliš mnoho chybných připojovacích kódů z %s - počkejte hodinu"
+  },
+  "z_84": {
+   "source": "the join was not begun with this code from here (or more than 15 minutes ago) - join again",
+   "text": "připojení nebylo s tímto kódem odsud zahájeno (nebo před víc než 15 minutami) - připojte se znovu"
+  },
+  "z_85": {
+   "source": "the authorities of the node's certificate are missing",
+   "text": "chybí autority certifikátu uzlu"
+  },
+  "z_86": {
+   "source": "no authority given: refused - this node would be locked out",
+   "text": "nebyla zadána žádná autorita: odmítnuto - tento uzel by se zablokoval"
+  },
+  "z_87": {
+   "source": "the agent's next certificate is announced to every node joined",
+   "text": "další certifikát agenta je oznámený všem připojeným uzlům"
+  },
+  "z_88": {
+   "source": "a client certificate is needed",
+   "text": "je potřeba klientský certifikát"
+  },
+  "z_89": {
+   "source": "this client certificate is not one enrolled here",
+   "text": "tento klientský certifikát tu není zaregistrovaný"
+  },
+  "z_90": {
+   "source": "the database agent at %s:%s cannot be reached: %s - is its port open to this node? (on the database server: firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"%s\" port port=\"%s\" protocol=\"tcp\" accept' && firewall-cmd --reload)",
+   "text": "agent databázového serveru na %s:%s není dosažitelný: %s - je jeho port pro tento uzel otevřený? (na databázovém serveru: firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"%s\" port port=\"%s\" protocol=\"tcp\" accept' && firewall-cmd --reload)"
   }
  },
  "patterns": {
