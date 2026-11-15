@@ -492,6 +492,7 @@ if (isset($_GET['api'])) {
         'kerberos' => '/api/kerberos',              /* signing in with Windows (1.0.99) */
         'certlogin' => '/api/certlogin',            /* ...with a certificate (1.0.100) */
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
+        'db-agent' => '/api/db-agent',              /* the database on a server of its own (1.0.112) */
         'acme-push' => '/api/acme-push',
         'osroots' => '/api/osroots',                /* the system's trusted roots (1.0.59) */
         'split' => '/api/split', 'clock' => '/api/clock',
@@ -517,6 +518,7 @@ if (isset($_GET['api'])) {
         'kerberos' => '/api/kerberos',              /* signing in with Windows (1.0.99) */
         'certlogin' => '/api/certlogin',            /* ...with a certificate (1.0.100) */
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
+        'db-agent' => '/api/db-agent',              /* the database on a server of its own (1.0.112) */
         'acme-push' => '/api/acme-push',
         'osroots' => '/api/osroots',                /* the system's trusted roots (1.0.59) */
         'split' => '/api/split', 'clock' => '/api/clock',
