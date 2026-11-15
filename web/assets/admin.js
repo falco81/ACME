@@ -117,6 +117,7 @@ window.optShowTab = function (name) {
     b.setAttribute('aria-selected', b.getAttribute('data-tab') === name ? 'true' : 'false');
   });
   all.forEach(function (one) { if ($('tab-' + one)) $('tab-' + one).hidden = one !== name; });
+  if (typeof viewReset === 'function') viewReset();
   writeHash();
   holdTheTallOnes();
   onTab(name);
@@ -1478,6 +1479,8 @@ function showPane(name) {
     }
   }
   document.querySelectorAll('.ctl-pane').forEach(function (p) { p.hidden = p.id !== 'pane-' + name; });
+  /* nothing held or kept of the pane before: the box is the same, what is in it is not (1.0.106) */
+  if (typeof viewReset === 'function') viewReset();
   writeHash();
   if (SN.d) snPills(); else snLoad();
   if (name === 'people') { loadUsers(); loadDirs(); }

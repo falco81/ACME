@@ -120,6 +120,28 @@ class PopupStack(unittest.TestCase):
         self.assertTrue(out.get('ok'), json.dumps(out) + got.stderr[-2000:])
 
 
+class ViewKept(unittest.TestCase):
+    """The redraw keeper (core.js) in a browser: the wheel scrolls a box whose
+    rows show help under the pointer all the way (it stuck - the help drawn
+    before the scroll was heard of undid it), the room kept under a shortened
+    end is never a frame of nothing and goes with the pane it was for, a focus
+    left on purpose is not put back, and a popup with its main button not to be
+    pressed focuses its Close (1.0.106)."""
+
+    def test_wheel_room_focus(self):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          timeout=60).returncode:
+            self.skipTest('no playwright for node here')
+        got = subprocess.run([node, os.path.join(ROOT, 'test', 'view_keep_page.js'),
+                              os.path.join(ROOT, 'web', 'assets', 'core.js')],
+                             capture_output=True, text=True, timeout=120)
+        out = json.loads((got.stdout.strip().splitlines() or ['{}'])[-1])
+        self.assertTrue(out.get('ok'), json.dumps(out) + got.stderr[-2000:])
+
+
 class ExplainSpoken(unittest.TestCase):
     """What explain() puts in aria-label in the page's language (core.js with
     i18n.js, in a browser): a setting's help with <i> or <code> in it is among

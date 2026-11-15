@@ -447,8 +447,7 @@ function modal(title, build, buttons, narrow) {
                                  + 'select:not([disabled]), textarea:not([disabled])')
     /* ...never a button that destroys something: a second Enter would
        press it. In a popup asking "erase all this?" it is the way out. */
-    || foot.querySelector('.btn.primary:not(.danger)')
-    || foot.querySelector('.btn:not(.danger)');
+    || modalFirstButton(foot);
   /* A box far down a long popup is not focused (1.0.34): the popup opened
      scrolled to it, its top - what it is about - out of sight. Its buttons
      are, without moving anything. */
@@ -458,7 +457,7 @@ function modal(title, build, buttons, narrow) {
       if (b && b.contains(first)) {
         var r = first.getBoundingClientRect(), br = b.getBoundingClientRect();
         if (r.bottom > br.bottom) {
-          var alt = foot.querySelector('.btn.primary:not(.danger)') || foot.querySelector('.btn:not(.danger)');
+          var alt = modalFirstButton(foot);
           if (alt) alt.focus({preventScroll: true});
           return;
         }
@@ -467,12 +466,19 @@ function modal(title, build, buttons, narrow) {
       /* a box that cannot take the focus (in a closed part, hidden): its buttons do (1.0.95:
          the TLS settings opened with the focus left on the page behind) */
       if (!$('modal').contains(document.activeElement)) {
-        var alt2 = foot.querySelector('.btn.primary:not(.danger)') || foot.querySelector('.btn:not(.danger)');
+        var alt2 = modalFirstButton(foot);
         if (alt2) alt2.focus({preventScroll: true});
       }
     } catch (e) { }
   }, 0);
   return {body: $('modal-body'), foot: foot};
+}
+/* The popup's button the focus goes to: its main one, never one that destroys - and never one
+   that cannot be pressed (1.0.106: "Approve" offered but not this account's, and the focus
+   stayed on the page behind); then any other that can be, its Close among them. */
+function modalFirstButton(foot) {
+  return foot.querySelector('.btn.primary:not(.danger):not([disabled]):not([hidden])')
+    || foot.querySelector('.btn:not(.danger):not([disabled]):not([hidden])');
 }
 /* Where the popup underneath was scrolled to (1.0.38). Closing a popup
    over another one draws the one underneath afresh, and that opened it at
@@ -1086,7 +1092,7 @@ function settle(host) {
    kept as empty room until the reader scrolls. A box emptied for "Loading…"
    keeps its height until what it was waiting for is in. */
 var VIEWKEEP = {at: null, user: 0, scrolled: 0, mut: 0, busy: false, held: false, tops: null,
-            rooms: [], locks: [], focus: null, own: null};
+            rooms: [], locks: [], focus: null, own: null, roomWait: 8000, drag: false};
 var VIEW_ST = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
 var VIEW_FOCUS = HTMLElement.prototype.focus;
 function viewNow() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
@@ -1243,20 +1249,46 @@ function viewSet(sc, y) {
   if (VIEWKEEP.tops) VIEWKEEP.tops.set(sc, sc.scrollTop);
 }
 /* Empty room under the end of the page, so a frame the content no longer reaches stays where it is. */
-function viewRoom(sc, more) {
+function viewRoom(sc, more, el) {
   var room = null;
   VIEWKEEP.rooms = VIEWKEEP.rooms.filter(function (r) { if (r.isConnected && r._sc === sc) room = r; return r.isConnected; });
+  /* what it is room for: the part of the box shown now (a Settings pane) - the box is shared,
+     and the room went along to every other pane, a whole frame of nothing (1.0.106) */
+  var part = el;
+  while (part && part.parentElement && part.parentElement !== sc) part = part.parentElement;
+  if (room && part && room._for !== part) { room.style.height = '0px'; room._for = part; }
   if (!room) {
     room = document.createElement('div');
     room.className = 'view-room';
     room.setAttribute('aria-hidden', 'true');
     room._sc = sc;
+    room._for = part && part.parentElement === sc ? part : null;
     room.style.cssText = 'display:block;flex:none;width:1px;height:0px;margin:0;padding:0;border:0;'
       + 'pointer-events:none;visibility:hidden';
     (sc === viewRoot() ? document.body : sc).appendChild(room);
     VIEWKEEP.rooms.push(room);
   }
   room.style.height = Math.ceil((parseFloat(room.style.height) || 0) + more) + 'px';
+  /* never kept for long: given back once nobody has drawn into it for a while */
+  room._t = viewNow();
+  clearTimeout(VIEWKEEP.roomTimer);
+  VIEWKEEP.roomTimer = setTimeout(function () { viewRoomOut(VIEWKEEP.roomWait); }, VIEWKEEP.roomWait + 50);
+}
+/* The rooms gone (all of them, or those older than `age` ms) - the page as long as it is. */
+function viewRoomOut(age) {
+  var now = viewNow();
+  VIEWKEEP.rooms = VIEWKEEP.rooms.filter(function (room) {
+    if (room.isConnected && age && now - (room._t || 0) < age) return true;
+    if (room.parentNode) room.parentNode.removeChild(room);
+    return false;
+  });
+}
+/* Another pane or tab shown in the same box: nothing of the last one is held or kept. */
+function viewReset() {
+  VIEWKEEP.at = null;
+  VIEWKEEP.focus = null;
+  VIEWKEEP.tops = null;
+  viewRoomOut(0);
 }
 /* ...given back as the reader scrolls up out of it. */
 function viewRoomBack() {
@@ -1264,6 +1296,11 @@ function viewRoomBack() {
     if (!room.isConnected) return false;
     var sc = room._sc, h = parseFloat(room.style.height) || 0;
     var view = sc === viewRoot() ? window.innerHeight : sc.clientHeight;
+    /* room for a pane no longer shown: gone */
+    if (room._for && (!room._for.isConnected || room._for.parentElement !== sc || !viewShown(room._for))) {
+      room.parentNode.removeChild(room);
+      return false;
+    }
     var need = Math.max(0, Math.ceil(sc.scrollTop + view - (sc.scrollHeight - h)));
     if (need >= h) return true;
     if (need > 0) { room.style.height = need + 'px'; return true; }
@@ -1301,12 +1338,33 @@ function viewLocks() {
 /* The focus, put back on what was drawn in place of the element that had it. */
 function viewRefocus() {
   var f = VIEWKEEP.focus, on = document.activeElement;
+  /* only for a focus the redraw took: one the reader took away (a click on the page, Esc) stays
+     away - put back, Space opened and closed the row instead of turning the page (1.0.106) */
+  if (f && f.left) { VIEWKEEP.focus = null; return; }
   if (!f || f.el.isConnected || (on && on !== document.body && on !== document.documentElement)) return;
   if (viewNow() - f.t > 60000) { VIEWKEEP.focus = null; return; }
   var got = viewFind(f);
   if (!got || got.up || !got.el.isConnected || got.el.tabIndex < 0 || got.el.disabled) { VIEWKEEP.focus = null; return; }
   try { VIEW_FOCUS.call(got.el, {preventScroll: true}); } catch (e) { /* none */ }
   f.el = got.el;
+}
+/* Whether a batch of changes can move what is held: one inside its box or around it, not one
+   in something that floats over the page (fixed: the help, a toast, a popup). */
+function viewMatters(list) {
+  var a = VIEWKEEP.at;
+  if (!a || !a.sc || !a.sc.isConnected || !list || !list.length) return true;
+  for (var i = 0; i < list.length; i++) {
+    var t = list[i].target;
+    if (t && t.nodeType !== 1) t = t.parentElement;
+    if (!t || t === a.sc || a.sc.contains(t) || t.contains(a.sc)) return true;
+    var fixed = false;
+    for (var n = t; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      /* ...a popup with the box held in it is around it */
+      if (getComputedStyle(n).position === 'fixed') { fixed = !n.contains(a.sc); break; }
+    }
+    if (!fixed) return true;
+  }
+  return false;
 }
 function viewKeep() {
   if (VIEWKEEP.busy) return;
@@ -1315,16 +1373,37 @@ function viewKeep() {
     if (VIEWKEEP.locks.length) viewLocks();
     viewRefocus();
     var a = VIEWKEEP.at;
-    if (!a || !a.sc.isConnected || (a.sc !== viewRoot() && !viewShown(a.sc))) { viewTake(null); return; }
+    if (!a || !a.sc.isConnected || (a.sc !== viewRoot() && !viewShown(a.sc))) { viewTake(null); viewRoomBack(); return; }
+    /* Moved since the keeper last saw or set it, by the reader: what is in view now is held,
+       nothing is put back. A wheel turned over the Settings drew the help under the pointer
+       before the scroll was heard of, and the scroll was undone - the page stuck (1.0.106).
+       Moved with nobody at it (the browser cutting a box that got shorter) is put back. */
+    var was = VIEWKEEP.tops && VIEWKEEP.tops.get(a.sc), now = viewNow();
+    if (was !== undefined && Math.abs(a.sc.scrollTop - was) >= 1 && (VIEWKEEP.drag || now - VIEWKEEP.user < 500)) {
+      VIEWKEEP.scrolled = now;
+      viewTake(null);
+      viewRoomBack();
+      return;
+    }
     var got = viewFind(a);
-    if (!got) { viewTake(null); return; }
+    if (!got) { viewTake(null); viewRoomBack(); return; }
     var base = viewTopOf(a.sc);
-    var d = got.el.getBoundingClientRect().top - base - got.top;
+    var gr = got.el.getBoundingClientRect();
+    var d = gr.top - base - got.top;
     if (Math.abs(d) >= 0.5) {
-      var sc = a.sc, want = sc.scrollTop + d;
-      var max = sc.scrollHeight - (sc === viewRoot() ? window.innerHeight : sc.clientHeight);
+      var sc = a.sc, want = sc.scrollTop + d, root = sc === viewRoot();
+      var view = root ? window.innerHeight : sc.clientHeight;
+      var max = sc.scrollHeight - view;
       if (want < 0) want = 0;
-      if (want > max) viewRoom(sc, want - max);
+      if (want > max) {
+        /* room only as far as what is held stays in sight (a third of the frame of it at least,
+           all of it when it is smaller), and never more than half a frame - never a frame with
+           nothing in it (1.0.106) */
+        var top = root ? 0 : sc.getBoundingClientRect().top + sc.clientTop;
+        var cap = Math.min(max + view / 2, sc.scrollTop + gr.bottom - top - Math.min(Math.max(gr.height, 0), view / 3));
+        if (want > cap) want = Math.max(max, cap);
+        if (want > max) viewRoom(sc, want - max, got.el);
+      }
       viewSet(sc, want);
     }
     if (!got.up && got.el !== a.el) {
@@ -1343,10 +1422,15 @@ function viewKeep() {
   if (typeof MutationObserver !== 'function' || typeof Map !== 'function' || !VIEW_ST || !VIEW_ST.set) return;
   var opt = {capture: true, passive: true};
   /* what the reader does that moves the page */
-  var mine = function () { VIEWKEEP.user = viewNow(); };
-  ['wheel', 'touchstart', 'touchmove', 'touchend'].forEach(function (k) { document.addEventListener(k, mine, opt); });
+  var mine = function (e) {
+    VIEWKEEP.user = viewNow();
+    /* the reader going on down past the end: the room under it given back (1.0.106) */
+    if (VIEWKEEP.rooms.length && e && e.type === 'wheel' && e.deltaY > 0) viewRoomOut(0);
+  };
+  ['wheel', 'touchstart', 'touchmove', 'touchend'].forEach(function (k) { window.addEventListener(k, mine, opt); });
   document.addEventListener('keydown', function (e) {
     var t = e.target, typing = t && (liveControl(t) || t.isContentEditable);
+    if (/^(ArrowDown|PageDown|End)$/.test(e.key) && !typing && VIEWKEEP.rooms.length) viewRoomOut(0);
     if (/^(ArrowUp|ArrowDown|PageUp|PageDown|Home|End)$/.test(e.key) && !typing) mine();
     else if (e.key === ' ' && !typing && !(t && /^(BUTTON|SUMMARY|A)$/.test(t.tagName))) mine();
     else if (e.key === 'Tab') mine();
@@ -1357,22 +1441,37 @@ function viewKeep() {
     var t = e.target;
     VIEWKEEP.held = true;
     /* the scrollbar, a middle button: the reader scrolls */
-    if (e.button === 1 || (t && t.nodeType === 1 && (t === viewRoot() || (viewScrolls(t) && e.offsetX >= t.clientWidth)))) mine();
+    if (e.button === 1 || (t && t.nodeType === 1 && (t === viewRoot() || (viewScrolls(t) && e.offsetX >= t.clientWidth)))) {
+      mine();
+      VIEWKEEP.drag = true;
+    }
     /* the thing pressed, not the icon inside it */
     var c = t && t.closest ? t.closest('button, a, label, summary, tr, li, input, select, textarea, [role=button], [tabindex]') : null;
+    /* pressed somewhere else than what has the focus: the focus is left on purpose */
+    var f = VIEWKEEP.focus;
+    if (f && t && t.nodeType === 1 && !(f.el.isConnected && f.el.contains(t))) VIEWKEEP.focus = null;
     if (c) t = c;
     if (t && t !== document.documentElement && t !== document.body) viewTake(t);
   }, opt);
-  document.addEventListener('pointerup', function () { VIEWKEEP.held = false; }, opt);
-  document.addEventListener('pointercancel', function () { VIEWKEEP.held = false; }, opt);
+  document.addEventListener('pointerup', function () { VIEWKEEP.held = false; VIEWKEEP.drag = false; }, opt);
+  document.addEventListener('pointercancel', function () { VIEWKEEP.held = false; VIEWKEEP.drag = false; }, opt);
   document.addEventListener('focusin', function (e) {
     var t = e.target, w = t && t.nodeType === 1 && t !== document.body ? viewScroller(t) : null;
     var h = w ? viewHold(t, w.sc) : null;
     if (h) VIEWKEEP.focus = h;
   }, opt);
+  /* the focus leaving an element still on the page (a click on nothing, Esc, a script's
+     blur): left on purpose, not taken by a redraw - looked at once the redraw is done */
+  document.addEventListener('focusout', function (e) {
+    var f = VIEWKEEP.focus, t = e.target;
+    if (!f || f.el !== t) return;
+    setTimeout(function () { if (VIEWKEEP.focus === f && t.isConnected && document.activeElement !== t) f.left = true; }, 0);
+  }, opt);
   window.addEventListener('resize', function () { VIEWKEEP.at = null; }, opt);
-  document.addEventListener('scroll', function (e) {
-    var sc = e.target === document ? viewRoot() : e.target;
+  /* on the window, capturing, and before anything else listening (the help hidden on a scroll):
+     the reader's scroll is heard before what it makes others draw (1.0.106) */
+  window.addEventListener('scroll', function (e) {
+    var sc = e.target === document || e.target === window ? viewRoot() : e.target;
     if (!sc || sc.nodeType !== 1) return;
     var was = VIEWKEEP.tops && VIEWKEEP.tops.get(sc);
     if (was !== undefined && Math.abs(sc.scrollTop - was) < 0.5) return;   /* sideways, or ours */
@@ -1440,7 +1539,10 @@ function viewKeep() {
     if (out) meant(this, true);
     return r;
   };
-  VIEWKEEP.watch = new MutationObserver(function () {
+  VIEWKEEP.watch = new MutationObserver(function (list) {
+    /* only what was drawn in, or around, what is read: the help, a toast, a popup that floats
+       over the page move nothing in it */
+    if (!viewMatters(list)) return;
     VIEWKEEP.mut = viewNow();
     viewKeep();
   });

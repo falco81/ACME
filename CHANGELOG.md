@@ -73,6 +73,15 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   nginx that failed to start (its port taken at boot) is started again once acme's server is out.
 - **SELinux: a port another service has is never taken from it** (`semanage port -m` relabelled it
   `http_port_t`); it is said, choose another port.
+- **The page that stays where it is (1.0.105) no longer gets in the reader's way.** The mouse wheel
+  stuck in 14 Settings panes: the help shown under the pointer was drawn before the scroll was
+  heard of, and the scroll was undone. A scroll the reader made is now kept whatever is drawn at
+  that moment, and help, toasts and popups floating over the page are not looked at. The empty
+  room kept under a shortened end went along to every other pane (a whole frame of nothing): it
+  is now never more than half a frame, gone with the pane it was for, when the reader scrolls on
+  down, and after 8 seconds. The focus is put back only when a redraw took it - not after a click
+  on the page, where Space opened and closed a CRL row instead of turning the page. A popup whose
+  main button cannot be pressed (*Approve* of a request not yours) focuses its *Close*.
 
 ## 1.0.105 - 2026-11-14
 
