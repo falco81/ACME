@@ -9219,8 +9219,12 @@ function certCrls(host, p) {
       iss.appendChild(dn);
     }
     else if ((c.of || []).length) {
+      /* The authorities' names alone, as for a fetched one (1.0.112: whole DNs of four lines). */
       iss.appendChild(el('span', 'muted small', 'named by '));
-      iss.appendChild(noI18n(el('span', 'mono small', c.of.join('; '))));
+      var ofn = noI18n(el('span', 'small', c.of.map(function (d) {
+        var m = /(?:^|,)\s*CN=([^,]+)/i.exec(String(d)); return m ? m[1] : String(d); }).join('; ')));
+      ofn.title = c.of.join('\n');
+      iss.appendChild(ofn);
     } else iss.appendChild(el('span', 'muted', '–'));
     var ty = cell(tr, 'Type');
     ty.appendChild(krbTag(c.delta ? 'info' : 'dim', c.delta ? 'delta' : 'base'));

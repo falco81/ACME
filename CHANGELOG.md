@@ -4,6 +4,12 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.112 - 2026-11-15
+
+- **Revocation lists (CRL): the columns in proportion.** The address took every free pixel and the
+  "Issued by" of a list not fetched yet was a whole DN wrapped over four lines; the address has
+  its share, the authority is shown by its name (the whole DN on hover).
+
 ## 1.0.111 - 2026-11-15
 
 - **Values for a person's certificate: room around "Make a CSR…".** The heading "What to put into the

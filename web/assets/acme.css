@@ -4066,11 +4066,11 @@ tr.cert-crl-row.open .cert-crl-arrow{transform:rotate(90deg)}
    Fetch/Clear past the card's edge (Czech headings are wider, 1.0.105) - and its copy
    button stays at the column's right edge in every row. */
 table.cert-crl-t{width:100%}
-td.cert-crl-url{width:100%;max-width:0;min-width:160px}
+td.cert-crl-url{width:42%;max-width:0;min-width:160px}
 td.cert-crl-url .cert-crl-url-in{max-width:none}
 td.cert-crl-url .mono{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 td.cert-crl-url .iconbtn, td.cert-crl-act .iconbtn{flex:none;padding:4px 5px}
-td.cert-crl-iss{max-width:230px;min-width:140px}
+td.cert-crl-iss{width:20%;min-width:150px}
 td.cert-crl-iss .mono{white-space:normal;overflow-wrap:anywhere}
 /* on one line where there is room; the date under its pill where there is not, rather
    than Fetch/Clear off the card */
