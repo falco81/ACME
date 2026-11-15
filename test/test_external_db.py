@@ -130,9 +130,9 @@ class Agent(object):
 
     def start(self):
         env = dict(os.environ, ACME_AGENT_NO_FIREWALL='1')
-        self.proc = subprocess.Popen([sys.executable, '-I', AGENT, '--config', self.conf],
-                                     stdout=open(self.out, 'ab'), stderr=subprocess.STDOUT,
-                                     env=env)
+        with open(self.out, 'ab') as out:
+            self.proc = subprocess.Popen([sys.executable, '-I', AGENT, '--config', self.conf],
+                                         stdout=out, stderr=subprocess.STDOUT, env=env)
         wait_for(lambda: self.hello(), 20, 0.2, 'the agent answering')
         return self
 
@@ -152,6 +152,7 @@ class Agent(object):
                 self.proc.wait(20)
             except subprocess.TimeoutExpired:
                 self.proc.kill()
+                self.proc.wait(5)
         self.proc = None
 
     def code(self):
@@ -165,6 +166,24 @@ class Agent(object):
                 return [json.loads(x) for x in f if x.strip()]
         except OSError:
             return []
+
+
+def quietly(*fns):
+    """Each of these, whatever the one before did (a teardown that stops at the first error
+    leaves PostgreSQLs and agents running)."""
+    for fn in fns:
+        try:
+            fn()
+        except Exception as e:                          # noqa: BLE001
+            sys.stderr.write('cleanup: %s\n' % e)
+
+
+def set_up_or_clean(cls, fn):
+    try:
+        fn()
+    except BaseException:
+        cls.tearDownClass()
+        raise
 
 
 def node_conf_agent(node):
@@ -200,8 +219,8 @@ def raw_op(agent, node, op, args=None, key_hex=None, cert=True, ts=None, nonce=N
 
 
 def sign_key_of(node):
-    return node.py("print(acme.unseal_secret(json.load(open(str(acme.DBAGENT_FILE)))"
-                   "['sign_key'], bind='dbagent:sign'))").strip()
+    with open(os.path.join(node.tmp, 'state', 'db-agent', 'sign.key')) as f:
+        return f.read().strip()
 
 
 def server_cert_der(port):
@@ -233,6 +252,10 @@ class Standalone(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        set_up_or_clean(cls, cls._set_up)
+
+    @classmethod
+    def _set_up(cls):
         cls.cadir = tempfile.mkdtemp(prefix='acme-extdb-ca-', dir=BASE)
         os.chmod(cls.cadir, 0o755)
         cls.db = PgServer('dba')
@@ -268,20 +291,18 @@ class Standalone(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        for x in ('n',):
-            if getattr(cls, x, None):
-                getattr(cls, x).cleanup()
-        if getattr(cls, 'agent', None):
-            cls.agent.stop()
-        if getattr(cls, 'db', None):
-            cls.db.cleanup()
-        shutil.rmtree(cls.cadir, ignore_errors=True)
+        quietly(*[getattr(cls, x).cleanup for x in ('n',) if getattr(cls, x, None)],
+                *[getattr(cls, x).stop for x in ('agent',) if getattr(cls, x, None)],
+                *[getattr(cls, x).cleanup for x in ('db',) if getattr(cls, x, None)],
+                lambda: shutil.rmtree(cls.cadir, ignore_errors=True))
 
     def test_01_joined(self):
         a = node_conf_agent(self.n)
         self.assertEqual(a['db_admin'], 'agent:127.0.0.1:%d' % self.agent.port)
         self.assertEqual(len(a['pins']), 1)
-        self.assertTrue(a['sign_key'].startswith('sealed'))     # never in clear
+        self.assertNotIn('sign_key', a)                         # a file of its own, 0600
+        self.assertEqual(os.stat(os.path.join(self.n.tmp, 'state', 'db-agent', 'sign.key'))
+                         .st_mode & 0o077, 0)
         got = self.n.cli('--db-agent-status')
         self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
         self.assertIn('running', got.stdout)
@@ -431,6 +452,10 @@ class ReplicatedExternal(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        set_up_or_clean(cls, cls._set_up)
+
+    @classmethod
+    def _set_up(cls):
         cls.cadir = tempfile.mkdtemp(prefix='acme-extdb-ca-', dir=BASE)
         os.chmod(cls.cadir, 0o755)
         cls.db1, cls.db2 = PgServer('db1'), PgServer('db2')
@@ -476,16 +501,10 @@ class ReplicatedExternal(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        for x in ('a', 'b'):
-            if getattr(cls, x, None):
-                getattr(cls, x).cleanup()
-        for x in ('ag1', 'ag2'):
-            if getattr(cls, x, None):
-                getattr(cls, x).stop()
-        for x in ('db1', 'db2'):
-            if getattr(cls, x, None):
-                getattr(cls, x).cleanup()
-        shutil.rmtree(cls.cadir, ignore_errors=True)
+        quietly(*[getattr(cls, x).cleanup for x in ('a', 'b') if getattr(cls, x, None)],
+                *[getattr(cls, x).stop for x in ('ag1', 'ag2') if getattr(cls, x, None)],
+                *[getattr(cls, x).cleanup for x in ('db1', 'db2') if getattr(cls, x, None)],
+                lambda: shutil.rmtree(cls.cadir, ignore_errors=True))
 
     def rows(self, db, sql):
         return db.sql(sql, 'acme')
@@ -544,6 +563,141 @@ class ReplicatedExternal(unittest.TestCase):
         self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
         self.b.start()
         self.sync()
+
+
+def can_run_my():
+    return os.geteuid() == 0 and shutil.which('mariadb-install-db') and shutil.which('mariadbd') \
+        and shutil.which('mariadb')
+
+
+class MyServer(object):
+    """A MariaDB of its own: its folder, its port and socket; started again by a script the
+    agent's configuration names (as systemctl restart mariadb would)."""
+
+    def __init__(self, name):
+        self.name = name
+        self.top = tempfile.mkdtemp(prefix='acme-extdb-%s-' % name, dir=BASE)
+        os.chmod(self.top, 0o755)
+        self.dir = os.path.join(self.top, 'my')
+        self.data = os.path.join(self.dir, 'data')
+        self.cnf_dir = os.path.join(self.dir, 'conf.d')
+        os.makedirs(self.cnf_dir)
+        self.port = free_port()
+        self.sock = os.path.join(self.dir, 'mysqld.sock')
+        self.cnf = os.path.join(self.dir, 'my.cnf')
+        with open(self.cnf, 'w') as f:
+            f.write('[mariadb]\ndatadir=%s\nsocket=%s\nport=%d\nbind-address=127.0.0.1\n'
+                    'pid-file=%s/mysqld.pid\nlog-error=%s/err.log\n!includedir %s\n'
+                    % (self.data, self.sock, self.port, self.dir, self.dir, self.cnf_dir))
+        shutil.chown(self.dir, 'mysql', 'mysql')
+        subprocess.run(['mariadb-install-db', '--defaults-file=' + self.cnf, '--user=mysql',
+                        '--auth-root-authentication-method=socket', '--skip-test-db'],
+                       capture_output=True, check=True)
+        self.script = os.path.join(self.top, 'restart.sh')
+        with open(self.script, 'w') as f:
+            f.write('#!/bin/sh\nmariadb-admin --socket=%s -u root shutdown 2>/dev/null\n'
+                    'for i in $(seq 50); do [ -S %s ] || break; sleep 0.2; done\n'
+                    'nohup mariadbd --defaults-file=%s --user=mysql >/dev/null 2>&1 &\n'
+                    'for i in $(seq 100); do mariadb --socket=%s -u root -e "SELECT 1" '
+                    '>/dev/null 2>&1 && exit 0; sleep 0.2; done\nexit 1\n'
+                    % (self.sock, self.sock, self.cnf, self.sock))
+        os.chmod(self.script, 0o755)
+        subprocess.run(['/bin/sh', self.script], check=True)
+
+    def restart_cmd(self):
+        return ['/bin/sh', self.script]
+
+    def sql(self, text):
+        return subprocess.run(['mariadb', '--socket=' + self.sock, '-u', 'root', '-N', '-B',
+                               '-e', text], capture_output=True, text=True).stdout.strip()
+
+    def cleanup(self):
+        subprocess.run(['mariadb-admin', '--socket=' + self.sock, '-u', 'root', 'shutdown'],
+                       capture_output=True)
+        try:
+            with open(os.path.join(self.dir, 'mysqld.pid')) as f:
+                os.kill(int(f.read().strip()), signal.SIGTERM)
+        except (OSError, ValueError):
+            pass
+        if not os.environ.get('ACME_TEST_KEEP'):
+            shutil.rmtree(self.top, ignore_errors=True)
+
+
+@unittest.skipUnless(can_run_my(), 'needs root and MariaDB (mariadb-install-db, mariadbd)')
+class StandaloneMariaDb(unittest.TestCase):
+    """Layout A with MariaDB: the database and its account made through the agent, the move,
+    MariaDB given a certificate from acme's authority (and restarted) by the agent, the
+    connection verify-full - and a renewal taken by FLUSH SSL without a restart."""
+
+    @classmethod
+    def setUpClass(cls):
+        set_up_or_clean(cls, cls._set_up)
+
+    @classmethod
+    def _set_up(cls):
+        cls.cadir = tempfile.mkdtemp(prefix='acme-extdb-ca-', dir=BASE)
+        cls.db = MyServer('mya')
+        cls.agent = Agent(cls.db, cls.cadir)
+        with open(cls.agent.conf) as f:
+            c = json.load(f)
+        c.update(engine='mariadb', my_port=cls.db.port, my_socket=cls.db.sock,
+                 my_cnf_dir=cls.db.cnf_dir, my_tls_dir=os.path.join(cls.db.top, 'tls'),
+                 my_restart_cmd=['/bin/sh', cls.db.script])
+        c.pop('pg_restart_cmd', None)
+        with open(cls.agent.conf, 'w') as f:
+            json.dump(c, f)
+        cls.agent.start()
+        cls.n = Node('m0')
+        cls.n.env.update(ACME_HA_NO_RESTART='1', ACME_NO_RESTART='1',
+                         ACME_HA_CA=os.path.join(cls.cadir, 'mya.pem'))
+        cls.n.add_account()
+        got = cls.n.cli('--db-agent-join', cls.agent.code())
+        if got.returncode != 0:
+            raise RuntimeError('--db-agent-join: %s %s' % (got.stdout, got.stderr))
+        cls.n.py("print(acme.db_make_here({'db_engine': 'mariadb', 'db_host': '127.0.0.1', "
+                 "'db_port': %d, 'db_name': 'acme', 'db_user': 'acme', 'db_password': %r}))"
+                 % (cls.db.port, DB_PW))
+        got = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py'), '--db-move',
+                              'mariadb', '--db-host', '127.0.0.1', '--db-port', str(cls.db.port),
+                              '--yes'], env=dict(cls.n.env, ACME_DB_PASSWORD=DB_PW),
+                             capture_output=True, text=True, timeout=300)
+        if got.returncode != 0 or cls.n.conf.get('db_engine') != 'mariadb':
+            raise RuntimeError('--db-move: %s %s' % (got.stdout, got.stderr))
+        cls.n.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        quietly(*[getattr(cls, x).cleanup for x in ('n',) if getattr(cls, x, None)],
+                *[getattr(cls, x).stop for x in ('agent',) if getattr(cls, x, None)],
+                *[getattr(cls, x).cleanup for x in ('db',) if getattr(cls, x, None)],
+                lambda: shutil.rmtree(cls.cadir, ignore_errors=True))
+
+    def test_01_status(self):
+        got = self.n.cli('--db-agent-status')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        self.assertIn('mariadb', got.stdout)
+        self.assertGreaterEqual(int(self.db.sql("SELECT COUNT(*) FROM mysql.user WHERE User = 'acme'")), 3)
+
+    def test_02_tls_then_verify_full(self):
+        got = self.n.cli('--db-agent-mariadb-tls')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        self.assertIn('restart', got.stdout.lower())
+        self.assertEqual(self.db.sql('SELECT @@have_ssl'), 'YES')
+        ident = self.n.ok('POST', '/api/dbtls', {'action': 'apply', 'phase': 'connect',
+                                                 'mode': 'verify-full', 'ca_source': 'acme'})['id']
+        one = dbtls_wait(self.n, ident)
+        self.assertTrue(one['ok'], one)
+        self.assertEqual(self.n.conf.get('db_tls'), 'verify-full')
+        started = self.db.sql('SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS '
+                              "WHERE VARIABLE_NAME = 'UPTIME'")
+        # renewed: FLUSH SSL, no restart
+        got = self.n.cli('--db-agent-mariadb-tls')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        self.assertIn('FLUSH SSL', got.stdout)
+        later = self.db.sql('SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS '
+                            "WHERE VARIABLE_NAME = 'UPTIME'")
+        self.assertGreaterEqual(int(later), int(started))
+        self.n.ok('GET', '/api/certs/overview')
 
 
 if __name__ == '__main__':

@@ -134,15 +134,26 @@ def _db_agent_http(host, port, path, body, ctx, pins, headers=None, timeout=90):
         conn.close()
 
 
+def db_agent_sign_key(conf=None):
+    """The key this node signs its requests with: a file of its own beside its client key
+    (0600, the daemon's) - not sealed with secrets.key, which a join or a backup put back
+    replaces."""
+    try:
+        key = (DBAGENT_DIR / 'sign.key').read_text().strip()
+    except OSError:
+        return None
+    return key if re.fullmatch(r'[0-9a-f]{64}', key) else None
+
+
 def db_agent_call(op, args=None, timeout=90, conf=None):
     """One of the agent's operations, signed; its answer (a dict) or ValueError."""
     a = conf or db_agent()
     if not a:
         raise ValueError('this node has no database agent (db_admin is local)')
-    key = unseal_secret(a.get('sign_key'), bind='dbagent:sign')
-    if not key or not re.fullmatch(r'[0-9a-f]{64}', str(key)):
-        raise ValueError('the signing key of the database agent cannot be opened here (is '
-                         'secrets.key this node\'s?)')
+    key = db_agent_sign_key(a)
+    if not key:
+        raise ValueError('the signing key of the database agent is not in %s - join the '
+                         'agent again (acme --db-agent-join)' % DBAGENT_DIR)
     body = json.dumps({'op': op, 'args': args or {}}).encode()
     ts = '%.3f' % time.time()
     nonce = secrets.token_hex(16)
@@ -186,6 +197,18 @@ def db_agent_call(op, args=None, timeout=90, conf=None):
     if st != 200 or not out.get('ok'):
         raise ValueError('the database agent said: %s' % (out.get('said') or 'HTTP %d' % st))
     out.pop('ok', None)
+    if out.get('restart'):
+        # Its listening side starts again with what it was given: waited for.
+        time.sleep(0.8)
+        end = time.time() + 30
+        while True:
+            try:
+                db_agent_call('status', timeout=10, conf=conf)
+                break
+            except ValueError:
+                if time.time() > end:
+                    raise
+                time.sleep(0.5)
     return out
 
 
@@ -278,14 +301,13 @@ def db_agent_join(store, code, addr='', db_host='', by='command line', say=None)
     say('the agent has its certificate from acme\'s authority; this node its client certificate')
     DBAGENT_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     for name, text, mode in (('client.key', ckey, 0o600), ('client.crt', ccrt, 0o644),
-                             ('ca.pem', trust, 0o644)):
+                             ('ca.pem', trust, 0o644), ('sign.key', sign_key + '\n', 0o600)):
         write_replacing(DBAGENT_DIR / name, text, mode)
         _db_agent_own(DBAGENT_DIR / name, mode)
     _db_agent_own(DBAGENT_DIR, None)
     engine = 'mariadb' if began.get('engine') == 'mariadb' else 'postgres'
     a = db_agent_put({'db_admin': 'agent:%s:%d' % (host, port), 'host': host, 'port': port,
                       'node': node, 'pins': [_db_agent_fp(cert)],
-                      'sign_key': seal_secret(sign_key, bind='dbagent:sign'),
                       'engine': engine, 'pg_port': int(began.get('pg_port') or 5432),
                       'my_port': int(began.get('my_port') or 3306),
                       'db_host': db_host or host, 'at': time.time(), 'by': by,
@@ -507,8 +529,7 @@ def db_agent_renew(store, by='acme (renewed)', force=False):
         have = (DBAGENT_DIR / 'ca.pem').read_text() if (DBAGENT_DIR / 'ca.pem').exists() else ''
         if trust.strip() not in have:
             write_replacing(DBAGENT_DIR / 'ca.pem', trust + have, 0o644)
-        db_agent_call('agent_cert', {'cert': cert, 'ca': trust})
-        time.sleep(1.0)
+        db_agent_call('agent_cert', {'cert': cert, 'ca': trust}, conf=a)
         a = db_agent_put({'pins': [fp], 'agent_cert_end': _cert_end(cert)})
         done.append('the agent\'s certificate (ends %s)'
                     % datetime.fromtimestamp(_cert_end(cert)).strftime('%Y-%m-%d'))
@@ -521,7 +542,6 @@ def db_agent_renew(store, by='acme (renewed)', force=False):
             r'-----BEGIN CERTIFICATE-----[A-Za-z0-9+/=\s]+?-----END CERTIFICATE-----\s*', old)
             if c.strip() not in trust)
         db_agent_call('trust', {'ca': both, 'client_cert_new': ccrt})
-        time.sleep(1.0)
         for name, text, mode in (('client.key', ckey, 0o600), ('client.crt', ccrt, 0o644)):
             write_replacing(DBAGENT_DIR / name, text, mode)
             _db_agent_own(DBAGENT_DIR / name, mode)

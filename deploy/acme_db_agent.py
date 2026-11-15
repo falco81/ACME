@@ -208,6 +208,12 @@ class Root(object):
         self.seen = {}                  # nonce -> time (replays)
         os.environ['ACME_HA_CA'] = c['ha_ca']
         if c.get('my_socket'):
+            # MariaDB's socket where it is not the usual one: the clients root runs (the root
+            # helper's dbmake too) read it from an option file of the agent's own.
+            home = os.path.join(c['state'], 'home')
+            os.makedirs(home, mode=0o700, exist_ok=True)
+            _write(os.path.join(home, '.my.cnf'), '[client]\nsocket=%s\n' % c['my_socket'])
+            os.environ['HOME'] = home
             os.environ['MYSQL_UNIX_PORT'] = str(c['my_socket'])
         sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
         import acme_pg_ops
@@ -513,6 +519,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                                               'one enrolled here'})
         else:
             return self.answer(404, {'ok': False, 'said': 'not here'})
+        if getattr(srv, 'closing', False):
+            return self.answer(503, {'ok': False, 'said': 'the agent is starting again'})
         with srv.root_lock:
             try:
                 _send(srv.root, msg)
@@ -524,6 +532,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         key = got.pop('key', None)
         if not got.get('ok'):
             srv.fails.take(ip, 3)
+        if got.get('restart'):
+            srv.closing = True
         self.answer(200 if got.get('ok') else 400, got, key, msg.get('nonce', ''))
         if got.get('restart'):
             # Its new certificate or clients: this side started again by root with them.
@@ -660,7 +670,10 @@ def serve(c):
                     msg = _recv(mine)
                 except (EOFError, OSError):
                     break
-                _send(mine, root.handle(msg))
+                try:
+                    _send(mine, root.handle(msg))
+                except OSError:
+                    break               # that side went (it starts again with what is new)
         finally:
             mine.close()
             try:
