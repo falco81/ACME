@@ -24,7 +24,10 @@ their own, as test_ha.py starts them.
   agent. acme --ha-setup / --ha-join with the agents (wal_level, listen, the
   restart, pg_hba, the publication all done by them); both directions
   replicate; the link's TLS through the agents (verify-full, hostssl); a
-  rebuild of the second node (acme --ha-resync).
+  rebuild of the second node (acme --ha-resync); no move of a node of the pair.
+* EngineMoves: PostgreSQL with agent A -> MariaDB with agent B and back (--db-make through the
+  target's agent, the TLS of the old server not carried), then off the agents' servers onto
+  this machine's PostgreSQL, MariaDB and SQLite (the agent let go, nothing asked of it).
 """
 import base64
 import hashlib

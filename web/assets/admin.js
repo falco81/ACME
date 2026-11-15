@@ -4613,7 +4613,7 @@ function dbMoveSteps(info, preset) {
       var dd = W.d, hv = String(dd.host || '').trim().toLowerCase().replace(/^\[|\]$/g, '');
       var toAgent = dd.engine === ag.engine && [String(ag.db_host || '').toLowerCase(), String(ag.host || '').toLowerCase()].indexOf(hv) >= 0 &&
         (Number(dd.port) || (info.engines[dd.engine] || {}).port) === Number(ag.db_port);
-      var an = el('div', 'note info dbw-agent-what');
+      var an = el('div', 'note ' + (ag.here && !toAgent ? 'warn' : 'info') + ' dbw-agent-what');
       an.id = 'dbw-agent-what';
       if (ag.here && !toAgent) an.appendChild(haWords('The database leaves the server of this node’s database agent (', ag.host + ':' + ag.port, '): once config.json is switched, the agent is let go - acme asks nothing of it any more and its server leaves this page and the meter. It keeps this node’s certificate until acme_db_agent.py --forget there; moving back means connecting it again.'));
       else if (toAgent && !ag.here) an.appendChild(haWords('Onto the server of this node’s database agent (', ag.host + ':' + ag.port, '): acme looks after it from the restart on. Then Encryption to the database server: the server’s certificate from acme’s authority, and verify-full.'));

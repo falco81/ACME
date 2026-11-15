@@ -65035,6 +65035,98 @@
   "z_130": {
    "source": "As the administration's, for the portal: no good check for this long, and the sign-in ends.",
    "text": "Jako u administrace, pro portál: žádná úspěšná kontrola po tuto dobu a přihlášení skončí."
+  },
+  "z_131": {
+   "source": "The server of this node’s database agent (",
+   "text": "Server databázového agenta tohoto uzlu ("
+  },
+  "z_132": {
+   "source": "): the agent makes the database and the account there and lets this node in - no password typed anywhere. A password is made for the account if none is typed above.",
+   "text": "): databázi a účet tam vytvoří agent a pustí k nim tento uzel – nikde se nepíše žádné heslo. Když výše žádné heslo není, účtu se nějaké vymyslí."
+  },
+  "z_133": {
+   "source": "Not the server of this node’s database agent (",
+   "text": "Toto není server databázového agenta tohoto uzlu ("
+  },
+  "z_134": {
+   "source": "): once moved there, acme only connects to it. To have it looked after, connect its agent first - one agent a node, it then takes the place of this one.",
+   "text": "): po přesunu se k němu acme jen připojuje. Aby se o něj acme staralo, připojte nejdřív jeho agenta – jeden agent na uzel, nahradí tedy tohoto."
+  },
+  "z_135": {
+   "source": "The database leaves the server of this node’s database agent (",
+   "text": "Databáze odchází ze serveru databázového agenta tohoto uzlu ("
+  },
+  "z_136": {
+   "source": "): once config.json is switched, the agent is let go - acme asks nothing of it any more and its server leaves this page and the meter. It keeps this node’s certificate until acme_db_agent.py --forget there; moving back means connecting it again.",
+   "text": "): jakmile se přepne config.json, agent se uvolní – acme po něm už nic nechce a jeho server zmizí z této stránky i z měřiče. Certifikát tohoto uzlu si ponechá, dokud na něm nespustíte acme_db_agent.py --forget; přesun zpět znamená připojit ho znovu."
+  },
+  "z_137": {
+   "source": "Onto the server of this node’s database agent (",
+   "text": "Na server databázového agenta tohoto uzlu ("
+  },
+  "z_138": {
+   "source": "): acme looks after it from the restart on. Then Encryption to the database server: the server’s certificate from acme’s authority, and verify-full.",
+   "text": "): od restartu se o něj acme stará. Potom Šifrování k databázovému serveru: certifikát serveru od autority acme a verify-full."
+  },
+  "z_139": {
+   "source": "This node is one of a cluster and its database is on the server of the agent at ",
+   "text": "Tento uzel je součástí clusteru a jeho databáze je na serveru agenta "
+  },
+  "z_140": {
+   "source": ": another agent is not connected instead. Take the cluster apart first.",
+   "text": ": jiný agent se místo něj nepřipojí. Nejdřív cluster rozeberte."
+  },
+  "z_141": {
+   "source": "This node is connected to the agent at ",
+   "text": "Tento uzel je připojen k agentovi "
+  },
+  "z_142": {
+   "source": " and its database is on that server. One agent a node: this one takes its place, and until the database is moved onto the new server (Move the database onto it…, next) nothing of the old server is looked after - its certificate is not renewed. The old agent keeps this node’s certificate until acme_db_agent.py --forget there.",
+   "text": " a jeho databáze je na tom serveru. Jeden agent na uzel: tento nahradí původního a dokud se databáze nepřesune na nový server (Přesunout databázi na něj…, hned potom), o starý server se nikdo nestará – jeho certifikát se neobnovuje. Původní agent si certifikát tohoto uzlu ponechá, dokud na něm nespustíte acme_db_agent.py --forget."
+  },
+  "z_143": {
+   "source": " already. One agent a node: this one takes its place.",
+   "text": " už teď. Jeden agent na uzel: tento nahradí původního."
+  },
+  "z_144": {
+   "source": "It takes the place of the agent at ",
+   "text": "Nahradil agenta "
+  },
+  "z_145": {
+   "source": " - this node’s database is still on ",
+   "text": " – databáze tohoto uzlu je stále na "
+  },
+  "z_146": {
+   "source": ", and nothing of that server is looked after until the database is moved onto the new one. That agent keeps this node’s certificate until acme_db_agent.py --forget ",
+   "text": " a o ten server se nikdo nestará, dokud se databáze nepřesune na nový. Tamní agent si certifikát tohoto uzlu ponechá, dokud tam nespustíte acme_db_agent.py --forget "
+  },
+  "z_147": {
+   "source": " there.",
+   "text": "."
+  },
+  "z_148": {
+   "source": " (one agent a node); that one keeps this node’s certificate until acme_db_agent.py --forget ",
+   "text": " (jeden agent na uzel); ten si certifikát tohoto uzlu ponechá, dokud tam nespustíte acme_db_agent.py --forget "
+  },
+  "z_149": {
+   "source": "acme-db-agent no longer looks after this node’s database: it is not on that server any more, so nothing is asked of the agent, and its server is off the cards and the meter. The agent keeps this node’s certificate until acme_db_agent.py --forget there.",
+   "text": "acme-db-agent se už o databázi tohoto uzlu nestará: na jeho serveru už není, takže se po agentovi nic nechce a jeho server zmizel z karet i z měřiče. Agent si certifikát tohoto uzlu ponechá, dokud na něm nespustíte acme_db_agent.py --forget."
+  },
+  "z_150": {
+   "source": "To have that server looked after again, connect its agent first (a new join code), then move back.",
+   "text": "Aby se acme o ten server zase staralo, připojte nejdřív jeho agenta (nový kód pro připojení) a potom přesuňte databázi zpět."
+  },
+  "z_151": {
+   "source": "this node is one of a cluster (replicated - each node's database on a server of its own, looked after by its agent, the two replicating): its database is the cluster's. Moving it - to another engine, another server or back onto this machine - would break the replication and leave the other node on its own.",
+   "text": "tento uzel je součástí clusteru (replikovaný – databáze každého uzlu na vlastním serveru, o který se stará jeho agent, a obě se replikují): jeho databáze patří clusteru. Přesun – na jiný databázový stroj, jiný server nebo zpět na tento počítač – by replikaci rozbil a druhý uzel by zůstal sám."
+  },
+  "z_152": {
+   "source": "only a server on this machine, or the server of this node's database agent, is made by acme itself: run the SQL shown on that server, or give an administrator of it",
+   "text": "acme samo vytvoří databázi jen na serveru na tomto počítači nebo na serveru databázového agenta tohoto uzlu: spusťte na tom serveru zobrazené SQL, nebo zadejte jeho správce"
+  },
+  "z_153": {
+   "source": "A new certificate for the agent (a new key, made on its server) and a new client certificate for this node, now, both from acme’s own authority - rather than when they near their end (the agent’s 60 days before, this node’s 45). Nothing stops.",
+   "text": "Nový certifikát pro agenta (s novým klíčem vytvořeným na jeho serveru) a nový klientský certifikát pro tento uzel, hned a oba od vlastní autority acme – ne až před koncem platnosti (agentův 60 dní předem, tohoto uzlu 45). Nic se nezastaví."
   }
  },
  "patterns": {
@@ -90353,6 +90445,14 @@
   "pz_4": {
    "source": "Signed out in {0} s if the card is not back",
    "text": "Odhlášení za {0} s, pokud se karta nevrátí"
+  },
+  "pz_5": {
+   "source": "it ends {0}; the agent renews it by itself 60 days before, and that did not work - Settings → The database → Database server → Renew the certificates",
+   "text": "vyprší {0}; agent ho obnovuje sám 60 dní předem, a to se nepovedlo - Nastavení → Databáze → Databázový server → Obnovit certifikáty"
+  },
+  "pz_6": {
+   "source": "this node is one of a cluster and its database is on {0}, looked after by the agent at {1}:{2}: another agent is not joined instead - take the cluster apart first (Settings -> High availability)",
+   "text": "tento uzel je součástí clusteru a jeho databáze je na {0}, o který se stará agent {1}:{2}: jiný agent se místo něj nepřipojí – nejdřív cluster rozeberte (Nastavení → Vysoká dostupnost)"
   }
  },
  "rich": {
