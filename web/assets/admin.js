@@ -1460,9 +1460,25 @@ function firstPane() {
     function (x) { return !x.hidden && $('pane-' + x.dataset.pane); })[0];
   return b ? b.dataset.pane : 'about';
 }
-function showPane(name) {
+/* The pane last shown (1.0.106): another one chosen opens at its top, not where the one before
+   was scrolled to; the same one drawn again (settings saved, the VIP address moved) stays. */
+var PANE_SHOWN = '';
+function paneToTop() {
+  var m = document.querySelector('#tab-settings .ctl-main');
+  if (m && m.scrollHeight > m.clientHeight + 2 && /auto|scroll/.test(getComputedStyle(m).overflowY)) {
+    m.scrollTop = 0;
+    return;
+  }
+  /* a narrow screen: the page itself scrolls - to its very top. Left where the settings begin,
+     the browser's scroll anchoring moved it down again as the pane's content came in below. */
+  if (window.scrollY > 0) window.scrollTo(0, 0);
+}
+/** `opts.keepScroll`: Find a setting scrolls to the setting itself. */
+function showPane(name, opts) {
   if (!name || !$('pane-' + name)) name = firstPane();
   PANE = name;
+  var changed = name !== PANE_SHOWN;
+  PANE_SHOWN = name;
   var onBtn = null;
   document.querySelectorAll('#ctl-nav button[data-pane]').forEach(function (b) {
     b.classList.toggle('on', b.dataset.pane === name);
@@ -1481,6 +1497,7 @@ function showPane(name) {
   document.querySelectorAll('.ctl-pane').forEach(function (p) { p.hidden = p.id !== 'pane-' + name; });
   /* nothing held or kept of the pane before: the box is the same, what is in it is not (1.0.106) */
   if (typeof viewReset === 'function') viewReset();
+  if (changed && !(opts && opts.keepScroll)) paneToTop();
   writeHash();
   if (SN.d) snPills(); else snLoad();
   if (name === 'people') { loadUsers(); loadDirs(); }
@@ -1594,7 +1611,7 @@ $('ctl-find').addEventListener('input', function () {
     var where = document.querySelector('.ctl-nav [data-pane="' + (pane || 'about') + '"]');
     b.appendChild(el('span', 'ctl-hit-w', where ? where.textContent.trim() : (pane || '')));
     b.onclick = function () {
-      showPane(pane || 'about');
+      showPane(pane || 'about', {keepScroll: true});
       $('ctl-find').value = '';
       box.hidden = true;
       var item = document.querySelector('.set-item[data-key="' + s.key + '"]');
@@ -8193,13 +8210,32 @@ function drawCert(part) {
   certOcsp(host, p);
   /* Each node. */
   host.appendChild(el('h3', 'peek-h', 'Each node'));
-  krbTable(host, ['Node', 'Heard from', 'The authorities', 'nginx on port ' + d.port, 'Trouble'], d.nodes.map(function (n) {
-    return [noI18n(el('span', 'mono', n.node)), krbTag(n.heard ? 'ok' : 'crit', n.heard ? 'yes' : 'no'),
-      d.cas.length ? krbTag(n.written && n.same ? 'ok' : 'warn', n.written && n.same ? 'all written out' : (n.written ? 'an older set' : 'not written')) : krbTag('dim', 'none to write'),
+  /* A table where there is room; on a phone each node a block, its values under their labels
+     (as the CRLs) - five columns were a sideways scroller of 950 px there (1.0.106). */
+  var heads = ['Node', 'Heard from', 'The authorities', 'nginx on port ' + d.port, 'Trouble'];
+  var nt = el('table', 'rows krb-t cert-nodes-t');
+  var nhr = el('tr', 'cert-nodes-hr');
+  heads.forEach(function (h) { nhr.appendChild(el('th', '', h)); });
+  nt.appendChild(nhr);
+  d.nodes.forEach(function (n) {
+    var trouble = n.busy || n.error || '';
+    var cells = [noI18n(el('span', 'mono', n.node)), krbTag(n.heard ? 'ok' : 'crit', n.heard ? 'yes' : 'no'),
+      d.cas.length ? krbTag(n.written && n.same ? 'ok' : 'warn', n.written && n.same ? 'all written out' : (n.written ? 'an older set' : 'none written out')) : krbTag('dim', 'none to write'),
       n.busy ? krbTag('crit', /could not listen/.test(n.busy) ? 'nginx could not listen' : /another site of nginx/.test(n.busy) ? 'another site of nginx' : 'taken by another program') : (d.any_on ? krbTag(n.listening ? 'ok' : 'warn', n.listening ? 'listening' : 'not listening') : krbTag('dim', 'not served (off)')),
       /* a sentence of the daemon's, translated as one (its port, node and pid in the pattern's slots) */
-      el('span', 'small ' + (n.busy ? 'bad' : 'muted'), n.busy || n.error || '')];
-  }));
+      el('span', 'small ' + (n.busy ? 'bad' : 'muted'), trouble)];
+    var tr = el('tr', '');
+    cells.forEach(function (c, i) {
+      var td = el('td', i === 0 ? 'cert-nodes-name' : (i === 4 ? 'cert-nodes-trouble' + (trouble ? '' : ' cert-nodes-none') : ''));
+      if (i) td.appendChild(el('span', 'cert-nodes-lab', heads[i]));
+      td.appendChild(c);
+      tr.appendChild(td);
+    });
+    nt.appendChild(tr);
+  });
+  var ntw = el('div', 'krb-tw cert-nodes-tw');
+  ntw.appendChild(nt);
+  host.appendChild(ntw);
   /* AD CS and a YubiKey. */
   host.appendChild(el('h3', 'peek-h', 'The people’s certificates (AD CS)'));
   var ul = el('ul', 'krb-ul');

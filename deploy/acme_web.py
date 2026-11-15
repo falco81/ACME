@@ -1165,22 +1165,39 @@ def nginx_loaded_files():
         return None
     if r.returncode != 0 or not r.stdout:
         return None
-    out, name, part = {}, None, []
-    for line in r.stdout.splitlines(True):
+    return nginx_dump_files(r.stdout)
+
+
+def nginx_dump_files(dump):
+    """{path: text} of an `nginx -T` dump. nginx prints each file once, a line `# configuration
+    file PATH:` before it, right after the end of the one before. A line of that shape in a
+    file's own text (a comment) is no boundary (1.0.106): taken only for a path that is a
+    regular file and was not printed already, and only where the line before it (blank lines
+    left out) ends a statement - with `;`, `{` or `}` - or is a comment."""
+    out, name, part, prev = {}, None, [], ''
+    for line in dump.splitlines(True):
         m = re.match(r'# configuration file (.+):\n?$', line)
-        if m:
+        if m and m.group(1) not in out and m.group(1) != name and \
+                os.path.isfile(m.group(1)) and \
+                (not prev or prev.lstrip().startswith('#') or
+                 nginx_uncommented(prev).rstrip()[-1:] in (';', '{', '}')):
             if name is not None:
                 out[name] = ''.join(part)
-            name, part = m.group(1), []
-        elif name is not None:
+            name, part, prev = m.group(1), [], ''
+            continue
+        if name is not None:
             part.append(line)
+        if line.strip():
+            prev = line
     if name is not None:
         out[name] = ''.join(part)
     return out
 
 
 def nginx_uncommented(text):
-    """nginx's text without its comments - a `#` within quotes or within a word is not one."""
+    """nginx's text without its comments - a `#` within quotes or within a word is not one, and
+    a quote opens a string only at the start of a word (1.0.106: the ' of `don't` opened one,
+    and what followed - a `#` comment with a listen in it - was taken as nginx's)."""
     out, q, i, n = [], '', 0, len(text)
     while i < n:
         c = text[i]
@@ -1191,7 +1208,7 @@ def nginx_uncommented(text):
                 i += 1
             elif c == q:
                 q = ''
-        elif c in '"\'':
+        elif c in '"\'' and (not out or out[-1] in ' \t\r\n;{}'):
             q = c
             out.append(c)
         elif c == '#' and (not out or out[-1] in ' \t\r\n;{}'):
@@ -1202,6 +1219,50 @@ def nginx_uncommented(text):
             out.append(c)
         i += 1
     return ''.join(out)
+
+
+def nginx_statements(text):
+    """nginx's text as its statements, each a list of its words (quotes taken off, comments
+    left out): a statement ends at `;`, `{` or `}` (1.0.106: a `listen` within a quoted string
+    - `return 200 "x; listen 8443"` - was counted as one)."""
+    out, words, word, q, i, n = [], [], None, '', 0, len(text)
+    while i < n:
+        c = text[i]
+        if q:
+            if c == '\\' and i + 1 < n:
+                word.append(text[i + 1])
+                i += 1
+            elif c == q:
+                q = ''
+            else:
+                word.append(c)
+        elif c in '"\'' and word is None:
+            q, word = c, []
+        elif c == '#' and word is None:
+            j = text.find('\n', i)
+            i = n if j < 0 else j
+            continue
+        elif c in ' \t\r\n;{}':
+            if word is not None:
+                words.append(''.join(word))
+                word = None
+            if c in ';{}':
+                if words:
+                    out.append(words)
+                words = []
+        else:
+            if word is None:
+                word = []
+            word.append(c)
+            if c == '\\' and i + 1 < n:
+                word.append(text[i + 1])
+                i += 1
+        i += 1
+    if word is not None:
+        words.append(''.join(word))
+    if words:
+        out.append(words)
+    return out
 
 
 def node_own_addresses():
@@ -1256,14 +1317,15 @@ def certlogin_other_sites(port):
     files = nginx_loaded_files()
     if not files:
         return []
-    want = re.compile(r'(?:^|[\s{;])listen\s+([^\s;]+)')
     mine_conf = os.path.realpath(NGINX_CERTLOGIN)
     addrs, out = [False], []
     for p, text in files.items():
         if os.path.realpath(p) == mine_conf:
             continue
-        for m in want.finditer(nginx_uncommented(text)):
-            spec = m.group(1).strip('"\'')
+        for st in nginx_statements(text):
+            if st[0] != 'listen' or len(st) < 2:
+                continue
+            spec = st[1]
             if spec.isdigit():
                 addr, num = '', spec
             elif ':' in spec and not spec.lower().startswith('unix:'):
@@ -1401,7 +1463,10 @@ def nginx_reload(said):
             said.append('nginx started again (it had failed)')
             return True
         r = r2
-    elif state == 'inactive' or (state != 'active' and not nginx_active()):
+    elif state == 'inactive':
+        # Exactly 'inactive' (1.0.106): activating, deactivating, reloading were taken for
+        # stopped too, and the port was never checked for listening - a reload that went wrong
+        # then left acme's server of the port in place, not listening.
         said.append('nginx is stopped (not failed) - left stopped; it takes the new files when '
                     'it is started')
         return None

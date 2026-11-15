@@ -4076,6 +4076,10 @@ td.cert-crl-next{white-space:normal;min-width:96px}
 td.cert-crl-next .small{display:inline-block;white-space:nowrap}
 table.cert-crl-t td.cert-crl-next .tag{margin:0 8px 0 0}
 td.cert-crl-num{text-align:right;font-variant-numeric:tabular-nums}
+/* The OCSP answers' serial: cut short with … (the whole one in its title and the details) rather
+   than the table past the card - Czech headings are wider (1.0.106) */
+table.ocsp-t td.cert-crl-num{max-width:0;width:22%;min-width:90px}
+table.ocsp-t td.cert-crl-num .mono{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 td.cert-crl-act{white-space:nowrap;text-align:right}
 td.cert-crl-act .iconbtn + .iconbtn{margin-left:4px}
 .cert-crl-lab{display:none}
@@ -4101,6 +4105,11 @@ table.cert-crl-nodes .tag{margin:0}
 .cert-crl-said-n .tag{margin:0}
 .cert-crl-said-e{flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap;padding-left:2px}
 .cert-crl-said-e .mono{overflow-wrap:anywhere;min-width:0}
+/* what went wrong in red - a fact's Last error and a node's answer to Fetch/Ask again (1.0.106) */
+.cert-crl-v .bad,.cert-crl-said-e .bad{color:var(--crit)}
+/* The card's Each node: a table where there is room, a block a node on a phone (1.0.106) */
+.cert-nodes-lab{display:none}
+table.cert-nodes-t td.cert-nodes-trouble{overflow-wrap:anywhere}
 @media (max-width:640px){
   /* A phone: no table - each CRL a block, its values under their labels. */
   .cert-crl-tw{overflow-x:visible}
@@ -4111,7 +4120,8 @@ table.cert-crl-nodes .tag{margin:0}
   table.cert-crl-t tr.cert-crl-row.open{border-bottom:0;background:var(--panel2)}
   table.cert-crl-t tr.cert-crl-row td{display:block;padding:0;border:0;min-width:0;max-width:none;background:none}
   table.cert-crl-t tr.cert-crl-row td.cert-crl-chev{position:absolute;left:4px;top:19px;width:auto}
-  table.cert-crl-t tr.cert-crl-row td.cert-crl-url{grid-column:1/-1;padding:0 70px 0 18px}
+  /* room for both buttons (Fetch/Ask again and Clear, 2 x 29 px and the gap) on the right */
+  table.cert-crl-t tr.cert-crl-row td.cert-crl-url{grid-column:1/-1;padding:0 84px 0 18px}
   table.cert-crl-t tr.cert-crl-row td.cert-crl-act{position:absolute;right:4px;top:10px}
   table.cert-crl-t tr.cert-crl-row td.cert-crl-iss{grid-column:1/-1}
   table.cert-crl-t tr.cert-crl-row td.cert-crl-next{white-space:normal}
@@ -4128,6 +4138,19 @@ table.cert-crl-nodes .tag{margin:0}
   table.cert-crl-nodes tr:last-child{border-bottom:0}
   table.cert-crl-nodes td{border:0;padding:0;min-width:0}
   table.cert-crl-nodes td:last-child{grid-column:1/-1}
+  .cert-nodes-tw{overflow-x:visible}
+  table.cert-nodes-t, table.cert-nodes-t tbody{display:block;width:100%}
+  table.cert-nodes-t tr.cert-nodes-hr{display:none}
+  table.cert-nodes-t tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 12px;
+    padding:12px 4px;border-bottom:1px solid var(--line)}
+  table.cert-nodes-t tr:last-child{border-bottom:0}
+  table.cert-nodes-t td{display:block;padding:0;border:0;min-width:0;background:none}
+  table.cert-nodes-t td.cert-nodes-name, table.cert-nodes-t td.cert-nodes-trouble{grid-column:1/-1}
+  table.cert-nodes-t td.cert-nodes-name .mono{white-space:normal;overflow-wrap:anywhere}
+  table.cert-nodes-t td.cert-nodes-none{display:none}
+  table.cert-nodes-t td .cert-nodes-lab{display:block;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--tx-mut);font-weight:650;margin-bottom:2px}
+  table.cert-nodes-t td .tag{margin:0}
 }
 /* How revocation is checked, as steps (1.0.105, as isemon 1.10.348): blue OCSP, green the CRL,
    red the end; the words between them say when the next step is taken. */

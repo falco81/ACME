@@ -63395,6 +63395,10 @@
   "_633": {
    "source": "nginx is stopped (not failed) - left stopped; it takes the new files when it is started",
    "text": "nginx je zastavený (neselhal) – ponechán zastavený; nové soubory převezme, až se spustí"
+  },
+  "_634": {
+   "source": "the ask could not be written - another was written at the same time; try again",
+   "text": "žádost se nepodařilo zapsat – současně se zapsala jiná; zkuste to znovu"
   }
  },
  "patterns": {

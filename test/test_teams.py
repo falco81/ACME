@@ -19,6 +19,7 @@
 - the details saved alone (owner, tags, note, renewal) never touch the certificate:
   no new version, no new state, nothing due.
 """
+import contextlib
 import gzip
 import json
 import os
@@ -854,6 +855,91 @@ class Approvals(unittest.TestCase):
         cid2 = self.ask(self.person('eva'), ['w2.example.test'])['id']
         STORE.db.update('certs', cid2, {'state': 'declined'})
         self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': cid2, 'ok': 1}), 409)
+
+    def test_stuck_one_declined(self):
+        """1.0.106 (final review): a request stuck out of the wait ('new' or 'pending', waits,
+        never approved) could be approved only - Decline said it did not wait. Now declined
+        with the rights of declining one that waits; `approved` written false. One issued
+        meanwhile is not declined (it is revoked)."""
+        from acmelib.certs import store as S
+        E.CONFIG.update(portal_cert_auto=0)
+        for state in ('new', 'pending'):
+            cid = self.ask(self.person('eva'), ['w-%s.example.test' % state])['id']
+            _portal.mark_waiting(STORE, cid)
+            STORE.db.update('certs', cid, {'state': state})
+            body = {'id': cid, 'ok': 0, 'why': 'no'}
+            # without a word why: refused, nothing changed
+            self.assertEqual(status(E.ROUTES[('POST', '/api/portal/cert_approve')],
+                                    FakeH(portal=self.person('appr'),
+                                          body=dict(body, why=''))), 400)
+            self.assertEqual(S_state(cid), state)
+            self.assertEqual(status(E.ROUTES[('POST', '/api/portal/cert_approve')],
+                                    FakeH(portal=self.person('appr'), body=body)), 200)
+            self.assertEqual(S_state(cid), 'declined')
+            a = _portal.asker(STORE, cid)
+            self.assertIs(a['approved'], False)
+            self.assertTrue(a['waits'])
+            self.assertIn('declined', S.unapproved_why(STORE, S.cert_get(STORE, cid)))
+            # declined once: neither declined nor approved again
+            self.assertEqual(status(call, 'POST', '/api/certs/approve', body), 409)
+            self.assertEqual(status(call, 'POST', '/api/certs/approve',
+                                    {'id': cid, 'ok': 1}), 409)
+        # the administration declines one as well
+        cid = self.ask(self.person('eva'), ['w-adm.example.test'])['id']
+        _portal.mark_waiting(STORE, cid)
+        STORE.db.update('certs', cid, {'state': 'new'})
+        self.assertEqual(status(call, 'POST', '/api/certs/approve',
+                                {'id': cid, 'ok': 0, 'why': 'no'}), 200)
+        self.assertEqual(S_state(cid), 'declined')
+        # one with a certificate issued: not declined
+        cid = self.ask(self.person('eva'), ['w-ok.example.test'])['id']
+        _portal.mark_waiting(STORE, cid)
+        STORE.db.update('certs', cid, {'state': 'ok', 'cert_pem': 'PEM'})
+        self.assertEqual(status(call, 'POST', '/api/certs/approve',
+                                {'id': cid, 'ok': 0, 'why': 'no'}), 409)
+        self.assertEqual(S_state(cid), 'ok')
+        # one that never needed an approval: not declined either
+        cid = self.ask(self.person('eva'), ['w-free.example.test'])['id']
+        STORE.set_meta(_portal.META + str(cid), json.dumps({'who': 'local:eva'}))
+        STORE.db.update('certs', cid, {'state': 'new'})
+        self.assertEqual(status(call, 'POST', '/api/certs/approve',
+                                {'id': cid, 'ok': 0, 'why': 'no'}), 409)
+        self.assertEqual(S_state(cid), 'new')
+
+    def test_meta_read_locked_in_a_mariadb_transaction(self):
+        """1.0.106 (final review): on MariaDB (REPEATABLE READ) each try of the compare-and-
+        swap inside approve_request's transaction read the snapshot again - never what another
+        wrote, a 409 after a second. Read FOR UPDATE there."""
+        E.CONFIG.update(portal_cert_auto=0)
+        cid = self.ask(self.person('eva'), ['w-maria.example.test'])['id']
+        seen = []
+        real = STORE.db
+
+        class Maria:
+            """The real database, said to be MariaDB inside a transaction."""
+            engine, in_tx = 'mariadb', True
+
+            def value(self, sql, *a, **k):
+                seen.append(sql)
+                return real.value(sql.replace(' FOR UPDATE', ''), *a, **k)
+
+            def transaction(self):
+                return contextlib.nullcontext()
+
+            def __getattr__(self, k):
+                return getattr(real, k)
+
+        class Store:
+            db = Maria()
+
+            def get_meta(self, k):
+                seen.append('get_meta')
+                return STORE.get_meta(k)
+        _portal.mark_approved(Store(), cid, 'x')
+        Maria.in_tx = False
+        _portal.mark_approved(Store(), cid, 'y')          # outside one: as ever
+        self.assertEqual(seen, ['SELECT v FROM meta WHERE k = ? FOR UPDATE', 'get_meta'])
+        self.assertEqual(_portal.asker(STORE, cid)['approved']['by'], 'y')
 
     def test_held_only_while_a_holder_lives(self):
         """1.0.106: the team kept as holding a name when the request began to wait stayed its

@@ -578,11 +578,15 @@ def askers_of(store, cid):
     return out
 
 
-def note_asker(store, cid, who, held=None, ids=()):
+def note_asker(store, cid, who, held=None, ids=(), waits=False):
     """`who` (owner_word) sent a CSR or names for it: one of its askers from now; `ids` every
     other name they are known by (asker_ids, admin_names); `held` (holders()) kept as why it
-    waits, where given."""
+    waits, where given; `waits`: it needs an approval (again), as mark_waiting - in the same
+    write (1.0.106)."""
     def change(a):
+        if waits:
+            a['waits'] = True
+            a.pop('approved', None)
         lst = [str(x) for x in (a.get('askers') or []) if x]
         if who and str(who).lower() not in {x.lower() for x in lst}:
             lst.append(str(who)[:190])
@@ -667,8 +671,16 @@ def asker_change(store, cid, change):
     sent at once each wrote the whole meta over the other's, and `approved` written by one was
     gone, the request "never approved" for good. Tried again over what the other wrote."""
     k = META + str(cid)
+    # Inside a transaction on MariaDB, read with a lock (1.0.106): REPEATABLE READ read each try
+    # again from the snapshot the transaction began with - approve_request's mark_approved saw
+    # the row as it was, never what another wrote, and gave up after a second with a 409.
+    # PostgreSQL (READ COMMITTED) and SQLite (BEGIN IMMEDIATE, one writer) see the new row.
+    locked = store.db.engine == 'mariadb' and getattr(store.db, 'in_tx', False)
     for _ in range(50):
-        raw = store.get_meta(k)
+        if locked:
+            raw = store.db.value('SELECT v FROM meta WHERE k = ? FOR UPDATE', (k,))
+        else:
+            raw = store.get_meta(k)
         try:
             a = json.loads(raw or 'null')
         except (TypeError, ValueError):
@@ -1186,16 +1198,26 @@ def mark_approved(store, cid, by, t=None):
     asker_change(store, cid, change)
 
 
+def mark_declined(store, cid):
+    """Declined: `approved` written false (1.0.106) - never taken for an approval, whatever
+    reads the meta."""
+    def change(a):
+        a['waits'] = True
+        a['approved'] = False
+    asker_change(store, cid, change)
+
+
 def approval_missing(store, row):
     """A request let out of the waiting state whose approval was never noted (1.0.106: the
     state changed and `approved` written in two steps - a stop between them, or a CSR sent at
     the same moment, left it 'new' or 'ok', "never approved", and Approve said it did not
-    wait): Approve takes it as a repair."""
+    wait): Approve takes it as a repair, Decline declines it. One declined (`approved` false)
+    is none, whatever its state became since."""
     if row.get('state') in (WAITING, DECLINED) or \
             not str(row.get('created_by') or '').startswith('portal:'):
         return False
     a = asker(store, row['id'])
-    return bool(a.get('waits') and not a.get('approved'))
+    return bool(a.get('waits') and a.get('approved') is None)
 
 
 def approve_request(store, row, by, ok, why):
@@ -1214,7 +1236,12 @@ def approve_request(store, row, by, ok, why):
         if job_id:
             out.update(job_id=job_id, message='%s approved - it is being issued' % row['name'])
         return out
-    if row.get('state') != WAITING:
+    # A stuck one declined as well (1.0.106): never approved and never issued, out of the
+    # waiting state - Decline said it did not wait, and it could only be approved. One with
+    # a certificate issued is revoked instead, not declined.
+    stuck = not ok and not row.get('cert_pem') and approval_missing(store, row)
+    from_state = row.get('state') if stuck else WAITING
+    if row.get('state') != from_state:
         raise E.ApiError(409, '%s is not waiting for approval' % row['name'])
     t = time.time()
     if ok:
@@ -1239,9 +1266,14 @@ def approve_request(store, row, by, ok, why):
         return {'job_id': job_id, 'message': '%s approved - it is being issued' % row['name']}
     if not why:
         raise E.ApiError(400, 'say why it is declined - the person who asked is told')
-    n = store.db.run("UPDATE certs SET state = ?, state_at = ?, auto_renew = 0, last_error = ?, "
-                     "updated = ?, updated_by = ? WHERE id = ? AND state = ?",
-                     (DECLINED, t, why, t, str(by)[:190], row['id'], WAITING))
+    # Taken from the state it was read in, its meta noted declined (`approved` false) in the
+    # same transaction (1.0.106).
+    with store.db.transaction():
+        n = store.db.run("UPDATE certs SET state = ?, state_at = ?, auto_renew = 0, "
+                         "last_error = ?, updated = ?, updated_by = ? WHERE id = ? AND state = ?",
+                         (DECLINED, t, why, t, str(by)[:190], row['id'], from_state))
+        if n:
+            mark_declined(store, row['id'])
     if not n:
         raise E.ApiError(409, '%s is not waiting for approval' % row['name'])
     store.add_event('certificates', '%s declined %s, asked for on the portal by %s: %s' % (

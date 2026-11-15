@@ -155,6 +155,44 @@ def _node_ask_got_put(store, kind, got):
         store.set_meta(k, json.dumps(out, default=str))
 
 
+def _node_ask_want_put(store, kind, want):
+    """The row: the latest ask as ever, and the asks before it still fresh (1.0.106) - each
+    done once on every node (node_ask_tick), the oldest first. Written as a compare-and-swap
+    over what was read (1.0.106): two nodes asking at once each wrote its own over the other's
+    (the lock is this process's only) - one ask lost, never done anywhere."""
+    k = 'ask:want:' + kind
+    signed = dbguard_meta_signed(k)
+    for _ in range(50):
+        raw = store.db.value('SELECT v FROM meta WHERE k = ?', (k,))
+        had = {}
+        if raw is not None and (not dbguard_on() or not dbguard_meta_kept(k) or
+                                dbguard_ok(store.db, 'm', k, raw, quiet=True)):
+            try:
+                had = json.loads(raw)
+            except (TypeError, ValueError):
+                had = {}
+            had = had if isinstance(had, dict) else {}
+        now = time.time()
+        queue = [w for w in node_ask_pending(had) if now - float(w.get('at') or 0) < NODE_ASK_FRESH]
+        new = json.dumps(dict(want, queue=queue[-(NODE_ASK_QUEUE - 1):]))  # the latest not in it
+        try:
+            with store.db.transaction():
+                if raw is None:
+                    store.db.run('INSERT INTO meta (k, v) VALUES (?, ?)', (k, new))
+                    n = 1
+                else:
+                    n = store.db.run('UPDATE meta SET v = ? WHERE k = ? AND v = ?', (new, k, raw))
+                if n and signed:
+                    dbguard_sign(store.db, 'm', k, new)
+        except Exception:                               # noqa: BLE001
+            n = 0               # written by another first (the INSERT): read again
+        if n:
+            return
+        time.sleep(0.02 + secrets.randbelow(30) / 1000.0)
+    raise ValueError('the ask could not be written - another was written at the same time; '
+                     'try again')
+
+
 def node_ask(daemon, kind, args, by):
     only = (args or {}).get('only')
     if only and only != node_name() and only not in set(host_nodes(daemon.store)):
@@ -164,13 +202,7 @@ def node_ask(daemon, kind, args, by):
             only, ', '.join(sorted(set(host_nodes(daemon.store)) | {node_name()}))))
     want = {'id': secrets.token_hex(6), 'args': args or {}, 'at': time.time(), 'by': by}
     with NODE_ASK_LOCK:
-        # The row: the latest ask as ever, and the asks before it still fresh (1.0.106) - each
-        # done once on every node (node_ask_tick), the oldest first.
-        had = _meta_obj(daemon.store, 'ask:want:' + kind)
-        now = time.time()
-        queue = [w for w in node_ask_pending(had) if now - float(w.get('at') or 0) < NODE_ASK_FRESH]
-        row = dict(want, queue=queue[-(NODE_ASK_QUEUE - 1):])     # the latest one not in it
-        daemon.store.set_meta('ask:want:' + kind, json.dumps(row))
+        _node_ask_want_put(daemon.store, kind, want)
     # Asked from the command line (1.0.188), this node's daemon does it too, as
     # the other's: not in a process that ends when the command does.
     if getattr(daemon, 'serving', True):

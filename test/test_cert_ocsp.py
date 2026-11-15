@@ -1292,6 +1292,64 @@ print(json.dumps([[x for x in ran[:n_before] if x[0] == 'switch'],
         self.assertEqual(again, 0)
         self.assertEqual(after, [['test', 3]])
 
+    def test_1b_two_nodes_ask_at_once(self):
+        """Final review of 1.0.106: the ask's row was read and written whole under a lock of
+        this process's only - another node writing its ask between the two lost it, never done
+        anywhere. Now a compare-and-swap: both kept."""
+        got = self.run_code(r"""
+import json, threading
+import acme
+from acmelib import engine as E
+store = E.Storage(E.open_db())
+E.HA_STORE['store'] = store
+E.node_ask_kind('t_two')(lambda daemon, args: {'ok': True})
+class D(object):
+    pass
+d = D(); d.store = store; d.serving = False
+real = store.db.value
+other = []
+
+def value(sql, *a, **k):
+    got = real(sql, *a, **k)
+    if 'FROM meta' in sql and a and a[0] == ('ask:want:t_two',) and not other:
+        # the other node writes its ask between this one's read and write
+        other.append({'id': 'othernode', 'args': {'n': 'other'}, 'at': __import__('time').time(),
+                      'by': 'o'})
+        E._node_ask_want_put(store, 't_two', other[0])
+    return got
+store.db.value = value
+mine = E.node_ask(d, 't_two', {'n': 'mine'}, 't')['id']
+store.db.value = real
+row = json.loads(store.get_meta('ask:want:t_two'))
+first = [row['id']] + [w['id'] for w in row['queue']]
+# many at once, each as if on a node of its own (no lock of this process's between them)
+class NoLock(object):
+    def __enter__(self):
+        return self
+    def __exit__(self, *a):
+        return False
+E.NODE_ASK_LOCK = NoLock()
+ids, errs = [], []
+def one(i):
+    try:
+        ids.append(E.node_ask(d, 't_many', {'n': i}, 't')['id'])
+    except Exception as e:
+        errs.append(repr(e))
+ts = [threading.Thread(target=one, args=(i,)) for i in range(6)]
+for t in ts:
+    t.start()
+for t in ts:
+    t.join()
+row = json.loads(store.get_meta('ask:want:t_many'))
+kept = [row['id']] + [w['id'] for w in row['queue']]
+print(json.dumps([first, mine, sorted(ids) == sorted(kept), errs]))
+""")
+        first, mine, all_kept, errs = got
+        self.assertEqual(sorted(first), sorted([mine, 'othernode']))
+        self.assertEqual(first[0], mine)                # the latest written last
+        self.assertTrue(all_kept)
+        self.assertEqual(errs, [])
+
     def test_2_issuer_renewed_with_the_same_key(self):
         got = self.run_code(r"""
 import json, time

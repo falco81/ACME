@@ -259,6 +259,14 @@ class Reload(unittest.TestCase):
         self.assertFalse(any(c[:2] in (['systemctl', 'restart'], ['systemctl', 'start'])
                              for c in calls), calls)
         self.assertIn('left stopped', said[0])
+        # only exactly 'inactive' is stopped (final review, 1.0.106): one on its way somewhere
+        # is not left as stopped - its port is checked as ever
+        for state in ('activating', 'deactivating', 'reloading', 'unknown', ''):
+            w2, calls2 = self._w({'systemctl reload nginx': (1, 'Job failed'),
+                                  'systemctl is-failed nginx': (1, '', state + '\n')}, False)
+            said2 = []
+            self.assertIs(w2.nginx_reload(said2), False, state)
+            self.assertNotIn(['systemctl', 'reload-or-restart', 'nginx'], calls2)
         with open(WEB) as f:
             src = f.read()
         part = src[src.index('took = nginx_reload(said)'):]
@@ -289,7 +297,16 @@ class OtherSites(unittest.TestCase):
                  ('# listen 8443 ssl;', False),
                  ('server { listen unix:/run/x.sock; }', False),
                  ('server { listen 81; add_header X "a#b"; }\nserver { listen 8443; }', True),
-                 ('server { listen 81; return 200 a#b; listen 8443; }', True)]
+                 ('server { listen 81; return 200 a#b; listen 8443; }', True),
+                 # a quote opens a string only at the start of a word (final review, 1.0.106)
+                 ("server { listen 81; add_header X-Note don't;\n# listen 8443;\n}", False),
+                 ("server { listen 81; add_header X-Note don't;\nlisten 8443; }", True),
+                 # a listen within a quoted string is none
+                 ('server { listen 83; return 200 "x; listen 8443"; }', False),
+                 ("server { listen 83; return 200 'x { listen 8443'; }", False),
+                 ('server { set $a listen; set $b 8443; }', False),
+                 ('server { listen "8443" ssl; }', True),
+                 ('server{listen 8443;}', True)]
         for text, refused in cases:
             w.nginx_loaded_files = lambda: {'/x/conf.d/site.conf': text,
                                             '/x/conf.d/acme_certlogin.conf': 'server { listen 8443 ssl; }'}
@@ -298,6 +315,42 @@ class OtherSites(unittest.TestCase):
         # nginx cannot say (nginx -T refused): nothing said, the port not taken away for it
         w.nginx_loaded_files = lambda: None
         self.assertEqual(w.certlogin_other_sites(8443), [])
+
+    def test_dump_headers(self):
+        """Final review of 1.0.106: a `# configuration file X:` line within a file was taken
+        as nginx's own header - the listen after it put on X (acme's own file, left out). Taken
+        only for a regular file not printed before, at the end of a statement."""
+        w = load_web('dumph')
+        base = tempfile.mkdtemp(prefix='acme-dumph-')
+        self.addCleanup(shutil.rmtree, base, True)
+        main, site, mine = base + '/nginx.conf', base + '/site.conf', base + '/acme.conf'
+        for p in (main, site, mine):
+            with open(p, 'w') as f:
+                f.write('#\n')
+
+        def dump(*parts):
+            return ''.join('# configuration file %s:\n%s\n' % (p, t) for p, t in parts)
+        # the real shape: each file once
+        got = w.nginx_dump_files(dump((main, 'http { include x; }\n'),
+                                      (site, 'server { listen 81; }\n'),
+                                      (mine, 'server { listen 8443 ssl; }\n')))
+        self.assertEqual(sorted(got), sorted([main, site, mine]))
+        self.assertIn('listen 81', got[site])
+        # a header within a statement: no boundary
+        got = w.nginx_dump_files(dump((main, 'http { include x; }\n'), (site,
+            'server { listen\n# configuration file %s:\n8443; }\n' % mine)))
+        self.assertEqual(sorted(got), sorted([main, site]))
+        self.assertIn('8443', got[site])
+        # a file printed already, or no such file: no boundary
+        for fake in (main, base + '/none.conf', base):
+            got = w.nginx_dump_files(dump((main, 'http { include x; }\n'), (site,
+                'server { listen 82;\n# configuration file %s:\nlisten 8443; }\n' % fake)))
+            self.assertEqual(sorted(got), sorted([main, site]), fake)
+            self.assertIn('listen 8443', got[site])
+        # after a comment or a block's end: a boundary (as nginx prints it)
+        got = w.nginx_dump_files(dump((main, 'http { include x; }\n# the end\n'),
+                                      (site, 'server { listen 81; }')))
+        self.assertEqual(sorted(got), sorted([main, site]))
 
     @unittest.skipUnless(HAVE_NGINX, 'nginx (and root) wanted')
     def test_what_nginx_loads(self):

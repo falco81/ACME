@@ -577,6 +577,49 @@ class Csr(unittest.TestCase):
         STORE.db.update('certs', cid, {'state': 'failed'})     # out of the wait, not approved
         self.assertIn('never approved', S.unapproved_why(STORE, S.cert_get(STORE, cid)))
 
+    def test_a_new_csr_with_other_names_waits_in_one_write(self):
+        """1.0.106 (final review): the state put back to waiting, its sender noted and the
+        approval taken back were three writes - the meta not written, it waited still marked
+        approved (or its names changed with nothing of it noted). Now one transaction: the meta
+        not written, nothing of the new CSR is kept."""
+        R.save_profile(STORE, base_profile(make_key=False, pfx=False, approval=True,
+                                           old_name='Web servers'), 'x')
+        T.save_team(STORE, {'name': 'Web', 'old_name': 'Web', 'members': [
+            'group:WEB_ADMINS=request', 'local:mgr=manage', 'local:appr=approve']}, 'x')
+        _k, csr = self.csr(['one.example.test'])
+        cid = portal(EVA, 'POST', '/api/portal/cert_request', {
+            'profile': 'Web servers', 'csr': csr, 'team': 'Web'})['id']
+        P.mark_approved(STORE, cid, 'x')
+        STORE.db.update('certs', cid, {'state': 'failed'})     # approved; its issue failed
+        before = S.cert_get(STORE, cid)
+        _k2, csr2 = self.csr(['one2.example.test'])
+        real = P.asker_change
+        writes = []
+
+        def broken(store, cid_, change):
+            writes.append(cid_)
+            raise E.ApiError(409, 'changed meanwhile')
+        P.asker_change = broken
+        try:
+            self.assertEqual(portal_status(person('mgr', local=True), 'POST',
+                                           '/api/portal/cert_csr', {'id': cid, 'csr': csr2}), 409)
+        finally:
+            P.asker_change = real
+        self.assertEqual(writes, [cid])                     # one write of the meta only
+        row = S.cert_get(STORE, cid)
+        self.assertEqual((row['state'], row['csr_given'], row['names']),
+                         (before['state'], before['csr_given'], before['names']))
+        self.assertEqual(P.asker(STORE, cid)['approved']['by'], 'x')
+        # written: waiting, its sender noted, not approved - together
+        got = portal(person('mgr', local=True), 'POST', '/api/portal/cert_csr',
+                     {'id': cid, 'csr': csr2})
+        self.assertTrue(got['waits'])
+        a = P.asker(STORE, cid)
+        self.assertNotIn('approved', a)
+        self.assertTrue(a['waits'])
+        self.assertIn('local:mgr', P.askers_of(STORE, cid))
+        self.assertEqual(S.cert_get(STORE, cid)['state'], 'pending-approval')
+
     def test_a_new_csr_makes_its_sender_one_who_asked(self):
         """1.0.102: a member who may manage sent his own CSR with other names for another's
         request (put back to waiting) and approved it himself; and a CSR refused because a job

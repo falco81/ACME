@@ -125,9 +125,12 @@ def _cert_csr(h):
         if waits:
             held_now = P.holders(h.store, names, row.get('owner'), row['id'], waiting=False)
             fields.update(state=P.WAITING, state_at=t, auto_renew=0)
-            h.store.db.update('certs', row['id'], fields)
-            P.note_asker(h.store, row['id'], sender, held_now, P.asker_ids(s))
-            P.mark_waiting(h.store, row['id'])        # approved again before an issue (1.0.106)
+            # The state, who sent it and `approved` taken back in one transaction (1.0.106):
+            # three writes, a stop between them left it waiting still marked approved - or
+            # 'pending' with the new names and never approved.
+            with h.store.db.transaction():
+                h.store.db.update('certs', row['id'], fields)
+                P.note_asker(h.store, row['id'], sender, held_now, P.asker_ids(s), waits=True)
             h.store.add_event('certificates', '%s sent a new CSR for %s from the portal with other '
                               'names (%s) - it waits for approval' % (s['name'], row['name'],
                                                                      ', '.join(names)),

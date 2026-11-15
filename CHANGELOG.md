@@ -33,8 +33,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   first" (409), and a request that needed an approval is issued, renewed or imported into only
   once it was approved (kept with it; one issued before this version counts as approved). Its
   approval is noted in one step with its state, and a CSR or names sent at that moment no longer
-  write over it; a request left out of the wait without its approval noted is taken by *Approve*
-  again (it said "not waiting for approval", and the request stayed "never approved" for good).
+  write over it (on MariaDB too, where the retry read the old row and gave up with 409); a new
+  CSR with other names puts it back to waiting and takes its approval back in one step. A request
+  left out of the wait without its approval noted is taken by *Approve* again - or *Decline*d (it
+  said "not waiting for approval", and the request stayed "never approved" for good); a declined
+  one is noted as not approved.
 - (security) **The portal: a new CSR for a certificate whose request profile was deleted is
   refused** ("its request profile is gone - ask again with another one"). Only its DNS names were
   compared - an e-mail or URI name, any extended key usage and any subject went to the source
@@ -52,7 +55,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   one after another, the oldest first. Of the encryption to the database server's switches only
   the latest of a step is done (the earlier ones answered as left out: run together, an older one
   could finish last), and a node restarted does again none it answered, and of a test only the
-  latest.
+  latest. Two nodes asking at the same moment both keep their ask (one wrote over the other's).
 - **The team that held a request's names stays its approver only while its certificate holds
   them.** Kept from when the request began to wait, it was its only approver for good - with its
   certificate revoked, run out or deleted since.
@@ -75,7 +78,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   port** was taken for acme's own, and acme's `listen … ssl` made that plain-HTTP site TLS only:
   refused now, its file named (*another site of nginx listens on …*) - only a file nginx loads
   (`nginx -T`; not one in `sites-available` or a folder below `conf.d`) with a `listen` on the
-  port on every address or on one of this node's (not another address). The card says *nginx could
+  port on every address or on one of this node's (not another address) - a `listen` in a quoted
+  string, after a word's apostrophe (`don't`) or after a line in a file that looks like `nginx -T`'s
+  own `# configuration file …:` does not count. The card says *nginx could
   not listen* or *another site of nginx* rather than *taken by another program*, and root's words
   only for the port asked for.
 - **A port refused as taken is really asked for again.** 1.0.103 said it would every 15 minutes;
@@ -85,7 +90,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   reloaded twice each time) less often while root answers the same, up to every 6 hours.
 - **nginx's reload is said as it went** ("nginx reloaded" was said whatever systemctl answered); an
   nginx that failed to start (its port taken at boot) is started again once acme's server is out;
-  one the administrator stopped is left stopped, and said so.
+  one the administrator stopped (exactly *inactive*) is left stopped, and said so - one
+  activating, deactivating or reloading is checked for listening as any other.
 - **SELinux: a port another service has is never taken from it** (`semanage port -m` relabelled it
   `http_port_t`); it is said, choose another port.
 - **The page that stays where it is (1.0.105) no longer gets in the reader's way.** The mouse wheel
