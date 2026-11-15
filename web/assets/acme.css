@@ -367,6 +367,9 @@
   .aclpreview .mine{color:var(--tx-mut)}
   .tag.crit{background:var(--crit-bg);color:var(--crit)}
   .tag.info{background:var(--info-bg);color:var(--info)}
+  /* good / bad as the panes write them (1.0.108: YES, LOCKED, DONE, REFUSED drew without colour) */
+  .tag.good{background:var(--ok-bg);color:var(--ok)}
+  .tag.bad{background:var(--crit-bg);color:var(--crit)}
   .tag.dim{background:var(--panel2);color:var(--tx-dim)}
   .tag.violet{background:var(--violet-bg);color:var(--violet)}
   .tag.load{background:rgba(240,136,62,.14);color:var(--load)}

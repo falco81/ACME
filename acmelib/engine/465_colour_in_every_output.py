@@ -197,7 +197,9 @@ def cli_api(daemon, who, method, path, body=None, args=None, printed=False):
                      or path == '/api/certs/export' and str(b_.get('format') or '').lower().startswith(
                          ('p12', 'pfx', 'jks', 'combined', 'haproxy'))) or
                     (path == '/api/cas/export' and str(b_.get('format') or '').lower() in
-                     ('key', 'p12', 'pfx'))):          # an authority's key (1.0.88), as --ca-export asks
+                     ('key', 'p12', 'pfx')) or
+                    (path == '/api/sshkeys' and str(b_.get('action') or '') in ('uk_make', 'rk_make'))):
+        # an authority's key (1.0.88), as --ca-export asks; a key pair made for a user (1.0.108)
         # a private key not printed to a screen (1.0.80), as --export and --target-key ask --out
         raise SystemExit('acme: a private key is written to a file: acme --export NAME --format '
                          'FORMAT --out FILE, acme --ca-export CA --what key --out FILE, or '
