@@ -388,7 +388,7 @@ class Agent(unittest.TestCase):
         if not shutil.which(tool):
             return None
         got = subprocess.run([tool, '-v3', '-l', 'authPriv', '-u', USER, '-a', 'SHA-256', '-A',
-                              AUTH_PASS, '-x', 'AES', '-X', PRIV_PASS, '-On', '-Oe', '-Ot', '-r',
+                              AUTH_PASS, '-x', 'AES', '-X', PRIV_PASS, '-On', '-Oe', '-Ot', '-OU', '-r',
                               '1', '-t', '10', '-m', '', '127.0.0.1:%d' % self.snmp_port] +
                              list(oids), capture_output=True, text=True, timeout=180,
                              env=dict(os.environ, MIBS='', MIBDIRS='/nonexistent'))
@@ -567,6 +567,16 @@ class Agent(unittest.TestCase):
                 if s['type'] == 'SNMP_WALK_VALUE' and s['parameters'][0].startswith(BASE):
                     if s['parameters'][0] not in got:
                         missing.append(s['parameters'][0])
+                        continue
+                    # as Zabbix walks (numeric enums and timeticks, no units): a number where
+                    # the item keeps one, never below 0 where it keeps no sign
+                    typ, value = got[s['parameters'][0]]
+                    if i['value_type'] in ('UNSIGNED', 'FLOAT'):
+                        self.assertRegex(value, r'^-?\d+$', (i['key'], typ, value))
+                        if i['value_type'] == 'UNSIGNED':
+                            self.assertGreaterEqual(int(value), 0, i['key'])
+                    else:
+                        self.assertIn(typ.upper(), ('STRING', ''), (i['key'], typ))
         self.assertEqual(missing, [])
         # the columns of the tables with rows here: each one the template reads is answered
         objs, _, _ = mib_oids()

@@ -63635,6 +63635,30 @@
   "_694": {
    "source": "The keys that may sign in to each node over SSH - as root (the lines of /root/.ssh/authorized_keys, only shown here) or as any user who may sign in there (their own ~/.ssh/authorized_keys, written as they are), read from every node. A user's key made here is shown once, to be kept by you, and kept nowhere on the server; one of your own is put on by its public half - on every node or on one. Every change is written into Events.",
    "text": "Klíče, kterými se lze přes SSH přihlásit na každý uzel – jako root (řádky /root/.ssh/authorized_keys, zde jen zobrazené) nebo jako kterýkoli uživatel, který se tam smí přihlásit (jeho vlastní ~/.ssh/authorized_keys, zapsaný jako on), načtené z každého uzlu. Klíč uživatele vytvořený tady se ukáže jednou, uschováte si ho vy a na serveru se neuchovává nikde; vlastní klíč se přidá svou veřejnou polovinou – na všechny uzly nebo na jeden. Každá změna se zapíše do Událostí."
+  },
+  "_691": {
+   "source": "For the monitoring system",
+   "text": "Pro monitorovací systém"
+  },
+  "_695": {
+   "source": "The template \"acme by SNMP\" for Zabbix 7.0 is made from ACME-MIB when it is downloaded: every certificate, deployment, test, authority, node, disk, backup place and CRL discovered, with triggers, graphs, value maps and dashboards. In Zabbix: Data collection → Templates → Import, then link it to each node (its own address, SNMPv3 as above).",
+   "text": "Šablona „acme by SNMP“ pro Zabbix 7.0 se vytvoří z ACME-MIB ve chvíli stažení: objeví každý certifikát, nasazení, test, autoritu, uzel, disk, místo pro zálohy i CRL – se spouštěči (triggery), grafy, mapami hodnot a nástěnkami. V Zabbixu: Data collection → Templates → Import, pak ji připojte ke každému uzlu (jeho vlastní adresa, SNMPv3 jako výše)."
+  },
+  "_696": {
+   "source": "Zabbix 7 template",
+   "text": "Šablona pro Zabbix 7"
+  },
+  "_697": {
+   "source": "ACME-MIB",
+   "text": "ACME-MIB"
+  },
+  "_698": {
+   "source": "The template for Zabbix 7.0 (YAML), made now from ACME-MIB - nothing secret in it.",
+   "text": "Šablona pro Zabbix 7.0 (YAML), vytvořená teď z ACME-MIB – nic tajného v ní není."
+  },
+  "_699": {
+   "source": "The MIB of acme's objects, for the monitoring system and snmptrapd (load it with -m +ACME-MIB).",
+   "text": "MIB objektů acme pro monitorovací systém a snmptrapd (načtěte ji pomocí -m +ACME-MIB)."
   }
  },
  "patterns": {

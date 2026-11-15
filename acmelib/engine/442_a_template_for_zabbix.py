@@ -577,8 +577,14 @@ class _Zbx(object):
         return ('%s%s\nMIB: ACME-MIB::%s (%s)' % (words, ('\n' + more) if more else '', obj,
                                                  self.oid(obj))).strip()
 
+    def fmt(self, name):
+        """How Zabbix takes the value from the walk: text as UTF-8 (net-snmp says a string with
+        a letter not of ASCII as a Hex-STRING), a number as it is."""
+        return '1' if self.objs[name]['syntax'].startswith('DisplayString') else '0'
+
     def preprocessing(self, oid, value_type, extra):
-        steps = [{'type': 'SNMP_WALK_VALUE', 'parameters': [oid, '0']}]
+        steps = [{'type': 'SNMP_WALK_VALUE',
+                  'parameters': [oid, '1' if value_type in ('CHAR', 'TEXT') else '0']}]
         if extra.get('rate'):
             steps.append({'type': 'CHANGE_PER_SECOND', 'parameters': ['']})
         if extra.get('mult'):
@@ -745,9 +751,9 @@ def zabbix_template(mib_text=None):
                   'and the title - as the mails of the alerts say it. Empty: nothing.',
                   'preprocessing': [
                       {'type': 'SNMP_WALK_TO_JSON', 'parameters': [
-                          '{#LEVEL}', z.oid('acmeAlertLevel'), '0',
-                          '{#NODE}', z.oid('acmeAlertNode'), '0',
-                          '{#TITLE}', z.oid('acmeAlertTitle'), '0'],
+                          '{#LEVEL}', z.oid('acmeAlertLevel'), '1',
+                          '{#NODE}', z.oid('acmeAlertNode'), '1',
+                          '{#TITLE}', z.oid('acmeAlertTitle'), '1'],
                        'error_handler': 'CUSTOM_VALUE', 'error_handler_params': '[]'},
                       {'type': 'JAVASCRIPT', 'parameters': [
                           "var rows = JSON.parse(value), out = [];\n"
@@ -1066,7 +1072,7 @@ def _zbx_rule(z, tb, H):
             'need, in one walk.' % tb['table'], 'tags': _zbx_tags(('component', 'raw'))}
     params = []
     for macro, col in tb['macros']:
-        params += [macro, z.oid(col), '0']
+        params += [macro, z.oid(col), z.fmt(col)]
     protos = []
     gp = []
     trig = []
