@@ -63659,6 +63659,414 @@
   "_699": {
    "source": "The MIB of acme's objects, for the monitoring system and snmptrapd (load it with -m +ACME-MIB).",
    "text": "MIB objektů acme pro monitorovací systém a snmptrapd (načtěte ji pomocí -m +ACME-MIB)."
+  },
+  "_700": {
+   "source": "Look up a person…",
+   "text": "Vyhledat osobu…"
+  },
+  "_701": {
+   "source": "Find a person in the directory and see what to put into their certificate request: the CN, the UPN of the SAN, the SAN URL with their SID for the strong mapping (KB5014754) - each to copy - and whether a certificate with them signs in here.",
+   "text": "Najde osobu v adresáři a ukáže, co zadat do její žádosti o certifikát: CN, UPN do SAN, SAN URL s jejím SID pro silné mapování (KB5014754) – každé ke zkopírování – a zda se certifikát s nimi zde přihlásí."
+  },
+  "_702": {
+   "source": "Values for a person’s certificate",
+   "text": "Hodnoty pro certifikát osoby"
+  },
+  "_703": {
+   "source": "Find a person in the directory: this says what to put into their certificate request - the name, the UPN and the SID of the strong mapping - and whether a certificate with them signs in here.",
+   "text": "Najděte osobu v adresáři: uvidíte, co zadat do její žádosti o certifikát – jméno, UPN a SID silného mapování – a zda se certifikát s nimi zde přihlásí."
+  },
+  "_704": {
+   "source": "novak, DOMAIN\\novak or novak@example.cz",
+   "text": "novak, DOMENA\\novak nebo novak@example.cz"
+  },
+  "_705": {
+   "source": "Find",
+   "text": "Najít"
+  },
+  "_706": {
+   "source": "Nobody by that name",
+   "text": "Nikdo takového jména"
+  },
+  "_707": {
+   "source": "The directory has no account, UPN or e-mail address of that name - type it whole, or pick one as you type.",
+   "text": "Adresář nemá účet, UPN ani e-mailovou adresu tohoto jména – napište je celé, nebo vyberte z nabídky při psaní."
+  },
+  "_708": {
+   "source": "More than one account answers to it",
+   "text": "Odpovídá mu víc než jeden účet"
+  },
+  "_709": {
+   "source": "Type the whole UPN or the sAMAccountName: a certificate is for one account.",
+   "text": "Napište celé UPN nebo sAMAccountName: certifikát je pro jeden účet."
+  },
+  "_710": {
+   "source": "enabled",
+   "text": "povolený"
+  },
+  "_711": {
+   "source": "password expired",
+   "text": "heslo vypršelo"
+  },
+  "_712": {
+   "source": "not usable",
+   "text": "nepoužitelný"
+  },
+  "_713": {
+   "source": "no role here",
+   "text": "zde bez role"
+  },
+  "_714": {
+   "source": "may use the enrolment pages",
+   "text": "smí používat stránky pro žádosti"
+  },
+  "_715": {
+   "source": "not let in to the enrolment pages",
+   "text": "na stránky pro žádosti nevpuštěn"
+  },
+  "_716": {
+   "source": "The account may not sign in now:",
+   "text": "Účet se teď nesmí přihlásit:"
+  },
+  "_717": {
+   "source": "The account has no userPrincipalName: no certificate of it signs in here. Give it one in AD first.",
+   "text": "Účet nemá userPrincipalName: žádný jeho certifikát se zde nepřihlásí. Nejdřív mu ho v AD nastavte."
+  },
+  "_718": {
+   "source": "The values of the certificate",
+   "text": "Hodnoty certifikátu"
+  },
+  "_719": {
+   "source": "the subject",
+   "text": "subjekt"
+  },
+  "_720": {
+   "source": "SAN otherName (msUPN, 1.3.6.1.4.1.311.20.2.3)",
+   "text": "SAN otherName (msUPN, 1.3.6.1.4.1.311.20.2.3)"
+  },
+  "_721": {
+   "source": "none - no certificate of it signs in",
+   "text": "žádné – žádný jeho certifikát se nepřihlásí"
+  },
+  "_722": {
+   "source": "SAN URL",
+   "text": "SAN URL"
+  },
+  "_723": {
+   "source": "the strong mapping (KB5014754)",
+   "text": "silné mapování (KB5014754)"
+  },
+  "_724": {
+   "source": "none - the directory did not say the SID",
+   "text": "žádná – adresář neuvedl SID"
+  },
+  "_725": {
+   "source": "not said by the directory",
+   "text": "adresář neuvedl"
+  },
+  "_726": {
+   "source": "SAN rfc822Name, if you want it",
+   "text": "SAN rfc822Name, chcete-li"
+  },
+  "_727": {
+   "source": "A certificate with these values here",
+   "text": "Certifikát s těmito hodnotami zde"
+  },
+  "_728": {
+   "source": "Issued by AD CS from the directory (the SID extension the authority writes itself)",
+   "text": "Vydaný AD CS z adresáře (rozšíření SID, které zapisuje sama autorita)"
+  },
+  "_729": {
+   "source": "A request of your own, another authority (the SID in the SAN URL only)",
+   "text": "Vlastní žádost, jiná autorita (SID jen v SAN URL)"
+  },
+  "_730": {
+   "source": "With the UPN only (the directory has no SID of it)",
+   "text": "Jen s UPN (adresář jeho SID nemá)"
+  },
+  "_731": {
+   "source": "signs in",
+   "text": "přihlásí se"
+  },
+  "_732": {
+   "source": "to the enrolment pages",
+   "text": "na stránky pro žádosti"
+  },
+  "_733": {
+   "source": "Taken by \"Which account\": ",
+   "text": "Bere „Který účet“: "
+  },
+  "_734": {
+   "source": "Which account here now:",
+   "text": "Který účet je teď nastaven:"
+  },
+  "_735": {
+   "source": "A SID in the SAN URL is the requester’s word: Windows takes it as a strong mapping, acme only in compat - strong takes the SID extension AD CS writes.",
+   "text": "SID v SAN URL je tvrzení žadatele: Windows ho berou jako silné mapování, acme jen v režimu compat – strong bere rozšíření SID, které zapisuje AD CS."
+  },
+  "_736": {
+   "source": "Signing in with a certificate is not on for this part yet: the answers above are what it would do once it is.",
+   "text": "Přihlášení certifikátem není pro tuto část zatím zapnuté: odpovědi výše říkají, co by dělalo po zapnutí."
+  },
+  "_737": {
+   "source": "What to put into the request",
+   "text": "Co zadat do žádosti"
+  },
+  "_738": {
+   "source": "bash: the file and the request (openssl)",
+   "text": "bash: soubor a žádost (openssl)"
+  },
+  "_739": {
+   "source": "person.cnf for openssl req -config",
+   "text": "person.cnf pro openssl req -config"
+  },
+  "_740": {
+   "source": "person.inf for certreq -new (Windows)",
+   "text": "person.inf pro certreq -new (Windows)"
+  },
+  "_741": {
+   "source": "The e-mail address in the SAN too",
+   "text": "I e-mailovou adresu do SAN"
+  },
+  "_742": {
+   "source": "Key usages Client Authentication and Smart Card Logon. On a smart card or a YubiKey the key is made on the card (certreq with the smart card provider, or ykman) - the SAN the same.",
+   "text": "Použití klíče Client Authentication a Smart Card Logon. Na čipové kartě nebo YubiKey se klíč vytvoří na kartě (certreq s poskytovatelem čipových karet, nebo ykman) – SAN stejně."
+  },
+  "_743": {
+   "source": "type a name: the account (novak), its UPN (novak@example.cz) or its e-mail address",
+   "text": "napište jméno: účet (novak), jeho UPN (novak@example.cz) nebo e-mailovou adresu"
+  },
+  "_744": {
+   "source": "that name is too long to be an account's",
+   "text": "to jméno je na účet příliš dlouhé"
+  },
+  "_745": {
+   "source": "that is no account name: an account, a UPN or an e-mail address has none of * ( ) = , ; : \" / [ ] | + ? < >",
+   "text": "to není jméno účtu: účet, UPN ani e-mailová adresa nemá žádný ze znaků * ( ) = , ; : \" / [ ] | + ? < >"
+  },
+  "_746": {
+   "source": "DOMAIN\\name: the name after the backslash, please",
+   "text": "DOMENA\\jméno: jméno za zpětným lomítkem, prosím"
+  },
+  "_747": {
+   "source": "The domain (NetBIOS): ",
+   "text": "Doména (NetBIOS): "
+  },
+  "_748": {
+   "source": ", its DNS name ",
+   "text": ", její jméno DNS "
+  },
+  "_749": {
+   "source": " - read from the directory",
+   "text": " – načteno z adresáře"
+  },
+  "_750": {
+   "source": " - as last read from the directory (it does not answer now)",
+   "text": " – jak bylo naposledy načteno z adresáře (teď neodpovídá)"
+  },
+  "_751": {
+   "source": " - guessed: could not read it from the directory. Check it (the domain’s \"Domain name (pre-Windows 2000)\") before running these.",
+   "text": " – odhadnuto: z adresáře ji nešlo načíst. Před spuštěním příkazů ji ověřte („Název domény (verze starší než Windows 2000)“)."
+  },
+  "_752": {
+   "source": "The service account",
+   "text": "Servisní účet"
+  },
+  "_753": {
+   "source": "Check in AD",
+   "text": "Ověřit v AD"
+  },
+  "_754": {
+   "source": "Looks the account up in the directory: is it there, its userPrincipalName, whether it allows AES 256 and its password never expires, its SPNs.",
+   "text": "Vyhledá účet v adresáři: zda existuje, jeho userPrincipalName, zda povoluje AES 256 a má heslo bez vypršení, jeho SPN."
+  },
+  "_755": {
+   "source": "Not in the directory",
+   "text": "Není v adresáři"
+  },
+  "_756": {
+   "source": "make it first (step 1), or type the name it has",
+   "text": "nejdřív ho vytvořte (krok 1), nebo napište jméno, které má"
+  },
+  "_757": {
+   "source": "AES 256 allowed",
+   "text": "AES 256 povoleno"
+  },
+  "_758": {
+   "source": "AES 256 not allowed",
+   "text": "AES 256 nepovoleno"
+  },
+  "_759": {
+   "source": "AES 256 not set on the account",
+   "text": "AES 256 na účtu nenastaveno"
+  },
+  "_760": {
+   "source": "Password never expires",
+   "text": "Heslo nikdy nevyprší"
+  },
+  "_761": {
+   "source": "Its password expires",
+   "text": "Jeho heslo vyprší"
+  },
+  "_762": {
+   "source": "SPNs: ",
+   "text": "SPN: "
+  },
+  "_763": {
+   "source": "no SPN yet",
+   "text": "zatím žádné SPN"
+  },
+  "_764": {
+   "source": "more than one account has that name",
+   "text": "toto jméno má víc účtů"
+  },
+  "_765": {
+   "source": "type the sAMAccountName of the service account (svc-acme-http)",
+   "text": "napište sAMAccountName servisního účtu (svc-acme-http)"
+  },
+  "_766": {
+   "source": "Make a CSR…",
+   "text": "Vytvořit CSR…"
+  },
+  "_767": {
+   "source": "Makes the key pair and the request (PKCS#10) with these values in this browser - the key never leaves it - or says how on a smart card or a YubiKey.",
+   "text": "Vytvoří pár klíčů a žádost (PKCS#10) s těmito hodnotami v tomto prohlížeči – klíč ho nikdy neopustí – nebo poradí, jak na čipové kartě či YubiKey."
+  },
+  "_768": {
+   "source": "Make a CSR",
+   "text": "Vytvořit CSR"
+  },
+  "_769": {
+   "source": "In this browser",
+   "text": "V tomto prohlížeči"
+  },
+  "_770": {
+   "source": "On a smart card or a YubiKey",
+   "text": "Na čipové kartě nebo YubiKey"
+  },
+  "_771": {
+   "source": "RSA 2048 is taken by every smart card and every Windows; ECDSA keys are smaller, where whatever reads the certificate takes them.",
+   "text": "RSA 2048 vezme každá čipová karta i každé Windows; klíče ECDSA jsou menší, pokud je vezme vše, co certifikát čte."
+  },
+  "_772": {
+   "source": "the organisation",
+   "text": "organizace"
+  },
+  "_773": {
+   "source": "the department",
+   "text": "oddělení"
+  },
+  "_774": {
+   "source": "the country, two letters",
+   "text": "země, dvě písmena"
+  },
+  "_775": {
+   "source": "the e-mail address in the subject (old style)",
+   "text": "e-mailová adresa v subjektu (starý způsob)"
+  },
+  "_776": {
+   "source": "Subject Alternative Name",
+   "text": "Alternativní jméno subjektu (SAN)"
+  },
+  "_777": {
+   "source": "otherName msUPN - what acme signs in by",
+   "text": "otherName msUPN – podle něj acme přihlašuje"
+  },
+  "_778": {
+   "source": "a DNS name, seldom for a person",
+   "text": "jméno DNS, pro osobu zřídka"
+  },
+  "_779": {
+   "source": "Digital signature",
+   "text": "Digitální podpis"
+  },
+  "_780": {
+   "source": "Key encipherment",
+   "text": "Šifrování klíče"
+  },
+  "_781": {
+   "source": "RSA only",
+   "text": "jen RSA"
+  },
+  "_782": {
+   "source": "Client Authentication",
+   "text": "Ověření klienta"
+  },
+  "_783": {
+   "source": "Smart Card Logon",
+   "text": "Přihlášení čipovou kartou"
+  },
+  "_784": {
+   "source": "Secure e-mail",
+   "text": "Zabezpečený e-mail"
+  },
+  "_785": {
+   "source": "a passphrase",
+   "text": "heslová fráze"
+  },
+  "_786": {
+   "source": "Without a passphrase - I keep the key file safe myself",
+   "text": "Bez heslové fráze – soubor s klíčem si ohlídám sám"
+  },
+  "_787": {
+   "source": "Without a passphrase the key file is the person: whoever has it signs in as them once the certificate is issued. Keep it off shared disks and mail.",
+   "text": "Bez heslové fráze je soubor s klíčem tou osobou: kdo ho má, přihlásí se za ni, jakmile bude certifikát vydán. Nedávejte ho na sdílené disky ani do pošty."
+  },
+  "_788": {
+   "source": "On a smart card or a YubiKey the key is made on the card and never leaves it: the request is made there too - with these values.",
+   "text": "Na čipové kartě nebo YubiKey se klíč vytvoří na kartě a nikdy ji neopustí: žádost se vytvoří tam také – s těmito hodnotami."
+  },
+  "_789": {
+   "source": "A YubiKey (YubiKey Manager) - its SAN as the template builds it from AD",
+   "text": "YubiKey (YubiKey Manager) – SAN podle šablony z AD"
+  },
+  "_790": {
+   "source": "ykman cannot put a SAN of your own into the request: the authority’s template adds the UPN and the SID from AD. certreq with the smart card provider writes the SAN above.",
+   "text": "ykman do žádosti vlastní SAN nevloží: UPN a SID z AD doplní šablona autority. certreq s poskytovatelem čipových karet zapíše SAN výše."
+  },
+  "_791": {
+   "source": "the country is two letters: CZ",
+   "text": "země jsou dvě písmena: CZ"
+  },
+  "_792": {
+   "source": "tick at least the CN",
+   "text": "zaškrtněte aspoň CN"
+  },
+  "_793": {
+   "source": "an e-mail address, a DNS name or a URL is plain letters without spaces",
+   "text": "e-mailová adresa, jméno DNS i URL jsou prostá písmena bez mezer"
+  },
+  "_794": {
+   "source": "type a passphrase for the key - or tick \"Without a passphrase\"",
+   "text": "napište heslovou frázi pro klíč – nebo zaškrtněte „Bez heslové fráze“"
+  },
+  "_795": {
+   "source": "a passphrase of 8 characters at least",
+   "text": "heslová fráze aspoň o 8 znacích"
+  },
+  "_796": {
+   "source": "this browser makes no keys here (WebCrypto needs the page over https)",
+   "text": "tento prohlížeč zde klíče nevytváří (WebCrypto potřebuje stránku přes https)"
+  },
+  "_797": {
+   "source": "the key encrypted with the passphrase",
+   "text": "klíč zašifrovaný heslovou frází"
+  },
+  "_798": {
+   "source": "the key NOT encrypted",
+   "text": "klíč NEZAŠIFROVANÝ"
+  },
+  "_799": {
+   "source": "Download the CSR again",
+   "text": "Stáhnout CSR znovu"
+  },
+  "_800": {
+   "source": "Download the key again",
+   "text": "Stáhnout klíč znovu"
+  },
+  "_801": {
+   "source": "The request, to paste into the authority",
+   "text": "Žádost, k vložení do autority"
   }
  },
  "patterns": {
@@ -88917,6 +89325,14 @@
   "p_476": {
    "source": "{0} is not a user who may sign in on {1} (as read there)",
    "text": "{0} není uživatel, který se smí přihlásit na {1} (podle toho, co se tam načetlo)"
+  },
+  "p_466": {
+   "source": "Made in this browser: the key pair comes from the browser’s own cryptography and never leaves it - acme sees neither the key nor the passphrase. Downloaded as {0}.key (PKCS#8, AES-256 with the passphrase) and {1}.csr.",
+   "text": "Vytvořeno v tomto prohlížeči: pár klíčů pochází z vlastní kryptografie prohlížeče a nikdy ho neopustí – acme nevidí klíč ani heslovou frázi. Stáhne se jako {0}.key (PKCS#8, AES-256 s heslovou frází) a {1}.csr."
+  },
+  "p_467": {
+   "source": "A smart card in Windows: certreq -new {0}.inf {1}.csr",
+   "text": "Čipová karta ve Windows: certreq -new {0}.inf {1}.csr"
   }
  },
  "rich": {

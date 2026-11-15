@@ -7890,6 +7890,33 @@ function loadKrb(quiet, onlyChanged) {
   });
 }
 function krbTag(cls, words) { return el('span', 'tag ' + cls, words); }
+/* The service account of the keytab as typed on the card (1.0.110) - kept in this browser. */
+function krbAccount(d) {
+  if (KRB.acct === undefined) {
+    try { KRB.acct = localStorage.getItem('acme.krb.account') || ''; } catch (e) { KRB.acct = ''; }
+  }
+  return KRB.acct || (d && d.account) || 'svc-acme-http';
+}
+function krbAccountSaid(host, a) {
+  clear(host);
+  if (!a) return;
+  var line = el('div', 'krb-tried krb-acct-line');
+  if (!a.found) {
+    line.appendChild(krbTag('warn', 'Not in the directory'));
+    line.appendChild(noI18n(el('span', 'mono', a.name)));
+    line.appendChild(el('span', 'small muted', 'make it first (step 1), or type the name it has'));
+    host.appendChild(line);
+    return;
+  }
+  line.appendChild(krbTag(a.disabled ? 'crit' : 'ok', a.disabled ? 'Switched off' : 'Found'));
+  line.appendChild(noI18n(el('span', 'mono', a.upn || a.sam)));
+  line.appendChild(krbTag(a.aes256 ? 'ok' : 'warn', a.aes256 ? 'AES 256 allowed' : (a.enc_known ? 'AES 256 not allowed' : 'AES 256 not set on the account')));
+  line.appendChild(krbTag(a.pw_never_expires ? 'ok' : 'warn', a.pw_never_expires ? 'Password never expires' : 'Its password expires'));
+  line.appendChild(el('span', 'small muted', (a.spns || []).length ? 'SPNs: ' : 'no SPN yet'));
+  if ((a.spns || []).length) line.appendChild(noI18n(el('span', 'mono small', a.spns.join(', '))));
+  if (a.many) line.appendChild(krbTag('warn', 'more than one account has that name'));
+  host.appendChild(line);
+}
 function krbFacts(host, rows) {
   var t = el('table', 'krb-facts');
   rows.forEach(function (r) {
@@ -8097,13 +8124,75 @@ function drawKrb(part) {
   /* AD. */
   var names = d.names.filter(function (n) { return n.of !== 'this page' || d.names.length === 1; }).map(function (n) { return n.name; });
   if (!names.length) names = d.names.map(function (n) { return n.name; });
-  var realmV = p.realm || 'CORP.EXAMPLE', dom = d.domain || 'CORP', acct = d.account || 'svc-acme-http';
+  /* The domain's NetBIOS name as AD has it (1.0.110): read from its crossRef by the daemon - MERIT_NT
+     for merit.cz, never MERIT guessed from the realm - else guessed, and said so. The account typed
+     here (kept in this browser) goes into the commands and is looked up in the directory. */
+  var nb = p.names || {};
+  var realmV = p.realm || 'CORP.EXAMPLE', dom = nb.netbios || d.domain || 'CORP';
+  var acct = krbAccount(d);
   host.appendChild(el('h3', 'peek-h', 'Making the keytab in AD'));
   host.appendChild(el('p', 'note', 'On a domain controller, as a domain administrator: a service account of its own (a normal user, password never expires, AES allowed), the SPN of each name, and the keytab of the first one - the others are served by the same key. Changing the account’s password later makes a new key version: make the keytab again.'));
-  var ad = '# 1. the account (once): {dom}\\{acct}, "This account supports Kerberos AES 256 bit encryption"\n'
-    + names.map(function (n) { return 'setspn -S HTTP/' + n + ' {dom}\\{acct}'; }).join('\n') + '\n'
-    + 'ktpass -princ HTTP/' + (names[0] || 'acme.corp.example') + '@{realm} -mapuser {dom}\\{acct} -crypto AES256-SHA1 -ptype KRB5_NT_PRINCIPAL -pass * -out acme-http.keytab';
-  host.appendChild(lbBlock(ad, {dom: dom, acct: acct, realm: realmV}, 'cmd.exe on a domain controller'));
+  var domLine = el('p', 'note small krb-dom' + (nb.from === 'guessed' ? ' warn' : ''));
+  domLine.appendChild(el('span', '', 'The domain (NetBIOS): '));
+  domLine.appendChild(noI18n(el('b', 'mono', dom)));
+  if (nb.dns) { domLine.appendChild(el('span', '', ', its DNS name ')); domLine.appendChild(noI18n(el('span', 'mono', nb.dns))); }
+  domLine.appendChild(el('span', 'muted', {directory: ' - read from the directory', kept: ' - as last read from the directory (it does not answer now)',
+    guessed: ' - guessed: could not read it from the directory. Check it (the domain’s "Domain name (pre-Windows 2000)") before running these.'}[nb.from] || ''));
+  host.appendChild(domLine);
+  /* The service account: typed here, looked up in the directory. */
+  var arow = el('div', 'krb-acct');
+  var abox = el('input', 'mono');
+  abox.type = 'text';
+  abox.value = acct;
+  abox.placeholder = 'svc-acme-http';
+  abox.autocomplete = 'off';
+  abox.spellcheck = false;
+  abox.setAttribute('aria-label', 'The service account');
+  arow.appendChild(el('label', 'krb-acct-l', 'The service account'));
+  arow.appendChild(abox);
+  var check = null;
+  if (CERTADMIN && p.directory) {
+    check = cmdButton('Check in AD', 'search', 'small');
+    explain(check, 'Looks the account up in the directory: is it there, its userPrincipalName, whether it allows AES 256 and its password never expires, its SPNs.');
+    arow.appendChild(check);
+  }
+  host.appendChild(arow);
+  var aSaid = el('div', 'krb-acct-said');
+  host.appendChild(aSaid);
+  var codeAt = el('div', '');
+  host.appendChild(codeAt);
+  var drawCode = function () {
+    var a = krbAccount(d);
+    var ad = '# 1. the account (once): {dom}\\{acct}, "This account supports Kerberos AES 256 bit encryption"\n'
+      + names.map(function (n) { return 'setspn -S HTTP/' + n + ' {dom}\\{acct}'; }).join('\n') + '\n'
+      + 'ktpass -princ HTTP/' + (names[0] || 'acme.corp.example') + '@{realm} -mapuser {dom}\\{acct} -crypto AES256-SHA1 -ptype KRB5_NT_PRINCIPAL -pass * -out acme-http.keytab';
+    clear(codeAt);
+    codeAt.appendChild(lbBlock(ad, {dom: dom, acct: a, realm: realmV}, 'cmd.exe on a domain controller'));
+    dressButtons(codeAt);
+  };
+  drawCode();
+  krbAccountSaid(aSaid, (KRB.acctSaid || {})[part]);
+  abox.oninput = function () {
+    KRB.acct = abox.value.trim();
+    try { localStorage.setItem('acme.krb.account', KRB.acct); } catch (e) { /* none */ }
+    if (KRB.acctSaid) delete KRB.acctSaid[part];
+    clear(aSaid);
+    drawCode();
+  };
+  var go = function () {
+    var a = krbAccount(d);
+    busy(check, true);
+    api('kerberos', {action: 'account', part: part, name: a}).then(function (x) {
+      busy(check, false);
+      KRB.acctSaid = KRB.acctSaid || {};
+      KRB.acctSaid[part] = x.account;
+      krbAccountSaid(aSaid, x.account);
+    }).catch(function (e) { busy(check, false); clear(aSaid); aSaid.appendChild(el('p', 'note bad small', String(e.message || e))); });
+  };
+  if (check) {
+    check.onclick = go;
+    abox.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+  }
   /* The browsers. */
   host.appendChild(el('h3', 'peek-h', 'Telling the browsers'));
   var list = names.join(',');
@@ -8196,6 +8285,589 @@ function certTry(part, btn) {
 function certRole(part, t) {
   return part === 'admin' ? ({fulladmin: 'full admin', certadmin: 'cert admin', readonly: 'read only'}[t.role] || t.role) : 'the enrolment pages';
 }
+/* ---- a person looked up for their certificate (1.0.110) ------------------------------------
+   "Look up a person…" on the card of each part: a name typed (an account, DOMAIN\name, a UPN or
+   an e-mail address) found in the part's directory, and what goes into that person's
+   certificate request - the CN, the UPN of the SAN (otherName msUPN), the SAN URL of the strong
+   mapping (KB5014754), the SID - each with its own Copy; their account's state and the role a
+   certificate of theirs would get; the request itself for openssl and certreq; and which "Which
+   account" mode takes it. Read only (a certificate administrator, as Look a name up). */
+var CLOOK = {part: 'admin', tab: 'openssl', mail: false, seq: 0};
+function certLookup(part, who) {
+  CLOOK.part = part;
+  var d = CERTC.d || {parts: {}};
+  var box, res, find, seg;
+  modal('Values for a person’s certificate', function (body) {
+    body.classList.add('clk');
+    body.appendChild(el('p', 'note', 'Find a person in the directory: this says what to put into their certificate request - the name, the UPN and the SID of the strong mapping - and whether a certificate with them signs in here.'));
+    var bar = el('div', 'clk-bar');
+    seg = el('div', 'seg clk-seg');
+    [['admin', 'The administration'], ['portal', 'The enrolment pages']].forEach(function (x) {
+      var b = el('button', x[0] === CLOOK.part ? 'on' : '', x[1]);
+      b.type = 'button';
+      b.dataset.part = x[0];
+      b.onclick = function () {
+        CLOOK.part = x[0];
+        Array.prototype.forEach.call(seg.children, function (c) { c.classList.toggle('on', c.dataset.part === x[0]); });
+        if (box.value.trim()) run();
+      };
+      seg.appendChild(b);
+    });
+    var row = el('div', 'clk-find');
+    box = el('input', 'mono');
+    box.type = 'text';
+    box.autocomplete = 'off';
+    box.spellcheck = false;
+    box.maxLength = 256;
+    box.placeholder = 'novak, DOMAIN\\novak or novak@example.cz';
+    box.setAttribute('aria-label', 'Who');
+    if (who) box.value = who;
+    box.onkeydown = function (e) { if (e.key === 'Enter' && !e.defaultPrevented) { e.preventDefault(); run(); } };
+    find = cmdButton('Find', 'search', 'primary');
+    find.onclick = function () { run(); };
+    row.appendChild(box);
+    row.appendChild(find);
+    bar.appendChild(row);
+    bar.appendChild(seg);
+    body.appendChild(bar);
+    personSuggest(box, {directory: ((d.parts || {})[part] || {}).directory || '', picked: function () { setTimeout(run, 0); }});
+    res = el('div', 'clk-res');
+    body.appendChild(res);
+  }, [{words: 'Close', close: true}], 'medium clk-box');
+  function run() {
+    var name = box.value.trim();
+    if (!name) { toast('type a name first', 'bad'); box.focus(); return; }
+    var seq = ++CLOOK.seq;
+    busy(find, true);
+    res.classList.add('busy');
+    api('certlogin', {action: 'lookup', name: name, part: CLOOK.part}).then(function (x) {
+      if (seq !== CLOOK.seq) return;
+      busy(find, false);
+      res.classList.remove('busy');
+      certLookupDraw(res, x.lookup || {});
+    }).catch(function (e) {
+      if (seq !== CLOOK.seq) return;
+      busy(find, false);
+      res.classList.remove('busy');
+      clear(res);
+      res.appendChild(el('p', 'notice bad', String(e.message || e)));
+    });
+  }
+  if (who) run();
+}
+function certLookupRole(r) {
+  return {fulladmin: 'full admin', certadmin: 'cert admin', readonly: 'read only', portal: 'the enrolment pages'}[r] || r;
+}
+function certLookupValue(list, label, says, value, warnIfEmpty) {
+  var row = el('div', 'clk-row');
+  var lab = el('div', 'clk-lab');
+  lab.appendChild(el('span', 'clk-k', label));
+  if (says) lab.appendChild(el('span', 'clk-says', says));
+  row.appendChild(lab);
+  var v = el('div', 'clk-v' + (value ? '' : ' empty'));
+  if (value) {
+    var t = noI18n(el('span', 'mono clk-val', value));
+    v.appendChild(t);
+    var cp = iconButton('copy', 'Copy');
+    cp.classList.add('clk-copy');
+    cp.onclick = function () { copyText(value, cp); };
+    v.appendChild(cp);
+  } else {
+    v.appendChild(el('span', 'small ' + (warnIfEmpty ? 'warn' : 'muted'), warnIfEmpty || 'none'));
+  }
+  row.appendChild(v);
+  list.appendChild(row);
+}
+function certLookupDraw(res, x) {
+  clear(res);
+  if (x.found === 'none') {
+    var n = el('div', 'clk-empty');
+    n.appendChild(el('b', '', 'Nobody by that name'));
+    n.appendChild(el('span', 'muted small', 'The directory has no account, UPN or e-mail address of that name - type it whole, or pick one as you type.'));
+    res.appendChild(n);
+    return;
+  }
+  if (x.found === 'many') {
+    var m = el('div', 'clk-empty');
+    m.appendChild(el('b', '', 'More than one account answers to it'));
+    m.appendChild(el('span', 'muted small', 'Type the whole UPN or the sAMAccountName: a certificate is for one account.'));
+    res.appendChild(m);
+    return;
+  }
+  /* The head: who, and their state. */
+  var head = el('div', 'clk-head');
+  var ava = noI18n(el('div', 'clk-ava', String(x.display || x.cn || x.sam || '?').split(/\s+/).map(function (w) { return w.charAt(0); }).join('').slice(0, 2).toUpperCase()));
+  head.appendChild(ava);
+  var who = el('div', 'clk-who');
+  who.appendChild(noI18n(el('div', 'clk-name', x.display || x.cn)));
+  who.appendChild(noI18n(el('div', 'clk-sub mono', (x.upn || x.sam) + ' · ' + x.directory)));
+  var pills = el('div', 'clk-pills');
+  if (x.disabled) pills.appendChild(krbTag('crit', 'disabled'));
+  else if (x.unusable) pills.appendChild(krbTag('warn', x.locked ? 'locked out' : (x.expired ? 'expired' : (x.pw_expired ? 'password expired' : 'not usable'))));
+  else pills.appendChild(krbTag('ok', 'enabled'));
+  if (x.locked && x.disabled) pills.appendChild(krbTag('warn', 'locked out'));
+  if (x.part === 'admin') pills.appendChild(krbTag(x.role ? 'info' : 'dim', x.role ? certLookupRole(x.role) : 'no role here'));
+  else pills.appendChild(krbTag(((x.would || {}).sid_extension || (x.would || {}).none || {}).ok ? 'info' : 'dim', ((x.would || {}).sid_extension || (x.would || {}).none || {}).ok ? 'may use the enrolment pages' : 'not let in to the enrolment pages'));
+  pills.appendChild(el('span', 'muted small', x.groups_count + ' group(s)'));
+  who.appendChild(pills);
+  head.appendChild(who);
+  res.appendChild(head);
+  if (x.unusable) {
+    var un = el('p', 'note warn small');
+    un.appendChild(el('span', '', 'The account may not sign in now:'));
+    un.appendChild(document.createTextNode(' '));
+    un.appendChild(el('span', '', x.unusable));
+    res.appendChild(un);
+  }
+  if (!x.upn) res.appendChild(el('p', 'note warn small', 'The account has no userPrincipalName: no certificate of it signs in here. Give it one in AD first.'));
+  /* The values, each to copy. */
+  res.appendChild(el('h3', 'peek-h', 'The values of the certificate'));
+  var list = el('div', 'clk-list');
+  certLookupValue(list, 'CN', 'the subject', x.cn);
+  certLookupValue(list, 'UPN', 'SAN otherName (msUPN, 1.3.6.1.4.1.311.20.2.3)', x.san_upn, 'none - no certificate of it signs in');
+  certLookupValue(list, 'SAN URL', 'the strong mapping (KB5014754)', x.san_url, 'none - the directory did not say the SID');
+  certLookupValue(list, 'SID', 'objectSid', x.sid, 'not said by the directory');
+  certLookupValue(list, 'sAMAccountName', '', x.sam);
+  certLookupValue(list, 'DN', '', x.dn);
+  certLookupValue(list, 'Mail', 'SAN rfc822Name, if you want it', x.mail);
+  res.appendChild(list);
+  /* Whether it signs in, and by which mode. */
+  if (x.would) {
+    res.appendChild(el('h3', 'peek-h', 'A certificate with these values here'));
+    var wl = el('div', 'clk-would');
+    [['sid_extension', 'Issued by AD CS from the directory (the SID extension the authority writes itself)'],
+     ['san_url', 'A request of your own, another authority (the SID in the SAN URL only)'],
+     ['none', 'With the UPN only (the directory has no SID of it)']].forEach(function (k) {
+      var w = x.would[k[0]];
+      if (!w) return;
+      var r = el('div', 'clk-wrow');
+      r.appendChild(krbTag(w.ok ? 'ok' : 'crit', w.ok ? 'signs in' : 'refused'));
+      var t = el('div', 'clk-wt');
+      t.appendChild(el('div', '', k[1]));
+      var modes = (x.accepts || {})[k[0]] || [];
+      var said = el('div', 'small muted');
+      if (w.ok && x.part === 'admin') { said.appendChild(el('span', '', 'as')); said.appendChild(document.createTextNode(' ')); said.appendChild(el('span', '', certLookupRole(w.role))); }
+      else if (w.ok) said.appendChild(el('span', '', 'to the enrolment pages'));
+      else said.appendChild(el('span', '', w.why || ''));
+      t.appendChild(said);
+      var mm = el('div', 'clk-modes');
+      mm.appendChild(el('span', 'small muted', 'Taken by "Which account": '));
+      ['strong', 'compat', 'upn'].forEach(function (mo) {
+        var on = modes.indexOf(mo) >= 0;
+        var tag = noI18n(el('span', 'tag ' + (on ? (mo === x.match ? 'ok' : 'dim') : 'off') + ' clk-mode' + (mo === x.match ? ' now' : ''), mo));
+        tag.title = on ? 'taken' : 'refused';
+        mm.appendChild(tag);
+      });
+      t.appendChild(mm);
+      r.appendChild(t);
+      wl.appendChild(r);
+    });
+    res.appendChild(wl);
+    var wm = el('p', 'note small');
+    wm.appendChild(el('span', '', 'Which account here now:'));
+    wm.appendChild(document.createTextNode(' '));
+    wm.appendChild(noI18n(el('b', 'mono', x.match)));
+    wm.appendChild(noI18n(el('span', 'mono muted', ' (' + x.part + '_certlogin_match). ')));
+    wm.appendChild(el('span', '', 'A SID in the SAN URL is the requester’s word: Windows takes it as a strong mapping, acme only in compat - strong takes the SID extension AD CS writes.'));
+    res.appendChild(wm);
+    if (!x.on) res.appendChild(el('p', 'note small muted', 'Signing in with a certificate is not on for this part yet: the answers above are what it would do once it is.'));
+  }
+  /* The request. */
+  var rh = el('div', 'clk-req-h');
+  rh.appendChild(el('h3', 'peek-h', 'What to put into the request'));
+  var mk = cmdButton('Make a CSR…', 'key', 'small primary');
+  explain(mk, 'Makes the key pair and the request (PKCS#10) with these values in this browser - the key never leaves it - or says how on a smart card or a YubiKey.');
+  mk.onclick = function () { certCsr(x); };
+  rh.appendChild(mk);
+  res.appendChild(rh);
+  var req = el('div', 'clk-req');
+  var tabs = el('div', 'seg clk-tabs');
+  var code = el('div', 'clk-code');
+  var opts = el('div', 'clk-opts');
+  var drawReq = function () {
+    var sn = (CLOOK.mail && x.mail ? x.snippets_mail : x.snippets) || {};
+    var text = sn[{openssl: 'openssl', cnf: 'openssl_cnf', inf: 'certreq_inf'}[CLOOK.tab]] || '';
+    clear(code);
+    var h = el('div', 'clk-code-h');
+    h.appendChild(el('span', 'small muted', {openssl: 'bash: the file and the request (openssl)', cnf: 'person.cnf for openssl req -config', inf: 'person.inf for certreq -new (Windows)'}[CLOOK.tab]));
+    var cp = cmdButton('Copy', 'copy', 'small');
+    cp.onclick = function () { copyText(text, cp); };
+    h.appendChild(cp);
+    code.appendChild(h);
+    var pre = noI18n(el('pre', 'mono small clk-pre'));
+    pre.textContent = text;
+    code.appendChild(pre);
+    Array.prototype.forEach.call(tabs.children, function (c) { c.classList.toggle('on', c.dataset.tab === CLOOK.tab); });
+  };
+  [['openssl', 'openssl'], ['cnf', 'openssl .cnf'], ['inf', 'certreq INF']].forEach(function (t) {
+    var b = noI18n(el('button', '', t[1]));
+    b.type = 'button';
+    b.dataset.tab = t[0];
+    b.onclick = function () { CLOOK.tab = t[0]; drawReq(); };
+    tabs.appendChild(b);
+  });
+  var top = el('div', 'clk-req-top');
+  top.appendChild(tabs);
+  if (x.mail) {
+    var lab = el('label', 'clk-mail');
+    var cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = !!CLOOK.mail;
+    cb.onchange = function () { CLOOK.mail = cb.checked; drawReq(); };
+    lab.appendChild(cb);
+    lab.appendChild(el('span', 'small', 'The e-mail address in the SAN too'));
+    opts.appendChild(lab);
+    top.appendChild(opts);
+  }
+  req.appendChild(top);
+  req.appendChild(code);
+  res.appendChild(req);
+  drawReq();
+  res.appendChild(el('p', 'note small muted', 'Key usages Client Authentication and Smart Card Logon. On a smart card or a YubiKey the key is made on the card (certreq with the smart card provider, or ykman) - the SAN the same.'));
+  dressButtons(res);
+}
+/* ---- a CSR made in the browser (1.0.110) ---------------------------------------------------
+   "Make a CSR…" in the lookup popup: a second popup with the key (RSA 2048 by default - what
+   every smart card takes - 3072, 4096, ECDSA P-256 or P-384), the subject and the Subject
+   Alternative Name filled in from the directory (each ticked or not), the key usages and where
+   the key is made. Made here, the key pair comes from WebCrypto and the PKCS#10 request is
+   written and signed by the small DER writer below: the private key never leaves this browser -
+   downloaded as PKCS#8, encrypted with the passphrase typed (PBES2: PBKDF2-HMAC-SHA256 and
+   AES-256-CBC, as openssl writes it) or, said plainly, not. On a smart card or a YubiKey the key
+   must be made on the card: the popup says how, with these values. */
+var CSRW = {
+  len: function (n) {
+    if (n < 128) return [n];
+    var b = [];
+    while (n > 0) { b.unshift(n & 255); n = Math.floor(n / 256); }
+    return [0x80 | b.length].concat(b);
+  },
+  cat: function (parts) {
+    var n = 0, i, o = 0;
+    for (i = 0; i < parts.length; i++) n += parts[i].length;
+    var out = new Uint8Array(n);
+    for (i = 0; i < parts.length; i++) { out.set(parts[i], o); o += parts[i].length; }
+    return out;
+  },
+  tlv: function (tag, body) {
+    body = body instanceof Uint8Array ? body : new Uint8Array(body);
+    return CSRW.cat([new Uint8Array([tag].concat(CSRW.len(body.length))), body]);
+  },
+  seq: function () { return CSRW.tlv(0x30, CSRW.cat(Array.prototype.slice.call(arguments))); },
+  set: function () { return CSRW.tlv(0x31, CSRW.cat(Array.prototype.slice.call(arguments))); },
+  oid: function (dotted) {
+    var p = dotted.split('.').map(Number), out = [40 * p[0] + p[1]];
+    p.slice(2).forEach(function (v) {
+      var b = [v & 127];
+      v = Math.floor(v / 128);
+      while (v > 0) { b.unshift(128 | (v & 127)); v = Math.floor(v / 128); }
+      out = out.concat(b);
+    });
+    return CSRW.tlv(0x06, out);
+  },
+  utf8: function (s) { return new TextEncoder().encode(String(s)); },
+  str: function (tag, s) { return CSRW.tlv(tag, CSRW.utf8(s)); },
+  int: function (bytes) {
+    var b = Array.prototype.slice.call(bytes), i = 0;
+    while (i < b.length - 1 && b[i] === 0 && !(b[i + 1] & 128)) i++;
+    b = b.slice(i);
+    if (b[0] & 128) b.unshift(0);
+    return CSRW.tlv(0x02, b);
+  },
+  small: function (n) { var b = []; do { b.unshift(n & 255); n = Math.floor(n / 256); } while (n > 0); return CSRW.int(b); },
+  pem: function (label, der) {
+    var bin = '', i;
+    for (i = 0; i < der.length; i++) bin += String.fromCharCode(der[i]);
+    var b64 = btoa(bin), lines = [];
+    for (i = 0; i < b64.length; i += 64) lines.push(b64.slice(i, i + 64));
+    return '-----BEGIN ' + label + '-----\n' + lines.join('\n') + '\n-----END ' + label + '-----\n';
+  },
+  KEYS: {
+    rsa2048: {gen: {name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256'}, rsa: true},
+    rsa3072: {gen: {name: 'RSASSA-PKCS1-v1_5', modulusLength: 3072, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256'}, rsa: true},
+    rsa4096: {gen: {name: 'RSASSA-PKCS1-v1_5', modulusLength: 4096, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256'}, rsa: true},
+    p256: {gen: {name: 'ECDSA', namedCurve: 'P-256'}, hash: 'SHA-256', sigOid: '1.2.840.10045.4.3.2', half: 32},
+    p384: {gen: {name: 'ECDSA', namedCurve: 'P-384'}, hash: 'SHA-384', sigOid: '1.2.840.10045.4.3.3', half: 48}
+  },
+  /* {subject: [[oid, value, tag]], san: [[kind, value]], ku: {ds, ke}, eku: [oid]} -> {csr, key} (PEM) */
+  make: function (kind, want, pass) {
+    var k = CSRW.KEYS[kind], W = CSRW;
+    var subtle = window.crypto && window.crypto.subtle;
+    if (!subtle) return Promise.reject(new Error('this browser makes no keys here (WebCrypto needs the page over https)'));
+    return subtle.generateKey(k.gen, true, ['sign', 'verify']).then(function (pair) {
+      return Promise.all([subtle.exportKey('spki', pair.publicKey), subtle.exportKey('pkcs8', pair.privateKey)]).then(function (got) {
+        var rdns = want.subject.map(function (a) { return W.set(W.seq(W.oid(a[0]), W.str(a[2], a[1]))); });
+        var names = want.san.map(function (s) {
+          if (s[0] === 'upn') return W.tlv(0xA0, W.cat([W.oid('1.3.6.1.4.1.311.20.2.3'), W.tlv(0xA0, W.str(0x0C, s[1]))]));
+          return W.tlv({email: 0x81, dns: 0x82, uri: 0x86}[s[0]], W.utf8(s[1]));
+        });
+        var exts = [];
+        if (names.length) exts.push(W.seq(W.oid('2.5.29.17'), W.tlv(0x04, W.seq.apply(null, names))));
+        var bits = (want.ku.ds ? 0x80 : 0) | (want.ku.ke && k.rsa ? 0x20 : 0);
+        if (bits) exts.push(W.seq(W.oid('2.5.29.15'), W.tlv(0x01, [0xFF]), W.tlv(0x04, W.tlv(0x03, [bits & 0x20 ? 5 : 7, bits]))));
+        if (want.eku.length) exts.push(W.seq(W.oid('2.5.29.37'), W.tlv(0x04, W.seq.apply(null, want.eku.map(W.oid)))));
+        var attrs = exts.length ? W.tlv(0xA0, W.seq(W.oid('1.2.840.113549.1.9.14'), W.set(W.seq.apply(null, exts)))) : W.tlv(0xA0, []);
+        var info = W.seq(W.small(0), W.seq.apply(null, rdns), new Uint8Array(got[0]), attrs);
+        var algo = k.rsa ? {name: 'RSASSA-PKCS1-v1_5'} : {name: 'ECDSA', hash: k.hash};
+        return subtle.sign(algo, pair.privateKey, info).then(function (sig) {
+          sig = new Uint8Array(sig);
+          var sigAlg = k.rsa ? W.seq(W.oid('1.2.840.113549.1.1.11'), W.tlv(0x05, [])) : W.seq(W.oid(k.sigOid));
+          if (!k.rsa) sig = W.seq(W.int(sig.slice(0, k.half)), W.int(sig.slice(k.half)));
+          var csr = W.seq(info, sigAlg, W.tlv(0x03, W.cat([new Uint8Array([0]), sig])));
+          var p8 = new Uint8Array(got[1]);
+          return (pass ? W.seal(p8, pass) : Promise.resolve(null)).then(function (sealed) {
+            return {csr: W.pem('CERTIFICATE REQUEST', csr),
+                    key: sealed ? W.pem('ENCRYPTED PRIVATE KEY', sealed) : W.pem('PRIVATE KEY', p8)};
+          });
+        });
+      });
+    });
+  },
+  /* PKCS#8 as an EncryptedPrivateKeyInfo: PBES2, PBKDF2 with HMAC-SHA256, AES-256-CBC. */
+  ITER: 310000,
+  seal: function (p8, pass) {
+    var W = CSRW, subtle = window.crypto.subtle;
+    var salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(16));
+    return subtle.importKey('raw', W.utf8(pass), 'PBKDF2', false, ['deriveKey']).then(function (base) {
+      return subtle.deriveKey({name: 'PBKDF2', salt: salt, iterations: W.ITER, hash: 'SHA-256'}, base,
+                              {name: 'AES-CBC', length: 256}, false, ['encrypt']);
+    }).then(function (aes) {
+      return subtle.encrypt({name: 'AES-CBC', iv: iv}, aes, p8);
+    }).then(function (enc) {
+      var kdf = W.seq(W.oid('1.2.840.113549.1.5.12'), W.seq(W.tlv(0x04, salt), W.small(W.ITER),
+        W.seq(W.oid('1.2.840.113549.2.9'), W.tlv(0x05, []))));
+      var scheme = W.seq(W.oid('2.16.840.1.101.3.4.1.42'), W.tlv(0x04, iv));
+      return W.seq(W.seq(W.oid('1.2.840.113549.1.5.13'), W.seq(kdf, scheme)), W.tlv(0x04, new Uint8Array(enc)));
+    });
+  }
+};
+function csrSave(name, text) {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type: 'application/octet-stream'}));
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function certCsr(x) {
+  var st = {kind: 'rsa2048', where: 'browser', made: null};
+  var base = String(x.sam || (x.upn || '').split('@')[0] || 'person').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 40) || 'person';
+  var rows = {}, refs = {};
+  var line = function (host, key, on, label, value, opts) {
+    opts = opts || {};
+    var r = el('label', 'csr-row' + (on ? ' on' : ''));
+    var cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = !!on;
+    r.appendChild(cb);
+    var t = el('span', 'csr-k');
+    t.appendChild(el('b', '', label));
+    if (opts.says) t.appendChild(el('span', 'csr-says', opts.says));
+    r.appendChild(t);
+    var box = null;
+    if (opts.box !== false) {
+      box = el('input', 'mono');
+      box.type = 'text';
+      box.value = value || '';
+      box.spellcheck = false;
+      box.autocomplete = 'off';
+      if (opts.placeholder) box.placeholder = opts.placeholder;
+      if (opts.max) box.maxLength = opts.max;
+      box.setAttribute('aria-label', label);
+      box.oninput = function () { if (box.value.trim() && !cb.checked) { cb.checked = true; r.classList.add('on'); } };
+      r.appendChild(box);
+    }
+    cb.onchange = function () { r.classList.toggle('on', cb.checked); };
+    rows[key] = {cb: cb, box: box, row: r};
+    host.appendChild(r);
+    return r;
+  };
+  modalOver(function () {
+    modal('Make a CSR', function (body) {
+      body.classList.add('csr');
+      var who = el('div', 'csr-who');
+      who.appendChild(el('span', 'muted small', 'For'));
+      who.appendChild(noI18n(el('b', '', x.display || x.cn)));
+      who.appendChild(noI18n(el('span', 'mono small muted', x.upn || x.sam)));
+      body.appendChild(who);
+      /* Where the key is made. */
+      var where = el('div', 'seg csr-where');
+      [['browser', 'In this browser'], ['card', 'On a smart card or a YubiKey']].forEach(function (w) {
+        var b = el('button', w[0] === st.where ? 'on' : '', w[1]);
+        b.type = 'button';
+        b.dataset.where = w[0];
+        b.onclick = function () { st.where = w[0]; show(); };
+        where.appendChild(b);
+      });
+      body.appendChild(where);
+      var browserPart = el('div', 'csr-part');
+      var cardPart = el('div', 'csr-part');
+      body.appendChild(browserPart);
+      body.appendChild(cardPart);
+      /* The key. */
+      browserPart.appendChild(el('h3', 'peek-h', 'The key'));
+      var kinds = el('div', 'seg csr-kinds');
+      [['rsa2048', 'RSA 2048'], ['rsa3072', 'RSA 3072'], ['rsa4096', 'RSA 4096'], ['p256', 'ECDSA P-256'], ['p384', 'ECDSA P-384']].forEach(function (k) {
+        var b = noI18n(el('button', k[0] === st.kind ? 'on' : '', k[1]));
+        b.type = 'button';
+        b.dataset.kind = k[0];
+        b.onclick = function () { st.kind = k[0]; show(); };
+        kinds.appendChild(b);
+      });
+      browserPart.appendChild(kinds);
+      browserPart.appendChild(el('p', 'note small muted', 'RSA 2048 is taken by every smart card and every Windows; ECDSA keys are smaller, where whatever reads the certificate takes them.'));
+      /* The subject. */
+      browserPart.appendChild(el('h3', 'peek-h', 'The subject'));
+      var subj = el('div', 'csr-list');
+      line(subj, 'cn', true, 'CN', x.cn, {says: 'the name', max: 64});
+      line(subj, 'o', false, 'O', '', {says: 'the organisation', max: 64, placeholder: 'Example s.r.o.'});
+      line(subj, 'ou', false, 'OU', '', {says: 'the department', max: 64});
+      line(subj, 'c', false, 'C', '', {says: 'the country, two letters', max: 2, placeholder: 'CZ'});
+      line(subj, 'e', false, 'E', x.mail || '', {says: 'the e-mail address in the subject (old style)', max: 128});
+      browserPart.appendChild(subj);
+      /* The SAN. */
+      browserPart.appendChild(el('h3', 'peek-h', 'Subject Alternative Name'));
+      var san = el('div', 'csr-list');
+      line(san, 'upn', !!x.upn, 'UPN', x.upn || '', {says: 'otherName msUPN - what acme signs in by'});
+      line(san, 'url', !!x.san_url, 'URL', x.san_url || '', {says: 'the strong mapping (KB5014754)'});
+      line(san, 'email', !!x.mail, 'E-mail', x.mail || '', {says: 'rfc822Name'});
+      line(san, 'dns', false, 'DNS', '', {says: 'a DNS name, seldom for a person', placeholder: 'pc123.example.cz'});
+      browserPart.appendChild(san);
+      /* The usages. */
+      browserPart.appendChild(el('h3', 'peek-h', 'Key usage'));
+      var use = el('div', 'csr-list csr-uses');
+      line(use, 'ds', true, 'Digital signature', '', {box: false});
+      line(use, 'ke', true, 'Key encipherment', '', {box: false, says: 'RSA only'});
+      line(use, 'eku_client', true, 'Client Authentication', '', {box: false, says: '1.3.6.1.5.5.7.3.2'});
+      line(use, 'eku_sc', true, 'Smart Card Logon', '', {box: false, says: '1.3.6.1.4.1.311.20.2.2'});
+      line(use, 'eku_mail', false, 'Secure e-mail', '', {box: false, says: '1.3.6.1.5.5.7.3.4'});
+      browserPart.appendChild(use);
+      /* The private key's protection. */
+      browserPart.appendChild(el('h3', 'peek-h', 'The private key'));
+      var pw = el('div', 'csr-pass');
+      var p1 = el('input');
+      p1.type = 'password';
+      p1.autocomplete = 'new-password';
+      p1.placeholder = 'a passphrase';
+      p1.setAttribute('aria-label', 'Passphrase');
+      var p2 = el('input');
+      p2.type = 'password';
+      p2.autocomplete = 'new-password';
+      p2.placeholder = 'the same again';
+      p2.setAttribute('aria-label', 'The passphrase again');
+      pw.appendChild(p1);
+      pw.appendChild(p2);
+      browserPart.appendChild(pw);
+      refs.p1 = p1;
+      refs.p2 = p2;
+      var plain = el('label', 'csr-plain');
+      var pcb = el('input');
+      pcb.type = 'checkbox';
+      plain.appendChild(pcb);
+      plain.appendChild(el('span', 'small', 'Without a passphrase - I keep the key file safe myself'));
+      refs.plain = pcb;
+      browserPart.appendChild(plain);
+      var warn = el('p', 'note warn small', 'Without a passphrase the key file is the person: whoever has it signs in as them once the certificate is issued. Keep it off shared disks and mail.');
+      refs.warn = warn;
+      browserPart.appendChild(warn);
+      browserPart.appendChild(el('p', 'note small muted', 'Made in this browser: the key pair comes from the browser’s own cryptography and never leaves it - acme sees neither the key nor the passphrase. Downloaded as ' + base + '.key (PKCS#8, AES-256 with the passphrase) and ' + base + '.csr.'));
+      var done = el('div', 'csr-done');
+      refs.done = done;
+      browserPart.appendChild(done);
+      /* On a card. */
+      cardPart.appendChild(el('p', 'note', 'On a smart card or a YubiKey the key is made on the card and never leaves it: the request is made there too - with these values.'));
+      cardPart.appendChild(lbBlock('ykman piv keys generate --algorithm RSA2048 9a pub.pem\nykman piv certificates request --subject "CN={cn}" 9a pub.pem {base}.csr',
+        {cn: x.cn, base: base}, 'A YubiKey (YubiKey Manager) - its SAN as the template builds it from AD'));
+      var inf = String((x.snippets || {}).certreq_inf || '').replace('; ProviderName = "Microsoft Smart Card Key Storage Provider"', 'ProviderName = "Microsoft Smart Card Key Storage Provider"').replace('; on a smart card or a YubiKey:\n', '');
+      cardPart.appendChild(lbBlock('{inf}', {inf: inf}, 'A smart card in Windows: certreq -new ' + base + '.inf ' + base + '.csr'));
+      cardPart.appendChild(el('p', 'note small muted', 'ykman cannot put a SAN of your own into the request: the authority’s template adds the UPN and the SID from AD. certreq with the smart card provider writes the SAN above.'));
+      function show() {
+        Array.prototype.forEach.call(where.children, function (c) { c.classList.toggle('on', c.dataset.where === st.where); });
+        Array.prototype.forEach.call(kinds.children, function (c) { c.classList.toggle('on', c.dataset.kind === st.kind); });
+        browserPart.hidden = st.where !== 'browser';
+        cardPart.hidden = st.where !== 'card';
+        var rsa = /^rsa/.test(st.kind);
+        rows.ke.cb.disabled = !rsa;
+        rows.ke.row.classList.toggle('asleep', !rsa);
+        warn.hidden = !pcb.checked;
+        var mk = $('modal-foot') && $('modal-foot').querySelector('.btn.primary');
+        if (mk) mk.hidden = st.where !== 'browser';
+      }
+      refs.show = show;
+      pcb.onchange = show;
+      show();
+      dressButtons(body);
+    }, [{words: 'Close', close: true}, {words: 'Make the CSR', cls: 'primary', icon: 'key', go: function (btn) { csrMake(btn); }}], 'medium csr-box');
+    if (refs.show) refs.show();
+  }, function () {});
+  function val(k) { var r = rows[k]; return r && r.cb.checked && !r.cb.disabled ? (r.box ? r.box.value.trim() : true) : ''; }
+  function csrMake(btn) {
+    var subject = [];
+    if (val('c')) {
+      if (!/^[A-Za-z]{2}$/.test(val('c'))) { toast('the country is two letters: CZ', 'bad'); return; }
+      subject.push(['2.5.4.6', val('c').toUpperCase(), 0x13]);
+    }
+    if (val('o')) subject.push(['2.5.4.10', val('o'), 0x0C]);
+    if (val('ou')) subject.push(['2.5.4.11', val('ou'), 0x0C]);
+    if (val('cn')) subject.push(['2.5.4.3', val('cn'), 0x0C]);
+    if (val('e')) subject.push(['1.2.840.113549.1.9.1', val('e'), 0x16]);
+    if (!subject.length) { toast('tick at least the CN', 'bad'); return; }
+    var sanList = [];
+    if (val('upn')) sanList.push(['upn', val('upn')]);
+    if (val('url')) sanList.push(['uri', val('url')]);
+    if (val('email')) sanList.push(['email', val('email')]);
+    if (val('dns')) sanList.push(['dns', val('dns')]);
+    var ascii = /^[\x21-\x7e]+$/;
+    if (sanList.some(function (s) { return s[0] !== 'upn' && !ascii.test(s[1]); }) || (val('e') && !ascii.test(val('e')))) {
+      toast('an e-mail address, a DNS name or a URL is plain letters without spaces', 'bad');
+      return;
+    }
+    var eku = [];
+    if (val('eku_client')) eku.push('1.3.6.1.5.5.7.3.2');
+    if (val('eku_sc')) eku.push('1.3.6.1.4.1.311.20.2.2');
+    if (val('eku_mail')) eku.push('1.3.6.1.5.5.7.3.4');
+    var pass = refs.p1.value;
+    if (pass && pass !== refs.p2.value) { toast('the two passphrases are not the same', 'bad'); refs.p2.focus(); return; }
+    if (!pass && !refs.plain.checked) { toast('type a passphrase for the key - or tick "Without a passphrase"', 'bad'); refs.p1.focus(); return; }
+    if (pass && pass.length < 8) { toast('a passphrase of 8 characters at least', 'bad'); refs.p1.focus(); return; }
+    busy(btn, true);
+    CSRW.make(st.kind, {subject: subject, san: sanList, ku: {ds: !!val('ds'), ke: !!val('ke')}, eku: eku}, pass).then(function (got) {
+      busy(btn, false);
+      st.made = got;
+      MODAL_TYPED = 0;
+      csrSave(base + '.key', got.key);
+      setTimeout(function () { csrSave(base + '.csr', got.csr); }, 400);
+      var d = refs.done;
+      clear(d);
+      var head = el('div', 'csr-made');
+      head.appendChild(krbTag('ok', 'made'));
+      head.appendChild(noI18n(el('span', 'mono', base + '.csr, ' + base + '.key')));
+      head.appendChild(el('span', 'small muted', pass ? 'the key encrypted with the passphrase' : 'the key NOT encrypted'));
+      d.appendChild(head);
+      var again = el('div', 'btnrow');
+      var b1 = cmdButton('Download the CSR again', 'download', 'small');
+      b1.onclick = function () { csrSave(base + '.csr', got.csr); };
+      var b2 = cmdButton('Download the key again', 'download', 'small');
+      b2.onclick = function () { csrSave(base + '.key', got.key); };
+      again.appendChild(b1);
+      again.appendChild(b2);
+      d.appendChild(again);
+      var blk = el('div', 'clk-code');
+      var h = el('div', 'clk-code-h');
+      h.appendChild(el('span', 'small muted', 'The request, to paste into the authority'));
+      var cp = cmdButton('Copy', 'copy', 'small');
+      cp.onclick = function () { copyText(got.csr, cp); };
+      h.appendChild(cp);
+      blk.appendChild(h);
+      var pre = noI18n(el('pre', 'mono small clk-pre csr-pem'));
+      pre.textContent = got.csr;
+      blk.appendChild(pre);
+      d.appendChild(blk);
+      dressButtons(d);
+      try { d.scrollIntoView({block: 'nearest'}); } catch (e) { /* none */ }
+    }).catch(function (e) { busy(btn, false); toast(String(e && e.message || e), 'bad'); });
+  }
+}
 function drawCert(part) {
   var host = $('cert-host-' + part), d = CERTC.d;
   if (!host || !d) return;
@@ -8274,6 +8946,12 @@ function drawCert(part) {
   explain(tb, 'Opens the certificate’s port in a new tab: the browser offers its certificate (the card asks for its PIN) and this card says who it would sign in to ' + (part === 'admin' ? 'these pages' : 'the enrolment pages') + ' and as what - nobody is signed in. The best way to find a wrong template before switching this part on (the port is served while either part is on).');
   tb.onclick = function () { certTry(part, tb); };
   if (d.cas.length && d.any_on) row.appendChild(tb);
+  if (CERTADMIN && p.directory) {
+    var lk = cmdButton('Look up a person…', 'search', 'small');
+    explain(lk, 'Find a person in the directory and see what to put into their certificate request: the CN, the UPN of the SAN, the SAN URL with their SID for the strong mapping (KB5014754) - each to copy - and whether a certificate with them signs in here.');
+    lk.onclick = function () { certLookup(part); };
+    row.appendChild(lk);
+  }
   host.appendChild(row);
   if (d.cas.length && !d.any_on) host.appendChild(el('p', 'note', 'Try my certificate comes once one of the parts is switched on: nginx serves the port only then.'));
   var t = CERTC.tried;

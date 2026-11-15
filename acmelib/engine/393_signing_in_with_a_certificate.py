@@ -2494,6 +2494,198 @@ def cl_portal_would(h, f):
                             cl_entry_same(h, 'portal', f, entry_upn))
 
 
+# ---- a person looked up for their certificate request (1.0.110) -------------------------------
+# "Look a person up for a certificate": a name typed (sAMAccountName, DOMAIN\name, UPN or e-mail)
+# looked up in the part's directory, as a certificate administrator looks a name up in the
+# directory card - and what goes into that person's certificate request: the CN, the UPN of the
+# Subject Alternative Name (otherName msUPN), the SAN URL of the strong mapping (KB5014754,
+# tag:microsoft.com,2022-09-14:sid:<SID>) and the request itself for openssl and certreq; their
+# account's state, the role (or the enrolment pages) a certificate of theirs would sign in to, and
+# which "Which account" mode takes it. Read only: nothing changed, the event says who looked.
+CL_LOOKUP_MOST = 256
+# Not in any name, UPN or address an account has: the characters a filter, a DN or AD itself
+# keeps for something else - refused as they are typed, never escaped and sent.
+CL_LOOKUP_BAD = re.compile(r'[\x00-\x1f\x7f*()"/\[\]:;|=,+?<>]')
+# Which "Which account" modes take a certificate of these values: the SID in the extension
+# AD CS writes itself, the SID in the SAN URL only (the requester's word: never strong here),
+# and no SID at all (the directory says none).
+CL_LOOKUP_ACCEPTS = {'sid_extension': ['upn', 'compat', 'strong'], 'san_url': ['upn', 'compat'],
+                     'none': ['upn', 'compat']}
+
+
+class CertLookupError(Exception):
+    def __init__(self, status, words):
+        Exception.__init__(self, words)
+        self.status = status
+
+
+def cl_lookup_name(text):
+    """The name typed, as the directory is asked: (name, [how, ...]). CertLookupError."""
+    s = str(text if text is not None else '').strip()
+    if not s:
+        raise CertLookupError(400, 'type a name: the account (novak), its UPN (novak@example.cz) '
+                                   'or its e-mail address')
+    if len(s) > CL_LOOKUP_MOST:
+        raise CertLookupError(400, 'that name is too long to be an account\'s')
+    if CL_LOOKUP_BAD.search(s) or s.count('\\') > 1 or s.count('@') > 1:
+        raise CertLookupError(400, 'that is no account name: an account, a UPN or an e-mail '
+                                   'address has none of * ( ) = , ; : " / [ ] | + ? < >')
+    if '\\' in s:
+        s = s.split('\\', 1)[1].strip()
+        if not s or '@' in s:
+            raise CertLookupError(400, 'DOMAIN\\name: the name after the backslash, please')
+    return s, (['upn', 'mail'] if '@' in s else ['sam'])
+
+
+def cl_dn_quoted(cn):
+    """A CN as an X.500 string for certreq's Subject: quoted where it holds a separator."""
+    return '"%s"' % cn.replace('"', '""') if re.search(r'[,+="\\<>#;\n]', cn) else cn
+
+
+def cl_lookup_snippets(cn, upn, sid, mail, sam):
+    """What goes into the request - openssl (a -config file, written by a here-document) and
+    certreq (an INF) -
+    with the e-mail address in the SAN and without it: {False: {...}, True: {...}}."""
+    out = {}
+    base = re.sub(r'[^A-Za-z0-9._-]', '_', sam or upn.split('@', 1)[0] or 'person')[:40] or 'person'
+    cnf_cn = re.sub(r'([\\$#])', r'\\\1', cn)
+    url = CL_SID_URL + sid if sid else ''
+    for with_mail in (False, True):
+        m = mail if with_mail and mail else ''
+        san = ['otherName:%s;UTF8:%s' % (CL_OID_UPN, upn)] if upn else []
+        if url:
+            san.append('URI:' + url)
+        if m:
+            san.append('email:' + m)
+        # A file, not -addext: the comma in the SAN URL (tag:microsoft.com,2022-09-14:...) splits
+        # an -addext list, and no quoting keeps it whole.
+        run = 'openssl req -new -config %s.cnf -newkey rsa:2048 -nodes -keyout %s.key -out %s.csr' \
+            % (base, base, base)
+        cnf = ['# ' + run, '[req]', 'prompt = no', 'utf8 = yes', 'string_mask = utf8only',
+               'distinguished_name = dn', 'req_extensions = ext', '', '[dn]', 'CN = ' + cnf_cn,
+               '', '[ext]']
+        if san:
+            cnf.append('subjectAltName = @san')
+        cnf += ['extendedKeyUsage = clientAuth, 1.3.6.1.4.1.311.20.2.2',
+                'keyUsage = critical, digitalSignature, keyEncipherment']
+        if san:
+            cnf += ['', '[san]']
+            if upn:
+                cnf.append('otherName.1 = %s;UTF8:%s' % (CL_OID_UPN, upn))
+            if url:
+                cnf.append('URI.1 = ' + url)
+            if m:
+                cnf.append('email.1 = ' + m)
+        inf = ['; certreq -new %s.inf %s.csr' % (base, base), '[Version]',
+               'Signature = "$Windows NT$"', '', '[NewRequest]',
+               'Subject = "CN=%s"' % cl_dn_quoted(cn).replace('"', '""'),
+               'KeyLength = 2048', 'KeySpec = 1', 'KeyUsage = 0xA0', 'Exportable = FALSE',
+               'MachineKeySet = FALSE', 'RequestType = PKCS10',
+               '; on a smart card or a YubiKey:',
+               '; ProviderName = "Microsoft Smart Card Key Storage Provider"', '',
+               '[EnhancedKeyUsageExtension]', 'OID = 1.3.6.1.5.5.7.3.2',
+               'OID = 1.3.6.1.4.1.311.20.2.2']
+        parts = (['upn=' + upn] if upn else []) + (['url=' + url] if url else []) + \
+            (['email=' + m] if m else [])
+        if parts:
+            inf += ['', '[Extensions]', '2.5.29.17 = "{text}"']
+            inf += ['_continue_ = "%s%s"' % (p, '&' if i < len(parts) - 1 else '')
+                    for i, p in enumerate(parts)]
+        lines = ["cat > %s.cnf <<'EOF'" % base] + cnf[1:] + ['EOF', run]
+        out[with_mail] = {'openssl': '\n'.join(lines), 'openssl_cnf': '\n'.join(cnf),
+                          'certreq_inf': '\n'.join(inf)}
+    return out
+
+
+def cl_lookup_would(h, part, upn, sid, kind):
+    """Whether a certificate with these values (kind: sid_extension - the SID written by AD CS;
+    san_url - the SID in the SAN URL only; none - no SID) signs in to the part now, as the
+    sign-in checks it: {ok, role, why, kind}. Nothing made."""
+    f = {'upn_one': upn, 'sid': sid if kind == 'sid_extension' else '',
+         'san_sids': [sid] if sid and kind != 'none' else []}
+    try:
+        if part == 'admin':
+            said = cl_admin_would(h, f)
+            return {'ok': True, 'role': said['role']}
+        _ad, _entry, groups = cl_portal_would(h, f)
+        return {'ok': True, 'role': 'portal', 'groups': groups[:10]}
+    except CertRefused as e:
+        # The words only (never the library's own, `more`): the directory unreachable is said
+        # as that, no host or error of it.
+        return {'ok': False, 'why': str(e.args[0] if e.args else e.why)[:400], 'kind': e.kind}
+
+
+def cl_lookup(h, name, part, by):
+    """A person looked up for their certificate request - the card's popup and acme
+    --cert-login-lookup. A dict; CertLookupError (400 a name that is none, 404 no directory,
+    503 the directory not answering - in words that say nothing of it)."""
+    if part not in CL_PARTS:
+        raise CertLookupError(400, 'admin or portal')
+    who, hows = cl_lookup_name(name)
+    if part == 'admin':
+        dname = krb_directory_name('admin')
+        ad = h.d.dirs.get(dname.lower()) if dname else None
+    else:
+        ad = portal_directory(h)
+    if ad is None:
+        raise CertLookupError(404, 'no directory is set (or switched on) for %s' % (
+            'administrators' if part == 'admin' else 'the enrolment pages'))
+    out = {'part': part, 'directory': ad.name, 'asked': who, 'on': cl_on(part),
+           'match': cl_match(part), 'match_words': CL_MATCH_WORDS[cl_match(part)]}
+    entry, how = None, hows[0]
+    try:
+        for how in hows:
+            entry = ad.find_user(who, how)
+            if entry:
+                break
+        groups = ad.groups_of(entry, True) if entry and not entry.get('many') else []
+    except LdapError as e:
+        log('a person looked up for a certificate: the directory %s: %s' % (ad.name, e), 'warn')
+        raise CertLookupError(503, 'the directory cannot be reached just now')
+    out['how'] = how
+    if not entry:
+        out['found'] = 'none'
+    elif entry.get('many'):
+        out['found'] = 'many'
+    else:
+        out['found'] = 'one'
+        sid = str(entry.get('sid') or '')
+        upn = str(entry.get('upn') or '')
+        mail = str(entry.get('mail') or '')
+        cn = cn_of(entry['dn'])
+        out.update({
+            'cn': cn, 'sam': entry.get('sam') or '', 'upn': upn, 'dn': entry['dn'],
+            'display': entry.get('display') or '', 'sid': sid, 'mail': mail,
+            'disabled': bool(entry.get('disabled')), 'locked': bool(entry.get('locked')),
+            'expired': bool(entry.get('expires') and entry['expires'] < time.time()),
+            'expires': entry.get('expires') or None,
+            'pw_expired': bool(entry.get('pw_expired')),
+            'unusable': entry_unusable(entry) or '',
+            'groups_count': len({dn.lower() for dn, _cn in groups}),
+            'groups': sorted({c for _dn, c in groups}, key=str.lower)[:30],
+            'san_upn': upn, 'san_url': CL_SID_URL + sid if sid else '',
+            'accepts': {k: v for k, v in CL_LOOKUP_ACCEPTS.items()
+                        if ((k != 'none') if sid else (k == 'none'))}})
+        if part == 'admin':
+            out['role'] = admin_role_for(groups, ad) or ''
+        else:
+            out['portal'] = bool(CONFIG.get('portal'))
+        snip = cl_lookup_snippets(cn, upn, sid, mail, out['sam'])
+        out['snippets'] = snip[False]
+        out['snippets_mail'] = snip[True]
+        out['openssl'] = snip[False]['openssl']
+        out['certreq_inf'] = snip[False]['certreq_inf']
+        if upn:
+            kinds = ('sid_extension', 'san_url') if sid else ('none',)
+            out['would'] = {k: cl_lookup_would(h, part, upn, sid, k) for k in kinds}
+    said = {'none': 'nobody by that name', 'many': 'more than one account answers to it'}.get(
+        out['found'], '%s (%s)' % (out.get('upn') or out.get('sam'), out.get('dn')))
+    h.store.add_event('accounts', '%s looked %s up in the directory %s for a certificate request '
+                      '(%s): %s' % (by, who[:120], ad.name, 'the administration' if part == 'admin'
+                                    else 'the enrolment pages', said), who=by)
+    return out
+
+
 def cl_refused_event(h, part, why, who=''):
     kind = 'sign-ins' if part == 'admin' else 'portal'
     log_sparing('cl-refused:%s:%s' % (part, str(why)[:40]),
@@ -2819,9 +3011,18 @@ def _certlogin_view(h):
 
 @route('POST', '/api/certlogin')
 def _certlogin_do(h):
-    s = h.me('fulladmin')
     b = h.body()
     act = str(b.get('action') or '')
+    if act == 'lookup':
+        # Look a person up for a certificate (1.0.110): read only - whoever may look a name up
+        # in the directory card (a certificate administrator), not only a full one.
+        s = h.me('certadmin')
+        try:
+            return {'lookup': cl_lookup(h, b.get('name'), str(b.get('part') or 'admin'),
+                                        s['name'])}
+        except CertLookupError as e:
+            raise ApiError(e.status, str(e))
+    s = h.me('fulladmin')
     if act in ('put', 'own'):
         if act == 'own':
             raw = cl_own_pem(h.store, b.get('id')).encode('ascii')

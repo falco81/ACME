@@ -794,6 +794,14 @@ def build_parser():
     g.add_argument('--cert-login-ocsp-clear', metavar='KEY', nargs='?', const='',
                    help='forget the OCSP answers kept (or the one of KEY) on every node - the next '
                         'sign-in asks again (all of them: asks; --yes)')
+    g.add_argument('--cert-login-lookup', metavar='NAME',
+                   help='look a person up for their certificate request (an account, DOMAIN\\name, '
+                        'a UPN or an e-mail address): the CN, the UPN and the SAN URL of the strong '
+                        'mapping (KB5014754), the SID, the account\'s state, the role it would '
+                        'get, and the request for openssl and certreq - read only')
+    g.add_argument('--part', choices=('admin', 'portal'), default='admin',
+                   help='with --cert-login-lookup: the administration (admin, the default) or the '
+                        'enrolment pages (portal)')
     g.add_argument('--api', nargs='+', metavar=('METHOD PATH', 'BODY'), help='any page\'s question '
                    'as the pages ask it: GET /api/ntp, or POST /api/osup \'{"action": "check"}\' '
                    '(BODY - : read from stdin, for one holding a secret) - the answer as JSON')
@@ -2655,6 +2663,12 @@ def cli_kerberos(args, pal, store):
             ('  (the way back: acme --set %s_password_off=0)' % part) if p['password_off'] else ''))
         if p.get('realm_warn'):
             print(pal.warn_line('  ' + p['realm_warn']))
+        nb = p.get('names') or {}
+        if p['directory']:
+            line = '  the domain (NetBIOS) %s%s' % (nb.get('netbios') or '-', {
+                'directory': ', read from the directory', 'kept': ', as last read from the directory',
+                'guessed': ' - guessed, could not read it from the directory'}.get(nb.get('from'), ''))
+            print(pal.warn_line(line) if nb.get('from') == 'guessed' else line)
         print('  ' + sso_signin_line(p.get('signin')))
     kt = v['keytab']
     if not kt:
@@ -2752,6 +2766,54 @@ def cli_cert_login(args, pal, store):
             'written' if n['written'] else 'not written', n['port'],
             'listening' if n['listening'] else 'not listening',
             ('  (%s)' % n['error']) if n['error'] else ''))
+    return 0
+
+
+def cli_cert_login_lookup(args, pal, store):
+    """acme --cert-login-lookup NAME [--part admin|portal] [--json] (1.0.110): as the card's
+    "Look a person up for a certificate"."""
+    d = Daemon(store, serve=False)
+    d.reload_directories()
+    try:
+        v = cl_lookup(_CliHere(store, d), args.cert_login_lookup, args.part,
+                      'root on %s' % node_name())
+    except CertLookupError as e:
+        raise SystemExit('acme: %s' % e)
+    if args.json:
+        print(json.dumps(v, default=str))
+        return 0 if v['found'] == 'one' else 1
+    if v['found'] == 'none':
+        print(pal.warn_line('the directory %s has nobody called %s' % (v['directory'], v['asked'])))
+        return 1
+    if v['found'] == 'many':
+        print(pal.warn_line('more than one account of the directory %s answers to %s - type the '
+                            'whole UPN or the sAMAccountName' % (v['directory'], v['asked'])))
+        return 1
+    state = v['unusable'] or 'in use'
+    print((pal.warn_line if v['unusable'] else pal.ok_line)('%s (%s): %s' % (
+        v['display'] or v['cn'], v['directory'], state)))
+    for k, words in (('cn', 'CN (the subject)'), ('san_upn', 'SAN UPN (otherName msUPN)'),
+                     ('san_url', 'SAN URL (strong mapping)'), ('sid', 'SID'),
+                     ('sam', 'sAMAccountName'), ('dn', 'DN'), ('mail', 'Mail')):
+        print('  %-27s %s' % (words, v.get(k) or '-'))
+    if args.part == 'admin':
+        print('  %-27s %s (%d group(s))' % ('Role here', v.get('role') or 'none',
+                                            v['groups_count']))
+    else:
+        print('  %-27s %d' % ('Groups', v['groups_count']))
+    for kind, words in (('sid_extension', 'with the SID extension (AD CS)'),
+                        ('san_url', 'with the SAN URL only'), ('none', 'with the UPN only')):
+        w = (v.get('would') or {}).get(kind)
+        if w:
+            print('  %-27s %s' % (words, ('signs in (%s)' % w['role']) if w['ok'] else
+                                  'refused: %s' % w['why']))
+    print('  which account (%s_certlogin_match) is %s; these values are taken by: %s' % (
+        args.part, v['match'], '; '.join('%s - %s' % (k, ', '.join(m))
+                                         for k, m in sorted(v['accepts'].items()))))
+    if not v['upn']:
+        print(pal.warn_line('the account has no userPrincipalName: no certificate of it signs in'))
+    print('\nopenssl:\n' + v['snippets']['openssl'])
+    print('\ncertreq (INF):\n' + v['snippets']['certreq_inf'])
     return 0
 
 
@@ -3136,6 +3198,8 @@ def cli_main(argv=None):
         return cli_sso(args, pal, store)
     if args.kerberos or args.kerberos_keytab or args.kerberos_keytab_off:
         return cli_kerberos(args, pal, store)
+    if args.cert_login_lookup is not None:
+        return cli_cert_login_lookup(args, pal, store)
     if args.cert_login or args.cert_login_ca or args.cert_login_ca_off:
         return cli_cert_login(args, pal, store)
     if args.cert_login_crl or args.cert_login_crl_fetch is not None or \

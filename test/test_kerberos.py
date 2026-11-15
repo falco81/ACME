@@ -44,6 +44,7 @@ PEOPLE = ('jnovak', 'edvorak', 'falco', 'marta', 'nested', 'nogroups', 'ghost', 
 ADMINS = 'CN=ISE Admins,OU=Groups,' + BASE
 WATCHERS = 'CN=ISE Watchers,OU=Groups,' + BASE
 CERT_USERS = 'CN=CERT_USERS,OU=Groups,' + BASE
+SVC_DN = 'CN=svc-web,OU=Service,' + BASE
 
 
 def free_port():
@@ -257,6 +258,16 @@ class Kerberos(unittest.TestCase):
         members = mockldap.GROUPS[CERT_USERS]['member']
         if 'CN=Marta Mobilni,OU=People,' + BASE not in members:
             members.append('CN=Marta Mobilni,OU=People,' + BASE)
+        # The domain's NetBIOS name is not its first DNS label (1.0.110): MERIT_NT for merit.cz -
+        # the card's commands must say what AD has. And the keytab's service account.
+        cls.cross_was = json.dumps(mockldap.CROSSREFS)
+        for one in mockldap.CROSSREFS.values():
+            one['nETBIOSName'] = ['MERIT_NT']
+        mockldap.PEOPLE[SVC_DN] = {
+            'sAMAccountName': ['svc-web'], 'userPrincipalName': ['svc-web@corpnet.loc'],
+            'objectClass': ['top', 'person', 'user'], 'userAccountControl': [str(0x200 | 0x10000)],
+            'msDS-SupportedEncryptionTypes': ['24'], 'memberOf': [],
+            'servicePrincipalName': ['HTTP/' + HOST], '_password': 'svc-web-password-1'}
         cls.ldap_port, cls.ldap_stop = mockldap.serve(0)
         TCC.CertsCore.setUpClass.__func__(cls)
         cls.spool = os.path.join(cls.tmp, 'sms')
@@ -282,6 +293,8 @@ class Kerberos(unittest.TestCase):
             mockldap.PEOPLE.update(people)
             mockldap.GROUPS.clear()
             mockldap.GROUPS.update(groups)
+            mockldap.CROSSREFS.clear()
+            mockldap.CROSSREFS.update(json.loads(cls.cross_was))
             proc = getattr(cls, 'kdc_proc', None)
             if proc is not None:
                 proc.terminate()
@@ -1156,6 +1169,44 @@ class Kerberos(unittest.TestCase):
             entry['memberOf'] = []
             mockldap.PEOPLE[old_dn] = entry
             self.must('POST', '/api/settings', {'settings': {'admin_krb': 0, 'portal_krb': 0}})
+
+    def test_23_the_domain_as_ad_names_it(self):
+        """The card's commands (setspn, ktpass -mapuser) with the domain's NetBIOS name as its
+        crossRef says it - MERIT_NT, not the realm's first label; guessed and said so where the
+        directory has none; the service account typed looked up."""
+        v = self.ok('GET', '/api/kerberos', session=self.ro)
+        names = v['parts']['admin']['names']
+        self.assertEqual((names['netbios'], names['dns'], names['from']),
+                         ('MERIT_NT', 'corpnet.loc', 'directory'))
+        self.assertEqual(v['domain'], 'MERIT_NT')
+        got = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py'), '--kerberos'],
+                             env=self.env, capture_output=True, text=True, timeout=120)
+        self.assertIn('the domain (NetBIOS) MERIT_NT, read from the directory', got.stdout)
+        # A directory whose configuration partition has no crossRef of its domain: guessed.
+        self.must('POST', '/api/directories', {'action': 'save', 'directory': {
+            'name': 'other', 'hosts': '127.0.0.1', 'port': self.ldap_port, 'tls': 'none',
+            'verify': 0, 'base': 'DC=other,DC=loc', 'bind_dn': 'CN=isemon,OU=Service,' + BASE,
+            'bind_pw': 'the-service-password', 'enabled': 1}})
+        self.must('POST', '/api/settings', {'settings': {'portal_directory': 'other'}})
+        try:
+            p = self.ok('GET', '/api/kerberos', session=self.ro)['parts']['portal']['names']
+            self.assertEqual((p['netbios'], p['from']), ('OTHER', 'guessed'))
+        finally:
+            self.must('POST', '/api/settings', {'settings': {'portal_directory': 'corp'}})
+        # The service account: there, AES 256, the password never expires, its SPN.
+        a = self.ok('POST', '/api/kerberos', {'action': 'account', 'part': 'admin',
+                                              'name': 'MERIT_NT\\svc-web'})['account']
+        self.assertEqual((a['found'], a['upn'], a['aes256'], a['pw_never_expires'], a['spns']),
+                         (True, 'svc-web@corpnet.loc', True, True, ['HTTP/' + HOST]))
+        a = self.ok('POST', '/api/kerberos', {'action': 'account', 'part': 'admin',
+                                              'name': 'svc-acme-http'})['account']
+        self.assertFalse(a['found'])
+        st, got = self.call('POST', '/api/kerberos', {'action': 'account', 'name': 'x*)('},
+                            self.admin)
+        self.assertEqual(st, 400, got)
+        st, got = self.call('POST', '/api/kerberos', {'action': 'account', 'name': 'svc-web'},
+                            self.ro)
+        self.assertEqual(st, 403, got)
 
     def test_22_the_rest(self):
         """The review's remarks: nginx's header room, the page's and the daemon's caps alike."""

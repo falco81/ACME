@@ -188,7 +188,77 @@ Under each part's switches, as otp's (*the authorities* are shared):
 - **online status (OCSP)** - see [The OCSP answers on the card](#the-ocsp-answers-on-the-card);
 - **each node** - heard from, the authorities written out (the same set as the database's),
   nginx listening on the port, or **the program that holds the port there**;
+- **Look up a person…** (a certificate administrator, as *Look a name up* in the directory
+  card) - see [A person's certificate request](#a-persons-certificate-request) below;
 - the guides: the AD CS template, a YubiKey, the browsers and the network.
+
+### A person's certificate request
+
+*Look up a person…* on the card of either part opens a popup: type an account (`novak`,
+`DOMAIN\novak`), a UPN or an e-mail address (Enter or **Find**; the names of the directory are
+offered as you type) and it is looked up in that part's directory - *The administration* or *The
+enrolment pages*, switched at the top. It shows:
+
+- **who** - the name, the UPN and the directory; *enabled*, *disabled*, *locked out*, *expired*,
+  *password expired*; for the administration the **role** their groups give here (or *no role
+  here*), for the portal whether its rules let them in; how many groups they are in;
+- **the values of the certificate**, each in its own box with a **Copy** button:
+
+  | | goes into the certificate as |
+  |---|---|
+  | **CN** | the subject (`CN=Jan Novak`) |
+  | **UPN** | the Subject Alternative Name, otherName *msUPN* (1.3.6.1.4.1.311.20.2.3) - what acme signs in by |
+  | **SAN URL** | `tag:microsoft.com,2022-09-14:sid:S-1-5-21-…` - the strong mapping of KB5014754 for a certificate *not* issued by AD CS from the directory |
+  | **SID** | the account's objectSid as text |
+  | sAMAccountName, DN, Mail | for reference (the mail as an rfc822Name SAN, if wanted) |
+
+- **a certificate with these values here** - run through the sign-in's own checks, nothing
+  made: *Issued by AD CS from the directory* (the SID extension 1.3.6.1.4.1.311.25.2 the
+  authority writes itself) and *A request of your own, another authority* (the SID in the SAN
+  URL only) - each *signs in* (as which role) or *refused* and why, with the modes of *Which
+  account* that take it: the SID extension **strong**, **compat** and **upn**; the SAN URL
+  **compat** and **upn** only. Windows takes the SAN URL as a strong mapping; acme does not
+  (the SID in the SAN is the requester's word - see the rules above), so a part set to *strong*
+  needs AD CS's extension;
+- **what to put into the request**, three tabs with **Copy**: *openssl* (a bash snippet writing
+  the `.cnf` and running `openssl req -config` - a file, not `-addext`: the comma in the SAN URL
+  splits an `-addext` list), *openssl .cnf* (the file alone), *certreq INF* (Windows:
+  `[Extensions] 2.5.29.17 = "{text}"` with `upn=…&url=…`); *The e-mail address in the SAN too*
+  adds the mail. Key usages Client Authentication and Smart Card Logon.
+
+**Make a CSR…** (beside *What to put into the request*) opens a second popup over it, filled in
+from the directory, everything ticked or not:
+
+- **where the key is made**: *In this browser* (the default) or *On a smart card or a YubiKey* -
+  the key is made on the card then, and the popup shows the `ykman` and `certreq` (smart card
+  provider) commands with these values instead of making anything;
+- **the key**: RSA 2048 (the default: every smart card and every Windows take it), RSA 3072,
+  RSA 4096, ECDSA P-256 or P-384;
+- **the subject**: CN (ticked), O, OU, C (two letters), E (the mail in the subject, old style);
+- **the Subject Alternative Name**: the UPN (otherName msUPN, ticked), the SAN URL of the strong
+  mapping (ticked when the directory says the SID), the e-mail address (rfc822Name, ticked when
+  there is one), a DNS name (empty);
+- **the key usages**: Digital signature and Key encipherment (RSA only), and the extended ones
+  Client Authentication and Smart Card Logon (ticked), Secure e-mail;
+- **the private key**: a passphrase typed twice (8 characters at least), or *Without a
+  passphrase* ticked - said plainly what that means.
+
+*Make the CSR* makes the key pair with the browser's own cryptography (WebCrypto) and writes and
+signs the PKCS#10 request in the page (a small DER writer of its own): the private key and the
+passphrase never leave the browser - acme is not asked anything. It downloads `<name>.key`
+(PKCS#8; with a passphrase an `ENCRYPTED PRIVATE KEY` - PBES2, PBKDF2-HMAC-SHA256 with 310 000
+rounds and AES-256-CBC, as openssl writes it, so `openssl pkey -in name.key` asks for it) and
+`<name>.csr` (PEM), shows the request to copy, and offers both downloads again while the popup is
+open. The key is made in the browser rather than by acme on purpose: a key made on the server
+would pass through the daemon, the PHP relay and the network once, and nothing would show it was
+not kept. WebCrypto is there in every browser the pages support, over https (and on
+`localhost`); where it is not, the popup says so and the openssl and certreq snippets of the
+first popup make the same request on a computer.
+
+Read only; each look-up is written to the events (*accounts*: who looked whom up). A name with
+`* ( ) = , ; : " / [ ] | + ? < >` in it, or longer than 256 characters, is refused as typed and
+never sent to the directory; a directory that does not answer is said as *the directory cannot be
+reached just now*. The objectSid is never sent anywhere but as the SID text.
 
 ### The CRLs on the card
 
@@ -563,6 +633,10 @@ acme --cert-login-ocsp                the OCSP answers kept: certificate, status
 acme --cert-login-ocsp-fetch [KEY]    Ask again - every responder (or one answer), on every node;
                                       exit 1 if one did not answer
 acme --cert-login-ocsp-clear [KEY]    Clear - every OCSP answer (asks; --yes) or one, on every node
+acme --cert-login-lookup NAME [--part admin|portal] [--json]
+                                      a person's certificate request: CN, UPN, SAN URL, SID, the
+                                      state and role, which mode takes it, openssl and certreq;
+                                      exit 1 when nobody (or more than one) answers to NAME
 acme --set admin_certlogin_ocsp=first   admin_certlogin_ocsp_url, admin_certlogin_crl_ldap, portal_... the same way
 acme --set admin_certlogin=1          the switches as any other setting: portal_certlogin,
 acme --set certlogin_port=8443          admin_certlogin_auto, admin_certlogin_match, admin_certlogin_crl, ...
