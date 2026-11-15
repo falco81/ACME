@@ -517,16 +517,16 @@ class TestPagesAndFiles(unittest.TestCase):
             self.assertIn(piece, js)
         for piece in ('.se-grid{', '.se-node{', '.se-verdict.ready{', '.se-avc-t td.num{'):
             self.assertIn(piece, css)
-        self.assertFalse(re.search(r'(?<!as )\botp\b', js[js.index('var SE = {'):]))
-        self.assertNotIn('RADIUS', js[js.index('var SE = {'):])
+        self.assertFalse(re.search(r'(?<!as )\botp\b', js[js.index('var SE = {'):js.find('/* ==== ', js.index('var SE = {'))]))
+        self.assertNotIn('RADIUS', js[js.index('var SE = {'):js.find('/* ==== ', js.index('var SE = {'))])
         # 1.0.59: the old note lost at an upgrade said, a port type left out shown, a node busy
         # with a step not waited for, a report newer by the node's own clock.
         for piece in ('d.since_lost', 's.left_out', 'r.busy', '> (before[n] || 0)'):
-            self.assertIn(piece, js[js.index('var SE = {'):])
+            self.assertIn(piece, js[js.index('var SE = {'):js.find('/* ==== ', js.index('var SE = {'))])
 
     def test_every_text_of_the_card_in_czech(self):
         js = self.read('web', 'assets', 'admin.js')
-        block = js[js.index('var SE = {'):]
+        block = js[js.index('var SE = {'):js.find('/* ==== ', js.index('var SE = {'))]
         cs = json.loads(self.read('web', 'lang', 'cs.json'))
         src = {v['source'] for sec in ('strings', 'patterns', 'rich') for v in cs[sec].values()}
         missing = []
