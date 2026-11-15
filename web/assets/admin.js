@@ -8195,9 +8195,10 @@ function drawCert(part) {
   host.appendChild(el('h3', 'peek-h', 'Each node'));
   krbTable(host, ['Node', 'Heard from', 'The authorities', 'nginx on port ' + d.port, 'Trouble'], d.nodes.map(function (n) {
     return [noI18n(el('span', 'mono', n.node)), krbTag(n.heard ? 'ok' : 'crit', n.heard ? 'yes' : 'no'),
-      d.cas.length ? krbTag(n.written && n.same ? 'ok' : 'warn', n.written && n.same ? 'written' : (n.written ? 'an older set' : 'not written')) : krbTag('dim', 'none to write'),
+      d.cas.length ? krbTag(n.written && n.same ? 'ok' : 'warn', n.written && n.same ? 'all written out' : (n.written ? 'an older set' : 'not written')) : krbTag('dim', 'none to write'),
       n.busy ? krbTag('crit', /could not listen/.test(n.busy) ? 'nginx could not listen' : /another site of nginx/.test(n.busy) ? 'another site of nginx' : 'taken by another program') : (d.any_on ? krbTag(n.listening ? 'ok' : 'warn', n.listening ? 'listening' : 'not listening') : krbTag('dim', 'not served (off)')),
-      noI18n(el('span', 'small ' + (n.busy ? 'bad' : 'muted'), n.busy || n.error || ''))];
+      /* a sentence of the daemon's, translated as one (its port, node and pid in the pattern's slots) */
+      el('span', 'small ' + (n.busy ? 'bad' : 'muted'), n.busy || n.error || '')];
   }));
   /* AD CS and a YubiKey. */
   host.appendChild(el('h3', 'peek-h', 'The people’s certificates (AD CS)'));
@@ -8271,7 +8272,7 @@ function certCrlAsk(act, url) {
     CERTC.crlAsk = null;
     CERTC.crlSaid = ask;
     var bad = Object.keys(ask.nodes).filter(function (n) { return !ask.nodes[n] || !ask.nodes[n].ok; });
-    if (ocsp) toast(act === 'ocsp_clear' ? 'cleared' : (bad.length ? 'asked - not every responder answered' : 'every responder answered'), bad.length && act !== 'ocsp_clear' ? 'warn' : 'good');
+    if (ocsp) toast(act === 'ocsp_clear' ? 'cleared on every node' : (bad.length ? 'asked - not every responder answered' : 'every responder answered'), bad.length && act !== 'ocsp_clear' ? 'warn' : 'good');
     else toast(act === 'clear' ? 'cleared on every node' : (bad.length ? 'fetched - not everything on every node' : 'fetched on every node'), bad.length ? 'warn' : 'good');
     loadCert();
   }).then(function (x) {
@@ -8307,19 +8308,28 @@ function certCrlSaid(host, kind) {
     else {
       var rows = got.crls || [], ok = rows.filter(function (r) { return r.ok; }).length;
       var clearing = ask.act === 'clear' || ask.act === 'ocsp_clear';
-      if (clearing) line.appendChild(krbTag('ok', 'cleared'));
+      if (clearing) line.appendChild(krbTag('ok', 'cleared out'));
       else line.appendChild(krbTag(ok === rows.length ? 'ok' : 'crit', ok === rows.length ? (ocsp ? 'answered' : 'fetched') : 'not everything'));
       line.appendChild(el('span', 'muted small', clearing ? rows.length + ' forgotten' : ok + ' of ' + rows.length + (ocsp ? ' answered' : ' fetched')));
       rows.filter(function (r) { return !r.ok; }).forEach(function (r) {
         var e = el('div', 'cert-crl-said-e small');
         e.appendChild(noI18n(el('span', 'mono', r.url)));
-        e.appendChild(noI18n(el('span', 'bad', r.err || '')));
+        e.appendChild(el('span', 'bad', r.err || ''));
         line.appendChild(e);
       });
     }
     box.appendChild(line);
   });
   host.appendChild(box);
+}
+/* A node's last error in the CRL and OCSP details: the daemon's sentence translated as one (an
+   address or a name inside it stays in the pattern's slot), its time apart and never translated. */
+function certNodeErr(n) {
+  if (!n.err) return el('span', 'small muted', '–');
+  var w = el('span', 'small');
+  w.appendChild(el('span', 'small bad', n.err));
+  if (n.err_at) w.appendChild(noI18n(el('span', 'small muted', ' (' + stamp(n.err_at) + ')')));
+  return w;
 }
 function certCrls(host, p) {
   var d = CERTC.d, crls = d.crls || [];
@@ -8456,7 +8466,7 @@ function certCrls(host, p) {
     if (c.issuer) fact('Issued by', noI18n(el('span', 'mono', c.issuer)));
     if ((c.of || []).length) fact('Named by the authority', noI18n(el('span', 'mono', c.of.join('; '))));
     fact('Type', c.delta ? 'delta CRL (Freshest CRL) - applied over its base CRL' : 'base CRL');
-    if (c.err) fact('Last error', [noI18n(el('span', 'bad', c.err)), noI18n(el('span', 'muted small', c.err_at ? ' ' + stamp(c.err_at) : ''))]);
+    if (c.err) fact('Last error', [el('span', 'bad', c.err), noI18n(el('span', 'muted small', c.err_at ? ' ' + stamp(c.err_at) : ''))]);
     if (c.via === 'ldap') fact('Read from', 'the directory (LDAP), with its connection above - never the host in the address');
     var addr = el('div', 'cert-crl-addr');
     addr.appendChild(copyOnClick(noI18n(el('span', 'mono', c.url)), c.url, 'the address copied'));
@@ -8477,7 +8487,7 @@ function certCrls(host, p) {
         nc('Fetched', n.ok ? noI18n(el('span', '', stamp(n.at))) : krbTag('crit', 'not had'));
         nc('Next update', noI18n(el('span', '', n.next ? stamp(n.next) : '–')));
         nc('CRL number', noI18n(el('span', 'mono', n.number || '–')));
-        nc('Last error', noI18n(el('span', 'small ' + (n.err ? 'bad' : 'muted'), n.err ? n.err + (n.err_at ? ' (' + stamp(n.err_at) + ')' : '') : '–')));
+        nc('Last error', certNodeErr(n));
         nt.appendChild(r);
       });
       var nw = el('div', 'cert-crl-nw');
@@ -8655,7 +8665,7 @@ function certOcsp(host, p) {
     if (c.size) fact('Size', data(bytes(c.size)));
     fact('Certificate', noI18n(el('span', 'mono', c.subject || '–')));
     fact('Issued by', noI18n(el('span', 'mono', c.issuer || '–')));
-    if (c.err) fact('Last error', [noI18n(el('span', 'bad', c.err)), noI18n(el('span', 'muted small', c.err_at ? stamp(c.err_at) : ''))]);
+    if (c.err) fact('Last error', [el('span', 'bad', c.err), noI18n(el('span', 'muted small', c.err_at ? stamp(c.err_at) : ''))]);
     var addr = el('div', 'cert-crl-addr');
     addr.appendChild(copyOnClick(noI18n(el('span', 'mono', c.url)), c.url, 'the address copied'));
     var cpb = cmdButton('Copy', 'copy', 'small');
@@ -8675,7 +8685,7 @@ function certOcsp(host, p) {
         nc('Status', krbTag(ns[0], ns[1]));
         nc('Asked', noI18n(el('span', '', n.at ? stamp(n.at) : '–')));
         nc('Next update', noI18n(el('span', '', n.next ? stamp(n.next) : '–')));
-        nc('Last error', noI18n(el('span', 'small ' + (n.err ? 'bad' : 'muted'), n.err ? n.err + (n.err_at ? ' (' + stamp(n.err_at) + ')' : '') : '–')));
+        nc('Last error', certNodeErr(n));
         nt.appendChild(r);
       });
       var nw = el('div', 'cert-crl-nw');
