@@ -6,7 +6,22 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.109 - not released
 
-(nothing yet)
+- **The Zabbix 7.0 template, tried on a real Zabbix 7.0.32** polling a running acme over SNMPv3:
+  it imports (a real server refused it before: the walk of the certificates was longer than
+  Zabbix's 512 characters - the table is walked whole now), every item and discovered item gets
+  values, none is *not supported*, the triggers fire as they should and none stays *unknown*
+  (docs/monitoring.md, Zabbix).
+- **Its dashboard puts the certificates first**: *Certificates* (counts, each certificate's days
+  left and state, its problems with owner and source), *Deployments and tests* (each deployment
+  and test by its result, their problems), *Authorities and CRLs*, then the system, the cluster
+  and backups, sign-in. Tiles plain, red or orange only when something is wrong; graphs in the
+  colours of the states.
+- **Its problems say one thing once**: a certificate expired, expiring within 7 or within 30
+  days - one of them at a time; *renewal failed* also for a certificate not renewed by itself;
+  a failed deployment or test a problem of its own (not again on its certificate), a test's
+  warning and a failing module only information; SELinux not looked at yet (unknown) no longer "not enforcing".
+  Value maps in words (*pending approval*, not *pendingApproval*); a deployment's target tagged
+  `deploy` (the template's `target: acme` took the name).
 
 ## 1.0.108 - 2026-11-15
 

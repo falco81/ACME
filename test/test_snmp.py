@@ -214,10 +214,21 @@ class Template(unittest.TestCase):
         graphs = {g['name'] for g in self.data['zabbix_export']['graphs']}
         for d in self.tpl['dashboards']:
             self.assertGreaterEqual(len(d['pages']), 4)
+            # the certificates first, then their deployments and tests (1.0.109)
+            self.assertEqual([p['name'] for p in d['pages']][:3], [
+                'Certificates', 'Deployments and tests', 'Authorities and CRLs'])
             for p in d['pages']:
+                refs = []
                 for w in p['widgets']:
                     self.assertIn(w['type'], ('item', 'graph', 'honeycomb', 'gauge', 'piechart',
-                                              'itemhistory', 'svggraph', 'graphprototype'))
+                                              'itemhistory', 'svggraph', 'graphprototype',
+                                              'problems'))
+                    self.assertLessEqual(int(w['x']) + int(w['width']), 72, w)
+                    refs += [f['value'] for f in w['fields'] if f['name'] == 'reference']
+                    # a field's value fits in Zabbix's widget_field.value_str (255)
+                    for f in w['fields']:
+                        if isinstance(f['value'], str):
+                            self.assertLessEqual(len(f['value']), 255, f)
                     for f in w['fields']:
                         if f['type'] == 'ITEM':
                             self.assertIn(f['value']['key'], keys)
@@ -226,6 +237,7 @@ class Template(unittest.TestCase):
                         elif f['name'] == 'items.0':
                             rx = '^' + re.escape(f['value']).replace(r'\*', '.*') + '$'
                             self.assertTrue(any(re.match(rx, n) for n in names), f['value'])
+                self.assertEqual(len(refs), len(set(refs)))
 
     def test_triggers_and_discoveries(self):
         rules = {r['key']: r for r in self.tpl['discovery_rules']}
@@ -236,8 +248,20 @@ class Template(unittest.TestCase):
         names = [t['name'] for p in certs['item_prototypes'] for t in p.get('trigger_prototypes') or []]
         for want in ('has expired', 'expires in less than {$ACME.CERT.CRIT:"{#CERT.NAME}"} days',
                      'expires in less than {$ACME.CERT.WARN:"{#CERT.NAME}"} days',
-                     'renewal failed', 'deployment(s) failed', 'test(s) failing'):
+                     'renewal failed'):
             self.assertTrue(any(want in n for n in names), want)
+        # a failed deployment or test: a problem of its own, not one more of its certificate
+        # (1.0.109, seen on a real Zabbix 7.0: the two said the same twice)
+        for r, want in (('acme.deploy.discovery', 'Deployment of {#DEPLOY.CERT} to '
+                                                  '{#DEPLOY.TARGET} failed'),
+                        ('acme.test.discovery', 'Test {#TEST.NAME} of {#TEST.CERT} fails')):
+            got = [t['name'] for p in rules[r]['item_prototypes']
+                   for t in p.get('trigger_prototypes') or []]
+            self.assertIn('acme: ' + want, got)
+        self.assertFalse(any('deployment(s) failed' in n or 'test(s) failing' in n for n in names))
+        # the walks fit in Zabbix's snmp_oid (512 characters)
+        for i in self.tpl['items']:
+            self.assertLessEqual(len(i.get('snmp_oid', '')), 512, i['key'])
         node = [t['name'] for i in self.tpl['items'] for t in i.get('triggers') or []] + \
             [t['name'] for t in self.data['zabbix_export']['triggers']]
         for want in ('The database does not answer', 'Replication lost', 'Replication behind',

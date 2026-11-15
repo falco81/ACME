@@ -208,7 +208,9 @@ What it holds:
 
 - **SNMP walks, everything else dependent on them** (Zabbix 7.0's `walk[...]` items, *SNMP walk
   value*, *SNMP walk to JSON*): one bulk walk of the node every `{$ACME.INTERVAL}` (1m), one of
-  each table every `{$ACME.INTERVAL.TABLES}` (5m) - not a GET for each value.
+  each table every `{$ACME.INTERVAL.TABLES}` (5m) - not a GET for each value. A table is
+  walked by its columns, or whole (the certificates: their columns do not fit in Zabbix's
+  `snmp_oid` of 512 characters).
 - **Items of the node** (about 150): version and a newer one, uptime, maintenance; the database
   (up, latency, size, guard); the alerts (bad, warnings, the worst, and *Alerts now* - the list,
   one a line); the certificates counted; acme's DNS server; the cluster (mode, VIP address and
@@ -219,18 +221,23 @@ What it holds:
 - **Discoveries** (11), each with item, trigger and graph prototypes: *Certificates*
   (`{#CERT.NAME}`, `{#CERT.CN}`, `{#CERT.ISSUER}`, `{#CERT.OWNER}`...: days left, expires,
   state, renewed by itself, deployments and tests failing, failures in a row, last error, last
-  renewal, serial, the twin of a dual one - only discovered for a dual certificate),
+  renewal, serial, how it came, the twin of a dual one - only discovered for a dual
+  certificate),
   *Deployments*, *Tests*, *Sources, validations, targets and tests* (the modules),
   *Authorities*, *Certificates of the pages*, *Cluster nodes*, *File systems*, *Backup places*,
   *CRLs* of the sign-in with a certificate, *Log destinations*. Filters by macros
   (`{$ACME.CERT.NAME.MATCHES}`, `{$ACME.CERT.NAME.NOT_MATCHES}`, `{$ACME.CERT.OWNER.MATCHES}`,
   `{$ACME.TARGET.MATCHES}`..., those switched off left out unless `{$ACME.*.ENABLED.MATCHES}`
   is `.*`).
-- **Triggers** (about 75): a certificate expired (disaster), ending within
-  `{$ACME.CERT.CRIT}` (7) days (high) or `{$ACME.CERT.WARN}` (30) days (warning) - per
-  certificate with a context, `{$ACME.CERT.WARN:"web"}` = 60; its renewal failed (with the
-  error); deployments or tests failing; a deployment failed or waiting a day; a test failing or
-  not run lately; a module failing; an authority ending (`{$ACME.CA.WARN}`, `{$ACME.CA.CRIT}`)
+- **Triggers** (about 75), the certificates' clearest and worst: *Certificate web has expired*
+  (disaster), *...expires in less than 7 days* (high, `{$ACME.CERT.CRIT}`) or *...in less than 30
+  days* (warning, `{$ACME.CERT.WARN}`) - three ranges, one problem for a certificate at a time;
+  per certificate with a context, `{$ACME.CERT.WARN:"web"}` = 60; *Certificate api: renewal
+  failed* (high, the error as its operational data - whether it renews by itself or not);
+  *Deployment of www to old-appliance failed* (high, the target's words); *Test SMTP relay of
+  mail fails* (average; unreachable, another certificate...), *...warns* (information), not
+  run lately; a deployment waiting a day; a module whose last use failed (information - its
+  deployment, test or renewal is the problem); an authority ending (`{$ACME.CA.WARN}`, `{$ACME.CA.CRIT}`)
   or its CRL late; the certificate of the pages ending; a node not heard from, on another
   version, keepalived in fault; the VIP address held by no node or both; replication broken,
   lost or behind (`{$ACME.REPL.BEHIND.MAX}`); the nodes apart; the database down, slow, lost
@@ -251,13 +258,27 @@ What it holds:
   file system's space as a pie, an authority's days left...).
 - **Tags** on everything: `component` (certificate, deployment, test, module, authority, web,
   cluster, storage, backup, signin, logs, cpu, memory...), and `cert`, `owner`, `issuer`,
-  `target`, `node`, `filesystem` on what was discovered; `scope` on the triggers.
-- **A dashboard** (*acme*, on each host linked) with five pages: *Overview* (tiles of the
-  version, alerts, certificates kept, valid, expiring, failed, expired, deployments and tests
-  failing, the database; a honeycomb of every certificate's days left; gauges of CPU and memory;
-  graphs; the alerts now), *Certificates* (honeycombs of days left, deployments, tests,
-  authorities, modules, the pages' certificates; a pie of the states), *System*, *Cluster and
-  backups*, *Sign-in and services*.
+  `deploy` (the target of a deployment), `test`, `authority`, `crl`, `place`, `node`,
+  `filesystem` on what was discovered (problems carry them: the certificate, its owner and
+  source in *Problems*); `scope` on the triggers.
+- **A dashboard** (*acme*, on each host linked: *Monitoring → Hosts → Dashboards*), the
+  certificates first, six pages:
+  1. *Certificates* - tiles of the certificates kept, valid, expiring soon, expired, whose
+     renewal failed, renewals failed in 24 h (plain, orange or red only when there is
+     something); a honeycomb of every certificate's days left (red within 7 days or expired,
+     orange within 30) and one of their states; *Certificate problems* - expired, expiring,
+     renewal failed, worst first, with the certificate, its owner and source; a pie and a graph
+     of the states.
+  2. *Deployments and tests* - tiles of the deployments, failed, done and failed in 24 h, the
+     tests and those failing; a honeycomb of every deployment (certificate > target) and every
+     test (certificate: test) coloured by its result; their problems with the target's or the
+     test's words; the jobs of 24 hours; the modules (red: their last use failed).
+  3. *Authorities and CRLs* - acme's authorities (days left, hours to the next CRL), the CRLs
+     of the sign-in with a certificate, the certificate of the pages; their problems.
+  4. *System*, 5. *Cluster and backups* (with the places backups go), 6. *Sign-in and
+     services*.
+  A honeycomb of states shows the name alone, its colour the state (the colours in its title):
+  Zabbix 7.0's honeycomb shows a number, not the words of a value map.
 
 ### Importing it
 
@@ -340,11 +361,23 @@ The trap is matched to the host by its source address: the node's own.
 The template is made the same way each time and checked by `test/test_snmp.py`: YAML that
 parses, every UUID a UUIDv4 of its own, every key once, every OID it walks or reads an object of
 ACME-MIB and answered by a running agent, every value map, item, graph and macro it names
-there, every table of the MIB discovered. It was also put through Zabbix 7.0's own import code
-(7.0.32: the YAML reader, the import schema, the converters and normalizer of an import, the
-item key parser, the trigger expression and calculated formula parsers and validators, the
-API's checks of preprocessing steps and UUIDs, the fields each dashboard widget has) - not
-imported into a running Zabbix server.
+there, every table of the MIB discovered, the walks within Zabbix's 512 characters, the widgets'
+fields within 255.
+
+**On a real Zabbix 7.0.32 (1.0.109)** - the official server, web and PostgreSQL 16 images - polling
+a running acme over SNMPv3 (authPriv, SHA-256/AES-128, the user and passphrases as the host's
+macros) with certificates valid, expiring in 11 and 2 days, expired, a renewal failed, an own
+authority with its CRL, deployments to targets that work and one that fails, tests that pass,
+warn, are unreachable or find another certificate, backups sent to two places (one failing) and
+two CRLs of the sign-in (one out of date): `configuration.import` with every rule (create,
+update, delete missing - dashboards, value maps, discoveries, graphs, triggers) takes it; every
+item and item prototype gets values, none *not supported*; the discoveries find their rows (7
+certificates, 6 deployments, 7 tests, 15 modules, the authority, 2 backup places, 2 CRLs, the
+file system; no nodes, log destinations or pages' certificate on a single node without them);
+the triggers fire as they should (the expired certificate, the two expiring, the failed
+renewal, the failed deployment, the failing and warning tests, the failed backup place, the
+out-of-date CRL, a full disk) and none stays *unknown*; value maps, units and the dashboards
+were looked at in the frontend. Not tried there: the traps (no snmptrapd), a cluster.
 
 ## The alerts of the database and of the VIP address (1.0.194)
 

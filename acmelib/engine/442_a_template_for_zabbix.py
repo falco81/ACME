@@ -318,7 +318,8 @@ ZBX_ITEMS = [
     # services
     ('acmeIsemonOn', 'acme.isemon', 'Logs to isemon', 'UNSIGNED', '', 'logs', {}),
     ('acmeSiemOn', 'acme.siem', 'Logs to syslog (SIEM)', 'UNSIGNED', '', 'logs', {}),
-    ('acmeShipDropped', 'acme.logs.dropped', 'Log lines dropped', 'UNSIGNED', '', 'logs', {}),
+    ('acmeShipDropped', 'acme.logs.dropped', 'Log lines dropped', 'UNSIGNED', '', 'logs',
+     {'nodiscard': 1}),
     ('acmeMailWaiting', 'acme.mail.waiting', 'Mails waiting', 'UNSIGNED', '', 'mail', {}),
     ('acmeMailFailed', 'acme.mail.failed', 'Mails failed', 'UNSIGNED', '', 'mail', {}),
     ('acmeMailSent', 'acme.mail.sent', 'Mails sent (kept in the queue)', 'UNSIGNED', '', 'mail', {}),
@@ -367,7 +368,7 @@ ZBX_TABLES = [
          ('acmeManagedCertNextTry', 'next_try', 'next try', 'UNSIGNED', 'unixtime', {}),
          ('acmeManagedCertVersion', 'version', 'version', 'UNSIGNED', '', {}),
          ('acmeManagedCertSerial', 'serial', 'serial number', 'CHAR', '', {}),
-         ('acmeManagedCertSource', 'source', 'source', 'CHAR', '', {}),
+         ('acmeManagedCertSource', 'source', 'how it came', 'CHAR', '', {}),
          ('acmeManagedCertNames', 'names', 'names', 'UNSIGNED', '', {}),
          ('acmeManagedCertAltDaysLeft', 'alt_days', 'twin (dual) days left', 'FLOAT', '!days',
           {'nodiscard': 1, 'alt': 1})]},
@@ -379,7 +380,7 @@ ZBX_TABLES = [
      'filter': [('{#DEPLOY.TARGET}', '{$ACME.TARGET.MATCHES}', 'MATCHES_REGEX'),
                 ('{#DEPLOY.TARGET}', '{$ACME.TARGET.NOT_MATCHES}', 'NOT_MATCHES_REGEX'),
                 ('{#DEPLOY.ENABLED}', '{$ACME.DEPLOY.ENABLED.MATCHES}', 'MATCHES_REGEX')],
-     'tags': [('cert', '{#DEPLOY.CERT}'), ('target', '{#DEPLOY.TARGET}')],
+     'tags': [('cert', '{#DEPLOY.CERT}'), ('deploy', '{#DEPLOY.TARGET}')],
      'items': [
          ('acmeDeployStateNum', 'state', 'state', 'UNSIGNED', '', {}),
          ('acmeDeployFails', 'fails', 'failures in a row', 'UNSIGNED', '', {}),
@@ -430,7 +431,7 @@ ZBX_TABLES = [
      'component': 'web', 'name': 'Certificates of the pages discovery', 'delay': '{$ACME.INTERVAL.TABLES}',
      'macros': [('{#PAGES.TARGET}', 'acmeCertTarget'), ('{#PAGES.CN}', 'acmeCertName')],
      'key': '{#PAGES.TARGET}', 'label': 'Pages of {#PAGES.TARGET} ({#PAGES.CN})',
-     'filter': [], 'tags': [('target', '{#PAGES.TARGET}')],
+     'filter': [], 'tags': [('pages', '{#PAGES.TARGET}')],
      'items': [
          ('acmeCertDaysLeft', 'days', 'certificate days left', 'FLOAT', '!days', {'nodiscard': 1}),
          ('acmeCertEnd', 'not_after', 'certificate expires', 'UNSIGNED', 'unixtime', {})]},
@@ -821,9 +822,6 @@ def zabbix_template(mib_text=None):
          'No SNMP data collection', 'WARNING', 'The agent of acme does not answer: SNMPv3 off, '
          'the user or a passphrase not the one set, the address not among the managers\' '
          '(Settings, Monitoring), or the node down.', tags=(('scope', 'availability'),))
-    trig('acme.certs.expired', last('acme.certs.expired') + '>0', 'Certificates expired',
-         'HIGH', '{ITEM.LASTVALUE1} certificate(s) kept have expired - each is a trigger of its '
-         'own in the discovery of the certificates.', tags=(('scope', 'availability'),))
     trig('acme.jobs.failed', last('acme.jobs.failed') + '>0', 'Certificate jobs failed in the '
          'last 24 hours', 'INFO', 'Renewals, issues or deployments failed in the last 24 hours '
          '(Certificates, Jobs).', tags=(('scope', 'notice'),))
@@ -884,7 +882,7 @@ def zabbix_template(mib_text=None):
     trig('acme.hand', last('acme.hand') + '>0', 'Something waits to be done by hand', 'WARNING',
          'Settings, Things to do by hand: a command after an update, SELinux switched off...',
          tags=(('scope', 'notice'),))
-    trig('acme.selinux', '%s<>4 and %s<>1' % (last('acme.selinux'), last('acme.selinux')),
+    trig('acme.selinux', '%s>=2 and %s<=3' % (last('acme.selinux'), last('acme.selinux')),
          'SELinux is not enforcing', 'INFO', 'SELinux on the node is {ITEM.LASTVALUE1} '
          '(Settings, SELinux).', tags=(('scope', 'security'),))
     trig('acme.backup.age', '%s>{$ACME.BACKUP.AGE.MAX} and %s=1' % (last('acme.backup.age'),
@@ -959,7 +957,7 @@ def zabbix_template(mib_text=None):
         rules.append(rule)
 
     # ---- graphs ---------------------------------------------------------------------------
-    def g(name, keys, kind='NORMAL', extra=None):
+    def g(name, keys, kind='NORMAL', extra=None, colors=None):
         out = {'uuid': _zbx_uuid('graph', name), 'name': 'acme: ' + name}
         if kind != 'NORMAL':
             out['type'] = kind
@@ -971,10 +969,13 @@ def zabbix_template(mib_text=None):
                 gi['sortorder'] = str(i)
             if kind in ('NORMAL', 'STACKED'):
                 gi['drawtype'] = 'GRADIENT_LINE' if kind == 'NORMAL' else 'FILLED_REGION'
-            gi['color'] = ZBX_PALETTE[i % len(ZBX_PALETTE)]
+            gi['color'] = colors[i] if colors else ZBX_PALETTE[i % len(ZBX_PALETTE)]
             gi['item'] = {'host': H, 'key': k}
             out['graph_items'].append(gi)
         return out
+    # the colours of the states, as the dashboards have them
+    ok_, blue_, red_, orange_, brown_, grey_ = ('43A047', '1E88E5', 'E53935', 'FF8F00', '6D4C41',
+                                                '90A4AE')
     graphs = [
         g('CPU utilization', ['acme.cpu.util'], extra={'ymin_type_1': 'FIXED',
                                                        'ymax_type_1': 'FIXED'}),
@@ -982,13 +983,17 @@ def zabbix_template(mib_text=None):
         g('Memory', ['acme.mem.used', 'acme.swap.used', 'acme.mem.total']),
         g('Disk I/O', ['acme.disk.read', 'acme.disk.written']),
         g('Network traffic', ['acme.net.in', 'acme.net.out']),
-        g('Certificates by state', ['acme.certs.ok', 'acme.certs.waiting', 'acme.certs.expiring',
-                                    'acme.certs.failed', 'acme.certs.expired'], 'STACKED'),
+        # each certificate once (one expiring soon is valid too: not stacked on top of it)
+        g('Certificates by state', ['acme.certs.ok', 'acme.certs.waiting', 'acme.certs.failed',
+                                    'acme.certs.expired'], 'STACKED',
+          extra={'show_triggers': 'NO'}, colors=(ok_, blue_, red_, brown_)),
         g('Certificate jobs (24 h)', ['acme.renewals.ok', 'acme.renewals.failed',
                                       'acme.deploys.ok24h', 'acme.deploys.failed24h',
-                                      'acme.jobs.running']),
+                                      'acme.jobs.running'],
+          extra={'show_triggers': 'NO'}, colors=(ok_, red_, blue_, orange_, grey_)),
         g('Deployments and tests', ['acme.deploys.total', 'acme.deploys.failed', 'acme.tests.total',
-                                    'acme.tests.failed', 'acme.modules.failing']),
+                                    'acme.tests.failed', 'acme.modules.failing'],
+          extra={'show_triggers': 'NO'}, colors=(blue_, red_, ok_, orange_, '8E24AA')),
         g('Alerts', ['acme.alerts.bad', 'acme.alerts.warn'], 'STACKED'),
         g('Database latency', ['acme.db.latency']),
         g('Database size', ['acme.db.size']),
@@ -999,7 +1004,7 @@ def zabbix_template(mib_text=None):
         g('Sign-ins', ['acme.sessions', 'acme.lockouts', 'acme.signin.fails']),
         g('Mail queue', ['acme.mail.waiting', 'acme.mail.failed']),
         g('Certificates valid', ['acme.certs.ok', 'acme.certs.waiting', 'acme.certs.failed',
-                                 'acme.certs.expired'], 'PIE'),
+                                 'acme.certs.expired'], 'PIE', colors=(ok_, blue_, red_, brown_)),
     ]
 
     macros = []
@@ -1018,9 +1023,12 @@ def zabbix_template(mib_text=None):
             mp = z.tcs[name.split('::', 1)[1]]
         else:
             mp = ZBX_MAPS_MORE[name]
+        # the MIB's labels in words: pendingApproval -> pending approval
         valuemaps.append({'uuid': _zbx_uuid('valuemap', name), 'name': name,
-                          'mappings': [{'value': str(k), 'newvalue': str(v)}
-                                       for k, v in sorted(mp.items())]})
+                          'mappings': [{'value': str(k), 'newvalue': re.sub(
+                              r'([a-z])([A-Z])', r'\1 \2', str(v)).lower()
+                              if name.startswith('ACME-MIB::') else str(v)}
+                              for k, v in sorted(mp.items())]})
 
     tpl = {'uuid': _zbx_uuid('template', H), 'template': H, 'name': H,
            'description': ZBX_DESCRIPTION.strip() % {'version': __version__},
@@ -1065,11 +1073,17 @@ def _zbx_rule(z, tb, H):
         if c not in seen:
             seen.append(c)
     master = 'acme.walk.%s' % tb['id']
+    # The columns named one by one - or the whole row (the table's entry) where they do not fit
+    # in Zabbix's snmp_oid of 512 characters (the certificates: 948 - configuration.import
+    # refused the template, "value is too long", on a real Zabbix 7.0.32).
+    oid = 'walk[%s]' % ','.join(z.oid(c) for c in seen)
+    if len(oid) > 512:
+        oid = 'walk[%s]' % z.oid(tb['table'].replace('Table', 'Entry'))
     walk = {'uuid': _zbx_uuid('item', master), 'name': 'SNMP walk: %s' % tb['what'].lower(),
-            'type': 'SNMP_AGENT', 'snmp_oid': 'walk[%s]' % ','.join(z.oid(c) for c in seen),
-            'key': z.key(master), 'delay': tb['delay'], 'history': '0', 'value_type': 'TEXT',
-            'trends': '0', 'description': 'The columns of ACME-MIB::%s the discovery and its items '
-            'need, in one walk.' % tb['table'], 'tags': _zbx_tags(('component', 'raw'))}
+            'type': 'SNMP_AGENT', 'snmp_oid': oid, 'key': z.key(master), 'delay': tb['delay'],
+            'history': '0', 'value_type': 'TEXT', 'trends': '0',
+            'description': 'ACME-MIB::%s, the columns the discovery and its items need, in one '
+            'bulk walk.' % tb['table'], 'tags': _zbx_tags(('component', 'raw'))}
     params = []
     for macro, col in tb['macros']:
         params += [macro, z.oid(col), z.fmt(col)]
@@ -1111,19 +1125,23 @@ def _zbx_rule(z, tb, H):
     i = tb['id']
     if i == 'cert':
         ctx = '"{#CERT.NAME}"'
-        exp = tp('days', '%s<0 and %s>0' % (lst('days'), lst('not_after')),
-                 'Certificate {#CERT.NAME} has expired', 'DISASTER',
-                 'The certificate {#CERT.NAME} ({#CERT.CN}) ended {ITEM.LASTVALUE1} ago - '
-                 'whatever uses it is refused.', scope='availability')
-        crit = tp('days', '%s<{$ACME.CERT.CRIT:%s} and %s>0' % (lst('days'), ctx, lst('not_after')),
-                  'Certificate {#CERT.NAME} expires in less than {$ACME.CERT.CRIT:%s} days' % ctx,
-                  'HIGH', 'The certificate {#CERT.NAME} ({#CERT.CN}, from {#CERT.ISSUER}) ends in '
-                  '{ITEM.LASTVALUE1}. It renews itself when "renewed by itself" is on - look at '
-                  'its last error.', deps=(exp,))
-        tp('days', '%s<{$ACME.CERT.WARN:%s} and %s>0' % (lst('days'), ctx, lst('not_after')),
+        # Three ranges that do not overlap - not triggers depending on each other: one that
+        # depends on a problem is not evaluated, and its first evaluation (the end of the
+        # certificate not read yet) stayed "unknown" (seen on a real Zabbix 7.0.32).
+        tp('days', '%s<0 and %s>0' % (lst('days'), lst('not_after')),
+           'Certificate {#CERT.NAME} has expired', 'DISASTER',
+           'The certificate {#CERT.NAME} ({#CERT.CN}) has expired (days left: '
+           '{ITEM.LASTVALUE1}) - whatever uses it is refused.', scope='availability')
+        tp('days', '%s>=0 and %s<{$ACME.CERT.CRIT:%s} and %s>0' % (
+            lst('days'), lst('days'), ctx, lst('not_after')),
+           'Certificate {#CERT.NAME} expires in less than {$ACME.CERT.CRIT:%s} days' % ctx,
+           'HIGH', 'The certificate {#CERT.NAME} ({#CERT.CN}, from {#CERT.ISSUER}) ends in '
+           '{ITEM.LASTVALUE1}. It renews itself when "renewed by itself" is on - look at '
+           'its last error.')
+        tp('days', '%s>={$ACME.CERT.CRIT:%s} and %s<{$ACME.CERT.WARN:%s} and %s>0' % (
+            lst('days'), ctx, lst('days'), ctx, lst('not_after')),
            'Certificate {#CERT.NAME} expires in less than {$ACME.CERT.WARN:%s} days' % ctx,
-           'WARNING', 'The certificate {#CERT.NAME} ({#CERT.CN}) ends in {ITEM.LASTVALUE1}.',
-           deps=(crit,))
+           'WARNING', 'The certificate {#CERT.NAME} ({#CERT.CN}) ends in {ITEM.LASTVALUE1}.')
         tp('state', '%s=4 and length(%s)>=0' % (lst('state'), lst('error')),
            'Certificate {#CERT.NAME}: renewal failed', 'HIGH',
            'Renewing {#CERT.NAME} failed: {ITEM.LASTVALUE2}', opdata='{ITEM.LASTVALUE2}')
@@ -1131,13 +1149,6 @@ def _zbx_rule(z, tb, H):
            'AVERAGE', 'Revoking {#CERT.NAME} failed.')
         tp('state', '%s=11' % lst('state'), 'Certificate {#CERT.NAME} waits for an approval',
            'INFO', 'A request for {#CERT.NAME} waits for an approval (Certificates).')
-        tp('deploys_failed', '%s>0' % lst('deploys_failed'),
-           'Certificate {#CERT.NAME}: {ITEM.LASTVALUE1} deployment(s) failed', 'AVERAGE',
-           'Deployments of {#CERT.NAME} whose last try failed - each one in the discovery of '
-           'the deployments.')
-        tp('tests_failed', '%s>0' % lst('tests_failed'),
-           'Certificate {#CERT.NAME}: {ITEM.LASTVALUE1} test(s) failing', 'AVERAGE',
-           'What a server serves is not {#CERT.NAME}, or cannot be reached.')
         alt = tp('alt_days', '%s<{$ACME.CERT.CRIT:%s}' % (lst('alt_days'), ctx),
                  'Certificate {#CERT.NAME}: the twin ({#CERT.KEYTYPE.ALT}) expires in less than '
                  '{$ACME.CERT.CRIT:%s} days' % ctx, 'HIGH',
@@ -1164,14 +1175,16 @@ def _zbx_rule(z, tb, H):
            'Test {#TEST.NAME} of {#TEST.CERT} fails', 'AVERAGE',
            'The test {#TEST.NAME} ({#TEST.KIND}) of {#TEST.CERT}: {ITEM.LASTVALUE1} - '
            '{ITEM.LASTVALUE2}', opdata='{ITEM.LASTVALUE1}: {ITEM.LASTVALUE2}')
-        tp('state', '%s=2' % lst('state'), 'Test {#TEST.NAME} of {#TEST.CERT} warns', 'WARNING',
-           'The test {#TEST.NAME} ({#TEST.KIND}) of {#TEST.CERT} warns.')
+        tp('state', '%s=2 and length(%s)>=0' % (lst('state'), lst('said')),
+           'Test {#TEST.NAME} of {#TEST.CERT} warns', 'INFO',
+           'The test {#TEST.NAME} ({#TEST.KIND}) of {#TEST.CERT} passes, with a warning: '
+           '{ITEM.LASTVALUE2}', opdata='{ITEM.LASTVALUE2}')
         tp('last_at', '%s>0 and now()-%s>{$ACME.TEST.MAX.AGE}' % (lst('last_at'), lst('last_at')),
            'Test {#TEST.NAME} of {#TEST.CERT} has not run lately', 'INFO',
            'It last ran {ITEM.LASTVALUE1}.')
     elif i == 'module':
         tp('failing', '%s=1 and length(%s)>=0' % (lst('failing'), lst('error')),
-           '{#MODULE.FAMILY} {#MODULE.NAME}: its last use failed', 'WARNING',
+           'Module {#MODULE.NAME} ({#MODULE.FAMILY}): its last use failed', 'INFO',
            'The {#MODULE.FAMILY} {#MODULE.NAME} ({#MODULE.KIND}): {ITEM.LASTVALUE2}',
            opdata='{ITEM.LASTVALUE2}')
     elif i == 'ca':
@@ -1184,7 +1197,7 @@ def _zbx_rule(z, tb, H):
            'The authority {#CA.NAME} ({#CA.SUBJECT}) ends in {ITEM.LASTVALUE1}.', deps=(crit,))
         tp('crl_hours', '%s<0 and %s>0' % (lst('crl_hours'), lst('crl_next')),
            'Authority {#CA.NAME}: its CRL is late', 'HIGH',
-           'The CRL of {#CA.NAME} was due {ITEM.LASTVALUE1} ago - certificates it signed are '
+           'The CRL of {#CA.NAME} is late (hours left: {ITEM.LASTVALUE1}) - certificates it signed are '
            'refused where revocation is checked.')
         gp.append(('Authority {#CA.NAME}: days left', ['days']))
     elif i == 'pages':
@@ -1233,7 +1246,7 @@ def _zbx_rule(z, tb, H):
            'The last good backup to {#RBACKUP.NAME} went {ITEM.LASTVALUE1}.')
     elif i == 'crl':
         tp('hours', '%s<0 and %s>0' % (lst('hours'), lst('next')), 'CRL {#CRL.URL} is out of date',
-           'HIGH', 'Its next update was due {ITEM.LASTVALUE1} ago and no newer one could be '
+           'HIGH', 'Its next update is past (hours left: {ITEM.LASTVALUE1}) and no newer one could be '
            'fetched - certificates of its authority are refused at the sign-in.',
            scope='availability')
         tp('hours', '%s<{$ACME.CRL.HOURS.WARN} and %s>=0 and length(%s)>0' % (
@@ -1286,11 +1299,7 @@ def _zbx_rule(z, tb, H):
             'operations': [{'operationobject': 'ITEM_PROTOTYPE', 'operator': 'LIKE',
                             'value': 'twin (dual)', 'discover': 'NO_DISCOVER'},
                            {'operationobject': 'TRIGGER_PROTOTYPE', 'operator': 'LIKE',
-                            'value': 'the twin', 'discover': 'NO_DISCOVER'}]},
-            {'name': 'Not renewed by itself: no renewal triggers', 'step': '2', 'filter': {
-                'conditions': [{'macro': '{#CERT.AUTO}', 'value': '^0$', 'formulaid': 'A'}]},
-             'operations': [{'operationobject': 'TRIGGER_PROTOTYPE', 'operator': 'LIKE',
-                             'value': 'renewal failed', 'discover': 'NO_DISCOVER'}]}]
+                            'value': 'the twin', 'discover': 'NO_DISCOVER'}]}]
     elif tb['id'] == 'node':
         rule['overrides'] = [{'name': 'This node: no "not heard from"', 'step': '1', 'filter': {
             'conditions': [{'macro': '{#NODE.THIS}', 'value': '^1$', 'formulaid': 'A'}]},
@@ -1320,7 +1329,7 @@ class _Page(object):
         for n, w in enumerate(self.widgets):
             w = dict(w)
             ref = ''
-            k = n + prefix * 26
+            k = n + prefix * 100
             for _ in range(5):
                 ref = chr(65 + k % 26) + ref
                 k //= 26
@@ -1331,143 +1340,228 @@ class _Page(object):
 
 
 def zbx_dashboards(H):
+    """One dashboard of six pages, the certificates first (looked at on a real Zabbix 7.0.32,
+    1.0.109): Certificates; Deployments and tests; Authorities and CRLs; then the machine, the
+    cluster and backups, sign-in and services. The tiles plain, red or orange only when there
+    is something to see; the honeycombs coloured by days left or state; the problems of each
+    page with their tags (the certificate, its owner and source, the target, the test)."""
     def item(key):
         return {'host': H, 'key': key}
 
-    def tile(p, name, key, x, y, w=12, h=3, color='0A466A', dec=None):
-        f = [_w_field('ITEM', 'itemid.0', item(key)), _w_field('STRING', 'bg_color', color),
-             _w_field('STRING', 'description', name), _w_field('STRING', 'desc_color', 'FFFFFF'),
-             _w_field('INTEGER', 'desc_v_pos', '0'), _w_field('STRING', 'value_color', 'FFFFFF'),
-             _w_field('INTEGER', 'show.0', '2'), _w_field('INTEGER', 'show.1', '1'),
-             _w_field('INTEGER', 'value_size', '35')]
-        if dec is not None:
-            f.append(_w_field('INTEGER', 'decimal_places', str(dec)))
+    red, orange, amber, green, grey, blue = 'E53935', 'FF8F00', 'FFB300', '43A047', '90A4AE', '1E88E5'
+
+    def tile(p, name, key, x, y, w=12, h=2, thresholds=(), dec=0, words=False):
+        """A number with its name; plain, coloured by its thresholds ([(from, colour)]). Words
+        (a mapped state, "no (0)", a name) smaller: at the size of a number they were cut."""
+        f = [_w_field('ITEM', 'itemid.0', item(key)), _w_field('STRING', 'description', name),
+             _w_field('INTEGER', 'desc_v_pos', '0'), _w_field('INTEGER', 'desc_size', '20'),
+             _w_field('INTEGER', 'show.0', '1'), _w_field('INTEGER', 'show.1', '2'),
+             _w_field('INTEGER', 'value_size', '28' if words else '42'), _w_field('INTEGER', 'units_size', '30'),
+             _w_field('INTEGER', 'decimal_places', str(dec))]
+        for n, (t, color) in enumerate(thresholds):
+            f += [_w_field('STRING', 'thresholds.%d.color' % n, color),
+                  _w_field('STRING', 'thresholds.%d.threshold' % n, t)]
         p.add('item', name, x, y, w, h, f, hide=True)
+
+    def bad_if_any(color=red):
+        return (('1', color),)
 
     def graph(p, name, x, y, w, h):
         p.add('graph', '', x, y, w, h, [_w_field('GRAPH', 'graphid.0',
                                                  {'host': H, 'name': 'acme: ' + name})])
 
-    def honey(p, name, pattern, x, y, w, h, thresholds, label='{{ITEM.NAME}.regsub("^[^ ]+ (.*?):", "\\1")}'):
+    def honey(p, name, pattern, x, y, w, h, thresholds, label=r'{{ITEM.NAME}.regsub("^[^ ]+ (.*?):", "\1")}',
+              mapped=False):
+        """Each item of the pattern a cell: its name (the certificate, the deployment...) and
+        its value. A state (mapped): the name alone, the colour says the state (a honeycomb
+        shows a number, never the words of its value map) - the colours in the widget's name."""
         f = [_w_field('STRING', 'items.0', pattern), _w_field('STRING', 'primary_label', label),
-             _w_field('INTEGER', 'primary_label_size_type', '1'),
-             _w_field('INTEGER', 'primary_label_size', '15')]
+             _w_field('INTEGER', 'primary_label_size_type', '1')]
+        if mapped:
+            f += [_w_field('INTEGER', 'show.0', '1'), _w_field('INTEGER', 'primary_label_size', '14'),
+                  _w_field('INTEGER', 'primary_label_bold', '1')]
+        else:
+            f += [_w_field('INTEGER', 'primary_label_size', '20'),
+                  _w_field('INTEGER', 'secondary_label_size_type', '1'),
+                  _w_field('INTEGER', 'secondary_label_size', '26'),
+                  _w_field('INTEGER', 'secondary_label_decimal_places', '0')]
         for n, (t, color) in enumerate(thresholds):
             f += [_w_field('STRING', 'thresholds.%d.color' % n, color),
                   _w_field('STRING', 'thresholds.%d.threshold' % n, t)]
         p.add('honeycomb', name, x, y, w, h, f)
 
-    def gauge(p, name, key, x, y, w=12, h=5, color='2774A4'):
+    def problems(p, name, components, x, y, w, h, tags):
+        """The problems of the host of these components, worst first, with these tags shown."""
+        f = [_w_field('INTEGER', 'show', '3'), _w_field('INTEGER', 'evaltype', '0'),
+             _w_field('INTEGER', 'show_tags', '3'), _w_field('INTEGER', 'tag_name_format', '0'),
+             _w_field('STRING', 'tag_priority', ','.join(tags)),
+             _w_field('INTEGER', 'show_opdata', '1'), _w_field('INTEGER', 'sort_triggers', '1'),
+             _w_field('INTEGER', 'show_lines', '25')]
+        for n, c in enumerate(components):
+            f += [_w_field('STRING', 'tags.%d.tag' % n, 'component'),
+                  _w_field('INTEGER', 'tags.%d.operator' % n, '1'),
+                  _w_field('STRING', 'tags.%d.value' % n, c)]
+        p.add('problems', name, x, y, w, h, f)
+
+    def gauge(p, name, key, x, y, w=12, h=4, color='2774A4'):
         p.add('gauge', name, x, y, w, h, [
             _w_field('ITEM', 'itemid.0', item(key)), _w_field('STRING', 'description', name),
-            _w_field('INTEGER', 'desc_v_pos', '0'), _w_field('STRING', 'value_arc_color', color),
+            _w_field('INTEGER', 'desc_v_pos', '0'), _w_field('INTEGER', 'desc_size', '12'),
+            _w_field('STRING', 'value_arc_color', color),
             _w_field('STRING', 'min', '0'), _w_field('STRING', 'max', '100'),
+            _w_field('INTEGER', 'decimal_places', '0'),
             _w_field('STRING', 'units', '%'), _w_field('INTEGER', 'show.0', '1'),
             _w_field('INTEGER', 'show.1', '2'), _w_field('INTEGER', 'show.2', '5'),
             _w_field('INTEGER', 'show.3', '4'),
-            _w_field('STRING', 'thresholds.0.color', 'FFD54F'),
+            _w_field('STRING', 'thresholds.0.color', amber),
             _w_field('STRING', 'thresholds.0.threshold', '80'),
-            _w_field('STRING', 'thresholds.1.color', 'E53935'),
+            _w_field('STRING', 'thresholds.1.color', red),
             _w_field('STRING', 'thresholds.1.threshold', '90')], hide=True)
-    days = [('-100000', 'E53935'), ('7', 'FF8F00'), ('30', '43A047')]
-    states_deploy = [('0', '90A4AE'), ('1', '43A047'), ('2', 'FFB300'), ('3', '1E88E5'),
-                     ('4', 'E53935')]
-    # Overview
-    o = _Page('Overview')
-    tile(o, 'Version', 'acme.version', 0, 0, color='1F2A44')
-    tile(o, 'Update available', 'acme.version.update', 12, 0, color='1F2A44')
-    tile(o, 'Alerts now', 'acme.alerts.worst', 24, 0, color='6A1B9A')
-    tile(o, 'Certificates kept', 'acme.certs.total', 36, 0, color='0A466A')
-    tile(o, 'Valid', 'acme.certs.valid.pct', 48, 0, color='2E7D32', dec=0)
-    tile(o, 'Expiring soon', 'acme.certs.expiring', 60, 0, color='EF6C00')
-    tile(o, 'Renewal failed', 'acme.certs.failed', 0, 3, color='C62828')
-    tile(o, 'Expired', 'acme.certs.expired', 12, 3, color='B71C1C')
-    tile(o, 'Deployments failed', 'acme.deploys.failed', 24, 3, color='AD1457')
-    tile(o, 'Tests failing', 'acme.tests.failed', 36, 3, color='8E24AA')
-    tile(o, 'Database', 'acme.db.up', 48, 3, color='00695C')
-    tile(o, 'Daemon uptime', 'acme.uptime', 60, 3, color='37474F')
-    honey(o, 'Certificates: days left', 'Certificate *: days left', 0, 6, 48, 6, days)
-    gauge(o, 'CPU', 'acme.cpu.util', 48, 6, 12, 6)
-    gauge(o, 'Memory', 'acme.mem.util', 60, 6, 12, 6, color='6C59DC')
-    graph(o, 'Certificates by state', 0, 12, 36, 5)
-    graph(o, 'Certificate jobs (24 h)', 36, 12, 36, 5)
-    o.add('itemhistory', 'Alerts now', 0, 17, 72, 4, [
-        _w_field('ITEM', 'columns.0.itemid', item('acme.alerts.list')),
-        _w_field('STRING', 'columns.0.name', 'What the alerts see'),
-        _w_field('INTEGER', 'show_timestamp', '1')])
-    # Certificates
+
+    def pie(p, name, x, y, w, h, parts):
+        f = [_w_field('INTEGER', 'ds.0.dataset_type', '0'),
+             _w_field('STRING', 'ds.0.data_set_label', name)]
+        for n, (k, col) in enumerate(parts):
+            f += [_w_field('ITEM', 'ds.0.itemids.%d' % n, item(k)),
+                  _w_field('STRING', 'ds.0.color.%d' % n, col),
+                  _w_field('INTEGER', 'ds.0.type.%d' % n, '0')]
+        f += [_w_field('INTEGER', 'draw_type', '1'), _w_field('INTEGER', 'width', '40'),
+              _w_field('INTEGER', 'total_show', '1'), _w_field('INTEGER', 'decimal_places', '0'),
+              _w_field('INTEGER', 'legend_lines', str(len(parts))),
+              _w_field('INTEGER', 'legend_value', '1')]
+        p.add('piechart', name, x, y, w, h, f)
+
+    days = [('-100000', red), ('7', orange), ('30', green)]
+    cert_states = [('0', blue), ('1', green), ('2', blue), ('4', red), ('5', red), ('6', blue),
+                   ('7', grey), ('8', grey), ('9', orange), ('11', amber), ('12', grey), ('13', grey)]
+    deploy_states = [('0', grey), ('1', green), ('2', amber), ('3', blue), ('4', red)]
+    test_states = [('0', grey), ('1', green), ('2', amber), ('3', red)]
+
+    # 1. Certificates: how many in each state, the days each has left, what is wrong with them
     c = _Page('Certificates')
-    honey(c, 'Days left', 'Certificate *: days left', 0, 0, 72, 7, days)
-    honey(c, 'Deployments', 'Deployment *: state', 0, 7, 36, 5, states_deploy)
-    honey(c, 'Tests', 'Test *: result', 36, 7, 36, 5,
-          [('0', '90A4AE'), ('1', '43A047'), ('2', 'FFB300'), ('3', 'E53935')])
-    c.add('piechart', 'Certificates by state', 0, 12, 24, 6, [
-        _w_field('INTEGER', 'ds.0.dataset_type', '0'),
-        _w_field('STRING', 'ds.0.data_set_label', 'Certificates')] + [
-        f for n, (k, col) in enumerate((('acme.certs.ok', '43A047'), ('acme.certs.waiting', '1E88E5'),
-                                        ('acme.certs.failed', 'E53935'),
-                                        ('acme.certs.expired', '6D4C41'),
-                                        ('acme.certs.revoked', '90A4AE'))) for f in (
-            _w_field('ITEM', 'ds.0.itemids.%d' % n, item(k)),
-            _w_field('STRING', 'ds.0.color.%d' % n, col),
-            _w_field('INTEGER', 'ds.0.type.%d' % n, '0'))] + [
-        _w_field('INTEGER', 'draw_type', '1'), _w_field('INTEGER', 'legend_lines', '5')])
-    graph(c, 'Deployments and tests', 24, 12, 48, 6)
-    honey(c, 'Authorities: days left', 'Authority *: days left', 0, 18, 36, 4,
-          [('-100000', 'E53935'), ('30', 'FF8F00'), ('90', '43A047')])
-    honey(c, 'Modules', 'Module *: failing', 0, 22, 72, 4, [('0', '43A047'), ('1', 'E53935')])
-    honey(c, 'Pages of acme: days left', 'Pages of *: certificate days left', 36, 18, 36, 4, days)
-    # System
+    tile(c, 'Certificates', 'acme.certs.total', 0, 0)
+    tile(c, 'Valid', 'acme.certs.ok', 12, 0)
+    tile(c, 'Expiring soon', 'acme.certs.expiring', 24, 0, thresholds=bad_if_any(orange))
+    tile(c, 'Expired', 'acme.certs.expired', 36, 0, thresholds=bad_if_any())
+    tile(c, 'Renewal failed', 'acme.certs.failed', 48, 0, thresholds=bad_if_any())
+    tile(c, 'Renewals failed (24 h)', 'acme.renewals.failed', 60, 0, thresholds=bad_if_any(orange))
+    honey(c, 'Days left', 'Certificate *: days left', 0, 2, 36, 6, days)
+    honey(c, 'State: green ok, blue renewing, amber to approve, red failed or expired, grey off',
+          'Certificate *: state', 36, 2, 36, 6, cert_states, mapped=True)
+    problems(c, 'Certificate problems', ['certificate'], 0, 8, 72, 5,
+             ['cert', 'owner', 'issuer'])
+    pie(c, 'Certificates by state', 0, 13, 24, 6, (
+        ('acme.certs.ok', green), ('acme.certs.waiting', blue), ('acme.certs.failed', red),
+        ('acme.certs.expired', '6D4C41'), ('acme.certs.revoked', grey)))
+    graph(c, 'Certificates by state', 24, 13, 48, 6)
+    # 2. Deployments and tests: where each certificate went, what the servers serve
+    d = _Page('Deployments and tests')
+    tile(d, 'Deployments', 'acme.deploys.total', 0, 0)
+    tile(d, 'Deployments failed', 'acme.deploys.failed', 12, 0, thresholds=bad_if_any())
+    tile(d, 'Deployed (24 h)', 'acme.deploys.ok24h', 24, 0)
+    tile(d, 'Failed (24 h)', 'acme.deploys.failed24h', 36, 0, thresholds=bad_if_any(orange))
+    tile(d, 'Tests', 'acme.tests.total', 48, 0)
+    tile(d, 'Tests failing', 'acme.tests.failed', 60, 0, thresholds=bad_if_any())
+    honey(d, 'Deployments: green ok, amber a newer version waits, blue deploying, red failed',
+          'Deployment *: state', 0, 2, 72, 4, deploy_states, mapped=True,
+          label=r'{{ITEM.NAME}.regsub("^Deployment (.*?) to (.*?):", "\1 > \2")}')
+    honey(d, 'Tests: green ok, amber a warning, red failing, grey not run yet', 'Test *: result',
+          0, 6, 72, 4, test_states, mapped=True,
+          label=r'{{ITEM.NAME}.regsub("^Test (.*) of (.*?):", "\2: \1")}')
+    problems(d, 'Deployment and test problems', ['deployment', 'test'], 0, 10, 72, 5,
+             ['cert', 'deploy', 'test'])
+    graph(d, 'Certificate jobs (24 h)', 0, 15, 36, 5)
+    graph(d, 'Deployments and tests', 36, 15, 36, 5)
+    honey(d, 'Sources, validations, targets and tests: red - its last use failed',
+          'Module *: failing', 0, 20, 72, 3, [('0', green), ('1', red)],
+          label=r'{{ITEM.NAME}.regsub("^Module (.*?):", "\1")}', mapped=True)
+    # 3. Authorities and CRLs: acme's own authorities, the CRLs, the certificate of the pages
+    a = _Page('Authorities and CRLs')
+    tile(a, 'Authorities ending (90 d)', 'acme.cas.ending', 0, 0, thresholds=bad_if_any(orange))
+    tile(a, 'Revoked', 'acme.certs.revoked', 12, 0)
+    tile(a, 'Waiting for approval', 'acme.certs.approval', 24, 0, thresholds=bad_if_any(amber))
+    tile(a, 'Certificate sign-in', 'acme.certlogin', 36, 0, words=True)
+    tile(a, 'Its port open', 'acme.certlogin.listening', 48, 0, words=True)
+    tile(a, 'Its authorities', 'acme.certlogin.cas', 60, 0)
+    honey(a, 'Authorities: days left', 'Authority *: days left', 0, 2, 18, 4,
+          [('-100000', red), ('30', orange), ('90', green)])
+    honey(a, 'Authorities: hours to the next CRL', 'Authority *: CRL hours left', 18, 2, 18, 4,
+          [('-100000', red), ('12', orange), ('24', green)])
+    honey(a, 'CRLs of the sign-in: hours left', 'CRL *: hours left', 36, 2, 18, 4,
+          [('-100000', red), ('12', orange), ('48', green)],
+          label=r'{{ITEM.NAME}.regsub("/([^/]*): hours left$", "\1")}')
+    honey(a, 'Pages of acme: days left', 'Pages of *: certificate days left', 54, 2, 18, 4, days)
+    problems(a, 'Authority and CRL problems', ['authority', 'signin', 'web'], 0, 6, 72, 4,
+             ['authority', 'crl', 'pages'])
+    # 4. System
     s = _Page('System')
-    gauge(s, 'CPU', 'acme.cpu.util', 0, 0, 12, 5)
-    gauge(s, 'Memory', 'acme.mem.util', 12, 0, 12, 5, color='6C59DC')
-    tile(s, 'Load (5m) per core', 'acme.cpu.load_per_core', 24, 0, 12, 5, color='37474F', dec=2)
-    tile(s, 'Security updates', 'acme.os.security', 36, 0, 12, 5, color='C62828')
-    tile(s, 'SELinux', 'acme.selinux', 48, 0, 12, 5, color='1F2A44')
-    tile(s, 'Clock', 'acme.clock.sync', 60, 0, 12, 5, color='00695C')
-    graph(s, 'CPU utilization', 0, 5, 36, 5)
-    graph(s, 'Load average', 36, 5, 36, 5)
-    graph(s, 'Memory', 0, 10, 36, 5)
-    graph(s, 'Network traffic', 36, 10, 36, 5)
-    graph(s, 'Disk I/O', 0, 15, 36, 5)
-    honey(s, 'File systems', 'FS *: space utilization', 36, 15, 36, 5,
-          [('0', '43A047'), ('85', 'FF8F00'), ('95', 'E53935')],
-          label='{{ITEM.NAME}.regsub("\\[(.*?)\\]", "\\1")}')
-    # Cluster, backups and the rest
+    tile(s, 'Version', 'acme.version', 0, 0, words=True)
+    tile(s, 'Update available', 'acme.version.update', 12, 0, thresholds=bad_if_any(amber),
+         words=True)
+    tile(s, 'Alerts', 'acme.alerts.worst', 24, 0, thresholds=(('2', amber), ('3', red)),
+         words=True)
+    tile(s, 'Database', 'acme.db.up', 36, 0, words=True)
+    tile(s, 'Daemon uptime', 'acme.uptime', 48, 0, words=True)
+    tile(s, 'Security updates', 'acme.os.security', 60, 0, thresholds=bad_if_any(orange))
+    gauge(s, 'CPU', 'acme.cpu.util', 0, 2, 12, 4)
+    gauge(s, 'Memory', 'acme.mem.util', 12, 2, 12, 4, color='6C59DC')
+    honey(s, 'File systems', 'FS *: space utilization', 24, 2, 24, 4,
+          [('0', green), ('85', orange), ('95', red)],
+          label=r'{{ITEM.NAME}.regsub("\[(.*?)\]", "\1")}')
+    tile(s, 'Load (5m) per core', 'acme.cpu.load_per_core', 48, 2, 24, 2, dec=2)
+    tile(s, 'Clock', 'acme.clock.sync', 48, 4, 24, 2, thresholds=(('2', red),), words=True)
+    s.add('itemhistory', 'Alerts now', 0, 6, 72, 4, [
+        _w_field('ITEM', 'columns.0.itemid', item('acme.alerts.list')),
+        _w_field('STRING', 'columns.0.name', 'What the alerts of acme see'),
+        _w_field('INTEGER', 'show_column_header', '0'),
+        _w_field('INTEGER', 'show_lines', '1'), _w_field('INTEGER', 'show_timestamp', '1')])
+    graph(s, 'CPU utilization', 0, 10, 36, 5)
+    graph(s, 'Load average', 36, 10, 36, 5)
+    graph(s, 'Memory', 0, 15, 36, 5)
+    graph(s, 'Network traffic', 36, 15, 36, 5)
+    graph(s, 'Disk I/O', 0, 20, 36, 5)
+    graph(s, 'Database latency', 36, 20, 36, 5)
+    # 5. Cluster and backups
     k = _Page('Cluster and backups')
-    tile(k, 'Cluster', 'acme.ha.mode', 0, 0, color='1F2A44')
-    tile(k, 'VIP address held by', 'acme.vip.owner', 12, 0, color='0A466A')
-    tile(k, 'Replication', 'acme.repl.state', 24, 0, color='00695C')
-    tile(k, 'Split', 'acme.split.state', 36, 0, color='6A1B9A')
-    tile(k, 'Nodes up', 'acme.nodes.up', 48, 0, color='2E7D32')
-    tile(k, 'Renewing node', 'acme.certs.leader.node', 60, 0, color='37474F')
-    honey(k, 'Nodes', 'Node *: heard from', 0, 3, 36, 4, [('0', 'E53935'), ('1', '43A047')])
-    graph(k, 'Replication behind', 36, 3, 36, 4)
-    tile(k, 'Newest backup', 'acme.backup.age', 0, 7, color='0A466A')
-    tile(k, 'Backups kept', 'acme.backup.kept', 12, 7, color='0A466A')
-    tile(k, 'Sent away', 'acme.rbackup.result', 24, 7, color='2E7D32')
-    tile(k, 'Last good send', 'acme.rbackup.last_ok', 36, 7, color='2E7D32')
-    tile(k, 'Backup tried', 'acme.backup.verify', 48, 7, color='00695C')
-    tile(k, 'Database size', 'acme.db.size', 60, 7, color='37474F')
-    honey(k, 'Backup places', 'Backup to *: result', 0, 10, 36, 4,
-          [('0', '90A4AE'), ('1', '43A047'), ('2', 'E53935')])
-    graph(k, 'Database latency', 36, 10, 36, 4)
-    # Sign-in and services
+    tile(k, 'Cluster', 'acme.ha.mode', 0, 0, words=True)
+    tile(k, 'Nodes up', 'acme.nodes.up', 12, 0)
+    tile(k, 'Replication', 'acme.repl.state', 24, 0, thresholds=(('2', red),), words=True)
+    tile(k, 'Split', 'acme.split.state', 36, 0, thresholds=(('2', red),), words=True)
+    tile(k, 'VIP address held by', 'acme.vip.owner', 48, 0, words=True)
+    tile(k, 'Renewing node', 'acme.certs.leader.node', 60, 0, words=True)
+    tile(k, 'Newest backup, age', 'acme.backup.age', 0, 2, words=True)
+    tile(k, 'Backups kept here', 'acme.backup.kept', 12, 2)
+    tile(k, 'Sent away', 'acme.rbackup.result', 24, 2, thresholds=(('2', red),), words=True)
+    tile(k, 'Last good send', 'acme.rbackup.last_ok', 36, 2, words=True)
+    tile(k, 'Backup tried', 'acme.backup.verify', 48, 2, thresholds=(('2', red),), words=True)
+    tile(k, 'Database size', 'acme.db.size', 60, 2, dec=1)
+    honey(k, 'Backup places: green ok, red failed', 'Backup to *: result', 0, 4, 24, 4,
+          [('0', grey), ('1', green), ('2', red)], mapped=True,
+          label=r'{{ITEM.NAME}.regsub("^Backup to (.*?):", "\1")}')
+    honey(k, 'Nodes: red - not heard from', 'Node *: heard from', 24, 4, 24, 4,
+          [('0', red), ('1', green)], mapped=True)
+    graph(k, 'Replication behind', 48, 4, 24, 4)
+    problems(k, 'Cluster and backup problems', ['cluster', 'backup', 'database'], 0, 8, 72, 4,
+             ['place', 'node'])
+    graph(k, 'Database size', 0, 12, 72, 4)
+    # 6. Sign-in and services
     g = _Page('Sign-in and services')
-    tile(g, 'Accounts', 'acme.accounts', 0, 0, color='0A466A')
-    tile(g, 'Sign-ins open', 'acme.sessions', 12, 0, color='0A466A')
-    tile(g, 'Locked out', 'acme.lockouts', 24, 0, color='C62828')
-    tile(g, 'Windows (Kerberos)', 'acme.kerberos', 36, 0, color='1F2A44')
-    tile(g, 'Keytab here', 'acme.kerberos.keytab', 48, 0, color='1F2A44')
-    tile(g, 'Certificate sign-in', 'acme.certlogin', 60, 0, color='1F2A44')
-    honey(g, 'CRLs: hours left', 'CRL *: hours left', 0, 3, 36, 4,
-          [('-100000', 'E53935'), ('12', 'FF8F00'), ('48', '43A047')])
-    honey(g, 'Logs', 'Logs to *: in trouble', 36, 3, 36, 4, [('0', '43A047'), ('1', 'E53935')])
-    graph(g, 'Sign-ins', 0, 7, 36, 5)
-    graph(g, 'Mail queue', 36, 7, 36, 5)
-    graph(g, 'DNS server', 0, 12, 36, 5)
-    graph(g, 'SNMP agent requests', 36, 12, 36, 5)
-    pages = [p.page(n) for n, p in enumerate((o, c, s, k, g))]
+    tile(g, 'Accounts', 'acme.accounts', 0, 0)
+    tile(g, 'Sign-ins open', 'acme.sessions', 12, 0)
+    tile(g, 'Locked out', 'acme.lockouts', 24, 0, thresholds=bad_if_any(orange))
+    tile(g, 'Sign-in with Windows', 'acme.kerberos', 36, 0, words=True)
+    tile(g, 'Mails waiting', 'acme.mail.waiting', 48, 0)
+    tile(g, 'Mails failed', 'acme.mail.failed', 60, 0, thresholds=bad_if_any())
+    honey(g, 'Logs: red - in trouble', 'Logs to *: in trouble', 0, 2, 24, 4,
+          [('0', green), ('1', red)], mapped=True,
+          label=r'{{ITEM.NAME}.regsub("^Logs to (.*?):", "\1")}')
+    graph(g, 'Sign-ins', 24, 2, 24, 4)
+    graph(g, 'Mail queue', 48, 2, 24, 4)
+    problems(g, 'Sign-in and service problems', ['signin', 'logs', 'mail', 'directory', 'sms',
+                                                 'dns'], 0, 6, 72, 4, ['crl', 'destination'])
+    graph(g, 'DNS server', 0, 10, 36, 5)
+    graph(g, 'SNMP agent requests', 36, 10, 36, 5)
+    pages = [p.page(n) for n, p in enumerate((c, d, a, s, k, g))]
     return [{'uuid': _zbx_uuid('dashboard', 'acme'), 'name': 'acme', 'display_period': '60',
              'auto_start': 'NO', 'pages': pages}]
 
