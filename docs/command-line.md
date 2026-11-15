@@ -32,6 +32,14 @@ module or directory keeps sealed (`bind_pw`, `eab_hmac`, `service_account`,
 PATH -`). Routes that hand a file to a browser (`/api/db/download`) are not
 run through it: `acme --backup` makes a copy and says where.
 
+Root's SSH keys (1.0.108) have no option of their own: `acme --api GET
+/api/sshkeys` lists them as *Settings → SSH keys* does, and a change of them
+through `--api POST /api/sshkeys` is refused as it is on the pages - root
+changes `/root/.ssh/authorized_keys` on the server itself. A normal user's keys
+are changed the same way as on the pages (`{"action": "uk_make", "user":
+"falco", "scope": "all"}`; a body with a private key through stdin). See
+[SSH keys](ssh-keys.md).
+
 The private half of an SSH key (`--target-key NAME private`, and the same for
 validations and tests) is written with `--out FILE` (0600) or printed with
 `--out -` - not to the screen unasked.

@@ -6,7 +6,18 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.108 - not released
 
-(nothing yet)
+- **Root's SSH keys are only shown on the pages.** *Settings → SSH keys* for root lists the keys
+  of `/root/.ssh/authorized_keys` on every node and exports each, and no longer makes, adds or
+  takes one away: a note says to change them on the server itself. The pages' API answers 403 to
+  such a change (the command line's `--api` too), the daemon asks none of the nodes, and each
+  node's root helper refuses one whatever asks it - a row of the database, signed or not, or a
+  file laid in its folder. Keys of root made on the pages before stay in the file; a node built
+  again on another machine no longer puts them on again - its page says their fingerprints.
+- **A key for a normal user is made as root's was.** The card *A key for USER* has *The key for*
+  in a cluster - the same key on every node the user is on, or only on one node - with the words
+  and the Ed25519 / RSA 4096 choice root's had; *Add a key* and taking a key away as before, on
+  the nodes chosen. Still only for users who may sign in (UID 1000 and up, a login shell), their
+  file written as they are, never through a link.
 
 ## 1.0.107 - 2026-11-15
 

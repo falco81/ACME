@@ -168,12 +168,23 @@ def sshkeys_view(store):
 
 
 SSH_USER_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_.-]{0,31}\Z')
+# Root's keys only shown (1.0.108): never made, added or taken away from the pages - the API
+# refuses it (403), no ask for it is written here, and each node's root helper refuses one
+# that comes anyway (a row of the database written past acme, a file laid in its folder).
+ROOT_KEYS_SHOWN_ONLY = ('root\'s SSH keys are only shown on the pages - change them on the '
+                        'server itself, in /root/.ssh/authorized_keys')
+
+
+class RootKeysShownOnly(ValueError):
+    """A change of root's keys asked from the pages (1.0.108)."""
 
 
 def sshkeys_ask(store, nodes, do, by, line='', fp='', last_ok=False, user='root'):
     user = str(user or 'root')
     if not SSH_USER_RE.match(user):
         raise ValueError('that is not the name of a user')
+    if user == 'root' and do != 'list':
+        raise RootKeysShownOnly(ROOT_KEYS_SHOWN_ONLY)
     known = host_nodes(store)
     nodes = [n for n in known if n in (nodes or [])]
     if not nodes:
@@ -271,17 +282,13 @@ def sshkeys_root_data(store, a):
 def sshkeys_tick(daemon):
     store = daemon.store
     me = node_name()
-    # Built again on another machine (1.0.43): the keys of root made on these pages put on again.
+    # Built again on another machine (1.0.43): the keys of root made on these pages were put on
+    # again. Not since root's keys are only shown (1.0.108) - a mark left from before is dropped.
     if store.get_meta('host:rootkey:again:' + me):
         try:
-            for sc in rootkey_scopes(store):
-                r = rootkey_row(store, sc)
-                if r.get('pub') and me in rootkey_nodes(store, sc):
-                    sshkeys_ask(store, [me], 'add', 'acme (the machine built again)', line=r['pub'])
             meta_drop(store, 'host:rootkey:again:' + me)       # and its signatures (1.0.58)
-        except Exception as e:                          # noqa: BLE001
-            log_sparing('rootkey-again', 'the keys of root could not be put on again: %s' % e,
-                        'warn', every=600)
+        except Exception:                               # noqa: BLE001
+            pass
     if HOST_WORK['ssh'] and time.time() - HOST_WORK.get('ssh_since', 0) < 900:
         return
     now = _meta_obj(store, 'host:sshkeys:now:' + me)
@@ -318,6 +325,9 @@ def sshkeys_tick(daemon):
                 err, got = '', None
                 user = str(a.get('user') or 'root')
                 try:
+                    if user == 'root' and a.get('do') not in (None, 'list'):
+                        # One asked before 1.0.108, or a row written past acme: not sent on.
+                        raise RootKeysShownOnly(ROOT_KEYS_SHOWN_ONLY)
                     got = root_ask('sshkeys.ask', 'sshkeys.json', sshkeys_root_data(store, a), 60)
                 except Exception as e:                  # noqa: BLE001
                     err = str(e)[:300] or e.__class__.__name__
@@ -365,6 +375,10 @@ def sshkeys_tick(daemon):
 
 
 # -- root's key, made or given here (1.0.159) -------------------------------------------
+# Not since 1.0.108: root's keys are only shown. What was remembered of a key made here (its
+# public half and fingerprint, 'host:rootkey:SCOPE') still marks it "made here" in the list.
+# A key made here for a normal user (1.0.240) - for every node they are on, or for one
+# (1.0.108, as root's had it) - is remembered nowhere.
 # Drawn as isemon draws a router's key, but kept nowhere: acme never signs in
 # as root itself, so a private half in the database would only be one more
 # way to root on every node. A key made here is handed to the page once; one
@@ -417,6 +431,24 @@ def _rootkey_scope(store, scope):
     return scope
 
 
+def sshkeys_user_nodes(store, user, scope):
+    """The nodes a normal user's key made here goes onto (1.0.108): every node the user may sign
+    in on ('all'), or the one node named - refused where the user is not (as read there)."""
+    scope = str(scope or 'all')
+    if scope != 'all' and scope not in host_nodes(store):
+        raise ValueError('for every node, or for one of them')
+    there = [n for n in host_nodes(store)
+             if any(isinstance(u, dict) and u.get('name') == user
+                    for u in (_meta_obj(store, 'host:sshkeys:now:' + n).get('users') or []))]
+    if scope == 'all':
+        if not there:
+            raise ValueError('%s is not a user who may sign in on the nodes (as read there)' % user)
+        return there
+    if scope not in there:
+        raise ValueError('%s is not a user who may sign in on %s (as read there)' % (user, scope))
+    return [scope]
+
+
 def ssh_fp_of(public):
     got = subprocess.run(['ssh-keygen', '-l', '-E', 'sha256', '-f', '-'], input=public + '\n',
                          capture_output=True, text=True, timeout=20)
@@ -438,19 +470,6 @@ def rootkey_view(store, keys_on):
     return out
 
 
-def rootkey_put(store, scope, public, by, how):
-    """A public half onto the nodes of a scope, remembered for it. The key put
-    there before stays - it is taken away in the list, if it should go."""
-    scope = _rootkey_scope(store, scope)
-    fp, kind = ssh_fp_of(public)
-    nodes = rootkey_nodes(store, scope)
-    sshkeys_ask(store, nodes, 'add', by, line=public)
-    store.set_meta('host:rootkey:' + scope, json.dumps({
-        'scope': scope, 'pub': public, 'fp': fp, 'kind': kind, 'how': how, 'by': by,
-        'at': time.time()}))
-    return {'pub': public, 'fp': fp, 'nodes': nodes}
-
-
 def rootkey_public(text, passphrase=''):
     """What the page was given: a public key line as it is, or a private key's
     public half - the private half dropped."""
@@ -463,14 +482,6 @@ def rootkey_public(text, passphrase=''):
                     r'sk-ecdsa-sha2-nistp256@openssh\.com) [A-Za-z0-9+/=]{20,}( [^\r\n]{0,200})?$', line):
         raise ValueError('that is not a public key line (ssh-ed25519 AAAA… comment) nor a private key')
     return line, False
-
-
-def rootkey_again(store, scope, by):
-    scope = _rootkey_scope(store, scope)
-    r = rootkey_row(store, scope)
-    if not r.get('pub'):
-        raise ValueError('there is no key made or given for that')
-    return sshkeys_ask(store, rootkey_nodes(store, scope), 'add', by, line=r['pub'])
 
 
 # -- the updates -----------------------------------------------------------------------

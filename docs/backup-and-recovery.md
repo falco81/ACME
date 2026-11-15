@@ -664,7 +664,9 @@ modules of your own - and, since 1.0.43:
   put in on the new machine, as for a new node; the web certificates, the VIP address and the
   firewall were put in again already. A node built again into the cluster under its old
   name does the same when it starts on another machine;
-- **the keys of root made on the pages** are put on the new machine again.
+- **the keys of root made on the pages** before 1.0.108 were put on the new machine again; since
+  root's keys are only shown on the pages, they are not - their fingerprints are said in *SSH keys*,
+  to be put back on the server itself.
 
 Not in any backup - they are the machine's, not acme's:
 
@@ -672,8 +674,9 @@ Not in any backup - they are the machine's, not acme's:
   *Settings → Local users* lists the users each node's machine had - *Make them again* gives
   each the same name, UID, full name, shell and sudo, with no password: give one there, or a
   key in *SSH keys*;
-- **SSH keys added to authorized_keys other than on the pages** - *SSH keys* shows the
-  fingerprints the machine had that are not on it now, to be added again.
+- **SSH keys added to authorized_keys other than on the pages**, and root's keys - *SSH keys*
+  shows the fingerprints root's file had that are not on it now, to be put back on the server
+  itself (root's keys are only shown on the pages, 1.0.108).
 
 The test `test/test_restore_ha.py` does all of it: an installation, its backup put back on
 a clean PostgreSQL node, that node started on its new machine, a cluster built from it with a

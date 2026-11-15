@@ -4163,43 +4163,6 @@ def auth_keys(lines):
     return out
 
 
-def auth_write(lines):
-    """root's authorized_keys written whole: its folder made 0700 if it is not
-    there, refused if it is a link; a new file of root's, 0600, renamed in."""
-    folder = os.path.dirname(ROOT_AUTH)
-    try:
-        st = os.lstat(folder)
-        if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
-            raise Refused('%s is not a plain folder' % folder)
-    except FileNotFoundError:
-        os.makedirs(folder, mode=0o700)
-    try:
-        if stat.S_ISLNK(os.lstat(ROOT_AUTH).st_mode):
-            raise Refused('%s is a link - put the file itself there' % ROOT_AUTH)
-    except FileNotFoundError:
-        pass
-    text = '\n'.join(lines).rstrip('\n') + '\n'
-    fd, tmp = tempfile.mkstemp(prefix='.authorized_keys.', dir=folder)
-    try:
-        os.fchmod(fd, 0o600)
-        if os.geteuid() == 0:
-            os.fchown(fd, 0, 0)
-        with os.fdopen(fd, 'w') as f:
-            fd = None
-            f.write(text)
-        os.replace(tmp, ROOT_AUTH)
-    except BaseException:
-        if fd is not None:
-            os.close(fd)
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
-    if shutil.which('restorecon') and not NO_SERVICES:
-        subprocess.run(['restorecon', '-R', folder], capture_output=True)
-
-
 def sshd_says():
     """What sshd makes of root and of keys: a key is no use where it does not
     let root in with one."""
@@ -4431,14 +4394,15 @@ def sshkeys_user_do(r, name):
             'file': user_auth_paths(pw)[1], 'users': normal_users(), 'sshd': sshd_says()}
 
 
-# ---- a key of root's only from the database's word, signed (1.0.101) -------------------
+# ---- a key of a sudo member's only from the database's word, signed (1.0.101) ----------
 # With db_guard on, the daemon acts as root only on rows of the database it signed (1.0.231 of
-# otp; 067_the_database_s_word_signed.py) - and a key of root's put in here is root itself. A
-# key is added to root's authorized_keys only when the ask carries the signed row of
+# otp; 067_the_database_s_word_signed.py) - and a key of a member of wheel/sudo put in here is
+# root with a password. Such a key is added only when the ask carries the signed row of
 # `host:sshkeys:want:...` it comes from (its value and its signatures), the signature checked
 # here with the key worked out from secrets.key as the daemon works it out, and the row holding
-# that very ask (its id, add, root, the same line) not older than an hour. A file laid in this
-# folder by itself - not from a page's ask written to the database - is refused.
+# that very ask (its id, add, the user, the same line) not older than an hour. A file laid in
+# this folder by itself - not from a page's ask written to the database - is refused. Root's own
+# keys are not added from here at all since 1.0.108, signed or not (sshkeys_do).
 # What it is not against: the acme account holds secrets.key and may write config.json, so a
 # daemon taken over can still sign (or switch the guard off) - see docs/high-security.md.
 CONFIG_PATH = os.environ.get('ACME_CONFIG', '/etc/acme/config.json')
@@ -4526,7 +4490,7 @@ def ask_signed(r, head, fits, what):
         raise Refused(what)
     k, v, aid = str(signed.get('k') or ''), signed.get('v'), str(signed.get('aid') or '')
     if not k.startswith(head) or not isinstance(v, str) or not aid:
-        raise Refused('db_guard is on: the row this ask comes from is not one of root\'s keys'
+        raise Refused('db_guard is on: the row this ask comes from is not one of the SSH keys'
                       if head == 'host:sshkeys:want:' else
                       'db_guard is on: the row this ask comes from is not one such asks are '
                       'kept in')
@@ -4619,57 +4583,30 @@ def ask_once_note(done):
         pass
 
 
-def rootkey_signed(r, line, user='root'):
-    """Refused unless the ask to add `line` for `user` comes from a row the daemon signed."""
+def rootkey_signed(r, line, user):
+    """Refused unless the ask to add `line` for `user` (a member of wheel/sudo) comes from a
+    row the daemon signed."""
     return ask_signed(r, 'host:sshkeys:want:', lambda a: a.get('do') == 'add' and
                       str(a.get('user') or 'root') == user and
                       str(a.get('line') or '').strip() == line,
-                      'db_guard is on: a key of root\'s is added only as asked on the pages (a '
-                      'signed row of the database) - this ask carries none' if user == 'root' else
                       'db_guard is on: a key of a user who may use sudo is added only as asked on '
                       'the pages (a signed row of the database) - this ask carries none')
+
+
+# Root's keys only read (1.0.108): the pages show them, and nothing asked through this folder
+# - from a page, the command line's --api, a row of the database written past acme with or
+# without db_guard, another node's - adds or takes away a key of root's. root changes
+# /root/.ssh/authorized_keys on the server itself.
+ROOT_KEYS_SHOWN_ONLY = ('root\'s SSH keys are only shown on the pages - change them on the '
+                        'server itself, in /root/.ssh/authorized_keys')
 
 
 def sshkeys_do(r):
     user = str(r.get('user') or 'root')
     if user != 'root':
         return sshkeys_user_do(r, user)
-    do = r.get('do')
-    lines = auth_lines()
-    if do == 'add':
-        line = str(r.get('line') or '').strip()
-        once = rootkey_signed(r, line) if guard_on() else None
-        m = KEY_LINE_RE.match(line)
-        if not m or m.group('type') not in KEY_TYPES:
-            raise Refused('that is not one public key line (ssh-ed25519 AAAA... comment) - '
-                          'options before the key are not taken here')
-        facts = key_facts(line)
-        if not facts:
-            raise Refused('ssh-keygen does not read that key')
-        bits, fp, kind = facts
-        if kind == 'RSA' and bits < 3072:
-            raise Refused('an RSA key of %d bits is too weak: 3072 at least, or ed25519' % bits)
-        if kind == 'DSA':
-            raise Refused('DSA keys are not taken')
-        # There already is no fault: a key of root's the app was handed, or
-        # one put on again (1.0.159).
-        if not any(k['fp'] == fp for k in auth_keys(lines)):
-            lines = [ln for ln in lines if ln.strip()] + [line]
-            auth_write(lines)
-        ask_once_note(once)
-    elif do == 'drop':
-        fp = str(r.get('fp') or '')
-        keys = auth_keys(lines)
-        hit = [k for k in keys if k['fp'] and k['fp'] == fp]
-        if not hit:
-            raise Refused('no key %s is there' % fp)
-        if len(keys) == len(hit) and not r.get('last_ok'):
-            raise Refused('that is the last key root signs in with here - said again to take it '
-                          'away anyway')
-        gone = {k['line'] for k in hit}
-        auth_write([ln for i, ln in enumerate(lines) if i not in gone])
-    elif do != 'list':
-        raise Refused('list, add or drop')
+    if r.get('do') != 'list':
+        raise Refused(ROOT_KEYS_SHOWN_ONLY)
     lines = auth_lines()
     return {'keys': [dict((k, v) for k, v in x.items() if k != 'line') for x in auth_keys(lines)],
             'file': ROOT_AUTH, 'sshd': sshd_says(), 'user': 'root',

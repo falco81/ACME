@@ -479,11 +479,78 @@ class Daemon(unittest.TestCase):
         made = self.ok('POST', '/api/sshkeys', {'action': 'uk_make', 'user': e})
         self.assertIn('PRIVATE KEY', made['private'])
         self.assertTrue(made['file'].startswith('acme-%s-' % e))
-        st, _ = self.api('POST', '/api/sshkeys', {'action': 'uk_make', 'user': 'root'})
-        self.assertEqual(st, 400)
         st, _ = self.api('POST', '/api/sshkeys', {'action': 'refresh', 'user': 'not a name'})
         self.assertEqual(st, 400)
         self.assertIn('for %s on usernode' % e, self.events())
+
+        def keys_of(n):
+            end, of = time.time() + 30, {}
+            while time.time() < end:
+                v = self.ok('GET', '/api/sshkeys')
+                of = (v['nodes'][0].get('keys_of') or {}).get(e) or {}
+                if len(of.get('keys') or []) == n and not v['nodes'][0].get('pending'):
+                    return of['keys']
+                time.sleep(0.4)
+            self.fail('%s keys of %s: %s' % (n, e, of))
+        keys_of(2)
+        # As root's card had it (1.0.108): the same key on every node they are on, or one node's.
+        for scope in ('all', 'usernode'):
+            made = self.ok('POST', '/api/sshkeys', {'action': 'uk_make', 'user': e,
+                                                    'scope': scope, 'kind': 'ed25519'})
+            self.assertEqual(made['nodes'], ['usernode'])
+            self.assertIn('PRIVATE KEY', made['private'])
+        self.assertTrue(made['file'].startswith('acme-%s-usernode-' % e), made['file'])
+        got = keys_of(4)
+        st, said = self.api('POST', '/api/sshkeys', {'action': 'uk_make', 'user': e,
+                                                     'scope': 'nonode'})
+        self.assertEqual(st, 400, said)
+        # ...and taken away on one node, by the row's button
+        self.ok('POST', '/api/sshkeys', {'action': 'drop', 'fp': got[-1]['fp'], 'nodes': ['usernode'],
+                                         'user': e})
+        keys_of(3)
+        # A key added on the nodes chosen.
+        self.ok('POST', '/api/sshkeys', {'action': 'add', 'line': keyline(self.tmp, 'three@laptop'),
+                                         'user': e, 'nodes': ['usernode']})
+        self.assertIn('three@laptop', [k['comment'] for k in keys_of(4)])
+
+    def test_05c_root_keys_only_shown(self):
+        """Root's keys only shown on the pages (1.0.108): made, added, taken away - 403 with words,
+        nothing asked of the node; read again and listed as before."""
+        line = keyline(self.tmp, 'rootish@laptop')
+        before = self.meta('host:sshkeys:want%')
+        for body in ({'action': 'add', 'line': line}, {'action': 'add', 'line': line, 'user': 'root'},
+                     {'action': 'add', 'line': line, 'user': ''},
+                     {'action': 'drop', 'fp': 'SHA256:x', 'user': 'root', 'last_ok': True},
+                     {'action': 'drop', 'fp': 'SHA256:x', 'nodes': ['usernode']},
+                     {'action': 'uk_make', 'user': 'root'},
+                     {'action': 'rk_make', 'scope': 'all', 'kind': 'ed25519'},
+                     {'action': 'rk_make', 'scope': 'usernode', 'kind': 'ed25519'},
+                     {'action': 'rk_given', 'scope': 'all', 'key': line},
+                     {'action': 'rk_again', 'scope': 'all'}):
+            st, said = self.api('POST', '/api/sshkeys', body)
+            self.assertEqual(st, 403, (body, st, said))
+            self.assertIn('/root/.ssh/authorized_keys', json.dumps(said), body)
+        after = self.meta('host:sshkeys:want%')
+        self.assertNotIn('rootish@laptop', json.dumps(after))
+        self.assertEqual(sorted(json.dumps(r, sort_keys=True) for r in before),
+                         sorted(json.dumps(r, sort_keys=True) for r in after))     # nothing asked
+        # The command line's --api is the same route: refused too.
+        got = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py'), '--api', 'POST',
+                              '/api/sshkeys', json.dumps({'action': 'drop', 'fp': 'SHA256:x'})],
+                             env=self.env, capture_output=True, text=True, timeout=120)
+        self.assertNotEqual(got.returncode, 0)
+        self.assertIn('only shown', got.stdout + got.stderr)
+        # Read and listed as before.
+        self.ok('POST', '/api/sshkeys', {'action': 'refresh'})
+        end, n = time.time() + 30, {}
+        while time.time() < end:
+            n = self.ok('GET', '/api/sshkeys')['nodes'][0]
+            if n.get('at') and not n.get('error'):
+                break
+            time.sleep(0.4)
+        self.assertTrue(n.get('at'), n)
+        self.assertEqual(n.get('file'), '/root/.ssh/authorized_keys')
+        self.assertIsInstance(n.get('keys'), list)
 
     def test_06_the_console_for_normal_users(self):
         self.ok('POST', '/api/console-login', {'on': True, 'users': ['alice', 'bob']})

@@ -57,8 +57,8 @@ Worth it with a cluster or a database on another machine; with SQLite on this
 machine (only root and acme can write it) it adds little. Nothing else is to be
 set: switch it on, on every node.
 
-What a node does as root follows rows of the database: the firewall, sshd and
-root's `authorized_keys`, the network and the host name, a restart or a power-off,
+What a node does as root follows rows of the database: the firewall, sshd, the
+local users and their keys, the network and the host name, a restart or a power-off,
 the system's updates and the proxy they go through, chrony's servers, nginx's
 certificates, keepalived's VIP, the TLS of the link between the databases - and so
 do the accounts and the sign-ins of these pages, through which all of it is asked
@@ -143,16 +143,18 @@ root of the cluster's database anyway.
 The daemon runs as `acme`. It asks the root helper (`acme_web.py`, started by systemd)
 for what needs root, through files in `/var/lib/acme/web`. The helper checks the shape of
 every value it gets. What is asked is still the `acme` account's choice: the firewall,
-sshd, the network, the updates, the local users and **root's `authorized_keys`**.
+sshd, the network, the updates and the local users. **Root's `authorized_keys`** is only
+read (1.0.108): the helper adds and takes away no key of root's, whatever asks it - signed
+or not, `db_guard` on or off (see [SSH keys](ssh-keys.md), *Root's keys are only shown*).
 
-**A key of root's** is the one ask that makes `acme` root outright. With `db_guard` **on**,
-the helper adds one only from a row of the database acme signed, and checks the signature
-itself (see [SSH keys](ssh-keys.md), *Who can add a key of root's*). A forged ask, laid
-in the folder by itself or written into the database, is refused. Since 1.0.101 the same
+**A key of root's** was the one ask that made `acme` root outright; until 1.0.108 the helper
+added one, with `db_guard` **on** only from a row of the database acme signed. The same still
 holds for the other ways to root: a local user made, given a password or `sudo`, and a key
-of a member of wheel/sudo. Each signed ask is done once (the helper remembers those done in
-the last hour in a file of root's), so a cleared list of asks done does not replay one. With
-`db_guard` **off**, the `acme` account can add a key of root's.
+of a member of wheel/sudo - only from a signed row, the signature checked by the helper
+itself; a forged ask, laid in the folder by itself or written into the database, is refused.
+Each signed ask is done once (the helper remembers those done in the last hour in a file of
+root's), so a cleared list of asks done does not replay one. With `db_guard` **off**, the
+`acme` account can make a user with `sudo` or add a key of one.
 
 This is defence in depth, not a wall. `acme` holds `secrets.key` and may write
 `config.json`, so code that runs as `acme` can still sign an ask or switch the guard off.

@@ -15419,11 +15419,12 @@ function ntpSave() {
 
 /* ---- Settings → SSH keys of root (1.0.158) -------------------------------------
    Each node's /root/.ssh/authorized_keys as its root helper reads it; the keys
-   put side by side, a column a node. Above them root's key kept here, drawn as
-   isemon draws a router's (1.0.159), made here - one for every node, or one for
-   a node of its own. The key is then in the list below, a key of one's own
-   added there too (1.0.161). */
-var SK = {d: null, poll: null, asked: 0, scope: 'all', user: 'root', askedU: {}};
+   put side by side, a column a node. Root's are only shown (1.0.108): made, added
+   and taken away on the server itself, the API and the root helpers refusing it.
+   A normal user's have the card root's had (1.0.159, 1.0.108): a key made here -
+   one for every node they are on, or one for a node of its own - and in the list
+   below, a key of one's own added there too (1.0.161). */
+var SK = {d: null, poll: null, asked: 0, user: 'root', askedU: {}, uscope: {}};
 /* Whose keys are shown (1.0.240): root's, or a normal user's of the nodes. */
 function skUsers() {
   var seen = {}, out = [];
@@ -15498,7 +15499,7 @@ function drawSshKeys(live) {
         var gone = (n.before || []).filter(function (k) { return k.fp && !fps[k.fp]; });
         if (gone.length) {
           var p = el('p', 'note info');
-          p.appendChild(el('span', '', n.name + ' was built again: root had these keys there before, which are not on it now - add them again if they are still wanted: '));
+          p.appendChild(el('span', '', n.name + ' was built again: root had these keys there before, which are not on it now - put them back on the server itself if they are still wanted: '));
           p.appendChild(noI18n(el('span', 'mono small', gone.map(function (k) { return (k.comment ? k.comment + ' ' : '') + k.fp; }).join(' · '))));
           host.appendChild(p);
         }
@@ -15528,19 +15529,23 @@ function drawSshKeys(live) {
     who.appendChild(wh);
     host.appendChild(who);
     var me = SK.user;
-    if (me === 'root') host.appendChild(skKeptCard(d));
+    /* Root's only shown (1.0.108); a normal user's made here as root's were until then. */
+    if (me === 'root') host.appendChild(skRootNote());
     else host.appendChild(skUserCard(d, me));
     var card = el('div', 'card full');
     var h = el('h2', '', me === 'root' ? 'Keys that may sign in as root' : 'Keys that may sign in as');
     if (me !== 'root') h.appendChild(noI18n(el('span', 'mono', ' ' + me)));
     var tools = el('span', 'right');
-    var add = cmdButton('Add a key', 'upload', 'small');
-    explain(add, 'A key you have already - its public line or .pub file, or the private key, of which only the public half is used - put onto the nodes you choose.');
+    if (me !== 'root') {
+      var add = cmdButton('Add a key', 'upload', 'small');
+      explain(add, 'A key you have already - its public line or .pub file, or the private key, of which only the public half is used - put onto the nodes you choose.');
+      add.onclick = skAdd;
+      tools.appendChild(add);
+    }
     var again = iconButton('refresh', 'Read the keys again on every node');
-    tools.appendChild(add); tools.appendChild(again);
+    tools.appendChild(again);
     h.appendChild(tools);
     card.appendChild(h);
-    add.onclick = skAdd;
     again.onclick = function () {
       api('sshkeys', {action: 'refresh', nodes: skNodes(true), user: SK.user}).then(function () { skPoll(true); toast('asked again'); }).catch(oops);
     };
@@ -15582,9 +15587,11 @@ function drawSshKeys(live) {
         ex.disabled = !k.text;
         ex.onclick = function () { skExport(k); };
         act.appendChild(ex);
-        var rm = iconButton('trash', 'Take this key away');
-        rm.onclick = function () { skDrop(row); };
-        act.appendChild(rm);
+        if (me !== 'root') {
+          var rm = iconButton('trash', 'Take this key away');
+          rm.onclick = function () { skDrop(row); };
+          act.appendChild(rm);
+        }
         tr.appendChild(act);
         return tr;
       }, 'plain'));
@@ -15653,34 +15660,60 @@ function skNodePicker(body) {
     return boxes.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
   };
 }
-function skScopeWords(sc) { return sc === 'all' ? 'every node' : sc; }
-/* Root's key, made or given here: isemon's key panel - the same words, the
-   buttons in a row, the public half below to copy. Unlike isemon's it is kept
-   nowhere: acme never signs in as root, so a key made here is handed over
-   once, and one given leaves only its public half. In a cluster, the same
-   key on every node or a node's own. Taking a key away is in the list. */
-function skKeptCard(d) {
+/* Root's keys only shown (1.0.108): what stood in the card that made them, said where they
+   are changed instead. */
+function skRootNote() {
   var card = el('div', 'card full');
-  card.appendChild(el('h2', '', 'A key for root'));
-  var scopes = (d.kept || []);
-  if (!scopes.some(function (r) { return r.scope === SK.scope; })) SK.scope = 'all';
-  if (scopes.length > 1) {
+  card.appendChild(el('h2', '', 'The keys of root'));
+  var p = el('p', 'note info');
+  p.innerHTML = 'Root\'s keys are only shown here - they are not made, added or taken away on these pages. Change them on the server itself, as root: <code>/root/.ssh/authorized_keys</code> of each node. The keys of the other users who may sign in are made and added here - pick one in <b>Whose keys</b>.';
+  card.appendChild(p);
+  return card;
+}
+/* The nodes a normal user is on, as each node read its users. */
+function skUserThere(d, user) {
+  return ((d.nodes || []).filter(function (n) { return (n.users || []).some(function (u) { return u.name === user; }); })).map(function (n) { return n.name; });
+}
+/* A key for a normal user (1.0.240) - as root's card was until 1.0.108: in a cluster the same
+   key on every node they are on, or a node's own; made here, its private half shown once and
+   remembered nowhere. Taking a key away is in the list. */
+function skUserCard(d, user) {
+  var card = el('div', 'card full');
+  var h = el('h2', '', 'A key for');
+  h.appendChild(noI18n(el('span', 'mono', ' ' + user)));
+  card.appendChild(h);
+  var all = (d.nodes || []).map(function (n) { return n.name; });
+  var there = skUserThere(d, user);
+  SK.uscope = SK.uscope || {};
+  var sc = SK.uscope[user] || 'all';
+  if (sc !== 'all' && (all.indexOf(sc) < 0 || there.indexOf(sc) < 0)) sc = 'all';
+  SK.uscope[user] = sc;
+  if (all.length > 1) {
     var segb = el('div', 'seg');
-    scopes.forEach(function (r) {
-      var b = el('button', r.scope === SK.scope ? 'on' : '', r.scope === 'all' ? 'The same key on every node' : 'Only on');
-      if (r.scope !== 'all') b.appendChild(noI18n(el('b', '', ' ' + r.scope)));
+    ['all'].concat(all).forEach(function (s) {
+      var b = el('button', s === sc ? 'on' : '', s === 'all' ? 'The same key on every node' : 'Only on');
+      if (s !== 'all') b.appendChild(noI18n(el('b', '', ' ' + s)));
       b.type = 'button';
-      b.onclick = function () { SK.scope = r.scope; drawSshKeys(); };
+      if (s !== 'all' && there.indexOf(s) < 0) {
+        b.disabled = true;
+        b.title = user + ' is not a user who may sign in on ' + s + '.';
+      }
+      b.onclick = function () { SK.uscope[user] = s; drawSshKeys(); };
       segb.appendChild(b);
     });
     var ff = formField('The key for', segb);
     ff.style.marginBottom = '12px';
     card.appendChild(ff);
   }
-  var cur = scopes.filter(function (r) { return r.scope === SK.scope; })[0] || {scope: 'all', on: {}};
-  var nodes = Object.keys(cur.on || {});
-  var where = cur.scope === 'all' ? (nodes.length > 1 ? 'both nodes - the same key' : 'this server') : '<b>' + htmlText(cur.scope) + '</b> only';
-  var P = rbPanel('Its <b>public</b> half goes into <code>/root/.ssh/authorized_keys</code> of ' + where + '. The <b>private</b> half is never kept here: it is shown to you once, to download or copy. The key is then in the list below - exported or taken away there; a key of your own is added there too.');
+  var nodes = sc === 'all' ? there : [sc];
+  var u = htmlText(user);
+  var P = rbPanel(sc !== 'all'
+    ? 'Its <b>public</b> half goes into <code>~' + u + '/.ssh/authorized_keys</code> of <b>' + htmlText(sc) + '</b> only - written as ' + u + ', so that the folder and the file are theirs. The <b>private</b> half is never kept here: it is shown to you once, to download or copy. The key is then in the list below - exported or taken away there; a key of your own is added there too.'
+    : all.length < 2
+      ? 'Its <b>public</b> half goes into <code>~' + u + '/.ssh/authorized_keys</code> of this server - written as ' + u + ', so that the folder and the file are theirs. The <b>private</b> half is never kept here: it is shown to you once, to download or copy. The key is then in the list below - exported or taken away there; a key of your own is added there too.'
+      : there.length === all.length
+        ? 'Its <b>public</b> half goes into <code>~' + u + '/.ssh/authorized_keys</code> of every node - the same key, written as ' + u + ', so that the folder and the file are theirs. The <b>private</b> half is never kept here: it is shown to you once, to download or copy. The key is then in the list below - exported or taken away there; a key of your own is added there too.'
+        : 'Its <b>public</b> half goes into <code>~' + u + '/.ssh/authorized_keys</code> of the nodes ' + u + ' is on: ' + htmlText(there.join(', ') || '–') + ' - the same key, written as ' + u + ', so that the folder and the file are theirs. The <b>private</b> half is never kept here: it is shown to you once, to download or copy. The key is then in the list below - exported or taken away there; a key of your own is added there too.');
   if (!d.keygen) {
     var miss = el('p', 'note');
     miss.style.color = 'var(--warn)';
@@ -15688,15 +15721,16 @@ function skKeptCard(d) {
     P.box.insertBefore(miss, P.row);
   }
   var mk = cmdButton('Make a key', 'key', '');
-  explain(mk, 'Make a fresh pair here - Ed25519, or RSA 4096 where something old needs RSA. Its private half is shown to you once; its public half goes into root\'s authorized_keys of ' + (cur.scope === 'all' ? 'every node' : cur.scope) + '.');
+  explain(mk, sc === 'all'
+    ? 'Make a fresh pair here - Ed25519, or RSA 4096 where something old needs RSA. Its private half is shown to you once; its public half goes into ' + user + '\'s authorized_keys of every node ' + user + ' is on.'
+    : 'Make a fresh pair here - Ed25519, or RSA 4096 where something old needs RSA. Its private half is shown to you once; its public half goes into ' + user + '\'s authorized_keys of ' + sc + ' only.');
   P.row.appendChild(mk);
-  mk.disabled = !d.keygen;
-  var words = cur.scope === 'all' ? 'every node' : cur.scope;
+  mk.disabled = !d.keygen || !nodes.length;
   mk.onclick = function () {
     var kind = 'ed25519';
-    modal('Make a key for ' + words, function (body) {
+    modal(sc === 'all' ? 'Make a key for ' + user + ' on every node' : 'Make a key for ' + user + ' only on ' + sc, function (body) {
       var p = el('p', 'note');
-      p.innerHTML = 'A fresh pair is made here. Its <b>private</b> half is shown to you once, to download or copy, and kept nowhere; its <b>public</b> half goes into root\'s authorized_keys of ' + htmlText(nodes.join(', ')) + '. A key there before stays until it is taken away in the list below.';
+      p.innerHTML = 'A fresh pair is made here. Its <b>private</b> half is shown to you once, to download or copy, and kept nowhere; its <b>public</b> half goes into ' + u + '\'s authorized_keys of ' + htmlText(nodes.join(', ')) + '. A key there before stays until it is taken away in the list below.';
       body.appendChild(p);
       var sg = el('div', 'seg');
       [['ed25519', 'Ed25519 (the strongest, and short)'], ['rsa4096', 'RSA 4096 (where something old needs RSA)']].forEach(function (o) {
@@ -15708,48 +15742,13 @@ function skKeptCard(d) {
       body.appendChild(formField('The kind', sg));
     }, [{words: 'Close', close: true}, {words: 'Make one', cls: 'primary', icon: 'key', go: function (b) {
       busy(b, true);
-      api('sshkeys', {action: 'rk_make', scope: cur.scope, kind: kind}).then(function (x) {
-        skShowMade(x);
-        return api('sshkeys');
-      }).then(function (d2) { SK.d = d2; drawSshKeys(); skPoll(true); })
-        .catch(function (e) { busy(b, false); oops(e); });
-    }}], 'medium');
-  };
-  card.appendChild(P.box);
-  return card;
-}
-/* A key for a normal user (1.0.240): made here, its private half shown once - remembered nowhere. */
-function skUserCard(d, user) {
-  var card = el('div', 'card full');
-  var h = el('h2', '', 'A key for');
-  h.appendChild(noI18n(el('span', 'mono', ' ' + user)));
-  card.appendChild(h);
-  var where = ((d.nodes || []).filter(function (n) { return (n.users || []).some(function (u) { return u.name === user; }); })).map(function (n) { return n.name; });
-  var P = rbPanel('Its <b>public</b> half goes into <code>~' + htmlText(user) + '/.ssh/authorized_keys</code> of ' + htmlText(where.join(', ') || 'the nodes') + ' - written as ' + htmlText(user) + ', so that the folder and the file are theirs. The <b>private</b> half is never kept here: it is shown to you once, to hand over.');
-  var mk = cmdButton('Make a key', 'key', '');
-  mk.disabled = !d.keygen || !where.length;
-  mk.onclick = function () {
-    var kind = 'ed25519';
-    modal('Make a key for ' + user, function (body) {
-      body.appendChild(el('p', 'note', 'A fresh pair is made here. Its private half is shown to you once, to download or copy, and kept nowhere; its public half goes onto ' + where.join(', ') + '.'));
-      var sg = el('div', 'seg');
-      [['ed25519', 'Ed25519 (the strongest, and short)'], ['rsa4096', 'RSA 4096 (where something old needs RSA)']].forEach(function (o) {
-        var b = el('button', o[0] === kind ? 'on' : '', o[1]);
-        b.type = 'button';
-        b.onclick = function () { kind = o[0]; Array.prototype.forEach.call(sg.children, function (x) { x.classList.remove('on'); }); b.classList.add('on'); };
-        sg.appendChild(b);
-      });
-      body.appendChild(formField('The kind', sg));
-    }, [{words: 'Close', close: true}, {words: 'Make one', cls: 'primary', icon: 'key', go: function (b) {
-      busy(b, true);
-      api('sshkeys', {action: 'uk_make', user: user, kind: kind, nodes: where}).then(function (x) {
+      api('sshkeys', {action: 'uk_make', user: user, kind: kind, scope: sc, nodes: nodes}).then(function (x) {
         skShowMade(x, user);
         return api('sshkeys');
       }).then(function (d2) { SK.d = d2; drawSshKeys(); skPoll(true); })
         .catch(function (e) { busy(b, false); oops(e); });
     }}], 'medium');
   };
-  P.row.appendChild(mk);
   card.appendChild(P.box);
   return card;
 }
@@ -15776,16 +15775,6 @@ function skShowMade(x, user) {
     body.appendChild(el('p', 'btnhelp', 'Then, on your machine: ssh -i ' + x.file + ' ' + user + '@…'));
   }, [{words: 'I have kept it', cls: 'primary', close: true}], 'medium');
 }
-function skKept(action, extra, b) {
-  if (b) busy(b, true);
-  var q = {action: action, scope: SK.scope};
-  Object.keys(extra || {}).forEach(function (k) { q[k] = extra[k]; });
-  api('sshkeys', q).then(function (x) {
-    toast(x.message, 'good');
-    return api('sshkeys');
-  }).then(function (d) { SK.d = d; drawSshKeys(); skPoll(true); })
-    .catch(function (e) { if (b) busy(b, false); oops(e); });
-}
 function skSave(text, file) {
   var a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], {type: 'application/octet-stream'}));
@@ -15801,7 +15790,8 @@ function skExport(k) {
 }
 function skAdd() {
   var area, pick, pp, ppf, user = SK.user;
-  modal(user === 'root' ? 'Add a key for root' : 'Add a key for ' + user, function (body) {
+  if (user === 'root') return;          /* root's only shown (1.0.108) */
+  modal('Add a key for ' + user, function (body) {
     var p = el('p', 'note');
     p.innerHTML = 'One line of a <code>.pub</code> file: <code>ssh-ed25519 AAAA… you@laptop</code>. Ed25519, ECDSA or RSA of 3072 bits and more; options before the key are not taken here. A private key is taken too: its public half is worked out here and the private half is not kept.';
     body.appendChild(p);
@@ -15836,19 +15826,12 @@ function skAdd() {
 }
 function skDrop(row) {
   var nodes = Object.keys(row.on), user = SK.user;
-  if (user !== 'root') {
-    /* A normal user's (1.0.240): no "last key" - their password stays theirs. */
-    confirmThen('Take the key away', htmlText(user) + ' no longer signs in with <code>' + htmlText(row.k.fp || '') + '</code>' + (row.k.comment ? ' (' + htmlText(row.k.comment) + ')' : '') + ' on ' + htmlText(nodes.join(', ')) + '.',
-      'Take it away', function () {
-        api('sshkeys', {action: 'drop', fp: row.k.fp, nodes: nodes, user: user}).then(function (x) { toast(x.message, 'good'); skPoll(true); }).catch(oops);
-      }, true);
-    return;
-  }
-  var last = ((SK.d && SK.d.nodes) || []).filter(function (n) { return row.on[n.name] && (n.keys || []).length <= 1; }).map(function (n) { return n.name; });
-  confirmThen('Take the key away', 'Root no longer signs in with <code>' + htmlText(row.k.fp || '') + '</code>' + (row.k.comment ? ' (' + htmlText(row.k.comment) + ')' : '') + ' on ' + htmlText(nodes.join(', ')) + '.'
-    + (last.length ? '<br><br><b>It is the last key root signs in with on ' + htmlText(last.join(', ')) + '.</b> Unless root may sign in with a password, nobody reaches it over SSH as root after this.' : ''),
+  /* A normal user's (1.0.240): no "last key" - their password stays theirs. Root's are not
+     taken away here at all (1.0.108). */
+  if (user === 'root') return;
+  confirmThen('Take the key away', htmlText(user) + ' no longer signs in with <code>' + htmlText(row.k.fp || '') + '</code>' + (row.k.comment ? ' (' + htmlText(row.k.comment) + ')' : '') + ' on ' + htmlText(nodes.join(', ')) + '.',
     'Take it away', function () {
-      api('sshkeys', {action: 'drop', fp: row.k.fp, nodes: nodes, last_ok: !!last.length}).then(function (x) { toast(x.message, 'good'); skPoll(true); }).catch(oops);
+      api('sshkeys', {action: 'drop', fp: row.k.fp, nodes: nodes, user: user}).then(function (x) { toast(x.message, 'good'); skPoll(true); }).catch(oops);
     }, true);
 }
 

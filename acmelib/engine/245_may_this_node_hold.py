@@ -272,7 +272,7 @@ def machine_changed_check(store, put_back=False, name=None):
         return []                       # that machine answers still: a clash, said elsewhere
     # What can be given back from what that machine said: who its users were (made again from
     # Settings -> Local users, with no password - none is kept anywhere), the SSH keys of root
-    # (fingerprints - the lines are not kept; those made on these pages are put on again).
+    # (fingerprints - the lines are not kept; put back on the server itself, 1.0.108).
     try:
         users = json.loads(store.get_meta('host:users:now:' + me) or '{}').get('users') or []
         keep = [{k: u.get(k) for k in ('name', 'uid', 'gecos', 'shell', 'sudo', 'login', 'locked')}
@@ -306,14 +306,9 @@ def machine_changed_check(store, put_back=False, name=None):
     # The SSH server put in again there is on trial, and a Keep from before (in the backup) is
     # not this one's (1.0.44): kept at once, a lockout on the new machine was never put back.
     store.set_meta('host:sshd:now:' + me, json.dumps({'kept_at': time.time()}))
-    # The keys of root made on these pages for this node: on again (their public halves are
-    # kept) - by this node itself, once it runs there (sshkeys_tick).
-    try:
-        if store.db.rows("SELECT k FROM meta WHERE k LIKE 'host:rootkey:%' AND k NOT LIKE "
-                         "'host:rootkey:again:%'"):
-            store.set_meta('host:rootkey:again:' + me, '%.0f' % time.time())
-    except Exception:                                   # noqa: BLE001
-        pass
+    # The keys of root made on these pages were put on again here (host:rootkey:again:) - not
+    # since root's keys are only shown on the pages (1.0.108): their fingerprints are in
+    # host:sshkeys:before:, said on the page, put back on the server itself.
     if gone:
         log('this node (%s) runs on another machine than last time: what that one had is '
             'forgotten, and what is wanted put in here (%s)' % (me, ', '.join(gone)), 'warn')

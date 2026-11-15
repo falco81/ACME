@@ -13,7 +13,8 @@
    secrets, the guard on again, the SNMP engine the same.
 3. That node started on its new machine: what the old machine said it had is forgotten (so the
    SSH server, the time, the console and the password policy are put in there again), its users
-   kept to be made again, the key of root made on the pages asked on again.
+   kept to be made again; the key of root once made on the pages not asked on again (root's keys
+   are only shown on the pages since 1.0.108 - the fingerprints of the old machine's are said).
 4. A cluster built from it (the replicated wizard, a second clean node joining): the second node
    has every row too, opens the sealed secrets (its own authority signs a renewal there).
 """
@@ -164,9 +165,8 @@ class RestoreThenCluster(unittest.TestCase):
         cls.r.start()
         wait_for(lambda: cls.r.py("print(st.get_meta('host:users:before:acme1') or '')").strip(),
                  60, 1, 'the users of the old machine kept')
-        wait_for(lambda: ROOT_PUB.split()[1] in cls.r.py(
-            "print(' '.join(r['v'] for r in st.db.rows(\"SELECT v FROM meta WHERE k LIKE "
-            "'host:sshkeys:want%'\")))"), 90, 2, 'the key of root asked on again')
+        wait_for(lambda: cls.r.py("print(st.get_meta('host:sshkeys:before:acme1') or '')").strip(),
+                 60, 1, 'the keys of root of the old machine kept')
         cls.after_start = json.loads(cls.r.py(DUMP).strip().splitlines()[-1])
         cls.r.stop()
         cls.b = Node('acme2', PG2)
@@ -256,13 +256,15 @@ class RestoreThenCluster(unittest.TestCase):
         # The wishes themselves kept.
         self.assertTrue(self.meta(a, 'host:sshd:conf'))
         self.assertTrue(self.meta(a, 'console:want:acme1'))
-        # Its users kept, to be made again; the key of root made on the pages asked on again.
+        # Its users kept, to be made again; the key of root made on the pages not asked on again
+        # (1.0.108: root's keys are only shown on the pages).
         before = json.loads(self.meta(a, 'host:users:before:acme1'))
         self.assertEqual([u['name'] for u in before['users']], ['falco'])
         self.assertTrue(before['users'][0]['sudo'])
         self.assertIn('SHA256:aaaa', self.meta(a, 'host:sshkeys:before:acme1'))
         asks = ' '.join(r['v'] for r in a['tables']['meta'] if r['k'].startswith('host:sshkeys:want'))
-        self.assertIn(ROOT_PUB.split()[1], asks)
+        self.assertNotIn(ROOT_PUB.split()[1], asks)
+        self.assertFalse(self.meta(a, 'host:rootkey:again:acme1'))
 
     def test_4b_the_other_node_built_again_too(self):
         a = self.after_start

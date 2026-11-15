@@ -508,6 +508,9 @@ def helper():
 
 def pubkey(comment):
     path = os.path.join(TMP, 'k-%s' % comment)
+    if os.path.exists(path + '.pub'):              # one made before in this run
+        with open(path + '.pub') as f:
+            return f.read().strip()
     subprocess.run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-C', comment, '-f', path],
                    check=True, capture_output=True)
     with open(path + '.pub') as f:
@@ -516,8 +519,10 @@ def pubkey(comment):
 
 @unittest.skipUnless(KEYGEN, 'ssh-keygen is not here')
 class TestRootKeys(unittest.TestCase):
-    """A key of root's added by the root helper (1.0.101): with db_guard on only from a row of
-    the database acme signed - an ask laid in the helper's folder by itself is refused."""
+    """Root's keys only shown on the pages (1.0.108): the root helper adds and takes away none of
+    root's - an ask signed by acme, one laid in its folder by itself, a row of the database
+    written past acme, with db_guard on or off - and only reads them. The daemon writes no such
+    ask and sends none on that it finds (another node's, one from before)."""
 
     @classmethod
     def setUpClass(cls):
@@ -527,10 +532,11 @@ class TestRootKeys(unittest.TestCase):
     def setUp(self):
         guard(True)
         self.helper_guard(True)
-        try:
-            os.unlink(self.W.ROOT_AUTH)
-        except FileNotFoundError:
-            pass
+        os.makedirs(os.path.dirname(self.W.ROOT_AUTH), exist_ok=True)
+        self.had = pubkey('there-before')
+        with open(self.W.ROOT_AUTH, 'w') as f:
+            f.write(self.had + '\n')
+        self.fp_had = self.fps()
 
     def tearDown(self):
         guard(False)
@@ -542,9 +548,145 @@ class TestRootKeys(unittest.TestCase):
     def fps(self):
         return [k['fp'] for k in self.W.auth_keys(self.W.auth_lines())]
 
-    def asked(self, line):
+    def planted(self, do, line='', fp='', signed=True):
+        """An ask for root's keys put in the database by hand - as acme would sign it, or past
+        it - and the helper's ask made of it as sshkeys_tick makes one."""
+        k = E.node_key('host:sshkeys:want', E.node_name())
+        ask = {'id': 'r%d' % int(time.time() * 1e6), 'do': do, 'line': line, 'fp': fp,
+               'last_ok': True, 'by': 'tester', 'at': time.time(), 'user': 'root'}
+        (STORE.set_meta if signed else forged_meta)(k, json.dumps([ask]))
+        return E.sshkeys_root_data(STORE, dict(ask, _row=(k, json.dumps([ask]))))
+
+    def test_the_pages_write_no_ask_for_root(self):
+        for do in ('add', 'drop'):
+            with self.assertRaises(E.RootKeysShownOnly) as e:
+                E.sshkeys_ask(STORE, [E.node_name()], do, 'tester', line=self.had, fp='x')
+            self.assertIn('/root/.ssh/authorized_keys', str(e.exception))
+            self.assertIsInstance(e.exception, ValueError)
+        self.assertEqual(E.sshkeys_ask(STORE, [E.node_name()], 'list', 'tester'), [E.node_name()])
+
+    def test_root_never_added_signed_or_not(self):
+        line = pubkey('pages')
+        for guard_on in (True, False):
+            self.helper_guard(guard_on)
+            for signed in (True, False):
+                data = self.planted('add', line=line, signed=signed)
+                if signed:
+                    self.assertIn('signed', data)
+                with self.assertRaises(self.W.Refused) as e:
+                    self.W.sshkeys_do(data)
+                self.assertIn('only shown', str(e.exception))
+            with self.assertRaises(self.W.Refused):
+                self.W.sshkeys_do({'do': 'add', 'line': line, 'user': 'root'})
+            with self.assertRaises(self.W.Refused):           # no user is root
+                self.W.sshkeys_do({'do': 'add', 'line': line})
+        self.assertEqual(self.fps(), self.fp_had)
+
+    def test_root_never_taken_away(self):
+        for guard_on in (True, False):
+            self.helper_guard(guard_on)
+            with self.assertRaises(self.W.Refused):
+                self.W.sshkeys_do({'do': 'drop', 'fp': self.fp_had[0], 'user': 'root',
+                                   'last_ok': True})
+            with self.assertRaises(self.W.Refused):
+                self.W.sshkeys_do(self.planted('drop', fp=self.fp_had[0]))
+        self.assertEqual(self.fps(), self.fp_had)
+
+    def test_an_ask_file_laid_down_is_refused(self):
+        for r in ({'id': 'x1', 'do': 'add', 'line': pubkey('forged'), 'user': 'root'},
+                  {'id': 'x2', 'do': 'drop', 'fp': self.fp_had[0], 'user': 'root', 'last_ok': True}):
+            with open(os.path.join(TMP, 'web', 'sshkeys.ask'), 'w') as f:
+                json.dump(r, f)
+            self.W.sshkeys_part()
+            with open(os.path.join(TMP, 'web', 'sshkeys.json')) as f:
+                said = json.load(f)
+            self.assertFalse(said['ok'])
+            self.assertIn('only shown', said['said'])
+        self.assertEqual(self.fps(), self.fp_had)
+
+    def test_root_listed_still(self):
+        got = self.W.sshkeys_do({'do': 'list', 'user': 'root'})
+        self.assertEqual([k['fp'] for k in got['keys']], self.fp_had)
+        self.assertEqual(got['keys'][0]['comment'], 'there-before')
+        self.assertEqual(got['file'], self.W.ROOT_AUTH)
+        self.assertFalse(hasattr(self.W, 'auth_write'))     # nothing left that writes it
+
+    def test_the_tick_sends_no_root_change_on(self):
+        """A row asking a change of root's keys (written past the pages, or before 1.0.108, or by
+        the other node): marked done with the refusal, never handed to the helper."""
+        line = pubkey('ticked')
+        self.planted('add', line=line)
+        sent = []
+        g = E.sshkeys_tick.__globals__
+        saved = g['root_ask'], g['threading']
+
+        class Now:
+            class Thread:
+                def __init__(self, target=None, **kw):
+                    self.t = target
+
+                def start(self):
+                    self.t()
+
+        def ask(name, file, data, secs):
+            sent.append(data)
+            return {'keys': [], 'users': [], 'sshd': {}}
+        g['root_ask'], g['threading'] = ask, Now
+        E.HOST_WORK['ssh'] = False
+        try:
+            E.sshkeys_tick(type('D', (), {'store': STORE})())
+        finally:
+            g['root_ask'], g['threading'] = saved
+        self.assertFalse([d for d in sent if d.get('do') != 'list'], sent)
+        now = json.loads(STORE.get_meta('host:sshkeys:now:' + E.node_name()) or '{}')
+        self.assertIn('only shown', now.get('error') or '')
+
+
+@unittest.skipUnless(KEYGEN, 'ssh-keygen is not here')
+class TestSudoKeys(unittest.TestCase):
+    """A key of a member of wheel/sudo added by the root helper (1.0.101): with db_guard on only
+    from a row of the database acme signed - an ask laid in the helper's folder by itself is
+    refused. (Root's own keys until 1.0.108; since, those are never changed from the pages.)"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.W = helper()
+        os.makedirs(os.path.join(TMP, 'web'), exist_ok=True)
+
+    def setUp(self):
+        import pwd
+        guard(True)
+        self.helper_guard(True)
+        W = self.W
+        me = pwd.getpwuid(os.geteuid())
+        home = os.path.join(TMP, 'home-sudo')
+        os.makedirs(home, exist_ok=True)
+        self.saved = (W.ssh_user, W.lu_may_sudo, W.user_auth_read, W.user_auth_write,
+                      W.user_auth_paths, W.normal_users)
+        self.kept = []
+        W.ssh_user = lambda name: me
+        W.user_auth_read = lambda pw: list(self.kept)
+        W.user_auth_write = lambda pw, lines: self.kept.__setitem__(slice(None), lines)
+        W.user_auth_paths = lambda pw: (home, os.path.join(home, 'authorized_keys'))
+        W.normal_users = lambda: []
+        W.lu_may_sudo = lambda name: True
+
+    def tearDown(self):
+        guard(False)
+        W = self.W
+        (W.ssh_user, W.lu_may_sudo, W.user_auth_read, W.user_auth_write, W.user_auth_paths,
+         W.normal_users) = self.saved
+
+    def helper_guard(self, on):
+        with open(self.W.CONFIG_PATH, 'w') as f:
+            json.dump({'db_guard': 1 if on else 0}, f)
+
+    def fps(self):
+        return [k['fp'] for k in self.W.auth_keys(self.kept)]
+
+    def asked(self, line, user='opsuser'):
         """The ask the daemon lays down for the helper, as sshkeys_tick makes it."""
-        E.sshkeys_ask(STORE, [E.node_name()], 'add', 'tester', line=line)
+        E.sshkeys_ask(STORE, [E.node_name()], 'add', 'tester', line=line, user=user)
         for r in E.node_key_rows(STORE, 'host:sshkeys:want', E.node_name()):
             for a in reversed(json.loads(r['v'])):          # the newest of that line
                 if a.get('line') == line:
@@ -562,12 +704,12 @@ class TestRootKeys(unittest.TestCase):
     def test_forged_unsigned_ask_is_refused(self):
         line = pubkey('forged')
         with self.assertRaises(self.W.Refused) as e:
-            self.W.sshkeys_do({'do': 'add', 'line': line, 'user': 'root'})
+            self.W.sshkeys_do({'do': 'add', 'line': line, 'user': 'opsuser'})
         self.assertIn('db_guard', str(e.exception))
         self.assertEqual(self.fps(), [])
         # ...also as a file in the helper's folder, the way the acme account would lay it down.
         with open(os.path.join(TMP, 'web', 'sshkeys.ask'), 'w') as f:
-            json.dump({'id': 'x1', 'do': 'add', 'line': line, 'user': 'root'}, f)
+            json.dump({'id': 'x1', 'do': 'add', 'line': line, 'user': 'opsuser'}, f)
         self.W.sshkeys_part()
         with open(os.path.join(TMP, 'web', 'sshkeys.json')) as f:
             said = json.load(f)
@@ -594,7 +736,11 @@ class TestRootKeys(unittest.TestCase):
         bad = dict(data, line=other)
         with self.assertRaises(self.W.Refused):
             self.W.sshkeys_do(bad)
-        # not a row of root's keys
+        # a signed row, but for another user
+        bad = dict(data, user='otheruser')
+        with self.assertRaises(self.W.Refused):
+            self.W.sshkeys_do(bad)
+        # not a row of the SSH keys
         bad = json.loads(json.dumps(data))
         bad['signed']['k'] = 'fw:conf'
         with self.assertRaises(self.W.Refused):
@@ -606,7 +752,7 @@ class TestRootKeys(unittest.TestCase):
         page's own refresh): the row is read again with its signatures (1.0.101 - refused as
         "not signed", and marked done: the key was never added)."""
         line = pubkey('raced')
-        E.sshkeys_ask(STORE, [E.node_name()], 'add', 'tester', line=line)
+        E.sshkeys_ask(STORE, [E.node_name()], 'add', 'tester', line=line, user='opsuser')
         r = next(iter(E.node_key_rows(STORE, 'host:sshkeys:want', E.node_name())))
         a = next(x for x in json.loads(r['v']) if x.get('line') == line)
         E.sshkeys_ask(STORE, [E.node_name()], 'list', 'tester')          # in between
@@ -627,7 +773,7 @@ class TestRootKeys(unittest.TestCase):
         line = pubkey('once')
         data = self.asked(line)
         fp = self.W.sshkeys_do(data)['keys'][0]['fp']
-        self.W.sshkeys_do({'do': 'drop', 'fp': fp, 'user': 'root', 'last_ok': True})
+        self.W.sshkeys_do({'do': 'drop', 'fp': fp, 'user': 'opsuser'})
         with self.assertRaises(self.W.Refused) as e:
             self.W.sshkeys_do(data)
         self.assertIn('done here already', str(e.exception))
@@ -638,40 +784,11 @@ class TestRootKeys(unittest.TestCase):
         # the file is root's own: one of somebody else's is not read
         self.assertTrue(self.W._once_read())
 
-    def test_a_key_of_a_sudo_member_needs_the_signed_row(self):
-        """A member of wheel/sudo is root with a password (1.0.101): their key as root's."""
-        import pwd
-        me = pwd.getpwuid(os.geteuid())
-        home = os.path.join(TMP, 'home-sudo')
-        os.makedirs(home, exist_ok=True)
-        W = self.W
-        saved = (W.ssh_user, W.lu_may_sudo, W.user_auth_read, W.user_auth_write, W.user_auth_paths,
-                 W.normal_users)
-        kept = []
-        W.ssh_user = lambda name: me
-        W.user_auth_read = lambda pw: list(kept)
-        W.user_auth_write = lambda pw, lines: kept.__setitem__(slice(None), lines)
-        W.user_auth_paths = lambda pw: (home, os.path.join(home, 'authorized_keys'))
-        W.normal_users = lambda: []
-        try:
-            line = pubkey('sudoer')
-            W.lu_may_sudo = lambda name: True
-            with self.assertRaises(W.Refused):
-                W.sshkeys_do({'do': 'add', 'line': line, 'user': 'opsuser'})
-            self.assertEqual(kept, [])
-            E.sshkeys_ask(STORE, [E.node_name()], 'add', 'tester', line=line, user='opsuser')
-            r = next(iter(E.node_key_rows(STORE, 'host:sshkeys:want', E.node_name())))
-            a = next(x for x in json.loads(r['v']) if x.get('line') == line)
-            data = E.sshkeys_root_data(STORE, dict(a, _row=(r['k'], r['v'])))
-            self.assertEqual(len(W.sshkeys_do(data)['keys']), 1)
-            # ...not a member: as before, no row needed
-            kept[:] = []
-            W.lu_may_sudo = lambda name: False
-            self.assertEqual(len(W.sshkeys_do({'do': 'add', 'line': line,
-                                               'user': 'opsuser'})['keys']), 1)
-        finally:
-            (W.ssh_user, W.lu_may_sudo, W.user_auth_read, W.user_auth_write, W.user_auth_paths,
-             W.normal_users) = saved
+    def test_not_a_member_needs_no_row(self):
+        line = pubkey('plainuser')
+        self.W.lu_may_sudo = lambda name: False
+        self.assertEqual(len(self.W.sshkeys_do({'do': 'add', 'line': line,
+                                                'user': 'opsuser'})['keys']), 1)
 
     def test_users_made_given_a_password_or_sudo_need_the_signed_row(self):
         """users.ask (1.0.101): add, password and sudo only from a signed row of
@@ -711,16 +828,16 @@ class TestRootKeys(unittest.TestCase):
         with open(self.W.CONFIG_PATH, 'w') as f:
             f.write('{not json')
         with self.assertRaises(self.W.Refused):
-            self.W.sshkeys_do({'do': 'add', 'line': pubkey('broken'), 'user': 'root'})
+            self.W.sshkeys_do({'do': 'add', 'line': pubkey('broken'), 'user': 'opsuser'})
 
     def test_guard_off_as_until_now(self):
         self.helper_guard(False)
-        got = self.W.sshkeys_do({'do': 'add', 'line': pubkey('plain'), 'user': 'root'})
+        got = self.W.sshkeys_do({'do': 'add', 'line': pubkey('plain'), 'user': 'opsuser'})
         self.assertEqual(len(got['keys']), 1)
         # dropping one needs no signature
         self.helper_guard(True)
         fp = got['keys'][0]['fp']
-        got = self.W.sshkeys_do({'do': 'drop', 'fp': fp, 'user': 'root', 'last_ok': True})
+        got = self.W.sshkeys_do({'do': 'drop', 'fp': fp, 'user': 'opsuser'})
         self.assertEqual(got['keys'], [])
 
 
