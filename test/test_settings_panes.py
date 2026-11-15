@@ -70,8 +70,7 @@ READ_OTHERWISE = {
     'portal_certlogin_ocsp', 'portal_certlogin_ocsp_url', 'portal_certlogin_crl_ldap',
     # ...and its card watched (1.0.113): _cl_card_int(part, 'every', ...) ...
     'admin_certlogin_card_watch', 'admin_certlogin_card_every', 'admin_certlogin_card_grace',
-    'admin_certlogin_card_stale', 'portal_certlogin_card_watch', 'portal_certlogin_card_every',
-    'portal_certlogin_card_grace', 'portal_certlogin_card_stale',
+    'portal_certlogin_card_watch', 'portal_certlogin_card_every', 'portal_certlogin_card_grace',
 }
 
 

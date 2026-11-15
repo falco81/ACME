@@ -243,7 +243,8 @@ if ($alive && acme_session() !== '') {
     /* The password given, its second step not yet (an account of acme's own). */
     $mfa = (is_array($got) && !$me && !empty($got['mfa'])) ? (string) $got['mfa'] : '';
 }
-/* A sign-in that watches its card (1.0.113): the certificate's port among where the page may ask. */
+/* A sign-in that watches its card (1.0.113): the certificate's port among where the page may load
+   its check's picture from (1.0.114) - only then, sent again before anything of the page is. */
 if (is_array($me) && acme_card_origin($me['card'] ?? null) !== '') {
     acme_csp(acme_card_origin($me['card']));
 }

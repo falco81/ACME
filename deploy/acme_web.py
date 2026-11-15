@@ -940,8 +940,10 @@ def certlogin_server(block, main, c, pad='    '):
                 if watch:
                     # One request, one connection (1.0.113): HTTP/2 would keep it open.
                     line = re.sub(r'\s+http2\b', '', line)
-            elif watch and re.match(r'^\s*(ssl_session_cache|ssl_session_timeout|'
-                                    r'ssl_session_tickets)\s', line):
+            elif watch and re.match(r'^\s*ssl_session_\w+\s', line):
+                # Every ssl_session_* line it would inherit dropped (1.0.114, the kit's point 13):
+                # a shared cache of the main server lets a resumed TLS 1.2 check pass without
+                # the card. Set again below, off.
                 continue
             keep.append(line)
         depth += line.count('{') - line.count('}')

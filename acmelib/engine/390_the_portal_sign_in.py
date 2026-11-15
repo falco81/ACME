@@ -42,8 +42,9 @@ def portal_me(h, gate_ok=False):
     if krb_session_gone('portal', s, h.store):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         raise ApiError(401, 'sign in again')
-    # Its card taken out, the lock waiting for it (1.0.113): nothing answered but the check.
-    cl_card_hold('portal', s)
+    # Its card taken out, the lock waiting for it (1.0.113), or its page no longer checking
+    # (1.0.114, held): nothing answered but the check - 423, code card.
+    cl_card_hold(h, 'portal', s)
     if portal_mfa_pending(s):
         raise ApiError(401, 'the second step of signing in is not done yet')
     # An account of acme's own signed in without the second step asked of it now (1.0.101):

@@ -145,10 +145,9 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 | `admin_certlogin_ocsp` - *Ask an OCSP responder* | off | `off` (the CRLs alone, as before), `first`, `only`, `both` ([OCSP](#ocsp-an-online-responder)). |
 | `admin_certlogin_ocsp_url` - *OCSP responder of its own* | empty | Shown while OCSP is not off. Empty: the responder each certificate names (Authority Information Access); or an http address asked for every certificate and authority - refused on save unless it passes the same guards as a CRL's address. |
 | `admin_password_off` - *No password at all - only Windows or a certificate* | off | Rule 10. In the card **The sign-in page** (*Accounts*) - one switch of both ways. |
-| `admin_certlogin_card_watch` - *When the card is taken out* | off | `off`, `signout` (sign out at once) or `lock` (lock, wait for the card) - [The card taken out](#the-card-taken-out). |
-| `admin_certlogin_card_every` - *Check the card* | 10 | Seconds between two checks of the page: 5, 10, 15, 30 or 60. |
-| `admin_certlogin_card_grace` - *The lock waits for the card* | 60 | `lock`: seconds the covered page waits for the card - 15, 30, 60, 120, 300 or 600. |
-| `admin_certlogin_card_stale` - *No check of the card for* | auto | No good check for this long and the server ends the sign-in: `auto` (three checks missed and 30 s, two minutes at least), 60, 120, 300, 600, 1800 seconds, or `off`. |
+| `admin_certlogin_card_watch` - *When the card is taken out* | off | `off`, `signout` (sign out at once) or `grace` (lock, wait for the card; 1.0.113's `lock` is still taken and read as `grace`) - [The card taken out](#the-card-taken-out). |
+| `admin_certlogin_card_every` - *Check the card every (seconds)* | 15 | Seconds between two checks of the page, 5 to 300. |
+| `admin_certlogin_card_grace` - *The card put back within (seconds)* | 30 | `grace`: seconds the card may be out before the sign-in ends, 5 to 600. |
 
 ### The portal - *Settings → The enrolment pages → Signing in with a certificate*
 
@@ -159,7 +158,7 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 | `portal_certlogin_match`, `portal_certlogin_crl` | strong, on | As the administration's, for the portal. |
 | `portal_certlogin_crl_ldap`, `portal_certlogin_ocsp`, `portal_certlogin_ocsp_url` | off, off, empty | As the administration's, for the portal - the CRLs in the directory read with **the portal's directory** (`portal_directory`, else the administrators'). |
 | `portal_password_off` - *No password at all on the portal - only Windows or a certificate* | off | As the administration's, in the portal's card **The sign-in page**. |
-| `portal_certlogin_card_watch`, `portal_certlogin_card_every`, `portal_certlogin_card_grace`, `portal_certlogin_card_stale` | off, 10, 60, auto | As the administration's, for the portal. |
+| `portal_certlogin_card_watch`, `portal_certlogin_card_every`, `portal_certlogin_card_grace` | off, 15, 30 | As the administration's, for the portal. |
 
 **Alerts**: *Alerts and reports → Sign-ins with a certificate refused* (`alerts_certlogin`, off)
 mails each refusal, of either part.
@@ -617,65 +616,157 @@ servers (php -S, the demo) use ports of their own.
 ## The card taken out
 
 *When the card is taken out* (`admin_certlogin_card_watch`, `portal_certlogin_card_watch` - each
-part its own; **off** by default). A browser tells no page that a smart card or a YubiKey was
-taken out, so a page signed in with a certificate proves the card again, every *Check the card*
-seconds:
+part its own; **off** by default). A browser has no event for "smart card removed"; the only sure
+sign is that **the card can no longer sign**. So a page signed in with a certificate checks the
+card every *Check the card every* seconds (5-300, 15):
 
-1. The page asks the certificate's port itself (`https://<name>:8443/admin/?api=cert-alive`, or
-   `/?api=cert-alive` for the portal) - a `fetch` with the cookies; the session's `__Host-`
-   cookie goes with it (cookies are not kept apart by port; SameSite counts the site, not the
-   port). Its Content-Security-Policy names that one address, and only for a sign-in watched;
-   the port answers CORS for `https://<name>` (the page's own origin) and nobody else.
-2. While a part watches the card, nginx's server of the port **resumes no TLS session**
-   (`ssl_session_cache off`, `ssl_session_tickets off`), keeps **no connection**
-   (`keepalive_timeout 0`, no HTTP/2) - so every check is a full handshake, and the card's key
-   signs it. With neither part watching, that server is byte for byte as before.
-3. The daemon compares the certificate nginx took with the one the sign-in was made with (its
-   SHA-256, kept in the session at the sign-in): **the same** - alive; **none, another one, or
-   nginx's refusal** - the card is gone.
-4. A check that could not be made at all - the card's key no longer signing breaks the
-   handshake, and the browser sees a network error - is tried again twice, three seconds apart,
-   and then said to the daemon over 443 (`?api=cert-lost`). It is taken as the card gone only
-   while this node serves the certificate's port (a port down is no card taken out).
+```
+page (443)                          nginx :8443 (client certificate)   PHP              the daemon
+   |-- <img src="https://<name>:8443/admin/?api=cert-alive&t=…"> --->|                |
+   |      a new TCP + TLS handshake: no session cache, no tickets, no keep-alive         |
+   |      card in:  the browser signs with the card -> ACME_CERT_PEM                    |
+   |      card out: no certificate (or the handshake fails)                             |
+   |                                        |-- cookie + certificate -->|-- /api/certlogin/alive
+   |                                        |                           |   SHA-256 vs the sign-in's
+   |<--- a GIF 1 px wide: the card is there ----------------------------------------------|
+   |<--- 2 px: out, the sign-in waits (grace)  3/4/5 px: ended (another card / out / late)|
+   |<--- 403: no such sign-in ------------------------------------------------------------|
+   |
+   |-- no picture at all, twice: POST ?api=cert-lost (443) -> /api/certlogin/lost
+   |       the handshake failed - the server holds (grace) or ends (signout) the sign-in, with an event
+```
+
+1. **A picture**, not `fetch`: no CORS, nothing for another site to read; the session's
+   `__Host-` cookie goes with it (cookies are not kept apart by port, and a picture of the same
+   site gets a `SameSite=Strict` cookie); a picture asked by another site's page
+   (`Sec-Fetch-Site: cross-site`) gets a 403. Its width is the answer.
+2. **The page's Content-Security-Policy** lets `https://<name>:<port>` in for images -
+   `img-src 'self' data: https://<name>:8443` - **only for a watched sign-in**; `connect-src`
+   stays `'self'`. Any other page's policy is byte for byte as before. An IPv6 address is taken
+   as the page's `location.hostname` has it (in its brackets already).
+3. While a part watches the card, nginx's server of the port **drops every `ssl_session_*` line it
+   would inherit** from acme's main HTTPS server (a shared cache there lets a resumed TLS 1.2
+   check pass without the card) and sets `ssl_session_cache off`, `ssl_session_tickets off`,
+   `keepalive_timeout 0` (and no HTTP/2) - every check is a full handshake the card signs. Check
+   it: `openssl s_client -connect <name>:8443 -reconnect -tls1_2 -cert c.pem -key c.key` - every
+   line must say `New`; TLS 1.3 gives no ticket. With neither part watching, that server is byte
+   for byte as before (the check's address not let through - 404).
+4. The daemon compares the certificate with the one the sign-in was made with (its SHA-256, kept
+   in the sign-in's own row at every sign-in made with a certificate - never the certificate):
+   **the same** - the card is there; **another** - the sign-in ends at once, in every mode;
+   **none, or nginx's refusal** - the card is out.
+5. **A check that got nothing at all** - the card's key no longer signing breaks the handshake,
+   and the browser sees an error - is asked once more 1.5 s later (one lost connection, an nginx
+   502 while PHP restarts, is no card taken out); then the page says so itself over 443
+   (`?api=cert-lost`), which can only hold or end its own sign-in. It is taken as the card out
+   only while this node serves the certificate's port (a port down is no card taken out). A
+   check left without an answer for 20 s counts as one that got nothing.
 
 Then, by the setting:
 
 - **Sign out at once** (`signout`): the sign-in ends on the server, an event says why (*nested
-  was signed out of these pages: the card was taken out - no certificate on the check*), and the
-  page goes to the sign-in page: **Signed out: your card was removed** - not gone to the
-  certificate (nor to Windows) by itself again in that tab.
-- **Lock, wait for the card** (`lock`): the page is covered - *Put your card back*, a countdown,
-  *Sign out* - and nothing of the pages answers that sign-in (HTTP 423) but the check, which
-  now runs every three seconds. The card back within *The lock waits for the card* (15 s to 10
-  minutes): the page goes on as it was left. Not: signed out, as above.
+  was signed out of these pages: the card they signed in with was taken out*), and the page goes
+  to the sign-in page: **Signed out: the card you signed in with was taken out.** - not gone to
+  the certificate (nor to Windows) by itself again in that tab, so the browser's certificate
+  chooser does not pop up.
+- **Lock, wait for the card** (`grace`): the page is covered by a notice - the seconds left,
+  large, in a ring that empties; *Put the card back*; *Signed out in N s unless the card is
+  back*; *Sign out* - and nothing behind it can be clicked or reached by the keyboard (`inert`).
+  **The server answers nothing of that sign-in** but the check, whoami and Sign out (HTTP 423,
+  code `card`), so the covered page cannot be worked around from the browser's console; whoami
+  gives it no role meanwhile (the pages' own PHP gates refuse it). Checks then come every 5 s -
+  10 s after a check that took longer than 4 s (one that waited on a window of the card's). The
+  card back within *The card put back within* (5-600 s, 30): the notice goes, *The card is
+  back.*, the page goes on where it was. Not back: **Signed out: the card you signed in with
+  was not put back in time.** Another card: **Signed out: another card than the one you signed
+  in with was offered.**
 
-**No check of the card for** (`*_certlogin_card_stale`): no good check for that long - the tab
-closed, the computer asleep, the network gone - and the server ends the sign-in itself (a
-request of it, and every node's sweep every 15 s). `auto`: three checks missed and 30 s, two
-minutes at least - a hidden tab's timers run once a minute in Chromium; a tab shown again
-checks at once. `off`: never for that.
+The sign-in page says why from a word this tab kept for itself (`sessionStorage`: `out`,
+`late`, `other`) with its own fixed sentence - never from the address. (1.0.113 put
+`?certsaid=removed` in the address: a link of anybody's showed it.)
 
-Only sign-ins made **with a certificate** are watched - a password's or Windows' never. Switched
-on, the certificate's sign-ins made before end (they kept no card to compare with; the one of
-whoever switched it on stays, unwatched); lock or the times changed while on apply at once.
-The card's facts say *Card watched: every 10 s, sign out at once* and how many sign-ins are
-watched now. A check is no activity of the person: the idle time (`session_idle_min`) runs on.
+**Kind to the card**: one check at a time (a new one starts only when the last is over); one
+check for all the tabs of a browser (`localStorage` - a tab whose neighbour found the card a
+moment ago takes its answer, one that finds it out tells the others at once); a longer pause
+after a check that waited on the card. The first check comes 1.5 s after the page loads, and the
+countdown is drawn every second.
 
-What it needs of the card and the browser:
+**Asleep is not out.** A page that stopped checking - an iPad's screen locked, the browser in
+the background, a laptop's lid closed - has its sign-in **held**, not ended: no check for *late*
+\+ grace + max(every, 30 s) (*late*: three checks or 150 s, the longer - a browser checks a tab in
+the background about once a minute) and nothing of it is answered (423) until a check finds the
+card again. The page checks the moment it wakes (`visibilitychange`, `pageshow`, `focus`,
+`online`): the card there - it goes on; not there - it goes as a card taken out. The idle time
+(`session_idle_min`) ends a held sign-in as any other; a check is no activity of the person.
+(1.0.113's *No check of the card for* - `*_certlogin_card_stale` - ended such a sign-in; it is no
+setting any more: still taken by `--set`, a configuration or a backup, and left out.) The card
+out longer than grace + *late* ends the sign-in on the server too (a request of it, and every
+node's sweep every 15 s) - a tab closed with the card out.
 
-- **A PIN kept for the session.** Each check is a signature of the card's key. The Windows
-  smart card minidriver keeps the PIN while the card is in; a YubiKey's PIV PIN policy *once*
-  (the default) does too. A card that asks for its PIN at every signature (PIN policy
-  *always*) asks at every check - not for this.
-- **The certificate chosen by itself.** Chrome and Edge remember the choice for the port; the
-  policy `AutoSelectCertificateForUrls` for `https://<name>:8443` makes it so from the start,
-  and with a second fitting certificate (a soft one in the store) the chooser could otherwise
-  come up during a check.
+**The state is kept in the sign-in's own row** of the database (`card` - the fingerprint,
+`card_seen` - the last check that found the card, written at most every 20 s, `card_out` - when it
+was first found out), nothing in a daemon's memory and nothing in `meta`: in a cluster the check
+lands on one node and the page's questions on the other, and either answers; a restart forgets
+nothing.
+
+Only sign-ins made **with a certificate** are watched - a password's, Windows' or RADIUS' never.
+Switched on, the certificate's sign-ins made since 1.0.114 (they kept their card's fingerprint)
+are watched from then on - their pages learn it within a minute and load themselves again (or,
+with changes not saved, say so: *The card you signed in with is watched from now on - save and
+reload the page.*); a portal page learns it from its first question refused. Those made before
+1.0.114 end (they kept nothing to compare with); the one of whoever switched it on stays. The
+card's facts say *When the card is taken out - a notice, then signed out unless it is back within
+30 s (checked every 15 s)* and how many sign-ins are watched now.
+
+Events:
+
+```
+nested was signed out of these pages (from 10.0.0.5): the card they signed in with was taken out (no certificate on the check)
+nested was signed out of these pages (from 10.0.0.5): the card they signed in with was taken out (its check could not be made - the handshake failed, nothing signed it)
+nested was signed out of these pages (from 10.0.0.5): the card they signed in with was not put back in time
+nested was signed out of these pages (from 10.0.0.5): another certificate than the one signed in with was offered (the card was changed)
+nested: the card they signed in with is out - the sign-in to these pages waits 30 s for it (no certificate on the check, from 10.0.0.5)
+nested: the card they signed in with is back - the sign-in to these pages goes on (from 10.0.0.5)
+```
+
+### Things to know
+
+- **No PIN at each check, normally.** While the card stays in, Windows (the smart card
+  minidriver) and the browser keep the PIN; a YubiKey's PIV slot 9a has PIN policy `once` by
+  default.
+- **A YubiKey with touch or PIN policy `always`** asks for the touch (or the PIN) at every
+  check. Leave the setting off for such keys.
+- **Windows may ask for the card.** Depending on the driver, Windows may show *"Insert a smart
+  card"* when the browser tries the key that is gone; cancelling it fails the check. One check at
+  a time and the longer pause after one that waited keep that window from coming back again and
+  again.
+- **The certificate chosen by itself.** Chrome and Edge remember the certificate chosen for the
+  host and port and use it silently; the policy `AutoSelectCertificateForUrls` for
+  `https://<name>:8443` makes it so from the start (a second fitting certificate - a soft one in
+  the store - would otherwise bring the chooser up during a check). After the end the sign-in
+  page tries nothing by itself.
+- **iPad / iPhone.** iPadOS stops Safari's pages while the screen is locked or another app is in
+  front: the sign-in is held, and checked when Safari is back. Whether Safari on iPadOS hands a
+  client certificate (a card through CryptoTokenKit, a YubiKey over USB-C or NFC, an identity in
+  a profile) to a picture of another port has not been tried on a real iPad: if every check fails
+  there with the card in, the events say *taken out* at the first check - try it on your own iPad
+  first.
 - **Windows' own lock as well**: the Group Policy *Interactive logon: Smart card removal
-  behavior = Lock workstation* (and the *Smart Card Removal Policy* service) locks the whole
-  computer when the card is taken out - acme's watch ends the sign-in to the pages besides.
-- In a cluster behind the VIP address: the check goes to the node that holds the address; the
-  three tries cover a move of it.
+  behavior* = **Lock Workstation**, and the service *Smart Card Removal Policy* (SCPolicySvc)
+  running, lock the whole computer at once when the card is taken out - acme ends its own
+  sign-in besides.
+- **`nginx -s reload` is asynchronous.** For a few seconds after the root helper reloads nginx,
+  the old workers take connections with the old settings (a resumed TLS session, no
+  `cert-alive`). The window is seconds, and only when the setting is changed; measure (`openssl
+  s_client -reconnect`) once nginx has settled.
+- **A load balancer** in front of the certificate's port must pass it through as TCP (TLS
+  passthrough, as for the sign-in itself - [Behind a load balancer](#behind-a-load-balancer-or-a-waf)):
+  one that ends TLS cannot hand on the browser's certificate, and keeps connections alive by
+  itself. In a cluster behind the VIP address the check goes to the node that holds the
+  address; either node answers it (the state is in the database).
+- Not tried here (no physical card in the test machine): what Windows, macOS and iPadOS show when
+  a real card is pulled. The tests take the card out by failing the browser's handshakes with the
+  port (Chromium, a client certificate), and by checks without a certificate (nginx, openssl).
 
 ## Switching it on
 
@@ -709,8 +800,8 @@ acme --set admin_certlogin_ocsp=first   admin_certlogin_ocsp_url, admin_certlogi
 acme --set admin_certlogin=1          the switches as any other setting: portal_certlogin,
 acme --set certlogin_port=8443          admin_certlogin_auto, admin_certlogin_match, admin_certlogin_crl, ...
 acme --set admin_password_off=0       the way back from "no password at all" (switched on only from the pages)
-acme --set admin_certlogin_card_watch=lock   the card taken out: off, signout or lock (portal_... the same)
-acme --set admin_certlogin_card_every=10     admin_certlogin_card_grace=60, admin_certlogin_card_stale=auto
+acme --set admin_certlogin_card_watch=grace  the card taken out: off, signout or grace (portal_... the same)
+acme --set admin_certlogin_card_every=15     admin_certlogin_card_grace=30 (seconds: 5-300, 5-600)
 ```
 
 ## Backups, the configuration, the cluster

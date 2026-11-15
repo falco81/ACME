@@ -65127,6 +65127,98 @@
   "z_153": {
    "source": "A new certificate for the agent (a new key, made on its server) and a new client certificate for this node, now, both from acme’s own authority - rather than when they near their end (the agent’s 60 days before, this node’s 45). Nothing stops.",
    "text": "Nový certifikát pro agenta (s novým klíčem vytvořeným na jeho serveru) a nový klientský certifikát pro tento uzel, hned a oba od vlastní autority acme – ne až před koncem platnosti (agentův 60 dní předem, tohoto uzlu 45). Nic se nezastaví."
+  },
+  "z_154": {
+   "source": "Signed out: the card you signed in with was taken out.",
+   "text": "Odhlášeno: karta, kterou jste se přihlásili, byla vytažena."
+  },
+  "z_155": {
+   "source": "Signed out: the card you signed in with was not put back in time.",
+   "text": "Odhlášeno: karta, kterou jste se přihlásili, nebyla včas vrácena."
+  },
+  "z_156": {
+   "source": "Signed out: another card than the one you signed in with was offered.",
+   "text": "Odhlášeno: byla nabídnuta jiná karta, než kterou jste se přihlásili."
+  },
+  "z_157": {
+   "source": "The card is back.",
+   "text": "Karta je zpět."
+  },
+  "z_158": {
+   "source": "seconds",
+   "text": "sekund"
+  },
+  "z_159": {
+   "source": "Put the card back",
+   "text": "Vraťte kartu zpět"
+  },
+  "z_160": {
+   "source": "The smart card or YubiKey was taken out, so this sign-in is locked. Put it back - the page goes on where you left off.",
+   "text": "Čipová karta nebo YubiKey byla vytažena, proto je toto přihlášení zamčené. Vraťte ji zpět – stránka sama pokračuje tam, kde jste skončili."
+  },
+  "z_161": {
+   "source": "The card you signed in with is watched from now on - save and reload the page.",
+   "text": "Karta, kterou jste se přihlásili, se od teď hlídá – uložte změny a načtěte stránku znovu."
+  },
+  "z_162": {
+   "source": "the card is out - put back the card you signed in with",
+   "text": "karta je vytažená – vraťte kartu, kterou jste se přihlásili"
+  },
+  "z_163": {
+   "source": "nothing - the session goes on",
+   "text": "nic – session pokračuje"
+  },
+  "z_164": {
+   "source": "Check the card every (seconds)",
+   "text": "Kontrolovat kartu každých (sekund)"
+  },
+  "z_165": {
+   "source": "The card put back within (seconds)",
+   "text": "Karta vrácena do (sekund)"
+  },
+  "z_166": {
+   "source": "Check the card every (seconds, the portal)",
+   "text": "Kontrolovat kartu každých (sekund, portál)"
+  },
+  "z_167": {
+   "source": "The card put back within (seconds, the portal)",
+   "text": "Karta vrácena do (sekund, portál)"
+  },
+  "z_168": {
+   "source": "The card watched: the page checks it every few seconds on the certificate’s port - a new connection the card has to sign. No PIN at each check while the card stays in (the Windows smart card minidriver, a YubiKey’s PIN policy “once”); a YubiKey with touch or PIN policy “always” asks at every check - leave this off for one. Windows may show “Insert a smart card” when the card is out: one check at a time, and a longer pause after one that waited on it. Let the browser pick the certificate by itself (Chrome and Edge: AutoSelectCertificateForUrls for this port). A page that stopped checking (an iPad asleep) is held, not signed out. Windows’ own “Smart card removal behavior = Lock Workstation” (Group Policy) locks the computer as well. Only sign-ins made with a certificate are watched.",
+   "text": "Hlídání karty: stránka ji každých pár sekund kontroluje na portu certifikátu – novým spojením, které karta musí podepsat. Dokud je karta vložená, PIN se při kontrole nezadává (minidriver čipových karet ve Windows, PIN policy „once“ u YubiKey); YubiKey s touch nebo PIN policy „always“ se ptá při každé kontrole – u něj to nechte vypnuté. Když je karta venku, Windows může ukázat „Vložte čipovou kartu“: kontroluje se vždy jen jednou a po kontrole, která na takové okno čekala, je delší pauza. Nechte prohlížeč vybrat certifikát sám (Chrome a Edge: AutoSelectCertificateForUrls pro tento port). Stránka, která přestala kontrolovat (uspaný iPad), je pozdržena, ne odhlášena. Vlastní „Chování při vyjmutí čipové karty = Zamknout pracovní stanici“ ve Windows (zásady skupiny) zamkne i počítač. Hlídají se jen přihlášení certifikátem."
+  },
+  "z_169": {
+   "source": "Off (the default): a sign-in made with a certificate lasts as any other. Sign out at once: the page checks the card every few seconds - a new connection to the certificate's port the card has to sign - and the first time it is not there the sign-in ends and the sign-in page says why. Lock, wait for the card: the page is covered with a countdown and nothing of the sign-in is answered until the card is back in time - else signed out. Another card than the one signed in with ends it at once. Only sign-ins made with a certificate; a password's or Windows' never. A page that stopped checking (a tablet asleep, the browser in the background) has its sign-in held, not ended, until a check finds the card.",
+   "text": "Vypnuto (výchozí): přihlášení certifikátem trvá jako každé jiné. Hned odhlásit: stránka každých pár sekund kontroluje kartu – nové spojení na port certifikátu, které karta musí podepsat – a když tam karta poprvé není, přihlášení skončí a přihlašovací stránka řekne proč. Zamknout, čekat na kartu: stránku zakryje odpočet a na nic z přihlášení se neodpovídá, dokud se karta včas nevrátí – jinak odhlášení. Jiná karta, než kterou se člověk přihlásil, ho ukončí hned. Jen přihlášení certifikátem; heslem nebo Windows nikdy. Stránka, která přestala kontrolovat (uspaný tablet, prohlížeč na pozadí), má přihlášení pozdržené, ne ukončené, dokud kontrola kartu nenajde."
+  },
+  "z_170": {
+   "source": "How often the card is checked, 5 to 300 seconds. Each check is a signature by the card (no PIN while it stays in; a YubiKey with touch or PIN policy \"always\" asks every time - leave this off for one). A tab in the background is checked about once a minute.",
+   "text": "Jak často se karta kontroluje, 5 až 300 sekund. Každá kontrola je podpis kartou (dokud je vložená, bez PINu; YubiKey s touch nebo PIN policy \"always\" se ptá pokaždé – u něj to nechte vypnuté). Karta na pozadí se kontroluje zhruba jednou za minutu."
+  },
+  "z_171": {
+   "source": "With Lock: how long the card may be out before the sign-in ends, 5 to 600 seconds.",
+   "text": "Se zamknutím: jak dlouho smí být karta venku, než přihlášení skončí, 5 až 600 sekund."
+  },
+  "z_172": {
+   "source": "As the administration's, for the portal: how often the card is checked (5-300 s).",
+   "text": "Jako u administrace, pro portál: jak často se karta kontroluje (5–300 s)."
+  },
+  "z_173": {
+   "source": "As the administration's, for the portal: how long the card may be out (5-600 s).",
+   "text": "Jako u administrace, pro portál: jak dlouho smí být karta venku (5–600 s)."
+  },
+  "z_174": {
+   "source": "the card they signed in with was taken out",
+   "text": "karta, kterou se přihlásil, byla vytažena"
+  },
+  "z_175": {
+   "source": "the card they signed in with was not put back in time",
+   "text": "karta, kterou se přihlásil, nebyla včas vrácena"
+  },
+  "z_176": {
+   "source": "another certificate than the one signed in with was offered (the card was changed)",
+   "text": "byl nabídnut jiný certifikát, než kterým se přihlásil (karta byla vyměněna)"
   }
  },
  "patterns": {
@@ -90453,6 +90545,18 @@
   "pz_6": {
    "source": "this node is one of a cluster and its database is on {0}, looked after by the agent at {1}:{2}: another agent is not joined instead - take the cluster apart first (Settings -> High availability)",
    "text": "tento uzel je součástí clusteru a jeho databáze je na {0}, o který se stará agent {1}:{2}: jiný agent se místo něj nepřipojí – nejdřív cluster rozeberte (Nastavení → Vysoká dostupnost)"
+  },
+  "pz_7": {
+   "source": "Signed out in {0} s unless the card is back",
+   "text": "Odhlášení za {0} s, pokud se karta nevrátí"
+  },
+  "pz_8": {
+   "source": "signed out at the next check (every {0} s)",
+   "text": "odhlášení při další kontrole (každých {0} s)"
+  },
+  "pz_9": {
+   "source": "a notice, then signed out unless it is back within {0} s (checked every {1} s)",
+   "text": "upozornění, pak odhlášení, pokud se karta nevrátí do {0} s (kontrola každých {1} s)"
   }
  },
  "rich": {

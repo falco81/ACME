@@ -6,7 +6,54 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.114 - not released
 
-(nothing yet)
+- **Signing in with a certificate - the card taken out, as the kit "card-removal-watch"** (its
+  merge notes; docs/certificate-sign-in.md, *The card taken out*). Off (the default) changes
+  nothing: nginx's server of the certificate's port, the pages' policy (CSP) and every answer are
+  byte for byte as before. Fixed against 1.0.113:
+  - **Two nodes, a restart**: the state of the watch is in the sign-in's own row (`card_seen`,
+    `card_out`), nothing in a daemon's memory and nothing in `meta` (1.0.113 kept a note of each
+    ended sign-in there - tidied away): either node answers a check, a restart forgets nothing.
+  - **A failed handshake** (the usual card taken out: nothing to sign with) is said by the page
+    over 443: the events say why, and with *Lock, wait for the card* the server answers nothing
+    of the sign-in (HTTP 423, code `card` - not only the page covered) until the card is back;
+    whoami gives it no role meanwhile, so the pages' own PHP gates (an upload, a new version)
+    refuse it too.
+  - **One lost connection is not a card taken out**: a check that got nothing is asked once more
+    after 1.5 s (was: twice, 3 s apart); a check with no answer for 20 s counts (was 8 s).
+  - **Kind to the card**: one check at a time, one for all the tabs of a browser, out: every 5 s
+    and 10 s after a check that waited on a window of the card's (was every 3 s, whatever the last
+    one did) - Windows' "Insert a smart card" no longer comes back again and again.
+  - **The reason is never in the address**: *Signed out: your card was removed* came from
+    `?certsaid=removed`; now a word of the tab's own (out, late, other) with the sign-in page's own
+    sentence - *Signed out: the card you signed in with was taken out.* / *...was not put back in
+    time.* / *...another card than the one you signed in with was offered.*
+  - **Asleep is not out** (an iPad's screen locked, a browser in the background): a page that
+    stopped checking has its sign-in held (423) until a check finds the card - not signed out
+    after two minutes; the page checks the moment it wakes (visibilitychange, pageshow, focus,
+    online). *No check of the card for* (`*_certlogin_card_stale`) is no setting any more - still
+    taken by `--set`, a configuration or a backup, and left out.
+  - **Switched on while the pages are open**: a sign-in made with a certificate keeps its card's
+    fingerprint (only that) whatever the setting, so switching on watches it instead of ending it;
+    its page learns it within a minute and loads itself again (or says so, with changes not
+    saved). Sign-ins made before 1.0.114 end as before.
+  - **The check is a picture** (`<img>`, its width the answer: no CORS, nothing for another site to
+    read; another site's picture refused), let in by the page's policy (`img-src`) only for a
+    watched sign-in - `connect-src` is `'self'` again.
+  - **The notice** (design B): the seconds left, large, in a ring that empties - drawn every second
+    (was: at each check) - *Put the card back*, *Signed out in N s unless the card is back*, *Sign
+    out* in red; the page behind it inert. Back in time: the notice goes and the page goes on
+    where it was (was: loaded again). The first check 1.5 s after the page loads.
+  - **The port's nginx** drops every `ssl_session_*` line it inherits (a ticket key too), not only
+    the three it knew. Measured with `openssl s_client -reconnect` (TLS 1.2: every handshake new)
+    and `-sess_in` (TLS 1.3: no ticket) on a real nginx, once a reload has settled (`nginx -s
+    reload` is asynchronous - docs).
+  - **The settings**: *When the card is taken out* off / signout / grace (1.0.113's `lock` still
+    taken, and a saved one read, as grace); *Check the card every* 5-300 s (15; was a choice of
+    5-60, 10); *The card put back within* 5-600 s (30; was 15-600, 60). The card's facts say *When
+    the card is taken out - a notice, then signed out unless it is back within 30 s (checked every
+    15 s)*. The help and the docs say what to know: an iPad, Windows' "Insert a smart card", a
+    YubiKey with touch or PIN policy *always*, the Group Policy *Smart card removal behavior*, a
+    load balancer only as TCP passthrough.
 
 ## 1.0.113 - 2026-11-15
 

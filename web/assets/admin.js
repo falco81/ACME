@@ -8921,11 +8921,13 @@ function certCsr(x) {
   }
 }
 /* The card watched (1.0.113): off / sign out at once / lock - a segmented control that reads as a
-   select (._get, .value, .disabled), so the save bar and "not in use while" treat it as one. */
+   select (._get, .value, .disabled), so the save bar and "not in use while" treat it as one.
+   1.0.113's "lock" is 1.0.114's "grace" (a saved row may still say it). */
 function cardWatchSeg(s, changed) {
   var seg = el('div', 'seg card-watch-seg');
   seg.setAttribute('role', 'radiogroup');
   var val = String(s.value || 'off');
+  if (val === 'lock') val = 'grace';
   var paint = function () {
     Array.prototype.forEach.call(seg.children, function (b) {
       var on = b.dataset.v === val;
@@ -8933,7 +8935,7 @@ function cardWatchSeg(s, changed) {
       b.setAttribute('aria-checked', on ? 'true' : 'false');
     });
   };
-  (s.choices || ['off', 'signout', 'lock']).forEach(function (c) {
+  (s.choices || ['off', 'signout', 'grace']).forEach(function (c) {
     var b = el('button', '', (s.choice_words && s.choice_words[c]) || c);
     b.type = 'button';
     b.dataset.v = c;
@@ -8947,19 +8949,21 @@ function cardWatchSeg(s, changed) {
     seg.appendChild(b);
   });
   seg._get = function () { return val; };
-  Object.defineProperty(seg, 'value', {get: function () { return val; }, set: function (v) { val = String(v); paint(); }});
+  Object.defineProperty(seg, 'value', {get: function () { return val; }, set: function (v) { val = String(v) === 'lock' ? 'grace' : String(v); paint(); }});
   Object.defineProperty(seg, 'disabled', {
     get: function () { return seg.classList.contains('off'); },
     set: function (v) { seg.classList.toggle('off', !!v); Array.prototype.forEach.call(seg.children, function (b) { b.disabled = !!v; }); }});
   paint();
   return seg;
 }
-/* The card's facts row (1.0.113): how it is watched, and how many sign-ins are. */
+/* The card's facts row (1.0.113): what happens when it is taken out, and how many sign-ins are
+   watched now. */
 function cardWatchFacts(c) {
-  if (!c) return 'off - a sign-in made with a certificate lasts as any other';
-  var how = c.watch === 'lock' ? 'lock, wait ' + c.grace + ' s for the card' : 'sign out at once';
+  if (!c) return 'nothing - the session goes on';
+  var how = c.watch === 'signout' ? 'signed out at the next check (every ' + c.every + ' s)'
+    : 'a notice, then signed out unless it is back within ' + c.grace + ' s (checked every ' + c.every + ' s)';
   var out = el('span', '');
-  out.appendChild(el('span', '', 'every ' + c.every + ' s, ' + how));
+  out.appendChild(el('span', '', how));
   out.appendChild(el('span', 'muted small krb-from', c.sessions === 1 ? '1 sign-in watched now' : c.sessions + ' sign-ins watched now'));
   return out;
 }
@@ -8991,9 +8995,9 @@ function drawCert(part) {
     ['Revocation', certRevFlow(p)],
     [part === 'admin' ? 'Second step after it' : 'One-time code after it', p.second ? 'yes - asked after the certificate too, every time' : 'off'],
     [part === 'admin' ? 'The enrolment pages' : 'The administration', other.usable ? 'on there too - their own switch, the same port' : 'off there - their own switch'],
-    ['Card watched', cardWatchFacts(p.card)]
+    ['When the card is taken out', cardWatchFacts(p.card)]
   ]);
-  if (p.card) host.appendChild(el('p', 'note card-watch-note', 'The card watched: the page proves it every few seconds on the certificate’s port - a full TLS handshake the card’s key signs each time. Fit for a card or YubiKey whose PIN is kept for the session (the Windows smart card minidriver, the YubiKey’s PIN policy “once”); a card that asks for its PIN at every signature asks at every check. Let the browser pick the certificate by itself (Chrome and Edge: AutoSelectCertificateForUrls for this port), or it may offer its chooser. Windows’ own “Smart card removal behavior = Lock workstation” (Group Policy) locks the computer as well. Only sign-ins made with a certificate are watched.'));
+  if (p.card) host.appendChild(el('p', 'note card-watch-note', 'The card watched: the page checks it every few seconds on the certificate’s port - a new connection the card has to sign. No PIN at each check while the card stays in (the Windows smart card minidriver, a YubiKey’s PIN policy “once”); a YubiKey with touch or PIN policy “always” asks at every check - leave this off for one. Windows may show “Insert a smart card” when the card is out: one check at a time, and a longer pause after one that waited on it. Let the browser pick the certificate by itself (Chrome and Edge: AutoSelectCertificateForUrls for this port). A page that stopped checking (an iPad asleep) is held, not signed out. Windows’ own “Smart card removal behavior = Lock Workstation” (Group Policy) locks the computer as well. Only sign-ins made with a certificate are watched.'));
   /* The authorities. */
   host.appendChild(el('h3', 'peek-h', 'The authorities'));
   if (d.cas.length) {

@@ -4371,28 +4371,29 @@ textarea.dbs-code{width:100%;font-size:12.5px;resize:vertical;min-height:72px}
 .seg.card-watch-seg.off{opacity:.5}
 .seg.card-watch-seg.off button{cursor:not-allowed}
 .set-item.asleep .seg.card-watch-seg{opacity:.5}
+/* The notice over the page (1.0.114, the kit's design B): the seconds left, large, in a ring that
+   empties as they go; "Put the card back"; "Signed out in N s unless the card is back"; Sign out in
+   red. Behind it the page blurred, and inert. */
 .card-lock{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;
-  padding:24px 16px;background:rgba(3,6,11,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  padding:16px;background:rgba(5,8,12,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
   animation:card-lock-in .18s ease-out}
-.card-lock-box{background:var(--panel);border:1px solid var(--line);border-radius:16px;width:min(440px,100%);
-  padding:28px 28px 22px;text-align:center;box-shadow:0 26px 70px rgba(0,0,0,.6)}
-.card-lock-art{width:132px;height:132px;margin:0 auto 14px}
-.card-lock-art svg{width:100%;height:100%;display:block}
-.card-lock-track{fill:none;stroke:var(--line);stroke-width:6}
-.card-lock-ring{fill:none;stroke:var(--warn);stroke-width:6;stroke-linecap:round;transform:rotate(-90deg);
-  transform-origin:60px 60px;transition:stroke-dashoffset .9s linear,stroke .3s}
-.card-lock.late .card-lock-ring{stroke:var(--crit)}
-.card-lock-card rect:first-child{fill:var(--panel2);stroke:var(--tx-dim);stroke-width:2.2}
-.card-lock-card .card-lock-chip{fill:var(--warn-bg);stroke:var(--warn);stroke-width:1.6}
-.card-lock-card path{fill:none;stroke:var(--warn);stroke-width:1.2}
-.card-lock-card{animation:card-lock-nudge 1.8s ease-in-out infinite}
-.card-lock-box h2{margin:0 0 8px;font-size:20px;font-weight:650;color:var(--tx)}
+.card-lock-box{width:min(440px,calc(100vw - 32px));padding:30px 28px 26px;border:1px solid var(--line);
+  border-radius:18px;background:var(--panel);text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+.card-lock-ring{position:relative;width:150px;height:150px;margin:0 auto;display:flex;align-items:center;justify-content:center}
+.card-lock-ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
+.card-lock-track{fill:none;stroke:var(--line);stroke-width:7}
+.card-lock-arc{fill:none;stroke:var(--warn);stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset .9s linear,stroke .3s}
+.card-lock-mid{position:relative;display:flex;flex-direction:column;align-items:center}
+.card-lock-n{font-size:46px;font-weight:800;line-height:1;color:var(--warn);font-variant-numeric:tabular-nums}
+.card-lock-unit{font-size:13px;font-weight:600;color:var(--tx-dim);margin-top:3px}
+.card-lock-box h2{margin:16px 0 8px;font-size:21px;font-weight:700;color:var(--tx)}
 .card-lock-why{margin:0 0 14px;color:var(--tx-dim);font-size:14px;line-height:1.55}
-.card-lock-left{margin:0 0 18px;font-size:13px;font-weight:600;color:var(--warn);font-variant-numeric:tabular-nums}
-.card-lock.late .card-lock-left{color:var(--crit)}
+.card-lock-left{margin:0 0 18px;font-size:13.5px;font-weight:600;color:var(--warn);font-variant-numeric:tabular-nums}
+.card-lock.late .card-lock-arc{stroke:var(--crit)}
+.card-lock.late .card-lock-n,.card-lock.late .card-lock-left{color:var(--crit)}
 .card-lock-btns{justify-content:center}
 @keyframes card-lock-in{from{opacity:0}to{opacity:1}}
-@keyframes card-lock-nudge{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
-@media (prefers-reduced-motion:reduce){.card-lock,.card-lock-card{animation:none}.card-lock-ring{transition:none}}
-@media (max-width:480px){.card-lock-box{padding:22px 18px 18px}.card-lock-art{width:112px;height:112px}}
+@media (prefers-reduced-motion:reduce){.card-lock{animation:none}.card-lock-arc{transition:none}}
+@media (max-width:480px){.card-lock-box{padding:24px 18px 20px}.card-lock-ring{width:128px;height:128px}
+  .card-lock-n{font-size:40px}}
 .krb-facts + .note.card-watch-note{margin-top:10px}

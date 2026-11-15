@@ -209,6 +209,9 @@ class Daemon(object):
     def save_settings(self, changes, by='', node=None, drawn_by=None, keep_session=None,
                       split_card=False, krb_proof=None):
         checked = {}
+        # Settings no longer kept (1.0.114, SETTINGS_RETIRED): taken, and left out.
+        if changes and any(k in SETTINGS_RETIRED for k in changes):
+            changes = {k: v for k, v in changes.items() if k not in SETTINGS_RETIRED}
         was_2fa = bool(CONFIG.get('admin_2fa'))
         krb_before = krb_state_now(self.store)          # 1.0.99: the sign-ins it ends after
         # What the nodes do when they lose each other (1.0.77): only through its card - "try

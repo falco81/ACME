@@ -69,7 +69,8 @@ DBGUARD_SETTINGS = frozenset((
     # ...and how its revocation is checked (1.0.105): OCSP, the responder, CRLs from the directory.
     'admin_certlogin_ocsp', 'admin_certlogin_ocsp_url', 'admin_certlogin_crl_ldap',
     'portal_certlogin_ocsp', 'portal_certlogin_ocsp_url', 'portal_certlogin_crl_ldap',
-    # ...and whether its card is watched (1.0.113): unsigned, a row switched it off.
+    # ...and whether its card is watched (1.0.113): unsigned, a row switched it off. (The
+    # *_card_stale of 1.0.113 kept here - no setting since 1.0.114, an old row still signed.)
     'admin_certlogin_card_watch', 'admin_certlogin_card_every', 'admin_certlogin_card_grace',
     'admin_certlogin_card_stale', 'portal_certlogin_card_watch', 'portal_certlogin_card_every',
     'portal_certlogin_card_grace', 'portal_certlogin_card_stale',

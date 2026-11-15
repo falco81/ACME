@@ -49,21 +49,24 @@ unset($acme_query);
 
 $nonce = base64_encode(random_bytes(16));
 /** The page's Content-Security-Policy - sent again by a page whose sign-in watches its card
-    (1.0.113), with the certificate's port of this name among the places it may ask: that one
-    check and nothing else. */
-function acme_csp(string $connect = ''): void
+    (1.0.113), with the certificate's port of this name among the places it may load a picture
+    from (1.0.114: the check is a picture - connect-src stays 'self'): that one check and
+    nothing else. */
+function acme_csp(string $img = ''): void
 {
     global $nonce;
     header("Content-Security-Policy: default-src 'self'; "
          . "script-src 'self' 'nonce-$nonce'; "
          . "style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'nonce-$nonce'; "
-         . "img-src 'self' data:; connect-src 'self'" . ($connect !== '' ? ' ' . $connect : '') . "; font-src 'self'; object-src 'none'; "
+         . "img-src 'self' data:" . ($img !== '' ? ' ' . $img : '') . "; connect-src 'self'; font-src 'self'; object-src 'none'; "
          . "base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
 }
 acme_csp();
 
 /** The certificate's port, for the check of the card (1.0.113): https://<this name>:<port>, or ''
-    when the sign-in watches no card. $card: what whoami / /api/portal/me said of it. */
+    when the sign-in watches no card. $card: what whoami / /api/portal/me said of it. The name is
+    the one this page was reached by, an IPv6 address in its brackets as the Host header has it
+    (and as the page's location.hostname does). */
 function acme_card_origin($card): string
 {
     if (!is_array($card)) {

@@ -517,7 +517,7 @@ if (isset($_GET['api'])) {
         'portal-sso' => '/api/portal-sso',
         'kerberos' => '/api/kerberos',              /* signing in with Windows (1.0.99) */
         'certlogin' => '/api/certlogin',            /* ...with a certificate (1.0.100) */
-        'cert-lost' => '/api/certlogin/lost',       /* ...its card's check not made (1.0.113) */
+        'cert-lost' => '/api/certlogin/lost',       /* ...its card's check not made: the handshake failed (1.0.113) */
         'dbtls' => '/api/dbtls', 'metrics' => '/api/metrics', 'snmp' => '/api/snmp',
         'db-agent' => '/api/db-agent',              /* the database on a server of its own (1.0.112) */
         'acme-push' => '/api/acme-push',
@@ -577,7 +577,8 @@ $me      = acme_whoami();
    sign-in page, asking for it - nothing of the pages yet. */
 $mfa     = (is_array($me) && !empty($me['mfa'])) ? (string) $me['mfa'] : '';
 if ($mfa !== '') { $me = null; }
-/* A sign-in that watches its card (1.0.113): the certificate's port among where the page may ask. */
+/* A sign-in that watches its card (1.0.113): the certificate's port among where the page may load
+   its check's picture from (1.0.114) - only then, sent again before anything of the page is. */
 if (is_array($me) && acme_card_origin($me['card'] ?? null) !== '') {
     acme_csp(acme_card_origin($me['card']));
 }

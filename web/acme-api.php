@@ -485,24 +485,23 @@ function acme_cert_back(string $part, string $said = '', string $more = ''): voi
     exit;
 }
 
-/** The check of the card (1.0.113), on the certificate's port: asked by this name's own pages on
-    443 (a fetch with credentials - CORS for that origin alone), the session cookie with it
-    (cookies are not kept apart by port) and the certificate nginx took in a full handshake; the
-    daemon says whether it is the sign-in's card - alive, locked or signed out. Nothing else. */
+/** The check of the card (1.0.113; a picture since 1.0.114, as the kit "card-removal-watch"), on
+    the certificate's port: the signed-in page loads a picture from here every few seconds - a new
+    connection, whose handshake only the card can sign. The session cookie comes with it (cookies
+    are not kept apart by port, and the page is of the same site) and whatever certificate nginx
+    took goes to the daemon; the answer is a picture whose width says it: 1 the card is there, 2
+    it is out and the sign-in waits, 3 ended - another card, 4 ended - taken out, 5 ended - not put
+    back in time; 403 - no such sign-in (or another site's page asking). A picture: no CORS,
+    nothing for another site to read; no session, nothing asked. */
 function acme_cert_alive(string $part, bool $fail): void
 {
-    header('Content-Type: application/json; charset=utf-8');
-    $host = acme_cert_host();
-    $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
-    /* The page's own origin: this name on 443 - or on a port of its own, behind a proxy. */
-    if ($host === '' || preg_match('#^https://' . preg_quote($host, '#') . '(:[0-9]{1,5})?\z#', $origin) !== 1) {
+    header('Cache-Control: no-store');
+    /* Only this site's own pages: another site's picture gets nothing (it has no cookie either -
+       SameSite=Strict). */
+    if ((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site' || acme_session() === '') {
         http_response_code(403);
-        echo json_encode(['ok' => false, 'error' => 'asked only by these pages']);
         exit;
     }
-    header('Access-Control-Allow-Origin: ' . $origin);
-    header('Access-Control-Allow-Credentials: true');
-    header('Vary: Origin');
     $payload = ['part' => $part];
     $raw = (string) ($_SERVER['ACME_CERT_PEM'] ?? '');
     if ($fail) {
@@ -511,22 +510,23 @@ function acme_cert_alive(string $part, bool $fail): void
         $payload['cert'] = rawurldecode($raw);
     }
     [$status, $body] = acme_call('/api/certlogin/alive', 'POST', $payload, 15.0);
-    $d = json_decode((string) $body, true);
-    if ($status === 200 && is_array($d)) {
-        $out = ['ok' => !empty($d['ok']), 'state' => (string) ($d['state'] ?? 'unknown')];
-        foreach (['left', 'grace', 'every'] as $k) {
-            if (isset($d[$k])) {
-                $out[$k] = (int) $d[$k];
-            }
-        }
-        if (!empty($d['resumed'])) {
-            $out['resumed'] = true;
-        }
-        echo json_encode($out);
+    $d = $status === 200 ? json_decode((string) $body, true) : null;
+    $state = is_array($d) ? (string) ($d['state'] ?? '') : '';
+    $wide = ['ok' => 1, 'unwatched' => 1, 'locked' => 2][$state] ?? 0;
+    if ($state === 'gone') {
+        $wide = ['other' => 3, 'out' => 4, 'late' => 5][(string) ($d['why'] ?? '')] ?? 4;
+    }
+    if ($wide === 0) {
+        http_response_code(403);
         exit;
     }
-    http_response_code($status === 404 ? 404 : 503);
-    echo json_encode(['ok' => false, 'state' => $status === 404 ? 'off' : 'unknown']);
+    /* A GIF $wide pixels wide, one high. */
+    header('Content-Type: image/gif');
+    echo base64_decode([1 => 'R0lGODlhAQABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAABAAEAAAgEAAEEBAA7',
+        2 => 'R0lGODlhAgABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAACAAEAAAgFAAEACAgAOw==',
+        3 => 'R0lGODlhAwABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAADAAEAAAgFAAEIDAgAOw==',
+        4 => 'R0lGODlhBAABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAAEAAEAAAgGAAEIBBAQADs=',
+        5 => 'R0lGODlhBQABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAAFAAEAAAgGAAEIFBgQADs='][$wide]);
     exit;
 }
 

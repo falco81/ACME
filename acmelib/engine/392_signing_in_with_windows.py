@@ -749,7 +749,12 @@ def krb_sessions_settle(store, before, keep=None, by=''):
         # Certificates taken more strictly now (revocation switched on, matching made stricter -
         # strong): the sign-ins made with one before end, but the doer's (review F8).
         if cert and cert_was and cl_rule_stricter(was[3], after[part][3]):
-            cl_sessions_end(store, lambda p, _d, part=part: p == part, keep, by,
+            # Only the card watched now (1.0.114): the sign-ins that kept their card's fingerprint
+            # are watched from now on (their pages learn it within a minute) - those made before
+            # 1.0.114 kept none, and end.
+            only_card = not cl_rule_stricter(tuple(was[3])[:3], tuple(after[part][3])[:3])
+            cl_sessions_end(store, lambda p, d, part=part, only_card=only_card: p == part and
+                            not (only_card and d.get('card')), keep, by,
                             'certificates are taken more strictly now (%s)' % ', '.join(
                                 w for w, on in (('revocation checked', after[part][3][0] >
                                                  was[3][0]), ('matched %s' % cl_match(part),

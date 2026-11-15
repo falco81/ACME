@@ -136,10 +136,13 @@ def _whoami(h):
     acc = h.store.account(s['name'])
     if not acc or acc.get('disabled'):
         return {'who': None}
-    # Its card taken out and not put back, or no check of it for too long (1.0.113).
+    # Its card taken out and not put back (1.0.113).
     if cl_card_dead('admin', s, h.store):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         return {'who': None}
+    # The card watched (1.0.114): out, or its page no longer checking (held) - no role (the PHP
+    # pages' own gates refuse it), the page told how to watch it.
+    card = cl_card_view('admin', s, h.store)
     if mfa_pending(s):
         # No role until the second step is given: the pages that ask who it
         # is (a database or a package sent) refuse it.
@@ -152,7 +155,8 @@ def _whoami(h):
     # The page is drawn with the person's own layout of the tables from the
     # first frame, rather than as it comes and then again.
     return {'idle_min': int(CONFIG.get('session_idle_min') or 120),
-            'who': {'name': acc['name'], 'role': acc['role'], 'source': acc.get('source'),
+            'who': {'name': acc['name'], 'role': '' if card and (card['locked'] or card['stale'])
+                    else acc['role'], 'source': acc.get('source'),
                     'display': acc.get('display') or '', 'must_change': bool(
                         acc.get('must_change')), 'prefs': prefs,
                     # the performance meter switched on (Settings → About, 1.0.48)
@@ -164,7 +168,7 @@ def _whoami(h):
                     'how': str((s.get('data') or {}).get('how') or ''),
                     'password_off': krb_password_off('admin', h.store),
                     # The card watched (1.0.113): only for a sign-in watched, a key only then.
-                    **({'card': cl_card_view('admin', s)} if cl_card_view('admin', s) else {})}}
+                    **({'card': card} if card else {})}}
 
 
 @route('POST', '/api/auth/password')

@@ -1,21 +1,28 @@
-// The card watched (1.0.113), in Chromium: a page signed in with a certificate (Playwright's
-// clientCertificates for the certificate's port) and what it does when the card is taken out.
+// The card watched (1.0.113; 1.0.114 as the kit "card-removal-watch"), in Chromium: a page signed
+// in with a certificate (Playwright's clientCertificates for the certificate's port, as a card's
+// once its PIN is given) and what it does when the card is taken out.
 //
 //   node test/cert_card_page.js PHASE BASE CERT KEY NAME PASSWORD [SHOTS_DIR]
 //
 // BASE is the page's https origin on 443 (https://localhost); the certificate's port is 8443.
-// PHASE:
-//   signout - signed in with the certificate, the checks seen answered, then every request of the
-//             browser to the port failed (as a handshake does when the card's key no longer
-//             signs - Playwright cannot take a client certificate away from a running context):
-//             the page goes to the sign-in page saying "Signed out: your card was removed";
-//   lock    - the same with the part set to lock: the lock over the page, its countdown, nothing
-//             else answered; the port let through again (the card back): the lock goes and the
-//             page is as it was - in English and Czech, 1400 and 420 px wide (screenshots);
-//   options - signed in with the password as NAME: Settings -> Accounts, the certificate's card
-//             with its "When the card is taken out" options (screenshots).
-// Prints one line of JSON: {ok, checks: {name: true|false}, error?} - or {skip} where Chromium
-// does not start.
+// The card "taken out" is the port's handshake failing: every request of the browser to the port
+// aborted (Playwright cannot take a client certificate away from a running context), "put back"
+// is the port let through again. PHASE:
+//   signout - the checks' pictures loaded (let in by the page's policy, no CSP refusal); taken out:
+//             the sign-in page at once - "Signed out: the card you signed in with was taken out.",
+//             signed out on the server, the address clean, nothing gone to by itself;
+//   grace   - taken out: the notice (design B) within a check or so - the seconds in an emptying
+//             ring counting down by the second, "Put the card back", Sign out, nothing behind it
+//             reachable (inert), the server answering 423 code card; checked about every 5 s,
+//             not more; back in time: the notice gone, "The card is back.", answered again; two
+//             tabs of one browser sharing one check; in Czech, 1400 and 420 px wide (a phone:
+//             no sideways scroll) - screenshots;
+//   late    - (the grace 5 s) taken out and not back: the sign-in page - "...was not put back in
+//             time.", signed out on the server - in English and Czech, 1400 and 420 px;
+//   options - signed in with the password as NAME: the port never asked; Settings -> Accounts,
+//             When the card is taken out (off, signout, grace), the seconds, the card's facts.
+// Prints one line of JSON: {ok, checks: {name: true|false}, timing, error?} - or {skip} where
+// Chromium does not start.
 const fs = require('fs');
 const path = require('path');
 let chromium;
@@ -24,19 +31,19 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
 (async () => {
   const [phase, base, cert, key, name, pass, shots] = process.argv.slice(2);
   const port = base.replace(/\/$/, '') + ':8443';
+  const ALIVE = /:8443\/(admin\/)?\?api=cert-alive/;
   let browser;
   try {
-    browser = await chromium.launch();
+    browser = await chromium.launch({args: ['--no-proxy-server']});
   } catch (e) {
     console.log(JSON.stringify({skip: 'chromium does not start: ' + String(e.message).slice(0, 200)}));
     return;
   }
   const out = {checks: {}, timing: {}};
-  const shot = async (page, file, sel) => {
+  const shot = async (page, file) => {
     if (!shots) return;
     fs.mkdirSync(shots, {recursive: true});
-    if (sel) await page.locator(sel).first().screenshot({path: path.join(shots, file)});
-    else await page.screenshot({path: path.join(shots, file)});
+    await page.screenshot({path: path.join(shots, file)});
   };
   const until = async (page, fn, ms) => {
     const end = Date.now() + (ms || 15000);
@@ -48,20 +55,30 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
       await page.waitForTimeout(250);
     }
   };
-  const context = async (lang, width) => {
-    const ctx = await browser.newContext({
-      ignoreHTTPSErrors: true, viewport: {width: width || 1400, height: width && width < 600 ? 900 : 1000},
-      clientCertificates: [{origin: port, certPath: cert, keyPath: key}]});
+  const context = async (lang, width, withCert) => {
+    const phone = width && width < 600;
+    const ctx = await browser.newContext(Object.assign({
+      ignoreHTTPSErrors: true, viewport: {width: width || 1400, height: phone ? 880 : 1000},
+      deviceScaleFactor: phone ? 2 : 1, isMobile: !!phone, hasTouch: !!phone},
+      withCert === false ? {} : {clientCertificates: [{origin: port, certPath: cert, keyPath: key}]}));
     await ctx.addCookies([{name: 'acme_lang', value: lang || 'en', url: base + '/'}]);
-    const page = await ctx.newPage();
-    page.on('dialog', (d) => d.dismiss().catch(() => {}));
-    const seen = {ok: 0, all: 0};
-    page.on('response', (r) => {
-      if (r.url().indexOf(':8443/admin/?api=cert-alive') < 0) return;
-      seen.all++;
-      r.json().then((d) => { if (d && d.state === 'ok') seen.ok++; }).catch(() => {});
+    ctx.looks = [];
+    ctx.on('requestfinished', async (r) => {
+      if (!ALIVE.test(r.url())) return;
+      const s = await r.response();
+      ctx.looks.push(s ? s.status() : 0);
     });
-    return {ctx, page, seen};
+    ctx.on('requestfailed', (r) => { if (ALIVE.test(r.url())) ctx.looks.push('x'); });
+    return ctx;
+  };
+  const newPage = async (ctx) => {
+    const page = await ctx.newPage();
+    page.errs = [];
+    page.csp = [];
+    page.on('pageerror', (e) => page.errs.push(String(e)));
+    page.on('console', (m) => { if (/Content Security Policy|Content-Security-Policy/i.test(m.text())) page.csp.push(m.text()); });
+    page.on('dialog', (d) => d.dismiss().catch(() => {}));
+    return page;
   };
   const certSignIn = async (page) => {
     await page.goto(base + '/admin/');
@@ -69,108 +86,201 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
     await Promise.all([page.waitForURL(/\/admin\/(\?|#|$)/, {timeout: 30000}), page.click('#cert-go')]);
     return await until(page, async () => (await page.locator('#signout').count()) > 0, 20000);
   };
+  const said = (page) => page.evaluate(() => {
+    const e = document.querySelector('#cert-said') || document.querySelector('#in-said');
+    return e ? e.textContent : '';
+  });
+  const status = (page) => page.evaluate(() => fetch('?api=status', {credentials: 'same-origin'})
+    .then((r) => r.json().then((d) => r.status + ':' + (d.code || ''), () => r.status + ':')));
+  const whoGone = (page) => page.evaluate(() => fetch('?api=whoami', {credentials: 'same-origin'})
+    .then((r) => r.json()).then((d) => !d.who));
+  const cardOut = (ctx) => ctx.route(ALIVE, (r) => r.abort('failed'));
+  const cardIn = (ctx) => ctx.unroute(ALIVE);
   try {
     if (phase === 'signout') {
-      const {ctx, page, seen} = await context('en');
+      const ctx = await context('en');
+      const page = await newPage(ctx);
       out.checks.signed_in_with_the_card = await certSignIn(page);
       out.checks.page_knows_the_watch = await page.evaluate(() => !!(window.ME && ME.card && ME.card.watch === 'signout'));
-      out.checks.checks_answered_ok = await until(page, () => seen.ok >= 2, 20000);
-      // The card taken out: every handshake with the port fails from now on.
+      out.checks.pictures_let_in = await until(page, () => ctx.looks.filter((s) => s === 200).length >= 2, 20000) &&
+        ctx.looks.every((s) => s === 200) && page.csp.length === 0;
+      out.timing.looks = ctx.looks.join(',');
+      if (page.csp.length) out.timing.csp = page.csp.slice(0, 3);
       const t0 = Date.now();
-      await page.route(port + '/**', (r) => r.abort('failed'));
-      out.checks.to_the_sign_in_page = await until(page, async () => {
-        const said = await page.evaluate(() => { const e = document.querySelector('#cert-said') || document.querySelector('#in-said'); return e ? e.textContent : ''; });
-        return /Signed out: your card was removed/.test(said) && (await page.locator('#signout').count()) === 0;
-      }, 45000);
+      await cardOut(ctx);
+      out.checks.to_the_sign_in_page_saying_why = await until(page, async () =>
+        /^Signed out: the card you signed in with was taken out\.$/.test(await said(page)) &&
+        (await page.locator('#signout').count()) === 0, 30000);
       out.timing.signed_out_after_s = Math.round((Date.now() - t0) / 100) / 10;
+      out.checks.signed_out_on_the_server = await whoGone(page);
+      out.checks.no_notice = (await page.locator('#card-lock').count()) === 0;
       out.checks.not_gone_to_the_card_again = await page.evaluate(() => !/:8443/.test(location.href));
       out.checks.address_clean = await page.evaluate(() => !/certsaid/.test(location.search));
-      await shot(page, 'signin-removed-en-1400.png');
+      await shot(page, 'signed-out-signout-en-1400.png');
+      // Said once: the page loaded again says nothing (a word of the tab's own, used up).
+      await page.reload();
+      await page.waitForTimeout(800);
+      out.checks.said_once = !(/card/.test(await said(page)));
+      // The address cannot make the page say it.
+      await page.goto(base + '/admin/?certsaid=out');
+      await page.waitForTimeout(800);
+      out.checks.never_from_the_address = !(/taken out/.test(await said(page)));
+      out.checks.no_page_errors = page.errs.length === 0;
+      if (page.errs.length) out.errs = page.errs;
       await ctx.close();
-    } else if (phase === 'lock') {
-      let n = 0;
-      for (const lang of ['en', 'cs']) {
-        for (const width of [1400, 420]) {
-          const tag = lang + '-' + width;
-          const {ctx, page, seen} = await context(lang, width);
-          out.checks['signed_in_' + tag] = await certSignIn(page);
-          out.checks['checks_ok_' + tag] = await until(page, () => seen.ok >= 1, 20000);
-          const t0 = Date.now();
-          await page.route(port + '/**', (r) => r.abort('failed'));
-          out.checks['locked_' + tag] = await until(page, async () => (await page.locator('#card-lock').count()) > 0, 40000);
-          out.timing['locked_after_s_' + tag] = Math.round((Date.now() - t0) / 100) / 10;
-          await page.waitForTimeout(1600);
-          if (n === 0) {
-            // Nothing of the pages answered while locked: the API says 423.
-            out.checks.api_locked = await page.evaluate(() => fetch('?api=status', {credentials: 'same-origin'}).then((r) => r.status === 423));
-            out.checks.countdown = /Signed out in \d+ s/.test(await page.locator('.card-lock-left').textContent());
-            out.checks.focus_on_sign_out = await page.evaluate(() => !!document.activeElement && !!document.activeElement.closest('#card-lock'));
-          }
-          await shot(page, 'lock-' + tag + '.png');
-          // The card back: the lock goes, the page reloads signed in.
-          const t1 = Date.now();
-          await page.unroute(port + '/**');
-          out.checks['back_' + tag] = await until(page, async () => (await page.locator('#card-lock').count()) === 0 &&
-                                                   (await page.locator('#signout').count()) > 0, 30000);
-          out.timing['back_after_s_' + tag] = Math.round((Date.now() - t1) / 100) / 10;
-          out.checks['api_again_' + tag] = await page.evaluate(() => fetch('?api=status', {credentials: 'same-origin'}).then((r) => r.status === 200));
-          await ctx.close();
-          n++;
+    } else if (phase === 'grace') {
+      // In English, 1400 px: everything; then Czech and a phone's width.
+      let ctx = await context('en');
+      let page = await newPage(ctx);
+      out.checks.signed_in = await certSignIn(page);
+      out.checks.pictures_200_let_in_by_the_policy = await until(page, () => ctx.looks.length >= 2, 15000) &&
+        ctx.looks.every((s) => s === 200) && page.csp.length === 0;
+      out.checks.first_check_soon = ctx.looks.length >= 1;
+      out.checks.nothing_covers = (await page.locator('#card-lock').count()) === 0;
+      await cardOut(ctx);
+      let t0 = Date.now();
+      out.checks.notice_within_a_check = await until(page, async () => (await page.locator('#card-lock').count()) > 0, 15000) &&
+        Date.now() - t0 < 12000;
+      out.timing.notice_after_s = Math.round((Date.now() - t0) / 100) / 10;
+      const n1 = parseInt(await page.textContent('#card-lock-n'), 10);
+      const r1 = await page.evaluate(() => +document.querySelector('#card-lock .card-lock-arc').getAttribute('stroke-dashoffset'));
+      await page.waitForTimeout(2100);
+      const n2 = parseInt(await page.textContent('#card-lock-n'), 10);
+      const r2 = await page.evaluate(() => +document.querySelector('#card-lock .card-lock-arc').getAttribute('stroke-dashoffset'));
+      out.timing.countdown = n1 + ' -> ' + n2;
+      out.checks.counts_down_by_the_second = n1 <= 30 && n2 <= n1 - 2 && n2 >= n1 - 3;
+      out.checks.the_ring_empties = r2 > r1 && r1 >= 0;
+      out.checks.put_the_card_back = /Put the card back/.test(await page.textContent('#card-lock'));
+      out.checks.until_line = /^Signed out in \d+ s unless the card is back$/.test(await page.textContent('#card-lock-left'));
+      out.checks.sign_out_red = await page.evaluate(() => { const b = document.querySelector('#card-lock-out'); return !!b && b.classList.contains('danger'); });
+      out.checks.nothing_behind_reachable = await page.evaluate(() => { const h = document.querySelector('header'); return !!(h && h.closest('[inert]')) && !document.querySelector('#card-lock').closest('[inert]'); });
+      out.checks.focus_in_the_notice = await page.evaluate(() => !!document.activeElement && !!document.activeElement.closest('#card-lock'));
+      out.checks.server_answers_423_card = (await status(page)) === '423:card';
+      await shot(page, 'notice-en-1400.png');
+      const outLooks = ctx.looks.length;
+      await page.waitForTimeout(6000);
+      out.timing.looks_in_6s_out = ctx.looks.length - outLooks;
+      out.checks.out_checked_every_5s_not_more = ctx.looks.length - outLooks <= 2 && ctx.looks.length - outLooks >= 1;
+      await cardIn(ctx);
+      t0 = Date.now();
+      out.checks.back_in_time_notice_gone = await until(page, async () => (await page.locator('#card-lock').count()) === 0, 12000);
+      out.timing.back_after_s = Math.round((Date.now() - t0) / 100) / 10;
+      await page.waitForTimeout(300);
+      out.checks.said_the_card_is_back = /The card is back\./.test(await page.evaluate(() => document.body.innerText));
+      out.checks.answered_again_nothing_inert = (await status(page)).startsWith('200') &&
+        await page.evaluate(() => !document.querySelector('body > [inert]'));
+      out.checks.still_signed_in_same_page = (await page.locator('#signout').count()) > 0;
+      // Two tabs of one browser: one check for both.
+      const p2 = await newPage(ctx);
+      await p2.goto(base + '/admin/');
+      await p2.waitForTimeout(3000);
+      const l0 = ctx.looks.length;
+      await page.waitForTimeout(20000);
+      const per = ctx.looks.length - l0;
+      out.timing.two_tabs_checks_in_20s = per;
+      out.checks.two_tabs_one_check = per >= 3 && per <= 6;
+      // One tab finds the card out: the other learns it at once (its notice too).
+      await cardOut(ctx);
+      out.checks.other_tab_told = await until(p2, async () => (await p2.locator('#card-lock').count()) > 0 &&
+                                              (await page.locator('#card-lock').count()) > 0, 15000);
+      await cardIn(ctx);
+      out.checks.both_back = await until(page, async () => (await page.locator('#card-lock').count()) === 0 &&
+                                         (await p2.locator('#card-lock').count()) === 0, 15000);
+      out.checks.no_page_errors = page.errs.length === 0 && p2.errs.length === 0;
+      if (page.errs.length || p2.errs.length) out.errs = page.errs.concat(p2.errs);
+      await ctx.close();
+      for (const [lang, width] of [['cs', 1400], ['en', 420], ['cs', 420]]) {
+        const tag = lang + '-' + width;
+        ctx = await context(lang, width);
+        page = await newPage(ctx);
+        out.checks['signed_in_' + tag] = await certSignIn(page);
+        await until(page, () => ctx.looks.length >= 1, 10000);
+        await cardOut(ctx);
+        out.checks['notice_' + tag] = await until(page, async () => (await page.locator('#card-lock').count()) > 0, 15000);
+        await page.waitForTimeout(1200);
+        const txt = await page.textContent('#card-lock');
+        if (lang === 'cs') {
+          out.checks['czech_' + tag] = /Vraťte kartu zpět/.test(txt) && /sekund/.test(txt) &&
+            /Odhlášení za \d+ s, pokud se karta nevrátí/.test(txt) && /Odhlásit/.test(txt);
+          if (!out.checks['czech_' + tag]) out.timing['czech_' + tag] = txt.slice(0, 300);
         }
+        if (width < 600) {
+          out.checks['fits_' + tag] = await page.evaluate(() => {
+            const b = document.querySelector('.card-lock-box').getBoundingClientRect();
+            return b.left >= 0 && b.right <= window.innerWidth && document.documentElement.scrollWidth <= window.innerWidth + 1;
+          });
+        }
+        await shot(page, 'notice-' + tag + '.png');
+        await cardIn(ctx);
+        out.checks['back_' + tag] = await until(page, async () => (await page.locator('#card-lock').count()) === 0, 15000);
+        await ctx.close();
+      }
+    } else if (phase === 'late') {
+      for (const [lang, width] of [['en', 1400], ['cs', 1400], ['en', 420], ['cs', 420]]) {
+        const tag = lang + '-' + width;
+        const ctx = await context(lang, width);
+        const page = await newPage(ctx);
+        out.checks['signed_in_' + tag] = await certSignIn(page);
+        await until(page, () => ctx.looks.length >= 1, 10000);
+        await cardOut(ctx);
+        const t0 = Date.now();
+        const want = lang === 'cs' ? /^Odhlášeno: karta, kterou jste se přihlásili, nebyla včas vrácena\.$/
+                                   : /^Signed out: the card you signed in with was not put back in time\.$/;
+        out.checks['not_back_in_time_' + tag] = await until(page, async () => want.test(await said(page)) &&
+                                                           (await page.locator('#signout').count()) === 0, 40000);
+        out.timing['signed_out_after_s_' + tag] = Math.round((Date.now() - t0) / 100) / 10;
+        if (!out.checks['not_back_in_time_' + tag]) out.timing['said_' + tag] = await said(page);
+        out.checks['signed_out_on_the_server_' + tag] = await whoGone(page);
+        out.checks['nothing_tried_by_itself_' + tag] = await page.evaluate(() => !/:8443/.test(location.href));
+        await page.waitForTimeout(400);
+        await shot(page, 'signed-out-late-' + tag + '.png');
+        await ctx.close();
       }
     } else if (phase === 'options') {
-      for (const lang of ['en', 'cs']) {
-        for (const width of [1400, 420]) {
-          const tag = lang + '-' + width;
-          const ctx = await browser.newContext({ignoreHTTPSErrors: true, viewport: {width: width, height: width < 600 ? 900 : 1000}});
-          await ctx.addCookies([{name: 'acme_lang', value: lang, url: base + '/'}]);
-          const page = await ctx.newPage();
-          await page.goto(base + '/admin/');
-          await page.fill('#in-name', name);
-          await page.type('#in-pass', pass);
-          await Promise.all([page.waitForNavigation(), page.click('#in-go')]);
-          await page.goto(base + '/admin/#settings/people');
-          await page.waitForSelector('#set-admin_certlogin_card_watch', {timeout: 20000});
-          await until(page, async () => (await page.locator('#cert-host-admin .krb-facts').count()) > 0, 20000);
-          out.checks['seg_' + tag] = await page.evaluate(() => {
-            const s = document.querySelector('#set-admin_certlogin_card_watch');
-            return !!s && s.classList.contains('seg') && s.querySelectorAll('button').length === 3;
-          });
-          out.checks['no_page_scroll_' + tag] = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
-          const item = page.locator('.set-item[data-key="admin_certlogin_card_watch"]');
-          await page.evaluate(() => document.querySelector('.set-item[data-key="admin_certlogin_card_watch"]').scrollIntoView({block: 'start'}));
-          await page.waitForTimeout(400);
-          // The settings of the card watched, as one piece.
-          const box = await page.evaluate(() => {
-            const keys = ['admin_certlogin_card_watch', 'admin_certlogin_card_every', 'admin_certlogin_card_grace', 'admin_certlogin_card_stale'];
-            const r = keys.map((k) => document.querySelector('.set-item[data-key="' + k + '"]')).filter(Boolean).map((e) => e.getBoundingClientRect());
-            const top = Math.min.apply(null, r.map((x) => x.top)), bottom = Math.max.apply(null, r.map((x) => x.bottom));
-            const left = Math.min.apply(null, r.map((x) => x.left)), right = Math.max.apply(null, r.map((x) => x.right));
-            return {top: top, left: left, width: right - left, height: bottom - top};
-          });
-          if (shots && box.height > 0) {
-            fs.mkdirSync(shots, {recursive: true});
-            await page.screenshot({path: path.join(shots, 'options-' + tag + '.png'),
-                                   clip: {x: Math.max(0, box.left - 12), y: Math.max(0, box.top - 12), width: Math.min(width, box.width + 24), height: box.height + 24}});
-          }
-          const facts = page.locator('#cert-host-admin .krb-facts');
-          await page.evaluate(() => document.querySelector('#cert-host-admin .krb-facts').scrollIntoView({block: 'start'}));
-          await page.waitForTimeout(400);
-          out.checks['facts_' + tag] = /(Card watched|Hlídání karty)/.test(await facts.textContent());
-          if (shots) {
-            const fb = await page.evaluate(() => {
-              const a = document.querySelector('#cert-host-admin .krb-facts'), b = document.querySelector('#cert-host-admin .card-watch-note') || a;
-              const r1 = a.getBoundingClientRect(), r2 = b.getBoundingClientRect();
-              return {x: Math.min(r1.left, r2.left), y: r1.top, w: Math.max(r1.right, r2.right) - Math.min(r1.left, r2.left), h: r2.bottom - r1.top};
-            });
-            await page.screenshot({path: path.join(shots, 'facts-' + tag + '.png'),
-                                   clip: {x: Math.max(0, fb.x - 12), y: Math.max(0, fb.y - 12), width: Math.min(width, fb.w + 24), height: fb.h + 24}});
-          }
-          await ctx.close();
-        }
+      for (const [lang, width] of [['en', 1400], ['cs', 1400], ['en', 420], ['cs', 420]]) {
+        const tag = lang + '-' + width;
+        const ctx = await context(lang, width, false);
+        const page = await newPage(ctx);
+        await page.goto(base + '/admin/');
+        await page.fill('#in-name', name);
+        await page.type('#in-pass', pass);
+        await Promise.all([page.waitForNavigation(), page.click('#in-go')]);
+        await page.goto(base + '/admin/#settings/people');
+        await page.waitForSelector('#set-admin_certlogin_card_watch', {timeout: 20000});
+        await until(page, async () => (await page.locator('#cert-host-admin .krb-facts').count()) > 0, 20000);
+        await page.waitForTimeout(1500);
+        out.checks['password_never_watched_' + tag] = ctx.looks.length === 0;
+        const st = await page.evaluate(() => {
+          const seg = document.querySelector('#set-admin_certlogin_card_watch');
+          const it = (k) => document.querySelector('.set-item[data-key="' + k + '"]');
+          const num = (k) => { const i = document.querySelector('#set-' + k); return i ? [i.type, i.min, i.max, i.value].join(',') : ''; };
+          return {opts: seg ? Array.prototype.map.call(seg.querySelectorAll('button'), (b) => b.dataset.v).join(',') : '',
+                  val: seg ? seg.value : '',
+                  every: !!it('admin_certlogin_card_every') && !it('admin_certlogin_card_every').classList.contains('asleep'),
+                  grace: !!it('admin_certlogin_card_grace') && !it('admin_certlogin_card_grace').classList.contains('asleep'),
+                  everyBox: num('admin_certlogin_card_every'), graceBox: num('admin_certlogin_card_grace'),
+                  stale: !!it('admin_certlogin_card_stale')};
+        });
+        out.checks['seg_' + tag] = st.opts === 'off,signout,grace' && st.val === 'grace' && st.every && st.grace && !st.stale;
+        out.checks['seconds_boxes_' + tag] = st.everyBox === 'number,5,300,5' && st.graceBox === 'number,5,600,30';
+        if (!out.checks['seg_' + tag] || !out.checks['seconds_boxes_' + tag]) out.timing['settings_' + tag] = st;
+        out.checks['no_page_scroll_' + tag] = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+        await page.evaluate(() => document.querySelector('.set-item[data-key="admin_certlogin_card_watch"]').scrollIntoView({block: 'start'}));
+        await page.waitForTimeout(400);
+        await shot(page, 'settings-' + tag + '.png');
+        const facts = await page.evaluate(() => document.querySelector('#cert-host-admin .krb-facts').innerText);
+        out.checks['facts_' + tag] = lang === 'en'
+          ? /When the card is taken out\s+a notice, then signed out unless it is back within 30 s \(checked every 5 s\)/.test(facts)
+          : /Když se karta vytáhne\s+upozornění, pak odhlášení, pokud se karta nevrátí do 30 s \(kontrola každých 5 s\)/.test(facts);
+        if (!out.checks['facts_' + tag]) out.timing['facts_' + tag] = facts.slice(-600);
+        await page.evaluate(() => document.querySelector('#cert-host-admin .krb-facts').scrollIntoView({block: 'start'}));
+        await page.waitForTimeout(400);
+        await shot(page, 'facts-' + tag + '.png');
+        out.checks['no_page_errors_' + tag] = page.errs.length === 0;
+        await ctx.close();
       }
     }
-    out.ok = Object.keys(out.checks).every((k) => out.checks[k] === true);
+    out.ok = Object.keys(out.checks).length > 0 && Object.keys(out.checks).every((k) => out.checks[k] === true);
   } catch (e) {
     out.ok = false;
     out.error = String(e && e.stack || e).slice(0, 1500);

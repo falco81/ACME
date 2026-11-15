@@ -134,13 +134,11 @@ DEFAULTS = {
     # smart card or YubiKey is taken out - the page proves it again every few seconds on the
     # certificate's port. Off - as until now: nothing of it runs.
     'admin_certlogin_card_watch': 'off',
-    'admin_certlogin_card_every': 10,
-    'admin_certlogin_card_grace': 60,
-    'admin_certlogin_card_stale': 'auto',
+    'admin_certlogin_card_every': 15,       # 1.0.114: 5-300 s (the kit's), 10 before
+    'admin_certlogin_card_grace': 30,       # 1.0.114: 5-600 s, 60 before
     'portal_certlogin_card_watch': 'off',
-    'portal_certlogin_card_every': 10,
-    'portal_certlogin_card_grace': 60,
-    'portal_certlogin_card_stale': 'auto',
+    'portal_certlogin_card_every': 15,
+    'portal_certlogin_card_grace': 30,
     'certlogin_port': 8443,
     # --- isemon ---------------------------------------------------------------
     'isemon': 0,
@@ -486,14 +484,14 @@ TUNABLE = {
     'portal_certlogin_match': ('compat', 'strong', 'upn'),
     'admin_certlogin_ocsp': ('off', 'first', 'only', 'both'), 'admin_certlogin_crl_ldap': (0, 1),
     'portal_certlogin_ocsp': ('off', 'first', 'only', 'both'), 'portal_certlogin_crl_ldap': (0, 1),
-    'admin_certlogin_card_watch': ('off', 'signout', 'lock'),
-    'admin_certlogin_card_every': ('5', '10', '15', '30', '60'),
-    'admin_certlogin_card_grace': ('15', '30', '60', '120', '300', '600'),
-    'admin_certlogin_card_stale': ('auto', '60', '120', '300', '600', '1800', 'off'),
-    'portal_certlogin_card_watch': ('off', 'signout', 'lock'),
-    'portal_certlogin_card_every': ('5', '10', '15', '30', '60'),
-    'portal_certlogin_card_grace': ('15', '30', '60', '120', '300', '600'),
-    'portal_certlogin_card_stale': ('auto', '60', '120', '300', '600', '1800', 'off'),
+    # The card watched (1.0.113; 1.0.114 as the kit "card-removal-watch": grace - 1.0.113's
+    # "lock", still taken and read as grace - and the seconds as numbers).
+    'admin_certlogin_card_watch': ('off', 'signout', 'grace'),
+    'admin_certlogin_card_every': (5, 300),
+    'admin_certlogin_card_grace': (5, 600),
+    'portal_certlogin_card_watch': ('off', 'signout', 'grace'),
+    'portal_certlogin_card_every': (5, 300),
+    'portal_certlogin_card_grace': (5, 600),
     'certlogin_port': (1024, 65535),
     'report': (0, 1), 'report_every': ('daily', 'weekly', 'monthly'),
     'report_day': ('1', '2', '3', '4', '5', '6', '7'),
@@ -627,17 +625,7 @@ CHOICE_WORDS = {
 # The card watched (1.0.113): the same words for both parts.
 for _p in ('admin', 'portal'):
     CHOICE_WORDS[_p + '_certlogin_card_watch'] = {
-        'off': 'Off', 'signout': 'Sign out at once', 'lock': 'Lock, wait for the card'}
-    CHOICE_WORDS[_p + '_certlogin_card_every'] = {
-        '5': 'every 5 s', '10': 'every 10 s', '15': 'every 15 s', '30': 'every 30 s',
-        '60': 'every minute'}
-    CHOICE_WORDS[_p + '_certlogin_card_grace'] = {
-        '15': '15 s', '30': '30 s', '60': '1 minute', '120': '2 minutes', '300': '5 minutes',
-        '600': '10 minutes'}
-    CHOICE_WORDS[_p + '_certlogin_card_stale'] = {
-        'auto': 'by itself (3 checks missed + 30 s)',
-        '60': '1 minute', '120': '2 minutes', '300': '5 minutes', '600': '10 minutes',
-        '1800': '30 minutes', 'off': 'never for that'}
+        'off': 'Off', 'signout': 'Sign out at once', 'grace': 'Lock, wait for the card'}
 del _p
 
 NAMES = {
@@ -763,13 +751,11 @@ NAMES = {
     'portal_certlogin_ocsp': 'Ask an OCSP responder (the portal)',
     'portal_certlogin_ocsp_url': 'OCSP responder of its own (the portal)',
     'admin_certlogin_card_watch': 'When the card is taken out',
-    'admin_certlogin_card_every': 'Check the card',
-    'admin_certlogin_card_grace': 'The lock waits for the card',
-    'admin_certlogin_card_stale': 'No check of the card for',
+    'admin_certlogin_card_every': 'Check the card every (seconds)',
+    'admin_certlogin_card_grace': 'The card put back within (seconds)',
     'portal_certlogin_card_watch': 'When the card is taken out (the portal)',
-    'portal_certlogin_card_every': 'Check the card (the portal)',
-    'portal_certlogin_card_grace': 'The lock waits for the card (the portal)',
-    'portal_certlogin_card_stale': 'No check of the card for (the portal)',
+    'portal_certlogin_card_every': 'Check the card every (seconds, the portal)',
+    'portal_certlogin_card_grace': 'The card put back within (seconds, the portal)',
     'certlogin_port': 'The certificate\u2019s own port',
     'isemon': 'Send the logs to isemon',
     'isemon_targets': 'isemon’s syslog receivers',
@@ -1400,33 +1386,29 @@ SAYS = {
     'portal_certlogin_ocsp_url': 'As the administration\'s, for the portal: empty - the responder '
                                  'each certificate names.',
     'admin_certlogin_card_watch': 'Off (the default): a sign-in made with a certificate lasts as any '
-                                  'other. Sign out at once: the page proves the card again every '
-                                  'few seconds on the certificate\'s port - taken out (no '
-                                  'certificate, another one, or its key not signing), the '
-                                  'sign-in ends and the page goes to the sign-in page. Lock: the '
-                                  'page is covered and nothing of it answered until the card is '
-                                  'back within the time below - else signed out. Only sign-ins '
-                                  'made with a certificate; a password\'s or Windows\' never. '
-                                  'Switched on, the sign-ins made with a certificate before end '
-                                  '(they kept no card to compare with).',
-    'admin_certlogin_card_every': 'How often the page proves the card. Each check is a full TLS '
-                                  'handshake the card\'s key signs (no session resumed on that '
-                                  'port while the card is watched): a card that asks for its PIN '
-                                  'at every signature is not for this.',
-    'admin_certlogin_card_grace': 'Lock: how long the covered page waits for the card before the '
-                                  'sign-in ends.',
-    'admin_certlogin_card_stale': 'No good check for this long - the tab closed, the computer '
-                                  'asleep - and the sign-in ends on the server. By itself: three '
-                                  'checks missed and 30 s, two minutes at least (a hidden tab\'s '
-                                  'timers run once a minute).',
+                                  'other. Sign out at once: the page checks the card every few '
+                                  'seconds - a new connection to the certificate\'s port the card '
+                                  'has to sign - and the first time it is not there the sign-in '
+                                  'ends and the sign-in page says why. Lock, wait for the card: '
+                                  'the page is covered with a countdown and nothing of the sign-in '
+                                  'is answered until the card is back in time - else signed out. '
+                                  'Another card than the one signed in with ends it at once. Only '
+                                  'sign-ins made with a certificate; a password\'s or Windows\' '
+                                  'never. A page that stopped checking (a tablet asleep, the '
+                                  'browser in the background) has its sign-in held, not ended, '
+                                  'until a check finds the card.',
+    'admin_certlogin_card_every': 'How often the card is checked, 5 to 300 seconds. Each check is a '
+                                  'signature by the card (no PIN while it stays in; a YubiKey with '
+                                  'touch or PIN policy "always" asks every time - leave this off for '
+                                  'one). A tab in the background is checked about once a minute.',
+    'admin_certlogin_card_grace': 'With Lock: how long the card may be out before the sign-in ends, '
+                                  '5 to 600 seconds.',
     'portal_certlogin_card_watch': 'As the administration\'s, for the portal: off (the default), '
                                    'sign out at once, or lock and wait for the card.',
-    'portal_certlogin_card_every': 'As the administration\'s, for the portal: how often the page '
-                                   'proves the card.',
-    'portal_certlogin_card_grace': 'As the administration\'s, for the portal: how long a lock '
-                                   'waits for the card.',
-    'portal_certlogin_card_stale': 'As the administration\'s, for the portal: no good check for '
-                                   'this long, and the sign-in ends.',
+    'portal_certlogin_card_every': 'As the administration\'s, for the portal: how often the card '
+                                   'is checked (5-300 s).',
+    'portal_certlogin_card_grace': 'As the administration\'s, for the portal: how long the card '
+                                   'may be out (5-600 s).',
     'certlogin_port': 'Where nginx asks the browser for a certificate (8443: SELinux lets nginx '
                       'have it already). One port for both parts. Opened in the firewall for the '
                       'networks that may reach the pages while either part is on; 80, 443 and '
@@ -1813,12 +1795,11 @@ PANES = {
                   'admin_certlogin_match', 'admin_certlogin_crl', 'admin_certlogin_crl_ldap',
                   'admin_certlogin_ocsp', 'admin_certlogin_ocsp_url',
                   'admin_certlogin_card_watch', 'admin_certlogin_card_every',
-                  'admin_certlogin_card_grace', 'admin_certlogin_card_stale'],
+                  'admin_certlogin_card_grace'],
     'portalcert': ['portal_certlogin', 'portal_certlogin_auto', 'portal_certlogin_match',
                    'portal_certlogin_crl', 'portal_certlogin_crl_ldap', 'portal_certlogin_ocsp',
                    'portal_certlogin_ocsp_url', 'portal_certlogin_card_watch',
-                   'portal_certlogin_card_every', 'portal_certlogin_card_grace',
-                   'portal_certlogin_card_stale'],
+                   'portal_certlogin_card_every', 'portal_certlogin_card_grace'],
     'db': ['db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password',
            'db_timeout_s', 'db_tls', 'db_tls_ca', 'db_path', 'backup_daily', 'backup_keep',
            'backup_at',
@@ -1934,12 +1915,10 @@ ONLY_WHEN = {
     'portal_certlogin_ocsp_url': ['portal_certlogin_ocsp', 'off-not'],
     'admin_certlogin_card_watch': ['admin_certlogin', '1'],
     'admin_certlogin_card_every': ['admin_certlogin_card_watch', 'off-not'],
-    'admin_certlogin_card_grace': ['admin_certlogin_card_watch', 'lock'],
-    'admin_certlogin_card_stale': ['admin_certlogin_card_watch', 'off-not'],
+    'admin_certlogin_card_grace': ['admin_certlogin_card_watch', 'grace'],
     'portal_certlogin_card_watch': ['portal_certlogin', '1'],
     'portal_certlogin_card_every': ['portal_certlogin_card_watch', 'off-not'],
-    'portal_certlogin_card_grace': ['portal_certlogin_card_watch', 'lock'],
-    'portal_certlogin_card_stale': ['portal_certlogin_card_watch', 'off-not'],
+    'portal_certlogin_card_grace': ['portal_certlogin_card_watch', 'grace'],
     'db_host': ['db_engine', 'sqlite-not'], 'db_port': ['db_engine', 'sqlite-not'],
     'db_name': ['db_engine', 'sqlite-not'], 'db_user': ['db_engine', 'sqlite-not'],
     'db_password': ['db_engine', 'sqlite-not'], 'db_timeout_s': ['db_engine', 'sqlite-not'],
@@ -2070,8 +2049,25 @@ SETTING_TALL = ('portal_help', 'portal_groups', 'sms_body', 'sms_headers', 'isem
                 'mail_ca')
 
 
+# Settings no longer kept (1.0.114), still taken - by --set, a configuration or a backup put
+# back - and left out without a word of refusal: what they did is done otherwise now.
+SETTINGS_RETIRED = {
+    # "No check of the card for": a page that stopped checking (an iPad asleep) is held until a
+    # check finds the card, not signed out - nothing left to set (the kit "card-removal-watch").
+    'admin_certlogin_card_stale': 'a page that stopped checking the card is held, not signed out',
+    'portal_certlogin_card_stale': 'a page that stopped checking the card is held, not signed out',
+}
+# 1.0.113's "lock" of the card watched is 1.0.114's "grace" (saved rows read as it too).
+SETTING_ALIASES = {'admin_certlogin_card_watch': {'lock': 'grace'},
+                   'portal_certlogin_card_watch': {'lock': 'grace'}}
+
+
 def check_setting(key, value):
     """The value as it will be kept, or BadSetting saying why not."""
+    if key in SETTINGS_RETIRED:
+        return str(value)
+    if key in SETTING_ALIASES and str(value) in SETTING_ALIASES[key]:
+        value = SETTING_ALIASES[key][str(value)]
     if key not in DEFAULTS:
         raise BadSetting('%s is not a setting this version knows' % key)
     got = _coerce(DEFAULTS[key], value)

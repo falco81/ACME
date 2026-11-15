@@ -14,10 +14,12 @@ ROLE_RANK = {'portal': 0, 'readonly': 1, 'certadmin': 2, 'fulladmin': 3}
 
 
 class ApiError(Exception):
-    def __init__(self, status, words, detail=''):
+    def __init__(self, status, words, detail='', extra=None):
         Exception.__init__(self, words)
         self.status = status
         self.detail = detail
+        # Keys of the answer besides its words (1.0.114): {'code': 'card'} of a 423.
+        self.extra = extra or {}
 
 
 def api_token(make=False):
@@ -224,7 +226,8 @@ class ApiHandler(BaseHTTPRequestHandler):
             detail = e.detail if self._signed_in() else None
             if e.detail and not detail:
                 log('%s %s: %s (%s)' % (method, path, e, e.detail), 'info')
-            self.send_json({'ok': False, 'error': str(e), 'detail': detail}, e.status)
+            self.send_json(dict({'ok': False, 'error': str(e), 'detail': detail},
+                                **getattr(e, 'extra', None) or {}), e.status)
         except (ValueError, BadSetting) as e:
             said = str(e)
             if said.startswith(('invalid literal for int()', 'could not convert string to float',
@@ -357,8 +360,9 @@ class ApiHandler(BaseHTTPRequestHandler):
         if krb_session_gone('admin', s, self.store):
             self.store.session_end(self.headers.get('X-Acme-Session'))
             raise ApiError(401, 'sign in again')
-        # Its card taken out, the lock waiting for it (1.0.113): nothing answered but the check.
-        cl_card_hold('admin', s)
+        # Its card taken out, the lock waiting for it (1.0.113), or its page no longer checking
+        # (1.0.114, held): nothing answered but the check, whoami and Sign out - 423, code card.
+        cl_card_hold(self, 'admin', s)
         s['role'] = acc['role']
         if s['role'] not in ROLE_RANK or not ROLE_RANK[s['role']]:
             # Given the role of the enrolment pages only (1.0.14) while signed
