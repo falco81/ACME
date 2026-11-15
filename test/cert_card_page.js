@@ -138,24 +138,34 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
           });
           out.checks['no_page_scroll_' + tag] = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
           const item = page.locator('.set-item[data-key="admin_certlogin_card_watch"]');
-          await item.scrollIntoViewIfNeeded();
+          await page.evaluate(() => document.querySelector('.set-item[data-key="admin_certlogin_card_watch"]').scrollIntoView({block: 'start'}));
+          await page.waitForTimeout(400);
           // The settings of the card watched, as one piece.
           const box = await page.evaluate(() => {
             const keys = ['admin_certlogin_card_watch', 'admin_certlogin_card_every', 'admin_certlogin_card_grace', 'admin_certlogin_card_stale'];
             const r = keys.map((k) => document.querySelector('.set-item[data-key="' + k + '"]')).filter(Boolean).map((e) => e.getBoundingClientRect());
             const top = Math.min.apply(null, r.map((x) => x.top)), bottom = Math.max.apply(null, r.map((x) => x.bottom));
             const left = Math.min.apply(null, r.map((x) => x.left)), right = Math.max.apply(null, r.map((x) => x.right));
-            return {top: top + window.scrollY, left: left + window.scrollX, width: right - left, height: bottom - top};
+            return {top: top, left: left, width: right - left, height: bottom - top};
           });
           if (shots && box.height > 0) {
             fs.mkdirSync(shots, {recursive: true});
-            await page.screenshot({path: path.join(shots, 'options-' + tag + '.png'), fullPage: true,
+            await page.screenshot({path: path.join(shots, 'options-' + tag + '.png'),
                                    clip: {x: Math.max(0, box.left - 12), y: Math.max(0, box.top - 12), width: Math.min(width, box.width + 24), height: box.height + 24}});
           }
           const facts = page.locator('#cert-host-admin .krb-facts');
-          await facts.scrollIntoViewIfNeeded();
+          await page.evaluate(() => document.querySelector('#cert-host-admin .krb-facts').scrollIntoView({block: 'start'}));
+          await page.waitForTimeout(400);
           out.checks['facts_' + tag] = /(Card watched|Hlídání karty)/.test(await facts.textContent());
-          await shot(page, 'facts-' + tag + '.png', '#cert-host-admin');
+          if (shots) {
+            const fb = await page.evaluate(() => {
+              const a = document.querySelector('#cert-host-admin .krb-facts'), b = document.querySelector('#cert-host-admin .card-watch-note') || a;
+              const r1 = a.getBoundingClientRect(), r2 = b.getBoundingClientRect();
+              return {x: Math.min(r1.left, r2.left), y: r1.top, w: Math.max(r1.right, r2.right) - Math.min(r1.left, r2.left), h: r2.bottom - r1.top};
+            });
+            await page.screenshot({path: path.join(shots, 'facts-' + tag + '.png'),
+                                   clip: {x: Math.max(0, fb.x - 12), y: Math.max(0, fb.y - 12), width: Math.min(width, fb.w + 24), height: fb.h + 24}});
+          }
           await ctx.close();
         }
       }

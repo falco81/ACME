@@ -145,6 +145,10 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 | `admin_certlogin_ocsp` - *Ask an OCSP responder* | off | `off` (the CRLs alone, as before), `first`, `only`, `both` ([OCSP](#ocsp-an-online-responder)). |
 | `admin_certlogin_ocsp_url` - *OCSP responder of its own* | empty | Shown while OCSP is not off. Empty: the responder each certificate names (Authority Information Access); or an http address asked for every certificate and authority - refused on save unless it passes the same guards as a CRL's address. |
 | `admin_password_off` - *No password at all - only Windows or a certificate* | off | Rule 10. In the card **The sign-in page** (*Accounts*) - one switch of both ways. |
+| `admin_certlogin_card_watch` - *When the card is taken out* | off | `off`, `signout` (sign out at once) or `lock` (lock, wait for the card) - [The card taken out](#the-card-taken-out). |
+| `admin_certlogin_card_every` - *Check the card* | 10 | Seconds between two checks of the page: 5, 10, 15, 30 or 60. |
+| `admin_certlogin_card_grace` - *The lock waits for the card* | 60 | `lock`: seconds the covered page waits for the card - 15, 30, 60, 120, 300 or 600. |
+| `admin_certlogin_card_stale` - *No check of the card for* | auto | No good check for this long and the server ends the sign-in: `auto` (three checks missed and 30 s, two minutes at least), 60, 120, 300, 600, 1800 seconds, or `off`. |
 
 ### The portal - *Settings → The enrolment pages → Signing in with a certificate*
 
@@ -155,6 +159,7 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 | `portal_certlogin_match`, `portal_certlogin_crl` | strong, on | As the administration's, for the portal. |
 | `portal_certlogin_crl_ldap`, `portal_certlogin_ocsp`, `portal_certlogin_ocsp_url` | off, off, empty | As the administration's, for the portal - the CRLs in the directory read with **the portal's directory** (`portal_directory`, else the administrators'). |
 | `portal_password_off` - *No password at all on the portal - only Windows or a certificate* | off | As the administration's, in the portal's card **The sign-in page**. |
+| `portal_certlogin_card_watch`, `portal_certlogin_card_every`, `portal_certlogin_card_grace`, `portal_certlogin_card_stale` | off, 10, 60, auto | As the administration's, for the portal. |
 
 **Alerts**: *Alerts and reports → Sign-ins with a certificate refused* (`alerts_certlogin`, off)
 mails each refusal, of either part.
@@ -609,6 +614,69 @@ servers (php -S, the demo) use ports of their own.
    Firefox reads a card through its PKCS#11 module (OpenSC) or the certificates of Windows with
    `security.osclientcerts.autoload`.
 
+## The card taken out
+
+*When the card is taken out* (`admin_certlogin_card_watch`, `portal_certlogin_card_watch` - each
+part its own; **off** by default). A browser tells no page that a smart card or a YubiKey was
+taken out, so a page signed in with a certificate proves the card again, every *Check the card*
+seconds:
+
+1. The page asks the certificate's port itself (`https://<name>:8443/admin/?api=cert-alive`, or
+   `/?api=cert-alive` for the portal) - a `fetch` with the cookies; the session's `__Host-`
+   cookie goes with it (cookies are not kept apart by port; SameSite counts the site, not the
+   port). Its Content-Security-Policy names that one address, and only for a sign-in watched;
+   the port answers CORS for `https://<name>` (the page's own origin) and nobody else.
+2. While a part watches the card, nginx's server of the port **resumes no TLS session**
+   (`ssl_session_cache off`, `ssl_session_tickets off`), keeps **no connection**
+   (`keepalive_timeout 0`, no HTTP/2) - so every check is a full handshake, and the card's key
+   signs it. With neither part watching, that server is byte for byte as before.
+3. The daemon compares the certificate nginx took with the one the sign-in was made with (its
+   SHA-256, kept in the session at the sign-in): **the same** - alive; **none, another one, or
+   nginx's refusal** - the card is gone.
+4. A check that could not be made at all - the card's key no longer signing breaks the
+   handshake, and the browser sees a network error - is tried again twice, three seconds apart,
+   and then said to the daemon over 443 (`?api=cert-lost`). It is taken as the card gone only
+   while this node serves the certificate's port (a port down is no card taken out).
+
+Then, by the setting:
+
+- **Sign out at once** (`signout`): the sign-in ends on the server, an event says why (*nested
+  was signed out of these pages: the card was taken out - no certificate on the check*), and the
+  page goes to the sign-in page: **Signed out: your card was removed** - not gone to the
+  certificate (nor to Windows) by itself again in that tab.
+- **Lock, wait for the card** (`lock`): the page is covered - *Put your card back*, a countdown,
+  *Sign out* - and nothing of the pages answers that sign-in (HTTP 423) but the check, which
+  now runs every three seconds. The card back within *The lock waits for the card* (15 s to 10
+  minutes): the page goes on as it was left. Not: signed out, as above.
+
+**No check of the card for** (`*_certlogin_card_stale`): no good check for that long - the tab
+closed, the computer asleep, the network gone - and the server ends the sign-in itself (a
+request of it, and every node's sweep every 15 s). `auto`: three checks missed and 30 s, two
+minutes at least - a hidden tab's timers run once a minute in Chromium; a tab shown again
+checks at once. `off`: never for that.
+
+Only sign-ins made **with a certificate** are watched - a password's or Windows' never. Switched
+on, the certificate's sign-ins made before end (they kept no card to compare with; the one of
+whoever switched it on stays, unwatched); lock or the times changed while on apply at once.
+The card's facts say *Card watched: every 10 s, sign out at once* and how many sign-ins are
+watched now. A check is no activity of the person: the idle time (`session_idle_min`) runs on.
+
+What it needs of the card and the browser:
+
+- **A PIN kept for the session.** Each check is a signature of the card's key. The Windows
+  smart card minidriver keeps the PIN while the card is in; a YubiKey's PIV PIN policy *once*
+  (the default) does too. A card that asks for its PIN at every signature (PIN policy
+  *always*) asks at every check - not for this.
+- **The certificate chosen by itself.** Chrome and Edge remember the choice for the port; the
+  policy `AutoSelectCertificateForUrls` for `https://<name>:8443` makes it so from the start,
+  and with a second fitting certificate (a soft one in the store) the chooser could otherwise
+  come up during a check.
+- **Windows' own lock as well**: the Group Policy *Interactive logon: Smart card removal
+  behavior = Lock workstation* (and the *Smart Card Removal Policy* service) locks the whole
+  computer when the card is taken out - acme's watch ends the sign-in to the pages besides.
+- In a cluster behind the VIP address: the check goes to the node that holds the address; the
+  three tries cover a move of it.
+
 ## Switching it on
 
 1. AD CS and the cards as above; the authorities put in.
@@ -641,6 +709,8 @@ acme --set admin_certlogin_ocsp=first   admin_certlogin_ocsp_url, admin_certlogi
 acme --set admin_certlogin=1          the switches as any other setting: portal_certlogin,
 acme --set certlogin_port=8443          admin_certlogin_auto, admin_certlogin_match, admin_certlogin_crl, ...
 acme --set admin_password_off=0       the way back from "no password at all" (switched on only from the pages)
+acme --set admin_certlogin_card_watch=lock   the card taken out: off, signout or lock (portal_... the same)
+acme --set admin_certlogin_card_every=10     admin_certlogin_card_grace=60, admin_certlogin_card_stale=auto
 ```
 
 ## Backups, the configuration, the cluster

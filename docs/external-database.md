@@ -193,6 +193,13 @@ before the end it is put in use anyway (that node would have to join again).
    firewall (the database's port and the agent's) to this node's address.
 4. Several nodes may join one agent (a code each): each is let in by its own
    certificate's fingerprint, the agent's certificate is the same for all.
+5. **One agent a node.** A node joined to an agent that joins another one (another
+   `HOST:PORT`) lets the first go: its `agent.json` is put aside as
+   `agent.json.replaced` and nothing of it (pins, `peer_node`, certificate ends) is taken
+   over. When the node's database is still on the first one's server, the join says so
+   (*NOTE: this node's database is still on …*): until the database is moved onto the new
+   server nothing of the old one is looked after (its certificate is not renewed). Refused
+   while the node is one of a cluster whose database is on the first agent's server.
 
 With firewalld on the database server and no `--acme-node` given to `install.sh`,
 the join itself cannot reach the agent's port: `install.sh` prints the exact lines,
@@ -254,6 +261,57 @@ database, so nothing of it moves with a backup or to the other node:
   `repl_errors`' log, `hatls_own_cert`, `hatls_names` (+ the DB server's
   address), `dbtls_kind` (a PostgreSQL with an agent counts as *local* or
   *replicated*), tuning's facts and restart.
+
+## Moving between engines (1.0.113)
+
+The move (*Settings → The database → Move to another database…*, `acme --db-move ENGINE`)
+works between every pair - SQLite, PostgreSQL and MariaDB, on this machine, on a server no
+agent looks after, or on an agent's server (tested in `test/test_external_db.py`,
+`EngineMoves`). What the agents add, and the rule behind it: **a node has one database agent,
+and it is the agent of the server its database is on.**
+
+| From → to | What to do | `db_admin` afterwards |
+|---|---|---|
+| this machine / SQLite → an agent's server | join its agent (*Connect a database server…*), then move (*Move the database onto it…*, or `acme --db-move ENGINE --db-host H --db-port P --db-make`) | `agent:` that agent |
+| agent A's server → agent B's server (PostgreSQL → MariaDB and back, or two PostgreSQLs) | join agent B first - it takes A's place (`agent.json.replaced`, said); then move | `agent:` B |
+| an agent's server → this machine's PostgreSQL / MariaDB, SQLite, or a server no agent looks after | move | `local` - the agent let go by the move |
+| a node of a cluster (shared or replicated, with agents or not) | refused, as for a local replicated pair: take the cluster apart first | unchanged |
+
+- **"Make it for me"** - the database and its account made before the move: on this
+  machine by the root helper, on the server of this node's agent by the agent (`dbmake`:
+  the database, the account with its password - made up when none is given -, `pg_hba.conf`
+  or `'user'@'node'` for this node, the firewall). The wizard offers *Make the database and
+  the account for me* for both (step 2); the command line has `--db-make` (the password from
+  `ACME_DB_PASSWORD`, else made up and written to `config.json` at the end; the account in use
+  on the same server keeps its own). Elsewhere it is refused and the SQL to run there is shown
+  (the password never printed). A target that is not the agent's server is said
+  (*note: … is not the server of this node's database agent*).
+- **The encryption is the server's own.** `db_tls` / `db_tls_ca` are not carried to another
+  database server (another engine, address or port) by `acme --db-move` - verify-full against
+  the old server's authority asked of a MariaDB without TLS yet, or of a PostgreSQL whose
+  certificate another authority signed, was wrong either way. Off unless `--db-tls-mode` (and
+  `--ca`) are given; the wizard asks it in step 2. After a move onto an agent's server acme says
+  the next step: *Database → Encryption* (`--db-tls-apply server`, then `connect`), for MariaDB
+  first `acme --db-agent-mariadb-tls`. A MariaDB connection asked for TLS (`require`,
+  `verify-ca`, `verify-full`) by a server that does not offer it is refused, never used in the
+  clear (PyMySQL went on without TLS).
+- **What described the old server is left behind**: the moved database does not get the old
+  server's rows - `dbtls:server:NODE` (its certificate from acme's authority, renewed and
+  alerted on), `dbagent:node:NODE`, `load:db:NODE`. The new server's are written as they come.
+  The database left behind is not touched.
+- **Off the agent's server**: once `config.json` is switched the move lets the agent go
+  (`agent.json` → `agent.json.forgotten`, as `acme --db-agent-forget`), says so (the switch
+  step, `acme --db-move`'s last line, the wizard's last step) and writes an event. From then
+  on nothing is asked of the agent (no look every 30 s, no renewal, no alert), the card
+  *Database server* and the dots, rows and meter of database servers are gone - the pages are
+  as for a database on this machine. The agent keeps this node's certificate until
+  `acme_db_agent.py --forget NODE` on its server (a node does not take itself away). Moving
+  back means joining it again (a new code); the wizard's *Move back…* says so.
+- **High availability**: `--db-move`, the wizard and its *make it for me* are refused on a node
+  of a cluster as before; with each node's database on a server of its own the refusal says
+  so (*each node's database on a server of its own …: moving it - to another engine, another
+  server or back onto this machine - would break the replication*), with the way out (switch
+  the replication off, `acme --ha-standalone`, then move, then build the cluster again).
 
 ## Layout B step by step (replicated, each node its own server)
 

@@ -4363,8 +4363,11 @@ textarea.dbs-code{width:100%;font-size:12.5px;resize:vertical;min-height:72px}
 }
 
 /* ---- the card watched (1.0.113): its control, and the lock over the page --------------------- */
-.seg.card-watch-seg{flex-wrap:wrap;max-width:100%}
-.seg.card-watch-seg button{white-space:nowrap}
+.seg.card-watch-seg{display:flex;flex-wrap:wrap;width:100%;max-width:100%}
+.seg.card-watch-seg button{flex:1 1 auto;text-align:center;white-space:nowrap;padding:9px 12px}
+@media (max-width:560px){.seg.card-watch-seg{flex-direction:column}
+  .seg.card-watch-seg button{border-left:0;border-top:1px solid var(--line)}
+  .seg.card-watch-seg button:first-child{border-top:0}}
 .seg.card-watch-seg.off{opacity:.5}
 .seg.card-watch-seg.off button{cursor:not-allowed}
 .set-item.asleep .seg.card-watch-seg{opacity:.5}

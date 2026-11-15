@@ -4801,10 +4801,18 @@ function dbMoveRun(info, W, m) {
      'The old database (' + ((mv.from || {}).where || '') + ') is left as it was - keep it until you are sure; then delete the file, or drop that database on its server.'].forEach(function (t) {
       ol.appendChild(el('li', '', t));
     });
+    /* Moved off the server of this node's database agent (1.0.113): the agent let go. */
+    if (mv.agent) {
+      var li = el('li', 'dbw-agent-gone');
+      li.id = 'dbw-agent-gone';
+      li.appendChild(el('span', '', 'acme-db-agent no longer looks after this node’s database: it is not on that server any more, so nothing is asked of the agent, and its server is off the cards and the meter. The agent keeps this node’s certificate until acme_db_agent.py --forget there.'));
+      ol.appendChild(li);
+    }
     host.appendChild(ol);
     var back = el('div', 'dbw-back');
     back.appendChild(el('b', '', 'Going back'));
     back.appendChild(el('p', 'note', 'The old database is still there: moving back is the same wizard the other way. It holds what was there before this move, so it is thrown away and filled again with what is here now.'));
+    if (mv.agent) back.appendChild(el('p', 'note small', 'To have that server looked after again, connect its agent first (a new join code), then move back.'));
     host.appendChild(back);
     var from = mv.from || {};
     haFoot([{words: 'Close', icon: 'close', left: true, go: function () { closeModal(); loadDb(); }},
@@ -20199,7 +20207,7 @@ function dbaDraw(host, d) {
     acts.appendChild(look);
     var rn = cmdButton('Renew the certificates', 'key', '');
     rn.id = 'dba-renew';
-    explain(rn, 'A new certificate for the agent (a new key, made on its server) and a new client certificate for this node, now, both from acme’s own authority - rather than 45 days before they end. Nothing stops.');
+    explain(rn, 'A new certificate for the agent (a new key, made on its server) and a new client certificate for this node, now, both from acme’s own authority - rather than when they near their end (the agent’s 60 days before, this node’s 45). Nothing stops.');
     rn.onclick = function () { dbaAct(rn, 'renew'); };
     acts.appendChild(rn);
     var rs = cmdButton('Restart the database…', 'power', '');

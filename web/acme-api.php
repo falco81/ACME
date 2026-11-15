@@ -494,7 +494,8 @@ function acme_cert_alive(string $part, bool $fail): void
     header('Content-Type: application/json; charset=utf-8');
     $host = acme_cert_host();
     $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
-    if ($host === '' || $origin !== 'https://' . $host) {
+    /* The page's own origin: this name on 443 - or on a port of its own, behind a proxy. */
+    if ($host === '' || preg_match('#^https://' . preg_quote($host, '#') . '(:[0-9]{1,5})?\z#', $origin) !== 1) {
         http_response_code(403);
         echo json_encode(['ok' => false, 'error' => 'asked only by these pages']);
         exit;

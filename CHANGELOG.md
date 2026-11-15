@@ -104,6 +104,49 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   - `acme-db-agent.service`: `ProtectSystem=strict` with the folders it writes,
     `PrivateDevices`, `RestrictAddressFamilies`, a `CapabilityBoundingSet`; the network side
     runs as `acme-db-agent` (made by `install.sh`), never `nobody`.
+- **Moving between engines with the database servers' agents** (docs/external-database.md,
+  *Moving between engines*): PostgreSQL on an agent's server → MariaDB on another agent's and
+  back, onto this machine's PostgreSQL / MariaDB or SQLite, from the wizard and `acme --db-move`.
+  **One agent a node**: joining another replaces the one there was (`agent.json.replaced`, and
+  said when the database is still on its server; refused for a node of a cluster whose
+  database is there); a move off the agent's server lets the agent go (`db_admin` local,
+  `agent.json.forgotten`, said in the move) - nothing is asked of it afterwards and its server
+  leaves the cards and the meter. *Make the database and the account for me* in the wizard on
+  the agent's server too (it was refused off 127.0.0.1), `acme --db-move ... --db-make` on the
+  command line (this machine's root helper or the agent; the password made up unless given).
+  - `acme --db-move` no longer carries `db_tls` / `db_tls_ca` to another database server: a
+    move from a verify-full PostgreSQL to a MariaDB without TLS wrote verify-full into
+    config.json and ran in the clear; the next step (Database → Encryption) is said.
+  - A MariaDB connection asked for TLS is refused when the server does not offer it (PyMySQL
+    went on unencrypted, the daily dump failed).
+  - The old server's rows (its certificate from acme's authority, its agent's last word, the
+    meter's reading) are not carried into the new database.
+  - The wizard opened from the database server's card is filled in with the database's own
+    port there (it was 5432 - another server - when the server had not been looked at yet, and
+    3306 for every MariaDB).
+  - The move's refusal on a node of a replicated cluster with each node's database on a server
+    of its own says so.
+  - `acme --db-agent-join CODE` (the code as an argument) warns that every account sees it in
+    `ps` - paste it on standard input: `acme --db-agent-join -`. A request to an agent that
+    never left (a reset, the old certificate answering for a moment after the agent restarts
+    its listening side) is sent once more. The alert of the agent's certificate says it renews
+    60 days before its end (it said 45). The reply signature in the docs is the code's (the
+    body's SHA-256 as raw bytes). High availability's node settings no longer make the pane
+    wider than a phone's screen (the cells' buttons go under their value).
+- **Signing in with a certificate: the card taken out signs you out** (or locks the page) -
+  per part, *When the card is taken out*: **Off** (the default - nothing of it runs, nginx's
+  certificate port is as it was), **Sign out at once**, or **Lock, wait for the card** (the page
+  covered, a countdown, nothing of it answered until the card is back within *The lock waits
+  for the card*, 15 s to 10 minutes; signed out after it). No browser tells a page a card was
+  taken out, so the page proves the card every few seconds (*Check the card*, 5-60 s) with a
+  request of its own to the certificate's port, where nginx - only while a part watches the
+  card - resumes no TLS session and keeps no connection, so each check is a full handshake the
+  card's key signs; it must be the same certificate the sign-in was made with. No good check
+  for too long (*No check of the card for*: by itself three missed and 30 s, two minutes at
+  least) and the server ends the sign-in - a tab closed, a computer asleep. The sign-in page
+  then says *Signed out: your card was removed*. Only sign-ins made with a certificate are
+  watched; switched on, the ones made before end. `acme --set admin_certlogin_card_watch=lock`
+  and the others as any setting. docs/certificate-sign-in.md, *The card taken out*.
 
 ## 1.0.112 - 2026-11-15
 

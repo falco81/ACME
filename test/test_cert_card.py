@@ -59,10 +59,18 @@ def load_web(tag):
 
 
 def head_web():
-    """deploy/acme_web.py as the last commit has it - None where git cannot say."""
-    got = subprocess.run(['git', 'show', 'HEAD:deploy/acme_web.py'], cwd=ROOT,
-                         capture_output=True, text=True)
-    if got.returncode:
+    """deploy/acme_web.py as the last commit before the card was watched has it (1.0.112's) -
+    None where git cannot say."""
+    log = subprocess.run(['git', 'log', '--format=%H', '-n', '40', '--', 'deploy/acme_web.py'],
+                         cwd=ROOT, capture_output=True, text=True)
+    got = None
+    for h in log.stdout.split() if log.returncode == 0 else []:
+        one = subprocess.run(['git', 'show', '%s:deploy/acme_web.py' % h], cwd=ROOT,
+                             capture_output=True, text=True)
+        if one.returncode == 0 and 'The card watched (1.0.113)' not in one.stdout:
+            got = one
+            break
+    if got is None:
         return None
     d = tempfile.mkdtemp(prefix='acme-web-head-')
     p = os.path.join(d, 'acme_web.py')
@@ -131,7 +139,42 @@ def session_set(self, token, **kv):
             'print("1")' % (token, kv, created, created))
 
 
-for _f in (alive, card_on, card_off, session_data, session_set):
+def page_csp(self, token):
+    """The CSP of /admin/ through php -S: signed out, and signed in with `token`."""
+    web = tempfile.mkdtemp(prefix='acme-card-web-')
+    shutil.rmtree(web)
+    shutil.copytree(os.path.join(ROOT, 'web'), web)
+    api_php = os.path.join(web, 'acme-api.php')
+    with open(api_php, encoding='utf-8') as f:
+        text = f.read()
+    with open(api_php, 'w', encoding='utf-8') as f:
+        f.write(text.replace('/run/acme/', os.path.join(self.tmp, 'run') + '/'))
+    with open(os.path.join(web, 'router.php'), 'w') as f:
+        f.write("<?php\n$_SERVER['HTTPS'] = 'on';\nchdir(__DIR__ . '/admin'); require __DIR__ . '/admin/index.php'; return true;\n")
+    port = TCL.free_port()
+    php = subprocess.Popen(['php', '-S', '127.0.0.1:%d' % port, 'router.php'], cwd=web,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    out = []
+    try:
+        for _ in range(50):
+            if self._open(port):
+                break
+            time.sleep(0.1)
+        for cookie in ('', '__Host-acme_session=' + token):
+            conn = http.client.HTTPConnection('127.0.0.1', port, timeout=60)
+            conn.request('GET', '/admin/', headers=dict({'Host': HOST}, **({'Cookie': cookie} if cookie else {})))
+            r = conn.getresponse()
+            out += [v for k, v in r.getheaders() if k.lower() == 'content-security-policy']
+            r.read()
+            conn.close()
+    finally:
+        php.terminate()
+        php.wait(10)
+        shutil.rmtree(web, ignore_errors=True)
+    return out
+
+
+for _f in (alive, card_on, card_off, session_data, session_set, page_csp):
     setattr(CardWatch, _f.__name__, _f)
 
 
@@ -181,6 +224,16 @@ def test_01_off_changes_nothing(self):
             self.assertEqual(text, H.certlogin_text(main, None, H.certlogin_checked(want)))
         # The sweep does nothing while no part watches the card.
         self.assertEqual(self.py('print(json.dumps(E.cl_card_sweep(st)))'), 0)
+        # The pages' Content-Security-Policy as before - a certificate's sign-in's too.
+        if shutil.which('php'):
+            csp = self.page_csp(tok)
+            self.assertEqual(len(csp), 2, csp)
+            for one in csp:
+                self.assertRegex(one, r"^default-src 'self'; script-src 'self' 'nonce-[A-Za-z0-9+/=]+'; "
+                                      r"style-src 'self' 'unsafe-inline'; style-src-elem 'self' "
+                                      r"'nonce-[A-Za-z0-9+/=]+'; img-src 'self' data:; connect-src 'self'; "
+                                      r"font-src 'self'; object-src 'none'; base-uri 'none'; "
+                                      r"form-action 'self'; frame-ancestors 'none'$")
     finally:
         self.card_off()
 

@@ -64875,6 +64875,166 @@
   "z_90": {
    "source": "the database agent at %s:%s cannot be reached: %s - is its port open to this node? (on the database server: firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"%s\" port port=\"%s\" protocol=\"tcp\" accept' && firewall-cmd --reload)",
    "text": "agent databázového serveru na %s:%s není dosažitelný: %s - je jeho port pro tento uzel otevřený? (na databázovém serveru: firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"%s\" port port=\"%s\" protocol=\"tcp\" accept' && firewall-cmd --reload)"
+  },
+  "z_91": {
+   "source": "Sign out at once",
+   "text": "Hned odhlásit"
+  },
+  "z_92": {
+   "source": "Lock, wait for the card",
+   "text": "Zamknout, čekat na kartu"
+  },
+  "z_93": {
+   "source": "every 5 s",
+   "text": "každých 5 s"
+  },
+  "z_94": {
+   "source": "every 10 s",
+   "text": "každých 10 s"
+  },
+  "z_95": {
+   "source": "every 15 s",
+   "text": "každých 15 s"
+  },
+  "z_96": {
+   "source": "every 30 s",
+   "text": "každých 30 s"
+  },
+  "z_97": {
+   "source": "every minute",
+   "text": "každou minutu"
+  },
+  "z_98": {
+   "source": "15 s",
+   "text": "15 s"
+  },
+  "z_99": {
+   "source": "30 s",
+   "text": "30 s"
+  },
+  "z_100": {
+   "source": "1 minute",
+   "text": "1 minuta"
+  },
+  "z_101": {
+   "source": "2 minutes",
+   "text": "2 minuty"
+  },
+  "z_102": {
+   "source": "5 minutes",
+   "text": "5 minut"
+  },
+  "z_103": {
+   "source": "10 minutes",
+   "text": "10 minut"
+  },
+  "z_104": {
+   "source": "30 minutes",
+   "text": "30 minut"
+  },
+  "z_105": {
+   "source": "never for that",
+   "text": "kvůli tomu nikdy"
+  },
+  "z_106": {
+   "source": "by itself (3 checks missed + 30 s)",
+   "text": "samo (3 vynechané kontroly + 30 s)"
+  },
+  "z_107": {
+   "source": "When the card is taken out",
+   "text": "Když se karta vytáhne"
+  },
+  "z_108": {
+   "source": "Check the card",
+   "text": "Kontrolovat kartu"
+  },
+  "z_109": {
+   "source": "The lock waits for the card",
+   "text": "Zámek čeká na kartu"
+  },
+  "z_110": {
+   "source": "No check of the card for",
+   "text": "Žádná kontrola karty po dobu"
+  },
+  "z_111": {
+   "source": "When the card is taken out (the portal)",
+   "text": "Když se karta vytáhne (portál)"
+  },
+  "z_112": {
+   "source": "Check the card (the portal)",
+   "text": "Kontrolovat kartu (portál)"
+  },
+  "z_113": {
+   "source": "The lock waits for the card (the portal)",
+   "text": "Zámek čeká na kartu (portál)"
+  },
+  "z_114": {
+   "source": "No check of the card for (the portal)",
+   "text": "Žádná kontrola karty po dobu (portál)"
+  },
+  "z_115": {
+   "source": "Card watched",
+   "text": "Hlídání karty"
+  },
+  "z_116": {
+   "source": "off - a sign-in made with a certificate lasts as any other",
+   "text": "vypnuto – přihlášení certifikátem trvá jako každé jiné"
+  },
+  "z_117": {
+   "source": "1 sign-in watched now",
+   "text": "právě hlídané 1 přihlášení"
+  },
+  "z_118": {
+   "source": "Put your card back",
+   "text": "Vraťte kartu zpět"
+  },
+  "z_119": {
+   "source": "Your smart card or YubiKey was taken out, so this sign-in is locked. Put it back - the page goes on by itself, as you left it.",
+   "text": "Čipová karta nebo YubiKey byla vytažena, proto je toto přihlášení zamčené. Vraťte ji zpět – stránka sama pokračuje tam, kde jste skončili."
+  },
+  "z_120": {
+   "source": "Signed out: your card was removed",
+   "text": "Odhlášeno: vaše karta byla vytažena"
+  },
+  "z_121": {
+   "source": "locked - put your card back",
+   "text": "zamčeno – vraťte kartu zpět"
+  },
+  "z_122": {
+   "source": "The card watched: the page proves it every few seconds on the certificate’s port - a full TLS handshake the card’s key signs each time. Fit for a card or YubiKey whose PIN is kept for the session (the Windows smart card minidriver, the YubiKey’s PIN policy “once”); a card that asks for its PIN at every signature asks at every check. Let the browser pick the certificate by itself (Chrome and Edge: AutoSelectCertificateForUrls for this port), or it may offer its chooser. Windows’ own “Smart card removal behavior = Lock workstation” (Group Policy) locks the computer as well. Only sign-ins made with a certificate are watched.",
+   "text": "Hlídání karty: stránka ji každých pár sekund znovu prokáže na portu certifikátu – pokaždé úplným TLS handshakem, který podepíše klíč karty. Hodí se pro kartu nebo YubiKey, jejíž PIN zůstává zapamatovaný po dobu relace (minidriver čipových karet ve Windows, PIN policy YubiKey „once“); karta, která chce PIN při každém podpisu, se na něj zeptá při každé kontrole. Nechte prohlížeč vybírat certifikát sám (Chrome a Edge: AutoSelectCertificateForUrls pro tento port), jinak může nabízet svůj výběr. Vlastní nastavení Windows „Chování při vyjmutí čipové karty = Zamknout pracovní stanici“ (Zásady skupiny) zamkne navíc i počítač. Hlídají se jen přihlášení certifikátem."
+  },
+  "z_123": {
+   "source": "Off (the default): a sign-in made with a certificate lasts as any other. Sign out at once: the page proves the card again every few seconds on the certificate's port - taken out (no certificate, another one, or its key not signing), the sign-in ends and the page goes to the sign-in page. Lock: the page is covered and nothing of it answered until the card is back within the time below - else signed out. Only sign-ins made with a certificate; a password's or Windows' never. Switched on, the sign-ins made with a certificate before end (they kept no card to compare with).",
+   "text": "Vypnuto (výchozí): přihlášení certifikátem trvá jako každé jiné. Hned odhlásit: stránka každých pár sekund znovu prokáže kartu na portu certifikátu – po vytažení (žádný certifikát, jiný certifikát, nebo klíč, který nepodepíše) přihlášení skončí a stránka přejde na přihlášení. Zamknout: stránka se zakryje a nic z ní neodpovídá, dokud se karta nevrátí v čase níže – jinak odhlášení. Jen přihlášení certifikátem; přihlášení heslem nebo přes Windows nikdy. Po zapnutí skončí přihlášení certifikátem z doby předtím (nemají uloženou kartu k porovnání)."
+  },
+  "z_124": {
+   "source": "How often the page proves the card. Each check is a full TLS handshake the card's key signs (no session resumed on that port while the card is watched): a card that asks for its PIN at every signature is not for this.",
+   "text": "Jak často stránka prokazuje kartu. Každá kontrola je úplný TLS handshake podepsaný klíčem karty (na tomto portu se při hlídání karty neobnovuje žádná TLS relace): karta, která chce PIN při každém podpisu, se sem nehodí."
+  },
+  "z_125": {
+   "source": "Lock: how long the covered page waits for the card before the sign-in ends.",
+   "text": "Zamknout: jak dlouho zakrytá stránka čeká na kartu, než přihlášení skončí."
+  },
+  "z_126": {
+   "source": "No good check for this long - the tab closed, the computer asleep - and the sign-in ends on the server. By itself: three checks missed and 30 s, two minutes at least (a hidden tab's timers run once a minute).",
+   "text": "Žádná úspěšná kontrola po tuto dobu – zavřená karta prohlížeče, uspaný počítač – a přihlášení skončí na serveru. Samo: tři vynechané kontroly a 30 s, nejméně dvě minuty (časovače skryté karty prohlížeče běží jednou za minutu)."
+  },
+  "z_127": {
+   "source": "As the administration's, for the portal: off (the default), sign out at once, or lock and wait for the card.",
+   "text": "Jako u administrace, pro portál: vypnuto (výchozí), hned odhlásit, nebo zamknout a čekat na kartu."
+  },
+  "z_128": {
+   "source": "As the administration's, for the portal: how often the page proves the card.",
+   "text": "Jako u administrace, pro portál: jak často stránka prokazuje kartu."
+  },
+  "z_129": {
+   "source": "As the administration's, for the portal: how long a lock waits for the card.",
+   "text": "Jako u administrace, pro portál: jak dlouho zámek čeká na kartu."
+  },
+  "z_130": {
+   "source": "As the administration's, for the portal: no good check for this long, and the sign-in ends.",
+   "text": "Jako u administrace, pro portál: žádná úspěšná kontrola po tuto dobu a přihlášení skončí."
   }
  },
  "patterns": {
@@ -90177,6 +90337,22 @@
   "dbuip-009": {
    "source": "The agent restarts {0} on {1} and waits for it. Every connection is cut for a few seconds - this node’s pages and RADIUS wait for it meanwhile.",
    "text": "Agent restartuje {0} na {1} a počká na něj. Všechna spojení se na několik sekund přeruší – stránky tohoto uzlu a RADIUS na něj zatím počkají."
+  },
+  "pz_1": {
+   "source": "every {0} s, sign out at once",
+   "text": "každých {0} s, hned odhlásit"
+  },
+  "pz_2": {
+   "source": "every {0} s, lock, wait {1} s for the card",
+   "text": "každých {0} s, zamknout, čekat {1} s na kartu"
+  },
+  "pz_3": {
+   "source": "{0} sign-ins watched now",
+   "text": "právě hlídaná přihlášení: {0}"
+  },
+  "pz_4": {
+   "source": "Signed out in {0} s if the card is not back",
+   "text": "Odhlášení za {0} s, pokud se karta nevrátí"
   }
  },
  "rich": {
