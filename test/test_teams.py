@@ -809,6 +809,52 @@ class Approvals(unittest.TestCase):
         STORE.set_meta(_portal.META + str(old), json.dumps({'who': 'eva'}))
         self.assertEqual(S.unapproved_why(STORE, S.cert_get(STORE, old)), '')
 
+    def test_approval_noted_with_its_state(self):
+        """1.0.106: the state taken out of the wait and `approved` noted were two writes - a
+        stop between them, or a CSR sent at that moment (the meta written whole over the
+        approval), left a request 'new' that was "never approved" and Approve said it did not
+        wait: stuck for good. Now one transaction, the meta compare-and-swapped, and Approve
+        takes such a row as a repair."""
+        from acmelib.certs import store as S
+        E.CONFIG.update(portal_cert_auto=0)
+        cid = self.ask(self.person('eva'), ['w1.example.test'])['id']
+        # the approval cannot be noted: the state is not changed either
+        real = _portal.asker_change
+
+        def broken(store, cid_, change):
+            raise E.ApiError(409, 'no')
+        _portal.asker_change = broken
+        try:
+            self.assertEqual(self.approve(self.person('appr'), cid), 409)
+        finally:
+            _portal.asker_change = real
+        self.assertEqual(S_state(cid), 'pending-approval')
+        # a write of the meta between the read and the write of another: both kept
+        n = [0]
+
+        def change(a):
+            n[0] += 1
+            if n[0] == 1:
+                _portal.note_asker(STORE, cid, 'local:other')
+            a['approved'] = {'by': 'x', 'at': 1}
+        _portal.asker_change(STORE, cid, change)
+        a = _portal.asker(STORE, cid)
+        self.assertEqual(n[0], 2)
+        self.assertIn('local:other', a['askers'])
+        self.assertEqual(a['approved']['by'], 'x')
+        # stuck as 1.0.106 left it: out of the wait, waits, never approved - Approve repairs it
+        _portal.mark_waiting(STORE, cid)
+        STORE.db.update('certs', cid, {'state': 'ok'})
+        self.assertIn('never approved', S.unapproved_why(STORE, S.cert_get(STORE, cid)))
+        self.assertEqual(self.approve(self.person('eva'), cid), 403)     # never one's own
+        self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': cid, 'ok': 1}), 200)
+        self.assertEqual(S.unapproved_why(STORE, S.cert_get(STORE, cid)), '')
+        self.assertEqual(S_state(cid), 'ok')
+        # a declined one is not "repaired": it waits for nobody
+        cid2 = self.ask(self.person('eva'), ['w2.example.test'])['id']
+        STORE.db.update('certs', cid2, {'state': 'declined'})
+        self.assertEqual(status(call, 'POST', '/api/certs/approve', {'id': cid2, 'ok': 1}), 409)
+
     def test_held_only_while_a_holder_lives(self):
         """1.0.106: the team kept as holding a name when the request began to wait stayed its
         only approver for good - its certificate revoked, run out or deleted since."""

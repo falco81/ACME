@@ -1274,14 +1274,28 @@ function viewRoom(sc, more, el) {
   clearTimeout(VIEWKEEP.roomTimer);
   VIEWKEEP.roomTimer = setTimeout(function () { viewRoomOut(VIEWKEEP.roomWait); }, VIEWKEEP.roomWait + 50);
 }
-/* The rooms gone (all of them, or those older than `age` ms) - the page as long as it is. */
+/* The rooms gone (all of them: another pane shown) - or (`age` ms: nobody has drawn into
+   them for that long) cut to the part in the frame now: the room on the screen taken away
+   moved everything up by its height (a resize, a wheel turned down - 1.0.106); what is left of
+   it is given back as the reader scrolls up out of it (viewRoomBack). */
 function viewRoomOut(age) {
   var now = viewNow();
   VIEWKEEP.rooms = VIEWKEEP.rooms.filter(function (room) {
     if (room.isConnected && age && now - (room._t || 0) < age) return true;
+    if (room.isConnected && age) return viewRoomCut(room);
     if (room.parentNode) room.parentNode.removeChild(room);
     return false;
   });
+}
+/* A room cut to what keeps the frame where it is (none below it): false when none is left. */
+function viewRoomCut(room) {
+  var sc = room._sc, h = parseFloat(room.style.height) || 0;
+  var view = sc === viewRoot() ? window.innerHeight : sc.clientHeight;
+  var need = Math.max(0, Math.ceil(sc.scrollTop + view - (sc.scrollHeight - h)));
+  if (need >= h) return true;
+  if (need > 0) { room.style.height = need + 'px'; return true; }
+  room.parentNode.removeChild(room);
+  return false;
 }
 /* Another pane or tab shown in the same box: nothing of the last one is held or kept. */
 function viewReset() {
@@ -1294,18 +1308,13 @@ function viewReset() {
 function viewRoomBack() {
   VIEWKEEP.rooms = VIEWKEEP.rooms.filter(function (room) {
     if (!room.isConnected) return false;
-    var sc = room._sc, h = parseFloat(room.style.height) || 0;
-    var view = sc === viewRoot() ? window.innerHeight : sc.clientHeight;
+    var sc = room._sc;
     /* room for a pane no longer shown: gone */
     if (room._for && (!room._for.isConnected || room._for.parentElement !== sc || !viewShown(room._for))) {
       room.parentNode.removeChild(room);
       return false;
     }
-    var need = Math.max(0, Math.ceil(sc.scrollTop + view - (sc.scrollHeight - h)));
-    if (need >= h) return true;
-    if (need > 0) { room.style.height = need + 'px'; return true; }
-    room.parentNode.removeChild(room);
-    return false;
+    return viewRoomCut(room);
   });
 }
 /* A box emptied for a "Loading…": its height kept until what it waited for is in. */
@@ -1400,7 +1409,11 @@ function viewKeep() {
            all of it when it is smaller), and never more than half a frame - never a frame with
            nothing in it (1.0.106) */
         var top = root ? 0 : sc.getBoundingClientRect().top + sc.clientTop;
-        var cap = Math.min(max + view / 2, sc.scrollTop + gr.bottom - top - Math.min(Math.max(gr.height, 0), view / 3));
+        /* ...the room there already counted in: rooms kept one after another (the end drawn
+           shorter again and again) made a frame of nothing all the same */
+        var had = 0;
+        VIEWKEEP.rooms.forEach(function (r) { if (r.isConnected && r._sc === sc) had += parseFloat(r.style.height) || 0; });
+        var cap = Math.min(max - had + view / 2, sc.scrollTop + gr.bottom - top - Math.min(Math.max(gr.height, 0), view / 3));
         if (want > cap) want = Math.max(max, cap);
         if (want > max) viewRoom(sc, want - max, got.el);
       }
@@ -1411,6 +1424,9 @@ function viewKeep() {
       var again = viewHold(got.el, a.sc);
       if (again) { again.top = a.top; again.t = a.t; VIEWKEEP.at = again; }
     }
+    /* the end drawn longer again: the room it no longer needs (below the frame) given back -
+       left, the reader scrolled on down into it, and it was added to (1.0.106) */
+    if (VIEWKEEP.rooms.length) viewRoomBack();
   } catch (e) {
     VIEWKEEP.at = null;
   } finally {
@@ -1422,15 +1438,15 @@ function viewKeep() {
   if (typeof MutationObserver !== 'function' || typeof Map !== 'function' || !VIEW_ST || !VIEW_ST.set) return;
   var opt = {capture: true, passive: true};
   /* what the reader does that moves the page */
-  var mine = function (e) {
+  /* (The room under the end is never taken away as the reader goes on down: in the frame, it
+     moved everything up by its height - 1.0.106. Below the frame there is none to scroll to;
+     it is given back as the reader scrolls up out of it.) */
+  var mine = function () {
     VIEWKEEP.user = viewNow();
-    /* the reader going on down past the end: the room under it given back (1.0.106) */
-    if (VIEWKEEP.rooms.length && e && e.type === 'wheel' && e.deltaY > 0) viewRoomOut(0);
   };
   ['wheel', 'touchstart', 'touchmove', 'touchend'].forEach(function (k) { window.addEventListener(k, mine, opt); });
   document.addEventListener('keydown', function (e) {
     var t = e.target, typing = t && (liveControl(t) || t.isContentEditable);
-    if (/^(ArrowDown|PageDown|End)$/.test(e.key) && !typing && VIEWKEEP.rooms.length) viewRoomOut(0);
     if (/^(ArrowUp|ArrowDown|PageUp|PageDown|Home|End)$/.test(e.key) && !typing) mine();
     else if (e.key === ' ' && !typing && !(t && /^(BUTTON|SUMMARY|A)$/.test(t.tagName))) mine();
     else if (e.key === 'Tab') mine();

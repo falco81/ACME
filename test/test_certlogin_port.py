@@ -95,6 +95,8 @@ class RealNginx:
         def run(args, *a, **k):
             if args[:2] == ['nginx', '-t']:
                 return real(['nginx', '-t', '-p', T, '-c', conf], *a, **k)
+            if args[:2] == ['nginx', '-T']:
+                return real(['nginx', '-T', '-p', T, '-c', conf], *a, **k)
             if args == ['systemctl', 'reload', 'nginx']:
                 w.RELOADS.append(time.time())
                 r = real(['nginx', '-p', T, '-c', conf, '-s', 'reload'], *a, **k)
@@ -208,8 +210,8 @@ class Reload(unittest.TestCase):
         calls = []
 
         class R:
-            def __init__(self, rc, err=''):
-                self.returncode, self.stderr, self.stdout = rc, err, ''
+            def __init__(self, rc, err='', out=''):
+                self.returncode, self.stderr, self.stdout = rc, err, out
 
         def run(args, *a, **k):
             calls.append(list(args))
@@ -225,23 +227,104 @@ class Reload(unittest.TestCase):
         said = []
         self.assertTrue(w.nginx_reload(said))
         self.assertEqual(said, ['nginx reloaded'])
-        w, calls = self._w({'systemctl reload nginx': (1, 'nginx.service is not active')}, False)
+        failed = {'systemctl is-failed nginx': (0, '', 'failed\n')}
+        w, calls = self._w(dict(failed, **{'systemctl reload nginx':
+                                           (1, 'nginx.service is not active')}), False)
         said = []
         self.assertTrue(w.nginx_reload(said))
         self.assertIn(['systemctl', 'reload-or-restart', 'nginx'], calls)
         self.assertIn('started again', said[0])
-        w, calls = self._w({'systemctl reload nginx': (1, 'Job failed'),
-                            'systemctl reload-or-restart nginx': (1, 'bind() to 0.0.0.0:8443 failed')},
-                           False)
+        w, calls = self._w(dict(failed, **{
+            'systemctl reload nginx': (1, 'Job failed'),
+            'systemctl reload-or-restart nginx': (1, 'bind() to 0.0.0.0:8443 failed')}), False)
         said = []
         self.assertFalse(w.nginx_reload(said))
         self.assertIn('could NOT be reloaded', said[0])
         self.assertIn('bind()', said[0])
-        w, calls = self._w({'systemctl reload nginx': (1, 'Job failed')}, True)
+        w, calls = self._w({'systemctl reload nginx': (1, 'Job failed'),
+                            'systemctl is-failed nginx': (1, '', 'active\n')}, True)
         said = []
         self.assertFalse(w.nginx_reload(said))
         self.assertNotIn(['systemctl', 'reload-or-restart', 'nginx'], calls)
         self.assertIn('Job failed', said[0])
+
+    def test_stopped_nginx_left_stopped(self):
+        """An nginx the admin stopped (inactive, not failed) is never started by a reload: it is
+        left so and said; the port is not taken away for not listening then."""
+        w, calls = self._w({'systemctl reload nginx': (1, 'nginx.service is not active, cannot reload.'),
+                            'systemctl is-failed nginx': (1, '', 'inactive\n')}, False)
+        said = []
+        self.assertIsNone(w.nginx_reload(said))
+        self.assertNotIn(['systemctl', 'reload-or-restart', 'nginx'], calls)
+        self.assertFalse(any(c[:2] in (['systemctl', 'restart'], ['systemctl', 'start'])
+                             for c in calls), calls)
+        self.assertIn('left stopped', said[0])
+        with open(WEB) as f:
+            src = f.read()
+        part = src[src.index('took = nginx_reload(said)'):]
+        self.assertIn('if took is not None and c', part[:600])
+
+
+class OtherSites(unittest.TestCase):
+    """Another site on the port is what nginx loads (nginx -T) with a `listen` that takes the
+    port here - not a file in sites-available or below conf.d, nor a `listen` on an address
+    that is not this node's."""
+
+    def test_listens_counted(self):
+        import ipaddress
+        w = load_web('osites')
+        w.NGINX_CERTLOGIN = '/x/conf.d/acme_certlogin.conf'
+        w.node_own_addresses = lambda: {ipaddress.ip_address(a) for a in
+                                        ('127.0.0.1', '::1', '192.0.2.5', '2001:db8::5')}
+        cases = [('server { listen 8443; }', True), ('server { listen *:8443 ssl; }', True),
+                 ('server { listen 0.0.0.0:8443; }', True), ('server { listen [::]:8443; }', True),
+                 ('server { listen 192.0.2.5:8443; }', True),
+                 ('server { listen [2001:db8::5]:8443; }', True),
+                 ('server { listen 127.0.0.1:8443; }', True),
+                 ('server { listen 10.9.9.9:8443; }', False),
+                 ('server { listen [2001:db8::9]:8443; }', False),
+                 ('server { listen 18443; listen 84430; }', False),
+                 ('upstream b { server 127.0.0.1:8443; }', False),
+                 ('server { listen 80; location / { proxy_pass https://127.0.0.1:8443; } }', False),
+                 ('# listen 8443 ssl;', False),
+                 ('server { listen unix:/run/x.sock; }', False),
+                 ('server { listen 81; add_header X "a#b"; }\nserver { listen 8443; }', True),
+                 ('server { listen 81; return 200 a#b; listen 8443; }', True)]
+        for text, refused in cases:
+            w.nginx_loaded_files = lambda: {'/x/conf.d/site.conf': text,
+                                            '/x/conf.d/acme_certlogin.conf': 'server { listen 8443 ssl; }'}
+            self.assertEqual(w.certlogin_other_sites(8443),
+                             ['/x/conf.d/site.conf'] if refused else [], text)
+        # nginx cannot say (nginx -T refused): nothing said, the port not taken away for it
+        w.nginx_loaded_files = lambda: None
+        self.assertEqual(w.certlogin_other_sites(8443), [])
+
+    @unittest.skipUnless(HAVE_NGINX, 'nginx (and root) wanted')
+    def test_what_nginx_loads(self):
+        base = tempfile.mkdtemp(prefix='acme-osites-')
+        try:
+            E = base + '/nginx'
+            for d in ('conf.d', 'sites-available', 'sites-enabled', 'conf.d/old'):
+                os.makedirs(os.path.join(E, d))
+            w = load_web('osites2')
+            w.NGINX_CONF = E + '/nginx.conf'
+            w.NGINX_CERTLOGIN = E + '/conf.d/acme_certlogin.conf'
+            with open(E + '/nginx.conf', 'w') as f:
+                f.write('pid %s/nginx.pid; error_log %s/error.log;\nevents {}\n'
+                        'http { include conf.d/*.conf; include sites-enabled/*; }\n' % (base, base))
+            with open(w.NGINX_CERTLOGIN, 'w') as f:
+                f.write('server { listen 8443; }\n')
+            if subprocess.run(['nginx', '-T', '-c', w.NGINX_CONF], capture_output=True).returncode:
+                self.skipTest('nginx -T does not take a temp configuration here')
+            for k in ('sites-available/disabled.conf', 'conf.d/old/backup.conf'):
+                with open(os.path.join(E, k), 'w') as f:
+                    f.write('server { listen 8443; }\n')
+            self.assertEqual(w.certlogin_other_sites(8443), [])
+            with open(E + '/sites-enabled/on', 'w') as f:
+                f.write('server { listen 8443; }\n')
+            self.assertEqual(w.certlogin_other_sites(8443), [E + '/sites-enabled/on'])
+        finally:
+            shutil.rmtree(base, ignore_errors=True)
 
 
 class SELinux(unittest.TestCase):
@@ -458,6 +541,53 @@ print(json.dumps(out))
         self.assertEqual(len(got[3]), 1, got[3])
         self.assertIn("the certificate's port 8443 was not given to nginx", got[3][0])
         self.assertNotIn('not the one saved', got[3][0])
+
+    def test_could_not_listen_backs_off(self):
+        """"nginx could not listen on N" answered again and again: each ask reloads nginx twice,
+        so it is asked after 15 minutes, then 30, 60 ... up to 6 hours; another answer (or
+        anything else wanted) starts over at 15 minutes."""
+        got = engine_run('''
+STORE = E.Storage(E.open_db())
+E.sealing_key(make=True)
+desired = {'node': 'acme1', 'vip': {'on': False}, 'tls': {'node': None, 'vip': None},
+           'certlogin': {'port': 8443, 'cas': 'x', 'admin': True, 'portal': False}}
+E.web_desired = lambda store: desired
+E.web_self_check = lambda store, st: None
+E.web_drift = lambda desired: ''
+h = E.web_hash(desired)
+w = os.path.join(os.environ['ACME_STATE'], 'web')
+req = os.path.join(w, 'request.json')
+def status(ago, busy='nginx could not listen on 8443'):
+    open(os.path.join(w, 'status.json'), 'w').write(json.dumps(
+        {'at': time.time() - ago, 'state': 'done', 'hash': h,
+         'certlogin': {'port': 0, 'busy': busy, 'want': 8443}}))
+def ask(ago, since_ask, busy='nginx could not listen on 8443'):
+    """root answered `ago` seconds ago; acme asked `since_ask` seconds ago: asked now?"""
+    if os.path.exists(req):
+        os.unlink(req)
+    E.WEB_ASKED['at'] = time.time() - since_ask - 1
+    E.WEB_DRIFT['port_at'] = time.time() - since_ask
+    status(ago, busy)
+    E.web_tick(STORE)
+    return os.path.exists(req)
+out = [ask(1000, 1000)]                 # first: 15 minutes
+out.append(ask(1000, 1000))             # second: not before 30 minutes
+out.append(ask(1900, 1900))
+out.append(ask(3000, 3000))             # third: 60 minutes
+out.append(ask(3700, 3700))
+out.append(ask(30000, 30000))           # up to 6 hours, never more
+for _ in range(6):
+    ask(30000, 30000)
+out.append(ask(21000, 21000))
+out.append(ask(21700, 21700))
+out.append(ask(1000, 1000, 'port 8443 is used by haproxy (pid 1) on acme1'))   # another answer
+out.append(ask(1000, 1000, 'nginx could not listen on 8443'))                 # starts over
+out.append(ask(1000, 1000, 'nginx could not listen on 8443'))
+print(json.dumps(out + [[r['words'] for r in STORE.db.rows("SELECT * FROM events")]]))
+''')
+        self.assertEqual(got[:-1], [True, False, True, False, True, True, False, True, True,
+                                    True, False], got)
+        self.assertIn('up to every 6 hours', got[-1][0])
 
     def test_drift_is_asked_again(self):
         """F2: a drift of the certificate (done, nginx has another one) writes request.json -

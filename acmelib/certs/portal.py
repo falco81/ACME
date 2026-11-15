@@ -582,20 +582,20 @@ def note_asker(store, cid, who, held=None, ids=()):
     """`who` (owner_word) sent a CSR or names for it: one of its askers from now; `ids` every
     other name they are known by (asker_ids, admin_names); `held` (holders()) kept as why it
     waits, where given."""
-    a = asker(store, cid)
-    lst = [str(x) for x in (a.get('askers') or []) if x]
-    if who and str(who).lower() not in {x.lower() for x in lst}:
-        lst.append(str(who)[:190])
-    a['askers'] = lst[-50:]
-    known = [str(x) for x in (a.get('ids') or []) if x]
-    for x in ids or ():
-        x = str(x).strip().lower()[:400]
-        if x and x not in known:
-            known.append(x)
-    a['ids'] = known[-200:]
-    if held is not None:
-        a['held'] = held_list(held)
-    store.set_meta(META + str(cid), json.dumps(a))
+    def change(a):
+        lst = [str(x) for x in (a.get('askers') or []) if x]
+        if who and str(who).lower() not in {x.lower() for x in lst}:
+            lst.append(str(who)[:190])
+        a['askers'] = lst[-50:]
+        known = [str(x) for x in (a.get('ids') or []) if x]
+        for x in ids or ():
+            x = str(x).strip().lower()[:400]
+            if x and x not in known:
+                known.append(x)
+        a['ids'] = known[-200:]
+        if held is not None:
+            a['held'] = held_list(held)
+    asker_change(store, cid, change)
 
 
 HELD_WORDS = {
@@ -659,6 +659,35 @@ def tell_holders(store, cid, held, who):
             E.log('the certificate portal could not tell the team holding the names of %s: %s'
                   % (cid, e), 'warn')
     threading.Thread(target=go, name='portal-mail-held', daemon=True).start()
+
+
+def asker_change(store, cid, change):
+    """The request's meta changed by `change(a)` (a dict, changed in place) as one compare-and-
+    swap (1.0.106): read, changed and written only over what was read - an approval and a CSR
+    sent at once each wrote the whole meta over the other's, and `approved` written by one was
+    gone, the request "never approved" for good. Tried again over what the other wrote."""
+    k = META + str(cid)
+    for _ in range(50):
+        raw = store.get_meta(k)
+        try:
+            a = json.loads(raw or 'null')
+        except (TypeError, ValueError):
+            a = None
+        a = a if isinstance(a, dict) else {}
+        change(a)
+        new = json.dumps(a)
+        if raw is None:
+            # none yet: written as set_meta writes (an insert - nothing to compare with)
+            store.set_meta(k, new)
+            return a
+        with store.db.transaction():
+            n = store.db.run('UPDATE meta SET v = ? WHERE k = ? AND v = ?', (new, k, raw))
+            if n and E.dbguard_meta_signed(k):
+                E.dbguard_sign(store.db, 'm', k, new)
+        if n:
+            return a
+        time.sleep(0.02)
+    raise E.ApiError(409, 'the request %s changed while it was written - try again' % cid)
 
 
 def asker(store, cid):
@@ -1056,7 +1085,8 @@ def _portal_approve(h):
     if ok and askers_of(h.store, row['id']) & set(asker_ids(s)):
         raise E.ApiError(403, 'you asked for it yourself, or sent its CSR or names - someone else '
                               'approves it')
-    if ok and row.get('state') == WAITING and not E.portal_sees_all(s):
+    if ok and (row.get('state') == WAITING or approval_missing(h.store, row)) and \
+            not E.portal_sees_all(s):
         may_owner = portal_may_owner(my_names(s), my_teams(h, s), defined_teams(h.store))
         need_held_ok(h.store, row, may_owner, s['name'])
     return approve_request(h.store, row, portal_by(s), A._flag(b.get('ok')),
@@ -1071,7 +1101,7 @@ def _cert_approve(h, s):
     b = h.body()
     row = S.cert_need(h.store, A._id(b.get('id')))
     ok = A._flag(b.get('ok'))
-    if ok and row.get('state') == WAITING:
+    if ok and (row.get('state') == WAITING or approval_missing(h.store, row)):
         # Never one's own here either (1.0.102: a certificate administrator who also signs in
         # to the portal asked, approved it here, and took its key there) - a full administrator
         # included: one who needs a certificate adds it in the administration.
@@ -1144,19 +1174,46 @@ def asked_by_admin(store, row, s):
 def mark_waiting(store, cid):
     """The request needs an approval (again): never issued, imported into or given a CSR
     until approve_request marks it approved (1.0.106, S.unapproved_why)."""
-    a = asker(store, cid)
-    a['waits'] = True
-    a.pop('approved', None)
-    store.set_meta(META + str(cid), json.dumps(a))
+    def change(a):
+        a['waits'] = True
+        a.pop('approved', None)
+    asker_change(store, cid, change)
 
 
 def mark_approved(store, cid, by, t=None):
-    a = asker(store, cid)
-    a['approved'] = {'by': str(by)[:190], 'at': t or time.time()}
-    store.set_meta(META + str(cid), json.dumps(a))
+    def change(a):
+        a['approved'] = {'by': str(by)[:190], 'at': t or time.time()}
+    asker_change(store, cid, change)
+
+
+def approval_missing(store, row):
+    """A request let out of the waiting state whose approval was never noted (1.0.106: the
+    state changed and `approved` written in two steps - a stop between them, or a CSR sent at
+    the same moment, left it 'new' or 'ok', "never approved", and Approve said it did not
+    wait): Approve takes it as a repair."""
+    if row.get('state') in (WAITING, DECLINED) or \
+            not str(row.get('created_by') or '').startswith('portal:'):
+        return False
+    a = asker(store, row['id'])
+    return bool(a.get('waits') and not a.get('approved'))
 
 
 def approve_request(store, row, by, ok, why):
+    if ok and approval_missing(store, row):
+        t = time.time()
+        mark_approved(store, row['id'], by, t)
+        store.add_event('certificates', '%s approved %s, asked for on the portal by %s - out of '
+                        'the waiting state already, its approval had not been noted%s' % (
+                            by, row['name'], row.get('owner') or '?',
+                            (': ' + why) if why else ''), who=by)
+        job_id = None
+        if row.get('state') == 'new':
+            job_id = start_issue(store, row['id'], by, 'approved by %s' % by)
+        tell(store, row['id'], 'approved', why)
+        out = {'message': '%s approved' % row['name']}
+        if job_id:
+            out.update(job_id=job_id, message='%s approved - it is being issued' % row['name'])
+        return out
     if row.get('state') != WAITING:
         raise E.ApiError(409, '%s is not waiting for approval' % row['name'])
     t = time.time()
@@ -1164,13 +1221,17 @@ def approve_request(store, row, by, ok, why):
         # Renewed by itself after it is approved - unless its request profile says not.
         auto = 0 if asker(store, row['id']).get('auto') is False else 1
         # taken from the waiting state in one step (1.0.51): an approve and a decline at once
-        # both passed the look above - issued while declined, both mails sent
-        n = store.db.run("UPDATE certs SET state = 'new', state_at = ?, auto_renew = ?, "
-                         "last_error = '', updated = ?, updated_by = ? WHERE id = ? AND state = ?",
-                         (t, auto, t, str(by)[:190], row['id'], WAITING))
+        # both passed the look above - issued while declined, both mails sent. Its approval
+        # noted in the same transaction (1.0.106): written after it, a stop between the two
+        # left a request 'new' that was "never approved" - never issued, never approved again.
+        with store.db.transaction():
+            n = store.db.run("UPDATE certs SET state = 'new', state_at = ?, auto_renew = ?, "
+                             "last_error = '', updated = ?, updated_by = ? WHERE id = ? AND "
+                             "state = ?", (t, auto, t, str(by)[:190], row['id'], WAITING))
+            if n:
+                mark_approved(store, row['id'], by, t)
         if not n:
             raise E.ApiError(409, '%s is not waiting for approval' % row['name'])
-        mark_approved(store, row['id'], by, t)
         store.add_event('certificates', '%s approved %s, asked for on the portal by %s%s' % (
             by, row['name'], row.get('owner') or '?', (': ' + why) if why else ''), who=by)
         job_id = start_issue(store, row['id'], by, 'approved by %s' % by)

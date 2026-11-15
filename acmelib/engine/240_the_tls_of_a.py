@@ -396,6 +396,7 @@ def web_status():
 
 
 WEB_RETRY_S = int(os.environ.get('ACME_WEB_RETRY_S') or 900)
+WEB_RETRY_MAX_S = 6 * 3600       # the longest wait of a port nginx could not listen on
 
 
 def web_tick(store):
@@ -429,10 +430,23 @@ def web_tick(store):
             # has, every 30 minutes, and never asked for - the gate of a failed request below
             # returned before request.json was written.
             cw, cs = desired.get('certlogin') or {}, st.get('certlogin') or {}
-            port_busy = ''
+            port_busy, port_wait = '', WEB_RETRY_S
             if not drift and int(cw.get('port') or 0) and not int(cs.get('port') or 0) and \
-                    cs.get('busy') and time.time() - float(st.get('at') or 0) >= WEB_RETRY_S:
-                port_busy = str(cs.get('busy'))[:200]
+                    cs.get('busy'):
+                busy = str(cs.get('busy'))[:200]
+                # "nginx could not listen on N" again and again (1.0.106): each ask reloads
+                # nginx twice - asked less often while root answers the same, from 15 minutes
+                # doubling up to 6 hours; anything else wanted, or another answer, starts over.
+                key = (h, busy)
+                if WEB_DRIFT.get('port_key') != key:
+                    WEB_DRIFT['port_key'], WEB_DRIFT['port_n'] = key, 0
+                if busy.startswith('nginx could not listen'):
+                    port_wait = min(WEB_RETRY_S * 2 ** min(int(WEB_DRIFT.get('port_n') or 0), 16),
+                                    max(WEB_RETRY_S, WEB_RETRY_MAX_S))
+                if time.time() - float(st.get('at') or 0) >= port_wait:
+                    port_busy = busy
+            elif int(cs.get('port') or 0) or not cs.get('busy'):
+                WEB_DRIFT.pop('port_key', None)         # given (or nothing said): over
             if drift:
                 if time.time() - WEB_DRIFT['at'] < 1800:
                     return
@@ -442,18 +456,26 @@ def web_tick(store):
                 store.add_event('settings', 'the certificate nginx has on %s is not the one saved '
                                 '(%s): put in again' % (node_name(), drift), 'warn')
             elif port_busy:
-                if time.time() - float(WEB_DRIFT.get('port_at') or 0) < WEB_RETRY_S:
+                if time.time() - float(WEB_DRIFT.get('port_at') or 0) < port_wait:
                     return
                 WEB_DRIFT['port_at'] = time.time()
+                WEB_DRIFT['port_n'] = int(WEB_DRIFT.get('port_n') or 0) + 1
                 log_sparing('web-certlogin-port', 'the certificate\'s port %s was not given to '
                             'nginx (%s): asked for again' % (cw.get('port'), port_busy), 'info',
                             every=3000)
                 # In Events once for each answer of root's, not at every try.
                 if WEB_DRIFT.get('port_said') != (cw.get('port'), port_busy):
                     WEB_DRIFT['port_said'] = (cw.get('port'), port_busy)
-                    store.add_event('settings', 'the certificate\'s port %s was not given to nginx '
-                                    'on %s (%s): asked for again every 15 minutes'
-                                    % (cw.get('port'), node_name(), port_busy), 'info')
+                    if port_busy.startswith('nginx could not listen'):
+                        store.add_event('settings', 'the certificate\'s port %s was not given to '
+                                        'nginx on %s (%s): asked for again after 15 minutes, '
+                                        'then less often while the answer stays the same, up '
+                                        'to every 6 hours' % (cw.get('port'), node_name(),
+                                                              port_busy), 'info')
+                    else:
+                        store.add_event('settings', 'the certificate\'s port %s was not given to '
+                                        'nginx on %s (%s): asked for again every 15 minutes'
+                                        % (cw.get('port'), node_name(), port_busy), 'info')
             else:
                 return
         # Failed with exactly this: asked again only when somebody says so.

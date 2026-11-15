@@ -31,7 +31,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   declined - out of the wait (*pending*, *valid*), and *Renew now* issued it: past the team
   holding its names, and past "never your own request". These are refused now with "approve it
   first" (409), and a request that needed an approval is issued, renewed or imported into only
-  once it was approved (kept with it; one issued before this version counts as approved).
+  once it was approved (kept with it; one issued before this version counts as approved). Its
+  approval is noted in one step with its state, and a CSR or names sent at that moment no longer
+  write over it; a request left out of the wait without its approval noted is taken by *Approve*
+  again (it said "not waiting for approval", and the request stayed "never approved" for good).
 - (security) **The portal: a new CSR for a certificate whose request profile was deleted is
   refused** ("its request profile is gone - ask again with another one"). Only its DNS names were
   compared - an e-mail or URI name, any extended key usage and any subject went to the source
@@ -70,15 +73,19 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   IPv6 only was "could not listen": the port was taken away and nginx reloaded twice at every
   request - its listeners are looked at on every address now. **Another site of nginx on the same
   port** was taken for acme's own, and acme's `listen … ssl` made that plain-HTTP site TLS only:
-  refused now, its file named (*another site of nginx listens on …*). The card says *nginx could
+  refused now, its file named (*another site of nginx listens on …*) - only a file nginx loads
+  (`nginx -T`; not one in `sites-available` or a folder below `conf.d`) with a `listen` on the
+  port on every address or on one of this node's (not another address). The card says *nginx could
   not listen* or *another site of nginx* rather than *taken by another program*, and root's words
   only for the port asked for.
 - **A port refused as taken is really asked for again.** 1.0.103 said it would every 15 minutes;
   Events said "the certificate nginx has … is not the one saved: put in again" every 30 minutes and
   nothing was asked (a certificate nginx did not have was not put in again either). Both are asked
-  for now, the port with its own words and its own 15 minutes.
+  for now, the port with its own words and its own 15 minutes - *nginx could not listen* (nginx
+  reloaded twice each time) less often while root answers the same, up to every 6 hours.
 - **nginx's reload is said as it went** ("nginx reloaded" was said whatever systemctl answered); an
-  nginx that failed to start (its port taken at boot) is started again once acme's server is out.
+  nginx that failed to start (its port taken at boot) is started again once acme's server is out;
+  one the administrator stopped is left stopped, and said so.
 - **SELinux: a port another service has is never taken from it** (`semanage port -m` relabelled it
   `http_port_t`); it is said, choose another port.
 - **The page that stays where it is (1.0.105) no longer gets in the reader's way.** The mouse wheel
@@ -86,8 +93,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   heard of, and the scroll was undone. A scroll the reader made is now kept whatever is drawn at
   that moment, and help, toasts and popups floating over the page are not looked at. The empty
   room kept under a shortened end went along to every other pane (a whole frame of nothing): it
-  is now never more than half a frame, gone with the pane it was for, when the reader scrolls on
-  down, and after 8 seconds. The focus is put back only when a redraw took it - not after a click
+  is now never more than half a frame in all, gone with the pane it was for, given back as the
+  end grows again or the reader scrolls up out of it - and after 8 seconds only the part below
+  the frame (the room on the screen taken away, after a resize or by the wheel turned down,
+  moved everything up by its height). The focus is put back only when a redraw took it - not after a click
   on the page, where Space opened and closed a CRL row instead of turning the page. A popup whose
   main button cannot be pressed (*Approve* of a request not yours) focuses its *Close*.
 

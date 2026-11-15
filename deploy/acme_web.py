@@ -1155,34 +1155,130 @@ def certlogin_ours_loaded(port):
     return bool(re.search(r'^\s*listen\s+(?:\S+:)?%d\b' % int(port), text, re.M))
 
 
+def nginx_loaded_files():
+    """{path: text} of the files the system's nginx loads, as `nginx -T` dumps them (1.0.106),
+    or None when nginx cannot say (not there, its configuration not taken)."""
+    try:
+        r = subprocess.run(['nginx', '-T', '-c', NGINX_CONF], capture_output=True, text=True,
+                           errors='replace', timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if r.returncode != 0 or not r.stdout:
+        return None
+    out, name, part = {}, None, []
+    for line in r.stdout.splitlines(True):
+        m = re.match(r'# configuration file (.+):\n?$', line)
+        if m:
+            if name is not None:
+                out[name] = ''.join(part)
+            name, part = m.group(1), []
+        elif name is not None:
+            part.append(line)
+    if name is not None:
+        out[name] = ''.join(part)
+    return out
+
+
+def nginx_uncommented(text):
+    """nginx's text without its comments - a `#` within quotes or within a word is not one."""
+    out, q, i, n = [], '', 0, len(text)
+    while i < n:
+        c = text[i]
+        if q:
+            out.append(c)
+            if c == '\\' and i + 1 < n:
+                out.append(text[i + 1])
+                i += 1
+            elif c == q:
+                q = ''
+        elif c in '"\'':
+            q = c
+            out.append(c)
+        elif c == '#' and (not out or out[-1] in ' \t\r\n;{}'):
+            j = text.find('\n', i)
+            i = n if j < 0 else j
+            continue
+        else:
+            out.append(c)
+        i += 1
+    return ''.join(out)
+
+
+def node_own_addresses():
+    """This node's addresses (every interface, loopback too) as ipaddress objects, or None when
+    `ip` cannot say."""
+    try:
+        got = subprocess.run(['ip', '-o', 'addr', 'show'], capture_output=True, text=True,
+                             timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if got.returncode != 0:
+        return None
+    out = set()
+    for line in got.stdout.splitlines():
+        f = line.split()
+        if len(f) >= 4 and f[2] in ('inet', 'inet6'):
+            try:
+                out.add(ipaddress.ip_interface(f[3]).ip)
+            except ValueError:
+                pass
+    return out
+
+
+def certlogin_listen_here(addr, mine):
+    """Whether a `listen` on `addr` (the part before :port; '' for none) takes the port on this
+    node: a wildcard, or one of its addresses (`mine`: None - every address counts)."""
+    a = addr.strip()
+    if a in ('', '*', '0.0.0.0', '[::]', '[::0]', '[0:0:0:0:0:0:0:0]'):
+        return True
+    if a.lower().startswith('unix:'):
+        return False
+    if a.lower() == 'localhost':
+        return True
+    try:
+        ip = ipaddress.ip_address(a[1:-1] if a.startswith('[') and a.endswith(']') else a)
+    except ValueError:
+        return True             # a name: it may well be this node's
+    if ip.is_unspecified:
+        return True
+    if getattr(ip, 'ipv4_mapped', None):
+        ip = ip.ipv4_mapped
+    return mine is None or ip in mine or ip.is_loopback
+
+
 def certlogin_other_sites(port):
-    """The files of the system's nginx (other than acme's server of the certificate's port) with
-    a `listen` on `port` (1.0.106): [path]. acme's `listen N ssl` would make such a site TLS."""
-    want = re.compile(r'(?:^|[\s{;])listen\s+(?:[^\s;]*:)?%d(?![0-9.:])' % int(port), re.M)
-    roots, seen, out = [], set(), []
-    for d in (os.path.dirname(NGINX_CONF), NGINX_DIR):
-        if d and os.path.isdir(d) and os.path.realpath(d) not in roots:
-            roots.append(os.path.realpath(d))
-    mine = os.path.realpath(NGINX_CERTLOGIN)
-    for root in roots:
-        for here, dirs, files in os.walk(root):
-            dirs[:] = sorted(x for x in dirs if not x.startswith('.'))
-            for name in sorted(files):
-                p = os.path.join(here, name)
-                rp = os.path.realpath(p)
-                if rp in seen or rp == mine or name.startswith('.') or not (
-                        name.endswith('.conf') or os.path.basename(here) == 'sites-enabled'):
-                    continue
-                seen.add(rp)
-                try:
-                    if os.path.getsize(rp) > (1 << 20):
-                        continue
-                    with open(rp, errors='replace') as f:
-                        text = f.read()
-                except OSError:
-                    continue
-                if want.search(re.sub(r'#[^\n]*', '', text)):
-                    out.append(p)
+    """The files the system's nginx loads (other than acme's server of the certificate's port)
+    with a `listen` on `port` on this node (1.0.106): [path]. acme's `listen N ssl` would make
+    such a site TLS. What nginx loads is what `nginx -T` dumps - a file in sites-available or in
+    a folder below conf.d, never loaded, is not another site, nor a `listen` on an address that
+    is not this node's. When nginx cannot say, nothing is said (a working port is not taken
+    away for it; nginx -t asked before the reload)."""
+    files = nginx_loaded_files()
+    if not files:
+        return []
+    want = re.compile(r'(?:^|[\s{;])listen\s+([^\s;]+)')
+    mine_conf = os.path.realpath(NGINX_CERTLOGIN)
+    addrs, out = [False], []
+    for p, text in files.items():
+        if os.path.realpath(p) == mine_conf:
+            continue
+        for m in want.finditer(nginx_uncommented(text)):
+            spec = m.group(1).strip('"\'')
+            if spec.isdigit():
+                addr, num = '', spec
+            elif ':' in spec and not spec.lower().startswith('unix:'):
+                addr, num = spec.rsplit(':', 1)
+                if addr.startswith('[') and not addr.endswith(']'):
+                    continue            # [::1] without a port: 80
+            else:
+                continue                # an address alone (port 80), a unix socket
+            if not num.isdigit() or int(num) != int(port):
+                continue
+            if addrs[0] is False:
+                addrs[0] = node_own_addresses()
+            if certlogin_listen_here(addr, addrs[0]):
+                out.append(p)
+                break
     return out
 
 
@@ -1284,18 +1380,31 @@ def certlogin_selinux(port):
 def nginx_reload(said):
     """systemctl reload nginx, its answer said (1.0.106: "nginx reloaded" was said whatever it
     answered). A unit that failed - at boot, its port taken - is started again
-    (reload-or-restart): a reload of a stopped nginx does nothing. True when nginx took it."""
+    (reload-or-restart): a reload of a failed nginx does nothing. An nginx the admin stopped
+    (inactive, not failed) is left stopped and said so - it takes the files when it is started.
+    True when nginx took it, None when it was left stopped, False when it refused."""
     r = subprocess.run(['systemctl', 'reload', 'nginx'], capture_output=True, text=True)
     if r.returncode == 0:
         said.append('nginx reloaded')
         return True
-    if not nginx_active():
+    try:
+        st = subprocess.run(['systemctl', 'is-failed', 'nginx'], capture_output=True,
+                            text=True, timeout=10)
+        state = (st.stdout or '').strip().splitlines()[-1:] or ['']
+        state = state[0]
+    except (OSError, subprocess.SubprocessError):
+        state = ''
+    if state == 'failed':
         r2 = subprocess.run(['systemctl', 'reload-or-restart', 'nginx'], capture_output=True,
                             text=True)
         if r2.returncode == 0:
-            said.append('nginx started again (it was not running)')
+            said.append('nginx started again (it had failed)')
             return True
         r = r2
+    elif state == 'inactive' or (state != 'active' and not nginx_active()):
+        said.append('nginx is stopped (not failed) - left stopped; it takes the new files when '
+                    'it is started')
+        return None
     said.append('nginx could NOT be reloaded: %s' % (
         ((r.stderr or '').strip().splitlines() or ['systemctl answered %d' % r.returncode])[-1][:300]))
     return False
@@ -1770,11 +1879,13 @@ def nginx_part(r, last):
             if t.returncode != 0:
                 raise Refused('nginx does not take it, so it is as it was: %s'
                               % ((t.stderr or '').strip().splitlines() or ['?'])[-1][:300])
-            nginx_reload(said)
+            took = nginx_reload(said)
             # The port bound after all (1.0.100) - or the certificate's servers taken away again,
-            # never left for nginx to fail on at its next start.
+            # never left for nginx to fail on at its next start. An nginx left stopped (the
+            # admin's) is not asked: nothing listens until it is started.
             c = r.get('certlogin')
-            if c and c['port'] and CERTLOGIN_NOW.get('port') and os.path.exists(NGINX_CERTLOGIN):
+            if took is not None and c and c['port'] and CERTLOGIN_NOW.get('port') and \
+                    os.path.exists(NGINX_CERTLOGIN):
                 for _ in range(20):
                     if certlogin_listening(c['port']):
                         break

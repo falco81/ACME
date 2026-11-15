@@ -12,6 +12,11 @@
 // 3. The focus taken away on purpose (a click on nothing) is not put back by a
 //    redraw of what had it: Space turned the page no more.
 // 4. A popup whose main button cannot be pressed: the focus goes to its Close.
+// 5. The room on the screen is never taken away (it moved everything up by its
+//    height): not when its time is up with nothing held (a resize), not on a
+//    wheel or a key down at the end; given back as the end grows again, never
+//    more than half a frame of it however often the end is drawn shorter, and
+//    given back as the reader scrolls up out of it.
 // Prints one line of JSON: {ok, checks: {name: true|false}, error?}.
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -101,6 +106,58 @@ const fs = require('fs');
     await page.waitForTimeout(100);
     out.checks.focus_in_the_popup_on_close = await page.evaluate(() =>
       $('modal').contains(document.activeElement) && document.activeElement.textContent.trim() === 'Close');
+    // 5. the room on the screen kept
+    await page.setContent(html);
+    await page.waitForTimeout(100);
+    await page.evaluate(() => { VIEWKEEP.roomWait = 400; });
+    await page.mouse.move(400, 300);
+    for (let i = 0; i < 40; i++) { await page.mouse.wheel(0, 200); await page.waitForTimeout(20); }
+    await page.waitForTimeout(400);
+    await page.mouse.click(400, 100);
+    await page.waitForTimeout(400);
+    const pos = () => page.evaluate(() => {
+      const p = $('last').querySelector('p').getBoundingClientRect();
+      return {top: $('main').scrollTop, end: Math.round(p.top),
+              room: Array.from(document.querySelectorAll('.view-room')).reduce((n, r) => n + (parseFloat(r.style.height) || 0), 0)};
+    });
+    await page.evaluate(() => { $('tail').style.height = '100px'; });
+    await page.waitForTimeout(200);
+    const r0 = await pos();
+    await page.setViewportSize({width: 800, height: 590});
+    await page.waitForTimeout(1200);
+    const r1 = await pos();
+    out.room_kept = [r0, r1];
+    out.checks.room_on_screen_kept_after_a_resize = r0.room > 0 && r1.room > 0 && Math.abs(r1.end - r0.end) <= 12;
+    await page.mouse.move(400, 300);
+    await page.mouse.wheel(0, 120);
+    await page.waitForTimeout(300);
+    await page.keyboard.press('PageDown');
+    await page.keyboard.press('End');
+    await page.waitForTimeout(300);
+    const r2 = await pos();
+    out.room_kept.push(r2);
+    out.checks.room_kept_on_wheel_and_keys_down = Math.abs(r2.end - r1.end) < 1 && r2.room > 0;
+    // drawn shorter again and again: never more than half a frame of room
+    await page.evaluate(() => { $('tail').style.height = '500px'; });
+    await page.waitForTimeout(200);
+    const r3 = await pos();
+    for (let i = 0; i < 10; i++) { await page.mouse.wheel(0, 200); await page.waitForTimeout(20); }
+    await page.waitForTimeout(400);
+    await page.mouse.click(400, 100);
+    await page.waitForTimeout(300);
+    await page.evaluate(() => { $('tail').style.height = '100px'; });
+    await page.waitForTimeout(200);
+    const r4 = await pos();
+    out.room_kept.push(r3, r4);
+    /* (the browser's own scroll anchoring may move it up as the end grows - never down) */
+    out.checks.room_given_back_as_the_end_grows = r3.room === 0 && r3.end <= r2.end + 1;
+    out.checks.room_never_over_half_a_frame = r4.room > 0 && r4.room <= 295 + 2;
+    // scrolled up out of it: given back, nothing moves
+    for (let i = 0; i < 5; i++) { await page.mouse.wheel(0, -200); await page.waitForTimeout(30); }
+    await page.waitForTimeout(400);
+    const r5 = await pos();
+    out.room_kept.push(r5);
+    out.checks.room_given_back_scrolling_up = r5.room === 0 && r5.top > 0;
   } catch (e) {
     out.error = String(e);
   }
