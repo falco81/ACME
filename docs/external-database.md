@@ -1,6 +1,6 @@
-# The database on a server of its own (acme-db-agent, 1.0.112)
+# The database on a server of its own (acme-db-agent, 1.0.113)
 
-Until 1.0.112 acme looked after its database only when it ran **on the same
+Until 1.0.113 acme looked after its database only when it ran **on the same
 machine**: the root helper (`acme_web.py`, started by `acme-web.path`) gave
 PostgreSQL its certificate, changed `pg_hba.conf`, switched `ssl` on, read the
 replication's log; `acme --ha-setup` / `--ha-join` set `wal_level`,
@@ -8,7 +8,7 @@ replication's log; `acme --ha-setup` / `--ha-join` set `wal_level`,
 restarted PostgreSQL as root. A database elsewhere was the server
 administrator's: acme only connected to it.
 
-From 1.0.112 a database server of its own can be looked after **exactly the same
+From 1.0.113 a database server of its own can be looked after **exactly the same
 way**, by a small agent installed on it - **acme-db-agent**. Nothing changes for
 an installation that does not use one: without the agent's file on a node
 (`/var/lib/acme/db-agent/agent.json`), every path is the one it was, nothing new

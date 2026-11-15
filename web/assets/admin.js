@@ -3550,7 +3550,7 @@ function loadUsers() {
     }));
   }).catch(oops);
 }
-/* Locked out (1.0.112): who has wrong attempts counted, on which node, how
+/* Locked out (1.0.113): who has wrong attempts counted, on which node, how
    long the lockout still runs - cleared one by one or all at once. Fetched
    again every 10 s while the card is on the screen; the time left counts
    down every second in between. */
@@ -4060,7 +4060,7 @@ function loadDb() {
     dumpCard(d);
     loadDbTls();                                        /* encryption to the server (1.0.170) */
     drawTune(d);
-    dbaPane();                                          /* a server of its own (1.0.112) */
+    dbaPane();                                          /* a server of its own (1.0.113) */
     drawErasable(d.erasable || {});
     if (d.job && d.job.running && ADMIN) dbWatch();     /* its progress is a full administrator's (1.0.146) */
     explainWhatWasDrawn($('pane-db'));
@@ -4318,7 +4318,7 @@ function dbMoveSteps(info, preset) {
       tiles.appendChild(t);
     });
     host.appendChild(tiles);
-    /* A database server with acme-db-agent (1.0.112): connected first, then moved onto. */
+    /* A database server with acme-db-agent (1.0.113): connected first, then moved onto. */
     if (ME && ME.role === 'fulladmin' && typeof dbaWizard === 'function') {
       var ag = el('div', 'dbw-agent small muted');
       ag.appendChild(el('span', '', 'A database server acme should look after itself (its certificate, settings, restarts, the meter)? Connect its agent first:'));
@@ -6927,7 +6927,7 @@ function loadHa(live) {
     $('ha-make-open').hidden = !made;
     if (!made || !HA_MAKE_OPEN) $('ha-make-body').hidden = made;
     drawHaRep(d, !!live);
-    dbaHa(d);                                           /* the database servers (1.0.112) */
+    dbaHa(d);                                           /* the database servers (1.0.113) */
     drawHaLb(d);
     explainWhatWasDrawn($('pane-ha'));
   }).catch(oops);
@@ -12223,7 +12223,7 @@ function drawFw(d) {
   });
   });
   nodes.hidden = d.nodes.length < 2;
-  dbaFw();                                              /* the database servers (1.0.112) */
+  dbaFw();                                              /* the database servers (1.0.113) */
   drawFwBody(d);
   explainWhatWasDrawn($('pane-fw'));
 }
@@ -19192,7 +19192,7 @@ function drawDbTls() {
     row.appendChild(sd);
     list.appendChild(row);
   });
-  /* The database servers looked after by agents (1.0.112): their certificate is put in by
+  /* The database servers looked after by agents (1.0.113): their certificate is put in by
      their agents, as the root helper does on a node. */
   (d.dbservers || []).forEach(function (s) {
     var row = el('div', 'hal-node dbs-hal');
@@ -19922,7 +19922,7 @@ function seNode(n) {
   return box;
 }
 
-/* ==== The database on a server of its own (1.0.112, docs/external-database.md) ============
+/* ==== The database on a server of its own (1.0.113, docs/external-database.md) ============
    acme-db-agent on the database server looks after it as the root helper looks after one on
    this machine. Here: the card of Settings → The database (where the database is, its server,
    what can be done to it), the wizard that connects one, the database servers' dots beside

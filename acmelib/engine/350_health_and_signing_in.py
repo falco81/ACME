@@ -4,7 +4,7 @@ from __future__ import annotations
 HEALTH_SEEN = {}
 
 
-# ---- who is locked out (1.0.112) ---------------------------------------------------
+# ---- who is locked out (1.0.113) ---------------------------------------------------
 # Each node counts the wrong passwords that reach it, in memory. Every node
 # writes its list into meta when it changes, so the pages of either show both;
 # a lockout is cleared by the node that holds it - asked through meta when it

@@ -139,7 +139,7 @@ function hloadDraw(d, into, asLook, opt) {
     + (opt.db ? ' hl-db' : '') + (opt.stale ? ' hl-stale' : '');
   clear(host);
   /* In a cluster each node's numbers under its name (1.0.48) - and beside the database servers
-     of their own (1.0.112) */
+     of their own (1.0.113) */
   if (!preview && (opt.node || (HLOAD.peers && HLOAD.peers.length) || (HLOAD.dbs && HLOAD.dbs.length))) {
     var nn = noI18n(el('span', 'hl-node', opt.label || opt.node || d.node || ''));
     if (opt.db) {
@@ -233,7 +233,7 @@ function hloadPeersDraw() {
   document.querySelectorAll('.hload.hl-peer:not(.hl-db)').forEach(function (b) { if (!have[b.id]) b.remove(); });
   hloadFit();
 }
-/* The database servers of their own (1.0.112, /api/load dbservers): a row each after the
+/* The database servers of their own (1.0.113, /api/load dbservers): a row each after the
    nodes, in the same look - the machine as a node's, its database on hover. Their graphs
    from the readings this page has seen. None without an agent. */
 function hlDbLabel(r, all) {
@@ -395,7 +395,7 @@ function hloadPanelOpen(k, chip) {
   p.hidden = false;
   hloadPanelDraw();
   hloadPanelPlace(chip);
-  if (String(HLOAD.pnode || '').indexOf('db:') === 0) return;      /* drawn from the row (1.0.112) */
+  if (String(HLOAD.pnode || '').indexOf('db:') === 0) return;      /* drawn from the row (1.0.113) */
   if (HLOAD.pnode || !HLOAD.detail || Date.now() - (HLOAD.detailAt || 0) > 2500) hloadTick(true);
 }
 function hloadPanelSoon() { clearTimeout(HLOAD.shut); HLOAD.shut = setTimeout(hloadPanelClose, 350); }
@@ -452,7 +452,7 @@ function hloadPanelDraw() {
   document.querySelectorAll('.hload [data-k]').forEach(function (c) {
     c.classList.toggle('hl-open', (c.dataset.node || '') === node && (st !== 'wide' ? c.dataset.k === k : true));
   });
-  /* A database server's (1.0.112): the machine and its database, from its row. */
+  /* A database server's (1.0.113): the machine and its database, from its row. */
   if (node.indexOf('db:') === 0) {
     var dr = (HLOAD.dbs || []).filter(function (x) { return (x.name || 'db:' + x.node) === node; })[0];
     if (dr) {
@@ -484,7 +484,7 @@ function hloadPanelDraw() {
   }
 }
 var HP_TITLE = {cpu: 'The processor', mem: 'Memory', disk: 'The disks', net: 'The network'};
-/* The panel of a database server (1.0.112): the graph of what was pointed at, then its
+/* The panel of a database server (1.0.113): the graph of what was pointed at, then its
    database - the version, how long it runs, the connections, what waits to go over to the
    other server, the size - and the machine in numbers. */
 function hpDb(p, k, r) {

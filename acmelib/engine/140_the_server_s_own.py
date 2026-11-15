@@ -10,7 +10,7 @@ def tune_machine(c, typed):
              'ram': None, 'virtual': None, 'rotational': None,
              'source': 'this machine' if local else ''}
     if not local and db_agent_on():
-        # A server of its own, told by its agent (1.0.112).
+        # A server of its own, told by its agent (1.0.113).
         try:
             f = db_agent_call('status', timeout=20).get('facts') or {}
             facts.update(ram=f.get('ram'), avail=f.get('avail'), cpus=f.get('cpus'),
@@ -340,7 +340,7 @@ def tune_restart_ready(store):
     if db.engine != 'postgres':
         return {'may': False, 'unit': ''}
     if db_agent_on():
-        return {'may': True, 'unit': 'acme-db-agent', 'why': ''}      # through it (1.0.112)
+        return {'may': True, 'unit': 'acme-db-agent', 'why': ''}      # through it (1.0.113)
     host = str(CONFIG.get('db_host') or '').lower()
     if host not in ('', 'localhost', '127.0.0.1', '::1', socket.gethostname().lower()):
         return {'may': False, 'unit': 'postgresql',
@@ -362,7 +362,7 @@ def tune_restart(store, by):
     that - and waited for."""
     db = store.db
     if db_agent_on() and db.engine == 'postgres':
-        # On a server of its own: its agent starts it again and waits for it (1.0.112).
+        # On a server of its own: its agent starts it again and waits for it (1.0.113).
         waiting = tune_pending(db)
         if not waiting:
             raise ValueError('nothing waits for a restart')

@@ -4265,7 +4265,7 @@ td.cert-crl-url .tag{flex:none;margin:0}
 .csr-done .clk-pre{height:auto;max-height:260px}
 .clk-would + .note,.clk-req + .note,.clk-list + .note{margin-top:10px}
 
-/* ---- The database on a server of its own (1.0.112) ---------------------------------------
+/* ---- The database on a server of its own (1.0.113) ---------------------------------------
    The pill of the database servers on a card's heading (as the nodes' pill), the card of
    Settings → The database, its wizard, the rows on High availability and the firewall. */
 .dbs-pill{display:inline-flex;align-items:center;gap:2px;margin-left:10px;vertical-align:middle;

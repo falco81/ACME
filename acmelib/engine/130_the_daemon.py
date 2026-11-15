@@ -37,7 +37,7 @@ class Daemon(object):
         self.conf_loaded_at = time.time()
         self.beat_asked_seen = beat_asked_last(store)
         self.login_fails = collections.defaultdict(list)
-        # What each count is (1.0.112): its limit, how long it lasts, and the
+        # What each count is (1.0.113): its limit, how long it lasts, and the
         # names tried from an address / the addresses a name was tried from -
         # for Settings - Accounts - Locked out.
         self.login_info = {}
@@ -919,7 +919,7 @@ class Daemon(object):
                     log_sparing('cl-tick', 'the authorities of the sign-in with a certificate: '
                                 '%s' % e, 'warn', every=600)
                 try:
-                    lockouts_tick(self)         # who is locked out, for the pages (1.0.112)
+                    lockouts_tick(self)         # who is locked out, for the pages (1.0.113)
                 except Exception as e:          # noqa: BLE001
                     log_sparing('lockouts-tick', 'the list of who is locked out: %s' % e,
                                 'warn', every=600)
