@@ -33,6 +33,22 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   taken out. The checks have a limit of their own now, and nginx's 429 and 5xx (and a daemon not
   answering) say "try later" - asked again at the next check. Off, nginx's server of the port is
   as before.
+- **The card's notice over a popup**: Escape closed the popup behind it (or asked *Leave it?*
+  under it) and Tab went round the popup's boxes - nothing behind the notice answers now, and the
+  focus goes back where it was (the box half typed in) when the card is back. Its seconds agree
+  with the number (*1 second*; in Czech *1 sekunda, 3 sekundy, 30 sekund*). The card's events,
+  the reasons a check came without it and the lockout of sign-ins with a certificate are in Czech.
+- **Settings -> Accounts and Portal ask nothing while left alone again**: with a node not
+  listening on the certificate's port, every visit asked the Kerberos and certificate cards
+  every 3 s for a minute (1.0.105 asked nothing). Only a change made on the page - or what is not
+  settled having changed since the last look - watches the nodes now.
+- **Settings -> Firewall without a database agent** no longer asks for the database servers every
+  few seconds: the answer "none" is kept for 10 minutes.
+- **Smaller things on the pages**: the database server's load on its card with the page's decimal
+  mark (*0,52 / 0,48* in Czech); the note of the DNS set *Public* in the page's language while it
+  is as shipped; the password policy's switch no longer jumps 118 px up (the open *With SSH keys*
+  paragraphs above it closed at each redraw); on a phone, scrolling a popup to its end no longer
+  scrolls the page under it.
 
 - **"The database is in trouble" says something again**: since the RADIUS server was taken out
   nothing wrote down the database's own trouble - the alert, `acmeDbTrouble` and the Zabbix trigger never
@@ -77,35 +93,55 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   verify-full failed. The agent remembers which node (and authorities) put the server's
   certificate in; a node of another authority is refused, the refusal says whose it is; the same
   authority (the other node of that cluster) and a node renewing its own may. And a node takes
-  only itself off the agent's list (`clients drop` of another node is refused).
+  only itself off the agent's list (`clients drop` of another node is refused). Which authority
+  a node is of is the one that **signed the client certificate it asks with** (checked with that
+  authority's key) - not the authorities it lists, where `trust` (and the join) take any: a node
+  listing the owner's authority beside its own got through. A join under the name of a node of
+  another authority heard from in the last 30 days is refused (it took that node's place); the
+  node joining again may. With no owner recorded (the first certificate after the upgrade) the
+  node putting it in becomes the owner.
 - **Layout B (each node its own database server): this node's own address, not its database
   server's.** `ha_address` is the node's database server there, yet keepalived was told it as its
   own address (`unicast_src_ip`), the other node's firewall let it in instead of the node, and the
   other database server's clock was taken for the other node's. The node's own address is kept in
   `agent.json` at `--ha-setup` / `--ha-join` (`node_address`; worked out toward the other node for
-  a cluster made before); the clock is said as *the database server of NODE*.
+  a cluster made before); the clock is said as *the database server of NODE*. The network job
+  moving the node to another address updates it, and one the machine no longer has is not used
+  (the address toward the other node now is) - keepalived and the other node's firewall stayed
+  on the old address.
 - **Layout B: the agent is not forgotten while the replication runs through it** - *Forget the
   agent* is gone from the card there, and `acme --db-agent-forget` / the API refuse it (as joining
-  another agent does): forgotten, the other node fell back to the other database server.
+  another agent does): forgotten, the other node fell back to the other database server. Only
+  layout B: two nodes on one database server (a shared pair) may forget it.
 - **The agent waits for no node gone for good.** A node forgetting the agent, moving its database
-  off its server, joining another one or uninstalled (`install.sh --uninstall`) now tells it
-  (`leave`); one not heard from for 30 days is no longer waited for before the agent switches to
+  off its server, joining another one or leaving it (`acme --db-agent-leave --yes`, refused in
+  layout B) now tells it (`leave`) - `install.sh --uninstall` keeps the join, as it keeps
+  `/var/lib/acme`, and says how to leave; one not heard from for 30 days is no longer waited for
+  (a node enrolled before the agent kept when it was heard from counts as heard from at the
+  upgrade, not as gone) before the agent switches to
   its next certificate, and is listed (*Not heard from* on the card, `acme --status`,
   `acme_db_agent.py --status`). The alert on the agent's certificate says what it does by itself
   (*switches by itself 7 days before the end*) and comes only when that did not happen.
 - **One node's long operation no longer makes the agent look dead to the others**: the agent
   answers several requests at once - a restart or a certificate (up to 240 s) for one node, the
-  other nodes' looks meanwhile (and `status` says *busy with pg_restart for acme1*).
+  other nodes' looks meanwhile (and `status` says *busy with pg_restart for acme1*). When its
+  listening side starts again (a node joined or left, new authorities, its next certificate)
+  it goes on answering everybody until what root works on is answered - it answered 503 to
+  everything for up to 300 s - and lets a node that just joined in at once. A stop or restart of
+  the service waits for the operation under way (300 s at most, `TimeoutStopSec=330`) instead of
+  cutting it off; root works on 16 requests at most at once.
 - **A node with several addresses** is let into its database server (pg_hba, the firewall, at
   the join, `dbmake`, `pg_prepare`) by the address it reaches that server from, not the one it
   reaches the outside with.
 - **The agent's version: its program compared, not a number.** The agent says the sha256 of its
-  program and each node compares it with the one it ships: an acme release that did not change
+  program (`acme_db_agent.py`, `acme_pg_ops.py` and the root helper `acme_web.py` it runs) and
+  each node compares it with the one it ships: an acme release that did not change
   the agent no longer asks for an upgrade, a newer agent says to upgrade acme (not the agent),
   and nothing is bumped by hand at a release (the agent's version is the one `install.sh` wrote
   beside it).
 - **`install.sh --db-agent` run again (an upgrade) prints no join code** - only a new install or
-  `--new-code` does: a code is a key to the agent, and the nodes stay joined.
+  `--new-code` does: a code is a key to the agent, and the nodes stay joined. `--new-code`
+  without `--db-agent` / `--db-server` is refused with what to run.
 
 ## 1.0.114 - 2026-11-16
 

@@ -80,7 +80,9 @@ import tempfile
 import threading
 import time
 
-AGENT_FILES = ('acme_db_agent.py', 'acme_pg_ops.py')     # its program: what `code` hashes
+# its program: what `code` hashes - acme_web.py too (1.0.115): the root helper's functions
+# acme_pg_ops runs are the agent's program as much as its own files are
+AGENT_FILES = ('acme_db_agent.py', 'acme_pg_ops.py', 'acme_web.py')
 
 
 def _agent_version():
@@ -102,7 +104,8 @@ def _agent_version():
 
 
 def code_hash(folder=None):
-    """sha256 of the agent's program (acme_db_agent.py and acme_pg_ops.py, as acme ships them):
+    """sha256 of the agent's program (acme_db_agent.py, acme_pg_ops.py and acme_web.py, as acme
+    ships them - install.sh copies them unchanged):
     acme compares it with the one it ships - an acme release that did not change the agent says
     nothing, one that did says so whatever the numbers."""
     folder = folder or os.path.dirname(os.path.realpath(__file__))
@@ -220,6 +223,41 @@ def pem_blocks(text):
         b = b.strip() + '\n'
         if b not in out:
             out.append(b)
+    return out
+
+
+def issuers_of(cert, ca):
+    """sha256 of each certificate in `ca` that signed `cert` itself (DER bytes or PEM) - checked
+    with the authority's key (openssl verify, that one authority alone), never taken from what a
+    node says: a node may list any authority it likes, but only the one holding the key signed
+    its certificate (1.0.115). [] when none did."""
+    if isinstance(cert, (bytes, bytearray)):
+        if not cert:
+            return []
+        pem = ssl.DER_cert_to_PEM_cert(bytes(cert))
+    else:
+        got = pem_blocks(cert)
+        if not got:
+            return []
+        pem = got[0]
+    out = []
+    with tempfile.TemporaryDirectory() as t:
+        cf = os.path.join(t, 'c.pem')
+        with open(cf, 'w') as f:
+            f.write(pem)
+        for i, b in enumerate(pem_blocks(ca)[:16]):
+            af = os.path.join(t, 'a%d.pem' % i)
+            with open(af, 'w') as f:
+                f.write(b)
+            got = subprocess.run(['openssl', 'verify', '-partial_chain', '-no_check_time',
+                                  '-CAfile', af, cf], capture_output=True, text=True)
+            if got.returncode == 0:
+                try:
+                    fp = fp_of_pem(b)
+                except ValueError:
+                    continue
+                if fp not in out:
+                    out.append(fp)
     return out
 
 
@@ -401,7 +439,27 @@ class Root(object):
         self.lock = threading.RLock()
         self.work = threading.Lock()
         self.busy = None
+        self.stopping = False
         self.enroll_key, self.enroll_pub, self.enroll_fp = enroll_key(c)
+        self._seen_backfill()
+
+    def _seen_backfill(self):
+        """A node enrolled before `seen` was kept (an agent before 1.0.115) has only `at`, its
+        enrollment: one enrolled over 30 days ago would be stale at once after the upgrade -
+        not waited for, its server certificate taken over. It counts as heard from when this
+        agent started; a node that is really gone is stale 30 days later."""
+        with self.lock:
+            cl = clients(self.c)
+            old = [x for x in cl if not x.get('seen')]
+            if not old:
+                return
+            now = time.time()
+            for x in old:
+                x['seen'] = now
+            try:
+                clients_put(self.c, cl)
+            except OSError:
+                pass
 
     # -- the nonces seen, kept across a restart (a request captured is never taken twice) ---
     def _nonces_path(self):
@@ -492,7 +550,7 @@ class Root(object):
                 out = self.ops.run_op(op, args, self.c)
                 out.pop('agent_restart', None)
             else:
-                out = self.long_op(op, args, node)
+                out = self.long_op(op, args, node, base64.b64decode(msg.get('der') or ''))
             if op == 'status':
                 with self.lock:
                     cl = clients(self.c)
@@ -510,20 +568,27 @@ class Root(object):
             out['agent_restart'] = True
         return self.reply(200, dict(out, ok=True), key, nonce, restart=restart)
 
-    def long_op(self, op, args, node):
+    def long_op(self, op, args, node, der=b''):
         """An operation that changes the server: one at a time (said as `busy` meanwhile), the
-        server's certificate only by the cluster that put it in."""
+        server's certificate only by the cluster that put it in - known by the authority that
+        signed the client certificate the request came with (`der`)."""
+        if self.stopping:
+            raise self.ops.Refused('the agent is stopping: again once it is started again')
         with self.work:
+            if self.stopping:
+                raise self.ops.Refused('the agent is stopping: again once it is started again')
             self.busy = {'op': op, 'node': node, 'since': time.time(),
                          'do': str(args.get('do') or '')[:20] if isinstance(args, dict) else ''}
             try:
                 owner = self.cert_op(op, args)
+                mine = []
                 if owner:
-                    self.owner_check(node)
+                    mine = self.issuers_now(node, der)
+                    self.owner_check(node, mine)
                 out = self.ops.run_op(op, args, self.c)
                 out.pop('agent_restart', None)          # the agent's own word only
                 if owner == 'put':
-                    self.owner_put(node, args)
+                    self.owner_put(node, args, mine)
                 elif owner == 'off':
                     try:
                         os.unlink(self._owner_path())       # no certificate: nobody's
@@ -575,8 +640,10 @@ class Root(object):
         self._nonce_keep(nonce, now)
         dirty = False
         if one.get('fp_next') and hmac.compare_digest(str(one['fp_next']), fp):
-            # Its renewed certificate in use: the old one is no longer let in.
+            # Its renewed certificate in use: the old one is no longer let in - and the
+            # authority that signed it is the node's from now on.
             one['fp'], one['fp_next'] = fp, None
+            one['issuers'] = issuers_of(der, one.get('ca'))
             dirty = True
         if now - float(one.get('seen') or 0) > 3600:
             # When it was last heard from (an hour at most off): a node gone for 30 days is
@@ -618,23 +685,36 @@ class Root(object):
                 pass
         return out
 
-    def owner_check(self, node):
+    def issuers_now(self, node, der):
+        """The authorities that signed the client certificate this request came with (checked
+        with their keys, among the node's own list)."""
+        with self.lock:
+            me = next((x for x in clients(self.c) if x.get('name') == node), None) or {}
+        return issuers_of(der, me.get('ca')) if der else []
+
+    def owner_check(self, node, mine):
         """The server's certificate (and the authorities in ha_ca) put in by a node of another
         authority - another cluster - is not replaced nor taken out by this one: its nodes
         could no longer check the server (verify-full). The same authority (the other node of
         a cluster, a node renewing its own) may; one whose owner is gone (left, forgotten,
-        not heard from for 30 days) is taken over."""
+        not heard from for 30 days) is taken over. Which authority the asking node is of is
+        `mine`: the ones that signed the certificate it asks with (issuers_of) - never the list
+        it gave (a node may list any authority, 1.0.115). No owner recorded (the first
+        certificate put in, or the first after an upgrade from an agent that kept none): the
+        node putting it in is its owner."""
         rec = _json(self._owner_path(), {})
         if not isinstance(rec, dict) or not rec.get('node') or rec.get('node') == node:
             return
         with self.lock:
             cl = clients(self.c)
         owner = next((x for x in cl if x.get('name') == rec['node']), None)
-        me = next((x for x in cl if x.get('name') == node), None) or {}
         if owner is None or stale(owner):
             return
-        theirs = set(rec.get('cas') or []) | set(self._cas_of(owner.get('ca')))
-        if theirs & set(self._cas_of(me.get('ca'))):
+        # The owner's authorities: the ones that signed its certificate (recorded), and the
+        # ones it listed itself (its own word, about its own certificate).
+        theirs = set(rec.get('issuers') or []) | set(rec.get('cas') or []) | \
+            set(owner.get('issuers') or []) | set(self._cas_of(owner.get('ca')))
+        if theirs & set(mine or []):
             return
         raise self.ops.Refused(
             'the certificate of this database server is %s\'s, from another authority (another '
@@ -643,14 +723,16 @@ class Root(object):
             '%s a database server of its own, or take %s away here first (acme_db_agent.py '
             '--forget %s)' % (rec['node'], node, rec['node'], node, rec['node'], rec['node']))
 
-    def owner_put(self, node, args):
+    def owner_put(self, node, args, mine=()):
         with self.lock:
             one = next((x for x in clients(self.c) if x.get('name') == node), None) or {}
         cas = self._cas_of(one.get('ca'))
         cas += [x for x in self._cas_of(args.get('trust')) if x not in cas]
         try:
             os.makedirs(self.c['state'], mode=0o700, exist_ok=True)
-            _write(self._owner_path(), json.dumps({'node': node, 'cas': cas, 'at': time.time()}))
+            _write(self._owner_path(), json.dumps({'node': node, 'cas': cas,
+                                                   'issuers': list(mine or []),
+                                                   'at': time.time()}))
         except OSError:
             pass
 
@@ -820,19 +902,37 @@ class Root(object):
                                                                  client_fp):
                 raise self.ops.Refused('the client certificate is not the one the node sealed')
             self.check_issued(ca, client, 'sslclient')
+            issuers = issuers_of(client, ca)
+            self.name_free(node, issuers)
         except self.ops.Refused as e:
             return self._refused(msg, 400, str(e), node, what)
         now = time.time()
         cl = [x for x in clients(self.c) if x.get('name') != node]
         cl.append({'name': node, 'fp': fp_of_pem(client), 'key': key, 'at': now, 'seen': now,
                    'addr': ip, 'ca': ''.join(pem_blocks(ca)), 'cert_end': cert_end(client),
-                   'pinned': []})
+                   'issuers': issuers, 'pinned': []})
         clients_put(self.c, cl)
         _write(_p(self.c, 'join.json'), json.dumps([x for x in left if x is not hit]))
         audit(self.c, node=node, ip=ip, op='enroll', ok=True, said='enrolled; the code is used up')
         return self.reply(200, {'ok': True, 'agent_restart': True,
                                 'said': '%s joined this agent' % node,
                                 'facts': self.agent_facts()}, restart=True)
+
+    def name_free(self, node, issuers):
+        """A node enrolled under this name already, of another authority (another cluster),
+        heard from in the last 30 days, is not replaced by a join (1.0.115): it would take over
+        that node's place - the server's certificate it owns among it. The same authority (the
+        node joining again) may."""
+        old = next((x for x in clients(self.c) if x.get('name') == node), None)
+        if old is None or stale(old):
+            return
+        theirs = set(old.get('issuers') or []) | set(self._cas_of(old.get('ca')))
+        if theirs & set(issuers or []):
+            return
+        raise self.ops.Refused(
+            'a node named %s of another authority (another cluster) is joined here already: '
+            'give this node another name, or take that one away on the database server first '
+            '(acme_db_agent.py --forget %s)' % (node, node))
 
     def check_issued(self, ca, pem, purpose):
         if not pem_blocks(ca) or not pem_blocks(pem):
@@ -1013,8 +1113,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     'this client certificate is not one enrolled here')})
         else:
             return self.answer(404, {'ok': False, 'said': 'not here'})
-        if getattr(srv, 'closing', False):
-            return self.answer(503, {'ok': False, 'said': 'the agent is starting again'})
         # Handed over as it came: root works everything out of it itself.
         msg = {'kind': kind, 'ip': ip, 'path': self.path, 'method': 'POST',
                'headers': {'node': self.headers.get('X-Acme-Node') or '',
@@ -1028,13 +1126,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if got.get('penalty'):
             srv.fails.charge(ip, float(got['penalty']))
         if got.get('restart'):
-            srv.closing = True
+            # The nodes let in now (one joined, left, gave new authorities) taken in at once
+            # (1.0.115): this side goes on answering everybody with them until it starts again.
+            srv.net_update(got.get('net'))
         self.answer_raw(int(got.get('code') or 500), str(got.get('body') or '').encode(),
                         str(got.get('sig') or ''))
         if got.get('restart'):
-            # Its new certificate or clients: this side started again by root with them - once
-            # the requests root still works on (another node's restart, say) are answered.
-            srv.root.end_when_idle(3)
+            # Its new certificate: this side started again by root - once the requests root
+            # still works on (another node's restart, say) are answered. Meanwhile it answers
+            # as before (1.0.115: not 503 to everything - the other nodes saw the agent dead).
+            srv.root.end_when_idle(3, srv)
 
 
 class RootLink(object):
@@ -1042,12 +1143,15 @@ class RootLink(object):
     own, its answer handed to the request that waits for it - one node's long operation holds
     nobody else's."""
 
+    WAIT = 900          # s at most for root's answer (long operations wait for one another)
+
     def __init__(self, sock):
         self.sock = sock
         self.send_lock = threading.Lock()
         self.waiting = {}
         self.n = 0
         self.dead = False
+        self.ending = False
         threading.Thread(target=self._read, name='root-link', daemon=True).start()
 
     def _gone(self, code):
@@ -1060,38 +1164,60 @@ class RootLink(object):
         try:
             while True:
                 got = _recv(self.sock)
+                if not isinstance(got, dict):
+                    raise ValueError('not an answer')
                 w = self.waiting.pop(got.pop('rid', None), None)
                 if w is not None:
                     w['got'] = got
                     w['e'].set()
-        except (EOFError, OSError, ValueError):
-            # root is gone or starting this side again: this one ends
+        except Exception:                               # noqa: BLE001
+            # root is gone or starting this side again (or said what is not an answer): every
+            # request waiting is answered (503) and this one ends
             self._gone(4)
 
     def ask(self, msg):
         if self.dead:
             return None
         w = {'e': threading.Event(), 'got': None}
+        rid = None
         try:
             with self.send_lock:
                 self.n += 1
-                msg = dict(msg, rid=self.n)
-                self.waiting[self.n] = w
-                _send(self.sock, msg)
-        except OSError:
-            self.waiting.pop(msg.get('rid'), None)
+                rid = self.n
+                self.waiting[rid] = w
+                _send(self.sock, dict(msg, rid=rid))
+        except (OSError, ValueError, TypeError):
+            self.waiting.pop(rid, None)
             self._gone(4)
             return None
-        w['e'].wait()
+        if not w['e'].wait(self.WAIT):
+            self.waiting.pop(rid, None)
+            return {'code': 504, 'body': json.dumps({'ok': False, 'said': 'the agent did not '
+                                                     'answer in %d s' % self.WAIT})}
         return w['got']
 
-    def end_when_idle(self, code, most=300):
-        """This side ends (root starts it again) once nothing is waited for (at most `most` s)."""
+    def end_when_idle(self, code, server=None, most=300):
+        """This side ends (root starts it again) once nothing is waited for (at most `most` s):
+        it answers as before meanwhile; then it stops taking connections and ends once the
+        ones it has are answered."""
+        if self.ending:
+            return
+        self.ending = True
+
         def wait():
             time.sleep(0.5)
             end = time.monotonic() + most
             while self.waiting and time.monotonic() < end and not self.dead:
                 time.sleep(0.2)
+            if server is not None:
+                try:
+                    server.shutdown()           # no new connection from here
+                    server.socket.close()
+                except OSError:
+                    pass
+                while (server.active or self.waiting) and time.monotonic() < end and \
+                        not self.dead:
+                    time.sleep(0.1)
             os._exit(code)
         threading.Thread(target=wait, daemon=True).start()
 
@@ -1099,6 +1225,40 @@ class RootLink(object):
 class Server(http.server.ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
+    active = 0
+
+    def process_request(self, request, client_address):
+        # counted before its thread starts: the end (end_when_idle) waits for every one taken
+        with self.count_lock:
+            self.active += 1
+        try:
+            super().process_request(request, client_address)
+        except Exception:
+            with self.count_lock:
+                self.active -= 1
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            with self.count_lock:
+                self.active -= 1
+
+    def net_update(self, net):
+        """What root says lets a node in now: the fingerprints, and the authorities TLS asks
+        for (added to the context - new connections ask for them too)."""
+        if not isinstance(net, dict):
+            return
+        if isinstance(net.get('fps'), list):
+            self.fps = set(str(x) for x in net['fps'])
+        cas = str(net.get('cas') or '')
+        if cas:
+            try:
+                self.ctx.load_verify_locations(cadata=cas)
+                self.ctx.verify_mode = ssl.CERT_OPTIONAL
+            except (ssl.SSLError, ValueError):
+                pass
 
     def finish_request(self, request, client_address):
         request.settimeout(30)
@@ -1186,6 +1346,7 @@ def network_side(c, fd):
     listener.server_activate()
     drop_to(c)
     listener.ctx = ctx
+    listener.count_lock = threading.Lock()
     listener.root = RootLink(sock)
     listener.enroll_pub = str(init.get('enroll_pub') or '')
     listener.enroll_fp = str(init.get('enroll_fp') or '')
@@ -1195,20 +1356,48 @@ def network_side(c, fd):
     listener.serve_forever()
 
 
+ROOT_THREADS = 16                   # requests root works on at once; more are answered 503
+STOP_WAIT = 300                     # s an operation under way is waited for at a stop
+                                    # (acme-db-agent.service: TimeoutStopSec=330)
+
+
 def serve(c):
     os.makedirs(c['state'], mode=0o700, exist_ok=True)
     agent_cert(c)
     root = Root(c)
-    stop = {'now': False}
+    stop = {'now': False, 'waiter': None, 'inflight': 0}
+    room = threading.BoundedSemaphore(ROOT_THREADS)
+    count = threading.Lock()
 
-    def bye(*_):
-        stop['now'] = True
+    def end_side():
         pid = stop.get('pid')
         if pid:
             try:
                 os.kill(pid, signal.SIGTERM)
             except OSError:
                 pass
+
+    def stop_after_work():
+        # An operation under way (a database restart, a certificate) is not cut off by a
+        # stop or a restart of the service (1.0.115): no new one is begun, the one under way
+        # is waited for (STOP_WAIT at most) - its answer still goes out - then this ends.
+        root.stopping = True
+        got = root.work.acquire(timeout=STOP_WAIT)
+        if not got:
+            audit(c, op='stop', ok=False, said='an operation was still under way after %d s: '
+                  'stopped all the same' % STOP_WAIT)
+        # its answer (and the looks under way) handed to that side and written out first
+        end = time.monotonic() + 10
+        while stop['inflight'] and time.monotonic() < end:
+            time.sleep(0.1)
+        time.sleep(0.5)
+        end_side()
+
+    def bye(*_):
+        stop['now'] = True
+        if stop['waiter'] is None:
+            stop['waiter'] = threading.Thread(target=stop_after_work, name='stop', daemon=True)
+            stop['waiter'].start()
     signal.signal(signal.SIGTERM, bye)
     signal.signal(signal.SIGINT, bye)
     audit(c, op='start', ok=True, said='acme-db-agent %s on %s:%s' % (VERSION, c['listen'],
@@ -1221,22 +1410,39 @@ def serve(c):
                                 pass_fds=(theirs.fileno(),), close_fds=True, cwd='/')
         theirs.close()
         stop['pid'] = proc.pid
+        if stop['now']:
+            end_side()                  # a stop came while it was being started
         began = time.monotonic()
         send_lock = threading.Lock()
 
-        def work(msg, sock=mine, lock=send_lock):
-            # Each request in a thread of its own (1.0.115): a long operation (one at a time,
-            # root.work) holds no other node's look; the answer carries the request's id.
-            try:
-                out = root.handle(msg)
-            except Exception as e:                      # noqa: BLE001
-                out = root.reply(500, {'ok': False, 'said': 'it went wrong: %s' % str(e)[:200]})
-            out['rid'] = msg.get('rid')
+        def answer(out, sock=mine, lock=send_lock):
             with lock:
                 try:
                     _send(sock, out)
                 except OSError:
                     pass                # that side went (it starts again with what is new)
+
+        def work(msg):
+            # Each request in a thread of its own (1.0.115): a long operation (one at a time,
+            # root.work) holds no other node's look; the answer carries the request's id.
+            with count:
+                stop['inflight'] += 1
+            try:
+                try:
+                    out = root.handle(msg)
+                except Exception as e:                  # noqa: BLE001
+                    out = root.reply(500, {'ok': False, 'said': 'it went wrong: %s'
+                                           % str(e)[:200]})
+                if out.get('restart'):
+                    # who is let in now, taken in by that side at once (it starts again later)
+                    net = root.for_network_side()
+                    out['net'] = {'fps': net['fps'], 'cas': net['cas']}
+                out['rid'] = msg.get('rid')
+                answer(out)
+            finally:
+                with count:
+                    stop['inflight'] -= 1
+                room.release()
         try:
             with send_lock:
                 _send(mine, root.for_network_side())
@@ -1247,7 +1453,17 @@ def serve(c):
                     break
                 if not isinstance(msg, dict):
                     break
-                threading.Thread(target=work, args=(msg,), name='root-op', daemon=True).start()
+                if not room.acquire(blocking=False):
+                    out = root.reply(503, {'ok': False, 'said': 'the agent is busy with %d '
+                                           'requests - again in a moment' % ROOT_THREADS})
+                    out['rid'] = msg.get('rid')
+                    answer(out)
+                    continue
+                try:
+                    threading.Thread(target=work, args=(msg,), name='root-op',
+                                     daemon=True).start()
+                except RuntimeError:
+                    room.release()
         except OSError:
             pass
         finally:
@@ -1263,6 +1479,8 @@ def serve(c):
                 proc.wait(5)
         if not stop['now'] and time.monotonic() - began < 2:
             time.sleep(2)               # one that dies at once is not started 100 times a second
+    if stop['waiter'] is not None:
+        stop['waiter'].join(STOP_WAIT + 10)
     return 0
 
 

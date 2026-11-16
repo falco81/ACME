@@ -98,14 +98,22 @@ def ha_own_node():
     """This node's own address, for what is the nodes' own (keepalived's unicast_src_ip, the
     address the other node's firewall lets in). ha_address - but in layout B ha_address is this
     node's database server (the replication's), and this node is the address kept at
-    --ha-setup / --ha-join (node_address in agent.json: the one toward the other node), else
-    the one toward the other node now (1.0.115)."""
+    --ha-setup / --ha-join (node_address in agent.json: the one toward the other node, kept up
+    to date by the network job, db_agent_node_moved) while this machine still has it, else the
+    one toward the other node now - the route's source address (1.0.115: an address kept but
+    gone from the machine left keepalived and the other node's firewall on it)."""
     if db_agent_layout_b():
         a = db_agent() or {}
         own = str(a.get('node_address') or '')
         if own:
-            return own
-        return db_agent_my_address(a.get('peer_node')) or node_address()
+            try:
+                have = local_addresses()
+            except Exception:                           # noqa: BLE001
+                have = set()
+            if not have or own in have:
+                return own
+        live = db_agent_route_source(a.get('peer_node'))
+        return live or own or node_address()
     return str(CONFIG.get('ha_address') or node_address())
 
 
@@ -114,6 +122,12 @@ def db_agent_my_address(toward=None):
     to it (a node with several addresses - another network for its database server - is let
     in there by the one it comes from, 1.0.115). `toward`: by default this node's database
     server. node_address() when there is no route or no name."""
+    return db_agent_route_source(toward) or node_address()
+
+
+def db_agent_route_source(toward=None):
+    """The source address of the route to `toward` (by default this node's database server),
+    or '' when there is no route or no name."""
     a = db_agent() or {}
     host = str(toward or a.get('db_host') or a.get('host') or '').strip().strip('[]')
     if host:
@@ -133,7 +147,7 @@ def db_agent_my_address(toward=None):
                 continue
             if ip and ip not in ('0.0.0.0', '::'):
                 return ip
-    return node_address()
+    return ''
 
 
 def db_agent_put(changes):
@@ -332,10 +346,12 @@ DBAGENT_CODE_CACHE = {'key': None, 'code': ''}
 
 
 def db_agent_code_ours():
-    """sha256 of the agent's program this acme ships (deploy/acme_db_agent.py and
-    deploy/acme_pg_ops.py, hashed as the agent hashes itself), or '' when they are not here."""
+    """sha256 of the agent's program this acme ships (deploy/acme_db_agent.py,
+    deploy/acme_pg_ops.py and deploy/acme_web.py - the agent's AGENT_FILES, which install.sh
+    copies unchanged beside it - hashed as the agent hashes itself), or '' when they are not
+    here."""
     folder = Path(__file__).resolve().parent / 'deploy'
-    files = [folder / n for n in ('acme_db_agent.py', 'acme_pg_ops.py')]
+    files = [folder / n for n in ('acme_db_agent.py', 'acme_pg_ops.py', 'acme_web.py')]
     try:
         key = tuple((f.stat().st_mtime_ns, f.stat().st_size) for f in files)
     except OSError:
@@ -667,8 +683,8 @@ def db_agent_forget_refused():
     would fall back to ha_peer, the other DATABASE server, as the other node (the VIP address,
     the firewall, the clocks), and nothing of the server would be looked after (1.0.115)."""
     a = db_agent()
-    if not a or not CONFIG.get('ha_mode') or not db_agent_here():
-        return ''
+    if not a or not db_agent_layout_b():
+        return ''          # layout A, shared or not: nothing of the cluster rests on the agent
     return ('this node is one of a cluster and its database is on %s, looked after by the agent '
             'at %s:%s: the agent is not let go - take the cluster apart first (Settings -> High '
             'availability)' % (a.get('db_host') or a.get('host'), a.get('host'), a.get('port')))
@@ -997,6 +1013,12 @@ def db_agent_node_moved(store, old_ip, new_ip, say=None):
         say('the database server: %s' % line)
     store.set_meta('dbagent:addr:' + node_name(), json.dumps(
         {'address': new_ip, 'old': str(old_ip or ''), 'at': time.time()}))
+    # Layout B: this node's own address kept (keepalived's unicast_src_ip, the other node's
+    # firewall - ha_own_node) follows when it is the one changed (1.0.115); the job going back
+    # changes it back the same way.
+    own = str(a.get('node_address') or '')
+    if db_agent_layout_b() and own and own == str(old_ip or ''):
+        db_agent_put({'node_address': new_ip})
     return said
 
 
@@ -1523,8 +1545,9 @@ def _db_agent_cli_args(p):
                    'it - with --yes; refused while this node\'s database is on the agent\'s '
                    'server in a cluster')
     g.add_argument('--db-agent-leave', action='store_true', help='this node is being taken '
-                   'away (install.sh --uninstall): the agent takes it off its list and the node '
-                   'forgets it, whatever its database - with --yes')
+                   'away for good (before install.sh --uninstall, which keeps the join): the '
+                   'agent takes it off its list and the node forgets it - with --yes; refused '
+                   'in layout B, as --db-agent-forget is')
     g.add_argument('--ha-peer-node', metavar='ADDRESS', help='--ha-setup with the databases on '
                    'servers of their own: the other acme node\'s address (its database server '
                    'is --ha-peer)')
@@ -1572,7 +1595,9 @@ def _db_agent_cli(args):
         if not db_agent_on():
             print('acme: db_admin was local already')
             return 0
-        refused = '' if getattr(args, 'db_agent_leave', False) else db_agent_forget_refused()
+        # --db-agent-leave too (1.0.115): never in layout B, whatever is asked - the other
+        # node, the VIP address and the replication rest on this node's agent there.
+        refused = db_agent_forget_refused()
         if refused:
             raise SystemExit('acme: %s' % refused)
         if not args.yes:
@@ -1580,8 +1605,7 @@ def _db_agent_cli(args):
                              'machine (the root helper) - again with --yes')
         try:
             left = db_agent_forget(store, 'command line', 'this node is being taken away'
-                                   if getattr(args, 'db_agent_leave', False) else '',
-                                   force=bool(getattr(args, 'db_agent_leave', False)))
+                                   if getattr(args, 'db_agent_leave', False) else '')
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
         print('acme: db_admin is local again; %s' % db_agent_left_words(left))

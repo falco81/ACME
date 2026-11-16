@@ -420,8 +420,8 @@ class HandNode(object):
         wait_for(lambda: agent.hello(), 30, 0.3, 'the agent again')
         return got
 
-    def op(self, agent, op, args=None, timeout=30):
-        """(status, answer) of one signed request."""
+    def op(self, agent, op, args=None, timeout=30, again=True):
+        """(status, answer) of one signed request (asked again on a 503 unless not `again`)."""
         import http.client
         body = json.dumps({'op': op, 'args': args or {}}).encode()
         ts, nonce = '%.3f' % time.time(), os.urandom(16).hex()
@@ -443,7 +443,7 @@ class HandNode(object):
                 st, got = r.status, json.loads(r.read().decode() or '{}')
             finally:
                 c.close()
-            if st != 503:
+            if st != 503 or not again:
                 return st, got
             time.sleep(0.5)             # the agent starting its listening side again
         return st, got
@@ -1198,6 +1198,132 @@ class AgentByHand(unittest.TestCase):
         st, b = self.n1.op(self.agent, 'status', {'pins': self.n1.pins})
         self.assertEqual(st, 200, b)
 
+    def test_05_answers_while_it_starts_again(self):
+        """h2's answer starts the listening side again (trust) while h1's restart runs, and h4
+        joins meanwhile: the others' looks are answered all along - never 503 (1.0.115: up to
+        300 s of 503 to everything, the other nodes saw the agent dead) - and h4 is let in at
+        once."""
+        import threading
+        got = {}
+        t = threading.Thread(target=lambda: got.update(r=self.n1.op(self.agent, 'pg_restart',
+                                                                     timeout=120)))
+        t.start()
+        try:
+            time.sleep(1.5)
+            st, b = self.n2.op(self.agent, 'trust', {'ca': read_file(self.n2.p('ca.pem'))},
+                               again=False)
+            self.assertEqual(st, 200, b)
+            self.assertTrue(b.get('agent_restart'), b)
+            pid = network_side_pid(self.agent)
+            for _ in range(3):
+                st, b = self.n2.op(self.agent, 'status', {'pins': self.n2.pins}, again=False)
+                self.assertEqual(st, 200, b)
+                self.assertEqual((b['agent']['busy'] or {}).get('op'), 'pg_restart')
+                st, b = self.n2.op(self.agent, 'load', {'db': 'postgres'}, again=False)
+                self.assertEqual(st, 200, b)
+                time.sleep(1)
+            self.n4 = HandNode('h4', os.path.join(self.db.top, 'nodes'))
+            self.n4.enroll(self.agent)
+            st, b = self.n4.op(self.agent, 'status', {'pins': self.n4.pins}, again=False)
+            self.assertEqual(st, 200, b)
+            self.assertEqual(network_side_pid(self.agent), pid, 'started again under h1\'s restart')
+        finally:
+            t.join(60)
+        self.assertEqual(got['r'][0], 200, got)
+        # h1's answer went out: then the listening side starts again
+        wait_for(lambda: network_side_pid(self.agent) not in (None, pid), 30, 0.3,
+                 'the listening side started again')
+        for n in (self.n1, self.n2, self.n4):
+            st, b = n.op(self.agent, 'status', {'pins': n.pins})
+            self.assertEqual(st, 200, b)
+
+    def test_06_one_name_one_authority(self):
+        """A join under the name of a node of another authority, heard from lately, is refused
+        (1.0.115: it took that node's place); the node itself joins again."""
+        other = HandNode('h1', os.path.join(self.db.top, 'impostor'))
+        with self.assertRaises(AssertionError) as e:
+            other.enroll(self.agent)
+        self.assertIn('another authority', str(e.exception))
+        self.n1.enroll(self.agent)
+        st, b = self.n1.op(self.agent, 'status', {'pins': self.n1.pins})
+        self.assertEqual(st, 200, b)
+
+    def test_09_a_stop_waits_for_the_operation(self):
+        """SIGTERM (systemctl stop/restart) while h1's restart runs: it is finished and answered
+        - the others' looks still answered meanwhile - then the agent ends (1.0.115: cut off)."""
+        import threading
+        got = {}
+        t = threading.Thread(target=lambda: got.update(r=self.n1.op(self.agent, 'pg_restart',
+                                                                     timeout=120)))
+        t.start()
+        time.sleep(1.5)
+        proc = self.agent.proc
+        proc.send_signal(signal.SIGTERM)
+        try:
+            time.sleep(1)
+            self.assertIsNone(proc.poll())
+            st, b = self.n2.op(self.agent, 'status', {'pins': self.n2.pins}, again=False)
+            self.assertEqual(st, 200, b)
+            st, b = self.n2.op(self.agent, 'pg_reload', again=False)
+            self.assertEqual(st, 400, b)
+            self.assertIn('stopping', b['said'])
+        finally:
+            t.join(60)
+        self.assertEqual(got['r'][0], 200, got)
+        proc.wait(30)
+        self.assertEqual([x.get('ok') for x in self.agent.audit() if x.get('op') == 'pg_restart'
+                          and x.get('node') == 'h1'][-1], True)
+        self.agent.proc = None
+
+
+class AgentOwnerUnit(unittest.TestCase):
+    """Whose the server's certificate is, and whose a name is (1.0.115): known by the authority
+    that signed the client certificate - never by the authorities a node lists (it may list
+    any); a node enrolled before `seen` was kept is not stale at the upgrade."""
+
+    def test_owner_by_issuer(self):
+        sys.path.insert(0, os.path.join(ROOT, 'deploy'))
+        import acme_db_agent as A
+        t = tempfile.mkdtemp(prefix='acme-extdb-own-', dir=BASE)
+        env = dict(os.environ)
+        try:
+            n1, n2 = (HandNode(x, t) for x in ('o1', 'o2'))
+            conf = os.path.join(t, 'agent.json')
+            with open(conf, 'w') as f:
+                json.dump({'state': os.path.join(t, 'state'), 'log': os.path.join(t, 'a.log'),
+                           'ha_ca': os.path.join(t, 'ha.pem')}, f)
+            c = A.conf_read(conf)
+            der = {n.name: ssl.PEM_cert_to_DER_cert(read_file(n.p('c.pem'))) for n in (n1, n2)}
+            ca = {n.name: read_file(n.p('ca.pem')) for n in (n1, n2)}
+            old = time.time() - 40 * 86400
+            # o2 lists o1's authority beside its own (trust lets any be listed); o1 enrolled
+            # 40 days ago by an agent that kept no `seen`
+            A.clients_put(c, [
+                {'name': 'o1', 'fp': hashlib.sha256(der['o1']).hexdigest(), 'key': '1' * 64,
+                 'at': old, 'ca': ca['o1']},
+                {'name': 'o2', 'fp': hashlib.sha256(der['o2']).hexdigest(), 'key': '2' * 64,
+                 'at': time.time(), 'seen': time.time(), 'ca': ca['o2'] + ca['o1']}])
+            r = A.Root(c)
+            self.assertFalse(A.stale(A.clients(c)[0]), 'stale at once after the upgrade')
+            self.assertEqual(A.issuers_of(der['o2'], ca['o2'] + ca['o1']),
+                             [A.fp_of_pem(ca['o2'])])
+            mine1 = r.issuers_now('o1', der['o1'])
+            r.owner_check('o1', mine1)                  # nobody's yet: the first is its owner
+            r.owner_put('o1', {'trust': ca['o1']}, mine1)
+            with self.assertRaises(r.ops.Refused) as e:
+                r.owner_check('o2', r.issuers_now('o2', der['o2']))
+            self.assertIn('is o1\'s, from another authority', str(e.exception))
+            r.owner_check('o1', mine1)
+            # a name of another authority, heard from lately: not joined over
+            with self.assertRaises(r.ops.Refused):
+                r.name_free('o1', A.issuers_of(der['o2'], ca['o2']))
+            r.name_free('o1', mine1)
+            r.name_free('o3', [])
+        finally:
+            os.environ.clear()
+            os.environ.update(env)
+            shutil.rmtree(t, ignore_errors=True)
+
 
 @unittest.skipUnless(can_run(), 'needs root, PostgreSQL 16 (%s) and runuser' % PGBIN)
 class SealedJoin(unittest.TestCase):
@@ -1329,6 +1455,8 @@ E.vip_last = lambda a: None
 E.vip_last_keep = lambda *a: None
 E.fw_desired = lambda store: {}
 E.access_desired = lambda store: {}
+HAVE = {ACME1, '127.0.0.1'}          # this machine's addresses, as the node's would be
+E.local_addresses = lambda: set(HAVE)
 
 
 class DB:
@@ -1379,11 +1507,27 @@ E.db_agent_prepare(DB2, 'acme', 'acme', 'x' * 12, lambda t: None)
 out['prepare_peers'] = seen[0][1]['peers']
 out['my_db'] = E.db_agent_my_address()
 out['my_lo'] = E.db_agent_my_address('127.0.0.1')
+# the network job moves this node to another address (1.0.115): node_address follows - while
+# the machine does not have it yet, the address toward the other node now; then the new one
+E.db_agent_node_moved(S(), ACME1, '192.0.2.31')
+E.DBAGENT_CACHE['key'] = None
+moved = [E.db_agent().get('node_address'), E.ha_own_node() == E.db_agent_route_source(ACME2)]
+HAVE.add('192.0.2.31')
+moved.append(E.ha_own_node())
+HAVE.discard(ACME1)
+moved.append(E.ha_own_node())
+out['moved'] = moved
 # without node_address kept (a cluster made before 1.0.115): the address toward the other node
 a = dict(E.db_agent()); a.pop('node_address')
 E.DBAGENT_FILE.write_text(json.dumps(a))
 E.DBAGENT_CACHE['key'] = None
 out['own_toward'] = [E.ha_own_node(), E.db_agent_my_address(ACME2)]
+# both nodes on one database server (a shared pair, layout A in a cluster): Forget is let -
+# only layout B is refused (1.0.115)
+a.pop('peer_node')
+E.DBAGENT_FILE.write_text(json.dumps(a))
+E.DBAGENT_CACHE['key'] = None
+out['shared_refused'] = E.db_agent_forget_refused()
 # the agent's certificate: no alert within 14 days while the next one is announced and the
 # switch (7 days before) is still ahead; an alert without one, or past it
 now = 1e9
@@ -1428,6 +1572,8 @@ print(json.dumps(out))
         self.assertIn(out['my_db'], out['prepare_peers'])
         self.assertEqual(out['my_lo'], '127.0.0.1')
         self.assertEqual(out['own_toward'][0], out['own_toward'][1])
+        self.assertEqual(out['moved'], ['192.0.2.31', True, '192.0.2.31', '192.0.2.31'])
+        self.assertEqual(out['shared_refused'], '')
         self.assertEqual(out['late'], [False, True, True, False])
         self.assertEqual(out['skew'], [{}, 'older', 'newer', 'other', 'older', {}])
 
@@ -1491,7 +1637,8 @@ class DeployParts(unittest.TestCase):
             if not want:
                 self.assertIn('the nodes joined stay joined', got.stdout)
         self.assertIn('--new-code)', self.read('install.sh'))
-        self.assertIn('--db-agent-leave', self.read('install.sh'))
+        self.assertIn('--db-agent-leave --yes before', self.read('install.sh'))
+        self.assertNotIn('run "$BIN_LINK" --db-agent-leave', self.read('install.sh'))
 
     def test_firewall_lines_without_acme_node(self):
         t = tempfile.mkdtemp(dir=BASE)

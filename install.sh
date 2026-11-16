@@ -401,6 +401,9 @@ if [[ -n "$DBS_PASSWORD_FILE" ]]; then
 elif [[ -n "${DBS_PASSWORD_ARGV:-}" ]]; then
     warn "--db-password is on the command line, where every account on this machine sees it: --db-password-file FILE is better"
 fi
+if [[ -n "$DB_AGENT_NEW_CODE" && -z "$DB_SERVER" && -z "$DB_AGENT" ]]; then
+    fail "--new-code is for the database server: install.sh --db-agent --new-code there (or python3 -I /usr/local/lib/acme-db-agent/acme_db_agent.py --new-code)"
+fi
 if [[ -n "$PY_FORCE" && "$PY_FORCE" != /* ]]; then
     fail "--python takes the full path of a Python, such as /usr/bin/python3.14"
 fi
@@ -494,17 +497,20 @@ if [[ -n "$DO_UNINSTALL" ]]; then
     if [[ -n "$ASSUME_YES" && ! -t 0 ]]; then
         fail "removing is never a default: run --uninstall on a terminal, it asks"
     fi
+    # A database agent this node joined stays joined (1.0.115), as $STATE_DIR is kept: acme
+    # installed again goes on with it. A node going away for good leaves it first with
+    # acme --db-agent-leave --yes (refused in layout B), or is taken away on the database
+    # server: acme_db_agent.py --forget NODE.
+    if [[ -f "$STATE_DIR/db-agent/agent.json" ]]; then
+        say "This node stays joined to its database agent (kept in $STATE_DIR/db-agent). Going away"
+        say "for good: acme --db-agent-leave --yes before this, or acme_db_agent.py --forget NODE"
+        say "on the database server."
+    fi
     ASSUME_YES="" confirm "Go ahead?" n || { say "Nothing was changed."; exit 0; }
     # An upgrade going on is not cut off under its own feet - looked at
     # before anything is stopped or taken away.
     if [[ -z "$DRY_RUN" ]] && systemctl is-active --quiet acme-upgrade.service 2>/dev/null; then
         fail "an upgrade from the pages is running (acme-upgrade.service); wait for it, then again"
-    fi
-    # A database agent this node joined (1.0.115) takes it off its list: it no longer waits for
-    # this node (its next certificate) nor lets it in. Best effort - one that does not answer
-    # keeps it until  acme_db_agent.py --forget NODE  there.
-    if [[ -f "$STATE_DIR/db-agent/agent.json" && -x "$BIN_LINK" ]]; then
-        run "$BIN_LINK" --db-agent-leave --yes || warn "the database agent was not told this node leaves it: acme_db_agent.py --forget NODE on the database server"
     fi
     run systemctl disable --now acme.service 2>/dev/null || true
     run systemctl disable --now acme-upgrade.path 2>/dev/null || true

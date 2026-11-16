@@ -7908,12 +7908,19 @@ function signinUnsettledSig() {
    tab - a node that stays not listening (its port taken, no CA it can use) asked ?api=kerberos
    and ?api=certlogin every 3 s for a minute at each visit, where 1.0.105 asked nothing. */
 var SIGNIN_LOOK = 'acme.signin.look';
+var SIGNIN_LOOKS = 0;
 function signinLook(asks) {
   if (SIGNIN_SETTLE.until > Date.now()) {
     if (!SIGNIN_SETTLE.timer) SIGNIN_SETTLE.timer = setTimeout(signinSettleTick, 3000);
     return;
   }
+  /* The last look only, once both cards have their answer (a look begun before the answers
+     came compared nothing with them). */
+  var gen = ++SIGNIN_LOOKS;
   Promise.all(asks).then(function () {
+    if (gen !== SIGNIN_LOOKS) return;
+    if (($('krb-host-admin') || $('krb-host-portal')) && !KRB.d) return;
+    if (($('cert-host-admin') || $('cert-host-portal')) && !CERTC.d) return;
     var sig = signinUnsettledSig(), last = null;
     try { last = sessionStorage.getItem(SIGNIN_LOOK); sessionStorage.setItem(SIGNIN_LOOK, sig); } catch (e) { }
     if (sig && last !== null && last !== sig) signinSettle(0);

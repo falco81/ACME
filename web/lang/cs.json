@@ -65355,6 +65355,38 @@
   "z_210": {
    "source": "A browser whose checks in the background never get an answer from the very first cannot be checked at all - an iPad's Safari signs nothing for a page in the background, though the card is in. Not watched (the default): that sign-in is not watched until a check finds the card, and Events say so and why - but any browser can opt out of the watch this way by failing every check. Sign out: it is signed out as if the card were out - the watch enforced for every browser, and an iPad cannot stay signed in with this on. Once a check has found the card, a later one that does not is a card taken out, whatever this says.",
    "text": "Prohlížeč, jehož kontroly na pozadí od té úplně první nikdy nedostanou odpověď, kontrolovat vůbec nejde – Safari na iPadu na pozadí nic nepodepíše, i když je karta zasunutá. Nehlídat (výchozí): takové přihlášení se nehlídá, dokud kontrola kartu nenajde, a Události řeknou, že tomu tak je a proč – takto se ale z hlídání může vyvléct kterýkoli prohlížeč, který každou kontrolu nechá selhat. Odhlásit: odhlásí se, jako by karta byla vytažená – hlídání platí pro každý prohlížeč a iPad pak s tímto zapnutým přihlášený zůstat nemůže. Jakmile kontrola kartu jednou najde, další kontrola bez ní znamená vytaženou kartu bez ohledu na toto nastavení."
+  },
+  "z_211": {
+   "source": "no certificate came with the check (the browser does not sign it in the background)",
+   "text": "s kontrolou nepřišel žádný certifikát (prohlížeč ji na pozadí nepodepisuje)"
+  },
+  "z_212": {
+   "source": "the browser sent no cookie with the check",
+   "text": "prohlížeč s kontrolou neposlal žádnou cookie"
+  },
+  "z_213": {
+   "source": "the check got no answer at all (the browser did not sign the connection)",
+   "text": "kontrola nedostala vůbec žádnou odpověď (prohlížeč spojení nepodepsal)"
+  },
+  "z_214": {
+   "source": "the check got no answer within 20 s",
+   "text": "kontrola nedostala odpověď do 20 s"
+  },
+  "z_215": {
+   "source": "nginx did not take the certificate",
+   "text": "nginx certifikát nepřijal"
+  },
+  "z_216": {
+   "source": "the card is not watched here",
+   "text": "karta se zde nehlídá"
+  },
+  "z_217": {
+   "source": "signing in to these pages with a certificate",
+   "text": "přihlašování na tyto stránky certifikátem"
+  },
+  "z_218": {
+   "source": "signing in to the enrolment pages with a certificate",
+   "text": "přihlašování na zápisové stránky certifikátem"
   }
  },
  "patterns": {
@@ -90701,6 +90733,58 @@
   "pz_11": {
    "source": "{0} of this account holds a line break or another control character: no request is written for it - correct it in the directory first",
    "text": "{0} tohoto účtu obsahuje zalomení řádku nebo jiný řídicí znak: žádost se pro něj nevypíše – nejdřív ho opravte v adresáři"
+  },
+  "pz_12": {
+   "source": "{0} second(s)",
+   "text": "{0} {0:sekunda|sekundy|sekund}"
+  },
+  "pz_13": {
+   "source": "{0} was signed out of these pages: {1}",
+   "text": "{0} byl odhlášen z těchto stránek: {1}"
+  },
+  "pz_14": {
+   "source": "{0} was signed out of these pages (from {1}): {2}",
+   "text": "{0} byl odhlášen z těchto stránek (z {1}): {2}"
+  },
+  "pz_15": {
+   "source": "{0} was signed out of the enrolment pages: {1}",
+   "text": "{0} byl odhlášen ze stránek registrace: {1}"
+  },
+  "pz_16": {
+   "source": "{0} was signed out of the enrolment pages (from {1}): {2}",
+   "text": "{0} byl odhlášen ze stránek registrace (z {1}): {2}"
+  },
+  "pz_17": {
+   "source": "the card of {0}'s sign-in to these pages cannot be checked in this browser - {1}: it is not watched (from {2}; the setting \"A browser that cannot be checked\")",
+   "text": "kartu přihlášení uživatele {0} na tyto stránky v tomto prohlížeči kontrolovat nejde – {1}: přihlášení se nehlídá (z {2}; nastavení „Prohlížeč, který kontrolovat nejde“)"
+  },
+  "pz_18": {
+   "source": "the card of {0}'s sign-in to the enrolment pages cannot be checked in this browser - {1}: it is not watched (from {2}; the setting \"A browser that cannot be checked\")",
+   "text": "kartu přihlášení uživatele {0} na stránky registrace v tomto prohlížeči kontrolovat nejde – {1}: přihlášení se nehlídá (z {2}; nastavení „Prohlížeč, který kontrolovat nejde (portál)“)"
+  },
+  "pz_19": {
+   "source": "{0}: the card they signed in with is out - the sign-in to these pages waits {1} s for it ({2}, from {3})",
+   "text": "{0}: karta, kterou se přihlásil, je vytažená – přihlášení na tyto stránky na ni čeká {1} s ({2}, z {3})"
+  },
+  "pz_20": {
+   "source": "{0}: the card they signed in with is out - the sign-in to the enrolment pages waits {1} s for it ({2}, from {3})",
+   "text": "{0}: karta, kterou se přihlásil, je vytažená – přihlášení na stránky registrace na ni čeká {1} s ({2}, z {3})"
+  },
+  "pz_21": {
+   "source": "the card of {0}'s sign-in to these pages was found in this browser after all - it is watched again (from {1})",
+   "text": "kartu přihlášení uživatele {0} na tyto stránky se v tomto prohlížeči nakonec podařilo najít – přihlášení se zase hlídá (z {1})"
+  },
+  "pz_22": {
+   "source": "the card of {0}'s sign-in to the enrolment pages was found in this browser after all - it is watched again (from {1})",
+   "text": "kartu přihlášení uživatele {0} na stránky registrace se v tomto prohlížeči nakonec podařilo najít – přihlášení se zase hlídá (z {1})"
+  },
+  "pz_23": {
+   "source": "{0}: the card they signed in with is back - the sign-in to these pages goes on (from {1})",
+   "text": "{0}: karta, kterou se přihlásil, je zpět – přihlášení na tyto stránky pokračuje (z {1})"
+  },
+  "pz_24": {
+   "source": "{0}: the card they signed in with is back - the sign-in to the enrolment pages goes on (from {1})",
+   "text": "{0}: karta, kterou se přihlásil, je zpět – přihlášení na stránky registrace pokračuje (z {1})"
   }
  },
  "rich": {
