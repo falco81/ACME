@@ -65467,6 +65467,14 @@
   "z_238": {
    "source": "The certificates of the link between the databases, made again on both nodes as High availability does - PostgreSQL reloaded, not restarted; replication goes on.",
    "text": "Certifikáty spojení mezi databázemi, vydané znovu na obou uzlech jako to dělá Vysoká dostupnost – PostgreSQL znovu načten, ne restartován; replikace běží dál."
+  },
+  "z_239": {
+   "source": "first",
+   "text": "nejdřív respondér"
+  },
+  "z_240": {
+   "source": "only",
+   "text": "jen respondér"
   }
  },
  "patterns": {
