@@ -660,7 +660,8 @@ in acme those two are **6** and **7**.
    too - could make a signed-in person's browser check the card and read the width: signed in
    or not, the card in or out - and, without the card, take it out.)
 2. **The page's Content-Security-Policy** lets `https://<name>:<port>` in for images -
-   `img-src 'self' data: https://<name>:8443` - **only for a watched sign-in**; `connect-src`
+   `img-src 'self' data: https://<name>:8443` - **only for a watched sign-in** (or one whose
+   browser cannot be checked: it still checks now and then, 1.0.115); `connect-src`
    stays `'self'`. Any other page's policy is byte for byte as before. An IPv6 address is taken
    as the page's `location.hostname` has it (in its brackets already).
 3. While a part watches the card, nginx's server of the port **drops every `ssl_session_*` line it
