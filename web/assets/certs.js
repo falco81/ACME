@@ -6375,7 +6375,8 @@ function certWizard(cert, detail, opts) {
         var dfs = arr(p.deploy_fields).filter(function (x) { return (!x.dual_only || W.d.key_type_alt) && VERIFY_KEYS.indexOf(x.key) < 0; });
         var f = p.files_ui && window.ACME_DEPLOY_UI
           ? window.ACME_DEPLOY_UI.form(p, dfs, W.deploys[t.name] || {}, {}, {target: t.name, targetRow: t, names: names(),
-              key_type: W.d.key_type, key_type_alt: W.d.key_type_alt, dual: !!W.d.key_type_alt, sudo: truthy((t.config || {}).sudo)})
+              key_type: W.d.key_type, key_type_alt: W.d.key_type_alt, dual: !!W.d.key_type_alt, sudo: truthy((t.config || {}).sudo),
+              csr_from: W.d.csr_from || ''})
           : fieldForm(dfs, W.deploys[t.name] || {}, {}, {noneWords: 'Nothing to set for this target.', family: 'target', row: t, plug: p});
         forms[t.name] = f;
         fh.appendChild(f.node);

@@ -1712,5 +1712,384 @@ class PagesWiring(unittest.TestCase):
         self.assertIn('newCert: function (row, host)', certs)
 
 
+
+# ---------------------------------------------------------------------------------------------
+# The security review of 1.0.116 (docs/target-agent.md, "Threat model"): each finding fixed,
+# tried here as an attacker would.
+class HuntPolicy(unittest.TestCase):
+    """A fully compromised acme against the policy, the policy file itself, the package."""
+
+    def test_unknown_or_twice_said_words_are_no_entry(self):
+        for line in ('allow file /srv/c mod=0600', 'allow file /srv/c mode=0600 mode=0644',
+                     'allow file /srv/c owner=a:a ownr=root:root',
+                     'allow script /x.sh sha256=%s extra=1' % ('a' * 64)):
+            pol = AG.parse_policy(line)
+            self.assertEqual(pol['files'] + pol['scripts'], [], line)
+            self.assertEqual(len(pol['problems']), 1, line)
+        pol = AG.parse_policy('allow file /srv/c owner=a:b mode=0600')
+        self.assertEqual(pol['files'][0]['mode'], 0o600)
+
+    def test_never_its_own_places_nor_root_giving_ones(self):
+        pol = AG.parse_policy('allow file / mode=0644\nallow file /etc owner=root:root mode=0644\n'
+                              'allow file /home owner=root:root mode=0644\n'
+                              'allow file /opt/app owner=root:root mode=0755\n'
+                              'allow file %s owner=root:root mode=0644' % os.path.dirname(AG.ETC))
+        for bad in (AG.POLICY, AG.CONF, AG.ETC + '/ca.pem', '/etc/sudoers.d/acme',
+                    '/etc/sudoers', '/etc/cron.d/x', '/etc/systemd/system/x.service',
+                    '/etc/pam.d/sshd', '/etc/ld.so.preload', '/etc/profile.d/x.sh',
+                    '/etc/ssh/sshd_config', '/home/u/.ssh/authorized_keys', '/etc/passwd',
+                    AG.lib_dir() + '/acme_agent.py'):
+            with self.assertRaises(AG.Refused) as e:
+                AG.plan_check(pol, {'files': [{'path': bad, 'mode': 0o644}]})
+            self.assertEqual(e.exception.needs, [], bad)      # no line of the policy allows it
+            got = AG.plan_check(pol, {'files': [], 'stale': [bad]})
+            self.assertEqual(got['stale'], [], bad)          # nor is it taken away
+        self.assertEqual(AG.plan_check(pol, {'files': [{'path': '/etc/ssl/a.pem', 'mode': 0o644}]})
+                         ['files'][0]['rule'], '/etc')
+        # never executable - not even where the policy says 0755
+        with self.assertRaises(AG.Refused) as e:
+            AG.plan_check(pol, {'files': [{'path': '/opt/app/bin/check', 'mode': 0o755}]})
+        self.assertIn('never executable', str(e.exception))
+        AG.plan_check(pol, {'files': [{'path': '/opt/app/a.pem', 'mode': 0o644}]})
+        # nor a file the policy runs as root: a script it allows, a word of a test
+        pol = AG.parse_policy('allow file /opt/app owner=root:root mode=0644\n'
+                              'allow test -- /bin/sh /opt/app/check.sh\n'
+                              'allow script /opt/app/hook.sh sha256=%s' % ('a' * 64))
+        for bad in ('/opt/app/check.sh', '/opt/app/hook.sh'):
+            with self.assertRaises(AG.Refused) as e:
+                AG.plan_check(pol, {'files': [{'path': bad, 'mode': 0o644}]})
+            self.assertIn('the policy runs', str(e.exception))
+            self.assertEqual(AG.plan_check(pol, {'stale': [bad]})['stale'], [])
+
+    @unittest.skipUnless(CAN, 'needs root')
+    def test_policy_and_pins_only_of_roots_own(self):
+        d = tempfile.mkdtemp(dir=TMP)
+        etc = os.path.join(d, 'etc')
+        os.makedirs(etc)
+        os.chmod(etc, 0o755)
+        was = {k: getattr(AG, k) for k in ('ETC', 'POLICY', 'CONF', 'ROOT_STATE')}
+        AG.ETC, AG.POLICY, AG.CONF = etc, etc + '/policy', etc + '/agent.json'
+        AG.ROOT_STATE = os.path.join(d, 'rs')
+        try:
+            with open(AG.POLICY, 'w') as fh:
+                fh.write('allow file /srv/c owner=root:root mode=0644\n')
+            os.chmod(AG.POLICY, 0o644)
+            with open(AG.CONF, 'w') as fh:
+                json.dump({'joined': True, 'agent_id': 'ag-0123456789ab', 'cmd_pub': 'x'}, fh)
+            os.chmod(AG.CONF, 0o644)
+            self.assertEqual(len(AG.policy_load()[0]['files']), 1)
+            self.assertTrue(AG.Root.conf().get('joined'))
+            # the folder writable by others: neither is believed
+            os.chmod(etc, 0o777)
+            pol = AG.policy_load()[0]
+            self.assertEqual(pol['files'], [])
+            self.assertIn('folder', pol['problems'][0])
+            self.assertEqual(AG.Root.conf(), {})
+            os.chmod(etc, 0o755)
+            # agent.json (acme's command key, the systemctl root runs) writable by the group
+            os.chmod(AG.CONF, 0o664)
+            self.assertEqual(AG.Root.conf(), {})
+            os.chown(AG.CONF, pwd.getpwnam(USER).pw_uid, 0)
+            os.chmod(AG.CONF, 0o644)
+            self.assertEqual(AG.Root.conf(), {})
+            # the policy a link (to a file of root's): refused, never followed
+            os.rename(AG.POLICY, etc + '/real')
+            os.symlink(etc + '/real', AG.POLICY)
+            with self.assertRaises(AG.Refused):
+                AG.policy_load()
+        finally:
+            for k, v in was.items():
+                setattr(AG, k, v)
+
+    def test_a_package_of_endless_entries(self):
+        import io
+        import tarfile
+        raw = io.BytesIO()
+        with tarfile.open(fileobj=raw, mode='w:gz') as tar:
+            for i in range(AG.PKG_ENTRIES + 50):
+                ti = tarfile.TarInfo('acme-agent-9.9.9/d%d' % i)
+                ti.type = tarfile.DIRTYPE
+                tar.addfile(ti)
+        with self.assertRaises(AG.Refused) as e:
+            AG.read_package(raw.getvalue())
+        self.assertIn('entries', str(e.exception))
+
+    def test_joined_addresses_only_proven(self):
+        was = E.CONFIG.get('certs_agents_names')
+        E.CONFIG['certs_agents_names'] = 'acme1.example.test acme2.example.test:9444'
+        try:
+            secret, nonce = 'the-secret', 'ab' * 16
+            c = {'id': 'abcdefabcdef', 'agent_id': 'ag-0123456789ab', 'mode': 'active'}
+            j = {'s': secret, 'i': c['id'], 'a': ['code.example.test:8444']}
+            ans = G.join_answer(STORE, secret, c, nonce)
+            self.assertEqual(AG.proven_endpoints(j, ans, nonce), G.endpoints(STORE))
+            # somebody between the agent and acme (the join is TLS without a pinned certificate)
+            evil = dict(ans, endpoints=['evil.example.test:8444'])
+            self.assertEqual(AG.proven_endpoints(j, evil, nonce), j['a'])
+            self.assertEqual(AG.proven_endpoints(j, dict(evil, endpoints_proof=''), nonce),
+                             j['a'])
+            self.assertEqual(AG.proven_endpoints(j, ans, 'cd' * 16), j['a'])   # another nonce
+            # the passive join: no address at all, as before
+            self.assertEqual(G.join_answer(STORE, secret, dict(c, mode='passive'), nonce)
+                             ['endpoints'], [])
+        finally:
+            E.CONFIG['certs_agents_names'] = was
+
+    def test_job_of_no_time(self):
+        # a job whose time is NaN passed the five minutes; one of Infinity did not
+        root = AG.Root.__new__(AG.Root)
+        root.lock, root.jobs_at, root.seen = threading.RLock(), [], {}
+        root._seen_keep = lambda keys, now: None
+        seed = b'\x07' * 32
+        root.conf = lambda: {'joined': True, 'agent_id': 'ag-0123456789ab',
+                             'cmd_pub': base64.b64encode(E.ed25519_public(seed)).decode()}
+        for ts in (float('nan'), float('inf'), 'NaN'):
+            body = json.dumps({'v': 1, 'agent': 'ag-0123456789ab', 'job': 'j1', 'ts': ts,
+                               'nonce': '0' * 32, 'op': 'hello', 'args': {}})
+            sig = E.ed25519_sign(seed, b'acme-agent/1 job\n' + body.encode())
+            with self.assertRaises(AG.Refused) as e:
+                root.verify({'job': body, 'sig': base64.b64encode(sig).decode()})
+            self.assertIn('no time', str(e.exception))
+        body = json.dumps({'v': 1, 'agent': 'ag-0123456789ab', 'job': 'j2', 'ts': time.time(),
+                           'nonce': '1' * 32, 'op': 'hello', 'args': {}})
+        sig = E.ed25519_sign(seed, b'acme-agent/1 job\n' + body.encode())
+        self.assertEqual(root.verify({'job': body, 'sig': base64.b64encode(sig).decode()})['op'],
+                         'hello')
+
+    def test_passive_port_bounded(self):
+        srv = AG.PassiveServer(('127.0.0.1', 0), AG.PassiveHandler)
+        handled = []
+        srv.finish_request = lambda request, address: handled.append(address)
+        try:
+            srv.room = threading.BoundedSemaphore(1)
+            srv.room.acquire()                          # the one place taken
+            a, b = socket.socketpair()
+            srv.process_request(a, ('127.0.0.1', 1))
+            b.settimeout(5)
+            self.assertEqual(b.recv(10), b'')           # closed at once
+            time.sleep(0.2)
+            self.assertEqual(handled, [])               # no thread, no handshake
+            b.close()
+            srv.room.release()
+            a, b = socket.socketpair()
+            srv.process_request(a, ('127.0.0.1', 2))
+            self.assertEqual(b.recv(10), b'')
+            time.sleep(0.2)
+            self.assertEqual(handled, [('127.0.0.1', 2)])
+            self.assertTrue(srv.room.acquire(blocking=False))     # its place given back
+            b.close()
+        finally:
+            srv.server_close()
+
+
+class HuntAcme(unittest.TestCase):
+    """A compromised target against acme: what its agent says is taken as data only."""
+
+    def test_answers_of_no_shape(self):
+        got = G.clean_result(json.loads(
+            '{"ok": true, "ms": Infinity, "cert_end": NaN, "said": "x\\nthe agent of target '
+            'web1 joined acme", "host": "h\\r\\nforged", "version": "1\\u2028two",'
+            '"steps": [["info", "line 1\\nline 2"]], "needs": [{"kind": "file", "what": '
+            '"a\\nb", "allow": "c\\nd"}]}'))
+        self.assertNotIn('ms', got)
+        self.assertNotIn('cert_end', got)
+        for k in ('said', 'host', 'version'):
+            self.assertFalse(re.search(r'[\r\n\u2028]', got[k]), got[k])
+        self.assertFalse(re.search(r'[\r\n]', got['needs'][0]['what'] + got['needs'][0]['allow']))
+        self.assertEqual(got['steps'][0][1], 'line 1\nline 2')     # steps keep their lines
+        self.assertEqual(G.clean_result({'ms': 10 ** 400})['ms'], 86400000)
+        self.assertEqual(G._http_head(b'HTTP/1.1 nope\r\nContent-Length: lots\r\n\r\nbody')[:2],
+                         (0, 0))
+        self.assertEqual(G._http_head(b'HTTP/1.1 403 x\r\nContent-Length: 99999999\r\n\r\n')[:2],
+                         (403, 65536))
+
+    def test_a_join_request_cannot_write_events(self):
+        row = target('hunt-join', mode='passive', host='127.0.0.1', port=1)
+        code = G.code_new(STORE, row, 'tester')
+        st = G.state(STORE, row['id'])
+        c = st['code']
+        secret = E.unseal_secret(c['secret'], G.M_T(row['id']) + ':code')
+        key = openssl('genpkey', '-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-256')
+        csr = openssl('req', '-new', '-key', '/dev/stdin', '-subj', '/CN=acme-agent',
+                      data=key).decode()
+        enc = base64.b64encode(b'\x09' * 32).decode()
+        nonce = 'ab' * 16
+        req = {'csr': csr, 'enc_pub': enc, 'nonce': nonce, 'version': '1.0.116',
+               'host': 'web\nthe agent of target web1 joined acme',
+               'proof': G.proof(secret, 'join', c['id'], hashlib.sha256(csr.encode()).hexdigest(),
+                                enc, nonce)}
+        G.join_take(STORE, row, st, c, secret, req)
+        words = STORE.db.value("SELECT words FROM events WHERE words LIKE ? ORDER BY id DESC",
+                               ('the agent of target hunt-join asks to join%',), '')
+        self.assertTrue(words)
+        self.assertNotIn('\n', words)
+        self.assertTrue(code['code'])
+
+    def test_an_agent_asking_to_be_renewed_at_every_poll(self):
+        row = target('hunt-renew', mode='passive', host='127.0.0.1', port=1)
+        st = G.state(STORE, row['id'])
+        st.update(agent_id='ag-0123456789ab', cert_fp='f' * 64, renewed_at=time.time())
+        G.state_put(STORE, row['id'], st)
+        was = G.who_is
+        G.who_is = lambda store, pem, verify: (row, G.state(store, row['id']), 'f' * 64)
+        try:
+            body = {'renew': True, 'results': [{'job': 'x'}]}
+            self.assertEqual(G.poll(STORE, body, 'pem', 'SUCCESS')[0], 200)
+            self.assertFalse(G.state(STORE, row['id']).get('renew_wanted'))
+            st = G.state(STORE, row['id'])
+            st['renewed_at'] = time.time() - 2 * G.RENEW_ASK_S
+            G.state_put(STORE, row['id'], st)
+            G.poll(STORE, body, 'pem', 'SUCCESS')
+            self.assertTrue(G.state(STORE, row['id']).get('renew_wanted'))
+        finally:
+            G.who_is = was
+
+    def test_an_agents_csr_names_nothing_of_its_own(self):
+        key = openssl('genpkey', '-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-256')
+        csr = openssl('req', '-new', '-key', '/dev/stdin', '-subj', '/CN=acme-agents',
+                      '-addext', 'subjectAltName=DNS:acme.example.test',
+                      '-addext', 'basicConstraints=critical,CA:TRUE', data=key).decode()
+        pem = G.sign_csr(STORE, csr, G.AGENT_CN + 'ag-0123456789ab', 30)
+        txt = openssl('x509', '-noout', '-text', '-nameopt', 'RFC2253', data=pem.encode()).decode()
+        self.assertIn('Subject: CN=acme-agent:ag-0123456789ab', txt)
+        self.assertNotIn('acme.example.test', txt)
+        self.assertIn('CA:FALSE', txt)
+
+
+@unittest.skipUnless(CAN, 'needs root, setpriv, openssl')
+class HuntLive(unittest.TestCase):
+    """A real agent: a compromised acme sending signed jobs, the root side's socket."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.port = free_port()
+        cls.row, cls.ag = join_passive(cls(), 'hunt9', cls.port)
+        www_policy(cls.ag)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.ag.stop()
+
+    def deploy(self, path, mode=0o644, owner=None, **more):
+        args = {'files': [{'path': path, 'mode': mode, 'owner': owner or 'root:' + USER,
+                           'data': base64.b64encode(b'not a key').decode()}]}
+        args.update(more)
+        return G.call(STORE, self.row, 'deploy', args, timeout=30)
+
+    def test_1_its_own_policy_and_pins_never_written(self):
+        ag = self.ag
+        www_policy(ag, 'allow file %s owner=root:root mode=0644' % ag.d)
+        try:
+            before = read(ag.d + '/etc/agent.json')
+            for path in (ag.d + '/etc/agent.json', ag.d + '/etc/policy', ag.d + '/rs/enc.key',
+                         ag.d + '/st/tls.key'):
+                got = self.deploy(path, owner='root:root')
+                self.assertFalse(got['ok'], path)
+                self.assertIn('own', got['said'])
+            self.assertEqual(read(ag.d + '/etc/agent.json'), before)
+            self.assertIn('allow file %s' % ag.d, read(ag.d + '/etc/policy'))
+            # the rest of the folder the policy allows: as before
+            got = self.deploy(ag.d + '/other.pem', owner='root:root')
+            self.assertTrue(got['ok'], got)
+            # never executable
+            got = self.deploy(ag.www + '/ssl/run.sh', mode=0o755)
+            self.assertFalse(got['ok'])
+            self.assertFalse(os.path.exists(ag.www + '/ssl/run.sh'))
+        finally:
+            www_policy(ag)
+
+    def test_2_a_copy_kept_is_no_setuid_program(self):
+        p = self.ag.www + '/ssl/suid.pem'
+        with open(p, 'w') as fh:
+            fh.write('old')
+        os.chmod(p, 0o4644)
+        got = self.deploy(p, backup='dated')
+        self.assertTrue(got['ok'], got)
+        copies = [n for n in os.listdir(self.ag.www + '/ssl') if n.startswith('suid.pem.') and
+                  n.endswith('.bak')]
+        self.assertTrue(copies)
+        for n in copies:
+            st = os.stat(os.path.join(self.ag.www, 'ssl', n))
+            self.assertEqual(st.st_mode & 0o7000, 0, n)
+            self.assertEqual(read(os.path.join(self.ag.www, 'ssl', n)), 'old')
+
+    def test_3_pins_writable_by_others_take_no_job(self):
+        conf = self.ag.d + '/etc/agent.json'
+        os.chmod(conf, 0o666)
+        try:
+            got = G.call(STORE, self.row, 'hello', {}, timeout=30)
+            self.assertFalse(got['ok'])
+            self.assertIn('has not joined', got['said'])
+        finally:
+            os.chmod(conf, 0o644)
+        self.assertTrue(G.call(STORE, self.row, 'hello', {}, timeout=30)['ok'])
+
+    def test_4_allow_from_before_any_handshake(self):
+        www_policy(self.ag, 'allow from 192.0.2.1')
+        try:
+            # closed before TLS: acme hears nothing (before, the handshake and the request were
+            # read first, then a 403)
+            with self.assertRaises(base.PluginError) as e:
+                G.call(STORE, self.row, 'hello', {}, timeout=10)
+            self.assertIn('does not answer', str(e.exception))
+        finally:
+            www_policy(self.ag)
+        self.assertTrue(G.call(STORE, self.row, 'hello', {}, timeout=30)['ok'])
+
+    def test_5_the_root_socket(self):
+        sock = self.ag.d + '/run/root.sock'
+        ask = ('import json, socket, struct, sys\n'
+               's = socket.socket(socket.AF_UNIX)\n'
+               's.settimeout(10)\n'
+               'try:\n'
+               '    s.connect(sys.argv[1])\n'
+               'except OSError as e:\n'
+               '    print(json.dumps({"connect": str(e)})); sys.exit(0)\n'
+               'for m in json.loads(sys.argv[2]):\n'
+               '    d = json.dumps(m).encode()\n'
+               '    try:\n'
+               '        s.sendall(struct.pack("!I", len(d)) + d)\n'
+               '        h = s.recv(4)\n'
+               '    except OSError as e:\n'
+               '        h = b""\n'
+               '    if len(h) < 4:\n'
+               '        print(json.dumps({"closed": True})); sys.exit(0)\n'
+               '    n = struct.unpack("!I", h)[0]\n'
+               '    b = b""\n'
+               '    while len(b) < n:\n'
+               '        b += s.recv(n - len(b))\n'
+               '    print(b.decode())\n')
+
+        def as_user(uid, gid, msgs):
+            got = subprocess.run(['setpriv', '--reuid=%d' % uid, '--regid=%d' % gid,
+                                  '--clear-groups', sys.executable, '-I', '-c', ask, sock,
+                                  json.dumps(msgs)], capture_output=True, text=True, timeout=30)
+            return [json.loads(x) for x in got.stdout.splitlines() if x.strip()]
+        pw = pwd.getpwnam(USER)
+        # the network side's account: nothing without acme's signature, no pins without a join
+        got = as_user(pw.pw_uid, pw.pw_gid, [
+            {'kind': 'job', 'job': json.dumps({'v': 1, 'op': 'deploy'}),
+             'sig': base64.b64encode(b'\0' * 64).decode()},
+            {'kind': 'pin', 'ca_pem': '', 'cmd_pub': base64.b64encode(b'\1' * 32).decode(),
+             'agent_id': 'ag-0123456789ab', 'final': True},
+            {'kind': 'shell', 'argv': ['id']}])
+        self.assertIn('not signed by the acme', got[0]['said'])
+        self.assertIn('no join is under way', got[1]['said'])
+        self.assertFalse(got[2]['ok'])
+        # anybody else: not even let in (the folder), and turned away by its uid were it open
+        nobody = pwd.getpwnam('nobody')
+        self.assertIn('connect', as_user(nobody.pw_uid, nobody.pw_gid, [{'kind': 'status'}])[0])
+        run_mode, sock_mode = os.stat(self.ag.d + '/run').st_mode, os.stat(sock).st_mode
+        os.chmod(self.ag.d + '/run', 0o755)
+        os.chmod(sock, 0o666)
+        try:
+            self.assertEqual(as_user(nobody.pw_uid, nobody.pw_gid, [{'kind': 'status'}]),
+                             [{'closed': True}])
+        finally:
+            os.chmod(self.ag.d + '/run', run_mode & 0o7777)
+            os.chmod(sock, sock_mode & 0o7777)
+        self.assertIn('a connection of uid %d' % nobody.pw_uid, read(self.ag.d + '/rs/audit.log'))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -768,7 +768,9 @@ function wizard(row, a0, after) {
     function drawWait() {
       clear(steps);
       a = W.a || {};
-      if (a.joined && (!a.pending || a.pending.confirmed) && !a.code_until) {
+      /* joined: its certificate taken (an active agent takes it at its next question - until
+         then the confirmed join is still pending: "handing the agent its certificate") */
+      if (a.joined && !a.pending && !a.code_until) {
         var ok = el('div', 'ag-done');
         ok.appendChild(icon('check', 26));
         var w = el('div', '');
@@ -825,8 +827,12 @@ function needs(d) {
   var h = el('div', 'ag-needs-h');
   h.appendChild(icon('shield', 16));
   h.appendChild(el('b', '', 'The agent’s policy'));
-  var pill = el('span', 'ag-badge ' + (bad.length ? 'bad' : (unk.length ? 'warn' : 'ok')));
-  pill.appendChild(el('span', '', bad.length ? 'needs more on the server' : (unk.length ? 'not known yet' : 'allows all of it')));
+  var err = !!(d && d.error);
+  /* nothing judged yet (no file in the form) is not "allows all of it"; what the agent cannot
+     do at all (a line of a shell, a key it makes in a keystore) is not either */
+  var pill = el('span', 'ag-badge ' + (err || bad.length ? 'bad' : (unk.length ? 'warn' : (items.length ? 'ok' : 'dim'))));
+  pill.appendChild(el('span', '', err ? 'the agent cannot do it this way' : (bad.length ? 'needs more on the server'
+    : (unk.length ? 'not known yet' : (items.length ? 'allows all of it' : 'nothing to judge yet')))));
   h.appendChild(pill);
   box.appendChild(h);
   if (d && d.error) box.appendChild(data('p', 'note warn small', String(d.error)));

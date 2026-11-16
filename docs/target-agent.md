@@ -25,10 +25,62 @@ happens for every step, signed self-update and the monitoring (all in 1.0.116, b
 | Who | What they have | What they get of a server with acme-agent |
 |---|---|---|
 | Somebody with acme's **database or a backup** (stolen, a replica, a dump) | the agent authority's and the command key's sealed keys, without the sealing key; the agents' public keys and certificates; jobs waiting for an active agent (their keys sealed to the agent) | nothing: no credential of the server is in acme. With the sealing key too (a whole machine stolen) they can sign jobs - which the agent's policy still bounds, as below |
-| Somebody **controlling a running acme** (its root, a full administrator, a bug) | acme's command key and agent authority | what each server's policy allows, and nothing else: files in its allowed folders with its owners and modes, its allowed units' verbs, its tests and scripts by hash. They cannot change the policy, read files, run a shell, open another port, or reach another server through it |
+| Somebody **controlling a running acme** (its root, a full administrator, a bug) | acme's command key and agent authority | what each server's policy allows, and nothing else: files in its allowed folders with its owners and modes, its allowed units' verbs, its tests and scripts by hash. They cannot change the policy, read files, run a shell, open another port, or reach another server through it - and, however broad the policy, never write the agent's own places, the places that give root, a file the policy runs, or an executable (below) |
 | Somebody **controlling the target** | that server | that server's certificates (they had them anyway). Not acme: the agent's reports are untrusted input (sizes and shapes checked, shown as text), its certificate lets it in only as itself, and it can only ask for its own jobs |
-| Somebody **on the network between** | the traffic | nothing: TLS 1.3 with certificates both ways, pinned; every job signed (Ed25519) with a nonce, its time and the agent's id - a replay or a job for another agent is refused; private keys sealed (X25519 + HKDF-SHA256 + AES-256-GCM) on top |
+| Somebody **on the network between** | the traffic | nothing: TLS 1.3 with certificates both ways, pinned; every job signed (Ed25519) with a nonce, its time and the agent's id - a replay or a job for another agent is refused; private keys sealed (X25519 + HKDF-SHA256 + AES-256-GCM) on top. The join, before anything is pinned, is proven both ways by the code's secret - acme's addresses an active agent is given too |
 | The agent's **network side** taken over (a bug in TLS, in Python's HTTP) | the account `acme-agent`: no privileges, no capabilities, a read-only system, its own state folder | its TLS key (it can pose as the agent towards acme) - not root: the root side checks acme's signature on every job itself, and the policy |
+| Somebody who **may write the policy's folder** or `agent.json` (a mistake of the server's) | - | nothing: a policy or `agent.json` that somebody but root may change (the file or its folder), or a link, is not believed - nothing is allowed, no job is taken |
+
+### What holds whatever the policy says (1.0.116 review)
+
+The policy is the server's word, but some places are never written nor taken away by a job, and
+some things are never done, however broad an entry is:
+
+* **the agent's own places**: `/etc/acme-agent` (the policy, `agent.json` - the command key root
+  pinned and the `systemctl` it runs -, `ca.pem`), `/var/lib/acme-agent`,
+  `/var/lib/acme-agent-root`, `/run/acme-agent`, the program's folder. `allow file /etc` does not
+  let acme rewrite the policy;
+* **places whose files give root**: sudoers (`/etc/sudoers`, `.d`), cron (`/etc/crontab`,
+  `/etc/cron.*`, `/var/spool/cron`), systemd (`/etc/systemd`, `/usr/lib/systemd`, `/run/systemd`),
+  `/etc/init.d`, `/etc/rc.d`, PAM and `/etc/security`, `ld.so` (`.preload`, `.conf`, `.conf.d`),
+  the shells' profiles, `/etc/environment`, `passwd` / `shadow` / `group`, `/etc/ssh`, `/root`, any
+  `.ssh` folder, polkit, udev, modprobe, sysctl, SELinux, audit, the package sources, logrotate,
+  `/boot`, `/proc`, `/sys`, `/dev`, and the programs' folders (`/bin`, `/sbin`, `/lib*`, `/usr/bin`,
+  `/usr/sbin`, `/usr/lib*`, `/usr/libexec`, `/usr/local/bin`, `/usr/local/sbin`);
+* **a file the policy runs**: a script it allows by path, and every absolute path in a test's
+  command line (`allow test -- /bin/sh /opt/app/check.sh` - `check.sh` is never written, even
+  when `/opt/app` is allowed);
+* **no file is executable**, no setuid / setgid / sticky bit; the copy kept of a replaced file
+  carries none either;
+* every folder walked from `/` without following a link; a job's time a finite number within five
+  minutes; an update's package 4 MiB and 256 entries at most, read in memory.
+
+What the policy still decides - allow the **narrowest** folder that holds only certificates:
+
+* a folder of **configuration** (`/etc/nginx`, `/etc/httpd`) lets acme write the configuration a
+  service then reads as root (`load_module`, `include`): allow its `ssl` or `certs` sub-folder;
+* a script allowed (by path or by hash) runs with the **arguments acme gives** it: write it to
+  take them as untrusted (or to take none);
+* `allow probe local` lets acme learn which ports of 127.0.0.1 / ::1 answer (each probe says how
+  long it took and why it failed); `allow probe HOST:PORT` and `allow connect HOST:PORT` with a
+  **name** go where DNS says that name is when they run - name an address where that matters;
+* whoever holds a **join code** (an hour, once) can join their own agent as the target - it is in
+  force only once a full administrator confirms its fingerprint, which they compare with the one
+  the server printed; somebody who sees the code's id on the network can use up its five tries
+  (a new code is made).
+
+### What the agent's answers can do in acme
+
+What an agent sends is untrusted (`clean_result`, `clean_policy`): known keys of known shapes, cut
+to size, one line wherever it goes - Events, the SIEM, the log, the alerts (a host name or an answer
+with a line break cannot make an event of its own); the steps of a deployment keep their lines
+and are shown as text; `Infinity`, `NaN`, a malformed answer are refusals, not errors. An agent's
+certificate is signed with acme's own subject (`CN=acme-agent:<id>`, no extension of its CSR),
+only for the key pinned at the join; an agent asking for its renewal is heard once an hour. A
+key made on the server is issued only for the names and the key type of the certificate (the
+device's CSR checked as any device's). An active agent gets only its own jobs and can answer only
+those; acme's addresses it pins are those of the code or those acme proved with the code's
+secret.
 
 ## How it is built
 
@@ -80,17 +132,19 @@ Every operation, refusals too, goes to the journal (`journalctl -t acme-agent`) 
 ## The policy
 
 `/etc/acme-agent/policy`, root:root 0644. acme can never change it; a policy file that somebody
-but root may write is not read at all (nothing is allowed). The default allows **nothing**.
+but root may write - the file or its folder -, or a link, is not read at all (nothing is allowed).
+The default allows **nothing**. A line with a word its entry does not know (`mod=0600`) or one
+said twice is not read (said by `acme-agent policy show`).
 Change it with the command line (as root) or by hand, one entry a line:
 
 | Entry | Command | What it allows |
 |---|---|---|
-| `allow file DIR owner=U:G mode=0640` | `acme-agent allow file DIR --owner U:G --mode 0640` | files in DIR and its sub-folders (made when missing), owned by U:G, at most that mode (no setuid, setgid or sticky bit ever). DIR is kept as its real path |
+| `allow file DIR owner=U:G mode=0640` | `acme-agent allow file DIR --owner U:G --mode 0640` | files in DIR and its sub-folders (made when missing), owned by U:G, at most that mode (never executable, no setuid, setgid or sticky bit ever; never the places above). DIR is kept as its real path |
 | `allow unit NAME reload,restart` | `acme-agent allow unit nginx reload,restart` | `systemctl VERB NAME` for those verbs (reload, restart, try-reload-or-restart, reload-or-restart, try-restart); after it, `systemctl is-active` is said |
 | `allow test -- ARGV...` | `acme-agent allow test -- nginx -t` | that command line, exactly, as a test, a reload or a command before / after - never through a shell |
 | `allow script PATH sha256=HEX` | `acme-agent allow script /usr/local/bin/x.sh` (pins its SHA-256 now) | that script; its hash is checked when it runs, and it runs from a copy root keeps (changed meanwhile: refused) |
 | `allow script-hash HEX` | `acme-agent allow script-hash HEX` | a script written in acme (the deployment's "After the files"), by its SHA-256 |
-| `allow from ADDR[/BITS]` | `acme-agent allow from 192.0.2.10` | passive: acme only from there (else from anywhere with acme's certificate) |
+| `allow from ADDR[/BITS]` | `acme-agent allow from 192.0.2.10` | passive: acme only from there (else from anywhere with acme's certificate); anybody else is turned away before the TLS handshake |
 | `allow probe HOST:PORT` | `acme-agent allow probe www.example.cz:443` | a test of what HOST:PORT serves, connected from this server (the tests "through the agent") |
 | `allow probe local` | `acme-agent allow probe local` | the same for anything on 127.0.0.1, ::1 or localhost (any port) |
 | `allow connect HOST:PORT` | `acme-agent allow connect 10.0.5.21:22` | acme reaches HOST:PORT through this agent (a passive one): the agent as the connector of SSH targets |
@@ -128,7 +182,7 @@ Chosen per target (`mode`). The protocol is the same; only who opens the connect
 | | passive (default) | active |
 |---|---|---|
 | who connects | acme → the agent | the agent → acme |
-| open on the server | TCP 8446 (to acme only: your firewall, and `allow from`) | nothing |
+| open on the server | TCP 8446 (to acme only: your firewall, and `allow from`; 64 connections at once at most) | nothing |
 | open on acme | nothing (it connects out) | TCP 8444 on every node (Settings → Target agents) |
 | TLS | TLS 1.3; the agent shows its certificate of the agent authority (acme checks its fingerprint is the one it pinned); acme shows its own (CN `acme-agents`), the agent lets in only certificates of the authority it pinned with that name | TLS 1.3; nginx asks for a client certificate of the agent authority alone (`ssl_verify_client optional` - the join comes without one - and the poll is refused by nginx without one that passed); acme checks the fingerprint and the agent id against what it pinned on every request; the agent checks acme's certificate is of its authority with CN `acme-agents` |
 | jobs | posted to the agent, answered at once | queued in the database; the agent long-polls (20 s held at most, three polls held at once a node, the rest told to come back in 8 s) and posts the results with its next poll |

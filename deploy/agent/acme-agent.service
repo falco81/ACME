@@ -47,6 +47,8 @@ SystemCallErrorNumber=EPERM
 SystemCallArchitectures=native
 ReadOnlyPaths=/etc/acme-agent
 ReadWritePaths=/var/lib/acme-agent
+# bounded: the passive port takes 64 connections at once, a flood of them no more
+TasksMax=128
 
 [Install]
 WantedBy=multi-user.target

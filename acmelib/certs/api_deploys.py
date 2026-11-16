@@ -2,7 +2,7 @@
 """
 A deployment's files and the script after them, before it is saved or run:
 
-    POST /api/deploys/preview  {id?, cert_id?, target, options, names?}
+    POST /api/deploys/preview  {id?, cert_id?, target, options, names?, csr_from?}
         -> {files: [{path, format, title, what, mode, owner, size, key, ...}],
             env: {ACME_*: value}, problems: [{level, words}], script, password}
         what the target would write and what the script would be told - worked
@@ -109,9 +109,15 @@ def _deploys_preview(h, s):
     ctx.target_name = trow['name']
     if dep:
         ctx.deploy_id = dep['id']
+    bundle = _bundle(cert, b, cls)
+    if hasattr(cls, 'agent_key_of') and isinstance(bundle, SampleBundle) and trow['name'] == str(
+            (cert or {}).get('csr_from') or ('' if cert else b.get('csr_from')) or ''):
+        # a certificate whose key the agent makes (1.0.116), not issued yet - the new
+        # certificate's wizard says so (csr_from): no key of acme's, as at its deployment
+        bundle.key_pem = None
     try:
         t = cls(S.plugin_config('target', trow), ctx)
-        got = t.preview(_bundle(cert, b, cls), opts)
+        got = t.preview(bundle, opts)
     finally:
         ctx.tidy()
     got['supported'] = True

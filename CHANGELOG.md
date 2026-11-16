@@ -70,6 +70,31 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   come back with a backup and work on the other node (tested).
 - Fixed (unreleased): files in the formats `key-traditional` and `key-pem-enc` went to an agent
   base64 under TLS only - now sealed to the agent like every other key format.
+- (security) **Target agents, reviewed as an attacker would** (docs/target-agent.md, *Threat
+  model*; each tried in `test/test_target_agent.py` Hunt*):
+  - the agent never writes nor takes away its own places (its policy, `agent.json` with the
+    command key it pinned and the `systemctl` its root side runs, its state, its program) nor the
+    places whose files give root (sudoers, cron, systemd, PAM, `ld.so`, profile, `/etc/ssh`,
+    `/root`, any `.ssh`, `/usr/bin`...) - whatever folder its policy allows: `allow file /etc`
+    let a compromised acme rewrite the policy, or write into `/etc/sudoers.d`;
+  - nor a file the policy runs (a script it allows, a path in a test's command line), and a file
+    it writes is never executable - an allowed folder holding `check.sh` of `allow test -- /bin/sh
+    .../check.sh` gave acme its own code run as root;
+  - the policy and `agent.json` are believed only when root alone may change them and their
+    folder, opened without following a link and checked on the open file (a group-writable
+    `agent.json` was believed whole); a word of an entry it does not know (`mod=0600`, a typo)
+    or one said twice now makes the line unread instead of allowing the default 0644;
+  - a job whose time is NaN passed the five-minute check; a package of an update with endless
+    entries was read whole into root's memory (now 256 entries at most); the copy kept of a
+    file replaced carries no setuid / setgid bit;
+  - an active agent pins acme's addresses only when acme proved them with the join code's secret
+    (somebody between could have made it poll an address of theirs for good);
+  - `allow from` turns others away before the TLS handshake, the passive port takes 64
+    connections at once (a flood held a thread each), `TasksMax` on the network side;
+  - in acme: what an agent says is one line wherever it goes (a host name with a line break wrote
+    an event of its own making into Events, the SIEM and the log), `Infinity` / `NaN` and a
+    malformed tunnel answer are refusals, not errors, and an agent asking for its certificate
+    renewed is heard once an hour (it had one signed, and an event, at every poll).
 
 ## 1.0.115 - 2026-11-16
 

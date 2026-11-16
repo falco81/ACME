@@ -1085,6 +1085,9 @@
       presetSel.onchange = function () {
         var want = (presetF.fills || {})[presetSel.value];
         if (!want) { changed(); return; }
+        /* a preset with no test (or reload) of its own: the one of the preset before goes
+           (UniFi after Dovecot kept "doveconf -n") */
+        want = Object.assign({test_cmd: '', reload_cmd: ''}, want);
         Object.keys(want).forEach(function (k) {
           if (k === 'outputs') files.set(lineList(want[k]));
           else if (k === 'jks_alias') { var a = node.querySelector('.df-alias input'); if (a) a.value = want[k]; }
@@ -1177,6 +1180,7 @@
       if (ctx.cert_id) body.cert_id = ctx.cert_id;
       if (ctx.names) body.names = ctx.names;
       if (ctx.key_type) { body.key_type = ctx.key_type; body.key_type_alt = ctx.key_type_alt || ''; }
+      if (ctx.csr_from) body.csr_from = ctx.csr_from;
       CT.api('deploys/preview', body).then(function (d) {
         if (n !== asked) return;
         if (d && d.dual !== undefined) { ctx.dual = !!d.dual; files.dual(ctx.dual); }

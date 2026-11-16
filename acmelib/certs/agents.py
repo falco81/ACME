@@ -30,6 +30,7 @@ import hmac
 import http.client
 import importlib.util
 import json
+import math
 import os
 import re
 import secrets
@@ -60,6 +61,7 @@ HELLO_EVERY_S = 300             # a passive agent asked how it is this often (th
 HOLD_S = 20                     # a poll held this long at most while there is nothing to do
 HOLD_MOST = 3                   # polls held at once on a node (php-fpm has 12 children)
 TAKE_S = 90                     # a job no active agent took in this long fails
+RENEW_ASK_S = 3600              # an agent's own ask for its certificate renewed: once an hour
 BODY_MOST = 4 * 1024 * 1024
 SEAL_ALG = 'X25519-HKDF-SHA256-A256GCM'
 AGENT_ID_RE = re.compile(r'ag-[0-9a-f]{12,32}\Z')
@@ -67,6 +69,7 @@ HEX64 = re.compile(r'[0-9a-f]{64}\Z')
 LOCK = threading.RLock()
 HOLDING = {'n': 0}
 BUSY = set()                    # targets whose certificate is being renewed (this node)
+ASKING = set()                  # active agents asked their policy (this node)
 
 M_CA, M_CMD, M_CTL = 'agents:ca', 'agents:cmd', 'agents:ctl'
 
@@ -166,9 +169,15 @@ def _when(ts):
         return '-'
 
 
-def _txt(v, most=300):
-    """Words of the agent's, as words: no control characters, cut."""
-    return re.sub(r'[\x00-\x08\x0b-\x1f\x7f]', '', str(v if v is not None else ''))[:most]
+def _txt(v, most=300, lines=False):
+    """Words of the agent's, as words: no control characters, cut - and one line (1.0.116
+    security: a host name or an answer with a line break in it went on as lines of their own
+    into Events, the SIEM and the log - an event of the agent's own making). `lines`: the
+    steps of a deployment, shown as they are, keep theirs."""
+    t = str(v if v is not None else '')
+    if not lines:
+        t = re.sub(r'[\t\r\n\u2028\u2029\x85]+', ' ', t)
+    return re.sub(r'[\x00-\x08\x0b-\x1f\x7f\x80-\x9f]', '', t)[:most]
 
 
 # ---- acme's keys: the authority, the command key, its own certificate -----------------------------
@@ -575,14 +584,26 @@ def join_take(store, row, st, c, secret, req, tls_key_fp=None):
     return fp
 
 
+def _endpoints_proved(store, secret, c, nonce, out):
+    """acme's addresses for an active agent, with acme's proof of them by the code's secret
+    (1.0.116 security: the agent pins only proven ones - its join is TLS without a pinned
+    certificate yet, so somebody between could have handed it addresses of theirs)."""
+    eps = endpoints(store) if c.get('mode') == 'active' else []
+    out['endpoints'] = eps
+    if eps:
+        out['endpoints_proof'] = proof(secret, 'endpoints', c['id'], json.dumps(
+            eps, separators=(',', ':')), nonce)
+    return out
+
+
 def join_answer(store, secret, c, nonce):
     a = ca(store)
     ck = cmd_key(store)
     pub = _b64(ck['public'])
-    return {'ok': True, 'agent_id': c['agent_id'], 'ca_pem': a['cert_pem'], 'cmd_pub': pub,
-            'endpoints': endpoints(store) if c.get('mode') == 'active' else [],
-            'proof': proof(secret, 'joined', c['id'], hashlib.sha256(a['cert_pem'].encode())
-                           .hexdigest(), pub, c['agent_id'], nonce)}
+    return _endpoints_proved(store, secret, c, nonce, {
+        'ok': True, 'agent_id': c['agent_id'], 'ca_pem': a['cert_pem'], 'cmd_pub': pub,
+        'proof': proof(secret, 'joined', c['id'], hashlib.sha256(a['cert_pem'].encode())
+                       .hexdigest(), pub, c['agent_id'], nonce)})
 
 
 def confirm(store, row, fp, by):
@@ -720,9 +741,10 @@ def wire(store, op, body, cert_pem, verify, ip=''):
             return 200, {'ok': True, 'state': 'waiting'}
         if not pend.get('cert'):
             return 200, {'ok': True, 'state': 'confirm', 'said': 'confirm the fingerprint in acme'}
-        out = {'ok': True, 'state': 'done', 'cert_pem': pend['cert'], 'endpoints':
-               endpoints(store), 'proof': proof(secret, 'cert', c['id'], hashlib.sha256(
-                   pend['cert'].encode()).hexdigest(), nonce)}
+        out = _endpoints_proved(store, secret, dict(c, mode='active'), nonce, {
+            'ok': True, 'state': 'done', 'cert_pem': pend['cert'],
+            'proof': proof(secret, 'cert', c['id'], hashlib.sha256(
+                pend['cert'].encode()).hexdigest(), nonce)})
         _joined(store, row)
         return 200, out
     if op == 'poll':
@@ -799,7 +821,10 @@ def poll(store, body, cert_pem, verify, ip=''):
     if facts.get('code') and _txt(facts['code'], 64) != st.get('code_hash'):
         st['code_hash'] = _txt(facts['code'], 64)
         changed = True
-    if body.get('renew') and not st.get('renew_wanted'):
+    # the agent asks for its certificate renewed - at most once an hour (1.0.116 security: an
+    # agent saying so at every poll had a certificate signed, and an event, every few minutes)
+    if body.get('renew') and not st.get('renew_wanted') and \
+            now - float(st.get('renewed_at') or 0) > RENEW_ASK_S:
         st['renew_wanted'] = True
         changed = True
     if st.get('quiet'):
@@ -877,8 +902,8 @@ def clean_result(r):
         out['kept'] = True
     try:
         if r.get('ms') is not None:
-            out['ms'] = max(0, int(r['ms']))
-    except (TypeError, ValueError):
+            out['ms'] = max(0, min(int(r['ms']), 86400000))
+    except (TypeError, ValueError, OverflowError):      # Infinity, NaN: JSON lets them through
         pass
     for k in ('refused', 'unchanged', 'rolled_back'):
         if r.get(k):
@@ -888,7 +913,7 @@ def clean_result(r):
         for s in r['steps'][:200]:
             if isinstance(s, (list, tuple)) and len(s) == 2:
                 lv = s[0] if s[0] in ('info', 'ok', 'warn', 'bad') else 'info'
-                out['steps'].append([lv, _txt(s[1], 600)])
+                out['steps'].append([lv, _txt(s[1], 600, lines=True)])
     if isinstance(r.get('files'), list):
         out['files'] = [{'path': _txt(f.get('path'), 1024),
                          'sha256': str(f.get('sha256')) if HEX64.match(str(f.get('sha256') or ''))
@@ -906,9 +931,9 @@ def clean_result(r):
         out['enc_pub'] = r['enc_pub']
     for k in ('cert_end',):
         try:
-            if r.get(k) is not None:
+            if r.get(k) is not None and math.isfinite(float(r[k])):
                 out[k] = float(r[k])
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             pass
     if isinstance(r.get('cert_fp'), str) and HEX64.match(r['cert_fp']):
         out['cert_fp'] = r['cert_fp']
@@ -1029,7 +1054,7 @@ def _passive_post(store, row, path, body, joining=False, timeout=None):
             raise PluginError('the agent\'s answer is too big', retry=False)
         try:
             got = json.loads(data.decode('utf-8') or '{}')
-        except (ValueError, UnicodeDecodeError):
+        except (ValueError, UnicodeDecodeError, RecursionError):
             raise PluginError('the agent answered HTTP %d, not JSON' % r.status)
         if not isinstance(got, dict):
             raise PluginError('the agent answered something that is not an object')
@@ -1231,6 +1256,7 @@ def renew_cert(store, row, by='the renewer', step=None):
         st['cert_fp'] = fp_of_pem(pem)
         st['cert_end'] = cert_end(pem)
         st['renew_wanted'] = False
+        st['renewed_at'] = time.time()
         state_put(store, tid, st)
         try:
             ans = call(store, row, 'cert', {'cert_pem': pem}, timeout=120, step=step)
@@ -1308,16 +1334,9 @@ def tunnel(store, row, host, port, timeout=20):
             if not got:
                 break
             head += got
-        line, _, rest = head.partition(b'\r\n')
-        top, _, extra = rest.partition(b'\r\n\r\n')
-        status = int((line.split(b' ') + [b'0', b'0'])[1] or 0) if line else 0
+        status, n, extra = _http_head(head)
         if status != 200:
-            n = 0
-            for h in top.split(b'\r\n'):
-                k, _, v = h.partition(b':')
-                if k.strip().lower() == b'content-length':
-                    n = int(v.strip() or 0)
-            while len(extra) < min(n, 65536):
+            while len(extra) < n:
                 more = tls.recv(4096)
                 if not more:
                     break
@@ -1325,7 +1344,7 @@ def tunnel(store, row, host, port, timeout=20):
             tls.close()
             try:
                 said = clean_result(json.loads(extra.decode('utf-8', 'replace') or '{}'))
-            except ValueError:
+            except (ValueError, RecursionError):
                 said = {'said': 'HTTP %d' % status}
             needs = said.get('needs') or []
             raise PluginError('the agent of %s did not connect to %s: %s' % (
@@ -1363,6 +1382,22 @@ def tunnel(store, row, host, port, timeout=20):
     st['last_seen'] = time.time()
     state_put(store, row['id'], st)
     return a
+
+
+def _http_head(head):
+    """(status, Content-Length at most 64 KiB, the bytes after the head) of the agent's answer
+    on /v1/tunnel - not believed to be well made (1.0.116 security: a status or a length that
+    is no number stopped acme with an error of its own): 0 for what is not a number."""
+    line, _, rest = head.partition(b'\r\n')
+    top, _, extra = rest.partition(b'\r\n\r\n')
+    m = re.match(rb'HTTP/1\.[01] ([0-9]{3})', line or b'')
+    status = int(m.group(1)) if m else 0
+    n = 0
+    for h in top.split(b'\r\n'):
+        k, _, v = h.partition(b':')
+        if k.strip().lower() == b'content-length' and v.strip().isdigit():
+            n = min(int(v.strip()), 65536)
+    return status, n, extra
 
 
 def connector_rows(store, passive_only=True):
@@ -1486,6 +1521,13 @@ def tick(store):
                 except PluginError:
                     pass
                 st = state(store, row['id'])
+            if mode == 'active' and not isinstance(st.get('policy'), dict) and \
+                    row['id'] not in ASKING and now - float(st.get('last_seen') or 0) < QUIET_S:
+                # an active agent says its policy only with a job: asked once it polls (just
+                # joined, or acme started again) - the deployments' forms then judge by it
+                ASKING.add(row['id'])
+                threading.Thread(target=_ask_quietly, args=(store, row), daemon=True,
+                                 name='agent-hello').start()
             due = float(st.get('cert_end') or 0) - now < RENEW_DAYS * 86400 or \
                 st.get('renew_wanted')
             if due and row['id'] not in BUSY and float(st.get('cert_end') or 0) > now and \
@@ -1502,6 +1544,16 @@ def tick(store):
         except Exception as e:                          # noqa: BLE001
             E.log_sparing('agent-tick-%s' % row['id'], 'the agent of %s: %s' % (row['name'], e),
                           'warn', every=3600)
+
+
+def _ask_quietly(store, row):
+    try:
+        hello(store, row)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('agent-hello-%s' % row['id'], 'asking the agent of %s: %s' % (
+            row['name'], e), 'info', every=3600)
+    finally:
+        ASKING.discard(row['id'])
 
 
 def _renew_quietly(store, row):

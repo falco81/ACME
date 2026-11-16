@@ -2012,7 +2012,7 @@ class PlanContext(object):
         if op == 'keygen':
             answers = self.answers
             csr = getattr(answers, 'csr', '') or ''
-            return {'ok': True, 'csr': csr, 'key_fp': '0' * 64,
+            return {'ok': True, 'csr': csr, 'key_fp': '',
                     'said': 'a new %s key made there (it stays on that server) and its CSR'
                             % (args.get('key_type') or 'ec-256')}
         if op == 'deploy':

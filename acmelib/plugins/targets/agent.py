@@ -182,7 +182,8 @@ class AgentTarget(Base):
                            presets=[[k, p['title']] for k, p in SSH.PRESETS.items()])
 
     # the deployment worked out as the SSH server's
-    preset_outputs = SSH.SshTarget.preset_outputs
+    # a staticmethod there: taken as it is (a plain function here would be handed self)
+    preset_outputs = staticmethod(SSH.SshTarget.preset_outputs)
     resolved = SSH.SshTarget.resolved
     _vars = SSH.SshTarget._vars
     _written_key = SSH.SshTarget._written_key
@@ -276,10 +277,16 @@ class AgentTarget(Base):
             raise PluginError(got.get('said') or 'the agent made no key', detail='\n'.join(
                 n['allow'] for n in needs) or None, retry=not needs and not got.get('refused'))
         fp = str(got.get('key_fp') or '')
-        self.ctx.step('%s on %s (its key %s…) - the key stays there, in %s' % (
-            got.get('said') or 'the agent made the key', getattr(self.ctx, 'target_name', '')
-            or self.c('host') or 'the server', fp[:16], ', '.join(f['path'] for f in files)),
-            'ok')
+        # (What happens has no key: its fingerprint is not said there)
+        # in acme's words: what the agent says is from the server's side ("made here")
+        self.ctx.step('%s and its CSR made by the agent on %s%s - the key stays there, for '
+                      '%s' % (
+                          ('a %s key (the one in use kept, where there is one)' if args['keep']
+                           else 'a new %s key') % (
+                              req.key_type or 'ec-256'), getattr(self.ctx, 'target_name', '')
+                          or self.c('host') or 'the server',
+                          ' (its key %s…)' % fp[:16] if fp else '',
+                          ', '.join(f['path'] for f in files)), 'ok')
         return got.get('csr') or ''
 
     def render(self, bundle, r, agent_key=False):
@@ -429,6 +436,11 @@ class AgentTarget(Base):
     def preview(self, bundle, options):
         got = SSH.SshTarget.preview(self, bundle, options)
         got['agent'] = self.needs(bundle, options)
+        if got['agent'].get('error'):
+            # what the agent cannot do at all: a line of a shell (the Kubernetes preset), a key
+            # it makes in a file it cannot write it in (jks...) or in none
+            got.setdefault('problems', []).append({'level': 'bad',
+                                                   'words': got['agent']['error']})
         bad = [it for it in got['agent'].get('items') or [] if it.get('ok') is False]
         if bad:
             got.setdefault('problems', []).append(

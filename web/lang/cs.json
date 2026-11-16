@@ -66179,6 +66179,14 @@
   "z_416": {
    "source": "none: TLS at once",
    "text": "žádný: TLS hned"
+  },
+  "z_417": {
+   "source": "nothing is allowed",
+   "text": "nic není povoleno"
+  },
+  "z_418": {
+   "source": "no job is taken",
+   "text": "žádná úloha není přijata"
   }
  },
  "patterns": {
@@ -91701,6 +91709,70 @@
   "pz_55": {
    "source": "the agent of {0} - acme opens a tunnel over its TLS connection to the agent, which connects to this server (its policy: allow connect)",
    "text": "agent cíle {0} – acme otevře tunel přes své TLS spojení s agentem, který se připojí k tomuto serveru (jeho politika: allow connect)"
+  },
+  "pz_56": {
+   "source": "{0} is acme-agent's own ({1}) - never written by a job",
+   "text": "{0} patří samotnému acme-agentu ({1}) - žádná úloha do něj nikdy nezapisuje"
+  },
+  "pz_57": {
+   "source": "{0} is under {1} - a file there gives root to whoever writes it; acme-agent never writes there, whatever the policy says",
+   "text": "{0} je pod {1} - soubor tam dává roota tomu, kdo ho zapíše; acme-agent tam nikdy nezapisuje, ať pravidla říkají cokoli"
+  },
+  "pz_58": {
+   "source": "{0} is in a .ssh folder - acme-agent never writes there",
+   "text": "{0} je ve složce .ssh - acme-agent tam nikdy nezapisuje"
+  },
+  "pz_59": {
+   "source": "{0} is a script the policy runs - never written by a job",
+   "text": "{0} je skript, který pravidla spouštějí - žádná úloha ho nikdy nepřepíše"
+  },
+  "pz_60": {
+   "source": "{0} is named by a test the policy runs ({1}) - never written by a job",
+   "text": "{0} jmenuje test, který pravidla spouštějí ({1}) - žádná úloha ho nikdy nepřepíše"
+  },
+  "pz_61": {
+   "source": "{0}: {1} - a file acme-agent writes is never executable",
+   "text": "{0}: {1} - soubor, který acme-agent zapisuje, nikdy není spustitelný"
+  },
+  "pz_62": {
+   "source": "{0} is a symbolic link - {1}",
+   "text": "{0} je symbolický odkaz - {1}"
+  },
+  "pz_63": {
+   "source": "{0} cannot be read ({1}) - {2}",
+   "text": "{0} nelze přečíst ({1}) - {2}"
+  },
+  "pz_64": {
+   "source": "{0} is not a plain file - {1}",
+   "text": "{0} není obyčejný soubor - {1}"
+  },
+  "pz_65": {
+   "source": "{0} may be written by somebody else than root (it must be root's, not writable by group or others) - {1}",
+   "text": "{0} smí zapisovat i někdo jiný než root (musí patřit rootovi a skupina ani ostatní do něj nesmějí zapisovat) - {1}"
+  },
+  "pz_66": {
+   "source": "the folder of {0} may be written by somebody else than root (it must be root's, not writable by group or others) - {1}",
+   "text": "do složky souboru {0} smí zapisovat i někdo jiný než root (musí patřit rootovi a skupina ani ostatní do ní nesmějí zapisovat) - {1}"
+  },
+  "pz_67": {
+   "source": "{0} is bigger than {1} bytes - {2}",
+   "text": "{0} je větší než {1} bajtů - {2}"
+  },
+  "pz_68": {
+   "source": "{0}= is not a word of this entry ({1})",
+   "text": "{0}= k této položce nepatří ({1})"
+  },
+  "pz_69": {
+   "source": "{0}= twice",
+   "text": "{0}= dvakrát"
+  },
+  "pz_70": {
+   "source": "the package holds more than {0} entries",
+   "text": "balíček obsahuje víc než {0} položek"
+  },
+  "pz_71": {
+   "source": "a connection from {0}, not among `allow from`",
+   "text": "spojení z {0}, které není mezi `allow from`"
   }
  },
  "rich": {

@@ -36,6 +36,7 @@
 .ag-badge.ok{color:var(--ok);background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
 .ag-badge.warn{color:var(--warn);background:var(--warn-bg);border-color:color-mix(in srgb,var(--warn) 35%,transparent)}
 .ag-badge.bad{color:var(--crit);background:var(--crit-bg);border-color:color-mix(in srgb,var(--crit) 35%,transparent)}
+.ag-badge.dim{color:var(--tx-dim);background:transparent;border-color:var(--line)}
 .ag-steps{margin-top:2px}
 .ag-cmd pre{font-size:12.5px}
 .ag-cmd.small pre{font-size:12px;padding:6px 10px}

@@ -61,6 +61,7 @@ import http.client
 import http.server
 import ipaddress
 import json
+import math
 import os
 import re
 import secrets
@@ -121,6 +122,28 @@ STARTTLS = ('smtp', 'imap', 'pop3', 'ftp', 'xmpp', 'ldap', 'postgres', 'mysql', 
 PROBE_S = 30
 TUNNEL_IDLE_S = 600             # a connector's tunnel with nothing going through it this long
 PKG_MOST = 4 * 1024 * 1024      # an update's package
+PKG_ENTRIES = 256               # entries of an update's package (1.0.116: a tar of a million
+                                # empty folders read whole into root's memory before)
+PASSIVE_MOST = 64               # connections at once on the passive port (the rest closed)
+POLICY_MOST = 1024 * 1024       # bytes of the policy file, of agent.json
+# Never written nor taken away by a job, whatever the policy says (1.0.116 security): the
+# agent's own places - its policy, the key of acme it pinned, its program, its state - and the
+# places whose files give root to whoever writes them. A policy that allows a folder above one
+# of them (allow file /etc) still allows the rest of that folder.
+PROTECTED = ('/etc/sudoers', '/etc/sudoers.d', '/etc/doas.conf', '/etc/crontab', '/etc/cron.d',
+             '/etc/cron.hourly', '/etc/cron.daily', '/etc/cron.weekly', '/etc/cron.monthly',
+             '/etc/anacrontab', '/var/spool/cron', '/etc/systemd', '/run/systemd',
+             '/usr/lib/systemd', '/lib/systemd', '/etc/init.d', '/etc/rc.d', '/etc/rc.local',
+             '/etc/pam.d', '/etc/security', '/etc/ld.so.preload', '/etc/ld.so.conf',
+             '/etc/ld.so.conf.d', '/etc/profile', '/etc/profile.d', '/etc/bashrc',
+             '/etc/bash.bashrc', '/etc/environment', '/etc/passwd', '/etc/shadow', '/etc/group',
+             '/etc/gshadow', '/etc/ssh', '/root', '/etc/polkit-1', '/etc/udev', '/etc/modprobe.d',
+             '/etc/modules-load.d', '/etc/sysctl.conf', '/etc/sysctl.d', '/etc/selinux',
+             '/etc/audit', '/etc/apt', '/etc/yum.repos.d', '/etc/dnf', '/etc/logrotate.d',
+             '/etc/logrotate.conf', '/boot', '/proc', '/sys', '/dev', '/bin', '/sbin', '/lib',
+             '/lib64', '/usr/bin', '/usr/sbin', '/usr/lib', '/usr/lib64', '/usr/libexec',
+             '/usr/local/bin', '/usr/local/sbin', '/usr/local/lib/acme-agent')
+PROTECTED_PARTS = ('.ssh',)     # ~/.ssh/authorized_keys and the like, in any folder
 ED25519_SPKI = bytes.fromhex('302a300506032b6570032100')
 
 
@@ -578,6 +601,23 @@ def proof(secret, *parts):
     return hmac.new(str(secret).encode('utf-8'), msg, hashlib.sha256).hexdigest()
 
 
+def endpoints_words(eps):
+    return json.dumps(list(eps), separators=(',', ':'))
+
+
+def proven_endpoints(j, ans, nonce):
+    """acme's addresses an active agent pins: those of acme's answer only when acme proved them
+    with the code's secret (1.0.116 security: they were taken as they came - somebody between
+    could make the agent poll an address of theirs for ever), else those the code named."""
+    eps = ans.get('endpoints') if isinstance(ans, dict) else None
+    if isinstance(eps, list) and eps and len(eps) <= 8 and \
+            all(isinstance(x, str) and 0 < len(x) <= 300 for x in eps):
+        want = proof(j['s'], 'endpoints', j['i'], endpoints_words(eps), nonce)
+        if hmac.compare_digest(want, str(ans.get('endpoints_proof') or '')):
+            return list(eps)
+    return [str(x)[:300] for x in (j.get('a') or []) if isinstance(x, str)][:8]
+
+
 # ---- the policy -----------------------------------------------------------------------------
 POLICY_HEAD = """# /etc/acme-agent/policy - what acme may do on this machine (docs/target-agent.md).
 # acme proposes, this machine decides: nothing is allowed that is not written here, and acme
@@ -625,6 +665,93 @@ def parse_mode(text):
     return int(t, 8)
 
 
+def _under(path, top):
+    top = top.rstrip('/') or '/'
+    if top == '/':
+        return False
+    return path == top or path.startswith(top + '/')
+
+
+def protected(path):
+    """Why `path` is never written nor taken away by a job, whatever the policy says - or ''.
+    The agent's own places (its policy and pins, its state, its program, its socket) and the
+    places whose files give root (sudoers, cron, systemd, PAM, ~/.ssh ...)."""
+    own = [ETC, STATE, ROOT_STATE, RUN]
+    try:
+        own.append(lib_dir())
+    except Exception:                                   # noqa: BLE001
+        pass
+    for top in own:
+        for t in {os.path.normpath(top), os.path.realpath(top)}:
+            if _under(path, t):
+                return '%s is acme-agent\'s own (%s) - never written by a job' % (path, t)
+    for top in PROTECTED:
+        if _under(path, top):
+            return '%s is under %s - a file there gives root to whoever writes it; acme-agent ' \
+                   'never writes there, whatever the policy says' % (path, top)
+    if any(part in PROTECTED_PARTS for part in path.split('/')):
+        return '%s is in a .ssh folder - acme-agent never writes there' % path
+    return ''
+
+
+def runs_from(pol, path):
+    """Why `path` is never written by a job: a file the policy runs as root - a script it
+    allows, a word of a test's command line (`allow test -- /bin/sh /etc/app/check.sh`) - or ''
+    (1.0.116 security: a folder allowed for certificates could hold one, and acme would have
+    had its own code run as root)."""
+    for s in pol.get('scripts') or []:
+        if s.get('path') == path:
+            return '%s is a script the policy runs - never written by a job' % path
+    for argv in pol.get('tests') or []:
+        for w in argv:
+            if isinstance(w, str) and w.startswith('/') and \
+                    (w == path or os.path.normpath(w) == path):
+                return '%s is named by a test the policy runs (%s) - never written by a job' % (
+                    path, ' '.join(shlex.quote(a) for a in argv)[:200])
+    return ''
+
+
+def trusted_text(path, what):
+    """(the text of a file only root may change, or None when it is not there; the problem or
+    '') - opened without following a link, checked on the open file (no swap between the
+    check and the read): a plain file of root's that nobody else may write, in a folder of
+    root's that nobody else may write."""
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_NOCTTY)
+    except FileNotFoundError:
+        return None, ''
+    except OSError as e:
+        if e.errno == 40:                                   # ELOOP: a symbolic link
+            return None, '%s is a symbolic link - %s' % (path, what)
+        return None, '%s cannot be read (%s) - %s' % (path, e.strerror or e, what)
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode):
+            return None, '%s is not a plain file - %s' % (path, what)
+        if st.st_uid != 0 or st.st_mode & 0o022:
+            return None, '%s may be written by somebody else than root (it must be root\'s, ' \
+                         'not writable by group or others) - %s' % (path, what)
+        try:
+            dst = os.stat(os.path.dirname(path) or '/')
+        except OSError:
+            dst = None
+        if dst is None or dst.st_uid != 0 or dst.st_mode & 0o022:
+            return None, 'the folder of %s may be written by somebody else than root (it must ' \
+                         'be root\'s, not writable by group or others) - %s' % (path, what)
+        if st.st_size > POLICY_MOST:
+            return None, '%s is bigger than %d bytes - %s' % (path, POLICY_MOST, what)
+        chunks, left = [], POLICY_MOST + 1
+        while left > 0:
+            got = os.read(fd, min(left, 65536))
+            if not got:
+                break
+            chunks.append(got)
+            left -= len(got)
+        return b''.join(chunks).decode('utf-8', 'replace'), ''
+    finally:
+        os.close(fd)
+
+
 def parse_policy(text):
     """The policy file -> {files, units, tests, scripts, script_hashes, from, self_update,
     connect, limits, problems}. A line it cannot read is left out and said (problems)."""
@@ -647,11 +774,19 @@ def parse_policy(text):
     return pol
 
 
-def _kv(words):
+def _kv(words, keys=()):
+    """(key=value words, the rest). 1.0.116 security: a key the entry does not know, or one
+    said twice, makes the line unread - `mod=0600` (a typo) was left out and the entry
+    allowed the default 0644 instead."""
     out, rest = {}, []
     for w in words:
         if '=' in w and re.match(r'^[a-z0-9_-]+=', w):
             k, v = w.split('=', 1)
+            if k not in keys:
+                raise Refused('%s= is not a word of this entry (%s)' % (
+                    k[:20], ', '.join(x + '=' for x in keys) or 'none'))
+            if k in out:
+                raise Refused('%s= twice' % k)
             out[k] = v
         else:
             rest.append(w)
@@ -676,7 +811,7 @@ def _policy_line(pol, words):
         raise Refused('an entry begins with "allow" or "limit"')
     what, rest = words[1], words[2:]
     if what == 'file':
-        kv, rest = _kv(rest)
+        kv, rest = _kv(rest, ('owner', 'mode'))
         if len(rest) != 1:
             raise Refused('allow file DIR [owner=U:G] [mode=0640]')
         owner = kv.get('owner') or 'root:root'
@@ -706,7 +841,7 @@ def _policy_line(pol, words):
             rest = rest[1:]
         pol['tests'].append(check_argv(rest))
     elif what == 'script':
-        kv, rest = _kv(rest)
+        kv, rest = _kv(rest, ('sha256',))
         if len(rest) != 1 or not HEX64.match(str(kv.get('sha256') or '').lower()):
             raise Refused('allow script PATH sha256=HEX (acme-agent allow script PATH pins it)')
         pol['scripts'] = [x for x in pol['scripts'] if x['path'] != norm_dir(rest[0], False)] + \
@@ -808,20 +943,16 @@ def policy_canon(pol):
 
 def policy_load():
     """(parsed policy, its hash, the text) - read each time: a change is in effect at once."""
-    try:
-        st = os.lstat(POLICY)
-    except FileNotFoundError:
+    # 1.0.116 security: opened without following a link and checked on the open file, its
+    # folder too - a policy somebody but root may write (or swap) is not the machine's word
+    text, problem = trusted_text(POLICY, 'nothing is allowed')
+    if problem and ('symbolic link' in problem or 'not a plain file' in problem):
+        raise Refused(problem)
+    if text is None:
         pol = parse_policy('')
+        if problem:
+            pol['problems'].append(problem)
         return pol, _sha(policy_canon(pol)), ''
-    if not stat.S_ISREG(st.st_mode):
-        raise Refused('%s is not a plain file - nothing is allowed' % POLICY)
-    if st.st_uid != 0 or st.st_mode & 0o022:
-        # somebody but root may write it: it is not the machine's word
-        pol = parse_policy('')
-        pol['problems'].append('%s may be written by somebody else than root (it must be '
-                               'root:root 0644) - nothing is allowed' % POLICY)
-        return pol, _sha(policy_canon(pol)), ''
-    text = _read(POLICY, '') or ''
     pol = parse_policy(text)
     return pol, _sha(policy_canon(pol)), text
 
@@ -971,6 +1102,14 @@ def plan_check(pol, args):
             raise Refused('%s: its mode is a number' % path)
         if not 0 <= mode <= 0o777:
             raise Refused('%s: no setuid, setgid or sticky bits' % path)
+        if mode & 0o111:
+            # 1.0.116 security: a certificate's file is never a program - an executable
+            # written where an allowed test, unit or script runs from would run as root
+            raise Refused('%s: %04o - a file acme-agent writes is never executable' % (
+                path, mode))
+        why = protected(path) or runs_from(pol, path)
+        if why:
+            raise Refused(why)
         owner = str(f.get('owner') or '')
         rule = file_rule(pol, path)
         u, g = (owner.split(':', 1) + [''])[:2] if owner else (None, None)
@@ -996,7 +1135,7 @@ def plan_check(pol, args):
             p = norm_dir(p, real=False)
         except Refused:
             continue
-        if file_rule(pol, p) and p not in seen:
+        if file_rule(pol, p) and p not in seen and not protected(p) and not runs_from(pol, p):
             plan['stale'].append(p)
     for k in ('pre', 'test', 'reload', 'post'):
         ops = args.get(k) or []
@@ -1078,7 +1217,8 @@ def read_at(dfd, name, most):
     """(bytes, stat) of a plain file in the folder, or (None, None) when there is none; a link or
     anything but a plain file is refused."""
     try:
-        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dfd)
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_NOCTTY,
+                     dir_fd=dfd)
     except FileNotFoundError:
         return None, None
     except OSError as e:
@@ -1327,9 +1467,14 @@ def read_package(raw):
         tar = tarfile.open(fileobj=io.BytesIO(raw), mode='r:gz')
     except (tarfile.TarError, OSError, EOFError):
         raise Refused('the package is not a .tar.gz')
-    out, top, total = {}, None, 0
+    out, top, total, n = {}, None, 0, 0
     with tar:
-        for m in tar.getmembers():
+        # one entry at a time, counted (1.0.116 security: getmembers() read every entry of a
+        # tar of a million empty folders into root's memory first)
+        for m in tar:
+            n += 1
+            if n > PKG_ENTRIES:
+                raise Refused('the package holds more than %d entries' % PKG_ENTRIES)
             parts = m.name.split('/')
             if not parts or '..' in parts or m.name.startswith('/') or '' in parts[1:]:
                 raise Refused('the package holds a path that is not one: %r' % m.name[:80])
@@ -1439,7 +1584,16 @@ class Root(object):
     # -- the conf root pinned at the join ----------------------------------------------------
     @staticmethod
     def conf():
-        c = _json(CONF, {})
+        """What root pinned at the join (agent.json) - believed only when root alone may change
+        it and its folder (1.0.116 security: it names acme's command key, and the systemctl
+        root runs); otherwise nothing is pinned and every job is refused."""
+        text, problem = trusted_text(CONF, 'no job is taken')
+        if problem:
+            audit(op='conf', ok=False, said=problem[:300])
+        try:
+            c = json.loads(text) if text else {}
+        except ValueError:
+            c = {}
         return c if isinstance(c, dict) else {}
 
     @staticmethod
@@ -1482,7 +1636,10 @@ class Root(object):
             raise Refused('the job is for another agent')
         try:
             ts = float(job.get('ts'))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
+            raise Refused('the job has no time')
+        if not math.isfinite(ts):
+            # NaN passed `abs(now - ts) > SKEW` - a job of no time held for ever (1.0.116)
             raise Refused('the job has no time')
         now = time.time()
         if abs(now - ts) > SKEW:
@@ -1612,6 +1769,9 @@ class Root(object):
             if not file_rule(pol, p):
                 out.append({'path': p, 'sha256': None, 'said': 'not in a folder the policy '
                                                                'allows'})
+                continue
+            if protected(p):
+                out.append({'path': p, 'sha256': None, 'said': protected(p)})
                 continue
             d, name = p.rsplit('/', 1)
             try:
@@ -1961,8 +2121,10 @@ class Deploy(object):
                 else:
                     bfd = os.dup(dfd)
                 try:
+                    # the copy without setuid, setgid or sticky bits (1.0.116 security): a
+                    # copy of a program of root's that runs as root is not made by acme
                     write_at(bfd, backup_name(name, backup, when), old,
-                             stat.S_IMODE(st.st_mode), st.st_uid, st.st_gid)
+                             stat.S_IMODE(st.st_mode) & 0o777, st.st_uid, st.st_gid)
                 finally:
                     os.close(bfd)
             self.done.append((d or '/', name, old, st))
@@ -2505,7 +2667,7 @@ class Net(object):
         if not hmac.compare_digest(_sha(_unb64(cmd, 32, 'acme\'s key')), j['ck']):
             raise Refused('acme\'s key is not the one the code names - refused')
         got = self.root.ask({'kind': 'pin', 'ca_pem': ca, 'cmd_pub': cmd, 'agent_id': aid,
-                             'endpoints': ans.get('endpoints') or j.get('a') or []})
+                             'endpoints': proven_endpoints(j, ans, nonce)})
         if not got.get('ok'):
             raise Refused(got.get('said') or 'root refused the pins')
         return aid
@@ -2522,7 +2684,7 @@ class Net(object):
         _write(crt, pem.strip() + '\n', 0o600)
         got = self.root.ask({'kind': 'pin', 'ca_pem': _read(CA_FILE, ''),
                              'cmd_pub': self.conf().get('cmd_pub'), 'agent_id': aid,
-                             'endpoints': ans.get('endpoints') or j.get('a') or [],
+                             'endpoints': proven_endpoints(j, ans, nonce),
                              'final': True})
         if not got.get('ok'):
             raise Refused(got.get('said') or 'root refused the pins')
@@ -2733,9 +2895,37 @@ class PassiveServer(http.server.ThreadingHTTPServer):
     allow_reuse_address = True
     joining = False
     restart = False
+    room = None
+
+    def process_request(self, request, client_address):
+        """A thread for a connection while there are fewer than PASSIVE_MOST (1.0.116 security:
+        every connection had a thread of its own, held 30 s by a handshake that never came -
+        anybody reaching the port could exhaust the network side)."""
+        if self.room is None:
+            self.room = threading.BoundedSemaphore(PASSIVE_MOST)
+        if not self.room.acquire(blocking=False):
+            self.shutdown_request(request)
+            return
+        try:
+            http.server.ThreadingHTTPServer.process_request(self, request, client_address)
+        except BaseException:
+            self.room.release()
+            raise
+
+    def process_request_thread(self, request, client_address):
+        try:
+            http.server.ThreadingHTTPServer.process_request_thread(self, request, client_address)
+        finally:
+            if self.room is not None:
+                self.room.release()
 
     def finish_request(self, request, client_address):
         request.settimeout(30)
+        if not self.joining and not self.net.from_ok(client_address[0]):
+            # `allow from`: anybody else gets not even a TLS handshake (1.0.116 security)
+            audit(op='refused', ok=False, said='a connection from %s, not among `allow from`'
+                  % str(client_address[0])[:60])
+            return
         try:
             ctx = self.join_ctx if self.joining else self.net.passive_ctx()
             tls = ctx.wrap_socket(request, server_side=True)
