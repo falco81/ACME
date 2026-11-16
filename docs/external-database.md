@@ -129,8 +129,9 @@ the account is missing.
   moment). When it starts again (its next certificate, a node joined or left, new
   authorities) it takes the nodes let in now at once, goes on answering everybody
   while what root still works on is answered (up to 300 s), then stops taking
-  connections and is started again - for a second or so (a node's `status` is asked
-  again), never 503 to everything meanwhile (1.0.115).
+  connections and is started again: the listening socket is root's, given to each
+  side started, so connections wait in its queue for a second or so - none refused,
+  never 503 to everything meanwhile (1.0.115).
 - The **root side** works the fingerprint out of the certificate itself, checks
   it is enrolled (and for the node the request names), the HMAC signature, the
   time (±120 s), the nonce never seen (kept across a restart) - and only then runs

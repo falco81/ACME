@@ -1211,8 +1211,9 @@ class RootLink(object):
                 time.sleep(0.2)
             if server is not None:
                 try:
-                    server.shutdown()           # no new connection from here
-                    server.socket.close()
+                    # no new connection taken from here: they wait in the listening socket's
+                    # queue (root's) for the side started next
+                    server.shutdown()
                 except OSError:
                     pass
                 while (server.active or self.waiting) and time.monotonic() < end and \
@@ -1322,9 +1323,22 @@ def drop_to(c):
         pass
 
 
-def network_side(c, fd):
+def listen_socket(c):
+    """The listening socket - root's, made once (1.0.115): each network side started is given
+    it, so connections wait in its queue while one side ends and the next starts (they were
+    refused then)."""
+    fam = socket.AF_INET6 if ':' in c['listen'] else socket.AF_INET
+    s = socket.socket(fam, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind((c['listen'], int(c['port'])))
+    s.listen(128)
+    return s
+
+
+def network_side(c, fd, lfd=None):
     """The side that faces the network: a program of its own (started by root with the socket
-    pair), not a copy of root's memory - no signing key was ever in it."""
+    pair and the listening socket), not a copy of root's memory - no signing key was ever in
+    it."""
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     try:
@@ -1338,12 +1352,17 @@ def network_side(c, fd):
     init = _recv(sock)
     ctx = make_ctx(c, str(init.get('cas') or ''))
     listener = Server((c['listen'], int(c['port'])), Handler, bind_and_activate=False)
-    if ':' in c['listen']:
-        listener.address_family = socket.AF_INET6
-        listener.socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-    listener.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listener.server_bind()
-    listener.server_activate()
+    if lfd is not None:
+        listener.socket.close()
+        listener.socket = socket.socket(fileno=lfd)
+        listener.address_family = listener.socket.family
+    else:
+        if ':' in c['listen']:
+            listener.address_family = socket.AF_INET6
+            listener.socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        listener.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.server_bind()
+        listener.server_activate()
     drop_to(c)
     listener.ctx = ctx
     listener.count_lock = threading.Lock()
@@ -1403,11 +1422,13 @@ def serve(c):
     audit(c, op='start', ok=True, said='acme-db-agent %s on %s:%s' % (VERSION, c['listen'],
                                                                        c['port']))
     me = os.path.realpath(__file__)
+    lsock = listen_socket(c)
     while not stop['now']:
         mine, theirs = socket.socketpair()
         proc = subprocess.Popen([sys.executable, '-I', me, '--config', c['path'],
-                                 '--network-side', str(theirs.fileno())],
-                                pass_fds=(theirs.fileno(),), close_fds=True, cwd='/')
+                                 '--network-side', str(theirs.fileno()), str(lsock.fileno())],
+                                pass_fds=(theirs.fileno(), lsock.fileno()), close_fds=True,
+                                cwd='/')
         theirs.close()
         stop['pid'] = proc.pid
         if stop['now']:
@@ -1479,6 +1500,7 @@ def serve(c):
                 proc.wait(5)
         if not stop['now'] and time.monotonic() - began < 2:
             time.sleep(2)               # one that dies at once is not started 100 times a second
+    lsock.close()
     if stop['waiter'] is not None:
         stop['waiter'].join(STOP_WAIT + 10)
     return 0
@@ -1508,8 +1530,8 @@ def main(argv):
         path = argv[i + 1]
         del argv[i:i + 2]
     c = conf_read(path)
-    if argv[:1] == ['--network-side'] and len(argv) == 2:
-        return network_side(c, int(argv[1]))
+    if argv[:1] == ['--network-side'] and len(argv) in (2, 3):
+        return network_side(c, int(argv[1]), int(argv[2]) if len(argv) == 3 else None)
     if argv[:1] == ['--new-code']:
         minutes = int(argv[argv.index('--minutes') + 1]) if '--minutes' in argv else CODE_MINUTES
         code = new_code(c, minutes)

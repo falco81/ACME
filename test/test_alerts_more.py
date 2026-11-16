@@ -296,5 +296,221 @@ class TestDbTrouble(unittest.TestCase):
         self.assertTrue(E.db_trouble(sqlite3.OperationalError('database is locked')))
         self.assertTrue(E.db_trouble(E.DbError('MariaDB could not be reached')))
 
+    def test_real_sqlite_errors(self):
+        """1.0.115: a file that is no database, or a broken one, is the database's trouble -
+        SQLite says it as a plain DatabaseError; a constraint is the request's."""
+        import sqlite3
+        d = tempfile.mkdtemp(prefix='acme-dbt-sqlite-', dir=TMP)
+        junk = os.path.join(d, 'junk.db')
+        with open(junk, 'wb') as f:
+            f.write(b'this is no database at all ' * 200)
+        broken = os.path.join(d, 'broken.db')
+        c = sqlite3.connect(broken)
+        c.execute('CREATE TABLE t (a)')
+        c.executemany('INSERT INTO t VALUES (?)', [('x' * 500,)] * 200)
+        c.commit()
+        c.close()
+        with open(broken, 'rb') as f:
+            b = bytearray(f.read())
+        for i in range(4096, len(b), 7):
+            b[i] = 0xff
+        with open(broken, 'wb') as f:
+            f.write(bytes(b))
+        got = {}
+        for name, path, sql in (('junk', junk, 'SELECT 1 FROM sqlite_master'),
+                                ('broken', broken, 'SELECT * FROM t')):
+            try:
+                sqlite3.connect(path).execute(sql).fetchall()
+            except Exception as e:                      # noqa: BLE001
+                got[name] = e
+        self.assertEqual(type(got['junk']).__name__, 'DatabaseError')
+        self.assertIn('not a database', str(got['junk']))
+        self.assertIn('malformed', str(got['broken']))
+        self.assertTrue(E.db_trouble(got['junk']))
+        self.assertTrue(E.db_trouble(got['broken']))
+        c = sqlite3.connect(':memory:')
+        c.execute('CREATE TABLE t (a UNIQUE)')
+        c.execute('INSERT INTO t VALUES (1)')
+        with self.assertRaises(sqlite3.IntegrityError) as cm:
+            c.execute('INSERT INTO t VALUES (1)')
+        self.assertFalse(E.db_trouble(cm.exception))
+
+    def test_real_postgres_errors(self):
+        """1.0.115: PostgreSQL's by its SQLSTATE - a statement cancelled, a lock not to be had,
+        a connection lost or refused are the database's; a column, a syntax, a constraint, a
+        value out of range are the request's (every OperationalError and InternalError was)."""
+        import shutil
+        import socket
+        import subprocess
+        pgbin = os.environ.get('ACME_TEST_PGBIN', '/usr/lib/postgresql/16/bin')
+        try:
+            import psycopg2
+        except ImportError:
+            self.skipTest('no psycopg2 here')
+        if os.geteuid() != 0 or not os.path.exists(os.path.join(pgbin, 'initdb')) or \
+                not shutil.which('runuser'):
+            self.skipTest('no PostgreSQL to start here')
+        top = tempfile.mkdtemp(prefix='acme-dbt-pg-', dir='/var/tmp')
+        os.chmod(top, 0o755)
+        d = os.path.join(top, 'pg')
+        os.makedirs(d)
+        shutil.chown(d, 'postgres', 'postgres')
+        s = socket.socket()
+        s.bind(('127.0.0.1', 0))
+        port = s.getsockname()[1]
+        s.close()
+
+        def pg(*a):
+            return subprocess.run(['runuser', '-u', 'postgres', '--'] + list(a), capture_output=True,
+                                  text=True, cwd='/', timeout=120)
+        self.assertEqual(pg(os.path.join(pgbin, 'initdb'), '-D', d + '/data', '-U', 'postgres',
+                            '--auth=trust').returncode, 0)
+        with open(d + '/data/postgresql.auto.conf', 'a') as f:
+            f.write("port = %d\nlisten_addresses = '127.0.0.1'\nunix_socket_directories = '%s'\n"
+                    % (port, d))
+        self.assertEqual(pg(os.path.join(pgbin, 'pg_ctl'), '-D', d + '/data', '-l', d + '/log', '-w',
+                            'start').returncode, 0)
+        try:
+            def conn(auto=True):
+                c = psycopg2.connect(host='127.0.0.1', port=port, user='postgres', dbname='postgres')
+                c.autocommit = auto
+                return c
+            c = conn()
+            cur = c.cursor()
+            cur.execute('CREATE TABLE u (a int UNIQUE)')
+            cur.execute('INSERT INTO u VALUES (1)')
+
+            def err(sql, cn=None):
+                try:
+                    (cn or c).cursor().execute(sql)
+                except psycopg2.Error as e:
+                    if (cn or c).autocommit and not (cn or c).closed:
+                        try:
+                            (cn or c).cursor().execute('ROLLBACK')
+                        except psycopg2.Error:
+                            pass
+                    return e
+                self.fail('no error: ' + sql)
+            for sql in ('SELECT nope', 'SELEC 1', 'INSERT INTO u VALUES (1)', 'SELECT 1/0',
+                        'SELECT 2147483647::int + 1'):
+                self.assertFalse(E.db_trouble(err(sql)), sql)
+            e = err('SET statement_timeout = 50; SELECT pg_sleep(1)')
+            self.assertEqual((e.pgcode, E.db_trouble(e)), ('57014', True))
+            cur.execute('SET statement_timeout = 0')
+            other = conn(False)
+            other.cursor().execute('LOCK TABLE u IN ACCESS EXCLUSIVE MODE')
+            e = err('SET lock_timeout = 100; SELECT * FROM u')
+            self.assertEqual((e.pgcode, E.db_trouble(e)), ('55P03', True))
+            other.rollback()
+            gone = conn()
+            cur.execute('SELECT pg_terminate_backend(%s)', (gone.get_backend_pid(),))
+            time.sleep(0.3)
+            e = err('SELECT 1', gone)
+            self.assertIsNone(e.pgcode)
+            self.assertTrue(E.db_trouble(e))
+            self.assertTrue(E.db_trouble(err('SELECT 1', gone)))        # closed: InterfaceError
+            with self.assertRaises(psycopg2.OperationalError) as cm:
+                psycopg2.connect(host='127.0.0.1', port=1, user='postgres', connect_timeout=2)
+            self.assertTrue(E.db_trouble(cm.exception))
+        finally:
+            pg(os.path.join(pgbin, 'pg_ctl'), '-D', d + '/data', '-w', '-m', 'immediate', 'stop')
+            shutil.rmtree(top, ignore_errors=True)
+
+    def test_real_mariadb_errors(self):
+        """1.0.115: MariaDB's by its number - a table full, a lock wait, read-only, the
+        connection gone are the database's; a column, a syntax, a duplicate, a value too big,
+        a password refused are not."""
+        import shutil
+        import socket
+        import subprocess
+        try:
+            import pymysql
+        except ImportError:
+            self.skipTest('no pymysql here')
+        if os.geteuid() != 0 or not shutil.which('mariadbd') or \
+                not shutil.which('mariadb-install-db'):
+            self.skipTest('no MariaDB to start here')
+        top = tempfile.mkdtemp(prefix='acme-dbt-my-', dir='/var/tmp')
+        os.chmod(top, 0o755)
+        shutil.chown(top, 'mysql', 'mysql')
+        d = os.path.join(top, 'data')
+        os.makedirs(d)
+        shutil.chown(d, 'mysql', 'mysql')
+        s = socket.socket()
+        s.bind(('127.0.0.1', 0))
+        port = s.getsockname()[1]
+        s.close()
+        subprocess.run(['mariadb-install-db', '--user=mysql', '--datadir=' + d,
+                        '--auth-root-authentication-method=normal', '--skip-test-db'],
+                       capture_output=True, check=True, timeout=300)
+        srv = subprocess.Popen(['mariadbd', '--no-defaults', '--user=mysql', '--datadir=' + d,
+                                '--port=%d' % port, '--bind-address=127.0.0.1',
+                                '--socket=' + top + '/s', '--pid-file=' + top + '/pid',
+                                '--innodb-lock-wait-timeout=1', '--max-heap-table-size=16384'],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            c = None
+            for _ in range(150):
+                try:
+                    c = pymysql.connect(host='127.0.0.1', port=port, user='root', autocommit=True)
+                    break
+                except pymysql.Error:
+                    time.sleep(0.2)
+            self.assertIsNotNone(c, 'MariaDB did not start')
+
+            def err(sql, cn=None):
+                try:
+                    with (cn or c).cursor() as cu:
+                        cu.execute(sql)
+                except pymysql.Error as e:
+                    return e
+                self.fail('no error: ' + sql)
+            cur = c.cursor()
+            cur.execute('CREATE DATABASE x')
+            cur.execute('USE x')
+            cur.execute('CREATE TABLE u (a INT PRIMARY KEY) ENGINE=InnoDB')
+            cur.execute('INSERT INTO u VALUES (1)')
+            for sql in ('SELECT nope FROM u', 'SELEC 1', 'INSERT INTO u VALUES (1)',
+                        'INSERT INTO u VALUES (99999999999999)'):
+                self.assertFalse(E.db_trouble(err(sql)), sql)
+            cur.execute('CREATE TABLE h (a CHAR(200)) ENGINE=MEMORY')
+            e = err("INSERT INTO h SELECT REPEAT('x', 200) FROM information_schema.columns a, "
+                    "information_schema.columns b LIMIT 100000")
+            self.assertEqual((e.args[0], E.db_trouble(e)), (1114, True))
+            other = pymysql.connect(host='127.0.0.1', port=port, user='root', database='x')
+            other.cursor().execute('BEGIN')
+            other.cursor().execute('SELECT * FROM u FOR UPDATE')
+            e = err('UPDATE u SET a = 2 WHERE a = 1')
+            self.assertEqual((e.args[0], E.db_trouble(e)), (1205, True))
+            other.rollback()
+            cur.execute("CREATE USER 'w'@'%' IDENTIFIED BY 'pw'")
+            cur.execute("GRANT ALL ON x.* TO 'w'@'%'")
+            cur.execute('SET GLOBAL read_only = 1')
+            w = pymysql.connect(host='127.0.0.1', port=port, user='w', password='pw', database='x',
+                                autocommit=True)
+            e = err('INSERT INTO u VALUES (7)', w)
+            self.assertEqual((e.args[0], E.db_trouble(e)), (1290, True))
+            cur.execute('SET GLOBAL read_only = 0')
+            k = pymysql.connect(host='127.0.0.1', port=port, user='root', autocommit=True)
+            cur.execute('KILL %d' % k.thread_id())
+            time.sleep(0.3)
+            self.assertTrue(E.db_trouble(err('SELECT 1', k)))
+            with self.assertRaises(pymysql.Error) as cm:
+                pymysql.connect(host='127.0.0.1', port=port, user='w', password='bad')
+            self.assertFalse(E.db_trouble(cm.exception))
+            # the numbers of 1.0.115, whatever class the driver files them under
+            for code in (1290, 1836, 1114, 1037, 1038, 1041, 4031, 2014):
+                for cls in (pymysql.err.OperationalError, pymysql.err.InternalError,
+                            pymysql.err.InterfaceError):
+                    self.assertTrue(E.db_trouble(cls(code, 'x')), (code, cls))
+        finally:
+            srv.terminate()
+            try:
+                srv.wait(30)
+            except subprocess.TimeoutExpired:
+                srv.kill()
+            shutil.rmtree(top, ignore_errors=True)
+
+
 if __name__ == '__main__':
     unittest.main()

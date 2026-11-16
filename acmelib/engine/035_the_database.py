@@ -26,9 +26,19 @@ DB_TROUBLE_WORDS = ('database is locked', 'disk is full', 'disk i/o error', 'no 
 DB_TROUBLE_SQLITE_WORDS = ('database is locked', 'database table is locked', 'unable to open',
                            'readonly database', 'malformed', 'not a database', 'interrupted')
 # Connections refused, lost or too many; the server going down; a disk full; a
-# lock or a statement that ran out; a deadlock (MariaDB's error numbers).
-DB_TROUBLE_MYSQL_CODES = frozenset((1021, 1040, 1053, 1203, 1205, 1213, 1927, 1969,
-                                    2002, 2003, 2005, 2006, 2013, 2055, 3024))
+# lock or a statement that ran out; a deadlock (MariaDB's error numbers). 1.0.115:
+# read-only (1290, 1836), a table full (1114), out of memory (1037, 1038, 1041),
+# disconnected for inactivity (4031), the connection out of step (2014).
+DB_TROUBLE_MYSQL_CODES = frozenset((1021, 1037, 1038, 1040, 1041, 1053, 1114, 1203, 1205,
+                                    1213, 1290, 1836, 1927, 1969, 2002, 2003, 2005, 2006,
+                                    2013, 2014, 2055, 3024, 4031))
+# PostgreSQL's (1.0.115) by its SQLSTATE: a class - the connection (08), too few
+# resources (53), an operator's intervention - a shutdown, a statement cancelled
+# (57), the system (58), an internal error (XX) - or one state: a deadlock
+# (40P01), a lock not to be had (55P03), a server that only reads (25006 - a
+# standby). One without any: said by the driver about the connection itself.
+DB_TROUBLE_PG_CLASSES = ('08', '53', '57', '58', 'XX')
+DB_TROUBLE_PG_STATES = ('25006', '40P01', '55P03')
 
 
 # When the daemon last could not use the database, and why (1.0.186) - for the
@@ -56,21 +66,34 @@ def db_trouble(e):
     said = str(e).lower()
     if 'out of range' in said:
         return False                # a value too big: the request's, said as such
-    if not names & set(DB_TROUBLE_KINDS):
-        return False
-    if any(w in said for w in DB_TROUBLE_WORDS):
-        return True
     module = type(e).__module__.split('.')[0]
     # Every statement is asked about now (1.0.115), so only the database's own:
     # SQLite says a statement's own mistakes ("no such column", "duplicate column
     # name", a syntax error) as OperationalError too, and MariaDB's driver files
     # most of its numbered errors under it - by the words and the numbers.
+    if module in ('pymysql', 'MySQLdb'):
+        # by the number whatever the class (1.0.115: an unknown one is filed as
+        # OperationalError, a client's own as InterfaceError or ProgrammingError)
+        code = e.args[0] if getattr(e, 'args', None) else None
+        return (isinstance(code, int) and not isinstance(code, bool) and
+                code in DB_TROUBLE_MYSQL_CODES) or \
+            bool(names & set(DB_TROUBLE_KINDS) and any(w in said for w in DB_TROUBLE_WORDS))
+    if module == 'psycopg2':
+        # by the SQLSTATE (1.0.115), not every OperationalError and InternalError
+        code = str(getattr(e, 'pgcode', None) or '')
+        if not code:
+            return bool(names & set(DB_TROUBLE_KINDS))
+        return code[:2] in DB_TROUBLE_PG_CLASSES or code in DB_TROUBLE_PG_STATES
+    # A file that is no database, or a broken one (1.0.115): SQLite says it as a
+    # plain DatabaseError.
+    plain = module == 'sqlite3' and type(e).__name__ == 'DatabaseError'
+    if not names & set(DB_TROUBLE_KINDS) and not plain:
+        return False
+    if any(w in said for w in DB_TROUBLE_WORDS):
+        return True
     if module == 'sqlite3':
         return any(w in said for w in DB_TROUBLE_SQLITE_WORDS)
-    if module in ('pymysql', 'MySQLdb'):
-        code = e.args[0] if getattr(e, 'args', None) else None
-        return isinstance(code, int) and code in DB_TROUBLE_MYSQL_CODES
-    return module == 'psycopg2'
+    return False
 
 
 SCHEMA_VERSION = 1

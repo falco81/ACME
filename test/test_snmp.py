@@ -375,6 +375,75 @@ class Stable(unittest.TestCase):
         _, tcs, _ = mib_oids()
         self.assertEqual(tcs['AcmeReplication'].get(4) or tcs['AcmeReplication'].get('4'), 'down')
 
+    def test_backup_age_of_a_shared_database(self):
+        """1.0.115: one database for both nodes - one node makes the copy of the night for both:
+        the age is the cluster's newest (any node's, or the night's claim, backup_day), not the
+        node's own - the one that did not win said "no recent backup" for good."""
+        import datetime
+        meta = {}
+
+        class Db(object):
+            engine = 'postgres'
+        store = type('S', (), {'db': Db(), 'get_meta': lambda self, k, d=None: meta.get(k, d)})()
+        self.patch(backups=lambda: [], kept_dumps=lambda engine: [], rb_history=lambda st: [],
+                   rb_verified=lambda st: [],
+                   ha_nodes=lambda st: [{'name': 'a'}, {'name': 'b'}],
+                   _meta_obj=lambda st, k: json.loads(meta.get(k) or '{}'))
+        daemon = type('D', (), {'started': time.time() - 7 * 86400})()
+        was = {k: E.CONFIG.get(k) for k in ('ha_mode', 'backup_at')}
+        try:
+            E.CONFIG['ha_mode'] = 'shared'
+            E.CONFIG['backup_at'] = '03:30'
+            self.assertGreater(E._sf_backup(daemon, store, {})['age'], 6 * 86400)
+            # the other node made it an hour ago
+            meta['host:health:b'] = json.dumps({'last_backup': time.time() - 3600})
+            b = E._sf_backup(daemon, store, {})
+            self.assertTrue(3590 <= b['age'] <= 3700, b)
+            # the night's claim only (the other node's row gone): its day at backup_at at most
+            del meta['host:health:b']
+            today = datetime.datetime.now()
+            meta['backup_day'] = today.strftime('%Y-%m-%d')
+            at = today.replace(hour=3, minute=30, second=0, microsecond=0).timestamp()
+            b = E._sf_backup(daemon, store, {})
+            self.assertLessEqual(b['age'], max(0, int(time.time() - at)) + 5, b)
+            # replicated: each node its own copy, as before
+            E.CONFIG['ha_mode'] = 'replicated'
+            meta['host:health:b'] = json.dumps({'last_backup': time.time() - 3600})
+            self.assertGreater(E._sf_backup(daemon, store, {})['age'], 6 * 86400)
+        finally:
+            E.CONFIG.update(was)
+
+    def test_crl_rows_by_the_whole_address(self):
+        """1.0.115: two CRLs whose addresses differ only after the 255th character are two rows,
+        each numbered by its whole address (the text shown cut to 255)."""
+        long = 'http://crl.example.test/' + 'x' * 300
+        crls = [{'url': long + 'a', 'ok': True, 'at': 1, 'next': 2, 'left': 0, 'error': ''},
+                {'url': long + 'b', 'ok': False, 'at': 1, 'next': 0, 'left': 0, 'error': 'gone'}]
+        g = {'accounts': 0, 'local': 0, 'sessions': 0, 'locked': 0, 'fails': 0, 'krb': False,
+             'keytab': False, 'entries': 0, 'krb_error': '', 'cl': True, 'cl_listening': True,
+             'cl_cas': 1, 'cl_error': '', 'crls': crls}
+        got = self.rows({'signin': g})
+        at = E.snmp_index([long + 'a', long + 'b'])
+        self.assertNotEqual(at[long + 'a'], at[long + 'b'])
+        for x in crls:
+            k = at[x['url']]
+            self.assertEqual(got[(12, 14, 1, 1, k)], k)
+            self.assertEqual(got[(12, 14, 1, 2, k)], x['url'][:255])
+            self.assertEqual(got[(12, 14, 1, 3, k)], 1 if x['ok'] else 0)
+        self.patch(cl_node_state=lambda st, me: {'crls': [{'url': long + 'a', 'ok': True}]},
+                   krb_node_state=lambda st, me: {}, krb_keytab_row=lambda st: {},
+                   cl_cas_row=lambda st: [], krb_usable=lambda p, st: False,
+                   cl_usable=lambda p, st: False)
+
+        class Db(object):
+            def rows(self, sql, args=()):
+                return []
+
+            def value(self, sql, args=(), default=None):
+                return 0
+        store = type('S', (), {'db': Db()})()
+        self.assertEqual(E._sf_signin(object(), store)['crls'][0]['url'], long + 'a')
+
 
 class Agent(unittest.TestCase):
     """The agent of a real daemon, asked as a manager asks it."""

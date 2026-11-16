@@ -157,6 +157,31 @@ def _sf_system(store, health):
             'clash': str(health.get('name_clash') or '')[:255], 'hand': hand}
 
 
+def _sf_backup_cluster(store):
+    """One database (1.0.115, as the alerts since 1.0.96): one node makes the copy of the night
+    for both (backup_day) - the newest of any node's, or the day's claim (made at backup_at or
+    later that day); else the node that did not win the night said "no recent backup" for good."""
+    last = 0.0
+    try:
+        names = [n['name'] for n in ha_nodes(store)] or [node_name()]
+    except Exception:                                   # noqa: BLE001
+        names = [node_name()]
+    for n in names:
+        try:
+            last = max(last, float(_meta_obj(store, 'host:health:' + n).get('last_backup') or 0))
+        except (TypeError, ValueError):
+            pass
+    try:
+        done = str(store.get_meta('backup_day', '') or '')
+        hh, mm = (int(x) for x in str(CONFIG.get('backup_at') or '03:30').strip().split(':', 1))
+        import datetime as _dtm
+        at = _dtm.datetime.strptime(done, '%Y-%m-%d').replace(hour=hh, minute=mm).timestamp()
+        last = max(last, min(at, time.time()))
+    except Exception:                                   # noqa: BLE001
+        pass
+    return last
+
+
 def _sf_backup(daemon, store, health):
     me = node_name()
     kept = backups()
@@ -166,6 +191,9 @@ def _sf_backup(daemon, store, health):
         pass
     last = max([float(b.get('at') or b.get('mtime') or 0) for b in kept] or [0]) or \
         float(health.get('last_backup') or 0)
+    ha_m = str(CONFIG.get('ha_mode') or '')
+    if ha_m and ha_m != 'replicated':
+        last = max(last, _sf_backup_cluster(store))
     runs = [r for r in rb_history(store) if r.get('node') == me] if CONFIG.get('rbackup') else []
     good = [r for r in runs if r.get('ok')]
     targets = {}
@@ -216,7 +244,8 @@ def _sf_signin(daemon, store):
     crls = []
     for c in cl.get('crls') or []:
         nxt = _sf_int(c.get('next'))
-        crls.append({'url': str(c.get('url') or '')[:255], 'ok': bool(c.get('ok')),
+        # the whole address (1.0.115): the row's number is of it, not of its first 255 characters
+        crls.append({'url': str(c.get('url') or ''), 'ok': bool(c.get('ok')),
                      'at': _sf_int(c.get('at')), 'next': nxt,
                      'left': int((nxt - time.time()) // 3600) if nxt else 0,
                      'error': str(c.get('err') or '')[:255]})
@@ -425,7 +454,7 @@ def snmp_more_rows(daemon):
         for x in g['crls']:
             k = at[x['url']]
             put((12, 14, 1, 1, k), 'int', k)
-            put((12, 14, 1, 2, k), 'str', x['url'])
+            put((12, 14, 1, 2, k), 'str', x['url'][:255])
             put((12, 14, 1, 3, k), 'int', 1 if x['ok'] else 0)
             put((12, 14, 1, 4, k), 'int', _sf_i32(x['at']))
             put((12, 14, 1, 5, k), 'int', _sf_i32(x['next']))

@@ -127,7 +127,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   other nodes' looks meanwhile (and `status` says *busy with pg_restart for acme1*). When its
   listening side starts again (a node joined or left, new authorities, its next certificate)
   it goes on answering everybody until what root works on is answered - it answered 503 to
-  everything for up to 300 s - and lets a node that just joined in at once. A stop or restart of
+  everything for up to 300 s - and lets a node that just joined in at once; the listening socket
+  is root's, kept across, so connections wait for the next side instead of being refused. A stop or restart of
   the service waits for the operation under way (300 s at most, `TimeoutStopSec=330`) instead of
   cutting it off; root works on 16 requests at most at once.
 - **A node with several addresses** is let into its database server (pg_hba, the firewall, at
