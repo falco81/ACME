@@ -746,9 +746,10 @@ def krb_sessions_settle(store, before, keep=None, by=''):
         was = tuple(before.get(part, (False, False, False))) + (False,) * 3
         usable_was, only_was, cert_was = was[:3]
         usable, only, cert = after[part][:3]
-        # The card's watch switched on (1.0.115): no sign-in counts as made while it was on.
+        # The card's watch switched on (1.0.115): no sign-in counts as made while it was on -
+        # but the doer's.
         if cl_card_rule_on(was[3], after[part][3]):
-            cl_card_switched_on(store, part)
+            cl_card_switched_on(store, part, keep)
         # Certificates taken more strictly now (revocation switched on, matching made stricter -
         # strong): the sign-ins made with one before end, but the doer's (review F8).
         if cert and cert_was and cl_rule_stricter(was[3], after[part][3]):

@@ -3364,20 +3364,29 @@ def cl_card_data(part, f):
     return {'card': f['sha256'], 'card_w': 1}
 
 
-def cl_card_switched_on(store, part):
+def cl_card_switched_on(store, part, keep=0):
     """The watch switched on for a part (1.0.115): no sign-in of it counts as made while it was
-    on (card_w) - one made while on, the watch then off and on again, is as one made before."""
+    on (card_w) - one made while on, the watch then off and on again, is as one made before.
+    But the sign-in of whoever switched it on (`keep`, a session id): they are at its browser
+    now, card and all - as made while on (from an iPad: not watched, or signed out with
+    "A browser that cannot be checked" on signout; before, signed out right after saving)."""
     try:
         rows = store.db.rows('SELECT id, data FROM sessions WHERE kind = ?', (part,))
     except Exception as e:                              # noqa: BLE001
         log('the watched sign-ins could not be read: %s' % e, 'warn')
         return
+    keep = int(keep or 0)
     for r in rows:
         try:
             d = json.loads(r.get('data') or '{}')
         except ValueError:
             continue
-        if isinstance(d, dict) and d.get('card_w'):
+        if not isinstance(d, dict):
+            continue
+        if keep and int(r.get('id') or 0) == keep:
+            if not d.get('card_w') and d.get('how') == 'certificate' and d.get('card'):
+                store.session_merge(r['id'], {'card_w': 1})
+        elif d.get('card_w'):
             store.session_merge(r['id'], {'card_w': None})
 
 
@@ -3749,6 +3758,13 @@ def _certlogin_lost(h):
         raise ApiError(404, 'the card is not watched here')
     token, s = cl_card_session(h, part)
     if not s:
+        return {'ok': False, 'state': 'none'}
+    if b.get('v') is None:
+        # A page of 1.0.114 still open (review round 2): its picture asked without an Origin got
+        # one that says nothing (6 px: no cookie, from PHP) and it says so here - told what makes
+        # it load itself again (its word for "signed out otherwise"), so this version's page
+        # checks the card. Nothing of the sign-in changed: until a check finds the card it is
+        # held as any whose page stopped checking.
         return {'ok': False, 'state': 'none'}
     if cl_card_unable(s):
         return {'ok': True, 'state': 'unable'}

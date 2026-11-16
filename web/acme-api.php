@@ -501,7 +501,15 @@ function acme_cert_back(string $part, string $said = '', string $more = ''): voi
     1.0.115: only this name's own page on 443 - the picture is asked with crossorigin
     "use-credentials", so the browser sends its Origin, which must be https://<this name>; the
     answer carries CORS for exactly that origin. Before, a page of a sibling host (same site: its
-    pictures get the SameSite=Strict cookie too) could make the check and read its width. */
+    pictures get the SameSite=Strict cookie too) could make the check and read its width.
+    No Origin at all (review round 2): a page of 1.0.114 still open (an upgrade, a cluster half
+    way) asks its picture so - a 403 was "no answer" to it, and signed it out. It gets a picture
+    that says nothing, the same for everybody: nothing asked of the daemon, nothing renewed (the
+    server holds a sign-in no check found the card of). 6 wide - no cookie, to that page: it says
+    so over 443 at once, and the daemon tells a page that does not say its kind of check (v) to
+    load itself again - the new page then checks with its Origin; 2 high - this version's page
+    (which asks without its Origin only once its own picture failed - a node of 1.0.114 sends no
+    CORS) takes it for no answer. A page of another name learns nothing from it. */
 function acme_cert_alive(string $part, bool $fail): void
 {
     header('Cache-Control: no-store');
@@ -509,6 +517,12 @@ function acme_cert_alive(string $part, bool $fail): void
     $origin = strtolower((string) ($_SERVER['HTTP_ORIGIN'] ?? ''));
     $site = (string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '');
     $dest = (string) ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? '');
+    if (!isset($_SERVER['HTTP_ORIGIN']) && $host !== ''
+            && ($site === '' || (in_array($site, ['same-site', 'same-origin'], true) && $dest === 'image'))) {
+        header('Content-Type: image/gif');
+        echo base64_decode('R0lGODlhBgACAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAAGAAIAAAgIAAEIHEhQYEAAOw==');
+        exit;
+    }
     if ($host === '' || preg_match('/^([a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?|\[[0-9a-f:.]{2,45}\])\z/', $host) !== 1
             || !hash_equals('https://' . $host, $origin)
             || ($site !== '' && !in_array($site, ['same-site', 'same-origin'], true))

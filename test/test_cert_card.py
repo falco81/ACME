@@ -1399,9 +1399,9 @@ def test_12_a_browser_that_cannot_be_checked(self):
         self.assertEqual((got['state'], got['why']), ('gone', 'other'), got)
         self.assertIsNone(self.session_data(tok))
         self.on(admin_certlogin_card_watch='signout')
-        # Never found - but a check without a certificate, nginx's refusal, no cookie, none within
-        # 20 s (1.0.115): a card taken out (signout - ended), never "cannot be checked".
-        for how in ('nocert', 'failed', 'nocookie', 'timeout'):
+        # Never found - but a check without a certificate, nginx's refusal, no cookie (1.0.115):
+        # a card taken out (signout - ended), never "cannot be checked".
+        for how in ('nocert', 'failed', 'nocookie'):
             st, got = self.sign('admin', 'nested')
             tok = got['token']
             if how == 'nocert':
@@ -1414,8 +1414,19 @@ def test_12_a_browser_that_cannot_be_checked(self):
             self.assertIsNone(self.session_data(tok))
         self.assertTrue(any('was taken out (the browser sent no cookie with the check)' in w
                             for w in self.events('no cookie')))
-        self.assertTrue(any('was taken out (the check got no answer within 20 s)' in w
-                            for w in self.events('within 20 s')))
+        # None within 20 s (review round 2): as no answer at all - an iPad may leave the picture
+        # waiting rather than fail it; the same gates (held, out, made before: a card out).
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'timeout'}, tok)
+        self.assertEqual(got['state'], 'unable', got)
+        self.assertTrue(any("cannot be checked in this browser - the check got no answer within 20 s"
+                            in w for w in self.events('within 20 s')))
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        self.proven(tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'timeout'}, tok)
+        self.assertEqual((got['state'], got['why']), ('gone', 'out'), got)
         # A word of its own is no reason: taken as nopicture.
         st, got = self.sign('admin', 'nested')
         tok = got['token']
@@ -1521,6 +1532,36 @@ def test_13_no_way_out_of_the_watch(self):
         self.assertFalse(self.session_data(tok).get('card_w'))
         st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
         self.assertEqual(got['state'], 'locked', got)
+        # ...nor held or out with none within 20 s (review round 2: timeout as nopicture).
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        self.session_set(tok, card_seen=time.time() - 3600)
+        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'timeout'}, tok)
+        self.assertEqual(got['state'], 'locked', got)
+        self.assertEqual(float(self.session_data(tok).get('card_ok') or 0), 0)
+        # ...but whoever switches it on (review round 2, F7): their own sign-in counts as made
+        # while on - from a browser that cannot be checked not signed out right after saving;
+        # everybody else's does not.
+        self.on(admin_certlogin_card_watch='off')
+        st, got = self.sign('admin', 'nested')
+        mine = got['token']
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        self.assertNotIn('card_w', self.session_data(mine))
+        self.assertEqual(self.settings(session=mine, admin_certlogin_card_watch='grace')[0], 200)
+        self.assertEqual(self.session_data(mine).get('card_w'), 1)
+        self.assertFalse(self.session_data(tok).get('card_w'))
+        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, mine)
+        self.assertEqual(got['state'], 'unable', got)
+        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
+        self.assertEqual(got['state'], 'locked', got)
+        # ...switched off and on again by them: kept for them, not for the others.
+        st, got = self.sign('admin', 'nested')
+        mine = got['token']
+        self.assertEqual(self.session_data(mine).get('card_w'), 1)
+        self.assertEqual(self.settings(session=mine, admin_certlogin_card_watch='off')[0], 200)
+        self.assertEqual(self.settings(session=mine, admin_certlogin_card_watch='grace')[0], 200)
+        self.assertEqual(self.session_data(mine).get('card_w'), 1)
         # d) Whoever makes a rule stricter keeps their sign-in (krb_kept) - watched still.
         st, got = self.sign('admin', 'nested')
         tok = got['token']

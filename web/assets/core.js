@@ -4321,7 +4321,9 @@ function cardCheck() {
     CARD.misses = 0;
     CARD.busy = true;
     fetch('?api=cert-lost', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
-                             body: JSON.stringify({part: CARD.part, why: w === 6 ? 'nocookie' : late ? 'timeout' : 'nopicture'})})
+                             /* v: the page's kind of check (1.0.115: with its Origin) - a page of
+                                1.0.114 says none, and is told to load itself again */
+                             body: JSON.stringify({part: CARD.part, v: 2, why: w === 6 ? 'nocookie' : late ? 'timeout' : 'nopicture'})})
       .then(function (r) { return r.json().then(function (d) { return {status: r.status, d: d || {}}; }, function () { return {status: r.status, d: {}}; }); })
       .then(function (x) {
         if (!CARD || g !== CARD.gen) return;
@@ -4344,11 +4346,23 @@ function cardCheck() {
   /* A check left without an answer for 20 s counts as none (fail closed); the browser may still
      wait on a window of the card's - no new check starts until this one is over. */
   to = setTimeout(function () { fin(0, true); }, 20000);
-  img.onload = function () { fin(img.naturalWidth >= 1 && img.naturalWidth <= 8 ? img.naturalWidth : 0); };
-  img.onerror = function () { fin(0); };
-  /* Its Origin said (1.0.115): the port answers this name's page only. */
-  img.crossOrigin = 'use-credentials';
-  img.src = CARD.url + Date.now();
+  /* Its Origin said (1.0.115): the port answers this name's page only. A picture that failed so
+     is asked once more without it - a node of 1.0.114 (an upgrade half way, the other node of a
+     cluster) sends no CORS, and its answer is the card's as before; this version answers a
+     picture without an Origin with one that says nothing (2 px high, never asked of the daemon):
+     taken as none, as the first. A page of another name learns nothing either way. */
+  var ask = function (cors) {
+    img.onload = img.onerror = null;
+    img = new Image();
+    img.onload = function () {
+      if (!cors && img.naturalHeight !== 1) { fin(0); return; }
+      fin(img.naturalWidth >= 1 && img.naturalWidth <= 8 ? img.naturalWidth : 0);
+    };
+    img.onerror = function () { if (cors) ask(false); else fin(0); };
+    if (cors) img.crossOrigin = 'use-credentials';
+    img.src = CARD.url + Date.now();
+  };
+  ask(true);
 }
 function cardIn() {
   /* Drawn while out or held (whoami gave it no role then): drawn again, now that the card is here. */
