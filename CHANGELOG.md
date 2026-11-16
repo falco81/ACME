@@ -129,6 +129,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     refused as the certificate sign-in's port is, both ways;
   - Settings → Target agents no longer jumps while it is asked; Czech for the agents' events and
     alerts, "tests from here", "connections", and "vytváří 2 klíče" (was "2 klíčů").
+  - With no address set for the agents, an active agent was given this node's own name even when
+    that was `localhost` - it would have polled itself; such a name is now skipped for the node's
+    address. `acme-agent status` of an active agent no longer shows a listening port it does not have.
 
 ## 1.0.115 - 2026-11-16
 

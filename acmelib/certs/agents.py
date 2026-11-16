@@ -397,6 +397,9 @@ def endpoints(store):
             pass
         if not hosts:
             name = str(E.CONFIG.get('acme_node_name') or '') or socket.getfqdn()
+            if not name or name.split('.')[0] in ('localhost', 'localhost6', 'ip6-localhost') \
+                    or name.startswith('127.') or name == '::1':
+                name = ''                               # never point an agent at itself
             hosts.append(name or str(E.node_address()))
     out = []
     for h in hosts:

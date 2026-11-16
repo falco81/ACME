@@ -3342,7 +3342,9 @@ def cmd_status():
     key, crt = tls_paths()
     out = {'version': VERSION, 'code': CODE, 'joined': bool(c.get('joined')),
            'agent_id': c.get('agent_id') or '', 'mode': c.get('mode') or '',
-           'acme': c.get('acme') or [], 'port': c.get('port')}
+           'acme': c.get('acme') or []}
+    if (c.get('mode') or '') != 'active':
+        out['port'] = c.get('port')                     # an active agent listens on nothing
     if os.path.exists(key):
         out['fingerprint'] = fp_words(spki_fp(_read(key, '')))
     pem = _read(crt, '')
