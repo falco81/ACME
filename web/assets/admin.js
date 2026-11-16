@@ -7893,13 +7893,13 @@ function signinUnsettled() { return !!signinUnsettledSig(); }
 function signinUnsettledSig() {
   var k = KRB.d, c = CERTC.d, out = [];
   if (k) (k.nodes || []).forEach(function (n) {
-    if (n.heard && (k.keytab ? !(n.written && n.same) : n.written)) out.push('k:' + n.name);
+    if (n.heard && (k.keytab ? !(n.written && n.same) : n.written)) out.push('k:' + (n.node || n.name));
   });
   if (c) (c.nodes || []).forEach(function (n) {
     if (!n.heard) return;
-    if (c.cas.length ? !(n.written && n.same) : n.written) { out.push('c:' + n.name); return; }
+    if (c.cas.length ? !(n.written && n.same) : n.written) { out.push('c:' + (n.node || n.name)); return; }
     if (n.busy) return;
-    if (c.any_on && c.cas.length ? !n.listening : !!n.listening) out.push('l:' + n.name);
+    if (c.any_on && c.cas.length ? !n.listening : !!n.listening) out.push('l:' + (n.node || n.name));
   });
   return out.join(',');
 }
