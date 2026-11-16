@@ -153,11 +153,19 @@ def serving(self, port=8443, path='/api/health'):
     lsn.bind(('127.0.0.1', port))
     lsn.listen(128)
     srv = _Serving(lsn)
+    on = False
     for _ in range(30):
         st, h = self.call('GET', path)
-        if (h.get('certlogin') or {}).get('ready') or not (h.get('certlogin') or {}).get('on'):
+        on = bool((h.get('certlogin') or {}).get('on'))
+        if (h.get('certlogin') or {}).get('ready') or not on:
             break
         time.sleep(0.5)
+    # ...and this node's published state says so (cl_tick, every 15 s): until then a part
+    # switched on is refused - "port 8443 is used by python3" (this very listener).
+    for _ in range(40 if on else 0):
+        if self.py('print(json.dumps(bool(E.cl_node_state(st, E.node_name()).get("listening"))))'):
+            break
+        time.sleep(1)
     return srv
 
 
