@@ -66187,6 +66187,122 @@
   "z_418": {
    "source": "no job is taken",
    "text": "žádná úloha není přijata"
+  },
+  "z_419": {
+   "source": "the agent cannot do it this way",
+   "text": "agent to takhle udělat nemůže"
+  },
+  "z_420": {
+   "source": "nothing to judge yet",
+   "text": "zatím není co posoudit"
+  },
+  "z_421": {
+   "source": "a join with a wrong code was refused",
+   "text": "připojení se špatným kódem bylo odmítnuto"
+  },
+  "z_422": {
+   "source": "a fingerprint that is not the agent's was given to confirm it",
+   "text": "k potvrzení byl zadán otisk, který agentovi nepatří"
+  },
+  "z_423": {
+   "source": "passive - acme connects to the agent",
+   "text": "pasivní – acme se připojuje k agentovi"
+  },
+  "z_424": {
+   "source": "active - the agent connects to acme",
+   "text": "aktivní – agent se připojuje k acme"
+  },
+  "z_425": {
+   "source": "queued in acme's database; the agent takes it at its next poll (either node)",
+   "text": "ve frontě v databázi acme; agent si ji vyzvedne při příštím dotazu (na kterémkoli uzlu)"
+  },
+  "z_426": {
+   "source": "with acme's command key (Ed25519): its time, a nonce never used, the agent's id - a replay or a job for another agent is refused",
+   "text": "příkazovým klíčem acme (Ed25519): její čas, nikdy nepoužitá nonce, ID agenta – opakovaná úloha nebo úloha pro jiného agenta se odmítne"
+  },
+  "z_427": {
+   "source": "TLS 1.3, certificates both ways from acme's agent authority, pinned",
+   "text": "TLS 1.3, certifikáty na obou stranách od autority agentů acme, připnuté"
+  },
+  "z_428": {
+   "source": "Checked by",
+   "text": "Kontroluje"
+  },
+  "z_429": {
+   "source": "the agent's root side: the signature again, then every file, owner, mode, command and script against its policy - all of it or nothing",
+   "text": "rootovská část agenta: znovu podpis, pak každý soubor, vlastníka, práva, příkaz a skript podle své politiky – všechno, nebo nic"
+  },
+  "z_430": {
+   "source": "Names in the CSR",
+   "text": "Jména v CSR"
+  },
+  "z_431": {
+   "source": "Kept",
+   "text": "Uložen"
+  },
+  "z_432": {
+   "source": "by root on the server (/var/lib/acme-agent-root/keys, 0600) until its certificate comes; put into the files below with it",
+   "text": "rootem na serveru (/var/lib/acme-agent-root/keys, 0600), dokud nepřijde jeho certifikát; s ním se vloží do souborů níže"
+  },
+  "z_433": {
+   "source": "sealed to the agent (X25519 + AES-256-GCM): only its root side opens it",
+   "text": "zapečetěný pro agenta (X25519 + AES-256-GCM): otevře ho jen jeho rootovská část"
+  },
+  "z_434": {
+   "source": "the key the agent made for this certificate - acme sends only the certificate (and its chain) that goes with it",
+   "text": "klíč, který agent pro tento certifikát vytvořil – acme posílá jen certifikát (a jeho řetězec), který k němu patří"
+  },
+  "z_435": {
+   "source": "left as it is when this certificate is there already",
+   "text": "ponechá se, jak je, když tam tento certifikát už je"
+  },
+  "z_436": {
+   "source": "no shell: a unit's verb (systemctl)",
+   "text": "bez shellu: akce jednotky (systemctl)"
+  },
+  "z_437": {
+   "source": "no shell: a fixed command line",
+   "text": "bez shellu: pevný příkazový řádek"
+  },
+  "z_438": {
+   "source": "no shell: alternatives, the first that works",
+   "text": "bez shellu: alternativy, první, která projde"
+  },
+  "z_439": {
+   "source": "no shell: a script, its SHA-256 checked when it runs",
+   "text": "bez shellu: skript, jehož SHA-256 se ověří při spuštění"
+  },
+  "z_440": {
+   "source": "a dated copy of each file replaced",
+   "text": "kopie každého nahrazeného souboru s datem"
+  },
+  "z_441": {
+   "source": "a copy a day",
+   "text": "jedna kopie denně"
+  },
+  "z_442": {
+   "source": "one .bak copy",
+   "text": "jedna kopie .bak"
+  },
+  "z_443": {
+   "source": "dated copies in .acme-backup",
+   "text": "kopie s datem v .acme-backup"
+  },
+  "z_444": {
+   "source": "no copy",
+   "text": "žádná kopie"
+  },
+  "z_445": {
+   "source": "On the server, all of it at once: a file the same (SHA-256, owner, mode) is left alone - all the same and nothing pending, nothing is run; a test, script or reload failing puts every file back",
+   "text": "Na serveru všechno najednou: stejný soubor (SHA-256, vlastník, práva) se nechá být – když je všechno stejné a nic nečeká, nic se nespustí; selhání testu, skriptu nebo reloadu vrátí všechny soubory zpět"
+  },
+  "z_446": {
+   "source": "the agent made no key",
+   "text": "agent nevytvořil žádný klíč"
+  },
+  "z_447": {
+   "source": "the agent refused",
+   "text": "agent odmítl"
   }
  },
  "patterns": {
@@ -91773,6 +91889,198 @@
   "pz_71": {
    "source": "a connection from {0}, not among `allow from`",
    "text": "spojení z {0}, které není mezi `allow from`"
+  },
+  "pz_72": {
+   "source": "{0} test from here",
+   "text": "{0} test odsud"
+  },
+  "pz_73": {
+   "source": "{0} tests from here",
+   "text": "{0} {0:test|testy|testů} odsud"
+  },
+  "pz_74": {
+   "source": "{0} connection",
+   "text": "{0} spojení"
+  },
+  "pz_75": {
+   "source": "{0} connections",
+   "text": "{0} spojení"
+  },
+  "pz_76": {
+   "source": "the agent authority was made (target agents): SHA-256 {0}",
+   "text": "autorita agentů byla vytvořena (agenti cílů): SHA-256 {0}"
+  },
+  "pz_77": {
+   "source": "the agent of target {0}: {1}",
+   "text": "agent cíle {0}: {1}"
+  },
+  "pz_78": {
+   "source": "the agent of target {0} asks to join ({1}, key {2}…) - its fingerprint is confirmed on the target's card",
+   "text": "agent cíle {0} žádá o připojení ({1}, klíč {2}…) – jeho otisk se potvrzuje na kartě cíle"
+  },
+  "pz_79": {
+   "source": "the agent of target {0} was confirmed by {1} (key {2}…) - its certificate is valid until {3}",
+   "text": "agenta cíle {0} potvrdil {1} (klíč {2}…) – jeho certifikát platí do {3}"
+  },
+  "pz_80": {
+   "source": "the agent of target {0} joined acme ({1}) - {2}",
+   "text": "agent cíle {0} se připojil k acme ({1}) – {2}"
+  },
+  "pz_81": {
+   "source": "the agent of target {0} is heard from again",
+   "text": "agent cíle {0} se znovu ozval"
+  },
+  "pz_82": {
+   "source": "the policy of the agent of target {0} blocks a deployment: {1} - allow it on the server ({2})",
+   "text": "politika agenta cíle {0} blokuje nasazení: {1} – povolte to na serveru ({2})"
+  },
+  "pz_83": {
+   "source": "the policy of the agent of target {0} changed on the target ({1}… → {2}…)",
+   "text": "politika agenta cíle {0} se na cíli změnila ({1}… → {2}…)"
+  },
+  "pz_84": {
+   "source": "the certificate of the agent of target {0} was renewed (by {1}) - valid until {2}",
+   "text": "certifikát agenta cíle {0} byl obnoven (kdo: {1}) – platí do {2}"
+  },
+  "pz_85": {
+   "source": "the agent of target {0} was not updated to {1}: {2}",
+   "text": "agent cíle {0} nebyl aktualizován na {1}: {2}"
+  },
+  "pz_86": {
+   "source": "the agent of target {0} was updated to {1} by {2}",
+   "text": "agenta cíle {0} aktualizoval na {1} {2}"
+  },
+  "pz_87": {
+   "source": "the agent of target {0} was forgotten by {1} - it is no longer let in (acme-agent forget on the target takes its side away)",
+   "text": "agenta cíle {0} zapomněl {1} – už nebude vpuštěn (jeho stranu na cíli odstraní acme-agent forget)"
+  },
+  "pz_88": {
+   "source": "the agent of target {0} has not been heard from since {1}",
+   "text": "agent cíle {0} se neozval od {1}"
+  },
+  "pz_89": {
+   "source": "the certificate of the agent of target {0} ends {1}",
+   "text": "certifikát agenta cíle {0} končí {1}"
+  },
+  "pz_90": {
+   "source": "the certificate of the agent of target {0} ended {1}",
+   "text": "certifikát agenta cíle {0} skončil {1}"
+  },
+  "pz_91": {
+   "source": "The agent makes a CSR of the key in use on {0} (Keep the key; a new {1} key when there is none) - the key never leaves that server",
+   "text": "Agent vytvoří CSR z používaného klíče na {0} (Ponechat klíč; nový klíč {1}, když žádný není) – klíč ten server nikdy neopustí"
+  },
+  "pz_92": {
+   "source": "Before the files, the agent runs {0}",
+   "text": "Před soubory agent spustí {0}"
+  },
+  "pz_93": {
+   "source": "The agent tests {0}",
+   "text": "Agent testuje {0}"
+  },
+  "pz_94": {
+   "source": "The agent reloads {0}",
+   "text": "Agent znovu načte {0}"
+  },
+  "pz_95": {
+   "source": "After it, the agent runs {0}",
+   "text": "Potom agent spustí {0}"
+  },
+  "pz_96": {
+   "source": "written in the deployment ({0}) - allowed by its SHA-256",
+   "text": "napsaný v nasazení ({0}) – povolený podle svého SHA-256"
+  },
+  "pz_97": {
+   "source": "The agent tests what {0} serves, from {1}",
+   "text": "Agent testuje, co podává {0}, z {1}"
+  },
+  "pz_98": {
+   "source": "The agent connects to {0} for acme ({1})",
+   "text": "Agent se pro acme připojí k {0} ({1})"
+  },
+  "pz_99": {
+   "source": "a dated copy of each file replaced, the newest {0} kept",
+   "text": "kopie každého nahrazeného souboru s datem, ponechá se {0} nejnovějších"
+  },
+  "pz_100": {
+   "source": "a copy a day, the newest {0} kept",
+   "text": "jedna kopie denně, ponechá se {0} nejnovějších"
+  },
+  "pz_101": {
+   "source": "dated copies in .acme-backup, the newest {0} kept",
+   "text": "kopie s datem v .acme-backup, ponechá se {0} nejnovějších"
+  },
+  "pz_102": {
+   "source": "the policy: {0}",
+   "text": "politika: {0}"
+  },
+  "pz_103": {
+   "source": "allow it on the server (as root): {0}",
+   "text": "povolte to na serveru (jako root): {0}"
+  },
+  "pz_104": {
+   "source": "{0} file written, reloaded on {1}",
+   "text": "{0} soubor zapsán, znovu načteno na {1}"
+  },
+  "pz_105": {
+   "source": "{0} files written, reloaded on {1}",
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno}, znovu načteno na {1}"
+  },
+  "pz_106": {
+   "source": "{0} file written, the script ran, reloaded on {1}",
+   "text": "{0} soubor zapsán, skript proběhl, znovu načteno na {1}"
+  },
+  "pz_107": {
+   "source": "{0} files written, the script ran, reloaded on {1}",
+   "text": "{0} {0:soubor zapsán|soubory zapsány|souborů zapsáno}, skript proběhl, znovu načteno na {1}"
+  },
+  "pz_108": {
+   "source": "the agent says {0} holds another file than the one sent",
+   "text": "agent říká, že {0} obsahuje jiný soubor, než jaký byl poslán"
+  },
+  "pz_109": {
+   "source": "needed: {0}",
+   "text": "potřeba: {0}"
+  },
+  "pz_110": {
+   "source": "the test passed: the agent allows all of it ({0} file)",
+   "text": "test prošel: agent dovoluje všechno ({0} soubor)"
+  },
+  "pz_111": {
+   "source": "the test passed: the agent allows all of it ({0} files)",
+   "text": "test prošel: agent dovoluje všechno ({0} {0:soubor|soubory|souborů})"
+  },
+  "pz_112": {
+   "source": "{0} is reached through the agent of {1} (allow connect)",
+   "text": "{0} se dosáhne přes agenta cíle {1} (allow connect)"
+  },
+  "pz_113": {
+   "source": "the key and the CSR are made on {0} ({1}) - the key stays there",
+   "text": "klíč i CSR se vytvoří na {0} ({1}) – klíč tam zůstane"
+  },
+  "pz_114": {
+   "source": "a new {0} key and its CSR made by the agent on {1} - the key stays there, for {2}",
+   "text": "nový klíč {0} a jeho CSR vytvořil agent na {1} – klíč tam zůstane, pro {2}"
+  },
+  "pz_115": {
+   "source": "a new {0} key and its CSR made by the agent on {1} (its key {2}…) - the key stays there, for {3}",
+   "text": "nový klíč {0} a jeho CSR vytvořil agent na {1} (jeho klíč {2}…) – klíč tam zůstane, pro {3}"
+  },
+  "pz_116": {
+   "source": "a {0} key (the one in use kept, where there is one) and its CSR made by the agent on {1} - the key stays there, for {2}",
+   "text": "klíč {0} (používaný se ponechá, pokud nějaký je) a jeho CSR vytvořil agent na {1} – klíč tam zůstane, pro {2}"
+  },
+  "pz_117": {
+   "source": "a {0} key (the one in use kept, where there is one) and its CSR made by the agent on {1} (its key {2}…) - the key stays there, for {3}",
+   "text": "klíč {0} (používaný se ponechá, pokud nějaký je) a jeho CSR vytvořil agent na {1} (jeho klíč {2}…) – klíč tam zůstane, pro {3}"
+  },
+  "pz_118": {
+   "source": "a join code for the agent of target {0} was made by {1} (passive, an hour, once)",
+   "text": "kód pro připojení agenta cíle {0} vytvořil {1} (pasivní, na hodinu, jednou)"
+  },
+  "pz_119": {
+   "source": "a join code for the agent of target {0} was made by {1} (active, an hour, once)",
+   "text": "kód pro připojení agenta cíle {0} vytvořil {1} (aktivní, na hodinu, jednou)"
   }
  },
  "rich": {

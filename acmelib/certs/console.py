@@ -330,6 +330,9 @@ def fam_do(con, fam, r):
     if any(f.get('type') == 'sshkey' for f in (_plugin(con, fam, r.get('kind')) or {}).get(
             'fields') or []):
         opts.append(('key', 'Its SSH key (make, public half, your own, forget, try)'))
+    if fam == 'target' and r.get('kind') == 'agent':
+        opts.append(('agent', 'Its acme-agent (state, join code, confirm, ask it, policy, '
+                              'renew, update, forget)'))
     opts.append(('del', 'Delete it'))
     what = con.choose(name, opts, '%s, used by %s' % (r.get('kind'), r.get('used_by') or 0))
     if what == 'show':
@@ -381,6 +384,8 @@ def fam_do(con, fam, r):
         run_tests(con, 'test:' + name, 'the test %s on its certificates' % name)
     elif what == 'key':
         ssh_key(con, word, name)
+    elif what == 'agent':
+        target_agent(con, name)
     elif what == 'del':
         used = int(r.get('used_by') or 0)
         if used and word in ('target', 'check'):
@@ -1061,6 +1066,36 @@ def ssh_key(con, word, name):
         con.live(lambda: (con.cmd(flag, name, 'try'), con.pause()))
     elif what == 'make':
         con.act(flag, name, what, '--yes')
+    else:
+        con.act(flag, name, what)
+
+
+def target_agent(con, name):
+    """The acme-agent of a target "Server with acme-agent" (1.0.116), as its card on the page:
+    acme --target-agent NAME show|code|confirm FP|look|policy|renew|update|forget."""
+    what = con.choose('The acme-agent of %s' % name, [
+        ('show', 'How it stands'), ('code', 'A one-time join code (an hour, once)'),
+        ('confirm', 'Confirm the fingerprint the agent printed'),
+        ('look', 'Ask it now (a passive one: the join, as far as acme drives it)'),
+        ('policy', 'What its policy allows, as it last said'),
+        ('renew', 'Renew its certificate'), ('update', 'Update it to the agent this acme ships'),
+        ('forget', 'Forget it')])
+    if not what:
+        return
+    flag = '--target-agent'
+    if what == 'confirm':
+        fp = con.ask_one('Confirm the agent of %s' % name, 'its fingerprint', '', 'As acme-agent '
+                         'join printed it on the server (sixteen groups of four) - confirm only '
+                         'when it is the same as the one acme shows (How it stands).')
+        if fp:
+            con.act(flag, name, 'confirm', fp)
+    elif what == 'forget':
+        if con.confirm('Forget the agent', 'The agent of %s is no longer let in: its certificate '
+                       'is refused at once. On the server, acme-agent forget takes its side away.'
+                       % name, 'Forget it', danger=True):
+            con.act(flag, name, 'forget', '--yes')
+    elif what in ('look', 'renew', 'update', 'code'):
+        con.live(lambda: (con.cmd(flag, name, what), con.pause()))
     else:
         con.act(flag, name, what)
 

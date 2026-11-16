@@ -833,6 +833,8 @@ def _agent_steps(ev):
         if st is None:
             continue
         st['policy'] = {'ok': it.get('ok'), 'allow': it.get('allow') or ''}
+        if it.get('why'):
+            st['policy']['why'] = it['why']
         pol_items.append(st['policy'])
         out.append(st)
     if op == 'deploy':

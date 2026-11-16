@@ -311,7 +311,8 @@ takes it away (the policy stays; `--purge` takes that and the account too).
   the server, agent not heard from and heard from again; **alerts** for an agent not heard from
   for ten minutes and its certificate ending within seven days.
 * **Command line**: `acme --target-agent NAME show | code | confirm FP | look | policy | renew |
-  update | forget`.
+  update | forget` - `show` says what the card says; the console (`acme`): Targets → the target →
+  *Its acme-agent*.
 * **API**: `GET /api/agents`, `GET /api/agents/one?id=`, `POST /api/agents/{code,look,confirm,
   renew,update,forget}`, `GET /api/agents/package`.
 

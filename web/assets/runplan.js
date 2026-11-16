@@ -528,6 +528,8 @@
     top.appendChild(el('span', '', ok ? 'allowed by the agent’s policy' : (bad ? 'not allowed by the agent’s policy - the agent refuses the job'
       : 'the agent’s policy is not known yet')));
     box.appendChild(top);
+    /* never allowed there, whatever the policy says (a protected place): why - no line */
+    if (bad && p.why) box.appendChild(noI18n(el('div', 'note bad small rp-pol-why', String(p.why))));
     if (!ok && p.allow) {
       var lines = String(p.allow).split('\n').filter(Boolean).map(function (x) { return 'sudo ' + x; }).join('\n');
       box.appendChild(codeBlock(lines, 'rp-shell rp-pol-cmd', bad ? tr('On the server, as root') : tr('It is allowed by')));

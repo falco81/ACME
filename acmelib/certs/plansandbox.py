@@ -1962,11 +1962,16 @@ class PlanContext(object):
         pol = a.get('policy') if isinstance(a.get('policy'), dict) else None
         items = []
 
+        whys = {}
+
         def verdict(part):
             if pol is None:
                 return None, ''
             needs = self.agent_plan_check(pol, part)
-            return (not needs), '\n'.join(n.get('allow') or '' for n in needs)
+            why = '; '.join(str(n.get('what') or '') for n in needs if not n.get('allow'))
+            if why:
+                whys[len(items)] = why      # never allowed there: no line allows it
+            return (not needs), '\n'.join(n.get('allow') for n in needs if n.get('allow'))
 
         for f in args.get('files') or []:
             ok, allow = verdict({'files': [{k: f.get(k) for k in ('path', 'mode', 'owner')}]})
@@ -1984,6 +1989,8 @@ class PlanContext(object):
             ok, allow = verdict({'script': sc})
             items.append({'what': 'script', 'script': {k: sc.get(k) for k in (
                 'mode', 'path', 'interp', 'args')}, 'ok': ok, 'allow': allow})
+        for n, why in whys.items():
+            items[n]['why'] = why
         if op in ('probe', 'connect'):
             ok = None
             m = _agent_program()

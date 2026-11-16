@@ -692,9 +692,16 @@ def look(store, row, by=''):
                 ans = join_answer(store, secret, c, nonce)
                 body = dict(ans, i=c['id'], nonce=nonce)
                 got, peer = _passive_post(store, row, '/v1/join', body, joining=True)
-                if not got.get('ok'):
-                    raise PluginError(_txt(got.get('said')) or 'the agent refused', retry=False)
-                join_take(store, row, st, c, secret, got, tls_key_fp=peer)
+                if not got.get('ok') and st.get('cert_fp') and peer and \
+                        peer == st.get('key_fp'):
+                    # the agent joined before answers (its key the one pinned): nothing joins
+                    # with the code made yet - it is asked how it is (the code waits, its hour)
+                    hello(store, row)
+                else:
+                    if not got.get('ok'):
+                        raise PluginError(_txt(got.get('said')) or 'the agent refused',
+                                          retry=False)
+                    join_take(store, row, st, c, secret, got, tls_key_fp=peer)
             elif st.get('cert_fp'):
                 hello(store, row)
         except (PluginError, OSError, ValueError) as e:

@@ -533,26 +533,27 @@ PATTERNS = [
     (re.compile(r'^certificate (?P<cert>\S.*?) (?P<a>added|changed|deleted|imported) by'),
      {'result': 'ok'}),
 ]
-# the targets with acme-agent (1.0.116): action=agent_... target=NAME (isemon, the SIEM)
+# the targets with acme-agent (1.0.116): action=agent_... target=NAME (isemon, the SIEM) - a
+# target's name may hold spaces ("web two"): it is matched up to the words after it
 AGENT_PATTERNS = [
-    (re.compile(r'^the policy of the agent of target (?P<target>\S+) blocks a deployment: '
+    (re.compile(r'^the policy of the agent of target (?P<target>.+?) blocks a deployment: '
                 r'(?P<what>.*?) - allow it', re.S),
      {'action': 'agent_policy_blocks', 'result': 'failed'}),
-    (re.compile(r'^the policy of the agent of target (?P<target>\S+) changed on the target'),
+    (re.compile(r'^the policy of the agent of target (?P<target>.+?) changed on the target'),
      {'action': 'agent_policy_changed', 'result': 'ok'}),
-    (re.compile(r'^the agent of target (?P<target>\S+) has not been heard from'),
+    (re.compile(r'^the agent of target (?P<target>.+?) has not been heard from'),
      {'action': 'agent_quiet', 'result': 'warn'}),
-    (re.compile(r'^the agent of target (?P<target>\S+) is heard from again'),
+    (re.compile(r'^the agent of target (?P<target>.+?) is heard from again'),
      {'action': 'agent_back', 'result': 'ok'}),
-    (re.compile(r'^the agent of target (?P<target>\S+) was updated to (?P<version>[0-9.]+)'),
+    (re.compile(r'^the agent of target (?P<target>.+?) was updated to (?P<version>[0-9.]+)'),
      {'action': 'agent_updated', 'result': 'ok'}),
-    (re.compile(r'^the agent of target (?P<target>\S+) was not updated to (?P<version>[0-9.]+)'),
+    (re.compile(r'^the agent of target (?P<target>.+?) was not updated to (?P<version>[0-9.]+)'),
      {'action': 'agent_update', 'result': 'failed'}),
-    (re.compile(r'^the certificate of the agent of target (?P<target>\S+) was renewed'),
+    (re.compile(r'^the certificate of the agent of target (?P<target>.+?) was renewed'),
      {'action': 'agent_cert_renewed', 'result': 'ok'}),
-    (re.compile(r'^the agent of target (?P<target>\S+) joined acme'),
+    (re.compile(r'^the agent of target (?P<target>.+?) joined acme'),
      {'action': 'agent_joined', 'result': 'ok'}),
-    (re.compile(r'^the agent of target (?P<target>\S+) was forgotten'),
+    (re.compile(r'^the agent of target (?P<target>.+?) was forgotten'),
      {'action': 'agent_forgotten', 'result': 'ok'}),
 ]
 

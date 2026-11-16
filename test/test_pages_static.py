@@ -780,6 +780,22 @@ class HuntM1UI(unittest.TestCase):
         css = read('web', 'assets', 'certs.css')
         self.assertIn('.msect table.tight td .tag{white-space:normal;overflow-wrap:anywhere', css)
 
+    def test_target_agent_ui_hunt(self):
+        """Target agents (1.0.116 hunt): a preset with no test or reload of its own leaves none of
+        the preset before (UniFi after Dovecot kept "doveconf -n"); the new certificate's
+        wizard tells the deployment's preview the key is made by the agent (csr_from); the
+        Target agents pane does not jump while it is asked (its hero's place kept, the cards
+        below drawn with what came, the last seen drawn at once when opened again)."""
+        df = read('web', 'assets', 'deployfiles.js')
+        self.assertIn("want = Object.assign({test_cmd: '', reload_cmd: ''}, want);", df)
+        self.assertIn("if (ctx.csr_from) body.csr_from = ctx.csr_from;", df)
+        self.assertIn("csr_from: W.d.csr_from || ''})", read('web', 'assets', 'certs.js'))
+        css = read('web', 'assets', 'agents.css')
+        self.assertIn('.ag-hero-host:empty{min-height:166px}', css)
+        self.assertIn('#ag-list:empty,#ag-pkg:empty,#ag-ca:empty{display:none}', css)
+        js = read('web', 'assets', 'agents.js')
+        self.assertIn("if (PANE.last && !hero.firstChild) fill(PANE.last, false);", js)
+
 
 if __name__ == '__main__':
     sys.exit(unittest.main())

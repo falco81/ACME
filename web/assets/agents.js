@@ -147,17 +147,35 @@ function pane(live) {
   var hero = $('ag-hero'), pkg = $('ag-pkg'), list = $('ag-list'), ca = $('ag-ca');
   if (!hero) return;
   var ticket = ++PANE.ticket;
+  function fill(d, how) {
+    liveFill(hero, function (box) { drawHero(box, d); }, how);
+    liveFill(pkg, function (box) { drawPackage(box, d); }, how);
+    liveFill(ca, function (box) { drawAuthority(box, d); }, how);
+    liveFill(list, function (box) { drawList(box, d); }, how);
+    explainWhatWasDrawn(hero.parentNode);
+  }
+  /* opened again: what was seen last drawn at once, then what the daemon says now in its
+     place - the pane does not jump while it is asked (the first time the hero's place is kept
+     by agents.css) */
+  if (PANE.last && !hero.firstChild) fill(PANE.last, false);
+  else if (!hero.firstChild) hero.classList.toggle('on', activeSaid());
   ask('agents').then(function (d) {
     if (ticket !== PANE.ticket) return;
-    liveFill(hero, function (box) { drawHero(box, d); }, live);
-    liveFill(pkg, function (box) { drawPackage(box, d); }, live);
-    liveFill(ca, function (box) { drawAuthority(box, d); }, live);
-    liveFill(list, function (box) { drawList(box, d); }, live);
-    explainWhatWasDrawn(hero.parentNode);
+    var again = !!PANE.last && !!hero.firstChild;
+    PANE.last = d;
+    fill(d, live || again);
   }).catch(function (e) {
     clear(hero);
     hero.appendChild(el('p', 'ct-bad', 'The target agents could not be asked: ' + String((e && e.message) || e)));
   });
+}
+/** Active mode as the settings on the page say it (admin.js SETTINGS) - the hero's place
+    kept the height it will have (its addresses' line) while the pane is asked. */
+function activeSaid() {
+  try {
+    var s = (window.SETTINGS && window.SETTINGS.settings || []).filter(function (x) { return x.key === 'certs_agents_active'; })[0];
+    return !!(s && Number(s.value));
+  } catch (e) { return false; }
 }
 function drawHero(box, d) {
   var on = !!d.active, listening = d.nginx && Number(d.nginx.port || 0) > 0;
@@ -801,7 +819,9 @@ function wizard(row, a0, after) {
     }
     function tick(now) {
       if (me !== gen || !host.isConnected) return;
-      var p = (a.mode === 'passive' && !a.joined) || (a.pending && a.pending.confirmed && a.mode === 'passive')
+      /* a passive agent is reached by acme (look) - joining again too, where the agent joined
+         before is still the target's until the new one is confirmed */
+      var p = a.mode === 'passive'
         ? ask('agents/look', {id: row.id}, 60).then(function (x) { return x.agent; })
         : ask('agents/one?id=' + encodeURIComponent(row.id));
       p.then(function (x) {
@@ -852,6 +872,8 @@ function needs(d) {
     if (i.label) line.appendChild(el('span', 'ag-need-k', String(i.label)));
     line.appendChild(mono(String(i.what || '')));
     w.appendChild(line);
+    /* never allowed there, whatever the policy says (a protected place): why, and no line */
+    if (i.ok === false && i.why) w.appendChild(data('div', 'note bad small ag-need-why', String(i.why)));
     if (i.ok !== true && i.allow) w.appendChild(cmdBox('sudo ' + String(i.allow).split('\n').join('\nsudo '), 'small'));
     r.appendChild(w);
     box.appendChild(r);

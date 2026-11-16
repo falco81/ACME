@@ -95,6 +95,40 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     an event of its own making into Events, the SIEM and the log), `Infinity` / `NaN` and a
     malformed tunnel answer are refusals, not errors, and an agent asking for its certificate
     renewed is heard once an hour (it had one signed, and an event, at every poll).
+- Fixed (unreleased): **target agents, tried end to end as the pages, the command line and the
+  console use them** (`test/test_target_agent_ui.py`, `test/agents_page.js`):
+  - every service preset (nginx, Apache, HAProxy, Postfix, Tomcat...) on an agent target failed -
+    its form's preview with "the request is not in the shape this takes", its deployment with a
+    TypeError (the SSH target's preset files were taken as a method of the agent's);
+  - the new certificate's wizard with *Key made by the agent* showed the key file as a file acme
+    sends and a Java keystore as allowed: its preview now knows the key is made there (the files
+    that hold it marked, a format the agent cannot make it in refused); what the agent cannot do
+    at all (a line of a shell - the Kubernetes preset) is a problem of the form, and its policy
+    card no longer says "allows all of it" for that, nor for a form with no file yet;
+  - choosing a preset with no test of its own (UniFi, Tomcat...) kept the test of the one chosen
+    before ("doveconf -n") - every target with files and presets;
+  - joining an agent again in the wizard waited forever for a passive agent (acme never reached
+    it), and an active one was said to have joined before it had taken its certificate;
+  - *Ask it now* on a passive agent with a join code made and not used (Join again… closed)
+    answered "not here" for that code's hour instead of asking the agent;
+  - an active agent's policy stays known: asked once it is heard from (just joined, acme started
+    again) - its deployments' forms judged nothing until somebody pressed *Ask it now*;
+  - `acme --target-agent NAME policy` left out `allow probe ...`; `show` says what the card says
+    (its address, system, a join code waiting, tests from there, connections, updates, a newer
+    agent, the policy blocking with its lines, the keys made there) with "1 folder", not "1
+    folders"; the console has the agent's menu on such a target;
+  - What happens of a key made there showed a made-up fingerprint (0000…); the job of a key made
+    there said it in the agent's words ("made here - it stays on this machine");
+  - a file the agent never writes whatever its policy says (under `/usr/lib`, `/etc/sudoers.d`...)
+    was shown with "sudo <the reason>" to copy as if it were a command: now the reason, and no
+    line (the UniFi preset's keystore in `/usr/lib/unifi` is such a file);
+  - the agents' events of a target with a space in its name lost their `target` for isemon / the
+    SIEM;
+  - the agents' port could be set to a port acme already serves (its API, the sign-in with a
+    certificate, the gate for SSH): nginx on every node, or the daemon, could not listen - now
+    refused as the certificate sign-in's port is, both ways;
+  - Settings → Target agents no longer jumps while it is asked; Czech for the agents' events and
+    alerts, "tests from here", "connections", and "vytváří 2 klíče" (was "2 klíčů").
 
 ## 1.0.115 - 2026-11-16
 

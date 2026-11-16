@@ -2,6 +2,11 @@
    the database agent's (acme.css: dbs-*, dbw-*). Colours only from the theme's variables. */
 .ag-ic{display:inline-flex;align-items:center;justify-content:center;flex:none;line-height:0}
 .ag-hero-host{margin:0 0 16px}
+/* its place kept while the pane is first asked (the hero is about this high): nothing below jumps */
+.ag-hero-host:empty{min-height:166px}
+.ag-hero-host.on:empty{min-height:186px}
+/* the cards below come with what is asked - not drawn empty first */
+#ag-list:empty,#ag-pkg:empty,#ag-ca:empty{display:none}
 .ag-hero{align-items:flex-start;margin:0 0 10px}
 .ag-hero .dbs-state{align-self:center}
 .ag-hero-modes{display:flex;flex-direction:column;gap:6px;margin-top:10px}
@@ -195,6 +200,8 @@
 .ag-needs-key .ag-ic{color:var(--warn)}
 
 @media (max-width:760px){
+  .ag-hero-host:empty{min-height:338px}
+  .ag-hero-host.on:empty{min-height:368px}
   .ag-hero .dbs-hero-w{flex:1 1 calc(100% - 64px)}
   .ag-hero .dbs-state{margin-left:60px}
   .ag-pkg{flex-wrap:wrap}

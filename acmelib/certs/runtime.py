@@ -718,7 +718,9 @@ class RunContext(base.Context):
         try:
             m.plan_check(policy, full)
         except m.Refused as e:
-            return e.needs or [{'kind': 'other', 'what': str(e), 'allow': str(e)}]
+            # refused whatever the policy says (a protected place, a file a test runs from):
+            # its words, and no `acme-agent allow` line - there is none
+            return e.needs or [{'kind': 'other', 'what': str(e), 'allow': ''}]
         return []
 
     # ---- acme's own pages (targets/appliance.py) ----------------------------------------

@@ -389,7 +389,8 @@ class AgentTarget(Base):
         self.remember(bundle, options)
         self.done_pending()
         self._written(options, [f['path'] for f in r['files']])
-        host = got.get('host') or self.c('host') or self.ident()
+        host = got.get('host') or self.c('host') or getattr(self.ctx, 'target_name', '') or \
+            self.ident()
         if got.get('unchanged'):
             return 'unchanged: every file on %s holds it already (the same SHA-256) - nothing ' \
                    'replaced, nothing run' % host
@@ -480,9 +481,13 @@ class AgentTarget(Base):
                                      'allow': allow_guess})
                 return
             needs = check(pol, part)
-            out['items'].append({'kind': kind, 'label': label, 'what': what, 'ok': not needs,
-                                 'allow': '\n'.join(n['allow'] for n in needs) if needs
-                                 else allow_guess})
+            it = {'kind': kind, 'label': label, 'what': what, 'ok': not needs,
+                  'allow': '\n'.join(n['allow'] for n in needs if n.get('allow')) if needs
+                  else allow_guess}
+            why = '; '.join(str(n.get('what') or '') for n in needs if not n.get('allow'))
+            if why:
+                it['why'] = why             # never allowed there (no line allows it)
+            out['items'].append(it)
         for f in args['files']:
             u = f['owner'] or 'root:root'
             d = f['path'].rsplit('/', 1)[0] or '/'

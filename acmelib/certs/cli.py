@@ -1842,22 +1842,58 @@ class Cli(object):
                 row['name'], _when(info.get('policy_at')), str(pol.get('hash'))[:16]))
             print('\n'.join(m.policy_lines(dict(m.parse_policy(''), **{
                 k: pol.get(k) for k in ('files', 'units', 'tests', 'scripts', 'script_hashes',
-                                        'from', 'self_update', 'connect', 'limits')
+                                        'from', 'self_update', 'connect', 'probe',
+                                        'probe_local', 'limits')
                 if pol.get(k) is not None}))) or '# nothing is allowed')
             return 0
+        def many(n, one, more):
+            return '%d %s' % (n, one if n == 1 else more)
+        conf = G.target_conf(row)
         rows = [('target', row['name']), ('mode', info['mode']), ('state', info['state']),
                 ('agent', info.get('agent_id') or '-'), ('version', info.get('version') or '-'),
-                ('host', info.get('agent_host') or info.get('host') or '-'),
-                ('last heard', _when(info.get('last_seen'))),
-                ('certificate ends', _when(info.get('cert_end'))),
-                ('key', G.fp_words(info.get('key_fp')) if info.get('key_fp') else '-')]
+                ('host', info.get('agent_host') or info.get('host') or '-')]
+        # as the card on the page says it (1.0.116 parity): where acme reaches it, the system
+        if info['mode'] == 'passive' and conf.get('host'):
+            rows.append(('address', '%s:%s' % (conf['host'], conf.get('port') or G.PASSIVE_PORT)))
+        if info.get('via'):
+            rows.append(('reached through', info['via']))
+        if info.get('os'):
+            rows.append(('system', info['os']))
+        rows += [('last heard', _when(info.get('last_seen'))),
+                 ('certificate ends', _when(info.get('cert_end'))),
+                 ('key', G.fp_words(info.get('key_fp')) if info.get('key_fp') else '-')]
         if info.get('pending'):
             rows.append(('to confirm', info['pending']['fp_words'] +
                          (' (confirmed)' if info['pending']['confirmed'] else '')))
+        if info.get('code_until'):
+            rows.append(('join code', 'waiting to be used, until %s' % _when(info['code_until'])))
         if info.get('policy_summary'):
             ps = info['policy_summary']
-            rows.append(('policy', '%d folders, %d units, %d tests, %d scripts' % (
-                ps['files'], ps['units'], ps['tests'], ps['scripts'])))
+            words = [many(ps['files'], 'folder', 'folders'), many(ps['units'], 'unit', 'units'),
+                     many(ps['tests'], 'test', 'tests'), many(ps['scripts'], 'script', 'scripts')]
+            if ps.get('probes'):
+                words.append(many(ps['probes'], 'test from there', 'tests from there'))
+            if ps.get('connects'):
+                words.append(many(ps['connects'], 'connection', 'connections'))
+            if ps.get('self_update'):
+                words.append('updates from acme')
+            if ps.get('problems'):
+                words.append(many(ps['problems'], 'line not read', 'lines not read'))
+            rows.append(('policy', ', '.join(words)))
+        elif info.get('joined'):
+            rows.append(('policy', 'not said yet (look asks it)'))
+        upd = info.get('update') or {}
+        if upd.get('newer'):
+            rows.append(('newer agent', '%s offered - %s' % (upd.get('offered'), (
+                'acme --target-agent %s update' % row['name']) if upd.get('allowed') else
+                'its policy does not let acme send it (acme-agent allow self-update)')))
+        if info.get('blocked'):
+            b = info['blocked']
+            rows.append(('policy blocked', '%s (%s)' % (b.get('what') or '?', _when(b.get('at')))))
+            for x in b.get('allow') or []:
+                rows.append(('  allow it', 'sudo ' + x))
+        if info.get('keys_of'):
+            rows.append(('keys made there', ', '.join(info['keys_of'])))
         if info.get('last_error'):
             rows.append(('last error', info['last_error']))
         if info.get('said'):

@@ -50,7 +50,7 @@ const path = require('path');
     'A newer agent is offered', 'Update the agent', 'Its policy blocked the last deployment', 'Keys made on this server',
     'Make a certificate with its key made here', 'Tests from here', 'Connections for acme', 'Updates from acme',
     'newer agent offered', 'its policy blocks a deployment', 'allowed by the agent’s policy',
-    'not allowed by the agent’s policy - the agent refuses the job'];
+    'not allowed by the agent’s policy - the agent refuses the job', 'the agent cannot do it this way', 'nothing to judge yet'];
   const out = {checks: {}, errors: []};
   const browser = await chromium.launch();
   const esc = (t) => t.replace(/<\/script/g, '<\\/script');
@@ -110,9 +110,12 @@ const path = require('path');
       if (lang === 'cs') {
         const all = JSON.parse(read('lang/cs.json'));
         const pk = {code: 'cs', strings: {}, patterns: [], rich: {}};
+        const same = {};
         for (const part of ['strings', 'patterns', 'rich']) {
           for (const e of Object.values(all[part] || {})) {
-            if (!e || !e.source || !e.text || e.text === e.source) continue;
+            if (!e || !e.source || !e.text) continue;
+            /* the same in Czech ("Server", "Agent"): translated as it is */
+            if (e.text === e.source) { same[fold(e.source)] = true; continue; }
             if (part === 'patterns') pk.patterns.push([e.source, e.text]); else pk[part][e.source] = e.text;
           }
         }
@@ -120,6 +123,7 @@ const path = require('path');
           if (/\{\d/.test(k)) pk.patterns.push([k, extra[k]]); else pk.strings[k] = extra[k];
         }
         packStrings = {};
+        for (const k of Object.keys(same)) packStrings[k] = k;
         for (const k of Object.keys(pk.strings)) packStrings[fold(k)] = pk.strings[k];
         pack = JSON.stringify(pk).replace(/</g, '\\u003c');
       }
@@ -279,6 +283,30 @@ const path = require('path');
         return m.querySelectorAll('.dbw-rail li.done').length === 2 && !!m.querySelector('.ag-confirm') && m.querySelectorAll('.ag-fp-g').length === 16;
       });
       if (shots) await page.locator('#modal-box').screenshot({path: path.join(shots, 'wizard3-' + lang + width + '.png')});
+      // (hunt 1.0.116) an active agent confirmed but its certificate not taken yet: "handing it
+      // its certificate", not "has joined" - until it asks (the join no longer pending)
+      await page.evaluate(() => { SENT.length = 0; ONE.mode = 'active'; ONE.joined = true; ONE.code_until = null;
+        ONE.pending = {fp: '3f9a1c0e77d24b5a9e31c2f4d8a6b0e1f2c3d4e5a6b7c8d9e0f1a2b3c4d5e6f7', host: 'web1', version: '1.0.116', confirmed: true}; });
+      await page.waitForTimeout(2900);
+      out.checks[tag + 'wizard_active_handing'] = await page.evaluate(() => {
+        var m = document.getElementById('modal-body');
+        return !!m.querySelector('.ag-waiting') && !m.querySelector('.ag-done') && SENT.length > 0;
+      });
+      await page.evaluate(() => { ONE.pending = null; });
+      await page.waitForTimeout(2900);
+      out.checks[tag + 'wizard_active_done'] = await page.evaluate(() => !!document.querySelector('#modal-body .ag-done'));
+      await page.evaluate(() => closeModal());
+      // (hunt 1.0.116) a passive agent joined again: the wizard has acme reach it (agents/look) -
+      // the agent joined before is still the target's until the new one is confirmed
+      await page.evaluate(() => { SENT.length = 0; ONE.mode = 'passive'; ONE.joined = true; ONE.pending = null; ONE.code_until = Date.now() / 1000 + 3600;
+        ACME_AGENTS.wizard({id: 1, name: 'web1'}, ONE, function () {}); });
+      await page.waitForTimeout(300);
+      await page.locator('#modal-foot .btn.primary').click();
+      await page.waitForTimeout(300);
+      await page.locator('#modal-foot .btn.primary').click();
+      await page.waitForTimeout(1200);
+      out.checks[tag + 'wizard_rejoin_looks'] = await page.evaluate(() => SENT.some(function (x) { return x[0] === 'agents/look' && x[1].id === 1; })
+        && !document.querySelector('#modal-body .ag-done'));
       await page.evaluate(() => { ONE.pending = null; ONE.joined = true; ONE.state = 'answers'; ONE.policy = VIEW.rows && ONE.policy || null; ONE.code_until = null; });
       await page.evaluate(() => closeModal());
       // ---- a deployment's needs
@@ -308,6 +336,24 @@ const path = require('path');
           && n.querySelector('.ag-need.bad .ag-cmd pre').textContent === 'sudo acme-agent allow probe local';
       });
       if (shots) await page.locator('#needs-host .ag-needs').screenshot({path: path.join(shots, 'needs-key-' + lang + width + '.png')});
+      // (hunt 1.0.116) what the agent cannot do at all (a line of a shell, a key it makes in a
+      // keystore) is not "allows all of it"; nor is a form with no file yet
+      await page.evaluate(() => {
+        var h = document.getElementById('needs-host'); h.innerHTML = '';
+        h.appendChild(ACME_AGENTS.needs({state: 'answers', items: [], error: '"kubectl x | kubectl apply -f -" is a line of a shell: the agent runs no shell'}));
+        h.appendChild(ACME_AGENTS.needs({state: 'answers', items: []}));
+        h.appendChild(ACME_AGENTS.needs({state: 'answers', items: [{kind: 'file', label: 'file', what: '/usr/lib/x/a.pem  0644 root:root', ok: false, allow: '',
+          why: '/usr/lib/x/a.pem is under /usr/lib - a file there gives root to whoever writes it; acme-agent never writes there, whatever the policy says'}]}));
+      });
+      out.checks[tag + 'needs_never'] = await page.evaluate(() => {
+        var n = document.querySelectorAll('#needs-host .ag-needs')[2];
+        return !!n.querySelector('.ag-need.bad .ag-need-why') && !n.querySelector('.ag-cmd');
+      });
+      out.checks[tag + 'needs_error_empty'] = await page.evaluate(() => {
+        var n = document.querySelectorAll('#needs-host .ag-needs');
+        return n.length === 3 && !!n[0].querySelector('.ag-badge.bad') && !n[0].querySelector('.ag-badge.ok')
+          && !!n[1].querySelector('.ag-badge.dim') && !n[1].querySelector('.ag-badge.ok');
+      });
       // ---- What happens of it (runplan.js): each item of the agent's job judged by its policy
       await page.evaluate(() => { document.getElementById('needs-host').hidden = true; ACME_RUNPLAN.open({id: 7, name: 'www.example.com'}); });
       await page.waitForTimeout(500);

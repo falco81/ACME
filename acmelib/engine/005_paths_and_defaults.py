@@ -2187,6 +2187,14 @@ def check_setting(key, value):
         if int(got) == cl:
             raise BadSetting('api_port: %s is the port of the sign-in with a certificate '
                              '(certlogin_port), where nginx listens - choose another one' % got)
+        try:
+            ag = int(CONFIG.get('certs_agents_port') or 8444) \
+                if int(CONFIG.get('certs_agents_active') or 0) else 0
+        except (TypeError, ValueError):
+            ag = 0
+        if int(got) == ag:
+            raise BadSetting('api_port: %s is the agents\' port (certs_agents_port), where '
+                             'nginx listens - choose another one' % got)
     if key in ('dns_port', 'snmp_port'):
         # the other way round too (1.0.80): the API took the port first and the DNS server
         # (or SNMP) could not listen on it
@@ -2320,8 +2328,27 @@ def check_setting(key, value):
         # The certificate's own port (1.0.100): never one nginx or acme already serves
         # something else on - nginx would ask every visitor there for a certificate.
         taken = certlogin_port_taken(int(got))
+        try:
+            if not taken and int(CONFIG.get('certs_agents_active') or 0) and \
+                    int(got) == int(CONFIG.get('certs_agents_port') or 8444):
+                taken = 'the agents\' port (certs_agents_port)'
+        except (TypeError, ValueError):
+            pass
         if taken:
             raise BadSetting('certlogin_port: %s is %s - choose a port of its own (8443)'
+                             % (got, taken))
+    if key == 'certs_agents_port':
+        # The agents' port (1.0.116): nginx listens there on every node - never a port acme or
+        # nginx serves something else on (acme's API: the daemon or nginx could not listen,
+        # and the pages went with it)
+        taken = certlogin_port_taken(int(got))
+        try:
+            if not taken and int(got) == int(CONFIG.get('certlogin_port') or 8443):
+                taken = 'the sign-in with a certificate (certlogin_port)'
+        except (TypeError, ValueError):
+            pass
+        if taken:
+            raise BadSetting('certs_agents_port: %s is %s - choose a port of its own (8444)'
                              % (got, taken))
     if key in ('admin_krb_realm', 'portal_krb_realm') and str(got).strip():
         # A realm as AD names it (1.0.99): CORP.EXAMPLE - kept in capitals, as tickets say it.
