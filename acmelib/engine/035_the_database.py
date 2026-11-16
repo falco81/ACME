@@ -23,11 +23,30 @@ DB_TROUBLE_KINDS = ('OperationalError', 'QueryCanceled', 'QueryCanceledError', '
                     'DeadlockDetected', 'InterfaceError', 'InternalError', 'OutOfMemory',
                     'TooManyConnections', 'ConnectionFailure', 'ConnectionException')
 DB_TROUBLE_WORDS = ('database is locked', 'disk is full', 'disk i/o error', 'no space left')
+DB_TROUBLE_SQLITE_WORDS = ('database is locked', 'database table is locked', 'unable to open',
+                           'readonly database', 'malformed', 'not a database', 'interrupted')
+# Connections refused, lost or too many; the server going down; a disk full; a
+# lock or a statement that ran out; a deadlock (MariaDB's error numbers).
+DB_TROUBLE_MYSQL_CODES = frozenset((1021, 1040, 1053, 1203, 1205, 1213, 1927, 1969,
+                                    2002, 2003, 2005, 2006, 2013, 2055, 3024))
 
 
 # When the daemon last could not use the database, and why (1.0.186) - for the
 # alerts, through each node's health row.
 DB_TROUBLE_SEEN = {'at': 0.0, 'said': ''}
+
+
+def note_db_trouble(e):
+    """The database's own trouble written down for the health row (1.0.115):
+    since the RADIUS server went (ac9880c) nothing wrote DB_TROUBLE_SEEN, and the
+    alert, acmeDbTrouble and the Zabbix trigger never said a word. Called by
+    Db.query for every statement that fails with the database's own trouble;
+    it ages out of the health row 5 minutes after the last one."""
+    try:
+        said = str(e).split('\n')[0].strip()[:200] or type(e).__name__
+    except Exception:                                   # noqa: BLE001
+        said = type(e).__name__
+    DB_TROUBLE_SEEN.update(at=time.time(), said=said)
 
 
 def db_trouble(e):
@@ -37,9 +56,21 @@ def db_trouble(e):
     said = str(e).lower()
     if 'out of range' in said:
         return False                # a value too big: the request's, said as such
-    return bool(names & set(DB_TROUBLE_KINDS)) and (
-        type(e).__module__.split('.')[0] in ('sqlite3', 'psycopg2', 'pymysql', 'MySQLdb') or
-        any(w in said for w in DB_TROUBLE_WORDS))
+    if not names & set(DB_TROUBLE_KINDS):
+        return False
+    if any(w in said for w in DB_TROUBLE_WORDS):
+        return True
+    module = type(e).__module__.split('.')[0]
+    # Every statement is asked about now (1.0.115), so only the database's own:
+    # SQLite says a statement's own mistakes ("no such column", "duplicate column
+    # name", a syntax error) as OperationalError too, and MariaDB's driver files
+    # most of its numbered errors under it - by the words and the numbers.
+    if module == 'sqlite3':
+        return any(w in said for w in DB_TROUBLE_SQLITE_WORDS)
+    if module in ('pymysql', 'MySQLdb'):
+        code = e.args[0] if getattr(e, 'args', None) else None
+        return isinstance(code, int) and code in DB_TROUBLE_MYSQL_CODES
+    return module == 'psycopg2'
 
 
 SCHEMA_VERSION = 1
@@ -594,6 +625,19 @@ class Db(object):
                                        'server closed the connection'))
 
     def query(self, sql, args=(), fetch=True):
+        try:
+            return self._query(sql, args, fetch)
+        except Exception as e:
+            # For the alerts (1.0.115): the database's own trouble, not the
+            # request's - each statement of the daemon goes through here.
+            try:
+                if not getattr(e, 'acme_not_trouble', False) and db_trouble(e):
+                    note_db_trouble(e)
+            except Exception:                           # noqa: BLE001
+                pass
+            raise
+
+    def _query(self, sql, args=(), fetch=True):
         # While this node is rebuilt from the other, nothing but the rebuild
         # writes (1.0.57): a sign-in or a code written meanwhile took an id
         # the copy then met again, and replication stopped on it for good.
@@ -606,8 +650,10 @@ class Db(object):
                     globals().get('HA_REBUILDER', [None])[0] != threading.get_ident() and \
                     sql.lstrip()[:8].upper().startswith(('INSERT', 'UPDATE', 'DELETE', 'WITH',
                                                          'TRUNCATE', 'REPLACE')):
-                raise DbError('this node is being rebuilt from the other one; try again in a '
-                              'few minutes')
+                e = DbError('this node is being rebuilt from the other one; try again in a '
+                            'few minutes')
+                e.acme_not_trouble = True       # the rebuild's own, not the database's
+                raise e
             if self.conn is None:
                 self.connect()
             try:
