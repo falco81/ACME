@@ -443,6 +443,14 @@ def info(store, row, full=False):
            'active_on': active_on(), 'enabled': row.get('enabled') is None or
            bool(int(row.get('enabled') or 0)), 'shipped_code': shipped_code()}
     out['policy_summary'] = policy_summary(pol)
+    out['update'] = update_facts(st) if joined else None
+    blk = st.get('blocked') if isinstance(st.get('blocked'), dict) else None
+    out['blocked'] = {'at': blk.get('at'), 'what': blk.get('what') or '',
+                      'allow': list(blk.get('allow') or [])} if blk else None
+    out['via'] = str(target_conf(row).get('via') or '')
+    # the certificates whose key its agent makes (phase 3)
+    out['keys_of'] = [r['name'] for r in store.db.rows(
+        'SELECT name FROM certs WHERE csr_from = ? ORDER BY name', (row['name'],))][:50]
     return out
 
 
@@ -453,7 +461,10 @@ def policy_summary(pol):
             'tests': len(pol.get('tests') or []),
             'scripts': len(pol.get('scripts') or []) + len(pol.get('script_hashes') or []),
             'from': len(pol.get('from') or []), 'hash': str(pol.get('hash') or '')[:64],
-            'problems': len(pol.get('problems') or [])}
+            'problems': len(pol.get('problems') or []),
+            'probes': len(pol.get('probe') or []) + (1 if pol.get('probe_local') else 0),
+            'connects': len(pol.get('connect') or []),
+            'self_update': bool(pol.get('self_update'))}
 
 
 def shipped_code():
@@ -835,7 +846,8 @@ def _take(store, tid):
 
 RESULT_KEYS = ('ok', 'said', 'steps', 'files', 'needs', 'refused', 'unchanged', 'policy',
                'policy_hash', 'version', 'code', 'host', 'os', 'enc_pub', 'csr', 'cert_fp',
-               'cert_end', 'rolled_back', 'verified')
+               'cert_end', 'rolled_back', 'verified', 'chain', 'tls', 'cipher', 'kept',
+               'key_fp', 'ms')
 
 
 def clean_result(r):
@@ -843,9 +855,31 @@ def clean_result(r):
     if not isinstance(r, dict):
         return {'ok': False, 'said': 'the agent answered something that is not an object'}
     out = {'ok': bool(r.get('ok'))}
-    for k in ('said', 'version', 'code', 'host', 'os', 'policy_hash'):
+    for k in ('said', 'version', 'code', 'host', 'os', 'policy_hash', 'tls', 'cipher'):
         if r.get(k) is not None:
             out[k] = _txt(r[k], 800 if k == 'said' else 120)
+    # what a probe saw (a chain of DER certificates, base64) and a key made there (its
+    # fingerprint, whether the one in use was kept)
+    if isinstance(r.get('chain'), list):
+        chain = []
+        for c in r['chain'][:10]:
+            try:
+                der = base64.b64decode(str(c), validate=True) if isinstance(c, str) and \
+                    len(c) < 40000 else b''
+            except (ValueError, TypeError):
+                der = b''
+            if der[:1] == b'\x30':
+                chain.append(der)
+        out['chain'] = chain
+    if isinstance(r.get('key_fp'), str) and HEX64.match(r['key_fp']):
+        out['key_fp'] = r['key_fp']
+    if r.get('kept'):
+        out['kept'] = True
+    try:
+        if r.get('ms') is not None:
+            out['ms'] = max(0, int(r['ms']))
+    except (TypeError, ValueError):
+        pass
     for k in ('refused', 'unchanged', 'rolled_back'):
         if r.get(k):
             out[k] = True
@@ -886,8 +920,9 @@ def clean_policy(p):
     def s(v, n=300):
         return _txt(v, n)
     out = {'hash': s(p.get('hash'), 64), 'files': [], 'units': {}, 'tests': [], 'scripts': [],
-           'script_hashes': [], 'from': [], 'connect': [], 'problems': [],
-           'self_update': bool(p.get('self_update')), 'limits': {'files': 20, 'size': 1048576}}
+           'script_hashes': [], 'from': [], 'connect': [], 'probe': [], 'problems': [],
+           'self_update': bool(p.get('self_update')), 'probe_local': bool(p.get('probe_local')),
+           'limits': {'files': 20, 'size': 1048576}}
     for f in (p.get('files') or [])[:200]:
         if isinstance(f, dict) and isinstance(f.get('dir'), str) and f['dir'].startswith('/'):
             try:
@@ -910,6 +945,7 @@ def clean_policy(p):
                             if isinstance(h, str) and HEX64.match(h)]
     out['from'] = [s(x, 60) for x in (p.get('from') or [])[:100]]
     out['connect'] = [s(x, 300) for x in (p.get('connect') or [])[:100]]
+    out['probe'] = [s(x, 300) for x in (p.get('probe') or [])[:100]]
     out['problems'] = [s(x, 300) for x in (p.get('problems') or [])[:20]]
     lim = p.get('limits') if isinstance(p.get('limits'), dict) else {}
     for k in ('files', 'size'):
@@ -965,8 +1001,13 @@ def _passive_post(store, row, path, body, joining=False, timeout=None):
         except (TypeError, ValueError):
             timeout = 30
     st = state(store, row['id'])
-    conn = http.client.HTTPSConnection(host, port, context=_passive_ctx(store, bool(joining)),
-                                       timeout=timeout)
+    via = str(target_conf(row).get('via') or '').strip()
+    if via:
+        conn = _ViaConnection(store, row, via, host, port, _passive_ctx(store, bool(joining)),
+                              timeout)
+    else:
+        conn = http.client.HTTPSConnection(host, port, context=_passive_ctx(store, bool(joining)),
+                                           timeout=timeout)
     try:
         raw = json.dumps(body).encode()
         conn.connect()
@@ -999,6 +1040,55 @@ def _passive_post(store, row, path, body, joining=False, timeout=None):
         raise PluginError('the agent at %s:%d does not answer: %s' % (host, port, e))
     finally:
         conn.close()
+
+
+# ---- a passive agent reached through an SSH connector (phase 3) ---------------------------------
+def ssh_hop(store, row, via):
+    """An SSH session to the connector `via` (Targets → Connector over SSH, or one of the
+    tests') that a passive agent is reached through (ssh -W)."""
+    from acmelib.certs import runtime, store as S
+    from acmelib.plugins.targets._common import ssh_conn
+    fam, crow = 'target', store.db.row("SELECT * FROM cert_targets WHERE name = ? AND kind = "
+                                       "'ssh_connector'", (via,))
+    if not crow:
+        fam, crow = 'check', store.db.row("SELECT * FROM cert_tests WHERE name = ? AND kind = "
+                                          "'ssh_relay'", (via,))
+    if not crow:
+        raise PluginError('there is no connector over SSH called %s - the agent of %s is reached '
+                          'through it' % (via, row['name']), retry=False)
+    if crow.get('enabled') == 0:
+        raise PluginError('the connector %s is switched off' % via, retry=False)
+    ctx = runtime.RunContext(store, None, scope='target:%s' % via, on_hostkey=False)
+    conn = ssh_conn(S.plugin_instance(store, fam, crow, ctx))
+    conn.update(via='', no_keep=True)
+    try:
+        return runtime.SshSession(ctx, conn)
+    except PluginError as e:
+        raise PluginError('signing in to the connector %s: %s' % (via, e))
+
+
+class _ViaConnection(http.client.HTTPSConnection):
+    """The HTTPS connection to a passive agent, opened from an SSH connector's server."""
+
+    def __init__(self, store, row, via, host, port, context, timeout):
+        http.client.HTTPSConnection.__init__(self, host, port, context=context, timeout=timeout)
+        self._hop = (store, row, via)
+        self._session = None
+
+    def connect(self):
+        store, row, via = self._hop
+        self._session = ssh_hop(store, row, via)
+        raw = self._session.tunnel(self.host, self.port, self.timeout or 30)
+        self.sock = self._context.wrap_socket(raw, server_hostname=None)
+
+    def close(self):
+        http.client.HTTPSConnection.close(self)
+        if self._session is not None:
+            try:
+                self._session.close()
+            except Exception:                           # noqa: BLE001
+                pass
+            self._session = None
 
 
 def call(store, row, op, args=None, timeout=900, step=None):
@@ -1044,6 +1134,8 @@ def call(store, row, op, args=None, timeout=900, step=None):
     if got.get('code'):
         st['code_hash'] = _txt(got['code'], 64)
     st['took_ms'] = int((time.time() - t0) * 1000)
+    if op in ('deploy', 'keygen'):
+        _blocked_seen(store, row, st, got, op)
     stale = st.pop('policy_stale', False)
     state_put(store, row['id'], st)
     if stale and op != 'hello':
@@ -1080,6 +1172,24 @@ def _queued(store, row, jid, env, timeout, step=None):
         raise PluginError('the agent did not answer the job in %d s' % timeout)
     finally:
         store.db.run('DELETE FROM meta WHERE k = ?', (k,))
+
+
+def _blocked_seen(store, row, st, got, op):
+    """A deployment (or a key made for one) refused by the agent's policy: said once (an
+    event) and an alert until one goes through."""
+    needs = got.get('needs') or []
+    if not got.get('ok') and needs:
+        what = '; '.join(n.get('what') or '' for n in needs[:4])
+        was = st.get('blocked') if isinstance(st.get('blocked'), dict) else {}
+        st['blocked'] = {'at': time.time(), 'op': op, 'what': _txt(what, 400),
+                         'allow': [_txt(n.get('allow'), 300) for n in needs[:6]]}
+        if was.get('what') != st['blocked']['what']:
+            store.add_event('certificates', 'the policy of the agent of target %s blocks a '
+                            'deployment: %s - allow it on the server (%s)' % (
+                                row['name'], what, '; '.join(st['blocked']['allow'][:2])),
+                            'warn')
+    elif got.get('ok') and st.get('blocked'):
+        st.pop('blocked', None)
 
 
 def _policy_seen(store, row, st, pol):
@@ -1138,6 +1248,187 @@ def renew_cert(store, row, by='the renewer', step=None):
     finally:
         with LOCK:
             BUSY.discard(tid)
+
+
+# ---- through the agent: a test of what is served, a connector (phase 3) ------------------------
+def probe(store, row, host, port, sni='', starttls='', key_want='', timeout=15):
+    """What host:port serves, seen from the agent's server (allow probe ... in its policy):
+    {'chain': [DER...], 'tls', 'cipher', 'whole_chain'} as a test's served() gives it."""
+    to = ('[%s]:%d' % (host, int(port))) if ':' in str(host) else '%s:%d' % (host, int(port))
+    got = call(store, row, 'probe', {'to': to, 'sni': sni or '', 'starttls': starttls or '',
+                                     'key_want': key_want or '', 'timeout': int(timeout or 15)},
+               timeout=max(30, int(timeout or 15) + 15))
+    if not got.get('ok'):
+        needs = got.get('needs') or []
+        raise PluginError('%s%s' % (got.get('said') or 'the agent refused the test',
+                                    (' - on the server: ' + needs[0]['allow']) if needs else ''),
+                          detail='\n'.join(n['allow'] for n in needs) or None,
+                          retry=not needs and not got.get('refused'))
+    if not got.get('chain'):
+        raise PluginError('the agent saw no certificate at %s' % to)
+    return {'chain': list(got['chain']), 'tls': got.get('tls') or '',
+            'cipher': got.get('cipher') or '', 'whole_chain': True, 'alpn': ''}
+
+
+def tunnel(store, row, host, port, timeout=20):
+    """A socket to host:port opened by the agent's server (allow connect ... in its policy) -
+    a passive agent only: acme opens a TLS connection to it (its certificate pinned), the signed
+    job `connect` on it, and the bytes go both ways on that connection."""
+    if mode_of(row) != 'passive':
+        raise PluginError('the agent of %s is active (it connects to acme): a connector through '
+                          'an agent needs a passive one' % row['name'], retry=False)
+    st = state(store, row['id'])
+    if not st.get('cert_fp') or not st.get('agent_id'):
+        raise PluginError('the agent of %s has not joined yet' % row['name'], retry=False)
+    if not (row.get('enabled') is None or int(row.get('enabled') or 0)):
+        raise PluginError('the target %s is switched off' % row['name'], retry=False)
+    to = ('[%s]:%d' % (host, int(port))) if ':' in str(host) else '%s:%d' % (host, int(port))
+    _jid, env = sign_job(store, st['agent_id'], 'connect', {'to': to, 'timeout': int(timeout)})
+    ahost, aport = _hostport(row)
+    via = str(target_conf(row).get('via') or '').strip()
+    hop = None
+    try:
+        if via:
+            hop = ssh_hop(store, row, via)
+            raw = hop.tunnel(ahost, aport, timeout)
+        else:
+            raw = socket.create_connection((ahost, aport), timeout=timeout)
+        tls = _passive_ctx(store).wrap_socket(raw, server_hostname=None)
+        fp = hashlib.sha256(tls.getpeercert(True) or b'').hexdigest()
+        if fp not in (st.get('cert_fp'), st.get('cert_prev_fp')):
+            tls.close()
+            raise PluginError('the agent of %s answers with a certificate that is not the one '
+                              'acme gave it - refused' % row['name'], retry=False)
+        body = json.dumps(env).encode()
+        tls.sendall(b'POST /v1/tunnel HTTP/1.1\r\nHost: acme-agent\r\nContent-Type: '
+                    b'application/json\r\nContent-Length: %d\r\n\r\n' % len(body) + body)
+        head = b''
+        while b'\r\n\r\n' not in head and len(head) < 16384:
+            got = tls.recv(4096)
+            if not got:
+                break
+            head += got
+        line, _, rest = head.partition(b'\r\n')
+        top, _, extra = rest.partition(b'\r\n\r\n')
+        status = int((line.split(b' ') + [b'0', b'0'])[1] or 0) if line else 0
+        if status != 200:
+            n = 0
+            for h in top.split(b'\r\n'):
+                k, _, v = h.partition(b':')
+                if k.strip().lower() == b'content-length':
+                    n = int(v.strip() or 0)
+            while len(extra) < min(n, 65536):
+                more = tls.recv(4096)
+                if not more:
+                    break
+                extra += more
+            tls.close()
+            try:
+                said = clean_result(json.loads(extra.decode('utf-8', 'replace') or '{}'))
+            except ValueError:
+                said = {'said': 'HTTP %d' % status}
+            needs = said.get('needs') or []
+            raise PluginError('the agent of %s did not connect to %s: %s' % (
+                row['name'], to, said.get('said') or 'HTTP %d' % status),
+                detail='\n'.join(n['allow'] for n in needs) or None, retry=False)
+    except (OSError, ssl.SSLError) as e:
+        if hop is not None:
+            hop.close()
+        raise PluginError('the agent of %s cannot be reached: %s' % (row['name'], e))
+    except BaseException:
+        if hop is not None:
+            hop.close()
+        raise
+    a, b = socket.socketpair()
+    if extra:
+        b.sendall(extra)
+
+    def pump():
+        try:
+            agent_mod().relay(tls, b, 600)
+        finally:
+            for x in (tls, b):
+                try:
+                    x.close()
+                except OSError:
+                    pass
+            if hop is not None:
+                try:
+                    hop.close()
+                except Exception:                       # noqa: BLE001
+                    pass
+    threading.Thread(target=pump, daemon=True, name='agent-tunnel').start()
+    a.settimeout(float(timeout))
+    st = state(store, row['id'])
+    st['last_seen'] = time.time()
+    state_put(store, row['id'], st)
+    return a
+
+
+def connector_rows(store, passive_only=True):
+    """The targets with an agent that can be a connector (passive, joined): [(name, row)]."""
+    out = []
+    for r in rows(store):
+        if passive_only and mode_of(r) != 'passive':
+            continue
+        out.append(r)
+    return out
+
+
+# ---- updates of the agent (phase 4) ---------------------------------------------------------------
+def _vt(v):
+    try:
+        return tuple(int(x) for x in str(v).strip().split('.'))
+    except ValueError:
+        return ()
+
+
+def update_facts(st, pkg=None):
+    """What the pages say of an agent's version: a newer one acme offers, whether the
+    agent's policy lets acme update it."""
+    if pkg is None:
+        try:
+            pkg = package(build=False)
+        except Exception:                               # noqa: BLE001
+            pkg = None
+    import acmelib
+    ver = (pkg or {}).get('version') or acmelib.__version__
+    have = str(st.get('version') or '')
+    pol = st.get('policy') if isinstance(st.get('policy'), dict) else {}
+    newer = bool(have) and bool(_vt(have)) and _vt(ver) > _vt(have)
+    return {'offered': ver, 'newer': newer, 'signed': bool((pkg or {}).get('signed')),
+            'allowed': bool(pol.get('self_update')), 'last': st.get('update_last') or None}
+
+
+def update_agent(store, row, by):
+    """acme's signed package of the agent sent to it (allow self-update): the agent checks
+    the signature with the release key it was installed with, and that it is newer."""
+    st = state(store, row['id'])
+    pkg = package(build=False)
+    if not pkg or not pkg.get('signed'):
+        raise PluginError('this acme has no signed package of the agent (a release carries it; '
+                          'one made from a source tree is never sent to an agent)', retry=False)
+    facts = update_facts(st, pkg)
+    if not facts['newer']:
+        raise PluginError('the agent runs %s already - %s is not newer' % (
+            st.get('version') or '?', pkg['version']), retry=False)
+    with open(pkg['path'], 'rb') as f:
+        data = f.read()
+    got = call(store, row, 'update', {'package': _b64(data), 'version': pkg['version']},
+               timeout=180)
+    st = state(store, row['id'])
+    st['update_last'] = {'at': time.time(), 'ok': bool(got.get('ok')), 'by': _txt(by, 120),
+                         'said': _txt(got.get('said'), 300), 'to': pkg['version']}
+    state_put(store, row['id'], st)
+    if not got.get('ok'):
+        store.add_event('certificates', 'the agent of target %s was not updated to %s: %s' % (
+            row['name'], pkg['version'], got.get('said') or '?'), 'warn', who=by)
+        needs = got.get('needs') or []
+        raise PluginError(got.get('said') or 'the agent refused the update',
+                          detail='\n'.join(n['allow'] for n in needs) or None, retry=False)
+    store.add_event('certificates', 'the agent of target %s was updated to %s by %s' % (
+        row['name'], pkg['version'], by), who=by)
+    return got
 
 
 def forget(store, row, by):
@@ -1235,6 +1526,13 @@ def alerts(store):
             out.append({'key': 'agent-quiet:%s' % row['id'], 'level': 'warn',
                         'words': 'the agent of target %s has not been heard from since %s'
                                  % (row['name'], _when(seen) if seen else 'it joined')})
+        blk = st.get('blocked') if isinstance(st.get('blocked'), dict) else None
+        if blk:
+            out.append({'key': 'agent-policy:%s' % row['id'], 'level': 'warn',
+                        'words': 'the policy of the agent of target %s blocks a deployment (%s) '
+                                 '- allow it on the server: %s' % (
+                                     row['name'], blk.get('what') or '?',
+                                     '; '.join((blk.get('allow') or [])[:2]))})
         end = float(st.get('cert_end') or 0)
         if end and end - now < 7 * 86400:
             out.append({'key': 'agent-cert:%s' % row['id'],

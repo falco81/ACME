@@ -159,6 +159,9 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
     tcfg = S.plugin_config('target', trow) or {}
     if via is None:
         via = str(tcfg.get('via') or '').strip()
+        if trow.get('kind') == 'agent':
+            # a server with acme-agent (1.0.116): its tests go through its agent (allow probe)
+            via = trow['name']
     host = str(host or '').strip()
     port = int(port or getattr(cls, 'default_port', 443) or 443)
     if not 0 < port < 65536:
@@ -1019,6 +1022,15 @@ def _through(store, via, mod, host, port, sni, exp):
     crow = store.db.row("SELECT * FROM cert_tests WHERE name = ? AND kind = 'ssh_relay'", (via,))
     fam = 'check'
     if not crow:
+        # a server with acme-agent (1.0.116): its agent connects there and says what was sent
+        arow = store.db.row("SELECT * FROM cert_targets WHERE name = ? AND kind = 'agent'",
+                            (via,))
+        if arow:
+            got = _through_agent(store, arow, mod, host, port, sni, exp)
+            got.setdefault('detail', {})['via'] = via
+            got['detail']['via_agent'] = True
+            return got
+    if not crow:
         # a connector of the targets (1.0.77): the test of a target goes the way its
         # deployment goes
         crow = store.db.row("SELECT * FROM cert_targets WHERE name = ? AND kind = 'ssh_connector'",
@@ -1052,6 +1064,72 @@ def _through(store, via, mod, host, port, sni, exp):
         ctx.tidy()
     got.setdefault('detail', {})['via'] = via
     return got
+
+
+class _AgentSaw(object):
+    """A test module whose served() is what the agent saw: the judging is acme's own."""
+
+    def __init__(self, mod, seen):
+        self.config = mod.config
+        self.ctx = mod.ctx
+        self._seen = seen
+
+    def served(self, host, port, sni, verify=True):
+        if verify:
+            # trust judged here, of the chain the agent saw (this machine's CAs, as a test
+            # connecting from here judges it)
+            from acmelib.certs import pki
+            chain = [ssl.DER_cert_to_PEM_cert(c) for c in self._seen['chain']]
+            try:
+                ok, why = pki.verify_chain(chain[0], chain[1:])
+            except Exception as e:                      # noqa: BLE001
+                ok, why = False, str(e)
+            if not ok:
+                err = ssl.SSLCertVerificationError(why)
+                err.verify_message = why
+                raise err
+        return dict(self._seen)
+
+
+def _through_agent(store, arow, mod, host, port, sni, exp):
+    """One test through the agent of a server with acme-agent (1.0.116): the agent's server
+    connects to host:port (its policy: allow probe) and sends the chain it was given; acme
+    judges it as any test's."""
+    from acmelib.certs import agents
+    from acmelib.plugins.targets import agent as AT
+    kind = getattr(mod, 'kind', '') or ''
+    how = AT.probe_how(kind)
+    if how is None:
+        raise PluginError('the agent cannot speak %s - test it directly or through a connector '
+                          'over SSH' % (getattr(mod, 'protocol', '') or kind), retry=False)
+    if arow.get('enabled') == 0:
+        raise PluginError('the target %s is switched off' % arow['name'], retry=False)
+    want = str(mod.config.get('key_want') or '').lower()
+    if not host:
+        raise PluginError('no address to connect to - set it in the test', retry=False)
+    send_sni = '' if sni == '-' else (sni or '')
+    halves = ['rsa', 'ecdsa'] if want == 'both' else [want if want in ('rsa', 'ecdsa') else '']
+    try:
+        timeout = int(mod.config.get('timeout') or 15)
+    except (TypeError, ValueError):
+        timeout = 15
+    results = []
+    for kw in halves:
+        seen = agents.probe(store, arow, host, int(port), send_sni or '-', how, kw, timeout)
+        half = type(mod)(dict(mod.config, key_want=kw), mod.ctx) if want == 'both' else mod
+        got = _served_judged(_AgentSaw(half, seen), host, port, sni, exp)
+        got['half'] = kw.upper().replace('ECDSA', 'ECDSA')
+        results.append(got)
+    if len(results) == 1:
+        return results[0]
+    worst = max(results, key=lambda g: ORDER.get(g['state'], 4))
+    detail = dict(worst.get('detail') or {})
+    detail['key_want'] = 'both'
+    detail['halves'] = [{'half': g['half'], 'state': g['state'], 'ok': g['ok'],
+                         'said': g['said'], 'detail': g.get('detail') or {}} for g in results]
+    return {'state': worst['state'], 'ok': all(g['ok'] for g in results),
+            'said': '; '.join('%s: %s' % (g['half'], g['said']) for g in results),
+            'detail': detail}
 
 
 def _one_served(mod, host, port, sni, exp):

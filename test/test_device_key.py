@@ -796,7 +796,7 @@ class Wizard(unittest.TestCase):
         self.assertIn('bareHost(first(cfg.host, cfg.address', self.SRC)
 
     def test_the_form(self):
-        self.assertIn("!!devPlug(t) && t.enabled !== 0 && t.enabled !== false", self.SRC)
+        self.assertIn("!!keyPlug(t) && t.enabled !== 0 && t.enabled !== false", self.SRC)   # 1.0.116: or an agent
         self.assertIn('var devSource = function () { if (W.d.csr_from && W.d.issuer && '
                       'signsNoCsr(W.d.issuer)) W.d.issuer = \'\'; };', self.SRC)
         self.assertIn('if (W.d.csr_from && !devPlug(t)) W.devKept[k] = W.deploys[k];', self.SRC)

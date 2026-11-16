@@ -546,6 +546,7 @@ the target decides.
 | Who connects | **passive** (default): acme connects to the agent (it listens on 8446 and lets in only acme's certificate); **active**: the agent connects to acme's agents' port (Settings → Target agents - off by default; an active target cannot be saved while it is off) and nothing listens on the server |
 | Address | where acme reaches a passive agent |
 | Port of the agent | 8446 (passive) |
+| Through a connector | (advanced, passive) a Connector over SSH the agent's port is reached from (`ssh -W`) |
 | Script after the files (default) | as the `ssh` target's |
 
 **The deployment is the `ssh` target's**: the same presets, files and formats (PEM, PFX, JKS,
@@ -565,7 +566,24 @@ The target's card shows the agent: its state (answers · N s ago / not heard fro
 version, when it was last heard from, its certificate's end, its policy; **Join the agent…** (the
 three-step wizard: install, a one-time code, the fingerprint confirmed), Ask it now, Renew its
 certificate, Forget…. **Test** asks the agent how it is and what its policy allows. On the
-command line: `acme --target-agent NAME show|code|confirm FP|look|policy|renew|forget`.
+command line: `acme --target-agent NAME show|code|confirm FP|look|policy|renew|update|forget`.
+
+Phases 3 and 4 (all in [target-agent.md](target-agent.md)):
+
+* **Key made by the agent, on the server** - chosen per certificate (its Key step, or *Make a
+  certificate with its key made here* on the card): the agent's root side makes the key at every
+  issue (or keeps it), acme gets only the CSR, and the key is written straight into the files of
+  the deployment (key-pem, combined-pem, pfx ...) - it never leaves the server. Such a certificate
+  goes to that server alone; the target still takes certificates with acme's key.
+* **Tests through the agent**: the tests made from its deployments connect from the server itself
+  (`127.0.0.1`, `allow probe local`); any test can choose the agent as *Through a connector*.
+* **The agent as a connector** of SSH targets (`allow connect HOST:PORT`, passive agents only),
+  offered under *Through a connector* marked *(through its acme-agent)*.
+* **What happens** shows every step of its job with the policy's verdict for each item.
+* **A newer agent** is said on the card and the pane; with `allow self-update` it is sent from
+  here (signed, newer only).
+* SNMP `acmeAgentTable`, Prometheus `acme_agent_*`, the Zabbix discovery, isemon `action=agent_*`,
+  and an alert when **its policy blocks a deployment**.
 
 ## `local` - this machine
 

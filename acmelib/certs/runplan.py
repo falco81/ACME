@@ -716,6 +716,179 @@ def pages_of(store):
         return None
 
 
+def agent_of(store, trow):
+    """A server with acme-agent (1.0.116): what its plan shows of its agent - the mode, where
+    it is reached, the policy it last said (each file, command and script judged against it).
+    None for any other target."""
+    if not trow or trow.get('kind') != 'agent':
+        return None
+    from acmelib.certs import agents
+    try:
+        info = agents.info(store, trow)
+    except Exception:                                   # noqa: BLE001
+        info = {}
+    cfg = agents.target_conf(trow)
+    return {'mode': info.get('mode') or cfg.get('mode') or 'passive',
+            'state': info.get('state') or 'new', 'policy': info.get('policy'),
+            'policy_at': info.get('policy_at'), 'host': str(cfg.get('host') or ''),
+            'port': cfg.get('port') or agents.PASSIVE_PORT, 'via': str(cfg.get('via') or '')}
+
+
+def _agent_steps(ev):
+    """A job for a server with acme-agent (plansandbox PlanContext.agent_call) as steps: how
+    it gets there, each file with its owner and mode, each command, the script - and what the
+    agent's policy (as it last said it) makes of each."""
+    out = []
+    op = ev.get('op') or ''
+    name = ev.get('target') or 'the server'
+    mode = ev.get('mode') or 'passive'
+    if mode == 'active':
+        where = 'queued in acme\'s database; the agent takes it at its next poll (either node)'
+    else:
+        where = '%s:%s%s' % (ev.get('host') or '?', ev.get('port') or 8446,
+                             (' - through the connector %s (ssh -W)' % ev['via'])
+                             if ev.get('via') else '')
+    if op in ('deploy', 'keygen', 'check'):
+        out.append({'kind': 'connect', 'words': 'Sends a signed job ({0}) to the agent of {1}'
+                    .replace('{0}', op).replace('{1}', name), 'detail': {'pairs': [
+                        ['Mode', 'passive - acme connects to the agent' if mode != 'active'
+                         else 'active - the agent connects to acme', 'words'],
+                        ['Where', where, 'words' if mode == 'active' else ''],
+                        ['Signed', 'with acme\'s command key (Ed25519): its time, a nonce never '
+                         'used, the agent\'s id - a replay or a job for another agent is refused',
+                         'words'],
+                        ['TLS', 'TLS 1.3, certificates both ways from acme\'s agent authority, '
+                         'pinned', 'words'],
+                        ['Checked by', 'the agent\'s root side: the signature again, then every '
+                         'file, owner, mode, command and script against its policy - all of '
+                         'it or nothing', 'words']]}})
+    if not ev.get('policy_known') and op in ('deploy', 'keygen', 'check'):
+        out.append({'kind': 'info', 'level': 'warn', 'words': 'The agent has not said its '
+                    'policy yet: what it allows is not known - each item below shows the line '
+                    'that allows it on the server'})
+    if op == 'keygen':
+        out.append({'kind': 'key', 'words': 'The agent makes a new {0} key on {1} (its root '
+                    'side) and sends back only its CSR - the key never leaves that server'
+                    .replace('{0}', ev.get('key_type') or 'ec-256').replace('{1}', name)
+                    if not ev.get('keep') else 'The agent makes a CSR of the key in use on {1} '
+                    '(Keep the key; a new {0} key when there is none) - the key never leaves '
+                    'that server'.replace('{0}', ev.get('key_type') or 'ec-256').replace(
+                        '{1}', name),
+                    'detail': {'pairs': [['Names in the CSR', ', '.join(ev.get('names') or []),
+                                          ''],
+                                         ['Kept', 'by root on the server (/var/lib/acme-agent-'
+                                          'root/keys, 0600) until its certificate comes; put '
+                                          'into the files below with it', 'words']]}})
+    pol_items = []
+    for it in ev.get('items') or []:
+        w = it.get('what')
+        st = None
+        if w == 'file':
+            if op == 'keygen':
+                words = 'The key will go into {0}'.replace('{0}', it.get('path') or '')
+            elif it.get('agent_key'):
+                words = 'The agent writes the key it made into {0}'.replace(
+                    '{0}', it.get('path') or '')
+            else:
+                words = 'The agent writes {0}'.replace('{0}', it.get('path') or '')
+            st = {'kind': 'file', 'words': words,
+                  'detail': {'path': it.get('path'), 'mode': it.get('mode'),
+                             'owner': it.get('owner'), 'format': it.get('format')}}
+            if it.get('sealed'):
+                st['secret'] = True
+                st['note'] = 'sealed to the agent (X25519 + AES-256-GCM): only its root side ' \
+                             'opens it'
+            elif it.get('agent_key') and op != 'keygen':
+                st['agent_key'] = True
+                st['note'] = 'the key the agent made for this certificate - acme sends only ' \
+                             'the certificate (and its chain) that goes with it'
+            if it.get('keep') and op == 'deploy':
+                st['note'] = ((st.get('note') + ' · ') if st.get('note') else '') + \
+                    'left as it is when this certificate is there already'
+        elif w in ('pre', 'test', 'reload', 'post'):
+            o = it.get('op') or {}
+            from acmelib.plugins.targets import agent as AT
+            st = {'kind': 'command', 'words': {
+                'pre': 'Before the files, the agent runs', 'test': 'The agent tests',
+                'reload': 'The agent reloads', 'post': 'After it, the agent runs'}[w] + ' ' +
+                AT.op_words(o), 'detail': {'command': AT.op_words(o)},
+                'note': 'no shell: ' + ('a unit\'s verb (systemctl)' if 'unit' in o else
+                                        'a fixed command line' if 'argv' in o else
+                                        'alternatives, the first that works' if 'any' in o
+                                        else 'a script, its SHA-256 checked when it runs')}
+        elif w == 'script':
+            sc = it.get('script') or {}
+            st = {'kind': 'command', 'words': 'The agent runs the script after the files',
+                  'detail': {'pairs': [
+                      ['Script', sc.get('path') or 'written in the deployment (%s) - allowed '
+                       'by its SHA-256' % (sc.get('interp') or 'bash'), '' if sc.get('path')
+                       else 'words'],
+                      ['Arguments', str(sc.get('args') or '–'), ''],
+                      ['Variables', ', '.join(ev.get('env') or []) or '–', '']]}}
+        elif w in ('probe', 'connect'):
+            st = {'kind': 'connect', 'words': ('The agent tests what {0} serves, from {1}'
+                                               if w == 'probe' else
+                                               'The agent connects to {0} for acme ({1})')
+                  .replace('{0}', it.get('to') or '').replace('{1}', name)}
+        if st is None:
+            continue
+        st['policy'] = {'ok': it.get('ok'), 'allow': it.get('allow') or ''}
+        pol_items.append(st['policy'])
+        out.append(st)
+    if op == 'deploy':
+        if ev.get('stale'):
+            out.append({'kind': 'delete', 'words': 'The agent takes away the files acme wrote '
+                        'before and no longer writes', 'detail': {'text': '\n'.join(
+                            ev['stale'])}})
+        copies = {'dated': 'a dated copy of each file replaced', 'daily': 'a copy a day',
+                  'bak': 'one .bak copy', 'folder': 'dated copies in .acme-backup',
+                  'none': 'no copy'}.get(ev.get('backup') or 'dated', '')
+        out.append({'kind': 'info', 'words': 'On the server, all of it at once: a file the same '
+                    '(SHA-256, owner, mode) is left alone - all the same and nothing pending, '
+                    'nothing is run; a test, script or reload failing puts every file back',
+                    'detail': {'pairs': [['Copies', '%s%s' % (copies, (', the newest %s kept' %
+                                                                ev.get('backup_keep'))
+                                                               if ev.get('backup_keep') else ''),
+                                          'words']]}})
+    if pol_items and ev.get('policy_known'):
+        bad = [x for x in pol_items if x.get('ok') is False]
+        out.append({'kind': 'stop' if bad else 'info', 'level': 'bad' if bad else 'ok',
+                    'words': ('The agent\'s policy does not allow {0} of it: the agent refuses '
+                              'the whole job before anything is written - allow it on the '
+                              'server first').replace('{0}', str(len(bad))) if bad else
+                    'The agent\'s policy allows every file, command and script of it'})
+    return out
+
+
+def _agent_vias(store, phases):
+    """An SSH target reached through a server with acme-agent (1.0.116): its "Through" said
+    as it is - the agent connects (allow connect), nobody signs in there. No agent target: the
+    phases as they are."""
+    names = {r['name'] for r in store.db.rows("SELECT name FROM cert_targets WHERE kind = "
+                                              "'agent'")}
+    if not names:
+        return phases
+
+    def walk(x):
+        if isinstance(x, dict):
+            pairs = (x.get('detail') or {}).get('pairs') if isinstance(x.get('detail'), dict) \
+                else None
+            for p in pairs or []:
+                if isinstance(p, list) and p and p[0] == 'Through':
+                    m = re.match(r'the connector (\S+) - ', str(p[1]))
+                    if m and m.group(1) in names:
+                        p[1] = ('the agent of %s - acme opens a tunnel over its TLS connection '
+                                'to the agent, which connects to this server (its policy: allow '
+                                'connect)' % m.group(1))
+            for v in x.values():
+                walk(v)
+        elif isinstance(x, list):
+            for v in x:
+                walk(v)
+    walk(phases)
+    return phases
+
+
 def kept_of(store, trow, cls, cfg, opts, cert):
     """What a target kept between its deployments that decides the way its run takes, as
     it is ({key: value} for the sandbox's kv) - ACM's ARN of the certificate imported
@@ -4126,6 +4299,16 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
         elif k == 'pages':
             st = {'kind': 'save', 'words': 'Puts it into acme\'s own pages ({0})'.replace(
                 '{0}', ev.get('where') or '')}
+        elif k == 'agent-job':
+            # a server with acme-agent (1.0.116): the job, each item judged by its policy
+            for st2 in _agent_steps(ev):
+                if br == 'first':
+                    st2['branch'] = 'Only the first time - when it is not there yet'
+                elif br == 'later':
+                    st2['branch'] = 'Only at later renewals - when it is there already'
+                out.append(st2)
+            i += 1
+            continue
         elif k == 'preview':
             files = ev.get('files') or []
             if files:
@@ -4706,7 +4889,8 @@ def plan(store, cert, deploys, full=False):
     if cert.get('csr_from'):
         drow = S.plugin_row(store, 'target', cert.get('csr_from'))
         dcls = _cls('target', drow.get('kind'), drow) if drow else None
-        if drow and dcls is not None and getattr(dcls, 'device_key', False):
+        if drow and dcls is not None and (getattr(dcls, 'device_key', False) or
+                                          getattr(dcls, 'device_key_optional', False)):
             dep0 = [d for d in deploys or [] if d.get('target') == drow['name']]
             dopts = {}
             if dep0:
@@ -4722,6 +4906,8 @@ def plan(store, cert, deploys, full=False):
             devrun = (drow, dcls, run(
                 family='target', kind=drow['kind'], name=drow['name'], op='device_csr',
                 config=dcfg, options=dsopts, marks=dmarks, subject=subj,
+                agent=agent_of(store, drow), deploy_id=(dep0[0].get('id') if dep0 else None),
+                reuse_key=bool(int(cert.get('reuse_key') or 0)),
                 sans=S.sans_of(names, profile),
                 answers=answers_of(drow['kind'], dcfg, dsopts, version=_answer_ver(dcls)),
                 ssh_answers=ssh_answers_of(drow['kind'], dcfg, dsopts, version=_answer_ver(dcls))))
@@ -4752,6 +4938,8 @@ def plan(store, cert, deploys, full=False):
         kw['ssh_answers'] = ssh_answers_of(trow['kind'], scfg, sopts, version=_answer_ver(tcls))
         if trow['kind'] == 'acme_push':
             kw['push_pin'] = push_pin_of(store, tcls, tcfg)
+        if trow['kind'] == 'agent':
+            kw['agent'] = agent_of(store, trow)
         kept = kept_of(store, trow, tcls, tcfg, opts, cert)
         if kept:
             kw['kv'] = kept
@@ -4804,6 +4992,15 @@ def plan(store, cert, deploys, full=False):
     phases = []
     # 1. key
     kp = key_phase(cert, profile, irow, icls)
+    if devrun is not None and devrun[1] is not None and not getattr(devrun[1], 'device_key',
+                                                                    False) and kp['steps'] and \
+            kp['steps'][0].get('kind') == 'key':
+        # a server with acme-agent (1.0.116): its agent makes the key there
+        kp['steps'][0]['words'] = ('The key and the request (CSR) are made on {0} by its '
+                                   'acme-agent - {1}; acme holds none').replace(
+            '{0}', str(cert['csr_from'])).replace(
+            '{1}', 'the key in use kept (Keep the key)' if int(cert.get('reuse_key') or 0)
+            else 'a new key at every issue')
     if devrun is not None:
         drow, dcls, did = devrun
         if did is None:
@@ -4999,7 +5196,8 @@ def plan(store, cert, deploys, full=False):
            'head': {'source': src.get('module'),
                     'validations': [g.get('module') for g in val['groups'] if g.get('module')],
                     'deploys': len(dinfo), 'tests': len(tp.get('groups') or [])},
-           'phases': phases, 'made': time.time(), 'took_ms': int((time.time() - t0) * 1000),
+           'phases': _agent_vias(store, phases), 'made': time.time(),
+           'took_ms': int((time.time() - t0) * 1000),
            'recording': rec_err or ''}
     return scrub(out, secrets_.real)
 
@@ -5008,7 +5206,7 @@ SECRET_HEADERS = re.compile(r'^(authorization|proxy-authorization|cookie|x-api-k
                             r'api-key|x-api-token)$', re.I)
 
 
-def _test_steps(cls, cfg, names, via=None):
+def _test_steps(cls, cfg, names, via=None, agent=None):
     """What one test does, from its settings - a test only reads, so nothing needs to be
     recorded: the connection, what it says first, TLS, HTTP, the comparison - each as
     it goes on the wire (1.0.37): what is sent before TLS, the ClientHello's settings,
@@ -5026,6 +5224,45 @@ def _test_steps(cls, cfg, names, via=None):
              ['From the address', str(cfg.get('source') or '') or 'as the system chooses',
               'words' if not cfg.get('source') else None],
              ['Time limit', '%s s' % (cfg.get('timeout') or 15)]]
+    if agent is not None:
+        # through a server with acme-agent (1.0.116): its agent connects there and sends back
+        # the chain it was given (openssl s_client); acme judges it here as any test's
+        from acmelib.plugins.targets import agent as AT
+        how = AT.probe_how(getattr(cls, 'kind', ''))
+        hp = ('[%s]:%s' % (host, port)) if ':' in host else '%s:%s' % (host, port)
+        st = {'kind': 'connect' if how is not None else 'stop',
+              'words': ('The agent of {0} connects to {1} from its server and sends back the '
+                        'chain it was given' if how is not None else
+                        'The agent of {0} cannot speak this protocol - the test fails there')
+              .replace('{0}', agent.get('name') or '?').replace('{1}', hp),
+              'detail': {'pairs': pairs + [['STARTTLS', how or 'none: TLS at once', '' if how
+                                            else 'words']]}}
+        pol = agent.get('policy')
+        if isinstance(pol, dict) and how is not None:
+            m = __import__('acmelib.certs.agents', fromlist=['agent_mod']).agent_mod()
+            hh = host
+            try:
+                hh, pp = m.split_hostport(hp)
+                base = m.parse_policy('')
+                base.update(probe=list(pol.get('probe') or []),
+                            probe_local=bool(pol.get('probe_local')))
+                ok = m.dest_allowed(base, hh, pp, 'probe')
+            except Exception:                           # noqa: BLE001
+                ok = False
+            st['policy'] = {'ok': ok, 'allow': '' if ok else 'acme-agent allow probe %s' % (
+                'local' if hh in m.LOCAL else hp)}
+        elif how is not None:
+            st['policy'] = {'ok': None, 'allow': 'acme-agent allow probe %s' % (
+                'local' if host in ('127.0.0.1', '::1', 'localhost') else hp)}
+        steps.append(st)
+        want = {'current': 'the version deployed now (or its twin)', 'main': 'the main one only',
+                'alt': 'the twin only', 'any': 'any version of it'}.get(
+            str(cfg.get('expect') or 'current'), 'the version deployed now')
+        steps.append({'kind': 'check', 'words': 'The certificate served compared with this one: '
+                      '{0}'.replace('{0}', want), 'note': 'its fingerprint, the name %s among '
+                      'its names, the chain sent with it, how long it runs' % (
+                          cfg.get('check_name') or sni)})
+        return steps
     if via:
         steps.append({'kind': 'connect', 'words': 'From {0}, a connection to {1}:{2} (ssh -W)'
                       .replace('{0}', via).replace('{1}', host).replace('{2}', str(port)),
@@ -5234,7 +5471,10 @@ def checks_phase(store, cert, names):
             first = next((n for n in names or [] if not str(n).startswith('*.')), '')
             g['host'] = '%s:%s' % (cfg.get('host') or first or '?',
                                    cfg.get('port') or cls.default_port)
-            steps += _test_steps(cls, mcfg, names)
+            arow = store.db.row("SELECT * FROM cert_targets WHERE name = ? AND kind = 'agent'",
+                                (str(cfg.get('via') or ''),)) if cfg.get('via') else None
+            ag = dict(agent_of(store, arow) or {}, name=arow['name']) if arow else None
+            steps += _test_steps(cls, mcfg, names, agent=ag)
         # how it runs for this certificate (1.0.65/66), switched off here or as a test (1.0.85)
         from acmelib.certs import checks as CK
         tied = CK.after_list(r.get('after_target'))

@@ -1069,7 +1069,12 @@ class Target(Plugin):
         # The device makes the key (certs.csr_from): the certificate form offers the target
         # under "Key made by the device", with the key types it can make.
         d['device_key'] = bool(getattr(cls, 'device_key', False))
-        if d['device_key']:
+        # ...or may make it, chosen per certificate (1.0.116: a server with acme-agent - its
+        # agent makes the key there, and the target takes certificates with acme's key too).
+        # Said only by such a module: every other one's description is as it was.
+        if getattr(cls, 'device_key_optional', False):
+            d['device_key_optional'] = True
+        if d['device_key'] or d.get('device_key_optional'):
             d['device_key_types'] = list(cls.device_key_types) if cls.device_key_types \
                 else None
             d['device_key_names'] = str(getattr(cls, 'device_key_names', '') or '')

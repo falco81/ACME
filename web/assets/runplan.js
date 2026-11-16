@@ -501,8 +501,11 @@
       tags.appendChild(iv);
     }
     if (st.secret) tags.appendChild(el('span', 'tag crit rp-tag', 'holds the private key'));
+    /* a server with acme-agent (1.0.116): the key it made itself goes there - acme never has it */
+    if (st.agent_key) tags.appendChild(el('span', 'tag info rp-tag', 'the key made on the server'));
     if (tags.firstChild) top.appendChild(tags);
     if (st.note) w.appendChild(el('div', 'rp-note', st.note));
+    if (st.policy) w.appendChild(policyLine(st.policy));
     var det = detailOf(st);
     if (det) {
       if (st.debug) det.classList.add('rp-dbg');      /* a test's facts: debug details only */
@@ -513,6 +516,23 @@
        debug off, not a step with nothing under it */
     if (st.debug_step) row.classList.add('rp-dbg');
     return row;
+  }
+  /* What the agent's policy (as it last said it) makes of one item of its job (1.0.116):
+     allowed, not allowed - with the line that allows it, to run on the server - or not known. */
+  function policyLine(p) {
+    var ok = p.ok === true, bad = p.ok === false;
+    var box = el('div', 'rp-pol ' + (ok ? 'ok' : (bad ? 'bad' : 'unk')));
+    var top = el('div', 'rp-pol-top');
+    var mk = noI18n(el('span', 'rp-pol-mk', ok ? '✓' : (bad ? '✕' : '?')));
+    top.appendChild(mk);
+    top.appendChild(el('span', '', ok ? 'allowed by the agent’s policy' : (bad ? 'not allowed by the agent’s policy - the agent refuses the job'
+      : 'the agent’s policy is not known yet')));
+    box.appendChild(top);
+    if (!ok && p.allow) {
+      var lines = String(p.allow).split('\n').filter(Boolean).map(function (x) { return 'sudo ' + x; }).join('\n');
+      box.appendChild(codeBlock(lines, 'rp-shell rp-pol-cmd', bad ? tr('On the server, as root') : tr('It is allowed by')));
+    }
+    return box;
   }
   function stepList(steps, prefix) {
     var box = el('div', 'rp-steps');

@@ -1706,6 +1706,25 @@ def push_confirm(raw, headers):
         return raw
 
 
+_AGENT_PROGRAM = {}
+
+
+def _agent_program():
+    """deploy/agent/acme_agent.py - its policy checks, read (never run) for a plan."""
+    if 'm' not in _AGENT_PROGRAM:
+        try:
+            import importlib.util
+            path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__)))), 'deploy', 'agent', 'acme_agent.py')
+            spec = importlib.util.spec_from_file_location('acme_agent_plan', path)
+            m = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(m)
+            _AGENT_PROGRAM['m'] = m
+        except Exception:                               # noqa: BLE001
+            _AGENT_PROGRAM['m'] = None
+    return _AGENT_PROGRAM['m']
+
+
 class PlanContext(object):
     """A Context (acmelib/plugins/base.py) that answers and does nothing."""
     def __init__(self, job, scope, answers):
@@ -1725,6 +1744,9 @@ class PlanContext(object):
         # paired already (runplan.PUSH_PIN, the one its hello is answered with) - else none
         self._push_pin = job.get('push_pin') or None
         self._pages = job.get('pages') or None
+        # a server with acme-agent (1.0.116, runplan.agent_of): its mode, address and the
+        # policy it last said - no key, no secret
+        self._agent = job.get('agent') if isinstance(job.get('agent'), dict) else None
 
     def step(self, words, level='info'):
         rec({'kind': 'say', 'words': str(words)[:600], 'level': level})
@@ -1900,6 +1922,110 @@ class PlanContext(object):
     def push_pin(self, url, pin=None):
         return dict(self._push_pin) if pin is None and self._push_pin else None
 
+    # ---- a server with acme-agent (targets/agent.py): each job written down, never sent ----
+    def agent_info(self):
+        a = self._agent or {}
+        return {'state': a.get('state') or 'new', 'policy': a.get('policy'),
+                'policy_at': a.get('policy_at'), 'mode': a.get('mode') or 'passive'}
+
+    def agent_seal(self, label, data):
+        note_sent(data)
+        return {'alg': 'X25519-HKDF-SHA256-A256GCM', 'sealed': '\u2039sealed to the agent\u203a',
+                'label': str(label)[:300]}
+
+    def agent_plan_check(self, policy, part):
+        m = _agent_program()
+        if m is None or not isinstance(policy, dict):
+            return []
+        pol = m.parse_policy('')
+        for k in ('files', 'units', 'tests', 'scripts', 'script_hashes', 'probe', 'connect'):
+            if isinstance(policy.get(k), (list, dict)):
+                pol[k] = policy[k]
+        for k in ('probe_local', 'self_update'):
+            pol[k] = bool(policy.get(k))
+        if isinstance(policy.get('limits'), dict):
+            pol['limits'] = dict(pol['limits'], **policy['limits'])
+        try:
+            m.plan_check(pol, part)
+        except m.Refused as e:
+            return list(e.needs or [{'kind': 'other', 'what': str(e), 'allow': ''}])
+        except Exception:                               # noqa: BLE001
+            return []
+        return []
+
+    def agent_call(self, op, args=None, timeout=900):
+        """One job for the agent - written down with every file, command and script it
+        carries and what the policy it last said makes of each; answered as the agent would
+        when it allows it all."""
+        args = dict(args or {})
+        a = self._agent or {}
+        pol = a.get('policy') if isinstance(a.get('policy'), dict) else None
+        items = []
+
+        def verdict(part):
+            if pol is None:
+                return None, ''
+            needs = self.agent_plan_check(pol, part)
+            return (not needs), '\n'.join(n.get('allow') or '' for n in needs)
+
+        for f in args.get('files') or []:
+            ok, allow = verdict({'files': [{k: f.get(k) for k in ('path', 'mode', 'owner')}]})
+            items.append({'what': 'file', 'path': f.get('path'), 'mode': '%04o' % int(
+                f.get('mode') or 0), 'owner': f.get('owner') or 'root:root',
+                'format': f.get('format'), 'sealed': bool(f.get('sealed')),
+                'agent_key': bool(f.get('agent_key')), 'keep': bool(f.get('keep_if_there')),
+                'ok': ok, 'allow': allow})
+        for key in ('pre', 'test', 'reload', 'post'):
+            for o in args.get(key) or []:
+                ok, allow = verdict({key: [o]})
+                items.append({'what': key, 'op': o, 'ok': ok, 'allow': allow})
+        sc = args.get('script')
+        if isinstance(sc, dict):
+            ok, allow = verdict({'script': sc})
+            items.append({'what': 'script', 'script': {k: sc.get(k) for k in (
+                'mode', 'path', 'interp', 'args')}, 'ok': ok, 'allow': allow})
+        if op in ('probe', 'connect'):
+            ok = None
+            m = _agent_program()
+            if pol is not None and m is not None:
+                try:
+                    h, prt = m.split_hostport(args.get('to'))
+                    base = m.parse_policy('')
+                    base.update(probe=list(pol.get('probe') or []), connect=list(
+                        pol.get('connect') or []), probe_local=bool(pol.get('probe_local')))
+                    ok = m.dest_allowed(base, h, prt, op)
+                except Exception:                       # noqa: BLE001
+                    ok = False
+            items.append({'what': op, 'to': args.get('to'), 'ok': ok,
+                          'allow': '' if ok else 'acme-agent allow %s %s' % (op, args.get('to'))})
+        rec({'kind': 'agent-job', 'op': op, 'target': self.target_name or '',
+             'mode': a.get('mode') or 'passive', 'host': a.get('host') or '',
+             'port': a.get('port'), 'via': a.get('via') or '', 'state': a.get('state') or 'new',
+             'policy_known': pol is not None, 'items': items[:80],
+             'env': sorted((args.get('env') or {}).keys())[:40],
+             'env_sealed': bool(args.get('env_sealed')),
+             'backup': args.get('backup'), 'backup_keep': args.get('backup_keep'),
+             'stale': list(args.get('stale') or [])[:20], 'skip_same': args.get('skip_same'),
+             'slot': (args.get('agent_key') or {}).get('slot') or args.get('slot') or '',
+             'key_type': args.get('key_type') or '', 'keep': bool(args.get('keep')),
+             'names': list(args.get('names') or [])[:20]})
+        if op == 'keygen':
+            answers = self.answers
+            csr = getattr(answers, 'csr', '') or ''
+            return {'ok': True, 'csr': csr, 'key_fp': '0' * 64,
+                    'said': 'a new %s key made there (it stays on that server) and its CSR'
+                            % (args.get('key_type') or 'ec-256')}
+        if op == 'deploy':
+            return {'ok': True, 'steps': [], 'files': [],
+                    'said': '%d file%s written' % (len(args.get('files') or []),
+                                                   '' if len(args.get('files') or []) == 1
+                                                   else 's')}
+        if op == 'check':
+            return {'ok': True, 'files': [], 'said': 'the policy allows all of it'}
+        if op == 'probe':
+            return {'ok': False, 'said': 'not reached in a plan'}
+        return {'ok': True, 'said': 'acme-agent here', 'version': '', 'policy': pol}
+
 
 # ---------------------------------------------------------------------------
 # One run
@@ -2018,7 +2144,8 @@ def run_one(job, r, bundle_holder):
         ANSWERS[0] = answers
         SENT_NEW[0] = False
         ctx = PlanContext(dict(job, deploy_id=r.get('deploy_id'), target_name=r.get('name'),
-                               push_pin=r.get('push_pin'), kv=r.get('kv')),
+                               push_pin=r.get('push_pin'), kv=r.get('kv'),
+                               agent=r.get('agent')),
                           '%s:%s' % (r['family'], r.get('name')), answers)
         KV_AFTER[0] = ctx._kv           # what it keeps: the later run starts with it (main)
         inst = cls(dict(r.get('config') or {}), ctx)
@@ -2071,6 +2198,7 @@ def run_one(job, r, bundle_holder):
                                    profile={}, options=dict(r.get('options') or {}),
                                    name=cert.get('name') or names[0], cert_id=cert.get('id'),
                                    target=r.get('name'))
+            req.reuse_key = bool(r.get('reuse_key'))
             got = inst.device_csr(req)
             said = 'the device gave its CSR' if got else None
         elif op == 'challenge':

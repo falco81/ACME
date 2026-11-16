@@ -239,6 +239,33 @@ def metrics(store):
             ('acme_dns_records', 'Records it answers with', 'gauge',
              [({}, int(st.get('records') or 0))]),
         ]
+    # the targets with acme-agent (1.0.116) - only where there is one
+    ags = agent_rows(store)
+    if ags:
+        out += [
+            ('acme_agent_up', 'Each target\'s acme-agent: 1 when heard from lately', 'gauge',
+             [({'target': a['name'], 'mode': a.get('mode') or ''},
+               1 if a.get('state') == 'answers' else 0) for a in ags]),
+            ('acme_agent_state', 'Each target\'s acme-agent: 1 for the state it is in', 'gauge',
+             [({'target': a['name'], 'state': a.get('state') or 'new'}, 1) for a in ags]),
+            ('acme_agent_last_seen_timestamp_seconds', 'When each agent was last heard from '
+             '(unix time)', 'gauge',
+             [({'target': a['name']}, float(a['last_seen'])) for a in ags if a.get('last_seen')]),
+            ('acme_agent_cert_not_after_timestamp_seconds', 'When each agent\'s certificate of '
+             'acme\'s agent authority ends (unix time)', 'gauge',
+             [({'target': a['name']}, int(float(a['cert_end']))) for a in ags
+              if a.get('cert_end')]),
+            ('acme_agent_info', 'Each agent\'s version (1)', 'gauge',
+             [({'target': a['name'], 'version': a.get('version') or ''}, 1) for a in ags
+              if a.get('version')]),
+            ('acme_agent_update_available', 'Whether this acme offers a newer agent', 'gauge',
+             [({'target': a['name']}, 1 if (a.get('update') or {}).get('newer') else 0)
+              for a in ags if a.get('joined')]),
+            ('acme_agent_policy_blocks', 'Whether the agent\'s policy refused the last '
+             'deployment', 'gauge',
+             [({'target': a['name']}, 1 if a.get('blocked') else 0) for a in ags
+              if a.get('joined')]),
+        ]
     return out
 
 
@@ -268,6 +295,8 @@ def metrics(store):
 #          failed (24 h), 22 renewals ok (24 h), 23 deployments ok (24 h), 24 deployments
 #          failed (24 h); 6.4 12 state as a number; 6.5 13 state as a number; 6.6 8 failing;
 #          6.7 9 external, 10 hours until the CRL is due; 6.8 acme's own DNS server
+# 1.0.116: 6.9.1.C.<id> acmeAgentEntry: 1 index (the target's id), 2 name, 3 mode, 4 state,
+#          5 lastSeen, 6 certDaysLeft, 7 version, 8 stateNum, 9 newer, 10 blocked
 SNMP_TABLE = (6, 2, 1)
 SNMP_COUNTS = (6, 3)
 SNMP_DEPLOYS = (6, 4, 1)
@@ -275,6 +304,8 @@ SNMP_TESTS = (6, 5, 1)
 SNMP_MODULES = (6, 6, 1)
 SNMP_CAS = (6, 7, 1)
 SNMP_DNS = (6, 8)
+SNMP_AGENTS = (6, 9, 1)         # 1.0.116: acmeAgentEntry - the targets with acme-agent
+AGENT_STATES = ('new', 'answers', 'quiet', 'refused', 'joining', 'off')
 TEST_STATES = ('', 'ok', 'warn', 'old', 'other', 'answer', 'unreachable')
 
 
@@ -448,6 +479,35 @@ def snmp_rows(store):
                 (A + (8, i), 'int', _i32(crl_next(r))),
                 (A + (9, i), 'int', 1 if r.get('external') else 0),
                 (A + (10, i), 'int', _i32((crl_next(r) - t) // 3600) if crl_next(r) else 0)]
+    # 6.9 the targets with acme-agent (1.0.116) - none: nothing here
+    for a in agent_rows(store):
+        i = int(a['id'])
+        G = SNMP_AGENTS
+        end = float(a.get('cert_end') or 0)
+        out += [(G + (1, i), 'int', i), (G + (2, i), 'str', str(a['name'])[:255]),
+                (G + (3, i), 'str', str(a.get('mode') or '')),
+                (G + (4, i), 'str', str(a.get('state') or 'new')),
+                (G + (5, i), 'int', _i32(a.get('last_seen') or 0)),
+                (G + (6, i), 'int', int((end - t) // 86400) if end else 0),
+                (G + (7, i), 'str', str(a.get('version') or '')[:64]),
+                (G + (8, i), 'int', AGENT_STATES.index(a['state']) if a.get('state') in
+                 AGENT_STATES else 0),
+                (G + (9, i), 'int', 1 if (a.get('update') or {}).get('newer') else 0),
+                (G + (10, i), 'int', 1 if a.get('blocked') else 0)]
+    return out
+
+
+def agent_rows(store):
+    """Each target with acme-agent as the pages show it (agents.info) - [] without one."""
+    if not store.db.value("SELECT COUNT(*) FROM cert_targets WHERE kind = 'agent'", (), 0):
+        return []
+    from acmelib.certs import agents
+    out = []
+    for r in agents.rows(store):
+        try:
+            out.append(agents.info(store, r))
+        except Exception:                               # noqa: BLE001
+            out.append({'id': r['id'], 'name': r['name'], 'state': 'new'})
     return out
 
 
@@ -472,6 +532,28 @@ PATTERNS = [
      {'action': 'deploy', 'result': 'failed'}),
     (re.compile(r'^certificate (?P<cert>\S.*?) (?P<a>added|changed|deleted|imported) by'),
      {'result': 'ok'}),
+]
+# the targets with acme-agent (1.0.116): action=agent_... target=NAME (isemon, the SIEM)
+AGENT_PATTERNS = [
+    (re.compile(r'^the policy of the agent of target (?P<target>\S+) blocks a deployment: '
+                r'(?P<what>.*?) - allow it', re.S),
+     {'action': 'agent_policy_blocks', 'result': 'failed'}),
+    (re.compile(r'^the policy of the agent of target (?P<target>\S+) changed on the target'),
+     {'action': 'agent_policy_changed', 'result': 'ok'}),
+    (re.compile(r'^the agent of target (?P<target>\S+) has not been heard from'),
+     {'action': 'agent_quiet', 'result': 'warn'}),
+    (re.compile(r'^the agent of target (?P<target>\S+) is heard from again'),
+     {'action': 'agent_back', 'result': 'ok'}),
+    (re.compile(r'^the agent of target (?P<target>\S+) was updated to (?P<version>[0-9.]+)'),
+     {'action': 'agent_updated', 'result': 'ok'}),
+    (re.compile(r'^the agent of target (?P<target>\S+) was not updated to (?P<version>[0-9.]+)'),
+     {'action': 'agent_update', 'result': 'failed'}),
+    (re.compile(r'^the certificate of the agent of target (?P<target>\S+) was renewed'),
+     {'action': 'agent_cert_renewed', 'result': 'ok'}),
+    (re.compile(r'^the agent of target (?P<target>\S+) joined acme'),
+     {'action': 'agent_joined', 'result': 'ok'}),
+    (re.compile(r'^the agent of target (?P<target>\S+) was forgotten'),
+     {'action': 'agent_forgotten', 'result': 'ok'}),
 ]
 
 
@@ -513,4 +595,14 @@ def event_fields(kind, words, level):
                 dict(more, cert=g['cert'])
         except Exception:                               # noqa: BLE001
             return dict(more, cert=g['cert'])
+    for rx, extra in AGENT_PATTERNS:
+        m = rx.match(w)
+        if m:
+            g = m.groupdict()
+            out = dict(extra, target=g['target'], target_kind='agent')
+            if g.get('version'):
+                out['version'] = g['version']
+            if g.get('what'):
+                out['blocked'] = g['what'][:300]
+            return out
     return {}

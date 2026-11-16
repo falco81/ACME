@@ -16,8 +16,9 @@ agent on the server does the work, and only what the server's own policy allows.
   kept, the same certificate again changes nothing, the previous files back when the test or the
   reload fails.
 
-This is phases 1 and 2 of the agent (Linux; the protocol, the policy, both modes, the join).
-What is planned next is at the end.
+Phases 1 and 2 brought the agent (Linux; the protocol, the policy, both modes, the join);
+phases 3 and 4 the keys made on the server, tests and connections through the agent, What
+happens for every step, signed self-update and the monitoring (all in 1.0.116, below).
 
 ## Threat model
 
@@ -90,8 +91,10 @@ Change it with the command line (as root) or by hand, one entry a line:
 | `allow script PATH sha256=HEX` | `acme-agent allow script /usr/local/bin/x.sh` (pins its SHA-256 now) | that script; its hash is checked when it runs, and it runs from a copy root keeps (changed meanwhile: refused) |
 | `allow script-hash HEX` | `acme-agent allow script-hash HEX` | a script written in acme (the deployment's "After the files"), by its SHA-256 |
 | `allow from ADDR[/BITS]` | `acme-agent allow from 192.0.2.10` | passive: acme only from there (else from anywhere with acme's certificate) |
-| `allow self-update` | | (read, not used yet - phase 4) |
-| `allow connect HOST:PORT` | | (read, not used yet - phase 3, the connector) |
+| `allow probe HOST:PORT` | `acme-agent allow probe www.example.cz:443` | a test of what HOST:PORT serves, connected from this server (the tests "through the agent") |
+| `allow probe local` | `acme-agent allow probe local` | the same for anything on 127.0.0.1, ::1 or localhost (any port) |
+| `allow connect HOST:PORT` | `acme-agent allow connect 10.0.5.21:22` | acme reaches HOST:PORT through this agent (a passive one): the agent as the connector of SSH targets |
+| `allow self-update` | `acme-agent allow self-update` | acme may send a newer agent - only a package signed by a release key this agent was installed with, only a newer version |
 | `limit files N` / `limit size BYTES` | `acme-agent limit files 30` | files in one deployment (20), bytes of one file (1 MiB) |
 
 `acme-agent deny ...` takes an entry away (the same words); `acme-agent policy show [--json]`
@@ -192,7 +195,9 @@ sent as {"job": "<the JSON>", "sig": "<base64>"}
 Operations: `hello` / `policy` (version, the policy and its hash, the host), `fingerprints`
 (SHA-256 of files in allowed folders), `check` (a deployment against the policy - the test,
 nothing written), `deploy`, `csr` and `cert` (the agent's certificate renewed - the network
-side's, checked by root first).
+side's, checked by root first), `keygen` (a key made by root for a deployment, its CSR answered),
+`probe` and `connect` (checked by root against `allow probe` / `allow connect`, done by the
+network side - root never opens a network connection), `update` (root: signed, newer, allowed).
 
 `deploy` carries the files (each with its path, mode, owner; a file holding a key **sealed**:
 X25519 + HKDF-SHA256 + AES-256-GCM to the agent's key, as acme push's section 7, its aad binding
@@ -252,14 +257,106 @@ takes it away (the policy stays; `--purge` takes that and the account too).
   the server, agent not heard from and heard from again; **alerts** for an agent not heard from
   for ten minutes and its certificate ending within seven days.
 * **Command line**: `acme --target-agent NAME show | code | confirm FP | look | policy | renew |
-  forget`.
+  update | forget`.
 * **API**: `GET /api/agents`, `GET /api/agents/one?id=`, `POST /api/agents/{code,look,confirm,
-  renew,forget}`, `GET /api/agents/package`.
+  renew,update,forget}`, `GET /api/agents/package`.
 
-## Later (phases 3 and 4)
+## Keys made by the agent (phase 3)
 
-* Keys made by the agent (a CSR from the agent: the private key never leaves the server at all).
-* A connector through the agent (`allow connect`), and passive mode through an existing SSH
-  connector.
-* Updates of the agent from acme (`allow self-update`), signed.
+A certificate used only on one server can have its key **made there**: the certificate's *Key*
+step offers *Key made by the agent, on the server* (`csr_from` = the target, as "The device makes
+the key" - `docs/writing-a-module.md`; the agent target's module says `device_key_optional`: it is
+chosen per certificate, and the target takes certificates with acme's key too). The card of an
+agent target has **Make a certificate with its key made here**, which opens the wizard with it
+chosen. A certificate deployed to several targets keeps acme's key, sealed to each agent.
+
+* **At every issue** acme sends the job `keygen` (the deployment's id as its *slot*, the key type,
+  the names, the files that will hold the key). The root side checks those files against the
+  policy first (no key is made for a deployment that may not run), makes the key with openssl
+  (`/var/lib/acme-agent-root/keys/<slot>.pending`, root 0600) and answers **only its CSR**. acme
+  checks the CSR as any device's (every name, no other; the key type) and issues for it.
+* **The deployment right after it** carries the certificate (and its chain) and, for each file of a
+  key format, only the mark `agent_key`. Root takes the key whose public half is the certificate's
+  (the pending one, or the one in use) - any other certificate is refused - and writes the file
+  itself: `key-pem`, `key-traditional`, `key-rsa`, `key-der`, `combined-pem` (the key with the
+  certificate files acme sent), `pfx`/`p12` (openssl pkcs12, the password sealed to the agent).
+  `jks`, `p12-legacy` and `key-pem-enc` are made by acme only. Once in place the pending key is the
+  key in use (`<slot>.key`); until then the service keeps its old key and certificate.
+* **Renewal**: a new key each time; with *Keep the key* the agent makes a CSR of the key in use.
+* acme never holds the key: not in its database, its backups, its logs or its jobs.
+
+## Tests through the agent (phase 3)
+
+A test (Certificates → Tests) can go *Through a connector* = a server with acme-agent: the
+agent's network side runs `openssl s_client` to HOST:PORT (TLS at once, or the protocol's STARTTLS:
+SMTP, IMAP, POP3, FTP, XMPP, LDAP, PostgreSQL, MySQL) and sends back the chain it was given; acme
+judges it as any test's (the version, the names, the chain; trust with acme's own roots). RDP and
+TDS are refused in words. Root checks the job and the policy first: only `allow probe HOST:PORT`
+or `allow probe local` - nothing else is ever probed. **The tests made from a deployment on an
+agent target go through its agent by default**, at `127.0.0.1` on the preset's port (with the
+certificate's name as SNI) - `allow probe local` is all they need.
+
+## The agent as a connector (phase 3)
+
+Off unless the policy says `allow connect HOST:PORT`. *Through a connector* of an SSH target
+offers passive agents too, marked *(through its acme-agent)*. ssh's ProxyCommand talks to a Unix
+socket of the session (a 0700 folder of its own); each connection becomes a TLS connection to the
+agent (its certificate pinned), the signed job `connect` on `/v1/tunnel`, root's yes (the policy
+names exactly that host and port), then the bytes both ways (ten idle minutes at most). The host
+key is read the same way (ssh with `accept-new` into a file of the session, no authentication).
+An active agent cannot be a connector (nothing connects to it).
+
+**A passive agent behind an SSH connector**: the agent target's *Through a connector* (advanced)
+names a Connector over SSH; acme reaches the agent's port from there (`ssh -W`), the join too.
+
+## What happens (phase 3)
+
+The run plan shows every step of an agent target: the signed job and how it gets there (passive:
+the address; active: queued for the poll), the key made there (keygen) with the files it will go
+to, each file with its path, format, owner and mode (keys sealed / made there marked), each
+command as the operation it becomes, the script, the copies, the stale files - and for **each item
+the verdict of the policy the agent last said**: allowed, not allowed (with the
+`acme-agent allow ...` line), or not known yet; then a summary (all allowed / the agent refuses the
+job). The tests through the agent show the probe and its verdict. An SSH target through an agent
+says so.
+
+## Updates of the agent (phase 4)
+
+acme offers the agent of its own version. A target's card and the pane say **a newer agent is
+offered** when the agent runs an older version. With `allow self-update` in the policy a full
+administrator can **Update the agent** (`POST /api/agents/update`, `acme --target-agent NAME
+update`): acme sends its **signed** package (a release; a source tree's package is never sent).
+The root side reads it in memory (one folder, plain files, 4 MiB), checks every file against
+MANIFEST and MANIFEST.sig (Ed25519) against the release keys **installed with the agent**
+(`/usr/local/lib/acme-agent/release-keys/`, put there by install.sh - never taken from the package
+being installed), and that its version is **newer** than its own; then replaces the program and
+`release` atomically and restarts both services. Without the entry the agent refuses with the line
+that would allow it, and the card shows how to install the package by hand.
+
+## Monitoring (phase 4)
+
+* **SNMP**: `acmeAgentTable` (`acmeCertificates 9`): index (the target's id), name, mode, state,
+  last seen, the days its certificate has left, version, state as a number (`AcmeAgentCondition`),
+  newer offered, policy blocks a deployment. ACME-MIB REVISION 202611161200Z.
+* **Prometheus**: `acme_agent_up`, `acme_agent_state`, `acme_agent_last_seen_timestamp_seconds`,
+  `acme_agent_cert_not_after_timestamp_seconds`, `acme_agent_info`, `acme_agent_update_available`,
+  `acme_agent_policy_blocks` - only where there is an agent target.
+* **Zabbix template**: the discovery *Target agents* with its items and triggers (not heard from,
+  refused, its certificate ending, the policy blocking, a newer agent offered).
+* **isemon / SIEM**: the agents' events carry `action=agent_policy_blocks | agent_policy_changed |
+  agent_quiet | agent_back | agent_updated | agent_update | agent_cert_renewed | agent_joined |
+  agent_forgotten`, `target`, `target_kind=agent` (and `version`, `blocked`).
+* **Alerts**: not heard from for ten minutes, its certificate ending within seven days, and (phase 4)
+  **its policy blocks a deployment** - until a deployment there goes through.
+
+## Backup, restore and HA
+
+The agent authority, the command key, acme's certificate of the authority, each agent's state and
+the jobs queued are rows of `meta` - in every backup, sealed with the node's sealing key that the
+backup carries. A backup put back on a clean installation (or the other node of a cluster) is the
+same acme to the agents: it signs with the same command key and shows the same certificate
+(`test_target_agent.py BackupAndSecondNode`).
+
+## Later
+
 * Windows.

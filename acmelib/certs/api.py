@@ -2276,15 +2276,23 @@ def options_for(store, source):
         return [[r['name'], '%s (%s)' % (r['name'], r['kind'])]
                 for r in store.db.rows('SELECT name, kind, config FROM cert_targets ORDER BY name')
                 if issubclass(S.row_class('target', r) or object, SshMixin)]
-    if source == 'connectors':
+    if source in ('connectors', 'agent_hops'):
         # the connectors a target over SSH can be reached through: those of the targets
         # (targets/ssh_connector.py, 1.0.75), then those of the tests (checks/ssh_relay.py, 1.0.74)
         own = [r['name'] for r in store.db.rows(
             "SELECT name FROM cert_targets WHERE kind = 'ssh_connector' ORDER BY name")]
         tests = [r['name'] for r in store.db.rows(
             "SELECT name FROM cert_tests WHERE kind = 'ssh_relay' ORDER BY name")]
-        return [[n, n] for n in own] + [[n, '%s (a connector of the tests)' % n]
-                                        for n in tests if n not in own]
+        out = [[n, n] for n in own] + [[n, '%s (a connector of the tests)' % n]
+                                       for n in tests if n not in own]
+        if source == 'connectors':
+            # a server with acme-agent (1.0.116), passive: its agent as a connector (only to
+            # what its policy's `allow connect` names) - none without such a target
+            from acmelib.certs import agents
+            taken = {o[0] for o in out}
+            out += [[r['name'], '%s (through its acme-agent)' % r['name']]
+                    for r in agents.connector_rows(store) if r['name'] not in taken]
+        return out
     if source == 'test_connectors':
         # the connectors of the tests (checks/ssh_relay.py) a test can go through (1.0.76),
         # then those of the targets (1.0.77): a target's test goes the way its deployment goes
@@ -2292,8 +2300,14 @@ def options_for(store, source):
             "SELECT name FROM cert_tests WHERE kind = 'ssh_relay' ORDER BY name")]
         tg = [r['name'] for r in store.db.rows(
             "SELECT name FROM cert_targets WHERE kind = 'ssh_connector' ORDER BY name")]
-        return [[n, n] for n in own] + [[n, '%s (a connector of the targets)' % n]
-                                        for n in tg if n not in own]
+        out = [[n, n] for n in own] + [[n, '%s (a connector of the targets)' % n]
+                                       for n in tg if n not in own]
+        # a server with acme-agent (1.0.116): a test connected from its server (allow probe)
+        taken = {o[0] for o in out}
+        out += [[r['name'], '%s (through its acme-agent)' % r['name']] for r in store.db.rows(
+            "SELECT name FROM cert_targets WHERE kind = 'agent' ORDER BY name")
+            if r['name'] not in taken]
+        return out
     if source == 'key_types':
         return [[k, k] for k in schema.KEY_TYPES]
     return []
@@ -2531,6 +2545,16 @@ def _device_kind_kept(store, row, cls):
     was = S.row_class('target', row)
     if was is None:
         return
+    from acmelib.certs import devicekey as _dk
+    if _dk.makes_keys(was) and not _dk.strict(was) and not _dk.makes_keys(cls):
+        # its agent makes keys (1.0.116): not to a module that makes none while it does
+        mine = [r['name'] for r in store.db.rows('SELECT name FROM certs WHERE csr_from = ? '
+                                                 'ORDER BY name', (row['name'],))]
+        if mine:
+            raise ValueError('the agent of %s makes the key of %s - its module cannot be changed '
+                             'to %s, which makes no key: let acme make the key of those '
+                             'certificates first' % (row['name'], ', '.join(mine[:10]),
+                                                     cls.title or cls.kind))
     dev_was, dev_now = bool(getattr(was, 'device_key', False)), bool(getattr(cls, 'device_key',
                                                                           False))
     if dev_was and dev_now and was is not cls:

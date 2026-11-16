@@ -65971,6 +65971,214 @@
   "z_364": {
    "source": "the script written here",
    "text": "skript napsaný zde"
+  },
+  "z_365": {
+   "source": "A newer agent is offered",
+   "text": "Je k dispozici novější agent"
+  },
+  "z_366": {
+   "source": "Update the agent",
+   "text": "Aktualizovat agenta"
+  },
+  "z_367": {
+   "source": "Its policy lets acme update it: the package signed by acme’s release key is sent; the agent checks the signature with the key it was installed with and that the version is newer, then starts again.",
+   "text": "Jeho politika dovoluje acme ho aktualizovat: odešle se balíček podepsaný vydávacím klíčem acme; agent ověří podpis klíčem, se kterým byl nainstalován, a že je verze novější, a pak se znovu spustí."
+  },
+  "z_368": {
+   "source": "Its policy lets acme update it, but this acme has no signed package (a source tree): install a release package on the server.",
+   "text": "Jeho politika dovoluje acme ho aktualizovat, ale tento acme nemá podepsaný balíček (zdrojový strom): nainstalujte na server balíček z vydání."
+  },
+  "z_369": {
+   "source": "Its policy does not let acme update it: install the package on the server (Settings → Target agents), or allow acme to send it - only a package signed by the release key, only a newer version:",
+   "text": "Jeho politika nedovoluje acme ho aktualizovat: nainstalujte balíček na serveru (Nastavení → Agenti cílů), nebo dovolte acme ho poslat – jen balíček podepsaný vydávacím klíčem, jen novější verzi:"
+  },
+  "z_370": {
+   "source": "Its policy blocked the last deployment",
+   "text": "Jeho politika zablokovala poslední nasazení"
+  },
+  "z_371": {
+   "source": "Allow it on the server, as root",
+   "text": "Povolte to na serveru jako root"
+  },
+  "z_372": {
+   "source": "Keys made on this server",
+   "text": "Klíče vytvořené na tomto serveru"
+  },
+  "z_373": {
+   "source": "Their keys are made by the agent (its root side) and written straight into the folders its policy allows - they never leave the server; acme holds none.",
+   "text": "Jejich klíče vytváří agent (jeho rootovská část) a zapisuje je přímo do složek, které dovoluje jeho politika – server nikdy neopustí; acme žádný nedrží."
+  },
+  "z_374": {
+   "source": "A certificate used only on this server can have its key made here: the agent makes it at every issue (or keeps it), acme gets only the CSR and never holds the key.",
+   "text": "Certifikát používaný jen na tomto serveru může mít klíč vytvořený zde: agent ho vytvoří při každém vydání (nebo ho ponechá), acme dostane jen CSR a klíč nikdy nedrží."
+  },
+  "z_375": {
+   "source": "Make a certificate with its key made here",
+   "text": "Vytvořit certifikát s klíčem vytvořeným zde"
+  },
+  "z_376": {
+   "source": "Tests from here",
+   "text": "Testy odsud"
+  },
+  "z_377": {
+   "source": "anything on this server",
+   "text": "cokoli na tomto serveru"
+  },
+  "z_378": {
+   "source": "Connections for acme",
+   "text": "Spojení pro acme"
+  },
+  "z_379": {
+   "source": "a connector of SSH targets",
+   "text": "spojka SSH cílů"
+  },
+  "z_380": {
+   "source": "Updates from acme",
+   "text": "Aktualizace z acme"
+  },
+  "z_381": {
+   "source": "allowed - a package signed by the release key, a newer version only",
+   "text": "povoleno – jen balíček podepsaný vydávacím klíčem, jen novější verze"
+  },
+  "z_382": {
+   "source": "newer agent offered",
+   "text": "nabízen novější agent"
+  },
+  "z_383": {
+   "source": "its policy blocks a deployment",
+   "text": "jeho politika blokuje nasazení"
+  },
+  "z_384": {
+   "source": "test from here",
+   "text": "test odsud"
+  },
+  "z_385": {
+   "source": "tests from here",
+   "text": "testy odsud"
+  },
+  "z_386": {
+   "source": "connection",
+   "text": "spojení"
+  },
+  "z_387": {
+   "source": "connections",
+   "text": "spojení"
+  },
+  "z_388": {
+   "source": "updates from acme",
+   "text": "aktualizace z acme"
+  },
+  "z_389": {
+   "source": "makes 1 key",
+   "text": "vytváří 1 klíč"
+  },
+  "z_390": {
+   "source": "Reached through",
+   "text": "Dosažen přes"
+  },
+  "z_391": {
+   "source": "The key is made on the server: the agent makes it and puts it into the files below - acme never holds it.",
+   "text": "Klíč se vytváří na serveru: agent ho vytvoří a vloží do souborů níže – acme ho nikdy nedrží."
+  },
+  "z_392": {
+   "source": "allowed by the agent’s policy",
+   "text": "povoleno politikou agenta"
+  },
+  "z_393": {
+   "source": "not allowed by the agent’s policy - the agent refuses the job",
+   "text": "politika agenta to nedovoluje – agent úlohu odmítne"
+  },
+  "z_394": {
+   "source": "the agent’s policy is not known yet",
+   "text": "politika agenta zatím není známa"
+  },
+  "z_395": {
+   "source": "It is allowed by",
+   "text": "Povoluje to"
+  },
+  "z_396": {
+   "source": "the key made on the server",
+   "text": "klíč vytvořený na serveru"
+  },
+  "z_397": {
+   "source": "Key made by the agent, on the server",
+   "text": "Klíč vytvoří agent na serveru"
+  },
+  "z_398": {
+   "source": "At every issue its agent makes the key (or keeps the one in use, with “Keep the key”) and sends acme only the CSR; the key is written straight into the files of its deployment there and never leaves the server. acme holds none: it cannot be exported and goes to this server alone.",
+   "text": "Při každém vydání vytvoří jeho agent klíč (nebo s volbou „Ponechat klíč“ ponechá ten používaný) a acme pošle jen CSR; klíč se zapíše přímo do souborů nasazení tam a server nikdy neopustí. acme žádný nedrží: nelze ho exportovat a jde jen na tento server."
+  },
+  "z_399": {
+   "source": "The key never leaves the server",
+   "text": "Klíč nikdy neopustí server"
+  },
+  "z_400": {
+   "source": "Its policy must allow the files that hold the key (key-pem, combined-pem or pfx) - the deployment’s form says what it needs.",
+   "text": "Jeho politika musí dovolit soubory s klíčem (key-pem, combined-pem nebo pfx) – formulář nasazení řekne, co potřebuje."
+  },
+  "z_401": {
+   "source": "On: the agent makes a CSR of the key in use at each renewal. Off (better): it makes a new key on the server each time.",
+   "text": "Zapnuto: agent při každé obnově vytvoří CSR z používaného klíče. Vypnuto (lepší): pokaždé vytvoří na serveru nový klíč."
+  },
+  "z_402": {
+   "source": "a passive agent only another network reaches: acme signs in to the connector (Targets → Connector over SSH) and reaches the agent's port from there - nothing installed there",
+   "text": "pasivní agent, na kterého dosáhne jen jiná síť: acme se přihlásí ke spojce (Cíle → Spojka přes SSH) a odtud dosáhne na port agenta – nic se tam neinstaluje"
+  },
+  "z_403": {
+   "source": "the key, made there",
+   "text": "klíč, vytvořený tam"
+  },
+  "z_404": {
+   "source": "a new key at every issue",
+   "text": "nový klíč při každém vydání"
+  },
+  "z_405": {
+   "source": "the key in use kept (Keep the key)",
+   "text": "používaný klíč ponechán (Ponechat klíč)"
+  },
+  "z_406": {
+   "source": "The agent's policy allows every file, command and script of it",
+   "text": "Politika agenta dovoluje každý jeho soubor, příkaz i skript"
+  },
+  "z_407": {
+   "source": "The agent has not said its policy yet: what it allows is not known - each item below shows the line that allows it on the server",
+   "text": "Agent zatím neřekl svou politiku: co dovoluje, není známo – u každé položky níže je řádek, který to na serveru povolí"
+  },
+  "z_408": {
+   "source": "Before the files, the agent runs",
+   "text": "Před soubory agent spustí"
+  },
+  "z_409": {
+   "source": "The agent tests",
+   "text": "Agent otestuje"
+  },
+  "z_410": {
+   "source": "The agent reloads",
+   "text": "Agent znovu načte"
+  },
+  "z_411": {
+   "source": "After it, the agent runs",
+   "text": "Potom agent spustí"
+  },
+  "z_412": {
+   "source": "The agent runs the script after the files",
+   "text": "Agent po souborech spustí skript"
+  },
+  "z_413": {
+   "source": "The agent takes away the files acme wrote before and no longer writes",
+   "text": "Agent odstraní soubory, které acme zapsal dřív a už nezapisuje"
+  },
+  "z_414": {
+   "source": "Target agents discovery",
+   "text": "Zjišťování agentů cílů"
+  },
+  "z_415": {
+   "source": "the agent does not make it",
+   "text": "agent ho nevytváří"
+  },
+  "z_416": {
+   "source": "none: TLS at once",
+   "text": "žádný: TLS hned"
   }
  },
  "patterns": {
@@ -91433,6 +91641,66 @@
   "pz_40": {
    "source": "{0} scripts",
    "text": "{0} {0:skript|skripty|skriptů}"
+  },
+  "pz_41": {
+   "source": "makes {0} keys",
+   "text": "vytváří {0} klíčů"
+  },
+  "pz_42": {
+   "source": "Its key is made on {0} by its agent: it goes there alone, right after each issue - the deployment is made by itself.",
+   "text": "Jeho klíč vytváří agent na {0}: jde jen tam, hned po každém vydání – nasazení se vytvoří samo."
+  },
+  "pz_43": {
+   "source": "{0} (through its acme-agent)",
+   "text": "{0} (přes jeho acme-agenta)"
+  },
+  "pz_44": {
+   "source": "Sends a signed job ({0}) to the agent of {1}",
+   "text": "Pošle podepsanou úlohu ({0}) agentovi cíle {1}"
+  },
+  "pz_45": {
+   "source": "The agent writes {0}",
+   "text": "Agent zapíše {0}"
+  },
+  "pz_46": {
+   "source": "The agent writes the key it made into {0}",
+   "text": "Agent zapíše klíč, který vytvořil, do {0}"
+  },
+  "pz_47": {
+   "source": "The key will go into {0}",
+   "text": "Klíč půjde do {0}"
+  },
+  "pz_48": {
+   "source": "The agent makes a new {0} key on {1} (its root side) and sends back only its CSR - the key never leaves that server",
+   "text": "Agent vytvoří nový klíč {0} na {1} (jeho rootovská část) a pošle zpět jen CSR – klíč ten server nikdy neopustí"
+  },
+  "pz_49": {
+   "source": "The key and the request (CSR) are made on {0} by its acme-agent - {1}; acme holds none",
+   "text": "Klíč a žádost (CSR) vytvoří na {0} jeho acme-agent – {1}; acme žádný nedrží"
+  },
+  "pz_50": {
+   "source": "The agent's policy does not allow {0} of it: the agent refuses the whole job before anything is written - allow it on the server first",
+   "text": "Politika agenta nedovoluje {0} z toho: agent odmítne celou úlohu dřív, než se cokoli zapíše – nejdřív to povolte na serveru"
+  },
+  "pz_51": {
+   "source": "The agent of {0} connects to {1} from its server and sends back the chain it was given",
+   "text": "Agent cíle {0} se ze svého serveru připojí k {1} a pošle zpět řetězec, který dostal"
+  },
+  "pz_52": {
+   "source": "The agent of {0} cannot speak this protocol - the test fails there",
+   "text": "Agent cíle {0} tento protokol neumí – test tam selže"
+  },
+  "pz_53": {
+   "source": "the policy of the agent of target {0} blocks a deployment ({1}) - allow it on the server: {2}",
+   "text": "politika agenta cíle {0} blokuje nasazení ({1}) – povolte to na serveru: {2}"
+  },
+  "pz_54": {
+   "source": "The agent of {0} connects to {1} for acme ({2})",
+   "text": "Agent cíle {0} se pro acme připojí k {1} ({2})"
+  },
+  "pz_55": {
+   "source": "the agent of {0} - acme opens a tunnel over its TLS connection to the agent, which connects to this server (its policy: allow connect)",
+   "text": "agent cíle {0} – acme otevře tunel přes své TLS spojení s agentem, který se připojí k tomuto serveru (jeho politika: allow connect)"
   }
  },
  "rich": {

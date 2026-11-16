@@ -37,6 +37,20 @@ import time
 from acmelib.plugins import base
 from acmelib.certs import store as S
 
+def makes_keys(cls):
+    """Whether a target module can make the key of a certificate: a device that only takes a
+    certificate for its own key (device_key), or a target where it is chosen per certificate
+    (device_key_optional, 1.0.116: a server with acme-agent - the agent makes the key there,
+    and the target takes certificates with acme's key too)."""
+    return cls is not None and bool(getattr(cls, 'device_key', False) or
+                                    getattr(cls, 'device_key_optional', False))
+
+
+def strict(cls):
+    """A device that takes ONLY certificates for keys it made (device_key)."""
+    return cls is not None and bool(getattr(cls, 'device_key', False))
+
+
 HOW = ('the certificate form: "Key made by the device", or acme --cert-add NAME --names ... '
        '--csr-from TARGET')
 
@@ -46,7 +60,7 @@ def device_class(store, trow):
     if not trow:
         return None
     cls = S.row_class('target', trow)
-    return cls if cls is not None and getattr(cls, 'device_key', False) else None
+    return cls if makes_keys(cls) else None
 
 
 def target_of(store, name):
@@ -60,7 +74,7 @@ def target_of(store, name):
     if cls is None:
         raise ValueError('the module of the target %s (%s) is not there' % (trow['name'],
                                                                            trow.get('kind')))
-    if not getattr(cls, 'device_key', False):
+    if not makes_keys(cls):
         raise ValueError('the target %s (%s) does not make keys: its module takes a certificate '
                          'with acme\'s key - choose a target whose device makes the key, or let '
                          'acme make it' % (trow['name'], cls.title or cls.kind))
@@ -93,7 +107,7 @@ def save_problem(store, cert, deploys=None, one_per_device=True, may_see=None):
     if cert.get('key_type_alt'):
         return ('the device %s makes one key - a twin with another kind of key (%s) cannot be '
                 'made: choose no twin' % (trow['name'], cert['key_type_alt']))
-    if int(cert.get('reuse_key') or 0):
+    if int(cert.get('reuse_key') or 0) and strict(cls):
         return ('the device %s makes a new key at every renewal - "Keep the key" (reuse_key) '
                 'is for keys acme holds: switch it off' % trow['name'])
     kts = key_types_of(cls)
@@ -128,7 +142,8 @@ def save_problem(store, cert, deploys=None, one_per_device=True, may_see=None):
                 % (', '.join(sorted(set(other))), trow['name']))
     # One certificate per device: the device holds one pending key - a second certificate's
     # CSR replaced the first one's key, and each renewal took the other's certificate away.
-    twin = sharing(store, cert, trow['name']) if one_per_device else None
+    # (an agent makes a key per deployment, any number of them: not one pending key)
+    twin = sharing(store, cert, trow['name']) if one_per_device and strict(cls) else None
     if twin and may_see is not None and not may_see(twin):
         return ('the device %s already makes the key of another certificate - a device holds one '
                 'pending key: choose another target' % trow['name'])
@@ -179,7 +194,7 @@ def deploy_problem(store, cert, trow, cls=None, version=True, saving=None):
         return ('%s is deployed to %s already - a certificate whose key the device makes has one '
                 'deployment there (change that one)' % (cert['name'], src))
     cls = cls if cls is not None else S.row_class('target', trow)
-    if cls is not None and getattr(cls, 'device_key', False) and src != trow['name']:
+    if strict(cls) and src != trow['name']:
         return ('%s makes the key itself and takes only a certificate for it - add a '
                 'certificate whose key it makes (%s %s)'
                 % (trow['name'], HOW.replace('TARGET', trow['name']),
@@ -329,7 +344,7 @@ def csr_for(store, job, cert, names, sans, subject, key_type, profile, needs_cha
     if cls is None:
         raise base.PluginError('the module of the target %s (%s) is not there' % (
             trow['name'], trow.get('kind')), retry=False)
-    if not getattr(cls, 'device_key', False):
+    if not makes_keys(cls):
         raise base.PluginError('the target %s (%s) does not make keys any more - let acme make '
                                'the key (the certificate → Edit → Key)' % (trow['name'],
                                                                          cls.title or cls.kind),
@@ -366,9 +381,13 @@ def csr_for(store, job, cert, names, sans, subject, key_type, profile, needs_cha
                          'not finished; the device keeps that key until its certificate comes)'
                          % (what, trow['name'], _when(kept.get('at'))), 'ok', scope=scope)
             return info
-    jobs.step_in(job, '%sthe key and the CSR are made by the device of %s (%s) - the key stays '
-                 'there' % (what, trow['name'], cls.title or cls.kind), scope=scope)
-    twin = sharing(store, cert, trow['name'])
+    if strict(cls):
+        jobs.step_in(job, '%sthe key and the CSR are made by the device of %s (%s) - the key '
+                     'stays there' % (what, trow['name'], cls.title or cls.kind), scope=scope)
+    else:
+        jobs.step_in(job, '%sthe key and the CSR are made on %s (%s) - the key stays there'
+                     % (what, trow['name'], cls.title or cls.kind), scope=scope)
+    twin = sharing(store, cert, trow['name']) if strict(cls) else None
     if twin:
         # two certificates on one device, saved before 1.0.96 refused that: each new CSR
         # replaces the key the device holds for the other one
@@ -388,6 +407,8 @@ def csr_for(store, job, cert, names, sans, subject, key_type, profile, needs_cha
                                subject=dict(subject or {}), profile=dict(profile or {}),
                                options=opts, name=cert['name'], cert_id=cert['id'],
                                target=trow['name'])
+        # "Keep the key" where the target lets it be chosen (an agent: the key in use again)
+        req.reuse_key = bool(int(cert.get('reuse_key') or 0)) and not strict(cls)
         job.check()
         got = target.device_csr(req)
         job.check()

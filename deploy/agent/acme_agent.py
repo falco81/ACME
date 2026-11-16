@@ -23,7 +23,9 @@ Two processes:
     network: a Unix socket for the network side alone (its uid checked), and a closed set of
     operations - stage and install files atomically (a backup copy, owner and mode, rollback),
     run an allowed test (a fixed argv, never a shell), systemctl reload/restart of an allowed
-    unit, an allowed script (its SHA-256 checked when it runs), fingerprints of files. Every
+    unit, an allowed script (its SHA-256 checked when it runs), fingerprints of files, a key
+    made here for a deployment (kept by root, written only into allowed files - it never
+    leaves this machine), an update of this agent (signed, newer, allowed). Every
     job is checked here again: acme's signature (its command key pinned at the join), the
     agent's id, a nonce never seen, the time; then every file, owner, mode, unit, command and
     script against the policy. Private keys arrive sealed to this side's own X25519 key.
@@ -39,7 +41,10 @@ Two processes:
   acme-agent allow script PATH           (its SHA-256 pinned now)
   acme-agent allow script-hash SHA256    (a script written in acme, by its hash)
   acme-agent allow from ADDRESS[/BITS]   (passive: only from there)
-  acme-agent allow self-update           (later versions: not used yet)
+  acme-agent allow probe HOST:PORT       a test of what HOST:PORT serves, run from here
+  acme-agent allow probe local           ...of anything on 127.0.0.1 / ::1 / localhost
+  acme-agent allow connect HOST:PORT     acme reaches HOST:PORT through this agent (passive)
+  acme-agent allow self-update           acme may update this agent: signed, newer only
   acme-agent limit files N | limit size BYTES
   acme-agent deny ...                    the same words: that entry taken away
   acme-agent root | serve                the two sides (systemd)
@@ -94,9 +99,29 @@ OWNER_RE = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,31}\Z')
 AGENT_ID_RE = re.compile(r'ag-[0-9a-f]{12,32}\Z')
 SAFE_PATH = re.compile(r'/[^\x00-\x1f\x7f]{0,1023}\Z')
 SAFE_ENV = re.compile(r'[A-Z][A-Z0-9_]{0,63}\Z')
-ROOT_OPS = ('hello', 'policy', 'fingerprints', 'deploy', 'check')
-NET_OPS = ('csr', 'cert')
+ROOT_OPS = ('hello', 'policy', 'fingerprints', 'deploy', 'check', 'keygen', 'update')
+# checked by root (the signature, and - probe, connect - the policy), done by the network side:
+# root never opens a network connection
+NET_OPS = ('csr', 'cert', 'probe', 'connect')
 AGENT_FILES = ('acme_agent.py',)
+# a key the agent makes (phase 3): its types, and the formats root writes it in
+KEY_TYPES = {'ec-256': ['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-256'],
+             'ec-384': ['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-384'],
+             'rsa-2048': ['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:2048'],
+             'rsa-3072': ['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:3072'],
+             'rsa-4096': ['-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:4096']}
+AGENT_KEY_FORMATS = ('key-pem', 'key-traditional', 'key-rsa', 'key-der', 'combined-pem', 'pfx',
+                     'p12')
+SLOT_RE = re.compile(r'[a-z0-9][a-z0-9-]{0,63}\Z')
+KEYS_MOST = 64                  # deployments whose key this agent holds
+DNS_RE = re.compile(r'(\*\.)?[A-Za-z0-9_]([A-Za-z0-9_-]{0,62})(\.[A-Za-z0-9_]([A-Za-z0-9_-]{0,62}))*\Z')
+# a test of what is served, from here (probe): the protocols `openssl s_client -starttls` speaks
+STARTTLS = ('smtp', 'imap', 'pop3', 'ftp', 'xmpp', 'ldap', 'postgres', 'mysql', 'lmtp', 'nntp',
+            'sieve')
+PROBE_S = 30
+TUNNEL_IDLE_S = 600             # a connector's tunnel with nothing going through it this long
+PKG_MOST = 4 * 1024 * 1024      # an update's package
+ED25519_SPKI = bytes.fromhex('302a300506032b6570032100')
 
 
 # ---- where things are ---------------------------------------------------------------------
@@ -565,8 +590,9 @@ POLICY_HEAD = """# /etc/acme-agent/policy - what acme may do on this machine (do
 #   allow script PATH sha256=HEX                a script on this machine, by its hash
 #   allow script-hash HEX                       a script written in acme, by its hash
 #   allow from ADDRESS[/BITS]                   passive: acme only from there
-#   allow self-update                           (later versions)
-#   allow connect HOST:PORT                     (later versions: the connector)
+#   allow probe HOST:PORT | allow probe local   a test of what HOST:PORT serves, from here
+#   allow connect HOST:PORT                     acme reaches HOST:PORT through this agent
+#   allow self-update                           acme may update this agent (signed, newer)
 #   limit files 20                              files in one deployment
 #   limit size 1048576                          bytes of one file
 """
@@ -603,7 +629,7 @@ def parse_policy(text):
     """The policy file -> {files, units, tests, scripts, script_hashes, from, self_update,
     connect, limits, problems}. A line it cannot read is left out and said (problems)."""
     pol = {'files': [], 'units': {}, 'tests': [], 'scripts': [], 'script_hashes': [],
-           'from': [], 'self_update': False, 'connect': [],
+           'from': [], 'self_update': False, 'connect': [], 'probe': [], 'probe_local': False,
            'limits': {'files': FILES_MOST, 'size': FILE_MOST}, 'problems': []}
     for n, raw in enumerate(str(text or '').splitlines(), 1):
         line = raw.strip()
@@ -700,12 +726,60 @@ def _policy_line(pol, words):
     elif what == 'self-update':
         pol['self_update'] = True
     elif what == 'connect':
-        if len(rest) != 1 or not re.fullmatch(r'[A-Za-z0-9.:\[\]-]{1,253}:[0-9]{1,5}', rest[0]):
+        if len(rest) != 1:
             raise Refused('allow connect HOST:PORT')
-        pol['connect'].append(rest[0])
+        hp = norm_hostport(rest[0])
+        if hp not in pol['connect']:
+            pol['connect'].append(hp)
+    elif what == 'probe':
+        if len(rest) != 1:
+            raise Refused('allow probe HOST:PORT (or allow probe local)')
+        if rest[0] == 'local':
+            pol['probe_local'] = True
+        else:
+            hp = norm_hostport(rest[0])
+            if hp not in pol['probe']:
+                pol['probe'].append(hp)
     else:
-        raise Refused('allow file | unit | test | script | script-hash | from | self-update | '
-                      'connect')
+        raise Refused('allow file | unit | test | script | script-hash | from | probe | connect '
+                      '| self-update')
+
+
+HOST_RE = re.compile(r'[A-Za-z0-9_]([A-Za-z0-9_.-]{0,252})\Z')
+LOCAL = ('127.0.0.1', '::1', 'localhost')
+
+
+def split_hostport(text):
+    """'host:port', '[v6]:port' -> (host, port) - checked: a name or an address, a port 1-65535."""
+    t = str(text or '').strip()
+    m = re.fullmatch(r'\[([0-9A-Fa-f:.]+)\]:([0-9]{1,5})', t) or \
+        re.fullmatch(r'([^\s:\[\]]+):([0-9]{1,5})', t)
+    if not m:
+        raise Refused('%r is not HOST:PORT ([v6 address]:PORT for IPv6)' % t[:80])
+    host, port = m.group(1).lower().rstrip('.'), int(m.group(2))
+    if not 0 < port < 65536:
+        raise Refused('%d is not a port' % port)
+    try:
+        host = str(ipaddress.ip_address(host))
+    except ValueError:
+        if not HOST_RE.match(host) or host.startswith('-') or '..' in host:
+            raise Refused('%r is not a host name or an address' % host[:80])
+    return host, port
+
+
+def norm_hostport(text):
+    host, port = split_hostport(text)
+    return ('[%s]:%d' % (host, port)) if ':' in host else ('%s:%d' % (host, port))
+
+
+def dest_allowed(pol, host, port, kind):
+    """May acme have this machine reach host:port - for a test ('probe') or as its connector
+    ('connect')? Only what the policy names: no name resolved to judge it."""
+    hp = norm_hostport('[%s]:%d' % (host, port) if ':' in str(host) else '%s:%s' % (host, port))
+    if kind == 'connect':
+        return hp in pol['connect']
+    h = split_hostport(hp)[0]
+    return hp in pol['probe'] or (pol['probe_local'] and h in LOCAL)
 
 
 def check_argv(argv):
@@ -725,6 +799,10 @@ def check_argv(argv):
 def policy_canon(pol):
     keep = {k: pol[k] for k in ('files', 'units', 'tests', 'scripts', 'script_hashes', 'from',
                                 'self_update', 'connect', 'limits')}
+    # what phase 3 added - only when used, so a policy of phase 2 keeps its hash
+    for k in ('probe', 'probe_local'):
+        if pol.get(k):
+            keep[k] = pol[k]
     return json.dumps(keep, sort_keys=True, separators=(',', ':'))
 
 
@@ -764,10 +842,14 @@ def policy_lines(pol):
         out.append('allow script-hash %s' % h)
     for f in pol['from']:
         out.append('allow from %s' % f)
-    if pol['self_update']:
-        out.append('allow self-update')
+    if pol.get('probe_local'):
+        out.append('allow probe local')
+    for c in pol.get('probe') or []:
+        out.append('allow probe %s' % c)
     for c in pol['connect']:
         out.append('allow connect %s' % c)
+    if pol['self_update']:
+        out.append('allow self-update')
     if pol['limits']['files'] != FILES_MOST:
         out.append('limit files %d' % pol['limits']['files'])
     if pol['limits']['size'] != FILE_MOST:
@@ -780,6 +862,7 @@ def policy_report(pol, h):
     return {'hash': h, 'files': pol['files'], 'units': pol['units'], 'tests': pol['tests'],
             'scripts': pol['scripts'], 'script_hashes': pol['script_hashes'],
             'from': pol['from'], 'self_update': pol['self_update'], 'connect': pol['connect'],
+            'probe': pol.get('probe') or [], 'probe_local': bool(pol.get('probe_local')),
             'limits': pol['limits'], 'problems': pol['problems'][:20]}
 
 
@@ -1087,6 +1170,239 @@ def prune_backups(dfd, name, keep):
     return n
 
 
+# ---- keys made here (phase 3): root's, never leaving this machine ----------------------------
+def keys_dir():
+    d = os.path.join(ROOT_STATE, 'keys')
+    os.makedirs(d, mode=0o700, exist_ok=True)
+    return d
+
+
+def key_paths(slot):
+    """(the key waiting for its certificate, the key in use) of one deployment."""
+    if not SLOT_RE.match(str(slot or '')):
+        raise Refused('%r is not a deployment this agent keeps a key for' % str(slot)[:40])
+    d = keys_dir()
+    return os.path.join(d, slot + '.pending'), os.path.join(d, slot + '.key')
+
+
+def key_type_of(pem):
+    """'ec-256' ... 'rsa-4096' of a private key (PEM), or '' - asked of openssl."""
+    try:
+        txt = _openssl(['pkey', '-in', '/dev/stdin', '-noout', '-text_pub'], pem)
+    except Refused:
+        return ''
+    if 'prime256v1' in txt or 'P-256' in txt:
+        return 'ec-256'
+    if 'secp384r1' in txt or 'P-384' in txt:
+        return 'ec-384'
+    m = re.search(r'Public-Key: \((\d+) bit', txt)
+    if m and 'Modulus' in txt:
+        return 'rsa-%s' % m.group(1)
+    return ''
+
+
+def check_names(names):
+    out = []
+    for n in names or []:
+        n = str(n).strip().lower().rstrip('.')
+        try:
+            out.append(('IP', str(ipaddress.ip_address(n))))
+            continue
+        except ValueError:
+            pass
+        if not DNS_RE.match(n) or len(n) > 253:
+            raise Refused('%r is not a name a certificate holds' % n[:80])
+        out.append(('DNS', n))
+    if not 1 <= len(out) <= 100:
+        raise Refused('a request for one to a hundred names')
+    return out
+
+
+def make_key_csr(key_pem, names):
+    """A CSR of `key_pem` for the names (the first its common name), by openssl."""
+    pairs = check_names(names)
+    san = ','.join('%s:%s' % p for p in pairs)
+    cn = pairs[0][1]
+    return _openssl(['req', '-new', '-key', '/dev/stdin', '-subj', '/CN=%s' % cn,
+                     '-addext', 'subjectAltName=%s' % san], key_pem)
+
+
+def key_file(fmt, key_pem, data, password, alias, kt):
+    """The bytes of a file holding the key this agent made: the key in its format, or the
+    certificate's files acme sent (`data`) with the key put in."""
+    kb = key_pem.encode() if isinstance(key_pem, str) else key_pem
+    if fmt == 'key-pem':
+        return kb
+    if fmt in ('key-traditional', 'key-rsa'):
+        if fmt == 'key-rsa' and not kt.startswith('rsa'):
+            raise Refused('key-rsa (PKCS#1) is only for RSA keys - this one is %s' % kt)
+        for args in (['pkey', '-traditional'], ['rsa' if kt.startswith('rsa') else 'ec']):
+            try:
+                out = _openssl(args + ['-in', '/dev/stdin'], kb, binary=True)
+            except Refused:
+                continue
+            if b'BEGIN PRIVATE KEY' not in out:
+                return out
+        raise Refused('openssl could not write the key in the traditional form')
+    if fmt == 'key-der':
+        return _openssl(['pkey', '-in', '/dev/stdin', '-outform', 'DER'], kb, binary=True)
+    if fmt == 'combined-pem':
+        return kb + (b'' if kb.endswith(b'\n') else b'\n') + data
+    if fmt in ('pfx', 'p12'):
+        stage = os.path.join(ROOT_STATE, 'stage')
+        os.makedirs(stage, mode=0o700, exist_ok=True)
+        t = tempfile.mkdtemp(dir=stage)
+        try:
+            kf, cf = os.path.join(t, 'k.pem'), os.path.join(t, 'c.pem')
+            for fn, b in ((kf, kb), (cf, data)):
+                fd = os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, 'wb') as f:
+                    f.write(b)
+            got = subprocess.run(['openssl', 'pkcs12', '-export', '-inkey', kf, '-in', cf,
+                                  '-name', str(alias or 'acme')[:64], '-passout',
+                                  'env:ACME_AGENT_P12'], capture_output=True,
+                                 env={'PATH': os.environ.get('PATH', '/usr/bin:/bin'),
+                                      'ACME_AGENT_P12': password or ''})
+            if got.returncode != 0:
+                raise Refused('openssl pkcs12: %s' % got.stderr.decode('utf-8', 'replace')
+                              .strip()[-200:])
+            return got.stdout
+        finally:
+            for fn in os.listdir(t):
+                os.unlink(os.path.join(t, fn))
+            os.rmdir(t)
+    raise Refused('a key this agent made cannot be written as %s (it can: %s)' % (
+        fmt, ', '.join(AGENT_KEY_FORMATS)))
+
+
+# ---- a signed update of this agent (phase 4: allow self-update) -------------------------------
+def lib_dir():
+    return os.path.dirname(os.path.realpath(__file__))
+
+
+def vtuple(v):
+    try:
+        return tuple(int(x) for x in str(v).strip().split('.'))
+    except ValueError:
+        return ()
+
+
+def release_keys():
+    """{name: Ed25519 public key (32 bytes)} - the release keys shipped with this agent (beside
+    it, or in acme's tree around it): pinned, never taken from what is being installed."""
+    here = lib_dir()
+    out = {}
+    for d in (os.path.join(here, 'release-keys'),
+              os.path.join(os.path.dirname(here), 'release-keys')):
+        try:
+            names = sorted(os.listdir(d))
+        except OSError:
+            continue
+        for n in names:
+            if not n.endswith('.pub'):
+                continue
+            pem = _read(os.path.join(d, n), '') or ''
+            m = re.search(r'-----BEGIN PUBLIC KEY-----(.+?)-----END PUBLIC KEY-----', pem, re.S)
+            if not m:
+                continue
+            try:
+                der = base64.b64decode(''.join(m.group(1).split()))
+            except (ValueError, binascii.Error):
+                continue
+            if len(der) == 44 and der[:12] == ED25519_SPKI:
+                out[n[:-4]] = der[12:]
+        if out:
+            break
+    return out
+
+
+def read_package(raw):
+    """acme-agent-X.Y.Z.tar.gz -> {name: bytes} of its one folder: plain files only, no link,
+    no .. - nothing of it written anywhere."""
+    import io
+    import tarfile
+    if len(raw) > PKG_MOST:
+        raise Refused('the package is bigger than %d bytes' % PKG_MOST)
+    try:
+        tar = tarfile.open(fileobj=io.BytesIO(raw), mode='r:gz')
+    except (tarfile.TarError, OSError, EOFError):
+        raise Refused('the package is not a .tar.gz')
+    out, top, total = {}, None, 0
+    with tar:
+        for m in tar.getmembers():
+            parts = m.name.split('/')
+            if not parts or '..' in parts or m.name.startswith('/') or '' in parts[1:]:
+                raise Refused('the package holds a path that is not one: %r' % m.name[:80])
+            if top is None:
+                top = parts[0]
+            if parts[0] != top or not re.fullmatch(r'acme-agent-[0-9.]+', top):
+                raise Refused('the package is not one folder acme-agent-X.Y.Z')
+            if m.isdir():
+                continue
+            if not m.isfile():
+                raise Refused('the package holds a link or a device: %s' % m.name[:80])
+            total += m.size
+            if total > 4 * PKG_MOST or len(out) > 64:
+                raise Refused('the package is too big')
+            out['/'.join(parts[1:])] = tar.extractfile(m).read()
+    return top, out
+
+
+def verify_package(top, files):
+    """Every file against MANIFEST, MANIFEST against its signature by a pinned release key,
+    the version newer than this one -> (version, the key's name). Refused otherwise."""
+    man = files.get('MANIFEST')
+    sig = files.get('MANIFEST.sig')
+    if man is None:
+        raise Refused('the package has no MANIFEST')
+    if sig is None:
+        raise Refused('the package is not signed (made from a source tree) - only a release '
+                      'package signed by acme\'s release key updates an agent')
+    keys = release_keys()
+    if not keys:
+        raise Refused('this agent has no release key to check a package with (install the '
+                      'package of a release by hand once: install.sh)')
+    who = next((n for n, k in sorted(keys.items()) if len(sig) == 64 and
+                ed25519_verify(k, man, sig)), None)
+    if who is None:
+        raise Refused('the package\'s signature is not of a release key this agent knows - '
+                      'refused')
+    listed = {}
+    for line in man.decode('utf-8', 'replace').splitlines():
+        m = re.fullmatch(r'([0-9a-f]{64})  (\S+)', line.strip())
+        if not m:
+            raise Refused('MANIFEST holds a line that is not one')
+        listed[m.group(2)] = m.group(1)
+    for n, b in files.items():
+        if n in ('MANIFEST', 'MANIFEST.sig'):
+            continue
+        if listed.get(n) != _sha(b):
+            raise Refused('%s is not the file MANIFEST names - refused' % n)
+    missing = [n for n in listed if n not in files]
+    if missing or 'acme_agent.py' not in files or 'release' not in files:
+        raise Refused('the package is not whole (%s)' % ', '.join(missing[:3] or ['its program']))
+    ver = files['release'].decode('ascii', 'replace').strip()
+    if not re.fullmatch(r'[0-9]+(\.[0-9]+){1,3}', ver) or top != 'acme-agent-' + ver:
+        raise Refused('the package says no version')
+    if vtuple(ver) <= vtuple(VERSION):
+        raise Refused('the package is version %s, not newer than this agent (%s) - an agent is '
+                      'never put back to an older one' % (ver, VERSION))
+    return ver, who
+
+
+def restart_later(delay=2.0):
+    """Both sides started again by systemd after an update (not under a test)."""
+    if not os.path.isdir('/run/systemd/system') or os.environ.get('ACME_AGENT_NO_SYSTEMD'):
+        return False
+
+    def go():
+        time.sleep(delay)
+        subprocess.run(['systemctl', '--no-block', 'restart', 'acme-agent.service',
+                        'acme-agent-root.service'], capture_output=True)
+    threading.Thread(target=go, daemon=True).start()
+    return True
+
+
 # ---- the root side --------------------------------------------------------------------------
 class Root(object):
     """What root does: every job checked, the plan checked against the policy, done."""
@@ -1202,6 +1518,17 @@ class Root(object):
         try:
             job = self.verify(msg)
             jid, op = job['job'], job['op']
+            if op in ('probe', 'connect'):
+                # where the network side may go: the policy names it, or nothing
+                pol, _h, _t = policy_load()
+                host, port = split_hostport(job['args'].get('to'))
+                hp = norm_hostport(job['args'].get('to'))
+                if not dest_allowed(pol, host, port, op):
+                    raise Refused('not allowed by the policy of this machine: %s %s' % (
+                        'a test of' if op == 'probe' else 'a connection to', hp),
+                        [{'kind': op, 'what': hp, 'allow': 'acme-agent allow %s %s' % (op, hp)}])
+                audit(op=op, job=jid, ok=True, said='%s allowed for the network side' % hp)
+                return {'ok': True, 'verified': True, 'job': job, 'dest': [host, port]}
             if op in NET_OPS:
                 audit(op=op, job=jid, ok=True, said='checked for the network side')
                 return {'ok': True, 'verified': True, 'job': job}
@@ -1335,6 +1662,77 @@ class Root(object):
         with self.work:
             return Deploy(self, args, job).run()
 
+    def op_keygen(self, args, job, msg):
+        """A new key for one deployment, made here and kept by root (never sent anywhere), and
+        its CSR: what acme has signed. The files that will hold it are checked against the
+        policy first - a key is made only for a deployment that may run. The key goes into its
+        files with the deployment of its certificate (until then the key in use stays)."""
+        pol, h, _t = policy_load()
+        slot = str(args.get('slot') or '')
+        pending, current = key_paths(slot)
+        kt = str(args.get('key_type') or 'ec-256')
+        if kt not in KEY_TYPES:
+            raise Refused('%r is not a key type this agent makes (%s)' % (kt[:20],
+                                                                      ', '.join(KEY_TYPES)))
+        files = args.get('files') if isinstance(args.get('files'), list) else []
+        if not files:
+            raise Refused('no file of the deployment holds the key - give it a key file '
+                          '(key-pem, combined-pem, pfx ...)')
+        for f in files:
+            if not isinstance(f, dict) or str(f.get('format') or '') not in AGENT_KEY_FORMATS:
+                raise Refused('%s: a key this agent makes cannot be written as %s (it can: %s)'
+                              % (str((f or {}).get('path'))[:200], str((f or {}).get('format')),
+                                 ', '.join(AGENT_KEY_FORMATS)))
+        plan_check(pol, {'files': [{k: f.get(k) for k in ('path', 'mode', 'owner')}
+                                   for f in files]})
+        names = args.get('names') if isinstance(args.get('names'), list) else []
+        held = [n for n in os.listdir(keys_dir()) if n.endswith(('.key', '.pending'))]
+        if len({n.rsplit('.', 1)[0] for n in held} | {slot}) > KEYS_MOST:
+            raise Refused('this agent holds the keys of %d deployments already' % KEYS_MOST)
+        key, kept = None, False
+        if args.get('keep'):
+            cur = _read(current, '') or ''
+            if cur and key_type_of(cur) == kt:
+                key, kept = cur, True
+        if key is None:
+            key = _openssl(['genpkey'] + KEY_TYPES[kt])
+        csr = make_key_csr(key, names)
+        _write(pending, key, 0o600)
+        return {'ok': True, 'csr': csr, 'kept': kept, 'key_fp': spki_fp(key), 'policy_hash': h,
+                'said': ('the key in use kept (%s), a CSR of it' if kept else
+                         'a new %s key made here - it stays on this machine - and its CSR') % kt}
+
+    def op_update(self, args, job, msg):
+        """This agent replaced by a newer one acme offers: only with `allow self-update`, only
+        a package signed by a release key this agent was installed with, only a newer version.
+        Without the entry acme is told a newer one is there, nothing more."""
+        pol, _h, _t = policy_load()
+        if not pol['self_update']:
+            raise Refused('this machine does not let acme update its agent',
+                          [{'kind': 'self-update', 'what': 'acme-agent %s' % str(
+                              args.get('version') or '')[:20],
+                            'allow': 'acme-agent allow self-update'}])
+        raw = _unb64(args.get('package'), None, 'the package')
+        top, files = read_package(raw)
+        ver, who = verify_package(top, files)
+        here = lib_dir()
+        with self.work:
+            for name in ('acme_agent.py', 'release'):
+                tmp = os.path.join(here, '.%s.new' % name)
+                fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+                             0o755 if name.endswith('.py') else 0o644)
+                with os.fdopen(fd, 'wb') as f:
+                    f.write(files[name])
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.chmod(tmp, 0o755 if name.endswith('.py') else 0o644)
+                os.replace(tmp, os.path.join(here, name))
+        again = restart_later()
+        return {'ok': True, 'version': ver,
+                'said': 'acme-agent %s is installed (from %s, signed by %s)%s' % (
+                    ver, VERSION, who, ' - both sides start again' if again else
+                    ' - start both sides again to use it')}
+
 
 def _os_name():
     got = _read('/etc/os-release', '') or ''
@@ -1352,6 +1750,7 @@ class Deploy(object):
         self.done = []          # (dir, name, old bytes | None, old stat | None) for putting back
         self.gone = []          # stale files taken away: (dir, name, bytes, stat)
         self.agent_id = root.conf().get('agent_id') or ''
+        self.key_from = None        # the key this agent made: ('pending' | 'current', slot)
 
     def step(self, words, level='info'):
         self.steps.append([level, str(words)[:600]])
@@ -1361,8 +1760,26 @@ class Deploy(object):
         plan = plan_check(pol, self.args)           # Refused: nothing done
         priv = self.root.enc_key()
         datas = []
+        ak = self.args.get('agent_key') if isinstance(self.args.get('agent_key'), dict) else None
+        key_pem, kt, pw = None, '', None
         for f, p in zip(self.args.get('files') or [], plan['files']):
-            if f.get('sealed'):
+            if f.get('agent_key'):
+                # the key this agent made for this deployment: root's own, put in here
+                if ak is None:
+                    raise Refused('%s holds a key this agent made, and the job says no more of '
+                                  'it' % p['path'])
+                if key_pem is None:
+                    key_pem, kt = self.agent_key(ak)
+                    if ak.get('pass_sealed'):
+                        if priv is None:
+                            raise Refused('this agent has no key to open secrets with (join '
+                                          'again)')
+                        pw = unseal(ak['pass_sealed'], priv, self.agent_id,
+                                    'pfx').decode('utf-8')
+                data = key_file(str(f.get('format') or ''), key_pem,
+                                _unb64(f.get('data') or '', None, p['path']), pw,
+                                ak.get('alias'), kt)
+            elif f.get('sealed'):
                 if priv is None:
                     raise Refused('this agent has no key to open secrets with (join again)')
                 data = unseal(f['sealed'], priv, self.agent_id, 'file ' + p['path'])
@@ -1440,6 +1857,7 @@ class Deploy(object):
         if all(same) and not plan['stale'] and not self.args.get('pending'):
             self.step('nothing replaced: every file holds this certificate already (the same '
                       'SHA-256) - no command, script or reload run', 'ok')
+            self.key_in_use()
             return {'ok': True, 'unchanged': True, 'steps': self.steps, 'files': result_files,
                     'said': 'unchanged: every file holds it already', 'policy_hash': h}
         if all(same):
@@ -1488,11 +1906,40 @@ class Deploy(object):
         for op in plan['post']:
             self.run_op(op, env, 'after', warn=True)
         self.after(backup, keep)
+        self.key_in_use()
         return {'ok': True, 'steps': self.steps, 'files': result_files, 'policy_hash': h,
                 'said': '%d file%s written%s%s' % (
                     sum(1 for s in same if not s), '' if sum(1 for s in same if not s) == 1
                     else 's', ', the script ran' if plan['script'] else '',
                     ', reloaded' if plan['reload'] else '')}
+
+    def agent_key(self, ak):
+        """(the key this agent made that the certificate is for, its type): the one waiting
+        for its certificate, or the one in use - never one the certificate is not of."""
+        pending, current = key_paths(str(ak.get('slot') or ''))
+        cert = str(ak.get('cert_pem') or '')
+        try:
+            want = spki_fp(cert)
+        except (Refused, ValueError):
+            raise Refused('the job holds no certificate for the key this agent made')
+        for which, path in (('pending', pending), ('current', current)):
+            pem = _read(path, '') or ''
+            if pem and spki_fp(pem) == want:
+                self.key_from = (which, pending, current)
+                self.step('the key: the one this agent made %s (it never left this machine)' % (
+                    'for this certificate' if which == 'pending' else 'before, still in use'),
+                    'ok')
+                return pem, key_type_of(pem)
+        raise Refused('the certificate is not for a key this agent made for this deployment - '
+                      'it is issued anew for one')
+
+    def key_in_use(self):
+        """The key made for this certificate is the one in use now."""
+        if self.key_from and self.key_from[0] == 'pending':
+            try:
+                os.replace(self.key_from[1], self.key_from[2])
+            except OSError:
+                pass
 
     def failed(self, words, files, h):
         self.step(words, 'bad')
@@ -1946,18 +2393,81 @@ class Net(object):
         if got.get('verified'):
             job = got['job']
             try:
-                return getattr(self, 'net_' + job['op'])(job['args'])
+                return getattr(self, 'net_' + job['op'])(job['args'], got)
             except Refused as e:
                 return {'ok': False, 'said': str(e)}
         if got.get('ok') and isinstance(got, dict) and 'policy' in got:
             got.update(self.facts())
         return got
 
-    def net_csr(self, args):
+    def net_probe(self, args, got):
+        """What host:port serves (root checked the policy allows a test of it): the chain it
+        sent, by `openssl s_client` - TLS at once or after the protocol's STARTTLS."""
+        host, port = got['dest']
+        sni = str(args.get('sni') or '').strip().lower()
+        if sni not in ('', '-') and not DNS_RE.match(sni):
+            raise Refused('%r is not a name to ask for (SNI)' % sni[:80])
+        st = str(args.get('starttls') or '')
+        if st and st not in STARTTLS:
+            raise Refused('%r is not a protocol this agent starts TLS in (%s)' % (
+                st[:20], ', '.join(STARTTLS)))
+        try:
+            timeout = max(2, min(PROBE_S, int(args.get('timeout') or 15)))
+        except (TypeError, ValueError):
+            timeout = 15
+        argv = ['openssl', 's_client', '-connect', '[%s]:%d' % (host, port) if ':' in host
+                else '%s:%d' % (host, port), '-showcerts']
+        argv += ['-servername', sni] if sni not in ('', '-') else ['-noservername']
+        if st:
+            argv += ['-starttls', st]
+            if st == 'xmpp':
+                argv += ['-xmpphost', sni if sni not in ('', '-') else host]
+        want = str(args.get('key_want') or '')
+        if want in ('rsa', 'ecdsa'):
+            argv += ['-tls1_2', '-cipher', ('aRSA' if want == 'rsa' else 'aECDSA') +
+                     ':!aNULL:@SECLEVEL=0']
+        t0 = time.time()
+        try:
+            r = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
+                               timeout=timeout, env={'PATH': '/usr/bin:/bin:/usr/local/bin'})
+        except subprocess.TimeoutExpired:
+            return {'ok': False, 'said': '%s:%d did not finish a handshake in %d s' % (
+                host, port, timeout)}
+        except OSError as e:
+            return {'ok': False, 'said': 'openssl could not be run: %s' % e}
+        out = r.stdout.decode('utf-8', 'replace')
+        pems = re.findall(r'-----BEGIN CERTIFICATE-----.+?-----END CERTIFICATE-----', out, re.S)
+        if not pems:
+            err = [x for x in r.stderr.decode('utf-8', 'replace').splitlines() if x.strip()]
+            return {'ok': False, 'said': '%s:%d: no certificate came (%s)' % (
+                host, port, (' / '.join(err[-2:]) or 'no TLS')[:300])}
+        chain = [_b64(ssl.PEM_cert_to_DER_cert(p + '\n')) for p in pems[:10]]
+        m = re.search(r'Protocol\s*:\s*(\S+)', out) or re.search(r'New, (TLSv[\d.]+)', out)
+        c = re.search(r'Cipher\s*(?:is|:)\s*(\S+)', out)
+        return {'ok': True, 'chain': chain, 'tls': m.group(1) if m else '',
+                'cipher': c.group(1) if c else '', 'ms': int((time.time() - t0) * 1000),
+                'said': '%s:%d sent %d certificate%s' % (host, port, len(chain),
+                                                         '' if len(chain) == 1 else 's')}
+
+    def net_connect(self, args, got):
+        """A connection to host:port for acme (root checked `allow connect` names it)."""
+        host, port = got['dest']
+        try:
+            timeout = max(2, min(60, int(args.get('timeout') or 20)))
+        except (TypeError, ValueError):
+            timeout = 20
+        try:
+            sock = socket.create_connection((host, port), timeout=timeout)
+        except OSError as e:
+            return {'ok': False, 'said': '%s:%d cannot be reached from here: %s' % (
+                host, port, e.strerror or e)}
+        return {'ok': True, 'sock': sock, 'said': 'connected to %s:%d' % (host, port)}
+
+    def net_csr(self, args, got=None):
         key, _crt = tls_paths()
         return {'ok': True, 'csr': make_csr(key), 'said': 'a request for the next certificate'}
 
-    def net_cert(self, args):
+    def net_cert(self, args, got=None):
         pem = str(args.get('cert_pem') or '')
         key, crt = tls_paths()
         check_issued(pem, key)
@@ -2115,13 +2625,47 @@ class PassiveHandler(http.server.BaseHTTPRequestHandler):
         if cn != CTL_CN:
             net.take(ip, 3)
             return self.answer(403, {'ok': False, 'said': 'not acme\'s certificate'})
+        if self.path == '/v1/tunnel':
+            return self.tunnel(net, body, ip)
         if self.path != '/v1/job':
             return self.answer(404, {'ok': False, 'said': 'not here'})
         out = net.job(body, ip)
+        if out.get('sock') is not None:
+            out.pop('sock').close()
+            out = {'ok': False, 'said': 'a connection is asked on /v1/tunnel'}
         if not out.get('ok') and out.get('said', '').startswith(('the job is not signed',
                                                                   'the job was seen')):
             net.take(ip, 2)
         self.answer(200, out)
+
+    def tunnel(self, net, body, ip):
+        """acme's connector (allow connect): a signed job `connect`, root's yes, then this very
+        connection carries the bytes both ways until either end closes (or ten idle minutes)."""
+        job = {}
+        try:
+            job = json.loads(str(body.get('job') or '{}'))
+        except ValueError:
+            pass
+        if not isinstance(job, dict) or job.get('op') != 'connect':
+            return self.answer(400, {'ok': False, 'said': 'a tunnel is asked by the job connect'})
+        out = net.job(body, ip)
+        sock = out.pop('sock', None)
+        if sock is None:
+            return self.answer(403 if out.get('refused') or out.get('needs') else 502, out)
+        try:
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/octet-stream')
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            self.wfile.flush()
+            relay(self.connection, sock, TUNNEL_IDLE_S)
+        finally:
+            self.close_connection = True
+            try:
+                sock.close()
+            except OSError:
+                pass
+        return None
 
     def joining(self, body):
         net = self.server.net
@@ -2154,6 +2698,34 @@ class PassiveHandler(http.server.BaseHTTPRequestHandler):
             status_write(state='refused', said=str(e))
             return self.answer(403, {'ok': False, 'said': str(e)})
         return self.answer(404, {'ok': False, 'said': 'not here'})
+
+
+def relay(a, b, idle):
+    """Bytes both ways between `a` (TLS, acme) and `b` (the connection asked for) until either
+    closes or nothing goes through for `idle` seconds."""
+    import select
+    for x in (a, b):
+        x.settimeout(idle)
+    while True:
+        if getattr(a, 'pending', None) and a.pending():
+            ready = [a]
+        else:
+            ready, _w, _x = select.select([a, b], [], [], idle)
+            if not ready:
+                return
+        for x in ready:
+            try:
+                data = x.recv(65536)
+            except (ssl.SSLWantReadError, ssl.SSLWantWriteError):
+                continue
+            except OSError:
+                return
+            if not data:
+                return
+            try:
+                (b if x is a else a).sendall(data)
+            except OSError:
+                return
 
 
 class PassiveServer(http.server.ThreadingHTTPServer):
@@ -2362,6 +2934,10 @@ class Active(object):
                 jobs = got.get('jobs') if isinstance(got.get('jobs'), list) else []
                 for one in jobs[:20]:
                     out = self.net.job(one)
+                    if out.get('sock') is not None:
+                        out.pop('sock').close()
+                        out = {'ok': False, 'said': 'a connector through the agent needs a '
+                                                    'passive agent (acme connects to it)'}
                     jid = ''
                     try:
                         jid = str(json.loads(str(one.get('job') or '{}')).get('job') or '')
@@ -2665,7 +3241,8 @@ def policy_edit(add, words):
 def policy_words(words):
     """The words of `allow ...` as a line of the policy (paths made real, a script pinned)."""
     if not words:
-        raise SystemExit('acme-agent allow file|unit|test|script|script-hash|from|self-update')
+        raise SystemExit('acme-agent allow file|unit|test|script|script-hash|from|probe|connect|'
+                         'self-update')
     what, rest = words[0], words[1:]
     if what == 'file':
         if not rest:
@@ -2709,9 +3286,12 @@ def policy_words(words):
         return 'allow self-update'
     if what == 'connect':
         return 'allow connect %s' % (rest[0] if rest else '')
+    if what == 'probe':
+        return 'allow probe %s' % (rest[0] if rest else '')
     if what == 'limit':
         return 'limit %s' % ' '.join(rest)
-    raise SystemExit('acme-agent allow file|unit|test|script|script-hash|from|self-update')
+    raise SystemExit('acme-agent allow file|unit|test|script|script-hash|from|probe|connect|'
+                     'self-update')
 
 
 def cmd_policy(argv):

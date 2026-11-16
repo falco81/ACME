@@ -149,6 +149,50 @@
 .ag-need .dbs-cmd{margin:0}
 .ag-needs-all{margin-top:8px}
 
+/* phase 3 and 4: what goes through the agent, a newer one offered, a deployment it blocked,
+   the keys made on the server */
+.ag-chip.more .ag-ic{color:var(--violet)}
+.ag-flags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ag-flag{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 7px;border-radius:999px;font-size:11.5px;
+  font-weight:600;border:1px solid var(--line);background:var(--panel2);color:var(--tx-dim)}
+.ag-flag.bad{color:var(--crit);background:var(--crit-bg);border-color:color-mix(in srgb,var(--crit) 35%,transparent)}
+.ag-flag.info{color:var(--info);background:var(--info-bg);border-color:color-mix(in srgb,var(--info) 35%,transparent)}
+.ag-flag.ok{color:var(--ok);background:var(--ok-bg);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+.ag-flag-v{font-size:11px;opacity:.9}
+.ag-upd{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px;margin:12px 0 2px;
+  border:1px solid color-mix(in srgb,var(--info) 35%,var(--line));
+  background:linear-gradient(135deg,color-mix(in srgb,var(--info) 9%,var(--panel)),var(--panel))}
+.ag-upd.can{border-color:color-mix(in srgb,var(--ok) 40%,var(--line));
+  background:linear-gradient(135deg,color-mix(in srgb,var(--ok) 8%,var(--panel)),var(--panel))}
+.ag-upd-ic{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--info);background:var(--info-bg)}
+.ag-upd.can .ag-upd-ic{color:var(--ok);background:var(--ok-bg)}
+.ag-upd-w{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.ag-upd-w .note{margin:0}
+.ag-upd-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ag-vers{display:inline-flex;align-items:center;gap:6px}
+.ag-ver{padding:1px 7px;border-radius:6px;font-size:12px;border:1px solid var(--line);background:var(--panel2)}
+.ag-ver.old{color:var(--tx-dim);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--tx-dim) 60%,transparent)}
+.ag-ver.new{color:var(--ok);font-weight:700;border-color:color-mix(in srgb,var(--ok) 40%,var(--line))}
+.ag-ver-arrow{color:var(--tx-mut)}
+.ag-blocked{display:flex;flex-direction:column;gap:7px;padding:12px 14px;border-radius:12px;margin:12px 0 2px;
+  border:1px solid color-mix(in srgb,var(--crit) 40%,var(--line));background:color-mix(in srgb,var(--crit) 6%,var(--panel))}
+.ag-blocked-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ag-blocked-h .ag-ic{color:var(--crit)}
+.ag-blocked-what{font-size:12.5px;overflow-wrap:anywhere;color:var(--tx)}
+.ag-blocked .dbs-cmd{margin:0}
+.ag-keys{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px}
+.ag-keys-h{display:flex;align-items:center;gap:7px}
+.ag-keys-h .ag-ic{color:var(--warn)}
+.ag-keys .note{margin:0}
+.ag-keys-l{display:flex;flex-wrap:wrap;gap:6px}
+.ag-keycert{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:8px;font-size:12.5px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;border:1px solid color-mix(in srgb,var(--warn) 35%,var(--line));
+  background:color-mix(in srgb,var(--warn) 7%,var(--panel2))}
+.ag-keycert::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.ag-needs-key{display:flex;gap:8px;align-items:center;padding:8px 10px;border-radius:9px;margin:0 0 6px;font-size:12.5px;
+  border:1px solid color-mix(in srgb,var(--warn) 35%,var(--line));background:color-mix(in srgb,var(--warn) 7%,var(--panel2))}
+.ag-needs-key .ag-ic{color:var(--warn)}
+
 @media (max-width:760px){
   .ag-hero .dbs-hero-w{flex:1 1 calc(100% - 64px)}
   .ag-hero .dbs-state{margin-left:60px}
@@ -161,4 +205,6 @@
   .ag-code{flex-direction:column;align-items:stretch}
   .ag-wiz{min-height:0}
   .ag-need .dbs-cmd{flex-direction:column;align-items:stretch}
+  .ag-upd{flex-direction:column}
+  .ag-blocked .dbs-cmd{flex-direction:column;align-items:stretch}
 }

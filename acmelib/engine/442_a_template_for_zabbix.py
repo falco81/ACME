@@ -427,6 +427,20 @@ ZBX_TABLES = [
          ('acmeCaNotAfter', 'not_after', 'expires', 'UNSIGNED', 'unixtime', {}),
          ('acmeCaCrlNext', 'crl_next', 'CRL due', 'UNSIGNED', 'unixtime', {}),
          ('acmeCaCrlHoursLeft', 'crl_hours', 'CRL hours left', 'FLOAT', '!h', {'nodiscard': 1})]},
+    {'id': 'agent', 'table': 'acmeAgentTable', 'what': 'Target agents', 'component': 'agent',
+     'name': 'Target agents discovery', 'delay': '{$ACME.INTERVAL.TABLES}',
+     'macros': [('{#AGENT.ID}', 'acmeAgentIndex'), ('{#AGENT.NAME}', 'acmeAgentName'),
+                ('{#AGENT.MODE}', 'acmeAgentMode')],
+     'key': '{#AGENT.ID}', 'label': 'Agent of {#AGENT.NAME}', 'filter': [],
+     'tags': [('target', '{#AGENT.NAME}'), ('mode', '{#AGENT.MODE}')],
+     'items': [
+         ('acmeAgentStateNum', 'state', 'state', 'UNSIGNED', '', {}),
+         ('acmeAgentLastSeen', 'last_seen', 'last heard from', 'UNSIGNED', 'unixtime', {}),
+         ('acmeAgentCertDaysLeft', 'days', 'certificate days left', 'FLOAT', '!days',
+          {'nodiscard': 1}),
+         ('acmeAgentVersion', 'version', 'version', 'CHAR', '', {}),
+         ('acmeAgentNewer', 'newer', 'newer version offered', 'UNSIGNED', '', {}),
+         ('acmeAgentBlocked', 'blocked', 'policy blocks a deployment', 'UNSIGNED', '', {})]},
     {'id': 'pages', 'table': 'acmeCertTable', 'what': 'Certificates of the pages',
      'component': 'web', 'name': 'Certificates of the pages discovery', 'delay': '{$ACME.INTERVAL.TABLES}',
      'macros': [('{#PAGES.TARGET}', 'acmeCertTarget'), ('{#PAGES.CN}', 'acmeCertName')],
@@ -1205,6 +1219,22 @@ def _zbx_rule(z, tb, H):
            'The CRL of {#CA.NAME} is late (hours left: {ITEM.LASTVALUE1}) - certificates it signed are '
            'refused where revocation is checked.')
         gp.append(('Authority {#CA.NAME}: days left', ['days']))
+    elif i == 'agent':
+        tp('state', '%s=2' % lst('state'), 'The agent of {#AGENT.NAME} is not heard from',
+           'WARNING', 'The acme-agent of the target {#AGENT.NAME} ({#AGENT.MODE}) has not been '
+           'heard from for ten minutes: its deployments wait.')
+        tp('state', '%s=3' % lst('state'), 'The agent of {#AGENT.NAME} is refused', 'AVERAGE',
+           'acme refused the acme-agent of {#AGENT.NAME} - join it again (its card).')
+        tp('days', '%s<7 and %s>0' % (lst('days'), lst('days')),
+           'The certificate of the agent of {#AGENT.NAME} ends within 7 days', 'WARNING',
+           'It is renewed over the channel 10 days before its end: the agent is not reached.')
+        tp('blocked', '%s=1' % lst('blocked'),
+           'The policy of the agent of {#AGENT.NAME} blocks a deployment', 'WARNING',
+           'The server\'s policy refused the last deployment: Settings, Target agents and the '
+           'deployment say what to allow (acme-agent allow ...).')
+        tp('newer', '%s=1' % lst('newer'), 'A newer agent is offered for {#AGENT.NAME}', 'INFO',
+           'acme ships a newer acme-agent: update it on the server (or from its card, where its '
+           'policy allows self-update).')
     elif i == 'pages':
         crit = tp('days', '%s<{$ACME.PAGES.CRIT}' % lst('days'),
                   'The certificate of the pages of {#PAGES.TARGET} expires in less than '

@@ -85,6 +85,12 @@ install -d -m 0755 "$LIB"
 install -m 0755 "$HERE/acme_agent.py" "$LIB/acme_agent.py"
 [[ -f "$HERE/README.md" ]] && install -m 0644 "$HERE/README.md" "$LIB/README.md"
 [[ -f "$HERE/release" ]] && install -m 0644 "$HERE/release" "$LIB/release"
+# the release keys this package came with: what an update from acme (allow self-update) is
+# checked against - pinned here, never taken from the package being installed by acme
+if compgen -G "$HERE/release-keys/*.pub" >/dev/null; then
+    install -d -m 0755 "$LIB/release-keys"
+    install -m 0644 "$HERE"/release-keys/*.pub "$LIB/release-keys/"
+fi
 cat > "$BIN" <<WRAP
 #!/bin/sh
 exec $PY -I $LIB/acme_agent.py "\$@"

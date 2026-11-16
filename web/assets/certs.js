@@ -5119,8 +5119,12 @@ function certWizard(cert, detail, opts) {
   if (!W.d.sans.length) W.d.sans = [{type: 'dns', value: ''}];
   /* The targets whose device makes the key (their module's device_key), and its module. */
   var devPlug = function (t) { var p = t ? plugVersion(plugOf('target', t.kind), t.version) : null; return p && p.device_key ? p : null; };
+  /* ...or may make it, chosen here (device_key_optional, 1.0.116: a server with acme-agent -
+     its agent makes the key there; the target takes certificates with acme's key too) */
+  var keyPlug = function (t) { var p = t ? plugVersion(plugOf('target', t.kind), t.version) : null; return p && (p.device_key || p.device_key_optional) ? p : null; };
+  var agentKey = function () { var t = W.targets.filter(function (x) { return x.name === W.d.csr_from; })[0]; var p = keyPlug(t); return !!(p && !p.device_key); };
   /* ...switched on: an issue asks the device, and one switched off is refused */
-  var devTargets = function () { return W.targets.filter(function (t) { return !!devPlug(t) && t.enabled !== 0 && t.enabled !== false && t.enabled !== '0'; }); };
+  var devTargets = function () { return W.targets.filter(function (t) { return !!keyPlug(t) && t.enabled !== 0 && t.enabled !== false && t.enabled !== '0'; }); };
   var devOf = function () { return W.targets.filter(function (t) { return t.name === W.d.csr_from; })[0] || null; };
   /* Where its key is made changed on one issued (to or from "Key made by the device"): the
      version it holds fits no key there - saving makes it due, and it is issued anew right
@@ -5135,7 +5139,7 @@ function certWizard(cert, detail, opts) {
   /* the certificate another one whose key the device makes (its row's key_of), or '' - this
      one being edited is not another */
   var devTaken = function (t) { return t && t.key_of && !(editing && t.key_of === c.name) ? t.key_of : ''; };
-  var devTypes = function () { var p = devPlug(devOf()); return p && arr(p.device_key_types).length ? arr(p.device_key_types) : null; };
+  var devTypes = function () { var p = keyPlug(devOf()); return p && arr(p.device_key_types).length ? arr(p.device_key_types) : null; };
   /* its deployment: to that target alone; a target whose device makes keys takes no other */
   /* a source that signs no CSR made elsewhere cannot give the device's certificate */
   var signsNoCsr = function (name) {
@@ -5162,7 +5166,7 @@ function certWizard(cert, detail, opts) {
     /* its deployment is made with it (cert_save); here only where this form sets deployments -
        a certificate edited keeps the options its deployment has */
     if (W.d.csr_from && !W.deploys[W.d.csr_from] && (!editing || SETUP)) W.deploys[W.d.csr_from] = {};
-    if (W.d.csr_from) { W.d.key_type_alt = ''; W.d.reuse_key = false; }
+    if (W.d.csr_from) { W.d.key_type_alt = ''; if (!agentKey()) W.d.reuse_key = false; }
     var kts = devTypes();
     if (W.d.csr_from && kts && kts.indexOf(W.d.key_type) < 0) W.d.key_type = kts[0];
   };
@@ -5695,7 +5699,9 @@ function certWizard(cert, detail, opts) {
       var who = el('div', 'set-item');
       who.appendChild(el('label', 'k', 'Who makes the key'));
       var wseg = el('div', 'seg');
-      [['', 'acme, here'], ['device', 'Key made by the device']].forEach(function (o) {
+      /* only servers with acme-agent to choose from: said so (1.0.116) */
+      var allAgents = devs.length && devs.every(function (t) { var p = keyPlug(t); return p && !p.device_key; });
+      [['', 'acme, here'], ['device', allAgents ? 'Key made by the agent, on the server' : 'Key made by the device']].forEach(function (o) {
         var bt = el('button', (o[0] ? !!W.d.csr_from : !W.d.csr_from) ? 'on' : '', o[1]);
         bt.type = 'button';
         bt.onclick = function () {
@@ -5715,7 +5721,7 @@ function certWizard(cert, detail, opts) {
       host.appendChild(who);
     }
     if (W.d.csr_from) {
-      var dsel = selectBox(devs.map(function (t) { var p = devPlug(t); return [t.name, t.name + ' · ' + tr(p ? p.title : t.kind) + (devTaken(t) ? ' · ' + tr('makes the key of {0} already').replace('{0}', t.key_of) : '')]; }), W.d.csr_from);
+      var dsel = selectBox(devs.map(function (t) { var p = keyPlug(t); return [t.name, t.name + ' · ' + tr(p ? p.title : t.kind) + (devTaken(t) ? ' · ' + tr('makes the key of {0} already').replace('{0}', t.key_of) : '')]; }), W.d.csr_from);
       if (!devs.some(function (t) { return t.name === W.d.csr_from; })) dsel.appendChild(new Option(W.d.csr_from, W.d.csr_from, true, true));
       /* one certificate per device (1.0.96: offered, and refused only at the save): a device
          that makes the key of another certificate is shown, not chosen */
@@ -5725,7 +5731,20 @@ function certWizard(cert, detail, opts) {
       });
       noI18n(dsel);
       dsel.onchange = function () { W.d.csr_from = W.devLast = dsel.value; devDeploys(); paint(); };
-      host.appendChild(formField('The device', dsel, 'At every issue and renewal acme asks it for a new key and CSR, and puts the certificate back right after. The key never leaves the device; acme holds none, so it cannot be exported and goes to this target alone.'));
+      if (agentKey()) {
+        /* a server with acme-agent (1.0.116): its agent makes the key - its root side, written
+           straight into a folder its policy allows */
+        host.appendChild(formField('The server', dsel, 'At every issue its agent makes the key (or keeps the one in use, with “Keep the key”) and sends acme only the CSR; the key is written straight into the files of its deployment there and never leaves the server. acme holds none: it cannot be exported and goes to this server alone.'));
+        var ak = el('div', 'ct-agentkey');
+        var aki = noI18n(el('span', 'ct-agentkey-ic'));
+        aki.innerHTML = iconMarkup('key', 18);
+        ak.appendChild(aki);
+        var akw = el('div', '');
+        akw.appendChild(el('b', '', 'The key never leaves the server'));
+        akw.appendChild(el('p', 'small muted', 'Its policy must allow the files that hold the key (key-pem, combined-pem or pfx) - the deployment’s form says what it needs.'));
+        ak.appendChild(akw);
+        host.appendChild(ak);
+      } else host.appendChild(formField('The device', dsel, 'At every issue and renewal acme asks it for a new key and CSR, and puts the certificate back right after. The key never leaves the device; acme holds none, so it cannot be exported and goes to this target alone.'));
       var takenBy = devTaken(devOf());
       if (takenBy) {
         host.appendChild(data('p', 'note warn ct-devtaken', tr('{0} makes the key of the certificate {1} already - a device holds one pending key, so a second certificate would replace the key of the first: change that certificate (add these names to it), or choose another device.').replace('{0}', W.d.csr_from).replace('{1}', takenBy)));
@@ -5736,7 +5755,7 @@ function certWizard(cert, detail, opts) {
       if (elsewhere.length) {
         host.appendChild(data('p', 'note warn ct-develse', tr('It is deployed to {0}: a certificate whose key the device makes goes to that device alone, so the save is refused while those deployments stay. Choose “acme, here” again, or close this, take those deployments away (the certificate → Deployments) and then change where its key is made.').replace('{0}', elsewhere.join(', '))));
       }
-      var dHint = (devPlug(devOf()) || {}).device_key_names;
+      var dHint = (keyPlug(devOf()) || {}).device_key_names;
       if (dHint) host.appendChild(data('p', 'note ct-devnames', tr('What the device takes: {0}').replace('{0}', tr(dHint))));
     } else {
       host.appendChild(el('p', 'note', 'The key is made here, on this server, and never leaves it unless a full administrator exports it.'));
@@ -5763,7 +5782,7 @@ function certWizard(cert, detail, opts) {
       if (dkt && dkt.indexOf(k[0]) < 0) {
         t.disabled = true;
         t.classList.add('off');
-        why.textContent = tr('the device does not make it');
+        why.textContent = tr(agentKey() ? 'the agent does not make it' : 'the device does not make it');
         var rec0 = t.querySelector('.ct-keyrec');
         if (rec0) rec0.hidden = true;
       }
@@ -5995,9 +6014,10 @@ function certWizard(cert, detail, opts) {
     g.appendChild(formField('Days before the end', days, 'Renewed this many days before it runs out. A third of its life is a good rule: 30 for 90 days.'));
     var reuse = switchBox(W.d.reuse_key);
     if (!W.d.csr_from) g.appendChild(formField('Keep the key', reuse, 'On: the same key in every renewal - for pinning, or a device that takes only the certificate. Off (better): a new key each time.'));
+    else if (agentKey()) g.appendChild(formField('Keep the key', reuse, 'On: the agent makes a CSR of the key in use at each renewal. Off (better): it makes a new key on the server each time.'));
     else g.appendChild(formField('Key on renewal', el('span', '', tr('a new key, made by the device of') + ' ' + W.d.csr_from)));
     host.appendChild(g);
-    read = function () { W.d.auto_renew = !!auto._get(); W.d.renew_days = Number(days.value || 30); W.d.reuse_key = !W.d.csr_from && !!reuse._get(); };
+    read = function () { W.d.auto_renew = !!auto._get(); W.d.renew_days = Number(days.value || 30); W.d.reuse_key = (!W.d.csr_from || agentKey()) && !!reuse._get(); };
   }
   /* -- for this certificate: the settings of its source and validations (1.0.24) --
      Each module's settings a certificate may set itself (cert_fields, store.over_fields):
@@ -6313,7 +6333,8 @@ function certWizard(cert, detail, opts) {
        without them) - said here, where they are corrected, until it is saved again */
     if (W.depRefused) host.appendChild(el('p', 'note warn ct-deprefused', 'The certificate is saved, but its deployment to ' + W.depRefused.target
       + ' is not as set here: ' + W.depRefused.why + '. Correct it below and save again.'));
-    if (W.d.csr_from) host.appendChild(el('p', 'muted small', 'Its key is made by the device of ' + W.d.csr_from + ': it goes there alone, right after each issue - the deployment is made by itself.'));
+    if (W.d.csr_from && agentKey()) host.appendChild(el('p', 'muted small', 'Its key is made on ' + W.d.csr_from + ' by its agent: it goes there alone, right after each issue - the deployment is made by itself.'));
+    else if (W.d.csr_from) host.appendChild(el('p', 'muted small', 'Its key is made by the device of ' + W.d.csr_from + ': it goes there alone, right after each issue - the deployment is made by itself.'));
     /* a device's own key: that target only; any other certificate: not to a target whose
        device makes keys (it takes only a certificate for its own) */
     W.targets.filter(function (t) { return W.d.csr_from ? t.name === W.d.csr_from : !devPlug(t); }).forEach(function (t) {
@@ -6709,7 +6730,7 @@ function certWizard(cert, detail, opts) {
             key_type_alt: tw && !d.csr_from ? (d.key_type_alt || '') : '', issuer: d.issuer,
             csr_from: d.csr_from || '',
             challenge: useChallenge ? d.challenge : '', challenge_map: useChallenge ? d.challenge_map : {},
-            auto_renew: !!d.auto_renew, renew_days: Number(d.renew_days || 30), reuse_key: !!d.reuse_key && !d.csr_from,
+            auto_renew: !!d.auto_renew, renew_days: Number(d.renew_days || 30), reuse_key: !!d.reuse_key && (!d.csr_from || agentKey()),
             profile: profile, tags: splitNames(d.tags), note: d.note, owner: d.owner, setup_done: SETUP || undefined};
   }
   /* What happens (runplan.js): the plan of what is set here now, over the wizard. */
@@ -10795,14 +10816,21 @@ var MY_TABS = {
 /* Settings → Target agents (agents.js, 1.0.116) */
 function loadAgents(live) { if (window.ACME_AGENTS) window.ACME_AGENTS.pane(live); }
 var MY_PANES = {dnssrv: loadDns, certs: loadCertSettings, modules: loadModules, agents: loadAgents};
-if (window.ACME_AGENTS) window.ACME_AGENTS.init({capi: capi, over: over, openTarget: function (name) {
+/* agents.js comes after this file on the page: what it is handed is left here for it too (it
+   takes window.ACME_AGENTS_HANDS when it loads) - and handed now where it is there already */
+window.ACME_AGENTS_HANDS = {capi: capi, over: over, openTarget: function (name) {
   var r = (LISTS.targets || []).filter(function (t) { return t.name === name; })[0];
   if (r) { targetPeek(r); return; }
   capi('targets').then(function (d) {
     var x = rowsOf(d, 'rows').filter(function (t) { return t.name === name; })[0];
     if (x) targetPeek(x);
   }).catch(oops);
-}});
+}, newCert: function (row, host) {
+  /* phase 3: a certificate whose key the agent makes there (certs.csr_from = the target) */
+  var h = bareHost(String(host || ''));
+  over(function () { certWizard(null, null, {csrFrom: row.name, names: h ? [h] : []}); }, function () { targetPeek(row); });
+}};
+if (window.ACME_AGENTS) window.ACME_AGENTS.init(window.ACME_AGENTS_HANDS);
 var LAST = {};
 /* How often a tab is asked again on the live tick, unless the daemon's serial
    moved (something happened): then at the next tick. */

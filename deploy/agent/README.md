@@ -28,12 +28,20 @@ sudo acme-agent allow test -- nginx -t
 sudo acme-agent allow script /usr/local/bin/after-cert.sh     # its SHA-256 pinned now
 sudo acme-agent allow script-hash SHA256                      # a script written in acme
 sudo acme-agent allow from 192.0.2.10                         # passive: acme only from there
+sudo acme-agent allow probe local                             # tests of what this server serves
+sudo acme-agent allow probe www.example.com:443               # ...or of exactly that place
+sudo acme-agent allow connect 10.0.5.21:22                    # acme reaches it through this agent
+sudo acme-agent allow self-update                             # acme may send a newer agent (signed)
 sudo acme-agent deny unit nginx restart
 acme-agent policy show
 ```
 
 acme's pages show for each deployment what it needs that the policy does not allow, with these
 very lines to copy.
+
+Keys can be made here: when a certificate says so in acme, root makes the key (kept in
+`/var/lib/acme-agent-root/keys`, 0600) and writes it only into the files of its deployment that the
+policy allows - acme gets the CSR, never the key.
 
 ## Two processes
 

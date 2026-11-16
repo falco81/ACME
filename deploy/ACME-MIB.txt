@@ -23,12 +23,17 @@ IMPORTS
         FROM NET-SNMP-MIB;
 
 acme MODULE-IDENTITY
-    LAST-UPDATED "202611160000Z"
+    LAST-UPDATED "202611161200Z"
     ORGANIZATION "acme"
     CONTACT-INFO "The administrators of the acme servers - Settings, Monitoring."
     DESCRIPTION  "acme, certificates kept, renewed and deployed by themselves:
                   the database, the alerts, the certificates of the pages, the
                   cluster and every metric of one node."
+    REVISION     "202611161200Z"
+    DESCRIPTION  "1.0.116: acmeAgentTable (acmeCertificates 9) - each target with acme-agent:
+                  its name, mode, state, when it was last heard from, the days its
+                  certificate has left, its version, whether a newer one is offered and
+                  whether its policy blocks a deployment. Nothing before moved or changed."
     REVISION     "202611160000Z"
     DESCRIPTION  "1.0.115: the rows of acmeAlertTable, acmeCertTable, acmeNodeTable,
                   acmeMetricTable, acmeDiskTable, acmeRemoteBackupTable, acmeCrlTable and
@@ -98,6 +103,14 @@ AcmeDeployStatus ::= TEXTUAL-CONVENTION
     STATUS current
     DESCRIPTION "The state of a deployment (acmeDeployState as a number)."
     SYNTAX INTEGER { new(0), ok(1), changed(2), deploying(3), failed(4) }
+
+AcmeAgentCondition ::= TEXTUAL-CONVENTION
+    STATUS current
+    DESCRIPTION "The state of a target's acme-agent (acmeAgentState as a number): new - not
+                 joined; answers - heard from lately; quiet - not heard from for ten minutes;
+                 refused - it was refused; joining - a join under way; off - the target is
+                 switched off."
+    SYNTAX INTEGER { new(0), answers(1), quiet(2), refused(3), joining(4), off(5) }
 
 AcmeTestResult ::= TEXTUAL-CONVENTION
     STATUS current
@@ -708,6 +721,53 @@ acmeDnsRateLimited OBJECT-TYPE
     SYNTAX Counter32 MAX-ACCESS read-only STATUS current
     DESCRIPTION "Queries dropped or held back by its rate limit." ::= { acmeDnsServer 7 }
 
+-- Each target "Server with acme-agent" (1.0.116, docs/target-agent.md).
+
+acmeAgentTable OBJECT-TYPE
+    SYNTAX SEQUENCE OF AcmeAgentEntry MAX-ACCESS not-accessible STATUS current
+    DESCRIPTION "The targets with acme-agent." ::= { acmeCertificates 9 }
+acmeAgentEntry OBJECT-TYPE
+    SYNTAX AcmeAgentEntry MAX-ACCESS not-accessible STATUS current
+    DESCRIPTION "One target's agent." INDEX { acmeAgentIndex } ::= { acmeAgentTable 1 }
+AcmeAgentEntry ::= SEQUENCE { acmeAgentIndex Integer32, acmeAgentName DisplayString,
+    acmeAgentMode DisplayString, acmeAgentState DisplayString, acmeAgentLastSeen Integer32,
+    acmeAgentCertDaysLeft Integer32, acmeAgentVersion DisplayString,
+    acmeAgentStateNum AcmeAgentCondition, acmeAgentNewer AcmeTruth, acmeAgentBlocked AcmeTruth }
+acmeAgentIndex OBJECT-TYPE
+    SYNTAX Integer32 (1..2147483647) MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The target's id in acme." ::= { acmeAgentEntry 1 }
+acmeAgentName OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The target's name." ::= { acmeAgentEntry 2 }
+acmeAgentMode OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "passive (acme connects to it) or active (it connects to acme)."
+    ::= { acmeAgentEntry 3 }
+acmeAgentState OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "new, answers, quiet, refused, joining or off." ::= { acmeAgentEntry 4 }
+acmeAgentLastSeen OBJECT-TYPE
+    SYNTAX Integer32 MAX-ACCESS read-only STATUS current
+    DESCRIPTION "When it was last heard from, unix time; 0: never." ::= { acmeAgentEntry 5 }
+acmeAgentCertDaysLeft OBJECT-TYPE
+    SYNTAX Integer32 UNITS "days" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "Days until its certificate of acme's agent authority ends (it is renewed 10
+                 days before); 0 when it has none." ::= { acmeAgentEntry 6 }
+acmeAgentVersion OBJECT-TYPE
+    SYNTAX DisplayString MAX-ACCESS read-only STATUS current
+    DESCRIPTION "The version of acme-agent it said; empty: not said yet." ::= { acmeAgentEntry 7 }
+acmeAgentStateNum OBJECT-TYPE
+    SYNTAX AcmeAgentCondition MAX-ACCESS read-only STATUS current
+    DESCRIPTION "acmeAgentState as a number." ::= { acmeAgentEntry 8 }
+acmeAgentNewer OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when this acme offers a newer agent than the one it runs."
+    ::= { acmeAgentEntry 9 }
+acmeAgentBlocked OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when its policy refused the last deployment (an alert says what to
+                 allow)." ::= { acmeAgentEntry 10 }
+
 -- acmeCluster
 
 acmeNodeTable OBJECT-TYPE
@@ -1302,6 +1362,14 @@ acmeServicesGroup OBJECT-GROUP
     DESCRIPTION "Logs, mails, directories and SMS."
     ::= { acmeGroups 11 }
 
+acmeAgentsGroup OBJECT-GROUP
+    OBJECTS { acmeAgentIndex, acmeAgentName, acmeAgentMode, acmeAgentState,
+              acmeAgentLastSeen, acmeAgentCertDaysLeft, acmeAgentVersion, acmeAgentStateNum,
+              acmeAgentNewer, acmeAgentBlocked }
+    STATUS current
+    DESCRIPTION "The targets with acme-agent (1.0.116)."
+    ::= { acmeGroups 13 }
+
 acmeNotificationsGroup NOTIFICATION-GROUP
     NOTIFICATIONS { acmeAlertRaised, acmeAlertCleared, acmeTestTrap }
     STATUS current
@@ -1315,7 +1383,7 @@ acmeCompliance MODULE-COMPLIANCE
         MANDATORY-GROUPS { acmeInfoGroup, acmeDatabaseGroup, acmeAlertsGroup,
                            acmeCertificatesGroup, acmeClusterGroup, acmeTrapObjectsGroup, acmeMetricsGroup,
                            acmeSystemGroup, acmeBackupGroup, acmeSignInGroup, acmeServicesGroup,
-                           acmeNotificationsGroup }
+                           acmeNotificationsGroup, acmeAgentsGroup }
     ::= { acmeCompliances 1 }
 
 END

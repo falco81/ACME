@@ -1530,3 +1530,9 @@ code.gd-ccopy.gd-copied::after{content:'✓';font-size:10px;margin-left:4px;colo
    and why Approve is off (may_approve) */
 .note.warn.ct-held{margin:8px 0}
 .note.warn ul{margin:6px 0 0;padding-left:18px;font-size:13px}
+/* the key made by the agent on the server (1.0.116, Key step) */
+.ct-agentkey{display:flex;gap:11px;align-items:flex-start;padding:10px 13px;border-radius:12px;margin:6px 0 10px;
+  border:1px solid color-mix(in srgb,var(--warn) 35%,var(--line));background:color-mix(in srgb,var(--warn) 6%,var(--panel2))}
+.ct-agentkey-ic{flex:none;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:var(--warn);
+  background:var(--warn-bg);line-height:0}
+.ct-agentkey p{margin:3px 0 0}

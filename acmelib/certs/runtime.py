@@ -1003,7 +1003,14 @@ class SshSession(base.SshSession):
         self.addr = self.host if self.jump else dnssets.ssh_address(self.ctx, self.host)
         lines = hostkey_lines(c.get('hostkey'))
         if not lines:
-            if self.jump:
+            if isinstance(self.jump, AgentHop):
+                scanned = self.jump.scan(self.host, self.port, min(self.timeout, 15))
+                if not hostkey_lines(scanned):
+                    hop, why = self.jump.host, self.jump.said
+                    self.close()
+                    raise base.PluginError('%s:%s showed no host key through the agent of %s%s' % (
+                        self.host, self.port, hop, (': ' + why) if why else ''), retry=False)
+            elif self.jump:
                 rc, scanned, err = self.jump.run('ssh-keyscan -T %d -p %d %s' % (
                     min(self.timeout, 15), self.port, shq(self.host)), timeout=60, check=False)
                 if not hostkey_lines(scanned):
@@ -1062,7 +1069,13 @@ class SshSession(base.SshSession):
             raise base.PluginError('neither a key nor a password is set for %s' % self.host,
                                    retry=False)
         self.opts += ssh_auth_options(auths, bool(pw or kp))
-        if self.jump:
+        if isinstance(self.jump, AgentHop):
+            # through a server with acme-agent (1.0.116): the agent's server connects to this
+            # one (its policy: allow connect HOST:PORT) - the bytes over acme's TLS to the agent
+            self.opts += ['-o', 'ProxyCommand=' + self.jump.proxy_command()]
+            self.ctx.step('%s is reached through the agent of %s (allow connect)' % (
+                self.host, self.jump.host), 'info')
+        elif self.jump:
             j = self.jump
             # Its connection held open as long as this session (1.0.77): with 120 s only, a long
             # session's proxy signed in to the connector again - with this server's secret.
@@ -1087,6 +1100,15 @@ class SshSession(base.SshSession):
         if not row and store:
             fam, row = 'check', store.db.row("SELECT * FROM cert_tests WHERE name = ? AND "
                                              "kind = 'ssh_relay'", (name,))
+        if not row and store:
+            # a server with acme-agent, passive (1.0.116): its agent as the connector
+            arow = store.db.row("SELECT * FROM cert_targets WHERE name = ? AND kind = 'agent'",
+                                (name,))
+            if arow:
+                if arow.get('enabled') == 0:
+                    raise base.PluginError('the target %s (its agent the connector) is switched '
+                                           'off' % name, retry=False)
+                return AgentHop(store, arow)
         if not row:
             raise base.PluginError('there is no connector called %s (Targets → Connector over SSH)'
                                    % name, retry=False)
@@ -1236,6 +1258,128 @@ class SshSession(base.SshSession):
         if getattr(self, 'jump', None) is not None:
             j, self.jump = self.jump, None
             j.close()
+
+
+# What ssh runs as its ProxyCommand through an agent (AgentHop): its stdin and stdout to the
+# session's own Unix socket, the host and port asked said first. Nothing else.
+AGENT_RELAY = r'''import os, select, socket, sys
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.connect(sys.argv[1])
+s.sendall(('%s %s\n' % (sys.argv[2], sys.argv[3])).encode())
+src = [0, s]
+while src:
+    r = select.select(src, [], [])[0]
+    if 0 in r:
+        d = os.read(0, 65536)
+        if d:
+            s.sendall(d)
+        else:
+            src.remove(0)
+            s.shutdown(socket.SHUT_WR)
+    if s in r:
+        d = s.recv(65536)
+        if not d:
+            break
+        while d:
+            d = d[os.write(1, d):]
+'''
+
+
+class AgentHop(object):
+    """A passive agent as the connector of an SSH session (1.0.116): ssh's ProxyCommand talks
+    to a Unix socket of this session (a folder of its own, 0700), and each connection on it is
+    a tunnel the agent's server opens (agents.tunnel: a signed job `connect`, only where its
+    policy says `allow connect HOST:PORT`)."""
+
+    def __init__(self, store, row):
+        import socket as _socket
+        self.store, self.row = store, row
+        self.host = row['name']
+        self.d = tempfile.mkdtemp(prefix='acme-agenthop-')
+        os.chmod(self.d, 0o700)
+        self.sock_path = os.path.join(self.d, 's')
+        self.relay = os.path.join(self.d, 'relay.py')
+        with open(self.relay, 'w') as f:
+            f.write(AGENT_RELAY)
+        self.srv = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+        self.srv.bind(self.sock_path)
+        os.chmod(self.sock_path, 0o600)
+        self.srv.listen(4)
+        self.open = True
+        self.said = ''
+        threading.Thread(target=self._serve, daemon=True, name='agent-hop').start()
+
+    def _serve(self):
+        while self.open:
+            try:
+                conn, _ = self.srv.accept()
+            except OSError:
+                return
+            threading.Thread(target=self._one, args=(conn,), daemon=True).start()
+
+    def _one(self, conn):
+        from acmelib.certs import agents
+        try:
+            head = b''
+            while b'\n' not in head and len(head) < 600:
+                got = conn.recv(1)
+                if not got:
+                    return
+                head += got
+            parts = head.decode('utf-8', 'replace').split()
+            if len(parts) != 2 or not parts[1].isdigit():
+                return
+            host = parts[0].strip('[]')
+            try:
+                far = agents.tunnel(self.store, self.row, host, int(parts[1]))
+            except base.PluginError as e:
+                self.said = str(e)
+                return
+            agents.agent_mod().relay(far, conn, 600)
+            far.close()
+        finally:
+            try:
+                conn.close()
+            except OSError:
+                pass
+
+    def proxy_command(self):
+        import sys as _sys
+        return ' '.join(shq(x) for x in (_sys.executable, '-I', self.relay, self.sock_path)) + \
+            ' %h %p'
+
+    def scan(self, host, port, timeout=15):
+        """The host key of host:port through the agent (ssh, accept-new into a file of its
+        own, no authentication tried) - as ssh-keyscan would say it."""
+        kh = os.path.join(self.d, 'scan-%s' % secrets.token_hex(4))
+        argv = ['ssh', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new',
+                '-o', 'UserKnownHostsFile=' + kh, '-o', 'GlobalKnownHostsFile=/dev/null',
+                '-o', 'HashKnownHosts=no', '-o', 'PreferredAuthentications=none',
+                '-o', 'ConnectTimeout=%d' % int(timeout), '-o',
+                'ProxyCommand=' + self.proxy_command(), '-p', str(int(port)),
+                'acme-hostkey@' + host, 'true']
+        try:
+            subprocess.run(argv, capture_output=True, timeout=int(timeout) + 15,
+                           stdin=subprocess.DEVNULL, start_new_session=True)
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+        try:
+            with open(kh) as f:
+                return f.read()
+        except OSError:
+            return ''
+
+    def run(self, command, timeout=60, check=True):
+        raise base.PluginError('the agent of %s runs no command - it only connects (allow '
+                               'connect)' % self.host, retry=False)
+
+    def close(self):
+        self.open = False
+        try:
+            self.srv.close()
+        except OSError:
+            pass
+        shutil.rmtree(self.d, ignore_errors=True)
 
 
 def wire_request(method, url, headers=None, body=None, own=False):

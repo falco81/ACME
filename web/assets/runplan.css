@@ -143,6 +143,17 @@
 .rp-tags{display:inline-flex;flex-wrap:wrap;gap:6px;align-self:center}
 .rp-top{flex-wrap:wrap}
 .rp-note{font-size:12.5px;color:var(--tx-dim);overflow-wrap:anywhere}
+/* what a server's acme-agent policy makes of an item (1.0.116) */
+.rp-pol{display:flex;flex-direction:column;gap:6px;min-width:0}
+.rp-pol-top{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;align-self:flex-start;
+  padding:2px 10px 2px 3px;border-radius:999px;border:1px solid var(--line);background:var(--panel2)}
+.rp-pol-mk{flex:none;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800}
+.rp-pol.ok .rp-pol-top{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,var(--line))}
+.rp-pol.ok .rp-pol-mk{background:var(--ok-bg)}
+.rp-pol.bad .rp-pol-top{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 40%,var(--line));background:var(--crit-bg)}
+.rp-pol.bad .rp-pol-mk{background:color-mix(in srgb,var(--crit) 18%,transparent)}
+.rp-pol.unk .rp-pol-top{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
+.rp-pol.unk .rp-pol-mk{background:var(--warn-bg)}
 
 /* the data: a call, a command, a file */
 .rp-http,.rp-cmd,.rp-filefacts,.rp-pairs{display:flex;flex-direction:column;gap:6px;min-width:0}

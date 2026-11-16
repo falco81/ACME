@@ -143,7 +143,7 @@ class Template(unittest.TestCase):
             masters = {k for o, k in walked.items()
                        if tuple(map(int, o.split('.')))[:len(entry)] == entry}
             self.assertTrue(masters & rules, 'no discovery of %s' % t)
-        self.assertEqual(len(self.tpl['discovery_rules']), 11)
+        self.assertEqual(len(self.tpl['discovery_rules']), 12)   # 1.0.116: the target agents
 
     def test_every_oid_of_the_mib(self):
         n = 0
@@ -243,7 +243,7 @@ class Template(unittest.TestCase):
         rules = {r['key']: r for r in self.tpl['discovery_rules']}
         self.assertEqual(set(rules), {'acme.%s.discovery' % x for x in (
             'cert', 'deploy', 'test', 'module', 'ca', 'pages', 'node', 'disk', 'rbackup', 'crl',
-            'ship')})
+            'ship', 'agent')})   # 1.0.116: the target agents
         certs = rules['acme.cert.discovery']
         names = [t['name'] for p in certs['item_prototypes'] for t in p.get('trigger_prototypes') or []]
         for want in ('has expired', 'expires in less than {$ACME.CERT.CRIT:"{#CERT.NAME}"} days',

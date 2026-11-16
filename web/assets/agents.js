@@ -1,6 +1,8 @@
 /* agents.js - target agents (1.0.116, docs/target-agent.md): the pane Settings → Target agents,
    the agent's card on a target "Server with acme-agent", its join wizard, and what a deployment
-   needs of the agent's policy (drawn into the files designer's preview).
+   needs of the agent's policy (drawn into the files designer's preview). Phases 3 and 4: the
+   keys made there, the tests and connections through the agent, a newer agent offered (and
+   sent, where its policy allows), a deployment its policy blocked.
 
    Drawn with the page's own pieces (core.js) and the classes of the database agent's card and
    wizard (acme.css: dbs-*, dbw-*); what is its own is in agents.css. certs.js hands it how to
@@ -8,7 +10,7 @@
 (function () {
 'use strict';
 
-var H = {capi: null, over: null, openTarget: null};
+var H = {capi: null, over: null, openTarget: null, newCert: null};
 var ROLE = (typeof ME === 'object' && ME && ME.role) || 'readonly';
 var FULL = ROLE === 'fulladmin';
 var MANAGE = FULL || ROLE === 'certadmin';
@@ -106,6 +108,21 @@ function chips(ps, small) {
     c.appendChild(el('span', '', n + ' ' + (n === 1 ? x[1] : x[2])));
     box.appendChild(c);
   });
+  /* phase 3: what is reached through it - shown only where its policy allows any */
+  [['probes', 'test from here', 'tests from here', 'pulse'], ['connects', 'connection', 'connections', 'plug']].forEach(function (x) {
+    var n = Number(ps[x[0]] || 0);
+    if (!n) return;
+    var c = el('span', 'ag-chip more');
+    c.appendChild(icon(x[3], 13));
+    c.appendChild(el('span', '', n + ' ' + (n === 1 ? x[1] : x[2])));
+    box.appendChild(c);
+  });
+  if (ps.self_update) {
+    var u = el('span', 'ag-chip more');
+    u.appendChild(icon('refresh', 13));
+    u.appendChild(el('span', '', 'updates from acme'));
+    box.appendChild(u);
+  }
   if (Number(ps.problems || 0)) {
     var p = el('span', 'ag-chip bad');
     p.appendChild(icon('flag', 13));
@@ -305,6 +322,29 @@ function tile(a, d) {
   k.appendChild(kv('Its certificate ends', certEnd(a.cert_end)));
   t.appendChild(k);
   t.appendChild(chips(a.policy_summary, true));
+  var flags = el('div', 'ag-flags');
+  if (a.blocked) {
+    var bf = el('span', 'ag-flag bad');
+    bf.appendChild(icon('flag', 13));
+    bf.appendChild(el('span', '', 'its policy blocks a deployment'));
+    explain(bf, String(a.blocked.what || ''));
+    flags.appendChild(bf);
+  }
+  if (a.update && a.update.newer) {
+    var nf = el('span', 'ag-flag info');
+    nf.appendChild(icon('up', 13));
+    nf.appendChild(el('span', '', 'newer agent offered'));
+    nf.appendChild(mono(String(a.update.offered || ''), 'ag-flag-v'));
+    flags.appendChild(nf);
+  }
+  if (arr(a.keys_of).length) {
+    var kf = el('span', 'ag-flag ok');
+    kf.appendChild(icon('key', 13));
+    kf.appendChild(el('span', '', arr(a.keys_of).length === 1 ? 'makes 1 key' : 'makes ' + arr(a.keys_of).length + ' keys'));
+    explain(kf, arr(a.keys_of).join(', '));
+    flags.appendChild(kf);
+  }
+  if (flags.firstChild) t.appendChild(flags);
   if (a.code_hash && d && d.shipped_code && a.code_hash !== d.shipped_code) {
     t.appendChild(el('div', 'note warn small ag-older', 'Another program than the one this acme ships - install the package of this version.'));
   }
@@ -357,6 +397,7 @@ function card(row, opts) {
     k.appendChild(kv('Its certificate ends', certEnd(a.cert_end)));
     if (a.os) k.appendChild(kv('System', data('span', '', a.os)));
     if (a.agent_id) k.appendChild(kv('Agent id', mono(a.agent_id)));
+    if (a.via) k.appendChild(kv('Reached through', mono(a.via)));
     if (a.key_fp) {
       var kf = mono(grouped(a.key_fp).slice(0, 4).join(' ') + ' …', 'ag-kfp');
       explain(kf, grouped(a.key_fp).join(' '));
@@ -371,6 +412,9 @@ function card(row, opts) {
       le.appendChild(data('span', '', String(a.last_error)));
       box.appendChild(le);
     }
+    if (a.blocked) box.appendChild(blockedBox(a));
+    if (a.update && a.update.newer) box.appendChild(updateBox(row, a, function () { load(false); }));
+    if (a.joined) box.appendChild(keysBox(row, a));
     if (a.joined) box.appendChild(policyView(a.policy, a.policy_at));
     var bar = el('div', 'btnrow ag-acts');
     if (FULL) {
@@ -405,6 +449,90 @@ function card(row, opts) {
   }
   box.appendChild(el('p', 'muted', 'Asking…'));
   load(false);
+  return box;
+}
+/** A newer agent offered (phase 4): sent from here where its policy allows it, else the way
+    to install it - and the line that would let acme do it. */
+function updateBox(row, a, done) {
+  var u = a.update || {};
+  var box = el('div', 'ag-upd' + (u.allowed ? ' can' : ''));
+  var ic = noI18n(el('span', 'ag-upd-ic'));
+  ic.innerHTML = iconMarkup('up', 20);
+  box.appendChild(ic);
+  var w = el('div', 'ag-upd-w');
+  var h = el('div', 'ag-upd-h');
+  h.appendChild(el('b', '', 'A newer agent is offered'));
+  var vv = el('span', 'ag-vers');
+  vv.appendChild(mono(String(a.version || '?'), 'ag-ver old'));
+  vv.appendChild(noI18n(el('span', 'ag-ver-arrow', '→')));
+  vv.appendChild(mono(String(u.offered || '?'), 'ag-ver new'));
+  h.appendChild(vv);
+  w.appendChild(h);
+  if (u.allowed) {
+    w.appendChild(el('p', 'note small', u.signed
+      ? 'Its policy lets acme update it: the package signed by acme’s release key is sent; the agent checks the signature with the key it was installed with and that the version is newer, then starts again.'
+      : 'Its policy lets acme update it, but this acme has no signed package (a source tree): install a release package on the server.'));
+    if (FULL && u.signed) {
+      var b = cmdButton('Update the agent', 'up', 'primary small');
+      b.onclick = function () {
+        busy(b, true);
+        ask('agents/update', {id: row.id}, 240).then(function (x) {
+          toast(String((x && x.said) || 'updated'), 'good');
+          done();
+        }).catch(oops).then(function () { busy(b, false); });
+      };
+      var br = el('div', 'btnrow');
+      br.appendChild(b);
+      w.appendChild(br);
+    }
+  } else {
+    w.appendChild(el('p', 'note small', 'Its policy does not let acme update it: install the package on the server (Settings → Target agents), or allow acme to send it - only a package signed by the release key, only a newer version:'));
+    w.appendChild(cmdBox('sudo acme-agent allow self-update', 'small'));
+  }
+  if (u.last && u.last.ok === false) w.appendChild(data('div', 'note bad small', String(u.last.said || '')));
+  box.appendChild(w);
+  return box;
+}
+/** The last deployment its policy refused (an alert until one goes through). */
+function blockedBox(a) {
+  var b = a.blocked || {};
+  var box = el('div', 'ag-blocked');
+  var h = el('div', 'ag-blocked-h');
+  h.appendChild(icon('flag', 16));
+  h.appendChild(el('b', '', 'Its policy blocked the last deployment'));
+  if (b.at) { h.appendChild(noI18n(el('span', 'muted small', ' · '))); h.appendChild(el('span', 'muted small', ago(b.at))); }
+  box.appendChild(h);
+  if (b.what) box.appendChild(mono(String(b.what), 'ag-blocked-what'));
+  var lines = arr(b.allow).filter(Boolean).map(function (x) { return 'sudo ' + x; });
+  if (lines.length) {
+    box.appendChild(el('span', 'dbw-k', 'Allow it on the server, as root'));
+    box.appendChild(cmdBox(lines.join('\n'), 'small'));
+  }
+  return box;
+}
+/** The keys its agent makes (phase 3): the certificates, and a new one made so. */
+function keysBox(row, a) {
+  var box = el('div', 'ag-keys');
+  var h = el('div', 'ag-keys-h');
+  h.appendChild(icon('key', 16));
+  h.appendChild(el('b', '', 'Keys made on this server'));
+  box.appendChild(h);
+  var certs = arr(a.keys_of);
+  if (certs.length) {
+    var list = el('div', 'ag-keys-l');
+    certs.forEach(function (n) { list.appendChild(data('span', 'ag-keycert', n)); });
+    box.appendChild(list);
+    box.appendChild(el('p', 'note small', 'Their keys are made by the agent (its root side) and written straight into the folders its policy allows - they never leave the server; acme holds none.'));
+  } else {
+    box.appendChild(el('p', 'note small', 'A certificate used only on this server can have its key made here: the agent makes it at every issue (or keeps it), acme gets only the CSR and never holds the key.'));
+  }
+  if (MANAGE && H.newCert) {
+    var mk = cmdButton('Make a certificate with its key made here', 'add', 'small');
+    mk.onclick = function () { H.newCert(row, a.host); };
+    var br = el('div', 'btnrow');
+    br.appendChild(mk);
+    box.appendChild(br);
+  }
   return box;
 }
 /** "Is it the same?" - the agent waiting to be confirmed: its fingerprint, large. */
@@ -486,6 +614,28 @@ function policyView(pol, at) {
     return r;
   });
   group('Only from', arr(pol.from), function (f) { var r = el('div', 'ag-pol-i'); r.appendChild(mono(f)); return r; });
+  /* phase 3 and 4: tests run from it, connections for acme, updates from acme */
+  group('Tests from here', (pol.probe_local ? [{local: true}] : []).concat(arr(pol.probe).map(function (x) { return {to: x}; })), function (x) {
+    var r = el('div', 'ag-pol-i');
+    if (x.local) {
+      r.appendChild(el('span', '', 'anything on this server'));
+      r.appendChild(mono('127.0.0.1 · ::1 · localhost', 'muted'));
+    } else r.appendChild(mono(x.to));
+    return r;
+  });
+  group('Connections for acme', arr(pol.connect), function (x) {
+    var r = el('div', 'ag-pol-i');
+    r.appendChild(mono(x));
+    var m = el('span', 'ag-pol-m');
+    m.appendChild(el('span', 'small', 'a connector of SSH targets'));
+    r.appendChild(m);
+    return r;
+  });
+  group('Updates from acme', pol.self_update ? [1] : [], function () {
+    var r = el('div', 'ag-pol-i');
+    r.appendChild(el('span', '', 'allowed - a package signed by the release key, a newer version only'));
+    return r;
+  });
   if (!any) box.appendChild(el('p', 'ag-pol-none', 'Nothing is allowed yet: acme can do nothing on this server. Allow what its deployments need there (acme-agent allow …) - each deployment says what it needs.'));
   arr(pol.problems).forEach(function (p) { box.appendChild(data('div', 'note warn small', String(p))); });
   return box;
@@ -680,6 +830,12 @@ function needs(d) {
   h.appendChild(pill);
   box.appendChild(h);
   if (d && d.error) box.appendChild(data('p', 'note warn small', String(d.error)));
+  if (d && d.agent_key) {
+    var kc = el('div', 'ag-needs-key');
+    kc.appendChild(icon('key', 15));
+    kc.appendChild(el('span', '', 'The key is made on the server: the agent makes it and puts it into the files below - acme never holds it.'));
+    box.appendChild(kc);
+  }
   if (unk.length && !bad.length) box.appendChild(el('p', 'note small', 'The agent has not said its policy yet (it has not joined, or was not asked): the lines below allow what this deployment does.'));
   items.forEach(function (i) {
     var r = el('div', 'ag-need ' + (i.ok === true ? 'ok' : (i.ok === false ? 'bad' : 'unk')));
@@ -705,9 +861,12 @@ function needs(d) {
   return box;
 }
 
+function init(h) { Object.keys(h || {}).forEach(function (k) { H[k] = h[k]; }); }
+/* certs.js is loaded before this file on the page: what it hands is waiting there */
+if (window.ACME_AGENTS_HANDS) init(window.ACME_AGENTS_HANDS);
 window.ACME_AGENTS = {
-  init: function (h) { Object.keys(h || {}).forEach(function (k) { H[k] = h[k]; }); },
+  init: init,
   pane: pane, card: card, wizard: wizard, needs: needs, policyView: policyView,
-  statePill: statePill, chips: chips
+  statePill: statePill, chips: chips, updateBox: updateBox, blockedBox: blockedBox, keysBox: keysBox
 };
 }());

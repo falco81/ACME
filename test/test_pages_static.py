@@ -355,7 +355,7 @@ class DeviceKeyRound1e(unittest.TestCase):
         self.assertIn("note warn ct-develse", certs)
         self.assertIn("var keyOf = r.key_of ||", certs)
         # 5: what the device takes, said where the device is chosen
-        self.assertIn("(devPlug(devOf()) || {}).device_key_names", certs)
+        self.assertIn("(keyPlug(devOf()) || {}).device_key_names", certs)   # 1.0.116: devices and agents
         # 6: an auto-made test's note as a translated hint, kept as it is
         self.assertIn("note: autoNote && note.value === '' ? autoNote : note.value", certs)
         self.assertIn("autoNote ? tr(autoNote) : ''", certs)

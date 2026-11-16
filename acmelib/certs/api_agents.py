@@ -11,6 +11,9 @@ The routes of target agents (1.0.116, docs/target-agent.md) - imported at the en
     POST /api/agents/confirm {id, fp}   the agent's fingerprint confirmed       full administrator
     POST /api/agents/renew {id}         its certificate renewed now             full administrator
     POST /api/agents/forget {id}        forgotten: no longer let in             full administrator
+    POST /api/agents/update {id}        the signed agent this acme ships sent to it (the agent
+                                        checks its signature and that it is newer; only with
+                                        `allow self-update` in its policy)  full administrator
     GET  /api/agents/package            the install package {name, version, sha256, size,
                                         signed, data_b64}
 
@@ -120,6 +123,13 @@ def _forget(h, s):
     row = _row(h, h.body())
     G.forget(h.store, row, A.who(s))
     return {'agent': G.info(h.store, row)}
+
+
+@A.api('POST', '/api/agents/update', 'fulladmin')
+def _update(h, s):
+    row = _row(h, h.body())
+    got = G.update_agent(h.store, row, A.who(s))
+    return {'said': got.get('said') or '', 'agent': G.info(h.store, row)}
 
 
 @A.api('GET', '/api/agents/package', 'certadmin')

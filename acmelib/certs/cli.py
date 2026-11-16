@@ -222,7 +222,8 @@ def add_args(p):
                         '(docs/target-agent.md): show, code (a one-time join code), confirm FP '
                         '(the fingerprint `acme-agent join` printed), look (reach a passive one '
                         'now), policy (what it allows, as it last said), renew (its '
-                        'certificate), forget (--yes)')
+                        'certificate), update (to the signed agent this acme ships, where its '
+                        'policy allows it), forget (--yes)')
     for word in ('target', 'validation', 'check'):
         g.add_argument('--%s-key' % word, dest='%s_key' % word, nargs='+', metavar='ARG',
                        help='NAME WHAT - the SSH key of a %s, as the key card of the page: '
@@ -1778,12 +1779,13 @@ class Cli(object):
         return self.fam_test('target', self.args.target_test)
 
     def target_agent(self, words):
-        """acme --target-agent NAME show|code|confirm FP|look|policy|renew|forget (1.0.116)."""
+        """acme --target-agent NAME show|code|confirm FP|look|policy|renew|update|forget
+        (1.0.116)."""
         from acmelib.certs import agents as G
         from acmelib.plugins.base import PluginError
         if len(words) < 2:
             raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|renew|'
-                             'forget')
+                             'update|forget')
         name, what, rest = words[0], words[1], words[2:]
         try:
             row = G.target_row(self.store, name)
@@ -1812,6 +1814,10 @@ class Cli(object):
             elif what == 'renew':
                 G.renew_cert(self.store, row, self.WHO)
                 info = G.info(self.store, row)
+            elif what == 'update':
+                got = G.update_agent(self.store, row, self.WHO)
+                print(got.get('said') or 'updated')
+                return 0
             elif what == 'forget':
                 self.sure('the agent of %s is no longer let in' % row['name'])
                 G.forget(self.store, row, self.WHO)
@@ -1821,7 +1827,7 @@ class Cli(object):
                 info = G.info(self.store, row)
             else:
                 raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|'
-                                 'renew|forget')
+                                 'renew|update|forget')
         except PluginError as e:
             raise SystemExit('acme: %s' % e)
         if self.json:

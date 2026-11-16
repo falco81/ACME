@@ -18,6 +18,11 @@
 // * the wizard: three steps on the rail, Make the join code (POST agents/code), the code and the
 //   command with Copy, then the fingerprint to confirm;
 // * a deployment's needs: allowed (green), needed (red, with the sudo line to copy), unknown;
+// * phases 3 and 4: the card with a newer agent offered (Update the agent, where its policy allows
+//   it - POST agents/update; else the line that allows it), the deployment its policy blocked,
+//   the keys made on the server (Make a certificate with its key made here), the policy's tests,
+//   connections and updates; the tiles' flags; a deployment's needs whose key is made there;
+//   What happens (runplan.js) with each item of the agent's job judged by its policy;
 // * nothing wider than the page; in Czech nothing of it left in English that has a translation.
 // Prints one line of JSON: {ok, checks: {name: true|false}, error?}.
 const { chromium } = require('playwright');
@@ -41,7 +46,11 @@ const path = require('path');
     'answers', 'not heard from', 'passive', 'active', 'What its policy allows', 'Folders', 'Units', 'Tests and commands',
     'Join again…', 'Ask it now', 'Renew its certificate', 'Forget…', 'An agent asks to join', 'It is the same - confirm',
     'Install the agent', 'The join code', 'Confirm the fingerprint', 'Make the join code', 'The agent’s policy',
-    'needs more on the server', 'Copy all the lines', 'On the server, as root', 'signed by acme’s release key'];
+    'needs more on the server', 'Copy all the lines', 'On the server, as root', 'signed by acme’s release key',
+    'A newer agent is offered', 'Update the agent', 'Its policy blocked the last deployment', 'Keys made on this server',
+    'Make a certificate with its key made here', 'Tests from here', 'Connections for acme', 'Updates from acme',
+    'newer agent offered', 'its policy blocks a deployment', 'allowed by the agent’s policy',
+    'not allowed by the agent’s policy - the agent refuses the job'];
   const out = {checks: {}, errors: []};
   const browser = await chromium.launch();
   const esc = (t) => t.replace(/<\/script/g, '<\\/script');
@@ -58,7 +67,8 @@ const path = require('path');
     rows: [
       {id: 1, name: 'web1', mode: 'passive', state: 'answers', host: 'web1.example.com', agent_host: 'web1', version: '1.0.116', code_hash: 'c0de',
        last_seen: now - 12, cert_end: now + 25 * 86400, policy_summary: {files: 1, units: 1, tests: 1, scripts: 1, from: 1, problems: 0}},
-      {id: 2, name: 'mail-gw', mode: 'active', state: 'quiet', host: '', agent_host: 'mx1.example.com', version: '1.0.116', code_hash: 'c0de',
+      {id: 2, name: 'mail-gw', mode: 'active', state: 'quiet', host: '', agent_host: 'mx1.example.com', version: '1.0.115', code_hash: 'c0de',
+       update: {offered: '1.0.116', newer: true, allowed: false, signed: true}, blocked: {what: 'restart postfix.service', allow: []}, keys_of: ['mail.example.com'],
        last_seen: now - 3600, cert_end: now + 6 * 86400, policy_summary: {files: 2, units: 2, tests: 0, scripts: 0, from: 0, problems: 1},
        last_error: 'the agent did not ask for the job in 90 s'},
       {id: 3, name: 'new-box', mode: 'passive', state: 'joining', host: '10.1.2.3', version: '', last_seen: null, cert_end: null, policy_summary: null}]
@@ -74,6 +84,25 @@ const path = require('path');
     {kind: 'reload', label: 'reload', what: 'systemctl reload nginx', ok: false, allow: 'acme-agent allow unit nginx.service reload'},
     {kind: 'script', label: 'the script written here', what: 'sha256 4f1c09aa…', ok: false, allow: 'acme-agent allow script-hash ' + '4f'.repeat(32)},
     {kind: 'post', label: 'after', what: '/usr/local/bin/notify.sh', ok: null, allow: 'acme-agent allow script /usr/local/bin/notify.sh'}]};
+  // What happens of a certificate whose key the agent makes (as runplan.py works it out)
+  const POLOK = {ok: true, allow: ''};
+  const PLAN = {cert: {name: 'www.example.com', names: ['www.example.com'], key_type: 'ec-256', csr_from: 'web1', state: 'ok'},
+    head: {}, took_ms: 2100, made: now, phases: [
+      {key: 'key', title: 'Key and request', module: {name: 'web1', kind: 'agent', title: 'Server with acme-agent', family: 'target', version: ''}, steps: [
+        {kind: 'key', words: 'The key and the request (CSR) are made on web1 by its acme-agent - a new key at every issue; acme holds none',
+         detail: {pairs: [['Names', 'www.example.com'], ['Key type', 'ec-256'], ['Subject', 'CN=www.example.com']]}},
+        {kind: 'connect', words: 'Sends a signed job (keygen) to the agent of web1', detail: {pairs: [['Mode', 'passive - acme connects to the agent', 'words'], ['Where', 'web1.example.com:8446', '']]}},
+        {kind: 'key', words: 'The agent makes a new ec-256 key on web1 (its root side) and sends back only its CSR - the key never leaves that server'},
+        {kind: 'file', words: 'The key will go into /etc/nginx/ssl/www.key', detail: {path: '/etc/nginx/ssl/www.key', mode: '0640', owner: 'root:nginx', format: 'key-pem'}, policy: POLOK}]},
+      {key: 'deploy', title: 'Deployments', groups: [{title: 'web1', enabled: true, module: {name: 'web1', kind: 'agent', title: 'Server with acme-agent', family: 'target', version: ''}, steps: [
+        {kind: 'connect', words: 'Sends a signed job (deploy) to the agent of web1', detail: {pairs: [['Mode', 'passive - acme connects to the agent', 'words']]}},
+        {kind: 'file', words: 'The agent writes /etc/nginx/ssl/www.crt', detail: {path: '/etc/nginx/ssl/www.crt', mode: '0644', owner: 'root:root', format: 'fullchain-pem'}, policy: POLOK},
+        {kind: 'file', words: 'The agent writes the key it made into /etc/nginx/ssl/www.key', agent_key: true, detail: {path: '/etc/nginx/ssl/www.key', mode: '0640', owner: 'root:nginx', format: 'key-pem'}, policy: POLOK,
+         note: 'the key the agent made for this certificate - acme sends only the certificate (and its chain) that goes with it'},
+        {kind: 'command', words: 'The agent tests nginx -t', detail: {command: 'nginx -t'}, policy: POLOK, note: 'no shell: a fixed command line'},
+        {kind: 'command', words: 'The agent reloads systemctl reload nginx', detail: {command: 'systemctl reload nginx'}, note: 'no shell: a unit’s verb (systemctl)',
+         policy: {ok: false, allow: 'acme-agent allow unit nginx.service reload'}},
+        {kind: 'stop', level: 'bad', words: 'The agent’s policy does not allow 1 of it: the agent refuses the whole job before anything is written - allow it on the server first'}]}]}]};
   let packStrings = {};
   try {
     for (const [lang, width] of [['en', 1400], ['cs', 1400], ['en', 420], ['cs', 420]]) {
@@ -96,13 +125,17 @@ const path = require('path');
       }
       const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
         + '<style>' + read('assets/acme.css') + '</style><style>' + read('assets/certs.css') + '</style><style>' + read('assets/agents.css') + '</style>'
+        + '<style>' + read('assets/runplan.css') + '</style>'
         + '<script>window.ACME_LANG_PACK = ' + pack + ';</script></head><body><main class="ctl-main">' + paneHtml + '<div id="card-host"></div><div id="needs-host"></div></main>' + modalHtml
         + '<div class="toast" id="toast"></div>'
         + '<script>' + esc(read('assets/i18n.js')) + '</script>'
         + '<script>var ME = {name: "tester", role: "fulladmin", prefs: {}}; var LIVE = {on: false}; var SENT = [];'
-        + ' var VIEW = ' + JSON.stringify(VIEW) + '; var ONE = ' + JSON.stringify(ONE) + '; var NEEDS = ' + JSON.stringify(NEEDS) + ';</script>'
+        + ' var VIEW = ' + JSON.stringify(VIEW) + '; var ONE = ' + JSON.stringify(ONE) + '; var NEEDS = ' + JSON.stringify(NEEDS) + ';'
+        + ' var PLAN = ' + JSON.stringify(PLAN) + ';</script>'
         + '<script>' + esc(read('assets/core.js')) + '</script>'
         + '<script>' + esc(read('assets/agents.js')) + '</script>'
+        + '<script>window.ACME_CERTS = {api: function () { return Promise.resolve({plan: PLAN}); }};</script>'
+        + '<script>' + esc(read('assets/runplan.js')) + '</script>'
         + '<script>ACME_AGENTS.init({capi: function (what, body) { SENT.push([what, body || null]);'
         + ' var c = function (x) { return Promise.resolve(JSON.parse(JSON.stringify(x))); };'
         + ' if (what === "agents") return c(VIEW);'
@@ -110,7 +143,9 @@ const path = require('path');
         + ' if (what === "agents/look") return c({agent: ONE});'
         + ' if (what === "agents/code") return c({code: "ACAG1.eyJ2IjoxLCJ0IjoxLCJuIjoid2ViMSIsIm0iOiJwYXNzaXZlIiwiaSI6IjBhMWIyYzNkNGU1ZiIsInMiOiJ4eHh4In0", until: Date.now() / 1000 + 3600, mode: "passive", ca_fp: VIEW.ca.fp, endpoints: [], port: 8446, agent: ONE});'
         + ' if (what === "agents/confirm") return c({agent: Object.assign({}, ONE, {pending: null})});'
-        + ' return c({}); }, over: function (open) { open(); }, openTarget: function (n) { window.OPENED = n; }});</script>'
+        + ' if (what === "agents/update") return c({said: "acme-agent 1.0.117 is installed", agent: ONE});'
+        + ' return c({}); }, over: function (open) { open(); }, openTarget: function (n) { window.OPENED = n; },'
+        + ' newCert: function (row, host) { window.NEWCERT = [row.name, host]; }});</script>'
         + '</body></html>';
       const page = await browser.newPage({viewport: {width: width, height: 900}, deviceScaleFactor: 2});
       page.on('pageerror', (e) => out.errors.push(lang + width + ': ' + String(e)));
@@ -137,7 +172,8 @@ const path = require('path');
         if (t.length !== 3) return false;
         return !!t[0].querySelector('.dbs-state.ok') && !!t[1].querySelector('.dbs-state.warn') && !!t[1].querySelector('.ag-end.warn')
           && t[0].querySelectorAll('.ag-chip').length === 4 && !!t[1].querySelector('.ag-chip.bad') && !!t[2].querySelector('.ag-chip.unk')
-          && !!t[1].querySelector('.ag-mode.active') && !!t[0].querySelector('.ag-mode.passive');
+          && !!t[1].querySelector('.ag-mode.active') && !!t[0].querySelector('.ag-mode.passive')
+          && t[1].querySelectorAll('.ag-flag').length === 3 && !!t[1].querySelector('.ag-flag.bad') && !t[0].querySelector('.ag-flags');
       });
       await page.evaluate(() => document.querySelector('#ag-list .ag-name').click());
       out.checks[tag + 'open_target'] = await page.evaluate(() => window.OPENED === 'web1');
@@ -162,6 +198,44 @@ const path = require('path');
       });
       out.checks[tag + 'card_fits'] = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       if (shots) await page.locator('#card-host .ag-card').screenshot({path: path.join(shots, 'card-' + lang + width + '.png')});
+      // ---- phases 3 and 4 on the card: a newer agent (allowed), a blocked deployment, the keys
+      await page.evaluate(() => {
+        ONE.update = {offered: '1.0.117', newer: true, signed: true, allowed: true, last: null};
+        ONE.blocked = {at: Date.now() / 1000 - 600, what: 'restart nginx.service', allow: ['acme-agent allow unit nginx.service restart']};
+        ONE.keys_of = ['www.example.com', 'mail.example.com'];
+        ONE.policy = Object.assign({}, ONE.policy, {probe_local: true, probe: ['www.example.com:443'], connect: ['10.0.5.21:22'], self_update: true});
+        var h = document.getElementById('card-host'); h.innerHTML = '';
+        h.appendChild(ACME_AGENTS.card({id: 1, name: 'web1'}));
+      });
+      await page.waitForTimeout(200);
+      out.checks[tag + 'card_p3'] = await page.evaluate(() => {
+        var c = document.querySelector('#card-host .ag-card');
+        return !!c.querySelector('.ag-upd.can .btn.primary') && c.querySelector('.ag-ver.new').textContent === '1.0.117'
+          && !!c.querySelector('.ag-blocked .ag-cmd') && c.querySelector('.ag-blocked .ag-cmd pre').textContent === 'sudo acme-agent allow unit nginx.service restart'
+          && c.querySelectorAll('.ag-keycert').length === 2 && !!c.querySelector('.ag-keys .btn')
+          && c.querySelectorAll('.ag-pol-g').length === 8;
+      });
+      out.checks[tag + 'card_p3_fits'] = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+      if (shots) await page.locator('#card-host .ag-card').screenshot({path: path.join(shots, 'card-p3-' + lang + width + '.png')});
+      await page.evaluate(() => document.querySelector('#card-host .ag-keys .btn').click());
+      out.checks[tag + 'new_cert'] = await page.evaluate(() => window.NEWCERT && window.NEWCERT[0] === 'web1' && window.NEWCERT[1] === 'web1.example.com');
+      await page.evaluate(() => document.querySelector('#card-host .ag-upd .btn.primary').click());
+      await page.waitForTimeout(150);
+      out.checks[tag + 'update_sent'] = await page.evaluate(() => SENT.some(function (x) { return x[0] === 'agents/update' && x[1].id === 1; }));
+      // ...a newer one its policy does not let acme send: the way, and the line
+      await page.evaluate(() => {
+        ONE.update = {offered: '1.0.117', newer: true, signed: true, allowed: false, last: null};
+        ONE.blocked = null;
+        var h = document.getElementById('card-host'); h.innerHTML = '';
+        h.appendChild(ACME_AGENTS.card({id: 1, name: 'web1'}));
+      });
+      await page.waitForTimeout(200);
+      out.checks[tag + 'update_not_allowed'] = await page.evaluate(() => {
+        var u = document.querySelector('#card-host .ag-upd');
+        return !!u && !u.classList.contains('can') && !u.querySelector('.btn.primary') && u.querySelector('.ag-cmd pre').textContent === 'sudo acme-agent allow self-update';
+      });
+      if (shots) await page.locator('#card-host .ag-upd').screenshot({path: path.join(shots, 'update-not-allowed-' + lang + width + '.png')});
+      await page.evaluate(() => { ONE.update = null; ONE.keys_of = []; ONE.policy = Object.assign({}, ONE.policy, {probe_local: false, probe: [], connect: [], self_update: false}); });
       // ---- an agent waiting to be confirmed
       await page.evaluate(() => {
         ONE.pending = {fp: '3f9a1c0e77d24b5a9e31c2f4d8a6b0e1f2c3d4e5a6b7c8d9e0f1a2b3c4d5e6f7', host: 'web1', version: '1.0.116', confirmed: false, at: Date.now() / 1000};
@@ -218,6 +292,37 @@ const path = require('path');
       });
       out.checks[tag + 'needs_fits'] = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       if (shots) await page.locator('#needs-host .ag-needs').screenshot({path: path.join(shots, 'needs-' + lang + width + '.png')});
+      // ---- a deployment whose key the agent makes, and a test through it
+      await page.evaluate(() => {
+        var n2 = {state: 'answers', agent_key: true, items: [
+          {kind: 'file', label: 'file', what: '/etc/nginx/ssl/www.crt  0644 root:root', ok: true, allow: ''},
+          {kind: 'key', label: 'the key, made there', what: '/etc/nginx/ssl/www.key  0640 root:nginx', ok: true, allow: ''},
+          {kind: 'reload', label: 'reload', what: 'systemctl reload nginx', ok: true, allow: ''},
+          {kind: 'probe', label: 'test', what: '127.0.0.1:443', ok: false, allow: 'acme-agent allow probe local'}]};
+        var h = document.getElementById('needs-host'); h.innerHTML = '';
+        h.appendChild(ACME_AGENTS.needs(n2));
+      });
+      out.checks[tag + 'needs_key'] = await page.evaluate(() => {
+        var n = document.querySelector('#needs-host .ag-needs');
+        return !!n.querySelector('.ag-needs-key') && n.querySelectorAll('.ag-need.ok').length === 3
+          && n.querySelector('.ag-need.bad .ag-cmd pre').textContent === 'sudo acme-agent allow probe local';
+      });
+      if (shots) await page.locator('#needs-host .ag-needs').screenshot({path: path.join(shots, 'needs-key-' + lang + width + '.png')});
+      // ---- What happens of it (runplan.js): each item of the agent's job judged by its policy
+      await page.evaluate(() => { document.getElementById('needs-host').hidden = true; ACME_RUNPLAN.open({id: 7, name: 'www.example.com'}); });
+      await page.waitForTimeout(500);
+      out.checks[tag + 'what_happens'] = await page.evaluate(() => {
+        var b = document.getElementById('modal-body');
+        return b.querySelectorAll('.rp-pol.ok').length === 4 && b.querySelectorAll('.rp-pol.bad').length === 1
+          && b.querySelector('.rp-pol.bad .rp-code pre').textContent === 'sudo acme-agent allow unit nginx.service reload'
+          && Array.prototype.some.call(b.querySelectorAll('.rp-tag'), function (t) { return t.textContent === 'the key made on the server' || t.textContent.length > 5; });
+      });
+      out.checks[tag + 'what_happens_fits'] = await page.evaluate(() => document.getElementById('modal-box').scrollWidth <= document.getElementById('modal-box').clientWidth + 1);
+      if (shots) {
+        await page.evaluate(() => { var g = document.querySelector('.rp-group, .rp-phase:last-child'); if (g) g.scrollIntoView(); });
+        await page.locator('#modal-box').screenshot({path: path.join(shots, 'what-happens-' + lang + width + '.png')});
+      }
+      await page.evaluate(() => closeModal());
       if (lang === 'cs') {
         const text = await page.evaluate(() => document.body.innerText);
         const left = WORDS.filter((w) => packStrings[fold(w)] === undefined || (text.indexOf(w) >= 0 && packStrings[fold(w)] !== w));

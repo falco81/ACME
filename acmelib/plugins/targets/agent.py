@@ -19,20 +19,44 @@ done: the commands are not run by a shell - each line is read as what it asks fo
 Anything else (a pipe, ;, $, a redirection into a file) is refused before anything is sent:
 put it into a script the policy allows. A script written in acme runs only when the policy
 allows its SHA-256 (allow script-hash).
+
+Phase 3:
+
+* the key made by the agent (device_key_optional - chosen per certificate, "Key made by the
+  device"): device_csr() asks the agent (`keygen`) - root makes the key, keeps it, and answers
+  a CSR; the deployment of the certificate then puts that key into its files (root renders
+  key-pem, combined-pem, pfx... itself). acme never holds the key. A certificate deployed to
+  several targets keeps acme's key (sealed to each agent);
+* the tests of what it serves run through the agent (`probe`: the agent's server connects to
+  host:port, as `allow probe` names it) - by default for the tests made from its deployments;
+* a passive agent reached through an SSH connector (`via`), and the agent as a connector of
+  other SSH targets (`allow connect`, runtime.SshSession).
 """
 from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import re
 import shlex
+import time
 
 from acmelib.plugins.targets._common import Base, PluginError, field, as_int, PFX_FORMATS, quote
 from acmelib.plugins.targets import _script as SC
 from acmelib.plugins.targets import ssh as SSH
 
 INTERPS = ('bash', 'sh', 'python3')
-KEY_FORMATS = ('key-pem', 'key-rsa', 'key-der', 'combined-pem', 'pfx', 'p12', 'p12-legacy', 'jks')
+KEY_FORMATS = ('key-pem', 'key-rsa', 'key-der', 'key-traditional', 'key-pem-enc', 'combined-pem',
+               'pfx', 'p12', 'p12-legacy', 'jks')
+# a key the agent made: the formats its root side writes it in (deploy/agent/acme_agent.py) -
+# combined-pem and pfx/p12 get the certificate's files from acme and the key put in there
+AGENT_KEY_FORMATS = ('key-pem', 'key-traditional', 'key-rsa', 'key-der', 'combined-pem', 'pfx',
+                     'p12')
+WITH_CHAIN = ('combined-pem', 'pfx', 'p12')
+# a test through the agent (`openssl s_client -starttls`): what each test module speaks
+STARTTLS = {'smtp': 'smtp', 'imap': 'imap', 'pop3': 'pop3', 'ftp': 'ftp', 'xmpp': 'xmpp',
+            'ldap': 'ldap', 'postgres': 'postgres', 'mysql': 'mysql'}
+NO_PROBE = ('mssql', 'rdp')
 VERBS = ('reload', 'restart', 'try-reload-or-restart', 'reload-or-restart', 'try-restart')
 SHELL_RE = re.compile(r'[|;&$`<>(){}*?!~\\\n]')
 QUIET_RE = re.compile(r'\s+(?:2>&1\s*>\s*/dev/null|>\s*/dev/null(?:\s+2>&1)?|2>\s*/dev/null|'
@@ -79,6 +103,35 @@ def cmd_ops(line):
     return ops
 
 
+class _ReqBundle(object):
+    """The certificate asked for (device_csr), as far as the deployment's files need it: its
+    names - no certificate, no key yet."""
+    def __init__(self, req):
+        self.name = req.name or (req.names or ['certificate'])[0]
+        self.names = list(req.names or [self.name])
+        self.key_type = req.key_type or 'ec-256'
+        self.alt = None
+        self.serial = ''
+        self.fingerprint = ''
+        self.cert_pem = ''
+        self.key_pem = None
+        self.chain_pems = []
+        self.version = 0
+        self.not_before = time.time()
+        self.not_after = self.not_before + 90 * 86400
+
+    def as_format(self, fmt, password=None, alias=None):
+        raise PluginError('not issued yet', retry=False)
+
+
+def probe_how(kind):
+    """How the agent tests a test module's protocol: '' TLS at once, a STARTTLS protocol, or
+    None - one it cannot speak (TDS, RDP)."""
+    if kind in NO_PROBE:
+        return None
+    return STARTTLS.get(kind, '')
+
+
 def op_words(op):
     if 'any' in op:
         return ' || '.join(op_words(a) for a in op['any'])
@@ -100,6 +153,10 @@ class AgentTarget(Base):
                    'rollback.')
     doc = 'target-agent.md'
     dual = True
+    # the key made by the agent, where the certificate says so (phase 3): chosen per
+    # certificate - this target takes certificates with acme's key too
+    device_key_optional = True
+    device_key_types = ('ec-256', 'ec-384', 'rsa-2048', 'rsa-3072', 'rsa-4096')
     fields = [
         field('mode', 'Who connects', 'select', default='passive', required=True,
               options=[['passive', 'acme connects to the agent (it listens, 8446)'],
@@ -114,6 +171,11 @@ class AgentTarget(Base):
               show_if={'mode': ['passive']},
               help='where the agent listens (passive) - acme-agent join takes it from the code'),
         field('timeout', 'Timeout (s)', 'number', default=30, advanced=True),
+        field('via', 'Through a connector', 'select', default='', options=[['', 'directly']],
+              options_from='agent_hops', advanced=True, show_if={'mode': ['passive']},
+              help='a passive agent only another network reaches: acme signs in to the connector '
+                   '(Targets → Connector over SSH) and reaches the agent\'s port from there - '
+                   'nothing installed there'),
     ] + SC.script_fields(INTERPS, deploy=False)
     deploy_fields = SSH.SshTarget.deploy_fields
     files_ui = SC.files_ui('posix', INTERPS, SC.layouts('/etc/ssl/acme'),
@@ -122,12 +184,16 @@ class AgentTarget(Base):
     # the deployment worked out as the SSH server's
     preset_outputs = SSH.SshTarget.preset_outputs
     resolved = SSH.SshTarget.resolved
-    render = SSH.SshTarget.render
     _vars = SSH.SshTarget._vars
     _written_key = SSH.SshTarget._written_key
     _written = SSH.SshTarget._written
-    served_places = SSH.SshTarget.served_places
     verify = SSH.SshTarget.verify
+
+    def served_places(self, options):
+        """Where it serves the certificate, as its tests (through the agent) connect: the
+        server itself (127.0.0.1 - `allow probe local`) on the preset's port."""
+        preset = SSH.PRESETS.get((options or {}).get('preset') or 'custom') or {}
+        return [('127.0.0.1', int(preset['port']))] if preset.get('port') else []
 
     def ident(self):
         name = getattr(self.ctx, 'target_name', '') or self.c('host') or '-'
@@ -157,8 +223,82 @@ class AgentTarget(Base):
             self.ctx.step('the policy: %s' % p, 'warn')
         return words
 
+    # -- the key made by the agent (phase 3) ---------------------------------------------
+    def _slot(self):
+        dep = getattr(self.ctx, 'deploy_id', None)
+        return ('dep-%s' % dep) if dep not in (None, '') else 'dep-new'
+
+    def agent_key_of(self, bundle):
+        """Whether this deployment's key is made by the agent: the certificate holds no key of
+        acme's (its key is made here - devicekey), or the certificate says so."""
+        if getattr(bundle, 'key_pem', '') is None:
+            return True
+        store = getattr(self.ctx, 'store', None)
+        dep = getattr(self.ctx, 'deploy_id', None)
+        if store is None or dep in (None, ''):
+            return False
+        try:
+            got = store.db.row('SELECT c.csr_from FROM cert_deploys d JOIN certs c ON '
+                               'c.id = d.cert_id WHERE d.id = ?', (int(dep),))
+        except Exception:                               # noqa: BLE001
+            return False
+        name = getattr(self.ctx, 'target_name', '') or ''
+        return bool(got and name and str(got.get('csr_from') or '') == name)
+
+    def _key_files(self, r):
+        files = [f for f in r['files'] if f['format'] in KEY_FORMATS]
+        bad = [f for f in files if f['format'] not in AGENT_KEY_FORMATS]
+        if bad:
+            raise PluginError('%s: a key the agent makes cannot be written as %s - it writes %s '
+                              '(or let acme make the key)' % (
+                                  bad[0]['path'], bad[0]['format'], ', '.join(AGENT_KEY_FORMATS)),
+                              retry=False)
+        if not files:
+            raise PluginError('the deployment writes no file that holds the key - give it one '
+                              '(key-pem, combined-pem, pfx...): the agent puts the key it makes '
+                              'there', retry=False)
+        return files
+
+    def device_csr(self, req):
+        """The agent makes a new key (its root side, kept there) and answers its CSR - checked
+        first: the files of this deployment that will hold it are allowed by its policy."""
+        r = self.resolved(_ReqBundle(req), dict(req.options or {}))
+        files = self._key_files(r)
+        args = {'slot': self._slot(), 'key_type': req.key_type, 'names': list(req.names),
+                'keep': bool(getattr(req, 'reuse_key', False)),
+                'files': [{'path': f['path'], 'mode': f['mode'], 'owner': f['owner'] or '',
+                           'format': f['format']} for f in files]}
+        got = self._call('keygen', args, timeout=240)
+        if not got.get('ok'):
+            needs = got.get('needs') or []
+            for n in needs:
+                self.ctx.step('allow it on the server (as root): %s' % n['allow'], 'bad')
+            raise PluginError(got.get('said') or 'the agent made no key', detail='\n'.join(
+                n['allow'] for n in needs) or None, retry=not needs and not got.get('refused'))
+        fp = str(got.get('key_fp') or '')
+        self.ctx.step('%s on %s (its key %s…) - the key stays there, in %s' % (
+            got.get('said') or 'the agent made the key', getattr(self.ctx, 'target_name', '')
+            or self.c('host') or 'the server', fp[:16], ', '.join(f['path'] for f in files)),
+            'ok')
+        return got.get('csr') or ''
+
+    def render(self, bundle, r, agent_key=False):
+        """The bytes of each file; with the key made by the agent, a file holding the key is
+        made there - acme sends what goes with it (the certificate and its chain)."""
+        if not agent_key:
+            return SSH.SshTarget.render(self, bundle, r)
+        self._key_files(r)
+        datas = []
+        for f, b in r.get('pairs') or [(f, bundle) for f in r['files']]:
+            if f['format'] in KEY_FORMATS:
+                datas.append(b.as_format('fullchain-pem') if f['format'] in WITH_CHAIN else b'')
+                continue
+            got = SSH.SshTarget.render(self, b, dict(r, pairs=[(f, b)], files=[f]))
+            datas.append(got[0])
+        return datas
+
     # -- what is sent ----------------------------------------------------------------------
-    def plan(self, bundle, options, r, datas, sealed=True):
+    def plan(self, bundle, options, r, datas, sealed=True, agent_key=False):
         """The job's arguments: the files (keys sealed to the agent), the commands as
         operations, the script, the copies, what is remembered."""
         stale = [p for p in self._written(options) if p not in {f['path'] for f in r['files']}]
@@ -171,7 +311,12 @@ class AgentTarget(Base):
                 if remembered is None:
                     remembered = self.unchanged(bundle, dict(options, force=False))
                 one['keep_if_there'] = bool(remembered)
-            if sealed and f['format'] in KEY_FORMATS:
+            if agent_key and f['format'] in KEY_FORMATS:
+                # the key is the agent's own: what goes with it (the certificate files) only
+                one['agent_key'] = True
+                if sealed:
+                    one['data'] = base64.b64encode(data).decode('ascii')
+            elif sealed and f['format'] in KEY_FORMATS:
                 one['sealed'] = self.ctx.agent_seal('file ' + f['path'], data)
             elif sealed:
                 one['data'] = base64.b64encode(data).decode('ascii')
@@ -197,15 +342,29 @@ class AgentTarget(Base):
                 'skip_same': r['skip_same'], 'pending': self.pending()}
         args.update(ops)
         if secret and sealed:
-            import json
             args['env_sealed'] = self.ctx.agent_seal('env', json.dumps(secret).encode())
+        if agent_key:
+            ak = {'slot': self._slot()}
+            if sealed:
+                ak['cert_pem'] = getattr(bundle, 'cert_pem', '') or ''
+                if any(f['format'] in PFX_FORMATS for f in r['files']):
+                    ak['alias'] = r['jks_alias'] or r['vars']['name']
+                    if r.get('password'):
+                        ak['pass_sealed'] = self.ctx.agent_seal('pfx', str(r['password'])
+                                                                .encode('utf-8'))
+            args['agent_key'] = ak
         return args
 
     def deploy(self, bundle, options):
         options = options or {}
         r = self.resolved(bundle, options)
-        datas = self.render(bundle, r)
-        args = self.plan(bundle, options, r, datas)
+        ak = self.agent_key_of(bundle)
+        self._agent_key_now = ak
+        if ak and getattr(bundle, 'key_pem', None):
+            raise PluginError('the key of this certificate is made by the agent: a certificate '
+                              'with acme\'s key does not go with it', retry=False)
+        datas = self.render(bundle, r, agent_key=ak)
+        args = self.plan(bundle, options, r, datas, agent_key=ak)
         self.mark_pending(bundle)
         got = self._call('deploy', args, timeout=1800)
         for lv, words in got.get('steps') or []:
@@ -233,6 +392,8 @@ class AgentTarget(Base):
         """What the agent says it wrote is what was sent (its SHA-256)."""
         said = {f.get('path'): f.get('sha256') for f in got.get('files') or []}
         for f, data in zip(r['files'], datas):
+            if f['format'] in KEY_FORMATS and getattr(self, '_agent_key_now', False):
+                continue                    # made there, with the agent's own key
             want = hashlib.sha256(data).hexdigest()
             if said.get(f['path']) not in (None, want):
                 raise PluginError('the agent says %s holds another file than the one sent'
@@ -243,8 +404,13 @@ class AgentTarget(Base):
         nothing run."""
         options = dict(options or {})
         r = self.resolved(bundle, options)
-        datas = self.render(bundle, r)
-        args = self.plan(bundle, options, r, datas, sealed=False)
+        ak = self.agent_key_of(bundle)
+        if ak:
+            self._key_files(r)
+            datas = [b'' for _ in r['files']]
+        else:
+            datas = self.render(bundle, r)
+        args = self.plan(bundle, options, r, datas, sealed=False, agent_key=ak)
         got = self._call('check', args, timeout=120)
         for f in got.get('files') or []:
             self.ctx.step('%s: %s' % (f.get('path'), f.get('said') or ''),
@@ -284,8 +450,13 @@ class AgentTarget(Base):
         except PluginError as e:
             out['error'] = str(e)
             return out
+        ak = self.agent_key_of(bundle)
+        out['agent_key'] = ak
         try:
-            args = self.plan(bundle, options, r, [b'' for _ in r['files']], sealed=False)
+            if ak:
+                self._key_files(r)
+            args = self.plan(bundle, options, r, [b'' for _ in r['files']], sealed=False,
+                             agent_key=ak)
         except PluginError as e:
             out['error'] = str(e)
             return out
@@ -303,7 +474,9 @@ class AgentTarget(Base):
         for f in args['files']:
             u = f['owner'] or 'root:root'
             d = f['path'].rsplit('/', 1)[0] or '/'
-            judge('file', 'file', '%s  %04o %s' % (f['path'], f['mode'], u), {'files': [f]},
+            judge('key' if f.get('agent_key') else 'file',
+                  'the key, made there' if f.get('agent_key') else 'file',
+                  '%s  %04o %s' % (f['path'], f['mode'], u), {'files': [f]},
                   'acme-agent allow file %s --owner %s --mode %04o' % (
                       quote(d), u if ':' in u else u + ':' + u, f['mode']))
         for key, words in (('pre', 'before'), ('test', 'test'), ('reload', 'reload'),
@@ -319,7 +492,37 @@ class AgentTarget(Base):
             else:
                 judge('script', 'the script', s['path'], {'script': s},
                       'acme-agent allow script %s' % quote(s['path']))
+        # the tests of what it serves, through the agent (phase 3): each place a probe
+        for host, port in self.served_places(options)[:5]:
+            hp = ('[%s]:%d' % (host, port)) if ':' in str(host) else '%s:%d' % (host, port)
+            m = self._mod()
+            if pol is None or m is None:
+                out['items'].append({'kind': 'probe', 'label': 'test', 'what': hp, 'ok': None,
+                                     'allow': 'acme-agent allow probe %s' % (
+                                         'local' if host in m_local() else hp)})
+                continue
+            try:
+                h, p = m.split_hostport(hp)
+                ok = m.dest_allowed(dict(m.parse_policy(''), **{
+                    'probe': list(pol.get('probe') or []),
+                    'probe_local': bool(pol.get('probe_local'))}), h, p, 'probe')
+            except Exception:                           # noqa: BLE001
+                ok = False
+            out['items'].append({'kind': 'probe', 'label': 'test', 'what': hp, 'ok': ok,
+                                 'allow': '' if ok else 'acme-agent allow probe %s' % (
+                                     'local' if host in m_local() else hp)})
         return out
+
+    def _mod(self):
+        try:
+            from acmelib.certs import agents
+            return agents.agent_mod()
+        except Exception:                               # noqa: BLE001
+            return None
+
+
+def m_local():
+    return ('127.0.0.1', '::1', 'localhost')
 
 
 def _allow_of(o):

@@ -41,6 +41,35 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   renew|forget`.
 - The release builds `acme-agent-X.Y.Z.tar.gz` too, signed by the same key (inside acme's package
   and beside it in `release/`).
+- **Target agents, phase 3 - keys made on the server**: a certificate used only on one server can
+  have its key made there (*Key made by the agent, on the server*, or *Make a certificate with its
+  key made here* on the agent's card): at every issue the agent's root side makes the key (or keeps
+  the one in use, *Keep the key*), checks first that its policy allows the files that will hold
+  it, and answers only the CSR; the deployment right after puts the key into those files itself
+  (key-pem, traditional, DER, combined-pem, pfx/p12) - only for a certificate of that very key. acme
+  never holds it. A certificate on several targets keeps acme's key, sealed to each agent.
+- **Tests through the agent**: `allow probe HOST:PORT` / `allow probe local` in its policy lets a
+  test (Certificates → Tests) connect from the server (TLS, or STARTTLS of SMTP, IMAP, POP3, FTP,
+  XMPP, LDAP, PostgreSQL, MySQL) and send back the chain served; acme judges it as any test. The
+  tests made from a deployment on an agent target go through it, at 127.0.0.1, by default.
+- **The agent as a connector** (off by default): `allow connect HOST:PORT` lets SSH targets be
+  reached through a passive agent (*Through a connector* offers it, marked) - a tunnel over acme's
+  TLS connection to the agent, only to what the policy names. A passive agent itself can be
+  reached through a Connector over SSH (`ssh -W`).
+- **What happens** of an agent target: the signed job and the way it goes, the key made there,
+  every file with its owner and mode, every command and script - each with the verdict of the
+  agent's policy and the `acme-agent allow` line where it is missing.
+- **Phase 4 - signed self-update**: acme says a newer agent is offered; with `allow self-update`
+  a full administrator can send it (*Update the agent*, `acme --target-agent NAME update`): the
+  agent checks MANIFEST and its Ed25519 signature against the release keys installed with it
+  (install.sh now puts them beside it) and that the version is newer, then replaces itself.
+- **Monitoring**: SNMP `acmeAgentTable` (ACME-MIB REVISION 202611161200Z), Prometheus
+  `acme_agent_*`, the Zabbix discovery *Target agents* with its triggers, isemon / SIEM
+  `action=agent_*` fields, and a new alert: **the agent's policy blocks a deployment** (until one
+  goes through). The agent authority, the command key, the agents' states and their queued jobs
+  come back with a backup and work on the other node (tested).
+- Fixed (unreleased): files in the formats `key-traditional` and `key-pem-enc` went to an agent
+  base64 under TLS only - now sealed to the agent like every other key format.
 
 ## 1.0.115 - 2026-11-16
 
