@@ -33,6 +33,29 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   taken out. The checks have a limit of their own now, and nginx's 429 and 5xx (and a daemon not
   answering) say "try later" - asked again at the next check. Off, nginx's server of the port is
   as before.
+- **The card watched, an upgrade half way:** a page of 1.0.114 left open (or the nodes of a
+  cluster upgraded one by one) asks its check without an Origin, got a 403 for it and was signed
+  out. It gets a picture that says nothing now (the same for everybody - nothing asked, nothing
+  renewed) and is told to load itself again; this version's page whose check fails asks once more
+  without its Origin, so a node of 1.0.114 (no CORS) is still understood.
+- **The card watched: a check left without an answer for 20 s** is taken as one that got no
+  answer at all - an iPad may leave the picture waiting rather than fail it: *cannot be checked*
+  under the same conditions, no longer always the card taken out.
+- **The card watched: switched on from an iPad**, the administrator who saved it was signed out
+  at once: their own sign-in counts as made while the watch is on (not watched, or signed out
+  with *Sign out, as a card taken out* - the setting's help says so).
+- **The card watched: a client the part's allow list refuses** got the checks' "try later" (200)
+  once its checks were refused for their number - 403 now, as the rest.
+- **The database's own trouble** (the alert, `acmeDbTrouble`) counts SQLite's *file is not a
+  database* and *database disk image is malformed*; MariaDB's read-only, table full, out of
+  memory, disconnected for inactivity and out-of-sync errors; and PostgreSQL's by its SQLSTATE
+  (the connection, resources, a shutdown or a cancelled statement, system and internal errors, a
+  deadlock, a lock not to be had, a standby) - no longer every error its driver files as
+  operational or internal (a constraint, a missing column).
+- **SNMP: the newest backup on a cluster with one database** is the cluster's (any node's, or
+  the night's), not the node's own - the node that did not make the night's copy said "no recent
+  backup" for good. **The CRL table's rows** are numbered by the whole address, not its first 255
+  characters.
 - **The card's notice over a popup**: Escape closed the popup behind it (or asked *Leave it?*
   under it) and Tab went round the popup's boxes - nothing behind the notice answers now, and the
   focus goes back where it was (the box half typed in) when the card is back. Its seconds agree
@@ -99,7 +122,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   listing the owner's authority beside its own got through. A join under the name of a node of
   another authority heard from in the last 30 days is refused (it took that node's place); the
   node joining again may. With no owner recorded (the first certificate after the upgrade) the
-  node putting it in becomes the owner.
+  node putting it in becomes the owner. **A cluster's authority rolled** no longer splits the
+  cluster: the agent knew a node's authorities only from its last client-certificate renewal, so
+  after a roll the other node's certificate renewed under the new authority was refused as
+  *another cluster's*. Each node now tells its agent its cluster's authorities again (`trust`,
+  no new certificate) whenever they change - the daemon looks every 30 s and at once after a
+  roll here; and a node once let in with a certificate of the owner's authority (the agent keeps
+  every authority it checked, `issuers_seen`) is the owner's cluster. A node's own list still
+  counts only for itself. A node that joined its agent standalone and then a cluster
+  (`--ha-join`, layout B) tells the agent the cluster's authority at the end of the join - its
+  next join was refused as *another cluster's*; one refused from the address it joined from is
+  told its authority changed and to `--forget NODE` on the database server first.
 - **Layout B (each node its own database server): this node's own address, not its database
   server's.** `ha_address` is the node's database server there, yet keepalived was told it as its
   own address (`unicast_src_ip`), the other node's firewall let it in instead of the node, and the
@@ -129,8 +162,13 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   it goes on answering everybody until what root works on is answered - it answered 503 to
   everything for up to 300 s - and lets a node that just joined in at once; the listening socket
   is root's, kept across, so connections wait for the next side instead of being refused. A stop or restart of
-  the service waits for the operation under way (300 s at most, `TimeoutStopSec=330`) instead of
-  cutting it off; root works on 16 requests at most at once.
+  the service waits for the operation under way (300 s at most, `TimeoutStopSec=360`) instead of
+  cutting it off; root works on 16 requests at most at once. The side ending waits for the
+  connections it took (a slow client's request was cut off when it returned), an answer from a
+  root before 1.0.115 (no request id, the program upgraded under it) ends it at once instead of
+  every request waiting 900 s, it sets `PR_SET_PDEATHSIG` again after giving root up (`setuid`
+  cleared it: root killed, the side lived on), and a side already ended is never signalled by its
+  old process number.
 - **A node with several addresses** is let into its database server (pg_hba, the firewall, at
   the join, `dbmake`, `pg_prepare`) by the address it reaches that server from, not the one it
   reaches the outside with.

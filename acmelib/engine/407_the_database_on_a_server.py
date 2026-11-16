@@ -568,7 +568,8 @@ def db_agent_join(store, code, addr='', db_host='', by='command line', say=None)
                       'engine': engine, 'pg_port': int(began.get('pg_port') or 5432),
                       'my_port': int(began.get('my_port') or 3306),
                       'db_host': db_host or host, 'at': time.time(), 'by': by,
-                      'client_cert_end': _cert_end(ccrt)})
+                      'client_cert_end': _cert_end(ccrt),
+                      'trust_sent': _db_agent_set_hash(trust)})
     # The agent starts its listening side again with this node in: waited for.
     end = time.time() + 20
     while True:
@@ -982,6 +983,48 @@ def db_agent_renew(store, by='acme (renewed)', force=False):
     return done
 
 
+def db_agent_trust_set(store):
+    """(the cluster's authorities now, the set told to the agent): every authority of the
+    cluster still good, with the one of the client certificate in use beside them (client-ca.pem,
+    what it was issued under) - the agent refuses a set it would not pass."""
+    trust = hatls_trust(hatls_ca(store))
+    try:
+        old = (DBAGENT_DIR / 'client-ca.pem').read_text()
+    except OSError:
+        old = ''
+    return trust, trust + ''.join(c for c in re.findall(
+        r'-----BEGIN CERTIFICATE-----[A-Za-z0-9+/=\s]+?-----END CERTIFICATE-----\s*', old)
+        if c.strip() not in trust)
+
+
+def _db_agent_set_hash(pem):
+    """The set's own hash: which certificates, in any order."""
+    got = sorted(set(re.sub(r'\s+', '', c) for c in re.findall(
+        r'-----BEGIN CERTIFICATE-----[A-Za-z0-9+/=\s]+?-----END CERTIFICATE-----', pem or '')))
+    return hashlib.sha256('\n'.join(got).encode()).hexdigest()
+
+
+def db_agent_trust_sync(store, force=False):
+    """This node's agent told its cluster's authorities again (`trust`, no new certificate)
+    whenever they differ from what it last told it (1.0.115): a new authority rolled in
+    (hatls_ca_make here, or come over from the other node), the node joined a cluster
+    (--ha-join). The agent knows which cluster the server's certificate is by them: without
+    it the other node's certificate renewed under the new authority was refused as another
+    cluster's until this node renewed its own. True when told."""
+    a = db_agent()
+    if not a:
+        return False
+    trust, both = db_agent_trust_set(store)
+    if not trust.strip():
+        return False
+    h = _db_agent_set_hash(both)
+    if not force and a.get('trust_sent') == h:
+        return False
+    db_agent_call('trust', {'ca': both})
+    db_agent_put({'trust_sent': h})
+    return True
+
+
 # ---- this node at another address (the network job, 1.0.113) -----------------------------------
 def db_agent_node_moved(store, old_ip, new_ip, say=None):
     """This node's own address changes while its database is on its agent's server: the new
@@ -1123,6 +1166,16 @@ def db_agent_watch(daemon):
                 except Exception as e:                  # noqa: BLE001
                     log_sparing('dbagent-peer', 'letting the other node in at its new address '
                                 'through the database agent: %s' % e, 'warn', every=600)
+                DBAGENT_STATE['trust_due'] = True
+            if DBAGENT_STATE.get('trust_due'):
+                # The cluster's authorities told the agent again when they changed (a new one
+                # rolled in here or on the other node): every look, at once after a roll here.
+                DBAGENT_STATE['trust_due'] = False
+                try:
+                    db_agent_trust_sync(daemon.store)
+                except Exception as e:                  # noqa: BLE001
+                    log_sparing('dbagent-trust', 'telling the database agent the cluster\'s '
+                                'authorities: %s' % e, 'warn', every=600)
             if now - last_renew >= 3600:
                 last_renew = now
                 try:

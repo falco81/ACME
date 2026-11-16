@@ -635,6 +635,7 @@ page (443)                          nginx :8443 (client certificate)   PHP      
    |<--- 7 px: this browser cannot be checked - the sign-in is not watched ---------------|
    |<--- 8 px: try later (nginx: too many checks, PHP or the daemon not answering) -------|
    |<--- 403: no such sign-in, or not this name's page (its Origin) -----------------------|
+   |<--- no Origin at all (a page of 1.0.114): 6 by 2 px, the same for all - nothing asked -|
    |
    |-- no picture at all, twice (or 6 px at once): POST ?api=cert-lost {why} (443) -> /api/certlogin/lost
    |       nopicture, never found in this browser, made while watched, neither held nor out:
@@ -653,8 +654,19 @@ in acme those two are **6** and **7**.
    443 of the very name the port was reached by - and then with CORS for exactly that origin
    (`Access-Control-Allow-Origin`, `-Credentials: true`); a browser that sends `Sec-Fetch-*`
    must also say `Sec-Fetch-Site` `same-site` (or `same-origin`) and `Sec-Fetch-Dest: image`.
-   Anything else - another site, no `Origin` at all (a picture without `crossorigin`, a
-   navigation), not a picture - gets a 403 and nothing is asked. (Before 1.0.115 only
+   Anything else - another site, a navigation, not a picture - gets a 403 and nothing is
+   asked. **A picture with no `Origin` at all** (a page of 1.0.114 still open over an upgrade,
+   or while the nodes of a cluster are upgraded one by one, asks so) gets a picture that **says
+   nothing**: 6 px wide, 2 high, the same whoever asks, card or not, cookie or not - nothing
+   asked of the daemon, nothing of the sign-in renewed (it is held, as any whose page stopped
+   checking, until a check finds the card). To such a page 6 px is *no cookie*: it says so over
+   443 at once, without the `v` this version's page sends, and is told to load itself again
+   (`state: none`, its word for "signed out otherwise" - nothing is ended): the page of this
+   version then checks with its `Origin`. Before (1.0.115 until review round 2) it got a 403,
+   took it for no answer, and its sign-in was taken out. This version's page asks once more
+   **without** `crossorigin` when its picture fails - a node of 1.0.114 sends no CORS, and its
+   answer (1 px high) is the card's as before; this version's 2 px high one is taken as no
+   answer. A page of another name learns nothing from either. (Before 1.0.115 only
    `Sec-Fetch-Site: cross-site` was refused: a page of a **sibling host** - `other.example.com`
    beside `acme.example.com`, the same *site*, whose pictures get the `SameSite=Strict` cookie
    too - could make a signed-in person's browser check the card and read the width: signed in
@@ -682,7 +694,8 @@ in acme those two are **6** and **7**.
    never found in this browser, leave it unwatched - below). It is taken as the card out only
    while this node serves the certificate's port (a port down is no card taken out). A check
    left without an answer for 20 s counts as one that got nothing - said as `{why: "timeout"}`
-   (1.0.115), which is always a card taken out, never *cannot be checked*.
+   (1.0.115), and taken as `nopicture` is (review round 2: an iPad may leave the picture
+   waiting rather than fail it) - the same gates for *cannot be checked*.
 6. **No cookie came with the check** (a browser that keeps cookies apart by port, a privacy
    setting): PHP on the port asks nothing and answers 6 px wide; the page says so at once over
    443 (`{why: "nocookie"}`), where its cookie does come - so the events can tell it from a card
@@ -696,7 +709,11 @@ in acme those two are **6** and **7**.
    the card out nor *cannot be checked*. Before, they were nginx's HTML pages, the picture
    failed, and the page took them for the card out. Only while a part watches the card: off, the
    port's server is byte for byte as before. (nginx: the check is sent from the location to a
-   named one of its own - `error_page 418 = @acme_card_admin` - before `acme_all` counts it.)
+   named one of its own - `error_page 418 = @acme_card_admin` - before `acme_all` counts it.
+   Its *try later* goes through `@acme_card_later_admin` (`_portal`), which repeats the part's
+   `allow` / `deny` lines and answers by `try_files ... =418` - after nginx's access phase:
+   nginx's 429 comes before that phase and `return` after a location's own, so a client the
+   part refuses got *try later* (200) once its checks were refused for their number; now 403.)
 
 Then, by the setting:
 
@@ -790,8 +807,10 @@ So a sign-in keeps (in its row, `card_ok`) whether a check **in the background**
 its card in this browser - the time of the first that did; the sign-in itself does not count:
 
 - **never** - and the page says its picture got **no answer at all** (`nopicture`, the page's
-  `cert-lost`) - this browser *cannot be checked*, but only for a sign-in **made while its part
-  watched the card** (`card_w` in its row) that is **neither held nor out**. By *A browser that
+  `cert-lost`), or **none within 20 s** (`timeout`, review round 2) - this browser *cannot be
+  checked*, but only for a sign-in **made while its part watched the card** (`card_w` in its
+  row) - or the sign-in of whoever switched the watch on, there at its browser (review round 2:
+  from an iPad they were signed out right after saving) - that is **neither held nor out**. By *A browser that
   cannot be checked* (`admin_certlogin_card_unable`, `portal_certlogin_card_unable`):
   - **`allow`** (the default, *Not watched (said in Events)*): `card_ok` becomes -1 and that
     sign-in is **not watched** - an event says so and why; its checks without the card answer
@@ -808,7 +827,7 @@ its card in this browser - the time of the first that did; the sign-in itself do
   - **`signout`** (*Sign out, as a card taken out*): on as for a card taken out - such a browser
     cannot stay signed in while the card is watched;
 - anything else - **a check that came without a certificate** (`nocert`), **nginx's refusal**,
-  **no cookie** (`nocookie`), **none within 20 s** (`timeout`), a sign-in **held** (its page
+  **no cookie** (`nocookie`), a sign-in **held** (its page
   stopped checking) or **whose card is out**, one **made before the watch was switched on**
   (its person may be away with the card: it looks just the same - and one made while on,
   switched off and on again, counts as made before) - is a **card taken out**, as always;

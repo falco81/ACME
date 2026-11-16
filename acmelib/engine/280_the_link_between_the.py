@@ -102,6 +102,10 @@ def hatls_ca_make(store, by):
             'at': now, 'by': by}]
     cas += [x for x in ca['cas'] if float(x.get('end') or 0) > now][:3]
     store.set_meta('hatls:ca', json.dumps({'cas': cas}))
+    # A node with a database agent tells it the new set at once (1.0.115, its watching thread:
+    # db_agent_trust_sync) - the other node's does once the row comes over.
+    if 'DBAGENT_STATE' in globals():
+        DBAGENT_STATE['trust_due'] = True
     return cas[0]
 
 

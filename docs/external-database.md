@@ -94,7 +94,8 @@ seals the code's secret and its signing key to it). Each node's entry also says 
 last heard from (`seen`, an hour at most off; a node enrolled by an agent before 1.0.115 has
 none - it counts as heard from when the upgraded agent first starts, not as gone 30 days after
 it joined), and which authority signed its certificate (`issuers`, checked with that
-authority's key). In `state` (`/var/lib/acme-db-agent`):
+authority's key; `issuers_seen`, every one that signed a certificate it was let in with - at its
+join, a renewal put in use, a `trust` - kept, 1.0.115). In `state` (`/var/lib/acme-db-agent`):
 `nonces.json`, the nonces of the last four minutes, so a request captured cannot be replayed
 after a restart either; `server-cert.json` (1.0.115), which node - and which authorities - put
 the database server's certificate in (`issuers`: the ones that signed the client certificate
@@ -107,12 +108,15 @@ the account is missing.
 ### Two processes: root does only the closed set, and holds every key
 
 - The **network side** is a program of its own, started afresh by root for each
-  start of that side (`acme_db_agent.py --network-side FD`, never a `fork()` - a copy
-  of root's memory), with the socket pair to root as its only link. Root gives it
-  the fingerprints enrolled and the authorities TLS needs to ask for the nodes'
-  certificates - **no signing key**. It binds the port, loads the agent's
-  certificate, gives root up at once (`setgroups([])`, `setgid`, `setuid` to
-  `acme-db-agent`, `PR_SET_NO_NEW_PRIVS`; it dies with root, `PR_SET_PDEATHSIG`),
+  start of that side (`acme_db_agent.py --network-side FD LFD`, never a `fork()` - a
+  copy of root's memory), with the socket pair to root (`FD`) as its only link and
+  the listening socket (`LFD`) - root binds the port once and gives the same socket
+  to each side it starts. Root gives it the fingerprints enrolled and the
+  authorities TLS needs to ask for the nodes' certificates - **no signing key**. It
+  loads the agent's certificate, gives root up at once (`setgroups([])`, `setgid`,
+  `setuid` to `acme-db-agent`, `PR_SET_NO_NEW_PRIVS`; it dies with root,
+  `PR_SET_PDEATHSIG` - set again after `setuid`, which clears it, and ended at once
+  when root is already gone),
   terminates TLS, turns away a request without an enrolled certificate (401/403),
   rate-limits (a token bucket per address; failures - no certificate, not
   enrolled, a bad signature, a wrong join code, a failed handshake - cost more and
@@ -131,7 +135,12 @@ the account is missing.
   while what root still works on is answered (up to 300 s), then stops taking
   connections and is started again: the listening socket is root's, given to each
   side started, so connections wait in its queue for a second or so - none refused,
-  never 503 to everything meanwhile (1.0.115).
+  never 503 to everything meanwhile (1.0.115). The side ends only once the
+  connections it took are answered (a slow client's included). An answer from root
+  without the request's id (a root started before 1.0.115, its program upgraded
+  under it) ends the side at once - every request waiting is answered 503 - instead
+  of leaving them waiting 900 s; restart the agent after an upgrade
+  (`install.sh --db-agent` does).
 - The **root side** works the fingerprint out of the certificate itself, checks
   it is enrolled (and for the node the request names), the HMAC signature, the
   time (±120 s), the nonce never seen (kept across a restart) - and only then runs
@@ -143,7 +152,7 @@ the account is missing.
   server runs one at a time; `status` and `load` are answered beside it, and while
   it runs `status` says so (`agent.busy`: `{op, node, since}` - *busy with
   pg_restart for acme1*). A stop or restart of the service (SIGTERM) waits for the
-  operation under way (300 s at most - `TimeoutStopSec=330`, `KillMode=mixed`: the
+  operation under way (300 s at most - `TimeoutStopSec=360`, `KillMode=mixed`: the
   root side ends the network side itself) and begins no new one (*the agent is
   stopping*); `status` and `load` are answered meanwhile (1.0.115: it was cut off).
 - No shell, no file named by a request, SQL only as `postgres` (`runuser`) or
@@ -253,10 +262,21 @@ not happen (*… switches by itself 7 days before the end …, and that did not 
    an agent before 1.0.115, which kept none) the node putting it in becomes its owner: the
    agent cannot tell then whether another live node's certificate is in use (take care with
    two clusters on one server at that upgrade - one database server serves one cluster).
+   **A cluster's authority rolled** (a new one made, the old one trusted beside it until it
+   ends): each node tells its agent its cluster's authorities again (`trust`, no new
+   certificate) whenever they change - the daemon looks every 30 s, and `--ha-join` does it at
+   its end -, so the other node's certificate renewed under the new authority is still the
+   owner's cluster's. A node let in before with a certificate of the owner's authority
+   (`issuers_seen`) is of the owner's cluster too. What a node lists for itself counts only for
+   itself: a node listing another cluster's authority still cannot take its certificate over.
    A name is one authority's too (1.0.115): a join under the name of a node of another
    authority heard from in the last 30 days is refused (*a node named acme1 of another
    authority … is joined here already*) - it would have taken that node's place; the node
-   itself joining again (the same authority) may.
+   itself joining again (an authority it was let in with, or one it listed) may. A node that
+   joined its agent standalone and then a cluster (`--ha-join`, layout B) tells the agent the
+   cluster's authority at the end of the join; one whose agent was not told (it did not
+   answer) and joins again from the same address is told *its authority changed* and how to
+   go on: `acme_db_agent.py --forget NODE` on the database server, then join again.
 5. **One agent a node.** A node joined to an agent that joins another one (another
    `HOST:PORT`) lets the first go: its `agent.json` is put aside as
    `agent.json.replaced` and nothing of it (pins, `peer_node`, certificate ends) is taken

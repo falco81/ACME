@@ -1324,6 +1324,116 @@ class AgentOwnerUnit(unittest.TestCase):
             os.environ.update(env)
             shutil.rmtree(t, ignore_errors=True)
 
+    def test_authority_rolled(self):
+        """A cluster's authority rolled (1.0.115): the owner tells the agent its new set
+        (`trust`, no new certificate) and the other node's certificate under the new authority
+        is the same cluster's; a node let in before under the owner's authority is too (its
+        history, checked with the key); a node listing the owner's authorities still is not.
+        A node that joined standalone and then a cluster joins again once it told the agent."""
+        sys.path.insert(0, os.path.join(ROOT, 'deploy'))
+        import acme_db_agent as A
+        t = tempfile.mkdtemp(prefix='acme-extdb-roll-', dir=BASE)
+        env = dict(os.environ)
+        try:
+            old, new, far = (HandNode(x, t) for x in ('old', 'new', 'far'))   # three authorities
+            # t1: a certificate of the old authority; t2: of the new one (renewed after the roll)
+            conf = os.path.join(t, 'agent.json')
+            with open(conf, 'w') as f:
+                json.dump({'state': os.path.join(t, 'state'), 'log': os.path.join(t, 'a.log'),
+                           'ha_ca': os.path.join(t, 'ha.pem')}, f)
+            c = A.conf_read(conf)
+            pem = {n.name: read_file(n.p('c.pem')) for n in (old, new, far)}
+            ca = {n.name: read_file(n.p('ca.pem')) for n in (old, new, far)}
+            der = {k: ssl.PEM_cert_to_DER_cert(v) for k, v in pem.items()}
+            now = time.time()
+
+            def put(t2_seen=None):
+                cl = [{'name': 't1', 'fp': A.fp_of_pem(pem['old']), 'key': '1' * 64, 'at': now,
+                       'seen': now, 'ca': ca['old'], 'addr': '10.0.0.1',
+                       'issuers': A.issuers_of(pem['old'], ca['old'])},
+                      {'name': 't2', 'fp': A.fp_of_pem(pem['new']), 'key': '2' * 64, 'at': now,
+                       'seen': now, 'ca': ca['new'] + ca['old'],
+                       'issuers': A.issuers_of(pem['new'], ca['new'] + ca['old'])},
+                      {'name': 't3', 'fp': A.fp_of_pem(pem['far']), 'key': '3' * 64, 'at': now,
+                       'seen': now, 'ca': ca['far'] + ca['old'] + ca['new'],
+                       'issuers': A.issuers_of(pem['far'], ca['far'])}]
+                if t2_seen:
+                    cl[1]['issuers_seen'] = t2_seen
+                A.clients_put(c, cl)
+                r = A.Root(c)
+                r.owner_put('t1', {'trust': ca['old']}, r.issuers_now('t1', der['old']))
+                return r
+
+            def ok(r, node, d):
+                try:
+                    r.owner_check(node, r.issuers_now(node, der[d]))
+                    return True
+                except r.ops.Refused:
+                    return False
+            r = put()
+            self.assertFalse(ok(r, 't2', 'new'))         # the owner did not tell the agent yet
+            cl = A.clients(c)
+            r.a_trust({'ca': ca['new'] + ca['old']}, cl[0], cl, der['old'])
+            self.assertTrue(ok(r, 't2', 'new'))
+            self.assertFalse(ok(r, 't3', 'far'))
+            # t2 let in before with a certificate of the old authority (renewed since)
+            r = put(t2_seen=[A.fp_of_pem(ca['old'])])
+            self.assertTrue(ok(r, 't2', 'new'))
+            self.assertFalse(ok(r, 't3', 'far'))
+            # t3's own `trust` listing the owner's authority: only its own word about itself
+            cl = A.clients(c)
+            r.a_trust({'ca': ca['far'] + ca['old']}, cl[2], cl, der['far'])
+            self.assertEqual(A.issuers_seen(A.clients(c)[2]), [A.fp_of_pem(ca['far'])])
+            self.assertFalse(ok(r, 't3', 'far'))
+            # the name: t1 joining again with the new authority's certificate
+            r = put()
+            new_iss = A.issuers_of(pem['new'], ca['new'])
+            with self.assertRaises(r.ops.Refused) as e:
+                r.name_free('t1', new_iss, '10.0.0.1')
+            self.assertIn('authority changed', str(e.exception))
+            self.assertIn('--forget t1', str(e.exception))
+            with self.assertRaises(r.ops.Refused) as e:
+                r.name_free('t1', new_iss, '10.0.0.9')
+            self.assertIn('another cluster', str(e.exception))
+            cl = A.clients(c)
+            r.a_trust({'ca': ca['new'] + ca['old']}, cl[0], cl, der['old'])
+            r.name_free('t1', new_iss, '10.0.0.9')
+            with self.assertRaises(r.ops.Refused):
+                r.name_free('t1', A.issuers_of(pem['far'], ca['far']), '10.0.0.1')
+        finally:
+            os.environ.clear()
+            os.environ.update(env)
+            shutil.rmtree(t, ignore_errors=True)
+
+    def test_root_link_answer_without_id(self):
+        """An answer without the request's id (a root before 1.0.115): the request is answered
+        at once (None: 503) and the side ends - not 900 s of waiting."""
+        code = ('import sys, socket, threading, time\n'
+                'sys.path.insert(0, %r)\n'
+                'import acme_db_agent as A\n'
+                'a, b = socket.socketpair()\n'
+                'def root():\n'
+                '    A._recv(a); A._send(a, {"code": 200, "body": "{}"})\n'
+                'threading.Thread(target=root, daemon=True).start()\n'
+                'L = A.RootLink(b); t = time.time()\n'
+                'print(L.ask({"kind": "op"}), round(time.time() - t), flush=True)\n'
+                'time.sleep(20)\n' % os.path.join(ROOT, 'deploy'))
+        got = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True,
+                             timeout=15)
+        self.assertEqual(got.returncode, 4, got.stderr)
+        self.assertEqual(got.stdout.split(), ['None', '0'])
+
+    def test_network_side_waits_and_dies_with_root(self):
+        """serve_forever returning (end_when_idle's shutdown) does not end the side: end_when_idle
+        does, once the connections taken are answered; PR_SET_PDEATHSIG set again after setuid."""
+        src = read_file(AGENT)
+        side = src[src.index('def network_side('):src.index('ROOT_THREADS =')]
+        self.assertIn('listener.serve_forever()\n', side)
+        self.assertIn('threading.Event().wait()', side.split('listener.serve_forever()')[1])
+        self.assertLess(side.index('drop_to(c)'), side.index('_die_with_root(parent)  '))
+        unit = read_file(os.path.join(ROOT, 'deploy', 'acme-db-agent.service'))
+        self.assertIn('TimeoutStopSec=360', unit)
+
 
 @unittest.skipUnless(can_run(), 'needs root, PostgreSQL 16 (%s) and runuser' % PGBIN)
 class SealedJoin(unittest.TestCase):
@@ -1431,7 +1541,7 @@ class LayoutBUnit(unittest.TestCase):
     firewall, the clocks), and the agent is not let go while the replication runs through it."""
 
     SCRIPT = r"""
-import json, os, sys, tempfile
+import json, os, re, sys, tempfile
 t = sys.argv[1]
 os.makedirs(t + '/state/db-agent')
 DB1, DB2, ACME1, ACME2 = '192.0.2.21', '192.0.2.22', '192.0.2.11', '192.0.2.12'
@@ -1542,6 +1652,18 @@ out['skew'] = [E.db_agent_version_skew({'version': '0.0.1', 'code': ours}),
                E.db_agent_version_skew({'version': E.__version__, 'code': 'f' * 64}).get('how'),
                E.db_agent_version_skew({'version': '1.0.113'}).get('how'),
                E.db_agent_version_skew({'version': E.__version__})]
+# the cluster's authorities told the agent again whenever they change (1.0.115): a roll, the
+# node joined a cluster - the authority of the certificate in use kept beside them
+pem = lambda x: '-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----\n' % x
+CAS = {'cas': [{'cert': pem('QUFB'), 'end': 9e9}]}
+E.hatls_ca = lambda store: CAS
+(E.DBAGENT_DIR / 'client-ca.pem').write_text(pem('T0xE'))
+seen.clear()
+sync = [E.db_agent_trust_sync(S()), E.db_agent_trust_sync(S())]
+CAS['cas'].insert(0, {'cert': pem('TkVX'), 'end': 9e9})
+sync += [E.db_agent_trust_sync(S()), E.db_agent_trust_sync(S())]
+out['trust_sync'] = [sync, [x[0] for x in seen],
+                     [sorted(re.findall(r'\n(\w+)\n', x[1]['ca'])) for x in seen]]
 print(json.dumps(out))
 """
 
@@ -1576,6 +1698,8 @@ print(json.dumps(out))
         self.assertEqual(out['shared_refused'], '')
         self.assertEqual(out['late'], [False, True, True, False])
         self.assertEqual(out['skew'], [{}, 'older', 'newer', 'other', 'older', {}])
+        self.assertEqual(out['trust_sync'], [[True, False, True, False], ['trust', 'trust'],
+                                             [['QUFB', 'T0xE'], ['QUFB', 'T0xE', 'TkVX']]])
 
 
 class DeployParts(unittest.TestCase):

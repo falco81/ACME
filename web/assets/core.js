@@ -4511,7 +4511,7 @@ function cardEnd(why, asked) {
      events (a second or so later if its clock of the card's time out is behind this page's). */
   var tell = function (again) {
     fetch('?api=cert-lost', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
-                             body: JSON.stringify({part: part})})
+                             body: JSON.stringify({part: part, v: 2})})
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (again && d && d.state === 'locked' && Number(d.left) <= 5) { setTimeout(function () { tell(false); }, (Number(d.left) + 1) * 1000); return; }

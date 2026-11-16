@@ -261,6 +261,23 @@ def issuers_of(cert, ca):
     return out
 
 
+def issuers_seen(x):
+    """Every authority that ever signed a certificate this node was let in with (checked with
+    that authority's key at its join, a renewal put in use, or a `trust` - 1.0.115): `issuers`
+    is only its certificate's now. Never a node's word."""
+    out = []
+    for f in list(x.get('issuers_seen') or []) + list(x.get('issuers') or []):
+        if isinstance(f, str) and HEX64.match(f) and f not in out:
+            out.append(f)
+    return out
+
+
+def issuers_add(x, got):
+    """`got` (issuers_of, verified) added to the node's history: kept, never taken back - the
+    last 16."""
+    x['issuers_seen'] = (issuers_seen(x) + [f for f in got or [] if f not in issuers_seen(x)])[-16:]
+
+
 def my_names(c):
     names = [x for x in (c.get('advertise'), socket.gethostname(), socket.getfqdn()) if x]
     names += [str(x) for x in c.get('names') or []]
@@ -644,6 +661,7 @@ class Root(object):
             # authority that signed it is the node's from now on.
             one['fp'], one['fp_next'] = fp, None
             one['issuers'] = issuers_of(der, one.get('ca'))
+            issuers_add(one, one['issuers'])
             dirty = True
         if now - float(one.get('seen') or 0) > 3600:
             # When it was last heard from (an hour at most off): a node gone for 30 days is
@@ -712,9 +730,20 @@ class Root(object):
             return
         # The owner's authorities: the ones that signed its certificate (recorded), and the
         # ones it listed itself (its own word, about its own certificate).
+        # The owner's list follows its cluster: a node pushes `trust` again whenever its
+        # cluster's authorities change (a new one rolled in, 1.0.115) - the authority of the
+        # other node's renewed certificate is then the owner's own word too.
         theirs = set(rec.get('issuers') or []) | set(rec.get('cas') or []) | \
             set(owner.get('issuers') or []) | set(self._cas_of(owner.get('ca')))
         if theirs & set(mine or []):
+            return
+        # Or the asking node was let in with a certificate of the owner's authority before
+        # (checked with that authority's key then, kept in its history - e.g. renewed since
+        # under the cluster's next authority): the same cluster. What it lists never counts.
+        verified = set(rec.get('issuers') or []) | set(owner.get('issuers') or [])
+        with self.lock:
+            asking = next((x for x in clients(self.c) if x.get('name') == node), None) or {}
+        if verified & set(issuers_seen(asking)):
             return
         raise self.ops.Refused(
             'the certificate of this database server is %s\'s, from another authority (another '
@@ -903,14 +932,14 @@ class Root(object):
                 raise self.ops.Refused('the client certificate is not the one the node sealed')
             self.check_issued(ca, client, 'sslclient')
             issuers = issuers_of(client, ca)
-            self.name_free(node, issuers)
+            self.name_free(node, issuers, ip)
         except self.ops.Refused as e:
             return self._refused(msg, 400, str(e), node, what)
         now = time.time()
         cl = [x for x in clients(self.c) if x.get('name') != node]
         cl.append({'name': node, 'fp': fp_of_pem(client), 'key': key, 'at': now, 'seen': now,
                    'addr': ip, 'ca': ''.join(pem_blocks(ca)), 'cert_end': cert_end(client),
-                   'issuers': issuers, 'pinned': []})
+                   'issuers': issuers, 'issuers_seen': list(issuers), 'pinned': []})
         clients_put(self.c, cl)
         _write(_p(self.c, 'join.json'), json.dumps([x for x in left if x is not hit]))
         audit(self.c, node=node, ip=ip, op='enroll', ok=True, said='enrolled; the code is used up')
@@ -918,17 +947,29 @@ class Root(object):
                                 'said': '%s joined this agent' % node,
                                 'facts': self.agent_facts()}, restart=True)
 
-    def name_free(self, node, issuers):
+    def name_free(self, node, issuers, ip=''):
         """A node enrolled under this name already, of another authority (another cluster),
         heard from in the last 30 days, is not replaced by a join (1.0.115): it would take over
         that node's place - the server's certificate it owns among it. The same authority (the
-        node joining again) may."""
+        node joining again) may: one that signed a certificate it was let in with (its history),
+        or one it listed itself - its own word about itself, pushed again whenever its cluster's
+        authorities change (a node that joined a cluster after this agent tells it so)."""
         old = next((x for x in clients(self.c) if x.get('name') == node), None)
         if old is None or stale(old):
             return
-        theirs = set(old.get('issuers') or []) | set(self._cas_of(old.get('ca')))
+        theirs = set(issuers_seen(old)) | set(self._cas_of(old.get('ca')))
         if theirs & set(issuers or []):
             return
+        if ip and str(old.get('addr') or '') == str(ip):
+            # From the address that node joined from: most likely itself, its authority changed
+            # since (it joined a cluster and this agent was not told).
+            raise self.ops.Refused(
+                '%s is joined here already, with a certificate from another authority than this '
+                'join\'s - from the same address (%s): if it is this node and its authority '
+                'changed (it joined a cluster, say), take its old join away on the database '
+                'server first (acme_db_agent.py --forget %s, then systemctl restart '
+                'acme-db-agent) and join again; if it is another node, give this one another '
+                'name' % (node, ip, node))
         raise self.ops.Refused(
             'a node named %s of another authority (another cluster) is joined here already: '
             'give this node another name, or take that one away on the database server first '
@@ -970,6 +1011,9 @@ class Root(object):
             self.check_issued(ca, new, 'sslclient')
             one['fp_next'] = fp_of_pem(new)
         one['ca'] = ca
+        # The authority of the certificate it asks with, checked with its key: kept in its
+        # history (a cluster's authority rolled: still the same node).
+        issuers_add(one, issuers_of(der, ca))
         clients_put(self.c, cl)
         return {'said': 'the authorities of %s are replaced' % one['name'], 'agent_restart': True}
 
@@ -1166,7 +1210,13 @@ class RootLink(object):
                 got = _recv(self.sock)
                 if not isinstance(got, dict):
                     raise ValueError('not an answer')
-                w = self.waiting.pop(got.pop('rid', None), None)
+                if 'rid' not in got:
+                    # An answer without the request's id: a root of before 1.0.115 (the program
+                    # upgraded under a root still running) - which request it answers is not
+                    # known. Ended: every request waiting is answered (503) at once instead of
+                    # after 900 s, and the side is started again (systemd restarts the agent).
+                    raise ValueError('an answer without the request\'s id')
+                w = self.waiting.pop(got.pop('rid'), None)
                 if w is not None:
                     w['got'] = got
                     w['e'].set()
@@ -1335,19 +1385,26 @@ def listen_socket(c):
     return s
 
 
+def _die_with_root(parent):
+    """PR_SET_PDEATHSIG: this side dies with root - set again after root is given up (setuid
+    clears it), and root checked to be there still (it may have gone in between)."""
+    try:
+        import ctypes
+        ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)
+    except Exception:                                   # noqa: BLE001
+        pass
+    if os.getppid() != parent or parent == 1:
+        os._exit(2)
+
+
 def network_side(c, fd, lfd=None):
     """The side that faces the network: a program of its own (started by root with the socket
     pair and the listening socket), not a copy of root's memory - no signing key was ever in
     it."""
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
     signal.signal(signal.SIGINT, signal.SIG_DFL)
-    try:
-        import ctypes
-        ctypes.CDLL(None).prctl(1, signal.SIGTERM, 0, 0, 0)    # PR_SET_PDEATHSIG: dies with root
-    except Exception:                                   # noqa: BLE001
-        pass
-    if os.getppid() == 1:
-        os._exit(2)
+    parent = os.getppid()
+    _die_with_root(parent)
     sock = socket.socket(fileno=fd)
     init = _recv(sock)
     ctx = make_ctx(c, str(init.get('cas') or ''))
@@ -1364,6 +1421,7 @@ def network_side(c, fd, lfd=None):
         listener.server_bind()
         listener.server_activate()
     drop_to(c)
+    _die_with_root(parent)              # setuid cleared it
     listener.ctx = ctx
     listener.count_lock = threading.Lock()
     listener.root = RootLink(sock)
@@ -1373,11 +1431,15 @@ def network_side(c, fd, lfd=None):
     listener.bucket = Bucket(c['rate'], c['burst'])
     listener.fails = Bucket(c.get('fail_rate') or 0.2, c.get('fail_burst') or 20)
     listener.serve_forever()
+    # Only end_when_idle stops it (shutdown) - and it ends this side itself (os._exit) once the
+    # connections taken are answered: returning here would end the program under them.
+    threading.Event().wait()
 
 
 ROOT_THREADS = 16                   # requests root works on at once; more are answered 503
 STOP_WAIT = 300                     # s an operation under way is waited for at a stop
-                                    # (acme-db-agent.service: TimeoutStopSec=330)
+                                    # (acme-db-agent.service: TimeoutStopSec=360 - with the
+                                    # answers written out and the network side's end, 340 s)
 
 
 def serve(c):
@@ -1498,6 +1560,7 @@ def serve(c):
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.wait(5)
+            stop['pid'] = None          # gone: never a signal to a number used again
         if not stop['now'] and time.monotonic() - began < 2:
             time.sleep(2)               # one that dies at once is not started 100 times a second
     lsock.close()

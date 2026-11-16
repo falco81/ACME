@@ -206,6 +206,11 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
       await cardIn(ctx);
       out.checks.both_back = await until(page, async () => (await page.locator('#card-lock').count()) === 0 &&
                                          (await p2.locator('#card-lock').count()) === 0, 15000);
+      if (!out.checks.both_back) {
+        out.timing.both_back = {looks: ctx.looks.slice(-12).join(','), bare: ctx.bare.slice(-12).join(','),
+                                one: await page.locator('#card-lock').count(), two: await p2.locator('#card-lock').count(),
+                                card: await p2.evaluate(() => JSON.stringify({busy: CARD.busy, out: CARD.out, done: CARD.done, misses: CARD.misses}))};
+      }
       out.checks.no_page_errors = page.errs.length === 0 && p2.errs.length === 0;
       if (page.errs.length || p2.errs.length) out.errs = page.errs.concat(p2.errs);
       await ctx.close();
@@ -379,8 +384,10 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
       let oldNode = 1;
       let lost = 0;
       page.on('request', (r) => { if (/[?&]api=cert-lost/.test(r.url())) lost += 1; });
-      await ctx.route(ALIVE, (r) => r.fulfill({status: 200, contentType: 'image/gif', body: gif(oldNode, 1),
-                                               headers: {'Cache-Control': 'no-store'}}));
+      // (the picture asked with its Origin failed as a CORS refusal fails it - to the page an
+      // error like any other; Playwright's own answers are not held to CORS)
+      await ctx.route(ALIVE, (r) => r.request().headers().origin ? r.abort('failed')
+        : r.fulfill({status: 200, contentType: 'image/gif', body: gif(oldNode, 1), headers: {'Cache-Control': 'no-store'}}));
       const l0 = ctx.bare.length;
       await page.evaluate(() => cardCheckNow());
       out.checks.old_node_asked_without_origin = await until(page, () => ctx.bare.length > l0, 10000);

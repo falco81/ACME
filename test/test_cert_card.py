@@ -1614,6 +1614,19 @@ def test_13_no_way_out_of_the_watch(self):
         st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
         self.assertEqual(got['state'], 'gone', got)
         self.assertIsNone(self.session_data(tok))
+        # A page of 1.0.114 (review round 2): its word with a why but no `v` - told to load
+        # itself again, nothing of the sign-in changed; its word at the end of the grace (no why)
+        # taken as before.
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        for why in ('nocookie', 'nopicture', 'timeout'):
+            st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': why}, tok)
+            self.assertEqual(got['state'], 'none', got)
+        d = self.session_data(tok)
+        self.assertFalse(d.get('card_out') or d.get('card_ok'))
+        self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 200)
+        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)
+        self.assertEqual(got['state'], 'locked', got)
         # b) A transient first failure (nginx refused once) is the card out - not unwatched for
         # good: the next check with the card goes on, watched.
         st, got = self.sign('admin', 'nested')

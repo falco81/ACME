@@ -1570,6 +1570,22 @@ def cli_ha_join_replicated(args, pal, data, ask):
     say('every row of %s is here: %d' % (peer.get('name') or 'the other node', got['rows']))
     say('both directions replicate: this node -> %s and %s -> this node'
         % (peer.get('name'), peer.get('name')))
+    if db_agent_on():
+        # The agent told the cluster's authorities now (1.0.115): this node joined it with an
+        # authority of its own (standalone) - its next join, or the other node's certificate
+        # on that server, was refused as another cluster's.
+        try:
+            ts = Storage(db_open({'db_engine': 'postgres', 'db_host': here, 'db_port': port,
+                                  'db_name': name, 'db_user': user, 'db_password': pw}),
+                         quick=True)
+            try:
+                if db_agent_trust_sync(ts, force=True):
+                    say('the database agent knows the cluster\'s authorities')
+            finally:
+                ts.db.close()
+        except Exception as e:                          # noqa: BLE001
+            print(pal.warn_line('the database agent was not told the cluster\'s authorities: %s '
+                                '- acme tells it once it runs' % str(e)[:200]))
     if args.trusted_proxy:
         nginx_trusted_proxies(args.trusted_proxy, pal)
     if not os.environ.get('ACME_HA_NO_RESTART'):

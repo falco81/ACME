@@ -3759,12 +3759,13 @@ def _certlogin_lost(h):
     token, s = cl_card_session(h, part)
     if not s:
         return {'ok': False, 'state': 'none'}
-    if b.get('v') is None:
+    if b.get('v') is None and 'why' in b:
         # A page of 1.0.114 still open (review round 2): its picture asked without an Origin got
         # one that says nothing (6 px: no cookie, from PHP) and it says so here - told what makes
         # it load itself again (its word for "signed out otherwise"), so this version's page
         # checks the card. Nothing of the sign-in changed: until a check finds the card it is
-        # held as any whose page stopped checking.
+        # held as any whose page stopped checking. (Its word at the end of the grace, without
+        # a why, is taken as before.)
         return {'ok': False, 'state': 'none'}
     if cl_card_unable(s):
         return {'ok': True, 'state': 'unable'}
