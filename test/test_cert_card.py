@@ -28,7 +28,11 @@ The kit's t_card.py, ui_card.js and t_cert_ha excerpt, ported:
   - Chromium (Playwright, a client certificate): the notice (design B), its countdown, back in
     time, not back in time, signout, two tabs, Czech, a phone's width, the settings;
   - two daemons on one database (a cluster's shared database simulated) and a restart: a check
-    on one node, the questions on the other.
+    on one node, the questions on the other;
+  - a browser that cannot be checked (the kit's 3rd edition, an iPad): never found in the
+    background - not watched (allow, an event with why, 7 px, never held, whoami without card) or
+    signed out (signout); found once - a card taken out as always; no cookie - 6 px and its reason;
+    in Chromium the background's picture failing while the sign-in works - the notice.
 """
 import http.client
 import importlib.util
@@ -116,6 +120,14 @@ def alive(self, token, cert=None, part='admin', failed=''):
     return self.call('POST', '/api/certlogin/alive', body, token)
 
 
+def proven(self, token, cert='nested', part='admin'):
+    """A check in the background that found the card (1.0.114): this browser can be checked -
+    from now on a check without the card is a card taken out (before it, one that cannot be)."""
+    st, got = self.alive(token, cert, part=part)
+    self.assertEqual((st, got.get('state')), (200, 'ok'), got)
+    self.assertGreater(float(self.session_data(token).get('card_ok') or 0), 0)
+
+
 def card_on(self, part='admin', **kv):
     self.put()
     self.on(**dict({part + '_certlogin': 1, part + '_certlogin_card_watch': 'signout',
@@ -126,6 +138,7 @@ def card_off(self):
     self.on(admin_certlogin_card_watch='off', portal_certlogin_card_watch='off',
             admin_certlogin_card_grace=30, admin_certlogin_card_every=15,
             portal_certlogin_card_every=15, portal_certlogin_card_grace=30,
+            admin_certlogin_card_unable='allow', portal_certlogin_card_unable='allow',
             admin_certlogin=0, portal_certlogin=0)
 
 
@@ -181,7 +194,7 @@ def page_csp(self, token):
     return out
 
 
-for _f in (alive, card_on, card_off, session_data, session_set, page_csp):
+for _f in (alive, proven, card_on, card_off, session_data, session_set, page_csp):
     setattr(CardWatch, _f.__name__, _f)
 
 
@@ -192,8 +205,8 @@ def test_01_off_changes_nothing(self):
     certificate's fingerprint is kept in the sign-in's own row (1.0.114: switched on later, the
     sign-in is watched from then on)."""
     got = self.py('print(json.dumps([E.DEFAULTS[p + "_certlogin_card_" + k] for p in ("admin", '
-                  '"portal") for k in ("watch", "every", "grace")]))')
-    self.assertEqual(got, ['off', 15, 30] * 2)
+                  '"portal") for k in ("watch", "every", "grace", "unable")]))')
+    self.assertEqual(got, ['off', 15, 30, 'allow'] * 2)
     self.assertEqual(self.py('print(json.dumps([k for k in E.DEFAULTS if k.endswith("_card_stale")]))'), [])
     self.put()
     self.on(admin_certlogin=1, portal_certlogin=1)
@@ -211,7 +224,7 @@ def test_01_off_changes_nothing(self):
         self.assertEqual(sorted(me), ['idle_min', 'ok', 'who'])
         data = self.session_data(tok)
         self.assertRegex(data['card'], r'^[0-9a-f]{64}$')
-        for no in ('card_seen', 'card_out', 'card_at', 'card_lock'):
+        for no in ('card_seen', 'card_out', 'card_at', 'card_lock', 'card_ok'):
             self.assertNotIn(no, data)
         # A password's sign-in keeps nothing of the kind.
         self.assertNotIn('card', self.session_data(self.admin))
@@ -296,6 +309,7 @@ def test_02_signed_out_when_taken_out(self):
         for cert, failed in ((None, ''), ('nested', 'FAILED:certificate has expired')):
             st, got = self.sign('admin', 'nested')
             tok = got['token']
+            self.proven(tok)
             st, got = self.alive(tok, cert, failed=failed)
             self.assertEqual((got['state'], got['why']), ('gone', 'out'), (cert, got))
             self.assertIsNone(self.session_data(tok))
@@ -318,6 +332,7 @@ def test_03_grace_and_back(self):
         st, got = self.sign('admin', 'nested')
         tok = got['token']
         self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 200)
+        self.proven(tok)
         st, got = self.alive(tok, None)
         self.assertEqual((got['state'], got['left'], got['grace']), ('locked', 30, 30), got)
         # Out: nothing answered but the check, whoami and Sign out - 423, code card.
@@ -349,6 +364,7 @@ def test_03_grace_and_back(self):
         # ...and a question does too once the check that would have said it is late as well.
         st, got = self.sign('admin', 'nested')
         tok = got['token']
+        self.proven(tok)
         self.alive(tok, None)
         self.session_set(tok, card_out=time.time() - 40)
         self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 423)
@@ -358,6 +374,7 @@ def test_03_grace_and_back(self):
         # Another card while out: ended at once, as in every mode.
         st, got = self.sign('admin', 'nested')
         tok = got['token']
+        self.proven(tok)
         self.alive(tok, None)
         st, got = self.alive(tok, 'falco')
         self.assertEqual((got['state'], got['why']), ('gone', 'other'), got)
@@ -377,6 +394,7 @@ def test_03_grace_and_back(self):
         ptok = got['token']
         st, me = self.call('GET', '/api/portal/me', None, ptok)
         self.assertEqual(me['me']['card']['watch'], 'grace')
+        self.proven(ptok, 'falco', 'portal')
         st, got = self.alive(ptok, None, part='portal')
         self.assertEqual(got['state'], 'locked')
         st, got = self.call('GET', '/api/portal/certs', None, ptok)
@@ -490,16 +508,18 @@ def test_06_lost_only_while_served(self):
         self.assertIsNotNone(self.session_data(tok))
         lsn = self.serving()
         try:
+            self.proven(tok)
             st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)
             self.assertEqual((got['state'], got['why']), ('gone', 'out'), got)
             self.assertIsNone(self.session_data(tok))
-            self.assertTrue(any('was taken out' in w and 'its check could not be made' in w
-                                for w in self.events('could not be made')))
+            self.assertTrue(any('was taken out' in w and 'the check got no answer at all' in w
+                                for w in self.events('got no answer at all')))
             # grace: held, the time counted - the server answers nothing of it meanwhile.
             self.on(admin_certlogin_card_watch='grace')
             st, got = self.sign('admin', 'nested')
             tok = got['token']
             other = self.sign('admin', 'nested')[1]['token']
+            self.proven(tok)
             st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)
             self.assertEqual(got['state'], 'locked', got)
             self.assertTrue(0 < got['left'] <= 30, got)
@@ -559,7 +579,8 @@ def test_08_settings_and_the_card(self):
     try:
         for k, bad in (('admin_certlogin_card_watch', 'maybe'), ('admin_certlogin_card_every', '4'),
                        ('admin_certlogin_card_every', '301'), ('admin_certlogin_card_grace', '4'),
-                       ('admin_certlogin_card_grace', '601'), ('portal_certlogin_card_every', 'x')):
+                       ('admin_certlogin_card_grace', '601'), ('portal_certlogin_card_every', 'x'),
+                       ('admin_certlogin_card_unable', 'maybe'), ('portal_certlogin_card_unable', 'off')):
             st, got = self.settings(**{k: bad})
             self.assertEqual(st, 400, (k, got))
             if 'number' not in got.get('error', ''):
@@ -574,7 +595,7 @@ def test_08_settings_and_the_card(self):
                 break
             time.sleep(0.5)
         self.assertEqual(v['parts']['admin']['card'], {'watch': 'grace', 'every': 15, 'grace': 120,
-                                                        'sessions': 0})
+                                                        'unable': 'allow', 'sessions': 0})
         self.assertNotIn('card', v['parts']['portal'])
         st, got = self.sign('admin', 'nested')
         v = self.ok('GET', '/api/certlogin', session=self.ro)
@@ -585,12 +606,38 @@ def test_08_settings_and_the_card(self):
         self.assertEqual((s['admin_certlogin_card_every'].get('min'), s['admin_certlogin_card_every'].get('max')), (5, 300))
         self.assertEqual((s['admin_certlogin_card_grace'].get('min'), s['admin_certlogin_card_grace'].get('max')), (5, 600))
         self.assertNotIn('admin_certlogin_card_stale', s)
+        # A browser that cannot be checked (1.0.114): allow (the default) or signout.
+        for part in ('admin', 'portal'):
+            u = s[part + '_certlogin_card_unable']
+            self.assertEqual((u['value'], u['choices']), ('allow', ['allow', 'signout']))
+        got = self.cli('--set', 'admin_certlogin_card_unable=signout')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        for _ in range(40):
+            v = self.ok('GET', '/api/certlogin', session=self.ro)
+            if (v['parts']['admin'].get('card') or {}).get('unable') == 'signout':
+                break
+            time.sleep(0.5)
+        self.assertEqual(v['parts']['admin']['card']['unable'], 'signout')
+        # In the exported configuration (acme --export-config) as any other changed setting.
+        exp = os.path.join(self.tmp, 'card-export.json')
+        got = self.cli('--export-config', exp)
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        with open(exp, encoding='utf-8') as f:
+            self.assertEqual(json.load(f)['config']['settings'].get('admin_certlogin_card_unable'), 'signout')
+        st, got = self.settings(admin_certlogin_card_unable='allow')
+        self.assertEqual(st, 200, got)
         only = self.py('print(json.dumps([E.ONLY_WHEN[k] for k in ("admin_certlogin_card_watch", '
                        '"admin_certlogin_card_every", "admin_certlogin_card_grace", '
-                       '"portal_certlogin_card_grace")]))')
+                       '"portal_certlogin_card_grace", "admin_certlogin_card_unable", '
+                       '"portal_certlogin_card_unable")]))')
         self.assertEqual(only, [['admin_certlogin', '1'], ['admin_certlogin_card_watch', 'off-not'],
                                 ['admin_certlogin_card_watch', 'grace'],
-                                ['portal_certlogin_card_watch', 'grace']])
+                                ['portal_certlogin_card_watch', 'grace'],
+                                ['admin_certlogin_card_watch', 'off-not'],
+                                ['portal_certlogin_card_watch', 'off-not']])
+        self.assertTrue(self.py('print(json.dumps(all(k in E.PANES["admincert"] for k in '
+                                '("admin_certlogin_card_unable",)) and "portal_certlogin_card_unable" '
+                                'in E.PANES["portalcert"]))'))
         # A row of 1.0.113 saying "lock" read as grace.
         self.assertEqual(self.py('E.CONFIG["admin_certlogin_card_watch"] = "lock"\n'
                                  'print(json.dumps(E.cl_card_mode("admin")))'), 'grace')
@@ -830,7 +877,11 @@ def test_10_real_nginx_and_the_browser(self):
             self.assertEqual(st, 200, body)
             path = json.loads(body)['url'].split(':8443', 1)[1]
             n = [x.split(';')[0] for x in hget(hd, 'Set-Cookie') if x.startswith('__Host-acme_certn_')][0]
-            st, hd, body, _s = ask(8443, path, cert, [n])
+            for _ in range(20):
+                st, hd, body, _s = ask(8443, path, cert, [n])
+                if st != 429:           # nginx's limit (not reached by PHP: the nonce unused)
+                    break
+                time.sleep(1)
             self.assertEqual(hget(hd, 'Location'), ['https://%s/admin/' % name], body)
             return [x.split(';')[0] for x in hget(hd, 'Set-Cookie') if x.startswith('__Host-acme_session=')]
 
@@ -908,8 +959,9 @@ def test_10_real_nginx_and_the_browser(self):
             st, wide, hd, s2 = check(4, 'nested', sess, sess=s1.session, tls12=tls12)
             self.assertEqual(wide, 1)
             self.assertFalse(s2.session_reused, 'TLS 1.2' if tls12 else 'TLS 1.3')
-        # No sign-in at all, another site's picture: 403, nothing asked.
-        self.assertEqual(check(5, 'nested', [])[0], 403)
+        # No cookie came with the check (1.0.114): 6 px - said as such, nothing asked (the page
+        # then says so over 443, where its cookie does come); another site's picture: 403.
+        self.assertEqual(check(5, 'nested', [])[:2], (200, 6))
         st, hd, body, _s = ask(8443, '/admin/?api=cert-alive&t=5', 'nested', sess,
                                headers={'Sec-Fetch-Site': 'cross-site'})
         self.assertEqual(st, 403)
@@ -941,6 +993,21 @@ def test_10_real_nginx_and_the_browser(self):
         st, hd, body, _s = ask(443, '/admin/?api=cert-lost', cookies=sess, method='POST', body={'part': 'admin'})
         self.assertEqual(json.loads(body)['state'], 'locked', body)
         self.assertEqual(check(14, 'nested', sess)[:2], (200, 1))
+        # A browser that cannot be checked (1.0.114): the first check in the background without
+        # the card - 7 px, not watched from then on (the card or not), answered as before.
+        sess = sign_in()
+        self.assertEqual(check(15, None, sess)[:2], (200, 7))
+        self.assertEqual(check(16, 'nested', sess)[:2], (200, 7))
+        st, hd, body, _s = ask(443, '/admin/?api=status', cookies=sess)
+        self.assertEqual(st, 200)
+        st, hd, body, _s = ask(443, '/admin/', cookies=sess)
+        self.assertNotIn(b'"card":', body.replace(b' ', b''))
+        self.assertIn("img-src 'self' data:; connect-src 'self';", hget(hd, 'Content-Security-Policy')[0])
+        # ...and the page's word over 443 for one that never got a picture (an iPad): the same.
+        sess = sign_in()
+        st, hd, body, _s = ask(443, '/admin/?api=cert-lost', cookies=sess, method='POST',
+                               body={'part': 'admin', 'why': 'nopicture'})
+        self.assertEqual(json.loads(body)['state'], 'unable', body)
 
         # Chromium, where Playwright is here.
         node = shutil.which('node')
@@ -965,8 +1032,8 @@ def test_10_real_nginx_and_the_browser(self):
                 return res
             self.on(admin_certlogin_card_watch='signout', admin_certlogin_card_every=5)
             if browser('signout') is not None:
-                self.assertTrue(any('nested was signed out of these pages' in w and 'could not be made' in w
-                                    for w in self.events('could not be made')))
+                self.assertTrue(any('nested was signed out of these pages' in w and 'got no answer at all' in w
+                                    for w in self.events('got no answer at all')))
                 self.on(admin_certlogin_card_watch='grace', admin_certlogin_card_grace=30)
                 browser('grace')
                 self.on(admin_certlogin_card_grace=5)
@@ -974,6 +1041,10 @@ def test_10_real_nginx_and_the_browser(self):
                 self.assertTrue(any('not put back in time' in w for w in self.events('not put back in time')))
                 self.on(admin_certlogin_card_grace=30)
                 browser('options')
+                # An iPad simulated: the sign-in works, the background's picture never does.
+                browser('unable')
+                self.assertTrue(any('cannot be checked in this browser - the check got no answer at all' in w
+                                    for w in self.events('cannot be checked in this browser')))
         # Off again: nginx as it was before (byte for byte), the check not let through.
         self.on(admin_certlogin_card_watch='off')
         c, cert_conf2 = write_conf()
@@ -1114,6 +1185,126 @@ def test_11_two_nodes_and_a_restart(self):
         stop_b()
         self.card_off()
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+@_t
+def test_12_a_browser_that_cannot_be_checked(self):
+    """1.0.114, the kit's 3rd edition (isemon 1.10.355), found on a real iPad: Safari on iPadOS
+    signs no connection for a page in the background - the card is in, yet the check never
+    comes. A sign-in keeps whether a check in the background has ever found its card in this
+    browser (card_ok; the sign-in itself does not count). Until one has, a check without the card
+    means "this browser cannot be checked": allow (the default) - not watched from then on, said
+    in the events with why, never held, whoami without `card`; signout - signed out as a card
+    taken out. Once found, a check without the card is a card taken out, as always."""
+    self.card_on(admin_certlogin_card_watch='signout')
+    lsn = self.serving()
+    try:
+        self.assertEqual(self.py('print(json.dumps(E.cl_card_unable_mode("admin")))'), 'allow')
+        # Never found, no certificate on the check: not watched, not signed out.
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        self.assertNotIn('card_ok', self.session_data(tok))        # the sign-in does not count
+        st, got = self.alive(tok, None)
+        self.assertEqual((st, got['state']), (200, 'unable'), got)
+        self.assertEqual(self.session_data(tok).get('card_ok'), -1)
+        self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 200)
+        self.assertTrue(any("the card of nested's sign-in to these pages cannot be checked in this "
+                            "browser - no certificate came with the check" in w and 'it is not watched' in w
+                            for w in self.events('cannot be checked in this browser')))
+        # ...whoami: nothing to watch (no `card` - null to the page) from now on.
+        st, me = self.call('GET', '/api/auth/whoami', None, tok)
+        self.assertNotIn('card', me['who'])
+        self.assertEqual(me['who']['role'], 'fulladmin')
+        # ...its checks say so (7 px on the port), the card or not; said in the events once.
+        n = len(self.events('cannot be checked in this browser'))
+        for cert in (None, 'nested'):
+            self.assertEqual(self.alive(tok, cert)[1]['state'], 'unable')
+        self.assertEqual(self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)[1]['state'], 'unable')
+        self.assertEqual(len(self.events('cannot be checked in this browser')), n)
+        # ...never held for its card: its page asleep for long, a card_out left over - answered.
+        self.session_set(tok, card_seen=time.time() - 3600, card_out=time.time() - 3600)
+        self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 200)
+        self.on(admin_certlogin_card_watch='grace')
+        self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 200)
+        self.assertEqual(self.py('E.CL_CARD_SWEEP["at"] = 0\nprint(json.dumps(E.cl_card_sweep(st)))'), 0)
+        self.assertIsNotNone(self.session_data(tok))
+        self.assertNotIn('card', self.call('GET', '/api/auth/whoami', None, tok)[1]['who'])
+        # ...not counted among the watched (the card's facts).
+        v = self.ok('GET', '/api/certlogin', session=self.ro)
+        self.assertEqual(v['parts']['admin']['card']['sessions'], 0)
+        self.on(admin_certlogin_card_watch='signout')
+        # Never found, the picture got no answer at all (an iPad): not watched, why said.
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
+        self.assertEqual(got['state'], 'unable', got)
+        self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 200)
+        self.assertTrue(any('cannot be checked in this browser - the check got no answer at all (the '
+                            'browser did not sign the connection)' in w
+                            for w in self.events('got no answer at all')))
+        # Never found, no cookie came with the check: not watched, why said.
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nocookie'}, tok)
+        self.assertEqual(got['state'], 'unable', got)
+        self.assertTrue(any('cannot be checked in this browser - the browser sent no cookie with the '
+                            'check' in w for w in self.events('no cookie')))
+        # A word of its own is no reason: taken as nopicture.
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': '<b>x</b>'}, tok)
+        self.assertEqual(got['state'], 'unable', got)
+        self.assertFalse(any('<b>' in w for w in self.events('cannot be checked')))
+        # Found once, then without it: a card taken out, as always (signout - ended).
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        self.proven(tok)
+        st, got = self.alive(tok, None)
+        self.assertEqual((got['state'], got['why']), ('gone', 'out'), got)
+        self.assertIsNone(self.session_data(tok))
+        # ...and the reasons of a card taken out named: no cookie (grace - held, the time counted).
+        self.on(admin_certlogin_card_watch='grace')
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        self.proven(tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nocookie'}, tok)
+        self.assertEqual(got['state'], 'locked', got)
+        self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 423)
+        self.assertTrue(any(w.startswith('nested: the card they signed in with is out') and
+                            'the browser sent no cookie with the check' in w
+                            for w in self.events('waits 30 s for it')))
+        self.assertEqual(self.alive(tok, 'nested')[1]['state'], 'ok')
+        # unable = signout: never found - signed out as a card taken out.
+        self.on(admin_certlogin_card_watch='signout', admin_certlogin_card_unable='signout')
+        for how in ('alive', 'lost'):
+            st, got = self.sign('admin', 'nested')
+            tok = got['token']
+            if how == 'alive':
+                st, got = self.alive(tok, None)
+            else:
+                st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)
+            self.assertEqual((got['state'], got['why']), ('gone', 'out'), (how, got))
+            self.assertIsNone(self.session_data(tok))
+        # The portal: its own setting, the same way.
+        self.on(admin_certlogin_card_unable='allow', portal_certlogin=1,
+                portal_certlogin_card_watch='signout')
+        st, got = self.sign('portal', 'falco')
+        ptok = got['token']
+        st, me = self.call('GET', '/api/portal/me', None, ptok)
+        self.assertEqual(me['me']['card']['watch'], 'signout')
+        st, got = self.alive(ptok, None, part='portal')
+        self.assertEqual(got['state'], 'unable', got)
+        st, me = self.call('GET', '/api/portal/me', None, ptok)
+        self.assertNotIn('card', me['me'])
+        self.assertTrue(any("sign-in to the enrolment pages cannot be checked" in w
+                            for w in self.events('cannot be checked')), self.events('cannot be checked'))
+        self.on(portal_certlogin_card_unable='signout')
+        st, got = self.sign('portal', 'falco')
+        st, got = self.alive(got['token'], None, part='portal')
+        self.assertEqual(got['state'], 'gone', got)
+    finally:
+        lsn.close()
+        self.card_off()
 
 
 def merge_cs(path, extra):

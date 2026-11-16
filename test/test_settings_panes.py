@@ -71,6 +71,7 @@ READ_OTHERWISE = {
     # ...and its card watched (1.0.113): _cl_card_int(part, 'every', ...) ...
     'admin_certlogin_card_watch', 'admin_certlogin_card_every', 'admin_certlogin_card_grace',
     'portal_certlogin_card_watch', 'portal_certlogin_card_every', 'portal_certlogin_card_grace',
+    'admin_certlogin_card_unable', 'portal_certlogin_card_unable',   # cl_card_unable_mode(part)
 }
 
 

@@ -491,30 +491,40 @@ function acme_cert_back(string $part, string $said = '', string $more = ''): voi
     are not kept apart by port, and the page is of the same site) and whatever certificate nginx
     took goes to the daemon; the answer is a picture whose width says it: 1 the card is there, 2
     it is out and the sign-in waits, 3 ended - another card, 4 ended - taken out, 5 ended - not put
-    back in time; 403 - no such sign-in (or another site's page asking). A picture: no CORS,
-    nothing for another site to read; no session, nothing asked. */
+    back in time, 6 no cookie came with the check (nothing asked - the page then says so over 443,
+    where its cookie does come), 7 this browser cannot be checked (no check in the background ever
+    found the card here - an iPad): not watched; 403 - no such sign-in (or another site's page
+    asking). (The kit's 3 and 4 - no cookie, cannot be checked - are 6 and 7 here: 3-5 were
+    acme's already.) A picture: no CORS, nothing for another site to read. */
 function acme_cert_alive(string $part, bool $fail): void
 {
     header('Cache-Control: no-store');
     /* Only this site's own pages: another site's picture gets nothing (it has no cookie either -
        SameSite=Strict). */
-    if ((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site' || acme_session() === '') {
+    if ((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site') {
         http_response_code(403);
         exit;
     }
-    $payload = ['part' => $part];
-    $raw = (string) ($_SERVER['ACME_CERT_PEM'] ?? '');
-    if ($fail) {
-        $payload['failed'] = substr(preg_replace('/[^\x20-\x7e]/', '', (string) ($_SERVER['ACME_CERT_VERIFY'] ?? '')), 0, 200) ?: 'FAILED';
-    } elseif ($raw !== '' && strlen($raw) <= 65536) {
-        $payload['cert'] = rawurldecode($raw);
-    }
-    [$status, $body] = acme_call('/api/certlogin/alive', 'POST', $payload, 15.0);
-    $d = $status === 200 ? json_decode((string) $body, true) : null;
-    $state = is_array($d) ? (string) ($d['state'] ?? '') : '';
-    $wide = ['ok' => 1, 'unwatched' => 1, 'locked' => 2][$state] ?? 0;
-    if ($state === 'gone') {
-        $wide = ['other' => 3, 'out' => 4, 'late' => 5][(string) ($d['why'] ?? '')] ?? 4;
+    /* No cookie came with the check (1.0.114, the kit's 3rd edition): said as such - 6 wide -
+       rather than as the card out; the page tells the server over 443 (cert-lost, why
+       nocookie), where its cookie does come. Nothing asked here. */
+    if (acme_session() === '') {
+        $wide = 6;
+    } else {
+        $payload = ['part' => $part];
+        $raw = (string) ($_SERVER['ACME_CERT_PEM'] ?? '');
+        if ($fail) {
+            $payload['failed'] = substr(preg_replace('/[^\x20-\x7e]/', '', (string) ($_SERVER['ACME_CERT_VERIFY'] ?? '')), 0, 200) ?: 'FAILED';
+        } elseif ($raw !== '' && strlen($raw) <= 65536) {
+            $payload['cert'] = rawurldecode($raw);
+        }
+        [$status, $body] = acme_call('/api/certlogin/alive', 'POST', $payload, 15.0);
+        $d = $status === 200 ? json_decode((string) $body, true) : null;
+        $state = is_array($d) ? (string) ($d['state'] ?? '') : '';
+        $wide = ['ok' => 1, 'unwatched' => 1, 'locked' => 2, 'unable' => 7][$state] ?? 0;
+        if ($state === 'gone') {
+            $wide = ['other' => 3, 'out' => 4, 'late' => 5][(string) ($d['why'] ?? '')] ?? 4;
+        }
     }
     if ($wide === 0) {
         http_response_code(403);
@@ -526,7 +536,9 @@ function acme_cert_alive(string $part, bool $fail): void
         2 => 'R0lGODlhAgABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAACAAEAAAgFAAEACAgAOw==',
         3 => 'R0lGODlhAwABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAADAAEAAAgFAAEIDAgAOw==',
         4 => 'R0lGODlhBAABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAAEAAEAAAgGAAEIBBAQADs=',
-        5 => 'R0lGODlhBQABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAAFAAEAAAgGAAEIFBgQADs='][$wide]);
+        5 => 'R0lGODlhBQABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAAFAAEAAAgGAAEIFBgQADs=',
+        6 => 'R0lGODlhBgABAIEAAAAAAAAAAAAAAAAAACH5BAEAAAAALAAAAAAGAAEAAAgGAAEIHBgQADs=',
+        7 => 'R0lGODlhBwABAIEAAAAAAAAAAAAAAAAAACH5BAEAAAAALAAAAAAHAAEAAAgHAAEIHAggIAA7'][$wide]);
     exit;
 }
 

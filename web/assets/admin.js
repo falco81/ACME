@@ -2236,8 +2236,9 @@ function settingItemBare(s) {
   if (s.choices && s.choices.some(function (c) {
     return String((s.choice_words && s.choice_words[c]) || c).length > 30;
   })) item.classList.add('wide');
-  if (s.choices && /_certlogin_card_watch$/.test(s.key)) {
-    /* The card watched (1.0.113): three ways side by side, not a list to open. */
+  if (s.choices && /_certlogin_card_(watch|unable)$/.test(s.key)) {
+    /* The card watched (1.0.113): three ways side by side, not a list to open (and the two of a
+       browser that cannot be checked, 1.0.114). */
     input = cardWatchSeg(s, function () { markDirty(item, s); });
   } else if (s.choices) {
     input = selectBox(s.choices.map(function (c) { return [c, (s.choice_words && s.choice_words[c]) || c]; }), s.value);
@@ -8965,6 +8966,12 @@ function cardWatchFacts(c) {
   var out = el('span', '');
   out.appendChild(el('span', '', how));
   out.appendChild(el('span', 'muted small krb-from', c.sessions === 1 ? '1 sign-in watched now' : c.sessions + ' sign-ins watched now'));
+  if (c.unable) {
+    /* 1.0.114: a browser that cannot be checked (an iPad) */
+    out.appendChild(el('div', 'muted small', c.unable === 'signout'
+      ? 'a browser that cannot be checked (an iPad): signed out'
+      : 'a browser that cannot be checked (an iPad): not watched, said in Events'));
+  }
   return out;
 }
 function drawCert(part) {

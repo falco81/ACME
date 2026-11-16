@@ -139,6 +139,11 @@ DEFAULTS = {
     'portal_certlogin_card_watch': 'off',
     'portal_certlogin_card_every': 15,
     'portal_certlogin_card_grace': 30,
+    # A browser that cannot be checked (1.0.114, the kit's 3rd edition - an iPad's Safari signs
+    # nothing for a page in the background): allow - that sign-in is not watched (said in the
+    # events); signout - signed out as a card taken out.
+    'admin_certlogin_card_unable': 'allow',
+    'portal_certlogin_card_unable': 'allow',
     'certlogin_port': 8443,
     # --- isemon ---------------------------------------------------------------
     'isemon': 0,
@@ -492,6 +497,8 @@ TUNABLE = {
     'portal_certlogin_card_watch': ('off', 'signout', 'grace'),
     'portal_certlogin_card_every': (5, 300),
     'portal_certlogin_card_grace': (5, 600),
+    'admin_certlogin_card_unable': ('allow', 'signout'),
+    'portal_certlogin_card_unable': ('allow', 'signout'),
     'certlogin_port': (1024, 65535),
     'report': (0, 1), 'report_every': ('daily', 'weekly', 'monthly'),
     'report_day': ('1', '2', '3', '4', '5', '6', '7'),
@@ -626,6 +633,8 @@ CHOICE_WORDS = {
 for _p in ('admin', 'portal'):
     CHOICE_WORDS[_p + '_certlogin_card_watch'] = {
         'off': 'Off', 'signout': 'Sign out at once', 'grace': 'Lock, wait for the card'}
+    CHOICE_WORDS[_p + '_certlogin_card_unable'] = {
+        'allow': 'Not watched (said in Events)', 'signout': 'Sign out, as a card taken out'}
 del _p
 
 NAMES = {
@@ -756,6 +765,8 @@ NAMES = {
     'portal_certlogin_card_watch': 'When the card is taken out (the portal)',
     'portal_certlogin_card_every': 'Check the card every (seconds, the portal)',
     'portal_certlogin_card_grace': 'The card put back within (seconds, the portal)',
+    'admin_certlogin_card_unable': 'A browser that cannot be checked',
+    'portal_certlogin_card_unable': 'A browser that cannot be checked (the portal)',
     'certlogin_port': 'The certificate\u2019s own port',
     'isemon': 'Send the logs to isemon',
     'isemon_targets': 'isemon’s syslog receivers',
@@ -1409,6 +1420,17 @@ SAYS = {
                                    'is checked (5-300 s).',
     'portal_certlogin_card_grace': 'As the administration\'s, for the portal: how long the card '
                                    'may be out (5-600 s).',
+    'admin_certlogin_card_unable': 'A browser whose very first check in the background does not '
+                                   'find the card cannot be checked at all - an iPad\'s Safari '
+                                   'signs nothing for a page in the background, though the card '
+                                   'is in. Not watched (the default): that sign-in is simply not '
+                                   'watched, and Events say so and why. Sign out: it is signed '
+                                   'out as if the card were out - such a browser cannot stay '
+                                   'signed in with this on. Once a check has found the card, a '
+                                   'later one that does not is a card taken out, whatever this '
+                                   'says.',
+    'portal_certlogin_card_unable': 'As the administration\'s, for the portal: a browser that '
+                                    'cannot be checked (an iPad) - not watched, or signed out.',
     'certlogin_port': 'Where nginx asks the browser for a certificate (8443: SELinux lets nginx '
                       'have it already). One port for both parts. Opened in the firewall for the '
                       'networks that may reach the pages while either part is on; 80, 443 and '
@@ -1795,11 +1817,12 @@ PANES = {
                   'admin_certlogin_match', 'admin_certlogin_crl', 'admin_certlogin_crl_ldap',
                   'admin_certlogin_ocsp', 'admin_certlogin_ocsp_url',
                   'admin_certlogin_card_watch', 'admin_certlogin_card_every',
-                  'admin_certlogin_card_grace'],
+                  'admin_certlogin_card_grace', 'admin_certlogin_card_unable'],
     'portalcert': ['portal_certlogin', 'portal_certlogin_auto', 'portal_certlogin_match',
                    'portal_certlogin_crl', 'portal_certlogin_crl_ldap', 'portal_certlogin_ocsp',
                    'portal_certlogin_ocsp_url', 'portal_certlogin_card_watch',
-                   'portal_certlogin_card_every', 'portal_certlogin_card_grace'],
+                   'portal_certlogin_card_every', 'portal_certlogin_card_grace',
+                   'portal_certlogin_card_unable'],
     'db': ['db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password',
            'db_timeout_s', 'db_tls', 'db_tls_ca', 'db_path', 'backup_daily', 'backup_keep',
            'backup_at',
@@ -1916,9 +1939,11 @@ ONLY_WHEN = {
     'admin_certlogin_card_watch': ['admin_certlogin', '1'],
     'admin_certlogin_card_every': ['admin_certlogin_card_watch', 'off-not'],
     'admin_certlogin_card_grace': ['admin_certlogin_card_watch', 'grace'],
+    'admin_certlogin_card_unable': ['admin_certlogin_card_watch', 'off-not'],
     'portal_certlogin_card_watch': ['portal_certlogin', '1'],
     'portal_certlogin_card_every': ['portal_certlogin_card_watch', 'off-not'],
     'portal_certlogin_card_grace': ['portal_certlogin_card_watch', 'grace'],
+    'portal_certlogin_card_unable': ['portal_certlogin_card_watch', 'off-not'],
     'db_host': ['db_engine', 'sqlite-not'], 'db_port': ['db_engine', 'sqlite-not'],
     'db_name': ['db_engine', 'sqlite-not'], 'db_user': ['db_engine', 'sqlite-not'],
     'db_password': ['db_engine', 'sqlite-not'], 'db_timeout_s': ['db_engine', 'sqlite-not'],

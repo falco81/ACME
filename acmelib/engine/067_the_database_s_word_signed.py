@@ -74,6 +74,8 @@ DBGUARD_SETTINGS = frozenset((
     'admin_certlogin_card_watch', 'admin_certlogin_card_every', 'admin_certlogin_card_grace',
     'admin_certlogin_card_stale', 'portal_certlogin_card_watch', 'portal_certlogin_card_every',
     'portal_certlogin_card_grace', 'portal_certlogin_card_stale',
+    # ...and what a browser that cannot be checked gets (1.0.114: allow - not watched).
+    'admin_certlogin_card_unable', 'portal_certlogin_card_unable',
     'session_hours', 'session_idle_min', 'login_tries', 'login_wait_min',
     'mail_mode', 'mail_from', 'smtp_host', 'smtp_port', 'smtp_security', 'smtp_auth',
     'smtp_user', 'smtp_password', 'sms_mode', 'sms_url', 'sms_token', 'sms_spool_dir',

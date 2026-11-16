@@ -4164,7 +4164,7 @@ function certDoor() {
   var said = box ? $('cert-said') : $('in-said');
   if (words && said) { said.className = 'said bad'; said.textContent = words; }
   /* Signed out for the card (1.0.114): why, from this tab's own word - never the address. */
-  var cardWords = cardSaidOnSignIn(box ? (box.dataset.part || 'admin') : (/\/admin\//.test(location.pathname) ? 'admin' : 'portal'));
+  var cardWords = typeof cardSaidOnSignIn !== 'function' ? '' : cardSaidOnSignIn(box ? (box.dataset.part || 'admin') : (/\/admin\//.test(location.pathname) ? 'admin' : 'portal'));
   if (cardWords && said && !words) { said.className = 'said bad'; said.textContent = cardWords; }
   if (!box) return function () { return false; };
   var part = box.dataset.part || 'admin', go = $('cert-go'), pw = $('cert-pw'), wait = null;
@@ -4213,7 +4213,11 @@ function certDoor() {
    the certificate's port every few seconds - a new connection (nginx keeps no TLS session and no
    connection there then), so the card has to sign it. The picture's width is the answer: 1 the
    card is there; 2 it is out and the sign-in waits (grace: the notice, its countdown); 3, 4, 5
-   the sign-in ended just now (another card, taken out, not put back in time); none at all - the
+   the sign-in ended just now (another card, taken out, not put back in time); 6 no cookie came
+   with the check - said to the server over 443 at once (?api=cert-lost, why nocookie); 7 this
+   browser cannot be checked (1.0.114, the kit's 3rd edition: no check in the background ever
+   found the card here - an iPad's Safari signs nothing for a page in the background): the page
+   stops checking and says so, the sign-in is not watched; none at all - the
    handshake failed (nothing to sign it with) or the sign-in is over - asked once more 1.5 s
    later, then said to the server over 443 (?api=cert-lost), which holds or ends it and writes
    why. A picture: no CORS - the page's policy lets that one address in for images, only for a
@@ -4284,15 +4288,17 @@ function cardCheck() {
     if (w === 1) { CARD.misses = 0; cardIn(); return; }
     if (w === 2) { CARD.misses = 0; cardOut(took, -1); return; }
     if (w === 3 || w === 4 || w === 5) { cardEnd(w === 3 ? 'other' : w === 5 ? 'late' : 'out'); return; }
+    if (w === 7) { cardUnable(); return; }
     /* No picture at all: the handshake failed (nothing to sign it with), or the sign-in is over.
        Once more after a moment - one lost connection is not a card taken out; then the server is
-       told (it holds or ends the sign-in, and says so in the events). */
+       told (it holds or ends the sign-in, or - never found in this browser - leaves it unwatched,
+       and says so in the events). 6: the picture came, but no cookie with it - told at once. */
     CARD.misses += 1;
-    if (CARD.misses < 2 && !CARD.out) { cardNext(1500); return; }
+    if (w !== 6 && CARD.misses < 2 && !CARD.out) { cardNext(1500); return; }
     CARD.misses = 0;
     CARD.busy = true;
     fetch('?api=cert-lost', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
-                             body: JSON.stringify({part: CARD.part})})
+                             body: JSON.stringify({part: CARD.part, why: w === 6 ? 'nocookie' : 'nopicture'})})
       .then(function (r) { return r.json().then(function (d) { return {status: r.status, d: d || {}}; }, function () { return {status: r.status, d: {}}; }); })
       .then(function (x) {
         if (!CARD || g !== CARD.gen) return;
@@ -4300,6 +4306,7 @@ function cardCheck() {
         var st = String(x.d.state || '');
         if (st === 'gone') { cardEnd(String(x.d.why || '') in CARD_WORDS ? String(x.d.why) : (CARD.out ? 'late' : 'out')); return; }
         if (st === 'locked') { cardShare({t: Date.now(), w: 2}); cardOut(took, Number(x.d.left)); return; }
+        if (st === 'unable') { cardUnable(); return; }
         if (st === 'none') { CARD.done = true; location.reload(); return; }   /* signed out otherwise */
         if (st === 'unwatched' || x.status === 404) { cardStop(); return; }
         /* 'unknown' (the port not served on this node), the daemon not answering: again later */
@@ -4314,7 +4321,7 @@ function cardCheck() {
   /* A check left without an answer for 20 s counts as none (fail closed); the browser may still
      wait on a window of the card's - no new check starts until this one is over. */
   to = setTimeout(function () { fin(0); }, 20000);
-  img.onload = function () { fin(img.naturalWidth >= 1 && img.naturalWidth <= 5 ? img.naturalWidth : 0); };
+  img.onload = function () { fin(img.naturalWidth >= 1 && img.naturalWidth <= 7 ? img.naturalWidth : 0); };
   img.onerror = function () { fin(0); };
   img.src = CARD.url + Date.now();
 }
@@ -4342,6 +4349,24 @@ function cardStop() {
   CARD.done = true;
   clearTimeout(CARD.timer);
   cardLayer(false);
+}
+/* This browser cannot have its card checked (1.0.114, the kit's 3rd edition): no check in the
+   background has ever found the card here - an iPad's Safari signs nothing for a page in the
+   background, though the card is in. The server leaves the sign-in unwatched (the setting "A
+   browser that cannot be checked"): the page stops checking, and says so. The other tabs learn
+   it at their next check. */
+function cardUnable() {
+  if (!CARD || CARD.done) return;
+  cardShare({t: Date.now(), w: 7});
+  cardStop();
+  window.CARD_UNABLE = true;
+  toast('This browser cannot have the card checked (as an iPad cannot): this sign-in is not watched.', 'warn');
+  /* Said for longer than a toast's usual 3 s: the person is to read why. */
+  var tn = $('toast');
+  if (tn) {
+    clearTimeout(tn._away);
+    tn._away = setTimeout(function () { tn.className = 'toast warn'; }, 12000);
+  }
 }
 function cardLayer(on) {
   if (!on) {
@@ -4479,6 +4504,7 @@ window.addEventListener('storage', function (e) {
   if (!CARD || CARD.done || e.key !== CARD.key) return;
   var v = cardShared();
   if (v && v.end && CARD_WORDS.hasOwnProperty(v.end)) { cardEnd(v.end); return; }
+  if (v && v.w === 7) { cardUnable(); return; }
   if (v && v.w !== 1) cardCheckNow();
 });
 (function () {

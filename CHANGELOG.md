@@ -54,6 +54,27 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
     15 s)*. The help and the docs say what to know: an iPad, Windows' "Insert a smart card", a
     YubiKey with touch or PIN policy *always*, the Group Policy *Smart card removal behavior*, a
     load balancer only as TCP passthrough.
+- **The card taken out - a browser that cannot be checked (an iPad)**, as the kit's 3rd edition
+  (isemon 1.10.355; docs/certificate-sign-in.md, *A browser that cannot be checked*). Found on a
+  real iPad: Safari on iPadOS signs no connection for a page in the background - the card is in,
+  yet the check never comes, and the iPad was signed out at its first check, every time.
+  - A sign-in keeps whether a check **in the background** has ever found its card in this
+    browser (the sign-in itself does not count). Until one has, a check without the card means
+    *this browser cannot be checked*: with the new setting *A browser that cannot be checked*
+    (`admin_certlogin_card_unable`, `portal_certlogin_card_unable`; shown while the card is
+    watched) at **allow** (the default) that sign-in is not watched from then on - an event says
+    so and why, the page stops checking and says *This browser cannot have the card checked (as
+    an iPad cannot): this sign-in is not watched.*, whoami gives it no `card`, and it is never
+    held for its card (423), asleep or not; at **signout** it is signed out as a card taken out.
+    Once found, a check without the card is a card taken out, as always. The card's facts say
+    which.
+  - **No cookie with the check** is said as such: the port's picture is 6 px wide (was a 403,
+    which looked like the card out) and the page tells the server over 443, where its cookie
+    comes; *this browser cannot be checked* is 7 px (acme's 3-5 px were taken already - the kit's
+    3 and 4).
+  - **The events name the reason** of a check without the card: *no certificate came with the
+    check*, *the browser sent no cookie with the check*, *the check got no answer at all (the
+    browser did not sign the connection)* (the page's `cert-lost` now says which - `why`).
 
 ## 1.0.113 - 2026-11-15
 

@@ -148,6 +148,7 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 | `admin_certlogin_card_watch` - *When the card is taken out* | off | `off`, `signout` (sign out at once) or `grace` (lock, wait for the card; 1.0.113's `lock` is still taken and read as `grace`) - [The card taken out](#the-card-taken-out). |
 | `admin_certlogin_card_every` - *Check the card every (seconds)* | 15 | Seconds between two checks of the page, 5 to 300. |
 | `admin_certlogin_card_grace` - *The card put back within (seconds)* | 30 | `grace`: seconds the card may be out before the sign-in ends, 5 to 600. |
+| `admin_certlogin_card_unable` - *A browser that cannot be checked* | allow | `allow` (*Not watched (said in Events)*) or `signout` (*Sign out, as a card taken out*): what a sign-in gets whose browser's checks in the background have never once found its card - an iPad ([A browser that cannot be checked](#a-browser-that-cannot-be-checked-an-ipad)). Shown while the card is watched. |
 
 ### The portal - *Settings → The enrolment pages → Signing in with a certificate*
 
@@ -158,7 +159,7 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 | `portal_certlogin_match`, `portal_certlogin_crl` | strong, on | As the administration's, for the portal. |
 | `portal_certlogin_crl_ldap`, `portal_certlogin_ocsp`, `portal_certlogin_ocsp_url` | off, off, empty | As the administration's, for the portal - the CRLs in the directory read with **the portal's directory** (`portal_directory`, else the administrators'). |
 | `portal_password_off` - *No password at all on the portal - only Windows or a certificate* | off | As the administration's, in the portal's card **The sign-in page**. |
-| `portal_certlogin_card_watch`, `portal_certlogin_card_every`, `portal_certlogin_card_grace` | off, 15, 30 | As the administration's, for the portal. |
+| `portal_certlogin_card_watch`, `portal_certlogin_card_every`, `portal_certlogin_card_grace`, `portal_certlogin_card_unable` | off, 15, 30, allow | As the administration's, for the portal. |
 
 **Alerts**: *Alerts and reports → Sign-ins with a certificate refused* (`alerts_certlogin`, off)
 mails each refusal, of either part.
@@ -630,11 +631,18 @@ page (443)                          nginx :8443 (client certificate)   PHP      
    |                                        |                           |   SHA-256 vs the sign-in's
    |<--- a GIF 1 px wide: the card is there ----------------------------------------------|
    |<--- 2 px: out, the sign-in waits (grace)  3/4/5 px: ended (another card / out / late)|
+   |<--- 6 px: no cookie came with the check (PHP, nothing asked) ------------------------|
+   |<--- 7 px: this browser cannot be checked - the sign-in is not watched ---------------|
    |<--- 403: no such sign-in ------------------------------------------------------------|
    |
-   |-- no picture at all, twice: POST ?api=cert-lost (443) -> /api/certlogin/lost
-   |       the handshake failed - the server holds (grace) or ends (signout) the sign-in, with an event
+   |-- no picture at all, twice (or 6 px at once): POST ?api=cert-lost {why} (443) -> /api/certlogin/lost
+   |       never found in this browser: not watched (allow) - or as below (signout)
+   |       found before: the server holds (grace) or ends (signout) the sign-in, with an event
 ```
+
+The widths 3, 4 and 5 were acme's (the sign-in ended - another card, taken out, not put back in
+time) before the kit's 3rd edition named its own 3 (*no cookie*) and 4 (*cannot be checked*):
+in acme those two are **6** and **7**.
 
 1. **A picture**, not `fetch`: no CORS, nothing for another site to read; the session's
    `__Host-` cookie goes with it (cookies are not kept apart by port, and a picture of the same
@@ -658,9 +666,14 @@ page (443)                          nginx :8443 (client certificate)   PHP      
 5. **A check that got nothing at all** - the card's key no longer signing breaks the handshake,
    and the browser sees an error - is asked once more 1.5 s later (one lost connection, an nginx
    502 while PHP restarts, is no card taken out); then the page says so itself over 443
-   (`?api=cert-lost`), which can only hold or end its own sign-in. It is taken as the card out
-   only while this node serves the certificate's port (a port down is no card taken out). A
-   check left without an answer for 20 s counts as one that got nothing.
+   (`?api=cert-lost`, `{why: "nopicture"}`), which can only hold or end its own sign-in (or,
+   never found in this browser, leave it unwatched - below). It is taken as the card out only
+   while this node serves the certificate's port (a port down is no card taken out). A check
+   left without an answer for 20 s counts as one that got nothing.
+6. **No cookie came with the check** (a browser that keeps cookies apart by port, a privacy
+   setting): PHP on the port asks nothing and answers 6 px wide; the page says so at once over
+   443 (`{why: "nocookie"}`), where its cookie does come - so the events can tell it from a card
+   taken out. (Before, that was a 403, which looked like the card out and nobody could tell why.)
 
 Then, by the setting:
 
@@ -721,13 +734,53 @@ card's facts say *When the card is taken out - a notice, then signed out unless 
 Events:
 
 ```
-nested was signed out of these pages (from 10.0.0.5): the card they signed in with was taken out (no certificate on the check)
-nested was signed out of these pages (from 10.0.0.5): the card they signed in with was taken out (its check could not be made - the handshake failed, nothing signed it)
+nested was signed out of these pages (from 10.0.0.5): the card they signed in with was taken out (no certificate came with the check (the browser does not sign it in the background))
+nested was signed out of these pages (from 10.0.0.5): the card they signed in with was taken out (the check got no answer at all (the browser did not sign the connection))
+nested was signed out of these pages (from 10.0.0.5): the card they signed in with was taken out (the browser sent no cookie with the check)
 nested was signed out of these pages (from 10.0.0.5): the card they signed in with was not put back in time
 nested was signed out of these pages (from 10.0.0.5): another certificate than the one signed in with was offered (the card was changed)
 nested: the card they signed in with is out - the sign-in to these pages waits 30 s for it (no certificate on the check, from 10.0.0.5)
 nested: the card they signed in with is back - the sign-in to these pages goes on (from 10.0.0.5)
+the card of nested's sign-in to these pages cannot be checked in this browser - the check got no answer at all (the browser did not sign the connection): it is not watched (from 10.0.0.5; the setting "A browser that cannot be checked")
 ```
+
+The reason in each (*why*): *no certificate came with the check (the browser does not sign it in
+the background)* - the port got the check without a certificate (`nocert`); *the browser sent no
+cookie with the check* (`nocookie`); *the check got no answer at all (the browser did not sign the
+connection)* (`nopicture` - an iPad); *nginx did not take the certificate* - nginx refused the
+one offered.
+
+### A browser that cannot be checked (an iPad)
+
+**Found on a real iPad** (by the kit's author, isemon 1.10.355): **Safari on iPadOS does not sign
+a connection for a page in the background.** The card is in, the sign-in itself works (a
+top-level navigation to the port, which the iPad does sign), yet the check's picture never gets
+an answer - Events said *the check got no answer at all (the browser did not sign the
+connection)*, and the iPad was signed out at the first check, every time.
+
+So a sign-in keeps (in its row, `card_ok`) whether a check **in the background** has ever found
+its card in this browser - the time of the first that did; the sign-in itself does not count:
+
+- **never** - the first check without the card means *this browser cannot be checked*, whatever
+  the reason: no certificate came (`nocert`), no cookie came (`nocookie`, 6 px), no answer at all
+  (`nopicture`, the page's `cert-lost`). By *A browser that cannot be checked*
+  (`admin_certlogin_card_unable`, `portal_certlogin_card_unable`):
+  - **`allow`** (the default, *Not watched (said in Events)*): `card_ok` becomes -1 and that
+    sign-in is **not watched** from then on - an event says so and why; its checks answer 7 px
+    wide (whatever card comes), the page stops checking and says **This browser cannot have the
+    card checked (as an iPad cannot): this sign-in is not watched.**; whoami has no `card` for it
+    (`null` to the page) and the page loaded again does not check; it is **never held** for its
+    card (423) - nor when its page sleeps (*asleep is not out* is for watched sign-ins) - and
+    the sweep never ends it; it is not counted among the sign-ins watched now;
+  - **`signout`** (*Sign out, as a card taken out*): on as for a card taken out - such a browser
+    cannot stay signed in while the card is watched;
+- **at least once** - a later check without the card is a card taken out, as always.
+
+**The trade-off.** A card pulled in the first 1.5 seconds after the page loads, before its first
+check, makes that sign-in look like one that cannot be checked (with `allow`) - the events say
+so. Choose `signout` where every sign-in must be watched and no iPad is used. A sign-in made
+before 1.0.114 with the card watched has no `card_ok` either: its first check without the card
+is taken the same way.
 
 ### Things to know
 
@@ -745,12 +798,12 @@ nested: the card they signed in with is back - the sign-in to these pages goes o
   `https://<name>:8443` makes it so from the start (a second fitting certificate - a soft one in
   the store - would otherwise bring the chooser up during a check). After the end the sign-in
   page tries nothing by itself.
-- **iPad / iPhone.** iPadOS stops Safari's pages while the screen is locked or another app is in
-  front: the sign-in is held, and checked when Safari is back. Whether Safari on iPadOS hands a
-  client certificate (a card through CryptoTokenKit, a YubiKey over USB-C or NFC, an identity in
-  a profile) to a picture of another port has not been tried on a real iPad: if every check fails
-  there with the card in, the events say *taken out* at the first check - try it on your own iPad
-  first.
+- **iPad / iPhone.** Safari on iPadOS signs no connection for a page in the background (tested
+  on a real iPad by the kit's author): an iPad cannot have its card watched this way - with
+  `*_certlogin_card_unable = allow` it stays signed in, not watched, and the events say so
+  ([above](#a-browser-that-cannot-be-checked-an-ipad)). iPadOS also stops Safari's pages while
+  the screen is locked or another app is in front: a watched sign-in is held, and checked when
+  Safari is back. For an iPad, a short idle time of the session is what limits a forgotten one.
 - **Windows' own lock as well**: the Group Policy *Interactive logon: Smart card removal
   behavior* = **Lock Workstation**, and the service *Smart Card Removal Policy* (SCPolicySvc)
   running, lock the whole computer at once when the card is taken out - acme ends its own
@@ -802,6 +855,7 @@ acme --set certlogin_port=8443          admin_certlogin_auto, admin_certlogin_ma
 acme --set admin_password_off=0       the way back from "no password at all" (switched on only from the pages)
 acme --set admin_certlogin_card_watch=grace  the card taken out: off, signout or grace (portal_... the same)
 acme --set admin_certlogin_card_every=15     admin_certlogin_card_grace=30 (seconds: 5-300, 5-600)
+acme --set admin_certlogin_card_unable=allow  a browser that cannot be checked (an iPad): allow or signout
 ```
 
 ## Backups, the configuration, the cluster

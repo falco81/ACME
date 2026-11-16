@@ -2897,6 +2897,7 @@ def cl_view(h, tried=''):
             # The card watched (1.0.113) - a key of the answer only then.
             parts[part]['card'] = {'watch': cl_card_mode(part), 'every': cl_card_every(part),
                                    'grace': cl_card_grace(part),
+                                   'unable': cl_card_unable_mode(part),
                                    'sessions': cl_card_sessions(store, part)}
     parts['portal']['portal'] = bool(CONFIG.get('portal'))
     now = time.time()
@@ -3157,11 +3158,15 @@ def certlogin_desired(store):
 # sign-in must be one made with a certificate - the SAME one (its SHA-256, kept in the sign-in's
 # own row at the sign-in). The answer is the picture's width: 1 the card is there, 2 it is out
 # and the sign-in waits (grace), 3-5 the sign-in ended just now (another card, taken out, not put
-# back in time); none (403) no such sign-in. Per part:
+# back in time), 6 no cookie came with the check (PHP, before asking here - the page then says so
+# over 443, where its cookie does come), 7 this browser cannot be checked - not watched; none
+# (403) no such sign-in. (The kit's 3 and 4 are acme's 6 and 7: acme's 3-5 were taken already.)
+# Per part:
 #   <part>_certlogin_card_watch  off (the default: nothing of this runs) | signout | grace (1.0.113's
 #                                "lock", still read as it)
 #   <part>_certlogin_card_every  seconds between two checks of the page (5-300)
 #   <part>_certlogin_card_grace  seconds the card may be out (5-600)
+#   <part>_certlogin_card_unable allow (the default) | signout - a browser that cannot be checked
 # 1.0.114 - the kit "card-removal-watch" merged (its MERGE-NOTES):
 #   - the state is kept in the sign-in's row (card_seen: the last check that found the card, at
 #     most every 20 s; card_out: when it was first found out) - either node of a cluster answers
@@ -3174,6 +3179,15 @@ def certlogin_desired(store):
 #     is no setting any more;
 #   - the card's fingerprint is kept with every sign-in made with a certificate: switched on, those
 #     sign-ins are watched from then on (their pages learn it within a minute).
+#   - a browser that cannot be checked (the kit's 3rd edition, found on a real iPad: Safari on
+#     iPadOS signs no connection for a page in the background - the card is in, yet the check
+#     never comes): a sign-in keeps whether a check IN THE BACKGROUND has ever found its card in
+#     this browser (card_ok: the time of the first that did - the sign-in itself, a top-level
+#     navigation the iPad does sign, does not count; -1: cannot be checked). Until one has, a
+#     check without the card means "this browser cannot be checked": with
+#     <part>_certlogin_card_unable = allow that sign-in is not watched from then on (said in the
+#     events, with why), with signout it goes on as a card taken out. Once found, a check without
+#     the card is a card taken out, as always. An unwatched one is never held for its card.
 CL_CARD_MODES = ('off', 'signout', 'grace')
 CL_CARD_OLD_META = 'certlogin:cardgone:'        # 1.0.113's notes of ended sign-ins: tidied away
 CL_CARD_SWEEP = {'at': 0.0, 'tidied': False}
@@ -3184,6 +3198,13 @@ CL_CARD_ALLOWED = ('/api/auth/logout', '/api/auth/whoami', '/api/certlogin/alive
 CL_CARD_OUT = 'the card they signed in with was taken out'
 CL_CARD_LATE = 'the card they signed in with was not put back in time'
 CL_CARD_OTHER = 'another certificate than the one signed in with was offered (the card was changed)'
+# Why a check came without the card (the events): no certificate with it, no cookie with it, no
+# answer at all (the page's word over 443).
+CL_CARD_WHY = {
+    'nocert': 'no certificate came with the check (the browser does not sign it in the background)',
+    'nocookie': 'the browser sent no cookie with the check',
+    'nopicture': 'the check got no answer at all (the browser did not sign the connection)'}
+CL_CARD_UNABLE = ('allow', 'signout')
 # The page's word for why it ended (the sign-in page's own sentence for it).
 CL_CARD_WORD = {CL_CARD_OUT: 'out', CL_CARD_LATE: 'late', CL_CARD_OTHER: 'other'}
 
@@ -3192,6 +3213,26 @@ def cl_card_mode(part):
     m = str(CONFIG.get(part + '_certlogin_card_watch') or 'off')
     m = SETTING_ALIASES.get(part + '_certlogin_card_watch', {}).get(m, m)
     return m if m in CL_CARD_MODES else 'off'
+
+
+def cl_card_unable_mode(part):
+    """What a browser that cannot be checked gets: allow (not watched) | signout."""
+    m = str(CONFIG.get(part + '_certlogin_card_unable') or 'allow')
+    return m if m in CL_CARD_UNABLE else 'allow'
+
+
+def _cl_card_ok(data):
+    """card_ok of a sign-in's row: > 0 a check in the background has found the card in this
+    browser, -1 this browser cannot be checked, 0 neither yet."""
+    try:
+        return float((data or {}).get('card_ok') or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def cl_card_unable(s):
+    """Whether this sign-in's browser was found not to be checkable (not watched)."""
+    return _cl_card_ok((s or {}).get('data') or {}) < 0
 
 
 def cl_card_any():
@@ -3243,7 +3284,7 @@ def cl_card_watched(part, s):
     data = (s or {}).get('data') or {}
     return bool(part in CL_PARTS and cl_card_mode(part) != 'off' and
                 data.get('how') == 'certificate' and data.get('card') and
-                not data.get('krb_kept'))
+                not data.get('krb_kept') and _cl_card_ok(data) >= 0)
 
 
 def _cl_card_pending(part, s):
@@ -3363,7 +3404,7 @@ def cl_card_sessions(store, part):
             except ValueError:
                 continue
             if isinstance(d, dict) and d.get('how') == 'certificate' and d.get('card') and \
-                    not d.get('krb_kept'):
+                    not d.get('krb_kept') and _cl_card_ok(d) >= 0:
                 n += 1
     except Exception:                                   # noqa: BLE001
         return 0
@@ -3424,9 +3465,41 @@ def _cl_card_gone(why):
     return {'ok': False, 'state': 'gone', 'why': CL_CARD_WORD.get(why, 'out')}
 
 
+def _cl_card_unable_now(h, part, s, how):
+    """A check without the card while none in the background has found it in this browser yet:
+    with <part>_certlogin_card_unable = allow, this browser cannot be checked (an iPad) - the
+    sign-in not watched from now on, said once in the events with why; the answer. None with
+    signout (on as a card taken out) or once the card was found here before."""
+    data = s.get('data') or {}
+    if _cl_card_ok(data) > 0 or cl_card_unable_mode(part) != 'allow':
+        return None
+    got = h.store.session_merge(s['id'], {'card_ok': -1, 'card_out': None, 'card_lock': None},
+                                expect={'card_ok': data.get('card_ok')})
+    if got is not False and got is not None:
+        h.store.add_event('sign-ins' if part == 'admin' else 'portal',
+                          'the card of %s\'s sign-in to %s cannot be checked in this browser - %s: '
+                          'it is not watched (from %s; the setting "A browser that cannot be '
+                          'checked")' % (s.get('name') or '?', 'these pages' if part == 'admin' else
+                                         'the enrolment pages', how, h.client_ip()),
+                          'warn', who=s.get('name') or None)
+    elif got is False:
+        # Another check got there first: found the card (proven) - then this one is a card out.
+        fresh = h.store.db.value('SELECT data FROM sessions WHERE id = ?', (s['id'],))
+        try:
+            if _cl_card_ok(json.loads(fresh or '{}')) > 0:
+                return None
+        except ValueError:
+            pass
+    return {'ok': True, 'state': 'unable'}
+
+
 def cl_card_failed(h, part, s, how):
-    """A check without the card (no certificate, nginx's refusal, the handshake failed): signout
-    - the sign-in ends; grace - the time out counted, ended past the grace. The answer."""
+    """A check without the card (no certificate, nginx's refusal, no cookie, the handshake
+    failed): never found in this browser - cannot be checked (allow); else signout - the sign-in
+    ends; grace - the time out counted, ended past the grace. The answer."""
+    unable = _cl_card_unable_now(h, part, s, how)
+    if unable:
+        return unable
     now = time.time()
     data = s.get('data') or {}
     if cl_card_mode(part) == 'signout':
@@ -3472,6 +3545,8 @@ def _certlogin_alive(h):
     token, s = cl_card_session(h, part)
     if not s:
         return {'ok': False, 'state': 'none'}
+    if cl_card_unable(s):
+        return {'ok': True, 'state': 'unable'}
     if not cl_card_watched(part, s):
         return {'ok': True, 'state': 'unwatched'}
     pem = str(b.get('cert') or '')
@@ -3491,6 +3566,10 @@ def _certlogin_alive(h):
             ch.update(card_out=None, card_lock=None)
         if was or st == 'held' or now - _cl_card_t(data, 'card_seen', 'card_at') >= CL_CARD_SEEN_S:
             ch.update(card_seen=now, card_at=None)
+        if _cl_card_ok(data) <= 0:
+            # Found by a check in the background: this browser can be checked - from now on a
+            # check without the card is a card taken out.
+            ch['card_ok'] = round(now, 3)
         if ch:
             h.store.session_merge(s['id'], ch)
         if was:
@@ -3504,21 +3583,27 @@ def _certlogin_alive(h):
         cl_card_end(h.store, part, s, CL_CARD_OTHER, h.client_ip())
         return _cl_card_gone(CL_CARD_OTHER)
     return cl_card_failed(h, part, s, 'nginx did not take the certificate' if failed else
-                          'no certificate on the check')
+                          CL_CARD_WHY['nocert'])
 
 
 @route('POST', '/api/certlogin/lost')
 def _certlogin_lost(h):
     """The page's picture got no answer at all, twice (over 443, this page's own): the handshake
-    failed - nothing to sign it with. Taken as the card out only while this node serves the
-    certificate's port (else a port down is no card taken out). It only ever ends or holds its
-    own sign-in."""
-    part = str(h.body().get('part') or '')
+    failed - nothing to sign it with (why: nopicture); or it came back saying no cookie came with
+    it (why: nocookie). Taken as the card out only while this node serves the certificate's port
+    (else a port down is no card taken out) - never found in this browser, as one that cannot be
+    checked (allow). It only ever ends, holds or leaves unwatched its own sign-in."""
+    b = h.body()
+    part = str(b.get('part') or '')
+    said = str(b.get('why') or 'nopicture')
+    said = said if said in ('nopicture', 'nocookie') else 'nopicture'
     if part not in CL_PARTS or cl_card_mode(part) == 'off' or not cl_on(part):
         raise ApiError(404, 'the card is not watched here')
     token, s = cl_card_session(h, part)
     if not s:
         return {'ok': False, 'state': 'none'}
+    if cl_card_unable(s):
+        return {'ok': True, 'state': 'unable'}
     if not cl_card_watched(part, s):
         return {'ok': True, 'state': 'unwatched'}
     if not cl_listening(cl_port()):
@@ -3527,8 +3612,7 @@ def _certlogin_lost(h):
     if st == 'gone':
         cl_card_end(h.store, part, s, why, h.client_ip())
         return _cl_card_gone(why)
-    return cl_card_failed(h, part, s, 'its check could not be made - the handshake failed, '
-                                      'nothing signed it')
+    return cl_card_failed(h, part, s, CL_CARD_WHY[said])
 
 
 def _cl_portal_me_card(h, s):

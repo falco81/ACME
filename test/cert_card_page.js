@@ -20,7 +20,14 @@
 //   late    - (the grace 5 s) taken out and not back: the sign-in page - "...was not put back in
 //             time.", signed out on the server - in English and Czech, 1400 and 420 px;
 //   options - signed in with the password as NAME: the port never asked; Settings -> Accounts,
-//             When the card is taken out (off, signout, grace), the seconds, the card's facts.
+//             When the card is taken out (off, signout, grace), the seconds, A browser that
+//             cannot be checked (allow, signout), the card's facts;
+//   unable  - an iPad simulated (1.0.114, the kit's 3rd edition): the sign-in on the port works,
+//             the background's picture never does - after one more try the page tells the
+//             server, which leaves the sign-in unwatched: "This browser cannot have the card
+//             checked (as an iPad cannot): this sign-in is not watched.", no notice, still signed
+//             in, answered (200), whoami without card, no more checks (loaded again: none
+//             either) - in English and Czech, 1400 and 420 px.
 // Prints one line of JSON: {ok, checks: {name: true|false}, timing, error?} - or {skip} where
 // Chromium does not start.
 const fs = require('fs');
@@ -250,6 +257,16 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
         await until(page, async () => (await page.locator('#cert-host-admin .krb-facts').count()) > 0, 20000);
         await page.waitForTimeout(1500);
         out.checks['password_never_watched_' + tag] = ctx.looks.length === 0;
+        const un = await page.evaluate(() => {
+          const seg = document.querySelector('#set-admin_certlogin_card_unable');
+          const it = document.querySelector('.set-item[data-key="admin_certlogin_card_unable"]');
+          return {opts: seg ? Array.prototype.map.call(seg.querySelectorAll('button'), (b) => b.dataset.v).join(',') : '',
+                  val: seg ? seg.value : '', awake: !!it && !it.classList.contains('asleep'),
+                  label: it ? it.innerText.split('\n')[0] : ''};
+        });
+        out.checks['unable_seg_' + tag] = un.opts === 'allow,signout' && un.awake &&
+          (lang === 'en' ? /A browser that cannot be checked/.test(un.label) : /Prohlížeč, který kontrolovat nejde/.test(un.label));
+        if (!out.checks['unable_seg_' + tag]) out.timing['unable_' + tag] = un;
         const st = await page.evaluate(() => {
           const seg = document.querySelector('#set-admin_certlogin_card_watch');
           const it = (k) => document.querySelector('.set-item[data-key="' + k + '"]');
@@ -268,6 +285,9 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
         await page.evaluate(() => document.querySelector('.set-item[data-key="admin_certlogin_card_watch"]').scrollIntoView({block: 'start'}));
         await page.waitForTimeout(400);
         await shot(page, 'settings-' + tag + '.png');
+        await page.evaluate(() => document.querySelector('.set-item[data-key="admin_certlogin_card_unable"]').scrollIntoView({block: 'center'}));
+        await page.waitForTimeout(400);
+        await shot(page, 'settings-unable-' + tag + '.png');
         const facts = await page.evaluate(() => document.querySelector('#cert-host-admin .krb-facts').innerText);
         out.checks['facts_' + tag] = lang === 'en'
           ? /When the card is taken out\s+a notice, then signed out unless it is back within 30 s \(checked every 5 s\)/.test(facts)
@@ -277,6 +297,47 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
         await page.waitForTimeout(400);
         await shot(page, 'facts-' + tag + '.png');
         out.checks['no_page_errors_' + tag] = page.errs.length === 0;
+        await ctx.close();
+      }
+    } else if (phase === 'unable') {
+      const want = {en: 'This browser cannot have the card checked (as an iPad cannot): this sign-in is not watched.',
+                    cs: 'V tomto prohlížeči kartu kontrolovat nejde (stejně jako na iPadu): toto přihlášení se nehlídá.'};
+      for (const [lang, width] of [['en', 1400], ['cs', 1400], ['en', 420], ['cs', 420]]) {
+        const tag = lang + '-' + width;
+        const ctx = await context(lang, width);
+        // The background's picture never comes (Safari on iPadOS signs no connection for it);
+        // the sign-in itself, a top-level navigation, does.
+        await cardOut(ctx);
+        const page = await newPage(ctx);
+        out.checks['signed_in_' + tag] = await certSignIn(page);
+        out.checks['page_watches_at_first_' + tag] = await page.evaluate(() => !!(window.ME && ME.card));
+        const t0 = Date.now();
+        out.checks['said_' + tag] = await until(page, async () => (await page.evaluate(() => {
+          const t = document.querySelector('#toast'); return t && t.classList.contains('show') ? t.textContent : '';
+        })) === want[lang], 20000);
+        out.timing['said_after_s_' + tag] = Math.round((Date.now() - t0) / 100) / 10;
+        out.timing['looks_' + tag] = ctx.looks.join(',');
+        out.checks['two_tries_then_told_' + tag] = ctx.looks.filter((x) => x === 'x').length === 2;
+        await page.waitForTimeout(300);
+        await shot(page, 'unable-' + tag + '.png');
+        out.checks['no_notice_' + tag] = (await page.locator('#card-lock').count()) === 0;
+        out.checks['still_signed_in_' + tag] = (await page.locator('#signout').count()) > 0 &&
+          (await status(page)).startsWith('200');
+        out.checks['whoami_no_card_' + tag] = await page.evaluate(() => fetch('?api=whoami', {credentials: 'same-origin'})
+          .then((r) => r.json()).then((d) => !!d.who && !d.who.card));
+        const l0 = ctx.looks.length;
+        await page.waitForTimeout(8000);
+        out.checks['no_more_checks_' + tag] = ctx.looks.length === l0;
+        if (width === 1400) {
+          await page.reload();
+          await page.waitForSelector('#signout', {timeout: 15000});
+          await page.waitForTimeout(4000);
+          out.checks['loaded_again_not_watched_' + tag] = await page.evaluate(() => !(window.ME && ME.card)) &&
+            ctx.looks.length === l0;
+        }
+        if (width < 600) out.checks['no_page_scroll_' + tag] = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+        out.checks['no_page_errors_' + tag] = page.errs.length === 0;
+        if (page.errs.length) out.errs = (out.errs || []).concat(page.errs);
         await ctx.close();
       }
     }
