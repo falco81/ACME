@@ -3911,6 +3911,10 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
   .modal .foot { flex-wrap: wrap; overflow-x: hidden; overflow-y: auto; max-height: 34vh;
     padding: 10px 12px; gap: 6px; justify-content: flex-start;
     -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+  /* The page behind a popup stays where it is (1.0.115): a swipe or the wheel at the end of the
+     popup's text went on to scroll the page under it - 2880 px down by the time it closed. */
+  .modal .body, .modal .foot { overscroll-behavior: contain; }
+  html:has(#modal:not([hidden])) { overflow: hidden; }
   .modal .foot > .btn, .modal .foot > button { flex: 1 1 calc(50% - 6px); min-width: 0;
     justify-content: center; white-space: normal; padding-left: 8px; padding-right: 8px; }
   .modal .foot > .btn:only-child, .modal .foot > button:only-child { flex-basis: 100%; }

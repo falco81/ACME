@@ -686,7 +686,7 @@ function closeModal(sure) {
 }
 /* Tab and Shift+Tab go round inside the popup while it is open. */
 document.addEventListener('keydown', function (e) {
-  if (e.key !== 'Tab' || !$('modal') || $('modal').hidden) return;
+  if (e.key !== 'Tab' || !$('modal') || $('modal').hidden || $('card-lock')) return;
   var inside = Array.prototype.filter.call(
     $('modal-box').querySelectorAll('button, input, select, textarea, a[href], [tabindex]'),
     function (n) { return !n.disabled && n.tabIndex >= 0 && n.getClientRects().length; });
@@ -704,6 +704,9 @@ if ($('modal-x')) {
      half-filled form. It closes by its own buttons, its x, or Escape. */
 }
 document.addEventListener('keydown', function (e) {
+  /* The card's notice over everything (1.0.115): Escape closed the popup behind it, or asked
+     "Leave it?" under it - nothing behind the notice answers until the card is back. */
+  if ($('card-lock')) return;
   /* A help popup open is the first thing Escape closes. (1.10.159) */
   if (e.key === 'Escape' && typeof SETHELP !== 'undefined' && SETHELP
       && SETHELP.style.display !== 'none') {
@@ -4404,6 +4407,12 @@ function cardLayer(on) {
     var o = $('card-lock');
     if (o) o.remove();
     Array.prototype.forEach.call(document.body.children, function (n) { if (n.dataset && n.dataset.cardInert) { n.inert = false; delete n.dataset.cardInert; } });
+    /* The focus back where it was before the notice (1.0.115): the box half typed in a popup. */
+    var was = CARD.focus;
+    CARD.focus = null;
+    if (o && was && was !== document.body && was.isConnected && typeof was.focus === 'function') {
+      try { was.focus({preventScroll: true}); } catch (e) { }
+    }
     return;
   }
   if (!$('card-lock')) {
@@ -4423,7 +4432,10 @@ function cardLayer(on) {
     var n = noI18n(el('div', 'card-lock-n', ''));
     n.id = 'card-lock-n';
     mid.appendChild(n);
-    mid.appendChild(el('div', 'card-lock-unit', 'seconds'));
+    /* The word agrees with the number (1.0.115): "1 sekunda", "3 sekundy", "30 sekund". */
+    var unit = el('div', 'card-lock-unit', '');
+    unit.id = 'card-lock-unit';
+    mid.appendChild(unit);
     ring.appendChild(mid);
     box.appendChild(ring);
     var h = el('h2', '', 'Put the card back');
@@ -4441,6 +4453,7 @@ function cardLayer(on) {
     box.appendChild(row);
     o2.appendChild(box);
     /* Nothing behind it reachable - by the mouse or the keyboard. */
+    CARD.focus = document.activeElement;
     Array.prototype.forEach.call(document.body.children, function (x) { if (!x.inert) { x.inert = true; x.dataset.cardInert = '1'; } });
     document.body.appendChild(o2);
     CARD.n = n; CARD.left = left; CARD.arc = ring.querySelector('.card-lock-arc'); CARD.whole = whole;
@@ -4451,6 +4464,8 @@ function cardLayer(on) {
     if (!CARD || !CARD.out || CARD.done) return;
     var s = Math.max(0, CARD.c.grace - Math.floor((Date.now() - CARD.out) / 1000));
     CARD.n.textContent = String(s);
+    var u = $('card-lock-unit'), w = nWord(s, 'second(s)');
+    if (u) u.textContent = w === 'second(s)' ? (s === 1 ? 'second' : 'seconds') : w;
     CARD.left.textContent = 'Signed out in ' + s + ' s unless the card is back';
     if (CARD.arc) CARD.arc.setAttribute('stroke-dashoffset', (CARD.whole * (1 - s / Math.max(1, CARD.c.grace))).toFixed(2));
     var o3 = $('card-lock');

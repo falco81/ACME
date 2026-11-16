@@ -30098,11 +30098,11 @@
   },
   "sc2460": {
    "source": "The server is on this machine: acme can make the database and the account itself, as root - as postgres, with no password typed anywhere. A password is made for the account if none is typed above.",
-   "text": "Server je na tomto stroji: acme může databázi a účet vytvořit samo, jako root – jako postgres, bez zadávání jakéhokoli hesla. Pokud výše žádné heslo není, účtu se vytvoří."
+   "text": "Server je na tomto stroji: acme může databázi a účet vytvořit samo, jako root – jako postgres, bez zadávání jakéhokoli hesla. Pokud výše žádné heslo není, účtu se heslo vytvoří samo."
   },
   "sc2461": {
    "source": "The server is on this machine: acme can make the database and the account itself, as root - as root over its socket, with no password typed anywhere. A password is made for the account if none is typed above.",
-   "text": "Server je na tomto stroji: acme může databázi a účet vytvořit samo, jako root – jako root přes jeho socket, bez zadávání jakéhokoli hesla. Pokud výše žádné heslo není, účtu se vytvoří."
+   "text": "Server je na tomto stroji: acme může databázi a účet vytvořit samo, jako root – jako root přes jeho socket, bez zadávání jakéhokoli hesla. Pokud výše žádné heslo není, účtu se heslo vytvoří samo."
   },
   "sc2462": {
    "source": "Make the database and the account for me",
@@ -65347,6 +65347,14 @@
   "z_208": {
    "source": " ships (changed there, or from another build) - put it back: ",
    "text": " (změněn na serveru nebo z jiného sestavení) – vraťte ho: "
+  },
+  "z_209": {
+   "source": "The card is checked in this browser after all: this sign-in is watched again.",
+   "text": "Kartu v tomto prohlížeči nakonec kontrolovat jde: toto přihlášení se zase hlídá."
+  },
+  "z_210": {
+   "source": "A browser whose checks in the background never get an answer from the very first cannot be checked at all - an iPad's Safari signs nothing for a page in the background, though the card is in. Not watched (the default): that sign-in is not watched until a check finds the card, and Events say so and why - but any browser can opt out of the watch this way by failing every check. Sign out: it is signed out as if the card were out - the watch enforced for every browser, and an iPad cannot stay signed in with this on. Once a check has found the card, a later one that does not is a card taken out, whatever this says.",
+   "text": "Prohlížeč, jehož kontroly na pozadí od té úplně první nikdy nedostanou odpověď, kontrolovat vůbec nejde – Safari na iPadu na pozadí nic nepodepíše, i když je karta zasunutá. Nehlídat (výchozí): takové přihlášení se nehlídá, dokud kontrola kartu nenajde, a Události řeknou, že tomu tak je a proč – takto se ale z hlídání může vyvléct kterýkoli prohlížeč, který každou kontrolu nechá selhat. Odhlásit: odhlásí se, jako by karta byla vytažená – hlídání platí pro každý prohlížeč a iPad pak s tímto zapnutým přihlášený zůstat nemůže. Jakmile kontrola kartu jednou najde, další kontrola bez ní znamená vytaženou kartu bez ohledu na toto nastavení."
   }
  },
  "patterns": {

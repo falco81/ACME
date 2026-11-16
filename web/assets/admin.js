@@ -1527,9 +1527,8 @@ function showPane(name, opts) {
   if (name === 'upgrade') { loadUpgrade(); attLoad(); }
   if (name === 'web') loadWeb();
   if (name === 'fw') loadFw();
-  if (name === 'portal') { $('portal-url').textContent = location.protocol + '//' + location.host + '/'; loadArt(); loadKrb(); loadCert(); }
-  if (name === 'people') { loadKrb(); loadCert(); }
-  if (name === 'people' || name === 'portal') signinSettle(0);
+  if (name === 'portal') { $('portal-url').textContent = location.protocol + '//' + location.host + '/'; loadArt(); signinLook([loadKrb(), loadCert()]); }
+  if (name === 'people') signinLook([loadKrb(), loadCert()]);
   /* A pane plugged in (ACME_EXTRA_PANES) draws itself. */
   var extra = (window.ACME_EXTRA_PANES || {})[name];
   if (typeof extra === 'function') { try { extra(name); } catch (e) { if (window.console) console.error(e); } }
@@ -7889,18 +7888,36 @@ function signinOther(changed) {
   signinSettle();
 }
 /* Whether a node has yet to do what the cards say it will (only nodes heard from). */
-function signinUnsettled() {
-  var k = KRB.d, c = CERTC.d;
-  var krb = !!k && (k.nodes || []).some(function (n) {
-    return n.heard && (k.keytab ? !(n.written && n.same) : n.written);
+function signinUnsettled() { return !!signinUnsettledSig(); }
+/* Which nodes have yet to, as a text to compare with the last look ('' - none). */
+function signinUnsettledSig() {
+  var k = KRB.d, c = CERTC.d, out = [];
+  if (k) (k.nodes || []).forEach(function (n) {
+    if (n.heard && (k.keytab ? !(n.written && n.same) : n.written)) out.push('k:' + n.name);
   });
-  var cert = !!c && (c.nodes || []).some(function (n) {
-    if (!n.heard) return false;
-    if (c.cas.length ? !(n.written && n.same) : n.written) return true;
-    if (n.busy) return false;
-    return c.any_on && c.cas.length ? !n.listening : !!n.listening;
+  if (c) (c.nodes || []).forEach(function (n) {
+    if (!n.heard) return;
+    if (c.cas.length ? !(n.written && n.same) : n.written) { out.push('c:' + n.name); return; }
+    if (n.busy) return;
+    if (c.any_on && c.cas.length ? !n.listening : !!n.listening) out.push('l:' + n.name);
   });
-  return krb || cert;
+  return out.join(',');
+}
+/* The pane looked at (1.0.115): a watch a change made on the page began, on again while its
+   minute lasts; else a watch only when what is unsettled differs from the last look in this
+   tab - a node that stays not listening (its port taken, no CA it can use) asked ?api=kerberos
+   and ?api=certlogin every 3 s for a minute at each visit, where 1.0.105 asked nothing. */
+var SIGNIN_LOOK = 'acme.signin.look';
+function signinLook(asks) {
+  if (SIGNIN_SETTLE.until > Date.now()) {
+    if (!SIGNIN_SETTLE.timer) SIGNIN_SETTLE.timer = setTimeout(signinSettleTick, 3000);
+    return;
+  }
+  Promise.all(asks).then(function () {
+    var sig = signinUnsettledSig(), last = null;
+    try { last = sessionStorage.getItem(SIGNIN_LOOK); sessionStorage.setItem(SIGNIN_LOOK, sig); } catch (e) { }
+    if (sig && last !== null && last !== sig) signinSettle(0);
+  }, function () { });
 }
 var SIGNIN_SETTLE = {timer: 0, until: 0, left: 0};
 /* min: the looks taken whatever the answers say (a node publishes its state on its own round);
@@ -7917,6 +7934,7 @@ function signinSettleTick() {
   if (document.hidden) { SIGNIN_SETTLE.timer = setTimeout(signinSettleTick, 3000); return; }
   SIGNIN_SETTLE.left = Math.max(0, SIGNIN_SETTLE.left - 1);
   Promise.all([loadKrb(true, true), loadCert(true, true)]).then(function () {
+    try { sessionStorage.setItem(SIGNIN_LOOK, signinUnsettledSig()); } catch (e) { }
     if (!SIGNIN_SETTLE.timer && (SIGNIN_SETTLE.left || signinUnsettled())) SIGNIN_SETTLE.timer = setTimeout(signinSettleTick, 3000);
   });
 }
@@ -16792,6 +16810,9 @@ function osuAny(on) { var k = Object.keys(on); return on[k[0]] || {}; }
    system has it, nothing written. Under it, what each node has in effect. */
 var PWP_EDIT = null;
 var PWP_OPEN = false;
+/* "With SSH keys, ..." kept open through a redraw (1.0.115): the policy's switch redraws the
+   card, and the open paragraphs above it closed - the switch went 118 px up under the pointer. */
+var PWP_HOW = false;
 function pwpNum(v, min, max) {
   var i = el('input', 'mono pwp-num'); i.type = 'number'; i.min = min; i.max = max; i.value = v; return i;
 }
@@ -16868,6 +16889,8 @@ function pwpCard(d) {
   if (d.policy_refused) card.appendChild(el('p', 'note bad', 'The row of the policy in the database is not as acme wrote it - the guard of root\'s actions refused it: every node keeps the policy it has put in, and changes nothing. Save the policy here again.'));
   card.appendChild(el('p', 'muted small', 'For every local user, however the password is changed - passwd, a password run out at sign-in, these pages. Put into each node\'s own files: pam_pwquality, pam_pwhistory, pam_faillock and login.defs (with authselect, the features that put the modules in). Not set here, each node keeps what its system has, and nothing is written.'));
   var how = el('details', 'pwp-how');
+  how.open = !!PWP_HOW;
+  how.ontoggle = function () { PWP_HOW = how.open; };
   how.appendChild(el('summary', '', 'With SSH keys, acme\'s codes and sudo'));
   [ 'A password that runs out is asked to be changed at the next sign-in - over SSH with a key or with acme\'s code too (sshd asks PAM\'s account step). A user with no password (a key only) is given no aging, so is never asked for one.',
     'acme\'s code for SSH is no password: it never counts as a wrong password for the lockout, and the lockout does not keep a key or a code out - it keeps out the password (at the console, for sudo).',
@@ -20316,7 +20339,7 @@ function dbaTile(s, d) {
     rm.appendChild(noI18n(el('span', 'small', bytes(f.ram - (f.avail || 0)) + ' / ' + bytes(f.ram))));
     dbaKv(kv, 'RAM', rm, 'wide');
   }
-  dbaKv(kv, 'Processors', (f.cpus ? num(f.cpus) : '–') + (f.load ? ' · ' + f.load.map(function (x) { return Number(x).toFixed(2); }).join(' / ') : ''));
+  dbaKv(kv, 'Processors', (f.cpus ? num(f.cpus) : '–') + (f.load ? ' · ' + f.load.map(function (x) { var t = Number(x).toFixed(2); return numDecimal() === ',' ? t.replace('.', ',') : t; }).join(' / ') : ''));
   dbaKv(kv, 'Up for', f.uptime ? dbaUp(f.uptime) : '–');
   var ce = el('span', '');
   var dl = dbaDays(s.agent_cert_end || a.cert_end);
@@ -20751,7 +20774,11 @@ function dbaHaMake(d) {
 /* ---- Firewall: the database servers' port, opened by their agents ----------------------- */
 function dbaFw() {
   if (!$('fw-nodes')) return;
-  dbaLoad().then(function (d) {
+  /* No agent and no database server known (1.0.115): that answer kept for 10 min - the pane is
+     drawn again every 5 s, and asked /api/db-agent each time (1.0.105 asked nothing). Joining
+     one is done on the database's pane, which asks afresh. */
+  var none = DBA.d && !dbaOn(DBA.d) && Date.now() - DBA.at < 600000;
+  (none ? Promise.resolve(DBA.d) : dbaLoad()).then(function (d) {
     var dbs = dbaOn(d) ? d.servers || [] : [];
     var h = $('fw-lede') && $('fw-lede').parentNode && $('fw-lede').parentNode.querySelector('h2');
     dbaPillInto(h, dbs, 'db_firewall');

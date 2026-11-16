@@ -70,7 +70,9 @@
         nm.appendChild(s.builtin ? el('b', '', s.name) : data('b', '', s.name));
         var pub = s.keep || (s.builtin && s.name !== d.system);
         if (s.builtin || s.keep) nm.appendChild(el('span', 'tag dim dnss-tag', 'built in'));
-        if (s.note) nm.appendChild(s.builtin ? el('div', 'muted small', s.note) : data('div', 'muted small', s.note));
+        /* "Public"'s note is acme's own words, stored with the set (1.0.115): in the page's
+           language while it is as shipped, as typed once changed. */
+        if (s.note) nm.appendChild(s.builtin ? el('div', 'muted small', s.note) : data('div', 'muted small', s.keep ? known(s.note) : s.note));
         tr.appendChild(nm);
         var sv = cell('mono small', '');
         (s.servers || []).forEach(function (x) { sv.appendChild(data('div', '', x)); });
