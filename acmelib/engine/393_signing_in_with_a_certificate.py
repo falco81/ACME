@@ -3250,11 +3250,11 @@ def certlogin_desired(store):
 #     events, with why), with signout it goes on as a card taken out. Once found, a check without
 #     the card is a card taken out, as always. An unwatched one is never held for its card.
 # 1.0.115 - "cannot be checked" no way out of the watch (hunt P):
-#   - only the page's word that its picture got no answer at all (cert-lost, nopicture) makes
-#     it - never a check that came without a certificate, nginx's refusal, no cookie or none
-#     within 20 s; never for a sign-in held or whose card is out; only for one made while the
-#     part watched the card (card_w - one from before, its person away with the card, would
-#     look the same);
+#   - only the page's word that its picture got no answer at all (cert-lost, nopicture - or
+#     none within 20 s, timeout: an iPad may leave the picture waiting rather than fail it)
+#     makes it - never a check that came without a certificate, nginx's refusal or no cookie;
+#     never for a sign-in held or whose card is out; only for one made while the part watched
+#     the card (card_w - one from before, its person away with the card, would look the same);
 #   - not for ever: its page checks once a minute (and when it wakes) - a check that finds the
 #     card watches it again (card_ok > 0: from then on a miss is a card taken out);
 #   - the sign-in of whoever made a rule stricter (krb_kept) is watched as any other;
@@ -3582,10 +3582,11 @@ def _cl_card_gone(why):
 
 
 def _cl_card_unable_now(h, part, s, how):
-    """The page's picture got no answer at all (nopicture - only that, 1.0.115) while no check in
-    the background has found the card in this browser yet: with <part>_certlogin_card_unable =
-    allow, this browser cannot be checked (an iPad) - the sign-in not watched until a check
-    finds its card, said once in the events with why; the answer. None (on as a card taken
+    """The page's picture got no answer at all (nopicture, or none within 20 s - only those,
+    1.0.115) while no check in the background has found the card in this browser yet: with
+    <part>_certlogin_card_unable = allow, this browser cannot be checked (an iPad) - the
+    sign-in not watched until a check finds its card, said once in the events with why; the
+    answer. None (on as a card taken
     out) with signout, once the card was found here before, for a sign-in made before the
     watch was switched on (card_w: one away with its card then looks just the same), and for
     one held or whose card is out - never a way out of the lock (1.0.115)."""
@@ -3738,7 +3739,8 @@ def _certlogin_lost(h):
     it (why: nocookie); or none came within 20 s (why: timeout). Taken as the card out only while
     this node serves the certificate's port (else a port down is no card taken out) - nopicture,
     never found in this browser, made while watched, neither held nor out: as one that cannot be
-    checked (allow). It only ever ends, holds or leaves unwatched its own sign-in."""
+    checked (allow) - and so is timeout (1.0.115: a picture left waiting is no answer either; the
+    same gates). It only ever ends, holds or leaves unwatched its own sign-in."""
     b = h.body()
     part = str(b.get('part') or '')
     said = str(b.get('why') or 'nopicture')
@@ -3758,7 +3760,7 @@ def _certlogin_lost(h):
     if st == 'gone':
         cl_card_end(h.store, part, s, why, h.client_ip())
         return _cl_card_gone(why)
-    return cl_card_failed(h, part, s, CL_CARD_WHY[said], nopicture=said == 'nopicture')
+    return cl_card_failed(h, part, s, CL_CARD_WHY[said], nopicture=said in ('nopicture', 'timeout'))
 
 
 def _cl_portal_me_card(h, s):
