@@ -1019,7 +1019,7 @@ def certlogin_server(block, main, c, pad='    '):
                 '%slimit_req zone=acme_card burst=200 nodelay;\n' % p2,
                 '%slimit_req_status 429;\n' % p2,
                 '%srecursive_error_pages on;\n' % p2,
-                '%serror_page 429 500 502 503 504 = @acme_card_later;\n' % p2,
+                '%serror_page 429 500 502 503 504 = @acme_card_later_%s;\n' % (p2, part),
                 '%sfastcgi_pass   %s;\n' % (p2, sock),
                 '%sfastcgi_param  SCRIPT_FILENAME $document_root%s;\n' % (p2, script),
                 '%sfastcgi_param  HTTPS on;\n' % p2,
@@ -1030,12 +1030,26 @@ def certlogin_server(block, main, c, pad='    '):
                 '%sfastcgi_param  ACME_CERT_VERIFY $ssl_client_verify;\n' % p2,
                 '%sfastcgi_read_timeout 60s;\n' % p2,
                 '%s}\n' % pad])
+        def later_loc(part, allow_lines):
+            # The part's own allow / deny lines again (review round 2): nginx's 429 comes before
+            # its access phase, and `return` after a location's own - a client the part refuses
+            # got "try later" (200) for every check refused for its number. Here the access
+            # phase runs first (try_files is after it), then the answer.
+            return ''.join([
+                '%slocation @acme_card_later_%s {\n' % (pad, part),
+                ''.join('%s%s\n' % (p2, x) for x in allow_lines),
+                '%srecursive_error_pages on;\n' % p2,
+                '%serror_page 418 = @acme_card_later;\n' % p2,
+                '%stry_files /.acme-card-later-nothing-here =418;\n' % p2,
+                '%s}\n' % pad])
         if c['admin'] or c['portal']:
             body += card_loc('/admin/index.php', 'admin', admin_allow)
+            body += later_loc('admin', admin_allow)
         if c['portal']:
             body += card_loc('/index.php', 'portal', portal_allow)
+            body += later_loc('portal', portal_allow)
         # Try later: a picture 8 px wide (an SVG - nginx's `return` holds no GIF), for this
-        # name's page only (CORS as PHP's answers).
+        # name's page only (CORS as PHP's answers) - reached only through the part's own above.
         body += ''.join([
             '%slocation @acme_card_later {\n' % pad,
             '%sdefault_type   image/svg+xml;\n' % p2,

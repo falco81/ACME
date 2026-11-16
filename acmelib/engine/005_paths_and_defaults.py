@@ -1407,7 +1407,11 @@ SAYS = {
                                   'sign-ins made with a certificate; a password\'s or Windows\' '
                                   'never. A page that stopped checking (a tablet asleep, the '
                                   'browser in the background) has its sign-in held, not ended, '
-                                  'until a check finds the card.',
+                                  'until a check finds the card. Your own sign-in, from which you '
+                                  'switch it on, is watched as one made while it is on: from a '
+                                  'browser that cannot be checked (an iPad) it is then not '
+                                  'watched - or signed out at once if A browser that cannot be '
+                                  'checked says Sign out.',
     'admin_certlogin_card_every': 'How often the card is checked, 5 to 300 seconds. Each check is a '
                                   'signature by the card (no PIN while it stays in; a YubiKey with '
                                   'touch or PIN policy "always" asks every time - leave this off for '

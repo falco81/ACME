@@ -30,6 +30,13 @@
 //             again: not at once either) - in English and Czech, 1400 and 420 px; then (1.0.115)
 //             the picture let through and the page woken: watched again ("The card is checked in
 //             this browser after all: this sign-in is watched again.").
+//   mixed   - (review round 2) an upgrade half way: a node of 1.0.114 sends no CORS - this
+//             page's picture fails, asked once more without its Origin and that answer taken (1
+//             in, 2 the notice); this version's answer to a picture without an Origin (6 by 2,
+//             says nothing) taken as none. A page of 1.0.114 (its core.js) on this version: its
+//             picture without an Origin gets 6 by 2, never a 403; it is told to load itself
+//             again - this version's page then checks with its Origin - neither signed out nor
+//             "cannot be checked".
 // Prints one line of JSON: {ok, checks: {name: true|false}, timing, error?} - or {skip} where
 // Chromium does not start.
 const fs = require('fs');
@@ -71,13 +78,17 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
       deviceScaleFactor: phone ? 2 : 1, isMobile: !!phone, hasTouch: !!phone},
       withCert === false ? {} : {clientCertificates: [{origin: port, certPath: cert, keyPath: key}]}));
     await ctx.addCookies([{name: 'acme_lang', value: lang || 'en', url: base + '/'}]);
+    // A check is the picture asked with its Origin (1.0.115); one that failed is asked once more
+    // without it (a node of 1.0.114 sends no CORS) - kept apart (`bare`), not a check of its own.
     ctx.looks = [];
+    ctx.bare = [];
+    const seen = (r) => (r.headers().origin ? ctx.looks : ctx.bare);
     ctx.on('requestfinished', async (r) => {
       if (!ALIVE.test(r.url())) return;
       const s = await r.response();
-      ctx.looks.push(s ? s.status() : 0);
+      seen(r).push(s ? s.status() : 0);
     });
-    ctx.on('requestfailed', (r) => { if (ALIVE.test(r.url())) ctx.looks.push('x'); });
+    ctx.on('requestfailed', (r) => { if (ALIVE.test(r.url())) seen(r).push('x'); });
     return ctx;
   };
   const newPage = async (ctx) => {
@@ -319,7 +330,8 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
         })) === want[lang], 20000);
         out.timing['said_after_s_' + tag] = Math.round((Date.now() - t0) / 100) / 10;
         out.timing['looks_' + tag] = ctx.looks.join(',');
-        out.checks['two_tries_then_told_' + tag] = ctx.looks.filter((x) => x === 'x').length === 2;
+        out.checks['two_tries_then_told_' + tag] = ctx.looks.filter((x) => x === 'x').length === 2 &&
+          ctx.bare.filter((x) => x === 'x').length === 2;
         await page.waitForTimeout(300);
         await shot(page, 'unable-' + tag + '.png');
         out.checks['no_notice_' + tag] = (await page.locator('#card-lock').count()) === 0;
@@ -351,6 +363,84 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
         out.checks['no_page_errors_' + tag] = page.errs.length === 0;
         if (page.errs.length) out.errs = (out.errs || []).concat(page.errs);
         await ctx.close();
+      }
+    } else if (phase === 'mixed') {
+      // acme-api.php's pictures: 1 and 2 wide (a node of 1.0.114 too), 6 by 2 (says nothing)
+      const gifs = {'1x1': 'R0lGODlhAQABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAABAAEAAAgEAAEEBAA7',
+                    '2x1': 'R0lGODlhAgABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAACAAEAAAgFAAEACAgAOw==',
+                    '6x2': 'R0lGODlhBgACAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAAGAAIAAAgIAAEIHEhQYEAAOw=='};
+      const gif = (w, h) => Buffer.from(gifs[w + 'x' + h], 'base64');
+      // a) This page against a node of 1.0.114: no CORS on the picture asked with its Origin; the
+      // same picture asked without it is that node's answer.
+      let ctx = await context('en');
+      let page = await newPage(ctx);
+      out.checks.signed_in = await certSignIn(page);
+      await until(page, () => ctx.looks.length >= 1, 10000);
+      let oldNode = 1;
+      let lost = 0;
+      page.on('request', (r) => { if (/[?&]api=cert-lost/.test(r.url())) lost += 1; });
+      await ctx.route(ALIVE, (r) => r.fulfill({status: 200, contentType: 'image/gif', body: gif(oldNode, 1),
+                                               headers: {'Cache-Control': 'no-store'}}));
+      const l0 = ctx.bare.length;
+      await page.evaluate(() => cardCheckNow());
+      out.checks.old_node_asked_without_origin = await until(page, () => ctx.bare.length > l0, 10000);
+      await page.waitForTimeout(1500);
+      out.checks.old_node_card_in = (await page.locator('#card-lock').count()) === 0 && lost === 0 &&
+        (await page.locator('#signout').count()) > 0;
+      oldNode = 2;
+      await page.evaluate(() => cardCheckNow());
+      out.checks.old_node_card_out_the_notice = await until(page, async () => (await page.locator('#card-lock').count()) > 0, 10000) &&
+        lost === 0;
+      oldNode = 1;
+      out.checks.old_node_card_back = await until(page, async () => (await page.locator('#card-lock').count()) === 0, 15000);
+      // ...this version's answer to a picture without an Origin: says nothing - taken as none.
+      await ctx.unroute(ALIVE);
+      await ctx.route(ALIVE, (r) => r.request().headers().origin ? r.abort('failed')
+        : r.fulfill({status: 200, contentType: 'image/gif', body: gif(6, 2), headers: {'Cache-Control': 'no-store'}}));
+      await page.evaluate(() => cardCheckNow());
+      out.checks.nothing_said_is_none = await until(page, () => lost >= 1, 10000);
+      await ctx.unroute(ALIVE);
+      await ctx.close();
+      // b) A page of 1.0.114 on this version (its core.js, as a tab left open over the upgrade).
+      const oldJs = process.env.ACME_OLD_CORE_JS;
+      if (oldJs && fs.existsSync(oldJs)) {
+        ctx = await context('en');
+        page = await newPage(ctx);
+        out.checks.old_page_signed_in = await certSignIn(page);
+        let served = 0;
+        await ctx.route(/\/assets\/core\.js/, (r) => {
+          if (served++ === 0) return r.fulfill({status: 200, contentType: 'application/javascript', body: fs.readFileSync(oldJs)});
+          return r.continue();
+        });
+        const answers = [];
+        ctx.on('response', async (r) => {
+          if (!ALIVE.test(r.url())) return;
+          answers.push({status: r.status(), origin: !!r.request().headers().origin});
+        });
+        const posted = [];
+        page.on('request', (r) => { if (/[?&]api=cert-lost/.test(r.url())) posted.push(r.postData() || ''); });
+        await page.reload();
+        await page.waitForSelector('#signout', {timeout: 15000});
+        out.checks.old_page_running = await page.evaluate(() => typeof cardCheck === 'function' && !/crossOrigin/.test(cardCheck.toString()));
+        // its first check (1.5 s): 6 by 2 - no cookie to it, said over 443 without `v`; told
+        // to load itself again - this version's core.js then, its picture with its Origin.
+        out.checks.old_page_loaded_again_new_script = await until(page, async () => served >= 2 &&
+          await page.evaluate(() => typeof cardCheck === 'function' && /crossOrigin/.test(cardCheck.toString())), 30000);
+        out.timing.old_page_answers = answers;
+        out.timing.old_page_posted = posted;
+        out.checks.old_page_never_403 = answers.filter((a) => !a.origin).every((a) => a.status === 200) &&
+          answers.some((a) => !a.origin);
+        out.checks.old_page_told_without_v = posted.some((x) => !/"v"/.test(x) && /nocookie/.test(x));
+        await until(page, () => answers.some((a) => a.origin && a.status === 200), 15000);
+        await page.waitForTimeout(1000);
+        out.checks.old_page_still_signed_in_watched = (await page.locator('#signout').count()) > 0 &&
+          (await status(page)).startsWith('200') &&
+          await page.evaluate(() => fetch('?api=whoami', {credentials: 'same-origin'})
+            .then((r) => r.json()).then((d) => !!d.who && !!d.who.card && !d.who.card.unable && !d.who.card.locked));
+        out.checks.old_page_no_notice = (await page.locator('#card-lock').count()) === 0;
+        await ctx.close();
+      } else {
+        out.timing.old_page = 'skipped: ACME_OLD_CORE_JS not given';
       }
     }
     out.ok = Object.keys(out.checks).length > 0 && Object.keys(out.checks).every((k) => out.checks[k] === true);

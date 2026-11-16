@@ -294,7 +294,7 @@ def test_01_off_changes_nothing(self):
             self.assertNotIn('card', v['parts'][part])
         st, got = self.alive(tok, 'nested')
         self.assertEqual(st, 404, got)
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin'}, tok)
         self.assertEqual(st, 404, got)
         # Nothing held, nothing ended, however long nobody checked.
         self.session_set(tok, created=time.time() - 3600)
@@ -489,7 +489,7 @@ def test_04_passwords_untouched(self):
             self.assertEqual(got['state'], 'unwatched', got)
         lsn = self.serving()
         try:
-            st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)
+            st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin'}, tok)
             self.assertEqual(got['state'], 'unwatched', got)
         finally:
             lsn.close()
@@ -564,13 +564,13 @@ def test_06_lost_only_while_served(self):
         st, got = self.sign('admin', 'nested')
         tok = got['token']
         self.not_serving()
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin'}, tok)
         self.assertEqual(got['state'], 'unknown', got)
         self.assertIsNotNone(self.session_data(tok))
         lsn = self.serving()
         try:
             self.proven(tok)
-            st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)
+            st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin'}, tok)
             self.assertEqual((got['state'], got['why']), ('gone', 'out'), got)
             self.assertIsNone(self.session_data(tok))
             self.assertTrue(any('was taken out' in w and 'the check got no answer at all' in w
@@ -581,14 +581,14 @@ def test_06_lost_only_while_served(self):
             tok = got['token']
             other = self.sign('admin', 'nested')[1]['token']
             self.proven(tok)
-            st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)
+            st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin'}, tok)
             self.assertEqual(got['state'], 'locked', got)
             self.assertTrue(0 < got['left'] <= 30, got)
             self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 423)
             # ...its own sign-in only.
             self.assertEqual(self.call('GET', '/api/status', None, other)[0], 200)
             # Not signed in: nothing.
-            st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, 'y' * 43)
+            st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin'}, 'y' * 43)
             self.assertEqual(got['state'], 'none', got)
         finally:
             lsn.close()
@@ -744,7 +744,13 @@ def test_09_nginx_with_the_card_watched(self):
             self.assertIn('location @acme_card_admin {', text)
             self.assertIn('location @acme_card_portal {', text)
             self.assertEqual(text.count('limit_req zone=acme_card burst='), 2)
-            self.assertEqual(text.count('error_page 429 500 502 503 504 = @acme_card_later;'), 2)
+            # ...each part's own "try later", its allow / deny lines again (review round 2: a
+            # client the part refuses got 200 once its checks were refused for their number).
+            for part in ('admin', 'portal'):
+                self.assertEqual(text.count('error_page 429 500 502 503 504 = @acme_card_later_%s;' % part), 1)
+                later = text.split('location @acme_card_later_%s {' % part, 1)[1].split('}', 1)[0]
+                self.assertIn('deny all;', later)
+                self.assertIn('try_files /.acme-card-later-nothing-here =418;', later)
             self.assertIn('width="8" height="1"', text)
         text = W.certlogin_text(main, None, c)
         # nginx -t takes it, where nginx is here.
@@ -770,6 +776,8 @@ def test_09_nginx_with_the_card_watched(self):
                 self.assertEqual(t.returncode, 0, t.stderr)
             finally:
                 shutil.rmtree(d, ignore_errors=True)
+            if os.geteuid() == 0:
+                self.later_allowed(W, main, c)
         self.on(admin_certlogin_card_watch='off')
         want = self.py('print(json.dumps(E.certlogin_desired(st)))')
         self.assertTrue(want.get('watch'))                  # the portal's still
@@ -782,6 +790,72 @@ def test_09_nginx_with_the_card_watched(self):
             self.assertNotIn(x, off)
     finally:
         self.card_off()
+
+
+def later_allowed(self, W, main, c):
+    """A real nginx, PHP not answering (no such socket - 502): a client the administration's
+    allow list lets in gets "try later" (8 px); one it refuses (127.0.0.1 denied) - 403, also
+    once its checks are refused for their number (review round 2, F5)."""
+    for denied in (False, True):
+        m = main.replace('        allow 127.0.0.1;\n', '        deny  127.0.0.1;\n') if denied else main
+        self.assertNotEqual(m == main, denied)
+        d = tempfile.mkdtemp(prefix='acme-card-later-')
+        port = TCL.free_port()
+        try:
+            text = W.certlogin_text(m, None, c)
+            body = re.sub(r'include\s+fastcgi_params;', 'include /etc/nginx/fastcgi_params;', text)
+            body = body.replace(W.CERTLOGIN_CA, os.path.join(self.pki, 'cas.pem'))
+            body = body.replace('/etc/nginx/certs/acme.pem', os.path.join(self.pki, 'web-chain.pem')) \
+                .replace('/etc/nginx/certs/acme.key', os.path.join(self.pki, 'web.key')) \
+                .replace('/var/log/nginx/', d + '/')
+            body = re.sub(r'unix:[^;\s]+', 'unix:' + os.path.join(d, 'no-such.sock'), body)
+            body = re.sub(r'(?m)^\s*ssl_dhparam[^\n]*\n', '', body)
+            body = re.sub(r'(?m)^\s*listen\s+\[::\][^\n]*\n', '', body)
+            body = re.sub(r'listen(\s+)8443 ', r'listen\g<1>%d ' % port, body)
+            # the zones of the main server's http block the port's server uses
+            zones = '\n'.join(re.findall(r'(?m)^limit_req_zone \$binary_remote_addr zone=acme_all:[^\n]+', main))
+            conf = os.path.join(d, 'nginx.conf')
+            with open(conf, 'w') as f:
+                f.write('pid %s/nginx.pid;\nerror_log %s/error.log;\nevents {}\nhttp {\n'
+                        'include /etc/nginx/mime.types;\naccess_log %s/access.log;\n'
+                        'client_body_temp_path %s;\nfastcgi_temp_path %s;\nproxy_temp_path %s;\n'
+                        'scgi_temp_path %s;\nuwsgi_temp_path %s;\n%s\n%s\n}\n'
+                        % (d, d, d, d, d, d, d, d, zones, body))
+            t = subprocess.run(['nginx', '-t', '-p', d, '-c', conf], capture_output=True, text=True)
+            self.assertEqual(t.returncode, 0, t.stderr + body)
+            ng = subprocess.Popen(['nginx', '-p', d, '-c', conf, '-g', 'daemon off;'],
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                for _ in range(50):
+                    if self._open(port):
+                        break
+                    time.sleep(0.1)
+                ctx = ssl.create_default_context(cafile=os.path.join(self.pki, 'root.pem'))
+                ctx.check_hostname = False
+                got = []
+                for i in range(240):            # past the burst of 200: nginx's own 429 too
+                    conn = http.client.HTTPSConnection('127.0.0.1', port, context=ctx, timeout=30)
+                    conn.request('GET', '/admin/?api=cert-alive&t=%d' % i,
+                                 headers={'Host': 'localhost:%d' % port, 'Origin': 'https://localhost'})
+                    r = conn.getresponse()
+                    got.append((r.status, r.read()[:60]))
+                    conn.close()
+                with open(os.path.join(d, 'error.log')) as f:
+                    log = f.read()
+                if denied:
+                    self.assertEqual({st for st, _b in got}, {403}, got[:3])
+                    self.assertIn('limiting requests', log)        # the limit was reached
+                else:
+                    self.assertEqual({st for st, _b in got}, {200}, got[:3])
+                    self.assertTrue(all(b'width="8"' in b for _st, b in got))
+            finally:
+                ng.terminate()
+                ng.wait(10)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+
+CardWatch.later_allowed = later_allowed
 
 
 def s_client(port, cert, key, *more, stdin='', hold=0):
@@ -1050,16 +1124,38 @@ def test_10_real_nginx_and_the_browser(self):
                                headers={'Sec-Fetch-Site': 'cross-site'})
         self.assertEqual(st, 403)
         # 1.0.115: only this name's page - a sibling host (same site: its pictures get the
-        # cookie too), no Origin at all (a picture without crossorigin, a navigation), or not
-        # asked as a picture - 403, nothing asked, no CORS.
+        # cookie too), a navigation without an Origin, or not asked as a picture - 403, nothing
+        # asked, no CORS.
         for bad in ({'Origin': 'https://sibling.' + name, 'Sec-Fetch-Site': 'same-site', 'Sec-Fetch-Dest': 'image'},
-                    {'Sec-Fetch-Site': 'same-site', 'Sec-Fetch-Dest': 'image'},
+                    {'Sec-Fetch-Site': 'same-site', 'Sec-Fetch-Dest': 'document'},
+                    {'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Dest': 'image'},
                     {'Origin': 'https://' + name, 'Sec-Fetch-Site': 'same-site', 'Sec-Fetch-Dest': 'document'},
                     {'Origin': 'https://' + name + ':8443', 'Sec-Fetch-Site': 'same-origin', 'Sec-Fetch-Dest': 'image'},
                     {'Origin': 'http://' + name}):
             st, hd, body, _s = ask(8443, '/admin/?api=cert-alive&t=5', 'nested', sess, headers=bad)
             self.assertEqual(st, 403, bad)
             self.assertEqual(hget(hd, 'Access-Control-Allow-Origin'), [], bad)
+        # A picture without an Origin at all (review round 2): a page of 1.0.114 still open asks
+        # so - a 403 was "no answer" and signed it out. A picture that says nothing, the same
+        # for everybody (6 by 2, no CORS) - nothing asked of the daemon, nothing renewed; to the
+        # old page "no cookie", which it says over 443 without `v` - told to load itself again.
+        seen = time.time() - 50
+        self.session_set(sess[0].split('=', 1)[1], card_seen=seen)
+        for hd_bare in ({'Sec-Fetch-Site': 'same-site', 'Sec-Fetch-Dest': 'image', 'Sec-Fetch-Mode': 'no-cors'},
+                        {}):
+            for who in (sess, []):
+                st, hd, body, _s = ask(8443, '/admin/?api=cert-alive&t=5', 'nested', who, headers=hd_bare)
+                self.assertEqual((st, body[:6], body[6] | body[7] << 8, body[8] | body[9] << 8),
+                                 (200, b'GIF89a', 6, 2), hd_bare)
+                self.assertEqual(hget(hd, 'Access-Control-Allow-Origin'), [])
+            st, hd, body, _s = ask(8443, '/admin/?api=cert-alive&t=5', None, sess, headers=hd_bare)
+            self.assertEqual((st, body[6], body[8]), (200, 6, 2))           # no card: the same
+        self.assertEqual(float(self.session_data(sess[0].split('=', 1)[1]).get('card_seen')), seen)
+        st, hd, body, _s = ask(443, '/admin/?api=cert-lost', cookies=sess, method='POST',
+                               body={'part': 'admin', 'why': 'nocookie'})
+        self.assertEqual(json.loads(body)['state'], 'none', body)
+        self.assertEqual(ask(443, '/admin/?api=status', cookies=sess)[0], 200)   # nothing changed
+        self.assertNotIn('card_out', self.session_data(sess[0].split('=', 1)[1]))
         # A browser without Sec-Fetch-* (an older Safari): its Origin is enough.
         self.assertEqual(check(5, 'nested', sess, headers={'Origin': 'https://' + name})[:2], (200, 1))
         # The page on 443 has no such address; the port nothing else new.
@@ -1087,7 +1183,7 @@ def test_10_real_nginx_and_the_browser(self):
         st, hd, body, _s = ask(443, '/admin/?api=status', cookies=sess)
         self.assertEqual(st, 200)
         # The page's picture got nothing (the handshake failed): it says so over 443 - held.
-        st, hd, body, _s = ask(443, '/admin/?api=cert-lost', cookies=sess, method='POST', body={'part': 'admin'})
+        st, hd, body, _s = ask(443, '/admin/?api=cert-lost', cookies=sess, method='POST', body={'v': 2, 'part': 'admin'})
         self.assertEqual(json.loads(body)['state'], 'locked', body)
         self.assertEqual(check(14, 'nested', sess)[:2], (200, 1))
         # A first check that came without the card (1.0.115): the card out, never "cannot be
@@ -1095,7 +1191,7 @@ def test_10_real_nginx_and_the_browser(self):
         sess = sign_in()
         self.assertEqual(check(15, None, sess)[:2], (200, 2))
         st, hd, body, _s = ask(443, '/admin/?api=cert-lost', cookies=sess, method='POST',
-                               body={'part': 'admin', 'why': 'nopicture'})
+                               body={'v': 2, 'part': 'admin', 'why': 'nopicture'})
         self.assertEqual(json.loads(body)['state'], 'locked', body)
         self.assertEqual(ask(443, '/admin/?api=status', cookies=sess)[0], 423)
         self.assertEqual(check(16, 'nested', sess)[:2], (200, 1))
@@ -1104,7 +1200,7 @@ def test_10_real_nginx_and_the_browser(self):
         # policy lets the port in), and a check that finds the card watches it again (1.0.115).
         sess = sign_in()
         st, hd, body, _s = ask(443, '/admin/?api=cert-lost', cookies=sess, method='POST',
-                               body={'part': 'admin', 'why': 'nopicture'})
+                               body={'v': 2, 'part': 'admin', 'why': 'nopicture'})
         self.assertEqual(json.loads(body)['state'], 'unable', body)
         self.assertEqual(check(17, None, sess)[:2], (200, 7))
         st, hd, body, _s = ask(443, '/admin/?api=status', cookies=sess)
@@ -1153,12 +1249,23 @@ def test_10_real_nginx_and_the_browser(self):
         node = shutil.which('node')
         js = os.path.join(HERE, 'cert_card_page.js')
         if node and os.path.exists(js):
+            # core.js of 1.0.114 (a page left open over the upgrade), where git can say it.
+            old_js = os.path.join(d, 'core-1.0.114.js')
+            rel = subprocess.run(['git', 'log', '--format=%H', '-n', '1', '--grep', '^Release 1.0.114$'],
+                                 cwd=ROOT, capture_output=True, text=True).stdout.strip()
+            got = subprocess.run(['git', 'show', '%s:web/assets/core.js' % rel], cwd=ROOT,
+                                 capture_output=True) if rel else None
+            if got is not None and got.returncode == 0 and got.stdout:
+                with open(old_js, 'wb') as f:
+                    f.write(got.stdout)
+
             def browser(phase):
                 got = subprocess.run([node, js, phase, 'https://%s' % name, pem, key, 'tester',
                                       self.pw, SHOTS],
                                      capture_output=True, text=True, timeout=900, input='',
                                      env=dict(os.environ, NODE_PATH=os.environ.get('NODE_PATH') or
-                                              '/opt/node22/lib/node_modules'))
+                                              '/opt/node22/lib/node_modules',
+                                              ACME_OLD_CORE_JS=old_js))
                 line = (got.stdout.strip().splitlines() or ['{}'])[-1]
                 try:
                     res = json.loads(line)
@@ -1181,6 +1288,11 @@ def test_10_real_nginx_and_the_browser(self):
                 self.assertTrue(any('not put back in time' in w for w in self.events('not put back in time')))
                 self.on(admin_certlogin_card_grace=30)
                 browser('options')
+                # An upgrade half way (review round 2): this page against a node of 1.0.114, and a
+                # page of 1.0.114 (its core.js) against this version.
+                browser('mixed')
+                self.assertFalse(any('cannot be checked in this browser' in w
+                                     for w in self.events('cannot be checked in this browser')))
                 # An iPad simulated: the sign-in works, the background's picture never does.
                 browser('unable')
                 self.assertTrue(any('cannot be checked in this browser - the check got no answer at all' in w
@@ -1349,7 +1461,7 @@ def test_12_a_browser_that_cannot_be_checked(self):
         d = self.session_data(tok)
         self.assertNotIn('card_ok', d)                                  # the sign-in does not count
         self.assertEqual(d.get('card_w'), 1)                            # made while watched
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
         self.assertEqual((st, got['state']), (200, 'unable'), got)
         self.assertEqual(self.session_data(tok).get('card_ok'), -1)
         self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 200)
@@ -1366,7 +1478,7 @@ def test_12_a_browser_that_cannot_be_checked(self):
         n = len(self.events('cannot be checked in this browser'))
         self.assertEqual(self.alive(tok, None)[1]['state'], 'unable')
         self.assertEqual(self.alive(tok, None, failed='FAILED:x')[1]['state'], 'unable')
-        self.assertEqual(self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)[1]['state'], 'unable')
+        self.assertEqual(self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin'}, tok)[1]['state'], 'unable')
         self.assertEqual(len(self.events('cannot be checked in this browser')), n)
         # ...never held for its card: its page asleep for long, a card_out left over - answered.
         self.session_set(tok, card_seen=time.time() - 3600, card_out=time.time() - 3600)
@@ -1387,14 +1499,14 @@ def test_12_a_browser_that_cannot_be_checked(self):
                             "after all - it is watched again" in w for w in self.events('watched again')))
         self.assertNotIn('unable', self.call('GET', '/api/auth/whoami', None, tok)[1]['who']['card'])
         self.assertEqual(self.ok('GET', '/api/certlogin', session=self.ro)['parts']['admin']['card']['sessions'], 1)
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
         self.assertEqual(got['state'], 'locked', got)
         self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 423)
         self.assertEqual(self.alive(tok, 'nested')[1]['state'], 'ok')
         # ...another card on an unwatched one's check: ended, as on a watched one's.
         st, got = self.sign('admin', 'nested')
         tok = got['token']
-        self.assertEqual(self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)[1]['state'], 'unable')
+        self.assertEqual(self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin'}, tok)[1]['state'], 'unable')
         st, got = self.alive(tok, 'falco')
         self.assertEqual((got['state'], got['why']), ('gone', 'other'), got)
         self.assertIsNone(self.session_data(tok))
@@ -1409,7 +1521,7 @@ def test_12_a_browser_that_cannot_be_checked(self):
             elif how == 'failed':
                 st, got = self.alive(tok, None, failed='FAILED:unable to verify')
             else:
-                st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': how}, tok)
+                st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': how}, tok)
             self.assertEqual((got['state'], got['why']), ('gone', 'out'), (how, got))
             self.assertIsNone(self.session_data(tok))
         self.assertTrue(any('was taken out (the browser sent no cookie with the check)' in w
@@ -1418,33 +1530,33 @@ def test_12_a_browser_that_cannot_be_checked(self):
         # waiting rather than fail it; the same gates (held, out, made before: a card out).
         st, got = self.sign('admin', 'nested')
         tok = got['token']
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'timeout'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'timeout'}, tok)
         self.assertEqual(got['state'], 'unable', got)
         self.assertTrue(any("cannot be checked in this browser - the check got no answer within 20 s"
                             in w for w in self.events('within 20 s')))
         st, got = self.sign('admin', 'nested')
         tok = got['token']
         self.proven(tok)
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'timeout'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'timeout'}, tok)
         self.assertEqual((got['state'], got['why']), ('gone', 'out'), got)
         # A word of its own is no reason: taken as nopicture.
         st, got = self.sign('admin', 'nested')
         tok = got['token']
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': '<b>x</b>'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': '<b>x</b>'}, tok)
         self.assertEqual(got['state'], 'unable', got)
         self.assertFalse(any('<b>' in w for w in self.events('cannot be checked')))
         # Found once, then without it: a card taken out, as always (signout - ended).
         st, got = self.sign('admin', 'nested')
         tok = got['token']
         self.proven(tok)
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
         self.assertEqual((got['state'], got['why']), ('gone', 'out'), got)
         self.assertIsNone(self.session_data(tok))
         # unable = signout: never found - signed out as a card taken out.
         self.on(admin_certlogin_card_unable='signout')
         st, got = self.sign('admin', 'nested')
         tok = got['token']
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
         self.assertEqual((got['state'], got['why']), ('gone', 'out'), got)
         self.assertIsNone(self.session_data(tok))
         # The portal: its own setting, the same way.
@@ -1454,7 +1566,7 @@ def test_12_a_browser_that_cannot_be_checked(self):
         ptok = got['token']
         st, me = self.call('GET', '/api/portal/me', None, ptok)
         self.assertEqual(me['me']['card']['watch'], 'signout')
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'portal', 'why': 'nopicture'}, ptok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'portal', 'why': 'nopicture'}, ptok)
         self.assertEqual(got['state'], 'unable', got)
         st, me = self.call('GET', '/api/portal/me', None, ptok)
         self.assertTrue(me['me']['card']['unable'])
@@ -1463,7 +1575,7 @@ def test_12_a_browser_that_cannot_be_checked(self):
                             for w in self.events('cannot be checked')), self.events('cannot be checked'))
         self.on(portal_certlogin_card_unable='signout')
         st, got = self.sign('portal', 'falco')
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'portal', 'why': 'nopicture'}, got['token'])
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'portal', 'why': 'nopicture'}, got['token'])
         self.assertEqual(got['state'], 'gone', got)
     finally:
         lsn.close()
@@ -1486,7 +1598,7 @@ def test_13_no_way_out_of_the_watch(self):
         self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 200)
         self.session_set(tok, card_seen=time.time() - 3600)
         self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 423)
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
         self.assertEqual(got['state'], 'locked', got)
         self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 423)
         self.assertEqual(float(self.session_data(tok).get('card_ok') or 0), 0)
@@ -1496,10 +1608,10 @@ def test_13_no_way_out_of_the_watch(self):
         st, got = self.sign('admin', 'nested')
         tok = got['token']
         self.session_set(tok, card_out=time.time() - 5)
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
         self.assertEqual(got['state'], 'locked', got)
         self.session_set(tok, card_out=time.time() - 3600)
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
         self.assertEqual(got['state'], 'gone', got)
         self.assertIsNone(self.session_data(tok))
         # b) A transient first failure (nginx refused once) is the card out - not unwatched for
@@ -1519,7 +1631,7 @@ def test_13_no_way_out_of_the_watch(self):
         self.assertNotIn('card_w', self.session_data(tok))
         self.on(admin_certlogin_card_watch='signout')
         self.assertIn('card', self.call('GET', '/api/auth/whoami', None, tok)[1]['who'])
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
         self.assertEqual((got['state'], got['why']), ('gone', 'out'), got)
         self.assertIsNone(self.session_data(tok))
         # ...nor one made while on, then off and on again: switched on, none counts as made
@@ -1530,13 +1642,13 @@ def test_13_no_way_out_of_the_watch(self):
         self.on(admin_certlogin_card_watch='off')
         self.on(admin_certlogin_card_watch='grace')
         self.assertFalse(self.session_data(tok).get('card_w'))
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
         self.assertEqual(got['state'], 'locked', got)
         # ...nor held or out with none within 20 s (review round 2: timeout as nopicture).
         st, got = self.sign('admin', 'nested')
         tok = got['token']
         self.session_set(tok, card_seen=time.time() - 3600)
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'timeout'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'timeout'}, tok)
         self.assertEqual(got['state'], 'locked', got)
         self.assertEqual(float(self.session_data(tok).get('card_ok') or 0), 0)
         # ...but whoever switches it on (review round 2, F7): their own sign-in counts as made
@@ -1551,9 +1663,9 @@ def test_13_no_way_out_of_the_watch(self):
         self.assertEqual(self.settings(session=mine, admin_certlogin_card_watch='grace')[0], 200)
         self.assertEqual(self.session_data(mine).get('card_w'), 1)
         self.assertFalse(self.session_data(tok).get('card_w'))
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, mine)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, mine)
         self.assertEqual(got['state'], 'unable', got)
-        st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin', 'why': 'nopicture'}, tok)
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
         self.assertEqual(got['state'], 'locked', got)
         # ...switched off and on again by them: kept for them, not for the others.
         st, got = self.sign('admin', 'nested')
