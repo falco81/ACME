@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.114 - not released
+## 1.0.114 - 2026-11-16
 
 - **Signing in with a certificate - the card taken out, as the kit "card-removal-watch"** (its
   merge notes; docs/certificate-sign-in.md, *The card taken out*). Off (the default) changes
