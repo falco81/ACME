@@ -66307,6 +66307,566 @@
   "z_448": {
    "source": "CODE starts with ACAG1. and is made for one target: Targets → Add a target → Server with acme-agent, then Join the agent… on its card. It is not the fingerprint of acme’s agent authority below.",
    "text": "CODE začíná ACAG1. a vytváří se pro jeden cíl: Cíle → Přidat cíl → Server s acme-agentem, pak Připojit agenta… na jeho kartě. Není to otisk autority agentů acme níže."
+  },
+  "z_449": {
+   "source": "Design its policy…",
+   "text": "Navrhnout jeho politiku…"
+  },
+  "z_450": {
+   "source": "Click together what the agent may do on this server. acme never sends a policy: the result is copied to the server, where root writes it - checked there again, as here.",
+   "text": "Naklikejte, co agent na tomto serveru smí. acme politiku nikdy neposílá: výsledek se zkopíruje na server, kde ji zapíše root – a tam se zkontroluje znovu, stejně jako zde."
+  },
+  "z_451": {
+   "source": "its policy on the server",
+   "text": "jeho politika na serveru"
+  },
+  "z_452": {
+   "source": "its policy (not said yet)",
+   "text": "jeho politika (zatím neřekl)"
+  },
+  "z_453": {
+   "source": "the saved design",
+   "text": "uložený návrh"
+  },
+  "z_454": {
+   "source": "the version opened",
+   "text": "otevřená verze"
+  },
+  "z_455": {
+   "source": "Templates",
+   "text": "Šablony"
+  },
+  "z_456": {
+   "source": "What the deployments need",
+   "text": "Co potřebují nasazení"
+  },
+  "z_457": {
+   "source": "Script hashes",
+   "text": "Otisky skriptů"
+  },
+  "z_458": {
+   "source": "Allow from",
+   "text": "Povolit odkud"
+  },
+  "z_459": {
+   "source": "Limits",
+   "text": "Limity"
+  },
+  "z_460": {
+   "source": "One click adds a coherent set: the folder with its owner and mode (as the deployment presets write it), the units and their verbs, the test, a test of what it serves.",
+   "text": "Jedno klepnutí přidá ucelenou sadu: složku s vlastníkem a režimem (jak ji zapisují předvolby nasazení), jednotky a jejich akce, test a test toho, co služba poskytuje."
+  },
+  "z_461": {
+   "source": "Added from the template",
+   "text": "Přidáno ze šablony"
+  },
+  "z_462": {
+   "source": "Nothing of that name - Any systemd service fits every other.",
+   "text": "Nic takového – pro všechno ostatní se hodí Jakákoli služba systemd."
+  },
+  "z_463": {
+   "source": "A folder for certificates",
+   "text": "Složka pro certifikáty"
+  },
+  "z_464": {
+   "source": "Each deployment to this target, as its form judges it: add what is missing with one click.",
+   "text": "Každé nasazení na tento cíl, jak ho posuzuje jeho formulář: co chybí, přidáte jedním klepnutím."
+  },
+  "z_465": {
+   "source": "No deployment to this target yet - each one says here what it needs.",
+   "text": "Na tento cíl zatím nic nenasazuje – každé nasazení zde řekne, co potřebuje."
+  },
+  "z_466": {
+   "source": "Add all that the deployments need",
+   "text": "Přidat vše, co nasazení potřebují"
+  },
+  "z_467": {
+   "source": "the policy allows all of it already",
+   "text": "politika už to všechno dovoluje"
+  },
+  "z_468": {
+   "source": "unit",
+   "text": "jednotka"
+  },
+  "z_469": {
+   "source": "command",
+   "text": "příkaz"
+  },
+  "z_470": {
+   "source": "the script written in acme",
+   "text": "skript napsaný v acme"
+  },
+  "z_471": {
+   "source": "limit",
+   "text": "limit"
+  },
+  "z_472": {
+   "source": "one of",
+   "text": "jedno z"
+  },
+  "z_473": {
+   "source": "Files in the folder and below it, owned so, at most that mode. Allow the narrowest folder that holds only certificates.",
+   "text": "Soubory ve složce a pod ní, s tímto vlastníkem, nejvýše s tímto režimem. Povolte co nejužší složku, ve které jsou jen certifikáty."
+  },
+  "z_474": {
+   "source": "Add a folder",
+   "text": "Přidat složku"
+  },
+  "z_475": {
+   "source": "No folder: acme can write no file here.",
+   "text": "Žádná složka: acme sem nemůže zapsat žádný soubor."
+  },
+  "z_476": {
+   "source": "others",
+   "text": "ostatní"
+  },
+  "z_477": {
+   "source": "owner read",
+   "text": "vlastník čte"
+  },
+  "z_478": {
+   "source": "owner write",
+   "text": "vlastník zapisuje"
+  },
+  "z_479": {
+   "source": "owner execute",
+   "text": "vlastník spouští"
+  },
+  "z_480": {
+   "source": "group read",
+   "text": "skupina čte"
+  },
+  "z_481": {
+   "source": "group write",
+   "text": "skupina zapisuje"
+  },
+  "z_482": {
+   "source": "group execute",
+   "text": "skupina spouští"
+  },
+  "z_483": {
+   "source": "others read",
+   "text": "ostatní čtou"
+  },
+  "z_484": {
+   "source": "others write",
+   "text": "ostatní zapisují"
+  },
+  "z_485": {
+   "source": "others execute",
+   "text": "ostatní spouštějí"
+  },
+  "z_486": {
+   "source": "systemctl VERB NAME - only the verbs chosen; after it the agent says whether the unit is active.",
+   "text": "systemctl AKCE JMÉNO – jen vybrané akce; potom agent řekne, zda je jednotka aktivní."
+  },
+  "z_487": {
+   "source": "Add a unit",
+   "text": "Přidat jednotku"
+  },
+  "z_488": {
+   "source": "No unit: acme reloads nothing here.",
+   "text": "Žádná jednotka: acme zde nic nenačítá znovu."
+  },
+  "z_489": {
+   "source": "A command line exactly as written - a test, a reload or a command before / after. Never through a shell: a | ; $ > is a word like any other.",
+   "text": "Příkazový řádek přesně tak, jak je napsán – test, znovunačtení nebo příkaz před / po. Nikdy přes shell: | ; $ > je slovo jako každé jiné."
+  },
+  "z_490": {
+   "source": "Add a command",
+   "text": "Přidat příkaz"
+  },
+  "z_491": {
+   "source": "No command: a deployment here runs no test.",
+   "text": "Žádný příkaz: nasazení zde nespustí žádný test."
+  },
+  "z_492": {
+   "source": "A script on the server, by its path and its SHA-256: changed meanwhile, it is refused. Leave the hash empty to pin it on the server: sudo acme-agent allow script PATH reads it there and writes its hash.",
+   "text": "Skript na serveru podle cesty a SHA-256: změní-li se mezitím, je odmítnut. Nechte otisk prázdný a připněte ho na serveru: sudo acme-agent allow script CESTA ho tam přečte a zapíše jeho otisk."
+  },
+  "z_493": {
+   "source": "Add a script",
+   "text": "Přidat skript"
+  },
+  "z_494": {
+   "source": "sha256 - empty: pinned on the server",
+   "text": "sha256 – prázdné: připne se na serveru"
+  },
+  "z_495": {
+   "source": "No script on the server.",
+   "text": "Žádný skript na serveru."
+  },
+  "z_496": {
+   "source": "A script written in acme (a deployment’s “After the files”) runs only when its SHA-256 is here - change one letter of it and it is refused.",
+   "text": "Skript napsaný v acme („Po souborech“ nasazení) se spustí jen tehdy, je-li zde jeho SHA-256 – změňte v něm jediné písmeno a je odmítnut."
+  },
+  "z_497": {
+   "source": "Add a hash",
+   "text": "Přidat otisk"
+  },
+  "z_498": {
+   "source": "64 hex digits",
+   "text": "64 šestnáctkových číslic"
+  },
+  "z_499": {
+   "source": "The scripts of this target’s deployments",
+   "text": "Skripty nasazení tohoto cíle"
+  },
+  "z_500": {
+   "source": "A passive agent lets acme in only from these addresses (else from anywhere with acme’s certificate); anybody else is turned away before the TLS handshake.",
+   "text": "Pasivní agent pustí acme jen z těchto adres (jinak odkudkoli s certifikátem acme); kohokoli jiného odmítne ještě před navázáním TLS."
+  },
+  "z_501": {
+   "source": "Add an address",
+   "text": "Přidat adresu"
+  },
+  "z_502": {
+   "source": "This agent is active: it connects to acme and listens on nothing - the addresses matter only if it is made passive.",
+   "text": "Tento agent je aktivní: připojuje se k acme a na ničem nenaslouchá – adresy mají význam, jen pokud se z něj udělá pasivní."
+  },
+  "z_503": {
+   "source": "acme’s addresses",
+   "text": "Adresy acme"
+  },
+  "z_504": {
+   "source": "acme’s tests of what is served, connected from this server (Certificates → Tests, through the agent).",
+   "text": "Testy acme toho, co je poskytováno, připojené z tohoto serveru (Certifikáty → Testy, přes agenta)."
+  },
+  "z_505": {
+   "source": "Add a place",
+   "text": "Přidat místo"
+  },
+  "z_506": {
+   "source": "Anything on this server (127.0.0.1, ::1, localhost) - what the tests of its deployments need",
+   "text": "Cokoli na tomto serveru (127.0.0.1, ::1, localhost) – to, co potřebují testy jeho nasazení"
+  },
+  "z_507": {
+   "source": "acme reaches a host and port through this agent - the agent as the connector of SSH targets. Off unless you need it.",
+   "text": "acme se přes tohoto agenta dostane na hostitele a port – agent jako konektor cílů SSH. Vypnuto, pokud to nepotřebujete."
+  },
+  "z_508": {
+   "source": "acme may connect through this server",
+   "text": "acme se smí připojovat přes tento server"
+  },
+  "z_509": {
+   "source": "Whoever controls a running acme could then reach each of these from this server. Name addresses rather than names where that matters, and only the hosts that need it.",
+   "text": "Kdo ovládne běžící acme, mohl by se pak z tohoto serveru dostat na každé z nich. Kde na tom záleží, uvádějte adresy místo jmen, a jen hostitele, kteří to potřebují."
+  },
+  "z_510": {
+   "source": "Add a host",
+   "text": "Přidat hostitele"
+  },
+  "z_511": {
+   "source": "acme may send a newer agent: only the package signed by the release key the agent was installed with, only a newer version - acme’s own package, never one from the internet.",
+   "text": "acme smí poslat novějšího agenta: jen balíček podepsaný vydávacím klíčem, se kterým byl agent nainstalován, jen novější verzi – vlastní balíček acme, nikdy z internetu."
+  },
+  "z_512": {
+   "source": "acme may update this agent",
+   "text": "acme smí tohoto agenta aktualizovat"
+  },
+  "z_513": {
+   "source": "How much one deployment may write.",
+   "text": "Kolik smí jedno nasazení zapsat."
+  },
+  "z_514": {
+   "source": "Files in one deployment",
+   "text": "Souborů v jednom nasazení"
+  },
+  "z_515": {
+   "source": "Bytes of one file",
+   "text": "Bajtů jednoho souboru"
+  },
+  "z_516": {
+   "source": "The policy file",
+   "text": "Soubor politiky"
+  },
+  "z_517": {
+   "source": "As allow lines",
+   "text": "Jako řádky allow"
+  },
+  "z_518": {
+   "source": "One block to paste",
+   "text": "Jeden blok ke vložení"
+  },
+  "z_519": {
+   "source": "What changes",
+   "text": "Co se změní"
+  },
+  "z_520": {
+   "source": "Download policy file",
+   "text": "Stáhnout soubor politiky"
+  },
+  "z_521": {
+   "source": "/etc/acme-agent/policy, root:root 0644 - in place of the one there: sudo acme-agent policy apply FILE (checked first; the one before kept).",
+   "text": "/etc/acme-agent/policy, root:root 0644 – místo té, která tam je: sudo acme-agent policy apply SOUBOR (nejdřív se zkontroluje; předchozí se uchová)."
+  },
+  "z_522": {
+   "source": "Each line adds to what the policy allows already - nothing is taken away. To make it exactly this, paste the one block.",
+   "text": "Každý řádek přidává k tomu, co politika už dovoluje – nic se neodebírá. Aby byla přesně taková, vložte jeden blok."
+  },
+  "z_523": {
+   "source": "Paste it whole into a root shell on the server: the agent checks it, writes it in place of the one there and says what changed. Ask it now on the card then shows it.",
+   "text": "Vložte ho celý do shellu roota na serveru: agent ho zkontroluje, zapíše místo té, která tam je, a řekne, co se změnilo. Zeptat se teď na kartě ji pak ukáže."
+  },
+  "z_524": {
+   "source": "Against its policy as the agent last said it: + is allowed by the design only, - only on the server now.",
+   "text": "Proti politice, jak ji agent naposledy řekl: + dovoluje jen návrh, - jen server nyní."
+  },
+  "z_525": {
+   "source": "Its policy is not known yet - Ask it now on the card.",
+   "text": "Jeho politika zatím není známa – Zeptat se teď na kartě."
+  },
+  "z_526": {
+   "source": "Nothing changes: the server allows exactly this.",
+   "text": "Nic se nemění: server dovoluje přesně toto."
+  },
+  "z_527": {
+   "source": "nothing is allowed: acme can do nothing here",
+   "text": "nic není dovoleno: acme zde nemůže nic"
+  },
+  "z_528": {
+   "source": "the head of the file: what each entry is - click to fold or unfold",
+   "text": "hlavička souboru: co znamená každý záznam – klepnutím sbalíte nebo rozbalíte"
+  },
+  "z_529": {
+   "source": "The design, kept in acme",
+   "text": "Návrh uložený v acme"
+  },
+  "z_530": {
+   "source": "Documentation only: acme never sends it to the server. The card then says whether the server’s policy matches it.",
+   "text": "Jen dokumentace: acme ho na server nikdy neposílá. Karta pak řekne, zda mu politika serveru odpovídá."
+  },
+  "z_531": {
+   "source": "A full administrator saves a design.",
+   "text": "Návrh ukládá úplný správce."
+  },
+  "z_532": {
+   "source": "A title - nginx and Postfix on web1",
+   "text": "Název – nginx a Postfix na web1"
+  },
+  "z_533": {
+   "source": "A note - why it allows what it allows",
+   "text": "Poznámka – proč dovoluje to, co dovoluje"
+  },
+  "z_534": {
+   "source": "Save as this agent’s design",
+   "text": "Uložit jako návrh tohoto agenta"
+  },
+  "z_535": {
+   "source": "the design has lines the agent would not read - fix the red ones first",
+   "text": "návrh má řádky, které by agent nepřečetl – nejdřív opravte ty červené"
+  },
+  "z_536": {
+   "source": "the design is saved",
+   "text": "návrh je uložen"
+  },
+  "z_537": {
+   "source": "No design is saved yet.",
+   "text": "Zatím není uložen žádný návrh."
+  },
+  "z_538": {
+   "source": "the same as here",
+   "text": "stejný jako zde"
+  },
+  "z_539": {
+   "source": "changed here",
+   "text": "zde změněn"
+  },
+  "z_540": {
+   "source": "lines left out - fix them",
+   "text": "vynechané řádky – opravte je"
+  },
+  "z_541": {
+   "source": "the agent takes it - look twice",
+   "text": "agent ji přijme – podívejte se dvakrát"
+  },
+  "z_542": {
+   "source": "the agent takes all of it",
+   "text": "agent přijme všechno"
+  },
+  "z_543": {
+   "source": "allows nothing",
+   "text": "nedovoluje nic"
+  },
+  "z_544": {
+   "source": "entries",
+   "text": "záznamů"
+  },
+  "z_545": {
+   "source": "to look at",
+   "text": "k pohledu"
+  },
+  "z_546": {
+   "source": "this command line is said twice",
+   "text": "tento příkazový řádek je uveden dvakrát"
+  },
+  "z_547": {
+   "source": "a command is one to 64 words",
+   "text": "příkaz má jedno až 64 slov"
+  },
+  "z_548": {
+   "source": "a word of a command holds a control character or is empty",
+   "text": "slovo příkazu obsahuje řídicí znak nebo je prázdné"
+  },
+  "z_549": {
+   "source": "a command is 4096 characters at most",
+   "text": "příkaz má nejvýše 4096 znaků"
+  },
+  "z_550": {
+   "source": "the whole file system is no folder to allow",
+   "text": "celý souborový systém není složka k povolení"
+  },
+  "z_551": {
+   "source": "allow script PATH sha256=HEX (acme-agent allow script PATH pins it)",
+   "text": "allow script CESTA sha256=HEX (acme-agent allow script CESTA ho připne)"
+  },
+  "z_552": {
+   "source": "allow script-hash HEX (64 hex digits, sha256)",
+   "text": "allow script-hash HEX (64 šestnáctkových číslic, sha256)"
+  },
+  "z_553": {
+   "source": "No closing quotation",
+   "text": "Chybí uzavírací uvozovka"
+  },
+  "z_554": {
+   "source": "the policy builder is not on this page",
+   "text": "návrhář politiky na této stránce není"
+  },
+  "z_555": {
+   "source": "matches its design",
+   "text": "odpovídá svému návrhu"
+  },
+  "z_556": {
+   "source": "differs from its design",
+   "text": "liší se od svého návrhu"
+  },
+  "z_557": {
+   "source": "a design is saved",
+   "text": "návrh je uložen"
+  },
+  "z_558": {
+   "source": "The package comes from this acme itself - the signed agent it ships - never from the internet.",
+   "text": "Balíček pochází přímo z tohoto acme – podepsaný agent, kterého dodává – nikdy z internetu."
+  },
+  "z_559": {
+   "source": "Update the agent now",
+   "text": "Aktualizovat agenta teď"
+  },
+  "z_560": {
+   "source": "Sending the package and waiting for the agent…",
+   "text": "Posílám balíček a čekám na agenta…"
+  },
+  "z_561": {
+   "source": "Updated - waiting for it to answer again…",
+   "text": "Aktualizováno – čekám, až znovu odpoví…"
+  },
+  "z_562": {
+   "source": "updating…",
+   "text": "aktualizuji…"
+  },
+  "z_563": {
+   "source": "waiting for it to answer…",
+   "text": "čekám na odpověď…"
+  },
+  "z_564": {
+   "source": "updated to",
+   "text": "aktualizováno na"
+  },
+  "z_565": {
+   "source": "sent - it has not answered with the new version yet",
+   "text": "odesláno – zatím neodpověděl s novou verzí"
+  },
+  "z_566": {
+   "source": "Update all agents",
+   "text": "Aktualizovat všechny agenty"
+  },
+  "z_567": {
+   "source": "Update all agents…",
+   "text": "Aktualizovat všechny agenty…"
+  },
+  "z_568": {
+   "source": "Each agent below runs an older version than the one this acme ships. acme sends its own signed package - never one from the internet - to those whose policy allows it, one by one; each checks the signature and starts again.",
+   "text": "Každý agent níže má starší verzi, než jakou dodává tento acme. acme pošle svůj vlastní podepsaný balíček – nikdy z internetu – těm, jejichž politika to dovoluje, jednomu po druhém; každý ověří podpis a znovu se spustí."
+  },
+  "z_569": {
+   "source": "Every agent runs the version this acme ships.",
+   "text": "Každý agent má verzi, kterou dodává tento acme."
+  },
+  "z_570": {
+   "source": "will be updated",
+   "text": "bude aktualizován"
+  },
+  "z_571": {
+   "source": "not updated",
+   "text": "nebude aktualizován"
+  },
+  "z_572": {
+   "source": "Update 1 agent",
+   "text": "Aktualizovat 1 agenta"
+  },
+  "z_573": {
+   "source": "this acme has no signed package of the agent (a source tree)",
+   "text": "tento acme nemá podepsaný balíček agenta (zdrojový strom)"
+  },
+  "z_574": {
+   "source": "it is refused",
+   "text": "je odmítnut"
+  },
+  "z_575": {
+   "source": "its policy has no allow self-update",
+   "text": "jeho politika nemá allow self-update"
+  },
+  "z_576": {
+   "source": "the agents’ port is off",
+   "text": "port agentů je vypnutý"
+  },
+  "z_577": {
+   "source": "Its saved design",
+   "text": "Jeho uložený návrh"
+  },
+  "z_578": {
+   "source": "the server’s policy matches the saved design",
+   "text": "politika serveru odpovídá uloženému návrhu"
+  },
+  "z_579": {
+   "source": "the server’s policy differs from it",
+   "text": "politika serveru se od něj liší"
+  },
+  "z_580": {
+   "source": "+ only in the design (to apply on the server) · - only on the server",
+   "text": "+ jen v návrhu (k použití na serveru) · - jen na serveru"
+  },
+  "z_581": {
+   "source": "Open in the builder",
+   "text": "Otevřít v návrháři"
+  },
+  "z_582": {
+   "source": "Copy policy",
+   "text": "Kopírovat politiku"
+  },
+  "z_583": {
+   "source": "Delete design…",
+   "text": "Smazat návrh…"
+  },
+  "z_584": {
+   "source": "Delete the saved design",
+   "text": "Smazat uložený návrh"
+  },
+  "z_585": {
+   "source": "The design kept in acme for this agent - every version of it - is deleted. The policy on the server does not change: acme never sent it.",
+   "text": "Návrh uložený v acme pro tohoto agenta – všechny jeho verze – se smaže. Politika na serveru se nezmění: acme ho nikdy neposlal."
+  },
+  "z_586": {
+   "source": "the design is deleted",
+   "text": "návrh je smazán"
+  },
+  "z_587": {
+   "source": "Earlier versions",
+   "text": "Dřívější verze"
+  },
+  "z_588": {
+   "source": "Open",
+   "text": "Otevřít"
   }
  },
  "patterns": {
@@ -92085,6 +92645,134 @@
   "pz_119": {
    "source": "a join code for the agent of target {0} was made by {1} (active, an hour, once)",
    "text": "kód pro připojení agenta cíle {0} vytvořil {1} (aktivní, na hodinu, jednou)"
+  },
+  "pz_120": {
+   "source": "Design the policy of {0}",
+   "text": "Návrh politiky agenta {0}"
+  },
+  "pz_121": {
+   "source": "Added from the template: {0}",
+   "text": "Přidáno ze šablony: {0}"
+  },
+  "pz_122": {
+   "source": "Added: {0}",
+   "text": "Přidáno: {0}"
+  },
+  "pz_123": {
+   "source": "{0} allowed",
+   "text": "{0} povoleno"
+  },
+  "pz_124": {
+   "source": "{0} missing",
+   "text": "{0} chybí"
+  },
+  "pz_125": {
+   "source": "{0} never allowed",
+   "text": "{0} nikdy nepovoleno"
+  },
+  "pz_126": {
+   "source": "files here at most {0}, owned by {1}",
+   "text": "soubory zde nejvýše {0}, vlastník {1}"
+  },
+  "pz_127": {
+   "source": "{0} is acme-agent's own ({1}) - no job ever writes there",
+   "text": "{0} patří samotnému acme-agent ({1}) – žádná úloha tam nikdy nezapisuje"
+  },
+  "pz_128": {
+   "source": "files in {0} are said twice: only the last one counts",
+   "text": "soubory v {0} jsou uvedeny dvakrát: platí jen poslední"
+  },
+  "pz_129": {
+   "source": "{0} holds places no job ever writes ({1}): the rest of it is allowed - allow the narrowest folder that holds only certificates",
+   "text": "{0} obsahuje místa, kam žádná úloha nikdy nezapisuje ({1}): zbytek je dovolen – povolte co nejužší složku, ve které jsou jen certifikáty"
+  },
+  "pz_130": {
+   "source": "{0} is a folder of configuration: acme could write a file the service then reads as root - allow its ssl or certs sub-folder where it can",
+   "text": "{0} je složka konfigurace: acme by mohl zapsat soubor, který pak služba čte jako root – kde to jde, povolte její podsložku ssl nebo certs"
+  },
+  "pz_131": {
+   "source": "mode {0}: no file acme-agent writes is ever executable - its x bits are never given ({1} is what a file gets at most)",
+   "text": "režim {0}: žádný soubor zapsaný acme-agent není nikdy spustitelný – bity x se nikdy nedají ({1} je nejvíc, co soubor dostane)"
+  },
+  "pz_132": {
+   "source": "{0} runs what its command line says as root - a fixed script (allow script) says what it runs",
+   "text": "{0} spouští jako root to, co říká jeho příkazový řádek – pevný skript (allow script) říká, co spouští"
+  },
+  "pz_133": {
+   "source": "{0} is in a folder allowed for files ({1}): the test runs it, so a job never writes it",
+   "text": "{0} je ve složce povolené pro soubory ({1}): spouští ho test, takže ho úloha nikdy nezapíše"
+  },
+  "pz_134": {
+   "source": "{0} is in a folder allowed for files ({1}): the policy runs it, so a job never writes it",
+   "text": "{0} je ve složce povolené pro soubory ({1}): spouští ho politika, takže ho úloha nikdy nezapíše"
+  },
+  "pz_135": {
+   "source": "the script {0} is said twice: only the last one counts",
+   "text": "skript {0} je uveden dvakrát: platí jen poslední"
+  },
+  "pz_136": {
+   "source": "pinned on the server: sudo acme-agent allow script {0}",
+   "text": "připne se na serveru: sudo acme-agent allow script {0}"
+  },
+  "pz_137": {
+   "source": "acme may reach {0} through this server (a connector of SSH targets)",
+   "text": "acme se přes tento server smí dostat na {0} (konektor cílů SSH)"
+  },
+  "pz_138": {
+   "source": "the verbs are {0}",
+   "text": "akce jsou {0}"
+  },
+  "pz_139": {
+   "source": "{0} is not an absolute path",
+   "text": "{0} není absolutní cesta"
+  },
+  "pz_140": {
+   "source": "a path with .. in it: {0}",
+   "text": "cesta obsahující ..: {0}"
+  },
+  "pz_141": {
+   "source": "{0} is not a unit name",
+   "text": "{0} není jméno jednotky"
+  },
+  "pz_142": {
+   "source": "{0} is not HOST:PORT ([v6 address]:PORT for IPv6)",
+   "text": "{0} není HOSTITEL:PORT ([adresa v6]:PORT pro IPv6)"
+  },
+  "pz_143": {
+   "source": "limit {0} is 1 to {1}",
+   "text": "limit {0} je 1 až {1}"
+  },
+  "pz_144": {
+   "source": "a mode is three octal digits (0640): {0}",
+   "text": "režim jsou tři osmičkové číslice (0640): {0}"
+  },
+  "pz_145": {
+   "source": "Update the agent of {0}",
+   "text": "Aktualizovat agenta cíle {0}"
+  },
+  "pz_146": {
+   "source": "acme sends the agent {0} it ships, signed by its release key. The agent checks the signature with the key it was installed with and that it is newer, puts it in place and starts again - a few seconds without it.",
+   "text": "acme pošle agenta {0}, kterého dodává, podepsaného svým vydávacím klíčem. Agent ověří podpis klíčem, se kterým byl nainstalován, a že je novější, nasadí ho a znovu se spustí – pár sekund bez něj."
+  },
+  "pz_147": {
+   "source": "Update {0} agents",
+   "text": "Aktualizovat agenty: {0}"
+  },
+  "pz_148": {
+   "source": "acme cannot reach it: {0}",
+   "text": "acme se k němu nedostane: {0}"
+  },
+  "pz_149": {
+   "source": "acme cannot reach it (not heard from since {0})",
+   "text": "acme se k němu nedostane (neozval se od {0})"
+  },
+  "pz_150": {
+   "source": "it does not ask acme: {0}",
+   "text": "neptá se acme: {0}"
+  },
+  "pz_151": {
+   "source": "it does not ask acme (not heard from since {0})",
+   "text": "neptá se acme (neozval se od {0})"
   }
  },
  "rich": {

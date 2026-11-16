@@ -653,6 +653,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/agents.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/agents.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/agents.css')) ?>">
 <?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/policybuilder.css')): ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/policybuilder.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/policybuilder.css')) ?>">
+<?php endif; ?>
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/sshkey.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/sshkey.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/sshkey.css')) ?>">
 <?php endif; ?>
@@ -1994,6 +1997,9 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/agents.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/agents.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/agents.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/policybuilder.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/policybuilder.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/policybuilder.js')) ?>"></script>
 <?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/cas.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/cas.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/cas.js')) ?>"></script>

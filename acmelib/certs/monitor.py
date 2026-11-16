@@ -555,6 +555,11 @@ AGENT_PATTERNS = [
      {'action': 'agent_joined', 'result': 'ok'}),
     (re.compile(r'^the agent of target (?P<target>.+?) was forgotten'),
      {'action': 'agent_forgotten', 'result': 'ok'}),
+    # 1.0.118: the policy designed in acme (documentation only)
+    (re.compile(r'^the policy design of the agent of target (?P<target>.+?) was saved by'),
+     {'action': 'agent_design_saved', 'result': 'ok'}),
+    (re.compile(r'^the policy design of the agent of target (?P<target>.+?) was deleted by'),
+     {'action': 'agent_design_deleted', 'result': 'ok'}),
 ]
 
 

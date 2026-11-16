@@ -463,6 +463,12 @@ def info(store, row, full=False):
     # the certificates whose key its agent makes (phase 3)
     out['keys_of'] = [r['name'] for r in store.db.rows(
         'SELECT name FROM certs WHERE csr_from = ? ORDER BY name', (row['name'],))][:50]
+    # the policy designed for it in acme (1.0.118, agent_policy.py) - documentation only
+    try:
+        from acmelib.certs import agent_policy
+        out['design'] = agent_policy.design_summary(store, row, pol)
+    except Exception:                                   # noqa: BLE001
+        out['design'] = None
     return out
 
 
@@ -714,6 +720,15 @@ def look(store, row, by=''):
             out = info(store, row)
             out['said'] = _txt(e, 400)
             return out
+    elif st.get('cert_fp') and not st.get('pending') and active_on():
+        # 1.0.118: "Ask it now" of an active agent asks it (a job its next poll takes) - it
+        # showed the policy it said last, however old
+        try:
+            hello(store, row)
+        except (PluginError, OSError, ValueError) as e:
+            out = info(store, row)
+            out['said'] = _txt(e, 400)
+            return out
     return info(store, row)
 
 
@@ -846,6 +861,15 @@ def poll(store, body, cert_pem, verify, ip=''):
         st.pop('code', None)
     if changed:
         state_put(store, tid, st)
+    # 1.0.118: the policy's hash with every poll - another than the one acme holds (changed
+    # on the server, or never said): asked for at once, the pages show it as it is now
+    ph = str(facts.get('policy_hash') or '')
+    held_pol = st.get('policy') if isinstance(st.get('policy'), dict) else {}
+    if HEX64.match(ph) and ph != held_pol.get('hash') and st.get('cert_fp') and \
+            not st.get('pending') and tid not in ASKING:
+        ASKING.add(tid)
+        threading.Thread(target=_ask_quietly, args=(store, row), daemon=True,
+                         name='agent-hello').start()
     jobs = _take(store, tid)
     held = False
     if not jobs and not body.get('results'):
@@ -1476,6 +1500,47 @@ def update_agent(store, row, by):
     return got
 
 
+def update_candidates(store):
+    """The agents a newer one is offered to (1.0.118, "Update all agents"): each with whether
+    acme can update it now, and why not - its policy has no `allow self-update`, it does not
+    answer, acme has no signed package. The package is always acme's own (the signed agent it
+    ships), never one from the internet."""
+    try:
+        pkg = package(build=False)
+    except Exception:                                   # noqa: BLE001
+        pkg = None
+    now = time.time()
+    out = []
+    for row in rows(store):
+        st = state(store, row['id'])
+        if not st.get('cert_fp'):
+            continue
+        f = update_facts(st, pkg)
+        if not f['newer']:
+            continue
+        mode = mode_of(row)
+        seen = float(st.get('last_seen') or 0)
+        why = ''
+        if not pkg or not pkg.get('signed'):
+            why = 'this acme has no signed package of the agent (a source tree)'
+        elif not (row.get('enabled') is None or int(row.get('enabled') or 0)):
+            why = 'the target is switched off'
+        elif st.get('refused'):
+            why = 'it is refused'
+        elif not f['allowed']:
+            why = 'its policy has no allow self-update'
+        elif now - seen > QUIET_S:
+            why = ('acme cannot reach it' if mode == 'passive' else 'it does not ask acme') + \
+                (': %s' % _txt(st.get('last_error'), 200) if st.get('last_error') else
+                 ' (not heard from since %s)' % _when(seen or None))
+        elif mode == 'active' and not active_on():
+            why = 'the agents\' port is off'
+        out.append({'id': row['id'], 'name': row['name'], 'mode': mode,
+                    'version': st.get('version') or '', 'offered': f['offered'],
+                    'ok': not why, 'why': why})
+    return out
+
+
 def forget(store, row, by):
     """acme forgets the agent: its certificate no longer let in, its keys and policy gone."""
     st = state(store, row['id'])
@@ -1497,6 +1562,8 @@ def target_gone(store, row):
         store.db.run('DELETE FROM meta WHERE k = ?', (M_T(row['id']),))
     except Exception:                                   # noqa: BLE001
         pass
+    from acmelib.certs import agent_policy
+    agent_policy.design_gone(store, row)
 
 
 # ---- now and then (the leader) -------------------------------------------------------------------

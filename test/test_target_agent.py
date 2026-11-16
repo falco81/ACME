@@ -739,6 +739,15 @@ class Active(unittest.TestCase):
         self.assertIn('waiting for the agent', ' '.join(str(s) for s in ctx.steps))
         t, ctx = module(row, 7)
         self.assertTrue(t.deploy(Bundle('a'), opts(ag)).startswith('unchanged'))
+        # 1.0.118: the policy changed on the server is what acme shows, nobody asking - the
+        # agent's poll carries its hash, acme asks for the policy when it is another
+        self.assertFalse((G.info(STORE, row)['policy'] or {}).get('self_update'))
+        www_policy(ag, 'allow self-update')
+        for _ in range(250):
+            if (G.info(STORE, row)['policy'] or {}).get('self_update'):
+                break
+            time.sleep(0.2)
+        self.assertTrue(G.info(STORE, row)['policy']['self_update'], G.info(STORE, row))
         # switched off: the agent's next poll is refused at once
         STORE.db.run('UPDATE cert_targets SET enabled = 0 WHERE id = ?', (row['id'],))
         pem = read(ag.d + '/st/tls.crt')
@@ -1595,6 +1604,10 @@ class BackupAndSecondNode(unittest.TestCase):
         row, ag = join_passive(self, 'web9', free_port())
         try:
             www_policy(ag)
+            # 1.0.118: the policy designed for it comes back with the backup too
+            from acmelib.certs import agent_policy
+            agent_policy.design_save(STORE, row, 'allow probe local\n', {'probe_local': True},
+                                     'kept', '', 'tester')
             STORE.set_meta('agentq:%d:keptjob' % row['id'], json.dumps(
                 {'env': {'job': '{}', 'sig': ''}, 'state': 'queued', 'at': time.time(),
                  'by': 'n1'}))
@@ -1603,6 +1616,7 @@ class BackupAndSecondNode(unittest.TestCase):
             self.assertIn('agents:ca', before)
             self.assertIn('agents:cmd', before)
             self.assertIn('agents:t:%d' % row['id'], before)
+            self.assertIn('agents:design:%d' % row['id'], before)
             work = tempfile.mkdtemp(dir=TMP)
             bundle = E.rb_build(STORE, work)[0]
             base_ = os.path.join(TMP, 'node2')
@@ -1628,8 +1642,10 @@ class BackupAndSecondNode(unittest.TestCase):
             # every row of the agents back as it was (their keys still sealed - the sealing key
             # came back with the backup)
             for k in ('agents:ca', 'agents:cmd', 'agents:ctl', 'agents:t:%d' % row['id'],
-                      'agentq:%d:keptjob' % row['id']):
+                      'agentq:%d:keptjob' % row['id'], 'agents:design:%d' % row['id']):
                 self.assertIn(k, out['meta'], k)
+            self.assertEqual(out['meta']['agents:design:%d' % row['id']],
+                             before['agents:design:%d' % row['id']])
             self.assertEqual(json.loads(out['meta']['agents:ca'])['cert'],
                              json.loads(before['agents:ca'])['cert'])
             self.assertEqual(json.loads(out['meta']['agents:cmd'])['at'],
@@ -2089,6 +2105,473 @@ class HuntLive(unittest.TestCase):
             os.chmod(self.ag.d + '/run', run_mode & 0o7777)
             os.chmod(sock, sock_mode & 0o7777)
         self.assertIn('a connection of uid %d' % nobody.pw_uid, read(self.ag.d + '/rs/audit.log'))
+
+
+# ---------------------------------------------------------------------------------------------
+# 1.0.118: the policy builder (web/assets/policybuilder.js), acme-agent policy check / apply, the
+# design kept in acme, "Update all agents".
+BUILDER = os.path.join(ROOT, 'web', 'assets', 'policybuilder.js')
+NODE = shutil.which('node')
+BUILD_JS = r"""
+const C = require(process.argv[1]);
+const inp = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+C.setFacts(inp.facts);
+console.log(JSON.stringify(inp.states.map(function (x) {
+  var s = x.template ? C.empty() : C.fromSaved(x.state);
+  if (x.template) { C.addTemplate(s, x.template); (x.edit || []).forEach(function (e) { s.files[e[0]][e[1]] = e[2]; }); }
+  var R = C.check(s), codes = [];
+  ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect'].forEach(function (k) {
+    R[k].forEach(function (v) { v.msgs.forEach(function (m) { codes.push([m.level, m.code, m.words]); }); }); });
+  return {text: C.fileText(R), once: C.oneShot(R), allow: C.allowLines(R), codes: codes, bad: R.counts.bad,
+          raw: x.raw ? x.raw.map(function (r) { try { return [r[0], C[r[0]](r[1])]; } catch (e) { return [r[0], null, e.words]; } }) : []};
+})));
+"""
+
+
+def builder_out(states):
+    """What the builder shows of each state (or template): its file, its one block, its allow
+    lines, what it says of each item - its own code, run by node."""
+    got = subprocess.run([NODE, '-e', BUILD_JS, BUILDER], input=json.dumps(
+        {'facts': AG.policy_facts(), 'states': states}), capture_output=True, text=True,
+        timeout=60, check=True)
+    return json.loads(got.stdout)
+
+
+CORPUS = {'files': [{'dir': '/etc/nginx/ssl', 'owner': 'root', 'group': 'nginx', 'mode': 0o640},
+                    {'dir': '/etc', 'owner': 'root', 'group': 'root', 'mode': 0o755},
+                    {'dir': '/etc/grafana', 'owner': 'root', 'group': 'grafana', 'mode': 0o644},
+                    {'dir': '/etc/ssh', 'owner': 'root', 'group': 'root', 'mode': 0o644},
+                    {'dir': '/srv/my app//x/./', 'owner': 'root', 'group': 'root', 'mode': 0o644},
+                    {'dir': '/etc/acme-agent', 'owner': 'root', 'group': 'root', 'mode': 0o644},
+                    {'dir': '/home/u/.ssh', 'owner': 'root', 'group': 'root', 'mode': 0o644},
+                    {'dir': 'relative', 'owner': 'root', 'group': 'root', 'mode': 0o644},
+                    {'dir': '/opt/a', 'owner': 'ro ot', 'group': 'root', 'mode': 0o644}],
+          'units': [{'name': 'nginx', 'verbs': ['reload', 'restart']},
+                    {'name': 'a@b', 'verbs': ['reload']}, {'name': '-x', 'verbs': ['reload']},
+                    {'name': 'pg.service', 'verbs': ['stop']}],
+          'tests': [['nginx', '-t'], ['/bin/sh', '-c', 'echo $X; x'],
+                    ['/bin/sh', '/etc/nginx/ssl/c.sh'], ['mysql', '-e', "ALTER 'x' TLS"],
+                    ['bash5.2', '--command', 'id'], ['a\tb']],
+          'scripts': [{'path': '/usr/local/sbin/h.sh', 'sha256': 'A' * 64},
+                      {'path': '/etc/nginx/ssl/z.sh', 'sha256': 'b' * 64},
+                      {'path': '/opt/x.sh', 'sha256': ''}, {'path': '/opt/y.sh', 'sha256': 'zz'}],
+          'hashes': ['C' * 64, 'nothex'],
+          'from': ['192.0.2.10', '10.1.2.3/8', '2001:DB8:0:0:1::1/64', '::1', '300.1.1.1'],
+          'probe_local': True,
+          'probe': ['WWW.Example.com.:443', '[2001:db8::1]:8443', '10.0.0.1:22', 'x:0', 'a b:1'],
+          'connect_on': True, 'connect': ['10.0.5.21:22'], 'self_update': True,
+          'limits': {'files': 30, 'size': 2097152}}
+
+
+@unittest.skipUnless(NODE, 'needs node')
+class PolicyBuilderCore(unittest.TestCase):
+    """The builder checks as the agent checks: the same file the agent writes (policy_lines of
+    what it reads), the same warnings in the same words, what it leaves out (red) is what the
+    agent would not read or what no job may ever write."""
+    def test_the_same_file_and_words_as_the_agent(self):
+        got = builder_out([{'state': CORPUS}])[0]
+        head = AG.POLICY_HEAD
+        self.assertTrue(got['text'].startswith(head))
+        chk = AG.policy_check(got['text'])
+        self.assertEqual(chk['errors'], [])
+        # canonical: what the agent reads of it is written back the very same
+        self.assertEqual(head + '\n'.join(AG.policy_lines(AG.parse_policy(got['text']))) + '\n',
+                         got['text'])
+        self.assertEqual(sorted((w['code'], w['words']) for w in chk['warnings']),
+                         sorted((c[1], c[2]) for c in got['codes'] if c[0] == 'warn'))
+        lines = got['text'][len(head):].splitlines()
+        for want in ("allow file '/srv/my app/x' owner=root:root mode=0644",
+                     'allow unit a@b.service reload', 'allow from 2001:db8::/64',
+                     'allow from 192.0.2.10/32', 'allow probe www.example.com:443',
+                     "allow test -- mysql -e 'ALTER '\"'\"'x'\"'\"' TLS'", 'limit files 30',
+                     'allow script-hash ' + 'c' * 64):
+            self.assertIn(want, lines)
+        # what it left out: red, each with the agent's words - and the agent agrees
+        bad = [c for c in got['codes'] if c[0] == 'bad']
+        self.assertEqual(len(bad), 13, bad)
+        for what in ('/etc/ssh', '/etc/acme-agent', '/home/u/.ssh'):
+            self.assertTrue(any(c[1] == 'protected' and c[2].startswith(what) for c in bad), what)
+            self.assertNotIn(what + ' ', got['text'])
+            one = AG.policy_check('allow file %s owner=root:root mode=0644' % what)
+            self.assertEqual([e['code'] for e in one['errors']], ['protected'])
+            self.assertIn(one['errors'][0]['words'], [c[2] for c in bad])
+        for line in ('allow file relative', 'allow file /opt/a owner=ro:ot:x',
+                     'allow unit -x reload', 'allow unit pg stop', "allow test -- 'a\tb'",
+                     'allow script /opt/y.sh sha256=zz', 'allow script-hash nothex',
+                     'allow from 300.1.1.1', 'allow probe x:0', "allow probe 'a b:1'"):
+            self.assertEqual([e['code'] for e in AG.policy_check(line)['errors']], ['unread'],
+                             line)
+        # a script without its hash: pinned on the server, after the one block
+        self.assertNotIn('/opt/x.sh', got['text'])
+        self.assertTrue(got['once'].endswith('EOF\nsudo acme-agent allow script /opt/x.sh'))
+        self.assertTrue(got['once'].startswith("sudo acme-agent policy apply - <<'EOF'\n" + head))
+        self.assertIn('sudo acme-agent allow test -- /bin/sh -c \'echo $X; x\'', got['allow'])
+        self.assertIn('sudo acme-agent limit size 2097152', got['allow'])
+
+    def test_its_shapes_are_the_agents(self):
+        raw = [['normHostport', x] for x in ('[2001:DB8::1]:443', 'Host.Example.:80', '1.2.3.4:5',
+                                            '01.2.3.4:5', '::1:5', 'h:70000')] + \
+              [['ipNetwork', x] for x in ('10.9.8.7/8', '::ffff:1.2.3.4', '2001:db8:0:0:0:0:0:1',
+                                         '2001:0:0:1:0:0:0:1/128', 'fe80::/10', '1.2.3.4/33')] + \
+              [['normUnit', x] for x in ('nginx', 'a.socket', 'x@y', 'x@y.timer', 'bad name')] + \
+              [['split', x] for x in ('a "b c" \'d e\' f\\ g', 'x "a\\"b"', '"open')]
+        got = builder_out([{'state': {}, 'raw': raw}])[0]['raw']
+        import ipaddress
+        import shlex
+        for (fn, x), (_fn, js, *_e) in zip(raw, got):
+            try:
+                if fn == 'normHostport':
+                    want = AG.norm_hostport(x)
+                elif fn == 'ipNetwork':
+                    want = str(ipaddress.ip_network(x, strict=False))
+                elif fn == 'normUnit':
+                    want = AG.norm_unit(x)
+                else:
+                    want = shlex.split(x, posix=True)
+            except (AG.Refused, ValueError):
+                want = None
+            if fn == 'ipNetwork' and x == '::ffff:1.2.3.4':
+                continue                    # Python 3.13 keeps the IPv4 part; both are read alike
+            self.assertEqual(js, want, (fn, x))
+
+    def test_templates_one_source(self):
+        """The templates take the deployment presets' folders, owners and modes, and the units
+        and tests of "After the files → From a template" (deployfiles.js SVC_APPS)."""
+        from acmelib.certs import agent_policy as P
+        from acmelib.plugins.targets import ssh as SSH
+        df = read(os.path.join(ROOT, 'web', 'assets', 'deployfiles.js'))
+        rows = re.findall(r"\n    \['([a-z0-9]+)', '[^']*', '[^']*', '([^']*)', '[^']*', '([^']*)', '([^']*)'", df)
+        js = {k: (u, t.replace('\\"', '"'), r.replace('\\"', '"')) for k, u, t, r in rows}
+        for k, v in P.SVC.items():
+            self.assertEqual(js.get(k), v, k)
+        tpl = {t['key']: t for t in P.templates()}
+        for key in ('nginx', 'httpd', 'apache2', 'haproxy', 'postfix', 'dovecot', 'exim', 'tomcat',
+                    'squid', 'caddy', 'traefik', 'lighttpd', 'openldap', 'postgresql', 'mysql',
+                    'mariadb', 'grafana', 'cockpit', 'webmin', 'proxmox', 'pbs', 'mosquitto',
+                    'vsftpd', 'proftpd', 'gitlab', 'zimbra', 'docker', 'systemd', 'folder'):
+            self.assertIn(key, tpl)
+        nginx = SSH.PRESETS['nginx']['outputs'][0].split()[1].rsplit('/', 1)[0]
+        self.assertEqual(tpl['nginx']['files'][0]['dir'], nginx)
+        self.assertEqual(tpl['httpd']['units'], {'httpd.service': ['reload']})
+        self.assertEqual(tpl['apache2']['units'], {'apache2.service': ['reload']})
+        self.assertEqual(tpl['docker']['tests'], [['docker', 'restart', 'web']])
+        self.assertEqual(tpl['exim']['files'][0], {'dir': '/etc/exim4', 'owner': 'root',
+                                                   'group': 'Debian-exim', 'mode': 0o644})
+        # each template, as the builder writes it, is read whole by the agent
+        outs = builder_out([{'template': t} for t in tpl.values()])
+        for t, got in zip(tpl.values(), outs):
+            chk = AG.policy_check(got['text'])
+            self.assertEqual(chk['errors'], [], t['key'])
+            self.assertEqual(got['bad'], 0, t['key'])
+            self.assertGreaterEqual(len(chk['lines']), 1, t['key'])
+
+
+@unittest.skipUnless(CAN, 'needs root, setpriv, openssl')
+class PolicyApply(unittest.TestCase):
+    """acme-agent policy check FILE / apply FILE|- : checked first, nothing written on any line
+    the agent would not take; written root:root 0644 atomically, the one before kept."""
+    def setUp(self):
+        self.ag = Agent('apply%d' % int(time.time() * 1000 % 100000))
+        self.f = os.path.join(self.ag.d, 'in.policy')
+
+    def tearDown(self):
+        self.ag.stop()
+
+    def give(self, text):
+        with open(self.f, 'w') as fh:
+            fh.write(text)
+        return self.f
+
+    def apply(self, text, ok=True):
+        got = subprocess.run([sys.executable, '-I', AGENT, 'policy', 'apply', '-'],
+                             env=self.ag.env, input=text, capture_output=True, text=True,
+                             timeout=60)
+        if ok:
+            self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        return got
+
+    def test_1_check(self):
+        good = AG.POLICY_HEAD + 'allow file %s/ssl owner=root:root mode=0640\nallow unit nginx ' \
+            'reload\nallow test -- nginx -t\n' % self.ag.www
+        got = self.ag.cli('policy', 'check', self.give(good))
+        self.assertIn('3 entries, 0 errors, 0 warnings', got.stdout)
+        got = self.ag.cli('policy', 'check', self.give(good + 'allow file /etc/sudoers.d\n'
+                                                       'allow file /x mod=0600\n'
+                                                       'allow file /etc owner=root:root\n'),
+                          ok=False)
+        self.assertEqual(got.returncode, 1)
+        self.assertIn('error: /etc/sudoers.d is under /etc/sudoers.d', got.stdout)
+        self.assertIn('error: mod= is not a word of this entry', got.stdout)
+        self.assertIn('warning: /etc holds places no job ever writes', got.stdout)
+        js = json.loads(self.ag.cli('policy', 'check', self.give(good), '--json').stdout)
+        self.assertTrue(js['ok'])
+        self.assertEqual(len(js['lines']), 3)
+
+    def test_2_apply_atomic_kept_and_said(self):
+        pol = self.ag.d + '/etc/policy'
+        one = AG.POLICY_HEAD + 'allow file %s/ssl owner=root:root mode=0640\n' % self.ag.www
+        got = self.apply(one)
+        self.assertIn('+allow file %s/ssl' % self.ag.www, got.stdout)
+        self.assertEqual(read(pol), one)
+        st = os.stat(pol)
+        self.assertEqual((st.st_uid, st.st_gid, st.st_mode & 0o7777), (0, 0, 0o644))
+        self.assertIn('nothing changes', self.apply(one).stdout)
+        self.assertEqual([n for n in os.listdir(self.ag.d + '/etc') if n.startswith('policy.')], [])
+        two = one + 'allow unit nginx reload,restart\n'
+        got = self.apply(two)
+        self.assertIn('+allow unit nginx reload,restart', got.stdout)
+        self.assertIn('the one before: ', got.stdout)
+        kept = [n for n in os.listdir(self.ag.d + '/etc') if n.startswith('policy.')]
+        self.assertEqual(len(kept), 1)
+        self.assertRegex(kept[0], r'^policy\.\d{8}-\d{6}$')
+        self.assertEqual(read(self.ag.d + '/etc/' + kept[0]), one)
+        self.assertEqual(os.stat(self.ag.d + '/etc/' + kept[0]).st_mode & 0o777, 0o600)
+        self.assertEqual(read(pol), two)
+        self.assertFalse([n for n in os.listdir(self.ag.d + '/etc') if n.startswith('.acme-')])
+        # the policy the root side reads is the new one, at once
+        self.assertEqual(json.loads(self.ag.cli('policy', 'show', '--json').stdout)['units'],
+                         {'nginx.service': ['reload', 'restart']})
+        # eleven more: the last ten copies kept
+        for i in range(11):
+            self.apply(two + 'limit files %d\n' % (21 + i))
+        kept = [n for n in os.listdir(self.ag.d + '/etc') if n.startswith('policy.')]
+        self.assertEqual(len(kept), 10)
+        self.assertIn('"op": "policy-apply"', read(self.ag.d + '/rs/audit.log'))
+
+    def test_3_refusals_write_nothing(self):
+        pol = self.ag.d + '/etc/policy'
+        base_ = 'allow file %s/ssl owner=root:root mode=0640\n' % self.ag.www
+        self.apply(base_)
+        os.makedirs(self.ag.d + '/real', exist_ok=True)
+        os.symlink(self.ag.d + '/real', self.ag.d + '/link')
+        with open(self.ag.d + '/hook.sh', 'w') as fh:
+            fh.write('#!/bin/sh\necho hook\n')
+        h = hashlib.sha256(b'#!/bin/sh\necho hook\n').hexdigest()
+        for bad, said in (('allow file /etc/sudoers.d owner=root:root mode=0640', 'gives root'),
+                          ('allow file /root owner=root:root mode=0640', 'under /root'),
+                          ('allow file /home/a/.ssh', '.ssh folder'),
+                          ('allow file /srv/x mod=0640', 'mod= is not a word'),
+                          ('allow unit nginx stop', 'the verbs are'),
+                          ('nonsense here', 'begins with "allow"'),
+                          ('allow file %s/link owner=root:root mode=0640' % self.ag.d, 'a link on the way'),
+                          ('allow script %s/none.sh sha256=%s' % (self.ag.d, h), 'cannot be read here'),
+                          ('allow script %s/hook.sh sha256=%s' % (self.ag.d, 'a' * 64), 'its SHA-256 here is ' + h)):
+            got = self.apply(base_ + bad + '\n', ok=False)
+            self.assertEqual(got.returncode, 1, bad)
+            self.assertIn(said, got.stdout, bad)
+            self.assertIn('nothing written', got.stdout, bad)
+            self.assertEqual(read(pol), base_, bad)
+        # its own places: never, whatever the line says
+        got = self.apply('allow file %s owner=root:root mode=0644\n' % (self.ag.d + '/etc'), ok=False)
+        self.assertIn("acme-agent", got.stdout)
+        self.assertIn('no job ever writes there', got.stdout)
+        # a script there with the hash the line says: taken
+        self.apply(base_ + 'allow script %s/hook.sh sha256=%s\n' % (self.ag.d, h))
+        # not root: refused, nothing written
+        pw = pwd.getpwnam(USER)
+        got = subprocess.run(['setpriv', '--reuid=%d' % pw.pw_uid, '--regid=%d' % pw.pw_gid,
+                              '--clear-groups', sys.executable, '-I', AGENT, 'policy', 'apply',
+                              '-'], env=self.ag.env, input='allow self-update\n',
+                             capture_output=True, text=True, timeout=60)
+        self.assertNotEqual(got.returncode, 0)
+        self.assertIn('runs as root', got.stderr)
+        self.assertNotIn('self-update', read(pol))
+
+    def test_4_never_more_than_allow(self):
+        """Whatever `apply` takes, `acme-agent allow` takes too, line by line - and what allow
+        writes of it reads the same."""
+        with open(self.ag.d + '/hook.sh', 'w') as fh:
+            fh.write('#!/bin/sh\n')
+        h = hashlib.sha256(b'#!/bin/sh\n').hexdigest()
+        lines = ['allow file %s/ssl owner=root:%s mode=0640' % (self.ag.www, USER),
+                 'allow unit nginx reload,try-restart', 'allow test -- nginx -t',
+                 "allow test -- mysql -e 'ALTER INSTANCE RELOAD TLS'",
+                 'allow script %s/hook.sh sha256=%s' % (self.ag.d, h), 'allow script-hash ' + h,
+                 'allow from 192.0.2.0/24', 'allow probe local', 'allow probe [2001:db8::1]:443',
+                 'allow connect 10.0.5.21:22', 'allow self-update', 'limit files 30',
+                 'limit size 2097152']
+        self.apply('\n'.join(lines) + '\n')
+        applied = json.loads(self.ag.cli('policy', 'show', '--json').stdout)
+        os.unlink(self.ag.d + '/etc/policy')
+        for line in lines:
+            w = AG.shlex.split(line)
+            if w[0] == 'limit':
+                self.ag.cli(*w)
+                continue
+            words = w[1:]
+            if words[0] == 'file':
+                kv = dict(x.split('=', 1) for x in words[2:])
+                words = ['file', words[1], '--owner', kv['owner'], '--mode', kv['mode']]
+            elif words[0] == 'script':
+                words = ['script', words[1]]
+            self.ag.cli('allow', *words)
+        allowed = json.loads(self.ag.cli('policy', 'show', '--json').stdout)
+        applied.pop('hash')
+        allowed.pop('hash')
+        self.assertEqual(applied, allowed)
+
+    def test_5_a_template_from_the_builder_then_a_deployment(self):
+        """The builder's one block for a template (Any systemd service, its folder made this
+        test's) pasted into a shell: applied - and then a real deployment goes through."""
+        if not NODE:
+            self.skipTest('needs node')
+        from acmelib.certs import agent_policy as P
+        tpl = [t for t in P.templates() if t['key'] == 'systemd'][0]
+        self.ag.stop()
+        port = free_port()
+        row, ag = join_passive(self, 'pbtpl%d' % port, port)
+        try:
+            got = builder_out([{'template': tpl, 'edit': [[0, 'dir', ag.www + '/ssl'],
+                                                          [0, 'group', USER]]}])[0]
+            self.assertIn('allow unit myservice.service reload,restart', got['text'])
+            self.assertFalse(os.path.exists(ag.d + '/etc/policy') and
+                             'myservice' in read(ag.d + '/etc/policy'))
+            sh = 'sudo() { "$@"; }\nacme-agent() { %s -I %s "$@"; }\n%s\n' % (
+                sys.executable, AGENT, got['once'])
+            r = subprocess.run(['bash', '-c', sh], env=ag.env, capture_output=True, text=True,
+                               timeout=60)
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn('applied:', r.stdout)
+            self.assertEqual(read(ag.d + '/etc/policy'), got['text'])
+            t, _ctx = module(row, 31)
+            said = t.deploy(Bundle('a'), {
+                'outputs': 'fullchain-pem %s/ssl/tpl.crt 0640 root:%s\n'
+                           'key-pem %s/ssl/tpl.key 0640 root:%s' % (ag.www, USER, ag.www, USER),
+                'reload_cmd': 'systemctl reload myservice'})
+            self.assertIn('2 files written', said)
+            self.assertEqual(read(ag.www + '/ssl/tpl.key'), Bundle('a').key_pem)
+            self.assertIn('reload myservice.service', read(os.path.join(TMP, 'systemctl.log')))
+            # what the agent says of its policy now is the design: it matches
+            from acmelib.certs import agent_policy as P2
+            G.hello(STORE, row)
+            P2.design_save(STORE, row, got['text'], {}, 'myservice', 'from the template',
+                           'tester')
+            self.assertEqual(P2.design_view(STORE, row, G.info(STORE, row)['policy'])
+                             ['compare']['state'], 'matches')
+        finally:
+            ag.stop()
+
+
+class FakeApi(object):
+    def __init__(self, role, body=None, args=None):
+        self.role, self._b, self._a, self.store = role, body or {}, args or {}, STORE
+
+    def me(self, level='readonly'):
+        return {'role': self.role, 'name': 'pb-' + self.role}
+
+    def body(self):
+        return self._b
+
+    def arg(self, k, default=None):
+        return self._a.get(k, default)
+
+
+class PolicyDesign(unittest.TestCase):
+    """The design kept with the target in acme: documentation only - saved (a full
+    administrator), its versions (ten), compared with what the agent said, deleted; events;
+    the command line."""
+    def call(self, method, path, role, body=None, args=None):
+        return E.ROUTES[(method, path)](FakeApi(role, body, args))
+
+    def test_save_history_compare_delete(self):
+        from acmelib.certs import agent_policy as P
+        row = target('pbdesign', mode='passive', host='127.0.0.1', port=free_port())
+        text = AG.POLICY_HEAD + 'allow file /etc/nginx/ssl owner=root:root mode=0644\n' \
+            'allow unit nginx.service reload\nallow probe local\n'
+        # a read-only administrator sees it, but does not save it
+        with self.assertRaises(E.ApiError) as e:
+            self.call('POST', '/api/agents/design', 'readonly', {'id': row['id'], 'text': text})
+        self.assertEqual(e.exception.status, 403)
+        with self.assertRaises(E.ApiError):
+            self.call('POST', '/api/agents/design', 'certadmin', {'id': row['id'], 'text': text})
+        self.assertIsNone(self.call('GET', '/api/agents/design', 'readonly',
+                                    args={'id': row['id']})['design'])
+        # a line the agent would not read: refused
+        with self.assertRaises((E.ApiError, ValueError)) as e:
+            self.call('POST', '/api/agents/design', 'fulladmin',
+                      {'id': row['id'], 'text': text + 'allow file /x mod=0600\n'})
+        self.assertIn('mod=', str(e.exception))
+        with self.assertRaises((E.ApiError, ValueError)):
+            self.call('POST', '/api/agents/design', 'fulladmin',
+                      {'id': row['id'], 'text': text, 'state': {'files': 'x'}})
+        got = self.call('POST', '/api/agents/design', 'fulladmin',
+                        {'id': row['id'], 'text': text, 'title': 'nginx', 'note': 'the ssl folder',
+                         'state': {'files': [{'dir': '/etc/nginx/ssl', 'owner': 'root',
+                                              'group': 'root', 'mode': 420}], 'evil': 1}})
+        d = got['design']
+        self.assertEqual((d['n'], d['title'], d['note'], d['by']), (1, 'nginx', 'the ssl folder',
+                                                                     'pb-fulladmin'))
+        self.assertNotIn('evil', d['state'])
+        self.assertEqual(d['compare']['state'], 'unknown')        # not asked yet
+        ev = STORE.db.rows("SELECT words FROM events ORDER BY id DESC LIMIT 1")[0]['words']
+        self.assertIn('the policy design of the agent of target pbdesign was saved by '
+                      'pb-fulladmin', ev)
+        # as the agent says its policy: matches, then differs (with its lines)
+        st = G.state(STORE, row['id'])
+        st['policy'] = {'hash': 'x', 'files': [{'dir': '/etc/nginx/ssl', 'owner': 'root',
+                                                'group': 'root', 'mode': 0o644}],
+                        'units': {'nginx.service': ['reload']}, 'tests': [], 'scripts': [],
+                        'script_hashes': [], 'from': [], 'self_update': False, 'connect': [],
+                        'probe': [], 'probe_local': True,
+                        'limits': {'files': 20, 'size': 1048576}, 'problems': []}
+        G.state_put(STORE, row['id'], st)
+        d = self.call('GET', '/api/agents/design', 'readonly', args={'id': row['id']})['design']
+        self.assertEqual(d['compare']['state'], 'matches')
+        self.assertEqual(G.info(STORE, row)['design']['state'], 'matches')
+        st['policy']['self_update'] = True
+        st['policy']['probe_local'] = False
+        G.state_put(STORE, row['id'], st)
+        c = P.design_view(STORE, row, G.info(STORE, row)['policy'])['compare']
+        self.assertEqual((c['state'], c['added'], c['removed']),
+                         ('differs', ['allow probe local'], ['allow self-update']))
+        # ten versions kept, newest first
+        for i in range(11):
+            P.design_save(STORE, row, text + 'limit files %d\n' % (21 + i), {}, 'v%d' % i, '',
+                          'tester')
+        d = P.design_view(STORE, row)
+        self.assertEqual(len(d['history']), 10)
+        self.assertEqual((d['n'], d['history'][0]['n'], d['history'][-1]['n']), (12, 12, 3))
+        # the command line
+        for words, want in ((['design', 'show'], 'version     12 (10 kept)'),
+                            (['design', 'text'], 'limit files 31'),
+                            (['design'], 'its policy differs')):
+            got = subprocess.run([sys.executable, os.path.join(ROOT, 'acme.py'),
+                                  '--target-agent', 'pbdesign'] + words, cwd=ROOT,
+                                 capture_output=True, text=True, timeout=120)
+            self.assertIn(want, got.stdout, (words, got.stdout[-500:], got.stderr[-800:]))
+        # the design is documentation: forgetting the agent keeps it, deleting it is said
+        G.forget(STORE, row, 'tester')
+        self.assertIsNotNone(P.design_view(STORE, row))
+        with self.assertRaises(E.ApiError):
+            self.call('POST', '/api/agents/design/forget', 'certadmin', {'id': row['id']})
+        self.call('POST', '/api/agents/design/forget', 'fulladmin', {'id': row['id']})
+        self.assertIsNone(P.design_view(STORE, row))
+        self.assertIsNone(STORE.get_meta(P.M_DESIGN(row['id'])))
+        from acmelib.certs import monitor as MO
+        for words, action in (('the policy design of the agent of target web two was saved by x',
+                               'agent_design_saved'),
+                              ('the policy design of the agent of target web two was deleted by x',
+                               'agent_design_deleted')):
+            hit = [a for rx, a in MO.AGENT_PATTERNS if rx.match(words)]
+            self.assertEqual(hit[0]['action'], action)
+            rx = [r for r, _a in MO.AGENT_PATTERNS if r.match(words)][0]
+            self.assertEqual(rx.match(words).group('target'), 'web two')
+
+    def test_update_candidates_say_why_not(self):
+        row = target('pbupd', mode='passive', host='127.0.0.1', port=free_port())
+        st = G.state(STORE, row['id'])
+        st.update(cert_fp='ab' * 32, agent_id='ag-0123456789ab', version='1.0.1',
+                  last_seen=time.time(), policy={'self_update': False, 'hash': 'h'})
+        G.state_put(STORE, row['id'], st)
+        try:
+            got = [x for x in G.update_candidates(STORE) if x['name'] == 'pbupd']
+            self.assertEqual(len(got), 1)
+            self.assertFalse(got[0]['ok'])
+            self.assertTrue(got[0]['why'])
+            body = self.call('GET', '/api/agents/updates', 'readonly')
+            self.assertTrue(any(x['name'] == 'pbupd' for x in body['rows']))
+        finally:
+            G.forget(STORE, row, 'tester')
 
 
 if __name__ == '__main__':

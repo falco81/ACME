@@ -6,7 +6,35 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.118 - not released
 
-(nothing yet)
+- **Target agents: the policy builder** (docs/target-agent.md, *Designing the policy*). *Design
+  its policy…* on the agent's card, on its tile in Settings → Target agents and on what a
+  deployment needs opens a builder of the whole policy: it starts from the agent's policy (or
+  its saved design), offers templates (nginx, Apache, HAProxy, Postfix, Dovecot, Exim, Tomcat,
+  Squid, Caddy, Traefik, lighttpd, OpenLDAP, PostgreSQL, MySQL/MariaDB, Grafana, Cockpit, Webmin,
+  Proxmox VE/PBS, Mosquitto, vsftpd/ProFTPD, GitLab, Zimbra, Docker, any systemd service, a
+  folder - the deployment presets' own paths) and everything the target's deployments need,
+  one click each; folders with an rwx grid, units, tests, scripts, hashes, addresses, probes,
+  connections, self-update, limits - checked live as the agent checks it (protected places,
+  files the policy runs, shells, unknown words). It gives the policy file in the agent's format,
+  the `acme-agent allow` lines and one block to paste (`sudo acme-agent policy apply -
+  <<'EOF'`), with what changes against the server. acme never sends it.
+- acme-agent: `acme-agent policy check FILE|-` and `acme-agent policy apply FILE|-` (root):
+  checked first - nothing written on a line the agent would not read, a protected folder, a
+  link, a script not there with its hash - then written root:root 0644 atomically, the one
+  before kept as `policy.DATE` (the last ten), the diff said.
+- The designed policy can be **saved with the target** in acme (documentation only: who, when,
+  a title, a note, ten versions); the card says whether the server's policy matches it (with the
+  lines that differ). `acme --target-agent NAME design show|text|forget`, Events for saving and
+  deleting.
+- The agent's policy shown is the one on the server: the agent sends its hash with every poll
+  and answer, acme asks for the policy at once when it changed; the card asks again when what it
+  has is older than a minute, and *Ask it now* asks an active agent too - a policy with
+  `allow self-update` showed "Nothing is allowed yet", and no way to update.
+- **Update the agent now** on the card (asked first, its progress, the new version when it
+  answers), **Update all agents…** on Settings → Target agents (who will be updated and who not,
+  and why), *Update* on each tile; `acme --target-agent all update`. Always acme's own signed
+  package. "Another program than the one this acme ships" is no longer said of an older version
+  a newer agent is offered to.
 
 ## 1.0.117 - 2026-11-16
 

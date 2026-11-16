@@ -23,6 +23,15 @@
 //   the keys made on the server (Make a certificate with its key made here), the policy's tests,
 //   connections and updates; the tiles' flags; a deployment's needs whose key is made there;
 //   What happens (runplan.js) with each item of the agent's job judged by its policy;
+// * 1.0.118, the policy builder (policybuilder.js): opened from the card ("Design its policy…"),
+//   it starts from the agent's policy - the policy file in the agent's own words exactly; a
+//   template adds its set (Postfix: its folder, its tests); a folder under a protected place is
+//   red with the agent's words and left out of the file, one above them amber; a shell's -c
+//   amber; what the deployments need added with one click (Add all); the one block to paste
+//   (acme-agent policy apply - <<'EOF'), Copy, what changes against the server; Save as this
+//   agent's design (POST agents/design with the very text); the card's saved design (matches /
+//   differs with its lines, Open in the builder, Copy, Download, Delete…); the newer agent
+//   updated now (asked first) and Update all agents… (who will be, who not and why);
 // * nothing wider than the page; in Czech nothing of it left in English that has a translation.
 // Prints one line of JSON: {ok, checks: {name: true|false}, error?}.
 const { chromium } = require('playwright');
@@ -51,6 +60,14 @@ const path = require('path');
     'Make a certificate with its key made here', 'Tests from here', 'Connections for acme', 'Updates from acme',
     'newer agent offered', 'its policy blocks a deployment', 'allowed by the agent’s policy',
     'not allowed by the agent’s policy - the agent refuses the job', 'the agent cannot do it this way', 'nothing to judge yet'];
+  const BWORDS = ['Design its policy…', 'acme proposes, the server decides', 'Start from', 'Templates', 'What the deployments need',
+    'Folders', 'Units', 'Tests and commands', 'Scripts', 'Script hashes', 'Allow from', 'Tests from here', 'Connections for acme',
+    'Updates from acme', 'Limits', 'On the server, as root', 'The policy file', 'As allow lines', 'One block to paste', 'What changes',
+    'Download policy file', 'The design, kept in acme', 'Save as this agent’s design', 'Add all that the deployments need', 'Add a folder',
+    'others', 'Add a unit', 'Add a command', 'Add a script', 'Add a hash', 'Add an address', 'Add a place', 'acme’s addresses'];
+  const AGENT_SRC = fs.readFileSync(path.join(web, '..', 'deploy', 'agent', 'acme_agent.py'), 'utf-8');
+  const HEAD = AGENT_SRC.split('POLICY_HEAD = """')[1].split('"""')[0];
+  const PROT = AGENT_SRC.split('PROTECTED = (')[1].split(')')[0].match(/'[^']+'/g).map((x) => x.slice(1, -1));
   const out = {checks: {}, errors: []};
   const browser = await chromium.launch();
   const esc = (t) => t.replace(/<\/script/g, '<\\/script');
@@ -77,7 +94,46 @@ const path = require('path');
     agent_host: 'web1', version: '1.0.116', code_hash: 'c0de', shipped_code: 'c0de', os: 'Rocky Linux 9.4 (Blue Onyx)', last_seen: now - 12,
     cert_end: now + 25 * 86400, key_fp: FP, policy: POL, policy_at: now - 300, pending: null, package: VIEW.package, commands: VIEW.commands,
     ca: VIEW.ca, port: 8444};
-  const NEEDS = {state: 'answers', policy_hash: POL.hash, items: [
+  const FACTS = {protected: PROT, parts: ['.ssh'], own: ['/etc/acme-agent', '/var/lib/acme-agent', '/var/lib/acme-agent-root', '/run/acme-agent'],
+    verbs: ['reload', 'restart', 'try-reload-or-restart', 'reload-or-restart', 'try-restart'], shells: ['sh', 'bash', 'dash', 'zsh', 'python3'],
+    config_ok: ['/etc/ssl', '/etc/pki'], head: HEAD, limits: {files: 20, size: 1048576, files_most: 200, size_most: 67108864}};
+  const TPL = [
+    {key: 'nginx', title: 'nginx', group: 'Web servers', note: 'The same paths on RHEL and Debian (/etc/nginx/ssl).', files: [{dir: '/etc/nginx/ssl', owner: 'root', group: 'root', mode: 0o644}],
+     units: {'nginx.service': ['reload']}, tests: [['nginx', '-t']], scripts: [], probe_local: true},
+    {key: 'httpd', title: 'Apache httpd (RHEL, Rocky, Alma)', group: 'Web servers', files: [{dir: '/etc/ssl/acme', owner: 'root', group: 'root', mode: 0o644}],
+     units: {'httpd.service': ['reload']}, tests: [['apachectl', '-t'], ['apachectl', 'configtest']], scripts: [], probe_local: true},
+    {key: 'haproxy', title: 'HAProxy', group: 'Proxies and load balancers', files: [{dir: '/etc/haproxy/certs', owner: 'root', group: 'root', mode: 0o600}],
+     units: {'haproxy.service': ['reload']}, tests: [['haproxy', '-c', '-q', '-f', '/etc/haproxy/haproxy.cfg']], scripts: [], probe_local: true},
+    {key: 'postfix', title: 'Postfix', group: 'Mail', files: [{dir: '/etc/postfix/ssl', owner: 'root', group: 'root', mode: 0o644}],
+     units: {}, tests: [['postfix', 'check'], ['postfix', 'reload']], scripts: [], probe_local: true},
+    {key: 'zimbra', title: 'Zimbra', group: 'Mail', note: 'zmcertmgr deploycrt runs as zimbra.', files: [{dir: '/opt/zimbra/ssl/acme', owner: 'zimbra', group: 'zimbra', mode: 0o640}],
+     units: {}, tests: [], scripts: [{path: '/usr/local/sbin/acme-zimbra-deploy.sh', sha256: ''}], probe_local: true},
+    {key: 'docker', title: 'A Docker container', group: 'Containers', files: [{dir: '/srv/docker/certs', owner: 'root', group: 'root', mode: 0o644}],
+     units: {}, tests: [['docker', 'restart', 'web']], scripts: [], probe_local: true},
+    {key: 'folder', title: 'A folder for certificates', group: 'Any other', files: [{dir: '/etc/ssl/acme', owner: 'root', group: 'root', mode: 0o644}],
+     units: {}, tests: [], scripts: [], probe_local: false}];
+  const BNEEDS = [
+    {id: 7, cert: 'www.example.com', enabled: true, items: [
+      {kind: 'file', path: '/etc/nginx/ssl/www.crt', mode: 0o644, owner: 'root', group: 'root', allow: 'acme-agent allow file /etc/nginx/ssl --owner root:root --mode 0644'},
+      {kind: 'file', path: '/etc/nginx/ssl/www.key', mode: 0o600, owner: 'root', group: 'root', allow: 'acme-agent allow file /etc/nginx/ssl --owner root:root --mode 0600'},
+      {kind: 'test', step: 'test', argv: ['nginx', '-t'], allow: 'acme-agent allow test -- nginx -t'},
+      {kind: 'unit', step: 'reload', unit: 'nginx.service', verb: 'reload', allow: 'acme-agent allow unit nginx.service reload'},
+      {kind: 'hash', hash: '4f'.repeat(32), interp: 'bash', allow: 'acme-agent allow script-hash ' + '4f'.repeat(32)},
+      {kind: 'probe', local: true, hp: '127.0.0.1:443', allow: 'acme-agent allow probe local'}]},
+    {id: 8, cert: 'mail.example.com', enabled: true, items: [
+      {kind: 'file', path: '/etc/postfix/ssl/mail.crt', mode: 0o644, owner: 'root', group: 'root', allow: ''},
+      {kind: 'file', path: '/etc/sudoers.d/acme', mode: 0o440, owner: 'root', group: 'root', allow: ''},
+      {kind: 'test', step: 'test', argv: ['postfix', 'check'], allow: ''},
+      {kind: 'any', step: 'reload', any: [{kind: 'unit', unit: 'postfix.service', verb: 'reload'}, {kind: 'unit', unit: 'postfix@-.service', verb: 'reload'}], allow: ''}]},
+    {id: 9, cert: 'k8s.example.com', enabled: false, items: [], error: '"kubectl create secret … | kubectl apply -f -" is a line of a shell: the agent runs no shell'}];
+  const DESIGN = {n: 2, at: now - 3600, by: 'anna', title: 'nginx on web1', note: 'Only the ssl folder - never /etc/nginx itself.',
+    text: HEAD + 'allow file /etc/nginx/ssl owner=root:root mode=0644\nallow unit nginx.service reload\nallow test -- nginx -t\nallow probe local\n',
+    state: {files: [{dir: '/etc/nginx/ssl', owner: 'root', group: 'root', mode: 0o644}], units: [{name: 'nginx.service', verbs: ['reload']}], tests: [['nginx', '-t']], probe_local: true},
+    hash: 'aa', entries: 4, warnings: 0,
+    compare: {state: 'differs', added: ['allow probe local'], removed: ['allow script-hash ' + 'cd'.repeat(32), 'allow from 192.0.2.10/32']},
+    history: []};
+  DESIGN.history = [Object.assign({}, DESIGN, {history: undefined}), {n: 1, at: now - 86400, by: 'anna', title: 'first try', text: HEAD, state: {}}];
+  const NEEDS = {state: 'answers', policy_hash: POL.hash, target: {id: 1, name: 'web1'}, items: [
     {kind: 'file', label: 'file', what: '/etc/nginx/ssl/site.crt  0644 root:root', ok: true, allow: ''},
     {kind: 'file', label: 'file', what: '/etc/nginx/ssl/site.key  0600 root:root', ok: true, allow: ''},
     {kind: 'test', label: 'test', what: 'nginx -t', ok: true, allow: ''},
@@ -129,15 +185,17 @@ const path = require('path');
       }
       const html = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
         + '<style>' + read('assets/acme.css') + '</style><style>' + read('assets/certs.css') + '</style><style>' + read('assets/agents.css') + '</style>'
-        + '<style>' + read('assets/runplan.css') + '</style>'
+        + '<style>' + read('assets/runplan.css') + '</style><style>' + read('assets/policybuilder.css') + '</style>'
         + '<script>window.ACME_LANG_PACK = ' + pack + ';</script></head><body><main class="ctl-main">' + paneHtml + '<div id="card-host"></div><div id="needs-host"></div></main>' + modalHtml
         + '<div class="toast" id="toast"></div>'
         + '<script>' + esc(read('assets/i18n.js')) + '</script>'
         + '<script>var ME = {name: "tester", role: "fulladmin", prefs: {}}; var LIVE = {on: false}; var SENT = [];'
         + ' var VIEW = ' + JSON.stringify(VIEW) + '; var ONE = ' + JSON.stringify(ONE) + '; var NEEDS = ' + JSON.stringify(NEEDS) + ';'
-        + ' var PLAN = ' + JSON.stringify(PLAN) + ';</script>'
+        + ' var PLAN = ' + JSON.stringify(PLAN) + '; var POL = ' + JSON.stringify(POL) + '; var FACTS = ' + JSON.stringify(FACTS) + '; var TPL = ' + JSON.stringify(TPL) + ';'
+        + ' var BNEEDS = ' + JSON.stringify(BNEEDS) + '; var DESIGN = ' + JSON.stringify(DESIGN) + '; var SAVED = null;</script>'
         + '<script>' + esc(read('assets/core.js')) + '</script>'
         + '<script>' + esc(read('assets/agents.js')) + '</script>'
+        + '<script>' + esc(read('assets/policybuilder.js')) + '</script>'
         + '<script>window.ACME_CERTS = {api: function () { return Promise.resolve({plan: PLAN}); }};</script>'
         + '<script>' + esc(read('assets/runplan.js')) + '</script>'
         + '<script>ACME_AGENTS.init({capi: function (what, body) { SENT.push([what, body || null]);'
@@ -148,6 +206,12 @@ const path = require('path');
         + ' if (what === "agents/code") return c({code: "ACAG1.eyJ2IjoxLCJ0IjoxLCJuIjoid2ViMSIsIm0iOiJwYXNzaXZlIiwiaSI6IjBhMWIyYzNkNGU1ZiIsInMiOiJ4eHh4In0", until: Date.now() / 1000 + 3600, mode: "passive", ca_fp: VIEW.ca.fp, endpoints: [], port: 8446, agent: ONE});'
         + ' if (what === "agents/confirm") return c({agent: Object.assign({}, ONE, {pending: null})});'
         + ' if (what === "agents/update") return c({said: "acme-agent 1.0.117 is installed", agent: ONE});'
+        + ' if (what.indexOf("agents/builder") === 0) return c({agent: ONE, facts: FACTS, templates: TPL, needs: BNEEDS, acme_from: ["192.0.2.11", "192.0.2.12"], design: SAVED});'
+        + ' if (what === "agents/design") { SAVED = {n: 1, at: Date.now() / 1000, by: "tester", title: body.title, note: body.note, text: body.text, state: body.state, compare: {state: "differs", added: [], removed: []}, history: []}; return c({design: SAVED}); }'
+        + ' if (what.indexOf("agents/design?") === 0) return c({design: DESIGN});'
+        + ' if (what === "agents/design/forget") return c({design: null});'
+        + ' if (what === "agents/updates") return c({rows: [{id: 2, name: "mail-gw", mode: "active", version: "1.0.115", offered: "1.0.116", ok: true, why: ""},'
+        + ' {id: 4, name: "db1", mode: "passive", version: "1.0.115", offered: "1.0.116", ok: false, why: "its policy has no allow self-update"}]});'
         + ' return c({}); }, over: function (open) { open(); }, openTarget: function (n) { window.OPENED = n; },'
         + ' newCert: function (row, host) { window.NEWCERT = [row.name, host]; }});</script>'
         + '</body></html>';
@@ -210,7 +274,7 @@ const path = require('path');
       out.checks[tag + 'card'] = await page.evaluate(() => {
         var c = document.querySelector('#card-host .ag-card');
         return !!c && !!c.querySelector('.dbs-state.ok') && c.querySelectorAll('.ag-pol-g').length === 5 && c.querySelectorAll('.ag-verb').length === 2
-          && c.querySelectorAll('.ag-acts .btn').length === 4 && !c.querySelector('.ag-confirm');
+          && c.querySelectorAll('.ag-acts .btn').length === 5 && !c.querySelector('.ag-confirm');
       });
       out.checks[tag + 'card_fits'] = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
       if (shots) await page.locator('#card-host .ag-card').screenshot({path: path.join(shots, 'card-' + lang + width + '.png')});
@@ -237,6 +301,12 @@ const path = require('path');
       out.checks[tag + 'new_cert'] = await page.evaluate(() => window.NEWCERT && window.NEWCERT[0] === 'web1' && window.NEWCERT[1] === 'web1.example.com');
       await page.evaluate(() => document.querySelector('#card-host .ag-upd .btn.primary').click());
       await page.waitForTimeout(150);
+      out.checks[tag + 'update_asked_first'] = await page.evaluate(() => !SENT.some(function (x) { return x[0] === 'agents/update'; })
+        && !document.getElementById('modal').hidden && /1\.0\.117/.test(document.getElementById('modal-body').textContent));
+      if (shots) await page.locator('#modal-box').screenshot({path: path.join(shots, 'update-ask-' + lang + width + '.png')});
+      await page.evaluate(() => document.querySelector('#modal-foot .btn.primary').click());
+      await page.waitForTimeout(250);
+      if (shots) await page.locator('#card-host .ag-upd').screenshot({path: path.join(shots, 'update-now-' + lang + width + '.png')});
       out.checks[tag + 'update_sent'] = await page.evaluate(() => SENT.some(function (x) { return x[0] === 'agents/update' && x[1].id === 1; }));
       // ...a newer one its policy does not let acme send: the way, and the line
       await page.evaluate(() => {
@@ -381,6 +451,158 @@ const path = require('path');
         await page.locator('#modal-box').screenshot({path: path.join(shots, 'what-happens-' + lang + width + '.png')});
       }
       await page.evaluate(() => closeModal());
+      // ---- 1.0.118: the policy builder
+      await page.setViewportSize({width: width, height: 1300});
+      await page.evaluate(() => { var t = document.getElementById('toast'); if (t) t.remove();
+        ONE.pending = null; ONE.joined = true; ONE.state = 'answers'; ONE.mode = 'passive'; ONE.policy = POL; ONE.policy_at = Date.now() / 1000; ONE.design = null;
+        var h = document.getElementById('card-host'); h.hidden = false; h.innerHTML = '';
+        h.appendChild(ACME_AGENTS.card({id: 1, name: 'web1'})); });
+      await page.waitForTimeout(250);
+      await page.evaluate(() => { var b = Array.prototype.filter.call(document.querySelectorAll('#card-host .ag-acts .btn'), function (x) { return x.textContent.length && x.querySelector('svg'); }); b[b.length - 1].click(); });
+      await page.waitForTimeout(400);
+      const pre = () => page.evaluate(() => document.querySelector('#modal-body .pb-pre').textContent);
+      const want0 = HEAD + ['allow file /etc/nginx/ssl owner=root:root mode=0640', 'allow unit nginx.service reload,restart', 'allow test -- nginx -t',
+        'allow script-hash ' + 'cd'.repeat(32), 'allow from 192.0.2.10/32'].join('\n') + '\n';
+      out.checks[tag + 'builder_from_server'] = await page.evaluate(() => !!document.querySelector('#modal-body .pb')
+        && SENT.some(function (x) { return x[0].indexOf('agents/builder?id=1') === 0; })
+        && document.querySelectorAll('#pb-s-files .pb-row').length === 1 && !!document.querySelector('.pb-seg-b.on')
+        && document.querySelectorAll('.pb-tpl').length === 7) && (await pre()) === want0;
+      out.checks[tag + 'builder_fits'] = await page.evaluate(() => document.getElementById('modal-box').scrollWidth <= document.getElementById('modal-box').clientWidth + 1
+        && document.documentElement.scrollWidth <= window.innerWidth + 1);
+      if (shots) await page.locator('#modal-box').screenshot({path: path.join(shots, 'builder-top-' + lang + width + '.png')});
+      // a template: Postfix's folder and tests
+      await page.evaluate(() => { var t = Array.prototype.filter.call(document.querySelectorAll('.pb-tpl'), function (x) { return x.textContent.indexOf('Postfix') >= 0; })[0]; t.click(); });
+      await page.waitForTimeout(150);
+      out.checks[tag + 'builder_template'] = await page.evaluate(() => document.querySelectorAll('#pb-s-files .pb-row').length === 2
+        && document.querySelector('.pb-pre').textContent.indexOf('allow file /etc/postfix/ssl owner=root:root mode=0644\nallow unit nginx.service reload,restart\nallow test -- nginx -t\nallow test -- postfix check\nallow test -- postfix reload\n') > 0
+        && document.querySelector('.pb-pre').textContent.indexOf('allow probe local') > 0
+        && Array.prototype.some.call(document.querySelectorAll('.pb-tpl.on'), function (x) { return x.textContent.indexOf('Postfix') >= 0; }));
+      // validation: a protected place (red, left out), a folder above them (amber), a shell's -c (amber)
+      const typeLast = async (sec, sel, value) => page.evaluate(([sec, sel, value]) => {
+        var rows = document.querySelectorAll('#pb-s-' + sec + ' .pb-row'); var i = rows[rows.length - 1].querySelector(sel);
+        i.value = value; i.dispatchEvent(new Event('input', {bubbles: true})); }, [sec, sel, value]);
+      await page.evaluate(() => { document.querySelector('#pb-s-files .pb-sec-h .btn').click(); });
+      await page.waitForTimeout(100);
+      await typeLast('files', '.pb-path', '/etc/sudoers.d');
+      await page.waitForTimeout(100);
+      out.checks[tag + 'builder_protected'] = await page.evaluate(() => {
+        var rows = document.querySelectorAll('#pb-s-files .pb-row'), r = rows[rows.length - 1];
+        return r.classList.contains('bad') && r.querySelector('.pb-msg.bad').textContent.indexOf('/etc/sudoers.d') >= 0
+          && document.querySelector('.pb-pre').textContent.indexOf('sudoers') < 0 && !!document.querySelector('.pb-badge.bad')
+          && !!document.querySelector('.pb-nav-b.bad') && document.querySelector('.pb-stat.bad b').textContent === '1';
+      });
+      if (shots) { await page.evaluate(() => document.getElementById('pb-s-files').scrollIntoView()); await page.locator('#modal-box').screenshot({path: path.join(shots, 'builder-folders-' + lang + width + '.png')}); }
+      const h0 = await page.evaluate(() => { var rows = document.querySelectorAll('#pb-s-files .pb-row'); return rows[rows.length - 1].getBoundingClientRect().height; });
+      await typeLast('files', '.pb-path', '/etc');
+      await page.waitForTimeout(100);
+      out.checks[tag + 'builder_above'] = await page.evaluate(() => {
+        var rows = document.querySelectorAll('#pb-s-files .pb-row'), r = rows[rows.length - 1];
+        return r.classList.contains('warn') && r.querySelector('.pb-msg.warn').textContent.indexOf('/etc/sudoers') > 0
+          && document.querySelector('.pb-pre').textContent.indexOf('allow file /etc owner=root:root mode=0644') > 0 && !!document.querySelector('.pb-badge.warn');
+      });
+      await page.evaluate(() => { var rows = document.querySelectorAll('#pb-s-files .pb-row'); rows[rows.length - 1].querySelector('.pb-x').click(); });
+      await page.evaluate(() => { document.querySelector('#pb-s-tests .pb-sec-h .btn').click(); });
+      await page.waitForTimeout(100);
+      await typeLast('tests', '.pb-cmd', 'sh -c "systemctl restart x; echo ok"');
+      await page.waitForTimeout(100);
+      out.checks[tag + 'builder_shell'] = await page.evaluate(() => {
+        var rows = document.querySelectorAll('#pb-s-tests .pb-row'), r = rows[rows.length - 1];
+        return r.classList.contains('warn') && r.querySelectorAll('.pb-tok').length === 3 && r.querySelector('.pb-msg.warn').textContent.indexOf('sh -c') >= 0
+          && document.querySelector('.pb-pre').textContent.indexOf("allow test -- sh -c 'systemctl restart x; echo ok'") > 0;
+      });
+      if (shots) { await page.evaluate(() => document.getElementById('pb-s-tests').scrollIntoView()); await page.locator('#modal-box').screenshot({path: path.join(shots, 'builder-tests-' + lang + width + '.png')}); }
+      await page.evaluate(() => { var rows = document.querySelectorAll('#pb-s-tests .pb-row'); rows[rows.length - 1].querySelector('.pb-x').click(); });
+      // what the deployments need: one click each, and all of it
+      out.checks[tag + 'builder_needs'] = await page.evaluate(() => {
+        var n = document.querySelectorAll('#pb-s-needs .pb-need');
+        return n.length === 10 && document.querySelectorAll('#pb-s-needs .pb-need.never').length === 1
+          && document.querySelector('#pb-s-needs .pb-need.never .pb-need-why').textContent.indexOf('/etc/sudoers.d') >= 0 && !!document.querySelector('#pb-s-needs .pb-dep .pb-msg.bad');
+      });
+      if (shots) { await page.evaluate(() => document.getElementById('pb-s-needs').scrollIntoView()); await page.locator('#modal-box').screenshot({path: path.join(shots, 'builder-needs-' + lang + width + '.png')}); }
+      await page.evaluate(() => document.querySelector('.pb-addall').click());
+      await page.waitForTimeout(150);
+      out.checks[tag + 'builder_add_all'] = await page.evaluate(() => document.querySelectorAll('#pb-s-needs .pb-need.no').length === 0
+        && document.querySelectorAll('#pb-s-needs .pb-need.yes').length === 9 && document.querySelector('.pb-pre').textContent.indexOf('allow script-hash ' + '4f'.repeat(32)) > 0
+        && document.querySelector('.pb-pre').textContent.indexOf('allow unit postfix.service reload') > 0 && document.querySelector('.pb-addall').disabled);
+      // the outputs: allow lines, one block, what changes; Copy
+      await page.evaluate(() => { window.copyText = function (t) { window.COPIED = t; }; document.querySelectorAll('.pb-tab')[2].click(); });
+      const once = await pre();
+      out.checks[tag + 'builder_one_block'] = once.indexOf("sudo acme-agent policy apply - <<'EOF'\n" + HEAD) === 0 && /\nEOF$/.test(once)
+        && once.indexOf('allow file /etc/postfix/ssl owner=root:root mode=0644\n') > 0;
+      await page.evaluate(() => document.querySelector('.pb-out-bar .btn.primary').click());
+      out.checks[tag + 'builder_copy'] = await page.evaluate((once) => window.COPIED === once, once);
+      await page.evaluate(() => document.querySelectorAll('.pb-tab')[1].click());
+      out.checks[tag + 'builder_allow_lines'] = (await pre()).split('\n').indexOf('sudo acme-agent allow file /etc/postfix/ssl --owner root:root --mode 0644') >= 0
+        && (await pre()).split('\n').indexOf('sudo acme-agent allow probe local') >= 0;
+      await page.evaluate(() => document.querySelectorAll('.pb-tab')[3].click());
+      out.checks[tag + 'builder_diff'] = await page.evaluate(() => {
+        var p = document.querySelector('.pb-pre');
+        return p.querySelectorAll('.pb-d.add').length >= 5 && p.querySelectorAll('.pb-d.del').length === 1
+          && p.querySelector('.pb-d.del').textContent === '- allow file /etc/nginx/ssl owner=root:root mode=0640\n'
+          && Array.prototype.some.call(p.querySelectorAll('.pb-d.add'), function (x) { return x.textContent === '+ allow probe local\n'; })
+          && document.querySelector('.pb-tab-n').textContent !== '';
+      });
+      if (shots) { await page.evaluate(() => { document.querySelector('#modal-body').scrollTop = 0; }); await page.locator('#modal-box').screenshot({path: path.join(shots, 'builder-diff-' + lang + width + '.png')}); }
+      // switches: connect off by default, its warning when on; limits
+      await page.evaluate(() => document.querySelector('#pb-s-connect .pb-switch').click());
+      await page.waitForTimeout(100);
+      out.checks[tag + 'builder_connect'] = await page.evaluate(() => !!document.querySelector('#pb-s-connect .pb-connect-warn') && document.querySelectorAll('#pb-s-connect .pb-row').length === 1);
+      if (shots) { await page.evaluate(() => document.getElementById('pb-s-from').scrollIntoView()); await page.locator('#modal-box').screenshot({path: path.join(shots, 'builder-more-' + lang + width + '.png')}); }
+      await page.evaluate(() => document.querySelector('#pb-s-connect .pb-switch').click());
+      // save as this agent's design
+      await page.evaluate(() => { document.querySelectorAll('.pb-tab')[0].click(); var t = document.querySelector('.pb-title'); t.value = 'web1 - nginx and Postfix'; });
+      const file = await pre();
+      await page.evaluate(() => document.querySelector('.pb-save .btn').click());
+      await page.waitForTimeout(200);
+      out.checks[tag + 'builder_saved'] = await page.evaluate((file) => {
+        var x = SENT.filter(function (y) { return y[0] === 'agents/design'; }).pop();
+        return !!x && x[1].text === file && x[1].title === 'web1 - nginx and Postfix' && x[1].id === 1 && Array.isArray(x[1].state.files)
+          && document.querySelector('.pb-save-st').textContent.indexOf('v1') >= 0;
+      }, file);
+      if (shots) { await page.evaluate(() => { var o = document.querySelector('.pb-out'); o.scrollIntoView(); }); await page.locator('#modal-box').screenshot({path: path.join(shots, 'builder-saved-' + lang + width + '.png')}); }
+      if (lang === 'cs') {
+        const text = await page.evaluate(() => document.getElementById('modal-box').innerText);
+        const left = BWORDS.filter((w) => packStrings[fold(w)] === undefined || (text.indexOf(w) >= 0 && packStrings[fold(w)] !== w));
+        out.checks[tag + 'builder_czech'] = !left.length;
+        if (left.length) out['bleft_' + tag] = left;
+      }
+      await page.evaluate(() => closeModal(true));
+      // ---- the saved design on the card
+      await page.evaluate(() => { ONE.design = DESIGN; var h = document.getElementById('card-host'); h.innerHTML = ''; h.appendChild(ACME_AGENTS.card({id: 1, name: 'web1'})); });
+      await page.waitForTimeout(250);
+      out.checks[tag + 'card_design'] = await page.evaluate(() => {
+        var d = document.querySelector('#card-host .ag-design');
+        return !!d && d.classList.contains('differs') && d.querySelectorAll('.pb-d.add').length === 1 && d.querySelectorAll('.pb-d.del').length === 2
+          && d.querySelectorAll('.btn').length === 5 && !!d.querySelector('.ag-design-hist') && d.textContent.indexOf('nginx on web1') >= 0;
+      });
+      if (shots) await page.locator('#card-host .ag-design').screenshot({path: path.join(shots, 'card-design-' + lang + width + '.png')});
+      await page.evaluate(() => { window.copyText = function (t) { window.COPIED = t; }; document.querySelectorAll('#card-host .ag-design .btnrow .btn')[1].click(); });
+      out.checks[tag + 'card_design_copy'] = await page.evaluate(() => window.COPIED === DESIGN.text);
+      await page.evaluate(() => document.querySelector('#card-host .ag-design .btn.danger').click());
+      await page.waitForTimeout(150);
+      await page.evaluate(() => document.querySelector('#modal-foot .btn.danger').click());
+      await page.waitForTimeout(200);
+      out.checks[tag + 'card_design_forget'] = await page.evaluate(() => SENT.some(function (x) { return x[0] === 'agents/design/forget' && x[1].id === 1; }));
+      await page.evaluate(() => { try { closeModal(); } catch (e) { } });
+      // the builder opened again starts from the saved design
+      await page.evaluate(() => { SAVED = DESIGN; ACME_POLICY_BUILDER.open({id: 1, name: 'web1'}, {}); });
+      await page.waitForTimeout(400);
+      out.checks[tag + 'builder_from_design'] = (await pre()) === DESIGN.text && await page.evaluate(() => document.querySelectorAll('.pb-seg-b').length === 3);
+      await page.evaluate(() => { SAVED = null; closeModal(true); });
+      // ---- Update all agents… (the pane)
+      await page.evaluate(() => { document.getElementById('pane-agents').hidden = false; document.getElementById('card-host').hidden = true; ACME_AGENTS.pane(); });
+      await page.waitForTimeout(250);
+      await page.evaluate(() => document.querySelector('#ag-list .ag-list-h .btn').click());
+      await page.waitForTimeout(250);
+      out.checks[tag + 'update_all'] = await page.evaluate(() => document.querySelectorAll('#modal-body .ag-upd-one').length === 2
+        && document.querySelectorAll('#modal-body .ag-upd-one.no').length === 1 && document.querySelector('#modal-body .ag-upd-one.no .why').textContent.length > 5
+        && !!document.querySelector('#modal-foot .btn.primary'));
+      if (shots) await page.locator('#modal-box').screenshot({path: path.join(shots, 'update-all-' + lang + width + '.png')});
+      await page.evaluate(() => { SENT.length = 0; document.querySelector('#modal-foot .btn.primary').click(); });
+      await page.waitForTimeout(300);
+      out.checks[tag + 'update_all_sent'] = await page.evaluate(() => SENT.some(function (x) { return x[0] === 'agents/update' && x[1].id === 2; })
+        && !SENT.some(function (x) { return x[0] === 'agents/update' && x[1].id === 4; }) && !document.querySelector('[data-upd="2"]').hidden);
+      await page.setViewportSize({width: width, height: 900});
       if (lang === 'cs') {
         const text = await page.evaluate(() => document.body.innerText);
         const left = WORDS.filter((w) => packStrings[fold(w)] === undefined || (text.indexOf(w) >= 0 && packStrings[fold(w)] !== w));

@@ -16,6 +16,15 @@ The routes of target agents (1.0.116, docs/target-agent.md) - imported at the en
                                         `allow self-update` in its policy)  full administrator
     GET  /api/agents/package            the install package {name, version, sha256, size,
                                         signed, data_b64}
+    GET  /api/agents/updates            the agents a newer one is offered to: whether acme can
+                                        update each now, and why not (1.0.118)
+    GET  /api/agents/builder?id=        the policy builder: the agent, the lists the agent
+                                        checks with, the templates, what each deployment needs,
+                                        acme's addresses, the saved design (1.0.118)
+    GET  /api/agents/design?id=         the saved design, its history, the server compared
+    POST /api/agents/design {id, text, state, title, note}   a design saved (documentation
+                                        only - acme never sends it)          full administrator
+    POST /api/agents/design/forget {id} the design deleted                   full administrator
 
     POST /api/agent-wire/{join,status,poll}   an active agent, through nginx (the agents' port)
                                         and web/agent.php only - the API's token, never a
@@ -29,6 +38,7 @@ import time
 from acmelib import engine as E
 from acmelib.certs import api as A
 from acmelib.certs import agents as G
+from acmelib.certs import agent_policy as P
 from acmelib.plugins.base import PluginError
 
 
@@ -80,7 +90,43 @@ def _one(h, s):
     out.update(_install(h.store, row))
     out['ca'] = G.ca_public(h.store)
     out['port'] = G.active_port()
+    out['design'] = P.design_view(h.store, row, out.get('policy'))
     return out
+
+
+@A.api('GET', '/api/agents/updates')
+def _updates(h, s):
+    return {'rows': G.update_candidates(h.store)}
+
+
+@A.api('GET', '/api/agents/builder')
+def _builder(h, s):
+    return P.builder(h.store, _row(h))
+
+
+@A.api('GET', '/api/agents/design')
+def _design(h, s):
+    row = _row(h)
+    return {'design': P.design_view(h.store, row, G.info(h.store, row).get('policy'))}
+
+
+@A.api('POST', '/api/agents/design', 'fulladmin')
+def _design_save(h, s):
+    b = h.body()
+    row = _row(h, b)
+    if not isinstance(b.get('text'), str):
+        raise ValueError('text is the policy file')
+    v = P.design_save(h.store, row, b.get('text'), b.get('state'), A._text(b, 'title', 500),
+                      A._text(b, 'note', 4000), A.who(s))
+    return {'saved': {k: v.get(k) for k in ('n', 'at', 'by', 'title', 'entries')},
+            'design': P.design_view(h.store, row, G.info(h.store, row).get('policy'))}
+
+
+@A.api('POST', '/api/agents/design/forget', 'fulladmin')
+def _design_forget(h, s):
+    row = _row(h, h.body())
+    P.design_forget(h.store, row, A.who(s))
+    return {'design': None}
 
 
 @A.api('POST', '/api/agents/code', 'fulladmin')
@@ -94,7 +140,9 @@ def _code(h, s):
 @A.api('POST', '/api/agents/look', 'certadmin')
 def _look(h, s):
     row = _row(h, h.body())
-    return {'agent': G.look(h.store, row, A.who(s))}
+    out = G.look(h.store, row, A.who(s))
+    out['design'] = P.design_view(h.store, row, out.get('policy'))
+    return {'agent': out}
 
 
 @A.api('POST', '/api/agents/confirm', 'fulladmin')

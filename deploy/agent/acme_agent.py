@@ -2760,6 +2760,12 @@ class Net(object):
         _key, crt = tls_paths()
         pem = _read(crt, '') or ''
         out = {'version': VERSION, 'code': CODE}
+        # 1.0.118: the policy's hash with every poll and answer - acme asks for the policy
+        # itself at once when it is not the one it holds (the pages never show an old one)
+        try:
+            out['policy_hash'] = policy_load()[1]
+        except Exception:                               # noqa: BLE001
+            pass
         if pem:
             try:
                 out.update(cert_fp=fp_of_pem(pem), cert_end=cert_end(pem))

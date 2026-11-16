@@ -21,6 +21,22 @@ function ask(path, body, wait) {
   return H.capi(path, body, wait);
 }
 function arr(v) { return Array.isArray(v) ? v : []; }
+/** The policy builder (policybuilder.js, 1.0.118) of a target's agent. */
+function builder(row, opts) {
+  if (window.ACME_POLICY_BUILDER) window.ACME_POLICY_BUILDER.open(row, opts || {});
+  else toast('the policy builder is not on this page', 'bad');
+}
+function designButton(row, opts, cls) {
+  var b = cmdButton('Design its policy…', 'shield', cls || 'small');
+  b.onclick = function () { builder(row, opts); };
+  return b;
+}
+/** Another program than the one this acme ships - only of the same version (an older one
+    has the newer agent offered, which says it). */
+function otherProgram(a, shipped) {
+  return !!(a.code_hash && shipped && a.code_hash !== shipped && !(a.update && a.update.newer)
+    && (!a.update || !a.update.offered || String(a.version || '') === String(a.update.offered)));
+}
 function data(kind, cls, text) { return noI18n(el(kind, cls, text)); }
 function mono(text, cls) { return noI18n(el('span', 'mono' + (cls ? ' ' + cls : ''), text)); }
 function icon(key, size) {
@@ -327,6 +343,12 @@ function drawList(box, d) {
   h.appendChild(document.createTextNode('Targets with an agent'));
   var n = noI18n(el('span', 'count', String(rows.length)));
   h.appendChild(n);
+  if (FULL && rows.some(function (a) { return a.update && a.update.newer; })) {
+    h.className = 'ag-list-h';
+    var ua = cmdButton('Update all agents…', 'up', 'small');
+    ua.onclick = updateAll;
+    h.appendChild(ua);
+  }
   box.appendChild(h);
   if (!rows.length) {
     var e = el('div', 'ag-empty');
@@ -385,7 +407,27 @@ function tile(a, d) {
     flags.appendChild(kf);
   }
   if (flags.firstChild) t.appendChild(flags);
-  if (a.code_hash && d && d.shipped_code && a.code_hash !== d.shipped_code) {
+  if (a.design) {
+    var df = el('span', 'ag-flag ' + (a.design.state === 'matches' ? 'ok' : (a.design.state === 'differs' ? 'warn' : 'info')));
+    df.appendChild(icon('shield', 13));
+    df.appendChild(el('span', '', a.design.state === 'matches' ? 'matches its design' : (a.design.state === 'differs' ? 'differs from its design' : 'a design is saved')));
+    if (a.design.title) explain(df, String(a.design.title));
+    if (!flags.parentNode) t.appendChild(flags);
+    flags.appendChild(df);
+  }
+  var acts = el('div', 'btnrow ag-tile-acts');
+  acts.appendChild(designButton({id: a.id, name: a.name}, {done: function () { pane(true); }}, 'small'));
+  if (FULL && a.update && a.update.newer && a.update.allowed && a.update.signed) {
+    var ub = cmdButton('Update', 'up', 'small');
+    ub.onclick = function () { updateMany([{id: a.id, name: a.name, offered: a.update.offered, ok: true}]); };
+    acts.appendChild(ub);
+  }
+  var prog = el('span', 'ag-tile-upd');
+  prog.hidden = true;
+  prog.setAttribute('data-upd', String(a.id));
+  acts.appendChild(prog);
+  t.appendChild(acts);
+  if (otherProgram(a, d && d.shipped_code)) {
     t.appendChild(el('div', 'note warn small ag-older', 'Another program than the one this acme ships - install the package of this version.'));
   }
   return t;
@@ -399,6 +441,7 @@ function card(row, opts) {
   var box = el('div', 'ag-card');
   var ticket = {n: 0, timer: null};
   function load(look, button) {
+    if (look) ticket.fresh = true;
     var n = ++ticket.n;
     if (button) busy(button, true);
     var p = look ? ask('agents/look', {id: row.id}, 60).then(function (x) { return x.agent; })
@@ -444,7 +487,7 @@ function card(row, opts) {
       k.appendChild(kv('Its key', kf));
     }
     box.appendChild(k);
-    if (a.code_hash && a.shipped_code && a.code_hash !== a.shipped_code) {
+    if (otherProgram(a, a.shipped_code)) {
       box.appendChild(el('div', 'note warn small', 'The agent runs another program than the one this acme ships - install the package of this version (Settings → Target agents).'));
     }
     if (a.last_error && a.state !== 'answers') {
@@ -456,6 +499,7 @@ function card(row, opts) {
     if (a.update && a.update.newer) box.appendChild(updateBox(row, a, function () { load(false); }));
     if (a.joined) box.appendChild(keysBox(row, a));
     if (a.joined) box.appendChild(policyView(a.policy, a.policy_at));
+    if (a.design) box.appendChild(designBox(row, a, function () { load(false); }));
     var bar = el('div', 'btnrow ag-acts');
     if (FULL) {
       var jb = cmdButton(a.joined ? 'Join again…' : 'Join the agent…', a.joined ? 'refresh' : 'add', a.joined ? 'small' : 'primary small');
@@ -484,8 +528,18 @@ function card(row, opts) {
       };
       bar.appendChild(fb);
     }
+    if (a.joined || a.design) bar.appendChild(designButton(row, {done: function () { load(false); }, back: opts.reopen}));
     if (bar.childNodes.length) box.appendChild(bar);
     explainWhatWasDrawn(box);
+    /* 1.0.118: the policy said more than a minute ago is asked again by itself - the card never
+       shows an old one ("Nothing is allowed yet" while the server allowed self-update) */
+    if (!ticket.fresh && MANAGE && a.joined && a.state === 'answers' && (!a.policy_at || Date.now() / 1000 - Number(a.policy_at) > 60)) {
+      ticket.fresh = true;
+      var n = ++ticket.n;
+      ask('agents/look', {id: row.id}, 60).then(function (x) {
+        if (n === ticket.n && box.isConnected && x && x.agent && !x.agent.said) draw(x.agent);
+      }).catch(function () { });
+    }
   }
   box.appendChild(el('p', 'muted', 'Asking…'));
   load(false);
@@ -512,18 +566,31 @@ function updateBox(row, a, done) {
     w.appendChild(el('p', 'note small', u.signed
       ? 'Its policy lets acme update it: the package signed by acme’s release key is sent; the agent checks the signature with the key it was installed with and that the version is newer, then starts again.'
       : 'Its policy lets acme update it, but this acme has no signed package (a source tree): install a release package on the server.'));
+    w.appendChild(el('p', 'note small muted', 'The package comes from this acme itself - the signed agent it ships - never from the internet.'));
     if (FULL && u.signed) {
-      var b = cmdButton('Update the agent', 'up', 'primary small');
+      var b = cmdButton('Update the agent now', 'up', 'primary');
+      var prog = el('div', 'ag-upd-prog');
+      prog.hidden = true;
       b.onclick = function () {
-        busy(b, true);
-        ask('agents/update', {id: row.id}, 240).then(function (x) {
-          toast(String((x && x.said) || 'updated'), 'good');
-          done();
-        }).catch(oops).then(function () { busy(b, false); });
+        confirmThen('Update the agent of ' + row.name, 'acme sends the agent ' + esc(String(u.offered || '')) + ' it ships, signed by its release key. The agent checks the signature with the key it was installed with and that it is newer, puts it in place and starts again - a few seconds without it.', 'Update it now', function () {
+          busy(b, true);
+          prog.hidden = false;
+          clear(prog);
+          prog.appendChild(el('span', 'ag-spin'));
+          prog.appendChild(el('span', '', 'Sending the package and waiting for the agent…'));
+          ask('agents/update', {id: row.id}, 240).then(function (x) {
+            toast(String((x && x.said) || 'updated'), 'good');
+            clear(prog);
+            prog.appendChild(el('span', 'ag-spin'));
+            prog.appendChild(el('span', '', 'Updated - waiting for it to answer again…'));
+            return waitVersion(row, String(u.offered || ''));
+          }).then(function () { done(); }).catch(function (e) { prog.hidden = true; oops(e); }).then(function () { busy(b, false); });
+        }, false);
       };
       var br = el('div', 'btnrow');
       br.appendChild(b);
       w.appendChild(br);
+      w.appendChild(prog);
     }
   } else {
     w.appendChild(el('p', 'note small', 'Its policy does not let acme update it: install the package on the server (Settings → Target agents), or allow acme to send it - only a package signed by the release key, only a newer version:'));
@@ -531,6 +598,156 @@ function updateBox(row, a, done) {
   }
   if (u.last && u.last.ok === false) w.appendChild(data('div', 'note bad small', String(u.last.said || '')));
   box.appendChild(w);
+  return box;
+}
+function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
+/** After an update: the agent asked until it says the version sent (a minute at most). */
+function waitVersion(row, want) {
+  var end = Date.now() + 60000;
+  return new Promise(function (resolve) {
+    var once = function () {
+      ask('agents/look', {id: row.id}, 30).then(function (x) {
+        if ((x && x.agent && x.agent.version) === want || Date.now() > end) resolve(x); else setTimeout(once, 2500);
+      }).catch(function () { if (Date.now() > end) resolve(null); else setTimeout(once, 2500); });
+    };
+    setTimeout(once, 2000);
+  });
+}
+/** Several agents updated one by one (Settings → Target agents: Update all agents, or a
+    tile's Update), each tile saying how it goes. */
+function updateMany(list) {
+  var mark = function (id, cls, words) {
+    var p = document.querySelector('[data-upd="' + id + '"]');
+    if (!p) return;
+    p.hidden = false;
+    p.className = 'ag-tile-upd ' + cls;
+    p.textContent = words;
+  };
+  var todo = list.filter(function (x) { return x.ok; });
+  var step = function (i) {
+    if (i >= todo.length) { pane(true); return; }
+    var x = todo[i];
+    mark(x.id, 'run', tr('updating…'));
+    ask('agents/update', {id: x.id}, 240).then(function () {
+      mark(x.id, 'run', tr('waiting for it to answer…'));
+      return waitVersion(x, String(x.offered || ''));
+    }).then(function (got) {
+      var v = got && got.agent && got.agent.version;
+      mark(x.id, v === x.offered ? 'ok' : 'bad', v === x.offered ? tr('updated to') + ' ' + v : tr('sent - it has not answered with the new version yet'));
+    }).catch(function (e) { mark(x.id, 'bad', String((e && e.message) || e)); }).then(function () { step(i + 1); });
+  };
+  step(0);
+}
+function tr(w) { return typeof i18nText === 'function' ? (i18nText(w) || w) : w; }
+function updateAll() {
+  ask('agents/updates').then(function (d) {
+    var rows = arr(d.rows), can = rows.filter(function (x) { return x.ok; });
+    var go = function () {
+      modal('Update all agents', function (body) {
+        body.appendChild(el('p', 'note', 'Each agent below runs an older version than the one this acme ships. acme sends its own signed package - never one from the internet - to those whose policy allows it, one by one; each checks the signature and starts again.'));
+        var l = el('div', 'ag-upd-all');
+        if (!rows.length) l.appendChild(el('p', 'muted', 'Every agent runs the version this acme ships.'));
+        rows.forEach(function (x) {
+          var r = el('div', 'ag-upd-one' + (x.ok ? '' : ' no'));
+          r.appendChild(el('span', 'dot ' + (x.ok ? 'ok' : 'off')));
+          r.appendChild(data('b', '', x.name));
+          var vv = el('span', 'ag-vers');
+          vv.appendChild(mono(String(x.version || '?'), 'ag-ver old'));
+          vv.appendChild(noI18n(el('span', 'ag-ver-arrow', '→')));
+          vv.appendChild(mono(String(x.offered || '?'), 'ag-ver new'));
+          r.appendChild(vv);
+          r.appendChild(el('span', 'tag ' + (x.ok ? 'ok' : 'dim'), x.ok ? 'will be updated' : 'not updated'));
+          if (!x.ok) r.appendChild(el('span', 'why', String(x.why || '')));
+          l.appendChild(r);
+        });
+        body.appendChild(l);
+      }, [{words: 'Close', close: true}].concat(can.length ? [{words: can.length === 1 ? 'Update 1 agent' : 'Update ' + can.length + ' agents', cls: 'primary', icon: 'up', close: true, go: function () { updateMany(can); }}] : []), 'medium');
+    };
+    go();
+  }).catch(oops);
+}
+/** The policy designed in acme for this agent (1.0.118) - documentation only: the title, the
+    note, who saved it, and whether the server's policy (as the agent last said it) is it. */
+function designBox(row, a, reload) {
+  var D = a.design || {};
+  var box = el('div', 'ag-design');
+  var fill = function (D) {
+    clear(box);
+    var c = D.compare || {state: D.state || 'unknown', added: [], removed: []};
+    box.className = 'ag-design ' + (c.state || 'unknown');
+    var h = el('div', 'ag-design-h');
+    h.appendChild(icon('shield', 16));
+    h.appendChild(el('b', '', 'Its saved design'));
+    if (D.title) h.appendChild(data('span', 'ag-design-t', D.title));
+    var st = el('span', 'ag-badge ' + (c.state === 'matches' ? 'ok' : (c.state === 'differs' ? 'warn' : 'dim')));
+    st.appendChild(el('span', '', c.state === 'matches' ? 'the server’s policy matches the saved design'
+      : (c.state === 'differs' ? 'the server’s policy differs from it' : 'not asked yet')));
+    h.appendChild(st);
+    box.appendChild(h);
+    var m = el('div', 'ag-design-meta');
+    m.appendChild(noI18n(el('span', '', 'v' + (D.n || '?') + ' · ')));
+    m.appendChild(el('span', '', 'saved'));
+    m.appendChild(document.createTextNode(' ' + when(D.at) + ' · '));
+    m.appendChild(data('span', '', String(D.by || '')));
+    box.appendChild(m);
+    if (D.note) box.appendChild(data('p', 'ag-design-note', D.note));
+    if (c.state === 'differs' && arr(c.added).length + arr(c.removed).length) {
+      var pre = noI18n(el('pre', 'ag-design-diff mono'));
+      arr(c.added).forEach(function (x) { var s = el('span', 'pb-d add'); s.textContent = '+ ' + x + '\n'; pre.appendChild(s); });
+      arr(c.removed).forEach(function (x) { var s = el('span', 'pb-d del'); s.textContent = '- ' + x + '\n'; pre.appendChild(s); });
+      box.appendChild(el('span', 'small muted', '+ only in the design (to apply on the server) · - only on the server'));
+      box.appendChild(pre);
+    }
+    var bar = el('div', 'btnrow');
+    var ob = cmdButton('Open in the builder', 'edit', 'small');
+    ob.onclick = function () { builder(row, {from: 'design', done: reload}); };
+    bar.appendChild(ob);
+    var cb = cmdButton('Copy policy', 'copy', 'small');
+    cb.onclick = function () { copyText(String(D.text || ''), cb, 'on the clipboard'); };
+    bar.appendChild(cb);
+    var db = cmdButton('Download', 'download', 'small');
+    db.onclick = function () {
+      var x = document.createElement('a');
+      x.href = URL.createObjectURL(new Blob([String(D.text || '')], {type: 'text/plain'}));
+      x.download = 'policy';
+      document.body.appendChild(x);
+      x.click();
+      setTimeout(function () { URL.revokeObjectURL(x.href); x.remove(); }, 2000);
+    };
+    bar.appendChild(db);
+    if (FULL) {
+      var del = cmdButton('Delete design…', 'trash', 'small danger');
+      del.onclick = function () {
+        confirmThen('Delete the saved design', 'The design kept in acme for this agent - every version of it - is deleted. The policy on the server does not change: acme never sent it.', 'Delete it', function () {
+          return ask('agents/design/forget', {id: row.id}).then(function () { toast('the design is deleted', 'good'); if (reload) reload(); }).catch(oops);
+        });
+      };
+      bar.appendChild(del);
+    }
+    box.appendChild(bar);
+    var hist = arr(D.history);
+    if (hist.length > 1) {
+      var det = el('details', 'ag-design-hist');
+      det.appendChild(el('summary', '', 'Earlier versions'));
+      hist.slice(1).forEach(function (v) {
+        var r = el('div', 'ag-design-v');
+        r.appendChild(noI18n(el('b', '', 'v' + v.n)));
+        if (v.title) r.appendChild(data('span', '', v.title));
+        r.appendChild(el('span', 'muted small', when(v.at)));
+        r.appendChild(data('span', 'muted small', String(v.by || '')));
+        var o = cmdButton('Open', 'edit', 'small');
+        o.onclick = function () { builder(row, {state: v.state, done: reload}); };
+        r.appendChild(o);
+        det.appendChild(r);
+      });
+      box.appendChild(det);
+    }
+  };
+  if (D.text !== undefined) fill(D);
+  else {
+    fill(D);
+    ask('agents/design?id=' + encodeURIComponent(row.id)).then(function (x) { if (x && x.design) fill(x.design); }).catch(function () { });
+  }
   return box;
 }
 /** The last deployment its policy refused (an alert until one goes through). */
@@ -901,13 +1118,15 @@ function needs(d) {
     box.appendChild(r);
   });
   var lines = items.filter(function (i) { return i.ok !== true && i.allow; }).map(function (i) { return 'sudo ' + String(i.allow).split('\n').join('\nsudo '); });
+  var br = el('div', 'btnrow ag-needs-all');
   if (lines.length > 1) {
     var all = cmdButton('Copy all the lines', 'copy', 'small');
     all.onclick = function () { copyText(lines.join('\n'), all, 'on the clipboard'); };
-    var br = el('div', 'btnrow ag-needs-all');
     br.appendChild(all);
-    box.appendChild(br);
   }
+  /* 1.0.118: the whole policy, clicked together - what every deployment there needs offered */
+  if (d && d.target && (d.target.id || d.target.name)) br.appendChild(designButton({id: d.target.id || d.target.name, name: d.target.name}, {}, 'small'));
+  if (br.firstChild) box.appendChild(br);
   return box;
 }
 
@@ -915,7 +1134,7 @@ function init(h) { Object.keys(h || {}).forEach(function (k) { H[k] = h[k]; }); 
 /* certs.js is loaded before this file on the page: what it hands is waiting there */
 if (window.ACME_AGENTS_HANDS) init(window.ACME_AGENTS_HANDS);
 window.ACME_AGENTS = {
-  init: init,
+  init: init, hands: function () { return H; }, designBox: designBox,
   pane: pane, settle: settle, card: card, wizard: wizard, needs: needs, policyView: policyView,
   statePill: statePill, chips: chips, updateBox: updateBox, blockedBox: blockedBox, keysBox: keysBox
 };

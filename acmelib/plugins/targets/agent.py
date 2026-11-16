@@ -457,7 +457,10 @@ class AgentTarget(Base):
         pol = (info or {}).get('policy')
         out = {'state': (info or {}).get('state') or 'new', 'policy_hash':
                (pol or {}).get('hash') if pol else None, 'policy_at': (info or {}).get(
-                   'policy_at'), 'items': []}
+                   'policy_at'), 'items': [],
+               # the target, for the policy builder the card opens (1.0.118)
+               'target': {'id': (info or {}).get('id'), 'name': getattr(
+                   self.ctx, 'target_name', '') or ''}}
         try:
             r = self.resolved(bundle, options, partial=True)
         except PluginError as e:

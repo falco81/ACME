@@ -154,6 +154,11 @@ Change it with the command line (as root) or by hand, one entry a line:
 `acme-agent deny ...` takes an entry away (the same words); `acme-agent policy show [--json]`
 says what is allowed, and which lines could not be read.
 
+The whole policy at once (1.0.118): `acme-agent policy check FILE|- [--json]` reads a policy file
+as `apply` does and says, line by line, what it would not take (an error: exit 1) and what to
+look at twice (a warning); `sudo acme-agent policy apply FILE|-` writes it in place of the one
+there - see *Designing the policy* below.
+
 **acme says what a deployment needs before it runs.** The agent reports its policy (and its
 hash) with every answer; the deployment's form shows, for each file, command and script, whether
 the policy allows it (green), does not (red - with the `acme-agent allow ...` line to copy), or is
@@ -174,6 +179,82 @@ The agent runs no shell. Each line of before / test / reload / after is read as 
 
 Anything else (a pipe, `;`, `$`, a redirection into a file - the Kubernetes preset, say) is
 refused before anything is sent: put it into a script and allow the script.
+
+## Designing the policy (1.0.118)
+
+**Design its policy…** - on the agent's card (beside *Join again… / Ask it now / Renew /
+Forget*), on each tile of Settings → Target agents and on what a deployment needs of the
+policy - opens the **policy builder**: the whole policy clicked together, checked live as the
+agent checks it, and copied to the server. acme never sends a policy: root writes it there.
+
+* **It starts from** the agent's policy as it last said it (or, when one is kept, from the saved
+  design - with a choice of the server's policy, or nothing).
+* **Templates**, one click each, a coherent set: the folder with its owner, group and mode as
+  the deployment presets write it (`plugins/targets/ssh.py` PRESETS - the same paths), the units
+  with their verbs and the tests of *After the files → From a template* (`deployfiles.js`), a
+  test of what it serves (`allow probe local`): nginx, Apache httpd (RHEL) and apache2 (Debian),
+  lighttpd, Caddy, HAProxy, Traefik, Squid, Postfix, Dovecot, Exim, Zimbra (its script, pinned on
+  the server), OpenLDAP, PostgreSQL, MySQL, MariaDB, Grafana, Cockpit, Webmin, Proxmox VE and
+  Backup Server, GitLab, Mosquitto, Tomcat, vsftpd, ProFTPD, a Docker container, any systemd
+  service, a folder for certificates (`acmelib/certs/agent_policy.py`).
+* **What the deployments need**: each deployment to the target, item by item (its files with
+  their modes and owners, units, commands, scripts, the hash of a script written in acme, the
+  tests through the agent) - in the policy (green), missing (*Add*), never allowed (red, with
+  why: a protected place); *Add all that the deployments need*.
+* **Sections**: folders (path, `owner:group`, the mode as an rwx grid), units (verb chips),
+  tests and commands (a command line shown as its words - no shell; `sh -c`, `bash -c`,
+  `python3 -c` said), scripts (path and SHA-256; left empty, the hash is pinned on the server by
+  `sudo acme-agent allow script PATH`), script hashes (the deployments' own offered), allow from
+  (acme's nodes' addresses offered), tests from here, connections for acme (off unless switched
+  on, with a warning), updates from acme, limits.
+* **Checked as the agent checks** (the agent's own lists - `policy_facts()` - handed by acme):
+  a line it would not read and a folder no job ever writes (its own places, the places that give
+  root, `.ssh`) are red and left out of the file; a folder above those places, a folder of a
+  service's configuration (`/etc/NAME`), x bits in a mode, a file the policy runs inside an
+  allowed folder, a shell given a command, a connection are amber - in the agent's words.
+* **The output**, live: the policy file in the agent's own format (its head, then the lines as
+  `acme-agent policy show` writes them), the same as `sudo acme-agent allow ...` lines (each adds
+  to what is there), **one block to paste** into a root shell, and what changes against the
+  server's policy (+ / -). Copy, Download policy file.
+
+```
+sudo acme-agent policy apply - <<'EOF'
+# /etc/acme-agent/policy - ...
+allow file /etc/nginx/ssl owner=root:root mode=0644
+allow unit nginx.service reload
+allow test -- nginx -t
+allow probe local
+EOF
+```
+
+`acme-agent policy apply` (as root only) checks the text first - any line the agent would not
+read, a folder no job may write, a folder that is a link on the way (write its real path), a
+script that is not there with the SHA-256 its line says: nothing is written, exit 1 - so it never
+lets through what `acme-agent allow` would refuse. Then it writes `/etc/acme-agent/policy`
+root:root 0644 atomically (a file beside it, renamed over), keeps the one before as
+`policy.YYYYMMDD-HHMMSS` (root 0600, the last ten), says what changed (a diff) and writes it to
+the audit log. The root side reads the policy anew for each job; *Ask it now* on the card shows
+it, and the builder opened again starts from it.
+
+**The design kept in acme**: *Save as this agent's design* (a full administrator; a title and a
+note) keeps the builder's state and the policy text with the target (`meta`
+`agents:design:<target id>` - in every backup, on both nodes; the last ten versions, who and
+when; its text read as the agent reads a policy, its state only of the builder's shapes). It is
+documentation only: acme never sends it. The card shows it - *the server's policy matches the
+saved design* (green), *differs* (amber, with the lines only in the design and only on the
+server), *not asked yet* - with *Open in the builder*, *Copy policy*, *Download*, *Delete
+design…* and its earlier versions (each opened in the builder). A read-only administrator sees
+it and opens the builder, but does not save. Saving and deleting are Events
+(`action=agent_design_saved | agent_design_deleted`). Forgetting the agent keeps the design;
+deleting the target takes it away. `acme --target-agent NAME design show | text | forget`;
+`GET /api/agents/builder?id=`, `GET /api/agents/design?id=`, `POST /api/agents/design`,
+`POST /api/agents/design/forget`.
+
+**The policy shown is the one there** (1.0.118): the agent sends its policy's hash with every
+poll (active) and every answer (passive); when it is another than the one acme holds, acme asks
+for the policy at once. Passive agents are asked every five minutes by the node that leads; the
+card asks again by itself when the policy it has is older than a minute, and *Ask it now* asks
+an active agent too (a job its next poll takes).
 
 ## Modes and ports
 
@@ -311,7 +392,7 @@ takes it away (the policy stays; `--purge` takes that and the account too).
   the server, agent not heard from and heard from again; **alerts** for an agent not heard from
   for ten minutes and its certificate ending within seven days.
 * **Command line**: `acme --target-agent NAME show | code | confirm FP | look | policy | renew |
-  update | forget` - `show` says what the card says; the console (`acme`): Targets → the target →
+  update | forget | design show|text|forget`, `acme --target-agent all update` - `show` says what the card says; the console (`acme`): Targets → the target →
   *Its acme-agent*.
 * **API**: `GET /api/agents`, `GET /api/agents/one?id=`, `POST /api/agents/{code,look,confirm,
   renew,update,forget}`, `GET /api/agents/package`.
@@ -376,6 +457,15 @@ job). The tests through the agent show the probe and its verdict. An SSH target 
 says so.
 
 ## Updates of the agent (phase 4)
+
+1.0.118: the card's *A newer agent is offered* has **Update the agent now** where its policy
+allows it (asked first; the progress, then the new version once it answers again); Settings →
+Target agents has **Update all agents…** - who will be updated (a newer version offered and
+`allow self-update`), who not and why (no `allow self-update`, not answering, acme cannot reach
+it, no signed package) - one by one, each tile saying how it goes, and an *Update* on each tile;
+`acme --target-agent all update`, `GET /api/agents/updates`. The package is always acme's own
+signed agent, never one from the internet. *Another program than the one this acme ships* is
+said only of the same version with another code - an older one has the newer agent offered.
 
 acme offers the agent of its own version. A target's card and the pane say **a newer agent is
 offered** when the agent runs an older version. With `allow self-update` in the policy a full

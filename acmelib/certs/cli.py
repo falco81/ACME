@@ -223,7 +223,8 @@ def add_args(p):
                         '(the fingerprint `acme-agent join` printed), look (reach a passive one '
                         'now), policy (what it allows, as it last said), renew (its '
                         'certificate), update (to the signed agent this acme ships, where its '
-                        'policy allows it), forget (--yes)')
+                        'policy allows it; "all update": every agent it can), forget (--yes), '
+                        'design show|text|forget (the policy designed in acme)')
     for word in ('target', 'validation', 'check'):
         g.add_argument('--%s-key' % word, dest='%s_key' % word, nargs='+', metavar='ARG',
                        help='NAME WHAT - the SSH key of a %s, as the key card of the page: '
@@ -1778,15 +1779,97 @@ class Cli(object):
     def target_test(self):
         return self.fam_test('target', self.args.target_test)
 
+    def target_agents_update(self):
+        """acme --target-agent all update (1.0.118): every agent a newer one is offered to and
+        whose policy allows it, one by one - the others said with why not."""
+        from acmelib.certs import agents as G
+        from acmelib.plugins.base import PluginError
+        rows = G.update_candidates(self.store)
+        out, bad = [], 0
+        for c in rows:
+            if not c['ok']:
+                out.append({'target': c['name'], 'updated': False, 'said': 'not updated: %s'
+                            % c['why']})
+                continue
+            try:
+                got = G.update_agent(self.store, G.target_row(self.store, c['id']), self.WHO)
+                out.append({'target': c['name'], 'updated': True,
+                            'said': got.get('said') or 'updated to %s' % c['offered']})
+            except (PluginError, LookupError) as e:
+                bad += 1
+                out.append({'target': c['name'], 'updated': False, 'said': str(e)})
+        if self.json:
+            self.out({'rows': out})
+            return 1 if bad else 0
+        if not out:
+            print('no agent runs an older version than the one this acme ships')
+        for x in out:
+            print('%s: %s' % (x['target'], x['said']))
+        return 1 if bad else 0
+
+    def target_agent_design(self, row, rest):
+        """acme --target-agent NAME design show|text|forget (1.0.118): the policy designed in
+        acme for it - documentation only, acme never sends it."""
+        from acmelib.certs import agents as G
+        from acmelib.certs import agent_policy as P
+        what = (rest or ['show'])[0]
+        pol = G.info(self.store, row).get('policy')
+        d = P.design_view(self.store, row, pol)
+        if what == 'forget':
+            if not d:
+                raise SystemExit('acme: the agent of %s has no saved design' % row['name'])
+            self.sure('the policy design of the agent of %s is deleted' % row['name'])
+            P.design_forget(self.store, row, self.WHO)
+            print('deleted: the policy design of the agent of %s' % row['name'])
+            return 0
+        if what not in ('show', 'text'):
+            raise SystemExit('acme: --target-agent NAME design show|text|forget')
+        if not d:
+            if self.json:
+                return self.out({'design': None}) or 0
+            print('the agent of %s has no saved design (the builder on its card saves one)'
+                  % row['name'])
+            return 0
+        if what == 'text':
+            sys.stdout.write(d['text'] if d['text'].endswith('\n') else d['text'] + '\n')
+            return 0
+        if self.json:
+            return self.out({'design': d}) or 0
+        c = d['compare']
+        rows = [('target', row['name']), ('design', d.get('title') or '(no title)'),
+                ('version', '%d (%d kept)' % (d['n'], len(d['history']))),
+                ('saved', '%s by %s' % (_when(d.get('at')), d.get('by') or '?')),
+                ('entries', str(d.get('entries'))),
+                ('the server', {'matches': 'its policy matches the saved design',
+                                'differs': 'its policy differs: %d line%s only in the design, %d '
+                                           'only on the server' % (
+                                               len(c['added']), '' if len(c['added']) == 1
+                                               else 's', len(c['removed'])),
+                                'unknown': 'its policy is not known yet (look asks it)'}[
+                                    c['state']])]
+        if d.get('note'):
+            rows.insert(2, ('note', d['note']))
+        w = max(len(k) for k, _v in rows)
+        for k, v in rows:
+            print('%s  %s' % (k.ljust(w), v))
+        for x in c.get('diff') or []:
+            if x.startswith(('+', '-')) and not x.startswith(('+++', '---')):
+                print('  %s' % x)
+        print('(acme never sends it: on the server, as root, acme-agent policy apply - '
+              'acme --target-agent %s design text shows the file)' % row['name'])
+        return 0
+
     def target_agent(self, words):
         """acme --target-agent NAME show|code|confirm FP|look|policy|renew|update|forget
-        (1.0.116)."""
+        (1.0.116) | design show|text|forget (1.0.118); acme --target-agent all update."""
         from acmelib.certs import agents as G
         from acmelib.plugins.base import PluginError
         if len(words) < 2:
             raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|renew|'
-                             'update|forget')
+                             'update|forget|design (or: all update)')
         name, what, rest = words[0], words[1], words[2:]
+        if name == 'all' and what == 'update':
+            return self.target_agents_update()
         try:
             row = G.target_row(self.store, name)
         except LookupError as e:
@@ -1825,9 +1908,11 @@ class Cli(object):
                 return 0
             elif what in ('show', 'policy'):
                 info = G.info(self.store, row)
+            elif what == 'design':
+                return self.target_agent_design(row, rest)
             else:
                 raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|'
-                                 'renew|update|forget')
+                                 'renew|update|forget|design')
         except PluginError as e:
             raise SystemExit('acme: %s' % e)
         if self.json:
