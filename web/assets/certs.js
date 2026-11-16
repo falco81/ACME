@@ -2753,6 +2753,11 @@ function modForm(key, row, p, fromPick, keep) {
     if (row && row.id && MANAGE && p.kind === 'dns_persist') body.appendChild(persistHere(row, p));
     if (FULL && p.kind === 'acme_dns') body.appendChild(acmeDnsHere(form));
     if (MANAGE && p.kind === 'ssh_dns') body.appendChild(sshDnsHere(form, row, p, function () { return name.value.trim(); }));
+    /* a server with acme-agent (1.0.116): its agent's card - state, policy, the join */
+    if (key === 'targets' && p.kind === 'agent' && window.ACME_AGENTS) {
+      if (row && row.id) body.appendChild(window.ACME_AGENTS.card(row, {reopen: function () { modEdit('targets', row); }}));
+      else body.appendChild(el('p', 'note info small', 'Save the target first: its card then makes the join code for the agent on the server.'));
+    }
     if (MANAGE && key === 'tests') body.appendChild(testTryHere(form, row, p));
     if (row && row.id && MANAGE && m.family === 'challenge') body.appendChild(setupHere(row));
     if (!FULL) Array.prototype.forEach.call(body.querySelectorAll('input, select, textarea'), function (x) { if (!x.closest('.ct-http')) x.disabled = true; });
@@ -2823,6 +2828,8 @@ function targetPeek(r) {
           le.appendChild(saidBox(r.last_error));
           body.appendChild(le);
         }
+        /* a server with acme-agent (1.0.116): its agent first */
+        if (r.kind === 'agent' && window.ACME_AGENTS) body.appendChild(window.ACME_AGENTS.card(r, {reopen: function () { targetPeek(r); }}));
         var grid = el('div', 'msects');
         var sec = section('Certificates deployed here', 'Each with the options it has on this target. Run deploys it again now.', true);
         if (depsErr) sec._body.appendChild(failedBox(depsErr, 'the deployments of a target'));
@@ -10785,7 +10792,17 @@ var MY_TABS = {
   targets: function (live) { drawModTab('targets', live); },
   tests: function (live) { drawModTab('tests', live); }
 };
-var MY_PANES = {dnssrv: loadDns, certs: loadCertSettings, modules: loadModules};
+/* Settings → Target agents (agents.js, 1.0.116) */
+function loadAgents(live) { if (window.ACME_AGENTS) window.ACME_AGENTS.pane(live); }
+var MY_PANES = {dnssrv: loadDns, certs: loadCertSettings, modules: loadModules, agents: loadAgents};
+if (window.ACME_AGENTS) window.ACME_AGENTS.init({capi: capi, over: over, openTarget: function (name) {
+  var r = (LISTS.targets || []).filter(function (t) { return t.name === name; })[0];
+  if (r) { targetPeek(r); return; }
+  capi('targets').then(function (d) {
+    var x = rowsOf(d, 'rows').filter(function (t) { return t.name === name; })[0];
+    if (x) targetPeek(x);
+  }).catch(oops);
+}});
 var LAST = {};
 /* How often a tab is asked again on the live tick, unless the daemon's serial
    moved (something happened): then at the next tick. */

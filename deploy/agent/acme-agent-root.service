@@ -1,0 +1,32 @@
+[Unit]
+Description=acme-agent (root side) - what acme may do here, as the policy allows (docs/target-agent.md)
+Documentation=file:///usr/local/lib/acme-agent/README.md
+After=local-fs.target
+
+[Service]
+Type=simple
+# The root side: a Unix socket for the network side alone (/run/acme-agent/root.sock, its uid
+# checked) and a closed set of operations, each checked against /etc/acme-agent/policy. Its code
+# opens no network connection; what it runs are the tests, reloads and scripts the policy names.
+ExecStart=/usr/bin/python3 -I /usr/local/lib/acme-agent/acme_agent.py root
+Restart=on-failure
+RestartSec=5s
+KillMode=mixed
+TimeoutStopSec=330
+UMask=0077
+RuntimeDirectory=acme-agent
+RuntimeDirectoryMode=0750
+StateDirectory=acme-agent-root
+StateDirectoryMode=0700
+PrivateTmp=yes
+ProtectHome=read-only
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+LockPersonality=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

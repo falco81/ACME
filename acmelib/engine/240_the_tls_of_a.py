@@ -365,6 +365,10 @@ def web_desired(store):
     cl = certlogin_desired(store)
     if cl is not None:
         out['certlogin'] = cl
+    # The agents' port (1.0.116): asked only while active mode is on, or once off again after.
+    ag = agents_desired(store)
+    if ag is not None:
+        out['agents'] = ag
     if fw is not None:
         out['fw'] = fw
     if access is not None:
@@ -410,7 +414,7 @@ def web_tick(store):
     st = web_status()
     if not st and not desired['vip']['on'] and not desired['tls']['node'] and \
             'fw' not in desired and 'access' not in desired and 'acme' not in desired and \
-            'certlogin' not in desired:
+            'certlogin' not in desired and 'agents' not in desired:
         return
     h = web_hash(desired)
     if st.get('state') == 'done':

@@ -1201,6 +1201,13 @@ def scan(store, by='the renewer'):
         started += checks.scan(store, by)
     except Exception as e:                              # noqa: BLE001
         E.log_sparing('certs-checks', 'the tests of the servers: %s' % e, 'warn', every=3600)
+    # Target agents (1.0.116): passive ones asked how they are, their certificates renewed.
+    try:
+        if store.db.value("SELECT COUNT(*) FROM cert_targets WHERE kind = 'agent'", (), 0):
+            from acmelib.certs import agents
+            agents.tick(store)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('certs-agents', 'the target agents: %s' % e, 'warn', every=3600)
     rows = store.db.rows("SELECT * FROM certs WHERE COALESCE(enabled, 1) <> 0 AND "
                          "COALESCE(auto_renew, 0) <> 0 AND COALESCE(issuer, '') <> ''")
     for r in rows:
@@ -1474,6 +1481,14 @@ def stop(daemon=None):
 def alerts(store):
     t = time.time()
     out = []
+    # Target agents not heard from, their certificates running out (1.0.116).
+    try:
+        if store.db.value("SELECT COUNT(*) FROM cert_targets WHERE kind = 'agent'", (), 0):
+            from acmelib.certs import agents
+            out += agents.alerts(store)
+    except Exception as e:                              # noqa: BLE001
+        E.log_sparing('certs-agents-alerts', 'the target agents\' alerts: %s' % e, 'warn',
+                      every=3600)
     days = int(E.CONFIG.get('certs_notify_days') or 14)
     for r in store.db.rows("SELECT id, name, state, not_after, auto_renew, last_error FROM certs "
                            "WHERE COALESCE(enabled, 1) <> 0 AND state NOT IN ('revoked', "

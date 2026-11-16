@@ -6,7 +6,41 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.116 - not released
 
-(nothing yet)
+- **Target agents: a server that takes its certificates without acme holding any of its
+  credentials** (docs/target-agent.md). A new target, *Server with acme-agent*: a small agent on
+  the server (`acme-agent`, Python 3 standard library, two processes - the network side as an
+  account of its own without any privilege, the root side never on the network) does what its
+  own policy (`/etc/acme-agent/policy`, root's - acme can never change it; it allows nothing until
+  you allow it) lets it: files in the folders it names with the owners and modes it names, the
+  units it may reload, the tests and scripts by their SHA-256. Whoever steals acme's database or a
+  backup gets nothing of the server; whoever controls acme can do there only what the policy
+  allows. The deployment is the SSH server's - formats, presets, before / test / script / reload /
+  after, the copies, the same certificate again changes nothing, the previous files back when the
+  test or the reload fails - with no shell: each command is read as a unit's verb, a fixed command
+  or a script, each allowed by the policy. Every job is signed (Ed25519, a nonce, its time, the
+  agent's id), the private keys are sealed to the agent, TLS 1.3 with certificates both ways from
+  acme's new agent authority (sealed, in every backup, the same on every node).
+- **Two modes, per target**: *passive* (acme connects to the agent on 8446; nothing to open on
+  acme) and *active* (the agent connects to acme and nothing listens on the server; its jobs wait
+  in the database, so either node of a cluster hands them over, and the agent fails over between
+  the nodes).
+- **Settings → Target agents**, a new pane: active mode (off by default - while off nothing of it
+  exists: no port, no server of nginx, no firewall rule; on: nginx's server on its port, 8444,
+  and acme's firewall lets it in on every node; off again: all of it taken away), the agents'
+  state, the install package (signed with the release, its SHA-256 and the lines to install it,
+  with copy buttons) and the agent authority's fingerprint.
+- **The join**: a one-time code made on the target's card (an hour, once), `acme-agent join CODE`
+  on the server, and the agent's fingerprint confirmed in acme by a full administrator - only then
+  is its certificate signed (30 days, renewed over the channel by itself). A target switched off,
+  deleted, forgotten or joined again is refused at once.
+- **What a deployment needs, before it runs**: its form says for every file, command and script
+  whether the agent's policy allows it - and the `acme-agent allow ...` line to run on the server
+  where it does not.
+- Events for every join, confirmation, refusal, renewal and policy change; alerts for an agent not
+  heard from and its certificate ending; `acme --target-agent NAME show|code|confirm|look|policy|
+  renew|forget`.
+- The release builds `acme-agent-X.Y.Z.tar.gz` too, signed by the same key (inside acme's package
+  and beside it in `release/`).
 
 ## 1.0.115 - 2026-11-16
 

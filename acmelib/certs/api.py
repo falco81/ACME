@@ -2452,6 +2452,12 @@ def family_save(store, family, b, by):
                          'switching it on or off can' % (kind, row['name']))
     if family == 'target' and row is not None and cls is not None:
         _device_kind_kept(store, row, cls)
+    if family == 'target' and kind == 'agent' and given is not None and \
+            str(given.get('mode') or '') == 'active' and \
+            not _lib('agents').active_on():
+        # an agent that connects to acme, with nothing listening for it (1.0.116)
+        raise ValueError('an active agent connects to acme on the agents\' port, which is off - '
+                         'switch it on at Settings → Target agents first (or choose passive)')
     fields = {'name': name, 'kind': kind, 'updated': t}
     if 'enabled' in b or not row:
         fields['enabled'] = _flag(b.get('enabled'), 1)
@@ -2795,6 +2801,8 @@ def family_delete(store, family, b, by, quiet=False):
     if uses:
         _unbind(store, family, row, uses, by)
     store.db.run('DELETE FROM %s WHERE id = ?' % S.TABLE_OF[family], (row['id'],))
+    if family == 'target' and row.get('kind') == 'agent':
+        _lib('agents').target_gone(store, row)      # its agent no longer let in (1.0.116)
     if family == 'target':
         # the tests acme made from deployments there, needed by nothing now, go with it
         from acmelib.certs import checks as C
@@ -3569,6 +3577,7 @@ from acmelib.certs import api_sshkeys  # noqa: E402,F401
 from acmelib.certs import api_readiness  # noqa: E402,F401  (plan, check, dry run: before a certificate)
 from acmelib.certs import api_push  # noqa: E402,F401  (acme push: Discover, and what it makes)
 from acmelib.certs import api_dnssets  # noqa: E402,F401  (Settings → DNS: the sets of DNS servers)
+from acmelib.certs import api_agents  # noqa: E402,F401  (target agents: the join, the wire, the pane)
 from acmelib.certs import api_teams  # noqa: E402,F401  (Settings → Owners and teams, the tags)
 from acmelib.certs import api_reqprofiles  # noqa: E402,F401  (Settings → Request profiles)
 from acmelib.certs import api_deploys  # noqa: E402,F401  (a deployment's files: preview, test)

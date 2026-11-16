@@ -676,6 +676,51 @@ class RunContext(base.Context):
         """What acme keeps of the application at `url` it is paired with (or pin=...)."""
         return E.push_pin(self.store, url, pin)
 
+    # ---- a server with acme-agent (targets/agent.py, 1.0.116) --------------------------------
+    def _agent_row(self):
+        name = getattr(self, 'target_name', '') or (
+            self.scope.split(':', 1)[1] if str(self.scope).startswith('target:') else '')
+        from acmelib.certs import agents
+        try:
+            return agents.target_row(self.store, name)
+        except LookupError:
+            raise base.PluginError('save the target first, then join its agent (a join code on '
+                                   'its card)', retry=False)
+
+    def agent_call(self, op, args=None, timeout=900):
+        """One signed job run by the target's agent -> its answer."""
+        from acmelib.certs import agents
+        return agents.call(self.store, self._agent_row(), op, args or {}, timeout=timeout,
+                           step=self.step)
+
+    def agent_seal(self, label, data):
+        """`data` sealed to the target's agent for `label` (a file's path, 'env')."""
+        from acmelib.certs import agents
+        row = self._agent_row()
+        st = agents.state(self.store, row['id'])
+        return agents.seal(st.get('enc_pub'), st.get('agent_id'), label, data)
+
+    def agent_info(self):
+        """What acme knows of the target's agent (its last policy) - no network."""
+        from acmelib.certs import agents
+        try:
+            return agents.info(self.store, self._agent_row())
+        except base.PluginError:
+            return {}
+
+    def agent_plan_check(self, policy, part):
+        """[what the policy lacks for `part` of a deployment] - the agent's own check."""
+        from acmelib.certs import agents
+        m = agents.agent_mod()
+        full = {'files': [], 'stale': [], 'pre': [], 'test': [], 'reload': [], 'post': [],
+                'script': None}
+        full.update(part)
+        try:
+            m.plan_check(policy, full)
+        except m.Refused as e:
+            return e.needs or [{'kind': 'other', 'what': str(e), 'allow': str(e)}]
+        return []
+
     # ---- acme's own pages (targets/appliance.py) ----------------------------------------
     # Through the engine's Certificates and TLS: the profile of a node or of the
     # VIP address (meta web:tls:<where>) - each node puts its own into nginx

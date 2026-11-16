@@ -65475,6 +65475,502 @@
   "z_240": {
    "source": "only",
    "text": "jen respondér"
+  },
+  "z_241": {
+   "source": "Target agents",
+   "text": "Agenti cílů"
+  },
+  "z_242": {
+   "source": "Servers that take their certificates through acme-agent, without acme holding any of their credentials: the agent to install, acme's agent authority, active mode and its port, and every agent's state.",
+   "text": "Servery, které berou certifikáty přes acme-agenta, aniž by acme držel jakékoli jejich přístupové údaje: agent k instalaci, autorita agentů acme, aktivní režim a jeho port a stav každého agenta."
+  },
+  "z_243": {
+   "source": "A server with acme-agent takes its certificates without acme holding any of its credentials - no SSH key, no password, no sudo. The agent on it does what its own policy allows, nothing more; whoever steals acme's database gets nothing of the server.",
+   "text": "Server s acme-agentem bere certifikáty, aniž by acme držel jakékoli jeho přístupové údaje – žádný SSH klíč, žádné heslo, žádné sudo. Agent na něm udělá to, co dovolí jeho vlastní politika, nic víc; kdo ukradne databázi acme, nezíská ze serveru nic."
+  },
+  "z_244": {
+   "source": "Active mode",
+   "text": "Aktivní režim"
+  },
+  "z_245": {
+   "source": "Agents may connect to acme (active mode)",
+   "text": "Agenti se smějí připojovat k acme (aktivní režim)"
+  },
+  "z_246": {
+   "source": "The agents’ port",
+   "text": "Port agentů"
+  },
+  "z_247": {
+   "source": "Addresses the agents connect to",
+   "text": "Adresy, ke kterým se agenti připojují"
+  },
+  "z_248": {
+   "source": "Off (the default): nothing listens for agents here - no port, no server of nginx, nothing opened in the firewall; only passive agents, which acme connects to. On: each node listens on the port below (TLS 1.3, only certificates of acme's agent authority) and acme's firewall lets it in - an agent then connects to acme and nothing needs to be open on its server.",
+   "text": "Vypnuto (výchozí): nic zde na agenty nečeká – žádný port, žádný server nginx, nic otevřeného ve firewallu; jen pasivní agenti, ke kterým se připojuje acme. Zapnuto: každý uzel naslouchá na portu níže (TLS 1.3, jen certifikáty autority agentů acme) a firewall acme ho pustí – agent se pak připojuje k acme a na jeho serveru nemusí být nic otevřené."
+  },
+  "z_249": {
+   "source": "Where the agents connect to (TCP, on every node). 8444 unless it is taken.",
+   "text": "Kam se agenti připojují (TCP, na každém uzlu). 8444, pokud není obsazený."
+  },
+  "z_250": {
+   "source": "Names or addresses (host or host:port) an active agent is given to connect to, in this order - it tries the next when one does not answer. Empty: the VIP address and each node's.",
+   "text": "Jména nebo adresy (host nebo host:port), ke kterým se aktivní agent připojuje, v tomto pořadí – když jedna neodpovídá, zkusí další. Prázdné: VIP adresa a adresa každého uzlu."
+  },
+  "z_251": {
+   "source": "Server with acme-agent",
+   "text": "Server s acme-agentem"
+  },
+  "z_252": {
+   "source": "acme holds none of the server's credentials: a small agent on it writes the certificate as files, tests and reloads - only what its own policy allows. The deployment is the one of the SSH server: formats, presets, script, rollback.",
+   "text": "acme nedrží žádné přístupové údaje serveru: malý agent na něm zapíše certifikát jako soubory, otestuje a reloadne – jen to, co dovolí jeho vlastní politika. Nasazení je stejné jako u serveru přes SSH: formáty, předvolby, skript, návrat zpět."
+  },
+  "z_253": {
+   "source": "Who connects",
+   "text": "Kdo se připojuje"
+  },
+  "z_254": {
+   "source": "acme connects to the agent (it listens, 8446)",
+   "text": "acme se připojuje k agentovi (ten naslouchá, 8446)"
+  },
+  "z_255": {
+   "source": "the agent connects to acme (nothing open on the server)",
+   "text": "agent se připojuje k acme (na serveru nic otevřeného)"
+  },
+  "z_256": {
+   "source": "passive: the agent listens and lets in only acme's certificate - acme needs nothing open. Active: nothing listens on the server, the agent asks acme for its jobs on the agents' port (Settings → Target agents)",
+   "text": "pasivní: agent naslouchá a pustí jen certifikát acme – acme nepotřebuje nic otevřeného. Aktivní: na serveru nic nenaslouchá, agent si úlohy vyzvedává u acme na portu agentů (Nastavení → Agenti cílů)"
+  },
+  "z_257": {
+   "source": "where acme reaches the agent (passive); for an active one only what the cards say",
+   "text": "kde acme agenta zastihne (pasivní); u aktivního jen pro údaje na kartách"
+  },
+  "z_258": {
+   "source": "Port of the agent",
+   "text": "Port agenta"
+  },
+  "z_259": {
+   "source": "where the agent listens (passive) - acme-agent join takes it from the code",
+   "text": "kde agent naslouchá (pasivní) – acme-agent join ho převezme z kódu"
+  },
+  "z_260": {
+   "source": "Save the target first: its card then makes the join code for the agent on the server.",
+   "text": "Nejdřív cíl uložte: jeho karta pak vytvoří kód pro připojení agenta na serveru."
+  },
+  "z_261": {
+   "source": "passive",
+   "text": "pasivní"
+  },
+  "z_262": {
+   "source": "joining",
+   "text": "připojuje se"
+  },
+  "z_263": {
+   "source": "not joined",
+   "text": "nepřipojen"
+  },
+  "z_264": {
+   "source": "The agent connects to acme: nothing listens on its server.",
+   "text": "Agent se připojuje k acme: na jeho serveru nic nenaslouchá."
+  },
+  "z_265": {
+   "source": "acme connects to the agent: it listens and lets in only acme’s certificate.",
+   "text": "acme se připojuje k agentovi: ten naslouchá a pustí jen certifikát acme."
+  },
+  "z_266": {
+   "source": "policy not known yet",
+   "text": "politika zatím neznámá"
+  },
+  "z_267": {
+   "source": "lines not read",
+   "text": "nepřečtené řádky"
+  },
+  "z_268": {
+   "source": "acme proposes, the server decides",
+   "text": "acme navrhuje, server rozhoduje"
+  },
+  "z_269": {
+   "source": "A server with acme-agent gives acme none of its credentials: the agent does only what its own policy allows - the folders, owners and modes, the units it may reload, the tests and scripts by their hash.",
+   "text": "Server s acme-agentem nedává acme žádné své přístupové údaje: agent udělá jen to, co dovolí jeho vlastní politika – složky, vlastníky a práva, jednotky, které smí reloadnout, testy a skripty podle jejich hashe."
+  },
+  "z_270": {
+   "source": "always possible: acme connects out, nothing listens here",
+   "text": "vždy možné: acme se připojuje ven, tady nic nenaslouchá"
+  },
+  "z_271": {
+   "source": "off - no port, no server of nginx, no firewall rule",
+   "text": "vypnuto – žádný port, žádný server nginx, žádné pravidlo firewallu"
+  },
+  "z_272": {
+   "source": "agents connect to every node on port",
+   "text": "agenti se připojují ke každému uzlu na port"
+  },
+  "z_273": {
+   "source": "active mode on",
+   "text": "aktivní režim zapnut"
+  },
+  "z_274": {
+   "source": "active mode on - nginx not yet",
+   "text": "aktivní režim zapnut – nginx zatím ne"
+  },
+  "z_275": {
+   "source": "active mode off",
+   "text": "aktivní režim vypnut"
+  },
+  "z_276": {
+   "source": "Switched on: each node gives nginx the agents’ port within a minute (its root helper). If it stays so, Settings → Web shows what nginx said.",
+   "text": "Zapnuto: každý uzel do minuty předá nginxu port agentů (jeho root helper). Pokud to tak zůstane, Nastavení → Web ukáže, co nginx řekl."
+  },
+  "z_277": {
+   "source": "An active agent is given",
+   "text": "Aktivní agent dostane"
+  },
+  "z_278": {
+   "source": "The agent to install",
+   "text": "Agent k instalaci"
+  },
+  "z_279": {
+   "source": "signed by acme’s release key",
+   "text": "podepsáno vydávacím klíčem acme"
+  },
+  "z_280": {
+   "source": "not signed - made from this source tree",
+   "text": "nepodepsáno – vytvořeno z tohoto zdrojového stromu"
+  },
+  "z_281": {
+   "source": "install.sh checks every file against MANIFEST and MANIFEST against its signature before it installs anything.",
+   "text": "install.sh před instalací ověří každý soubor proti MANIFEST a MANIFEST proti jeho podpisu."
+  },
+  "z_282": {
+   "source": "A release carries the package signed. This one was made here from the program acme ships; compare its SHA-256 on the server.",
+   "text": "Vydání nese balíček podepsaný. Tento byl vytvořen zde z programu, který acme dodává; porovnejte jeho SHA-256 na serveru."
+  },
+  "z_283": {
+   "source": "version",
+   "text": "verze"
+  },
+  "z_284": {
+   "source": "RHEL 8–10, Debian, Ubuntu · Python 3.7+",
+   "text": "RHEL 8–10, Debian, Ubuntu · Python 3.7+"
+  },
+  "z_285": {
+   "source": "On the server, as root",
+   "text": "Na serveru, jako root"
+  },
+  "z_286": {
+   "source": "Check it is the same file (the SHA-256 above):",
+   "text": "Ověřte, že je to stejný soubor (SHA-256 výše):"
+  },
+  "z_287": {
+   "source": "Check it is the same file:",
+   "text": "Ověřte, že je to stejný soubor:"
+  },
+  "z_288": {
+   "source": "Unpack it:",
+   "text": "Rozbalte ho:"
+  },
+  "z_289": {
+   "source": "Install - the package is checked, nothing is allowed yet:",
+   "text": "Instalace – balíček se ověří, zatím se nic nepovolí:"
+  },
+  "z_290": {
+   "source": "Install - nothing is allowed yet:",
+   "text": "Instalace – zatím se nic nepovolí:"
+  },
+  "z_291": {
+   "source": "Join with the code made on the target’s card:",
+   "text": "Připojení kódem vytvořeným na kartě cíle:"
+  },
+  "z_292": {
+   "source": "acme’s agent authority",
+   "text": "Autorita agentů acme"
+  },
+  "z_293": {
+   "source": "It signs each agent’s certificate (30 days, renewed over the channel) and acme’s own; every agent pins its fingerprint at the join. Its key is sealed in the database - in every backup, on every node.",
+   "text": "Podepisuje certifikát každého agenta (30 dní, obnovuje se přes kanál) i vlastní certifikát acme; každý agent si při připojení připne její otisk. Její klíč je zapečetěný v databázi – v každé záloze, na každém uzlu."
+  },
+  "z_294": {
+   "source": "Made with the first join code.",
+   "text": "Vytvoří se s prvním kódem pro připojení."
+  },
+  "z_295": {
+   "source": "Targets with an agent",
+   "text": "Cíle s agentem"
+  },
+  "z_296": {
+   "source": "No target with an agent yet",
+   "text": "Zatím žádný cíl s agentem"
+  },
+  "z_297": {
+   "source": "Targets → Add a target → Server with acme-agent; then its card makes the join code.",
+   "text": "Cíle → Přidat cíl → Server s acme-agentem; jeho karta pak vytvoří kód pro připojení."
+  },
+  "z_298": {
+   "source": "Another program than the one this acme ships - install the package of this version.",
+   "text": "Jiný program, než jaký dodává tento acme – nainstalujte balíček této verze."
+  },
+  "z_299": {
+   "source": "acme-agent",
+   "text": "acme-agent"
+  },
+  "z_300": {
+   "source": "No agent has joined yet: install it on the server and join it with a one-time code.",
+   "text": "Zatím se nepřipojil žádný agent: nainstalujte ho na server a připojte jednorázovým kódem."
+  },
+  "z_301": {
+   "source": "System",
+   "text": "Systém"
+  },
+  "z_302": {
+   "source": "Agent id",
+   "text": "Id agenta"
+  },
+  "z_303": {
+   "source": "The agent runs another program than the one this acme ships - install the package of this version (Settings → Target agents).",
+   "text": "Agent běží s jiným programem, než jaký dodává tento acme – nainstalujte balíček této verze (Nastavení → Agenti cílů)."
+  },
+  "z_304": {
+   "source": "Join again…",
+   "text": "Připojit znovu…"
+  },
+  "z_305": {
+   "source": "Join the agent…",
+   "text": "Připojit agenta…"
+  },
+  "z_306": {
+   "source": "Ask it now",
+   "text": "Zeptat se teď"
+  },
+  "z_307": {
+   "source": "Look for it now",
+   "text": "Hledat ho teď"
+  },
+  "z_308": {
+   "source": "Renew its certificate",
+   "text": "Obnovit jeho certifikát"
+  },
+  "z_309": {
+   "source": "its certificate is renewed",
+   "text": "jeho certifikát je obnoven"
+  },
+  "z_310": {
+   "source": "Forget…",
+   "text": "Zapomenout…"
+  },
+  "z_311": {
+   "source": "Forget the agent",
+   "text": "Zapomenout agenta"
+  },
+  "z_312": {
+   "source": "An agent asks to join",
+   "text": "Agent žádá o připojení"
+  },
+  "z_313": {
+   "source": "Compare this fingerprint with the one acme-agent join printed on the server. Confirm only when every group is the same.",
+   "text": "Porovnejte tento otisk s tím, který na serveru vypsal acme-agent join. Potvrďte, jen když je každá skupina stejná."
+  },
+  "z_314": {
+   "source": "It is the same - confirm",
+   "text": "Je stejný – potvrdit"
+  },
+  "z_315": {
+   "source": "the agent is confirmed",
+   "text": "agent je potvrzen"
+  },
+  "z_316": {
+   "source": "A full administrator confirms it.",
+   "text": "Potvrzuje ho plný administrátor."
+  },
+  "z_317": {
+   "source": "What its policy allows",
+   "text": "Co jeho politika dovoluje"
+  },
+  "z_318": {
+   "source": "Not said yet - Ask it now.",
+   "text": "Zatím neřekl – Zeptat se teď."
+  },
+  "z_319": {
+   "source": "Folders",
+   "text": "Složky"
+  },
+  "z_320": {
+   "source": "Units",
+   "text": "Jednotky"
+  },
+  "z_321": {
+   "source": "Tests and commands",
+   "text": "Testy a příkazy"
+  },
+  "z_322": {
+   "source": "Scripts",
+   "text": "Skripty"
+  },
+  "z_323": {
+   "source": "written in acme",
+   "text": "napsaný v acme"
+  },
+  "z_324": {
+   "source": "Nothing is allowed yet: acme can do nothing on this server. Allow what its deployments need there (acme-agent allow …) - each deployment says what it needs.",
+   "text": "Zatím není nic povoleno: acme na tomto serveru nemůže nic. Povolte tam, co jeho nasazení potřebují (acme-agent allow …) – každé nasazení řekne, co potřebuje."
+  },
+  "z_325": {
+   "source": "Install the agent",
+   "text": "Instalace agenta"
+  },
+  "z_326": {
+   "source": "Confirm the fingerprint",
+   "text": "Potvrzení otisku"
+  },
+  "z_327": {
+   "source": "Make the join code",
+   "text": "Vytvořit kód pro připojení"
+  },
+  "z_328": {
+   "source": "It is joining",
+   "text": "Připojuje se"
+  },
+  "z_329": {
+   "source": "acme-agent on the server does the work - acme holds none of its credentials",
+   "text": "Práci dělá acme-agent na serveru – acme nedrží žádné jeho přístupové údaje"
+  },
+  "z_330": {
+   "source": "Two processes: the network side as the account acme-agent, without privileges; the root side never on the network, doing only what /etc/acme-agent/policy allows. Every job from acme is signed; the private keys arrive sealed to the agent.",
+   "text": "Dva procesy: síťová strana jako účet acme-agent, bez oprávnění; strana roota nikdy na síti, dělá jen to, co dovolí /etc/acme-agent/policy. Každá úloha od acme je podepsaná; soukromé klíče přicházejí zapečetěné pro agenta."
+  },
+  "z_331": {
+   "source": "The agent connects to acme on the agents’ port: nothing needs to be open on the server.",
+   "text": "Agent se připojuje k acme na port agentů: na serveru nemusí být nic otevřené."
+  },
+  "z_332": {
+   "source": "acme connects to the agent on port 8446: let acme in there (and only acme - acme-agent allow from ADDRESS).",
+   "text": "acme se připojuje k agentovi na port 8446: pusťte tam acme (a jen acme – acme-agent allow from ADRESA)."
+  },
+  "z_333": {
+   "source": "Make the code first.",
+   "text": "Nejdřív vytvořte kód."
+  },
+  "z_334": {
+   "source": "The one-time join code",
+   "text": "Jednorázový kód pro připojení"
+  },
+  "z_335": {
+   "source": "valid once, until",
+   "text": "platí jednou, do"
+  },
+  "z_336": {
+   "source": "Or at the install: sudo ./install.sh --join CODE. The agent makes its own key there (it never leaves the server) and prints its fingerprint - acme shows it next, to compare.",
+   "text": "Nebo při instalaci: sudo ./install.sh --join KÓD. Agent si tam vytvoří vlastní klíč (server nikdy neopustí) a vypíše jeho otisk – acme ho ukáže v dalším kroku k porovnání."
+  },
+  "z_337": {
+   "source": "The authority it pins",
+   "text": "Autorita, kterou si připne"
+  },
+  "z_338": {
+   "source": "It connects to",
+   "text": "Připojuje se k"
+  },
+  "z_339": {
+   "source": "acme connects to",
+   "text": "acme se připojuje k"
+  },
+  "z_340": {
+   "source": "The agent has joined",
+   "text": "Agent je připojen"
+  },
+  "z_341": {
+   "source": "It has its certificate from acme’s agent authority. Allow on the server what its deployments need - each deployment says it, with the lines to copy.",
+   "text": "Má certifikát od autority agentů acme. Povolte na serveru, co jeho nasazení potřebují – každé nasazení to řekne i s řádky ke zkopírování."
+  },
+  "z_342": {
+   "source": "Confirmed - handing the agent its certificate…",
+   "text": "Potvrzeno – předávám agentovi jeho certifikát…"
+  },
+  "z_343": {
+   "source": "Waiting for the agent to ask acme…",
+   "text": "Čekám, až se agent ozve acme…"
+  },
+  "z_344": {
+   "source": "Waiting for the agent - acme looks for it on the server…",
+   "text": "Čekám na agenta – acme ho hledá na serveru…"
+  },
+  "z_345": {
+   "source": "The agent’s policy",
+   "text": "Politika agenta"
+  },
+  "z_346": {
+   "source": "needs more on the server",
+   "text": "na serveru je třeba povolit víc"
+  },
+  "z_347": {
+   "source": "not known yet",
+   "text": "zatím neznámá"
+  },
+  "z_348": {
+   "source": "allows all of it",
+   "text": "dovoluje vše"
+  },
+  "z_349": {
+   "source": "The agent has not said its policy yet (it has not joined, or was not asked): the lines below allow what this deployment does.",
+   "text": "Agent zatím neřekl svou politiku (nepřipojil se, nebo nebyl dotázán): řádky níže povolí, co toto nasazení dělá."
+  },
+  "z_350": {
+   "source": "Copy all the lines",
+   "text": "Zkopírovat všechny řádky"
+  },
+  "z_351": {
+   "source": "the join code ran out - make a new one",
+   "text": "kód pro připojení vypršel – vytvořte nový"
+  },
+  "z_352": {
+   "source": "the join code was used already - make a new one",
+   "text": "kód pro připojení už byl použit – vytvořte nový"
+  },
+  "z_353": {
+   "source": "that is not the fingerprint of the agent that asks - compare it with what `acme-agent join` printed on the target",
+   "text": "to není otisk agenta, který žádá – porovnejte ho s tím, co na cíli vypsal `acme-agent join`"
+  },
+  "z_354": {
+   "source": "no agent waits to be confirmed on this target",
+   "text": "na tomto cíli nečeká na potvrzení žádný agent"
+  },
+  "z_355": {
+   "source": "an active agent connects to acme on the agents' port, which is off - switch it on at Settings → Target agents first (or choose passive)",
+   "text": "aktivní agent se připojuje k acme na port agentů, který je vypnutý – nejdřív ho zapněte v Nastavení → Agenti cílů (nebo zvolte pasivní)"
+  },
+  "z_356": {
+   "source": "the agents' port is off: an active agent cannot reach acme - switch it on at Settings → Target agents, or make the target passive",
+   "text": "port agentů je vypnutý: aktivní agent se k acme nedostane – zapněte ho v Nastavení → Agenti cílů, nebo nastavte cíl jako pasivní"
+  },
+  "z_357": {
+   "source": "Target agents (active mode)",
+   "text": "Agenti cílů (aktivní režim)"
+  },
+  "z_358": {
+   "source": "the agents that connect to acme (Settings → Target agents): only certificates of acme's agent authority are let in by nginx there",
+   "text": "agenti, kteří se připojují k acme (Nastavení → Agenti cílů): nginx tam pustí jen certifikáty autority agentů acme"
+  },
+  "z_359": {
+   "source": "the job is waiting for the agent to ask for it (active mode)",
+   "text": "úloha čeká, až si ji agent vyzvedne (aktivní režim)"
+  },
+  "z_360": {
+   "source": "the policy of the server allows every file, command and script",
+   "text": "politika serveru dovoluje každý soubor, příkaz i skript"
+  },
+  "z_361": {
+   "source": "allow it on the server (as root), then deploy again:",
+   "text": "povolte to na serveru (jako root) a nasaďte znovu:"
+  },
+  "z_362": {
+   "source": "file",
+   "text": "soubor"
+  },
+  "z_363": {
+   "source": "reload",
+   "text": "reload"
+  },
+  "z_364": {
+   "source": "the script written here",
+   "text": "skript napsaný zde"
   }
  },
  "patterns": {
@@ -90881,6 +91377,62 @@
   "pz_26": {
    "source": "a browser that cannot be checked is signed out now on the enrolment pages: {0} sign-in(s) not watched until now are watched again",
    "text": "prohlížeč, který kontrolovat nejde, se teď na stránkách registrace odhlašuje: {0} dosud nehlídaných přihlášení se zase hlídá"
+  },
+  "pz_27": {
+   "source": "A join code is waiting to be used on the server (until {0}).",
+   "text": "Na serveru čeká kód pro připojení na použití (do {0})."
+  },
+  "pz_28": {
+   "source": "Join the agent of {0}",
+   "text": "Připojit agenta cíle {0}"
+  },
+  "pz_29": {
+   "source": "The target agents could not be asked: {0}",
+   "text": "Na agenty cílů se nepodařilo zeptat: {0}"
+  },
+  "pz_30": {
+   "source": "The package could not be made: {0}",
+   "text": "Balíček se nepodařilo vytvořit: {0}"
+  },
+  "pz_31": {
+   "source": "the agent's policy does not allow {0} of what this deployment does - the lines to run on the server are below",
+   "text": "politika agenta nedovoluje {0:věc|věci|věcí} z toho, co toto nasazení dělá – řádky ke spuštění na serveru jsou níže"
+  },
+  "pz_32": {
+   "source": "the agent did not ask for the job in {0} s (last heard from {1})",
+   "text": "agent si úlohu nevyzvedl do {0} s (naposledy se ozval {1})"
+  },
+  "pz_33": {
+   "source": "{0} folder",
+   "text": "{0} složka"
+  },
+  "pz_34": {
+   "source": "{0} folders",
+   "text": "{0} {0:složka|složky|složek}"
+  },
+  "pz_35": {
+   "source": "{0} unit",
+   "text": "{0} jednotka"
+  },
+  "pz_36": {
+   "source": "{0} units",
+   "text": "{0} {0:jednotka|jednotky|jednotek}"
+  },
+  "pz_37": {
+   "source": "{0} test",
+   "text": "{0} test"
+  },
+  "pz_38": {
+   "source": "{0} tests",
+   "text": "{0} {0:test|testy|testů}"
+  },
+  "pz_39": {
+   "source": "{0} script",
+   "text": "{0} skript"
+  },
+  "pz_40": {
+   "source": "{0} scripts",
+   "text": "{0} {0:skript|skripty|skriptů}"
   }
  },
  "rich": {
@@ -91775,6 +92327,10 @@
   "r0223": {
    "source": "A fresh pair is made here. Its <b>private</b> half is shown to you once, to download or copy, and kept nowhere; its <b>public</b> half goes into {0}'s authorized_keys of {1}. A key there before stays until it is taken away in the list below.",
    "text": "Zde se vytvoří nový pár. Jeho <b>soukromá</b> část se vám zobrazí jen jednou ke stažení nebo zkopírování a nikde se neuloží; <b>veřejná</b> část se zapíše do authorized_keys uživatele {0} na {1}. Klíč, který tam už je, zůstane, dokud ho neodeberete v seznamu níže."
+  },
+  "rz_1": {
+   "source": "The agent of this target is no longer let in: its certificate is refused at once and its key, policy and state are gone from acme. On the server, <code>acme-agent forget</code> takes its side away. To use it again: join it again.",
+   "text": "Agent tohoto cíle už nebude vpuštěn: jeho certifikát se okamžitě odmítne a jeho klíč, politika i stav z acme zmizí. Na serveru odstraní jeho stranu <code>acme-agent forget</code>. Chcete-li ho znovu používat: připojte ho znovu."
   }
  }
 }

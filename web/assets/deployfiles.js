@@ -985,6 +985,8 @@
         flist.appendChild(det);
       }
       said(d.problems);
+      /* a server with acme-agent (1.0.116): what the deployment needs of its policy, before it runs */
+      if (d.agent && window.ACME_AGENTS) flist.appendChild(window.ACME_AGENTS.needs(d.agent));
       drawEnv(d.env);
       envCard.hidden = !(d.script || ctx.scriptOn && ctx.scriptOn());
     };

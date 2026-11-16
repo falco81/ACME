@@ -135,6 +135,7 @@ they were shown keeps what is set.
 | `GET /api/targets` · `POST /api/targets/save` · `/delete` · `/test` · `/action` · `/default` | the targets |
 | `POST /api/{sources,validations,targets}/action` | `{id, action}` - one of the module's `actions`, in a job: `{ok, said, job_id, steps}` |
 | `POST /api/sources/contact` | `{email, all?}` - the contact e-mail of the ACME sources that have none |
+| `GET /api/agents` · `GET /api/agents/one?id=` · `POST /api/agents/{code,look,confirm,renew,forget}` · `GET /api/agents/package` | target agents (docs/target-agent.md): the pane, one target's agent, its join, its certificate, forgetting it, the install package; `POST /api/agent-wire/{join,status,poll}` is the agents' port's (web/agent.php, the API's token, no session) |
 | `GET /api/deploys` `?target= &cert=` | the deployments (of a target, of a certificate), each with `cert_name`, `cert_version`, `outdated` |
 | `POST /api/deploys/save` · `/delete` · `/run` | `{id?, cert_id, target, options{}, enabled}` |
 | `GET /api/dns` · `POST /api/dns/record` · `/api/dns/record_delete` | acme's own DNS server: its zone, its records, whether it listens |

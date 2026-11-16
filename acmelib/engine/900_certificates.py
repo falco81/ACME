@@ -69,6 +69,10 @@ CERT_DEFAULTS = {
     # --- who sees which certificates (Settings → Owners and teams, docs/teams.md) ------
     'certs_certadmin_all': 1,
     'certs_readonly_all': 1,
+    # --- target agents (Settings → Target agents, docs/target-agent.md, 1.0.116) --------
+    'certs_agents_active': 0,
+    'certs_agents_port': 8444,
+    'certs_agents_names': '',
 }
 for _k, _v in CERT_DEFAULTS.items():
     DEFAULTS.setdefault(_k, _v)
@@ -77,6 +81,9 @@ for _k, _v in CERT_DEFAULTS.items():
 del _k, _v
 
 NAMES.update({
+    'certs_agents_active': 'Agents may connect to acme (active mode)',
+    'certs_agents_port': 'The agents’ port',
+    'certs_agents_names': 'Addresses the agents connect to',
     'certs_renew_days': 'Renew this many days before the end',
     'certs_check_min': 'Look for what is due every (min)',
     'certs_parallel': 'Jobs at once',
@@ -119,6 +126,17 @@ NAMES.update({
     'certs_readonly_all': 'Read-only accounts see every certificate',
 })
 SAYS.update({
+    'certs_agents_active': 'Off (the default): nothing listens for agents here - no port, no '
+                           'server of nginx, nothing opened in the firewall; only passive '
+                           'agents, which acme connects to. On: each node listens on the port '
+                           'below (TLS 1.3, only certificates of acme\'s agent authority) and '
+                           'acme\'s firewall lets it in - an agent then connects to acme and '
+                           'nothing needs to be open on its server.',
+    'certs_agents_port': 'Where the agents connect to (TCP, on every node). 8444 unless it is '
+                         'taken.',
+    'certs_agents_names': 'Names or addresses (host or host:port) an active agent is given to '
+                          'connect to, in this order - it tries the next when one does not '
+                          'answer. Empty: the VIP address and each node\'s.',
     'certs_renew_days': 'A certificate renewed by itself is renewed this many days before it '
                         'ends, unless it says otherwise or its CA suggests a window of its own '
                         '(ARI). 30 suits the 90 days of Let’s Encrypt.',
@@ -225,6 +243,7 @@ TUNABLE.update({
     'dns_expose': ('both', 'vip', 'nodes'),
     'dns_rate': (1, 100000), 'dns_cache': (0, 60),
     'certs_certadmin_all': (0, 1), 'certs_readonly_all': (0, 1),
+    'certs_agents_active': (0, 1), 'certs_agents_port': (1024, 65535),
 })
 PANES['certs'] = ['certs_renew_days', 'certs_check_min', 'certs_parallel', 'certs_retry_max_h',
                   'certs_notify_days', 'certs_notify_mail', 'certs_notify_sms',
@@ -251,6 +270,9 @@ ONLY_WHEN.update({k: ['dns_server', '1'] for k in PANES['dnssrv'] if k != 'dns_s
 ONLY_WHEN.update({k: ['portal_cert', '1'] for k in PORTAL_CERT_KEYS if k != 'portal_cert'})
 SETTING_TALL = tuple(SETTING_TALL) + ('dns_static',)
 PANES['teams'] = ['certs_certadmin_all', 'certs_readonly_all']
+PANES['agents'] = ['certs_agents_active', 'certs_agents_port', 'certs_agents_names']
+ONLY_WHEN.update({'certs_agents_port': ['certs_agents_active', '1'],
+                  'certs_agents_names': ['certs_agents_active', '1']})
 
 # The words of its notifications (acmelib/certs/texts.py) into the registry of
 # Settings → Message texts: both languages, edited there as every other.
@@ -477,6 +499,55 @@ def certs_firewall(store, node):
                     'so from anywhere, UDP and TCP',
              'rules': [{'family': f, 'proto': p, 'port': str(port), 'source': ''}
                        for f in (4, 6) for p in ('udp', 'tcp')]}]
+
+
+# Target agents (1.0.116): the agents' port let in on every node while active mode is on
+# (Settings → Target agents) - nothing at all while it is off, as before.
+@_certs_hook('firewall')
+def certs_agents_firewall(store, node):
+    try:
+        on = int(CONFIG.get('certs_agents_active') or 0)
+    except (TypeError, ValueError):
+        on = 0
+    if not on:
+        return []
+    port = agents_port()
+    return [{'key': 'agents', 'title': 'Target agents (active mode)',
+             'why': 'the agents that connect to acme (Settings → Target agents): only '
+                    'certificates of acme\'s agent authority are let in by nginx there',
+             'rules': [{'family': f, 'proto': 'tcp', 'port': str(port), 'source': ''}
+                       for f in (4, 6)]}]
+
+
+def agents_port():
+    try:
+        p = int(CONFIG.get('certs_agents_port') or 8444)
+    except (TypeError, ValueError):
+        p = 8444
+    return p if 1024 <= p <= 65535 else 8444
+
+
+def agents_desired(store):
+    """What root's helper gives nginx for the agents' port: None while active mode is off and
+    was never on (nginx as before), {'port': 0} once switched off again (its server taken
+    away), else the port, the authority and acme's certificate of it (CN acme-agents)."""
+    try:
+        on = int(CONFIG.get('certs_agents_active') or 0)
+    except (TypeError, ValueError):
+        on = 0
+    if not on:
+        return {'port': 0} if store.get_meta('agents:port_was_on') else None
+    try:
+        g = certs_mod('agents')
+        a = g.ca(store)
+        c = g.ctl(store)
+    except Exception as e:                              # noqa: BLE001
+        log_sparing('agents-desired', 'the agents\' port waits: %s' % e, 'warn', every=3600)
+        return None
+    if not store.get_meta('agents:port_was_on'):
+        store.set_meta('agents:port_was_on', '1')
+    return {'port': agents_port(), 'ca': a['cert_pem'], 'cert': c['cert_pem'],
+            'key': c['key_pem']}
 
 
 CHOICE_WORDS['dns_expose'] = {'both': 'on the VIP address and on the nodes',

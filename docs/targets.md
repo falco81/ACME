@@ -533,6 +533,40 @@ The commands before, test, reload and after are not run, and on Windows the
 machine store and the bindings are not touched - but the script **is** run:
 it must change nothing when `ACME_DRY_RUN` is `1` (the examples do so).
 
+## `agent` - Server with acme-agent (1.0.116)
+
+The server takes its certificates **without acme holding any of its credentials**: no SSH key,
+no password, no sudo. A small agent on it ([target-agent.md](target-agent.md)) does the work,
+and only what the server's own policy (`/etc/acme-agent/policy`, root's) allows - the folders,
+owners and modes, the units it may reload, the tests and scripts by their hash. acme proposes,
+the target decides.
+
+| Setting | |
+|---|---|
+| Who connects | **passive** (default): acme connects to the agent (it listens on 8446 and lets in only acme's certificate); **active**: the agent connects to acme's agents' port (Settings → Target agents - off by default; an active target cannot be saved while it is off) and nothing listens on the server |
+| Address | where acme reaches a passive agent |
+| Port of the agent | 8446 (passive) |
+| Script after the files (default) | as the `ssh` target's |
+
+**The deployment is the `ssh` target's**: the same presets, files and formats (PEM, PFX, JKS,
+dual certificates), before / test / script / reload / after, templates, the copies kept, the same
+certificate again changes nothing (the agent compares each file's SHA-256, owner and mode), the
+previous files back when the test or the reload fails. What differs: the agent runs **no
+shell** - each command line is read as what it asks for (`systemctl reload nginx` → the unit's
+verb, `nginx -t` → that argv, `/usr/local/bin/x.sh ARGS` → that script, `A || B`), and each must
+be allowed by the policy; a script written here runs only when the policy allows its SHA-256.
+The private keys travel sealed to the agent.
+
+**Before it runs**, the deployment's form says, for every file, command and script, whether the
+agent's policy allows it - and, where it does not, the `acme-agent allow ...` line to run on the
+server (copy buttons). A deployment the policy does not allow is refused whole, nothing written.
+
+The target's card shows the agent: its state (answers · N s ago / not heard from / refused), mode,
+version, when it was last heard from, its certificate's end, its policy; **Join the agent…** (the
+three-step wizard: install, a one-time code, the fingerprint confirmed), Ask it now, Renew its
+certificate, Forget…. **Test** asks the agent how it is and what its policy allows. On the
+command line: `acme --target-agent NAME show|code|confirm FP|look|policy|renew|forget`.
+
 ## `local` - this machine
 
 Writes files under one folder of the acme server only (*Folder*, default

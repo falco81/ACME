@@ -241,6 +241,7 @@ function acme_certs_settings_nav(): void
     <div class="ctl-group">Certificates</div>
     <button type="button" data-pane="certs" data-icon="lock" title="When certificates are renewed, how often a failed one is tried again, and who is told when something goes wrong.">Renewal and notices</button>
     <button type="button" data-pane="dnssrv" data-icon="globe" title="acme's own DNS server for DNS-01: the zone it answers for, its NS names, where it listens, and the records in it.">DNS server</button>
+    <button type="button" data-pane="agents" data-icon="terminal" title="Servers that take their certificates through acme-agent, without acme holding any of their credentials: the agent to install, acme's agent authority, active mode and its port, and every agent's state.">Target agents</button>
     <button type="button" data-pane="modules" data-icon="list" data-cicon="module" class="ct-manage" title="The modules sources, validations, targets and tests are made of: the ones shipped, your own, their versions and what is marked as tested - download one, upload one of your own.">Modules</button>
     <button type="button" data-pane="teams" data-icon="people" title="Who certificates belong to - teams and persons, their members from acme's accounts and the directory, what each may do - and the tags certificates and targets pick from.">Owners and teams</button>
 <?php
@@ -296,6 +297,18 @@ function acme_certs_settings_panes(): void
     <div id="md-broken"></div>
     <div id="md-list"></div>
   </div>
+  </div>
+
+  <div class="ctl-pane" id="pane-agents" hidden>
+    <div class="ctl-head"><h2 class="ctl-title">Target agents</h2>
+      <p class="ctl-lede">A server with acme-agent takes its certificates without acme holding any of
+        its credentials - no SSH key, no password, no sudo. The agent on it does what its own policy
+        allows, nothing more; whoever steals acme's database gets nothing of the server.</p></div>
+    <div id="ag-hero" class="ag-hero-host"></div>
+    <div class="card full"><h2>Active mode</h2><div id="sect-agents"></div></div>
+    <div class="card full" id="ag-list"></div>
+    <div class="card full" id="ag-pkg"></div>
+    <div class="card full" id="ag-ca"></div>
   </div>
 
   <div class="ctl-pane" id="pane-dnssrv" hidden>

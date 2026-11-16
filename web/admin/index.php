@@ -530,7 +530,7 @@ if (isset($_GET['api'])) {
        own name - certs, certs-one (or certs/one), cas-create, targets-test...
        The daemon's routes are each one method, so a GET still never reaches a
        write, and the daemon decides whether whoever is signed in may. */
-    if (preg_match('#^(certs|cas|plugins|modules|checks|tests|sources|validations|targets|deploys|dns|dnssets|sshkey|teams|tags|reqprofiles)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
+    if (preg_match('#^(certs|cas|plugins|modules|checks|tests|sources|validations|targets|deploys|dns|dnssets|sshkey|teams|tags|reqprofiles|agents)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
         $path = '/api/' . $road[1] . (isset($road[2]) && $road[2] !== '' ? '/' . $road[2] : '');
         if ($post) {
             acme_relay($path, 'POST', sent_json(), 120.0);
@@ -649,6 +649,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 <?php endif; ?>
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/reqprofiles.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/reqprofiles.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/reqprofiles.css')) ?>">
+<?php endif; ?>
+<?php if ($me && is_file(dirname(__DIR__) . '/assets/agents.css')): ?>
+<link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/agents.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/agents.css')) ?>">
 <?php endif; ?>
 <?php if ($me && is_file(dirname(__DIR__) . '/assets/sshkey.css')): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/sshkey.css?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/sshkey.css')) ?>">
@@ -1988,6 +1991,9 @@ var PHP_SAFETY = <?= ($me['role'] ?? '') === 'fulladmin' ? json_encode(acme_php_
 <?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/deployfiles.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/deployfiles.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/deployfiles.js')) ?>"></script>
+<?php endif; ?>
+<?php if (is_file(dirname(__DIR__) . '/assets/agents.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/agents.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/agents.js')) ?>"></script>
 <?php endif; ?>
 <?php if (is_file(dirname(__DIR__) . '/assets/cas.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/cas.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(dirname(__DIR__) . '/assets/cas.js')) ?>"></script>

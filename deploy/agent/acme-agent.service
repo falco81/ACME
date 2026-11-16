@@ -1,0 +1,52 @@
+[Unit]
+Description=acme-agent (network side) - TLS to acme, no privileges (docs/target-agent.md)
+Documentation=file:///usr/local/lib/acme-agent/README.md
+After=network-online.target acme-agent-root.service
+Wants=network-online.target
+Requires=acme-agent-root.service
+
+[Service]
+Type=simple
+# Never root: the account acme-agent, no capability at all, nothing written outside its state
+# folder. It holds its TLS key (made here, never leaving) and talks to acme; every job is handed
+# to the root side, which checks it again.
+User=acme-agent
+Group=acme-agent
+ExecStart=/usr/bin/python3 -I /usr/local/lib/acme-agent/acme_agent.py serve
+Restart=always
+RestartSec=5s
+UMask=0077
+StateDirectory=acme-agent
+StateDirectoryMode=0700
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=no
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM
+SystemCallArchitectures=native
+ReadOnlyPaths=/etc/acme-agent
+ReadWritePaths=/var/lib/acme-agent
+
+[Install]
+WantedBy=multi-user.target

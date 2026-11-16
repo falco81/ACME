@@ -363,6 +363,7 @@ def checked(r):
     out['sso_peer'] = None if sp is None else bool(sp)
     out['pki'] = bool(r.get('pki'))
     out['certlogin'] = certlogin_checked(r.get('certlogin'))
+    out['agents'] = agents_checked(r.get('agents'))
     names = r.get('acme')
     if names is None:
         out['acme'] = None
@@ -868,6 +869,12 @@ VIP_FILES = {'cert': os.path.join(CERT_DIR, 'acme-vip.pem'),
 
 
 CERTLOGIN_CA = os.path.join(CERT_DIR, 'acme-certlogin-ca.pem')
+# The agents' port (1.0.116, docs/target-agent.md): written only while active mode is on.
+NGINX_AGENTS = os.path.join(NGINX_DIR, 'acme_agents.conf')
+AGENTS_FILES = {'ca': os.path.join(CERT_DIR, 'acme-agents-ca.pem'),
+                'cert': os.path.join(CERT_DIR, 'acme-agents.pem'),
+                'key': os.path.join(CERT_DIR, 'acme-agents.key')}
+AGENTS_NOW = {}
 # Ports never the certificate's own: nginx would ask everybody there for a certificate.
 CERTLOGIN_NOT = (80, 443, 22, 25, 53, 161, 162, 1812, 1813, 3306, 5432, 9861)
 # What a server of the port keeps of the HTTPS server it is made from: its names, its TLS.
@@ -902,6 +909,94 @@ def certlogin_checked(c):
         # The card watched (1.0.113): a key only then - the server as it was without it.
         out['watch'] = True
     return out
+
+
+def agents_checked(c):
+    """{port, ca, cert, key} of the agents' port, {port: 0} (taken away), or None (never asked:
+    nginx as it is)."""
+    if c is None:
+        return None
+    if not isinstance(c, dict):
+        raise Refused('the agents\' port is not an object')
+    try:
+        port = int(c.get('port') or 0)
+    except (TypeError, ValueError):
+        raise Refused('the agents\' port is a number')
+    if port == 0:
+        return {'port': 0}
+    if not 1024 <= port <= 65535 or port in CERTLOGIN_NOT or 18129 <= port <= 18199:
+        raise Refused('%d cannot be the agents\' port' % port)
+    out = {'port': port}
+    for k in ('ca', 'cert'):
+        v = str(c.get(k) or '')
+        if len(v) > 65536 or not CERT_RE.match(v):
+            raise Refused('the agents\' %s is a certificate in PEM' % k)
+        out[k] = v.strip() + '\n'
+    key = str(c.get('key') or '')
+    if len(key) > 16384 or not re.match(r'\s*-----BEGIN (EC |RSA )?PRIVATE KEY-----[A-Za-z0-9+/=\s]+'
+                                        r'-----END (EC |RSA )?PRIVATE KEY-----\s*\Z', key):
+        raise Refused('the agents\' key is a private key in PEM')
+    out['key'] = key.strip() + '\n'
+    return out
+
+
+def agents_text(main, c, pad='    '):
+    """The server of the agents' port: TLS 1.3, a certificate of acme's agent authority asked
+    and checked by nginx (only that authority), nothing served but the agents' three requests -
+    the join and its state (the one-time code proves those), and the poll (only with a
+    certificate that passed)."""
+    where = server_block(main)
+    if not where:
+        raise Refused('no HTTPS server { } was found in %s' % NGINX_MAIN)
+    block = main[where[0]:where[1]]
+    root = re.search(r'(?m)^\s*root\s+([^;]+);', block)
+    root = root.group(1).strip() if root else '/var/www/acme'
+    sock = re.search(r'(?m)^\s*fastcgi_pass\s+([^;]+);', _location_text(main, 'location = /admin/ {')
+                     or main)
+    sock = sock.group(1).strip() if sock else 'unix:/run/php-fpm/acme.sock'
+    p2 = pad * 2
+    listens = []
+    for line in block.split('\n'):
+        m = re.match(r'^\s*listen\s+((?:\[[^\]]*\]:|[0-9.]+:)?)443\b', line)
+        if m and (m.group(1) + str(c['port'])) not in listens:
+            listens.append(m.group(1) + str(c['port']))
+    listens = listens or [str(c['port'])]
+
+    def loc(path, op, need_cert, timeout):
+        return ''.join([
+            '%slocation = %s {\n' % (pad, path),
+            '%sif ($request_method != POST) { return 405; }\n' % p2,
+            ('%sif ($ssl_client_verify != SUCCESS) { return 403; }\n' % p2) if need_cert else '',
+            '%slimit_req zone=acme_all burst=40 nodelay;\n' % p2,
+            '%slimit_req_status 429;\n' % p2,
+            '%sfastcgi_pass   %s;\n' % (p2, sock),
+            '%sfastcgi_param  SCRIPT_FILENAME %s/agent.php;\n' % (p2, root.rstrip('/')),
+            '%sfastcgi_param  HTTPS on;\n' % p2,
+            '%sinclude        fastcgi_params;\n' % p2,
+            '%sfastcgi_param  ACME_AGENT_PORT 1;\n' % p2,
+            '%sfastcgi_param  ACME_AGENT_OP %s;\n' % (p2, op),
+            '%sfastcgi_param  ACME_AGENT_CERT $ssl_client_escaped_cert;\n' % p2,
+            '%sfastcgi_param  ACME_AGENT_VERIFY $ssl_client_verify;\n' % p2,
+            '%sfastcgi_read_timeout %ds;\n' % (p2, timeout),
+            '%s}\n' % pad])
+    out = ['%s\n# The agents\' port (1.0.116, docs/target-agent.md): active acme-agents connect '
+           'here.\n# Only certificates of acme\'s agent authority pass; nothing is served but '
+           'their requests.\n' % MARK, 'server {']
+    out += ['%slisten      %s ssl;' % (pad, x) for x in listens]
+    out += ['%sserver_name _;' % pad,
+            '%sssl_certificate        %s;' % (pad, AGENTS_FILES['cert']),
+            '%sssl_certificate_key    %s;' % (pad, AGENTS_FILES['key']),
+            '%sssl_protocols          TLSv1.3;' % pad,
+            '%sssl_client_certificate %s;   # acme\'s agent authority, alone' % (pad, AGENTS_FILES['ca']),
+            '%sssl_verify_client      optional;   # the join comes without one (its code proves it)' % pad,
+            '%sssl_verify_depth       1;' % pad,
+            '%sclient_max_body_size   4m;' % pad,
+            '%sserver_tokens          off;' % pad,
+            '%saccess_log             off;' % pad,
+            '%sadd_header X-Content-Type-Options "nosniff" always;' % pad]
+    body = loc('/agent/v1/join', 'join', False, 30) + loc('/agent/v1/join/status', 'status', False, 30) + \
+        loc('/agent/v1/poll', 'poll', True, 90) + '%slocation / { return 404; }\n' % pad
+    return '\n'.join(out) + '\n\n' + body + '}\n'
 
 
 def _location_text(text, head):
@@ -1851,6 +1946,8 @@ def nginx_part(r, last):
         DH_READY[files['dh']] = dh_file(t['dh'], files['dh'], (last.get('dh') or {}).get(which))
     paths = [NGINX_MAIN, NGINX_VIP, NGINX_CERTLOGIN, CERTLOGIN_CA] + list(NODE_FILES.values()) + \
         list(VIP_FILES.values())
+    if r.get('agents') is not None or os.path.exists(NGINX_AGENTS):
+        paths += [NGINX_AGENTS] + list(AGENTS_FILES.values())
     snap = snapshot(paths)
     changed = False
     TLS_FILES_NEW[0] = False
@@ -2026,6 +2123,35 @@ def nginx_part(r, last):
                 if gone:
                     changed = True
                     said.append('nginx: the certificate\'s own port taken away')
+        # The agents' port (1.0.116): a server of its own while active mode is on; taken away
+        # (its files too) when it is switched off. Never asked: nothing of it, as before.
+        ag = r.get('agents')
+        AGENTS_NOW.clear()
+        if ag is not None and ag.get('port'):
+            with open(NGINX_MAIN) as f:
+                main = f.read()
+            text = agents_text(main, ag)
+            for k, mode in (('ca', 0o644), ('cert', 0o644), ('key', 0o600)):
+                have = snap.get(AGENTS_FILES[k])
+                if have is None or have[0].decode('ascii', 'replace') != ag[k]:
+                    write_root(AGENTS_FILES[k], ag[k], mode)
+                    changed = True
+            if snap.get(NGINX_AGENTS) is None or \
+                    snap[NGINX_AGENTS][0].decode('utf-8', 'replace') != text:
+                write_root(NGINX_AGENTS, text, 0o644)
+                changed = True
+                said.append('nginx: the agents\' port %d' % ag['port'])
+                said.append(certlogin_selinux(ag['port']))
+            AGENTS_NOW.update(port=ag['port'])
+        elif ag is not None or os.path.exists(NGINX_AGENTS):
+            gone = [p for p in [NGINX_AGENTS] + list(AGENTS_FILES.values()) if os.path.exists(p)]
+            for p in gone:
+                os.unlink(p)
+            if gone:
+                changed = True
+                said.append('nginx: the agents\' port taken away')
+            if ag is not None:
+                AGENTS_NOW.update(port=0)
         # A certificate renewed changes no line of nginx's (1.0.205): its files
         # alone were written, nginx was not reloaded, and went on giving the
         # old one until it ran out.
@@ -8040,6 +8166,8 @@ def serve():
                    fw=fw, access=access_now())
         if CERTLOGIN_NOW:
             out['certlogin'] = dict(CERTLOGIN_NOW)
+        if AGENTS_NOW:
+            out['agents'] = dict(AGENTS_NOW)
     except Refused as e:
         out.update(state='failed', said=[str(e)])
     except Exception as e:                              # noqa: BLE001 - said, never lost
@@ -8077,6 +8205,12 @@ def nginx_leftovers(dry=False):
             if not dry:
                 _drop(p)
             out.append(('[would remove] ' if dry else 'removed: ') + '%s (acme\'s server of nginx)' % p)
+    for p in AGENTS_FILES.values():
+        if os.path.isfile(p) and not os.path.islink(p):
+            if not dry:
+                _drop(p)
+            out.append(('[would remove] ' if dry else 'removed: ') +
+                       '%s (the agents\' port, 1.0.116)' % p)
     if os.path.isfile(CERTLOGIN_CA) and not os.path.islink(CERTLOGIN_CA):
         if not dry:
             _drop(CERTLOGIN_CA)

@@ -22,6 +22,10 @@ What it makes, in release/ and nowhere else:
                       - the list the engine's "new versions from the web" reads
                       (acmelib/engine/210_new_versions_from_the.py)
   LATEST              the newest version, and its name, sha256, size and date
+  acme-agent-X.Y.Z.tar.gz
+                      the target agent's package (docs/target-agent.md), signed by
+                      the same key (MANIFEST.sig inside) - also inside acme's package
+                      as deploy/agent/acme-agent-X.Y.Z.tar.gz, handed out by the pages
 
 Only the last ten versions are kept: an older package is deleted from
 release/ (git still has it).
@@ -230,9 +234,30 @@ def sha256_file(path):
     return h.hexdigest()
 
 
-def manifest_of(files):
-    lines = ['%s  %s' % (sha256_file(os.path.join(ROOT, rel)), rel) for rel in files]
+def manifest_of(files, extra=None):
+    """`extra`: {path in the package: file made for it} (the agent's package)."""
+    extra = extra or {}
+    lines = ['%s  %s' % (sha256_file(extra.get(rel) or os.path.join(ROOT, rel)), rel)
+             for rel in files]
     return ('\n'.join(lines) + '\n').encode('utf-8')
+
+
+# The package of acme-agent (1.0.116, docs/target-agent.md): made with every release, signed by
+# the same key - inside acme's package (deploy/agent/acme-agent-X.Y.Z.tar.gz, which the pages
+# hand out: Settings -> Target agents) and beside it in release/.
+AGENT_PKG_RE = re.compile(r'^deploy/agent/acme-agent-[0-9.]+\.tar\.gz\Z')
+AGENT_NAME_RE = re.compile(r'^acme-agent-(\d+)\.(\d+)\.(\d+)\.tar\.gz\Z')
+
+
+def build_agent(dest, version, key, epoch):
+    """deploy/agent/acme_agent.py's own build_package: MANIFEST and MANIFEST.sig inside."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        'acme_agent_release', os.path.join(ROOT, 'deploy', 'agent', 'acme_agent.py'))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    m.build_package(dest, version, key=key, keys_dir=KEYS_DIR, epoch=epoch)
+    return dest
 
 
 def checks_before(version, files):
@@ -275,7 +300,7 @@ def build(version, key, force=False, epoch=None):
     if page_version() != version:
         return None, ('web/acme-page.php says ACME_VERSION %s, acmelib/__init__.py %s - '
                       'make them the same (--bump writes both)' % (page_version(), version))
-    files = tree_files()
+    files = [f for f in tree_files() if not AGENT_PKG_RE.match(f)]
     if not checks_before(version, files):
         return None, 'CHANGELOG.md has no "## %s" section - write what changed first' % version
     os.makedirs(RELEASE_DIR, exist_ok=True)
@@ -288,9 +313,12 @@ def build(version, key, force=False, epoch=None):
     if epoch is None:
         epoch = int(os.environ.get('SOURCE_DATE_EPOCH') or 0) or int(datetime.datetime.now(
             datetime.timezone.utc).timestamp())
-    manifest = manifest_of(files)
     work = tempfile.mkdtemp(prefix='acme-release-')
     try:
+        agent_rel = 'deploy/agent/acme-agent-%s.tar.gz' % version
+        extra = {agent_rel: build_agent(os.path.join(work, 'agent.tar.gz'), version, key, epoch)}
+        files = sorted(files + [agent_rel])
+        manifest = manifest_of(files, extra)
         man = os.path.join(work, 'MANIFEST')
         sig = os.path.join(work, 'MANIFEST.sig')
         with open(man, 'wb') as f:
@@ -329,11 +357,14 @@ def build(version, key, force=False, epoch=None):
                     for rel, blob in (('MANIFEST', manifest), ('MANIFEST.sig', signature)):
                         tar.addfile(info(top + '/' + rel, len(blob), 0o644), io.BytesIO(blob))
                     for rel in files:
-                        full = os.path.join(ROOT, rel)
+                        full = extra.get(rel) or os.path.join(ROOT, rel)
                         mode = 0o755 if os.stat(full).st_mode & 0o111 else 0o644
                         with open(full, 'rb') as src:
                             tar.addfile(info(top + '/' + rel, os.path.getsize(full), mode), src)
         os.replace(part, dest)
+        # ...and the agent's package beside it, for whoever installs agents from release/
+        shutil.copyfile(extra[agent_rel], os.path.join(RELEASE_DIR, 'acme-agent-%s.tar.gz'
+                                                       % version))
     finally:
         shutil.rmtree(work, ignore_errors=True)
     return {'name': name, 'files': len(files), 'signed_by': signer[:-4], 'path': dest,
@@ -375,6 +406,12 @@ def prune(folder=None, keep=KEEP):
     folder = folder or RELEASE_DIR
     gone = []
     for _v, name in packages_here(folder)[keep:]:
+        os.unlink(os.path.join(folder, name))
+        gone.append(name)
+    agents = sorted((n for n in (os.listdir(folder) if os.path.isdir(folder) else [])
+                     if AGENT_NAME_RE.match(n)),
+                    key=lambda n: vtuple('.'.join(AGENT_NAME_RE.match(n).groups())), reverse=True)
+    for name in agents[keep:]:
         os.unlink(os.path.join(folder, name))
         gone.append(name)
     return gone

@@ -59,7 +59,8 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'ca_edit', 'ca_renew', 'ca_versions', 'ca_install_cert',
         'check_names', 'cert_check', 'dry_run', 'target_key', 'validation_key',
         'dns_sets', 'dns_set_add', 'dns_set_edit', 'dns_set_del', 'dns_set_test', 'dns_assign',
-        'teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del', 'teams_adopt')
+        'teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del', 'teams_adopt',
+        'target_agent')
 
 # family: (the word of the options, the API's path, the words of one)
 FAMILIES = {'issuer': ('source', 'sources', 'source'),
@@ -216,6 +217,12 @@ def add_args(p):
                         'http://HOST/.well-known/acme-challenge/ from here, step by step')
     g.add_argument('--target-test', metavar='NAME', help='try a target: reach it, sign in, '
                    'change nothing')
+    g.add_argument('--target-agent', nargs='+', metavar='ARG',
+                   help='NAME WHAT - the agent of a target "Server with acme-agent" '
+                        '(docs/target-agent.md): show, code (a one-time join code), confirm FP '
+                        '(the fingerprint `acme-agent join` printed), look (reach a passive one '
+                        'now), policy (what it allows, as it last said), renew (its '
+                        'certificate), forget (--yes)')
     for word in ('target', 'validation', 'check'):
         g.add_argument('--%s-key' % word, dest='%s_key' % word, nargs='+', metavar='ARG',
                        help='NAME WHAT - the SSH key of a %s, as the key card of the page: '
@@ -641,6 +648,8 @@ class Cli(object):
                 'teams_adopt')):
             from acmelib.certs import api_teams
             return api_teams.cli(self)
+        if getattr(a, 'target_agent', None):
+            return self.target_agent(a.target_agent)
         for fam, word in (('target', 'target'), ('challenge', 'validation'), ('check', 'check')):
             if getattr(a, '%s_key' % word, None):
                 from acmelib.certs import api_sshkeys
@@ -1767,6 +1776,89 @@ class Cli(object):
 
     def target_test(self):
         return self.fam_test('target', self.args.target_test)
+
+    def target_agent(self, words):
+        """acme --target-agent NAME show|code|confirm FP|look|policy|renew|forget (1.0.116)."""
+        from acmelib.certs import agents as G
+        from acmelib.plugins.base import PluginError
+        if len(words) < 2:
+            raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|renew|'
+                             'forget')
+        name, what, rest = words[0], words[1], words[2:]
+        try:
+            row = G.target_row(self.store, name)
+        except LookupError as e:
+            raise SystemExit('acme: %s' % e)
+        try:
+            if what == 'code':
+                got = G.code_new(self.store, row, self.WHO)
+                if self.json:
+                    return self.out(got) or 0
+                print(got['code'])
+                sys.stderr.write('a join code for %s (%s mode) - on the server, as root, within an '
+                                 'hour:\n  acme-agent join CODE\n' % (row['name'], got['mode']))
+                return 0
+            if what == 'confirm':
+                if not rest:
+                    raise SystemExit('acme: --target-agent NAME confirm FINGERPRINT')
+                G.confirm(self.store, row, ' '.join(rest), self.WHO)
+                info = G.look(self.store, row, self.WHO) if G.mode_of(row) == 'passive' \
+                    else G.info(self.store, row)
+                print('confirmed: the agent of %s has its certificate (%s)' % (
+                    row['name'], info.get('state')))
+                return 0
+            if what == 'look':
+                info = G.look(self.store, row, self.WHO)
+            elif what == 'renew':
+                G.renew_cert(self.store, row, self.WHO)
+                info = G.info(self.store, row)
+            elif what == 'forget':
+                self.sure('the agent of %s is no longer let in' % row['name'])
+                G.forget(self.store, row, self.WHO)
+                print('forgotten: the agent of %s is no longer let in' % row['name'])
+                return 0
+            elif what in ('show', 'policy'):
+                info = G.info(self.store, row)
+            else:
+                raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|'
+                                 'renew|forget')
+        except PluginError as e:
+            raise SystemExit('acme: %s' % e)
+        if self.json:
+            return self.out(info if what != 'policy' else (info.get('policy') or {})) or 0
+        if what == 'policy':
+            pol = info.get('policy')
+            if not pol:
+                print('the agent of %s has not said its policy yet' % row['name'])
+                return 0
+            m = G.agent_mod()
+            print('# the policy of the agent of %s, as it said %s - sha256 %s' % (
+                row['name'], _when(info.get('policy_at')), str(pol.get('hash'))[:16]))
+            print('\n'.join(m.policy_lines(dict(m.parse_policy(''), **{
+                k: pol.get(k) for k in ('files', 'units', 'tests', 'scripts', 'script_hashes',
+                                        'from', 'self_update', 'connect', 'limits')
+                if pol.get(k) is not None}))) or '# nothing is allowed')
+            return 0
+        rows = [('target', row['name']), ('mode', info['mode']), ('state', info['state']),
+                ('agent', info.get('agent_id') or '-'), ('version', info.get('version') or '-'),
+                ('host', info.get('agent_host') or info.get('host') or '-'),
+                ('last heard', _when(info.get('last_seen'))),
+                ('certificate ends', _when(info.get('cert_end'))),
+                ('key', G.fp_words(info.get('key_fp')) if info.get('key_fp') else '-')]
+        if info.get('pending'):
+            rows.append(('to confirm', info['pending']['fp_words'] +
+                         (' (confirmed)' if info['pending']['confirmed'] else '')))
+        if info.get('policy_summary'):
+            ps = info['policy_summary']
+            rows.append(('policy', '%d folders, %d units, %d tests, %d scripts' % (
+                ps['files'], ps['units'], ps['tests'], ps['scripts'])))
+        if info.get('last_error'):
+            rows.append(('last error', info['last_error']))
+        if info.get('said'):
+            rows.append(('said', info['said']))
+        for k, v in rows:
+            print('%-18s %s' % (k, v))
+        return 0
 
     def fam_action(self, fam, name, key):
         from acmelib.certs import api

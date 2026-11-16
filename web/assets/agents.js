@@ -1,0 +1,713 @@
+/* agents.js - target agents (1.0.116, docs/target-agent.md): the pane Settings → Target agents,
+   the agent's card on a target "Server with acme-agent", its join wizard, and what a deployment
+   needs of the agent's policy (drawn into the files designer's preview).
+
+   Drawn with the page's own pieces (core.js) and the classes of the database agent's card and
+   wizard (acme.css: dbs-*, dbw-*); what is its own is in agents.css. certs.js hands it how to
+   ask the daemon: ACME_AGENTS.init({capi, over, openTarget}). */
+(function () {
+'use strict';
+
+var H = {capi: null, over: null, openTarget: null};
+var ROLE = (typeof ME === 'object' && ME && ME.role) || 'readonly';
+var FULL = ROLE === 'fulladmin';
+var MANAGE = FULL || ROLE === 'certadmin';
+var PANE = {ticket: 0, timer: null};
+
+function ask(path, body, wait) {
+  if (!H.capi) return Promise.reject(new Error('the page is not ready'));
+  return H.capi(path, body, wait);
+}
+function arr(v) { return Array.isArray(v) ? v : []; }
+function data(kind, cls, text) { return noI18n(el(kind, cls, text)); }
+function mono(text, cls) { return noI18n(el('span', 'mono' + (cls ? ' ' + cls : ''), text)); }
+function icon(key, size) {
+  var s = noI18n(el('span', 'ag-ic'));
+  s.innerHTML = iconMarkup(key, size || 18);
+  return s;
+}
+function grouped(fp) {
+  var f = String(fp || '').toUpperCase(), out = [];
+  for (var i = 0; i < f.length; i += 4) out.push(f.slice(i, i + 4));
+  return out;
+}
+function bytes(n) {
+  n = Number(n || 0);
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+  if (n >= 1024) return Math.round(n / 1024) + ' kB';
+  return n + ' B';
+}
+function when(ts) {
+  if (!ts) return '–';
+  try { return stamp(ts); } catch (e) { return String(ts); }
+}
+function daysLeft(ts) { return ts ? (Number(ts) * 1000 - Date.now()) / 86400000 : null; }
+
+/** A command to copy: the line itself (selectable whole) and its Copy button. */
+function cmdBox(text, cls) {
+  var box = el('div', 'dbs-cmd ag-cmd' + (cls ? ' ' + cls : ''));
+  box.appendChild(noI18n(el('pre', 'mono', text)));
+  var cp = cmdButton('Copy', 'copy', 'small');
+  cp.onclick = function () { copyText(text, cp, 'on the clipboard'); };
+  box.appendChild(cp);
+  return box;
+}
+/** The fingerprint as it is compared by eye: sixteen groups of four, large. */
+function fpBig(fp, cls) {
+  var box = noI18n(el('div', 'ag-fp' + (cls ? ' ' + cls : '')));
+  grouped(fp).forEach(function (g, i) {
+    var s = el('span', 'ag-fp-g', g);
+    if (i % 4 === 3) s.classList.add('brk');
+    box.appendChild(s);
+  });
+  return box;
+}
+
+/* ---- the state of one agent, in words and colour --------------------------------------- */
+var STATE = {
+  answers: ['answers', 'ok'], quiet: ['not heard from', 'warn'], refused: ['refused', 'bad'],
+  joining: ['joining', 'info'], 'new': ['not joined', 'dim'], off: ['switched off', 'dim']
+};
+function statePill(a) {
+  var m = STATE[a.state] || [a.state || '–', 'dim'];
+  var p = el('span', 'dbs-state ag-state ' + m[1]);
+  p.appendChild(el('span', 'dot ' + (m[1] === 'ok' ? 'ok' : m[1] === 'bad' ? 'crit' : m[1] === 'warn' ? 'warn' : 'off')));
+  p.appendChild(el('span', '', m[0]));
+  if (a.last_seen && (a.state === 'answers' || a.state === 'quiet')) {
+    p.appendChild(noI18n(el('span', 'dbs-ago', ' · ')));
+    p.appendChild(el('span', 'dbs-ago', ago(a.last_seen)));
+  }
+  if (a.last_error && a.state !== 'answers') explain(p, String(a.last_error));
+  return p;
+}
+function modeBadge(mode) {
+  var b = el('span', 'ag-mode ' + (mode === 'active' ? 'active' : 'passive'));
+  b.appendChild(icon(mode === 'active' ? 'out' : 'in', 13));
+  b.appendChild(el('span', '', mode === 'active' ? 'active' : 'passive'));
+  explain(b, mode === 'active' ? 'The agent connects to acme: nothing listens on its server.'
+    : 'acme connects to the agent: it listens and lets in only acme’s certificate.');
+  return b;
+}
+function certEnd(ts) {
+  if (!ts) return el('span', 'muted', '–');
+  var d = daysLeft(ts);
+  var s = el('span', 'ag-end' + (d < 3 ? ' bad' : (d < 14 ? ' warn' : '')));
+  s.appendChild(document.createTextNode(when(ts)));
+  return s;
+}
+function chips(ps, small) {
+  var box = el('div', 'ag-chips' + (small ? ' small' : ''));
+  if (!ps) { box.appendChild(el('span', 'ag-chip unk', 'policy not known yet')); return box; }
+  [['files', 'folder', 'folders', 'lock'], ['units', 'unit', 'units', 'refresh'],
+   ['tests', 'test', 'tests', 'check'], ['scripts', 'script', 'scripts', 'terminal']].forEach(function (x) {
+    var n = Number(ps[x[0]] || 0);
+    var c = el('span', 'ag-chip' + (n ? '' : ' none'));
+    c.appendChild(icon(x[3], 13));
+    c.appendChild(el('span', '', n + ' ' + (n === 1 ? x[1] : x[2])));
+    box.appendChild(c);
+  });
+  if (Number(ps.problems || 0)) {
+    var p = el('span', 'ag-chip bad');
+    p.appendChild(icon('flag', 13));
+    p.appendChild(el('span', '', 'lines not read'));
+    box.appendChild(p);
+  }
+  return box;
+}
+function kv(k, v, wide) {
+  var c = el('div', 'dbs-kv' + (wide ? ' wide' : ''));
+  c.appendChild(el('span', 'k', k));
+  var vv = el('span', 'v');
+  if (v && v.nodeType) vv.appendChild(v); else vv.appendChild(document.createTextNode(v === undefined || v === null || v === '' ? '–' : String(v)));
+  c.appendChild(vv);
+  return c;
+}
+
+/* ==========================================================================
+   Settings → Target agents
+   ========================================================================== */
+function pane(live) {
+  var hero = $('ag-hero'), pkg = $('ag-pkg'), list = $('ag-list'), ca = $('ag-ca');
+  if (!hero) return;
+  var ticket = ++PANE.ticket;
+  ask('agents').then(function (d) {
+    if (ticket !== PANE.ticket) return;
+    liveFill(hero, function (box) { drawHero(box, d); }, live);
+    liveFill(pkg, function (box) { drawPackage(box, d); }, live);
+    liveFill(ca, function (box) { drawAuthority(box, d); }, live);
+    liveFill(list, function (box) { drawList(box, d); }, live);
+    explainWhatWasDrawn(hero.parentNode);
+  }).catch(function (e) {
+    clear(hero);
+    hero.appendChild(el('p', 'ct-bad', 'The target agents could not be asked: ' + String((e && e.message) || e)));
+  });
+}
+function drawHero(box, d) {
+  var on = !!d.active, listening = d.nginx && Number(d.nginx.port || 0) > 0;
+  var h = el('div', 'dbs-hero ag-hero ' + (on ? (listening ? 'good' : 'warn') : ''));
+  var ic = noI18n(el('span', 'dbs-hero-ic'));
+  ic.innerHTML = iconMarkup('terminal', 24);
+  h.appendChild(ic);
+  var w = el('div', 'dbs-hero-w');
+  w.appendChild(el('b', '', 'acme proposes, the server decides'));
+  w.appendChild(el('div', 'small', 'A server with acme-agent gives acme none of its credentials: the agent does only what its own policy allows - the folders, owners and modes, the units it may reload, the tests and scripts by their hash.'));
+  var modes = el('div', 'ag-hero-modes');
+  var a = el('div', 'ag-hero-mode');
+  a.appendChild(modeBadge('passive'));
+  a.appendChild(el('span', 'small', 'always possible: acme connects out, nothing listens here'));
+  modes.appendChild(a);
+  var b = el('div', 'ag-hero-mode');
+  b.appendChild(modeBadge('active'));
+  if (!on) b.appendChild(el('span', 'small', 'off - no port, no server of nginx, no firewall rule'));
+  else {
+    b.appendChild(el('span', 'small', 'agents connect to every node on port'));
+    b.appendChild(mono(String(d.port), 'ag-port'));
+  }
+  modes.appendChild(b);
+  w.appendChild(modes);
+  h.appendChild(w);
+  var st = el('span', 'dbs-state ' + (on ? (listening ? 'ok' : 'warn') : ''));
+  st.appendChild(el('span', 'dot ' + (on ? (listening ? 'ok' : 'warn') : 'off')));
+  st.appendChild(el('span', '', on ? (listening ? 'active mode on' : 'active mode on - nginx not yet') : 'active mode off'));
+  if (on && !listening) explain(st, 'Switched on: each node gives nginx the agents’ port within a minute (its root helper). If it stays so, Settings → Web shows what nginx said.');
+  h.appendChild(st);
+  box.appendChild(h);
+  if (on && arr(d.endpoints).length) {
+    var e = el('div', 'ag-eps');
+    e.appendChild(el('span', 'dbw-k', 'An active agent is given'));
+    arr(d.endpoints).forEach(function (x) { e.appendChild(mono(x, 'ag-ep')); });
+    box.appendChild(e);
+  }
+}
+function drawPackage(box, d) {
+  var p = d.package;
+  var h = el('h2', '');
+  h.appendChild(document.createTextNode('The agent to install'));
+  box.appendChild(h);
+  if (!p) {
+    box.appendChild(el('p', 'ct-bad', 'The package could not be made: ' + String(d.package_error || '?')));
+    return;
+  }
+  var tile = el('div', 'ag-pkg');
+  var ic = noI18n(el('span', 'ag-pkg-ic'));
+  ic.innerHTML = iconMarkup('download', 26);
+  tile.appendChild(ic);
+  var w = el('div', 'ag-pkg-w');
+  var top = el('div', 'ag-pkg-top');
+  top.appendChild(data('b', 'ag-pkg-name', p.name));
+  var sig = el('span', 'ag-badge ' + (p.signed ? 'ok' : 'warn'));
+  sig.appendChild(icon(p.signed ? 'shield' : 'flag', 13));
+  sig.appendChild(el('span', '', p.signed ? 'signed by acme’s release key' : 'not signed - made from this source tree'));
+  explain(sig, p.signed ? 'install.sh checks every file against MANIFEST and MANIFEST against its signature before it installs anything.'
+    : 'A release carries the package signed. This one was made here from the program acme ships; compare its SHA-256 on the server.');
+  top.appendChild(sig);
+  w.appendChild(top);
+  var meta = el('div', 'ag-pkg-meta');
+  meta.appendChild(el('span', '', 'version'));
+  meta.appendChild(mono(String(p.version)));
+  meta.appendChild(noI18n(el('span', 'muted', '·')));
+  meta.appendChild(mono(bytes(p.size)));
+  meta.appendChild(noI18n(el('span', 'muted', '·')));
+  meta.appendChild(el('span', '', 'RHEL 8–10, Debian, Ubuntu · Python 3.7+'));
+  w.appendChild(meta);
+  var sha = el('div', 'ag-sha');
+  sha.appendChild(el('span', 'dbw-k', 'SHA-256'));
+  var sv = mono(String(p.sha256), 'ag-sha-v');
+  copyOnClick(sv, String(p.sha256), 'on the clipboard');
+  sha.appendChild(sv);
+  w.appendChild(sha);
+  tile.appendChild(w);
+  var dl = cmdButton('Download', 'download', 'primary');
+  dl.onclick = function () { download(dl); };
+  tile.appendChild(dl);
+  box.appendChild(tile);
+  box.appendChild(el('h4', 'dbw-h', 'On the server, as root'));
+  var ol = el('ol', 'dbs-steps ag-steps');
+  var words = ['Check it is the same file (the SHA-256 above):', 'Unpack it:',
+    'Install - the package is checked, nothing is allowed yet:', 'Join with the code made on the target’s card:'];
+  arr(d.commands).forEach(function (c, i) {
+    var li = el('li', '');
+    li.appendChild(el('span', '', words[i] || ''));
+    li.appendChild(cmdBox(c));
+    ol.appendChild(li);
+  });
+  box.appendChild(ol);
+}
+function download(button) {
+  busy(button, true);
+  ask('agents/package').then(function (d) {
+    var raw = atob(d.data_b64), u8 = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) u8[i] = raw.charCodeAt(i);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([u8], {type: d.mime || 'application/gzip'}));
+    a.download = d.filename || 'acme-agent.tar.gz';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  }).catch(oops).then(function () { busy(button, false); });
+}
+function drawAuthority(box, d) {
+  box.appendChild(el('h2', '', 'acme’s agent authority'));
+  box.appendChild(el('p', 'note', 'It signs each agent’s certificate (30 days, renewed over the channel) and acme’s own; every agent pins its fingerprint at the join. Its key is sealed in the database - in every backup, on every node.'));
+  if (!d.ca) {
+    box.appendChild(el('p', 'muted', 'Made with the first join code.'));
+    return;
+  }
+  var row = el('div', 'ag-ca');
+  row.appendChild(fpBig(d.ca.fp, 'small'));
+  var cp = cmdButton('Copy', 'copy', 'small');
+  cp.onclick = function () { copyText(String(d.ca.fp), cp, 'on the clipboard'); };
+  row.appendChild(cp);
+  box.appendChild(row);
+  var k = el('div', 'dbs-kvs ag-ca-kvs');
+  k.appendChild(kv('Valid until', when(d.ca.end)));
+  k.appendChild(kv('Made', when(d.ca.at)));
+  box.appendChild(k);
+}
+function drawList(box, d) {
+  var rows = arr(d.rows);
+  var h = el('h2', '');
+  h.appendChild(document.createTextNode('Targets with an agent'));
+  var n = noI18n(el('span', 'count', String(rows.length)));
+  h.appendChild(n);
+  box.appendChild(h);
+  if (!rows.length) {
+    var e = el('div', 'ag-empty');
+    e.appendChild(icon('terminal', 28));
+    e.appendChild(el('b', '', 'No target with an agent yet'));
+    e.appendChild(el('p', 'note', 'Targets → Add a target → Server with acme-agent; then its card makes the join code.'));
+    box.appendChild(e);
+    return;
+  }
+  var g = el('div', 'dbs-grid ag-grid');
+  rows.forEach(function (a) { g.appendChild(tile(a, d)); });
+  box.appendChild(g);
+}
+function tile(a, d) {
+  var t = el('div', 'dbs-tile ag-tile ' + (a.state === 'refused' ? 'bad' : ''));
+  var top = el('div', 'dbs-tile-top');
+  var dot = el('span', 'dot ' + ({answers: 'ok', quiet: 'warn', refused: 'crit'}[a.state] || 'off'));
+  top.appendChild(dot);
+  var name = el('button', 'ag-name');
+  name.type = 'button';
+  name.appendChild(data('span', 'dbs-tile-n', a.name));
+  name.onclick = function () { if (H.openTarget) H.openTarget(a.name); };
+  top.appendChild(name);
+  top.appendChild(modeBadge(a.mode));
+  var sp = el('span', 'ag-tile-st');
+  sp.appendChild(statePill(a));
+  top.appendChild(sp);
+  t.appendChild(top);
+  var k = el('div', 'dbs-kvs');
+  k.appendChild(kv('Server', a.agent_host || a.host ? mono(String(a.agent_host || a.host)) : '–'));
+  k.appendChild(kv('Agent', a.version ? mono(a.version) : '–'));
+  k.appendChild(kv('Last heard', a.last_seen ? ago(a.last_seen) : 'never'));
+  k.appendChild(kv('Its certificate ends', certEnd(a.cert_end)));
+  t.appendChild(k);
+  t.appendChild(chips(a.policy_summary, true));
+  if (a.code_hash && d && d.shipped_code && a.code_hash !== d.shipped_code) {
+    t.appendChild(el('div', 'note warn small ag-older', 'Another program than the one this acme ships - install the package of this version.'));
+  }
+  return t;
+}
+
+/* ==========================================================================
+   The agent's card on a target (its form, and its detail)
+   ========================================================================== */
+function card(row, opts) {
+  opts = opts || {};
+  var box = el('div', 'ag-card');
+  var ticket = {n: 0, timer: null};
+  function load(look, button) {
+    var n = ++ticket.n;
+    if (button) busy(button, true);
+    var p = look ? ask('agents/look', {id: row.id}, 60).then(function (x) { return x.agent; })
+      : ask('agents/one?id=' + encodeURIComponent(row.id));
+    return p.then(function (a) {
+      if (n !== ticket.n || !box.isConnected && n > 1) return;
+      draw(a);
+      if (a.said) toast(String(a.said), 'bad');
+    }).catch(function (e) {
+      clear(box);
+      box.appendChild(el('p', 'ct-bad', String((e && e.message) || e)));
+    }).then(function () { if (button) busy(button, false); });
+  }
+  function draw(a) {
+    clear(box);
+    var head = el('div', 'ag-card-head');
+    head.appendChild(icon('terminal', 20));
+    head.appendChild(el('b', '', 'acme-agent'));
+    head.appendChild(modeBadge(a.mode));
+    var sp = el('span', 'ag-card-st');
+    sp.appendChild(statePill(a));
+    head.appendChild(sp);
+    box.appendChild(head);
+    if (a.pending && !a.pending.confirmed) box.appendChild(confirmBox(row, a, function () { load(true); }));
+    if (!a.joined && !a.pending) {
+      var j = el('div', 'ag-join-cta');
+      j.appendChild(el('p', 'note', a.code_until
+        ? 'A join code is waiting to be used on the server (until ' + when(a.code_until) + ').'
+        : 'No agent has joined yet: install it on the server and join it with a one-time code.'));
+      box.appendChild(j);
+    }
+    var k = el('div', 'dbs-kvs ag-kvs');
+    k.appendChild(kv('Server', a.agent_host || a.host ? mono(String(a.agent_host || a.host)) : '–'));
+    k.appendChild(kv('Agent', a.version ? mono(a.version) : '–'));
+    k.appendChild(kv('Last heard', a.last_seen ? ago(a.last_seen) : 'never'));
+    k.appendChild(kv('Its certificate ends', certEnd(a.cert_end)));
+    if (a.os) k.appendChild(kv('System', data('span', '', a.os)));
+    if (a.agent_id) k.appendChild(kv('Agent id', mono(a.agent_id)));
+    if (a.key_fp) {
+      var kf = mono(grouped(a.key_fp).slice(0, 4).join(' ') + ' …', 'ag-kfp');
+      explain(kf, grouped(a.key_fp).join(' '));
+      k.appendChild(kv('Its key', kf));
+    }
+    box.appendChild(k);
+    if (a.code_hash && a.shipped_code && a.code_hash !== a.shipped_code) {
+      box.appendChild(el('div', 'note warn small', 'The agent runs another program than the one this acme ships - install the package of this version (Settings → Target agents).'));
+    }
+    if (a.last_error && a.state !== 'answers') {
+      var le = el('div', 'note bad small ag-err');
+      le.appendChild(data('span', '', String(a.last_error)));
+      box.appendChild(le);
+    }
+    if (a.joined) box.appendChild(policyView(a.policy, a.policy_at));
+    var bar = el('div', 'btnrow ag-acts');
+    if (FULL) {
+      var jb = cmdButton(a.joined ? 'Join again…' : 'Join the agent…', a.joined ? 'refresh' : 'add', a.joined ? 'small' : 'primary small');
+      jb.onclick = function () { wizard(row, a, function () { load(false); }); };
+      bar.appendChild(jb);
+    }
+    if (MANAGE && (a.joined || a.mode === 'passive' && a.code_until)) {
+      var lb = cmdButton(a.joined ? 'Ask it now' : 'Look for it now', 'play', 'small');
+      lb.onclick = function () { load(true, lb); };
+      bar.appendChild(lb);
+    }
+    if (FULL && a.joined) {
+      var rb = cmdButton('Renew its certificate', 'key', 'small');
+      rb.onclick = function () {
+        busy(rb, true);
+        ask('agents/renew', {id: row.id}, 300).then(function () { toast('its certificate is renewed', 'good'); load(false); })
+          .catch(oops).then(function () { busy(rb, false); });
+      };
+      bar.appendChild(rb);
+      var fb = cmdButton('Forget…', 'forget', 'small danger');
+      fb.onclick = function () {
+        var back = function () { if (opts.reopen) opts.reopen(); };
+        confirmThen('Forget the agent', 'The agent of this target is no longer let in: its certificate is refused at once and its key, policy and state are gone from acme. On the server, <code>acme-agent forget</code> takes its side away. To use it again: join it again.', 'Forget it', function () {
+          return ask('agents/forget', {id: row.id}).then(function () { toast('forgotten', 'good'); back(); }).catch(oops);
+        });
+      };
+      bar.appendChild(fb);
+    }
+    if (bar.childNodes.length) box.appendChild(bar);
+    explainWhatWasDrawn(box);
+  }
+  box.appendChild(el('p', 'muted', 'Asking…'));
+  load(false);
+  return box;
+}
+/** "Is it the same?" - the agent waiting to be confirmed: its fingerprint, large. */
+function confirmBox(row, a, done) {
+  var box = el('div', 'ag-confirm');
+  var h = el('div', 'ag-confirm-h');
+  h.appendChild(icon('key', 18));
+  h.appendChild(el('b', '', 'An agent asks to join'));
+  if (a.pending.host) h.appendChild(mono(String(a.pending.host), 'ag-host'));
+  box.appendChild(h);
+  box.appendChild(el('p', 'note', 'Compare this fingerprint with the one acme-agent join printed on the server. Confirm only when every group is the same.'));
+  box.appendChild(fpBig(a.pending.fp));
+  if (FULL) {
+    var row2 = el('div', 'btnrow');
+    var ok = cmdButton('It is the same - confirm', 'check', 'primary');
+    ok.onclick = function () {
+      busy(ok, true);
+      ask('agents/confirm', {id: row.id, fp: a.pending.fp}, 90).then(function (x) {
+        if (x && x.said) toast(String(x.said), 'bad'); else toast('the agent is confirmed', 'good');
+        done(x);
+      }).catch(oops).then(function () { busy(ok, false); });
+    };
+    row2.appendChild(ok);
+    box.appendChild(row2);
+  } else {
+    box.appendChild(el('p', 'muted small', 'A full administrator confirms it.'));
+  }
+  return box;
+}
+/** The policy as the agent last said it: each folder, unit, test and script. */
+function policyView(pol, at) {
+  var box = el('div', 'ag-pol');
+  var h = el('div', 'ag-pol-h');
+  h.appendChild(icon('shield', 16));
+  h.appendChild(el('b', '', 'What its policy allows'));
+  if (at) { h.appendChild(noI18n(el('span', 'muted small', ' · '))); h.appendChild(el('span', 'muted small', ago(at))); }
+  box.appendChild(h);
+  if (!pol) { box.appendChild(el('p', 'muted small', 'Not said yet - Ask it now.')); return box; }
+  var any = false;
+  function group(title, items, draw) {
+    if (!items.length) return;
+    any = true;
+    var g = el('div', 'ag-pol-g');
+    g.appendChild(el('span', 'dbw-k', title));
+    items.forEach(function (x) { g.appendChild(draw(x)); });
+    box.appendChild(g);
+  }
+  group('Folders', arr(pol.files), function (f) {
+    var r = el('div', 'ag-pol-i');
+    r.appendChild(mono(f.dir));
+    var m = el('span', 'ag-pol-m');
+    m.appendChild(mono(f.owner + ':' + f.group));
+    m.appendChild(mono(('000' + Number(f.mode || 0).toString(8)).slice(-4)));
+    r.appendChild(m);
+    return r;
+  });
+  group('Units', Object.keys(pol.units || {}), function (u) {
+    var r = el('div', 'ag-pol-i');
+    r.appendChild(mono(u));
+    var m = el('span', 'ag-pol-m');
+    arr(pol.units[u]).forEach(function (v) { m.appendChild(data('span', 'ag-verb', v)); });
+    r.appendChild(m);
+    return r;
+  });
+  group('Tests and commands', arr(pol.tests), function (t) {
+    var r = el('div', 'ag-pol-i');
+    r.appendChild(mono(arr(t).join(' ')));
+    return r;
+  });
+  group('Scripts', arr(pol.scripts).concat(arr(pol.script_hashes).map(function (x) { return {hash: x}; })), function (s) {
+    var r = el('div', 'ag-pol-i');
+    if (s.hash) {
+      r.appendChild(el('span', 'small', 'written in acme'));
+      r.appendChild(mono(String(s.hash).slice(0, 16) + '…'));
+    } else {
+      r.appendChild(mono(s.path));
+      r.appendChild(mono(String(s.sha256).slice(0, 12) + '…', 'muted'));
+    }
+    return r;
+  });
+  group('Only from', arr(pol.from), function (f) { var r = el('div', 'ag-pol-i'); r.appendChild(mono(f)); return r; });
+  if (!any) box.appendChild(el('p', 'ag-pol-none', 'Nothing is allowed yet: acme can do nothing on this server. Allow what its deployments need there (acme-agent allow …) - each deployment says what it needs.'));
+  arr(pol.problems).forEach(function (p) { box.appendChild(data('div', 'note warn small', String(p))); });
+  return box;
+}
+
+/* ==========================================================================
+   The join wizard: install, the code, the fingerprint
+   ========================================================================== */
+function wizard(row, a0, after) {
+  var W = {step: a0 && a0.pending && !a0.pending.confirmed ? 2 : 0, code: null, a: a0, err: '', busy: false, d: null};
+  var STEPS = ['Install the agent', 'The join code', 'Confirm the fingerprint'];
+  var timer = null, gen = 0;
+  ask('agents/one?id=' + encodeURIComponent(row.id)).then(function (d) { W.d = d; W.a = d; paint(); }).catch(oops);
+  function stop() { clearTimeout(timer); timer = null; }
+  function rail() {
+    var r = el('ol', 'dbw-rail dbs-rail ag-rail');
+    STEPS.forEach(function (t, i) {
+      var li = el('li', i < W.step ? 'done' : (i === W.step ? 'on' : ''));
+      var b = el('button', '');
+      b.type = 'button';
+      b.disabled = i > W.step || W.busy;
+      b.appendChild(noI18n(el('span', 'n', i < W.step ? '✓' : String(i + 1))));
+      b.appendChild(el('span', '', t));
+      b.onclick = function () { if (i < W.step) { W.step = i; paint(); } };
+      li.appendChild(b);
+      r.appendChild(li);
+    });
+    return r;
+  }
+  function paint() {
+    stop();
+    var me = ++gen;
+    var buttons = [];
+    if (W.step > 0) buttons.push({words: 'Back', icon: 'prev', left: true, go: function () { W.step -= 1; paint(); }});
+    buttons.push({words: 'Close', close: true});
+    if (W.step === 0) buttons.push({words: 'Make the join code', cls: 'primary', icon: 'next', go: function (b) { makeCode(b); }});
+    if (W.step === 1) buttons.push({words: 'It is joining', cls: 'primary', icon: 'next', go: function () { W.step = 2; paint(); }});
+    var open = function () {
+      modal('Join the agent of ' + row.name, function (body) {
+        body.appendChild(rail());
+        var host = el('div', 'dbs-wiz ag-wiz');
+        host.id = 'ag-wiz-' + W.step;
+        body.appendChild(host);
+        [one, two, three][W.step](host, me);
+      }, buttons, 'large');
+      explainWhatWasDrawn($('modal-body'));
+    };
+    if (W.opened) open(); else { W.opened = true; if (H.over) H.over(open, after); else open(); }
+  }
+  function makeCode(b) {
+    busy(b, true);
+    ask('agents/code', {id: row.id}).then(function (c) {
+      W.code = c; W.a = c.agent; W.step = 1; paint();
+    }).catch(oops).then(function () { busy(b, false); });
+  }
+  function one(host) {
+    var lead = el('div', 'ha-lead');
+    lead.appendChild(noI18n(el('span', 'ha-lead-ico'))).innerHTML = iconMarkup('terminal', 22);
+    var lw = el('div', '');
+    lw.appendChild(el('b', '', 'acme-agent on the server does the work - acme holds none of its credentials'));
+    lw.appendChild(el('p', 'note', 'Two processes: the network side as the account acme-agent, without privileges; the root side never on the network, doing only what /etc/acme-agent/policy allows. Every job from acme is signed; the private keys arrive sealed to the agent.'));
+    lead.appendChild(lw);
+    host.appendChild(lead);
+    var d = W.d || {};
+    var p = d.package || {};
+    if (p.name) {
+      var t = el('div', 'ag-pkg ag-pkg-small');
+      var ic = noI18n(el('span', 'ag-pkg-ic'));
+      ic.innerHTML = iconMarkup('download', 22);
+      t.appendChild(ic);
+      var w = el('div', 'ag-pkg-w');
+      w.appendChild(data('b', 'ag-pkg-name', p.name));
+      var sha = el('div', 'ag-sha');
+      sha.appendChild(el('span', 'dbw-k', 'SHA-256'));
+      var sv = mono(String(p.sha256), 'ag-sha-v');
+      copyOnClick(sv, String(p.sha256), 'on the clipboard');
+      sha.appendChild(sv);
+      w.appendChild(sha);
+      t.appendChild(w);
+      var dl = cmdButton('Download', 'download', 'small');
+      dl.onclick = function () { download(dl); };
+      t.appendChild(dl);
+      host.appendChild(t);
+    }
+    host.appendChild(el('h4', 'dbw-h', 'On the server, as root'));
+    var ol = el('ol', 'dbs-steps ag-steps');
+    var words = ['Check it is the same file:', 'Unpack it:', 'Install - nothing is allowed yet:'];
+    arr(d.commands).slice(0, 3).forEach(function (c, i) {
+      var li = el('li', '');
+      li.appendChild(el('span', '', words[i]));
+      li.appendChild(cmdBox(c));
+      ol.appendChild(li);
+    });
+    host.appendChild(ol);
+    var m = el('div', 'note info small ag-mode-note');
+    m.appendChild(modeBadge((W.a || {}).mode));
+    m.appendChild(el('span', '', (W.a || {}).mode === 'active'
+      ? 'The agent connects to acme on the agents’ port: nothing needs to be open on the server.'
+      : 'acme connects to the agent on port 8446: let acme in there (and only acme - acme-agent allow from ADDRESS).'));
+    host.appendChild(m);
+  }
+  function two(host) {
+    var c = W.code;
+    if (!c) { host.appendChild(el('p', 'muted', 'Make the code first.')); return; }
+    host.appendChild(el('h4', 'dbw-h', 'The one-time join code'));
+    var code = el('div', 'ag-code');
+    code.appendChild(noI18n(el('pre', 'mono', c.code)));
+    var cp = cmdButton('Copy', 'copy', 'small');
+    cp.onclick = function () { copyText(c.code, cp, 'on the clipboard'); };
+    code.appendChild(cp);
+    host.appendChild(code);
+    var left = el('div', 'ag-code-left');
+    left.appendChild(icon('clock', 14));
+    left.appendChild(el('span', '', 'valid once, until'));
+    left.appendChild(document.createTextNode(' ' + when(c.until)));
+    host.appendChild(left);
+    host.appendChild(el('h4', 'dbw-h', 'On the server, as root'));
+    host.appendChild(cmdBox('sudo acme-agent join ' + c.code));
+    host.appendChild(el('p', 'note small', 'Or at the install: sudo ./install.sh --join CODE. The agent makes its own key there (it never leaves the server) and prints its fingerprint - acme shows it next, to compare.'));
+    var pins = el('div', 'dbs-kvs ag-pins');
+    pins.appendChild(kv('The authority it pins', mono(grouped(c.ca_fp).slice(0, 4).join(' ') + ' …')));
+    if (c.mode === 'active') pins.appendChild(kv('It connects to', mono(arr(c.endpoints).join('  '))));
+    else pins.appendChild(kv('acme connects to', mono((W.a && W.a.host || '?') + ':' + (c.port || 8446))));
+    host.appendChild(pins);
+  }
+  function three(host, me) {
+    var a = W.a || {};
+    var steps = el('div', 'ag-wait');
+    host.appendChild(steps);
+    function drawWait() {
+      clear(steps);
+      a = W.a || {};
+      if (a.joined && (!a.pending || a.pending.confirmed) && !a.code_until) {
+        var ok = el('div', 'ag-done');
+        ok.appendChild(icon('check', 26));
+        var w = el('div', '');
+        w.appendChild(el('b', '', 'The agent has joined'));
+        w.appendChild(el('p', 'note', 'It has its certificate from acme’s agent authority. Allow on the server what its deployments need - each deployment says it, with the lines to copy.'));
+        ok.appendChild(w);
+        steps.appendChild(ok);
+        if (a.joined) steps.appendChild(policyView(a.policy, a.policy_at));
+        return true;
+      }
+      if (a.pending && !a.pending.confirmed) {
+        steps.appendChild(confirmBox(row, a, function () { tick(true); }));
+        return false;
+      }
+      if (a.pending && a.pending.confirmed) {
+        var w2 = el('div', 'ag-waiting');
+        w2.appendChild(el('span', 'ag-spin'));
+        w2.appendChild(el('span', '', 'Confirmed - handing the agent its certificate…'));
+        steps.appendChild(w2);
+        return false;
+      }
+      var w3 = el('div', 'ag-waiting');
+      w3.appendChild(el('span', 'ag-spin'));
+      w3.appendChild(el('span', '', a.mode === 'active' ? 'Waiting for the agent to ask acme…' : 'Waiting for the agent - acme looks for it on the server…'));
+      steps.appendChild(w3);
+      if (a.last_error) steps.appendChild(data('div', 'note warn small', String(a.last_error)));
+      return false;
+    }
+    function tick(now) {
+      if (me !== gen || !host.isConnected) return;
+      var p = (a.mode === 'passive' && !a.joined) || (a.pending && a.pending.confirmed && a.mode === 'passive')
+        ? ask('agents/look', {id: row.id}, 60).then(function (x) { return x.agent; })
+        : ask('agents/one?id=' + encodeURIComponent(row.id));
+      p.then(function (x) {
+        if (me !== gen || !host.isConnected) return;
+        W.a = x;
+        if (!drawWait()) timer = setTimeout(tick, 2500);
+        else if (after) after();
+      }).catch(function () { if (me === gen && host.isConnected) timer = setTimeout(tick, 4000); });
+      return now;
+    }
+    if (!drawWait()) timer = setTimeout(tick, 600);
+  }
+}
+
+/* ==========================================================================
+   A deployment on an agent: what it needs of the policy (the preview's d.agent)
+   ========================================================================== */
+function needs(d) {
+  var box = el('div', 'ag-needs');
+  var items = arr(d && d.items);
+  var bad = items.filter(function (i) { return i.ok === false; });
+  var unk = items.filter(function (i) { return i.ok === null || i.ok === undefined; });
+  var h = el('div', 'ag-needs-h');
+  h.appendChild(icon('shield', 16));
+  h.appendChild(el('b', '', 'The agent’s policy'));
+  var pill = el('span', 'ag-badge ' + (bad.length ? 'bad' : (unk.length ? 'warn' : 'ok')));
+  pill.appendChild(el('span', '', bad.length ? 'needs more on the server' : (unk.length ? 'not known yet' : 'allows all of it')));
+  h.appendChild(pill);
+  box.appendChild(h);
+  if (d && d.error) box.appendChild(data('p', 'note warn small', String(d.error)));
+  if (unk.length && !bad.length) box.appendChild(el('p', 'note small', 'The agent has not said its policy yet (it has not joined, or was not asked): the lines below allow what this deployment does.'));
+  items.forEach(function (i) {
+    var r = el('div', 'ag-need ' + (i.ok === true ? 'ok' : (i.ok === false ? 'bad' : 'unk')));
+    var mk = noI18n(el('span', 'ag-need-mk', i.ok === true ? '✓' : (i.ok === false ? '✕' : '?')));
+    r.appendChild(mk);
+    var w = el('div', 'ag-need-w');
+    var line = el('div', 'ag-need-l');
+    if (i.label) line.appendChild(el('span', 'ag-need-k', String(i.label)));
+    line.appendChild(mono(String(i.what || '')));
+    w.appendChild(line);
+    if (i.ok !== true && i.allow) w.appendChild(cmdBox('sudo ' + String(i.allow).split('\n').join('\nsudo '), 'small'));
+    r.appendChild(w);
+    box.appendChild(r);
+  });
+  var lines = items.filter(function (i) { return i.ok !== true && i.allow; }).map(function (i) { return 'sudo ' + String(i.allow).split('\n').join('\nsudo '); });
+  if (lines.length > 1) {
+    var all = cmdButton('Copy all the lines', 'copy', 'small');
+    all.onclick = function () { copyText(lines.join('\n'), all, 'on the clipboard'); };
+    var br = el('div', 'btnrow ag-needs-all');
+    br.appendChild(all);
+    box.appendChild(br);
+  }
+  return box;
+}
+
+window.ACME_AGENTS = {
+  init: function (h) { Object.keys(h || {}).forEach(function (k) { H[k] = h[k]; }); },
+  pane: pane, card: card, wizard: wizard, needs: needs, policyView: policyView,
+  statePill: statePill, chips: chips
+};
+}());
