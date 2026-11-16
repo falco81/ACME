@@ -1290,9 +1290,9 @@ def test_10_real_nginx_and_the_browser(self):
                 browser('options')
                 # An upgrade half way (review round 2): this page against a node of 1.0.114, and a
                 # page of 1.0.114 (its core.js) against this version.
+                n = len(self.events('cannot be checked in this browser'))
                 browser('mixed')
-                self.assertFalse(any('cannot be checked in this browser' in w
-                                     for w in self.events('cannot be checked in this browser')))
+                self.assertEqual(len(self.events('cannot be checked in this browser')), n)
                 # An iPad simulated: the sign-in works, the background's picture never does.
                 browser('unable')
                 self.assertTrue(any('cannot be checked in this browser - the check got no answer at all' in w
