@@ -66303,6 +66303,10 @@
   "z_447": {
    "source": "the agent refused",
    "text": "agent odmítl"
+  },
+  "z_448": {
+   "source": "CODE starts with ACAG1. and is made for one target: Targets → Add a target → Server with acme-agent, then Join the agent… on its card. It is not the fingerprint of acme’s agent authority below.",
+   "text": "CODE začíná ACAG1. a vytváří se pro jeden cíl: Cíle → Přidat cíl → Server s acme-agentem, pak Připojit agenta… na jeho kartě. Není to otisk autority agentů acme níže."
   }
  },
  "patterns": {

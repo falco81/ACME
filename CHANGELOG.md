@@ -4,9 +4,16 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.117 - not released
+## 1.0.117 - 2026-11-16
 
-(nothing yet)
+- Settings → Target agents is drawn again by itself after active mode or the agents' port is
+  saved, and asked every few seconds until each node's nginx has taken the port (or let it go) -
+  it stayed as it was until the page was loaded again.
+- acme-agent: `sudo acme-agent ...` now works on RHEL too - sudo's own PATH has no
+  /usr/local/sbin, so install.sh links /usr/sbin/acme-agent to it (and takes the link away on
+  uninstall). A fingerprint given to `acme-agent join` in place of the join code (the Copy of
+  *acme's agent authority* on Settings → Target agents) is said to be one, with where the join code
+  is made; the pane's install steps say the same under *Join*.
 
 ## 1.0.116 - 2026-11-16
 

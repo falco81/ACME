@@ -3186,7 +3186,13 @@ def serve_net():
 def read_code(code):
     code = str(code or '').strip()
     if not code.startswith('ACAG1.'):
-        raise SystemExit('acme-agent: that is not a join code of acme (ACAG1.…)')
+        if re.fullmatch(r'[0-9A-Fa-f: ]{40,}', code):
+            raise SystemExit('acme-agent: that is a fingerprint (of acme\'s agent authority, from '
+                             'Settings → Target agents), not a join code. The join code starts '
+                             'with ACAG1. and is made on the target\'s card in acme: Targets → '
+                             'Add a target → Server with acme-agent, then its card → Join.')
+        raise SystemExit('acme-agent: that is not a join code of acme (ACAG1.…) - it is made on '
+                         'the target\'s card in acme: Targets → the target → Join.')
     raw = code[6:]
     try:
         c = json.loads(base64.urlsafe_b64decode(raw + '=' * (-len(raw) % 4)).decode())

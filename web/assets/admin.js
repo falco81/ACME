@@ -2621,6 +2621,9 @@ $('set-save').onclick = function () {
       loadSettings(Object.keys(left).length ? false : undefined);
       if (paneLive('upgrade')) loadUpgrade();      /* the card to go back shown or not (1.0.144) */
       signinSettle();                              /* the sign-in cards: what the nodes do next (1.0.108) */
+      /* Settings → Target agents drawn again with what was saved, then until the nodes' nginx
+         has taken it (1.0.117: it stayed as it was until F5) */
+      if (window.ACME_AGENTS && Object.keys(want).some(function (k) { return k.indexOf('certs_agents_') === 0; })) window.ACME_AGENTS.settle();
       tick();
       return true;
     }).catch(function (e) {

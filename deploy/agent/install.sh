@@ -36,6 +36,7 @@ done
 if [[ -n "$UNINSTALL" ]]; then
     systemctl disable --now acme-agent acme-agent-root 2>/dev/null || true
     rm -f "$UNITS/acme-agent.service" "$UNITS/acme-agent-root.service" "$BIN"
+    [[ -L /usr/sbin/acme-agent ]] && rm -f /usr/sbin/acme-agent
     rm -rf "$LIB" /var/lib/acme-agent /var/lib/acme-agent-root
     systemctl daemon-reload 2>/dev/null || true
     if [[ -n "$PURGE" ]]; then
@@ -96,6 +97,9 @@ cat > "$BIN" <<WRAP
 exec $PY -I $LIB/acme_agent.py "\$@"
 WRAP
 chmod 0755 "$BIN"
+# sudo keeps its own PATH (RHEL: secure_path without /usr/local/sbin) - so that
+# "sudo acme-agent ..." finds it too (1.0.117)
+if [[ ! -e /usr/sbin/acme-agent || -L /usr/sbin/acme-agent ]]; then ln -sfn "$BIN" /usr/sbin/acme-agent; fi
 for u in acme-agent.service acme-agent-root.service; do
     sed "s#/usr/bin/python3 #$PY #" "$HERE/$u" > "$UNITS/$u"
     chmod 0644 "$UNITS/$u"

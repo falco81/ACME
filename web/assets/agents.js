@@ -164,10 +164,29 @@ function pane(live) {
     var again = !!PANE.last && !!hero.firstChild;
     PANE.last = d;
     fill(d, live || again);
+    settleMore(d);
   }).catch(function (e) {
     clear(hero);
     hero.appendChild(el('p', 'ct-bad', 'The target agents could not be asked: ' + String((e && e.message) || e)));
   });
+}
+/* After active mode or the port is saved (1.0.117): the pane is asked again every 4 s while
+   what it shows is not yet what was saved - the setting itself, then each node's nginx taking
+   the port or letting it go (the root helper, within a minute) - for 2 minutes at most, and
+   only while the pane is on the screen. */
+function settle() {
+  PANE.settleUntil = Date.now() + 120000;
+  pane(true);
+}
+function settleMore(d) {
+  clearTimeout(PANE.settleT);
+  if (!PANE.settleUntil || Date.now() > PANE.settleUntil) return;
+  var hero = $('ag-hero');
+  if (!hero || !hero.offsetParent || document.hidden) { PANE.settleUntil = 0; return; }
+  var on = !!d.active, port = d.nginx ? Number(d.nginx.port || 0) : 0;
+  var done = on === activeSaid() && (on ? port > 0 && port === Number(d.port || port) : port === 0);
+  if (done) { PANE.settleUntil = 0; return; }
+  PANE.settleT = setTimeout(function () { pane(true); }, 4000);
 }
 /** Active mode as the settings on the page say it (admin.js SETTINGS) - the hero's place
     kept the height it will have (its addresses' line) while the pane is asked. */
@@ -264,6 +283,9 @@ function drawPackage(box, d) {
     var li = el('li', '');
     li.appendChild(el('span', '', words[i] || ''));
     li.appendChild(cmdBox(c));
+    /* CODE is the join code (ACAG1.…) of one target - not the fingerprint of the authority
+       below, which went in for it once (1.0.117) */
+    if (i === 3) li.appendChild(el('p', 'note small muted', 'CODE starts with ACAG1. and is made for one target: Targets → Add a target → Server with acme-agent, then Join the agent… on its card. It is not the fingerprint of acme’s agent authority below.'));
     ol.appendChild(li);
   });
   box.appendChild(ol);
@@ -894,7 +916,7 @@ function init(h) { Object.keys(h || {}).forEach(function (k) { H[k] = h[k]; }); 
 if (window.ACME_AGENTS_HANDS) init(window.ACME_AGENTS_HANDS);
 window.ACME_AGENTS = {
   init: init,
-  pane: pane, card: card, wizard: wizard, needs: needs, policyView: policyView,
+  pane: pane, settle: settle, card: card, wizard: wizard, needs: needs, policyView: policyView,
   statePill: statePill, chips: chips, updateBox: updateBox, blockedBox: blockedBox, keysBox: keysBox
 };
 }());

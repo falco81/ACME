@@ -192,6 +192,18 @@ const path = require('path');
           && h.querySelector('.ag-port').textContent === '8444';
       });
       if (shots) await page.locator('#ag-hero').screenshot({path: path.join(shots, 'pane-on-' + lang + width + '.png')});
+      // ---- saved on (1.0.117): the pane asks again by itself until each node's nginx has the port
+      out.checks[tag + 'settles'] = await page.evaluate(async () => {
+        window.SETTINGS = {settings: [{key: 'certs_agents_active', value: 1}]};
+        VIEW.active = true; VIEW.nginx = {port: 0};
+        ACME_AGENTS.settle();
+        await new Promise((r) => setTimeout(r, 300));
+        var waiting = !!document.querySelector('#ag-hero .dbs-state.warn');
+        VIEW.nginx = {port: 8444};                     // the root helper gave nginx the port
+        await new Promise((r) => setTimeout(r, 4600));
+        var on = !!document.querySelector('#ag-hero .dbs-state.ok');
+        return waiting && on;
+      });
       // ---- the card of a joined agent
       await page.evaluate(() => { document.getElementById('card-host').appendChild(ACME_AGENTS.card({id: 1, name: 'web1'})); });
       await page.waitForTimeout(200);
