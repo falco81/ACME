@@ -2385,6 +2385,15 @@ def cl_rule_stricter(was, now):
         return False
 
 
+def cl_card_rule_on(was, now):
+    """Whether the card's watch went from off to on between two of cl_rule's answers."""
+    try:
+        return bool(now) and len(now) > 3 and bool(now[3]) and \
+            not (bool(was) and len(was) > 3 and was[3])
+    except TypeError:
+        return False
+
+
 def cl_match(part):
     m = str(CONFIG.get(part + '_certlogin_match') or 'strong')
     return m if m in CL_MATCH_WORDS else 'strong'
@@ -2515,6 +2524,9 @@ CL_LOOKUP_MOST = 256
 # Not in any name, UPN or address an account has: the characters a filter, a DN or AD itself
 # keeps for something else - refused as they are typed, never escaped and sent.
 CL_LOOKUP_BAD = re.compile(r'[\x00-\x1f\x7f*()"/\[\]:;|=,+?<>]')
+# A UPN or an e-mail address (1.0.115): + / and = are an address's own (novak+pki@, o=k@), and
+# the filter is sent as BER, never as text - only what no address has is refused.
+CL_LOOKUP_BAD_MAIL = re.compile(r'[\x00-\x1f\x7f*()"\[\]:;|,?<>\\]')
 # Which "Which account" modes take a certificate of these values: the SID in the extension
 # AD CS writes itself, the SID in the SAN URL only (the requester's word: never strong here),
 # and no SID at all (the directory says none).
@@ -2529,21 +2541,30 @@ class CertLookupError(Exception):
 
 
 def cl_lookup_name(text):
-    """The name typed, as the directory is asked: (name, [how, ...]). CertLookupError."""
+    """The name typed, as the directory is asked: (name, [how, ...], DOMAIN or None) - the
+    DOMAIN of DOMAIN\\name checked against the directory by the caller (domain_prefix_words).
+    CertLookupError."""
     s = str(text if text is not None else '').strip()
     if not s:
         raise CertLookupError(400, 'type a name: the account (novak), its UPN (novak@example.cz) '
                                    'or its e-mail address')
     if len(s) > CL_LOOKUP_MOST:
         raise CertLookupError(400, 'that name is too long to be an account\'s')
+    if s.count('@') == 1 and '\\' not in s:
+        if CL_LOOKUP_BAD_MAIL.search(s):
+            raise CertLookupError(400, 'that is no UPN or e-mail address: it has none of * ( ) '
+                                       ', ; : " [ ] | ? < > \\')
+        return s, ['upn', 'mail'], None
     if CL_LOOKUP_BAD.search(s) or s.count('\\') > 1 or s.count('@') > 1:
         raise CertLookupError(400, 'that is no account name: an account, a UPN or an e-mail '
                                    'address has none of * ( ) = , ; : " / [ ] | + ? < >')
+    prefix = None
     if '\\' in s:
-        s = s.split('\\', 1)[1].strip()
+        prefix, s = s.split('\\', 1)
+        s = s.strip()
         if not s or '@' in s:
             raise CertLookupError(400, 'DOMAIN\\name: the name after the backslash, please')
-    return s, (['upn', 'mail'] if '@' in s else ['sam'])
+    return s, ['sam'], prefix
 
 
 def cl_dn_quoted(cn):
@@ -2551,13 +2572,33 @@ def cl_dn_quoted(cn):
     return '"%s"' % cn.replace('"', '""') if re.search(r'[,+="\\<>#;\n]', cn) else cn
 
 
+def cl_cnf_value(v):
+    """A value as openssl's config file reads it back exactly (1.0.115): \\ " ' # and $ escaped -
+    unescaped, a quote was taken away, # cut the rest off and $ was read as a variable."""
+    return re.sub(r'([\\"\'#$])', r'\\\1', v)
+
+
+# A value certreq's INF cannot carry in the SAN's {text} (1.0.115): & starts the next name,
+# " ends the text.
+CL_INF_BAD = re.compile(r'[&"]')
+
+
 def cl_lookup_snippets(cn, upn, sid, mail, sam):
     """What goes into the request - openssl (a -config file, written by a here-document) and
     certreq (an INF) -
-    with the e-mail address in the SAN and without it: {False: {...}, True: {...}}."""
+    with the e-mail address in the SAN and without it: {False: {...}, True: {...}}. A value
+    with a line break in it (a CN of the directory may have one) makes no request: each text
+    says why instead, and 'refused' holds the words."""
     out = {}
     base = re.sub(r'[^A-Za-z0-9._-]', '_', sam or upn.split('@', 1)[0] or 'person')[:40] or 'person'
-    cnf_cn = re.sub(r'([\\$#])', r'\\\1', cn)
+    for what, v in (('the CN', cn), ('the UPN', upn), ('the e-mail address', mail)):
+        if re.search(r'[\x00-\x1f\x7f]', str(v or '')):
+            why = ('%s of this account holds a line break or another control character: no '
+                   'request is written for it - correct it in the directory first' % what)
+            said = {'openssl': '# ' + why, 'openssl_cnf': '# ' + why, 'certreq_inf': '; ' + why,
+                    'refused': why}
+            return {False: dict(said), True: dict(said)}
+    cnf_cn = cl_cnf_value(cn)
     url = CL_SID_URL + sid if sid else ''
     for with_mail in (False, True):
         m = mail if with_mail and mail else ''
@@ -2580,11 +2621,11 @@ def cl_lookup_snippets(cn, upn, sid, mail, sam):
         if san:
             cnf += ['', '[san]']
             if upn:
-                cnf.append('otherName.1 = %s;UTF8:%s' % (CL_OID_UPN, upn))
+                cnf.append('otherName.1 = %s;UTF8:%s' % (CL_OID_UPN, cl_cnf_value(upn)))
             if url:
-                cnf.append('URI.1 = ' + url)
+                cnf.append('URI.1 = ' + cl_cnf_value(url))
             if m:
-                cnf.append('email.1 = ' + m)
+                cnf.append('email.1 = ' + cl_cnf_value(m))
         inf = ['; certreq -new %s.inf %s.csr' % (base, base), '[Version]',
                'Signature = "$Windows NT$"', '', '[NewRequest]',
                'Subject = "CN=%s"' % cl_dn_quoted(cn).replace('"', '""'),
@@ -2596,7 +2637,16 @@ def cl_lookup_snippets(cn, upn, sid, mail, sam):
                'OID = 1.3.6.1.4.1.311.20.2.2']
         parts = (['upn=' + upn] if upn else []) + (['url=' + url] if url else []) + \
             (['email=' + m] if m else [])
-        if parts:
+        bad = [p.split('=', 1)[0] for p in parts if CL_INF_BAD.search(p.split('=', 1)[1])]
+        if bad:
+            # Never written cut or split (1.0.115): the SAN left out, and said why.
+            inf += ['', '; The SAN is not written here: certreq reads & in its text as the start '
+                        'of the next name and " as its end, and the %s %s one of them. Make '
+                        'the request with openssl, or let the authority\'s template add the SAN '
+                        'from AD.' % (' and the '.join(
+                            {'upn': 'UPN', 'url': 'URL', 'email': 'e-mail address'}[b]
+                            for b in bad), 'hold' if len(bad) > 1 else 'holds')]
+        elif parts:
             inf += ['', '[Extensions]', '2.5.29.17 = "{text}"']
             inf += ['_continue_ = "%s%s"' % (p, '&' if i < len(parts) - 1 else '')
                     for i, p in enumerate(parts)]
@@ -2630,7 +2680,7 @@ def cl_lookup(h, name, part, by):
     503 the directory not answering - in words that say nothing of it)."""
     if part not in CL_PARTS:
         raise CertLookupError(400, 'admin or portal')
-    who, hows = cl_lookup_name(name)
+    who, hows, prefix = cl_lookup_name(name)
     if part == 'admin':
         dname = krb_directory_name('admin')
         ad = h.d.dirs.get(dname.lower()) if dname else None
@@ -2639,6 +2689,17 @@ def cl_lookup(h, name, part, by):
     if ad is None:
         raise CertLookupError(404, 'no directory is set (or switched on) for %s' % (
             'administrators' if part == 'admin' else 'the enrolment pages'))
+    if prefix is not None:
+        # DOMAIN\name (1.0.115): the domain was dropped unread - another domain's name was
+        # looked up in this one.
+        try:
+            words = domain_prefix_words(ad, prefix)
+        except LdapError as e:
+            log('a person looked up for a certificate: the directory %s: %s' % (ad.name, e),
+                'warn')
+            raise CertLookupError(503, 'the directory cannot be reached just now')
+        if words:
+            raise CertLookupError(400, words)
     out = {'part': part, 'directory': ad.name, 'asked': who, 'on': cl_on(part),
            'match': cl_match(part), 'match_words': CL_MATCH_WORDS[cl_match(part)]}
     entry, how = None, hows[0]
@@ -3188,6 +3249,17 @@ def certlogin_desired(store):
 #     <part>_certlogin_card_unable = allow that sign-in is not watched from then on (said in the
 #     events, with why), with signout it goes on as a card taken out. Once found, a check without
 #     the card is a card taken out, as always. An unwatched one is never held for its card.
+# 1.0.115 - "cannot be checked" no way out of the watch (hunt P):
+#   - only the page's word that its picture got no answer at all (cert-lost, nopicture) makes
+#     it - never a check that came without a certificate, nginx's refusal, no cookie or none
+#     within 20 s; never for a sign-in held or whose card is out; only for one made while the
+#     part watched the card (card_w - one from before, its person away with the card, would
+#     look the same);
+#   - not for ever: its page checks once a minute (and when it wakes) - a check that finds the
+#     card watches it again (card_ok > 0: from then on a miss is a card taken out);
+#   - the sign-in of whoever made a rule stricter (krb_kept) is watched as any other;
+#   - with `allow` a browser can still opt out by failing every check from the first: `signout`
+#     is the setting that watches every browser (an iPad then cannot sign in to that part).
 CL_CARD_MODES = ('off', 'signout', 'grace')
 CL_CARD_OLD_META = 'certlogin:cardgone:'        # 1.0.113's notes of ended sign-ins: tidied away
 CL_CARD_SWEEP = {'at': 0.0, 'tidied': False}
@@ -3203,7 +3275,8 @@ CL_CARD_OTHER = 'another certificate than the one signed in with was offered (th
 CL_CARD_WHY = {
     'nocert': 'no certificate came with the check (the browser does not sign it in the background)',
     'nocookie': 'the browser sent no cookie with the check',
-    'nopicture': 'the check got no answer at all (the browser did not sign the connection)'}
+    'nopicture': 'the check got no answer at all (the browser did not sign the connection)',
+    'timeout': 'the check got no answer within 20 s'}
 CL_CARD_UNABLE = ('allow', 'signout')
 # The page's word for why it ended (the sign-in page's own sentence for it).
 CL_CARD_WORD = {CL_CARD_OUT: 'out', CL_CARD_LATE: 'late', CL_CARD_OTHER: 'other'}
@@ -3233,6 +3306,15 @@ def _cl_card_ok(data):
 def cl_card_unable(s):
     """Whether this sign-in's browser was found not to be checkable (not watched)."""
     return _cl_card_ok((s or {}).get('data') or {}) < 0
+
+
+def _cl_card_unable_watch(part, s):
+    """A sign-in found not to be checkable that a check finding its card would watch again
+    (1.0.115): unable, the part watching, made with a certificate whose SHA-256 it kept."""
+    data = (s or {}).get('data') or {}
+    return bool(cl_card_unable(s) and part in CL_PARTS and cl_card_mode(part) != 'off' and
+                data.get('how') == 'certificate' and data.get('card') and
+                _cl_card_kept_ok(part, data))
 
 
 def cl_card_any():
@@ -3275,16 +3357,44 @@ def cl_card_data(part, f):
     from then on instead of ended."""
     if not re.match(r'^[0-9a-f]{64}\Z', str(f.get('sha256') or '')):
         return {}
-    return {'card': f['sha256']}
+    if cl_card_mode(part) == 'off':
+        return {'card': f['sha256']}
+    # Made while the part watches the card (1.0.115): only such a sign-in may ever be taken as
+    # one whose browser cannot be checked - see _cl_card_unable_now.
+    return {'card': f['sha256'], 'card_w': 1}
+
+
+def cl_card_switched_on(store, part):
+    """The watch switched on for a part (1.0.115): no sign-in of it counts as made while it was
+    on (card_w) - one made while on, the watch then off and on again, is as one made before."""
+    try:
+        rows = store.db.rows('SELECT id, data FROM sessions WHERE kind = ?', (part,))
+    except Exception as e:                              # noqa: BLE001
+        log('the watched sign-ins could not be read: %s' % e, 'warn')
+        return
+    for r in rows:
+        try:
+            d = json.loads(r.get('data') or '{}')
+        except ValueError:
+            continue
+        if isinstance(d, dict) and d.get('card_w'):
+            store.session_merge(r['id'], {'card_w': None})
+
+
+def _cl_card_kept_ok(part, data):
+    """A sign-in kept on purpose by a change of its rules (krb_kept: whoever made the change) is
+    watched as any other (1.0.115) - while the part still signs in with a certificate (switched
+    off, its port is not served: nothing could check it)."""
+    return not data.get('krb_kept') or cl_on(part)
 
 
 def cl_card_watched(part, s):
     """Whether this sign-in is watched: made with a certificate whose SHA-256 it kept, the part
-    watching the card - never one kept on purpose by a change of its rules (krb_kept)."""
+    watching the card, its browser not found one that cannot be checked."""
     data = (s or {}).get('data') or {}
     return bool(part in CL_PARTS and cl_card_mode(part) != 'off' and
                 data.get('how') == 'certificate' and data.get('card') and
-                not data.get('krb_kept') and _cl_card_ok(data) >= 0)
+                _cl_card_kept_ok(part, data) and _cl_card_ok(data) >= 0)
 
 
 def _cl_card_pending(part, s):
@@ -3381,8 +3491,14 @@ def cl_card_hold(h, part, s):
 
 def cl_card_view(part, s, store=None):
     """What the page needs to watch its card (whoami, /api/portal/me): None for a sign-in not
-    watched - and then not a key of the answer at all."""
+    watched - and then not a key of the answer at all. One whose browser was found not to be
+    checkable (1.0.115): `unable` - its page still checks now and then, and a check that finds
+    the card watches it again."""
     st, _why = cl_card_due(part, s, store)
+    if st is None and _cl_card_unable_watch(part, s):
+        return {'watch': cl_card_mode(part), 'every': cl_card_every(part),
+                'grace': cl_card_grace(part), 'port': cl_port(), 'locked': False,
+                'left': cl_card_grace(part), 'stale': False, 'unable': True}
     if st is None or st == 'gone':
         return None
     out = _cl_card_t((s or {}).get('data') or {}, 'card_out', 'card_lock')
@@ -3404,7 +3520,7 @@ def cl_card_sessions(store, part):
             except ValueError:
                 continue
             if isinstance(d, dict) and d.get('how') == 'certificate' and d.get('card') and \
-                    not d.get('krb_kept') and _cl_card_ok(d) >= 0:
+                    _cl_card_kept_ok(part, d) and _cl_card_ok(d) >= 0:
                 n += 1
     except Exception:                                   # noqa: BLE001
         return 0
@@ -3466,12 +3582,18 @@ def _cl_card_gone(why):
 
 
 def _cl_card_unable_now(h, part, s, how):
-    """A check without the card while none in the background has found it in this browser yet:
-    with <part>_certlogin_card_unable = allow, this browser cannot be checked (an iPad) - the
-    sign-in not watched from now on, said once in the events with why; the answer. None with
-    signout (on as a card taken out) or once the card was found here before."""
+    """The page's picture got no answer at all (nopicture - only that, 1.0.115) while no check in
+    the background has found the card in this browser yet: with <part>_certlogin_card_unable =
+    allow, this browser cannot be checked (an iPad) - the sign-in not watched until a check
+    finds its card, said once in the events with why; the answer. None (on as a card taken
+    out) with signout, once the card was found here before, for a sign-in made before the
+    watch was switched on (card_w: one away with its card then looks just the same), and for
+    one held or whose card is out - never a way out of the lock (1.0.115)."""
     data = s.get('data') or {}
-    if _cl_card_ok(data) > 0 or cl_card_unable_mode(part) != 'allow':
+    if _cl_card_ok(data) != 0 or cl_card_unable_mode(part) != 'allow' or not data.get('card_w'):
+        return None
+    st, _why = cl_card_due(part, s)
+    if st != 'in':
         return None
     got = h.store.session_merge(s['id'], {'card_ok': -1, 'card_out': None, 'card_lock': None},
                                 expect={'card_ok': data.get('card_ok')})
@@ -3493,11 +3615,12 @@ def _cl_card_unable_now(h, part, s, how):
     return {'ok': True, 'state': 'unable'}
 
 
-def cl_card_failed(h, part, s, how):
+def cl_card_failed(h, part, s, how, nopicture=False):
     """A check without the card (no certificate, nginx's refusal, no cookie, the handshake
-    failed): never found in this browser - cannot be checked (allow); else signout - the sign-in
-    ends; grace - the time out counted, ended past the grace. The answer."""
-    unable = _cl_card_unable_now(h, part, s, how)
+    failed): `nopicture` and never found in this browser - maybe cannot be checked (allow, see
+    _cl_card_unable_now); else signout - the sign-in ends; grace - the time out counted, ended
+    past the grace. The answer."""
+    unable = _cl_card_unable_now(h, part, s, how) if nopicture else None
     if unable:
         return unable
     now = time.time()
@@ -3545,15 +3668,37 @@ def _certlogin_alive(h):
     token, s = cl_card_session(h, part)
     if not s:
         return {'ok': False, 'state': 'none'}
-    if cl_card_unable(s):
-        return {'ok': True, 'state': 'unable'}
-    if not cl_card_watched(part, s):
-        return {'ok': True, 'state': 'unwatched'}
     pem = str(b.get('cert') or '')
     failed = str(b.get('failed') or '')[:200]
     fp = cl_card_fp(pem) if pem and len(pem) <= CL_CERT_MOST and not failed else ''
     data = s.get('data') or {}
     want = str(data.get('card') or '')
+    if cl_card_unable(s):
+        if not _cl_card_unable_watch(part, s):
+            return {'ok': True, 'state': 'unable'}
+        # Not for ever (1.0.115): its page still checks now and then - a check that finds the
+        # card watches it again (from then on a check without it is a card taken out).
+        if fp and hmac.compare_digest(fp, want):
+            now = time.time()
+            got = h.store.session_merge(s['id'], {'card_ok': round(now, 3), 'card_seen': now,
+                                                  'card_at': None, 'card_out': None,
+                                                  'card_lock': None},
+                                        expect={'card_ok': data.get('card_ok')})
+            if got is not False and got is not None:
+                h.store.add_event('sign-ins' if part == 'admin' else 'portal',
+                                  'the card of %s\'s sign-in to %s was found in this browser after '
+                                  'all - it is watched again (from %s)' % (
+                                      s.get('name') or '?', 'these pages' if part == 'admin' else
+                                      'the enrolment pages', h.client_ip()),
+                                  who=s.get('name') or None)
+            return {'ok': True, 'state': 'ok', 'resumed': False, 'watched': True,
+                    'every': cl_card_every(part)}
+        if fp:
+            cl_card_end(h.store, part, s, CL_CARD_OTHER, h.client_ip())
+            return _cl_card_gone(CL_CARD_OTHER)
+        return {'ok': True, 'state': 'unable'}
+    if not cl_card_watched(part, s):
+        return {'ok': True, 'state': 'unwatched'}
     if fp and hmac.compare_digest(fp, want):
         st, why = cl_card_due(part, s, h.store)
         if st == 'gone':
@@ -3590,13 +3735,14 @@ def _certlogin_alive(h):
 def _certlogin_lost(h):
     """The page's picture got no answer at all, twice (over 443, this page's own): the handshake
     failed - nothing to sign it with (why: nopicture); or it came back saying no cookie came with
-    it (why: nocookie). Taken as the card out only while this node serves the certificate's port
-    (else a port down is no card taken out) - never found in this browser, as one that cannot be
+    it (why: nocookie); or none came within 20 s (why: timeout). Taken as the card out only while
+    this node serves the certificate's port (else a port down is no card taken out) - nopicture,
+    never found in this browser, made while watched, neither held nor out: as one that cannot be
     checked (allow). It only ever ends, holds or leaves unwatched its own sign-in."""
     b = h.body()
     part = str(b.get('part') or '')
     said = str(b.get('why') or 'nopicture')
-    said = said if said in ('nopicture', 'nocookie') else 'nopicture'
+    said = said if said in ('nopicture', 'nocookie', 'timeout') else 'nopicture'
     if part not in CL_PARTS or cl_card_mode(part) == 'off' or not cl_on(part):
         raise ApiError(404, 'the card is not watched here')
     token, s = cl_card_session(h, part)
@@ -3612,7 +3758,7 @@ def _certlogin_lost(h):
     if st == 'gone':
         cl_card_end(h.store, part, s, why, h.client_ip())
         return _cl_card_gone(why)
-    return cl_card_failed(h, part, s, CL_CARD_WHY[said])
+    return cl_card_failed(h, part, s, CL_CARD_WHY[said], nopicture=said == 'nopicture')
 
 
 def _cl_portal_me_card(h, s):

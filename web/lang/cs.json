@@ -65255,6 +65255,26 @@
   "z_185": {
    "source": "A browser whose very first check in the background does not find the card cannot be checked at all - an iPad's Safari signs nothing for a page in the background, though the card is in. Not watched (the default): that sign-in is simply not watched, and Events say so and why. Sign out: it is signed out as if the card were out - such a browser cannot stay signed in with this on. Once a check has found the card, a later one that does not is a card taken out, whatever this says.",
    "text": "Prohlížeč, jehož úplně první kontrola na pozadí kartu nenajde, kontrolovat vůbec nejde – Safari na iPadu na pozadí nic nepodepíše, i když je karta zasunutá. Nehlídat (výchozí): takové přihlášení se prostě nehlídá a Události řeknou, že tomu tak je a proč. Odhlásit: odhlásí se, jako by karta byla vytažená – takový prohlížeč pak s tímto zapnutým přihlášený zůstat nemůže. Jakmile kontrola kartu jednou najde, další kontrola bez ní znamená vytaženou kartu bez ohledu na toto nastavení."
+  },
+  "z_186": {
+   "source": "The CN of this account holds a line break or another control character: correct it in the directory first - no request is made with it.",
+   "text": "CN tohoto účtu obsahuje zalomení řádku nebo jiný řídicí znak: nejdřív ho opravte v adresáři – žádost se s ním nevytvoří."
+  },
+  "z_187": {
+   "source": "DOMAIN\\name: the domain before the backslash, please (or the name alone)",
+   "text": "DOMÉNA\\jméno: před zpětné lomítko patří doména (nebo napište samotné jméno)"
+  },
+  "z_188": {
+   "source": "that is no UPN or e-mail address: it has none of * ( ) , ; : \" [ ] | ? < > \\",
+   "text": "to není UPN ani e-mailová adresa: neobsahuje žádný ze znaků * ( ) , ; : \" [ ] | ? < > \\"
+  },
+  "z_189": {
+   "source": "Replication down",
+   "text": "Replikace nefunguje"
+  },
+  "z_190": {
+   "source": "The nodes are replicated, but neither the subscription nor the slot of the replication is there: changes on one node do not reach the other (High availability).",
+   "text": "Uzly se replikují, ale není tu ani odběr (subscription), ani slot replikace: změny z jednoho uzlu se nedostávají na druhý (Vysoká dostupnost)."
   }
  },
  "patterns": {
@@ -90593,6 +90613,14 @@
   "pz_9": {
    "source": "a notice, then signed out unless it is back within {0} s (checked every {1} s)",
    "text": "upozornění, pak odhlášení, pokud se karta nevrátí do {0} s (kontrola každých {1} s)"
+  },
+  "pz_10": {
+   "source": "{0} is not the domain of the directory {1} ({2}): type the name alone, or with {3}\\",
+   "text": "{0} není doména adresáře {1} ({2}): napište samotné jméno, nebo s {3}\\"
+  },
+  "pz_11": {
+   "source": "{0} of this account holds a line break or another control character: no request is written for it - correct it in the directory first",
+   "text": "{0} tohoto účtu obsahuje zalomení řádku nebo jiný řídicí znak: žádost se pro něj nevypíše – nejdřív ho opravte v adresáři"
   }
  },
  "rich": {

@@ -77,6 +77,7 @@ USE_REMI=""
 # nothing of it runs without --db-server or --db-agent.
 DB_SERVER=""
 DB_AGENT=""
+DB_AGENT_NEW_CODE=""
 DB_AGENT_PORT="9443"
 DB_AGENT_PORT_GIVEN=""
 ACME_NODES=""
@@ -336,6 +337,8 @@ Usage: sudo ./install.sh [options]
                             ...and acme-db-agent, the firewall for the acme nodes, a join code
   --db-agent                acme-db-agent alone, for a database server installed already
   --db-agent-port N         the agent's port (9443)
+  --new-code                a join code printed even though the agent was installed already
+                            (only a new install prints one by itself - an upgrade does not)
   --acme-node ADDRESS       an acme node using this server (again for each one): let into
                             pg_hba.conf / the accounts and the firewall
   --db-name NAME --db-user NAME   acme's database and account (acme, acme)
@@ -376,6 +379,7 @@ while [[ $# -gt 0 ]]; do
         --dry-run)         DRY_RUN="yes"; shift;;
         --db-server)       DB_SERVER="${2:-}"; shift 2;;
         --db-agent)        DB_AGENT="yes"; shift;;
+        --new-code)        DB_AGENT_NEW_CODE="yes"; shift;;
         --db-agent-port)   DB_AGENT_PORT="${2:-}"; DB_AGENT_PORT_GIVEN="yes"; shift 2;;
         --acme-node)       ACME_NODES="${ACME_NODES:+$ACME_NODES }${2:-}"; shift 2;;
         --db-name)         DBS_NAME="${2:-}"; shift 2;;
@@ -495,6 +499,12 @@ if [[ -n "$DO_UNINSTALL" ]]; then
     # before anything is stopped or taken away.
     if [[ -z "$DRY_RUN" ]] && systemctl is-active --quiet acme-upgrade.service 2>/dev/null; then
         fail "an upgrade from the pages is running (acme-upgrade.service); wait for it, then again"
+    fi
+    # A database agent this node joined (1.0.115) takes it off its list: it no longer waits for
+    # this node (its next certificate) nor lets it in. Best effort - one that does not answer
+    # keeps it until  acme_db_agent.py --forget NODE  there.
+    if [[ -f "$STATE_DIR/db-agent/agent.json" && -x "$BIN_LINK" ]]; then
+        run "$BIN_LINK" --db-agent-leave --yes || warn "the database agent was not told this node leaves it: acme_db_agent.py --forget NODE on the database server"
     fi
     run systemctl disable --now acme.service 2>/dev/null || true
     run systemctl disable --now acme-upgrade.path 2>/dev/null || true

@@ -313,6 +313,124 @@ def code_data(code):
     return json.loads(base64.urlsafe_b64decode(raw + '=' * (-len(raw) % 4)))
 
 
+def get_plain(port, path):
+    import http.client
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    c = http.client.HTTPSConnection('127.0.0.1', port, context=ctx, timeout=30)
+    try:
+        c.request('GET', path)
+        r = c.getresponse()
+        return r.status, json.loads(r.read().decode() or '{}')
+    finally:
+        c.close()
+
+
+def seal_to(pub, fields):
+    """`fields` sealed to the agent's own key as acme seals them (RSA-OAEP, SHA-256)."""
+    with tempfile.NamedTemporaryFile('w', dir=BASE, suffix='.pem') as f:
+        f.write(pub)
+        f.flush()
+        got = subprocess.run(['openssl', 'pkeyutl', '-encrypt', '-pubin', '-inkey', f.name,
+                              '-pkeyopt', 'rsa_padding_mode:oaep', '-pkeyopt', 'rsa_oaep_md:sha256',
+                              '-pkeyopt', 'rsa_mgf1_md:sha256'],
+                             input='\n'.join(['acme-db-agent-seal/1'] + list(fields)).encode(),
+                             capture_output=True, check=True)
+    return base64.b64encode(got.stdout).decode()
+
+
+def agent_pub(agent):
+    st, got = get_plain(agent.port, '/v1/enroll/key')
+    assert st == 200, got
+    return got['pub']
+
+
+def sealed_begin(agent, secret, cid, node):
+    return {'code_id': cid, 'node': node,
+            'seal': seal_to(agent_pub(agent), ['begin', cid, node, secret])}
+
+
+class HandNode(object):
+    """An acme node as the agent sees it, made by hand (as the review's harness did): an
+    authority of its own, a client certificate from it, a signing key - enrolled the way acme
+    enrolls (sealed), its requests signed the way acme signs them."""
+
+    def __init__(self, name, top):
+        self.name, self.d = name, os.path.join(top, name)
+        os.makedirs(self.d)
+        p = self.p
+
+        def ossl(*a):
+            subprocess.run(['openssl'] + list(a), capture_output=True, check=True)
+        ossl('req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes',
+             '-keyout', p('ca.key'), '-out', p('ca.pem'), '-days', '30', '-subj', '/CN=ca-' + name,
+             '-addext', 'basicConstraints=critical,CA:TRUE',
+             '-addext', 'keyUsage=critical,keyCertSign,cRLSign')
+        ossl('req', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes',
+             '-keyout', p('c.key'), '-out', p('c.csr'), '-subj', '/CN=acme-' + name)
+        with open(p('ext'), 'w') as f:
+            f.write('extendedKeyUsage=clientAuth\n')
+        ossl('x509', '-req', '-in', p('c.csr'), '-CA', p('ca.pem'), '-CAkey', p('ca.key'),
+             '-CAcreateserial', '-days', '20', '-out', p('c.pem'), '-extfile', p('ext'))
+        self.sign = os.urandom(32).hex()
+        self.pins = []
+        self.ossl = ossl
+
+    def p(self, n):
+        return os.path.join(self.d, n)
+
+    def server_cert(self):
+        """A certificate for the database server from this node's own authority."""
+        p = self.p
+        self.ossl('req', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes',
+                  '-keyout', p('s.key'), '-out', p('s.csr'), '-subj', '/CN=db')
+        with open(p('sext'), 'w') as f:
+            f.write('extendedKeyUsage=serverAuth\nsubjectAltName=IP:127.0.0.1,DNS:localhost\n')
+        self.ossl('x509', '-req', '-in', p('s.csr'), '-CA', p('ca.pem'), '-CAkey', p('ca.key'),
+                  '-CAcreateserial', '-days', '20', '-out', p('s.pem'), '-extfile', p('sext'))
+        return read_file(p('s.key')), read_file(p('s.pem'))
+
+    def enroll(self, agent):
+        code = code_data(agent.code())
+        self.pins = [code['f']]
+        pub = agent_pub(agent)
+        st, got = post_plain(agent.port, '/v1/enroll/begin',
+                             sealed_begin(agent, code['s'], code['i'], self.name))
+        assert st == 200, got
+        cert = read_file(self.p('c.pem'))
+        fp = hashlib.sha256(ssl.PEM_cert_to_DER_cert(cert)).hexdigest()
+        st, got = post_plain(agent.port, '/v1/enroll/finish', {
+            'code_id': code['i'], 'node': self.name, 'token': got['token'], 'client_cert': cert,
+            'ca': read_file(self.p('ca.pem')),
+            'seal': seal_to(pub, ['finish', code['i'], self.name, code['s'], self.sign, fp])})
+        assert st == 200, got
+        wait_for(lambda: agent.hello(), 30, 0.3, 'the agent again')
+        return got
+
+    def op(self, agent, op, args=None, timeout=30):
+        """(status, answer) of one signed request."""
+        import http.client
+        body = json.dumps({'op': op, 'args': args or {}}).encode()
+        ts, nonce = '%.3f' % time.time(), os.urandom(16).hex()
+        text = '\n'.join(['acme-db-agent/1', 'POST', '/v1/op', self.name, ts, nonce,
+                          hashlib.sha256(body).hexdigest()]).encode()
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        ctx.load_cert_chain(self.p('c.pem'), self.p('c.key'))
+        wait_for(lambda: agent.hello(), 30, 0.3, 'the agent answering')
+        c = http.client.HTTPSConnection('127.0.0.1', agent.port, context=ctx, timeout=timeout)
+        try:
+            c.request('POST', '/v1/op', body=body, headers={
+                'X-Acme-Node': self.name, 'X-Acme-Time': ts, 'X-Acme-Nonce': nonce,
+                'X-Acme-Sign': hmac.new(bytes.fromhex(self.sign), text, 'sha256').hexdigest()})
+            r = c.getresponse()
+            return r.status, json.loads(r.read().decode() or '{}')
+        finally:
+            c.close()
+
+
 def read_file(path):
     with open(path) as f:
         return f.read()

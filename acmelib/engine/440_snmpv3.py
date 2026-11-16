@@ -313,6 +313,23 @@ def _sn_metrics(text):
     return out
 
 
+def snmp_index(keys, top=65535):
+    """{key: row index} for a table (1.0.115): the index of a row is the CRC-32 of what
+    names it (a target, a node, a disk's path, a URL...), folded into 1..top - not its
+    place in the list, so a row that comes or goes before another does not give the
+    other's number to it, and a monitoring system's history of a row stays that row's.
+    Two names on one number (rare): the one later in the sorted order takes the next
+    free one, the same on every walk while both are there."""
+    out, taken = {}, set()
+    for k in sorted(set(str(x) for x in keys)):
+        i = zlib.crc32(k.encode('utf-8', 'replace')) % top + 1
+        while i in taken:
+            i = i % top + 1
+        taken.add(i)
+        out[k] = i
+    return out
+
+
 def snmp_mib(daemon, agent):
     """Every object answered now, sorted: [(oid, kind, value)]."""
     B = SNMP_BASE
@@ -356,7 +373,9 @@ def snmp_mib(daemon, agent):
              # the worst of them as a number (1.0.108)
              (B + (5, 4, 0), 'int', max([SNMP_LEVELS.get(p.get('level'), 2) for p in probs.values()]
                                         or [0]) if db_ok else 0)]
-    for i, (k, p) in enumerate(sorted(probs.items()), 1):
+    at = snmp_index(probs)
+    for k, p in sorted(probs.items()):
+        i = at[str(k)]
         rows += [(B + (5, 3, 1, 1, i), 'int', i), (B + (5, 3, 1, 2, i), 'str', k),
                  (B + (5, 3, 1, 3, i), 'str', p.get('level') or ''),
                  (B + (5, 3, 1, 4, i), 'str', str(p.get('title') or '')[:255]),
@@ -366,16 +385,19 @@ def snmp_mib(daemon, agent):
                  (B + (5, 3, 1, 7, i), 'str', str(p.get('node') or '')[:255]),
                  (B + (5, 3, 1, 8, i), 'str', str(p.get('pane') or '')[:255])]
     try:
-        i = 0
+        got = []
         for t in tls_targets(store) if db_ok else []:
             info = (tls_profile(store, t) or {}).get('info') or {}
             if info.get('not_after'):
-                i += 1
-                end = min(int(float(info['not_after'])), 2147483647)   # Integer32
-                rows += [(B + (6, 1, 1, 1, i), 'int', i), (B + (6, 1, 1, 2, i), 'str', t),
-                         (B + (6, 1, 1, 3, i), 'str', info.get('cn') or ''),
-                         (B + (6, 1, 1, 4, i), 'int', int((end - time.time()) // 86400)),
-                         (B + (6, 1, 1, 5, i), 'int', end)]
+                got.append((t, info))
+        at = snmp_index(t for t, _ in got)
+        for t, info in got:
+            i = at[str(t)]
+            end = min(int(float(info['not_after'])), 2147483647)   # Integer32
+            rows += [(B + (6, 1, 1, 1, i), 'int', i), (B + (6, 1, 1, 2, i), 'str', t),
+                     (B + (6, 1, 1, 3, i), 'str', info.get('cn') or ''),
+                     (B + (6, 1, 1, 4, i), 'int', int((end - time.time()) // 86400)),
+                     (B + (6, 1, 1, 5, i), 'int', end)]
     except Exception:                                   # noqa: BLE001
         pass
     # What a module answers under acme's subtree (HOOKS['snmp']: fn(store) ->
@@ -391,14 +413,9 @@ def snmp_mib(daemon, agent):
         except Exception as e:                          # noqa: BLE001
             log_sparing('snmp-hook', 'SNMP, a module: %s: %s' % (
                 getattr(fn, '__qualname__', fn), e), 'warn', every=600)
-    if CONFIG.get('ha_mode') and db_ok:
-        try:
-            for i, n in enumerate(ha_nodes(store), 1):
-                rows += [(B + (7, 1, 1, 1, i), 'int', i), (B + (7, 1, 1, 2, i), 'str', n['name']),
-                         (B + (7, 1, 1, 3, i), 'int', 1 if n.get('alive') else 0),
-                         (B + (7, 1, 1, 4, i), 'gauge', int(float(n.get('age') or 0)))]
-        except Exception:                               # noqa: BLE001
-            pass
+    # acmeNodeTable: every column from one list of the nodes (1.0.115), in 441 - its first
+    # four were read here and the rest there, at another time, and a node that came or went
+    # between them put one node's version on another's row.
     # All the pages show of the node (1.0.108): acmeSystem, acmeBackup, acmeSignIn,
     # acmeServices and more of acmeInfo, acmeDatabase and acmeCluster (441).
     if db_ok:
@@ -409,7 +426,10 @@ def snmp_mib(daemon, agent):
     # Every sample Prometheus gets, as a table (name, labels, value) - nothing
     # it has is missing here.
     try:
-        for i, (name, labels, value) in enumerate(_sn_metrics(metrics_text(daemon)), 1):
+        got = _sn_metrics(metrics_text(daemon))
+        at = snmp_index(('%s{%s}' % (name, labels) for name, labels, _ in got), 2147483647)
+        for name, labels, value in got:
+            i = at['%s{%s}' % (name, labels)]
             rows += [(B + (9, 1, 1, 1, i), 'int', i), (B + (9, 1, 1, 2, i), 'str', name),
                      (B + (9, 1, 1, 3, i), 'str', labels[:255]),
                      (B + (9, 1, 1, 4, i), 'str', value)]

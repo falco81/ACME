@@ -1898,6 +1898,50 @@ print(json.dumps([go("ncp", "cas-nc", False), go("ncok", "cas-nc", False), WHY, 
         self.assertNotEqual(got.returncode, 0)
         self.assertIn('no account name', got.stderr)
 
+    def test_34b_look_up_domain_and_addresses(self):
+        """1.0.115: DOMAIN\\name checked against the directory's own domain (it was dropped
+        unread), + / = taken in a UPN or an address, and a request whose values openssl reads
+        back exactly - ' " # $ \\ in the CN, the UPN and the address."""
+        st, got = self.lookup('OTHERDOM\\falco')
+        self.assertEqual(st, 400, got)
+        self.assertIn('is not the domain of the directory', got.get('error', ''))
+        self.assertIn('CORPNET', got.get('error', ''))
+        for ok in ('corpnet\\falco', 'CORPNET.LOC\\falco'):
+            st, got = self.lookup(ok)
+            self.assertEqual(st, 200, (ok, got))
+            self.assertEqual(got['lookup']['sam'], 'falco')
+        dn = 'CN=Se\\C3\\A1n \\"O\'Brien\\"\\, #1 $HOME \\\\x,OU=People,' + BASE
+        upn = "o'brien#1$x@corpnet.cz"
+        mail = 'o=k+pki/x@corpnet.cz'
+        mockldap.PEOPLE[dn] = {'sAMAccountName': ['obrien'], 'userPrincipalName': [upn],
+                               'objectClass': ['top', 'person', 'user'], 'mail': [mail],
+                               'userAccountControl': ['512'], 'memberOf': [],
+                               '_password': 'x-password-1'}
+        work = tempfile.mkdtemp(prefix='acme-lookup-')
+        try:
+            for name in (mail, upn):
+                st, got = self.lookup(name)
+                self.assertEqual(st, 200, (name, got))
+                x = got['lookup']
+                self.assertEqual((x['found'], x['sam']), ('one', 'obrien'), x)
+            self.assertEqual(x['cn'], 'Seán "O\'Brien", #1 $HOME \\x')
+            sn = x['snippets_mail']
+            r = subprocess.run(['bash', '-c', sn['openssl']], cwd=work, capture_output=True,
+                               text=True, timeout=120)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            csr = os.path.join(work, 'obrien.csr')
+            text = subprocess.run(['openssl', 'req', '-in', csr, '-noout', '-text'],
+                                  capture_output=True, text=True).stdout
+            self.assertIn('UPN::%s,' % upn, text)
+            self.assertIn('email:' + mail, text)
+            subj = subprocess.run(['openssl', 'req', '-in', csr, '-noout', '-subject', '-nameopt',
+                                   'utf8,sep_multiline,-esc_2253,-esc_ctrl,-esc_msb'],
+                                  capture_output=True, text=True).stdout
+            self.assertIn('CN=Seán "O\'Brien", #1 $HOME \\x\n', subj)
+        finally:
+            mockldap.PEOPLE.pop(dn, None)
+            shutil.rmtree(work, ignore_errors=True)
+
     def test_35_the_popup_and_a_csr_made_in_the_browser(self):
         """Look up a person… and Make a CSR… in Chromium (test/cert_lookup_page.js): the CSRs it
         downloads checked by openssl - the signature, the subject, the SAN (the UPN, the SAN URL),
@@ -1988,6 +2032,110 @@ print(json.dumps([go("ncp", "cas-nc", False), go("ncok", "cas-nc", False), WHY, 
                          'only Windows: these pages take no password - sign in with Windows')
         self.assertTrue(self.py('print(json.dumps("Kerberos" in E.SSO_HOWS and "certificate" in E.SSO_HOWS))'))
 
+
+
+class LookupValues(unittest.TestCase):
+    """1.0.115, no daemon: the values of a person's request as openssl and certreq read them,
+    the names typed, a DN's CN."""
+
+    @classmethod
+    def setUpClass(cls):
+        from acmelib import engine
+        cls.E = engine
+
+    def csr_of(self, snip, base):
+        work = tempfile.mkdtemp(prefix='acme-snip-')
+        try:
+            r = subprocess.run(['bash', '-c', snip['openssl']], cwd=work, capture_output=True,
+                               text=True, timeout=120)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            csr = os.path.join(work, base + '.csr')
+            text = subprocess.run(['openssl', 'req', '-in', csr, '-noout', '-text'],
+                                  capture_output=True, text=True).stdout
+            subj = subprocess.run(['openssl', 'req', '-in', csr, '-noout', '-subject', '-nameopt',
+                                   'utf8,sep_multiline,-esc_2253,-esc_ctrl,-esc_msb'],
+                                  capture_output=True, text=True).stdout
+            return text, subj
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+    def test_openssl_reads_every_value_back(self):
+        if not shutil.which('openssl'):
+            self.skipTest('no openssl')
+        sid = 'S-1-5-21-1-2-3-4'
+        for cn, upn, mail in (('Jan Novák', 'jan#cert@example.cz', 'jan#x@example.cz'),
+                              ('A $B', 'a$b@example.cz', 'a$b@example.cz'),
+                              ("Seán O'Brien", "sean.o'brien@example.cz", ''),
+                              ('Q "x" \\ y', 'q"x\\y@example.cz', 'o=k+pki/x@example.cz')):
+            sn = self.E.cl_lookup_snippets(cn, upn, sid, mail, 'jan')[True]
+            self.assertNotIn('refused', sn)
+            text, subj = self.csr_of(sn, 'jan')
+            self.assertIn('othername: UPN::%s, URI:tag:microsoft.com,2022-09-14:sid:%s' % (upn, sid),
+                          text, (cn, upn))
+            if mail:
+                self.assertIn('email:' + mail, text)
+            self.assertIn('CN=%s\n' % cn, subj)
+            self.assertIn('utf8 = yes', sn['openssl_cnf'])
+
+    def test_line_breaks_refused_and_certreq_warned(self):
+        for cn, upn in (('a\nb', 'a@x.cz'), ('ab', 'a\r@x.cz')):
+            sn = self.E.cl_lookup_snippets(cn, upn, '', '', 'a')[False]
+            self.assertIn('line break', sn['refused'])
+            self.assertTrue(sn['openssl'].startswith('# '))
+            self.assertNotIn('openssl req', sn['openssl'])
+            self.assertTrue(sn['certreq_inf'].startswith('; '))
+        sn = self.E.cl_lookup_snippets('A', 'a&b@x.cz', 'S-1-5-21-1', 'm"q@x.cz', 'a')[True]
+        self.assertNotIn('[Extensions]', sn['certreq_inf'])
+        self.assertNotIn('_continue_', sn['certreq_inf'])
+        self.assertIn('the UPN and the e-mail address hold one of them', sn['certreq_inf'])
+        sn = self.E.cl_lookup_snippets('A', 'a@x.cz', 'S-1-5-21-1', '', 'a')[False]
+        self.assertIn('_continue_ = "upn=a@x.cz&"', sn['certreq_inf'])
+
+    def test_names_typed(self):
+        E = self.E
+        self.assertEqual(E.cl_lookup_name('novak+pki@example.cz'),
+                         ('novak+pki@example.cz', ['upn', 'mail'], None))
+        self.assertEqual(E.cl_lookup_name('o=k/x@example.cz')[0], 'o=k/x@example.cz')
+        self.assertEqual(E.cl_lookup_name('CORP\\novak'), ('novak', ['sam'], 'CORP'))
+        for bad in ('a*@x.cz', 'a(b)@x.cz', 'a,b@x.cz', 'a"b@x.cz', 'nov+ak', 'a=b', 'a/b',
+                    'CORP\\a@x.cz', 'a\\b\\c'):
+            with self.assertRaises(E.CertLookupError, msg=bad):
+                E.cl_lookup_name(bad)
+
+    def test_domain_prefix(self):
+        E = self.E
+
+        class Ad(object):
+            name = 'corp'
+
+            def __init__(self, names, base='DC=merit,DC=cz', fail=None):
+                self.names, self.base, self.fail = names, base, fail
+
+            def domain_names(self):
+                if self.fail:
+                    raise self.fail
+                return dict(self.names)
+
+            def domain_dn(self):
+                return self.base
+        ad = Ad({'netbios': 'MERIT_NT', 'dns': 'merit.cz'})
+        for ok in ('MERIT_NT', 'merit_nt', 'merit', 'MERIT.CZ'):
+            self.assertEqual(E.domain_prefix_words(ad, ok), '', ok)
+        self.assertIn('is not the domain', E.domain_prefix_words(ad, 'OTHER'))
+        self.assertIn('the domain before the backslash', E.domain_prefix_words(ad, ''))
+        # AD's own names not readable: the base's DC= labels
+        ad = Ad({}, fail=E.LdapError('no rights'))
+        self.assertEqual(E.domain_prefix_words(ad, 'merit'), '')
+        self.assertIn('is not the domain', E.domain_prefix_words(ad, 'OTHER'))
+        with self.assertRaises(E.LdapUnreachable):
+            E.domain_prefix_words(Ad({}, fail=E.LdapUnreachable('down')), 'merit')
+
+    def test_cn_of_hex_escapes(self):
+        E = self.E
+        self.assertEqual(E.cn_of('CN=Nov\\C3\\A1k\\, Jan,OU=x'), 'Novák, Jan')
+        self.assertEqual(E.cn_of('CN=a\\0Ab,DC=x'), 'a\nb')
+        self.assertEqual(E.cn_of('CN=x\\\\y\\+z,DC=x'), 'x\\y+z')
+        self.assertEqual(E.cn_of('novak'), 'novak')
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

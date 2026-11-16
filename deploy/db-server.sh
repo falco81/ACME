@@ -13,7 +13,10 @@
 #   --db-server mariadb    the distribution's MariaDB server, secured (no anonymous accounts,
 #                          no test database, root only on this machine), the database and the
 #                          account for the acme nodes given; the agent; a join code.
-#   --db-agent             the agent alone, for a server installed already.
+#   --db-agent             the agent alone, for a server installed already - or upgraded: run
+#                          again it keeps its configuration, its keys and the nodes joined, and
+#                          prints no join code (1.0.115) unless it is a new install or
+#                          --new-code is given.
 #   ... --uninstall        the agent taken away (the database server and its data stay).
 #
 # Run again, it changes only what is not as it should be (idempotent); --dry-run says what it
@@ -388,7 +391,13 @@ agent_install() {
         run install -m 0644 "$SOURCE_DIR/deploy/$f" "$AGENT_LIB/$f"
     done
     run chmod 0755 "$AGENT_LIB/acme_db_agent.py"
+    # The release it came with, said by the agent (1.0.115): nothing in it is bumped by hand -
+    # acme compares the agent's program itself (its sha256), not this number.
+    local rel
+    rel="$(sed -n "s/^__version__ = ['\"]\([0-9.]*\)['\"].*/\1/p" "$SOURCE_DIR/acmelib/__init__.py" 2>/dev/null | head -1)"
+    if [[ -n "$rel" ]]; then printf '%s\n' "$rel" | write_file "$AGENT_LIB/release" 0644; fi
     cfg="$AGENT_ETC/agent.json"
+    AGENT_FRESH=""
     if [[ -f "$cfg" ]]; then
         good "its configuration is kept: $cfg"
         if [[ -n "$DB_AGENT_PORT_GIVEN" && -z "$DRY_RUN" ]]; then
@@ -413,6 +422,7 @@ c['pg_port' if eng == 'postgres' else 'my_port'] = port
 print(json.dumps(c, indent=1))
 PY
         good "its configuration: $cfg (port $DB_AGENT_PORT)"
+        AGENT_FRESH="yes"
     fi
     run install -m 0644 "$SOURCE_DIR/deploy/acme-db-agent.service" "$AGENT_UNIT"
     if dbs_systemd; then
@@ -469,7 +479,13 @@ db_server_main() {
     esac
     agent_install
     dbs_firewall
-    agent_code
+    # A join code only for a new agent, or asked for (1.0.115): an upgrade (install.sh --db-agent
+    # again) keeps the nodes joined and has nothing to give out - a code is a key to it.
+    if [[ -n "${AGENT_FRESH:-}" || -n "${DB_AGENT_NEW_CODE:-}" ]]; then
+        agent_code
+    else
+        good "the nodes joined stay joined: no join code made (another node: --new-code, or python3 -I $AGENT_LIB/acme_db_agent.py --new-code)"
+    fi
     note "the database's TLS (a certificate from acme's own authority) is put in from acme once a node joined:"
     note "  PostgreSQL: Settings -> The database -> TLS (or High availability -> the link) - MariaDB: acme --db-agent-mariadb-tls"
     return 0

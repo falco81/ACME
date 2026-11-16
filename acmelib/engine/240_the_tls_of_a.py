@@ -301,7 +301,9 @@ def web_desired(store):
         vip = {'on': True, 'address': v.get('address'), 'fqdn': v.get('fqdn') or '',
                'address6': v.get('address6') or '',
                'vrid': int(v.get('vrid') or 51), 'auth': vip_auth(),
-               'own': vip_plain(CONFIG.get('ha_address') or node_address(), v.get('address')),
+               # this node: ha_address - not in layout B, where it is this node's database
+               # server (1.0.115: keepalived was told the database server as its own address)
+               'own': vip_plain(ha_own_node(), v.get('address')),
                'peer': vip_plain(ha_peer_node() or vip_peer_seen(store), v.get('address')),
                'iface': (v.get('ifaces') or {}).get(me, '')}
         # One shared database (1.0.56): the other node's address as it publishes it now wins

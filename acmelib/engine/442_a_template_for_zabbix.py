@@ -840,6 +840,11 @@ def zabbix_template(mib_text=None):
     trig('acme.repl.state', last('acme.repl.state') + '=2', 'Replication broken', 'HIGH',
          'A way of the replication between the nodes does not run.', deps=(lost,),
          tags=(('scope', 'availability'),))
+    # Neither the subscription nor the slot there (1.0.115): down(4), as the pages say it.
+    trig('acme.repl.state', last('acme.repl.state') + '=4', 'Replication down', 'HIGH',
+         'The nodes are replicated, but neither the subscription nor the slot of the '
+         'replication is there: changes on one node do not reach the other (High '
+         'availability).', tags=(('scope', 'availability'),))
     trig('acme.repl.behind', 'min(/%s/acme.repl.behind,10m)>{$ACME.REPL.BEHIND.MAX}' % H,
          'Replication behind', 'WARNING', 'The other node is behind in taking this node\'s rows '
          'for 10 minutes.', tags=(('scope', 'performance'),))

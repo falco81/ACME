@@ -69,6 +69,10 @@ def _sf_cluster(store):
     if rep.get('mode') == 'replicated' and (rep.get('incoming') or rep.get('outgoing') or
                                             rep.get('trouble')):
         repl = 3 if rep.get('lost') else (1 if rep.get('healthy') else 2)
+    elif rep.get('mode') == 'replicated' and 'healthy' in rep:
+        # Replicated, and neither the subscription nor the slot there (1.0.115): the pages
+        # and the alerts say the replication is down - it said notReplicated(0).
+        repl = 4
     else:
         repl = 0
     split = 0
@@ -153,7 +157,7 @@ def _sf_system(store, health):
             'clash': str(health.get('name_clash') or '')[:255], 'hand': hand}
 
 
-def _sf_backup(store, health):
+def _sf_backup(daemon, store, health):
     me = node_name()
     kept = backups()
     try:
@@ -181,7 +185,11 @@ def _sf_backup(store, health):
         bad = [x for x in runs[0].get('targets') or [] if not x.get('ok')]
         err = ('; '.join('%s: %s' % (x.get('name'), x.get('error')) for x in bad) or
                str(runs[0].get('error') or ''))[:255]
-    return {'last': _sf_int(last), 'age': max(0, int(time.time() - last)) if last else 0,
+    # None ever made (1.0.115): how long this daemon has run without one - 0 left the
+    # trigger "No recent backup" quiet for good on a node that never made any.
+    started = _sf_int(getattr(daemon, 'started', 0))
+    since = last or started
+    return {'last': _sf_int(last), 'age': max(0, int(time.time() - since)) if since else 0,
             'kept': len(kept), 'daily': bool(CONFIG.get('backup_daily')),
             'remote': bool(CONFIG.get('rbackup')),
             'rlast': _sf_int(runs[0].get('at')) if runs else 0,
@@ -233,16 +241,16 @@ def _sf_services(daemon, store, health):
     ships = []
     dropped = 0
     on = {}
-    for code, what in ((1, 'isemon'), (2, 'siem')):
+    for what in ('isemon', 'siem'):
         obj = getattr(daemon, 'shipper' if what == 'isemon' else 'siem', None)
         st = obj.state() if obj else {}
         on[what] = bool(st.get('on'))
         if not st.get('on'):
             continue
         dropped += _sf_int(st.get('dropped'))
-        for i, t in enumerate(st.get('targets') or [], 1):
+        for t in st.get('targets') or []:
             trouble = (st.get('trouble') or {}).get(t)
-            ships.append({'index': code * 1000 + i, 'kind': what, 'target': str(t)[:255],
+            ships.append({'kind': what, 'target': str(t)[:255],
                           'sent': _sf_int((st.get('sent') or {}).get(t)),
                           'trouble': bool(trouble), 'said': str(trouble or '')[:255]})
     q = mailq_counts(store)
@@ -272,7 +280,7 @@ def snmp_facts(daemon, fresh=False):
         _sf_part(out, 'db', lambda: _sf_db(store, health))
         _sf_part(out, 'cluster', lambda: _sf_cluster(store))
         _sf_part(out, 'system', lambda: _sf_system(store, health))
-        _sf_part(out, 'backup', lambda: _sf_backup(store, health))
+        _sf_part(out, 'backup', lambda: _sf_backup(daemon, store, health))
         _sf_part(out, 'signin', lambda: _sf_signin(daemon, store))
         _sf_part(out, 'services', lambda: _sf_services(daemon, store, health))
         SNMP_FACTS.update(at=time.time(), got=out)
@@ -316,9 +324,16 @@ def snmp_more_rows(daemon):
         put((7, 11, 0), 'str', c['leader'])
         put((7, 12, 0), 'gauge', c['up'])
         put((7, 13, 0), 'gauge', c['known'])
-        # acmeNodeTable's new columns, the rows numbered as snmp_mib numbers them
-        for k, n in enumerate(c['nodes'], 1):
+        # acmeNodeTable, every column of a row from this one list of the nodes (1.0.115),
+        # each row numbered by its node's name (snmp_index), not its place in the list
+        at = snmp_index(str(n.get('name') or '') for n in c['nodes'])
+        for n in c['nodes']:
+            k = at[str(n.get('name') or '')]
             web = n.get('web') or {}
+            put((7, 1, 1, 1, k), 'int', k)
+            put((7, 1, 1, 2, k), 'str', str(n.get('name') or ''))
+            put((7, 1, 1, 3, k), 'int', 1 if n.get('alive') else 0)
+            put((7, 1, 1, 4, k), 'gauge', max(0, _sf_int(n.get('age'))))
             put((7, 1, 1, 5, k), 'str', str(n.get('version') or ''))
             put((7, 1, 1, 6, k), 'int', 1 if n.get('maintenance') else 0)
             put((7, 1, 1, 7, k), 'int', 1 if web.get('vip_here') else 0)
@@ -328,7 +343,9 @@ def snmp_more_rows(daemon):
             put((7, 1, 1, 11, k), 'str', str(n.get('address') or '')[:255])
     s = f.get('system') or {}
     if s:
-        for k, x in enumerate(s['disks'], 1):
+        at = snmp_index(str(x.get('path') or '') for x in s['disks'])
+        for x in s['disks']:
+            k = at[str(x.get('path') or '')]
             put((10, 1, 1, 1, k), 'int', k)
             put((10, 1, 1, 2, k), 'str', str(x.get('path') or '')[:255])
             put((10, 1, 1, 3, k), 'counter64', _sf_int(x.get('total')))
@@ -380,7 +397,9 @@ def snmp_more_rows(daemon):
         put((11, 9, 0), 'str', b['error'])
         put((11, 10, 0), 'int', b['verify'])
         put((11, 11, 0), 'int', _sf_i32(b['verify_at']))
-        for k, t in enumerate(b['targets'], 1):
+        at = snmp_index(t['name'] for t in b['targets'])
+        for t in b['targets']:
+            k = at[t['name']]
             put((11, 12, 1, 1, k), 'int', k)
             put((11, 12, 1, 2, k), 'str', t['name'][:255])
             put((11, 12, 1, 3, k), 'int', 1 if t.get('ok') else 2)
@@ -402,7 +421,9 @@ def snmp_more_rows(daemon):
         put((12, 11, 0), 'int', 1 if g['cl_listening'] else 0)
         put((12, 12, 0), 'gauge', g['cl_cas'])
         put((12, 13, 0), 'str', g['cl_error'])
-        for k, x in enumerate(g['crls'], 1):
+        at = snmp_index(x['url'] for x in g['crls'])
+        for x in g['crls']:
+            k = at[x['url']]
             put((12, 14, 1, 1, k), 'int', k)
             put((12, 14, 1, 2, k), 'str', x['url'])
             put((12, 14, 1, 3, k), 'int', 1 if x['ok'] else 0)
@@ -412,8 +433,9 @@ def snmp_more_rows(daemon):
             put((12, 14, 1, 7, k), 'str', x['error'])
     v = f.get('services') or {}
     if v:
+        at = snmp_index(('%s %s' % (x['kind'], x['target']) for x in v['ships']), 2147483647)
         for x in v['ships']:
-            k = x['index']
+            k = at['%s %s' % (x['kind'], x['target'])]
             put((13, 1, 1, 1, k), 'int', k)
             put((13, 1, 1, 2, k), 'str', x['kind'])
             put((13, 1, 1, 3, k), 'str', x['target'])

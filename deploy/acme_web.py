@@ -971,6 +971,14 @@ def certlogin_server(block, main, c, pad='    '):
              '%sif ($args !~ "^api=cert-(login|try)&n=[0-9a-f.]{20,120}(&part=(admin|portal))?$") '
              '{ return 404; }\n' % p2),
             '%sif ($request_method != GET) { return 405; }\n' % p2,
+            # The card's check its own way (1.0.115): out of acme_all (a busy NAT's checks are
+            # no flood), and nginx's own 429 / 5xx answered "try later" - not an HTML page the
+            # picture fails on, which the page took for the card out. Before the limit (the
+            # rewrite phase), so nothing of acme_all counts it.
+            ('%srecursive_error_pages on;   # the check\'s own errors answered there too\n' % p2 +
+             '%serror_page 495 = @acme_certfail;\n' % p2 +
+             '%serror_page 418 = @acme_card_%s;\n' % (p2, part) +
+             '%sif ($args ~ "^api=cert-alive&") { return 418; }\n' % p2) if watch else '',
             '%sfastcgi_pass   %s;\n' % (p2, sock),
             '%sfastcgi_param  SCRIPT_FILENAME $document_root%s;\n' % (p2, script),
             '%sfastcgi_param  HTTPS on;\n' % p2,
@@ -1003,6 +1011,42 @@ def certlogin_server(block, main, c, pad='    '):
     if c['portal']:
         body += loc('/', '/index.php', 'portal', portal_allow)
     p2 = pad * 2
+    if watch:
+        def card_loc(script, part, allow_lines):
+            return ''.join([
+                '%slocation @acme_card_%s {\n' % (pad, part),
+                ''.join('%s%s\n' % (p2, x) for x in allow_lines),
+                '%slimit_req zone=acme_card burst=200 nodelay;\n' % p2,
+                '%slimit_req_status 429;\n' % p2,
+                '%srecursive_error_pages on;\n' % p2,
+                '%serror_page 429 500 502 503 504 = @acme_card_later;\n' % p2,
+                '%sfastcgi_pass   %s;\n' % (p2, sock),
+                '%sfastcgi_param  SCRIPT_FILENAME $document_root%s;\n' % (p2, script),
+                '%sfastcgi_param  HTTPS on;\n' % p2,
+                '%sinclude        fastcgi_params;\n' % p2,
+                '%sfastcgi_param  ACME_CERT_PORT 1;\n' % p2,
+                '%sfastcgi_param  ACME_CERT_PART %s;\n' % (p2, part),
+                '%sfastcgi_param  ACME_CERT_PEM $ssl_client_escaped_cert;\n' % p2,
+                '%sfastcgi_param  ACME_CERT_VERIFY $ssl_client_verify;\n' % p2,
+                '%sfastcgi_read_timeout 60s;\n' % p2,
+                '%s}\n' % pad])
+        if c['admin'] or c['portal']:
+            body += card_loc('/admin/index.php', 'admin', admin_allow)
+        if c['portal']:
+            body += card_loc('/index.php', 'portal', portal_allow)
+        # Try later: a picture 8 px wide (an SVG - nginx's `return` holds no GIF), for this
+        # name's page only (CORS as PHP's answers).
+        body += ''.join([
+            '%slocation @acme_card_later {\n' % pad,
+            '%sdefault_type   image/svg+xml;\n' % p2,
+            '%sadd_header Cache-Control "no-store" always;\n' % p2,
+            '%sadd_header Access-Control-Allow-Origin "https://$host" always;\n' % p2,
+            '%sadd_header Access-Control-Allow-Credentials "true" always;\n' % p2,
+            '%sadd_header X-Content-Type-Options "nosniff" always;\n' % p2,
+            '%sadd_header X-Frame-Options "DENY" always;\n' % p2,
+            '%sadd_header Referrer-Policy "no-referrer" always;\n' % p2,
+            '%sreturn 200 \'<svg xmlns="http://www.w3.org/2000/svg" width="8" height="1"/>\';\n' % p2,
+            '%s}\n' % pad])
     fail_allow = list(dict.fromkeys((admin_allow if c['admin'] or c['portal'] else []) +
                                     (portal_allow if c['portal'] else [])))
     fail_allow = [x for x in fail_allow if not x.startswith('deny')] + ['deny  all;']
@@ -1033,6 +1077,11 @@ def certlogin_text(main, vip_block, c):
     text = ('%s\n# The certificate\'s own port (1.0.100): nginx asks for a client certificate here '
             'and nowhere else, and\n# serves nothing here but the sign-in with it. A server for '
             'this node\'s name%s.\n\n' % (MARK, ' and one for the VIP address\'s' if vip_block else ''))
+    if c.get('watch'):
+        # The card's checks (1.0.115): a zone of their own, generous - every tab of every person
+        # behind one address checks every few seconds.
+        text += ('limit_req_zone $binary_remote_addr zone=acme_card:1m rate=20r/s;   # the card '
+                 'watched: its checks\n\n')
     text += certlogin_server(main[where[0]:where[1]], main, c)
     if vip_block:
         text += '\n' + certlogin_server(vip_block, main, c)

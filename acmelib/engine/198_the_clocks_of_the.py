@@ -39,6 +39,7 @@ CLOCK_REF_EVERY_S = 30.0
 CLOCK_DIR_EVERY_S = 15.0
 CLOCK_FRESH_S = 120.0
 CLOCK_DB_SERVER = 'the database server'
+CLOCK_PEER_DB = 'the database server of %s'     # layout B: the other node's own server
 CLOCK_KEYS = ('clock_mode', 'clock_warn_s', 'clock_aside_s', 'clock_codes', 'clock_beat',
               'clock_locks', 'health_dir')
 
@@ -151,6 +152,11 @@ def clock_peer_skew(store):
         others = sorted((n for n in ha_nodes(store) if not n.get('me')),
                         key=lambda n: not n.get('alive'))
         name = others[0]['name'] if others else 'the other node'
+        if db_agent_layout_b():
+            # Each node's database on a server of its own (layout B, 1.0.115): ha_peer is the
+            # other DATABASE server, another machine than the other node - its clock is said as
+            # that server's, never taken for the node's (the beats are not corrected by it).
+            name = CLOCK_PEER_DB % name
     elif CONFIG.get('ha_mode') and store.db.engine in ('postgres', 'mariadb'):
         conf = {k: CONFIG.get(k) for k in DB_KEYS}
         name = CLOCK_DB_SERVER

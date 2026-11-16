@@ -746,6 +746,9 @@ def krb_sessions_settle(store, before, keep=None, by=''):
         was = tuple(before.get(part, (False, False, False))) + (False,) * 3
         usable_was, only_was, cert_was = was[:3]
         usable, only, cert = after[part][:3]
+        # The card's watch switched on (1.0.115): no sign-in counts as made while it was on.
+        if cl_card_rule_on(was[3], after[part][3]):
+            cl_card_switched_on(store, part)
         # Certificates taken more strictly now (revocation switched on, matching made stricter -
         # strong): the sign-ins made with one before end, but the doer's (review F8).
         if cert and cert_was and cl_rule_stricter(was[3], after[part][3]):
@@ -1303,19 +1306,57 @@ def krb_domain_names(h, part):
     return {'netbios': got['netbios'], 'dns': got['dns'], 'from': 'directory', 'said': ''}
 
 
+def domain_prefix_words(ad, prefix):
+    """DOMAIN\\name (1.0.115): '' when DOMAIN is the directory's own domain - its NetBIOS name,
+    the first label of its DNS name or the whole of it, as AD says them (domain_names), else the
+    first DC= of its base - and words saying why not otherwise. The prefix was dropped unread: a
+    name of another domain was looked up in this one, and the same sAMAccountName there
+    answered for somebody else. LdapUnreachable when the directory does not answer."""
+    p = str(prefix or '').strip().upper()
+    if not p:
+        return 'DOMAIN\\name: the domain before the backslash, please (or the name alone)'
+    known = set()
+    try:
+        names = ad.domain_names() or {}
+    except LdapUnreachable:
+        raise
+    except LdapError:
+        names = {}
+    if names.get('netbios'):
+        known.add(str(names['netbios']).upper())
+    dns = str(names.get('dns') or '').strip().upper()
+    if not dns:
+        dcs = [x.split('=', 1)[1].strip() for x in re.split(r'(?<!\\),', ad.domain_dn() or '')
+               if '=' in x]
+        dns = '.'.join(dcs).upper()
+    if dns:
+        known.update((dns, dns.split('.', 1)[0]))
+    if not known or p in known:
+        return ''
+    return ('%s is not the domain of the directory %s (%s): type the name alone, or with %s\\'
+            % (str(prefix).strip(), ad.name, ', '.join(sorted(known)),
+               str(names.get('netbios') or dns.split('.', 1)[0])))
+
+
 def krb_account_check(h, part, name):
     """The service account typed on the card, looked up in the part's directory (1.0.110):
     {found, sam, upn, aes256, pw_never_expires, disabled, spns, netbios}. ValueError for a name
-    that is none; LdapError from the directory."""
+    that is none - or of another domain than the directory's; LdapError from the directory."""
     who = str(name if name is not None else '').strip()
+    prefix = None
     if '\\' in who:
-        who = who.split('\\', 1)[1].strip()
+        prefix, who = who.split('\\', 1)
+        who = who.strip()
     if not who or len(who) > 64 or re.search(r'[\x00-\x1f\x7f*()"/\\\[\]:;|=,+?<>@]', who):
         raise ValueError('type the sAMAccountName of the service account (svc-acme-http)')
     dname = krb_directory_name(part)
     ad = h.d.dirs.get(dname.lower()) if dname else None
     if ad is None:
         raise LookupError('no directory is set (or switched on) for this part')
+    if prefix is not None:
+        words = domain_prefix_words(ad, prefix)
+        if words:
+            raise ValueError(words)
     acc = ad.service_account(who)
     if not acc:
         return {'found': False, 'name': who, 'directory': ad.name}

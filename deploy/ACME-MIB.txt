@@ -23,12 +23,21 @@ IMPORTS
         FROM NET-SNMP-MIB;
 
 acme MODULE-IDENTITY
-    LAST-UPDATED "202611150000Z"
+    LAST-UPDATED "202611160000Z"
     ORGANIZATION "acme"
     CONTACT-INFO "The administrators of the acme servers - Settings, Monitoring."
     DESCRIPTION  "acme, certificates kept, renewed and deployed by themselves:
                   the database, the alerts, the certificates of the pages, the
                   cluster and every metric of one node."
+    REVISION     "202611160000Z"
+    DESCRIPTION  "1.0.115: the rows of acmeAlertTable, acmeCertTable, acmeNodeTable,
+                  acmeMetricTable, acmeDiskTable, acmeRemoteBackupTable, acmeCrlTable and
+                  acmeShipTable numbered by what names each row (the CRC-32 of its key, its
+                  target, node name, sample, path, place, URL, kind and place), no longer by
+                  its place in the list - a row keeps its number while it is there; only the
+                  index values change, no object moved. Two keys on one number: the later of
+                  them in sorted order takes the next free one. acmeReplState: down(4). acmeBackupAge:
+                  with no backup ever made, the time since acme started (it was 0)."
     REVISION     "202611150000Z"
     DESCRIPTION  "1.0.108: everything the pages show of a node, as objects of their own -
                   acmeSystem (the disks, the processor, the memory, the clock, SELinux, the
@@ -111,8 +120,9 @@ AcmeReplication ::= TEXTUAL-CONVENTION
     STATUS current
     DESCRIPTION "The replication between two nodes: notReplicated - one database or one node;
                  healthy - both ways running; broken - a way stopped; lost - a slot lost, the
-                 other node has to be made again from this one."
-    SYNTAX INTEGER { notReplicated(0), healthy(1), broken(2), lost(3) }
+                 other node has to be made again from this one; down - replicated, and neither
+                 the subscription nor the slot is there (1.0.115)."
+    SYNTAX INTEGER { notReplicated(0), healthy(1), broken(2), lost(3), down(4) }
 
 AcmeSplit ::= TEXTUAL-CONVENTION
     STATUS current
@@ -226,7 +236,8 @@ AcmeAlertEntry ::= SEQUENCE { acmeAlertIndex Integer32, acmeAlertKey DisplayStri
     acmeAlertLevelNum AcmeSeverity, acmeAlertNode DisplayString, acmeAlertArea DisplayString }
 acmeAlertIndex OBJECT-TYPE
     SYNTAX Integer32 (1..65535) MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Its number now." ::= { acmeAlertEntry 1 }
+    DESCRIPTION "Its number: the CRC-32 of acmeAlertKey folded into 1..65535 - kept while
+                 the alert is there (1.0.115; it was its place in the list)." ::= { acmeAlertEntry 1 }
 acmeAlertKey OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "What it is about, the same while it lasts." ::= { acmeAlertEntry 2 }
@@ -263,7 +274,8 @@ AcmeCertEntry ::= SEQUENCE { acmeCertIndex Integer32, acmeCertTarget DisplayStri
     acmeCertName DisplayString, acmeCertDaysLeft Integer32, acmeCertEnd Integer32 }
 acmeCertIndex OBJECT-TYPE
     SYNTAX Integer32 (1..65535) MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Its number." ::= { acmeCertEntry 1 }
+    DESCRIPTION "Its number: the CRC-32 of acmeCertTarget folded into 1..65535 (1.0.115;
+                 it was its place in the list)." ::= { acmeCertEntry 1 }
 acmeCertTarget OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "A node's name, or vip." ::= { acmeCertEntry 2 }
@@ -710,7 +722,9 @@ AcmeNodeEntry ::= SEQUENCE { acmeNodeIndex Integer32, acmeNodeName DisplayString
     acmeNodeIsThis AcmeTruth, acmeNodeStarted Integer32, acmeNodeAddress DisplayString }
 acmeNodeIndex OBJECT-TYPE
     SYNTAX Integer32 (1..65535) MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Its number." ::= { acmeNodeEntry 1 }
+    DESCRIPTION "Its number: the CRC-32 of acmeNodeName folded into 1..65535 (1.0.115; it
+                 was its place in the list). Every column of a row is read from one list
+                 of the nodes." ::= { acmeNodeEntry 1 }
 acmeNodeName OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "Its name." ::= { acmeNodeEntry 2 }
@@ -794,7 +808,8 @@ acmeDiskEntry OBJECT-TYPE
 AcmeDiskEntry ::= SEQUENCE { acmeDiskIndex Integer32, acmeDiskPath DisplayString, acmeDiskSize CounterBasedGauge64, acmeDiskUsed CounterBasedGauge64, acmeDiskFree CounterBasedGauge64, acmeDiskUsedPct Gauge32, acmeDiskInodesPct Gauge32 }
 acmeDiskIndex OBJECT-TYPE
     SYNTAX Integer32 (1..65535) MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Its number now." ::= { acmeDiskEntry 1 }
+    DESCRIPTION "Its number: the CRC-32 of acmeDiskPath folded into 1..65535 (1.0.115; it
+                 was its place in the list)." ::= { acmeDiskEntry 1 }
 acmeDiskPath OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "Where it is mounted, as acme looks at it." ::= { acmeDiskEntry 2 }
@@ -918,7 +933,8 @@ acmeBackupLast OBJECT-TYPE
     DESCRIPTION "When the newest copy kept on this node was made, unix time; 0: none." ::= { acmeBackup 1 }
 acmeBackupAge OBJECT-TYPE
     SYNTAX Gauge32 UNITS "seconds" MAX-ACCESS read-only STATUS current
-    DESCRIPTION "How old it is; 0 when there is none." ::= { acmeBackup 2 }
+    DESCRIPTION "How old it is; when there is none (1.0.115), how long acme has run since it
+                 started - it was 0, and a node that never made one looked fine." ::= { acmeBackup 2 }
 acmeBackupsKept OBJECT-TYPE
     SYNTAX Gauge32 MAX-ACCESS read-only STATUS current
     DESCRIPTION "Copies kept on this node." ::= { acmeBackup 3 }
@@ -956,7 +972,8 @@ acmeRemoteBackupEntry OBJECT-TYPE
 AcmeRemoteBackupEntry ::= SEQUENCE { acmeRemoteBackupIndex Integer32, acmeRemoteBackupName DisplayString, acmeRemoteBackupTargetResult AcmeResult, acmeRemoteBackupTargetAt Integer32, acmeRemoteBackupTargetLastOk Integer32, acmeRemoteBackupTargetError DisplayString }
 acmeRemoteBackupIndex OBJECT-TYPE
     SYNTAX Integer32 (1..65535) MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Its number now." ::= { acmeRemoteBackupEntry 1 }
+    DESCRIPTION "Its number: the CRC-32 of acmeRemoteBackupName folded into 1..65535
+                 (1.0.115; it was its place in the list)." ::= { acmeRemoteBackupEntry 1 }
 acmeRemoteBackupName OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "Its name (Backup to another machine)." ::= { acmeRemoteBackupEntry 2 }
@@ -1024,7 +1041,8 @@ acmeCrlEntry OBJECT-TYPE
 AcmeCrlEntry ::= SEQUENCE { acmeCrlIndex Integer32, acmeCrlUrl DisplayString, acmeCrlOk AcmeTruth, acmeCrlFetched Integer32, acmeCrlNextUpdate Integer32, acmeCrlHoursLeft Integer32, acmeCrlError DisplayString }
 acmeCrlIndex OBJECT-TYPE
     SYNTAX Integer32 (1..65535) MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Its number now." ::= { acmeCrlEntry 1 }
+    DESCRIPTION "Its number: the CRC-32 of acmeCrlUrl folded into 1..65535 (1.0.115; it
+                 was its place in the list)." ::= { acmeCrlEntry 1 }
 acmeCrlUrl OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "Where it is fetched from." ::= { acmeCrlEntry 2 }
@@ -1055,7 +1073,9 @@ acmeShipEntry OBJECT-TYPE
 AcmeShipEntry ::= SEQUENCE { acmeShipIndex Integer32, acmeShipKind DisplayString, acmeShipTarget DisplayString, acmeShipSent Counter32, acmeShipTrouble AcmeTruth, acmeShipSaid DisplayString }
 acmeShipIndex OBJECT-TYPE
     SYNTAX Integer32 (1..2147483647) MAX-ACCESS read-only STATUS current
-    DESCRIPTION "The kind times 1000 plus its number: 1 isemon, 2 syslog." ::= { acmeShipEntry 1 }
+    DESCRIPTION "Its number: the CRC-32 of acmeShipKind, a space and acmeShipTarget folded
+                 into 1..2147483647 (1.0.115; it was the kind times 1000 plus its place in
+                 the list)." ::= { acmeShipEntry 1 }
 acmeShipKind OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "isemon or siem." ::= { acmeShipEntry 2 }
@@ -1145,7 +1165,9 @@ AcmeMetricEntry ::= SEQUENCE { acmeMetricIndex Integer32, acmeMetricName Display
     acmeMetricLabels DisplayString, acmeMetricValue DisplayString }
 acmeMetricIndex OBJECT-TYPE
     SYNTAX Integer32 (1..2147483647) MAX-ACCESS read-only STATUS current
-    DESCRIPTION "Its number now - samples come and go." ::= { acmeMetricEntry 1 }
+    DESCRIPTION "Its number: the CRC-32 of the sample's name and labels as
+                 name{labels} folded into 1..2147483647 - kept while the sample is there
+                 (1.0.115; it was its place in the list)." ::= { acmeMetricEntry 1 }
 acmeMetricName OBJECT-TYPE
     SYNTAX DisplayString MAX-ACCESS read-only STATUS current
     DESCRIPTION "The metric's name, acme_..." ::= { acmeMetricEntry 2 }

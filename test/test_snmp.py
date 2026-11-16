@@ -265,6 +265,7 @@ class Template(unittest.TestCase):
         node = [t['name'] for i in self.tpl['items'] for t in i.get('triggers') or []] + \
             [t['name'] for t in self.data['zabbix_export']['triggers']]
         for want in ('The database does not answer', 'Replication lost', 'Replication behind',
+                     'Replication down',
                      'The nodes are apart (split)', 'No recent backup', 'A newer version of acme',
                      'The keytab is not written out', 'Trap: something went wrong',
                      'No SNMP data collection', 'Security updates are waiting'):
@@ -277,6 +278,102 @@ class Template(unittest.TestCase):
         for i in self.tpl['items']:
             self.assertTrue(i.get('description'), i['key'])
             self.assertTrue(i.get('tags'), i['key'])
+
+
+class Stable(unittest.TestCase):
+    """1.0.115, no daemon: each table's rows numbered by what names them, not by their place;
+    the node table's columns from one list; the age of a backup never made; the replication
+    down."""
+
+    def setUp(self):
+        self.saved = {}
+
+    def tearDown(self):
+        for k, v in self.saved.items():
+            setattr(E, k, v)
+
+    def patch(self, **kw):
+        for k, v in kw.items():
+            self.saved.setdefault(k, getattr(E, k))
+            setattr(E, k, v)
+
+    def test_index_by_name(self):
+        a = E.snmp_index(['/', '/var', '/home'])
+        b = E.snmp_index(['/home', '/'])                # /var gone, the order changed
+        self.assertEqual(a['/'], b['/'])
+        self.assertEqual(a['/home'], b['/home'])
+        self.assertEqual(a['/'], __import__('zlib').crc32(b'/') % 65535 + 1)
+        self.assertTrue(all(1 <= v <= 65535 for v in a.values()))
+        # two on one number: each its own, the same on every walk
+        c = E.snmp_index(['a', 'b', 'c'], 3)
+        self.assertEqual(sorted(c.values()), [1, 2, 3])
+        self.assertEqual(c, E.snmp_index(['c', 'b', 'a'], 3))
+        big = E.snmp_index(['k%d' % i for i in range(3000)])
+        self.assertEqual(len(set(big.values())), 3000)
+
+    def rows(self, facts):
+        self.patch(snmp_facts=lambda daemon, fresh=False: facts)
+        return {sub: v for sub, _k, v in E.snmp_more_rows(None)}
+
+    def test_tables_by_name(self):
+        nodes = [{'name': 'b', 'alive': True, 'age': 3, 'version': '2', 'web': {}},
+                 {'name': 'a', 'alive': False, 'age': 99, 'version': '1', 'web': {}}]
+        c = {'mode': 'replicated', 'nodes': nodes, 'vip': '', 'holders': [], 'repl': 4,
+             'behind': 0, 'repl_errors': 0, 'split': 0, 'split_role': '', 'leader': '',
+             'up': 1, 'known': 2}
+        disks = [{'path': '/var', 'total': 10, 'used': 1, 'free': 9, 'pct': 10},
+                 {'path': '/', 'total': 10, 'used': 5, 'free': 5, 'pct': 50}]
+        sysf = {'disks': disks, 'cores': 1, 'busy': 0, 'load': [0, 0, 0], 'mem_total': 1,
+                'mem_used': 1, 'swap_used': 0, 'disk_rd': 0, 'disk_wr': 0, 'net_rx': 0,
+                'net_tx': 0, 'boot': 0, 'skew': 0, 'offset': 0, 'sync': 0, 'problem': '',
+                'selinux': 0, 'denials': 0, 'fw': False, 'updates': 0, 'security': 0,
+                'reboot': False, 'checked': 0, 'sshd': '', 'key_lost': False, 'clash': '',
+                'hand': 0}
+        got = self.rows({'cluster': c, 'system': sysf})
+        at = E.snmp_index(['a', 'b'])
+        for name, n in (('a', nodes[1]), ('b', nodes[0])):
+            k = at[name]
+            # every column of the row, the first four too, of the same node
+            self.assertEqual(got[(7, 1, 1, 1, k)], k)
+            self.assertEqual(got[(7, 1, 1, 2, k)], name)
+            self.assertEqual(got[(7, 1, 1, 3, k)], 1 if n['alive'] else 0)
+            self.assertEqual(got[(7, 1, 1, 4, k)], n['age'])
+            self.assertEqual(got[(7, 1, 1, 5, k)], n['version'])
+        self.assertEqual(got[(7, 6, 0)], 4)
+        d = E.snmp_index(['/', '/var'])
+        self.assertEqual(got[(10, 1, 1, 2, d['/'])], '/')
+        self.assertEqual(got[(10, 1, 1, 6, d['/'])], 50)
+        # /var gone: / keeps its number
+        got2 = self.rows({'system': dict(sysf, disks=[disks[1]])})
+        self.assertEqual(got2[(10, 1, 1, 2, d['/'])], '/')
+
+    def test_backup_never_made_and_replication_down(self):
+        class Db(object):
+            engine = 'sqlite'
+        store = type('S', (), {'db': Db()})()
+        self.patch(backups=lambda: [], kept_dumps=lambda engine: [], rb_history=lambda st: [],
+                   rb_verified=lambda st: [])
+        daemon = type('D', (), {'started': time.time() - 7200})()
+        b = E._sf_backup(daemon, store, {})
+        self.assertEqual(b['last'], 0)
+        self.assertTrue(7190 <= b['age'] <= 7300, b)
+        b = E._sf_backup(daemon, store, {'last_backup': time.time() - 60})
+        self.assertTrue(55 <= b['age'] <= 120, b)
+        # replicated, neither the subscription nor the slot: down (4), as the pages say
+        self.patch(ha_nodes=lambda st: [], vip_conf=lambda st: {}, split_active=lambda: False,
+                   ha_repl_state=lambda st: {'mode': 'replicated', 'incoming': [],
+                                             'outgoing': [], 'healthy': False, 'lost': False})
+        was = E.CONFIG.get('ha_mode')
+        E.CONFIG['ha_mode'] = 'replicated'
+        try:
+            self.assertEqual(E._sf_cluster(store)['repl'], 4)
+            self.patch(ha_repl_state=lambda st: {'mode': 'replicated', 'incoming': [
+                {'enabled': True, 'running': False}], 'outgoing': [], 'healthy': False})
+            self.assertEqual(E._sf_cluster(store)['repl'], 2)
+        finally:
+            E.CONFIG['ha_mode'] = was
+        _, tcs, _ = mib_oids()
+        self.assertEqual(tcs['AcmeReplication'].get(4) or tcs['AcmeReplication'].get('4'), 'down')
 
 
 class Agent(unittest.TestCase):

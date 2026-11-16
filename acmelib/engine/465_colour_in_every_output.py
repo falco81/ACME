@@ -1350,7 +1350,11 @@ def cli_ha_setup_replicated(args, pal, store, ask):
     if db_agent_here():
         # Each node's database on a server of its own (1.0.113): --ha-peer is the other
         # database server, --ha-peer-node the other acme node.
-        db_agent_put({'peer_node': getattr(args, 'ha_peer_node', None) or peer})
+        pn = getattr(args, 'ha_peer_node', None) or peer
+        # This node's own address too (1.0.115): ha_address is its database server here, and
+        # what is the nodes' own (keepalived's unicast_src_ip, the other node's firewall) takes
+        # the address this node reaches the other node from.
+        db_agent_put({'peer_node': pn, 'node_address': db_agent_my_address(pn)})
     try:
         restart, major = pg_prepare_local(port, peer, name, user, pw, say)
         if restart:
@@ -1401,7 +1405,7 @@ def cli_ha_setup_replicated(args, pal, store, ask):
             'cluster': CONFIG.get('site_name') or 'acme', 'joining': peer}
     if db_agent_here():
         # The node itself, apart from its database server (1.0.113).
-        data['peer']['node'] = node_address()
+        data['peer']['node'] = (db_agent() or {}).get('node_address') or node_address()
     phrase = ha_passphrase()
     target = Path(args.ha_bundle or '/root/acme-join-%s.json' % node_name())
     write_private(target, json.dumps(dict(bundle_lock(data, phrase), about=ha_bundle_about(data)),
@@ -1450,7 +1454,10 @@ def cli_ha_join_replicated(args, pal, data, ask):
         # other node's own address let in there too.
         port = int((db_agent() or {}).get('pg_port') or port)
         here = db_agent_db_host()
-        db_agent_put({'peer_node': str(peer.get('node') or peer.get('address') or '')})
+        pn = str(peer.get('node') or peer.get('address') or '')
+        # This node's own address beside it (1.0.115, see ha_own_node): ha_address is its
+        # database server.
+        db_agent_put({'peer_node': pn, 'node_address': db_agent_my_address(pn)})
         if not args.ha_address:
             args.ha_address = here
     # Marked as begun (1.0.210): a join that stops half way left a PostgreSQL

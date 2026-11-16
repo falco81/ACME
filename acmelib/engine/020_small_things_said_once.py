@@ -73,8 +73,29 @@ def cn_of(dn):
     said = str(dn or '').strip()
     m = re.match(r'(?i)^cn=((?:\\.|[^,])*)', said)
     if m:
-        return re.sub(r'\\(.)', r'\1', m.group(1)).strip()
+        return dn_value_unescaped(m.group(1)).strip()
     return said
+
+
+def dn_value_unescaped(v):
+    """An attribute value of a DN as it is (RFC 4514, 1.0.115): \\, and the like as the
+    character, and \\0A, \\C3\\A1 (hex pairs, UTF-8) as theirs - kept as \\0A before, and a
+    CN with a line break in it went into a request as the letters 0A."""
+    out = bytearray()
+    i, s = 0, str(v)
+    while i < len(s):
+        c = s[i]
+        if c == '\\' and i + 1 < len(s):
+            if re.match(r'[0-9A-Fa-f]{2}', s[i + 1:i + 3]) and len(s[i + 1:i + 3]) == 2:
+                out.append(int(s[i + 1:i + 3], 16))
+                i += 3
+                continue
+            out += s[i + 1].encode('utf-8')
+            i += 2
+            continue
+        out += c.encode('utf-8')
+        i += 1
+    return out.decode('utf-8', 'replace')
 
 
 def password_hash(password, salt=None, rounds=310000):

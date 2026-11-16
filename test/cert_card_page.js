@@ -26,8 +26,10 @@
 //             the background's picture never does - after one more try the page tells the
 //             server, which leaves the sign-in unwatched: "This browser cannot have the card
 //             checked (as an iPad cannot): this sign-in is not watched.", no notice, still signed
-//             in, answered (200), whoami without card, no more checks (loaded again: none
-//             either) - in English and Czech, 1400 and 420 px.
+//             in, answered (200), whoami's card `unable`, checked only once a minute (loaded
+//             again: not at once either) - in English and Czech, 1400 and 420 px; then (1.0.115)
+//             the picture let through and the page woken: watched again ("The card is checked in
+//             this browser after all: this sign-in is watched again.").
 // Prints one line of JSON: {ok, checks: {name: true|false}, timing, error?} - or {skip} where
 // Chromium does not start.
 const fs = require('fs');
@@ -323,8 +325,8 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
         out.checks['no_notice_' + tag] = (await page.locator('#card-lock').count()) === 0;
         out.checks['still_signed_in_' + tag] = (await page.locator('#signout').count()) > 0 &&
           (await status(page)).startsWith('200');
-        out.checks['whoami_no_card_' + tag] = await page.evaluate(() => fetch('?api=whoami', {credentials: 'same-origin'})
-          .then((r) => r.json()).then((d) => !!d.who && !d.who.card));
+        out.checks['whoami_card_unable_' + tag] = await page.evaluate(() => fetch('?api=whoami', {credentials: 'same-origin'})
+          .then((r) => r.json()).then((d) => !!d.who && !!d.who.card && d.who.card.unable === true));
         const l0 = ctx.looks.length;
         await page.waitForTimeout(8000);
         out.checks['no_more_checks_' + tag] = ctx.looks.length === l0;
@@ -332,8 +334,18 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
           await page.reload();
           await page.waitForSelector('#signout', {timeout: 15000});
           await page.waitForTimeout(4000);
-          out.checks['loaded_again_not_watched_' + tag] = await page.evaluate(() => !(window.ME && ME.card)) &&
-            ctx.looks.length === l0;
+          out.checks['loaded_again_unable_' + tag] = await page.evaluate(() => !!(window.ME && ME.card && ME.card.unable)) &&
+            ctx.looks.length <= l0 + 1;      // the one check of the page woken (pageshow) at most
+        }
+        if (tag === 'en-1400') {
+          // Not for ever (1.0.115): the picture comes now, the page woken - watched again.
+          await cardIn(ctx);
+          await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+          out.checks.watched_again = await until(page, async () => (await page.evaluate(() => {
+            const t = document.querySelector('#toast'); return t && t.classList.contains('show') ? t.textContent : '';
+          })) === 'The card is checked in this browser after all: this sign-in is watched again.', 15000);
+          out.checks.watched_again_whoami = await page.evaluate(() => fetch('?api=whoami', {credentials: 'same-origin'})
+            .then((r) => r.json()).then((d) => !!d.who && !!d.who.card && !d.who.card.unable));
         }
         if (width < 600) out.checks['no_page_scroll_' + tag] = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
         out.checks['no_page_errors_' + tag] = page.errs.length === 0;

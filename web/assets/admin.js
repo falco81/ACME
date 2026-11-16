@@ -4616,7 +4616,7 @@ function dbMoveSteps(info, preset) {
         (Number(dd.port) || (info.engines[dd.engine] || {}).port) === Number(ag.db_port);
       var an = el('div', 'note ' + (ag.here && !toAgent ? 'warn' : 'info') + ' dbw-agent-what');
       an.id = 'dbw-agent-what';
-      if (ag.here && !toAgent) an.appendChild(haWords('The database leaves the server of this node’s database agent (', ag.host + ':' + ag.port, '): once config.json is switched, the agent is let go - acme asks nothing of it any more and its server leaves this page and the meter. It keeps this node’s certificate until acme_db_agent.py --forget there; moving back means connecting it again.'));
+      if (ag.here && !toAgent) an.appendChild(haWords('The database leaves the server of this node’s database agent (', ag.host + ':' + ag.port, '): once config.json is switched, the agent is let go and told this node leaves it - acme asks nothing of it any more and its server leaves this page and the meter; moving back means connecting it again.'));
       else if (toAgent && !ag.here) an.appendChild(haWords('Onto the server of this node’s database agent (', ag.host + ':' + ag.port, '): acme looks after it from the restart on. Then Encryption to the database server: the server’s certificate from acme’s authority, and verify-full.'));
       if (an.childNodes.length) host.appendChild(an);
     }
@@ -4806,7 +4806,7 @@ function dbMoveRun(info, W, m) {
     if (mv.agent) {
       var li = el('li', 'dbw-agent-gone');
       li.id = 'dbw-agent-gone';
-      li.appendChild(el('span', '', 'acme-db-agent no longer looks after this node’s database: it is not on that server any more, so nothing is asked of the agent, and its server is off the cards and the meter. The agent keeps this node’s certificate until acme_db_agent.py --forget there.'));
+      li.appendChild(el('span', '', 'acme-db-agent no longer looks after this node’s database: it is not on that server any more, so nothing is asked of the agent, and its server is off the cards and the meter. The agent was told this node leaves it (one that did not answer keeps this node’s certificate until acme_db_agent.py --forget there).'));
       ol.appendChild(li);
     }
     host.appendChild(ol);
@@ -8829,8 +8829,14 @@ function certCsr(x) {
       browserPart.appendChild(done);
       /* On a card. */
       cardPart.appendChild(el('p', 'note', 'On a smart card or a YubiKey the key is made on the card and never leaves it: the request is made there too - with these values.'));
-      cardPart.appendChild(lbBlock('ykman piv keys generate --algorithm RSA2048 9a pub.pem\nykman piv certificates request --subject "CN={cn}" 9a pub.pem {base}.csr',
-        {cn: x.cn, base: base}, 'A YubiKey (YubiKey Manager) - its SAN as the template builds it from AD'));
+      /* The CN as ykman's --subject reads it (RFC 4514: , " + ; < > = \\ escaped, a # or a space
+         at the start and a space at the end too), then as bash reads it between double quotes
+         (\\ " $ ` escaped) (1.0.115): "Novák, Jan" was two RDNs, one of them no RDN at all. */
+      var dnCn = String(x.cn || '').replace(/([\\,"+;<>=])/g, '\\$1').replace(/^([# ])/, '\\$1').replace(/ $/, '\\ ');
+      var shCn = dnCn.replace(/([\\"$`])/g, '\\$1');
+      if (/[\u0000-\u001f\u007f]/.test(String(x.cn || ''))) cardPart.appendChild(el('p', 'note warn small', 'The CN of this account holds a line break or another control character: correct it in the directory first - no request is made with it.'));
+      else cardPart.appendChild(lbBlock('ykman piv keys generate --algorithm RSA2048 9a pub.pem\nykman piv certificates request --subject "CN={cn}" 9a pub.pem {base}.csr',
+        {cn: shCn, base: base}, 'A YubiKey (YubiKey Manager) - its SAN as the template builds it from AD'));
       var inf = String((x.snippets || {}).certreq_inf || '').replace('; ProviderName = "Microsoft Smart Card Key Storage Provider"', 'ProviderName = "Microsoft Smart Card Key Storage Provider"').replace('; on a smart card or a YubiKey:\n', '');
       cardPart.appendChild(lbBlock('{inf}', {inf: inf}, 'A smart card in Windows: certreq -new ' + base + '.inf ' + base + '.csr'));
       cardPart.appendChild(el('p', 'note small muted', 'ykman cannot put a SAN of your own into the request: the authority’s template adds the UPN and the SID from AD. certreq with the smart card provider writes the SAN above.'));
@@ -20236,14 +20242,18 @@ function dbaDraw(host, d) {
       tl.onclick = function () { dbaAct(tl, 'mariadb_tls'); };
       acts.appendChild(tl);
     }
-    var fg = cmdButton('Forget the agent…', 'forget', 'danger');
-    fg.id = 'dba-forget';
-    explain(fg, 'This node goes back to looking after a database on this machine only. The agent keeps this node’s certificate until it is taken away there (acme_db_agent.py --forget NODE); the database and its data are not touched.');
-    fg.onclick = function () {
-      confirmThen('Forget the database agent?', htmlText('acme no longer renews the database server’s certificate, changes its settings or restarts it, and its row leaves the meter. The database itself is not touched, and this node goes on using it. Connected again with a new join code.'),
-        'Forget it', function () { dbaAct(fg, 'forget'); });
-    };
-    acts.appendChild(fg);
+    /* Not while this node's database is on the agent's server in a cluster (layout B, 1.0.115):
+       the replication runs through it - the cluster is taken apart first. */
+    if (!d.forget_refused) {
+      var fg = cmdButton('Forget the agent…', 'forget', 'danger');
+      fg.id = 'dba-forget';
+      explain(fg, 'This node goes back to looking after a database on this machine only. The agent is told this node leaves it and takes it off its list (if it does not answer, it keeps this node’s certificate until acme_db_agent.py --forget NODE there); the database and its data are not touched.');
+      fg.onclick = function () {
+        confirmThen('Forget the database agent?', htmlText('acme no longer renews the database server’s certificate, changes its settings or restarts it, and its row leaves the meter. The database itself is not touched, and this node goes on using it. Connected again with a new join code.'),
+          'Forget it', function () { dbaAct(fg, 'forget'); });
+      };
+      acts.appendChild(fg);
+    }
     host.appendChild(acts);
   }
 }
@@ -20319,12 +20329,31 @@ function dbaTile(s, d) {
   dbaKv(kv, 'Last heard', hd);
   t.appendChild(kv);
   if (st[2]) t.appendChild(noI18n(el('div', 'dbs-tile-said small bad', st[2])));
+  var gone = (a.clients || []).filter(function (x) { return x && x.stale; });
+  if (gone.length) {
+    /* Nodes the agent has not heard from for 30 days (1.0.115): not waited for when it puts its
+       next certificate in use - one gone for good is taken away on the server. */
+    var sg = el('div', 'dbs-tile-said small');
+    sg.appendChild(el('span', 'tag dim', 'Not heard from'));
+    sg.appendChild(document.createTextNode(' '));
+    sg.appendChild(haWords('', gone.map(function (x) { return x.name; }).join(', '), ' - not heard from for 30 days, not waited for. One gone for good is taken away on the database server: ', 'acme_db_agent.py --forget NODE', ''));
+    t.appendChild(sg);
+  }
+  if (a.busy && a.busy.op) {
+    var bz = el('div', 'dbs-tile-said small');
+    bz.appendChild(haWords('Busy with ', a.busy.op + (a.busy['do'] ? ' ' + a.busy['do'] : ''), ' for ', a.busy.node || '?', ''));
+    t.appendChild(bz);
+  }
   if (s.version_skew && s.version_skew.agent) {
-    /* Its agent of another version than acme (1.0.113): upgraded on its server. */
+    /* Its agent another program than the one acme ships (1.0.115: compared by its code, not
+       by the release's number): older - upgraded on its server; newer - acme upgraded here. */
+    var how = s.version_skew.how || 'older';
     var vs = el('div', 'dbs-tile-said small');
-    vs.appendChild(el('span', 'tag warn', 'Another version than acme'));
+    vs.appendChild(el('span', 'tag warn', how === 'newer' ? 'Newer than acme' : (how === 'other' ? 'Not the one acme ships' : 'Another version than acme')));
     vs.appendChild(document.createTextNode(' '));
-    vs.appendChild(haWords('acme-db-agent ', s.version_skew.agent, ', acme ', s.version_skew.acme, ' - upgrade the agent on the database server: ', './install.sh --db-agent', ''));
+    if (how === 'newer') vs.appendChild(haWords('acme-db-agent ', s.version_skew.agent, ' is newer than this acme ', s.version_skew.acme, ' - upgrade acme on this node (or put the agent of this version back on the database server: ', './install.sh --db-agent', ')'));
+    else if (how === 'other') vs.appendChild(haWords('The agent’s program is not the one acme ', s.version_skew.acme, ' ships (changed there, or from another build) - put it back: ', './install.sh --db-agent', ''));
+    else vs.appendChild(haWords('acme-db-agent ', s.version_skew.agent, ', acme ', s.version_skew.acme, ' - upgrade the agent on the database server: ', './install.sh --db-agent', ''));
     t.appendChild(vs);
   }
   return t;
@@ -20523,7 +20552,7 @@ function dbaWizard() {
           rp.className = 'note bad small dbs-replace';
           rp.appendChild(haWords('This node is one of a cluster and its database is on the server of the agent at ', cur.host + ':' + cur.port, ': another agent is not connected instead. Take the cluster apart first.'));
         } else if ((cur.where || {}).kind === 'agent') {
-          rp.appendChild(haWords('This node is connected to the agent at ', cur.host + ':' + cur.port, ' and its database is on that server. One agent a node: this one takes its place, and until the database is moved onto the new server (Move the database onto it…, next) nothing of the old server is looked after - its certificate is not renewed. The old agent keeps this node’s certificate until acme_db_agent.py --forget there.'));
+          rp.appendChild(haWords('This node is connected to the agent at ', cur.host + ':' + cur.port, ' and its database is on that server. One agent a node: this one takes its place, and until the database is moved onto the new server (Move the database onto it…, next) nothing of the old server is looked after - its certificate is not renewed. The old agent is told this node leaves it.'));
         } else {
           rp.appendChild(haWords('This node is connected to the agent at ', cur.host + ':' + cur.port, ' already. One agent a node: this one takes its place.'));
         }
@@ -20567,8 +20596,12 @@ function dbaWizard() {
         var rn = el('div', 'note warn dbs-replaced');
         rn.id = 'dbs-replaced';
         var old = String(rp.db_admin || '').replace(/^agent:/, '');
-        if (rp.had_database) rn.appendChild(haWords('It takes the place of the agent at ', old, ' - this node’s database is still on ', rp.db_host, ', and nothing of that server is looked after until the database is moved onto the new one. That agent keeps this node’s certificate until acme_db_agent.py --forget ', v.node || '', ' there.'));
-        else rn.appendChild(haWords('It takes the place of the agent at ', old, ' (one agent a node); that one keeps this node’s certificate until acme_db_agent.py --forget ', v.node || '', ' there.'));
+        if (rp.had_database) rn.appendChild(haWords('It takes the place of the agent at ', old, ' - this node’s database is still on ', rp.db_host, ', and nothing of that server is looked after until the database is moved onto the new one.'));
+        else rn.appendChild(haWords('It takes the place of the agent at ', old, ' (one agent a node).'));
+        /* Told this node leaves it (1.0.115) - one that did not answer keeps its certificate. */
+        rn.appendChild(document.createTextNode(' '));
+        if (rp.left) rn.appendChild(el('span', '', 'That agent took this node off its list.'));
+        else rn.appendChild(haWords('That agent did not answer: it keeps this node’s certificate until ', 'acme_db_agent.py --forget ' + (v.node || ''), ' there.'));
         res.appendChild(rn);
       }
     }

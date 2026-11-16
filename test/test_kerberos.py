@@ -1201,6 +1201,17 @@ class Kerberos(unittest.TestCase):
         a = self.ok('POST', '/api/kerberos', {'action': 'account', 'part': 'admin',
                                               'name': 'svc-acme-http'})['account']
         self.assertFalse(a['found'])
+        # DOMAIN\\ of another domain (1.0.115): refused in words, not dropped unread; the first
+        # label of the DNS name and the case of it are the domain's too.
+        st, got = self.call('POST', '/api/kerberos', {'action': 'account', 'part': 'admin',
+                                                      'name': 'OTHERDOM\\svc-web'}, self.admin)
+        self.assertEqual(st, 400, got)
+        self.assertIn('is not the domain of the directory', got.get('error', ''))
+        self.assertIn('MERIT_NT', got.get('error', ''))
+        for ok in ('corpnet\\svc-web', 'merit_nt\\svc-web', 'CORPNET.LOC\\svc-web'):
+            a = self.ok('POST', '/api/kerberos', {'action': 'account', 'part': 'admin',
+                                                  'name': ok})['account']
+            self.assertTrue(a['found'], ok)
         st, got = self.call('POST', '/api/kerberos', {'action': 'account', 'name': 'x*)('},
                             self.admin)
         self.assertEqual(st, 400, got)

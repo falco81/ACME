@@ -278,7 +278,7 @@ def cluster_addresses(store, node):
         if node == me and ha_peer_node():
             out.add(ha_peer_node())
         if node != me:
-            out.add(CONFIG.get('ha_address') or node_address())
+            out.add(ha_own_node())          # this node (layout B: not its database server)
     v = vip_conf(store)
     if v.get('on') and v.get('address'):
         out.add(str(v['address']).split('/')[0])

@@ -236,5 +236,65 @@ class TestTrialEvents(unittest.TestCase):
         self.assertIn('went back to the network it had before', rule[2])
 
 
+
+class TestDbTrouble(unittest.TestCase):
+    """1.0.115: the database's own trouble written down where the daemon's statements fail (it
+    was written by the RADIUS server only, gone since) - in the health row, the alert and
+    acmeDbTrouble; a statement's own mistake is no trouble of the database's."""
+
+    def setUp(self):
+        E.DB_TROUBLE_SEEN.update(at=0.0, said='')
+        STORE.db.run("DELETE FROM meta WHERE k LIKE 'host:%'")
+
+    def tearDown(self):
+        E.DB_TROUBLE_SEEN.update(at=0.0, said='')
+
+    def test_forced_error_seen_by_the_alert_and_snmp(self):
+        import sqlite3
+        import types
+        db = STORE.db
+        real = db._run
+
+        def locked(sql, args, fetch):
+            raise sqlite3.OperationalError('database is locked')
+        db._run = locked
+        try:
+            with self.assertRaises(sqlite3.OperationalError):
+                db.value('SELECT COUNT(*) FROM accounts')
+        finally:
+            db._run = real
+        self.assertEqual(E.DB_TROUBLE_SEEN['said'], 'database is locked')
+        self.assertLess(time.time() - E.DB_TROUBLE_SEEN['at'], 5)
+        row = E.health_publish(types.SimpleNamespace(store=STORE, dirs={}))
+        self.assertEqual(row['db_trouble'], 'database is locked')
+        al = E.alert_problems(STORE)
+        self.assertIn('db:' + ME, al)
+        self.assertIn('database is locked', al['db:' + ME]['said'])
+        stored = json.loads(STORE.get_meta('host:health:' + ME))
+        self.assertEqual(E._sf_db(STORE, stored)['trouble'], 'database is locked')
+        was = E.snmp_facts
+        E.snmp_facts = lambda daemon, fresh=False: {'db': E._sf_db(STORE, stored)}
+        try:
+            rows = {sub: v for sub, _k, v in E.snmp_more_rows(None)}
+        finally:
+            E.snmp_facts = was
+        self.assertEqual(rows[(3, 6, 0)], 'database is locked')       # acmeDbTrouble
+        # 5 minutes on, gone
+        E.DB_TROUBLE_SEEN['at'] = time.time() - 301
+        self.assertEqual(E.health_publish(types.SimpleNamespace(store=STORE, dirs={}))
+                         ['db_trouble'], '')
+        self.assertNotIn('db:' + ME, keys())
+
+    def test_a_statements_own_mistake_is_not_trouble(self):
+        for sql in ('SELECT nothing_here FROM accounts', 'SELEC 1',
+                    'SELECT * FROM no_such_table'):
+            with self.assertRaises(Exception):
+                STORE.db.value(sql)
+        self.assertEqual(E.DB_TROUBLE_SEEN['said'], '')
+        import sqlite3
+        self.assertFalse(E.db_trouble(sqlite3.OperationalError('duplicate column name: x')))
+        self.assertTrue(E.db_trouble(sqlite3.OperationalError('database is locked')))
+        self.assertTrue(E.db_trouble(E.DbError('MariaDB could not be reached')))
+
 if __name__ == '__main__':
     unittest.main()

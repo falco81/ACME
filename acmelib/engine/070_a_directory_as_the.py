@@ -421,7 +421,10 @@ class Directory(object):
             if got and time.time() - got[0] < (self.NAMES_CACHE_S if got[1].get('netbios')
                                                 else self.NAMES_FAIL_S):
                 if got[1].get('error'):
-                    raise LdapError(got[1]['error'])
+                    # As it failed (1.0.115): a directory that did not answer was said "not
+                    # readable" from the cache - the Kerberos card's words told it apart.
+                    raise (LdapUnreachable if got[1].get('unreachable') else LdapError)(
+                        got[1]['error'])
                 return dict(got[1])
 
         def do(link):
@@ -455,7 +458,8 @@ class Directory(object):
                                 'NetBIOS name (or this account may not read it)' % dom)
         except LdapError as e:
             with self.lock:
-                self.cache[key] = (time.time(), {'error': str(e)[:300]})
+                self.cache[key] = (time.time(), {'error': str(e)[:300],
+                                                 'unreachable': isinstance(e, LdapUnreachable)})
             raise
         with self.lock:
             self.cache[key] = (time.time(), dict(out))

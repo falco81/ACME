@@ -6,7 +6,33 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.115 - not released
 
-(nothing yet)
+- **"The database is in trouble" says something again**: since the RADIUS server was taken out
+  nothing wrote down the database's own trouble - the alert, `acmeDbTrouble` and the Zabbix trigger never
+  fired. Every statement of the daemon that fails with it (locked, full, gone, a lock or a statement
+  that ran out) is now written down; it leaves the health row 5 minutes after the last one. A
+  statement's own mistake (a column that is not there) is not counted.
+- **Look a person up for a certificate**: the openssl request has exactly the values of the
+  directory - `' " # $ \` in the CN, the UPN or the address were taken away, cut the line off or
+  failed it (escaped now); a value with a line break makes no request (said why); certreq's INF
+  leaves out a SAN whose UPN or address holds `&` or `"` (it split or ended it) and says so.
+  `DOMAIN\name` is checked against the directory's own domain (NetBIOS name or DNS name, any
+  case) - another domain's name is refused in words (it was looked up without its domain), on the
+  Kerberos card's service account too. A UPN or an address with `+ / =` is taken. A CN with
+  `\0A`-style escapes in its DN is read as the characters; the YubiKey's `ykman --subject` escapes
+  the CN for its parser and the shell.
+- **The Kerberos card**: the domain's names that could not be read are said "unreachable" or "not
+  readable" as they failed, also from the 5-minute memory (it said "not readable" for both).
+- **SNMP**: the rows of the tables of the alerts, the certificates of the pages, the nodes, the
+  metrics, the disks, the places of the backups, the CRLs and the log shipping are numbered by
+  what names them (CRC-32 of the name, the path, the URL), no longer by their place in the list -
+  a disk or a node that comes or goes no longer gives its number to another, and Zabbix's history
+  of a row stays that row's (the OIDs are the same, only the index values change: a template's
+  discovered items are found again once). The node table's columns all come from one list.
+  `acmeBackupAge` with no backup ever made: the time since acme started (was 0 - "No recent
+  backup" never fired). `acmeReplState` says `down(4)` when the nodes are replicated and neither
+  the subscription nor the slot is there (was 0, "not replicated"), with a Zabbix trigger
+  *Replication down*. ACME-MIB revision 202611160000Z.
+
 
 ## 1.0.114 - 2026-11-16
 

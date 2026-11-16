@@ -4216,12 +4216,15 @@ function certDoor() {
    the sign-in ended just now (another card, taken out, not put back in time); 6 no cookie came
    with the check - said to the server over 443 at once (?api=cert-lost, why nocookie); 7 this
    browser cannot be checked (1.0.114, the kit's 3rd edition: no check in the background ever
-   found the card here - an iPad's Safari signs nothing for a page in the background): the page
-   stops checking and says so, the sign-in is not watched; none at all - the
-   handshake failed (nothing to sign it with) or the sign-in is over - asked once more 1.5 s
-   later, then said to the server over 443 (?api=cert-lost), which holds or ends it and writes
-   why. A picture: no CORS - the page's policy lets that one address in for images, only for a
-   watched sign-in. Kind to the card: one check at a time; one for all the tabs of this browser
+   found the card here - an iPad's Safari signs nothing for a page in the background): the sign-in
+   is not watched, the page says so and checks only once a minute (and when it wakes) - one that
+   finds the card watches it again (1.0.115); 8 try later (nginx: too many checks, PHP or the
+   daemon not answering - 1.0.115): neither out nor unable, asked again at the next tick; none at
+   all - the handshake failed (nothing to sign it with) or the sign-in is over - asked once more
+   1.5 s later, then said to the server over 443 (?api=cert-lost, why nopicture - or timeout, none
+   within 20 s), which holds or ends it and writes why. A picture asked with crossorigin
+   "use-credentials" (1.0.115): the browser says its Origin, and only this name's page is
+   answered - the page's policy lets that one address in for images, only for a watched sign-in. Kind to the card: one check at a time; one for all the tabs of this browser
    (localStorage - a tab whose neighbour found the card a moment ago takes its answer, one that
    finds it out tells the others); out, checked every 5 s - 10 s after a check that waited on a
    window of the card's (its PIN, "Insert a smart card"). Asleep is not out: a page woken
@@ -4270,13 +4273,13 @@ function cardCheck() {
   if (!c || CARD.busy || CARD.done) return;
   /* Another tab of this browser checked a moment ago and the card was there: its answer is this one's. */
   var sh = cardShared();
-  if (sh && sh.w === 1 && !CARD.out && Date.now() - sh.t >= 0 && Date.now() - sh.t < c.every * 600) {
+  if (sh && sh.w === 1 && !CARD.out && !CARD.unable && Date.now() - sh.t >= 0 && Date.now() - sh.t < c.every * 600) {
     cardNext(c.every * 1000 - (Date.now() - sh.t) + 200 + Math.random() * 800);
     return;
   }
   var done = false, img = new Image(), began = Date.now(), to = null;
   CARD.busy = true;
-  var fin = function (w) {
+  var fin = function (w, late) {
     if (done) return;
     done = true;
     clearTimeout(to);
@@ -4284,6 +4287,23 @@ function cardCheck() {
     if (!CARD || g !== CARD.gen) return;
     CARD.busy = false;
     var took = Date.now() - began;
+    /* Try later (8): too many checks, or PHP or the daemon not answering - not the card. */
+    if (w === 8) { cardNext(CARD.unable ? 60000 : CARD.out ? 5000 : c.every * 1000); return; }
+    if (CARD.unable) {
+      /* Not watched (this browser was found not to be checkable): found now - watched again. */
+      if (w === 1) {
+        CARD.unable = false;
+        CARD.misses = 0;
+        cardShare({t: Date.now(), w: 1});
+        toast('The card is checked in this browser after all: this sign-in is watched again.', 'good');
+        cardIn();
+        return;
+      }
+      if (w === 3 || w === 4 || w === 5) { cardEnd(w === 3 ? 'other' : w === 5 ? 'late' : 'out'); return; }
+      if (w === 2) { CARD.unable = false; cardOut(took, -1); return; }
+      cardNext(60000);
+      return;
+    }
     if (w === 1 || w === 2) cardShare({t: Date.now(), w: w});
     if (w === 1) { CARD.misses = 0; cardIn(); return; }
     if (w === 2) { CARD.misses = 0; cardOut(took, -1); return; }
@@ -4298,7 +4318,7 @@ function cardCheck() {
     CARD.misses = 0;
     CARD.busy = true;
     fetch('?api=cert-lost', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
-                             body: JSON.stringify({part: CARD.part, why: w === 6 ? 'nocookie' : 'nopicture'})})
+                             body: JSON.stringify({part: CARD.part, why: w === 6 ? 'nocookie' : late ? 'timeout' : 'nopicture'})})
       .then(function (r) { return r.json().then(function (d) { return {status: r.status, d: d || {}}; }, function () { return {status: r.status, d: {}}; }); })
       .then(function (x) {
         if (!CARD || g !== CARD.gen) return;
@@ -4320,9 +4340,11 @@ function cardCheck() {
   };
   /* A check left without an answer for 20 s counts as none (fail closed); the browser may still
      wait on a window of the card's - no new check starts until this one is over. */
-  to = setTimeout(function () { fin(0); }, 20000);
-  img.onload = function () { fin(img.naturalWidth >= 1 && img.naturalWidth <= 7 ? img.naturalWidth : 0); };
+  to = setTimeout(function () { fin(0, true); }, 20000);
+  img.onload = function () { fin(img.naturalWidth >= 1 && img.naturalWidth <= 8 ? img.naturalWidth : 0); };
   img.onerror = function () { fin(0); };
+  /* Its Origin said (1.0.115): the port answers this name's page only. */
+  img.crossOrigin = 'use-credentials';
   img.src = CARD.url + Date.now();
 }
 function cardIn() {
@@ -4353,13 +4375,20 @@ function cardStop() {
 /* This browser cannot have its card checked (1.0.114, the kit's 3rd edition): no check in the
    background has ever found the card here - an iPad's Safari signs nothing for a page in the
    background, though the card is in. The server leaves the sign-in unwatched (the setting "A
-   browser that cannot be checked"): the page stops checking, and says so. The other tabs learn
-   it at their next check. */
-function cardUnable() {
+   browser that cannot be checked"): the page says so - and still checks once a minute and when
+   it wakes (1.0.115): a check that finds the card watches the sign-in again. The other tabs
+   learn it at their next check. `quiet`: the page loaded so (said once already). */
+function cardUnable(quiet) {
   if (!CARD || CARD.done) return;
-  cardShare({t: Date.now(), w: 7});
-  cardStop();
+  var was = CARD.unable;
+  CARD.unable = true;
+  CARD.out = 0;
+  CARD.misses = 0;
+  cardLayer(false);
+  cardNext(60000);
   window.CARD_UNABLE = true;
+  if (was || quiet) return;
+  cardShare({t: Date.now(), w: 7});
   toast('This browser cannot have the card checked (as an iPad cannot): this sign-in is not watched.', 'warn');
   /* Said for longer than a toast's usual 3 s: the person is to read why. */
   var tn = $('toast');
@@ -4480,10 +4509,11 @@ function cardWatchStart(card, part) {
   var mode = card.watch === 'lock' ? 'grace' : String(card.watch || '');
   if (mode !== 'signout' && mode !== 'grace') return;
   CARD = {c: {mode: mode, every: Math.max(5, Number(card.every) || 15), grace: Math.max(1, Number(card.grace) || 30)},
-          part: part, gen: 0, timer: null, tick: null, busy: false, misses: 0, out: 0, done: false,
+          part: part, gen: 0, timer: null, tick: null, busy: false, misses: 0, out: 0, done: false, unable: false,
           key: 'acme.card.check.' + part, reload: !!(card.locked || card.stale),
           /* location.hostname as it is - an IPv6 address has its brackets already */
           url: 'https://' + location.hostname + ':' + Number(card.port) + (part === 'admin' ? '/admin/' : '/') + '?api=cert-alive&t='};
+  if (card.unable) { cardUnable(true); return; }
   if (card.locked) cardOut(0, Number(card.left));
   /* The first check soon: a card taken out while the page loaded is seen at once (and a sign-in
      held while its page slept is let go as soon as the card is found). */
@@ -4505,7 +4535,7 @@ window.addEventListener('storage', function (e) {
   var v = cardShared();
   if (v && v.end && CARD_WORDS.hasOwnProperty(v.end)) { cardEnd(v.end); return; }
   if (v && v.w === 7) { cardUnable(); return; }
-  if (v && v.w !== 1) cardCheckNow();
+  if (v && (v.w !== 1 || CARD.unable)) cardCheckNow();
 });
 (function () {
   var go = function () {

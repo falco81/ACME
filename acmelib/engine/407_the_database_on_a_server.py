@@ -87,6 +87,55 @@ def ha_peer_node():
     return str(CONFIG.get('ha_peer') or '')
 
 
+def db_agent_layout_b():
+    """Each node's database on a server of its own, replicating (layout B): this node's agent
+    looks after its database and the other acme node is --ha-peer-node."""
+    a = db_agent() or {}
+    return bool(a.get('peer_node')) and CONFIG.get('ha_mode') == 'replicated' and db_agent_here()
+
+
+def ha_own_node():
+    """This node's own address, for what is the nodes' own (keepalived's unicast_src_ip, the
+    address the other node's firewall lets in). ha_address - but in layout B ha_address is this
+    node's database server (the replication's), and this node is the address kept at
+    --ha-setup / --ha-join (node_address in agent.json: the one toward the other node), else
+    the one toward the other node now (1.0.115)."""
+    if db_agent_layout_b():
+        a = db_agent() or {}
+        own = str(a.get('node_address') or '')
+        if own:
+            return own
+        return db_agent_my_address(a.get('peer_node')) or node_address()
+    return str(CONFIG.get('ha_address') or node_address())
+
+
+def db_agent_my_address(toward=None):
+    """This machine's address as a server at `toward` sees it: the source address of the route
+    to it (a node with several addresses - another network for its database server - is let
+    in there by the one it comes from, 1.0.115). `toward`: by default this node's database
+    server. node_address() when there is no route or no name."""
+    a = db_agent() or {}
+    host = str(toward or a.get('db_host') or a.get('host') or '').strip().strip('[]')
+    if host:
+        try:
+            infos = socket.getaddrinfo(host, 9, 0, socket.SOCK_DGRAM)
+        except (OSError, UnicodeError):
+            infos = []
+        for fam, _t, _p, _c, sa in infos[:4]:
+            try:
+                s = socket.socket(fam, socket.SOCK_DGRAM)
+                try:
+                    s.connect(sa)
+                    ip = str(s.getsockname()[0]).split('%')[0]
+                finally:
+                    s.close()
+            except OSError:
+                continue
+            if ip and ip not in ('0.0.0.0', '::'):
+                return ip
+    return node_address()
+
+
 def db_agent_put(changes):
     a = dict(db_agent() or {})
     a.update(changes)
@@ -122,6 +171,8 @@ def db_agent_code(code):
     try:
         data['p'] = int(data.get('p') or 9443)
     except (TypeError, ValueError):
+        raise ValueError('the join code is cut short or mistyped')
+    if data.get('k') and not re.fullmatch(r'[0-9a-f]{64}', str(data['k'])):
         raise ValueError('the join code is cut short or mistyped')
     return data
 
@@ -256,7 +307,7 @@ def db_agent_call(op, args=None, timeout=90, conf=None, _ack=True):
     if st != 200 or not out.get('ok'):
         raise ValueError('the database agent said: %s' % (out.get('said') or 'HTTP %d' % st))
     out.pop('ok', None)
-    if out.pop('agent_restart', False):
+    if out.pop('agent_restart', False) and op != 'leave':
         # Its listening side starts again with what it was given (or its next certificate):
         # waited for.
         time.sleep(0.8)
@@ -277,13 +328,73 @@ def db_agent_call(op, args=None, timeout=90, conf=None, _ack=True):
     return out
 
 
+DBAGENT_CODE_CACHE = {'key': None, 'code': ''}
+
+
+def db_agent_code_ours():
+    """sha256 of the agent's program this acme ships (deploy/acme_db_agent.py and
+    deploy/acme_pg_ops.py, hashed as the agent hashes itself), or '' when they are not here."""
+    folder = Path(__file__).resolve().parent / 'deploy'
+    files = [folder / n for n in ('acme_db_agent.py', 'acme_pg_ops.py')]
+    try:
+        key = tuple((f.stat().st_mtime_ns, f.stat().st_size) for f in files)
+    except OSError:
+        return ''
+    if DBAGENT_CODE_CACHE['key'] != key:
+        h = hashlib.sha256()
+        for f in files:
+            h.update(hashlib.sha256(f.read_bytes()).digest())
+        DBAGENT_CODE_CACHE.update(key=key, code=h.hexdigest())
+    return DBAGENT_CODE_CACHE['code']
+
+
+def _version_tuple(v):
+    m = re.match(r'\d+(?:\.\d+)*', str(v or ''))
+    return tuple(int(x) for x in m.group(0).split('.')) if m else ()
+
+
 def db_agent_version_skew(agent):
-    """The agent's version when it is not acme's own (both as x.y.z), else ''."""
-    def base(v):
-        m = re.match(r'\d+(?:\.\d+)*', str(v or ''))
-        return m.group(0) if m else ''
-    theirs, ours = base((agent or {}).get('version')), base(__version__)
-    return theirs if theirs and ours and theirs != ours else ''
+    """The agent's program against the one this acme ships (1.0.115): {} when it is the same -
+    an acme release that did not change the agent says nothing - else {agent, acme, how}:
+    'older' (upgrade the agent), 'newer' (it came with a newer acme than this one: upgrade
+    acme), 'other' (the same release, another program: changed there by hand). An agent
+    before 1.0.115 says no `code`: its version is compared."""
+    agent = agent or {}
+    theirs, ours = str(agent.get('version') or ''), str(__version__)
+    code, mine = str(agent.get('code') or ''), db_agent_code_ours()
+    if code and mine and hmac.compare_digest(code, mine):
+        return {}
+    if not code and (not theirs or _version_tuple(theirs) == _version_tuple(ours)):
+        return {}
+    if not mine and code:
+        return {}                       # nothing here to compare with
+    t, o = _version_tuple(theirs), _version_tuple(ours)
+    how = 'older' if t and o and t < o else ('newer' if t and o and t > o else
+                                             ('other' if code else 'older'))
+    return {'agent': theirs or '?', 'acme': ours, 'how': how}
+
+
+def db_agent_skew_words(skew, cs=False):
+    """What to do about it, in English or Czech."""
+    a, m, how = skew.get('agent'), skew.get('acme'), skew.get('how') or 'older'
+    if how == 'newer':
+        return ('acme-db-agent %s je novější než toto acme %s - aktualizujte acme na tomto uzlu '
+                '(nebo na databázovém serveru vraťte agenta této verze: ./install.sh --db-agent '
+                'z instalace této verze acme)' % (a, m)) if cs else \
+            ('acme-db-agent %s is newer than this acme %s - upgrade acme on this node (or put '
+             'the agent of this version back on the database server: ./install.sh --db-agent '
+             'from this version of acme)' % (a, m))
+    if how == 'other':
+        return ('program agenta (acme-db-agent %s) není ten, který dodává acme %s (změněn na '
+                'serveru nebo z jiného sestavení) - vraťte ho: ./install.sh --db-agent z instalace '
+                'této verze acme' % (a, m)) if cs else \
+            ('the agent\'s program (acme-db-agent %s) is not the one acme %s ships (changed there, '
+             'or from another build) - put it back: ./install.sh --db-agent from this version of '
+             'acme' % (a, m))
+    return ('acme-db-agent %s, acme %s - aktualizujte agenta na databázovém serveru: '
+            './install.sh --db-agent (z instalace této verze acme)' % (a, m)) if cs else \
+        ('acme-db-agent %s, acme %s - upgrade the agent on the database server: ./install.sh '
+         '--db-agent (from this version of acme)' % (a, m))
 
 
 # ---- joining an agent ------------------------------------------------------------------
@@ -336,6 +447,10 @@ def db_agent_join(store, code, addr='', db_host='', by='command line', say=None)
     was_here = other and db_agent_here()
     node = node_name()
     boot = [data['f']]
+    if not data.get('k'):
+        raise ValueError('the join code holds no key of the agent to seal the join to: the agent '
+                         'is older than this acme - upgrade it on the database server '
+                         '(./install.sh --db-agent, of this version), then make a new code')
 
     def enroll(path, body):
         st, got, _ = _db_agent_http(host, port, path, json.dumps(body).encode(),
@@ -347,10 +462,29 @@ def db_agent_join(store, code, addr='', db_host='', by='command line', say=None)
         if st != 200 or not out.get('ok'):
             raise ValueError('the database agent said: %s' % (out.get('said') or 'HTTP %d' % st))
         return out
-    ask = {'secret': data['s'], 'code_id': str(data.get('i') or ''), 'node': node}
+    cid = str(data.get('i') or '')
+    ask = {'code_id': cid, 'node': node}
     try:
         try:
-            began = enroll('/v1/enroll/begin', ask)
+            # The agent's own key (1.0.115), the one whose fingerprint the code holds: the
+            # code's secret and this node's signing key are sealed to it - the side of the agent
+            # that faces the network passes them on and never sees them.
+            st, got, _ = _db_agent_http(host, port, '/v1/enroll/key', None,
+                                        _db_agent_ctx(with_client=False), boot, timeout=30)
+            try:
+                pub = str(json.loads(got.decode() or '{}').get('pub') or '')
+            except ValueError:
+                pub = ''
+            if st != 200 or not pub:
+                raise ValueError('the database agent at %s:%s gives no key to seal the join to '
+                                 '(HTTP %s): it is older than this acme - upgrade it on the '
+                                 'database server (./install.sh --db-agent)' % (host, port, st))
+            if not hmac.compare_digest(_db_agent_pub_fp(pub), str(data['k'])):
+                raise ValueError('the database agent at %s:%s gives a key to seal the join to that '
+                                 'is not the one of the code - not the agent that made it, or '
+                                 'somebody in between' % (host, port))
+            began = enroll('/v1/enroll/begin', dict(ask, seal=_db_agent_seal(
+                pub, ['begin', cid, node, data['s']])))
         except DbAgentNotSent as e:
             if e.__cause__ is None:
                 raise                                   # a certificate not the code's
@@ -360,21 +494,32 @@ def db_agent_join(store, code, addr='', db_host='', by='command line', say=None)
                          'to this node? (on the database server: firewall-cmd --permanent '
                          '--add-rich-rule=\'rule family="ipv4" source address="%s" port '
                          'port="%s" protocol="tcp" accept\' && firewall-cmd --reload)'
-                         % (host, port, e, node_address() or 'THIS-NODE', port))
+                         % (host, port, e, db_agent_my_address(host) or 'THIS-NODE', port))
     say('the agent at %s:%s answers (acme-db-agent %s, %s) and is the one of the code'
         % (host, port, began.get('version'), began.get('engine')))
     skew = db_agent_version_skew(began)
     if skew:
-        say('NOTE: the agent is acme-db-agent %s, this node acme %s - upgrade it on the '
-            'database server (./install.sh --db-agent, of this version)' % (skew, __version__))
+        say('NOTE: %s' % db_agent_skew_words(skew))
     hatls_ca_ensure(store, by)
     ckey, ccrt = hatls_issue(store, [], eku='clientAuth', days=DBAGENT_CERT_DAYS,
                              cn='acme-' + node)
     trust = hatls_trust(hatls_ca(store))
     sign_key = secrets.token_hex(32)
     enroll('/v1/enroll/finish', dict(ask, token=began.get('token') or '', client_cert=ccrt,
-                                     ca=trust, sign_key=sign_key))
+                                     ca=trust, seal=_db_agent_seal(pub, [
+                                         'finish', cid, node, data['s'], sign_key,
+                                         _db_agent_fp(ccrt)])))
     say('the agent knows this node by its client certificate from acme\'s authority')
+    if other:
+        # The agent there was is told this node is no longer its (1.0.115) - with the key it
+        # knows this node by, before that is replaced: it then waits for it no more.
+        try:
+            db_agent_call('leave', {}, timeout=20, conf=prev)
+            left_old = True
+        except ValueError:
+            left_old = False
+    else:
+        left_old = False
     DBAGENT_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     for name, text, mode in (('client.key', ckey, 0o600), ('client.crt', ccrt, 0o644),
                              ('client-ca.pem', trust, 0o644), ('sign.key', sign_key + '\n', 0o600)):
@@ -395,7 +540,8 @@ def db_agent_join(store, code, addr='', db_host='', by='command line', say=None)
         # The one there was, kept aside as it was (agent.json.replaced): nothing of it - its
         # pins, its other node, its certificate's end - is taken over by this one.
         replaced = {'db_admin': prev.get('db_admin'), 'db_host': prev.get('db_host') or
-                    prev.get('host'), 'engine': prev.get('engine'), 'had_database': was_here}
+                    prev.get('host'), 'engine': prev.get('engine'), 'had_database': was_here,
+                    'left': left_old}
         try:
             os.replace(str(DBAGENT_FILE), str(DBAGENT_FILE) + '.replaced')
         except OSError:
@@ -420,7 +566,7 @@ def db_agent_join(store, code, addr='', db_host='', by='command line', say=None)
     # Its firewall opened to this node (the database's port and the agent's), where firewalld
     # runs there - joined without --acme-node, nothing else would.
     try:
-        for line in db_agent_fw([node_address()], agent=True).get('said') or []:
+        for line in db_agent_fw([db_agent_my_address(db_host or host)], agent=True).get('said') or []:
             say('the database server: %s' % line)
     except ValueError as e:
         say('the database server\'s firewall was not opened to this node: %s' % e)
@@ -436,6 +582,14 @@ def db_agent_join(store, code, addr='', db_host='', by='command line', say=None)
             'replaced_said': db_agent_replaced_words(replaced) if replaced else ''}
 
 
+def db_agent_left_words(left, where=''):
+    """Whether the agent let go took this node off its list (1.0.115: `leave`)."""
+    if left:
+        return 'that agent took this node off its list'
+    return ('that agent did not answer: it keeps this node\'s certificate until acme_db_agent.py '
+            '--forget %s there%s' % (node_name(), (' (%s)' % where) if where else ''))
+
+
 def db_agent_replaced_words(r):
     """What joining another agent did to the one there was (one agent per node)."""
     old = str(r.get('db_admin') or '')[len('agent:'):]
@@ -443,11 +597,39 @@ def db_agent_replaced_words(r):
         return ('this node\'s database is still on %s, whose agent (%s) acme no longer asks: '
                 'move the database onto the new server next (acme --db-move, or Settings -> The '
                 'database -> Move) - until then nothing of that server is looked after (its '
-                'certificate is not renewed). That agent keeps this node\'s certificate until '
-                'acme_db_agent.py --forget %s there' % (r.get('db_host'), old, node_name()))
-    return ('the agent joined before (%s) is no longer this node\'s - one agent a node; it keeps '
-            'this node\'s certificate until acme_db_agent.py --forget %s there'
-            % (old, node_name()))
+                'certificate is not renewed); %s' % (r.get('db_host'), old,
+                                                    db_agent_left_words(r.get('left'))))
+    return ('the agent joined before (%s) is no longer this node\'s - one agent a node; %s'
+            % (old, db_agent_left_words(r.get('left'))))
+
+
+def _db_agent_pub_fp(pem):
+    """sha256 of a public key's DER (SubjectPublicKeyInfo), as the join code holds it."""
+    body = ''.join(x.strip() for x in str(pem or '').splitlines()
+                   if x.strip() and not x.startswith('-----'))
+    try:
+        return hashlib.sha256(base64.b64decode(body)).hexdigest()
+    except (ValueError, binascii.Error):
+        return ''
+
+
+def _db_agent_seal(pub, fields):
+    """`fields` (lines) sealed to the agent's own key, RSA-OAEP with SHA-256 (openssl): only
+    root on the agent opens them."""
+    if any('\n' in str(x) for x in fields):
+        raise ValueError('a line of the join holds a line break')
+    text = '\n'.join(['acme-db-agent-seal/1'] + [str(x) for x in fields]).encode()
+    with tempfile.TemporaryDirectory(prefix='acme-seal-') as t:
+        path = os.path.join(t, 'pub.pem')
+        with open(path, 'w') as f:
+            f.write(pub)
+        got = subprocess.run(['openssl', 'pkeyutl', '-encrypt', '-pubin', '-inkey', path,
+                              '-pkeyopt', 'rsa_padding_mode:oaep', '-pkeyopt', 'rsa_oaep_md:sha256',
+                              '-pkeyopt', 'rsa_mgf1_md:sha256'], input=text, capture_output=True)
+    if got.returncode != 0 or not got.stdout:
+        raise ValueError('the join could not be sealed to the agent\'s key: %s'
+                         % got.stderr.decode(errors='replace').strip()[-200:])
+    return base64.b64encode(got.stdout).decode()
 
 
 def db_agent_ha_ca_local(trust):
@@ -479,12 +661,41 @@ def db_agent_ha_ca_local(trust):
                     % (HA_CA_FILE, e), 'warn', every=3600)
 
 
-def db_agent_forget(store=None, by='command line', why='', drop_rows=True):
-    """Back to looking after a database on this machine (db_admin local). The agent keeps
-    this node's certificate until it is told otherwise (acme_db_agent.py --forget NODE)."""
+def db_agent_forget_refused():
+    """Why this node's agent may not be let go now ('' when it may): in layout B its database
+    is on the agent's server and the replication runs through it - forgotten, ha_peer_node()
+    would fall back to ha_peer, the other DATABASE server, as the other node (the VIP address,
+    the firewall, the clocks), and nothing of the server would be looked after (1.0.115)."""
+    a = db_agent()
+    if not a or not CONFIG.get('ha_mode') or not db_agent_here():
+        return ''
+    return ('this node is one of a cluster and its database is on %s, looked after by the agent '
+            'at %s:%s: the agent is not let go - take the cluster apart first (Settings -> High '
+            'availability)' % (a.get('db_host') or a.get('host'), a.get('host'), a.get('port')))
+
+
+def db_agent_forget(store=None, by='command line', why='', drop_rows=True, leave=True,
+                    force=False):
+    """Back to looking after a database on this machine (db_admin local). The agent is told
+    this node is no longer its (`leave`, 1.0.115 - only this node is taken off its list); one
+    that does not answer keeps this node's certificate until acme_db_agent.py --forget NODE
+    there. Returns False when there was no agent, else whether the agent took it in (True) or
+    did not answer (None). ValueError while db_agent_forget_refused() says why not (unless
+    `force`: the node is being taken away, or its database has just moved off)."""
     a = db_agent()
     if not a:
         return False
+    refused = '' if force else db_agent_forget_refused()
+    if refused:
+        raise ValueError(refused)
+    left = None
+    if leave:
+        try:
+            db_agent_call('leave', {}, timeout=20, conf=a)
+            left = True
+        except ValueError as e:
+            log('the database agent %s was not told this node leaves it: %s'
+                % (a.get('db_admin'), str(e)[:200]), 'warn')
     try:
         os.replace(str(DBAGENT_FILE), str(DBAGENT_FILE) + '.forgotten')
     except OSError:
@@ -498,9 +709,10 @@ def db_agent_forget(store=None, by='command line', why='', drop_rows=True):
         if drop_rows:
             db_agent_rows_drop(store.db)
         store.add_event('settings', '%s: %s no longer looks after its database server through '
-                        'acme-db-agent (%s)%s' % (by, node_name(), a.get('db_admin'),
-                                                   (' - ' + why) if why else ''), 'warn', who=by)
-    return True
+                        'acme-db-agent (%s)%s; %s' % (by, node_name(), a.get('db_admin'),
+                                                       (' - ' + why) if why else '',
+                                                       db_agent_left_words(left)), 'warn', who=by)
+    return True if left else None
 
 
 def db_agent_rows_drop(db, node=None):
@@ -522,12 +734,12 @@ def db_agent_after_move(store, was_here, c, by):
     a = db_agent()
     if not a or not was_here or db_agent_is_target(c):
         return ''
-    words = ('acme-db-agent at %s:%s no longer looks after this node\'s database (it is %s now): '
-             'db_admin is local again; the agent keeps this node\'s certificate until '
-             'acme_db_agent.py --forget %s on %s' % (a.get('host'), a.get('port'), db_where(c),
-                                                     node_name(), a.get('db_host') or a.get('host')))
-    db_agent_forget(store, by, 'the database was moved off its server', drop_rows=False)
-    return words
+    left = db_agent_forget(store, by, 'the database was moved off its server', drop_rows=False,
+                           force=True)
+    return ('acme-db-agent at %s:%s no longer looks after this node\'s database (it is %s now): '
+            'db_admin is local again; %s' % (a.get('host'), a.get('port'), db_where(c),
+                                             db_agent_left_words(left, a.get('db_host') or
+                                                                 a.get('host'))))
 
 
 # ---- what the root helper did, done by the agent ------------------------------------------
@@ -590,7 +802,7 @@ def db_agent_prepare(peer, name, user, password, say, extra=()):
     other acme node, and this node (it opens its database from its own address)."""
     a = db_agent() or {}
     peers = []
-    for x in [peer, a.get('peer_node'), node_address(), '127.0.0.1'] + list(extra):
+    for x in [peer, a.get('peer_node'), db_agent_my_address(), '127.0.0.1'] + list(extra):
         x = str(x or '').strip()
         try:
             x = str(plain_ip(x, 'address')) if x else ''
@@ -634,13 +846,16 @@ def db_agent_running():
 
 def db_agent_dbmake(c):
     """The database and its account made on the agent's server, let in from this node."""
-    peers = [x for x in (node_address(), '127.0.0.1') if x]
+    # This node by the address its database server sees it from (1.0.115: a node with several
+    # addresses was let in by the one it reaches the outside with).
+    me = db_agent_my_address(c.get('db_host'))
+    peers = [x for x in (me, '127.0.0.1') if x]
     got = db_agent_call('dbmake', {'name': c['db_name'], 'user': c['db_user'],
                                    'password': c['db_password'], 'peers': peers}, timeout=120)
     said = list(got.get('said') or [])
     # The database's port opened to this node where firewalld runs there (1.0.113).
     try:
-        said += list(db_agent_fw([node_address()]).get('said') or [])
+        said += list(db_agent_fw([me]).get('said') or [])
     except ValueError as e:
         said.append('the firewall of the database server was not opened to this node: %s' % e)
     return said
@@ -843,7 +1058,7 @@ def db_agent_look(store):
         # The agent of another version than this acme (1.0.113): said on the card, in the
         # status and as an alert - it is upgraded on its server (install.sh --db-agent).
         skew = db_agent_version_skew(got.get('agent') or {})
-        row['version_skew'] = {'agent': skew, 'acme': __version__} if skew else None
+        row['version_skew'] = skew or None
         if was_down:
             store.add_event('ha', 'the database agent of %s (%s:%s) answers again'
                             % (node_name(), a.get('host'), a.get('port')))
@@ -1011,6 +1226,8 @@ def db_agent_view(store):
                     # the move wizard opened from the card is filled in with it
                     db_port=a.get('my_port' if a.get('engine') == 'mariadb' else 'pg_port'), joined_at=a.get('at'), joined_by=a.get('by'),
                     peer_node=a.get('peer_node') or '',
+                    # layout B: the agent is not let go (1.0.115) - the card hides Forget
+                    forget_refused=db_agent_forget_refused(),
                     agent_cert_end=a.get('agent_cert_end'),
                     client_cert_end=a.get('client_cert_end'),
                     state={'ok': DBAGENT_STATE['ok'], 'down_since': DBAGENT_STATE['down_since'],
@@ -1119,8 +1336,12 @@ def _db_agent_post(h):
             return {'message': db_agent_mariadb_tls(h.store, by).get('said') or '',
                     'view': db_agent_view(h.store)}
         if act == 'forget':
-            db_agent_forget(h.store, by)
-            return {'view': db_agent_view(h.store)}
+            refused = db_agent_forget_refused()
+            if refused:
+                raise ApiError(409, refused)
+            left = db_agent_forget(h.store, by)
+            return {'view': db_agent_view(h.store), 'left': bool(left),
+                    'message': db_agent_left_words(left)}
     except ValueError as e:
         raise ApiError(400, str(e))
     raise ApiError(400, 'the action is join, look, renew, restart, mariadb_tls or forget')
@@ -1162,18 +1383,22 @@ def _db_agent_alerts(store, lang='en'):
                         'words': ('jeho agent (%s) odpovídá, databáze ne: %s' % (where, said))
                                  if cs else ('its agent (%s) answers, the database does not: %s'
                                              % (where, said))})
-        elif v.get('ok') and float(v.get('agent_cert_end') or now + 1e9) - now < 14 * 86400:
+        elif v.get('ok') and db_agent_cert_late(v, now):
             end = datetime.fromtimestamp(float(v['agent_cert_end'])).strftime('%Y-%m-%d')
+            days = int((v.get('agent') or {}).get('force_days') or DBAGENT_FORCE_DAYS)
             out.append({'key': 'dbagent:cert:' + n, 'level': 'warn', 'node': n, 'pane': 'db',
                         'title': ('Certifikát agenta databázového serveru uzlu %s brzy vyprší'
                                   % n) if cs else
                                  ('The certificate of the database agent of %s ends soon' % n),
-                        'words': ('vyprší %s; agent ho obnovuje sám 60 dní předem, a to se '
-                                  'nepovedlo - Nastavení → Databáze → Databázový server → Obnovit '
-                                  'certifikáty' % end) if cs else
-                                 ('it ends %s; the agent renews it by itself 60 days before, and '
-                                  'that did not work - Settings → The database → Database server '
-                                  '→ Renew the certificates' % end)})
+                        'words': ('vyprší %s; agent si další dělá sám 60 dní předem a sám na něj '
+                                  'přejde %d dní před koncem (dřív, jakmile ho vzaly všechny uzly), '
+                                  'a to se nestalo - Nastavení → Databáze → Databázový server → '
+                                  'Obnovit certifikáty' % (end, days)) if cs else
+                                 ('it ends %s; the agent makes the next one by itself 60 days '
+                                  'before and switches by itself %d days before the end (sooner, '
+                                  'once every node took it in), and that did not happen - '
+                                  'Settings → The database → Database server → Renew the '
+                                  'certificates' % (end, days))})
         if v.get('ok') and float(v.get('client_cert_end') or now + 1e9) - now < 14 * 86400:
             # This node's client certificate too (1.0.113): ended, the agent no longer lets the
             # node in.
@@ -1193,17 +1418,39 @@ def _db_agent_alerts(store, lang='en'):
                                   'certificates (acme --db-agent-renew)' % end)})
         skew = v.get('version_skew') or {}
         if v.get('ok') and skew.get('agent'):
+            how = skew.get('how') or 'older'
             out.append({'key': 'dbagent:version:' + n, 'level': 'warn', 'node': n, 'pane': 'db',
-                        'title': ('Agent databázového serveru uzlu %s má jinou verzi než acme'
+                        'title': ({'newer': 'Agent databázového serveru uzlu %s je novější než '
+                                            'acme',
+                                   'other': 'Agent databázového serveru uzlu %s není ten, který '
+                                            'acme dodává'}.get(how, 'Agent databázového serveru '
+                                                              'uzlu %s má jinou verzi než acme')
                                   % n) if cs else
-                                 ('The database agent of %s is another version than acme' % n),
-                        'words': ('acme-db-agent %s, acme %s - aktualizujte agenta na '
-                                  'databázovém serveru: ./install.sh --db-agent (z instalace této '
-                                  'verze acme)' % (skew.get('agent'), skew.get('acme'))) if cs else
-                                 ('acme-db-agent %s, acme %s - upgrade the agent on the database '
-                                  'server: ./install.sh --db-agent (from this version of acme)'
-                                  % (skew.get('agent'), skew.get('acme')))})
+                                 ({'newer': 'The database agent of %s is newer than acme',
+                                   'other': 'The database agent of %s is not the one acme '
+                                            'ships'}.get(how, 'The database agent of %s is '
+                                                          'another version than acme') % n),
+                        'words': db_agent_skew_words(skew, cs)})
     return out
+
+
+DBAGENT_FORCE_DAYS = 7          # the agent's AGENT_FORCE_DAYS: it switches by itself then
+
+
+def db_agent_cert_late(v, now=None):
+    """The agent's certificate ends within 14 days and the agent did not do what it does by
+    itself (1.0.115, as the agent does it): no next one announced - or one announced and the
+    switch to it, due 7 days before the end at the latest, not done. Within 14 days with the
+    next one announced is no alert: it switches by itself."""
+    now = time.time() if now is None else now
+    end = float(v.get('agent_cert_end') or now + 1e9)
+    if end - now >= 14 * 86400:
+        return False
+    ag = v.get('agent') or {}
+    days = float(ag.get('force_days') or DBAGENT_FORCE_DAYS)
+    if ag.get('cert_next_fp') and end - now > days * 86400 - 3600:
+        return False
+    return True
 
 
 @hook('metrics')
@@ -1231,11 +1478,23 @@ def _db_agent_status_lines(store, pal):
         a.get('db_host'), a.get('host'), a.get('port'),
         ('answers; %s %s' % (f.get('engine'), f.get('version') or '')) if ok else
         ('does NOT answer: %s' % (row.get('said') or '?')) if ok is False else 'not looked at yet')
+    out = [words]
     skew = row.get('version_skew') or {}
     if ok and skew.get('agent'):
-        return [words, '  database agent: acme-db-agent %s, acme %s - upgrade it on the database '
-                'server (./install.sh --db-agent)' % (skew['agent'], skew.get('acme'))]
-    return [words]
+        out.append('  database agent: %s' % db_agent_skew_words(skew))
+    ag = row.get('agent') or {}
+    gone = [x.get('name') for x in ag.get('clients') or [] if isinstance(x, dict) and
+            x.get('stale')]
+    if ok and gone:
+        out.append('  database agent: not heard from for %s days, not waited for: %s - take a '
+                   'node gone for good away there (acme_db_agent.py --forget NODE)'
+                   % (ag.get('stale_days') or 30, ', '.join(map(str, gone))))
+    if ok and ag.get('busy'):
+        b = ag['busy']
+        out.append('  database agent: busy with %s for %s since %s' % (
+            b.get('op'), b.get('node'), datetime.fromtimestamp(float(b.get('since') or 0))
+            .strftime('%H:%M:%S')))
+    return out
 
 
 # ---- the command line -------------------------------------------------------------------------
@@ -1260,7 +1519,12 @@ def _db_agent_cli_args(p):
     g.add_argument('--db-agent-mariadb-tls', action='store_true', help='MariaDB on the agent\'s '
                    'server given a certificate from acme\'s authority')
     g.add_argument('--db-agent-forget', action='store_true', help='back to looking after a '
-                   'database on this machine (db_admin local) - with --yes')
+                   'database on this machine (db_admin local), the agent told this node leaves '
+                   'it - with --yes; refused while this node\'s database is on the agent\'s '
+                   'server in a cluster')
+    g.add_argument('--db-agent-leave', action='store_true', help='this node is being taken '
+                   'away (install.sh --uninstall): the agent takes it off its list and the node '
+                   'forgets it, whatever its database - with --yes')
     g.add_argument('--ha-peer-node', metavar='ADDRESS', help='--ha-setup with the databases on '
                    'servers of their own: the other acme node\'s address (its database server '
                    'is --ha-peer)')
@@ -1270,7 +1534,7 @@ def _db_agent_cli_args(p):
 def _db_agent_cli(args):
     if not any(getattr(args, k, None) for k in (
             'db_agent_join', 'db_agent_status', 'db_agent_renew', 'db_agent_restart',
-            'db_agent_mariadb_tls', 'db_agent_forget')):
+            'db_agent_mariadb_tls', 'db_agent_forget', 'db_agent_leave')):
         return None
     ok_line = (lambda t: print('  ok   ' + t))
     os.environ['ACME_STAY_ROOT'] = '1'
@@ -1304,12 +1568,23 @@ def _db_agent_cli(args):
         if not os.environ.get('ACME_HA_NO_RESTART') and os.geteuid() == 0:
             subprocess.run(['systemctl', 'restart', 'acme'], capture_output=True)
         return 0
-    if args.db_agent_forget:
+    if args.db_agent_forget or getattr(args, 'db_agent_leave', False):
+        if not db_agent_on():
+            print('acme: db_admin was local already')
+            return 0
+        refused = '' if getattr(args, 'db_agent_leave', False) else db_agent_forget_refused()
+        if refused:
+            raise SystemExit('acme: %s' % refused)
         if not args.yes:
             raise SystemExit('acme: the database server is then looked after as one on this '
                              'machine (the root helper) - again with --yes')
-        print('acme: %s' % ('db_admin is local again' if db_agent_forget(store) else
-                            'db_admin was local already'))
+        try:
+            left = db_agent_forget(store, 'command line', 'this node is being taken away'
+                                   if getattr(args, 'db_agent_leave', False) else '',
+                                   force=bool(getattr(args, 'db_agent_leave', False)))
+        except ValueError as e:
+            raise SystemExit('acme: %s' % e)
+        print('acme: db_admin is local again; %s' % db_agent_left_words(left))
         return 0
     if not db_agent_on():
         raise SystemExit('acme: this node has no database agent (db_admin is local)')
@@ -1338,8 +1613,13 @@ def _db_agent_cli(args):
         if ag.get('cert_end') else '?') if row.get('ok') else 'does NOT answer: %s'
         % row.get('said')))
     if (row.get('version_skew') or {}).get('agent'):
-        print('  NOTE:     acme-db-agent %s, acme %s - upgrade the agent on the database server '
-              '(./install.sh --db-agent)' % (row['version_skew']['agent'], __version__))
+        print('  NOTE:     %s' % db_agent_skew_words(row['version_skew']))
+    for x in ag.get('clients') or []:
+        if isinstance(x, dict):
+            print('  node:     %s%s' % (x.get('name'), ' - not heard from for %s days, not waited '
+                                         'for (acme_db_agent.py --forget %s there if it is gone)'
+                                         % (ag.get('stale_days') or 30, x.get('name'))
+                                         if x.get('stale') else ''))
     if f:
         print('  server:   %s %s on %s - %s, TLS %s' % (
             f.get('engine'), f.get('version') or '', f.get('host'),

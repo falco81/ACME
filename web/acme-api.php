@@ -495,16 +495,30 @@ function acme_cert_back(string $part, string $said = '', string $more = ''): voi
     where its cookie does come), 7 this browser cannot be checked (no check in the background ever
     found the card here - an iPad): not watched; 403 - no such sign-in (or another site's page
     asking). (The kit's 3 and 4 - no cookie, cannot be checked - are 6 and 7 here: 3-5 were
-    acme's already.) A picture: no CORS, nothing for another site to read. */
+    acme's already.) 8 (nginx itself, 1.0.115): too many checks or PHP / the daemon not
+    answering - try later, neither the card out nor a browser that cannot be checked; PHP says
+    8 too when the daemon does not answer.
+    1.0.115: only this name's own page on 443 - the picture is asked with crossorigin
+    "use-credentials", so the browser sends its Origin, which must be https://<this name>; the
+    answer carries CORS for exactly that origin. Before, a page of a sibling host (same site: its
+    pictures get the SameSite=Strict cookie too) could make the check and read its width. */
 function acme_cert_alive(string $part, bool $fail): void
 {
     header('Cache-Control: no-store');
-    /* Only this site's own pages: another site's picture gets nothing (it has no cookie either -
-       SameSite=Strict). */
-    if ((string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '') === 'cross-site') {
+    $host = strtolower(preg_replace('/:\d{1,5}\z/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')));
+    $origin = strtolower((string) ($_SERVER['HTTP_ORIGIN'] ?? ''));
+    $site = (string) ($_SERVER['HTTP_SEC_FETCH_SITE'] ?? '');
+    $dest = (string) ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? '');
+    if ($host === '' || preg_match('/^([a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?|\[[0-9a-f:.]{2,45}\])\z/', $host) !== 1
+            || !hash_equals('https://' . $host, $origin)
+            || ($site !== '' && !in_array($site, ['same-site', 'same-origin'], true))
+            || ($site !== '' && $dest !== 'image')) {
         http_response_code(403);
         exit;
     }
+    header('Access-Control-Allow-Origin: https://' . $host);
+    header('Access-Control-Allow-Credentials: true');
+    header('Vary: Origin');
     /* No cookie came with the check (1.0.114, the kit's 3rd edition): said as such - 6 wide -
        rather than as the card out; the page tells the server over 443 (cert-lost, why
        nocookie), where its cookie does come. Nothing asked here. */
@@ -525,6 +539,9 @@ function acme_cert_alive(string $part, bool $fail): void
         if ($state === 'gone') {
             $wide = ['other' => 3, 'out' => 4, 'late' => 5][(string) ($d['why'] ?? '')] ?? 4;
         }
+        if ($status === 0 || $status >= 500) {
+            $wide = 8;          /* the daemon not answering: try later (1.0.115) */
+        }
     }
     if ($wide === 0) {
         http_response_code(403);
@@ -538,7 +555,8 @@ function acme_cert_alive(string $part, bool $fail): void
         4 => 'R0lGODlhBAABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAAEAAEAAAgGAAEIBBAQADs=',
         5 => 'R0lGODlhBQABAIEAAAAAAP///wAAAAAAACH5BAEAAAAALAAAAAAFAAEAAAgGAAEIFBgQADs=',
         6 => 'R0lGODlhBgABAIEAAAAAAAAAAAAAAAAAACH5BAEAAAAALAAAAAAGAAEAAAgGAAEIHBgQADs=',
-        7 => 'R0lGODlhBwABAIEAAAAAAAAAAAAAAAAAACH5BAEAAAAALAAAAAAHAAEAAAgHAAEIHAggIAA7'][$wide]);
+        7 => 'R0lGODlhBwABAIEAAAAAAAAAAAAAAAAAACH5BAEAAAAALAAAAAAHAAEAAAgHAAEIHAggIAA7',
+        8 => 'R0lGODlhCAABAIEAAAAAAAAAAAAAAAAAACH5BAEAAAAALAAAAAAIAAEAAAgHAAEIHCgwIAA7'][$wide]);
     exit;
 }
 
