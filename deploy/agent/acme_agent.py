@@ -35,6 +35,9 @@ Two processes:
   acme-agent fingerprint                 the fingerprint acme asks you to confirm
   acme-agent forget                      leave acme: its keys and pins taken away
   acme-agent policy show [--json]        what acme may do here
+  acme-agent policy check FILE|-         a whole policy checked: what the agent would not read
+  acme-agent policy apply FILE|-         ...and written in place of the one there (as root; the
+                                         one before kept as policy.DATE) - acme's policy builder
   acme-agent allow file DIR [--owner U:G] [--mode 0640]
   acme-agent allow unit NAME reload,restart
   acme-agent allow test -- COMMAND ARGS...
@@ -622,7 +625,8 @@ def proven_endpoints(j, ans, nonce):
 POLICY_HEAD = """# /etc/acme-agent/policy - what acme may do on this machine (docs/target-agent.md).
 # acme proposes, this machine decides: nothing is allowed that is not written here, and acme
 # can never change this file. Change it with `acme-agent allow ...` / `acme-agent deny ...`
-# (or by hand: one entry a line; `acme-agent policy show` checks it).
+# (or by hand: one entry a line; `acme-agent policy show` checks it), or write it whole with
+# `acme-agent policy apply FILE` (checked first; the one before kept as policy.DATE).
 #
 #   allow file DIR owner=USER:GROUP mode=0640   files in DIR (and below), at most that mode
 #   allow unit NAME reload,restart              systemctl VERB NAME
@@ -995,6 +999,223 @@ def policy_report(pol, h):
             'from': pol['from'], 'self_update': pol['self_update'], 'connect': pol['connect'],
             'probe': pol.get('probe') or [], 'probe_local': bool(pol.get('probe_local')),
             'limits': pol['limits'], 'problems': pol['problems'][:20]}
+
+
+# ---- a whole policy checked before it is written (1.0.118: acme-agent policy check / apply,
+# the policy builder of acme's pages - which checks the same with the same facts, policy_facts)
+SHELLS = ('sh', 'bash', 'dash', 'zsh', 'ksh', 'mksh', 'csh', 'tcsh', 'fish', 'busybox', 'python',
+          'python3', 'perl', 'ruby', 'php', 'node')
+CONFIG_OK = ('/etc/ssl', '/etc/pki')    # /etc/NAME of certificates, not of a service's settings
+POLICY_COPIES = 10                      # the copies of the policy apply keeps (policy.DATE)
+
+
+def own_places():
+    """The agent's own places: never written by a job (protected)."""
+    own = [ETC, STATE, ROOT_STATE, RUN]
+    try:
+        own.append(lib_dir())
+    except Exception:                                   # noqa: BLE001
+        pass
+    return own
+
+
+def policy_facts():
+    """What the policy builder of acme's pages checks with - the very lists the agent uses."""
+    return {'protected': list(PROTECTED), 'parts': list(PROTECTED_PARTS),
+            'own': ['/etc/acme-agent', '/var/lib/acme-agent', '/var/lib/acme-agent-root',
+                    '/run/acme-agent'], 'verbs': list(VERBS), 'shells': list(SHELLS),
+            'config_ok': list(CONFIG_OK), 'head': POLICY_HEAD,
+            'limits': {'files': FILES_MOST, 'size': FILE_MOST, 'files_most': 200,
+                       'size_most': 64 * 1024 * 1024}}
+
+
+def _shell_line(argv):
+    """A test that is a shell (or an interpreter) given a program on its command line."""
+    prog = os.path.basename(argv[0]) if argv else ''
+    prog = re.sub(r'[0-9.]+\Z', '', prog) or prog
+    return prog in SHELLS and any(a in ('-c', '-e', '-E', '--command', '--eval') for a in argv[1:])
+
+
+def policy_check(text, machine=False):
+    """A policy file checked as `acme-agent policy apply` checks it before it writes it ->
+    {'pol', 'lines', 'errors': [{line, code, words}], 'warnings': [...]}. An error is a line the
+    agent would not read (the line left out - `apply` writes nothing then) or one that can never
+    allow anything (a folder under a place no job ever writes); a warning is what the policy
+    allows but should be looked at twice. `machine`: on the server itself - each folder its
+    real path, each script there with the SHA-256 the line says, each owner an account."""
+    errors, warnings = [], []
+    entries = []                                        # (line number, its own parse)
+    for n, raw in enumerate(str(text or '').splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        one = parse_policy(line)
+        if one['problems']:
+            errors.append({'line': n, 'code': 'unread',
+                           'words': one['problems'][0].split(': ', 1)[-1]})
+            continue
+        entries.append((n, one))
+    pol = parse_policy(text)
+    dirs = [f['dir'] for f in pol['files']]
+    tops = list(PROTECTED) + own_places()
+    seen_dirs, seen_scripts = {}, {}
+
+    def warn(n, code, words):
+        warnings.append({'line': n, 'code': code, 'words': words})
+
+    def inside(path):
+        return [d for d in dirs if _under(path, d) and path != d]
+    for n, one in entries:
+        for f in one['files']:
+            d = f['dir']
+            why = protected(d)
+            if why:
+                errors.append({'line': n, 'code': 'protected', 'words': why.replace(
+                    ' - never written by a job', ' - no job ever writes there')})
+                continue
+            if d in seen_dirs:
+                warn(n, 'twice', 'files in %s are said twice (line %d too): only this line '
+                                 'counts' % (d, seen_dirs[d]))
+            seen_dirs[d] = n
+            under = [t for t in tops if _under(t, d) and t != d]
+            if under:
+                warn(n, 'above-protected', '%s holds places no job ever writes (%s%s): the rest '
+                     'of it is allowed - allow the narrowest folder that holds only certificates'
+                     % (d, ', '.join(under[:3]), ' …' if len(under) > 3 else ''))
+            elif re.fullmatch(r'/etc/[^/]+', d) and d not in CONFIG_OK:
+                warn(n, 'config-folder', '%s is a folder of configuration: acme could write a '
+                     'file the service then reads as root - allow its ssl or certs sub-folder '
+                     'where it can' % d)
+            if f['mode'] & 0o111:
+                warn(n, 'exec-bits', 'mode %04o: no file acme-agent writes is ever executable - '
+                     'its x bits are never given (%04o is what a file gets at most)' % (
+                         f['mode'], f['mode'] & 0o666))
+            if machine:
+                real = os.path.realpath(d)
+                if real != d:
+                    errors.append({'line': n, 'code': 'link', 'words': '%s is %s (a link on the '
+                                   'way) - write the real folder' % (d, real)})
+                try:
+                    owner_ids(f['owner'], f['group'])
+                except Refused as e:
+                    warn(n, 'no-owner', '%s - a file of this folder owned so is refused' % e)
+        for argv in one['tests']:
+            if _shell_line(argv):
+                warn(n, 'shell', '%s runs what its command line says as root - a fixed script '
+                     '(allow script) says what it runs' % ' '.join(
+                         shlex.quote(a) for a in argv[:3]))
+            for w in argv:
+                if w.startswith('/') and inside(os.path.normpath(w)):
+                    warn(n, 'runs-from', '%s is in a folder allowed for files (%s): the test runs '
+                         'it, so a job never writes it' % (w, inside(os.path.normpath(w))[0]))
+        for s in one['scripts']:
+            if s['path'] in seen_scripts:
+                warn(n, 'twice', 'the script %s is said twice (line %d too): only this line '
+                                 'counts' % (s['path'], seen_scripts[s['path']]))
+            seen_scripts[s['path']] = n
+            if inside(s['path']):
+                warn(n, 'runs-from', '%s is in a folder allowed for files (%s): the policy runs '
+                     'it, so a job never writes it' % (s['path'], inside(s['path'])[0]))
+            if machine:
+                try:
+                    with open(s['path'], 'rb') as fh:
+                        h = _sha(fh.read())
+                except OSError as e:
+                    errors.append({'line': n, 'code': 'script-missing', 'words': '%s cannot be '
+                                   'read here (%s) - acme-agent allow script pins a script that is '
+                                   'there' % (s['path'], e.strerror or e)})
+                    continue
+                if h != s['sha256']:
+                    errors.append({'line': n, 'code': 'script-hash', 'words': '%s is not the '
+                                   'script the line says: its SHA-256 here is %s' % (
+                                       s['path'], h)})
+        for c in one['connect']:
+            warn(n, 'connect', 'acme may reach %s through this server (a connector of SSH '
+                               'targets)' % c)
+    return {'pol': pol, 'lines': policy_lines(pol), 'errors': errors, 'warnings': warnings}
+
+
+def _policy_input(src):
+    """The text of a policy given to check / apply: a file, or - (standard input)."""
+    try:
+        if src == '-':
+            raw = sys.stdin.buffer.read(POLICY_MOST + 1)
+        else:
+            with open(src, 'rb') as fh:
+                raw = fh.read(POLICY_MOST + 1)
+    except OSError as e:
+        raise SystemExit('acme-agent: %s cannot be read: %s' % (src, e.strerror or e))
+    if len(raw) > POLICY_MOST:
+        raise SystemExit('acme-agent: a policy is %d bytes at most' % POLICY_MOST)
+    try:
+        text = raw.decode('utf-8')
+    except UnicodeDecodeError:
+        raise SystemExit('acme-agent: the policy is not UTF-8 text')
+    if '\x00' in text:
+        raise SystemExit('acme-agent: the policy holds a NUL byte')
+    return text
+
+
+def _say_check(got):
+    for x in sorted(got['errors'] + got['warnings'], key=lambda x: x['line']):
+        print('line %d: %s: %s' % (x['line'], 'error' if x in got['errors'] else 'warning',
+                                   x['words']))
+    print('%d entr%s, %d error%s, %d warning%s' % (
+        len(got['lines']), 'y' if len(got['lines']) == 1 else 'ies', len(got['errors']),
+        '' if len(got['errors']) == 1 else 's', len(got['warnings']),
+        '' if len(got['warnings']) == 1 else 's'))
+
+
+def policy_apply(text):
+    """`acme-agent policy apply`: the whole policy replaced by `text` - checked first (any line
+    the agent would not read, a folder no job may write, a script not there with its hash:
+    nothing written), root:root 0644 written atomically, the one before kept as
+    policy.YYYYMMDD-HHMMSS (the last ten). The root side reads it with its next job."""
+    got = policy_check(text, machine=True)
+    _say_check(got)
+    if got['errors']:
+        print('acme-agent: nothing written - %d line%s the agent would not take (above)' % (
+            len(got['errors']), '' if len(got['errors']) == 1 else 's'))
+        audit(op='policy-apply', ok=False, said='%d errors' % len(got['errors']))
+        return 1
+    if not text.endswith('\n'):
+        text += '\n'
+    os.makedirs(ETC, exist_ok=True)
+    old, problem = trusted_text(POLICY, 'it is replaced')
+    if old is not None and old == text:
+        print('nothing changes: %s says this already' % POLICY)
+        return 0
+    kept = ''
+    if old is not None:
+        stamp = time.strftime('%Y%m%d-%H%M%S')
+        kept = POLICY + '.' + stamp
+        i = 1
+        while os.path.lexists(kept):
+            i += 1
+            kept = '%s.%s-%d' % (POLICY, stamp, i)
+        _write(kept, old, 0o600, (0, 0))
+        mine = sorted(n for n in os.listdir(ETC)
+                      if re.fullmatch(r'policy\.\d{8}-\d{6}(-\d+)?', n))
+        for n in mine[:-POLICY_COPIES]:
+            try:
+                os.unlink(os.path.join(ETC, n))
+            except OSError:
+                pass
+    elif problem:
+        print('note: %s' % problem)
+    _write(POLICY, text, 0o644, (0, 0))
+    import difflib
+    diff = list(difflib.unified_diff((old or '').splitlines(), text.splitlines(),
+                                     'policy (before)', 'policy (now)', lineterm='', n=0))
+    for line in diff:
+        if not line.startswith('@@'):
+            print(line)
+    said = 'applied: %d entr%s in %s%s - the root side reads it with its next job' % (
+        len(got['lines']), 'y' if len(got['lines']) == 1 else 'ies', POLICY,
+        (' (the one before: %s)' % kept) if kept else '')
+    audit(op='policy-apply', ok=True, said=said[:300])
+    print(said)
+    return 0
 
 
 # What acme is told to run on this machine, to allow something (docs/target-agent.md).
@@ -3493,6 +3714,21 @@ def policy_words(words):
 
 
 def cmd_policy(argv):
+    if argv[:1] in (['check'], ['apply']):
+        if len([a for a in argv[1:] if a != '--json']) != 1:
+            raise SystemExit('acme-agent policy %s FILE|-' % argv[0])
+        src = [a for a in argv[1:] if a != '--json'][0]
+        if argv[0] == 'apply':
+            if os.geteuid() != 0:
+                raise SystemExit('acme-agent policy apply runs as root: the policy is root\'s')
+            return policy_apply(_policy_input(src))
+        got = policy_check(_policy_input(src), machine=True)
+        if '--json' in argv:
+            print(json.dumps({'ok': not got['errors'], 'lines': got['lines'],
+                              'errors': got['errors'], 'warnings': got['warnings']}, indent=1))
+        else:
+            _say_check(got)
+        return 1 if got['errors'] else 0
     pol, h, _t = policy_load()
     if argv[:1] == ['show'] or not argv:
         if '--json' in argv:
@@ -3504,7 +3740,7 @@ def cmd_policy(argv):
         for p in pol['problems']:
             print('# NOT READ: %s' % p)
         return 0
-    raise SystemExit('acme-agent policy show [--json]')
+    raise SystemExit('acme-agent policy show [--json] | check FILE|- | apply FILE|-')
 
 
 # ---- the package (tools/release.py, and acme's pages) ------------------------------------------
