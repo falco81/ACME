@@ -34,6 +34,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import shutil
 import signal
 import socket
@@ -671,7 +672,8 @@ class Standalone(unittest.TestCase):
         keys, skew, lines, cs = got
         self.assertIn('dbagent:client:n0', keys)
         self.assertIn('dbagent:version:n0', keys)
-        self.assertEqual(skew['agent'], '1.0.113')
+        # The agent's own version (deploy/acme_db_agent.py's VERSION, acme's at each release).
+        self.assertEqual(skew['agent'], re.search(r"(?m)^VERSION = '([0-9.]+)'", read_file(AGENT)).group(1))
         self.assertTrue(any('upgrade' in x for x in lines), lines)
         self.assertTrue(any('jinou verzi' in x for x in cs), cs)
         # The daemon's own look puts the row right again (its version is acme's).

@@ -65219,6 +65219,42 @@
   "z_176": {
    "source": "another certificate than the one signed in with was offered (the card was changed)",
    "text": "byl nabídnut jiný certifikát, než kterým se přihlásil (karta byla vyměněna)"
+  },
+  "z_177": {
+   "source": "A browser that cannot be checked",
+   "text": "Prohlížeč, který kontrolovat nejde"
+  },
+  "z_178": {
+   "source": "A browser that cannot be checked (the portal)",
+   "text": "Prohlížeč, který kontrolovat nejde (portál)"
+  },
+  "z_179": {
+   "source": "Not watched (said in Events)",
+   "text": "Nehlídat (řeknou Události)"
+  },
+  "z_180": {
+   "source": "As the administration's, for the portal: a browser that cannot be checked (an iPad) - not watched, or signed out.",
+   "text": "Jako u administrace, pro portál: prohlížeč, který kontrolovat nejde (iPad) – nehlídá se, nebo se odhlásí."
+  },
+  "z_181": {
+   "source": "This browser cannot have the card checked (as an iPad cannot): this sign-in is not watched.",
+   "text": "V tomto prohlížeči kartu kontrolovat nejde (stejně jako na iPadu): toto přihlášení se nehlídá."
+  },
+  "z_182": {
+   "source": "a browser that cannot be checked (an iPad): not watched, said in Events",
+   "text": "prohlížeč, který kontrolovat nejde (iPad): nehlídá se, řeknou Události"
+  },
+  "z_183": {
+   "source": "a browser that cannot be checked (an iPad): signed out",
+   "text": "prohlížeč, který kontrolovat nejde (iPad): odhlásí se"
+  },
+  "z_184": {
+   "source": "Sign out, as a card taken out",
+   "text": "Odhlásit, jako by byla karta vytažená"
+  },
+  "z_185": {
+   "source": "A browser whose very first check in the background does not find the card cannot be checked at all - an iPad's Safari signs nothing for a page in the background, though the card is in. Not watched (the default): that sign-in is simply not watched, and Events say so and why. Sign out: it is signed out as if the card were out - such a browser cannot stay signed in with this on. Once a check has found the card, a later one that does not is a card taken out, whatever this says.",
+   "text": "Prohlížeč, jehož úplně první kontrola na pozadí kartu nenajde, kontrolovat vůbec nejde – Safari na iPadu na pozadí nic nepodepíše, i když je karta zasunutá. Nehlídat (výchozí): takové přihlášení se prostě nehlídá a Události řeknou, že tomu tak je a proč. Odhlásit: odhlásí se, jako by karta byla vytažená – takový prohlížeč pak s tímto zapnutým přihlášený zůstat nemůže. Jakmile kontrola kartu jednou najde, další kontrola bez ní znamená vytaženou kartu bez ohledu na toto nastavení."
   }
  },
  "patterns": {
