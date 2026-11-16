@@ -90825,6 +90825,14 @@
   "pz_24": {
    "source": "{0}: the card they signed in with is back - the sign-in to the enrolment pages goes on (from {1})",
    "text": "{0}: karta, kterou se přihlásil, je zpět – přihlášení na stránky registrace pokračuje (z {1})"
+  },
+  "pz_25": {
+   "source": "a browser that cannot be checked is signed out now on these pages: {0} sign-in(s) not watched until now are watched again",
+   "text": "prohlížeč, který kontrolovat nejde, se teď na těchto stránkách odhlašuje: {0} dosud nehlídaných přihlášení se zase hlídá"
+  },
+  "pz_26": {
+   "source": "a browser that cannot be checked is signed out now on the enrolment pages: {0} sign-in(s) not watched until now are watched again",
+   "text": "prohlížeč, který kontrolovat nejde, se teď na stránkách registrace odhlašuje: {0} dosud nehlídaných přihlášení se zase hlídá"
   }
  },
  "rich": {
