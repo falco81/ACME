@@ -2084,6 +2084,109 @@ def test_15_a_change_of_the_mode_counts_afresh(self):
         self.card_off()
 
 
+@_t
+def test_16_hunt_p_r3_port_given_away_and_held_details(self):
+    """Hunt P round 3: (a) root gave nginx no port - another program listens there (a WAF's
+    agent), or nginx could not - or another port: no word of a failed check is taken, though
+    root's hash says it applied what is wanted (every browser's failed picture judged it: out,
+    or "cannot be checked"); (b) a sign-in held for its card is not "signed in" for an error's
+    details (a domain controller's name, the database's address) - as one without its second
+    step since 1.0.149; with the watch off, as before."""
+    self.card_on(admin_certlogin_card_watch='grace', admin_certlogin_card_grace=30)
+    lsn = self.serving()
+    try:
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        got = self.py('import tempfile\nE.WEB_DIR = E.Path(tempfile.mkdtemp())\n'
+                      'E.cl_listening = lambda p: True\nd = E.web_desired(st)\n'
+                      'p = E.cl_port()\nh = E.web_hash(d)\nout = []\n'
+                      'for said in ({"port": 0, "busy": "port %d is used by wafd" % p, "want": p},\n'
+                      '             {"port": 0, "busy": "nginx could not listen on %d" % p, "want": p},\n'
+                      '             {"port": p + 1, "busy": ""},\n'
+                      '             {"port": p, "busy": ""},\n'
+                      '             ["odd"]):\n'
+                      '    E.web_status = lambda said=said: {"state": "done", "hash": h, "certlogin": said}\n'
+                      '    out.append(E.cl_card_port_ready(st))\n'
+                      'print(json.dumps(out))')
+        self.assertEqual(got, [False, False, False, True, True])
+        busy = {'state': 'done', 'hash': self.py('print(json.dumps(E.web_hash(E.web_desired(st))))'),
+                'certlogin': {'port': 0, 'busy': 'port 8443 is used by wafd', 'want': 8443}}
+        for why in ('nopicture', 'timeout', 'waiting'):
+            self.assertEqual(self.lost_root(tok, why, busy), 'unknown', why)
+        d = self.session_data(tok)
+        self.assertFalse(d.get('card_ok') or d.get('card_out'), d)
+
+        # b) Held: no details; in, or the watch off: as before.
+        def signed_in(t):
+            return self.py('class H:\n'
+                           '    store = st\n'
+                           '    headers = {"X-Acme-Session": %r}\n'
+                           'print(json.dumps(E.ApiHandler._signed_in(H())))' % t)
+        self.proven(tok)
+        self.assertTrue(signed_in(tok))
+        self.assertEqual(self.alive(tok, None)[1]['state'], 'locked')
+        self.assertFalse(signed_in(tok))
+        self.assertEqual(self.alive(tok, 'nested')[1]['state'], 'ok')
+        self.assertTrue(signed_in(tok))
+        self.session_set(tok, card_seen=time.time() - 3600)
+        self.assertFalse(signed_in(tok))
+        self.assertTrue(signed_in(self.ro))
+        self.on(admin_certlogin_card_watch='off')
+        self.assertTrue(signed_in(tok))
+    finally:
+        lsn.close()
+        self.card_off()
+
+
+@_t
+def test_17_unable_made_signout_watches_again(self):
+    """Hunt P round 3: "A browser that cannot be checked" from allow to signout while the card is
+    watched - "the setting that enforces the watch for every browser" - watches again the
+    sign-ins found not to be checkable under allow (they stayed unwatched until their idle time
+    ended them): their next check without the card signs them out. The doer's stays as it is;
+    nothing changes for signout to allow, nor with the watch off."""
+    self.card_on()
+    lsn = self.serving()
+
+    def unable(tok):
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
+        self.assertEqual(got['state'], 'unable', got)
+        self.assertEqual(self.session_data(tok).get('card_ok'), -1)
+
+    try:
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        st, got = self.sign('admin', 'nested')
+        doer = got['token']
+        for t in (tok, doer):
+            unable(t)
+        n = len(self.events('are watched again'))
+        st, got = self.settings(session=doer, admin_certlogin_card_unable='signout')
+        self.assertEqual(st, 200, got)
+        self.assertNotIn('card_ok', self.session_data(tok))
+        self.assertEqual(self.session_data(doer).get('card_ok'), -1)
+        said = self.events('are watched again')
+        self.assertEqual(len(said), n + 1, said)
+        self.assertTrue(any('a browser that cannot be checked is signed out now on these pages: 1 '
+                            'sign-in(s) not watched until now are watched again' in w for w in said), said)
+        st, me = self.call('GET', '/api/auth/whoami', None, tok)
+        self.assertNotIn('unable', me['who']['card'])
+        # Its next check without the card: signed out, as a card taken out.
+        st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'nopicture'}, tok)
+        self.assertEqual((got['state'], got['why']), ('gone', 'out'), got)
+        self.assertIsNone(self.session_data(tok))
+        # signout -> allow, and allow -> signout with the watch off: nothing written.
+        self.on(admin_certlogin_card_unable='allow')
+        self.assertEqual(self.session_data(doer).get('card_ok'), -1)
+        self.on(admin_certlogin_card_watch='off')
+        self.on(admin_certlogin_card_unable='signout')
+        self.assertEqual(self.session_data(doer).get('card_ok'), -1)
+        self.assertEqual(len(self.events('are watched again')), n + 1)
+    finally:
+        lsn.close()
+        self.card_off()
+
+
 def merge_cs(path, extra):
     """{English: Czech} added to a copy of web/lang/cs.json (screenshots in Czech) - a string, or
     a pattern where it has {0}."""

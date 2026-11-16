@@ -3445,6 +3445,39 @@ def cl_card_mode_changed(store, part, was, now, by=''):
     return n
 
 
+def cl_card_unable_enforced(store, part, keep=0, by=''):
+    """"A browser that cannot be checked" from allow to signout while the part watches the card
+    (hunt P round 3): the sign-ins found not to be checkable under allow (card_ok -1) are watched
+    again (card_ok gone) - from their next check (or now, held: their pages checked nothing
+    the server counted) as any, under signout: no card found, signed out. The sign-in of
+    whoever made the change (`keep`) stays as it is - they are at its browser."""
+    try:
+        rows = store.db.rows('SELECT id, data FROM sessions WHERE kind = ?', (part,))
+    except Exception as e:                              # noqa: BLE001
+        log('the sign-ins not watched could not be read: %s' % e, 'warn')
+        return 0
+    keep = int(keep or 0)
+    n = 0
+    for r in rows:
+        try:
+            d = json.loads(r.get('data') or '{}')
+        except ValueError:
+            continue
+        if not isinstance(d, dict) or _cl_card_ok(d) >= 0 or \
+                (keep and int(r.get('id') or 0) == keep):
+            continue
+        got = store.session_merge(r['id'], {'card_ok': None}, expect={'card_ok': d.get('card_ok')})
+        if got is not False and got is not None:
+            n += 1
+    if n:
+        store.add_event('sign-ins' if part == 'admin' else 'portal',
+                        'a browser that cannot be checked is signed out now on %s: %d sign-in(s) '
+                        'not watched until now are watched again' % (
+                            'these pages' if part == 'admin' else 'the enrolment pages', n),
+                        'warn', who=by or None)
+    return n
+
+
 CL_CARD_WEB = {'busy': False}
 
 
@@ -3486,11 +3519,17 @@ def cl_card_port_ready(store):
         return True
     st = web_status()
     said = st.get('certlogin') or {}
+    said = said if isinstance(said, dict) else {}
     try:
         if said.get('watch') and int(said.get('port') or 0) == int(port):
             return True
+        if said and (said.get('busy') or int(said.get('port') or 0) != int(port)):
+            # Root gave nginx no port (another program listens there, or nginx could not) or
+            # another one (hunt P round 3): what answers there is no check of the card - root's
+            # hash says "done" all the same, and every browser's failed picture judged it.
+            return False
     except (TypeError, ValueError):
-        pass
+        return False
     try:
         return bool(st.get('state') == 'done' and st.get('hash') and
                     st.get('hash') == web_hash(web_desired(store)))

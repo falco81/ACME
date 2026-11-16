@@ -77,6 +77,20 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   - **The iPad**: "cannot be checked (as an iPad cannot)" was the kit's mistake (the CSP header
     above); the page's words, the setting's help and the docs no longer name the iPad - *A
     browser that cannot be checked* stays as a safety net. With the watch off nothing changes.
+- **The card watched: the port given to another program** (a WAF's agent listening there, or
+  nginx unable to listen on it) was taken as serving the check - root's last run had applied
+  what was wanted, only without the port - and every browser's failed picture judged it: the
+  card taken out (or, with *Sign out*, signed out), or *cannot be checked*. No word of a failed
+  check is taken while root says the port is not nginx's (or is another one).
+- (security) **The card watched: *A browser that cannot be checked* made *Sign out*** - the
+  setting that enforces the watch for every browser - left the sign-ins found not checkable
+  under *Not watched* unwatched until their idle time ended them. They are watched again (said
+  in Events): their next check without the card signs them out; the sign-in of whoever saved it
+  stays as it is.
+- (security) **A sign-in held for its card** (the card out, or its page no longer checking) is
+  no longer told the details of an error (a domain controller's name and its TLS, the database's
+  address) - as a sign-in without its second step has not been since 1.0.149. With the watch
+  off nothing changes.
 - **The database's own trouble** (the alert, `acmeDbTrouble`) counts SQLite's *file is not a
   database* and *database disk image is malformed*; MariaDB's read-only, table full, out of
   memory, disconnected for inactivity and out-of-sync errors; and PostgreSQL's by its SQLSTATE

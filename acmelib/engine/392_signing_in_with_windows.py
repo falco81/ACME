@@ -730,11 +730,13 @@ def krb_page_info(part, store=None):
 
 def krb_state_now(store):
     """{part: (signs in with Windows, "no password at all" in effect, signs in with a
-    certificate, how strictly it takes one - cl_rule, the card's watch: off | signout | grace)}
-    - before and after a change. (The card's mode is its own element, never cl_rule's: that one
-    is compared as "stricter", and a rank of grace and signout would end sign-ins.)"""
+    certificate, how strictly it takes one - cl_rule, the card's watch: off | signout | grace,
+    what a browser that cannot be checked gets: allow | signout)} - before and after a change.
+    (The card's mode is its own element, never cl_rule's: that one is compared as "stricter",
+    and a rank of grace and signout would end sign-ins.)"""
     return {part: (krb_usable(part, store), krb_password_off(part, store),
-                   cl_usable(part, store), cl_rule(part), cl_card_mode(part))
+                   cl_usable(part, store), cl_rule(part), cl_card_mode(part),
+                   cl_card_unable_mode(part))
             for part in KRB_PARTS}
 
 
@@ -762,6 +764,16 @@ def krb_sessions_settle(store, before, keep=None, by=''):
             if not asked and 'off' in (was[4], after[part][4]):
                 asked = True
                 cl_card_web_now(store)
+        # A browser that cannot be checked: allow -> signout while the card is watched (hunt P
+        # round 3) - the sign-ins found so under allow are watched again (signout "enforces the
+        # watch for every browser"; they stayed unwatched until the idle time ended them) - but
+        # the doer's.
+        if len(was) > 5 and was[5] == 'allow' and after[part][5] == 'signout' and \
+                after[part][4] != 'off':
+            try:
+                cl_card_unable_enforced(store, part, keep, by)
+            except Exception as e:                      # noqa: BLE001
+                log('the sign-ins not watched could not be watched again: %s' % e, 'warn')
         # The card's watch switched on (1.0.115): no sign-in counts as made while it was on -
         # but the doer's.
         if cl_card_rule_on(was[3], after[part][3]):

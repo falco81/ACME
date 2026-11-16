@@ -4267,6 +4267,13 @@ function cardShare(v) {
    page watches the card (the notice says it, nothing else does). */
 function cardLockedSaid() {
   if (!CARD) return false;
+  if (CARD.unable) {
+    /* Not watched here (this browser cannot be checked), yet refused for its card: the server
+       watches it again ("A browser that cannot be checked" made Sign out, hunt P round 3) - the
+       page loaded again, to watch it (or asked to be, with changes not saved). */
+    if (!CARD.done && !window.CARD_RELOADING) { window.CARD_RELOADING = true; cardReload(); }
+    return true;
+  }
   cardCheckNow();
   return true;
 }
@@ -4597,6 +4604,9 @@ function cardEnd(why, asked) {
    not saved). Only a sign-in made with a certificate is ever watched. */
 function cardLater(card, part) {
   if (CARD || !card || !card.port) return;
+  cardReload();
+}
+function cardReload() {
   var unsaved = (typeof DIRTY === 'object' && DIRTY && Object.keys(DIRTY).length) ||
                 (typeof PENDING === 'object' && PENDING && Object.keys(PENDING).length);
   if (!unsaved) { location.reload(); return; }

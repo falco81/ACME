@@ -323,7 +323,12 @@ class ApiHandler(BaseHTTPRequestHandler):
             # and the database's addresses with every error.
             s = self.store.session_get(
                 token, 'admin', int(CONFIG.get('session_idle_min') or 120) * 60, touch=False)
-            return bool(s) and not mfa_pending(s)
+            if not s or mfa_pending(s):
+                return False
+            # ...nor one held for its card (hunt P round 3): its card out, or its page no
+            # longer checking - nothing of the pages answered, the directory's and the
+            # database's addresses neither (with the watch off: None, as before).
+            return cl_card_due('admin', s)[0] not in ('out', 'held', 'gone')
         except Exception:                               # noqa: BLE001
             return False
 

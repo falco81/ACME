@@ -724,7 +724,9 @@ in acme those two are **6** and **7**.
    there** (1.0.115, the kit's 4th edition: root's status says `watch` - written only while the
    card is watched - or root applied exactly what is wanted now; right after switching on the
    port is served without the check until root rewrote it, and its 404 is no card taken out nor
-   a browser that cannot be checked - `unknown`, asked again; a node without acme's root helper,
+   a browser that cannot be checked - `unknown`, asked again; nor while root says it gave nginx
+   no port - another program listens there, or nginx could not - or another one: what answers
+   there is no check, hunt P round 3; a node without acme's root helper,
    whose nginx is the operator's own, goes by what listens on the port). A check left without an answer
    for 20 s counts as one that got nothing - said as `{why: "timeout"}` (1.0.115), and taken as
    `nopicture` is (review round 2) - the same gates for *cannot be checked*.
@@ -904,7 +906,12 @@ its card in this browser - the time of the first that did; the sign-in itself do
     then on a check without it is a card taken out. Another card on its check ends it, as on a
     watched one's;
   - **`signout`** (*Sign out, as a card taken out*): on as for a card taken out - such a browser
-    cannot stay signed in while the card is watched;
+    cannot stay signed in while the card is watched. Switched from `allow` to `signout` while the
+    card is watched (hunt P round 3), the sign-ins found not checkable under `allow` are watched
+    again (an event: *a browser that cannot be checked is signed out now on these pages: 1
+    sign-in(s) not watched until now are watched again*) - their next check without the card
+    signs them out; the sign-in of whoever saved it stays as it is (they are at its browser).
+    Before, they stayed unwatched until their idle time ended them;
 - never by **a check left waiting** (`waiting`) nor **one the page's policy blocked** (`csp`),
   1.0.115;
 - anything else - **a check that came without a certificate** (`nocert`), **nginx's refusal**,
