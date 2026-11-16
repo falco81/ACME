@@ -65387,6 +65387,10 @@
   "z_218": {
    "source": "signing in to the enrolment pages with a certificate",
    "text": "přihlašování na zápisové stránky certifikátem"
+  },
+  "z_219": {
+   "source": "Off (the default): a sign-in made with a certificate lasts as any other. Sign out at once: the page checks the card every few seconds - a new connection to the certificate's port the card has to sign - and the first time it is not there the sign-in ends and the sign-in page says why. Lock, wait for the card: the page is covered with a countdown and nothing of the sign-in is answered until the card is back in time - else signed out. Another card than the one signed in with ends it at once. Only sign-ins made with a certificate; a password's or Windows' never. A page that stopped checking (a tablet asleep, the browser in the background) has its sign-in held, not ended, until a check finds the card. Your own sign-in, from which you switch it on, is watched as one made while it is on: from a browser that cannot be checked (an iPad) it is then not watched - or signed out at once if A browser that cannot be checked says Sign out.",
+   "text": "Vypnuto (výchozí): přihlášení certifikátem trvá jako každé jiné. Hned odhlásit: stránka každých pár sekund kontroluje kartu – nové spojení na port certifikátu, které karta musí podepsat – a když tam karta poprvé není, přihlášení skončí a přihlašovací stránka řekne proč. Zamknout, čekat na kartu: stránku zakryje odpočet a na nic z přihlášení se neodpovídá, dokud se karta včas nevrátí – jinak odhlášení. Jiná karta, než kterou se člověk přihlásil, ho ukončí hned. Jen přihlášení certifikátem; heslem nebo Windows nikdy. Stránka, která přestala kontrolovat (uspaný tablet, prohlížeč na pozadí), má přihlášení pozdržené, ne ukončené, dokud kontrola kartu nenajde. Vaše vlastní přihlášení, ze kterého hlídání zapnete, se hlídá jako přihlášení z doby, kdy už bylo zapnuté: z prohlížeče, ve kterém kartu kontrolovat nejde (iPad), se pak nehlídá – nebo se hned odhlásí, pokud je u „Prohlížeč, který kontrolovat nejde“ nastaveno „Odhlásit, jako by byla karta vytažená“."
   }
  },
  "patterns": {

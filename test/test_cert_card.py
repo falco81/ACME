@@ -1626,7 +1626,7 @@ def test_13_no_way_out_of_the_watch(self):
         self.assertFalse(d.get('card_out') or d.get('card_ok'))
         self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 200)
         st, got = self.call('POST', '/api/certlogin/lost', {'part': 'admin'}, tok)
-        self.assertEqual(got['state'], 'locked', got)
+        self.assertEqual(got['state'], 'unable', got)          # no answer, never found: as before
         # b) A transient first failure (nginx refused once) is the card out - not unwatched for
         # good: the next check with the card goes on, watched.
         st, got = self.sign('admin', 'nested')
