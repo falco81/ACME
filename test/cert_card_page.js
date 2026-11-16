@@ -22,10 +22,11 @@
 //   options - signed in with the password as NAME: the port never asked; Settings -> Accounts,
 //             When the card is taken out (off, signout, grace), the seconds, A browser that
 //             cannot be checked (allow, signout), the card's facts;
-//   unable  - an iPad simulated (1.0.114, the kit's 3rd edition): the sign-in on the port works,
-//             the background's picture never does - after one more try the page tells the
-//             server, which leaves the sign-in unwatched: "This browser cannot have the card
-//             checked (as an iPad cannot): this sign-in is not watched.", no notice, still signed
+//   unable  - a browser that signs nothing in the background simulated (1.0.114, the kit's 3rd
+//             edition - a safety net since its 4th): the sign-in on the port works, the
+//             background's picture never does - after one more try the page tells the server,
+//             which leaves the sign-in unwatched: "This browser cannot have the card checked:
+//             this sign-in is not watched.", no notice, still signed
 //             in, answered (200), whoami's card `unable`, checked only once a minute (loaded
 //             again: not at once either) - in English and Czech, 1400 and 420 px; then (1.0.115)
 //             the picture let through and the page woken: watched again ("The card is checked in
@@ -37,6 +38,19 @@
 //             picture without an Origin gets 6 by 2, never a 403; it is told to load itself
 //             again - this version's page then checks with its Origin - neither signed out nor
 //             "cannot be checked".
+//   kit4    - (the kit's 4th edition, grace 30) the notice's hint "press OK there - not Cancel"
+//             (English, Czech); F5 during the countdown goes on from the server's clock; a check
+//             left waiting (a window of the card's simulated: the picture never answered) in a
+//             proven browser - the notice within ~4 s, not 20, the server told (waiting); OK
+//             pressed (the picture let through) - 1 px, the notice gone; the sign-in ended on the
+//             server meanwhile (signed out from elsewhere, the card out) - the sign-in page says
+//             why and tries nothing by itself.
+//   kit4new - (grace 5) a browser not proven yet whose first check waits: the server answers
+//             `waiting`, the notice goes again, still signed in past the grace; the picture still
+//             not answered at 20 s (twice) - taken as one that cannot be checked (the kit's way).
+//   csp     - a second policy header (as nginx's add_header or a proxy would send it) that does
+//             not name the port: the check is blocked - said as such (why csp), never a notice,
+//             never "cannot be checked", still signed in and watched.
 // Prints one line of JSON: {ok, checks: {name: true|false}, timing, error?} - or {skip} where
 // Chromium does not start.
 const fs = require('fs');
@@ -318,12 +332,12 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
         await ctx.close();
       }
     } else if (phase === 'unable') {
-      const want = {en: 'This browser cannot have the card checked (as an iPad cannot): this sign-in is not watched.',
-                    cs: 'V tomto prohlížeči kartu kontrolovat nejde (stejně jako na iPadu): toto přihlášení se nehlídá.'};
+      const want = {en: 'This browser cannot have the card checked: this sign-in is not watched.',
+                    cs: 'V tomto prohlížeči kartu kontrolovat nejde: toto přihlášení se nehlídá.'};
       for (const [lang, width] of [['en', 1400], ['cs', 1400], ['en', 420], ['cs', 420]]) {
         const tag = lang + '-' + width;
         const ctx = await context(lang, width);
-        // The background's picture never comes (Safari on iPadOS signs no connection for it);
+        // The background's picture never comes (a browser that signs no connection for it);
         // the sign-in itself, a top-level navigation, does.
         await cardOut(ctx);
         const page = await newPage(ctx);
@@ -449,6 +463,162 @@ try { ({ chromium } = require('playwright')); } catch (e) { console.log(JSON.str
       } else {
         out.timing.old_page = 'skipped: ACME_OLD_CORE_JS not given';
       }
+    } else if (phase === 'kit4') {
+      const hint = {en: 'A window asking for the smart card: put the card back and press OK there - not Cancel. After Cancel the browser offers no card here until it is closed and opened again.',
+                    cs: 'Okno žádající čipovou kartu: vraťte kartu a v něm stiskněte OK – ne Storno. Po Storno prohlížeč kartu tomuto serveru nenabídne, dokud ho nezavřete a znovu neotevřete.'};
+      // a) The hint under the countdown, in English and Czech; at a phone's width it fits.
+      for (const [lang, width] of [['en', 1400], ['cs', 420]]) {
+        const tag = lang + '-' + width;
+        const ctx = await context(lang, width);
+        const page = await newPage(ctx);
+        out.checks['signed_in_' + tag] = await certSignIn(page);
+        await until(page, () => ctx.looks.length >= 1, 10000);
+        await cardOut(ctx);
+        out.checks['notice_' + tag] = await until(page, async () => (await page.locator('#card-lock').count()) > 0, 15000);
+        await page.waitForTimeout(600);
+        const h = await page.evaluate(() => { const e = document.querySelector('#card-lock .card-lock-hint'); return e ? e.textContent : ''; });
+        out.checks['hint_' + tag] = h === hint[lang];
+        if (!out.checks['hint_' + tag]) out.timing['hint_' + tag] = h;
+        if (width < 600) {
+          out.checks['fits_' + tag] = await page.evaluate(() => {
+            const b = document.querySelector('.card-lock-box').getBoundingClientRect();
+            return b.left >= 0 && b.right <= window.innerWidth && document.documentElement.scrollWidth <= window.innerWidth + 1;
+          });
+        }
+        await shot(page, 'notice-hint-' + tag + '.png');
+        if (lang === 'en') {
+          // b) F5 during the countdown: on from the server's clock, not the full grace again.
+          await page.waitForTimeout(6000);
+          const before = parseInt(await page.textContent('#card-lock-n'), 10);
+          await page.reload();
+          await page.waitForSelector('#card-lock', {timeout: 15000});
+          await page.waitForTimeout(500);
+          const after = parseInt(await page.textContent('#card-lock-n'), 10);
+          out.timing.reload = before + ' -> ' + after;
+          out.checks.reload_goes_on = after <= 30 - 5 && after <= before && after >= before - 3;
+          out.checks.reload_held_page_no_errors = page.errs.length === 0;
+          if (page.errs.length) out.errs = page.errs.slice(0, 5);
+          // the page drawn while held: whoami gave nothing of the person
+          out.checks.reload_whoami_trimmed = await page.evaluate(() => fetch('?api=whoami', {credentials: 'same-origin'})
+            .then((r) => r.json()).then((d) => !!d.who && d.who.role === '' && !('prefs' in d.who) && !('display' in d.who) && !!d.who.card));
+        }
+        await cardIn(ctx);
+        out.checks['back_' + tag] = await until(page, async () => (await page.locator('#card-lock').count()) === 0, 15000);
+        await ctx.close();
+      }
+      // c) A check left waiting on a window of the card's, in a browser proven to be checked.
+      {
+        const ctx = await context('en');
+        const page = await newPage(ctx);
+        const posted = [];
+        page.on('request', (r) => { if (/[?&]api=cert-lost/.test(r.url())) posted.push(r.postData() || ''); });
+        out.checks.waiting_signed_in = await certSignIn(page);
+        out.checks.waiting_proven_first = await until(page, () => ctx.looks.filter((x) => x === 200).length >= 1, 10000);
+        await page.waitForTimeout(500);
+        const hung = [];
+        await ctx.route(ALIVE, (r) => { hung.push(r); });
+        const t0 = Date.now();
+        // (asked now - not taken from this tab's own answer of a moment ago)
+        await page.evaluate(() => { localStorage.removeItem(CARD.key); cardCheckNow(); });
+        out.checks.waiting_notice_within_5s = await until(page, async () => (await page.locator('#card-lock').count()) > 0, 9000) &&
+          Date.now() - t0 < 6500;
+        out.timing.waiting_notice_after_s = Math.round((Date.now() - t0) / 100) / 10;
+        out.checks.waiting_told = await until(page, () => posted.some((x) => /"why":"waiting"/.test(x)), 5000);
+        await page.waitForTimeout(1500);
+        out.checks.waiting_notice_stays = (await page.locator('#card-lock').count()) > 0;
+        out.checks.waiting_server_holds = (await status(page)) === '423:card';
+        await shot(page, 'notice-waiting-en-1400.png');
+        // OK pressed with the card back: the picture answers - 1 px, the notice gone.
+        await ctx.unroute(ALIVE);
+        for (const r of hung) await r.continue().catch(() => {});
+        out.checks.waiting_card_back_notice_gone = await until(page, async () => (await page.locator('#card-lock').count()) === 0, 10000);
+        await page.waitForTimeout(300);
+        out.checks.waiting_said_back = /The card is back\./.test(await page.evaluate(() => document.body.innerText));
+        out.checks.waiting_answered_again = await until(page, async () => (await status(page)).startsWith('200'), 10000);
+        // d) The sign-in ended on the server meanwhile (here: signed out from elsewhere while the
+        // card is out): the page says why and tries nothing by itself.
+        await cardOut(ctx);
+        await until(page, async () => (await page.locator('#card-lock').count()) > 0, 15000);
+        await page.evaluate(() => fetch('?api=logout', {method: 'POST', credentials: 'same-origin',
+                                                        headers: {'Content-Type': 'application/json'}, body: '{}'}));
+        const want = /^Signed out: the card you signed in with was not put back in time\.$/;
+        out.checks.gone_meanwhile_says_why = await until(page, async () => want.test(await said(page)) &&
+                                                         (await page.locator('#signout').count()) === 0, 20000);
+        if (!out.checks.gone_meanwhile_says_why) out.timing.gone_said = await said(page);
+        await page.waitForTimeout(1500);
+        out.checks.gone_meanwhile_nothing_tried = await page.evaluate(() => !/:8443/.test(location.href)) &&
+          (await page.locator('#signout').count()) === 0;
+        out.checks.waiting_no_page_errors = page.errs.length === 0;
+        if (page.errs.length) out.errs = (out.errs || []).concat(page.errs);
+        await ctx.close();
+      }
+    } else if (phase === 'kit4new') {
+      // A browser not proven yet: its very first check waits (a PIN window with the card in).
+      const ctx = await context('en');
+      const hung = [];
+      await ctx.route(ALIVE, (r) => { hung.push(r); });
+      const page = await newPage(ctx);
+      const posted = [], answers = [];
+      page.on('request', (r) => { if (/[?&]api=cert-lost/.test(r.url())) posted.push(r.postData() || ''); });
+      page.on('response', async (r) => { if (/[?&]api=cert-lost/.test(r.url())) { try { answers.push((await r.json()).state); } catch (e) { answers.push('?'); } } });
+      out.checks.signed_in = await certSignIn(page);
+      const t0 = Date.now();
+      out.checks.told_waiting = await until(page, () => answers.includes('waiting'), 12000);
+      out.timing.waiting_after_s = Math.round((Date.now() - t0) / 100) / 10;
+      out.checks.notice_taken_down = await until(page, async () => (await page.locator('#card-lock').count()) === 0, 3000);
+      // past the grace (5 s): still signed in - the page's own countdown ended nothing
+      await page.waitForTimeout(8000);
+      out.checks.still_signed_in_past_grace = (await page.locator('#signout').count()) > 0 &&
+        (await status(page)).startsWith('200') && (await page.locator('#card-lock').count()) === 0;
+      out.checks.not_unable_yet = await page.evaluate(() => !CARD.unable);
+      // no answer at all within 20 s, twice: one that cannot be checked (the kit's way too)
+      out.checks.then_unable = await until(page, async () => (await page.evaluate(() => {
+        const t = document.querySelector('#toast'); return t && t.classList.contains('show') ? t.textContent : '';
+      })) === 'This browser cannot have the card checked: this sign-in is not watched.', 50000);
+      out.timing.posted = posted;
+      out.timing.answers = answers;
+      out.checks.unable_still_signed_in = (await page.locator('#signout').count()) > 0 && (await status(page)).startsWith('200');
+      out.checks.no_page_errors = page.errs.length === 0;
+      if (page.errs.length) out.errs = page.errs;
+      await ctx.unroute(ALIVE);
+      for (const r of hung) await r.abort().catch(() => {});
+      await ctx.close();
+    } else if (phase === 'csp') {
+      // A second policy (nginx's add_header, a proxy) beside the page's, naming no port: a
+      // browser holds to both - the picture is blocked before it is sent.
+      const ctx = await context('en');
+      await ctx.route((u) => u.origin === base.replace(/\/$/, '') && u.pathname === '/admin/', async (r) => {
+        if (r.request().resourceType() !== 'document') return r.continue();
+        const resp = await r.fetch();
+        const h = Object.assign({}, resp.headers());
+        h['content-security-policy'] = (h['content-security-policy'] || '') + ", img-src 'self' data:";
+        return r.fulfill({response: resp, headers: h});
+      });
+      const page = await newPage(ctx);
+      const posted = [];
+      page.on('request', (r) => { if (/[?&]api=cert-lost/.test(r.url())) posted.push(r.postData() || ''); });
+      out.checks.signed_in = await certSignIn(page);
+      // (the page after the port's redirect is not handed to a route: loaded again)
+      let routed = 0;
+      page.on('response', (r) => { if (r.request().resourceType() === 'document' && /;\s*img-src 'self' data:$|, img-src 'self' data:$/.test(r.headers()['content-security-policy'] || '')) routed += 1; });
+      await page.reload();
+      await page.waitForSelector('#signout', {timeout: 15000});
+      out.checks.second_policy_sent = routed > 0;
+      out.checks.watched = await page.evaluate(() => !!(window.ME && ME.card));
+      out.checks.said_csp = await until(page, () => posted.some((x) => /"why":"csp"/.test(x)), 15000);
+      await page.waitForTimeout(7000);
+      out.timing.posted = posted.slice(0, 4);
+      out.timing.console = page.csp.slice(0, 2);
+      out.checks.browser_refused_it = page.csp.some((m) => /8443/.test(m));
+      out.checks.never_nopicture = !posted.some((x) => /nopicture|timeout/.test(x));
+      out.checks.no_notice = (await page.locator('#card-lock').count()) === 0;
+      out.checks.no_unable = await page.evaluate(() => !CARD.unable && !/cannot have the card checked/.test(document.body.innerText));
+      out.checks.still_signed_in = (await page.locator('#signout').count()) > 0 && (await status(page)).startsWith('200');
+      out.checks.whoami_watched_not_unable = await page.evaluate(() => fetch('?api=whoami', {credentials: 'same-origin'})
+        .then((r) => r.json()).then((d) => !!d.who && !!d.who.card && !d.who.card.unable && !d.who.card.locked));
+      out.checks.no_page_errors = page.errs.length === 0;
+      if (page.errs.length) out.errs = page.errs;
+      await ctx.close();
     }
     out.ok = Object.keys(out.checks).length > 0 && Object.keys(out.checks).every((k) => out.checks[k] === true);
   } catch (e) {

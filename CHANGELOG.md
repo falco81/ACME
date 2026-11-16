@@ -46,6 +46,37 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   with *Sign out, as a card taken out* - the setting's help says so).
 - **The card watched: a client the part's allow list refuses** got the checks' "try later" (200)
   once its checks were refused for their number - 403 now, as the rest.
+- **The card watched, the kit's 4th edition** (isemon 1.10.356-358, found on Windows 10 + Chrome
+  and an iPad):
+  - **A policy header blocking the check** - an `add_header Content-Security-Policy` put into
+    nginx by hand, or one of a proxy, balancer, WAF or Apache in front: a browser holds to every
+    policy it gets, so one that does not name the certificate's port blocked every check, and
+    every browser looked like one that cannot be checked (or, with *Sign out*, was signed out).
+    The page now sees the browser's refusal and says so (`csp`): never the card out nor *cannot
+    be checked* - an event and a warning on the card's facts. acme's own nginx sends no such
+    header; the docs say every one must let the port's https picture in.
+  - **Windows' "Insert a smart card" and the certificate chooser**: a check waiting over 4 s
+    shows the countdown at once, behind the window (not after Cancel, up to 20 s later), and the
+    server is told (`waiting`) - the card out only for a browser already proven to be checked,
+    never *cannot be checked*; for one not yet proven the notice goes again. Under the countdown:
+    *put the card back and press OK there - not Cancel* (after Cancel Chrome and Edge offer no
+    card to the port until restarted).
+  - **A change of the mode** (off, signout, grace) starts every sign-in's count afresh - a time
+    out counted under grace no longer ends a sign-in at once under signout, nor an old one after
+    switching off and on - and root is asked for nginx's lines at once.
+  - **No word of a failed check** (neither *cannot be checked* nor the card out) before root has
+    confirmed the port serves the watch - right after switching on, the port's 404 judged the
+    browser for good.
+  - **A held sign-in** (the card out, its page asleep): whoami and the portal's `me` give nothing
+    of the person (no full name, preferences or columns); the second step's question and the
+    portal's password change are refused (423) as the rest.
+  - **The sign-in already ended on the server** (its tab asleep): the page says why and tries
+    neither the certificate nor Windows by itself (before: it just loaded itself again).
+  - **A page opened by an IPv6 address** lets `https:` in for pictures - a CSP takes no `[v6]`
+    address, and every check was blocked.
+  - **The iPad**: "cannot be checked (as an iPad cannot)" was the kit's mistake (the CSP header
+    above); the page's words, the setting's help and the docs no longer name the iPad - *A
+    browser that cannot be checked* stays as a safety net. With the watch off nothing changes.
 - **The database's own trouble** (the alert, `acmeDbTrouble`) counts SQLite's *file is not a
   database* and *database disk image is malformed*; MariaDB's read-only, table full, out of
   memory, disconnected for inactivity and out-of-sync errors; and PostgreSQL's by its SQLSTATE

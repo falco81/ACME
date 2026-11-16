@@ -1105,6 +1105,16 @@ def certlogin_text(main, vip_block, c):
 CERTLOGIN_NOW = {}          # what was done with the port, for status.json (the card)
 
 
+def certlogin_now(c):
+    """What status.json says of the port given to nginx: {port, busy} - and `watch` only while
+    the card is watched there (1.0.115, the kit's 4th edition: acme takes no word of a failed
+    check before root has written the watch's server; off, the status as before)."""
+    out = {'port': c['port'], 'busy': ''}
+    if c.get('watch') and c['port']:
+        out['watch'] = True
+    return out
+
+
 def certlogin_port_users(port):
     """[(process name, pid)] of what listens on TCP `port` here (any address, IPv4 and IPv6) -
     /proc/net/tcp and tcp6, the process found by its socket (root sees every one)."""
@@ -1987,7 +1997,7 @@ def nginx_part(r, last):
             if gone:
                 changed = True
         if c is not None:
-            CERTLOGIN_NOW.update(port=c['port'], busy='')
+            CERTLOGIN_NOW.update(certlogin_now(c))
             if c['port']:
                 vip_block = None
                 if vip['on'] and tv and tv['pem'] and os.path.exists(NGINX_VIP):
@@ -2040,6 +2050,7 @@ def nginx_part(r, last):
                     time.sleep(0.25)
                 else:
                     os.unlink(NGINX_CERTLOGIN)
+                    CERTLOGIN_NOW.pop('watch', None)
                     CERTLOGIN_NOW.update(port=0, busy='nginx could not listen on %d' % c['port'],
                                          want=c['port'])
                     said.append('nginx: could not listen on the certificate\'s own port %d - its '

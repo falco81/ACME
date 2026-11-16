@@ -2960,6 +2960,10 @@ def cl_view(h, tried=''):
                                    'grace': cl_card_grace(part),
                                    'unable': cl_card_unable_mode(part),
                                    'sessions': cl_card_sessions(store, part)}
+            # A check the page's policy blocked within a day (1.0.115): a key only then.
+            csp = cl_card_csp_seen(store, part)
+            if csp:
+                parts[part]['card']['csp'] = csp
     parts['portal']['portal'] = bool(CONFIG.get('portal'))
     now = time.time()
     nodes, crls, ocsp = [], {}, {}
@@ -3240,26 +3244,41 @@ def certlogin_desired(store):
 #     is no setting any more;
 #   - the card's fingerprint is kept with every sign-in made with a certificate: switched on, those
 #     sign-ins are watched from then on (their pages learn it within a minute).
-#   - a browser that cannot be checked (the kit's 3rd edition, found on a real iPad: Safari on
-#     iPadOS signs no connection for a page in the background - the card is in, yet the check
-#     never comes): a sign-in keeps whether a check IN THE BACKGROUND has ever found its card in
-#     this browser (card_ok: the time of the first that did - the sign-in itself, a top-level
-#     navigation the iPad does sign, does not count; -1: cannot be checked). Until one has, a
+#   - a browser that cannot be checked (the kit's 3rd edition - a safety net: a browser that
+#     signs no connection for a page in the background, the card in, yet the check never comes;
+#     the kit's 4th edition found the iPad it was first seen on was a CSP header blocking the
+#     check, not the iPad): a sign-in keeps whether a check IN THE BACKGROUND has ever found its
+#     card in this browser (card_ok: the time of the first that did - the sign-in itself, a
+#     top-level navigation, does not count; -1: cannot be checked). Until one has, a
 #     check without the card means "this browser cannot be checked": with
 #     <part>_certlogin_card_unable = allow that sign-in is not watched from then on (said in the
 #     events, with why), with signout it goes on as a card taken out. Once found, a check without
 #     the card is a card taken out, as always. An unwatched one is never held for its card.
 # 1.0.115 - "cannot be checked" no way out of the watch (hunt P):
 #   - only the page's word that its picture got no answer at all (cert-lost, nopicture - or
-#     none within 20 s, timeout: an iPad may leave the picture waiting rather than fail it)
-#     makes it - never a check that came without a certificate, nginx's refusal or no cookie;
+#     none within 20 s, timeout: a browser may leave the picture waiting rather than fail it)
+#     makes it - never a check that came without a certificate, nginx's refusal, no cookie, a
+#     check left waiting on a window of the card's (waiting) or one the page's policy blocked
+#     (csp);
 #     never for a sign-in held or whose card is out; only for one made while the part watched
 #     the card (card_w - one from before, its person away with the card, would look the same);
 #   - not for ever: its page checks once a minute (and when it wakes) - a check that finds the
 #     card watches it again (card_ok > 0: from then on a miss is a card taken out);
 #   - the sign-in of whoever made a rule stricter (krb_kept) is watched as any other;
 #   - with `allow` a browser can still opt out by failing every check from the first: `signout`
-#     is the setting that watches every browser (an iPad then cannot sign in to that part).
+#     is the setting that watches every browser (one that really signs nothing in the
+#     background then cannot sign in to that part).
+# 1.0.115 - the kit's 4th edition (isemon 1.10.356-358):
+#   - a check left waiting over 4 s (Windows' "Insert a smart card", the browser's certificate
+#     chooser): the page shows its countdown at once and says so (cert-lost, waiting) - the card
+#     out only for a browser proven to be checked (card_ok > 0), never "cannot be checked";
+#   - a check the page's own policy blocked (a CSP header added by the web server or a proxy in
+#     front - securitypolicyviolation): said (cert-lost, csp) - an event and the card's facts,
+#     never a verdict on the browser nor a card out;
+#   - a change of the mode (off, signout, grace) starts every sign-in's count afresh (card_out,
+#     card_seen) and asks root at once; no word of a failed check is taken until root has
+#     confirmed the port serves the watch (cl_card_port_ready);
+#   - a held sign-in: whoami and /api/portal/me give nothing of the person.
 CL_CARD_MODES = ('off', 'signout', 'grace')
 CL_CARD_OLD_META = 'certlogin:cardgone:'        # 1.0.113's notes of ended sign-ins: tidied away
 CL_CARD_SWEEP = {'at': 0.0, 'tidied': False}
@@ -3276,7 +3295,14 @@ CL_CARD_WHY = {
     'nocert': 'no certificate came with the check (the browser does not sign it in the background)',
     'nocookie': 'the browser sent no cookie with the check',
     'nopicture': 'the check got no answer at all (the browser did not sign the connection)',
-    'timeout': 'the check got no answer within 20 s'}
+    'timeout': 'the check got no answer within 20 s',
+    'waiting': 'the check waited over 4 s on a window of the card\'s (Windows\' "Insert a smart '
+               'card", the browser\'s certificate chooser)',
+    'csp': 'the page\'s policy blocked the check - a Content-Security-Policy header of the web '
+           'server (nginx add_header) or of a proxy in front lets no picture from the '
+           'certificate\'s port in'}
+CL_CARD_CSP_META = 'certlogin:csp:'             # + part: the last check a policy blocked (facts)
+CL_CARD_TIMES = ('card_out', 'card_lock', 'card_seen', 'card_at')
 CL_CARD_UNABLE = ('allow', 'signout')
 # The page's word for why it ended (the sign-in page's own sentence for it).
 CL_CARD_WORD = {CL_CARD_OUT: 'out', CL_CARD_LATE: 'late', CL_CARD_OTHER: 'other'}
@@ -3368,8 +3394,9 @@ def cl_card_switched_on(store, part, keep=0):
     """The watch switched on for a part (1.0.115): no sign-in of it counts as made while it was
     on (card_w) - one made while on, the watch then off and on again, is as one made before.
     But the sign-in of whoever switched it on (`keep`, a session id): they are at its browser
-    now, card and all - as made while on (from an iPad: not watched, or signed out with
-    "A browser that cannot be checked" on signout; before, signed out right after saving)."""
+    now, card and all - as made while on (from a browser that cannot be checked: not watched,
+    or signed out with "A browser that cannot be checked" on signout; before, signed out right
+    after saving)."""
     try:
         rows = store.db.rows('SELECT id, data FROM sessions WHERE kind = ?', (part,))
     except Exception as e:                              # noqa: BLE001
@@ -3388,6 +3415,87 @@ def cl_card_switched_on(store, part, keep=0):
                 store.session_merge(r['id'], {'card_w': 1})
         elif d.get('card_w'):
             store.session_merge(r['id'], {'card_w': None})
+
+
+def cl_card_mode_changed(store, part, was, now, by=''):
+    """The card's watch of a part changed its mode - off, signout, grace (1.0.115, the kit's 4th
+    edition): every sign-in of it counts afresh - no card_out or card_seen of the mode before
+    (a time out counted under grace ended a sign-in at once under signout; one of an earlier
+    period on ended it right after switching on again). card_ok and card_w are kept. Off to off
+    is never asked here (nothing changed)."""
+    try:
+        rows = store.db.rows('SELECT id, data FROM sessions WHERE kind = ?', (part,))
+    except Exception as e:                              # noqa: BLE001
+        log('the watched sign-ins could not be read: %s' % e, 'warn')
+        return 0
+    n = 0
+    for r in rows:
+        try:
+            d = json.loads(r.get('data') or '{}')
+        except ValueError:
+            continue
+        if isinstance(d, dict) and any(d.get(k) for k in CL_CARD_TIMES):
+            store.session_merge(r['id'], {k: None for k in CL_CARD_TIMES})
+            n += 1
+    if n:
+        store.add_event('sign-ins' if part == 'admin' else 'portal',
+                        'the card\'s watch of %s changed (%s -> %s): %d watched sign-in(s) count '
+                        'afresh' % ('these pages' if part == 'admin' else 'the enrolment pages',
+                                    was or 'off', now or 'off', n), who=by or None)
+    return n
+
+
+CL_CARD_WEB = {'busy': False}
+
+
+def cl_card_web_now(store):
+    """Root asked for nginx's lines now (the card's watch switched on or off, 1.0.115) - not at
+    the main loop's next round. In a thread of its own: asking root may wait on it, and the
+    settings saved are answered meanwhile. One at a time; the main loop asks as before."""
+    if CL_CARD_WEB['busy']:
+        return
+
+    def run():
+        try:
+            web_tick(store)
+        except Exception as e:                          # noqa: BLE001
+            log_sparing('cl-card-web', 'root could not be asked at once: %s' % e, 'warn',
+                        every=300)
+        finally:
+            CL_CARD_WEB['busy'] = False
+
+    CL_CARD_WEB['busy'] = True
+    try:
+        threading.Thread(target=run, name='cl-card-web', daemon=True).start()
+    except RuntimeError:
+        CL_CARD_WEB['busy'] = False
+
+
+def cl_card_port_ready(store):
+    """Whether this node's port serves the card's check (1.0.115, the kit's 4th edition): nginx
+    listening there AND root's last word says it wrote the watch's server (`watch` in its
+    certlogin status - only ever there while watching) or applied exactly what is wanted now
+    (its hash - a root of an older version). Right after switching on, the port is served
+    without the check until root rewrote it: a picture failing then says nothing of the card
+    or of the browser. A node without the root helper at all (no WEB_DIR - nginx is then the
+    operator's own, never written by acme): what listens there is all there is to know."""
+    port = cl_port()
+    if not cl_listening(port):
+        return False
+    if not WEB_DIR.is_dir():
+        return True
+    st = web_status()
+    said = st.get('certlogin') or {}
+    try:
+        if said.get('watch') and int(said.get('port') or 0) == int(port):
+            return True
+    except (TypeError, ValueError):
+        pass
+    try:
+        return bool(st.get('state') == 'done' and st.get('hash') and
+                    st.get('hash') == web_hash(web_desired(store)))
+    except Exception:                                   # noqa: BLE001
+        return False
 
 
 def _cl_card_kept_ok(part, data):
@@ -3593,7 +3701,7 @@ def _cl_card_gone(why):
 def _cl_card_unable_now(h, part, s, how):
     """The page's picture got no answer at all (nopicture, or none within 20 s - only those,
     1.0.115) while no check in the background has found the card in this browser yet: with
-    <part>_certlogin_card_unable = allow, this browser cannot be checked (an iPad) - the
+    <part>_certlogin_card_unable = allow, this browser cannot be checked - the
     sign-in not watched until a check finds its card, said once in the events with why; the
     answer. None (on as a card taken
     out) with signout, once the card was found here before, for a sign-in made before the
@@ -3605,6 +3713,9 @@ def _cl_card_unable_now(h, part, s, how):
     st, _why = cl_card_due(part, s)
     if st != 'in':
         return None
+    if not cl_card_port_ready(h.store):
+        # Root has not confirmed the port yet (1.0.115): no verdict - asked again later.
+        return {'ok': True, 'state': 'unknown'}
     got = h.store.session_merge(s['id'], {'card_ok': -1, 'card_out': None, 'card_lock': None},
                                 expect={'card_ok': data.get('card_ok')})
     if got is not False and got is not None:
@@ -3741,19 +3852,72 @@ def _certlogin_alive(h):
                           CL_CARD_WHY['nocert'])
 
 
+def _cl_card_csp(h, part, s):
+    """The page's own policy blocked its check (1.0.115, the kit's 4th edition: the web server's
+    CSP header beside the page's - a browser holds to both, so a header naming no port blocks the
+    picture before it is sent, in every browser). Neither the card out nor a browser that cannot
+    be checked: said in the events once an hour for a sign-in, kept for the card's facts - the
+    page goes on checking at its pace."""
+    data = s.get('data') or {}
+    now = time.time()
+    try:
+        last = float(data.get('card_csp') or 0)
+    except (TypeError, ValueError):
+        last = 0.0
+    if now - last >= 3600:
+        got = h.store.session_merge(s['id'], {'card_csp': round(now, 3)},
+                                    expect={'card_csp': data.get('card_csp')})
+        if got is not False and got is not None:
+            h.store.add_event('sign-ins' if part == 'admin' else 'portal',
+                              'the check of the card of %s\'s sign-in to %s was blocked: %s '
+                              '(https://<this name>:%d) - every header that sets a policy for the '
+                              'page must let the port\'s https picture in; the card cannot be '
+                              'checked until it does (from %s)' % (
+                                  s.get('name') or '?', 'these pages' if part == 'admin' else
+                                  'the enrolment pages', CL_CARD_WHY['csp'], cl_port(),
+                                  h.client_ip()), 'warn', who=s.get('name') or None)
+    try:
+        had = json.loads(h.store.get_meta(CL_CARD_CSP_META + part) or 'null')
+        if not isinstance(had, dict) or now - float(had.get('at') or 0) >= 300:
+            h.store.set_meta(CL_CARD_CSP_META + part, json.dumps(
+                {'at': round(now, 3), 'name': str(s.get('name') or '')[:120],
+                 'ip': str(h.client_ip() or '')[:64], 'port': cl_port()}))
+    except Exception:                                   # noqa: BLE001
+        pass
+    return {'ok': True, 'state': 'unknown', 'csp': True}
+
+
+def cl_card_csp_seen(store, part, now=None):
+    """The last check of a part the page's policy blocked, within a day (the card's facts), or
+    None."""
+    now = time.time() if now is None else now
+    try:
+        got = json.loads(store.get_meta(CL_CARD_CSP_META + part) or 'null')
+        if isinstance(got, dict) and now - float(got.get('at') or 0) < 86400:
+            return {'at': float(got['at']), 'name': str(got.get('name') or ''),
+                    'ip': str(got.get('ip') or ''), 'port': int(got.get('port') or 0)}
+    except (ValueError, TypeError, KeyError):
+        pass
+    return None
+
+
 @route('POST', '/api/certlogin/lost')
 def _certlogin_lost(h):
     """The page's picture got no answer at all, twice (over 443, this page's own): the handshake
     failed - nothing to sign it with (why: nopicture); or it came back saying no cookie came with
-    it (why: nocookie); or none came within 20 s (why: timeout). Taken as the card out only while
-    this node serves the certificate's port (else a port down is no card taken out) - nopicture,
-    never found in this browser, made while watched, neither held nor out: as one that cannot be
-    checked (allow) - and so is timeout (1.0.115: a picture left waiting is no answer either; the
-    same gates). It only ever ends, holds or leaves unwatched its own sign-in."""
+    it (why: nocookie); or none came within 20 s (why: timeout); or it has waited over 4 s - a
+    window of the card's up (why: waiting, 1.0.115); or the page's own policy blocked it (why:
+    csp, 1.0.115 - said, never the card out). Taken as the card out only while this node serves
+    the certificate's port and root has confirmed it serves the watch there (else a port not yet
+    rewritten is no card taken out) - nopicture, never found in this browser, made while
+    watched, neither held nor out: as one that cannot be checked (allow) - and so is timeout
+    (1.0.115: a picture left waiting is no answer either; the same gates). waiting: the card out
+    only for a browser proven (card_ok > 0) - else nothing changes. It only ever ends, holds or
+    leaves unwatched its own sign-in."""
     b = h.body()
     part = str(b.get('part') or '')
     said = str(b.get('why') or 'nopicture')
-    said = said if said in ('nopicture', 'nocookie', 'timeout') else 'nopicture'
+    said = said if said in ('nopicture', 'nocookie', 'timeout', 'waiting', 'csp') else 'nopicture'
     if part not in CL_PARTS or cl_card_mode(part) == 'off' or not cl_on(part):
         raise ApiError(404, 'the card is not watched here')
     token, s = cl_card_session(h, part)
@@ -3771,12 +3935,20 @@ def _certlogin_lost(h):
         return {'ok': True, 'state': 'unable'}
     if not cl_card_watched(part, s):
         return {'ok': True, 'state': 'unwatched'}
-    if not cl_listening(cl_port()):
+    if said == 'csp':
+        return _cl_card_csp(h, part, s)
+    if not cl_card_port_ready(h.store):
         return {'ok': True, 'state': 'unknown'}
     st, why = cl_card_due(part, s, h.store)
     if st == 'gone':
         cl_card_end(h.store, part, s, why, h.client_ip())
         return _cl_card_gone(why)
+    if said == 'waiting':
+        # A browser not proven to be checked (1.0.115): its first check in the background may
+        # well wait on its PIN or its chooser with the card in - nothing changes, no word of it.
+        if _cl_card_ok(s.get('data') or {}) <= 0 and st != 'out':
+            return {'ok': True, 'state': 'waiting'}
+        return cl_card_failed(h, part, s, CL_CARD_WHY['waiting'])
     return cl_card_failed(h, part, s, CL_CARD_WHY[said], nopicture=said in ('nopicture', 'timeout'))
 
 

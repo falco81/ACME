@@ -4218,14 +4218,20 @@ function certDoor() {
    card is there; 2 it is out and the sign-in waits (grace: the notice, its countdown); 3, 4, 5
    the sign-in ended just now (another card, taken out, not put back in time); 6 no cookie came
    with the check - said to the server over 443 at once (?api=cert-lost, why nocookie); 7 this
-   browser cannot be checked (1.0.114, the kit's 3rd edition: no check in the background ever
-   found the card here - an iPad's Safari signs nothing for a page in the background): the sign-in
-   is not watched, the page says so and checks only once a minute (and when it wakes) - one that
+   browser cannot be checked (1.0.114, the kit's 3rd edition - a safety net: no check in the
+   background ever found the card here - a browser that signs nothing for a page in the
+   background): the sign-in is not watched, the page says so and checks only once a minute (and
+   when it wakes) - one that
    finds the card watches it again (1.0.115); 8 try later (nginx: too many checks, PHP or the
    daemon not answering - 1.0.115): neither out nor unable, asked again at the next tick; none at
    all - the handshake failed (nothing to sign it with) or the sign-in is over - asked once more
    1.5 s later, then said to the server over 443 (?api=cert-lost, why nopicture - or timeout, none
-   within 20 s), which holds or ends it and writes why. A picture asked with crossorigin
+   within 20 s), which holds or ends it and writes why. A check still waiting after 4 s (1.0.115,
+   the kit's 4th edition: Windows' "Insert a smart card", the browser's certificate chooser): the
+   countdown at once (grace), behind that window, and the server told (why waiting) - the card
+   out only for a browser proven to be checked; else the notice taken down again. A check the
+   page's own policy blocked (securitypolicyviolation - a CSP header of the web server or a proxy
+   in front): said as such (why csp), never the card out nor "cannot be checked". A picture asked with crossorigin
    "use-credentials" (1.0.115): the browser says its Origin, and only this name's page is
    answered - the page's policy lets that one address in for images, only for a watched sign-in. Kind to the card: one check at a time; one for all the tabs of this browser
    (localStorage - a tab whose neighbour found the card a moment ago takes its answer, one that
@@ -4280,7 +4286,7 @@ function cardCheck() {
     cardNext(c.every * 1000 - (Date.now() - sh.t) + 200 + Math.random() * 800);
     return;
   }
-  var done = false, img = new Image(), began = Date.now(), to = null;
+  var done = false, img = new Image(), began = Date.now(), to = null, wt = null;
   CARD.busy = true;
   var fin = function (w, late) {
     if (done) return;
@@ -4289,7 +4295,9 @@ function cardCheck() {
     img.onload = img.onerror = null;
     if (!CARD || g !== CARD.gen) return;
     CARD.busy = false;
+    clearTimeout(wt);
     var took = Date.now() - began;
+    if (w) CARD.csp = 0;                /* a picture came: no policy in the way */
     /* Try later (8): too many checks, or PHP or the daemon not answering - not the card. */
     if (w === 8) { cardNext(CARD.unable ? 60000 : CARD.out ? 5000 : c.every * 1000); return; }
     if (CARD.unable) {
@@ -4323,8 +4331,9 @@ function cardCheck() {
     fetch('?api=cert-lost', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
                              /* v: the page's kind of check (1.0.115: with its Origin) - a page of
                                 1.0.114 says none, and is told to load itself again */
-                             body: JSON.stringify({part: CARD.part, v: 2, why: w === 6 ? 'nocookie' : late ? 'timeout' : 'nopicture'})})
-      .then(function (r) { return r.json().then(function (d) { return {status: r.status, d: d || {}}; }, function () { return {status: r.status, d: {}}; }); })
+                             body: JSON.stringify({part: CARD.part, v: 2, why: w === 6 ? 'nocookie' : CARD.csp ? 'csp'
+                                                   : late ? 'timeout' : 'nopicture'})})
+      .then(cardAnswer)
       .then(function (x) {
         if (!CARD || g !== CARD.gen) return;
         CARD.busy = false;
@@ -4332,7 +4341,7 @@ function cardCheck() {
         if (st === 'gone') { cardEnd(String(x.d.why || '') in CARD_WORDS ? String(x.d.why) : (CARD.out ? 'late' : 'out')); return; }
         if (st === 'locked') { cardShare({t: Date.now(), w: 2}); cardOut(took, Number(x.d.left)); return; }
         if (st === 'unable') { cardUnable(); return; }
-        if (st === 'none') { CARD.done = true; location.reload(); return; }   /* signed out otherwise */
+        if (st === 'none') { cardGone(); return; }   /* signed out otherwise */
         if (st === 'unwatched' || x.status === 404) { cardStop(); return; }
         /* 'unknown' (the port not served on this node), the daemon not answering: again later */
         cardNext(CARD.out ? 5000 : Math.max(5000, c.every * 1000));
@@ -4346,6 +4355,44 @@ function cardCheck() {
   /* A check left without an answer for 20 s counts as none (fail closed); the browser may still
      wait on a window of the card's - no new check starts until this one is over. */
   to = setTimeout(function () { fin(0, true); }, 20000);
+  /* Waiting after 4 s (1.0.115, the kit's 4th edition): a window of the card's holds the check -
+     Windows' "Insert a smart card", the browser's certificate chooser. The countdown at once
+     (grace), behind that window, and the server told: the card out for a browser proven to be
+     checked (signout: ended), nothing for one not yet - its first check may wait on the PIN with
+     the card in - and then the notice taken down again (its own countdown is not to end a sign-in
+     the server holds nothing against). The check itself goes on: OK pressed with the card back,
+     it answers 1 px and the notice goes. Not shared with the other tabs (each would start a
+     handshake - and a window - of its own). */
+  wt = setTimeout(function () {
+    if (done || !CARD || g !== CARD.gen || CARD.done || CARD.out || CARD.unable) return;
+    var drawn = 0;
+    if (c.mode === 'grace') {
+      drawn = CARD.out = began;
+      cardLayer(true);
+    }
+    var undo = function () {
+      if (!CARD || g !== CARD.gen || CARD.done || !drawn || CARD.out !== drawn) return;
+      CARD.out = 0;
+      cardLayer(false);
+    };
+    fetch('?api=cert-lost', {method: 'POST', credentials: 'same-origin', headers: {'Content-Type': 'application/json'},
+                             body: JSON.stringify({part: CARD.part, v: 2, why: 'waiting'})})
+      .then(cardAnswer)
+      .then(function (x) {
+        if (!CARD || g !== CARD.gen || CARD.done) return;
+        var st = String(x.d.state || '');
+        if (st === 'gone') { cardEnd(String(x.d.why || '') in CARD_WORDS ? String(x.d.why) : 'out'); return; }
+        if (st === 'none') { cardGone(); return; }
+        if (st === 'locked') {
+          /* The check answered meanwhile (the card back): the server told at once. */
+          if (done) { if (!CARD.out) cardCheckNow(); return; }
+          var left = Number(x.d.left);
+          if (c.mode === 'grace' && left >= 0) { CARD.out = Date.now() - Math.max(0, c.grace - left) * 1000; cardLayer(true); }
+          return;
+        }
+        undo();
+      }, undo);
+  }, 4000);
   /* Its Origin said (1.0.115): the port answers this name's page only. A picture that failed so
      is asked once more without it - a node of 1.0.114 (an upgrade half way, the other node of a
      cluster) sends no CORS, and its answer is the card's as before; this version answers a
@@ -4363,6 +4410,27 @@ function cardCheck() {
     img.src = CARD.url + Date.now();
   };
   ask(true);
+}
+/* The answer of ?api=cert-lost: {status, d}. */
+function cardAnswer(r) {
+  return r.json().then(function (d) { return {status: r.status, d: d || {}}; }, function () { return {status: r.status, d: {}}; });
+}
+/* The sign-in is gone on the server already (1.0.115, the kit's 4th edition: ended there - the
+   card out too long while this tab slept, another node's sweep): the sign-in page says why and
+   tries nothing by itself, as after any end for the card. */
+function cardGone() {
+  if (!CARD || CARD.done) return;
+  var part = CARD.part, out = CARD.out;
+  CARD.done = true;
+  CARD.gen++;
+  clearTimeout(CARD.timer);
+  clearInterval(CARD.tick);
+  try {
+    krbSignedOut(part);
+    certAutoNo(part);
+    if (out) sessionStorage.setItem('acme.card.out.' + part, 'late');
+  } catch (e) { }
+  location.reload();
 }
 function cardIn() {
   /* Drawn while out or held (whoami gave it no role then): drawn again, now that the card is here. */
@@ -4389,9 +4457,10 @@ function cardStop() {
   clearTimeout(CARD.timer);
   cardLayer(false);
 }
-/* This browser cannot have its card checked (1.0.114, the kit's 3rd edition): no check in the
-   background has ever found the card here - an iPad's Safari signs nothing for a page in the
-   background, though the card is in. The server leaves the sign-in unwatched (the setting "A
+/* This browser cannot have its card checked (1.0.114, the kit's 3rd edition - a safety net, 1.0.115:
+   the iPad it was first seen on was a CSP header blocking the check): no check in the background
+   has ever found the card here - a browser that signs nothing for a page in the background,
+   though the card is in. The server leaves the sign-in unwatched (the setting "A
    browser that cannot be checked"): the page says so - and still checks once a minute and when
    it wakes (1.0.115): a check that finds the card watches the sign-in again. The other tabs
    learn it at their next check. `quiet`: the page loaded so (said once already). */
@@ -4406,7 +4475,7 @@ function cardUnable(quiet) {
   window.CARD_UNABLE = true;
   if (was || quiet) return;
   cardShare({t: Date.now(), w: 7});
-  toast('This browser cannot have the card checked (as an iPad cannot): this sign-in is not watched.', 'warn');
+  toast('This browser cannot have the card checked: this sign-in is not watched.', 'warn');
   /* Said for longer than a toast's usual 3 s: the person is to read why. */
   var tn = $('toast');
   if (tn) {
@@ -4459,6 +4528,9 @@ function cardLayer(on) {
     var left = el('p', 'card-lock-left', '');
     left.id = 'card-lock-left';
     box.appendChild(left);
+    /* Cancel in that window (1.0.115, the kit's 4th edition): Chrome and Edge then offer no
+       certificate to this port until they are closed and opened again - no page can change it. */
+    box.appendChild(el('p', 'card-lock-hint', 'A window asking for the smart card: put the card back and press OK there - not Cancel. After Cancel the browser offers no card here until it is closed and opened again.'));
     var row = el('div', 'btnrow card-lock-btns');
     var out = cmdButton('Sign out', 'out', 'danger');
     out.id = 'card-lock-out';
@@ -4541,6 +4613,7 @@ function cardWatchStart(card, part) {
           part: part, gen: 0, timer: null, tick: null, busy: false, misses: 0, out: 0, done: false, unable: false,
           key: 'acme.card.check.' + part, reload: !!(card.locked || card.stale),
           /* location.hostname as it is - an IPv6 address has its brackets already */
+          origin: 'https://' + location.hostname + ':' + Number(card.port), csp: 0,
           url: 'https://' + location.hostname + ':' + Number(card.port) + (part === 'admin' ? '/admin/' : '/') + '?api=cert-alive&t='};
   if (card.unable) { cardUnable(true); return; }
   if (card.locked) cardOut(0, Number(card.left));
@@ -4557,6 +4630,14 @@ function cardWatchStart(card, part) {
     var sh = cardShared();
     if (!sh || Date.now() - sh.t > 2000 || sh.w !== 1) cardCheckNow();
   });
+});
+/* The page's own policy blocked the check (1.0.115, the kit's 4th edition): a CSP header of the
+   web server or a proxy in front beside the page's - a browser holds to both. Kept until a picture
+   comes; the check's failure is then said as such (why csp). */
+document.addEventListener('securitypolicyviolation', function (e) {
+  if (!CARD || CARD.done) return;
+  var u = String(e.blockedURI || '');
+  if (u.indexOf(CARD.origin) === 0) CARD.csp = Date.now();
 });
 /* Another tab saw the card out, or the sign-in ended: this one checks at once - or ends too. */
 window.addEventListener('storage', function (e) {

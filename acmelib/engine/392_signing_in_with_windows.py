@@ -730,9 +730,12 @@ def krb_page_info(part, store=None):
 
 def krb_state_now(store):
     """{part: (signs in with Windows, "no password at all" in effect, signs in with a
-    certificate, how strictly it takes one - cl_rule)} - before and after a change."""
+    certificate, how strictly it takes one - cl_rule, the card's watch: off | signout | grace)}
+    - before and after a change. (The card's mode is its own element, never cl_rule's: that one
+    is compared as "stricter", and a rank of grace and signout would end sign-ins.)"""
     return {part: (krb_usable(part, store), krb_password_off(part, store),
-                   cl_usable(part, store), cl_rule(part)) for part in KRB_PARTS}
+                   cl_usable(part, store), cl_rule(part), cl_card_mode(part))
+            for part in KRB_PARTS}
 
 
 def krb_sessions_settle(store, before, keep=None, by=''):
@@ -742,10 +745,23 @@ def krb_sessions_settle(store, before, keep=None, by=''):
     id) stays either way - marked, so that the check of every request leaves it too."""
     after = krb_state_now(store)
     keep = int(keep or 0)
+    asked = False
     for part in KRB_PARTS:
         was = tuple(before.get(part, (False, False, False))) + (False,) * 3
         usable_was, only_was, cert_was = was[:3]
         usable, only, cert = after[part][:3]
+        # The card's watch to another mode (1.0.115, the kit's 4th edition): every sign-in counts
+        # afresh - before the doer's card_w below, which this keeps - and root is asked for
+        # nginx's lines at once (not at the next round). Off to off: nothing compared, nothing
+        # written.
+        if was[4] and was[4] != after[part][4]:
+            try:
+                cl_card_mode_changed(store, part, was[4], after[part][4], by)
+            except Exception as e:                      # noqa: BLE001
+                log('the watched sign-ins could not be counted afresh: %s' % e, 'warn')
+            if not asked and 'off' in (was[4], after[part][4]):
+                asked = True
+                cl_card_web_now(store)
         # The card's watch switched on (1.0.115): no sign-in counts as made while it was on -
         # but the doer's.
         if cl_card_rule_on(was[3], after[part][3]):

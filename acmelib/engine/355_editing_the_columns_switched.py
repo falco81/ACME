@@ -148,6 +148,12 @@ def _whoami(h):
         # is (a database or a package sent) refuse it.
         return {'who': {'name': acc['name'], 'role': '', 'display': acc.get('display') or '',
                         'mfa': mfa_pending(s)}}
+    if card and (card['locked'] or card['stale']):
+        # Held (1.0.115, the kit's 4th edition): nothing of the person - no preferences, no
+        # columns, no full name - only what the covered page needs to watch the card.
+        return {'idle_min': int(CONFIG.get('session_idle_min') or 120),
+                'who': {'name': acc['name'], 'role': '',
+                        'how': str((s.get('data') or {}).get('how') or ''), 'card': card}}
     try:
         prefs = json.loads(acc.get('prefs') or '{}')
     except ValueError:
@@ -155,8 +161,7 @@ def _whoami(h):
     # The page is drawn with the person's own layout of the tables from the
     # first frame, rather than as it comes and then again.
     return {'idle_min': int(CONFIG.get('session_idle_min') or 120),
-            'who': {'name': acc['name'], 'role': '' if card and (card['locked'] or card['stale'])
-                    else acc['role'], 'source': acc.get('source'),
+            'who': {'name': acc['name'], 'role': acc['role'], 'source': acc.get('source'),
                     'display': acc.get('display') or '', 'must_change': bool(
                         acc.get('must_change')), 'prefs': prefs,
                     # the performance meter switched on (Settings → About, 1.0.48)

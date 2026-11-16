@@ -29,10 +29,16 @@ The kit's t_card.py, ui_card.js and t_cert_ha excerpt, ported:
     time, not back in time, signout, two tabs, Czech, a phone's width, the settings;
   - two daemons on one database (a cluster's shared database simulated) and a restart: a check
     on one node, the questions on the other;
-  - a browser that cannot be checked (the kit's 3rd edition, an iPad): never found in the
+  - a browser that cannot be checked (the kit's 3rd edition - a safety net since its 4th, which
+    found the "iPad" was a CSP header blocking the check): never found in the
     background - not watched (allow, an event with why, 7 px, never held, whoami without card) or
     signed out (signout); found once - a card taken out as always; no cookie - 6 px and its reason;
     in Chromium the background's picture failing while the sign-in works - the notice;
+  - 1.0.115, the kit's 4th edition: a check left waiting over 4 s (the card out for a proven
+    browser only), one the page's policy blocked (said, never a verdict), no word before root has
+    confirmed the port, a change of the mode counting afresh, a held sign-in given nothing of the
+    person, F5 on from the server's clock, an IPv6 page's policy `https:`; in Chromium the hint,
+    F5, waiting, a second policy header, ended on the server meanwhile;
   - 1.0.115 (hunt P): only "no answer at all" makes "cannot be checked", never for a sign-in held,
     out, or made before the watch was on; watched again once a check finds the card; the doer
     of a stricter rule watched; the port's check only for this name's page (Origin, CORS); nginx's
@@ -111,6 +117,29 @@ for _k, _v in TCL.CertLogin.__dict__.items():
         setattr(CardWatch, _k, _v)
 
 
+_SETUP = CardWatch.__dict__['setUpClass']
+
+
+@classmethod
+def _setup_drained(cls):
+    """test_cert_login's setup, and the daemon's output read as it comes: left in its pipe, the
+    daemon stopped in the middle of writing a line once the pipe was full (64 KiB of log - the
+    later tests of this file got there), and every thread that logged with it."""
+    _SETUP.__func__(cls)
+    d = getattr(cls, 'daemon', None)
+    if d is not None and d.stdout is not None:
+        def drain(f=d.stdout):
+            try:
+                while f.read1(65536):
+                    pass
+            except (OSError, ValueError):
+                pass
+        threading.Thread(target=drain, name='daemon-out', daemon=True).start()
+
+
+CardWatch.setUpClass = _setup_drained
+
+
 def _t(fn):
     setattr(CardWatch, fn.__name__, fn)
     return fn
@@ -172,6 +201,36 @@ def serving(self, port=8443, path='/api/health'):
 CardWatch.serving = serving
 
 
+def no_root_folder(self):
+    """The test daemon has no root helper's folder (state/web), as always: with it there, the
+    daemon's rounds ask root for the firewall, the trusted roots and the rest and wait minutes for
+    an answer that never comes here - and what listens on the port is then all the daemon knows of
+    it (1.0.115: see lost_root for root's word)."""
+    shutil.rmtree(os.path.join(self.tmp, 'state', 'web'), ignore_errors=True)
+
+
+CardWatch.no_root_folder = no_root_folder
+
+
+def lost_root(self, token, why, said):
+    """The page's word over 443 (/api/certlogin/lost) as the daemon takes it while root's status
+    says `said` and the port listens - asked of the engine in a process of its own (root's status
+    folder is never made for the test daemon: with it there, the daemon's rounds ask root for the
+    firewall, the trusted roots and the rest and wait on it for minutes). Its state."""
+    return self.py('import tempfile\nE.WEB_DIR = E.Path(tempfile.mkdtemp())\n'
+                   'E.cl_listening = lambda p: True\nE.web_status = lambda: %r\n'
+                   'class H:\n'
+                   '    store = st\n'
+                   '    route_path = "/api/certlogin/lost"\n'
+                   '    headers = {"X-Acme-Session": %r}\n'
+                   '    def body(self): return {"part": "admin", "v": 2, "why": %r}\n'
+                   '    def client_ip(self): return "127.0.0.1"\n'
+                   'print(json.dumps(E._certlogin_lost(H()).get("state")))' % (said, token, why))
+
+
+CardWatch.lost_root = lost_root
+
+
 def alive(self, token, cert=None, part='admin', failed=''):
     body = {'part': part}
     if cert:
@@ -196,6 +255,7 @@ def card_on(self, part='admin', **kv):
 
 
 def card_off(self):
+    self.no_root_folder()
     self.on(admin_certlogin_card_watch='off', portal_certlogin_card_watch='off',
             admin_certlogin_card_grace=30, admin_certlogin_card_every=15,
             portal_certlogin_card_every=15, portal_certlogin_card_grace=30,
@@ -220,8 +280,9 @@ def session_set(self, token, **kv):
             'print("1")' % (token, kv, created, created))
 
 
-def page_csp(self, token):
-    """The CSP of /admin/ through php -S: signed out, and signed in with `token`."""
+def page_csp(self, token, host=HOST):
+    """The CSP of /admin/ through php -S: signed out, and signed in with `token` - the page
+    opened by `host` (its Host header)."""
     web = tempfile.mkdtemp(prefix='acme-card-web-')
     shutil.rmtree(web)
     shutil.copytree(os.path.join(ROOT, 'web'), web)
@@ -243,7 +304,7 @@ def page_csp(self, token):
             time.sleep(0.1)
         for cookie in ('', '__Host-acme_session=' + token):
             conn = http.client.HTTPConnection('127.0.0.1', port, timeout=60)
-            conn.request('GET', '/admin/', headers=dict({'Host': HOST}, **({'Cookie': cookie} if cookie else {})))
+            conn.request('GET', '/admin/', headers=dict({'Host': host}, **({'Cookie': cookie} if cookie else {})))
             r = conn.getresponse()
             out += [v for k, v in r.getheaders() if k.lower() == 'content-security-policy']
             r.read()
@@ -301,13 +362,42 @@ def test_01_off_changes_nothing(self):
         self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 200)
         st, got = self.sign('portal', 'falco')
         self.assertEqual(st, 200, got)
-        st, me = self.call('GET', '/api/portal/me', None, got['token'])
+        ptok = got['token']
+        st, me = self.call('GET', '/api/portal/me', None, ptok)
         self.assertNotIn('card', me['me'])
+        # 1.0.115 (the kit's 4th edition), off: the portal's `me`, /api/auth/mfa and the
+        # portal's password change answer as before - nothing held, nothing trimmed.
+        self.assertEqual(sorted(me['me']), ['about', 'display', 'help', 'kind', 'must_change', 'name',
+                                            'role', 'sees_all', 'sso', 'sso_logout', 'title'])
+        st, got = self.call('GET', '/api/auth/mfa', None, tok)
+        self.assertEqual(st, 200, got)
+        self.assertEqual(sorted(got), ['dest', 'digits', 'display', 'kind', 'methods', 'name', 'ok',
+                                       'passkey_hosts', 'stage', 'started'])
+        self.assertEqual((got['name'], got['display']), ('nested', 'Nested Person'))
+        st, got = self.call('POST', '/api/portal/password', {'old': 'x', 'new': 'y', 'again': 'y'}, ptok)
+        self.assertEqual(st, 400, got)
+        self.assertIn('directory password', got['error'])
         want = self.py('print(json.dumps(E.certlogin_desired(st)))')
         self.assertNotIn('watch', want)
         W = load_web('off')
         c = W.certlogin_checked(want)
         self.assertNotIn('watch', c)
+        # ...root's status of the port as before: no `watch` (the daemon takes no word of a
+        # failed check without it - only while watched).
+        self.assertEqual(W.certlogin_now(c), {'port': c['port'], 'busy': ''})
+        self.assertEqual(W.certlogin_now(dict(c, watch=True)), {'port': c['port'], 'busy': '', 'watch': True})
+        # ...and a settings save that leaves the watch off writes nothing into the sign-ins.
+        raw = self.py('import hashlib\nprint(json.dumps(st.db.value("SELECT data FROM sessions WHERE '
+                      'token_hash = ?", (hashlib.sha256(%r.encode()).hexdigest(),))))' % tok)
+        self.on(admin_certlogin_card_watch='off', admin_certlogin_card_every=20)
+        self.on(admin_certlogin_card_every=15)
+        self.assertEqual(self.py('import hashlib\nprint(json.dumps(st.db.value("SELECT data FROM sessions WHERE '
+                                 'token_hash = ?", (hashlib.sha256(%r.encode()).hexdigest(),))))' % tok), raw)
+        self.assertEqual(self.events('count afresh'), [])
+        # The packaged nginx configuration sends no policy header of its own (a browser given two
+        # holds to both - the kit's 4th edition's key fix): one added here would block the check.
+        with open(os.path.join(ROOT, 'deploy', 'nginx-acme.conf')) as f:
+            self.assertNotRegex(re.sub(r'(?m)#.*$', '', f.read()), r'(?i)add_header\s+Content-Security-Policy')
         with open(os.path.join(ROOT, 'deploy', 'nginx-acme.conf')) as f:
             main = f.read()
         text = W.certlogin_text(main, None, c)
@@ -1185,7 +1275,32 @@ def test_10_real_nginx_and_the_browser(self):
         # The page's picture got nothing (the handshake failed): it says so over 443 - held.
         st, hd, body, _s = ask(443, '/admin/?api=cert-lost', cookies=sess, method='POST', body={'v': 2, 'part': 'admin'})
         self.assertEqual(json.loads(body)['state'], 'locked', body)
+        # Held (1.0.115, the kit's 4th edition): whoami through the page gives nothing of the
+        # person; the page itself is drawn (covered).
+        st, hd, body, _s = ask(443, '/admin/?api=whoami', cookies=sess)
+        self.assertEqual(sorted(json.loads(body)['who']), ['card', 'how', 'name', 'role'], body)
+        st, hd, body, _s = ask(443, '/admin/', cookies=sess)
+        self.assertEqual(st, 200)
+        self.assertIn(b'"card":{', body.replace(b' ', b''))
+        self.assertNotIn(b'Nested Person', body)
+        # ...a change of the mode counts afresh: signout now - not ended for the time out
+        # counted under grace; a check with the card goes on.
+        self.on(admin_certlogin_card_watch='signout')
+        self.assertEqual(ask(443, '/admin/?api=status', cookies=sess)[0], 200)
         self.assertEqual(check(14, 'nested', sess)[:2], (200, 1))
+        self.on(admin_certlogin_card_watch='grace')
+        # ...waiting (1.0.115): a proven browser - held; through the page as the page says it.
+        st, hd, body, _s = ask(443, '/admin/?api=cert-lost', cookies=sess, method='POST',
+                               body={'v': 2, 'part': 'admin', 'why': 'waiting'})
+        self.assertEqual(json.loads(body)['state'], 'locked', body)
+        self.assertEqual(check(14, 'nested', sess)[:2], (200, 1))
+        # ...root not having confirmed the port (its status without `watch`): no word of a
+        # failed check taken - the port of this real nginx listening.
+        self.assertEqual(self.lost_root(sess[0].split('=', 1)[1], 'nopicture', {}), 'unknown')
+        self.assertEqual(self.lost_root(sess[0].split('=', 1)[1], 'nopicture',
+                                        {'certlogin': {'port': 8443, 'busy': '', 'watch': True}}), 'locked')
+        self.assertEqual(check(14, 'nested', sess)[:2], (200, 1))
+        self.assertEqual(ask(443, '/admin/?api=status', cookies=sess)[0], 200)
         # A first check that came without the card (1.0.115): the card out, never "cannot be
         # checked" - 2 px, held; the page's word then changes nothing.
         sess = sign_in()
@@ -1196,7 +1311,7 @@ def test_10_real_nginx_and_the_browser(self):
         self.assertEqual(ask(443, '/admin/?api=status', cookies=sess)[0], 423)
         self.assertEqual(check(16, 'nested', sess)[:2], (200, 1))
         # A browser that cannot be checked (1.0.114): the page's word over 443 for one that never
-        # got a picture (an iPad) - 7 px, not watched; still checked now and then (its page's
+        # got a picture (a browser that signs nothing in the background) - 7 px, not watched; still checked now and then (its page's
         # policy lets the port in), and a check that finds the card watches it again (1.0.115).
         sess = sign_in()
         st, hd, body, _s = ask(443, '/admin/?api=cert-lost', cookies=sess, method='POST',
@@ -1293,10 +1408,27 @@ def test_10_real_nginx_and_the_browser(self):
                 n = len(self.events('cannot be checked in this browser'))
                 browser('mixed')
                 self.assertEqual(len(self.events('cannot be checked in this browser')), n)
-                # An iPad simulated: the sign-in works, the background's picture never does.
+                # A browser that signs nothing in the background simulated: the sign-in works,
+                # the background's picture never does.
                 browser('unable')
                 self.assertTrue(any('cannot be checked in this browser - the check got no answer at all' in w
                                     for w in self.events('cannot be checked in this browser')))
+                # The kit's 4th edition: the hint, F5, a check left waiting, ended meanwhile...
+                browser('kit4')
+                self.assertTrue(any('the check waited over 4 s on a window of the card\'s' in w
+                                    for w in self.events('waited over 4 s')))
+                # ...a policy header naming no port: said as such, never a verdict.
+                n = len(self.events('cannot be checked in this browser'))
+                browser('csp')
+                self.assertTrue(any('was blocked: the page\'s policy blocked the check' in w
+                                    for w in self.events('was blocked')))
+                self.assertEqual(len(self.events('cannot be checked in this browser')), n)
+                v = self.ok('GET', '/api/certlogin', session=self.ro)
+                self.assertEqual(v['parts']['admin']['card']['csp']['name'], 'nested')
+                # ...a browser not proven yet whose first check waits (grace 5 s).
+                self.on(admin_certlogin_card_grace=5)
+                browser('kit4new')
+                self.on(admin_certlogin_card_grace=30)
         # Off again: nginx as it was before (byte for byte), the check not let through.
         self.on(admin_certlogin_card_watch='off')
         c, cert_conf2 = write_conf()
@@ -1441,9 +1573,9 @@ def test_11_two_nodes_and_a_restart(self):
 
 @_t
 def test_12_a_browser_that_cannot_be_checked(self):
-    """1.0.114, the kit's 3rd edition (isemon 1.10.355), found on a real iPad: Safari on iPadOS
-    signs no connection for a page in the background - the card is in, yet the check never
-    comes. A sign-in keeps whether a check in the background has ever found its card in this
+    """1.0.114, the kit's 3rd edition (isemon 1.10.355) - a safety net since its 4th (the iPad it
+    was found on had a CSP header blocking the check): a browser that signs no connection for a
+    page in the background - the card is in, yet the check never comes. A sign-in keeps whether a check in the background has ever found its card in this
     browser (card_ok; the sign-in itself does not count). Until one has, the page's word that its
     picture got no answer at all (nopicture) means "this browser cannot be checked": allow (the
     default) - not watched until a check finds the card, said in the events with why, never
@@ -1455,7 +1587,7 @@ def test_12_a_browser_that_cannot_be_checked(self):
     lsn = self.serving()
     try:
         self.assertEqual(self.py('print(json.dumps(E.cl_card_unable_mode("admin")))'), 'allow')
-        # Never found, the picture got no answer at all (an iPad): not watched, why said.
+        # Never found, the picture got no answer at all: not watched, why said.
         st, got = self.sign('admin', 'nested')
         tok = got['token']
         d = self.session_data(tok)
@@ -1526,8 +1658,8 @@ def test_12_a_browser_that_cannot_be_checked(self):
             self.assertIsNone(self.session_data(tok))
         self.assertTrue(any('was taken out (the browser sent no cookie with the check)' in w
                             for w in self.events('no cookie')))
-        # None within 20 s (review round 2): as no answer at all - an iPad may leave the picture
-        # waiting rather than fail it; the same gates (held, out, made before: a card out).
+        # None within 20 s (review round 2): as no answer at all - a browser may leave the
+        # picture waiting rather than fail it; the same gates (held, out, made before: a card out).
         st, got = self.sign('admin', 'nested')
         tok = got['token']
         st, got = self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': 'admin', 'why': 'timeout'}, tok)
@@ -1714,6 +1846,242 @@ def test_13_no_way_out_of_the_watch(self):
         lsn.close()
         self.card_off()
         self.on(admin_certlogin_crl=1)
+
+
+@_t
+def test_14_kit4_waiting_policy_held(self):
+    """The kit's 4th edition (isemon 1.10.356-358), the daemon's half: a check left waiting over
+    4 s (why waiting) - the card out only for a browser proven, never "cannot be checked"; a check
+    the page's policy blocked (why csp) - said in the events and the card's facts, never a verdict;
+    no word of a failed check before root has confirmed the port serves the watch; a held sign-in
+    - whoami, /api/portal/me give nothing of the person, the second step's and the passkeys'
+    questions and the portal's password change 423; F5 goes on from the server's clock; an IPv6
+    page's policy `https:`."""
+    self.card_on(admin_certlogin_card_watch='grace', admin_certlogin_card_grace=30)
+    lsn = self.serving()
+
+    def lost(tok, why, part='admin'):
+        return self.call('POST', '/api/certlogin/lost', {'v': 2, 'part': part, 'why': why}, tok)[1]
+
+    try:
+        # a) waiting, a browser not proven: nothing changes - no card out, no verdict, no event.
+        n = len(self.events('waited over 4 s'))
+        u = len(self.events('cannot be checked in this browser'))
+        st, got = self.sign('admin', 'nested')
+        tok = got['token']
+        self.assertEqual(self.session_data(tok).get('card_w'), 1)
+        self.assertEqual(lost(tok, 'waiting'), {'ok': True, 'state': 'waiting'})
+        d = self.session_data(tok)
+        for no in ('card_out', 'card_ok', 'card_lock'):
+            self.assertNotIn(no, d)
+        self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 200)
+        self.on(admin_certlogin_card_unable='signout')
+        self.assertEqual(lost(tok, 'waiting')['state'], 'waiting')
+        self.assertIsNotNone(self.session_data(tok))
+        self.on(admin_certlogin_card_unable='allow')
+        self.assertEqual(len(self.events('waited over 4 s')), n)
+        self.assertEqual(len(self.events('cannot be checked in this browser')), u)
+        # ...proven (grace): the card out, the time counted, said with why.
+        self.proven(tok)
+        got = lost(tok, 'waiting')
+        self.assertEqual(got['state'], 'locked', got)
+        self.assertTrue(0 < got['left'] <= 30, got)
+        self.assertTrue(self.session_data(tok).get('card_out'))
+        self.assertEqual(self.call('GET', '/api/status', None, tok)[0], 423)
+        self.assertTrue(any('the check waited over 4 s on a window of the card\'s' in w and 'waits 30 s' in w
+                            for w in self.events('waited over 4 s')))
+        # OK pressed, the card back: the check finds it - on as before.
+        st, got = self.alive(tok, 'nested')
+        self.assertEqual((got['state'], got['resumed']), ('ok', True), got)
+        # ...not proven, the card out already (a check came without it): still out, not undone.
+        st, got = self.sign('admin', 'nested')
+        tok3 = got['token']
+        self.assertEqual(self.alive(tok3, None)[1]['state'], 'locked')
+        self.assertEqual(lost(tok3, 'waiting')['state'], 'locked')
+        # ...proven (signout): ended, as a card taken out.
+        self.on(admin_certlogin_card_watch='signout')
+        st, got = self.sign('admin', 'nested')
+        tok2 = got['token']
+        self.proven(tok2)
+        got = lost(tok2, 'waiting')
+        self.assertEqual((got['state'], got['why']), ('gone', 'out'), got)
+        self.assertIsNone(self.session_data(tok2))
+        self.on(admin_certlogin_card_watch='grace')
+
+        # b) Root has not confirmed the port serves the watch (just switched on, its server not
+        # rewritten yet): no word of a failed check taken - neither "cannot be checked" nor out.
+        st, got = self.sign('admin', 'nested')
+        tok4 = got['token']
+        st, got = self.sign('admin', 'nested')
+        tok5 = got['token']
+        bare = {'certlogin': {'port': 8443, 'busy': ''}}
+        for why in ('nopicture', 'timeout', 'waiting', 'nocookie'):
+            self.assertEqual(self.lost_root(tok4, why, bare), 'unknown', why)
+        d = self.session_data(tok4)
+        self.assertFalse(d.get('card_ok') or d.get('card_out'), d)
+        self.assertEqual(len(self.events('cannot be checked in this browser')), u)
+        self.proven(tok4)
+        self.assertEqual(self.lost_root(tok4, 'nopicture', bare), 'unknown')
+        self.assertFalse(self.session_data(tok4).get('card_out'))
+        # ...a policy in the way is said all the same (c, below).
+        self.assertEqual(self.lost_root(tok5, 'csp', bare), 'unknown')
+        self.assertTrue(self.session_data(tok5).get('card_csp'))
+        watch = {'certlogin': {'port': 8443, 'busy': '', 'watch': True}}
+        self.assertEqual(self.lost_root(tok5, 'nopicture', watch), 'unable')
+        self.assertEqual(self.lost_root(tok4, 'nopicture', watch), 'locked')
+        # ...root's word as cl_card_port_ready reads it: `watch` for this port, or exactly what
+        # is wanted applied (a root of an older version); nothing listening - never.
+        got = self.py('import tempfile\nE.WEB_DIR = E.Path(tempfile.mkdtemp())\n'
+                      'E.cl_listening = lambda p: True\nout = []\nd = E.web_desired(st)\n'
+                      'p = E.cl_port()\n'
+                      'for said in ({}, {"certlogin": {"port": p, "busy": ""}},\n'
+                      '             {"certlogin": {"port": p, "busy": "", "watch": True}},\n'
+                      '             {"certlogin": {"port": 1, "watch": True}},\n'
+                      '             {"state": "done", "hash": E.web_hash(d)},\n'
+                      '             {"state": "failed", "hash": E.web_hash(d)},\n'
+                      '             {"state": "done", "hash": "x"}):\n'
+                      '    E.web_status = lambda said=said: said\n'
+                      '    out.append(E.cl_card_port_ready(st))\n'
+                      'E.cl_listening = lambda p: False\n'
+                      'E.web_status = lambda: {"certlogin": {"port": p, "watch": True}}\n'
+                      'out.append(E.cl_card_port_ready(st))\n'
+                      '# no root helper on this node at all: what listens is all there is\n'
+                      'E.WEB_DIR = E.Path("/nonexistent-acme-web")\n'
+                      'E.web_status = lambda: {}\n'
+                      'out.append(E.cl_card_port_ready(st))\n'
+                      'E.cl_listening = lambda p: True\n'
+                      'out.append(E.cl_card_port_ready(st))\n'
+                      'print(json.dumps(out))')
+        self.assertEqual(got, [False, False, True, False, True, False, False, False, False, True])
+
+        # c) The page's own policy blocked the check (a CSP header of the web server or a proxy):
+        # said - once an hour for a sign-in - and on the card's facts; never a verdict, never out.
+        c0 = len(self.events('was blocked'))      # (tok5's above: its own, once)
+        st, got = self.sign('admin', 'nested')
+        tok6 = got['token']
+        for _ in range(2):
+            self.assertEqual(lost(tok6, 'csp'), {'ok': True, 'state': 'unknown', 'csp': True})
+        d = self.session_data(tok6)
+        self.assertFalse(d.get('card_out') or d.get('card_ok'), d)
+        self.assertTrue(d.get('card_csp'))
+        self.assertEqual(self.call('GET', '/api/status', None, tok6)[0], 200)
+        said = [w for w in self.events('was blocked')]
+        self.assertEqual(len(said), c0 + 1, said)
+        self.assertTrue(any("the check of the card of nested's sign-in to these pages was blocked: the "
+                            "page's policy blocked the check - a Content-Security-Policy header" in w
+                            for w in said), said)
+        v = self.ok('GET', '/api/certlogin', session=self.ro)
+        self.assertEqual(v['parts']['admin']['card']['csp']['name'], 'nested')
+        self.assertNotIn('card', v['parts']['portal'])
+
+        # d) Held (the card out): nothing of the person.
+        st, got = self.sign('admin', 'nested')
+        tok7 = got['token']
+        self.proven(tok7)
+        self.assertEqual(self.alive(tok7, None)[1]['state'], 'locked')
+        st, me = self.call('GET', '/api/auth/whoami', None, tok7)
+        self.assertEqual(sorted(me), ['idle_min', 'ok', 'who'])
+        self.assertEqual(sorted(me['who']), ['card', 'how', 'name', 'role'])
+        self.assertEqual((me['who']['role'], me['who']['how']), ('', 'certificate'))
+        self.assertTrue(me['who']['card']['locked'])
+        for method, path, body in (('GET', '/api/auth/mfa', None), ('GET', '/api/auth/passkeys', None),
+                                   ('POST', '/api/auth/passkeys', {'action': 'add_begin'})):
+            st, got = self.call(method, path, body, tok7)
+            self.assertEqual((st, got.get('code')), (423, 'card'), (path, got))
+        # F5 during the countdown: the page goes on from the server's clock.
+        self.session_set(tok7, card_out=time.time() - 12)
+        st, me = self.call('GET', '/api/auth/whoami', None, tok7)
+        self.assertIn(me['who']['card']['left'], (17, 18, 19), me)
+        # Held as its page stopped checking: the same.
+        self.assertEqual(self.alive(tok7, 'nested')[1]['state'], 'ok')
+        self.session_set(tok7, card_seen=time.time() - 3600)
+        st, me = self.call('GET', '/api/auth/whoami', None, tok7)
+        self.assertTrue(me['who']['card']['stale'])
+        self.assertEqual(sorted(me['who']), ['card', 'how', 'name', 'role'])
+        self.assertEqual(self.alive(tok7, 'nested')[1]['state'], 'ok')
+        st, me = self.call('GET', '/api/auth/whoami', None, tok7)
+        for k in ('prefs', 'cols', 'display', 'source'):
+            self.assertIn(k, me['who'])
+        self.assertEqual(me['who']['role'], 'fulladmin')
+        # The portal: its `me` held - nothing of the person; its password change 423.
+        self.on(portal_certlogin=1, portal_certlogin_card_watch='grace')
+        st, got = self.sign('portal', 'falco')
+        ptok = got['token']
+        self.proven(ptok, 'falco', 'portal')
+        self.assertEqual(self.alive(ptok, None, part='portal')[1]['state'], 'locked')
+        st, me = self.call('GET', '/api/portal/me', None, ptok)
+        self.assertEqual(sorted(me['me']), ['card', 'kind', 'name', 'role'])
+        self.assertEqual(me['me']['role'], '')
+        st, got = self.call('POST', '/api/portal/password', {'old': 'x', 'new': 'y'}, ptok)
+        self.assertEqual((st, got.get('code')), (423, 'card'), got)
+        self.assertEqual(self.alive(ptok, 'falco', part='portal')[1]['state'], 'ok')
+        st, me = self.call('GET', '/api/portal/me', None, ptok)
+        self.assertIn('about', me['me'])
+
+        # e) An IPv6 address is no host-source a CSP takes: such a page lets `https:` in; a name
+        # its port, as before - one header either way.
+        if shutil.which('php'):
+            st, got = self.sign('admin', 'nested')
+            tok8 = got['token']
+            csp = self.page_csp(tok8, host='[::1]')
+            self.assertEqual(len(csp), 2, csp)
+            self.assertIn("img-src 'self' data:; connect-src", csp[0])
+            self.assertIn("img-src 'self' data: https:; connect-src", csp[1])
+            csp = self.page_csp(tok8)
+            self.assertIn("img-src 'self' data: https://%s:%d; connect-src" % (HOST, self.py('print(json.dumps(E.cl_port()))')), csp[1])
+    finally:
+        lsn.close()
+        self.card_off()
+
+
+@_t
+def test_15_a_change_of_the_mode_counts_afresh(self):
+    """The kit's 4th edition (1.10.356): the watch's mode changed - off, signout, grace - starts
+    every sign-in's count afresh (card_out, card_seen gone; card_ok and card_w kept), said once;
+    a time counted under grace no longer ends a sign-in at once under signout, nor an old
+    card_out one switched off and on again."""
+    self.card_on(admin_certlogin_card_watch='grace', admin_certlogin_card_grace=30)
+    lsn = self.serving()
+    try:
+        st, got = self.sign('admin', 'nested')
+        mine = got['token']
+        st, got = self.sign('admin', 'nested')
+        other = got['token']
+        for t in (mine, other):
+            self.proven(t)
+            self.assertEqual(self.alive(t, None)[1]['state'], 'locked')
+        self.session_set(other, card_out=time.time() - 25)
+        st, got = self.settings(admin_certlogin_card_watch='signout')
+        self.assertEqual(st, 200, got)
+        for t in (mine, other):
+            d = self.session_data(t)
+            self.assertIsNotNone(d)
+            self.assertFalse(d.get('card_out') or d.get('card_seen'), d)
+            self.assertGreater(float(d.get('card_ok') or 0), 0)
+            self.assertEqual(d.get('card_w'), 1)
+            self.assertEqual(self.call('GET', '/api/status', None, t)[0], 200)
+        self.assertTrue(any('the card\'s watch of these pages changed (grace -> signout): 2 watched '
+                            'sign-in(s) count afresh' in w for w in self.events('count afresh')), self.events('count afresh'))
+        # The doer's card_w kept by its own change of the mode.
+        st, got = self.settings(session=mine, admin_certlogin_card_watch='grace')
+        self.assertEqual(st, 200, got)
+        self.assertEqual(self.session_data(mine).get('card_w'), 1)
+        # Off and on again with a card_out of the period before: alive, in.
+        self.session_set(other, card_out=time.time() - 3600)
+        self.on(admin_certlogin_card_watch='off')
+        self.on(admin_certlogin_card_watch='grace')
+        self.assertEqual(self.call('GET', '/api/status', None, other)[0], 200)
+        st, me = self.call('GET', '/api/auth/whoami', None, other)
+        self.assertFalse(me['who']['card']['locked'])
+        # The times changed, the mode not: nothing counted afresh.
+        n = len(self.events('count afresh'))
+        self.assertEqual(self.alive(other, 'nested')[1]['state'], 'ok')
+        self.on(admin_certlogin_card_every=7)
+        self.assertTrue(self.session_data(other).get('card_seen'))
+        self.assertEqual(len(self.events('count afresh')), n)
+    finally:
+        lsn.close()
+        self.card_off()
 
 
 def merge_cs(path, extra):

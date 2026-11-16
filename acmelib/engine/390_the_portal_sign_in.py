@@ -1034,6 +1034,8 @@ def _portal_password(h):
     s = h.session('portal')
     if not s or not CONFIG.get('portal'):
         raise ApiError(401, 'not signed in, or the sign-in has run out')
+    # Held for its card (1.0.115): 423, code card - as every other question of it.
+    cl_card_hold(h, 'portal', s)
     if portal_mfa_pending(s):
         raise ApiError(401, 'the second step of signing in is not done yet')
     # Not before the one-time code (1.0.45): the password alone changed the password, ended
@@ -1197,6 +1199,12 @@ def _portal_whoami(h):
     if not portal_local_ok(h, s):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         return {'me': None}
+    # Held for its card (1.0.115, the kit's 4th edition): nothing of the person - only what the
+    # covered page needs to watch the card.
+    card = cl_card_view('portal', s, h.store)
+    if card and (card['locked'] or card['stale']):
+        return {'me': {'name': s['name'], 'role': '',
+                       'kind': (s.get('data') or {}).get('kind') or 'directory', 'card': card}}
     return {'me': portal_state(h, s)}
 
 

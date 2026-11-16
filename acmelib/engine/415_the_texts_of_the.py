@@ -289,6 +289,9 @@ def _mfa_session(h, kind='admin'):
     # was then told it had no second step to give, so it never got past it.
     if kind == 'portal' and not portal_local_may(acc):
         raise ApiError(401, 'that account may no longer sign in here')
+    # Held for its card (1.0.115): 423, code card - nothing of the person (a second step still
+    # to give is never watched, so it never stops that).
+    cl_card_hold(h, kind, s)
     return s, acc
 
 

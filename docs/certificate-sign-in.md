@@ -148,7 +148,7 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 | `admin_certlogin_card_watch` - *When the card is taken out* | off | `off`, `signout` (sign out at once) or `grace` (lock, wait for the card; 1.0.113's `lock` is still taken and read as `grace`) - [The card taken out](#the-card-taken-out). |
 | `admin_certlogin_card_every` - *Check the card every (seconds)* | 15 | Seconds between two checks of the page, 5 to 300. |
 | `admin_certlogin_card_grace` - *The card put back within (seconds)* | 30 | `grace`: seconds the card may be out before the sign-in ends, 5 to 600. |
-| `admin_certlogin_card_unable` - *A browser that cannot be checked* | allow | `allow` (*Not watched (said in Events)*) or `signout` (*Sign out, as a card taken out*): what a sign-in made while watched gets whose browser's pictures in the background have never once got an answer - an iPad ([A browser that cannot be checked](#a-browser-that-cannot-be-checked-an-ipad)); watched again once a check finds its card. Under `allow` a browser can opt out of the watch by failing every check from the first one - `signout` enforces the watch for every browser (an iPad then cannot be used). Shown while the card is watched. |
+| `admin_certlogin_card_unable` - *A browser that cannot be checked* | allow | `allow` (*Not watched (said in Events)*) or `signout` (*Sign out, as a card taken out*): what a sign-in made while watched gets whose browser's pictures in the background have never once got an answer - a safety net for a browser that signs nothing in the background ([A browser that cannot be checked](#a-browser-that-cannot-be-checked-safety-net)); watched again once a check finds its card. Under `allow` a browser can opt out of the watch by failing every check from the first one - `signout` enforces the watch for every browser. Shown while the card is watched. |
 
 ### The portal - *Settings → The enrolment pages → Signing in with a certificate*
 
@@ -572,6 +572,15 @@ servers (php -S, the demo) use ports of their own.
   443 and does not touch this: both may be on, each by its own switch.
 - The name the browser uses on the port is the one it opened the pages by (the VIP's or a
   node's): each has its server on every node, with the certificate it has on 443.
+- **A policy header of its own** (1.0.115, the kit's 4th edition): a balancer, WAF or reverse
+  proxy in front of 443 that adds a `Content-Security-Policy` header - or an `add_header
+  Content-Security-Policy` put into nginx by hand, an Apache `Header set` in front - sends a
+  **second** policy beside the page's. A browser holds to both: a picture must pass each. With
+  the card watched, **every header that sets a policy for the page must let the port's https
+  picture in** (`img-src ... https://<name>:8443`, or `https:`), or every check is blocked before
+  it is sent - in every browser. acme sends no such header from nginx (the packaged
+  `nginx-acme.conf` has none, on purpose) and never changes one an operator added; see [The card
+  taken out](#the-card-taken-out), item 2.
 
 ## Setting up AD CS and a YubiKey
 
@@ -674,8 +683,27 @@ in acme those two are **6** and **7**.
 2. **The page's Content-Security-Policy** lets `https://<name>:<port>` in for images -
    `img-src 'self' data: https://<name>:8443` - **only for a watched sign-in** (or one whose
    browser cannot be checked: it still checks now and then, 1.0.115); `connect-src`
-   stays `'self'`. Any other page's policy is byte for byte as before. An IPv6 address is taken
-   as the page's `location.hostname` has it (in its brackets already).
+   stays `'self'`. Any other page's policy is byte for byte as before. A page opened by an
+   **IPv6 address** gets `img-src 'self' data: https:` (1.0.115, the kit's 4th edition): a
+   CSP's host-source takes no `[v6]` - a browser dropped `https://[::1]:8443` and blocked every
+   check. That is wider - any https picture - while scripts stay nonce-only and `connect-src
+   'self'`; open the pages by a name to keep it to the one port. **Every header that sets a
+   policy for the page must let the port's https picture in** (1.0.115, the kit's 4th edition -
+   the key fix there: isemon's nginx sent `img-src 'self' data:` beside the page's own, and a
+   browser holds to both, so every check was blocked before it was sent, in every browser - the
+   "iPad that cannot be checked" of the kit's 3rd edition was this). acme's nginx sends no
+   policy header (the packaged `nginx-acme.conf` has none, on purpose: a browser given two
+   enforces both); one added by hand (`add_header Content-Security-Policy` in nginx's `http {}`
+   or acme's server), by a proxy, a balancer, a WAF or Apache in front must name the port too.
+   acme never changes such a line - it is the operator's. The page sees it: the browser's
+   `securitypolicyviolation` for its own picture is said over 443 (`{why: "csp"}`) - **never**
+   the card out nor *cannot be checked*: an event (*the check of the card of nested's sign-in to
+   these pages was blocked: the page's policy blocked the check - a Content-Security-Policy
+   header of the web server (nginx add_header) or of a proxy in front lets no picture from the
+   certificate's port in ...*, once an hour for a sign-in) and, for a day, a warning in the
+   card's facts under *When the card is taken out*. In the browser's console: *Refused to load
+   the image 'https://<name>:8443/...' because it violates the following Content Security Policy
+   directive*.
 3. While a part watches the card, nginx's server of the port **drops every `ssl_session_*` line it
    would inherit** from acme's main HTTPS server (a shared cache there lets a resumed TLS 1.2
    check pass without the card) and sets `ssl_session_cache off`, `ssl_session_tickets off`,
@@ -692,10 +720,27 @@ in acme those two are **6** and **7**.
    502 while PHP restarts, is no card taken out); then the page says so itself over 443
    (`?api=cert-lost`, `{why: "nopicture"}`), which can only hold or end its own sign-in (or,
    never found in this browser, leave it unwatched - below). It is taken as the card out only
-   while this node serves the certificate's port (a port down is no card taken out). A check
-   left without an answer for 20 s counts as one that got nothing - said as `{why: "timeout"}`
-   (1.0.115), and taken as `nopicture` is (review round 2: an iPad may leave the picture
-   waiting rather than fail it) - the same gates for *cannot be checked*.
+   while this node serves the certificate's port **and root has confirmed it serves the watch
+   there** (1.0.115, the kit's 4th edition: root's status says `watch` - written only while the
+   card is watched - or root applied exactly what is wanted now; right after switching on the
+   port is served without the check until root rewrote it, and its 404 is no card taken out nor
+   a browser that cannot be checked - `unknown`, asked again; a node without acme's root helper,
+   whose nginx is the operator's own, goes by what listens on the port). A check left without an answer
+   for 20 s counts as one that got nothing - said as `{why: "timeout"}` (1.0.115), and taken as
+   `nopicture` is (review round 2) - the same gates for *cannot be checked*.
+   **A check still waiting after 4 s** (1.0.115, the kit's 4th edition) - Windows' *Insert a
+   smart card*, then the browser's certificate chooser, hold it - counts as the card out: the
+   page shows its countdown at once (grace), behind that window, and says so over 443 (`{why:
+   "waiting"}`). The server takes it as the card out **only for a browser proven to be checked**
+   (`card_ok` set: a check in the background has found the card there) - never as *cannot be
+   checked*; for one not yet proven nothing changes (its very first check may wait on the PIN
+   with the card in) and the page takes its notice down again, so its own countdown cannot end a
+   sign-in the server holds nothing against. Put the card back and press **OK** in that window:
+   the check answers 1 px and the notice goes. (Before, the countdown came only after Cancel -
+   up to 20 s later.) Two things it changes: under `signout`, a proven browser whose PIN window
+   comes up with the card in (its PIN cache run out) is signed out after 4 s, not 20; and a
+   browser not yet proven whose window stays up for 20 s is taken by the `timeout` as one that
+   cannot be checked (the kit does the same).
 6. **No cookie came with the check** (a browser that keeps cookies apart by port, a privacy
    setting): PHP on the port asks nothing and answers 6 px wide; the page says so at once over
    443 (`{why: "nocookie"}`), where its cookie does come - so the events can tell it from a card
@@ -727,8 +772,16 @@ Then, by the setting:
   back*; *Sign out* - and nothing behind it can be clicked or reached by the keyboard (`inert`).
   **The server answers nothing of that sign-in** but the check, whoami and Sign out (HTTP 423,
   code `card`), so the covered page cannot be worked around from the browser's console; whoami
-  gives it no role meanwhile (the pages' own PHP gates refuse it). Checks then come every 5 s -
-  10 s after a check that took longer than 4 s (one that waited on a window of the card's). The
+  gives it no role meanwhile (the pages' own PHP gates refuse it) and, since 1.0.115, nothing of
+  the person - no full name, no preferences, no columns (the portal's `me` neither: no `about`,
+  no `display`), and `GET /api/auth/mfa`, `/api/auth/passkeys` and the portal's password change
+  are refused (423) too. Checks then come every 5 s -
+  10 s after a check that took longer than 4 s (one that waited on a window of the card's). Under
+  the countdown: *A window asking for the smart card: put the card back and press OK there - not
+  Cancel. After Cancel the browser offers no card here until it is closed and opened again.*
+  (1.0.115, the kit's 4th edition: Chrome and Edge remember "no certificate" for that host and
+  port until restarted - no page can change that.) The page loaded again (F5) during the
+  countdown goes on from the server's clock (whoami's `left`), never from the full grace. The
   card back within *The card put back within* (5-600 s, 30): the notice goes, *The card is
   back.*, the page goes on where it was. Not back: **Signed out: the card you signed in with
   was not put back in time.** Another card: **Signed out: another card than the one you signed
@@ -736,7 +789,19 @@ Then, by the setting:
 
 The sign-in page says why from a word this tab kept for itself (`sessionStorage`: `out`,
 `late`, `other`) with its own fixed sentence - never from the address. (1.0.113 put
-`?certsaid=removed` in the address: a link of anybody's showed it.)
+`?certsaid=removed` in the address: a link of anybody's showed it.) A sign-in the **server**
+ended already (the card out too long while the tab slept, another node's sweep) answers the
+page's word with `none`: since 1.0.115 the page then keeps the word too (`late` while its notice
+ran) and the sign-in page tries neither the certificate nor Windows by itself - before, it just
+loaded itself again, said nothing, and could pop up the chooser.
+
+**A change of the mode starts afresh** (1.0.115, the kit's 4th edition): off, signout or grace
+changed (switched on, off or to the other mode) clears every sign-in's `card_out` and
+`card_seen` of that part (`card_ok`, `card_w` kept) - a time out counted under grace ended it at
+once under signout, and an old `card_out` of an earlier period on ended it right after switching
+on again - with one event (*the card's watch of these pages changed (grace -> signout): 3
+watched sign-in(s) count afresh*); switched on or off, root is asked for nginx's lines at once,
+not at the next round.
 
 **Kind to the card**: one check at a time (a new one starts only when the last is over); one
 check for all the tabs of a browser (`localStorage` - a tab whose neighbour found the card a
@@ -785,6 +850,9 @@ nested was signed out of these pages (from 10.0.0.5): the card they signed in wi
 nested was signed out of these pages (from 10.0.0.5): another certificate than the one signed in with was offered (the card was changed)
 nested: the card they signed in with is out - the sign-in to these pages waits 30 s for it (no certificate on the check, from 10.0.0.5)
 nested: the card they signed in with is back - the sign-in to these pages goes on (from 10.0.0.5)
+nested: the card they signed in with is out - the sign-in to these pages waits 30 s for it (the check waited over 4 s on a window of the card's (Windows' "Insert a smart card", the browser's certificate chooser), from 10.0.0.5)
+the check of the card of nested's sign-in to these pages was blocked: the page's policy blocked the check - a Content-Security-Policy header of the web server (nginx add_header) or of a proxy in front lets no picture from the certificate's port in (https://<this name>:8443) - every header that sets a policy for the page must let the port's https picture in; the card cannot be checked until it does (from 10.0.0.5)
+the card's watch of these pages changed (grace -> signout): 3 watched sign-in(s) count afresh
 the card of nested's sign-in to these pages cannot be checked in this browser - the check got no answer at all (the browser did not sign the connection): it is not watched (from 10.0.0.5; the setting "A browser that cannot be checked")
 the card of nested's sign-in to these pages was found in this browser after all - it is watched again (from 10.0.0.5)
 ```
@@ -792,16 +860,26 @@ the card of nested's sign-in to these pages was found in this browser after all 
 The reason in each (*why*): *no certificate came with the check (the browser does not sign it in
 the background)* - the port got the check without a certificate (`nocert`); *the browser sent no
 cookie with the check* (`nocookie`); *the check got no answer at all (the browser did not sign the
-connection)* (`nopicture` - an iPad); *the check got no answer within 20 s* (`timeout`,
-1.0.115); *nginx did not take the certificate* - nginx refused the one offered.
+connection)* (`nopicture`); *the check got no answer within 20 s* (`timeout`, 1.0.115); *the
+check waited over 4 s on a window of the card's* (`waiting`, 1.0.115 - a proven browser only);
+*nginx did not take the certificate* - nginx refused the one offered. **If every browser says
+*no answer at all*, look at the CSP headers first** (item 2 above): a policy header of nginx, a
+proxy or a WAF that does not name the port blocks every check - since 1.0.115 the page says so
+itself (*blocked*, `csp`) where the browser tells it.
 
-### A browser that cannot be checked (an iPad)
+### A browser that cannot be checked (safety net)
 
-**Found on a real iPad** (by the kit's author, isemon 1.10.355): **Safari on iPadOS does not sign
-a connection for a page in the background.** The card is in, the sign-in itself works (a
-top-level navigation to the port, which the iPad does sign), yet the check's picture never gets
-an answer - Events said *the check got no answer at all (the browser did not sign the
-connection)*, and the iPad was signed out at the first check, every time.
+**A correction** (the kit's 4th edition, isemon 1.10.357): its 3rd edition said *Safari on iPadOS
+does not sign a connection for a page in the background - an iPad cannot be checked*. **That was
+wrong**: it was the web server's own CSP header blocking the check (item 2 of [The card taken
+out](#the-card-taken-out)). With that fixed, the iPad is checked like any browser - confirmed by
+the kit's author on an iPad with a YubiKey; not tested by acme (no iPad nor card in its tests).
+acme never sent such a header, so its iPad wording came from the kit, not from what acme saw.
+*A browser that cannot be checked* stays, as a **safety net** for a browser that really signs
+nothing for a page in the background: the card is in, the sign-in itself works (a top-level
+navigation to the port), yet the check's picture never gets an answer - Events say *the check
+got no answer at all (the browser did not sign the connection)*. **If every browser looks like
+this, look at the CSP headers first.**
 
 So a sign-in keeps (in its row, `card_ok`) whether a check **in the background** has ever found
 its card in this browser - the time of the first that did; the sign-in itself does not count:
@@ -810,22 +888,25 @@ its card in this browser - the time of the first that did; the sign-in itself do
   `cert-lost`), or **none within 20 s** (`timeout`, review round 2) - this browser *cannot be
   checked*, but only for a sign-in **made while its part watched the card** (`card_w` in its
   row) - or the sign-in of whoever switched the watch on, there at its browser (review round 2:
-  from an iPad they were signed out right after saving) - that is **neither held nor out**. By *A browser that
+  from such a browser they were signed out right after saving) - that is **neither held nor
+  out**, and only once root has confirmed the port serves the watch (1.0.115). By *A browser that
   cannot be checked* (`admin_certlogin_card_unable`, `portal_certlogin_card_unable`):
   - **`allow`** (the default, *Not watched (said in Events)*): `card_ok` becomes -1 and that
     sign-in is **not watched** - an event says so and why; its checks without the card answer
-    7 px wide, and the page says **This browser cannot have the card checked (as an iPad
-    cannot): this sign-in is not watched.**; it is **never held** for its card (423) - nor when
+    7 px wide, and the page says **This browser cannot have the card checked: this sign-in is
+    not watched.**; it is **never held** for its card (423) - nor when
     its page sleeps - and the sweep never ends it; it is not counted among the sign-ins watched
     now. **Not for ever** (1.0.115): whoami gives it `card` with `unable: true`, and its page
     still checks once a minute and whenever it wakes; a check that finds **the same card** -
-    the iPad in front, a desktop browser after a hiccup - watches it again (*the card of nested's
+    a desktop browser after a hiccup - watches it again (*the card of nested's
     sign-in to these pages was found in this browser after all - it is watched again*; the page:
     *The card is checked in this browser after all: this sign-in is watched again.*), and from
     then on a check without it is a card taken out. Another card on its check ends it, as on a
     watched one's;
   - **`signout`** (*Sign out, as a card taken out*): on as for a card taken out - such a browser
     cannot stay signed in while the card is watched;
+- never by **a check left waiting** (`waiting`) nor **one the page's policy blocked** (`csp`),
+  1.0.115;
 - anything else - **a check that came without a certificate** (`nocert`), **nginx's refusal**,
   **no cookie** (`nocookie`), a sign-in **held** (its page
   stopped checking) or **whose card is out**, one **made before the watch was switched on**
@@ -842,8 +923,8 @@ of its page, a transient failure at the first check left the sign-in unwatched f
 background **from the very first one** (and says so with `nopicture`) opts its sign-in out of
 the watch until a check finds the card. It cannot leave a lock (held or out) that way, nor a
 watch once its card was found. **`signout` is the setting that enforces the watch for every
-browser** - and then an iPad cannot be used with that part (it is signed out at its first check
-in the background). A card pulled in the first 1.5 seconds after the page loads, before its
+browser** - and then a browser that really signs nothing in the background cannot be used with
+that part (it is signed out at its first check in the background). A card pulled in the first 1.5 seconds after the page loads, before its
 first check, makes that sign-in look like one that cannot be checked (with `allow`) - the events
 say so. A sign-in made before 1.0.115 kept no `card_w`: its first check without the card is a
 card taken out.
@@ -856,20 +937,21 @@ card taken out.
 - **A YubiKey with touch or PIN policy `always`** asks for the touch (or the PIN) at every
   check. Leave the setting off for such keys.
 - **Windows may ask for the card.** Depending on the driver, Windows may show *"Insert a smart
-  card"* when the browser tries the key that is gone; cancelling it fails the check. One check at
-  a time and the longer pause after one that waited keep that window from coming back again and
-  again.
+  card"* when the browser tries the key that is gone, then the browser its certificate chooser.
+  Since 1.0.115 a check waiting on them over 4 s shows the countdown at once, behind the window.
+  Put the card back and press **OK**: **Cancel** makes Chrome and Edge offer no certificate to
+  the port until the browser is closed and opened again - the countdown then runs out (the
+  notice says so). One check at a time and the longer pause after one that waited keep that
+  window from coming back again and again.
 - **The certificate chosen by itself.** Chrome and Edge remember the certificate chosen for the
   host and port and use it silently; the policy `AutoSelectCertificateForUrls` for
   `https://<name>:8443` makes it so from the start (a second fitting certificate - a soft one in
   the store - would otherwise bring the chooser up during a check). After the end the sign-in
   page tries nothing by itself.
-- **iPad / iPhone.** Safari on iPadOS signs no connection for a page in the background (tested
-  on a real iPad by the kit's author): an iPad cannot have its card watched this way - with
-  `*_certlogin_card_unable = allow` it stays signed in, not watched, and the events say so
-  ([above](#a-browser-that-cannot-be-checked-an-ipad)). iPadOS also stops Safari's pages while
-  the screen is locked or another app is in front: a watched sign-in is held, and checked when
-  Safari is back. For an iPad, a short idle time of the session is what limits a forgotten one.
+- **iPad / iPhone.** Checked like any browser (the kit's 4th edition, on an iPad with a
+  YubiKey, once the CSP header was fixed - [above](#a-browser-that-cannot-be-checked-safety-net);
+  not tested by acme). iPadOS stops Safari's pages while the screen is locked or another app is
+  in front: asleep is not out - a watched sign-in is held, and checked when Safari is back.
 - **Windows' own lock as well**: the Group Policy *Interactive logon: Smart card removal
   behavior* = **Lock Workstation**, and the service *Smart Card Removal Policy* (SCPolicySvc)
   running, lock the whole computer at once when the card is taken out - acme ends its own
@@ -921,7 +1003,7 @@ acme --set certlogin_port=8443          admin_certlogin_auto, admin_certlogin_ma
 acme --set admin_password_off=0       the way back from "no password at all" (switched on only from the pages)
 acme --set admin_certlogin_card_watch=grace  the card taken out: off, signout or grace (portal_... the same)
 acme --set admin_certlogin_card_every=15     admin_certlogin_card_grace=30 (seconds: 5-300, 5-600)
-acme --set admin_certlogin_card_unable=allow  a browser that cannot be checked (an iPad): allow or signout
+acme --set admin_certlogin_card_unable=allow  a browser that cannot be checked (a safety net): allow or signout
 ```
 
 ## Backups, the configuration, the cluster

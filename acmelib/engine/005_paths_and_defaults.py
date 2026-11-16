@@ -139,9 +139,9 @@ DEFAULTS = {
     'portal_certlogin_card_watch': 'off',
     'portal_certlogin_card_every': 15,
     'portal_certlogin_card_grace': 30,
-    # A browser that cannot be checked (1.0.114, the kit's 3rd edition - an iPad's Safari signs
-    # nothing for a page in the background): allow - that sign-in is not watched (said in the
-    # events); signout - signed out as a card taken out.
+    # A browser that cannot be checked (1.0.114, the kit's 3rd edition - a safety net, 1.0.115: a
+    # browser that signs nothing for a page in the background): allow - that sign-in is not
+    # watched (said in the events); signout - signed out as a card taken out.
     'admin_certlogin_card_unable': 'allow',
     'portal_certlogin_card_unable': 'allow',
     'certlogin_port': 8443,
@@ -1409,9 +1409,11 @@ SAYS = {
                                   'browser in the background) has its sign-in held, not ended, '
                                   'until a check finds the card. Your own sign-in, from which you '
                                   'switch it on, is watched as one made while it is on: from a '
-                                  'browser that cannot be checked (an iPad) it is then not '
-                                  'watched - or signed out at once if A browser that cannot be '
-                                  'checked says Sign out.',
+                                  'browser that cannot be checked it is then not watched - or '
+                                  'signed out at once if A browser that cannot be checked says '
+                                  'Sign out. Every header that sets a policy for the page (nginx '
+                                  'add_header, a proxy in front) must let the port\'s https '
+                                  'picture in.',
     'admin_certlogin_card_every': 'How often the card is checked, 5 to 300 seconds. Each check is a '
                                   'signature by the card (no PIN while it stays in; a YubiKey with '
                                   'touch or PIN policy "always" asks every time - leave this off for '
@@ -1425,18 +1427,18 @@ SAYS = {
     'portal_certlogin_card_grace': 'As the administration\'s, for the portal: how long the card '
                                    'may be out (5-600 s).',
     'admin_certlogin_card_unable': 'A browser whose checks in the background never get an answer '
-                                   'from the very first cannot be checked at all - an iPad\'s '
-                                   'Safari signs nothing for a page in the background, though the '
-                                   'card is in. Not watched (the default): that sign-in is not '
+                                   'from the very first cannot be checked at all - a browser that '
+                                   'signs no connection for a page in the background (rare; when '
+                                   'every browser seems so, first look at the CSP headers - see '
+                                   'the docs). Not watched (the default): that sign-in is not '
                                    'watched until a check finds the card, and Events say so and '
                                    'why - but any browser can opt out of the watch this way by '
                                    'failing every check. Sign out: it is signed out as if the card '
-                                   'were out - the watch enforced for every browser, and an iPad '
-                                   'cannot stay signed in with this on. Once a check has found '
-                                   'the card, a later one that does not is a card taken out, '
-                                   'whatever this says.',
+                                   'were out - the watch enforced for every browser. Once a check '
+                                   'has found the card, a later one that does not is a card taken '
+                                   'out, whatever this says.',
     'portal_certlogin_card_unable': 'As the administration\'s, for the portal: a browser that '
-                                    'cannot be checked (an iPad) - not watched, or signed out.',
+                                    'cannot be checked - not watched, or signed out.',
     'certlogin_port': 'Where nginx asks the browser for a certificate (8443: SELinux lets nginx '
                       'have it already). One port for both parts. Opened in the firewall for the '
                       'networks that may reach the pages while either part is on; 80, 443 and '

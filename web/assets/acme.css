@@ -4393,6 +4393,7 @@ textarea.dbs-code{width:100%;font-size:12.5px;resize:vertical;min-height:72px}
 .card-lock-box h2{margin:16px 0 8px;font-size:21px;font-weight:700;color:var(--tx)}
 .card-lock-why{margin:0 0 14px;color:var(--tx-dim);font-size:14px;line-height:1.55}
 .card-lock-left{margin:0 0 18px;font-size:13.5px;font-weight:600;color:var(--warn);font-variant-numeric:tabular-nums}
+.card-lock-hint{margin:-8px 0 18px;font-size:12.5px;line-height:1.5;color:var(--tx-dim)}
 .card-lock.late .card-lock-arc{stroke:var(--crit)}
 .card-lock.late .card-lock-n,.card-lock.late .card-lock-left{color:var(--crit)}
 .card-lock-btns{justify-content:center}

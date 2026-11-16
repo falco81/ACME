@@ -66,7 +66,10 @@ acme_csp();
 /** The certificate's port, for the check of the card (1.0.113): https://<this name>:<port>, or ''
     when the sign-in watches no card. $card: what whoami / /api/portal/me said of it. The name is
     the one this page was reached by, an IPv6 address in its brackets as the Host header has it
-    (and as the page's location.hostname does). */
+    (and as the page's location.hostname does). An IPv6 address is no host-source a CSP takes
+    (1.0.115, the kit's 4th edition: a browser drops https://[v6]:port, and every check was
+    blocked): such a page gets 'https:' - any https picture; scripts stay nonce-only and
+    connect-src 'self'. */
 function acme_card_origin($card): string
 {
     if (!is_array($card)) {
@@ -77,6 +80,9 @@ function acme_card_origin($card): string
     if ($port < 1024 || $port > 65535 || $port === 443
             || preg_match('/^([A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?|\[[0-9A-Fa-f:.]{2,45}\])\z/', (string) $host) !== 1) {
         return '';
+    }
+    if ($host[0] === '[') {
+        return 'https:';
     }
     return 'https://' . $host . ':' . $port;
 }

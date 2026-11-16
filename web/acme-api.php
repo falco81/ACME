@@ -493,7 +493,7 @@ function acme_cert_back(string $part, string $said = '', string $more = ''): voi
     it is out and the sign-in waits, 3 ended - another card, 4 ended - taken out, 5 ended - not put
     back in time, 6 no cookie came with the check (nothing asked - the page then says so over 443,
     where its cookie does come), 7 this browser cannot be checked (no check in the background ever
-    found the card here - an iPad): not watched; 403 - no such sign-in (or another site's page
+    found the card here - a safety net): not watched; 403 - no such sign-in (or another site's page
     asking). (The kit's 3 and 4 - no cookie, cannot be checked - are 6 and 7 here: 3-5 were
     acme's already.) 8 (nginx itself, 1.0.115): too many checks or PHP / the daemon not
     answering - try later, neither the card out nor a browser that cannot be checked; PHP says

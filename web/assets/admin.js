@@ -8998,10 +8998,18 @@ function cardWatchFacts(c) {
   out.appendChild(el('span', '', how));
   out.appendChild(el('span', 'muted small krb-from', c.sessions === 1 ? '1 sign-in watched now' : c.sessions + ' sign-ins watched now'));
   if (c.unable) {
-    /* 1.0.114: a browser that cannot be checked (an iPad) */
+    /* 1.0.114: a browser that cannot be checked (1.0.115: a safety net - no browser named) */
     out.appendChild(el('div', 'muted small', c.unable === 'signout'
-      ? 'a browser that cannot be checked (an iPad): signed out'
-      : 'a browser that cannot be checked (an iPad): not watched, said in Events'));
+      ? 'a browser that cannot be checked: signed out'
+      : 'a browser that cannot be checked: not watched, said in Events'));
+  }
+  if (c.csp) {
+    /* 1.0.115 (the kit's 4th edition): a page's own policy blocked its check */
+    var w = el('div', 'note warn card-csp');
+    w.appendChild(el('span', '', 'A Content-Security-Policy header blocks the check: the page of a watched sign-in could not load the picture from the certificate’s port - a policy header of the web server (nginx add_header, Apache Header set) or of a proxy, balancer or WAF in front lets no https picture from that port in. A browser holds to every policy it gets: each must let the port in. Until then nobody’s card is checked. Last seen: '));
+    w.appendChild(el('span', '', ago(c.csp.at)));
+    if (c.csp.name) w.appendChild(noI18n(el('span', 'muted', ' (' + c.csp.name + (c.csp.ip ? ', ' + c.csp.ip : '') + ')')));
+    out.appendChild(w);
   }
   return out;
 }
@@ -9035,7 +9043,7 @@ function drawCert(part) {
     [part === 'admin' ? 'The enrolment pages' : 'The administration', other.usable ? 'on there too - their own switch, the same port' : 'off there - their own switch'],
     ['When the card is taken out', cardWatchFacts(p.card)]
   ]);
-  if (p.card) host.appendChild(el('p', 'note card-watch-note', 'The card watched: the page checks it every few seconds on the certificate’s port - a new connection the card has to sign. No PIN at each check while the card stays in (the Windows smart card minidriver, a YubiKey’s PIN policy “once”); a YubiKey with touch or PIN policy “always” asks at every check - leave this off for one. Windows may show “Insert a smart card” when the card is out: one check at a time, and a longer pause after one that waited on it. Let the browser pick the certificate by itself (Chrome and Edge: AutoSelectCertificateForUrls for this port). A page that stopped checking (an iPad asleep) is held, not signed out. Windows’ own “Smart card removal behavior = Lock Workstation” (Group Policy) locks the computer as well. Only sign-ins made with a certificate are watched.'));
+  if (p.card) host.appendChild(el('p', 'note card-watch-note', 'The card watched: the page checks it every few seconds on the certificate’s port - a new connection the card has to sign. No PIN at each check while the card stays in (the Windows smart card minidriver, a YubiKey’s PIN policy “once”); a YubiKey with touch or PIN policy “always” asks at every check - leave this off for one. Windows may show “Insert a smart card” when the card is out: a check waiting on it over 4 s shows the countdown at once - put the card back and press OK there, not Cancel (after Cancel the browser offers no card to the port until it is restarted). Let the browser pick the certificate by itself (Chrome and Edge: AutoSelectCertificateForUrls for this port). A page that stopped checking (an iPad asleep) is held, not signed out. Windows’ own “Smart card removal behavior = Lock Workstation” (Group Policy) locks the computer as well. Only sign-ins made with a certificate are watched.'));
   /* The authorities. */
   host.appendChild(el('h3', 'peek-h', 'The authorities'));
   if (d.cas.length) {
