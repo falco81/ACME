@@ -4378,10 +4378,12 @@ textarea.dbs-code{width:100%;font-size:12.5px;resize:vertical;min-height:72px}
 /* The notice over the page (1.0.114, the kit's design B): the seconds left, large, in a ring that
    empties as they go; "Put the card back"; "Signed out in N s unless the card is back"; Sign out in
    red. Behind it the page blurred, and inert. */
+/* A screen lower than the notice (a phone on its side, 1.0.115): it scrolls in itself, from its
+   top - centred by its margins, never cut off above, and Sign out always reachable. */
 .card-lock{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;
   padding:16px;background:rgba(5,8,12,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-  animation:card-lock-in .18s ease-out}
-.card-lock-box{width:min(440px,calc(100vw - 32px));padding:30px 28px 26px;border:1px solid var(--line);
+  animation:card-lock-in .18s ease-out;overflow-y:auto;overscroll-behavior:contain}
+.card-lock-box{margin:auto;width:min(440px,calc(100vw - 32px));padding:30px 28px 26px;border:1px solid var(--line);
   border-radius:18px;background:var(--panel);text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.55)}
 .card-lock-ring{position:relative;width:150px;height:150px;margin:0 auto;display:flex;align-items:center;justify-content:center}
 .card-lock-ring svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}
@@ -4401,4 +4403,6 @@ textarea.dbs-code{width:100%;font-size:12.5px;resize:vertical;min-height:72px}
 @media (prefers-reduced-motion:reduce){.card-lock{animation:none}.card-lock-arc{transition:none}}
 @media (max-width:480px){.card-lock-box{padding:24px 18px 20px}.card-lock-ring{width:128px;height:128px}
   .card-lock-n{font-size:40px}}
+@media (max-height:520px){.card-lock-box{padding:18px 22px 16px}.card-lock-ring{width:96px;height:96px}
+  .card-lock-n{font-size:30px}.card-lock-unit{font-size:12px;margin-top:1px}.card-lock-box h2{margin-top:10px}}
 .krb-facts + .note.card-watch-note{margin-top:10px}

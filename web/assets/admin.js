@@ -2563,9 +2563,13 @@ function applyOnlyWhen() {
     if (says) says.remove();
     if (!live) {
       var other = settingByKey(w.by) || {};
+      /* The choice as its list shows it (1.0.115): one word in quotes is a name to the
+         translation, and "Ask an OCSP responder" said “off” on a Czech page. */
+      var shown = (other.choice_words || {})[now] || now;
+      if (typeof i18nText === 'function') shown = i18nText(String(shown)) || shown;
       (item.querySelector('.set-tail') || item).appendChild(el('div', 'says asleep-why', want === '*' ? 'Not in use until ' + other.name + ' is filled in.'
         : (isBool(other) ? 'Not in use while ' + other.name + ' is off.'
-           : 'Not in use while ' + other.name + ' is “' + ((other.choice_words || {})[now] || now) + '”.')));
+           : 'Not in use while ' + other.name + ' is “' + shown + '”.')));
     }
   });
   /* Each directory's cap goes with "Block a place that keeps guessing" too (as otp 1.0.241). */
