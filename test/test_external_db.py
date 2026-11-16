@@ -25,6 +25,12 @@ their own, as test_ha.py starts them.
   restart, pg_hba, the publication all done by them); both directions
   replicate; the link's TLS through the agents (verify-full, hostssl); a
   rebuild of the second node (acme --ha-resync); no move of a node of the pair.
+* 1.0.115: the join sealed to root's own key (SealedJoin: the network side's bytes and memory
+  hold neither the code's secret nor the signing key); one authority owns the server's
+  certificate (TwoNodesOneAgent); several requests at once, a node takes only itself away,
+  one not heard from for 30 days is not waited for (AgentByHand); layout B's own address,
+  Forget refused there, the alert of the agent's certificate, the program compared
+  (LayoutBUnit, ReplicatedExternal); no join code on an upgrade (DeployParts).
 * EngineMoves: PostgreSQL with agent A -> MariaDB with agent B and back (--db-make through the
   target's agent, the TLS of the old server not carried), then off the agents' servers onto
   this machine's PostgreSQL, MariaDB and SQLite (the agent let go, nothing asked of it).
@@ -395,8 +401,13 @@ class HandNode(object):
         code = code_data(agent.code())
         self.pins = [code['f']]
         pub = agent_pub(agent)
-        st, got = post_plain(agent.port, '/v1/enroll/begin',
-                             sealed_begin(agent, code['s'], code['i'], self.name))
+        for _ in range(20):
+            # the agent may be starting its listening side again (a node joined just before)
+            st, got = post_plain(agent.port, '/v1/enroll/begin',
+                                 sealed_begin(agent, code['s'], code['i'], self.name))
+            if st != 503:
+                break
+            time.sleep(0.5)
         assert st == 200, got
         cert = read_file(self.p('c.pem'))
         fp = hashlib.sha256(ssl.PEM_cert_to_DER_cert(cert)).hexdigest()
@@ -405,6 +416,7 @@ class HandNode(object):
             'ca': read_file(self.p('ca.pem')),
             'seal': seal_to(pub, ['finish', code['i'], self.name, code['s'], self.sign, fp])})
         assert st == 200, got
+        time.sleep(1.5)
         wait_for(lambda: agent.hello(), 30, 0.3, 'the agent again')
         return got
 
@@ -420,15 +432,21 @@ class HandNode(object):
         ctx.verify_mode = ssl.CERT_NONE
         ctx.load_cert_chain(self.p('c.pem'), self.p('c.key'))
         wait_for(lambda: agent.hello(), 30, 0.3, 'the agent answering')
-        c = http.client.HTTPSConnection('127.0.0.1', agent.port, context=ctx, timeout=timeout)
-        try:
-            c.request('POST', '/v1/op', body=body, headers={
-                'X-Acme-Node': self.name, 'X-Acme-Time': ts, 'X-Acme-Nonce': nonce,
-                'X-Acme-Sign': hmac.new(bytes.fromhex(self.sign), text, 'sha256').hexdigest()})
-            r = c.getresponse()
-            return r.status, json.loads(r.read().decode() or '{}')
-        finally:
-            c.close()
+        for _ in range(20):
+            c = http.client.HTTPSConnection('127.0.0.1', agent.port, context=ctx,
+                                            timeout=timeout)
+            try:
+                c.request('POST', '/v1/op', body=body, headers={
+                    'X-Acme-Node': self.name, 'X-Acme-Time': ts, 'X-Acme-Nonce': nonce,
+                    'X-Acme-Sign': hmac.new(bytes.fromhex(self.sign), text, 'sha256').hexdigest()})
+                r = c.getresponse()
+                st, got = r.status, json.loads(r.read().decode() or '{}')
+            finally:
+                c.close()
+            if st != 503:
+                return st, got
+            time.sleep(0.5)             # the agent starting its listening side again
+        return st, got
 
 
 def read_file(path):
@@ -777,23 +795,44 @@ class Standalone(unittest.TestCase):
         self.n.py("st.db.run(\"DELETE FROM meta WHERE k LIKE 'dbagent:addr:%'\")")
 
     def test_16_alerts_client_cert_and_version(self):
+        # The agent's program is the one this acme ships (the same deploy/): another release
+        # number alone says nothing (1.0.115 - no VERSION bumped by hand any more).
+        got = last_json(self.n.py(
+            "acme._engine.__version__ = '9.9.9'\n"
+            "row = acme.db_agent_look(st)\n"
+            "print(json.dumps([row['version_skew'], row['agent'].get('code'), "
+            "acme.db_agent_code_ours(), row['agent'].get('version')]))"))
+        skew, theirs, ours, version = got
+        self.assertIsNone(skew)
+        self.assertEqual(theirs, ours)
+        self.assertRegex(theirs, '^[0-9a-f]{64}$')
+        self.assertEqual(version, re.search(r"(?m)^__version__ = '([0-9.]+)'", read_file(
+            os.path.join(ROOT, 'acmelib', '__init__.py'))).group(1))
+        # Another program: older, newer or another build, each said its own way.
         got = last_json(self.n.py(
             "a = acme.db_agent(); was = a.get('client_cert_end')\n"
             "acme.db_agent_put({'client_cert_end': acme.time.time() + 5 * 86400})\n"
-            "acme._engine.__version__ = '9.9.9'\n"
-            "row = acme.db_agent_look(st)\n"
-            "keys = [x['key'] for x in acme._db_agent_alerts(st)]\n"
-            "cs = [x['title'] for x in acme._db_agent_alerts(st, lang='cs')]\n"
-            "lines = acme._db_agent_status_lines(st, None)\n"
+            "acme._engine.db_agent_code_ours = lambda: 'f' * 64\n"
+            "out = []\n"
+            "for v in ('9.9.9', '0.0.1', %r):\n"
+            "    acme._engine.__version__ = v\n"
+            "    row = acme.db_agent_look(st)\n"
+            "    out.append([row['version_skew'], [x['key'] for x in acme._db_agent_alerts(st)], "
+            "[x['title'] for x in acme._db_agent_alerts(st, lang='cs')], "
+            "acme._db_agent_status_lines(st, None)])\n"
             "acme.db_agent_put({'client_cert_end': was})\n"
-            "print(json.dumps([keys, row['version_skew'], lines, cs]))"))
-        keys, skew, lines, cs = got
-        self.assertIn('dbagent:client:n0', keys)
-        self.assertIn('dbagent:version:n0', keys)
-        # The agent's own version (deploy/acme_db_agent.py's VERSION, acme's at each release).
-        self.assertEqual(skew['agent'], re.search(r"(?m)^VERSION = '([0-9.]+)'", read_file(AGENT)).group(1))
-        self.assertTrue(any('upgrade' in x for x in lines), lines)
-        self.assertTrue(any('jinou verzi' in x for x in cs), cs)
+            "print(json.dumps(out))" % version))
+        older, newer, other = got
+        self.assertEqual(older[0]['how'], 'older')
+        self.assertIn('dbagent:client:n0', older[1])
+        self.assertIn('dbagent:version:n0', older[1])
+        self.assertTrue(any('jinou verzi' in x for x in older[2]), older[2])
+        self.assertTrue(any('upgrade the agent' in x for x in older[3]), older[3])
+        self.assertEqual(newer[0]['how'], 'newer')
+        self.assertTrue(any('je novější' in x for x in newer[2]), newer[2])
+        self.assertTrue(any('upgrade acme on this node' in x for x in newer[3]), newer[3])
+        self.assertEqual(other[0]['how'], 'other')
+        self.assertTrue(any('not the one acme' in x for x in other[3]), other[3])
         # The daemon's own look puts the row right again (its version is acme's).
         wait_for(lambda: not last_json(self.n.py(
             "print(json.dumps(acme._meta_obj(st, 'dbagent:node:n0').get('version_skew')))")),
@@ -816,6 +855,18 @@ class Standalone(unittest.TestCase):
         got = self.n.cli('--db-agent-status')
         self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
         self.assertEqual(agent_status(self.agent)['clients'], ['n0'])
+
+    def test_18_forget_leaves(self):
+        """Layout A: Forget is let (no cluster) - and the agent takes the node off its list
+        (`leave`, 1.0.115): it waits for it no more. Last: the node has no agent after it."""
+        v = self.n.ok('GET', '/api/db-agent')
+        self.assertEqual(v.get('forget_refused'), '')
+        got = self.n.ok('POST', '/api/db-agent', {'action': 'forget'})
+        self.assertTrue(got['left'], got)
+        self.assertEqual(got['view']['db_admin'], 'local')
+        wait_for(lambda: agent_status(self.agent)['clients'] == [], 30, 1,
+                 'the node off the agent\'s list')
+        self.assertIn('leave', [x.get('op') for x in self.agent.audit() if x.get('ok')])
 
 
 @unittest.skipUnless(can_run(), 'needs root, PostgreSQL 16 (%s) and runuser' % PGBIN)
@@ -869,7 +920,8 @@ class TwoNodesOneAgent(unittest.TestCase):
             self.status_ok(n)
             self.assertEqual(node_conf_agent(n)['pins'], [self.fp0])
         self.assertEqual(sorted(agent_status(self.agent)['clients']), ['t1', 't2'])
-        # Each node's authorities its own (two clusters' authorities side by side).
+        # Each node's authorities its own (renewed by itself, never another's) - but the
+        # database server's certificate is one authority's (test_05, 1.0.115).
         with open(os.path.join(self.agent.dir, 'clients.json')) as f:
             cl = json.load(f)
         self.assertTrue(all(x.get('ca') for x in cl))
@@ -918,23 +970,24 @@ class TwoNodesOneAgent(unittest.TestCase):
         self.assertTrue(b.ok('y'))
         # A stranger guessing (no id, or another): the code of the node is not burnt.
         code = self.agent.code()
+        ag = self.agent
         for _ in range(6):
-            st, got = post_plain(self.agent.port, '/v1/enroll/begin',
-                                 {'secret': 'x' * 24, 'node': 'evil'})
+            st, got = post_plain(ag.port, '/v1/enroll/begin', sealed_begin(ag, 'x' * 24, '', 'evil'))
             self.assertEqual(st, 400, got)
         data = code_data(code)
-        st, got = post_plain(self.agent.port, '/v1/enroll/begin',
-                             {'secret': data['s'], 'code_id': data['i'], 'node': 'late'})
+        st, got = post_plain(ag.port, '/v1/enroll/begin',
+                             sealed_begin(ag, data['s'], data['i'], 'late'))
         self.assertEqual(st, 200, got)
         tok = got['token']
         # A second begin with the same code (somebody who saw it): the first one's token still
         # finishes - and a finish without a token of a begin is refused.
-        st, got2 = post_plain(self.agent.port, '/v1/enroll/begin',
-                              {'secret': data['s'], 'code_id': data['i'], 'node': 'other'})
+        st, got2 = post_plain(ag.port, '/v1/enroll/begin',
+                              sealed_begin(ag, data['s'], data['i'], 'other'))
         self.assertEqual(st, 200, got2)
-        st, got = post_plain(self.agent.port, '/v1/enroll/finish',
-                             {'secret': data['s'], 'code_id': data['i'], 'node': 'late',
-                              'token': 'nope', 'sign_key': '0' * 64, 'ca': '', 'client_cert': ''})
+        st, got = post_plain(ag.port, '/v1/enroll/finish', {
+            'code_id': data['i'], 'node': 'late', 'token': 'nope', 'ca': '', 'client_cert': '',
+            'seal': seal_to(agent_pub(ag), ['finish', data['i'], 'late', data['s'], '0' * 64,
+                                            '0' * 64])})
         self.assertEqual(st, 400, got)
         self.assertIn('begun', got['said'])
         self.assertTrue(tok)
@@ -942,14 +995,13 @@ class TwoNodesOneAgent(unittest.TestCase):
         code2 = self.agent.code()
         d2 = code_data(code2)
         for _ in range(5):
-            post_plain(self.agent.port, '/v1/enroll/begin',
-                       {'secret': 'y' * 24, 'code_id': d2['i'], 'node': 'evil'})
-        st, got = post_plain(self.agent.port, '/v1/enroll/begin',
-                             {'secret': d2['s'], 'code_id': d2['i'], 'node': 'late'})
+            post_plain(ag.port, '/v1/enroll/begin', sealed_begin(ag, 'y' * 24, d2['i'], 'evil'))
+        st, got = post_plain(ag.port, '/v1/enroll/begin',
+                             sealed_begin(ag, d2['s'], d2['i'], 'late'))
         self.assertEqual(st, 400, got)
         # The address is refused after ten wrong codes in an hour, the right one too.
-        st, got = post_plain(self.agent.port, '/v1/enroll/begin',
-                             {'secret': data['s'], 'code_id': data['i'], 'node': 'late'})
+        st, got = post_plain(ag.port, '/v1/enroll/begin',
+                             sealed_begin(ag, data['s'], data['i'], 'late'))
         self.assertEqual(st, 400, got)
         self.assertIn('too many', got['said'])
         refused = [x for x in self.agent.audit() if x.get('ok') is False and
@@ -958,6 +1010,42 @@ class TwoNodesOneAgent(unittest.TestCase):
         # The nodes joined are not disturbed.
         for n in self.nodes:
             self.status_ok(n)
+
+    def test_05_one_authority_owns_the_server_cert(self):
+        """Two nodes of two authorities (two clusters) on one agent: the first one's certificate
+        on the database server is not replaced by the second's (1.0.115 - it overwrote it and
+        /etc/pki/acme/ha-ca.pem, and the first node's verify-full failed), the refusal names
+        whose it is; the first renews its own. Once it leaves, the other may take it."""
+        t1, t2 = self.nodes
+
+        def server_args(n):
+            got = last_json(n.py(
+                "k, c = acme.hatls_issue(st, ['127.0.0.1', 'localhost'], cn='db')\n"
+                "print(json.dumps([k, c, acme.hatls_trust(acme.hatls_ca(st))]))"))
+            return {'do': 'server', 'db': 'acme', 'user': 'acme', 'cert': got[1], 'key': got[0],
+                    'trust': got[2]}
+        st, got = raw_op(self.agent, t1, 'pgtls', server_args(t1), key_hex=sign_key_of(t1))
+        self.assertEqual(st, 200, got)
+        first = server_cert_der(self.db.port)
+        st, got = raw_op(self.agent, t2, 'pgtls', server_args(t2), key_hex=sign_key_of(t2))
+        self.assertEqual(st, 400, got)
+        self.assertIn('is t1\'s, from another authority', got['said'])
+        self.assertIn('acme_db_agent.py --forget t1', got['said'])
+        self.assertEqual(server_cert_der(self.db.port), first)
+        st, got = raw_op(self.agent, t2, 'pgtls', {'do': 'server_off', 'db': 'acme',
+                                                    'user': 'acme'}, key_hex=sign_key_of(t2))
+        self.assertEqual(st, 400, got)
+        self.assertEqual(self.db.sql('SHOW ssl'), 'on')
+        st, got = raw_op(self.agent, t1, 'pgtls', server_args(t1), key_hex=sign_key_of(t1))
+        self.assertEqual(st, 200, got)                  # its own, renewed
+        self.assertNotEqual(server_cert_der(self.db.port), first)
+        # t1 leaves (it forgot the agent): t2 may put its own in now.
+        got = t1.cli('--db-agent-forget', '--yes')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        self.assertIn('took this node off its list', got.stdout)
+        wait_for(lambda: agent_status(self.agent)['clients'] == ['t2'], 30, 1, 't1 gone')
+        st, got = raw_op(self.agent, t2, 'pgtls', server_args(t2), key_hex=sign_key_of(t2))
+        self.assertEqual(st, 200, got)
 
 
 @unittest.skipUnless(can_run(), 'needs root, PostgreSQL 16 (%s) and runuser' % PGBIN)
@@ -993,6 +1081,355 @@ class AgentLimits(unittest.TestCase):
                               % os.path.join(ROOT, 'deploy')], capture_output=True, text=True)
         self.assertNotEqual(got.returncode, 0)
         self.assertIn('not there', got.stderr)
+
+
+@unittest.skipUnless(can_run(), 'needs root, PostgreSQL 16 (%s) and runuser' % PGBIN)
+class AgentByHand(unittest.TestCase):
+    """Nodes made by hand on one agent whose database restart takes 12 s (1.0.115): another
+    node's look is answered meanwhile (the agent busy, said so); a node takes only itself away;
+    one not heard from for 30 days does not hold the agent's next certificate back."""
+
+    @classmethod
+    def setUpClass(cls):
+        set_up_or_clean(cls, cls._set_up)
+
+    @classmethod
+    def _set_up(cls):
+        cls.cadir = tempfile.mkdtemp(prefix='acme-extdb-ca-', dir=BASE)
+        os.chmod(cls.cadir, 0o755)
+        cls.db = PgServer('dbh')
+        cls.agent = Agent(cls.db, cls.cadir)
+        with open(cls.agent.conf) as f:
+            c = json.load(f)
+        c['pg_restart_cmd'] = ['/bin/sleep', '12']      # a long restart (a big checkpoint)
+        with open(cls.agent.conf, 'w') as f:
+            json.dump(c, f)
+        cls.agent.start()
+        top = os.path.join(cls.db.top, 'nodes')
+        os.makedirs(top)
+        cls.n1, cls.n2, cls.n3 = (HandNode(x, top) for x in ('h1', 'h2', 'h3'))
+        for n in (cls.n1, cls.n2, cls.n3):
+            n.enroll(cls.agent)
+
+    @classmethod
+    def tearDownClass(cls):
+        quietly(*[getattr(cls, x).stop for x in ('agent',) if getattr(cls, x, None)],
+                *[getattr(cls, x).cleanup for x in ('db',) if getattr(cls, x, None)],
+                lambda: shutil.rmtree(cls.cadir, ignore_errors=True))
+
+    def test_01_a_long_operation_holds_no_other_look(self):
+        import threading
+        got = {}
+        t = threading.Thread(target=lambda: got.update(r=self.n1.op(self.agent, 'pg_restart',
+                                                                     timeout=120)))
+        t.start()
+        try:
+            time.sleep(1.5)
+            t0 = time.time()
+            st, b = self.n2.op(self.agent, 'status', {'pins': self.n2.pins}, timeout=20)
+            took = time.time() - t0
+            self.assertEqual(st, 200, b)
+            self.assertLess(took, 8, 'the look waited for the restart')
+            self.assertEqual((b['agent']['busy'] or {}).get('op'), 'pg_restart', b['agent'])
+            self.assertEqual(b['agent']['busy']['node'], 'h1')
+            st, b = self.n3.op(self.agent, 'load', {'db': 'postgres'}, timeout=20)
+            self.assertEqual(st, 200, b)
+        finally:
+            t.join(60)
+        self.assertEqual(got['r'][0], 200, got)
+        st, b = self.n2.op(self.agent, 'status', {'pins': self.n2.pins})
+        self.assertIsNone(b['agent']['busy'])
+
+    def test_02_a_node_takes_only_itself_away(self):
+        st, b = self.n1.op(self.agent, 'clients', {'drop': 'h2'})
+        self.assertEqual(st, 400, b)
+        self.assertIn('only itself', b['said'])
+        self.assertIn('h2', agent_status(self.agent)['clients'])
+        st, b = self.n1.op(self.agent, 'clients')
+        self.assertEqual(st, 200, b)
+        self.assertEqual(sorted(b['clients']), ['h1', 'h2', 'h3'])
+
+    def test_03_stale_not_waited_for(self):
+        """h3 not heard from for 40 days: listed as such, not waited for - the next certificate
+        is put in use once h1 and h2 took it in."""
+        path = os.path.join(self.agent.dir, 'clients.json')
+        cl = json.loads(read_file(path))
+        for x in cl:
+            if x['name'] == 'h3':
+                x['seen'] = x['at'] = time.time() - 40 * 86400
+        with open(path, 'w') as f:
+            json.dump(cl, f)
+        self.assertEqual(agent_status(self.agent)['stale'], ['h3'])
+        st, b = self.n1.op(self.agent, 'agent_renew')
+        self.assertEqual(st, 200, b)
+        nxt = b['cert_next_fp']
+        before = agent_status(self.agent)['cert_fp']
+        for n in (self.n1, self.n2):
+            n.pins = [before, nxt]
+        st, b = self.n1.op(self.agent, 'status', {'pins': self.n1.pins})
+        self.assertEqual(st, 200, b)
+        self.assertEqual(agent_status(self.agent)['cert_fp'], before)    # h2 not yet
+        stale = [x for x in b['agent']['clients'] if x['stale']]
+        self.assertEqual([x['name'] for x in stale], ['h3'])
+        st, b = self.n2.op(self.agent, 'status', {'pins': self.n2.pins})
+        self.assertEqual(st, 200, b)
+        wait_for(lambda: agent_status(self.agent)['cert_fp'] == nxt, 30, 0.5,
+                 'the next certificate in use without h3')
+        for n in (self.n1, self.n2):
+            n.pins = [nxt]
+        # h3 heard from again: no longer stale.
+        self.n3.pins = [nxt]
+        st, b = self.n3.op(self.agent, 'status', {'pins': self.n3.pins})
+        self.assertEqual(st, 200, b)
+        self.assertEqual(agent_status(self.agent)['stale'], [])
+
+    def test_04_leave(self):
+        st, b = self.n3.op(self.agent, 'leave')
+        self.assertEqual(st, 200, b)
+        wait_for(lambda: 'h3' not in agent_status(self.agent)['clients'], 30, 0.5, 'h3 gone')
+        time.sleep(1)
+        # not let in any more: its authority is no longer asked for (the handshake fails), or
+        # its certificate is no longer enrolled (403)
+        try:
+            st, b = self.n3.op(self.agent, 'status', {'pins': self.n3.pins})
+            self.assertEqual(st, 403, b)
+        except (ssl.SSLError, OSError):
+            pass
+        st, b = self.n1.op(self.agent, 'status', {'pins': self.n1.pins})
+        self.assertEqual(st, 200, b)
+
+
+@unittest.skipUnless(can_run(), 'needs root, PostgreSQL 16 (%s) and runuser' % PGBIN)
+class SealedJoin(unittest.TestCase):
+    """The join through a copy of the agent whose side that faces the network keeps every byte
+    it is given (as one taken over would): neither the code's secret nor the node's signing key
+    is among them (1.0.115 - they are sealed to root's own key), nor in that side's memory; a
+    join in clear (acme before 1.0.115) and a seal to another key are refused."""
+
+    @classmethod
+    def setUpClass(cls):
+        set_up_or_clean(cls, cls._set_up)
+
+    @classmethod
+    def _set_up(cls):
+        global AGENT
+        cls.cadir = tempfile.mkdtemp(prefix='acme-extdb-ca-', dir=BASE)
+        os.chmod(cls.cadir, 0o755)
+        cls.db = PgServer('dbs')
+        cls.copy = tempfile.mkdtemp(prefix='acme-extdb-tap-', dir=BASE)
+        os.chmod(cls.copy, 0o755)
+        cls.tap = os.path.join(cls.copy, 'tap', 'bytes')
+        os.makedirs(os.path.dirname(cls.tap))
+        os.chmod(os.path.dirname(cls.tap), 0o777)
+        for f in ('acme_pg_ops.py', 'acme_web.py'):
+            shutil.copy(os.path.join(ROOT, 'deploy', f), cls.copy)
+        src = read_file(AGENT)
+        mark = '        body = self.rfile.read(n)       # read before any answer: unread, the close resets it\n'
+        assert mark in src
+        src = src.replace(mark, mark + '        with open(%r, \'ab\') as _t:\n'
+                          '            _t.write(self.path.encode() + b\' \' + body + b\'\\n\')\n'
+                          % cls.tap)
+        with open(os.path.join(cls.copy, 'acme_db_agent.py'), 'w') as f:
+            f.write(src)
+        was, AGENT = AGENT, os.path.join(cls.copy, 'acme_db_agent.py')
+        try:
+            cls.agent = Agent(cls.db, cls.cadir).start()
+            cls.code = cls.agent.code()
+        finally:
+            AGENT = was
+        cls.n = Node('s0')
+        cls.n.env.update(ACME_HA_NO_RESTART='1', ACME_NO_RESTART='1',
+                         ACME_HA_CA=os.path.join(cls.cadir, 'dbs.pem'))
+        os.makedirs(os.path.join(cls.n.tmp, 'state', 'web'), exist_ok=True)
+        cls.n.add_account()
+
+    @classmethod
+    def tearDownClass(cls):
+        quietly(*[getattr(cls, x).cleanup for x in ('n',) if getattr(cls, x, None)],
+                *[getattr(cls, x).stop for x in ('agent',) if getattr(cls, x, None)],
+                *[getattr(cls, x).cleanup for x in ('db',) if getattr(cls, x, None)],
+                lambda: shutil.rmtree(cls.cadir, ignore_errors=True),
+                lambda: shutil.rmtree(getattr(cls, 'copy', '/nonexistent'), ignore_errors=True))
+
+    def test_01_the_network_side_never_sees_the_secrets(self):
+        got = self.n.cli('--db-agent-join', '-', stdin=self.code + '\n')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        key = sign_key_of(self.n)
+        secret = code_data(self.code)['s']
+        with open(self.tap, 'rb') as f:
+            seen = f.read()
+        self.assertIn(b'/v1/enroll/finish', seen)        # the tap did see the join
+        self.assertIn(b'"seal"', seen)
+        for needle in (key.encode(), secret.encode(), b'sign_key', b'"secret"'):
+            self.assertNotIn(needle, seen, needle)
+        got = self.n.cli('--db-agent-status')
+        self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+        pid = network_side_pid(self.agent)
+        self.assertEqual(memory_holds(pid, [key.encode(), bytes.fromhex(key), secret.encode(),
+                                            b'acme-db-agent/1']), {b'acme-db-agent/1'})
+
+    def test_02_in_clear_or_to_another_key_refused(self):
+        data = code_data(self.agent.code())
+        st, got = post_plain(self.agent.port, '/v1/enroll/begin',
+                             {'secret': data['s'], 'code_id': data['i'], 'node': 'old'})
+        self.assertEqual(st, 400, got)
+        self.assertIn('sealed to its own key', got['said'])
+        t = tempfile.mkdtemp(dir=BASE)
+        try:
+            k = os.path.join(t, 'k.pem')
+            subprocess.run(['openssl', 'genpkey', '-algorithm', 'RSA', '-out', k], check=True,
+                           capture_output=True)
+            other = subprocess.run(['openssl', 'pkey', '-in', k, '-pubout'], check=True,
+                                   capture_output=True, text=True).stdout
+        finally:
+            shutil.rmtree(t, ignore_errors=True)
+        st, got = post_plain(self.agent.port, '/v1/enroll/begin', {
+            'code_id': data['i'], 'node': 'other',
+            'seal': seal_to(other, ['begin', data['i'], 'other', data['s']])})
+        self.assertEqual(st, 400, got)
+        self.assertIn('not sealed to this agent', got['said'])
+        # A seal of another node's name is not this one's.
+        st, got = post_plain(self.agent.port, '/v1/enroll/begin', {
+            'code_id': data['i'], 'node': 'x1',
+            'seal': seal_to(agent_pub(self.agent), ['begin', data['i'], 'x2', data['s']])})
+        self.assertEqual(st, 400, got)
+        # The key the code pins: another one given by the network side is refused by acme.
+        self.assertEqual(hashlib.sha256(base64.b64decode(''.join(
+            x for x in agent_pub(self.agent).splitlines() if not x.startswith('-----'))))
+            .hexdigest(), data['k'])
+
+
+class LayoutBUnit(unittest.TestCase):
+    """Layout B without servers (1.0.115): ha_address is this node's DATABASE server - what is
+    the nodes' own takes this node's own address (keepalived's unicast_src_ip, the other node's
+    firewall, the clocks), and the agent is not let go while the replication runs through it."""
+
+    SCRIPT = r"""
+import json, os, sys, tempfile
+t = sys.argv[1]
+os.makedirs(t + '/state/db-agent')
+DB1, DB2, ACME1, ACME2 = '192.0.2.21', '192.0.2.22', '192.0.2.11', '192.0.2.12'
+json.dump({'db_engine': 'postgres', 'db_host': DB1, 'db_port': 5432, 'db_name': 'acme',
+           'db_user': 'acme', 'db_password': 'x' * 12, 'ha_mode': 'replicated', 'ha_slot': 1,
+           'ha_peer': DB2, 'ha_address': DB1, 'node_name': 'acme1'}, open(t + '/config.json', 'w'))
+json.dump({'db_admin': 'agent:%s:9443' % DB1, 'host': DB1, 'port': 9443, 'db_host': DB1,
+           'engine': 'postgres', 'pg_port': 5432, 'peer_node': ACME2, 'node': 'acme1',
+           'node_address': ACME1}, open(t + '/state/db-agent/agent.json', 'w'))
+os.environ.update(ACME_CONFIG=t + '/config.json', ACME_STATE=t + '/state')
+sys.path.insert(0, sys.argv[2])
+import acme
+acme.load_config()
+E = acme._engine
+E.vip_conf = lambda store: {'on': True, 'address': '192.0.2.100/24', 'vrid': 51}
+E.ha_nodes = lambda store: []
+E.ha_pending = lambda store, node: []
+E.vip_auth = lambda: 'x'
+E.tls_profile = lambda store, t: None
+E.vip_last = lambda a: None
+E.vip_last_keep = lambda *a: None
+E.fw_desired = lambda store: {}
+E.access_desired = lambda store: {}
+
+
+class DB:
+    engine = 'postgres'
+    def rows(self, *a, **k): return []
+    def value(self, *a, **k): return '160000'
+    def run(self, *a, **k): return 0
+    def close(self): pass
+
+
+class S:
+    db = DB()
+    def get_meta(self, k, d=None): return d
+    def set_meta(self, *a): pass
+    def settings_saved(self): return {}
+
+
+class Clock(DB):
+    def value(self, sql, *a, **k):
+        import time
+        return '1' if 'SELECT 1' == str(sql) else str(time.time() + 5.0)
+
+
+out = {}
+out['here'] = E.db_agent_here()
+out['peer_node'] = E.ha_peer_node()
+out['own'] = E.ha_own_node()
+vip = E.web_desired(S()).get('vip')
+out['vip'] = [vip.get('own'), vip.get('peer')]
+out['fw_other'] = E.cluster_addresses(S(), 'acme2')
+out['fw_me'] = E.cluster_addresses(S(), 'acme1')
+E.ha_peer_conf = lambda timeout=2: {}
+E.db_open = lambda conf, statement_s=2: Clock()
+name, sk = E.clock_peer_skew(S())
+out['clock'] = [name, round(sk)]
+out['bundle_node'] = E.ha_replicated_bundle_data(S())['peer'].get('node')
+out['refused'] = E.db_agent_forget_refused()
+try:
+    E.db_agent_forget(None, 'test')
+    out['forgot'] = True
+except ValueError as e:
+    out['forgot'] = str(e)
+out['still'] = E.db_agent_on()
+# multi-homed: this node as its database server sees it - the route's source address
+seen = []
+E.db_agent_call = lambda op, args=None, **k: (seen.append((op, args)), {'said': []})[1]
+E.db_agent_prepare(DB2, 'acme', 'acme', 'x' * 12, lambda t: None)
+out['prepare_peers'] = seen[0][1]['peers']
+out['my_db'] = E.db_agent_my_address()
+out['my_lo'] = E.db_agent_my_address('127.0.0.1')
+# without node_address kept (a cluster made before 1.0.115): the address toward the other node
+a = dict(E.db_agent()); a.pop('node_address')
+E.DBAGENT_FILE.write_text(json.dumps(a))
+E.DBAGENT_CACHE['key'] = None
+out['own_toward'] = [E.ha_own_node(), E.db_agent_my_address(ACME2)]
+# the agent's certificate: no alert within 14 days while the next one is announced and the
+# switch (7 days before) is still ahead; an alert without one, or past it
+now = 1e9
+cert = lambda days, nxt: E.db_agent_cert_late({'agent_cert_end': now + days * 86400,
+                                                'agent': {'cert_next_fp': nxt, 'force_days': 7}}, now)
+out['late'] = [cert(13, 'a' * 64), cert(13, ''), cert(6, 'a' * 64), cert(20, '')]
+# the agent's program: the same code says nothing whatever the numbers
+ours = E.db_agent_code_ours()
+out['skew'] = [E.db_agent_version_skew({'version': '0.0.1', 'code': ours}),
+               E.db_agent_version_skew({'version': '0.0.1', 'code': 'f' * 64}).get('how'),
+               E.db_agent_version_skew({'version': '99.0.0', 'code': 'f' * 64}).get('how'),
+               E.db_agent_version_skew({'version': E.__version__, 'code': 'f' * 64}).get('how'),
+               E.db_agent_version_skew({'version': '1.0.113'}).get('how'),
+               E.db_agent_version_skew({'version': E.__version__})]
+print(json.dumps(out))
+"""
+
+    def test_layout_b(self):
+        t = tempfile.mkdtemp(prefix='acme-extdb-b-', dir=BASE)
+        try:
+            got = subprocess.run([sys.executable, '-c', self.SCRIPT, t, ROOT], capture_output=True,
+                                 text=True, timeout=120)
+            self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+            out = last_json(got.stdout)
+        finally:
+            shutil.rmtree(t, ignore_errors=True)
+        self.assertTrue(out['here'])
+        self.assertEqual(out['peer_node'], '192.0.2.12')
+        self.assertEqual(out['own'], '192.0.2.11')
+        # keepalived: this node and the other node - never this node's database server
+        self.assertEqual(out['vip'], ['192.0.2.11', '192.0.2.12'])
+        self.assertIn('192.0.2.11', out['fw_other'])
+        self.assertNotIn('192.0.2.21', out['fw_other'])
+        self.assertIn('192.0.2.12', out['fw_me'])
+        self.assertNotIn('192.0.2.22', out['fw_me'])
+        # the other database server's clock is said as its own, not taken for the node's
+        self.assertEqual(out['clock'][0], 'the database server of the other node')
+        self.assertEqual(out['bundle_node'], '192.0.2.11')
+        self.assertIn('one of a cluster', out['refused'])
+        self.assertIn('take the cluster apart first', out['forgot'])
+        self.assertTrue(out['still'])
+        self.assertIn(out['my_db'], out['prepare_peers'])
+        self.assertEqual(out['my_lo'], '127.0.0.1')
+        self.assertEqual(out['own_toward'][0], out['own_toward'][1])
+        self.assertEqual(out['late'], [False, True, True, False])
+        self.assertEqual(out['skew'], [{}, 'older', 'newer', 'other', 'older', {}])
 
 
 class DeployParts(unittest.TestCase):
@@ -1039,6 +1476,22 @@ class DeployParts(unittest.TestCase):
         self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
         self.assertIn('the password not shown', got.stdout)
         self.assertNotIn('Secret-Pw-4711', got.stdout + got.stderr)
+
+    def test_upgrade_prints_no_code(self):
+        """install.sh --db-agent again (an upgrade): no join code unless the agent is new or
+        --new-code is given (1.0.115) - a code is a key to it, and the nodes stay joined."""
+        stub = ('agent_install() { [[ -n "$NEW" ]] && AGENT_FRESH=yes; return 0; }\n'
+                'dbs_firewall() { :; }\nagent_code() { echo JOIN-CODE; }\n'
+                'DB_SERVER=""; ACME_NODES=""; DBS_PASSWORD=""\n')
+        for env, want in (({}, False), ({'NEW': 'yes'}, True),
+                          ({'DB_AGENT_NEW_CODE': 'yes'}, True)):
+            got = self.shell(stub + 'db_server_main\n', env=env)
+            self.assertEqual(got.returncode, 0, got.stdout + got.stderr)
+            self.assertEqual('JOIN-CODE' in got.stdout, want, (env, got.stdout))
+            if not want:
+                self.assertIn('the nodes joined stay joined', got.stdout)
+        self.assertIn('--new-code)', self.read('install.sh'))
+        self.assertIn('--db-agent-leave', self.read('install.sh'))
 
     def test_firewall_lines_without_acme_node(self):
         t = tempfile.mkdtemp(dir=BASE)
@@ -1232,6 +1685,27 @@ class ReplicatedExternal(unittest.TestCase):
         self.assertNotEqual(got.returncode, 0)
         self.assertIn('one of a cluster and its database is on', got.stderr)
         self.assertEqual(node_conf_agent(self.a)['port'], self.ag1.port)
+
+    def test_07_agent_not_forgotten_and_own_address(self):
+        """Layout B: the agent is not let go while the replication runs through it (1.0.115) -
+        neither on the pages (the button hidden: forget_refused) nor on the command line; and
+        each node keeps its own address beside ha_address (its database server)."""
+        v = self.a.ok('GET', '/api/db-agent')
+        self.assertIn('take the cluster apart first', v['forget_refused'])
+        st, got = self.a.call('POST', '/api/db-agent', {'action': 'forget'})
+        self.assertEqual(st, 409, got)
+        got = self.a.cli('--db-agent-forget', '--yes')
+        self.assertNotEqual(got.returncode, 0)
+        self.assertIn('one of a cluster and its database is on', got.stderr)
+        self.assertTrue(os.path.exists(os.path.join(self.a.tmp, 'state', 'db-agent',
+                                                    'agent.json')))
+        self.assertIn('n1', agent_status(self.ag1)['clients'])
+        for n in (self.a, self.b):
+            a = node_conf_agent(n)
+            self.assertTrue(a.get('node_address'), a)
+            got = last_json(n.py("print(json.dumps([acme.ha_own_node(), "
+                                 "acme._engine.CONFIG.get('ha_address')]))"))
+            self.assertEqual(got[0], a['node_address'])
 
 
 def can_run_my():
@@ -1503,7 +1977,9 @@ class EngineMoves(unittest.TestCase):
         # still on the first one's server.
         out = self.join(self.agb)
         self.assertIn('NOTE: this node\'s database is still on 127.0.0.1', out)
-        self.assertIn('--forget mv0', out)
+        # the agent let go is told (`leave`, 1.0.115): it waits for this node no more
+        self.assertIn('that agent took this node off its list', out)
+        self.assertNotIn('mv0', agent_status(self.aga)['clients'])
         a = node_conf_agent(self.n)
         self.assertEqual((a['engine'], a['port']), ('mariadb', self.agb.port))
         self.assertNotIn('peer_node', a)
@@ -1588,7 +2064,9 @@ class EngineMoves(unittest.TestCase):
         self.assertNotIn('dbservers', self.n.call('GET', '/api/dbtls')[1])
         time.sleep(6)                   # the agent's look every 2 s, were it still asked
         asked = [x.get('op') for x in self.aga.audit()[before:] if x.get('node') == 'mv0']
-        self.assertEqual(asked, [])
+        # only told the node leaves it (1.0.115), then nothing
+        self.assertEqual(asked, ['leave'])
+        self.assertIn('that agent took this node off its list', out)
         self.assertIn('a row to carry along', self.events())
 
     def test_04_local_postgres_to_sqlite(self):

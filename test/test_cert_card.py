@@ -32,7 +32,11 @@ The kit's t_card.py, ui_card.js and t_cert_ha excerpt, ported:
   - a browser that cannot be checked (the kit's 3rd edition, an iPad): never found in the
     background - not watched (allow, an event with why, 7 px, never held, whoami without card) or
     signed out (signout); found once - a card taken out as always; no cookie - 6 px and its reason;
-    in Chromium the background's picture failing while the sign-in works - the notice.
+    in Chromium the background's picture failing while the sign-in works - the notice;
+  - 1.0.115 (hunt P): only "no answer at all" makes "cannot be checked", never for a sign-in held,
+    out, or made before the watch was on; watched again once a check finds the card; the doer
+    of a stricter rule watched; the port's check only for this name's page (Origin, CORS); nginx's
+    429 / 5xx "try later" (8 px) and a limit of the checks' own.
 """
 import http.client
 import importlib.util
@@ -725,6 +729,15 @@ def test_09_nginx_with_the_card_watched(self):
             self.assertNotIn('shared:ACME', text)
             self.assertNotIn('http2', text)
             self.assertEqual(text.count('api=cert-alive&t=[0-9]{1,16}'), 2)      # admin and portal
+            # 1.0.115: the checks out of acme_all, a zone of their own (once, for every server);
+            # nginx's 429 / 5xx answered "try later" (8 px), for the checks only.
+            self.assertEqual(text.count('limit_req_zone $binary_remote_addr zone=acme_card:'), 1)
+            self.assertEqual(text.count('if ($args ~ "^api=cert-alive&") { return 418; }'), 2)
+            self.assertIn('location @acme_card_admin {', text)
+            self.assertIn('location @acme_card_portal {', text)
+            self.assertEqual(text.count('limit_req zone=acme_card burst='), 2)
+            self.assertEqual(text.count('error_page 429 500 502 503 504 = @acme_card_later;'), 2)
+            self.assertIn('width="8" height="1"', text)
         text = W.certlogin_text(main, None, c)
         # nginx -t takes it, where nginx is here.
         if shutil.which('nginx'):
@@ -755,7 +768,10 @@ def test_09_nginx_with_the_card_watched(self):
         self.on(portal_certlogin_card_watch='off')
         want = self.py('print(json.dumps(E.certlogin_desired(st)))')
         self.assertNotIn('watch', want)
-        self.assertNotIn('keepalive_timeout', W.certlogin_text(main, None, W.certlogin_checked(want)))
+        off = W.certlogin_text(main, None, W.certlogin_checked(want))
+        self.assertNotIn('keepalive_timeout', off)
+        for x in ('acme_card', '418', 'recursive_error_pages', 'cert-alive'):
+            self.assertNotIn(x, off)
     finally:
         self.card_off()
 

@@ -148,7 +148,7 @@ same way as [signing in with Windows](kerberos-sso.md) and can be on beside it.
 | `admin_certlogin_card_watch` - *When the card is taken out* | off | `off`, `signout` (sign out at once) or `grace` (lock, wait for the card; 1.0.113's `lock` is still taken and read as `grace`) - [The card taken out](#the-card-taken-out). |
 | `admin_certlogin_card_every` - *Check the card every (seconds)* | 15 | Seconds between two checks of the page, 5 to 300. |
 | `admin_certlogin_card_grace` - *The card put back within (seconds)* | 30 | `grace`: seconds the card may be out before the sign-in ends, 5 to 600. |
-| `admin_certlogin_card_unable` - *A browser that cannot be checked* | allow | `allow` (*Not watched (said in Events)*) or `signout` (*Sign out, as a card taken out*): what a sign-in gets whose browser's checks in the background have never once found its card - an iPad ([A browser that cannot be checked](#a-browser-that-cannot-be-checked-an-ipad)). Shown while the card is watched. |
+| `admin_certlogin_card_unable` - *A browser that cannot be checked* | allow | `allow` (*Not watched (said in Events)*) or `signout` (*Sign out, as a card taken out*): what a sign-in made while watched gets whose browser's pictures in the background have never once got an answer - an iPad ([A browser that cannot be checked](#a-browser-that-cannot-be-checked-an-ipad)); watched again once a check finds its card. Under `allow` a browser can opt out of the watch by failing every check from the first one - `signout` enforces the watch for every browser (an iPad then cannot be used). Shown while the card is watched. |
 
 ### The portal - *Settings → The enrolment pages → Signing in with a certificate*
 
@@ -633,21 +633,32 @@ page (443)                          nginx :8443 (client certificate)   PHP      
    |<--- 2 px: out, the sign-in waits (grace)  3/4/5 px: ended (another card / out / late)|
    |<--- 6 px: no cookie came with the check (PHP, nothing asked) ------------------------|
    |<--- 7 px: this browser cannot be checked - the sign-in is not watched ---------------|
-   |<--- 403: no such sign-in ------------------------------------------------------------|
+   |<--- 8 px: try later (nginx: too many checks, PHP or the daemon not answering) -------|
+   |<--- 403: no such sign-in, or not this name's page (its Origin) -----------------------|
    |
    |-- no picture at all, twice (or 6 px at once): POST ?api=cert-lost {why} (443) -> /api/certlogin/lost
-   |       never found in this browser: not watched (allow) - or as below (signout)
-   |       found before: the server holds (grace) or ends (signout) the sign-in, with an event
+   |       nopicture, never found in this browser, made while watched, neither held nor out:
+   |         not watched (allow) - or as below (signout)
+   |       anything else: the server holds (grace) or ends (signout) the sign-in, with an event
 ```
 
 The widths 3, 4 and 5 were acme's (the sign-in ended - another card, taken out, not put back in
 time) before the kit's 3rd edition named its own 3 (*no cookie*) and 4 (*cannot be checked*):
 in acme those two are **6** and **7**.
 
-1. **A picture**, not `fetch`: no CORS, nothing for another site to read; the session's
-   `__Host-` cookie goes with it (cookies are not kept apart by port, and a picture of the same
-   site gets a `SameSite=Strict` cookie); a picture asked by another site's page
-   (`Sec-Fetch-Site: cross-site`) gets a 403. Its width is the answer.
+1. **A picture**, not `fetch`; the session's `__Host-` cookie goes with it (cookies are not kept
+   apart by port, and a picture of the same site gets a `SameSite=Strict` cookie). Its width is
+   the answer. Since 1.0.115 it is asked with `crossorigin="use-credentials"`, so the browser
+   says its `Origin`: PHP on the port answers only `Origin: https://<this name>` - the page on
+   443 of the very name the port was reached by - and then with CORS for exactly that origin
+   (`Access-Control-Allow-Origin`, `-Credentials: true`); a browser that sends `Sec-Fetch-*`
+   must also say `Sec-Fetch-Site` `same-site` (or `same-origin`) and `Sec-Fetch-Dest: image`.
+   Anything else - another site, no `Origin` at all (a picture without `crossorigin`, a
+   navigation), not a picture - gets a 403 and nothing is asked. (Before 1.0.115 only
+   `Sec-Fetch-Site: cross-site` was refused: a page of a **sibling host** - `other.example.com`
+   beside `acme.example.com`, the same *site*, whose pictures get the `SameSite=Strict` cookie
+   too - could make a signed-in person's browser check the card and read the width: signed in
+   or not, the card in or out - and, without the card, take it out.)
 2. **The page's Content-Security-Policy** lets `https://<name>:<port>` in for images -
    `img-src 'self' data: https://<name>:8443` - **only for a watched sign-in**; `connect-src`
    stays `'self'`. Any other page's policy is byte for byte as before. An IPv6 address is taken
@@ -669,11 +680,22 @@ in acme those two are **6** and **7**.
    (`?api=cert-lost`, `{why: "nopicture"}`), which can only hold or end its own sign-in (or,
    never found in this browser, leave it unwatched - below). It is taken as the card out only
    while this node serves the certificate's port (a port down is no card taken out). A check
-   left without an answer for 20 s counts as one that got nothing.
+   left without an answer for 20 s counts as one that got nothing - said as `{why: "timeout"}`
+   (1.0.115), which is always a card taken out, never *cannot be checked*.
 6. **No cookie came with the check** (a browser that keeps cookies apart by port, a privacy
    setting): PHP on the port asks nothing and answers 6 px wide; the page says so at once over
    443 (`{why: "nocookie"}`), where its cookie does come - so the events can tell it from a card
    taken out. (Before, that was a 403, which looked like the card out and nobody could tell why.)
+7. **nginx's own errors are no card taken out** (1.0.115). The checks have a limit of their own
+   (`limit_req_zone ... zone=acme_card`, 20 a second and a burst of 200 per address - every tab
+   of everybody behind one NAT checks every few seconds), not the pages' `acme_all` (10 a second,
+   a burst of 20), and the check's own 429, 500, 502, 503 and 504 - too many checks, PHP
+   restarting - are answered **8 px wide** (an SVG: nginx's `return` holds no GIF), as is a
+   daemon that does not answer PHP: *try later* - the page asks again at its next tick, neither
+   the card out nor *cannot be checked*. Before, they were nginx's HTML pages, the picture
+   failed, and the page took them for the card out. Only while a part watches the card: off, the
+   port's server is byte for byte as before. (nginx: the check is sent from the location to a
+   named one of its own - `error_page 418 = @acme_card_admin` - before `acme_all` counts it.)
 
 Then, by the setting:
 
@@ -727,7 +749,11 @@ Switched on, the certificate's sign-ins made since 1.0.114 (they kept their card
 are watched from then on - their pages learn it within a minute and load themselves again (or,
 with changes not saved, say so: *The card you signed in with is watched from now on - save and
 reload the page.*); a portal page learns it from its first question refused. Those made before
-1.0.114 end (they kept nothing to compare with); the one of whoever switched it on stays. The
+1.0.114 end (they kept nothing to compare with); the one of whoever switched it on stays.
+**The one of whoever makes a certificate rule stricter** (revocation, the matching, OCSP, the
+watch switched on - the others made with a certificate end, theirs is kept) **is watched as any
+other** (1.0.115; before, being kept switched the watch off for it: the card could be taken out
+for good). The
 card's facts say *When the card is taken out - a notice, then signed out unless it is back within
 30 s (checked every 15 s)* and how many sign-ins are watched now.
 
@@ -742,13 +768,14 @@ nested was signed out of these pages (from 10.0.0.5): another certificate than t
 nested: the card they signed in with is out - the sign-in to these pages waits 30 s for it (no certificate on the check, from 10.0.0.5)
 nested: the card they signed in with is back - the sign-in to these pages goes on (from 10.0.0.5)
 the card of nested's sign-in to these pages cannot be checked in this browser - the check got no answer at all (the browser did not sign the connection): it is not watched (from 10.0.0.5; the setting "A browser that cannot be checked")
+the card of nested's sign-in to these pages was found in this browser after all - it is watched again (from 10.0.0.5)
 ```
 
 The reason in each (*why*): *no certificate came with the check (the browser does not sign it in
 the background)* - the port got the check without a certificate (`nocert`); *the browser sent no
 cookie with the check* (`nocookie`); *the check got no answer at all (the browser did not sign the
-connection)* (`nopicture` - an iPad); *nginx did not take the certificate* - nginx refused the
-one offered.
+connection)* (`nopicture` - an iPad); *the check got no answer within 20 s* (`timeout`,
+1.0.115); *nginx did not take the certificate* - nginx refused the one offered.
 
 ### A browser that cannot be checked (an iPad)
 
@@ -761,26 +788,45 @@ connection)*, and the iPad was signed out at the first check, every time.
 So a sign-in keeps (in its row, `card_ok`) whether a check **in the background** has ever found
 its card in this browser - the time of the first that did; the sign-in itself does not count:
 
-- **never** - the first check without the card means *this browser cannot be checked*, whatever
-  the reason: no certificate came (`nocert`), no cookie came (`nocookie`, 6 px), no answer at all
-  (`nopicture`, the page's `cert-lost`). By *A browser that cannot be checked*
-  (`admin_certlogin_card_unable`, `portal_certlogin_card_unable`):
+- **never** - and the page says its picture got **no answer at all** (`nopicture`, the page's
+  `cert-lost`) - this browser *cannot be checked*, but only for a sign-in **made while its part
+  watched the card** (`card_w` in its row) that is **neither held nor out**. By *A browser that
+  cannot be checked* (`admin_certlogin_card_unable`, `portal_certlogin_card_unable`):
   - **`allow`** (the default, *Not watched (said in Events)*): `card_ok` becomes -1 and that
-    sign-in is **not watched** from then on - an event says so and why; its checks answer 7 px
-    wide (whatever card comes), the page stops checking and says **This browser cannot have the
-    card checked (as an iPad cannot): this sign-in is not watched.**; whoami has no `card` for it
-    (`null` to the page) and the page loaded again does not check; it is **never held** for its
-    card (423) - nor when its page sleeps (*asleep is not out* is for watched sign-ins) - and
-    the sweep never ends it; it is not counted among the sign-ins watched now;
+    sign-in is **not watched** - an event says so and why; its checks without the card answer
+    7 px wide, and the page says **This browser cannot have the card checked (as an iPad
+    cannot): this sign-in is not watched.**; it is **never held** for its card (423) - nor when
+    its page sleeps - and the sweep never ends it; it is not counted among the sign-ins watched
+    now. **Not for ever** (1.0.115): whoami gives it `card` with `unable: true`, and its page
+    still checks once a minute and whenever it wakes; a check that finds **the same card** -
+    the iPad in front, a desktop browser after a hiccup - watches it again (*the card of nested's
+    sign-in to these pages was found in this browser after all - it is watched again*; the page:
+    *The card is checked in this browser after all: this sign-in is watched again.*), and from
+    then on a check without it is a card taken out. Another card on its check ends it, as on a
+    watched one's;
   - **`signout`** (*Sign out, as a card taken out*): on as for a card taken out - such a browser
     cannot stay signed in while the card is watched;
-- **at least once** - a later check without the card is a card taken out, as always.
+- anything else - **a check that came without a certificate** (`nocert`), **nginx's refusal**,
+  **no cookie** (`nocookie`), **none within 20 s** (`timeout`), a sign-in **held** (its page
+  stopped checking) or **whose card is out**, one **made before the watch was switched on**
+  (its person may be away with the card: it looks just the same - and one made while on,
+  switched off and on again, counts as made before) - is a **card taken out**, as always;
+- **at least once** found - a later check without the card is a card taken out, as always.
 
-**The trade-off.** A card pulled in the first 1.5 seconds after the page loads, before its first
-check, makes that sign-in look like one that cannot be checked (with `allow`) - the events say
-so. Choose `signout` where every sign-in must be watched and no iPad is used. A sign-in made
-before 1.0.114 with the card watched has no `card_ok` either: its first check without the card
-is taken the same way.
+(1.0.114 took any first check without the card - and the page's own word for it, even while the
+sign-in was held - as *cannot be checked*, for good: a held sign-in left its lock by one request
+of its page, a transient failure at the first check left the sign-in unwatched for ever.)
+
+**What `allow` still lets through - plainly.** *Cannot be checked* is the page's own word: under
+`allow`, a browser - or a person at the browser's console - that fails every check in the
+background **from the very first one** (and says so with `nopicture`) opts its sign-in out of
+the watch until a check finds the card. It cannot leave a lock (held or out) that way, nor a
+watch once its card was found. **`signout` is the setting that enforces the watch for every
+browser** - and then an iPad cannot be used with that part (it is signed out at its first check
+in the background). A card pulled in the first 1.5 seconds after the page loads, before its
+first check, makes that sign-in look like one that cannot be checked (with `allow`) - the events
+say so. A sign-in made before 1.0.115 kept no `card_w`: its first check without the card is a
+card taken out.
 
 ### Things to know
 

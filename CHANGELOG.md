@@ -6,6 +6,34 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.115 - not released
 
+- (security) **The card watched: "cannot be checked" no way out of the lock.** With *A browser
+  that cannot be checked* = *Not watched* (the default), a sign-in whose card was out, or held
+  because its page had stopped checking, was let out by one request of its own page saying "no
+  picture" - and was never watched again; any first check without the card (no certificate,
+  nginx refusing once, no cookie) left a sign-in unwatched for good, and a sign-in made before the
+  watch was switched on, its person away with the card, went unwatched at its first check. Now
+  only the page's "no answer at all" makes a browser *cannot be checked*, never for a sign-in held
+  or whose card is out, only for one made while the watch was on; everything else is a card taken
+  out. And it is no longer for ever: the page checks once a minute and when it wakes, and a check
+  that finds the card watches the sign-in again. Under *Not watched* a browser can still opt out
+  by failing every check from the first one - *Sign out, as a card taken out* is the setting that
+  enforces the watch for every browser (an iPad then cannot be used with it). Sign-ins made before
+  this version are taken as made before the watch was switched on.
+- (security) **The card watched: whoever made a certificate rule stricter** (revocation, the
+  matching, OCSP) kept their sign-in - and it was no longer watched: the card could be taken out
+  for good. It is watched as any other now.
+- (security) **The card's check answers this name's page only**: a page of a sibling host (the
+  same site - its pictures get the session cookie too) could make a signed-in person's browser
+  check the card and read the answer (signed in or not, the card in or out) - and, the card away,
+  end or lock the sign-in. The check's picture is asked with its Origin now, and only
+  `https://<this name>` is answered.
+- **The card watched: nginx's own errors are no card taken out.** The checks shared the pages'
+  limit (10 a second per address): behind a busy NAT, or with many tabs, nginx refused some with
+  a 429 page - as a 502 while PHP restarted - and the page took the failed picture for the card
+  taken out. The checks have a limit of their own now, and nginx's 429 and 5xx (and a daemon not
+  answering) say "try later" - asked again at the next check. Off, nginx's server of the port is
+  as before.
+
 - **"The database is in trouble" says something again**: since the RADIUS server was taken out
   nothing wrote down the database's own trouble - the alert, `acmeDbTrouble` and the Zabbix trigger never
   fired. Every statement of the daemon that fails with it (locked, full, gone, a lock or a statement
@@ -33,6 +61,51 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   the subscription nor the slot is there (was 0, "not replicated"), with a Zabbix trigger
   *Replication down*. ACME-MIB revision 202611160000Z.
 
+
+- (security) **The database agent: the side that faces the network never sees a node's signing
+  key.** At a join the finish carried the node's signing key (and the join code's secret) in
+  clear through the agent's unprivileged network side - one taken over could keep it and ask
+  root as that node (any operation of the closed set). The agent now has a key pair of its own
+  (root's, `enroll.key`), its fingerprint in the join code (`k`); the node checks the key the
+  agent gives against it and seals the code's secret, its signing key and its certificate's
+  fingerprint to it (RSA-OAEP, `openssl`). A join in clear is refused (*sealed to its own key*):
+  **upgrade the agents** (`./install.sh --db-agent` on each database server) together with acme;
+  a code of an older agent is refused by the node (upgrade it, then make a new code).
+- (security) **One database server, one cluster's TLS.** Two nodes of two authorities joined to
+  one agent each put their own certificate into the server (Database -> TLS, and its renewal by
+  itself), the second replacing the first's and `/etc/pki/acme/ha-ca.pem` - the first's
+  verify-full failed. The agent remembers which node (and authorities) put the server's
+  certificate in; a node of another authority is refused, the refusal says whose it is; the same
+  authority (the other node of that cluster) and a node renewing its own may. And a node takes
+  only itself off the agent's list (`clients drop` of another node is refused).
+- **Layout B (each node its own database server): this node's own address, not its database
+  server's.** `ha_address` is the node's database server there, yet keepalived was told it as its
+  own address (`unicast_src_ip`), the other node's firewall let it in instead of the node, and the
+  other database server's clock was taken for the other node's. The node's own address is kept in
+  `agent.json` at `--ha-setup` / `--ha-join` (`node_address`; worked out toward the other node for
+  a cluster made before); the clock is said as *the database server of NODE*.
+- **Layout B: the agent is not forgotten while the replication runs through it** - *Forget the
+  agent* is gone from the card there, and `acme --db-agent-forget` / the API refuse it (as joining
+  another agent does): forgotten, the other node fell back to the other database server.
+- **The agent waits for no node gone for good.** A node forgetting the agent, moving its database
+  off its server, joining another one or uninstalled (`install.sh --uninstall`) now tells it
+  (`leave`); one not heard from for 30 days is no longer waited for before the agent switches to
+  its next certificate, and is listed (*Not heard from* on the card, `acme --status`,
+  `acme_db_agent.py --status`). The alert on the agent's certificate says what it does by itself
+  (*switches by itself 7 days before the end*) and comes only when that did not happen.
+- **One node's long operation no longer makes the agent look dead to the others**: the agent
+  answers several requests at once - a restart or a certificate (up to 240 s) for one node, the
+  other nodes' looks meanwhile (and `status` says *busy with pg_restart for acme1*).
+- **A node with several addresses** is let into its database server (pg_hba, the firewall, at
+  the join, `dbmake`, `pg_prepare`) by the address it reaches that server from, not the one it
+  reaches the outside with.
+- **The agent's version: its program compared, not a number.** The agent says the sha256 of its
+  program and each node compares it with the one it ships: an acme release that did not change
+  the agent no longer asks for an upgrade, a newer agent says to upgrade acme (not the agent),
+  and nothing is bumped by hand at a release (the agent's version is the one `install.sh` wrote
+  beside it).
+- **`install.sh --db-agent` run again (an upgrade) prints no join code** - only a new install or
+  `--new-code` does: a code is a key to the agent, and the nodes stay joined.
 
 ## 1.0.114 - 2026-11-16
 

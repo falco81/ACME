@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""acme_db_agent.py - acme-db-agent: a database server of its own, looked after by acme (1.0.113).
+"""acme_db_agent.py - acme-db-agent: a database server of its own, looked after by acme (1.0.113, 1.0.115).
 
 acme looks after the database on its own machine through its root helper
 (acme_web.py): a certificate for PostgreSQL, pg_hba.conf, a restart, the
@@ -23,25 +23,36 @@ agent does the same there - and nothing else:
   * it does a closed set of operations (acme_pg_ops.OPS: status, load, pgtls,
     pg_prepare, pg_allow, my_allow, pg_publication, pg_restart, pg_reload,
     pglog, dbmake, my_tls, my_restart, fw_allow; agent_renew, trust,
-    clients). Every value is checked against the one shape it may have; no
-    shell, no file named by the request, SQL only as the postgres account;
+    clients, leave). Every value is checked against the one shape it may have; no
+    shell, no file named by the request, SQL only as the postgres account. An
+    operation that changes the server runs one at a time - the others' status and
+    load are answered beside it (busy with what, for whom, said in status). The
+    server's certificate is one authority's (one cluster's): a node of another is
+    refused, the refusal says whose it is. A node takes only itself away (leave);
+    one not heard from for 30 days is not waited for (the next certificate);
   * two processes. The side that faces the network is a program started
     afresh (never a copy of root's memory), runs as an account of its own
     (acme-db-agent - never nobody, never root): it terminates TLS and rate-
     limits, and hands the request as it came - method, path, headers, body
-    and the client's certificate - to the root side over a socket pair. It
-    holds no signing key. The root side works the fingerprint out of the
-    certificate itself, checks it is enrolled, checks the signature, the
-    time and the nonce, runs the operation, signs the answer, and writes the
-    audit log - refusals too;
+    and the client's certificate - to root over a socket pair, several at once.
+    It never holds a signing key nor a join code's secret, not even at
+    enrollment: the node seals them to root's own key (enroll.key, RSA-OAEP via
+    openssl; its fingerprint in the join code). The root side works the
+    fingerprint out of the certificate itself, checks it is enrolled, checks the
+    signature, the time and the nonce, runs the operation, signs the answer, and
+    writes the audit log - refusals too;
   * joining: `acme_db_agent.py --new-code` prints a one-time code (an hour)
-    holding this server's address, a secret, the code's id and the
-    fingerprint of the certificate it answers with - acme pins it, so nobody
-    in between can pose as the agent. `acme --db-agent-join -` on the acme
-    node (the code pasted on its standard input) begins (a token of its own
-    for this node's finish), sends its client certificate, the authorities
-    that issued it and its signing key. The code is then used up. Wrong codes
-    are counted per address (and per code when the code's id is right).
+    holding this server's address, a secret, the code's id, the fingerprint of
+    the certificate it answers with and of root's own key - acme pins both, so
+    nobody in between can pose as the agent. `acme --db-agent-join -` on the acme
+    node (the code pasted on its standard input) begins (the secret sealed; a
+    token of its own for this node's finish), sends its client certificate, the
+    authorities that issued it and - sealed - its signing key. The code is then
+    used up. Wrong codes are counted per address (and per code when the code's
+    id is right).
+  * its version is the acme release it came with (the file `release` install.sh
+    writes beside it) - only said: acme compares `code`, the sha256 of its
+    program, with the one it ships. Nothing is bumped by hand.
 
   acme_db_agent.py [--config FILE]          serve (systemd: acme-db-agent.service)
   acme_db_agent.py --new-code [--minutes N] a one-time join code for an acme node

@@ -65275,6 +65275,78 @@
   "z_190": {
    "source": "The nodes are replicated, but neither the subscription nor the slot of the replication is there: changes on one node do not reach the other (High availability).",
    "text": "Uzly se replikují, ale není tu ani odběr (subscription), ani slot replikace: změny z jednoho uzlu se nedostávají na druhý (Vysoká dostupnost)."
+  },
+  "z_191": {
+   "source": "This node goes back to looking after a database on this machine only. The agent is told this node leaves it and takes it off its list (if it does not answer, it keeps this node’s certificate until acme_db_agent.py --forget NODE there); the database and its data are not touched.",
+   "text": "Tento uzel se vrátí ke správě databáze jen na tomto stroji. Agent dostane zprávu, že ho uzel opouští, a vyřadí ho ze svého seznamu (pokud neodpoví, ponechá si certifikát tohoto uzlu, dokud tam nespustíte acme_db_agent.py --forget UZEL); databáze a její data zůstanou nedotčené."
+  },
+  "z_192": {
+   "source": "): once config.json is switched, the agent is let go and told this node leaves it - acme asks nothing of it any more and its server leaves this page and the meter; moving back means connecting it again.",
+   "text": "): jakmile se přepne config.json, agent se uvolní a dostane zprávu, že ho tento uzel opouští – acme po něm už nic nechce a jeho server zmizí z této stránky i z měřiče; přesun zpět znamená připojit ho znovu."
+  },
+  "z_193": {
+   "source": "acme-db-agent no longer looks after this node’s database: it is not on that server any more, so nothing is asked of the agent, and its server is off the cards and the meter. The agent was told this node leaves it (one that did not answer keeps this node’s certificate until acme_db_agent.py --forget there).",
+   "text": "acme-db-agent se už o databázi tohoto uzlu nestará: na jeho serveru už není, takže se po agentovi nic nechce a jeho server zmizel z karet i z měřiče. Agent dostal zprávu, že ho tento uzel opouští (pokud neodpověděl, ponechá si certifikát tohoto uzlu, dokud na něm nespustíte acme_db_agent.py --forget)."
+  },
+  "z_194": {
+   "source": " and its database is on that server. One agent a node: this one takes its place, and until the database is moved onto the new server (Move the database onto it…, next) nothing of the old server is looked after - its certificate is not renewed. The old agent is told this node leaves it.",
+   "text": " a jeho databáze je na tom serveru. Jeden agent na uzel: tento nahradí původního a dokud se databáze nepřesune na nový server (Přesunout databázi na něj…, hned potom), o starý server se nikdo nestará – jeho certifikát se neobnovuje. Původní agent dostane zprávu, že ho tento uzel opouští."
+  },
+  "z_195": {
+   "source": ", and nothing of that server is looked after until the database is moved onto the new one.",
+   "text": " a o ten server se nikdo nestará, dokud se databáze nepřesune na nový."
+  },
+  "z_196": {
+   "source": " (one agent a node).",
+   "text": " (jeden agent na uzel)."
+  },
+  "z_197": {
+   "source": "That agent took this node off its list.",
+   "text": "Tamní agent tento uzel vyřadil ze svého seznamu."
+  },
+  "z_198": {
+   "source": "That agent did not answer: it keeps this node’s certificate until ",
+   "text": "Tamní agent neodpověděl: ponechá si certifikát tohoto uzlu, dokud tam nespustíte "
+  },
+  "z_199": {
+   "source": "Not heard from",
+   "text": "Neozval se"
+  },
+  "z_200": {
+   "source": " - not heard from for 30 days, not waited for. One gone for good is taken away on the database server: ",
+   "text": " – neozval se 30 dní, nečeká se na něj. Uzel, který odešel natrvalo, odeberte na databázovém serveru: "
+  },
+  "z_201": {
+   "source": "Busy with ",
+   "text": "Zaneprázdněn: "
+  },
+  "z_202": {
+   "source": " for ",
+   "text": " pro "
+  },
+  "z_203": {
+   "source": "Newer than acme",
+   "text": "Novější než acme"
+  },
+  "z_204": {
+   "source": "Not the one acme ships",
+   "text": "Není ten, který dodává acme"
+  },
+  "z_205": {
+   "source": " is newer than this acme ",
+   "text": " je novější než toto acme "
+  },
+  "z_206": {
+   "source": " - upgrade acme on this node (or put the agent of this version back on the database server: ",
+   "text": " – aktualizujte acme na tomto uzlu (nebo na databázový server vraťte agenta této verze: "
+  },
+  "z_207": {
+   "source": "The agent’s program is not the one acme ",
+   "text": "Program agenta není ten, který dodává acme "
+  },
+  "z_208": {
+   "source": " ships (changed there, or from another build) - put it back: ",
+   "text": " (změněn na serveru nebo z jiného sestavení) – vraťte ho: "
   }
  },
  "patterns": {

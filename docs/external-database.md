@@ -89,8 +89,12 @@ the agent itself (no authority stands behind it: each node pins its SHA-256 fing
 certificate's fingerprint - and the next one while it renews -, its signing key, the
 authorities that issued its certificate, which of the agent's certificates it pins);
 `join.json` (one-time codes: an id, the secret hashed, the tries, the begun joins' tokens
-hashed). In `state` (`/var/lib/acme-db-agent`): `nonces.json`, the nonces of the last four
-minutes, so a request captured cannot be replayed after a restart either.
+hashed); `enroll.key` (1.0.115: root's own RSA key pair, 3072 bits, made once - a joining node
+seals the code's secret and its signing key to it). Each node's entry also says when it was
+last heard from (`seen`, an hour at most off). In `state` (`/var/lib/acme-db-agent`):
+`nonces.json`, the nonces of the last four minutes, so a request captured cannot be replayed
+after a restart either; `server-cert.json` (1.0.115), which node - and which authorities - put
+the database server's certificate in.
 
 The account the network side runs as (`user`, `acme-db-agent`) is made by `install.sh`; the
 agent refuses to start that side as `root` or `nobody` (another service's account), and when
@@ -111,9 +115,13 @@ the account is missing.
   **do** block the address for a while: `fail_rate`, `fail_burst` in agent.json),
   and hands each request **as it came** to root: method, path, the `X-Acme-*`
   headers, the body and the client's certificate (DER). It writes back the answer
-  root made, signature included. A node's signing key passes through it once, in
-  the TLS of its enrollment - and that process ends right after (the enrollment
-  starts the network side again).
+  root made, signature included. It never sees a signing key nor a join code's
+  secret (1.0.115): at enrollment the node seals both to root's own key (RSA-OAEP,
+  SHA-256), whose fingerprint is in the join code - this side passes the sealed
+  bytes on and could not put another key in (the node checks it against the code).
+  Several requests go to root at once, each with an id of its own (1.0.115): one
+  node's long operation (a restart, a certificate - up to 240 s) does not hold
+  another node's `status` or `load`.
 - The **root side** works the fingerprint out of the certificate itself, checks
   it is enrolled (and for the node the request names), the HMAC signature, the
   time (±120 s), the nonce never seen (kept across a restart) - and only then runs
@@ -121,7 +129,10 @@ the account is missing.
   It writes the audit log (`audit.log`, JSON lines: time, node, address,
   operation, `do`, what was said, `ok` - refusals too: no certificate, not
   enrolled, a bad signature, a replay, a wrong join code, a failed operation;
-  never a password, a key, a signature or a code).
+  never a password, a key, a signature or a code). An operation that changes the
+  server runs one at a time; `status` and `load` are answered beside it, and while
+  it runs `status` says so (`agent.busy`: `{op, node, since}` - *busy with
+  pg_restart for acme1*).
 - No shell, no file named by a request, SQL only as `postgres` (`runuser`) or
   MariaDB's root over its socket.
 
@@ -131,10 +142,14 @@ HTTPS (TLS 1.2+) on its own port (9443).
 
 | Path | Who | Body | Answer |
 |---|---|---|---|
-| `GET /v1/hello` | anyone | - | `{"agent": "acme-db-agent", "version"}` |
-| `POST /v1/enroll/begin` | a node with a join code | `{secret, code_id, node}` | `{token, names, version, engine, pg_port, my_port, cert_fp, cert_next_fp}` |
-| `POST /v1/enroll/finish` | the same | `{secret, code_id, token, node, client_cert, ca, sign_key}` | `{said, facts}` - the code is used up |
+| `GET /v1/hello` | anyone | - | `{"agent": "acme-db-agent", "version", "code"}` |
+| `GET /v1/enroll/key` | anyone | - | `{pub, fp}`: root's public key the join is sealed to (the node checks `fp` against the code's `k`) |
+| `POST /v1/enroll/begin` | a node with a join code | `{code_id, node, seal}` - `seal`: base64 of RSA-OAEP(`acme-db-agent-seal/1\nbegin\nCODE_ID\nNODE\nSECRET`) | `{token, names, version, code, engine, pg_port, my_port, cert_fp, cert_next_fp}` |
+| `POST /v1/enroll/finish` | the same | `{code_id, token, node, client_cert, ca, seal}` - `seal`: RSA-OAEP(`…\nfinish\nCODE_ID\nNODE\nSECRET\nSIGN_KEY\nSHA-256 of client_cert`) | `{said, facts}` - the code is used up |
 | `POST /v1/op` | an enrolled node | `{op, args}` | `{ok, said, ...}` |
+
+A join without `seal` (acme before 1.0.115) is refused: *this agent takes a join only sealed to
+its own key*. A seal that does not open, or names another node or code, counts as a wrong code.
 
 Every `/v1/op` request carries the node's client certificate (from acme's authority; the
 agent lets it in by its fingerprint), and
@@ -159,16 +174,25 @@ ends the agent makes the next one (`acme --db-agent-renew` asks for it at once, 
 `agent_renew`) and announces it in the answer to `status` (`agent.cert_next_fp`), which is
 signed with each node's key: each node pins it beside the one in use and says so in its next
 `status` (`args.pins`). Once **every** node joined has it pinned, the agent puts it in use and
-starts its network side again; the nodes then pin only it. A node that never comes back
-(taken away with `clients drop` or `acme_db_agent.py --forget`) does not hold it up: 7 days
-before the end it is put in use anyway (that node would have to join again).
+starts its network side again; the nodes then pin only it. A node that leaves tells the agent
+(`leave`: on `acme --db-agent-forget`, a move off the server, joining another agent,
+`install.sh --uninstall`) and is off the list. One not heard from for **30 days** (gone
+without a word) is not waited for (1.0.115) - it is listed as such: `stale` in
+`acme_db_agent.py --status`, *Not heard from* on the card, a line in `acme --status` and
+`acme --db-agent-status`; `acme_db_agent.py --forget NODE` takes it away for good. And
+whatever is left: 7 days before the end the next one is put in use anyway (that node would
+have to join again). The alert on a node (`dbagent:cert:NODE`) follows it: within 14 days of
+the end only when no next certificate is announced, or the switch 7 days before the end did
+not happen (*… switches by itself 7 days before the end …, and that did not happen*).
 
 ### Joining (enrollment)
 
 1. On the database server: `install.sh --db-server …` prints a **join code**, or
    `acme_db_agent.py --new-code [--minutes 60]` makes one. It is
    `ADBA1.` + base64url of `{h: address, p: port, s: secret, i: the code's id,
-   f: SHA-256 of the agent's certificate, e: engine}`; valid an hour. A wrong
+   f: SHA-256 of the agent's certificate, e: engine, k: SHA-256 of root's public
+   key the join is sealed to (1.0.115; a code without it - an older agent - is
+   refused by the node: upgrade the agent)}`; valid an hour. A wrong
    secret counts against the address it came from (ten in an hour, and that
    address is refused for the hour) - and against the code only when its id was
    right (five such tries void it): a stranger guessing burns nobody's code.
@@ -178,11 +202,14 @@ before the end it is put in use anyway (that node would have to join again).
    where every account sees it in `ps`. Or *Join* on the page (`POST
    /api/db-agent {action: join, code}`: the code in the body). The node connects,
    **pins the fingerprint of the code** (nobody in between can pose as the
-   agent), sends the secret and gets a **token** for this join (a second begin
+   agent), fetches root's public key and checks it is the code's (`k`), sends the
+   secret **sealed to it** and gets a **token** for this join (a second begin
    with the same code - somebody else who saw it - gets its own token and cannot
    finish this one), issues its own client certificate (clientAuth, CN
    `acme-NODE`) from acme's authority, makes a signing key, and sends them with
-   the authorities that issued the certificate and the token. The agent checks the
+   the authorities that issued the certificate and the token - the key, the secret
+   and the certificate's fingerprint sealed to root's key, so the agent's network
+   side never sees them. The agent checks the
    certificate against those authorities, keeps its fingerprint, the key and the
    authorities **for this node only**, and starts its network side again.
 3. The node keeps `/var/lib/acme/db-agent/`: `agent.json` (`db_admin:
@@ -190,9 +217,21 @@ before the end it is put in use anyway (that node would have to join again).
    layout B), `client.crt/key`, `client-ca.pem` (the authorities it gave the
    agent), `sign.key` (0600, the daemon's - not sealed with `secrets.key`, which a
    join or a backup put back replaces). It then asks the agent to open its
-   firewall (the database's port and the agent's) to this node's address.
+   firewall (the database's port and the agent's) to this node's address - the one
+   it reaches the database server from (1.0.115: the source address of the route
+   to it, not the one it reaches the outside with; a node with another network for
+   its database is let in by that one - the same for `dbmake` and `pg_prepare`).
 4. Several nodes may join one agent (a code each): each is let in by its own
-   certificate's fingerprint, the agent's certificate is the same for all.
+   certificate's fingerprint, the agent's certificate is the same for all. Each node
+   keeps its own authorities (renewed by itself, never another's) - but **one database
+   server serves one cluster's authority** (1.0.115): the server's certificate (`pgtls`
+   `server`, MariaDB's `my_tls`) and `/etc/pki/acme/ha-ca.pem` are put in by one node, and
+   the agent remembers whose (and its authorities). A node of the same authority (the other
+   node of that cluster, the same node renewing) may replace it; a node of another authority
+   (another cluster) is refused, the refusal says whose it is (*the certificate of this
+   database server is acme1's, from another authority …*) - two clusters do not share one
+   database server's TLS, each would break the other's verify-full. Once the node that put it
+   in is gone (left, forgotten there, or not heard from for 30 days), another may.
 5. **One agent a node.** A node joined to an agent that joins another one (another
    `HOST:PORT`) lets the first go: its `agent.json` is put aside as
    `agent.json.replaced` and nothing of it (pins, `peer_node`, certificate ends) is taken
@@ -214,9 +253,17 @@ firewall-cmd --reload
 (the database's port is opened by the agent too, once the node joined - and again
 by `dbmake` when the node makes its database there).
 
-`acme --db-agent-forget --yes` goes back to `db_admin` local (the file is kept
-as `agent.json.forgotten`); `acme_db_agent.py --forget NODE` on the server
-takes a node's certificate away.
+`acme --db-agent-forget --yes` (or *Forget the agent…* on the card) goes back to `db_admin`
+local (the file is kept as `agent.json.forgotten`) and tells the agent this node leaves it
+(`leave`, 1.0.115 - it takes only the node asking off its list; one that does not answer keeps
+it until `acme_db_agent.py --forget NODE` there). **Refused in layout B** while this node's
+database is on the agent's server (1.0.115, as joining another agent is: *this node is one of
+a cluster and its database is on …: the agent is not let go - take the cluster apart first*),
+and the card has no *Forget* then: forgotten, the other node's address fell back to `ha_peer`
+- the other database server - for the VIP address, the firewall and the clocks. `install.sh
+--uninstall` on a node runs `acme --db-agent-leave --yes` first (leave, whatever the layout:
+the node is going away). `acme_db_agent.py --forget NODE` on the server takes a node's
+certificate away.
 
 ### The operations (the closed set)
 
@@ -237,7 +284,8 @@ takes a node's certificate away.
 | `my_restart` | - | the mariadb service or `my_restart_cmd` |
 | `agent_renew` | - | the agent's next certificate made now (a new key) and announced; put in use once every node took it in |
 | `trust` | ca, client_cert_new | the authorities of **the asking node's** certificates replaced - never another node's - and its next client certificate announced; refused when empty, or when the certificate it asks with now would not pass with them |
-| `clients` | drop | the nodes it knows; one taken away |
+| `clients` | drop (only the asking node itself) | the nodes it knows (`stale`: not heard from for 30 days); a node takes only itself away (1.0.115 - any node took any other away), another is taken away on the server (`acme_db_agent.py --forget`) |
+| `leave` | - | the asking node taken off the list (forgotten, moved off, joined another agent, uninstalled) |
 
 Anything else: *"… is not something this agent does"*. PostgreSQL verbs on a
 MariaDB agent and the other way round are refused.
@@ -304,8 +352,9 @@ and it is the agent of the server its database is on.**
   step, `acme --db-move`'s last line, the wizard's last step) and writes an event. From then
   on nothing is asked of the agent (no look every 30 s, no renewal, no alert), the card
   *Database server* and the dots, rows and meter of database servers are gone - the pages are
-  as for a database on this machine. The agent keeps this node's certificate until
-  `acme_db_agent.py --forget NODE` on its server (a node does not take itself away). Moving
+  as for a database on this machine. The agent is told the node leaves it (`leave`, 1.0.115);
+  one that does not answer keeps this node's certificate until `acme_db_agent.py --forget
+  NODE` on its server (the move says which). Moving
   back means joining it again (a new code); the wizard's *Move back…* says so.
 - **High availability**: `--db-move`, the wizard and its *make it for me* are refused on a node
   of a cluster as before; with each node's database on a server of its own the refusal says
@@ -337,6 +386,15 @@ and it is the agent of the server its database is on.**
    agent.json) - the clocks' peers (chrony), the addresses the firewall always lets
    in, the VIP address's other node, the split's look at the other machine. The
    database server only for the database (subscriptions, pg_hba, the link's TLS).
+   And `ha_address` is **this node's database server** here: what means *this node*
+   takes the node's own address (1.0.115 - keepalived was told db1 as its own
+   `unicast_src_ip`, and the other node's firewall let db1 in instead of acme1):
+   `node_address` in agent.json, kept at `--ha-setup` / `--ha-join` (the address this
+   node reaches the other node from; for a cluster made before 1.0.115, worked out the
+   same way each time) - keepalived's own address, the address the other node's
+   firewall always lets in, the bundle's `node`. The clocks: the other database
+   server's clock is another machine's - measured, it is said as *the database server
+   of acme2*, never taken for the other node's (the heartbeats are not corrected by it).
 
 Renewals (45 days before), the authority's roll, the ten-minute check of the
 link, a rebuild (`acme --ha-resync`, *Rebuild this node*), pause/resume, stop,
@@ -355,10 +413,12 @@ the replicated database): its agent lets the new address into its server too, an
   replicated): answering, facts, the agent's version and certificate. An event
   when it stops / starts answering; an **alert** (`dbagent:NODE`, bad) after 90 s
   away, `dbserver:NODE` when the agent answers but the database does not, a warn
-  14 days before the agent's certificate ends (renewed by itself 60 days before),
+  within 14 days of the agent's certificate's end only when the agent did not do what
+  it does by itself (the next one made 60 days before, switched to 7 days before the
+  end at the latest: no next one announced, or the switch not done),
   `dbagent:client:NODE` 14 days before the node's own client certificate ends
   (renewed by itself 45 days before; ended, the agent no longer lets it in), and
-  `dbagent:version:NODE` when the agent's version is not acme's.
+  `dbagent:version:NODE` when the agent's program is not the one this acme ships.
 - Prometheus: `acme_db_agent_up{node,host}`, `acme_db_server_up{node}`.
 - `acme --status` has a line; `acme --db-agent-status [--json]`.
 - The meter: `/api/load` → `dbservers: [...]`.
@@ -366,16 +426,20 @@ the replicated database): its agent lets the new address into its server too, an
 ## The pages (data for them)
 
 - `GET /api/db-agent` (readonly): `{db_admin, node, host, port, db_host, engine,
-  joined_at, joined_by, peer_node, agent_cert_end, client_cert_end, state: {ok,
-  down_since, fails, at}, servers: [...], applies: {...}}`.
+  joined_at, joined_by, peer_node, forget_refused, agent_cert_end, client_cert_end,
+  state: {ok, down_since, fails, at}, servers: [...], applies: {...}}` - `forget_refused`
+  (1.0.115): why the agent may not be let go now (layout B), '' when it may.
 - `POST /api/db-agent` (fulladmin): `{action: join, code, address?, db_host?}`,
-  `look`, `renew`, `restart`, `mariadb_tls`, `forget`.
+  `look`, `renew`, `restart`, `mariadb_tls`, `forget` (409 with `forget_refused`'s words;
+  answers `left`: whether the agent took the node off its list).
 - `servers` / `dbservers` entries, shape of a node's dot with `kind: "db"`:
   `{kind: "db", name: "db:NODE", node, me, alive, stale, ok, said, down_since, at,
   host, port, db_host, engine, db_admin, agent_cert_end, client_cert_end,
   facts: {host, fqdn, cpus, ram, avail, load, uptime, virtual, engine, running,
   version, ssl, wal_level, started, connections, disk: {total, free}},
-  agent: {version, port, engine, pg_port, cert_end, cert_fp, boot, clients, uid}}`.
+  agent: {version, code, port, engine, pg_port, cert_end, cert_fp, cert_next_fp, busy,
+  stale_days, force_days, clients: [{name, addr, at, seen, stale, cert_end, next_taken}],
+  uid}, version_skew: null | {agent, acme, how}}`.
 - Added only with an agent: `GET /api/ha` → `db_admin`, `dbservers`; `GET
   /api/dbtls` → `db_admin`, `dbservers`; `GET /api/load` → `dbservers` (each
   `{kind: "db", name, node, host, age, cpu, mem_used, mem_total, swap_used,
@@ -465,9 +529,26 @@ firewall and the header are exactly as before for a database on this machine (a 
 
 The agent is not upgraded with acme: after an upgrade of acme, run the new version's
 `./install.sh --db-agent` on each database server (its configuration, its keys and the nodes
-it knows are kept; the service starts again). Until then each node says the versions differ:
-on the database server's card, in `acme --db-agent-status` and `acme --status`, and as an
-alert (`dbagent:version:NODE`).
+it knows are kept; the service starts again; **no join code** is printed - only a new install
+or `--new-code` prints one, 1.0.115: a code is a key to the agent, and the nodes stay joined).
+
+What is compared (1.0.115) is the agent's **program**, not acme's release number: the agent
+says `code`, the SHA-256 of its `acme_db_agent.py` and `acme_pg_ops.py` (a SHA-256 of each,
+in that order, hashed), and each node hashes the two files it ships the same way. The same
+program says nothing whatever the numbers - an acme release that did not change the agent
+asks for no upgrade, and nothing is bumped by hand at a release (the agent's version is only
+said: the release `install.sh` wrote beside it, `/usr/local/lib/acme-db-agent/release`, or
+acme's own tree around it). Another program is said by what to do, on the database server's
+card, in `acme --db-agent-status` and `acme --status`, and as an alert
+(`dbagent:version:NODE`, `version_skew: {agent, acme, how}`):
+
+- `older` - the agent came with an older acme: upgrade it (`./install.sh --db-agent`).
+- `newer` - it came with a newer acme than this node's: upgrade acme on this node (or put the
+  agent of this version back).
+- `other` - the same release, another program (changed there by hand, another build): put it
+  back with `./install.sh --db-agent`.
+
+An agent before 1.0.115 says no `code`: its version is compared (older is said).
 
 ## Installing a database server
 
@@ -478,6 +559,7 @@ installed), `--dry-run` and running it again are safe:
 ./install.sh --db-server postgres --acme-node 192.0.2.11 --acme-node 192.0.2.12
 ./install.sh --db-server mariadb  --acme-node 192.0.2.11
 ./install.sh --db-agent                       # the agent alone, for a server you installed
+./install.sh --db-agent --new-code            # ...an upgrade, and a join code all the same
 ./install.sh --db-agent --uninstall           # the agent away; the database stays
    [--db-agent-port 9443] [--db-name acme] [--db-user acme] [--db-password-file FILE]
 ```
@@ -523,8 +605,18 @@ node joined.
 - The root side never trusts the network side: it gets the request as it came
   and the client's certificate, and works out everything itself - the
   fingerprint, the signature, the time, the nonce - and signs the answer. The
-  network side is started afresh as a program of its own and holds no signing key;
-  failures from an address block it for a while.
+  network side is started afresh as a program of its own and never holds a
+  signing key - **not even at enrollment** (1.0.115; before, the finish carried it
+  in clear through that side, which could keep it and ask root as that node): the
+  code's secret and the node's signing key are sealed to root's own key, pinned by
+  the join code, so a network side taken over can neither sign as a node nor finish
+  a join of its own with a code it saw. Failures from an address block it for a
+  while.
+- A node of one authority cannot replace (or take out) the database server's
+  certificate another authority's node put in (1.0.115), and a node takes only
+  itself off the agent's list.
+- An operation of one node no longer holds the others' looks (1.0.115): a long one
+  (a restart, a certificate) does not make every other node see the agent as dead.
 - systemd hardening (`acme-db-agent.service`): `ProtectSystem=strict` - the whole
   file system read-only but `ReadWritePaths`: the agent's own folders,
   `/etc/pki/acme` (made by install.sh), PostgreSQL's (`/var/lib/pgsql`,
