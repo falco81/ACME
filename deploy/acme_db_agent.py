@@ -69,7 +69,7 @@ import tempfile
 import threading
 import time
 
-VERSION = '1.0.114'
+VERSION = '1.0.115'
 CONF_FILE = os.environ.get('ACME_DB_AGENT_CONFIG', '/etc/acme-db-agent/agent.json')
 PROTO = 'acme-db-agent/1'
 SKEW = 120                      # a request's time this far from ours at most (s)
