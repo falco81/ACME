@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.117 - not released
+
+(nothing yet)
+
 ## 1.0.116 - 2026-11-16
 
 - **Target agents: a server that takes its certificates without acme holding any of its
