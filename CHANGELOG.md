@@ -117,6 +117,14 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
   is as shipped; the password policy's switch no longer jumps 118 px up (the open *With SSH keys*
   paragraphs above it closed at each redraw); on a phone, scrolling a popup to its end no longer
   scrolls the page under it.
+- **The card's notice on a low screen** (a phone on its side, a small laptop window): taller
+  since its hint about the card's window, it was cut off above and below and could not be
+  scrolled - *Sign out* out of reach. It scrolls in itself now, and its ring is smaller there.
+- **Settings -> High security**: an exception switched in the open *Kept as high security wants
+  it* list closed the list - the page under the pointer jumped up. It stays open.
+- **Settings -> Accounts, *Ask an OCSP responder*** in Czech: its choices *first* and *only*
+  were in English, and the note under *Own OCSP responder* said *"off"* - in the page's language
+  now, as its list shows them.
 
 - **"The database is in trouble" says something again**: since the RADIUS server was taken out
   nothing wrote down the database's own trouble - the alert, `acmeDbTrouble` and the Zabbix trigger never
@@ -226,6 +234,20 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - **`install.sh --db-agent` run again (an upgrade) prints no join code** - only a new install or
   `--new-code` does: a code is a key to the agent, and the nodes stay joined. `--new-code`
   without `--db-agent` / `--db-server` is refused with what to run.
+- **This machine's database as a database server** (Settings → The database, *Show this
+  machine's database as a database server*, off by default): PostgreSQL or MariaDB on the same
+  machine as acme gets the card *Database server* above *Encryption to the database server*, as
+  a server with acme-db-agent does - a tile for each node's own (in a pair with each node its own
+  PostgreSQL, acme1 and acme2; a shared pair, its one server): the engine and its version, the
+  address, running and for how long, TLS and its certificate's end, the connections, the data's
+  disk and the RAM as bars, the processors and the load, up for, the state and when it was last
+  heard from. Each node looks at its own every 30 s with its own connection and /proc, and tells
+  the other in its row of the database (`dblocal:node:NODE`) - no agent, nothing more opened or
+  allowed. Actions only those acme has for a database here: *Look now*, *Renew the certificate*
+  (the one acme gave PostgreSQL - the link's between the databases or Encryption to the database
+  server's, the same steps as there), *Restart the database…* (for the
+  server's own settings waiting for it, where install.sh let acme restart it). Off, nothing of it
+  is read, written or drawn, and `GET /api/db-agent` is as it was (`local` only when on).
 
 ## 1.0.114 - 2026-11-16
 

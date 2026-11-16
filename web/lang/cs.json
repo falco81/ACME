@@ -65427,6 +65427,46 @@
   "z_228": {
    "source": "As the administration's, for the portal: a browser that cannot be checked - not watched, or signed out.",
    "text": "Jako u administrace, pro portál: prohlížeč, který kontrolovat nejde – nehlídá se, nebo se odhlásí."
+  },
+  "z_229": {
+   "source": "Show this machine’s database as a database server",
+   "text": "Zobrazit databázi tohoto stroje jako databázový server"
+  },
+  "z_230": {
+   "source": "PostgreSQL or MariaDB on the same machine as acme drawn as a database server, in a card above Encryption to the database server: a tile for each node’s own - its version, running for how long, TLS and its certificate, the connections, its data’s disk, the memory, the processors and the load. Each node looks at its own every 30 s with its own connection and tells the other node in its row of the database, as it does everything else - no agent, nothing more opened or allowed. Off: nothing of it is read, written or shown. Not for SQLite, nor with acme-db-agent (which has a card of its own).",
+   "text": "PostgreSQL nebo MariaDB na stejném stroji jako acme zobrazená jako databázový server, v kartě nad Šifrováním k databázovému serveru: dlaždice pro vlastní databázi každého uzlu – její verze, jak dlouho běží, TLS a její certifikát, spojení, disk s jejími daty, paměť, procesory a zátěž. Každý uzel se na svou dívá každých 30 s vlastním spojením a druhému uzlu to sděluje ve svém řádku databáze, jako vše ostatní – bez agenta, nic dalšího se neotevírá ani nepovoluje. Vypnuto: nic z toho se nečte, nezapisuje ani nezobrazuje. Ne pro SQLite ani s acme-db-agent (ten má kartu vlastní)."
+  },
+  "z_231": {
+   "source": "Each node’s database is on its own machine",
+   "text": "Databáze každého uzlu je na jeho vlastním stroji"
+  },
+  "z_232": {
+   "source": "This node’s database is on this machine",
+   "text": "Databáze tohoto uzlu je na tomto stroji"
+  },
+  "z_233": {
+   "source": "Look at this node’s database server now, rather than within 30 s.",
+   "text": "Zkontrolovat databázový server tohoto uzlu hned, ne až do 30 s."
+  },
+  "z_234": {
+   "source": "A new certificate from acme’s own authority for the PostgreSQL of each node, now, not 45 days before the end - as Encryption to the database server does. The connections go on.",
+   "text": "Nový certifikát od vlastní autority acme pro PostgreSQL každého uzlu, hned, ne až 45 dní před koncem – jako to dělá Šifrování k databázovému serveru. Spojení běží dál."
+  },
+  "z_235": {
+   "source": "PostgreSQL on this machine started again for the settings waiting for its next start, and waited for (asked first).",
+   "text": "PostgreSQL na tomto stroji spuštěn znovu kvůli nastavením čekajícím na jeho příští start, a počká se na něj (nejdřív se zeptá)."
+  },
+  "z_236": {
+   "source": "Its certificate ends",
+   "text": "Jeho certifikát končí"
+  },
+  "z_237": {
+   "source": "looked at by each node itself - no agent",
+   "text": "sleduje ji každý uzel sám – bez agenta"
+  },
+  "z_238": {
+   "source": "The certificates of the link between the databases, made again on both nodes as High availability does - PostgreSQL reloaded, not restarted; replication goes on.",
+   "text": "Certifikáty spojení mezi databázemi, vydané znovu na obou uzlech jako to dělá Vysoká dostupnost – PostgreSQL znovu načten, ne restartován; replikace běží dál."
   }
  },
  "patterns": {

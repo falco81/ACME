@@ -355,6 +355,9 @@ DEFAULTS = {
     'db_tls_ca': '',
     # The file of SQLite (1.0.210): empty is the state folder's acme.db.
     'db_path': '',
+    # PostgreSQL or MariaDB on this machine drawn as a database server on Settings -> The
+    # database (1.0.115): off unless switched on - off, nothing of it is read or written.
+    'db_local_card': False,
     # --- this installation ----------------------------------------------------
     'node_name': '',
     'ha_mode': '',
@@ -920,6 +923,7 @@ NAMES = {
     'db_tls': 'Encryption to the database server',
     'db_tls_ca': 'Its certificate authority (file)',
     'db_path': 'The file (SQLite)',
+    'db_local_card': 'Show this machine’s database as a database server',
     'node_name': 'The name of this node',
     'split_mode': 'Who answers while the nodes are apart',
     'split_prefer': 'The preferred node',
@@ -1720,6 +1724,15 @@ SAYS = {
                  'for verify-ca and verify-full: /etc/acme/db-ca.pem.',
     'db_path': 'Where the SQLite file is. Empty: acme.db in the state folder (/var/lib/acme). '
                'Set by Settings → The database → Move to another database.',
+    'db_local_card': 'PostgreSQL or MariaDB on the same machine as acme drawn as a database '
+                     'server, in a card above Encryption to the database server: a tile '
+                     'for each node’s own - its version, running for how long, TLS and its '
+                     'certificate, the connections, its data’s disk, the memory, the '
+                     'processors and the load. Each node looks at its own every 30 s with its '
+                     'own connection and tells the other node in its row of the database, as '
+                     'it does everything else - no agent, nothing more opened or allowed. Off: '
+                     'nothing of it is read, written or shown. Not for SQLite, nor with '
+                     'acme-db-agent (which has a card of its own).',
     'node_name': 'What this server is called among the nodes of a cluster - in the list of nodes, in its events and on the pages it answers. Kept in config.json, since it belongs to this machine and not to the database both share. Empty: the machine\'s own name.',
     'split_mode': 'When the two nodes of a replicated cluster cannot reach each other: off - '
                   'both go on as before; arbiter - the node that reaches neither the other '
@@ -1832,8 +1845,8 @@ PANES = {
                    'portal_certlogin_card_every', 'portal_certlogin_card_grace',
                    'portal_certlogin_card_unable'],
     'db': ['db_engine', 'db_host', 'db_port', 'db_name', 'db_user', 'db_password',
-           'db_timeout_s', 'db_tls', 'db_tls_ca', 'db_path', 'backup_daily', 'backup_keep',
-           'backup_at',
+           'db_timeout_s', 'db_tls', 'db_tls_ca', 'db_path', 'db_local_card', 'backup_daily',
+           'backup_keep', 'backup_at',
            'retain_events_days'],
     'ha': ['node_name', 'split_mode', 'split_prefer', 'split_arbiter', 'split_after_s',
            'split_renew', 'split_halve', 'split_freeze', 'split_report'],
@@ -1955,6 +1968,7 @@ ONLY_WHEN = {
     'db_host': ['db_engine', 'sqlite-not'], 'db_port': ['db_engine', 'sqlite-not'],
     'db_name': ['db_engine', 'sqlite-not'], 'db_user': ['db_engine', 'sqlite-not'],
     'db_password': ['db_engine', 'sqlite-not'], 'db_timeout_s': ['db_engine', 'sqlite-not'],
+    'db_local_card': ['db_engine', 'sqlite-not'],
     'backup_keep': ['backup_daily', '1'], 'backup_at': ['backup_daily', '1'],
     'rbackup_at': ['rbackup', '1'], 'rbackup_every': ['rbackup', '1'],
     'rbackup_day': ['rbackup_every', 'weekly'],

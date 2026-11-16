@@ -33,6 +33,15 @@ column a later version adds is added at start. The types:
 On MariaDB a name is therefore at most 190 characters, and `Web` and `web`
 (or `novák` and `novak`) are two names, as on the other engines.
 
+PostgreSQL or MariaDB on acme's own machine can be shown as a database server
+(1.0.115): *Settings → The database → Show this machine's database as a
+database server* (`db_local_card`, off by default) draws the card *Database
+server* with a tile for each node's own - its version, running for how long,
+TLS and its certificate, connections, the data's disk, memory, processors and
+load - as for a server looked after by acme-db-agent, without the agent. Each
+node looks at its own every 30 s; off, nothing of it is read or written. See
+[external-database.md](external-database.md#what-the-pages-show-10113).
+
 ## The key of the secrets
 
 The private keys of the certificates and of acme's own authorities, the

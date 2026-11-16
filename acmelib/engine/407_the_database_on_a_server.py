@@ -1315,7 +1315,9 @@ def db_agent_view(store):
     view['where'] = db_agent_where()
     view['ha_mode'] = CONFIG.get('ha_mode') or ''
     view['addresses'] = db_agent_node_addresses(store)
-    return view
+    # This machine's database as a database server (1.0.115, db_local_card): `local` only with
+    # the setting on and no agent - off, the view is as it was.
+    return db_local_into(store, view)
 
 
 def db_agent_where():
@@ -1399,6 +1401,9 @@ def _db_agent_post(h):
                              daemon=True).start()
             return dict(got, view=db_agent_view(h.store))
         if act == 'look':
+            if not db_agent_on() and db_local_on():
+                # this machine's database server, looked at now (1.0.115, db_local_card)
+                return {'row': db_local_look(h.store), 'view': db_agent_view(h.store)}
             return {'row': db_agent_look(h.store), 'view': db_agent_view(h.store)}
         if act == 'renew':
             return {'done': db_agent_renew(h.store, by, force=True), 'view': db_agent_view(h.store)}

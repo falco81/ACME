@@ -874,7 +874,7 @@ def db_move_work(store, c, by, overwrite=False, progress=None, restart=None):
             # What the rows say of the database SERVER in use is not true of the new one
             # (1.0.113): its certificate from acme's authority (renewed, alerted on), what its
             # agent said, the meter's reading. The new server's are written as they come.
-            for k in ('dbtls:server:', 'dbagent:node:', 'load:db:'):
+            for k in ('dbtls:server:', 'dbagent:node:', 'load:db:', 'dblocal:node:'):
                 try:
                     far.run('DELETE FROM meta WHERE k = ?', (k + node_name(),))
                 except Exception as e:                  # noqa: BLE001

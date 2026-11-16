@@ -16,6 +16,8 @@
 // * The wizard: the code read and checked as it is pasted, connect, the result.
 // * The meter: a row a database server after the node's, gone again when there is none; its
 //   panel says the database's version, connections, what waits, the size.
+// * This machine's database as a database server (1.0.115, db_local_card): without `local` (the
+//   setting off) and with an empty one the DOM is the same; with a row the card, no pill.
 // * At 420 px nothing wider than the page.
 // Prints one line of JSON: {ok, checks: {name: true|false}, error?}.
 const { chromium } = require('playwright');
@@ -86,6 +88,27 @@ const path = require('path');
       await page.evaluate(() => { dbaHa({nodes: [{name: 'acme1', me: true}], replication: {}, engine: 'postgres', db_admin: undefined}); dbaFw(); hloadDbsDraw(undefined); hloadDbsDraw([]); });
       await page.waitForTimeout(150);
       out.checks[tag + 'no_agent_same_dom'] = (await snap()) === before;
+      // ---- this machine's database as a database server (1.0.115, db_local_card): off there is
+      // no `local` (the DOM above); on with nothing to show, the same; with a row, the card - and
+      // no pill anywhere; off again, the same DOM as before
+      await page.evaluate(() => { VIEW.local = []; DBA.d = null; return dbaPane(); });
+      out.checks[tag + 'local_empty_same_dom'] = (await snap()) === before;
+      await page.evaluate(() => {
+        var now = Date.now() / 1000;
+        VIEW.local = [{kind: 'db', name: 'db:acme1', node: 'acme1', me: true, ok: true, stale: false, at: now - 3, host: 'localhost', port: 5432,
+          engine: 'postgres', cert_end: now + 300 * 86400, cert_by: 'dbtls',
+          facts: {host: 'acme1', engine: 'postgres', running: true, version: '16.4', ssl: true, started: now - 7200, connections: 7, cpus: 4,
+            ram: 8e9, avail: 5e9, load: [0.1, 0.2, 0.3], uptime: 90000, disk: {total: 1e11, free: 6e10}}}];
+        DBA.d = null; return dbaPane();
+      });
+      out.checks[tag + 'local_card'] = await page.evaluate(() => {
+        var c = document.getElementById('db-agent-card');
+        return !!c && c.querySelectorAll('.dbs-tile').length === 1 && c.nextElementSibling.id === 'db-tls-card'
+          && !document.querySelector('.dbs-pill') && !document.getElementById('dba-forget') && !!document.getElementById('dba-look')
+          && c.textContent.indexOf('localhost:5432') >= 0 && c.textContent.indexOf('Agent') < 0;
+      });
+      await page.evaluate(() => { delete VIEW.local; DBA.d = null; return dbaPane(); });
+      out.checks[tag + 'local_off_same_dom'] = (await snap()) === before;
       await page.evaluate(() => { VIEW.where = {kind: 'unmanaged', engine: 'postgres', host: '192.0.2.50'}; VIEW.ha_mode = 'shared'; DBA.d = null; return dbaPane(); });
       out.checks[tag + 'shared_no_card'] = (await snap()) === before;
       // ---- a server elsewhere with no agent: the card says so and offers the wizard

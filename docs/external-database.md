@@ -495,6 +495,19 @@ the replicated database): its agent lets the new address into its server too, an
   `{kind: "db", name, node, host, age, cpu, mem_used, mem_total, swap_used,
   disk_rd, disk_wr, net_rx, net_tx, load, cores, over_s, server, db: {...}}`; `server` is the
   database server's own short host name, from its agent's facts).
+- `GET /api/db-agent`, with *Show this machine's database as a database server* on
+  (`db_local_card`, 1.0.115) and no agent on this node, also says `local: [...]` - one entry for
+  each node of the cluster whose database is PostgreSQL or MariaDB on its own machine:
+  `{kind: "db", name: "db:NODE", node, me, ok, stale, at, host, port, engine, cert_end, cert_by:
+  "dbtls" | "link" | "", facts: {host, engine, cpus, ram, avail, virtual, load, uptime, running,
+  version, ssl, wal_level, started, connections, disk: {total, free}, said}, restart?: {may,
+  unit, waiting}}` (`restart` only on this node's own, only while settings wait for a restart).
+  Each node writes its own into `meta` (`dblocal:node:NODE`, every 30 s, `ACME_DBLOCAL_EVERY`)
+  from what it reads anyway - its own connection as acme's account, `/proc`, the row of the
+  certificate acme gave its PostgreSQL - and the other node reads it there, as every node's rows
+  travel (replicated, or the one database of a shared pair). No password or secret is in it.
+  Off, the key is not there and nothing is read or written for it; `POST look` then looks at
+  this node's own (with an agent, as before).
 - `GET /api/db-agent` also says, for the card and its wizard (1.0.113): `where`
   (`{kind: agent | here | file | unmanaged, engine, host, port, name}` - this node's database
   on the agent's server, still on this machine, the file, or on a server no agent looks
@@ -515,7 +528,9 @@ Which cards draw the database servers beside the nodes (`applies`):
 
 Nothing of this is drawn without an agent: Settings → The database, High availability, the
 firewall and the header are exactly as before for a database on this machine (a page test,
-`test/extdb_page.js`, compares their DOM before and after every new piece is asked to draw).
+`test/extdb_page.js`, compares their DOM before and after every new piece is asked to draw) -
+unless *Show this machine's database as a database server* is switched on (1.0.115, below), and
+then only the card of Settings → The database.
 
 - **Settings → The database → Database server** (a card above *Encryption to the database
   server*), shown with an agent, or for a database on a server elsewhere that no agent looks
@@ -531,6 +546,25 @@ firewall and the header are exactly as before for a database on this machine (a 
   Actions (full administrator): *Look now*, *Renew the certificates*, *Restart the
   database…* (asked first), for MariaDB *Turn TLS on* / *Give MariaDB a new certificate*,
   *Forget the agent…* (danger, asked first).
+- **This machine's database as a database server** (1.0.115, opt-in: Settings → The database →
+  *Show this machine's database as a database server*, off by default). PostgreSQL or MariaDB on
+  the acme node's own machine (localhost, 127.0.0.1, ::1 or a socket; not SQLite, not with an
+  agent) gets the same card, *Database server*, above *Encryption to the database server*: a
+  tile for each node's own server (each node its own PostgreSQL: acme1 and acme2; a shared pair:
+  its one server, seen from both nodes) with the same look and what is known without an agent -
+  the engine and its version, the address (`host:port`), running and for how long, TLS and the
+  end of the certificate acme gave it, the connections, the data's disk and the RAM as bars, the
+  processors and the load, up for, when last heard from; the state pill (answers · 3 s ago / its
+  database does not run / not heard from lately). No agent's rows (its address, version and
+  certificate, the node's client certificate), no join code, no *Forget*, no pills on other
+  cards, no rows in the header's meter or on High availability, no alerts. Actions (full
+  administrator), only those acme has for a database here: *Look now*; *Renew the certificate*
+  where acme gave PostgreSQL its certificate - the link's between the databases (the same steps as
+  High availability's *Renew the certificates*, asked first) or else Encryption to the database
+  server's (the same step as that card's *Renew the certificate*); *Restart the database…* only while settings of the
+  server's own wait for a restart and install.sh let acme restart it (the same question and
+  restart as *The server's own settings*). Off: the pane is exactly as before (the page tests
+  `test/extdb_page.js` and `test/localdb_page.js` compare / check it).
 - **Connect a database server…** - from that card, or from the move wizard's first step for a
   database on this machine: three steps in one popup that keeps its size. 1. what to run on
   the database server, as root, with copy buttons and this node's own addresses filled in

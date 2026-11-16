@@ -205,6 +205,26 @@ class ExternalDatabaseServers(unittest.TestCase):
         self.assertTrue(out.get('ok'), json.dumps(out) + got.stderr[-2000:])
 
 
+class LocalDatabaseServer(unittest.TestCase):
+    """This machine's database shown as a database server (test/localdb_page.js, in a browser,
+    1.0.115, db_local_card): off, no card; on, a tile for each node's own server, in English and
+    in Czech, at 1400 and 420 px - no pill, nothing of an agent, only the actions acme has for a
+    database on this machine."""
+
+    def test_card_en_cs(self):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          timeout=60).returncode:
+            self.skipTest('no playwright for node here')
+        got = subprocess.run([node, os.path.join(ROOT, 'test', 'localdb_page.js'),
+                              os.path.join(ROOT, 'web')],
+                             capture_output=True, text=True, timeout=300)
+        out = json.loads((got.stdout.strip().splitlines() or ['{}'])[-1])
+        self.assertTrue(out.get('ok'), json.dumps(out) + got.stderr[-2000:])
+
+
 def read(*parts):
     with open(os.path.join(ROOT, *parts), encoding='utf-8') as f:
         return f.read()
