@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.115 - not released
+## 1.0.115 - 2026-11-16
 
 - (security) **The card watched: "cannot be checked" no way out of the lock.** With *A browser
   that cannot be checked* = *Not watched* (the default), a sign-in whose card was out, or held

@@ -88,7 +88,12 @@ const path = require('path');
         await page.fill('#modal-body .csr-pass input >> nth=0', 'a-good-passphrase');
         await page.fill('#modal-body .csr-pass input >> nth=1', 'a-good-passphrase');
         // the e-mail address in the SAN too, and the country
+        // the popup puts the focus in on its own a moment after it opens: wait for that, so the
+        // country is not typed into the CN on a slow machine
+        await page.waitForFunction(() => document.activeElement && document.activeElement !== document.body);
+        await page.waitForTimeout(300);
         await page.fill('#modal-body .csr-row >> nth=3 >> input[type=text]', 'CZ');
+        out.checks[tag + '_cn_untouched'] = await page.evaluate(() => document.querySelector('#modal-body .csr-row input[type=text]').value === 'Nested Person');
       } else {
         await page.locator('#modal-body .csr-kinds button').nth(3).click();
         await page.locator('#modal-body .csr-plain input').check();
