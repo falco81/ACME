@@ -418,6 +418,9 @@ function tile(a, d) {
     if (!flags.parentNode) t.appendChild(flags);
     flags.appendChild(df);
   }
+  /* the actions in a row of their own at the foot of the tile - the button sat right under the
+     chips, a tile's foot at another height than its neighbour's */
+  t.appendChild(el('div', 'ag-tile-sp'));
   var acts = el('div', 'btnrow ag-tile-acts');
   acts.appendChild(designButton({id: a.id, name: a.name}, {done: function () { pane(true); }}, 'small'));
   if (FULL && a.update && a.update.newer && a.update.allowed && a.update.signed) {
@@ -663,10 +666,18 @@ function updateAll() {
           r.appendChild(vv);
           r.appendChild(el('span', 'tag ' + (x.ok ? 'ok' : 'dim'), x.ok ? 'will be updated' : 'not updated'));
           if (!x.ok) r.appendChild(el('span', 'why', String(x.why || '')));
+          /* what lets acme do it, to copy for the server */
+          if (!x.ok && /allow self-update/.test(String(x.why || ''))) r.appendChild(cmdBox('sudo acme-agent allow self-update', 'small ag-upd-line'));
           l.appendChild(r);
         });
         body.appendChild(l);
-      }, [{words: 'Close', close: true}].concat(can.length ? [{words: can.length === 1 ? 'Update 1 agent' : 'Update ' + can.length + ' agents', cls: 'primary', icon: 'up', close: true, go: function () { updateMany(can); }}] : []), 'medium');
+      /* the button that starts it is always there (it was missing when no agent could be
+         updated now - a popup with Close only): offered but not pressed when none can be, the
+         reasons said by each agent above and in its title */
+      }, [{words: 'Close', close: true}, {words: can.length > 1 ? 'Update ' + can.length + ' agents' : (can.length ? 'Update 1 agent' : 'Update all agents'),
+        cls: 'primary', icon: 'up', close: true, disabled: !can.length,
+        title: can.length ? '' : rows.map(function (x) { return String(x.why || ''); }).filter(function (w, i, a) { return w && a.indexOf(w) === i; }).join('; ') || 'Every agent runs the version this acme ships.',
+        go: function () { updateMany(can); }}], 'medium');
     };
     go();
   }).catch(oops);

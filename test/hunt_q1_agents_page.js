@@ -134,6 +134,7 @@ const path = require('path');
     await page.waitForTimeout(150);
     out.checks.escape_after_copy_closes = await page.evaluate(() => document.getElementById('modal').hidden);
     // ---- saved: "Start from" offers it
+    await page.evaluate(() => { SAVED = null; });
     await open();
     await page.evaluate(() => { document.querySelector('.pb-title').value = 'web1'; document.querySelector('.pb-save .btn').click(); });
     await page.waitForTimeout(200);

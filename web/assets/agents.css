@@ -223,3 +223,11 @@
   .ag-rail button{flex-direction:column;gap:4px;padding:7px 4px;text-align:center;font-size:12px;line-height:1.25}
   .ag-rail button > span:last-child{min-width:0;max-width:100%;overflow-wrap:anywhere}
 }
+
+/* the tile's and the card's actions in a row of their own, at the foot, set off as the card's
+   sections are (the button stood right under the chips) */
+.ag-tile-sp{flex:1 0 12px}
+.ag-tile-acts{padding-top:12px;border-top:1px solid var(--line)}
+.ag-card .ag-acts{padding-top:12px;border-top:1px solid var(--line)}
+.ag-card .ag-design{margin:14px 0 0}
+.ag-upd-one .ag-upd-line{flex-basis:100%;margin:0}
