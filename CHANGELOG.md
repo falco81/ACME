@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.124 - not released
+## 1.0.124 - 2026-11-17
 
 - Target agents: an agent confirmed a second time (two people at once, a page not drawn again, the same server twice in *Confirm selected*) was signed a new certificate - an active agent that had already taken the first one was refused at its first poll and locked out. A confirmed agent now stays as it was confirmed.
 - Target agents: a refused enrollment request (a wrong proof, a code used up) wrote the enrollment code back as it was read before the check - a revocation made in that moment could be undone. It is re-read first now. (security)
