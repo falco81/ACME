@@ -1407,9 +1407,22 @@ function paintCards2(s) {
      only "last copy 3 days ago", not that a copy is made every day. */
   var whyWords = {off: 'no copy every day', failed: 'the last one failed', other_node: 'made by the other node',
                   none: 'the first one tonight', late: 'a copy every day - late'}[db.nightly_why || ''];
-  $('m-db-sub').textContent = (db.size ? bytes(db.size) : '') + (db.last_backup ? ' · last copy ' + ago(db.last_backup) : ' · no copy yet')
+  var dbSub = (db.size ? bytes(db.size) : '') + (db.last_backup ? ' · last copy \u00a7' : ' · no copy yet')
     + (whyWords ? ' · ' + whyWords : '')
     + (db.key_there === false ? ' · KEY MISSING' : '');
+  /* "last copy 2 min ago" in Czech said "naposledy před copy 2 min" (1.0.125): the words were
+     taken by "last {0} min ago", "copy 2" its slot. The sentence translated with a mark where
+     the time goes, the time by itself, and put in whole. */
+  var dbSaid = null, dbAgo = db.last_backup ? ago(db.last_backup) : '';
+  try {
+    if (typeof i18nText === 'function' && typeof I18N !== 'undefined' && I18N.on) {
+      dbSaid = i18nText(dbSub);
+      if (dbSaid && dbAgo) dbSaid = dbSaid.indexOf('\u00a7') >= 0 ? dbSaid.replace('\u00a7', i18nText(dbAgo) || dbAgo) : null;
+    }
+  } catch (e) { dbSaid = null; }
+  clear($('m-db-sub'));
+  if (dbSaid) $('m-db-sub').appendChild(noI18n(el('span', '', dbSaid)));
+  else $('m-db-sub').textContent = dbSub.replace('\u00a7', dbAgo);
   $('card-db').className = 'card metric ' + (db.key_there === false ? 'crit' : (db.last_backup && Date.now() / 1000 - db.last_backup < 2 * 86400 ? 'ok' : 'warn'))
     + ($('card-db').classList.contains('tappable') ? ' tappable' : '');
   var mn = s.maint_nodes || [];
