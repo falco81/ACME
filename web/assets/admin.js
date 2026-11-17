@@ -20119,6 +20119,12 @@ function dbaState(s) {
 function dbaDot(st) { return el('span', 'dot ' + (st === 'bad' ? 'crit' : st)); }
 function dbaEngine(e) { return e === 'mariadb' ? 'MariaDB' : 'PostgreSQL'; }
 function dbaWhere(s) { return (s.db_host || s.host || '?') + (s.port ? '' : ''); }
+/* The database's own port on a server with an agent: MariaDB's is my_port (1.0.119: its
+   tile and the firewall said PostgreSQL's 5432 for it). */
+function dbaDbPort(s) {
+  var a = (s && s.agent) || {};
+  return ((s && (s.engine || (s.facts || {}).engine)) === 'mariadb' ? a.my_port : a.pg_port) || '';
+}
 function dbaDays(ts) { return ts ? Math.round((ts * 1000 - Date.now()) / 86400000) : null; }
 function dbaDate(ts) { return ts ? new Date(ts * 1000).toLocaleDateString(numLang()) : '–'; }
 /* The pill of a card: a dot and a name for each database server, what each one's agent said
@@ -20345,7 +20351,7 @@ function dbaTile(s, d) {
   top.appendChild(eng);
   t.appendChild(top);
   var kv = el('div', 'dbs-kvs');
-  dbaKv(kv, 'Address', noI18n(el('span', 'mono', (s.db_host || s.host || '?') + ((s.agent || {}).pg_port ? ':' + s.agent.pg_port : ''))));
+  dbaKv(kv, 'Address', noI18n(el('span', 'mono', (s.db_host || s.host || '?') + (dbaDbPort(s) ? ':' + dbaDbPort(s) : ''))));
   dbaKv(kv, 'Agent', noI18n(el('span', 'mono', (s.host || '?') + ':' + (s.port || '?') + (a.version ? ' · ' + a.version : ''))));
   var run = el('span', st[0] === 'ok' ? 'good' : (f.running === false ? 'bad' : 'muted'));
   run.appendChild(el('span', '', f.running === false ? 'not running' : (f.running ? 'running' : '–')));
@@ -20594,8 +20600,10 @@ function dbaWizard() {
       if (c.engine !== W.engine) W.engine = c.engine;
       /* One agent a node (1.0.113): another one takes the place of the one joined. */
       var cur = W.cur || {};
-      var at = (W.addr || (c.host + ':' + c.port));
-      if (cur.host && at.replace(/^\[|\]$/g, '') !== String(cur.host) + ':' + String(cur.port) && at !== String(cur.host)) {
+      /* [IPv6]:PORT read as the daemon reads it (1.0.119: its brackets kept, the same agent
+         was said to be replaced). */
+      var at = (W.addr || (c.host + ':' + c.port)).replace(/^\[([^\]]*)\]/, '$1');
+      if (cur.host && at !== String(cur.host) + ':' + String(cur.port) && at !== String(cur.host)) {
         var rp = el('div', 'note ' + ((cur.where || {}).kind === 'agent' ? 'warn' : 'info') + ' small dbs-replace');
         rp.id = 'dbs-replace';
         if ((cur.where || {}).kind === 'agent' && cur.ha_mode) {
@@ -20828,7 +20836,7 @@ function dbaFw() {
         sl.appendChild(dbaDot(st[0]));
         sl.appendChild(el('span', '', st[0] === 'ok' ? 'its port opened by its agent to the nodes' : st[1]));
         b.appendChild(sl);
-        b.appendChild(noI18n(el('div', 'fw-node-a', (s.db_host || s.host || '') + ((s.agent || {}).pg_port ? ' · TCP ' + s.agent.pg_port : ''))));
+        b.appendChild(noI18n(el('div', 'fw-node-a', (s.db_host || s.host || '') + (dbaDbPort(s) ? ' · TCP ' + dbaDbPort(s) : ''))));
         explain(b, 'The database server’s own firewall (firewalld) is its administrator’s; acme lets the nodes and the other database server reach the database’s port there through its agent - when the cluster is made, and when an address changes.' + (st[2] ? ' ' + st[2] : ''));
         box.appendChild(b);
       });

@@ -343,7 +343,9 @@ function check(s) {
   s.tests.forEach(function (t) {
     var m = [];
     try {
-      var argv = checkArgv(t);
+      /* a line typed that does not split (an open quotation): red, and left out - never the
+         line it was before standing in the file for it */
+      var argv = checkArgv(Array.isArray(t) ? t : split(String(t)));
       var k = JSON.stringify(argv);
       if (seenT[k]) m.push(msg('warn', 'twice', 'this command line is said twice'));
       else { seenT[k] = 1; pol.tests.push(argv); }
@@ -653,11 +655,13 @@ function build(row, d, opts) {
   var A = d.agent || {}, D = d.design || null;
   var serverState = fromPolicy(A.policy);
   var serverLines = A.policy ? check(serverState).lines : null;
-  var B = {from: opts.state ? 'version' : (opts.from || (D ? 'design' : 'server')), tab: 'file'};
+  var version = !!(opts.state || opts.text);
+  var B = {from: version ? 'version' : (opts.from || (D ? 'design' : 'server')), tab: 'file', q: ''};
   var S;
   function startFrom(w) {
     B.from = w;
-    if (w === 'version' && opts.state) S = fromSaved(opts.state);
+    /* a version saved without its state (the command line): its lines, as the design's */
+    if (w === 'version' && version) S = opts.state && Object.keys(opts.state).length ? fromSaved(opts.state) : fromPolicyText(opts.text);
     else if (w === 'design' && D) S = D.state && Object.keys(D.state).length ? fromSaved(D.state) : fromPolicyText(D.text);
     else if (w === 'empty') S = empty();
     else S = clone(serverState);
@@ -708,7 +712,7 @@ function build(row, d, opts) {
     var seg = el('div', 'pb-seg');
     var choices = [['server', A.policy ? 'its policy on the server' : 'its policy (not said yet)']];
     if (D) choices.push(['design', 'the saved design']);
-    if (opts.state) choices.push(['version', 'the version opened']);
+    if (version) choices.push(['version', 'the version opened']);
     choices.push(['empty', 'nothing']);
     choices.forEach(function (c) {
       var b = el('button', 'pb-seg-b' + (B.from === c[0] ? ' on' : ''), c[1]);
@@ -778,6 +782,25 @@ function build(row, d, opts) {
     sec[key] = s;
     return {node: s, body: body};
   }
+  /* the focus where it was after a section is drawn again (a row taken away, a template or a
+     need added): it fell to the page and the keyboard started over at the top */
+  function focusables(n) {
+    return Array.prototype.filter.call(n.querySelectorAll('button, input, textarea'), function (x) {
+      return !x.disabled && x.offsetParent !== null && getComputedStyle(x).visibility !== 'hidden';
+    });
+  }
+  function keepFocus(fn) {
+    var a = document.activeElement, s = a && a.closest ? a.closest('.pb-sec') : null;
+    if (!s || !refs.main || !refs.main.contains(s)) { fn(); return; }
+    var id = s.id, at = Math.max(0, focusables(s).indexOf(a));
+    fn();
+    var now = document.activeElement;
+    if (now && now !== document.body && refs.main.contains(now)) return;
+    var ns = document.getElementById(id);
+    if (!ns) return;
+    var l = focusables(ns), t = l[Math.min(at, l.length - 1)];
+    if (t) try { t.focus({preventScroll: true}); } catch (e) { }
+  }
   function drawAll() {
     Object.keys(sec).forEach(function (k) { if (sec[k].parentNode) sec[k].remove(); });
     refs.rows = {};
@@ -785,10 +808,12 @@ function build(row, d, opts) {
       .forEach(function (f) { refs.main.appendChild(f()); });
   }
   function redraw(key, fn) {
-    var old = sec[key];
-    var fresh = fn();
-    old.parentNode.replaceChild(fresh, old);
-    refresh();
+    keepFocus(function () {
+      var old = sec[key];
+      var fresh = fn();
+      old.parentNode.replaceChild(fresh, old);
+      refresh();
+    });
   }
   /* a row's light and what it says - in its place, the row never jumps */
   function light() { return noI18n(el('span', 'pb-light')); }
@@ -829,6 +854,7 @@ function build(row, d, opts) {
     var find = el('input', 'pb-find ct-kind-find');
     find.type = 'search';
     find.placeholder = 'an application…';
+    find.value = B.q;
     s.body.appendChild(find);
     var g = el('div', 'pb-tpls');
     s.body.appendChild(g);
@@ -853,8 +879,7 @@ function build(row, d, opts) {
         if (t.note) explain(b, t.note);
         b.onclick = function () {
           addTemplate(S, t);
-          drawAll();
-          refresh();
+          keepFocus(function () { drawAll(); refresh(); });
           toast(tr('Added from the template') + ': ' + t.title, 'good');
         };
         refs.tpl.push({t: t, b: b, mk: mk});
@@ -863,7 +888,8 @@ function build(row, d, opts) {
       if (!g.children.length) g.appendChild(el('p', 'muted small', 'Nothing of that name - Any systemd service fits every other.'));
       paintTemplates();
     };
-    find.oninput = drawT;
+    /* what was searched stays when a template is clicked (all is drawn again) */
+    find.oninput = function () { B.q = find.value; drawT(); };
     drawT();
     return s.node;
   }
@@ -901,8 +927,7 @@ function build(row, d, opts) {
     all.onclick = function () {
       var n = 0;
       deps.forEach(function (dep) { arr(dep.items).forEach(function (it) { if (covers(S, R, it) === 'no') { addNeed(S, it); R = check(S); n++; } }); });
-      drawAll();
-      refresh();
+      keepFocus(function () { drawAll(); refresh(); });
       toast(n ? tr('Added') + ': ' + n : tr('the policy allows all of it already'), 'good');
     };
     refs.addAll = all;
@@ -931,7 +956,7 @@ function build(row, d, opts) {
         r.appendChild(el('span', 'pb-need-k', NEED_K[it.kind] || it.kind));
         r.appendChild(mono(needWords(it), 'pb-need-w'));
         var b = cmdButton('Add', 'add', 'small pb-need-add');
-        b.onclick = function () { addNeed(S, it); drawAll(); refresh(); };
+        b.onclick = function () { addNeed(S, it); keepFocus(function () { drawAll(); refresh(); }); };
         r.appendChild(b);
         var why = el('div', 'pb-need-why');
         r.appendChild(why);
@@ -1063,18 +1088,18 @@ function build(row, d, opts) {
       'Add a command', function () { S.tests.push([]); redraw('tests', drawTests); focusLast('tests'); });
     S.tests.forEach(function (t, i) {
       var o = rowShell(S.tests, 'tests', i, function () { S.tests.splice(i, 1); redraw('tests', drawTests); });
-      var line = input(t.map(quote).join(' '), 'nginx -t', 'mono pb-cmd');
+      var line = input(Array.isArray(t) ? t.map(quote).join(' ') : t, 'nginx -t', 'mono pb-cmd');
       var toks = noI18n(el('div', 'pb-toks'));
       var paintToks = function () {
         clear(toks);
-        S.tests[i].forEach(function (w, k) {
+        arr(S.tests[i]).forEach(function (w, k) {
           var c = el('span', 'pb-tok' + (/[|;&$`<>(){}*?!~]/.test(w) ? ' odd' : ''), w);
           c.title = 'argv[' + k + ']';
           toks.appendChild(c);
         });
       };
       line.oninput = function () {
-        try { S.tests[i] = split(line.value); line.classList.remove('pb-bad-in'); } catch (e) { line.classList.add('pb-bad-in'); }
+        try { S.tests[i] = split(line.value); line.classList.remove('pb-bad-in'); } catch (e) { S.tests[i] = line.value; line.classList.add('pb-bad-in'); }
         paintToks();
         refresh();
       };
@@ -1223,7 +1248,7 @@ function build(row, d, opts) {
       var hint = noI18n(el('span', 'pb-limit-h mono'));
       var paint = function () {
         var v = Number(S.limits[x[0]]);
-        hint.textContent = x[0] === 'size' ? (v >= 1048576 ? (v / 1048576).toFixed(v % 1048576 ? 2 : 0) + ' MiB' : Math.round(v / 1024) + ' KiB') : '';
+        hint.textContent = x[0] === 'size' && isFinite(v) && v > 0 ? (v >= 1048576 ? (v / 1048576).toFixed(v % 1048576 ? 2 : 0) + ' MiB' : Math.round(v / 1024) + ' KiB') : '';
       };
       i.oninput = function () { S.limits[x[0]] = i.value === '' ? NaN : Number(i.value); paint(); refresh(); };
       w.appendChild(i);
@@ -1256,9 +1281,10 @@ function build(row, d, opts) {
       var b = el('button', 'pb-tab' + (B.tab === t[0] ? ' on' : ''));
       b.type = 'button';
       b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', B.tab === t[0] ? 'true' : 'false');
       b.appendChild(el('span', '', t[1]));
       if (t[0] === 'diff') { refs.diffN = noI18n(el('span', 'pb-tab-n', '')); b.appendChild(refs.diffN); }
-      b.onclick = function () { B.tab = t[0]; Object.keys(refs.tabs).forEach(function (k) { refs.tabs[k].classList.toggle('on', k === B.tab); }); paintOut(); };
+      b.onclick = function () { B.tab = t[0]; Object.keys(refs.tabs).forEach(function (k) { refs.tabs[k].classList.toggle('on', k === B.tab); refs.tabs[k].setAttribute('aria-selected', k === B.tab ? 'true' : 'false'); }); paintOut(); };
       refs.tabs[t[0]] = b;
       tabs.appendChild(b);
     });
@@ -1348,6 +1374,8 @@ function build(row, d, opts) {
       busy(b, true);
       ask('agents/design', {id: row.id || A.id, text: fileText(R), state: S, title: t.value.trim(), note: n.value.trim()}).then(function (x) {
         D = x.design;
+        /* "Start from" offers the design just saved */
+        if (refs.hero && refs.hero.parentNode) { var nh = hero(); refs.hero.parentNode.replaceChild(nh, refs.hero); refs.hero = nh; refresh(); }
         taken();
         paintSaved();
         toast(tr('the design is saved'), 'good');
@@ -1436,13 +1464,14 @@ function build(row, d, opts) {
   function k0(x) { return Array.isArray(x) && x.length; }
   /* copied, downloaded or saved: what was clicked together is not lost by Close (core.js asks
      before a popup with something typed in it goes) */
-  function taken() { try { MODAL_TYPED = 0; } catch (e) { } }
+  function taken() { B.kept = fileText(R); try { MODAL_TYPED = 0; } catch (e) { } }
   /* drawn once everything below is defined */
   function show() {
     modal('Design the policy of ' + row.name, function (body) {
       var pb = el('div', 'pb');
       body.appendChild(pb);
-      pb.appendChild(hero());
+      refs.hero = hero();
+      pb.appendChild(refs.hero);
       var grid = el('div', 'pb-grid');
       var main = el('div', 'pb-main');
       var out = el('aside', 'pb-out');
@@ -1457,6 +1486,15 @@ function build(row, d, opts) {
       refresh();
     }, [{words: 'Close', close: true}], 'large pb-box');
     explainWhatWasDrawn($('modal-body'));
+    /* what was clicked together (a template, a need, a switch) and not copied, downloaded or
+       saved is asked about before Close, its x or Escape take it away - only what was typed was */
+    B.kept = fileText(R);
+    if (typeof modalLeaveGuard === 'function') modalLeaveGuard(function (go) {
+      var typed = typeof MODAL_TYPED !== 'undefined' && MODAL_TYPED && MODAL_TYPED === MODAL_GEN;
+      if (fileText(R) === B.kept && !typed) return false;
+      modalSure('Leave what was typed here?', go, 'Leave it');
+      return true;
+    });
   }
   show();
 }

@@ -1256,15 +1256,24 @@ def cmd_check(pol, op, needs):
         alts = op['any'] if isinstance(op['any'], list) else []
         if not 1 <= len(alts) <= 4:
             raise Refused('one to four alternatives')
-        ok, miss = [], []
+        # 1.0.119 security: only the alternatives the policy allows are kept - one it does not
+        # allow went into the plan beside an allowed one and ran (as root) when that failed
+        ok, miss, bad = [], [], None
         for a in alts:
             got = []
             try:
-                ok.append(cmd_check(pol, a, got))
-            except Refused:
-                pass
-            miss += got
+                one = cmd_check(pol, a, got)
+            except Refused as e:
+                bad = bad or e
+                continue
+            if got:
+                miss += got
+            else:
+                ok.append(one)
         if not ok:
+            if not miss:
+                # not one alternative is a command at all: refused as it is
+                raise bad or Refused('one to four alternatives')
             needs += miss
             return {'any': []}
         return {'any': ok}
@@ -2187,7 +2196,10 @@ class Deploy(object):
             except ValueError:
                 raise Refused('the sealed variables are not JSON')
             for k, v in (more if isinstance(more, dict) else {}).items():
-                if SAFE_ENV.match(str(k)) and str(k).startswith('ACME_'):
+                # a NUL in a value stopped the first command with ValueError after the files
+                # were written - nothing put back (1.0.119): left out, as of the plain ones
+                if SAFE_ENV.match(str(k)) and str(k).startswith('ACME_') and \
+                        '\x00' not in str(v):
                     env[str(k)] = str(v)[:8192]
         backup = str(self.args.get('backup') or 'dated')
         backup = backup if backup in BACKUPS else 'dated'
@@ -2264,26 +2276,33 @@ class Deploy(object):
             self.put_back()
             raise Refused('the files could not be written, the previous ones are back: %s'
                           % str(e)[:300])
-        for op in plan['test']:
-            ok, said = self.run_op(op, env, 'test')
-            if not ok:
-                self.put_back()
-                return self.failed('the test "%s" failed, the previous files are back: %s'
-                                   % (op_words(op), said), result_files, h)
-        if plan['script']:
-            ok, said = self.run_script(plan['script'], env, plan, datas)
-            if not ok:
-                self.put_back()
-                return self.failed('the script failed, the previous files are back: %s' % said,
-                                   result_files, h)
-        for op in plan['reload']:
-            ok, said = self.run_op(op, env, 'reload')
-            if not ok:
-                self.put_back()
-                for again in plan['reload']:
-                    self.run_op(again, env, 'reload with the previous files')
-                return self.failed('"%s" failed, the previous files are back: %s' % (
-                    op_words(op), said), result_files, h)
+        try:
+            for op in plan['test']:
+                ok, said = self.run_op(op, env, 'test')
+                if not ok:
+                    self.put_back()
+                    return self.failed('the test "%s" failed, the previous files are back: %s'
+                                       % (op_words(op), said), result_files, h)
+            if plan['script']:
+                ok, said = self.run_script(plan['script'], env, plan, datas)
+                if not ok:
+                    self.put_back()
+                    return self.failed('the script failed, the previous files are back: %s' % said,
+                                       result_files, h)
+            for op in plan['reload']:
+                ok, said = self.run_op(op, env, 'reload')
+                if not ok:
+                    self.put_back()
+                    for again in plan['reload']:
+                        self.run_op(again, env, 'reload with the previous files')
+                    return self.failed('"%s" failed, the previous files are back: %s' % (
+                        op_words(op), said), result_files, h)
+        except Exception as e:                          # noqa: BLE001
+            # 1.0.119: a command that could not even be started (a staging folder not
+            # writable, a value it cannot take) left the new files in place - put back now
+            self.put_back()
+            return self.failed('it went wrong after the files were written, the previous '
+                               'files are back: %s' % str(e)[:300], result_files, h)
         for op in plan['post']:
             self.run_op(op, env, 'after', warn=True)
         self.after(backup, keep)
@@ -3448,6 +3467,10 @@ def cmd_join(argv):
     if not argv:
         raise SystemExit('acme-agent join CODE')
     c = read_code(argv[0])
+    # 1.0.119: --listen with no address stopped with an IndexError after the key and agent.json
+    # of the agent joined until now were already replaced - said before anything changes
+    if '--listen' in argv and not str((argv + [''])[argv.index('--listen') + 1]).strip():
+        raise SystemExit('acme-agent join CODE [--listen ADDRESS]')
     ids = agent_ids()
     if ids is None:
         raise SystemExit('acme-agent: the account %s is not there (install.sh makes it)' % USER)

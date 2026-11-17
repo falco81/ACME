@@ -428,12 +428,14 @@ def op_my_tls(args, conf):
     except (OSError, Refused):
         cnf_was = None
     how = ''
+    restarted = False
     try:
         if cnf_was == body and my_sql(conf, "SELECT @@have_ssl") == 'YES':
             my_sql(conf, 'FLUSH SSL')
             how = 'FLUSH SSL - no restart'
         else:
             W.write_root(cnf, body, 0o644)
+            restarted = True
             how = op_my_restart({}, conf)['said']
         if my_sql(conf, 'SELECT @@have_ssl') != 'YES':
             raise Refused('MariaDB does not have TLS on with it')
@@ -454,6 +456,13 @@ def op_my_tls(args, conf):
                 pass
         else:
             W.write_root(cnf, cnf_was, 0o644)
+        if restarted:
+            # Started again with what it had (1.0.119): a MariaDB that did not come back with
+            # the new files - or came back without TLS - was left stopped, or running on them.
+            try:
+                op_my_restart({}, conf)
+            except Exception:                           # noqa: BLE001
+                pass
         raise
     end = W.openssl(['x509', '-noout', '-enddate'], 'the certificate', pem['cert'])
     import ssl as _ssl

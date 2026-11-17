@@ -24,7 +24,8 @@ fail() { printf 'install.sh: %s\n' "$*" >&2; exit 1; }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --join)      JOIN="${2:-}"; shift 2;;
+        --join)      [[ $# -ge 2 && -n "$2" ]] || fail "--join CODE (the code made on the target's card in acme)"
+                     JOIN="$2"; shift 2;;
         --uninstall) UNINSTALL="yes"; shift;;
         --purge)     PURGE="yes"; shift;;
         -h|--help)   sed -n '2,15p' "$0"; exit 0;;

@@ -6,7 +6,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.119 - not released
 
-(nothing yet)
+- Database server card and firewall: a MariaDB server with an agent showed PostgreSQL's port 5432; it shows MariaDB's own now.
+- acme-db-agent: MariaDB given a certificate that did not come back after its restart (or came back without TLS) is started again with its old files, not left stopped.
+- acme-db-agent: `--forget NAME` of a node not joined says so (exit 1) instead of "no longer let in".
+- Joining a database agent at a bare IPv6 address (2001:db8::5) took 2001:db8: at port 5; the wizard no longer says an agent typed as [IPv6]:PORT replaces the same one.
+- `install.sh --db-agent` again without `--db-agent-port` opens and says the port the agent keeps, not 9443.
+- This machine's database shown as a database server, switched off and on again: its card is back at once, not after 30 s.
+- acme-agent (security): of `A || B` only the alternatives the policy allows run - one it did not allow ran as root beside (or instead of) an allowed one.
+- acme-agent: a deployment whose test, script or reload could not even be started puts the previous files back (they stayed replaced); a sealed variable with a NUL is left out.
+- Target agents: the same join sent again after its fingerprint was confirmed no longer undoes the confirmation; an agent's policy of odd shapes (a number for a list, Infinity) no longer stops acme with an error.
+- Policy builder: a design's title is one line in Events; the needs card's `acme-agent allow file|script` lines are quoted for the shell (a path with a space).
+- acme-agent: `install.sh --join` without a code and `acme-agent join CODE --listen` without an address say so (the latter before the agent's keys are replaced).
 
 ## 1.0.118 - 2026-11-17
 

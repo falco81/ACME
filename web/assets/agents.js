@@ -15,6 +15,9 @@ var ROLE = (typeof ME === 'object' && ME && ME.role) || 'readonly';
 var FULL = ROLE === 'fulladmin';
 var MANAGE = FULL || ROLE === 'certadmin';
 var PANE = {ticket: 0, timer: null};
+/* the agents being updated now (id: 1) - a second click, or Update all meanwhile, sent the
+   package to the same agent again */
+var UPDATING = {};
 
 function ask(path, body, wait) {
   if (!H.capi) return Promise.reject(new Error('the page is not ready'));
@@ -419,7 +422,8 @@ function tile(a, d) {
   acts.appendChild(designButton({id: a.id, name: a.name}, {done: function () { pane(true); }}, 'small'));
   if (FULL && a.update && a.update.newer && a.update.allowed && a.update.signed) {
     var ub = cmdButton('Update', 'up', 'small');
-    ub.onclick = function () { updateMany([{id: a.id, name: a.name, offered: a.update.offered, ok: true}]); };
+    ub.disabled = !!UPDATING[a.id];
+    ub.onclick = function () { ub.disabled = true; updateMany([{id: a.id, name: a.name, offered: a.update.offered, ok: true}]); };
     acts.appendChild(ub);
   }
   var prog = el('span', 'ag-tile-upd');
@@ -623,7 +627,8 @@ function updateMany(list) {
     p.className = 'ag-tile-upd ' + cls;
     p.textContent = words;
   };
-  var todo = list.filter(function (x) { return x.ok; });
+  var todo = list.filter(function (x) { return x.ok && !UPDATING[x.id]; });
+  todo.forEach(function (x) { UPDATING[x.id] = 1; });
   var step = function (i) {
     if (i >= todo.length) { pane(true); return; }
     var x = todo[i];
@@ -634,7 +639,7 @@ function updateMany(list) {
     }).then(function (got) {
       var v = got && got.agent && got.agent.version;
       mark(x.id, v === x.offered ? 'ok' : 'bad', v === x.offered ? tr('updated to') + ' ' + v : tr('sent - it has not answered with the new version yet'));
-    }).catch(function (e) { mark(x.id, 'bad', String((e && e.message) || e)); }).then(function () { step(i + 1); });
+    }).catch(function (e) { mark(x.id, 'bad', String((e && e.message) || e)); }).then(function () { delete UPDATING[x.id]; step(i + 1); });
   };
   step(0);
 }
@@ -736,7 +741,7 @@ function designBox(row, a, reload) {
         r.appendChild(el('span', 'muted small', when(v.at)));
         r.appendChild(data('span', 'muted small', String(v.by || '')));
         var o = cmdButton('Open', 'edit', 'small');
-        o.onclick = function () { builder(row, {state: v.state, done: reload}); };
+        o.onclick = function () { builder(row, {state: v.state, text: v.text, done: reload}); };
         r.appendChild(o);
         det.appendChild(r);
       });
@@ -904,7 +909,7 @@ function policyView(pol, at) {
 function wizard(row, a0, after) {
   var W = {step: a0 && a0.pending && !a0.pending.confirmed ? 2 : 0, code: null, a: a0, err: '', busy: false, d: null};
   var STEPS = ['Install the agent', 'The join code', 'Confirm the fingerprint'];
-  var timer = null, gen = 0;
+  var timer = null, gen = 0, asked = 0;
   ask('agents/one?id=' + encodeURIComponent(row.id)).then(function (d) { W.d = d; W.a = d; paint(); }).catch(oops);
   function stop() { clearTimeout(timer); timer = null; }
   function rail() {
@@ -1058,17 +1063,21 @@ function wizard(row, a0, after) {
     }
     function tick(now) {
       if (me !== gen || !host.isConnected) return;
+      /* one round of asking at a time: "It is the same - confirm" asked at once while the
+         round before was waiting - two of them went on side by side to the end */
+      clearTimeout(timer);
+      var mine = ++asked;
       /* a passive agent is reached by acme (look) - joining again too, where the agent joined
          before is still the target's until the new one is confirmed */
       var p = a.mode === 'passive'
         ? ask('agents/look', {id: row.id}, 60).then(function (x) { return x.agent; })
         : ask('agents/one?id=' + encodeURIComponent(row.id));
       p.then(function (x) {
-        if (me !== gen || !host.isConnected) return;
+        if (me !== gen || !host.isConnected || mine !== asked) return;
         W.a = x;
         if (!drawWait()) timer = setTimeout(tick, 2500);
         else if (after) after();
-      }).catch(function () { if (me === gen && host.isConnected) timer = setTimeout(tick, 4000); });
+      }).catch(function () { if (me === gen && host.isConnected && mine === asked) timer = setTimeout(tick, 4000); });
       return now;
     }
     if (!drawWait()) timer = setTimeout(tick, 600);

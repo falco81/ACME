@@ -408,6 +408,11 @@ c = json.load(open(p)); c['port'] = port
 open(p, 'w').write(json.dumps(c, indent=1) + '\n')
 PY
             say "its port: $DB_AGENT_PORT"
+        elif [[ -z "$DB_AGENT_PORT_GIVEN" ]]; then
+            # The port it keeps (1.0.119): an upgrade without --db-agent-port opened 9443 in the
+            # firewall and said it, the agent answering on another.
+            port="$(python3 -I -c 'import json, sys; print(int(json.load(open(sys.argv[1])).get("port") or 9443))' "$cfg" 2>/dev/null)" \
+                && [[ "$port" =~ ^[0-9]{1,5}$ ]] && DB_AGENT_PORT="$port" || true
         fi
     else
         port="${DBS_PORT:-}"

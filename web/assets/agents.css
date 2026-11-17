@@ -216,3 +216,10 @@
   .ag-upd{flex-direction:column}
   .ag-blocked .dbs-cmd{flex-direction:column;align-items:stretch}
 }
+
+/* the wizard's rail on a phone: the number above its words - "Confirm the fingerprint" ran out of
+   its step over the next one */
+@media (max-width:640px){
+  .ag-rail button{flex-direction:column;gap:4px;padding:7px 4px;text-align:center;font-size:12px;line-height:1.25}
+  .ag-rail button > span:last-child{min-width:0;max-width:100%;overflow-wrap:anywhere}
+}

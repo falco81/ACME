@@ -146,7 +146,9 @@ def db_local_drop(store):
     except Exception as e:                              # noqa: BLE001
         log_sparing('dblocal-drop', 'the row of this machine\'s database server: %s' % e,
                     'warn', every=3600)
-    DBLOCAL_STATE['wrote'] = False
+    # Looked at again at once when it is wanted again (1.0.119): switched off and on within
+    # 30 s, the card stayed away until the next look.
+    DBLOCAL_STATE.update(wrote=False, at=0.0)
 
 
 def db_local_watch(daemon):

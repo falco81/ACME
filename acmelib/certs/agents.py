@@ -581,6 +581,11 @@ def join_take(store, row, st, c, secret, req, tls_key_fp=None):
     if tls_key_fp is not None and tls_key_fp != fp:
         raise PluginError('the agent answers with another key than it asks a certificate for',
                           retry=False)
+    was = st.get('pending') if isinstance(st.get('pending'), dict) else {}
+    if c.get('used') and was.get('cert') and was.get('csr') == csr and was.get('fp') == fp:
+        # 1.0.119: the same join again (sent twice, or replayed) once a person confirmed it -
+        # the pending request was made anew without its certificate: the confirmation undone
+        return fp
     c['used'] = True
     st['code'] = c
     st['pending'] = {'csr': csr, 'fp': fp, 'enc_pub': enc, 'agent_id': c['agent_id'],
@@ -978,39 +983,45 @@ def clean_policy(p):
     """The policy as the agent reports it - its shape checked item by item."""
     def s(v, n=300):
         return _txt(v, n)
+
+    def lst(k):
+        # 1.0.119: a list the agent says as something else (a number, an object) stopped
+        # acme with an error of its own - the poll of that agent failed for good
+        v = p.get(k)
+        return v if isinstance(v, list) else []
     out = {'hash': s(p.get('hash'), 64), 'files': [], 'units': {}, 'tests': [], 'scripts': [],
            'script_hashes': [], 'from': [], 'connect': [], 'probe': [], 'problems': [],
            'self_update': bool(p.get('self_update')), 'probe_local': bool(p.get('probe_local')),
            'limits': {'files': 20, 'size': 1048576}}
-    for f in (p.get('files') or [])[:200]:
+    for f in lst('files')[:200]:
         if isinstance(f, dict) and isinstance(f.get('dir'), str) and f['dir'].startswith('/'):
             try:
                 out['files'].append({'dir': s(f['dir'], 1024), 'owner': s(f.get('owner'), 32),
                                      'group': s(f.get('group'), 32),
                                      'mode': int(f.get('mode') or 0) & 0o777})
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 continue
     units = p.get('units') if isinstance(p.get('units'), dict) else {}
     for u, vs in list(units.items())[:200]:
         if isinstance(vs, list):
             out['units'][s(u, 128)] = [s(v, 30) for v in vs[:8]]
-    for t in (p.get('tests') or [])[:200]:
+    for t in lst('tests')[:200]:
         if isinstance(t, list) and t:
             out['tests'].append([s(a, 1024) for a in t[:64]])
-    for x in (p.get('scripts') or [])[:200]:
+    for x in lst('scripts')[:200]:
         if isinstance(x, dict) and HEX64.match(str(x.get('sha256') or '')):
             out['scripts'].append({'path': s(x.get('path'), 1024), 'sha256': x['sha256']})
-    out['script_hashes'] = [h for h in (p.get('script_hashes') or [])[:500]
+    out['script_hashes'] = [h for h in lst('script_hashes')[:500]
                             if isinstance(h, str) and HEX64.match(h)]
-    out['from'] = [s(x, 60) for x in (p.get('from') or [])[:100]]
-    out['connect'] = [s(x, 300) for x in (p.get('connect') or [])[:100]]
-    out['probe'] = [s(x, 300) for x in (p.get('probe') or [])[:100]]
-    out['problems'] = [s(x, 300) for x in (p.get('problems') or [])[:20]]
+    out['from'] = [s(x, 60) for x in lst('from')[:100]]
+    out['connect'] = [s(x, 300) for x in lst('connect')[:100]]
+    out['probe'] = [s(x, 300) for x in lst('probe')[:100]]
+    out['problems'] = [s(x, 300) for x in lst('problems')[:20]]
     lim = p.get('limits') if isinstance(p.get('limits'), dict) else {}
     for k in ('files', 'size'):
         try:
             out['limits'][k] = max(1, int(lim.get(k) or out['limits'][k]))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             pass
     return out
 

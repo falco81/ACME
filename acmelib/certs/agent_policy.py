@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import time
 
 from acmelib import engine as E
@@ -270,7 +271,8 @@ def deploy_needs(store, row):
             items.append({'kind': 'file', 'path': f['path'], 'mode': int(f['mode']),
                           'owner': uu, 'group': gg, 'key': bool(f.get('agent_key')),
                           'allow': 'acme-agent allow file %s --owner %s --mode %04o' % (
-                              d, (uu or 'root') + ':' + (gg or uu or 'root'), f['mode'])})
+                              shlex.quote(d), (uu or 'root') + ':' + (gg or uu or 'root'),
+                              f['mode'])})
 
         def op_item(o, step):
             if 'unit' in o:
@@ -296,7 +298,8 @@ def deploy_needs(store, row):
                           'allow': 'acme-agent allow script-hash %s' % h})
         elif s and s.get('mode') == 'path':
             items.append({'kind': 'script', 'path': s.get('path') or '', 'step': 'script',
-                          'allow': 'acme-agent allow script %s' % (s.get('path') or '')})
+                          'allow': 'acme-agent allow script %s' % shlex.quote(
+                              s.get('path') or '')})
         try:
             places = t.served_places(opts)[:5]
         except Exception:                               # noqa: BLE001
@@ -428,7 +431,10 @@ def design_save(store, row, text, state, title, note, by):
     st = clean_state(state if state is not None else {})
     d = _load(store, row['id'])
     n = max([int(v.get('n') or 0) for v in d['versions']] + [0]) + 1
-    v = {'n': n, 'at': time.time(), 'by': _txt(by, 120), 'title': _txt(title, TITLE_MOST).strip(),
+    # the title one line (1.0.119): a line break in it went on as a line of its own into
+    # Events and the log (the event names it)
+    one = re.sub(r'[\t\r\n\u2028\u2029\x85]+', ' ', str(title if title is not None else ''))
+    v = {'n': n, 'at': time.time(), 'by': _txt(by, 120), 'title': _txt(one, TITLE_MOST).strip(),
          'note': _txt(note, NOTE_MOST).strip() if note is not None else '', 'text': text,
          'state': st, 'hash': hashlib.sha256(text.encode('utf-8')).hexdigest(),
          'entries': len(got['lines']), 'warnings': len(got['warnings'])}

@@ -770,7 +770,8 @@ class Root(object):
         now = time.time()
         busy = dict(self.busy) if self.busy else None
         return dict(f, version=VERSION, code=CODE, port=self.c['port'], engine=self.c['engine'],
-                    pg_port=self.c['pg_port'], busy=busy, stale_days=STALE_DAYS,
+                    pg_port=self.c['pg_port'], my_port=self.c['my_port'], busy=busy,
+                    stale_days=STALE_DAYS,
                     force_days=AGENT_FORCE_DAYS,
                     clients=[{'name': x['name'], 'addr': x.get('addr'), 'at': x.get('at'),
                               'seen': x.get('seen') or x.get('at'), 'stale': stale(x, now),
@@ -1615,7 +1616,14 @@ def main(argv):
                           'stale': [x['name'] for x in cl if stale(x)]}, indent=1))
         return 0
     if argv[:1] == ['--forget'] and len(argv) > 1:
-        cl = [x for x in clients(c) if x['name'] != argv[1]]
+        had = clients(c)
+        cl = [x for x in had if x['name'] != argv[1]]
+        if len(cl) == len(had):
+            # A name mistyped was said to be no longer let in, and nothing was taken away
+            # (1.0.119).
+            print('%s is not joined here - the nodes joined: %s'
+                  % (argv[1], ', '.join(x['name'] for x in had) or 'none'), file=sys.stderr)
+            return 1
         clients_put(c, cl)
         print('%s is no longer let in (restart acme-db-agent)' % argv[1])
         return 0

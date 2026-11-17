@@ -445,10 +445,16 @@ def db_agent_join(store, code, addr='', db_host='', by='command line', say=None)
     data = db_agent_code(code)
     host, port = data['h'], data['p']
     if addr:
-        m = re.fullmatch(r'\[?([^\]]+?)\]?(?::(\d{1,5}))?', str(addr).strip())
-        if not m:
-            raise ValueError('the agent\'s address is HOST or HOST:PORT')
-        host, port = m.group(1), int(m.group(2) or port)
+        raw = str(addr).strip()
+        if raw.count(':') > 1 and not raw.startswith('['):
+            # An IPv6 address without brackets holds no port (1.0.119): 2001:db8::5 was taken
+            # as the host 2001:db8: at the port 5.
+            host = raw
+        else:
+            m = re.fullmatch(r'\[?([^\]]+?)\]?(?::(\d{1,5}))?', raw)
+            if not m:
+                raise ValueError('the agent\'s address is HOST or HOST:PORT')
+            host, port = m.group(1), int(m.group(2) or port)
     # One agent per node (1.0.113): another one joined replaces the one there is - refused
     # while this node is one of a cluster whose database is on that one's server (the
     # replication runs through it).
