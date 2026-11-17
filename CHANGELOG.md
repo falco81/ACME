@@ -42,6 +42,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - install.sh --db-server mariadb: with no folder of MariaDB's configuration it says to set `bind-address` by hand instead of writing into a folder that is not there.
 - Certificate portal: a sign-in left from before the one-time code was switched on is no longer drawn signed in for a moment; Settings → the sign-in's picture: *Save* with your own picture taken away and still picked is refused before the picture is taken away.
 - Certificate portal: the request limit counts the requests of a person with a long sign-in name (over 180 characters); an administrator who sees every certificate no longer has a team's certificate of their own name shown as theirs.
+- Certificates: *Import* of a wildcard certificate (or one whose common name has brackets) offers a name acme takes (`wildcard.example.com`) - the common name offered was refused by Import.
+- Certificates: Enter on a row's button (*Renew it now*, *Run its tests…*, an authority's star) does what the button does - it opened the certificate (the authority) instead.
+- Certificates: a certificate made by *CSR for an outside CA* says it comes from an outside CA (it said "–"); its answer dropped no longer asks "Leave what was typed here?".
+- Certificate's window: on a phone its sections are no longer cut at the right edge; *Renews* says the same in both its sections (an imported one said "only when asked", a revoked one "by itself").
+- Certificates: the names in the list are no longer a letter a line between a phone's width and a wide screen; *Add a certificate*: "Deployments" no longer runs into "Review"; Authorities: the buttons of *Published on acme* line up when they wrap.
 
 ## 1.0.118 - 2026-11-17
 
