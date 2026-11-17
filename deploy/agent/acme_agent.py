@@ -2013,6 +2013,13 @@ class Root(object):
             return {'ok': True, 'status': self.status()}
         if kind == 'pin':
             return self.pin(msg)
+        if kind == 'system':
+            # 1.0.121: the hash of the server's facts, for the network side's poll (never the
+            # facts themselves - those go with the signed hello)
+            try:
+                return {'ok': True, 'hash': system_info()[1]}
+            except Exception:                           # noqa: BLE001
+                return {'ok': False}
         if kind != 'job':
             return {'ok': False, 'said': 'not a request of this agent'}
         jid, op = '', ''
@@ -2095,9 +2102,15 @@ class Root(object):
     # -- operations --------------------------------------------------------------------------
     def op_hello(self, args, job, msg):
         st = self.status()
-        return {'ok': True, 'said': 'acme-agent %s here' % VERSION, 'version': VERSION,
-                'code': CODE, 'policy': st['policy'], 'enc_pub': st['enc_pub'],
-                'host': socket.gethostname()[:120], 'os': _os_name(), 'platform': PLATFORM}
+        out = {'ok': True, 'said': 'acme-agent %s here' % VERSION, 'version': VERSION,
+               'code': CODE, 'policy': st['policy'], 'enc_pub': st['enc_pub'],
+               'host': socket.gethostname()[:120], 'os': _os_name(), 'platform': PLATFORM}
+        # 1.0.121: what the agent tells about its server (an acme before it ignores the key)
+        try:
+            out['system'] = system_info()[0]
+        except Exception:                               # noqa: BLE001
+            pass
+        return out
 
     def op_policy(self, args, job, msg):
         return self.op_hello(args, job, msg)
@@ -2264,7 +2277,7 @@ SYS_SERVICES = ('nginx', 'httpd', 'apache2', 'haproxy', 'postfix', 'dovecot', 'e
                 'podman', 'kubelet', 'k3s', 'coturn', 'prosody', 'ejabberd', 'asterisk',
                 'freeradius', 'radiusd', 'zabbix-server', 'zabbix-agent', 'zabbix-agent2',
                 'webmin', 'minio', 'vault', 'consul', 'nomad', 'opensearch', 'elasticsearch',
-                'kibana', 'splunk', 'icinga2', 'nagios', 'sshd', 'ssh')
+                'kibana', 'splunk', 'icinga2', 'nagios')
 _SYS = {'at': 0.0, 'facts': None, 'hash': '', 'busy': set(), 'cli': (0.0, None)}
 _SYS_LOCK = threading.Lock()
 
@@ -2614,10 +2627,16 @@ def _sf_services_linux(until):
     """The known services there (their unit file) and which run (one systemctl is-active)."""
     dirs = ('/etc/systemd/system', '/run/systemd/system', '/usr/lib/systemd/system',
             '/lib/systemd/system')
-    have = []
+    have, real = [], set()
     for name in SYS_SERVICES:
-        if any(os.path.exists(_sysp('%s/%s.service' % (d, name))) for d in dirs):
-            have.append(name)
+        for d in dirs:
+            p = _sysp('%s/%s.service' % (d, name))
+            if os.path.exists(p):
+                rp = os.path.realpath(p)            # an alias (mysql -> mariadb) said once
+                if rp not in real:
+                    real.add(rp)
+                    have.append(name)
+                break
     if not have:
         return {'services': []}
     states = {}
@@ -3337,9 +3356,20 @@ class Net(object):
         self.bucket = {}
         self.lsock = None
         self.lsock_at = None
+        self.sys_hash = (0.0, '')
 
     def conf(self):
         return net_conf()
+
+    def system_hash(self):
+        """The hash of the server's facts (root's), asked at most once a minute."""
+        at, h = self.sys_hash
+        if time.time() - at > SYS_TTL:
+            got = self.root.ask({'kind': 'system'}, timeout=SYS_BUDGET_S + 5)
+            h = str(got.get('hash') or '') if isinstance(got, dict) and got.get('ok') else ''
+            h = h if HEX64.match(h) else ''
+            self.sys_hash = (time.time(), h)
+        return h
 
     def joined(self):
         c = self.conf()
@@ -3361,6 +3391,15 @@ class Net(object):
             out['policy_hash'] = policy_load()[1]
         except Exception:                               # noqa: BLE001
             pass
+        # 1.0.121: the server's facts by their hash (acme asks the hello when it changed) and
+        # this machine's clock (acme says how far it is from its own)
+        try:
+            sh = self.system_hash()
+            if sh:
+                out['system_hash'] = sh
+        except Exception:                               # noqa: BLE001
+            pass
+        out['clock'] = round(time.time(), 3)
         if pem:
             try:
                 out.update(cert_fp=fp_of_pem(pem), cert_end=cert_end(pem))
