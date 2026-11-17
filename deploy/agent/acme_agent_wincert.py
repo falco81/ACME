@@ -1668,3 +1668,248 @@ def adcs_cli(A, argv):
         return 0
     except A.Refused as e:
         raise SystemExit('acme-agent: %s' % e)
+
+
+# ---- discovery (1.0.125, docs/target-agent.md "Discovery") ----------------------------------------
+# What of this Windows server takes certificates, and which: the IIS sites and their https
+# bindings, the Remote Desktop listener, the roles acme deploys to (as the roles' own detection
+# finds them, with the certificate a role is bound to where that is cheap to read), the machine
+# store's certificates (subject, names, issuer, the end, thumbprint, serial; whether acme
+# imported it). Read-only - one fixed script, nothing changed; never a key nor a password.
+DISCOVER_STORE_MOST = 300
+DISCOVER_PS = PRELUDE + r"""# acme-agent: discover
+$k = @($j.kinds)
+$out = @{ store = @(); iis = @(); rdp = ''; roles = @{} }
+function Epoch($d) { [int64](($d.ToUniversalTime() - [datetime]'1970-01-01T00:00:00').TotalSeconds) }
+$n = 0
+foreach ($c in @(Get-ChildItem -LiteralPath $store)) {
+  if ($n -ge 300) { break }
+  $n += 1
+  $san = @()
+  try { $san = @($c.DnsNameList | ForEach-Object { [string]$_.Unicode }) } catch { }
+  $out.store += @{ thumb = [string]$c.Thumbprint; subject = [string]$c.Subject;
+                   issuer = [string]$c.Issuer; not_after = (Epoch $c.NotAfter);
+                   serial = [string]$c.SerialNumber; sans = $san;
+                   friendly = [string]$c.FriendlyName; has_key = [bool]$c.HasPrivateKey }
+}
+if ($k -contains 'iis') {
+  try {
+    Import-Module WebAdministration
+    foreach ($s in @(Get-Website)) {
+      $bs = @()
+      foreach ($b in @($s.bindings.Collection | Where-Object { $_.protocol -eq 'https' })) {
+        $bs += @{ info = [string]$b.bindingInformation; thumb = [string]$b.certificateHash;
+                  store = [string]$b.certificateStoreName; sni = [int]$b.sslFlags }
+      }
+      $out.iis += @{ site = [string]$s.Name; state = [string]$s.State; bindings = $bs }
+    }
+  } catch { $out.iis_error = [string]$_.Exception.Message }
+}
+if ($k -contains 'rdp') { try { $out.rdp = [string](Rdp-Setting).SSLCertificateSHA1Hash } catch { } }
+if ($k -contains 'sql') {
+  try {
+    $names = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL' -ErrorAction SilentlyContinue
+    $is = @()
+    if ($names) {
+      foreach ($p in @($names.PSObject.Properties | Where-Object { $_.Name -notlike 'PS*' })) {
+        $t = ''
+        try { $t = [string](Get-ItemProperty -LiteralPath ('HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\' + [string]$p.Value + '\MSSQLServer\SuperSocketNetLib')).Certificate } catch { }
+        $is += @{ name = [string]$p.Name; thumb = $t }
+      }
+    }
+    $out.roles.sql = @{ instances = $is }
+  } catch { }
+}
+if ($k -contains 'winrm') {
+  try {
+    $ls = @()
+    foreach ($l in @(Get-ChildItem WSMan:\localhost\Listener -ErrorAction Stop | Where-Object { $_.Keys -contains 'Transport=HTTPS' })) {
+      $h = ''; $t = ''; $p = ''
+      foreach ($i in @(Get-ChildItem -LiteralPath $l.PSPath)) {
+        if ($i.Name -eq 'Hostname') { $h = [string]$i.Value }
+        if ($i.Name -eq 'CertificateThumbprint') { $t = [string]$i.Value }
+        if ($i.Name -eq 'Port') { $p = [string]$i.Value }
+      }
+      $ls += @{ host = $h; thumb = $t; port = $p }
+    }
+    $out.roles.winrm = @{ listeners = $ls }
+  } catch { }
+}
+if ($k -contains 'ldaps') {
+  try {
+    $t = @(Get-ChildItem -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Cryptography\Services\NTDS\SystemCertificates\My\Certificates' -ErrorAction Stop | ForEach-Object { [string]$_.PSChildName })
+    $out.roles.ldaps = @{ thumbs = $t }
+  } catch { }
+}
+if ($k -contains 'ftp') {
+  try {
+    Import-Module WebAdministration
+    $t = [string](Get-WebConfigurationProperty -PSPath 'MACHINE/WEBROOT/APPHOST' -Filter 'system.applicationHost/sites/siteDefaults/ftpServer/security/ssl' -Name serverCertHash).Value
+    $out.roles.ftp = @{ thumb = $t }
+  } catch { }
+}
+if ($k -contains 'adfs') {
+  try { $out.roles.adfs = @{ thumb = [string](@(Get-AdfsSslCertificate)[0].CertificateHash) } } catch { }
+}
+if ($k -contains 'rdgw') {
+  try {
+    Import-Module RemoteDesktopServices
+    $out.roles.rdgw = @{ thumb = [string](Get-Item -Path 'RDS:\GatewayServer\SSLCertificate\Thumbprint').CurrentValue }
+  } catch { }
+}
+Say $out
+"""
+DISCOVER_ROLE_PORT = {'sql': 1433, 'winrm': 5986, 'ldaps': 636, 'ftp': 21, 'adfs': 443,
+                      'wap': 443, 'exchange': 443, 'sstp': 443, 'rdgw': 443, 'rds': 443,
+                      'sharepoint': 443, 'wac': 443, 'lync': 443, 'ccs': 443}
+
+
+def _epoch(v):
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if 0 < f < 2 ** 40 else None
+
+
+def _thumb(v):
+    t = re.sub(r'[^0-9A-Fa-f]', '', str(v or '')).upper()
+    return t if THUMB_RE.match(t) else ''
+
+
+def _cn(subject):
+    m = re.search(r'(?:^|,\s*)CN=([^,]+)', str(subject or ''))
+    return m.group(1).strip() if m else ''
+
+
+def _store_facts(c, acme_thumbs):
+    t = _thumb(c.get('thumb'))
+    if not t:
+        return None
+    sans = c.get('sans') if isinstance(c.get('sans'), list) else []
+    return {'thumbprint': t, 'subject': _clean(c.get('subject'), 300),
+            'issuer': _clean(c.get('issuer'), 300), 'not_after': _epoch(c.get('not_after')),
+            'serial': _clean(c.get('serial'), 80).upper(), 'cn': _cn(c.get('subject')),
+            'sans': [_clean(x, 253) for x in sans[:40] if x],
+            'friendly': _clean(c.get('friendly'), 120), 'has_key': bool(c.get('has_key')),
+            'acme': t in acme_thumbs, 'where': []}
+
+
+def _binding(info):
+    """'IP:PORT:HOST' (IIS' bindingInformation) -> (ip, port, host)."""
+    s = str(info or '')
+    m = re.match(r'^(\[[^\]]*\]|[^:]*):(\d{1,5}):(.*)$', s)
+    if not m:
+        return '*', 443, ''
+    ip = m.group(1) or '*'
+    return ip, int(m.group(2)), m.group(3)
+
+
+def discover(A, pol, kinds):
+    """The job of op `discover` on Windows (the root side, LocalSystem) -> {found, certs,
+    skipped}. `kinds`: what the policy allows and acme asked."""
+    kinds = list(kinds)
+    ok, objs, err = run(A, DISCOVER_PS, {'kinds': kinds}, timeout=120)
+    got = objs[-1] if objs and isinstance(objs[-1], dict) else {}
+    if not ok and not got:
+        raise A.Refused('the server could not be looked at: %s' % (err or 'PowerShell failed'))
+    acme = set()
+    for recs in records_load(A).values():
+        for x in recs if isinstance(recs, list) else []:
+            if isinstance(x, dict) and THUMB_RE.match(str(x.get('thumb') or '')):
+                acme.add(x['thumb'])
+    store = {}
+    for c in (got.get('store') or [])[:DISCOVER_STORE_MOST]:
+        if isinstance(c, dict):
+            f = _store_facts(c, acme)
+            if f:
+                store[f['thumbprint']] = f
+    found, skipped = [], []
+
+    def cert_of(t, where):
+        t = _thumb(t)
+        f = store.get(t)
+        if f is None:
+            return {'thumbprint': t, 'missing': True} if t else None
+        if where not in f['where'] and len(f['where']) < 12:
+            f['where'].append(where)
+        return {k: v for k, v in f.items() if k != 'where'}
+
+    if 'iis' in kinds:
+        if got.get('iis_error'):
+            skipped.append({'kind': 'iis', 'why': _clean(got['iis_error'], 200)})
+        for s in (got.get('iis') or [])[:100]:
+            if not isinstance(s, dict) or not s.get('bindings'):
+                continue
+            site = _clean(s.get('site'), 256)
+            bs, names, cert = [], [], None
+            for b in (s.get('bindings') or [])[:IIS_MOST]:
+                if not isinstance(b, dict):
+                    continue
+                ip, port, host = _binding(b.get('info'))
+                t = _thumb(b.get('thumb'))
+                bs.append({'site': site, 'host': _clean(host, 253), 'port': port,
+                           'ip': _clean(ip, 60), 'thumb': t, 'sni': bool(int(b.get('sni') or 0)
+                                                                        & 1)})
+                if host and host not in names:
+                    names.append(_clean(host, 253))
+                c = cert_of(t, 'IIS %s %s:%d' % (site, host or ip, port))
+                cert = cert or c
+            found.append({'kind': 'iis', 'title': 'IIS site', 'site': site, 'names': names,
+                          'state': _clean(s.get('state'), 20), 'bindings': bs, 'cert': cert,
+                          'listen': ['%s:%d' % (b['ip'], b['port']) for b in bs],
+                          'unit': 'W3SVC', 'port': bs[0]['port'] if bs else 443,
+                          'files': [], 'preset': '', 'config': 'IIS'})
+    if 'rdp' in kinds:
+        t = _thumb(got.get('rdp'))
+        found.append({'kind': 'rdp', 'title': 'Remote Desktop listener', 'names': [],
+                      'cert': cert_of(t, 'Remote Desktop listener'), 'listen': ['3389'],
+                      'unit': 'TermService', 'port': 3389, 'files': [], 'preset': '',
+                      'config': 'RDP-tcp'})
+    R = _roles()
+    asked_roles = [r[0] for r in R.ROLES if r[0] in kinds]
+    if asked_roles:
+        det, derr = detect(A)
+        if derr and not det:
+            skipped.append({'kind': 'roles', 'why': _clean(derr, 200)})
+        roles = got.get('roles') if isinstance(got.get('roles'), dict) else {}
+        titles = {r[0]: r[2] for r in R.ROLES}
+        for key in asked_roles:
+            yes, detail = det.get(key, (False, ''))
+            if not yes:
+                continue
+            one = {'kind': key, 'title': titles.get(key, key), 'detail': _clean(detail, 200),
+                   'names': [], 'listen': [], 'files': [], 'preset': '', 'config': key,
+                   'port': DISCOVER_ROLE_PORT.get(key, 443), 'cert': None}
+            r = roles.get(key) if isinstance(roles.get(key), dict) else {}
+            if key == 'sql':
+                one['instances'] = []
+                for i in (r.get('instances') or [])[:16]:
+                    if isinstance(i, dict):
+                        t = _thumb(i.get('thumb'))
+                        one['instances'].append({'name': _clean(i.get('name'), 120),
+                                                 'thumb': t})
+                        one['cert'] = one['cert'] or cert_of(t, 'SQL Server %s' % _clean(
+                            i.get('name'), 120))
+            elif key == 'winrm':
+                one['listeners'] = []
+                for x in (r.get('listeners') or [])[:8]:
+                    if isinstance(x, dict):
+                        t = _thumb(x.get('thumb'))
+                        one['listeners'].append({'host': _clean(x.get('host'), 253),
+                                                 'port': _clean(x.get('port'), 8), 'thumb': t})
+                        if x.get('host'):
+                            one['names'].append(_clean(x.get('host'), 253))
+                        one['cert'] = one['cert'] or cert_of(t, 'WinRM HTTPS listener')
+            elif key == 'ldaps':
+                for t in (r.get('thumbs') or [])[:4]:
+                    one['cert'] = one['cert'] or cert_of(t, 'LDAPS (NTDS)')
+            elif r.get('thumb'):
+                one['cert'] = cert_of(r.get('thumb'), titles.get(key, key))
+            if key == 'ccs' and detail and detail != 'not set up':
+                one['ccs_path'] = _clean(detail, 260)
+            found.append(one)
+    certs = sorted(store.values(), key=lambda c: (c.get('not_after') or 0))
+    if 'store' not in kinds:
+        certs = [c for c in certs if c['where']]       # only those the services use
+    return {'found': found, 'certs': certs, 'skipped': skipped}
