@@ -497,6 +497,10 @@ class _Api(object):
         fn(k32, 'GetCurrentProcess', H)
         # security
         fn(adv, 'OpenProcessToken', B, H, D, P(H))
+        fn(k32, 'GetCurrentThread', H)
+        fn(adv, 'ImpersonateNamedPipeClient', B, H)
+        fn(adv, 'RevertToSelf', B)
+        fn(adv, 'OpenThreadToken', B, H, D, B, P(H))
         fn(adv, 'GetTokenInformation', B, H, ctypes.c_int, V, D, P(D))
         fn(adv, 'ConvertSidToStringSidW', B, V, P(wt.LPWSTR))
         fn(adv, 'LookupAccountNameW', B, W_, W_, V, P(D), wt.LPWSTR, P(D), P(D))
