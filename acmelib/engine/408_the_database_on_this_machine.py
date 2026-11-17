@@ -87,7 +87,21 @@ def db_local_facts(store):
             except Exception:                           # noqa: BLE001
                 data = ''
         else:
-            r = db.row('SELECT VERSION() AS v, @@have_ssl AS s, @@datadir AS d') or {}
+            try:
+                r = db.row('SELECT VERSION() AS v, @@have_ssl AS s, @@datadir AS d') or {}
+            except Exception as e:                      # noqa: BLE001
+                # MySQL 8.4 and later have no @@have_ssl (1.0.119, as acme_pg_ops.my_have_ssl):
+                # its TLS channel says it; anything else is what it was.
+                if not ('have_ssl' in str(e) and 'nknown' in str(e)):
+                    raise
+                r = db.row('SELECT VERSION() AS v, @@datadir AS d') or {}
+                try:
+                    r['s'] = 'YES' if str(db.value(
+                        "SELECT VALUE FROM performance_schema.tls_channel_status "
+                        "WHERE CHANNEL = 'mysql_main' AND PROPERTY = 'Enabled'") or ''
+                    ).strip().lower() == 'yes' else ''
+                except Exception:                       # noqa: BLE001
+                    r['s'] = ''
             f.update(running=True, version=str(r.get('v') or ''),
                      ssl=str(r.get('s') or '').upper() == 'YES')
             data = str(r.get('d') or '')
