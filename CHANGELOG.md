@@ -6,7 +6,21 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.125 - not released
 
-(nothing yet)
+- Target agents: a join, join-state or enrollment request whose proof had a letter beyond ASCII stopped with an error of the daemon (and a wrong join was not counted as a try); it is refused with 403 and counted now. (security)
+- Target agents: a renewal of an agent's certificate that the agent did not take put back the old certificate but kept the new one's end - acme thought it renewed for 30 days and the certificate in use ran out without a renewal or an alert; its end is put back too, and the renewal is tried again.
+- Target agents: after a renewal whose answer was lost (the agent had taken the new certificate), the next renewal no longer let in the certificate the agent uses - it was locked out; acme now keeps the certificate the agent was last seen with as the one let in beside the new one.
+- Target agents: the key check of an agent's certificate request read the whole request, so a subject naming "NIST CURVE: P-256" let a weak RSA key (1024 bits) through; only the key itself is read now. (security)
+- Target agent (Linux): a broad `allow file /etc` (or `/usr/local`, `/usr/share`) still let a job write places whose files give root - `/etc/tmpfiles.d`, `/etc/sudo.conf`, `/etc/ld.so.cache`, `/etc/binfmt.d`, D-Bus (`/etc/dbus-1`, `/usr/share/dbus-1`), `/usr/share/polkit-1`, `/usr/local/lib` (Python's site-packages, and the release keys an update is checked with) and Debian's `/etc/python3.X/sitecustomize.py` (run by every Python as root, the agent's root side too); they are now never written nor taken away, whatever the policy says. (security)
+- Target agent: `acme-agent deny script PATH` of a script changed or deleted since it was allowed was refused ("no such entry" / "cannot be read") - it is now taken away by its path; `acme-agent allow script PATH` again after a change replaces the line of that path instead of adding a second one.
+- Target agent: `acme-agent allow file DIR --owner` (or `--mode`) with no value after it stopped with a Python traceback - it now says how the command goes.
+- Overview: at a phone's width the page opened about 540 px down, under the header (the account and Sign out out of sight) - the certificates' tiles drawn in front of isemon's tile pushed down what the redraw keeper held and the page was scrolled after it; a page at its very top now stays at its top.
+- Overview: the tile The database said "naposledy před copy 2 min" in Czech ("last copy 2 min ago" taken by another sentence); it now says "poslední kopie před 2 min".
+- Jobs: the count of running jobs on the tab stayed "1" for good once the job ended while the Overview was shown; the Overview now keeps it up to date too.
+- Overview: the tile Failing (and a failed deployment under What needs a look) opened Jobs at "deployment · failed", which showed no job when the deployment failed inside an issue or a renewal; it now opens every failed job, and a certificate chosen in the Jobs filter before no longer hides them.
+- Log: a clock stepped back (NTP) silenced every warning and error written "once in a while" (the database away, a tick that broke) until the clock caught up - a day back, a day without a word; such a line is written again at once.
+- Certificate jobs: a stop asked from the other node or from the pages, and the steps written while a job runs, were timed on the wall clock - with the clock stepped back the stop was not seen (and the steps not written) for as long; they are timed on the monotonic clock now.
+- Certificate jobs: a job the pool refused (its pool shut down by another thread as certs_parallel changed, or acme stopping) stayed "queued" and kept its certificate busy until acme was restarted; it is given to the pool under the pool's lock now, and one still refused is ended as failed with its certificate free.
+- Settings: a directory saved (or the configuration put in) on this node while a change from the other node or the command line was not yet read here wrote over its mark and took it as read - that change never came into effect here until the next restart or save; it is read in now.
 
 ## 1.0.124 - 2026-11-17
 

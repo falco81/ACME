@@ -1227,7 +1227,11 @@ function viewTake(node) {
   if (node && w) {
     if (w.inner && w.inner.contains(node)) node = w.inner;
     VIEWKEEP.at = viewHold(node, w.sc);
-  } else VIEWKEEP.at = viewPick();
+  } else {
+    VIEWKEEP.at = viewPick();
+    /* picked with the box at its very top, nobody holding anything (1.0.125): see viewKeep */
+    if (VIEWKEEP.at) VIEWKEEP.at.atTop = VIEWKEEP.at.sc.scrollTop < 1;
+  }
   viewTops();
 }
 /* The element held, found again: the same one, else the one drawn in its place (the same
@@ -1424,6 +1428,11 @@ function viewKeep() {
     }
     var got = viewFind(a);
     if (!got) { viewTake(null); viewRoomBack(); return; }
+    /* A box at its very top, what was held only picked from the middle of the frame, stays at
+       its top (1.0.125, as the browser's own scroll anchoring): the Overview on a phone opened
+       537 px down, under its header - the certificates' four tiles drawn in front of isemon's
+       tile, held in the middle, pushed it down and the page was scrolled after it. */
+    if (a.atTop && a.sc.scrollTop < 1) { viewTake(null); viewRoomBack(); return; }
     var base = viewTopOf(a.sc);
     var gr = got.el.getBoundingClientRect();
     var d = gr.top - base - got.top;
