@@ -68275,6 +68275,10 @@
   "z_940": {
    "source": "On the server, in this order: before, the files, the machine store, the bindings, the PowerShell after the import, the test, the script, the restarts, the read on the key and the roles, after - anything failing before the roles puts the bindings back to the certificate they had, takes the new one out of the store again and puts the files back",
    "text": "Na serveru v tomto pořadí: před, soubory, úložiště počítače, vazby, PowerShell po importu, test, skript, restarty, čtení klíče a role, po – cokoli, co selže před rolemi, vrátí vazby na certifikát, který měly, odebere nový certifikát z úložiště a vrátí soubory zpět"
+  },
+  "z_941": {
+   "source": "protected by a password acme made, kept sealed with the deployment (in ACME_PASSWORD for the script)",
+   "text": "chráněný heslem, které vytvořil acme a uchovává zapečetěné u nasazení (pro skript v ACME_PASSWORD)"
   }
  },
  "patterns": {
@@ -94609,6 +94613,14 @@
   "pz_258": {
    "source": "Downloaded - no new report of: {0}",
    "text": "Staženo – bez nové zprávy uzlu: {0}"
+  },
+  "pz_259": {
+   "source": "a third of its life ({0}) before the end - its {1} days are more than that - or sooner in the window its CA suggests (ARI)",
+   "text": "třetinu jeho platnosti ({0}) před koncem - jeho {1} dní je víc - nebo dříve v okně, které navrhuje jeho CA (ARI)"
+  },
+  "pz_260": {
+   "source": "the key it has is {0}, not the key type asked: a new one, kept at the renewals after",
+   "text": "klíč, který má, je {0}, ne požadovaný typ klíče: nový, ponechaný při dalších obnovách"
   }
  },
  "rich": {

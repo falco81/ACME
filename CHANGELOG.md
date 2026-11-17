@@ -6,7 +6,22 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.124 - not released
 
-(nothing yet)
+- Target agents: an agent confirmed a second time (two people at once, a page not drawn again, the same server twice in *Confirm selected*) was signed a new certificate - an active agent that had already taken the first one was refused at its first poll and locked out. A confirmed agent now stays as it was confirmed.
+- Target agents: a refused enrollment request (a wrong proof, a code used up) wrote the enrollment code back as it was read before the check - a revocation made in that moment could be undone. It is re-read first now. (security)
+- Target agents: the hash of acme_agent.py (the program as a Linux agent updated from 1.0.119 says it) was read and computed again for every agent of Settings → Target agents on every refresh; it is kept with the program's hash now.
+- Target agents: *Update all agents* and the card of a Windows agent told to run `sudo acme-agent allow self-update` - Windows has no sudo; a Windows agent's line is `acme-agent allow self-update` (in an elevated prompt).
+- Upgrades: `install.sh` cut a text for the upgrade's progress file after escaping it - a cut through an escape (a long message ending in \ or ") left a broken `.upgrade.json`; it now cuts first.
+- Target agents: `acme --target-agent NAME system` said a time zone half an hour behind UTC as UTC+00:30 - now UTC-00:30.
+- What happens: a PKCS#12 / keystore file with a password made by acme (pfx_password_mode "generate") on a server with acme-agent was said to get "a new password each time"; it says now that acme made one and keeps it sealed with the deployment - the same at every renewal.
+- What happens: "Next renewal" of a short-lived certificate (shorter than three times its renew days, e.g. a 6-day one) was said to be at once; it says now when the renewer really renews it - a third of its life before its end.
+- What happens: with "Keep the key" and the key type changed, the plan said the key it has is kept; it says now that a new key of the type asked is made, as the renewal does.
+- SELinux: "Download the report" in a cluster waited three minutes for a node not heard from, and then said "every node's report is in it" while that node's report was an old one or none; a node not heard from is no longer waited for, and the nodes that made no new report are named.
+- SELinux: with a node not heard from (its first look or a step asked of it pending), the card was asked for and drawn again every two seconds for as long as the pane stayed open; such a node is no longer waited for.
+- Upgrades: for ten minutes after an upgrade was done (or failed), a daemon not answering was not said on the pages - no red bar, the pill as it was - because root's file of that upgrade hid it; only an upgrade still running does now.
+- Agent (Windows): a deployment's stale file whose path differed from a file written in the same deployment only in letter case (C:\Certs\a.pem vs C:\certs\a.pem, e.g. after the path's case was changed in acme) was taken away right after the new certificate was written - the same file on Windows; paths are now compared case-insensitively on Windows (and the same file twice is refused).
+- Agent (Windows): an upgrade or repair of the MSI run with JOINCODE= (the documented Intune/SCCM line, a GPO transform) joined acme anew, replacing the agent's key and leaving its confirmed target behind; an agent that has joined already now keeps its identity (acme-agent join CODE still joins anew).
+- Agent (Windows): the MSI's join action did not set HideTarget, so a verbose install log (/l*v) could hold the join or enrollment code from its command line; the bit is now set after wixl builds the MSI. (security)
+- Agent (Windows): an import into the machine store that found no private key left the imported certificate in LocalMachine\My; it is taken out again before the deployment fails.
 
 ## 1.0.123 - 2026-11-17
 

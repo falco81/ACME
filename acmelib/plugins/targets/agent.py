@@ -365,7 +365,7 @@ class AgentTarget(Base):
     def plan_meta(self, options, r):
         """What a plan says of the files besides the job (1.0.123): how a PKCS#12/JKS is
         protected, its alias - the password itself never."""
-        mode = str((options or {}).get('pfx_password_mode') or 'fixed')
+        mode = SC.password_mode(options)
         if mode == 'fixed' and not (options or {}).get('pfx_password'):
             mode = 'none'
         return {'password': mode, 'alias': r.get('jks_alias') or (r.get('vars') or {}).get('name')
