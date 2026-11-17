@@ -422,6 +422,7 @@ table.ct-deptable,table.ct-vertable,table.ct-issued,table.ct-dnstable{min-width:
 .ct-star.on svg{fill:currentColor}
 .ct-pki-line .btn{margin-left:8px}
 .ct-default-note{display:flex;gap:6px;align-items:center}
+.ct-default-note > .tag{flex:none;white-space:nowrap}   /* "default" whole, not broken in two on a phone (1.0.119) */
 
 /* ---- HTTP-01 here, publishing on acme --------------------------------------- */
 .ct-http{margin-top:14px;padding-top:4px;border-top:1px solid var(--line)}
@@ -1546,3 +1547,10 @@ code.gd-ccopy.gd-copied::after{content:'✓';font-size:10px;margin-left:4px;colo
 .ct-agentkey-ic{flex:none;width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:var(--warn);
   background:var(--warn-bg);line-height:0}
 .ct-agentkey p{margin:3px 0 0}
+/* A module's head in its window on a phone (1.0.119): the guide's button beside the words
+   left them a column a word wide - the button goes under them, the words take the width. */
+@media (max-width:560px){
+  .ct-plughead{flex-wrap:wrap}
+  .ct-plughead-w{flex:1 1 calc(100% - 62px)}
+  .ct-plughead-guide{margin-left:62px}
+}

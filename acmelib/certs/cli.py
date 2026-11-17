@@ -1043,6 +1043,22 @@ class Cli(object):
                     print('nothing is due (--force renews every one)')
                 return 0
             bad = 0
+            # Those waiting for their approval said, not passed over in silence (1.0.119):
+            # with every one due waiting, nothing was printed and it ended 0.
+            waiting = [(r, S.unapproved_why(self.store, r)) for r in todo]
+            waiting = [(r, why) for r, why in waiting if why]
+            if waiting and len(waiting) == len(todo):
+                if self.json:
+                    self.out({'jobs': [], 'waiting': [{'cert': r['name'], 'said': why}
+                                                      for r, why in waiting]})
+                else:
+                    for r, why in waiting:
+                        print('%s (--approve %s)' % (why, r['name']))
+                    print('nothing renewed: every one due waits for its approval')
+                return 0
+            for r, why in waiting:
+                if not self.json:
+                    print('%s - not renewed (--approve %s)' % (why, r['name']), file=sys.stderr)
             self._jobs_json = [] if self.json else None
             for r in todo:
                 if S.unapproved_why(self.store, r):
@@ -1311,6 +1327,11 @@ class Cli(object):
     def export(self):
         a = self.args
         row = self.cert_ref(a.export)
+        # A format there is not said as that, before a missing --out (1.0.119).
+        from acmelib.certs.api import FORMAT_FILES
+        if str(a.format or '') not in FORMAT_FILES:
+            raise SystemExit('acme: --format %s is not a format of --export: %s'
+                             % (a.format, ' '.join(FORMAT_FILES)))
         if not a.out:
             raise SystemExit('acme: --export needs --out FILE (or --out - for stdout)')
         keyish = 'key' in str(a.format or '') or str(a.format or '').startswith(

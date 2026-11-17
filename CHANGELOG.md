@@ -6,10 +6,16 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.119 - not released
 
+- Settings → Time ("Its time") and Backups ("Next"): dd-mm-yyyy hh:mm:ss as everywhere else, not the browser's own format.
+- Settings → Message texts: a save on a single node says "saved" - it said both nodes send the words now.
+- Settings → High security: a rule made an exception (or enforced again) is shown at once on the settings of the other panes - "not allowed" stayed until the page was loaded again.
+- Settings → Sign-in protection: a directory taken away while a change to its password cap waited no longer stops the page with an error.
+- On a phone: SSH server's choices (Root signs in) wrap inside their frame instead of running past it; an account's buttons on one line; a source's or validation's window keeps its words the width of it, "default" in one piece; Show a certificate has the sides of every other window; a note under a table or buttons no longer sits right on it (on every screen).
+- Command line: `--renew all` says which certificates wait for their approval - with every one due waiting it printed nothing; `--export NAME --format X` names a format there is not, before asking for `--out`.
 - Command line: `--set KEY-=VALUE` takes VALUE out of a list (tags, a module's list) - it said "has no tags-"; a module's number given as `nan` or `inf` is refused, not a traceback; `--target-agent NAME forget|confirm|update`, `design text|forget` and `--console-users` / `--console-at-login on|off` answer JSON with `--json`; `NO_COLOR` set but empty no longer turns colour off.
 - Console: the menus are not coloured with `--no-color` or `NO_COLOR`; the live log shows acme.log once it is made (opened before it was there, it stayed empty); a new account's name beginning with `-` or `.` is refused in the form; a target's acme-agent has *The policy designed for it* (`design show`), as the command line.
 - Settings → The database: the card of this machine's database no longer says a MySQL 8.4 or later is not running (it has no `@@have_ssl`; its TLS is read from `performance_schema`).
-- Certificates → Import (and a CSR's answer): a file that is no base64 says "data_b64 is not base64" instead of a vague error.
+- Certificates → Import (and a CSR's answer), Show a certificate (API): a file that is no base64 says "data_b64 is not base64" instead of a vague error (or "nothing was given").
 - Settings → DNS: Test in a set's form with no servers in it says so - it tried the set as saved.
 - Settings → Request profiles: a profile whose source was deleted says so in its form and keeps it until another is chosen - the box showed no source, without a word.
 - Guides: a link whose address has spaces or brackets is kept after a save.
@@ -20,20 +26,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - Certificates: a revoked certificate says "revoked" in red in the list and the overview, its window no "… days left" in green; a serial typed with colons (`1F:AB:…`) is found; the window says the key's size once ("RSA 2048", not "RSA 2048 · 2048 bits").
 - Import: a key dropped with an earlier certificate is not taken for a new certificate dropped alone.
 - CSR for an outside CA: when the certificate was kept but its CSR could not be made, pressing the button again makes the CSR of that certificate - it said "there is a certificate called … already".
-- Show a certificate (API): `data_b64` that is not base64 says so, not "nothing was given".
 - Deployments: the chain file of a self-signed certificate is shown empty (0 B) with a warning that it is written empty - What happens showed a chain of its own (~600 B), the form guessed one.
 - HAProxy: the previous certificate file is kept until HAProxy took the new one; when the Runtime API refuses it (and no reload command is set, or it fails), the previous file is put back - the new one stayed.
 - This machine: a deployment stopped after its files and before its script or command (acme stopped) runs them the next time - the files found the same, nothing was run.
 - acme push: a deployment saved with no slots (automatically, on the server) shows Automatically and saves - it said "Nothing chosen" and was refused.
 - Taking a target away: "taken off with it" is shown once "Take it off everywhere first" is on.
-- Database TLS (pg_hba.conf): a line PostgreSQL could not read already, not of acme's, no longer refuses acme's own change of it (TLS for the other node, its new address, joining a pair).
-- acme-db-agent: MySQL 8.4 and later (no `@@have_ssl`) is seen running, its TLS read from its TLS channel - it was taken for stopped and TLS refused.
-
+- Database TLS (pg_hba.conf): a line PostgreSQL could not read already, not of acme's, no longer refuses acme's own change of it (TLS for the other node, its new address, joining a pair) - nor, through acme-db-agent, every address acme adds.
+- acme-db-agent: MySQL 8.4 and later (no `@@have_ssl`) is seen running, its TLS read from its TLS channel - it was taken for stopped and TLS refused; MariaDB without `have_ssl` no longer makes the agent look silent.
 - DNS server: a record of your own with TTL 0 keeps 0 (it was given the default TTL) and the list shows 0, not "–"; a value the server cannot answer with (an MX of a name alone, an SRV of three numbers) is refused when added, with an example - it was kept and never answered.
 - SSH keys: a host that begins with `-` is a host to ssh-keyscan, never one of its options.
 - Settings → DNS: a set chosen for a function and then renamed or deleted before Save - Save said "there is no DNS set"; the choice follows the new name, or goes with the set.
 - Owners and teams: *Make it an owner* / *Make it a tag* pressed twice asks once (the second said "there is an owner … already").
-
 - Deployments (security): the password of the PKCS#12 / keystore files printed by the script after the files (an echo, `set -x`) is dots in the job and the jobs' log - it stood there in clear for anyone who may read jobs (this machine, SSH, Windows).
 - This machine (files): a file's path given whole under the target's folder is shown where it is written - the preview, What happens and the test said `<folder>/<folder>/<file>`.
 - Deployment form: a path with a placeholder that is not one names that one, not the first of the path (`{name}`); a deployment opened from a target's window shows its certificate's state and names (it said "web –").
@@ -66,7 +69,6 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - Certificate portal: with a certificate as the only way to sign in, "your sign-in has run out" is said again on the sign-in page.
 - Database server card: on a phone the title of the card's summary no longer squeezes beside its state, which goes under it; *Last heard* of a database server is red when it was not heard from lately, not because its database is down.
 - Joining a database agent that did not answer in time once joined no longer says "Nothing was changed on this node" (it was joined): the join is kept, and the agent is looked at again shortly.
-- acme-db-agent: a line of pg_hba.conf that PostgreSQL could not read already no longer refuses every address acme adds; MariaDB without `have_ssl` no longer makes the agent look silent.
 - install.sh --db-server mariadb: with no folder of MariaDB's configuration it says to set `bind-address` by hand instead of writing into a folder that is not there.
 - Certificate portal: a sign-in left from before the one-time code was switched on is no longer drawn signed in for a moment; Settings → the sign-in's picture: *Save* with your own picture taken away and still picked is refused before the picture is taken away.
 - Certificate portal: the request limit counts the requests of a person with a long sign-in name (over 180 characters); an administrator who sees every certificate no longer has a team's certificate of their own name shown as theirs.
@@ -76,7 +78,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - Certificate's window: on a phone its sections are no longer cut at the right edge; *Renews* says the same in both its sections (an imported one said "only when asked", a revoked one "by itself").
 - Certificates: the names in the list are no longer a letter a line between a phone's width and a wide screen; *Add a certificate*: "Deployments" no longer runs into "Review"; Authorities: the buttons of *Published on acme* line up when they wrap.
 - Sign-in (security): *whoami* reads the account as every other route does - with db_guard on, a role written into the database past acme (or a role of the enrolment pages) is nobody there; the pages' own gates (nginx's question before a big body, a new version or a database sent) took that role.
-- Behind a load balancer (security): *The load balancers and WAFs* never takes every address (`0.0.0.0/0`, `::/0`) - anybody's X-Forwarded-For was then the client's address, each wrong password from an address of its choosing, past the counts and the sign-in protection.
+- Behind a load balancer (security): *The load balancers and WAFs* never takes every address (`0.0.0.0/0`, `::/0`) - anybody's X-Forwarded-For was then the client's address, each wrong password from an address of its choosing, past the counts and the sign-in protection; a configuration file of an earlier version with it is imported without it (and without *behind a load balancer* where none is named here).
 - Sign-in cookies (security): a cookie planted beside the session's under another spelling of its name (`acme.session`, which PHP reads as `acme_session`) counts as a second one - and the sign-in is refused as with two of the same name; it was taken for the session.
 
 ## 1.0.118 - 2026-11-17

@@ -2304,7 +2304,7 @@ function hsOptions(sel, bad, rule) {
 }
 function hsDress(item, s, input) {
   var r = s.hisec;
-  if (!r || !hsOn()) return;
+  if (!r || !hsOn(s.key)) return;     /* an exception greys nothing out (1.0.119) */
   if (isBool(s)) {
     var on = s.value === true || String(s.value) === '1';
     if ((r.forbid || []).indexOf(on ? 0 : 1) >= 0) input._input.disabled = true;
@@ -2317,6 +2317,33 @@ function hsDress(item, s, input) {
   }
   var n = el('div', 'says hs-note', 'High security: ' + r.why + ' - not allowed.');
   (item.querySelector('.set-tail') || item).appendChild(n);
+}
+/* A rule made an exception or enforced again (1.0.119): the settings drawn on the
+   other panes greyed out and said "not allowed" until the page was loaded again.
+   Their boxes dressed again from the settings as they are now - what was typed and
+   not saved stays in them. */
+function hsSettingsAgain() {
+  if (!SETTINGS) return;
+  api('settings').then(function (d) {
+    SETTINGS = d;
+    document.querySelectorAll('.set-item[data-key]').forEach(function (item) {
+      var s = settingByKey(item.dataset.key);
+      var input = $('set-' + item.dataset.key);
+      if (!s || !input || !item.contains(input)) return;
+      var had = item.querySelectorAll('.hs-note');
+      if (!had.length && !s.hisec) return;
+      Array.prototype.forEach.call(had, function (n) { n.parentNode.removeChild(n); });
+      if (input._input) input._input.disabled = !ADMIN;
+      else if (input.tagName === 'SELECT') {
+        Array.prototype.forEach.call(input.options, function (o) {
+          if (o.title === 'not under high security') { o.disabled = false; o.title = ''; }
+        });
+      } else if (input.type === 'number') {
+        if (s.max !== undefined && s.max !== null) input.max = s.max; else input.removeAttribute('max');
+      }
+      hsDress(item, s, input);
+    });
+  }).catch(function () {});
 }
 function hsSwitch(box, s) {
   box._input.addEventListener('change', function () {
@@ -2383,6 +2410,7 @@ function hsList(host, rows, cls, title, redraw) {
           if (STATUS) STATUS.hisec_waived = (v.waived || []).map(function (r) { return r.rule; });
           redraw(v);
           if ($('hs-host') && redraw !== drawHisec) drawHisec(v);
+          hsSettingsAgain();
         }).catch(function (e) { box._input.disabled = false; box._input.checked = !want; oops(e); });
       };
       it.appendChild(sw);
@@ -3637,6 +3665,14 @@ function dpDraft() {
       DP.draft[x.name] = {tries: x.tries === undefined ? null : x.tries, window_min: x.window_min || null};
     });
   }
+  /* A directory gone while a change to its cap waited (1.0.119): dpChanged threw on
+     it - its change is let go; one added since starts as saved. */
+  var there = {};
+  ((DP.data || {}).directories || []).forEach(function (x) {
+    there[x.name] = 1;
+    if (!DP.draft[x.name]) DP.draft[x.name] = {tries: x.tries === undefined ? null : x.tries, window_min: x.window_min || null};
+  });
+  Object.keys(DP.draft).forEach(function (k) { if (!there[k]) delete DP.draft[k]; });
   return DP.draft;
 }
 function dpChanged() {
@@ -3668,6 +3704,7 @@ function drawDirCaps() {
   var dirs = d.directories || [];
   if (!dirs.length) {
     host.appendChild(el('p', 'muted', 'No directory is set up yet (Settings → Accounts → The directories administrators sign in against).'));
+    dpChanged();      /* a change waiting for one gone is let go (1.0.119) */
     return;
   }
   var set = d.setting || {tries: 0, window_min: 30};
@@ -14209,7 +14246,9 @@ function drawRbTop() {
     facts.appendChild(f);
   };
   if (mine) fact('Last', ago(mine.at) + ' · ' + rbBytes(mine.bytes));
-  fact('Next', d.next ? new Date(d.next).toLocaleString(numLang(), {weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit'}) : 'by hand only', d.next ? '' : 'warn');
+  /* dd-mm-yyyy hh:mm:ss as every other time (1.0.119), not the browser's own format */
+  var nextAt = d.next ? new Date(d.next).getTime() : NaN;
+  fact('Next', d.next ? (isNaN(nextAt) ? String(d.next) : stamp(nextAt / 1000)) : 'by hand only', d.next ? '' : 'warn');
   fact('Locked', d.locked ? 'with the password (AES-256)' : 'NOT locked - set the password', d.locked ? 'good' : 'bad');
   fact('Destinations', num(on.length) + ' of ' + num((d.targets || []).length) + ' switched on');
   /* The last try (1.0.169): whether the newest backup can be put back. */
@@ -16159,7 +16198,7 @@ function drawNtp(quiet) {
     var clock = '';
     if (nd.time) {
       var dt = new Date((nd.time + (d.now - (n.now.at || d.now))) * 1000);
-      clock = dt.toLocaleString(numLang());
+      clock = stamp(dt.getTime() / 1000);      /* dd-mm-yyyy hh:mm:ss as everywhere (1.0.119) */
     }
     c.appendChild(netFacts([
       ['Follows', t.ref || t.ref_id || '', true],

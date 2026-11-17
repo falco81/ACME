@@ -73,7 +73,9 @@ def _texts_do(h):
             raise ApiError(400, str(e))
         h.store.add_event('settings', '%s changed the texts of “%s” (%s)'
                           % (s['name'], m['title'], lang.upper()), who=s['name'])
-        return {'message': 'saved - both nodes send these words now', 'saved': new,
+        # "both nodes" only when there are two (1.0.119) - a single node was told so too.
+        return {'message': ('saved - both nodes send these words now' if CONFIG.get('ha_mode')
+                            else 'saved'), 'saved': new,
                 'state': text_state(h.store, mid)[0]}
     if act == 'reset':
         keys = [str(k) for k in (b.get('keys') or []) if isinstance(k, str)]

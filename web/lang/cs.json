@@ -92805,6 +92805,14 @@
   "pz_156": {
    "source": "web_proxy_from: {0} is every address - name the load balancers themselves (their addresses or their network)",
    "text": "web_proxy_from: {0} je každá adresa - uveďte samotné load balancery (jejich adresy nebo jejich síť)"
+  },
+  "pz_157": {
+   "source": "it went wrong after the files were written, the previous files are back: {0}",
+   "text": "po zapsání souborů se něco pokazilo, předchozí soubory jsou zpět: {0}"
+  },
+  "pz_158": {
+   "source": "settings left out: refused here ({0})",
+   "text": "vynechaná nastavení: zde odmítnuta ({0})"
   }
  },
  "rich": {

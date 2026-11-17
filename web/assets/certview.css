@@ -186,7 +186,7 @@
 }
 @media (max-width:720px){
   .modal .box.certview{height:auto;max-height:100%}
-  .cv-page{padding:12px 12px 10px;gap:12px}
+  .cv-page{padding:14px 24px 12px;gap:12px}   /* the sides of every other window (1.0.119) */
   .cv-ask-cols{grid-template-columns:minmax(0,1fr)}
   .cv-drop,.cv-paste{min-height:120px}
   /* on a phone the rail runs down: a short track between two stations */

@@ -3981,7 +3981,7 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 #us-table td select { min-width: 13em; max-width: 100%; }
 @media (max-width: 700px) {
   #us-table td.rowtools, #us-table th.rowtools { position: static; box-shadow: none; max-width: none; }
-  #us-table td.rowtools { min-width: 9.5em; }
+  #us-table td.rowtools { min-width: 9.5em; white-space: nowrap; }   /* one line, not three (1.0.119) */
   #us-table td select { min-width: 10em; }
 }
 /* Events on a phone (1.0.96): what happened was a column off the screen, behind the time,
@@ -4408,3 +4408,15 @@ textarea.dbs-code{width:100%;font-size:12.5px;resize:vertical;min-height:72px}
 @media (max-height:520px){.card-lock-box{padding:18px 22px 16px}.card-lock-ring{width:96px;height:96px}
   .card-lock-n{font-size:30px}.card-lock-unit{font-size:12px;margin-top:1px}.card-lock-box h2{margin-top:10px}}
 .krb-facts + .note.card-watch-note{margin-top:10px}
+/* A choice of several at a phone's width (1.0.119): the buttons wrap inside its frame rather
+   than run past it, cut off (SSH server: "Root signs in" reached x=411 at 375 px). Each
+   button's top and left line overlaps its neighbour's, the frame clips the outer ones. */
+@media (max-width:560px){
+  .seg{flex-wrap:wrap;max-width:100%}
+  .seg button,.seg button:first-child{border-left:1px solid var(--line);border-top:1px solid var(--line);margin:-1px 0 0 -1px;flex:1 1 auto;text-align:center}
+}
+/* A note under a table, a row of buttons, a block of commands or a fold (1.0.119): it sat
+   right on it, 0 px apart - the space every note keeps under it is kept above it here too. */
+.scroll + p.note, .btnrow + p.note, pre + p.note, .lb-block + p.note, .lb-list + p.note,
+details.lb-guide + p.note{margin-top:12px}
+@media (max-width:560px){#gd-find{width:100%;max-width:none !important}}

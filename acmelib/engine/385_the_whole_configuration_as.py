@@ -472,6 +472,19 @@ def config_import(store, daemon, conf, by, keep_account='', access_check=None, n
                         said['settings left out: refused here (%s)' % k_] += 1
                     except Exception:                   # noqa: BLE001
                         pass
+                # The balancers refused (1.0.119: every address, as 1.0.118 took it) and none
+                # here: "behind a load balancer" left out with them - on without its balancers,
+                # save_settings refused it and the whole file's settings with it.
+                if 'web_proxy' in want and 'web_proxy_from' in conf['settings'] and \
+                        'web_proxy_from' not in want and \
+                        not str(CONFIG.get('web_proxy_from') or '').split():
+                    try:
+                        on = check_setting('web_proxy', want['web_proxy'])
+                    except Exception:                   # noqa: BLE001
+                        on = False
+                    if on:
+                        want.pop('web_proxy')
+                        said['settings left out: refused here (web_proxy)'] += 1
                 daemon.save_settings(want, by, node='*', split_card=True)   # a configuration put back: its split choices too (1.0.78)
                 imported_keys |= set(want)
                 said['settings'] += len(want)
