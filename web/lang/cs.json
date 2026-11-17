@@ -92801,6 +92801,10 @@
   "pz_155": {
    "source": "The source {0} of this profile is deleted: choose another.",
    "text": "Zdroj {0} tohoto profilu je smazaný: vyberte jiný."
+  },
+  "pz_156": {
+   "source": "web_proxy_from: {0} is every address - name the load balancers themselves (their addresses or their network)",
+   "text": "web_proxy_from: {0} je každá adresa - uveďte samotné load balancery (jejich adresy nebo jejich síť)"
   }
  },
  "rich": {
