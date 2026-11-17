@@ -741,7 +741,9 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <!-- No password at all (1.0.99, 1.0.100): no name and no password on the page at all. -->
     <form id="signin-form" hidden></form>
     <?php else: ?>
-    <form id="signin-form" autocomplete="on"<?= $mfa !== '' ? ' hidden' : '' ?>>
+    <!-- novalidate: the page says what is missing in the page's language (as the portal) - with
+         only `required` the browser's own bubble said it, in the browser's language -->
+    <form id="signin-form" autocomplete="on" novalidate<?= $mfa !== '' ? ' hidden' : '' ?>>
       <input type="text" id="in-name" name="username" placeholder="name" autocomplete="username"
              autocapitalize="none" spellcheck="false" required>
       <input type="password" id="in-pass" name="password" placeholder="password"
@@ -809,6 +811,13 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
   }
   if (go) form.addEventListener('submit', function (e) {
     e.preventDefault();
+    var noName = !$('in-name').value.trim();
+    if (noName || !$('in-pass').value) {
+      said.className = 'said bad';
+      said.textContent = noName ? 'type your name' : 'type your password';
+      (noName ? $('in-name') : $('in-pass')).focus();
+      return;
+    }
     said.className = 'said';
     said.textContent = '';
     go.disabled = true;
