@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.120 - not released
+## 1.0.120 - 2026-11-17
 
 - Upgrades: every page shows an upgrade going on in a band under the header - to which version, from which, who asked, how long, a bar and the step (*step 7 of 9*); in a cluster a row for each node (its step, how far, what happened, when), whichever node answers behind the VIP address. The pill says *in maintenance*, the cards *maintenance* and *upgrading*. Going back says *taken back to*.
 - Upgrades: while the API, nginx and PHP restart the pages no longer turn red - no "not answering" bar, no red messages; the band says how long it has not answered and asks again every two seconds. Once every node is done the page loads the new version by itself, once (with changes not saved: a *Load it again* link instead). A failure is a red band with the reason and a link to Settings → Upgrades, hidden with ×.
