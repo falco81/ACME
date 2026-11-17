@@ -8,10 +8,19 @@ Owners and teams, tags - and who may see and do what with which certificate
     legacy(store) / adopt(store, by)                        what certificates say that
                                                             is not defined (yet)
     scope(store, s, right)                                  None (all) or {team names}
-    cert_may(store, s, row, right)                          one certificate, one right
+    scope_cap(store, s, cap)                                the same for a capability
+    cert_may(store, s, row, right)                          one certificate, one right (or cap)
     guard(h, s, method, path)                               the API's check, per route
     person_teams(store, names, groups)                      {team: rights} of a person
+    person_caps(store, names, groups)                       {team: {name, caps, direct}}
+    roles(store) / save_role / delete_role                  the roles (built in + cert_roles)
+    tree(store) / effective_policy(store, team)             the teams' tree, their limits
     contact_mails(store, cert)                              the owner team's addresses
+
+Enterprise teams (1.0.125, docs/teams.md "Enterprise teams"): a tree of teams (parent),
+capabilities given by the old rights and by roles, a member's capabilities applying to the
+team and every team below it, limits (policy) narrowed downwards. A team without a parent,
+policy or roles works exactly as before.
 
 A full administrator is never scoped, whatever is set; the command line runs as one.
 """
@@ -27,7 +36,7 @@ from acmelib.certs import store as S
 RIGHTS = ('view', 'request', 'manage', 'approve')
 IMPLIES = {'view': {'view'}, 'request': {'view', 'request'},
            'manage': {'view', 'request', 'manage'}, 'approve': {'view', 'approve'}}
-KINDS = ('team', 'person')
+KINDS = ('team', 'person', 'unit')
 DEFAULT_RIGHTS = ['view', 'request']
 COLOURS = ('dim', 'info', 'ok', 'warn', 'crit', 'violet',
            # 1.0.24: more to tell tags apart (teams.css: .tag.tc-<colour>)
@@ -46,6 +55,754 @@ def _low(v):
 
 
 # ---------------------------------------------------------------------------
+# Capabilities and roles (1.0.125)
+# ---------------------------------------------------------------------------
+CAPS = ('cert.view', 'cert.request', 'cert.renew', 'cert.auto', 'cert.edit', 'cert.revoke',
+        'cert.delete', 'cert.key', 'cert.approve', 'deploy.view', 'deploy.run', 'deploy.manage',
+        'target.view', 'target.manage', 'target.test', 'team.view', 'team.members',
+        'team.policy', 'team.create', 'team.activity')
+CAP_WORDS = {
+    'cert.view': 'see the team\'s certificates, their jobs and deployments',
+    'cert.request': 'ask for new certificates owned by the team',
+    'cert.renew': 'renew the team\'s certificates now',
+    'cert.auto': 'switch renewing by itself on or off',
+    'cert.edit': 'change the team\'s certificates (names, source, validation, details)',
+    'cert.revoke': 'revoke the team\'s certificates',
+    'cert.delete': 'delete the team\'s certificates',
+    'cert.key': 'download a file with the private key',
+    'cert.approve': 'approve or decline the team\'s requests',
+    'deploy.view': 'see the deployments of the team\'s certificates',
+    'deploy.run': 'run deployments now',
+    'deploy.manage': 'add, change and delete deployments',
+    'target.view': 'see the team\'s devices',
+    'target.manage': 'add, change and delete the team\'s devices (and confirm its agents)',
+    'target.test': 'test the team\'s devices',
+    'team.view': 'see the team, its members and its limits',
+    'team.members': 'add, change and remove members (never more than one holds oneself)',
+    'team.policy': 'change the limits of the teams below',
+    'team.create': 'create, rename and delete teams below',
+    'team.activity': 'see what happened in the team',
+}
+CAP_GROUPS = (('Certificates', ('cert.view', 'cert.request', 'cert.renew', 'cert.auto',
+                                'cert.edit', 'cert.revoke', 'cert.delete', 'cert.key',
+                                'cert.approve')),
+              ('Deployments', ('deploy.view', 'deploy.run', 'deploy.manage')),
+              ('Devices', ('target.view', 'target.manage', 'target.test')),
+              ('The team', ('team.view', 'team.members', 'team.policy', 'team.create',
+                            'team.activity')))
+VIEW_CAPS = frozenset(('cert.view', 'deploy.view', 'target.view', 'team.view'))
+# The old rights, as capabilities - a member with an old right holds exactly what it gave.
+RIGHT_CAPS = {'view': VIEW_CAPS}
+RIGHT_CAPS['request'] = RIGHT_CAPS['view'] | {'cert.request'}
+RIGHT_CAPS['manage'] = RIGHT_CAPS['request'] | {'cert.renew', 'cert.auto', 'cert.edit',
+                                                'cert.revoke', 'cert.delete', 'cert.key',
+                                                'deploy.run', 'deploy.manage'}
+RIGHT_CAPS['approve'] = RIGHT_CAPS['view'] | {'cert.approve'}
+_R_VIEWER = VIEW_CAPS
+_R_REQUESTER = _R_VIEWER | {'cert.request'}
+_R_RENEWER = _R_VIEWER | {'cert.renew', 'cert.auto'}
+# The built-in roles: in the code, never in the table, never changed or deleted.
+BUILTIN_ROLES = (
+    ('Viewer', _R_VIEWER, 'sees the team\'s certificates, deployments and devices'),
+    ('Requester', _R_REQUESTER, 'a viewer who asks for new certificates'),
+    ('Renewer', _R_RENEWER, 'a viewer who renews certificates and switches renewing by itself'),
+    ('Deployer', _R_VIEWER | {'deploy.run'}, 'a viewer who runs deployments'),
+    ('Device manager', _R_VIEWER | {'target.manage', 'target.test', 'deploy.manage',
+                                    'deploy.run'},
+     'looks after the team\'s devices and the deployments to them'),
+    ('Certificate manager', _R_REQUESTER | _R_RENEWER | {
+        'cert.edit', 'cert.revoke', 'cert.delete', 'cert.key', 'deploy.run', 'deploy.manage'},
+     'everything with the team\'s certificates but approving'),
+    ('Approver', _R_VIEWER | {'cert.approve'}, 'a viewer who approves or declines requests'),
+    ('Team manager', _R_VIEWER | {'team.members', 'team.policy', 'team.create',
+                                  'team.activity'},
+     'runs the team: its members, the teams below and their limits'),
+    ('Team owner', frozenset(CAPS), 'every capability'),
+)
+ROLE_NAME_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9 ._+-]{0,59}\Z')
+ROLES_MOST = 200
+
+
+def _version(store):
+    """What changes when a team or a role does: the tree and the people's capabilities are
+    computed again (kept per store, a generation bumped by every save here, and 30 s at most
+    for what another node or an import wrote)."""
+    try:
+        a = store.db.row('SELECT COUNT(*) AS n, MAX(updated) AS u, MAX(id) AS i FROM cert_teams')
+        b = store.db.row('SELECT COUNT(*) AS n, MAX(updated) AS u, MAX(id) AS i FROM cert_roles')
+    except Exception:                                   # noqa: BLE001
+        return None
+    return (id(store), _GEN[0], int(time.time() // 30),
+            tuple((a or {}).values()), tuple((b or {}).values()))
+
+
+_GEN = [0]
+_CACHE = {}                 # ('tree', version) / ('caps', version, principal) -> value
+_CACHE_MOST = 4096
+
+
+def changed():
+    """A team or a role saved: what was computed of them is computed again."""
+    _GEN[0] += 1
+    _CACHE.clear()
+
+
+def _cached(key, make):
+    if key[1] is None:
+        return make()
+    got = _CACHE.get(key)
+    if got is not None:
+        return got
+    got = make()
+    if len(_CACHE) >= _CACHE_MOST:
+        _CACHE.clear()
+    _CACHE[key] = got
+    return got
+
+
+def role_rows(store):
+    try:
+        return store.db.rows('SELECT * FROM cert_roles ORDER BY name')
+    except Exception:                                   # noqa: BLE001
+        return []
+
+
+def clean_caps(v):
+    if isinstance(v, str):
+        v = [w for w in re.split(r'[\s,;+|]+', v) if w]
+    got = set()
+    for c in v or []:
+        c = str(c).strip().lower()
+        if c in ('*', 'all'):
+            got |= set(CAPS)
+            continue
+        if c in RIGHTS:                     # an old right is what it gave
+            got |= RIGHT_CAPS[c]
+            continue
+        if c not in CAPS:
+            raise ValueError('a capability is one of %s, not %r' % (', '.join(CAPS), c))
+        got.add(c)
+    return [c for c in CAPS if c in got]
+
+
+def role_catalog(store):
+    """{name lower: {'name', 'caps' (frozenset), 'builtin', 'description'}}."""
+    def make():
+        out = {}
+        for name, caps, words in BUILTIN_ROLES:
+            out[name.lower()] = {'name': name, 'caps': frozenset(caps), 'builtin': True,
+                                 'description': words}
+        for r in role_rows(store):
+            k = _low(r['name'])
+            if k in out:
+                continue
+            try:
+                caps = frozenset(clean_caps(S.jload(r.get('caps'), []) or []))
+            except ValueError:
+                caps = frozenset(c for c in (S.jload(r.get('caps'), []) or []) if c in CAPS)
+            out[k] = {'name': r['name'], 'caps': caps, 'builtin': False,
+                      'description': r.get('description') or '', 'id': r['id'],
+                      'updated': r.get('updated'), 'updated_by': r.get('updated_by')}
+        return out
+    return _cached(('roles', _version(store)), make)
+
+
+def roles(store):
+    """The roles as the pages show them: built in first, then the custom ones, each with its
+    capabilities and how many members carry it."""
+    used = {}
+    for t in team_rows(store):
+        for m in S.jload(t.get('members'), []) or []:
+            if isinstance(m, dict):
+                for r in m.get('roles') or []:
+                    used[_low(r)] = used.get(_low(r), 0) + 1
+    out = []
+    for k, r in role_catalog(store).items():
+        out.append({'name': r['name'], 'builtin': r['builtin'], 'description': r['description'],
+                    'caps': [c for c in CAPS if c in r['caps']], 'used': used.get(k, 0)})
+    return out
+
+
+def caps_catalog():
+    return [{'id': c, 'words': CAP_WORDS[c], 'group': g} for g, cs in CAP_GROUPS for c in cs]
+
+
+def _role_members_rename(store, old, new, by):
+    """Every member carrying the role `old` given `new` (None: taken off) -> members changed."""
+    n = 0
+    for t in team_rows(store):
+        ms = S.jload(t.get('members'), []) or []
+        hit = False
+        for m in ms:
+            if isinstance(m, dict) and any(_low(r) == _low(old) for r in m.get('roles') or []):
+                got = []
+                for r in m.get('roles') or []:
+                    r = new if _low(r) == _low(old) else r
+                    if r and _low(r) not in {_low(x) for x in got}:
+                        got.append(r)
+                if got:
+                    m['roles'] = got
+                else:
+                    m.pop('roles', None)
+                hit = True
+                n += 1
+        if hit:
+            ms = [m for m in ms if not isinstance(m, dict) or m.get('rights') or m.get('roles')]
+            store.db.update('cert_teams', t['id'], {'members': json.dumps(ms),
+                                                    'updated': _now(), 'updated_by': str(by)[:190]})
+    return n
+
+
+def save_role(store, b, by):
+    """A custom role added or changed: {name, old_name?, description, caps}."""
+    cat = role_catalog(store)
+    old = None
+    if b.get('old_name'):
+        old = next((r for r in role_rows(store) if _low(r['name']) == _low(b['old_name'])), None)
+        if not old:
+            if _low(b['old_name']) in cat:
+                raise ValueError('%s is a built-in role - it is not changed (copy it into a role '
+                                 'of your own)' % cat[_low(b['old_name'])]['name'])
+            raise LookupError('there is no role %s' % b['old_name'])
+    name = str(b.get('name') or '').strip()
+    if not ROLE_NAME_RE.match(name):
+        raise ValueError('a role\'s name: letters, digits, spaces and . _ + - (60 at most), '
+                         'starting with a letter or a digit')
+    if name.lower() in {n.lower() for n, _c, _w in BUILTIN_ROLES}:
+        raise ValueError('%s is a built-in role - choose another name' % name)
+    if name.lower() in RIGHTS:
+        raise ValueError('%s is an old right - choose another name' % name)
+    other = next((r for r in role_rows(store) if _low(r['name']) == _low(name)), None)
+    if other and (not old or other['id'] != old['id']):
+        raise ValueError('there is a role called %s already' % other['name'])
+    if not old and len(role_rows(store)) >= ROLES_MOST:
+        raise ValueError('%d roles at most' % ROLES_MOST)
+    caps = clean_caps(b.get('caps') if 'caps' in b else S.jload((old or {}).get('caps'), []))
+    if not caps:
+        raise ValueError('a role gives at least one capability')
+    row = {'name': name, 'caps': json.dumps(caps),
+           'description': str(b.get('description', (old or {}).get('description')) or '')
+           .strip()[:500], 'updated': _now(), 'updated_by': str(by)[:190]}
+    if old:
+        store.db.update('cert_roles', old['id'], row)
+        if old['name'] != name:
+            _role_members_rename(store, old['name'], name, by)
+        store.add_event('certificates', 'the role %s changed by %s%s: %s' % (
+            name, by, (' (was %s)' % old['name']) if old['name'] != name else '',
+            ', '.join(caps)), who=by)
+    else:
+        row.update(created=_now(), created_by=str(by)[:190])
+        store.db.insert('cert_roles', row)
+        store.add_event('certificates', 'the role %s added by %s: %s' % (
+            name, by, ', '.join(caps)), who=by)
+    changed()
+    return next(r for r in roles(store) if r['name'] == name)
+
+
+def delete_role(store, name, by, strip=False):
+    row = next((r for r in role_rows(store) if _low(r['name']) == _low(name)), None)
+    if not row:
+        if _low(name) in role_catalog(store):
+            raise ValueError('%s is a built-in role - it is not deleted' % name)
+        raise LookupError('there is no role %s' % name)
+    used = next((r['used'] for r in roles(store) if _low(r['name']) == _low(row['name'])), 0)
+    if used and not strip:
+        raise ValueError('%s is given to %d member(s) - delete it with strip to take it off '
+                         'them' % (row['name'], used))
+    if used:
+        _role_members_rename(store, row['name'], None, by)
+    store.db.run('DELETE FROM cert_roles WHERE id = ?', (row['id'],))
+    store.add_event('certificates', 'the role %s deleted by %s%s' % (
+        row['name'], by, (' - taken off %d member(s)' % used) if used else ''),
+        'warn' if used else 'info', who=by)
+    changed()
+    return {'deleted': row['name'], 'stripped': used}
+
+
+def member_caps(m, cat, now=None):
+    """The capabilities one member (a dict) gives: its rights and its roles - none once its
+    `until` has passed."""
+    if not isinstance(m, dict) or member_expired(m, now):
+        return frozenset()
+    got = set()
+    for r in m.get('rights') or []:
+        got |= RIGHT_CAPS.get(r, set())
+    for r in m.get('roles') or []:
+        one = cat.get(_low(r))
+        if one:
+            got |= one['caps']
+    return frozenset(got)
+
+
+def member_expired(m, now=None):
+    u = m.get('until') if isinstance(m, dict) else None
+    if u in (None, '', 0):
+        return False
+    try:
+        return float(u) <= (time.time() if now is None else now)
+    except (TypeError, ValueError):
+        return False
+
+
+def rights_of_caps(caps):
+    """The old rights a set of capabilities holds in full (for the old callers)."""
+    return {r for r in RIGHTS if RIGHT_CAPS[r] <= caps}
+
+
+# ---------------------------------------------------------------------------
+# The tree (1.0.125)
+# ---------------------------------------------------------------------------
+class Tree(object):
+    """The teams as a tree, computed once per version: rows by lower name, parent, children,
+    top-down order, policies."""
+    def __init__(self, rows):
+        self.rows = {}
+        self.parent = {}
+        self.children = {}
+        for t in rows:
+            k = _low(t['name'])
+            self.rows[k] = t
+        for k, t in self.rows.items():
+            p = _low(t.get('parent'))
+            self.parent[k] = p if p and p in self.rows and p != k else None
+        # a cycle written by hand (never by save_team): broken where it closes
+        for k in list(self.rows):
+            seen, at = {k}, self.parent[k]
+            while at:
+                if at in seen:
+                    self.parent[k] = None
+                    break
+                seen.add(at)
+                at = self.parent.get(at)
+        for k, p in self.parent.items():
+            self.children.setdefault(p, []).append(k)
+        for v in self.children.values():
+            v.sort(key=lambda x: self.rows[x]['name'].lower())
+        self.order = []
+        todo = list(self.children.get(None, []))
+        while todo:
+            k = todo.pop(0)
+            self.order.append(k)
+            todo[0:0] = self.children.get(k, [])
+        self.policies = {k: policy_of(t) for k, t in self.rows.items()}
+        self._eff = {}
+
+    def name(self, k):
+        t = self.rows.get(_low(k))
+        return t['name'] if t else None
+
+    def ancestors(self, k):
+        """[parent, grandparent, ...] (lower names)."""
+        out, at = [], self.parent.get(_low(k))
+        while at:
+            out.append(at)
+            at = self.parent.get(at)
+        return out
+
+    def chain(self, k):
+        """[top, ..., k] (lower names)."""
+        k = _low(k)
+        return list(reversed(self.ancestors(k))) + ([k] if k in self.rows else [])
+
+    def descendants(self, k):
+        out, todo = [], list(self.children.get(_low(k), []))
+        while todo:
+            x = todo.pop()
+            out.append(x)
+            todo.extend(self.children.get(x, []))
+        return out
+
+    def depth(self, k):
+        return len(self.ancestors(k))
+
+    def effective(self, k):
+        k = _low(k)
+        if k not in self._eff:
+            self._eff[k] = merge_policies([(self.rows[x]['name'], self.policies.get(x) or {})
+                                           for x in self.chain(k)])
+        return self._eff[k]
+
+
+def tree(store):
+    return _cached(('tree', _version(store)), lambda: Tree(team_rows(store)))
+
+
+def descendants(store, team):
+    return [tree(store).rows[k]['name'] for k in tree(store).descendants(team)]
+
+
+def tree_public(store, counts=None):
+    """[{name, kind, parent, depth, children: [names], description, members, certs}] top-down."""
+    tr = tree(store)
+    counts = counts or {}
+    out = []
+    for k in tr.order:
+        t = tr.rows[k]
+        out.append({'name': t['name'], 'kind': t.get('kind') or 'team',
+                    'parent': tr.name(tr.parent[k]) if tr.parent[k] else None,
+                    'depth': tr.depth(k), 'children': [tr.rows[c]['name']
+                                                       for c in tr.children.get(k, [])],
+                    'description': t.get('description') or '',
+                    'members': len([m for m in S.jload(t.get('members'), []) or []
+                                    if isinstance(m, dict)]),
+                    'certs': counts.get(k, 0)})
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Whose capabilities, where (1.0.125)
+# ---------------------------------------------------------------------------
+def _principal_key(names, groups):
+    gset = set()
+    for dn, cn in groups or ():
+        gset.add(_low(dn))
+        gset.add(_low(cn))
+    gset.discard('')
+    return frozenset(_low(n) for n in names or () if n), frozenset(gset)
+
+
+def _matches_fast(who, names, gset):
+    """member_matches with the groups as a set (a person in hundreds of groups, thousands of
+    members): the same answer."""
+    w = _low(who)
+    if not w:
+        return False
+    if w in names:
+        return True
+    if w.startswith('local:'):
+        return False
+    bare = w[6:].strip() if w.startswith('group:') else w
+    return bare in gset
+
+
+def person_caps(store, names, groups):
+    """{team lower: {'name', 'caps' (frozenset, inherited from the teams above too),
+    'direct' (its own memberships only)}} of a person by their names and groups - computed once
+    per version of the teams and the person (2000 teams, nested groups: one pass)."""
+    names, gset = _principal_key(names, groups)
+    ver = _version(store)
+
+    def make():
+        tr = tree(store)
+        cat = role_catalog(store)
+        now = time.time()
+        direct = {}
+        for k, t in tr.rows.items():
+            got = set()
+            for m in S.jload(t.get('members'), []) or []:
+                if isinstance(m, dict) and _matches_fast(m.get('who'), names, gset):
+                    got |= member_caps(m, cat, now)
+            if got:
+                direct[k] = frozenset(got)
+        if not direct:
+            return {}
+        out = {}
+        eff = {}
+        for k in tr.order:
+            c = direct.get(k, frozenset()) | eff.get(tr.parent[k], frozenset())
+            if c:
+                eff[k] = c
+                out[k] = {'name': tr.rows[k]['name'], 'caps': c,
+                          'direct': direct.get(k, frozenset())}
+        return out
+    return _cached(('caps', ver, names, gset), make)
+
+
+def person_teams(store, names, groups):
+    """{team name lower: (team name, {rights})} of a person, by their names and groups - the old
+    rights their capabilities hold in full (inherited from the teams above too; a member whose
+    `until` passed none)."""
+    return {k: (v['name'], rights_of_caps(v['caps']))
+            for k, v in person_caps(store, names, groups).items() if rights_of_caps(v['caps'])}
+
+
+def explain(store, names, groups):
+    """Why a person holds what, per team: [{team, caps, via: [{team, who, kind, rights, roles,
+    group, inherited, until}]}] - the access check."""
+    names, gset = _principal_key(names, groups)
+    tr = tree(store)
+    cat = role_catalog(store)
+    now = time.time()
+    hits = {}
+    for k, t in tr.rows.items():
+        for m in S.jload(t.get('members'), []) or []:
+            if not isinstance(m, dict) or not _matches_fast(m.get('who'), names, gset):
+                continue
+            c = member_caps(m, cat, now)
+            w = _low(m.get('who'))
+            hits.setdefault(k, []).append({
+                'team': t['name'], 'who': m.get('who'), 'kind': member_kind(m.get('who')),
+                'rights': list(m.get('rights') or []), 'roles': list(m.get('roles') or []),
+                'group': None if w in names else (w[6:] if w.startswith('group:') else w),
+                'until': m.get('until'), 'expired': member_expired(m, now),
+                'caps': [x for x in CAPS if x in c]})
+    caps = person_caps(store, names, [(g, g) for g in gset])
+    out = []
+    for k in tr.order:
+        if k not in caps:
+            continue
+        via = []
+        for x in tr.chain(k):
+            for one in hits.get(x, []):
+                via.append(dict(one, inherited=x != k))
+        out.append({'team': tr.rows[k]['name'], 'kind': tr.rows[k].get('kind') or 'team',
+                    'parent': tr.name(tr.parent[k]) if tr.parent[k] else None,
+                    'caps': [c for c in CAPS if c in caps[k]['caps']],
+                    'rights': sorted(rights_of_caps(caps[k]['caps'])), 'via': via,
+                    'policy': tr.effective(k)})
+    # memberships that give nothing now (expired): said too
+    for k, lst in hits.items():
+        if k not in caps:
+            out.append({'team': tr.rows[k]['name'], 'kind': tr.rows[k].get('kind') or 'team',
+                        'parent': tr.name(tr.parent[k]) if tr.parent[k] else None,
+                        'caps': [], 'rights': [], 'via': [dict(o, inherited=False) for o in lst],
+                        'policy': tr.effective(k)})
+    return out
+
+
+def session_caps(store, s):
+    """{team lower: {...}} of a session of the administration (person_caps)."""
+    names, groups = admin_principal(s)
+    return person_caps(store, names, groups)
+
+
+# ---------------------------------------------------------------------------
+# Policy: a team's limits (1.0.125)
+# ---------------------------------------------------------------------------
+POLICY_LISTS = ('profiles', 'issuers', 'validations', 'target_kinds', 'suffixes')
+POLICY_BOOLS = {'free_form': True, 'key_download': True, 'agents': True,
+                'agents_auto_confirm': False}
+POLICY_INTS = ('max_certs', 'max_days')
+APPROVAL_MODES = ('none', 'outside', 'profile', 'always')        # weakest first
+APPROVERS = ('team', 'parent', 'team_or_parent', 'both')
+APPROVE_ACTIONS = ('revoke', 'delete', 'key', 'device')
+POLICY_KEYS = POLICY_LISTS + tuple(POLICY_BOOLS) + POLICY_INTS + ('approval',
+                                                                  'approve_actions')
+
+
+def policy_of(t):
+    p = S.jload((t or {}).get('policy'), None)
+    return p if isinstance(p, dict) else {}
+
+
+def _words_list(v, what, most=500, low=True):
+    if v is None:
+        return None
+    if isinstance(v, str):
+        v = [w for w in re.split(r'[\s,;]+', v) if w]
+    if not isinstance(v, (list, tuple)):
+        raise ValueError('%s is a list (or null: no limit)' % what)
+    out = []
+    for w in v:
+        if isinstance(w, (dict, list)) or w in (None, ''):
+            raise ValueError('%s is a list of names' % what)
+        w = str(w).strip()
+        w = w.lower() if low else w
+        if len(w) > 253 or any(ord(c) < 32 for c in w):
+            raise ValueError('%s: %r is not a name' % (what, w[:60]))
+        if w not in out:
+            out.append(w)
+    if len(out) > most:
+        raise ValueError('%s: %d at most' % (what, most))
+    return out
+
+
+def clean_approval(v):
+    """The approval rule: an object (or the old words "profile" / "always")."""
+    if v in (None, '', {}):
+        return None
+    if isinstance(v, str):
+        v = {'mode': v}
+    if not isinstance(v, dict):
+        raise ValueError('approval is {mode, approvers, count, self, outside}')
+    bad = set(v) - {'mode', 'approvers', 'count', 'self', 'outside'}
+    if bad:
+        raise ValueError('approval knows no %s' % ', '.join(sorted(bad)))
+    mode = str(v.get('mode') or 'profile')
+    if mode not in APPROVAL_MODES:
+        raise ValueError('approval.mode is one of %s' % ', '.join(APPROVAL_MODES))
+    out = {'mode': mode}
+    if v.get('approvers') not in (None, ''):
+        if v['approvers'] not in APPROVERS:
+            raise ValueError('approval.approvers is one of %s' % ', '.join(APPROVERS))
+        out['approvers'] = v['approvers']
+    if v.get('count') not in (None, ''):
+        try:
+            n = int(v['count'])
+        except (TypeError, ValueError):
+            n = 0
+        if n not in (1, 2):
+            raise ValueError('approval.count is 1 or 2')
+        out['count'] = n
+    if v.get('self') not in (None, ''):
+        out['self'] = bool(v['self']) and str(v['self']).lower() not in ('0', 'false', 'no')
+    if v.get('outside') not in (None, '', {}):
+        o = v['outside']
+        if not isinstance(o, dict):
+            raise ValueError('approval.outside is {profiles, suffixes, max_days, key_types}')
+        bad = set(o) - {'profiles', 'suffixes', 'max_days', 'key_types'}
+        if bad:
+            raise ValueError('approval.outside knows no %s' % ', '.join(sorted(bad)))
+        oo = {}
+        for k in ('profiles', 'suffixes', 'key_types'):
+            if o.get(k) is not None:
+                oo[k] = _words_list(o[k], 'approval.outside.' + k, low=k != 'profiles')
+        if o.get('max_days') not in (None, ''):
+            oo['max_days'] = _pos_int(o['max_days'], 'approval.outside.max_days')
+        out['outside'] = oo
+    return out
+
+
+def _pos_int(v, what):
+    if isinstance(v, bool):
+        raise ValueError('%s is a whole number' % what)
+    try:
+        n = int(v)
+    except (TypeError, ValueError):
+        raise ValueError('%s is a whole number' % what)
+    if n < 0 or n > 10 ** 6:
+        raise ValueError('%s is 0 to 1000000' % what)
+    return n
+
+
+def clean_policy(v):
+    """A team's own limits -> a dict of the keys set (an empty one: no limit of its own)."""
+    if v in (None, '', {}):
+        return {}
+    if isinstance(v, str):
+        try:
+            v = json.loads(v)
+        except ValueError:
+            raise ValueError('the policy is JSON: {"profiles": [...], "max_days": 90, ...}')
+    if not isinstance(v, dict):
+        raise ValueError('the policy is an object of limits')
+    bad = set(v) - set(POLICY_KEYS)
+    if bad:
+        raise ValueError('a policy knows no %s (it knows %s)' % (', '.join(sorted(bad)),
+                                                                  ', '.join(POLICY_KEYS)))
+    out = {}
+    for k in POLICY_LISTS:
+        if k in v and v[k] is not None:
+            out[k] = _words_list(v[k], k, low=k not in ('profiles', 'issuers', 'validations'))
+            if k == 'suffixes':
+                out[k] = [w.lstrip('*').lstrip('.') for w in out[k]]
+    for k, _d in POLICY_BOOLS.items():
+        if k in v and v[k] is not None:
+            if not isinstance(v[k], bool) and str(v[k]).lower() not in ('0', '1', 'true',
+                                                                          'false'):
+                raise ValueError('%s is true or false' % k)
+            out[k] = v[k] if isinstance(v[k], bool) else str(v[k]).lower() in ('1', 'true')
+    for k in POLICY_INTS:
+        if k in v and v[k] not in (None, ''):
+            out[k] = _pos_int(v[k], k)
+    if 'approval' in v:
+        a = clean_approval(v['approval'])
+        if a:
+            out['approval'] = a
+    if v.get('approve_actions') is not None:
+        acts = _words_list(v['approve_actions'], 'approve_actions')
+        bad = [a for a in acts if a not in APPROVE_ACTIONS]
+        if bad:
+            raise ValueError('approve_actions are of %s' % ', '.join(APPROVE_ACTIONS))
+        out['approve_actions'] = acts
+    return out
+
+
+def _under(name, suffix):
+    name, suffix = _low(name).lstrip('*').lstrip('.'), _low(suffix).lstrip('*').lstrip('.')
+    return name == suffix or name.endswith('.' + suffix)
+
+
+def _meet_suffixes(a, b):
+    out = []
+    for x in a:
+        for y in b:
+            z = x if _under(x, y) else (y if _under(y, x) else None)
+            if z and z not in out:
+                out.append(z)
+    return out
+
+
+def merge_policies(chain):
+    """The limits in force for the last team of `chain` ([(team, own policy)] top first): the
+    intersection - a team below only narrows what those above allow. `from` says which team's
+    limit each key is (the inner-most that narrowed it)."""
+    eff, src = {}, {}
+    for team, p in chain:
+        for k in POLICY_LISTS:
+            if p.get(k) is None:
+                continue
+            if k not in eff:
+                eff[k] = list(p[k])
+            elif k == 'suffixes':
+                eff[k] = _meet_suffixes(eff[k], p[k])
+            else:
+                mine = {_low(x) for x in p[k]}
+                eff[k] = [x for x in eff[k] if _low(x) in mine]
+            src[k] = team
+        for k, d in POLICY_BOOLS.items():
+            if k not in p:
+                continue
+            if k == 'agents_auto_confirm':
+                eff[k] = bool(p[k]) and eff.get(k, True) is not False
+            else:
+                eff[k] = bool(p[k]) and eff.get(k, True)
+            src[k] = team
+        for k in POLICY_INTS:
+            if p.get(k) is not None and (eff.get(k) is None or p[k] < eff[k]):
+                eff[k] = p[k]
+                src[k] = team
+        a = p.get('approval')
+        if a:
+            have = eff.get('approval') or {}
+            m = a.get('mode', 'profile')
+            if not have or APPROVAL_MODES.index(m) >= APPROVAL_MODES.index(have.get('mode',
+                                                                                 'profile')):
+                new = dict(a)
+                new['count'] = max(int(a.get('count') or 1), int(have.get('count') or 1))
+                new['self'] = bool(a.get('self', False)) and bool(have.get('self', True))
+                eff['approval'] = new
+            else:
+                have = dict(have)
+                have['count'] = max(int(a.get('count') or 1), int(have.get('count') or 1))
+                have['self'] = bool(a.get('self', False)) and bool(have.get('self', True))
+                eff['approval'] = have
+            src['approval'] = team
+        if p.get('approve_actions'):
+            eff['approve_actions'] = sorted(set(eff.get('approve_actions') or [])
+                                            | set(p['approve_actions']))
+            src['approve_actions'] = team
+    if eff:
+        eff['from'] = src
+    return eff
+
+
+def effective_policy(store, team):
+    """The limits in force for a team ({} none - as before)."""
+    tr = tree(store)
+    if _low(team) not in tr.rows:
+        return {}
+    return tr.effective(team)
+
+
+def policy_value(eff, key):
+    """A key of an effective policy, its default where no team said it."""
+    if key in POLICY_BOOLS:
+        return eff.get(key, POLICY_BOOLS[key])
+    return eff.get(key)
+
+
+def approval_rule(eff):
+    """{mode, approvers, count, self, outside} in force ('profile' as before when none)."""
+    a = dict(eff.get('approval') or {})
+    a.setdefault('mode', 'profile')
+    a.setdefault('approvers', 'team')
+    a['count'] = int(a.get('count') or 1)
+    a.setdefault('self', False)
+    return a
+
+
+# ---------------------------------------------------------------------------
 # Members and their rights
 # ---------------------------------------------------------------------------
 def clean_rights(v):
@@ -61,12 +818,20 @@ def clean_rights(v):
     return [r for r in RIGHTS if r in got]
 
 
-def clean_member(m):
+def clean_member(m, cat=None):
     """{'who', 'rights'} of one member: local:NAME, a directory user (its
-    sAMAccountName, UPN or mail), group:NAME or a group's DN."""
+    sAMAccountName, UPN or mail), group:NAME or a group's DN - and (1.0.125) its `roles`
+    (names of the roles catalog, `cat`), `until` (epoch: the membership ends then) and a
+    `note`, kept only where given."""
     if isinstance(m, str):
         who, _, rights = m.partition('=')
-        m = {'who': who, 'rights': rights or list(DEFAULT_RIGHTS)}
+        words = [w.strip() for w in re.split(r'[,;+|]+', rights) if w.strip()]
+        if words and any(w.lower() not in RIGHTS for w in words):
+            # who=Requester+Deployer (1.0.125): roles, the old rights among them kept as rights
+            m = {'who': who, 'rights': [w for w in words if w.lower() in RIGHTS],
+                 'roles': [w for w in words if w.lower() not in RIGHTS]}
+        else:
+            m = {'who': who, 'rights': rights or list(DEFAULT_RIGHTS)}
     if not isinstance(m, dict):
         raise ValueError('a member is {who, rights}')
     who = str(m.get('who') or '').strip()
@@ -82,10 +847,51 @@ def clean_member(m):
         if not who[6:].strip():
             raise ValueError('group: needs the name of a group')
         who = 'group:' + who[6:].strip()
-    rights = clean_rights(m.get('rights') if m.get('rights') is not None else DEFAULT_RIGHTS)
-    if not rights:
+    roles_ = m.get('roles')
+    if isinstance(roles_, str):
+        roles_ = [w for w in re.split(r'[,;+|]+', roles_) if w.strip()]
+    if roles_ is not None and not isinstance(roles_, (list, tuple)):
+        raise ValueError('the roles of a member are a list of names')
+    got_roles = []
+    for r in roles_ or []:
+        r = str(r).strip()
+        if not r:
+            continue
+        if cat is not None:
+            one = cat.get(r.lower())
+            if not one:
+                raise ValueError('there is no role %s' % r[:60])
+            r = one['name']
+        if r.lower() not in {x.lower() for x in got_roles}:
+            got_roles.append(r)
+    given = m.get('rights')
+    if given is None and got_roles:
+        rights = []
+    else:
+        rights = clean_rights(given if given is not None else DEFAULT_RIGHTS)
+    if not rights and not got_roles:
         raise ValueError('%s has no right - give it at least view' % who)
-    return {'who': who, 'rights': rights}
+    out = {'who': who, 'rights': rights}
+    if got_roles:
+        out['roles'] = got_roles
+    if m.get('until') not in (None, '', 0):
+        try:
+            u = float(m['until'])
+        except (TypeError, ValueError):
+            u = _date_epoch(m['until'])
+        if u is None or u <= 0:
+            raise ValueError('until is the time the membership ends (epoch or YYYY-MM-DD)')
+        out['until'] = u
+    if str(m.get('note') or '').strip():
+        out['note'] = str(m['note']).strip()[:300]
+    return out
+
+
+def _date_epoch(v):
+    try:
+        return time.mktime(time.strptime(str(v).strip()[:10], '%Y-%m-%d')) + 86399
+    except (TypeError, ValueError):
+        return None
 
 
 def member_kind(who):
@@ -112,21 +918,6 @@ def member_matches(who, names, groups):
         if bare in (_low(dn), _low(cn)):
             return True
     return False
-
-
-def person_teams(store, names, groups):
-    """{team name lower: (team name, {rights})} of a person, by their names and groups."""
-    names = {_low(n) for n in names or () if n}
-    out = {}
-    for t in team_rows(store):
-        got = set()
-        for m in S.jload(t.get('members'), []) or []:
-            if isinstance(m, dict) and member_matches(m.get('who'), names, groups):
-                for r in m.get('rights') or []:
-                    got |= IMPLIES.get(r, set())
-        if got:
-            out[_low(t['name'])] = (t['name'], got)
-    return out
 
 
 def groups_of_text(text):
@@ -164,7 +955,10 @@ def _setting(key):
 
 
 def unscoped(s, right):
-    """Whether this session holds `right` on every certificate."""
+    """Whether this session holds `right` (an old right or a capability) on every
+    certificate."""
+    if right in CAPS:
+        right = 'view' if right in VIEW_CAPS else 'manage'
     role = str(s.get('role') or '')
     if role == 'fulladmin' or s.get('cli'):
         return True
@@ -179,7 +973,10 @@ def unscoped(s, right):
 def scope(store, s, right='view'):
     """None: every certificate; else the names (lower case) of the teams whose
     certificates this session holds `right` on - a certificate without an
-    owner is then in none."""
+    owner is then in none. The teams below one where it holds it are in too (1.0.125).
+    `right` may be a capability (scope_cap)."""
+    if right in CAPS:
+        return scope_cap(store, s, right)
     if unscoped(s, right):
         return None
     role = str(s.get('role') or '')
@@ -187,6 +984,19 @@ def scope(store, s, right='view'):
         return set()
     names, groups = admin_principal(s)
     return {k for k, (_, r) in person_teams(store, names, groups).items() if right in r}
+
+
+def scope_cap(store, s, cap):
+    """scope() for one capability (1.0.125): None every team, else the teams (lower case,
+    those below included) where this session holds `cap`."""
+    if cap not in CAPS:
+        raise ValueError('no capability %r' % cap)
+    if unscoped(s, cap):
+        return None
+    role = str(s.get('role') or '')
+    if cap not in VIEW_CAPS and role not in ('certadmin', 'tokenadmin'):
+        return set()
+    return {k for k, v in session_caps(store, s).items() if cap in v['caps']}
 
 
 def owner_in(sc, owner):
@@ -213,6 +1023,9 @@ def deny(store, s, what, right):
     who = str(s.get('name') or '?')
     store.add_event('certificates', '%s was refused: %s (needs the right %s on its team)' % (
         who, what, right), 'warn', who=who)
+    if right in CAPS:
+        raise E.ApiError(403, 'you may not do that with this certificate: its team does not '
+                              'give you "%s" (%s)' % (right, CAP_WORDS[right]))
     raise E.ApiError(403, 'you may not do that with this certificate: its team does not give you '
                           'the right "%s"' % right)
 
@@ -312,6 +1125,22 @@ MANAGE_ROUTES = {'/api/certs/auto', '/api/certs/delete', '/api/certs/renew', '/a
                  '/api/certs/add_key',
                  # held or let go for another team's certificate (1.0.88: not checked)
                  '/api/certs/hold'}
+# The capability each of them needs (1.0.125) - the old right manage holds every one of them,
+# so a member with it does what it did.
+ROUTE_CAPS = {'/api/certs/auto': 'cert.auto', '/api/certs/delete': 'cert.delete',
+              '/api/certs/renew': 'cert.renew', '/api/certs/deploy': 'deploy.run',
+              '/api/certs/revoke': 'cert.revoke', '/api/certs/export': 'cert.edit',
+              '/api/certs/csr_answer': 'cert.edit', '/api/certs/plan': 'cert.edit',
+              '/api/certs/check': 'cert.edit', '/api/certs/dry_run': 'cert.renew',
+              '/api/certs/keep': 'cert.edit', '/api/certs/add_key': 'cert.edit',
+              '/api/certs/hold': 'cert.auto'}
+
+
+def route_cap(path, b=None):
+    """The capability a route of /api/certs or /api/deploys needs on the certificate's team."""
+    if path == '/api/certs/export' and str((b or {}).get('format') or '') in S.KEY_FORMATS:
+        return 'cert.key'
+    return ROUTE_CAPS.get(path)
 
 
 def guard(h, s, method, path):
@@ -341,20 +1170,28 @@ def guard(h, s, method, path):
             need_cert(store, s, b.get('id'), 'view', 'look at the plan of')
         return
     if path in MANAGE_ROUTES:
-        need_cert(store, s, _ref(b, 'id', 'cert_id', 'name'), 'manage', path.rsplit('/', 1)[-1])
+        need_cert(store, s, _ref(b, 'id', 'cert_id', 'name'), route_cap(path, b),
+                  path.rsplit('/', 1)[-1])
     elif path == '/api/certs/job_stop':
-        need_job(store, s, b.get('id'), 'manage', 'stop a job of')
+        need_job(store, s, b.get('id'), 'cert.renew', 'stop a job of')
     elif path in ('/api/certs/save', '/api/certs/import', '/api/certs/csr'):
         ref = _ref(b, 'id')
         # 0, false, an id of nothing (1.0.51): the route makes a new one of it - the owner
         # sent was taken unchecked (any team, or none)
-        row = need_cert(store, s, ref, 'manage', 'change') if ref not in (None, 0, False, '0') \
-            else None
+        row = need_cert(store, s, ref, 'cert.edit', 'change') \
+            if ref not in (None, 0, False, '0') else None
         if row is None:
             need_owner(store, s, b.get('owner'), 'a new certificate')
+            if path == '/api/certs/save' and not unscoped(s, 'request'):
+                # its team's limits (1.0.125): a scoped certificate administrator asks within them
+                from acmelib.certs import teampolicy as TP
+                TP.need_admin_cert(store, s, b, None)
         else:
             if 'owner' in b and _low(b.get('owner')) != _low(row.get('owner')):
                 need_owner(store, s, b.get('owner'), 'the owner of %s' % row['name'])
+            if path == '/api/certs/save' and not unscoped(s, 'request'):
+                from acmelib.certs import teampolicy as TP
+                TP.need_admin_cert(store, s, b, row)
     elif path == '/api/certs/online_import':
         # Import from a source: each certificate is a new one, for a team they may ask for.
         for it in (b.get('items') if isinstance(b.get('items'), list) else []):
@@ -363,19 +1200,21 @@ def guard(h, s, method, path):
     elif path == '/api/certs/approve':
         # As the route reads it (1.0.45): " 5" or 5.0 found nothing here, and went through.
         row = cert_of_ref(store, b.get('id')) if b.get('id') not in (None, '') else None
-        if row is not None and not (cert_may(store, s, row, 'approve')
+        if row is not None and not (cert_may(store, s, row, 'cert.approve')
                                     or cert_may(store, s, row, 'manage')):
             deny(store, s, 'approve %s' % row['name'], 'approve')
     elif path in ('/api/deploys/save', '/api/deploys/dry_run', '/api/deploys/preview'):
-        right = 'view' if path == '/api/deploys/preview' else 'manage'
+        right = 'view' if path == '/api/deploys/preview' else 'deploy.manage'
         # Both: the certificate given, and the one of the deployment given - a
         # deployment of another team's certificate was taken over by giving it
         # a certificate of one's own (1.0.19).
         if b.get('id') not in (None, '', 0):
             need_cert(store, s, _cert_of_deploy(store, b['id']), right, 'deploy')
         need_cert(store, s, _ref(b, 'cert_id'), right, 'deploy')
-    elif path in ('/api/deploys/delete', '/api/deploys/run'):
-        need_cert(store, s, _cert_of_deploy(store, b.get('id')), 'manage', 'deploy')
+    elif path == '/api/deploys/delete':
+        need_cert(store, s, _cert_of_deploy(store, b.get('id')), 'deploy.manage', 'deploy')
+    elif path == '/api/deploys/run':
+        need_cert(store, s, _cert_of_deploy(store, b.get('id')), 'deploy.run', 'deploy')
 
 
 # ---------------------------------------------------------------------------
