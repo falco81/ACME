@@ -2776,6 +2776,8 @@ function modForm(key, row, p, fromPick, keep) {
     if (MANAGE && key === 'tests') body.appendChild(testTryHere(form, row, p));
     if (row && row.id && MANAGE && m.family === 'challenge') body.appendChild(setupHere(row));
     if (!FULL) Array.prototype.forEach.call(body.querySelectorAll('input, select, textarea'), function (x) { if (!x.closest('.ct-http')) x.disabled = true; });
+    /* ...and "Read from a file" beside a box it cannot change (hunt r2: offered to a reader) */
+    if (!FULL) Array.prototype.forEach.call(body.querySelectorAll('.ct-pem-tools'), function (x) { x.hidden = true; });
   }, buttons, 'medium');
   /* its words translated, its name as it is (1.0.34): "The test mail-smtp" stayed English */
   if (row) nameInTitle(tr(m.one), row.name);
@@ -5114,7 +5116,9 @@ function certWizard(cert, detail, opts) {
     csr_from: c.csr_from || opts.csrFrom || '',
     challenge: c.challenge || '', challenge_map: obj(c.challenge_map),
     auto_renew: c.id ? (c.auto_renew === undefined || truthy(c.auto_renew)) : true,
-    renew_days: c.renew_days || 30, reuse_key: truthy(c.reuse_key),
+    /* one kept without its own days (renew_days null: Renewal and notices says) stays so when
+       edited (hunt r2: saved unchanged, it was given 30 of its own) */
+    renew_days: c.id ? (c.renew_days || '') : 30, reuse_key: truthy(c.reuse_key),
     days: prof.days || '', eku: arr(prof.eku).length ? arr(prof.eku) : ['serverAuth'],
     must_staple: truthy(prof.must_staple), acme_profile: prof.acme_profile || '', template: prof.template || '',
     subject: {O: subj.O || '', OU: subj.OU || '', C: subj.C || '', ST: subj.ST || '', L: subj.L || '', emailAddress: subj.emailAddress || ''},
@@ -5131,6 +5135,9 @@ function certWizard(cert, detail, opts) {
     W.d.over.validation[k] = Object.assign({}, obj(obj(prof.over).validation[k]));
   });
   var PROF0 = prof;
+  /* ...and one kept without its own key usage (its source's or authority's default): none of
+     its own unless the boxes are changed (hunt r2: saved unchanged, serverAuth alone) */
+  var EKU0 = editing && !arr(prof.eku).length ? W.d.eku.slice() : null;
   if (MOVE) {
     W.d.issuer = '';
     W.when = 'now';
@@ -5138,6 +5145,7 @@ function certWizard(cert, detail, opts) {
     W.deploy = 'later';
     if (!FROM) { W.d.auto_renew = true; W.d.renew_days = c.renew_days || 30; }
   }
+  var RD_KEPT = W.d.renew_days === '';
   var hand = function () { return MOVE && W.d.issuer === HAND; };
   if (!editing && arr(opts.names).length) W.d.sans = arr(opts.names).map(function (n) { return {type: nameKind(n) === 'ip' ? 'ip' : 'dns', value: n}; });
   if (!W.d.sans.length) W.d.sans = [{type: 'dns', value: ''}];
@@ -6034,14 +6042,14 @@ function certWizard(cert, detail, opts) {
     var g = el('div', 'formgrid');
     var auto = switchBox(W.d.auto_renew);
     g.appendChild(formField('Renew by itself', auto, 'Off: only when Renew now is pressed.'));
-    var days = numberBox(W.d.renew_days, '30', 1, 3650);
+    var days = numberBox(W.d.renew_days, W.d.renew_days === '' ? 'as Renewal and notices says' : '30', 1, 3650);
     g.appendChild(formField('Days before the end', days, 'Renewed this many days before it runs out. A third of its life is a good rule: 30 for 90 days.'));
     var reuse = switchBox(W.d.reuse_key);
     if (!W.d.csr_from) g.appendChild(formField('Keep the key', reuse, 'On: the same key in every renewal - for pinning, or a device that takes only the certificate. Off (better): a new key each time.'));
     else if (agentKey()) g.appendChild(formField('Keep the key', reuse, 'On: the agent makes a CSR of the key in use at each renewal. Off (better): it makes a new key on the server each time.'));
     else g.appendChild(formField('Key on renewal', el('span', '', tr('a new key, made by the device of') + ' ' + W.d.csr_from)));
     host.appendChild(g);
-    read = function () { W.d.auto_renew = !!auto._get(); W.d.renew_days = Number(days.value || 30); W.d.reuse_key = (!W.d.csr_from || agentKey()) && !!reuse._get(); };
+    read = function () { W.d.auto_renew = !!auto._get(); W.d.renew_days = days.value ? Number(days.value) : (RD_KEPT ? '' : 30); W.d.reuse_key = (!W.d.csr_from || agentKey()) && !!reuse._get(); };
   }
   /* -- for this certificate: the settings of its source and validations (1.0.24) --
      Each module's settings a certificate may set itself (cert_fields, store.over_fields):
@@ -6439,7 +6447,7 @@ function certWizard(cert, detail, opts) {
         : keyWords(W.d.key_type) + (W.d.key_type_alt ? ' + ' + keyWords(W.d.key_type_alt) + ' (' + tr('dual') + ')' : '')]
     ];
     if (can().challenge) pairs.push(['Validation', W.d.challenge + (Object.keys(W.d.challenge_map).length ? ' · ' + Object.keys(W.d.challenge_map).length + ' name(s) otherwise' : '')]);
-    pairs.push(['Renews', W.d.auto_renew ? 'by itself, ' + W.d.renew_days + ' days before the end' : 'only when asked']);
+    pairs.push(['Renews', W.d.auto_renew ? 'by itself, ' + (W.d.renew_days || 30) + ' days before the end' : 'only when asked']);
     pairs.push(['Key on renewal', W.d.csr_from ? data('span', '', tr('a new key, made by the device of') + ' ' + W.d.csr_from) : (W.d.reuse_key ? 'kept' : 'a new one each time')]);
     if (W.d.days) pairs.push(['Valid for', W.d.days + ' days']);
     tuneMods().forEach(function (m) {
@@ -6630,7 +6638,7 @@ function certWizard(cert, detail, opts) {
         ? 'Its names proved by ' + (W.d.challenge || '–') + ', ' + Object.keys(W.d.challenge_map).length + ' of them otherwise'
         : 'Its names proved by ' + (W.d.challenge || '–'));
       li(ul2, 'key', 'A new key: ' + keyWords(W.d.key_type) + (W.d.key_type_alt ? ' + ' + keyWords(W.d.key_type_alt) : ''));
-      li(ul2, 'clock', W.d.auto_renew ? 'Renewed by itself, ' + W.d.renew_days + ' days before its end' : 'Renewed only when asked');
+      li(ul2, 'clock', W.d.auto_renew ? 'Renewed by itself, ' + (W.d.renew_days || 30) + ' days before its end' : 'Renewed only when asked');
     }
     chg.appendChild(ul2);
     cols.appendChild(chg);
@@ -6725,7 +6733,7 @@ function certWizard(cert, detail, opts) {
     var d = W.d;
     var profile = {};
     if (d.days) profile.days = Number(d.days);
-    if (d.eku.length) profile.eku = d.eku;
+    if (d.eku.length && !(EKU0 && d.eku.slice().sort().join() === EKU0.slice().sort().join())) profile.eku = d.eku;
     if (d.must_staple) profile.must_staple = true;
     if (d.acme_profile) profile.acme_profile = d.acme_profile;
     if (d.template) profile.template = d.template;
@@ -6755,7 +6763,7 @@ function certWizard(cert, detail, opts) {
             key_type_alt: tw && !d.csr_from ? (d.key_type_alt || '') : '', issuer: d.issuer,
             csr_from: d.csr_from || '',
             challenge: useChallenge ? d.challenge : '', challenge_map: useChallenge ? d.challenge_map : {},
-            auto_renew: !!d.auto_renew, renew_days: Number(d.renew_days || 30), reuse_key: !!d.reuse_key && (!d.csr_from || agentKey()),
+            auto_renew: !!d.auto_renew, renew_days: d.renew_days === '' ? null : Number(d.renew_days || 30), reuse_key: !!d.reuse_key && (!d.csr_from || agentKey()),
             profile: profile, tags: splitNames(d.tags), note: d.note, owner: d.owner, setup_done: SETUP || undefined};
   }
   /* What happens (runplan.js): the plan of what is set here now, over the wizard. */

@@ -22,6 +22,17 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - Agent (Windows): an upgrade or repair of the MSI run with JOINCODE= (the documented Intune/SCCM line, a GPO transform) joined acme anew, replacing the agent's key and leaving its confirmed target behind; an agent that has joined already now keeps its identity (acme-agent join CODE still joins anew).
 - Agent (Windows): the MSI's join action did not set HideTarget, so a verbose install log (/l*v) could hold the join or enrollment code from its command line; the bit is now set after wixl builds the MSI. (security)
 - Agent (Windows): an import into the machine store that found no private key left the imported certificate in LocalMachine\My; it is taken out again before the deployment fails.
+- Certificates: a certificate edited in its wizard (Change names, key, source…) and saved without a change got 30 days before the end of its own and serverAuth alone as its key usage when it had neither (an imported one, one made by the command line or the API) - it stopped following Renewal and notices and lost clientAuth at its next issue; both stay as they were now unless changed.
+- Sources, Validation, Targets, Tests: a read-only account was offered "Read from a file" beside a box it cannot change; not offered now.
+- What happens: on a phone the lead over several deployments ("Pick a deployment...") was crossed by the plan's lines; it stands beside them now.
+- Czech: the key of a Windows agent's deployment in What happens, "the agent has no key to seal to (join it again)" and the roles' note of a Windows agent's deployment stayed in English; translated.
+- Backups: a backup put back (or a node started on another machine under its old name) did the backup's last SELinux step again at once - a "permissive" or "enforce" asked months before, even with high security on; the node now only looks at SELinux again.
+- High availability: the database server row of a node forgotten or renamed stayed for good - a server of nobody's on the HA and database cards and in the metrics, and its alerts (agent not answering, certificate ending) could not be taken away; only the nodes of the cluster are listed now.
+- Validation (acme-dns) (security): an incomplete answer of the acme-dns server to a new account was quoted in the error with its password - the password is dots now.
+- Settings (TLS): an HSTS age that is not a number reached the root helper as an error of its own instead of being refused with the reason.
+- Validations (HTTP-01 over SSH): "Check by the name" for a certificate of an IPv6 address fetched http://2001:db8::1/... (no brackets, an address no client reads) and waited until the order failed; the address is now put in brackets.
+- Validations (a commercial CA's DCV file): the check that the file is served built the same broken URL for an IPv6 address; it is now put in brackets.
+- acme's own DNS server (validation): three failed looks at the record in all - spread over the whole wait, or one moment without an answer for a certificate of three names - failed the order at once; now it takes three failures in a row for the same record.
 
 ## 1.0.123 - 2026-11-17
 

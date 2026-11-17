@@ -267,6 +267,8 @@
 @media (max-width:720px){
   /* on a phone the rail runs down the side, a short track to each station */
   .rp-junction{grid-template-columns:minmax(0,1fr);padding-top:0;padding-left:26px}
+  /* its lead beside the rail, not crossed by it (hunt r2: two lines through its last line) */
+  .rp-junction-h{padding-left:26px}
   .rp-junction::before{left:6px;right:auto;top:-8px;bottom:22px;width:2px;height:auto}
   .rp-station::before{left:-20px;top:50%;width:20px;height:2px;border-left:0;border-top:2px dashed var(--line);
     border-radius:0}

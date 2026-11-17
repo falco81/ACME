@@ -68279,6 +68279,30 @@
   "z_941": {
    "source": "protected by a password acme made, kept sealed with the deployment (in ACME_PASSWORD for the script)",
    "text": "chráněný heslem, které vytvořil acme a uchovává zapečetěné u nasazení (pro skript v ACME_PASSWORD)"
+  },
+  "z_942": {
+   "source": "in a PKCS#12 sealed to the agent (only its root side opens it), never written as a file there, not exportable",
+   "text": "v PKCS#12 zapečetěném agentovi (otevře ho jen jeho strana root), nikdy se tam nezapíše jako soubor, neexportovatelný"
+  },
+  "z_943": {
+   "source": "in a PKCS#12 sealed to the agent (only its root side opens it), never written as a file there, exportable",
+   "text": "v PKCS#12 zapečetěném agentovi (otevře ho jen jeho strana root), nikdy se tam nezapíše jako soubor, exportovatelný"
+  },
+  "z_944": {
+   "source": "made by the agent - the PKCS#12 is made there from it, not exportable",
+   "text": "vytvořený agentem - PKCS#12 se z něj udělá tam, neexportovatelný"
+  },
+  "z_945": {
+   "source": "made by the agent - the PKCS#12 is made there from it, exportable",
+   "text": "vytvořený agentem - PKCS#12 se z něj udělá tam, exportovatelný"
+  },
+  "z_946": {
+   "source": "the agent has no key to seal to (join it again)",
+   "text": "agent nemá klíč, kterému by se dalo zapečetit (připojte ho znovu)"
+  },
+  "z_947": {
+   "source": "the agent sent no key to seal secrets to",
+   "text": "agent neposlal klíč, kterému by se daly zapečetit tajné údaje"
   }
  },
  "patterns": {
@@ -94264,7 +94288,7 @@
   },
   "pz_171": {
    "source": "the older certificates this agent imported for this deployment: the newest {0} kept, the rest removed (never one still bound)",
-   "text": "starší certifikáty, které tento agent pro toto nasazení importoval: {0} nejnovějších se ponechá, zbytek se odebere (nikdy ne ten ještě navázaný)"
+   "text": "starší certifikáty, které tento agent pro toto nasazení importoval: ponechá se tolik nejnovějších: {0}, zbytek se odebere (nikdy ne ten ještě navázaný)"
   },
   "pz_172": {
    "source": "{0} cores",
@@ -94621,6 +94645,10 @@
   "pz_260": {
    "source": "the key it has is {0}, not the key type asked: a new one, kept at the renewals after",
    "text": "klíč, který má, je {0}, ne požadovaný typ klíče: nový, ponechaný při dalších obnovách"
+  },
+  "pz_261": {
+   "source": "after the import, the bindings, the test, the script and the restart: {0}",
+   "text": "po importu, vazbách, testu, skriptu a restartu: {0}"
   }
  },
  "rich": {
