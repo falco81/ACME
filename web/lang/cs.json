@@ -67143,6 +67143,294 @@
   "z_657": {
    "source": "On the server, in an elevated prompt (Run as administrator)",
    "text": "Na serveru, ve zvýšeném příkazovém řádku (Spustit jako správce)"
+  },
+  "z_658": {
+   "source": ", exportable",
+   "text": ", exportovatelný"
+  },
+  "z_659": {
+   "source": ", not exportable",
+   "text": ", neexportovatelný"
+  },
+  "z_660": {
+   "source": "A Windows service: Restart-Service (restart), only when it runs (try-restart), Start-Service (start) - only the verbs chosen; after it the agent says its state.",
+   "text": "Služba Windows: Restart-Service (restart), jen když běží (try-restart), Start-Service (start) - jen zvolená slovesa; potom agent řekne její stav."
+  },
+  "z_661": {
+   "source": "Add a service",
+   "text": "Přidat službu"
+  },
+  "z_662": {
+   "source": "Add a site",
+   "text": "Přidat web"
+  },
+  "z_663": {
+   "source": "After restarting",
+   "text": "Po restartu"
+  },
+  "z_664": {
+   "source": "Any Windows service",
+   "text": "Libovolná služba Windows"
+  },
+  "z_665": {
+   "source": "Binding",
+   "text": "Vazba"
+  },
+  "z_666": {
+   "source": "C:\\ProgramData\\acme-agent\\etc\\policy - in place of the one there: acme-agent policy apply FILE in an elevated prompt (checked first; the one before kept).",
+   "text": "C:\\ProgramData\\acme-agent\\etc\\policy - místo té, která tam je: acme-agent policy apply SOUBOR v příkazovém řádku se zvýšenými právy (nejdřív se zkontroluje; předchozí se ponechá)."
+  },
+  "z_667": {
+   "source": "Click together what the agent may do on this server. acme never sends a policy: the result is copied to the server, where an administrator writes it - checked there again, as here.",
+   "text": "Naklikejte, co agent na tomto serveru smí. acme politiku nikdy neposílá: výsledek se zkopíruje na server, kde ho zapíše správce - a tam se znovu zkontroluje, stejně jako tady."
+  },
+  "z_668": {
+   "source": "Files in the folder and below it. Readers: only SYSTEM, the Administrators and these accounts may read them (empty: the folder's own permissions). Allow the narrowest folder that holds only certificates.",
+   "text": "Soubory ve složce a pod ní. Čtenáři: číst je smí jen SYSTEM, Administrators a tyto účty (prázdné: vlastní oprávnění složky). Dovolte nejužší složku, která drží jen certifikáty."
+  },
+  "z_669": {
+   "source": "IIS",
+   "text": "IIS"
+  },
+  "z_670": {
+   "source": "IIS and Remote Desktop take the certificate from the machine store: allow store too",
+   "text": "IIS a Vzdálená plocha berou certifikát z úložiště počítače: dovolte i store"
+  },
+  "z_671": {
+   "source": "IIS site",
+   "text": "Web IIS"
+  },
+  "z_672": {
+   "source": "IIS sites",
+   "text": "Weby IIS"
+  },
+  "z_673": {
+   "source": "IIS, every site",
+   "text": "IIS, každý web"
+  },
+  "z_674": {
+   "source": "Its service and its folder are examples - change them to yours.",
+   "text": "Její služba a složka jsou příklady - změňte je na své."
+  },
+  "z_675": {
+   "source": "Its site is an example - change it to yours (or allow every site: *).",
+   "text": "Jeho web je příklad - změňte ho na svůj (nebo dovolte každý web: *)."
+  },
+  "z_676": {
+   "source": "Keep",
+   "text": "Ponechat"
+  },
+  "z_677": {
+   "source": "Machine store",
+   "text": "Úložiště počítače"
+  },
+  "z_678": {
+   "source": "No service: acme restarts nothing here.",
+   "text": "Žádná služba: acme tu nic nerestartuje."
+  },
+  "z_679": {
+   "source": "On the server, in this order: before, the files, the machine store, the bindings, the test, the script, the restarts, after - anything failing after the store puts the bindings back to the certificate they had, takes the new one out of the store again and puts the files back",
+   "text": "Na serveru v tomto pořadí: před, soubory, úložiště počítače, vazby, test, skript, restarty, po - cokoli, co selže po úložišti, vrátí vazby k certifikátu, který měly, odebere nový z úložiště a vrátí soubory"
+  },
+  "z_680": {
+   "source": "One click adds a coherent set: the machine store, the IIS sites, Remote Desktop, a folder with its readers, a service and its verbs, a test of what it serves.",
+   "text": "Jedno kliknutí přidá ucelenou sadu: úložiště počítače, weby IIS, Vzdálenou plochu, složku s jejími čtenáři, službu a její slovesa, test toho, co server poskytuje."
+  },
+  "z_681": {
+   "source": "Paste it whole into an elevated PowerShell on the server (Run as administrator): the agent checks it, writes it in place of the one there and says what changed. Ask it now on the card then shows it.",
+   "text": "Vložte ho celý do PowerShellu se zvýšenými právy na serveru (Spustit jako správce): agent ho zkontroluje, zapíše místo té, která tam je, a řekne, co se změnilo. Zeptat se teď na kartě ji pak ukáže."
+  },
+  "z_682": {
+   "source": "Remote Desktop",
+   "text": "Vzdálená plocha"
+  },
+  "z_683": {
+   "source": "Restart-Service NAME, Start-Service NAME, iisreset or a PowerShell script (C:\\scripts\\x.ps1) - no shell: one failing puts everything back",
+   "text": "Restart-Service NÁZEV, Start-Service NÁZEV, iisreset nebo skript PowerShellu (C:\\scripts\\x.ps1) - žádný shell: když jeden selže, vrátí se vše"
+  },
+  "z_684": {
+   "source": "SNI by the host name ",
+   "text": "SNI podle názvu hostitele "
+  },
+  "z_685": {
+   "source": "The agent gives the Remote Desktop listener the certificate",
+   "text": "Agent dá certifikát posluchači Vzdálené plochy"
+  },
+  "z_686": {
+   "source": "The agent imports the certificate into the machine store (Cert:\\LocalMachine\\My)",
+   "text": "Agent importuje certifikát do úložiště počítače (Cert:\\LocalMachine\\My)"
+  },
+  "z_687": {
+   "source": "The agent restarts",
+   "text": "Agent restartuje"
+  },
+  "z_688": {
+   "source": "The certificate imported into Cert:\\LocalMachine\\My (its key not exportable unless the deployment says so); the older ones this agent imported for a deployment removed beyond its Keep - never one it did not import, never one still bound.",
+   "text": "Certifikát se importuje do Cert:\\LocalMachine\\My (jeho klíč neexportovatelný, pokud nasazení neřekne jinak); starší, které tento agent pro nasazení importoval, se nad jeho Ponechat odeberou - nikdy ten, který neimportoval, nikdy ten ještě navázaný."
+  },
+  "z_689": {
+   "source": "The certificate of the Remote Desktop listener (RDP-tcp); NETWORK SERVICE may read its key.",
+   "text": "Certifikát posluchače Vzdálené plochy (RDP-tcp); jeho klíč smí číst NETWORK SERVICE."
+  },
+  "z_690": {
+   "source": "The https bindings of these sites set to the new certificate (made when missing) - * for every site of this server.",
+   "text": "Vazby https těchto webů se nastaví na nový certifikát (chybějící se vytvoří) - * pro každý web tohoto serveru."
+  },
+  "z_691": {
+   "source": "The listener's certificate (3389 is not tested: the agent does not speak RDP).",
+   "text": "Certifikát posluchače (3389 se netestuje: agent RDP neumí)."
+  },
+  "z_692": {
+   "source": "The machine store only",
+   "text": "Jen úložiště počítače"
+  },
+  "z_693": {
+   "source": "When it is not there",
+   "text": "Když tam není"
+  },
+  "z_694": {
+   "source": "Win32_TSGeneralSetting (RDP-tcp) - put back when anything after it fails",
+   "text": "Win32_TSGeneralSetting (RDP-tcp) - vrátí se, když cokoli po něm selže"
+  },
+  "z_695": {
+   "source": "Windows server with acme-agent",
+   "text": "Windows server s acme-agentem"
+  },
+  "z_696": {
+   "source": "a PowerShell script, its SHA-256 checked when it runs",
+   "text": "skript PowerShellu, jeho SHA-256 se kontroluje při spuštění"
+  },
+  "z_697": {
+   "source": "a Windows service (its state said after)",
+   "text": "služba Windows (její stav se řekne potom)"
+  },
+  "z_698": {
+   "source": "a drive's root is no folder to allow",
+   "text": "kořen disku není složka k dovolení"
+  },
+  "z_699": {
+   "source": "a fixed command line (CreateProcess)",
+   "text": "pevný příkazový řádek (CreateProcess)"
+  },
+  "z_700": {
+   "source": "acme holds none of the server's credentials: a small agent on it imports the certificate into the machine store, binds it to IIS sites and the Remote Desktop listener, writes files, restarts services - only what its own policy allows. Exchange and the Windows roles stay with the OpenSSH target.",
+   "text": "acme nedrží žádné přihlašovací údaje serveru: malý agent na něm importuje certifikát do úložiště počítače, naváže ho na weby IIS a na posluchač Vzdálené plochy, zapíše soubory, restartuje služby - jen to, co dovolí jeho vlastní politika. Exchange a role Windows zůstávají cíli přes OpenSSH."
+  },
+  "z_701": {
+   "source": "acme may give the Remote Desktop listener its certificate",
+   "text": "acme smí dát posluchači Vzdálené plochy jeho certifikát"
+  },
+  "z_702": {
+   "source": "acme may import certificates into the machine store",
+   "text": "acme smí importovat certifikáty do úložiště počítače"
+  },
+  "z_703": {
+   "source": "allow iis SITE (the name of an IIS site, or *)",
+   "text": "allow iis WEB (název webu IIS, nebo *)"
+  },
+  "z_704": {
+   "source": "besides the machine store, when asked: one a line, format path - the same formats as on Linux; no owner, no mode (who reads them is said by the policy's readers=); {name} {cn} {service} {date} in paths",
+   "text": "kromě úložiště počítače, když se o to požádá: jeden na řádek, formát cesta - stejné formáty jako na Linuxu; bez vlastníka a režimu (kdo je čte, říká readers= v politice); v cestách {name} {cn} {service} {date}"
+  },
+  "z_705": {
+   "source": "every IIS site of this server",
+   "text": "každý web IIS tohoto serveru"
+  },
+  "z_706": {
+   "source": "in a PKCS#12 sealed to the agent (only its root side opens it), never written as a file there",
+   "text": "v PKCS#12 zapečetěném agentovi (otevře ho jen jeho strana root), nikdy se tam nezapíše jako soubor"
+  },
+  "z_707": {
+   "source": "its folder's readers are the policy's (readers=) - no owner, no mode",
+   "text": "čtenáře jeho složky určuje politika (readers=) - bez vlastníka, bez režimu"
+  },
+  "z_708": {
+   "source": "machine store",
+   "text": "úložiště počítače"
+  },
+  "z_709": {
+   "source": "made by the agent - the PKCS#12 is made there from it",
+   "text": "vytvořený agentem - PKCS#12 se z něj udělá tam"
+  },
+  "z_710": {
+   "source": "no shell: ",
+   "text": "žádný shell: "
+  },
+  "z_711": {
+   "source": "nothing to do: the machine store is off and no files are written",
+   "text": "není co dělat: úložiště počítače je vypnuté a nezapisují se žádné soubory"
+  },
+  "z_712": {
+   "source": "older certificates this agent imported for this deployment are removed from the store beyond this many (0 to 10) - never one still bound",
+   "text": "starší certifikáty, které tento agent pro toto nasazení importoval, se nad tento počet z úložiště odeberou (0 až 10) - nikdy ten, který je ještě navázaný"
+  },
+  "z_713": {
+   "source": "put back to the certificate it had when anything after it fails",
+   "text": "vrátí se k certifikátu, který měla, když cokoli po ní selže"
+  },
+  "z_714": {
+   "source": "read as the folder's own permissions say",
+   "text": "čte se, jak říkají vlastní oprávnění složky"
+  },
+  "z_715": {
+   "source": "read by SYSTEM, the Administrators and ",
+   "text": "čtou SYSTEM, Administrators a "
+  },
+  "z_716": {
+   "source": "readers",
+   "text": "čtenáři"
+  },
+  "z_717": {
+   "source": "restart",
+   "text": "restart"
+  },
+  "z_718": {
+   "source": "run after the store and the bindings; when one fails the bindings, the store and the files are put back",
+   "text": "spustí se po úložišti a vazbách; když jeden selže, vrátí se vazby, úložiště i soubory"
+  },
+  "z_719": {
+   "source": "service",
+   "text": "služba"
+  },
+  "z_720": {
+   "source": "site | host name | port [| ip], one a line. A host name makes an SNI binding; none binds the port for all names. Missing https bindings are made (the policy: allow iis SITE)",
+   "text": "web | název hostitele | port [| ip], jeden na řádek. Název hostitele dělá vazbu SNI; bez něj se váže port pro všechna jména. Chybějící vazby https se vytvoří (politika: allow iis WEB)"
+  },
+  "z_721": {
+   "source": "the agent says it runs on %s, not Windows: make the target a \"Server with acme-agent\"",
+   "text": "agent říká, že běží na %s, ne na Windows: udělejte z cíle „Server s acme-agentem“"
+  },
+  "z_722": {
+   "source": "the certificate imported into Cert:\\LocalMachine\\My - the IIS bindings and the Remote Desktop listener take it from there (the policy: allow store)",
+   "text": "certifikát se importuje do Cert:\\LocalMachine\\My - vazby IIS a posluchač Vzdálené plochy si ho berou odtud (politika: allow store)"
+  },
+  "z_723": {
+   "source": "the certificate of the RDP listener (the policy: allow rdp). Exchange is not done by the agent - the target \"Windows server (OpenSSH + PowerShell)\" does it",
+   "text": "certifikát posluchače RDP (politika: allow rdp). Exchange agent nedělá - dělá ho cíl „Windows server (OpenSSH + PowerShell)“"
+  },
+  "z_724": {
+   "source": "the deployment puts the key nowhere - switch the machine store on or give it a file that holds the key",
+   "text": "nasazení klíč nikam nedává - zapněte úložiště počítače nebo mu dejte soubor, který klíč drží"
+  },
+  "z_725": {
+   "source": "the listener's certificate",
+   "text": "certifikát posluchače"
+  },
+  "z_726": {
+   "source": "the machine store",
+   "text": "úložiště počítače"
+  },
+  "z_727": {
+   "source": "the policy of the server allows every file, command, script and binding",
+   "text": "politika serveru dovoluje každý soubor, příkaz, skript i vazbu"
+  },
+  "z_728": {
+   "source": "the port, for all names",
+   "text": "port, pro všechna jména"
+  },
+  "z_729": {
+   "source": "{service} in the paths and commands, ACME_SERVICE for the script",
+   "text": "{service} v cestách a příkazech, ACME_SERVICE pro skript"
   }
  },
  "patterns": {
@@ -93121,6 +93409,14 @@
   "pz_169": {
    "source": "Or paste it at the MSI’s Join step - or silently: msiexec /i {0} /qn JOINCODE=CODE. The agent makes its own key there (it never leaves the server) and shows its fingerprint - acme shows it next, to compare.",
    "text": "Nebo ho vložte v kroku Připojení instalátoru MSI – či tiše: msiexec /i {0} /qn JOINCODE=CODE. Agent si tam vytvoří vlastní klíč (server nikdy neopustí) a ukáže svůj otisk – acme ho ukáže hned potom k porovnání."
+  },
+  "pz_170": {
+   "source": "The agent binds it to the IIS site {0} (https {1})",
+   "text": "Agent ho naváže na web IIS {0} (https {1})"
+  },
+  "pz_171": {
+   "source": "the older certificates this agent imported for this deployment: the newest {0} kept, the rest removed (never one still bound)",
+   "text": "starší certifikáty, které tento agent pro toto nasazení importoval: {0} nejnovějších se ponechá, zbytek se odebere (nikdy ne ten ještě navázaný)"
   }
  },
  "rich": {

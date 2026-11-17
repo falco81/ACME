@@ -329,8 +329,10 @@ foreach ($w in @($j.iis)) {
   Say @{ step = 'iis'; site = $site; host = [string]$w.host; port = [int]$w.port;
          ip = [string]$w.ip; old = $old; created = $created }
   if ($old -ne $thumb) {
-    if ($old) { $b.RemoveSslCertificate() }
-    $b.AddSslCertificate($thumb, 'My')
+    # as acme's windows_ssh: AddSslCertificate replaces the one there; only when IIS refuses
+    # that (an http.sys binding left behind) is it taken away first and added again
+    try { $b.AddSslCertificate($thumb, 'My') }
+    catch { if ($old) { $b.RemoveSslCertificate(); $b.AddSslCertificate($thumb, 'My') } else { throw } }
   }
   Say @{ step = 'iis-done'; site = $site; host = [string]$w.host; port = [int]$w.port }
 }
@@ -366,8 +368,10 @@ foreach ($w in @($j.iis)) {
         Remove-WebBinding -Name ([string]$w.site) -Protocol https -Port ([int]$w.port) `
           -HostHeader ([string]$w.host)
       } elseif ([string]$w.old -ne [string]$j.thumb) {
-        try { $b.RemoveSslCertificate() } catch { }
-        if ([string]$w.old) { $b.AddSslCertificate([string]$w.old, 'My') }
+        if ([string]$w.old) {
+          try { $b.AddSslCertificate([string]$w.old, 'My') }
+          catch { $b.RemoveSslCertificate(); $b.AddSslCertificate([string]$w.old, 'My') }
+        } else { try { $b.RemoveSslCertificate() } catch { } }
       }
     }
     Say @{ step = 'iis'; site = [string]$w.site; port = [int]$w.port; host = [string]$w.host }
