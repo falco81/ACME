@@ -306,6 +306,8 @@ function acme_certs_settings_panes(): void
         allows, nothing more; whoever steals acme's database gets nothing of the server.</p></div>
     <div id="ag-hero" class="ag-hero-host"></div>
     <div class="card full"><h2>Active mode</h2><div id="sect-agents"></div></div>
+    <div class="card full ag-wait-card" id="ag-wait"></div>
+    <div class="card full" id="ag-enroll"></div>
     <div class="card full" id="ag-list"></div>
     <div class="card full" id="ag-pkg"></div>
     <div class="card full" id="ag-ca"></div>

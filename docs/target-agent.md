@@ -380,6 +380,80 @@ takes it away (the policy stays; `--purge` takes that and the account too).
 | `/var/lib/acme-agent-root/` (root 0700) | the X25519 key, the nonces seen, the audit log, the scripts' copies while they run |
 | `/run/acme-agent/root.sock` | the two sides' socket |
 
+## Install on Windows (1.0.120)
+
+Every release carries `acme-agent-X.Y.Z-windows-x64.msi` (in `release/` and inside acme's own
+package as `deploy/agent/`), so Settings → Target agents offers it beside the Linux package with
+its SHA-256 and product code. A source tree has none - the pages say it comes with a release.
+Windows Server 2016 / Windows 10 and later, x64. It holds everything it needs: the agent, its
+own Python (CPython 3.13 from NuGet, trimmed to what the agent imports, isolated by
+`python313._pth` and `-I`) and its own OpenSSL (conda-forge), so nothing has to be installed
+first. About 14 MB to download, about 36 MB installed.
+
+**By hand** - compare the SHA-256 (`Get-FileHash .\acme-agent-X.Y.Z-windows-x64.msi`), then
+double-click it: *Welcome* → *Join* (paste a code, or leave it empty) → *Ready* → *Install* →
+*Finish*, which says what next (`acme-agent status`, `acme-agent policy show`). The code is either
+a target's **join code** (`ACAG1.…`, made on the target's card - an hour, once) or a company
+**enrollment code** (`ACAE1.…`, Settings → Target agents → Enrollment codes: one code for many
+servers, each appears in acme as its own target waiting for an administrator's confirmation).
+Left empty: `acme-agent join CODE` later in an elevated prompt ("Run as administrator" is the
+analogue of sudo). The service finishes the join in the background - no network is needed while
+installing; `acme-agent status` says how it goes.
+
+**Silently** (a company):
+
+```
+msiexec /i acme-agent-X.Y.Z-windows-x64.msi /qn JOINCODE=ACAE1.…
+msiexec /i acme-agent-X.Y.Z-windows-x64.msi /qn /l*v C:\Windows\Temp\acme-agent.log
+```
+
+* **Group Policy** software installation (Computer Configuration → Policies → Software Settings →
+  Software installation, *Assigned*, from a share every computer reads): a GPO passes no
+  properties - install without `JOINCODE` and join with a startup script, or give it a transform
+  (`.mst`) that sets `JOINCODE`.
+* **Intune** (Win32 app): install `msiexec /i acme-agent-X.Y.Z-windows-x64.msi /qn
+  JOINCODE=ACAE1.…`, uninstall `msiexec /x {ProductCode} /qn`, detection by the MSI product code,
+  install behaviour *System*.
+* **Configuration Manager** (SCCM / MECM): an application with a Windows Installer deployment
+  type, the same line, run as System.
+
+The enrollment code is a secret while it is valid: the MSI keeps `JOINCODE` out of its logs
+(`MsiHiddenProperties`), it is a secure property (it reaches the elevated part of the install),
+and an administrator still confirms each server in acme unless the code was made to confirm by
+itself.
+
+**Upgrade**: a newer MSI replaces an older one in place (one UpgradeCode for every version: the
+older is removed first, its services stopped with `windows-uninstall --upgrade`; the policy and
+the identity in `C:\ProgramData\acme-agent` stay). An older MSI is refused over a newer one.
+`allow self-update` updates the agent's own files from acme as on Linux.
+
+**Uninstall**: Settings → Apps → Installed apps → acme-agent, or `msiexec /x {ProductCode} /qn`
+- the policy and identity stay (as `install.sh --uninstall`); `msiexec /x {ProductCode} /qn
+PURGE=1`, or the box on the wizard's *Remove* page, takes them too. Each version has its own
+product code (made from the version: acme shows it with the package; `index.json` lists it).
+
+What the MSI does: it copies the program into `C:\Program Files\acme-agent` and then runs, as
+LocalSystem, the installed `runtime\python.exe -I -B acme_agent.py windows-install [--join CODE]`
+(the ProgramData folders and their ACLs, both services, the program folder on the system PATH,
+the event log source; a failure rolls the install back) - and at uninstall `windows-uninstall
+[--purge]` before its files are removed (never failing an uninstall). A silent install
+(`/qn`) shows no wizard by design.
+
+| Where | What |
+|---|---|
+| `C:\Program Files\acme-agent\` | `acme_agent.py`, `acme_agent_win.py`, `acme_agent_wincert.py`, `acme-agent.cmd` (the CLI, on PATH), `README.txt`, `release`, `release-keys\*.pub`, `MANIFEST` + `MANIFEST.sig` (every installed file, signed by the release key) |
+| `C:\Program Files\acme-agent\runtime\` | `python.exe`, `python313.dll`, `python313._pth`, `Lib\` (the standard library the agent imports, with its `.pyc`), `DLLs\` (`_ssl`, `_hashlib`, `_ctypes`, `_socket`, `select`, ... and their DLLs) |
+| `C:\Program Files\acme-agent\openssl\` | `openssl.exe`, `libcrypto-3-x64.dll`, `libssl-3-x64.dll`, `vcruntime140.dll`, `openssl.cnf` |
+| `C:\ProgramData\acme-agent\etc\` | `policy`, `agent.json`, `ca.pem` (SYSTEM, Administrators; Users read) |
+| `C:\ProgramData\acme-agent\root\`, `net\` | the root side's and the network side's state |
+
+The MSI is built by `tools/agent_windows.py` (used by `tools/release.py`): the pinned CPython
+NuGet package and OpenSSL conda package (URL + SHA-256, cached in `~/.cache/acme-agent-windows`),
+the standard library trimmed by `modulefinder` over the agent's files, wixl (msitools) for the
+files, components and custom actions, and the wizard's Windows Installer tables imported with
+`msibuild` (wixl has no `<UI>`) and checked for their references before the MSI is kept. It is not
+Authenticode-signed: its integrity is the SHA-256 acme shows and the signed MANIFEST inside.
+
 ## In acme
 
 * **Settings → Target agents**: active mode and its port, what the agents are given; the agents
@@ -395,7 +469,9 @@ takes it away (the policy stays; `--purge` takes that and the account too).
   update | forget | design show|text|forget`, `acme --target-agent all update` - `show` says what the card says; the console (`acme`): Targets → the target →
   *Its acme-agent*.
 * **API**: `GET /api/agents`, `GET /api/agents/one?id=`, `POST /api/agents/{code,look,confirm,
-  renew,update,forget}`, `GET /api/agents/package`.
+  renew,update,forget}`, `GET /api/agents/package` (`package.windows`: the Windows MSI's name,
+  version, SHA-256, size, product code - or null and `windows_why`), `GET /api/agents/package
+  ?platform=windows` (the MSI itself).
 
 ## Keys made by the agent (phase 3)
 
@@ -501,6 +577,83 @@ the jobs queued are rows of `meta` - in every backup, sealed with the node's sea
 backup carries. A backup put back on a clean installation (or the other node of a cluster) is the
 same acme to the agents: it signs with the same command key and shows the same certificate
 (`test_target_agent.py BackupAndSecondNode`).
+
+## Windows: the machine store, IIS, Remote Desktop (1.0.120)
+
+The target **Windows server with acme-agent** (`agent_windows`, vendor Microsoft) is the agent's
+target with the deployment of Windows: the same join, modes, ports, connector, tests through the
+agent, keys made by the agent and What happens; the deployment is the one of *Windows server
+(OpenSSH + PowerShell)* minus what the agent does not do (Exchange, the Windows roles - AD FS,
+RD Gateway, WinRM...: those stay with that target).
+
+| Field | What the agent does | The policy |
+|---|---|---|
+| Machine store (on by default) | the certificate imported into `Cert:\LocalMachine\My` (the key not exportable unless *Key exportable*); the older ones **this agent** imported for the deployment removed beyond *Previous versions to keep* (0-10) - never one it did not import (their thumbprints are kept in `root\store.json`), never one still bound | `allow store` |
+| IIS bindings | `site \| host name \| port [\| ip]` a line: the https binding set to the certificate (SNI by the host name; without one the port for all names), made when it is not there | `allow iis SITE` (or `allow iis *`) |
+| Remote Desktop listener | `Win32_TSGeneralSetting` (RDP-tcp) `SSLCertificateSHA1Hash`; NETWORK SERVICE may read the key | `allow rdp` |
+| Files | besides the store: `C:\` paths, the same formats as on Linux - **no owner, no mode** (who reads them: `readers=` of the folder's entry) | `allow file C:\certs [readers=...]` |
+| PowerShell after | the script after the files (written in acme: `allow script-hash`; on the server: `allow script`) | |
+| PKCS#12 kind | 3DES (any Windows, the default) or AES-256 (Windows Server 2019 and later) | |
+
+The commands of a Windows deployment (no shell, as on Linux):
+
+| The line | Run as | Allowed by |
+|---|---|---|
+| `Restart-Service W3SVC` (`-Name W3SVC`, `-Force`, `W3SVC,WAS`) | the service restarted, its state said after | `allow service W3SVC restart` |
+| `Start-Service NAME` | the service started | `allow service NAME start` |
+| `iisreset`, `C:\tools\x.exe ARGS` | that command line exactly (CreateProcess, never cmd.exe) | `allow test -- iisreset` |
+| `C:\scripts\x.ps1 ARGS` | that PowerShell script (`-File`), its SHA-256 checked when it runs | `allow script C:\scripts\x.ps1` |
+
+`net stop` / `net start` are not read (use `Restart-Service`); a `.bat` / `.cmd`, `cmd /c`,
+`powershell -Command` and anything with ``| ; & $ ` ( ) { } < >`` are refused before anything is
+sent - put it into a PowerShell script the policy allows.
+
+**The job.** The deployment's `win` part:
+
+```
+win = {store: {pfx_index, password_sealed, cert_pem, friendly, exportable, keep, slot, legacy},
+       iis: [{site, host, port, ip}], rdp: true|false}
+```
+
+The PKCS#12 for the store is a file of the job without a path (`path: ''`, sealed to the agent,
+its random password sealed apart) - never written as a file on the server: root stages it in its
+own stage folder under a random name for the import and deletes it after. With the key made by
+the agent (*Key made by the device*) acme sends no PKCS#12 at all: root makes it with openssl from
+its own key. Every change is made by `powershell.exe` run by the root side (SYSTEM) with **fixed
+scripts** (`deploy/agent/acme_agent_wincert.py`): what they act on comes only from a JSON file in
+root's stage folder and the password from an environment variable - nothing of a job is ever put
+into the text of a script.
+
+**The order** on the server: before → files → the store → the bindings (IIS, RDP) → test →
+script → restarts → after. Anything failing after the store puts the bindings back to the
+certificate each had (a binding made is removed again), the listener to its old thumbprint,
+takes the new certificate out of the store again (only when this job put it there) and puts the
+files back. The same certificate again changes nothing: in the store already, every binding and
+the listener on it, every file the same - nothing imported, nothing run.
+
+**Refused whole, before anything runs**, with the lines to run on the server (an elevated
+PowerShell): `acme-agent allow store`, `acme-agent allow iis "Default Web Site"`,
+`acme-agent allow rdp`, `acme-agent allow service W3SVC restart`. The deployment's form says it
+before (each item green / red with its line / amber when the policy is not known), and so does
+What happens (the store, each binding, the listener as steps of the agent's job).
+
+**Tests through the agent**: IIS's ports on the server itself (`127.0.0.1:443`, `allow probe
+local`); the Remote Desktop listener (3389) is not tested - the agent does not speak RDP.
+
+**The policy builder** of a Windows agent (the agent said `platform: windows`, or the target is
+`agent_windows`) has Windows templates (IIS site, IIS every site, Remote Desktop, the machine
+store only, a folder for certificates `C:\certs`, any Windows service), the sections *Folders*
+(with their readers instead of the owner and mode grid), *Services* (restart, try-restart,
+start), *Machine store*, *IIS sites* and *Remote Desktop*, the checks with the Windows facts of
+the agent (its protected places), and one block to paste into an **elevated PowerShell**:
+
+```
+@'
+# C:\ProgramData\acme-agent\etc\policy - ...
+allow store
+allow iis "Default Web Site"
+'@ | acme-agent policy apply -
+```
 
 ## Later
 

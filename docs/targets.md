@@ -585,6 +585,19 @@ Phases 3 and 4 (all in [target-agent.md](target-agent.md)):
 * SNMP `acmeAgentTable`, Prometheus `acme_agent_*`, the Zabbix discovery, isemon `action=agent_*`,
   and an alert when **its policy blocks a deployment**.
 
+## `agent_windows` - Windows server with acme-agent (1.0.120)
+
+The agent of `agent` on a Windows server ([target-agent.md](target-agent.md), *Windows: the
+machine store, IIS, Remote Desktop*): the same join, modes, ports, connector, tests through the
+agent and keys made by the agent; the deployment of `windows_ssh` without its credentials - the
+certificate imported into the machine store (`allow store`), the IIS bindings (`allow iis SITE`),
+the Remote Desktop listener (`allow rdp`), files with `C:\` paths (no owner, no mode), a
+PowerShell script after, and the commands `Restart-Service NAME`, `Start-Service NAME`,
+`iisreset`, `C:\scripts\x.ps1 ARGS` (no shell). Exchange and the Windows roles are not done by
+the agent: they stay with `windows_ssh`. Older certificates the agent imported for the
+deployment are removed beyond *Previous versions to keep*; anything failing after the store puts
+the bindings, the store and the files back.
+
 ## `local` - this machine
 
 Writes files under one folder of the acme server only (*Folder*, default

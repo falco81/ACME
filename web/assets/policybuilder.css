@@ -140,6 +140,9 @@
 /* owner:group and the mode */
 .pb-owner{display:flex;align-items:center;gap:4px;flex:0 1 230px;min-width:170px}
 .pb-owner .pb-in{width:0;flex:1 1 0}
+/* a Windows folder: who may read its files (1.0.120) */
+.pb-readers{flex:0 1 320px;gap:6px}
+.pb-readers .pb-k{white-space:nowrap}
 .pb-colon{color:var(--tx-mut);font-weight:700}
 .pb-rwx{display:flex;align-items:flex-end;gap:6px;flex:none}
 .pb-rwx-c{display:flex;flex-direction:column;align-items:center;gap:2px}

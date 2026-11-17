@@ -22,7 +22,7 @@ var F = {
   config_ok: ['/etc/ssl', '/etc/pki'], head: '',
   limits: {files: 20, size: 1048576, files_most: 200, size_most: 67108864}
 };
-function setFacts(f) { Object.keys(f || {}).forEach(function (k) { F[k] = f[k]; }); }
+function setFacts(f) { F.platform = (f || {}).platform || 'linux'; Object.keys(f || {}).forEach(function (k) { F[k] = f[k]; }); }
 
 function Bad(words) { this.words = words; }
 function arr(v) { return Array.isArray(v) ? v : []; }
@@ -123,6 +123,78 @@ function checkArgv(argv) {
   if (n > 4096) throw new Bad('a command is 4096 characters at most');
   return argv.map(String);
 }
+/* ---- a Windows server's agent (1.0.120: acme_agent_win.py): its paths, words, services --------- */
+function W() { return F.platform === 'windows'; }
+/* acme_agent_win.wq: a word as typed in cmd.exe / PowerShell */
+function wq(w) {
+  w = String(w);
+  if (w && !/[\s'"&|<>^%;,()`$]/.test(w)) return w;
+  return (w.indexOf('"') >= 0 && w.indexOf("'") < 0) ? "'" + w + "'" : '"' + w + '"';
+}
+/* acme_agent_win.win_split: quotes as sh reads them, a backslash is a backslash */
+function splitWin(text) {
+  var out = [], cur = null, i = 0, t = String(text || '');
+  while (i < t.length) {
+    var c = t[i];
+    if (/\s/.test(c)) { if (cur !== null) { out.push(cur); cur = null; } i++; continue; }
+    if (cur === null) cur = '';
+    if (c === "'" || c === '"') {
+      var j = t.indexOf(c, i + 1);
+      if (j < 0) throw new Bad('No closing quotation');
+      cur += t.slice(i + 1, j); i = j + 1; continue;
+    }
+    cur += c; i++;
+  }
+  if (cur !== null) out.push(cur);
+  return out;
+}
+var DEVICE_RE = /^(con|prn|aux|nul|com[0-9]|lpt[0-9]|conin\$|conout\$)(\..*)?$/i;
+var SVC_RE = /^[A-Za-z0-9_.$@+-]{1,256}$/;
+var ACCOUNT_RE = /^[^\x00-\x1f\x7f",=:*?<>|]{1,256}$/;
+var SITE_RE = /^[^\x00-\x1f\x7f"]{1,256}$/;
+/* acme_agent_win.norm_win: C:\folder as Windows writes it - or Bad */
+function normWin(path) {
+  var p = String(path === undefined || path === null ? '' : path).trim();
+  if (!p || p.length > 1024 || /[\x00-\x1f\x7f]/.test(p)) throw new Bad(JSON.stringify(p.slice(0, 120)) + ' is not an absolute path (C:\\folder)');
+  if (/^[\\\/][\\\/]/.test(p)) throw new Bad(p.slice(0, 120) + ' is a network (UNC) or device path - only a folder on a drive of this machine (C:\\folder)');
+  p = p.replace(/\//g, '\\');
+  var m = p.match(/^([A-Za-z]):\\([\s\S]*)$/);
+  if (!m) throw new Bad(JSON.stringify(p.slice(0, 120)) + ' is not an absolute path (C:\\folder)');
+  var parts = m[2].split('\\').filter(function (x) { return x !== '' && x !== '.'; });
+  if (parts.indexOf('..') >= 0) throw new Bad('a path with .. in it: ' + p.slice(0, 120));
+  parts.forEach(function (x) {
+    if (x.indexOf(':') >= 0) throw new Bad(p.slice(0, 120) + ': a ":" after the drive (an alternate data stream) - refused');
+    if (/[<>"|?*]/.test(x)) throw new Bad(p.slice(0, 120) + ' holds a character no Windows path holds');
+    if (/[. ]$/.test(x)) throw new Bad(p.slice(0, 120) + ': a name ending in a dot or a space (Windows drops it) - write the name as it is');
+    if (DEVICE_RE.test(x)) throw new Bad(p.slice(0, 120) + ': ' + x + ' is a device name (CON, NUL, COM1 ...) - refused');
+    if (/~\d/.test(x)) throw new Bad(p.slice(0, 120) + ': ' + x + ' looks like a short (8.3) name - write the long name');
+  });
+  return m[1].toUpperCase() + ':\\' + parts.join('\\');
+}
+/* under, as Windows compares: no case, `\`, a `*` a whole name */
+function underWin(path, top) {
+  var t = String(top).replace(/\\+$/, '');
+  if (/^[A-Za-z]:$/.test(t)) return false;
+  var re = new RegExp('^' + t.split('\\').map(function (x) { return x === '*' ? '[^\\\\]+' : x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('\\\\') + '(\\\\|$)', 'i');
+  return re.test(path);
+}
+function protectedWhyWin(path) {
+  var i;
+  if (/^[A-Za-z]:\\?$/.test(path)) return path + ' is the root of a drive - never written by a job';
+  for (i = 0; i < F.own.length; i++) {
+    if (underWin(path, F.own[i])) return path + ' is acme-agent\'s own (' + F.own[i] + ') - never written by a job';
+  }
+  for (i = 0; i < F.protected.length; i++) {
+    if (underWin(path, F.protected[i])) return path + ' is under ' + F.protected[i] + ' - acme-agent never writes there, whatever the policy says';
+  }
+  if (path.split('\\').some(function (x) { return arr(F.parts).indexOf(x.toLowerCase()) >= 0; })) return path + ' is in a .ssh folder - acme-agent never writes there';
+  return '';
+}
+function shellLineWin(argv) {
+  var prog = String(argv[0] || '').split(/[\\\/]/).pop().toLowerCase().replace(/\.(exe|com)$/, '');
+  return arr(F.shells).indexOf(prog) >= 0;
+}
+function siteLine(site) { return /[\s"']/.test(site) ? '"' + site + '"' : site; }
 /* ipaddress: an address (str(ip_address)) or null */
 function ip4(t) {
   var p = t.split('.');
@@ -226,14 +298,18 @@ function shellLine(argv) {
 
 /* ---- the builder's state ------------------------------------------------------------------ */
 function empty() {
-  return {files: [], units: [], tests: [], scripts: [], hashes: [], from: [], probe_local: false, probe: [],
+  var s = {files: [], units: [], tests: [], scripts: [], hashes: [], from: [], probe_local: false, probe: [],
     connect_on: false, connect: [], self_update: false, limits: {files: F.limits.files, size: F.limits.size}};
+  if (W()) { s.store = false; s.iis = []; s.rdp = false; }
+  return s;
 }
+function winFile(f) { return {dir: String(f.dir || ''), readers: arr(f.readers).map(String)}; }
 /** The state of a policy the agent said (policy_report). */
 function fromPolicy(p) {
   var s = empty();
   if (!p) return s;
-  s.files = arr(p.files).map(function (f) { return {dir: String(f.dir), owner: String(f.owner || 'root'), group: String(f.group || f.owner || 'root'), mode: Number(f.mode) & 511}; });
+  s.files = arr(p.files).map(function (f) { return W() ? winFile(f) : {dir: String(f.dir), owner: String(f.owner || 'root'), group: String(f.group || f.owner || 'root'), mode: Number(f.mode) & 511}; });
+  if (W()) { s.store = !!p.store; s.iis = arr(p.iis).map(String); s.rdp = !!p.rdp; }
   s.units = Object.keys(p.units || {}).sort().map(function (u) { return {name: u, verbs: arr(p.units[u]).slice()}; });
   s.tests = arr(p.tests).map(function (t) { return arr(t).map(String); });
   s.scripts = arr(p.scripts).map(function (x) { return {path: String(x.path), sha256: String(x.sha256 || '')}; });
@@ -252,8 +328,9 @@ function fromSaved(x) {
   var s = empty();
   if (!x || typeof x !== 'object') return s;
   s.files = arr(x.files).filter(function (f) { return f && typeof f === 'object'; }).map(function (f) {
-    return {dir: String(f.dir || ''), owner: String(f.owner || ''), group: String(f.group || ''), mode: Number(f.mode) & 511};
+    return W() ? winFile(f) : {dir: String(f.dir || ''), owner: String(f.owner || ''), group: String(f.group || ''), mode: Number(f.mode) & 511};
   });
+  if (W()) { s.store = !!x.store; s.iis = arr(x.iis).map(String); s.rdp = !!x.rdp; }
   s.units = arr(x.units).filter(function (u) { return u && typeof u === 'object'; }).map(function (u) { return {name: String(u.name || ''), verbs: arr(u.verbs).map(String)}; });
   s.tests = arr(x.tests).map(function (t) { return Array.isArray(t) ? t.map(String) : split(String(t)); });
   s.scripts = arr(x.scripts).filter(function (u) { return u && typeof u === 'object'; }).map(function (u) { return {path: String(u.path || ''), sha256: String(u.sha256 || '')}; });
@@ -279,6 +356,7 @@ function verdict(msgs) {
  * counts: {entries, warn, bad}} - the agent's own words (acme-agent policy check).
  */
 function check(s) {
+  if (W()) return checkWin(s);
   var R = {files: [], units: [], tests: [], scripts: [], hashes: [], from: [], probe: [], connect: [], limits: {}, pins: []};
   var pol = {files: [], units: {}, tests: [], scripts: [], hashes: [], from: [], probe: [], connect: []};
   var tops = F.protected.concat(F.own);
@@ -435,10 +513,157 @@ function check(s) {
   R.counts = counts;
   return R;
 }
+/** The state checked as a Windows server's agent checks it (acme_agent_win.py): folders with
+    their readers, services, PowerShell scripts, the machine store, IIS sites, Remote Desktop. */
+function checkWin(s) {
+  var R = {files: [], units: [], tests: [], scripts: [], hashes: [], from: [], probe: [], connect: [], iis: [], limits: {}, pins: []};
+  var pol = {files: [], units: {}, tests: [], scripts: [], hashes: [], from: [], probe: [], connect: [], iis: [], store: !!s.store, rdp: !!s.rdp};
+  var tops = arr(F.protected).concat(arr(F.own));
+  var lastDir = {};
+  s.files.forEach(function (f, i) {
+    var m = [], d = null;
+    try {
+      d = normWin(f.dir);
+      if (/^[A-Za-z]:\\$/.test(d)) throw new Bad('a drive\'s root is no folder to allow');
+      arr(f.readers).forEach(function (r) { if (!ACCOUNT_RE.test(String(r))) throw new Bad(JSON.stringify(String(r).slice(0, 80)) + ' is not an account (readers=ACCOUNT,ACCOUNT)'); });
+      var why = protectedWhyWin(d);
+      if (why) { m.push(msg('bad', 'protected', why.replace(' - never written by a job', ' - no job ever writes there'))); d = null; }
+    } catch (e) {
+      if (!(e instanceof Bad)) throw e;
+      m.push(msg('bad', 'unread', e.words));
+      d = null;
+    }
+    R.files.push({msgs: m, dir: d});
+    if (d !== null) lastDir[d.toLowerCase()] = i;
+  });
+  s.files.forEach(function (f, i) {
+    var r = R.files[i];
+    if (r.dir === null) { R.files[i] = verdict(r.msgs); return; }
+    var d = r.dir;
+    if (lastDir[d.toLowerCase()] !== i) r.msgs.push(msg('warn', 'twice', 'files in ' + d + ' are said twice: only the last one counts'));
+    else pol.files.push({dir: d, readers: arr(f.readers).map(String).filter(Boolean)});
+    var und = tops.filter(function (t) { return t.indexOf('*') < 0 && underWin(t, d) && t.toLowerCase() !== d.toLowerCase(); });
+    if (und.length) r.msgs.push(msg('warn', 'above-protected', d + ' holds places no job ever writes (' + und.slice(0, 3).join(', ') + (und.length > 3 ? ' …' : '') + '): the rest of it is allowed - allow the narrowest folder that holds only certificates'));
+    R.files[i] = verdict(r.msgs);
+  });
+  var dirs = pol.files.map(function (f) { return f.dir; });
+  function inside(p) { return dirs.filter(function (d) { return underWin(p, d) && p.toLowerCase() !== d.toLowerCase(); }); }
+  s.units.forEach(function (u) {
+    var m = [];
+    try {
+      var verbs = arr(u.verbs).filter(Boolean);
+      if (verbs.filter(function (v) { return F.verbs.indexOf(v) < 0; }).length || !verbs.length) throw new Bad('the verbs are ' + F.verbs.join(', '));
+      var name = String(u.name || '').trim();
+      if (!SVC_RE.test(name)) throw new Bad(JSON.stringify(name.slice(0, 80)) + ' is not the name of a service');
+      var have = pol.units[name] || (pol.units[name] = []);
+      verbs.forEach(function (v) { if (have.indexOf(v) < 0) have.push(v); });
+    } catch (e) { if (!(e instanceof Bad)) throw e; m.push(msg('bad', 'unread', e.words)); }
+    R.units.push(verdict(m));
+  });
+  var seenT = {};
+  s.tests.forEach(function (t) {
+    var m = [];
+    try {
+      var argv = checkArgv(Array.isArray(t) ? t : splitWin(String(t)));
+      var k = JSON.stringify(argv);
+      if (seenT[k]) m.push(msg('warn', 'twice', 'this command line is said twice'));
+      else { seenT[k] = 1; pol.tests.push(argv); }
+      if (/\.(bat|cmd)$/i.test(argv[0])) throw new Bad(argv[0] + ': a .bat or .cmd runs in cmd.exe (a shell) - allow a PowerShell script instead');
+      if (shellLineWin(argv)) m.push(msg('warn', 'shell', argv.slice(0, 3).map(wq).join(' ') + ' runs what its command line says as SYSTEM - a fixed script (allow script) says what it runs'));
+      argv.forEach(function (w) {
+        var p = null;
+        try { if (/^[A-Za-z]:[\\\/]/.test(w)) p = normWin(w); } catch (e) { p = null; }
+        if (p && inside(p).length) m.push(msg('warn', 'runs-from', w + ' is in a folder allowed for files (' + inside(p)[0] + '): the test runs it, so a job never writes it'));
+      });
+    } catch (e) { if (!(e instanceof Bad)) throw e; m.push(msg('bad', 'unread', e.words)); }
+    R.tests.push(verdict(m));
+  });
+  var lastScript = {}, sp = [];
+  s.scripts.forEach(function (x, i) {
+    var p = null;
+    try { p = normWin(x.path); } catch (e) { if (!(e instanceof Bad)) throw e; sp.push(e.words); return; }
+    sp.push(null);
+    lastScript[p.toLowerCase()] = i;
+  });
+  s.scripts.forEach(function (x, i) {
+    var m = [];
+    if (sp[i]) { R.scripts.push(verdict([msg('bad', 'unread', sp[i])])); return; }
+    var p = normWin(x.path), h = String(x.sha256 || '').trim().toLowerCase();
+    if (lastScript[p.toLowerCase()] !== i) m.push(msg('warn', 'twice', 'the script ' + p + ' is said twice: only the last one counts'));
+    if (h && !HEX64.test(h)) m.push(msg('bad', 'unread', 'allow script PATH sha256=HEX (acme-agent allow script PATH pins it)'));
+    else if (lastScript[p.toLowerCase()] === i) {
+      if (h) pol.scripts.push({path: p, sha256: h});
+      else { m.push(msg('info', 'pin', 'pinned on the server: acme-agent allow script ' + wq(p))); R.pins.push(p); }
+    }
+    if (inside(p).length) m.push(msg('warn', 'runs-from', p + ' is in a folder allowed for files (' + inside(p)[0] + '): the policy runs it, so a job never writes it'));
+    R.scripts.push(verdict(m));
+  });
+  s.hashes.forEach(function (h) {
+    h = String(h || '').trim().toLowerCase();
+    if (!HEX64.test(h)) { R.hashes.push(verdict([msg('bad', 'unread', 'allow script-hash HEX (64 hex digits, sha256)')])); return; }
+    if (pol.hashes.indexOf(h) < 0) pol.hashes.push(h);
+    R.hashes.push(verdict([]));
+  });
+  s.from.forEach(function (a) {
+    try { var n = ipNetwork(a); if (pol.from.indexOf(n) < 0) pol.from.push(n); R.from.push(verdict([])); }
+    catch (e) { if (!(e instanceof Bad)) throw e; R.from.push(verdict([msg('bad', 'unread', e.words)])); }
+  });
+  s.probe.forEach(function (a) {
+    try { var n = normHostport(a); if (pol.probe.indexOf(n) < 0) pol.probe.push(n); R.probe.push(verdict([])); }
+    catch (e) { if (!(e instanceof Bad)) throw e; R.probe.push(verdict([msg('bad', 'unread', e.words)])); }
+  });
+  (s.connect_on ? s.connect : []).forEach(function (a) {
+    try {
+      var n = normHostport(a);
+      if (pol.connect.indexOf(n) < 0) pol.connect.push(n);
+      R.connect.push(verdict([msg('warn', 'connect', 'acme may reach ' + n + ' through this server (a connector of SSH targets)')]));
+    } catch (e) { if (!(e instanceof Bad)) throw e; R.connect.push(verdict([msg('bad', 'unread', e.words)])); }
+  });
+  arr(s.iis).forEach(function (x) {
+    var site = String(x || '').trim();
+    if (!SITE_RE.test(site)) { R.iis.push(verdict([msg('bad', 'unread', 'allow iis SITE (the name of an IIS site, or *)')])); return; }
+    var m = [];
+    if (pol.iis.some(function (y) { return y.toLowerCase() === site.toLowerCase(); })) m.push(msg('warn', 'twice', 'the site ' + site + ' is said twice'));
+    else pol.iis.push(site);
+    if (site === '*') m.push(msg('info', 'any', 'every IIS site of this server'));
+    R.iis.push(verdict(m));
+  });
+  if ((pol.iis.length || pol.rdp) && !pol.store) R.storeMsg = msg('warn', 'no-store', 'IIS and Remote Desktop take the certificate from the machine store: allow store too');
+  ['files', 'size'].forEach(function (k) {
+    var v = Number(s.limits && s.limits[k]), top = k === 'files' ? F.limits.files_most : F.limits.size_most;
+    R.limits[k] = (Math.floor(v) === v && v >= 1 && v <= top) ? verdict([]) : verdict([msg('bad', 'unread', 'limit ' + k + ' is 1 to ' + top)]);
+  });
+  var L = [];
+  pol.files.forEach(function (f) { L.push('allow file ' + wq(f.dir) + (f.readers.length ? ' readers=' + wq(f.readers.join(',')) : '')); });
+  Object.keys(pol.units).sort().forEach(function (u) { L.push('allow service ' + u + ' ' + pol.units[u].join(',')); });
+  pol.tests.forEach(function (t) { L.push('allow test -- ' + t.map(wq).join(' ')); });
+  pol.scripts.forEach(function (x) { L.push('allow script ' + wq(x.path) + ' sha256=' + x.sha256); });
+  pol.hashes.forEach(function (h) { L.push('allow script-hash ' + h); });
+  pol.from.forEach(function (f) { L.push('allow from ' + f); });
+  if (s.probe_local) L.push('allow probe local');
+  pol.probe.forEach(function (c) { L.push('allow probe ' + c); });
+  pol.connect.forEach(function (c) { L.push('allow connect ' + c); });
+  if (s.self_update) L.push('allow self-update');
+  if (pol.store) L.push('allow store');
+  pol.iis.forEach(function (x) { L.push('allow iis ' + siteLine(x)); });
+  if (pol.rdp) L.push('allow rdp');
+  if (R.limits.files.level === 'ok' && Number(s.limits.files) !== F.limits.files) L.push('limit files ' + Number(s.limits.files));
+  if (R.limits.size.level === 'ok' && Number(s.limits.size) !== F.limits.size) L.push('limit size ' + Number(s.limits.size));
+  R.lines = L;
+  R.pol = pol;
+  var counts = {entries: L.length, warn: R.storeMsg ? 1 : 0, bad: 0};
+  ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis'].forEach(function (k) {
+    R[k].forEach(function (v) { if (v.level === 'bad') counts.bad++; else if (v.level === 'warn') counts.warn++; });
+  });
+  ['files', 'size'].forEach(function (k) { if (R.limits[k].level === 'bad') counts.bad++; });
+  R.counts = counts;
+  return R;
+}
 /** The policy file, as the agent writes it (its head, then the lines). */
 function fileText(R) { return F.head + (R.lines.length ? R.lines.join('\n') + '\n' : ''); }
 /** The same as `sudo acme-agent allow ...` lines (each adds to what is there). */
 function allowLines(R) {
+  if (W()) return allowLinesWin(R);
   var p = R.pol, out = [];
   p.files.forEach(function (f) { out.push('sudo acme-agent allow file ' + quote(f.dir) + ' --owner ' + f.owner + ':' + f.group + ' --mode ' + oct4(f.mode)); });
   Object.keys(p.units).sort().forEach(function (u) { out.push('sudo acme-agent allow unit ' + u + ' ' + p.units[u].join(',')); });
@@ -452,8 +677,28 @@ function allowLines(R) {
   });
   return out;
 }
+/** Windows: the same, in an elevated prompt (no sudo). */
+function allowLinesWin(R) {
+  var p = R.pol, out = [], A = 'acme-agent ';
+  p.files.forEach(function (f) { out.push(A + 'allow file ' + wq(f.dir) + (f.readers.length ? ' --readers ' + wq(f.readers.join(',')) : '')); });
+  Object.keys(p.units).sort().forEach(function (u) { out.push(A + 'allow service ' + u + ' ' + p.units[u].join(',')); });
+  p.tests.forEach(function (t) { out.push(A + 'allow test -- ' + t.map(wq).join(' ')); });
+  p.scripts.map(function (x) { return x.path; }).concat(R.pins).forEach(function (x) { out.push(A + 'allow script ' + wq(x)); });
+  p.hashes.forEach(function (h) { out.push(A + 'allow script-hash ' + h); });
+  p.from.forEach(function (f) { out.push(A + 'allow from ' + f); });
+  R.lines.forEach(function (l) {
+    if (l.indexOf('allow probe ') === 0 || l.indexOf('allow connect ') === 0 || l === 'allow self-update' || l === 'allow store' ||
+        l.indexOf('allow iis ') === 0 || l === 'allow rdp' || l.indexOf('limit ') === 0) out.push(A + l);
+  });
+  return out;
+}
 /** One block to paste on the server: the whole policy written (checked first there). */
 function oneShot(R) {
+  if (W()) {
+    /* an elevated PowerShell: a here-string piped to the agent */
+    return "@'\n" + fileText(R) + "'@ | acme-agent policy apply -" +
+      (R.pins.length ? '\n' + R.pins.map(function (p) { return 'acme-agent allow script ' + wq(p); }).join('\n') : '');
+  }
   return "sudo acme-agent policy apply - <<'EOF'\n" + fileText(R) + 'EOF' +
     (R.pins.length ? '\n' + R.pins.map(function (p) { return 'sudo acme-agent allow script ' + quote(p); }).join('\n') : '');
 }
@@ -481,7 +726,31 @@ function deepest(R, path) {
   return best;
 }
 /** 'yes' (the state allows it), 'no' (add it), or the words why no policy ever allows it. */
+function coversWin(s, R, it) {
+  if (it.kind === 'store') return R.pol.store ? 'yes' : 'no';
+  if (it.kind === 'rdp') return R.pol.rdp ? 'yes' : 'no';
+  if (it.kind === 'iis') return R.pol.iis.some(function (x) { return x === '*' || x.toLowerCase() === String(it.site).toLowerCase(); }) ? 'yes' : 'no';
+  if (it.kind === 'file') {
+    var path;
+    try { path = normWin(it.path); } catch (e) { return e.words || 'not a path'; }
+    var why = protectedWhyWin(path);
+    if (!why) R.pol.scripts.forEach(function (x) { if (x.path.toLowerCase() === path.toLowerCase()) why = path + ' is a script the policy runs - never written by a job'; });
+    if (!why && arr(F.exec_ext).some(function (x) { return path.toLowerCase().slice(-x.length) === x; })) why = path + ': a file Windows runs as code - acme-agent never writes one';
+    if (why) return why;
+    var best = null;
+    R.pol.files.forEach(function (f) { if (underWin(path, f.dir) && (!best || f.dir.length > best.dir.length)) best = f; });
+    return best ? 'yes' : 'no';
+  }
+  if (it.kind === 'unit') {
+    var vs = null;
+    Object.keys(R.pol.units).forEach(function (u) { if (u.toLowerCase() === String(it.unit).toLowerCase()) vs = R.pol.units[u]; });
+    return arr(vs).indexOf(it.verb) >= 0 ? 'yes' : 'no';
+  }
+  if (it.kind === 'script') return R.pol.scripts.some(function (x) { return x.path.toLowerCase() === String(it.path).toLowerCase(); }) || R.pins.indexOf(it.path) >= 0 ? 'yes' : 'no';
+  return null;
+}
 function covers(s, R, it) {
+  if (W()) { var w = coversWin(s, R, it); if (w !== null) return w; }
   if (it.kind === 'any') {
     var got = arr(it.any).map(function (a) { return covers(s, R, a); });
     return got.indexOf('yes') >= 0 ? 'yes' : (got.indexOf('no') >= 0 ? 'no' : got[0] || 'no');
@@ -521,6 +790,22 @@ function covers(s, R, it) {
 /** What allows `it` put into the state. */
 function addNeed(s, it) {
   if (it.kind === 'any') { if (arr(it.any).length) addNeed(s, it.any[0]); return; }
+  if (W()) {
+    if (it.kind === 'store') { s.store = true; return; }
+    if (it.kind === 'rdp') { s.rdp = true; s.store = true; return; }
+    if (it.kind === 'iis') { if (!arr(s.iis).some(function (x) { return x.toLowerCase() === String(it.site).toLowerCase(); })) s.iis.push(it.site); s.store = true; return; }
+    if (it.kind === 'file') {
+      var wd = it.dir || String(it.path).replace(/[\\\/][^\\\/]*$/, '');
+      if (!s.files.some(function (f) { return String(f.dir).toLowerCase() === wd.toLowerCase(); })) s.files.push({dir: wd, readers: []});
+      return;
+    }
+    if (it.kind === 'unit') {
+      var wx = s.units.filter(function (y) { return String(y.name).toLowerCase() === String(it.unit).toLowerCase(); })[0];
+      if (!wx) { wx = {name: it.unit, verbs: []}; s.units.push(wx); }
+      if (wx.verbs.indexOf(it.verb) < 0) wx.verbs.push(it.verb);
+      return;
+    }
+  }
   if (it.kind === 'file') {
     var d = it.path.replace(/\/[^\/]*$/, '') || '/', u = it.owner || 'root', g = it.group || it.owner || 'root';
     var have = s.files.filter(function (f) { return normPath(f.dir) === d; })[0];
@@ -545,6 +830,19 @@ function addNeed(s, it) {
 /** A template put into the state: its folders (one folder: its mode added to, its owner the
     template's), units, tests, scripts, probe. */
 function addTemplate(s, t) {
+  if (W()) {
+    arr(t.files).forEach(function (f) {
+      var have = s.files.filter(function (x) { return String(x.dir).toLowerCase() === String(f.dir).toLowerCase(); })[0];
+      if (have) arr(f.readers).forEach(function (r) { if (have.readers.indexOf(r) < 0) have.readers.push(r); });
+      else s.files.push({dir: f.dir, readers: arr(f.readers).slice()});
+    });
+    if (t.store) s.store = true;
+    if (t.rdp) s.rdp = true;
+    arr(t.iis).forEach(function (x) { addNeed(s, {kind: 'iis', site: x}); });
+    Object.keys(t.units || {}).forEach(function (u) { t.units[u].forEach(function (v) { addNeed(s, {kind: 'unit', unit: u, verb: v}); }); });
+    if (t.probe_local) s.probe_local = true;
+    return;
+  }
   arr(t.files).forEach(function (f) {
     var have = s.files.filter(function (x) { return normPath(x.dir) === f.dir; })[0];
     if (have) { have.mode = Number(have.mode) | Number(f.mode); have.owner = f.owner; have.group = f.group; }
@@ -567,6 +865,7 @@ function hasTemplate(s, R, t) {
 }
 
 var CORE = {setFacts: setFacts, facts: function () { return F; }, quote: quote, split: split, normDir: normDir, normUnit: normUnit,
+  wq: wq, splitWin: splitWin, normWin: normWin, protectedWhyWin: protectedWhyWin,
   ipNetwork: ipNetwork, normHostport: normHostport, protectedWhy: protectedWhy, empty: empty, fromPolicy: fromPolicy,
   fromSaved: fromSaved, check: check, fileText: fileText, allowLines: allowLines, oneShot: oneShot, diff: diff, covers: covers,
   addNeed: addNeed, addTemplate: addTemplate, hasTemplate: hasTemplate, oct4: oct4, Bad: Bad};
@@ -589,7 +888,8 @@ var SVG = {
   folder: '<path d="M3.5 6.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
   wand: '<path d="M4 20L15 9"/><path d="M14 5v3M18.5 9.5h-3M17 6l-2 2"/><path d="M19 3l.6 1.4L21 5l-1.4.6L19 7l-.6-1.4L17 5l1.4-.6z"/>',
   hash: '<path d="M9 4L7 20M17 4l-2 16M4.5 9h16M3.5 15h16"/>',
-  gauge: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/>'
+  gauge: '<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/>',
+  screen: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/>'
 };
 function icon(key, size) {
   var s = noI18n(el('span', 'ag-ic'));
@@ -644,6 +944,7 @@ var USERS = ['root', 'nginx', 'www-data', 'apache', 'haproxy', 'postfix', 'dovec
  */
 /* the builder being asked for (1.0.119: "Design its policy…" clicked twice while it was
    asked opened it twice) */
+var WIN_USERS = ['IIS_IUSRS', 'NT SERVICE\\W3SVC', 'NETWORK SERVICE', 'LOCAL SERVICE', 'Users', 'Authenticated Users'];
 var OPENING = false;
 function open(row, opts) {
   opts = opts || {};
@@ -679,7 +980,25 @@ function build(row, d, opts) {
       l = l.trim();
       if (!l || l[0] === '#') return;
       try {
-        var w = split(l);
+        var w = W() ? splitWin(l) : split(l);
+        if (W()) {
+          var wkv = {}, wr = [];
+          w.slice(2).forEach(function (x) { var m = x.match(/^([a-z0-9_-]+)=(.*)$/); if (m) wkv[m[1]] = m[2]; else wr.push(x); });
+          if (w[0] === 'limit') s.limits[w[1]] = Number(w[2]);
+          else if (w[1] === 'file') s.files.push({dir: wr[0], readers: wkv.readers ? wkv.readers.split(',') : []});
+          else if (w[1] === 'service' || w[1] === 'unit') s.units.push({name: wr[0], verbs: String(wr[1] || '').split(',')});
+          else if (w[1] === 'test') s.tests.push(wr[0] === '--' ? wr.slice(1) : wr);
+          else if (w[1] === 'script') s.scripts.push({path: wr[0], sha256: wkv.sha256 || ''});
+          else if (w[1] === 'script-hash') s.hashes.push(wr[0]);
+          else if (w[1] === 'from') s.from.push(wr[0]);
+          else if (w[1] === 'probe') { if (wr[0] === 'local') s.probe_local = true; else s.probe.push(wr[0]); }
+          else if (w[1] === 'connect') { s.connect.push(wr[0]); s.connect_on = true; }
+          else if (w[1] === 'self-update') s.self_update = true;
+          else if (w[1] === 'store') s.store = true;
+          else if (w[1] === 'rdp') s.rdp = true;
+          else if (w[1] === 'iis') s.iis.push(wr[0]);
+          return;
+        }
         if (w[0] === 'limit') { s.limits[w[1]] = Number(w[2]); return; }
         var kv = {}, rest = [];
         w.slice(2).forEach(function (x) { var m = x.match(/^([a-z0-9_-]+)=(.*)$/); if (m) kv[m[1]] = m[2]; else rest.push(x); });
@@ -750,6 +1069,11 @@ function build(row, d, opts) {
     ['hashes', 'Script hashes', 'hash'], ['from', 'Allow from', 'in'], ['probe', 'Tests from here', 'pulse'],
     ['connect', 'Connections for acme', 'plug'], ['update', 'Updates from acme', 'up'], ['limits', 'Limits', 'gauge']
   ];
+  /* a Windows server's agent (1.0.120): services, and the machine store, IIS, Remote Desktop */
+  if (W()) {
+    SECTIONS[3] = ['units', 'Services', 'refresh'];
+    SECTIONS.splice(4, 0, ['store', 'Machine store', 'lock'], ['iis', 'IIS sites', 'globe'], ['rdp', 'Remote Desktop', 'screen']);
+  }
   function nav() {
     var n = el('div', 'pb-nav');
     refs.nav = {};
@@ -791,7 +1115,8 @@ function build(row, d, opts) {
   function drawAll() {
     Object.keys(sec).forEach(function (k) { if (sec[k].parentNode) sec[k].remove(); });
     refs.rows = {};
-    [drawTemplates, drawNeeds, drawFiles, drawUnits, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawUpdate, drawLimits]
+    (W() ? [drawTemplates, drawNeeds, drawFiles, drawUnits, drawStore, drawIis, drawRdp, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawUpdate, drawLimits]
+      : [drawTemplates, drawNeeds, drawFiles, drawUnits, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawUpdate, drawLimits])
       .forEach(function (f) { refs.main.appendChild(f()); });
   }
   function redraw(key, fn) {
@@ -856,7 +1181,8 @@ function build(row, d, opts) {
         var w = el('span', 'pb-tpl-w');
         var nm = NAMED.indexOf(t.title) >= 0 ? el('span', 'pb-tpl-n', t.title) : noI18n(el('span', 'pb-tpl-n', t.title));
         w.appendChild(nm);
-        var sub = arr(t.files).map(function (f) { return f.dir; }).concat(Object.keys(t.units || {})).join(' · ');
+        var sub = arr(t.files).map(function (f) { return f.dir; }).concat(Object.keys(t.units || {}))
+          .concat(t.store ? ['Cert:\\LocalMachine\\My'] : []).concat(arr(t.iis).map(function (x) { return 'IIS ' + x; })).concat(t.rdp ? ['RDP'] : []).join(' · ');
         w.appendChild(noI18n(el('span', 'pb-tpl-s', sub)));
         b.appendChild(w);
         var mk = noI18n(el('span', 'pb-tpl-mk', ''));
@@ -891,6 +1217,14 @@ function build(row, d, opts) {
   /* ---- what the deployments need ------------------------------------------------------------ */
   function needWords(it) {
     if (it.kind === 'any') return arr(it.any).map(needWords).join('  ||  ');
+    if (W()) {
+      if (it.kind === 'store') return 'Cert:\\LocalMachine\\My';
+      if (it.kind === 'iis') return it.site;
+      if (it.kind === 'rdp') return 'RDP-tcp';
+      if (it.kind === 'file') return it.path;
+      if (it.kind === 'unit') return ({restart: 'Restart-Service ', start: 'Start-Service ', 'try-restart': 'Restart-Service '}[it.verb] || it.verb + ' ') + it.unit;
+      if (it.kind === 'test') return arr(it.argv).map(wq).join(' ');
+    }
     if (it.kind === 'file') return it.path + '  ' + oct4(it.mode) + ' ' + (it.owner ? it.owner + ':' + (it.group || it.owner) : 'root:root');
     if (it.kind === 'unit') return 'systemctl ' + it.verb + ' ' + it.unit;
     if (it.kind === 'test') return arr(it.argv).map(quote).join(' ');
@@ -900,7 +1234,8 @@ function build(row, d, opts) {
     if (it.kind === 'limit') return it.files + ' files';
     return '';
   }
-  var NEED_K = {file: 'file', unit: 'unit', test: 'command', script: 'script', hash: 'the script written in acme', probe: 'test', limit: 'limit', any: 'one of'};
+  var NEED_K = {file: 'file', unit: W() ? 'service' : 'unit', test: 'command', script: 'script', hash: 'the script written in acme', probe: 'test', limit: 'limit', any: 'one of',
+    store: 'machine store', iis: 'IIS site', rdp: 'Remote Desktop'};
   function drawNeeds() {
     var s = section('needs', 'What the deployments need', 'check', 'Each deployment to this target, as its form judges it: add what is missing with one click.');
     refs.needs = [];
@@ -974,7 +1309,34 @@ function build(row, d, opts) {
   }
 
   /* ---- folders ------------------------------------------------------------------------------ */
+  function drawFilesWin() {
+    var s = section('files', 'Folders', 'folder', 'Files in the folder and below it. Readers: only SYSTEM, the Administrators and these accounts may read them (empty: the folder\'s own permissions). Allow the narrowest folder that holds only certificates.',
+      'Add a folder', function () { S.files.push({dir: '', readers: []}); redraw('files', drawFiles); focusLast('files'); });
+    var dl = el('datalist');
+    dl.id = 'pb-users';
+    WIN_USERS.forEach(function (u) { var o = el('option'); o.value = u; dl.appendChild(o); });
+    s.body.appendChild(noI18n(dl));
+    S.files.forEach(function (f, i) {
+      var o = rowShell(S.files, 'files', i, function () { S.files.splice(i, 1); redraw('files', drawFiles); });
+      var p = input(f.dir, 'C:\\certs', 'mono pb-path');
+      p.oninput = function () { f.dir = p.value.trim(); refresh(); };
+      o.top.appendChild(p);
+      var rd = el('div', 'pb-owner pb-readers');
+      rd.appendChild(el('span', 'pb-k', 'readers'));
+      var r = input(arr(f.readers).join(', '), 'IIS_IUSRS, NT SERVICE\\W3SVC', 'mono');
+      r.setAttribute('list', 'pb-users');
+      r.oninput = function () { f.readers = r.value.split(',').map(function (x) { return x.trim(); }).filter(Boolean); refresh(); };
+      rd.appendChild(r);
+      o.top.appendChild(rd);
+      o.top.appendChild(o.x);
+      o.row.classList.add('pb-file');
+      s.body.appendChild(o.row);
+    });
+    if (!S.files.length) s.body.appendChild(el('p', 'pb-empty', 'No folder: acme can write no file here.'));
+    return s.node;
+  }
   function drawFiles() {
+    if (W()) return drawFilesWin();
     var s = section('files', 'Folders', 'folder', 'Files in the folder and below it, owned so, at most that mode. Allow the narrowest folder that holds only certificates.',
       'Add a folder', function () { S.files.push({dir: '', owner: 'root', group: 'root', mode: 420}); redraw('files', drawFiles); focusLast('files'); });
     var dl = el('datalist');
@@ -1042,11 +1404,13 @@ function build(row, d, opts) {
 
   /* ---- units -------------------------------------------------------------------------------- */
   function drawUnits() {
-    var s = section('units', 'Units', 'refresh', 'systemctl VERB NAME - only the verbs chosen; after it the agent says whether the unit is active.',
+    var s = W() ? section('units', 'Services', 'refresh', 'A Windows service: Restart-Service (restart), only when it runs (try-restart), Start-Service (start) - only the verbs chosen; after it the agent says its state.',
+      'Add a service', function () { S.units.push({name: '', verbs: ['restart']}); redraw('units', drawUnits); focusLast('units'); })
+      : section('units', 'Units', 'refresh', 'systemctl VERB NAME - only the verbs chosen; after it the agent says whether the unit is active.',
       'Add a unit', function () { S.units.push({name: '', verbs: ['reload']}); redraw('units', drawUnits); focusLast('units'); });
     S.units.forEach(function (u, i) {
       var o = rowShell(S.units, 'units', i, function () { S.units.splice(i, 1); redraw('units', drawUnits); });
-      var n = input(u.name, 'nginx.service', 'mono pb-unit');
+      var n = input(u.name, W() ? 'W3SVC' : 'nginx.service', 'mono pb-unit');
       n.oninput = function () { u.name = n.value.trim(); refresh(); };
       o.top.appendChild(n);
       var chips = el('div', 'pb-verbs');
@@ -1065,7 +1429,7 @@ function build(row, d, opts) {
       o.top.appendChild(o.x);
       s.body.appendChild(o.row);
     });
-    if (!S.units.length) s.body.appendChild(el('p', 'pb-empty', 'No unit: acme reloads nothing here.'));
+    if (!S.units.length) s.body.appendChild(el('p', 'pb-empty', W() ? 'No service: acme restarts nothing here.' : 'No unit: acme reloads nothing here.'));
     return s.node;
   }
 
@@ -1075,7 +1439,7 @@ function build(row, d, opts) {
       'Add a command', function () { S.tests.push([]); redraw('tests', drawTests); focusLast('tests'); });
     S.tests.forEach(function (t, i) {
       var o = rowShell(S.tests, 'tests', i, function () { S.tests.splice(i, 1); redraw('tests', drawTests); });
-      var line = input(Array.isArray(t) ? t.map(quote).join(' ') : t, 'nginx -t', 'mono pb-cmd');
+      var line = input(Array.isArray(t) ? t.map(W() ? wq : quote).join(' ') : t, W() ? 'iisreset /status' : 'nginx -t', 'mono pb-cmd');
       var toks = noI18n(el('div', 'pb-toks'));
       var paintToks = function () {
         clear(toks);
@@ -1086,7 +1450,7 @@ function build(row, d, opts) {
         });
       };
       line.oninput = function () {
-        try { S.tests[i] = split(line.value); line.classList.remove('pb-bad-in'); } catch (e) { S.tests[i] = line.value; line.classList.add('pb-bad-in'); }
+        try { S.tests[i] = (W() ? splitWin : split)(line.value); line.classList.remove('pb-bad-in'); } catch (e) { S.tests[i] = line.value; line.classList.add('pb-bad-in'); }
         paintToks();
         refresh();
       };
@@ -1106,7 +1470,7 @@ function build(row, d, opts) {
       'Add a script', function () { S.scripts.push({path: '', sha256: ''}); redraw('scripts', drawScripts); focusLast('scripts'); });
     S.scripts.forEach(function (x, i) {
       var o = rowShell(S.scripts, 'scripts', i, function () { S.scripts.splice(i, 1); redraw('scripts', drawScripts); });
-      var p = input(x.path, '/usr/local/sbin/acme-hook.sh', 'mono pb-path');
+      var p = input(x.path, W() ? 'C:\\scripts\\after.ps1' : '/usr/local/sbin/acme-hook.sh', 'mono pb-path');
       p.oninput = function () { x.path = p.value.trim(); refresh(); };
       var h = input(x.sha256, 'sha256 - empty: pinned on the server', 'mono pb-sha');
       h.oninput = function () { x.sha256 = h.value.trim(); refresh(); };
@@ -1165,6 +1529,21 @@ function build(row, d, opts) {
       return s.node;
     };
     return draw;
+  }
+  /* ---- a Windows server: the machine store, IIS sites, Remote Desktop ------------------------ */
+  function drawStore() {
+    var s = section('store', 'Machine store', 'lock', 'The certificate imported into Cert:\\LocalMachine\\My (its key not exportable unless the deployment says so); the older ones this agent imported for a deployment removed beyond its Keep - never one it did not import, never one still bound.');
+    s.body.appendChild(switcher(S.store, 'acme may import certificates into the machine store', function (on) { S.store = on; refresh(); }));
+    refs.storeSaid = said();
+    s.body.appendChild(refs.storeSaid);
+    return s.node;
+  }
+  var drawIis = listSection('iis', 'IIS sites', 'globe', 'The https bindings of these sites set to the new certificate (made when missing) - * for every site of this server.',
+    'Add a site', 'Default Web Site', function () { return S.iis; });
+  function drawRdp() {
+    var s = section('rdp', 'Remote Desktop', 'screen', 'The certificate of the Remote Desktop listener (RDP-tcp); NETWORK SERVICE may read its key.');
+    s.body.appendChild(switcher(S.rdp, 'acme may give the Remote Desktop listener its certificate', function (on) { S.rdp = on; refresh(); }));
+    return s.node;
   }
   var drawFrom = listSection('from', 'Allow from', 'in', 'A passive agent lets acme in only from these addresses (else from anywhere with acme’s certificate); anybody else is turned away before the TLS handshake.',
     'Add an address', '192.0.2.10 or 192.0.2.0/24', function () { return S.from; }, function (b) {
@@ -1304,6 +1683,10 @@ function build(row, d, opts) {
     once: 'Paste it whole into a root shell on the server: the agent checks it, writes it in place of the one there and says what changed. Ask it now on the card then shows it.',
     diff: 'Against its policy as the agent last said it: + is allowed by the design only, - only on the server now.'
   };
+  if (W()) {
+    SAY.file = 'C:\\ProgramData\\acme-agent\\etc\\policy - in place of the one there: acme-agent policy apply FILE in an elevated prompt (checked first; the one before kept).';
+    SAY.once = 'Paste it whole into an elevated PowerShell on the server (Run as administrator): the agent checks it, writes it in place of the one there and says what changed. Ask it now on the card then shows it.';
+  }
   function paintOut() {
     clear(refs.outSay);
     refs.outSay.appendChild(document.createTextNode(SAY[B.tab]));
@@ -1394,11 +1777,12 @@ function build(row, d, opts) {
   /* ---- everything checked again, in place -------------------------------------------------- */
   function refresh() {
     R = check(S);
-    ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect'].forEach(function (k) {
+    ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis'].forEach(function (k) {
       arr(refs.rows[k]).forEach(function (r, i) {
-        if (!r || !R[k][i]) return;
+        if (!r || !R[k] || !R[k][i]) return;
         var hint = '';
-        if (k === 'files') hint = 'files here at most ' + oct4(S.files[i].mode & 438) + ', owned by ' + S.files[i].owner + ':' + S.files[i].group;
+        if (k === 'files' && W()) hint = arr(S.files[i].readers).length ? 'read by SYSTEM, the Administrators and ' + arr(S.files[i].readers).join(', ') : 'read as the folder\'s own permissions say';
+        else if (k === 'files') hint = 'files here at most ' + oct4(S.files[i].mode & 438) + ', owned by ' + S.files[i].owner + ':' + S.files[i].group;
         paintRow(r, R[k][i], hint ? hint : '');
       });
     });
@@ -1410,6 +1794,10 @@ function build(row, d, opts) {
         r.row.classList.toggle('bad', R.limits[k].level === 'bad');
       }
     });
+    if (refs.storeSaid) {
+      clear(refs.storeSaid);
+      if (R.storeMsg) { var sm = el('div', 'pb-msg warn'); sm.appendChild(noI18n(el('span', 'pb-msg-mk', '!'))); sm.appendChild(el('span', '', R.storeMsg.words)); refs.storeSaid.appendChild(sm); }
+    }
     paintTemplates();
     paintNeeds();
     /* the hero and the nav */
@@ -1426,9 +1814,10 @@ function build(row, d, opts) {
       refs.stats.appendChild(s);
     });
     var N = {tpl: '', needs: '', files: S.files.length, units: S.units.length, tests: S.tests.length, scripts: S.scripts.length, hashes: S.hashes.length,
-      from: S.from.length, probe: S.probe.length + (S.probe_local ? 1 : 0), connect: S.connect_on ? S.connect.length : 0, update: S.self_update ? '✓' : '', limits: ''};
+      from: S.from.length, probe: S.probe.length + (S.probe_local ? 1 : 0), connect: S.connect_on ? S.connect.length : 0, update: S.self_update ? '✓' : '', limits: '',
+      store: S.store ? '✓' : '', iis: arr(S.iis).length, rdp: S.rdp ? '✓' : ''};
     var lv = {files: R.files, units: R.units, tests: R.tests, scripts: R.scripts, hashes: R.hashes, from: R.from, probe: R.probe, connect: R.connect,
-      limits: [R.limits.files, R.limits.size]};
+      limits: [R.limits.files, R.limits.size], iis: R.iis || [], store: R.storeMsg ? [{level: 'warn'}] : []};
     Object.keys(refs.nav).forEach(function (k) {
       var x = refs.nav[k];
       x.n.textContent = N[k] === '' || N[k] === 0 ? '' : String(N[k]);

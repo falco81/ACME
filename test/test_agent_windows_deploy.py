@@ -49,7 +49,17 @@ from acmelib.certs import agents as G  # noqa: E402
 from acmelib.plugins import base  # noqa: E402
 from acmelib.plugins.targets import agent_windows as AW  # noqa: E402
 
-HAVE_WIN = os.path.exists(os.path.join(AGENT_DIR, 'acme_agent_win.py'))
+
+
+def _have_win():
+    try:
+        with open(os.path.join(AGENT_DIR, 'acme_agent_win.py')) as fh:
+            return '\ndef install(' in fh.read()
+    except OSError:
+        return False
+
+
+HAVE_WIN = _have_win()
 AID = 'ag-0123456789abcdef'
 
 
@@ -699,6 +709,67 @@ class AcmeSide(unittest.TestCase):
         self.assertEqual(iis['policy'], {'ok': False, 'allow': 'acme-agent allow iis '
                                                                '"Default Web Site"'})
         self.assertTrue(any(s.get('kind') == 'stop' for s in steps))
+
+    def test_what_happens_records_the_job(self):
+        """The sandbox of What happens (plansandbox.PlanContext.agent_call) writes down the store,
+        each binding, the listener and the files of a Windows job, each judged by the policy."""
+        from acmelib.certs import plansandbox as PS
+        pol = {'files': [], 'units': {}, 'tests': [], 'scripts': [], 'script_hashes': [],
+               'store': True, 'iis': ['*']}
+        ctx = PS.PlanContext({'target_name': 'win1', 'deploy_id': 12,
+                              'agent': {'policy': pol, 'platform': 'windows', 'mode': 'active'}},
+                             'target:win1', None)
+        t = AW.AgentWindowsTarget({'mode': 'active'}, ctx)
+        t.agent_key_of = lambda bundle: False
+        t.unchanged = lambda *a, **k: False
+        t.pending = lambda: False
+        t._written = lambda options, paths=None: []
+        opts = {'iis': 'Default Web Site | www.example.test', 'rdp': True,
+                'outputs': 'fullchain-pem C:/certs/a.crt'}
+        b = Bundle('a')
+        r = t.resolved(b, opts)
+        args = t.plan(b, opts, r, t.render(b, r))
+        PS.RECORDING[0] = []
+        try:
+            ctx.agent_call('deploy', args)
+            ev = [e for e in PS.RECORDING[0] if e.get('kind') == 'agent-job'][0]
+        finally:
+            PS.RECORDING[0] = None
+        self.assertEqual(ev['platform'], 'windows')
+        what = [(i['what'], i['ok']) for i in ev['items']]
+        self.assertEqual(what[:3], [('store', True), ('iis', True), ('rdp', False)])
+        self.assertEqual([i['path'] for i in ev['items'] if i['what'] == 'file'],
+                         ['C:\\certs\\a.crt'])            # the store's PKCS#12 is no file
+        rdp = [i for i in ev['items'] if i['what'] == 'rdp'][0]
+        self.assertEqual(rdp['allow'], 'acme-agent allow rdp')
+
+    def test_builder_templates_and_needs(self):
+        from acmelib.certs import agent_policy as P
+        tpl = {t['key']: t for t in P.templates_windows()}
+        for key in ('iis', 'iis-all', 'rdp', 'store', 'folder', 'service'):
+            self.assertIn(key, tpl)
+            self.assertEqual(tpl[key]['platform'], 'windows')
+        self.assertEqual(tpl['iis']['iis'], ['Default Web Site'])
+        self.assertTrue(tpl['iis']['store'])
+        self.assertTrue(tpl['rdp']['rdp'])
+        self.assertEqual(tpl['folder']['files'], [{'dir': 'C:\\certs', 'readers': []}])
+        self.assertEqual(tpl['service']['units'], {'myservice': ['restart']})
+        self.assertFalse(any('exchange' in k for k in tpl))
+        # what a deployment needs, as items of the builder
+        items = []
+        t = target()
+        opts = {'iis': 'Default Web Site | www.example.test\nShop | shop', 'rdp': True,
+                'outputs': 'fullchain-pem C:/certs/x/a.crt', 'reload_cmd': 'Restart-Service W3SVC'}
+        b = Bundle('a')
+        r = t.resolved(b, opts)
+        P._win_needs(items, t, t.plan(b, opts, r, [b'' for _ in r['files']], sealed=False),
+                     opts)
+        kinds = [(i['kind'], i.get('site') or i.get('path') or i.get('unit') or '') for i in items]
+        self.assertEqual(kinds, [('store', ''), ('iis', 'Default Web Site'), ('iis', 'Shop'),
+                                 ('rdp', ''), ('file', 'C:\\certs\\x\\a.crt'),
+                                 ('unit', 'W3SVC'), ('probe', '')])
+        self.assertEqual(items[4]['dir'], 'C:\\certs\\x')
+        self.assertEqual(items[5]['allow'], 'acme-agent allow service W3SVC restart')
 
 
 if __name__ == '__main__':

@@ -140,6 +140,41 @@ TEMPLATES = [
 ]
 
 
+# a Windows server's agent (1.0.120): the store, IIS, Remote Desktop, folders with their readers,
+# Windows services - key, title, group, more
+WIN_TEMPLATES = [
+    ('iis', 'IIS site', 'Windows', {
+        'store': True, 'iis': ['Default Web Site'],
+        'note': 'Its site is an example - change it to yours (or allow every site: *).'}),
+    ('iis-all', 'IIS, every site', 'Windows', {'store': True, 'iis': ['*']}),
+    ('rdp', 'Remote Desktop', 'Windows', {'store': True, 'rdp': True, 'probe_local': False,
+                                          'note': 'The listener\'s certificate (3389 is not '
+                                                  'tested: the agent does not speak RDP).'}),
+    ('store', 'The machine store only', 'Windows', {'store': True, 'probe_local': False}),
+    ('folder', 'A folder for certificates', 'Any other', {
+        'files': [('C:\\certs', [])], 'probe_local': False}),
+    ('service', 'Any Windows service', 'Any other', {
+        'files': [('C:\\certs\\myservice', ['NT SERVICE\\myservice'])],
+        'units': {'myservice': ['restart']},
+        'note': 'Its service and its folder are examples - change them to yours.'}),
+]
+
+
+def templates_windows():
+    """The templates of the builder for a Windows server's agent: the machine store, IIS
+    sites, the Remote Desktop listener, a folder (with its readers), a Windows service."""
+    out = []
+    for key, title, group, more in WIN_TEMPLATES:
+        out.append({'key': key, 'title': title, 'group': group, 'note': more.get('note') or '',
+                    'preset': '', 'platform': 'windows',
+                    'files': [{'dir': d, 'readers': list(r)} for d, r in more.get('files') or []],
+                    'units': {k: list(v) for k, v in (more.get('units') or {}).items()},
+                    'tests': [], 'scripts': [], 'probe_local': more.get('probe_local', True),
+                    'store': bool(more.get('store')), 'iis': list(more.get('iis') or []),
+                    'rdp': bool(more.get('rdp'))})
+    return out
+
+
 def _unit(name):
     name = str(name)
     return name if '.' in name.rsplit('@', 1)[-1] else name + '.service'
@@ -263,6 +298,9 @@ def deploy_needs(store, row):
                 except Exception:                       # noqa: BLE001
                     pass
         items = one['items']
+        if args.get('win') is not None:
+            _win_needs(items, t, args, opts)
+            continue
         if len(args['files']) > 20:
             items.append({'kind': 'limit', 'files': len(args['files']),
                           'allow': 'acme-agent limit files %d' % len(args['files'])})
@@ -314,6 +352,59 @@ def deploy_needs(store, row):
     return out
 
 
+def _win_needs(items, t, args, opts):
+    """A deployment to a Windows server (agent_windows): what it needs of the policy - the
+    store, each IIS site, the listener, the folders, the services, the commands, the scripts."""
+    from acmelib.plugins.targets import agent_windows as AW
+    win = args['win']
+    if win.get('store'):
+        items.append({'kind': 'store', 'allow': 'acme-agent allow store'})
+    seen = set()
+    for b in win.get('iis') or []:
+        if b['site'].lower() not in seen:
+            seen.add(b['site'].lower())
+            items.append({'kind': 'iis', 'site': b['site'],
+                          'allow': AW._wc().allow_iis_words(b['site'])})
+    if win.get('rdp'):
+        items.append({'kind': 'rdp', 'allow': 'acme-agent allow rdp'})
+    files = [f for f in args['files'] if f.get('path')]
+    if len(files) > 20:
+        items.append({'kind': 'limit', 'files': len(files),
+                      'allow': 'acme-agent limit files %d' % len(files)})
+    for f in files:
+        d = f['path'].rsplit('\\', 1)[0]
+        items.append({'kind': 'file', 'path': f['path'], 'dir': d, 'windows': True,
+                      'key': bool(f.get('agent_key')),
+                      'allow': 'acme-agent allow file %s' % AW.cmd_word(d)})
+
+    def op_item(o, step):
+        if 'unit' in o:
+            return {'kind': 'unit', 'unit': o['unit'], 'verb': o['verb'], 'step': step,
+                    'allow': AW.allow_of(o)}
+        if 'argv' in o:
+            return {'kind': 'test', 'argv': o['argv'], 'step': step, 'allow': AW.allow_of(o)}
+        return {'kind': 'script', 'path': o.get('script') or '', 'step': step,
+                'allow': AW.allow_of(o)}
+    for key in ('pre', 'test', 'reload', 'post'):
+        for o in args[key]:
+            items.append(op_item(o, key))
+    s = args.get('script')
+    if s and s.get('mode') == 'inline':
+        h = hashlib.sha256(s['body'].encode('utf-8')).hexdigest()
+        items.append({'kind': 'hash', 'hash': h, 'interp': s.get('interp') or '',
+                      'allow': 'acme-agent allow script-hash %s' % h})
+    elif s and s.get('mode') == 'path':
+        items.append({'kind': 'script', 'path': s.get('path') or '', 'step': 'script',
+                      'allow': 'acme-agent allow script %s' % AW.cmd_word(s.get('path') or '')})
+    try:
+        places = t.served_places(opts)[:5]
+    except Exception:                                   # noqa: BLE001
+        places = []
+    for host, port in places:
+        items.append({'kind': 'probe', 'local': True, 'hp': '%s:%d' % (host, port),
+                      'allow': 'acme-agent allow probe local'})
+
+
 def acme_addresses(store):
     """Where acme connects from (allow from of a passive agent): each node's address."""
     import ipaddress
@@ -340,11 +431,23 @@ def acme_addresses(store):
     return good[:8]
 
 
+def _mod_of(store, row):
+    """The agent's program as it reasons on the target's platform (1.0.120: Windows)."""
+    G = _G()
+    return G.agent_mod_for(G.platform_of(store, row)) if row else G.agent_mod()
+
+
 def builder(store, row):
     G = _G()
-    m = G.agent_mod()
     a = G.info(store, row)
-    return {'agent': a, 'facts': m.policy_facts(), 'templates': templates(),
+    windows = G.platform_of(store, row) == 'windows'
+    m = G.agent_mod_windows() if windows else G.agent_mod()
+    facts = m.policy_facts()
+    if windows:
+        facts = dict(facts, platform='windows')
+    return {'agent': a, 'facts': facts,
+            'templates': templates_windows() if windows else templates(),
+            'platform': 'windows' if windows else 'linux',
             'needs': deploy_needs(store, row), 'acme_from': acme_addresses(store),
             'design': design_view(store, row, a.get('policy'))}
 
@@ -356,17 +459,17 @@ def _canon_lines(m, pol_or_text):
     if isinstance(pol_or_text, dict):
         p = m.parse_policy('')
         for k in ('files', 'units', 'tests', 'scripts', 'script_hashes', 'from', 'self_update',
-                  'connect', 'probe', 'probe_local', 'limits'):
+                  'connect', 'probe', 'probe_local', 'limits', 'store', 'iis', 'rdp'):
             if pol_or_text.get(k) is not None:
                 p[k] = pol_or_text[k]
         return m.policy_lines(p)
     return m.policy_lines(m.parse_policy(pol_or_text or ''))
 
 
-def compare(design_text, policy):
+def compare(design_text, policy, m=None):
     """The server's policy (as the agent last said it) against a design: 'matches', 'differs'
     (with the lines only in the design - to apply - and only on the server), 'unknown'."""
-    m = _G().agent_mod()
+    m = m or _G().agent_mod()
     if not isinstance(policy, dict):
         return {'state': 'unknown', 'added': [], 'removed': []}
     want = _canon_lines(m, design_text)
@@ -391,7 +494,9 @@ def _load(store, tid):
 
 STATE_KEYS = {'files': list, 'units': list, 'tests': list, 'scripts': list, 'hashes': list,
               'from': list, 'probe': list, 'connect': list, 'probe_local': bool,
-              'self_update': bool, 'connect_on': bool, 'limits': dict}
+              'self_update': bool, 'connect_on': bool, 'limits': dict,
+              # a Windows server's agent (1.0.120)
+              'store': bool, 'iis': list, 'rdp': bool}
 
 
 def clean_state(state):
@@ -425,7 +530,7 @@ def design_save(store, row, text, state, title, note, by):
         raise ValueError('a design is %d bytes at most' % DESIGN_TEXT_MOST)
     if '\x00' in text:
         raise ValueError('the design holds a NUL byte')
-    m = _G().agent_mod()
+    m = _mod_of(store, row)
     got = m.policy_check(text)
     if got['errors']:
         e = got['errors'][0]
@@ -473,7 +578,7 @@ def design_view(store, row, policy=None):
     if not d['versions']:
         return None
     cur = dict(d['versions'][-1])
-    cur['compare'] = compare(cur['text'], policy)
+    cur['compare'] = compare(cur['text'], policy, _mod_of(store, row))
     cur['history'] = [{k: v.get(k) for k in ('n', 'at', 'by', 'title', 'note', 'text', 'state',
                                               'hash', 'entries', 'warnings')}
                       for v in reversed(d['versions'])]
@@ -486,7 +591,7 @@ def design_summary(store, row, policy=None):
     if not d['versions']:
         return None
     cur = d['versions'][-1]
-    c = compare(cur['text'], policy)
+    c = compare(cur['text'], policy, _mod_of(store, row))
     return {'n': cur.get('n'), 'title': cur.get('title') or '', 'at': cur.get('at'),
             'by': cur.get('by') or '', 'state': c['state'], 'added': len(c['added']),
             'removed': len(c['removed'])}

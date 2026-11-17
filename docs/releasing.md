@@ -57,6 +57,17 @@ of `acmelib/__init__.py` that holds the version.
      `release/`, `build/`, `dist/`, virtual environments, `__pycache__/`,
      `*.pyc`, editor and test caches, and any `*.key`; a link or anything but a
      plain file stops it;
+   - builds the target agent's packages with the same key: `acme-agent-X.Y.Z.tar.gz`
+     (Linux) and `acme-agent-X.Y.Z-windows-x64.msi` (Windows, `tools/agent_windows.py`:
+     the pinned CPython and OpenSSL downloads, a trimmed runtime, wixl + msibuild, a
+     signed MANIFEST of every file it installs) - both go into the package as
+     `deploy/agent/` and beside it into `release/` (the last ten kept, the MSI listed in
+     `index.json` as `agent_windows` of its version). **The MSI needs** `wixl` and
+     `msibuild` (msitools), `zstd` and the two pinned downloads in
+     `~/.cache/acme-agent-windows` (`$ACME_AGENT_WINDOWS_CACHE`): `python3
+     tools/agent_windows.py check` says what is missing, `fetch` downloads them (or put
+     them there by hand). Without them nothing is built - a version is never released
+     twice, so never without its MSI;
    - writes `MANIFEST` (`SHA256  path`, one line a file, sorted) and signs it:
      `MANIFEST.sig` is the raw 64-byte **Ed25519** signature of `MANIFEST`
      (`openssl pkeyutl -sign -rawin`), by the private key, whose public half
@@ -102,10 +113,20 @@ GitHub's API (and then the folder's page) asked. It is a list, newest first:
     "size": 1811459,
     "sha256": "56ed3422…",
     "date": "2026-11-01T09:37:06Z",
-    "download_url": "https://raw.githubusercontent.com/falco81/ACME/main/release/acme-1.0.1.tar.gz"
+    "download_url": "https://raw.githubusercontent.com/falco81/ACME/main/release/acme-1.0.1.tar.gz",
+    "agent_windows": {
+      "name": "acme-agent-1.0.1-windows-x64.msi",
+      "size": 13791744,
+      "sha256": "5d1d14a8…",
+      "product_code": "{…}",
+      "download_url": "https://raw.githubusercontent.com/falco81/ACME/main/release/acme-agent-1.0.1-windows-x64.msi"
+    }
   }
 ]
 ```
+
+(`agent_windows` - the Windows agent of that version, 1.0.120 - is there when its MSI is in
+`release/`; the servers' upgrade check reads only the acme packages' own fields.)
 
 `upgrade_url` may also be the address of an `index.json` itself (any HTTPS
 server: `--base-url` sets the `download_url`s for one). The server holds a

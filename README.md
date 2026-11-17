@@ -53,8 +53,10 @@ acmelib/             everything acme is made of (version: acmelib/__init__.py)
   plugins/             the issuers, challenges and targets
 web/                 the pages (PHP 8.3) - they relay to the API, decide nothing
 deploy/              systemd, nginx, php-fpm, logrotate, root's helpers, release keys
-tools/release.py     builds a signed release into release/
-release/             the last ten releases, index.json, LATEST
+  agent/               acme-agent, the target agent (Linux; Windows: docs/target-agent.md)
+tools/release.py     builds a signed release into release/ (with the agent's Linux
+                     package and Windows MSI - tools/agent_windows.py)
+release/             the last ten releases, the agents' packages, index.json, LATEST
 ```
 
 This repository is the unpacked release: `sudo ./install.sh` works from a

@@ -230,7 +230,7 @@ def unpacked(cache=None, download=True):
     return out
 
 
-# ---- PE import tables (which DLLs a .exe/.dll/.pyd needs) -----------------------------------------
+# ---- PE import tables (which DLLs a .exe/.dll/.pyd needs) ---------------------------------------
 def pe_imports(path):
     """The DLL names a PE file imports (lower case) - read from its import directory."""
     with open(path, 'rb') as f:
@@ -289,21 +289,20 @@ def stdlib_needed(lib, scripts, extra=()):
                                    excludes=EXCLUDES)
     for s in scripts:
         mf.run_script(s)
-    for name in extra:
+    # encodings is looked up by name at run time (the console's code page, mbcs, oem, cp1250...)
+    encs = ['encodings.' + n[:-3] for n in sorted(os.listdir(os.path.join(lib, 'encodings')))
+            if n.endswith('.py') and n != '__init__.py']
+    for name in list(extra) + encs:
         try:
             mf.import_hook(name)
         except ImportError:
             pass                            # a builtin of python313.dll, or a .pyd
-    files, names = set(), set(mf.modules) | set(mf.badmodules)
+    files, names = set(), set(mf.modules) | set(mf.badmodules) | set(extra)
     lib_abs = os.path.abspath(lib)
     for name, mod in mf.modules.items():
         fn = getattr(mod, '__file__', None)
         if fn and os.path.abspath(fn).startswith(lib_abs + os.sep):
             files.add(os.path.relpath(os.path.abspath(fn), lib_abs).replace(os.sep, '/'))
-    # encodings is looked up by name at run time (the console's code page, mbcs, oem, cp1250...)
-    for n in os.listdir(os.path.join(lib, 'encodings')):
-        if n.endswith('.py'):
-            files.add('encodings/' + n)
     return files, names
 
 
@@ -414,7 +413,7 @@ def _close_dlls(folder, sources):
                               'Windows\' own' % (os.path.basename(p), dll))
 
 
-# ---- the payload: what C:\Program Files\acme-agent holds ------------------------------------------
+# ---- the payload: what C:\Program Files\acme-agent holds ----------------------------------------
 def _crlf(data):
     return data.replace(b'\r\n', b'\n').replace(b'\n', b'\r\n')
 
@@ -583,7 +582,7 @@ def wxs(payload, version):
        'acts': '\n'.join(acts), 'seq': '\n'.join(seq)}
 
 
-# ---- the wizard: Windows Installer tables (wixl has no <UI>) ---------------------------------------
+# ---- the wizard: Windows Installer tables (wixl has no <UI>) ------------------------------------
 # (columns, types, keys) exactly as the Windows Installer SDK's schemas
 SCHEMA = {
     'Dialog': (('Dialog', 'HCentering', 'VCentering', 'Width', 'Height', 'Attributes', 'Title',

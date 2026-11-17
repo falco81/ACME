@@ -168,10 +168,14 @@ function kv(k, v, wide) {
    ========================================================================== */
 function pane(live) {
   var hero = $('ag-hero'), pkg = $('ag-pkg'), list = $('ag-list'), ca = $('ag-ca');
+  var wait = $('ag-wait'), enr = $('ag-enroll');
   if (!hero) return;
   var ticket = ++PANE.ticket;
   function fill(d, how) {
     liveFill(hero, function (box) { drawHero(box, d); }, how);
+    /* 1.0.120: the agents asking to join, the company enrollment codes */
+    if (wait) liveFill(wait, function (box) { drawWaiting(box, d); }, how);
+    if (enr) liveFill(enr, function (box) { drawEnroll(box, d); }, how);
     liveFill(pkg, function (box) { drawPackage(box, d); }, how);
     liveFill(ca, function (box) { drawAuthority(box, d); }, how);
     liveFill(list, function (box) { drawList(box, d); }, how);
@@ -200,7 +204,7 @@ function pane(live) {
       hero.insertBefore(p, hero.firstChild);
       return;
     }
-    [hero, pkg, ca, list].forEach(function (b) { if (b) clear(b); });
+    [hero, pkg, ca, list, wait, enr].forEach(function (b) { if (b) clear(b); });
     hero.appendChild(el('p', 'ct-bad ag-ask-err', words));
   });
 }
@@ -268,10 +272,16 @@ function drawHero(box, d) {
   }
 }
 function drawPackage(box, d) {
-  var p = d.package;
   var h = el('h2', '');
   h.appendChild(document.createTextNode('The agent to install'));
   box.appendChild(h);
+  /* 1.0.120: the Linux package and the Windows installer, a tab each */
+  box.appendChild(osTabs('pkg', function (host, os) {
+    if (os === 'windows') drawWindowsPackage(host, d); else drawLinuxPackage(host, d);
+  }));
+}
+function drawLinuxPackage(box, d) {
+  var p = d.package;
   if (!p) {
     box.appendChild(el('p', 'ct-bad', 'The package could not be made: ' + String(d.package_error || '?')));
     return;
@@ -395,6 +405,7 @@ function tile(a, d) {
   name.onclick = function () { if (H.openTarget) H.openTarget(a.name); };
   top.appendChild(name);
   top.appendChild(modeBadge(a.mode));
+  if (a.platform === 'windows') top.appendChild(platformBadge('windows', true));
   var sp = el('span', 'ag-tile-st');
   sp.appendChild(statePill(a));
   top.appendChild(sp);
@@ -466,6 +477,501 @@ function tile(a, d) {
 }
 
 /* ==========================================================================
+   1.0.120: the company enrollment code, the agents waiting for confirmation, Windows
+   ========================================================================== */
+/** A Windows or a Linux server, as a badge. */
+function platformBadge(platform, small) {
+  var win = platform === 'windows';
+  var b = el('span', 'ag-os ' + (win ? 'win' : 'linux') + (small ? ' small' : ''));
+  b.appendChild(icon(win ? 'windows' : 'terminal', small ? 12 : 13));
+  b.appendChild(noI18n(el('span', '', win ? 'Windows' : 'Linux')));
+  return b;
+}
+function windowsPackage(d) {
+  var p = (d && d.package) || {};
+  var w = p.windows || (d && d.windows) || null;
+  return w && w.name ? w : null;
+}
+function msiName(d) {
+  var w = windowsPackage(d);
+  if (w) return String(w.name);
+  var v = ((d && d.package) || {}).version || 'X.Y.Z';
+  return 'acme-agent-' + v + '-windows-x64.msi';
+}
+/** The lines that install the agent on Windows (`code`: the join or the enrollment code). */
+function windowsLines(d, code, withHash) {
+  var name = msiName(d), c = code || 'CODE';
+  var ol = el('ol', 'dbs-steps ag-steps ag-winsteps');
+  var add = function (words, line, note) {
+    var li = el('li', '');
+    li.appendChild(el('span', '', words));
+    if (line) li.appendChild(cmdBox(line, 'ag-wincmd'));
+    if (note) li.appendChild(el('p', 'note small muted', note));
+    ol.appendChild(li);
+  };
+  if (withHash) add('Check it is the same file (PowerShell):', 'Get-FileHash ' + name + ' -Algorithm SHA256');
+  add('By hand: run the MSI - Next, Next, Install. At its Join step paste the code (or leave it empty and join later).', '',
+    'The installer joins in the background: no network is needed while it installs, and acme-agent status says how it goes.');
+  add('Silently, for many servers (Group Policy, Intune, SCCM):', 'msiexec /i ' + name + ' /qn JOINCODE=' + c,
+    'Group Policy: a computer startup script with that line. Intune or SCCM: a Win32 app (or an application) whose install command is that line - every server then waits for confirmation here.');
+  add('Or from the command line, in an elevated prompt (Run as administrator):', 'acme-agent join ' + c);
+  return ol;
+}
+function linuxLines(code) {
+  var ol = el('ol', 'dbs-steps ag-steps');
+  var c = code || 'CODE';
+  [['In the unpacked package, install and join at once:', 'sudo ./install.sh --join ' + c],
+   ['Or, with the agent installed already:', 'sudo acme-agent join ' + c]].forEach(function (x) {
+    var li = el('li', '');
+    li.appendChild(el('span', '', x[0]));
+    li.appendChild(cmdBox(x[1]));
+    ol.appendChild(li);
+  });
+  return ol;
+}
+/** Linux | Windows: a choice of two, kept while the page is open. */
+var OS_TAB = {pkg: 'linux', code: 'linux'};
+function osTabs(which, draw) {
+  var box = el('div', 'ag-ostabs');
+  var seg = el('div', 'seg ag-osseg');
+  seg.setAttribute('role', 'tablist');
+  var body = el('div', 'ag-ostab-b');
+  var show = function () {
+    Array.prototype.forEach.call(seg.children, function (b) {
+      var on = b.getAttribute('data-os') === OS_TAB[which];
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    clear(body);
+    draw(body, OS_TAB[which]);
+  };
+  [['linux', 'terminal', 'Linux'], ['windows', 'windows', 'Windows']].forEach(function (x) {
+    var b = el('button', '');
+    b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('data-os', x[0]);
+    b.appendChild(icon(x[1], 14));
+    b.appendChild(noI18n(el('span', '', x[2])));
+    b.onclick = function () { OS_TAB[which] = x[0]; show(); };
+    seg.appendChild(b);
+  });
+  box.appendChild(seg);
+  box.appendChild(body);
+  show();
+  return box;
+}
+function downloadMsi(button) {
+  busy(button, true);
+  ask('agents/package?platform=windows').then(function (d) {
+    var raw = atob(d.data_b64), u8 = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) u8[i] = raw.charCodeAt(i);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([u8], {type: d.mime || 'application/x-msi'}));
+    a.download = d.filename || d.name || 'acme-agent-windows-x64.msi';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  }).catch(oops).then(function () { busy(button, false); });
+}
+/** The Windows package's tile - or what says it comes with a release. */
+function drawWindowsPackage(box, d) {
+  var w = windowsPackage(d);
+  if (!w) {
+    var none = el('div', 'ag-pkg ag-pkg-none');
+    var ic0 = noI18n(el('span', 'ag-pkg-ic'));
+    ic0.innerHTML = iconMarkup('windows', 26);
+    none.appendChild(ic0);
+    var w0 = el('div', 'ag-pkg-w');
+    w0.appendChild(el('b', '', 'The Windows installer comes with a release'));
+    w0.appendChild(el('p', 'note small', 'A signed release carries ' + msiName(d) + ' beside the Linux package. This acme runs from a source tree, which has none - the lines below are what it will be.'));
+    var why = ((d && d.package) || {}).windows_why || (d && d.windows_why);
+    if (why) w0.appendChild(data('p', 'note small muted', String(why)));
+    none.appendChild(w0);
+    box.appendChild(none);
+  } else {
+    var tile = el('div', 'ag-pkg ag-pkg-win');
+    var ic = noI18n(el('span', 'ag-pkg-ic'));
+    ic.innerHTML = iconMarkup('windows', 26);
+    tile.appendChild(ic);
+    var ww = el('div', 'ag-pkg-w');
+    var top = el('div', 'ag-pkg-top');
+    top.appendChild(data('b', 'ag-pkg-name', w.name));
+    var sig = el('span', 'ag-badge ' + (w.signed ? 'ok' : 'warn'));
+    sig.appendChild(icon(w.signed ? 'shield' : 'flag', 13));
+    sig.appendChild(el('span', '', w.signed ? 'signed by acme’s release key' : 'not signed'));
+    top.appendChild(sig);
+    ww.appendChild(top);
+    var meta = el('div', 'ag-pkg-meta');
+    meta.appendChild(el('span', '', 'version'));
+    meta.appendChild(mono(String(w.version || '')));
+    meta.appendChild(noI18n(el('span', 'muted', '·')));
+    meta.appendChild(mono(bytes(w.size)));
+    meta.appendChild(noI18n(el('span', 'muted', '·')));
+    meta.appendChild(el('span', '', 'Windows Server 2016 and newer · x64'));
+    ww.appendChild(meta);
+    var sha = el('div', 'ag-sha');
+    sha.appendChild(el('span', 'dbw-k', 'SHA-256'));
+    var sv = mono(String(w.sha256 || ''), 'ag-sha-v');
+    copyOnClick(sv, String(w.sha256 || ''), 'on the clipboard');
+    sha.appendChild(sv);
+    ww.appendChild(sha);
+    tile.appendChild(ww);
+    if (MANAGE) {
+      var dl = cmdButton('Download MSI', 'download', 'primary');
+      dl.onclick = function () { downloadMsi(dl); };
+      tile.appendChild(dl);
+    }
+    box.appendChild(tile);
+  }
+  box.appendChild(el('h4', 'dbw-h', 'On the server, as an administrator'));
+  box.appendChild(windowsLines(d, '', !!w));
+  box.appendChild(el('p', 'note small muted', 'CODE is a join code made on one target’s card (ACAG1.…), or an enrollment code for many servers (ACAE1.…, below). The Windows agent takes the same commands as the Linux one: acme-agent allow, deny, policy, status, fingerprint, forget.'));
+}
+
+/** Settings → Target agents → Waiting for confirmation: every agent asking to join. */
+var PICKED = {};
+function drawWaiting(box, d) {
+  var rows = arr(d.waiting);
+  if (!rows.length) return;
+  var ids = {};
+  rows.forEach(function (r) { ids[r.id] = r.fp; });
+  Object.keys(PICKED).forEach(function (k) { if (ids[k] !== PICKED[k]) delete PICKED[k]; });
+  var h = el('h2', 'ag-list-h ag-wait-h');
+  h.appendChild(document.createTextNode('Waiting for confirmation'));
+  h.appendChild(noI18n(el('span', 'count warn', String(rows.length))));
+  var sel = null;
+  if (FULL) {
+    sel = cmdButton('Confirm selected…', 'check', 'small primary');
+    sel.onclick = function () { confirmMany(rows.filter(function (r) { return PICKED[r.id]; }), ''); };
+    h.appendChild(sel);
+  }
+  box.appendChild(h);
+  box.appendChild(el('p', 'note', 'Each agent below asks to join. Compare its fingerprint with the one the server printed (acme-agent join, or acme-agent fingerprint there) - confirm only when every group is the same. Until then acme sends it nothing.'));
+  var count = function () {
+    if (!sel) return;
+    var n = rows.filter(function (r) { return PICKED[r.id]; }).length;
+    sel.disabled = !n;
+    var s = sel.querySelector('span:last-child') || sel;
+    s.textContent = n ? tr('Confirm selected ({0})…').replace('{0}', n) : tr('Confirm selected…');
+  };
+  /* by the enrollment code they came with; the targets' own join codes last */
+  var groups = [], byKey = {};
+  rows.forEach(function (r) {
+    var k = r.enroll ? 'e:' + r.enroll.id : 'own';
+    if (!byKey[k]) { byKey[k] = {key: k, enroll: r.enroll, rows: []}; groups.push(byKey[k]); }
+    byKey[k].rows.push(r);
+  });
+  groups.sort(function (a, b) { return (a.key === 'own') - (b.key === 'own'); });
+  groups.forEach(function (g) {
+    var gb = el('div', 'ag-wgroup');
+    var gh = el('div', 'ag-wgroup-h');
+    if (FULL) {
+      var all = document.createElement('input');
+      all.type = 'checkbox';
+      all.className = 'ag-wpick-all';
+      all.setAttribute('aria-label', tr('Select all of them'));
+      all.checked = g.rows.every(function (r) { return PICKED[r.id]; });
+      all.onchange = function () {
+        g.rows.forEach(function (r) { if (all.checked) PICKED[r.id] = r.fp; else delete PICKED[r.id]; });
+        Array.prototype.forEach.call(gb.querySelectorAll('.ag-wpick'), function (c) { c.checked = all.checked; });
+        count();
+      };
+      gh.appendChild(all);
+    }
+    gh.appendChild(icon(g.enroll ? 'people' : 'key', 15));
+    if (g.enroll) {
+      gh.appendChild(el('span', 'ag-wgroup-k', 'Enrollment code'));
+      gh.appendChild(data('b', 'ag-wgroup-t', g.enroll.title || g.enroll.id));
+    } else gh.appendChild(el('b', 'ag-wgroup-t', 'Each with its target’s own join code'));
+    gh.appendChild(noI18n(el('span', 'count', String(g.rows.length))));
+    if (FULL && g.enroll && g.rows.length > 1) {
+      var ab = cmdButton('Confirm all of this code…', 'check', 'small');
+      ab.onclick = function () { confirmMany(g.rows, g.enroll.title || g.enroll.id); };
+      gh.appendChild(ab);
+    }
+    gb.appendChild(gh);
+    g.rows.forEach(function (r) { gb.appendChild(waitRow(r, count)); });
+    box.appendChild(gb);
+  });
+  count();
+}
+function waitRow(r, count) {
+  var row = el('div', 'ag-wrow' + (FULL ? '' : ' ro'));
+  if (FULL) {
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'ag-wpick';
+    cb.setAttribute('aria-label', r.name);
+    cb.checked = !!PICKED[r.id];
+    cb.onchange = function () { if (cb.checked) PICKED[r.id] = r.fp; else delete PICKED[r.id]; count(); };
+    row.appendChild(cb);
+  }
+  var who = el('div', 'ag-wwho');
+  var top = el('div', 'ag-wtop');
+  var name = el('button', 'ag-name');
+  name.type = 'button';
+  name.appendChild(data('span', 'dbs-tile-n', r.name));
+  name.onclick = function () { if (H.openTarget) H.openTarget(r.name); };
+  top.appendChild(name);
+  top.appendChild(platformBadge(r.platform, true));
+  top.appendChild(modeBadge(r.mode));
+  who.appendChild(top);
+  var meta = el('div', 'ag-wmeta');
+  if (r.fqdn || r.host) meta.appendChild(mono(String(r.fqdn || r.host), 'ag-host'));
+  if (r.ip) { var ip = el('span', 'ag-wip'); ip.appendChild(el('span', 'muted', 'from')); ip.appendChild(mono(' ' + r.ip)); meta.appendChild(ip); }
+  if (r.os) meta.appendChild(data('span', 'ag-wos', String(r.os)));
+  if (r.at) meta.appendChild(el('span', 'muted', ago(r.at)));
+  who.appendChild(meta);
+  row.appendChild(who);
+  row.appendChild(fpBig(r.fp, 'small ag-wfp'));
+  if (FULL) {
+    var ok = cmdButton('Confirm…', 'check', 'small');
+    ok.onclick = function () { confirmOne(r); };
+    row.appendChild(ok);
+  }
+  return row;
+}
+function confirmOne(r) {
+  modal(tr('Confirm the agent of {0}').replace('{0}', r.name), function (body) {
+    var h = el('div', 'ag-confirm-h');
+    h.appendChild(platformBadge(r.platform));
+    if (r.fqdn || r.host) h.appendChild(mono(String(r.fqdn || r.host), 'ag-host'));
+    if (r.ip) h.appendChild(mono(String(r.ip), 'ag-host'));
+    if (r.os) h.appendChild(data('span', 'muted small', String(r.os)));
+    body.appendChild(h);
+    body.appendChild(el('p', 'note', 'Compare this fingerprint with the one the server printed. Confirm only when every group is the same.'));
+    body.appendChild(fpBig(r.fp));
+  }, [{words: 'Close', close: true}, {words: 'It is the same - confirm', cls: 'primary', icon: 'check', close: true, go: function () {
+    ask('agents/confirm', {id: r.id, fp: r.fp}, 90).then(function (x) {
+      if (x && x.said) toast(String(x.said), 'bad'); else toast('the agent is confirmed', 'good');
+      delete PICKED[r.id];
+      pane(true);
+    }).catch(oops);
+  }}], 'medium');
+}
+/** Several confirmed at once - asked first, each fingerprint listed. */
+function confirmMany(list, codeTitle) {
+  if (!list.length) return;
+  modal(codeTitle ? tr('Confirm all of {0}').replace('{0}', codeTitle) : tr('Confirm {0} agents').replace('{0}', list.length), function (body) {
+    body.appendChild(el('p', 'note', 'Each of these servers gets its certificate and acme sends it jobs from now on. Compare each fingerprint with the one its server printed first - confirm only servers you know.'));
+    var l = el('div', 'ag-many');
+    list.forEach(function (r) {
+      var one = el('div', 'ag-many-one');
+      var t = el('div', 'ag-wtop');
+      t.appendChild(data('b', '', r.name));
+      t.appendChild(platformBadge(r.platform, true));
+      if (r.fqdn || r.host) t.appendChild(mono(String(r.fqdn || r.host), 'ag-host'));
+      if (r.ip) t.appendChild(mono(String(r.ip), 'muted small'));
+      one.appendChild(t);
+      one.appendChild(fpBig(r.fp, 'small'));
+      l.appendChild(one);
+    });
+    body.appendChild(l);
+  }, [{words: 'Close', close: true}, {words: list.length === 1 ? tr('Confirm 1 agent') : tr('Confirm {0} agents').replace('{0}', list.length), cls: 'primary', icon: 'check', close: true, go: function () {
+    ask('agents/confirm-many', {items: list.map(function (r) { return {id: r.id, fp: r.fp}; })}, 300).then(function (x) {
+      var bad = arr(x && x.rows).filter(function (y) { return !y.ok; });
+      list.forEach(function (r) { delete PICKED[r.id]; });
+      if (bad.length) toast(bad.map(function (y) { return (y.name || y.id) + ': ' + y.said; }).join('; '), 'bad');
+      else toast(tr('{0} confirmed').replace('{0}', (x && x.confirmed) || list.length), 'good');
+      pane(true);
+    }).catch(oops);
+  }}], 'medium');
+}
+
+/** Settings → Target agents → Enrollment codes. */
+var ESTATE = {active: ['active', 'ok'], expired: ['ran out', 'dim'], used: ['used up', 'dim'], revoked: ['revoked', 'bad']};
+function drawEnroll(box, d) {
+  var codes = arr(d.enroll);
+  var h = el('h2', 'ag-list-h');
+  h.appendChild(document.createTextNode('Enrollment codes'));
+  h.appendChild(noI18n(el('span', 'count', String(codes.length))));
+  if (FULL) {
+    var mk = cmdButton('Make an enrollment code…', 'add', 'small primary');
+    mk.disabled = !d.active;
+    if (!d.active) mk.title = tr('Switch on active mode above first');
+    mk.onclick = function () { enrollDialog(d); };
+    h.appendChild(mk);
+  }
+  box.appendChild(h);
+  var lead = el('div', 'ag-enroll-lead');
+  lead.appendChild(icon('people', 22));
+  var lw = el('div', '');
+  lw.appendChild(el('b', '', 'One code for many servers'));
+  lw.appendChild(el('p', 'note small', 'Use it to install the agent on as many servers as you like - by hand, or with Group Policy, Intune, SCCM or Ansible. Each server appears here as a target of its own, waiting for your confirmation; confirm them one by one or many at once.'));
+  lead.appendChild(lw);
+  box.appendChild(lead);
+  if (!d.active) box.appendChild(el('p', 'note warn small', 'An enrolling agent always asks acme on the agents’ port: switch on “Agents may connect to acme” above first.'));
+  if (!codes.length) {
+    var e = el('div', 'ag-empty');
+    e.appendChild(icon('people', 28));
+    e.appendChild(el('b', '', 'No enrollment code yet'));
+    box.appendChild(e);
+    return;
+  }
+  var list = el('div', 'ag-codes');
+  codes.forEach(function (c) { list.appendChild(codeRow(c)); });
+  box.appendChild(list);
+}
+function codeRow(c) {
+  var st = ESTATE[c.state] || [c.state, 'dim'];
+  var r = el('div', 'ag-erow ' + st[1]);
+  var top = el('div', 'ag-etop');
+  top.appendChild(data('b', 'ag-etitle', c.title || c.id));
+  var sb = el('span', 'ag-badge ' + st[1]);
+  sb.appendChild(el('span', '', st[0]));
+  top.appendChild(sb);
+  top.appendChild(modeBadge(c.mode));
+  if (c.auto) {
+    var au = el('span', 'ag-badge bad');
+    au.appendChild(icon('flag', 12));
+    au.appendChild(el('span', '', 'confirmed automatically'));
+    explain(au, 'Each server that joins with it is confirmed at once - nobody compares its fingerprint.');
+    top.appendChild(au);
+  }
+  r.appendChild(top);
+  var k = el('div', 'dbs-kvs ag-ekvs');
+  var used = el('div', 'ag-uses');
+  var bar = el('span', 'ag-uses-bar');
+  var fill = el('span', '');
+  fill.style.width = Math.min(100, Math.round(100 * Number(c.uses || 0) / Math.max(1, Number(c.most || 1)))) + '%';
+  bar.appendChild(fill);
+  used.appendChild(bar);
+  used.appendChild(document.createTextNode(tr('{0} of {1}').replace('{0}', c.uses || 0).replace('{1}', c.most || 1)));
+  k.appendChild(kv('Servers', used));
+  k.appendChild(kv(c.state === 'active' ? 'Valid until' : 'Was valid until', when(c.until)));
+  var by = el('span', '');
+  by.appendChild(data('span', '', String(c.by || '–')));
+  by.appendChild(noI18n(el('span', 'muted', ' · ')));
+  by.appendChild(el('span', 'muted', when(c.at)));
+  k.appendChild(kv('Made by', by));
+  if (c.mode === 'passive' && c.port) k.appendChild(kv('Their port', mono(String(c.port))));
+  if (c.state === 'revoked' && c.revoked_by) k.appendChild(kv('Revoked by', data('span', '', String(c.revoked_by))));
+  r.appendChild(k);
+  if (arr(c.targets).length) {
+    var ts = el('div', 'ag-etargets');
+    arr(c.targets).slice(0, 24).forEach(function (n) {
+      var b = el('button', 'ag-etarget');
+      b.type = 'button';
+      b.appendChild(noI18n(document.createTextNode(n)));
+      b.onclick = function () { if (H.openTarget) H.openTarget(n); };
+      ts.appendChild(b);
+    });
+    if (arr(c.targets).length > 24) ts.appendChild(noI18n(el('span', 'muted small', '+' + (arr(c.targets).length - 24))));
+    r.appendChild(ts);
+  }
+  if (FULL && c.state === 'active') {
+    var acts = el('div', 'btnrow ag-eacts');
+    var rv = cmdButton('Revoke…', 'ban', 'small danger');
+    rv.onclick = function () {
+      confirmThen(tr('Revoke the enrollment code'), esc(tr('No other server joins with “{0}”. The servers that joined with it stay; those waiting still wait for confirmation.').replace('{0}', c.title || c.id)), 'Revoke it', function () {
+        return ask('agents/enroll/revoke', {id: c.id}).then(function () { toast('the enrollment code is revoked', 'good'); pane(true); }).catch(oops);
+      });
+    };
+    acts.appendChild(rv);
+    r.appendChild(acts);
+  }
+  return r;
+}
+function numBox(value, min, max) {
+  var i = el('input', 'ag-num');
+  i.type = 'number';
+  i.min = String(min);
+  i.max = String(max);
+  i.step = '1';
+  i.value = String(value);
+  return i;
+}
+/** Make an enrollment code: its title, mode, port, days, servers, and confirming
+    automatically (off; red while on) - then the code, shown once, with the lines. */
+function enrollDialog(d) {
+  var F = {title: '', mode: 'passive', port: 8446, days: 7, most: 10, auto: false};
+  var made = null;
+  var paint = function () {
+    if (made) return shown();
+    modal('Make an enrollment code', function (body) {
+      body.appendChild(el('p', 'note', 'One code for many servers: each server that joins with it becomes a target of its own (its host name) and waits here for its fingerprint to be confirmed.'));
+      var g = el('div', 'ag-eform');
+      var t = textBox(F.title, tr('e.g. Branch offices 2026'));
+      t.maxLength = 80;
+      t.oninput = function () { F.title = t.value; };
+      g.appendChild(formField('Title', t, 'What you call it - the targets it makes and Events say it.'));
+      var seg = el('div', 'seg ag-eseg');
+      var port = numBox(F.port, 1, 65535);
+      var portF = formField('Their port', port, 'Where each agent listens for acme (passive).');
+      [['passive', 'Passive - acme connects to them'], ['active', 'Active - they connect to acme']].forEach(function (o) {
+        var b = el('button', F.mode === o[0] ? 'on' : '', o[1]);
+        b.type = 'button';
+        b.onclick = function () {
+          F.mode = o[0];
+          Array.prototype.forEach.call(seg.children, function (x) { x.classList.toggle('on', x === b); });
+          portF.hidden = F.mode !== 'passive';
+        };
+        seg.appendChild(b);
+      });
+      g.appendChild(formField('Mode', seg, 'Passive: each agent listens (open its port to acme only). Active: nothing listens on the servers, they ask acme on the agents’ port.'));
+      port.oninput = function () { F.port = port.value; };
+      portF.hidden = F.mode !== 'passive';
+      g.appendChild(portF);
+      var days = numBox(F.days, 1, 365);
+      days.oninput = function () { F.days = days.value; };
+      g.appendChild(formField('Valid for (days)', days, '1 to 365. Servers that joined stay joined after it ends.'));
+      var most = numBox(F.most, 1, 10000);
+      most.oninput = function () { F.most = most.value; };
+      g.appendChild(formField('At most (servers)', most, 'How many servers may join with it - the same server again does not count twice.'));
+      var sw = switchBox(F.auto);
+      var warn = el('div', 'ag-auto-warn');
+      warn.appendChild(icon('flag', 16));
+      warn.appendChild(el('span', '', 'Anybody who has this code joins a server to acme without anyone comparing its fingerprint - and gets the certificates deployed to it. Only for a code that never leaves your deployment tooling, for a short time.'));
+      warn.hidden = !F.auto;
+      sw._input.onchange = function () { F.auto = !!sw._get(); warn.hidden = !F.auto; };
+      g.appendChild(formField('Confirm automatically', sw, 'Off (the default): a person confirms each server here.'));
+      g.appendChild(warn);
+      body.appendChild(g);
+    }, [{words: 'Close', close: true}, {words: 'Make the code', cls: 'primary', icon: 'add', go: function (b) {
+      busy(b, true);
+      ask('agents/enroll', {title: F.title, mode: F.mode, port: Number(F.port || 8446), days: Number(F.days || 7), most: Number(F.most || 10), auto: !!F.auto}).then(function (x) {
+        made = x;
+        pane(true);
+        paint();
+      }).catch(oops).then(function () { busy(b, false); });
+    }}], 'medium');
+  };
+  var shown = function () {
+    modal('The enrollment code', function (body) {
+      var hd = el('div', 'ag-made');
+      hd.appendChild(icon('check', 22));
+      var hw = el('div', '');
+      hw.appendChild(data('b', '', made.title));
+      var sub = el('div', 'ag-made-sub');
+      sub.appendChild(modeBadge(made.mode));
+      sub.appendChild(el('span', '', tr('valid until {0}').replace('{0}', when(made.until))));
+      sub.appendChild(noI18n(el('span', 'muted', '·')));
+      sub.appendChild(el('span', '', tr('at most {0} servers').replace('{0}', made.most)));
+      if (made.auto) { var a = el('span', 'ag-badge bad'); a.appendChild(el('span', '', 'confirmed automatically')); sub.appendChild(a); }
+      hw.appendChild(sub);
+      hd.appendChild(hw);
+      body.appendChild(hd);
+      var code = el('div', 'ag-code');
+      code.appendChild(noI18n(el('pre', 'mono', made.code)));
+      var cp = cmdButton('Copy', 'copy', 'small');
+      cp.onclick = function () { copyText(made.code, cp, 'on the clipboard'); };
+      code.appendChild(cp);
+      body.appendChild(code);
+      var once = el('div', 'ag-code-left');
+      once.appendChild(icon('eyeoff', 14));
+      once.appendChild(el('span', '', 'Shown this once - copy it now. Keep it as a password: whoever has it can ask to join servers.'));
+      body.appendChild(once);
+      body.appendChild(el('h4', 'dbw-h', 'On each server'));
+      body.appendChild(osTabs('code', function (host, os) {
+        if (os === 'windows') host.appendChild(windowsLines(PANE.last || {}, made.code, false));
+        else host.appendChild(linuxLines(made.code));
+      }));
+    }, [{words: 'Close', close: true}], 'medium');
+  };
+  paint();
+}
+
+/* ==========================================================================
    The agent's card on a target (its form, and its detail)
    ========================================================================== */
 function card(row, opts) {
@@ -493,6 +999,7 @@ function card(row, opts) {
     head.appendChild(icon('terminal', 20));
     head.appendChild(el('b', '', 'acme-agent'));
     head.appendChild(modeBadge(a.mode));
+    if (a.platform === 'windows' || row.kind === 'agent_windows') head.appendChild(platformBadge('windows', true));
     var sp = el('span', 'ag-card-st');
     sp.appendChild(statePill(a));
     head.appendChild(sp);
@@ -841,7 +1348,17 @@ function confirmBox(row, a, done) {
   h.appendChild(icon('key', 18));
   h.appendChild(el('b', '', 'An agent asks to join'));
   if (a.pending.host) h.appendChild(mono(String(a.pending.host), 'ag-host'));
+  if (a.pending.ip) h.appendChild(mono(String(a.pending.ip), 'ag-host'));
+  if (a.pending.os) h.appendChild(data('span', 'muted small', String(a.pending.os)));
   box.appendChild(h);
+  /* 1.0.120: it came with a company enrollment code */
+  if (a.pending.enroll) {
+    var en = el('div', 'ag-confirm-en');
+    en.appendChild(icon('people', 14));
+    en.appendChild(el('span', '', 'It joined with the enrollment code'));
+    en.appendChild(data('b', '', String(a.pending.enroll.title || a.pending.enroll.id)));
+    box.appendChild(en);
+  }
   box.appendChild(el('p', 'note', 'Compare this fingerprint with the one acme-agent join printed on the server. Confirm only when every group is the same.'));
   box.appendChild(fpBig(a.pending.fp));
   if (FULL) {
@@ -990,7 +1507,53 @@ function wizard(row, a0, after) {
       W.code = c; W.a = c.agent; W.step = 1; paint();
     }).catch(oops).then(function () { busy(b, false); });
   }
+  /* 1.0.120: a Windows server's agent (agent_windows) - the MSI, its Join step, the same CLI */
+  function isWin() {
+    var a = W.d || W.a || {};
+    return a.kind === 'agent_windows' || a.platform === 'windows' || row.kind === 'agent_windows';
+  }
+  function oneWin(host) {
+    var lead = el('div', 'ha-lead');
+    lead.appendChild(noI18n(el('span', 'ha-lead-ico'))).innerHTML = iconMarkup('windows', 22);
+    var lw = el('div', '');
+    lw.appendChild(el('b', '', 'acme-agent on the Windows server does the work - acme holds none of its credentials'));
+    lw.appendChild(el('p', 'note', 'Two services: the network side as a virtual account without privileges; the root side (LocalSystem) never on the network, doing only what its policy allows. Every job from acme is signed; the private keys arrive sealed to the agent.'));
+    lead.appendChild(lw);
+    host.appendChild(lead);
+    var d = W.d || {};
+    var w = windowsPackage(d);
+    if (w) {
+      var t = el('div', 'ag-pkg ag-pkg-small ag-pkg-win');
+      var ic = noI18n(el('span', 'ag-pkg-ic'));
+      ic.innerHTML = iconMarkup('windows', 22);
+      t.appendChild(ic);
+      var ww = el('div', 'ag-pkg-w');
+      ww.appendChild(data('b', 'ag-pkg-name', w.name));
+      var sha = el('div', 'ag-sha');
+      sha.appendChild(el('span', 'dbw-k', 'SHA-256'));
+      var sv = mono(String(w.sha256 || ''), 'ag-sha-v');
+      copyOnClick(sv, String(w.sha256 || ''), 'on the clipboard');
+      sha.appendChild(sv);
+      ww.appendChild(sha);
+      t.appendChild(ww);
+      var dl = cmdButton('Download MSI', 'download', 'small');
+      dl.onclick = function () { downloadMsi(dl); };
+      t.appendChild(dl);
+      host.appendChild(t);
+    } else {
+      host.appendChild(el('p', 'note warn small', 'The Windows installer comes with a release (' + msiName(d) + ') - this acme runs from a source tree, which has none.'));
+    }
+    host.appendChild(el('h4', 'dbw-h', 'On the server, as an administrator'));
+    host.appendChild(windowsLines(d, '', !!w));
+    var m = el('div', 'note info small ag-mode-note');
+    m.appendChild(modeBadge((W.a || {}).mode));
+    m.appendChild(el('span', '', (W.a || {}).mode === 'active'
+      ? 'The agent connects to acme on the agents’ port: nothing needs to be open on the server.'
+      : 'acme connects to the agent on port 8446: the installer opens it in Windows Firewall at the join (only to the addresses of acme-agent allow from, when there are any).'));
+    host.appendChild(m);
+  }
   function one(host) {
+    if (isWin()) return oneWin(host);
     var lead = el('div', 'ha-lead');
     lead.appendChild(noI18n(el('span', 'ha-lead-ico'))).innerHTML = iconMarkup('terminal', 22);
     var lw = el('div', '');
@@ -1051,9 +1614,15 @@ function wizard(row, a0, after) {
     left.appendChild(el('span', '', 'valid once, until'));
     left.appendChild(document.createTextNode(' ' + when(c.until)));
     host.appendChild(left);
-    host.appendChild(el('h4', 'dbw-h', 'On the server, as root'));
-    host.appendChild(cmdBox('sudo acme-agent join ' + c.code));
-    host.appendChild(el('p', 'note small', 'Or at the install: sudo ./install.sh --join CODE. The agent makes its own key there (it never leaves the server) and prints its fingerprint - acme shows it next, to compare.'));
+    if (isWin()) {
+      host.appendChild(el('h4', 'dbw-h', 'On the server, in an elevated prompt (Run as administrator)'));
+      host.appendChild(cmdBox('acme-agent join ' + c.code));
+      host.appendChild(el('p', 'note small', 'Or paste it at the MSI’s Join step - or silently: msiexec /i ' + msiName(W.d || {}) + ' /qn JOINCODE=CODE. The agent makes its own key there (it never leaves the server) and shows its fingerprint - acme shows it next, to compare.'));
+    } else {
+      host.appendChild(el('h4', 'dbw-h', 'On the server, as root'));
+      host.appendChild(cmdBox('sudo acme-agent join ' + c.code));
+      host.appendChild(el('p', 'note small', 'Or at the install: sudo ./install.sh --join CODE. The agent makes its own key there (it never leaves the server) and prints its fingerprint - acme shows it next, to compare.'));
+    }
     var pins = el('div', 'dbs-kvs ag-pins');
     pins.appendChild(kv('The authority it pins', mono(grouped(c.ca_fp).slice(0, 4).join(' ') + ' …')));
     if (c.mode === 'active') pins.appendChild(kv('It connects to', mono(arr(c.endpoints).join('  '))));

@@ -1718,7 +1718,8 @@ class NothingWithoutAnAgent(unittest.TestCase):
         self.assertEqual(out['agent_hops'], [])
         self.assertEqual(out['snmp_69'], [])
         self.assertEqual(out['metrics'], [])
-        self.assertEqual(out['optional'], ['agent'])
+        # 1.0.120: the Windows server's agent takes a key made there too
+        self.assertEqual(out['optional'], ['agent', 'agent_windows'])
         self.assertEqual(out['vias'][0]['detail']['pairs'][0][1], 'the connector x - ')
         self.assertEqual(out['agents_meta'], [])
 
