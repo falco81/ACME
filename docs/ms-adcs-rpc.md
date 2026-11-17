@@ -93,12 +93,12 @@ minutes** are not hidden behind NTLM - they are said as they are.
 3. **The CA's security** (certsrv.msc → the CA → *Properties* → *Security*):
    `svc-acme` (or *Authenticated Users*) has **Request Certificates**.
 4. **The firewall** of the CA server, from acme: TCP **135** (endpoint mapper) and
-   the dynamic RPC range (**49152-65535**) - or fix the CA's port and open only it
-   and 135. The usual way to fix it is the *CertSrv Request* application's endpoint
-   (dcomcnfg → *Component Services* → *DCOM Config* → *CertSrv Request* →
-   *Properties* → *Endpoints* → a static TCP port, then restart CertSvc); *Try it*
-   shows the port the endpoint mapper then says - set that as *Fixed port* here if 135
-   is to stay closed. To the domain controllers: TCP **88** (Kerberos).
+   the dynamic RPC range (**49152-65535**) - or fix the CA's port: with it set as
+   *Fixed port* here, only that port needs to be open (135 is not asked). The usual
+   way to fix it is the *CertSrv Request* application's endpoint (dcomcnfg →
+   *Component Services* → *DCOM Config* → *CertSrv Request* → *Properties* →
+   *Endpoints* → a static TCP port, then restart CertSvc); *Try it* without a fixed
+   port shows the port the endpoint mapper says. To the domain controllers: TCP **88** (Kerberos).
 5. **Kerberos needs names and time:** the CA server's DNS name must be its computer
    account's name (its SPN `HOST/ca01.example.local`; check with
    `setspn -L CA01`), the domain's SRV records must resolve from acme (or set the
