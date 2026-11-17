@@ -1251,16 +1251,31 @@ def team_public(t, used=None):
                                  'created', 'created_by', 'updated', 'updated_by')}
     out['kind'] = out['kind'] or 'team'
     out['members'] = [m for m in (S.jload(t.get('members'), []) or []) if isinstance(m, dict)]
+    now = time.time()
     for m in out['members']:
         m['kind'] = member_kind(m.get('who'))
+        if m.get('until'):
+            m['expired'] = member_expired(m, now)
     if used is not None:
         out['used'] = used.get(_low(t['name']), 0)
+    # 1.0.125: where it is in the tree, its own limits, its words
+    out['parent'] = t.get('parent') or None
+    out['policy'] = policy_of(t)
+    out['description'] = t.get('description') or ''
     return out
 
 
 def teams(store):
     used = used_counts(store)
-    return [team_public(t, used) for t in team_rows(store)]
+    tr = tree(store)
+    out = []
+    for t in team_rows(store):
+        one = team_public(t, used)
+        if _low(t['name']) in tr.rows:
+            one['effective'] = tr.effective(t['name'])
+            one['depth'] = tr.depth(t['name'])
+        out.append(one)
+    return out
 
 
 def clean_mails(v):
@@ -1279,6 +1294,53 @@ def _profiles_follow(store, kind, old, new):
     reqprofiles.rename_ref(store, kind, old, new)
 
 
+def _clean_parent(store, b, old, name):
+    """The parent a team is given: None top level; never itself nor a team below it."""
+    raw = b.get('parent') if 'parent' in b else (old or {}).get('parent')
+    if raw in (None, '', '-'):
+        return None
+    p = team_get(store, raw)
+    if not p:
+        raise LookupError('there is no team %s to put it under' % raw)
+    if old and p['id'] == old['id']:
+        raise ValueError('a team is not under itself')
+    if old:
+        tr = tree(store)
+        below = set(tr.descendants(old['name']))
+        if _low(p['name']) in below:
+            raise ValueError('%s is below %s - a team is not put under a team below it (that '
+                             'would be a circle)' % (p['name'], name))
+    return p['name']
+
+
+def _follow_rename(store, old_name, name):
+    """A team renamed: its children, the targets it owns and its enrollment codes follow."""
+    store.db.run('UPDATE cert_teams SET parent = ? WHERE LOWER(TRIM(parent)) = ?',
+                 (name, _low(old_name)))
+    store.db.run('UPDATE cert_targets SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
+                 (name, _low(old_name)))
+    _enroll_follow(store, old_name, name)
+
+
+def _enroll_follow(store, old, new):
+    """The enrollment codes of agents scoped to a team (agents.enroll_new team=) follow its
+    renaming (new) or deletion (None: no longer of any team)."""
+    try:
+        rows = store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'agents:enroll:%'")
+    except Exception:                                   # noqa: BLE001
+        return
+    for r in rows:
+        ec = S.jload(r['v'], None)
+        if isinstance(ec, dict) and _low(ec.get('team')) == _low(old):
+            if new:
+                ec['team'] = new
+            else:
+                ec.pop('team', None)
+                ec['revoked'] = ec.get('revoked') or {'by': 'the team %s deleted' % old,
+                                                      'at': _now()}
+            store.set_meta(r['k'], json.dumps(ec, sort_keys=True))
+
+
 def save_team(store, b, by):
     old = team_get(store, b.get('old_name')) if b.get('old_name') else None
     if b.get('old_name') and not old:
@@ -1289,64 +1351,131 @@ def save_team(store, b, by):
         raise ValueError('there is an owner called %s already' % other['name'])
     kind = str(b.get('kind') or (old or {}).get('kind') or 'team')
     if kind not in KINDS:
-        raise ValueError('the kind is team or person')
+        raise ValueError('the kind is team, person or unit')
     raw = b.get('members') if 'members' in b else S.jload((old or {}).get('members'), [])
     if isinstance(raw, str):
         raw = [w for w in re.split(r'[\n;]+', raw) if w.strip()]
     members, seen = [], set()
+    cat = role_catalog(store)
     for m in raw or []:
-        m = clean_member(m)
+        m = clean_member(m, cat)
         if _low(m['who']) in seen:
             continue
         seen.add(_low(m['who']))
         members.append(m)
     if len(members) > MEMBER_MAX:
         raise ValueError('%d members at most' % MEMBER_MAX)
+    parent = _clean_parent(store, b, old, name)
+    if 'policy' in b:
+        policy = clean_policy(b.get('policy'))
+    else:
+        policy = policy_of(old)
     row = {'name': name, 'kind': kind, 'members': json.dumps(members),
            'contact_mail': clean_mails(b.get('contact_mail', (old or {}).get('contact_mail'))),
            'contact_phone': str(b.get('contact_phone', (old or {}).get('contact_phone')) or '')
            .strip()[:60],
            'note': str(b.get('note', (old or {}).get('note')) or '').strip()[:2000],
            'updated': _now(), 'updated_by': str(by)[:190]}
+    # The new columns written only where said or held (1.0.125): a team saved as before keeps
+    # NULL - "as before".
+    if parent or (old or {}).get('parent') or 'parent' in b:
+        row['parent'] = parent
+    if policy or (old or {}).get('policy') or 'policy' in b:
+        row['policy'] = json.dumps(policy) if policy else None
+    if 'description' in b or (old or {}).get('description'):
+        row['description'] = str(b.get('description', (old or {}).get('description')) or '') \
+            .strip()[:1000] or None
+    what = []
     if old:
+        if _low(parent) != _low(old.get('parent')):
+            what.append('now under %s' % (parent or 'nothing (top level)'))
+        if policy != policy_of(old):
+            what.append('its limits %s' % (json.dumps(policy, sort_keys=True) if policy
+                                           else 'taken off'))
         store.db.update('cert_teams', old['id'], row)
         if old['name'] != name:
             store.db.run('UPDATE certs SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
                          (name, _low(old['name'])))
             _profiles_follow(store, 'team', old['name'], name)
-        store.add_event('certificates', 'the owner %s changed by %s%s' % (
-            name, by, (' (was %s)' % old['name']) if old['name'] != name else ''), who=by)
+            _follow_rename(store, old['name'], name)
+        before = {_low(m.get('who')): m for m in S.jload(old.get('members'), []) or []
+                  if isinstance(m, dict)}
+        after = {_low(m['who']): m for m in members}
+        gone = [before[k].get('who') for k in before if k not in after]
+        came = [after[k]['who'] for k in after if k not in before]
+        moved = [after[k]['who'] for k in after if k in before and
+                 {x: before[k].get(x) for x in ('rights', 'roles', 'until')} !=
+                 {x: after[k].get(x) for x in ('rights', 'roles', 'until')}]
+        if came:
+            what.append('members added: %s' % ', '.join(came[:20]))
+        if gone:
+            what.append('members removed: %s' % ', '.join(gone[:20]))
+        if moved:
+            what.append('members changed: %s' % ', '.join(moved[:20]))
+        store.add_event('certificates', 'the owner %s changed by %s%s%s' % (
+            name, by, (' (was %s)' % old['name']) if old['name'] != name else '',
+            (' - the team %s: %s' % (name, '; '.join(what))) if what else ''), who=by)
     else:
         row.update(created=_now(), created_by=str(by)[:190])
         store.db.insert('cert_teams', row)
-        store.add_event('certificates', 'the owner %s added by %s' % (name, by), who=by)
+        store.add_event('certificates', 'the owner %s added by %s%s' % (
+            name, by, (' - the team %s under %s' % (name, parent)) if parent else ''), who=by)
+    changed()
     return team_public(team_get(store, name), used_counts(store))
 
 
-def delete_team(store, name, by, reassign=None):
+def delete_team(store, name, by, reassign=None, reparent=None):
+    """A team deleted. Owning certificates: refused unless `reassign` ('' nobody). With teams
+    below it (1.0.125): refused unless `reparent` - the team they move under ('' or '-' the
+    top level). The targets it owns go to `reassign` too (else they are acme's again)."""
     t = team_get(store, name)
     if not t:
         raise LookupError('there is no owner %s' % name)
+    kids = [r for r in team_rows(store) if _low(r.get('parent')) == _low(t['name'])]
+    to_parent = None
+    if kids:
+        if reparent is None:
+            raise ValueError('%s has %d team(s) below it (%s) - move them first, or delete it '
+                             'with reparent (another team, or \'\' for the top level)' % (
+                                 t['name'], len(kids), ', '.join(k['name'] for k in kids[:10])))
+        if reparent not in ('', '-'):
+            p = team_get(store, reparent)
+            if not p or p['id'] == t['id'] or _low(p['name']) in set(
+                    tree(store).descendants(t['name'])):
+                raise LookupError('there is no other team %s above it to move them under'
+                                  % reparent)
+            to_parent = p['name']
     n = used_counts(store).get(_low(t['name']), 0)
     moved = ''
     if n:
         if reassign is None:
             raise ValueError('%s owns %d certificate(s) - give them another owner first, or '
                              'delete it with reassign' % (t['name'], n))
-        if reassign not in ('', '-'):
-            to = team_get(store, reassign)
-            if not to or to['id'] == t['id']:
-                raise LookupError('there is no other owner %s' % reassign)
-            moved = to['name']
+    if reassign not in (None, '', '-'):
+        to = team_get(store, reassign)
+        if not to or to['id'] == t['id']:
+            raise LookupError('there is no other owner %s' % reassign)
+        moved = to['name']
+    if n:
         store.db.run('UPDATE certs SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
                      (moved, _low(t['name'])))
+    store.db.run('UPDATE cert_targets SET owner = ? WHERE LOWER(TRIM(owner)) = ?',
+                 (moved or None, _low(t['name'])))
+    if kids:
+        store.db.run('UPDATE cert_teams SET parent = ?, updated = ? WHERE LOWER(TRIM(parent)) = ?',
+                     (to_parent, _now(), _low(t['name'])))
     store.db.run('DELETE FROM cert_teams WHERE id = ?', (t['id'],))
+    _enroll_follow(store, t['name'], None)
     # The profiles naming it follow (1.0.45): they named an owner no longer there, unusable.
     _profiles_follow(store, 'team', t['name'], moved or None)
-    store.add_event('certificates', 'the owner %s deleted by %s%s' % (
+    store.add_event('certificates', 'the owner %s deleted by %s%s%s' % (
         t['name'], by, (' - its %d certificate(s) now owned by %s' % (n, moved or 'nobody'))
-        if n else ''), 'warn', who=by)
-    return {'deleted': t['name'], 'moved': n, 'to': moved}
+        if n else '', (' - the team %s: its %d team(s) below now under %s' % (
+            t['name'], len(kids), to_parent or 'nothing (top level)')) if kids else ''),
+        'warn', who=by)
+    changed()
+    return {'deleted': t['name'], 'moved': n, 'to': moved,
+            'children': [k['name'] for k in kids], 'reparented_to': to_parent}
 
 
 # ---------------------------------------------------------------------------
