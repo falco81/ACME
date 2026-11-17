@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.123 - not released
+
+(nothing yet)
+
 ## 1.0.122 - 2026-11-17
 
 - SELinux in a cluster: every node a card of its own, side by side (one under the other on a phone) - each with its own findings and its own buttons at the bottom (put in what acme needs, switch to enforcing, back to permissive). *Look again* at the top looks again on every node at once; *Download the report* gives one file with every node's report.
