@@ -643,11 +643,11 @@
     tools.appendChild(co);
     if (writes()) {
       var at = T.nodes[low(UI.team)];
-      var addT = cmdButton('Team', 'tm_plus', 'small');
+      var addT = cmdButton('New team', 'tm_plus', 'small');
       addT.id = 'tmx-add-team';
       explain(addT, at ? 'A new team under {0}'.replace('{0}', at.name) : 'A new team');
       addT.onclick = function () { editTeam(null, {kind: 'team', parent: UI.team || ''}); };
-      var addU = cmdButton('Unit', 'tm_plus', 'small');
+      var addU = cmdButton('New unit', 'tm_plus', 'small');
       addU.id = 'tmx-add-unit';
       explain(addU, at ? 'A new unit (a region, a site) under {0}'.replace('{0}', at.name) : 'A new unit');
       addU.onclick = function () { editTeam(null, {kind: 'unit', parent: UI.team || ''}); };
@@ -1059,7 +1059,7 @@
   function roleChip(name) {
     var r = roleOf(name);
     var c = r && r.builtin ? chip(name, 'role') : dataChip(name, 'role custom' + (r ? '' : ' gone'));
-    if (r) explain(c, (r.description ? r.description + ' - ' : '') + r.caps.length + ' ' + 'capabilities');
+    if (r) explain(c, (r.description ? known(r.description) + ' - ' : '') + tr(r.caps.length + ' capabilities'));
     else explain(c, 'This role is not in the catalog any more.');
     return c;
   }
@@ -1280,7 +1280,7 @@
         b.dataset.role = r.name;
         b.appendChild(ic('check', 13, 'tmx-rchk'));
         b.appendChild((r.builtin ? el : data)('span', '', r.name));
-        explain(b, (r.description || '') + ' (' + r.caps.length + ' ' + 'capabilities' + ')');
+        explain(b, (r.description ? known(r.description) + ' ' : '') + '(' + tr(r.caps.length + ' capabilities') + ')');
         b.onclick = function () {
           var on = st.roles.some(function (x) { return low(x) === low(r.name); });
           st.roles = on ? st.roles.filter(function (x) { return low(x) !== low(r.name); }) : st.roles.concat([r.name]);
@@ -1511,7 +1511,7 @@
   function valueView(p, v) {
     var box = el('span', 'tmx-val');
     if (p.type === 'bool') {
-      box.appendChild(chip(v ? (p.k === 'agents_auto_confirm' ? 'yes' : 'allowed') : (p.k === 'agents_auto_confirm' ? 'no' : 'not allowed'), v ? 'ok' : 'crit', v ? 'check' : 'ban'));
+      box.appendChild(chip(v ? (p.k === 'agents_auto_confirm' ? 'yes' : 'allowed') : (p.k === 'agents_auto_confirm' ? 'no' : 'forbidden'), v ? 'ok' : 'crit', v ? 'check' : 'ban'));
     } else if (p.type === 'int') {
       box.appendChild(chip(el('span', '', ('at most {0} ' + p.unit).replace('{0}', num(v))), 'info'));
     } else if (p.type === 'list') {
@@ -1660,7 +1660,7 @@
     if (p.type === 'bool') {
       var cur = own[p.k] === undefined ? '' : (own[p.k] ? 'yes' : 'no');
       var s = segmented([['', noLimit], ['yes', p.k === 'agents_auto_confirm' ? 'Yes' : 'Allowed', 'check'],
-                         ['no', p.k === 'agents_auto_confirm' ? 'No' : 'Not allowed', 'ban']], cur);
+                         ['no', p.k === 'agents_auto_confirm' ? 'No' : 'Forbidden', 'ban']], cur);
       s.classList.add('small');
       s.addEventListener('change', function () {
         if (!s.value) delete own[p.k]; else own[p.k] = s.value === 'yes';
@@ -1988,7 +1988,7 @@
     var right = el('span', 'tmx-cr');
     if (c.not_after) {
       var dl = daysTo(c.not_after);
-      right.appendChild(el('span', 'tmx-cdays ' + (dl < 0 ? 'bad' : dl < 15 ? 'warn' : ''), dl < 0 ? 'expired' : '{0} days left'.replace('{0}', num(dl))));
+      right.appendChild(el('span', 'tmx-cdays ' + (dl < 0 ? 'bad' : dl < 15 ? 'warn' : ''), dl < 0 ? 'ran out' : '{0} days left'.replace('{0}', num(dl))));
     }
     var stc = el('span', 'tag ' + (tone === 'bad' ? 'crit' : tone === 'ok' ? 'ok' : tone === 'warn' ? 'warn' : tone === 'violet' ? 'violet' : 'dim'), st === 'pending-approval' ? 'waiting' : st);
     if (c.state_words) explain(stc, c.state_words);
@@ -2066,7 +2066,7 @@
       f.name.id = 'tm-f-name';
       noI18n(f.name);
       g.appendChild(formField('Name', f.name, 'Letters, digits, spaces and . _ @ + - (as every name in acme). Renamed, its certificates, devices and the teams below follow.'));
-      f.kind = segmented([['unit', 'Unit', KIND_ICON.unit], ['team', 'Team', KIND_ICON.team], ['person', 'Person', KIND_ICON.person]], t.kind || 'team');
+      f.kind = segmented([['unit', 'a unit', KIND_ICON.unit], ['team', 'a team', KIND_ICON.team], ['person', 'a person', KIND_ICON.person]], t.kind || 'team');
       f.kind.id = 'tm-f-kind';
       g.appendChild(formField('It is', f.kind, 'A unit is a region or a site - it groups teams; a team and a person own certificates. All three may have members and limits.'));
       f.parent = teamSelect(t.parent || '', t.name);
@@ -2274,7 +2274,7 @@
       sub.appendChild(data('span', 'tmx-n', num(r.caps.length)));
       if (r.used) { var u = el('span', 'tmx-mx-used', ''); u.appendChild(ic('people', 11)); u.appendChild(data('span', '', num(r.used))); explain(u, 'given to {0} member(s)'.replace('{0}', num(r.used))); sub.appendChild(u); }
       th.appendChild(sub);
-      explain(th, (r.description || '') + (r.builtin ? ' - ' + 'built in: copy it to change it' : ''));
+      if (r.description || r.builtin) explain(th, (r.description ? known(r.description) : '') + (r.builtin ? (r.description ? ' - ' : '') + tr('built in: copy it to change it') : ''));
       if (writes()) {
         var tools = el('div', 'tmx-mx-tools');
         if (r.builtin) {

@@ -69055,6 +69055,218 @@
   "z_1102": {
    "source": "which team?",
    "text": "který tým?"
+  },
+  "z_1103": {
+   "source": "Microsoft AD CS (RPC, as certreq)",
+   "text": "Microsoft AD CS (RPC, jako certreq)"
+  },
+  "z_1104": {
+   "source": "Certificates from a Microsoft CA asked directly over RPC, as certreq does (MS-ICPR, no IIS): signed in with Kerberos or NTLM, always encrypted, with a template. Requests waiting for approval are fetched later.",
+   "text": "Certifikáty od Microsoft CA vyžádané přímo přes RPC, stejně jako to dělá certreq (MS-ICPR, bez IIS): přihlášení přes Kerberos nebo NTLM, vždy šifrované, se šablonou. Žádosti čekající na schválení se vyzvednou později."
+  },
+  "z_1105": {
+   "source": "CA server",
+   "text": "Server CA"
+  },
+  "z_1106": {
+   "source": "The full DNS name of the server the CA runs on (Kerberos needs the name its computer account has - not an address, not an alias).",
+   "text": "Plné DNS jméno serveru, na kterém CA běží (Kerberos potřebuje jméno jeho počítačového účtu – ne adresu, ne alias)."
+  },
+  "z_1107": {
+   "source": "CA name",
+   "text": "Jméno CA"
+  },
+  "z_1108": {
+   "source": "The CA's own name: certutil -config shows \"server\\CA name\" - the part after the backslash.",
+   "text": "Vlastní jméno CA: certutil -config ukáže „server\\jméno CA“ – část za zpětným lomítkem."
+  },
+  "z_1109": {
+   "source": "The template's name (not its display name): WebServer, or a copy of it, published on the CA.",
+   "text": "Jméno šablony (ne její zobrazované jméno): WebServer nebo její kopie, publikovaná na CA."
+  },
+  "z_1110": {
+   "source": "Kerberos, NTLM where Kerberos cannot be used",
+   "text": "Kerberos, NTLM tam, kde Kerberos nejde"
+  },
+  "z_1111": {
+   "source": "Kerberos only",
+   "text": "Jen Kerberos"
+  },
+  "z_1112": {
+   "source": "NTLM (v2) only",
+   "text": "Jen NTLM (v2)"
+  },
+  "z_1113": {
+   "source": "Kerberos needs the domain controllers (TCP 88) and the CA server's DNS name; NTLM signs in at the CA server alone. Either way the connection is encrypted (packet privacy).",
+   "text": "Kerberos potřebuje řadiče domény (TCP 88) a DNS jméno serveru CA; NTLM se přihlašuje jen u serveru CA. Spojení je tak či tak šifrované (packet privacy)."
+  },
+  "z_1114": {
+   "source": "The Active Directory domain's DNS name (the Kerberos realm). Empty: the CA server's name without its first label. For NTLM also DOMAIN\\user.",
+   "text": "DNS jméno domény Active Directory (realm Kerbera). Prázdné: jméno serveru CA bez prvního štítku. Pro NTLM také DOMÉNA\\uživatel."
+  },
+  "z_1115": {
+   "source": "An account with Read and Enroll on the template and Request Certificates on the CA: user, user@domain or DOMAIN\\user.",
+   "text": "Účet s právy Read a Enroll na šabloně a Request Certificates na CA: uživatel, uživatel@doména nebo DOMÉNA\\uživatel."
+  },
+  "z_1116": {
+   "source": "Domain controllers (KDC)",
+   "text": "Řadiče domény (KDC)"
+  },
+  "z_1117": {
+   "source": "Where to ask for Kerberos tickets (TCP 88; host or host:port, several separated by commas). Empty: found in DNS (_kerberos._tcp.<domain>).",
+   "text": "Kde žádat o lístky Kerbera (TCP 88; host nebo host:port, více oddělených čárkami). Prázdné: najdou se v DNS (_kerberos._tcp.<doména>)."
+  },
+  "z_1118": {
+   "source": "Service name of the CA server (SPN)",
+   "text": "Jméno služby serveru CA (SPN)"
+  },
+  "z_1119": {
+   "source": "The Kerberos name the ticket is for. Empty: host/<CA server> (RPCSS/ is the same account).",
+   "text": "Jméno v Kerberu, pro které je lístek. Prázdné: host/<server CA> (RPCSS/ je tentýž účet)."
+  },
+  "z_1120": {
+   "source": "Fixed port",
+   "text": "Pevný port"
+  },
+  "z_1121": {
+   "source": "135 → the port it says",
+   "text": "135 → port, který řekne"
+  },
+  "z_1122": {
+   "source": "The CA's RPC port when it is fixed (and the firewall opens only it). Empty: asked from the endpoint mapper on port 135.",
+   "text": "RPC port CA, když je pevný (a firewall otevírá jen jeho). Prázdné: zjistí se od endpoint mapperu na portu 135."
+  },
+  "z_1123": {
+   "source": "Lines added to the request's attributes (where the CA takes them).",
+   "text": "Řádky přidané k atributům žádosti (kde je CA bere)."
+  },
+  "z_1124": {
+   "source": "CA chain",
+   "text": "Řetězec CA"
+  },
+  "z_1125": {
+   "source": "The CA's certificate and those above it, for when the CA's answer carries none. Empty: from the answer, else the certificate's AIA address.",
+   "text": "Certifikát CA a ty nad ním, pro případ, že je odpověď CA nenese. Prázdné: z odpovědi, jinak z adresy AIA certifikátu."
+  },
+  "z_1126": {
+   "source": "port from the endpoint mapper",
+   "text": "port od endpoint mapperu"
+  },
+  "z_1127": {
+   "source": "Call",
+   "text": "Volání"
+  },
+  "z_1128": {
+   "source": "Calls",
+   "text": "Volání"
+  },
+  "z_1129": {
+   "source": "Domain controllers",
+   "text": "Řadiče domény"
+  },
+  "z_1130": {
+   "source": "Authentication level",
+   "text": "Úroveň autentizace"
+  },
+  "z_1131": {
+   "source": "Mutual authentication",
+   "text": "Vzájemná autentizace"
+  },
+  "z_1132": {
+   "source": "Request ID",
+   "text": "ID žádosti"
+  },
+  "z_1133": {
+   "source": "Flags",
+   "text": "Příznaky"
+  },
+  "z_1134": {
+   "source": "Attributes",
+   "text": "Atributy"
+  },
+  "z_1135": {
+   "source": "DCE/RPC over TCP (ncacn_ip_tcp), not signed in",
+   "text": "DCE/RPC přes TCP (ncacn_ip_tcp), bez přihlášení"
+  },
+  "z_1136": {
+   "source": "the port the CA listens on (49152-65535 by default)",
+   "text": "port, na kterém CA naslouchá (výchozí 49152-65535)"
+  },
+  "z_1137": {
+   "source": "not shown - only the key made from it encrypts a timestamp (PA-ENC-TIMESTAMP)",
+   "text": "nezobrazuje se – jen klíč z něj odvozený zašifruje časové razítko (PA-ENC-TIMESTAMP)"
+  },
+  "z_1138": {
+   "source": "AES256 / AES128 (RFC 3962)",
+   "text": "AES256 / AES128 (RFC 3962)"
+  },
+  "z_1139": {
+   "source": "Kerberos (auth type 16; SPNEGO where the CA wants it), NTLMv2 where Kerberos cannot be used",
+   "text": "Kerberos (auth type 16; SPNEGO, kde ho CA chce), NTLMv2 tam, kde Kerberos nejde"
+  },
+  "z_1140": {
+   "source": "Kerberos (auth type 16; SPNEGO where the CA wants it)",
+   "text": "Kerberos (auth type 16; SPNEGO, kde ho CA chce)"
+  },
+  "z_1141": {
+   "source": "NTLMv2 (auth type 10)",
+   "text": "NTLMv2 (auth type 10)"
+  },
+  "z_1142": {
+   "source": "packet privacy - every call encrypted (RPC_C_AUTHN_LEVEL_PKT_PRIVACY)",
+   "text": "packet privacy – každé volání šifrované (RPC_C_AUTHN_LEVEL_PKT_PRIVACY)"
+  },
+  "z_1143": {
+   "source": "yes - the CA proves itself (AP-REP)",
+   "text": "ano – CA prokáže svou totožnost (AP-REP)"
+  },
+  "z_1144": {
+   "source": "no (NTLM)",
+   "text": "ne (NTLM)"
+  },
+  "z_1145": {
+   "source": "none - a retrieval (MS-WCCE)",
+   "text": "žádná – vyzvednutí (MS-WCCE)"
+  },
+  "z_1146": {
+   "source": "issued (3): the certificate and its chain (PKCS#7); under submission (5): the request ID kept for the next try",
+   "text": "vydáno (3): certifikát a jeho řetězec (PKCS#7); čeká (5): ID žádosti se uchová pro další pokus"
+  },
+  "z_1147": {
+   "source": "the CA refused Kerberos - signing in with NTLM instead",
+   "text": "CA odmítla Kerberos – přihlášení přes NTLM"
+  },
+  "z_1148": {
+   "source": "set the CA server (its DNS name)",
+   "text": "nastavte server CA (jeho DNS jméno)"
+  },
+  "z_1149": {
+   "source": "set the CA name (certutil -config: the part after the backslash)",
+   "text": "nastavte jméno CA (certutil -config: část za zpětným lomítkem)"
+  },
+  "z_1150": {
+   "source": "the fixed port is not a port (1-65535)",
+   "text": "pevný port není port (1-65535)"
+  },
+  "z_1151": {
+   "source": "the CA sent no chain and none is known (set the CA chain under More)",
+   "text": "CA neposlala řetězec a žádný není znám (nastavte řetězec CA v části Více)"
+  },
+  "z_1152": {
+   "source": "the password is wrong (KDC_ERR_PREAUTH_FAILED)",
+   "text": "heslo není správné (KDC_ERR_PREAUTH_FAILED)"
+  },
+  "z_1153": {
+   "source": "Kerberos needs the Python package \"cryptography\" for AES (python3-cryptography: dnf install python3-cryptography, or apt install python3-cryptography) - it is not installed; sign in with NTLM instead, or install it",
+   "text": "Kerberos potřebuje pro AES balíček Pythonu „cryptography“ (python3-cryptography: dnf install python3-cryptography nebo apt install python3-cryptography) – není nainstalovaný; přihlaste se přes NTLM, nebo ho nainstalujte"
+  },
+  "z_1154": {
+   "source": "the account is disabled, locked out or expired (KDC_ERR_CLIENT_REVOKED)",
+   "text": "účet je zakázaný, zamčený nebo mu vypršela platnost (KDC_ERR_CLIENT_REVOKED)"
+  },
+  "z_1155": {
+   "source": "the password of the account has expired (KDC_ERR_KEY_EXPIRED) - set a new one",
+   "text": "heslo účtu vypršelo (KDC_ERR_KEY_EXPIRED) – nastavte nové"
   }
  },
  "patterns": {
@@ -96209,6 +96421,102 @@
   "pz_392": {
    "source": "{0}: it waits for an approval of the team {1} first",
    "text": "{0}: nejdřív čeká na schválení týmem {1}"
+  },
+  "pz_393": {
+   "source": "Asks the endpoint mapper of {0} for the port of ICertPassage",
+   "text": "Zeptá se endpoint mapperu {0} na port rozhraní ICertPassage"
+  },
+  "pz_394": {
+   "source": "Asks the domain controller for Kerberos tickets: {0} and {1}",
+   "text": "Požádá řadič domény o lístky Kerbera: {0} a {1}"
+  },
+  "pz_395": {
+   "source": "Connects to the CA {0} and signs in: {1}",
+   "text": "Připojí se k CA {0} a přihlásí se: {1}"
+  },
+  "pz_396": {
+   "source": "Asks the CA {0} for the request {1} it held",
+   "text": "Zeptá se CA {0} na žádost {1}, kterou držela"
+  },
+  "pz_397": {
+   "source": "Sends the request to the CA {0} with the template {1}",
+   "text": "Pošle žádost CA {0} se šablonou {1}"
+  },
+  "pz_398": {
+   "source": "the endpoint mapper of {0}:135 says ICertPassage listens on port {1}",
+   "text": "endpoint mapper {0}:135 říká, že ICertPassage naslouchá na portu {1}"
+  },
+  "pz_399": {
+   "source": "Kerberos: a ticket for {0} from the domain controller {1}:{2} ({3}), as {4}",
+   "text": "Kerberos: lístek pro {0} od řadiče domény {1}:{2} ({3}), jako {4}"
+  },
+  "pz_400": {
+   "source": "Kerberos cannot be used: {0} - signing in with NTLM instead",
+   "text": "Kerberos nelze použít: {0} – přihlášení přes NTLM"
+  },
+  "pz_401": {
+   "source": "the CA did not take Kerberos (auth type 16): {0} - trying it inside SPNEGO (Negotiate)",
+   "text": "CA nepřijala Kerberos (auth type 16): {0} – zkouší se uvnitř SPNEGO (Negotiate)"
+  },
+  "pz_402": {
+   "source": "connected to the CA at {0}",
+   "text": "připojeno k CA na {0}"
+  },
+  "pz_403": {
+   "source": "the request goes to the CA {0} (template {1})",
+   "text": "žádost jde na CA {0} (šablona {1})"
+  },
+  "pz_404": {
+   "source": "the CA holds the request {0} for a certificate manager to approve (Certification Authority → Pending Requests → Issue); acme asks for it again at the next try{1}",
+   "text": "CA drží žádost {0}, než ji schválí správce certifikátů (Certification Authority → Pending Requests → Issue); acme se o ni přihlásí znovu při dalším pokusu{1}"
+  },
+  "pz_405": {
+   "source": "the CA denied the request {0}",
+   "text": "CA žádost {0} zamítla"
+  },
+  "pz_406": {
+   "source": "the CA answers at {0} - ICertPassage bound, no certificate asked for",
+   "text": "CA odpovídá na {0} – rozhraní ICertPassage navázáno, o certifikát se nežádalo"
+  },
+  "pz_407": {
+   "source": "the CA refused the call: access is denied - the user or the password is wrong (NTLM finds out only at the first call), the account is locked, or it lacks Request Certificates on the CA ({0})",
+   "text": "CA volání odmítla: přístup odepřen – uživatel nebo heslo nejsou správné (NTLM to zjistí až při prvním volání), účet je zamčený, nebo nemá na CA právo Request Certificates ({0})"
+  },
+  "pz_408": {
+   "source": "{0} - the CA server must be reachable on TCP 135 (the endpoint mapper) and its RPC port (49152-65535 by default, or the fixed one)",
+   "text": "{0} – server CA musí být dosažitelný na TCP 135 (endpoint mapper) a na svém RPC portu (výchozí 49152-65535, nebo pevném)"
+  },
+  "pz_409": {
+   "source": "the CA refused the sign-in: {0}",
+   "text": "CA odmítla přihlášení: {0}"
+  },
+  "pz_410": {
+   "source": "the CA refused the Kerberos sign-in: {0}",
+   "text": "CA odmítla přihlášení Kerberem: {0}"
+  },
+  "pz_411": {
+   "source": "the endpoint mapper of {0} knows no ICertPassage over TCP - is Active Directory Certificate Services (CertSvc) running there?",
+   "text": "endpoint mapper {0} nezná ICertPassage přes TCP – běží tam Active Directory Certificate Services (CertSvc)?"
+  },
+  "pz_412": {
+   "source": "Kerberos: {0}",
+   "text": "Kerberos: {0}"
+  },
+  "pz_413": {
+   "source": "acme's clock and the domain controller's differ by {0} (acme is {1}) - more than the 5 minutes Kerberos allows (KRB_AP_ERR_SKEW): set this machine's time from the domain (chrony/NTP pointed at a domain controller) and try again",
+   "text": "hodiny acme a řadiče domény se liší o {0} (acme {1}) – víc než 5 minut, které Kerberos dovoluje (KRB_AP_ERR_SKEW): nastavte čas tohoto stroje podle domény (chrony/NTP nasměrované na řadič domény) a zkuste to znovu"
+  },
+  "pz_414": {
+   "source": "no domain controller (KDC, TCP port 88) answered: {0}",
+   "text": "žádný řadič domény (KDC, TCP port 88) neodpověděl: {0}"
+  },
+  "pz_415": {
+   "source": "the domain does not know the user {0} (KDC_ERR_C_PRINCIPAL_UNKNOWN) - check the user and the domain (realm)",
+   "text": "doména nezná uživatele {0} (KDC_ERR_C_PRINCIPAL_UNKNOWN) – zkontrolujte uživatele a doménu (realm)"
+  },
+  "pz_416": {
+   "source": "the domain knows no service {0} (KDC_ERR_S_PRINCIPAL_UNKNOWN) - Kerberos needs the CA server's full DNS name as its computer account has it (an address, a short name or an alias does not do)",
+   "text": "doména nezná službu {0} (KDC_ERR_S_PRINCIPAL_UNKNOWN) – Kerberos potřebuje plné DNS jméno serveru CA, jak ho má jeho počítačový účet (adresa, krátké jméno ani alias nestačí)"
   }
  },
  "rich": {

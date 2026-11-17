@@ -111,7 +111,7 @@ class MsAdcsRpcIssuer(Issuer):
         field('template', 'Template', 'text', required=True, placeholder='WebServer',
               help='The template\'s name (not its display name): WebServer, or a copy of it, '
                    'published on the CA.'),
-        field('auth', 'Signing in', 'select', default='kerberos',
+        field('auth', 'Signing in', 'select', default='kerberos_only',
               options=[['kerberos', 'Kerberos, NTLM where Kerberos cannot be used'],
                        ['kerberos_only', 'Kerberos only'],
                        ['ntlm', 'NTLM (v2) only']],
@@ -220,8 +220,9 @@ class MsAdcsRpcIssuer(Issuer):
         return s or 'host/%s' % self._host().lower()
 
     def _mode(self):
-        m = str(self.c('auth') or 'kerberos')
-        return m if m in ('kerberos', 'kerberos_only', 'ntlm') else 'kerberos'
+        # Kerberos only unless chosen otherwise (1.0.125): NTLM is never used silently
+        m = str(self.c('auth') or 'kerberos_only')
+        return m if m in ('kerberos', 'kerberos_only', 'ntlm') else 'kerberos_only'
 
     def _user(self):
         u = str(self.c('user') or '').strip()

@@ -65,7 +65,7 @@ Sources → **Add** → **Microsoft AD CS (RPC, as certreq)**.
 | CA server | the **full DNS name** of the server the CA runs on, `ca01.example.local` (Kerberos needs the name its computer account has; an IP address works with NTLM only) |
 | CA name | the CA's own name: `certutil -config -` / `certutil -dump` shows `ca01.example.local\EXAMPLE-CA01-CA` - the part after the backslash (`server\CA` as a whole is taken too) |
 | Template | the template's **name** (not its display name), e.g. `acmeWebServer`; a certificate's own template wins |
-| Signing in | *Kerberos, NTLM where Kerberos cannot be used* (default), *Kerberos only*, *NTLM (v2) only* |
+| Signing in | *Kerberos only* (default - NTLM is never used unless chosen), *Kerberos, NTLM where Kerberos cannot be used*, *NTLM (v2) only* |
 | Domain | the AD domain's DNS name = the Kerberos realm, `EXAMPLE.LOCAL` (empty: the CA server's name without its first label) |
 | User / Password | `svc-acme` (or `svc-acme@example.local`, `EXAMPLE\svc-acme` for NTLM); the password is a secret, sealed as every other one, never logged |
 | Domain controllers (More) | `dc01.example.local, dc02.example.local` (TCP 88); empty: DNS SRV |
@@ -113,7 +113,8 @@ minutes** are not hidden behind NTLM - they are said as they are.
 
 Kerberos needs the Python package **cryptography** (python3-cryptography: `dnf
 install python3-cryptography` or `apt install python3-cryptography`) for AES; without
-it the source says so and, with the default setting, signs in with NTLM, which needs
+it the source says so and refuses (the default, *Kerberos only*); with *Kerberos, NTLM where
+Kerberos cannot be used* it signs in with NTLM instead, which needs
 nothing (MD4, RC4 and HMAC-MD5 are acme's own). Nothing else is installed - no
 impacket, no Kerberos library, no keytab, no krb5.conf.
 
