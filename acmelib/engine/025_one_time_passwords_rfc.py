@@ -52,7 +52,7 @@ CODE_CZ_ROW = dict(zip('+ěščřžýáíéĚŠČŘŽÝÁÍÉ', '1234567890' + '
 def code_typed(code):
     """A code as somebody typed it, read as the digits meant (otp 1.0.225-1.0.227): "821 275" as
     the mail shows it, with a dash or a no-break space, on the Czech row of the keyboard without
-    Shift ("žřáčéá" for 495040), full-width digits, an "ě" sent as "e" and a caron."""
+    Shift ("žřáčéá" for 658408), full-width digits, an "ě" sent as "e" and a caron."""
     import unicodedata
     out = []
     for ch in unicodedata.normalize('NFC', str(code or '')).strip():

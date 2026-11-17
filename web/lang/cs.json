@@ -68323,6 +68323,14 @@
   "z_952": {
    "source": "The portal is switched off. Ask the administrator.",
    "text": "Portál je vypnutý. Obraťte se na správce."
+  },
+  "z_953": {
+   "source": "not signed in",
+   "text": "nepřihlášeno"
+  },
+  "z_954": {
+   "source": "no account is set (Signing in: auto)",
+   "text": "není nastaven žádný účet (Přihlašování: auto)"
   }
  },
  "patterns": {
