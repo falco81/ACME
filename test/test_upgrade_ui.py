@@ -685,9 +685,9 @@ class ThePages(unittest.TestCase):
         except urllib.error.HTTPError as e:
             return e.code, e.read().decode(), e.headers
 
-    def tell(self, node, **d):
+    def tell(self, where, **d):
         d.setdefault('at', int(time.time()))
-        write_json(os.path.join(self.webs[node], '.upgrade.json'), d)
+        write_json(os.path.join(self.webs[where], '.upgrade.json'), d)
 
     def session(self, node='A'):
         st, body, h = self.ask(node, '/admin/index.php?api=login', body={'name': 'tester', 'password': self.pw})
