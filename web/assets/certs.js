@@ -8795,7 +8795,10 @@ function drawOverviewCerts(box, d, counts, total) {
     card.appendChild(arrow);
     if (says[t[4]] && typeof explain === 'function') explain(card, says[t[4]]);
     var open = function () {
-      if (t[4] === 'failed' && !c('failed') && depBad) { openJobs({kind: 'deploy', ok: '0'}); return; }
+      /* every failed job, not the deployments alone (1.0.125): a deployment that fails is mostly
+         one step of an issue or a renewal (kind issue/renew), and "deployment · failed" showed
+         "No job matches the filter" under a tile counting 2 */
+      if (t[4] === 'failed' && !c('failed') && depBad) { openJobs({ok: '0'}); return; }
       openCerts({state: t[4]});
     };
     card.onclick = open;
@@ -8899,7 +8902,7 @@ function drawOverviewCerts(box, d, counts, total) {
       var open = function () {
         if (kind === 'test' && a.cert_id) certPeek(Number(a.cert_id));
         else if (m && kind !== 'deploy' && kind !== 'test') certPeek(Number(m[2]));
-        else openJobs({kind: 'deploy', ok: '0'});
+        else openJobs({ok: '0'});      /* (1.0.125, as the tile Failing) */
       };
       row.onclick = open;
       row.onkeydown = function (e) { if (e.key === 'Enter') open(); };
@@ -8935,6 +8938,8 @@ function openJobs(f) {
   setTimeout(function () {
     if ($('jb-kind')) $('jb-kind').value = f.kind || '';
     if ($('jb-ok')) $('jb-ok').value = f.ok || '';
+    /* a certificate chosen there before no longer hides what is opened (1.0.125) */
+    if ($('jb-cert')) $('jb-cert').value = f.cert_id || '';
     JL.page = 0;
     loadJobs();
   }, 0);
