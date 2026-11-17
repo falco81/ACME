@@ -253,7 +253,7 @@ function oops(e) {
   if (typeof ME === 'object' && ME && ME.must_change && e && e.status === 403) return;
   /* An upgrade restarting the API, nginx or PHP (1.0.120): expected - its band says so, not a
      red toast on every pane. A refusal of the daemon's own is still said. */
-  if (e && (e.upgrading || e.unreachable || e.status === 503) && typeof upgradeExpected === 'function'
+  if (e && (e.upgrading || e.unreachable) && typeof upgradeExpected === 'function'
       && upgradeExpected()) return;
   toast(String(e && e.message || e), 'bad');
 }

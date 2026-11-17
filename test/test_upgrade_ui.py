@@ -919,7 +919,9 @@ class ThePages(unittest.TestCase):
         self.assertIn('bad', f['cls'])
         self.assertTrue(f['x'])
         self.assertTrue(f['open'])
-        self.assertIn('1.0.120 runs again', f['text'])
+        self.assertIn('1.0.120', f['text'])
+        if en:
+            self.assertIn('1.0.120 runs again', f['text'])
         if en:
             self.assertIn('The upgrade to acme 1.0.121 failed', f['title'])
         self.assertIsNone(s['failedHidden'])

@@ -513,7 +513,10 @@ function upgradeFromStatus(s) {
   var p = s.upgrade && s.upgrade.plan;
   UPG.plan = p ? upgSteady(p) : null;
   if (Object.prototype.hasOwnProperty.call(s, 'upgrading')) UPG.file = s.upgrading || null;
+  /* The pages on that node's disk - or, from a PHP that does not say it (a version before this
+     one, going back), what its daemon runs. */
   if (s.pages) UPG.pages = String(s.pages);
+  else if (s.version && !Object.prototype.hasOwnProperty.call(s, 'upgrading')) UPG.pages = String(s.version);
   upgSeenNow();
   upgradeDraw();
   upgradeEnd();

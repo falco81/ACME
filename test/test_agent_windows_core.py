@@ -347,6 +347,33 @@ class Trusted(unittest.TestCase):
         os.symlink(path, local(d) + '/l')
         self.assertIn('symbolic link', AG.trusted_text(local(d) + '/l', 'x')[1])
 
+    def test_every_ace_counts(self):
+        """A conditional (callback) ACE - its condition in parentheses - and an ACE not read
+        are writers too; no owner is no trust."""
+        sd_problem, parse = AG.WIN['sd_problem'], AG.WIN['parse_sddl']
+        ok = 'O:SYD:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FR;;;BU)'
+        self.assertEqual(sd_problem(parse(ok)), '')
+        cond = ok + '(XA;;FA;;;WD;(Member_of {SID(BA)}))'
+        self.assertEqual(len(parse(cond)['aces']), 4)
+        self.assertIn('S-1-1-0', sd_problem(parse(cond)))
+        self.assertIn('S-1-1-0', sd_problem(parse(ok + '(A;;FA;;)')))
+        self.assertIn('S-1-1-0', sd_problem(parse(ok + '(OA;;FA;;;WD)')))
+        self.assertIn('owner', sd_problem(parse(ok[len('O:SY'):])))
+        self.assertTrue(AG.WIN['pipe_sddl']().startswith('O:SYD:P'))
+
+    def test_a_folder_made_before_the_install_is_refused(self):
+        place = AG.WIN['_place_check']
+        d = 'C:\\squat'
+        os.makedirs(local(d), exist_ok=True)
+        place(local(d))                                 # SYSTEM's (the fake's default)
+        W.set_sd(d, 'O:BUD:(A;OICI;FA;;;BU)')           # an account's own
+        with self.assertRaises(SystemExit):
+            place(local(d))
+        os.symlink(local(d), local('C:\\squat2'))
+        with self.assertRaises(SystemExit):
+            place(local('C:\\squat2'))
+        place(local('C:\\not-there'))
+
     def test_the_policy_others_may_change_allows_nothing(self):
         cli('allow', 'store')
         AG_ = load(name='acme_agent_t2')
