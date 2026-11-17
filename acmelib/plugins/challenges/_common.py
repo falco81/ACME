@@ -1084,7 +1084,7 @@ class HttpChallenge(Challenge):
         h = handle or {}
         if not self.dcv_self_check():
             return True
-        ok, words = self.fetch('http://%s%s' % (h.get('name'), h.get('path')),
+        ok, words = self.fetch('http://%s%s' % (url_host(h.get('name')), h.get('path')),
                                str(h.get('content') or '').strip())
         self.ctx.step(words, 'ok' if ok else 'info')
         return ok

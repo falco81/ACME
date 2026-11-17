@@ -320,7 +320,10 @@ def tls_checked(t, name):
     if dh not in DH_CHOICES:
         raise Refused('the DH parameters are one of %s' % ', '.join(DH_CHOICES))
     out['dh'] = dh
-    out['hsts'] = int(t.get('hsts') or 0)
+    try:
+        out['hsts'] = int(t.get('hsts') or 0)
+    except (TypeError, ValueError):
+        raise Refused('HSTS is 0 to 63072000 seconds')
     if not 0 <= out['hsts'] <= 63072000:
         raise Refused('HSTS is 0 to 63072000 seconds')
     return out

@@ -215,12 +215,17 @@ class BuiltinDns(DnsChallenge):
         try:
             got = D.txt_at(host, fqdn, port=port, timeout=2.0)
         except (D.DnsError, D.FormErr, OSError) as e:
-            n = self._said.get('fails', 0) + 1
-            self._said['fails'] = n
+            # three failures in a row for this record (Hunt R2): counted for every name and
+            # never reset, a few lost answers spread over the wait - or one moment without an
+            # answer for a certificate of three names - failed the order
+            key = 'fails:%s' % fqdn
+            n = self._said.get(key, 0) + 1
+            self._said[key] = n
             if n >= 3:
                 raise PluginError('acme\'s own DNS server does not answer on %s port %d (%s) - '
                                   'Settings → DNS server says why' % (host, port, e))
             return False
+        self._said.pop('fails:%s' % fqdn, None)
         if txt in got:
             self.say_once('own:' + fqdn, '%s TXT is answered by acme\'s DNS server' % fqdn, 'ok')
             return True

@@ -18,7 +18,7 @@ from acmelib.plugins.base import PluginError, field, guide_of, guide_step
 from acmelib.plugins.challenges import _dns as D
 from acmelib.plugins.challenges import _nginx as NG
 from acmelib.plugins.challenges._common import (HttpChallenge, as_bool, as_list, pinned, shq, ssh_conn,
-                                                ssh_fields)
+                                                ssh_fields, url_host)
 
 WEBROOT = '/var/www/acme-challenge/.well-known/acme-challenge'
 NGINX_CONF = '/etc/nginx/conf.d/acme-challenge.conf'
@@ -311,8 +311,8 @@ class HttpSsh(HttpChallenge):
             self.ctx.step('every "Check at" address answers the token for %s' % n, 'ok')
             return True
         if how == 'name':
-            ok, words = self.fetch('http://%s%s/.well-known/acme-challenge/%s' % (n, sport, token),
-                                   ka)
+            ok, words = self.fetch('http://%s%s/.well-known/acme-challenge/%s' % (
+                url_host(n), sport, token), ka)
             self.ctx.step(words, 'ok' if ok else 'info')
             return ok
         bad = []

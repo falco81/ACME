@@ -298,6 +298,17 @@ def machine_changed_check(store, put_back=False, name=None):
             store.set_meta('console:want:' + me, json.dumps(want))
     except Exception as e:                              # noqa: BLE001
         log('the console at login of the machine before could not be kept: %s' % e, 'warn')
+    # The step of SELinux asked last is not asked again (hunt R2): with its "done" forgotten below,
+    # the backup's last step - a "permissive" or an "enforce" of months ago, never asked of this
+    # machine - was done here at once (high security or not). This machine looks instead.
+    try:
+        se = json.loads(store.get_meta('host:selinux:want:' + me) or '{}')
+        if isinstance(se, dict) and se.get('do') and se.get('do') != 'check':
+            store.set_meta('host:selinux:want:' + me, json.dumps(
+                {'id': secrets.token_hex(6), 'do': 'check', 'at': time.time(),
+                 'by': 'the backup put back' if put_back else 'acme'}))
+    except Exception as e:                              # noqa: BLE001
+        log('the SELinux step asked of the machine before could not be put aside: %s' % e, 'warn')
     gone = []
     for k in MACHINE_ROWS:
         if store.get_meta(k + me) is not None:

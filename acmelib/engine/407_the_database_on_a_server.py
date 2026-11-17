@@ -1286,6 +1286,14 @@ def db_agent_servers(store):
         rows = store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'dbagent:node:%'")
     except Exception:                                   # noqa: BLE001
         rows = []
+    # Of the nodes of this cluster only (hunt R2, as db_local_rows): the row of a node forgotten
+    # (acme --ha-forget, the HA card) or renamed stayed for good - a server of nobody's on the
+    # cards and in the metrics, and its alerts (its agent "not answering", its certificate
+    # "ending") with nothing that could take them away.
+    try:
+        nodes = set(host_nodes(store))
+    except Exception:                                   # noqa: BLE001
+        nodes = None
     now = time.time()
     for r in rows:
         try:
@@ -1295,6 +1303,8 @@ def db_agent_servers(store):
         if not isinstance(v, dict):
             continue
         n = str(r['k'])[len('dbagent:node:'):]
+        if nodes is not None and n not in nodes:
+            continue
         fresh = now - float(v.get('at') or 0) < max(3 * DBAGENT_EVERY, 120)
         v.update(kind='db', name='db:%s' % n, node=n, me=n == node_name(),
                  alive=bool(v.get('ok')) and fresh, stale=not fresh)
