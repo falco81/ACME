@@ -298,8 +298,11 @@ def mine(h, s, rows=None):
                for r in store.db.rows('SELECT * FROM certs ORDER BY name')]
         out.sort(key=lambda o: (o.get('via') != 'me', str(o.get('name') or '').lower()))
         return out
+    # "group:" in front of the group's DN too (1.0.119): owner_of took it, the list never asked
+    # for it - the certificate was theirs to download, and not in their list
     want = sorted(names | {cn.lower() for _, cn in groups} | {dn.lower() for dn, _ in groups}
                   | {'group:' + cn.lower() for _, cn in groups}
+                  | {'group:' + dn.lower() for dn, _ in groups}
                   | {k for k, (_, r) in tms.items() if 'view' in r})
     out = []
     # Asked in pieces: a person in hundreds of groups is not one statement of hundreds of '?'.

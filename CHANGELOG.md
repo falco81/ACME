@@ -17,6 +17,14 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - Target agents: the same join sent again after its fingerprint was confirmed no longer undoes the confirmation; an agent's policy of odd shapes (a number for a list, Infinity) no longer stops acme with an error.
 - Policy builder: a design's title is one line in Events; the needs card's `acme-agent allow file|script` lines are quoted for the shell (a path with a space).
 - acme-agent: `install.sh --join` without a code and `acme-agent join CODE --listen` without an address say so (the latter before the agent's keys are replaced).
+- Target agents: *Update all agents…* always has its button to start the update - offered but not pressed, with why (and the `allow self-update` line to copy), when no agent can be updated now; it had Close only.
+- Target agents: a tile's *Design its policy…* (and the card's actions) sit in a row of their own at the foot, set off from the chips; tiles side by side line up.
+- Target agents: a tile's *Update* clicked twice, or *Update all* while one runs, no longer sends the same agent the update twice; the join wizard asks one round at a time after *It is the same - confirm*.
+- Join wizard on a phone: the steps' words no longer run over the next step.
+- Policy builder: a command typed with an open quotation is red and left out of the file (the line before it stayed in, "the agent takes all of it"); it is not saved.
+- Policy builder: what was clicked together (a template, a need, a switch) and not copied, downloaded or saved is asked about before Close or Escape take it away.
+- Policy builder: the template search stays when a template is clicked; an emptied limit no longer shows "NaN KiB"; the output's tabs say which is selected to a screen reader; after a save *Start from* offers the saved design.
+- Policy builder: an earlier version of a design saved without its state (the command line) opens with its lines, not empty.
 
 ## 1.0.118 - 2026-11-17
 

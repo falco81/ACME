@@ -14,6 +14,12 @@
 //   lines, not empty; after a save "Start from" offers the saved design;
 // * a tile's Update clicked twice sends the agent one update;
 // * the wizard confirmed while it was asking: one round of asking, not two side by side;
+// * (reported) Update all agents…: its popup always has the button that starts it - offered but
+//   not pressed, with why, when no agent can be updated now (it had Close only); pressed, the
+//   agents that can be are sent the update;
+// * (reported) the tile's "Design its policy…" in a row of its own at the foot of the tile, 12 px
+//   at least under the chips, at the same height in tiles side by side (1000 px); the card's
+//   actions set off the same way;
 // * the wizard's rail at 375 px: no step's words over the next step - in English and in Czech.
 // Prints one line of JSON: {ok, checks: {name: true|false}, error?}.
 const { chromium } = require('playwright');
@@ -52,7 +58,7 @@ const path = require('path');
     + '<script>window.ACME_LANG_PACK = ' + pack + ';</script></head><body><main class="ctl-main">' + paneHtml + '<div id="card-host"></div></main>' + modalHtml
     + '<div class="toast" id="toast"></div>'
     + '<script>' + esc(read('assets/i18n.js')) + '</script>'
-    + '<script>var ME = {name: "tester", role: "fulladmin", prefs: {}}; var LIVE = {on: false}; var SENT = []; var SLOW = 0;'
+    + '<script>var ME = {name: "tester", role: "fulladmin", prefs: {}}; var LIVE = {on: false}; var SENT = []; var SLOW = 0; var UPDS = [];'
     + ' var VIEW = ' + JSON.stringify(VIEW) + '; var ONE = ' + JSON.stringify(ONE) + '; var FACTS = ' + JSON.stringify(FACTS) + ';'
     + ' var TPL = ' + JSON.stringify(TPL) + '; var SAVED = null;</script>'
     + '<script>' + esc(read('assets/core.js')) + '</script>'
@@ -66,6 +72,7 @@ const path = require('path');
     + ' if (what === "agents/confirm") return c({agent: ONE});'
     + ' if (what === "agents/code") return c({code: "ACAG1.x", until: Date.now() / 1000 + 3600, mode: "passive", ca_fp: "9b".repeat(32), port: 8446, agent: ONE});'
     + ' if (what === "agents/update") return new Promise(function () { });'
+    + ' if (what === "agents/updates") return c({rows: UPDS});'
     + ' if (what.indexOf("agents/builder") === 0) return c({agent: ONE, facts: FACTS, templates: TPL, needs: [], acme_from: [], design: SAVED});'
     + ' if (what === "agents/design") { SAVED = {n: 1, at: Date.now() / 1000, by: "tester", title: body.title, note: body.note, text: body.text, state: body.state, compare: {state: "matches", added: [], removed: []}, history: []}; return c({design: SAVED}); }'
     + ' return c({}); }, over: function (open) { open(); }});</script>'
@@ -163,6 +170,53 @@ const path = require('path');
     out.looks = await page.evaluate(() => window.LOOKS);
     await page.evaluate(() => { SLOW = 0; closeModal(true); ONE.pending = null; ONE.joined = true; });
     await page.close();
+    // ---- (reported) Update all agents…: the button that starts it, always
+    {
+      const p = await browser.newPage({viewport: {width: 1000, height: 900}});
+      p.on('pageerror', (e) => out.errors.push('1000: ' + String(e)));
+      await p.setContent(build('null'));
+      await p.waitForTimeout(150);
+      await p.evaluate(() => { VIEW.rows = [
+        {id: 1, name: 'web1', mode: 'passive', state: 'answers', version: '1.0.116', last_seen: Date.now() / 1000 - 5,
+         policy_summary: {files: 0, units: 0, tests: 0, scripts: 0, self_update: true}},
+        {id: 2, name: 'mail-gw', mode: 'active', state: 'answers', version: '1.0.115', last_seen: Date.now() / 1000 - 5, update: {offered: '1.0.116', newer: true, allowed: false, signed: true},
+         policy_summary: {files: 2, units: 2, tests: 0, scripts: 0, problems: 1}, blocked: {what: 'x'}, keys_of: ['a']}];
+        UPDS = [{id: 2, name: 'mail-gw', mode: 'active', version: '1.0.115', offered: '1.0.116', ok: false, why: 'its policy has no allow self-update'}];
+        ACME_AGENTS.pane(); });
+      await p.waitForTimeout(300);
+      await p.evaluate(() => document.querySelector('#ag-list .ag-list-h .btn').click());
+      await p.waitForTimeout(300);
+      out.checks.update_all_button_none_can = await p.evaluate(() => {
+        var b = document.querySelector('#modal-foot .btn.primary');
+        return !!b && b.disabled && /Update all agents/.test(b.textContent) && /allow self-update/.test(b.getAttribute('aria-label') || '')
+          && document.querySelector('#modal-body .ag-upd-one .ag-cmd pre').textContent === 'sudo acme-agent allow self-update';
+      });
+      await p.evaluate(() => { closeModal(true); UPDS[0].ok = true; UPDS[0].why = ''; SENT.length = 0; document.querySelector('#ag-list .ag-list-h .btn').click(); });
+      await p.waitForTimeout(300);
+      await p.evaluate(() => document.querySelector('#modal-foot .btn.primary').click());
+      await p.waitForTimeout(300);
+      out.checks.update_all_starts = await p.evaluate(() => SENT.some((x) => x[0] === 'agents/update' && x[1].id === 2)
+        && document.getElementById('modal').hidden && /updating/.test(document.querySelector('[data-upd="2"]').textContent));
+      // ---- (reported) the tile's actions at its foot, apart from the chips
+      out.checks.tile_actions_row = await p.evaluate(() => {
+        var t = document.querySelectorAll('#ag-list .ag-tile'), feet = [];
+        for (var i = 0; i < t.length; i++) {
+          var acts = t[i].querySelector('.ag-tile-acts'), above = acts.previousElementSibling;
+          while (above && (!above.getBoundingClientRect().height || above.classList.contains('ag-tile-sp'))) above = above.previousElementSibling;
+          var a = acts.getBoundingClientRect(), b = above.getBoundingClientRect(), tile = t[i].getBoundingClientRect();
+          if (a.top - b.bottom < 12 || tile.bottom - a.bottom > 20) return false;
+          feet.push(Math.round(a.top));
+        }
+        return feet.length === 2 && Math.abs(feet[0] - feet[1]) <= 1;
+      });
+      await p.evaluate(() => { document.getElementById('pane-agents').hidden = true; ONE.design = null; document.getElementById('card-host').appendChild(ACME_AGENTS.card({id: 1, name: 'web1'})); });
+      await p.waitForTimeout(300);
+      out.checks.card_actions_row = await p.evaluate(() => {
+        var acts = document.querySelector('#card-host .ag-acts'), above = acts.previousElementSibling;
+        return parseFloat(getComputedStyle(acts).borderTopWidth) >= 1 && acts.getBoundingClientRect().top - above.getBoundingClientRect().bottom >= 12;
+      });
+      await p.close();
+    }
     // ---- the wizard's rail on a phone, in English and in Czech
     for (const lang of ['en', 'cs']) {
       const p = await browser.newPage({viewport: {width: 375, height: 800}});

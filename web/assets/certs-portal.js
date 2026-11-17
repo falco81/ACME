@@ -139,7 +139,11 @@ function saveB64(d) {
   setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
 }
 function running(c) {
-  return !!(c.job && c.job.live) || c.state === 'renewing' || (c.state === 'new' && !c.not_after);
+  /* not issued yet is "being issued" only while something will issue it (1.0.119): one not
+     renewed by itself, or whose approval was never recorded, was asked about every 3 s for
+     good and said "being issued…" with nothing at work */
+  return !!(c.job && c.job.live) || c.state === 'renewing'
+    || (c.state === 'new' && !c.not_after && !!c.auto_renew && !c.stuck);
 }
 
 /* ---- the card ---------------------------------------------------------------- */
@@ -205,6 +209,11 @@ function draw(d) {
      the button is there, dimmed, and says why (1.0.16) - not just missing. */
   ask.hidden = !setUp && !profs && !(d.teams || []).length;
   ask.disabled = (!setUp && !profs) || (profs ? d.may_ask === false : !d.may_request);
+  /* what it said when it was off goes when it is on again (1.0.119): its tooltip and its name
+     for a screen reader stayed "as many as one person may" on a button that asks again */
+  ask._explainHtml = '';
+  ask.removeAttribute('aria-label');
+  delete ask.dataset.explains;
   if (!setUp && !profs && !ask.hidden) explain(ask, 'Asking for certificates here is not set up yet: your administrator says which names and sources may be asked for (Settings → The enrolment pages).');
   else if (ask.disabled && !ask.hidden) explain(ask, 'You have asked for as many certificates as one person may. Ask the administrator for more.');
   var said = $('cp-said');
