@@ -470,8 +470,11 @@
         var mk = cmdButton(r.what === 'owner' ? 'Make it an owner' : 'Make it a tag', 'add', 'small');
         mk.onclick = function () {
           var b = r.what === 'owner' ? {owner: r.name} : {tag: r.name};
+          /* once (1.0.119: pressed twice, the second said "there is an owner ... already") */
+          if (mk.disabled) return;
+          busy(mk, true);
           call('teams/adopt', b).then(function (x) { toast(x.message || 'made', 'good'); return changed(); })
-            .then(drawPane).catch(oops);
+            .then(drawPane).catch(function (e) { busy(mk, false); oops(e); });
         };
         tools.appendChild(mk);
       }

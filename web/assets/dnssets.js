@@ -203,6 +203,10 @@
           if (!isNew) body.old_name = s.name;
           busy(b, true);
           call('save', body).then(function (r) {
+            /* a function's choice waiting for Save follows the set renamed (1.0.119: Save then
+               said "there is no DNS set") */
+            var now = (r && r.set && r.set.name) || body.name;
+            if (!isNew && now !== s.name) pendingFollow(s.name, now);
             toast(saidOf(r, 'saved'), 'good');
             closeModal();
             load();
@@ -218,8 +222,16 @@
     var words = 'The DNS set <b>' + htmlText(s.name) + '</b> is deleted.';
     if (used && used.length) words += ' What asked it goes back to its default: ' + htmlText(used.join(', ')) + '.';
     confirmThen('Delete the DNS set', words, 'Delete it', function () {
-      call('delete', {name: s.name}).then(function (r) { toast(saidOf(r, 'deleted'), 'good'); load(); }).catch(oops);
+      call('delete', {name: s.name}).then(function (r) { pendingFollow(s.name, null); toast(saidOf(r, 'deleted'), 'good'); load(); }).catch(oops);
     });
+  }
+  /* The functions' choices waiting for Save that named a set renamed or deleted (to: null). */
+  function pendingFollow(from, to) {
+    Object.keys(DS.uses).forEach(function (k) {
+      if (DS.uses[k] !== from) return;
+      if (to === null) delete DS.uses[k]; else DS.uses[k] = to;
+    });
+    usesPending();
   }
 
   /* ---- Test: a name looked up through a set --------------------------------- */

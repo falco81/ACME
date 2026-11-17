@@ -153,11 +153,16 @@ class LocalTarget(Base):
         # Where each file is written (1.0.19): a path already under the folder is
         # the folder's, as _place() takes it - joined again it was never there.
         skip = F.skip_same(options)         # also on "Deploy now" (1.0.78)
-        if skip and self.unchanged(bundle, options, present=lambda: all(
+        # a deployment begun and not finished (hunt q3, as targets/ssh.py): acme stopped after
+        # the files, before the script or command - the next found the files the same and ran
+        # nothing
+        unfinished = self.pending()
+        if skip and not unfinished and self.unchanged(bundle, options, present=lambda: all(
                 os.path.exists(self._where(base, o['path'])) for o in outs)):
             return self.same(bundle, 'in %s' % base)
         os.makedirs(base, mode=0o750, exist_ok=True)
         datas = self._render(pairs, options, vars)
+        self.mark_pending(bundle)
         mode = F.backup_mode(options)
         stamp = time.time()
         # PKCS#12 and keystores are new bytes every time: the same when this certificate was put
@@ -200,11 +205,15 @@ class LocalTarget(Base):
             # written before it stayed new, the new chain beside the old key.
             self._put_back(before)
             raise
-        if not before:
+        if not before and unfinished and (sc or cmd):
+            self.ctx.step('every file holds it already, but the last deployment here did not '
+                          'finish - the commands run all the same', 'warn')
+        elif not before:
             # Nothing replaced (1.0.78): nothing run - no script, no command. Fine.
             self.ctx.step('nothing replaced: every file holds this certificate already (the same '
                           'SHA-256) - no script or command run', 'ok')
             self.remember(bundle, options)
+            self.done_pending()
             return 'unchanged: every file in %s holds it already (the same SHA-256) - nothing ' \
                    'replaced, nothing run' % base
         if sc:
@@ -228,6 +237,7 @@ class LocalTarget(Base):
                 if had is not None:
                     self._prune(full, mode, F.backup_keep(options))
         self.remember(bundle, options)
+        self.done_pending()
         n = len(before)
         return '%d file%s written in %s%s%s%s' % (
             n, '' if n == 1 else 's', base,

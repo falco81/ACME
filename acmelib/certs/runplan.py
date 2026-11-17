@@ -4968,6 +4968,8 @@ def plan(store, cert, deploys, full=False):
                     'serial': cert.get('serial'), 'not_before': cert.get('not_before'),
                     'not_after': cert.get('not_after'), 'version': cert.get('version'),
                     'chain': chain, 'id': cert.get('id'),
+                    'no_chain': not chain and bool(cert.get('cert_pem') or (
+                        irow and irow.get('kind') == 'selfsigned')),
                     'ref': cert.get('issuer_ref') or None,
                     'csr_from': cert.get('csr_from') or ''},
            'runs': runs}

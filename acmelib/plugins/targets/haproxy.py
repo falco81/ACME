@@ -111,18 +111,24 @@ class HaproxyTarget(SshMixin, Base):
                 self.remember(bundle, options)
                 return self.same(bundle, 'in %s and served' % path)
             existed = F.write_files(self, s, files, options=options, fmt='folder')
-            F.drop_previous(self, s, files, options)
             self.ctx.step('wrote %s' % path, 'ok')
+            # the previous file kept until HAProxy took the new one (hunt q3: dropped before the
+            # swap - when it failed, the new file stayed and nothing could be put back)
             try:
-                how = self.swap(s, path, pem, options, known=existed[0])
-            except PluginError as e:
-                cmd = text(options.get('reload_cmd')).strip()
-                if not cmd:
-                    raise
-                self.ctx.step('the Runtime API did not take it (%s): reloading instead' % e,
-                              'warn')
-                self.sh(s, cmd, what='"%s"' % cmd)
-                how = 'reloaded with %s' % cmd
+                try:
+                    how = self.swap(s, path, pem, options, known=existed[0])
+                except PluginError as e:
+                    cmd = text(options.get('reload_cmd')).strip()
+                    if not cmd:
+                        raise
+                    self.ctx.step('the Runtime API did not take it (%s): reloading instead' % e,
+                                  'warn')
+                    self.sh(s, cmd, what='"%s"' % cmd)
+                    how = 'reloaded with %s' % cmd
+            except Exception:
+                F.put_back(self, s, files, existed)
+                raise
+            F.drop_previous(self, s, files, options)
         self.remember(bundle, options)
         return '%s written, %s' % (path, how)
 

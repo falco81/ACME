@@ -376,6 +376,29 @@ def my_sql(conf, text, secret=''):
     return got.stdout.strip()
 
 
+def _no_have_ssl(e):
+    """MySQL 8.4 and later have no @@have_ssl ("Unknown system variable 'have_ssl'")."""
+    return 'have_ssl' in str(e) and 'nknown' in str(e)
+
+
+def my_have_ssl(conf):
+    """'YES' when the server has TLS on, as @@have_ssl says it (MariaDB, MySQL before 8.4) -
+    where there is none (MySQL 8.4+, hunt q3: an error, read as a server not running), as its
+    TLS channel says it: 'YES' or 'NO', '' when nothing says."""
+    try:
+        return my_sql(conf, 'SELECT @@have_ssl')
+    except Refused as e:
+        if not _no_have_ssl(e):
+            raise
+    try:
+        got = my_sql(conf, "SELECT VALUE FROM performance_schema.tls_channel_status "
+                           "WHERE CHANNEL = 'mysql_main' AND PROPERTY = 'Enabled'")
+    except Refused:
+        return ''
+    got = got.strip().lower()
+    return 'YES' if got == 'yes' else ('NO' if got else '')
+
+
 MY_CNF_NAME = 'zz-acme-tls.cnf'
 
 
@@ -440,14 +463,14 @@ def op_my_tls(args, conf):
     how = ''
     restarted = False
     try:
-        if cnf_was == body and my_sql(conf, "SELECT @@have_ssl") == 'YES':
+        if cnf_was == body and my_have_ssl(conf) == 'YES':
             my_sql(conf, 'FLUSH SSL')
             how = 'FLUSH SSL - no restart'
         else:
             W.write_root(cnf, body, 0o644)
             restarted = True
             how = op_my_restart({}, conf)['said']
-        if my_sql(conf, 'SELECT @@have_ssl') != 'YES':
+        if my_have_ssl(conf) != 'YES':
             raise Refused('MariaDB does not have TLS on with it')
     except Exception:
         for n, old in was.items():
@@ -578,8 +601,16 @@ def facts(conf):
         try:
             # @@have_ssl NULL made the CONCAT NULL (1.0.119): the server answered all the same -
             # it runs; what it did not say is not said (the node took the agent for silent).
-            got = my_sql(conf, "SELECT CONCAT(VERSION(), '|', IFNULL(@@have_ssl, ''), '|', "
-                               "IFNULL(@@datadir, ''))")
+            try:
+                got = my_sql(conf, "SELECT CONCAT(VERSION(), '|', IFNULL(@@have_ssl, ''), '|', "
+                                   "IFNULL(@@datadir, ''))")
+            except Refused as e:
+                # MySQL 8.4+: no @@have_ssl - asked without it, its TLS as its channel says
+                if not _no_have_ssl(e):
+                    raise
+                got = my_sql(conf, "SELECT CONCAT(VERSION(), '|', '|', IFNULL(@@datadir, ''))")
+                v, _x, data = (got.split('|', 2) + ['', ''])[:3] if '|' in got else ('', '', '')
+                got = '%s|%s|%s' % (v, my_have_ssl(conf), data) if '|' in got else got
             v, ssl_on, data = ((got.split('|', 2) + ['', ''])[:3] if '|' in got
                                else ('', '', ''))
             out.update(running=True, version=v, ssl=ssl_on == 'YES')

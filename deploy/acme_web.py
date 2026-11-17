@@ -2753,6 +2753,25 @@ def pg_lit(v):
     return "'%s'" % str(v).replace("'", "''")
 
 
+def pg_hba_errors(port):
+    """How many lines of pg_hba.conf PostgreSQL could not read (pg_hba_file_rules) - None
+    when its answer is no number. Counted before a change and after it: only more of them
+    than there were are the ones written here (hunt q3, as acme_pg_ops.hba_add) - a line of
+    somebody else's it could not read refused every change of acme's."""
+    try:
+        return int(pg_sql(port, 'SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL')
+                   or 0)
+    except ValueError:
+        return None
+
+
+def pg_hba_check(port, was):
+    """After the reload: Refused when PostgreSQL could not read more lines than before."""
+    bad = pg_hba_errors(port)
+    if bad is None or bad > (was or 0):
+        raise Refused('PostgreSQL does not read pg_hba.conf as written')
+
+
 def pg_answers_with(port, cert_pem, ca_file):
     """The certificate this PostgreSQL shows over TLS, checked against the
     authorities - True when it is `cert_pem`."""
@@ -2960,13 +2979,12 @@ def pgtls_hba(r):
         raise Refused('pg_hba.conf has no line of acme\'s for %s (%s %s): it was written by '
                       'hand - change host to hostssl there yourself' % (net, r['db'], r['user']))
     st = os.lstat(hba)
+    was = pg_hba_errors(r['port'])
     pg_file_copy(hba, hba + '.acme-before-tls')
     pg_file_put(hba, '\n'.join(lines), stat.S_IMODE(st.st_mode), st.st_uid, st.st_gid)
     try:
         pg_sql(r['port'], 'SELECT pg_reload_conf()')
-        bad = pg_sql(r['port'], 'SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL')
-        if bad not in ('', '0'):
-            raise Refused('PostgreSQL does not read pg_hba.conf as written')
+        pg_hba_check(r['port'], was)
     except Refused:
         pg_file_copy(hba + '.acme-before-tls', hba)
         pg_sql(r['port'], 'SELECT pg_reload_conf()')
@@ -3025,13 +3043,12 @@ def pgtls_peer(r):
     if new_text == text:
         return {'said': 'pg_hba.conf already lets %s in' % r['peer']}
     st = os.lstat(hba)
+    was = pg_hba_errors(r['port'])
     pg_file_copy(hba, hba + '.acme-before-readdress')
     pg_file_put(hba, new_text, stat.S_IMODE(st.st_mode), st.st_uid, st.st_gid)
     try:
         pg_sql(r['port'], 'SELECT pg_reload_conf()')
-        bad = pg_sql(r['port'], 'SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL')
-        if bad not in ('', '0'):
-            raise Refused('PostgreSQL does not read pg_hba.conf as written')
+        pg_hba_check(r['port'], was)
     except Refused:
         pg_file_copy(hba + '.acme-before-readdress', hba)
         pg_sql(r['port'], 'SELECT pg_reload_conf()')
@@ -3184,13 +3201,12 @@ def pgtls_ha_open(r):
                       % (r['peer'], kind)})
     else:
         st = os.lstat(hba)
+        was = pg_hba_errors(r['port'])
         pg_file_copy(hba, hba + '.acme-before-join')
         pg_file_put(hba, new_text, stat.S_IMODE(st.st_mode), st.st_uid, st.st_gid)
         try:
             pg_sql(r['port'], 'SELECT pg_reload_conf()')
-            bad = pg_sql(r['port'], 'SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL')
-            if bad not in ('', '0'):
-                raise Refused('PostgreSQL does not read pg_hba.conf as written')
+            pg_hba_check(r['port'], was)
         except Refused:
             pg_file_copy(hba + '.acme-before-join', hba)
             pg_sql(r['port'], 'SELECT pg_reload_conf()')

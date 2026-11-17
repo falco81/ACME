@@ -314,6 +314,11 @@ function keyWords(k) {
   var one = KEY_TYPES.filter(function (x) { return x[0] === k; })[0];
   return one ? one[1] : (k || '–');
 }
+/* the key and its size - the size once (hunt q3: "RSA 2048 · 2048 bits") */
+function keyBitsWords(k, bits) {
+  var w = keyWords(k);
+  return w + (bits && !new RegExp('(^|\\D)' + Number(bits) + '(\\D|$)').test(w) ? ' · ' + bits + ' bits' : '');
+}
 var EKUS = [['serverAuth', 'TLS server'], ['clientAuth', 'TLS client'], ['codeSigning', 'code signing'],
             ['emailProtection', 'e-mail (S/MIME)'], ['timeStamping', 'time stamping'], ['OCSPSigning', 'OCSP signing']];
 var REVOKE_REASONS = [['unspecified', 'no reason given'], ['keyCompromise', 'the key got out'],
@@ -337,7 +342,9 @@ function daysWords(d) {
   if (d === 1) return '1 day left';
   return d + ' days left';
 }
-function daysTag(ts, renewDays) {
+function daysTag(ts, renewDays, state) {
+  /* a revoked one is not valid, however long it was to last (hunt q3: "396 days left" in green) */
+  if (state === 'revoked') return el('span', 'ct-days crit', 'revoked');
   var d = daysLeftOf(ts);
   return el('span', 'ct-days ' + daysTone(d, renewDays), daysWords(d));
 }
@@ -433,14 +440,14 @@ function fpWords(fp) {
   fp = String(fp || '').replace(/[^0-9a-f]/gi, '').toUpperCase();
   return fp ? fp.match(/.{1,2}/g).join(':') : '';
 }
-function lifeBar(nb, na) {
+function lifeBar(nb, na, state) {
   var bar = el('div', 'ct-life');
   var fill = el('span');
   if (nb && na && na > nb) {
     var pc = Math.max(0, Math.min(100, 100 * (now() - nb) / (na - nb)));
     fill.style.width = pc.toFixed(1) + '%';
     var d = daysLeftOf(na);
-    fill.className = daysTone(d);
+    fill.className = state === 'revoked' ? 'crit' : daysTone(d);
   }
   bar.appendChild(fill);
   return bar;
@@ -1960,7 +1967,7 @@ function usesList(uses) {
     what.appendChild(el('span', '', x.said));
     mid.appendChild(what);
     row.appendChild(mid);
-    row.appendChild(el('span', 'ct-use-tag ' + (x.free ? 'warn' : 'crit'), x.free ? 'taken off with it' : 'change it there first'));
+    row.appendChild(el('span', 'ct-use-tag ' + (x.free ? 'warn ct-use-free' : 'crit'), x.free ? 'taken off with it' : 'change it there first'));
     if (x.cert_id) {
       row.classList.add('link');
       row.tabIndex = 0;
@@ -2009,6 +2016,8 @@ function modDeleteAsk(key, r, uses, done) {
       var sync = function () {
         var b = $('modal-foot') && Array.prototype.filter.call($('modal-foot').querySelectorAll('button.danger'), function (x) { return !x.closest('.sure-strip'); })[0];
         if (b) b.disabled = !force._get();
+        /* "taken off with it" only once it is to be (hunt q3: said with the switch off) */
+        Array.prototype.forEach.call(body.querySelectorAll('.ct-use-free'), function (t) { t.hidden = !force._get(); });
       };
       force._input.addEventListener('change', sync);
       setTimeout(sync, 0);
@@ -3827,7 +3836,7 @@ function certRow(c) {
   if (c.not_after) {
     ec.appendChild(el('span', 'day', dayOnly(c.not_after)));
     ec.appendChild(el('br'));
-    ec.appendChild(daysTag(c.not_after, c.renew_days));
+    ec.appendChild(daysTag(c.not_after, c.renew_days, c.state));
   } else ec.appendChild(el('span', 'muted', '–'));
   tr.appendChild(ec);
   var ac = el('td');
@@ -4202,7 +4211,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
   var t = el('div', 'ct-head-t');
   t.appendChild(data('span', 'ct-head-name', c.cn || c.name));
   t.appendChild(stateTag(c.state));
-  if (c.not_after) t.appendChild(daysTag(c.not_after, c.renew_days));
+  if (c.not_after && c.state !== 'revoked') t.appendChild(daysTag(c.not_after, c.renew_days));
   hw.appendChild(t);
   hw.appendChild(namesChips(arr(c.names).concat(arr(obj(c.profile).san_other))));
   if (arr(c.tags).length || c.owner) {
@@ -4216,7 +4225,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
   if (c.not_before && c.not_after) {
     var lw = el('div', 'ct-lifewrap');
     lw.appendChild(el('span', 'muted small', dayOnly(c.not_before)));
-    lw.appendChild(lifeBar(c.not_before, c.not_after));
+    lw.appendChild(lifeBar(c.not_before, c.not_after, c.state));
     lw.appendChild(el('span', 'muted small', dayOnly(c.not_after)));
     body.appendChild(lw);
   }
@@ -4349,7 +4358,7 @@ function certBody(body, c, versions, deploys, jobs, back) {
     ['Serial', first(info.serial, c.serial) ? copyable(first(info.serial, c.serial), 'the serial was copied') : '–'],
     ['SHA-256', sha256 ? copyable(fpWords(sha256), 'the fingerprint was copied') : '–'],
     sha1 ? ['SHA-1', copyable(fpWords(sha1), 'the fingerprint was copied')] : null,
-    ['Key', keyWords(first(info.key_type, c.key_type)) + (info.key_bits ? ' · ' + info.key_bits + ' bits' : '')
+    ['Key', keyBitsWords(first(info.key_type, c.key_type), info.key_bits)
       + (c.csr_from ? ' · ' + tr('key made by') + ' ' + c.csr_from : (c.has_key === false ? ' · not kept here' : ''))],
     ['Valid from', c.not_before ? stamp(c.not_before) : '–'],
     ['Valid to', c.not_after ? stamp(c.not_after) : '–'],
@@ -4550,7 +4559,7 @@ function twinSection(c) {
     sect._body.appendChild(lw);
   }
   sect._body.appendChild(kvTable([
-    ['Key', keyWords(first(alt.key_type, c.key_type_alt)) + (ai.key_bits ? ' · ' + ai.key_bits + ' bits' : '')
+    ['Key', keyBitsWords(first(alt.key_type, c.key_type_alt), ai.key_bits)
       + (alt.has_key === false ? ' · not kept here' : '')],
     ['Issued by', data('span', 'mono small', first(alt.issuer_dn, '–'))],
     ['Serial', alt.serial ? copyable(alt.serial, 'the serial was copied') : '–'],
@@ -6901,7 +6910,7 @@ var KEY_EXT = /\.(key)$/i;
 function importDialog(into) {
   into = into && into.id ? into : null;
   var held = {main: null, key: null, mainB64: '', keyB64: '', parsed: null, more: []};
-  var pass = null, keyPass = null, name = null, tags = null, note = null, found = null, drop = null, keyRow = null, ownerI = null, asBox = null, asSaid = null;
+  var pass = null, keyPass = null, name = null, tags = null, note = null, found = null, drop = null, keyRow = null, ownerI = null, asBox = null, asSaid = null, keyDrop = null;
   var parse = function () {
     if (!held.main) return;
     clear(found);
@@ -7023,6 +7032,15 @@ function importDialog(into) {
   var take = function (files) {
     var mains = 0;
     held.more = [];
+    /* a key that went with a certificate dropped before is not this one's (hunt q3: a new
+       certificate dropped alone was imported with the key of the one before it) */
+    if (held.key && held.keyFor) {
+      held.key = null;
+      held.keyB64 = '';
+      held.keyFor = false;
+      if (keyDrop) { keyDrop._words.textContent = keyDrop._blank; keyDrop.classList.remove('has'); }
+      if (keyRow) keyRow.querySelector('.ct-keyname').textContent = '';
+    }
     files.forEach(function (f) {
       var isKey = KEY_EXT.test(f.name);
       var p = fileB64(f).then(function (b64) {
@@ -7031,7 +7049,7 @@ function importDialog(into) {
           try { text = atob(b64); } catch (e) { }
           if (/PRIVATE KEY/.test(text) && !/CERTIFICATE/.test(text)) isKey = true;
         }
-        if (isKey && (held.main || files.length > 1)) { held.key = f; held.keyB64 = b64; }
+        if (isKey && (held.main || files.length > 1)) { held.key = f; held.keyB64 = b64; held.keyFor = true; }
         else if (mains++ === 0) { held.main = f; held.mainB64 = b64; }
         else held.more.push({f: f, b64: b64});
       });
@@ -7060,9 +7078,12 @@ function importDialog(into) {
     keyRow.appendChild(el('b', 'small', 'The key, if it is in a file of its own'));
     var kd = dropZone('Drop the key here', function (fs) {
       held.key = fs[0];
+      held.keyFor = !!held.main;
       fileB64(fs[0]).then(function (b) { held.keyB64 = b; kd._words.textContent = fs[0].name; kd.classList.add('has'); if (held.parsed) drawFound(held.parsed); });
     }, '.key,.pem,.txt', false);
     kd.classList.add('small');
+    keyDrop = kd;
+    kd._blank = kd._words.textContent;
     keyRow.appendChild(kd);
     keyRow.appendChild(el('span', 'ct-keyname muted small', ''));
     keyPass = secretBox('', 'the key’s password, if it has one', 'mono');
@@ -7598,6 +7619,9 @@ function selfSigned() {
 
 function csrDialog() {
   var f = {};
+  /* kept, its CSR not made (hunt q3): pressed again, the same one is saved again and asked for
+     its CSR - not refused "there is one called … already" */
+  var saved = null;
   modal('A CSR for an outside CA', function (body) {
     body.appendChild(el('p', 'note', 'For an authority acme does not speak to: the key is made here and kept here, you take the request (CSR) to the CA, and upload what it sends back - then acme deploys it like any other. It is renewed the same way, by hand.'));
     var g = el('div', 'formgrid');
@@ -7629,10 +7653,11 @@ function csrDialog() {
     var subject = {};
     ['O', 'OU', 'C', 'ST', 'L', 'emailAddress'].forEach(function (k) { if (f[k].value.trim()) subject[k] = f[k].value.trim(); });
     busy(b, true);
-    capi('certs/save', {name: f.name.value.trim() || certName(list[0]), names: list, key_type: f.key.value, issuer: '', source: 'csr',
+    capi('certs/save', {id: saved || undefined, name: f.name.value.trim() || certName(list[0]), names: list, key_type: f.key.value, issuer: '', source: 'csr',
                         challenge: '', challenge_map: {}, auto_renew: false, renew_days: 30, reuse_key: false,
                         profile: {subject: subject}, tags: splitNames(f.tags.value), note: '',
                         owner: f.owner.value || ''}).then(function (d) {
+      saved = d.id;
       CT.refresh();
       return capi('certs/csr', {id: d.id}).then(function (x) { showCsr({id: d.id, name: f.name.value.trim() || certName(list[0])}, x.csr_pem || x.csr || ''); });
     }).catch(fail).then(function () { busy(b, false); });
@@ -8823,7 +8848,7 @@ function drawOverviewCerts(box, d, counts, total) {
       row.appendChild(w);
       var right1 = el('div', 'ct-ovrow-r');
       right1.appendChild(stateTag(r.state));
-      right1.appendChild(daysTag(r.not_after, r.renew_days));
+      right1.appendChild(daysTag(r.not_after, r.renew_days, r.state));
       row.appendChild(right1);
       row.onclick = function () { certPeek(r.id); };
       row.onkeydown = function (e) { if (e.key === 'Enter') certPeek(r.id); };
@@ -9042,7 +9067,7 @@ function weekPeek(p) {
       var tr = el('tr');
       tr.appendChild(td('', stateTag(c.state)));
       tr.appendChild(td('', data('b', '', c.name)));
-      tr.appendChild(td('', daysTag(c.not_after, c.renew_days)));
+      tr.appendChild(td('', daysTag(c.not_after, c.renew_days, c.state)));
       return rowOpens(tr, function () { over(function () { certPeek(c.id); }); });
     }, 'plain'));
   }, [{words: 'Close', close: true}], 'narrow');
@@ -9154,7 +9179,7 @@ function drawDnsRecords(live) {
       tr.appendChild(td('', data('span', 'tag ' + (String(r.rtype).toUpperCase() === 'TXT' ? 'info' : 'dim'), r.rtype || r.type)));
       var v = td('ct-dnsval', mono(String(r.value || '')));
       tr.appendChild(v);
-      tr.appendChild(td('num muted', r.ttl ? String(r.ttl) : '–'));
+      tr.appendChild(td('num muted', r.ttl || r.ttl === 0 ? String(r.ttl) : '–'));
       var ex = r.expires ? (r.expires > now() ? 'in ' + span(r.expires - now()) : 'now') : 'kept';
       tr.appendChild(td('muted small', ex));
       var by = td('muted small', '');

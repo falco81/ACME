@@ -37,7 +37,9 @@
     var row = opts.row || {};
     var picks = arr(Array.isArray(v) ? v : (typeof v === 'string' ? v.split(/\n/) : []))
       .map(function (x) { return String(x).trim(); }).filter(Boolean);
-    if (!picks.length && v === undefined) picks = ['auto'];
+    /* none saved is "auto" on the server (acme_push: lines(slots) or ['auto']) - shown so, not
+       "Nothing chosen" with the deployment refused until something is (hunt q3) */
+    if (!picks.length) picks = ['auto'];
     var slots = null;           /* what the application said; null: not asked yet */
     var wrap = el('div', 'ps-wrap');
     var head = el('div', 'ps-head');
@@ -161,6 +163,7 @@
             set: function (val) {
               picks = arr(Array.isArray(val) ? val : String(val || '').split(/\n/))
                 .map(function (x) { return String(x).trim(); }).filter(Boolean);
+              if (!picks.length) picks = ['auto'];
               draw();
             }};
   }

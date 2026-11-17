@@ -314,7 +314,12 @@
       tr_.appendChild(el('td', 'muted', f.title || f.format || ''));
       tr_.appendChild(data('td', 'mono', f.mode || '–'));
       tr_.appendChild(data('td', 'mono', f.owner || '–'));
-      tr_.appendChild(data('td', 'mono', f.size ? (f.exact === false ? '≈ ' : '') + bytes(f.size) : '–'));
+      /* written empty - a self-signed certificate's chain (hunt q3): said, not left as "–" */
+      var empty = f.size === 0 && f.exact !== false;
+      var sz = el('td', 'mono');
+      sz.appendChild(data('span', '', empty ? bytes(0) : f.size ? (f.exact === false ? '≈ ' : '') + bytes(f.size) : '–'));
+      if (empty) sz.appendChild(el('span', 'tag warn rp-tag', 'empty'));
+      tr_.appendChild(sz);
       tb.appendChild(tr_);
     });
     t.appendChild(tb);

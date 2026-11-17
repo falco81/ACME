@@ -2057,7 +2057,9 @@ def dummy_bundle(cert):
         if cert.get('csr_from'):
             key = None                  # the device made the key: the target gets none
         chain = list(cert.get('chain') or [])
-        if not chain:
+        # a self-signed one (or one issued with none) has no chain: its chain file is empty
+        # there too (hunt q3: an intermediate of the plan's own made it ~600 B)
+        if not chain and not cert.get('no_chain'):
             ckey = pki.make_key('ec-256')
             chain = [pki.self_signed(ckey, [], subject={'CN': 'Plan Intermediate CA'},
                                      days=365, is_ca=True)]

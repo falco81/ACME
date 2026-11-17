@@ -92777,6 +92777,14 @@
   "pz_151": {
    "source": "it does not ask acme (not heard from since {0})",
    "text": "neptá se acme (neozval se od {0})"
+  },
+  "pz_152": {
+   "source": "{0} is not what a {1} record holds",
+   "text": "{0} není hodnota, kterou záznam {1} nese"
+  },
+  "pz_153": {
+   "source": "{0} is not what a {1} record holds - for example {2}",
+   "text": "{0} není hodnota, kterou záznam {1} nese – například {2}"
   }
  },
  "rich": {

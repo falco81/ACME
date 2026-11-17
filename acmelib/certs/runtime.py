@@ -917,7 +917,9 @@ def keyscan(host, port, timeout=10):
         raise base.PluginError('ssh-keyscan is not on this machine (dnf install openssh-clients)',
                                retry=False)
     try:
-        got = subprocess.run(['ssh-keyscan', '-T', str(int(timeout)), '-p', str(int(port)),
+        # '--': a host that begins with '-' is a host, never an option (1.0.119: "-f/etc/..."
+        # read hosts from that file)
+        got = subprocess.run(['ssh-keyscan', '-T', str(int(timeout)), '-p', str(int(port)), '--',
                               str(host).strip('[]')], capture_output=True, text=True,
                              timeout=timeout + 20)
     except subprocess.TimeoutExpired:

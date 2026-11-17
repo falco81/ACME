@@ -548,6 +548,15 @@ def run_windows(t, s, sc, env, tmp_dir='C:/Windows/Temp', timeout=600):
 _EST = {'ec': (800, 240), 'rsa': (1500, 1700), 'ed': (700, 120)}
 
 
+def no_chain(b):
+    """The certificate has no chain to write: a self-signed one (said so, not issued yet)
+    or one issued without any."""
+    if getattr(b, 'no_chain', False) is True:
+        return True
+    return bool(text(getattr(b, 'cert_pem', '') or '')) and not (getattr(b, 'chain_pems', None)
+                                                                  or [])
+
+
 def size_of(b, fmt, password=None):
     """The size of a file of this format, in bytes - made where that is cheap,
     else guessed from the PEM ones."""
@@ -564,6 +573,11 @@ def size_of(b, fmt, password=None):
     if not cert:
         c, k = _EST.get(family_of(b), _EST['ec'])
         cert, chain, key = int(c * 1.37), int(c * 1.37) * 1, int(k * 1.37) + 60
+        if no_chain(b):
+            # a self-signed one comes with none (hunt q3: its chain file guessed ~1 kB)
+            if fmt == 'chain-pem':
+                return 0, True
+            chain = 0
     der = lambda n: int(n * 0.73)                       # noqa: E731
     guess = {'cert-pem': cert, 'fullchain-pem': cert + chain, 'chain-pem': chain,
              'key-pem': key, 'key-rsa': key, 'combined-pem': key + cert + chain,
@@ -608,6 +622,10 @@ def preview(t, bundle, options, pairs, vars, problems, base=None, owners=True,
         if re.search(r'\{[a-z_]+\}', out['path']):
             problems.append({'level': 'bad', 'words': '%s: %s is not a placeholder there is' % (
                 out['path'], re.search(r'\{[a-z_]+\}', out['path']).group(0))})
+        if fmt == 'chain-pem' and no_chain(b):
+            problems.append({'level': 'warn', 'words': '%s: the certificate has no chain (it is '
+                             'self-signed, or came without one) - the file is written empty'
+                             % out['path']})
         if out['path'].endswith(('/', '\\')):
             problems.append({'level': 'bad', 'words': '%s is a folder: give the file a name'
                              % out['path']})

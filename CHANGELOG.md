@@ -6,6 +6,11 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.119 - not released
 
+- DNS server: a record of your own with TTL 0 keeps 0 (it was given the default TTL) and the list shows 0, not "–"; a value the server cannot answer with (an MX of a name alone, an SRV of three numbers) is refused when added, with an example - it was kept and never answered.
+- SSH keys: a host that begins with `-` is a host to ssh-keyscan, never one of its options.
+- Settings → DNS: a set chosen for a function and then renamed or deleted before Save - Save said "there is no DNS set"; the choice follows the new name, or goes with the set.
+- Owners and teams: *Make it an owner* / *Make it a tag* pressed twice asks once (the second said "there is an owner … already").
+
 - Deployments (security): the password of the PKCS#12 / keystore files printed by the script after the files (an echo, `set -x`) is dots in the job and the jobs' log - it stood there in clear for anyone who may read jobs (this machine, SSH, Windows).
 - This machine (files): a file's path given whole under the target's folder is shown where it is written - the preview, What happens and the test said `<folder>/<folder>/<file>`.
 - Deployment form: a path with a placeholder that is not one names that one, not the first of the path (`{name}`); a deployment opened from a target's window shows its certificate's state and names (it said "web –").

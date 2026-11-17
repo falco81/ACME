@@ -13344,10 +13344,14 @@ function drawTexts() {
     hd.innerHTML = iconMarkup(k[2], 14);
     hd.appendChild(el('span', '', k[1]));
     list.appendChild(hd);
+    /* Two of one short name in a group - the portal's code and SSH's - by their whole title
+       (1.0.119): "The sign-in code by mail" twice, which is which only seen once opened. */
+    var shorts = {};
+    ms.forEach(function (m) { var s = m.short || m.title; shorts[s] = (shorts[s] || 0) + 1; });
     ms.forEach(function (m) {
       var b = el('button', 'tx-item' + (m.id === TX.id ? ' on' : ''));
       b.type = 'button';
-      b.appendChild(el('span', 'tx-item-t', m.short || m.title));
+      b.appendChild(el('span', 'tx-item-t', shorts[m.short || m.title] > 1 ? m.title : (m.short || m.title)));
       var st = el('span', 'tx-item-s');
       var ch = TX.data.langs.filter(function (l) { return (m.saved[l].changed || []).length; });
       ch.forEach(function (l) { st.appendChild(noI18n(el('span', 'tag warn', l.toUpperCase()))); });
@@ -14565,7 +14569,7 @@ function drawRbRuns() {
   if (!runs.length) { host.appendChild(el('p', 'note', 'No backup sent yet.')); return; }
   host.appendChild(listTable(['When', 'Node', 'File', 'Size', 'Where it went', 'Who', ''], runs, function (r) {
     var tr = el('tr');
-    tr.appendChild(el('td', 'muted', new Date(r.at * 1000).toLocaleString(numLang())));
+    tr.appendChild(stampCell(r.at, 'muted'));      /* dd-mm-yyyy as every column of times (1.0.119) */
     tr.appendChild(noI18n(el('td', '', r.node || '')));
     var f = el('td', 'mono small');
     f.appendChild(noI18n(el('span', '', r.file || '–')));
@@ -15053,7 +15057,7 @@ function rbListThere(t) {
       host.appendChild(listTable(['Made', 'Node', 'Size', '', ''], files, function (fl) {
         var tr = el('tr');
         var w = el('td');
-        w.appendChild(el('div', '', new Date(fl.when * 1000).toLocaleString(numLang())));
+        w.appendChild(el('div', '', stamp(fl.when)));
         w.appendChild(noI18n(el('div', 'mono small muted', fl.name)));
         tr.appendChild(w);
         var n = el('td');
@@ -15087,7 +15091,7 @@ function rbListThere(t) {
 function rbPutBackConfirm(what) {
   modal('Put this backup back?', function (body) {
     var facts = [];
-    if (what.when) facts.push(['Made', new Date(what.when * 1000).toLocaleString(numLang())]);
+    if (what.when) facts.push(['Made', stamp(what.when)]);
     if (what.node) facts.push(['On', what.node]);
     if (what.manifest) {
       var m = what.manifest;

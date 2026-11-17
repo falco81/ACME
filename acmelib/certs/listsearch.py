@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import collections
 import json
+import re
 
 from acmelib import engine as E
 
@@ -54,9 +55,23 @@ def register():
     E.LIST_VALUES['certs'] = values
 
 
+# A serial as tools show it, its bytes with colons between (1F:AB:03:...): acme keeps it with
+# none (pki.serial_hex) - hunt q3: such a search found nothing.
+HEX_COLON = re.compile(r'(?:[0-9A-Fa-f]{2}:)+[0-9A-Fa-f]{2}\Z')
+SERIAL_FIELD = re.compile(r'(?i)((?:^|(?<=[\s(]))[-!]?serial(?:!=|[:=~]))"?'
+                          r'((?:[0-9A-Fa-f]{2}:)+[0-9A-Fa-f]{2})"?(?=$|[\s)])')
+
+
 def where(text):
     """(sql, args) of what was typed - raised as ValueError in words when it does
     not read (a bracket never closed...)."""
+    text = str(text or '').strip()
+    if HEX_COLON.match(text):
+        # the words as typed (a note may hold 12:30), or the serial without its colons
+        w = E.ListQuery('certs', text)._word(text)
+        return ("(%s OR LOWER(COALESCE(serial, '')) LIKE ? ESCAPE '!')" % w[0],
+                list(w[1]) + ['%' + E.like_pattern(text.replace(':', '').lower()) + '%'])
+    text = SERIAL_FIELD.sub(lambda m: m.group(1) + m.group(2).replace(':', ''), text)
     try:
         lq = E.ListQuery('certs', text)
     except E.ListQueryError as e:

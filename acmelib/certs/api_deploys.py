@@ -48,6 +48,7 @@ class SampleBundle(object):
         self.not_before = time.time()
         self.not_after = self.not_before + 90 * 86400
         self.alt = SampleBundle(name, names, alt_type) if alt_type else None
+        self.no_chain = False           # a self-signed one: no chain, its chain file empty
 
     def as_format(self, fmt, password=None, alias=None):
         raise base.PluginError('not issued yet', retry=False)
@@ -84,7 +85,16 @@ def _setup(store, b, s):
     return trow, cls, cert, dep, opts, saved
 
 
-def _bundle(cert, b, cls):
+def _no_chain(store, issuer):
+    """A certificate of this source comes with no chain (a self-signed one)."""
+    try:
+        row = S.plugin_row(store, 'issuer', issuer) if issuer else None
+    except Exception:                                   # noqa: BLE001
+        row = None
+    return bool(row and row.get('kind') == 'selfsigned')
+
+
+def _bundle(cert, b, cls, store=None):
     if cert and cert.get('cert_pem'):
         whole = S.bundle_of(cert)
         return deployer.pick_variant(whole, {}, cls) if not getattr(cls, 'dual', False) \
@@ -92,11 +102,15 @@ def _bundle(cert, b, cls):
     names = A._list(b.get('names'), 'names') if b.get('names') else []
     if cert:
         names = S.jload(cert.get('names'), []) or names
-        return SampleBundle(cert['name'], names, cert.get('key_type') or 'ec-256',
-                            cert.get('key_type_alt') if getattr(cls, 'dual', False) else None)
+        sb = SampleBundle(cert['name'], names, cert.get('key_type') or 'ec-256',
+                          cert.get('key_type_alt') if getattr(cls, 'dual', False) else None)
+        sb.no_chain = store is not None and _no_chain(store, cert.get('issuer'))
+        return sb
     names = [str(n) for n in names if str(n).strip()] or ['www.example.com']
-    return SampleBundle(str(b.get('name') or names[0]), names, str(b.get('key_type') or 'ec-256'),
-                        str(b.get('key_type_alt') or '') or None)
+    sb = SampleBundle(str(b.get('name') or names[0]), names, str(b.get('key_type') or 'ec-256'),
+                      str(b.get('key_type_alt') or '') or None)
+    sb.no_chain = store is not None and _no_chain(store, str(b.get('issuer') or ''))
+    return sb
 
 
 @A.api('POST', '/api/deploys/preview')
@@ -109,7 +123,7 @@ def _deploys_preview(h, s):
     ctx.target_name = trow['name']
     if dep:
         ctx.deploy_id = dep['id']
-    bundle = _bundle(cert, b, cls)
+    bundle = _bundle(cert, b, cls, h.store)
     if hasattr(cls, 'agent_key_of') and isinstance(bundle, SampleBundle) and trow['name'] == str(
             (cert or {}).get('csr_from') or ('' if cert else b.get('csr_from')) or ''):
         # a certificate whose key the agent makes (1.0.116), not issued yet - the new

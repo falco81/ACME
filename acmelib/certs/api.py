@@ -3559,7 +3559,21 @@ def dns_record_save(store, b, by):
     elif rtype == 'AAAA':
         if not isinstance(ipaddress.ip_address(value), ipaddress.IPv6Address):
             raise ValueError('an AAAA record holds an IPv6 address')
-    ttl = int(b.get('ttl') or E.CONFIG.get('dns_ttl') or 60)
+    else:
+        # what the server could not write was kept and never answered (1.0.119: an MX of a name
+        # alone, said only among the server's problems)
+        import struct
+        from acmelib.plugins.challenges import _dns as D
+        try:
+            D.rdata_to_wire(rtype, D.norm(value) if rtype in ('NS', 'CNAME', 'PTR') else value)
+        except (ValueError, TypeError, struct.error, UnicodeError, OSError):
+            like = {'MX': '10 mail.example.com', 'SRV': '10 5 443 host.example.com',
+                    'CAA': '0 issue "letsencrypt.org"'}.get(rtype)
+            raise ValueError('%s is not what a %s record holds' % (value, rtype) +
+                             (' - for example %s' % like if like else ''))
+    # a TTL of 0 as given (1.0.119: 0 became the default one)
+    ttl = int(b.get('ttl') if b.get('ttl') not in (None, '') else
+              (E.CONFIG.get('dns_ttl') or 60))
     if not 0 <= ttl <= 86400 * 7:
         raise ValueError('ttl: 0 to 604800 seconds')
     expires = b.get('expires')

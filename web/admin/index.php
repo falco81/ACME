@@ -1223,7 +1223,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
       <h2>The groups, and what each one may do</h2>
       <p class="note">Choose the directory in Sign administrators in against the directory above, then press Find the groups and pick them out of the directory rather than typing a distinguished name by hand — that is how a role ends up pointing at a group that does not exist, and nobody finds out until the first person cannot sign in.</p>
       <div class="btnrow admin-only" style="align-items:center">
-        <input type="search" id="ag-like" style="min-width:340px;max-width:420px" placeholder="part of a group's name (empty: all)"
+        <input type="search" id="ag-like" style="min-width:min(340px,100%);max-width:420px" placeholder="part of a group's name (empty: all)"
                autocomplete="off">
         <button class="btn cmd primary" id="ag-find" data-icon="search"
                 title="Ask the directory what groups there are. Nothing is changed; it only reads.">Find the groups</button>

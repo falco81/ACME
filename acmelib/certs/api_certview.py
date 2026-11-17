@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import re
 import threading
 
 from acmelib import engine as E
@@ -33,6 +34,10 @@ def _inspect(h, s):
         try:
             data = base64.b64decode(raw.strip(), validate=False)
         except (binascii.Error, ValueError):
+            raise ValueError('data_b64 is not base64')
+        # letters base64 has none of were dropped, and what was left read as nothing - or as
+        # bytes never sent (hunt q3: "nothing was given" for a text that is not base64)
+        if not data or re.search(r'[^A-Za-z0-9+/=_\-\s]', raw):
             raise ValueError('data_b64 is not base64')
     else:
         data = A._text(b, 'text', MOST).encode('utf-8')
