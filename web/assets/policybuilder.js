@@ -314,8 +314,15 @@ function shellLine(argv) {
 function empty() {
   var s = {files: [], units: [], tests: [], scripts: [], hashes: [], from: [], probe_local: false, probe: [],
     connect_on: false, connect: [], self_update: false, limits: {files: F.limits.files, size: F.limits.size}};
-  if (W()) { s.store = false; s.iis = []; s.rdp = false; s.roles = []; s.key_read = []; }
+  if (W()) { s.store = false; s.iis = []; s.rdp = false; s.roles = []; s.key_read = []; s.adcs = []; s.adcs_read = false; }
   return s;
+}
+/* a Microsoft CA asked through the agent (1.0.125): [{ca, templates: [names] | ['*']}] */
+function adcsRows(x) {
+  return arr(x).filter(function (r) { return r && typeof r === 'object'; }).map(function (r) {
+    var t = Array.isArray(r.templates) ? r.templates : String(r.templates || '').split(',');
+    return {ca: String(r.ca || ''), templates: t.map(function (y) { return String(y).trim(); }).filter(Boolean)};
+  });
 }
 /* the Windows roles (1.0.120): {role: [path | msi]} of the agent's policy -> rows {role, extra} */
 function roleRows(x) {
@@ -335,7 +342,7 @@ function fromPolicy(p) {
   var s = empty();
   if (!p) return s;
   s.files = arr(p.files).map(function (f) { return W() ? winFile(f) : {dir: String(f.dir), owner: String(f.owner || 'root'), group: String(f.group || f.owner || 'root'), mode: Number(f.mode) & 511}; });
-  if (W()) { s.store = !!p.store; s.iis = arr(p.iis).map(String); s.rdp = !!p.rdp; s.roles = roleRows(p.roles); s.key_read = arr(p.key_read).map(String); }
+  if (W()) { s.store = !!p.store; s.iis = arr(p.iis).map(String); s.rdp = !!p.rdp; s.roles = roleRows(p.roles); s.key_read = arr(p.key_read).map(String); s.adcs = adcsRows(p.adcs); s.adcs_read = !!p.adcs_read; }
   s.units = Object.keys(p.units || {}).sort().map(function (u) { return {name: u, verbs: arr(p.units[u]).slice()}; });
   s.tests = arr(p.tests).map(function (t) { return arr(t).map(String); });
   s.scripts = arr(p.scripts).map(function (x) { return {path: String(x.path), sha256: String(x.sha256 || '')}; });
@@ -356,7 +363,7 @@ function fromSaved(x) {
   s.files = arr(x.files).filter(function (f) { return f && typeof f === 'object'; }).map(function (f) {
     return W() ? winFile(f) : {dir: String(f.dir || ''), owner: String(f.owner || ''), group: String(f.group || ''), mode: Number(f.mode) & 511};
   });
-  if (W()) { s.store = !!x.store; s.iis = arr(x.iis).map(String); s.rdp = !!x.rdp; s.roles = roleRows(x.roles); s.key_read = arr(x.key_read).map(String); }
+  if (W()) { s.store = !!x.store; s.iis = arr(x.iis).map(String); s.rdp = !!x.rdp; s.roles = roleRows(x.roles); s.key_read = arr(x.key_read).map(String); s.adcs = adcsRows(x.adcs); s.adcs_read = !!x.adcs_read; }
   s.units = arr(x.units).filter(function (u) { return u && typeof u === 'object'; }).map(function (u) { return {name: String(u.name || ''), verbs: arr(u.verbs).map(String)}; });
   s.tests = arr(x.tests).map(function (t) { return Array.isArray(t) ? t.map(String) : split(String(t)); });
   s.scripts = arr(x.scripts).filter(function (u) { return u && typeof u === 'object'; }).map(function (u) { return {path: String(u.path || ''), sha256: String(u.sha256 || '')}; });
@@ -541,9 +548,10 @@ function check(s) {
 }
 /** The state checked as a Windows server's agent checks it (acme_agent_win.py): folders with
     their readers, services, PowerShell scripts, the machine store, IIS sites, Remote Desktop. */
+var ADCS_CA = /^[A-Za-z0-9][A-Za-z0-9.-]{0,252}\\[^\x00-\x1f\x7f"\\\/:*?<>|]{1,128}$/, ADCS_T = /^[A-Za-z0-9][A-Za-z0-9 _.()-]{0,63}$/;
 function checkWin(s) {
-  var R = {files: [], units: [], tests: [], scripts: [], hashes: [], from: [], probe: [], connect: [], iis: [], roles: [], key_read: [], limits: {}, pins: []};
-  var pol = {files: [], units: {}, tests: [], scripts: [], hashes: [], from: [], probe: [], connect: [], iis: [], store: !!s.store, rdp: !!s.rdp, roles: {}, key_read: []};
+  var R = {files: [], units: [], tests: [], scripts: [], hashes: [], from: [], probe: [], connect: [], iis: [], roles: [], key_read: [], adcs: [], limits: {}, pins: []};
+  var pol = {files: [], units: {}, tests: [], scripts: [], hashes: [], from: [], probe: [], connect: [], iis: [], store: !!s.store, rdp: !!s.rdp, roles: {}, key_read: [], adcs: []};
   var tops = arr(F.protected).concat(arr(F.own));
   var lastDir = {};
   s.files.forEach(function (f, i) {
@@ -698,6 +706,26 @@ function checkWin(s) {
     else pol.key_read.push(acct);
     R.key_read.push(verdict(m));
   });
+  /* a Microsoft CA (1.0.125): allow adcs "HOST\CA Name" template=A,B | template=* - acme_agent_wincert.adcs_entry */
+  arr(s.adcs).forEach(function (r) {
+    var ca = String(r.ca || '').trim(), ts = arr(r.templates).map(function (t) { return String(t).trim(); }).filter(Boolean), m = [];
+    var bad = function (w) { R.adcs.push(verdict([msg('bad', 'unread', w)])); };
+    if (!ADCS_CA.test(ca) || / $/.test(ca) || ca.indexOf('\\ ') >= 0) { bad('allow adcs "HOST\\CA Name" template=NAME,NAME - the CA\'s config string: its server, a backslash, its name'); return; }
+    if (!ts.length) { bad('template= names a template or more (template=WebServer,WebServer2) or is * (any template of the CA)'); return; }
+    if (ts.indexOf('*') >= 0 && ts.length > 1) { bad('template=* is any template of the CA - no names beside it'); return; }
+    var badT = ts.filter(function (t) { return t !== '*' && !ADCS_T.test(t); });
+    if (badT.length) { bad(JSON.stringify(badT[0]) + ' is not the name of a template (its name, not its display name: WebServer)'); return; }
+    var mine = [];
+    ts.forEach(function (t) { if (!mine.some(function (y) { return y.toLowerCase() === t.toLowerCase(); })) mine.push(t); });
+    var have = pol.adcs.filter(function (x) { return x.ca.toLowerCase() === ca.toLowerCase(); })[0];
+    if (have) {
+      m.push(msg('warn', 'twice', 'the CA ' + ca + ' is said twice: its templates are taken together'));
+      if (have.templates[0] === '*' || mine[0] === '*') have.templates = ['*'];
+      else mine.forEach(function (t) { if (!have.templates.some(function (y) { return y.toLowerCase() === t.toLowerCase(); })) have.templates.push(t); });
+    } else pol.adcs.push({ca: ca, templates: mine});
+    if (mine[0] === '*') m.push(msg('info', 'any', 'any template this CA offers'));
+    R.adcs.push(verdict(m));
+  });
   if ((pol.iis.length || pol.rdp || Object.keys(pol.roles).length || pol.key_read.length) && !pol.store) R.storeMsg = msg('warn', 'no-store', 'IIS, Remote Desktop and the roles take the certificate from the machine store: allow store too');
   ['files', 'size'].forEach(function (k) {
     var v = Number(s.limits && s.limits[k]), top = k === 'files' ? F.limits.files_most : F.limits.size_most;
@@ -723,12 +751,14 @@ function checkWin(s) {
     ex.forEach(function (e) { L.push('allow role ' + k + ' ' + (k === 'wac' ? 'msi=' : 'path=') + siteLine(e)); });
   });
   pol.key_read.forEach(function (a) { L.push('allow key-read ' + siteLine(a)); });
+  pol.adcs.forEach(function (x) { L.push('allow adcs "' + x.ca + '" template=' + x.templates.join(',')); });
+  if (s.adcs_read) L.push('allow adcs-read');
   if (R.limits.files.level === 'ok' && Number(s.limits.files) !== F.limits.files) L.push('limit files ' + Number(s.limits.files));
   if (R.limits.size.level === 'ok' && Number(s.limits.size) !== F.limits.size) L.push('limit size ' + Number(s.limits.size));
   R.lines = L;
   R.pol = pol;
   var counts = {entries: L.length, warn: R.storeMsg ? 1 : 0, bad: 0};
-  ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis', 'roles', 'key_read'].forEach(function (k) {
+  ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis', 'roles', 'key_read', 'adcs'].forEach(function (k) {
     R[k].forEach(function (v) { if (v.level === 'bad') counts.bad++; else if (v.level === 'warn') counts.warn++; });
   });
   ['files', 'size'].forEach(function (k) { if (R.limits[k].level === 'bad') counts.bad++; });
@@ -765,6 +795,7 @@ function allowLinesWin(R) {
   R.lines.forEach(function (l) {
     if (l.indexOf('allow probe ') === 0 || l.indexOf('allow connect ') === 0 || l === 'allow self-update' || l === 'allow store' ||
         l.indexOf('allow iis ') === 0 || l === 'allow rdp' || l.indexOf('allow role ') === 0 || l.indexOf('allow key-read ') === 0 ||
+        l.indexOf('allow adcs ') === 0 || l === 'allow adcs-read' ||
         l.indexOf('limit ') === 0) out.push(A + l);
   });
   return out;
@@ -815,6 +846,7 @@ function coversWin(s, R, it) {
     return ex.some(function (y) { return y.replace(/\\+$/, '').toLowerCase() === want; }) ? 'yes' : 'no';
   }
   if (it.kind === 'key-read') return R.pol.key_read.some(function (y) { return y.toLowerCase() === String(it.account).toLowerCase(); }) ? 'yes' : 'no';
+  if (it.kind === 'adcs') return R.pol.adcs.some(function (x) { return x.ca.toLowerCase() === String(it.ca).toLowerCase() && (x.templates[0] === '*' || x.templates.some(function (t) { return t.toLowerCase() === String(it.template).toLowerCase(); })); }) ? 'yes' : 'no';
   if (it.kind === 'file') {
     var path;
     try { path = normWin(it.path); } catch (e) { return e.words || 'not a path'; }
@@ -880,6 +912,15 @@ function addNeed(s, it) {
       s.store = true;
       return;
     }
+    if (it.kind === 'adcs') {
+      s.adcs = arr(s.adcs);
+      var ar = s.adcs.filter(function (x) { return String(x.ca).toLowerCase() === String(it.ca).toLowerCase(); })[0];
+      if (!ar) { ar = {ca: it.ca, templates: []}; s.adcs.push(ar); }
+      if (ar.templates[0] !== '*' && (it.template === '*' || !ar.templates.some(function (t) { return String(t).toLowerCase() === String(it.template).toLowerCase(); }))) {
+        if (it.template === '*') ar.templates = ['*']; else ar.templates.push(it.template);
+      }
+      return;
+    }
     if (it.kind === 'key-read') {
       s.key_read = arr(s.key_read);
       if (!s.key_read.some(function (y) { return y.toLowerCase() === String(it.account).toLowerCase(); })) s.key_read.push(it.account);
@@ -933,6 +974,8 @@ function addTemplate(s, t) {
     arr(t.iis).forEach(function (x) { addNeed(s, {kind: 'iis', site: x}); });
     roleRows(t.roles).forEach(function (r) { addNeed(s, {kind: 'role', role: r.role, extra: r.extra}); });
     arr(t.key_read).forEach(function (a) { addNeed(s, {kind: 'key-read', account: a}); });
+    adcsRows(t.adcs).forEach(function (r) { r.templates.forEach(function (x) { addNeed(s, {kind: 'adcs', ca: r.ca, template: x}); }); });
+    if (t.adcs_read) s.adcs_read = true;
     Object.keys(t.units || {}).forEach(function (u) { t.units[u].forEach(function (v) { addNeed(s, {kind: 'unit', unit: u, verb: v}); }); });
     if (t.probe_local) s.probe_local = true;
     return;
@@ -1093,6 +1136,8 @@ function build(row, d, opts) {
           else if (w[1] === 'iis') s.iis.push(wr[0]);
           else if (w[1] === 'role') s.roles.push({role: wr[0], extra: wkv.path || wkv.msi || ''});
           else if (w[1] === 'key-read') s.key_read.push(wr[0]);
+          else if (w[1] === 'adcs') s.adcs.push({ca: wr[0], templates: String(wkv.template || '').split(',')});
+          else if (w[1] === 'adcs-read') s.adcs_read = true;
           return;
         }
         if (w[0] === 'limit') { s.limits[w[1]] = Number(w[2]); return; }
@@ -1170,7 +1215,7 @@ function build(row, d, opts) {
   if (W()) {
     SECTIONS[3] = ['units', 'Services', 'refresh'];
     SECTIONS.splice(4, 0, ['store', 'Machine store', 'lock'], ['iis', 'IIS sites', 'globe'], ['rdp', 'Remote Desktop', 'screen'],
-      ['roles', 'Windows roles', 'wand'], ['key_read', 'Read on the key', 'key']);
+      ['roles', 'Windows roles', 'wand'], ['key_read', 'Read on the key', 'key'], ['adcs', 'Microsoft CA (AD CS)', 'shield']);
   }
   function nav() {
     var n = el('div', 'pb-nav');
@@ -1213,7 +1258,7 @@ function build(row, d, opts) {
   function drawAll() {
     Object.keys(sec).forEach(function (k) { if (sec[k].parentNode) sec[k].remove(); });
     refs.rows = {};
-    (W() ? [drawTemplates, drawNeeds, drawFiles, drawUnits, drawStore, drawIis, drawRdp, drawRoles, drawKeyRead, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawUpdate, drawLimits]
+    (W() ? [drawTemplates, drawNeeds, drawFiles, drawUnits, drawStore, drawIis, drawRdp, drawRoles, drawKeyRead, drawAdcs, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawUpdate, drawLimits]
       : [drawTemplates, drawNeeds, drawFiles, drawUnits, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawUpdate, drawLimits])
       .forEach(function (f) { refs.main.appendChild(f()); });
   }
@@ -1282,7 +1327,8 @@ function build(row, d, opts) {
         w.appendChild(nm);
         var sub = arr(t.files).map(function (f) { return f.dir; }).concat(Object.keys(t.units || {}))
           .concat(t.store ? ['Cert:\\LocalMachine\\My'] : []).concat(arr(t.iis).map(function (x) { return 'IIS ' + x; })).concat(t.rdp ? ['RDP'] : [])
-          .concat(roleRows(t.roles).map(function (r) { return 'role ' + r.role + (r.extra ? ' ' + r.extra : ''); })).join(' · ');
+          .concat(roleRows(t.roles).map(function (r) { return 'role ' + r.role + (r.extra ? ' ' + r.extra : ''); }))
+          .concat(adcsRows(t.adcs).map(function (r) { return 'AD CS ' + r.templates.join(',') + ' @ ' + r.ca; })).join(' · ');
         w.appendChild(noI18n(el('span', 'pb-tpl-s', sub)));
         b.appendChild(w);
         var mk = noI18n(el('span', 'pb-tpl-mk', ''));
@@ -1323,6 +1369,7 @@ function build(row, d, opts) {
       if (it.kind === 'rdp') return 'RDP-tcp';
       if (it.kind === 'role') return ((roleInfo(it.role) || [0, it.role])[1]) + (it.extra ? ' (' + it.extra + ')' : '');
       if (it.kind === 'key-read') return it.account;
+      if (it.kind === 'adcs') return it.template + ' @ ' + it.ca;
       if (it.kind === 'file') return it.path;
       if (it.kind === 'unit') return ({restart: 'Restart-Service ', start: 'Start-Service ', 'try-restart': 'Restart-Service '}[it.verb] || it.verb + ' ') + it.unit;
       if (it.kind === 'test') return arr(it.argv).map(wq).join(' ');
@@ -1337,7 +1384,7 @@ function build(row, d, opts) {
     return '';
   }
   var NEED_K = {file: 'file', unit: W() ? 'service' : 'unit', test: 'command', script: 'script', hash: 'the script written in acme', probe: 'test', limit: 'limit', any: 'one of',
-    store: 'machine store', iis: 'IIS site', rdp: 'Remote Desktop', role: 'Windows role', 'key-read': 'read on the key'};
+    store: 'machine store', iis: 'IIS site', rdp: 'Remote Desktop', role: 'Windows role', 'key-read': 'read on the key', adcs: 'Microsoft CA'};
   function drawNeeds() {
     var s = section('needs', 'What the deployments need', 'check', 'Each deployment to this target, as its form judges it: add what is missing with one click.');
     refs.needs = [];
@@ -1675,6 +1722,101 @@ function build(row, d, opts) {
   }
   var drawKeyRead = listSection('key_read', 'Read on the key', 'key', 'Accounts a deployment may give read on the private key (Read on the key for, Key read of a role) - a service account, never Everyone.',
     'Add an account', 'NT SERVICE\\MyService', function () { S.key_read = arr(S.key_read); return S.key_read; });
+  /* a Microsoft CA asked through this server (1.0.125, docs/ms-adcs-agent.md): each CA with
+     the templates the agent may ask it for, loaded from the agent (GET /api/agents/adcs) */
+  function adcsHas(ca, t) {
+    var r = arr(S.adcs).filter(function (x) { return String(x.ca).toLowerCase() === String(ca).toLowerCase(); })[0];
+    if (!r) return false;
+    if (t === '*') return r.templates[0] === '*';
+    return r.templates[0] === '*' || r.templates.some(function (y) { return String(y).toLowerCase() === String(t).toLowerCase(); });
+  }
+  function adcsToggle(ca, t) {
+    S.adcs = arr(S.adcs);
+    var r = S.adcs.filter(function (x) { return String(x.ca).toLowerCase() === String(ca).toLowerCase(); })[0];
+    if (!r) { r = {ca: ca, templates: []}; S.adcs.push(r); }
+    if (t === '*') r.templates = r.templates[0] === '*' ? [] : ['*'];
+    else if (r.templates[0] === '*') r.templates = [t];
+    else {
+      var i = r.templates.map(function (y) { return String(y).toLowerCase(); }).indexOf(String(t).toLowerCase());
+      if (i >= 0) r.templates.splice(i, 1); else r.templates.push(t);
+    }
+    if (!r.templates.length) S.adcs.splice(S.adcs.indexOf(r), 1);
+    redraw('adcs', drawAdcs);
+  }
+  function drawAdcs() {
+    var s = section('adcs', 'Microsoft CA (AD CS)', 'shield', 'The CAs this server may ask for certificates, as its computer account (Kerberos), and the templates of each - for the source “Microsoft AD CS (through acme-agent)”. acme sends only the CSR; the agent asks the CA itself.',
+      'Add a CA', function () { S.adcs = arr(S.adcs); S.adcs.push({ca: '', templates: []}); redraw('adcs', drawAdcs); focusLast('adcs'); });
+    s.body.appendChild(switcher(S.adcs_read, 'acme may list every CA of the domain and its templates (read-only) - else only the CAs named below', function (on) { S.adcs_read = on; refresh(); }));
+    var bar = el('div', 'pb-offer pb-adcs-load');
+    var load = cmdButton(B.adcsLoading ? 'Loading…' : 'Load the CAs and templates from the agent', 'refresh', 'small');
+    load.disabled = !!B.adcsLoading;
+    load.onclick = function () {
+      B.adcsLoading = true;
+      redraw('adcs', drawAdcs);
+      ask('agents/adcs?target=' + encodeURIComponent(row.name || row.id)).then(function (x) {
+        B.adcsLoading = false; B.adcsList = x || {}; redraw('adcs', drawAdcs);
+      }).catch(function (e) { B.adcsLoading = false; B.adcsList = {said: (e && e.message) || String(e), cas: []}; redraw('adcs', drawAdcs); });
+    };
+    bar.appendChild(load);
+    bar.appendChild(el('span', 'pb-sec-hint', 'Read through the agent: what its policy on the server lets it list (allow adcs-read, or the CAs named).'));
+    s.body.appendChild(bar);
+    var L = B.adcsList;
+    if (L) {
+      if (!arr(L.cas).length) {
+        var nw = el('div', 'pb-msg warn');
+        nw.appendChild(noI18n(el('span', 'pb-msg-mk', '!')));
+        nw.appendChild(noI18n(el('span', '', L.said || tr('The agent lists no CA.'))));
+        s.body.appendChild(nw);
+        arr(L.needs).forEach(function (n) { if (n.allow) s.body.appendChild(mono(n.allow, 'pb-adcs-allow')); });
+      }
+      arr(L.cas).forEach(function (c) {
+        var box = el('div', 'pb-adcs-ca');
+        var head = el('div', 'pb-adcs-h');
+        head.appendChild(mono(c.config));
+        if (c.name) head.appendChild(noI18n(el('span', 'muted small', c.name)));
+        box.appendChild(head);
+        var chips = el('div', 'pb-adcs-chips');
+        var any = el('button', 'pb-chip-add' + (adcsHas(c.config, '*') ? ' on' : ''));
+        any.type = 'button';
+        any.appendChild(noI18n(el('span', 'pb-chip-p', adcsHas(c.config, '*') ? '✓' : '+')));
+        any.appendChild(el('b', '', 'every template (*)'));
+        any.onclick = function () { adcsToggle(c.config, '*'); };
+        chips.appendChild(any);
+        arr(c.templates).forEach(function (t) {
+          var on = adcsHas(c.config, t.name);
+          var b = el('button', 'pb-chip-add' + (on ? ' on' : ''));
+          b.type = 'button';
+          b.title = t.display || t.name;
+          b.appendChild(noI18n(el('span', 'pb-chip-p', on ? '✓' : '+')));
+          b.appendChild(mono(t.name));
+          if (t.display && t.display !== t.name) b.appendChild(noI18n(el('span', 'muted small', t.display)));
+          b.onclick = function () { adcsToggle(c.config, t.name); };
+          chips.appendChild(b);
+        });
+        box.appendChild(chips);
+        if (c.problem) {
+          var pw = el('div', 'pb-msg warn');
+          pw.appendChild(noI18n(el('span', 'pb-msg-mk', '!')));
+          pw.appendChild(noI18n(el('span', '', c.problem)));
+          box.appendChild(pw);
+        }
+        s.body.appendChild(box);
+      });
+    }
+    arr(S.adcs).forEach(function (r, i) {
+      var o = rowShell(S.adcs, 'adcs', i, function () { S.adcs.splice(i, 1); redraw('adcs', drawAdcs); });
+      var ca = input(r.ca, 'ca01.example.local\\Example Issuing CA', 'mono pb-addr');
+      ca.oninput = function () { r.ca = ca.value.trim(); refresh(); };
+      var tp = input(r.templates.join(','), 'WebServer,WebServer2 or *', 'mono pb-addr');
+      tp.oninput = function () { r.templates = tp.value.split(',').map(function (y) { return y.trim(); }).filter(Boolean); refresh(); };
+      o.top.appendChild(ca);
+      o.top.appendChild(tp);
+      o.top.appendChild(o.x);
+      s.body.appendChild(o.row);
+    });
+    if (!arr(S.adcs).length) s.body.appendChild(el('p', 'pb-empty', 'No CA - the agent asks none.'));
+    return s.node;
+  }
   var drawFrom = listSection('from', 'Allow from', 'in', 'A passive agent lets acme in only from these addresses (else from anywhere with acme’s certificate); anybody else is turned away before the TLS handshake.',
     'Add an address', '192.0.2.10 or 192.0.2.0/24', function () { return S.from; }, function (b) {
       if (A.mode === 'active') b.appendChild(el('p', 'note small', 'This agent is active: it connects to acme and listens on nothing - the addresses matter only if it is made passive.'));
@@ -1907,7 +2049,7 @@ function build(row, d, opts) {
   /* ---- everything checked again, in place -------------------------------------------------- */
   function refresh() {
     R = check(S);
-    ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis', 'roles', 'key_read'].forEach(function (k) {
+    ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis', 'roles', 'key_read', 'adcs'].forEach(function (k) {
       arr(refs.rows[k]).forEach(function (r, i) {
         if (!r || !R[k] || !R[k][i]) return;
         var hint = '';
@@ -1945,9 +2087,11 @@ function build(row, d, opts) {
     });
     var N = {tpl: '', needs: '', files: S.files.length, units: S.units.length, tests: S.tests.length, scripts: S.scripts.length, hashes: S.hashes.length,
       from: S.from.length, probe: S.probe.length + (S.probe_local ? 1 : 0), connect: S.connect_on ? S.connect.length : 0, update: S.self_update ? '✓' : '', limits: '',
-      store: S.store ? '✓' : '', iis: arr(S.iis).length, rdp: S.rdp ? '✓' : '', roles: arr(S.roles).length, key_read: arr(S.key_read).length};
+      store: S.store ? '✓' : '', iis: arr(S.iis).length, rdp: S.rdp ? '✓' : '', roles: arr(S.roles).length, key_read: arr(S.key_read).length,
+      adcs: arr(S.adcs).length + (S.adcs_read ? 1 : 0)};
     var lv = {files: R.files, units: R.units, tests: R.tests, scripts: R.scripts, hashes: R.hashes, from: R.from, probe: R.probe, connect: R.connect,
-      limits: [R.limits.files, R.limits.size], iis: R.iis || [], store: R.storeMsg ? [{level: 'warn'}] : [], roles: R.roles || [], key_read: R.key_read || []};
+      limits: [R.limits.files, R.limits.size], iis: R.iis || [], store: R.storeMsg ? [{level: 'warn'}] : [], roles: R.roles || [], key_read: R.key_read || [],
+      adcs: R.adcs || []};
     Object.keys(refs.nav).forEach(function (k) {
       var x = refs.nav[k];
       x.n.textContent = N[k] === '' || N[k] === 0 ? '' : String(N[k]);

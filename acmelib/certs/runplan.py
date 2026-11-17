@@ -742,6 +742,8 @@ def _agent_steps(ev):
     it gets there, each file with its owner and mode, each command, the script - and what the
     agent's policy (as it last said it) makes of each."""
     out = []
+    if ev.get('op') == 'adcs':
+        return _adcs_steps(ev)
     op = ev.get('op') or ''
     name = ev.get('target') or 'the server'
     mode = ev.get('mode') or 'passive'
@@ -941,6 +943,74 @@ def _agent_steps(ev):
 
 
 AGENT_PW_FORMATS = ('pfx', 'p12', 'p12-legacy', 'jks', 'key-pem-enc')
+
+
+def _adcs_steps(ev):
+    """A Microsoft CA asked through a Windows server's agent (issuers/ms_adcs_agent.py,
+    1.0.125): the signed job, what the agent does with it, what its policy says."""
+    name = ev.get('target') or 'the server'
+    mode = ev.get('mode') or 'passive'
+    it = (ev.get('items') or [{}])[0]
+    act = it.get('action') or ev.get('action') or 'submit'
+    ca, tpl = it.get('ca') or '?', it.get('template') or '?'
+    where = 'queued in acme\'s database; the agent takes it at its next poll (either node)' \
+        if mode == 'active' else '%s:%s%s' % (ev.get('host') or '?', ev.get('port') or 8446, (
+            ' - through the connector %s (ssh -W)' % ev['via']) if ev.get('via') else '')
+    out = [{'kind': 'connect', 'words': 'Sends a signed job (adcs {0}) to the agent of {1}'
+            .replace('{0}', act).replace('{1}', name), 'detail': {'pairs': [
+                ['Mode', 'passive - acme connects to the agent' if mode != 'active'
+                 else 'active - the agent connects to acme', 'words'],
+                ['Where', where, 'words' if mode == 'active' else ''],
+                ['Signed', 'with acme\'s command key (Ed25519): its time, a nonce never used, '
+                 'the agent\'s id - a replay or a job for another agent is refused', 'words'],
+                ['TLS', 'TLS 1.3, certificates both ways from acme\'s agent authority, pinned',
+                 'words'],
+                ['Credentials', 'none in acme: the agent asks the CA as its computer account '
+                 '(Kerberos)', 'words']]}}]
+    if not ev.get('policy_known'):
+        out.append({'kind': 'info', 'level': 'warn', 'words': 'The agent has not said its '
+                    'policy yet: what it allows is not known - the step below shows the line '
+                    'that allows it on the server'})
+    if act == 'submit':
+        cmd = 'certreq -submit -config "%s" -attrib "CertificateTemplate:%s%s" request.csr' % (
+            ca, tpl, '\\nSAN:...' if it.get('san_attr') else '')
+        words = 'The agent runs certreq -submit -config {0} with the template {1}: the request ' \
+                'goes to the CA as the server\'s computer account'
+    elif act == 'retrieve':
+        cmd = 'certreq -retrieve -config "%s" %s' % (ca, it.get('req_id') or 'ID')
+        words = 'The agent runs certreq -retrieve -config {0}: the request waiting for a ' \
+                'certificate manager (template {1}) is asked for again'
+    elif act == 'templates':
+        cmd = 'certutil -CATemplates -config "%s"' % ca
+        words = 'The agent lists the templates {0} offers'
+    else:
+        cmd = 'certutil -dump'
+        words = 'The agent lists the CAs of the domain'
+    st = {'kind': 'command', 'words': words.replace('{0}', ca).replace('{1}', tpl),
+          'detail': {'pairs': [
+              ['As', cmd, ''],
+              ['How', 'the CA\'s own request interface (ICertRequest over RPC/DCOM, MS-ICPR) '
+               'from fixed PowerShell, run by the agent\'s root side (LocalSystem): Kerberos as '
+               'the computer account, encrypted as the CA enforces (IF_ENFORCEENCRYPTICERTREQUEST)',
+               'words'],
+              ['Sent to the CA', 'the CSR acme made (only its subject and names) and the '
+               'template\'s name%s - no other attribute' % (
+                   ', and a SAN attribute made of the CSR\'s own names' if it.get('san_attr')
+                   else ''), 'words'],
+              ['Back', 'the certificate and its chain (PKCS#7); a request waiting for a '
+               'certificate manager: its id, asked for again at the next tries', 'words']]}}
+    st['policy'] = {'ok': it.get('ok'), 'allow': it.get('allow') or '', 'windows': True}
+    out.append(st)
+    if ev.get('policy_known'):
+        bad = it.get('ok') is False
+        out.append({'kind': 'stop' if bad else 'info', 'level': 'bad' if bad else 'ok',
+                    'words': 'The agent\'s policy does not allow this CA or template: the agent '
+                    'refuses the job - allow it on the server first' if bad else
+                    'The agent\'s policy allows this CA and template'})
+    if act in ('submit', 'retrieve'):
+        out.append({'kind': 'info', 'words': 'acme checks the certificate is for the key of '
+                    'its request and puts its chain in order'})
+    return out
 
 
 def _agent_win_step(it):
@@ -5024,8 +5094,18 @@ def plan(store, cert, deploys, full=False):
                           'ssh_answers': ssh_answers_of(vi['row']['kind'], vi['scfg'],
                                                         family='challenge')}
                 marks = dict(marks, **vi['marks'])
+        # a Microsoft CA through acme-agent (1.0.125): the agent of the target it names, as
+        # a deployment's - its mode, its address, the policy it last said
+        if irow['kind'] == 'ms_adcs_agent' and icfg.get('agent'):
+            arow = S.plugin_row(store, 'target', icfg.get('agent'))
+            if arow is not None:
+                kwa = {'agent': agent_of(store, arow)}
+            else:
+                kwa = {}
+        else:
+            kwa = {}
         # a renewal hands the certificate it renews (CertRequest.previous)
-        iid = run(family='issuer', kind=irow['kind'], name=irow['name'], op='issue',
+        iid = run(family='issuer', kind=irow['kind'], name=irow['name'], op='issue', **kwa,
                   config=scfg, marks=marks, answers=answers_of(irow['kind'], scfg, first=False,
                                                                family='issuer'),
                   challenges=dcv, previous=bool(cert.get('cert_pem')),

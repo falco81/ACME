@@ -24,6 +24,9 @@ The routes of target agents (1.0.116, docs/target-agent.md) - imported at the en
     GET  /api/agents/builder?id=        the policy builder: the agent, the lists the agent
                                         checks with, the templates, what each deployment needs,
                                         acme's addresses, the saved design (1.0.118)
+    GET  /api/agents/adcs?target=NAME[&ca=HOST\\CA]   the Microsoft CAs and templates a
+                                        Windows server's agent reads (1.0.125, read-only; what
+                                        its policy lets it list)        certificate administrator
     GET  /api/agents/design?id=         the saved design, its history, the server compared
     POST /api/agents/design {id, text, state, title, note}   a design saved (documentation
                                         only - acme never sends it)          full administrator
@@ -138,6 +141,17 @@ def _updates(h, s):
 @A.api('GET', '/api/agents/builder')
 def _builder(h, s):
     return P.builder(h.store, _row(h))
+
+
+@A.api('GET', '/api/agents/adcs', 'certadmin')
+def _adcs(h, s):
+    """The CAs and templates the agent of a Windows server reads (1.0.125) - read-only."""
+    ref = h.arg('target') or h.arg('id')
+    try:
+        ref = int(ref)
+    except (TypeError, ValueError):
+        pass
+    return P.adcs_lists(h.store, G.target_row(h.store, ref), ca=h.arg('ca') or '')
 
 
 @A.api('GET', '/api/agents/design')

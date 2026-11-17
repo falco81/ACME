@@ -412,7 +412,8 @@ def _activity(h, s):
 # The command line: --teams, --team-add NAME, --team-edit NAME, --team-del NAME,
 # --tag-add NAME, --tag-del NAME, --teams-adopt
 # ---------------------------------------------------------------------------
-CLI_KEYS = ('teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del', 'teams_adopt')
+CLI_KEYS = ('teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del', 'teams_adopt',
+            'roles', 'role_add', 'role_del', 'team_access')
 
 
 def add_args(p):
@@ -427,8 +428,8 @@ def add_args(p):
                    '--reassign OTHER (- for nobody)')
     g.add_argument('--team-kind', choices=T.KINDS, help='with --team-add/-edit')
     g.add_argument('--members', metavar='LIST', help='with --team-add/-edit: local:NAME, a user, '
-                   'group:NAME or a DN, each =view+request+manage+approve (default view+request), '
-                   'comma between them')
+                   'group:NAME or a DN, each =view+request+manage+approve (default view+request) '
+                   'or =Role+Role (roles), @YYYY-MM-DD for an end, comma between them')
     g.add_argument('--contact-mail', metavar='ADDR', help='with --team-add/-edit')
     g.add_argument('--reassign', metavar='OWNER', help='with --team-del')
     g.add_argument('--tag-add', metavar='TAG', help='a tag of the catalog: --colour, --note')
@@ -437,13 +438,42 @@ def add_args(p):
     g.add_argument('--strip', action='store_true', help='with --tag-del')
     g.add_argument('--teams-adopt', action='store_true', help='owners and tags made from what '
                    'certificates say now')
+    # 1.0.125: enterprise teams - the tree, limits, roles, the access check
+    g.add_argument('--policy', metavar='JSON', help='with --team-add/-edit: its limits, '
+                   '\'{"profiles": ["Web"], "max_days": 90, "approval": "always"}\' (\'{}\' none)')
+    g.add_argument('--description', metavar='TEXT', help='with --team-add/-edit, --role-add')
+    g.add_argument('--roles', action='store_true', help='the roles: built in and your own, with '
+                   'their capabilities')
+    g.add_argument('--role-add', metavar='NAME', help='a role of your own (or changed): --caps '
+                   'cert.view,cert.request,..., --description')
+    g.add_argument('--role-del', metavar='NAME', help='delete a role of your own; given to '
+                   'members, with --strip')
+    g.add_argument('--caps', metavar='LIST', help='with --role-add: capabilities, comma between '
+                   'them (an old right stands for what it gives)')
+    g.add_argument('--team-access', metavar='WHO', help='what a person may in which team, and '
+                   'why: local:NAME or a user of the directory')
 
 
 def _members(text):
+    """local:jan=manage, group:Web=Requester+Deployer@2026-12-31 - the old rights stay rights,
+    other words are roles, @date the end of the membership."""
     out = []
     for part in [w for w in str(text or '').split(',') if w.strip()]:
         who, _, rights = part.strip().partition('=')
-        out.append({'who': who.strip(), 'rights': rights.replace('+', ',') if rights else None})
+        until = None
+        m = re.search(r'@(\d{4}-\d{2}-\d{2})\s*$', rights)
+        if m:
+            until, rights = m.group(1), rights[:m.start()]
+        words = [w.strip() for w in rights.split('+') if w.strip()]
+        one = {'who': who.strip()}
+        if words and any(w.lower() not in T.RIGHTS for w in words):
+            one['rights'] = [w.lower() for w in words if w.lower() in T.RIGHTS]
+            one['roles'] = [w for w in words if w.lower() not in T.RIGHTS]
+        else:
+            one['rights'] = ','.join(words) if words else None
+        if until:
+            one['until'] = until
+        out.append(one)
     return out
 
 
@@ -457,6 +487,15 @@ def _fields(a, base=None):
         b['contact_mail'] = a.contact_mail
     if getattr(a, 'note', None):
         b['note'] = a.note
+    if getattr(a, 'parent', None) is not None:
+        b['parent'] = None if a.parent in ('', '-') else a.parent
+    if getattr(a, 'policy', None) is not None:
+        try:
+            b['policy'] = json.loads(a.policy) if a.policy.strip() else {}
+        except ValueError:
+            raise SystemExit('acme: --policy is JSON, e.g. \'{"max_days": 90}\'')
+    if getattr(a, 'description', None) is not None:
+        b['description'] = a.description
     return b
 
 
@@ -479,7 +518,8 @@ def cli(c):
             if not T.team_get(store, a.team_del):      # said before it is asked (1.0.79)
                 raise SystemExit('acme: there is no owner %s' % a.team_del)
             c.sure('delete the owner %s' % a.team_del)
-            got = T.delete_team(store, a.team_del, by, reassign=a.reassign)
+            got = T.delete_team(store, a.team_del, by, reassign=a.reassign,
+                                reparent=getattr(a, 'parent', None))
             return c.done('the owner %s was deleted%s' % (got['deleted'], (
                 '; its %d certificate(s) now owned by %s' % (got['moved'], got['to'] or 'nobody'))
                 if got['moved'] else ''), got)
@@ -497,17 +537,51 @@ def cli(c):
             got = T.adopt(store, by)
             return c.done('%d owner(s) and %d tag(s) were made' % (len(got['teams']),
                                                                   len(got['tags'])), got)
+        if getattr(a, 'role_add', None):
+            have = next((r for r in T.role_rows(store) if r['name'].lower() ==
+                         a.role_add.lower()), None)
+            b = {'name': a.role_add}
+            if have:
+                b['old_name'] = have['name']
+            if a.caps is not None:
+                b['caps'] = a.caps
+            if a.description is not None:
+                b['description'] = a.description
+            got = T.save_role(store, b, by)
+            return c.done('the role %s was %s' % (got['name'], 'changed' if have else 'added'),
+                          {'ok': True, 'role': got})
+        if getattr(a, 'role_del', None):
+            c.sure('delete the role %s' % a.role_del)
+            got = T.delete_role(store, a.role_del, by, strip=bool(a.strip))
+            return c.done('the role %s was deleted' % got['deleted'], dict(got, ok=True))
+        if getattr(a, 'roles', False):
+            got = T.roles(store)
+            if c.json:
+                c.out({'roles': got, 'caps': T.caps_catalog()})
+                return 0
+            c.table([[r['name'], 'built in' if r['builtin'] else 'own', ', '.join(r['caps']),
+                      str(r['used'])] for r in got], ['role', 'kind', 'capabilities', 'members'])
+            return 0
+        if getattr(a, 'team_access', None):
+            return _cli_access(c, a.team_access)
     except (ValueError, LookupError) as e:
+        raise SystemExit('acme: %s' % e)
+    except E.ApiError as e:
         raise SystemExit('acme: %s' % e)
     got = {'teams': T.teams(store), 'tags': T.tags(store), 'legacy': T.legacy(store)}
     if c.json:
         c.out(got)
         return 0
     print('Owners and teams')
-    c.table([[t['name'], t['kind'], ', '.join('%s=%s' % (m['who'], '+'.join(m['rights']))
-                                               for m in t['members']) or '-',
-              t['contact_mail'] or '-', str(t['used'])] for t in got['teams']],
-            ['owner', 'kind', 'members', 'told', 'certs'])
+    c.table([[('  ' * int(t.get('depth') or 0)) + t['name'], t['kind'], ', '.join(
+        '%s=%s%s' % (m['who'], '+'.join(list(m['rights']) + list(m.get('roles') or [])),
+                     (' (until %s)' % time.strftime('%Y-%m-%d', time.localtime(m['until'])))
+                     if m.get('until') else '') for m in t['members']) or '-',
+              t['contact_mail'] or '-', str(t['used']),
+              json.dumps(t['policy'], sort_keys=True) if t.get('policy') else '-']
+             for t in sorted(got['teams'], key=lambda x: _tree_pos(store).get(
+                 x['name'].lower(), 10 ** 6))],
+            ['owner', 'kind', 'members', 'told', 'certs', 'limits'])
     print('\nTags')
     c.table([[t['name'], t['colour'], t['description'] or '-', str(t['certs']),
               str(t['targets'])] for t in got['tags']],
@@ -517,4 +591,45 @@ def cli(c):
         print('\nNot defined (acme --teams-adopt makes them): owners %s; tags %s' % (
             ', '.join(o['owner'] for o in lg['owners']) or '-',
             ', '.join(t['tag'] for t in lg['tags']) or '-'))
+    return 0
+
+
+def _tree_pos(store):
+    return {k: i for i, k in enumerate(T.tree(store).order)}
+
+
+class _CliH(object):
+    """What principal_of asks of a request, from the command line: the daemon's directories."""
+    def __init__(self, store):
+        self.store = store
+        self.d = None
+        try:
+            dirs = {}
+            for row in store.directories(with_secret=True):
+                if row.get('enabled', 1):
+                    dirs[str(row['name']).lower()] = E.Directory(row)
+            self.d = type('D', (), {'dirs': dirs})()
+        except Exception as e:                          # noqa: BLE001
+            E.log('the directories could not be read: %s' % e, 'warn')
+
+
+def _cli_access(c, who):
+    h = _CliH(c.store)
+    names, groups, found = principal_of(h, who)
+    teams_ = T.explain(c.store, names, groups)
+    got = {'who': found, 'groups': sorted({cn for _dn, cn in groups}, key=str.lower),
+           'teams': teams_}
+    if c.json:
+        c.out(got)
+        return 0
+    print('%s%s - %d group(s)' % (found.get('display') or found.get('name'),
+                                  (' (%s)' % found['said']) if found.get('said') else '',
+                                  len(groups)))
+    if not teams_:
+        print('in no team')
+        return 0
+    c.table([[t['team'], ', '.join(t['caps']) or '(expired)', '; '.join(
+        '%s%s via %s%s' % (v['team'] if v['inherited'] else '', ' ->' if v['inherited'] else '',
+                           v['who'], (' [%s]' % '+'.join(v['rights'] + v['roles'])))
+        for v in t['via'])] for t in teams_], ['team', 'capabilities', 'why'])
     return 0

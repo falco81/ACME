@@ -441,8 +441,11 @@ def approve_step(store, row, approver, ok, why):
         if who == 'both' and 'team' in needed and 'team' not in levels:
             raise E.ApiError(403, 'an approver of the team %s approves %s first, then one of the '
                                   'team above it' % (team, row['name']))
-        if who == 'both' and 'team' not in needed:
-            levels = levels & {'parent'} or levels
+        if who == 'both' and 'team' not in needed and 'parent' in needed:
+            if 'parent' not in levels:
+                raise E.ApiError(403, 'the approver of the team %s approved %s - now one of the '
+                                      'team above it approves it' % (team, row['name']))
+            levels = {'parent'}
         entry['levels'] = sorted(levels & want)
     else:
         entry['levels'] = sorted(levels & want)

@@ -184,6 +184,12 @@ WIN_TEMPLATES = [
                                                       'probe_local': False,
                                                       'note': 'Before 2410: add the .msi it '
                                                               'runs again (msi=).'}),
+    # 1.0.125: a Microsoft CA asked through this server (issuers/ms_adcs_agent.py)
+    ('adcs', 'Microsoft CA (AD CS)', 'Certificates from a Microsoft CA', {
+        'adcs': [{'ca': 'ca01.example.local\\Example Issuing CA', 'templates': ['WebServer']}],
+        'probe_local': False,
+        'note': 'Its CA and template are examples - load the real ones in the AD CS section '
+                '(the source "Microsoft AD CS (through acme-agent)" asks through this server).'}),
     ('folder', 'A folder for certificates', 'Any other', {
         'files': [('C:\\certs', [])], 'probe_local': False}),
     ('service', 'Any Windows service', 'Any other', {
@@ -206,7 +212,10 @@ def templates_windows():
                     'store': bool(more.get('store')), 'iis': list(more.get('iis') or []),
                     'rdp': bool(more.get('rdp')),
                     'roles': {k: list(v) for k, v in (more.get('roles') or {}).items()},
-                    'key_read': list(more.get('key_read') or [])})
+                    'key_read': list(more.get('key_read') or []),
+                    'adcs': [dict(x, templates=list(x['templates']))
+                             for x in more.get('adcs') or []],
+                    'adcs_read': bool(more.get('adcs_read'))})
     return out
 
 
@@ -453,6 +462,77 @@ def _win_needs(items, t, args, opts):
                       'allow': 'acme-agent allow probe local'})
 
 
+# ---- a Microsoft CA through a Windows server's agent (1.0.125, docs/ms-adcs-agent.md) --------------
+ADCS_CAS_MOST = 16
+
+
+def source_needs(store, row):
+    """The sources that ask a Microsoft CA through this server's agent (ms_adcs_agent): what
+    each needs of its policy - its CA and template, and the templates its certificates choose
+    for themselves - as the needs of a deployment (the builder's card)."""
+    from acmelib.certs import store as S
+    wc = _G().wincert_mod()
+    out = []
+    for r in store.db.rows("SELECT * FROM cert_issuers WHERE kind = 'ms_adcs_agent' "
+                           "ORDER BY name")[:40]:
+        try:
+            cfg = S.plugin_config('issuer', r)
+        except Exception:                               # noqa: BLE001
+            continue
+        if str(cfg.get('agent') or '') != row['name'] or not cfg.get('ca'):
+            continue
+        tpls = [str(cfg.get('template') or '')]
+        for c in store.db.rows('SELECT profile FROM certs WHERE issuer = ?', (r['name'],))[:500]:
+            t = str((S.jload(c.get('profile'), {}) or {}).get('template') or '')
+            if t and t not in tpls:
+                tpls.append(t)
+        items = []
+        for t in [x for x in tpls if x][:32]:
+            items.append({'kind': 'adcs', 'ca': str(cfg['ca']), 'template': t,
+                          'allow': wc.allow_adcs_words(str(cfg['ca']), [t])})
+        out.append({'id': 'source:%s' % r['name'], 'cert': 'the source %s' % r['name'],
+                    'enabled': r.get('enabled') is None or bool(int(r.get('enabled') or 0)),
+                    'source': r['name'], 'items': items})
+    return out
+
+
+def adcs_lists(store, row, ca=''):
+    """The CAs of the domain and the templates each offers, as the agent of a Windows server
+    reads them (op adcs: cas, templates) - read-only, for the policy designer, the API and the
+    CLI. What its policy lets it list: every CA with `allow adcs-read`, else only the CAs its
+    `allow adcs` lines name. -> {cas: [{config, name, server, allowed, templates: [{name,
+    display, allowed}], problem}], said, needs}"""
+    G = _G()
+    if G.platform_of(store, row) != 'windows':
+        raise PluginError('%s is not a Windows server: only the agent of a Windows member '
+                          'server of the domain asks a Microsoft CA' % row['name'], retry=False)
+    out = {'target': row['name'], 'cas': [], 'said': '', 'needs': []}
+    if ca:
+        cas = [{'config': str(ca), 'name': '', 'server': '', 'allowed': []}]
+    else:
+        got = G.call(store, row, 'adcs', {'action': 'cas'}, timeout=120)
+        if not got.get('ok'):
+            out['said'] = got.get('said') or 'the agent refused'
+            out['needs'] = got.get('needs') or []
+            return out
+        cas = (got.get('adcs') or {}).get('cas') or []
+    for c in cas[:ADCS_CAS_MOST]:
+        one = dict(c, templates=[])
+        got = G.call(store, row, 'adcs', {'action': 'templates', 'ca': c['config']},
+                     timeout=120)
+        if got.get('ok'):
+            one['templates'] = (got.get('adcs') or {}).get('templates') or []
+            if ca:
+                one['allowed'] = [t['name'] for t in one['templates'] if t.get('allowed')]
+        else:
+            one['problem'] = got.get('said') or 'the agent refused'
+            if got.get('needs'):
+                out['needs'] = got['needs']
+        out['cas'].append(one)
+    out['said'] = '%d CA%s' % (len(out['cas']), '' if len(out['cas']) == 1 else 's')
+    return out
+
+
 def acme_addresses(store):
     """Where acme connects from (allow from of a passive agent): each node's address."""
     import ipaddress
@@ -493,10 +573,13 @@ def builder(store, row):
     facts = m.policy_facts()
     if windows:
         facts = dict(facts, platform='windows')
+    needs = deploy_needs(store, row)
+    if windows:
+        needs += source_needs(store, row)
     return {'agent': a, 'facts': facts,
             'templates': templates_windows() if windows else templates(),
             'platform': 'windows' if windows else 'linux',
-            'needs': deploy_needs(store, row), 'acme_from': acme_addresses(store),
+            'needs': needs, 'acme_from': acme_addresses(store),
             'design': design_view(store, row, a.get('policy'))}
 
 
@@ -508,7 +591,7 @@ def _canon_lines(m, pol_or_text):
         p = m.parse_policy('')
         for k in ('files', 'units', 'tests', 'scripts', 'script_hashes', 'from', 'self_update',
                   'connect', 'probe', 'probe_local', 'limits', 'store', 'iis', 'rdp', 'roles',
-                  'key_read'):
+                  'key_read', 'adcs', 'adcs_read'):
             if pol_or_text.get(k) is not None:
                 p[k] = pol_or_text[k]
         return m.policy_lines(p)
@@ -547,7 +630,9 @@ STATE_KEYS = {'files': list, 'units': list, 'tests': list, 'scripts': list, 'has
               # a Windows server's agent (1.0.120)
               'store': bool, 'iis': list, 'rdp': bool,
               # ...and its Windows roles: [{role, extra (path / msi)}], the accounts read on the key
-              'roles': list, 'key_read': list}
+              'roles': list, 'key_read': list,
+              # ...and the Microsoft CAs it asks (1.0.125): [{ca, templates}], the lists read
+              'adcs': list, 'adcs_read': bool}
 
 
 def clean_state(state):

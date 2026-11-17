@@ -1955,6 +1955,50 @@ class PlanContext(object):
         return {'alg': 'X25519-HKDF-SHA256-A256GCM', 'sealed': '\u2039sealed to the agent\u203a',
                 'label': str(label)[:300]}
 
+    def _agent_adcs(self, args, a, target):
+        """A Microsoft CA asked through a Windows server's agent (issuers/ms_adcs_agent.py,
+        1.0.125): the job written down with what the agent's policy (as it last said it) makes
+        of the CA and the template; answered as the CA issues - the certificate of the run."""
+        pol = a.get('policy') if isinstance(a.get('policy'), dict) else None
+        act = str(args.get('action') or '')
+        ok, allow = None, ''
+        if pol is not None:
+            try:
+                from acmelib.certs import agents
+                needs = agents.wincert_mod().adcs_needs(pol, args)
+                ok, allow = (not needs), '\n'.join(n['allow'] for n in needs)
+            except Exception:                           # noqa: BLE001
+                ok, allow = None, ''
+        if act == 'submit':
+            note_sent(args.get('csr'))
+        item = {'what': 'adcs', 'action': act, 'ca': str(args.get('ca') or ''),
+                'template': str(args.get('template') or ''), 'san_attr': bool(
+                    args.get('san_attr')), 'req_id': str(args.get('req_id') or ''),
+                'ok': ok, 'allow': allow}
+        rec({'kind': 'agent-job', 'op': 'adcs', 'action': act,
+             'target': str(target or self.target_name or ''), 'platform': 'windows',
+             'mode': a.get('mode') or 'passive', 'host': a.get('host') or '',
+             'port': a.get('port'), 'via': a.get('via') or '', 'state': a.get('state') or 'new',
+             'policy_known': pol is not None, 'items': [item]})
+        if act == 'cas':
+            return {'ok': True, 'adcs': {'action': 'cas', 'cas': []}}
+        if act == 'templates':
+            return {'ok': True, 'adcs': {'action': 'templates', 'templates': []}}
+        issued = getattr(self.answers, 'issued', None) or {}
+        import base64
+        from acmelib.certs import pki
+        from acmelib.plugins.issuers import _scep_pkcs7 as p7
+        try:
+            leaf = pki.pem_to_der(issued['CERT'])
+            chain = p7.build_degenerate([pki.pem_to_der(c) for c in pki.certs_in(
+                issued.get('CHAIN') or '')])
+        except Exception:                               # noqa: BLE001
+            return {'ok': True, 'adcs': {'action': act, 'state': 'pending', 'req_id': '4711'}}
+        return {'ok': True, 'adcs': {'action': act, 'state': 'issued', 'req_id': '4711',
+                                     'cert': base64.b64encode(leaf).decode(),
+                                     'chain': base64.b64encode(chain).decode()},
+                'said': 'the CA issued the certificate (request 4711)'}
+
     def agent_plan_check(self, policy, part):
         part = dict(part)
         m = _agent_program_for(part.pop('platform', '') or (getattr(self, '_agent', None) or {})
@@ -1978,12 +2022,14 @@ class PlanContext(object):
             return []
         return []
 
-    def agent_call(self, op, args=None, timeout=900):
+    def agent_call(self, op, args=None, timeout=900, target=None):
         """One job for the agent - written down with every file, command and script it
         carries and what the policy it last said makes of each; answered as the agent would
         when it allows it all."""
         args = dict(args or {})
         a = self._agent or {}
+        if op == 'adcs':
+            return self._agent_adcs(args, a, target)
         pol = a.get('policy') if isinstance(a.get('policy'), dict) else None
         items = []
         win = None

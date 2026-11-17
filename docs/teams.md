@@ -122,6 +122,177 @@ does not issue by itself. Saving such a change on a certificate already issued a
 A failed renewal, a failed deployment, a certificate about to end or ended: mailed to
 `certs_notify_mail` as before **and** to the owner team's `contact_mail`.
 
+## Enterprise teams (1.0.125)
+
+For a company of thousands: the global administrators delegate work to teams arranged in a
+tree (regions, sites, departments), each getting exactly what it should. **Nothing changes
+for an installation that does not use it**: every new column is empty, a team without a
+parent, limits or roles works as described above, the four rights stay.
+
+The code: `acmelib/certs/teams.py` (capabilities, roles, the tree, the limits),
+`acmelib/certs/teampolicy.py` (the checks of the limits, the approvals),
+`acmelib/certs/api_teams.py` (the routes, the directory, the command line).
+
+### The tree
+
+`cert_teams` has three more columns: `parent` (the team above; empty - the top level),
+`policy` (the team's own limits, JSON) and `description`. The kind may also be `unit` (an
+organisational unit: a region, a site - shown with another icon, it is a team in every
+other way).
+
+- A team is never put under itself or under a team below it (refused on save).
+- Renaming a team renames it on its certificates, in the `parent` of the teams below it,
+  on the devices it owns and on its enrollment codes.
+- A team with teams below it is deleted only with `reparent` (the team they move under, or
+  `''` for the top level). The devices it owns go to `reassign` (or become acme's own).
+
+### Capabilities
+
+What a member may do is a set of capabilities:
+
+| capability | gives |
+|---|---|
+| `cert.view` | see the team's certificates, their jobs and deployments |
+| `cert.request` | ask for new certificates owned by the team |
+| `cert.renew` | renew now |
+| `cert.auto` | switch renewing by itself on or off (and hold deployments) |
+| `cert.edit` | change the team's certificates (names, source, validation, details), export without the key |
+| `cert.revoke` | revoke |
+| `cert.delete` | delete |
+| `cert.key` | download a file with the private key |
+| `cert.approve` | approve or decline the team's requests |
+| `deploy.view` / `deploy.run` / `deploy.manage` | see / run / add, change, delete deployments |
+| `target.view` / `target.manage` / `target.test` | see / add, change, delete (and confirm agents) / test the team's devices |
+| `team.view` | see the team, its members and its limits |
+| `team.members` | add, change and remove members - never giving more than one holds oneself |
+| `team.policy` | change the limits of the teams **below** (never one's own team's, never wider) |
+| `team.create` | create, rename and delete teams below |
+| `team.activity` | see what happened in the team |
+
+The old rights are capabilities too - a member with an old right holds exactly what it gave:
+`view` = cert.view, deploy.view, target.view, team.view; `request` = view + cert.request;
+`manage` = request + cert.renew, cert.auto, cert.edit, cert.revoke, cert.delete, cert.key,
+deploy.run, deploy.manage; `approve` = view + cert.approve.
+
+The guard checks each route for its own capability: renew - `cert.renew`, revoke -
+`cert.revoke`, delete - `cert.delete`, deploy - `deploy.run`, `deploys/save|delete|dry_run`
+- `deploy.manage`, `deploys/run` - `deploy.run`, export with a key - `cert.key` (otherwise
+`cert.edit`), saving an existing one, `csr_answer`, `plan`, `check`, `keep`, `add_key` -
+`cert.edit`, `auto`, `hold` - `cert.auto`, `dry_run`, `job_stop` - `cert.renew`, approve -
+`cert.approve` (or the old `manage`). A member with `manage` holds all of them.
+`teams.scope(store, s, right)` works as before; `teams.scope_cap(store, s, cap)` is the same
+for a capability.
+
+### Roles
+
+A member (`members` JSON) is `{"who", "rights": [...], "roles": [...], "until": epoch,
+"note"}` - `roles`, `until` and `note` only where given. Its capabilities are those of its
+rights and of its roles. Once `until` has passed the membership gives nothing (it stays in
+the list, marked expired).
+
+Built-in roles (in the code, not changed, not deleted):
+
+| role | capabilities |
+|---|---|
+| Viewer | cert.view, deploy.view, target.view, team.view |
+| Requester | Viewer + cert.request |
+| Renewer | Viewer + cert.renew, cert.auto |
+| Deployer | Viewer + deploy.run |
+| Device manager | Viewer + target.manage, target.test, deploy.manage, deploy.run |
+| Certificate manager | Requester + Renewer + cert.edit, cert.revoke, cert.delete, cert.key, deploy.run, deploy.manage |
+| Approver | Viewer + cert.approve |
+| Team manager | Viewer + team.members, team.policy, team.create, team.activity |
+| Team owner | every capability |
+
+Roles of one's own are kept in `cert_roles` (`name`, `description`, `caps`) - part of the
+configuration: backed up, exported and imported, replicated (`CERT_CARRY_TABLES`). Renaming
+one renames it on every member; one given to members is deleted only with `strip`.
+
+### Inheritance
+
+A member's capabilities on a team apply to that team and every team below it: a
+certificate manager of *Europe* manages the certificates of *Prague* and of *Prague web*.
+The tree and each person's capabilities are computed once (per version of the teams and the
+roles, and per person) - 2000 teams and people in hundreds of nested groups stay fast.
+
+### Limits (policy)
+
+Every key is optional; a key not said is no limit from that team.
+
+| key | meaning |
+|---|---|
+| `profiles` | the request profiles it may ask from |
+| `free_form` | may ask without a profile (the portal's free form) - default true |
+| `issuers` | the sources its certificates may come from |
+| `validations` | the validations they may use |
+| `target_kinds` | the target modules of its devices (`["ssh", "agent", "f5"]`) |
+| `suffixes` | the names its certificates must be under |
+| `max_certs` | the most certificates the team, with the teams below it, may own |
+| `max_days` | the longest validity it may ask for |
+| `key_download` | files with the private key may be downloaded - default true |
+| `agents` | it may have target agents - default true |
+| `agents_auto_confirm` | its enrollment codes may confirm servers by themselves - default false |
+| `approval` | the approval rule (below); the old words `"profile"` / `"always"` are read too |
+| `approve_actions` | other actions that wait for an approval: `revoke`, `delete`, `key`, `device` |
+
+The limits in force are the **intersection** of the team's own and of every team above it:
+a team below only narrows (lists intersected - a suffix under another taken as the narrower,
+the smallest number, a switch off anywhere is off). A refusal names the team whose limit
+refused it ("the team Europe does not allow it: ...", `403`) and is an event.
+
+They are checked where a team member acts: the portal's request (free form and request
+profiles), a certificate a scoped certificate administrator makes or changes, the download
+of a key on the portal, a device and a deployment of the team (`teampolicy.need_*`,
+used by the portal's team pages). A full administrator is never limited.
+
+### Approvals
+
+`approval` is `{"mode", "approvers", "count", "self", "outside"}`:
+
+- `mode`: `none` - the team's requests never wait (self-service within its limits; a name
+  another owner's certificate holds still waits for that owner); `profile` - as before, the
+  request profile (or the portal's settings) decides; `always` - every request waits, also a
+  certificate a scoped certificate administrator makes; `outside` - self-service while the
+  request stays inside `outside` (`profiles`, `suffixes`, `max_days`, `key_types`), anything
+  else waits.
+- `approvers`: `team` - members holding cert.approve on the team itself (its leads);
+  `parent` - on the team above it; `team_or_parent`; `both` - the team's lead first, then
+  one of the team above.
+- `count`: `2` - two different people approve (four eyes).
+- `self`: whether the person who asked may approve it (default false - never).
+
+Each approval and decline is recorded with the request (who, when, words) and shown in its
+timeline; the request goes on once the rule is met; one decline declines it. The approvers
+wanted are told by mail (the team's contact addresses) and find it under "Waiting for you".
+A full administrator counts as an approver at every level - one approval. Without a rule
+nothing changes: one approval of an approver lets it through, as before.
+
+### Devices and agents of a team
+
+A target has an `owner` (a team; empty - acme's own, as before). An enrollment code of the
+target agents may carry a team (`POST /api/agents/enroll {..., team}`): every server that
+enrolls with it becomes a target owned by that team, waiting to be confirmed - confirmed by
+itself only where the code says so **and** the team's limits allow it
+(`agents_auto_confirm`).
+
+### The directory
+
+- The member picker searches the directory's users and groups (`GET /api/dir/search`, 50 at
+  most a page; what is typed is never put into a filter as text) and shows a group's size
+  and first members (`GET /api/dir/group`).
+- **Access check** (`GET /api/teams/access?who=`): a person (local:NAME, their UPN, account or
+  mail) is looked up, their groups read (nested), and every team they reach is said with its
+  capabilities, the limits in force and why - which membership, role and group, and whether
+  it is inherited from a team above.
+- **Teams from directory groups** (`POST /api/teams/from_groups`): the groups whose name fits
+  a filter (`PKI-*`) each made a team (or a unit) with the group as its member in a chosen
+  role, under a chosen team - previewed first (`dry_run`).
+
+### Activity
+
+`GET /api/teams/activity?team=` - the events about the team: its own changes (members added,
+removed, changed, its limits, where it is in the tree), its certificates' and its devices'.
+
 ## The command line
 
     acme --teams                                   the owners and the tags, and how many certificates each
@@ -132,3 +303,15 @@ A failed renewal, a failed deployment, a certificate about to end or ended: mail
     acme --teams-adopt                             teams and tags from what certificates say now
 
 A member written without `=rights` gets `view,request`.
+
+Enterprise teams (1.0.125):
+
+    acme --team-add NAME [--parent TEAM] [--team-kind unit] [--description ..] [--policy '{"max_days": 90, "approval": "always"}']
+    acme --team-edit NAME [--parent TEAM|-] [--policy '{}'] [--members 'group:Web=Requester+Deployer,local:jan=manage@2026-12-31']
+    acme --team-del NAME [--parent TEAM|-]          its teams below moved there (- the top level)
+    acme --roles                                   the roles and their capabilities
+    acme --role-add NAME --caps cert.view,cert.renew [--description ..] / --role-del NAME [--strip]
+    acme --team-access WHO                         what a person may in which team, and why
+
+In `--members` the old rights stay rights, other words are roles, `@YYYY-MM-DD` ends the
+membership.

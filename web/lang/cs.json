@@ -68471,6 +68471,274 @@
   "sr7i_033": {
    "source": "the design holds a NUL byte",
    "text": "návrh obsahuje bajt NUL"
+  },
+  "z_957": {
+   "source": "Approver",
+   "text": "Schvalovatel"
+  },
+  "z_958": {
+   "source": "Certificate manager",
+   "text": "Správce certifikátů"
+  },
+  "z_959": {
+   "source": "Deployer",
+   "text": "Nasazovatel"
+  },
+  "z_960": {
+   "source": "Device manager",
+   "text": "Správce zařízení"
+  },
+  "z_961": {
+   "source": "Devices",
+   "text": "Zařízení"
+  },
+  "z_962": {
+   "source": "Renewer",
+   "text": "Obnovovatel"
+  },
+  "z_963": {
+   "source": "Requester",
+   "text": "Žadatel"
+  },
+  "z_964": {
+   "source": "Team manager",
+   "text": "Vedoucí týmu"
+  },
+  "z_965": {
+   "source": "Team owner",
+   "text": "Vlastník týmu"
+  },
+  "z_966": {
+   "source": "Viewer",
+   "text": "Čtenář"
+  },
+  "z_967": {
+   "source": "a role gives at least one capability",
+   "text": "role dává alespoň jedno oprávnění"
+  },
+  "z_968": {
+   "source": "a role's name: letters, digits, spaces and . _ + - (60 at most), starting with a letter or a digit",
+   "text": "jméno role: písmena, číslice, mezery a . _ + - (nejvýš 60), na začátku písmeno nebo číslice"
+  },
+  "z_969": {
+   "source": "a team is not under itself",
+   "text": "tým nemůže být sám pod sebou"
+  },
+  "z_970": {
+   "source": "a viewer who approves or declines requests",
+   "text": "čtenář, který schvaluje nebo zamítá žádosti"
+  },
+  "z_971": {
+   "source": "a viewer who asks for new certificates",
+   "text": "čtenář, který žádá o nové certifikáty"
+  },
+  "z_972": {
+   "source": "a viewer who renews certificates and switches renewing by itself",
+   "text": "čtenář, který obnovuje certifikáty a zapíná samočinné obnovování"
+  },
+  "z_973": {
+   "source": "a viewer who runs deployments",
+   "text": "čtenář, který spouští nasazení"
+  },
+  "z_974": {
+   "source": "add, change and delete deployments",
+   "text": "přidávat, měnit a mazat nasazení"
+  },
+  "z_975": {
+   "source": "add, change and delete the team's devices (and confirm its agents)",
+   "text": "přidávat, měnit a mazat zařízení týmu (a potvrzovat jeho agenty)"
+  },
+  "z_976": {
+   "source": "add, change and remove members (never more than one holds oneself)",
+   "text": "přidávat, měnit a odebírat členy (nikdy víc, než má člověk sám)"
+  },
+  "z_977": {
+   "source": "an approver of the team approves it first",
+   "text": "nejdřív to schválí schvalovatel týmu"
+  },
+  "z_978": {
+   "source": "approval is {mode, approvers, count, self, outside}",
+   "text": "approval je {mode, approvers, count, self, outside}"
+  },
+  "z_979": {
+   "source": "approval.count is 1 or 2",
+   "text": "approval.count je 1 nebo 2"
+  },
+  "z_980": {
+   "source": "approval.outside is {profiles, suffixes, max_days, key_types}",
+   "text": "approval.outside je {profiles, suffixes, max_days, key_types}"
+  },
+  "z_981": {
+   "source": "approve or decline the team's requests",
+   "text": "schválit nebo zamítnout žádosti týmu"
+  },
+  "z_982": {
+   "source": "ask for new certificates owned by the team",
+   "text": "žádat o nové certifikáty vlastněné týmem"
+  },
+  "z_983": {
+   "source": "change the limits of the teams below",
+   "text": "měnit omezení týmů pod ním"
+  },
+  "z_984": {
+   "source": "change the team's certificates (names, source, validation, details)",
+   "text": "měnit certifikáty týmu (jména, zdroj, ověření, podrobnosti)"
+  },
+  "z_985": {
+   "source": "create, rename and delete teams below",
+   "text": "zakládat, přejmenovávat a mazat týmy pod ním"
+  },
+  "z_986": {
+   "source": "delete the team's certificates",
+   "text": "smazat certifikáty týmu"
+  },
+  "z_987": {
+   "source": "download a file with the private key",
+   "text": "stáhnout soubor se soukromým klíčem"
+  },
+  "z_988": {
+   "source": "every capability",
+   "text": "všechna oprávnění"
+  },
+  "z_989": {
+   "source": "everything with the team's certificates but approving",
+   "text": "vše s certifikáty týmu kromě schvalování"
+  },
+  "z_990": {
+   "source": "files with the private key of its certificates are not downloaded",
+   "text": "soubory se soukromým klíčem jeho certifikátů se nestahují"
+  },
+  "z_991": {
+   "source": "it has no target agents",
+   "text": "nemá cílové agenty"
+  },
+  "z_992": {
+   "source": "its agents are confirmed by a person (agents_auto_confirm is off)",
+   "text": "jeho agenty potvrzuje člověk (agents_auto_confirm je vypnuto)"
+  },
+  "z_993": {
+   "source": "its approvers are on another team",
+   "text": "jeho schvalovatelé jsou v jiném týmu"
+  },
+  "z_994": {
+   "source": "its certificates are asked for from a request profile only",
+   "text": "o jeho certifikáty se žádá jen podle profilu žádosti"
+  },
+  "z_995": {
+   "source": "kind is user or group",
+   "text": "druh je user nebo group"
+  },
+  "z_996": {
+   "source": "let through",
+   "text": "propuštěno"
+  },
+  "z_997": {
+   "source": "looks after the team's devices and the deployments to them",
+   "text": "stará se o zařízení týmu a nasazení na ně"
+  },
+  "z_998": {
+   "source": "no directory is set up - matched by the name alone",
+   "text": "není nastaven žádný adresář – porovnáno jen podle jména"
+  },
+  "z_999": {
+   "source": "no directory is set up for the teams - choose one for the portal (Settings → Portal) or for the administrators",
+   "text": "pro týmy není nastaven žádný adresář – zvolte ho pro portál (Nastavení → Portál) nebo pro správce"
+  },
+  "z_1000": {
+   "source": "renew the team's certificates now",
+   "text": "obnovit certifikáty týmu hned"
+  },
+  "z_1001": {
+   "source": "revoke the team's certificates",
+   "text": "odvolat certifikáty týmu"
+  },
+  "z_1002": {
+   "source": "run deployments now",
+   "text": "spustit nasazení hned"
+  },
+  "z_1003": {
+   "source": "runs the team: its members, the teams below and their limits",
+   "text": "řídí tým: jeho členy, týmy pod ním a jejich omezení"
+  },
+  "z_1004": {
+   "source": "see the deployments of the team's certificates",
+   "text": "vidět nasazení certifikátů týmu"
+  },
+  "z_1005": {
+   "source": "see the team's certificates, their jobs and deployments",
+   "text": "vidět certifikáty týmu, jejich úlohy a nasazení"
+  },
+  "z_1006": {
+   "source": "see the team's devices",
+   "text": "vidět zařízení týmu"
+  },
+  "z_1007": {
+   "source": "see the team, its members and its limits",
+   "text": "vidět tým, jeho členy a jeho omezení"
+  },
+  "z_1008": {
+   "source": "see what happened in the team",
+   "text": "vidět, co se v týmu dělo"
+  },
+  "z_1009": {
+   "source": "sees the team's certificates, deployments and devices",
+   "text": "vidí certifikáty, nasazení a zařízení týmu"
+  },
+  "z_1010": {
+   "source": "switch renewing by itself on or off",
+   "text": "zapnout nebo vypnout samočinné obnovování"
+  },
+  "z_1011": {
+   "source": "test the team's devices",
+   "text": "vyzkoušet zařízení týmu"
+  },
+  "z_1012": {
+   "source": "the directory knows no such user - matched by the name alone",
+   "text": "adresář takového uživatele nezná – porovnáno jen podle jména"
+  },
+  "z_1013": {
+   "source": "the filter is a group's name, * for any letters: PKI-*",
+   "text": "filtr je jméno skupiny, * za libovolná písmena: PKI-*"
+  },
+  "z_1014": {
+   "source": "the kind is team or unit",
+   "text": "druh je tým nebo útvar"
+  },
+  "z_1015": {
+   "source": "the kind is team, person or unit",
+   "text": "druh je tým, osoba nebo útvar"
+  },
+  "z_1016": {
+   "source": "the owner is the name of a team",
+   "text": "vlastník je jméno týmu"
+  },
+  "z_1017": {
+   "source": "the policy is JSON: {\"profiles\": [...], \"max_days\": 90, ...}",
+   "text": "omezení jsou JSON: {\"profiles\": [...], \"max_days\": 90, ...}"
+  },
+  "z_1018": {
+   "source": "the policy is an object of limits",
+   "text": "omezení jsou objekt s limity"
+  },
+  "z_1019": {
+   "source": "the roles of a member are a list of names",
+   "text": "role člena jsou seznam jmen"
+  },
+  "z_1020": {
+   "source": "there is no such action waiting",
+   "text": "žádná taková akce nečeká"
+  },
+  "z_1021": {
+   "source": "until is the time the membership ends (epoch or YYYY-MM-DD)",
+   "text": "until je čas, kdy členství končí (epoch nebo RRRR-MM-DD)"
+  },
+  "z_1022": {
+   "source": "who? (local:NAME, a user of the directory: their UPN, account or mail)",
+   "text": "kdo? (local:JMÉNO, uživatel adresáře: jeho UPN, účet nebo e-mail)"
+  },
+  "z_1023": {
+   "source": "you approved it already - another approver is wanted",
+   "text": "už jste to schválili – je potřeba další schvalovatel"
   }
  },
  "patterns": {
@@ -95109,6 +95377,234 @@
   "pr7i_104": {
    "source": "the script is bigger than {0} KiB",
    "text": "skript je větší než {0} KiB"
+  },
+  "pz_264": {
+   "source": "a capability is one of {0}, not {1}",
+   "text": "oprávnění je jedno z {0}, ne {1}"
+  },
+  "pz_265": {
+   "source": "a policy knows no {0} (it knows {1})",
+   "text": "omezení neznají {0} (znají {1})"
+  },
+  "pz_266": {
+   "source": "an approver of the team {0} approves {1} first, then one of the team above it",
+   "text": "{1} nejdřív schválí schvalovatel týmu {0}, potom schvalovatel týmu nad ním"
+  },
+  "pz_267": {
+   "source": "approval knows no {0}",
+   "text": "approval nezná {0}"
+  },
+  "pz_268": {
+   "source": "approval.approvers is one of {0}",
+   "text": "approval.approvers je jedno z {0}"
+  },
+  "pz_269": {
+   "source": "approval.mode is one of {0}",
+   "text": "approval.mode je jedno z {0}"
+  },
+  "pz_270": {
+   "source": "approve_actions are of {0}",
+   "text": "approve_actions jsou z {0}"
+  },
+  "pz_271": {
+   "source": "it is {0} already",
+   "text": "už je {0}"
+  },
+  "pz_272": {
+   "source": "it may own {0} certificate(s) with the teams below it, and owns {1}",
+   "text": "smí mít {0} certifikátů i s týmy pod ním a má jich {1}"
+  },
+  "pz_273": {
+   "source": "its certificates are for names under {0} - not {1}",
+   "text": "jeho certifikáty jsou pro jména pod {0} – ne {1}"
+  },
+  "pz_274": {
+   "source": "its certificates are valid for {0} days at most, not {1}",
+   "text": "jeho certifikáty platí nejvýš {0} dní, ne {1}"
+  },
+  "pz_275": {
+   "source": "its devices are of the modules {0} - not {1}",
+   "text": "jeho zařízení jsou z modulů {0} – ne {1}"
+  },
+  "pz_276": {
+   "source": "members added: {0}",
+   "text": "přidaní členové: {0}"
+  },
+  "pz_277": {
+   "source": "members changed: {0}",
+   "text": "změnění členové: {0}"
+  },
+  "pz_278": {
+   "source": "members removed: {0}",
+   "text": "odebraní členové: {0}"
+  },
+  "pz_279": {
+   "source": "the action is one of {0}",
+   "text": "akce je jedna z {0}"
+  },
+  "pz_280": {
+   "source": "the approver of the team {0} approved {1} - now one of the team above it approves it",
+   "text": "schvalovatel týmu {0} schválil {1} – teď to schválí někdo z týmu nad ním"
+  },
+  "pz_281": {
+   "source": "the device {0} is another team's",
+   "text": "zařízení {0} patří jinému týmu"
+  },
+  "pz_282": {
+   "source": "the directory has no group {0}",
+   "text": "adresář nemá skupinu {0}"
+  },
+  "pz_283": {
+   "source": "the directory refused it: {0}",
+   "text": "adresář to odmítl: {0}"
+  },
+  "pz_284": {
+   "source": "the request profile {0} is not one it may ask from ({1})",
+   "text": "profil žádosti {0} nepatří mezi ty, podle kterých smí žádat ({1})"
+  },
+  "pz_285": {
+   "source": "the role {0} was deleted",
+   "text": "role {0} je smazána"
+  },
+  "pz_286": {
+   "source": "the role {0} was saved",
+   "text": "role {0} je uložena"
+  },
+  "pz_287": {
+   "source": "the source {0} is not one it may use ({1})",
+   "text": "zdroj {0} nepatří mezi ty, které smí použít ({1})"
+  },
+  "pz_288": {
+   "source": "the team above {0} ({1})",
+   "text": "tým nad {0} ({1})"
+  },
+  "pz_289": {
+   "source": "the team {0}",
+   "text": "tým {0}"
+  },
+  "pz_290": {
+   "source": "the team {0} approves every request",
+   "text": "tým {0} schvaluje každou žádost"
+  },
+  "pz_291": {
+   "source": "the team {0} does not allow it: it has no target agents",
+   "text": "tým {0} to nedovoluje: nemá cílové agenty"
+  },
+  "pz_292": {
+   "source": "the team {0} does not allow it: its agents are confirmed by a person (agents_auto_confirm is off)",
+   "text": "tým {0} to nedovoluje: jeho agenty potvrzuje člověk (agents_auto_confirm je vypnuto)"
+  },
+  "pz_293": {
+   "source": "the team {0} does not allow it: {1}",
+   "text": "tým {0} to nedovoluje: {1}"
+  },
+  "pz_294": {
+   "source": "the team {0} or the team above it",
+   "text": "tým {0} nebo tým nad ním"
+  },
+  "pz_295": {
+   "source": "the validation {0} is not one it may use ({1})",
+   "text": "ověření {0} nepatří mezi ta, která smí použít ({1})"
+  },
+  "pz_296": {
+   "source": "there is a role called {0} already",
+   "text": "role {0} už existuje"
+  },
+  "pz_297": {
+   "source": "there is no other team {0} above it to move them under",
+   "text": "jiný tým {0} nad ním, pod který je přesunout, neexistuje"
+  },
+  "pz_298": {
+   "source": "there is no role {0}",
+   "text": "role {0} neexistuje"
+  },
+  "pz_299": {
+   "source": "there is no team {0} (Owners and teams)",
+   "text": "tým {0} neexistuje (Vlastníci a týmy)"
+  },
+  "pz_300": {
+   "source": "there is no team {0} to put it under",
+   "text": "tým {0}, pod který ho dát, neexistuje"
+  },
+  "pz_301": {
+   "source": "there is no team {0} to put them under",
+   "text": "tým {0}, pod který je dát, neexistuje"
+  },
+  "pz_302": {
+   "source": "you approved {0} already - the team {1} wants another approver",
+   "text": "{0} jste už schválili – tým {1} chce dalšího schvalovatele"
+  },
+  "pz_303": {
+   "source": "you may not approve for the team {0}",
+   "text": "za tým {0} schvalovat nesmíte"
+  },
+  "pz_304": {
+   "source": "you may not approve requests of the team {0}: its approvers are on {1}",
+   "text": "žádosti týmu {0} schvalovat nesmíte: jeho schvalovatelé jsou v {1}"
+  },
+  "pz_305": {
+   "source": "you may not do that with this certificate: its team does not give you \"{0}\" ({1})",
+   "text": "s tímto certifikátem to dělat nesmíte: jeho tým vám nedává „{0}“ ({1})"
+  },
+  "pz_306": {
+   "source": "you may not see what happened in the team {0}",
+   "text": "co se dělo v týmu {0}, vidět nesmíte"
+  },
+  "pz_307": {
+   "source": "{0} has {1} team(s) below it ({2}) - move them first, or delete it with reparent (another team, or '' for the top level)",
+   "text": "{0} má pod sebou {1} týmů ({2}) – nejdřív je přesuňte, nebo ho smažte s reparent (jiný tým, nebo '' pro nejvyšší úroveň)"
+  },
+  "pz_308": {
+   "source": "{0} is 0 to 1000000",
+   "text": "{0} je 0 až 1000000"
+  },
+  "pz_309": {
+   "source": "{0} is a built-in role - choose another name",
+   "text": "{0} je vestavěná role – zvolte jiné jméno"
+  },
+  "pz_310": {
+   "source": "{0} is a built-in role - it is not changed (copy it into a role of your own)",
+   "text": "{0} je vestavěná role – nemění se (zkopírujte ji do vlastní role)"
+  },
+  "pz_311": {
+   "source": "{0} is a built-in role - it is not deleted",
+   "text": "{0} je vestavěná role – nemaže se"
+  },
+  "pz_312": {
+   "source": "{0} is a list (or null: no limit)",
+   "text": "{0} je seznam (nebo null: bez omezení)"
+  },
+  "pz_313": {
+   "source": "{0} is a list of names",
+   "text": "{0} je seznam jmen"
+  },
+  "pz_314": {
+   "source": "{0} is a whole number",
+   "text": "{0} je celé číslo"
+  },
+  "pz_315": {
+   "source": "{0} is an old right - choose another name",
+   "text": "{0} je staré právo – zvolte jiné jméno"
+  },
+  "pz_316": {
+   "source": "{0} is below {1} - a team is not put under a team below it (that would be a circle)",
+   "text": "{0} je pod {1} – tým nelze dát pod tým, který je pod ním (byl by to kruh)"
+  },
+  "pz_317": {
+   "source": "{0} is given to {1} member(s) - delete it with strip to take it off them",
+   "text": "{0} má {1} členů – smažte ji se strip, aby se jim odebrala"
+  },
+  "pz_318": {
+   "source": "{0} is true or false",
+   "text": "{0} je true nebo false"
+  },
+  "pz_319": {
+   "source": "{0} roles at most",
+   "text": "nejvýš {0} rolí"
+  },
+  "pz_320": {
+   "source": "{0}: your approval is recorded - it waits for {1} more",
+   "text": "{0}: vaše schválení je zaznamenáno – čeká se ještě na {1}"
   }
  },
  "rich": {

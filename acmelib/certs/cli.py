@@ -60,6 +60,7 @@ MINE = ('certs', 'cert', 'cert_add', 'cert_edit', 'cert_del', 'renew', 'deploy',
         'check_names', 'cert_check', 'dry_run', 'target_key', 'validation_key',
         'dns_sets', 'dns_set_add', 'dns_set_edit', 'dns_set_del', 'dns_set_test', 'dns_assign',
         'teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del', 'teams_adopt',
+        'roles', 'role_add', 'role_del', 'team_access',
         'target_agent')
 
 # family: (the word of the options, the API's path, the words of one)
@@ -226,7 +227,9 @@ def add_args(p):
                         '--json), renew (its '
                         'certificate), update (to the signed agent this acme ships, where its '
                         'policy allows it; "all update": every agent it can), forget (--yes), '
-                        'design show|text|forget (the policy designed in acme); "enroll new" '
+                        'design show|text|forget (the policy designed in acme), adcs-templates '
+                        '[HOST\\CA] (the Microsoft CAs and templates a Windows server\'s agent '
+                        'reads; --json); "enroll new" '
                         '(a company enrollment code: --title, --mode passive|active, --port, '
                         '--days, --most, --auto-confirm), "enroll list", "enroll revoke ID"; '
                         '"waiting" (every agent asking to join)')
@@ -309,7 +312,9 @@ def add_args(p):
                    'name_constraints')
     g.add_argument('--ca-sub', metavar='NAME', help='a new intermediate under --parent (as '
                    '--ca-create)')
-    g.add_argument('--parent', metavar='CA', help='with --ca-sub: the authority that signs it')
+    g.add_argument('--parent', metavar='CA', help='with --ca-sub: the authority that signs it; '
+                   'with --team-add/-edit: the team it is under (- the top level), with '
+                   '--team-del: where the teams below it go')
     g.add_argument('--subject', metavar='DN', help='with --ca-create, --ca-sub: "CN=Example '
                    'Root,O=Example"')
     g.add_argument('--ca-import', metavar='FILE', help='an authority from a file (PEM or PFX, '
@@ -665,7 +670,7 @@ class Cli(object):
             return api_dnssets.cli(self)
         if any(getattr(a, k, None) not in (None, False, '') for k in (
                 'teams', 'team_add', 'team_edit', 'team_del', 'tag_add', 'tag_del',
-                'teams_adopt')):
+                'teams_adopt', 'roles', 'role_add', 'role_del', 'team_access')):
             from acmelib.certs import api_teams
             return api_teams.cli(self)
         if getattr(a, 'target_agent', None):
@@ -1982,6 +1987,30 @@ class Cli(object):
               'acme --target-agent %s design text shows the file)' % row['name'])
         return 0
 
+    def target_agent_adcs(self, row, rest):
+        """acme --target-agent NAME adcs-templates [HOST\\CA] [--json] (1.0.125): the Microsoft
+        CAs and the templates each offers, as the agent of a Windows server reads them - and
+        the policy lines that allow them."""
+        from acmelib.certs import agent_policy as P
+        got = P.adcs_lists(self.store, row, ca=rest[0] if rest else '')
+        if self.json:
+            return self.out(got) or (0 if got['cas'] or not got.get('needs') else 1)
+        if not got['cas']:
+            print('the agent of %s lists no CA: %s' % (row['name'], got.get('said') or '-'))
+            for n in got.get('needs') or []:
+                print('  allow it on the server (an elevated prompt): %s' % n.get('allow'))
+            return 1 if got.get('needs') else 0
+        for c in got['cas']:
+            print('%s%s' % (c['config'], ('   (%s)' % c['name']) if c.get('name') else ''))
+            for t in c.get('templates') or []:
+                print('    %-32s %-32s %s' % (t['name'], t.get('display') or '',
+                                              'allowed' if t.get('allowed') else ''))
+            if c.get('problem'):
+                print('    ! %s' % c['problem'])
+            print('    -> acme-agent allow adcs "%s" template=%s' % (c['config'], ','.join(
+                t['name'] for t in c.get('templates') or []) or '*'))
+        return 0
+
     def target_agent_system(self, row, info):
         """acme --target-agent NAME system [--json] (1.0.120): what the agent told of its
         server, as its card's "The server" shows it."""
@@ -2060,9 +2089,11 @@ class Cli(object):
                 info = G.info(self.store, row)
             elif what == 'design':
                 return self.target_agent_design(row, rest)
+            elif what == 'adcs-templates':
+                return self.target_agent_adcs(row, rest)
             else:
                 raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|'
-                                 'system|renew|update|forget|design')
+                                 'system|renew|update|forget|design|adcs-templates')
         except PluginError as e:
             raise SystemExit('acme: %s' % e)
         if what == 'system':
