@@ -1696,6 +1696,8 @@ function wizard(row, a0, after) {
 function needs(d) {
   var box = el('div', 'ag-needs');
   var items = arr(d && d.items);
+  /* a Windows server's agent (1.0.120): its lines are typed in an elevated prompt - no sudo */
+  var sudo = d && d.platform === 'windows' ? '' : 'sudo ';
   var bad = items.filter(function (i) { return i.ok === false; });
   var unk = items.filter(function (i) { return i.ok === null || i.ok === undefined; });
   var h = el('div', 'ag-needs-h');
@@ -1728,11 +1730,11 @@ function needs(d) {
     w.appendChild(line);
     /* never allowed there, whatever the policy says (a protected place): why, and no line */
     if (i.ok === false && i.why) w.appendChild(data('div', 'note bad small ag-need-why', String(i.why)));
-    if (i.ok !== true && i.allow) w.appendChild(cmdBox('sudo ' + String(i.allow).split('\n').join('\nsudo '), 'small'));
+    if (i.ok !== true && i.allow) w.appendChild(cmdBox(sudo + String(i.allow).split('\n').join('\n' + sudo), 'small'));
     r.appendChild(w);
     box.appendChild(r);
   });
-  var lines = items.filter(function (i) { return i.ok !== true && i.allow; }).map(function (i) { return 'sudo ' + String(i.allow).split('\n').join('\nsudo '); });
+  var lines = items.filter(function (i) { return i.ok !== true && i.allow; }).map(function (i) { return sudo + String(i.allow).split('\n').join('\n' + sudo); });
   var br = el('div', 'btnrow ag-needs-all');
   if (lines.length > 1) {
     var all = cmdButton('Copy all the lines', 'copy', 'small');

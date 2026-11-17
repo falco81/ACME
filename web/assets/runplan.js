@@ -536,8 +536,9 @@
     /* never allowed there, whatever the policy says (a protected place): why - no line */
     if (bad && p.why) box.appendChild(noI18n(el('div', 'note bad small rp-pol-why', String(p.why))));
     if (!ok && p.allow) {
-      var lines = String(p.allow).split('\n').filter(Boolean).map(function (x) { return 'sudo ' + x; }).join('\n');
-      box.appendChild(codeBlock(lines, 'rp-shell rp-pol-cmd', bad ? tr('On the server, as root') : tr('It is allowed by')));
+      /* a Windows server's agent (1.0.120): typed in an elevated prompt - no sudo */
+      var lines = String(p.allow).split('\n').filter(Boolean).map(function (x) { return (p.windows ? '' : 'sudo ') + x; }).join('\n');
+      box.appendChild(codeBlock(lines, 'rp-shell rp-pol-cmd', bad ? tr(p.windows ? 'On the server, as an administrator' : 'On the server, as root') : tr('It is allowed by')));
     }
     return box;
   }

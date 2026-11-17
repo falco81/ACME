@@ -865,6 +865,8 @@ def _agent_steps(ev):
         if st is None:
             continue
         st['policy'] = {'ok': it.get('ok'), 'allow': it.get('allow') or ''}
+        if windows:
+            st['policy']['windows'] = True      # typed in an elevated prompt: no sudo
         if it.get('why'):
             st['policy']['why'] = it['why']
         pol_items.append(st['policy'])
