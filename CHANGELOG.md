@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.119 - not released
+## 1.0.119 - 2026-11-17
 
 - Settings → Time ("Its time") and Backups ("Next"): dd-mm-yyyy hh:mm:ss as everywhere else, not the browser's own format.
 - Settings → Message texts: a save on a single node says "saved" - it said both nodes send the words now.
@@ -19,7 +19,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - Settings → DNS: Test in a set's form with no servers in it says so - it tried the set as saved.
 - Settings → Request profiles: a profile whose source was deleted says so in its form and keeps it until another is chosen - the box showed no source, without a word.
 - Guides: a link whose address has spaces or brackets is kept after a save.
-- Settings: a read-only account opening SSH keys or Modules from a link gets the first section it may open, not the section and a 403.
+- Settings: a read-only account opening SSH keys or Modules from a link gets the first section it may open, not the section and a 403. Monitoring opens for it as before (the SNMP downloads).
 - Settings → Message texts: the portal's and SSH's sign-in codes are listed by their whole titles - both were "The sign-in code by mail" (and "… by SMS").
 - Settings → Backups: the times of the backups sent, of those at a destination and of the one to put back are dd-mm-yyyy hh:mm:ss as everywhere else, not the browser's own format; once a backup is put back, the settings and the pane are drawn again.
 - Settings → Accounts on a phone: the box to find the directory's groups no longer makes the page wider than the screen.

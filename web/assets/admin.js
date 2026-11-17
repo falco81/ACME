@@ -1479,7 +1479,9 @@ function showPane(name, opts) {
   /* a pane the account may not open, from a link (1.0.119: shown, then only a 403 toast) -
      the role its rail button is hidden for */
   var nb = document.querySelector('#ctl-nav button[data-pane="' + name + '"]'), cl = nb ? nb.classList : null;
-  if (cl && (((cl.contains('fulladmin-only') || cl.contains('admin-only')) && !ADMIN)
+  /* data-reads="all": a pane any account may read from a link, as before (Monitoring's
+     SNMP downloads - nothing secret) */
+  if (cl && nb.dataset.reads !== 'all' && (((cl.contains('fulladmin-only') || cl.contains('admin-only')) && !ADMIN)
              || ((cl.contains('certadmin-only') || cl.contains('ct-manage')) && !CERTADMIN))) name = firstPane();
   PANE = name;
   var changed = name !== PANE_SHOWN;

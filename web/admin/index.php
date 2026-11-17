@@ -923,7 +923,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <button type="button" data-pane="carry" data-icon="export" title="Everything that makes this installation what it is, as one file to carry to another machine.">Export and import</button>
     <div class="ctl-group">Monitoring and updates</div>
     <button type="button" class="fulladmin-only" data-pane="alerts" data-icon="bell" title="A mail when something is wrong, and a report of the week by mail.">Alerts and reports</button>
-    <button type="button" class="fulladmin-only" data-pane="monitor" data-icon="pulse" title="Prometheus asks each node for its metrics.">Monitoring</button>
+    <button type="button" class="fulladmin-only" data-reads="all" data-pane="monitor" data-icon="pulse" title="Prometheus asks each node for its metrics.">Monitoring</button>
     <button type="button" data-pane="isemon" data-icon="pulse" title="Sending the events of this server to isemon, in the shape isemon already reads.">isemon</button>
     <button type="button" class="fulladmin-only" data-pane="siem" data-icon="log" title="Every event and every sign-in to a syslog server or a SIEM - UDP, TCP or TLS; JSON, CEF or RFC 5424.">Syslog and SIEM</button>
     <button type="button" class="fulladmin-only" data-pane="osup" data-icon="download" title="The operating system's packages updated, one node at a time, the VIP address moved out of the way first; a restart offered when one is needed.">System updates</button>
