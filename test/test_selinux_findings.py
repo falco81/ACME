@@ -245,7 +245,7 @@ class Machine(object):
         self.ran = []
         self.fail_semodule = False
         self.labels_file = os.path.join(d, 'labels.json')
-        self.labels = {}
+        self.labels = {p: want for p, want, _why in W.SE_LABELS}
         self.save()
 
     def save(self):
@@ -397,7 +397,7 @@ class Base(unittest.TestCase):
         os.environ['ACME_SELINUX_LABELS'] = self.m.labels_file
         w._se_run = self.m.run
         self.had_which = w.shutil.which
-        w.shutil.which = lambda c: '/usr/bin/' + c
+        w.shutil.which = lambda c: None if c in ('restorecon', 'grubby') else '/usr/bin/' + c
         self.exists = {'/var/www/acme/assets', '/var/www/acme', '/var/www/acme/assets/core.js'}
         self.p1 = mock.patch('os.path.lexists', side_effect=lambda p: p in self.exists or REAL_LEXISTS(p))
         self.p2 = mock.patch('os.path.isdir', side_effect=lambda p: p in ('/var/www/acme/assets', '/var/www/acme') or REAL_ISDIR(p))
@@ -420,8 +420,12 @@ class Base(unittest.TestCase):
         for name in FIX:
             avcs = [r[1] for ev in FIX[name] for r in ev if r[0] in ('AVC', 'USER_AVC', 'SELINUX_ERR')]
             m = re.search(r'scontext=\S+:(\w+):s0 tcontext=\S+:(\w+):s0 tclass=(\w+)', avcs[0])
+            port = re.search(r'(?:dest|src)=(\d+)', avcs[0])
+            perms = re.search(r'denied\s+\{([^}]*)\}', avcs[0])
             for f in c.get('findings') or []:
-                if (f['source'], f['target'], f['class']) == m.groups():
+                if (f['source'], f['target'], f['class']) == m.groups() and \
+                        (not port or f.get('port') == int(port.group(1))) and \
+                        (not perms or f['perms'] == ' '.join(sorted(perms.group(1).split()))):
                     out.setdefault(name, f)
         return out
 
@@ -569,7 +573,7 @@ class PutRight(Base):
         self.assertIn(['semanage', 'port', '-a', '-t', 'postgresql_port_t', '-p', 'tcp', '5433'], ran)
         cil = os.path.join(self.W.NET_SNAP_DIR, 'acme_local.cil')
         self.assertIn(['semodule', '-i', cil], ran)
-        self.assertEqual(len(ran), 6, ran)                                 # exactly that, nothing else
+        self.assertEqual(len(ran), 5, ran)                                 # exactly that, nothing else
         text = open(cil).read()
         self.assertIn('(optional acme_local_%s\n    (allow unconfined_service_t chronyc_t (process2 (nnp_transition))))'
                       % f['nnp_chronyc']['id'], text)
@@ -600,14 +604,14 @@ class PutRight(Base):
     def test_only_ids(self):
         c = self.look()
         f = self.by_name(c)
-        for bad in ({'do': 'fix', 'ids': [f['bool_api']['id']], 'rule': '(allow httpd_t shadow_t (file (read)))'},
+        for bad in ({'do': 'fix', 'ids': [f['bool_api']['id']], 'rule': '(allow httpd_t shadow_t (file (read)))'},  # noqa
                     {'do': 'fix', 'ids': [f['bool_api']['id']], 'path': '/'},
                     {'do': 'fix', 'ids': [f['bool_api']['id']], 'booleans': [{'name': 'httpd_can_network_connect'}]},
                     {'do': 'fix', 'ids': ['restorecon -R /']}, {'do': 'fix', 'ids': 'abc'}, {'do': 'fix', 'ids': []},
                     {'do': 'fix', 'ids': ['ABCDEF123456']}, {'do': 'rule_drop', 'ids': ['x' * 12]},
                     {'do': 'fix', 'ids': [f['bool_api']['id']], 'cmd': 'id'}):
             self.m.ran = []
-            with self.assertRaises(self.W.Refused, msg=bad):
+            with self.assertRaises(self.W.Refused, msg=repr(bad)):
                 self.W.se_do(bad)
             self.assertFalse([x for x in self.m.ran if x[0] in ('setsebool', 'restorecon', 'semodule') and x[1:] != ['-l']])
         # Through the helper's door (selinux.ask): refused, said, nothing done.
@@ -629,8 +633,8 @@ class PutRight(Base):
         self.assertIn("%s: not acme's" % f['other_smbd']['id'], words)
         self.assertIn('abcdefabcdef: not found any more', words)
         self.assertEqual([x for x in self.m.ran if x[0] == 'setsebool'], [['setsebool', '-P', 'httpd_can_network_connect', '1']])
-        with self.assertRaises(self.W.Refused):
-            self.W.se_do({'do': 'fix', 'ids': [f['no_shadow']['id']]})     # nothing at all could be put right... said
+        got = self.W.se_do({'do': 'fix', 'ids': [f['no_shadow']['id']]})   # nothing to do: said, not done
+        self.assertEqual(len(got['said']), 1)
         # SELinux off: nothing to put right.
         self.m.mode = 'Disabled'
         with self.assertRaises(self.W.Refused):
@@ -715,6 +719,11 @@ class Steps(Base):
 
 class Report(Base):
     def test_every_file_and_nothing_secret(self):
+        def out(cmd, timeout=120, data=None, light=True):
+            got = self.m.run(cmd, timeout, light, data)
+            return '(%s is not on this machine)\n' % cmd[0] if got is None else (got.stdout or '')
+        self.addCleanup(setattr, self.W, '_se_out', self.W._se_out)
+        self.W._se_out = out
         token = 'Api-T0ken-4711'
         with open(os.path.join(TMP, 'api-token'), 'w') as f:
             f.write(token)
@@ -767,8 +776,13 @@ class TwoNodes(unittest.TestCase):
             shutil.rmtree(w.NET_SNAP_DIR, ignore_errors=True)
             os.makedirs(w.NET_SNAP_DIR, mode=0o700)
         os.environ['ACME_SELINUX_AUDITD'] = 'active'
+        # A replicated cluster: the other node's PostgreSQL on 5433 is acme's port.
+        self.conf = mock.patch.dict(E.CONFIG, {'ha_mode': 'replicated', 'ha_peer': '192.0.2.2', 'ha_peer_port': 5433,
+                                               'db_engine': 'postgres', 'db_host': '127.0.0.1', 'db_port': 5432})
+        self.conf.start()
 
     def tearDown(self):
+        self.conf.stop()
         STORE.db.run("DELETE FROM meta WHERE k = 'node:acme-b'")
         os.environ.pop('ACME_SELINUX_AUDITD', None)
 
@@ -784,8 +798,7 @@ class TwoNodes(unittest.TestCase):
         had = dict(E.SE_WORK)
         E.SE_WORK.update(busy=False, seen=time.time(), tried='')
         try:
-            with mock.patch.object(E, 'node_name', return_value=node), \
-                    mock.patch.object(E, 'root_ask', side_effect=ask), \
+            with mock.patch.dict(E.selinux_tick.__globals__, {'node_name': lambda: node, 'root_ask': ask}), \
                     mock.patch.object(E.threading, 'Thread') as T:
                 T.side_effect = lambda target=None, **kw: SimpleNamespace(start=target)
                 E.selinux_tick(SimpleNamespace(store=STORE))
@@ -843,7 +856,7 @@ class TwoNodes(unittest.TestCase):
         self.assertEqual(len(by['acme-b']['state']['local']['rules']), 1)
         self.assertEqual(by[self.me]['state'].get('local', {}).get('rules'), [])
         self.assertFalse(by['acme-b']['pending'])
-        ev = [r['what'] for r in STORE.db.rows("SELECT * FROM events ORDER BY id DESC LIMIT 12")]
+        ev = [r['words'] for r in STORE.db.rows("SELECT * FROM events ORDER BY id DESC LIMIT 12")]
         self.assertTrue(any(w.startswith('SELinux on acme-b: port 5433/tcp labelled postgresql_port_t') for w in ev), ev)
         self.assertTrue(any('admin asked SELinux on acme-b: put right 2 thing(s)' in w for w in ev), ev)
         # A rule of B's local module taken away only on B.
@@ -886,16 +899,15 @@ class TwoNodes(unittest.TestCase):
     def test_hand_and_alert_words(self):
         self.asked = []
         self.look_both()
-        self.assertEqual(E.selinux_counts(STORE), (2, 0))
+        self.assertEqual(E.selinux_counts(STORE), (3, 0))
         items = E.hand_selinux_refuses(STORE)
         self.assertEqual(items[0]['id'], 'selinux-refuses')
-        self.assertIn('SELinux refuses acme something - 2 can be put right on the card', items[0]['words'])
+        self.assertIn('SELinux refuses acme something - 3 can be put right on the card', items[0]['words'])
         self.assertEqual(items[0]['pane'], 'selinux')
         self.assertTrue(items[0]['cs']['words'])
         probs = E.selinux_problems(STORE)
-        self.assertTrue(probs[0].startswith('SELinux refuses acme something - 2 can be put right on the card'))
-        with mock.patch.object(E, 'node_name', return_value='acme-b'):
-            self.assertEqual(E.selinux_counts(STORE, 'acme-b'), (2, 0))
+        self.assertTrue(probs[0].startswith('SELinux refuses acme something - 3 can be put right on the card'))
+        self.assertEqual(E.selinux_counts(STORE, 'acme-b'), (2, 0))
 
 
 class CommandLine(Base):
@@ -921,7 +933,8 @@ class CommandLine(Base):
         out = io.StringIO()
         want = json.dumps(WANT)
         with mock.patch.object(E.os, 'geteuid', return_value=0), \
-                mock.patch.object(E, '_selinux_helper', side_effect=self.helper_run), \
+                mock.patch.dict(E.cli_selinux.__globals__, {'_selinux_helper': self.helper_run,
+                                                            '_selinux_after': lambda said: None}), \
                 mock.patch.object(E.subprocess, 'run', return_value=SimpleNamespace(stdout=want, stderr='', returncode=0)), \
                 mock.patch('sys.stdout', out):
             rc = E.cli_selinux(args, E.Palette(False))
@@ -953,7 +966,7 @@ class CommandLine(Base):
                       'semanage port -a -t ssh_port_t -p tcp 2222', 'shadow_t is security-sensitive'):
             self.assertIn(words, out)
         ids = re.findall(r'^  ([0-9a-f]{12})  ', out, re.M)
-        self.assertEqual(len(ids), 19)
+        self.assertEqual(len(ids), 20)                                     # all but the one allowed now
         f = self.by_name(self.look())
         # Not for a button: refused before root is asked.
         with self.assertRaises(SystemExit) as e:
@@ -996,7 +1009,7 @@ class Module(unittest.TestCase):
         self.assertIn('"/usr/libexec/keepalived/acme-vip-check" file', cil)
         self.assertIn('keepalived_unconfined_script_exec_t', cil)
         self.assertIn('(optional acme_server_postgresql_certs', cil)
-        self.assertLess(cil.index('(filecon "/run/acme"'), cil.index('(optional'))       # labels first
+        self.assertLess(code.index('(filecon "/run/acme"'), code.index('(optional'))      # labels first
         sh = open(os.path.join(ROOT, 'install.sh')).read()
         self.assertIn('semodule -r acme_local', sh)
         self.assertIn('semodule -r acme_server', sh)

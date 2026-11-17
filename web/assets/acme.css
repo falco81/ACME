@@ -3654,6 +3654,7 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
 .se-local-r:last-child{border-bottom:0}
 .se-local-t{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1 1 auto}
 .se-local-r .btn{flex:0 0 auto}
+.se-local-m{display:flex;flex-wrap:wrap;gap:2px 8px}
 .se-plan{margin:8px 0 10px;padding-left:18px;display:flex;flex-direction:column;gap:6px}
 .se-plan code{overflow-wrap:anywhere;white-space:pre-wrap}
 .btn.se-locked{opacity:.6}

@@ -67587,6 +67587,302 @@
   "z_768": {
    "source": "No server of this kind",
    "text": "Žádný server tohoto druhu"
+  },
+  "z_769": {
+   "source": "Enable-ExchangeCertificate -Services …; empty: not Exchange (the policy: allow role exchange)",
+   "text": "Enable-ExchangeCertificate -Services …; prázdné: není Exchange (politika: allow role exchange)"
+  },
+  "z_770": {
+   "source": "lines run after the import and the bindings; $thumb is the new thumbprint, $cert the certificate (the policy: allow script-hash - its hash is shown below)",
+   "text": "řádky spuštěné po importu a vazbách; $thumb je nový otisk, $cert certifikát (politika: allow script-hash - jeho hash je uveden níže)"
+  },
+  "z_771": {
+   "source": "the certificate of the RDP listener; NETWORK SERVICE given read on its key (the policy: allow rdp)",
+   "text": "certifikát naslouchání RDP; NETWORK SERVICE dostane čtení jeho klíče (politika: allow rdp)"
+  },
+  "z_772": {
+   "source": "acme holds none of the server's credentials: a small agent on it imports the certificate into the machine store, binds it to IIS sites, the Remote Desktop listener, Exchange and the Windows roles (AD FS, SQL Server, LDAPS, WinRM...), writes files, restarts services - only what its own policy allows.",
+   "text": "acme nedrží žádné přihlašovací údaje serveru: malý agent na něm importuje certifikát do úložiště počítače, naváže ho na weby IIS, naslouchání Vzdálené plochy, Exchange a role Windows (AD FS, SQL Server, LDAPS, WinRM...), zapíše soubory, restartuje služby - jen to, co dovolí jeho vlastní politika."
+  },
+  "z_773": {
+   "source": "Windows roles",
+   "text": "Role Windows"
+  },
+  "z_774": {
+   "source": "Read on the key",
+   "text": "Čtení klíče"
+  },
+  "z_775": {
+   "source": "Add a role",
+   "text": "Přidat roli"
+  },
+  "z_776": {
+   "source": "Add an account",
+   "text": "Přidat účet"
+  },
+  "z_777": {
+   "source": "Windows role",
+   "text": "Role Windows"
+  },
+  "z_778": {
+   "source": "The roles a deployment may set: AD FS, SQL Server, LDAPS, WinRM, Exchange, RD Gateway… - each by the fixed PowerShell inside the agent (the same as the OpenSSH target’s), given only the deployment’s values. The Central Certificate Store names its folder (the agent writes only there); an older Windows Admin Center the .msi it may run again.",
+   "text": "Role, které smí nasazení nastavit: AD FS, SQL Server, LDAPS, WinRM, Exchange, RD Gateway… - každou pevným PowerShellem uvnitř agenta (stejným jako u cíle OpenSSH), kterému se předají jen hodnoty nasazení. Centrální úložiště certifikátů uvádí svou složku (agent zapisuje jen tam); starší Windows Admin Center soubor .msi, který smí znovu spustit."
+  },
+  "z_779": {
+   "source": "Accounts a deployment may give read on the private key (Read on the key for, Key read of a role) - a service account, never Everyone.",
+   "text": "Účty, kterým smí nasazení dát čtení soukromého klíče (Čtení klíče pro, čtení klíče u role) - účet služby, nikdy Everyone."
+  },
+  "z_780": {
+   "source": "IIS, Remote Desktop and the roles take the certificate from the machine store: allow store too",
+   "text": "IIS, Vzdálená plocha a role berou certifikát z úložiště počítače: dovolte i store"
+  },
+  "z_781": {
+   "source": "the agent may run this installer again (as SYSTEM) to set the certificate of a Windows Admin Center before 2410",
+   "text": "agent smí tento instalátor spustit znovu (jako SYSTEM), aby nastavil certifikát Windows Admin Center před verzí 2410"
+  },
+  "z_782": {
+   "source": "allow role ccs path=FOLDER (the folder of the Central Certificate Store: C:\\ccs or \\\\server\\share)",
+   "text": "allow role ccs path=SLOŽKA (složka centrálního úložiště certifikátů: C:\\ccs nebo \\\\server\\sdílení)"
+  },
+  "z_783": {
+   "source": "a drive's root is no folder of the Central Certificate Store",
+   "text": "kořen disku není složka centrálního úložiště certifikátů"
+  },
+  "z_784": {
+   "source": "Windows roles (group of templates)",
+   "text": "Role Windows (skupina šablon)"
+  },
+  "z_785": {
+   "source": "AD FS",
+   "text": "AD FS"
+  },
+  "z_786": {
+   "source": "Web Application Proxy",
+   "text": "Web Application Proxy"
+  },
+  "z_787": {
+   "source": "SQL Server",
+   "text": "SQL Server"
+  },
+  "z_788": {
+   "source": "LDAPS (domain controller)",
+   "text": "LDAPS (řadič domény)"
+  },
+  "z_789": {
+   "source": "WinRM HTTPS listener",
+   "text": "Naslouchání WinRM HTTPS"
+  },
+  "z_790": {
+   "source": "Remote Desktop Services",
+   "text": "Služba Vzdálená plocha"
+  },
+  "z_791": {
+   "source": "RD Gateway",
+   "text": "Brána VP"
+  },
+  "z_792": {
+   "source": "RRAS SSTP VPN",
+   "text": "VPN RRAS SSTP"
+  },
+  "z_793": {
+   "source": "IIS Central Certificate Store",
+   "text": "Centrální úložiště certifikátů IIS"
+  },
+  "z_794": {
+   "source": "IIS FTP over TLS",
+   "text": "IIS FTP přes TLS"
+  },
+  "z_795": {
+   "source": "Exchange",
+   "text": "Exchange"
+  },
+  "z_796": {
+   "source": "Skype for Business / Lync",
+   "text": "Skype for Business / Lync"
+  },
+  "z_797": {
+   "source": "SharePoint Server",
+   "text": "SharePoint Server"
+  },
+  "z_798": {
+   "source": "Windows Admin Center",
+   "text": "Windows Admin Center"
+  },
+  "z_799": {
+   "source": "Checked on 636 after (allow probe local).",
+   "text": "Potom se zkontroluje na portu 636 (allow probe local)."
+  },
+  "z_800": {
+   "source": "Its folder is an example - change it to yours (the agent writes only there).",
+   "text": "Jeho složka je příklad - změňte ji na svou (agent zapisuje jen tam)."
+  },
+  "z_801": {
+   "source": "Before 2410: add the .msi it runs again (msi=).",
+   "text": "Před verzí 2410: přidejte .msi, které znovu spustí (msi=)."
+  },
+  "z_802": {
+   "source": "The agent runs the PowerShell after the import",
+   "text": "Agent spustí PowerShell po importu"
+  },
+  "z_803": {
+   "source": "Does",
+   "text": "Dělá"
+  },
+  "z_804": {
+   "source": "Values",
+   "text": "Hodnoty"
+  },
+  "z_805": {
+   "source": "fixed in the agent (acme_agent_winroles - the same as the OpenSSH target's), only these values given to it",
+   "text": "pevný v agentovi (acme_agent_winroles - stejný jako u cíle OpenSSH), předají se mu jen tyto hodnoty"
+  },
+  "z_806": {
+   "source": "after the restarts; not put back when it fails",
+   "text": "po restartech; při selhání se nevrací"
+  },
+  "z_807": {
+   "source": "icacls on the key's file, by the account's SID",
+   "text": "icacls na soubor klíče, podle SID účtu"
+  },
+  "z_808": {
+   "source": "Has",
+   "text": "Má"
+  },
+  "z_809": {
+   "source": "$thumb, $cert of the new certificate",
+   "text": "$thumb, $cert nového certifikátu"
+  },
+  "z_810": {
+   "source": "allowed by its hash; failing puts the bindings, the store and the files back",
+   "text": "povoleno podle hashe; selhání vrátí vazby, úložiště i soubory"
+  },
+  "z_811": {
+   "source": "Then the roles, as the OpenSSH target runs them (the same PowerShell): read on the key first, then each role - a role failing is said and the others still run; the deployment then fails, the old certificates are kept and nothing is put back",
+   "text": "Potom role, jak je spouští cíl OpenSSH (stejný PowerShell): nejdřív čtení klíče, pak každá role - selhání role se ohlásí a ostatní přesto běží; nasazení pak selže, staré certifikáty se ponechají a nic se nevrací"
+  },
+  "z_812": {
+   "source": "the agent on the server knows no Windows role (it is older than acme %s): update it, then deploy again",
+   "text": "agent na serveru nezná žádnou roli Windows (je starší než acme %s): aktualizujte ho a nasaďte znovu"
+  },
+  "z_813": {
+   "source": "the agent on the server does not know %s: update it",
+   "text": "agent na serveru nezná %s: aktualizujte ho"
+  },
+  "z_814": {
+   "source": "knows no Windows role yet",
+   "text": "zatím nezná žádnou roli Windows"
+  },
+  "z_815": {
+   "source": "update acme-agent on the server (its roles came with acme %s)",
+   "text": "aktualizujte acme-agent na serveru (role přišly s acme %s)"
+  },
+  "z_816": {
+   "source": "; the agent is older than its Windows roles (acme %s) - update it to use them",
+   "text": "; agent je starší než jeho role Windows (acme %s) - aktualizujte ho, chcete-li je používat"
+  },
+  "z_817": {
+   "source": "the PowerShell of %s (not run on a test):\n%s",
+   "text": "PowerShell role %s (při testu se nespouští):\n%s"
+  },
+  "z_818": {
+   "source": "after the import, the bindings, the test, the script and the restart: %s",
+   "text": "po importu, vazbách, testu, skriptu a restartu: %s"
+  },
+  "z_819": {
+   "source": "Exchange services: %r is not one of %s",
+   "text": "Služby Exchange: %r není jedna z %s"
+  },
+  "z_820": {
+   "source": "roles %s",
+   "text": "role %s"
+  },
+  "z_821": {
+   "source": "read on the key for %d account%s",
+   "text": "čtení klíče pro %d účt%s"
+  },
+  "z_822": {
+   "source": "the role %s",
+   "text": "role %s"
+  },
+  "z_823": {
+   "source": "is on this server%s",
+   "text": "je na tomto serveru%s"
+  },
+  "z_824": {
+   "source": "is not installed on this server",
+   "text": "není na tomto serveru nainstalována"
+  },
+  "z_825": {
+   "source": "the roles on this server",
+   "text": "role na tomto serveru"
+  },
+  "z_826": {
+   "source": "given to %s after the import",
+   "text": "dáno účtu %s po importu"
+  },
+  "z_827": {
+   "source": "the PowerShell after",
+   "text": "PowerShell potom"
+  },
+  "z_828": {
+   "source": "allowed by its hash (sha256 %s…) - not run on a test",
+   "text": "povoleno podle hashe (sha256 %s…) - při testu se nespouští"
+  },
+  "z_829": {
+   "source": "roles on the server: %s",
+   "text": "role na serveru: %s"
+  },
+  "z_830": {
+   "source": "%s: done",
+   "text": "%s: hotovo"
+  },
+  "z_831": {
+   "source": "%s failed: %s",
+   "text": "%s selhalo: %s"
+  },
+  "z_832": {
+   "source": "%s failed (%s done); the old certificates are kept",
+   "text": "%s selhalo (hotovo: %s); staré certifikáty se ponechávají"
+  },
+  "z_833": {
+   "source": "read on the key could not be given: %s - no role was run, the old certificates are kept",
+   "text": "čtení klíče se nepodařilo dát: %s - žádná role se nespustila, staré certifikáty se ponechávají"
+  },
+  "z_834": {
+   "source": "the PowerShell after the import failed: %s",
+   "text": "PowerShell po importu selhal: %s"
+  },
+  "z_835": {
+   "source": "the PowerShell after the import ran (sha256 %s…)",
+   "text": "PowerShell po importu proběhl (sha256 %s…)"
+  },
+  "z_836": {
+   "source": "the roles take the certificate from the machine store: the job puts none there",
+   "text": "role berou certifikát z úložiště počítače: úloha tam žádný nedává"
+  },
+  "z_837": {
+   "source": "IIS Central Certificate Store: the job holds no PKCS#12 for its files",
+   "text": "Centrální úložiště certifikátů IIS: úloha nemá PKCS#12 pro jeho soubory"
+  },
+  "z_838": {
+   "source": "read on the private key for %s",
+   "text": "čtení soukromého klíče pro %s"
+  },
+  "z_839": {
+   "source": "the PowerShell after the import (written in acme, sha256 %s)",
+   "text": "PowerShell po importu (napsaný v acme, sha256 %s)"
+  },
+  "z_840": {
+   "source": "%s (the Windows role%s)",
+   "text": "%s (role Windows%s)"
+  },
+  "z_841": {
+   "source": "WinRM HTTPS %s: its host name is now %s",
+   "text": "WinRM HTTPS %s: jeho název hostitele je teď %s"
+  },
+  "z_842": {
+   "source": "Set-WACCertificateAcl: %s - NETWORK SERVICE has read on the key already",
+   "text": "Set-WACCertificateAcl: %s - NETWORK SERVICE už má čtení klíče"
   }
  },
  "patterns": {
@@ -93589,6 +93885,14 @@
   "pz_175": {
    "source": "{0} s",
    "text": "{0} s"
+  },
+  "pz_176": {
+   "source": "The agent sets the Windows role {0}",
+   "text": "Agent nastaví roli Windows {0}"
+  },
+  "pz_177": {
+   "source": "The agent gives {0} read on the private key",
+   "text": "Agent dá účtu {0} čtení soukromého klíče"
   }
  },
  "rich": {

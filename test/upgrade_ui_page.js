@@ -153,7 +153,15 @@ const { execSync } = require('child_process');
                                            said: 'install.sh --upgrade stopped (exit 1) - 1.0.120 runs again'}));
         out.failed = await bandWait(b => b && /bad/.test(b.cls), 15000);
         await shot('08-failed');
-        await page.click('#upband .upband-x');
+        // the x is what a finger at its place touches (the page at its top), then pressed
+        out.xOnTop = await page.evaluate(() => {
+          window.scrollTo(0, 0);
+          const x = document.querySelector('#upband .upband-x');
+          const r = x.getBoundingClientRect();
+          const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          return at === x;
+        });
+        await page.evaluate(() => document.querySelector('#upband .upband-x').click());
         await wait(600);
         out.failedHidden = await band();
         await page.reload();

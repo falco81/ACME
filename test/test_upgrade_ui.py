@@ -927,6 +927,7 @@ class ThePages(unittest.TestCase):
             self.assertIn('1.0.120 runs again', f['text'])
         if en:
             self.assertIn('The upgrade to acme 1.0.121 failed', f['title'])
+        self.assertTrue(s['xOnTop'], s)
         self.assertIsNone(s['failedHidden'])
         self.assertIsNone(s['failedHiddenAfterReload'])
         # signed out during an upgrade: the sign-in page's band, loaded again when the API is back

@@ -8337,11 +8337,15 @@ def _se_path(f, paths, cwd):
     if p.startswith('/') or re.match(r'^(pipe|socket|anon_inode):', p):
         return p
     name = f.get('name') or ''
+    parent = next((x.get('name') for x in paths if x.get('nametype') == 'PARENT' and
+                   str(x.get('name') or '').startswith('/')), '')
 
     def whole(n):
-        if n.startswith('/') or not cwd.startswith('/'):
+        if n.startswith('/'):
             return n
-        return os.path.normpath(os.path.join(cwd, n))
+        if cwd.startswith('/'):
+            return os.path.normpath(os.path.join(cwd, n))
+        return os.path.join(parent, os.path.basename(n)) if parent else n
     for x in paths:
         n = x.get('name') or ''
         if n and n != '(null)' and name and os.path.basename(n.rstrip('/')) == name:

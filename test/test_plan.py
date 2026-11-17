@@ -1526,7 +1526,7 @@ class RenewalPathsG4(RenewalPathsG2):
                     'SAY SQL Server MSSQLSERVER uses it', 'SAY restarted MSSQLSERVER'],
             'ldaps': ['SAY LDAPS: put into NTDS', 'SAY LDAPS: the old',
                       'SAY LDAPS: the domain controller took'],
-            'winrm': ['SAY WinRM Listener_', 'SAY restarted WinRM'],
+            'winrm': ['SAY WinRM HTTPS', 'SAY restarted WinRM'],
             'sstp': ['SAY SSTP uses it', 'SAY restarted RemoteAccess'],
             'ccs': ['SAY CCS: wrote www.example.com.pfx'],
             'ftp': ['SAY FTP (every site) uses it'],

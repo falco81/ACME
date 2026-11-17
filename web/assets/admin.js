@@ -20594,7 +20594,7 @@ function seWhen(f, permissive) {
   t.appendChild(el('span', '', f.count > 1 ? num(f.count) + ' times' : 'once'));
   t.appendChild(document.createTextNode(', '));
   t.appendChild(el('span', '', 'last ' + ago(f.last)));
-  if (f.permissive && permissive) t.appendChild(el('span', '', ' (permissive: let through, written down)'));
+  if (f.permissive && permissive) { t.appendChild(document.createTextNode(' ')); t.appendChild(el('span', '', '(permissive: let through, written down)')); }
   return t;
 }
 function seFinding(n, f, admin) {
@@ -20793,11 +20793,11 @@ function seNode(n, cluster) {
         var row = el('div', 'se-local-r');
         var t = el('div', 'se-local-t');
         t.appendChild(noI18n(el('code', 'se-cmd plain', r.rule)));
-        var meta = el('div', 'small muted');
-        meta.appendChild(noI18n(el('span', '', (r.program || '?') + ': ')));
+        var meta = el('div', 'small muted se-local-m');
+        meta.appendChild(noI18n(el('span', '', (r.program || '?') + ':')));
         meta.appendChild(el('span', '', r.why || ''));
-        meta.appendChild(el('span', '', ' - put in ' + new Date((r.at || 0) * 1000).toLocaleString(numLang())));
-        if (r.by) { meta.appendChild(el('span', '', ' by ')); meta.appendChild(noI18n(el('span', '', r.by))); }
+        meta.appendChild(el('span', '', 'put in ' + new Date((r.at || 0) * 1000).toLocaleString(numLang())));
+        if (r.by) meta.appendChild(el('span', '', 'by ' + r.by));
         t.appendChild(meta);
         row.appendChild(t);
         if (admin) {
