@@ -90,13 +90,16 @@ function acme_cookie_path(): string
     return acme_https() ? '/' : ACME_COOKIE_PATH;
 }
 
-/** How many cookies of that name the browser sent (PHP's $_COOKIE keeps the first only). */
+/** How many cookies of that name the browser sent (PHP's $_COOKIE keeps the first only) - each
+ *  name read as PHP reads it (1.0.119): a dot, a space or a "[" in it is "_" to PHP, so a
+ *  planted "acme.session" was $_COOKIE['acme_session'] while only one cookie of the exact name
+ *  was counted here. */
 function acme_cookie_count(string $name): int
 {
     $n = 0;
     foreach (explode(';', (string) ($_SERVER['HTTP_COOKIE'] ?? '')) as $part) {
         $eq = strpos($part, '=');
-        if ($eq !== false && trim(substr($part, 0, $eq)) === $name) {
+        if ($eq !== false && strtr(ltrim(substr($part, 0, $eq), " \t"), ' .[', '___') === $name) {
             $n++;
         }
     }

@@ -6,6 +6,8 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.119 - not released
 
+- Command line: `--set KEY-=VALUE` takes VALUE out of a list (tags, a module's list) - it said "has no tags-"; a module's number given as `nan` or `inf` is refused, not a traceback; `--target-agent NAME forget|confirm|update`, `design text|forget` and `--console-users` / `--console-at-login on|off` answer JSON with `--json`; `NO_COLOR` set but empty no longer turns colour off.
+- Console: the menus are not coloured with `--no-color` or `NO_COLOR`; the live log shows acme.log once it is made (opened before it was there, it stayed empty); a new account's name beginning with `-` or `.` is refused in the form; a target's acme-agent has *The policy designed for it* (`design show`), as the command line.
 - Settings → The database: the card of this machine's database no longer says a MySQL 8.4 or later is not running (it has no `@@have_ssl`; its TLS is read from `performance_schema`).
 - Certificates → Import (and a CSR's answer): a file that is no base64 says "data_b64 is not base64" instead of a vague error.
 - Settings → DNS: Test in a set's form with no servers in it says so - it tried the set as saved.
@@ -73,6 +75,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - Certificates: a certificate made by *CSR for an outside CA* says it comes from an outside CA (it said "–"); its answer dropped no longer asks "Leave what was typed here?".
 - Certificate's window: on a phone its sections are no longer cut at the right edge; *Renews* says the same in both its sections (an imported one said "only when asked", a revoked one "by itself").
 - Certificates: the names in the list are no longer a letter a line between a phone's width and a wide screen; *Add a certificate*: "Deployments" no longer runs into "Review"; Authorities: the buttons of *Published on acme* line up when they wrap.
+- Sign-in (security): *whoami* reads the account as every other route does - with db_guard on, a role written into the database past acme (or a role of the enrolment pages) is nobody there; the pages' own gates (nginx's question before a big body, a new version or a database sent) took that role.
+- Behind a load balancer (security): *The load balancers and WAFs* never takes every address (`0.0.0.0/0`, `::/0`) - anybody's X-Forwarded-For was then the client's address, each wrong password from an address of its choosing, past the counts and the sign-in protection.
+- Sign-in cookies (security): a cookie planted beside the session's under another spelling of its name (`acme.session`, which PHP reads as `acme_session`) counts as a second one - and the sign-in is refused as with two of the same name; it was taken for the session.
 
 ## 1.0.118 - 2026-11-17
 
