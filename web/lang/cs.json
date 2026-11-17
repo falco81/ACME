@@ -66879,6 +66879,270 @@
   "z_591": {
    "source": "data_b64 is not base64",
    "text": "data_b64 není base64"
+  },
+  "z_592": {
+   "source": "the Windows agent (acme-agent-X.Y.Z-windows-x64.msi) comes with a release - a source tree has none (tools/release.py builds it)",
+   "text": "Windows agent (acme-agent-X.Y.Z-windows-x64.msi) přichází s vydáním - zdrojový strom ho nemá (sestaví ho tools/release.py)"
+  },
+  "z_593": {
+   "source": "Waiting for confirmation",
+   "text": "Čekají na potvrzení"
+  },
+  "z_594": {
+   "source": "Confirm selected…",
+   "text": "Potvrdit vybrané…"
+  },
+  "z_595": {
+   "source": "Each agent below asks to join. Compare its fingerprint with the one the server printed (acme-agent join, or acme-agent fingerprint there) - confirm only when every group is the same. Until then acme sends it nothing.",
+   "text": "Každý agent níže žádá o připojení. Porovnejte jeho otisk s tím, který vypsal server (acme-agent join, nebo tam acme-agent fingerprint) – potvrďte jen tehdy, když souhlasí každá skupina. Do té doby mu acme nic neposílá."
+  },
+  "z_596": {
+   "source": "Select all of them",
+   "text": "Vybrat všechny"
+  },
+  "z_597": {
+   "source": "Joined with the code",
+   "text": "Připojeny kódem"
+  },
+  "z_598": {
+   "source": "Each with its target’s own join code",
+   "text": "Každý vlastním připojovacím kódem svého cíle"
+  },
+  "z_599": {
+   "source": "Confirm all of this code…",
+   "text": "Potvrdit všechny z tohoto kódu…"
+  },
+  "z_600": {
+   "source": "Confirm…",
+   "text": "Potvrdit…"
+  },
+  "z_601": {
+   "source": "Compare this fingerprint with the one the server printed. Confirm only when every group is the same.",
+   "text": "Porovnejte tento otisk s tím, který vypsal server. Potvrďte jen tehdy, když souhlasí každá skupina."
+  },
+  "z_602": {
+   "source": "Confirm 1 agent",
+   "text": "Potvrdit 1 agenta"
+  },
+  "z_603": {
+   "source": "Each of these servers gets its certificate and acme sends it jobs from now on. Compare each fingerprint with the one its server printed first - confirm only servers you know.",
+   "text": "Každý z těchto serverů dostane svůj certifikát a acme mu od teď posílá úlohy. Nejdřív porovnejte každý otisk s tím, který vypsal jeho server – potvrďte jen servery, které znáte."
+  },
+  "z_604": {
+   "source": "It joined with the enrollment code",
+   "text": "Připojil se registračním kódem"
+  },
+  "z_605": {
+   "source": "Enrollment codes",
+   "text": "Registrační kódy"
+  },
+  "z_606": {
+   "source": "Make an enrollment code…",
+   "text": "Vytvořit registrační kód…"
+  },
+  "z_607": {
+   "source": "Switch on active mode above first",
+   "text": "Nejdřív výše zapněte aktivní režim"
+  },
+  "z_608": {
+   "source": "One code for many servers",
+   "text": "Jeden kód pro mnoho serverů"
+  },
+  "z_609": {
+   "source": "Use it to install the agent on as many servers as you like - by hand, or with Group Policy, Intune, SCCM or Ansible. Each server appears here as a target of its own, waiting for your confirmation; confirm them one by one or many at once.",
+   "text": "Nainstalujte s ním agenta na libovolný počet serverů – ručně, nebo přes Group Policy, Intune, SCCM či Ansible. Každý server se tu objeví jako samostatný cíl a čeká na vaše potvrzení; potvrzujte je po jednom, nebo mnoho najednou."
+  },
+  "z_610": {
+   "source": "An enrolling agent always asks acme on the agents’ port: switch on “Agents may connect to acme” above first.",
+   "text": "Registrující se agent se acme vždy ptá na portu agentů: nejdřív výše zapněte „Agenti se smějí připojovat k acme“."
+  },
+  "z_611": {
+   "source": "No enrollment code yet",
+   "text": "Zatím žádný registrační kód"
+  },
+  "z_612": {
+   "source": "used up",
+   "text": "vyčerpán"
+  },
+  "z_613": {
+   "source": "confirmed automatically",
+   "text": "potvrzuje se automaticky"
+  },
+  "z_614": {
+   "source": "Each server that joins with it is confirmed at once - nobody compares its fingerprint.",
+   "text": "Každý server, který se s ním připojí, se potvrdí hned – jeho otisk nikdo neporovnává."
+  },
+  "z_615": {
+   "source": "Was valid until",
+   "text": "Platil do"
+  },
+  "z_616": {
+   "source": "Who made it",
+   "text": "Kdo ho vytvořil"
+  },
+  "z_617": {
+   "source": "Their port",
+   "text": "Jejich port"
+  },
+  "z_618": {
+   "source": "Revoked by",
+   "text": "Odvolal"
+  },
+  "z_619": {
+   "source": "Revoke…",
+   "text": "Odvolat…"
+  },
+  "z_620": {
+   "source": "Revoke the enrollment code",
+   "text": "Odvolat registrační kód"
+  },
+  "z_621": {
+   "source": "the enrollment code is revoked",
+   "text": "registrační kód je odvolán"
+  },
+  "z_622": {
+   "source": "Make an enrollment code",
+   "text": "Vytvořit registrační kód"
+  },
+  "z_623": {
+   "source": "One code for many servers: each server that joins with it becomes a target of its own (its host name) and waits here for its fingerprint to be confirmed.",
+   "text": "Jeden kód pro mnoho serverů: každý server, který se s ním připojí, se stane samostatným cílem (podle svého jména) a čeká tu na potvrzení svého otisku."
+  },
+  "z_624": {
+   "source": "e.g. Branch offices 2026",
+   "text": "např. Pobočky 2026"
+  },
+  "z_625": {
+   "source": "Its title",
+   "text": "Název"
+  },
+  "z_626": {
+   "source": "What you call it - the targets it makes and Events say it.",
+   "text": "Jak ho nazvete – uvádějí ho cíle, které vytvoří, i Události."
+  },
+  "z_627": {
+   "source": "Passive - acme connects to them",
+   "text": "Pasivní – acme se připojuje k nim"
+  },
+  "z_628": {
+   "source": "Active - they connect to acme",
+   "text": "Aktivní – ony se připojují k acme"
+  },
+  "z_629": {
+   "source": "Passive: each agent listens (open its port to acme only). Active: nothing listens on the servers, they ask acme on the agents’ port.",
+   "text": "Pasivní: každý agent naslouchá (jeho port otevřete jen pro acme). Aktivní: na serverech nic nenaslouchá, ptají se acme na portu agentů."
+  },
+  "z_630": {
+   "source": "Where each agent listens for acme (passive).",
+   "text": "Kde každý agent naslouchá pro acme (pasivní)."
+  },
+  "z_631": {
+   "source": "1 to 365. Servers that joined stay joined after it ends.",
+   "text": "1 až 365. Připojené servery zůstanou připojené i po jeho vypršení."
+  },
+  "z_632": {
+   "source": "At most (servers)",
+   "text": "Nejvýše (serverů)"
+  },
+  "z_633": {
+   "source": "How many servers may join with it - the same server again does not count twice.",
+   "text": "Kolik serverů se s ním smí připojit – tentýž server znovu se nepočítá dvakrát."
+  },
+  "z_634": {
+   "source": "Anybody who has this code joins a server to acme without anyone comparing its fingerprint - and gets the certificates deployed to it. Only for a code that never leaves your deployment tooling, for a short time.",
+   "text": "Kdokoli, kdo má tento kód, připojí server k acme, aniž by někdo porovnal jeho otisk – a dostane certifikáty na něj nasazené. Jen pro kód, který nikdy neopustí vaše nástroje pro nasazování, a na krátkou dobu."
+  },
+  "z_635": {
+   "source": "Confirm automatically",
+   "text": "Potvrzovat automaticky"
+  },
+  "z_636": {
+   "source": "Off (the default): a person confirms each server here.",
+   "text": "Vypnuto (výchozí): každý server tu potvrdí člověk."
+  },
+  "z_637": {
+   "source": "Make the code",
+   "text": "Vytvořit kód"
+  },
+  "z_638": {
+   "source": "The enrollment code",
+   "text": "Registrační kód"
+  },
+  "z_639": {
+   "source": "Shown this once - copy it now. Keep it as a password: whoever has it can ask to join servers.",
+   "text": "Zobrazí se jen teď – zkopírujte si ho. Opatrujte ho jako heslo: kdo ho má, může žádat o připojení serverů."
+  },
+  "z_640": {
+   "source": "On each server",
+   "text": "Na každém serveru"
+  },
+  "z_641": {
+   "source": "In the unpacked package, install and join at once:",
+   "text": "V rozbaleném balíčku nainstalovat a rovnou připojit:"
+  },
+  "z_642": {
+   "source": "Or, with the agent installed already:",
+   "text": "Nebo s už nainstalovaným agentem:"
+  },
+  "z_643": {
+   "source": "Check it is the same file (PowerShell):",
+   "text": "Ověřte, že jde o tentýž soubor (PowerShell):"
+  },
+  "z_644": {
+   "source": "By hand: run the MSI - Next, Next, Install. At its Join step paste the code (or leave it empty and join later).",
+   "text": "Ručně: spusťte MSI – Další, Další, Instalovat. V jeho kroku Připojení vložte kód (nebo ho nechte prázdný a připojte později)."
+  },
+  "z_645": {
+   "source": "The installer joins in the background: no network is needed while it installs, and acme-agent status says how it goes.",
+   "text": "Instalátor se připojuje na pozadí: během instalace není potřeba síť a acme-agent status řekne, jak to jde."
+  },
+  "z_646": {
+   "source": "Silently, for many servers (Group Policy, Intune, SCCM):",
+   "text": "Tiše, pro mnoho serverů (Group Policy, Intune, SCCM):"
+  },
+  "z_647": {
+   "source": "Group Policy: a computer startup script with that line. Intune or SCCM: a Win32 app (or an application) whose install command is that line - every server then waits for confirmation here.",
+   "text": "Group Policy: spouštěcí skript počítače s tímto řádkem. Intune nebo SCCM: aplikace Win32 (nebo aplikace), jejíž instalační příkaz je tento řádek – každý server pak čeká tady na potvrzení."
+  },
+  "z_648": {
+   "source": "Or from the command line, in an elevated prompt (Run as administrator):",
+   "text": "Nebo z příkazového řádku, ve zvýšeném příkazovém řádku (Spustit jako správce):"
+  },
+  "z_649": {
+   "source": "The Windows installer comes with a release",
+   "text": "Instalátor pro Windows přichází s vydáním"
+  },
+  "z_650": {
+   "source": "Windows Server 2016 and newer · x64",
+   "text": "Windows Server 2016 a novější · x64"
+  },
+  "z_651": {
+   "source": "Download MSI",
+   "text": "Stáhnout MSI"
+  },
+  "z_652": {
+   "source": "On the server, as an administrator",
+   "text": "Na serveru, jako správce"
+  },
+  "z_653": {
+   "source": "CODE is a join code made on one target’s card (ACAG1.…), or an enrollment code for many servers (ACAE1.…, below). The Windows agent takes the same commands as the Linux one: acme-agent allow, deny, policy, status, fingerprint, forget.",
+   "text": "CODE je připojovací kód vytvořený na kartě jednoho cíle (ACAG1.…), nebo registrační kód pro mnoho serverů (ACAE1.…, níže). Agent pro Windows bere tytéž příkazy jako ten pro Linux: acme-agent allow, deny, policy, status, fingerprint, forget."
+  },
+  "z_654": {
+   "source": "acme-agent on the Windows server does the work - acme holds none of its credentials",
+   "text": "Práci dělá acme-agent na serveru s Windows – acme nedrží žádné jeho přihlašovací údaje"
+  },
+  "z_655": {
+   "source": "Two services: the network side as a virtual account without privileges; the root side (LocalSystem) never on the network, doing only what its policy allows. Every job from acme is signed; the private keys arrive sealed to the agent.",
+   "text": "Dvě služby: síťová strana jako virtuální účet bez oprávnění; strana roota (LocalSystem) nikdy na síti, dělá jen to, co povoluje její politika. Každá úloha od acme je podepsaná; soukromé klíče přicházejí zapečetěné pro agenta."
+  },
+  "z_656": {
+   "source": "acme connects to the agent on port 8446: the installer opens it in Windows Firewall at the join (only to the addresses of acme-agent allow from, when there are any).",
+   "text": "acme se k agentovi připojuje na portu 8446: instalátor ho při připojení otevře v bráně Windows Firewall (jen pro adresy z acme-agent allow from, pokud nějaké jsou)."
+  },
+  "z_657": {
+   "source": "On the server, in an elevated prompt (Run as administrator)",
+   "text": "Na serveru, ve zvýšeném příkazovém řádku (Spustit jako správce)"
   }
  },
  "patterns": {
@@ -92813,6 +93077,50 @@
   "pz_158": {
    "source": "settings left out: refused here ({0})",
    "text": "vynechaná nastavení: zde odmítnuta ({0})"
+  },
+  "pz_159": {
+   "source": "Confirm selected ({0})…",
+   "text": "Potvrdit vybrané ({0})…"
+  },
+  "pz_160": {
+   "source": "Confirm the agent of {0}",
+   "text": "Potvrdit agenta cíle {0}"
+  },
+  "pz_161": {
+   "source": "Confirm all of {0}",
+   "text": "Potvrdit všechny z kódu {0}"
+  },
+  "pz_162": {
+   "source": "Confirm {0} agents",
+   "text": "Potvrdit agenty ({0})"
+  },
+  "pz_163": {
+   "source": "{0} confirmed",
+   "text": "potvrzeno: {0}"
+  },
+  "pz_164": {
+   "source": "No other server joins with “{0}”. The servers that joined with it stay; those waiting still wait for confirmation.",
+   "text": "S kódem „{0}“ se už žádný další server nepřipojí. Servery, které se s ním připojily, zůstávají; čekající dál čekají na potvrzení."
+  },
+  "pz_165": {
+   "source": "valid until {0}",
+   "text": "platí do {0}"
+  },
+  "pz_166": {
+   "source": "at most {0} servers",
+   "text": "nejvýše {0} serverů"
+  },
+  "pz_167": {
+   "source": "A signed release carries {0} beside the Linux package. This acme runs from a source tree, which has none - the lines below are what it will be.",
+   "text": "Podepsané vydání obsahuje {0} vedle balíčku pro Linux. Toto acme běží ze zdrojového stromu, který ho nemá – řádky níže ukazují, jak to bude."
+  },
+  "pz_168": {
+   "source": "The Windows installer comes with a release ({0}) - this acme runs from a source tree, which has none.",
+   "text": "Instalátor pro Windows přichází s vydáním ({0}) – toto acme běží ze zdrojového stromu, který ho nemá."
+  },
+  "pz_169": {
+   "source": "Or paste it at the MSI’s Join step - or silently: msiexec /i {0} /qn JOINCODE=CODE. The agent makes its own key there (it never leaves the server) and shows its fingerprint - acme shows it next, to compare.",
+   "text": "Nebo ho vložte v kroku Připojení instalátoru MSI – či tiše: msiexec /i {0} /qn JOINCODE=CODE. Agent si tam vytvoří vlastní klíč (server nikdy neopustí) a ukáže svůj otisk – acme ho ukáže hned potom k porovnání."
   }
  },
  "rich": {

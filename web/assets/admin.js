@@ -584,6 +584,7 @@ function upgradeEnd() {
   if (go) upgradeReload(id, state, version, down);
 }
 function upgradeReload(id, state, version, down) {
+  if (UPG.heldOff && UPG.heldOff[id]) return;      /* its link hidden: not offered again */
   var key = 'acme-upg-reloaded:' + id;
   var guarded = false;
   try {
@@ -625,7 +626,8 @@ function upgRows() {
       if (r.name !== who || Number(f.at || 0) < Number(r.at || 0)) return;
       if (f.parts) { r.part = f.state === 'running' ? f.part : f.parts; r.parts = f.parts; }
       if (f.words && r.state !== 'done' && r.state !== 'failed') r.part_words = f.words;
-      if (r.state === 'waiting' || r.state === 'none' || r.state === 'draining') r.state = 'installing';
+      /* root at it while the copy of the plan here still says it waits: being put in */
+      if (f.state === 'running' && (r.state === 'waiting' || r.state === 'none' || r.state === 'draining')) r.state = 'installing';
       r.file = true;
     });
   }
@@ -725,7 +727,7 @@ function upgradeDraw() {
     x.setAttribute('aria-label', 'Hide this');
     x.onclick = function () {
       if (v.kind === 'done') { UPG.after = null; }
-      else if (v.kind === 'held') { UPG.held = null; UPG.reloading = false; upgHide('held-' + (v.version || '')); }
+      else if (v.kind === 'held') { UPG.heldOff = UPG.heldOff || {}; UPG.heldOff[UPG.held.id] = true; UPG.held = null; }
       else upgHide(v.id);
       b._sig = '';
       upgradeDraw();
