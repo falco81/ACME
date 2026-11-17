@@ -219,13 +219,15 @@ def selinux_ask(store, node, action, by, ids=None):
     elif ids:
         raise ValueError('ids go with fix or rule_drop only')
     if action in SE_STEPS:
-        # One node at a time (1.0.120): a step of SELinux on one node of a cluster while the other is
+        # One node at a time (1.0.120, advice): a step of SELinux on one node of a cluster while the other is
         # in the middle of one could leave neither able to take the cluster's address - look at the
         # cluster (both nodes, the replication, the VIP) between them.
         for other in known:
             if other != node and _se_pending(store, other).get('do') in SE_STEPS:
-                raise ValueError('%s is in the middle of a step of SELinux (%s) - one node at a time: wait for '
-                                 'it, look at the cluster, then this one' % (other, _se_pending(store, other)['do']))
+                # Said, not refused: asking both nodes at once worked before 1.0.120 and still does.
+                log('SELinux: %s is in the middle of a step of SELinux (%s) - one node at a time is safer: '
+                    'look at the cluster between them' % (other, _se_pending(store, other)['do']), 'warn')
+                break
     if action == 'permissive' and _hs_on():
         # A step down (1.0.59, as otp 1.0.249): refused while high security is on - from the
         # pages, the API and the command line alike.

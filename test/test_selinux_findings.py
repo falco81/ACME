@@ -871,9 +871,8 @@ class TwoNodes(unittest.TestCase):
         self.asked = []
         self.look_both()
         E.selinux_ask(STORE, self.me, 'prepare', 'admin')
-        with self.assertRaises(ValueError) as e:
-            E.selinux_ask(STORE, 'acme-b', 'permissive', 'admin')
-        self.assertIn('one node at a time', str(e.exception))
+        # Advice, not a refusal: asking both nodes at once worked before 1.0.120 and still does.
+        E.selinux_ask(STORE, 'acme-b', 'permissive', 'admin')
         with self.assertRaises(ValueError):
             E.selinux_ask(STORE, self.me, 'fix', 'admin', ids=['a' * 12])
         self.tick(self.me, self.A)                                         # done: the other may go

@@ -138,8 +138,8 @@ away**; the last one takes the module out of the policy (`semodule -r acme_local
 | permissive, nothing left | **Switch to enforcing** | `setenforce 1`, `SELINUX=enforcing` |
 | enforcing | **Back to permissive** | `setenforce 0`, `SELINUX=permissive` - refused while *high security* is on |
 
-What is not acme's never locks enforcing. **In a cluster: one node at a time.** A step is refused
-while another node is in the middle of one; the confirms say it: do one node, then look at the
+What is not acme's never locks enforcing. **In a cluster: one node at a time.** A step asked
+while another node is in the middle of one is still taken (as before), with a warning in the log; the confirms say it: do one node, then look at the
 cluster - *High availability*: both nodes answer, the replication runs, the VIP address holds (a
 refused `keepalived_t` or `postgresql_t` shows on that node's card at once) - and only then the
 other node. Restart a node made ready when it suits, one at a time: the labelling takes minutes.
