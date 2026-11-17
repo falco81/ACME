@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.120 - not released
+
+(nothing yet)
+
 ## 1.0.119 - 2026-11-17
 
 - Settings → Time ("Its time") and Backups ("Next"): dd-mm-yyyy hh:mm:ss as everywhere else, not the browser's own format.
