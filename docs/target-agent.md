@@ -499,7 +499,7 @@ the event log source; a failure rolls the install back) - and at uninstall `wind
 
 | Where | What |
 |---|---|
-| `C:\Program Files\acme-agent\` | `acme_agent.py`, `acme_agent_win.py`, `acme_agent_wincert.py`, `acme-agent.cmd` (the CLI, on PATH), `README.txt`, `release`, `release-keys\*.pub`, `MANIFEST` + `MANIFEST.sig` (every installed file, signed by the release key) |
+| `C:\Program Files\acme-agent\` | `acme_agent.py`, `acme_agent_win.py`, `acme_agent_wincert.py`, `acme_agent_winroles.py`, `acme-agent.cmd` (the CLI, on PATH), `README.txt`, `release`, `release-keys\*.pub`, `MANIFEST` + `MANIFEST.sig` (every installed file, signed by the release key) |
 | `C:\Program Files\acme-agent\runtime\` | `python.exe`, `python313.dll`, `python313._pth`, `Lib\` (the standard library the agent imports, with its `.pyc`), `DLLs\` (`_ssl`, `_hashlib`, `_ctypes`, `_socket`, `select`, ... and their DLLs) |
 | `C:\Program Files\acme-agent\openssl\` | `openssl.exe`, `libcrypto-3-x64.dll`, `libssl-3-x64.dll`, `vcruntime140.dll`, `openssl.cnf` |
 | `C:\ProgramData\acme-agent\etc\` | `policy`, `agent.json`, `ca.pem` (SYSTEM, Administrators; Users read) |
@@ -524,8 +524,8 @@ Authenticode-signed: its integrity is the SHA-256 acme shows and the signed MANI
 * **Events** for every code made, join asked, confirmation, refusal, renewal, policy changed on
   the server, agent not heard from and heard from again; **alerts** for an agent not heard from
   for ten minutes and its certificate ending within seven days.
-* **Command line**: `acme --target-agent NAME show | code | confirm FP | look | policy | renew |
-  update | forget | design show|text|forget`, `acme --target-agent all update`, `acme
+* **Command line**: `acme --target-agent NAME show | system [--json] | code | confirm FP | look |
+  policy | renew | update | forget | design show|text|forget`, `acme --target-agent all update`, `acme
   --target-agent enroll new|list|revoke ID`, `acme --target-agent waiting` - `show` says what the
   card says; the console (`acme`): Targets → the target → *Its acme-agent*, Certificates →
   *Target agents*.
@@ -533,7 +533,64 @@ Authenticode-signed: its integrity is the SHA-256 acme shows and the signed MANI
   renew,update,forget}`, `GET|POST /api/agents/enroll`, `POST /api/agents/enroll/revoke`, `GET
   /api/agents/waiting`, `POST /api/agents/confirm-many`, `GET /api/agents/package` (`package.windows`: the Windows MSI's name,
   version, SHA-256, size, product code - or null and `windows_why`), `GET /api/agents/package
-  ?platform=windows` (the MSI itself).
+  ?platform=windows` (the MSI itself). Each agent's row (`GET /api/agents` `rows[]`, `GET
+  /api/agents/one`) carries `system` (1.0.120: what the agent tells about its server, below).
+
+## What the agent tells about its server (1.0.120)
+
+Every agent tells acme basic facts of its machine - nothing of it is a secret: no file's content,
+no account, no key, no MAC address, no process list. The root side collects them (it never shells
+out per fact where a file or a registry value says it), keeps them a minute, and bounds them: each
+text one line of at most 200 characters, the lists cut (16 addresses, 8 disks, 40 services), the
+whole at most 12 kB; a fact that fails or takes longer than 3 s (all of them at most 6 s) is left
+out - never the hello. They go whole with every hello (`system: {...}`), and with every active
+poll only their hash (`system_hash`, as the policy's: acme asks the hello again when it changed,
+at most every two minutes) and the agent's clock (`clock`). An acme before 1.0.120 ignores both;
+an agent before it says none - its card says *the agent is too old to tell (update it)*.
+
+| Fact | Linux (from) | Windows (from) |
+|---|---|---|
+| `os`, `os_id`, `os_version`, `os_like` | `/etc/os-release` | `ProductName`, `DisplayVersion` (HKLM\...\Windows NT\CurrentVersion; Windows 11 by its build) |
+| `edition`, `build`, `install` | - | `EditionID`, `CurrentBuild`.`UBR`, `InstallationType` |
+| `kernel`, `arch`, `machine` | `/proc/sys/kernel/osrelease`, `uname`, `/sys/class/dmi/id` | the build, `PROCESSOR_ARCHITECTURE`, HKLM\HARDWARE\...\BIOS |
+| `hostname`, `fqdn`, `domain` | `/proc/sys/kernel/hostname`, `getfqdn` (3 s at most) | Tcpip\Parameters `Hostname`, `Domain` |
+| `ad_domain` / `workgroup` | - | `NetGetJoinInformation` |
+| `addrs` (interface, address/prefix) | `SIOCGIFADDR` per interface, `/proc/net/if_inet6` - no loopback, no link-local | the host name's addresses |
+| `cpu`, `cores`, `load` | `/proc/cpuinfo`, `/proc/loadavg` | CentralProcessor\0 `ProcessorNameString`, the CPU count |
+| `mem_total`, `mem_avail` | `/proc/meminfo` | `GlobalMemoryStatusEx` |
+| `disks` (path, size, free, fs) | `statvfs` of `/` and of the policy's folders (one per file system) | the system drive and the policy's folders' drives |
+| `boot`, `uptime` | `/proc/stat` `btime` | `GetTickCount64` |
+| `tz`, `tz_offset` | `/etc/timezone` or `/etc/localtime`'s link | TimeZoneInformation `TimeZoneKeyName` |
+| `clock` | the time when it answers - acme works out the skew | the same |
+| `selinux`, `apparmor`, `init` | `/sys/fs/selinux/enforce`, `/etc/selinux/config`, `/sys/module/apparmor`, `/proc/1/comm` | - |
+| `reboot`, `reboot_why` | `/run/reboot-required` (and its `.pkgs`), a newer kernel in `/lib/modules` than the one running | the registry: CBS `RebootPending`, Windows Update `RebootRequired`, `PendingFileRenameOperations`, a computer renamed |
+| `services` (name, active / present, detail) | the unit files of the services a certificate goes to (nginx, httpd, apache2, haproxy, postfix, dovecot, exim4, ...), one `systemctl is-active` for those there | the roles by their services (one connection to the service manager): IIS, IIS FTP, SMTP, AD CS, AD DS, AD FS, Web Application Proxy, RD Gateway, RD Connection Broker, RD Licensing, Exchange, SQL Server (and its named instances), SQL Reporting, NPS, WSUS, RRAS and WinRM (while running; WinRM with its HTTPS listener), Remote Desktop (allowed) - never `Get-WindowsFeature` |
+| `python`, `openssl`, `openssl_cli` | the agent's Python and its OpenSSL; `openssl version` (once an hour) | the bundled runtime's |
+
+acme takes them as the agent's word (`acmelib/certs/agent_system.py`): known keys of known types,
+one line each, cut, numbers finite and in range, addresses parsed, a disk with more free than its
+size left out - and keeps them in the target's state with when they were said. **The clock**: acme
+compares the agent's with its own - the middle of a passive hello that took under 4 s, and every
+active poll - and keeps the skew: amber above 60 s, red and an **alert** above 120 s (the agent
+refuses a job beyond 300 s). A passive agent tells it with every hello (every 5 minutes), an active
+one when its hash changes and every half hour.
+
+Where it is shown:
+
+* **the agent's card** (a target "Server with acme-agent"): *The server* - the system large (its
+  Windows or Linux mark), version and build or kernel, edition, architecture, machine; the host,
+  FQDN, domain or AD domain and the addresses as chips; the CPU and its load; a memory bar; a bar
+  per disk (amber above 85 %, red above 95 %); the uptime and when it started; the time zone and
+  the clock pill (green / amber / red); SELinux, a restart pending; the services or roles as chips
+  (green running, grey installed); Python and OpenSSL; *said N s ago* and *Ask it now*;
+* **Settings → Target agents**: each tile's line (the system, the uptime, the clock off, a disk
+  full, a restart pending) and the **Servers** overview: system, version, uptime, memory, disk,
+  clock, agent - sorted by a click on a heading, filtered by platform;
+* **command line**: `acme --target-agent NAME system [--json]` (all of it), `show` (in short, and
+  what is worth a look); the console: the target → *Its acme-agent* → *Its server*;
+* **API**: `system` of each row of `GET /api/agents` and of `GET /api/agents/one`: `{state: ok |
+  old | unknown, at, facts, skew, skew_at, skew_level, uptime, warnings: [{key, level, words}]}`;
+* **monitoring**: below.
 
 ## Keys made by the agent (phase 3)
 
@@ -620,17 +677,21 @@ that would allow it, and the card shows how to install the package by hand.
 
 * **SNMP**: `acmeAgentTable` (`acmeCertificates 9`): index (the target's id), name, mode, state,
   last seen, the days its certificate has left, version, state as a number (`AcmeAgentCondition`),
-  newer offered, policy blocks a deployment. ACME-MIB REVISION 202611161200Z.
+  newer offered, policy blocks a deployment; 1.0.120: `acmeAgentClockSkew` (s, + ahead) and
+  `acmeAgentRebootPending`. ACME-MIB REVISION 202611170000Z.
 * **Prometheus**: `acme_agent_up`, `acme_agent_state`, `acme_agent_last_seen_timestamp_seconds`,
   `acme_agent_cert_not_after_timestamp_seconds`, `acme_agent_info`, `acme_agent_update_available`,
-  `acme_agent_policy_blocks` - only where there is an agent target.
+  `acme_agent_policy_blocks`, `acme_agent_clock_skew_seconds`, `acme_agent_pending_reboot`
+  (1.0.120) - only where there is an agent target.
 * **Zabbix template**: the discovery *Target agents* with its items and triggers (not heard from,
-  refused, its certificate ending, the policy blocking, a newer agent offered).
+  refused, its certificate ending, the policy blocking, a newer agent offered; 1.0.120: the
+  server's clock off by more than 120 s, a restart pending).
 * **isemon / SIEM**: the agents' events carry `action=agent_policy_blocks | agent_policy_changed |
   agent_quiet | agent_back | agent_updated | agent_update | agent_cert_renewed | agent_joined |
   agent_forgotten`, `target`, `target_kind=agent` (and `version`, `blocked`).
 * **Alerts**: not heard from for ten minutes, its certificate ending within seven days, and (phase 4)
-  **its policy blocks a deployment** - until a deployment there goes through.
+  **its policy blocks a deployment** - until a deployment there goes through; (1.0.120) **the
+  server's clock more than 120 s from acme's**.
 
 ## Backup, restore and HA
 
@@ -645,8 +706,8 @@ same acme to the agents: it signs with the same command key and shows the same c
 The target **Windows server with acme-agent** (`agent_windows`, vendor Microsoft) is the agent's
 target with the deployment of Windows: the same join, modes, ports, connector, tests through the
 agent, keys made by the agent and What happens; the deployment is the one of *Windows server
-(OpenSSH + PowerShell)* minus what the agent does not do (Exchange, the Windows roles - AD FS,
-RD Gateway, WinRM...: those stay with that target).
+(OpenSSH + PowerShell)* - all of it, Exchange and every Windows role included (see *Windows: what
+the OpenSSH target does, the agent does* below).
 
 | Field | What the agent does | The policy |
 |---|---|---|
@@ -654,7 +715,10 @@ RD Gateway, WinRM...: those stay with that target).
 | IIS bindings | `site \| host name \| port [\| ip]` a line: the https binding set to the certificate (SNI by the host name; without one the port for all names), made when it is not there | `allow iis SITE` (or `allow iis *`) |
 | Remote Desktop listener | `Win32_TSGeneralSetting` (RDP-tcp) `SSLCertificateSHA1Hash`; NETWORK SERVICE may read the key | `allow rdp` |
 | Files | besides the store: `C:\` paths, the same formats as on Linux - **no owner, no mode** (who reads them: `readers=` of the folder's entry) | `allow file C:\certs [readers=...]` |
-| PowerShell after | the script after the files (written in acme: `allow script-hash`; on the server: `allow script`) | |
+| The script after | the script after the files (written in acme: `allow script-hash`; on the server: `allow script`) | |
+| PowerShell after | lines run after the import and the bindings (`$thumb`, `$store`, `$cert` of the new certificate) - failing puts everything back | `allow script-hash HASH` |
+| Exchange services | `Enable-ExchangeCertificate -Services ...` (run as the Exchange role) | `allow role exchange` |
+| Roles, Read on the key for | as the OpenSSH target (below) | `allow role NAME`, `allow key-read ACCOUNT` |
 | PKCS#12 kind | 3DES (any Windows, the default) or AES-256 (Windows Server 2019 and later) | |
 
 The commands of a Windows deployment (no shell, as on Linux):
@@ -717,6 +781,83 @@ allow iis "Default Web Site"
 '@ | acme-agent policy apply -
 ```
 
+## Windows: what the OpenSSH target does, the agent does (1.0.120)
+
+Every deploy field of *Windows server (OpenSSH + PowerShell)* (`windows_ssh`) is a field of
+*Windows server with acme-agent* (`agent_windows`) - the same key, type, default and choices
+(`test/test_agent_windows_parity.py` checks it field by field):
+
+| windows_ssh | The agent | The policy | Note |
+|---|---|---|---|
+| IIS bindings | the same (SNI, IP, port; a missing binding made) | `allow iis SITE` | put back when anything after fails |
+| Remote Desktop listener | the same, NETWORK SERVICE read on the key - the same lines (`_win_roles.RDP_KEY_READ`) | `allow rdp` | |
+| Exchange services | the Exchange role with those services | `allow role exchange` | after the restarts |
+| PKCS#12 kind, Key exportable | the same | `allow store` | |
+| PowerShell after (`post_ps`) | the same lines with `$thumb`, `$store`, `$cert` | `allow script-hash HASH` | after the bindings; failing puts back |
+| Previous versions to keep | the same, never one still used (IIS, http.sys, RDP, SQL Server, WinRM - `_win_roles.USED`, the same lines) | `allow store` | only certificates **this agent** imported are removed (`root\store.json`) - one imported by the OpenSSH target before stays: remove it once by hand |
+| Files (any format, any place, `{name} {cn} {service} {date}`), password, JKS alias, Service name, Leave the same, copies | the same | `allow file C:\FOLDER [readers=]` | no owner, no mode |
+| The script after (written here / on the server) | the same, by its hash / pinned | `allow script-hash HASH` / `allow script C:\x.ps1` | |
+| Read on the key for | the same (before the roles; failing stops them) | `allow key-read ACCOUNT` | |
+| Role: Remote Desktop Services (Connection Broker) and its fields | the same PowerShell | `allow role rds` | the PKCS#12 staged in root's folder |
+| Role: RD Gateway | the same | `allow role rdgw` | |
+| Role: AD FS | the same | `allow role adfs` | |
+| Role: Web Application Proxy | the same | `allow role wap` | |
+| Role: SQL Server | the same | `allow role sql` | |
+| Role: LDAPS | the same; checked on 636 after | `allow role ldaps` (+ `allow probe local`) | |
+| Role: WinRM HTTPS listener | the same | `allow role winrm` | |
+| Role: RRAS SSTP VPN | the same | `allow role sstp` | |
+| Role: IIS Central Certificate Store | the same | `allow role ccs path=FOLDER` | the agent writes only into the folder its policy names |
+| Role: IIS FTP over TLS | the same | `allow role ftp` | |
+| Role: Exchange (extended) | the same | `allow role exchange` | |
+| Role: Skype for Business / Lync | the same | `allow role lync` | |
+| Role: SharePoint Server (beta) | the same | `allow role sharepoint` | |
+| Role: Windows Admin Center | the same | `allow role wac` (`msi=FILE` for a version before 2410) | the agent runs only the installer its policy names |
+| Test the connection: the roles of the server | the same lines (`_win_roles.DETECT`) through `check` | - | |
+| Test (dry run): are the roles installed, their PowerShell | the same | - | a role not installed: bad |
+| What happens: the roles' script | the agent's script and the values it gets | - | |
+| a role failing: said, the others run, the deployment fails, the old certificates kept | the same - nothing is put back (a role that took the new certificate uses it) | - | |
+
+**One logic, two renderings.** The roles' PowerShell is written once, as templates in
+`acmelib/plugins/targets/_win_roles.py`. `windows_ssh` renders them with the values in the text
+(what it sent before - byte for byte, but for the fixes below); the agent's copy
+`deploy/agent/acme_agent_winroles.py` is **generated** by `tools/gen_agent_winroles.py` with every
+value read from `$o` - a JSON file root writes into its own stage folder after checking each value
+against the role's schema (a password only in an environment variable). acme never sends code to
+run: the agent runs its fixed scripts, each role only when its policy says `allow role NAME`. A
+test fails when the generated file is not what the tool makes, and another puts a job's values
+into the agent's text and compares it with windows_ssh's, every role, every switch.
+
+**Checked against Microsoft's documentation (1.0.120)** - and changed in both targets:
+
+* WinRM: a listener's `CertificateThumbprint` is set with `New-Item` only on the `WSMan:` drive
+  (about_WSMan_Provider): an existing listener now changes with `Set-WSManInstance -ResourceURI
+  winrm/config/Listener -SelectorSet @{Address; Transport='HTTPS'} -ValueSet
+  @{CertificateThumbprint}` (and its `Hostname` when WinRM refuses a name the certificate does not
+  hold).
+* Windows Admin Center 2410+: `Set-WACCertificateSubjectName` by `-Thumbprint` *or*
+  `-SubjectName`, not both; NETWORK SERVICE read on this very key (acme keeps older certificates of
+  the same subject, which `Set-WACCertificateAcl -SubjectName` may pick - its failure is now a
+  warning).
+* Read on a key for NETWORK SERVICE / LOCAL SERVICE by their well-known SIDs (S-1-5-20, S-1-5-19):
+  a Windows not in English calls them otherwise. The Remote Desktop listener's key read also for a
+  CryptoAPI key (`RSA\MachineKeys`, what a 3DES PKCS#12 is imported as) and ECDSA.
+* IIS: `AddSslCertificate` on a binding whose ip:port has a certificate in http.sys fails (error
+  183): taken away and added again, as the agent did.
+
+The policy entries (Windows only - a Linux policy and its hash are as they were):
+
+```
+allow role adfs                      a role of the deployments (rds, rdgw, adfs, wap, sql, ldaps,
+                                     winrm, sstp, ccs, ftp, exchange, lync, sharepoint, wac)
+allow role ccs path=\\fileserver\ccs   the Central Certificate Store's folder (needed)
+allow role wac msi=C:\Install\WindowsAdminCenter.msi   the installer of a WAC before 2410
+allow key-read "NT SERVICE\MyService"  an account given read on the private key
+```
+
+The policy builder has templates for each role and the sections *Windows roles* and *Read on the
+key*; the agent tells acme which roles it knows (`roles_known`) - acme sends no role to an agent
+that does not.
+
 ## Windows: the agent on the server (1.0.120)
 
 The same agent, the same CLI and the same policy file on Windows: `acme_agent.py` holds all of the
@@ -732,7 +873,7 @@ files ride along in the package (the program's hash covers them) and are never l
 
 | What | Where |
 |---|---|
-| the program | `C:\Program Files\acme-agent\` (`acme_agent.py`, `acme_agent_win.py`, `acme_agent_wincert.py`, `runtime\`, `openssl\`), on the system PATH (`acme-agent.cmd`) |
+| the program | `C:\Program Files\acme-agent\` (`acme_agent.py`, `acme_agent_win.py`, `acme_agent_wincert.py`, `acme_agent_winroles.py`, `runtime\`, `openssl\`), on the system PATH (`acme-agent.cmd`) |
 | policy, `agent.json`, `ca.pem` | `C:\ProgramData\acme-agent\etc` - SYSTEM and the Administrators full control, Users and the network side read (protected DACL) |
 | the root side's state | `C:\ProgramData\acme-agent\root` - SYSTEM and the Administrators only (`enc.key`, `keys\`, `stage\`, `seen.json`, `store.json`, `audit.log`) |
 | the network side's state | `C:\ProgramData\acme-agent\net` - ...and `NT SERVICE\acme-agent` modify (`tls.key`, `tls.crt`, `join.json`, `join-status.json`) |

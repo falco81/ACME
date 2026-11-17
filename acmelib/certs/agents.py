@@ -73,6 +73,7 @@ LOCK = threading.RLock()
 HOLDING = {'n': 0}
 BUSY = set()                    # targets whose certificate is being renewed (this node)
 ASKING = set()                  # active agents asked their policy (this node)
+SYS_ASKED = {}                  # active agents asked their server's facts: when (this node)
 
 M_CA, M_CMD, M_CTL = 'agents:ca', 'agents:cmd', 'agents:ctl'
 # the kinds of target with acme-agent (1.0.120): a Linux / Unix server, a Windows server - an
@@ -532,6 +533,9 @@ def info(store, row, full=False):
     out['blocked'] = {'at': blk.get('at'), 'what': blk.get('what') or '',
                       'allow': list(blk.get('allow') or [])} if blk else None
     out['via'] = str(target_conf(row).get('via') or '')
+    # 1.0.120: what the agent tells about its server (agent_system.view)
+    from acmelib.certs import agent_system
+    out['system'] = agent_system.view(st, now) if joined else None
     # the certificates whose key its agent makes (phase 3)
     out['keys_of'] = [r['name'] for r in store.db.rows(
         'SELECT name FROM certs WHERE csr_from = ? ORDER BY name', (row['name'],))][:50]
@@ -1376,14 +1380,24 @@ def poll(store, body, cert_pem, verify, ip=''):
     if st.get('pending') and st['pending'].get('cert') and fp == st.get('cert_fp'):
         st.pop('pending', None)
         st.pop('code', None)
+    # 1.0.120: its clock with every poll - how far it is from acme's (a job is refused at 300 s)
+    from acmelib.certs import agent_system
+    if agent_system.seen_skew(st, agent_system.skew_of(facts.get('clock'), now), now):
+        changed = True
     if changed:
         state_put(store, tid, st)
     # 1.0.118: the policy's hash with every poll - another than the one acme holds (changed
     # on the server, or never said): asked for at once, the pages show it as it is now
     ph = str(facts.get('policy_hash') or '')
     held_pol = st.get('policy') if isinstance(st.get('policy'), dict) else {}
-    if HEX64.match(ph) and ph != held_pol.get('hash') and st.get('cert_fp') and \
+    # ...and the hash of its server's facts (1.0.120): other ones than acme holds, asked too -
+    # at most every two minutes (a fact that changes all the time is not asked for ever)
+    sys_new = agent_system.asked_for(st, facts.get('system_hash')) and \
+        now - SYS_ASKED.get(tid, 0) > agent_system.ASK_EVERY_S
+    if (HEX64.match(ph) and ph != held_pol.get('hash') or sys_new) and st.get('cert_fp') and \
             not st.get('pending') and tid not in ASKING:
+        if sys_new:
+            SYS_ASKED[tid] = now
         ASKING.add(tid)
         threading.Thread(target=_ask_quietly, args=(store, row), daemon=True,
                          name='agent-hello').start()
@@ -1488,6 +1502,12 @@ def clean_result(r):
             pass
     if isinstance(r.get('cert_fp'), str) and HEX64.match(r['cert_fp']):
         out['cert_fp'] = r['cert_fp']
+    # 1.0.120: what the agent tells about its server - its word, cleaned strictly
+    if isinstance(r.get('system'), dict):
+        from acmelib.certs import agent_system
+        sysf = agent_system.clean(r['system'])
+        if sysf:
+            out['system'] = sysf
     return out
 
 
@@ -1719,6 +1739,10 @@ def call(store, row, op, args=None, timeout=900, step=None):
     for k, n in (('version', 40), ('host', 120), ('os', 80)):
         if got.get(k):
             st[k] = _txt(got[k], n)
+    if op in ('hello', 'policy'):
+        # 1.0.120: the facts of its server, when they were said, its clock against acme's
+        from acmelib.certs import agent_system
+        agent_system.seen_hello(st, got, t0, time.time())
     if got.get('code'):
         st['code_hash'] = _txt(got['code'], 64)
     st['took_ms'] = int((time.time() - t0) * 1000)
@@ -2138,8 +2162,11 @@ def tick(store):
                 except PluginError:
                     pass
                 st = state(store, row['id'])
-            if mode == 'active' and not isinstance(st.get('policy'), dict) and \
-                    row['id'] not in ASKING and now - float(st.get('last_seen') or 0) < QUIET_S:
+            # 1.0.120: an active agent's server facts said half an hour ago (its memory, its
+            # disks) asked again with the same hello - its poll says only when they changed
+            if mode == 'active' and (not isinstance(st.get('policy'), dict) or (
+                    not st.get('system_none') and now - float(st.get('system_at') or 0) > 1800)) \
+                    and row['id'] not in ASKING and now - float(st.get('last_seen') or 0) < QUIET_S:
                 # an active agent says its policy only with a job: asked once it polls (just
                 # joined, or acme started again) - the deployments' forms then judge by it
                 ASKING.add(row['id'])
@@ -2202,6 +2229,15 @@ def alerts(store):
                                  '- allow it on the server: %s' % (
                                      row['name'], blk.get('what') or '?',
                                      '; '.join((blk.get('allow') or [])[:2]))})
+        skew = st.get('skew')
+        if isinstance(skew, (int, float)) and abs(skew) > 120 and \
+                now - float(st.get('skew_at') or 0) < 3600:
+            # 1.0.120: its clock that far from acme's - at 300 s every job is refused
+            out.append({'key': 'agent-clock:%s' % row['id'], 'level': 'warn',
+                        'words': 'the clock of the server of target %s is %d s %s acme\'s - set '
+                                 'it right (the agent refuses jobs at 300 s)' % (
+                                     row['name'], abs(skew), 'ahead of' if skew > 0
+                                     else 'behind')})
         end = float(st.get('cert_end') or 0)
         if end and end - now < 7 * 86400:
             out.append({'key': 'agent-cert:%s' % row['id'],

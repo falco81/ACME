@@ -23,12 +23,17 @@ IMPORTS
         FROM NET-SNMP-MIB;
 
 acme MODULE-IDENTITY
-    LAST-UPDATED "202611161200Z"
+    LAST-UPDATED "202611170000Z"
     ORGANIZATION "acme"
     CONTACT-INFO "The administrators of the acme servers - Settings, Monitoring."
     DESCRIPTION  "acme, certificates kept, renewed and deployed by themselves:
                   the database, the alerts, the certificates of the pages, the
                   cluster and every metric of one node."
+    REVISION     "202611170000Z"
+    DESCRIPTION  "1.0.120: acmeAgentTable 11 acmeAgentClockSkew and 12
+                  acmeAgentRebootPending - what the agent tells about its server: how far
+                  its clock is from acme's, and whether it waits for a restart. Nothing
+                  before moved or changed."
     REVISION     "202611161200Z"
     DESCRIPTION  "1.0.116: acmeAgentTable (acmeCertificates 9) - each target with acme-agent:
                   its name, mode, state, when it was last heard from, the days its
@@ -732,7 +737,8 @@ acmeAgentEntry OBJECT-TYPE
 AcmeAgentEntry ::= SEQUENCE { acmeAgentIndex Integer32, acmeAgentName DisplayString,
     acmeAgentMode DisplayString, acmeAgentState DisplayString, acmeAgentLastSeen Integer32,
     acmeAgentCertDaysLeft Integer32, acmeAgentVersion DisplayString,
-    acmeAgentStateNum AcmeAgentCondition, acmeAgentNewer AcmeTruth, acmeAgentBlocked AcmeTruth }
+    acmeAgentStateNum AcmeAgentCondition, acmeAgentNewer AcmeTruth, acmeAgentBlocked AcmeTruth,
+    acmeAgentClockSkew Integer32, acmeAgentRebootPending AcmeTruth }
 acmeAgentIndex OBJECT-TYPE
     SYNTAX Integer32 (1..2147483647) MAX-ACCESS read-only STATUS current
     DESCRIPTION "The target's id in acme." ::= { acmeAgentEntry 1 }
@@ -767,6 +773,15 @@ acmeAgentBlocked OBJECT-TYPE
     SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
     DESCRIPTION "yes when its policy refused the last deployment (an alert says what to
                  allow)." ::= { acmeAgentEntry 10 }
+acmeAgentClockSkew OBJECT-TYPE
+    SYNTAX Integer32 UNITS "seconds" MAX-ACCESS read-only STATUS current
+    DESCRIPTION "How far the server's clock is from acme's (+ ahead, - behind), as its agent
+                 last said it; 0 when not said. The agent refuses a job beyond 300 s - an
+                 alert above 120 s." ::= { acmeAgentEntry 11 }
+acmeAgentRebootPending OBJECT-TYPE
+    SYNTAX AcmeTruth MAX-ACCESS read-only STATUS current
+    DESCRIPTION "yes when the server waits for a restart (a newer kernel, Windows Update...),
+                 as its agent last said it." ::= { acmeAgentEntry 12 }
 
 -- acmeCluster
 
@@ -1365,9 +1380,9 @@ acmeServicesGroup OBJECT-GROUP
 acmeAgentsGroup OBJECT-GROUP
     OBJECTS { acmeAgentIndex, acmeAgentName, acmeAgentMode, acmeAgentState,
               acmeAgentLastSeen, acmeAgentCertDaysLeft, acmeAgentVersion, acmeAgentStateNum,
-              acmeAgentNewer, acmeAgentBlocked }
+              acmeAgentNewer, acmeAgentBlocked, acmeAgentClockSkew, acmeAgentRebootPending }
     STATUS current
-    DESCRIPTION "The targets with acme-agent (1.0.116)."
+    DESCRIPTION "The targets with acme-agent (1.0.116; 1.0.120: the clock, a restart pending)."
     ::= { acmeGroups 13 }
 
 acmeNotificationsGroup NOTIFICATION-GROUP

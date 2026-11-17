@@ -252,8 +252,13 @@ class RoleScriptTest(unittest.TestCase):
 
     def test_winrm(self):
         ps = self.full('winrm', {})
-        self.assertIn("'WSMan:\\localhost\\Listener\\' + $l.Name + '\\CertificateThumbprint'", ps)
-        self.assertIn("Set-Item -Path $p -Value $thumb -Force", ps)
+        # 1.0.120: Set-WSManInstance (about_WSMan_Provider: the WSMan: drive sets a listener's
+        # CertificateThumbprint only with New-Item); the Hostname too when WinRM wants it
+        self.assertIn("Get-WSManInstance -ResourceURI winrm/config/Listener -Enumerate", ps)
+        self.assertIn("Set-WSManInstance -ResourceURI winrm/config/Listener -SelectorSet $sel "
+                      "-ValueSet @{ CertificateThumbprint = $thumb }", ps)
+        self.assertIn("-ValueSet @{ Hostname = $h; CertificateThumbprint = $thumb }", ps)
+        self.assertNotIn("Set-Item -Path $p", ps)
         self.assertIn("New-Item -Path WSMan:\\localhost\\Listener -Transport HTTPS -Address * "
                       "-HostName $h -CertificateThumbPrint $thumb", ps)
         self.assertIn("$h = 'www.example.test'", ps)

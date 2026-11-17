@@ -222,7 +222,231 @@ def win_check(A, pol, args, needs):
     if out['rdp'] and not pol_rdp(pol):
         needs.append({'kind': 'rdp', 'what': 'the certificate of the Remote Desktop listener',
                       'allow': 'acme-agent allow rdp'})
+    roles_check(A, pol, win, out, needs)
     return out
+
+
+# ---- the roles (1.0.120: what the OpenSSH target's roles do, docs/target-agent.md "Windows: the
+# roles") - the PowerShell is acme_agent_winroles.SCRIPTS, generated from acme's _win_roles ----
+ROLES_MOST = 16
+KEY_READ_MOST = 16
+PREFIX_RE = re.compile(r'[A-Za-z0-9._-]{0,63}\Z')
+ACCOUNT_RE = re.compile(r'[^\x00-\x1f\x7f"]{1,256}\Z')
+
+
+def pol_roles(pol):
+    """{role: [what more it allows: the folder of the Central Certificate Store, the .msi of
+    Windows Admin Center]} of the policy's `allow role NAME [path=|msi=]` (Windows only)."""
+    v = (pol or {}).get('roles') or {}
+    return v if isinstance(v, dict) else {}
+
+
+def pol_key_read(pol):
+    v = (pol or {}).get('key_read') or []
+    return [str(x) for x in v] if isinstance(v, (list, tuple)) else []
+
+
+def role_extra_word(key):
+    return {'ccs': 'path', 'wac': 'msi'}.get(key)
+
+
+def allow_role_words(key, extra=None):
+    if extra:
+        return 'acme-agent allow role %s %s=%s' % (key, role_extra_word(key), cmd_word(extra))
+    return 'acme-agent allow role %s' % key
+
+
+def allow_key_read_words(account):
+    return 'acme-agent allow key-read %s' % cmd_word(account)
+
+
+def _same_path(a, b):
+    return str(a).replace('/', '\\').rstrip('\\').lower() == \
+        str(b).replace('/', '\\').rstrip('\\').lower()
+
+
+def role_values(A, key, o):
+    """A role's values from a job, checked by its SCHEMA - only the values it knows, of their
+    type, each matching its pattern; a path of the agent's own ('agent') never taken."""
+    schema = _roles().SCHEMA.get(key)
+    if schema is None:
+        raise A.Refused('%r is not a role this agent knows (%s)' % (str(key)[:40], ', '.join(
+            r[0] for r in _roles().ROLES)))
+    if not isinstance(o, dict):
+        raise A.Refused('the values of the role %s are an object' % key)
+    for name in o:
+        if name not in schema or schema[name][0] == 'agent':
+            raise A.Refused('%s: %r is not a value of this role' % (key, str(name)[:40]))
+    out = {}
+    for name, (typ, rx) in sorted(schema.items()):
+        v = o.get(name)
+        if typ == 'agent':
+            continue
+        if typ == 'bool':
+            if v is not None and not isinstance(v, bool):
+                raise A.Refused('%s: %s is true or false' % (key, name))
+            out[name] = bool(v)
+        elif typ == 'int':
+            if v is None:
+                v = 0
+            if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v < 65536:
+                raise A.Refused('%s: %s is a number 0-65535' % (key, name))
+            out[name] = v
+        elif typ == 'str':
+            v = '' if v is None else v
+            if not isinstance(v, str) or (rx and not re.fullmatch(rx, v)):
+                raise A.Refused('%s: %r is not a %s' % (key, str(v)[:80], name))
+            out[name] = v
+        elif typ == 'list':
+            v = [] if v is None else v
+            if not isinstance(v, list) or len(v) > 32 or not all(
+                    isinstance(x, str) and (not rx or re.fullmatch(rx, x)) for x in v):
+                raise A.Refused('%s: %s is a list of %s' % (key, name, rx or 'texts'))
+            out[name] = list(v)
+    return out
+
+
+def roles_check(A, pol, win, out, needs):
+    """The roles of a job, the accounts given read on the key, the PowerShell after, the roles
+    looked for (a test) - each against the policy: allow role NAME (ccs: path=FOLDER, wac:
+    msi=FILE), allow key-read ACCOUNT, allow script-hash HASH."""
+    R = _roles()
+    titles = {r[0]: r[1] for r in R.ROLES}
+    roles = win.get('roles') or []
+    if not isinstance(roles, list) or len(roles) > ROLES_MOST:
+        raise A.Refused('the roles are a list (%d at most)' % ROLES_MOST)
+    accounts = win.get('key_read') or []
+    if not isinstance(accounts, list) or len(accounts) > KEY_READ_MOST or not all(
+            isinstance(a, str) and ACCOUNT_RE.match(a) for a in accounts):
+        raise A.Refused('read on the key: a list of accounts (%d at most)' % KEY_READ_MOST)
+    post = win.get('post_ps')
+    if post is not None and (not isinstance(post, str) or not post.strip()):
+        raise A.Refused('the PowerShell after is a text')
+    prefix = str(win.get('prefix') or '')
+    if not PREFIX_RE.match(prefix):
+        raise A.Refused('%r is not the beginning of acme\'s names' % prefix[:80])
+    out['prefix'] = prefix
+    out['detect'] = bool(win.get('detect'))
+    out['roles'], out['key_read'], out['post_ps'] = [], [], None
+    if (roles or accounts or post) and not out.get('store'):
+        raise A.Refused('the roles take the certificate from the machine store: the job puts '
+                        'none there')
+    order = [r[0] for r in R.ROLES]
+    seen = set()
+    for r in roles:
+        if not isinstance(r, dict):
+            raise A.Refused('a role is an object')
+        key = str(r.get('key') or '')
+        o = role_values(A, key, r.get('o') or {})
+        if key in seen:
+            raise A.Refused('the role %s twice' % key)
+        seen.add(key)
+        allowed = pol_roles(pol)
+        extra = None
+        if key == 'ccs':
+            extra = o['ccs_path']
+            if not extra:
+                raise A.Refused('IIS Central Certificate Store: the folder of the store is not '
+                                'given')
+        elif key == 'wac' and o.get('wac_msi'):
+            extra = o['wac_msi']
+        ok = key in allowed and (extra is None or any(_same_path(extra, x) for x in
+                                                       allowed.get(key) or []))
+        if not ok:
+            needs.append({'kind': 'role', 'what': '%s (the Windows role%s)' % (
+                titles[key], ', %s' % extra if extra else ''),
+                'allow': allow_role_words(key, extra)})
+        if key == 'ccs':
+            c = win.get('ccs')
+            if not isinstance(c, dict):
+                raise A.Refused('IIS Central Certificate Store: the job holds no PKCS#12 for '
+                                'its files')
+            out['ccs'] = c              # a deployment without it is refused when it runs
+        out['roles'].append({'key': key, 'title': titles[key], 'o': o})
+    out['roles'].sort(key=lambda x: order.index(x['key']))
+    have = [x.lower() for x in pol_key_read(pol)]
+    for a in accounts:
+        if a.lower() in [x.lower() for x in out['key_read']]:
+            continue
+        out['key_read'].append(a)
+        if a.lower() not in have:
+            needs.append({'kind': 'key-read', 'what': 'read on the private key for %s' % a,
+                          'allow': allow_key_read_words(a)})
+    if post is not None:
+        body = post
+        if len(body.encode('utf-8')) > getattr(A, 'SCRIPT_MOST', 65536):
+            raise A.Refused('the PowerShell after is 64 KiB at most')
+        h = hashlib.sha256(body.encode('utf-8')).hexdigest()
+        if h not in [str(x).lower() for x in (pol or {}).get('script_hashes') or []]:
+            needs.append({'kind': 'script-hash', 'what': 'the PowerShell after the import '
+                          '(written in acme, sha256 %s)' % h,
+                          'allow': 'acme-agent allow script-hash %s' % h})
+        out['post_ps'] = {'body': body, 'sha256': h}
+
+
+# a role run: the job's values in $j (a JSON file of root's stage folder), STEP lines said, an
+# error said as ERROR: - as acme's windows_ssh runs the same scripts (_win_roles.roles_ps)
+ROLE_PRELUDE = r"""$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
+$j = Get-Content -LiteralPath $env:ACME_WIN_IN -Raw -Encoding UTF8 | ConvertFrom-Json
+try {
+"""
+ROLE_END = r"""
+} catch { Write-Output ('ERROR: ' + ($_.Exception.Message -replace '[\r\n]+', ' ')); exit 1 }
+"""
+# the PowerShell after (post_ps): acme's lines - allowed by their hash - with $thumb, $store and
+# $cert of the new certificate, as windows_ssh runs them after the import
+POST_PS_HEAD = r"""$thumb = [string]$j.thumb
+$store = 'Cert:\LocalMachine\My'
+$cert = Get-Item -LiteralPath (Join-Path $store $thumb)
+"""
+
+
+def role_ps(key):
+    """The whole script of a role (or 'key_read', 'detect') as it runs."""
+    return ROLE_PRELUDE + _roles().SCRIPTS[key] + ROLE_END
+
+
+def run_lines(A, script, values, env_more=None, timeout=PS_TIMEOUT * 2):
+    """A fixed script run with `values` (JSON in root's stage folder, deleted after) ->
+    (ok, [(level, words)] of its STEP lines, the error it said, all it wrote)."""
+    fn = os.path.join(stage_dir(A), 'acme-%s.json' % secrets.token_hex(8))
+    env = dict(os.environ)
+    for k in ('ACME_PFX_PASSWORD', 'ACME_CCS_PASSWORD'):
+        env.pop(k, None)
+    env['ACME_WIN_IN'] = fn
+    env.update(env_more or {})
+    try:
+        _new_file(fn, json.dumps(values).encode('utf-8'))
+        rc, said = powershell(script, env, timeout)
+    finally:
+        _gone(fn)
+    steps, err = [], ''
+    for line in (said or '').splitlines():
+        line = line.strip()
+        m = re.match(r'^STEP (ok|info|warn|bad) (.*)$', line)
+        if m:
+            steps.append((m.group(1), m.group(2)[:600]))
+        elif line.startswith('ERROR: '):
+            err = line[7:].strip()
+    if rc != 0 and not err:
+        rest = [x.strip() for x in (said or '').splitlines() if x.strip() and
+                not x.strip().startswith('STEP ')]
+        err = rest[-1] if rest else 'exit %s' % rc
+    return rc == 0, steps, err[-300:], said or ''
+
+
+def detect(A):
+    """The roles of this server: {role: (yes, detail)} - one run, nothing changed (the same
+    lines as windows_ssh's "Test the connection")."""
+    ok, _steps, err, said = run_lines(A, role_ps('detect'), {}, timeout=PS_TIMEOUT)
+    got = {}
+    for line in said.splitlines():
+        m = re.match(r'^ROLE (\w+) (yes|no) ?(.*)$', line.strip())
+        if m:
+            got[m.group(1)] = (m.group(2) == 'yes', m.group(3).strip()[:200])
+    return got, ('' if got else (err or 'the roles could not be listed'))
 
 
 def win_words(w):
@@ -235,6 +459,21 @@ def win_words(w):
     if w.get('rdp'):
         out.append('the Remote Desktop listener')
     return ', '.join(out)
+
+
+def _roles():
+    """acme_agent_winroles.py beside this file: the roles' PowerShell, generated from acme's
+    _win_roles (tools/gen_agent_winroles.py) - data only."""
+    import sys
+    m = sys.modules.get('acme_agent_winroles')
+    if m is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('acme_agent_winroles', os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), 'acme_agent_winroles.py'))
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        sys.modules['acme_agent_winroles'] = m
+    return m
 
 
 # ---- PowerShell: fixed scripts, values through a JSON file -----------------------------------
@@ -342,26 +581,9 @@ foreach ($w in @($j.iis)) {
 }
 if ($j.rdp) {
   $cert = Get-Item -LiteralPath (Join-Path $store $thumb)
-  # the listener (TermService, NETWORK SERVICE) reads the private key: its file's name -
-  # a CNG key (RSA or ECDSA) or a CryptoAPI one (what a 3DES PKCS#12 is imported as)
-  $key = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
-  if (-not $key) {
-    try { $key = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::GetECDsaPrivateKey($cert) } catch { }
-  }
-  $kf = ''
-  if ($key -is [System.Security.Cryptography.RSACryptoServiceProvider]) {
-    $kf = [string]$key.CspKeyContainerInfo.UniqueKeyContainerName
-  } elseif ($key -and $key.Key) {
-    $kf = [string]$key.Key.UniqueName
-  }
-  if ($kf) {
-    foreach ($d in @("$env:ProgramData\Microsoft\Crypto\RSA\MachineKeys",
-                     "$env:ProgramData\Microsoft\Crypto\Keys")) {
-      $p = Join-Path $d $kf
-      # by its SID: the account's name is translated on a Windows not in English
-      if (Test-Path -LiteralPath $p) { icacls $p /grant '*S-1-5-20:R' | Out-Null }
-    }
-  }
+  # the listener (TermService, NETWORK SERVICE) reads the private key: read on its file for
+  # S-1-5-20 - the lines of acme's windows_ssh (_win_roles.RDP_KEY_READ, generated)
+""" + _roles().SCRIPTS['rdp_key_read'] + r"""
   $ts = Rdp-Setting
   Say @{ step = 'rdp'; old = [string]$ts.SSLCertificateSHA1Hash }
   Set-CimInstance -InputObject $ts -Property @{ SSLCertificateSHA1Hash = $thumb }
@@ -402,15 +624,11 @@ if ($j.rdp_back) {
 if ($bad.Count -gt 0) { throw ($bad -join '; ') }
 """
 
-# certificates taken out of the store - never one still bound to a site or the listener
+# certificates taken out of the store - never one still used: by IIS, http.sys (AD FS, WAP,
+# SSTP, RD Gateway, WAC), the Remote Desktop listener, SQL Server, WinRM - the lines of acme's
+# windows_ssh (_win_roles.USED, generated)
 PS_REMOVE = PRELUDE + r"""# acme-agent: remove
-$used = @()
-if (Get-Module -ListAvailable WebAdministration) {
-  Import-Module WebAdministration
-  $used += @(Get-ChildItem IIS:\SslBindings -ErrorAction SilentlyContinue |
-             ForEach-Object { [string]$_.Thumbprint })
-}
-try { $used += [string](Rdp-Setting).SSLCertificateSHA1Hash } catch { }
+""" + _roles().SCRIPTS['used'] + r"""
 foreach ($t in @($j.thumbs)) {
   $t = [string]$t
   $p = Join-Path $store $t
@@ -582,6 +800,10 @@ def _bind_words(b):
                              b['port'])
 
 
+def _needs(key):
+    return {r[0]: r[2] for r in _roles().ROLES}.get(key)
+
+
 class WinJob(object):
     """The store, the bindings and the listener of one deployment - and their undo."""
 
@@ -597,8 +819,13 @@ class WinJob(object):
         self.rdp_old = None             # the listener's thumbprint before (when changed)
         self.did = []
         self.pfx, self.password = (None, None)
+        self.key_pem = None             # the key this agent made (agent_key), for the CCS files
+        self.priv = priv
         if self.st and priv is not False:
             self.pfx, self.password = self._pfx(priv, datas or [], ak)
+        # a role that imports a PKCS#12 itself (RDS, SharePoint): the one of the store
+        self.role_pfx = self.pfx if any(_needs(r['key']) == 'pfx' for r in
+                                        w.get('roles') or []) else None
         self.now = self.state() if self.st else {'present': False, 'iis': [], 'rdp': ''}
         self.same = self._same()
 
@@ -637,6 +864,7 @@ class WinJob(object):
             raise A.Refused('the certificate for the machine store is not the one of the key '
                             'this agent made')
         pw = secrets.token_urlsafe(24)
+        self.key_pem = key_pem
         return make_pfx(A, key_pem, self.st['cert_pem'], pw, self.st.get('friendly'),
                         self.st.get('legacy', True)), pw
 
@@ -672,6 +900,22 @@ class WinJob(object):
 
     # -- the store, then the bindings -------------------------------------------------------
     def apply(self):
+        """The store, the bindings, then the PowerShell after (post_ps) - any failing raises:
+        the deployment puts everything back."""
+        self._apply()
+        post = self.w.get('post_ps')
+        if self.st and post:
+            ok, steps, err, _said = run_lines(self.A, ROLE_PRELUDE + POST_PS_HEAD + post['body'] +
+                                              ROLE_END, {'thumb': self.thumb})
+            for lv, words in steps:
+                self.dep.step(words, lv)
+            if not ok:
+                raise self.A.Refused('the PowerShell after the import failed: %s' % err)
+            self.dep.step('the PowerShell after the import ran (sha256 %s…)' % post['sha256'][:16],
+                          'ok')
+            self.did.append('the PowerShell after')
+
+    def _apply(self):
         if not self.st:
             return
         A = self.A
@@ -753,10 +997,106 @@ class WinJob(object):
                 bad)[:300], 'bad')
         self.bound, self.rdp_old, self.imported = [], None, False
 
+    # -- the roles (after the store, the bindings, the test, the script and the reload) -----
+    def has_roles(self):
+        return bool(self.st and (self.w.get('roles') or self.w.get('key_read')))
+
+    def _ccs_pfx(self):
+        """(the PKCS#12 of the Central Certificate Store's files, its password): sent by acme
+        (sealed, with the store's password), or made here from this agent's own key."""
+        A, c = self.A, self.w.get('ccs') or {}
+        pw = ''
+        if c.get('password_sealed'):
+            if self.priv is None:
+                raise A.Refused('this agent has no key to open secrets with (join again)')
+            pw = A.unseal(c['password_sealed'], self.priv, self.dep.agent_id,
+                          'win ccs password').decode('utf-8')
+        if c.get('sealed'):
+            if self.priv is None:
+                raise A.Refused('this agent has no key to open secrets with (join again)')
+            return A.unseal(c['sealed'], self.priv, self.dep.agent_id, 'win ccs'), pw
+        if c.get('data'):
+            return A._unb64(c.get('data'), None, 'the PKCS#12 of the Central Certificate '
+                                                 'Store'), pw
+        if self.key_pem:
+            return make_pfx(A, self.key_pem, self.st['cert_pem'], pw, self.st.get('friendly'),
+                            self.st.get('legacy', True)), pw
+        raise A.Refused('IIS Central Certificate Store: the job holds no PKCS#12 for its files')
+
+    def run_roles(self):
+        """Read on the key for the accounts given, then each role - a role failing is said, the
+        others run (as acme's windows_ssh) -> '' or what failed (the old certificates are then
+        kept, nothing put back)."""
+        A = self.A
+        on = self.w.get('roles') or []
+        if on:
+            self.dep.step('roles on the server: %s' % ', '.join(r['title'] for r in on))
+        temp = []
+        try:
+            env, paths = {}, {}
+            if any(_needs(r['key']) == 'pfx' for r in on):
+                paths['pfx'] = os.path.join(stage_dir(A), 'acme-roles-%s.pfx' % secrets.token_hex(8))
+                _new_file(paths['pfx'], self.role_pfx or b'')
+                temp.append(paths['pfx'])
+                env['ACME_PFX_PASSWORD'] = self.password or ''
+            if any(r['key'] == 'ccs' for r in on):
+                data, pw = self._ccs_pfx()
+                paths['ccs_pfx'] = os.path.join(stage_dir(A), 'acme-ccs-%s.pfx' % secrets.token_hex(8))
+                _new_file(paths['ccs_pfx'], data)
+                temp.append(paths['ccs_pfx'])
+                env['ACME_CCS_PASSWORD'] = pw
+            base = {'thumb': self.thumb, 'prefix': self.w.get('prefix') or ''}
+            if self.w.get('key_read'):
+                ok, steps, err, _s = run_lines(A, role_ps('key_read'), dict(
+                    base, o={'accounts': self.w['key_read']}))
+                for lv, words in steps:
+                    self.dep.step(words, lv)
+                if not ok:
+                    return 'read on the key could not be given: %s - no role was run, the old ' \
+                           'certificates are kept' % err
+            failed, did = [], []
+            for r in on:
+                o = dict(r['o'])
+                for k, v in paths.items():
+                    if k in _roles().SCHEMA.get(r['key'], {}):
+                        o[k] = v
+                ok, steps, err, _s = run_lines(A, role_ps(r['key']), dict(base, o=o),
+                                               env if _needs(r['key']) else None)
+                for lv, words in steps:
+                    self.dep.step(words, lv)
+                if not ok:
+                    self.dep.step('%s failed: %s' % (r['title'], err), 'bad')
+                    failed.append(r['title'])
+                    continue
+                self.dep.step('%s: done' % r['title'], 'ok')
+                did.append(r['title'])
+            self.did += did
+            if failed:
+                return '%s failed (%s done); the old certificates are kept' % (
+                    ', '.join(failed), ', '.join(did) or 'nothing else')
+            return ''
+        finally:
+            for fn in temp:
+                _gone(fn)
+
     # -- after a deployment that worked ----------------------------------------------------
+    def remember(self):
+        """This certificate remembered as imported by this agent (a later deployment removes it
+        beyond its keep) - nothing removed now."""
+        if not self.st or not self.imported:
+            return
+        recs = records_load(self.A)
+        slot = self.st['slot']
+        mine = [x for x in recs.get(slot) or [] if isinstance(x, dict) and
+                THUMB_RE.match(str(x.get('thumb') or ''))]
+        if self.thumb not in [x['thumb'] for x in mine]:
+            mine.append({'thumb': self.thumb, 'at': time.time()})
+        recs[slot] = mine
+        records_save(self.A, recs)
+
     def finish(self):
         """This certificate remembered as imported by this agent; the older ones it imported
-        for this deployment removed beyond `keep` (never one still bound)."""
+        for this deployment removed beyond `keep` (never one still used)."""
         if not self.st:
             return
         A = self.A
@@ -806,12 +1146,33 @@ def dry_check(A, w):
         return [{'path': 'the machine store', 'said': 'this agent does not run on Windows',
                  'bad': True}]
     st = w.get('store') or {}
+    if w.get('detect') or w.get('roles'):
+        # the roles of this server (as windows_ssh's "Test the connection" and its test of a
+        # deployment): each role the job has on must be installed
+        found, err = detect(A)
+        R = _roles()
+        if w.get('detect'):
+            here = ['%s (%s)' % (t, found[k][1]) if found[k][1] else t
+                    for k, t, _n in R.ROLES if found.get(k, (False, ''))[0]]
+            out.append({'path': 'the roles on this server', 'roles': {
+                k: [bool(v[0]), v[1]] for k, v in found.items()},
+                'said': err or (', '.join(here) if here else 'none of the roles acme knows')})
+        for r in w.get('roles') or []:
+            yes, detail = found.get(r['key'], (False, ''))
+            out.append({'path': 'the role %s' % r['title'], 'role': r['key'],
+                        'said': ('is on this server%s' % (' (%s)' % detail if detail else ''))
+                        if yes else 'is not installed on this server', 'bad': not yes})
+        for a in w.get('key_read') or []:
+            out.append({'path': 'read on the key', 'said': 'given to %s after the import' % a})
+        if w.get('post_ps'):
+            out.append({'path': 'the PowerShell after', 'said': 'allowed by its hash (sha256 '
+                        '%s…) - not run on a test' % w['post_ps']['sha256'][:16]})
     if not st:
         return out
     try:
         now = WinJob(A, _Quiet(), w, priv=False).now
     except A.Refused as e:
-        return [{'path': 'the machine store', 'said': str(e), 'bad': True}]
+        return out + [{'path': 'the machine store', 'said': str(e), 'bad': True}]
     out.append({'path': 'the machine store (LocalMachine\\My)',
                 'said': 'holds %s already' % _short(st['thumb']) if now.get('present') else
                 'the certificate %s is imported' % _short(st['thumb'])})

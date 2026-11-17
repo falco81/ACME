@@ -720,6 +720,9 @@ class ThePages(unittest.TestCase):
     def setUp(self):
         for n in self.webs:
             self.ctl('rm', n)
+        # a daemon started again by a test before wrote a token of its own
+        with open(os.path.join(self.tmp, 'run', 'api-token')) as f:
+            type(self).token = f.read().strip()
 
     # ---- asking PHP ---------------------------------------------------------------------
     def ask(self, node, path, cookie=None, body=None):
@@ -861,7 +864,7 @@ class ThePages(unittest.TestCase):
                              capture_output=True, text=True, timeout=600, cwd=ROOT)
         self.assertEqual(got.returncode, 0, got.stderr[-3000:])
         seen = json.loads(got.stdout.strip().splitlines()[-1])
-        self.assertNotIn('error', seen, seen.get('error'))
+        self.assertNotIn('error', seen, (seen.get('error'), {k: v for k, v in seen.items() if k != 'error'}))
         self.assertEqual(seen['errors'], [], seen)
         return seen
 

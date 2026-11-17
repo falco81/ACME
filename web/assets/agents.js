@@ -393,6 +393,8 @@ function drawList(box, d) {
   var g = el('div', 'dbs-grid ag-grid');
   rows.forEach(function (a) { g.appendChild(tile(a, d)); });
   box.appendChild(g);
+  var sv = serversTable(rows);    /* 1.0.120: every server at a glance */
+  if (sv) box.appendChild(sv);
 }
 function tile(a, d) {
   var t = el('div', 'dbs-tile ag-tile ' + (a.state === 'refused' ? 'bad' : ''));
@@ -416,6 +418,8 @@ function tile(a, d) {
   k.appendChild(kv('Last heard', a.last_seen ? ago(a.last_seen) : 'never'));
   k.appendChild(kv('Its certificate ends', certEnd(a.cert_end)));
   t.appendChild(k);
+  var sl = sysLine(a);           /* 1.0.120: its server in a line */
+  if (sl) t.appendChild(sl);
   t.appendChild(chips(a.policy_summary, true));
   var flags = el('div', 'ag-flags');
   if (a.blocked) {
@@ -1019,7 +1023,7 @@ function card(row, opts) {
     k.appendChild(kv('Agent', a.version ? mono(a.version) : '–'));
     k.appendChild(kv('Last heard', a.last_seen ? ago(a.last_seen) : 'never'));
     k.appendChild(kv('Its certificate ends', certEnd(a.cert_end)));
-    if (a.os) k.appendChild(kv('System', data('span', '', a.os)));
+    if (a.os && !sysOf(a)) k.appendChild(kv('System', data('span', '', a.os)));
     if (a.agent_id) k.appendChild(kv('Agent id', mono(a.agent_id)));
     if (a.via) k.appendChild(kv('Reached through', mono(a.via)));
     if (a.key_fp) {
@@ -1028,6 +1032,8 @@ function card(row, opts) {
       k.appendChild(kv('Its key', kf));
     }
     box.appendChild(k);
+    /* 1.0.120: what the agent tells about its server */
+    if (a.joined) box.appendChild(sysPanel(row, a, function (b) { load(true, b); }));
     if (otherProgram(a, a.shipped_code)) {
       box.appendChild(el('div', 'note warn small', 'The agent runs another program than the one this acme ships - install the package of this version (Settings → Target agents).'));
     }
@@ -1749,12 +1755,439 @@ function needs(d) {
   return box;
 }
 
+/* ==========================================================================
+   1.0.120: what the agent tells about its server - "The server" on the agent's card, a line on
+   each tile of Settings → Target agents and the Servers overview there. Its words, never a
+   secret (agents.py cleans them: agent_system.py); a.system = {state: ok|old|unknown, at,
+   facts, skew, skew_level, uptime, warnings}.
+   ========================================================================== */
+var SYS = {filter: 'all', sort: 'name', dir: 1};
+function sysOf(a) { return a && a.system && a.system.state === 'ok' && a.system.facts ? a.system : null; }
+function sysWin(a, f) { return (f && f.platform === 'windows') || (a && a.platform === 'windows'); }
+function sizeWords(n) {
+  n = Number(n || 0);
+  var units = ['B', 'kB', 'MB', 'GB', 'TB', 'PB'], i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  var said = i === 0 ? n.toFixed(0) : (n >= 100 ? n.toFixed(0) : n.toFixed(1));
+  if (typeof numDecimal === 'function' && numDecimal() === ',') said = said.replace('.', ',');
+  return said + ' ' + units[i];
+}
+function pctWords(p) {
+  var t = (Math.round(p * 10) / 10).toFixed(p >= 10 ? 0 : 1);
+  if (typeof numDecimal === 'function' && numDecimal() === ',') t = t.replace('.', ',');
+  return t + ' %';
+}
+function upWords(s) { return typeof span === 'function' ? span(s) : Math.round(s / 3600) + ' h'; }
+function usedLevel(p) { return p > 95 ? 'bad' : (p > 85 ? 'warn' : 'ok'); }
+function skewWords(s) {
+  var a = Math.abs(Number(s)), t = a < 10 ? a.toFixed(1) : String(Math.round(a));
+  if (typeof numDecimal === 'function' && numDecimal() === ',') t = t.replace('.', ',');
+  return (s > 0 ? '+' : (s < 0 ? '−' : '±')) + t + ' s';
+}
+/** The Linux distribution or Windows, by its colour (the theme's own). */
+function distroCls(f) {
+  var id = String((f && f.os_id) || '').toLowerCase();
+  if (f && f.platform === 'windows') return 'd-win';
+  if (/ubuntu/.test(id)) return 'd-ubuntu';
+  if (/debian|rhel|redhat|centos|oracle|ol$/.test(id)) return 'd-red';
+  if (/rocky|alma|fedora|suse|sles|opensuse|amzn|mint/.test(id)) return 'd-green';
+  return 'd-other';
+}
+/** A pill of the server's: ok (green), warn (amber), bad (red), dim (grey), info. */
+function sysPill(cls, ic, words, more) {
+  var p = el('span', 'ag-sys-pill ' + cls);
+  if (ic) p.appendChild(icon(ic, 12));
+  p.appendChild(el('span', '', words));
+  if (more !== undefined && more !== null && more !== '') p.appendChild(data('b', 'ag-sys-pill-v', String(more)));
+  return p;
+}
+function skewPill(sv) {
+  if (!sv || sv.skew === null || sv.skew === undefined) return sysPill('dim', 'clock', 'clock not known');
+  var lv = sv.skew_level === 'bad' ? 'bad' : (sv.skew_level === 'warn' ? 'warn' : 'ok');
+  var p = sysPill(lv, 'clock', lv === 'ok' ? 'clock in time' : (lv === 'warn' ? 'clock off' : 'clock far off'), skewWords(sv.skew));
+  explain(p, lv === 'ok' ? 'The server’s clock against acme’s: in time.'
+    : 'The server’s clock against acme’s. The agent refuses every job more than 300 s off - set its time right (NTP).');
+  return p;
+}
+/** A bar of what is used: green, amber above 85 %, red above 95 %. */
+function useBar(pct, label) {
+  var lv = usedLevel(pct);
+  var b = el('div', 'ag-sys-bar ' + lv);
+  b.setAttribute('role', 'meter');
+  b.setAttribute('aria-valuemin', '0');
+  b.setAttribute('aria-valuemax', '100');
+  b.setAttribute('aria-valuenow', String(Math.round(pct)));
+  if (label) b.setAttribute('aria-label', tr(label));
+  var f = el('span', 'ag-sys-fill');
+  f.style.width = Math.max(1.5, Math.min(100, pct)) + '%';
+  b.appendChild(f);
+  return b;
+}
+function sysTile(ic, title, cls) {
+  var t = el('div', 'ag-sys-t' + (cls ? ' ' + cls : ''));
+  var h = el('div', 'ag-sys-k');
+  h.appendChild(icon(ic, 14));
+  h.appendChild(el('span', '', title));
+  t.appendChild(h);
+  return t;
+}
+function osName(f) {
+  var n = String(f.os || (f.platform === 'windows' ? 'Windows' : 'Linux'));
+  return n;
+}
+function osVersion(f) {
+  if (f.platform === 'windows') return [f.os_version, f.build].filter(Boolean).join(' · ');
+  var v = String(f.os_version || '');
+  return v && String(f.os || '').indexOf(v) < 0 ? v : '';
+}
+/** The agent's card: "The server". */
+function sysPanel(row, a, ask) {
+  var box = el('div', 'ag-sys');
+  var sv = a.system || {state: 'unknown'};
+  var f = sysOf(a) ? sv.facts : null;
+  var head = el('div', 'ag-sys-h');
+  head.appendChild(icon(sysWin(a, f) ? 'windows' : 'terminal', 16));
+  head.appendChild(el('b', '', 'The server'));
+  if (sv.at) {
+    var said = el('span', 'ag-sys-ago');
+    said.appendChild(el('span', '', 'said ' + ago(sv.at)));
+    explain(said, 'When the agent last told about its server: a passive agent with every answer (every 5 minutes), an active one when something changes and every half hour.');
+    head.appendChild(said);
+  }
+  if (MANAGE && a.joined && ask) {
+    var b = cmdButton('Ask it now', 'refresh', 'small ag-sys-ask');
+    b.onclick = function () { ask(b); };
+    head.appendChild(b);
+  }
+  box.appendChild(head);
+  if (!f) {
+    var e = el('div', 'ag-sys-none' + (sv.state === 'old' ? ' old' : ''));
+    e.appendChild(icon(sv.state === 'old' ? 'up' : 'info', 18));
+    var w = el('div', '');
+    w.appendChild(el('b', '', sv.state === 'old' ? 'The agent is too old to tell (update it)' : 'Not said yet'));
+    w.appendChild(el('p', 'note small', sv.state === 'old'
+      ? 'A newer agent tells acme its server’s system, addresses, memory, disks, uptime and clock.'
+      : 'Ask it now: the agent tells its server’s system, addresses, memory, disks, uptime and clock.'));
+    e.appendChild(w);
+    box.appendChild(e);
+    if (sv.skew !== null && sv.skew !== undefined) box.appendChild(skewPill(sv));
+    return box;
+  }
+  /* the system, large */
+  var hero = el('div', 'ag-sys-hero');
+  var mark = el('div', 'ag-sys-mark ' + distroCls(f));
+  mark.appendChild(icon(sysWin(a, f) ? 'windows' : 'terminal', 26));
+  hero.appendChild(mark);
+  var who = el('div', 'ag-sys-who');
+  who.appendChild(data('div', 'ag-sys-osn', osName(f)));
+  var sub = el('div', 'ag-sys-sub');
+  var ver = osVersion(f);
+  if (ver) sub.appendChild(mono(ver, 'ag-sys-ver'));
+  if (f.platform !== 'windows' && f.kernel) {
+    var kc = mono(f.kernel, 'ag-sys-tag');
+    explain(kc, 'The kernel it runs');
+    sub.appendChild(kc);
+  }
+  if (f.edition) sub.appendChild(data('span', 'ag-sys-tag', f.edition));
+  if (f.install && f.install !== 'Server' && f.install !== 'Client') sub.appendChild(data('span', 'ag-sys-tag', f.install));
+  if (f.arch) sub.appendChild(mono(f.arch, 'ag-sys-tag'));
+  if (f.machine) sub.appendChild(data('span', 'ag-sys-tag dim', f.machine));
+  who.appendChild(sub);
+  hero.appendChild(who);
+  var pills = el('div', 'ag-sys-pills');
+  pills.appendChild(skewPill(sv));
+  if (f.reboot === true) {
+    var rp = sysPill('warn', 'power', 'restart pending');
+    if (f.reboot_why) explain(rp, String(f.reboot_why));
+    pills.appendChild(rp);
+  } else if (f.reboot === false) pills.appendChild(sysPill('ok', 'power', 'no restart pending'));
+  if (f.selinux) pills.appendChild(sysPill(f.selinux === 'enforcing' ? 'ok' : (f.selinux === 'permissive' ? 'warn' : 'dim'), 'shield', 'SELinux', f.selinux));
+  if (f.apparmor === true) pills.appendChild(sysPill('ok', 'shield', 'AppArmor'));
+  hero.appendChild(pills);
+  box.appendChild(hero);
+  /* the tiles */
+  var grid = el('div', 'ag-sys-grid');
+  var host = sysTile('globe', 'Host');
+  host.appendChild(data('div', 'ag-sys-big mono', f.hostname || '–'));
+  if (f.fqdn && f.fqdn !== f.hostname) host.appendChild(mono(f.fqdn, 'ag-sys-fqdn'));
+  var dom = el('div', 'ag-sys-line2');
+  if (f.ad_domain) { dom.appendChild(el('span', 'ag-sys-l', 'AD domain')); dom.appendChild(data('b', '', f.ad_domain)); }
+  else if (f.workgroup) { dom.appendChild(el('span', 'ag-sys-l', 'workgroup')); dom.appendChild(data('b', '', f.workgroup)); }
+  else if (f.domain) { dom.appendChild(el('span', 'ag-sys-l', 'domain')); dom.appendChild(data('b', '', f.domain)); }
+  if (dom.firstChild) host.appendChild(dom);
+  if (arr(f.addrs).length) {
+    var ips = el('div', 'ag-sys-ips');
+    arr(f.addrs).forEach(function (x) {
+      var c = noI18n(el('span', 'ag-sys-ip'));
+      if (x['if']) c.appendChild(el('span', 'ag-sys-if', x['if']));
+      c.appendChild(el('span', 'mono', x.ip));
+      ips.appendChild(c);
+    });
+    host.appendChild(ips);
+  }
+  grid.appendChild(host);
+  if (f.cpu || f.cores) {
+    var cpu = sysTile('pulse', 'Processor');
+    if (f.cpu) cpu.appendChild(data('div', 'ag-sys-cpu', f.cpu));
+    var cl = el('div', 'ag-sys-line2');
+    if (f.cores) cl.appendChild(el('span', 'ag-sys-l', f.cores === 1 ? '1 core' : f.cores + ' cores'));
+    if (arr(f.load).length === 3) {
+      var ld = el('span', 'ag-sys-l', 'load');
+      cl.appendChild(ld);
+      cl.appendChild(mono(arr(f.load).map(function (x) { return Number(x).toFixed(2); }).join(' · '), 'ag-sys-load'));
+      explain(ld, 'The load average of the last 1, 5 and 15 minutes');
+    }
+    cpu.appendChild(cl);
+    grid.appendChild(cpu);
+  }
+  if (f.mem_total) {
+    var mem = sysTile('chart', 'Memory');
+    var used = f.mem_avail !== undefined ? Math.max(0, f.mem_total - f.mem_avail) : null;
+    var mtop = el('div', 'ag-sys-num');
+    mtop.appendChild(data('b', '', sizeWords(f.mem_total)));
+    if (used !== null) mtop.appendChild(data('span', 'ag-sys-pct ' + usedLevel(100 * used / f.mem_total), pctWords(100 * used / f.mem_total)));
+    mem.appendChild(mtop);
+    if (used !== null) {
+      mem.appendChild(useBar(100 * used / f.mem_total, 'Memory'));
+      var ml = el('div', 'ag-sys-line2 small');
+      ml.appendChild(data('span', '', sizeWords(used)));
+      ml.appendChild(el('span', 'ag-sys-l', 'used'));
+      ml.appendChild(data('span', '', sizeWords(f.mem_avail)));
+      ml.appendChild(el('span', 'ag-sys-l', 'available'));
+      mem.appendChild(ml);
+    }
+    grid.appendChild(mem);
+  }
+  if (arr(f.disks).length) {
+    var dk = sysTile('db', arr(f.disks).length === 1 ? 'Disk' : 'Disks', 'wide');
+    arr(f.disks).forEach(function (d) {
+      var p = d.used_pct !== undefined && d.used_pct !== null ? Number(d.used_pct) : 100 * (d.size - d.free) / d.size;
+      var one = el('div', 'ag-sys-disk');
+      var top = el('div', 'ag-sys-disk-h');
+      top.appendChild(mono(d.path, 'ag-sys-mp'));
+      if (d.fs) top.appendChild(mono(d.fs, 'ag-sys-fs'));
+      top.appendChild(data('span', 'ag-sys-pct ' + usedLevel(p), pctWords(p)));
+      one.appendChild(top);
+      one.appendChild(useBar(p, 'Disk'));
+      var dl = el('div', 'ag-sys-line2 small');
+      dl.appendChild(data('span', '', sizeWords(d.free)));
+      dl.appendChild(el('span', 'ag-sys-l', 'free of'));
+      dl.appendChild(data('span', '', sizeWords(d.size)));
+      one.appendChild(dl);
+      dk.appendChild(one);
+    });
+    grid.appendChild(dk);
+  }
+  var up = sysTile('history', 'Uptime');
+  up.appendChild(el('div', 'ag-sys-big', sv.uptime !== null && sv.uptime !== undefined ? upWords(sv.uptime) : '–'));
+  if (f.boot) {
+    var bl = el('div', 'ag-sys-line2');
+    bl.appendChild(el('span', 'ag-sys-l', 'started'));
+    bl.appendChild(data('span', '', when(f.boot)));
+    up.appendChild(bl);
+  }
+  /* the time in the same tile: the zone, its offset, the clock against acme's */
+  var tm = up;
+  var th = el('div', 'ag-sys-k ag-sys-k2');
+  th.appendChild(icon('clock', 14));
+  th.appendChild(el('span', '', 'Time'));
+  tm.appendChild(th);
+  tm.appendChild(data('div', 'ag-sys-tz', f.tz || '–'));
+  if (f.tz_offset !== undefined && f.tz_offset !== null) {
+    var o = Number(f.tz_offset), hh = Math.floor(Math.abs(o) / 60), mm = Math.abs(o) % 60;
+    tm.appendChild(mono('UTC' + (o < 0 ? '−' : '+') + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm, 'ag-sys-off'));
+  }
+  var sk = el('div', 'ag-sys-skew');
+  sk.appendChild(skewPill(sv));
+  tm.appendChild(sk);
+  grid.appendChild(up);
+  box.appendChild(grid);
+  /* the services (Linux) or the roles (Windows) a certificate is used by */
+  var svcs = arr(f.services);
+  var sw = el('div', 'ag-sys-svcs');
+  var sh = el('div', 'ag-sys-k');
+  sh.appendChild(icon('gear', 14));
+  sh.appendChild(el('span', '', f.platform === 'windows' ? 'Roles' : 'Services'));
+  sw.appendChild(sh);
+  var chipsBox = el('div', 'ag-sys-chips');
+  if (!svcs.length) chipsBox.appendChild(el('span', 'ag-sys-svc none', f.platform === 'windows' ? 'none of the roles acme knows' : 'none of the services acme knows'));
+  svcs.slice().sort(function (x, y) { return (x.state === 'active' ? 0 : 1) - (y.state === 'active' ? 0 : 1); }).forEach(function (s) {
+    var c = el('span', 'ag-sys-svc ' + (s.state === 'active' ? 'on' : 'off'));
+    c.appendChild(el('span', 'dot ' + (s.state === 'active' ? 'ok' : 'off')));
+    c.appendChild(data('span', '', s.name));
+    if (s.detail) c.appendChild(data('span', 'ag-sys-det', s.detail));
+    explain(c, s.state === 'active' ? 'running' : 'installed, not running');
+    chipsBox.appendChild(c);
+  });
+  sw.appendChild(chipsBox);
+  box.appendChild(sw);
+  /* the agent's runtime */
+  var rt = el('div', 'ag-sys-rt');
+  if (f.python) { rt.appendChild(el('span', 'ag-sys-l', 'Python')); rt.appendChild(mono(f.python)); }
+  if (f.openssl) { rt.appendChild(el('span', 'ag-sys-l', 'OpenSSL')); rt.appendChild(mono(String(f.openssl).replace(/^OpenSSL\s+/, ''))); }
+  if (f.openssl_cli && String(f.openssl_cli).split(' (')[0] !== String(f.openssl)) {
+    rt.appendChild(el('span', 'ag-sys-l', 'openssl command'));
+    rt.appendChild(mono(String(f.openssl_cli).split(' (')[0].replace(/^OpenSSL\s+/, '')));
+  }
+  if (f.init) { rt.appendChild(el('span', 'ag-sys-l', 'init')); rt.appendChild(mono(f.init)); }
+  if (rt.firstChild) box.appendChild(rt);
+  return box;
+}
+/** A tile of Settings → Target agents: the system in a line, and what is worth a look. */
+function sysLine(a) {
+  var sv = a.system;
+  if (!a.joined || !sv) return null;
+  var line = el('div', 'ag-sys-tl');
+  var f = sysOf(a) ? sv.facts : null;
+  if (!f) {
+    if (sv.state === 'old') line.appendChild(sysPill('dim', 'up', 'the agent is too old to tell'));
+    else return null;
+    return line;
+  }
+  var os = el('span', 'ag-sys-tos ' + distroCls(f));
+  os.appendChild(icon(sysWin(a, f) ? 'windows' : 'terminal', 13));
+  os.appendChild(data('span', 'ag-sys-tosn', osName(f) + (osVersion(f) && f.platform !== 'windows' ? ' ' + osVersion(f) : '')));
+  if (f.platform === 'windows' && f.os_version) os.appendChild(mono(f.os_version, 'ag-sys-tosv'));
+  line.appendChild(os);
+  if (sv.uptime !== null && sv.uptime !== undefined) {
+    var u = el('span', 'ag-sys-tup');
+    u.appendChild(icon('history', 12));
+    u.appendChild(el('span', '', 'up ' + upWords(sv.uptime)));
+    line.appendChild(u);
+  }
+  if (sv.skew_level === 'warn' || sv.skew_level === 'bad') line.appendChild(skewPill(sv));
+  var full = arr(f.disks).filter(function (d) { return Number(d.used_pct) > 85; });
+  if (full.length) {
+    var worst = full.reduce(function (m, d) { return Number(d.used_pct) > Number(m.used_pct) ? d : m; });
+    var dp = sysPill(usedLevel(Number(worst.used_pct)), 'db', 'disk full', pctWords(Number(worst.used_pct)));
+    explain(dp, full.map(function (d) { return d.path + ' ' + pctWords(Number(d.used_pct)); }).join(', '));
+    line.appendChild(dp);
+  }
+  if (f.reboot) line.appendChild(sysPill('warn', 'power', 'restart pending'));
+  return line;
+}
+/** Settings → Target agents: every server at a glance - sorted by a click on a heading,
+    filtered by its platform. */
+function serversTable(rows) {
+  var have = rows.filter(function (a) { return sysOf(a); });
+  if (!have.length) return null;
+  var box = el('div', 'ag-srv');
+  var h = el('div', 'ag-srv-h');
+  h.appendChild(icon('db', 18));
+  h.appendChild(el('h3', '', 'Servers'));
+  h.appendChild(noI18n(el('span', 'count', String(have.length))));
+  var seg = el('div', 'seg ag-srv-seg');
+  [['all', 'All'], ['linux', 'Linux'], ['windows', 'Windows']].forEach(function (x) {
+    var b = el('button', SYS.filter === x[0] ? 'on' : '', x[1]);
+    b.type = 'button';
+    b.setAttribute('data-f', x[0]);
+    b.onclick = function () { SYS.filter = x[0]; fill(); };
+    seg.appendChild(b);
+  });
+  h.appendChild(seg);
+  box.appendChild(h);
+  var COLS = [
+    ['name', 'Target', function (a) { return String(a.name).toLowerCase(); }],
+    ['os', 'System', function (a) { return osName(sysOf(a).facts).toLowerCase(); }],
+    ['ver', 'Version', function (a) { var f = sysOf(a).facts; return f.platform === 'windows' ? String(f.build || '') : String(f.os_version || f.kernel || ''); }],
+    ['up', 'Uptime', function (a) { return Number(sysOf(a).uptime || 0); }],
+    ['mem', 'Memory', function (a) { var f = sysOf(a).facts; return f.mem_total && f.mem_avail !== undefined ? 1 - f.mem_avail / f.mem_total : -1; }],
+    ['disk', 'Disk', function (a) { return arr(sysOf(a).facts.disks).reduce(function (m, d) { return Math.max(m, Number(d.used_pct || 0)); }, -1); }],
+    ['skew', 'Clock', function (a) { var s = sysOf(a).skew; return s === null || s === undefined ? -1 : Math.abs(s); }],
+    ['agent', 'Agent', function (a) { return String(a.version || ''); }]];
+  var wrap = el('div', 'ag-srv-wrap');
+  var table = el('table', 'ag-srv-t');
+  var thead = el('thead', ''), tbody = el('tbody', '');
+  table.appendChild(thead);
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  box.appendChild(wrap);
+  function fill() {
+    Array.prototype.forEach.call(seg.children, function (b) { b.classList.toggle('on', b.getAttribute('data-f') === SYS.filter); });
+    clear(thead);
+    var tr0 = el('tr', '');
+    COLS.forEach(function (c) {
+      var th = el('th', 'c-' + c[0]);
+      var b = el('button', 'ag-srv-sort' + (SYS.sort === c[0] ? ' on' : ''));
+      b.type = 'button';
+      b.appendChild(el('span', '', c[1]));
+      b.appendChild(noI18n(el('span', 'ag-srv-arr', SYS.sort === c[0] ? (SYS.dir > 0 ? '▲' : '▼') : '')));
+      b.onclick = function () { if (SYS.sort === c[0]) SYS.dir = -SYS.dir; else { SYS.sort = c[0]; SYS.dir = c[0] === 'name' || c[0] === 'os' || c[0] === 'ver' || c[0] === 'agent' ? 1 : -1; } fill(); };
+      th.setAttribute('aria-sort', SYS.sort === c[0] ? (SYS.dir > 0 ? 'ascending' : 'descending') : 'none');
+      th.appendChild(b);
+      tr0.appendChild(th);
+    });
+    thead.appendChild(tr0);
+    clear(tbody);
+    var key = (COLS.filter(function (c) { return c[0] === SYS.sort; })[0] || COLS[0])[2];
+    var list = have.filter(function (a) { return SYS.filter === 'all' || (sysWin(a, sysOf(a).facts) ? 'windows' : 'linux') === SYS.filter; });
+    list.sort(function (x, y) { var p = key(x), q = key(y); return (p < q ? -1 : p > q ? 1 : 0) * SYS.dir || String(x.name).localeCompare(String(y.name)); });
+    if (!list.length) {
+      var e = el('tr', 'ag-srv-empty');
+      var td = el('td', '', 'No server of this kind');
+      td.colSpan = COLS.length;
+      e.appendChild(td);
+      tbody.appendChild(e);
+    }
+    list.forEach(function (a) { tbody.appendChild(serverRow(a)); });
+  }
+  fill();
+  return box;
+}
+function cell(cls, label, child) {
+  var td = el('td', 'c-' + cls);
+  td.setAttribute('data-l', tr(label));
+  if (child) td.appendChild(child);
+  return td;
+}
+function serverRow(a) {
+  var sv = sysOf(a), f = sv.facts;
+  var r = el('tr', '');
+  var nb = el('button', 'ag-srv-name');
+  nb.type = 'button';
+  nb.appendChild(data('span', '', a.name));
+  nb.onclick = function () { if (H.openTarget) H.openTarget(a.name); };
+  var nc = el('span', 'ag-srv-nc');
+  nc.appendChild(el('span', 'dot ' + ({answers: 'ok', quiet: 'warn', refused: 'crit'}[a.state] || 'off')));
+  nc.appendChild(nb);
+  if (f.hostname) nc.appendChild(mono(f.fqdn || f.hostname, 'ag-srv-host'));
+  r.appendChild(cell('name', 'Target', nc));
+  var os = el('span', 'ag-sys-tos ' + distroCls(f));
+  os.appendChild(icon(sysWin(a, f) ? 'windows' : 'terminal', 13));
+  os.appendChild(data('span', 'ag-sys-tosn', osName(f)));
+  r.appendChild(cell('os', 'System', os));
+  r.appendChild(cell('ver', 'Version', mono(f.platform === 'windows' ? [f.os_version, f.build].filter(Boolean).join(' · ') || '–' : (f.os_version || '') + (f.kernel ? (f.os_version ? ' · ' : '') + f.kernel : '') || '–', 'ag-srv-v')));
+  var upc = el('span', 'ag-srv-up');
+  upc.appendChild(el('span', '', sv.uptime !== null && sv.uptime !== undefined ? upWords(sv.uptime) : '–'));
+  if (f.reboot) { var rp = sysPill('warn', 'power', 'restart'); if (f.reboot_why) explain(rp, String(f.reboot_why)); upc.appendChild(rp); }
+  r.appendChild(cell('up', 'Uptime', upc));
+  var mc = el('span', 'ag-srv-mini');
+  if (f.mem_total && f.mem_avail !== undefined) {
+    var mp = 100 * (f.mem_total - f.mem_avail) / f.mem_total;
+    mc.appendChild(useBar(mp, 'Memory'));
+    mc.appendChild(data('span', 'ag-srv-mv', sizeWords(f.mem_total)));
+  } else mc.appendChild(el('span', 'muted', '–'));
+  r.appendChild(cell('mem', 'Memory', mc));
+  var dc = el('span', 'ag-srv-mini');
+  var worst = arr(f.disks).reduce(function (m, d) { return !m || Number(d.used_pct) > Number(m.used_pct) ? d : m; }, null);
+  if (worst) {
+    dc.appendChild(useBar(Number(worst.used_pct), 'Disk'));
+    dc.appendChild(data('span', 'ag-srv-mv ' + usedLevel(Number(worst.used_pct)), pctWords(Number(worst.used_pct))));
+    explain(dc, arr(f.disks).map(function (d) { return d.path + ': ' + pctWords(Number(d.used_pct)) + ' (' + sizeWords(d.free) + ' / ' + sizeWords(d.size) + ')'; }).join('\n'));
+  } else dc.appendChild(el('span', 'muted', '–'));
+  r.appendChild(cell('disk', 'Disk', dc));
+  r.appendChild(cell('skew', 'Clock', skewPill(sv)));
+  r.appendChild(cell('agent', 'Agent', a.version ? mono(a.version, 'ag-srv-av') : el('span', 'muted', '–')));
+  return r;
+}
+
 function init(h) { Object.keys(h || {}).forEach(function (k) { H[k] = h[k]; }); }
 /* certs.js is loaded before this file on the page: what it hands is waiting there */
 if (window.ACME_AGENTS_HANDS) init(window.ACME_AGENTS_HANDS);
 window.ACME_AGENTS = {
   init: init, hands: function () { return H; }, designBox: designBox,
   pane: pane, settle: settle, card: card, wizard: wizard, needs: needs, policyView: policyView,
-  statePill: statePill, chips: chips, updateBox: updateBox, blockedBox: blockedBox, keysBox: keysBox
+  statePill: statePill, chips: chips, updateBox: updateBox, blockedBox: blockedBox, keysBox: keysBox,
+  sysPanel: sysPanel, sysLine: sysLine, serversTable: serversTable
 };
 }());

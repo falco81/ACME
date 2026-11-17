@@ -127,7 +127,9 @@ def _console_login_do(h):
 
 @route('GET', '/api/selinux')
 def _selinux(h):
-    h.me('fulladmin')
+    # A read-only account sees the card too (1.0.120, as fake-igd's kit) - without its buttons; no
+    # command line of any program is in it (root's findings carry the program's name and file only).
+    h.me('readonly')
     return selinux_view(h.store)
 
 
@@ -137,6 +139,17 @@ def _selinux_do(h):
     b = h.body()
     node = str(b.get('node') or node_name())
     action = str(b.get('action') or '')
+    if action == 'download' and b.get('node') and b.get('node') != '*':
+        # One node's report (1.0.120): SELinux is each machine's own - the card downloads the report
+        # of the node it shows.
+        data, err = selinux_report_one(h.store, node)
+        if data is None:
+            raise ApiError(400, err)
+        h.store.add_event('settings', '%s took the SELinux report of %s' % (s['name'], node), 'info',
+                          who=s['name'])
+        return {'name': 'acme-selinux-report-%s-%s.tar.gz' % (re.sub(r'[^A-Za-z0-9._-]', '', node),
+                                                              time.strftime('%Y%m%d-%H%M')),
+                'file': base64.b64encode(data).decode('ascii'), 'mime': 'application/gzip', 'missing': []}
     if action == 'download':
         # Every node's report in one archive, from the database - whichever node answers.
         data, missing = selinux_report_bundle(h.store)
@@ -157,10 +170,19 @@ def _selinux_do(h):
             return {'message': 'asked: every node makes its report within a minute' if not busy else
                     'asked - not %s: a step asked of it is not done yet' % ', '.join(busy),
                     'busy': busy}
+        if action in ('fix', 'rule_drop'):
+            # Ids only (1.0.120): never a rule, a path or a command - the node's root works them out.
+            extra = sorted(set(b) - {'node', 'action', 'ids'})
+            if extra:
+                raise ApiError(400, 'a request to put something right names only the ids of what was found')
+            selinux_ask(h.store, node, action, s['name'], ids=b.get('ids'))
+            return {'message': ('asked: %s puts right what was selected within seconds - and looks again'
+                                if action == 'fix' else
+                                'asked: %s takes the rule away within seconds - and looks again') % node}
         selinux_ask(h.store, node, action, s['name'])
     except ValueError as e:
         raise ApiError(400, str(e))
-    return {'message': {'check': 'asked: %s looks within seconds',
+    return {'message': {'check': 'asked: %s looks within seconds', 'look': 'asked: %s looks within seconds',
                         'prepare': 'asked: %s makes SELinux ready and permissive within seconds',
                         'enforce': 'asked: %s switches SELinux to enforcing within seconds',
                         'permissive': 'asked: %s switches SELinux to permissive within seconds',

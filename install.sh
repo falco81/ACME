@@ -608,11 +608,18 @@ if [[ -n "$DO_UNINSTALL" ]]; then
         done < <(python3 -I "$SOURCE_DIR/deploy/acme_web.py" --leftovers ${DRY_RUN:+--dry-run} 2>&1 \
                  || echo "left: what acme put into the system could not be looked at (acme_web.py --leftovers)")
     fi
-    # acme's SELinux module (as otp 1.0.233): its labels and rules gone with it. The mode SELinux is in,
-    # its booleans and the ports labelled are the machine's, left as they are.
+    # acme's SELinux modules (as otp 1.0.233; 1.0.120: acme_local too, the rules put in from
+    # Settings - SELinux): their labels and rules gone with them. The mode SELinux is in, its
+    # booleans and the ports labelled are the machine's, left as they are.
+    if command -v semodule >/dev/null 2>&1 && semodule -l 2>/dev/null | awk '$1=="acme_local"{f=1} END{exit !f}'; then
+        run semodule -r acme_local 2>/dev/null || warn "SELinux: semodule -r acme_local did not go"
+    fi
     if command -v semodule >/dev/null 2>&1 && semodule -l 2>/dev/null | awk '$1=="acme_server"{f=1} END{exit !f}'; then
         run semodule -r acme_server 2>/dev/null || warn "SELinux: semodule -r acme_server did not go"
     fi
+    [[ -z "$DRY_RUN" ]] && rm -f /var/lib/acme-net/acme_local.cil /var/lib/acme-net/acme_local.cil.in-policy \
+        /var/lib/acme-net/selinux-local.json /var/lib/acme-net/selinux-fixed.json \
+        /var/lib/acme-net/selinux-context.json 2>/dev/null || true
     # Every tree, current and previous, and the links to them.
     [[ -e "$LIB_DIR" || -L "$LIB_DIR" ]] && run rm -rf "$LIB_DIR"
     [[ -d "$WEB_DIR" ]] && run rm -rf "$WEB_DIR"

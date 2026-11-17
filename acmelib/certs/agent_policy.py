@@ -151,6 +151,39 @@ WIN_TEMPLATES = [
                                           'note': 'The listener\'s certificate (3389 is not '
                                                   'tested: the agent does not speak RDP).'}),
     ('store', 'The machine store only', 'Windows', {'store': True, 'probe_local': False}),
+    # the roles of the OpenSSH target (1.0.120) - the agent runs the same PowerShell
+    ('adfs', 'AD FS', 'Windows roles', {'store': True, 'roles': {'adfs': []},
+                                        'probe_local': False}),
+    ('wap', 'Web Application Proxy', 'Windows roles', {'store': True, 'roles': {'wap': []},
+                                                       'probe_local': False}),
+    ('sql', 'SQL Server', 'Windows roles', {'store': True, 'roles': {'sql': []},
+                                            'probe_local': False}),
+    ('ldaps', 'LDAPS (domain controller)', 'Windows roles', {
+        'store': True, 'roles': {'ldaps': []},
+        'note': 'Checked on 636 after (allow probe local).'}),
+    ('winrm', 'WinRM HTTPS listener', 'Windows roles', {'store': True, 'roles': {'winrm': []},
+                                                        'probe_local': False}),
+    ('rds', 'Remote Desktop Services', 'Windows roles', {
+        'store': True, 'roles': {'rds': []}, 'probe_local': False}),
+    ('rdgw', 'RD Gateway', 'Windows roles', {'store': True, 'roles': {'rdgw': []},
+                                             'probe_local': False}),
+    ('sstp', 'RRAS SSTP VPN', 'Windows roles', {'store': True, 'roles': {'sstp': []},
+                                                'probe_local': False}),
+    ('ccs', 'IIS Central Certificate Store', 'Windows roles', {
+        'store': True, 'roles': {'ccs': ['\\\\fileserver\\ccs']}, 'probe_local': False,
+        'note': 'Its folder is an example - change it to yours (the agent writes only there).'}),
+    ('ftp', 'IIS FTP over TLS', 'Windows roles', {'store': True, 'roles': {'ftp': []},
+                                                  'probe_local': False}),
+    ('exchange', 'Exchange', 'Windows roles', {'store': True, 'roles': {'exchange': []},
+                                               'probe_local': False}),
+    ('lync', 'Skype for Business / Lync', 'Windows roles', {
+        'store': True, 'roles': {'lync': []}, 'probe_local': False}),
+    ('sharepoint', 'SharePoint Server', 'Windows roles', {
+        'store': True, 'roles': {'sharepoint': []}, 'probe_local': False}),
+    ('wac', 'Windows Admin Center', 'Windows roles', {'store': True, 'roles': {'wac': []},
+                                                      'probe_local': False,
+                                                      'note': 'Before 2410: add the .msi it '
+                                                              'runs again (msi=).'}),
     ('folder', 'A folder for certificates', 'Any other', {
         'files': [('C:\\certs', [])], 'probe_local': False}),
     ('service', 'Any Windows service', 'Any other', {
@@ -171,7 +204,9 @@ def templates_windows():
                     'units': {k: list(v) for k, v in (more.get('units') or {}).items()},
                     'tests': [], 'scripts': [], 'probe_local': more.get('probe_local', True),
                     'store': bool(more.get('store')), 'iis': list(more.get('iis') or []),
-                    'rdp': bool(more.get('rdp'))})
+                    'rdp': bool(more.get('rdp')),
+                    'roles': {k: list(v) for k, v in (more.get('roles') or {}).items()},
+                    'key_read': list(more.get('key_read') or [])})
     return out
 
 
@@ -367,6 +402,19 @@ def _win_needs(items, t, args, opts):
                           'allow': AW._wc().allow_iis_words(b['site'])})
     if win.get('rdp'):
         items.append({'kind': 'rdp', 'allow': 'acme-agent allow rdp'})
+    # the Windows roles (as the OpenSSH target's): allow role NAME [path=|msi=], allow
+    # key-read ACCOUNT, the PowerShell after by its hash
+    for r in win.get('roles') or []:
+        extra = AW.role_extra(r)
+        items.append({'kind': 'role', 'role': r['key'], 'extra': extra or '',
+                      'allow': AW._wc().allow_role_words(r['key'], extra)})
+    for a in win.get('key_read') or []:
+        items.append({'kind': 'key-read', 'account': a,
+                      'allow': AW._wc().allow_key_read_words(a)})
+    if win.get('post_ps'):
+        h = hashlib.sha256(win['post_ps'].encode('utf-8')).hexdigest()
+        items.append({'kind': 'hash', 'hash': h, 'interp': 'powershell',
+                      'allow': 'acme-agent allow script-hash %s' % h})
     files = [f for f in args['files'] if f.get('path')]
     if len(files) > 20:
         items.append({'kind': 'limit', 'files': len(files),
@@ -459,7 +507,8 @@ def _canon_lines(m, pol_or_text):
     if isinstance(pol_or_text, dict):
         p = m.parse_policy('')
         for k in ('files', 'units', 'tests', 'scripts', 'script_hashes', 'from', 'self_update',
-                  'connect', 'probe', 'probe_local', 'limits', 'store', 'iis', 'rdp'):
+                  'connect', 'probe', 'probe_local', 'limits', 'store', 'iis', 'rdp', 'roles',
+                  'key_read'):
             if pol_or_text.get(k) is not None:
                 p[k] = pol_or_text[k]
         return m.policy_lines(p)
@@ -496,7 +545,9 @@ STATE_KEYS = {'files': list, 'units': list, 'tests': list, 'scripts': list, 'has
               'from': list, 'probe': list, 'connect': list, 'probe_local': bool,
               'self_update': bool, 'connect_on': bool, 'limits': dict,
               # a Windows server's agent (1.0.120)
-              'store': bool, 'iis': list, 'rdp': bool}
+              'store': bool, 'iis': list, 'rdp': bool,
+              # ...and its Windows roles: [{role, extra (path / msi)}], the accounts read on the key
+              'roles': list, 'key_read': list}
 
 
 def clean_state(state):

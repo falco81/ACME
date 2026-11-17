@@ -111,7 +111,8 @@ ROOT_OPS = ('hello', 'policy', 'fingerprints', 'deploy', 'check', 'keygen', 'upd
 NET_OPS = ('csr', 'cert', 'probe', 'connect')
 # the agent's program (code_hash, the update package): the Windows parts ride along everywhere
 # (on Linux they are never loaded - see the platform hook at the end)
-AGENT_FILES = ('acme_agent.py', 'acme_agent_win.py', 'acme_agent_wincert.py')
+AGENT_FILES = ('acme_agent.py', 'acme_agent_win.py', 'acme_agent_wincert.py',
+               'acme_agent_winroles.py')
 PLATFORM = 'linux'              # 'windows': acme_agent_win.install() (the platform hook)
 WINDOWS = False
 UNIT_WORD = 'unit'              # allow unit NAME ... (Windows: allow service NAME ...)
@@ -949,7 +950,7 @@ def policy_canon(pol):
                                 'self_update', 'connect', 'limits')}
     # what phase 3 added - only when used, so a policy of phase 2 keeps its hash
     # ...and what Windows adds (the machine store, IIS, Remote Desktop): never on Linux
-    for k in ('probe', 'probe_local', 'store', 'iis', 'rdp'):
+    for k in ('probe', 'probe_local', 'store', 'iis', 'rdp', 'roles', 'key_read'):
         if pol.get(k):
             keep[k] = pol[k]
     return json.dumps(keep, sort_keys=True, separators=(',', ':'))
@@ -1002,6 +1003,13 @@ def policy_lines(pol):
                                      '"%s"' % site))
     if pol.get('rdp'):
         out.append('allow rdp')
+    for role, extra in sorted((pol.get('roles') or {}).items()):     # Windows only
+        for x in (extra or [None]):
+            out.append('allow role %s%s' % (role, '' if x is None else ' %s=%s' % (
+                'msi' if role == 'wac' else 'path', x if not re.search(r'[\s"\']', x)
+                else '"%s"' % x)))
+    for a in pol.get('key_read') or []:
+        out.append('allow key-read %s' % (a if not re.search(r'[\s"\']', a) else '"%s"' % a))
     if pol['limits']['files'] != FILES_MOST:
         out.append('limit files %d' % pol['limits']['files'])
     if pol['limits']['size'] != FILE_MOST:
@@ -1016,9 +1024,12 @@ def policy_report(pol, h):
            'from': pol['from'], 'self_update': pol['self_update'], 'connect': pol['connect'],
            'probe': pol.get('probe') or [], 'probe_local': bool(pol.get('probe_local')),
            'limits': pol['limits'], 'problems': pol['problems'][:20]}
-    for k in ('store', 'iis', 'rdp'):               # Windows only, when there
+    for k in ('store', 'iis', 'rdp', 'roles', 'key_read'):     # Windows only, when there
         if pol.get(k):
             out[k] = pol[k]
+    if WINDOWS:
+        # what this agent knows of the Windows roles: acme sends none to an agent without it
+        out['roles_known'] = [r[0] for r in _winroles().ROLES]
     return out
 
 
@@ -1361,6 +1372,20 @@ def _wincert():
         m = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(m)
         sys.modules['acme_agent_wincert'] = m
+    return m
+
+
+def _winroles():
+    """acme_agent_winroles.py beside this file (the Windows roles: generated from acme's
+    _win_roles by tools/gen_agent_winroles.py) - data only, loaded on Windows."""
+    m = sys.modules.get('acme_agent_winroles')
+    if m is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('acme_agent_winroles', os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), 'acme_agent_winroles.py'))
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        sys.modules['acme_agent_winroles'] = m
     return m
 
 
@@ -2014,7 +2039,7 @@ class Root(object):
         if kind == 'pin':
             return self.pin(msg)
         if kind == 'system':
-            # 1.0.121: the hash of the server's facts, for the network side's poll (never the
+            # 1.0.120: the hash of the server's facts, for the network side's poll (never the
             # facts themselves - those go with the signed hello)
             try:
                 return {'ok': True, 'hash': system_info()[1]}
@@ -2105,7 +2130,7 @@ class Root(object):
         out = {'ok': True, 'said': 'acme-agent %s here' % VERSION, 'version': VERSION,
                'code': CODE, 'policy': st['policy'], 'enc_pub': st['enc_pub'],
                'host': socket.gethostname()[:120], 'os': _os_name(), 'platform': PLATFORM}
-        # 1.0.121: what the agent tells about its server (an acme before it ignores the key)
+        # 1.0.120: what the agent tells about its server (an acme before it ignores the key)
         try:
             out['system'] = system_info()[0]
         except Exception:                               # noqa: BLE001
@@ -2253,7 +2278,7 @@ def _os_name():
     return (m.group(1) if m else sys.platform)[:80]
 
 
-# ---- what the agent tells about its server (1.0.121, docs/target-agent.md "What the agent tells
+# ---- what the agent tells about its server (1.0.120, docs/target-agent.md "What the agent tells
 # about its server"): basic facts of the machine, never a secret - collected by root, kept a
 # minute, each bounded in size and time: a fact that is slow or fails is left out, never the
 # hello. Sent whole in the hello (`system`), its hash with every active poll (`system_hash`, as
@@ -2888,6 +2913,19 @@ class Deploy(object):
             self.put_back()
             return self.failed('it went wrong after the files were written, the previous '
                                'files are back: %s' % str(e)[:300], result_files, h)
+        if win is not None and win.has_roles():
+            # Windows: the read on the key, then each role (acme_agent_wincert) - as the OpenSSH
+            # target does: a role failing is said, the others run, the deployment fails, the
+            # old certificates are kept and nothing is put back (a role that took the new
+            # certificate uses it)
+            bad = win.run_roles()
+            if bad:
+                self.after(backup, keep)
+                win.remember()
+                self.key_in_use()
+                self.step(bad, 'bad')
+                return {'ok': False, 'said': bad, 'steps': self.steps, 'files': result_files,
+                        'policy_hash': h}
         for op in plan['post']:
             self.run_op(op, env, 'after', warn=True)
         self.after(backup, keep)
@@ -3391,7 +3429,7 @@ class Net(object):
             out['policy_hash'] = policy_load()[1]
         except Exception:                               # noqa: BLE001
             pass
-        # 1.0.121: the server's facts by their hash (acme asks the hello when it changed) and
+        # 1.0.120: the server's facts by their hash (acme asks the hello when it changed) and
         # this machine's clock (acme says how far it is from its own)
         try:
             sh = self.system_hash()
@@ -4491,7 +4529,8 @@ def cmd_policy(argv):
 # ---- the package (tools/release.py, and acme's pages) ------------------------------------------
 PKG_FILES = ('acme_agent.py', 'install.sh', 'acme-agent.service', 'acme-agent-root.service',
              'README.md')
-PKG_MORE = ('acme_agent_win.py', 'acme_agent_wincert.py')     # the Windows parts, when there
+PKG_MORE = ('acme_agent_win.py', 'acme_agent_wincert.py',      # the Windows parts, when there
+            'acme_agent_winroles.py')
 
 
 def build_package(dest, version, key=None, keys_dir=None, epoch=None):

@@ -1,8 +1,17 @@
-; acme - what SELinux needs for acme that the system's policy does not say (as otp 1.0.233).
-; Installed by install.sh and by every upgrade (semodule -i acme_server.cil), taken away with
-; semodule -r acme_server. Labels first; a narrow rule only where no label or boolean does it
-; (systemd's /run/acme; 1.0.59: PostgreSQL reading the certificates' folder), each in a block
-; of its own.
+; acme - what SELinux needs for acme that the system's policy does not say (as otp 1.0.233; 1.0.120:
+; as fake-igd's kit). Installed by install.sh and by every upgrade (semodule -i acme_server.cil),
+; taken away with semodule -r acme_server (install.sh --uninstall: with acme_local, the module of
+; what was put right on Settings - High security - SELinux). Labels first; a narrow rule only where
+; no label or boolean does it, each in an (optional ...) block of its own: a policy without one of
+; the types (an older RHEL, another distribution's) still takes the rest of the module.
+;
+; Who is who (docs/selinux.md): acme.service (the daemon, NoNewPrivileges=yes), acme-web.service
+; (root's helper), acme-upgrade.service and acme-db-agent.service run as unconfined_service_t - a
+; program of /usr/local started by systemd. Their own listeners (the API on 127.0.0.1, the DNS server
+; for DNS-01, the SNMP agent, the gate for SSH with a code) need no port label. Confined are the
+; programs around them: nginx and php-fpm (httpd_t), sshd (the console's port), keepalived (the
+; cluster's address, VRRP) and the check it runs, PostgreSQL (the replication between the nodes),
+; chronyd, logrotate, systemd itself.
 ;
 ; /run/acme holds the daemon's API token and port. The pages (php-fpm, httpd_t) read them;
 ; made by systemd as var_run_t, httpd_t may not read it. Labelled as the web server's own
@@ -15,6 +24,17 @@
 (filecon "/run/acme/.*" any (system_u object_r httpd_var_run_t ((s0) (s0))))
 (filecon "/var/run/acme" dir (system_u object_r httpd_var_run_t ((s0) (s0))))
 (filecon "/var/run/acme/.*" any (system_u object_r httpd_var_run_t ((s0) (s0))))
+
+; keepalived's check of this node (1.0.120): keepalived runs /usr/libexec/keepalived/acme-vip-check
+; ("vrrp_script acme_ok", as the acme account) - in keepalived_unconfined_script_t when the file is
+; labelled keepalived_unconfined_script_exec_t, as the system's policy labels that folder. Said here
+; too, for a policy that does not: labelled otherwise, the check would run in keepalived_t itself,
+; which may not read /run/acme/vip-state - every check failed, and under enforcing the cluster's
+; address would leave a node that can hold it. In a block of its own: a policy without the type
+; takes the rest.
+(optional acme_server_keepalived_check
+    (filecon "/usr/libexec/keepalived/acme-vip-check" file
+        (system_u object_r keepalived_unconfined_script_exec_t ((s0) (s0)))))
 
 ; systemd hands /run/acme back to the service's account before every command of the unit -
 ; ExecReload too (`systemctl reload acme`): it may change the owner and the mode of what is in it
@@ -32,8 +52,31 @@
 ; under enforcing the worker fails with "could not read root certificate file ... Permission
 ; denied" and replication stops - "postgresql_t -> cert_t dir { search } / file { read open }".
 ; Read only: what miscfiles_read_generic_certs() gives other services. A key in /etc/pki stays
-; root's 0600. Put in on a node without the pages (install.sh --no-web) too.
+; root's 0600. Put in on a node without the pages (install.sh --no-web) too. PostgreSQL's own
+; certificate of the link (acme-ha.crt, acme-ha.key) is in its data folder, labelled as the rest
+; of it (postgresql_db_t, restorecon by root's helper): nothing more is needed for it.
 (optional acme_server_postgresql_certs
     (allow postgresql_t cert_t (dir (getattr search open read)))
     (allow postgresql_t cert_t (file (getattr open read ioctl lock)))
     (allow postgresql_t cert_t (lnk_file (getattr read))))
+
+; acme.service runs with NoNewPrivileges=yes (1.0.120, as fake-igd 1.7.10). A program the daemon
+; runs that has a domain of its own is started in it by a transition - which NoNewPrivileges forbids
+; unless the policy says the transition may go (nnp_transition). Under enforcing these would not
+; run at all: ssh, sftp and scp (backups to SFTP / SCP machines, the targets reached over SSH - ssh_t),
+; ssh-keygen (the keys of those targets, the host keys shown - ssh_keygen_t), ping (whether the other
+; node answers when the two lose each other - ping_t), ip (the addresses of the machine - ifconfig_t),
+; hostname (hostname_t), chronyc (the clock - chronyc_t). Only the transition, only into these
+; domains, each in a block of its own (a policy without one of the types still takes the rest).
+(optional acme_server_nnp_ssh
+    (allow unconfined_service_t ssh_t (process2 (nnp_transition nosuid_transition))))
+(optional acme_server_nnp_ssh_keygen
+    (allow unconfined_service_t ssh_keygen_t (process2 (nnp_transition nosuid_transition))))
+(optional acme_server_nnp_ping
+    (allow unconfined_service_t ping_t (process2 (nnp_transition nosuid_transition))))
+(optional acme_server_nnp_ifconfig
+    (allow unconfined_service_t ifconfig_t (process2 (nnp_transition nosuid_transition))))
+(optional acme_server_nnp_hostname
+    (allow unconfined_service_t hostname_t (process2 (nnp_transition nosuid_transition))))
+(optional acme_server_nnp_chronyc
+    (allow unconfined_service_t chronyc_t (process2 (nnp_transition nosuid_transition))))

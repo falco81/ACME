@@ -92,6 +92,8 @@ POLICY_HEAD_WIN = """# C:\\ProgramData\\acme-agent\\etc\\policy - what acme may 
 #   allow store                                  the certificate into Cert:\\LocalMachine\\My
 #   allow iis "Default Web Site" | allow iis *   the https bindings of an IIS site
 #   allow rdp                                    the Remote Desktop listener's certificate
+#   allow role adfs | role sql | ... | role ccs path=\\\\fs\\ccs   a Windows role of the deployments
+#   allow key-read "NT SERVICE\\MyService"        an account given read on the private key
 #   allow from ADDRESS[/BITS]                    passive: acme only from there
 #   allow probe HOST:PORT | allow probe local    a test of what HOST:PORT serves, from here
 #   allow connect HOST:PORT                      acme reaches HOST:PORT through this agent
@@ -118,6 +120,10 @@ of its credentials (docs/target-agent.md). Run it in an elevated prompt (Run as 
   acme-agent allow store                 the certificate into the machine store (LocalMachine\\My)
   acme-agent allow iis SITE | allow iis *  the https bindings of an IIS site
   acme-agent allow rdp                   the Remote Desktop listener's certificate
+  acme-agent allow role NAME [path=FOLDER|msi=FILE]  a Windows role (adfs, sql, ldaps, winrm,
+                                         rds, rdgw, wap, sstp, ccs, ftp, exchange, lync,
+                                         sharepoint, wac)
+  acme-agent allow key-read ACCOUNT      an account given read on the private key
   acme-agent allow from ADDRESS[/BITS]   (passive: only from there)
   acme-agent allow probe HOST:PORT | probe local | connect HOST:PORT | self-update
   acme-agent limit files N | limit size BYTES
@@ -1457,6 +1463,121 @@ class RealWin(object):
         except OSError:
             return 'Windows'
 
+    # -- what the agent tells about its server (1.0.120): the registry, the service manager,
+    # kernel32 and netapi32 - never a command, never a WMI query
+    def reg_values(self, key, names):
+        """HKLM\\key's values of `names` that are there -> {name: value} ({} without the key);
+        names None: all of them (64 at most)."""
+        import winreg
+        out = {}
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key, 0,
+                                winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as k:
+                if names is None:
+                    for i in range(64):
+                        try:
+                            n, v, _t = winreg.EnumValue(k, i)
+                        except OSError:
+                            break
+                        out[n] = v
+                    return out
+                for n in names:
+                    try:
+                        out[n] = winreg.QueryValueEx(k, n)[0]
+                    except OSError:
+                        pass
+        except OSError:
+            return {}
+        return out
+
+    def reg_subkeys(self, key, most=64):
+        """HKLM\\key's subkeys, by name - None without the key."""
+        import winreg
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key, 0,
+                                winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as k:
+                out = []
+                for i in range(most):
+                    try:
+                        out.append(winreg.EnumKey(k, i))
+                    except OSError:
+                        break
+                return out
+        except OSError:
+            return None
+
+    def memory(self):
+        """(total, available) bytes of memory: GlobalMemoryStatusEx."""
+        import ctypes
+        from ctypes import wintypes as wt
+        ull = ctypes.c_ulonglong
+
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [('dwLength', wt.DWORD), ('dwMemoryLoad', wt.DWORD),
+                        ('ullTotalPhys', ull), ('ullAvailPhys', ull), ('ullTotalPageFile', ull),
+                        ('ullAvailPageFile', ull), ('ullTotalVirtual', ull),
+                        ('ullAvailVirtual', ull), ('ullAvailExtendedVirtual', ull)]
+        k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        f = k32.GlobalMemoryStatusEx
+        f.argtypes, f.restype = [ctypes.POINTER(MEMORYSTATUSEX)], wt.BOOL
+        m = MEMORYSTATUSEX()
+        m.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+        if not f(ctypes.byref(m)):
+            raise WinFail(ctypes.get_last_error(), 'GlobalMemoryStatusEx failed')
+        return int(m.ullTotalPhys), int(m.ullAvailPhys)
+
+    def uptime(self):
+        """Seconds since Windows started: GetTickCount64."""
+        import ctypes
+        k32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        f = k32.GetTickCount64
+        f.argtypes, f.restype = [], ctypes.c_ulonglong
+        return f() / 1000.0
+
+    def net_join(self):
+        """(the domain or workgroup's name, 'domain' | 'workgroup' | '') - NetGetJoinInformation."""
+        import ctypes
+        from ctypes import wintypes as wt
+        net = ctypes.WinDLL('netapi32', use_last_error=True)
+        f = net.NetGetJoinInformation
+        f.argtypes = [wt.LPCWSTR, ctypes.POINTER(wt.LPWSTR), ctypes.POINTER(ctypes.c_int)]
+        f.restype = wt.DWORD
+        free = net.NetApiBufferFree
+        free.argtypes, free.restype = [ctypes.c_void_p], wt.DWORD
+        name, kind = wt.LPWSTR(), ctypes.c_int(0)
+        if f(None, ctypes.byref(name), ctypes.byref(kind)) != 0:
+            return '', ''
+        try:
+            return name.value or '', {2: 'workgroup', 3: 'domain'}.get(kind.value, '')
+        finally:
+            free(name)
+
+    def disk_usage(self, path):
+        """(size, free) bytes of the volume of `path`."""
+        got = shutil.disk_usage(path)
+        return got.total, got.free
+
+    def services_states(self, names):
+        """{name: 'Running' | 'Stopped' | ...} of those of `names` that are there (one
+        connection to the service manager)."""
+        a, out = self.api, {}
+        scm = self._scm()
+        try:
+            for n in names:
+                try:
+                    h = self._svc(n, SERVICE_QUERY_STATUS, scm)
+                except WinFail:
+                    continue
+                try:
+                    out[n] = STATE_WORDS.get(self._status(h), '?')
+                except WinFail:
+                    out[n] = '?'
+                finally:
+                    a.CloseServiceHandle(h)
+        finally:
+            a.CloseServiceHandle(scm)
+        return out
+
     # -- processes -----------------------------------------------------------------------------
     def run(self, argv, env, cwd, timeout):
         """argv by CreateProcess (never a shell) -> (exit code, stdout, stderr)."""
@@ -1673,6 +1794,24 @@ class _RealPipeServer(object):
 
 # ---- the tests' Windows: C:\... in a folder, the rest as JSON beside it ------------------------
 FAKE_ADMIN = 'S-1-5-21-1111111111-2222222222-3333333333-500'
+# the registry values the fake's server tells of itself (1.0.120), unless sysinfo.json says others
+FAKE_REG = {
+    OS_KEY: {'ProductName': 'Windows Server 2022 Standard', 'EditionID': 'ServerStandard',
+             'DisplayVersion': '21H2', 'CurrentBuild': '20348', 'UBR': 2340,
+             'CurrentMajorVersionNumber': 10, 'CurrentMinorVersionNumber': 0,
+             'InstallationType': 'Server'},
+    r'HARDWARE\DESCRIPTION\System\CentralProcessor\0': {
+        'ProcessorNameString': 'Intel(R) Xeon(R) Gold 6338 CPU @ 2.00GHz'},
+    r'HARDWARE\DESCRIPTION\System\BIOS': {'SystemManufacturer': 'VMware, Inc.',
+                                           'SystemProductName': 'VMware7,1'},
+    r'SYSTEM\CurrentControlSet\Control\TimeZoneInformation': {
+        'TimeZoneKeyName': 'Central Europe Standard Time'},
+    r'SYSTEM\CurrentControlSet\Services\Tcpip\Parameters': {'Hostname': 'WEB01',
+                                                              'Domain': 'corp.example.com'},
+    r'SYSTEM\CurrentControlSet\Control\Session Manager\Environment': {
+        'PROCESSOR_ARCHITECTURE': 'AMD64'},
+    r'SOFTWARE\Microsoft\Windows\CurrentVersion\WSMAN\Listener\*+HTTPS': {},
+}
 FAKE_ROOT_SD = 'O:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)'
 FAKE_ACCOUNTS = {'system': SYSTEM, 'nt authority\\system': SYSTEM, 'localsystem': SYSTEM,
                  'administrators': ADMINS, 'builtin\\administrators': ADMINS,
@@ -2163,6 +2302,61 @@ class FakeWin(object):
                                                           10, 0]
         return _os_words(*o)
 
+    # -- what the agent tells about its server (1.0.120): sysinfo.json of the fake - its
+    # registry values ({"reg": {KEY: {name: value}}}), memory, uptime, join, disks; a method
+    # named in "fail" raises, one in "slow" takes that long (the tests of a fact left out)
+    def _sys(self, what):
+        got = self.load('sysinfo.json', {})
+        if what in (got.get('fail') or []):
+            raise WinFail(5, '%s failed (the fake)' % what)
+        if (got.get('slow') or {}).get(what):
+            time.sleep(float(got['slow'][what]))
+        return got
+
+    def reg_values(self, key, names):
+        reg = self._sys('reg_values').get('reg')
+        reg = FAKE_REG if reg is None else reg
+        vals = next((v for k, v in reg.items() if k.lower() == key.lower()), None)
+        if not isinstance(vals, dict):
+            return {}
+        if names is None:
+            return dict(list(vals.items())[:64])
+        low = {k.lower(): v for k, v in vals.items()}
+        return {n: low[n.lower()] for n in names if n.lower() in low}
+
+    def reg_subkeys(self, key, most=64):
+        reg = self._sys('reg_subkeys').get('reg')
+        reg = FAKE_REG if reg is None else reg
+        top = key.lower().rstrip('\\') + '\\'
+        subs = sorted({k[len(top):].split('\\')[0] for k in reg if k.lower().startswith(top)})
+        if not subs and not any(k.lower() == key.lower() for k in reg):
+            return None
+        return subs[:most]
+
+    def memory(self):
+        m = self._sys('memory').get('mem') or [8 * 1024 ** 3, 3 * 1024 ** 3]
+        return int(m[0]), int(m[1])
+
+    def uptime(self):
+        return float(self._sys('uptime').get('uptime') or 3 * 86400 + 4 * 3600)
+
+    def net_join(self):
+        j = self._sys('net_join').get('join') or ['CORP', 'domain']
+        return str(j[0]), str(j[1])
+
+    def disk_usage(self, path):
+        d = (self._sys('disk_usage').get('disks') or {}).get(ntpath.splitdrive(path)[0].upper())
+        if d:
+            return int(d[0]), int(d[1])
+        got = shutil.disk_usage(self.local(ntpath.splitdrive(path)[0] + '\\'))
+        return got.total, got.free
+
+    def services_states(self, names):
+        self._sys('services_states')
+        svcs = self.load('services.json', {})
+        return {n: (svcs[n.lower()].get('state') or 'Stopped') for n in names
+                if n.lower() in svcs}
+
     # -- processes -----------------------------------------------------------------------------
     def _argv(self, argv):
         a = list(argv)
@@ -2528,11 +2722,63 @@ def _policy_line(pol, words):
         if rest:
             raise Refused('allow rdp')
         pol['rdp'] = True
+    elif what == 'role':
+        name, extra = role_entry(rest)
+        have = pol.setdefault('roles', {}).setdefault(name, [])
+        if extra and extra.lower() not in [x.lower() for x in have]:
+            have.append(extra)
+    elif what == 'key-read':
+        if len(rest) != 1 or not ACCOUNT_RE.match(rest[0]):
+            raise Refused('allow key-read ACCOUNT (an account given read on the private key: '
+                          '"NT SERVICE\\MyService", DOMAIN\\svc)')
+        have = pol.setdefault('key_read', [])
+        if rest[0].lower() not in [x.lower() for x in have]:
+            have.append(rest[0])
     elif what in ('script-hash', 'from', 'self-update', 'connect', 'probe'):
         ORIG['_policy_line'](pol, words)
     else:
         raise Refused('allow file | service | test | script | script-hash | store | iis | rdp | '
-                      'from | probe | connect | self-update')
+                      'role | key-read | from | probe | connect | self-update')
+
+
+ROLE_EXTRA = {'ccs': 'path', 'wac': 'msi'}
+UNC_RE = re.compile(r'\\\\[^\\\x00-\x1f\x7f/:*?"<>|]+\\[^\x00-\x1f\x7f*?"<>|]+\Z')
+
+
+def role_entry(rest):
+    """allow role NAME [path=FOLDER (ccs) | msi=FILE (wac)] -> (NAME, FOLDER | FILE | None): a
+    Windows role of the deployments (acme_agent_winroles.ROLES) - the folder of the IIS
+    Central Certificate Store it writes (needed), the .msi of an older Windows Admin Center
+    it runs again (only that one)."""
+    names = [r[0] for r in A._winroles().ROLES]
+    kv, rest = A._kv(rest, ('path', 'msi'))
+    if len(rest) != 1 or rest[0] not in names:
+        raise Refused('allow role NAME - one of %s (ccs: path=FOLDER, wac: [msi=FILE])'
+                      % ', '.join(names))
+    name = rest[0]
+    want = ROLE_EXTRA.get(name)
+    for k in kv:
+        if k != want:
+            raise Refused('%s= is not a word of allow role %s' % (k, name))
+    extra = kv.get(want) if want else None
+    if name == 'ccs':
+        if not extra:
+            raise Refused('allow role ccs path=FOLDER (the folder of the Central Certificate '
+                          'Store: C:\\ccs or \\\\server\\share)')
+        if UNC_RE.match(extra):
+            extra = extra.rstrip('\\')
+        else:
+            extra = norm_dir(extra, real=False)
+            if re.fullmatch(r'[A-Z]:\\', extra):
+                raise Refused('a drive\'s root is no folder of the Central Certificate Store')
+            why = protected(extra)
+            if why:
+                raise Refused(why)
+    elif name == 'wac' and extra is not None:
+        extra = norm_dir(extra, real=False)
+        if not extra.lower().endswith('.msi'):
+            raise Refused('allow role wac msi=C:\\PATH\\WindowsAdminCenter.msi')
+    return name, extra
 
 
 def policy_lines(pol):
@@ -2550,7 +2796,8 @@ def policy_lines(pol):
 
 
 def policy_facts():
-    return {'platform': 'windows', 'protected': protected_list(), 'parts': ['.ssh'],
+    roles = [[r[0], r[1], ROLE_EXTRA.get(r[0])] for r in A._winroles().ROLES]
+    return {'platform': 'windows', 'roles': roles, 'protected': protected_list(), 'parts': ['.ssh'],
             'own': own_places(), 'verbs': list(WIN_VERBS), 'shells': list(WIN_SHELLS),
             'exec_ext': list(EXEC_EXT), 'config_ok': [], 'head': POLICY_HEAD_WIN,
             'limits': {'files': A.FILES_MOST, 'size': A.FILE_MOST, 'files_most': 200,
@@ -2692,8 +2939,8 @@ def op_words(op):
 def policy_words(words):
     """The words of `allow ...` as a line of the policy (a folder's real path, a script
     pinned, each reader an account of this machine)."""
-    usage = 'acme-agent allow file|service|test|script|script-hash|store|iis|rdp|from|probe|' \
-            'connect|self-update'
+    usage = 'acme-agent allow file|service|test|script|script-hash|store|iis|rdp|role|' \
+            'key-read|from|probe|connect|self-update'
     if not words:
         raise SystemExit(usage)
     what, rest = words[0], words[1:]
@@ -2746,6 +2993,18 @@ def policy_words(words):
             return 'allow script %s sha256=%s' % (wq(p), h)
         if what in ('store', 'rdp'):
             return 'allow %s' % what
+        if what == 'role':
+            name, extra = role_entry(rest)
+            return 'allow role %s%s' % (name, (' %s=%s' % (ROLE_EXTRA[name], wq(extra)))
+                                        if extra else '')
+        if what == 'key-read':
+            if len(rest) != 1 or not ACCOUNT_RE.match(rest[0]):
+                raise SystemExit('acme-agent allow key-read ACCOUNT')
+            try:
+                W.lookup_sid(rest[0])
+            except OSError:
+                raise SystemExit('acme-agent: there is no account %s on this machine' % rest[0])
+            return 'allow key-read %s' % wq(rest[0])
         if what == 'iis':
             if len(rest) != 1:
                 raise SystemExit('acme-agent allow iis SITE (its name as IIS says it) | '
@@ -2991,6 +3250,194 @@ def _os_name():
         return W.os_name()
     except Exception:                                   # noqa: BLE001
         return 'Windows'
+
+
+# ---- what the agent tells about its server (1.0.120, docs/target-agent.md): the Windows facts -
+# the registry, the service manager, kernel32 (W), never a command per fact; bounded and left
+# out when one fails as acme_agent.py's system_info does with them
+WIN_ROLES = (
+    # (what acme shows, its services, said only while running - a service every Windows has)
+    ('IIS', ('W3SVC',), False), ('IIS FTP', ('ftpsvc',), False), ('SMTP', ('SMTPSVC',), False),
+    ('AD CS', ('CertSvc',), False), ('AD DS', ('NTDS',), False), ('AD FS', ('adfssrv',), False),
+    ('Web Application Proxy', ('appproxysvc',), False), ('RD Gateway', ('TSGateway',), False),
+    ('RD Connection Broker', ('Tssdis',), False), ('RD Licensing', ('TermServLicensing',), False),
+    ('Exchange', ('MSExchangeTransport', 'MSExchangeServiceHost', 'MSExchangeIS'), False),
+    ('SQL Server', ('MSSQLSERVER',), False),
+    ('SQL Reporting', ('SQLServerReportingServices', 'ReportServer'), False),
+    ('NPS', ('IAS',), False), ('WSUS', ('WsusService',), False),
+    ('RRAS', ('RemoteAccess',), True), ('WinRM', ('WinRM',), True))
+TS_KEY = r'SYSTEM\CurrentControlSet\Control\Terminal Server'
+SQL_KEY = r'SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL'
+WSMAN_KEY = r'SOFTWARE\Microsoft\Windows\CurrentVersion\WSMAN\Listener'
+
+
+def _sf_os_win():
+    v = W.reg_values(OS_KEY, ('ProductName', 'EditionID', 'DisplayVersion', 'ReleaseId',
+                              'CurrentBuild', 'UBR', 'CurrentMajorVersionNumber',
+                              'CurrentMinorVersionNumber', 'InstallationType'))
+    product = str(v.get('ProductName') or 'Windows')
+    build = str(v.get('CurrentBuild') or '')
+    try:
+        if int(build) >= 22000 and product.startswith('Windows 10'):
+            product = 'Windows 11' + product[len('Windows 10'):]
+    except ValueError:
+        pass
+    full = '%s.%s.%s%s' % (v.get('CurrentMajorVersionNumber', 10),
+                           v.get('CurrentMinorVersionNumber', 0), build or '?',
+                           '.%s' % v['UBR'] if v.get('UBR') is not None else '')
+    out = {'os': product, 'os_id': 'windows', 'os_version': str(v.get('DisplayVersion') or
+                                                                v.get('ReleaseId') or ''),
+           'edition': str(v.get('EditionID') or ''), 'build': full, 'kernel': full,
+           'install': str(v.get('InstallationType') or '')}
+    env = W.reg_values(r'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+                       ('PROCESSOR_ARCHITECTURE',))
+    out['arch'] = str(env.get('PROCESSOR_ARCHITECTURE') or
+                      os.environ.get('PROCESSOR_ARCHITECTURE') or '')
+    bios = W.reg_values(r'HARDWARE\DESCRIPTION\System\BIOS', ('SystemManufacturer',
+                                                             'SystemProductName'))
+    if bios:
+        out['machine'] = ' '.join(str(bios[k]) for k in ('SystemManufacturer',
+                                                         'SystemProductName') if bios.get(k))
+    return out
+
+
+def _sf_host_win():
+    tcp = W.reg_values(r'SYSTEM\CurrentControlSet\Services\Tcpip\Parameters',
+                       ('Hostname', 'Domain', 'NV Domain'))
+    host = str(tcp.get('Hostname') or socket.gethostname())
+    dom = str(tcp.get('Domain') or tcp.get('NV Domain') or '')
+    out = {'hostname': host}
+    if dom:
+        out.update(fqdn='%s.%s' % (host, dom), domain=dom)
+    try:
+        name, kind = W.net_join()
+    except Exception:                                   # noqa: BLE001
+        name, kind = '', ''
+    if kind == 'domain':
+        out['ad_domain'] = name
+    elif kind == 'workgroup':
+        out['workgroup'] = name
+    return out
+
+
+def _win_addrs():
+    import ipaddress
+    out, seen = [], set()
+    for fam, _t, _p, _c, sa in socket.getaddrinfo(socket.gethostname(), None)[:64]:
+        ip = str(sa[0]).split('%')[0]
+        try:
+            a = ipaddress.ip_address(ip)
+        except ValueError:
+            continue
+        if a.is_loopback or a.is_link_local or ip in seen:
+            continue
+        seen.add(ip)
+        out.append({'if': '', 'ip': ip})
+    return out
+
+
+def _sf_hw_win():
+    out = {}
+    cpu = W.reg_values(r'HARDWARE\DESCRIPTION\System\CentralProcessor\0',
+                       ('ProcessorNameString',))
+    if cpu.get('ProcessorNameString'):
+        out['cpu'] = str(cpu['ProcessorNameString'])
+    out['cores'] = os.cpu_count() or 0
+    try:
+        out['mem_total'], out['mem_avail'] = W.memory()
+    except Exception:                                   # noqa: BLE001
+        pass
+    try:
+        out['boot'] = int(time.time() - W.uptime())
+    except Exception:                                   # noqa: BLE001
+        pass
+    tz = W.reg_values(r'SYSTEM\CurrentControlSet\Control\TimeZoneInformation',
+                      ('TimeZoneKeyName',))
+    out['tz'] = str(tz.get('TimeZoneKeyName') or time.strftime('%Z'))
+    out['tz_offset'] = int(time.localtime().tm_gmtoff // 60)
+    return out
+
+
+def _sf_reboot_win():
+    why = []
+    cbs = W.reg_subkeys(r'SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing')
+    if cbs and 'RebootPending' in cbs:
+        why.append('Component Based Servicing')
+    wu = W.reg_subkeys(r'SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update')
+    if wu and 'RebootRequired' in wu:
+        why.append('Windows Update')
+    sm = W.reg_values(r'SYSTEM\CurrentControlSet\Control\Session Manager',
+                      ('PendingFileRenameOperations',))
+    if sm.get('PendingFileRenameOperations'):
+        why.append('files to rename at the restart')
+    a = W.reg_values(r'SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName',
+                     ('ComputerName',)).get('ComputerName')
+    b = W.reg_values(r'SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName',
+                     ('ComputerName',)).get('ComputerName')
+    if a and b and str(a).lower() != str(b).lower():
+        why.append('the computer was renamed')
+    return {'reboot': bool(why), 'reboot_why': '; '.join(why)}
+
+
+def _sf_roles_win():
+    """The roles a certificate is used by, by their services (one ask of the service manager)
+    and a few registry values - never Get-WindowsFeature."""
+    names = [n for _r, svcs, _o in WIN_ROLES for n in svcs] + ['TermService']
+    # SQL Server's instances: the values of Instance Names\SQL (MSSQLSERVER, SQLEXPRESS...)
+    inst_names = [str(n) for n in W.reg_values(SQL_KEY, None)][:8]
+    for n in inst_names:
+        if n != 'MSSQLSERVER':
+            names.append('MSSQL$' + n)
+    st = W.services_states(names)
+    out = []
+    for role, svcs, only_running in WIN_ROLES:
+        got = [st[s] for s in svcs if s in st]
+        if not got or only_running and 'Running' not in got:
+            continue
+        r = {'name': role, 'state': 'active' if 'Running' in got else 'present'}
+        if role == 'WinRM':
+            ls = W.reg_subkeys(WSMAN_KEY) or []
+            if any('HTTPS' in x.upper() for x in ls):
+                r['detail'] = 'HTTPS listener'
+        out.append(r)
+    for n in inst_names:
+        if n == 'MSSQLSERVER':
+            continue
+        s = st.get('MSSQL$' + n)
+        if s:
+            out.append({'name': 'SQL Server', 'state': 'active' if s == 'Running' else 'present',
+                        'detail': n})
+    ts = W.reg_values(TS_KEY, ('fDenyTSConnections',))
+    if ts.get('fDenyTSConnections') == 0 and st.get('TermService'):
+        out.append({'name': 'Remote Desktop', 'state': 'active' if st['TermService'] == 'Running'
+                    else 'present'})
+    return {'services': out}
+
+
+def system_facts(pol=None):
+    """The facts of this Windows server (Linux: acme_agent.system_facts)."""
+    until = time.time() + A.SYS_BUDGET_S
+    out = {'platform': 'windows'}
+    for fn in (_sf_os_win, _sf_hw_win, _sf_reboot_win, A._sf_runtime):
+        A._sys_try(out, lambda f=fn: A._timed(f.__name__, f, until=until))
+    A._sys_try(out, lambda: A._timed('host', _sf_host_win, until=until))
+    addrs = A._timed('addrs', _win_addrs, until=until)
+    if addrs:
+        out['addrs'] = addrs
+    drive = W.system_drive().rstrip('\\') + '\\'
+
+    def mount_of(p):
+        d = ntpath.splitdrive(str(p))[0].upper()
+        if not re.fullmatch(r'[A-Z]:', d):
+            raise ValueError(p)
+        return d, d + '\\', ''
+
+    def disks():
+        A._sf_disks(out, pol, W.disk_usage, mount_of, (drive,))
+        return {}
+    A._sys_try(out, lambda: A._timed('disks', disks, until=until))
+    A._sys_try(out, lambda: A._timed('roles', _sf_roles_win, until=until))
+    return out
 
 
 # ---- the deployment's commands: services, CreateProcess, PowerShell ---------------------------
@@ -3527,7 +3974,7 @@ REPLACED = ('norm_dir', 'norm_unit', 'protected', 'runs_from', 'trusted_text', '
             '_p12_env', '_probe_env', 'install_files', 'restart_later', '_os_name', 'op_words',
             'agent_ids', 'serve_root', 'RootLink', 'serve_net', 'reuse_addr', 'need_root',
             'make_places', 'cmd_init', 'restart_services', 'policy_edit', 'policy_words',
-            'status_facts', 'main', '_write', 'audit', '_under')
+            'status_facts', 'main', '_write', 'audit', '_under', 'system_facts')
 
 
 def install(g):

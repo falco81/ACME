@@ -67431,6 +67431,162 @@
   "z_729": {
    "source": "{service} in the paths and commands, ACME_SERVICE for the script",
    "text": "{service} v cestách a příkazech, ACME_SERVICE pro skript"
+  },
+  "z_730": {
+   "source": "clock not known",
+   "text": "čas neznámý"
+  },
+  "z_731": {
+   "source": "clock in time",
+   "text": "čas souhlasí"
+  },
+  "z_732": {
+   "source": "clock off",
+   "text": "čas se rozchází"
+  },
+  "z_733": {
+   "source": "clock far off",
+   "text": "čas se hodně rozchází"
+  },
+  "z_734": {
+   "source": "The server’s clock against acme’s: in time.",
+   "text": "Hodiny serveru proti hodinám acme: souhlasí."
+  },
+  "z_735": {
+   "source": "The server’s clock against acme’s. The agent refuses every job more than 300 s off - set its time right (NTP).",
+   "text": "Hodiny serveru proti hodinám acme. Agent odmítne každou úlohu, jsou-li o více než 300 s jinde – nastavte serveru správný čas (NTP)."
+  },
+  "z_736": {
+   "source": "When the agent last told about its server: a passive agent with every answer (every 5 minutes), an active one when something changes and every half hour.",
+   "text": "Kdy agent naposledy hlásil údaje o svém serveru: pasivní agent s každou odpovědí (každých 5 minut), aktivní při každé změně a každou půlhodinu."
+  },
+  "z_737": {
+   "source": "The agent is too old to tell (update it)",
+   "text": "Agent je příliš starý, aby to hlásil (aktualizujte ho)"
+  },
+  "z_738": {
+   "source": "Not said yet",
+   "text": "Zatím nehlášeno"
+  },
+  "z_739": {
+   "source": "A newer agent tells acme its server’s system, addresses, memory, disks, uptime and clock.",
+   "text": "Novější agent hlásí acme systém svého serveru, adresy, paměť, disky, dobu běhu a čas."
+  },
+  "z_740": {
+   "source": "Ask it now: the agent tells its server’s system, addresses, memory, disks, uptime and clock.",
+   "text": "Zeptejte se ho teď: agent nahlásí systém svého serveru, adresy, paměť, disky, dobu běhu a čas."
+  },
+  "z_741": {
+   "source": "The kernel it runs",
+   "text": "Jádro, které běží"
+  },
+  "z_742": {
+   "source": "restart pending",
+   "text": "čeká na restart"
+  },
+  "z_743": {
+   "source": "no restart pending",
+   "text": "restart nečeká"
+  },
+  "z_744": {
+   "source": "AppArmor",
+   "text": "AppArmor"
+  },
+  "z_745": {
+   "source": "AD domain",
+   "text": "doména AD"
+  },
+  "z_746": {
+   "source": "workgroup",
+   "text": "pracovní skupina"
+  },
+  "z_747": {
+   "source": "domain",
+   "text": "doména"
+  },
+  "z_748": {
+   "source": "Processor",
+   "text": "Procesor"
+  },
+  "z_749": {
+   "source": "1 core",
+   "text": "1 jádro"
+  },
+  "z_750": {
+   "source": "The load average of the last 1, 5 and 15 minutes",
+   "text": "Průměrná zátěž za poslední 1, 5 a 15 minut"
+  },
+  "z_751": {
+   "source": "available",
+   "text": "volné"
+  },
+  "z_752": {
+   "source": "Disks",
+   "text": "Disky"
+  },
+  "z_753": {
+   "source": "Uptime",
+   "text": "Doba běhu"
+  },
+  "z_754": {
+   "source": "started",
+   "text": "spuštěn"
+  },
+  "z_755": {
+   "source": "Roles",
+   "text": "Role"
+  },
+  "z_756": {
+   "source": "none of the roles acme knows",
+   "text": "žádná z rolí, které acme zná"
+  },
+  "z_757": {
+   "source": "none of the services acme knows",
+   "text": "žádná ze služeb, které acme zná"
+  },
+  "z_758": {
+   "source": "installed, not running",
+   "text": "nainstalováno, neběží"
+  },
+  "z_759": {
+   "source": "Python",
+   "text": "Python"
+  },
+  "z_760": {
+   "source": "OpenSSL",
+   "text": "OpenSSL"
+  },
+  "z_761": {
+   "source": "openssl command",
+   "text": "příkaz openssl"
+  },
+  "z_762": {
+   "source": "init",
+   "text": "init"
+  },
+  "z_763": {
+   "source": "the agent is too old to tell",
+   "text": "agent je příliš starý, aby to hlásil"
+  },
+  "z_764": {
+   "source": "disk full",
+   "text": "plný disk"
+  },
+  "z_765": {
+   "source": "Linux",
+   "text": "Linux"
+  },
+  "z_766": {
+   "source": "Windows",
+   "text": "Windows"
+  },
+  "z_767": {
+   "source": "Clock",
+   "text": "Čas"
+  },
+  "z_768": {
+   "source": "No server of this kind",
+   "text": "Žádný server tohoto druhu"
   }
  },
  "patterns": {
@@ -93417,6 +93573,22 @@
   "pz_171": {
    "source": "the older certificates this agent imported for this deployment: the newest {0} kept, the rest removed (never one still bound)",
    "text": "starší certifikáty, které tento agent pro toto nasazení importoval: {0} nejnovějších se ponechá, zbytek se odebere (nikdy ne ten ještě navázaný)"
+  },
+  "pz_172": {
+   "source": "{0} cores",
+   "text": "{0} × jádro"
+  },
+  "pz_173": {
+   "source": "{0} h {1} min",
+   "text": "{0} h {1} min"
+  },
+  "pz_174": {
+   "source": "{0} min",
+   "text": "{0} min"
+  },
+  "pz_175": {
+   "source": "{0} s",
+   "text": "{0} s"
   }
  },
  "rich": {

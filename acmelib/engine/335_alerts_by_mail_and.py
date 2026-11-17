@@ -855,7 +855,7 @@ def alert_problems_more(store, lang, add, names, health, beats, cluster, quiet, 
             if probs:
                 add('selinux:' + n, 'warn', n,
                     _al(lang, 'SELinux na %s: něco není, jak acme potřebuje' % n, 'SELinux on %s: something is not as acme needs it' % n),
-                    '; '.join(probs)[:300], 'hisec')
+                    '; '.join(probs)[:300], 'selinux')
     # What waits for a person (1.0.54): a command after an update, SELinux switched off.
     if CONFIG.get('alerts_hand', 1):
         try:

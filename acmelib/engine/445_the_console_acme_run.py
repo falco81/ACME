@@ -2871,6 +2871,22 @@ class Console(object):
                     'Do it', danger=st in ('enforce', 'prepare')):
                 self.act('--selinux', st, '--yes')
 
+        def se_fix():
+            # What SELinux refuses, put right by root (1.0.120): listed first, then asked.
+            self.act('--selinux', 'look')
+            if self.confirm('SELinux on this machine', 'Everything listed as "can be put right" is put '
+                            'right by root: booleans, labels, ports, and rules of acme\'s own local '
+                            'module (each can be taken away again). Never what is not for a button, '
+                            'never another program\'s. Under enforcing too.', 'Put it right'):
+                self.act('--selinux', 'fix', '--all', '--yes')
+
+        def se_rules():
+            self.act('--selinux', 'rules')
+            rid = (self.ask('The id of a rule to take away (empty: none)') or '').strip()
+            if rid and self.confirm('acme\'s local rules', 'The rule %s is taken out of the policy.' % rid,
+                                    'Take it away', danger=True):
+                self.act('--selinux', 'rules', '--take-away', rid, '--yes')
+
         return self.sub('Encryption, sending out, time, network, high security', [
             ('1', 'Encryption to the database server: how it stands', lambda: self.act('--db-tls')),
             ('2', 'Encryption to the database server: try a mode', db_probe),
@@ -2890,15 +2906,18 @@ class Console(object):
             ('16', 'SELinux: how it stands on this machine', lambda: self.act('--selinux-check')),
             ('17', 'SELinux: a step on this machine', se_step),
             ('18', 'SELinux: the report for acme\'s module (a file)', lambda: self.act('--selinux-report')),
-            ('19', 'The guard against writes to the database: rows not as acme wrote them',
+            ('19', 'SELinux: what it refuses here, sorted', lambda: self.act('--selinux', 'look')),
+            ('20', 'SELinux: put right what can be put right (asked first)', se_fix),
+            ('21', 'SELinux: acme\'s local rules (take one away)', se_rules),
+            ('22', 'The guard against writes to the database: rows not as acme wrote them',
              lambda: self.act('--guard-status')),
-            ('20', 'Signed in by a load balancer (SSO): how it stands, the last sign-ins',
+            ('23', 'Signed in by a load balancer (SSO): how it stands, the last sign-ins',
              lambda: self.act('--sso-status')),
-            ('21', 'Signed in by a load balancer (SSO): a new key, shown once',
+            ('24', 'Signed in by a load balancer (SSO): a new key, shown once',
              lambda: self.act('--sso-key', '--yes') if self.confirm(
                  'A new key for the balancer', 'The one the balancer sends now is no longer taken '
                  '- put the new one into the balancer.', yes='Make it', no='Cancel') else None),
-            ('22', 'isemon: the first full sync (every certificate, its history)', isemon_sync),
+            ('25', 'isemon: the first full sync (every certificate, its history)', isemon_sync),
         ])
 
     def m_upgrades(self):

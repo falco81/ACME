@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import builtins
 import io
+import hashlib
 import json
 import os
 import re
@@ -2022,6 +2023,19 @@ class PlanContext(object):
             if win.get('rdp'):
                 ok, allow = wverdict({'rdp': True})
                 items.append({'what': 'rdp', 'ok': ok, 'allow': allow})
+            if win.get('post_ps'):
+                ok, allow = wverdict({'post_ps': win['post_ps']})
+                items.append({'what': 'post_ps', 'ok': ok, 'allow': allow, 'sha256':
+                              hashlib.sha256(str(win['post_ps']).encode('utf-8')).hexdigest()})
+            for acct in win.get('key_read') or []:
+                ok, allow = wverdict({'key_read': [acct]})
+                items.append({'what': 'key_read', 'account': acct, 'ok': ok, 'allow': allow})
+            for r in win.get('roles') or []:
+                if not isinstance(r, dict) or not r.get('key'):
+                    continue
+                ok, allow = wverdict({'roles': [r]})
+                items.append({'what': 'role', 'role': r.get('key'), 'o': r.get('o') or {},
+                              'ok': ok, 'allow': allow})
         for f in args.get('files') or []:
             if win is not None and not f.get('path'):
                 continue                # the PKCS#12 for the machine store: no file written

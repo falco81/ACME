@@ -772,7 +772,9 @@ class AcmeSide(unittest.TestCase):
         self.assertTrue(tpl['rdp']['rdp'])
         self.assertEqual(tpl['folder']['files'], [{'dir': 'C:\\certs', 'readers': []}])
         self.assertEqual(tpl['service']['units'], {'myservice': ['restart']})
-        self.assertFalse(any('exchange' in k for k in tpl))
+        # 1.0.120 parity: the agent does what windows_ssh does - Exchange and every role too
+        self.assertEqual(tpl['exchange']['roles'], {'exchange': []})
+        self.assertEqual(tpl['ccs']['roles'], {'ccs': ['\\\\fileserver\\ccs']})
         # what a deployment needs, as items of the builder
         items = []
         t = target()

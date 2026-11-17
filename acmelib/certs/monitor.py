@@ -265,6 +265,15 @@ def metrics(store):
              'deployment', 'gauge',
              [({'target': a['name']}, 1 if a.get('blocked') else 0) for a in ags
               if a.get('joined')]),
+            # 1.0.120: what the agent tells about its server
+            ('acme_agent_clock_skew_seconds', 'How far the server\'s clock is from acme\'s '
+             '(+ ahead; the agent refuses jobs beyond 300 s)', 'gauge',
+             [({'target': a['name']}, float(_sys(a).get('skew'))) for a in ags
+              if _sys(a).get('skew') is not None]),
+            ('acme_agent_pending_reboot', 'Whether the server waits for a restart, as its agent '
+             'said', 'gauge',
+             [({'target': a['name']}, 1 if _sys(a)['facts'].get('reboot') else 0) for a in ags
+              if (_sys(a).get('facts') or {}).get('reboot') is not None]),
         ]
     return out
 
@@ -297,6 +306,7 @@ def metrics(store):
 #          6.7 9 external, 10 hours until the CRL is due; 6.8 acme's own DNS server
 # 1.0.116: 6.9.1.C.<id> acmeAgentEntry: 1 index (the target's id), 2 name, 3 mode, 4 state,
 #          5 lastSeen, 6 certDaysLeft, 7 version, 8 stateNum, 9 newer, 10 blocked
+# 1.0.120: 6.9 11 clockSkew (s), 12 rebootPending
 SNMP_TABLE = (6, 2, 1)
 SNMP_COUNTS = (6, 3)
 SNMP_DEPLOYS = (6, 4, 1)
@@ -493,8 +503,15 @@ def snmp_rows(store):
                 (G + (8, i), 'int', AGENT_STATES.index(a['state']) if a.get('state') in
                  AGENT_STATES else 0),
                 (G + (9, i), 'int', 1 if (a.get('update') or {}).get('newer') else 0),
-                (G + (10, i), 'int', 1 if a.get('blocked') else 0)]
+                (G + (10, i), 'int', 1 if a.get('blocked') else 0),
+                (G + (11, i), 'int', _i32(round(_sys(a).get('skew') or 0))),
+                (G + (12, i), 'int', 1 if (_sys(a).get('facts') or {}).get('reboot') else 0)]
     return out
+
+
+def _sys(a):
+    """What an agent told of its server (agents.info's `system`) - {} without it."""
+    return a.get('system') if isinstance(a.get('system'), dict) else {}
 
 
 def agent_rows(store):

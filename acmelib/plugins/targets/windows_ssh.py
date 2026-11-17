@@ -149,17 +149,18 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
                     "$b = Get-WebBinding -Name %s -Protocol https -Port %d -HostHeader %s "
                     "| Select-Object -First 1 }" % (ps_str(site), port, ps_str(host), ps_str(ip),
                                                     sni, ps_str(site), port, ps_str(host)),
-                    "$b.AddSslCertificate($thumb, 'My')",
+                    # 1.0.120: a binding whose ip:port holds a certificate in http.sys
+                    # already refuses AddSslCertificate (error 183): taken away, added again -
+                    # as the agent does
+                    "try { $b.AddSslCertificate($thumb, 'My') } catch { "
+                    "$b.RemoveSslCertificate(); $b.AddSslCertificate($thumb, 'My') }",
                     "Write-Output ('IIS ' + %s)" % ps_str('%s %s:%d' % (site, host or ip, port)),
                 ]
         if as_bool(options.get('rdp')):
-            sc += [
-                "$rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]"
-                "::GetRSAPrivateKey($cert)",
-                "if ($rsa -and $rsa.Key) { $kf = $rsa.Key.UniqueName; foreach ($d in "
-                "@(\"$env:ProgramData\\Microsoft\\Crypto\\RSA\\MachineKeys\", "
-                "\"$env:ProgramData\\Microsoft\\Crypto\\Keys\")) { $p = Join-Path $d $kf; "
-                "if (Test-Path $p) { icacls $p /grant 'NETWORK SERVICE:R' | Out-Null } } }",
+            # 1.0.120: read on the key for NETWORK SERVICE by its SID (a Windows not in English
+            # calls it otherwise) and for a CryptoAPI key too (a 3DES PKCS#12's RSA key) -
+            # _win_roles.RDP_KEY_READ, the same lines the agent runs
+            sc += WR.RDP_KEY_READ + [
                 "$ts = Get-CimInstance -Namespace root/cimv2/TerminalServices "
                 "-ClassName Win32_TSGeneralSetting -Filter \"TerminalName='RDP-tcp'\"",
                 "Set-CimInstance -InputObject $ts -Property @{SSLCertificateSHA1Hash=$thumb}",

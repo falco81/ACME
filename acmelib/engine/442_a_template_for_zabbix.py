@@ -440,7 +440,9 @@ ZBX_TABLES = [
           {'nodiscard': 1}),
          ('acmeAgentVersion', 'version', 'version', 'CHAR', '', {}),
          ('acmeAgentNewer', 'newer', 'newer version offered', 'UNSIGNED', '', {}),
-         ('acmeAgentBlocked', 'blocked', 'policy blocks a deployment', 'UNSIGNED', '', {})]},
+         ('acmeAgentBlocked', 'blocked', 'policy blocks a deployment', 'UNSIGNED', '', {}),
+         ('acmeAgentClockSkew', 'skew', 'server clock skew', 'FLOAT', 's', {}),
+         ('acmeAgentRebootPending', 'reboot', 'server restart pending', 'UNSIGNED', '', {})]},
     {'id': 'pages', 'table': 'acmeCertTable', 'what': 'Certificates of the pages',
      'component': 'web', 'name': 'Certificates of the pages discovery', 'delay': '{$ACME.INTERVAL.TABLES}',
      'macros': [('{#PAGES.TARGET}', 'acmeCertTarget'), ('{#PAGES.CN}', 'acmeCertName')],
@@ -1232,6 +1234,12 @@ def _zbx_rule(z, tb, H):
            'The policy of the agent of {#AGENT.NAME} blocks a deployment', 'WARNING',
            'The server\'s policy refused the last deployment: Settings, Target agents and the '
            'deployment say what to allow (acme-agent allow ...).')
+        tp('skew', 'abs(%s)>120' % lst('skew'),
+           'The clock of the server of {#AGENT.NAME} is off by more than 120 s', 'WARNING',
+           'Its agent refuses every job beyond 300 s: set the server\'s time right (NTP).',
+           opdata='{ITEM.LASTVALUE1}')
+        tp('reboot', '%s=1' % lst('reboot'), 'The server of {#AGENT.NAME} waits for a restart',
+           'INFO', 'Its agent says a restart is pending (a newer kernel, Windows Update...).')
         tp('newer', '%s=1' % lst('newer'), 'A newer agent is offered for {#AGENT.NAME}', 'INFO',
            'acme ships a newer acme-agent: update it on the server (or from its card, where its '
            'policy allows self-update).')

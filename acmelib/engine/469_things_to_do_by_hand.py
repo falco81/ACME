@@ -104,9 +104,27 @@ def hand_selinux(store):
                 'refused, only written down.'
         cmd = "sudo setenforce 1 && sudo sed -i 's/^SELINUX=.*/SELINUX=enforcing/' " \
               "/etc/selinux/config"
-    return [{'id': 'selinux-off', 'level': 'bad', 'pane': 'hisec',
+    return [{'id': 'selinux-off', 'level': 'bad', 'pane': 'selinux',
              'title': 'SELinux was switched off', 'words': words, 'cmd': cmd,
              'cs': {'title': 'SELinux byl vypnut', 'words': cs}}]
+
+
+@hand_check
+def hand_selinux_refuses(store):
+    """SELinux refuses acme something on this node (1.0.120, as fake-igd's kit): how many of it can be
+    put right on the card - each node its own, as SELinux is each machine's own."""
+    fixable, nobutton = selinux_counts(store)
+    if not fixable and not nobutton:
+        return []
+    words = 'SELinux refuses acme something - %d can be put right on the card (Settings - SELinux)' % fixable
+    cs = 'SELinux acme něco odmítá - %d lze napravit na kartě (Nastavení - SELinux)' % fixable
+    if nobutton:
+        words += '; %d not for a button - each says why, the report is for whoever looks after acme\'s module' % nobutton
+        cs += '; %d nejde napravit tlačítkem - u každé je proč, přehled je pro toho, kdo se stará o modul acme' % nobutton
+    return [{'id': 'selinux-refuses', 'level': 'warn', 'pane': 'selinux',
+             'title': 'SELinux refuses acme something', 'words': words + '.',
+             'cmd': 'sudo acme --selinux look',
+             'cs': {'title': 'SELinux acme něco odmítá', 'words': cs + '.'}}]
 
 
 @hand_check

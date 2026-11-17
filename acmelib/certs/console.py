@@ -1074,9 +1074,12 @@ def ssh_key(con, word, name):
 
 def target_agent(con, name):
     """The acme-agent of a target "Server with acme-agent" (1.0.116), as its card on the page:
-    acme --target-agent NAME show|code|confirm FP|look|policy|renew|update|forget|design."""
+    acme --target-agent NAME show|system|code|confirm FP|look|policy|renew|update|forget|
+    design."""
     what = con.choose('The acme-agent of %s' % name, [
-        ('show', 'How it stands'), ('code', 'A one-time join code (an hour, once)'),
+        ('show', 'How it stands'),
+        ('system', 'Its server: the OS, addresses, memory, disks, uptime, clock, roles'),
+        ('code', 'A one-time join code (an hour, once)'),
         ('confirm', 'Confirm the fingerprint the agent printed'),
         ('look', 'Ask it now (a passive one: the join, as far as acme drives it)'),
         ('policy', 'What its policy allows, as it last said'),

@@ -961,6 +961,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <button type="button" data-pane="people" data-icon="person" title="Who may open these pages, what each of them may do, and who is signed in right now.">Accounts</button>
     <button type="button" data-pane="guard" data-icon="shield" title="Somebody guessing passwords, codes or names from one place: counted, and held back for a while; wrong directory passwords per person, so the directory never locks the account.">Sign-in protection</button>
     <button type="button" class="fulladmin-only" data-pane="hisec" data-icon="shield" title="Every way of doing something less safely switched off - and what stands against it now.">High security</button>
+    <button type="button" data-pane="selinux" data-icon="shield" title="What SELinux refuses on each node and what puts it right; acme's module, its local rules; the steps from disabled to enforcing.">SELinux</button>
     <button type="button" data-pane="web" data-icon="lock" title="The certificates of the nodes and of the cluster's VIP address, and how TLS is spoken.">Certificates and TLS</button>
     <button type="button" class="fulladmin-only" data-pane="acme" data-icon="lock" title="The certificates ordered from Let's Encrypt (or another ACME CA) and renewed by themselves.">Automatic certificates</button>
     <button type="button" data-pane="fw" data-icon="wall" title="Who may reach the portal, the administration and the health check; and the machine's firewall (iptables, IPv4 and IPv6) - what acme's functions need opens by itself.">Firewall and access</button>
@@ -1084,8 +1085,15 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
         administration open to everybody, exports not locked. It is switched on only once nothing below stands
         against it; while it is on, all of that is refused wherever it is changed and greyed out on the pages.</p></div>
     <div id="hs-host"></div>
-    <div id="se-host"></div>
     <div class="card full"><h2>Settings</h2><div id="sect-hisec"></div></div>
+  </div>
+  <div class="ctl-pane" id="pane-selinux" hidden>
+    <div class="ctl-head"><h2 class="ctl-title">SELinux</h2>
+      <p class="ctl-lede">What SELinux refuses on each node when it is enforcing, and what acme needs of it: its own module
+        (acme_server), the labels of its files, the boolean that lets the pages ask the daemon, the ports of sshd and
+        PostgreSQL. Looked at every half hour; what is put right and the steps - made ready and permissive, enforcing,
+        permissive again - are done by each node's root only when asked here or with <code>sudo acme --selinux</code>.</p></div>
+    <div id="se-host"></div>
   </div>
   <div class="ctl-pane" id="pane-acme" hidden>
     <div class="ctl-head"><h2 class="ctl-title">Automatic certificates</h2>

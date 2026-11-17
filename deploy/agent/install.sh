@@ -86,7 +86,7 @@ getent passwd acme-agent >/dev/null || useradd --system --gid acme-agent --no-cr
 install -d -m 0755 "$LIB"
 install -m 0755 "$HERE/acme_agent.py" "$LIB/acme_agent.py"
 # the Windows parts ride along (never loaded on Linux) - the program's hash covers them
-for f in acme_agent_win.py acme_agent_wincert.py; do
+for f in acme_agent_win.py acme_agent_wincert.py acme_agent_winroles.py; do
     if [[ -f "$HERE/$f" ]]; then install -m 0644 "$HERE/$f" "$LIB/$f"; fi
 done
 [[ -f "$HERE/README.md" ]] && install -m 0644 "$HERE/README.md" "$LIB/README.md"

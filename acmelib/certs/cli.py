@@ -221,7 +221,9 @@ def add_args(p):
                    help='NAME WHAT - the agent of a target "Server with acme-agent" '
                         '(docs/target-agent.md): show, code (a one-time join code), confirm FP '
                         '(the fingerprint `acme-agent join` printed), look (reach a passive one '
-                        'now), policy (what it allows, as it last said), renew (its '
+                        'now), policy (what it allows, as it last said), system (what it '
+                        'told of its server: OS, addresses, memory, disks, uptime, clock; '
+                        '--json), renew (its '
                         'certificate), update (to the signed agent this acme ships, where its '
                         'policy allows it; "all update": every agent it can), forget (--yes), '
                         'design show|text|forget (the policy designed in acme); "enroll new" '
@@ -1980,6 +1982,22 @@ class Cli(object):
               'acme --target-agent %s design text shows the file)' % row['name'])
         return 0
 
+    def target_agent_system(self, row, info):
+        """acme --target-agent NAME system [--json] (1.0.120): what the agent told of its
+        server, as its card's "The server" shows it."""
+        from acmelib.certs import agent_system as AS
+        v = info.get('system') or AS.view({})
+        if self.json:
+            return self.out({'target': row['name'], 'platform': info.get('platform'),
+                             'version': info.get('version') or '', 'system': v}) or 0
+        rows = [('target', row['name'])] + AS.lines(v)
+        w = max(len(k) for k, _v in rows)
+        for k, val in rows:
+            print('%s  %s' % (k.ljust(w), val))
+        for x in v.get('warnings') or []:
+            print('! %s' % x['words'])
+        return 0
+
     def target_agent(self, words):
         """acme --target-agent NAME show|code|confirm FP|look|policy|renew|update|forget
         (1.0.116) | design show|text|forget (1.0.118); acme --target-agent all update."""
@@ -1990,8 +2008,8 @@ class Cli(object):
         if words == ['enroll']:
             return self.target_agents_enroll('list', [])
         if len(words) < 2:
-            raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|renew|'
-                             'update|forget|design (or: all update; enroll new|list|revoke; '
+            raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|system|'
+                             'renew|update|forget|design (or: all update; enroll new|list|revoke; '
                              'waiting)')
         name, what, rest = words[0], words[1], words[2:]
         if name == 'all' and what == 'update':
@@ -2031,15 +2049,17 @@ class Cli(object):
                 self.sure('the agent of %s is no longer let in' % row['name'])
                 G.forget(self.store, row, self.WHO)
                 return self._said('forgotten: the agent of %s is no longer let in' % row['name'])
-            elif what in ('show', 'policy'):
+            elif what in ('show', 'policy', 'system'):
                 info = G.info(self.store, row)
             elif what == 'design':
                 return self.target_agent_design(row, rest)
             else:
                 raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|'
-                                 'renew|update|forget|design')
+                                 'system|renew|update|forget|design')
         except PluginError as e:
             raise SystemExit('acme: %s' % e)
+        if what == 'system':
+            return self.target_agent_system(row, info)
         if self.json:
             return self.out(info if what != 'policy' else (info.get('policy') or {})) or 0
         if what == 'policy':
@@ -2069,6 +2089,24 @@ class Cli(object):
             rows.append(('reached through', info['via']))
         if info.get('os'):
             rows.append(('system', info['os']))
+        # 1.0.120: what it told of its server, in short (acme --target-agent NAME system: all)
+        from acmelib.certs import agent_system as AS
+        sv = info.get('system') or {}
+        if sv.get('state') == 'old':
+            rows.append(('server', 'the agent is too old to tell (update it)'))
+        elif sv.get('facts'):
+            sf = sv['facts']
+            bits = []
+            if sv.get('uptime') is not None:
+                bits.append('up %s' % AS.span(sv['uptime']))
+            if sv.get('skew') is not None:
+                bits.append('clock %+.1f s' % sv['skew'])
+            if sf.get('reboot'):
+                bits.append('a restart pending')
+            rows.append(('server', '%s%s' % (sf.get('fqdn') or sf.get('hostname') or '-', (
+                ' - ' + ', '.join(bits)) if bits else '')))
+            for x in sv.get('warnings') or []:
+                rows.append(('  look at', x['words']))
         rows += [('last heard', _when(info.get('last_seen'))),
                  ('certificate ends', _when(info.get('cert_end'))),
                  ('key', G.fp_words(info.get('key_fp')) if info.get('key_fp') else '-')]

@@ -675,9 +675,12 @@ function upgradeDraw() {
   var b = $('upband');
   if (!b) return;
   var v = upgradeView();
+  /* Drawn again when something changed - and, while it runs, for its seconds ("so far", "not
+     answering for"); an ended one stays as it is under the pointer (its × among it). */
+  var ticking = v && v.kind === 'running';
   var sig = v ? JSON.stringify([v.kind, v.version, v.id, UPG.api, UPG.phpAway, UPG.node,
-    Math.floor((Date.now() - (UPG.away || 0)) / 1000), v.plan && v.plan.state, v.rows, v.file,
-    Math.floor(Date.now() / 1000)]) : '';
+    ticking ? Math.floor((Date.now() - (UPG.away || 0)) / 1000) : 0, v.plan && v.plan.state, v.rows, v.file,
+    ticking ? Math.floor(Date.now() / 1000) : 0, ADMIN]) : '';
   if (!v) {
     if (!b.hidden) { b.hidden = true; clear(b); b._sig = ''; }
     upgradePill(false);
@@ -1991,6 +1994,7 @@ function showPane(name, opts) {
   if (name === 'siem') loadSiem();
   if (name === 'acme') loadAcme(); else acPoll(false);
   if (name === 'hisec') loadHisec();
+  if (name === 'selinux') loadSelinux(); else if (typeof sePoll === 'function') sePoll(false);
   if (name === 'proxy') drawProxy();
   if (name === 'monitor') { drawMonitor(); loadSnmp(); }
   if (name === 'logs') loadLogs();
@@ -19169,7 +19173,6 @@ function drawLogs() {
 /* Settings → High security (1.0.168): what stands against it now, and what is advised. */
 function loadHisec() {
   api('hisec').then(function (d) { drawHisec(d); }).catch(oops);
-  loadSelinux();
 }
 /* What is in effect on every node (1.0.41): a light under each of the two switches. High
    security is the cluster's - a node not there yet says so (and is looked at again in a
@@ -20359,12 +20362,26 @@ function drawMonitor() {
   }).catch(function () {});
 }
 
-/* ---- Settings → High security: SELinux (as otp 1.0.233) ---------------------------------
-   A card a node: the mode now and after a restart, what acme needs of it (its module, the
-   labels of its files, booleans, ports) and what SELinux refused since the machine started.
-   The steps - made ready and permissive, enforcing, permissive again - are asked of that
-   node and done by its root helper; nothing happens by itself. */
-var SE = {d: null, poll: null};
+/* ---- Settings → SELinux (as otp 1.0.233; 1.0.120: as fake-igd's kit) -------------------------
+   SELinux is each machine's own: in a cluster every node has its own mode, module, refusals and
+   fixes. The card shows one node at a time (a pill a node to choose it), as that node's root found
+   it: the checks (what acme needs), what SELinux refused since the machine started sorted by what
+   puts it right, acme's local rules, and the steps - made ready and permissive, enforcing,
+   permissive again. Whatever is asked here is asked of the node shown, and only of it: a fix names
+   the ids that node found, its root works out what to do. A read-only account sees it all,
+   without a button. */
+var SE = {d: null, poll: null, node: '', sel: {}, rep: null};
+var SE_KINDS = ['fixed', 'boolean', 'label', 'port', 'rule', 'nobutton', 'other'];
+var SE_FIXABLE = {boolean: 1, label: 1, port: 1, rule: 1};
+var SE_KIND_HEAD = {
+  fixed: ['Put right just now', 'Put right here a moment ago - it goes at the next look.'],
+  boolean: ['A boolean', 'audit2why names a boolean that allows it - switched on with setsebool.'],
+  label: ['A label', 'The file is not labelled as the policy says it should be - restorecon puts it right.'],
+  port: ['A port', 'A port with no type of its own - given the type of the program that uses it.'],
+  rule: ['A rule of acme\'s', 'Nothing of the policy allows it: exactly this, and nothing more, goes into acme\'s own local module (acme_local).'],
+  nobutton: ['Not for a button', 'acme\'s, but what it would take is too much to allow from here - each says why, and what an admin could look at.'],
+  other: ['Not acme\'s', 'Other programs of this machine - shown, never put right here.']
+};
 function loadSelinux() {
   if (!$('se-host')) return;
   api('selinux').then(function (d) { SE.d = d; drawSelinux(); sePoll(seBusy(d)); }).catch(function (e) {
@@ -20372,23 +20389,41 @@ function loadSelinux() {
     if (host) { clear(host); host.appendChild(el('p', 'note bad', String((e && e.message) || e))); }
   });
 }
-function seReport(btn) {
-  /* Newer than the one each node had before, by that node's own clock (1.0.59): a node whose clock
-     is behind the browser's was waited for to the end. */
+function seShown() {
+  var nodes = (SE.d && SE.d.nodes) || [];
+  var n = nodes.filter(function (x) { return x.name === SE.node; })[0];
+  if (!n) {
+    try { SE.node = localStorage.getItem('acme.se.node') || ''; } catch (e) { SE.node = ''; }
+    n = nodes.filter(function (x) { return x.name === SE.node; })[0] || nodes.filter(function (x) { return x.me; })[0] || nodes[0];
+    SE.node = n ? n.name : '';
+  }
+  return n || null;
+}
+function seChoose(name) {
+  SE.node = name;
+  try { localStorage.setItem('acme.se.node', name); } catch (e) { /* not kept: fine */ }
+  drawSelinux();
+}
+function seReport(btn, all) {
+  /* The report of the node shown (1.0.120) - or, asked for all, every node's as one file. Newer than
+     the one each node had before, by that node's own clock (1.0.59): a node whose clock is behind the
+     browser's was waited for to the end. */
   var end = Date.now() + 180000, before = {};
   var had = (SE.d && SE.d.reports) || {};
+  var shown = seShown();
+  var want = all || !shown ? '*' : shown.name;
   Object.keys(had).forEach(function (n) { before[n] = (had[n] && had[n].at) || 0; });
   busy(btn, true);
-  SE.rep = {words: 'asking every node for its report…'};
+  SE.rep = {words: want === '*' ? 'asking every node for its report…' : 'asking ' + want + ' for its report…'};
   drawSelinux();
-  api('selinux', {action: 'report', node: '*'}).then(function (r) {
+  api('selinux', {action: 'report', node: want}).then(function (r) {
     /* A node with a step asked and not done yet is not asked (1.0.59): not waited for either. */
     var skip = (r && r.busy) || [];
     return new Promise(function (done) {
       (function tick() {
         api('selinux').then(function (d) {
           SE.d = d;
-          var nodes = (d.nodes || []).map(function (n) { return n.name; }).filter(function (n) { return skip.indexOf(n) < 0; });
+          var nodes = (d.nodes || []).map(function (n) { return n.name; }).filter(function (n) { return skip.indexOf(n) < 0 && (want === '*' || n === want); });
           var reps = d.reports || {};
           var ready = nodes.filter(function (n) { return reps[n] && (reps[n].at || 0) > (before[n] || 0); });
           SE.rep = {words: 'reports made: ' + ready.length + ' of ' + nodes.length + (ready.length < nodes.length ? ' - waiting for ' + nodes.filter(function (n) { return ready.indexOf(n) < 0; }).join(', ') : '')};
@@ -20399,7 +20434,7 @@ function seReport(btn) {
       })();
     });
   }).then(function () {
-    return api('selinux', {action: 'download'});
+    return want === '*' ? api('selinux', {action: 'download'}) : api('selinux', {action: 'download', node: want});
   }).then(function (x) {
     var bin = atob(x.file), bytes = new Uint8Array(bin.length);
     for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -20410,7 +20445,7 @@ function seReport(btn) {
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
     SE.rep = (x.missing || []).length ? {words: 'Downloaded - without: ' + x.missing.join('; '), bad: true}
-                                      : {words: 'Downloaded: every node\'s report is in it.'};
+                                      : {words: want === '*' ? 'Downloaded: every node\'s report is in it.' : 'Downloaded: the report of ' + want + '.'};
     drawSelinux();
   }).catch(function (e) { SE.rep = {words: String((e && e.message) || e), bad: true}; drawSelinux(); oops(e); })
     .then(function () { busy(btn, false); });
@@ -20420,15 +20455,15 @@ function seBusy(d) {
 }
 function sePoll(on) {
   if (on && !SE.poll) SE.poll = setInterval(function () {
-    if (TAB !== 'settings' || PANE !== 'hisec') { sePoll(false); return; }
+    if (TAB !== 'settings' || PANE !== 'selinux') { sePoll(false); return; }
     api('selinux').then(function (d) { SE.d = d; drawSelinux(); if (!seBusy(d)) sePoll(false); }).catch(function () {});
   }, 2000);
   if (!on && SE.poll) { clearInterval(SE.poll); SE.poll = null; }
 }
-function seAsk(n, action) {
-  return api('selinux', {node: n.name, action: action}).then(function (r) {
+function seAsk(n, action, more) {
+  return api('selinux', Object.assign({node: n.name, action: action}, more || {})).then(function (r) {
     toast(r.message, 'good');
-    setTimeout(loadSelinux, 800);
+    setTimeout(function () { loadSelinux(); sePoll(true); }, 800);
   }).catch(oops);
 }
 function seModeWords(m) {
@@ -20443,42 +20478,214 @@ function seRow(list, good, words, more) {
   r.appendChild(t);
   list.appendChild(r);
 }
+/* The findings a node keeps, sorted as its root sorted them; "put right just now" only within the
+   hour of the look - older, it is simply no longer counted. */
+function seFindings(n) {
+  var s = n.state || {}, at = n.at || 0;
+  return (s.findings || []).filter(function (f) {
+    return f.kind !== 'fixed' || (f.fixed_at && at - f.fixed_at < 3600);
+  });
+}
+function seSel(n) { return (SE.sel[n.name] = SE.sel[n.name] || {}); }
+function seTicked(n) {
+  var sel = seSel(n);
+  return seFindings(n).filter(function (f) { return SE_FIXABLE[f.kind] && f.fixable && sel[f.id] !== false; });
+}
+function seOpen(n) {
+  var fs = seFindings(n);
+  return {fix: fs.filter(function (f) { return SE_FIXABLE[f.kind] && f.fixable; }).length,
+          no: fs.filter(function (f) { return f.kind === 'nobutton'; }).length};
+}
+/* The dot of a node in the chooser: green enforcing with nothing open, amber something to do, red
+   not heard from or an error, grey disabled or not said yet. */
+function seDot(n) {
+  var s = n.state || {}, o = seOpen(n);
+  if (n.alive === false || n.error) return 'bad';
+  if (!s.mode || s.mode === 'Disabled' || s.mode === 'absent') return 'off';
+  if (o.fix || o.no || (s.problems || []).length) return 'warn';
+  return s.mode === 'Enforcing' ? 'ok' : 'warn';
+}
 function drawSelinux() {
   var host = $('se-host');
   if (!host || !SE.d) return;
+  /* Drawn again in place (every 2 s while a node works): the box keeps its height meanwhile, so
+     whatever scrolls around it does not jump. */
+  host.style.minHeight = host.offsetHeight ? host.offsetHeight + 'px' : '';
   clear(host);
+  var n = seShown();
+  var nodes = SE.d.nodes || [];
+  var cluster = nodes.length > 1;
   var c = el('div', 'card full se-card');
-  var h = el('h2', '', 'SELinux');
-  var tl = el('span', 'right');
-  var look = cmdButton('Look again', 'refresh', 'small');
-  look.onclick = function () {
-    busy(look, true);
-    Promise.all((SE.d.nodes || []).map(function (n) { return api('selinux', {node: n.name, action: 'check'}); }))
-      .then(function () { setTimeout(loadSelinux, 800); }).catch(oops).then(function () { busy(look, false); });
-  };
-  tl.appendChild(look);
-  /* The report of every node, made by each and taken as one file (as otp 1.0.236): what whoever writes
-     acme's module needs - nothing is changed to make it. */
-  var rep = cmdButton('Download the report (all nodes)', 'download', 'small');
-  rep.onclick = function () { seReport(rep); };
-  tl.appendChild(rep);
-  h.appendChild(tl);
+  var h = el('h2', 'se-h', 'SELinux');
+  if (cluster) {
+    /* As the cards of Settings in a cluster: a dot a node and a refresh - every node looks again. */
+    var pill = el('span', 'se-pill' + (nodes.every(function (x) { return seDot(x) === 'ok'; }) ? '' : ' diff'));
+    var dots = el('span', 'sn-dots');
+    nodes.forEach(function (x) { dots.appendChild(el('span', 'dot ' + seDot(x))); });
+    explain(dots, 'Each node\'s SELinux, as that node found it: green enforcing with nothing left, amber something to do, red not heard from, grey disabled.',
+      '<table class="sn-pop">' + nodes.map(function (x) {
+        var o = seOpen(x);
+        return '<tr><td><span class="dot ' + seDot(x) + '"></span></td><td class="sn-n">' + richText(x.name) + '</td><td>'
+          + richText(seTrS(seModeWords((x.state || {}).mode))) + '</td><td>' + (o.fix ? richText(seTrS('to put right') + ': ' + o.fix) : '') + '</td></tr>';
+      }).join('') + '</table>');
+    pill.appendChild(dots);
+    if (ADMIN) {
+      pill.appendChild(el('span', 'sn-sep'));
+      var re = el('button', 'sn-re');
+      re.type = 'button';
+      re.innerHTML = iconMarkup('refresh', 12);
+      explain(re, 'Look again on every node');
+      re.onclick = function (e) {
+        e.stopPropagation();
+        Promise.all(nodes.map(function (x) { return api('selinux', {node: x.name, action: 'check'}); }))
+          .then(function () { setTimeout(function () { loadSelinux(); sePoll(true); }, 800); }).catch(oops);
+      };
+      pill.appendChild(re);
+    }
+    h.appendChild(pill);
+  }
+  if (ADMIN && n) {
+    var tl = el('span', 'right se-top');
+    var look = cmdButton('Look again', 'refresh', 'small');
+    look.onclick = function () {
+      busy(look, true);
+      api('selinux', {node: n.name, action: 'check'})
+        .then(function () { setTimeout(function () { loadSelinux(); sePoll(true); }, 800); }).catch(oops).then(function () { busy(look, false); });
+    };
+    tl.appendChild(look);
+    /* The report of the node shown, made by it (as otp 1.0.236): what whoever writes acme's module
+       needs - nothing is changed to make it. */
+    var rep = cmdButton('Download the report', 'download', 'small');
+    rep.onclick = function () { seReport(rep, false); };
+    tl.appendChild(rep);
+    h.appendChild(tl);
+  }
   c.appendChild(h);
   if (SE.rep) c.appendChild(el('p', 'note small se-rep' + (SE.rep.bad ? ' bad' : ''), SE.rep.words));
-  c.appendChild(el('p', 'note', 'What SELinux refuses to the web server, keepalived, sshd and the rest when it is enforcing - and what acme needs of it on each node. Nothing changes here unless asked: disabled stays disabled. In a cluster, one node at a time - the other answers meanwhile. On the server: acme --selinux-check.'));
-  var grid = el('div', 'se-grid');
-  (SE.d.nodes || []).forEach(function (n) { grid.appendChild(seNode(n)); });
-  c.appendChild(grid);
+  c.appendChild(el('p', 'note se-lede', 'What SELinux refuses to the web server, keepalived, sshd, PostgreSQL and the rest when it is enforcing - and what acme needs of it on this server. Nothing changes here unless asked: disabled stays disabled. On the server: sudo acme --selinux look.'));
+  if (cluster) {
+    var tabs = el('div', 'se-nodes');
+    tabs.setAttribute('role', 'tablist');
+    tabs.setAttribute('aria-label', 'Nodes');
+    nodes.forEach(function (x) {
+      var b = el('button', 'se-nodebtn' + (n && x.name === n.name ? ' on' : ''));
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', n && x.name === n.name ? 'true' : 'false');
+      b.appendChild(el('span', 'dot ' + seDot(x)));
+      b.appendChild(noI18n(el('b', 'se-nodename', x.name)));
+      b.appendChild(el('span', 'se-nodemode', seModeWords((x.state || {}).mode)));
+      var o = seOpen(x);
+      if (o.fix) b.appendChild(el('span', 'se-nodecount', o.fix + ' to put right'));
+      if (x.pending) b.appendChild(el('span', 'spin'));
+      b.onclick = function () { seChoose(x.name); };
+      tabs.appendChild(b);
+    });
+    c.appendChild(tabs);
+    c.appendChild(el('p', 'muted small se-each', 'SELinux is each machine\'s own: every node has its own mode, module, refusals and fixes. What is asked here is asked of the node shown, and done by its root only - never on the other node.'));
+  }
+  if (n) c.appendChild(seNode(n, cluster));
   host.appendChild(c);
+  host.style.minHeight = '';
 }
-function seNode(n) {
+function seTrS(s) { return (typeof i18nText === 'function' && i18nText(s)) || s; }
+function seWhen(f, permissive) {
+  var t = el('span', 'se-when');
+  t.appendChild(el('span', '', f.count > 1 ? num(f.count) + ' times' : 'once'));
+  t.appendChild(document.createTextNode(', '));
+  t.appendChild(el('span', '', 'last ' + ago(f.last)));
+  if (f.permissive && permissive) t.appendChild(el('span', '', ' (permissive: let through, written down)'));
+  return t;
+}
+function seFinding(n, f, admin) {
+  var row = el('div', 'se-f se-f-' + f.kind);
+  var mark = el('div', 'se-f-mark');
+  if (SE_FIXABLE[f.kind] && f.fixable && admin) {
+    var cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = seSel(n)[f.id] !== false;
+    cb.setAttribute('aria-label', 'Put this right');
+    cb.onchange = function () { seSel(n)[f.id] = cb.checked; drawSelinux(); };
+    mark.appendChild(cb);
+  } else {
+    var ic = el('span', 'se-ic');
+    ic.innerHTML = iconMarkup(f.kind === 'fixed' ? 'check' : f.kind === 'other' ? 'ban' : 'cancel', 15);
+    mark.appendChild(ic);
+  }
+  row.appendChild(mark);
+  var body = el('div', 'se-f-body');
+  var l1 = el('div', 'se-f-l1');
+  l1.appendChild(noI18n(el('b', 'se-prog', f.program || '?')));
+  l1.appendChild(noI18n(el('span', 'mono se-avc', f.source + ' → ' + f.target + ' ' + f['class'] + ' { ' + f.perms + ' }')));
+  body.appendChild(l1);
+  var l2 = el('div', 'se-f-l2 small muted');
+  var where = f.path || (f.port ? 'port ' + f.port + '/' + f.proto : '') || f.where || '';
+  if (where) l2.appendChild(noI18n(el('span', 'mono se-where', where)));
+  l2.appendChild(seWhen(f, (n.state || {}).mode === 'Permissive'));
+  body.appendChild(l2);
+  if (f.fix && SE_FIXABLE[f.kind]) {
+    var l3 = el('div', 'se-f-fix');
+    l3.appendChild(el('span', 'se-arrow', '→'));
+    l3.appendChild(noI18n(el('code', 'se-cmd', f.fix)));
+    body.appendChild(l3);
+  }
+  var why = f.kind === 'fixed' && f.fixed_at ? 'Put right just now - it goes at the next look' : (f.why || '');
+  if (why) body.appendChild(el('div', 'se-why se-why-' + f.kind, why));
+  row.appendChild(body);
+  row.appendChild(el('span', 'se-count', num(f.count) + '×'));
+  return row;
+}
+function seGroup(n, kind, list, admin) {
+  var g = el('div', 'se-grp se-k-' + kind);
+  var head = el('div', 'se-grp-h');
+  var fix = list.filter(function (f) { return SE_FIXABLE[f.kind] && f.fixable; });
+  if (SE_FIXABLE[kind] && admin && fix.length) {
+    var all = el('input');
+    all.type = 'checkbox';
+    var on = fix.filter(function (f) { return seSel(n)[f.id] !== false; }).length;
+    all.checked = on === fix.length;
+    all.indeterminate = on > 0 && on < fix.length;
+    all.setAttribute('aria-label', 'Select all');
+    all.onchange = function () { fix.forEach(function (f) { seSel(n)[f.id] = all.checked; }); drawSelinux(); };
+    head.appendChild(all);
+  } else {
+    head.appendChild(el('span', 'dot ' + ({fixed: 'ok', boolean: 'ok', label: 'ok', port: 'ok', rule: 'warn', nobutton: 'bad', other: 'off'}[kind])));
+  }
+  head.appendChild(el('b', 'se-grp-t', SE_KIND_HEAD[kind][0]));
+  head.appendChild(el('span', 'se-badge', num(list.length)));
+  head.appendChild(el('span', 'se-grp-d', SE_KIND_HEAD[kind][1]));
+  g.appendChild(head);
+  list.forEach(function (f) { g.appendChild(seFinding(n, f, admin)); });
+  return g;
+}
+/* The confirm lists exactly what root will do - nothing else. */
+function sePutIn(n, btn) {
+  var these = seTicked(n);
+  if (!these.length) return;
+  var kw = {boolean: 'boolean', label: 'label', port: 'port', rule: 'rule'};
+  var html = '<span>' + htmlText(seTrS('Root does exactly this - nothing else - and looks again at once:')) + '</span><ul class="se-plan">'
+    + these.map(function (f) {
+      return '<li><b>' + htmlText(seTrS(kw[f.kind])) + '</b> <code class="mono" data-no-i18n>' + htmlText(f.fix)
+        + '</code><br><span class="small muted" data-no-i18n>' + htmlText((f.program || '?') + ': ' + f.source + ' → ' + f.target + ' ' + f['class'] + ' { ' + f.perms + ' }') + '</span></li>';
+    }).join('') + '</ul><span>'
+    + htmlText(seTrS(these.some(function (f) { return f.kind === 'rule'; })
+      ? 'The rules go into acme\'s own local module acme_local - each can be taken away again below. Every step is written in Events. It works under enforcing too.'
+      : 'Every step is written in Events. It works under enforcing too.')) + '</span>';
+  confirmThen('Put in what is selected on ' + n.name + '?', html, 'Put it in', function () {
+    busy(btn, true);
+    seAsk(n, 'fix', {ids: these.map(function (f) { return f.id; })}).then(function () { busy(btn, false); });
+  }, false);
+}
+function seNode(n, cluster) {
   var s = n.state || {};
   var m = s.mode || '';
+  var admin = ADMIN;
   var box = el('div', 'se-node se-' + (m || 'unknown').toLowerCase());
   var head = el('div', 'se-head');
   var nm = el('div', 'se-name');
   nm.appendChild(noI18n(el('b', '', n.name)));
   if (n.me) nm.appendChild(el('span', 'tag info', 'this one'));
+  if (n.alive === false) nm.appendChild(el('span', 'tag bad', 'not heard from'));
   head.appendChild(nm);
   head.appendChild(el('span', 'se-mode', seModeWords(m)));
   box.appendChild(head);
@@ -20489,7 +20696,7 @@ function seNode(n) {
   if (n.pending) {
     var w = el('div', 'se-wait');
     w.appendChild(el('span', 'spin'));
-    w.appendChild(el('span', '', {check: 'looking…', prepare: 'making it ready…', enforce: 'switching to enforcing…', permissive: 'switching to permissive…', report: 'making its report…'}[n.pending] || 'asked…'));
+    w.appendChild(el('span', '', {check: 'looking…', prepare: 'making it ready…', enforce: 'switching to enforcing…', permissive: 'switching to permissive…', report: 'making its report…', fix: 'putting right what was selected…', rule_drop: 'taking the rule away…'}[n.pending] || 'asked…'));
     box.appendChild(w);
   }
   if (!m) {
@@ -20501,10 +20708,12 @@ function seNode(n) {
     return box;
   }
   var made = m === 'Disabled' && /^(permissive|enforcing)$/i.test(s.config || '') && !!s.relabel_pending;
+  var o = seOpen(n);
   if (made) {
     var v = el('div', 'se-verdict ready');
     v.appendChild(el('b', '', 'Made ready - waiting for a restart of the machine'));
-    v.appendChild(el('span', 'small', 'Restart it when it suits (Settings → Restart and power off), one node at a time. It comes up permissive; then look here again.'));
+    v.appendChild(el('span', 'small', cluster ? 'Restart it when it suits (Settings → Restart and power off), one node at a time - the other answers meanwhile. It comes up permissive; then look here again, and at High availability: both nodes, the replication, the VIP address.'
+      : 'Restart it when it suits (Settings → Restart and power off). It comes up permissive; then look here again.'));
     box.appendChild(v);
   } else if (m === 'Disabled') {
     if (/^(permissive|enforcing)$/i.test(s.config || '') && !s.cmdline_off)
@@ -20527,46 +20736,94 @@ function seNode(n) {
     seRow(list, d.tool ? !d.total : null, !d.tool ? 'What SELinux refused cannot be read: ausearch is not on this machine (dnf install audit)'
       : d.since ? (d.total ? 'SELinux refused ' + num(d.total) + ' thing(s) since acme\'s needs were put in' : 'Nothing refused since acme\'s needs were put in')
       : d.total ? 'SELinux refused ' + num(d.total) + ' thing(s) since the machine started' : 'Nothing refused since the machine started');
-    /* Refused once, allowed by the policy loaded now (as otp 1.0.238) - a newer module, a boolean: not counted. */
     /* Upgraded from before 1.0.44 (1.0.59, as otp 1.0.249): the old note of when acme's needs were
        put in is not read any more - what was refused since the start counts again, put right or not. */
     if (d.tool && d.since_lost && d.total) list.appendChild(el('p', 'note small', 'After the upgrade these are counted since the machine started again - also what was put right before it: when acme\'s needs were last put in is kept in root\'s folder now, the old note is not read. Not new refusals: they go at the next restart of the machine, or when "Put in what acme needs" changes something.'));
-    if (d.tool && d.settled) seRow(list, true, num(d.settled) + ' refused before, allowed now - by a newer acme_server or a boolean put in since; not counted');
+    /* Refused once, allowed by the policy loaded now (as otp 1.0.238) - a newer module, a boolean: not counted. */
+    if (d.tool && d.settled) seRow(list, true, num(d.settled) + ' refused before, allowed now or put right since - not counted');
     /* A port of a type this node's root helper does not set yet (1.0.59, as otp 1.0.262): left out
        with a word - the rest is looked at and put in as always. */
     (s.left_out || []).forEach(function (x) { seRow(list, null, x); });
     if (s.auditd === false) seRow(list, false, 'auditd does not run - what SELinux refuses is not written down (systemctl enable --now auditd)');
     box.appendChild(list);
-    if ((d.groups || []).length) {
-      var det = el('details', 'se-avc');
-      det.appendChild(el('summary', '', 'What was refused (' + num(d.groups.length) + ')'));
-      var t = el('table', 'se-avc-t');
-      d.groups.forEach(function (g) {
-        var tr = el('tr', '');
-        tr.appendChild(el('td', 'num', num(g.count) + '×'));
-        tr.appendChild(noI18n(el('td', 'mono small', g.source + ' → ' + g.target + ' ' + g['class'] + ' { ' + g.perms + ' }')));
-        tr.appendChild(noI18n(el('td', 'mono small muted', g.what || '')));
-        t.appendChild(tr);
+    /* What SELinux refuses (1.0.120): sorted by what puts it right. */
+    if (d.tool) {
+      var fh = el('div', 'se-fh');
+      fh.appendChild(el('b', '', 'What SELinux refuses'));
+      fh.appendChild(el('span', 'muted small', d.since ? 'since acme\'s needs were put in' : 'since the machine started'));
+      box.appendChild(fh);
+      var fs = seFindings(n);
+      if (!fs.length) {
+        var calm = el('div', 'se-calm');
+        var ci = el('span', 'se-calm-i');
+        ci.innerHTML = iconMarkup('check', 18);
+        calm.appendChild(ci);
+        var ct = el('div', '');
+        ct.appendChild(el('b', '', 'SELinux refused nothing on this node'));
+        ct.appendChild(el('div', 'small', d.since ? 'Nothing since acme\'s needs were put in.' : 'Nothing since the machine started.'));
+        calm.appendChild(ct);
+        box.appendChild(calm);
+      }
+      SE_KINDS.forEach(function (k) {
+        var these = fs.filter(function (f) { return f.kind === k; });
+        if (these.length) box.appendChild(seGroup(n, k, these, admin));
       });
-      det.appendChild(t);
-      box.appendChild(det);
+      if (s.findings_left) box.appendChild(el('p', 'muted small', num(s.findings_left) + ' more not shown - the report has them all'));
+      if (admin && o.fix) {
+        var pr = el('div', 'se-putrow');
+        var ticked = seTicked(n).length;
+        var put = cmdButton('Put in what is selected (' + ticked + ')', 'shield', 'primary');
+        put.disabled = !ticked || !!n.pending;
+        put.onclick = function () { sePutIn(n, put); };
+        pr.appendChild(put);
+        pr.appendChild(el('span', 'muted small', 'Under enforcing too - nothing has to be switched off for it. What was put right is looked at again at once.'));
+        box.appendChild(pr);
+      }
+    }
+    /* acme's local rules (1.0.120): each taken away by itself. */
+    var loc = (s.local || {}).rules || [];
+    if (loc.length) {
+      var lb = el('div', 'se-local');
+      var lh = el('div', 'se-local-h');
+      lh.appendChild(el('b', '', 'acme\'s local rules'));
+      lh.appendChild(el('span', 'se-badge', num(loc.length)));
+      lh.appendChild(el('span', 'muted small', (s.local || {}).in_policy === false ? 'acme_local - not in the policy' : 'acme_local, in the policy'));
+      lb.appendChild(lh);
+      loc.forEach(function (r) {
+        var row = el('div', 'se-local-r');
+        var t = el('div', 'se-local-t');
+        t.appendChild(noI18n(el('code', 'se-cmd plain', r.rule)));
+        var meta = el('div', 'small muted');
+        meta.appendChild(noI18n(el('span', '', (r.program || '?') + ': ')));
+        meta.appendChild(el('span', '', r.why || ''));
+        meta.appendChild(el('span', '', ' - put in ' + new Date((r.at || 0) * 1000).toLocaleString(numLang())));
+        if (r.by) { meta.appendChild(el('span', '', ' by ')); meta.appendChild(noI18n(el('span', '', r.by))); }
+        t.appendChild(meta);
+        row.appendChild(t);
+        if (admin) {
+          var drop = cmdButton('Take it away', 'cancel', 'small');
+          drop.disabled = !!n.pending;
+          drop.onclick = function () {
+            confirmThen('Take the rule away on ' + n.name + '?', htmlText(seTrS('It goes out of acme\'s local module at once; refused again, it comes back on this card. The last one takes the module out of the policy.')),
+              'Take it away', function () { seAsk(n, 'rule_drop', {ids: [r.id]}); }, true);
+          };
+          row.appendChild(drop);
+        }
+        lb.appendChild(row);
+      });
+      box.appendChild(lb);
     }
     var probs = s.problems || [];
-    /* Refused, and nothing acme knows to put in (as otp 1.0.237): "Put in what acme needs" changes
-       nothing then - the report is what tells how. */
-    var known = s.module !== false && !(s.labels || []).some(function (x) { return x.ok === false; }) &&
-      !(s.booleans || []).some(function (x) { return x.on === false; }) &&
-      !(s.ports || []).some(function (x) { return x.labelled === false; });
-    if (d.total && known) {
-      var hint = el('div', 'se-verdict bad');
-      hint.appendChild(el('b', '', 'acme does not know this one yet'));
-      hint.appendChild(el('span', 'small', 'Everything acme knows it needs is in place - what was refused is something its module does not cover yet. "Put in what acme needs" changes nothing for it: download the report (top right) and send it, so that the module learns it.'));
-      box.appendChild(hint);
-    }
     var verdict = el('div', 'se-verdict ' + (m === 'Enforcing' && !probs.length ? 'good' : s.ready ? 'ready' : probs.length ? 'bad' : ''));
     verdict.appendChild(el('b', '', m === 'Enforcing' ? (probs.length ? 'Enforcing - but something is not as acme needs it' : 'Enforcing - and everything acme needs is there')
       : s.ready ? 'Ready for enforcing' : 'Not ready for enforcing yet'));
-    if (m === 'Permissive' && !s.ready) verdict.appendChild(el('span', 'small', 'Let it run a day or two as it is used - sign-ins, the pages, a failover, an upgrade - then look again.'));
+    if (m === 'Permissive' && !s.ready) {
+      var why = el('div', 'small');
+      if (o.fix) why.appendChild(el('span', '', o.fix + ' thing(s) SELinux refused can be put right here - "Put in what is selected" above. '));
+      if (o.no) why.appendChild(el('span', '', o.no + ' thing(s) are not for a button - each says why; the report is for whoever looks after acme\'s module. '));
+      why.appendChild(el('span', '', 'Let it run a day or two as it is used - sign-ins, the pages, renewals and deployments, a failover, an upgrade - then look again.'));
+      verdict.appendChild(why);
+    }
     box.appendChild(verdict);
   }
   if (n.error) box.appendChild(el('p', 'note bad', n.error));
@@ -20575,26 +20832,28 @@ function seNode(n) {
     n.said.forEach(function (x) { sd.appendChild(el('li', '', x)); });
     box.appendChild(sd);
   }
-  if (n.at) box.appendChild(el('p', 'muted small', 'Looked at ' + new Date(n.at * 1000).toLocaleString()));
+  if (n.at) box.appendChild(el('p', 'muted small', 'Looked at ' + new Date(n.at * 1000).toLocaleString(numLang())));
+  if (!admin) return box;
   var row = el('div', 'btnrow se-btns');
+  var one = cluster ? ' In a cluster: one node at a time - this one only. Afterwards look at the cluster (High availability: both nodes answer, the replication runs, the VIP address holds) before the other node.' : '';
   if ((m === 'Disabled' && !made) || m === 'Permissive') {
     var prep = cmdButton(m === 'Disabled' ? 'Make it ready (permissive)' : 'Put in what acme needs', 'shield', m === 'Disabled' ? 'primary' : '');
     prep.disabled = !!n.pending;
     prep.onclick = function () {
       confirmThen(m === 'Disabled' ? 'Make SELinux ready on ' + n.name + '?' : 'Put in what acme needs on ' + n.name + '?',
-        htmlText(m === 'Disabled'
-          ? 'The configuration says permissive and every file is labelled at the next start of the machine; acme\'s module goes in. Nothing is refused while permissive - SELinux only writes down what it would refuse. The machine is not restarted now: restart it when it suits (Settings → Restart and power off), one node at a time.'
-          : 'acme\'s module, the labels of its files, the booleans and the ports it needs are put in. Still permissive: nothing is refused.'),
+        htmlText(seTrS(m === 'Disabled'
+          ? 'The configuration says permissive and every file is labelled at the next start of the machine; acme\'s module goes in. Nothing is refused while permissive - SELinux only writes down what it would refuse. The machine is not restarted now: restart it when it suits (Settings → Restart and power off).'
+          : 'acme\'s module, the labels of its files, the booleans and the ports it needs are put in. Still permissive: nothing is refused.') + (one ? ' ' + seTrS(one.trim()) : '')),
         m === 'Disabled' ? 'Make it ready' : 'Put it in', function () { seAsk(n, 'prepare'); });
     };
     row.appendChild(prep);
   }
   if (m === 'Permissive') {
-    var enf = cmdButton('Switch to enforcing', 'lock', s.ready ? 'primary' : '');
+    var enf = cmdButton('Switch to enforcing', 'lock', s.ready ? 'primary' : 'se-locked');
     enf.disabled = !!n.pending || !s.ready;
-    if (!s.ready) enf.title = 'Once nothing is missing and nothing was refused';
+    if (!s.ready) enf.title = 'Once nothing acme needs is missing and nothing is left to put right';
     enf.onclick = function () {
-      confirmThen('Switch ' + n.name + ' to enforcing?', htmlText('From now on SELinux refuses what its policy does not allow - and stays enforcing after a restart. Nothing acme needs is missing and nothing was refused since the machine started. If something stops working, "Back to permissive" here (or setenforce 0 on the machine) undoes it at once.'),
+      confirmThen('Switch ' + n.name + ' to enforcing?', htmlText(seTrS('From now on SELinux refuses what its policy does not allow - and stays enforcing after a restart. Nothing acme needs is missing and nothing is left to put right. If something stops working, "Back to permissive" here (or setenforce 0 on the machine) undoes it at once.') + (one ? ' ' + seTrS(one.trim()) : '')),
         'Switch to enforcing', function () { seAsk(n, 'enforce'); }, true);
     };
     row.appendChild(enf);
@@ -20603,12 +20862,13 @@ function seNode(n) {
     var back = cmdButton('Back to permissive', 'undo', '');
     back.disabled = !!n.pending;
     back.onclick = function () {
-      confirmThen('Switch ' + n.name + ' back to permissive?', htmlText('SELinux no longer refuses anything - it only writes down what it would refuse - now and after a restart.'),
+      confirmThen('Switch ' + n.name + ' back to permissive?', htmlText(seTrS('SELinux no longer refuses anything - it only writes down what it would refuse - now and after a restart.')),
         'Back to permissive', function () { seAsk(n, 'permissive'); });
     };
     row.appendChild(back);
   }
   if (row.childNodes.length) box.appendChild(row);
+  if (cluster && n.me === false && n.alive === false) box.appendChild(el('p', 'note small', 'This node is not heard from: what is asked of it is done once it answers again.'));
   return box;
 }
 

@@ -787,7 +787,7 @@ def _agent_steps(ev):
     for it in ev.get('items') or []:
         w = it.get('what')
         st = None
-        if w in ('store', 'iis', 'rdp'):
+        if w in ('store', 'iis', 'rdp', 'role', 'key_read', 'post_ps'):
             st = _agent_win_step(it)
         elif w == 'file' and it.get('windows'):
             st = {'kind': 'file', 'words': ('The agent writes the key it made into {0}' if
@@ -878,6 +878,12 @@ def _agent_steps(ev):
                     'after - anything failing after the store puts the bindings back to the '
                     'certificate they had, takes the new one out of the store again and puts '
                     'the files back'})
+    if op == 'deploy' and windows and any(x.get('what') in ('role', 'key_read')
+                                          for x in ev.get('items') or []):
+        out.append({'kind': 'info', 'words': 'Then the roles, as the OpenSSH target runs them '
+                    '(the same PowerShell): read on the key first, then each role - a role '
+                    'failing is said and the others still run; the deployment then fails, the '
+                    'old certificates are kept and nothing is put back'})
     if op == 'deploy':
         if ev.get('stale'):
             out.append({'kind': 'delete', 'words': 'The agent takes away the files acme wrote '
@@ -931,6 +937,28 @@ def _agent_win_step(it):
                                       it.get('host') else 'the port, for all names', 'words'],
                                      ['When it is not there', 'made', 'words']]},
                 'note': 'put back to the certificate it had when anything after it fails'}
+    if w == 'role':
+        from acmelib.plugins.targets import _win_roles as WR
+        key = it.get('role') or ''
+        o = it.get('o') or {}
+        return {'kind': 'command', 'words': 'The agent sets the Windows role {0}'.replace(
+            '{0}', WR.TITLE.get(key, key)), 'detail': {'pairs': [
+                ['Does', WR.ROLE_HELP.get(key, ''), 'words'],
+                ['Values', ', '.join('%s=%s' % (k, json.dumps(v)) for k, v in sorted(o.items()))
+                 or '–', ''],
+                ['PowerShell', 'fixed in the agent (acme_agent_winroles - the same as the '
+                 'OpenSSH target\'s), only these values given to it', 'words']]},
+                'note': 'after the restarts; not put back when it fails'}
+    if w == 'key_read':
+        return {'kind': 'command', 'words': 'The agent gives {0} read on the private key'
+                .replace('{0}', str(it.get('account') or '')),
+                'note': 'icacls on the key\'s file, by the account\'s SID'}
+    if w == 'post_ps':
+        return {'kind': 'command', 'words': 'The agent runs the PowerShell after the import',
+                'detail': {'pairs': [['SHA-256', it.get('sha256') or '', ''],
+                                     ['Has', '$thumb, $cert of the new certificate', 'words']]},
+                'note': 'allowed by its hash; failing puts the bindings, the store and the files '
+                        'back'}
     return {'kind': 'command', 'words': 'The agent gives the Remote Desktop listener the '
             'certificate', 'note': 'Win32_TSGeneralSetting (RDP-tcp) - put back when anything '
             'after it fails'}
@@ -3262,8 +3290,8 @@ _WIN_ROLES = [
           "STEP info LDAPS: the old 5A0E1D2C3B4A59687700112233445566778899A7 left "
           "NTDS\\Personal{IF:LDAPS: the old }",
           "STEP ok LDAPS: the domain controller took the certificate (renewServerCertificate)"),
-    _role(r"WSMan:\\localhost\\Listener \| Where-Object",
-          "STEP ok WinRM Listener_1305953032 uses it",
+    _role(r"Get-WSManInstance -ResourceURI winrm/config/Listener -Enumerate",
+          "STEP ok WinRM HTTPS * uses it",
           "STEP ok firewall: 5986 already open{IF:firewall: 5986 already open}",
           "STEP ok restarted WinRM"),
     _role(r"Set-RemoteAccess -SslCertificate",
@@ -3289,6 +3317,7 @@ _WIN_ROLES = [
           "STEP ok SharePoint: imported",
           "STEP ok SharePoint: {SEEN:\\$url = '([^']+)'} uses it"),
     _role(r"Set-WACCertificateSubjectName",
+          "STEP ok read on the key for NT AUTHORITY\\NETWORK SERVICE",
           "STEP ok Windows Admin Center uses it ({CERTNAME})",
           "STEP ok restarted WindowsAdminCenter"),
 ]

@@ -478,6 +478,22 @@ def help_text(parser, pal):
 ACME_WHAT = 'certificates kept, renewed and deployed by themselves'
 
 
+class SelinuxVerb(argparse.Action):
+    """--selinux VERB [ARGS...] (1.0.120): the verb in args.selinux as before (check, prepare, apply,
+    enforce, permissive - and look, fix, rules, report), what follows it in args.selinux_more."""
+    VERBS = ('check', 'look', 'fix', 'rules', 'prepare', 'apply', 'enforce', 'permissive', 'report')
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        verb = values[0]
+        if verb not in self.VERBS:
+            parser.error('argument --selinux: invalid choice: %r (choose from %s)'
+                         % (verb, ', '.join(self.VERBS)))
+        if verb not in ('fix', 'report') and len(values) > 1:
+            parser.error('argument --selinux %s: nothing goes after it' % verb)
+        setattr(namespace, 'selinux', verb)
+        setattr(namespace, 'selinux_more', list(values[1:]))
+
+
 def build_parser():
     # Options whole, never shortened (1.0.146): --js was taken for --json -
     # and --check --js went round itself until the stack ran out.
@@ -573,10 +589,17 @@ def build_parser():
                         'labels, booleans and ports it needs, what was refused since the start '
                         '(as root; nothing is changed)')
     g.add_argument('--selinux-want', action='store_true', help=argparse.SUPPRESS)
-    g.add_argument('--selinux', choices=('check', 'prepare', 'apply', 'enforce', 'permissive'),
-                   metavar='STEP', help='SELinux on this machine, as on the pages: check, prepare '
-                   '(permissive at the next start, from disabled), apply (put in what acme needs, '
-                   'while permissive), enforce, permissive - asked first unless --yes (as root)')
+    g.add_argument('--selinux-after', action='store_true', help=argparse.SUPPRESS)
+    g.add_argument('--selinux', nargs='+', action=SelinuxVerb, metavar='VERB',
+                   help='SELinux on this machine, as on the pages (Settings - SELinux): check; look (what '
+                   'SELinux refuses, sorted, with ids and fixes); fix ID... or fix --all (lists what root '
+                   'will do, asks first unless --yes); rules [--take-away ID] (acme\'s local rules); '
+                   'prepare (permissive at the next start, from disabled), apply (put in what acme needs, '
+                   'while permissive), enforce, permissive - asked first unless --yes; report [FILE] '
+                   '(as root)')
+    g.add_argument('--all', action='store_true', help='with --selinux fix: everything that can be put right')
+    g.add_argument('--take-away', metavar='ID', default=None,
+                   help='with --selinux rules: take this rule of acme\'s local module away')
     g.add_argument('--selinux-report', nargs='?', const='', metavar='FILE',
                    help='what SELinux says on this machine, for whoever writes acme\'s module: one '
                         'file (/root/acme-selinux-report-NODE-DATE.tar.gz unless named); nothing '
@@ -3262,6 +3285,21 @@ def cli_main(argv=None):
         # What acme needs of SELinux here, for --selinux-check: read as the service.
         print(json.dumps(selinux_want(cli_store())))
         return 0
+    if args.selinux_after:
+        # After a step of SELinux on the command line (1.0.120): this node looks again, so that the
+        # card shows it at once, and what root did is written in Events - read as the service.
+        try:
+            said = json.loads(sys.stdin.read(262144) or '[]')
+        except ValueError:
+            said = []
+        store = cli_store()
+        for line in [str(x)[:400] for x in said if isinstance(x, str)][:30]:
+            store.add_event('settings', 'SELinux on %s: %s' % (node_name(), line), 'warn', who=cli_who())
+        try:
+            selinux_ask(store, node_name(), 'check', cli_who())
+        except ValueError:
+            pass
+        return 0
     if args.selinux_check or args.selinux or args.selinux_report is not None:
         return cli_selinux(args, pal)
     if args.local_policy or args.local_policy_set:
@@ -5218,6 +5256,11 @@ def cli_selinux(args, pal):
         json.loads(want or '{}')
     except (OSError, subprocess.SubprocessError, ValueError):
         want = '{}'
+    more = list(getattr(args, 'selinux_more', None) or [])
+    if args.selinux == 'report' and args.selinux_report is None:
+        args.selinux_report = more[0] if more else ''
+    if args.selinux in ('look', 'fix', 'rules'):
+        return cli_selinux_found(args, pal, want, more)
     if args.selinux_report is not None:
         node = re.sub(r'[^A-Za-z0-9._-]', '', node_name())[:60] or 'node'
         out = args.selinux_report or '/root/acme-selinux-report-%s-%s.tar.gz' % (
@@ -5259,9 +5302,170 @@ def cli_selinux(args, pal):
                 print('nothing done')
                 return 1
         got = _selinux_helper(['--selinux-do', step] + (['--json'] if args.json else []), want)
+        if got.returncode == 0:
+            _selinux_after([x[6:] for x in got.stdout.splitlines() if x.startswith('done: ')] or
+                           ['%s (the command line)' % step])
     sys.stdout.write(got.stdout)
     sys.stderr.write(got.stderr)
     return got.returncode
+
+
+SE_KIND_WORDS = {'fixed': 'Put right just now', 'boolean': 'A boolean', 'label': 'A label', 'port': 'A port',
+                 'rule': 'A rule of acme\'s', 'nobutton': 'Not for a button', 'other': 'Not acme\'s'}
+
+
+def _selinux_after(said):
+    """Events of what root did, and this node's card looked at again - as the service; quietly."""
+    try:
+        subprocess.run(acme_argv() + ['--selinux-after'], input=json.dumps(said), capture_output=True,
+                       text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def _selinux_look(want):
+    got = _selinux_helper(['--selinux-check', '--want-stdin', '--json'], want, 900)
+    try:
+        c = json.loads(got.stdout or '{}')
+    except ValueError:
+        c = None
+    if not isinstance(c, dict):
+        sys.stderr.write(got.stderr)
+        raise SystemExit('acme: the root helper said nothing readable about SELinux')
+    return c
+
+
+def _selinux_print(c, pal):
+    """The findings as the card shows them: grouped by kind, coloured, each with its id and fix."""
+    print(pal.head('SELinux on %s: %s' % (node_name(), c.get('mode'))))
+    fs = c.get('findings') or []
+    if c.get('mode') not in ('Enforcing', 'Permissive'):
+        print('  nothing is refused while SELinux is %s' % str(c.get('mode') or '?').lower())
+        return
+    if not fs:
+        print(pal.ok_line('SELinux refused nothing on this machine since it started'))
+    colour = {'fixed': pal.good, 'boolean': pal.good, 'label': pal.good, 'port': pal.good, 'rule': pal.warn,
+              'nobutton': pal.bad, 'other': pal.dim}
+    for kind in ('fixed', 'boolean', 'label', 'port', 'rule', 'nobutton', 'other'):
+        these = [f for f in fs if f.get('kind') == kind]
+        if not these:
+            continue
+        print('')
+        print(colour[kind]('%s (%d)' % (SE_KIND_WORDS[kind], len(these))))
+        for f in these:
+            print('  %s  %s %s -> %s %s { %s }  %dx' % (
+                pal.bold(f['id']), pal.bold(f.get('program') or '?'), f['source'], f['target'], f['class'],
+                f['perms'], f.get('count') or 0))
+            if f.get('where'):
+                print('      %s' % pal.dim(f['where']))
+            if f.get('fix'):
+                print('      -> %s' % pal.info(f['fix']))
+            print('      %s' % colour[kind](f.get('why') or ''))
+    loc = (c.get('local') or {}).get('rules') or []
+    if loc:
+        print('')
+        print(pal.head('acme\'s local rules (acme_local): %d' % len(loc)))
+        for r in loc:
+            print('  %s  %s' % (pal.bold(r['id']), r['rule']))
+    n = sum(1 for f in fs if f.get('fixable'))
+    nb = sum(1 for f in fs if f.get('kind') == 'nobutton')
+    print('')
+    if n:
+        print(pal.warn_line('%d can be put right: acme --selinux fix ID... or acme --selinux fix --all' % n))
+    if nb:
+        print(pal.bad_line('%d not for a button - each says why; acme --selinux report is for whoever looks '
+                           'after acme\'s module' % nb))
+
+
+def cli_selinux_found(args, pal, want, more):
+    """acme --selinux look | fix ID... | fix --all | rules [--take-away ID] (1.0.120): what SELinux
+    refuses on this machine, sorted, put right by its ids - root works every fix out itself."""
+    if args.selinux == 'look':
+        c = _selinux_look(want)
+        if args.json:
+            print(json.dumps({k: c.get(k) for k in ('mode', 'findings', 'found', 'local')}, indent=1))
+        else:
+            _selinux_print(c, pal)
+        return 0
+    if args.selinux == 'rules' and not args.take_away:
+        c = _selinux_look(want)
+        loc = (c.get('local') or {}).get('rules') or []
+        if args.json:
+            print(json.dumps(loc, indent=1))
+            return 0
+        if not loc:
+            print('acme\'s local module has no rule on this machine')
+        for r in loc:
+            print('%s  %s\n    %s - put in %s by %s' % (pal.bold(r['id']), r['rule'], r.get('program') or '?',
+                                                       time.strftime('%Y-%m-%d %H:%M', time.localtime(float(r.get('at') or 0))),
+                                                       r.get('by') or '?'))
+        return 0
+    if args.selinux == 'rules':
+        rid = str(args.take_away).strip().lower()
+        if not re.match(r'^[0-9a-f]{12}$', rid):
+            raise SystemExit('acme: --take-away ID: the id of one of acme\'s local rules (12 of 0-9 a-f)')
+        c = _selinux_look(want)
+        r = [x for x in (c.get('local') or {}).get('rules') or [] if x.get('id') == rid]
+        if not r:
+            raise SystemExit('acme: acme\'s local module has no rule %s on this machine' % rid)
+        words = 'The rule %s %s is taken out of acme\'s local module (semodule)' % (rid, r[0]['rule'])
+        plan_ids, do = [rid], 'rule_drop'
+    else:
+        c = _selinux_look(want)
+        fs = c.get('findings') or []
+        if args.all:
+            plan = [f for f in fs if f.get('fixable')]
+        else:
+            ids = [x.strip().lower() for x in more]
+            if not ids:
+                raise SystemExit('acme: fix ID... (the ids acme --selinux look shows) or fix --all')
+            bad = [i for i in ids if not re.match(r'^[0-9a-f]{12}$', i)]
+            if bad:
+                raise SystemExit('acme: not an id: %s' % ', '.join(bad))
+            by = {f['id']: f for f in fs}
+            plan = []
+            for i in ids:
+                f = by.get(i)
+                if f is None:
+                    raise SystemExit('acme: %s is not something SELinux refused here (acme --selinux look)' % i)
+                if not f.get('fixable'):
+                    raise SystemExit('acme: %s is %s - not put right from here: %s' % (
+                        i, SE_KIND_WORDS.get(f.get('kind'), f.get('kind')).lower(), f.get('why')))
+                plan.append(f)
+        if not plan:
+            print('nothing SELinux refused here can be put right from here')
+            return 0
+        print(pal.head('Root does exactly this on %s - nothing else - and looks again at once:' % node_name()))
+        for f in plan:
+            print('  %-8s %s' % (f['kind'], pal.info(f['fix'])))
+            print('           %s: %s -> %s %s { %s }' % (f.get('program'), f['source'], f['target'], f['class'],
+                                                        f['perms']))
+        if any(f['kind'] == 'rule' for f in plan):
+            print('  the rules go into acme\'s own local module acme_local - each can be taken away again '
+                  '(acme --selinux rules --take-away ID)')
+        words = 'Put these right'
+        plan_ids, do = [f['id'] for f in plan], 'fix'
+    if not args.yes:
+        if not sys.stdin.isatty():
+            raise SystemExit('acme: %s - add --yes to do it without a terminal' % words)
+        if input('%s. Go on? [y/N] ' % words).strip().lower() not in ('y', 'yes'):
+            print('nothing done')
+            return 1
+    got = _selinux_helper(['--selinux-do', do, '--json'], json.dumps({'ids': plan_ids, 'by': cli_who()}), 900)
+    sys.stderr.write(got.stderr)
+    if got.returncode != 0:
+        return got.returncode
+    try:
+        c = json.loads(got.stdout or '{}')
+    except ValueError:
+        c = {}
+    said = c.get('said') or []
+    for line in said:
+        print(pal.ok_line(line))
+    _selinux_after(said)
+    if args.json:
+        print(json.dumps({k: c.get(k) for k in ('mode', 'findings', 'found', 'local', 'said')}, indent=1))
+    return 0
 
 
 def cli_os_roots(args, pal, store):

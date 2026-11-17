@@ -314,16 +314,28 @@ function shellLine(argv) {
 function empty() {
   var s = {files: [], units: [], tests: [], scripts: [], hashes: [], from: [], probe_local: false, probe: [],
     connect_on: false, connect: [], self_update: false, limits: {files: F.limits.files, size: F.limits.size}};
-  if (W()) { s.store = false; s.iis = []; s.rdp = false; }
+  if (W()) { s.store = false; s.iis = []; s.rdp = false; s.roles = []; s.key_read = []; }
   return s;
 }
+/* the Windows roles (1.0.120): {role: [path | msi]} of the agent's policy -> rows {role, extra} */
+function roleRows(x) {
+  if (Array.isArray(x)) return x.filter(function (r) { return r && typeof r === 'object'; }).map(function (r) { return {role: String(r.role || ''), extra: String(r.extra || '')}; });
+  var out = [];
+  Object.keys(x || {}).sort().forEach(function (k) {
+    var ex = arr(x[k]);
+    if (!ex.length) out.push({role: k, extra: ''});
+    ex.forEach(function (e) { out.push({role: k, extra: String(e)}); });
+  });
+  return out;
+}
+function roleInfo(key) { return arr(F.roles).filter(function (r) { return r[0] === key; })[0] || null; }
 function winFile(f) { return {dir: String(f.dir || ''), readers: arr(f.readers).map(String)}; }
 /** The state of a policy the agent said (policy_report). */
 function fromPolicy(p) {
   var s = empty();
   if (!p) return s;
   s.files = arr(p.files).map(function (f) { return W() ? winFile(f) : {dir: String(f.dir), owner: String(f.owner || 'root'), group: String(f.group || f.owner || 'root'), mode: Number(f.mode) & 511}; });
-  if (W()) { s.store = !!p.store; s.iis = arr(p.iis).map(String); s.rdp = !!p.rdp; }
+  if (W()) { s.store = !!p.store; s.iis = arr(p.iis).map(String); s.rdp = !!p.rdp; s.roles = roleRows(p.roles); s.key_read = arr(p.key_read).map(String); }
   s.units = Object.keys(p.units || {}).sort().map(function (u) { return {name: u, verbs: arr(p.units[u]).slice()}; });
   s.tests = arr(p.tests).map(function (t) { return arr(t).map(String); });
   s.scripts = arr(p.scripts).map(function (x) { return {path: String(x.path), sha256: String(x.sha256 || '')}; });
@@ -344,7 +356,7 @@ function fromSaved(x) {
   s.files = arr(x.files).filter(function (f) { return f && typeof f === 'object'; }).map(function (f) {
     return W() ? winFile(f) : {dir: String(f.dir || ''), owner: String(f.owner || ''), group: String(f.group || ''), mode: Number(f.mode) & 511};
   });
-  if (W()) { s.store = !!x.store; s.iis = arr(x.iis).map(String); s.rdp = !!x.rdp; }
+  if (W()) { s.store = !!x.store; s.iis = arr(x.iis).map(String); s.rdp = !!x.rdp; s.roles = roleRows(x.roles); s.key_read = arr(x.key_read).map(String); }
   s.units = arr(x.units).filter(function (u) { return u && typeof u === 'object'; }).map(function (u) { return {name: String(u.name || ''), verbs: arr(u.verbs).map(String)}; });
   s.tests = arr(x.tests).map(function (t) { return Array.isArray(t) ? t.map(String) : split(String(t)); });
   s.scripts = arr(x.scripts).filter(function (u) { return u && typeof u === 'object'; }).map(function (u) { return {path: String(u.path || ''), sha256: String(u.sha256 || '')}; });
@@ -530,8 +542,8 @@ function check(s) {
 /** The state checked as a Windows server's agent checks it (acme_agent_win.py): folders with
     their readers, services, PowerShell scripts, the machine store, IIS sites, Remote Desktop. */
 function checkWin(s) {
-  var R = {files: [], units: [], tests: [], scripts: [], hashes: [], from: [], probe: [], connect: [], iis: [], limits: {}, pins: []};
-  var pol = {files: [], units: {}, tests: [], scripts: [], hashes: [], from: [], probe: [], connect: [], iis: [], store: !!s.store, rdp: !!s.rdp};
+  var R = {files: [], units: [], tests: [], scripts: [], hashes: [], from: [], probe: [], connect: [], iis: [], roles: [], key_read: [], limits: {}, pins: []};
+  var pol = {files: [], units: {}, tests: [], scripts: [], hashes: [], from: [], probe: [], connect: [], iis: [], store: !!s.store, rdp: !!s.rdp, roles: {}, key_read: []};
   var tops = arr(F.protected).concat(arr(F.own));
   var lastDir = {};
   s.files.forEach(function (f, i) {
@@ -652,7 +664,41 @@ function checkWin(s) {
     if (site === '*') m.push(msg('info', 'any', 'every IIS site of this server'));
     R.iis.push(verdict(m));
   });
-  if ((pol.iis.length || pol.rdp) && !pol.store) R.storeMsg = msg('warn', 'no-store', 'IIS and Remote Desktop take the certificate from the machine store: allow store too');
+  /* the Windows roles: allow role NAME [path=FOLDER (ccs) | msi=FILE (wac)] - acme_agent_win.role_entry */
+  arr(s.roles).forEach(function (r) {
+    var key = String(r.role || ''), info = roleInfo(key), ex = String(r.extra || '').trim(), m = [];
+    if (!info) { R.roles.push(verdict([msg('bad', 'unread', 'allow role NAME - one of ' + arr(F.roles).map(function (x) { return x[0]; }).join(', '))])); return; }
+    if (ex && !info[2]) { R.roles.push(verdict([msg('bad', 'unread', 'allow role ' + key + ' takes nothing more')])); return; }
+    if (key === 'ccs' && !ex) { R.roles.push(verdict([msg('bad', 'unread', 'allow role ccs path=FOLDER (the folder of the Central Certificate Store: C:\\ccs or \\\\server\\share)')])); return; }
+    if (ex) {
+      if (/^\\\\[^\\\x00-\x1f\x7f\/:*?"<>|]+\\[^\x00-\x1f\x7f*?"<>|]+$/.test(ex) && key === 'ccs') ex = ex.replace(/\\+$/, '');
+      else {
+        try { ex = normWin(ex); } catch (e) { if (!(e instanceof Bad)) throw e; R.roles.push(verdict([msg('bad', 'unread', e.words)])); return; }
+        if (key === 'wac' && !/\.msi$/i.test(ex)) { R.roles.push(verdict([msg('bad', 'unread', 'allow role wac msi=C:\\PATH\\WindowsAdminCenter.msi')])); return; }
+        if (key === 'ccs') {
+          if (/^[A-Z]:\\$/.test(ex)) { R.roles.push(verdict([msg('bad', 'unread', 'a drive\'s root is no folder of the Central Certificate Store')])); return; }
+          var why = protectedWhyWin(ex);
+          if (why) { R.roles.push(verdict([msg('bad', 'protected', why)])); return; }
+        }
+      }
+    }
+    var have = pol.roles[key] || (pol.roles[key] = []);
+    if (ex) {
+      if (have.some(function (y) { return y.toLowerCase() === ex.toLowerCase(); })) m.push(msg('warn', 'twice', 'the role ' + key + ' ' + ex + ' is said twice'));
+      else have.push(ex);
+    }
+    if (key === 'wac' && ex) m.push(msg('info', 'msi', 'the agent may run this installer again (as SYSTEM) to set the certificate of a Windows Admin Center before 2410'));
+    R.roles.push(verdict(m));
+  });
+  arr(s.key_read).forEach(function (a) {
+    var acct = String(a || '').trim();
+    if (!/^[^\x00-\x1f\x7f",=:*?<>|]{1,256}$/.test(acct)) { R.key_read.push(verdict([msg('bad', 'unread', 'allow key-read ACCOUNT ("NT SERVICE\\MyService", DOMAIN\\svc)')])); return; }
+    var m = [];
+    if (pol.key_read.some(function (y) { return y.toLowerCase() === acct.toLowerCase(); })) m.push(msg('warn', 'twice', 'the account ' + acct + ' is said twice'));
+    else pol.key_read.push(acct);
+    R.key_read.push(verdict(m));
+  });
+  if ((pol.iis.length || pol.rdp || Object.keys(pol.roles).length || pol.key_read.length) && !pol.store) R.storeMsg = msg('warn', 'no-store', 'IIS, Remote Desktop and the roles take the certificate from the machine store: allow store too');
   ['files', 'size'].forEach(function (k) {
     var v = Number(s.limits && s.limits[k]), top = k === 'files' ? F.limits.files_most : F.limits.size_most;
     R.limits[k] = (Math.floor(v) === v && v >= 1 && v <= top) ? verdict([]) : verdict([msg('bad', 'unread', 'limit ' + k + ' is 1 to ' + top)]);
@@ -671,12 +717,18 @@ function checkWin(s) {
   if (pol.store) L.push('allow store');
   pol.iis.forEach(function (x) { L.push('allow iis ' + siteLine(x)); });
   if (pol.rdp) L.push('allow rdp');
+  Object.keys(pol.roles).sort().forEach(function (k) {
+    var ex = pol.roles[k];
+    if (!ex.length) L.push('allow role ' + k);
+    ex.forEach(function (e) { L.push('allow role ' + k + ' ' + (k === 'wac' ? 'msi=' : 'path=') + siteLine(e)); });
+  });
+  pol.key_read.forEach(function (a) { L.push('allow key-read ' + siteLine(a)); });
   if (R.limits.files.level === 'ok' && Number(s.limits.files) !== F.limits.files) L.push('limit files ' + Number(s.limits.files));
   if (R.limits.size.level === 'ok' && Number(s.limits.size) !== F.limits.size) L.push('limit size ' + Number(s.limits.size));
   R.lines = L;
   R.pol = pol;
   var counts = {entries: L.length, warn: R.storeMsg ? 1 : 0, bad: 0};
-  ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis'].forEach(function (k) {
+  ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis', 'roles', 'key_read'].forEach(function (k) {
     R[k].forEach(function (v) { if (v.level === 'bad') counts.bad++; else if (v.level === 'warn') counts.warn++; });
   });
   ['files', 'size'].forEach(function (k) { if (R.limits[k].level === 'bad') counts.bad++; });
@@ -712,7 +764,8 @@ function allowLinesWin(R) {
   p.from.forEach(function (f) { out.push(A + 'allow from ' + f); });
   R.lines.forEach(function (l) {
     if (l.indexOf('allow probe ') === 0 || l.indexOf('allow connect ') === 0 || l === 'allow self-update' || l === 'allow store' ||
-        l.indexOf('allow iis ') === 0 || l === 'allow rdp' || l.indexOf('limit ') === 0) out.push(A + l);
+        l.indexOf('allow iis ') === 0 || l === 'allow rdp' || l.indexOf('allow role ') === 0 || l.indexOf('allow key-read ') === 0 ||
+        l.indexOf('limit ') === 0) out.push(A + l);
   });
   return out;
 }
@@ -754,6 +807,14 @@ function coversWin(s, R, it) {
   if (it.kind === 'store') return R.pol.store ? 'yes' : 'no';
   if (it.kind === 'rdp') return R.pol.rdp ? 'yes' : 'no';
   if (it.kind === 'iis') return R.pol.iis.some(function (x) { return x === '*' || x.toLowerCase() === String(it.site).toLowerCase(); }) ? 'yes' : 'no';
+  if (it.kind === 'role') {
+    var ex = R.pol.roles[it.role];
+    if (!ex) return 'no';
+    if (!it.extra) return 'yes';
+    var want = String(it.extra).replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+    return ex.some(function (y) { return y.replace(/\\+$/, '').toLowerCase() === want; }) ? 'yes' : 'no';
+  }
+  if (it.kind === 'key-read') return R.pol.key_read.some(function (y) { return y.toLowerCase() === String(it.account).toLowerCase(); }) ? 'yes' : 'no';
   if (it.kind === 'file') {
     var path;
     try { path = normWin(it.path); } catch (e) { return e.words || 'not a path'; }
@@ -813,6 +874,18 @@ function addNeed(s, it) {
     if (it.kind === 'store') { s.store = true; return; }
     if (it.kind === 'rdp') { s.rdp = true; s.store = true; return; }
     if (it.kind === 'iis') { if (!arr(s.iis).some(function (x) { return x.toLowerCase() === String(it.site).toLowerCase(); })) s.iis.push(it.site); s.store = true; return; }
+    if (it.kind === 'role') {
+      s.roles = arr(s.roles);
+      if (!s.roles.some(function (r) { return r.role === it.role && String(r.extra || '').toLowerCase() === String(it.extra || '').toLowerCase(); })) s.roles.push({role: it.role, extra: it.extra || ''});
+      s.store = true;
+      return;
+    }
+    if (it.kind === 'key-read') {
+      s.key_read = arr(s.key_read);
+      if (!s.key_read.some(function (y) { return y.toLowerCase() === String(it.account).toLowerCase(); })) s.key_read.push(it.account);
+      s.store = true;
+      return;
+    }
     if (it.kind === 'file') {
       var wd = it.dir || String(it.path).replace(/[\\\/][^\\\/]*$/, '');
       if (!s.files.some(function (f) { return String(f.dir).toLowerCase() === wd.toLowerCase(); })) s.files.push({dir: wd, readers: []});
@@ -858,6 +931,8 @@ function addTemplate(s, t) {
     if (t.store) s.store = true;
     if (t.rdp) s.rdp = true;
     arr(t.iis).forEach(function (x) { addNeed(s, {kind: 'iis', site: x}); });
+    roleRows(t.roles).forEach(function (r) { addNeed(s, {kind: 'role', role: r.role, extra: r.extra}); });
+    arr(t.key_read).forEach(function (a) { addNeed(s, {kind: 'key-read', account: a}); });
     Object.keys(t.units || {}).forEach(function (u) { t.units[u].forEach(function (v) { addNeed(s, {kind: 'unit', unit: u, verb: v}); }); });
     if (t.probe_local) s.probe_local = true;
     return;
@@ -1016,6 +1091,8 @@ function build(row, d, opts) {
           else if (w[1] === 'store') s.store = true;
           else if (w[1] === 'rdp') s.rdp = true;
           else if (w[1] === 'iis') s.iis.push(wr[0]);
+          else if (w[1] === 'role') s.roles.push({role: wr[0], extra: wkv.path || wkv.msi || ''});
+          else if (w[1] === 'key-read') s.key_read.push(wr[0]);
           return;
         }
         if (w[0] === 'limit') { s.limits[w[1]] = Number(w[2]); return; }
@@ -1092,7 +1169,8 @@ function build(row, d, opts) {
   /* a Windows server's agent (1.0.120): services, and the machine store, IIS, Remote Desktop */
   if (W()) {
     SECTIONS[3] = ['units', 'Services', 'refresh'];
-    SECTIONS.splice(4, 0, ['store', 'Machine store', 'lock'], ['iis', 'IIS sites', 'globe'], ['rdp', 'Remote Desktop', 'screen']);
+    SECTIONS.splice(4, 0, ['store', 'Machine store', 'lock'], ['iis', 'IIS sites', 'globe'], ['rdp', 'Remote Desktop', 'screen'],
+      ['roles', 'Windows roles', 'wand'], ['key_read', 'Read on the key', 'key']);
   }
   function nav() {
     var n = el('div', 'pb-nav');
@@ -1135,7 +1213,7 @@ function build(row, d, opts) {
   function drawAll() {
     Object.keys(sec).forEach(function (k) { if (sec[k].parentNode) sec[k].remove(); });
     refs.rows = {};
-    (W() ? [drawTemplates, drawNeeds, drawFiles, drawUnits, drawStore, drawIis, drawRdp, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawUpdate, drawLimits]
+    (W() ? [drawTemplates, drawNeeds, drawFiles, drawUnits, drawStore, drawIis, drawRdp, drawRoles, drawKeyRead, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawUpdate, drawLimits]
       : [drawTemplates, drawNeeds, drawFiles, drawUnits, drawTests, drawScripts, drawHashes, drawFrom, drawProbe, drawConnect, drawUpdate, drawLimits])
       .forEach(function (f) { refs.main.appendChild(f()); });
   }
@@ -1203,7 +1281,8 @@ function build(row, d, opts) {
         var nm = NAMED.indexOf(t.title) >= 0 ? el('span', 'pb-tpl-n', t.title) : noI18n(el('span', 'pb-tpl-n', t.title));
         w.appendChild(nm);
         var sub = arr(t.files).map(function (f) { return f.dir; }).concat(Object.keys(t.units || {}))
-          .concat(t.store ? ['Cert:\\LocalMachine\\My'] : []).concat(arr(t.iis).map(function (x) { return 'IIS ' + x; })).concat(t.rdp ? ['RDP'] : []).join(' · ');
+          .concat(t.store ? ['Cert:\\LocalMachine\\My'] : []).concat(arr(t.iis).map(function (x) { return 'IIS ' + x; })).concat(t.rdp ? ['RDP'] : [])
+          .concat(roleRows(t.roles).map(function (r) { return 'role ' + r.role + (r.extra ? ' ' + r.extra : ''); })).join(' · ');
         w.appendChild(noI18n(el('span', 'pb-tpl-s', sub)));
         b.appendChild(w);
         var mk = noI18n(el('span', 'pb-tpl-mk', ''));
@@ -1242,6 +1321,8 @@ function build(row, d, opts) {
       if (it.kind === 'store') return 'Cert:\\LocalMachine\\My';
       if (it.kind === 'iis') return it.site;
       if (it.kind === 'rdp') return 'RDP-tcp';
+      if (it.kind === 'role') return ((roleInfo(it.role) || [0, it.role])[1]) + (it.extra ? ' (' + it.extra + ')' : '');
+      if (it.kind === 'key-read') return it.account;
       if (it.kind === 'file') return it.path;
       if (it.kind === 'unit') return ({restart: 'Restart-Service ', start: 'Start-Service ', 'try-restart': 'Restart-Service '}[it.verb] || it.verb + ' ') + it.unit;
       if (it.kind === 'test') return arr(it.argv).map(wq).join(' ');
@@ -1256,7 +1337,7 @@ function build(row, d, opts) {
     return '';
   }
   var NEED_K = {file: 'file', unit: W() ? 'service' : 'unit', test: 'command', script: 'script', hash: 'the script written in acme', probe: 'test', limit: 'limit', any: 'one of',
-    store: 'machine store', iis: 'IIS site', rdp: 'Remote Desktop'};
+    store: 'machine store', iis: 'IIS site', rdp: 'Remote Desktop', role: 'Windows role', 'key-read': 'read on the key'};
   function drawNeeds() {
     var s = section('needs', 'What the deployments need', 'check', 'Each deployment to this target, as its form judges it: add what is missing with one click.');
     refs.needs = [];
@@ -1566,6 +1647,34 @@ function build(row, d, opts) {
     s.body.appendChild(switcher(S.rdp, 'acme may give the Remote Desktop listener its certificate', function (on) { S.rdp = on; refresh(); }));
     return s.node;
   }
+  /* the Windows roles (1.0.120): what the OpenSSH target's roles do - the agent runs the same PowerShell */
+  function drawRoles() {
+    var s = section('roles', 'Windows roles', 'wand', 'The roles a deployment may set: AD FS, SQL Server, LDAPS, WinRM, Exchange, RD Gateway… - each by the fixed PowerShell inside the agent (the same as the OpenSSH target’s), given only the deployment’s values. The Central Certificate Store names its folder (the agent writes only there); an older Windows Admin Center the .msi it may run again.',
+      'Add a role', function () { S.roles = arr(S.roles); S.roles.push({role: (arr(F.roles)[0] || [''])[0], extra: ''}); redraw('roles', drawRoles); focusLast('roles'); });
+    arr(S.roles).forEach(function (r, i) {
+      var o = rowShell(S.roles, 'roles', i, function () { S.roles.splice(i, 1); redraw('roles', drawRoles); });
+      var sel = el('select', 'pb-in');
+      arr(F.roles).forEach(function (x) {
+        var op = el('option', '', x[1]);
+        op.value = x[0];
+        if (x[0] === r.role) op.selected = true;
+        sel.appendChild(op);
+      });
+      var info = roleInfo(r.role), ex = null;
+      sel.onchange = function () { r.role = sel.value; if (!(roleInfo(r.role) || [])[2]) r.extra = ''; redraw('roles', drawRoles); };
+      o.top.appendChild(sel);
+      if (info && info[2]) {
+        ex = input(r.extra, info[2] === 'msi' ? 'msi: C:\\Install\\WindowsAdminCenter.msi (only before 2410)' : 'path: \\\\fileserver\\ccs', 'mono pb-addr');
+        ex.oninput = function () { r.extra = ex.value.trim(); refresh(); };
+        o.top.appendChild(ex);
+      }
+      o.top.appendChild(o.x);
+      s.body.appendChild(o.row);
+    });
+    return s.node;
+  }
+  var drawKeyRead = listSection('key_read', 'Read on the key', 'key', 'Accounts a deployment may give read on the private key (Read on the key for, Key read of a role) - a service account, never Everyone.',
+    'Add an account', 'NT SERVICE\\MyService', function () { S.key_read = arr(S.key_read); return S.key_read; });
   var drawFrom = listSection('from', 'Allow from', 'in', 'A passive agent lets acme in only from these addresses (else from anywhere with acme’s certificate); anybody else is turned away before the TLS handshake.',
     'Add an address', '192.0.2.10 or 192.0.2.0/24', function () { return S.from; }, function (b) {
       if (A.mode === 'active') b.appendChild(el('p', 'note small', 'This agent is active: it connects to acme and listens on nothing - the addresses matter only if it is made passive.'));
@@ -1798,7 +1907,7 @@ function build(row, d, opts) {
   /* ---- everything checked again, in place -------------------------------------------------- */
   function refresh() {
     R = check(S);
-    ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis'].forEach(function (k) {
+    ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis', 'roles', 'key_read'].forEach(function (k) {
       arr(refs.rows[k]).forEach(function (r, i) {
         if (!r || !R[k] || !R[k][i]) return;
         var hint = '';
@@ -1836,9 +1945,9 @@ function build(row, d, opts) {
     });
     var N = {tpl: '', needs: '', files: S.files.length, units: S.units.length, tests: S.tests.length, scripts: S.scripts.length, hashes: S.hashes.length,
       from: S.from.length, probe: S.probe.length + (S.probe_local ? 1 : 0), connect: S.connect_on ? S.connect.length : 0, update: S.self_update ? '✓' : '', limits: '',
-      store: S.store ? '✓' : '', iis: arr(S.iis).length, rdp: S.rdp ? '✓' : ''};
+      store: S.store ? '✓' : '', iis: arr(S.iis).length, rdp: S.rdp ? '✓' : '', roles: arr(S.roles).length, key_read: arr(S.key_read).length};
     var lv = {files: R.files, units: R.units, tests: R.tests, scripts: R.scripts, hashes: R.hashes, from: R.from, probe: R.probe, connect: R.connect,
-      limits: [R.limits.files, R.limits.size], iis: R.iis || [], store: R.storeMsg ? [{level: 'warn'}] : []};
+      limits: [R.limits.files, R.limits.size], iis: R.iis || [], store: R.storeMsg ? [{level: 'warn'}] : [], roles: R.roles || [], key_read: R.key_read || []};
     Object.keys(refs.nav).forEach(function (k) {
       var x = refs.nav[k];
       x.n.textContent = N[k] === '' || N[k] === 0 ? '' : String(N[k]);

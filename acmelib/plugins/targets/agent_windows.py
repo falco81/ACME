@@ -18,11 +18,20 @@ through the agent, keys made by the agent, What happens - with the deployment of
                             iisreset                                -> that command line
                             C:\\scripts\\x.ps1 ARGS                  -> that script, its SHA-256
                             a line of a shell (| ; & $ ` ( ) { } < >) -> refused: a script
-    PowerShell after        a script written here (allow script-hash) or one on the server
+    The script after        a script written here (allow script-hash) or one on the server
+    Exchange services       Enable-ExchangeCertificate for those services (allow role exchange)
+    PowerShell after        lines run after the import ($thumb, $cert) (allow script-hash)
+    the roles               every role of "Windows server (OpenSSH + PowerShell)" - RDS, RD
+                            Gateway, AD FS, WAP, SQL Server, LDAPS, WinRM, SSTP, IIS CCS, IIS
+                            FTP, Exchange, Skype for Business, SharePoint, Windows Admin Center -
+                            with all their fields, and read on the key for accounts: the SAME
+                            PowerShell (_win_roles' templates; the agent's copy is
+                            deploy/agent/acme_agent_winroles.py, generated), run by the agent
+                            with this deployment's values only     (allow role NAME,
+                                                                    allow key-read ACCOUNT)
 
-What the agent cannot do: Exchange (Enable-ExchangeCertificate) and the Windows roles of
-"Windows server (OpenSSH + PowerShell)" (AD FS, RD Gateway, WinRM...) - those stay with that
-target.
+The agent's parity with that target, field by field: docs/target-agent.md "Windows: what the
+OpenSSH target does, the agent does" (test_agent_windows_parity.py checks it).
 """
 from __future__ import annotations
 
@@ -34,9 +43,10 @@ import re
 from acmelib.plugins.targets._common import (
     PluginError, field, as_int, as_bool, lines, PFX_FORMATS, label_of, stamp, alt_of, family_of,
     service_of, subst, parse_outputs, outputs_for, keep_field, verify_fields, object_name,
-    random_password)
+    random_password, name_prefix)
 from acmelib.plugins.targets import _files as F
 from acmelib.plugins.targets import _script as SC
+from acmelib.plugins.targets import _win_roles as WR
 from acmelib.plugins.targets import agent as AG
 
 WIN_INTERPS = ('powershell',)
@@ -205,6 +215,111 @@ def win_needs(pol, win):
     if (win or {}).get('rdp') and not W.pol_rdp(pol):
         out.append({'kind': 'rdp', 'what': 'the certificate of the Remote Desktop listener',
                     'allow': 'acme-agent allow rdp'})
+    out += roles_needs(pol, win)
+    return out
+
+
+def role_extra(r):
+    """What more a role's entry must name: the folder of the Central Certificate Store, the
+    .msi of an older Windows Admin Center (only when given)."""
+    o = r.get('o') or {}
+    if r['key'] == 'ccs':
+        return o.get('ccs_path') or ''
+    if r['key'] == 'wac':
+        return o.get('wac_msi') or None
+    return None
+
+
+def roles_needs(pol, win):
+    """What the policy lacks for the roles of a job (the agent's own words: allow role NAME
+    [path=|msi=], allow key-read ACCOUNT, allow script-hash HASH of the PowerShell after)."""
+    W = _wc()
+    out = []
+    have = W.pol_roles(pol)
+    for r in (win or {}).get('roles') or []:
+        extra = role_extra(r)
+        ok = r['key'] in have and (extra is None or any(
+            W._same_path(extra, x) for x in have.get(r['key']) or []))
+        if not ok:
+            out.append({'kind': 'role', 'role': r['key'], 'what': '%s (the Windows role%s)' % (
+                WR.TITLE[r['key']], ', %s' % extra if extra else ''),
+                'allow': W.allow_role_words(r['key'], extra)})
+    reads = [x.lower() for x in W.pol_key_read(pol)]
+    for a in (win or {}).get('key_read') or []:
+        if a.lower() not in reads:
+            out.append({'kind': 'key-read', 'account': a,
+                        'what': 'read on the private key for %s' % a,
+                        'allow': W.allow_key_read_words(a)})
+    if (win or {}).get('post_ps'):
+        h = hashlib.sha256(win['post_ps'].encode('utf-8')).hexdigest()
+        if h not in [str(x).lower() for x in (pol or {}).get('script_hashes') or []]:
+            out.append({'kind': 'script-hash', 'hash': h, 'what': 'the PowerShell after the '
+                        'import (sha256 %s)' % h, 'allow': 'acme-agent allow script-hash %s' % h})
+    return out
+
+
+ROLES_SINCE = '1.0.120'
+EX_ALL = ('IIS', 'SMTP', 'IMAP', 'POP', 'UM', 'UMCallRouter', 'Federation')
+
+
+def exchange_services(text):
+    """The Exchange services field ('IIS,SMTP', 'IIS; SMTP') -> ['IIS', 'SMTP'] - as
+    windows_ssh reads it, each one Enable-ExchangeCertificate knows."""
+    out = []
+    for x in str(text or '').replace(';', ',').split(','):
+        x = x.strip()
+        if not x:
+            continue
+        known = [k for k in EX_ALL if k.lower() == x.lower()]
+        if not known:
+            raise PluginError('Exchange services: %r is not one of %s' % (x, ', '.join(EX_ALL)),
+                              retry=False)
+        if known[0] not in out:
+            out.append(known[0])
+    return out
+
+
+def win_roles(out, bundle, options, partial=False):
+    """The roles of a deployment as the agent runs them (out: resolved()): [{key, title, o}] -
+    their values made by _win_roles.role_params, the very values windows_ssh puts into its
+    text; the accounts given read on the key; the PowerShell after; the beginning of acme's
+    names of this certificate (old ones are told by it)."""
+    names = list(getattr(bundle, 'names', None) or [getattr(bundle, 'name', '') or ''])
+    bad = WR.check_options(options, names)
+    if bad and not partial:
+        raise PluginError('; '.join(bad), retry=False)
+    roles = []
+    for key in WR.enabled(options):
+        try:
+            p = WR.role_params(key, options, {'names': names})
+        except PluginError:
+            if not partial:
+                raise
+            continue
+        o = {k: v for k, v in p.items() if WR.SCHEMA[key].get(k, ('agent',))[0] != 'agent'}
+        roles.append({'key': key, 'title': WR.TITLE[key], 'o': o})
+    ex = exchange_services(options.get('exchange'))
+    if ex:
+        have = [r for r in roles if r['key'] == 'exchange']
+        if have:
+            for x in ex:
+                if x not in have[0]['o']['ex_services']:
+                    have[0]['o']['ex_services'].append(x)
+        else:
+            roles.append({'key': 'exchange', 'title': WR.TITLE['exchange'],
+                          'o': {'ex_services': ex, 'ex_restart_imap': False,
+                                'ex_restart_pop': False, 'ex_remove_old': False}})
+            order = [r[0] for r in WR.ROLES]
+            roles.sort(key=lambda r: order.index(r['key']))
+    out['roles'] = roles
+    out['key_read'] = lines(options.get('key_read'))
+    post = lines(options.get('post_ps'))
+    out['post_ps'] = '\n'.join(post) if post else None
+    try:
+        out['prefix'] = name_prefix(bundle, options) if getattr(bundle, 'cert_pem', '') else ''
+    except Exception:                                   # noqa: BLE001
+        out['prefix'] = ''
+    out['ccs_password'] = WR.Opts(options).s('ccs_password')
     return out
 
 
@@ -214,9 +329,10 @@ class AgentWindowsTarget(AG.AgentTarget):
     title = 'Windows server with acme-agent'
     vendor = 'Microsoft'
     description = ('acme holds none of the server\'s credentials: a small agent on it imports the '
-                   'certificate into the machine store, binds it to IIS sites and the Remote '
-                   'Desktop listener, writes files, restarts services - only what its own policy '
-                   'allows. Exchange and the Windows roles stay with the OpenSSH target.')
+                   'certificate into the machine store, binds it to IIS sites, the Remote '
+                   'Desktop listener, Exchange and the Windows roles (AD FS, SQL Server, LDAPS, '
+                   'WinRM...), writes files, restarts services - only what its own policy '
+                   'allows.')
     doc = 'target-agent.md'
     dual = False
     fields = [f for f in AG.AgentTarget.fields if not f['key'].startswith('script_')] + \
@@ -231,13 +347,19 @@ class AgentWindowsTarget(AG.AgentTarget):
                    'binding; none binds the port for all names. Missing https bindings '
                    'are made (the policy: allow iis SITE)'),
         field('rdp', 'Remote Desktop listener', 'bool', default=False,
-              help='the certificate of the RDP listener (the policy: allow rdp). Exchange is '
-                   'not done by the agent - the target "Windows server (OpenSSH + PowerShell)" '
-                   'does it'),
+              help='the certificate of the RDP listener; NETWORK SERVICE given read on its key '
+                   '(the policy: allow rdp)'),
+        field('exchange', 'Exchange services', 'text', advanced=True, placeholder='IIS,SMTP',
+              help='Enable-ExchangeCertificate -Services …; empty: not Exchange (the policy: '
+                   'allow role exchange)'),
         field('pfx_format', 'PKCS#12 kind', 'select', default='p12-legacy', advanced=True,
               options=[['p12-legacy', '3DES (any Windows)'],
                        ['pfx', 'AES-256 (Windows Server 2019 and later)']]),
         field('exportable', 'Key exportable', 'bool', default=False, advanced=True),
+        field('post_ps', 'PowerShell after', 'list', advanced=True,
+              help='lines run after the import and the bindings; $thumb is the new thumbprint, '
+                   '$cert the certificate (the policy: allow script-hash - its hash is shown '
+                   'below)'),
         dict(keep_field(1), help='older certificates this agent imported for this deployment '
                                  'are removed from the store beyond this many (0 to 10) - '
                                  'never one still bound'),
@@ -261,7 +383,7 @@ class AgentWindowsTarget(AG.AgentTarget):
                    '(C:\\scripts\\x.ps1) - no shell: one failing puts everything back'),
         field('post_cmd', 'After restarting', 'list', advanced=True,
               help='run last; a failure here is only a warning'),
-    ] + verify_fields()
+    ] + WR.role_fields() + verify_fields()
     files_ui = SC.files_ui('windows', WIN_INTERPS, SC.layouts('C:/certs', 'windows'),
                            owners=False)
 
@@ -287,12 +409,58 @@ class AgentWindowsTarget(AG.AgentTarget):
             what.append('Remote Desktop')
         for p in (pol.get('problems') or [])[:3]:
             self.ctx.step('the policy: %s' % p, 'warn')
+        roles = pol.get('roles') or {}
+        if roles:
+            what.append('roles %s' % ', '.join(sorted(roles)))
+        if pol.get('key_read'):
+            what.append('read on the key for %d account%s' % (
+                len(pol['key_read']), '' if len(pol['key_read']) == 1 else 's'))
         words = 'acme-agent %s on %s answers; its policy: %s' % (
             got.get('version') or '?', got.get('host') or '?', ', '.join(what))
         if got.get('platform') and got.get('platform') != 'windows':
             self.ctx.step('the agent says it runs on %s, not Windows: make the target a "Server '
                           'with acme-agent"' % got['platform'], 'warn')
-        return words
+            return words
+        return words + self._roles_found(pol)
+
+    def _roles_found(self, pol):
+        """The roles of the server, as windows_ssh's test lists them: the agent looks (a check
+        that changes nothing; an agent without roles says nothing of them)."""
+        if isinstance(pol, dict) and pol and 'roles_known' not in pol:
+            return '; the agent is older than its Windows roles (acme %s) - update it to use ' \
+                   'them' % ROLES_SINCE
+        try:
+            got = self._call('check', {'files': [], 'win': {'store': None, 'iis': [],
+                                                            'rdp': False, 'detect': True}},
+                             timeout=120)
+        except PluginError:
+            return '; the roles on this server could not be listed'
+        for f in got.get('files') or []:
+            if isinstance(f.get('roles'), dict):
+                found = {k: (bool(v[0]), str(v[1] or '')) for k, v in f['roles'].items()
+                         if isinstance(v, (list, tuple)) and len(v) == 2}
+                return WR.RolesMixin.roles_found_words(self, found)
+        return '; the roles on this server could not be listed'
+
+    def _last_policy(self):
+        info = self.ctx.agent_info() if hasattr(self.ctx, 'agent_info') else {}
+        return (info or {}).get('policy')
+
+    def deploy(self, bundle, options):
+        r = self.resolved(bundle, dict(options or {}), partial=True)
+        if r.get('roles') or r.get('key_read') or r.get('post_ps'):
+            pol = self._last_policy()
+            if isinstance(pol, dict) and 'roles_known' not in pol:
+                raise PluginError('the agent on the server knows no Windows role (it is older '
+                                  'than acme %s): update it, then deploy again' % ROLES_SINCE,
+                                  retry=False)
+            known = (pol or {}).get('roles_known')
+            lack = [x['title'] for x in r.get('roles') or [] if isinstance(known, list) and
+                    x['key'] not in known]
+            if lack:
+                raise PluginError('the agent on the server does not know %s: update it' %
+                                  ', '.join(lack), retry=False)
+        return AG.AgentTarget.deploy(self, bundle, options)
 
     # -- what the options say ---------------------------------------------------------------
     def resolved(self, bundle, options, partial=False):
@@ -337,6 +505,9 @@ class AgentWindowsTarget(AG.AgentTarget):
         out['pfx_format'] = options.get('pfx_format') if options.get('pfx_format') in \
             STORE_PFX else 'p12-legacy'
         out['exportable'] = as_bool(options.get('exportable'))
+        win_roles(out, bundle, options, partial)
+        if (out['roles'] or out['key_read'] or out['post_ps']) and not out['store']:
+            out['store'] = True             # the roles take the certificate from the store
         if not out['files'] and not out['store'] and not partial:
             raise PluginError('nothing to do: the machine store is off and no files are '
                               'written', retry=False)
@@ -354,6 +525,10 @@ class AgentWindowsTarget(AG.AgentTarget):
         for b in iis:
             if b['port'] not in ports:
                 ports.append(b['port'])
+        # LDAPS of a domain controller: checked on 636, as windows_ssh checks it
+        if 'ldaps' in WR.enabled(options) and WR.Opts(options).on('ldaps_verify') and \
+                636 not in ports:
+            ports.append(636)
         return [('127.0.0.1', p) for p in ports]
 
     def verify(self, bundle, options):
@@ -520,7 +695,31 @@ class AgentWindowsTarget(AG.AgentTarget):
             st['pfx_index'] = len(args['files'])
             args['files'].append(one)
         win['store'] = st
+        self._win_roles(bundle, options, r, win, sealed, agent_key)
         return win
+
+    def _win_roles(self, bundle, options, r, win, sealed, agent_key):
+        """The roles of the job (only when there are: an agent's job without them is as it
+        was): their values, the accounts given read on the key, the PowerShell after, the
+        PKCS#12 of the Central Certificate Store (sealed, with its password)."""
+        if not (r.get('roles') or r.get('key_read') or r.get('post_ps')):
+            return
+        win['prefix'] = r.get('prefix') or ''
+        win['roles'] = [{'key': x['key'], 'o': x['o']} for x in r.get('roles') or []]
+        win['key_read'] = list(r.get('key_read') or [])
+        if r.get('post_ps'):
+            win['post_ps'] = r['post_ps']
+        if any(x['key'] == 'ccs' for x in r.get('roles') or []):
+            c = {}
+            pw = r.get('ccs_password') or ''
+            if sealed and pw:
+                c['password_sealed'] = self.ctx.agent_seal('win ccs password', pw.encode('utf-8'))
+            if sealed and not agent_key:
+                data = bundle.as_format(r['pfx_format'], password=pw,
+                                        alias=object_name(bundle, options))
+                c['sealed'] = self.ctx.agent_seal('win ccs', data if isinstance(
+                    data, bytes) else data.encode())
+            win['ccs'] = c              # a check: no PKCS#12 made for it
 
     def _check_written(self, got, r, datas):
         said = {str(f.get('path') or '').lower(): f.get('sha256') for f in got.get('files') or []}
@@ -551,6 +750,8 @@ class AgentWindowsTarget(AG.AgentTarget):
                           'bad' if f.get('bad') else 'info')
         for c in args['pre'] + args['test'] + args['reload'] + args['post']:
             self.ctx.step('not run on a test: %s' % op_words(c))
+        for title, sc in self.roles_scripts(r):
+            self.ctx.step('the PowerShell of %s (not run on a test):\n%s' % (title, sc))
         if not got.get('ok'):
             for n in got.get('needs') or []:
                 self.ctx.step('needed: %s' % n['allow'], 'bad')
@@ -561,8 +762,31 @@ class AgentWindowsTarget(AG.AgentTarget):
             ['the machine store'] * bool(r['store']) +
             ['%d IIS binding%s' % (len(r['iis']), '' if len(r['iis']) == 1 else 's')] *
             bool(r['iis']) + ['Remote Desktop'] * bool(r['rdp']) +
+            [x['title'] for x in r.get('roles') or []] +
             ['%d file%s' % (len(r['files']), '' if len(r['files']) == 1 else 's')] *
             bool(r['files']))
+
+    def roles_scripts(self, r):
+        """[(title, the PowerShell the agent runs with its values)] - the agent's own copy
+        (acme_agent_winroles, generated from _win_roles) and the JSON it reads ($o)."""
+        out = []
+        if r.get('key_read'):
+            out.append(('read on the key', self._role_text('key_read',
+                                                           {'accounts': r['key_read']})))
+        for x in r.get('roles') or []:
+            out.append((x['title'], self._role_text(x['key'], x['o'])))
+        if r.get('post_ps'):
+            out.append(('the PowerShell after', r['post_ps']))
+        return out
+
+    @staticmethod
+    def _role_text(key, o):
+        try:
+            sc = WR.agent_scripts()[key]
+        except Exception:                               # noqa: BLE001
+            sc = ''
+        return '# $o (the values the agent writes as JSON for it):\n# %s\n%s' % (
+            json.dumps(o, sort_keys=True), sc)
 
     # -- what the page shows before anything runs ------------------------------------------
     def preview(self, bundle, options):
@@ -585,6 +809,17 @@ class AgentWindowsTarget(AG.AgentTarget):
         if r is not None:
             got['commands'] = {k: r[k] for k in ('pre_cmd', 'test_cmd', 'reload_cmd',
                                                  'post_cmd')}
+        if r is not None and (r.get('roles') or r.get('key_read') or r.get('post_ps')):
+            for words in WR.check_options(options, list(getattr(bundle, 'names', None) or [])):
+                got.setdefault('problems', []).append({'level': 'bad', 'words': words})
+            got['roles'] = {'on': [{'key': x['key'], 'title': x['title']}
+                                   for x in r.get('roles') or []],
+                            'script': '\n\n'.join('# --- %s ---\n%s' % (t, sc) for t, sc in
+                                                  self.roles_scripts(r))}
+            if r.get('roles'):
+                got.setdefault('problems', []).append({'level': 'info', 'words': (
+                    'after the import, the bindings, the test, the script and the restart: %s'
+                    % ', '.join(x['title'] for x in r['roles']))})
         got['agent'] = self.needs(bundle, options)
         if got['agent'].get('error'):
             got.setdefault('problems', []).append({'level': 'bad',
@@ -651,6 +886,25 @@ class AgentWindowsTarget(AG.AgentTarget):
             judge('rdp', 'Remote Desktop', 'the listener\'s certificate', None,
                   'acme-agent allow rdp',
                   needs=win_needs(pol, {'rdp': True}) if pol is not None else None)
+        for a in win.get('key_read') or []:
+            judge('key-read', 'read on the key', a, None, _wc().allow_key_read_words(a),
+                  needs=roles_needs(pol, {'key_read': [a]}) if pol is not None else None)
+        if win.get('post_ps'):
+            h = hashlib.sha256(win['post_ps'].encode('utf-8')).hexdigest()
+            judge('script', 'the PowerShell after', 'sha256 %s…' % h[:16], None,
+                  'acme-agent allow script-hash %s' % h,
+                  needs=roles_needs(pol, {'post_ps': win['post_ps']}) if pol is not None
+                  else None)
+        for x in win.get('roles') or []:
+            extra = role_extra(x)
+            judge('role', 'role', WR.TITLE[x['key']] + (' (%s)' % extra if extra else ''), None,
+                  _wc().allow_role_words(x['key'], extra),
+                  needs=roles_needs(pol, {'roles': [x]}) if pol is not None else None)
+        if win.get('roles') and pol is not None and 'roles_known' not in pol:
+            out['items'].append({'kind': 'role', 'label': 'the agent', 'what': 'knows no '
+                                 'Windows role yet', 'ok': False,
+                                 'allow': 'update acme-agent on the server (its roles came with '
+                                          'acme %s)' % ROLES_SINCE})
         for f in args['files']:
             if not f['path']:
                 continue                    # the store's PKCS#12: never written
