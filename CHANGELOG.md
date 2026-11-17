@@ -25,6 +25,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - Policy builder: what was clicked together (a template, a need, a switch) and not copied, downloaded or saved is asked about before Close or Escape take it away.
 - Policy builder: the template search stays when a template is clicked; an emptied limit no longer shows "NaN KiB"; the output's tabs say which is selected to a screen reader; after a save *Start from* offers the saved design.
 - Policy builder: an earlier version of a design saved without its state (the command line) opens with its lines, not empty.
+- Certificate portal: a certificate whose owner is `group:` and a directory group's DN is in its members' list (it could be downloaded, but was not listed).
+- Certificate portal: *Ask for a certificate*, on again after the limit, no longer keeps saying (tooltip, screen reader) that the limit is reached.
+- Certificate portal: a certificate not issued yet that nothing issues (not renewed by itself, or its approval missing) no longer says "being issued…" and is no longer asked about every 3 s.
+- Certificate portal: with a certificate as the only way to sign in, "your sign-in has run out" is said again on the sign-in page.
 
 ## 1.0.118 - 2026-11-17
 

@@ -46,7 +46,9 @@ function portalDoor() {
   drawLangPick();
   var h = $('help-text');
   if (h) drawHelp(h, h.getAttribute('data-help'));
-  var form = $('signin-form'), said = $('in-said') || $('krb-said'), go = $('in-go');
+  /* ...or the certificate's, when it is the only way (1.0.119): with no other, "your sign-in has
+     run out" was written into nothing - an error, and nothing said */
+  var form = $('signin-form'), said = $('in-said') || $('krb-said') || $('cert-said'), go = $('in-go');
   if (go) form.addEventListener('submit', function (e) {
     e.preventDefault();
     said.className = 'said';
