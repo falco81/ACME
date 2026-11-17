@@ -512,6 +512,76 @@ files, components and custom actions, and the wizard's Windows Installer tables 
 `msibuild` (wixl has no `<UI>`) and checked for their references before the MSI is kept. It is not
 Authenticode-signed: its integrity is the SHA-256 acme shows and the signed MANIFEST inside.
 
+### Build the Windows agent yourself
+
+Everything that goes into the MSI is in this repository: the agent's sources
+(`deploy/agent/acme_agent.py`, `acme_agent_win.py`, `acme_agent_wincert.py`,
+`acme_agent_winroles.py`), the CLI and the readme of the installed folder (`deploy/agent/windows/`),
+and the build script `tools/agent_windows.py`. `acme_agent_winroles.py` is generated from
+`acmelib/plugins/targets/_win_roles.py` by `tools/gen_agent_winroles.py` - after a change there run
+it again (a test fails while the two differ). The only things downloaded are CPython and OpenSSL for
+Windows, at pinned versions checked by SHA-256.
+
+The build runs on **Linux** (Debian/Ubuntu shown; Fedora/EL: `dnf install msitools zstd`). Windows
+itself is not needed.
+
+1. The tools - Python 3, msitools (`wixl`, `msibuild`, `msiinfo`), zstd, openssl:
+
+   ```bash
+   sudo apt-get install -y python3 msitools zstd openssl git
+   ```
+
+2. The sources:
+
+   ```bash
+   git clone https://github.com/falco81/ACME.git && cd ACME
+   ```
+
+   For exactly a released version, check out its release commit (`git log --grep "Release 1.0.120"`).
+
+3. Are the tools there, and the two downloads?
+
+   ```bash
+   python3 tools/agent_windows.py check
+   ```
+
+4. Download CPython (NuGet `python`) and OpenSSL (conda-forge `openssl`) into the cache
+   (`~/.cache/acme-agent-windows`, or `$ACME_AGENT_WINDOWS_CACHE`). Each is checked against the
+   SHA-256 pinned in the script; a different file is refused. With no network on the build machine,
+   copy the two files named by `check` into the cache by hand.
+
+   ```bash
+   python3 tools/agent_windows.py fetch
+   ```
+
+5. Build the MSI (a few seconds); the version is `acmelib/__init__.py`'s unless given:
+
+   ```bash
+   python3 tools/agent_windows.py msi --out dist --version 1.0.120
+   ```
+
+   It prints the file, its size, SHA-256, the number of files and the product code:
+   `dist/acme-agent-1.0.120-windows-x64.msi`. Same sources, same version - the same product code,
+   so it upgrades and is upgraded like the released one.
+
+Optional:
+
+* `--key FILE` signs the `MANIFEST` inside with a release key (Ed25519, as `tools/release.py`
+  does). Without it the MSI holds an unsigned `MANIFEST` and says *not signed*; it installs and works
+  the same - the key only proves the files came from the holder of that key. An agent updated by
+  acme later gets acme's signed package as usual.
+* `python3 tools/agent_windows.py runtime DIR` - only the trimmed runtime (`runtime\` and
+  `openssl\`) into a folder, to look at what goes in.
+* `--agent-dir DIR` - the agent's files from another folder than `deploy/agent`.
+* Authenticode (so that SmartScreen does not warn): sign the finished MSI with your own code-signing
+  certificate, e.g. `osslsigncode sign -pkcs12 cert.pfx -pass ... -t http://timestamp.digicert.com
+  -in acme-agent.msi -out acme-agent-signed.msi`, or `signtool sign /fd SHA256 /tr ... /td SHA256` on
+  Windows. Nothing inside the MSI changes.
+
+Check it before handing it out: `python3 test/test_agent_windows_package.py` builds the MSI and
+checks its tables, its wizard, its files and the MANIFEST. Installing is then as above: double-click
+(Next, Next) or `msiexec /i acme-agent-1.0.120-windows-x64.msi /qn JOINCODE=ACAE1.…`.
+
 ## In acme
 
 * **Settings → Target agents**: active mode and its port, what the agents are given; the agents

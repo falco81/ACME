@@ -6,7 +6,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.121 - not released
 
-(nothing yet)
+- Docs: how to build the Windows agent (the MSI) yourself from the repository on Linux - tools, download, build, signing (docs/target-agent.md, "Build the Windows agent yourself").
 
 ## 1.0.120 - 2026-11-17
 

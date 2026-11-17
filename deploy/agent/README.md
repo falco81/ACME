@@ -66,7 +66,8 @@ Every operation is written to the journal (`journalctl -t acme-agent`) and to
 
 ## Windows
 
-`acme-agent-X.Y.Z-windows-x64.msi` (a release carries it): double-click it, or
+`acme-agent-X.Y.Z-windows-x64.msi` (a release carries it; to build it yourself from these sources on
+Linux see docs/target-agent.md, "Build the Windows agent yourself"): double-click it, or
 `msiexec /i acme-agent-X.Y.Z-windows-x64.msi /qn JOINCODE=CODE` (a join code or a company
 enrollment code). It installs into `C:\Program Files\acme-agent` (its own Python and OpenSSL) and
 runs `acme-agent windows-install`: the policy, the pins and the state in
