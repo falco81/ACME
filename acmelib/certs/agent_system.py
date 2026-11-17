@@ -336,7 +336,8 @@ def lines(v, now=None):
         rows.append(('started', _when(f['boot'])))
     if f.get('tz'):
         off = f.get('tz_offset')
-        rows.append(('time zone', f['tz'] + (' (UTC%+03d:%02d)' % (int(off / 60), abs(off) % 60)
+        rows.append(('time zone', f['tz'] + (' (UTC%s%02d:%02d)' % ('-' if off < 0 else '+',
+                                                                abs(off) // 60, abs(off) % 60)
                                              if isinstance(off, int) else '')))
     if v.get('skew') is not None:
         s = v['skew']
