@@ -354,6 +354,14 @@ the same for any keepalived pair.
 - VMware: nothing special is needed - keepalived uses the node's own MAC
   address, so no "MAC address changes" or "forged transmits" in the port
   group.
+- SELinux enforcing (1.0.120): keepalived runs its check
+  `/usr/libexec/keepalived/acme-vip-check` in `keepalived_unconfined_script_t`
+  only while the file is labelled `keepalived_unconfined_script_exec_t` (the
+  system's policy and acme's module both say so; `restorecon -R
+  /usr/libexec/keepalived` puts it back). Labelled otherwise, the check runs in
+  `keepalived_t`, may not read `/run/acme/vip-state`, and the address leaves a
+  node that could hold it - *Settings → SELinux* of that node shows it (a
+  `keepalived_t` refusal) and what puts it right. See [selinux.md](selinux.md).
 
 ---
 

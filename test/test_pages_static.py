@@ -35,6 +35,10 @@ class NoNativeDialogs(unittest.TestCase):
                 for n, line in enumerate(f, 1):
                     code = line.split('//', 1)[0]
                     for m in NATIVE.finditer(code):
+                        # words of a sentence ("in an elevated prompt (Run as administrator)"),
+                        # not a call
+                        if re.search(r'elevated \Z', code[:m.start()]):
+                            continue
                         found.append('%s:%d: %s' % (os.path.relpath(path, ROOT), n, m.group(0)))
         self.assertEqual(found, [], 'the browser\'s own dialogs - use modal() / confirmThen():\n'
                          + '\n'.join(found))

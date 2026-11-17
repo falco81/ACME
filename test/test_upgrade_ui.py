@@ -963,23 +963,28 @@ class ThePages(unittest.TestCase):
     def test_short_cs_1300(self):
         self.short('cs', 1300)
 
-    def test_cluster(self):
+    def cluster(self, lang, width):
         if not self.conf_db():
             self.skipTest('no SQLite database to write the plan into')
         self.ctl('vip', 'A')
-        s = self.browser('cluster', 'en', 1300, vip=True)
+        s = self.browser('cluster', lang, width, vip=True)
+        en = lang == 'en'
         try:
             # A's own file says done, the cluster's plan says B is at it: no reload
             self.assertEqual(s['onA']['rows'], 2, s)
-            self.assertIn('acme is being upgraded to 1.0.121', s['onA']['title'])
+            self.fits(s['onA'], 'on A')
             self.assertIn('acmeB', s['onA']['line'])
-            self.assertIn('1 of 2 node(s) done', s['onA']['line'])
+            if en:
+                self.assertIn('acme is being upgraded to 1.0.121', s['onA']['title'])
+                self.assertIn('1 of 2 node(s) done', s['onA']['line'])
             self.assertEqual(s['reloadsWhileBRuns'], 0, s)
             # answered by B's PHP: the band stays, the session too, B's step from its own file
             b = s['onB']
             self.assertTrue(b and b['signedIn'], s)
-            self.assertIn('step 5 of 9', b['line'])
-            self.assertIn('not answering for', s['onBapiDown']['means'])
+            self.fits(b, 'on B')
+            if en:
+                self.assertIn('step 5 of 9', b['line'])
+                self.assertIn('not answering for', s['onBapiDown']['means'])
             self.assertFalse(s['onBapiDown']['offline'])
             self.assertTrue(s['onBback'] and s['onBback']['signedIn'], s)
             self.assertEqual(s['reloadsBeforeEnd'], 0, s)
@@ -987,12 +992,19 @@ class ThePages(unittest.TestCase):
             # every node done: once
             self.assertEqual(s['reloadsAtEnd'], 1, s)
             self.assertTrue(s['afterEnd'] and 'good' in s['afterEnd']['cls'], s)
-            self.assertIn('on every node', s['afterEnd']['title'])
+            if en:
+                self.assertIn('on every node', s['afterEnd']['title'])
         finally:
             db = sqlite3.connect(self.conf_db(), timeout=30)
             db.execute("DELETE FROM meta WHERE k LIKE 'upgrade:%'")
             db.commit()
             db.close()
+
+    def test_cluster_en_1300(self):
+        self.cluster('en', 1300)
+
+    def test_cluster_cs_390(self):
+        self.cluster('cs', 390)
 
     def conf_db(self):
         with open(self.conf_ctl) as f:

@@ -212,7 +212,7 @@ const { execSync } = require('child_process');
       await shot('c1-on-a');
       // ---- the VIP address moves: the page answered by B's PHP ----
       run('vip B');
-      out.onB = await bandWait(b => b && /step 5 of 9/.test(b.text) && b.rows === 2 && /acmeB/.test(b.line), 15000);
+      out.onB = await bandWait(b => b && /(step|krok) 5 (of|z) 9/.test(b.text) && b.rows === 2 && /acmeB/.test(b.line), 15000);
       await shot('c2-on-b');
       // B's API restarting while the page is on B
       run('kill-api');

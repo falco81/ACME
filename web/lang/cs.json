@@ -67883,6 +67883,254 @@
   "z_842": {
    "source": "Set-WACCertificateAcl: %s - NETWORK SERVICE has read on the key already",
    "text": "Set-WACCertificateAcl: %s - NETWORK SERVICE už má čtení klíče"
+  },
+  "z_843": {
+   "source": "What SELinux refuses on each node and what puts it right; acme's module, its local rules; the steps from disabled to enforcing.",
+   "text": "Co SELinux na kterém uzlu odepírá a čím se to napraví; modul acme a jeho místní pravidla; kroky od disabled k enforcing."
+  },
+  "z_844": {
+   "source": "Put right just now",
+   "text": "Právě napraveno"
+  },
+  "z_845": {
+   "source": "Put right here a moment ago - it goes at the next look.",
+   "text": "Napraveno tady před chvílí – při další kontrole zmizí."
+  },
+  "z_846": {
+   "source": "A boolean",
+   "text": "Boolean"
+  },
+  "z_847": {
+   "source": "audit2why names a boolean that allows it - switched on with setsebool.",
+   "text": "audit2why jmenuje boolean, který to povoluje – zapne se přes setsebool."
+  },
+  "z_848": {
+   "source": "A label",
+   "text": "Štítek"
+  },
+  "z_849": {
+   "source": "The file is not labelled as the policy says it should be - restorecon puts it right.",
+   "text": "Soubor nemá štítek, jaký mu politika určuje – restorecon ho napraví."
+  },
+  "z_850": {
+   "source": "A port",
+   "text": "Port"
+  },
+  "z_851": {
+   "source": "A port with no type of its own - given the type of the program that uses it.",
+   "text": "Port bez vlastního typu – dostane typ programu, který ho používá."
+  },
+  "z_852": {
+   "source": "A rule of acme's",
+   "text": "Pravidlo acme"
+  },
+  "z_853": {
+   "source": "Nothing of the policy allows it: exactly this, and nothing more, goes into acme's own local module (acme_local).",
+   "text": "Nic v politice to nepovoluje: přesně tohle a nic víc přijde do vlastního místního modulu acme (acme_local)."
+  },
+  "z_854": {
+   "source": "Not for a button",
+   "text": "Ne na tlačítko"
+  },
+  "z_855": {
+   "source": "acme's, but what it would take is too much to allow from here - each says why, and what an admin could look at.",
+   "text": "Patří k acme, ale povolit to odsud by bylo příliš – u každého je proč a na co by se měl správce podívat."
+  },
+  "z_856": {
+   "source": "Not acme's",
+   "text": "Nepatří k acme"
+  },
+  "z_857": {
+   "source": "Other programs of this machine - shown, never put right here.",
+   "text": "Jiné programy tohoto stroje – jen se ukazují, tady se nikdy nenapravují."
+  },
+  "z_858": {
+   "source": "Each node's SELinux, as that node found it: green enforcing with nothing left, amber something to do, red not heard from, grey disabled.",
+   "text": "SELinux každého uzlu, jak ho ten uzel zjistil: zelená – vynucuje a nic nezbývá, oranžová – je co dělat, červená – neozývá se, šedá – disabled."
+  },
+  "z_859": {
+   "source": "to put right",
+   "text": "k nápravě"
+  },
+  "z_860": {
+   "source": "Look again on every node",
+   "text": "Zkontrolovat znovu na všech uzlech"
+  },
+  "z_861": {
+   "source": "Download the report",
+   "text": "Stáhnout report"
+  },
+  "z_862": {
+   "source": "What SELinux refuses to the web server, keepalived, sshd, PostgreSQL and the rest when it is enforcing - and what acme needs of it on this server. Nothing changes here unless asked: disabled stays disabled. On the server: sudo acme --selinux look.",
+   "text": "Co SELinux odepírá webovému serveru, keepalived, sshd, PostgreSQL a dalším, když vynucuje – a co od něj acme na tomto serveru potřebuje. Bez požádání se tu nic nemění: disabled zůstane disabled. Na serveru: sudo acme --selinux look."
+  },
+  "z_863": {
+   "source": "SELinux is each machine's own: every node has its own mode, module, refusals and fixes. What is asked here is asked of the node shown, and done by its root only - never on the other node.",
+   "text": "SELinux je věc každého stroje: každý uzel má svůj režim, modul, odepřené věci i nápravy. Co se tu zadá, zadává se zobrazenému uzlu a dělá to jen jeho root – nikdy na druhém uzlu."
+  },
+  "z_864": {
+   "source": "once",
+   "text": "jednou"
+  },
+  "z_865": {
+   "source": "Put this right",
+   "text": "Napravit tohle"
+  },
+  "z_866": {
+   "source": "Put right just now - it goes at the next look",
+   "text": "Právě napraveno – při další kontrole zmizí"
+  },
+  "z_867": {
+   "source": "Select all",
+   "text": "Vybrat vše"
+  },
+  "z_868": {
+   "source": "Root does exactly this - nothing else - and looks again at once:",
+   "text": "Root udělá přesně tohle – nic jiného – a hned zkontroluje znovu:"
+  },
+  "z_869": {
+   "source": "boolean",
+   "text": "boolean"
+  },
+  "z_870": {
+   "source": "label",
+   "text": "štítek"
+  },
+  "z_871": {
+   "source": "port",
+   "text": "port"
+  },
+  "z_872": {
+   "source": "rule",
+   "text": "pravidlo"
+  },
+  "z_873": {
+   "source": "The rules go into acme's own local module acme_local - each can be taken away again below. Every step is written in Events. It works under enforcing too.",
+   "text": "Pravidla přijdou do vlastního místního modulu acme – acme_local; každé lze níže zase odebrat. Každý krok se zapíše do Událostí. Funguje to i při enforcing."
+  },
+  "z_874": {
+   "source": "Every step is written in Events. It works under enforcing too.",
+   "text": "Každý krok se zapíše do Událostí. Funguje to i při enforcing."
+  },
+  "z_875": {
+   "source": "putting right what was selected…",
+   "text": "napravuji vybrané…"
+  },
+  "z_876": {
+   "source": "taking the rule away…",
+   "text": "odebírám pravidlo…"
+  },
+  "z_877": {
+   "source": "Restart it when it suits (Settings → Restart and power off), one node at a time - the other answers meanwhile. It comes up permissive; then look here again, and at High availability: both nodes, the replication, the VIP address.",
+   "text": "Restartujte ho, až se to hodí (Nastavení → Restart a vypnutí), vždy jen jeden uzel – druhý mezitím odpovídá. Naběhne jako permissive; pak se sem podívejte znovu a také na Vysokou dostupnost: oba uzly, replikace, adresa VIP."
+  },
+  "z_878": {
+   "source": "Restart it when it suits (Settings → Restart and power off). It comes up permissive; then look here again.",
+   "text": "Restartujte ho, až se to hodí (Nastavení → Restart a vypnutí). Naběhne jako permissive; pak se sem podívejte znovu."
+  },
+  "z_879": {
+   "source": "What SELinux refuses",
+   "text": "Co SELinux odepírá"
+  },
+  "z_880": {
+   "source": "since acme's needs were put in",
+   "text": "od doplnění toho, co acme potřebuje"
+  },
+  "z_881": {
+   "source": "since the machine started",
+   "text": "od startu stroje"
+  },
+  "z_882": {
+   "source": "SELinux refused nothing on this node",
+   "text": "SELinux na tomto uzlu nic neodepřel"
+  },
+  "z_883": {
+   "source": "Nothing since acme's needs were put in.",
+   "text": "Nic od doplnění toho, co acme potřebuje."
+  },
+  "z_884": {
+   "source": "Nothing since the machine started.",
+   "text": "Nic od startu stroje."
+  },
+  "z_885": {
+   "source": "Under enforcing too - nothing has to be switched off for it. What was put right is looked at again at once.",
+   "text": "I při enforcing – nic se kvůli tomu nemusí vypínat. Napravené se hned zkontroluje znovu."
+  },
+  "z_886": {
+   "source": "acme's local rules",
+   "text": "Místní pravidla acme"
+  },
+  "z_887": {
+   "source": "acme_local - not in the policy",
+   "text": "acme_local – není v politice"
+  },
+  "z_888": {
+   "source": "acme_local, in the policy",
+   "text": "acme_local, v politice"
+  },
+  "z_889": {
+   "source": "It goes out of acme's local module at once; refused again, it comes back on this card. The last one takes the module out of the policy.",
+   "text": "Hned zmizí z místního modulu acme; když se znovu odepře, vrátí se na tuto kartu. Poslední pravidlo vyjme modul z politiky."
+  },
+  "z_890": {
+   "source": "Let it run a day or two as it is used - sign-ins, the pages, renewals and deployments, a failover, an upgrade - then look again.",
+   "text": "Nechte to den dva běžet při běžném provozu – přihlášení, stránky, obnovy a nasazení, přepnutí uzlů, upgrade – a pak zkontrolujte znovu."
+  },
+  "z_891": {
+   "source": "In a cluster: one node at a time - this one only. Afterwards look at the cluster (High availability: both nodes answer, the replication runs, the VIP address holds) before the other node.",
+   "text": "V clusteru: vždy jen jeden uzel – teď jen tento. Pak se před druhým uzlem podívejte na cluster (Vysoká dostupnost: oba uzly odpovídají, replikace běží, adresa VIP drží)."
+  },
+  "z_892": {
+   "source": "The configuration says permissive and every file is labelled at the next start of the machine; acme's module goes in. Nothing is refused while permissive - SELinux only writes down what it would refuse. The machine is not restarted now: restart it when it suits (Settings → Restart and power off).",
+   "text": "Konfigurace řekne permissive a při příštím startu stroje dostanou štítek všechny soubory; vloží se modul acme. V permissive se nic neodepírá – SELinux jen zapisuje, co by odepřel. Stroj se teď nerestartuje: restartujte ho, až se to hodí (Nastavení → Restart a vypnutí)."
+  },
+  "z_893": {
+   "source": "Once nothing acme needs is missing and nothing is left to put right",
+   "text": "Až nebude chybět nic, co acme potřebuje, a nezbude nic k nápravě"
+  },
+  "z_894": {
+   "source": "From now on SELinux refuses what its policy does not allow - and stays enforcing after a restart. Nothing acme needs is missing and nothing is left to put right. If something stops working, \"Back to permissive\" here (or setenforce 0 on the machine) undoes it at once.",
+   "text": "Od teď SELinux odepírá, co jeho politika nepovoluje – a po restartu zůstane enforcing. Nic, co acme potřebuje, nechybí a nic nezbývá k nápravě. Když něco přestane fungovat, „Zpět na permissive“ tady (nebo setenforce 0 na stroji) to hned vrátí."
+  },
+  "z_895": {
+   "source": "This node is not heard from: what is asked of it is done once it answers again.",
+   "text": "Tento uzel se neozývá: co se po něm chce, udělá, jakmile se znovu ozve."
+  },
+  "z_896": {
+   "source": "a constraint of the policy refuses it, not a missing rule - nothing to allow from here",
+   "text": "odepírá to omezení (constraint) politiky, ne chybějící pravidlo – odsud není co povolit"
+  },
+  "z_897": {
+   "source": "not a rule acme can write",
+   "text": "není to pravidlo, které by acme umělo napsat"
+  },
+  "z_898": {
+   "source": "nothing of the policy allows it: a rule of acme's own local module allows exactly this",
+   "text": "nic v politice to nepovoluje: přesně tohle povolí pravidlo vlastního místního modulu acme"
+  },
+  "z_899": {
+   "source": "put right here - a refusal of it from after that would come back",
+   "text": "napraveno tady – kdyby se to potom odepřelo znovu, vrátí se to"
+  },
+  "z_900": {
+   "source": "the policy loaded now allows it",
+   "text": "nyní načtená politika to povoluje"
+  },
+  "z_901": {
+   "source": "acme's local module (acme_local) taken out of the policy - no rule left in it",
+   "text": "místní modul acme (acme_local) vyjmut z politiky – nezbylo v něm žádné pravidlo"
+  },
+  "z_902": {
+   "source": "a request to put something right names only the ids of what was found",
+   "text": "žádost o nápravu uvádí jen ID toho, co se našlo"
+  },
+  "z_903": {
+   "source": "SELinux refuses acme something",
+   "text": "SELinux acme něco odepírá"
+  },
+  "z_904": {
+   "source": "(permissive: let through, written down)",
+   "text": "(permissive: propuštěno, zapsáno)"
   }
  },
  "patterns": {
@@ -93893,6 +94141,218 @@
   "pz_177": {
    "source": "The agent gives {0} read on the private key",
    "text": "Agent dá účtu {0} čtení soukromého klíče"
+  },
+  "pz_178": {
+   "source": "asking {0} for its report…",
+   "text": "žádám {0} o jeho report…"
+  },
+  "pz_179": {
+   "source": "Downloaded: the report of {0}.",
+   "text": "Staženo: report uzlu {0}."
+  },
+  "pz_180": {
+   "source": "to put right: {0}",
+   "text": "k nápravě: {0}"
+  },
+  "pz_181": {
+   "source": "{0} to put right",
+   "text": "k nápravě: {0}"
+  },
+  "pz_182": {
+   "source": "{0} times",
+   "text": "{0}×"
+  },
+  "pz_183": {
+   "source": "last {0} s ago",
+   "text": "naposledy před {0} s"
+  },
+  "pz_184": {
+   "source": "last {0} min ago",
+   "text": "naposledy před {0} min"
+  },
+  "pz_185": {
+   "source": "last {0} h ago",
+   "text": "naposledy před {0} h"
+  },
+  "pz_186": {
+   "source": "last {0} days ago",
+   "text": "naposledy před {0} dny"
+  },
+  "pz_187": {
+   "source": "Put in what is selected on {0}?",
+   "text": "Vložit vybrané na {0}?"
+  },
+  "pz_188": {
+   "source": "{0} refused before, allowed now or put right since - not counted",
+   "text": "{0}× odepřeno dříve, teď povoleno nebo mezitím napraveno – nepočítá se"
+  },
+  "pz_189": {
+   "source": "{0} more not shown - the report has them all",
+   "text": "dalších {0} se neukazuje – report je obsahuje všechny"
+  },
+  "pz_190": {
+   "source": "Put in what is selected ({0})",
+   "text": "Vložit vybrané ({0})"
+  },
+  "pz_191": {
+   "source": "Take the rule away on {0}?",
+   "text": "Odebrat pravidlo na {0}?"
+  },
+  "pz_192": {
+   "source": "{0} thing(s) SELinux refused can be put right here - \"Put in what is selected\" above.",
+   "text": "{0}× odepřené lze napravit tady – „Vložit vybrané“ výše."
+  },
+  "pz_193": {
+   "source": "{0} thing(s) are not for a button - each says why; the report is for whoever looks after acme's module.",
+   "text": "{0}× není na tlačítko – u každého je proč; report je pro toho, kdo se stará o modul acme."
+  },
+  "pz_194": {
+   "source": "{0} is security-sensitive ({1}) - never allowed from here",
+   "text": "{0} je citlivé na bezpečnost ({1}) – odsud se nikdy nepovoluje"
+  },
+  "pz_195": {
+   "source": "the class {0} is the kernel's or the policy's own - never allowed from here",
+   "text": "třída {0} patří jádru nebo politice – odsud se nikdy nepovoluje"
+  },
+  "pz_196": {
+   "source": "{0} { {1} } would let it run, change or reach far more than this - never allowed from here",
+   "text": "{0} { {1} } by mu dovolilo spouštět, měnit nebo dosáhnout mnohem víc než tohle – odsud se nikdy nepovoluje"
+  },
+  "pz_197": {
+   "source": "{0} is what the policy gives a file it has no label for - a rule would let it at all of them; never allowed from here",
+   "text": "{0} dává politika souboru, pro který nemá štítek – pravidlo by mu otevřelo všechny takové; odsud se nikdy nepovoluje"
+  },
+  "pz_198": {
+   "source": "{0} is a type of the whole system - {1} { {2} } on it would let it change far more than acme's files; never allowed from here",
+   "text": "{0} je typ celého systému – {1} { {2} } na něm by mu dovolilo měnit mnohem víc než soubory acme; odsud se nikdy nepovoluje"
+  },
+  "pz_199": {
+   "source": "the boolean {0} is off - switched on, it allows this",
+   "text": "boolean {0} je vypnutý – zapnutý tohle povolí"
+  },
+  "pz_200": {
+   "source": "only the boolean {0} would allow it - it allows far more than this; never switched on from here",
+   "text": "povolil by to jen boolean {0} – ten povoluje mnohem víc než tohle; odsud se nikdy nezapíná"
+  },
+  "pz_201": {
+   "source": "{0} is labelled {1} - the policy says {2}",
+   "text": "{0} má štítek {1} – politika říká {2}"
+  },
+  "pz_202": {
+   "source": "{0} is labelled {1} now, as the policy says",
+   "text": "{0} má teď štítek {1}, jak říká politika"
+  },
+  "pz_203": {
+   "source": "port {0} has no type of its own - {1} may use it once it is {2}",
+   "text": "port {0} nemá vlastní typ – {1} ho smí použít, až bude {2}"
+  },
+  "pz_204": {
+   "source": "port {0} is {1} - another service's; acme never takes a port from it - choose another one",
+   "text": "port {0} je {1} – patří jiné službě; acme jí port nikdy nebere – zvolte jiný"
+  },
+  "pz_205": {
+   "source": "port {0} is {1} now",
+   "text": "port {0} je teď {1}"
+  },
+  "pz_206": {
+   "source": "SELinux could not work out a context for it ({0}) - not something a rule allows",
+   "text": "SELinux pro to nedokázal určit kontext ({0}) – to žádné pravidlo nepovolí"
+  },
+  "pz_207": {
+   "source": "not acme's: {0} ({1}) is another program of this machine - look at it with whoever looks after it",
+   "text": "nepatří k acme: {0} ({1}) je jiný program tohoto stroje – řešte to s tím, kdo se o něj stará"
+  },
+  "pz_208": {
+   "source": "the boolean {0} is on",
+   "text": "boolean {0} je zapnutý"
+  },
+  "pz_209": {
+   "source": "{0} labelled again as the policy says",
+   "text": "{0} znovu označeno, jak říká politika"
+  },
+  "pz_210": {
+   "source": "port {0} labelled {1}",
+   "text": "port {0} označen jako {1}"
+  },
+  "pz_211": {
+   "source": "port {0} is {1} already",
+   "text": "port {0} už je {1}"
+  },
+  "pz_212": {
+   "source": "port {0} is {1} - another service's; not taken from it",
+   "text": "port {0} je {1} – patří jiné službě; nebere se jí"
+  },
+  "pz_213": {
+   "source": "rule {0}: {1}",
+   "text": "pravidlo {0}: {1}"
+  },
+  "pz_214": {
+   "source": "acme's local module (acme_local) put into the policy - {0} rule(s) in it",
+   "text": "místní modul acme (acme_local) vložen do politiky – pravidel v něm: {0}"
+  },
+  "pz_215": {
+   "source": "rule {0} taken away: {1}",
+   "text": "pravidlo {0} odebráno: {1}"
+  },
+  "pz_216": {
+   "source": "{0}: not found any more - looked again",
+   "text": "{0}: už se nenašlo – zkontrolováno znovu"
+  },
+  "pz_217": {
+   "source": "{0}: {1} is not there any more",
+   "text": "{0}: {1} už tam není"
+  },
+  "pz_218": {
+   "source": "{0}: not for a button - not put right from here ({1})",
+   "text": "{0}: ne na tlačítko – odsud se nenapravuje ({1})"
+  },
+  "pz_219": {
+   "source": "{0}: not acme's - not put right from here ({1})",
+   "text": "{0}: nepatří k acme – odsud se nenapravuje ({1})"
+  },
+  "pz_220": {
+   "source": "{0}: put right already - not put right from here ({1})",
+   "text": "{0}: už napraveno – odsud se nenapravuje ({1})"
+  },
+  "pz_221": {
+   "source": "asked: {0} puts right what was selected within seconds - and looks again",
+   "text": "zadáno: {0} během pár sekund napraví vybrané – a zkontroluje znovu"
+  },
+  "pz_222": {
+   "source": "asked: {0} takes the rule away within seconds - and looks again",
+   "text": "zadáno: {0} během pár sekund odebere pravidlo – a zkontroluje znovu"
+  },
+  "pz_223": {
+   "source": "{0} did not find anything to put right under {1} - look again on that node (each node puts right only what it found itself)",
+   "text": "{0} pod {1} nenašel nic k nápravě – zkontrolujte ten uzel znovu (každý uzel napravuje jen to, co sám našel)"
+  },
+  "pz_224": {
+   "source": "{0} did not find a local rule of {1} - look again on that node (each node puts right only what it found itself)",
+   "text": "{0} nemá místní pravidlo {1} – zkontrolujte ten uzel znovu (každý uzel napravuje jen to, co sám našel)"
+  },
+  "pz_225": {
+   "source": "{0} is in the middle of a step of SELinux ({1}) - one node at a time: wait for it, look at the cluster, then this one",
+   "text": "{0} je uprostřed kroku SELinux ({1}) – vždy jen jeden uzel: počkejte na něj, podívejte se na cluster a pak tento"
+  },
+  "pz_226": {
+   "source": "{0} has not done what was asked of it yet ({1}) - in a moment",
+   "text": "{0} ještě neudělal, co se po něm chtělo ({1}) – za chvíli"
+  },
+  "pz_227": {
+   "source": "{0} has no report - Download the report asks it for one first",
+   "text": "{0} nemá report – Stáhnout report si o něj nejdřív řekne"
+  },
+  "pz_228": {
+   "source": "SELinux refuses acme something - {0} can be put right on the card (Settings - SELinux)",
+   "text": "SELinux acme něco odepírá – {0} lze napravit na kartě (Nastavení – SELinux)"
+  },
+  "pz_229": {
+   "source": "SELinux refuses acme something - {0} can be put right on the card (Settings - SELinux); {1} not for a button - each says why",
+   "text": "SELinux acme něco odepírá – {0} lze napravit na kartě (Nastavení – SELinux); {1} není na tlačítko – u každého je proč"
+  },
+  "pz_230": {
+   "source": "put in {0}",
+   "text": "vloženo {0}"
   }
  },
  "rich": {
@@ -94791,6 +95251,10 @@
   "rz_1": {
    "source": "The agent of this target is no longer let in: its certificate is refused at once and its key, policy and state are gone from acme. On the server, <code>acme-agent forget</code> takes its side away. To use it again: join it again.",
    "text": "Agent tohoto cíle už nebude vpuštěn: jeho certifikát se okamžitě odmítne a jeho klíč, politika i stav z acme zmizí. Na serveru odstraní jeho stranu <code>acme-agent forget</code>. Chcete-li ho znovu používat: připojte ho znovu."
+  },
+  "rz_2": {
+   "source": "What SELinux refuses on each node when it is enforcing, and what acme needs of it: its own module (acme_server), the labels of its files, the boolean that lets the pages ask the daemon, the ports of sshd and PostgreSQL. Looked at every half hour; what is put right and the steps - made ready and permissive, enforcing, permissive again - are done by each node's root only when asked here or with <code>sudo acme --selinux</code>.",
+   "text": "Co SELinux na kterém uzlu odepírá, když vynucuje, a co od něj acme potřebuje: vlastní modul (acme_server), štítky svých souborů, boolean, kterým stránky smějí žádat démona, porty sshd a PostgreSQL. Kontroluje se každou půlhodinu; nápravu i kroky – připravit a permissive, enforcing, zpět na permissive – dělá root daného uzlu, jen když se o to požádá tady nebo příkazem <code>sudo acme --selinux</code>."
   }
  }
 }

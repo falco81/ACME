@@ -48,6 +48,7 @@ nothing any more.
 | id | level | when |
 |----|-------|------|
 | `selinux-off` | red | SELinux was seen enforcing on this node and is permissive or disabled now. A node never seen enforcing (set up so) says nothing. The command: `setenforce 1` and `SELINUX=enforcing` in `/etc/selinux/config` (disabled: a relabel and a restart). |
+| `selinux-refuses` | yellow | SELinux refuses acme something on this node (1.0.120): how many of it can be put right on *Settings → SELinux* and how many are not for a button. The command: `sudo acme --selinux look`. Goes by itself once nothing is left. |
 | `helper-missing` | red | An installed node without the root helper (`/var/lib/acme/web` or `acme-web.path`) - the network, the firewall, the users, the updates cannot be done from the pages. The command: `install.sh --upgrade`. |
 | `nginx-manifest` | yellow | `/etc/nginx/conf.d/acme.conf` older than 1.0.51 (no `webmanifest`): the home-screen icon is served without its type. The command: `install.sh --upgrade`. |
 

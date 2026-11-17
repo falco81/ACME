@@ -357,6 +357,21 @@ leaving the cluster): [operations.md](operations.md).
   192.0.2.10;` and `real_ip_header proxy_protocol;`. With send-proxy the
   health check needs `check-send-proxy` as well, or it is refused by nginx.
 
+## SELinux in a cluster (1.0.120)
+
+SELinux is each machine's own: every node has its own mode, its own module (`acme_server`, and
+`acme_local` with what was put right on it), its own refusals and fixes. *Settings → SELinux* shows
+one node at a time (a pill for each node) and asks only the node shown - a fix names the ids that
+node found, and its own root helper works out what to do; an id of one node is refused on the other,
+and nothing of it is a setting that goes to the other node. Under enforcing, what the cluster needs
+is covered by acme's module and shows on the card when it is refused: keepalived's check
+(`/usr/libexec/keepalived/acme-vip-check`, `keepalived_unconfined_script_exec_t`), PostgreSQL's
+replication (the other node's port as `postgresql_port_t` when it is not 5432; reading
+`/etc/pki/acme/ha-ca.pem` for the encrypted link). **One node at a time**: a step of SELinux is
+refused while the other node is in the middle of one - make one node ready or enforcing, look at
+this page (both nodes answer, the replication runs, the VIP address holds), then the other. See
+[selinux.md](selinux.md).
+
 ## What it does not do
 
 - **Replicated: a code is used up on one node, and the other learns of it a
