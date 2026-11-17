@@ -15143,6 +15143,9 @@ function rbRestoreWatch(title) {
       }
       toast(title ? 'the database is back' : 'the backup is back', 'good');
       if (title) setTimeout(function () { location.reload(); }, 4000);
+      /* What is behind the popup drawn again from what was put back (1.0.119): the settings,
+         the destinations and the list of backups stayed as they were before it until F5. */
+      else { loadSettings(); if (paneLive('backup')) loadRbackup(); }
     }).catch(function (e) {
       /* Who was signed in is what the backup says now: the sign-in page. */
       if (/signed in|401/i.test(String(e && e.message || e))) {

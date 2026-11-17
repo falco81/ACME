@@ -6,6 +6,18 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.119 - not released
 
+- Certificates: a revoked certificate says "revoked" in red in the list and the overview, its window no "… days left" in green; a serial typed with colons (`1F:AB:…`) is found; the window says the key's size once ("RSA 2048", not "RSA 2048 · 2048 bits").
+- Import: a key dropped with an earlier certificate is not taken for a new certificate dropped alone.
+- CSR for an outside CA: when the certificate was kept but its CSR could not be made, pressing the button again makes the CSR of that certificate - it said "there is a certificate called … already".
+- Show a certificate (API): `data_b64` that is not base64 says so, not "nothing was given".
+- Deployments: the chain file of a self-signed certificate is shown empty (0 B) with a warning that it is written empty - What happens showed a chain of its own (~600 B), the form guessed one.
+- HAProxy: the previous certificate file is kept until HAProxy took the new one; when the Runtime API refuses it (and no reload command is set, or it fails), the previous file is put back - the new one stayed.
+- This machine: a deployment stopped after its files and before its script or command (acme stopped) runs them the next time - the files found the same, nothing was run.
+- acme push: a deployment saved with no slots (automatically, on the server) shows Automatically and saves - it said "Nothing chosen" and was refused.
+- Taking a target away: "taken off with it" is shown once "Take it off everywhere first" is on.
+- Database TLS (pg_hba.conf): a line PostgreSQL could not read already, not of acme's, no longer refuses acme's own change of it (TLS for the other node, its new address, joining a pair).
+- acme-db-agent: MySQL 8.4 and later (no `@@have_ssl`) is seen running, its TLS read from its TLS channel - it was taken for stopped and TLS refused.
+
 - DNS server: a record of your own with TTL 0 keeps 0 (it was given the default TTL) and the list shows 0, not "–"; a value the server cannot answer with (an MX of a name alone, an SRV of three numbers) is refused when added, with an example - it was kept and never answered.
 - SSH keys: a host that begins with `-` is a host to ssh-keyscan, never one of its options.
 - Settings → DNS: a set chosen for a function and then renamed or deleted before Save - Save said "there is no DNS set"; the choice follows the new name, or goes with the set.
