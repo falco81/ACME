@@ -4162,6 +4162,12 @@ def ntp_apply(n):
     if ntp_marked(had) and not ntp_block_whole(had):
         raise Refused(ntp_not_whole_words())        # said, not guessed (1.0.102)
     new = ntp_conf_text(had, n)
+    if not n['manage'] and not ntp_marked(had) and \
+            not any(l.startswith('#acme# ') for l in had.splitlines()):
+        # Not set by acme and nothing of acme's in it (run 4): the file is the system's as it
+        # is - its end of line "tidied" made a copy of it, a rewrite and a restart of chronyd
+        # each time only the time zone was saved.
+        new = had
     if new != had:
         if not ntp_marked(had):
             try:
@@ -5244,6 +5250,11 @@ def pwp_defs_put(values):
                     was[k] = line                   # '' - there was no such line
         text = text[:a] + text[b + len(PWP_MARK_B):]
     lines = text.split('\n')
+    # The file's own end of line taken off here and put back once below (run 4): the '' after
+    # the last line was kept as a line of its own - every policy put in and taken out again
+    # left one more empty line at the end of login.defs, and PASS_WARN_AGE was put after it.
+    if len(lines) > 1 and lines[-1] == '':
+        lines.pop()
     if values is not None and not was:
         for k in DEFS_KEYS:
             was[k] = next((ln for ln in lines if ln.split()[:1] == [k]), '')
@@ -5275,7 +5286,7 @@ def pwp_defs_put(values):
         for k in DEFS_KEYS:
             if k in was and was[k] and k not in seen:
                 out.append(was[k])
-        text = '\n'.join(out)
+        text = '\n'.join(out) + ('\n' if out and out != [''] else '')
     if text != before:
         write_root(LOGIN_DEFS, text, stat.S_IMODE(st.st_mode))
 

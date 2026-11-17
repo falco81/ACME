@@ -290,6 +290,10 @@ def mine(h, s, rows=None):
             else:
                 why = held_refused(st_, r, portal_may_owner(names, tms, defined), held, defined)
                 one['may_approve'], one['approve_why'] = not why, why
+        # whether its CA can revoke it (api.revocable, as the administration's Revoke): a
+        # self-signed one was offered Revoke and its job failed "cannot revoke a certificate"
+        if 'manage' in one['may'] and r.get('cert_pem'):
+            one['revoke_no'] = A.revocable(st_, r)
         if not key_may(s, via, one['may'], asker(st_, r['id']).get('who')):
             one['formats'] = [f for f in one.get('formats') or [] if f != KEY_FORMAT]
         return one

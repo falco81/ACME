@@ -336,7 +336,9 @@ function certDialog(id, fresh) {
       }).catch(oops).then(function () { busy(b, false); });
     }});
   }
-  if (manage && c.not_after && (c.state !== 'revoked' || c.alt_state === 'revoke-failed')) {
+  /* ...not where its CA cannot revoke it (revoke_no, as the administration's): offered on a
+     self-signed one, its job failed "Self-signed cannot revoke a certificate" */
+  if (manage && c.not_after && (c.state !== 'revoked' || c.alt_state === 'revoke-failed') && !c.revoke_no) {
     buttons.push({words: 'Revoke', cls: 'danger', icon: 'ban', once: true, go: function () { modalOver(function () { revokeDialogP(c); }, function () { certDialog(c.id); }); }});
   }
   if (manage && c.issuer && !waiting && !stuck && c.state !== 'declined' && c.state !== 'revoked') {

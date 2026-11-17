@@ -322,7 +322,9 @@ if ($title_ours) {
       <!-- No password at all (1.0.99, 1.0.100): no name and no password on the page at all. -->
       <form id="signin-form" hidden></form>
       <?php else: ?>
-      <form id="signin-form" autocomplete="on"<?= $mfa !== '' ? ' hidden' : '' ?>>
+      <!-- novalidate: the page says what is missing in the page's language (portal.js) - with
+           only `required` the browser's own bubble said it, in the browser's language -->
+      <form id="signin-form" autocomplete="on" novalidate<?= $mfa !== '' ? ' hidden' : '' ?>>
         <input type="text" id="in-name" name="username" placeholder="name" aria-label="Name" autocomplete="username"
                autocapitalize="none" spellcheck="false" required>
         <input type="password" id="in-pass" name="password" placeholder="password" aria-label="Password"

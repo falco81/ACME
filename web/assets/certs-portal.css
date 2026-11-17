@@ -105,3 +105,26 @@ td.cp-changed{color:var(--warn);font-weight:600}
 }
 /* the list inside a note (the owners holding a request's names) */
 .cp-note ul{margin:4px 0 0;padding-left:18px;color:var(--tx-dim)}
+/* "Your certificates" on a phone: a card for each (state and Expires under the name, the
+   download beside it) - the table was 450-670 px wide in a ~308 px box, Expires and the
+   download only after a sideways scroll nobody was told of. The desktop's table as it was. */
+@media (max-width:640px){
+  .cp-table,.cp-table tbody{display:block;width:100%}
+  .cp-table thead{display:none}
+  .cp-table tbody tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;
+    grid-template-areas:"name name tools" "state exp tools";align-items:center;column-gap:10px;row-gap:6px;
+    padding:9px 8px;border-bottom:1px solid rgba(38,44,55,.55)}
+  .cp-table tbody td{display:block;padding:0;border:0;min-width:0}
+  .cp-table tbody td:nth-child(1){grid-area:state}
+  .cp-table tbody td:nth-child(2){grid-area:name;overflow-wrap:anywhere}
+  .cp-table tbody td:nth-child(4){grid-area:exp;white-space:normal}
+  .cp-table tbody td:nth-child(4) br{display:none}
+  .cp-table tbody td:nth-child(4) .day{margin-right:8px}
+  .cp-table tbody td.rowtools{grid-area:tools;width:auto;display:block}
+  .cp-table td .ct-names{min-width:0}
+  .cp-table .ct-name,.cp-table .ct-name > span{min-width:0;white-space:normal;overflow-wrap:anywhere}
+  /* the bar that marks a row down the card's left, not beside its state tag */
+  #cp-list table.cp-table tbody tr td:first-child{box-shadow:none}
+  #cp-list table.cp-table tbody tr:hover{box-shadow:inset 3px 0 0 var(--info)}
+  #cp-list table.cp-table tbody tr.ct-hot{box-shadow:inset 3px 0 0 var(--crit)}
+}

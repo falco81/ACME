@@ -68319,6 +68319,10 @@
   "z_951": {
    "source": "signing in through the load balancer is switched off",
    "text": "přihlašování přes load balancer je vypnuté"
+  },
+  "z_952": {
+   "source": "The portal is switched off. Ask the administrator.",
+   "text": "Portál je vypnutý. Obraťte se na správce."
   }
  },
  "patterns": {
