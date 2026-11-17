@@ -33,6 +33,20 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - Validations (HTTP-01 over SSH): "Check by the name" for a certificate of an IPv6 address fetched http://2001:db8::1/... (no brackets, an address no client reads) and waited until the order failed; the address is now put in brackets.
 - Validations (a commercial CA's DCV file): the check that the file is served built the same broken URL for an IPv6 address; it is now put in brackets.
 - acme's own DNS server (validation): three failed looks at the record in all - spread over the whole wait, or one moment without an answer for a certificate of three names - failed the order at once; now it takes three failures in a row for the same record.
+- Command line: `acme --selinux fix ... --json` and `acme --selinux rules --take-away ID --json` printed what root would do and each line it said around the JSON, so the output was not JSON; the plan now goes to stderr and stdout holds the JSON alone.
+- Command line: `acme --target-agent NAME look` ended with exit code 0 when the agent could not be reached or refused (the error only in "said"); it now ends with 1.
+- Command line: `acme --target-agent NAME code` of a Windows target said to run `acme-agent join` "as root"; it now says an elevated prompt (Run as administrator), the MSI's Join step or `msiexec ... JOINCODE=`, as the target's card does.
+- Console: Certificates → Target agents had no *Update all agents* as the pages have; it now has it (asked first, then `acme --target-agent all update`).
+- Syslog (SIEM): one event that could not be put into a syslog line kept "the logs do not reach syslog" up until the settings were saved again; the next line made clears it.
+- Portal (Czech): two refusals stayed in English (a key made by a device; signing in through the load balancer switched off), and "by itself, N days before the end" had the wrong gender in Czech.
+- Report: the "Events by day" bars are the calendar's days - a month with the clocks put back showed one day twice and lost its last, and the events after the change were counted into the day before; the period "so far" now also shows the day going on.
+- Alerts: a file system running out of inodes is "bad" from 95 % like one out of room, and the alert says how full its inodes are (it was only a warning saying e.g. "40 % full").
+- Prometheus/SNMP: the counts of certificates and deployments by state add the rows without a state to the "new" ones instead of one replacing the other.
+- Settings → Monitoring: the prometheus.yml shown puts a node's IPv6 address in brackets, so Prometheus takes the target.
+- Certificate portal: a certificate not issued yet that nothing issues (not renewed by itself, or its approval never recorded) still said "being issued" and pulsed for good in its state tag, in the list and in its dialog (1.0.119 had put only the Expires column right) - it now says "not issued yet", as the administration does; one a job is issuing still says "being issued".
+- Windows server (OpenSSH): the old acme certificates were removed from the machine store when only IIS did not use them - one still used by the Remote Desktop listener, SQL Server, WinRM or an http.sys binding (AD FS, WAP, SSTP...) went; now every use is looked at, as the roles' clean-up and acme-agent do, and such a one is kept.
+- Windows server (OpenSSH): when the script after the files failed, the previous files were put back but the copy kept only for that (<file>.acme-prev, the old key) stayed beside each file; it is removed now, as on Linux.
+- Deployment form: a read-only account could still click the script's and the password's modes, "As text" (and type into it), the placeholders, "From a template..." and type into the module's other options of a target that writes files; nothing of it can be clicked or changed now (saving was already refused).
 
 ## 1.0.123 - 2026-11-17
 

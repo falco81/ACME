@@ -68315,6 +68315,10 @@
   "z_950": {
    "source": "Update them",
    "text": "Aktualizovat je"
+  },
+  "z_951": {
+   "source": "signing in through the load balancer is switched off",
+   "text": "přihlašování přes load balancer je vypnuté"
   }
  },
  "patterns": {
@@ -74656,7 +74660,7 @@
   },
   "pc0034": {
    "source": "by itself, {0} days before the end",
-   "text": "samo, {0} dní před koncem"
+   "text": "automaticky, {0} dní před koncem"
   },
   "pc0035": {
    "source": "{0} days",
@@ -94665,6 +94669,10 @@
   "pz_262": {
    "source": "{0} % full - {1} free. Inodes {2} % used.",
    "text": "Zaplněno {0} % – volných {1}. Inody zaplněny z {2} %."
+  },
+  "pz_263": {
+   "source": "the key of {0} was made by a device and stays there - acme never had it",
+   "text": "klíč certifikátu {0} vytvořilo zařízení a zůstává v něm – acme ho nikdy nemělo"
   }
  },
  "rich": {
