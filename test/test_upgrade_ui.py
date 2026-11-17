@@ -24,7 +24,12 @@ Root says how far it is in .upgrade.json beside the pages (acme_upgrade.py, inst
   (one reload). In English and Czech, at 1300 and 390 px.
 
 No root needed beyond what the container has, no port of a real installation: a daemon of its
-own (test_certs_core's way) and php -S on ports of their own.
+own (test_certs_core's way), php -S on ports of their own (node A, node B, and C whose daemon
+does not answer) and a small forwarder playing the VIP address in front of A and B.
+
+ACME_TEST_CS_EXTRA=FILE ({"English": "Czech"}) merges translations not yet in web/lang/cs.json
+into the copy of the pages; the Czech words are checked only once cs.json has them.
+UPG_SHOTS=DIR keeps a screenshot of each step there.
 """
 import json
 import os

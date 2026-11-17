@@ -68131,6 +68131,102 @@
   "z_904": {
    "source": "(permissive: let through, written down)",
    "text": "(permissive: propuštěno, zapsáno)"
+  },
+  "z_905": {
+   "source": "These pages are of another version now",
+   "text": "Tyto stránky jsou teď jiné verze"
+  },
+  "z_906": {
+   "source": "this page is answered by it",
+   "text": "tuto stránku obsluhuje on"
+  },
+  "z_907": {
+   "source": "One node at a time: each is taken out of service - the VIP address and the load balancer go to the other node - upgraded, checked and put back. This page loads the new version by itself once every node is done.",
+   "text": "Jeden uzel po druhém: každý se vyřadí z provozu – VIP adresa a load balancer přejdou na druhý uzel – aktualizuje se, zkontroluje a vrátí do provozu. Až budou hotové všechny uzly, stránka si novou verzi načte sama."
+  },
+  "z_908": {
+   "source": "acme.service and these pages restart once - for a minute or two nothing is renewed or put in place. This page follows it and loads the new version by itself.",
+   "text": "acme.service a tyto stránky se jednou restartují – minutu nebo dvě se nic neobnovuje ani nenasazuje. Stránka to sleduje a novou verzi si načte sama."
+  },
+  "z_909": {
+   "source": "This page is answered by ",
+   "text": "Tuto stránku teď obsluhuje "
+  },
+  "z_910": {
+   "source": " now - the VIP address moved from ",
+   "text": " – VIP adresa se přesunula z uzlu "
+  },
+  "z_911": {
+   "source": ". You stay signed in.",
+   "text": ". Zůstáváte přihlášeni."
+  },
+  "z_912": {
+   "source": "What install.sh said is in Settings → Upgrades.",
+   "text": "Co vypsal install.sh, najdete v Nastavení → Aktualizace."
+  },
+  "z_913": {
+   "source": "What install.sh said is in Settings → Upgrades. ",
+   "text": "Co vypsal install.sh, najdete v Nastavení → Aktualizace. "
+  },
+  "z_914": {
+   "source": "The nodes not begun stay as they are.",
+   "text": "Uzly, na které ještě nepřišla řada, zůstávají, jak jsou."
+  },
+  "z_915": {
+   "source": "The nodes not begun stay as they are. ",
+   "text": "Uzly, na které ještě nepřišla řada, zůstávají, jak jsou. "
+  },
+  "z_916": {
+   "source": "Every node is done - this page loads itself again, once.",
+   "text": "Všechny uzly jsou hotové – stránka se jednou sama načte znovu."
+  },
+  "z_917": {
+   "source": "An upgrade is going on - the band under the header says how far.",
+   "text": "Probíhá aktualizace – pruh pod záhlavím ukazuje, jak je daleko."
+  },
+  "z_918": {
+   "source": "restarting - back in a moment",
+   "text": "restartuje se – za chvíli zpět"
+  },
+  "z_919": {
+   "source": "acme.service and these pages restart once - this page loads again by itself when they are back.",
+   "text": "acme.service a tyto stránky se jednou restartují – až budou zpět, stránka se sama načte znovu."
+  },
+  "z_920": {
+   "source": "acme is being upgraded - back in a moment",
+   "text": "acme se aktualizuje – za chvíli zpět"
+  },
+  "z_921": {
+   "source": "acme is starting again after an upgrade",
+   "text": "acme se po aktualizaci znovu spouští"
+  },
+  "z_922": {
+   "source": "root checks the package",
+   "text": "root kontroluje balíček"
+  },
+  "z_923": {
+   "source": "The program",
+   "text": "Program"
+  },
+  "z_924": {
+   "source": "The tree",
+   "text": "Strom programu"
+  },
+  "z_925": {
+   "source": "The database's own tools",
+   "text": "Nástroje databáze"
+  },
+  "z_926": {
+   "source": "PHP, and php2shell",
+   "text": "PHP a php2shell"
+  },
+  "z_927": {
+   "source": "The service",
+   "text": "Služba"
+  },
+  "z_928": {
+   "source": "root on the command line",
+   "text": "root na příkazové řádce"
   }
  },
  "patterns": {
@@ -94353,6 +94449,110 @@
   "pz_230": {
    "source": "put in {0}",
    "text": "vloženo {0}"
+  },
+  "pz_231": {
+   "source": "acme is being upgraded to {0}",
+   "text": "acme se aktualizuje na {0}"
+  },
+  "pz_232": {
+   "source": "acme is being taken back to {0}",
+   "text": "acme se vrací na {0}"
+  },
+  "pz_233": {
+   "source": "The upgrade to acme {0} failed",
+   "text": "Aktualizace na acme {0} selhala"
+  },
+  "pz_234": {
+   "source": "Going back to acme {0} failed",
+   "text": "Návrat na acme {0} selhal"
+  },
+  "pz_235": {
+   "source": "The upgrade to acme {0} was stopped",
+   "text": "Aktualizace na acme {0} byla zastavena"
+  },
+  "pz_236": {
+   "source": "Going back to acme {0} was stopped",
+   "text": "Návrat na acme {0} byl zastaven"
+  },
+  "pz_237": {
+   "source": "acme is upgraded to {0} on every node",
+   "text": "acme je aktualizováno na {0} na všech uzlech"
+  },
+  "pz_238": {
+   "source": "acme is upgraded to {0}",
+   "text": "acme je aktualizováno na {0}"
+  },
+  "pz_239": {
+   "source": "acme is taken back to {0} on every node",
+   "text": "acme je vráceno na {0} na všech uzlech"
+  },
+  "pz_240": {
+   "source": "acme is taken back to {0}",
+   "text": "acme je vráceno na {0}"
+  },
+  "pz_241": {
+   "source": "Loading the pages of acme {0}…",
+   "text": "Načítají se stránky acme {0}…"
+  },
+  "pz_242": {
+   "source": "from {0}",
+   "text": "z {0}"
+  },
+  "pz_243": {
+   "source": "step {0} of {1}",
+   "text": "krok {0} z {1}"
+  },
+  "pz_244": {
+   "source": "{0} of {1} node(s) done",
+   "text": "hotovo {0} z {1} uzlů"
+  },
+  "pz_245": {
+   "source": "nginx and PHP are restarting - not answering for {0} s, asked again every two seconds; the page comes back by itself.",
+   "text": "nginx a PHP se restartují – neodpovídají {0} s, ptám se znovu každé dvě sekundy; stránka se vrátí sama."
+  },
+  "pz_246": {
+   "source": "The API of these pages is restarting with the new version - not answering for {0} s, asked again every two seconds; the page comes back by itself.",
+   "text": "API těchto stránek se restartuje s novou verzí – neodpovídá {0} s, ptám se znovu každé dvě sekundy; stránka se vrátí sama."
+  },
+  "pz_247": {
+   "source": "This page is still the one of {0} - it keeps what you have not saved.",
+   "text": "Tato stránka je stále ve verzi {0} – ponechává, co jste neuložili."
+  },
+  "pz_248": {
+   "source": "This page is still the one of {0} - it keeps what you have not saved. ",
+   "text": "Tato stránka je stále ve verzi {0} – ponechává, co jste neuložili. "
+  },
+  "pz_249": {
+   "source": "restarting with acme {0} - back in a moment",
+   "text": "restartuje se s acme {0} – za chvíli zpět"
+  },
+  "pz_250": {
+   "source": "acme {0} is starting",
+   "text": "acme {0} se spouští"
+  },
+  "pz_251": {
+   "source": "Upgrading acme to {0}",
+   "text": "Aktualizace acme na {0}"
+  },
+  "pz_252": {
+   "source": "acme {0} runs",
+   "text": "běží acme {0}"
+  },
+  "pz_253": {
+   "source": "install.sh --upgrade stopped (exit {0}) - {1} runs again",
+   "text": "install.sh --upgrade se zastavil (kód {0}) – znovu běží {1}"
+  },
+  "pz_254": {
+   "source": "install.sh --upgrade stopped (exit {0}) - {1} runs",
+   "text": "install.sh --upgrade se zastavil (kód {0}) – běží {1}"
+  },
+  "pz_255": {
+   "source": "install.sh --upgrade ended with {0}",
+   "text": "install.sh --upgrade skončil s kódem {0}"
+  },
+  "pz_256": {
+   "source": "{0} - {1} runs",
+   "text": "{0} – běží {1}"
   }
  },
  "rich": {
