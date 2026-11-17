@@ -94661,6 +94661,10 @@
   "pz_261": {
    "source": "after the import, the bindings, the test, the script and the restart: {0}",
    "text": "po importu, vazbách, testu, skriptu a restartu: {0}"
+  },
+  "pz_262": {
+   "source": "{0} % full - {1} free. Inodes {2} % used.",
+   "text": "Zaplněno {0} % – volných {1}. Inody zaplněny z {2} %."
   }
  },
  "rich": {

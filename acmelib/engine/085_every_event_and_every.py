@@ -183,6 +183,9 @@ class Siem(object):
             except Exception as e:                      # noqa: BLE001
                 self.trouble['frame'] = str(e)[:200]
                 continue
+            # one event that could not be put into a line is not trouble for good (1.0.124):
+            # the next one that can clears it, as a line sent clears a server's
+            self.trouble.pop('frame', None)
             for t in list(self.targets):
                 try:
                     self._send(t, line, hold=True)
