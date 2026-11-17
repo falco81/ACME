@@ -128,3 +128,28 @@ td.cp-changed{color:var(--warn);font-weight:600}
   #cp-list table.cp-table tbody tr:hover{box-shadow:inset 3px 0 0 var(--info)}
   #cp-list table.cp-table tbody tr.ct-hot{box-shadow:inset 3px 0 0 var(--crit)}
 }
+/* ---- 1.0.125: the portal redesigned (portal-teams.css has the team workspace) ------------- */
+.cp-card h2.cp-title{font-size:17px;gap:12px}
+.cp-title-ic{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:11px;flex:none;
+  color:var(--info);background:linear-gradient(135deg,rgba(88,166,255,.22),rgba(163,113,247,.16));border:1px solid rgba(88,166,255,.25)}
+.portal .card.cp-card{padding:18px 20px;border-radius:16px}
+.portal .card.pt-hello{border-radius:16px;border-color:rgba(88,166,255,.22);
+  background:radial-gradient(700px 200px at 0% 0%,rgba(88,166,255,.13),transparent 60%),var(--panel)}
+.cp-lede{margin-top:-2px}
+.cp-skel-card{display:flex;flex-direction:column;gap:14px}
+.cp-skel-h{height:22px;width:220px}
+.cp-skel-row{display:flex;align-items:center;gap:12px}
+.cp-skel-dot{width:70px;height:20px;border-radius:999px;flex:none}
+.cp-skel-line{height:13px;flex:1}
+.cp-skel-short{height:13px;width:90px;flex:none}
+.cp-empty .ct-blank-ic{background:radial-gradient(circle at 30% 25%,rgba(88,166,255,.28),rgba(163,113,247,.1))}
+.cp-pager{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:10px 6px 6px;color:var(--tx-dim);font-size:13px}
+.cp-pager-w{margin-right:auto;font-variant-numeric:tabular-nums}
+.cp-pager-n{font-variant-numeric:tabular-nums;min-width:52px;text-align:center}
+.cp-table tbody tr{transition:background .12s}
+.cp-table td.rowtools{white-space:nowrap}
+.cp-table td.rowtools .btn + .btn{margin-left:4px}
+@media (max-width:640px){
+  .cp-table tbody td.rowtools{display:flex;flex-direction:column;gap:4px}
+  .cp-table td.rowtools .btn + .btn{margin-left:0}
+}

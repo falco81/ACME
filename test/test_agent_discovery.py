@@ -871,5 +871,189 @@ class FromAcme(unittest.TestCase):
             self.assertEqual(got[0], [])
 
 
+# ---- the pages: a real daemon, php -S, Chromium ---------------------------------------------------
+CS_EXTRA = os.environ.get('ACME_TEST_CS_EXTRA', '')
+
+
+class Pages(unittest.TestCase):
+    """The card's "Found on this server", the deployment dialog prefilled, the designer with
+    the lines ticked - in Chromium (test/agents_discovery_page.js) when node, php and Playwright
+    are here; the daemon as test_certs_core starts it (temporary folders and ports)."""
+
+    @classmethod
+    def setUpClass(cls):
+        node = shutil.which('node')
+        if not node or not shutil.which('php'):
+            raise unittest.SkipTest('no node or php here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          cwd=ROOT).returncode:
+            raise unittest.SkipTest('no playwright for node here')
+        import test_certs_core as TCC
+        cls.TCC = TCC
+        for k in ('call', 'login', 'ok', 'wait_job'):
+            setattr(cls, k, TCC.CertsCore.__dict__[k])
+        TCC.CertsCore.setUpClass.__func__(cls)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.TCC.CertsCore.tearDownClass.__func__(cls)
+
+    def seed(self):
+        """acme's certificate www, the targets, their agents' state and a kept discovery each."""
+        self.ok('POST', '/api/cas/create', {'name': 'Test Root', 'subject': {'CN': 'Test Root CA'},
+                                            'key_type': 'ec-256', 'days': 3650})
+        self.ok('POST', '/api/sources/save', {'name': 'own', 'kind': 'internal_ca',
+                                              'config': {'ca': 'Test Root', 'days': 90}})
+        cid = self.ok('POST', '/api/certs/save', {'name': 'www', 'names': ['www.example.test'],
+                                                  'issuer': 'own', 'auto_renew': 0})['id']
+        job = self.wait_job(self.ok('POST', '/api/certs/renew', {'id': cid})['job_id'])
+        self.assertEqual(job['state'], 'ok', job)
+        pem = base64.b64decode(self.ok('POST', '/api/certs/export', {
+            'id': cid, 'format': 'cert-pem'})['data_b64']).decode()
+        thumb = AD._thumb_of_pem(pem)
+        self.assertEqual(len(thumb), 40)
+        for name, kind in (('web1', 'agent'), ('win1', 'agent_windows'), ('lin0', 'agent')):
+            self.ok('POST', '/api/targets/save', {'name': name, 'kind': kind, 'config': {
+                'mode': 'passive', 'host': '%s.example.test' % name}})
+        rows = self.ok('GET', '/api/targets')
+        rows = rows.get('rows') if isinstance(rows, dict) else rows
+        ids = {r['name']: r['id'] for r in rows}
+        with Root(LX, 'allow discover\nallow file /srv/certs owner=root:root mode=0644\n') as r:
+            lin = r.ask()['discover']
+        www = [f for f in lin['found'] if 'www.example.test' in f['names']][0]
+        old = www['cert']['thumbprint']
+        www['cert']['thumbprint'] = thumb               # acme's certificate is served there
+        for c in lin['certs']:
+            if c['thumbprint'] == old:
+                c['thumbprint'] = thumb
+        ps = FakePS()
+        keep, W.powershell = W.powershell, ps
+        try:
+            with Root(AG, 'allow discover\nallow store\n') as r:
+                win = r.ask()['discover']
+        finally:
+            W.powershell = keep
+        now = time.time()
+
+        def state(text, mod, platform):
+            pol = G.clean_policy(mod.policy_report(mod.parse_policy(text), 'ab' * 32))
+            return {'agent_id': 'ag-%012x' % (len(text) + 4096), 'cert_fp': 'cd' * 32,
+                    'last_seen': now, 'policy': pol, 'policy_at': now + 7200,
+                    'platform': platform, 'version': '1.0.125', 'host': 'srv',
+                    'cert_end': now + 20 * 86400, 'joined_at': now - 3600}
+        meta = {
+            'agents:t:%d' % ids['web1']: state('allow discover\nallow file /srv/certs '
+                                              'owner=root:root mode=0644\n', LX, 'linux'),
+            'agents:t:%d' % ids['win1']: state('allow discover\nallow store\n', AG, 'windows'),
+            'agents:t:%d' % ids['lin0']: state('allow file /etc/ssl owner=root:root '
+                                              'mode=0644\n', LX, 'linux'),
+            'agents:discover:%d' % ids['web1']: dict(lin, by='tester'),
+            'agents:discover:%d' % ids['win1']: dict(win, by='tester')}
+        fn = os.path.join(self.tmp, 'seed.json')
+        with open(fn, 'w') as fh:
+            json.dump(meta, fh)
+        got = subprocess.run([sys.executable, '-c', (
+            'import sys, json; sys.path.insert(0, %r); import acme; acme.load_config(); '
+            'st = acme.Storage(acme.open_db()); d = json.load(open(%r)); '
+            '[st.set_meta(k, json.dumps(v, sort_keys=True)) for k, v in d.items()]') % (ROOT, fn)],
+            env=self.env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(got.returncode, 0, got.stderr[-2000:])
+        return thumb
+
+    def test_pages(self):
+        node = shutil.which('node')
+        self.seed()
+        web = os.path.join(self.tmp, 'web')
+        shutil.copytree(os.path.join(ROOT, 'web'), web)
+        api_php = os.path.join(web, 'acme-api.php')
+        with open(api_php, encoding='utf-8') as f:
+            text = f.read()
+        with open(api_php, 'w', encoding='utf-8') as f:
+            f.write(text.replace('/run/acme/', os.path.join(self.tmp, 'run') + '/'))
+        # the Czech words: web/lang/cs.json, and (until they are merged into it) a file of them
+        extra = {}
+        if CS_EXTRA and os.path.isfile(CS_EXTRA):
+            with open(CS_EXTRA, encoding='utf-8') as fh:
+                extra.update(json.load(fh))
+        if extra:
+            cs = os.path.join(web, 'lang', 'cs.json')
+            with open(cs, encoding='utf-8') as fh:
+                pack = json.load(fh)
+            have = {v.get('source') for part in ('strings', 'patterns')
+                    for v in pack.get(part, {}).values()}
+            for i, (k, v) in enumerate(sorted(extra.items())):
+                if k not in have:
+                    part = 'patterns' if '{0}' in k else 'strings'
+                    pack[part]['xdisc%04d' % i] = {'source': k, 'text': v}
+            with open(cs, 'w', encoding='utf-8') as fh:
+                json.dump(pack, fh, ensure_ascii=False, indent=1)
+        port = self.TCC.free_port()
+        php = subprocess.Popen(['php', '-S', '127.0.0.1:%d' % port], cwd=web,
+                               env=dict(os.environ, PHP_CLI_SERVER_WORKERS='4'),
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            end = time.time() + 20
+            while time.time() < end:
+                try:
+                    urllib.request.urlopen('http://127.0.0.1:%d/admin/index.php' % port, timeout=5)
+                    break
+                except urllib.error.HTTPError:
+                    break
+                except OSError:
+                    time.sleep(0.3)
+            args = [node, os.path.join(HERE, 'agents_discovery_page.js'),
+                    'http://127.0.0.1:%d' % port, self.pw]
+            got = subprocess.run(args, capture_output=True, text=True, timeout=900, cwd=ROOT)
+        finally:
+            php.terminate()
+            php.wait(10)
+        out = json.loads((got.stdout.strip().splitlines() or ['{}'])[-1])
+        self.assertNotIn('error', out, out.get('error', '') + got.stderr[-2000:])
+        self.assertEqual(out['errors'], [])
+        c = out['checks']
+        czech = bool(extra)
+        for lang in ('en', 'cs'):
+            for w in (1400, 768, 390):
+                t = '%s%d_' % (lang, w)
+                self.assertEqual(c[t + 'cards'], 13, t)
+                self.assertIs(c[t + 'fits'], True, (t, c[t + 'fits']))
+                self.assertGreaterEqual(c[t + 'unmanaged'], 10, t)
+                if lang == 'en':
+                    self.assertEqual(c[t + 'head'], 'Found on this server')
+                    self.assertEqual(c[t + 'buttons'], ['Make a deployment', 'Add to the policy'])
+                    self.assertIn('www', c[t + 'acme_badge'])
+                elif czech:
+                    self.assertEqual(c[t + 'head'], 'Nalezeno na tomto serveru')
+                    self.assertEqual(c[t + 'buttons'], ['Vytvořit nasazení', 'Přidat do zásad'])
+        for t in ('en1400_', 'cs390_'):
+            dep = c[t + 'deploy']
+            self.assertEqual(dep['files'], [['fullchain-pem', '/etc/nginx/ssl/www.crt', '0644'],
+                                            ['key-pem', '/etc/nginx/ssl/www.key', '0600']], t)
+            self.assertEqual(dep['cert'], 'www', t)
+            self.assertEqual(dep['preset'], 'nginx', t)
+            joined = '\n'.join(dep['values'])
+            self.assertIn('systemctl reload nginx', joined)
+            self.assertIn('nginx -t', joined)
+            self.assertIs(c[t + 'deploy_fits'], True, (t, c[t + 'deploy_fits']))
+            pol = c[t + 'policy']
+            self.assertIn('allow file /etc/nginx/ssl owner=root:root mode=0644', pol['text'])
+            self.assertIn('allow unit nginx.service reload', pol['text'])
+            self.assertIn('allow test -- nginx -t', pol['text'])
+            self.assertIn('allow discover', pol['text'])       # the server's own line kept
+            self.assertGreaterEqual(pol['found'], 10)
+            self.assertGreaterEqual(pol['yes'], 4)
+            self.assertGreater(pol['discChips'], 10)
+            self.assertTrue(c[t + 'policy_fits'], t)
+            self.assertIn('8443', c[t + 'watch'], t)
+            self.assertIn('web1.example.test', c[t + 'watch'], t)
+            self.assertIn('api.example.test', c[t + 'watch'], t)
+            self.assertEqual(sorted(c[t + 'win_cards']), ['IIS', 'RDP', 'SQL', 'WRM'], t)
+            self.assertIs(c[t + 'win_fits'], True, (t, c[t + 'win_fits']))
+            self.assertTrue([v for v in c[t + 'win_deploy'] if 'Default Web Site | '
+                             'www.corp.example | 443' in v], (t, c[t + 'win_deploy']))
+            self.assertEqual(c[t + 'off'], 'sudo acme-agent allow discover', t)
+            self.assertIs(c[t + 'off_fits'], True, (t, c[t + 'off_fits']))
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

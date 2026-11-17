@@ -108,7 +108,7 @@ def allow_line(kinds=None):
     return 'acme-agent allow discover' + (' %s' % ','.join(kinds) if kinds else '')
 
 
-# ---- the agent's answer, its shape checked ---------------------------------------------------------
+# ---- the agent's answer, its shape checked -------------------------------------------------
 def _clean_cert(c):
     if not isinstance(c, dict):
         return None
@@ -272,9 +272,10 @@ def prefill(f, platform):
             lines = []
             for b in f.get('bindings') or []:
                 ip = b.get('ip') or ''
-                lines.append('%s | %s | %d%s' % (b.get('site') or f.get('site'), b.get('host') or '',
-                                                 int(b.get('port') or 443),
-                                                 (' | %s' % ip) if ip and ip not in ('*', '') else ''))
+                more = (' | %s' % ip) if ip and ip not in ('*', '') else ''
+                lines.append('%s | %s | %d%s' % (b.get('site') or f.get('site'),
+                                                 b.get('host') or '', int(b.get('port') or 443),
+                                                 more))
             return {'store': True, 'iis': lines, 'rdp': False}
         if k == 'rdp':
             return {'store': True, 'rdp': True}

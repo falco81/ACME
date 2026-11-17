@@ -70107,6 +70107,202 @@
   "z_1365": {
    "source": "within the notice days",
    "text": "během dnů upozornění"
+  },
+  "z_1366": {
+   "source": "Found on this server",
+   "text": "Nalezeno na tomto serveru"
+  },
+  "z_1367": {
+   "source": "Discovery",
+   "text": "Zjišťování"
+  },
+  "z_1368": {
+   "source": "From discovery",
+   "text": "Ze zjišťování"
+  },
+  "z_1369": {
+   "source": "Discovery is off on this server",
+   "text": "Zjišťování je na tomto serveru vypnuté"
+  },
+  "z_1370": {
+   "source": "acme can list what this server runs that takes certificates - the IIS sites and their bindings, the Remote Desktop listener, the roles, the machine store - read-only, never a key. Its policy allows it with this line (an elevated prompt):",
+   "text": "acme umí vypsat, co na tomto serveru běží a používá certifikáty – weby IIS a jejich vazby, naslouchání Vzdálené plochy, role, úložiště počítače – jen pro čtení, nikdy klíč. Jeho zásady to povolí tímto řádkem (v příkazovém řádku jako správce):"
+  },
+  "z_1371": {
+   "source": "acme can list what this server runs that takes certificates - nginx, Apache, HAProxy, Postfix, Dovecot, Tomcat, Proxmox… with their files and the certificate each serves - read-only, never a key. Its policy allows it with this line (as root):",
+   "text": "acme umí vypsat, co na tomto serveru běží a používá certifikáty – nginx, Apache, HAProxy, Postfix, Dovecot, Tomcat, Proxmox… s jejich soubory a certifikátem, který každá služba podává – jen pro čtení, nikdy klíč. Jeho zásady to povolí tímto řádkem (jako root):"
+  },
+  "z_1372": {
+   "source": "Allow it in the policy designer…",
+   "text": "Povolit v návrháři zásad…"
+  },
+  "z_1373": {
+   "source": "Its policy is not known yet - Ask it now.",
+   "text": "Jeho zásady zatím nejsou známé – zeptejte se ho teď."
+  },
+  "z_1374": {
+   "source": "every kind allowed",
+   "text": "povoleny všechny druhy"
+  },
+  "z_1375": {
+   "source": "Looking at the server…",
+   "text": "Prohlížím server…"
+  },
+  "z_1376": {
+   "source": "Not looked yet: Look now asks the agent what its server runs (read-only).",
+   "text": "Zatím nezjišťováno: Zjistit teď se agenta zeptá, co na jeho serveru běží (jen pro čtení)."
+  },
+  "z_1377": {
+   "source": "The agent refused the discovery",
+   "text": "Agent zjišťování odmítl"
+  },
+  "z_1378": {
+   "source": "The agent reads what its server runs: configurations and the certificates there - nothing is changed, no key is read.",
+   "text": "Agent přečte, co na jeho serveru běží: konfigurace a certifikáty v nich – nic se nemění, žádný klíč se nečte."
+  },
+  "z_1379": {
+   "source": "1 service",
+   "text": "1 služba"
+  },
+  "z_1380": {
+   "source": "Nothing of the kinds allowed was found on this server.",
+   "text": "Z povolených druhů nebylo na tomto serveru nic nalezeno."
+  },
+  "z_1381": {
+   "source": "Only part of it is shown: the server has more than an answer holds.",
+   "text": "Zobrazena je jen část: server má víc, než se vejde do odpovědi."
+  },
+  "z_1382": {
+   "source": "no certificate read there",
+   "text": "žádný certifikát tam nebyl přečten"
+  },
+  "z_1383": {
+   "source": "its certificate is not in the machine store",
+   "text": "jeho certifikát není v úložišti počítače"
+  },
+  "z_1384": {
+   "source": "This is the certificate acme holds now.",
+   "text": "Toto je certifikát, který acme drží teď."
+  },
+  "z_1385": {
+   "source": "An older version of this certificate of acme.",
+   "text": "Starší verze tohoto certifikátu acme."
+  },
+  "z_1386": {
+   "source": "imported by acme",
+   "text": "importoval acme"
+  },
+  "z_1387": {
+   "source": "not managed by acme",
+   "text": "mimo správu acme"
+  },
+  "z_1388": {
+   "source": "issuer",
+   "text": "vydavatel"
+  },
+  "z_1389": {
+   "source": "names",
+   "text": "jména"
+  },
+  "z_1390": {
+   "source": "SHA-1 thumbprint",
+   "text": "Otisk SHA-1"
+  },
+  "z_1391": {
+   "source": "key + chain",
+   "text": "klíč + řetězec"
+  },
+  "z_1392": {
+   "source": "keystore",
+   "text": "úložiště klíčů"
+  },
+  "z_1393": {
+   "source": "set at run time",
+   "text": "určí se za běhu"
+  },
+  "z_1394": {
+   "source": "Make a deployment",
+   "text": "Vytvořit nasazení"
+  },
+  "z_1395": {
+   "source": "Nothing here acme could write to: no file of its was read.",
+   "text": "Nic, kam by acme mohl zapisovat: žádný jeho soubor nebyl přečten."
+  },
+  "z_1396": {
+   "source": "Add to the policy",
+   "text": "Přidat do zásad"
+  },
+  "z_1397": {
+   "source": "Watch it",
+   "text": "Sledovat"
+  },
+  "z_1398": {
+   "source": "What the server serves - found by the discovery on",
+   "text": "Co server podává – nalezeno zjišťováním na"
+  },
+  "z_1399": {
+   "source": "Certificates found that acme does not manage",
+   "text": "Nalezené certifikáty mimo správu acme"
+  },
+  "z_1400": {
+   "source": "Every certificate found is one of acme’s.",
+   "text": "Každý nalezený certifikát patří acme."
+  },
+  "z_1401": {
+   "source": "Import…",
+   "text": "Importovat…"
+  },
+  "z_1402": {
+   "source": "Its file on the server:",
+   "text": "Jeho soubor na serveru:"
+  },
+  "z_1403": {
+   "source": "copy it here; acme then renews it (a source of yours) or watches it.",
+   "text": "zkopírujte ho sem; acme ho pak obnovuje (z vašeho zdroje) nebo sleduje."
+  },
+  "z_1404": {
+   "source": "Export it from the machine store (certlm.msc, with its key if acme is to deploy it) and drop the file here.",
+   "text": "Vyexportujte ho z úložiště počítače (certlm.msc, s klíčem, má-li ho acme nasazovat) a soubor přetáhněte sem."
+  },
+  "z_1405": {
+   "source": "Export it from the machine store (certlm.msc) and drop the file here.",
+   "text": "Vyexportujte ho z úložiště počítače (certlm.msc) a soubor přetáhněte sem."
+  },
+  "z_1406": {
+   "source": "acme may list what this server runs that takes certificates - the IIS sites and their bindings, the Remote Desktop listener, the roles, the machine store - read-only: nothing is changed, no key or password is read. Off unless it is here.",
+   "text": "acme smí vypsat, co na tomto serveru běží a používá certifikáty – weby IIS a jejich vazby, naslouchání Vzdálené plochy, role, úložiště počítače – jen pro čtení: nic se nemění, žádný klíč ani heslo se nečte. Bez tohoto řádku vypnuto."
+  },
+  "z_1407": {
+   "source": "acme may list what this server runs that takes certificates - the services, their files and the certificate each serves - read-only: nothing is changed, no key or password is read. Off unless it is here.",
+   "text": "acme smí vypsat, co na tomto serveru běží a používá certifikáty – služby, jejich soubory a certifikát, který každá podává – jen pro čtení: nic se nemění, žádný klíč ani heslo se nečte. Bez tohoto řádku vypnuto."
+  },
+  "z_1408": {
+   "source": "every kind this agent knows (allow discover)",
+   "text": "všechny druhy, které tento agent zná (allow discover)"
+  },
+  "z_1409": {
+   "source": "certificate files",
+   "text": "soubory certifikátů"
+  },
+  "z_1410": {
+   "source": "Central Certificate Store",
+   "text": "Centrální úložiště certifikátů"
+  },
+  "z_1411": {
+   "source": "Add all that the services found need",
+   "text": "Přidat vše, co nalezené služby potřebují"
+  },
+  "z_1412": {
+   "source": "discovery",
+   "text": "zjišťování"
+  },
+  "z_1413": {
+   "source": "read-only: acme lists what the server runs and the certificates there - nothing is changed",
+   "text": "jen pro čtení: acme vypíše, co server provozuje, a certifikáty na něm – nic se nemění"
+  },
+  "z_1414": {
+   "source": "no test of that kind here",
+   "text": "test toho druhu tu není"
   }
  },
  "patterns": {
@@ -97509,6 +97705,50 @@
   "pz_454": {
    "source": "{0} with the teams below",
    "text": "{0} i s týmy pod ním"
+  },
+  "pz_455": {
+   "source": "allowed: {0}",
+   "text": "povoleno: {0}"
+  },
+  "pz_456": {
+   "source": "The policy on the server: {0}",
+   "text": "Zásady na serveru: {0}"
+  },
+  "pz_457": {
+   "source": "{0} services",
+   "text": "Služeb: {0}"
+  },
+  "pz_458": {
+   "source": "{0} not managed by acme",
+   "text": "Mimo správu acme: {0}"
+  },
+  "pz_459": {
+   "source": "{0} end within 14 days",
+   "text": "Do 14 dnů vyprší: {0}"
+  },
+  "pz_460": {
+   "source": "SHA-1 thumbprint · serial {0}",
+   "text": "Otisk SHA-1 · sériové číslo {0}"
+  },
+  "pz_461": {
+   "source": "A test of what {0} serves - its form filled in, saved by you.",
+   "text": "Test toho, co podává {0} – formulář je vyplněný, uložíte ho vy."
+  },
+  "pz_462": {
+   "source": "…and {0} more",
+   "text": "…a dalších {0}"
+  },
+  "pz_463": {
+   "source": "What the last discovery found on the server ({0}): each service with what a deployment there needs - add it with one click.",
+   "text": "Co poslední zjišťování našlo na serveru ({0}): každá služba s tím, co potřebuje nasazení na ni – přidáte jedním kliknutím."
+  },
+  "pz_464": {
+   "source": "{0} is not a kind of service this agent discovers ({1})",
+   "text": "{0} není druh služby, který tento agent zjišťuje ({1})"
+  },
+  "pz_465": {
+   "source": "looked {0} ago",
+   "text": "zjištěno před {0}"
   }
  },
  "rich": {

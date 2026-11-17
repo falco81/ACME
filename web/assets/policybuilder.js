@@ -1552,7 +1552,7 @@ function build(row, d, opts) {
     FOUND.forEach(function (f) {
       var c = el('div', 'pb-found');
       var h = el('div', 'pb-found-h');
-      var badge = noI18n(el('span', 'ag-dc-ic t-b', String(f.kind).slice(0, 3).toUpperCase()));
+      var badge = noI18n(el('span', 'ag-dc-ic t-b', String(f.kind).slice(0, 2).toUpperCase()));
       h.appendChild(badge);
       h.appendChild(noI18n(el('b', '', f.title || DISC_T[f.kind] || f.kind)));
       var nm = arr(f.names).slice(0, 3).join(', ') || f.site || f.config || '';
@@ -2159,7 +2159,8 @@ function build(row, d, opts) {
     refs.saveState = el('div', 'pb-save-st');
     c.appendChild(refs.saveState);
     paintSaved();
-    if (!FULL) {
+    /* the portal's team workspace (1.0.125): a member who manages the team's devices saves it */
+    if (!FULL && !opts.maySave) {
       c.appendChild(el('p', 'muted small', 'A full administrator saves a design.'));
       return c;
     }

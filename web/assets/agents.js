@@ -2446,7 +2446,7 @@ function discoverBox(row, a, opts) {
   var st = DISC[row.id] || (DISC[row.id] = {});
   var paint = function () {
     clear(body);
-    said.textContent = '';
+    clear(said);
     var v = st.view;
     if (look) look.disabled = !!st.busy;
     if (st.busy && !v) { body.appendChild(el('p', 'muted small ag-disc-busy', 'Looking at the server…')); return; }
@@ -2470,7 +2470,10 @@ function discoverBox(row, a, opts) {
       body.appendChild(r);
       return;
     }
-    if (v.at) said.textContent = tr('looked') + ' ' + ago(v.at) + (v.by ? ' · ' + v.by : '');
+    if (v.at) {
+      said.appendChild(el('span', '', 'looked ' + ago(v.at)));
+      if (v.by) said.appendChild(data('span', '', ' · ' + v.by));
+    }
     var found = arr(v.found), certs = arr(v.certs);
     var sum = el('div', 'ag-disc-sum');
     var s1 = el('span', 'ag-chip');

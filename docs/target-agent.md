@@ -152,6 +152,7 @@ Change it with the command line (as root) or by hand, one entry a line:
 | `allow probe local` | `acme-agent allow probe local` | the same for anything on 127.0.0.1, ::1 or localhost (any port) |
 | `allow connect HOST:PORT` | `acme-agent allow connect 10.0.5.21:22` | acme reaches HOST:PORT through this agent (a passive one): the agent as the connector of SSH targets |
 | `allow self-update` | `acme-agent allow self-update` | acme may send a newer agent - only a package signed by a release key this agent was installed with, only a newer version |
+| `allow discover [KIND,KIND]` | `acme-agent allow discover nginx,apache` | acme may list the services here that take certificates and the certificates there - read-only (1.0.125, *Discovery* below); no KIND: every kind |
 | `limit files N` / `limit size BYTES` | `acme-agent limit files 30` | files in one deployment (20), bytes of one file (1 MiB) |
 
 `acme-agent deny ...` takes an entry away (the same words); `acme-agent policy show [--json]`
@@ -599,7 +600,8 @@ checks its tables, its wizard, its files and the MANIFEST. Installing is then as
   the server, agent not heard from and heard from again; **alerts** for an agent not heard from
   for ten minutes and its certificate ending within seven days.
 * **Command line**: `acme --target-agent NAME show | system [--json] | code | confirm FP | look |
-  policy | renew | update | forget | design show|text|forget | adcs-templates [HOST\CA] [--json]`,
+  policy | renew | update | forget | design show|text|forget | adcs-templates [HOST\CA] [--json] |
+  discover [cached] [--kind K,K] [--json]`,
   `acme --target-agent all update`, `acme
   --target-agent enroll new|list|revoke ID`, `acme --target-agent waiting` - `show` says what the
   card says; the console (`acme`): Targets → the target → *Its acme-agent*, Certificates →
@@ -958,6 +960,74 @@ allow adcs-read                                           every CA of the domain
 `acme-agent adcs cas` and `acme-agent adcs templates --config "HOST\CA Name"` (`--json`) list
 them on the server; acme lists them through the agent (`GET /api/agents/adcs?target=NAME`, `acme
 --target-agent NAME adcs-templates`, the builder's section *Microsoft CA (AD CS)*).
+
+## Discovery (1.0.125)
+
+What a server runs that takes certificates, read by its agent and offered in acme - **off unless
+the server's policy says so**:
+
+```
+allow discover                      every kind this agent knows
+allow discover nginx,apache,files   only those kinds (Linux)
+allow discover iis,rdp,sql          only those kinds (Windows)
+```
+
+(`acme-agent allow discover [KIND,KIND]` adds kinds to the line, `deny discover [KIND]` takes them
+away.) Without the line the agent refuses op `discover` and says the line that allows it; with
+kinds named, a discovery of another kind is refused with the line that adds it.
+
+**Linux kinds:** `nginx` (server blocks through `include`, conf.d, sites-enabled; server_name,
+listen, ssl_certificate / _key), `apache` (VirtualHost through Include / IncludeOptional;
+SSLCertificateFile, KeyFile, ChainFile), `haproxy` (bind ... crt FILE or folder, crt-base),
+`postfix` (smtpd_tls_cert_file / key_file / chain_files, $variables), `dovecot` (ssl_cert,
+ssl_key, !include, local_name blocks), `exim` (tls_certificate / MAIN_TLS_* of Debian's split
+configuration), `tomcat` (server.xml connectors: keystores - never their passwords - and PEM
+files), `proxmox` (pveproxy-ssl.pem), `pbs` (proxy.pem), `openldap`, `grafana`, `cockpit`,
+`webmin`, `vsftpd`, `mariadb`, `files` (certificate files in the folders the policy's `allow
+file` lines name). **Windows kinds:** `iis` (sites and their https bindings, the bound
+thumbprint), `rdp` (the listener), `store` (LocalMachine\My: every certificate, whether acme
+imported it) and the roles of acme_agent_winroles (`sql` with each instance's certificate, `winrm`
+HTTPS listeners, `ldaps`, `ftp`, `adfs`, `rdgw` with theirs; `exchange`, `wap`, `sstp`, `ccs`,
+`rds`, `sharepoint`, `wac`, `lync` found by the roles' own detection).
+
+**Read-only, bounded, no secrets.** Nothing is changed. Configuration files are read by the root
+side (1 MiB each, 400 at most, includes 8 deep, 40 s in all); of each certificate only its subject,
+names, issuer, end, SHA-1 thumbprint and serial are said; a key file is never opened (only whether
+it is there, its owner and mode); a file holding key and certificate (HAProxy) is read for its
+certificate alone; the answer is 512 KiB at most (200 services, 300 certificates). acme refuses an
+answer holding a private key.
+
+Each service found says its unit, names, listen addresses, files (role, format, path, owner,
+mode), the certificate there now, the preset of acme that fits (`plugins/targets/ssh.py PRESETS`,
+the same names) and the test and reload that preset would run (the unit found).
+
+On the server: `acme-agent discover [--kind K,K] [--json]` (as root / an elevated prompt) shows
+what such a discovery finds - every kind, whatever the policy.
+
+In acme:
+
+* `GET /api/agents/discover?target=NAME[&kind=K,K][&cached=1]` (certificate administrator): a
+  signed job, its answer kept with the target and its time (`cached=1`: the last one, the agent
+  not asked); refused: `{refused, said, allow}` with the line.
+* `acme --target-agent NAME discover [cached] [--kind K,K] [--json]`; the console's agent menu
+  has the item.
+* The target's card, *Found on this server* (only where the policy allows it - else the line that
+  allows it and *Allow it in the policy designer…*): a card per service with its names, files and
+  the certificate it serves (days left, issuer, acme's or not), and **Make a deployment** (the
+  deployment dialog prefilled: the preset, the files at the paths found with their owners and
+  modes, the test and reload; Windows: the machine store and the site's IIS bindings, the
+  listener, the role and its instance; acme's certificate chosen when it is the one served),
+  **Add to the policy** (the designer opened with the lines that deployment needs ticked) and
+  **Watch it** (a test of what it serves, its form filled in). *Certificates found that acme does
+  not manage*: Watch it, Import… (the import dialog; the file stays on the server: acme never
+  fetches it).
+* The designer: the section *Discovery* (every kind, or kinds one by one - the agent's own line)
+  and, after a discovery, *From discovery*: each service with its lines to add.
+
+For other callers (the teams portal): `acmelib/certs/agent_discover.py` - `run(store, row, kinds,
+by)`, `cached(store, row)`, `prefill(finding, platform)`, `items(finding, platform)`,
+`allowed_kinds(policy, platform)`, `allow_line(kinds)`. What happens (a renewal's plan) is
+unchanged: discovery is no part of a renewal.
 
 ## Windows: the agent on the server (1.0.120)
 

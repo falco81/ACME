@@ -913,8 +913,10 @@ def _policy_line(pol, words):
         # 1.0.125: the services here and their certificates listed for acme (read-only)
         pol['discover'] = discover_entry(pol.get('discover'), rest)
     else:
+        # (the words as before 1.0.125 - a line not read says the same; allow discover in the
+        # docs and in `acme-agent allow`)
         raise Refused('allow file | unit | test | script | script-hash | from | probe | connect '
-                      '| self-update | discover')
+                      '| self-update')
 
 
 HOST_RE = re.compile(r'[A-Za-z0-9_]([A-Za-z0-9_.-]{0,252})\Z')
@@ -2788,7 +2790,7 @@ def system_info(fresh=False):
     return facts, h
 
 
-# ---- discovery (1.0.125, docs/target-agent.md "Discovery") ----------------------------------------
+# ---- discovery (1.0.125, docs/target-agent.md "Discovery") --------------------------------
 # What services of this machine use certificates, and where: read-only, bounded, never a secret.
 # Off unless the policy says it: `allow discover` (every kind) or `allow discover nginx,apache`
 # (those kinds). Configuration files are read (as root, never written), each certificate file
@@ -2840,7 +2842,8 @@ DISCOVER_SPEC = {
 }
 UNIT_DIRS = ('/etc/systemd/system', '/run/systemd/system', '/lib/systemd/system',
              '/usr/lib/systemd/system')
-PEM_CERT_RE = re.compile(r'-----BEGIN CERTIFICATE-----[A-Za-z0-9+/=\s]{20,}?-----END CERTIFICATE-----')
+PEM_CERT_RE = re.compile(r'-----BEGIN CERTIFICATE-----[A-Za-z0-9+/=\s]{20,}?'
+                         r'-----END CERTIFICATE-----')
 CERT_EXT = ('.crt', '.pem', '.cer', '.cert')
 _DISC_LOCK = threading.Lock()
 

@@ -11178,6 +11178,9 @@ document.querySelectorAll('[data-cicon]').forEach(function (b) {
 
 /* ---- the first draw ------------------------------------------------------- */
 function start() {
+  /* Lent to another page for its forms (1.0.125: the portal's team workspace takes fieldForm):
+     nothing of the administration's tabs is drawn or asked for there. */
+  if (window.ACME_CERTS_EMBED) return;
   if (!PAGE_KNOWS) {
     var want = (location.hash || '').replace(/^#/, '').split('/')[0];
     if (MY_TABS[want] && TAB !== want) showTab(want);

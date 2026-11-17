@@ -64,6 +64,8 @@
     return s;
   }
   function call(o) {
+    /* a page that asks for the plan its own way (1.0.125: the portal's deployments) */
+    if (typeof o.ask === 'function') return o.ask();
     var capi = window.ACME_CERTS && window.ACME_CERTS.api;
     var go = capi || function (p, b) { return api(p.replace('?', '&'), b); };
     if (o.draft) return go('certs/run_plan', {id: o.id || undefined, draft: o.draft}, 180);

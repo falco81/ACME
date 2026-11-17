@@ -332,7 +332,7 @@ if ($title_ours) {
 <?php acme_head($title, $lang, $load, $nonce, '/'); ?>
 <?php if ($me && is_file(__DIR__ . '/assets/certs-portal.js')):
     /* The certificate manager's own pieces (names, days left, states), as the administration has them. */
-    foreach (['certs.css', 'certs-portal.css'] as $css):
+    foreach (['certs.css', 'certs-portal.css', 'portal-teams.css'] as $css):
         if (is_file(__DIR__ . '/assets/' . $css)): ?>
 <link rel="stylesheet" nonce="<?= h($nonce) ?>" href="/assets/<?= h($css) ?>?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/' . $css)) ?>">
 <?php endif; endforeach; endif; ?>
@@ -430,8 +430,14 @@ if ($title_ours) {
 <script nonce="<?= h($nonce) ?>">var PORTAL_GATE = <?= json_encode($gate, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 <script nonce="<?= h($nonce) ?>">portalDoor();</script>
 <?php else: ?>
-<header>
+<header class="pt-head">
+  <span class="pt-brand" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+    stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17"
+    height="12" rx="2"/><path d="M7.5 8h9M7.5 11h5"/><circle cx="16" cy="16.5" r="2.6"/><path
+    d="M14.4 18.6l-.9 3 2.5-1.1 2.5 1.1-.9-3"/></svg></span>
   <h1<?= $title_ours ? '' : ' data-no-i18n' ?>><?= h($title) ?></h1>
+  <!-- the team switcher of the workspace (portal-teams.js, 1.0.125) -->
+  <div class="pt-switch-host" id="pt-switch-host"></div>
   <div class="spacer"></div>
   <div class="btnrow">
     <span class="langpick" id="langpick"></span>
@@ -452,6 +458,9 @@ if ($title_ours) {
 <script nonce="<?= h($nonce) ?>">var PORTAL_ME = <?= json_encode($me, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 <script nonce="<?= h($nonce) ?>" src="/assets/core.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/core.js')) ?>"></script>
 <script nonce="<?= h($nonce) ?>" src="/assets/portal.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/portal.js')) ?>"></script>
+<?php if (is_file(__DIR__ . '/assets/portal-teams.js')): ?>
+<script nonce="<?= h($nonce) ?>" src="/assets/portal-teams.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/portal-teams.js')) ?>"></script>
+<?php endif; ?>
 <?php if (is_file(__DIR__ . '/assets/certs-portal.js')): ?>
 <script nonce="<?= h($nonce) ?>" src="/assets/certs-portal.js?v=<?= h(ACME_VERSION . '-' . (int) @filemtime(__DIR__ . '/assets/certs-portal.js')) ?>"></script>
 <?php endif; ?>
