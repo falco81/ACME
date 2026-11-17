@@ -50,6 +50,9 @@ Two processes:
   acme-agent allow probe local           ...of anything on 127.0.0.1 / ::1 / localhost
   acme-agent allow connect HOST:PORT     acme reaches HOST:PORT through this agent (passive)
   acme-agent allow self-update           acme may update this agent: signed, newer only
+  acme-agent allow discover [KIND,KIND]  acme may list the services here and their certificates
+                                         (read-only; no KIND: every kind it knows)
+  acme-agent discover [--kind K] [--json]   what such a discovery finds here (as root)
   acme-agent limit files N | limit size BYTES
   acme-agent deny ...                    the same words: that entry taken away
   acme-agent root | serve                the two sides (systemd)
@@ -105,7 +108,8 @@ OWNER_RE = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,31}\Z')
 AGENT_ID_RE = re.compile(r'ag-[0-9a-f]{12,32}\Z')
 SAFE_PATH = re.compile(r'/[^\x00-\x1f\x7f]{0,1023}\Z')
 SAFE_ENV = re.compile(r'[A-Z][A-Z0-9_]{0,63}\Z')
-ROOT_OPS = ('hello', 'policy', 'fingerprints', 'deploy', 'check', 'keygen', 'update', 'adcs')
+ROOT_OPS = ('hello', 'policy', 'fingerprints', 'deploy', 'check', 'keygen', 'update', 'adcs',
+            'discover')
 # checked by root (the signature, and - probe, connect - the policy), done by the network side:
 # root never opens a network connection
 NET_OPS = ('csr', 'cert', 'probe', 'connect')
@@ -657,6 +661,8 @@ POLICY_HEAD = """# /etc/acme-agent/policy - what acme may do on this machine (do
 #   allow probe HOST:PORT | allow probe local   a test of what HOST:PORT serves, from here
 #   allow connect HOST:PORT                     acme reaches HOST:PORT through this agent
 #   allow self-update                           acme may update this agent (signed, newer)
+#   allow discover [KIND,KIND]                  acme may list the services here and their
+#                                               certificates (read-only; no KIND: every kind)
 #   limit files 20                              files in one deployment
 #   limit size 1048576                          bytes of one file
 """
@@ -903,9 +909,12 @@ def _policy_line(pol, words):
             hp = norm_hostport(rest[0])
             if hp not in pol['probe']:
                 pol['probe'].append(hp)
+    elif what == 'discover':
+        # 1.0.125: the services here and their certificates listed for acme (read-only)
+        pol['discover'] = discover_entry(pol.get('discover'), rest)
     else:
         raise Refused('allow file | unit | test | script | script-hash | from | probe | connect '
-                      '| self-update')
+                      '| self-update | discover')
 
 
 HOST_RE = re.compile(r'[A-Za-z0-9_]([A-Za-z0-9_.-]{0,252})\Z')
@@ -965,7 +974,7 @@ def policy_canon(pol):
     # what phase 3 added - only when used, so a policy of phase 2 keeps its hash
     # ...and what Windows adds (the machine store, IIS, Remote Desktop): never on Linux
     for k in ('probe', 'probe_local', 'store', 'iis', 'rdp', 'roles', 'key_read', 'adcs',
-              'adcs_read'):
+              'adcs_read', 'discover'):
         if pol.get(k):
             keep[k] = pol[k]
     return json.dumps(keep, sort_keys=True, separators=(',', ':'))
@@ -1025,6 +1034,8 @@ def policy_lines(pol):
                 else '"%s"' % x)))
     for a in pol.get('key_read') or []:
         out.append('allow key-read %s' % (a if not re.search(r'[\s"\']', a) else '"%s"' % a))
+    if pol.get('discover'):
+        out.append(discover_line(pol['discover']))
     if pol['limits']['files'] != FILES_MOST:
         out.append('limit files %d' % pol['limits']['files'])
     if pol['limits']['size'] != FILE_MOST:
@@ -1042,6 +1053,8 @@ def policy_report(pol, h):
     for k in ('store', 'iis', 'rdp', 'roles', 'key_read', 'adcs', 'adcs_read'):  # Windows only
         if pol.get(k):
             out[k] = pol[k]
+    if pol.get('discover'):
+        out['discover'] = list(pol['discover'])     # 1.0.125: discovery (read-only)
     if WINDOWS:
         # what this agent knows of the Windows roles: acme sends none to an agent without it
         out['roles_known'] = [r[0] for r in _winroles().ROLES]
@@ -1072,6 +1085,7 @@ def policy_facts():
             'own': ['/etc/acme-agent', '/var/lib/acme-agent', '/var/lib/acme-agent-root',
                     '/run/acme-agent'], 'verbs': list(VERBS), 'shells': list(SHELLS),
             'config_ok': list(CONFIG_OK), 'head': POLICY_HEAD,
+            'discover_kinds': list(DISCOVER_LINUX),
             'limits': {'files': FILES_MOST, 'size': FILE_MOST, 'files_most': 200,
                        'size_most': 64 * 1024 * 1024}}
 
@@ -2284,6 +2298,19 @@ class Root(object):
         out['policy_hash'] = h
         return out
 
+    def op_discover(self, args, job, msg):
+        """The services of this machine that use certificates, and the certificates there
+        (1.0.125, docs/target-agent.md "Discovery") - read-only, bounded, never a secret; only
+        with `allow discover` (every kind) or `allow discover KIND,KIND` in the policy."""
+        pol, h, _t = policy_load()
+        asked = discover_asked(args)
+        needs = discover_needs(pol, asked)
+        if needs:
+            raise Refused('not allowed by the policy of this machine: %s - allow it on the '
+                          'server: %s' % (needs[0]['what'], needs[0]['allow']), needs)
+        got = discover_run(pol, asked or discover_allowed(pol))
+        return {'ok': True, 'discover': got, 'said': discover_words(got), 'policy_hash': h}
+
     def op_update(self, args, job, msg):
         """This agent replaced by a newer one acme offers: only with `allow self-update`, only
         a package signed by a release key this agent was installed with, only a newer version.
@@ -2759,6 +2786,982 @@ def system_info(fresh=False):
         facts['uptime'] = max(0, int(now - facts['boot']))
     facts['hash'] = h
     return facts, h
+
+
+# ---- discovery (1.0.125, docs/target-agent.md "Discovery") ----------------------------------------
+# What services of this machine use certificates, and where: read-only, bounded, never a secret.
+# Off unless the policy says it: `allow discover` (every kind) or `allow discover nginx,apache`
+# (those kinds). Configuration files are read (as root, never written), each certificate file
+# only for its facts (subject, names, issuer, the end, thumbprint, serial) - a key file is never
+# opened: only whether it is there, its owner and mode. A file holding a key and its certificate
+# (HAProxy) is read for its certificate alone. Windows: acme_agent_wincert.discover.
+DISCOVER_LINUX = ('nginx', 'apache', 'haproxy', 'postfix', 'dovecot', 'exim', 'tomcat', 'proxmox',
+                  'pbs', 'openldap', 'grafana', 'cockpit', 'webmin', 'vsftpd', 'mariadb', 'files')
+DISCOVER_WINDOWS = ('store', 'iis', 'rdp', 'sql', 'exchange', 'adfs', 'wap', 'winrm', 'ldaps',
+                    'sstp', 'ftp', 'ccs', 'rdgw', 'rds', 'sharepoint', 'wac', 'lync')
+DISCOVER_ROOT = _env('ACME_AGENT_DISCOVER_ROOT', '')    # the tests' layout of /etc (else /)
+DISCOVER_S = 40.0               # all of it at most this long: what is left is said skipped
+DISCOVER_FOUND_MOST = 200       # services found
+DISCOVER_CERTS_MOST = 300       # certificates told
+DISCOVER_CONFS_MOST = 400       # configuration files read
+DISCOVER_CONF_BYTES = 1024 * 1024
+DISCOVER_CERT_BYTES = 256 * 1024
+DISCOVER_DEPTH = 8              # includes within includes
+DISCOVER_MOST = 512 * 1024      # bytes of the answer, as JSON
+DISCOVER_TEXT = 300
+# kind -> (title, the deployment preset of acme that fits (plugins/targets/ssh.py PRESETS), the
+# units it may run as, its test, its reload ({unit}: the one found), the port it serves TLS on)
+DISCOVER_SPEC = {
+    'nginx': ('nginx', 'nginx', ('nginx',), 'nginx -t', 'systemctl reload {unit}', 443),
+    'apache': ('Apache httpd', 'apache', ('apache2', 'httpd'), 'apachectl -t',
+               'systemctl reload {unit}', 443),
+    'haproxy': ('HAProxy', 'haproxy', ('haproxy',), 'haproxy -c -q -f /etc/haproxy/haproxy.cfg',
+                'systemctl reload {unit}', 443),
+    'postfix': ('Postfix', 'postfix', ('postfix',), 'postfix check', 'postfix reload', 465),
+    'dovecot': ('Dovecot', 'dovecot', ('dovecot',), 'doveconf -n >/dev/null',
+                'systemctl reload {unit}', 993),
+    'exim': ('Exim', 'exim', ('exim4', 'exim'), 'exim -bV >/dev/null', 'systemctl restart {unit}',
+             465),
+    'tomcat': ('Tomcat', 'tomcat', ('tomcat', 'tomcat10', 'tomcat9', 'tomcat8'), '',
+               'systemctl restart {unit}', 8443),
+    'proxmox': ('Proxmox VE (pveproxy)', 'proxmox', ('pveproxy',), '', 'systemctl restart {unit}',
+                8006),
+    'pbs': ('Proxmox Backup Server', 'pbs', ('proxmox-backup-proxy',), '',
+            'systemctl reload {unit}', 8007),
+    'openldap': ('OpenLDAP (slapd)', 'openldap', ('slapd',), '', 'systemctl restart {unit}', 636),
+    'grafana': ('Grafana', 'grafana', ('grafana-server', 'grafana'), '',
+                'systemctl restart {unit}', 3000),
+    'cockpit': ('Cockpit', 'cockpit', ('cockpit',), '', 'systemctl restart {unit}', 9090),
+    'webmin': ('Webmin', 'webmin', ('webmin',), '', 'systemctl restart {unit}', 10000),
+    'vsftpd': ('vsftpd', 'vsftpd', ('vsftpd',), '', 'systemctl restart {unit}', 21),
+    'mariadb': ('MySQL / MariaDB', 'mariadb', ('mariadb', 'mysql', 'mysqld'), '',
+                'systemctl restart {unit}', 3306),
+    'files': ('Certificate files', 'custom', (), '', '', 0),
+}
+UNIT_DIRS = ('/etc/systemd/system', '/run/systemd/system', '/lib/systemd/system',
+             '/usr/lib/systemd/system')
+PEM_CERT_RE = re.compile(r'-----BEGIN CERTIFICATE-----[A-Za-z0-9+/=\s]{20,}?-----END CERTIFICATE-----')
+CERT_EXT = ('.crt', '.pem', '.cer', '.cert')
+_DISC_LOCK = threading.Lock()
+
+
+def discover_kinds():
+    """The kinds this agent looks for: of its platform."""
+    return DISCOVER_WINDOWS if WINDOWS else DISCOVER_LINUX
+
+
+def discover_entry(have, rest):
+    """The words after `allow discover` -> the kinds allowed with what was there (['*']: every
+    kind), in the agent's own order."""
+    known = discover_kinds()
+    if len(rest) > 1:
+        raise Refused('allow discover [KIND,KIND] - the kinds in one word, comma-separated (%s)'
+                      % ', '.join(known))
+    if not rest or rest[0] == '*':
+        return ['*']
+    want = [k.strip() for k in rest[0].split(',') if k.strip()]
+    bad = [k for k in want if k not in known]
+    if bad or not want:
+        raise Refused('%r is not a kind of service this agent discovers (%s)' % (
+            (bad or [''])[0][:40], ', '.join(known)))
+    if '*' in (have or []):
+        return ['*']
+    got = set(have or []) | set(want)
+    return [k for k in known if k in got]
+
+
+def discover_line(kinds):
+    kinds = list(kinds or [])
+    return 'allow discover' if not kinds or '*' in kinds else 'allow discover %s' % ','.join(kinds)
+
+
+def discover_allowed(pol):
+    """The kinds the policy lets acme discover ([] - none)."""
+    have = (pol or {}).get('discover') or []
+    known = discover_kinds()
+    return list(known) if '*' in have else [k for k in known if k in have]
+
+
+def discover_needs(pol, asked):
+    """What the policy lacks for a discovery of `asked` (none: what it allows) -> [{kind, what,
+    allow}] - the line that allows it, as acme says it."""
+    have = (pol or {}).get('discover') or []
+    if '*' in have:
+        return []
+    miss = [k for k in (asked or []) if k not in have]
+    if have and not miss:
+        return []
+    if not asked:
+        return [{'kind': 'discover', 'what': 'a discovery of the services of this machine',
+                 'allow': 'acme-agent allow discover'}]
+    want = [k for k in discover_kinds() if k in set(have) | set(miss)]
+    return [{'kind': 'discover', 'what': 'a discovery of %s' % ', '.join(miss),
+             'allow': 'acme-agent allow discover %s' % ','.join(want)}]
+
+
+def discover_asked(args):
+    """The kinds a job asks for ([] - all the policy allows); a kind unknown is refused."""
+    v = (args or {}).get('kinds')
+    if v in (None, '', []):
+        return []
+    if isinstance(v, str):
+        v = v.split(',')
+    if not isinstance(v, list) or len(v) > 40:
+        raise Refused('kinds: a list of the kinds to look for')
+    known = discover_kinds()
+    out = []
+    for k in v:
+        k = str(k).strip()
+        if k not in known:
+            raise Refused('%r is not a kind of service this agent discovers (%s)' % (
+                k[:40], ', '.join(known)))
+        if k not in out:
+            out.append(k)
+    return out
+
+
+def discover_run(pol, kinds):
+    """A discovery of `kinds` (all allowed) -> {platform, kinds, found, certs, skipped, at, ms}
+    bounded. One at a time."""
+    if not _DISC_LOCK.acquire(False):
+        raise Refused('a discovery runs already on this machine - ask again in a moment')
+    t0 = time.time()
+    try:
+        if WINDOWS:
+            out = _wincert().discover(_Here(), pol, kinds)
+        else:
+            out = discover_linux(pol, kinds)
+    finally:
+        _DISC_LOCK.release()
+    out.update(platform=PLATFORM, kinds=list(kinds), at=round(time.time(), 3),
+               ms=int((time.time() - t0) * 1000))
+    return discover_bound(out)
+
+
+def _dtext(v, most=DISCOVER_TEXT):
+    return re.sub(r'[\x00-\x1f\x7f]', '', str(v if v is not None else ''))[:most]
+
+
+def discover_bound(out):
+    """Every value of the answer cut to size; the lists cut; the whole under DISCOVER_MOST
+    (the found services cut first, then the certificates)."""
+    def clean(v, depth=0):
+        if isinstance(v, bool) or v is None:
+            return v
+        if isinstance(v, (int, float)):
+            return v if isinstance(v, int) and abs(v) < 2 ** 62 or \
+                (isinstance(v, float) and math.isfinite(v)) else None
+        if isinstance(v, str):
+            return _dtext(v, 1024)
+        if depth > 5:
+            return None
+        if isinstance(v, dict):
+            return {str(k)[:40]: clean(x, depth + 1) for k, x in list(v.items())[:40]}
+        if isinstance(v, (list, tuple)):
+            return [clean(x, depth + 1) for x in list(v)[:100]]
+        return None
+    out = clean(out)
+    out['found'] = (out.get('found') or [])[:DISCOVER_FOUND_MOST]
+    out['certs'] = (out.get('certs') or [])[:DISCOVER_CERTS_MOST]
+    while len(json.dumps(out)) > DISCOVER_MOST and (out['found'] or out['certs']):
+        out['truncated'] = True
+        if len(out['found']) > len(out['certs']) // 2:
+            out['found'] = out['found'][:len(out['found']) * 3 // 4]
+        else:
+            out['certs'] = out['certs'][:len(out['certs']) * 3 // 4]
+    return out
+
+
+class _Disc(object):
+    """One discovery of Linux: its budget, what was read, the certificates seen."""
+
+    def __init__(self, pol):
+        self.pol = pol
+        self.until = time.time() + DISCOVER_S
+        self.read = 0
+        self.found = []
+        self.certs = {}             # thumbprint -> facts with where
+        self.facts = {}             # path -> facts (or None)
+        self.skipped = []
+
+    def late(self):
+        return time.time() > self.until
+
+    def path(self, p):
+        """A path of the machine (/etc/...) - under ACME_AGENT_DISCOVER_ROOT in the tests."""
+        return os.path.join(DISCOVER_ROOT, p.lstrip('/')) if DISCOVER_ROOT else p
+
+    def back(self, real):
+        """A path read back as the machine names it."""
+        if DISCOVER_ROOT and real.startswith(DISCOVER_ROOT.rstrip('/') + '/'):
+            return '/' + real[len(DISCOVER_ROOT.rstrip('/')) + 1:]
+        return real
+
+    def isfile(self, p):
+        return os.path.isfile(self.path(p))
+
+    def isdir(self, p):
+        return os.path.isdir(self.path(p))
+
+    def text(self, p, most=DISCOVER_CONF_BYTES):
+        """A configuration file's text (None: not there, not a plain file, or too many read)."""
+        if self.read >= DISCOVER_CONFS_MOST or self.late():
+            return None
+        try:
+            fd = os.open(self.path(p), os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY)
+        except OSError:
+            return None
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                return None
+            self.read += 1
+            chunks, left = [], most
+            while left > 0:
+                got = os.read(fd, min(left, 65536))
+                if not got:
+                    break
+                chunks.append(got)
+                left -= len(got)
+            return b''.join(chunks).decode('utf-8', 'replace')
+        except OSError:
+            return None
+        finally:
+            os.close(fd)
+
+    def glob(self, pattern, most=200):
+        import glob as _glob
+        out = []
+        for g in sorted(_glob.glob(self.path(pattern)))[:most]:
+            out.append(self.back(g))
+        return out
+
+    def stat(self, p):
+        """Whether a file is there, its owner, group and mode - never what it holds."""
+        try:
+            st = os.stat(self.path(p))
+        except OSError:
+            return {'there': False}
+        try:
+            import pwd
+            owner = pwd.getpwuid(st.st_uid).pw_name
+        except (ImportError, KeyError):
+            owner = str(st.st_uid)
+        try:
+            import grp
+            group = grp.getgrgid(st.st_gid).gr_name
+        except (ImportError, KeyError):
+            group = str(st.st_gid)
+        return {'there': stat.S_ISREG(st.st_mode), 'owner': owner, 'group': group,
+                'mode': '%04o' % (st.st_mode & 0o777)}
+
+    def unit(self, names):
+        """The first of `names` with a unit file here -> NAME.service, or ''."""
+        for n in names:
+            for d in UNIT_DIRS:
+                if os.path.exists(self.path('%s/%s.service' % (d, n))):
+                    return n + '.service'
+        return ''
+
+    def cert(self, p, where):
+        """The facts of the (first) certificate of a file - its other contents never kept."""
+        if not p or '$' in p or not p.startswith('/'):
+            return None
+        if p in self.facts:
+            f = self.facts[p]
+        else:
+            f = None
+            raw = self.text(p, DISCOVER_CERT_BYTES)
+            if raw:
+                pems = PEM_CERT_RE.findall(raw)
+                if pems:
+                    try:
+                        f = cert_facts(pems[0])
+                        f['in_file'] = len(pems)
+                    except Exception:                   # noqa: BLE001
+                        f = None
+                raw = None
+            self.facts[p] = f
+        if f and f.get('thumbprint'):
+            one = self.certs.setdefault(f['thumbprint'], dict(
+                {k: v for k, v in f.items() if k != 'in_file'}, where=[]))
+            if where not in one['where'] and len(one['where']) < 12:
+                one['where'].append(where)
+        return f
+
+    def add(self, kind, config, names=(), files=(), listen=(), more=None):
+        """One service found: its files (role, path, format) with their owner and mode, the
+        certificate there now, the preset, unit, test and reload acme would use."""
+        if len(self.found) >= DISCOVER_FOUND_MOST:
+            return
+        title, preset, units, test, reload_, port = DISCOVER_SPEC[kind]
+        unit = (more or {}).pop('unit', None) or self.unit(units)
+        fs, cert = [], None
+        for role, p, fmt in files:
+            if not p:
+                continue
+            one = {'role': role, 'path': _dtext(p, 1024), 'format': fmt}
+            one.update(self.stat(p) if '$' not in p else {'there': False, 'dynamic': True})
+            if role in ('cert', 'combined') and cert is None and fmt not in ('jks', 'pfx'):
+                cert = self.cert(p, '%s %s' % (kind, p))
+            fs.append(one)
+        f = {'kind': kind, 'title': title, 'preset': preset, 'config': _dtext(config, 1024),
+             'unit': unit, 'names': [_dtext(n, 253) for n in names if n][:40],
+             'listen': [_dtext(x, 80) for x in listen][:20], 'files': fs[:12], 'cert': cert,
+             'port': port}
+        u = unit[:-len('.service')] if unit.endswith('.service') else (units[0] if units else '')
+        if reload_:
+            f['reload'] = reload_.replace('{unit}', u)
+        if test:
+            f['test'] = test
+        if more:
+            f.update(more)
+        self.found.append(f)
+
+
+def cert_facts(pem):
+    """subject, names, issuer, the end, the SHA-1 thumbprint, serial of a certificate (PEM)."""
+    args = ['x509', '-noout', '-subject', '-issuer', '-enddate', '-serial', '-fingerprint',
+            '-sha1', '-nameopt', 'RFC2253']
+    try:
+        out = _openssl(args + ['-ext', 'subjectAltName'], pem)
+    except Refused:
+        out = _openssl(args, pem)                       # an openssl before 1.1.1: no -ext
+    f = {'subject': '', 'issuer': '', 'not_after': None, 'serial': '', 'thumbprint': '',
+         'sans': []}
+    lines = out.splitlines()
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if line.startswith('subject='):
+            f['subject'] = _dtext(line[8:].strip())
+        elif line.startswith('issuer='):
+            f['issuer'] = _dtext(line[7:].strip())
+        elif line.startswith('notAfter='):
+            try:
+                f['not_after'] = float(ssl.cert_time_to_seconds(line[9:].strip()))
+            except ValueError:
+                pass
+        elif line.startswith('serial='):
+            f['serial'] = _dtext(line[7:].strip().upper(), 80)
+        elif 'Fingerprint=' in line:
+            f['thumbprint'] = line.split('=', 1)[1].replace(':', '').strip().upper()[:40]
+        elif 'Subject Alternative Name' in line and i + 1 < len(lines):
+            for part in lines[i + 1].split(','):
+                part = part.strip()
+                if part.startswith('DNS:'):
+                    f['sans'].append(_dtext(part[4:], 253))
+                elif part.startswith('IP Address:'):
+                    f['sans'].append(_dtext(part[11:], 60))
+    f['sans'] = f['sans'][:40]
+    m = re.search(r'(?:^|,)CN=([^,]+)', f['subject'])
+    f['cn'] = m.group(1).strip() if m else ''
+    return f
+
+
+# -- the configurations, kind by kind --------------------------------------------------------
+def _nginx_tokens(D, path, depth, seen):
+    """nginx's words of a file, its includes put in place: [(word, file)] - ; { } as words."""
+    text = D.text(path)
+    if text is None or depth > DISCOVER_DEPTH:
+        return []
+    out, word, q, i = [], [], None, 0
+    toks = []
+    while i < len(text):
+        c = text[i]
+        if q:
+            if c == q:
+                q = None
+            else:
+                word.append(c)
+        elif c in '"\'':
+            q = c
+        elif c == '#':
+            j = text.find('\n', i)
+            i = len(text) if j < 0 else j
+            continue
+        elif c in ';{}' or c.isspace():
+            if word:
+                toks.append(''.join(word))
+                word = []
+            if not c.isspace():
+                toks.append(c)
+        else:
+            word.append(c)
+        i += 1
+    if word:
+        toks.append(''.join(word))
+    j = 0
+    while j < len(toks):
+        if toks[j] == 'include' and j + 2 < len(toks) and toks[j + 2] == ';':
+            pat = toks[j + 1]
+            if not pat.startswith('/'):
+                pat = '/etc/nginx/' + pat
+            for p in D.glob(pat, 100):
+                if p not in seen and len(seen) < DISCOVER_CONFS_MOST:
+                    seen.add(p)
+                    out += _nginx_tokens(D, p, depth + 1, seen)
+            j += 3
+            continue
+        out.append((toks[j], path))
+        j += 1
+    return out
+
+
+def _d_nginx(D):
+    main = next((p for p in ('/etc/nginx/nginx.conf', '/usr/local/nginx/conf/nginx.conf',
+                             '/usr/local/etc/nginx/nginx.conf') if D.isfile(p)), None)
+    if not main:
+        return
+    toks = _nginx_tokens(D, main, 0, {main})
+    stack = []                  # [{name, dirs: {directive: [args]}, file}]
+    stmt = []
+    for w, f in toks:
+        if w == '{':
+            stack.append({'name': stmt[0] if stmt else '', 'dirs': {}, 'file': f})
+            stmt = []
+        elif w == ';':
+            if stmt and stack:
+                stack[-1]['dirs'].setdefault(stmt[0], []).append(stmt[1:])
+            stmt = []
+        elif w == '}':
+            if not stack:
+                continue
+            blk = stack.pop()
+            if blk['name'] == 'server':
+                def inherited(k):
+                    if blk['dirs'].get(k):
+                        return blk['dirs'][k][-1][:1]
+                    for up in reversed(stack):
+                        if up['dirs'].get(k):
+                            return up['dirs'][k][-1][:1]
+                    return []
+                crt = inherited('ssl_certificate')
+                key = inherited('ssl_certificate_key')
+                listen = [' '.join(a) for a in blk['dirs'].get('listen') or []]
+                if not crt and not any('ssl' in x.split() for x in listen):
+                    continue
+                names = []
+                for a in blk['dirs'].get('server_name') or []:
+                    names += [n for n in a if n not in ('_', '""', '')]
+                files = [('cert', crt[0] if crt else '', 'fullchain-pem'),
+                         ('key', key[0] if key else '', 'key-pem')]
+                D.add('nginx', blk['file'], names, files, listen)
+        else:
+            stmt.append(w)
+        if D.late():
+            break
+
+
+def _apache_lines(D, path, root, depth, seen):
+    """Apache's lines of a file, Include / IncludeOptional put in place: [(line, file)]."""
+    text = D.text(path)
+    if text is None or depth > DISCOVER_DEPTH:
+        return []
+    out, cur = [], ''
+    for raw in text.splitlines():
+        if raw.rstrip().endswith('\\'):
+            cur += raw.rstrip()[:-1] + ' '
+            continue
+        line = (cur + raw).strip()
+        cur = ''
+        if not line or line.startswith('#'):
+            continue
+        m = re.match(r'(?i)include(optional)?\s+"?([^"]+?)"?\s*$', line)
+        if m:
+            pat = m.group(2)
+            if not pat.startswith('/'):
+                pat = root + '/' + pat
+            paths = D.glob(pat, 200)
+            more = []
+            for p in paths:
+                if D.isdir(p):
+                    more += D.glob(p.rstrip('/') + '/*', 200)
+                else:
+                    more.append(p)
+            for p in more:
+                if p not in seen and len(seen) < DISCOVER_CONFS_MOST:
+                    seen.add(p)
+                    out += _apache_lines(D, p, root, depth + 1, seen)
+            continue
+        out.append((line, path))
+    return out
+
+
+def _d_apache(D):
+    for main, root in (('/etc/apache2/apache2.conf', '/etc/apache2'),
+                       ('/etc/httpd/conf/httpd.conf', '/etc/httpd'),
+                       ('/usr/local/apache2/conf/httpd.conf', '/usr/local/apache2')):
+        if not D.isfile(main):
+            continue
+        vh, glob_ = None, {}
+        for line, f in _apache_lines(D, main, root, 0, {main}):
+            words = line.split(None, 1)
+            k = words[0].lower()
+            v = words[1].strip().strip('"') if len(words) > 1 else ''
+            if k == '<virtualhost':
+                vh = {'file': f, 'listen': v.rstrip('>').split(), 'names': [], 'd': {}}
+            elif k == '</virtualhost>':
+                if vh is not None:
+                    d = dict(glob_, **vh['d'])
+                    if d.get('sslcertificatefile'):
+                        chain = d.get('sslcertificatechainfile') or ''
+                        files = [('cert', d['sslcertificatefile'],
+                                  'cert-pem' if chain else 'fullchain-pem'),
+                                 ('key', d.get('sslcertificatekeyfile') or '', 'key-pem')]
+                        if chain:
+                            files.append(('chain', chain, 'chain-pem'))
+                        D.add('apache', vh['file'], vh['names'], files, vh['listen'],
+                              {'unit': D.unit(('apache2',) if root == '/etc/apache2' else
+                                              ('httpd', 'apache2'))})
+                vh = None
+            elif k in ('servername', 'serveralias') and vh is not None:
+                vh['names'] += [n.split(':')[0] for n in v.split()]
+            elif k in ('sslcertificatefile', 'sslcertificatekeyfile', 'sslcertificatechainfile'):
+                if not v.startswith('/'):
+                    v = root + '/' + v
+                (vh['d'] if vh is not None else glob_)[k] = v
+            if D.late():
+                break
+        return
+
+
+def _d_haproxy(D):
+    for main in ('/etc/haproxy/haproxy.cfg', '/usr/local/etc/haproxy/haproxy.cfg'):
+        text = D.text(main) if D.isfile(main) else None
+        if text is None:
+            continue
+        base, section = '', ''
+        for raw in text.splitlines():
+            line = raw.split('#', 1)[0].strip()
+            if not line:
+                continue
+            w = line.split()
+            if w[0] in ('global', 'defaults', 'frontend', 'listen', 'backend'):
+                section = ' '.join(w[:2])
+                continue
+            if w[0] == 'crt-base' and len(w) > 1:
+                base = w[1]
+            if w[0] != 'bind':
+                continue
+            crts = [w[i + 1] for i in range(len(w) - 1) if w[i] == 'crt']
+            for c in crts:
+                p = c if c.startswith('/') else (base.rstrip('/') + '/' + c if base else c)
+                paths = [p]
+                if D.isdir(p):
+                    paths = [x for x in D.glob(p.rstrip('/') + '/*', 50)
+                             if x.endswith(('.pem', '.crt')) and D.isfile(x)]
+                for one in paths:
+                    f = D.cert(one, 'haproxy %s' % one)
+                    names = (f or {}).get('sans') or ([f['cn']] if f and f.get('cn') else [])
+                    D.add('haproxy', main, names, [('combined', one, 'combined-pem')],
+                          [w[1]], {'section': section})
+        return
+
+
+def _kv_conf(text, sep='='):
+    """key = value lines (Postfix's continued lines too) -> {key: value}, the last one."""
+    out, last = {}, None
+    for raw in (text or '').splitlines():
+        if raw[:1] in (' ', '\t') and last and raw.strip() and not raw.strip().startswith('#'):
+            out[last] += ' ' + raw.strip()
+            continue
+        line = raw.strip()
+        if not line or line.startswith(('#', ';')) or sep not in line:
+            last = None
+            continue
+        k, v = line.split(sep, 1)
+        last = k.strip()
+        out[last] = v.strip()
+    return out
+
+
+def _d_postfix(D):
+    text = D.text('/etc/postfix/main.cf') if D.isfile('/etc/postfix/main.cf') else None
+    if text is None:
+        return
+    kv = _kv_conf(text)
+
+    def val(k):
+        v = kv.get(k, '')
+        for _ in range(4):
+            m = re.search(r'\$\{?(\w+)\}?', v)
+            if not m or m.group(1) not in kv:
+                break
+            v = v.replace(m.group(0), kv[m.group(1)])
+        return v.strip()
+    crt, key = val('smtpd_tls_cert_file'), val('smtpd_tls_key_file')
+    files = []
+    chain = [x for x in re.split(r'[\s,]+', val('smtpd_tls_chain_files')) if x]
+    if chain:
+        files = [('combined', p, 'combined-pem') for p in chain[:2]]
+    elif crt:
+        files = [('cert', crt, 'fullchain-pem'), ('key', key, 'key-pem')]
+    if files:
+        D.add('postfix', '/etc/postfix/main.cf', [val('myhostname')] if val('myhostname') else
+              [], files, [])
+
+
+def _dovecot_lines(D, path, depth, seen):
+    text = D.text(path)
+    if text is None or depth > DISCOVER_DEPTH:
+        return []
+    out = []
+    for raw in text.splitlines():
+        line = raw.split('#', 1)[0].strip()
+        m = re.match(r'!include(_try)?\s+(\S+)', line)
+        if m:
+            pat = m.group(2)
+            if not pat.startswith('/'):
+                pat = os.path.dirname(path) + '/' + pat
+            for p in D.glob(pat, 100):
+                if p not in seen:
+                    seen.add(p)
+                    out += _dovecot_lines(D, p, depth + 1, seen)
+            continue
+        if line:
+            out.append((line, path))
+    return out
+
+
+def _d_dovecot(D):
+    main = '/etc/dovecot/dovecot.conf'
+    if not D.isfile(main):
+        return
+    top, blocks, stack = {}, [], []
+    for line, f in _dovecot_lines(D, main, 0, {main}):
+        if line.endswith('{'):
+            stack.append({'head': line[:-1].strip(), 'd': {}, 'file': f})
+            continue
+        if line == '}':
+            if stack:
+                b = stack.pop()
+                if b['head'].startswith('local_name') and b['d'].get('ssl_cert'):
+                    blocks.append(b)
+            continue
+        if '=' in line:
+            k, v = [x.strip() for x in line.split('=', 1)]
+            if k in ('ssl_cert', 'ssl_key'):
+                (stack[-1]['d'] if stack else top)[k] = (v[1:] if v.startswith('<') else v,
+                                                         f)
+    if top.get('ssl_cert'):
+        D.add('dovecot', top['ssl_cert'][1], [], [
+            ('cert', top['ssl_cert'][0], 'fullchain-pem'),
+            ('key', (top.get('ssl_key') or ('', ''))[0], 'key-pem')], [])
+    for b in blocks:
+        D.add('dovecot', b['file'], b['head'].split()[1:], [
+            ('cert', b['d']['ssl_cert'][0], 'fullchain-pem'),
+            ('key', (b['d'].get('ssl_key') or ('', ''))[0], 'key-pem')], [])
+
+
+def _d_exim(D):
+    files = ['/etc/exim4/exim4.conf.template', '/etc/exim4/exim4.conf.localmacros',
+             '/etc/exim4/exim4.conf', '/etc/exim/exim.conf'] + D.glob('/etc/exim4/conf.d/main/*')
+    crt = key = None
+    enable, where = False, ''
+    for p in files:
+        text = D.text(p) if D.isfile(p) else None
+        if text is None:
+            continue
+        for raw in text.splitlines():
+            line = raw.strip()
+            if line.startswith('#'):
+                continue
+            m = re.match(r'(tls_certificate|MAIN_TLS_CERTIFICATE|tls_privatekey|'
+                         r'MAIN_TLS_PRIVATEKEY|MAIN_TLS_ENABLE)\s*=\s*(\S+)', line)
+            if not m:
+                continue
+            k, v = m.group(1), m.group(2)
+            if k == 'MAIN_TLS_ENABLE':
+                enable = v.lower() in ('yes', 'true', '1')
+                where = where or p
+            elif v.startswith('/'):
+                if 'CERTIFICATE' in k.upper():
+                    crt, where = v, p
+                else:
+                    key = v
+    if not crt and enable and D.isfile('/etc/exim4/exim.crt'):
+        crt, key = '/etc/exim4/exim.crt', '/etc/exim4/exim.key'
+    if crt:
+        D.add('exim', where, [], [('cert', crt, 'fullchain-pem'), ('key', key or '', 'key-pem')],
+              [])
+
+
+def _d_tomcat(D):
+    import xml.etree.ElementTree as ET
+    seen = set()
+    for conf in (D.glob('/etc/tomcat*/server.xml') + D.glob('/opt/tomcat*/conf/server.xml') +
+                 D.glob('/usr/share/tomcat*/conf/server.xml') +
+                 D.glob('/var/lib/tomcat*/conf/server.xml'))[:12]:
+        real = os.path.realpath(D.path(conf))
+        if real in seen:
+            continue
+        seen.add(real)
+        text = D.text(conf)
+        if not text or '<!ENTITY' in text:
+            continue                                    # no entities: nothing expanded
+        try:
+            root = ET.fromstring(text)
+        except ET.ParseError:
+            continue
+        base = os.path.dirname(os.path.dirname(conf)) if conf.endswith('/conf/server.xml') \
+            else os.path.dirname(conf).replace('/etc/', '/usr/share/', 1)
+        m = re.search(r'tomcat(\d*)', conf)
+        unit = D.unit(('tomcat%s' % (m.group(1) if m else ''), 'tomcat'))
+
+        def path_of(v):
+            v = str(v or '').replace('${catalina.base}', base).replace('${catalina.home}', base)
+            if v and not v.startswith('/'):
+                v = base + '/' + v
+            return v
+        for c in root.iter('Connector'):
+            if str(c.get('SSLEnabled') or '').lower() != 'true' and c.get('scheme') != 'https':
+                continue
+            hosts = list(c.iter('SSLHostConfig')) or [None]
+            for h in hosts:
+                names = [h.get('hostName')] if h is not None and h.get('hostName') and \
+                    h.get('hostName') != '_default_' else []
+                certs = list(h.iter('Certificate')) if h is not None else []
+                files = []
+                for ce in certs or [c]:
+                    ks = ce.get('certificateKeystoreFile') or ce.get('keystoreFile')
+                    if ks:
+                        t = str(ce.get('certificateKeystoreType') or ce.get('keystoreType') or
+                                'JKS').upper()
+                        files.append(('keystore', path_of(ks),
+                                      'pfx' if t in ('PKCS12', 'P12') else 'jks'))
+                    elif ce.get('certificateFile'):
+                        chain = ce.get('certificateChainFile')
+                        files.append(('cert', path_of(ce.get('certificateFile')),
+                                      'cert-pem' if chain else 'fullchain-pem'))
+                        files.append(('key', path_of(ce.get('certificateKeyFile') or ''),
+                                      'key-pem'))
+                        if chain:
+                            files.append(('chain', path_of(chain), 'chain-pem'))
+                if files:
+                    D.add('tomcat', conf, names, files, [str(c.get('port') or '')],
+                          {'unit': unit, 'port': int(c.get('port') or 8443)
+                           if str(c.get('port') or '').isdigit() else 8443})
+
+
+def _d_proxmox(D):
+    if not D.isdir('/etc/pve'):
+        return
+    own = '/etc/pve/local/pveproxy-ssl.pem'
+    if D.isfile(own):
+        D.add('proxmox', own, [], [('cert', own, 'fullchain-pem'),
+                                   ('key', '/etc/pve/local/pveproxy-ssl.key', 'key-pem')], [])
+    else:
+        f = D.cert('/etc/pve/local/pve-ssl.pem', 'proxmox /etc/pve/local/pve-ssl.pem')
+        D.add('proxmox', '/etc/pve/local', [], [
+            ('cert', own, 'fullchain-pem'),
+            ('key', '/etc/pve/local/pveproxy-ssl.key', 'key-pem')], [],
+            {'note': 'only the certificate Proxmox made (pve-ssl.pem) - a certificate of acme '
+                     'goes to pveproxy-ssl.pem', 'default_cert': f})
+
+
+def _d_pbs(D):
+    if D.isfile('/etc/proxmox-backup/proxy.pem'):
+        D.add('pbs', '/etc/proxmox-backup', [], [
+            ('cert', '/etc/proxmox-backup/proxy.pem', 'fullchain-pem'),
+            ('key', '/etc/proxmox-backup/proxy.key', 'key-pem')], [])
+
+
+def _d_openldap(D):
+    for p in ('/etc/ldap/slapd.d/cn=config.ldif', '/etc/openldap/slapd.d/cn=config.ldif',
+              '/etc/openldap/slapd.conf', '/etc/ldap/slapd.conf'):
+        text = D.text(p) if D.isfile(p) else None
+        if not text:
+            continue
+        crt = re.search(r'(?im)^\s*(?:olc)?TLSCertificateFile:?\s+(\S+)', text)
+        key = re.search(r'(?im)^\s*(?:olc)?TLSCertificateKeyFile:?\s+(\S+)', text)
+        if crt:
+            D.add('openldap', p, [], [('cert', crt.group(1), 'cert-pem'),
+                                      ('key', key.group(1) if key else '', 'key-pem')], [])
+            return
+
+
+def _ini(text):
+    """[section] key = value -> {section: {key: value}}."""
+    out, sec = {}, ''
+    for raw in (text or '').splitlines():
+        line = raw.strip()
+        if not line or line[0] in '#;':
+            continue
+        m = re.match(r'\[([^\]]+)\]', line)
+        if m:
+            sec = m.group(1).strip().lower()
+            continue
+        if '=' in line:
+            k, v = line.split('=', 1)
+            out.setdefault(sec, {})[k.strip().lower().replace('-', '_')] = v.strip().strip('"')
+    return out
+
+
+def _d_grafana(D):
+    p = '/etc/grafana/grafana.ini'
+    s = _ini(D.text(p) if D.isfile(p) else '').get('server') or {}
+    if s.get('cert_file'):
+        D.add('grafana', p, [s.get('domain')] if s.get('domain') else [], [
+            ('cert', s['cert_file'], 'fullchain-pem'), ('key', s.get('cert_key') or '',
+                                                         'key-pem')], [],
+              {'port': int(s['http_port']) if str(s.get('http_port') or '').isdigit() else 3000})
+
+
+def _d_cockpit(D):
+    certs = [p for p in D.glob('/etc/cockpit/ws-certs.d/*') if p.endswith(('.cert', '.crt'))]
+    if certs:
+        p = certs[-1]                                   # cockpit takes the last one
+        D.add('cockpit', '/etc/cockpit/ws-certs.d', [], [
+            ('cert', p, 'fullchain-pem'), ('key', p.rsplit('.', 1)[0] + '.key', 'key-pem')], [])
+
+
+def _d_webmin(D):
+    p = '/etc/webmin/miniserv.conf'
+    kv = _kv_conf(D.text(p) if D.isfile(p) else '')
+    if kv.get('keyfile'):
+        files = [('combined', kv['keyfile'], 'combined-pem')] if not kv.get('certfile') else \
+            [('cert', kv['certfile'], 'fullchain-pem'), ('key', kv['keyfile'], 'key-pem')]
+        if kv.get('extracas'):
+            files.append(('chain', kv['extracas'], 'chain-pem'))
+        D.add('webmin', p, [], files, [kv.get('port') or ''])
+
+
+def _d_vsftpd(D):
+    for p in ('/etc/vsftpd.conf', '/etc/vsftpd/vsftpd.conf'):
+        kv = _kv_conf(D.text(p) if D.isfile(p) else '')
+        if kv.get('rsa_cert_file'):
+            key = kv.get('rsa_private_key_file') or ''
+            files = [('combined', kv['rsa_cert_file'], 'combined-pem')] if not key or \
+                key == kv['rsa_cert_file'] else [('cert', kv['rsa_cert_file'], 'fullchain-pem'),
+                                                  ('key', key, 'key-pem')]
+            D.add('vsftpd', p, [], files, [])
+            return
+
+
+def _d_mariadb(D):
+    confs = []
+    for main in ('/etc/mysql/my.cnf', '/etc/my.cnf'):
+        if D.isfile(main):
+            confs.append(main)
+            text = D.text(main) or ''
+            for m in re.finditer(r'(?m)^\s*!includedir\s+(\S+)', text):
+                confs += D.glob(m.group(1).rstrip('/') + '/*.cnf', 50)
+            for m in re.finditer(r'(?m)^\s*!include\s+(\S+)', text):
+                confs.append(m.group(1))
+    confs += D.glob('/etc/mysql/mariadb.conf.d/*.cnf', 50) + D.glob('/etc/my.cnf.d/*.cnf', 50)
+    found, where = {}, ''
+    for p in dict.fromkeys(confs):
+        ini = _ini(D.text(p) if D.isfile(p) else '')
+        for sec in ('mysqld', 'mariadb', 'server', 'mariadbd'):
+            for k in ('ssl_cert', 'ssl_key', 'ssl_ca'):
+                if (ini.get(sec) or {}).get(k):
+                    found[k] = ini[sec][k]
+                    where = p
+    if found.get('ssl_cert'):
+        files = [('cert', found['ssl_cert'], 'fullchain-pem'),
+                 ('key', found.get('ssl_key') or '', 'key-pem')]
+        D.add('mariadb', where, [], files, [])
+
+
+def _d_files(D):
+    """Certificate files in the folders the policy allows (allow file) - read for their facts
+    only (a key's file never: only .crt .pem .cer .cert, and only its certificate)."""
+    left = 300
+    for rule in (D.pol.get('files') or [])[:40]:
+        top = rule['dir']
+        for dirpath, dirs, names in os.walk(D.path(top)):
+            depth = D.back(dirpath)[len(top):].count('/')
+            if depth >= 3:
+                dirs[:] = []
+            dirs.sort()
+            for n in sorted(names):
+                if not n.lower().endswith(CERT_EXT) or left <= 0 or D.late():
+                    continue
+                p = D.back(os.path.join(dirpath, n))
+                left -= 1
+                f = D.cert(p, 'files %s' % p)
+                if f:
+                    D.add('files', top, f.get('sans') or ([f['cn']] if f.get('cn') else []), [
+                        ('cert', p, 'fullchain-pem' if (f.get('in_file') or 1) > 1 else
+                         'cert-pem')], [], {'dir': top})
+            if left <= 0 or D.late():
+                break
+
+
+DISCOVER_LINUX_FN = {'nginx': _d_nginx, 'apache': _d_apache, 'haproxy': _d_haproxy,
+                     'postfix': _d_postfix, 'dovecot': _d_dovecot, 'exim': _d_exim,
+                     'tomcat': _d_tomcat, 'proxmox': _d_proxmox, 'pbs': _d_pbs,
+                     'openldap': _d_openldap, 'grafana': _d_grafana, 'cockpit': _d_cockpit,
+                     'webmin': _d_webmin, 'vsftpd': _d_vsftpd, 'mariadb': _d_mariadb,
+                     'files': _d_files}
+
+
+def discover_linux(pol, kinds):
+    """The services of this Linux machine of `kinds`, read-only."""
+    D = _Disc(pol)
+    for k in kinds:
+        if D.late():
+            D.skipped.append({'kind': k, 'why': 'the discovery took %d s already' % DISCOVER_S})
+            continue
+        try:
+            DISCOVER_LINUX_FN[k](D)
+        except Exception as e:                          # noqa: BLE001
+            D.skipped.append({'kind': k, 'why': 'it could not be read: %s' % _dtext(e, 200)})
+    certs = sorted(D.certs.values(), key=lambda c: (c.get('not_after') or 0))
+    return {'found': D.found, 'certs': certs, 'skipped': D.skipped}
+
+
+def discover_words(got):
+    n, c = len(got.get('found') or []), len(got.get('certs') or [])
+    return '%d service%s found, %d certificate%s' % (n, '' if n == 1 else 's', c,
+                                                    '' if c == 1 else 's')
+
+
+def cmd_discover(argv):
+    """`acme-agent discover [--kind K[,K]] [--json]`: what a discovery of acme finds here - run
+    by the administrator who types it (as root; no policy asked: read-only, every kind)."""
+    as_json = '--json' in argv
+    argv = [a for a in argv if a != '--json']
+    kinds = []
+    if argv[:1] == ['--kind'] and len(argv) == 2:
+        kinds = discover_asked({'kinds': argv[1]})
+    elif argv:
+        raise SystemExit('acme-agent discover [--kind %s] [--json]' % ','.join(discover_kinds()))
+    try:
+        pol = dict(policy_load()[0])
+    except Exception:                                   # noqa: BLE001
+        pol = parse_policy('')
+    try:
+        got = discover_run(pol, kinds or list(discover_kinds()))
+    except Refused as e:
+        raise SystemExit('acme-agent: %s' % e)
+    if as_json:
+        print(json.dumps(got, indent=1, sort_keys=True))
+        return 0
+    for f in got['found']:
+        print('%-10s %s%s' % (f['kind'], f.get('config') or '', (' (%s)' % f['unit'])
+                              if f.get('unit') else ''))
+        if f.get('names'):
+            print('    names    %s' % ', '.join(f['names'][:8]))
+        for x in f.get('files') or []:
+            print('    %-8s %s%s' % (x['role'], x['path'], '' if x.get('there') else
+                                     '   (not there)'))
+        c = f.get('cert') or {}
+        if c:
+            left = (c['not_after'] - time.time()) / 86400 if c.get('not_after') else None
+            print('    cert     %s - %s%s' % (c.get('cn') or c.get('subject'), c.get('issuer'),
+                                             (', %d days left' % left) if left is not None else
+                                             ''))
+        for b in f.get('bindings') or []:
+            print('    binding  %s:%s %s %s' % (b.get('ip') or '*', b.get('port'),
+                                               b.get('host') or '', b.get('thumb') or ''))
+        if f.get('reload'):
+            print('    reload   %s' % f['reload'])
+    for s in got.get('skipped') or []:
+        print('! %s: %s' % (s['kind'], s['why']))
+    print('# %s; acme may ask it: %s' % (discover_words(got), discover_line(
+        discover_allowed(pol)) if discover_allowed(pol) else 'not allowed (acme-agent allow '
+                                                              'discover)'))
+    return 0
 
 
 class Deploy(object):
@@ -4472,6 +5475,29 @@ def policy_edit(add, words):
             if len(out) == len(lines):
                 raise SystemExit('acme-agent: no such entry in the policy: script %s' % path)
             said = 'taken away: script %s' % path
+    elif line.startswith('allow discover'):
+        # 1.0.125: one line - the kinds added to (or taken from) the ones it allows
+        have, keep = [], []
+        for x in lines:
+            e = entry(x)
+            if e and e.get('discover'):
+                have = discover_entry(have, [','.join(e['discover'])]) if have != ['*'] else have
+            else:
+                keep.append(x)
+        asked = probe['discover']
+        if add:
+            now = ['*'] if '*' in asked or '*' in have else discover_entry(have, [','.join(asked)])
+        elif '*' in asked:
+            now = []
+        elif '*' in have:
+            now = [k for k in discover_kinds() if k not in asked]
+        else:
+            now = [k for k in have if k not in asked]
+        if not add and now == have:
+            raise SystemExit('acme-agent: no such entry in the policy: %s' % discover_line(asked))
+        out = keep + ([discover_line(now)] if now else [])
+        said = ('allowed: %s' % discover_line(now)) if add else (
+            ('now: %s' % discover_line(now)) if now else 'taken away: discover')
     elif line.startswith('limit '):
         k = line.split()[1]
         out = [x for x in lines if not (x.strip().startswith('limit %s ' % k))]
@@ -4502,7 +5528,7 @@ def policy_words(words):
     """The words of `allow ...` as a line of the policy (paths made real, a script pinned)."""
     if not words:
         raise SystemExit('acme-agent allow file|unit|test|script|script-hash|from|probe|connect|'
-                         'self-update')
+                         'self-update|discover')
     what, rest = words[0], words[1:]
     if what == 'file':
         if not rest:
@@ -4554,8 +5580,13 @@ def policy_words(words):
         return 'allow probe %s' % (rest[0] if rest else '')
     if what == 'limit':
         return 'limit %s' % ' '.join(rest)
+    if what == 'discover':
+        if len(rest) > 1:
+            raise SystemExit('acme-agent allow discover [KIND,KIND] (%s)' % ','.join(
+                discover_kinds()))
+        return 'allow discover%s' % ((' ' + rest[0]) if rest else '')
     raise SystemExit('acme-agent allow file|unit|test|script|script-hash|from|probe|connect|'
-                     'self-update')
+                     'self-update|discover')
 
 
 def cmd_policy(argv):
@@ -4691,6 +5722,9 @@ def main(argv):
         return 0
     if cmd == 'adcs':
         raise SystemExit('acme-agent: a Microsoft CA is listed only by acme-agent on Windows')
+    if cmd == 'discover':
+        need_root('acme-agent discover reads the services\' configurations: run it as root')
+        return cmd_discover(rest)
     print(__doc__)
     return 2
 

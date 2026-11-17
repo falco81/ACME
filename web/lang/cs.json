@@ -68947,6 +68947,114 @@
   "z_1075": {
    "source": "AD CS",
    "text": "AD CS"
+  },
+  "z_1076": {
+   "source": "Timeline",
+   "text": "Průběh"
+  },
+  "z_1077": {
+   "source": "Waiting for you",
+   "text": "Čeká na vás"
+  },
+  "z_1078": {
+   "source": "a team made on the portal is under one of your teams - say which (parent)",
+   "text": "tým založený na portálu je pod některým z vašich týmů - řekněte kterým (parent)"
+  },
+  "z_1079": {
+   "source": "agents confirmed by themselves are allowed by the administrators only",
+   "text": "samočinně potvrzované agenty povolují jen správci"
+  },
+  "z_1080": {
+   "source": "expiring",
+   "text": "končí"
+  },
+  "z_1081": {
+   "source": "its agents are confirmed by a person - only the administrators allow them to be confirmed by themselves (agents_auto_confirm)",
+   "text": "jeho agenty potvrzuje člověk - samočinné potvrzování povolují jen správci (agents_auto_confirm)"
+  },
+  "z_1082": {
+   "source": "looking people up in the directory is for those who manage a team's members",
+   "text": "hledání v adresáři je pro ty, kdo spravují členy týmu"
+  },
+  "z_1083": {
+   "source": "members are changed one by one (member_save)",
+   "text": "členové se mění po jednom (member_save)"
+  },
+  "z_1084": {
+   "source": "mine",
+   "text": "moje"
+  },
+  "z_1085": {
+   "source": "no directory is set up - type local:NAME, a user's name or group:NAME",
+   "text": "adresář není nastaven - napište local:JMÉNO, jméno uživatele nebo group:JMÉNO"
+  },
+  "z_1086": {
+   "source": "nothing changed",
+   "text": "nic se nezměnilo"
+  },
+  "z_1087": {
+   "source": "only the administrators put a team at the top",
+   "text": "tým nahoru dávají jen správci"
+  },
+  "z_1088": {
+   "source": "refused - the device is deleted",
+   "text": "odmítnuto - zařízení je smazáno"
+  },
+  "z_1089": {
+   "source": "taken already",
+   "text": "už vzat"
+  },
+  "z_1090": {
+   "source": "the certificate is gone - nothing to do",
+   "text": "certifikát už není - není co dělat"
+  },
+  "z_1091": {
+   "source": "the certificates and devices go to a team that stays",
+   "text": "certifikáty a zařízení přejdou na tým, který zůstává"
+  },
+  "z_1092": {
+   "source": "the device is gone - nothing to do",
+   "text": "zařízení už není - není co dělat"
+  },
+  "z_1093": {
+   "source": "the device needs a name",
+   "text": "zařízení potřebuje název"
+  },
+  "z_1094": {
+   "source": "the team approved it - now an approver of the team above it",
+   "text": "tým ho schválil - teď schvalovatel nadřízeného týmu"
+  },
+  "z_1095": {
+   "source": "there is no such certificate of your teams",
+   "text": "vaše týmy takový certifikát nemají"
+  },
+  "z_1096": {
+   "source": "there is no such deployment of your teams",
+   "text": "vaše týmy takové nasazení nemají"
+  },
+  "z_1097": {
+   "source": "there is no such device of your teams",
+   "text": "vaše týmy takové zařízení nemají"
+  },
+  "z_1098": {
+   "source": "there is no such enrollment code of your teams",
+   "text": "vaše týmy takový registrační kód nemají"
+  },
+  "z_1099": {
+   "source": "which deployment? (its id)",
+   "text": "které nasazení? (jeho id)"
+  },
+  "z_1100": {
+   "source": "which device? (its id)",
+   "text": "které zařízení? (jeho id)"
+  },
+  "z_1101": {
+   "source": "which module (kind)?",
+   "text": "jaký modul (druh)?"
+  },
+  "z_1102": {
+   "source": "which team?",
+   "text": "který tým?"
   }
  },
  "patterns": {
@@ -95937,6 +96045,170 @@
   "pz_351": {
    "source": "the agent of {0} has not joined yet - make a join code on the target's card",
    "text": "agent cíle {0} se ještě nepřipojil - vytvořte připojovací kód na kartě cíle"
+  },
+  "pz_352": {
+   "source": "a job is working on {0} - approve it again when it ends",
+   "text": "na {0} běží úloha - schvalte znovu, až skončí"
+  },
+  "pz_353": {
+   "source": "a job is working on {0}: wait for it to end",
+   "text": "na {0} běží úloha: počkejte, až skončí"
+  },
+  "pz_354": {
+   "source": "approved - the device {0} is deleted",
+   "text": "schváleno - zařízení {0} je smazáno"
+  },
+  "pz_355": {
+   "source": "approved - {0} is being revoked",
+   "text": "schváleno - {0} se odvolává"
+  },
+  "pz_356": {
+   "source": "approved - {0} is deleted",
+   "text": "schváleno - {0} je smazán"
+  },
+  "pz_357": {
+   "source": "approved - {0} may take the key now",
+   "text": "schváleno - {0} si teď může klíč vzít"
+  },
+  "pz_358": {
+   "source": "approved, but it could not be done: {0}",
+   "text": "schváleno, ale nešlo to provést: {0}"
+  },
+  "pz_359": {
+   "source": "declined - {0} is told",
+   "text": "zamítnuto - {0} se to dozví"
+  },
+  "pz_360": {
+   "source": "deleting {0} waits for an approval of the team {1} first",
+   "text": "smazání {0} nejdřív čeká na schválení týmem {1}"
+  },
+  "pz_361": {
+   "source": "no agent waits to be confirmed on {0}",
+   "text": "na {0} nečeká žádný agent na potvrzení"
+  },
+  "pz_362": {
+   "source": "the deployment of {0} to {1} is saved",
+   "text": "nasazení {0} na {1} je uloženo"
+  },
+  "pz_363": {
+   "source": "the device goes through {0}, which is not a connector of the team {1}",
+   "text": "zařízení vede přes {0}, což není konektor týmu {1}"
+  },
+  "pz_364": {
+   "source": "the key of {0} is {1} - not approved (yet)",
+   "text": "klíč {0} je {1} - (zatím) neschválen"
+  },
+  "pz_365": {
+   "source": "the limits of {0} would be wider than those of {1}: {2}",
+   "text": "omezení {0} by byla širší než omezení {1}: {2}"
+  },
+  "pz_366": {
+   "source": "the members of {0} are saved",
+   "text": "členové {0} jsou uloženi"
+  },
+  "pz_367": {
+   "source": "the module {0} is not made on the portal - it works on acme's own server (an administrator adds it)",
+   "text": "modul {0} se na portálu nezakládá - pracuje přímo na serveru acme (přidá ho správce)"
+  },
+  "pz_368": {
+   "source": "the state is one of {0}",
+   "text": "stav je jeden z {0}"
+  },
+  "pz_369": {
+   "source": "the team {0} is at the top - the administrators change it",
+   "text": "tým {0} je nahoře - mění ho správci"
+  },
+  "pz_370": {
+   "source": "the team {0} is at the top - the administrators delete it",
+   "text": "tým {0} je nahoře - mažou ho správci"
+  },
+  "pz_371": {
+   "source": "the team {0} is deleted",
+   "text": "tým {0} je smazán"
+  },
+  "pz_372": {
+   "source": "the team {0} is saved",
+   "text": "tým {0} je uložen"
+  },
+  "pz_373": {
+   "source": "there is no device {0} of your teams",
+   "text": "vaše týmy nemají zařízení {0}"
+  },
+  "pz_374": {
+   "source": "there is no such approval of yours for the key of {0}",
+   "text": "pro klíč {0} nemáte takové schválení"
+  },
+  "pz_375": {
+   "source": "there is no team {0} of yours",
+   "text": "nemáte tým {0}"
+  },
+  "pz_376": {
+   "source": "you do not add yourself (or a group of yours) to the team {0} - ask another manager",
+   "text": "sebe (ani svou skupinu) do týmu {0} nepřidáváte - požádejte jiného vedoucího"
+  },
+  "pz_377": {
+   "source": "you do not give your own membership of the team {0} to another",
+   "text": "své členství v týmu {0} nepředáváte jinému"
+  },
+  "pz_378": {
+   "source": "you do not lengthen your own membership of the team {0}",
+   "text": "své členství v týmu {0} neprodlužujete"
+  },
+  "pz_379": {
+   "source": "you do not raise your own membership ({0}) on the team {1}",
+   "text": "své členství v týmu {1} nezvyšujete ({0})"
+  },
+  "pz_380": {
+   "source": "you give only what you hold on the team {0} yourself - not {1}",
+   "text": "dáváte jen to, co v týmu {0} máte sami - ne {1}"
+  },
+  "pz_381": {
+   "source": "you may not do that with {0} - its team does not give you \"{1}\" ({2})",
+   "text": "s {0} to nesmíte - jeho tým vám nedává „{1}“ ({2})"
+  },
+  "pz_382": {
+   "source": "you may not {0} - that needs \"{1}\" on the team {2} above it",
+   "text": "nesmíte {0} - to potřebuje „{1}“ v nadřízeném týmu {2}"
+  },
+  "pz_383": {
+   "source": "you may not {0} in the team {1} - it does not give you \"{2}\" ({3})",
+   "text": "v týmu {1} nesmíte {0} - nedává vám „{2}“ ({3})"
+  },
+  "pz_384": {
+   "source": "your approval is recorded - it waits for {0} more",
+   "text": "vaše schválení je zaznamenáno - čeká ještě na {0}"
+  },
+  "pz_385": {
+   "source": "{0} holds more on the team {1} than you do ({2}) - you do not change their membership",
+   "text": "{0} má v týmu {1} víc než vy ({2}) - jeho členství neměníte"
+  },
+  "pz_386": {
+   "source": "{0} is a member already",
+   "text": "{0} už je členem"
+  },
+  "pz_387": {
+   "source": "{0} is no longer a member of {1}",
+   "text": "{0} už není členem {1}"
+  },
+  "pz_388": {
+   "source": "{0} is not a device of your teams - a team deploys to its own devices",
+   "text": "{0} není zařízení vašich týmů - tým nasazuje na svá zařízení"
+  },
+  "pz_389": {
+   "source": "{0} is not a device with acme-agent",
+   "text": "{0} není zařízení s acme-agentem"
+  },
+  "pz_390": {
+   "source": "{0} is not a member of {1}",
+   "text": "{0} není členem {1}"
+  },
+  "pz_391": {
+   "source": "{0} keeps secrets: type them again when you change its other settings (they would go to the new place)",
+   "text": "{0} uchovává tajné údaje: při změně ostatních nastavení je zadejte znovu (odešly by na nové místo)"
+  },
+  "pz_392": {
+   "source": "{0}: it waits for an approval of the team {1} first",
+   "text": "{0}: nejdřív čeká na schválení týmem {1}"
   }
  },
  "rich": {

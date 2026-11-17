@@ -250,7 +250,78 @@ Relayed by `web/index.php` (`?api=…`) with the person's portal session:
 | `csr-decode` → `POST /api/portal/csr_decode` | `{profile, csr \| csr_b64}` → the CSR decoded and checked against the profile |
 | `cert-csr` → `POST /api/portal/cert_csr` | `{id, csr \| csr_b64}` → a new CSR for one issued for a CSR (right *manage*), issued again |
 
+`certs` takes optional arguments (1.0.125): `team` (a team's name, `me` their own), `below=1`
+(the teams below it too), `q` (text in the name, the names, the owner, the source), `state` (a
+certificate's state or `expiring` / `failing` / `waiting` / `mine`), `page`, `per` (50, at most
+200) - then one page is answered with `total, page, per, pages`. Without them the answer is as
+before. Every row also carries `caps`: the capabilities the person holds on it.
+
+## Teams - the team workspace (1.0.125)
+
+A person who is a member of a team (Settings → Owners and teams, [teams.md](teams.md)
+"Enterprise teams") works for it on the portal - and for every team below it. What they may
+do is decided by their **capabilities** on that team (their memberships by name, `local:NAME`
+or a directory group, their roles and old rights, inherited downwards) and limited by the
+team's **limits** (its policy, narrowed by every team above). A refusal is `403` in words
+naming what was missing, and an event `<who> was refused on the portal: ...`.
+
+A person in **no team** sees exactly the portal as before: `GET teams` answers no teams and
+every route below refuses them.
+
+The existing actions map to capabilities: *Renew now* - `cert.renew`, renewed by itself on/off
+- `cert.auto`, *Revoke* - `cert.revoke`, a PFX with the key - `cert.key` (and the team's
+`key_download`), *Approve* / *Decline* - `cert.approve` (with the approval rule of the team:
+the team's lead and/or the team above it, two approvers, never one's own unless `self`), new:
+*Delete* - `cert.delete` (`POST /api/portal/cert_delete {id}`, not revoked). The old right
+`manage` holds every one of them (and approves, as it did). Where the team's policy lists an
+action in `approve_actions` (revoke, delete, key, device), it is **asked for** instead: the
+answer is `{waits: true, action: {...}}`, the team's approvers find it under *Waiting for you*
+and approve it (`action_approve`) - a revocation or deletion is then done, a key is then taken
+once with the approval's id (`cert_download {..., action: ID}`).
+
+| route (`?api=`) | needs | what |
+|---|---|---|
+| `teams` → `GET teams` | - | the person's teams (with those below): kind, parent, description, `caps`, `direct`, `policy` (in force, with `from`), `own_policy`, `counts` (certs, expiring in 30 days, failing, devices, agents waiting, waiting for them), `children` |
+| `inbox` → `GET inbox` | - | *Waiting for you*: `requests` (each with its `timeline`), `actions`; and what they asked for (`asked`, `asked_actions`) |
+| `timeline&id=` → `GET timeline` | sees it | a request's timeline: asked, each approval / decline, let through, issued |
+| `action-approve` → `POST action_approve` | an approver of the team | `{id, ok, why}` (why needed to decline) |
+| `devices&team=` → `GET devices` | `target.view` | the team's devices (`below=1` those below too); each secret `''`, `secrets: {key: set?}` |
+| `device&id=` → `GET device` | `target.view` | one device, its agent (state, server facts), the deployments to it |
+| `kinds&team=` → `GET kinds` | `target.view` | the modules the team may use (policy `target_kinds`, `agents`; never `local`) with the fields the administration's form draws |
+| `device-save` → `POST device_save` | `target.manage` | `{id?, team, name, kind, config, note, enabled, tags}` - the module's own checks (`api.family_save`), owned by the team; a device keeping secrets is not pointed elsewhere without typing them again |
+| `device-delete` → `POST device_delete` | `target.manage` | refused (409) while deployments use it |
+| `device-test` → `POST device_test` | `target.test` | the module's test, as saved |
+| `agent-code` → `POST agent_code` | `target.manage` | a one-time join code of a team's agent target |
+| `enroll-code` → `POST enroll_code` | `target.manage` | a team enrollment code (`ACAE1.`): servers enrolling with it become the team's devices, waiting; `auto` only where the team's limits say `agents_auto_confirm` |
+| `enroll-revoke` → `POST enroll_revoke` | `target.manage` | `{id}` |
+| `agents-waiting&team=` → `GET agents_waiting` | `target.view` | agents asking to join, the team's enrollment codes |
+| `agent-confirm` / `agent-refuse` → `POST agent_confirm` / `agent_refuse` | `target.manage` | `{id, fp}` / `{id}` - refused: forgotten, a device an enrollment made for it (never joined, unused) deleted |
+| `agent&id=` / `agent-builder&id=` → `GET agent` / `agent_builder` | `target.view` | the agent's state and its server's facts; the policy designer's data |
+| `agent-design` / `agent-update` → `POST agent_design` / `agent_update` | `target.manage` | a design saved (documentation only), the agent updated (as the administration) |
+| `deploys&team=` → `GET deploys` | `deploy.view` | the deployments of the team's certificates |
+| `deploy-save` → `POST deploy_save` | `deploy.manage` | `{id?, cert_id, target, options, enabled, note}` - a certificate of the team to a device of the team (or one above/below it), a module its limits allow; checked as a certificate administrator's (commands, scripts and where the key goes stay a full administrator's) |
+| `deploy-delete` / `deploy-run` → `POST` | `deploy.manage` / `deploy.run` | `{id}` |
+| `deploy-dry-run` → `POST deploy_dry_run` | `deploy.view` (`test`: `deploy.run`) | `{id}` What happens (the run plan, nothing contacted); `{id, test: 1}` the module's own test on the device |
+| `members&team=` → `GET members` | `team.members` | the members (caps, expired, `me`, `may_change`), those of the teams above, the roles and rights with `givable` |
+| `member-save` / `member-delete` → `POST` | `team.members` | `{team, who, roles[], rights[], until, note}` / `{team, who}` |
+| `dir-search&q=&kind=` → `GET dir_search` | `team.members` somewhere | users / groups of the directory, 20 at most |
+| `team-save` → `POST team_save` | `team.create` / `team.policy` on the team above | `{name, parent, kind, description, policy}` a team below one of theirs; `{old_name, ...}` renamed, moved, its limits |
+| `team-delete` → `POST team_delete` | `team.create` on the team above | `{name, reparent?, reassign?}` (both default to the team above) |
+| `activity&team=&page=` → `GET activity` | `team.activity` | what happened in the team (50 a page, `below=1`) |
+
+**No escalation.** A member is given only roles and rights whose capabilities the giver holds
+on that team; a member holding more than the giver is neither changed nor removed; nobody adds
+themselves (or a group of theirs), raises or lengthens their own membership; the teams above
+are never touched. A team's own limits are changed by those who hold `team.policy` on the team
+**above** it - never their own team's - and never wider than those in force above (a wider
+list, a larger number, true where above says false, a weaker approval, `agents_auto_confirm`
+which only administrators allow): refused in words.
+
+The relay (`web/index.php`) passes each GET's own arguments only (200 characters each) and
+POST bodies of 256 KB at most.
+
 The code: `acmelib/certs/portal.py` (the routes, the approval, the mail),
+`acmelib/certs/portal_teams.py` (the team workspace),
 `web/assets/certs-portal.js` and `certs-portal.css` (the page's part, plugged
 into `portal.js` through `window.ACME_PORTAL_PARTS`), the settings in
 `acmelib/engine/900_certificates.py`.

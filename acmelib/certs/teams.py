@@ -97,6 +97,11 @@ RIGHT_CAPS['request'] = RIGHT_CAPS['view'] | {'cert.request'}
 RIGHT_CAPS['manage'] = RIGHT_CAPS['request'] | {'cert.renew', 'cert.auto', 'cert.edit',
                                                 'cert.revoke', 'cert.delete', 'cert.key',
                                                 'deploy.run', 'deploy.manage'}
+# The old right `manage` also approved its team's requests (1.0.16). A marker of its own keeps
+# that for members with the old right, while the role "Certificate manager" (the same
+# certificate caps) does not approve - approving is the Approver's (1.0.125).
+LEGACY_MANAGE = 'legacy.manage'
+RIGHT_CAPS['manage'] = RIGHT_CAPS['manage'] | {LEGACY_MANAGE}
 RIGHT_CAPS['approve'] = RIGHT_CAPS['view'] | {'cert.approve'}
 _R_VIEWER = VIEW_CAPS
 _R_REQUESTER = _R_VIEWER | {'cert.request'}
@@ -346,7 +351,9 @@ def member_expired(m, now=None):
 
 def rights_of_caps(caps):
     """The old rights a set of capabilities holds in full (for the old callers)."""
-    return {r for r in RIGHTS if RIGHT_CAPS[r] <= caps}
+    # the marker of the old right is not a capability of its own: a member whose roles hold
+    # every capability of `manage` holds `manage`, as before the marker
+    return {r for r in RIGHTS if (RIGHT_CAPS[r] - {LEGACY_MANAGE}) <= caps}
 
 
 # ---------------------------------------------------------------------------
@@ -977,6 +984,13 @@ def scope(store, s, right='view'):
     `right` may be a capability (scope_cap)."""
     if right in CAPS:
         return scope_cap(store, s, right)
+    if right == LEGACY_MANAGE:
+        # the teams where the session holds the OLD right manage itself (it approves too)
+        if unscoped(s, 'manage'):
+            return None
+        if str(s.get('role') or '') not in ('certadmin', 'tokenadmin'):
+            return set()
+        return {k for k, v in session_caps(store, s).items() if LEGACY_MANAGE in v['caps']}
     if unscoped(s, right):
         return None
     role = str(s.get('role') or '')
@@ -1201,7 +1215,7 @@ def guard(h, s, method, path):
         # As the route reads it (1.0.45): " 5" or 5.0 found nothing here, and went through.
         row = cert_of_ref(store, b.get('id')) if b.get('id') not in (None, '') else None
         if row is not None and not (cert_may(store, s, row, 'cert.approve')
-                                    or cert_may(store, s, row, 'manage')):
+                                    or cert_may(store, s, row, LEGACY_MANAGE)):
             deny(store, s, 'approve %s' % row['name'], 'approve')
     elif path in ('/api/deploys/save', '/api/deploys/dry_run', '/api/deploys/preview'):
         right = 'view' if path == '/api/deploys/preview' else 'deploy.manage'

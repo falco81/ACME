@@ -313,7 +313,7 @@ def _may_on(approver, k, direct=False):
         return True
     one = (approver.get('caps') or {}).get(k) or {}
     c = one.get('direct' if direct else 'caps') or frozenset()
-    return 'cert.approve' in c or T.RIGHT_CAPS['manage'] <= c
+    return 'cert.approve' in c or T.LEGACY_MANAGE in c
 
 
 def levels_of(store, team, approver):
@@ -479,6 +479,9 @@ def may_approve_now(store, row, approver):
             return False, 'you approved it already - another approver is wanted'
         if who == 'both' and 'team' in st['needed'] and 'team' not in levels:
             return False, 'an approver of the team approves it first'
+        if who == 'both' and 'team' not in st['needed'] and 'parent' in st['needed'] and \
+                'parent' not in levels:
+            return False, 'the team approved it - now an approver of the team above it'
     except E.ApiError as e:
         return False, str(e)
     return True, ''

@@ -506,7 +506,8 @@ class MsAdcsRpcIssuer(Issuer):
         else:
             words = 'the CA did not issue the certificate (disposition %d, %s)' % (
                 disp, R.DISPOSITIONS.get(disp, '?'))
-        if res['status'] and disp < 0x80000000 and disp not in (CR_DISP_DENIED,):
+        if res['status'] and (disp in (CR_DISP_REVOKED, CR_DISP_OUT_OF_BAND) or (
+                disp >= 0x80000000 and res['status'] != disp)):
             words += ' - %s' % hresult_words(res['status'])
         if said:
             words += ' - it says: %s' % said[:300]

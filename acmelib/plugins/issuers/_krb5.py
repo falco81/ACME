@@ -22,6 +22,7 @@ starts with "_", the registry passes it by).
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import hmac
 import os
@@ -104,6 +105,22 @@ class KrbError(Exception):
         self.code = code
         self.fallback = fallback
         self.skew = skew
+
+
+def _reads(what):
+    """A message that cannot be taken apart (a field missing, cut short) as KrbError in words,
+    not a Python error."""
+    def wrap(fn):
+        @functools.wraps(fn)
+        def inner(*a, **k):
+            try:
+                return fn(*a, **k)
+            except KrbError:
+                raise
+            except (KeyError, IndexError, ValueError, TypeError, struct.error) as e:
+                raise KrbError('%s cannot be read (%s)' % (what, e.__class__.__name__))
+        return inner
+    return wrap
 
 
 def need_crypto():
@@ -622,6 +639,7 @@ class Client(object):
         return el
 
     # -- AS-REQ ---------------------------------------------------------------------------
+    @_reads('the domain controller\'s answer')
     def login(self, etypes=(AES256, AES128)):
         """The TGT (RFC 4120 3.1): asked without pre-authentication first, the salt taken from
         the KDC's PREAUTH_REQUIRED (ETYPE-INFO2), then with PA-ENC-TIMESTAMP."""
@@ -704,6 +722,7 @@ class Client(object):
         return enc_data(key.etype, key.encrypt(usage, body)), (t, us)
 
     # -- TGS-REQ --------------------------------------------------------------------------
+    @_reads('the domain controller\'s answer')
     def service_ticket(self, spn):
         """A ticket for `spn` ("host/ca01.example.local")."""
         if self.tgt is None:
@@ -785,6 +804,7 @@ class ApContext(object):
         self.recv_seq = recv_seq
 
 
+@_reads('the CA server\'s AP-REP')
 def ap_rep_read(data, ticket, when):
     """The CA's AP-REP: (EncAPRepPart fields, the subkey Key or None, its seq-number).
     Mutual authentication: its ctime/cusec must be ours (RFC 4120 3.2.5)."""

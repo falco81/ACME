@@ -338,7 +338,8 @@ class Guard(unittest.TestCase):
             ('/api/certs/hold', {'id': cid, 'on': 1}, {'old', 'ren', 'cm'}),
             ('/api/certs/save', {'id': cid, 'note': 'n'}, {'old', 'cm'}),
             ('/api/certs/export', {'id': cid, 'format': 'cert-pem'}, {'old', 'cm'}),
-            ('/api/certs/approve', {'id': cid, 'ok': 0, 'why': 'no'}, {'old', 'cm', 'ap'}),
+            # the old right manage approves (as before); the role Certificate manager does not
+            ('/api/certs/approve', {'id': cid, 'ok': 0, 'why': 'no'}, {'old', 'ap'}),
         ]
         for path, body, yes in cases:
             for who in ('old', 'ren', 'dep', 'cm', 'dm', 'ap'):

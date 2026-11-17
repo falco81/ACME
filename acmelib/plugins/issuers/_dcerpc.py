@@ -28,6 +28,7 @@ Never logs, keeps or says a password or a key. Not a plugin.
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import hmac
 import os
@@ -443,6 +444,17 @@ class KerberosAuth(object):
         return plain
 
 
+def _parses(fn):
+    """A PDU or a stub that cannot be taken apart as RpcError in words, not a Python error."""
+    @functools.wraps(fn)
+    def inner(*a, **k):
+        try:
+            return fn(*a, **k)
+        except (struct.error, IndexError, ValueError, TypeError) as e:
+            raise RpcError('an answer that cannot be read (%s)' % e.__class__.__name__, 'proto')
+    return inner
+
+
 # ---------------------------------------------------------------------------
 # A client of one interface
 # ---------------------------------------------------------------------------
@@ -464,6 +476,7 @@ class Client(object):
         return struct.pack('<HHI', 4280, 4280, 0) + struct.pack('<BBH', 1, 0, 0) + \
             struct.pack('<HBB', self.ctx_id, 1, 0) + syntax(iface) + syntax(NDR)
 
+    @_parses
     def bind(self, iface, what='the CA'):
         body = self._bind_body(iface)
         call = self._next_call()
@@ -522,6 +535,7 @@ class Client(object):
                 self.auth.done(r.auth_value)
         return ack
 
+    @_parses
     def call(self, opnum, stub, what='the CA'):
         """The response's stub to a request of `opnum`; a fault raises RpcError('fault')."""
         call = self._next_call()
@@ -726,6 +740,7 @@ def ept_map_stub(iface):
 EPT_NOT_REGISTERED = 0x16c9a0d6
 
 
+@_parses
 def ept_map_ports(stub):
     """([ports], status) of an ept_map response."""
     r = NdrReader(stub)
@@ -796,6 +811,7 @@ def attributes_blob(lines):
     return (text + '\x00').encode('utf-16-le') if text else b''
 
 
+@_parses
 def cert_server_response(stub):
     r = NdrReader(stub)
     out = {'request_id': r.u32(), 'disposition': r.u32()}

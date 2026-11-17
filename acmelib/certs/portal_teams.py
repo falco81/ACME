@@ -46,7 +46,6 @@ nobody (no teams, 403), the rest of the portal is as before.
 """
 from __future__ import annotations
 
-import json
 import time
 
 from acmelib import engine as E
@@ -154,6 +153,17 @@ class Me(object):
             raise E.ApiError(403, 'you may not %s in the team %s - it does not give you "%s" '
                                   '(%s)' % (doing, name, cap, T.CAP_WORDS[cap]))
         return name
+
+    def need_above(self, team, cap, doing):
+        """`cap` on a team that may be above all of theirs (the parent of the team acted on):
+        refused 403 in words when they do not hold it there - never 404."""
+        k = _low(team)
+        if k not in self.tr.rows or cap not in self.caps(k):
+            name = self.tr.name(k) or str(team)[:120]
+            self.refused('%s (needs %s on the team %s)' % (doing, cap, name))
+            raise E.ApiError(403, 'you may not %s - that needs "%s" on the team %s above it'
+                             % (doing, cap, name))
+        return self.tr.rows[k]['name']
 
     def refused(self, words):
         self.store.add_event('certificates', '%s was refused on the portal: %s' % (
@@ -951,7 +961,7 @@ def _members(h):
              for r in T.role_catalog(h.store).values()]
     return {'team': team, 'members': rows, 'above': above[:500], 'roles': roles,
             'rights': [{'name': r, 'caps': _caps_list(T.RIGHT_CAPS[r]),
-                        'givable': me.all or T.RIGHT_CAPS[r] <= mine} for r in T.RIGHTS],
+                        'givable': me.all or (T.RIGHT_CAPS[r] - {T.LEGACY_MANAGE}) <= mine} for r in T.RIGHTS],
             'my_caps': _caps_list(mine)}
 
 
@@ -1152,9 +1162,9 @@ def _team_save(h):
             body['parent'] = new_parent
             changes.append('move')
         if changes:
-            me.need(parent, 'team.create', 'rename or move the teams below')
+            me.need_above(parent, 'team.create', 'rename or move the team %s' % name)
         if policy is not None and policy != (me.tr.policies.get(k) or {}):
-            me.need(parent, 'team.policy', 'change the limits of the teams below')
+            me.need_above(parent, 'team.policy', 'change the limits of the team %s' % name)
             need_policy(me, new_parent, policy, name)
             body['policy'] = policy
         elif new_parent != parent and me.tr.policies.get(k):
@@ -1191,7 +1201,7 @@ def _team_delete(h):
     parent = me.tr.name(me.tr.parent[k]) if me.tr.parent.get(k) else None
     if not parent:
         me.deny('the team %s is at the top - the administrators delete it' % name)
-    me.need(parent, 'team.create', 'delete the teams below')
+    me.need_above(parent, 'team.create', 'delete the team %s' % name)
     reparent = b.get('reparent')
     if reparent in (None, ''):
         reparent = parent

@@ -397,7 +397,7 @@ def mine_public(h, s, pairs, me=None):
 def may_approve_caps(caps):
     """cert.approve - or the old right manage in full, as need_right took it."""
     from acmelib.certs import teams as T
-    return 'cert.approve' in caps or T.RIGHT_CAPS['manage'] <= set(caps)
+    return 'cert.approve' in caps or T.LEGACY_MANAGE in set(caps)
 
 
 def mine(h, s, rows=None):
@@ -1345,15 +1345,22 @@ def revoke_checked(row, reason, again):
                          % row['name'])
 
 
-def action_waits(h, s, row, action, words):
+def action_waits(h, s, row, action, words, more=None):
     """An action the policy of the certificate's team makes wait for an approval (1.0.125,
-    approve_actions): asked for, and the answer the page shows - None when it does not wait."""
+    approve_actions): asked for (`more` kept with it), and the answer the page shows - None
+    when it does not wait."""
     from acmelib.certs import teampolicy as TP
     if E.portal_sees_all(s) or not TP.action_needs_approval(h.store, row.get('owner'), action):
         return None
     rec = TP.action_ask(h.store, row.get('owner'), action, row['id'],
                         TP.approver_portal(h, s), words)
-    return {'waits': True, 'action': rec,
+    if more:
+        rec.update(more)
+        store_rec = json.dumps(rec, sort_keys=True)
+        h.store.set_meta(TP.ACTION_META + rec['id'], store_rec)
+    shown = {k: v for k, v in rec.items() if k != 'ids'}
+    shown['what'] = row['name']
+    return {'waits': True, 'action': shown,
             'message': '%s: it waits for an approval of the team %s first' % (row['name'],
                                                                                 rec['team'])}
 
@@ -1368,21 +1375,13 @@ def _portal_revoke(h):
     revoke_checked(row, reason, again)
     # its team's policy may make a revocation wait for a lead's approval (approve_actions)
     waits = action_waits(h, s, row, 'revoke', 'reason: %s%s' % (
-        reason, ', a new one at once' if again else ''))
+        reason, ', a new one at once' if again else ''), {'reason': reason, 'again': bool(again)})
     if waits:
-        waits['action']['reason'] = reason
-        waits['action']['again'] = bool(again)
-        _action_keep(h.store, waits['action'])
         return waits
     job_id = start_revoke(h.store, row, reason, again, portal_by(s))
     h.store.add_event('certificates', '%s revokes %s from the portal (%s)' % (
         s['name'], row['name'], reason), 'warn', who=s['name'])
     return {'job_id': job_id}
-
-
-def _action_keep(store, rec):
-    from acmelib.certs import teampolicy as TP
-    store.set_meta(TP.ACTION_META + rec['id'], json.dumps(rec, sort_keys=True))
 
 
 @E.route('POST', '/api/portal/cert_delete')

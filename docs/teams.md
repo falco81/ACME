@@ -199,7 +199,7 @@ Built-in roles (in the code, not changed, not deleted):
 | Renewer | Viewer + cert.renew, cert.auto |
 | Deployer | Viewer + deploy.run |
 | Device manager | Viewer + target.manage, target.test, deploy.manage, deploy.run |
-| Certificate manager | Requester + Renewer + cert.edit, cert.revoke, cert.delete, cert.key, deploy.run, deploy.manage |
+| Certificate manager | Requester + Renewer + cert.edit, cert.revoke, cert.delete, cert.key, deploy.run, deploy.manage - it does not approve (that is the Approver's); a member with the OLD right `manage` still approves, as before |
 | Approver | Viewer + cert.approve |
 | Team manager | Viewer + team.members, team.policy, team.create, team.activity |
 | Team owner | every capability |
@@ -274,6 +274,18 @@ target agents may carry a team (`POST /api/agents/enroll {..., team}`): every se
 enrolls with it becomes a target owned by that team, waiting to be confirmed - confirmed by
 itself only where the code says so **and** the team's limits allow it
 (`agents_auto_confirm`).
+
+### On the portal
+
+Members work for their teams on the portal - the team workspace (docs/certificate-portal.md
+"Teams"): their teams and the teams below, certificates with the actions their capabilities
+give, *Waiting for you* (requests and actions to approve, with their timelines), the team's
+devices (added with the module's own fields; secrets never shown back, only whether they are
+set), agents (join and enrollment codes, waiting agents confirmed or refused, the server's
+facts, the policy designer), deployments (What happens, run), members, teams below and their
+limits, activity. Every route checks the capability on the team (inherited downwards) and the
+team's limits; nobody gives more than they hold, nor raises their own membership, nor touches
+a team above theirs. A person in no team: the portal as before.
 
 ### The directory
 

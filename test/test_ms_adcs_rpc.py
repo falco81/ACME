@@ -519,6 +519,7 @@ class MockCa(object):
         self.held = {}
         self.calls = []
         self.binds = []
+        self.fragments = 0
         self.icpr = Server(self.serve_icpr)
         self.epm = Server(self.serve_epm)
 
@@ -547,7 +548,8 @@ class MockCa(object):
 
     def bind_ack(self, call, token=None, atype=0, result=0):
         sec = b'49712\x00'
-        body = struct.pack('<HHI', 4280, 4280, 0x1234) + struct.pack('<H', len(sec)) + sec
+        # it takes fragments of 1024 bytes at most: a large request comes in several
+        body = struct.pack('<HHI', 4280, 1024, 0x1234) + struct.pack('<H', len(sec)) + sec
         body += b'\x00' * ((4 - (16 + len(body)) % 4) % 4)
         body += struct.pack('<BBH', 1, 0, 0) + struct.pack('<HH', result, 0) + \
             R.syntax(R.NDR)
@@ -613,6 +615,8 @@ class MockCa(object):
             p = self.read_pdu(s)
             assert p['type'] == 0
             raw = p['raw']
+            assert len(raw) <= 1024, 'a fragment larger than the server takes'
+            self.fragments += 1
             sealed = raw[24:p['end']]
             plain = sess.unseal(sealed, p['token'], raw[:24], raw[p['end']:p['end'] + 8])
             stub += plain[:len(plain) - p['apad']] if p['apad'] else plain
@@ -875,11 +879,11 @@ class Ctx(Context):
         raise AssertionError('no HTTP expected')
 
 
-def make_req(names=('www.example.local',)):
+def make_req(names=('www.example.local',), key_type='ec-256'):
     from acmelib.certs import pki
-    key = pki.make_key('ec-256')
+    key = pki.make_key(key_type)
     csr_pem, csr_der = pki.make_csr(key, list(names))
-    return CertRequest(names=list(names), key_type='ec-256', key_pem=key, csr_pem=csr_pem,
+    return CertRequest(names=list(names), key_type=key_type, key_pem=key, csr_pem=csr_pem,
                        csr_der=csr_der, profile={}, cert_id=42)
 
 
@@ -1002,6 +1006,16 @@ class EndToEnd(unittest.TestCase):
         self.assertIn('0x80094012', str(e.exception))
         self.assertEqual(self.ca.binds, [10])
 
+    def test_large_request_in_fragments(self):
+        names = ['host%02d.example.local' % i for i in range(30)]
+        for auth in ('ntlm', 'kerberos'):
+            iss, _ctx = self.issuer(auth=auth)
+            before = self.ca.fragments
+            got = iss.issue(make_req(names, 'rsa-4096'))
+            self.assertGreaterEqual(self.ca.fragments - before, 2)
+            self.assertIn('BEGIN CERTIFICATE', got.cert_pem)
+            self.assertGreater(self.ca.calls[-1]['csr'], 1500)
+
     def test_wrong_ca_name(self):
         iss, _ctx = self.issuer(ca_name='ca01\\NOT-THE-CA')
         with self.assertRaises(PluginError) as e:
@@ -1058,6 +1072,42 @@ class EndToEnd(unittest.TestCase):
         iss, ctx = self.issuer(host='192.0.2.10', auth='kerberos_only')
         with self.assertRaises(PluginError) as e:
             iss.issue(make_req())
+
+    def test_without_cryptography(self):
+        real = K.Cipher
+        K.Cipher = None
+        try:
+            iss, ctx = self.issuer(auth='kerberos_only')
+            with self.assertRaises(PluginError) as e:
+                iss.issue(make_req())
+            self.assertIn('python3-cryptography', str(e.exception))
+            iss, ctx = self.issuer()                # the default: NTLM instead, said
+            iss.issue(make_req())
+            self.assertEqual(self.ca.binds, [10])
+            self.assertTrue([w for lv, w in ctx.steps if lv == 'warn' and 'cryptography' in w])
+        finally:
+            K.Cipher = real
+
+    def test_kdcs_from_dns_srv(self):
+        from acmelib.plugins.challenges import _dns
+
+        class Msg(object):
+            def texts(self, t):
+                assert t == 'SRV'
+                return ['10 50 88 dc02.example.local.', '0 100 88 dc01.example.local.',
+                        '0 10 1088 dc03.example.local.']
+        asked = []
+        real = _dns.ask_any
+        _dns.ask_any = lambda servers, name, qtype, **k: asked.append((name, qtype)) or Msg()
+        try:
+            iss, _ctx = self.issuer(kdc='')
+            self.assertEqual(iss._kdcs(), [('dc01.example.local', 88), ('dc03.example.local', 1088),
+                                           ('dc02.example.local', 88)])
+            self.assertEqual(asked, [('_kerberos._tcp.example.local', 'SRV')])
+            iss, _ctx = self.issuer(kdc='dc9.example.local:8888, [2001:db8::1]')
+            self.assertEqual(iss._kdcs(), [('dc9.example.local', 8888), ('2001:db8::1', 88)])
+        finally:
+            _dns.ask_any = real
 
     def test_key_mismatch_refused(self):
         self.ca.mode = 'otherkey'

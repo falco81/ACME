@@ -101,6 +101,9 @@ POLICY_HEAD_WIN = """# C:\\ProgramData\\acme-agent\\etc\\policy - what acme may 
 #   allow probe HOST:PORT | allow probe local    a test of what HOST:PORT serves, from here
 #   allow connect HOST:PORT                      acme reaches HOST:PORT through this agent
 #   allow self-update                            acme may update this agent (signed, newer)
+#   allow discover [KIND,KIND]                   acme may list the IIS sites, the listener, the
+#                                                roles and the machine store's certificates
+#                                                (read-only; no KIND: every kind)
 #   limit files 20                               files in one deployment
 #   limit size 1048576                           bytes of one file
 """
@@ -129,6 +132,8 @@ of its credentials (docs/target-agent.md). Run it in an elevated prompt (Run as 
   acme-agent allow key-read ACCOUNT      an account given read on the private key
   acme-agent allow from ADDRESS[/BITS]   (passive: only from there)
   acme-agent allow probe HOST:PORT | probe local | connect HOST:PORT | self-update
+  acme-agent allow discover [KIND,KIND]  acme may list the sites, roles and certificates here
+  acme-agent discover [--kind K] [--json]   what such a discovery finds here (read-only)
   acme-agent limit files N | limit size BYTES
   acme-agent deny ...                    the same words: that entry taken away
   acme-agent version
@@ -2744,11 +2749,12 @@ def _policy_line(pol, words):
         if rest:
             raise Refused('allow adcs-read')
         pol['adcs_read'] = True
-    elif what in ('script-hash', 'from', 'self-update', 'connect', 'probe'):
+    elif what in ('script-hash', 'from', 'self-update', 'connect', 'probe', 'discover'):
         ORIG['_policy_line'](pol, words)
     else:
         raise Refused('allow file | service | test | script | script-hash | store | iis | rdp | '
-                      'role | key-read | adcs | adcs-read | from | probe | connect | self-update')
+                      'role | key-read | adcs | adcs-read | from | probe | connect | self-update '
+                      '| discover')
 
 
 ROLE_EXTRA = {'ccs': 'path', 'wac': 'msi'}
@@ -2818,6 +2824,7 @@ def policy_facts():
     return {'platform': 'windows', 'roles': roles, 'protected': protected_list(), 'parts': ['.ssh'],
             'own': own_places(), 'verbs': list(WIN_VERBS), 'shells': list(WIN_SHELLS),
             'exec_ext': list(EXEC_EXT), 'config_ok': [], 'head': POLICY_HEAD_WIN,
+            'discover_kinds': list(A.DISCOVER_WINDOWS),
             'limits': {'files': A.FILES_MOST, 'size': A.FILE_MOST, 'files_most': 200,
                        'size_most': 64 * 1024 * 1024}}
 
@@ -2958,7 +2965,7 @@ def policy_words(words):
     """The words of `allow ...` as a line of the policy (a folder's real path, a script
     pinned, each reader an account of this machine)."""
     usage = 'acme-agent allow file|service|test|script|script-hash|store|iis|rdp|role|' \
-            'key-read|adcs|adcs-read|from|probe|connect|self-update'
+            'key-read|adcs|adcs-read|from|probe|connect|self-update|discover'
     if not words:
         raise SystemExit(usage)
     what, rest = words[0], words[1:]
