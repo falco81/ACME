@@ -60,6 +60,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - Administration sign-in: an empty name or password got the browser's own bubble in the browser's language (the form had `required` and no check of its own); the page now says "type your name" / "type your password" in the page's language, as the portal does.
 - Settings → Find a setting: "Sign in with a password" of the administration and of the portal named its place "adminsignin" / "portalsignin" and opened the first pane; it now says Accounts / The enrolment pages and opens them at the setting.
 - Settings → Find a setting: a read-only or certificate administrator was offered the settings of panes and cards only a full administrator opens (Alerts and reports, Proxy, the firewall's settings…) and choosing one opened the first pane; only what the account can open is found now.
+- Certificates: What happens of a certificate whose renewal (or first issue) failed said its next renewal at the end of its renew window (or "at the next look") - it now says when it is really tried again (next_try); one made due for a new issue says now.
+- Configuration import (security): a file imported "replacing all" that took a target of an agent away left its agent paired and let in, and a target put in later under the same number took that agent over; the agent is now let go as when the target is deleted on the pages.
+- AWS ACM target: removing one half of a dual (RSA + EC) certificate deleted the ARN kept by the certificate's name alone - the half imported first, maybe the other one; it now deletes the ARN of its own key type (an ARN kept by the name alone only when ACM says it holds that key type) and forgets the deleted ARN.
 
 ## 1.0.123 - 2026-11-17
 
