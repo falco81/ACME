@@ -6,6 +6,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.119 - not released
 
+- Deployments (security): the password of the PKCS#12 / keystore files printed by the script after the files (an echo, `set -x`) is dots in the job and the jobs' log - it stood there in clear for anyone who may read jobs (this machine, SSH, Windows).
+- This machine (files): a file's path given whole under the target's folder is shown where it is written - the preview, What happens and the test said `<folder>/<folder>/<file>`.
+- Deployment form: a path with a placeholder that is not one names that one, not the first of the path (`{name}`); a deployment opened from a target's window shows its certificate's state and names (it said "web –").
 - Target agents: an active agent whose certificate answer was lost (or that failed to take it) is answered again until its first poll - it was refused "no such join" and stuck while acme said it joined; a passive agent that took its certificate, its answer lost, is seen as joined instead of asked again and again.
 - Target agents: a join sent again by the same agent with a new request (each one is signed anew) is taken - the key is compared, not the request's text; another key with a used code is still refused.
 - acme-agent: `policy apply` keeps the ten newest copies of the policy - a copy named …-10 went before …-2 and the newer one was deleted.

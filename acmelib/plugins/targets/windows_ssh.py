@@ -342,7 +342,7 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
             env = SC.env_for(self, bundle, every, vars, SC.password_of(options),
                              extra={'ACME_THUMBPRINT': sha1_thumb(bundle)})
             rc, out, err = SC.run_windows(self, s, sc, env, self._tmp())
-            said = SC.tell(self, sc, rc, out, err)
+            said = SC.tell(self, sc, rc, out, err, env=env)
             if rc != 0:
                 if pairs:
                     self._put_back(s, pairs, had, bak)
@@ -402,7 +402,7 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
                                      dry_run=True, extra={'ACME_THUMBPRINT': sha1_thumb(bundle),
                                                           'ACME_TEST_DIR': tdir})
                     rc, out, err = SC.run_windows(self, s, sc, env, self._tmp())
-                    SC.tell(self, sc, rc, out, err, dry_run=True)
+                    SC.tell(self, sc, rc, out, err, dry_run=True, env=env)
                     if rc != 0:
                         raise PluginError('%s failed on the test (exit %s)' % (SC._what(sc), rc),
                                           retry=False)

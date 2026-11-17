@@ -7671,6 +7671,8 @@ function answerDrop(c) {
       toast(said(d, 'the certificate is in use'), 'good');
       CT.refresh();
       setTimeout(function () {
+        /* the file dropped was taken: not "Leave what was typed here?" (hunt q2) */
+        MODAL_TYPED = 0;
         closeModal();
         certPeek(c.id);
         if (d && d.job_id) setTimeout(function () { over(function () { jobPeek(d.job_id); }); }, 400);

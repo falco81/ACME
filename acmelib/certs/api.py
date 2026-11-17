@@ -779,7 +779,11 @@ def cert_save(store, b, by, full=False, out=None, s=None):
         # "Add only" (1.0.26): kept, not issued by itself - Issue now issues it.
         fields.update({'state': 'held' if _flag(b.get('hold'), 0) and fields.get('issuer')
                        else 'new', 'state_at': t, 'version': 0, 'fails': 0, 'source':
-                       'issuer' if fields.get('issuer') else 'manual', 'created': t,
+                       'issuer' if fields.get('issuer') else
+                       # "CSR for an outside CA" (hunt q2: sent, never kept - the list and the
+                       # card said "–" of where it comes from, not "outside CA")
+                       ('csr' if str(b.get('source') or '') == 'csr' else 'manual'),
+                       'created': t,
                        'created_by': str(by)[:190], 'enabled': fields.get('enabled', 1),
                        'ari': '{}'})
         ident = store.db.insert('certs', fields)

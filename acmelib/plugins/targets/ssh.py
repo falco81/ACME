@@ -391,7 +391,7 @@ class SshTarget(SshMixin, Base):
                 if r['script']:
                     env = SC.env_for(self, bundle, r['pairs'], r['vars'], r['password'])
                     rc, out, err = SC.run_posix(self, s, r['script'], env, tmpdir)
-                    said = SC.tell(self, r['script'], rc, out, err)
+                    said = SC.tell(self, r['script'], rc, out, err, env=env)
                     if rc != 0:
                         self._rollback(s, wfiles, existed, bak)
                         self._stale_back(s, moved)
@@ -537,7 +537,7 @@ class SshTarget(SshMixin, Base):
                     env = SC.env_for(self, bundle, pairs, r['vars'], r['password'], dry_run=True,
                                      extra={'ACME_TEST_DIR': tdir})
                     rc, out, err = SC.run_posix(self, s, r['script'], env, tmpdir)
-                    SC.tell(self, r['script'], rc, out, err, dry_run=True)
+                    SC.tell(self, r['script'], rc, out, err, dry_run=True, env=env)
                     if rc != 0:
                         raise PluginError('%s failed on the test (exit %s)' % (
                             SC._what(r['script']), rc), retry=False)

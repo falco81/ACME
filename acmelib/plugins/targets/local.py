@@ -211,7 +211,7 @@ class LocalTarget(Base):
             env = SC.env_for(self, bundle, [(dict(o, path=full), b) for (o, full), (_o, b)
                                             in zip(written, pairs)], vars, SC.password_of(options))
             rc, out, err = self._run_script(sc, env, base)
-            said = SC.tell(self, sc, rc, out, err)
+            said = SC.tell(self, sc, rc, out, err, env=env)
             if rc != 0:
                 self._put_back(before)
                 raise PluginError('%s failed (exit %s), the previous files are back%s' % (
@@ -378,7 +378,7 @@ class LocalTarget(Base):
                 env = SC.env_for(self, bundle, moved, vars, SC.password_of(options), dry_run=True,
                                  extra={'ACME_TEST_DIR': folder})
                 rc, out, err = self._run_script(sc, env, folder)
-                SC.tell(self, sc, rc, out, err, dry_run=True)
+                SC.tell(self, sc, rc, out, err, dry_run=True, env=env)
                 if rc != 0:
                     raise PluginError('%s failed on the test (exit %s)' % (SC._what(sc), rc),
                                       retry=False)

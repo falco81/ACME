@@ -440,10 +440,15 @@ def said_of(out, err):
     return words
 
 
-def tell(t, sc, rc, out, err, dry_run=False):
-    """What the script said, into the job; -> its words."""
+def tell(t, sc, rc, out, err, dry_run=False, env=None):
+    """What the script said, into the job; -> its words. The password it was given (`env`'s
+    ACME_PASSWORD) is dots there: printed by the script (set -x, an echo), it stood in the
+    job's log and the jobs' log file - which a reader sees - in clear."""
     what = _what(sc)
     words = said_of(out, err)
+    pw = text((env or {}).get('ACME_PASSWORD') or '')
+    if pw and words:
+        words = words.replace(pw, '\u2022' * 8)
     if words:
         # what it printed, a step of its own (shown as it was said, never translated)
         t.ctx.step('%s said:' % what, 'info' if rc == 0 else 'bad')
