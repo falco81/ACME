@@ -45,8 +45,11 @@ some things are never done, however broad an entry is:
   `/etc/init.d`, `/etc/rc.d`, PAM and `/etc/security`, `ld.so` (`.preload`, `.conf`, `.conf.d`),
   the shells' profiles, `/etc/environment`, `passwd` / `shadow` / `group`, `/etc/ssh`, `/root`, any
   `.ssh` folder, polkit, udev, modprobe, sysctl, SELinux, audit, the package sources, logrotate,
-  `/boot`, `/proc`, `/sys`, `/dev`, and the programs' folders (`/bin`, `/sbin`, `/lib*`, `/usr/bin`,
-  `/usr/sbin`, `/usr/lib*`, `/usr/libexec`, `/usr/local/bin`, `/usr/local/sbin`);
+  `/boot`, `/proc`, `/sys`, `/dev`, `/etc/tmpfiles.d`, `/etc/binfmt.d`, `/etc/sudo.conf`,
+  `/etc/ld.so.cache`, D-Bus (`/etc/dbus-1`, `/usr/share/dbus-1`), `/usr/share/polkit-1`, Python's
+  `/etc/python*` (Debian's `sitecustomize.py`), and the programs' folders (`/bin`, `/sbin`,
+  `/lib*`, `/usr/bin`, `/usr/sbin`, `/usr/lib*`, `/usr/libexec`, `/usr/local/bin`,
+  `/usr/local/sbin`, `/usr/local/lib`);
 * **a file the policy runs**: a script it allows by path, and every absolute path in a test's
   command line (`allow test -- /bin/sh /opt/app/check.sh` - `check.sh` is never written, even
   when `/opt/app` is allowed);

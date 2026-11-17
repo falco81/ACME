@@ -309,7 +309,10 @@ def sign_csr(store, csr_pem, cn, days, server=True):
     if not re.match(r'\s*-----BEGIN CERTIFICATE REQUEST-----', csr) or len(csr) > 8192:
         raise PluginError('not a certificate request', retry=False)
     _openssl(['req', '-noout', '-verify'], csr)
-    txt = _openssl(['req', '-noout', '-text'], csr)
+    # the key's own words alone (hunt R6: the request's whole text was read - a subject of
+    # "NIST CURVE: P-256" let an RSA key of 1024 bits through)
+    txt = _openssl(['pkey', '-pubin', '-noout', '-text_pub'],
+                   _openssl(['req', '-noout', '-pubkey'], csr))
     if not re.search(r'(NIST CURVE: P-(256|384)|ED25519|Public-Key: \((2048|3072|4096) bit\))',
                      txt, re.I):
         raise PluginError('the agent\'s key is ECDSA P-256 / P-384, Ed25519 or RSA of 2048 bits '
@@ -385,6 +388,14 @@ def sign_job(store, agent_id, op, args):
     sig = E.ed25519_sign(cmd_key(store)['seed'], ('%s job\n' % PROTO).encode() +
                          body.encode('utf-8'))
     return jid, {'job': body, 'sig': _b64(sig)}
+
+
+def _same(want, given):
+    """A proof the agent sent against the one wanted, in constant time - as bytes (hunt R6:
+    a proof with a letter beyond ASCII in it stopped the join, its state and the enrollment
+    with a TypeError of compare_digest, and a wrong one was not counted as a try)."""
+    return hmac.compare_digest(str(want).encode('utf-8'),
+                               str(given if given is not None else '').encode('utf-8', 'replace'))
 
 
 def proof(secret, *parts):
@@ -687,7 +698,7 @@ def join_take(store, row, st, c, secret, req, tls_key_fp=None):
     nonce = str(req.get('nonce') or '')
     want = proof(secret, 'join', c['id'], hashlib.sha256(csr.encode()).hexdigest(), enc, nonce)
     if not re.fullmatch(r'[0-9a-f]{32}', nonce) or \
-            not hmac.compare_digest(want, str(req.get('proof') or '')):
+            not _same(want, req.get('proof')):
         c['tries'] = int(c.get('tries') or 0) + 1
         st['code'] = c
         state_put(store, row['id'], st)
@@ -1122,7 +1133,7 @@ def enroll_take(store, body, ip=''):
     want = proof(secret, 'enroll', eid, hashlib.sha256(csr.encode()).hexdigest(), enc, nonce,
                  fqdn_said)
     if not re.fullmatch(r'[0-9a-f]{32}', nonce) or \
-            not hmac.compare_digest(want, str(body.get('proof') or '')):
+            not _same(want, body.get('proof')):
         _enroll_refused(store, ec, ip, 'its request does not prove the code')
         return 403, {'ok': False, 'said': 'the request does not prove the enrollment code'}
     now = time.time()
@@ -1301,8 +1312,8 @@ def wire(store, op, body, cert_pem, verify, ip=''):
         except LookupError:
             return 403, {'ok': False, 'state': 'refused', 'said': 'no such join (make a new code)'}
         nonce = str(body.get('nonce') or '')
-        if not re.fullmatch(r'[0-9a-f]{32}', nonce) or not hmac.compare_digest(
-                proof(secret, 'status', c['id'], nonce), str(body.get('proof') or '')):
+        if not re.fullmatch(r'[0-9a-f]{32}', nonce) or not _same(
+                proof(secret, 'status', c['id'], nonce), body.get('proof')):
             return 403, {'ok': False, 'state': 'refused', 'said': 'not the agent of this code'}
         pend = st.get('pending') or {}
         if not pend:
@@ -1396,6 +1407,9 @@ def poll(store, body, cert_pem, verify, ip=''):
     if now - float(st.get('last_seen') or 0) > 15 or st.get('refused') or st.get('pending'):
         st['last_seen'] = now
         st['last_ip'] = _txt(ip, 45)
+        changed = True
+    if fp != st.get('cert_seen_fp'):
+        st['cert_seen_fp'] = fp                         # the one it has (renew_cert)
         changed = True
     if facts.get('version') and _txt(facts['version'], 40) != st.get('version'):
         st['version'] = _txt(facts['version'], 40)
@@ -1660,6 +1674,10 @@ def _passive_post(store, row, path, body, joining=False, timeout=None):
         elif fp not in (st.get('cert_fp'), st.get('cert_prev_fp')) or not fp:
             raise PluginError('the agent at %s:%d answers with a certificate that is not the '
                               'one acme gave it - refused' % (host, port), retry=False)
+        elif fp != st.get('cert_seen_fp'):
+            st = state(store, row['id'])                # the one it has (renew_cert)
+            st['cert_seen_fp'] = fp
+            state_put(store, row['id'], st)
         conn.request('POST', path, body=raw, headers={'Content-Type': 'application/json'})
         r = conn.getresponse()
         data = r.read(BODY_MOST + 1)
@@ -1873,9 +1891,16 @@ def renew_cert(store, row, by='the renewer', step=None):
             raise PluginError('the agent asks for a certificate of another key - join it again',
                               retry=False)
         pem = sign_csr(store, got['csr'], AGENT_CN + st['agent_id'], CERT_DAYS)
-        old = st.get('cert_fp')
         st = state(store, tid)
+        # the one let in beside the new one: the certificate the agent was last seen with
+        # (hunt R6: a renewal whose answer was lost left the agent on the new one, kept as the
+        # one before - the next renewal dropped it, and the agent was locked out)
+        old, old_end = st.get('cert_fp'), st.get('cert_end')
+        seen = st.get('cert_seen_fp')
+        if seen and seen != old and seen == st.get('cert_prev_fp'):
+            old, old_end = seen, st.get('cert_prev_end') or old_end
         st['cert_prev_fp'] = old
+        st['cert_prev_end'] = old_end
         st['cert_fp'] = fp_of_pem(pem)
         st['cert_end'] = cert_end(pem)
         st['renew_wanted'] = False
@@ -1887,7 +1912,10 @@ def renew_cert(store, row, by='the renewer', step=None):
             ans = {'ok': False, 'said': 'it did not answer'}
         if not ans.get('ok'):
             st = state(store, tid)
+            # its end put back too (hunt R6: the new one's end stayed - the renewal looked done
+            # 30 days ahead, and the certificate the agent has ran out unrenewed, unsaid)
             st['cert_fp'], st['cert_prev_fp'] = old, st['cert_fp']
+            st['cert_end'], st['cert_prev_end'] = old_end, st.get('cert_end')
             state_put(store, tid, st)
             raise PluginError('the agent did not take its new certificate: %s'
                               % (ans.get('said') or '?'))

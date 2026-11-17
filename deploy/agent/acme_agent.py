@@ -154,8 +154,18 @@ PROTECTED = ('/etc/sudoers', '/etc/sudoers.d', '/etc/doas.conf', '/etc/crontab',
              '/etc/audit', '/etc/apt', '/etc/yum.repos.d', '/etc/dnf', '/etc/logrotate.d',
              '/etc/logrotate.conf', '/boot', '/proc', '/sys', '/dev', '/bin', '/sbin', '/lib',
              '/lib64', '/usr/bin', '/usr/sbin', '/usr/lib', '/usr/lib64', '/usr/libexec',
-             '/usr/local/bin', '/usr/local/sbin', '/usr/local/lib/acme-agent')
+             '/usr/local/bin', '/usr/local/sbin', '/usr/local/lib/acme-agent',
+             # 1.0.125 security: these give root too - a tmpfiles.d line writes any file at
+             # boot, sudo.conf loads a plugin, ld.so.cache names the libraries every program
+             # loads, binfmt.d an interpreter of setuid programs, D-Bus and polkit start and
+             # grant what runs as root, /usr/local/lib holds Python's site-packages (a .pth runs
+             # in the agent's own root side) and the release-keys an update is checked with
+             '/etc/tmpfiles.d', '/etc/sudo.conf', '/etc/ld.so.cache', '/etc/binfmt.d',
+             '/etc/dbus-1', '/usr/share/dbus-1', '/usr/share/polkit-1', '/usr/local/lib')
 PROTECTED_PARTS = ('.ssh',)     # ~/.ssh/authorized_keys and the like, in any folder
+# /etc/python3.11 ...: Debian's sitecustomize.py (/usr/lib/python3.X/sitecustomize.py links to
+# it) - run by every Python as root, the agent's root side too (1.0.125 security)
+PROTECTED_RX = re.compile(r'/etc/python[0-9.]*(/|\Z)')
 ED25519_SPKI = bytes.fromhex('302a300506032b6570032100')
 
 
@@ -705,6 +715,10 @@ def protected(path):
                    'never writes there, whatever the policy says' % (path, top)
     if any(part in PROTECTED_PARTS for part in path.split('/')):
         return '%s is in a .ssh folder - acme-agent never writes there' % path
+    m = PROTECTED_RX.match(path)
+    if m:
+        return '%s is under %s - a file there gives root to whoever writes it; acme-agent ' \
+               'never writes there, whatever the policy says' % (path, path[:m.end()].rstrip('/'))
     return ''
 
 
@@ -4378,7 +4392,12 @@ def policy_edit(add, words):
     """`acme-agent allow ...` / `deny ...`: the entry written into (or taken out of) the
     policy - the file read, checked and written whole (root:root 0644). Comments stay."""
     need_root('the policy is root\'s: run it as root')
-    line = policy_words(words)
+    if not add and words[:1] == ['script'] and len(words) == 2 and os.path.isabs(words[1]):
+        # 1.0.125: a script is taken away by its path - its file is not read (the SHA-256 of a
+        # script changed or deleted since named no entry: it could not be taken away at all)
+        line = 'allow script %s sha256=%s' % (shlex.quote(os.path.normpath(words[1])), '0' * 64)
+    else:
+        line = policy_words(words)
     probe = parse_policy(line)
     if probe['problems']:
         raise SystemExit('acme-agent: %s' % probe['problems'][0].split(': ', 1)[-1])
@@ -4418,6 +4437,23 @@ def policy_edit(add, words):
             out.append('allow %s %s %s' % (UNIT_WORD, name, ','.join(now)))
         said = ('allowed: %s %s %s' if add else 'now: %s %s %s') % (
             UNIT_WORD, name, ','.join(now) or 'nothing')
+    elif line.startswith('allow script '):
+        # one entry a script: the one of its path replaced (allowed again once it changed) or
+        # taken away, whatever SHA-256 it pinned (1.0.125)
+        path = probe['scripts'][0]['path']
+        key = policy_lines(probe)[0]
+        if add and key in lines:
+            print('already allowed: %s' % key)
+            return 0
+        out = [x for x in lines if not any(s['path'] == path for s in
+                                           (entry(x) or {}).get('scripts') or [])]
+        if add:
+            out.append(key)
+            said = 'allowed: %s' % key
+        else:
+            if len(out) == len(lines):
+                raise SystemExit('acme-agent: no such entry in the policy: script %s' % path)
+            said = 'taken away: script %s' % path
     elif line.startswith('limit '):
         k = line.split()[1]
         out = [x for x in lines if not (x.strip().startswith('limit %s ' % k))]
@@ -4455,6 +4491,10 @@ def policy_words(words):
             raise SystemExit('acme-agent allow file DIR [--owner U:G] [--mode 0640]')
         d = rest[0]
         owner, mode = 'root:root', '0644'
+        for opt in ('--owner', '--mode'):
+            # 1.0.125: --owner / --mode with nothing after it stopped with an IndexError
+            if opt in rest and rest.index(opt) + 1 >= len(rest):
+                raise SystemExit('acme-agent allow file DIR [--owner U:G] [--mode 0640]')
         if '--owner' in rest:
             owner = rest[rest.index('--owner') + 1]
         if '--mode' in rest:

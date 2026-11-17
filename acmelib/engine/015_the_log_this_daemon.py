@@ -87,13 +87,15 @@ def log_sparing(key, words, level='warn', every=30):
     t = time.time()
     with _LOG_LOCK:
         at, quiet = _LOG_SPARING.get(key, (0.0, 0))
-        if t - at < every:
+        # A clock stepped back (NTP) is no reason for silence: the time since the last line
+        # came out negative, and nothing of this kind was written until the clock caught up.
+        if 0 <= t - at < every:
             _LOG_SPARING[key] = (at, quiet + 1)
             return
         _LOG_SPARING[key] = (t, 0)
         if len(_LOG_SPARING) > 1000:
             _LOG_SPARING.clear()
-    log(words + (' (and %d more like it in the last %d s)' % (quiet, int(t - at)) if quiet else ''),
+    log(words + (' (and %d more like it in the last %d s)' % (quiet, max(0, int(t - at))) if quiet else ''),
         level)
 
 

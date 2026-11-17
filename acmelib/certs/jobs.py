@@ -58,8 +58,9 @@ class Job(object):
         self.said = ''
         self.version = None
         self._lock = threading.Lock()
-        self._flushed = 0.0
-        self._looked = 0.0
+        # monotonic (a clock stepped back held the steps and a stop asked from elsewhere)
+        self._flushed = float('-inf')
+        self._looked = float('-inf')
         self._base = None               # what isemon's lines of this job carry (1.0.44)
         self.made = time.time()
         self.why = ''
@@ -79,7 +80,7 @@ class Job(object):
                 self.echo(one)
             except Exception:                           # noqa: BLE001
                 pass
-        if level in ('ok', 'warn', 'bad') or time.time() - self._flushed > 1.0:
+        if level in ('ok', 'warn', 'bad') or time.monotonic() - self._flushed > 1.0:
             self.flush()
 
     # ---- isemon's lines of it (isemon_detail, 1.0.44) --------------------------------------
@@ -145,7 +146,7 @@ class Job(object):
     def flush(self, **more):
         with self._lock:
             steps = json.dumps(self.steps, ensure_ascii=False)
-            self._flushed = time.time()
+            self._flushed = time.monotonic()
         row = {'steps': steps, 'state': self.state}
         row.update(more)
         try:
@@ -157,8 +158,8 @@ class Job(object):
     def cancelled(self):
         if self.stop.is_set():
             return True
-        if time.time() - self._looked > 3:
-            self._looked = time.time()
+        if time.monotonic() - self._looked > 3:
+            self._looked = time.monotonic()
             try:
                 if self.store.get_meta(STOP_PREFIX + str(self.id)):
                     self.stop.set()
@@ -225,7 +226,10 @@ def step_in(job, words, level='info', scope=None):
 # ---------------------------------------------------------------------------
 # Running them
 # ---------------------------------------------------------------------------
-def _pool():
+def _pool(*work):
+    """The pool - and `work` given to it under the same lock: a pool handed out and shut down
+    by another thread (certs_parallel changed, acme stopping) before the job was given to it
+    refused it, and the job stayed "queued" with its certificate busy until a restart."""
     want = max(1, min(32, int(E.CONFIG.get('certs_parallel') or 4)))
     with _LOCK:
         if _POOL['pool'] is None or _POOL['size'] != want:
@@ -235,6 +239,8 @@ def _pool():
             _POOL['size'] = want
             if old is not None:
                 old.shutdown(wait=False)        # what it runs runs to its end
+        if work:
+            _POOL['pool'].submit(*work)
         return _POOL['pool']
 
 
@@ -337,7 +343,21 @@ def submit(store, kind, fn, cert_id=None, deploy_id=None, target=None, by='', sa
                 return _inner(j)
             finally:
                 _cli_mark_drop(_mark)
-    _pool().submit(_work, job, fn)
+    try:
+        _pool(_work, job, fn)
+    except BaseException as e:
+        # Not taken by the pool (the process stopping): ended as failed, its certificate
+        # free again - not "queued" and busy until a restart.
+        try:
+            job.step('it could not be started: %s' % e, 'bad')
+            job.finish(False, 'it could not be started: %s' % e)
+        finally:
+            with _LOCK:
+                RUNNING.pop(job.id, None)
+            _unclaim(cert_id, store)
+            if CLI_PROCESS:
+                _cli_mark_drop(mark)
+        raise
     return job.id
 
 

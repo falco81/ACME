@@ -191,9 +191,14 @@ class Daemon(object):
             # same moment would write the same number, and neither would
             # see that the other changed something. (1.0.14)
             mark = '%.6f:%s' % (time.time(), node_name())
+            was = self.store.get_meta('conf_serial', '0')
             self.store.set_meta('conf_serial', mark)
-            self.conf_serial = mark
-            self.conf_loaded_at = time.time()
+            # Taken as read only when nothing else was changed since this process last read
+            # the settings: a mark of another node (or of the command line) not read yet was
+            # written over, and its change never loaded here - the loop reads them again.
+            if was == self.conf_serial:
+                self.conf_serial = mark
+                self.conf_loaded_at = time.time()
         except Exception:
             pass
         if what in ('directories', 'all'):

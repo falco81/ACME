@@ -8736,6 +8736,10 @@ function loadOverviewCerts(live) {
     var total = Number(first(d.total, Object.keys(counts).reduce(function (a, k) { return a + Number(counts[k] || 0); }, 0)));
     var bad = Number(counts.failed || 0) + Number(first(d.expired, counts.expired, 0));
     tabCount('tabn-certs', total, bad > 0);
+    /* ...and the jobs running (1.0.125): only the Jobs tab set it, so a "1" taken there stayed
+       on the tab for good once the job ended under the Overview - and was never there at all
+       for a page opened on the Overview. */
+    tabCount('tabn-jobs', Number(d.running || 0), false);
     liveFill(host, function (box) { drawOverviewCerts(box, d, counts, total); }, live, function () {
       drawExpiryChart($('ov-ct-chart'), d);
     });
