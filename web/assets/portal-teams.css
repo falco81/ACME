@@ -226,13 +226,13 @@
 .pw-lim-v{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
 .pw-from{font-size:11.5px;color:var(--tx-mut)}
 .pw-from b{color:var(--violet);font-weight:600}
-.pw-tl{all:unset}
-button.pw-tl{box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px 9px calc(10px + var(--d,0) * 16px);
+button.pw-tli{all:unset}
+button.pw-tli{box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px 9px calc(10px + var(--d,0) * 16px);
   border-radius:10px;cursor:pointer;color:var(--tx-dim)}
-button.pw-tl:hover,button.pw-tl:focus-visible{background:var(--panel2);color:var(--tx)}
-.pw-tl-w{flex:1;min-width:0;display:flex;flex-direction:column}
-.pw-tl-w b{color:var(--tx);font-size:13.5px}
-.pw-tl-w span{font-size:12px;color:var(--tx-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button.pw-tli:hover,button.pw-tli:focus-visible{background:var(--panel2);color:var(--tx)}
+.pw-tli-w{flex:1;min-width:0;display:flex;flex-direction:column}
+.pw-tli-w b{color:var(--tx);font-size:13.5px}
+.pw-tli-w span{font-size:12px;color:var(--tx-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pw-note{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-radius:12px;margin:0 0 14px;
   border:1px solid rgba(163,113,247,.32);background:linear-gradient(135deg,var(--violet-bg),rgba(88,166,255,.06))}
 .pw-note > .pw-ic{color:var(--violet);margin-top:1px}
@@ -541,3 +541,16 @@ ol.pw-tl::before{content:'';position:absolute;left:17px;top:14px;bottom:14px;wid
   body.app-shell .wrap.portal > #portal .pw-nav{top:2px}
 }
 body.pw-on .wrap.portal{max-width:1400px}
+.pw-roles{margin-bottom:16px}
+@media (min-width:1100px){ .pw-led{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start} }
+.pw-note-parts{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+.pw-note-part{color:var(--tx)}
+.pw-note-part + .pw-note-part::before{content:'·';margin-right:10px;color:var(--tx-mut)}
+@media (max-width:640px){
+  .pw-ph{align-items:flex-start;flex-wrap:wrap}
+  .pw-ph-w{flex:1 1 0}
+}
+@media (max-width:640px){
+  .pw-mem-r{flex:1 1 auto;flex-basis:auto;padding-left:52px}
+  .pw-mem-b{margin-left:auto}
+}

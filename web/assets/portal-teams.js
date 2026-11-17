@@ -77,7 +77,16 @@ function avatar(who, group) {
   return a;
 }
 /** "3 certificates" - the number and its word, agreeing in the page's language. */
-function nW(n, words) { return n + ' ' + nWord(n, words); }
+var SINGULAR = {certificates: 'certificate', members: 'member', teams: 'team', days: 'day', 'days left': 'day left',
+  'limits of its own': 'limit of its own', 'requests wait for you': 'request waits for you',
+  'agents wait to be confirmed': 'agent waits to be confirmed', 'certificates deployed': 'certificate deployed'};
+function nW(n, words) {
+  /* English says one in the singular; a translation's pattern ("{0} certificates") says it its own way */
+  var on = typeof I18N === 'object' && I18N && I18N.on;
+  if (!on && Number(n) === 1 && SINGULAR[words]) return '1 ' + SINGULAR[words];
+  /* the whole of it, as the language's pattern ("{0} certificates") says it, number and all */
+  return n + ' ' + words;
+}
 function whoWords(who) { return String(who || '').replace(/^(local|portal):/i, ''); }
 function emptyState(iconKey, title, words, action) {
   var b = el('div', 'pw-empty');
@@ -332,7 +341,7 @@ function teamsWith(cap) { return teams().filter(function (t) { return arr(t.caps
    The shell: the team switcher, the views on the left (on a phone, tabs on top)
    ============================================================================================= */
 var VIEWS = [
-  {id: 'home', icon: 'home', words: 'Home', may: function () { return true; }},
+  {id: 'home', icon: 'home', words: 'Overview', may: function () { return true; }},
   {id: 'certs', icon: 'cert', words: 'Certificates', may: function () { return can('cert.view'); }},
   {id: 'inbox', icon: 'inbox', words: 'Requests', may: function () { return can('cert.view') || can('cert.request') || canApprove(); }},
   {id: 'devices', icon: 'server', words: 'Devices', may: function () { return can('target.view'); }},
@@ -489,7 +498,7 @@ function drawSwitcher() {
   var t = teamOf(WS.team);
   b.appendChild(ic(WS.team === '*' ? 'tree' : kindIcon(t), 16, 'pw-switch-ic'));
   var w = el('span', 'pw-switch-w');
-  w.appendChild(el('span', 'pw-switch-k', WS.team === '*' ? 'Workspace' : (t && t.kind === 'unit' ? 'Unit' : 'Team')));
+  w.appendChild(el('span', 'pw-switch-k', WS.team === '*' ? 'Your workspace' : (t && t.kind === 'unit' ? 'Unit' : 'Team')));
   w.appendChild((WS.team === '*' ? el : data)('b', 'pw-switch-n', teamLabel()));
   b.appendChild(w);
   if (many) b.appendChild(ic('chev', 15, 'pw-switch-chev'));
@@ -585,7 +594,7 @@ function viewHome(main) {
   if (t) name.appendChild(chip(t.kind === 'unit' ? 'unit' : 'team', 'info'));
   hw.appendChild(name);
   if (t && t.description) hw.appendChild(data('p', 'pw-hero-d', t.description));
-  else if (all) hw.appendChild(el('p', 'pw-hero-d', teams().length === 1 ? 'Your team, in one place.' : nW(teams().length, 'teams') + ' ' + tr('in one place - pick one at the top to work in it alone.')));
+  else if (all) hw.appendChild(el('p', 'pw-hero-d', teams().length === 1 ? 'Your team, in one place.' : teams().length + ' teams in one place - pick one at the top to work in it alone.'));
   if (t) {
     var path = el('div', 'pw-crumbs');
     var chain = [], p = t.parent;
@@ -741,18 +750,18 @@ function openCert(c) {
 }
 function askCert() {
   if (!window.ACME_PORTAL_CERTS) return;
-  window.ACME_PORTAL_CERTS.askStart();
+  window.ACME_PORTAL_CERTS.askStart(certCtx(null));
 }
 /** Every team, as cards (All my teams). */
 function teamsCard() {
   var c = card('Your teams', 'tree', 'pw-teamlist');
   var base = teams().length ? teams()[0].depth : 0;
   teams().slice(0, 12).forEach(function (t) {
-    var r = el('button', 'pw-tl');
+    var r = el('button', 'pw-tli');
     r.type = 'button';
     r.style.setProperty('--d', Math.max(0, t.depth - base));
     r.appendChild(ic(kindIcon(t), 16));
-    var w = el('span', 'pw-tl-w');
+    var w = el('span', 'pw-tli-w');
     w.appendChild(data('b', '', t.name));
     if (t.description) w.appendChild(data('span', '', t.description));
     r.appendChild(w);
@@ -784,7 +793,7 @@ function policyRows(pol) {
   if (pol.profiles) rows.push(['profiles', 'Request profiles', list(pol.profiles)]);
   if (pol.free_form === false) rows.push(['free_form', 'Without a profile', chip('not allowed', 'crit', 'ban')]);
   if (pol.suffixes) rows.push(['suffixes', 'Names under', list(pol.suffixes)]);
-  if (pol.max_days) rows.push(['max_days', 'Longest validity', chip(nW(pol.max_days, 'days') + ' ' + tr('at most'), 'info')]);
+  if (pol.max_days) rows.push(['max_days', 'Longest validity', chip(pol.max_days + ' days at most', 'info')]);
   if (pol.max_certs) rows.push(['max_certs', 'Most certificates', chip(String(pol.max_certs), 'info', null, true)]);
   if (pol.issuers) rows.push(['issuers', 'Sources', list(pol.issuers)]);
   if (pol.validations) rows.push(['validations', 'Validation', list(pol.validations)]);
@@ -832,14 +841,20 @@ function limitsCard(t) {
   return c;
 }
 /** "Your team may ask only..." - above the forms that ask for a certificate. */
+/** The team a certificate is asked for: the one chosen - or, in All my teams, the first where
+    they may ask. */
+function askTeam() {
+  var mine = teamsWith('cert.request');
+  return WS.team !== '*' && mine.indexOf(WS.team) >= 0 ? WS.team : (mine[0] || '');
+}
 function limitsNote() {
-  var t = teamOf(WS.team);
+  var t = teamOf(askTeam());
   if (!t) return null;
   var pol = t.policy || {}, parts = [];
-  if (pol.profiles) parts.push(tr('only from these profiles:') + ' ' + arr(pol.profiles).join(', '));
-  if (pol.suffixes) parts.push(tr('only names under') + ' ' + arr(pol.suffixes).join(', '));
-  if (pol.max_days) parts.push(tr('valid {0} days at most').replace('{0}', pol.max_days));
-  if (pol.free_form === false) parts.push(tr('never without a profile'));
+  if (pol.profiles) parts.push('only from the profiles ' + arr(pol.profiles).join(', '));
+  if (pol.suffixes) parts.push('only names under ' + arr(pol.suffixes).join(', '));
+  if (pol.max_days) parts.push('valid ' + pol.max_days + ' days at most');
+  if (pol.free_form === false) parts.push('never without a profile');
   var a = pol.approval && (typeof pol.approval === 'string' ? {mode: pol.approval} : pol.approval);
   if (!parts.length && !(a && a.mode)) return null;
   var box = el('div', 'pw-note');
@@ -850,7 +865,12 @@ function limitsNote() {
   h.appendChild(document.createTextNode(' '));
   h.appendChild(data('span', '', t.name));
   w.appendChild(h);
-  if (parts.length) w.appendChild(data('span', '', tr('Your team may ask') + ' ' + parts.join(' · ') + '.'));
+  if (parts.length) {
+    var pl = el('span', 'pw-note-parts');
+    pl.appendChild(el('span', '', 'Your team may ask:'));
+    parts.forEach(function (x) { pl.appendChild(el('span', 'pw-note-part', x)); });
+    w.appendChild(pl);
+  }
   if (a && a.mode) w.appendChild(el('span', 'pw-note-s', MODE_WORDS[a.mode] || ''));
   box.appendChild(w);
   return box;
@@ -904,8 +924,8 @@ function viewCerts(main) {
 }
 function certCtx(said) {
   return {
-    team: function () { return WS.team === '*' ? '' : WS.team; },
-    policy: function () { var t = teamOf(WS.team); return t ? t.policy : null; },
+    team: function () { return askTeam(); },
+    policy: function () { var t = teamOf(askTeam()); return t ? t.policy : null; },
     askTeams: function () { return teamsWith('cert.request'); },
     limitsNote: limitsNote,
     mayAsk: can('cert.request'),
@@ -1010,7 +1030,8 @@ function requestCard(r, mayAct) {
   }
   if (r.at) meta.appendChild(el('span', 'muted', agoW(r.at)));
   w.appendChild(meta);
-  if (arr(r.names).length && window.ACME_PORTAL_CERTS) w.appendChild(window.ACME_PORTAL_CERTS.namesChips(r.names, 4));
+  var others = arr(r.names).filter(function (n) { return n !== r.name; });
+  if (others.length && window.ACME_PORTAL_CERTS) w.appendChild(window.ACME_PORTAL_CERTS.namesChips(arr(r.names), 4));
   top.appendChild(w);
   c.appendChild(top);
   var foot = el('div', 'pw-req-f');
@@ -1194,7 +1215,7 @@ function timelineBox(d) {
     li.appendChild(w);
     box.appendChild(li);
   });
-  arr(d.needed).forEach(function (l) {
+  (d.state && d.state !== 'pending-approval' ? [] : arr(d.needed)).forEach(function (l) {
     var li = el('li', 'pw-tl-i wait');
     var m = el('span', 'pw-tl-m');
     m.appendChild(ic('clock', 14));
@@ -1358,9 +1379,16 @@ function teamCaps(name) { var t = teamOf(name); return t ? arr(t.caps) : []; }
 function deviceOpen(r0) {
   modal(r0.name, function (body) { body.appendChild(skeleton(3)); }, [{words: 'Close', close: true}], 'large');
   var ticket = modalTicket();
-  api('device&id=' + r0.id).then(function (d) {
+  Promise.all([api('device&id=' + r0.id), api('kinds&team=' + encodeURIComponent(r0.owner || '')).catch(function () { return {}; })]).then(function (both) {
     if (!modalStill(ticket)) return;
+    var d = both[0];
     var r = d.device || r0, may = r.may || d.may || {};
+    /* the module's own words for its fields */
+    var labels = {};
+    arr(both[1].kinds).forEach(function (k) {
+      if (k.kind !== r.kind) return;
+      arr(k.fields).forEach(function (f) { if (f && f.key) labels[f.key] = f.label || f.key; });
+    });
     var caps = teamCaps(r.owner);
     var buttons = [{words: 'Close', close: true}];
     if (may.manage || caps.indexOf('target.manage') >= 0) {
@@ -1400,10 +1428,10 @@ function deviceOpen(r0) {
         var v = r.config[k];
         if ((r.secrets || {})[k] !== undefined) return;
         if (v === '' || v === null || v === undefined || typeof v === 'object') return;
-        pairs.push([k, data('span', 'mono small', String(v))]);
+        pairs.push([labels[k] || k, data('span', 'mono small', String(v))]);
       });
       Object.keys(r.secrets || {}).forEach(function (k) {
-        pairs.push([k, chip(r.secrets[k] ? 'set' : 'not set', r.secrets[k] ? 'ok' : 'dim', 'lock')]);
+        pairs.push([labels[k] || k, chip(r.secrets[k] ? 'set' : 'not set', r.secrets[k] ? 'ok' : 'dim', 'lock')]);
       });
       if (r.note) pairs.push(['Note', data('span', '', r.note)]);
       pairs.push(['Added', when(r.created)]);
@@ -1794,7 +1822,7 @@ function enrolDialog() {
       }
       var title = textBox('', 'Web servers in Prague', '');
       title.oninput = function () { F.title = title.value; };
-      g.appendChild(formField('Title', title, 'What these servers are - shown with each of them.'));
+      g.appendChild(formField('Name', title, 'What these servers are - shown with each of them.'));
       var mode = selectBox([['active', 'the agent connects to acme (nothing open on the server)'], ['passive', 'acme connects to the agent (it listens, 8446)']], 'active');
       mode.onchange = function () { F.mode = mode.value; };
       g.appendChild(formField('Who connects', mode, ''));
@@ -2551,7 +2579,8 @@ function limitsEditor(parent, own) {
     var w = el('span', 'pw-led-num');
     w.appendChild(i);
     if (unit) w.appendChild(el('span', 'muted', unit));
-    row(key, label, w, own[key] !== undefined, function () { return i.value === '' ? null : Number(i.value); });
+    row(key, label, w, own[key] !== undefined, function () { return i.value === '' ? null : Number(i.value); },
+        eff[key] && unit ? nW(eff[key], unit) : undefined);
   };
   var boolRow = function (key, label, yes, no) {
     var s = selectBox([['1', yes], ['0', no]], own[key] === false ? '0' : '1');
@@ -2561,7 +2590,7 @@ function limitsEditor(parent, own) {
   listRow('profiles', 'Request profiles', 'a profile’s name', profs.concat(arr(eff.profiles)));
   boolRow('free_form', 'Without a profile', 'may ask', 'never');
   listRow('suffixes', 'Names under', 'example.com', arr(eff.suffixes));
-  numRow('max_days', 'Longest validity', tr('days'));
+  numRow('max_days', 'Longest validity', 'days');
   numRow('max_certs', 'Most certificates', '');
   listRow('target_kinds', 'Device modules', 'ssh, agent, f5…', arr(eff.target_kinds));
   boolRow('key_download', 'Private keys', 'may be downloaded', 'never downloaded');

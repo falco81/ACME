@@ -32,6 +32,9 @@ const { chromium } = require('playwright');
     out.noPass = (await page.textContent('#in-said')).trim();
     await page.fill('#in-pass', pass);
     await page.click('#in-go');
+    /* a member of a team (1.0.125): the team workspace - its Certificates */
+    await page.waitForSelector('#cp-list table, #pw-nav', {timeout: 30000});
+    if (await page.$('#pw-nav')) await page.click('#pw-nav [data-view=certs]');
     await page.waitForSelector('#cp-list table', {timeout: 30000});
     await page.waitForTimeout(500);
     out.wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

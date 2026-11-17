@@ -108,6 +108,13 @@ class TeamsPortalUi(unittest.TestCase):
             cls.must('POST', '/api/certs/save', {
                 'name': 'host%02d' % i, 'names': ['host%02d.example.test' % i], 'issuer': 'self',
                 'key_type': 'ec-256', 'auto_renew': 0, 'owner': 'WebDev' if i % 3 else 'Web'})
+        # one that runs out soon: a source of 12 days
+        cls.must('POST', '/api/sources/save', {'name': 'short', 'kind': 'selfsigned',
+                                               'config': {'days': 12}})
+        got = cls.must('POST', '/api/certs/save', {
+            'name': 'legacy-intranet', 'names': ['legacy.example.test'], 'issuer': 'short',
+            'key_type': 'ec-256', 'auto_renew': 0, 'owner': 'Web'})
+        cls.issue(got['id'])
         got = cls.must('POST', '/api/certs/save', {
             'name': 'solo-one', 'names': ['solo-one.example.test'], 'issuer': 'self',
             'key_type': 'ec-256', 'auto_renew': 0, 'owner': 'local:tsolo'})
@@ -188,7 +195,8 @@ class TeamsPortalUi(unittest.TestCase):
         node = shutil.which('node')
         args = [node, os.path.join(HERE, 'teams_portal_ui_page.js'), base, flow, self.pw, lang,
                 str(width), os.environ.get('TP_SHOTS', '')] + list(extra or [])
-        got = subprocess.run(args, capture_output=True, text=True, timeout=400, cwd=ROOT)
+        got = subprocess.run(args, capture_output=True, text=True, timeout=400, cwd=ROOT,
+                             env=dict(os.environ, TP_OUT=self.out))
         lines = [x for x in (got.stdout or '').splitlines() if x.startswith('{')]
         self.assertTrue(lines, (got.stdout or '')[-3000:] + got.stderr[-3000:])
         out = json.loads(lines[-1])
@@ -215,6 +223,8 @@ class TeamsPortalUi(unittest.TestCase):
 
         got = self.page(base, 'requester')
         self.assertTrue(got['asked'], got)
+        self.assertEqual(got['team'], 'Web', got)            # the team's, not their own
+        self.assertTrue(got['mine'], got)
         self.assertIn('waits', got['said'].lower() + ' ' + got.get('state', ''), got)
 
         got = self.page(base, 'renewer')
@@ -223,6 +233,8 @@ class TeamsPortalUi(unittest.TestCase):
         got = self.page(base, 'devman')
         self.assertTrue(got['added'], got)
         self.assertTrue(got['tested'], got)
+        self.assertTrue(got['deployAdded'] and got['deployed'], got)
+        self.assertTrue(os.path.isfile(os.path.join(self.out, 'b2-shop.pem')))
         st, rows = self.call('GET', '/api/targets', None, self.admin)
         mine = [t for t in rows.get('rows', rows.get('targets', [])) if t.get('name') == 'b2-new']
         self.assertTrue(mine and mine[0].get('owner') == 'Web', mine)
@@ -248,6 +260,12 @@ class TeamsPortalUi(unittest.TestCase):
         self.assertTrue(got['dialog'], got)
         self.assertFalse(got['workspace'], got)
 
+        # ---- a request waiting (the inbox, its timeline in the screenshots) ----------------
+        st, got = self.call('POST', '/api/portal/login', {'name': 'treq', 'password': self.pw})
+        self.assertEqual(st, 200, got)
+        st, got = self.call('POST', '/api/portal/cert_request', {
+            'names': ['b2-waits.example.test'], 'issuer': 'self', 'team': 'Web'}, got['token'])
+        self.assertEqual(st, 200, got)
         # ---- every width, both languages: nothing wider than the page, no English in Czech ----
         for lang in ('en', 'cs'):
             for width in (1400, 1024, 768, 390):

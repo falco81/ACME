@@ -153,3 +153,4 @@ td.cp-changed{color:var(--warn);font-weight:600}
   .cp-table tbody td.rowtools{display:flex;flex-direction:column;gap:4px}
   .cp-table td.rowtools .btn + .btn{margin-left:0}
 }
+.cp-may .tag{text-transform:none;letter-spacing:0;font-weight:600;margin:1px 0}

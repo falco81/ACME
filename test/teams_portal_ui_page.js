@@ -51,12 +51,12 @@ const USERS = {viewer: 'tviewer', requester: 'treq', renewer: 'trenew', devman: 
   };
   const modalButtons = () => page.$$eval('#modal-foot button', bs => bs.filter(b => !b.hidden).map(b => b.textContent.trim()));
   const clickModal = async words => {
-    const b = page.locator('#modal-foot button', {hasText: words}).first();
+    const b = page.locator('#modal-foot button', {hasText: words === 'Close' ? /^(Close|Zavřít)$/ : words}).first();
     await b.click();
   };
   /* text a Czech page still shows in English: visible text nodes outside data and names */
   const english = () => page.evaluate(() => {
-    const EN = /\b(the|of|and|to|is|for|with|your|you|it|not|all|team|teams|certificates?|devices?|members?|requests?|waiting|nothing|add|ask|limits?|deployments?|activity|home|search|valid|failing|expiring)\b/i;
+    const EN = /(?<!\p{L})(the|of|and|is|for|with|your|you|it|not|all|team|teams|certificates?|devices?|members?|requests?|waiting|nothing|add|ask|limits|deployments?|activity|home|search|valid|failing|expiring|workspace|title)(?!\p{L})/iu;
     const got = [];
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let n;
@@ -64,7 +64,7 @@ const USERS = {viewer: 'tviewer', requester: 'treq', renewer: 'trenew', devman: 
       const t = n.nodeValue.trim();
       if (!t || !EN.test(t)) continue;
       const p = n.parentElement;
-      if (!p || p.closest('[data-no-i18n], .mono, code, pre, script, style, #toast, .langpick, [hidden]')) continue;
+      if (!p || p.closest('[data-no-i18n], .pw-act-t, .mono, code, pre, script, style, #toast, .langpick, [hidden]')) continue;
       const r = p.getBoundingClientRect();
       if (!r.width || !r.height) continue;
       if (getComputedStyle(p).visibility === 'hidden') continue;
@@ -152,7 +152,7 @@ const USERS = {viewer: 'tviewer', requester: 'treq', renewer: 'trenew', devman: 
       await page.locator('.pw-kind', {hasText: 'Fake target'}).first().click();
       await page.waitForSelector('#pw-dev-name', {timeout: 10000});
       await page.fill('#pw-dev-name', 'b2-new');
-      await page.fill('[data-fkey=dir] input', '/tmp');
+      await page.fill('[data-fkey=dir] input', process.env.TP_OUT || '/tmp');
       await page.fill('[data-fkey=password] input', 's3cret');
       await shot('devman_form');
       await clickModal('Add it');
@@ -165,6 +165,24 @@ const USERS = {viewer: 'tviewer', requester: 'treq', renewer: 'trenew', devman: 
       out.tested = !!(await page.$('#pw-testbox.good'));
       out.testSaid = await page.textContent('#pw-testbox');
       await shot('devman_test');
+      await clickModal('Close');
+      /* a deployment of a team's certificate to the new device, run */
+      await view('deploys');
+      await page.click('#pw-add-deploy');
+      await page.waitForSelector('#pw-dep-cert', {timeout: 30000});
+      await page.fill('#pw-dep-cert', 'shop');
+      await page.locator('.pw-pick-o', {hasText: 'shop'}).first().click();
+      await page.selectOption('#pw-dep-dev', 'b2-new');
+      await page.waitForSelector('#modal [data-fkey=file] input', {timeout: 10000});
+      await page.fill('#modal [data-fkey=file] input', 'b2-shop.pem');
+      await shot('devman_deploy');
+      await clickModal('Add it');
+      await page.locator('.pw-dep', {hasText: 'b2-new'}).first().waitFor({timeout: 15000});
+      out.deployAdded = true;
+      await page.locator('.pw-dep', {hasText: 'b2-new'}).first().locator('.pw-run').click();
+      await page.waitForFunction(() => /Deployed|It failed/.test((document.getElementById('modal-body') || {}).textContent || ''), null, {timeout: 60000});
+      out.deployed = /Deployed/.test(await page.textContent('#modal-body'));
+      await shot('devman_deployed');
     }
     if (flow === 'approver' || flow === 'boss') {
       await view('inbox', flow === 'boss' ? 'Prague' : 'Web');

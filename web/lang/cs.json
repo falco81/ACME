@@ -70303,6 +70303,934 @@
   "z_1414": {
    "source": "no test of that kind here",
    "text": "test toho druhu tu není"
+  },
+  "z_1415": {
+   "source": "This could not be shown",
+   "text": "Tohle nešlo zobrazit"
+  },
+  "z_1416": {
+   "source": "a part of the page could not be loaded - try again",
+   "text": "část stránky se nepodařilo načíst – zkuste to znovu"
+  },
+  "z_1417": {
+   "source": "not on the portal - an administrator does that",
+   "text": "to se na portálu nedělá – udělá to správce"
+  },
+  "z_1418": {
+   "source": "All my teams",
+   "text": "Všechny moje týmy"
+  },
+  "z_1419": {
+   "source": "Sub-teams & limits",
+   "text": "Podtýmy a limity"
+  },
+  "z_1420": {
+   "source": "The team workspace",
+   "text": "Pracovní prostor týmu"
+  },
+  "z_1421": {
+   "source": "Find a team",
+   "text": "Najít tým"
+  },
+  "z_1422": {
+   "source": "No team of yours is called so.",
+   "text": "Žádný váš tým se tak nejmenuje."
+  },
+  "z_1423": {
+   "source": "Good evening",
+   "text": "Dobrý večer"
+  },
+  "z_1424": {
+   "source": "Good morning",
+   "text": "Dobré ráno"
+  },
+  "z_1425": {
+   "source": "Good afternoon",
+   "text": "Dobré odpoledne"
+  },
+  "z_1426": {
+   "source": "ask for certificates",
+   "text": "žádat o certifikáty"
+  },
+  "z_1427": {
+   "source": "renew",
+   "text": "obnovovat"
+  },
+  "z_1428": {
+   "source": "revoke",
+   "text": "odvolávat"
+  },
+  "z_1429": {
+   "source": "delete",
+   "text": "mazat"
+  },
+  "z_1430": {
+   "source": "download keys",
+   "text": "stahovat klíče"
+  },
+  "z_1431": {
+   "source": "approve requests",
+   "text": "schvalovat žádosti"
+  },
+  "z_1432": {
+   "source": "deploy",
+   "text": "nasazovat"
+  },
+  "z_1433": {
+   "source": "set up deployments",
+   "text": "nastavovat nasazení"
+  },
+  "z_1434": {
+   "source": "manage devices",
+   "text": "spravovat zařízení"
+  },
+  "z_1435": {
+   "source": "test devices",
+   "text": "testovat zařízení"
+  },
+  "z_1436": {
+   "source": "manage members",
+   "text": "spravovat členy"
+  },
+  "z_1437": {
+   "source": "set limits",
+   "text": "nastavovat limity"
+  },
+  "z_1438": {
+   "source": "create sub-teams",
+   "text": "zakládat podtýmy"
+  },
+  "z_1439": {
+   "source": "see the activity",
+   "text": "vidět aktivitu"
+  },
+  "z_1440": {
+   "source": "see what is here",
+   "text": "vidět, co tu je"
+  },
+  "z_1441": {
+   "source": "Your team, in one place.",
+   "text": "Váš tým na jednom místě."
+  },
+  "z_1442": {
+   "source": "Add a device",
+   "text": "Přidat zařízení"
+  },
+  "z_1443": {
+   "source": "Enrol servers",
+   "text": "Zapojit servery"
+  },
+  "z_1444": {
+   "source": "owned by your teams",
+   "text": "patří vašim týmům"
+  },
+  "z_1445": {
+   "source": "Expiring soon",
+   "text": "Brzy vyprší"
+  },
+  "z_1446": {
+   "source": "within 30 days",
+   "text": "do 30 dnů"
+  },
+  "z_1447": {
+   "source": "nothing failed",
+   "text": "nic neselhalo"
+  },
+  "z_1448": {
+   "source": "servers and appliances",
+   "text": "servery a zařízení"
+  },
+  "z_1449": {
+   "source": "Agents waiting",
+   "text": "Čekající agenti"
+  },
+  "z_1450": {
+   "source": "to be confirmed",
+   "text": "k potvrzení"
+  },
+  "z_1451": {
+   "source": "none waits",
+   "text": "žádný nečeká"
+  },
+  "z_1452": {
+   "source": "to approve or decline",
+   "text": "ke schválení nebo zamítnutí"
+  },
+  "z_1453": {
+   "source": "nothing to approve",
+   "text": "nic ke schválení"
+  },
+  "z_1454": {
+   "source": "Needs attention",
+   "text": "Vyžaduje pozornost"
+  },
+  "z_1455": {
+   "source": "Approve or decline them - the people who asked are told.",
+   "text": "Schvalte je nebo zamítněte – žadatelé dostanou zprávu."
+  },
+  "z_1456": {
+   "source": "its last renewal failed",
+   "text": "jeho poslední obnova selhala"
+  },
+  "z_1457": {
+   "source": "runs out soon",
+   "text": "brzy vyprší"
+  },
+  "z_1458": {
+   "source": "Compare each fingerprint with the one its server printed, then confirm it.",
+   "text": "Porovnejte každý otisk s tím, který vypsal jeho server, a pak ho potvrďte."
+  },
+  "z_1459": {
+   "source": "approved - take the key now",
+   "text": "schváleno – vyzvedněte si klíč"
+  },
+  "z_1460": {
+   "source": "All is well",
+   "text": "Vše je v pořádku"
+  },
+  "z_1461": {
+   "source": "Nothing fails, nothing runs out within 30 days and nothing waits for you.",
+   "text": "Nic neselhává, nic nevyprší do 30 dnů a nic na vás nečeká."
+  },
+  "z_1462": {
+   "source": "Your teams",
+   "text": "Vaše týmy"
+  },
+  "z_1463": {
+   "source": "More in the switcher at the top.",
+   "text": "Další najdete v přepínači nahoře."
+  },
+  "z_1464": {
+   "source": "nothing waits - the team does it all itself",
+   "text": "nic nečeká – tým si vše dělá sám"
+  },
+  "z_1465": {
+   "source": "waits only outside the pre-approved envelope",
+   "text": "čeká jen mimo předem schválený rámec"
+  },
+  "z_1466": {
+   "source": "as each request profile says",
+   "text": "jak říká daný profil žádostí"
+  },
+  "z_1467": {
+   "source": "every request waits for an approval",
+   "text": "každá žádost čeká na schválení"
+  },
+  "z_1468": {
+   "source": "the team’s lead",
+   "text": "vedoucí týmu"
+  },
+  "z_1469": {
+   "source": "the team above",
+   "text": "nadřízený tým"
+  },
+  "z_1470": {
+   "source": "the team’s lead or the team above",
+   "text": "vedoucí týmu nebo nadřízený tým"
+  },
+  "z_1471": {
+   "source": "the team’s lead, then the team above",
+   "text": "vedoucí týmu, pak nadřízený tým"
+  },
+  "z_1472": {
+   "source": "deleting a device",
+   "text": "smazání zařízení"
+  },
+  "z_1473": {
+   "source": "Without a profile",
+   "text": "Bez profilu"
+  },
+  "z_1474": {
+   "source": "Device modules",
+   "text": "Moduly zařízení"
+  },
+  "z_1475": {
+   "source": "Private keys",
+   "text": "Soukromé klíče"
+  },
+  "z_1476": {
+   "source": "never downloaded",
+   "text": "nikdy se nestahují"
+  },
+  "z_1477": {
+   "source": "four eyes - two approvers",
+   "text": "čtyři oči – dva schvalovatelé"
+  },
+  "z_1478": {
+   "source": "Also approved first",
+   "text": "Také se nejprve schvaluje"
+  },
+  "z_1479": {
+   "source": "No limits",
+   "text": "Žádné limity"
+  },
+  "z_1480": {
+   "source": "The team asks for what the request profiles and the portal allow.",
+   "text": "Tým žádá o to, co dovolují profily žádostí a portál."
+  },
+  "z_1481": {
+   "source": "never without a profile",
+   "text": "nikdy bez profilu"
+  },
+  "z_1482": {
+   "source": "The limits of",
+   "text": "Limity týmu"
+  },
+  "z_1483": {
+   "source": "Your team may ask:",
+   "text": "Váš tým smí žádat:"
+  },
+  "z_1484": {
+   "source": "Every certificate of your teams. Click one for everything about it.",
+   "text": "Všechny certifikáty vašich týmů. Klepněte na kterýkoli a uvidíte o něm vše."
+  },
+  "z_1485": {
+   "source": "The certificates of the team. Each is renewed by itself before it runs out - click one for everything about it.",
+   "text": "Certifikáty týmu. Každý se před vypršením sám obnoví – klepněte na kterýkoli a uvidíte o něm vše."
+  },
+  "z_1486": {
+   "source": "Search names, owners, serials",
+   "text": "Hledat jména, vlastníky, sériová čísla"
+  },
+  "z_1487": {
+   "source": "Expiring",
+   "text": "Vyprší"
+  },
+  "z_1488": {
+   "source": "Asked by me",
+   "text": "Mé žádosti"
+  },
+  "z_1489": {
+   "source": "filtered",
+   "text": "vyfiltrováno"
+  },
+  "z_1490": {
+   "source": "Nowhere yet - the team’s deployments put it on its devices.",
+   "text": "Zatím nikam – na zařízení ho dávají nasazení týmu."
+  },
+  "z_1491": {
+   "source": "How it was asked for",
+   "text": "Jak se o něj žádalo"
+  },
+  "z_1492": {
+   "source": "What waits for your approval, and how the requests you made are going.",
+   "text": "Co čeká na vaše schválení a jak pokračují vaše žádosti."
+  },
+  "z_1493": {
+   "source": "Your requests",
+   "text": "Vaše žádosti"
+  },
+  "z_1494": {
+   "source": "Nothing waits for you",
+   "text": "Nic na vás nečeká"
+  },
+  "z_1495": {
+   "source": "When someone of your teams asks for something you approve, it is here - and you are told by mail.",
+   "text": "Když někdo z vašich týmů požádá o něco, co schvalujete, najdete to tady – a dostanete e-mail."
+  },
+  "z_1496": {
+   "source": "You have not asked for anything waiting",
+   "text": "Nečeká žádná vaše žádost"
+  },
+  "z_1497": {
+   "source": "What you ask for that waits for an approval is followed here, step by step.",
+   "text": "Co čeká na schválení, tu sledujete krok za krokem."
+  },
+  "z_1498": {
+   "source": "waits for",
+   "text": "čeká na"
+  },
+  "z_1499": {
+   "source": "The key of",
+   "text": "Klíč certifikátu"
+  },
+  "z_1500": {
+   "source": "Delete the device",
+   "text": "Smazat zařízení"
+  },
+  "z_1501": {
+   "source": "Take the key now",
+   "text": "Vyzvednout klíč"
+  },
+  "z_1502": {
+   "source": "Its download was approved. The certificate, its chain and its private key in one PFX file, locked with a password you choose - taken once.",
+   "text": "Stažení bylo schváleno. Certifikát, jeho řetězec a soukromý klíč v jednom souboru PFX zamčeném heslem, které si zvolíte – stáhne se jednou."
+  },
+  "z_1503": {
+   "source": "At least 8 characters.",
+   "text": "Nejméně 8 znaků."
+  },
+  "z_1504": {
+   "source": "downloaded:",
+   "text": "staženo:"
+  },
+  "z_1505": {
+   "source": "The rule of",
+   "text": "Pravidlo týmu"
+  },
+  "z_1506": {
+   "source": "never the one who asked",
+   "text": "nikdy ten, kdo žádal"
+  },
+  "z_1507": {
+   "source": "asked for it",
+   "text": "o něj požádal(a)"
+  },
+  "z_1508": {
+   "source": "let it through",
+   "text": "ho propustil(a)"
+  },
+  "z_1509": {
+   "source": "Nothing recorded yet.",
+   "text": "Zatím nic zaznamenáno."
+  },
+  "z_1510": {
+   "source": "The servers and appliances the team’s certificates are deployed to - with their own settings, tested from here.",
+   "text": "Servery a zařízení, na která se nasazují certifikáty týmu – s vlastním nastavením, otestované odtud."
+  },
+  "z_1511": {
+   "source": "Search devices",
+   "text": "Hledat zařízení"
+  },
+  "z_1512": {
+   "source": "No device yet",
+   "text": "Zatím žádné zařízení"
+  },
+  "z_1513": {
+   "source": "A device is a server or an appliance a certificate is put on - add one with the settings its module asks for.",
+   "text": "Zařízení je server nebo appliance, na který se dává certifikát – přidejte ho s nastavením, které chce jeho modul."
+  },
+  "z_1514": {
+   "source": "No device here matches what you are looking for.",
+   "text": "Žádné zařízení tu neodpovídá tomu, co hledáte."
+  },
+  "z_1515": {
+   "source": "no certificate here yet",
+   "text": "zatím tu není žádný certifikát"
+  },
+  "z_1516": {
+   "source": "last failed",
+   "text": "naposledy selhalo"
+  },
+  "z_1517": {
+   "source": "last went well",
+   "text": "naposledy v pořádku"
+  },
+  "z_1518": {
+   "source": "waits to be confirmed",
+   "text": "čeká na potvrzení"
+  },
+  "z_1519": {
+   "source": "not used yet",
+   "text": "zatím nepoužito"
+  },
+  "z_1520": {
+   "source": "it waits for an approval first",
+   "text": "nejprve čeká na schválení"
+  },
+  "z_1521": {
+   "source": "Test it",
+   "text": "Otestovat"
+  },
+  "z_1522": {
+   "source": "Its settings",
+   "text": "Jeho nastavení"
+  },
+  "z_1523": {
+   "source": "None yet.",
+   "text": "Zatím žádné."
+  },
+  "z_1524": {
+   "source": "Testing - acme connects to it now…",
+   "text": "Testuje se – acme se k němu právě připojuje…"
+  },
+  "z_1525": {
+   "source": "The test went well",
+   "text": "Test proběhl v pořádku"
+  },
+  "z_1526": {
+   "source": "The test failed",
+   "text": "Test selhal"
+  },
+  "z_1527": {
+   "source": "no team of yours lets you add devices",
+   "text": "žádný váš tým vám nedovoluje přidávat zařízení"
+  },
+  "z_1528": {
+   "source": "its module is not one the team may use any more",
+   "text": "jeho modul už tým používat nesmí"
+  },
+  "z_1529": {
+   "source": "For the team",
+   "text": "Pro tým"
+  },
+  "z_1530": {
+   "source": "The device belongs to it: its members see it and deploy to it.",
+   "text": "Zařízení patří jemu: jeho členové ho vidí a nasazují na něj."
+  },
+  "z_1531": {
+   "source": "The modules the team may use",
+   "text": "Moduly, které tým smí používat"
+  },
+  "z_1532": {
+   "source": "set by",
+   "text": "nastavil"
+  },
+  "z_1533": {
+   "source": "What kind of device is it? Pick its module - then fill in what that module needs.",
+   "text": "Jaké je to zařízení? Vyberte jeho modul – a pak vyplňte, co ten modul potřebuje."
+  },
+  "z_1534": {
+   "source": "No module allowed",
+   "text": "Žádný povolený modul"
+  },
+  "z_1535": {
+   "source": "The team’s limits allow no device module - ask its manager.",
+   "text": "Limity týmu nepovolují žádný modul zařízení – zeptejte se jeho správce."
+  },
+  "z_1536": {
+   "source": "for the team",
+   "text": "pro tým"
+  },
+  "z_1537": {
+   "source": "Its name stays.",
+   "text": "Jeho název zůstává."
+  },
+  "z_1538": {
+   "source": "How it is called here - unique.",
+   "text": "Jak se tu jmenuje – jedinečně."
+  },
+  "z_1539": {
+   "source": "Switched on",
+   "text": "Zapnuto"
+  },
+  "z_1540": {
+   "source": "Off: nothing is deployed to it.",
+   "text": "Vypnuto: nic se na něj nenasazuje."
+  },
+  "z_1541": {
+   "source": "what it is, where it stands",
+   "text": "co to je, kde stojí"
+  },
+  "z_1542": {
+   "source": "Give it a name.",
+   "text": "Dejte mu název."
+  },
+  "z_1543": {
+   "source": "Refuse",
+   "text": "Odmítnout"
+  },
+  "z_1544": {
+   "source": "The server asking to join is refused; the device made for it is taken away.",
+   "text": "Server, který se chce připojit, je odmítnut; zařízení pro něj založené se odstraní."
+  },
+  "z_1545": {
+   "source": "Refuse it",
+   "text": "Odmítnout"
+  },
+  "z_1546": {
+   "source": "Install the agent on as many servers as you like - by hand, or with Group Policy, Intune, SCCM or Ansible. Each server appears among the team’s devices, waiting for confirmation by a member who manages its devices.",
+   "text": "Nainstalujte agenta na libovolný počet serverů – ručně, nebo přes Group Policy, Intune, SCCM či Ansible. Každý server se objeví mezi zařízeními týmu a čeká na potvrzení členem, který spravuje jeho zařízení."
+  },
+  "z_1547": {
+   "source": "An enrolling agent asks acme on the agents’ port, which is switched off now - the administrators switch it on.",
+   "text": "Zapojující se agent se ptá acme na portu agentů, který je teď vypnutý – zapnou ho správci."
+  },
+  "z_1548": {
+   "source": "The team’s codes",
+   "text": "Kódy týmu"
+  },
+  "z_1549": {
+   "source": "A new enrollment code",
+   "text": "Nový zapojovací kód"
+  },
+  "z_1550": {
+   "source": "Servers joining with it become devices of this team.",
+   "text": "Servery, které se jím připojí, se stanou zařízeními tohoto týmu."
+  },
+  "z_1551": {
+   "source": "Web servers in Prague",
+   "text": "Webové servery v Praze"
+  },
+  "z_1552": {
+   "source": "What these servers are - shown with each of them.",
+   "text": "Co jsou tyto servery – zobrazí se u každého z nich."
+  },
+  "z_1553": {
+   "source": "Confirmed automatically",
+   "text": "Potvrzovat automaticky"
+  },
+  "z_1554": {
+   "source": "Allowed by the administrators for this team: servers joining with it are confirmed without a look at their fingerprint.",
+   "text": "Správci to tomuto týmu povolili: servery, které se jím připojí, se potvrdí bez kontroly otisku."
+  },
+  "z_1555": {
+   "source": "Not joined yet",
+   "text": "Zatím nepřipojen"
+  },
+  "z_1556": {
+   "source": "Install the agent on the server and join it with a one-time code made here.",
+   "text": "Nainstalujte agenta na server a připojte ho jednorázovým kódem vytvořeným tady."
+  },
+  "z_1557": {
+   "source": "A new join code",
+   "text": "Nový připojovací kód"
+  },
+  "z_1558": {
+   "source": "Make a join code",
+   "text": "Vytvořit připojovací kód"
+  },
+  "z_1559": {
+   "source": "Shown this once - copy it now. It joins this one server, once.",
+   "text": "Zobrazí se jen teď – zkopírujte ho. Připojí tento jeden server, jednou."
+  },
+  "z_1560": {
+   "source": "not deployed yet",
+   "text": "zatím nenasazeno"
+  },
+  "z_1561": {
+   "source": "Add a deployment",
+   "text": "Přidat nasazení"
+  },
+  "z_1562": {
+   "source": "Which certificate goes to which device - put there by itself after every renewal.",
+   "text": "Který certifikát jde na které zařízení – po každé obnově se tam dá sám."
+  },
+  "z_1563": {
+   "source": "Nothing is deployed yet",
+   "text": "Zatím se nic nenasazuje"
+  },
+  "z_1564": {
+   "source": "A deployment puts a certificate of the team on a device of the team - again after every renewal.",
+   "text": "Nasazení dá certifikát týmu na zařízení týmu – znovu po každé obnově."
+  },
+  "z_1565": {
+   "source": "deploying - it runs now",
+   "text": "nasazuje se – právě běží"
+  },
+  "z_1566": {
+   "source": "Delete the deployment",
+   "text": "Smazat nasazení"
+  },
+  "z_1567": {
+   "source": "The certificate is no longer put on this device. What is on the device now stays there.",
+   "text": "Certifikát se na toto zařízení už nebude dávat. Co na zařízení je teď, tam zůstane."
+  },
+  "z_1568": {
+   "source": "Deploying",
+   "text": "Nasazuje se"
+  },
+  "z_1569": {
+   "source": "Deploying…",
+   "text": "Nasazuje se…"
+  },
+  "z_1570": {
+   "source": "no team of yours lets you set up deployments",
+   "text": "žádný váš tým vám nedovoluje nastavovat nasazení"
+  },
+  "z_1571": {
+   "source": "Change the deployment",
+   "text": "Změnit nasazení"
+  },
+  "z_1572": {
+   "source": "Pick the device first - its module says what it needs.",
+   "text": "Nejprve vyberte zařízení – jeho modul řekne, co potřebuje."
+  },
+  "z_1573": {
+   "source": "The team may not deploy to a device of this module.",
+   "text": "Tým nesmí nasazovat na zařízení tohoto modulu."
+  },
+  "z_1574": {
+   "source": "The team has no device yet - add one first.",
+   "text": "Tým zatím nemá žádné zařízení – nejprve nějaké přidejte."
+  },
+  "z_1575": {
+   "source": "Another one",
+   "text": "Jiný"
+  },
+  "z_1576": {
+   "source": "Search the team’s certificates",
+   "text": "Hledat certifikáty týmu"
+  },
+  "z_1577": {
+   "source": "Filled in from what was found on the server",
+   "text": "Vyplněno podle toho, co se našlo na serveru"
+  },
+  "z_1578": {
+   "source": "Look at it before you add it - the files, the service, its reload.",
+   "text": "Prohlédněte si to, než to přidáte – soubory, službu, její reload."
+  },
+  "z_1579": {
+   "source": "How it is put there",
+   "text": "Jak se tam dává"
+  },
+  "z_1580": {
+   "source": "Off: it is kept, but nothing is deployed.",
+   "text": "Vypnuto: zůstává uloženo, ale nic se nenasazuje."
+  },
+  "z_1581": {
+   "source": "Pick the certificate.",
+   "text": "Vyberte certifikát."
+  },
+  "z_1582": {
+   "source": "Pick the device.",
+   "text": "Vyberte zařízení."
+  },
+  "z_1583": {
+   "source": "Choose a team",
+   "text": "Vyberte tým"
+  },
+  "z_1584": {
+   "source": "a person of the directory",
+   "text": "osoba z adresáře"
+  },
+  "z_1585": {
+   "source": "a directory group",
+   "text": "skupina z adresáře"
+  },
+  "z_1586": {
+   "source": "Who is in a team, and what each may do there.",
+   "text": "Kdo je v týmu a co tam kdo smí."
+  },
+  "z_1587": {
+   "source": "Who is in the team and what each may do - members of the teams above work here too.",
+   "text": "Kdo je v týmu a co kdo smí – pracují tu i členové nadřízených týmů."
+  },
+  "z_1588": {
+   "source": "Add people or directory groups - each with the roles that say what they may do.",
+   "text": "Přidejte lidi nebo skupiny z adresáře – každého s rolemi, které říkají, co smí."
+  },
+  "z_1589": {
+   "source": "Through the teams above",
+   "text": "Přes nadřízené týmy"
+  },
+  "z_1590": {
+   "source": "Members of the teams above hold what they hold there here too - changed in those teams.",
+   "text": "Členové nadřízených týmů tu mají totéž, co tam – mění se v těch týmech."
+  },
+  "z_1591": {
+   "source": "they hold more than you do here - not yours to change",
+   "text": "mají tu víc než vy – nemůžete je měnit"
+  },
+  "z_1592": {
+   "source": "Take a member off",
+   "text": "Odebrat člena"
+  },
+  "z_1593": {
+   "source": "Change a member",
+   "text": "Změnit člena"
+  },
+  "z_1594": {
+   "source": "A person (name, UPN or e-mail), a directory group (group:NAME) or an account of acme’s own (local:NAME). Type to search the directory.",
+   "text": "Osoba (jméno, UPN nebo e-mail), skupina z adresáře (group:NÁZEV) nebo vlastní účet acme (local:NÁZEV). Pište a prohledá se adresář."
+  },
+  "z_1595": {
+   "source": "more than you hold here - not yours to give",
+   "text": "víc, než tu máte vy – nemůžete to dát"
+  },
+  "z_1596": {
+   "source": "Leave it empty for good - or the last day of a temporary membership.",
+   "text": "Prázdné natrvalo – nebo poslední den dočasného členství."
+  },
+  "z_1597": {
+   "source": "why they are here",
+   "text": "proč tu jsou"
+  },
+  "z_1598": {
+   "source": "Who? Type a name or pick one.",
+   "text": "Kdo? Napište jméno nebo vyberte."
+  },
+  "z_1599": {
+   "source": "Give them a role at least.",
+   "text": "Dejte jim aspoň jednu roli."
+  },
+  "z_1600": {
+   "source": "The teams below one of yours, and the limits they work within.",
+   "text": "Týmy pod některým z vašich a limity, ve kterých pracují."
+  },
+  "z_1601": {
+   "source": "A sub-team",
+   "text": "Podtým"
+  },
+  "z_1602": {
+   "source": "The teams below this one: made and named here, each within the limits set here - never wider than this team’s own.",
+   "text": "Týmy pod tímto: zakládají se a pojmenovávají tady, každý v limitech nastavených tady – nikdy širších než má tento tým."
+  },
+  "z_1603": {
+   "source": "The teams below",
+   "text": "Týmy pod ním"
+  },
+  "z_1604": {
+   "source": "No team below this one",
+   "text": "Pod tímto týmem žádný není"
+  },
+  "z_1605": {
+   "source": "Make a sub-team for a part of the work - a site, a service, a group of servers - with its own members and limits.",
+   "text": "Založte podtým pro část práce – pobočku, službu, skupinu serverů – s vlastními členy a limity."
+  },
+  "z_1606": {
+   "source": "Rename, describe",
+   "text": "Přejmenovat, popsat"
+  },
+  "z_1607": {
+   "source": "Open the team",
+   "text": "Otevřít tým"
+  },
+  "z_1608": {
+   "source": "Unique among all teams.",
+   "text": "Jedinečný mezi všemi týmy."
+  },
+  "z_1609": {
+   "source": "a unit (a region, a site)",
+   "text": "útvar (oblast, pobočka)"
+  },
+  "z_1610": {
+   "source": "what it looks after",
+   "text": "o co se stará"
+  },
+  "z_1611": {
+   "source": "Its limits",
+   "text": "Jeho limity"
+  },
+  "z_1612": {
+   "source": "Make the team",
+   "text": "Založit tým"
+  },
+  "z_1613": {
+   "source": "Each limit narrows what the team above allows - never wider. Unset, the limit of the teams above holds (said beside it).",
+   "text": "Každý limit zužuje to, co dovoluje nadřízený tým – nikdy nerozšiřuje. Nenastavený limit platí podle nadřízených týmů (uvedeno vedle)."
+  },
+  "z_1614": {
+   "source": "no limit above",
+   "text": "výše bez limitu"
+  },
+  "z_1615": {
+   "source": "above:",
+   "text": "výše:"
+  },
+  "z_1616": {
+   "source": "a profile’s name",
+   "text": "název profilu"
+  },
+  "z_1617": {
+   "source": "may ask",
+   "text": "smí žádat"
+  },
+  "z_1618": {
+   "source": "may be downloaded",
+   "text": "smí se stahovat"
+  },
+  "z_1619": {
+   "source": "Approved by",
+   "text": "Schvaluje"
+  },
+  "z_1620": {
+   "source": "one approver",
+   "text": "jeden schvalovatel"
+  },
+  "z_1621": {
+   "source": "a number of days or certificates is 1 at least",
+   "text": "počet dní nebo certifikátů je nejméně 1"
+  },
+  "z_1622": {
+   "source": "What happened in a team - its certificates, devices and members.",
+   "text": "Co se v týmu stalo – jeho certifikáty, zařízení a členové."
+  },
+  "z_1623": {
+   "source": "What happened to the team’s certificates, devices and members - newest first.",
+   "text": "Co se stalo s certifikáty, zařízeními a členy týmu – nejnovější nahoře."
+  },
+  "z_1624": {
+   "source": "Nothing happened yet",
+   "text": "Zatím se nic nestalo"
+  },
+  "z_1625": {
+   "source": "What the team’s people and acme do with its certificates and devices is written here.",
+   "text": "Co lidé týmu a acme dělají s jeho certifikáty a zařízeními, se zapisuje sem."
+  },
+  "z_1626": {
+   "source": "Newer",
+   "text": "Novější"
+  },
+  "z_1627": {
+   "source": "An approver of the team approves it first (the team’s rule); you are told by mail when they have. Then it is issued, and renewed by itself before it runs out.",
+   "text": "Nejprve ho schválí schvalovatel týmu (pravidlo týmu); až se tak stane, dostanete e-mail. Pak se vydá a před vypršením se sám obnoví."
+  },
+  "z_1628": {
+   "source": "No certificate here yet",
+   "text": "Zatím tu není žádný certifikát"
+  },
+  "z_1629": {
+   "source": "No certificate here matches what you are looking for - try other words, or another filter.",
+   "text": "Žádný certifikát tu neodpovídá tomu, co hledáte – zkuste jiná slova nebo jiný filtr."
+  },
+  "z_1630": {
+   "source": "Ask for one: it belongs to the team, and its members see it here too.",
+   "text": "Požádejte o něj: patří týmu a uvidí ho tu i jeho členové."
+  },
+  "z_1631": {
+   "source": "When the team has one, it is here.",
+   "text": "Až tým nějaký bude mít, najdete ho tady."
+  },
+  "z_1632": {
+   "source": "The page before",
+   "text": "Předchozí stránka"
+  },
+  "z_1633": {
+   "source": "The next page",
+   "text": "Další stránka"
+  },
+  "z_1634": {
+   "source": "see it",
+   "text": "vidět ho"
+  },
+  "z_1635": {
+   "source": "renew it",
+   "text": "obnovit ho"
+  },
+  "z_1636": {
+   "source": "switch renewing",
+   "text": "přepínat obnovu"
+  },
+  "z_1637": {
+   "source": "change it",
+   "text": "změnit ho"
+  },
+  "z_1638": {
+   "source": "revoke it",
+   "text": "odvolat ho"
+  },
+  "z_1639": {
+   "source": "delete it",
+   "text": "smazat ho"
+  },
+  "z_1640": {
+   "source": "download its key",
+   "text": "stáhnout jeho klíč"
+  },
+  "z_1641": {
+   "source": "see its deployments",
+   "text": "vidět jeho nasazení"
+  },
+  "z_1642": {
+   "source": "deploy it",
+   "text": "nasadit ho"
+  },
+  "z_1643": {
+   "source": "set up its deployments",
+   "text": "nastavit jeho nasazení"
+  },
+  "z_1644": {
+   "source": "What the team that owns it gives you - its team manager changes it on the portal (Members).",
+   "text": "Co vám dává tým, kterému patří – mění to správce týmu na portálu (Členové)."
+  },
+  "z_1645": {
+   "source": "your team asks only from request profiles, and none of them is offered to you - ask its manager",
+   "text": "váš tým žádá jen z profilů žádostí a žádný z nich vám není nabídnut – zeptejte se jeho správce"
+  },
+  "z_1646": {
+   "source": "Your workspace",
+   "text": "Váš pracovní prostor"
   }
  },
  "patterns": {
@@ -97749,6 +98677,78 @@
   "pz_465": {
    "source": "looked {0} ago",
    "text": "zjištěno před {0}"
+  },
+  "pz_466": {
+   "source": "{0} teams in one place - pick one at the top to work in it alone.",
+   "text": "{0} {0:tým|týmy|týmů} na jednom místě – nahoře vyberte jeden a pracujte jen v něm."
+  },
+  "pz_467": {
+   "source": "{0} requests wait for you",
+   "text": "{0:Čeká|Čekají|Čeká} na vás {0} {0:žádost|žádosti|žádostí}"
+  },
+  "pz_468": {
+   "source": "{0} agents wait to be confirmed",
+   "text": "{0:Čeká|Čekají|Čeká} {0} {0:agent|agenti|agentů} na potvrzení"
+  },
+  "pz_469": {
+   "source": "{0} days at most",
+   "text": "nejvýše {0} {0:den|dny|dní}"
+  },
+  "pz_470": {
+   "source": "only from the profiles {0}",
+   "text": "jen z profilů {0}"
+  },
+  "pz_471": {
+   "source": "only names under {0}",
+   "text": "jen jména pod {0}"
+  },
+  "pz_472": {
+   "source": "valid {0} days at most",
+   "text": "platnost nejvýše {0} {0:den|dny|dní}"
+  },
+  "pz_473": {
+   "source": "version {0}",
+   "text": "verze {0}"
+  },
+  "pz_474": {
+   "source": "{0} certificates deployed",
+   "text": "{0} {0:nasazený certifikát|nasazené certifikáty|nasazených certifikátů}"
+  },
+  "pz_475": {
+   "source": "Refuse the agent of {0}",
+   "text": "Odmítnout agenta cíle {0}"
+  },
+  "pz_476": {
+   "source": "Servers of {0}",
+   "text": "Servery týmu {0}"
+  },
+  "pz_477": {
+   "source": "{0} is no longer a member of {1}.",
+   "text": "{0} už nebude členem týmu {1}."
+  },
+  "pz_478": {
+   "source": "{0} members",
+   "text": "{0} {0:člen|členové|členů}"
+  },
+  "pz_479": {
+   "source": "{0} limits of its own",
+   "text": "{0} {0:vlastní limit|vlastní limity|vlastních limitů}"
+  },
+  "pz_480": {
+   "source": "A new sub-team of {0}",
+   "text": "Nový podtým týmu {0}"
+  },
+  "pz_481": {
+   "source": "Its certificates and devices go to the team above ({0}), and so do the teams below it. Its members lose what it gave them.",
+   "text": "Jeho certifikáty a zařízení přejdou na nadřízený tým ({0}), stejně jako týmy pod ním. Jeho členové přijdou o to, co jim dával."
+  },
+  "pz_482": {
+   "source": "The limits of {0}",
+   "text": "Limity týmu {0}"
+  },
+  "pz_483": {
+   "source": "{0}–{1} of {2}",
+   "text": "{0}–{1} z {2}"
   }
  },
  "rich": {

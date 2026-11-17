@@ -806,7 +806,10 @@ function askDialog() {
   };
   modal('Ask for a certificate', function (body) {
     limitsNote(body);
-    body.appendChild(el('p', 'note', d.auto
+    var tp = teamPolicy(), ta = tp && tp.approval && (typeof tp.approval === 'string' ? tp.approval : tp.approval.mode);
+    body.appendChild(el('p', 'note', ta === 'always' || ta === 'outside'
+      ? 'An approver of the team approves it first (the team’s rule); you are told by mail when they have. Then it is issued, and renewed by itself before it runs out.'
+      : d.auto
       ? 'It is issued as soon as you ask, and renewed by itself before it runs out.'
       : 'An administrator approves it first; you are told by mail when they have. Then it is issued, and renewed by itself before it runs out.'));
     namesBox = el('textarea', 'cp-names');
@@ -859,7 +862,7 @@ function askDialog() {
     busy(b, true);
     api('cert-request', {names: names, issuer: issuerSel.value, key_type: keySel.value, note: noteBox.value,
                          team: teamSel ? teamSel.value : ''}).then(function (got) {
-      toast(got.waits ? 'asked for - it waits for an administrator' : 'asked for - it is being issued', 'good');
+      toast(got.waits ? (CP.ctx ? 'asked for - it waits for approval' : 'asked for - it waits for an administrator') : 'asked for - it is being issued', 'good');
       closeModal();
       load().then(function () { if (got.id && !got.waits) certDialog(got.id); });
     }).catch(function (e) {
@@ -1436,7 +1439,8 @@ window.ACME_PORTAL_CERTS = {
     if (!rowById(row.id)) CP.d.rows.push(row);
     certDialog(row.id);
   },
-  askStart: function () {
+  askStart: function (ctx) {
+    if (ctx) CP.ctx = ctx;
     if (CP.d) { askStart(); return; }
     apiLatest('cp-certs', 'certs&per=1').then(function (d) { CP.d = d; askStart(); }).catch(oops);
   },
