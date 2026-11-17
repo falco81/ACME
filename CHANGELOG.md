@@ -4,6 +4,10 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
+## 1.0.122 - not released
+
+(nothing yet)
+
 ## 1.0.121 - 2026-11-17
 
 - Docs: how to build the Windows agent (the MSI) yourself from the repository on Linux - tools, download, build, signing (docs/target-agent.md, "Build the Windows agent yourself").
