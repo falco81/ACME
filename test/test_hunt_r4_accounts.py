@@ -115,5 +115,34 @@ class SmtpAutoWithoutAccount(unittest.TestCase):
         self.assertNotIn('not signed in', [s['what'] for s in steps])
 
 
+class _H(object):
+    def __init__(self, headers):
+        self.headers = headers
+
+
+class CodeLanguageOfThePage(unittest.TestCase):
+    """The administration's second step: its code in the language of the page it was asked
+    from (code_lang's help) - the page opens in ui_lang until a language is chosen there."""
+
+    def setUp(self):
+        self.saved = {k: EN.CONFIG.get(k) for k in ('ui_lang', 'mail_lang', 'code_lang')}
+
+    def tearDown(self):
+        EN.CONFIG.update(self.saved)
+
+    def test_no_choice_is_the_pages_language(self):
+        EN.CONFIG.update(ui_lang='en', mail_lang='cs', code_lang='')
+        self.assertEqual(EN.mfa_lang(_H({})), 'en')
+        EN.CONFIG.update(ui_lang='cs', mail_lang='en', code_lang='en')
+        self.assertEqual(EN.mfa_lang(_H({})), 'cs')
+
+    def test_chosen_language_wins(self):
+        EN.CONFIG.update(ui_lang='en', mail_lang='cs', code_lang='')
+        self.assertEqual(EN.mfa_lang(_H({'X-Acme-Lang': 'cs'})), 'cs')
+        self.assertEqual(EN.mfa_lang(_H({'Cookie': 'a=b; acme_lang=cs'})), 'cs')
+        EN.CONFIG.update(ui_lang='cs')
+        self.assertEqual(EN.mfa_lang(_H({'X-Acme-Lang': 'en'})), 'en')
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=1)
