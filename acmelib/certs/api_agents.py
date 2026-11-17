@@ -31,7 +31,7 @@ The routes of target agents (1.0.116, docs/target-agent.md) - imported at the en
 
     GET  /api/agents/enroll             the company enrollment codes and every agent waiting
                                         for confirmation (1.0.120)
-    POST /api/agents/enroll {title, mode, port, days, most, auto}   a company enrollment code
+    POST /api/agents/enroll {title, mode, port, days, most, auto, team?}   a company enrollment code
                                         (shown once)                         full administrator
     POST /api/agents/enroll/revoke {id} no other server joins with it        full administrator
     GET  /api/agents/waiting            the agents asking to join, not confirmed yet
@@ -252,7 +252,8 @@ def _enroll_new(h, s):
     b = h.body()
     return G.enroll_new(h.store, A.who(s), title=A._text(b, 'title', 200),
                         mode=b.get('mode') or 'passive', port=b.get('port'), days=b.get('days'),
-                        most=b.get('most'), auto=bool(b.get('auto')))
+                        most=b.get('most'), auto=bool(b.get('auto')),
+                        team=A._text(b, 'team', 190) or None)
 
 
 @A.api('POST', '/api/agents/enroll/revoke', 'fulladmin')

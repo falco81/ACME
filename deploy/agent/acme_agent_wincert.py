@@ -1227,3 +1227,444 @@ def keygen_check(A, pol):
                         'into the machine store (LocalMachine\\My)',
                         [{'kind': 'store', 'what': 'the certificate imported into the machine '
                           'store (LocalMachine\\My)', 'allow': 'acme-agent allow store'}])
+
+
+# ---- a Microsoft CA (AD CS) without its web service (1.0.125, docs/ms-adcs-agent.md) -------------
+# acme sends a CSR (op `adcs`); this agent - a member server of the domain, its root side running
+# as LocalSystem - submits it to the CA over the CA's own request interface (ICertRequest: RPC /
+# DCOM, MS-ICPR - what `certreq -submit -config "HOST\CA" -attrib "CertificateTemplate:NAME"` does),
+# signed in by Kerberos as the computer account. acme holds no credential at all.
+#
+#   allow adcs "HOST\CA Name" template=WebServer,WebServer2     that CA, those templates
+#   allow adcs "HOST\CA Name" template=*                        that CA, any template it offers
+#   allow adcs-read                                             list every CA and its templates
+#
+# A job names its action: submit {ca, template, csr, san_attr}, retrieve {ca, template, req_id},
+# templates {ca}, cas {}. Nothing else of a job reaches the CA: the request is the CSR acme made
+# (checked to be one, no Windows sign-in name in it), the attributes are the template's name and
+# - asked for - a SAN attribute made here of the CSR's own DNS names and addresses. The values go
+# to a FIXED PowerShell script through a JSON file in root's stage folder (run()), never into
+# its text.
+ADCS_CA_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9.-]{0,252}\\[^\x00-\x1f\x7f"\\/:*?<>|]{1,128}\Z')
+ADCS_TEMPLATE_RE = re.compile(r'[A-Za-z0-9][A-Za-z0-9 _.()-]{0,63}\Z')
+ADCS_ACTIONS = ('submit', 'retrieve', 'templates', 'cas')
+ADCS_CSR_MOST = 16 * 1024
+ADCS_TIMEOUT = 120
+# the CA's dispositions (CR_DISP_*, certcli.h)
+ADCS_DISP = {0: 'incomplete', 1: 'error', 2: 'denied', 3: 'issued', 4: 'issued out of band',
+             5: 'pending', 6: 'revoked'}
+
+
+def adcs_ca(text, A=None):
+    """'HOST\\CA Name' as a CA's config string - or Refused (A given) / ValueError."""
+    t = str(text or '').strip()
+    if not ADCS_CA_RE.match(t) or t.endswith(' ') or '\\ ' in t:
+        err = '%r is not the config string of a CA: HOST\\CA Name (ca01.example.local\\Example ' \
+              'Issuing CA)' % t[:120]
+        if A is not None:
+            raise A.Refused(err)
+        raise ValueError(err)
+    return t
+
+
+def adcs_template(text, A=None):
+    t = str(text or '').strip()
+    if not ADCS_TEMPLATE_RE.match(t):
+        err = '%r is not the name of a template (its name, not its display name: WebServer)' \
+              % t[:80]
+        if A is not None:
+            raise A.Refused(err)
+        raise ValueError(err)
+    return t
+
+
+def pol_adcs(pol):
+    """[{'ca', 'templates'}] the policy allows (templates ['*'] for any)."""
+    v = (pol or {}).get('adcs') or []
+    return [x for x in v if isinstance(x, dict) and x.get('ca')] if isinstance(v, list) else []
+
+
+def pol_adcs_read(pol):
+    return bool((pol or {}).get('adcs_read'))
+
+
+def adcs_entry(rest, A):
+    """The words after `allow adcs` -> {'ca', 'templates'} (a line a CA, template= needed)."""
+    kv, rest = A._kv(rest, ('template',))
+    if len(rest) != 1 or not kv.get('template'):
+        raise A.Refused('allow adcs "HOST\\CA Name" template=NAME,NAME (or template=*)')
+    ca = adcs_ca(rest[0], A)
+    names = [x.strip() for x in kv['template'].split(',') if x.strip()]
+    if not names:
+        raise A.Refused('template= names a template or more (template=WebServer,WebServer2) or '
+                        'is * (any template of the CA)')
+    if '*' in names:
+        if len(names) > 1:
+            raise A.Refused('template=* is any template of the CA - no names beside it')
+        return {'ca': ca, 'templates': ['*']}
+    out = []
+    for n in names:
+        n = adcs_template(n, A)
+        if n.lower() not in [x.lower() for x in out]:
+            out.append(n)
+    if len(out) > 64:
+        raise A.Refused('template= names 64 templates at most')
+    return {'ca': ca, 'templates': out}
+
+
+def adcs_add(pol, entry):
+    """The entry into the policy: a CA said twice has the templates of both lines."""
+    have = pol.setdefault('adcs', [])
+    for x in have:
+        if x['ca'].lower() == entry['ca'].lower():
+            if '*' in x['templates'] or '*' in entry['templates']:
+                x['templates'] = ['*']
+            else:
+                for t in entry['templates']:
+                    if t.lower() not in [y.lower() for y in x['templates']]:
+                        x['templates'].append(t)
+            return
+    have.append({'ca': entry['ca'], 'templates': list(entry['templates'])})
+
+
+def adcs_line(entry):
+    """An entry as the line of the policy (and of `acme-agent allow`)."""
+    return 'adcs "%s" template=%s' % (entry['ca'], ','.join(entry['templates']))
+
+
+def allow_adcs_words(ca, templates):
+    return 'acme-agent allow %s' % adcs_line({'ca': ca, 'templates': list(templates)})
+
+
+def adcs_rule(pol, ca):
+    return next((x for x in pol_adcs(pol) if x['ca'].lower() == str(ca).lower()), None)
+
+
+def adcs_allowed(pol, ca, template=None):
+    rule = adcs_rule(pol, ca)
+    if rule is None:
+        return False
+    if template is None:
+        return True
+    return '*' in rule['templates'] or str(template).lower() in [
+        t.lower() for t in rule['templates']]
+
+
+def adcs_needs(pol, args):
+    """What the policy lacks for a job of op `adcs` -> [{kind, what, allow}] (acme's plan and the
+    agent judge it alike)."""
+    act = str((args or {}).get('action') or '')
+    ca = str((args or {}).get('ca') or '')
+    if act in ('cas',):
+        if pol_adcs_read(pol) or pol_adcs(pol):
+            return []
+        return [{'kind': 'adcs-read', 'what': 'the list of the CAs of the domain',
+                 'allow': 'acme-agent allow adcs-read'}]
+    if act == 'templates':
+        if pol_adcs_read(pol) or adcs_rule(pol, ca):
+            return []
+        return [{'kind': 'adcs-read', 'what': 'the templates of the CA %s' % ca,
+                 'allow': 'acme-agent allow adcs-read'}]
+    template = str((args or {}).get('template') or '')
+    if adcs_allowed(pol, ca, template):
+        return []
+    rule = adcs_rule(pol, ca)
+    want = (list(rule['templates']) + [template]) if rule else [template]
+    return [{'kind': 'adcs', 'what': 'a certificate of the template %s from the CA %s' % (
+        template, ca), 'allow': allow_adcs_words(ca, want)}]
+
+
+ADCS_PS = r"""$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
+$j = Get-Content -LiteralPath $env:ACME_WIN_IN -Raw -Encoding UTF8 | ConvertFrom-Json
+function Say($o) { Write-Output ('ACME ' + ($o | ConvertTo-Json -Compress -Depth 5)) }
+function Hx($n) { '0x{0:x8}' -f ([int64]$n -band 0xffffffff) }
+# acme-agent: adcs (ICertRequest / ICertConfig - as certreq and certutil ask the CA)
+$out = @{ action = [string]$j.action }
+try {
+  if ($j.action -eq 'cas') {
+    $c = New-Object -ComObject CertificateAuthority.Config
+    $list = @()
+    [void]$c.Reset(0)
+    while ($c.Next() -ge 0) {
+      $list += @{ config = [string]$c.GetField('Config'); name = [string]$c.GetField('CommonName');
+                  server = [string]$c.GetField('Server') }
+    }
+    $out.cas = $list
+  } elseif ($j.action -eq 'templates') {
+    $r = New-Object -ComObject CertificateAuthority.Request
+    # CR_PROP_TEMPLATES (0x1d), PROPTYPE_STRING: "name`noid`n" a template
+    $raw = [string]$r.GetCAProperty([string]$j.ca, 0x1d, 0, 4, 0)
+    $parts = @($raw -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+    $names = @()
+    for ($i = 0; $i -lt $parts.Count; $i += 2) { $names += $parts[$i] }
+    $disp = @{}
+    try {
+      $cfg = [string]([ADSI]'LDAP://RootDSE').configurationNamingContext
+      $ds = New-Object DirectoryServices.DirectorySearcher([ADSI]('LDAP://CN=Certificate Templates,CN=Public Key Services,CN=Services,' + $cfg), '(objectClass=pKICertificateTemplate)')
+      [void]$ds.PropertiesToLoad.Add('cn'); [void]$ds.PropertiesToLoad.Add('displayName')
+      foreach ($x in $ds.FindAll()) { $disp[[string]$x.Properties['cn'][0]] = [string]$x.Properties['displayname'][0] }
+    } catch { }
+    $out.templates = @($names | ForEach-Object { @{ name = [string]$_; display = [string]$disp[[string]$_] } })
+  } else {
+    $r = New-Object -ComObject CertificateAuthority.Request
+    if ($j.action -eq 'submit') {
+      # CR_IN_BASE64HEADER | CR_IN_PKCS10: the CSR as acme made it
+      $d = $r.Submit(0x100, [string]$j.csr, [string]$j.attrib, [string]$j.ca)
+    } else {
+      $d = $r.RetrievePending([int]$j.req_id, [string]$j.ca)
+    }
+    $out.disposition = [int]$d
+    $out.req_id = [int]$r.GetRequestId()
+    $out.status = Hx ([int64]$r.GetLastStatus())
+    try { $out.message = [string]$r.GetDispositionMessage() } catch { }
+    if ($d -eq 3) {
+      $out.cert = [string]$r.GetCertificate(1)                       # CR_OUT_BASE64
+      try { $out.chain = [string]$r.GetCertificate(0x101) } catch { } # ... | CR_OUT_CHAIN
+    }
+  }
+} catch {
+  $out.error = ($_.Exception.Message -replace '[\r\n]+', ' ')
+  $out.code = Hx ([int64]$_.Exception.HResult)
+}
+Say $out
+"""
+
+# the CA's words for its codes - the same as the Web Enrollment source's (issuers/ms_adcs.py)
+ADCS_CODES = {
+    '0x80094800': 'the CA does not offer this template (CA: Certificate Templates - New - '
+                  'Certificate Template to Issue), or it is the display name - give its name',
+    '0x80094801': 'the request has no template',
+    '0x80094012': 'the computer account of this server may not enroll for this template '
+                  '(the template - Security: Read and Enroll)',
+    '0x80094005': 'the CA refused the request\'s names (the template builds the subject from '
+                  'Active Directory: set it to "Supply in the request")',
+    '0x80094004': 'the template needs a subject the computer account does not have - set the '
+                  'template to "Supply in the request"',
+    '0x80094006': 'the CA refused the request\'s key',
+    '0x80094009': 'the request has a key smaller than the template wants',
+    '0x80094811': 'the template needs a key the request does not have (its kind, its size, '
+                  'its provider)',
+    '0x80070005': 'access is denied (the computer account\'s rights on the CA: Request '
+                  'Certificates)',
+    '0x800706ba': 'the CA cannot be reached over RPC (the RPC server is unavailable: its name, '
+                  'the firewall - TCP 135 and the dynamic ports)',
+    '0x80094011': 'the CA needs a certificate manager to approve the request',
+    '0x80070057': 'the CA did not take the request as it was sent',
+    '0x800b0110': 'the certificate is not for that purpose',
+}
+
+
+def adcs_csr_names(A, csr):
+    """The CSR checked (a PKCS#10, its signature good) -> its DNS names and addresses. A CSR
+    naming a Windows sign-in (a UPN, otherName) or anything but DNS names, addresses, e-mail
+    and URIs is refused: this agent asks the CA for server certificates."""
+    if not isinstance(csr, str) or len(csr) > ADCS_CSR_MOST or \
+            not re.fullmatch(r'\s*-----BEGIN (NEW )?CERTIFICATE REQUEST-----[A-Za-z0-9+/=\s]+'
+                             r'-----END (NEW )?CERTIFICATE REQUEST-----\s*', csr):
+        raise A.Refused('the request is not a CSR (PEM, %d KiB at most)' % (ADCS_CSR_MOST // 1024))
+    try:
+        text = A._openssl(['req'] + list(getattr(A, 'STDIN_IN', [])) +
+                          ['-noout', '-text', '-verify'], csr)
+    except A.Refused as e:
+        raise A.Refused('the CSR cannot be read or its signature is not good (%s)' % e)
+    m = re.search(r'X509v3 Subject Alternative Name:[^\n]*\n\s*([^\n]*)', text)
+    names = []
+    for part in [x.strip() for x in (m.group(1) if m else '').split(',') if x.strip()]:
+        kind, _, value = part.partition(':')
+        kind = kind.strip().lower()
+        if kind == 'dns':
+            names.append(('dns', value.strip()))
+        elif kind == 'ip address':
+            names.append(('ipaddress', value.strip()))
+        elif kind in ('email', 'uri'):
+            continue
+        else:
+            raise A.Refused('the CSR names %s - this agent asks the CA for server certificates '
+                            'only (DNS names, addresses): no Windows sign-in name (UPN), no '
+                            'other name' % part[:80])
+    return names
+
+
+def adcs_attrib(A, template, csr, san_attr):
+    attrs = ['CertificateTemplate:%s' % template]
+    names = adcs_csr_names(A, csr)
+    if san_attr:
+        if not names:
+            raise A.Refused('the CSR has no DNS name or address for a SAN attribute')
+        for kind, value in names:
+            if not re.fullmatch(r'[A-Za-z0-9*_.:-]{1,253}', value):
+                raise A.Refused('%r cannot go into a SAN attribute' % value[:80])
+        attrs.append('SAN:' + '&'.join('%s=%s' % p for p in names))
+    return '\n'.join(attrs)
+
+
+def adcs_run(A, values, timeout):
+    """ADCS_PS run with `values` -> its answer (a dict), or Refused."""
+    ok, objs, err = run(A, ADCS_PS, values, timeout=timeout)
+    got = objs[-1] if objs and isinstance(objs[-1], dict) else None
+    if got is None:
+        raise A.Refused('PowerShell did not answer (%s)' % (err or 'nothing said'))
+    return got
+
+
+def adcs_said(got):
+    """The words of the CA's refusal (its code, its message)."""
+    code = str(got.get('code') or got.get('status') or '').lower()
+    words = ADCS_CODES.get(code)
+    said = _clean(got.get('error') or got.get('message') or '', 300).strip()
+    bits = [words or ('the CA denied the request' if got.get('disposition') == 2 else
+                      'the CA did not issue the certificate')]
+    if said:
+        bits.append('it says: %s' % said)
+    if code and code != '0x00000000':
+        bits.append(code)
+    return ' - '.join(bits)
+
+
+def adcs(A, pol, args):
+    """The job of op `adcs` (the root side, LocalSystem) -> its answer."""
+    if not is_windows(A):
+        raise A.Refused('a Microsoft CA is asked only by acme-agent on Windows (a member server '
+                        'of the domain) - this agent runs on %s' % getattr(A, 'PLATFORM', 'Linux'))
+    act = str(args.get('action') or '')
+    if act not in ADCS_ACTIONS:
+        raise A.Refused('%r is not an action of adcs (%s)' % (act[:20], ', '.join(ADCS_ACTIONS)))
+    try:
+        timeout = max(10, min(int(args.get('timeout') or ADCS_TIMEOUT), 600))
+    except (TypeError, ValueError):
+        timeout = ADCS_TIMEOUT
+    ca = adcs_ca(args.get('ca'), A) if act != 'cas' else ''
+    template = adcs_template(args.get('template'), A) if act in ('submit', 'retrieve') else ''
+    needs = adcs_needs(pol, {'action': act, 'ca': ca, 'template': template})
+    if needs:
+        raise A.Refused('not allowed by the policy of this machine: %s' % needs[0]['what'], needs)
+    if act == 'cas':
+        got = adcs_run(A, {'action': 'cas'}, timeout)
+        if got.get('error'):
+            raise A.Refused('the CAs of the domain cannot be listed: %s' % adcs_said(got))
+        cas = []
+        for c in (got.get('cas') or [])[:64]:
+            if not isinstance(c, dict):
+                continue
+            try:
+                cfg = adcs_ca(c.get('config'))
+            except ValueError:
+                continue
+            if not pol_adcs_read(pol) and not adcs_rule(pol, cfg):
+                continue                    # only adcs-read lists a CA the policy does not name
+            rule = adcs_rule(pol, cfg)
+            cas.append({'config': cfg, 'name': _clean(c.get('name'), 128),
+                        'server': _clean(c.get('server'), 253),
+                        'allowed': list(rule['templates']) if rule else []})
+        return {'ok': True, 'adcs': {'action': 'cas', 'cas': cas},
+                'said': '%d CA%s' % (len(cas), '' if len(cas) == 1 else 's')}
+    if act == 'templates':
+        got = adcs_run(A, {'action': 'templates', 'ca': ca}, timeout)
+        if got.get('error'):
+            raise A.Refused('the templates of %s cannot be listed: %s' % (ca, adcs_said(got)))
+        out = []
+        for t in (got.get('templates') or [])[:500]:
+            if not isinstance(t, dict):
+                continue
+            try:
+                name = adcs_template(t.get('name'))
+            except ValueError:
+                continue
+            out.append({'name': name, 'display': _clean(t.get('display'), 128),
+                        'allowed': adcs_allowed(pol, ca, name)})
+        return {'ok': True, 'adcs': {'action': 'templates', 'ca': ca, 'templates': out},
+                'said': '%d template%s the CA %s offers' % (len(out), '' if len(out) == 1
+                                                             else 's', ca)}
+    if act == 'submit':
+        values = {'action': 'submit', 'ca': ca, 'csr': str(args.get('csr') or ''),
+                  'attrib': adcs_attrib(A, template, args.get('csr'), bool(args.get('san_attr')))}
+    else:
+        rid = str(args.get('req_id') or '')
+        if not re.fullmatch(r'[0-9]{1,10}', rid) or not 0 < int(rid) < 2 ** 31:
+            raise A.Refused('%r is not the id of a request' % rid[:20])
+        values = {'action': 'retrieve', 'ca': ca, 'req_id': int(rid)}
+    got = adcs_run(A, values, timeout)
+    try:
+        rid = int(got.get('req_id') or values.get('req_id') or 0)
+    except (TypeError, ValueError):
+        rid = 0
+    if got.get('error') and got.get('disposition') is None:
+        raise A.Refused('the CA %s: %s' % (ca, adcs_said(got)))
+    disp = got.get('disposition')
+    state = ADCS_DISP.get(disp, 'error') if isinstance(disp, int) else 'error'
+    out = {'action': act, 'ca': ca, 'template': template, 'state': state,
+           'req_id': str(rid) if rid > 0 else '',
+           'code': _clean(got.get('status') or got.get('code'), 12)}
+    if state == 'issued':
+        cert = re.sub(r'\s+', '', str(got.get('cert') or ''))
+        chain = re.sub(r'\s+', '', str(got.get('chain') or ''))
+        try:
+            base64.b64decode(cert, validate=True)
+            if chain:
+                base64.b64decode(chain, validate=True)
+        except (ValueError, TypeError):
+            raise A.Refused('the CA\'s certificate for request %s cannot be read' % rid)
+        if not cert:
+            raise A.Refused('the CA issued request %s but sent no certificate' % rid)
+        out.update(cert=cert, chain=chain)
+        said = 'the CA %s issued the certificate (request %s)' % (ca, rid)
+    elif state == 'pending':
+        said = 'the CA %s holds request %s for a certificate manager to approve' % (ca, rid)
+    else:
+        out['said'] = adcs_said(got)
+        said = 'the CA %s did not issue it (%s): %s' % (ca, state, out['said'])
+    return {'ok': True, 'adcs': out, 'said': said}
+
+
+def adcs_cli(A, argv):
+    """`acme-agent adcs cas | templates --config "HOST\\CA Name" [--json]`: what the
+    administrator sees of the CAs and their templates - as acme's policy designer lists them,
+    run as the administrator who types it (no policy asked: read-only)."""
+    as_json = '--json' in argv
+    argv = [a for a in argv if a != '--json']
+    usage = 'acme-agent adcs cas [--json] | adcs templates --config "HOST\\CA Name" [--json]'
+    if not argv or argv[0] not in ('cas', 'templates'):
+        raise SystemExit(usage)
+    if not is_windows(A):
+        raise SystemExit('acme-agent: a Microsoft CA is listed only on Windows')
+    try:
+        pol = dict(A.policy_load()[0])
+    except Exception:                                   # noqa: BLE001
+        pol = {}
+    pol['adcs_read'] = True                 # the administrator at the console: read-only
+    try:
+        if argv[0] == 'cas':
+            got = adcs(A, pol, {'action': 'cas'})['adcs']
+            cas = got['cas']
+            for c in cas:
+                try:
+                    c['templates'] = adcs(A, pol, {'action': 'templates', 'ca': c['config']})[
+                        'adcs']['templates']
+                except A.Refused as e:
+                    c['templates'] = []
+                    c['problem'] = str(e)
+            if as_json:
+                print(json.dumps({'cas': cas}, indent=1))
+                return 0
+            for c in cas:
+                print('%s   (%s)' % (c['config'], c['name']))
+                for t in c['templates']:
+                    print('    %-32s %s' % (t['name'], t['display']))
+                if c.get('problem'):
+                    print('    ! %s' % c['problem'])
+                print('    -> acme-agent allow adcs %s template=%s' % (
+                    cmd_word(c['config']), ','.join(t['name'] for t in c['templates']) or '*'))
+            return 0
+        if len(argv) != 3 or argv[1] != '--config':
+            raise SystemExit(usage)
+        got = adcs(A, pol, {'action': 'templates', 'ca': argv[2]})['adcs']
+        if as_json:
+            print(json.dumps(got, indent=1))
+            return 0
+        for t in got['templates']:
+            print('%-32s %s' % (t['name'], t['display']))
+        return 0
+    except A.Refused as e:
+        raise SystemExit('acme-agent: %s' % e)

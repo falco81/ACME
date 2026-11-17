@@ -929,6 +929,9 @@ def _portal_download(h):
                               who=s['name'])
             raise E.ApiError(403, 'only its owner, or a member of its team who may manage '
                                   'it, may take its key')
+        # ...and where its team's limits let a key out (1.0.125, policy key_download)
+        from acmelib.certs import teampolicy as TP
+        TP.need_key_download(h.store, row.get('owner'), s['name'])
         # The key, only through this route and only as a PFX with a password:
         # the setting portal_cert_keys says the people may have theirs.
         as_who = {'name': 'portal:%s' % s['name'], 'role': 'fulladmin'}
@@ -999,6 +1002,16 @@ def _portal_request(h):
     held = holders(store, names, owner, unowned=True)
     auto = bool(E.CONFIG.get('portal_cert_auto')) and not any(n.startswith('*.') for n in names) \
         and not held
+    if owner != who:
+        # The team's limits and its approval rule (1.0.125, docs/teams.md): nothing for a
+        # team without a policy.
+        from acmelib.certs import teampolicy as TP
+        TP.need_request(store, owner, who, profile=None, issuer=irow['name'],
+                        validation=str(E.CONFIG.get('portal_cert_challenge') or '') or None,
+                        names=names, key_type=kt)
+        rule_waits = TP.request_waits(store, owner, not auto, None, names, None, kt)
+        if rule_waits is not None:
+            auto = not rule_waits and not held
     # a name the rules take (1.0.79: "_svc.example.test" stayed as it was, and every save of the
     # certificate by an administrator was refused until it was renamed)
     base_name = S.safe_name(names[0].replace('*.', 'wildcard.'), most=80)
@@ -1056,6 +1069,9 @@ def _portal_request(h):
         store.add_event('certificates', '%s asked on the portal for %s (%s) from %s - it waits '
                         'for an administrator\'s approval' % (who, name, ', '.join(names),
                                                               irow['name']), 'warn', who=who)
+        if owner != who:
+            from acmelib.certs import teampolicy as TP
+            TP.request_started_waiting(store, cid, owner)
     return {'id': cid, 'name': name, 'job_id': job_id,
             'state': 'new' if auto else WAITING, 'waits': not auto}
 
@@ -1146,7 +1162,9 @@ def _portal_approve(h):
     # ...nor one they sent a new CSR or names for (1.0.102): a member who may manage sent his
     # own CSR with other names for another's request, and approved it himself.
     ok = A._flag(b.get('ok'))
-    if ok and askers_of(h.store, row['id']) & set(asker_ids(s)):
+    from acmelib.certs import teampolicy as TP
+    if ok and askers_of(h.store, row['id']) & set(asker_ids(s)) and \
+            not TP.self_allowed(h.store, row):
         raise E.ApiError(403, 'you asked for it yourself, or sent its CSR or names - someone else '
                               'approves it')
     if ok and (row.get('state') == WAITING or approval_missing(h.store, row)) and \
@@ -1154,7 +1172,8 @@ def _portal_approve(h):
         may_owner = portal_may_owner(my_names(s), my_teams(h, s), defined_teams(h.store))
         need_held_ok(h.store, row, may_owner, s['name'])
     return approve_request(h.store, row, portal_by(s), A._flag(b.get('ok')),
-                           str(b.get('why') or '').strip()[:500])
+                           str(b.get('why') or '').strip()[:500],
+                           approver=TP.approver_portal(h, s))
 
 
 # ---------------------------------------------------------------------------
@@ -1169,7 +1188,8 @@ def _cert_approve(h, s):
         # Never one's own here either (1.0.102: a certificate administrator who also signs in
         # to the portal asked, approved it here, and took its key there) - a full administrator
         # included: one who needs a certificate adds it in the administration.
-        if asked_by_admin(h.store, row, s):
+        from acmelib.certs import teampolicy as TP
+        if asked_by_admin(h.store, row, s) and not TP.self_allowed(h.store, row):
             h.store.add_event('certificates', '%s was refused: approving %s, asked for by '
                               'themselves' % (A.who(s), row['name']), 'warn', who=A.who(s))
             raise E.ApiError(403, 'you asked for it yourself, or gave it its CSR or names - have '
@@ -1180,7 +1200,9 @@ def _cert_approve(h, s):
             from acmelib.certs import teams as T
             need_held_ok(h.store, row, lambda o: T.cert_may(h.store, s, {'owner': o}, 'approve')
                          or T.cert_may(h.store, s, {'owner': o}, 'manage'), A.who(s))
-    return approve_request(h.store, row, A.who(s), ok, str(b.get('why') or '').strip()[:500])
+    from acmelib.certs import teampolicy as TP
+    return approve_request(h.store, row, A.who(s), ok, str(b.get('why') or '').strip()[:500],
+                           approver=TP.approver_admin(h.store, s))
 
 
 def _bare(n):
@@ -1282,7 +1304,17 @@ def decline_may(row):
     return True, ''
 
 
-def approve_request(store, row, by, ok, why):
+def approve_request(store, row, by, ok, why, approver=None):
+    """`approver` (teampolicy.approver_*): who approves - its approval recorded, and checked
+    against the rule of the request's team (1.0.125): a request of a team that wants two
+    approvers, or one of the team above it too, waits until they all have."""
+    if row.get('state') == WAITING and (ok or why):
+        from acmelib.certs import teampolicy as TP
+        step = TP.approve_step(store, row, approver or {'by': by, 'all': True}, ok, why)
+        if ok and not step['complete']:
+            return {'recorded': True, 'needed': step['needed'],
+                    'message': '%s: your approval is recorded - it waits for %d more' % (
+                        row['name'], len(step['needed']) or 1)}
     if ok and approval_missing(store, row):
         t = time.time()
         mark_approved(store, row['id'], by, t)

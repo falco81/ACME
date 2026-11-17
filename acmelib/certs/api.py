@@ -792,8 +792,26 @@ def cert_save(store, b, by, full=False, out=None, s=None):
                        'created': t,
                        'created_by': str(by)[:190], 'enabled': fields.get('enabled', 1),
                        'ari': '{}'})
+        # Its team wants every request approved (1.0.125, policy approval "always"): one made
+        # by a scoped certificate administrator waits as a portal request does.
+        team_waits = s is not None and fields.get('issuer') and \
+            _lib('teampolicy').admin_create_waits(store, s, fields.get('owner'))
+        if team_waits:
+            fields.update(state='pending-approval', auto_renew=0)
         ident = store.db.insert('certs', fields)
         store.add_event('certificates', 'certificate %s added by %s' % (name, by), who=by)
+        if team_waits:
+            from acmelib.certs import portal as P
+            acc = s.get('account') or {}
+            store.set_meta(P.META + str(ident), json.dumps({
+                'who': str(s.get('name') or '') if acc.get('source') == 'directory'
+                else 'local:%s' % (s.get('name') or ''), 'at': t, 'ids': sorted(P.admin_names(s)),
+                'mail': str(acc.get('mail') or ''), 'waits': True, 'auto': bool(
+                    _flag(b.get('auto_renew'), 1)), 'team_rule': True}))
+            store.add_event('certificates', 'certificate %s of the team %s waits for approval: '
+                            'the team approves every request' % (name, fields.get('owner')),
+                            'warn', who=by)
+            _lib('teampolicy').request_started_waiting(store, ident, fields.get('owner'))
     if dev_now and not store.db.row('SELECT id FROM cert_deploys WHERE cert_id = ? AND '
                                     'target = ?', (ident, dev_now)):
         # its deployment to the device whose key it is: made with it - the certificate goes
@@ -2494,6 +2512,9 @@ def family_save(store, family, b, by):
         fields['note'] = _text(b, 'note', 4000)
     if family == 'target' and ('tags' in b or not row):
         fields['tags'] = json.dumps(_tags_of(b))
+    if family == 'target' and 'owner' in b:
+        # the team whose device it is (1.0.125, docs/teams.md): '' / null acme's own
+        fields['owner'] = target_owner(store, b.get('owner'))
     made = None
     served_before = None
     if family == 'target' and row is not None and given is not None:
@@ -2518,6 +2539,19 @@ def family_save(store, family, b, by):
             # at every try after.
             store.db.run('DELETE FROM %s WHERE id = ?' % table, (made,))
         raise
+
+
+def target_owner(store, owner):
+    """The owner a target is given: a team of Owners and teams (its name as written there), or
+    None - acme's own."""
+    if owner in (None, '', '-') or (isinstance(owner, str) and not owner.strip()):
+        return None
+    if isinstance(owner, (dict, list)):
+        raise ValueError('the owner is the name of a team')
+    t = _lib('teams').team_get(store, owner)
+    if not t:
+        raise ValueError('there is no team %s (Owners and teams)' % str(owner)[:120])
+    return t['name']
 
 
 def _served_by_cert(store, target):

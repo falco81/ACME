@@ -848,6 +848,17 @@ def request(h, s, b):
             raise E.ApiError(403, 'choose one of your teams: %s' % (', '.join(mine) or 'none'))
         owner = got[0]
     waits = bool(cfg.get('approval')) or P.held_by_others(store, names, owner)   # (1.0.51)
+    if owner != who:
+        # The team's limits and its approval rule (1.0.125, docs/teams.md "Enterprise teams"):
+        # nothing for a team without a policy.
+        from acmelib.certs import teampolicy as TP
+        TP.need_request(store, owner, who, profile=r['name'], issuer=cfg.get('issuer'),
+                        validation=cfg.get('challenge') or None, names=names,
+                        days=cfg.get('days'), key_type=kt)
+        rule_waits = TP.request_waits(store, owner, waits, r['name'], names, cfg.get('days'),
+                                      kt)
+        if rule_waits is not None:
+            waits = rule_waits or P.held_by_others(store, names, owner)
     held_now = P.holders(store, names, owner, waiting=False)       # who approves it (1.0.102)
     auto = bool(cfg.get('auto_renew', True))
     # a name the rules take (1.0.79: "_svc.example.test" stayed as it was, and every save of the
@@ -910,6 +921,9 @@ def request(h, s, b):
     job_id = None
     if waits:
         store.add_event('certificates', what + ' - it waits for approval', 'warn', who=who)
+        if owner != who:
+            from acmelib.certs import teampolicy as TP
+            TP.request_started_waiting(store, cid, owner)
     else:
         store.add_event('certificates', what + ' - issued without approval', who=who)
         job_id = P.start_issue(store, cid, 'portal:' + who, 'asked for on the portal (%s)'

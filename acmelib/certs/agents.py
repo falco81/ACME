@@ -960,15 +960,20 @@ def enroll_view(store, ec, now=None):
             'port': ec.get('port'), 'until': ec.get('until'), 'most': int(ec.get('most') or 1),
             'uses': int(ec.get('uses') or 0), 'by': ec.get('by') or '', 'at': ec.get('at'),
             'auto': bool(ec.get('auto')), 'state': enroll_state(ec, now), 'targets': names,
-            'revoked_by': (rv or {}).get('by') or '', 'revoked_at': (rv or {}).get('at')}
+            'revoked_by': (rv or {}).get('by') or '', 'revoked_at': (rv or {}).get('at'),
+            # 1.0.125: a team's enrollment code - what enrolls with it is the team's device
+            'team': ec.get('team') or None}
 
 
-def enroll_list(store):
+def enroll_list(store, teams=None):
+    """The enrollment codes - `teams` (lower names): only those of these teams."""
     now = time.time()
     out = []
     for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'agents:enroll:%'"):
         ec = _jload(r['v'], None)
         if isinstance(ec, dict) and ENROLL_ID.match(str(ec.get('id') or '')):
+            if teams is not None and str(ec.get('team') or '').strip().lower() not in teams:
+                continue
             out.append(enroll_view(store, ec, now))
     out.sort(key=lambda x: (x['state'] != 'active', -float(x.get('at') or 0)))
     return out
@@ -985,8 +990,27 @@ def _int_in(v, lo, hi, what, default):
 
 
 def enroll_new(store, by, title='', mode='passive', port=PASSIVE_PORT, days=7, most=10,
-               auto=False):
-    """A company enrollment code: {code (shown once), and what enroll_view says}."""
+               auto=False, team=None):
+    """A company enrollment code: {code (shown once), and what enroll_view says}. With `team`
+    (1.0.125): the servers enrolling with it become targets owned by that team, confirmed by
+    itself only where the team's limits allow it (agents_auto_confirm) as well."""
+    team_name = None
+    if team not in (None, '', '-'):
+        from acmelib.certs import teams as T
+        from acmelib.certs import teampolicy as TP
+        t = T.team_get(store, team)
+        if not t:
+            raise PluginError('there is no team %s (Owners and teams)' % str(team)[:120],
+                              retry=False)
+        team_name = t['name']
+        eff = T.effective_policy(store, team_name)
+        if not T.policy_value(eff, 'agents'):
+            raise PluginError('the team %s does not allow it: it has no target agents' % team_name,
+                              retry=False)
+        TP.need_target_kind(store, team_name, 'agent', by)
+        if auto and not T.policy_value(eff, 'agents_auto_confirm'):
+            raise PluginError('the team %s does not allow it: its agents are confirmed by a '
+                              'person (agents_auto_confirm is off)' % team_name, retry=False)
     if not active_on():
         raise PluginError('the agents\' port is off: an enrolling agent always asks acme there '
                           '- switch it on at Settings → Target agents (Agents may connect to '
@@ -1008,15 +1032,18 @@ def enroll_new(store, by, title='', mode='passive', port=PASSIVE_PORT, days=7, m
     ec = {'id': eid, 'title': title, 'mode': mode, 'port': port, 'until': until, 'most': most,
           'uses': 0, 'targets': [], 'by': _txt(by, 120), 'at': now, 'auto': bool(auto),
           'secret': E.seal_secret(secret, M_E(eid))}
+    if team_name:
+        ec['team'] = team_name
     _enroll_put(store, ec)
     data = {'v': 1, 'e': eid, 's': secret, 'ca': a['fp'], 'ck': ck['fp'], 'a': endpoints(store),
             'm': mode, 'p': port, 'u': int(until), 'n': title}
     code = 'ACAE1.' + base64.urlsafe_b64encode(json.dumps(data, separators=(',', ':'))
                                                .encode()).decode().rstrip('=')
     store.add_event('certificates', 'the enrollment code "%s" was made by %s (%s, %d day%s, at '
-                    'most %d server%s)%s' % (
+                    'most %d server%s)%s%s' % (
                         title, by, mode, days, '' if days == 1 else 's', most,
                         '' if most == 1 else 's',
+                        (' for the team %s' % team_name) if team_name else '',
                         ' - each server that joins with it is CONFIRMED AUTOMATICALLY' if auto
                         else ' - each server that joins with it waits to be confirmed'),
                     'warn' if auto else 'info', who=by)
@@ -1078,9 +1105,14 @@ def _enroll_target(store, ec, kind, host, fqdn, ip):
     for _ in range(5):
         name = _enroll_name(store, host, fqdn, ip)
         try:
-            rid = A.family_save(store, 'target', {
-                'name': name, 'kind': kind, 'config': cfg, 'enabled': 1,
-                'note': 'enrolled by %s' % by}, by)
+            one = {'name': name, 'kind': kind, 'config': cfg, 'enabled': 1,
+                   'note': 'enrolled by %s' % by}
+            if ec.get('team'):
+                # a team's code (1.0.125): the team's device; its team gone, acme's own
+                from acmelib.certs import teams as T
+                if T.team_get(store, ec['team']):
+                    one['owner'] = ec['team']
+            rid = A.family_save(store, 'target', one, by)
             return S.plugin_row(store, 'target', rid)
         except ValueError as e:                         # taken meanwhile (another node)
             last = e
@@ -1204,7 +1236,7 @@ def enroll_take(store, body, ip=''):
                                     'Windows' if windows else 'Linux', fp[:16],
                                     ' - confirmed automatically' if ec.get('auto') else
                                     ' - it waits for its fingerprint to be confirmed'), 'info')
-    if ec.get('auto') and not pend.get('cert'):
+    if ec.get('auto') and not pend.get('cert') and enroll_auto_ok(store, ec):
         try:
             confirm(store, row, fp, '%s (confirmed automatically)' % by)
         except PluginError as e:
@@ -1214,11 +1246,25 @@ def enroll_take(store, body, ip=''):
     return 200, out
 
 
-def waiting(store):
+def enroll_auto_ok(store, ec):
+    """Whether a code's servers are still confirmed by themselves: a team's code only while the
+    team's limits allow it (agents_auto_confirm) - an administrator may take it back."""
+    if not ec.get('team'):
+        return True
+    from acmelib.certs import teams as T
+    if not T.team_get(store, ec['team']):
+        return False
+    return bool(T.policy_value(T.effective_policy(store, ec['team']), 'agents_auto_confirm'))
+
+
+def waiting(store, teams=None):
     """Every agent asking to join, not confirmed yet: the target, the server, its fingerprint,
-    the enrollment code it came with (or the target's own join code)."""
+    the enrollment code it came with (or the target's own join code). `teams` (lower names,
+    1.0.125): only the targets those teams own."""
     out = []
     for row in rows(store):
+        if teams is not None and str(row.get('owner') or '').strip().lower() not in teams:
+            continue
         st = state(store, row['id'])
         pend = st.get('pending') if isinstance(st.get('pending'), dict) else None
         if not pend or pend.get('cert') or not pend.get('fp'):
@@ -1234,6 +1280,7 @@ def waiting(store):
                     'fp_words': fp_words(pend['fp']), 'at': pend.get('at'),
                     'enroll': {'id': pend['enroll'], 'title': pend.get('enroll_title') or ''}
                     if pend.get('enroll') else None,
+                    'owner': row.get('owner') or None,
                     'enabled': row.get('enabled') is None or bool(int(row.get('enabled') or 0))})
     out.sort(key=lambda x: float(x.get('at') or 0))
     return out

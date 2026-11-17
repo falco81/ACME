@@ -94,6 +94,9 @@ POLICY_HEAD_WIN = """# C:\\ProgramData\\acme-agent\\etc\\policy - what acme may 
 #   allow rdp                                    the Remote Desktop listener's certificate
 #   allow role adfs | role sql | ... | role ccs path=\\\\fs\\ccs   a Windows role of the deployments
 #   allow key-read "NT SERVICE\\MyService"        an account given read on the private key
+#   allow adcs "HOST\\CA Name" template=A,B      certificates of those templates from that CA,
+#                                                asked as this computer (template=*: any of it)
+#   allow adcs-read                              the CAs of the domain and their templates listed
 #   allow from ADDRESS[/BITS]                    passive: acme only from there
 #   allow probe HOST:PORT | allow probe local    a test of what HOST:PORT serves, from here
 #   allow connect HOST:PORT                      acme reaches HOST:PORT through this agent
@@ -2734,11 +2737,18 @@ def _policy_line(pol, words):
         have = pol.setdefault('key_read', [])
         if rest[0].lower() not in [x.lower() for x in have]:
             have.append(rest[0])
+    elif what == 'adcs':
+        # 1.0.125: a Microsoft CA asked without its web service (docs/ms-adcs-agent.md)
+        A._wincert().adcs_add(pol, A._wincert().adcs_entry(rest, A))
+    elif what == 'adcs-read':
+        if rest:
+            raise Refused('allow adcs-read')
+        pol['adcs_read'] = True
     elif what in ('script-hash', 'from', 'self-update', 'connect', 'probe'):
         ORIG['_policy_line'](pol, words)
     else:
         raise Refused('allow file | service | test | script | script-hash | store | iis | rdp | '
-                      'role | key-read | from | probe | connect | self-update')
+                      'role | key-read | adcs | adcs-read | from | probe | connect | self-update')
 
 
 ROLE_EXTRA = {'ccs': 'path', 'wac': 'msi'}
@@ -2792,7 +2802,15 @@ def policy_lines(pol):
         out.append('allow test -- %s' % ' '.join(wq(a) for a in t))
     for s in pol['scripts']:
         out.append('allow script %s sha256=%s' % (wq(s['path']), s['sha256']))
-    return out + ORIG['policy_lines'](dict(pol, files=[], units={}, tests=[], scripts=[]))
+    more = []
+    for x in pol.get('adcs') or []:
+        more.append('allow %s' % A._wincert().adcs_line(x))
+    if pol.get('adcs_read'):
+        more.append('allow adcs-read')
+    lines = ORIG['policy_lines'](dict(pol, files=[], units={}, tests=[], scripts=[]))
+    # before the limits, which are last
+    k = next((i for i, x in enumerate(lines) if x.startswith('limit ')), len(lines))
+    return out + lines[:k] + more + lines[k:]
 
 
 def policy_facts():
@@ -2940,7 +2958,7 @@ def policy_words(words):
     """The words of `allow ...` as a line of the policy (a folder's real path, a script
     pinned, each reader an account of this machine)."""
     usage = 'acme-agent allow file|service|test|script|script-hash|store|iis|rdp|role|' \
-            'key-read|from|probe|connect|self-update'
+            'key-read|adcs|adcs-read|from|probe|connect|self-update'
     if not words:
         raise SystemExit(usage)
     what, rest = words[0], words[1:]
@@ -3005,6 +3023,13 @@ def policy_words(words):
             except OSError:
                 raise SystemExit('acme-agent: there is no account %s on this machine' % rest[0])
             return 'allow key-read %s' % wq(rest[0])
+        if what == 'adcs':
+            if not rest:
+                raise SystemExit('acme-agent allow adcs "HOST\\CA Name" template=NAME,NAME '
+                                 '(or template=*)')
+            return 'allow %s' % A._wincert().adcs_line(A._wincert().adcs_entry(rest, A))
+        if what == 'adcs-read':
+            return 'allow adcs-read'
         if what == 'iis':
             if len(rest) != 1:
                 raise SystemExit('acme-agent allow iis SITE (its name as IIS says it) | '
@@ -3016,10 +3041,74 @@ def policy_words(words):
 
 
 def policy_edit(add, words):
+    if words[:1] == ['adcs'] and len(words) > 1:
+        return adcs_edit(add, words)
     rc = ORIG['policy_edit'](add, words)
     if words[:1] == ['from']:
         firewall_sync()
     return rc
+
+
+def adcs_edit(add, words):
+    """`acme-agent allow adcs "HOST\\CA" template=A,B`: one line a CA - the templates added
+    to the ones it has (template=* any); `deny adcs "HOST\\CA" [template=A]`: those templates
+    taken away (the CA's line when none is left), the whole line without template=."""
+    need_root('the policy is root\'s: run it in an elevated prompt')
+    wc = A._wincert()
+    rest = words[1:]
+    try:
+        if add or any(w.startswith('template=') for w in rest):
+            entry = wc.adcs_entry(rest, A)
+        else:
+            if len(rest) != 1:
+                raise SystemExit('acme-agent deny adcs "HOST\\CA Name" [template=NAME,NAME]')
+            entry = {'ca': wc.adcs_ca(rest[0], A), 'templates': None}
+    except Refused as e:
+        raise SystemExit('acme-agent: %s' % e)
+    text = A._read(A.POLICY, '') or A.POLICY_HEAD
+    lines = text.rstrip('\n').split('\n')
+    have, out = None, []
+    for x in lines:
+        one = parse_policy(x) if x.strip() and not x.strip().startswith('#') else {}
+        rule = wc.adcs_rule(one, entry['ca']) if one else None
+        if rule:
+            if have is None:
+                have = {'ca': rule['ca'], 'templates': list(rule['templates'])}
+            else:
+                wc.adcs_add({'adcs': [have]}, rule)
+            continue
+        out.append(x)
+    if add:
+        now = have or {'ca': entry['ca'], 'templates': []}
+        pol = {'adcs': [now]}
+        wc.adcs_add(pol, entry)
+        now = pol['adcs'][0]
+        said = 'allowed: %s' % wc.adcs_line(now)
+    else:
+        if have is None:
+            raise SystemExit('acme-agent: no such entry in the policy: adcs %s' % entry['ca'])
+        if entry['templates'] is None or entry['templates'] == ['*']:
+            now = None
+        else:
+            gone = [t.lower() for t in entry['templates']]
+            if have['templates'] == ['*']:
+                raise SystemExit('acme-agent: %s allows any template (template=*): take the '
+                                 'whole line away (acme-agent deny adcs %s) and allow the ones '
+                                 'wanted' % (have['ca'], cmd_q(have['ca'])))
+            left = [t for t in have['templates'] if t.lower() not in gone]
+            now = {'ca': have['ca'], 'templates': left} if left else None
+        said = ('now: %s' % wc.adcs_line(now)) if now else 'taken away: adcs %s' % have['ca']
+    if now:
+        out.append('allow %s' % wc.adcs_line(now))
+    os.makedirs(A.ETC, exist_ok=True)
+    _write(A.POLICY, '\n'.join(out) + '\n', 0o644)
+    audit(op='policy', ok=True, said=said[:300])
+    print(said)
+    return 0
+
+
+def cmd_q(word):
+    return wq(word)
 
 
 def policy_apply(text):
@@ -3979,6 +4068,9 @@ def main(argv):
         return windows_uninstall(argv[1:])
     if cmd == 'winservice':
         return winservice(argv[1:])
+    if cmd == 'adcs':
+        # 1.0.125: the CAs of the domain and their templates, for the policy (read-only)
+        return A._wincert().adcs_cli(A, argv[1:])
     return ORIG['main'](argv)
 
 
