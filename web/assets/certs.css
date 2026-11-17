@@ -406,6 +406,8 @@ pre.ct-dnslines{margin:4px 0;width:100%;white-space:pre;overflow-x:auto}
 /* Wide tables scroll sideways on a narrow screen rather than squeeze every
    column into a tower of wrapped words. */
 table.ct-certs{min-width:1020px}
+/* ...its names not a letter a line between a phone and a wide screen either (hunt q2: 641-1100 px) */
+table.ct-certs td > .ct-names{min-width:150px}
 table.ct-jobs{min-width:920px}
 table.ct-modtable{min-width:780px}
 table.ct-deptable,table.ct-vertable,table.ct-issued,table.ct-dnstable{min-width:640px}

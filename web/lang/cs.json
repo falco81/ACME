@@ -66867,6 +66867,10 @@
   "z_588": {
    "source": "Open",
    "text": "Otevřít"
+  },
+  "z_589": {
+   "source": "the agent did not answer yet - it is looked at again shortly",
+   "text": "agent zatím neodpověděl - podívá se na něj znovu za chvíli"
   }
  },
  "patterns": {
