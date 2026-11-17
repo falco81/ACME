@@ -159,7 +159,9 @@ function i18nWordy(m, depth) {
     }
     /* Words, apart by a space, of letters only (1.0.48): "certs_certadmin_all=1" or a team "HB1
        tym" are a name, not a sentence - a weak pattern refused them and stayed in English. */
-    if (!/(^|\s)[A-Za-z]{2,}[,;:]?\s+[A-Za-z]{2,}(\s|$|[.,;:])/.test(m[i] || '')) continue;
+    /* ...and "a" between two words is still a sentence (r7): "not a backup" took the slot of
+       "{0} of {1}" and said "not a backup z acme" - half Czech, half English. */
+    if (!/(^|\s)[A-Za-z]{2,}[,;:]?\s+(?:a\s+)?[A-Za-z]{2,}(\s|$|[.,;:])/.test(m[i] || '')) continue;
     /* ...a name of capitalised words is a name too (1.0.79): "G6 Imported CA deleted" stayed
        English - a sentence has a word in small letters among them */
     if (!/(^|\s)[a-z][A-Za-z]*[,;:]?(\s|$)/.test(m[i] || '') && /^[\sA-Z0-9][\s\S]*$/.test(m[i] || '')) continue;

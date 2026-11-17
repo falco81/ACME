@@ -1749,6 +1749,9 @@ def key_file(fmt, key_pem, data, password, alias, kt):
     if fmt in ('key-traditional', 'key-rsa'):
         if fmt == 'key-rsa' and not kt.startswith('rsa'):
             raise Refused('key-rsa (PKCS#1) is only for RSA keys - this one is %s' % kt)
+        if fmt == 'key-traditional' and str(kt).lower().startswith(('ed25519', 'ed448')):
+            # no traditional form exists for these (1.0.125, as acme's own pki): PKCS#8
+            return kb
         for args in (['pkey', '-traditional'], ['rsa' if kt.startswith('rsa') else 'ec']):
             try:
                 out = _openssl(args + STDIN_IN, kb, binary=True)

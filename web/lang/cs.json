@@ -2850,7 +2850,7 @@
   },
   "s0711": {
    "source": "Distinguished name",
-   "text": "Distinguished name"
+   "text": "Rozlišené jméno"
   },
   "s0712": {
    "source": "Domain (workgroup)",
@@ -46506,7 +46506,7 @@
   },
   "stv121": {
    "source": "Login key",
-   "text": "Login key"
+   "text": "Přihlašovací klíč"
   },
   "stv122": {
    "source": "a login key made for acme (or the password)",
@@ -50398,7 +50398,7 @@
   },
   "md33_14": {
    "source": "Letters, digits, . _ - only.",
-   "text": "Jen písmena, číslice, . _ -"
+   "text": "Jen písmena, číslice, . _ -."
   },
   "md33_15": {
    "source": "replaced now",
@@ -68339,6 +68339,138 @@
   "z_956": {
    "source": "keyCertSign and cRLSign are for an authority only - a certificate that is not one (CA:FALSE) cannot have them in its key usage",
    "text": "keyCertSign a cRLSign patří jen autoritě - certifikát, který jí není (CA:FALSE), je ve svém použití klíče mít nemůže"
+  },
+  "sr7i_001": {
+   "source": "Take every certificate of the mail server away",
+   "text": "Odebrat všechny certifikáty mailového serveru"
+  },
+  "sr7i_002": {
+   "source": "Find the groups in the directory and press May sign in beside each one that may: it goes into the box, and pressed again it comes out. Nested groups count - a member of a group inside one of these may sign in as well. Nothing is kept until Save the changes.",
+   "text": "Najděte skupiny v adresáři a u každé, která smí, stiskněte Smí se přihlásit: přidá se do pole a dalším stisknutím se odebere. Platí i vnořené skupiny – přihlásit se smí i člen skupiny uvnitř některé z nich. Nic se neuloží, dokud nestisknete Uložit změny."
+  },
+  "sr7i_003": {
+   "source": "Directories and accounts of the same name are replaced; the settings, the certificates, the VIP address, who may reach the pages, the firewall and the mail server's authorities in it are saved. Your own account is left as it is.",
+   "text": "Adresáře a účty stejného jména se nahradí; nastavení, certifikáty, VIP adresa, kdo smí na stránky, firewall a autority mailového serveru, které v něm jsou, se uloží. Váš vlastní účet zůstane, jak je."
+  },
+  "sr7i_004": {
+   "source": "signed out",
+   "text": "odhlášeno"
+  },
+  "sr7i_005": {
+   "source": "the root helper of this node did not answer in a minute - is acme-web.path running?  systemctl status acme-web.path",
+   "text": "pomocník roota na tomto uzlu do minuty neodpověděl – běží acme-web.path?  systemctl status acme-web.path"
+  },
+  "sr7i_006": {
+   "source": "the root helper of this node did not answer in 2 minutes - is acme-web.path running?  systemctl status acme-web.path",
+   "text": "pomocník roota na tomto uzlu do 2 minut neodpověděl – běží acme-web.path?  systemctl status acme-web.path"
+  },
+  "sr7i_007": {
+   "source": "an SSH token is an app's, or gets its codes by mail or SMS",
+   "text": "token SSH patří aplikaci, nebo dostává kódy e-mailem či SMS"
+  },
+  "sr7i_008": {
+   "source": "sending mail is not set up now",
+   "text": "odesílání pošty teď není nastaveno"
+  },
+  "sr7i_009": {
+   "source": "sending SMS is not set up now",
+   "text": "odesílání SMS teď není nastaveno"
+  },
+  "sr7i_010": {
+   "source": "no SSH token by mail or SMS for this account",
+   "text": "tento účet nemá token SSH s kódy e-mailem ani SMS"
+  },
+  "sr7i_011": {
+   "source": "the code could not be sent",
+   "text": "kód nešlo odeslat"
+  },
+  "sr7i_012": {
+   "source": "the root helper (acme_web.py) is not on this machine",
+   "text": "pomocník roota (acme_web.py) na tomto stroji není"
+  },
+  "sr7i_013": {
+   "source": "one server: a name or address, name:port",
+   "text": "jeden server: jméno nebo adresa, jméno:port"
+  },
+  "sr7i_014": {
+   "source": "one of the two keys has no certificate of its own among those sent",
+   "text": "jeden ze dvou klíčů nemá mezi poslanými svůj certifikát"
+  },
+  "sr7i_015": {
+   "source": "not a number of a CRL",
+   "text": "to není číslo CRL"
+  },
+  "sr7i_016": {
+   "source": "the folder has no .. in it",
+   "text": "složka nesmí obsahovat .."
+  },
+  "sr7i_017": {
+   "source": "five arbiters at most",
+   "text": "nejvýš pět arbitrů"
+  },
+  "sr7i_018": {
+   "source": "five servers at most",
+   "text": "nejvýš pět serverů"
+  },
+  "sr7i_019": {
+   "source": "the mariadb client is not on this machine",
+   "text": "klient mariadb na tomto stroji není"
+  },
+  "sr7i_020": {
+   "source": "the agent's address is HOST or HOST:PORT",
+   "text": "adresa agenta je HOST nebo HOST:PORT"
+  },
+  "sr7i_021": {
+   "source": "the join code holds no key of the agent to seal the join to: the agent is older than this acme - upgrade it on the database server (./install.sh --db-agent, of this version), then make a new code",
+   "text": "kód připojení neobsahuje klíč agenta, kterým by se připojení zapečetilo: agent je starší než tento acme – aktualizujte ho na databázovém serveru (./install.sh --db-agent z této verze) a pak vytvořte nový kód"
+  },
+  "sr7i_022": {
+   "source": "ACME-MIB.txt is not beside acme (deploy/)",
+   "text": "ACME-MIB.txt není vedle acme (deploy/)"
+  },
+  "sr7i_023": {
+   "source": "that is not the name of a user",
+   "text": "to není jméno uživatele"
+  },
+  "sr7i_024": {
+   "source": "openssl is not on this node - it makes the password's hash",
+   "text": "na tomto uzlu není openssl – vytváří hash hesla"
+  },
+  "sr7i_025": {
+   "source": "a user's name is small letters, digits, _ . and -, 32 at most, starting with a letter - and not one of the system's",
+   "text": "jméno uživatele tvoří malá písmena, číslice, _ . a -, nejvýš 32 znaků, začíná písmenem – a nesmí patřit systému"
+  },
+  "sr7i_026": {
+   "source": "that is not a shell",
+   "text": "to není shell"
+  },
+  "sr7i_027": {
+   "source": "no number to send the SMS to",
+   "text": "chybí číslo, na které poslat SMS"
+  },
+  "sr7i_028": {
+   "source": "both go into a PEM file only: cert-pem, fullchain-pem or combined-pem",
+   "text": "oba jdou jen do souboru PEM: cert-pem, fullchain-pem nebo combined-pem"
+  },
+  "sr7i_029": {
+   "source": "the module http_local is not there",
+   "text": "modul http_local tu není"
+  },
+  "sr7i_030": {
+   "source": "the SSH DNS module is not installed",
+   "text": "modul SSH DNS není nainstalován"
+  },
+  "sr7i_031": {
+   "source": "a version: letters, digits and . _ - (up to 40)",
+   "text": "verze: písmena, číslice a . _ - (nejvýš 40)"
+  },
+  "sr7i_032": {
+   "source": "the design has no policy text",
+   "text": "návrh nemá text politiky"
+  },
+  "sr7i_033": {
+   "source": "the design holds a NUL byte",
+   "text": "návrh obsahuje bajt NUL"
   }
  },
  "patterns": {
@@ -94693,6 +94825,290 @@
   "pz_263": {
    "source": "the key of {0} was made by a device and stays there - acme never had it",
    "text": "klíč certifikátu {0} vytvořilo zařízení a zůstává v něm – acme ho nikdy nemělo"
+  },
+  "pr7i_034": {
+   "source": "the tables of the package could not be read: {0}",
+   "text": "tabulky balíčku nešlo přečíst: {0}"
+  },
+  "pr7i_035": {
+   "source": "not a backup of acme: {0}",
+   "text": "není to záloha acme: {0}"
+  },
+  "pr7i_036": {
+   "source": "{0} is not sent to over TLS - nothing to switch off",
+   "text": "na {0} se přes TLS neposílá – není co vypínat"
+  },
+  "pr7i_037": {
+   "source": "the root helper of this node did not answer in {0} s - is acme-web.path running?  systemctl status acme-web.path",
+   "text": "pomocník roota na tomto uzlu neodpověděl do {0} s – běží acme-web.path?  systemctl status acme-web.path"
+  },
+  "pr7i_038": {
+   "source": "the cluster's authority has not come over from the other node in {0} s - try again in a moment",
+   "text": "autorita clusteru nedorazila z druhého uzlu do {0} s – zkuste to za chvíli znovu"
+  },
+  "pr7i_039": {
+   "source": "{0} has an SSH token already - make a new one in its place, or remove it",
+   "text": "{0} už token SSH má – vytvořte místo něj nový, nebo ho odeberte"
+  },
+  "pr7i_040": {
+   "source": "{0} has no SSH token",
+   "text": "{0} nemá token SSH"
+  },
+  "pr7i_041": {
+   "source": "{0} codes in {1} min - wait",
+   "text": "{0} {0:kód|kódy|kódů} za {1} min – počkejte"
+  },
+  "pr7i_042": {
+   "source": "the server is not synchronised itself (stratum {0})",
+   "text": "server sám není synchronizovaný (stratum {0})"
+  },
+  "pr7i_043": {
+   "source": "two certificates come with two keys - one RSA, one ECDSA ({0} key(s) came)",
+   "text": "dva certifikáty patří ke dvěma klíčům – jednomu RSA a jednomu ECDSA (přišlo klíčů: {0})"
+  },
+  "pr7i_044": {
+   "source": "two certificates: one with an RSA key and one with an ECDSA key (these are {0})",
+   "text": "dva certifikáty: jeden s klíčem RSA a jeden s klíčem ECDSA (tyto jsou {0})"
+  },
+  "pr7i_045": {
+   "source": "the two certificates are not of the same names ({0} / {1})",
+   "text": "ty dva certifikáty nemají stejná jména ({0} / {1})"
+  },
+  "pr7i_046": {
+   "source": "huge_pages is on, and a start needs enough of them for the new shared_buffers: check vm.nr_hugepages, then run  systemctl restart {0}  as root",
+   "text": "huge_pages je zapnuté a start jich potřebuje dost pro nové shared_buffers: zkontrolujte vm.nr_hugepages a pak jako root spusťte  systemctl restart {0}"
+  },
+  "pr7i_047": {
+   "source": "{0} did not start again - see  journalctl -u {1} ; if it does not start: as root, take the shared_buffers line out of postgresql.auto.conf and run  systemctl start {2}",
+   "text": "{0} znovu nenastartoval – viz  journalctl -u {1} ; pokud nenastartuje: jako root odeberte řádek shared_buffers z postgresql.auto.conf a spusťte  systemctl start {2}"
+  },
+  "pr7i_048": {
+   "source": "the directory {0} has no such CDP object",
+   "text": "adresář {0} takový objekt CDP nemá"
+  },
+  "pr7i_049": {
+   "source": "the request could not be made: {0}",
+   "text": "žádost nešlo vytvořit: {0}"
+  },
+  "pr7i_050": {
+   "source": "{0} still reach a database with TLS - perhaps this one: switch them off first",
+   "text": "{0} se stále připojují k databázi přes TLS – možná k této: nejdřív to vypněte"
+  },
+  "pr7i_051": {
+   "source": "{0} is not an address, a name or name:port",
+   "text": "{0} není adresa, jméno ani jméno:port"
+  },
+  "pr7i_052": {
+   "source": "{0}: the port is 1-65535",
+   "text": "{0}: port je 1–65535"
+  },
+  "pr7i_053": {
+   "source": "the report is {0} MB - too large to pass on; acme --selinux-report on the node itself",
+   "text": "report má {0} MB – je příliš velký na předání; spusťte acme --selinux-report přímo na uzlu"
+  },
+  "pr7i_054": {
+   "source": "the key that came with it cannot be written to {0} - nothing was put back",
+   "text": "klíč, který s ní přišel, nelze zapsat do {0} – nic se nevrátilo"
+  },
+  "pr7i_055": {
+   "source": "the dump could not be put back: {0}; {1}",
+   "text": "dump nešlo vrátit: {0}; {1}"
+  },
+  "pr7i_056": {
+   "source": "the database is put back but its key could not be written ({0}): put the .key file that came with it in {1}, or put back {2}",
+   "text": "databáze je vrácena, ale její klíč nešlo zapsat ({0}): dejte soubor .key, který s ní přišel, do {1}, nebo vraťte {2}"
+  },
+  "pr7i_057": {
+   "source": "the signing key of the database agent is not in {0} - join the agent again (acme --db-agent-join)",
+   "text": "podpisový klíč agenta databáze není v {0} – připojte agenta znovu (acme --db-agent-join)"
+  },
+  "pr7i_058": {
+   "source": "the database agent at {0}:{1} gives no key to seal the join to (HTTP {2}): it is older than this acme - upgrade it on the database server (./install.sh --db-agent)",
+   "text": "agent databáze na {0}:{1} nedává klíč k zapečetění připojení (HTTP {2}): je starší než tento acme – aktualizujte ho na databázovém serveru (./install.sh --db-agent)"
+  },
+  "pr7i_059": {
+   "source": "the database agent at {0}:{1} gives a key to seal the join to that is not the one of the code - not the agent that made it, or somebody in between",
+   "text": "agent databáze na {0}:{1} dává k zapečetění připojení jiný klíč, než je v kódu – není to agent, který kód vytvořil, nebo je někdo mezi"
+  },
+  "pr7i_060": {
+   "source": "the database agent at {0}:{1} cannot be reached: {2} - is its port open to this node? (on the database server: firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"{3}\" port port=\"{4}\" protocol=\"tcp\" accept' && firewall-cmd --reload)",
+   "text": "agent databáze na {0}:{1} není dosažitelný: {2} – je jeho port pro tento uzel otevřený? (na databázovém serveru: firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"{3}\" port port=\"{4}\" protocol=\"tcp\" accept' && firewall-cmd --reload)"
+  },
+  "pr7i_061": {
+   "source": "the join could not be sealed to the agent's key: {0}",
+   "text": "připojení nešlo zapečetit klíčem agenta: {0}"
+  },
+  "pr7i_062": {
+   "source": "the new address is one plain address, not {0}",
+   "text": "nová adresa je jedna prostá adresa, ne {0}"
+  },
+  "pr7i_063": {
+   "source": "{0}: four attributes at most",
+   "text": "{0}: nejvýš čtyři atributy"
+  },
+  "pr7i_064": {
+   "source": "{0}: {1} is not the name of an attribute",
+   "text": "{0}: {1} není název atributu"
+  },
+  "pr7i_065": {
+   "source": "{0} - start it on the database server {1} (systemctl start acme-db-agent), then run this again",
+   "text": "{0} – spusťte ho na databázovém serveru {1} (systemctl start acme-db-agent) a pak to spusťte znovu"
+  },
+  "pr7i_066": {
+   "source": "PostgreSQL does not answer on the database server {0} (its agent does): install it there (install.sh --db-server postgres) and start it",
+   "text": "PostgreSQL na databázovém serveru {0} neodpovídá (jeho agent ano): nainstalujte ho tam (install.sh --db-server postgres) a spusťte ho"
+  },
+  "pr7i_067": {
+   "source": "openssl did not make the password's hash: {0}",
+   "text": "openssl nevytvořil hash hesla: {0}"
+  },
+  "pr7i_068": {
+   "source": "{0} has UID {1} on {2}, which is another user's on {3}",
+   "text": "{0} má na {2} UID {1}, které na {3} patří jinému uživateli"
+  },
+  "pr7i_069": {
+   "source": "UID {0} is not one of a normal user ({1} to {2})",
+   "text": "UID {0} nepatří běžnému uživateli ({1} až {2})"
+  },
+  "pr7i_070": {
+   "source": "UID {0} is another user's on {1}",
+   "text": "UID {0} na {1} patří jinému uživateli"
+  },
+  "pr7i_071": {
+   "source": "no UID of the normal range is free on {0}",
+   "text": "na {0} není volné žádné UID z běžného rozsahu"
+  },
+  "pr7i_072": {
+   "source": "the root helper said no list of users ({0})",
+   "text": "pomocník roota nevrátil seznam uživatelů ({0})"
+  },
+  "pr7i_073": {
+   "source": "{0} has no SSH key called {1}",
+   "text": "{0} nemá klíč SSH jménem {1}"
+  },
+  "pr7i_074": {
+   "source": "{0} has no SSH key",
+   "text": "{0} nemá klíč SSH"
+  },
+  "pr7i_075": {
+   "source": "\"{0}\" is built in: it cannot be deleted",
+   "text": "„{0}“ je vestavěná: nelze ji smazat"
+  },
+  "pr7i_076": {
+   "source": "{0} is not a phone number",
+   "text": "{0} není telefonní číslo"
+  },
+  "pr7i_077": {
+   "source": "{0} is switched off - switch it on first",
+   "text": "{0} je vypnutý – nejdřív ho zapněte"
+  },
+  "pr7i_078": {
+   "source": "{0} cannot be revoked here: {1}",
+   "text": "{0} tu nelze odvolat: {1}"
+  },
+  "pr7i_079": {
+   "source": "{0} was issued for a CSR sent in: a new one needs a new CSR - revoke it alone",
+   "text": "{0} byl vydán pro zaslaný CSR: nový potřebuje nový CSR – jen ho odvolejte"
+  },
+  "pr7i_080": {
+   "source": "a twin is the other kind of key: {0} has a {1} key, this one too",
+   "text": "dvojče má druhý druh klíče: {0} má klíč {1} a tento také"
+  },
+  "pr7i_081": {
+   "source": "{0} is not for {1}: it lacks {2} (it is for {3}) - {4} (or anyway, with force)",
+   "text": "{0} není pro {1}: chybí mu {2} (je pro {3}) – {4} (nebo i tak, s vynucením)"
+  },
+  "pr7i_082": {
+   "source": "{0} has no twin",
+   "text": "{0} nemá dvojče"
+  },
+  "pr7i_083": {
+   "source": "version {0} of {1} is its {2} certificate, not the {3} one",
+   "text": "verze {0} certifikátu {1} je jeho certifikát {2}, ne {3}"
+  },
+  "pr7i_084": {
+   "source": "the module {0} of {1} is missing (taken away, or it did not load): its settings cannot be changed until it is back - its name, its note and switching it on or off can",
+   "text": "modul {0} pro {1} chybí (odebrán, nebo se nenačetl): jeho nastavení nelze měnit, dokud se nevrátí – jméno, poznámku a zapnutí či vypnutí ano"
+  },
+  "pr7i_085": {
+   "source": "the agent of {0} makes the key of {1} - its module cannot be changed to {2}, which makes no key: let acme make the key of those certificates first",
+   "text": "agent cíle {0} vytváří klíč pro {1} – jeho modul nelze změnit na {2}, který klíč nevytváří: nejdřív nechte klíč těch certifikátů vytvářet acme"
+  },
+  "pr7i_086": {
+   "source": "a job is working on {0} - wait for it to end",
+   "text": "na {0} pracuje úloha – počkejte, až skončí"
+  },
+  "pr7i_087": {
+   "source": "a job is working with {0} - wait for it to end",
+   "text": "s {0} pracuje úloha – počkejte, až skončí"
+  },
+  "pr7i_088": {
+   "source": "{0} is a connector: certificates go to the targets reached through it",
+   "text": "{0} je konektor: certifikáty jdou na cíle dosažené přes něj"
+  },
+  "pr7i_089": {
+   "source": "{0} is lines of text",
+   "text": "{0} jsou řádky textu"
+  },
+  "pr7i_090": {
+   "source": "{0} is text",
+   "text": "{0} je text"
+  },
+  "pr7i_091": {
+   "source": "{0} is too long",
+   "text": "{0} je příliš dlouhé"
+  },
+  "pr7i_092": {
+   "source": "the key of {0} is made by the device of {1} and stays there",
+   "text": "klíč certifikátu {0} vytváří zařízení cíle {1} a zůstává tam"
+  },
+  "pr7i_093": {
+   "source": "the database keeps no modules of a node called {0} (it has: {1})",
+   "text": "databáze nemá žádné moduly uzlu jménem {0} (má: {1})"
+  },
+  "pr7i_094": {
+   "source": "{0}: what the database keeps does not match its sha256",
+   "text": "{0}: to, co databáze uchovává, neodpovídá jeho sha256"
+  },
+  "pr7i_095": {
+   "source": "the class {0} is not in its file",
+   "text": "třída {0} ve svém souboru není"
+  },
+  "pr7i_096": {
+   "source": "{0}: {1} has 20 values at most",
+   "text": "{0}: {1} má nejvýš 20 hodnot"
+  },
+  "pr7i_097": {
+   "source": "an extended key usage is one of {0}",
+   "text": "rozšířené použití klíče je jedno z: {0}"
+  },
+  "pr7i_098": {
+   "source": "the module of the target {0} ({1}) is not there",
+   "text": "modul cíle {0} ({1}) tu není"
+  },
+  "pr7i_099": {
+   "source": "a design is {0} bytes at most",
+   "text": "návrh má nejvýš {0} bajtů"
+  },
+  "pr7i_100": {
+   "source": "line {0} of the design: {1}",
+   "text": "řádek {0} návrhu: {1}"
+  },
+  "pr7i_101": {
+   "source": "the port {0} is not one",
+   "text": "{0} není port"
+  },
+  "pr7i_102": {
+   "source": "too many targets for one test ({0} characters of names, 190 at most) - choose \"every deployment\" instead",
+   "text": "na jeden test je příliš mnoho cílů ({0} znaků jmen, nejvýš 190) – zvolte místo toho „každé nasazení“"
+  },
+  "pr7i_103": {
+   "source": "{0} is not root's alone",
+   "text": "{0} nepatří jen rootovi"
+  },
+  "pr7i_104": {
+   "source": "the script is bigger than {0} KiB",
+   "text": "skript je větší než {0} KiB"
   }
  },
  "rich": {
