@@ -679,11 +679,12 @@ function drawWaiting(box, d) {
       gh.appendChild(all);
     }
     gh.appendChild(icon(g.enroll ? 'people' : 'key', 15));
-    if (g.enroll) {
-      gh.appendChild(el('span', 'ag-wgroup-k', 'Enrollment code'));
-      gh.appendChild(data('b', 'ag-wgroup-t', g.enroll.title || g.enroll.id));
-    } else gh.appendChild(el('b', 'ag-wgroup-t', 'Each with its target’s own join code'));
-    gh.appendChild(noI18n(el('span', 'count', String(g.rows.length))));
+    if (g.enroll) gh.appendChild(el('span', 'ag-wgroup-k', 'Joined with the code'));
+    var tc = el('span', 'ag-wgroup-tc');
+    if (g.enroll) tc.appendChild(data('b', 'ag-wgroup-t', g.enroll.title || g.enroll.id));
+    else tc.appendChild(el('b', 'ag-wgroup-t', 'Each with its target’s own join code'));
+    tc.appendChild(noI18n(el('span', 'count', String(g.rows.length))));
+    gh.appendChild(tc);
     if (FULL && g.enroll && g.rows.length > 1) {
       var ab = cmdButton('Confirm all of this code…', 'check', 'small');
       ab.onclick = function () { confirmMany(g.rows, g.enroll.title || g.enroll.id); };
@@ -843,7 +844,7 @@ function codeRow(c) {
   by.appendChild(data('span', '', String(c.by || '–')));
   by.appendChild(noI18n(el('span', 'muted', ' · ')));
   by.appendChild(el('span', 'muted', when(c.at)));
-  k.appendChild(kv('Made by', by));
+  k.appendChild(kv('Who made it', by));
   if (c.mode === 'passive' && c.port) k.appendChild(kv('Their port', mono(String(c.port))));
   if (c.state === 'revoked' && c.revoked_by) k.appendChild(kv('Revoked by', data('span', '', String(c.revoked_by))));
   r.appendChild(k);
@@ -894,7 +895,7 @@ function enrollDialog(d) {
       var t = textBox(F.title, tr('e.g. Branch offices 2026'));
       t.maxLength = 80;
       t.oninput = function () { F.title = t.value; };
-      g.appendChild(formField('Title', t, 'What you call it - the targets it makes and Events say it.'));
+      g.appendChild(formField('Its title', t, 'What you call it - the targets it makes and Events say it.'));
       var seg = el('div', 'seg ag-eseg');
       var port = numBox(F.port, 1, 65535);
       var portF = formField('Their port', port, 'Where each agent listens for acme (passive).');
@@ -919,6 +920,7 @@ function enrollDialog(d) {
       most.oninput = function () { F.most = most.value; };
       g.appendChild(formField('At most (servers)', most, 'How many servers may join with it - the same server again does not count twice.'));
       var sw = switchBox(F.auto);
+      sw.classList.add('ag-sw-red');
       var warn = el('div', 'ag-auto-warn');
       warn.appendChild(icon('flag', 16));
       warn.appendChild(el('span', '', 'Anybody who has this code joins a server to acme without anyone comparing its fingerprint - and gets the certificates deployed to it. Only for a code that never leaves your deployment tooling, for a short time.'));

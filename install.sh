@@ -109,7 +109,16 @@ if [[ -t 1 ]]; then
 else
     C_HEAD=""; C_OK=""; C_WARN=""; C_BAD=""; C_DIM=""; C_OFF=""
 fi
-step()  { printf '\n%s==> %s%s\n' "$C_HEAD" "$1" "$C_OFF"; }
+step()  {
+    printf '\n%s==> %s%s\n' "$C_HEAD" "$1" "$C_OFF"
+    # An upgrade says each step to the pages too (1.0.120): step N of M, its words.
+    if [[ -n "${UPGRADE_TELL:-}" ]]; then
+        UPGRADE_PART=$((UPGRADE_PART + 1))
+        UPGRADE_WORDS="$1"
+        upgrade_tell running || true
+    fi
+    return 0
+}
 say()   { printf '    %s\n' "$1"; }
 note()  { printf '    %s%s%s\n' "$C_DIM" "$1" "$C_OFF"; }
 good()  { printf '    %s%s%s\n' "$C_OK" "$1" "$C_OFF"; }
@@ -118,6 +127,42 @@ fail()  { printf '\n%sERROR: %s%s\n' "$C_BAD" "$1" "$C_OFF" >&2; exit 1; }
 # Whatever stops this script says what and where - never a silent end.
 # shellcheck disable=SC2154
 trap 'rc=$?; printf "\n%sERROR: line %s: \"%s\" ended with %s; nothing after it was done.%s\n" "${C_BAD:-}" "$LINENO" "$BASH_COMMAND" "$rc" "${C_OFF:-}" >&2; exit "$rc"' ERR
+
+# How far an upgrade is, for the pages (1.0.120, docs/upgrades.md): $WEB_DIR/.upgrade.json,
+# which their PHP reads from disk while the API, nginx and PHP restart (nginx never serves a dot
+# file). Root's alone, 0644, written whole and renamed over it; nothing secret in it. Switched on
+# by the --upgrade block (UPGRADE_TELL); each step() says which one it is, the EXIT trap how it
+# ended, and acme_upgrade.py (from the pages) says the step before: checking the package.
+UPGRADE_TELL="" UPGRADE_PART=0 UPGRADE_PARTS=0 UPGRADE_WORDS="" UPGRADE_ID="" UPGRADE_NODE=""
+UPGRADE_FROM="" UPGRADE_STARTED=0 UPGRADE_DOWN=""
+json_str() {            # json_str TEXT: "TEXT" as JSON takes it - no control characters
+    local s="${1//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="$(printf '%s' "$s" | tr -d '\000-\037\177')"
+    printf '"%s"' "${s:0:300}"
+}
+upgrade_tell() {        # upgrade_tell STATE [SAID] - never stops the upgrade (called with || true)
+    [[ -n "$UPGRADE_TELL" && -z "$DRY_RUN" ]] || return 0
+    local dir tmp
+    dir="$(dirname "$UPGRADE_TELL")"
+    [[ -d "$dir" && ! -L "$dir" ]] || return 0
+    if (( UPGRADE_PART > UPGRADE_PARTS )); then UPGRADE_PARTS=$UPGRADE_PART; fi
+    tmp="$(mktemp "$dir/.upgrade.json.XXXXXX" 2>/dev/null)" || return 0
+    if printf '{"state": %s, "id": %s, "version": %s, "from": %s, "by": %s, "node": %s, "part": %d, "parts": %d, "words": %s, "started": %d, "at": %d, "said": %s, "downgrade": %s}\n' \
+            "$(json_str "$1")" "$(json_str "$UPGRADE_ID")" "$(json_str "$VERSION")" \
+            "$(json_str "$UPGRADE_FROM")" "$(json_str "${ACME_UPGRADE_BY:-root on the command line}")" \
+            "$(json_str "$UPGRADE_NODE")" "$UPGRADE_PART" "$UPGRADE_PARTS" "$(json_str "$UPGRADE_WORDS")" \
+            "$UPGRADE_STARTED" "$(date +%s)" "$(json_str "${2:-}")" \
+            "$([[ -n "$UPGRADE_DOWN" ]] && echo true || echo false)" > "$tmp" &&
+            chmod 0644 "$tmp" && mv -f "$tmp" "$UPGRADE_TELL"; then
+        return 0
+    fi
+    rm -f "$tmp"
+    return 0
+}
+tree_version_of() {     # tree_version_of DIR: the version of the acme tree there, or nothing
+    sed -n "s/^__version__ = [\"']\([0-9.]*\)[\"'].*/\1/p" "$1/acmelib/__init__.py" 2>/dev/null | head -n1 || true
+}
 
 run() {
     if [[ -n "$DRY_RUN" ]]; then
@@ -872,7 +917,12 @@ install_pages() {
 pages_from() {
         local from="$1" wnew wold=""
         wnew="$(mktemp -d "$(dirname "$WEB_DIR")/.acme-web-new.XXXXXX")"
-        tar -C "$from" --exclude='__pycache__' -cf - . | tar -C "$wnew" --no-same-owner -xf -
+        tar -C "$from" --exclude='__pycache__' --exclude='.upgrade.json' -cf - . | tar -C "$wnew" --no-same-owner -xf -
+        # How far the upgrade is (1.0.120) goes over with the pages: their PHP reads it while
+        # the rest restarts.
+        if [[ -f "$WEB_DIR/.upgrade.json" && ! -L "$WEB_DIR/.upgrade.json" ]]; then
+            cp -p "$WEB_DIR/.upgrade.json" "$wnew/.upgrade.json" 2>/dev/null || true
+        fi
         chown -R root:root "$wnew"
         find "$wnew" -type d -exec chmod 0755 {} +
         find "$wnew" -type f -exec chmod 0644 {} +
@@ -2196,7 +2246,78 @@ install_console() {
 # ===========================================================================
 # An upgrade: the program, the pages, PHP - and nothing else
 # ===========================================================================
+# The way out of an upgrade (1.0.120): the rescue (defined in the block below, once it is
+# there), then the pages told how it ended - failed with the exit status and what runs now.
+upgrade_exit() {
+    local rc=$? runs=""
+    if declare -F upgrade_rescue >/dev/null; then upgrade_rescue "$rc" || true; fi
+    if [[ $rc -ne 0 ]]; then
+        runs="$(tree_version_of "$LIB_DIR/current")"
+        [[ -n "$runs" ]] || runs="$(tree_version_of "$LIB_DIR")"
+        if [[ -n "$runs" && "$runs" == "$UPGRADE_FROM" && "$runs" != "$VERSION" ]]; then runs="$runs runs again"
+        elif [[ -n "$runs" ]]; then runs="$runs runs"; fi
+        upgrade_tell failed "install.sh --upgrade stopped (exit $rc)${runs:+ - $runs}" || true
+    fi
+    return 0
+}
+
+# Whether install_db_tools will have a step (1.0.120): counted before the upgrade begins, so
+# the pages' "step N of M" is honest - the same decision as there.
+db_tools_step_comes() {
+    local inuse="" with="$WITH_DB"
+    inuse="$(python3 -c 'import json,os,stat,sys; fd=os.open(sys.argv[1], os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK); assert stat.S_ISREG(os.fstat(fd).st_mode); print(json.loads(os.read(fd, 4<<20) or b"{}").get("db_engine") or "")' \
+             "$CONFIG_DIR/config.json" 2>/dev/null || true)"
+    if [[ -z "$with" && -f "$LIB_DIR/db-drivers" && ! -L "$LIB_DIR/db-drivers" ]]; then
+        with="$(head -n1 "$LIB_DIR/db-drivers" 2>/dev/null | tr -cd 'a-z' || true)"
+    fi
+    case "$inuse" in
+        mariadb|postgres) return 0;;
+    esac
+    case "$with" in
+        mariadb|mysql|postgres|postgresql) return 0;;
+    esac
+    return 1
+}
+
 if [[ -n "$DO_UPGRADE" ]]; then
+    # The pages told how far it is (1.0.120): the id and node of the upgrade the pages asked for
+    # (acme_upgrade.py says them, and step 1 - checking the package - was its own), or one of
+    # its own when typed in. The steps counted as they will come: the six always there (this
+    # one, The program, Python, The tree, The service, Done), the database's tools when they
+    # come, PHP and the pages where the pages are.
+    if [[ -z "$DRY_RUN" && -d "$WEB_DIR" && ! -L "$WEB_DIR" ]]; then
+        UPGRADE_TELL="$WEB_DIR/.upgrade.json"
+    fi
+    UPGRADE_ID="${ACME_UPGRADE_ID:-}"
+    [[ "$UPGRADE_ID" =~ ^[A-Za-z0-9._-]{1,64}$ ]] || UPGRADE_ID="cli-$(date +%s)-$$"
+    UPGRADE_NODE="${ACME_UPGRADE_NODE:-}"
+    if [[ -z "$UPGRADE_NODE" ]]; then
+        UPGRADE_NODE="$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1])).get("node_name") or "").strip())' "$CONFIG_FILE" 2>/dev/null || true)"
+        [[ -n "$UPGRADE_NODE" ]] || UPGRADE_NODE="$(hostname -s 2>/dev/null || true)"
+    fi
+    UPGRADE_STARTED="${ACME_UPGRADE_STARTED:-}"
+    [[ "$UPGRADE_STARTED" =~ ^[0-9]{1,12}$ ]] || UPGRADE_STARTED="$(date +%s)"
+    UPGRADE_FROM="$(tree_version_of "$LIB_DIR/current")"
+    [[ -n "$UPGRADE_FROM" ]] || UPGRADE_FROM="$(tree_version_of "$LIB_DIR")"
+    if [[ -n "${ACME_UPGRADE_DOWNGRADE:-}" ]] || { [[ -n "$UPGRADE_FROM" && "$UPGRADE_FROM" != "$VERSION" ]] && ver_ge "$UPGRADE_FROM" "$VERSION"; }; then
+        UPGRADE_DOWN=yes
+    fi
+    UPGRADE_PART=0
+    UPGRADE_PARTS=6
+    if [[ -n "$WITH_WEB" ]] && [[ -e "$NGINX_CONF" || -d "$WEB_DIR" ]]; then
+        UPGRADE_PARTS=$((UPGRADE_PARTS + 2))
+    fi
+    if db_tools_step_comes; then UPGRADE_PARTS=$((UPGRADE_PARTS + 1)); fi
+    if [[ -n "${ACME_UPGRADE_FROM_PAGES:-}" ]]; then
+        UPGRADE_PART=1
+        UPGRADE_PARTS=$((UPGRADE_PARTS + 1))
+    fi
+    # How it ended, said whatever ends it - from the first step on (the checks below may stop
+    # it too): a run stopped is never left "running" on the pages.
+    trap upgrade_exit EXIT
+    trap 'exit 130' INT
+    trap 'exit 129' HUP
+    trap 'exit 143' TERM
     step "Upgrading acme to $VERSION"
     id "$SERVICE_USER" >/dev/null 2>&1 || fail "acme is not installed here; run this without --upgrade"
     install_base_packages
@@ -2247,7 +2368,7 @@ except Exception:
     UPGRADE_STAGE=started
     TREE_SWITCHED="" PAGES_SWITCHED="" ROLLBACK_TREE="" PREV_LINK_BEFORE=""
     upgrade_rescue() {
-        local rc=$?
+        local rc=${1:-$?}
         [[ "${UPGRADE_STAGE:-}" == started && $rc -ne 0 && -z "$DRY_RUN" ]] || return 0
         if [[ -n "${TREE_SWITCHED:-}" && -n "${ROLLBACK_TREE:-}" && -d "$ROLLBACK_TREE" ]]; then
             # Back to the version that ran (1.0.44): the new one was switched in and then
@@ -2273,7 +2394,9 @@ except Exception:
             as_acme --maintenance off >/dev/null 2>&1 && warn "this node is back in service - look at what stopped the upgrade"
         fi
     }
-    trap upgrade_rescue EXIT
+    # The rescue on the way out (upgrade_exit, set above: it runs upgrade_rescue, then says
+    # how it ended to the pages).
+    trap upgrade_exit EXIT
     # Stopped by a signal - Ctrl-C, a hang-up, acme_upgrade.py's TERM at its
     # deadline - the exit status was 0 and the rescue did nothing.
     trap 'exit 130' INT
@@ -2293,6 +2416,7 @@ except Exception:
         install_pages
     fi
     [[ -n "$WITH_WEB" ]] || selinux_module      # SELinux without the pages too (1.0.59)
+    step "The service"
     restart_daemon
     UPGRADE_STAGE="done"
     [[ -z "$DRY_RUN" ]] && trees_prune
@@ -2305,6 +2429,8 @@ except Exception:
         fi
     fi
     step "Done"
+    UPGRADE_WORDS="acme $VERSION runs"
+    upgrade_tell done || true
     as_acme --status || true
     note "the version before is kept: $(readlink "$LIB_DIR/previous" 2>/dev/null || echo none) - /usr/bin/python3 -I $LIB_DIR/acme_upgrade.py --previous puts it back"
     exit 0

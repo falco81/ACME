@@ -173,6 +173,7 @@ function paintHeader(s) {
   drawTrials(s);
   drawAttention(s);
   $('updated-at').textContent = clockWords(new Date());
+  upgradeFromStatus(s);         /* the band of an upgrade going on (1.0.120) */
 }
 
 /* What waits for a person (1.0.54, docs/things-to-do-by-hand.md): a step
@@ -374,7 +375,14 @@ function trialDo(t, action, button) {
 var REDRAW_OWED = false;
 function tick() {
   if (!LIVE || document.hidden) return;
-  api('status').then(function (s) {
+  /* While an upgrade is expected (1.0.120): asked every two seconds with a short deadline, one
+     question at a time - the node answering may be restarting, or the VIP address moving. */
+  var upg = upgradeExpected();
+  if (upg && UPG.asking) return;
+  UPG.asking = upg;
+  UPG.asked = Date.now();
+  api('status', undefined, upg ? 6 : 0).then(function (s) {
+    UPG.asking = false;
     $('offline').hidden = true;
     var moved = s.serial !== SERIAL || REDRAW_OWED;
     SERIAL = s.serial;
@@ -400,10 +408,16 @@ function tick() {
       extraDraw(TAB, {live: true, moved: moved, status: s});
     }
   }).catch(function (e) {
+    UPG.asking = false;
     /* The password to change first (1.0.48): no daemon away - its dialog again, closed by
        Escape, and nothing else said. */
     if (typeof ME === 'object' && ME && ME.must_change && e && e.status === 403) {
       if ($('modal').hidden) mustChange();
+      return;
+    }
+    /* An upgrade restarting the API, nginx or PHP (1.0.120): its band says so - no red. */
+    if (upgradeAway(e)) {
+      $('offline').hidden = true;
       return;
     }
     var o = $('offline');
@@ -945,6 +959,7 @@ function paintCards2(s) {
     : (up.package && verAbove(up.package, s.version) ? 'acme ' + up.package + ' is ready to be put in' : 'every node is in service'));
   $('card-maint').className = 'card metric ' + (running ? 'info' : (mn.length ? 'warn' : 'ok'))
     + ($('card-maint').classList.contains('tappable') ? ' tappable' : '');
+  upgradeCards();               /* while the API is away, or root upgrades this node alone (1.0.120) */
 }
 
 /* The cards open what they count (1.0.37, as isemon's). */
@@ -10934,7 +10949,8 @@ function upPercent(st, plan) {
       return Math.round(3 + 17 * Math.min(1, since / Math.max(1, Number(plan.drain_s || 20))));
     case 'installing':
       var asked = now - Number(st.asked || st.at || now);
-      return Math.round(Math.min(82, 20 + 60 * Math.min(0.95, Number(st.part || 0) / 6) + Math.min(6, asked / 15)));
+      /* step N of M as root counts them (1.0.120); of six when it did not say */
+      return Math.round(Math.min(82, 20 + 60 * Math.min(0.95, Number(st.part || 0) / (Number(st.parts || 0) || 6)) + Math.min(6, asked / 15)));
     case 'checking': return Math.round(85 + Math.min(10, since / 3));
     default: return 0;
   }

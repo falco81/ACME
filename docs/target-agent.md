@@ -273,7 +273,7 @@ While it is off nothing of it exists: no port, no server of nginx, no rule in ac
 `request.json` to the root helper as before - an installation that never uses it is byte for
 byte as before. Switched on, every node's root helper writes `acme_agents.conf` (a server on the
 port with TLS 1.3, the agent authority as its only client CA, acme's certificate of it,
-`/agent/v1/join`, `/agent/v1/join/status` and `/agent/v1/poll` only, relayed by `web/agent.php`
+`/agent/v1/join`, `/agent/v1/join/status`, `/agent/v1/enroll` and `/agent/v1/poll` only, relayed by `web/agent.php`
 to the daemon's `/api/agent-wire/*`, which the pages' relay does not reach), SELinux is told the
 port is nginx's, and acme's firewall lets the port in on every node (a card of its own under
 "What acme lets in by itself"). Switched off again, all of it is taken away. An active target
@@ -316,6 +316,64 @@ stays). A target switched off or deleted is refused on the next request.
 **Its certificate** is renewed over the channel 10 days before its end (by the node that leads,
 or at once on the card): the agent makes a CSR of its own key, acme signs it, the agent puts it in
 use; the one before is let in a while yet.
+
+## Enrolling many servers (company enrollment code)
+
+One code for many servers (1.0.120): each server that joins with it becomes **a target of its
+own**, waiting for an administrator to confirm its fingerprint - one by one, or many at once.
+For a company rollout: the MSI by Group Policy, Intune or SCCM, `install.sh --join` by Ansible.
+
+1. **Settings → Target agents → Enrollment codes → Make an enrollment code…** (a full
+   administrator; the agents' port - *Agents may connect to acme* - must be on: an enrolling
+   agent always asks acme there): its title, the servers' mode (passive: their port; active),
+   valid for 1-365 days, at most N servers, and **Confirm automatically** - off by default; on, a
+   red warning says it: anybody holding the code joins a server without anyone comparing its
+   fingerprint. The code is shown **once**: `ACAE1.` and base64url of `{v, e (its id), s (its
+   secret), ca, ck (the fingerprints the agent pins), a (acme's agents' addresses), m, p, u
+   (until), n (the title)}`. Its secret is kept sealed in acme (`agents:enroll:<id>`).
+2. On each server the same command as for a join code: `sudo acme-agent join CODE`, `sudo
+   ./install.sh --join CODE`; on Windows the MSI's Join step (by hand), `msiexec /i
+   acme-agent-X.Y.Z-windows-x64.msi /qn JOINCODE=CODE` (silently), or `acme-agent join CODE` in an
+   elevated prompt. The agent makes its keys and prints its fingerprint as for any join.
+3. The agent POSTs `/agent/v1/enroll` on the agents' port: `{e, nonce, csr, enc_pub, host, fqdn,
+   os, platform (windows | linux), version, code, port, proof}` with `proof = HMAC(s, "enroll",
+   e, sha256(csr), enc_pub, nonce, fqdn)`. acme makes the target - kind `agent` (Linux) or
+   `agent_windows` (Windows), named after the host name (made unique: `web1`, `web1-2`...), its
+   address the FQDN (else the address it came from), the code's mode and port - and a **join code
+   of the target's own** `i` whose secret is `HMAC(s, "target", e, i)` (never sent). It takes the
+   join as `/agent/v1/join` does and answers as it does, plus `{i, target}`. The agent derives the
+   same secret, checks acme's proof with it, and goes on exactly as an active join of `i`
+   (`/agent/v1/join/status`) - acme's answers proved by the code's secret, its authority and
+   command key pinned only when they are the ones the code names.
+4. The target waits in **Settings → Target agents → Waiting for confirmation** (also on its card):
+   the target, host, address, system (a Windows / Linux badge), its fingerprint in groups, the
+   enrollment code it came with (or the target's own join code), when. **Confirm…** one, or tick
+   several → **Confirm selected…**, or **Confirm all of this code…** - each asked first, listing
+   every fingerprint; each is confirmed by the fingerprint it asks with (`POST
+   /api/agents/confirm-many`).
+5. Confirmed, the agent takes its certificate at its next question and takes the code's mode:
+   active, it polls; **passive, it then listens** on the code's port and acme marks it joined at
+   its first answer (acme asks it at once, then as every passive agent).
+
+The same server asking again (its answer lost: the same FQDN and the same key) gets its target,
+not a second one, and is not counted twice. Refused: a code revoked, run out or used by as many
+servers as it allows, a request that does not prove the code (said in Events, once a minute at
+most), anything while the agents' port is off. **Revoke…** stops new servers joining with it; the
+servers that joined stay, those waiting still wait. A code that ended is listed for 30 days.
+Events: a code made (with "CONFIRMED AUTOMATICALLY" when so), revoked, a server enrolled (target,
+host, address, platform, key), refused, each confirmation (automatic ones say so).
+
+* Command line: `acme --target-agent enroll new [--title T] [--mode passive|active] [--port N]
+  [--days N] [--most N] [--auto-confirm]` (prints the code; `--json`), `acme --target-agent enroll
+  list [--json]`, `acme --target-agent enroll revoke ID`, `acme --target-agent waiting [--json]`
+  (each with the line that confirms it: `acme --target-agent NAME confirm FP`). The console:
+  Certificates → *Target agents: enrollment codes, agents waiting for confirmation*.
+* API: `GET /api/agents/enroll` (the codes and the agents waiting), `POST /api/agents/enroll
+  {title, mode, port, days, most, auto}`, `POST /api/agents/enroll/revoke {id}`, `GET
+  /api/agents/waiting`, `POST /api/agents/confirm-many {items: [{id, fp}]}` (changes: a full
+  administrator); `GET /api/agents` carries `enroll` and `waiting` too. nginx's server of the
+  agents' port and `web/agent.php` relay `/agent/v1/enroll` (no client certificate - the code
+  proves it) to `/api/agent-wire/enroll`.
 
 ## The protocol
 
@@ -457,6 +515,7 @@ Authenticode-signed: its integrity is the SHA-256 acme shows and the signed MANI
 ## In acme
 
 * **Settings → Target agents**: active mode and its port, what the agents are given; the agents
+  waiting for confirmation (one by one or many at once) and the enrollment codes (1.0.120); the agents
   of every target with their state (answers · N s ago / not heard from / refused / joining), mode,
   version, when heard from, their certificate's end (amber under 14 days), their policy in short;
   the package with its SHA-256 and the install lines; the agent authority's fingerprint.
@@ -466,10 +525,13 @@ Authenticode-signed: its integrity is the SHA-256 acme shows and the signed MANI
   the server, agent not heard from and heard from again; **alerts** for an agent not heard from
   for ten minutes and its certificate ending within seven days.
 * **Command line**: `acme --target-agent NAME show | code | confirm FP | look | policy | renew |
-  update | forget | design show|text|forget`, `acme --target-agent all update` - `show` says what the card says; the console (`acme`): Targets → the target →
-  *Its acme-agent*.
+  update | forget | design show|text|forget`, `acme --target-agent all update`, `acme
+  --target-agent enroll new|list|revoke ID`, `acme --target-agent waiting` - `show` says what the
+  card says; the console (`acme`): Targets → the target → *Its acme-agent*, Certificates →
+  *Target agents*.
 * **API**: `GET /api/agents`, `GET /api/agents/one?id=`, `POST /api/agents/{code,look,confirm,
-  renew,update,forget}`, `GET /api/agents/package` (`package.windows`: the Windows MSI's name,
+  renew,update,forget}`, `GET|POST /api/agents/enroll`, `POST /api/agents/enroll/revoke`, `GET
+  /api/agents/waiting`, `POST /api/agents/confirm-many`, `GET /api/agents/package` (`package.windows`: the Windows MSI's name,
   version, SHA-256, size, product code - or null and `windows_why`), `GET /api/agents/package
   ?platform=windows` (the MSI itself).
 
@@ -655,6 +717,99 @@ allow iis "Default Web Site"
 '@ | acme-agent policy apply -
 ```
 
+## Windows: the agent on the server (1.0.120)
+
+The same agent, the same CLI and the same policy file on Windows: `acme_agent.py` holds all of the
+logic; at its end (the platform hook) it loads `acme_agent_win.py` beside it on Windows, which puts
+its own in place of what is POSIX - paths, folders and ACLs, the two sides as Windows services, the
+named pipe between them, the event log. Every Win32 call goes through one object (`W`: ctypes,
+the standard API); the tests run all of it on Linux with `ACME_AGENT_FAKE_WINDOWS=1`
+(`test/test_agent_windows_core.py`: `C:\...` mapped into a folder, ACLs, services, the event
+log, the registry and the firewall kept as JSON, the pipe a Unix socket). On Linux the Windows
+files ride along in the package (the program's hash covers them) and are never loaded.
+
+**Where things are**
+
+| What | Where |
+|---|---|
+| the program | `C:\Program Files\acme-agent\` (`acme_agent.py`, `acme_agent_win.py`, `acme_agent_wincert.py`, `runtime\`, `openssl\`), on the system PATH (`acme-agent.cmd`) |
+| policy, `agent.json`, `ca.pem` | `C:\ProgramData\acme-agent\etc` - SYSTEM and the Administrators full control, Users and the network side read (protected DACL) |
+| the root side's state | `C:\ProgramData\acme-agent\root` - SYSTEM and the Administrators only (`enc.key`, `keys\`, `stage\`, `seen.json`, `store.json`, `audit.log`) |
+| the network side's state | `C:\ProgramData\acme-agent\net` - ...and `NT SERVICE\acme-agent` modify (`tls.key`, `tls.crt`, `join.json`, `join-status.json`) |
+| the link | the named pipe `\\.\pipe\acme-agent-root`: its DACL SYSTEM, the Administrators, `NT SERVICE\acme-agent`; remote clients refused; the first instance made by the root side alone (`FILE_FLAG_FIRST_PIPE_INSTANCE`). The root side checks the client's token: SYSTEM, the acme-agent service, or an elevated administrator - the analogue of uid 0 / uid acme-agent |
+| the log | the Application event log, source `acme-agent` (`Get-WinEvent -FilterHashtable @{LogName='Application'; ProviderName='acme-agent'}`), and `root\audit.log` - names, paths, hashes and results, never what a file holds |
+
+**The services** (`Get-Service acme-agent*`):
+
+* `acme-agent-root` - LocalSystem, `acme_agent.py winservice root`: never the network; automatic.
+* `acme-agent` - the virtual account `NT SERVICE\acme-agent`, a restricted service SID (it writes
+  only where it is named: its `net` folder), SeChangeNotifyPrivilege its only privilege, depends
+  on acme-agent-root, automatic (delayed start); it refuses to run as SYSTEM or an administrator.
+
+Both restart 5 s after a failure. A stop (or the machine's shutdown) ends them as SIGTERM does on
+Linux: no new connection, an operation under way finishes (its files put in place or back).
+`allow self-update` replaces all three program files and restarts both services.
+
+**The policy's Windows meanings** - the same words (`acme-agent allow ...` in an elevated prompt):
+
+* `allow file C:\certs [readers=IIS_IUSRS,"NT SERVICE\W3SVC"]` - files in that folder and below
+  (folders made when missing). `C:/certs` is taken as `C:\certs`; paths are compared without
+  regard to case. Without `readers=` a file gets its folder's inherited ACL; with it a protected
+  DACL: SYSTEM and the Administrators full control, each reader read (accounts of the machine or
+  the domain, checked when the line is written). `owner=` and `mode=` are refused on Windows.
+* `allow service NAME restart,try-restart,start` (`allow unit` is the same) - Restart-Service,
+  Restart-Service only when it runs, Start-Service; the state it is in is said after.
+* `allow test -- C:\tools\check.exe ARGS` - that command line exactly by CreateProcess, never a
+  shell; a `.bat` / `.cmd` is refused (cmd.exe would read its arguments as commands); `cmd /c`,
+  `powershell -Command`, `pwsh -c`, `wscript`, `mshta` ... are warned of as shells.
+* `allow script C:\scripts\after.ps1` - a PowerShell script pinned by its SHA-256; it runs from
+  root's copy: `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File
+  COPY ARGS`. `allow script-hash HEX`: a PowerShell script written in acme.
+* `allow store`, `allow iis SITE` / `allow iis *`, `allow rdp` - above (the machine store, IIS,
+  Remote Desktop). They are in the policy's hash only when written: a Linux policy keeps its hash.
+* `allow from`, `allow probe`, `allow connect`, `allow self-update`, `limit` - as on Linux.
+
+**Never written by a job, whatever the policy says**: the agent's own places (its program folder,
+`C:\ProgramData\acme-agent`), `C:\Windows`, `C:\Program Files`, `C:\Program Files (x86)`,
+`C:\ProgramData\Microsoft` (the Start Menu's StartUp is there), `C:\ProgramData\ssh` (OpenSSH's
+`administrators_authorized_keys`), `C:\Users\*\AppData`, any `.ssh` folder, `X:\$Recycle.Bin`,
+`X:\System Volume Information`, `C:\Boot`, `C:\Recovery`, a drive's root. Refused as paths: UNC,
+`\\?\` and `\\.\` paths, alternate data streams (a `:` after the drive), device names (`NUL`,
+`COM1` ...), short 8.3 names (`PROGRA~1`), names ending in a dot or a space, `..`. A reparse point
+(symbolic link, junction, mount point) anywhere on the way is refused - the analogue of walking
+with O_NOFOLLOW; the folders on the way are held open without FILE_SHARE_DELETE while a job works
+in them (nothing renamed or swapped meanwhile). No executable file is ever written - `.exe .dll
+.sys .com .bat .cmd .ps1 .psm1 .psd1 .vbs .vbe .js .jse .wsf .wsh .msi .msp .scr .cpl .hta .lnk .pif
+.reg .inf .jar .py .pyw .pth .ps1xml .psc1 .msc .ocx .drv .url .scf` (the analogue of "no x bit").
+A file is written as on Linux: a new file under a random name in the same folder (CREATE_NEW, its
+ACL set at its creation), flushed, moved over the old one (MoveFileExW, replace, write-through);
+the dated copies and the putting back keep each file's own ACL.
+
+**Only the administrators' word**: the policy and `agent.json` are believed only when their owner
+is SYSTEM, the Administrators or TrustedInstaller and nobody else may change them or their folder
+(read on the open file, no reparse point) - otherwise nothing is allowed and no job is taken.
+`acme-agent init` sets them right again.
+
+**The CLI** - the same commands as on Linux, in an elevated prompt where Linux needs root
+(`acme-agent: ... - run it in an elevated prompt (Run as administrator)`): `join CODE`,
+`status` (with the two services' states), `fingerprint`, `forget`, `policy show|check|apply`,
+`allow`, `deny`, `limit`, `version`, `init`. And what the MSI runs:
+
+* `acme-agent windows-install [--join CODE]` - the folders and their DACLs, an empty policy (one
+  there kept), the event source, both services made (or set again) and started, the program folder
+  on the system PATH; with a code the join is started and the services finish it (nothing needs
+  the network while installing; a code not taken is said in `acme-agent status`). Run again it
+  changes nothing (a repair).
+* `acme-agent windows-uninstall [--purge]` - the services stopped and taken away, the firewall
+  rule, the PATH entry, the event source; `C:\ProgramData\acme-agent` stays unless `--purge`.
+  `--upgrade` (a newer MSI replacing this one): only the services stopped.
+* `acme-agent winservice root|serve` - the services' entry points.
+
+**The firewall** (passive): the inbound rule `acme-agent (passive, TCP 8446)` for the agent's
+program, made at the join, limited to the `allow from` addresses when there are any (set again
+when `allow from` changes and when the root side starts), taken away at `forget` and at the
+uninstall. An active agent has none (nothing listens).
+
 ## Later
 
-* Windows.
+* Nothing planned.

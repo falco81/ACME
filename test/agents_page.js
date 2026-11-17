@@ -206,7 +206,7 @@ const path = require('path');
         + ' if (what === "agents/code") return c({code: "ACAG1.eyJ2IjoxLCJ0IjoxLCJuIjoid2ViMSIsIm0iOiJwYXNzaXZlIiwiaSI6IjBhMWIyYzNkNGU1ZiIsInMiOiJ4eHh4In0", until: Date.now() / 1000 + 3600, mode: "passive", ca_fp: VIEW.ca.fp, endpoints: [], port: 8446, agent: ONE});'
         + ' if (what === "agents/confirm") return c({agent: Object.assign({}, ONE, {pending: null})});'
         + ' if (what === "agents/update") return c({said: "acme-agent 1.0.117 is installed", agent: ONE});'
-        + ' if (what.indexOf("agents/builder") === 0) return c({agent: ONE, facts: FACTS, templates: TPL, needs: BNEEDS, acme_from: ["192.0.2.11", "192.0.2.12"], design: SAVED});'
+        + ' if (what.indexOf("agents/builder") === 0) return c(window.WINB || {agent: ONE, facts: FACTS, templates: TPL, needs: BNEEDS, acme_from: ["192.0.2.11", "192.0.2.12"], design: SAVED});'
         + ' if (what === "agents/design") { SAVED = {n: 1, at: Date.now() / 1000, by: "tester", title: body.title, note: body.note, text: body.text, state: body.state, compare: {state: "differs", added: [], removed: []}, history: []}; return c({design: SAVED}); }'
         + ' if (what.indexOf("agents/design?") === 0) return c({design: DESIGN});'
         + ' if (what === "agents/design/forget") return c({design: null});'
@@ -589,6 +589,52 @@ const path = require('path');
       await page.waitForTimeout(400);
       out.checks[tag + 'builder_from_design'] = (await pre()) === DESIGN.text && await page.evaluate(() => document.querySelectorAll('.pb-seg-b').length === 3);
       await page.evaluate(() => { SAVED = null; closeModal(true); });
+      // ---- 1.0.120: the builder of a Windows server's agent - its templates and sections, the
+      // store, IIS and Remote Desktop, folders with readers, services, the PowerShell block
+      await page.evaluate(() => {
+        var WHEAD = '# C:\\ProgramData\\acme-agent\\etc\\policy - what acme may do on this machine.\n';
+        window.WINB = {agent: {id: 5, name: 'win1', platform: 'windows', kind: 'agent_windows', policy: null},
+          facts: {platform: 'windows', protected: ['C:\\Windows', 'C:\\Program Files', 'C:\\Users\\*\\AppData', '*:\\$Recycle.Bin'], parts: ['.ssh'],
+            own: ['C:\\ProgramData\\acme-agent'], verbs: ['restart', 'try-restart', 'start'], shells: ['cmd', 'powershell', 'pwsh'],
+            exec_ext: ['.exe', '.ps1', '.bat'], config_ok: [], head: WHEAD, limits: {files: 20, size: 1048576, files_most: 200, size_most: 67108864}},
+          templates: [
+            {key: 'iis', title: 'IIS site', group: 'Windows', platform: 'windows', files: [], units: {}, tests: [], scripts: [], probe_local: true, store: true, iis: ['Default Web Site'], rdp: false},
+            {key: 'rdp', title: 'Remote Desktop', group: 'Windows', platform: 'windows', files: [], units: {}, tests: [], scripts: [], probe_local: false, store: true, iis: [], rdp: true},
+            {key: 'service', title: 'Any Windows service', group: 'Any other', platform: 'windows', files: [{dir: 'C:\\certs\\myservice', readers: ['NT SERVICE\\myservice']}],
+             units: {myservice: ['restart']}, tests: [], scripts: [], probe_local: false, store: false, iis: [], rdp: false}],
+          needs: [{id: 21, cert: 'www.example.com', enabled: true, items: [
+            {kind: 'store', allow: 'acme-agent allow store'}, {kind: 'iis', site: 'Shop', allow: 'acme-agent allow iis Shop'},
+            {kind: 'file', path: 'C:\\certs\\www.crt', dir: 'C:\\certs', windows: true, allow: 'acme-agent allow file C:\\certs'},
+            {kind: 'unit', step: 'reload', unit: 'W3SVC', verb: 'restart', allow: 'acme-agent allow service W3SVC restart'}]}],
+          acme_from: [], design: null};
+        ACME_POLICY_BUILDER.open({id: 5, name: 'win1'}, {});
+      });
+      await page.waitForTimeout(400);
+      out.checks[tag + 'win_builder_sections'] = await page.evaluate(() => !!document.getElementById('pb-s-store') && !!document.getElementById('pb-s-iis')
+        && !!document.getElementById('pb-s-rdp') && document.querySelectorAll('.pb-tpl').length === 3 && !document.querySelector('#pb-s-files .pb-rwx'));
+      await page.evaluate(() => { Array.prototype.filter.call(document.querySelectorAll('.pb-tpl'), function (x) { return x.textContent.indexOf('IIS site') >= 0; })[0].click(); });
+      await page.waitForTimeout(150);
+      await page.evaluate(() => document.querySelector('.pb-addall').click());
+      await page.waitForTimeout(150);
+      await page.evaluate(() => { document.querySelector('#pb-s-files .pb-sec-h .btn').click(); });
+      await page.waitForTimeout(100);
+      await typeLast('files', '.pb-path', 'C:\\Windows\\Temp');
+      await page.waitForTimeout(100);
+      out.checks[tag + 'win_builder_file'] = await page.evaluate(() => {
+        var t = document.querySelector('.pb-pre').textContent, rows = document.querySelectorAll('#pb-s-files .pb-row'), r = rows[rows.length - 1];
+        return t.indexOf('allow file C:\\certs\nallow service w3svc restart\nallow probe local\nallow store\nallow iis "Default Web Site"\nallow iis Shop\n') > 0
+          && r.classList.contains('bad') && t.indexOf('Temp') < 0 && !!document.querySelector('#pb-s-files .pb-readers')
+          && document.querySelectorAll('#pb-s-needs .pb-need.no').length === 0;
+      });
+      if (shots) { await page.evaluate(() => { document.querySelector('#modal-body').scrollTop = 0; }); await page.locator('#modal-box').screenshot({path: path.join(shots, 'win-builder-' + lang + width + '.png')}); }
+      await page.evaluate(() => document.querySelectorAll('.pb-tab')[2].click());
+      const wonce = await pre();
+      await page.evaluate(() => document.querySelectorAll('.pb-tab')[1].click());
+      const wallow = await pre();
+      out.checks[tag + 'win_builder_block'] = wonce.indexOf("@'\n# C:\\ProgramData") === 0 && /\n'@ \| acme-agent policy apply -$/.test(wonce)
+        && wallow.indexOf('sudo') < 0 && wallow.split('\n').indexOf('acme-agent allow iis "Default Web Site"') >= 0;
+      out.checks[tag + 'win_builder_fits'] = await page.evaluate(() => document.getElementById('modal-box').scrollWidth <= document.getElementById('modal-box').clientWidth + 1);
+      await page.evaluate(() => { window.WINB = null; closeModal(true); });
       // ---- Update all agents… (the pane)
       await page.evaluate(() => { document.getElementById('pane-agents').hidden = false; document.getElementById('card-host').hidden = true; ACME_AGENTS.pane(); });
       await page.waitForTimeout(250);

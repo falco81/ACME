@@ -131,6 +131,17 @@ if (isset($_GET['api'])) {
     if ($what === 'lang' && !$post) {
         acme_serve_lang();
     }
+    if ($what === 'upgrade-state' && !$post) {
+        /* How far an upgrade of this node is (1.0.120): asked every two seconds while the API
+           does not answer - from root's file on this disk, with the version of the pages on
+           it and whether the API answers now. Needs no API at all. */
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        $health = acme_token() !== null ? acme_call('/api/health', 'GET', null, 2.0) : [0, ''];
+        echo json_encode(['ok' => true, 'upgrading' => acme_upgrading(), 'pages' => ACME_VERSION,
+                          'api' => $health[0] === 200], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        exit;
+    }
     if ($what === 'software' && !$post) {
         /* What every node runs on (1.0.99) - and of the pages, what this
            PHP itself is: php-fpm's, not the command line's. */
@@ -222,6 +233,9 @@ if (isset($_GET['api'])) {
             'password' => (string) ($sent['password'] ?? ''),
         ], 30.0);
         if ($status === 0) {
+            if (acme_upgrading_answer()) {          /* restarting in an upgrade (1.0.120) */
+                exit;
+            }
             http_response_code(503);
             echo json_encode(['ok' => false, 'error' =>
                 'the daemon is not answering — is acme.service running?']);
@@ -567,7 +581,10 @@ if (isset($_GET['api'])) {
     }
     $query = $_GET;
     unset($query['api']);
-    acme_relay($reads[$what] . ($query ? '?' . http_build_query($query) : ''), 'GET', null, 60.0);
+    /* The status with root's word on this node's upgrade and the version of the pages on this
+       disk (1.0.120): the band of the upgrade, at once - and an old page against new pages. */
+    acme_relay($reads[$what] . ($query ? '?' . http_build_query($query) : ''), 'GET', null, 60.0, [],
+               $what === 'status' ? 'acme_status_more' : null);
     exit;
 }
 
@@ -607,6 +624,15 @@ if (!$me && !acme_local()) {
                'certlogin' => $health['certlogin'] ?? null];
 }
 $initial = $me ? (acme_get('/api/status', 8.0) ?: null) : null;
+if (is_array($initial)) {
+    /* as ?api=status says it (1.0.120) */
+    $initial['upgrading'] = acme_upgrading();
+    $initial['pages'] = ACME_VERSION;
+}
+/* An upgrade of this node going on (1.0.120): the sign-in page says so itself, from root's
+   file, and loads itself again once the API answers. */
+$upg = $me ? null : acme_upgrading();
+$upg_on = is_array($upg) && ($upg['state'] === 'running' || (!$alive && $upg['state'] === 'done'));
 /* Signing in with Windows (1.0.99): the button, tried by itself, or no password at all. */
 $krb = (!$me && $alive && is_array($health['kerberos'] ?? null)) ? $health['kerberos'] : [];
 $krb_on = !empty($krb['on']);
@@ -676,7 +702,20 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     <div class="card">
     <h1 data-no-i18n><?= h($title) ?></h1>
     <p class="lede">Certificates kept, renewed and put in place by themselves, on <span data-no-i18n><?= h($host) ?></span>. Sign in to go on.</p>
-    <?php if (!$token_ok && $token_there): ?>
+    <?php if ($upg_on): ?>
+      <?php
+        /* The band of the pages (1.0.120), drawn here from root's file: nothing else of an
+           upgrade is known before signing in. */
+        $upg_pc = $upg['state'] !== 'running' ? 100
+            : ($upg['parts'] > 0 ? (int) round(100 * max(0, $upg['part'] - 0.5) / $upg['parts']) : 3);
+      ?>
+      <div class="offline upband signin-upband" id="upband" data-api="<?= $alive ? '1' : '0' ?>">
+        <div class="upband-head"><b class="upband-title"><?php if ($upg['state'] !== 'running'): ?>acme <span data-no-i18n><?= h($upg['version']) ?></span> is starting<?php elseif ($upg['downgrade']): ?>acme is being taken back to <span data-no-i18n><?= h($upg['version']) ?></span><?php else: ?>acme is being upgraded to <span data-no-i18n><?= h($upg['version']) ?></span><?php endif; ?></b></div>
+        <div class="going up-bar wide"><div class="bar"><span style="width:<?= (int) $upg_pc ?>%"></span></div></div>
+        <div class="upband-line"><?php if ($upg['words'] !== ''): ?><span><?= h($upg['words']) ?></span><?php endif; ?><?php if ($upg['parts'] > 0 && $upg['state'] === 'running'): ?> · <span>step <?= (int) $upg['part'] ?> of <?= (int) $upg['parts'] ?></span><?php endif; ?></div>
+        <div class="upband-means">acme.service and these pages restart once - this page loads again by itself when they are back.</div>
+      </div>
+    <?php elseif (!$token_ok && $token_there): ?>
       <div class="offline">
         The daemon is running, but this page may not read what it wrote.<br><br>
         <span class="mono"><?= h(ACME_TOKEN) ?></span> exists and is not readable by
@@ -798,6 +837,23 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
     location.reload();
   }, certNext);
   if ($('mfa-box').dataset.stage) mfaStep(); else if ($('in-name')) $('in-name').focus();
+  /* Drawn while an upgrade restarts the API (1.0.120): asked every two seconds, and loaded
+     again once the API answers - never while somebody types a name or a password. */
+  var ub = $('upband');
+  if (ub && ub.dataset.api === '0') {
+    var typed = function () {
+      return ['in-name', 'in-pass'].some(function (id) { return $(id) && $(id).value !== ''; });
+    };
+    var ask = function () {
+      fetch('?api=upgrade-state', {credentials: 'same-origin', cache: 'no-store'}).then(function (r) {
+        return r.ok ? r.json() : null;
+      }).then(function (d) {
+        if (d && d.api && !typed()) { location.reload(); return; }
+        setTimeout(ask, 2000);
+      }).catch(function () { setTimeout(ask, 2000); });
+    };
+    setTimeout(ask, 2000);
+  }
 }());
 </script>
 </body>
@@ -822,6 +878,8 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
 </header>
 
 <div id="offline" class="offline" hidden></div>
+<!-- An upgrade going on, of the cluster or of this node (1.0.120): its band, drawn by admin.js -->
+<div id="upband" class="offline upband" hidden aria-live="polite"></div>
 <div id="phpsafety" class="offline" hidden></div>
 <div id="problems" class="offline warnish" hidden></div>
 <div id="trials" class="trials" hidden></div>

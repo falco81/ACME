@@ -330,3 +330,6 @@
 }
 .ag-wrow.ro{grid-template-columns:minmax(0,1fr) auto}
 @media (max-width:760px){.ag-wrow.ro{grid-template-columns:minmax(0,1fr)}}
+/* confirming automatically: the switch red while on, as its warning */
+.ag-sw-red input:checked + .knob{background:var(--crit);border-color:var(--crit)}
+.ag-wgroup-tc{display:inline-flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}

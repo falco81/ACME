@@ -625,7 +625,25 @@ class Daemon(object):
             pkg = json.loads(self.store.get_meta('upgrade:pkg') or 'null')
         except Exception:                               # noqa: BLE001
             return {}
-        return {'plan': {'state': plan['state'], 'version': plan['version']} if plan else None,
+        if not plan:
+            return {'plan': None, 'package': pkg['version'] if pkg else None}
+        # The cluster's upgrade for the band on every page (1.0.120): each node's row - its
+        # step, how far, what happened, when - from the database, whichever node answers.
+        steps = []
+        for st in plan.get('steps') or []:
+            row = {'name': str(st.get('name') or ''), 'state': st.get('state') or 'waiting',
+                   'said': str(st.get('said') or '')[:300], 'at': st.get('at')}
+            for k in ('part', 'parts', 'asked', 'from_version'):
+                if st.get(k) is not None:
+                    row[k] = st[k]
+            if st.get('part_words'):
+                row['part_words'] = str(st['part_words'])[:120]
+            steps.append(row)
+        return {'plan': {'state': plan['state'], 'version': plan['version'],
+                         'id': plan.get('id'), 'at': plan.get('at'), 'by': plan.get('by'),
+                         'from_node': plan.get('from'), 'downgrade': bool(plan.get('downgrade')),
+                         'cancelled': bool(plan.get('cancelled')),
+                         'drain_s': plan.get('drain_s'), 'steps': steps},
                 'package': pkg['version'] if pkg else None}
 
     # ---- running -------------------------------------------------------------------

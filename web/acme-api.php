@@ -283,6 +283,134 @@ function acme_call(string $path, string $method = 'GET', array|object|null $payl
     return [$status, $reply];
 }
 
+/* ==========================================================================
+   An upgrade of this node, as root tells it (1.0.120, docs/upgrades.md)
+   --------------------------------------------------------------------------
+   acme_upgrade.py and install.sh --upgrade write how far they are into
+   .upgrade.json beside these pages (root's, 0644, renamed into place whole;
+   nginx serves no dot file). Read from disk, never through the API: while the
+   API, nginx and PHP restart it is the one word there is. Per node - the
+   cluster's upgrade is the plan the API serves from the database.
+   ========================================================================== */
+const ACME_UPGRADE_FILE = __DIR__ . '/.upgrade.json';
+
+/** A progress file's fields checked: null when it is not believed - not one of the three
+    states, its time to come, or stale (running: 30 min after its last word, longer than
+    install.sh may take; done or failed: 10 min, as long as a page may take to see it). Every
+    text stripped of control characters and cut, versions digits and dots only. */
+function acme_upgrading_checked(array $d, int $now): ?array
+{
+    $state = (string) ($d['state'] ?? '');
+    if (!in_array($state, ['running', 'done', 'failed'], true)) {
+        return null;
+    }
+    $at = $d['at'] ?? null;
+    if (!is_int($at) && !is_float($at) && !(is_string($at) && is_numeric($at))) {
+        return null;
+    }
+    $at = (int) $at;
+    if ($at <= 0 || $at > $now + 5 || $now - $at > ($state === 'running' ? 1800 : 600)) {
+        return null;
+    }
+    $text = function (string $k, int $most) use ($d): string {
+        $v = $d[$k] ?? '';
+        $v = is_scalar($v) ? (string) $v : '';
+        $v = (string) preg_replace('/[\x00-\x1f\x7f]/', '', $v);
+        return function_exists('mb_substr') ? mb_substr($v, 0, $most, 'UTF-8') : substr($v, 0, $most);
+    };
+    $ver = function (string $k) use ($d): string {
+        $v = is_scalar($d[$k] ?? null) ? (string) $d[$k] : '';
+        return preg_match('/^\d{1,4}(\.\d{1,4}){2,3}\z/', $v) === 1 ? $v : '';
+    };
+    $whole = function (string $k) use ($d): int {
+        $v = $d[$k] ?? 0;
+        $v = (is_int($v) || (is_string($v) && ctype_digit($v))) ? (int) $v : 0;
+        return ($v >= 0 && $v <= 99) ? $v : 0;
+    };
+    $parts = $whole('parts');
+    $id = is_scalar($d['id'] ?? null) ? (string) $d['id'] : '';
+    $started = is_numeric($d['started'] ?? null) ? (int) $d['started'] : $at;
+    return [
+        'state' => $state,
+        'id' => preg_match('/^[A-Za-z0-9._-]{1,64}\z/', $id) === 1 ? $id : '',
+        'version' => $ver('version'), 'from' => $ver('from'),
+        'part' => min($whole('part'), $parts), 'parts' => $parts,
+        'words' => $text('words', 200), 'said' => $text('said', 300),
+        'by' => $text('by', 100), 'node' => $text('node', 64),
+        'started' => ($started > 0 && $started <= $at) ? $started : $at, 'at' => $at,
+        'downgrade' => ($d['downgrade'] ?? false) === true,
+    ];
+}
+
+/** This node's upgrade as root tells it, or null. Who asked, what it said, its id and the
+    node's name only to a page that holds a session (its cookie - the API, which could say
+    whose it is, may be the very thing restarting). */
+function acme_upgrading(?bool $full = null): ?array
+{
+    static $got = false;
+    if ($got === false) {
+        $got = null;
+        $f = ACME_UPGRADE_FILE;
+        if (@is_file($f) && !@is_link($f)) {
+            $raw = @file_get_contents($f, false, null, 0, 16385);
+            if (is_string($raw) && strlen($raw) <= 16384) {
+                $d = json_decode($raw, true);
+                $got = is_array($d) ? acme_upgrading_checked($d, time()) : null;
+            }
+        }
+    }
+    if ($got === null) {
+        return null;
+    }
+    if ($full ?? acme_session() !== '') {
+        return $got;
+    }
+    $out = $got;
+    foreach (['by', 'said', 'id', 'node'] as $k) {
+        $out[$k] = '';
+    }
+    return $out;
+}
+
+/** The answer while the daemon is not there and root says an upgrade is going on: 503 and
+    how far it is - the page waits for it, it does not say "not answering". False when no
+    upgrade is said. */
+function acme_upgrading_answer(): bool
+{
+    $u = acme_upgrading();
+    if ($u === null) {
+        return false;
+    }
+    if (!headers_sent()) {
+        http_response_code(503);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store');
+        header('Retry-After: 2');
+    }
+    echo json_encode(['ok' => false, 'upgrading' => $u,
+                      'error' => $u['state'] === 'running' ? 'acme is being upgraded - back in a moment'
+                                                           : 'acme is starting again after an upgrade'],
+                     JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+    return true;
+}
+
+/** The daemon's /api/status (a JSON object) with root's word and the version of the pages on
+    this disk put in (1.0.120): spliced in as text, the daemon's own answer left as it came. */
+function acme_status_more(string $body): string
+{
+    $t = rtrim($body);
+    if ($t === '' || $t[0] !== '{' || substr($t, -1) !== '}' || trim(substr($t, 1, -1)) === '') {
+        return $body;
+    }
+    $more = json_encode(['upgrading' => acme_upgrading(),
+                         'pages' => defined('ACME_VERSION') ? ACME_VERSION : ''],
+                        JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+    if (!is_string($more)) {
+        return $body;
+    }
+    return substr($t, 0, -1) . ',' . substr($more, 1);
+}
+
 /** Call the daemon and return the decoded reply, or null. */
 function acme_get(string $path, float $timeout = 30.0): ?array
 {
@@ -295,14 +423,18 @@ function acme_get(string $path, float $timeout = 30.0): ?array
 }
 
 /** Pass a daemon reply straight through to the browser. $extra: headers of the
-    caller's own, as acme_call takes them. */
+    caller's own, as acme_call takes them. $more: a 200's body changed on its way (status). */
 function acme_relay(string $path, string $method = 'GET', array|object|null $payload = null,
-                      float $timeout = 30.0, array $extra = []): void
+                      float $timeout = 30.0, array $extra = [], ?callable $more = null): void
 {
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
 
     if (acme_token() === null) {
+        /* Gone with the daemon while it restarts in an upgrade (1.0.120): how far it is. */
+        if (acme_upgrading_answer()) {
+            return;
+        }
         http_response_code(503);
         /* Where the token lives is for whoever is on the machine; from
            anywhere else it is a daemon that is not answering. */
@@ -314,10 +446,18 @@ function acme_relay(string $path, string $method = 'GET', array|object|null $pay
     }
     [$status, $body] = acme_call($path, $method, $payload, $timeout, $extra);
     if ($status === 0) {
+        /* Not "not answering" while root says it is upgrading this node (1.0.120): 503 with
+           how far it is - the page waits, asks again and draws no red. */
+        if (acme_upgrading_answer()) {
+            return;
+        }
         http_response_code(503);
         echo json_encode(['ok' => false, 'error' =>
             'the daemon is not answering — is acme.service running?']);
         return;
+    }
+    if ($more !== null && $status === 200) {
+        $body = (string) $more((string) $body);
     }
     /* A 401 is no longer taken as the end of the session here (1.0.73): while
        the web address moves between the nodes, or a node restarts during an

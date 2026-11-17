@@ -137,6 +137,18 @@ def hand_tick(store, force=False):
         look = float(store.get_meta('handlook') or 0)
     except (TypeError, ValueError):
         look = 0.0
+    # Not while root is putting this node's version in (1.0.120): the new daemon starts before
+    # install.sh has put the rest of root's parts in, and what it found missing then was said
+    # for a minute; looked at again as soon as root has written that it ended.
+    try:
+        busy = upgrade_progress().get('state') == 'running'
+    except Exception:                                   # noqa: BLE001
+        busy = False
+    if busy:
+        HAND['held'] = True
+        return
+    if HAND.pop('held', False):
+        force = True
     if not force and t - HAND['at'] < HAND_EVERY_S and look <= HAND['at']:
         return
     HAND['at'] = t

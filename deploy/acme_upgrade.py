@@ -72,6 +72,12 @@ MOST_FILES = 20000
 INSTALL_LIMIT_S = 20 * 60      # under TimeoutStartSec=25min and the daemon's 30 (1.0.59)
 TOP = re.compile(r'^acme-([0-9]+(?:\.[0-9]+){2,3})\Z')
 FLOOR_FILE = os.path.join(LIB_DIR, 'downgrade-floor')
+# How far this node's upgrade is, for the pages (1.0.120): beside them, where their PHP reads it
+# while the API restarts - a dot file nginx never serves. Root's alone (the folder is root's,
+# 0755), 0644, written whole and renamed; nothing secret in it. install.sh --upgrade writes the
+# same file at each of its steps.
+PAGES_DIR = os.environ.get('ACME_PAGES_DIR', '/var/www/acme')
+PROGRESS_NAME = '.upgrade.json'
 
 
 class Refused(Exception):
@@ -363,6 +369,51 @@ def status(**fields):
     write_safely(os.path.join(UPGRADE_DIR, 'status.json'), json.dumps(fields))
 
 
+def progress_read():
+    """The pages' file as it is now, or {}."""
+    try:
+        fd = os.open(os.path.join(PAGES_DIR, PROGRESS_NAME),
+                     os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return {}
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return {}
+        got = json.loads(os.read(fd, 16384).decode('utf-8', 'replace') or '{}')
+        return got if isinstance(got, dict) else {}
+    except (OSError, ValueError):
+        return {}
+    finally:
+        os.close(fd)
+
+
+def progress(**fields):
+    """root's word for the pages (1.0.120): {state, id, version, from, by, node, part, parts,
+    words, started, at, said, downgrade} - into PAGES_DIR/.upgrade.json, a new file renamed over
+    it. Never fails the upgrade: a node without the pages has no such folder."""
+    try:
+        st = os.lstat(PAGES_DIR)
+        if not stat.S_ISDIR(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+            return False                # not a folder of root's alone: nothing written there
+        fields['at'] = int(time.time())
+        body = json.dumps(fields, ensure_ascii=False).encode('utf-8')
+        for _ in range(20):
+            tmp = os.path.join(PAGES_DIR, '.%s.%d.%d' % (PROGRESS_NAME, os.getpid(),
+                                                          int(time.time() * 1e6) % 10 ** 9))
+            try:
+                fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+            except FileExistsError:
+                continue
+            with os.fdopen(fd, 'wb') as out:
+                out.write(body)
+                os.fchmod(out.fileno(), 0o644)
+            os.replace(tmp, os.path.join(PAGES_DIR, PROGRESS_NAME))
+            return True
+    except (OSError, ValueError, TypeError):
+        pass
+    return False
+
+
 def root_floor():
     """The oldest version this machine may go back to, or None."""
     try:
@@ -378,7 +429,7 @@ def root_floor():
 
 
 def put_in(package, ident='', want_sha='', by='the command line', log_to=None,
-           downgrade=False):
+           downgrade=False, env_more=None):
     """Check the package and run its install.sh --upgrade. Returns (rc, log).
     `downgrade`: an older version is asked for on purpose."""
     if os.geteuid() != 0:
@@ -441,6 +492,11 @@ def put_in(package, ident='', want_sha='', by='the command line', log_to=None,
         env = {'PATH': '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
                'LANG': 'C.UTF-8', 'ACME_UPGRADE_FROM_PAGES': '1', 'TERM': 'dumb',
                'ACME_UPGRADE_BY': str(by)[:100]}
+        # What install.sh writes into the pages' file at each step (1.0.120): this upgrade's id,
+        # whose node, since when - its steps come after root's own check.
+        for k, v in (env_more or {}).items():
+            if re.match(r'^ACME_UPGRADE_[A-Z_]{1,30}\Z', k):
+                env[k] = re.sub(r'[\x00-\x1f\x7f]', '', str(v))[:100]
         say('running %s/install.sh --upgrade --yes' % info['top'])
         p = subprocess.Popen(['bash', os.path.join(src, 'install.sh'), '--upgrade', '--yes'],
                              cwd=src, env=env, stdin=subprocess.DEVNULL,
@@ -613,6 +669,33 @@ def put_back_previous(unsigned=False, log_to=print):
                            cwd=tree, env=env, stdin=subprocess.DEVNULL)
 
 
+def progress_end(tell, state, said='', force=False):
+    """The end, in the pages' file: install.sh's own word kept where it said this one already
+    (its reason is the better one) - unless root's own refusal is the reason (force)."""
+    if not tell:
+        return
+    was = progress_read()
+    mine = was.get('id') == tell.get('id')
+    if mine and was.get('state') == state and not force:
+        return
+    try:
+        parts = int(was.get('parts') or 0) if mine else 0
+        part = int(was.get('part') or 0) if mine else 1
+    except (TypeError, ValueError):
+        parts, part = 0, 1
+    words = str(was.get('words') or '') if mine else 'root checks the package'
+    if state == 'done':
+        part = parts
+        words = 'acme %s runs' % tell.get('version')
+    elif not str(said).endswith('runs again'):
+        # what runs now: the version installed, read again after install.sh's own put-back
+        now = installed_version()
+        if now:
+            said = '%s - %s runs' % (said, now) if now != tell.get('version') else said
+    progress(**dict(tell, state=state, part=part, parts=parts, words=words,
+                    said=str(said)[:300]))
+
+
 def serve_request():
     """What systemd starts when request.json appears."""
     req = os.path.join(UPGRADE_DIR, 'request.json')
@@ -640,6 +723,7 @@ def serve_request():
                     pass
         return 1
     ident = ''
+    tell = {}
     log_path = os.path.join(UPGRADE_DIR, 'last.log')
     log_lines = []
     last_flush = [0.0]
@@ -662,18 +746,33 @@ def serve_request():
         if not re.match(r'^acme-[0-9.]+\.tar\.gz\Z', name):
             raise Refused('the request names no package')
         status(id=ident, state='running', version=r.get('version'), pid=os.getpid())
+        # The pages' file (1.0.120): root takes it, step 1 - checking the package.
+        tell.update(id=ident if re.match(r'^[A-Za-z0-9._-]{1,64}\Z', ident) else '',
+                    version=str(r.get('version') or '')[:20], **{'from': installed_version()},
+                    by=str(r.get('by') or 'the pages')[:100], node=str(r.get('node') or '')[:64],
+                    started=int(time.time()), downgrade=r.get('downgrade') is True)
+        progress(state='running', part=1, parts=0, words='root checks the package', said='',
+                 **tell)
         rc, info, _ = put_in(os.path.join(UPGRADE_DIR, name), ident,
                              str(r.get('sha') or ''), r.get('by') or 'the pages', log_to,
-                             downgrade=r.get('downgrade') is True)
+                             downgrade=r.get('downgrade') is True,
+                             env_more={'ACME_UPGRADE_ID': tell['id'],
+                                       'ACME_UPGRADE_NODE': tell['node'],
+                                       'ACME_UPGRADE_STARTED': str(tell['started']),
+                                       'ACME_UPGRADE_DOWNGRADE': '1' if tell['downgrade'] else ''})
         status(id=ident, state='done' if rc == 0 else 'failed', rc=rc,
                version=info['version'], tail=log_lines[-40:])
+        progress_end(tell, 'done' if rc == 0 else 'failed',
+                     '' if rc == 0 else 'install.sh --upgrade ended with %d' % rc)
     except Refused as e:
         log_to('refused: %s' % e)
         status(id=ident, state='failed', rc=-1, said=str(e), tail=log_lines[-40:])
+        progress_end(tell, 'failed', str(e), force=True)
     except Exception as e:                       # noqa: BLE001 - said, never lost
         log_to('broke: %s' % e)
         status(id=ident, state='failed', rc=-2, said='the upgrade broke: %s' % e,
                tail=log_lines[-40:])
+        progress_end(tell, 'failed', 'the upgrade broke: %s' % e, force=True)
     finally:
         last_flush[0] = 0
         try:

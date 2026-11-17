@@ -2189,7 +2189,7 @@ class Root(object):
                 raise Refused('%s: a key this agent makes cannot be written as %s (it can: %s)'
                               % (str((f or {}).get('path'))[:200], str((f or {}).get('format')),
                                  ', '.join(AGENT_KEY_FORMATS)))
-        plan_check(pol, {'files': [{k: f.get(k) for k in ('path', 'mode', 'owner')}
+        plan_check(pol, {'files': [{k: f.get(k) for k in ('path', 'mode', 'owner') if k in f}
                                    for f in files]})
         if args.get('store'):
             # Windows: the key goes into the machine store with its certificate

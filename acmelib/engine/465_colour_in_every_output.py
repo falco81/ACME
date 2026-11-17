@@ -2377,7 +2377,9 @@ def upgrade_percent(st, plan):
         return round(3 + 17 * min(1, since / max(1, float(plan.get('drain_s') or 20))))
     if state == 'installing':
         asked = now - float(st.get('asked') or st.get('at') or now)
-        return round(min(82, 20 + 60 * min(0.95, float(st.get('part') or 0) / 6)
+        # Step N of M (1.0.120) when root said how many; of six, as before, when not.
+        of = float(st.get('parts') or 0) or 6
+        return round(min(82, 20 + 60 * min(0.95, float(st.get('part') or 0) / of)
                          + min(6, asked / 15)))
     if state == 'checking':
         return round(85 + min(10, since / 3))
@@ -2457,6 +2459,40 @@ def cli_guard_status(args, pal):
     return 0
 
 
+def _follow_local(pal, drawn, pr=None, tty=False):
+    """Without pr: whether this node's own upgrade is the one to follow (root's file says it
+    runs and no plan of the cluster's does). With it: drawn in place, the lines drawn
+    returned (0 where nothing is drawn over)."""
+    if pr is None:
+        got = upgrade_progress()
+        return got.get('state') == 'running'
+    parts = int(pr.get('parts') or 0)
+    pc = int(round(100.0 * int(pr.get('part') or 0) / parts)) if parts else 0
+    if pr.get('state') != 'running':
+        pc = 100
+    lines = [pal.head(('going back to %s' if pr.get('downgrade') else 'upgrade to %s')
+                      % (pr.get('version') or '?')) + pal.dim(
+        '  on %s (this node, install.sh --upgrade) · %s' % (pr.get('node') or node_name(),
+                                                            pr.get('state')))]
+    words = pr.get('said') if pr.get('state') == 'failed' else pr.get('words')
+    lines.append('  %-16s %3d %%  %s%s' % (
+        (pr.get('node') or node_name())[:16], pc, str(words or '')[:60],
+        (' · step %d of %d' % (int(pr.get('part') or 0), parts)) if parts else ''))
+    raw = getattr(sys.stdout, 's', sys.stdout)
+    sys.stdout.flush()
+    if tty and drawn:
+        raw.write('\x1b[%dA' % drawn)
+    for ln in lines:
+        raw.write(('\x1b[2K' if tty else '') + term_safe(ln) + '\n')
+    raw.flush()
+    if pr.get('state') != 'running':
+        ok = pr.get('state') == 'done'
+        print((pal.ok_line if ok else pal.bad_line)(
+            'this node %s' % ('runs %s' % pr.get('version') if ok
+                              else 'was not upgraded: %s' % (pr.get('said') or 'failed'))))
+    return len(lines) if tty else 0
+
+
 def cli_upgrade_follow(store, pal):
     """An upgrade followed on the terminal: a bar for the whole and one for each
     node, drawn again in place every second, until it ends. Ctrl+C stops the
@@ -2464,6 +2500,7 @@ def cli_upgrade_follow(store, pal):
     tty = sys.stdout.isatty()
     drawn = 0
     last = None
+    local = False
     try:
         while True:
             try:
@@ -2472,9 +2509,20 @@ def cli_upgrade_follow(store, pal):
                 plan = last
                 if plan is None:
                     raise SystemExit('acme: %s' % e)
-            if not plan:
-                print('no upgrade going on')
-                return 0
+            if not plan or (plan.get('state') != 'running' and (local or _follow_local(pal, drawn))):
+                # install.sh --upgrade typed in on this node (1.0.120): root's own word, step N
+                # of M, followed until it ends - no plan of the cluster's says anything of it.
+                pr = upgrade_progress()
+                if pr.get('state') == 'running' or (local and pr):
+                    local = True
+                    drawn = _follow_local(pal, drawn, pr, tty)
+                    if pr.get('state') != 'running':
+                        return 0 if pr.get('state') == 'done' else 1
+                    time.sleep(1 if tty else 5)
+                    continue
+                if not plan:
+                    print('no upgrade going on')
+                    return 0
             last = plan
             steps = plan.get('steps') or []
             whole = round(sum(upgrade_percent(x, plan) for x in steps) / len(steps)) if steps else 0
@@ -2499,6 +2547,9 @@ def cli_upgrade_follow(store, pal):
                 words = x.get('said') or x.get('state') or 'waiting'
                 if x.get('state') == 'installing' and x.get('part_words'):
                     words = x['part_words']
+                    if x.get('parts'):
+                        words = '%s · step %d of %d' % (words, int(x.get('part') or 0),
+                                                        int(x['parts']))
                 lines.append('  %-16s %s  %s' % (x['name'][:16], bar(
                     pc, x.get('state') == 'failed', x.get('state') == 'done'),
                     str(words)[:60]))

@@ -175,24 +175,38 @@ function normWin(path) {
 function underWin(path, top) {
   var t = String(top).replace(/\\+$/, '');
   if (/^[A-Za-z]:$/.test(t)) return false;
-  var re = new RegExp('^' + t.split('\\').map(function (x) { return x === '*' ? '[^\\\\]+' : x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('\\\\') + '(\\\\|$)', 'i');
+  var re = new RegExp('^' + t.split('\\').map(function (x) { return x === '*:' ? '[a-z]:' : (x === '*' ? '[^\\\\]+' : x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')); }).join('\\\\') + '(\\\\|$)', 'i');
   return re.test(path);
 }
 function protectedWhyWin(path) {
   var i;
-  if (/^[A-Za-z]:\\?$/.test(path)) return path + ' is the root of a drive - never written by a job';
+  if (/^[A-Za-z]:\\?$/.test(path)) return path + ' is a drive\'s root - acme-agent never writes there';
   for (i = 0; i < F.own.length; i++) {
     if (underWin(path, F.own[i])) return path + ' is acme-agent\'s own (' + F.own[i] + ') - never written by a job';
   }
   for (i = 0; i < F.protected.length; i++) {
-    if (underWin(path, F.protected[i])) return path + ' is under ' + F.protected[i] + ' - acme-agent never writes there, whatever the policy says';
+    if (underWin(path, F.protected[i])) return path + ' is under ' + F.protected[i] + ' - Windows runs (or loads) what is there; acme-agent never writes there, whatever the policy says';
   }
   if (path.split('\\').some(function (x) { return arr(F.parts).indexOf(x.toLowerCase()) >= 0; })) return path + ' is in a .ssh folder - acme-agent never writes there';
+  var ext = (path.split('\\').pop().match(/\.[^.]*$/) || [''])[0].toLowerCase();
+  if (ext && arr(F.exec_ext).indexOf(ext) >= 0) return path + ': a file Windows runs or loads as a program (' + ext + ') - acme-agent never writes one (the analogue of the x bit)';
   return '';
 }
+/* acme_agent_win._shell_line */
 function shellLineWin(argv) {
-  var prog = String(argv[0] || '').split(/[\\\/]/).pop().toLowerCase().replace(/\.(exe|com)$/, '');
-  return arr(F.shells).indexOf(prog) >= 0;
+  if (!argv.length) return false;
+  var prog = String(argv[0]).split(/[\\\/]/).pop().toLowerCase().replace(/\.exe$/, '');
+  prog = prog.replace(/[0-9.]+$/, '') || prog;
+  var rest = argv.slice(1).map(function (a) { return String(a).toLowerCase(); });
+  var any = function (f) { return rest.some(f); };
+  if (prog === 'cmd') return any(function (a) { return a.indexOf('/c') === 0 || a.indexOf('/k') === 0; });
+  if (prog === 'powershell' || prog === 'pwsh') {
+    return any(function (a) { return ['-c', '-e', '-ec', '-enc'].indexOf(a) >= 0 || ['-comm', '-encodedc', '/c', '/e'].some(function (p) { return a.indexOf(p) === 0; }); })
+      || !any(function (a) { return a === '-file' || a === '-f'; });
+  }
+  if (['wscript', 'cscript', 'mshta', 'rundll32'].indexOf(prog) >= 0) return true;
+  if (['python', 'py', 'pythonw'].indexOf(prog) >= 0) return any(function (a) { return a === '-c' || a === '-m'; });
+  return false;
 }
 function siteLine(site) { return /[\s"']/.test(site) ? '"' + site + '"' : site; }
 /* ipaddress: an address (str(ip_address)) or null */
@@ -541,8 +555,14 @@ function checkWin(s) {
     if (r.dir === null) { R.files[i] = verdict(r.msgs); return; }
     var d = r.dir;
     if (lastDir[d.toLowerCase()] !== i) r.msgs.push(msg('warn', 'twice', 'files in ' + d + ' are said twice: only the last one counts'));
-    else pol.files.push({dir: d, readers: arr(f.readers).map(String).filter(Boolean)});
+    else {
+      var rd = [];
+      arr(f.readers).map(function (x) { return String(x).trim(); }).filter(Boolean).forEach(function (x) { if (!rd.some(function (y) { return y.toLowerCase() === x.toLowerCase(); })) rd.push(x); });
+      if (rd.length > 16) r.msgs.push(msg('bad', 'unread', 'readers= names sixteen accounts at most'));
+      pol.files.push({dir: d, readers: rd});
+    }
     var und = tops.filter(function (t) { return t.indexOf('*') < 0 && underWin(t, d) && t.toLowerCase() !== d.toLowerCase(); });
+    if (/^[A-Za-z]:\\Users(\\[^\\]+)?$/i.test(d)) und.push(d + '\\...\\AppData');
     if (und.length) r.msgs.push(msg('warn', 'above-protected', d + ' holds places no job ever writes (' + und.slice(0, 3).join(', ') + (und.length > 3 ? ' …' : '') + '): the rest of it is allowed - allow the narrowest folder that holds only certificates'));
     R.files[i] = verdict(r.msgs);
   });
@@ -554,7 +574,8 @@ function checkWin(s) {
       var verbs = arr(u.verbs).filter(Boolean);
       if (verbs.filter(function (v) { return F.verbs.indexOf(v) < 0; }).length || !verbs.length) throw new Bad('the verbs are ' + F.verbs.join(', '));
       var name = String(u.name || '').trim();
-      if (!SVC_RE.test(name)) throw new Bad(JSON.stringify(name.slice(0, 80)) + ' is not the name of a service');
+      if (!SVC_RE.test(name) || name[0] === '-') throw new Bad(JSON.stringify(name.slice(0, 80)) + ' is not a service name');
+      name = name.toLowerCase();
       var have = pol.units[name] || (pol.units[name] = []);
       verbs.forEach(function (v) { if (have.indexOf(v) < 0) have.push(v); });
     } catch (e) { if (!(e instanceof Bad)) throw e; m.push(msg('bad', 'unread', e.words)); }
@@ -565,10 +586,10 @@ function checkWin(s) {
     var m = [];
     try {
       var argv = checkArgv(Array.isArray(t) ? t : splitWin(String(t)));
+      if (/\.(bat|cmd)$/i.test(argv[0])) throw new Bad(argv[0] + ' is a batch file: cmd.exe would read its arguments as commands - a program (.exe) or a script (allow script C:\\x.ps1)');
       var k = JSON.stringify(argv);
       if (seenT[k]) m.push(msg('warn', 'twice', 'this command line is said twice'));
       else { seenT[k] = 1; pol.tests.push(argv); }
-      if (/\.(bat|cmd)$/i.test(argv[0])) throw new Bad(argv[0] + ': a .bat or .cmd runs in cmd.exe (a shell) - allow a PowerShell script instead');
       if (shellLineWin(argv)) m.push(msg('warn', 'shell', argv.slice(0, 3).map(wq).join(' ') + ' runs what its command line says as SYSTEM - a fixed script (allow script) says what it runs'));
       argv.forEach(function (w) {
         var p = null;
@@ -581,7 +602,10 @@ function checkWin(s) {
   var lastScript = {}, sp = [];
   s.scripts.forEach(function (x, i) {
     var p = null;
-    try { p = normWin(x.path); } catch (e) { if (!(e instanceof Bad)) throw e; sp.push(e.words); return; }
+    try {
+      p = normWin(x.path);
+      if (!/\.ps1$/i.test(p)) throw new Bad('a script on Windows is a PowerShell script (.ps1) - a program is a test (allow test -- C:\\x.exe)');
+    } catch (e) { if (!(e instanceof Bad)) throw e; sp.push(e.words); return; }
     sp.push(null);
     lastScript[p.toLowerCase()] = i;
   });
@@ -735,17 +759,12 @@ function coversWin(s, R, it) {
     try { path = normWin(it.path); } catch (e) { return e.words || 'not a path'; }
     var why = protectedWhyWin(path);
     if (!why) R.pol.scripts.forEach(function (x) { if (x.path.toLowerCase() === path.toLowerCase()) why = path + ' is a script the policy runs - never written by a job'; });
-    if (!why && arr(F.exec_ext).some(function (x) { return path.toLowerCase().slice(-x.length) === x; })) why = path + ': a file Windows runs as code - acme-agent never writes one';
     if (why) return why;
     var best = null;
     R.pol.files.forEach(function (f) { if (underWin(path, f.dir) && (!best || f.dir.length > best.dir.length)) best = f; });
     return best ? 'yes' : 'no';
   }
-  if (it.kind === 'unit') {
-    var vs = null;
-    Object.keys(R.pol.units).forEach(function (u) { if (u.toLowerCase() === String(it.unit).toLowerCase()) vs = R.pol.units[u]; });
-    return arr(vs).indexOf(it.verb) >= 0 ? 'yes' : 'no';
-  }
+  if (it.kind === 'unit') return arr(R.pol.units[String(it.unit).toLowerCase()]).indexOf(it.verb) >= 0 ? 'yes' : 'no';
   if (it.kind === 'script') return R.pol.scripts.some(function (x) { return x.path.toLowerCase() === String(it.path).toLowerCase(); }) || R.pins.indexOf(it.path) >= 0 ? 'yes' : 'no';
   return null;
 }
@@ -1031,7 +1050,8 @@ function build(row, d, opts) {
     var t = el('div', 'pb-hero-t');
     t.appendChild(el('b', '', 'acme proposes, the server decides'));
     w.appendChild(t);
-    w.appendChild(el('p', 'small', 'Click together what the agent may do on this server. acme never sends a policy: the result is copied to the server, where root writes it - checked there again, as here.'));
+    w.appendChild(el('p', 'small', W() ? 'Click together what the agent may do on this server. acme never sends a policy: the result is copied to the server, where an administrator writes it - checked there again, as here.'
+      : 'Click together what the agent may do on this server. acme never sends a policy: the result is copied to the server, where root writes it - checked there again, as here.'));
     var from = el('div', 'pb-from');
     from.appendChild(el('span', 'pb-k', 'Start from'));
     var seg = el('div', 'pb-seg');
@@ -1160,7 +1180,8 @@ function build(row, d, opts) {
 
   /* ---- templates -------------------------------------------------------------------------- */
   function drawTemplates() {
-    var s = section('tpl', 'Templates', 'wand', 'One click adds a coherent set: the folder with its owner and mode (as the deployment presets write it), the units and their verbs, the test, a test of what it serves.');
+    var s = section('tpl', 'Templates', 'wand', W() ? 'One click adds a coherent set: the machine store, the IIS sites, Remote Desktop, a folder with its readers, a service and its verbs, a test of what it serves.'
+      : 'One click adds a coherent set: the folder with its owner and mode (as the deployment presets write it), the units and their verbs, the test, a test of what it serves.');
     var find = el('input', 'pb-find ct-kind-find');
     find.type = 'search';
     find.placeholder = 'an application…';
@@ -1638,7 +1659,7 @@ function build(row, d, opts) {
     var card = el('div', 'pb-out-card');
     var h = el('div', 'pb-out-h');
     h.appendChild(icon('terminal', 16));
-    h.appendChild(el('b', '', 'On the server, as root'));
+    h.appendChild(el('b', '', W() ? 'On the server, as an administrator' : 'On the server, as root'));
     card.appendChild(h);
     var tabs = el('div', 'pb-tabs');
     tabs.setAttribute('role', 'tablist');

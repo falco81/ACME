@@ -265,6 +265,35 @@ class AgentWindowsTarget(AG.AgentTarget):
     files_ui = SC.files_ui('windows', WIN_INTERPS, SC.layouts('C:/certs', 'windows'),
                            owners=False)
 
+    def test(self):
+        got = self._call('hello', {}, timeout=as_int(self.c('timeout', 30), 30))
+        if not got.get('ok'):
+            raise PluginError(got.get('said') or 'the agent refused', retry=False)
+        pol = got.get('policy') or {}
+
+        def n(k, one, more):
+            c = len(pol.get(k) or [])
+            return '%d %s' % (c, one if c == 1 else more)
+        what = [n('files', 'folder', 'folders'), n('units', 'service', 'services'),
+                n('tests', 'test', 'tests'),
+                '%d script%s' % (len(pol.get('scripts') or []) + len(pol.get('script_hashes') or []),
+                                 '' if len(pol.get('scripts') or []) +
+                                 len(pol.get('script_hashes') or []) == 1 else 's')]
+        if pol.get('store'):
+            what.append('the machine store')
+        if pol.get('iis'):
+            what.append('IIS %s' % ', '.join(str(x) for x in pol['iis'][:4]))
+        if pol.get('rdp'):
+            what.append('Remote Desktop')
+        for p in (pol.get('problems') or [])[:3]:
+            self.ctx.step('the policy: %s' % p, 'warn')
+        words = 'acme-agent %s on %s answers; its policy: %s' % (
+            got.get('version') or '?', got.get('host') or '?', ', '.join(what))
+        if got.get('platform') and got.get('platform') != 'windows':
+            self.ctx.step('the agent says it runs on %s, not Windows: make the target a "Server '
+                          'with acme-agent"' % got['platform'], 'warn')
+        return words
+
     # -- what the options say ---------------------------------------------------------------
     def resolved(self, bundle, options, partial=False):
         options = dict(options or {})

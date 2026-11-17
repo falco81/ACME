@@ -32,6 +32,75 @@ UPGRADE_TIMEOUT_S = 30 * 60
 MAINT_CACHE = {'at': 0.0, 'row': None}
 RESTORE_RUNNING = threading.Event()
 RESTORE_WHY = ['']
+# How far root is with this node's upgrade (1.0.120, docs/upgrades.md "The pages during an
+# upgrade"): one small file beside the pages, written by root alone - acme_upgrade.py when it
+# takes the request, install.sh --upgrade at each of its steps - so the pages' PHP reads it from
+# disk while the API restarts (nginx never serves a dot file). Per node: each node's root writes
+# its own; the cluster's upgrade is the plan in the database.
+UPGRADE_PROGRESS = Path(os.environ.get('ACME_UPGRADE_PROGRESS', '/var/www/acme/.upgrade.json'))
+UPGRADE_PROGRESS_RUNNING_S = 30 * 60        # longer than install.sh may take
+UPGRADE_PROGRESS_ENDED_S = 10 * 60          # as long as a page may take to see it
+_PROGRESS_CTRL = re.compile(r'[\x00-\x1f\x7f]')
+
+
+def upgrade_progress(path=None, now=None):
+    """root's word on this node's upgrade, checked as the pages check it - {} when there is
+    none, it is stale (running 30 min, ended 10 min after its last word), it says a time to
+    come, or a state other than running, done, failed."""
+    import stat as _stat
+    path = Path(path or UPGRADE_PROGRESS)
+    now = time.time() if now is None else now
+    try:
+        fd = os.open(str(path), os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            if not _stat.S_ISREG(os.fstat(fd).st_mode):
+                return {}
+            raw = os.read(fd, 16385)
+        finally:
+            os.close(fd)
+        if len(raw) > 16384:
+            return {}
+        got = json.loads(raw.decode('utf-8', 'replace'))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(got, dict) or got.get('state') not in ('running', 'done', 'failed'):
+        return {}
+    try:
+        at = float(got.get('at'))
+    except (TypeError, ValueError):
+        return {}
+    if at != at or at > now + 5:
+        return {}
+    if now - at > (UPGRADE_PROGRESS_RUNNING_S if got['state'] == 'running'
+                   else UPGRADE_PROGRESS_ENDED_S):
+        return {}
+
+    def words(k, most):
+        return _PROGRESS_CTRL.sub('', str(got.get(k) or ''))[:most]
+
+    def version(k):
+        v = str(got.get(k) or '')
+        return v if re.match(r'^\d+(\.\d+){2,3}\Z', v) else ''
+
+    def whole(k):
+        try:
+            n = int(got.get(k) or 0)
+        except (TypeError, ValueError):
+            return 0
+        return n if 0 <= n <= 99 else 0
+    parts = whole('parts')
+    part = min(whole('part'), parts)
+    ident = str(got.get('id') or '')
+    try:
+        started = float(got.get('started') or at)
+    except (TypeError, ValueError):
+        started = at
+    return {'state': got['state'], 'id': ident if re.match(r'^[A-Za-z0-9._-]{1,64}\Z', ident) else '',
+            'version': version('version'), 'from': version('from'), 'part': part,
+            'parts': parts, 'words': words('words', 200), 'said': words('said', 300),
+            'by': words('by', 100), 'node': words('node', 64),
+            'started': started if started <= at else at, 'at': at,
+            'downgrade': got.get('downgrade') is True}
 
 
 def _meta_json(store, k):

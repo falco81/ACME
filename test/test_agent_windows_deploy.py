@@ -25,7 +25,6 @@ import hashlib
 import importlib.util
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -61,6 +60,7 @@ def _have_win():
 
 HAVE_WIN = _have_win()
 AID = 'ag-0123456789abcdef'
+FAKE_ROOT = os.path.join(TMP, 'fakewin')         # C:\\x is FAKE_ROOT/C/x (acme_agent_win.FakeWin)
 
 
 def openssl(*args, data=None, env=None):
@@ -77,6 +77,7 @@ def load(name, windows):
         os.environ[k] = os.path.join(d, sub)
     if windows and HAVE_WIN:
         os.environ['ACME_AGENT_FAKE_WINDOWS'] = '1'
+        os.environ['ACME_AGENT_FAKE_ROOT'] = FAKE_ROOT
     else:
         os.environ.pop('ACME_AGENT_FAKE_WINDOWS', None)
     try:
@@ -343,8 +344,19 @@ class AgentSide(unittest.TestCase):
         site[('www.example.test', 443)] = {'ip': '*', 'thumb': 'D' * 40}
         self.ps.store['D' * 40] = {'friendly': 'the one before', 'key': True}
         args = job('b', extra={'test': [{'argv': ['C:\\scripts\\probe.exe']}]})
+        local = None
         if HAVE_WIN:
-            self.pol_text = POLICY_ALL + 'allow test -- C:\\scripts\\probe.exe\n'
+            self.pol_text = POLICY_ALL + 'allow test -- C:\\scripts\\probe.exe\n' \
+                'allow file C:\\certs\n'
+            # a file written beside the store: the one there before is back too
+            local = os.path.join(FAKE_ROOT, 'C', 'certs', 'www.crt')
+            os.makedirs(os.path.dirname(local), exist_ok=True)
+            with open(local, 'w') as fh:
+                fh.write('the one before\n')
+            args['files'].insert(0, {'path': 'C:\\certs\\www.crt', 'format': 'fullchain-pem',
+                                     'data': base64.b64encode(CERTS['b']['crt'].encode())
+                                     .decode()})
+            args['win']['store']['pfx_index'] = 1
         else:
             args['test'] = [{'argv': ['/bin/false']}]
             self.pol_text = POLICY_ALL + 'allow test -- /bin/false\n'
@@ -357,6 +369,11 @@ class AgentSide(unittest.TestCase):
         self.assertIn('D' * 40, self.ps.store)
         self.assertEqual(self.ps.names(), ['state', 'import', 'bind', 'unbind', 'remove'])
         words = '\n'.join(s[1] for s in got['steps'])
+        if local:
+            with open(local) as fh:
+                self.assertEqual(fh.read(), 'the one before\n')
+            self.assertIn('wrote C:\\certs\\www.crt', words)
+            self.assertIn('the previous files are back', words)
         self.assertIn('the bindings are back as they were', words)
         self.assertIn('out of the machine store again', words)
         self.stage_empty()
@@ -678,7 +695,7 @@ class AcmeSide(unittest.TestCase):
         self.assertEqual(by[('rdp', 'the')]['allow'], 'acme-agent allow rdp')
         rl = [i for i in got['items'] if i['kind'] == 'reload'][0]
         self.assertFalse(rl['ok'])
-        self.assertIn('W3SVC', rl['allow'])
+        self.assertIn('allow service w3svc restart', rl['allow'].lower())
         self.assertIn('restart', rl['allow'])
         self.assertEqual(AW.win_needs({'iis': ['*']}, {'iis': [{'site': 'X'}]}), [])
 
@@ -707,7 +724,8 @@ class AcmeSide(unittest.TestCase):
         self.assertIn('The agent restarts Restart-Service W3SVC', words)
         iis = [s for s in steps if s['words'].startswith('The agent binds')][0]
         self.assertEqual(iis['policy'], {'ok': False, 'allow': 'acme-agent allow iis '
-                                                               '"Default Web Site"'})
+                                                               '"Default Web Site"',
+                                         'windows': True})
         self.assertTrue(any(s.get('kind') == 'stop' for s in steps))
 
     def test_what_happens_records_the_job(self):
@@ -770,6 +788,104 @@ class AcmeSide(unittest.TestCase):
                                  ('unit', 'W3SVC'), ('probe', '')])
         self.assertEqual(items[4]['dir'], 'C:\\certs\\x')
         self.assertEqual(items[5]['allow'], 'acme-agent allow service W3SVC restart')
+
+
+# ---- the policy builder's core for a Windows agent (web/assets/policybuilder.js, node) ----------
+BUILDER = os.path.join(ROOT, 'web', 'assets', 'policybuilder.js')
+NODE = shutil.which('node')
+BUILD_JS = r"""
+const C = require(process.argv[1]);
+const inp = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+C.setFacts(inp.facts);
+console.log(JSON.stringify(inp.states.map(function (x) {
+  var s = C.fromSaved(x.state || {});
+  (x.templates || []).forEach(function (t) { C.addTemplate(s, t); });
+  (x.needs || []).forEach(function (it) { C.addNeed(s, it); });
+  var R = C.check(s), codes = [];
+  ['files', 'units', 'tests', 'scripts', 'hashes', 'from', 'probe', 'connect', 'iis'].forEach(function (k) {
+    R[k].forEach(function (v) { v.msgs.forEach(function (m) { codes.push([m.level, m.code, m.words]); }); }); });
+  return {text: C.fileText(R), lines: R.lines, once: C.oneShot(R), allow: C.allowLines(R), codes: codes,
+          covers: (x.covers || []).map(function (it) { return C.covers(s, R, it); })};
+})));
+"""
+
+
+def win_facts():
+    m = G.agent_mod_windows()
+    f = dict(m.policy_facts())
+    if f.get('platform') != 'windows':          # acme_agent_win.py not there yet
+        f.update(platform='windows', verbs=['restart', 'try-restart', 'start'],
+                 protected=['C:\\Windows', 'C:\\Program Files', 'C:\\Users\\*\\AppData'],
+                 own=['C:\\ProgramData\\acme-agent'], parts=['.ssh'],
+                 shells=['cmd', 'powershell', 'pwsh'], exec_ext=['.exe', '.ps1'],
+                 head='# C:\\ProgramData\\acme-agent\\etc\\policy\n')
+    return f
+
+
+def builder_out(states):
+    got = subprocess.run([NODE, '-e', BUILD_JS, BUILDER], input=json.dumps(
+        {'facts': win_facts(), 'states': states}), capture_output=True, text=True, timeout=60,
+        check=True)
+    return json.loads(got.stdout)
+
+
+@unittest.skipUnless(NODE, 'needs node')
+class BuilderWindows(unittest.TestCase):
+    def test_windows_policy_text(self):
+        from acmelib.certs import agent_policy as P
+        tpl = {t['key']: t for t in P.templates_windows()}
+        got = builder_out([
+            {'state': {'files': [{'dir': 'c:/certs/', 'readers': ['IIS_IUSRS', 'NT SERVICE\\W3SVC']},
+                                 {'dir': 'C:\\Windows\\System32\\x', 'readers': []},
+                                 {'dir': 'C:\\Users\\bob\\AppData\\x', 'readers': []},
+                                 {'dir': '\\\\server\\share', 'readers': []},
+                                 {'dir': 'C:\\a:stream', 'readers': []}],
+                       'units': [{'name': 'W3SVC', 'verbs': ['restart', 'start']},
+                                 {'name': 'bad name', 'verbs': ['restart']},
+                                 {'name': 'X', 'verbs': ['reload']}],
+                       'tests': [['iisreset', '/status'], ['C:\\x\\a.bat']],
+                       'scripts': [{'path': 'C:\\scripts\\after.ps1', 'sha256': 'a' * 64},
+                                   {'path': 'C:\\scripts\\pin.ps1', 'sha256': ''}],
+                       'store': True, 'iis': ['Default Web Site', 'Shop'], 'rdp': True},
+             'covers': [{'kind': 'store'}, {'kind': 'iis', 'site': 'default web site'},
+                        {'kind': 'iis', 'site': 'Other'},
+                        {'kind': 'file', 'path': 'C:\\certs\\www\\a.crt'},
+                        {'kind': 'file', 'path': 'C:\\other\\a.crt'},
+                        {'kind': 'file', 'path': 'C:\\certs\\x.ps1'},
+                        {'kind': 'unit', 'unit': 'w3svc', 'verb': 'restart'}]},
+            {'templates': [tpl['iis'], tpl['rdp'], tpl['service']],
+             'needs': [{'kind': 'iis', 'site': 'Shop'},
+                       {'kind': 'file', 'path': 'D:\\certs\\a.pem', 'dir': 'D:\\certs'}]}])
+        one, two = got
+        self.assertEqual(one['lines'], [
+            'allow file C:\\certs readers="IIS_IUSRS,NT SERVICE\\W3SVC"',
+            'allow service w3svc restart,start',
+            'allow test -- iisreset /status',
+            'allow script C:\\scripts\\after.ps1 sha256=' + 'a' * 64,
+            'allow store', 'allow iis "Default Web Site"', 'allow iis Shop', 'allow rdp'])
+        bad = [c for c in one['codes'] if c[0] == 'bad']
+        self.assertEqual(len(bad), 7, bad)          # 4 folders, 2 services, the .bat
+        self.assertTrue(one['once'].startswith("@'\n"))
+        self.assertIn("\n'@ | acme-agent policy apply -\nacme-agent allow script "
+                      "C:\\scripts\\pin.ps1", one['once'])
+        self.assertIn('acme-agent allow file C:\\certs --readers "IIS_IUSRS,NT SERVICE\\W3SVC"',
+                      one['allow'])
+        self.assertIn('acme-agent allow iis "Default Web Site"', one['allow'])
+        self.assertFalse(any(x.startswith('sudo') for x in one['allow']))
+        self.assertEqual(one['covers'][:5], ['yes', 'yes', 'no', 'yes', 'no'])
+        self.assertIn('runs or loads as a program', one['covers'][5])
+        self.assertEqual(one['covers'][6], 'yes')
+        self.assertEqual(two['lines'], [
+            'allow file C:\\certs\\myservice readers="NT SERVICE\\myservice"',
+            'allow file D:\\certs', 'allow service myservice restart', 'allow probe local',
+            'allow store', 'allow iis "Default Web Site"', 'allow iis Shop', 'allow rdp'])
+        if HAVE_WIN:
+            # the agent reads the very file the builder writes, and writes it back the same
+            m = G.agent_mod_windows()
+            for x in got:
+                chk = m.policy_check(x['text'])
+                self.assertEqual([e for e in chk['errors']], [], x['text'])
+                self.assertEqual(m.policy_lines(m.parse_policy(x['text'])), x['lines'])
 
 
 if __name__ == '__main__':

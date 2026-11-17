@@ -250,6 +250,19 @@ def alerts_quiet(store, names):
     return ''
 
 
+def alerts_upgrading(store):
+    """Whether an upgrade runs now: the cluster's plan (six hours at most, as alerts_quiet
+    takes it), or root's word on this node - install.sh --upgrade typed in (1.0.120)."""
+    try:
+        up = upgrade_plan(store) or {}
+        if up.get('id') and up.get('state') == 'running' and \
+                time.time() - float(up.get('at') or 0) < 6 * 3600:
+            return True
+    except Exception:                                   # noqa: BLE001
+        pass
+    return upgrade_progress().get('state') == 'running'
+
+
 def alert_problems(store, lang='en'):
     """What is wrong now, every node together: {key: {level, node, title, said, pane}}."""
     out = {}
@@ -282,10 +295,14 @@ def alert_problems(store, lang='en'):
         except ValueError:
             beats[node_name()] = {}
     health = {n: _meta_obj(store, 'host:health:' + n) for n in names}
+    # An upgrade under way (1.0.120): a node restarting on purpose, and the nodes on two
+    # versions until the last is done, are what it does - not said as trouble meanwhile (its
+    # failure is an alert of its own, below).
+    upgrading = alerts_upgrading(store)
     # The nodes, the replication, the database.
     if CONFIG.get('alerts_nodes', 1):
         for n in nodes:
-            if not n.get('me') and not n.get('alive'):
+            if not n.get('me') and not n.get('alive') and not upgrading:
                 add('node:' + n['name'], 'bad', n['name'],
                     _al(lang, 'Uzel %s neodpovídá' % n['name'], '%s is not heard from' % n['name']),
                     _al(lang, 'Naposledy se ozval před %s. Práci dělá druhý uzel - je-li '
@@ -311,7 +328,7 @@ def alert_problems(store, lang='en'):
                     str(h['name_clash'])[:300], 'ha')
         vers = sorted({str(b.get('version')) for b in beats.values()
                        if b.get('version') and b.get('alive', True)})
-        if len(vers) > 1:
+        if len(vers) > 1 and not upgrading:
             add('versions', 'warn', '', _al(lang, 'Uzly mají různé verze', 'The nodes run '
                                                   'different versions'),
                 ', '.join('%s %s' % (k, b.get('version')) for k, b in sorted(beats.items())),

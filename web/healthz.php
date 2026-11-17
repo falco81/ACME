@@ -7,11 +7,19 @@ declare(strict_types=1);
 require_once __DIR__ . '/acme-api.php';
 header('Content-Type: text/plain; charset=utf-8');
 header('Cache-Control: no-store');
+/* Root upgrading this node (1.0.120, its file beside the pages): said after the words of each
+   503 - never instead of them, and never another status. What starts the line ("down",
+   "maintenance") is what the balancers' matches, split_peer_says and the monitors read, and
+   what keepalived decides is the VIP check's (/run/acme/vip-state), not this. No version,
+   no name: anybody may ask. */
+$upgrading = function_exists('acme_upgrading') && is_array($u = acme_upgrading(false))
+    && $u['state'] === 'running';
 if (acme_token() === null) {
     // Said as it is (1.0.36): the daemon may well be up; it is the pages
     // that cannot reach it.
     http_response_code(503);
-    echo "down: the pages cannot read the daemon's API token\n";
+    echo "down: the pages cannot read the daemon's API token"
+        . ($upgrading ? ' (maintenance: being upgraded)' : '') . "\n";
     exit;
 }
 // What is asked (1.0.47): web (the default - the pages: nginx, PHP, the
@@ -26,7 +34,7 @@ if (!in_array($check, ['web', 'all', 'dns'], true)) {
 $got = acme_get('/api/health' . ($check === 'web' ? '' : '?check=' . $check), 3.0);
 if (!is_array($got) || empty($got['ok'])) {
     http_response_code(503);
-    echo "down: the daemon is not answering\n";
+    echo 'down: the daemon is not answering' . ($upgrading ? ' (maintenance: being upgraded)' : '') . "\n";
     exit;
 }
 if (isset($got['database']['ok']) && !$got['database']['ok']) {
@@ -38,7 +46,7 @@ if (!empty($got['maintenance'])) {
     // Taken out by hand or for an upgrade (1.0.37): the balancer sends
     // nobody here until it is back.
     http_response_code(503);
-    echo "maintenance\n";
+    echo 'maintenance' . ($upgrading ? ': being upgraded' : '') . "\n";
     exit;
 }
 if ($check === 'all' && isset($got['replication']) && empty($got['replication']['ok'])) {

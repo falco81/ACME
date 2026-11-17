@@ -238,7 +238,9 @@ def upgrade_tick(daemon):
             path = upgrade_package_file(store, meta)
             req = {'id': plan['id'], 'file': path.name, 'sha': plan['sha'],
                    'version': plan['version'], 'by': plan.get('by'), 'at': now,
-                   'downgrade': bool(plan.get('downgrade'))}
+                   'downgrade': bool(plan.get('downgrade')),
+                   # whose progress root writes beside the pages (1.0.120)
+                   'node': node_name(), 'from': __version__}
             tmp = UPGRADE_DIR / 'request.part'
             try:
                 tmp.unlink()
@@ -290,6 +292,15 @@ def upgrade_tick(daemon):
             # How far install.sh is (1.0.67): its sections, "==> ...", for the
             # bar on the pages - written when one more has begun.
             if got.get('id') == plan['id'] and got.get('state') == 'running':
+                # Step N of M as root counts them (1.0.120): its file beside the pages, when it
+                # is this upgrade's - the sections of the log otherwise, as before.
+                pr = upgrade_progress()
+                if pr.get('id') == plan['id'] and pr.get('state') == 'running' and pr.get('parts'):
+                    if (int(pr['part']), int(pr['parts'])) != (int(turn.get('part') or 0),
+                                                               int(turn.get('parts') or 0)):
+                        _my_step(store, plan, part=pr['part'], parts=pr['parts'],
+                                 part_words=pr['words'][:120], asked=turn.get('asked'))
+                    return
                 parts = [x[4:].strip() for x in upgrade_log_tail(400) if x.startswith('==> ')]
                 if parts and len(parts) != int(turn.get('part') or 0):
                     _my_step(store, plan, part=len(parts), part_words=parts[-1][:120],

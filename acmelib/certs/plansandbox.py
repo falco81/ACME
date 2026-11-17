@@ -1950,7 +1950,8 @@ class PlanContext(object):
 
     def agent_plan_check(self, policy, part):
         part = dict(part)
-        m = _agent_program_for(part.pop('platform', '') or (self._agent or {}).get('platform'))
+        m = _agent_program_for(part.pop('platform', '') or (getattr(self, '_agent', None) or {})
+                               .get('platform'))
         if m is None or not isinstance(policy, dict):
             return []
         pol = m.parse_policy('')

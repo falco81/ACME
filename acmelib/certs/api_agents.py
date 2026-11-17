@@ -38,7 +38,8 @@ The routes of target agents (1.0.116, docs/target-agent.md) - imported at the en
     POST /api/agents/confirm-many {items: [{id, fp}]}   several confirmed, each by the
                                         fingerprint it asks with              full administrator
 
-    POST /api/agent-wire/{join,status,poll,enroll}   an active agent, through nginx (the agents' port)
+    POST /api/agent-wire/{join,status,poll,enroll}   an active agent (enroll: one joining with a
+                                        company enrollment code), through nginx (the agents' port)
                                         and web/agent.php only - the API's token, never a
                                         session: the pages' relay does not reach it.
 """

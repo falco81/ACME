@@ -251,6 +251,10 @@ function oops(e) {
   /* An account that must set its own password first: every page answers
      "change your password first" - said once, by its own form (1.0.103). */
   if (typeof ME === 'object' && ME && ME.must_change && e && e.status === 403) return;
+  /* An upgrade restarting the API, nginx or PHP (1.0.120): expected - its band says so, not a
+     red toast on every pane. A refusal of the daemon's own is still said. */
+  if (e && (e.upgrading || e.unreachable || e.status === 503) && typeof upgradeExpected === 'function'
+      && upgradeExpected()) return;
   toast(String(e && e.message || e), 'bad');
 }
 
@@ -2176,6 +2180,13 @@ function api(what, body, wait) {
         err.detail = data.detail || '';
         /* the field of the form a refusal is about, and its label as the daemon said it */
         if (data.field) { err.field = String(data.field); err.label = String(data.label || ''); }
+        /* The API restarting in an upgrade (1.0.120): PHP says how far it is, from root's file -
+           not reached, and expected; the page's band is told. */
+        if (r.status === 503 && data.upgrading && typeof data.upgrading === 'object') {
+          err.unreachable = true;
+          err.upgrading = data.upgrading;
+          if (typeof upgradeHeard === 'function') { try { upgradeHeard(data.upgrading); } catch (e2) { } }
+        }
         throw err;
       }
       return data;

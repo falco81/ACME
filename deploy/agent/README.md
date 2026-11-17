@@ -63,3 +63,29 @@ sudo ./install.sh --uninstall [--purge]
 
 Every operation is written to the journal (`journalctl -t acme-agent`) and to
 `/var/lib/acme-agent-root/audit.log`.
+
+## Windows
+
+`acme-agent-X.Y.Z-windows-x64.msi` (a release carries it): double-click it, or
+`msiexec /i acme-agent-X.Y.Z-windows-x64.msi /qn JOINCODE=CODE` (a join code or a company
+enrollment code). It installs into `C:\Program Files\acme-agent` (its own Python and OpenSSL) and
+runs `acme-agent windows-install`: the policy, the pins and the state in
+`C:\ProgramData\acme-agent\{etc,root,net}`, the services `acme-agent-root` (LocalSystem) and
+`acme-agent` (`NT SERVICE\acme-agent`), the named pipe `\\.\pipe\acme-agent-root` between them.
+The same CLI in an elevated prompt (Run as administrator):
+
+```
+acme-agent join CODE
+acme-agent allow file C:\certs --readers IIS_IUSRS          # only SYSTEM, Administrators, readers read
+acme-agent allow service W3SVC restart                      # restart, try-restart, start
+acme-agent allow test -- C:\tools\check.exe                 # never a .bat / .cmd, never a shell
+acme-agent allow script C:\scripts\after.ps1                # PowerShell, its SHA-256 pinned now
+acme-agent allow store                                      # Cert:\LocalMachine\My
+acme-agent allow iis "Default Web Site"                     # or: allow iis *
+acme-agent allow rdp                                        # the Remote Desktop listener
+acme-agent policy show
+acme-agent status
+```
+
+Every operation goes to the Application event log (source `acme-agent`) and to
+`C:\ProgramData\acme-agent\root\audit.log`. Uninstall keeps the policy (`PURGE=1` takes it too).

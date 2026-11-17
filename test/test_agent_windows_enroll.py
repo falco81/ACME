@@ -625,6 +625,32 @@ class Wiring(unittest.TestCase):
         self.assertEqual(left, [])
 
 
+class Pages(unittest.TestCase):
+    """The pages in a browser: test/agents_enroll_page.js (node with playwright; skipped
+    without) - English and Czech, 1400 and 390 px."""
+
+    def test_enroll_pages(self):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          timeout=60).returncode:
+            self.skipTest('no playwright for node here')
+        argv = [node, os.path.join(HERE, 'agents_enroll_page.js'), os.path.join(T.ROOT, 'web')]
+        extra = os.environ.get('ACME_CS_EXTRA')         # Czech not merged into cs.json yet
+        if extra:
+            argv.append(extra)
+        got = subprocess.run(argv, capture_output=True, text=True, timeout=900)
+        out = json.loads((got.stdout.strip().splitlines() or ['{}'])[-1])
+        bad = [k for k, v in (out.get('checks') or {}).items() if not v]
+        self.assertTrue(out.get('ok'), json.dumps({'failed': bad, 'error': out.get('error'),
+                                                   'errors': out.get('errors'),
+                                                   'more': {k: v for k, v in out.items() if k
+                                                            not in ('checks', 'ok', 'errors',
+                                                                    'error')}})
+                        + got.stderr[-2000:])
+
+
 def _routes():
     return list(getattr(E, 'ROUTES', {}) or {})
 

@@ -566,7 +566,9 @@ The target's card shows the agent: its state (answers · N s ago / not heard fro
 version, when it was last heard from, its certificate's end, its policy; **Join the agent…** (the
 three-step wizard: install, a one-time code, the fingerprint confirmed), Ask it now, Renew its
 certificate, Forget…. **Test** asks the agent how it is and what its policy allows. On the
-command line: `acme --target-agent NAME show|code|confirm FP|look|policy|renew|update|forget`.
+command line: `acme --target-agent NAME show|code|confirm FP|look|policy|renew|update|forget`;
+many servers with one company enrollment code: `acme --target-agent enroll new|list|revoke ID`,
+`acme --target-agent waiting` (target-agent.md, "Enrolling many servers").
 
 Phases 3 and 4 (all in [target-agent.md](target-agent.md)):
 

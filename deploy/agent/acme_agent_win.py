@@ -124,7 +124,8 @@ of its credentials (docs/target-agent.md). Run it in an elevated prompt (Run as 
   acme-agent deny ...                    the same words: that entry taken away
   acme-agent version
   acme-agent windows-install [--join CODE]   folders, services, PATH, event log (the MSI runs it)
-  acme-agent windows-uninstall [--purge]     ...taken away (the policy stays unless --purge)
+  acme-agent windows-uninstall [--purge|--upgrade]  ...taken away (the policy stays unless --purge;
+                                         --upgrade: only the services stopped)
   acme-agent winservice root|serve           the two services' entry points
 """
 
@@ -516,6 +517,7 @@ GENERIC_READ, GENERIC_WRITE = 0x80000000, 0x40000000
 DELETE, READ_CONTROL, WRITE_DAC, WRITE_OWNER, SYNCHRONIZE = 0x10000, 0x20000, 0x40000, 0x80000, \
     0x100000
 FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES, FILE_TRAVERSE = 0x1, 0x80, 0x20
+FILE_WRITE_DATA = 0x2
 SHARE_READ, SHARE_WRITE = 0x1, 0x2
 CREATE_NEW, OPEN_EXISTING = 1, 3
 ATTR_DIRECTORY, ATTR_REPARSE, ATTR_NORMAL = 0x10, 0x400, 0x80
@@ -558,7 +560,8 @@ OS_KEY = r'SOFTWARE\Microsoft\Windows NT\CurrentVersion'
 
 
 def _os_words(product, build, major, minor):
-    """'Windows Server 2022 Standard (10.0.20348)' - Windows 11 says 'Windows 10' in the registry."""
+    """'Windows Server 2022 Standard (10.0.20348)' (Windows 11 says 'Windows 10' in the
+    registry)."""
     product = str(product or 'Windows')
     try:
         if int(build) >= 22000 and product.startswith('Windows 10'):
@@ -1202,15 +1205,21 @@ class RealWin(object):
     def pipe_connect(self, name, timeout=900):
         a = self.api
         end = time.time() + min(timeout, 30)
+        quick = time.time() + 3
         while True:
             try:
-                h = self._open(name, GENERIC_READ | GENERIC_WRITE, 0, OPEN_EXISTING,
+                # read, and write data - not GENERIC_WRITE, which on a pipe would include
+                # FILE_CREATE_PIPE_INSTANCE (a server of the same name)
+                h = self._open(name, GENERIC_READ | FILE_WRITE_DATA, 0, OPEN_EXISTING,
                                SQOS_PRESENT | SECURITY_IDENTIFICATION)
                 return _RealPipe(self, h)
             except WinFail as e:
-                if e.errno != 231 or time.time() > end:    # ERROR_PIPE_BUSY
+                if e.errno == 231 and time.time() < end:    # ERROR_PIPE_BUSY
+                    a.WaitNamedPipeW(name, 2000)
+                elif e.errno == ERROR_FILE_NOT_FOUND and time.time() < quick:
+                    time.sleep(0.05)        # between two instances of the root side's pipe
+                else:
                     raise
-                a.WaitNamedPipeW(name, 2000)
 
     # -- the event log -------------------------------------------------------------------------
     def event_source_add(self):
@@ -2053,3 +2062,1290 @@ class _FakePipeServer(object):
 
 
 W = FakeWin() if os.environ.get('ACME_AGENT_FAKE_WINDOWS') else RealWin()
+
+
+# ==== what acme_agent.py does on Windows ========================================================
+class _View(object):
+    """acme_agent.py's names as they are when asked (the ones put in place here included)."""
+
+    def __init__(self, g):
+        self.__dict__['_g'] = g
+
+    def __getattr__(self, name):
+        try:
+            return self._g[name]
+        except KeyError:
+            raise AttributeError(name)
+
+
+A = None                    # acme_agent.py's globals (a _View) - set by install()
+ORIG = {}                   # its functions as they were (the Linux ones) where these wrap them
+STOPPERS = []               # what the service host's stop calls (the end SIGTERM is on Linux)
+SERVERS = []                # the passive servers running (a stop shuts them down)
+UNDER_HOST = {'on': False}
+
+
+def stop_all():
+    for cb in list(STOPPERS):
+        try:
+            cb()
+        except Exception:                               # noqa: BLE001
+            pass
+
+
+def _in_main_thread():
+    return threading.current_thread() is threading.main_thread()
+
+
+# ---- where things are --------------------------------------------------------------------------
+def base_dir():
+    """C:\\ProgramData\\acme-agent (its place in the fake under the tests)."""
+    return W.local(ntpath.join(W.program_data(), 'acme-agent'))
+
+
+def program_dir():
+    """The program's folder as Windows names it (C:\\Program Files\\acme-agent)."""
+    return W.winpath(A.lib_dir()) or ntpath.join(W.program_files(), 'acme-agent')
+
+
+def own_places():
+    """The agent's own places (Windows paths): never written by a job."""
+    out = []
+    for p in (A.ETC, A.STATE, A.ROOT_STATE, base_dir(), A.lib_dir()):
+        w = W.winpath(p)
+        if w and w.lower() not in [x.lower() for x in out]:
+            out.append(w)
+    for w in (ntpath.join(W.program_data(), 'acme-agent'),
+              ntpath.join(W.program_files(), 'acme-agent')):
+        if w.lower() not in [x.lower() for x in out]:
+            out.append(w)
+    return out
+
+
+def protected_list():
+    """What no job ever writes, whatever the policy says: Windows' own, the programs, what runs
+    as SYSTEM or at a log-on (C:\\ProgramData\\Microsoft holds the Start Menu's StartUp), the
+    profiles' AppData, OpenSSH's keys. `*` is any drive (X:\\...) or any user."""
+    sd = W.system_drive()
+    return [W.system_root(), W.program_files(), W.program_files_x86(),
+            sd + '\\ProgramData\\Microsoft', sd + '\\ProgramData\\ssh', sd + '\\Boot',
+            sd + '\\Recovery', sd + '\\Users\\*\\AppData', '*:\\$Recycle.Bin',
+            '*:\\System Volume Information', '*:\\Windows', '*:\\$WinREAgent']
+
+
+def _pattern(top):
+    rx = re.escape(top.rstrip('\\').lower()).replace(r'\*', '[^\\\\]+')
+    if rx.startswith('[^\\\\]+:'):
+        rx = '[a-z]:' + rx[len('[^\\\\]+:'):]
+    return re.compile(rx + r'(\\.*)?\Z', re.S)
+
+
+def _under(path, top):
+    """`path` is `top` or in it (case-insensitive; a drive's root holds nothing here, as / on
+    Linux)."""
+    t = str(top).rstrip('\\').lower()
+    p = str(path).rstrip('\\').lower()
+    if re.fullmatch(r'[a-z]:', t):
+        return False
+    return p == t or p.startswith(t + '\\')
+
+
+def protected(path):
+    """Why `path` is never written nor taken away by a job, whatever the policy says - or ''."""
+    p = str(path)
+    if re.fullmatch(r'[A-Za-z]:\\?', p):
+        return '%s is a drive\'s root - acme-agent never writes there' % p
+    for top in own_places():
+        if _under(p, top):
+            return '%s is acme-agent\'s own (%s) - never written by a job' % (p, top)
+    for top in protected_list():
+        if _pattern(top).match(p.lower()):
+            return '%s is under %s - Windows runs (or loads) what is there; acme-agent never ' \
+                   'writes there, whatever the policy says' % (p, top)
+    parts = [x.lower() for x in p.split('\\')]
+    if '.ssh' in parts:
+        return '%s is in a .ssh folder - acme-agent never writes there' % p
+    ext = ntpath.splitext(p)[1].lower()
+    if ext in EXEC_EXT:
+        return '%s: a file Windows runs or loads as a program (%s) - acme-agent never writes ' \
+               'one (the analogue of the x bit)' % (p, ext)
+    return ''
+
+
+def norm_dir(path, real=True):
+    p = norm_win(path)
+    return W.final_path(p) if real else p
+
+
+def norm_unit(name):
+    n = str(name or '').strip()
+    if not SVC_RE.match(n) or n.startswith('-'):
+        raise Refused('%r is not a service name' % n[:80])
+    return n.lower()
+
+
+def split_path(path):
+    d, name = ntpath.split(path)
+    return d, name
+
+
+def file_rule(pol, path):
+    best = None
+    p = str(path).lower()
+    for f in pol['files']:
+        d = f['dir'].rstrip('\\').lower()
+        if p.startswith(d + '\\') and (best is None or len(d) > len(best['dir'])):
+            best = f
+    return best
+
+
+def runs_from(pol, path):
+    p = str(path).lower()
+    for s in pol.get('scripts') or []:
+        if s.get('path', '').lower() == p:
+            return '%s is a script the policy runs - never written by a job' % path
+    for argv in pol.get('tests') or []:
+        for w in argv:
+            if isinstance(w, str) and re.match(r'[A-Za-z]:[\\/]', w):
+                try:
+                    if norm_win(w).lower() == p:
+                        return '%s is named by a test the policy runs (%s) - never written by a ' \
+                               'job' % (path, ' '.join(wq(a) for a in argv)[:200])
+                except Refused:
+                    continue
+    return ''
+
+
+def _bad_argv0(argv):
+    return bool(argv) and ntpath.splitext(str(argv[0]))[1].lower() in ('.bat', '.cmd')
+
+
+def _shell_line(argv):
+    """A test that is a shell or an interpreter given its program on its command line."""
+    if not argv:
+        return False
+    prog = re.sub(r'\.exe\Z', '', ntpath.basename(argv[0]).lower())
+    prog = re.sub(r'[0-9.]+\Z', '', prog) or prog
+    rest = [a.lower() for a in argv[1:]]
+    if prog == 'cmd':
+        return any(a.startswith(('/c', '/k')) for a in rest)
+    if prog in ('powershell', 'pwsh'):
+        return any(a in ('-c', '-e', '-ec', '-enc') or a.startswith(('-comm', '-encodedc',
+                                                                     '/c', '/e'))
+                   for a in rest) or not any(a in ('-file', '-f') for a in rest)
+    if prog in ('wscript', 'cscript', 'mshta', 'rundll32'):
+        return True
+    if prog in ('python', 'py', 'pythonw'):
+        return any(a in ('-c', '-m') for a in rest)
+    return False
+
+
+# ---- the policy: the same words, Windows meanings ----------------------------------------------
+def parse_policy(text):
+    pol = {'files': [], 'units': {}, 'tests': [], 'scripts': [], 'script_hashes': [],
+           'from': [], 'self_update': False, 'connect': [], 'probe': [], 'probe_local': False,
+           'limits': {'files': A.FILES_MOST, 'size': A.FILE_MOST}, 'problems': []}
+    for n, raw in enumerate(str(text or '').splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        try:
+            words = win_split(line)
+        except ValueError as e:
+            pol['problems'].append('line %d: %s' % (n, e))
+            continue
+        try:
+            _policy_line(pol, words)
+        except Refused as e:
+            pol['problems'].append('line %d: %s' % (n, e))
+    return pol
+
+
+def _readers(text):
+    out = []
+    for r in [x.strip() for x in str(text or '').split(',')]:
+        if not r:
+            continue
+        if not ACCOUNT_RE.match(r):
+            raise Refused('%r is not an account (readers=IIS_IUSRS,"NT SERVICE\\W3SVC")' % r[:80])
+        if r.lower() not in [x.lower() for x in out]:
+            out.append(r)
+    if len(out) > 16:
+        raise Refused('readers= names sixteen accounts at most')
+    return out
+
+
+def _policy_line(pol, words):
+    if not words or words[0] != 'allow' or len(words) < 2:
+        return ORIG['_policy_line'](pol, words)
+    what, rest = words[1], words[2:]
+    if what == 'file':
+        kv, rest = A._kv(rest, ('readers', 'owner', 'mode'))
+        if 'owner' in kv or 'mode' in kv:
+            raise Refused('owner= and mode= are not for Windows: a file gets its folder\'s '
+                          'permissions, or with readers=ACCOUNT,... only SYSTEM, the '
+                          'Administrators and those accounts may read it')
+        if len(rest) != 1:
+            raise Refused('allow file C:\\FOLDER [readers=ACCOUNT,ACCOUNT]')
+        d = norm_dir(rest[0], real=False)
+        if re.fullmatch(r'[A-Z]:\\', d):
+            raise Refused('a drive\'s root is no folder to allow')
+        readers = _readers(kv.get('readers'))
+        entry = {'dir': d, 'owner': ','.join(readers), 'group': '', 'mode': 0o666,
+                 'readers': readers}
+        pol['files'] = [x for x in pol['files'] if x['dir'].lower() != d.lower()] + [entry]
+    elif what in ('service', 'unit'):
+        if len(rest) != 2:
+            raise Refused('allow service NAME restart,try-restart,start')
+        verbs = [v.strip() for v in rest[1].split(',') if v.strip()]
+        if not verbs or [v for v in verbs if v not in WIN_VERBS]:
+            raise Refused('the verbs are %s' % ', '.join(WIN_VERBS))
+        have = pol['units'].setdefault(norm_unit(rest[0]), [])
+        for v in verbs:
+            if v not in have:
+                have.append(v)
+    elif what == 'test':
+        if rest[:1] == ['--']:
+            rest = rest[1:]
+        argv = A.check_argv(rest)
+        if _bad_argv0(argv):
+            raise Refused('%s is a batch file: cmd.exe would read its arguments as commands - '
+                          'a program (.exe) or a script (allow script C:\\x.ps1)' % argv[0])
+        pol['tests'].append(argv)
+    elif what == 'script':
+        kv, rest = A._kv(rest, ('sha256',))
+        if len(rest) != 1 or not A.HEX64.match(str(kv.get('sha256') or '').lower()):
+            raise Refused('allow script C:\\PATH.ps1 sha256=HEX (acme-agent allow script PATH '
+                          'pins it)')
+        path = norm_dir(rest[0], real=False)
+        if not path.lower().endswith('.ps1'):
+            raise Refused('a script on Windows is a PowerShell script (.ps1) - a program is a '
+                          'test (allow test -- C:\\x.exe)')
+        pol['scripts'] = [x for x in pol['scripts'] if x['path'].lower() != path.lower()] + \
+            [{'path': path, 'sha256': kv['sha256'].lower()}]
+    elif what == 'store':
+        if rest:
+            raise Refused('allow store')
+        pol['store'] = True
+    elif what == 'iis':
+        if len(rest) != 1 or not SITE_RE.match(rest[0]):
+            raise Refused('allow iis SITE (its name as IIS says it, "Default Web Site") or '
+                          'allow iis *')
+        have = pol.setdefault('iis', [])
+        if rest[0].lower() not in [x.lower() for x in have]:
+            have.append(rest[0])
+    elif what == 'rdp':
+        if rest:
+            raise Refused('allow rdp')
+        pol['rdp'] = True
+    elif what in ('script-hash', 'from', 'self-update', 'connect', 'probe'):
+        ORIG['_policy_line'](pol, words)
+    else:
+        raise Refused('allow file | service | test | script | script-hash | store | iis | rdp | '
+                      'from | probe | connect | self-update')
+
+
+def policy_lines(pol):
+    out = []
+    for f in pol['files']:
+        out.append('allow file %s%s' % (wq(f['dir']), (' readers=%s' % wq(','.join(
+            f.get('readers') or []))) if f.get('readers') else ''))
+    for u, vs in sorted(pol['units'].items()):
+        out.append('allow service %s %s' % (u, ','.join(vs)))
+    for t in pol['tests']:
+        out.append('allow test -- %s' % ' '.join(wq(a) for a in t))
+    for s in pol['scripts']:
+        out.append('allow script %s sha256=%s' % (wq(s['path']), s['sha256']))
+    return out + ORIG['policy_lines'](dict(pol, files=[], units={}, tests=[], scripts=[]))
+
+
+def policy_facts():
+    return {'platform': 'windows', 'protected': protected_list(), 'parts': ['.ssh'],
+            'own': own_places(), 'verbs': list(WIN_VERBS), 'shells': list(WIN_SHELLS),
+            'exec_ext': list(EXEC_EXT), 'config_ok': [], 'head': POLICY_HEAD_WIN,
+            'limits': {'files': A.FILES_MOST, 'size': A.FILE_MOST, 'files_most': 200,
+                       'size_most': 64 * 1024 * 1024}}
+
+
+def policy_check(text, machine=False):
+    """acme-agent policy check / apply on Windows - the same errors and warnings."""
+    errors, warnings, entries = [], [], []
+    for n, raw in enumerate(str(text or '').splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        one = parse_policy(line)
+        if one['problems']:
+            errors.append({'line': n, 'code': 'unread',
+                           'words': one['problems'][0].split(': ', 1)[-1]})
+            continue
+        entries.append((n, one))
+    pol = parse_policy(text)
+    dirs = [f['dir'] for f in pol['files']]
+    seen_dirs, seen_scripts = {}, {}
+
+    def warn(n, code, words):
+        warnings.append({'line': n, 'code': code, 'words': words})
+
+    def inside(path):
+        return [d for d in dirs if _under(path, d) and path.lower() != d.lower()]
+    tops = [t for t in protected_list() + own_places() if '*' not in t]
+    for n, one in entries:
+        for f in one['files']:
+            d = f['dir']
+            why = protected(d)
+            if why:
+                errors.append({'line': n, 'code': 'protected', 'words': why.replace(
+                    ' - never written by a job', ' - no job ever writes there')})
+                continue
+            if d.lower() in seen_dirs:
+                warn(n, 'twice', 'files in %s are said twice (line %d too): only this line '
+                                 'counts' % (d, seen_dirs[d.lower()]))
+            seen_dirs[d.lower()] = n
+            under = [t for t in tops if _under(t, d) and t.lower() != d.lower()]
+            if re.fullmatch(r'[A-Za-z]:\\Users(\\[^\\]+)?', d, re.I):
+                under.append(d + '\\...\\AppData')
+            if under:
+                warn(n, 'above-protected', '%s holds places no job ever writes (%s%s): the rest '
+                     'of it is allowed - allow the narrowest folder that holds only certificates'
+                     % (d, ', '.join(under[:3]), ' …' if len(under) > 3 else ''))
+            if machine:
+                try:
+                    real = norm_dir(d, real=True)
+                except Refused:
+                    real = d
+                if real.lower() != d.lower():
+                    errors.append({'line': n, 'code': 'link', 'words': '%s is %s (a link on the '
+                                   'way) - write the real folder' % (d, real)})
+                for r in f.get('readers') or []:
+                    try:
+                        W.lookup_sid(r)
+                    except OSError:
+                        warn(n, 'no-owner', 'there is no account %s on this machine - a file of '
+                             'this folder is refused until there is' % r)
+        for argv in one['tests']:
+            if _shell_line(argv):
+                warn(n, 'shell', '%s runs what its command line says as SYSTEM - a fixed script '
+                     '(allow script) says what it runs' % ' '.join(wq(a) for a in argv[:3]))
+            for w in argv:
+                if re.match(r'[A-Za-z]:[\\/]', w):
+                    try:
+                        nw = norm_win(w)
+                    except Refused:
+                        continue
+                    if inside(nw):
+                        warn(n, 'runs-from', '%s is in a folder allowed for files (%s): the test '
+                             'runs it, so a job never writes it' % (w, inside(nw)[0]))
+        for s in one['scripts']:
+            k = s['path'].lower()
+            if k in seen_scripts:
+                warn(n, 'twice', 'the script %s is said twice (line %d too): only this line '
+                                 'counts' % (s['path'], seen_scripts[k]))
+            seen_scripts[k] = n
+            if inside(s['path']):
+                warn(n, 'runs-from', '%s is in a folder allowed for files (%s): the policy runs '
+                     'it, so a job never writes it' % (s['path'], inside(s['path'])[0]))
+            if machine:
+                try:
+                    h = A._sha(W.read_path(s['path']))
+                except OSError as e:
+                    errors.append({'line': n, 'code': 'script-missing', 'words': '%s cannot be '
+                                   'read here (%s) - acme-agent allow script pins a script that is '
+                                   'there' % (s['path'], e.strerror or e)})
+                    continue
+                if h != s['sha256']:
+                    errors.append({'line': n, 'code': 'script-hash', 'words': '%s is not the '
+                                   'script the line says: its SHA-256 here is %s' % (
+                                       s['path'], h)})
+        for c in one['connect']:
+            warn(n, 'connect', 'acme may reach %s through this server (a connector of SSH '
+                               'targets)' % c)
+    return {'pol': pol, 'lines': policy_lines(pol), 'errors': errors, 'warnings': warnings}
+
+
+def allow_file_words(d, owner, group, mode):
+    return 'acme-agent allow file %s' % wq(d)
+
+
+def owner_ids(user, group):
+    """readers= -> (AclId of their SIDs, None) - or (None, None): the folder's ACL inherited."""
+    names = [x.strip() for x in str(user or '').split(',') if x.strip()]
+    if not names:
+        return None, None
+    sids = []
+    for n in names:
+        try:
+            sids.append(W.lookup_sid(n))
+        except OSError:
+            raise Refused('there is no account %s on this machine' % n)
+    return AclId(sorted(set(sids))), None
+
+
+def qw(word):
+    return wq(word)
+
+
+def op_words(op):
+    if 'any' in op:
+        return ' || '.join(op_words(a) for a in op['any']) or '(nothing allowed)'
+    if 'unit' in op:
+        return {'restart': 'Restart-Service %s', 'start': 'Start-Service %s',
+                'try-restart': 'Restart-Service %s (when it runs)'}.get(
+                    op['verb'], op['verb'] + ' %s') % op['unit']
+    if 'argv' in op:
+        return ' '.join(wq(a) for a in op['argv'])
+    if 'script' in op:
+        return ' '.join([wq(op['script'])] + [wq(a) for a in op.get('args') or []])
+    return '?'
+
+
+def policy_words(words):
+    """The words of `allow ...` as a line of the policy (a folder's real path, a script
+    pinned, each reader an account of this machine)."""
+    usage = 'acme-agent allow file|service|test|script|script-hash|store|iis|rdp|from|probe|' \
+            'connect|self-update'
+    if not words:
+        raise SystemExit(usage)
+    what, rest = words[0], words[1:]
+    try:
+        if what == 'file':
+            if not rest:
+                raise SystemExit('acme-agent allow file C:\\FOLDER [--readers ACCOUNT,ACCOUNT]')
+            if '--owner' in rest or '--mode' in rest:
+                raise SystemExit('acme-agent: --owner and --mode are not for Windows: a file '
+                                 'gets its folder\'s permissions, or with --readers ACCOUNT,... '
+                                 'only SYSTEM, the Administrators and those accounts may read it')
+            readers = ''
+            if '--readers' in rest:
+                i = rest.index('--readers')
+                if i + 1 >= len(rest):
+                    raise SystemExit('acme-agent allow file C:\\FOLDER --readers ACCOUNT,ACCOUNT')
+                readers = rest[i + 1]
+                rest = rest[:i] + rest[i + 2:]
+            if len(rest) != 1:
+                raise SystemExit('acme-agent allow file C:\\FOLDER [--readers ACCOUNT,ACCOUNT]')
+            d = norm_dir(rest[0], real=False)
+            real = norm_dir(d, real=True)
+            if real.lower() != d.lower():
+                print('note: %s is %s - that is what is allowed' % (d, real))
+            for r in _readers(readers):
+                try:
+                    W.lookup_sid(r)
+                except OSError:
+                    raise SystemExit('acme-agent: there is no account %s on this machine' % r)
+            return 'allow file %s%s' % (wq(real), (' readers=%s' % wq(','.join(
+                _readers(readers)))) if readers else '')
+        if what in ('service', 'unit'):
+            if len(rest) != 2:
+                raise SystemExit('acme-agent allow service NAME restart,try-restart,start')
+            return 'allow service %s %s' % (rest[0], rest[1])
+        if what == 'test':
+            if rest[:1] == ['--']:
+                rest = rest[1:]
+            if not rest:
+                raise SystemExit('acme-agent allow test -- C:\\PROGRAM.exe ARGS...')
+            return 'allow test -- %s' % ' '.join(wq(a) for a in rest)
+        if what == 'script':
+            if len(rest) != 1:
+                raise SystemExit('acme-agent allow script C:\\PATH\\OF\\SCRIPT.ps1')
+            p = norm_dir(rest[0], real=False)
+            try:
+                h = A._sha(W.read_path(p))
+            except OSError as e:
+                raise SystemExit('acme-agent: %s cannot be read: %s' % (p, e))
+            return 'allow script %s sha256=%s' % (wq(p), h)
+        if what in ('store', 'rdp'):
+            return 'allow %s' % what
+        if what == 'iis':
+            if len(rest) != 1:
+                raise SystemExit('acme-agent allow iis SITE (its name as IIS says it) | '
+                                 'allow iis *')
+            return 'allow iis %s' % wq(rest[0])
+    except Refused as e:
+        raise SystemExit('acme-agent: %s' % e)
+    return ORIG['policy_words'](words)
+
+
+def policy_edit(add, words):
+    rc = ORIG['policy_edit'](add, words)
+    if words[:1] == ['from']:
+        firewall_sync()
+    return rc
+
+
+def policy_apply(text):
+    rc = ORIG['policy_apply'](text)
+    if rc == 0:
+        firewall_sync()
+    return rc
+
+
+# ---- a file only the machine's administrators may change ---------------------------------------
+def trusted_text(path, what):
+    """(the text of a file only SYSTEM, the Administrators or TrustedInstaller may change, or
+    None when it is not there; the problem or '') - opened without following a reparse point,
+    its security descriptor read on the open file, its folder's checked too."""
+    try:
+        data, sddl, dsddl, kind = W.read_checked(path, A.POLICY_MOST)
+    except OSError as e:
+        return None, '%s cannot be read (%s) - %s' % (path, e, what)
+    if kind == 'missing':
+        return None, ''
+    if kind == 'link':
+        return None, '%s is a symbolic link or a junction (a reparse point) - %s' % (path, what)
+    if kind != 'file':
+        return None, '%s is not a plain file - %s' % (path, what)
+    why = sd_problem(parse_sddl(sddl) if sddl else None)
+    if why:
+        return None, '%s may be changed by somebody else than SYSTEM and the Administrators ' \
+                     '(%s) - %s' % (path, why, what)
+    why = sd_problem(parse_sddl(dsddl) if dsddl else None)
+    if why:
+        return None, 'the folder of %s may be changed by somebody else than SYSTEM and the ' \
+                     'Administrators (%s) - %s' % (path, why, what)
+    if len(data) > A.POLICY_MOST:
+        return None, '%s is bigger than %d bytes - %s' % (path, A.POLICY_MOST, what)
+    return data.decode('utf-8', 'replace'), ''
+
+
+def _write(path, data, mode=0o600, owner=None):
+    """A file of the agent's own written atomically: a new file beside it (it inherits its
+    folder's ACL), synced, renamed over; owned by the Administrators (a file of the policy's
+    and the pins' is trusted only so)."""
+    if isinstance(data, str):
+        data = data.encode('utf-8')
+    d = os.path.dirname(path)
+    fd, tmp = tempfile.mkstemp(prefix='.acme-', dir=d)
+    try:
+        with os.fdopen(fd, 'wb') as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    w = W.winpath(path)
+    if w and W.is_admin():
+        try:
+            W.set_owner(w, ADMINS)
+        except OSError:
+            pass
+
+
+def audit(**kw):
+    """Every operation, refusals too: the Application event log (source acme-agent) and the
+    root side's own log - names, paths, hashes and results only, never what a file holds."""
+    kw['ts'] = round(time.time(), 3)
+    line = json.dumps(kw, sort_keys=True)[:4000]
+    try:
+        W.event(kw.get('ok', True), line)
+    except Exception:                                   # noqa: BLE001
+        pass
+    try:
+        if os.path.isdir(A.ROOT_STATE) or W.is_admin():
+            os.makedirs(A.ROOT_STATE, exist_ok=True)
+            with open(os.path.join(A.ROOT_STATE, 'audit.log'), 'a', encoding='utf-8') as f:
+                f.write(line + '\n')
+    except OSError:
+        pass
+
+
+# ---- files in the policy's folders: through W ------------------------------------------------
+def open_dir(path, make_from=None):
+    try:
+        return W.open_dir(path, make_from)
+    except WinFail as e:
+        raise Refused('%s cannot be opened: %s' % (path, e))
+
+
+def dir_close(dfd):
+    W.close(dfd)
+
+
+def unlink_at(dfd, name):
+    W.delete(dfd, name)
+
+
+def subdir_at(dfd, name, make=False):
+    return W.open_sub(dfd, name, make)
+
+
+def dup_dir(dfd):
+    return W.dup(dfd)
+
+
+def read_at(dfd, name, most):
+    try:
+        return W.read_file(dfd, name, most)
+    except WinFail as e:
+        raise Refused('%s cannot be read: %s' % (name, e))
+
+
+def write_at(dfd, name, data, mode, uid, gid):
+    """The file put in place: written under a random name in the same folder (CREATE_NEW, its
+    ACL from the start: inherited, the copy's, or readers=), flushed, moved over the old one
+    (MoveFileExW, replace, write-through). `uid` carries the ACL (owner_ids); mode and gid mean
+    nothing here."""
+    if ntpath.splitext(name)[1].lower() in EXEC_EXT:
+        raise Refused('%s: acme-agent never writes a file Windows runs or loads' % name)
+    tmp = '.acme-new.%s' % secrets.token_hex(8)
+    W.write_new(dfd, tmp, data, uid)
+    try:
+        W.rename(dfd, tmp, name)
+    except BaseException:
+        try:
+            W.delete(dfd, tmp)
+        except OSError:
+            pass
+        raise
+
+
+def prune_backups(dfd, name, keep):
+    if not keep:
+        return 0
+    rx = re.compile(re.escape(name) + r'\.\d{4}[\d-]*\.bak\Z', re.I)
+    got = []
+    for n in W.listdir(dfd):
+        if rx.match(n):
+            st = W.stat(dfd, n)
+            if st is not None and st.is_file:
+                got.append((st.st_mtime, n))
+    got.sort(reverse=True)
+    n = 0
+    for _t, old in got[keep:]:
+        try:
+            W.delete(dfd, old)
+            n += 1
+        except OSError:
+            pass
+    return n
+
+
+def install_files(here, files, names):
+    for name in names:
+        tmp = os.path.join(here, '.%s.new' % name)
+        with open(tmp, 'wb') as f:
+            f.write(files[name])
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, os.path.join(here, name))
+
+
+# ---- openssl: never /dev/stdin ------------------------------------------------------------------
+def _stage_file(data):
+    """A file in root's stage folder (SYSTEM and the Administrators only), made new."""
+    stage = os.path.join(A.ROOT_STATE, 'stage')
+    os.makedirs(stage, exist_ok=True)
+    fn = os.path.join(stage, 'k-%s.pem' % secrets.token_hex(8))
+    with open(fn, 'xb') as f:
+        f.write(data.encode() if isinstance(data, str) else data)
+    return fn
+
+
+def make_key_csr(key_pem, names):
+    pairs = A.check_names(names)
+    san = ','.join('%s:%s' % p for p in pairs)
+    fn = _stage_file(key_pem)
+    try:
+        return A._openssl(['req', '-new', '-key', fn, '-subj', '/CN=%s' % pairs[0][1],
+                           '-addext', 'subjectAltName=%s' % san])
+    finally:
+        os.unlink(fn)
+
+
+def make_csr(key):
+    return A._openssl(['req', '-new', '-key', key, '-subj', '/CN=acme-agent'])
+
+
+def self_signed(key):
+    return A._openssl(['req', '-new', '-x509', '-days', '2', '-key', key, '-subj',
+                       '/CN=acme-agent-joining'])
+
+
+def _base_env():
+    sr = W.system_root()
+    return {'SystemRoot': sr, 'windir': sr, 'SystemDrive': W.system_drive(),
+            'PATH': ';'.join([ntpath.join(sr, 'System32'), sr, ntpath.join(sr, 'System32', 'Wbem'),
+                              ntpath.join(sr, 'System32', 'WindowsPowerShell', 'v1.0')]),
+            'PATHEXT': '.COM;.EXE', 'ProgramData': W.program_data(),
+            'ProgramFiles': W.program_files(), 'COMPUTERNAME': socket.gethostname()[:63],
+            **{k: os.environ[k] for k in ('OPENSSL_CONF', 'OPENSSL_MODULES')
+               if os.environ.get(k)}}
+
+
+def _p12_env(password):
+    return dict(_base_env(), ACME_AGENT_P12=password or '')
+
+
+def _probe_env():
+    return _base_env()
+
+
+def reuse_addr(ls):
+    """Windows: the passive port held exclusively (SO_REUSEADDR there lets another process take
+    it over)."""
+    opt = getattr(socket, 'SO_EXCLUSIVEADDRUSE', None)
+    if opt is not None:
+        ls.setsockopt(socket.SOL_SOCKET, opt, 1)
+    else:
+        ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+
+def _os_name():
+    try:
+        return W.os_name()
+    except Exception:                                   # noqa: BLE001
+        return 'Windows'
+
+
+# ---- the deployment's commands: services, CreateProcess, PowerShell ---------------------------
+def deploy_env(self, env):
+    out = _base_env()
+    stage = os.path.join(A.ROOT_STATE, 'stage')
+    out.update({'TEMP': stage, 'TMP': stage,
+                'USERPROFILE': ntpath.join(W.system_root(), 'System32', 'config',
+                                           'systemprofile')})
+    out.update(env)
+    return out
+
+
+def deploy_run_argv(self, argv, env, timeout=None):
+    timeout = timeout or A.CMD_TIMEOUT
+    if _bad_argv0(argv):
+        return 126, '%s is a batch file - cmd.exe would read its arguments as commands; ' \
+                    'acme-agent never runs one' % argv[0]
+    try:
+        rc, out, err = W.run(argv, self._env(env), ntpath.join(W.system_root(), 'System32'),
+                             timeout)
+    except FileNotFoundError:
+        return 127, '%s is not on this machine' % argv[0]
+    except subprocess.TimeoutExpired:
+        return 124, 'it did not end in %d s' % timeout
+    except OSError as e:
+        return 126, str(e)
+    said = ((out or b'').decode('utf-8', 'replace').rstrip() + '\n' +
+            (err or b'').decode('utf-8', 'replace').rstrip()).strip()
+    return rc, said[-A.OUT_MOST:]
+
+
+def deploy_unit_verb(self, op):
+    """Restart-Service (restart), only when it runs (try-restart), Start-Service (start) - then
+    the state it is in."""
+    name, verb = op['unit'], op['verb']
+    try:
+        st = W.service_state(name)
+        if st is None:
+            return 1, 'there is no service %s here' % name
+        if verb == 'try-restart' and st != 'Running':
+            return 0, 'is %s - not running, left as it is' % st
+        if verb == 'start':
+            if st != 'Running':
+                W.service_start(name)
+        else:
+            W.service_restart(name)
+        st = W.service_state(name)
+    except OSError as e:
+        return 1, str(e)
+    return (0 if st == 'Running' else 1), 'is %s' % st
+
+
+def deploy_run_file(self, path, args, env, body):
+    """A PowerShell script: its bytes checked against the policy's hash when it runs, run from
+    a copy root keeps (powershell.exe -File COPY)."""
+    pol, _h, _t = A.policy_load()
+    if body is None:
+        rule = next((s for s in pol['scripts'] if s['path'].lower() == path.lower()), None)
+        if rule is None:
+            return 126, 'the script is not allowed by the policy'
+        d, name = split_path(path)
+        try:
+            dfd = A.open_dir(d)
+        except Refused as e:
+            return 126, str(e)
+        try:
+            data, _st = A.read_at(dfd, name, A.SCRIPT_MOST * 16)
+        except Refused as e:
+            return 126, str(e)
+        finally:
+            A.dir_close(dfd)
+        if data is None:
+            return 127, '%s is not there' % path
+        import hmac
+        if not hmac.compare_digest(A._sha(data), rule['sha256']):
+            return 126, ('%s is not the script the policy allows (its SHA-256 changed) - '
+                         'acme-agent allow script %s again once it is checked' % (path, path))
+    else:
+        if body.get('interp') != 'powershell':
+            return 126, 'a script written in acme runs in PowerShell here'
+        data = body['data']
+    stage = os.path.join(A.ROOT_STATE, 'stage')
+    os.makedirs(stage, exist_ok=True)
+    fn = os.path.join(stage, 'script-%s.ps1' % secrets.token_hex(8))
+    try:
+        with open(fn, 'xb') as f:
+            f.write(data)
+        argv = [W.powershell(), '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy',
+                'Bypass', '-File', fn] + list(args)
+        return self.run_argv(argv, env, A.SCRIPT_TIMEOUT)
+    finally:
+        try:
+            os.unlink(fn)
+        except OSError:
+            pass
+
+
+# ---- the services -----------------------------------------------------------------------------
+def _no_services():
+    return bool(os.environ.get('ACME_AGENT_NO_SYSTEMD') or os.environ.get('ACME_AGENT_NO_SERVICES'))
+
+
+def restart_both():
+    """The network side stopped, the root side restarted, the network side started."""
+    for step, name in (('stop', SERVICE), ('restart', ROOT_SERVICE), ('start', SERVICE)):
+        try:
+            if W.service_state(name) is None:
+                continue
+            getattr(W, 'service_' + step)(name)
+        except OSError as e:
+            A.audit(op='service', ok=False, said='%s %s: %s' % (step, name, str(e)[:200]))
+
+
+def restart_services():
+    firewall_sync()
+    if _no_services():
+        return
+    restart_both()
+
+
+def restart_later(delay=2.0):
+    """Both services started again after an update - by a process of its own (the root side
+    cannot restart itself and see it through)."""
+    if _no_services():
+        return False
+    W.spawn_detached([sys.executable, '-I', '-B', os.path.join(A.lib_dir(), 'acme_agent.py'),
+                      'winservice', 'restart'])
+    return True
+
+
+def firewall_sync():
+    """The passive port's inbound rule as the join and `allow from` say - none when the agent
+    is not passive (or not joined)."""
+    try:
+        c = A._json(A.CONF, {})
+        pins = A._json(os.path.join(A.ROOT_STATE, 'join-pins.json'), {})
+        c = c if isinstance(c, dict) else {}
+        pins = pins if isinstance(pins, dict) else {}
+        mode = c.get('mode') or pins.get('m')
+        port = int(c.get('port') or pins.get('p') or A.PASSIVE_PORT)
+        if mode == 'passive' and (c.get('agent_id') or pins.get('ca')):
+            pol = A.policy_load()[0]
+            W.firewall_set(port, pol['from'], sys.executable)
+        else:
+            W.firewall_remove()
+        return True
+    except Exception as e:                              # noqa: BLE001
+        try:
+            A.audit(op='firewall', ok=False, said=str(e)[:300])
+        except Exception:                               # noqa: BLE001
+            pass
+        return False
+
+
+def need_root(words):
+    if W.is_admin():
+        return
+    w = str(words)
+    if 'the policy is root' in w:
+        w = 'acme-agent: the policy is the Administrators\''
+    else:
+        w = w.replace(' runs as root', ' needs administrator rights')
+        w = re.sub(r':.*\Z', '', w)
+    raise SystemExit('%s - run it in an elevated prompt (Run as administrator)' % w)
+
+
+def agent_ids():
+    sid = W.service_sid(SERVICE) if hasattr(W, 'service_sid') else service_sid(SERVICE)
+    return sid, sid
+
+
+def make_places(ids=None):
+    """C:\\ProgramData\\acme-agent and its three folders, each with its DACL (protected):
+    etc - SYSTEM, the Administrators full, Users and the network side read; root - SYSTEM and
+    the Administrators only; net - ...and the network side's account modify."""
+    svc = service_sid(SERVICE)
+    base = base_dir()
+    if os.path.dirname(A.ETC) == base:
+        os.makedirs(base, exist_ok=True)
+        _acl(base, [(SYSTEM, 'F'), (ADMINS, 'F'), (USERS, 'RX')])
+    for d, aces in ((A.ETC, [(SYSTEM, 'F'), (ADMINS, 'F'), (USERS, 'RX'), (svc, 'RX')]),
+                    (A.STATE, [(SYSTEM, 'F'), (ADMINS, 'F'), (svc, 'M')]),
+                    (A.ROOT_STATE, [(SYSTEM, 'F'), (ADMINS, 'F')])):
+        os.makedirs(d, exist_ok=True)
+        _acl(d, aces)
+
+
+def _acl(local, aces):
+    w = W.winpath(local)
+    if w:
+        W.set_sd(w, sddl_for(aces, folder=True, owner=ADMINS))
+
+
+def cmd_init():
+    """The folders (their DACLs) and an empty policy: nothing allowed."""
+    need_root('acme-agent init runs as root')
+    make_places()
+    text, problem = trusted_text(A.POLICY, 'it is written again')
+    if text is None and not problem:
+        _write(A.POLICY, POLICY_HEAD_WIN)
+    elif problem:
+        # a policy somebody else may change: written again (its folder's ACL, the
+        # Administrators' own) - what it says kept
+        try:
+            with open(A.POLICY, 'rb') as f:
+                old = f.read(A.POLICY_MOST + 1)
+        except OSError:
+            old = POLICY_HEAD_WIN.encode()
+        w = W.winpath(A.POLICY)
+        if w:
+            W.set_sd(w, 'O:BAD:')                   # its own ACEs gone: the folder's inherited
+        _write(A.POLICY, old)
+    return 0
+
+
+def status_facts():
+    out = ORIG['status_facts']()
+    out['platform'] = 'windows'
+    svc = {}
+    for n in (ROOT_SERVICE, SERVICE):
+        try:
+            svc[n] = W.service_state(n) or 'not installed'
+        except OSError as e:
+            svc[n] = str(e)[:80]
+    out['services'] = svc
+    return out
+
+
+# ---- the two sides ----------------------------------------------------------------------------
+def pipe_sddl():
+    """The pipe's DACL: SYSTEM and the Administrators, the network side's service (read and
+    write) - nobody else even opens it; nobody from another machine (the pipe refuses them)."""
+    # 0x12008b: read, write data, attributes, READ_CONTROL, SYNCHRONIZE - never
+    # FILE_CREATE_PIPE_INSTANCE: only the root side serves this pipe
+    return 'D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x12008b;;;%s)' % service_sid(SERVICE)
+
+
+def peer_ok(who):
+    """The root side's check of the account at the other end of the pipe: SYSTEM, the network
+    side's service, or an elevated administrator (uid 0 / uid acme-agent on Linux)."""
+    if not isinstance(who, dict):
+        return False
+    if who.get('sid') in (SYSTEM, service_sid(SERVICE)):
+        return True
+    return bool(who.get('admin') and who.get('elevated'))
+
+
+def serve_root():
+    """The root side (the service acme-agent-root, LocalSystem): the named pipe, for the network
+    side alone (its account checked) - never the network."""
+    if not W.is_admin():
+        raise SystemExit('acme-agent root runs as LocalSystem (the service %s)' % ROOT_SERVICE)
+    root = A.Root()
+    firewall_sync()
+    srv = W.pipe_server(PIPE, pipe_sddl())
+    room = threading.BoundedSemaphore(A.ROOT_THREADS)
+    stop = {'now': False}
+
+    def bye(*_):
+        stop['now'] = True
+        srv.close()
+    STOPPERS.append(bye)
+    if not UNDER_HOST['on'] and _in_main_thread():
+        import signal
+        signal.signal(signal.SIGTERM, bye)
+        signal.signal(signal.SIGINT, bye)
+    A.audit(op='start', ok=True, said='acme-agent %s (root side)' % A.VERSION)
+
+    def one(conn):
+        try:
+            try:
+                who = conn.peer()
+            except OSError as e:
+                A.audit(op='refused', ok=False, said='a connection whose account cannot be read '
+                        '(%s)' % str(e)[:100])
+                return
+            if not peer_ok(who):
+                A.audit(op='refused', ok=False, said='a connection of %s' % who.get('sid'))
+                return
+            conn.settimeout(900)
+            while True:
+                try:
+                    msg = A._recv(conn)
+                except (EOFError, OSError, ValueError):
+                    return
+                if not isinstance(msg, dict):
+                    return
+                A._send(conn, root.handle(msg, who.get('sid')))
+        finally:
+            conn.close()
+            room.release()
+    while not stop['now']:
+        try:
+            conn = srv.accept()
+        except OSError:
+            break
+        if stop['now']:
+            conn.close()
+            break
+        if not room.acquire(timeout=30):
+            conn.close()
+            continue
+        threading.Thread(target=one, args=(conn,), daemon=True).start()
+    if root.work.acquire(timeout=300):
+        root.work.release()
+    return 0
+
+
+class RootLink(object):
+    """The network side's way to root: the named pipe, one request at a time."""
+
+    def __init__(self, path=None):
+        self.path = path or PIPE
+
+    def ask(self, msg, timeout=900):
+        try:
+            conn = W.pipe_connect(self.path, timeout)
+        except OSError as e:
+            return {'ok': False, 'said': 'the root side of the agent does not answer (%s) - '
+                                         'Get-Service %s' % (e, ROOT_SERVICE)}
+        try:
+            A._send(conn, msg)
+            return A._recv(conn)
+        except (OSError, EOFError, ValueError) as e:
+            return {'ok': False, 'said': 'the root side of the agent does not answer (%s) - '
+                                         'Get-Service %s' % (e, ROOT_SERVICE)}
+        finally:
+            conn.close()
+
+
+def serve_net():
+    """The network side (the service acme-agent, NT SERVICE\\acme-agent): never SYSTEM, never
+    an administrator."""
+    sid = W.current_sid()
+    if sid == SYSTEM or W.is_admin():
+        raise SystemExit('acme-agent serve runs as %s (the service %s), never as SYSTEM or an '
+                         'administrator' % (ACCOUNT, SERVICE))
+    tmp = os.path.join(A.STATE, 'tmp')
+    try:
+        os.makedirs(tmp, exist_ok=True)
+        tempfile.tempdir = tmp
+    except OSError:
+        pass
+    net = A.Net()
+
+    def bye(*_):
+        net.stopping = True
+        for s in list(SERVERS):
+            threading.Thread(target=s.shutdown, daemon=True).start()
+    STOPPERS.append(bye)
+    if not UNDER_HOST['on'] and _in_main_thread():
+        import signal
+
+        def bye_exit(*_):
+            bye()
+            raise SystemExit(0)
+        signal.signal(signal.SIGTERM, bye_exit)
+        signal.signal(signal.SIGINT, bye_exit)
+    return A.net_loop(net)
+
+
+def _serve_forever(self, poll_interval=0.5):
+    SERVERS.append(self)
+    try:
+        return ORIG['serve_forever'](self, poll_interval)
+    finally:
+        if self in SERVERS:
+            SERVERS.remove(self)
+
+
+# ---- the command line: windows-install, windows-uninstall, winservice ---------------------------
+def service_specs():
+    py = sys.executable
+    prog = os.path.join(A.lib_dir(), 'acme_agent.py')
+    line = '"%s" -I -B "%s" winservice %%s' % (py, prog)
+    return [{'name': ROOT_SERVICE, 'display': 'acme-agent (root side)',
+             'description': 'acme-agent: takes certificates from acme as the local policy '
+                            'allows - the side that writes them (never the network).',
+             'cmdline': line % 'root', 'account': None, 'depends': [],
+             'sid_type': 'unrestricted', 'privileges': None, 'delayed': False,
+             'restart_ms': 5000},
+            {'name': SERVICE, 'display': 'acme-agent (network side)',
+             'description': 'acme-agent: the TLS channel to acme (no privileges) - what it is '
+                            'asked goes to acme-agent-root.',
+             'cmdline': line % 'serve', 'account': ACCOUNT, 'depends': [ROOT_SERVICE],
+             'sid_type': 'restricted', 'privileges': ['SeChangeNotifyPrivilege'],
+             'delayed': True, 'restart_ms': 5000}]
+
+
+def windows_install(argv):
+    """The MSI's install (and upgrade): folders and DACLs, an empty policy, the event source,
+    the services made or set again and started, the program on the system PATH; a join code
+    given: the join started (the services finish it - nothing needs the network now)."""
+    need_root('acme-agent windows-install runs as root')
+    code = ''
+    if '--join' in argv:
+        i = argv.index('--join')
+        code = (argv[i + 1] if i + 1 < len(argv) else '').strip()
+        if not code:
+            raise SystemExit('acme-agent windows-install [--join CODE]')
+    cmd_init()
+    W.event_source_add()
+    for spec in service_specs():
+        W.service_install(spec)
+    W.path_add(program_dir())
+    A.audit(op='install', ok=True, said='acme-agent %s installed (Windows)' % A.VERSION)
+    print('acme-agent %s is installed. Nothing is allowed yet: acme-agent policy show' % A.VERSION)
+    if code:
+        try:
+            return_code = A.cmd_join([code, '--no-wait'])
+            if return_code:
+                print('acme-agent: the join did not start (%s)' % return_code)
+            return 0
+        except SystemExit as e:
+            said = str(e.code if e.code is not None else '')
+            print('acme-agent: the join code was not taken: %s - run `acme-agent join CODE` in '
+                  'an elevated prompt' % said)
+            A.audit(op='join', ok=False, said=('at the install: %s' % said)[:300])
+            A.status_write(state='refused', said='the join code given at the install was not '
+                           'taken: %s' % said[:200])
+    restart_services()
+    if not code:
+        print('next: acme-agent join CODE (the code is made on the target\'s card in acme)')
+    return 0
+
+
+def windows_uninstall(argv):
+    """The MSI's uninstall: the services stopped and taken away, the firewall rule, the PATH
+    entry, the event source; C:\\ProgramData\\acme-agent stays (the policy, the identity) unless
+    --purge."""
+    need_root('acme-agent windows-uninstall runs as root')
+    if '--upgrade' in argv:
+        # a newer MSI takes this one's place: only the services stopped (their files are
+        # replaced) - identity, policy, firewall rule, PATH and event source stay; the new
+        # MSI's windows-install sets them again and starts the services
+        for n in (SERVICE, ROOT_SERVICE):
+            try:
+                if W.service_state(n) not in (None, 'Stopped'):
+                    W.service_stop(n)
+            except OSError as e:
+                print('acme-agent: the service %s did not stop: %s' % (n, e))
+        A.audit(op='uninstall', ok=True, said='stopped for an upgrade')
+        return 0
+    for n in (SERVICE, ROOT_SERVICE):
+        try:
+            if W.service_state(n) not in (None, 'Stopped'):
+                W.service_stop(n)
+        except OSError:
+            pass
+        try:
+            W.service_delete(n)
+        except OSError as e:
+            print('acme-agent: the service %s could not be taken away: %s' % (n, e))
+    W.firewall_remove()
+    W.path_remove(program_dir())
+    A.audit(op='uninstall', ok=True, said='acme-agent taken away%s' % (
+        ' with its policy' if '--purge' in argv else ''))
+    W.event_source_remove()
+    if '--purge' in argv:
+        for d in (A.ETC, A.STATE, A.ROOT_STATE):
+            shutil.rmtree(d, ignore_errors=True)
+        b = base_dir()
+        if os.path.isdir(b) and not os.listdir(b):
+            os.rmdir(b)
+        print('acme-agent taken away, its policy too')
+    else:
+        print('acme-agent taken away; its policy stays in %s (--purge takes it too)' % A.ETC)
+    return 0
+
+
+def winservice(argv):
+    which = (argv or [''])[0]
+    if which == 'root':
+        UNDER_HOST['on'] = True
+        return W.service_host(ROOT_SERVICE, A.serve_root, stop_all)
+    if which == 'serve':
+        UNDER_HOST['on'] = True
+        return W.service_host(SERVICE, A.serve_net, stop_all)
+    if which == 'restart':
+        time.sleep(2)
+        restart_both()
+        return 0
+    raise SystemExit('acme-agent winservice root|serve')
+
+
+def main(argv):
+    cmd = (argv or [''])[0]
+    if cmd == 'windows-install':
+        return windows_install(argv[1:])
+    if cmd == 'windows-uninstall':
+        return windows_uninstall(argv[1:])
+    if cmd == 'winservice':
+        return winservice(argv[1:])
+    return ORIG['main'](argv)
+
+
+# ---- install(): all of the above put in place of acme_agent.py's own ----------------------------
+REPLACED = ('norm_dir', 'norm_unit', 'protected', 'runs_from', 'trusted_text', 'parse_policy',
+            '_policy_line', 'policy_lines', 'own_places', 'policy_facts', '_shell_line',
+            'policy_check', 'policy_apply', 'allow_file_words', 'file_rule', 'owner_ids', 'qw',
+            'split_path', 'dir_close', 'unlink_at', 'subdir_at', 'dup_dir', 'open_dir',
+            'read_at', 'write_at', 'prune_backups', 'make_key_csr', 'make_csr', 'self_signed',
+            '_p12_env', '_probe_env', 'install_files', 'restart_later', '_os_name', 'op_words',
+            'agent_ids', 'serve_root', 'RootLink', 'serve_net', 'reuse_addr', 'need_root',
+            'make_places', 'cmd_init', 'restart_services', 'policy_edit', 'policy_words',
+            'status_facts', 'main', '_write', 'audit', '_under')
+
+
+def install(g):
+    """acme_agent.py's POSIX parts replaced by the Windows ones (its globals `g`)."""
+    global A, Refused
+    A = _View(g)
+    Refused = g['Refused']
+    here = globals()
+    for name in REPLACED:
+        if name in g and name not in ORIG:
+            ORIG[name] = g[name]
+    ORIG['serve_forever'] = g['PassiveServer'].serve_forever
+    lib = os.path.dirname(os.path.realpath(g['__file__']))
+    base = base_dir()
+    etc = os.environ.get('ACME_AGENT_ETC') or os.path.join(base, 'etc')
+    g.update(PLATFORM='windows', WINDOWS=True, UNIT_WORD='service', STDIN_IN=[],
+             VERBS=WIN_VERBS, INTERPS={'powershell': W.powershell()}, SHELLS=WIN_SHELLS,
+             PROTECTED=tuple(protected_list()), PROTECTED_PARTS=('.ssh',), CONFIG_OK=(),
+             POLICY_HEAD=POLICY_HEAD_WIN, ETC=etc,
+             STATE=os.environ.get('ACME_AGENT_STATE') or os.path.join(base, 'net'),
+             ROOT_STATE=os.environ.get('ACME_AGENT_ROOT_STATE') or os.path.join(base, 'root'),
+             RUN=os.environ.get('ACME_AGENT_RUN') or base, USER=ACCOUNT,
+             POLICY=os.path.join(etc, 'policy'), CONF=os.path.join(etc, 'agent.json'),
+             CA_FILE=os.path.join(etc, 'ca.pem'), SOCK=PIPE,
+             OPENSSL=os.environ.get('ACME_AGENT_OPENSSL') or W.openssl_default(lib),
+             WIN=here, W=W, __doc__=WIN_DOC)
+    for name in REPLACED:
+        if name in here:
+            g[name] = here[name]
+    if not W.fake and not os.environ.get('ACME_AGENT_OPENSSL'):
+        # the bundled openssl.exe: its configuration and providers beside it (the build's own
+        # folders are of the machine it was built on)
+        ossl = os.path.join(lib, 'openssl')
+        if os.path.isdir(ossl):
+            os.environ.setdefault('OPENSSL_CONF', os.path.join(ossl, 'openssl.cnf'))
+            os.environ.setdefault('OPENSSL_MODULES', ossl)
+    g['Deploy']._env = deploy_env
+    g['Deploy'].run_argv = deploy_run_argv
+    g['Deploy'].unit_verb = deploy_unit_verb
+    g['Deploy']._run_file = deploy_run_file
+    g['PassiveServer'].serve_forever = _serve_forever
+    return g
