@@ -245,7 +245,15 @@ function portalApp(me) {
   drawLangPick();
   dressButtons(document);
   $('signout').onclick = function () { portalSignOut(!!(ME && ME.sso)); };
-  if ($('mebtn')) $('mebtn').onclick = aboutMe;
+  if ($('mebtn')) {
+    $('mebtn').onclick = aboutMe;
+    /* the person's initials in a circle before their name (1.0.125) */
+    var who = String(ME.display || ME.name || '?').replace(/^[^:]*:/, '');
+    var ini = who.split(/[\s._@-]+/).filter(Boolean).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('') || '?';
+    var av = noI18n(el('span', 'pt-avatar', ini));
+    av.setAttribute('aria-hidden', 'true');
+    $('mebtn').insertBefore(av, $('mebtn').firstChild);
+  }
   /* After every script has run, so the parts plugged in are there. */
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', drawPortal);
   else drawPortal();
@@ -354,7 +362,10 @@ function drawPortal() {
     first.focus();
     return;
   }
-  var card = el('div', 'card');
+  /* Who is signed in, said once at the top - the team workspace (portal-teams.js) takes the
+     page over in its place (1.0.125). */
+  var card = el('div', 'card pt-hello');
+  card.id = 'pt-hello';
   card.appendChild(stateCard('ok', 'You are signed in', (ME.display || ME.name)
     + ' · the certificates this portal offers you are below.'));
   host.appendChild(card);

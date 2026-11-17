@@ -247,7 +247,11 @@ function query() {
 }
 function load() {
   clearTimeout(CP.timer);
-  if (!CP.host || !CP.host.isConnected) return Promise.resolve(null);
+  /* the workspace shows something else now: it is told something changed */
+  if (!CP.host || !CP.host.isConnected) {
+    if (CP.ctx && CP.ctx.changed) CP.ctx.changed();
+    return Promise.resolve(null);
+  }
   return apiLatest('cp-certs', query()).then(function (d) {
     CP.d = d;
     draw(d);
