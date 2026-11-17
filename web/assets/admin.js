@@ -2069,9 +2069,25 @@ $('ctl-find').addEventListener('input', function () {
   var tr = function (x) {
     try { return (typeof i18nText === 'function' && x) ? (i18nText(x) || '') : ''; } catch (e) { return ''; }
   };
+  /* Where a setting is shown (its pane, or the card of its own on another pane's page). */
+  var paneOf = function (s) {
+    var pane = Object.keys(SETTINGS.panes).filter(function (p) { return SETTINGS.panes[p].indexOf(s.key) >= 0; })[0];
+    /* A card of its own on another pane's page (otp 1.0.239): signed in by the balancer is on the enrolment pages'. */
+    return SET_PANE_HOME[pane] || pane;
+  };
+  /* Only what this account can open (1.0.124): read only, a setting of a pane - or a card - shown
+     to a full administrator alone was found, and choosing it opened the first pane instead. */
+  var mayOpen = function (s) {
+    var pane = paneOf(s);
+    var nb = document.querySelector('.ctl-nav [data-pane="' + (pane || 'about') + '"]');
+    if (nb && nb.hidden) return false;
+    var item = document.querySelector('.set-item[data-key="' + s.key + '"]');
+    var only = item && item.closest('.fulladmin-only, .admin-only, .certadmin-only');
+    return !(only && only.hidden);
+  };
   var hits = SETTINGS.settings.filter(function (s) {
     return (s.name + ' ' + s.key + ' ' + s.says + ' ' + tr(s.name) + ' ' + tr(s.says))
-      .toLowerCase().indexOf(want) >= 0;
+      .toLowerCase().indexOf(want) >= 0 && mayOpen(s);
   }).slice(0, 12);
   /* the panes by their names as well (1.0.51): "Zálohy" found nothing, the pane being there */
   var panes = Array.prototype.slice.call(document.querySelectorAll('.ctl-nav [data-pane]')).filter(function (n) {
@@ -2090,9 +2106,7 @@ $('ctl-find').addEventListener('input', function () {
     var b = el('button', 'ctl-hit');
     b.type = 'button';
     b.appendChild(el('span', 'ctl-hit-t', s.name));
-    var pane = Object.keys(SETTINGS.panes).filter(function (p) { return SETTINGS.panes[p].indexOf(s.key) >= 0; })[0];
-    /* A card of its own on another pane's page (otp 1.0.239): signed in by the balancer is on the enrolment pages'. */
-    pane = SET_PANE_HOME[pane] || pane;
+    var pane = paneOf(s);
     var where = document.querySelector('.ctl-nav [data-pane="' + (pane || 'about') + '"]');
     b.appendChild(el('span', 'ctl-hit-w', where ? where.textContent.trim() : (pane || '')));
     b.onclick = function () {
@@ -2180,7 +2194,10 @@ var TALL = {portal_help: 1, portal_groups: 1, sms_body: 1, sms_headers: 1, isemo
 /* A pane drawn in sections (1.0.88): what belongs together side by side,
    and what only one choice uses in a panel of its own that is there only
    while that choice is made - not a page of greyed-out boxes. */
-var SET_PANE_HOME = {portalsso: 'portal', adminkrb: 'people', portalkrb: 'portal', admincert: 'people', portalcert: 'portal'};
+/* adminsignin / portalsignin (1.0.124): their cards are on Accounts and the enrolment pages - Find
+   a setting said "adminsignin" and opened the first pane. */
+var SET_PANE_HOME = {portalsso: 'portal', adminkrb: 'people', portalkrb: 'portal', admincert: 'people', portalcert: 'portal',
+                     adminsignin: 'people', portalsignin: 'portal'};
 var PANE_LAYOUT = {
   portalsso: [
     {title: 'Who is believed', icon: 'shield', cols: 4,
