@@ -60,7 +60,7 @@ const { chromium } = require('playwright');
           };
           await tall('selinux-' + key);
           if (who === 'tester' && width === 1400) {
-            await page.locator('#se-host .se-putrow button').click();
+            await page.locator('#se-host .se-node').filter({has: page.locator('.se-name b', {hasText: 'acme-a'})}).locator('.se-putrow button').click();
             await page.waitForSelector('.se-plan', {timeout: 10000});
             const modal = page.locator('#modal-box');
             seen.confirm = await modal.innerText();
@@ -68,15 +68,16 @@ const { chromium } = require('playwright');
             await page.keyboard.press('Escape');
             await page.waitForTimeout(400);
           }
-          // The other node: chosen by its pill - its own mode, its own findings.
-          await page.locator('#se-host .se-nodebtn', {hasText: 'acme-b'}).click();
-          await page.waitForTimeout(500);
-          seen.node_b = await page.locator('#se-host .se-node').innerText();
-          seen.node_b_calm = await page.locator('#se-host .se-calm').count() > 0 ||
-            (await page.locator('#se-host .se-k-other').count()) > 0;
-          if (who === 'tester') await tall('selinux-nodeb-' + key);
-          await page.locator('#se-host .se-nodebtn', {hasText: 'acme-a'}).click();
-          await page.waitForTimeout(300);
+          // The other node: its own card beside - its own mode, its own findings, its own buttons.
+          seen.cards = await page.locator('#se-host .se-grid > .se-node').count();
+          seen.side = await page.evaluate(() => {
+            const c = Array.from(document.querySelectorAll('#se-host .se-grid > .se-node')).map((n) => n.getBoundingClientRect());
+            return c.length === 2 && Math.abs(c[0].top - c[1].top) < 2 && c[1].left > c[0].right;
+          });
+          const nb = page.locator('#se-host .se-node').filter({has: page.locator('.se-name b', {hasText: 'acme-b'})});
+          seen.node_b = await nb.innerText();
+          seen.node_b_calm = await nb.locator('.se-calm').count() > 0 ||
+            (await nb.locator('.se-k-other').count()) > 0;
           out[key] = seen;
           await ctx.close();
         }

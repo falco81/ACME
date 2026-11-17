@@ -20399,11 +20399,6 @@ function seShown() {
   }
   return n || null;
 }
-function seChoose(name) {
-  SE.node = name;
-  try { localStorage.setItem('acme.se.node', name); } catch (e) { /* not kept: fine */ }
-  drawSelinux();
-}
 function seReport(btn, all) {
   /* The report of the node shown (1.0.120) - or, asked for all, every node's as one file. Newer than
      the one each node had before, by that node's own clock (1.0.59): a node whose clock is behind the
@@ -20544,19 +20539,22 @@ function drawSelinux() {
     }
     h.appendChild(pill);
   }
-  if (ADMIN && n) {
+  if (ADMIN && nodes.length) {
     var tl = el('span', 'right se-top');
+    /* Every node looks again at once (1.0.122): each node's root, each on its own. */
     var look = cmdButton('Look again', 'refresh', 'small');
+    explain(look, cluster ? 'Look again on every node' : 'Look again');
     look.onclick = function () {
       busy(look, true);
-      api('selinux', {node: n.name, action: 'check'})
+      Promise.all(nodes.map(function (x) { return api('selinux', {node: x.name, action: 'check'}); }))
         .then(function () { setTimeout(function () { loadSelinux(); sePoll(true); }, 800); }).catch(oops).then(function () { busy(look, false); });
     };
     tl.appendChild(look);
-    /* The report of the node shown, made by it (as otp 1.0.236): what whoever writes acme's module
-       needs - nothing is changed to make it. */
+    /* The report of every node, each made by that node, as one file (1.0.122; as otp 1.0.236):
+       what whoever writes acme's module needs - nothing is changed to make it. */
     var rep = cmdButton('Download the report', 'download', 'small');
-    rep.onclick = function () { seReport(rep, false); };
+    if (cluster) explain(rep, 'The report of every node, in one file');
+    rep.onclick = function () { seReport(rep, true); };
     tl.appendChild(rep);
     h.appendChild(tl);
   }
@@ -20564,27 +20562,13 @@ function drawSelinux() {
   if (SE.rep) c.appendChild(el('p', 'note small se-rep' + (SE.rep.bad ? ' bad' : ''), SE.rep.words));
   c.appendChild(el('p', 'note se-lede', 'What SELinux refuses to the web server, keepalived, sshd, PostgreSQL and the rest when it is enforcing - and what acme needs of it on this server. Nothing changes here unless asked: disabled stays disabled. On the server: sudo acme --selinux look.'));
   if (cluster) {
-    var tabs = el('div', 'se-nodes');
-    tabs.setAttribute('role', 'tablist');
-    tabs.setAttribute('aria-label', 'Nodes');
-    nodes.forEach(function (x) {
-      var b = el('button', 'se-nodebtn' + (n && x.name === n.name ? ' on' : ''));
-      b.type = 'button';
-      b.setAttribute('role', 'tab');
-      b.setAttribute('aria-selected', n && x.name === n.name ? 'true' : 'false');
-      b.appendChild(el('span', 'dot ' + seDot(x)));
-      b.appendChild(noI18n(el('b', 'se-nodename', x.name)));
-      b.appendChild(el('span', 'se-nodemode', seModeWords((x.state || {}).mode)));
-      var o = seOpen(x);
-      if (o.fix) b.appendChild(el('span', 'se-nodecount', o.fix + ' to put right'));
-      if (x.pending) b.appendChild(el('span', 'spin'));
-      b.onclick = function () { seChoose(x.name); };
-      tabs.appendChild(b);
-    });
-    c.appendChild(tabs);
-    c.appendChild(el('p', 'muted small se-each', 'SELinux is each machine\'s own: every node has its own mode, module, refusals and fixes. What is asked here is asked of the node shown, and done by its root only - never on the other node.'));
-  }
-  if (n) c.appendChild(seNode(n, cluster));
+    /* Every node a card of its own, side by side (1.0.122): what is asked on a card - a fix, a rule
+       taken away, a step - is asked of that node only. */
+    c.appendChild(el('p', 'muted small se-each', 'SELinux is each machine\'s own: every node has its own mode, module, refusals and fixes. What is asked on a node\'s card is asked of that node, and done by its root only - never on the other node.'));
+    var grid = el('div', 'se-grid');
+    nodes.forEach(function (x) { grid.appendChild(seNode(x, cluster)); });
+    c.appendChild(grid);
+  } else if (n) c.appendChild(seNode(n, cluster));
   host.appendChild(c);
   host.style.minHeight = '';
 }
@@ -20832,7 +20816,7 @@ function seNode(n, cluster) {
     n.said.forEach(function (x) { sd.appendChild(el('li', '', x)); });
     box.appendChild(sd);
   }
-  if (n.at) box.appendChild(el('p', 'muted small', 'Looked at ' + new Date(n.at * 1000).toLocaleString(numLang())));
+  if (n.at) box.appendChild(el('p', 'muted small se-at', 'Looked at ' + new Date(n.at * 1000).toLocaleString(numLang())));
   if (!admin) return box;
   var row = el('div', 'btnrow se-btns');
   var one = cluster ? ' In a cluster: one node at a time - this one only. Afterwards look at the cluster (High availability: both nodes answer, the replication runs, the VIP address holds) before the other node.' : '';

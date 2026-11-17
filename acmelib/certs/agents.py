@@ -514,7 +514,8 @@ def info(store, row, full=False):
                        'version': pend.get('version') or '', 'confirmed': bool(pend.get('cert'))}
            if pend else None,
            'active_on': active_on(), 'enabled': row.get('enabled') is None or
-           bool(int(row.get('enabled') or 0)), 'shipped_code': shipped_code()}
+           bool(int(row.get('enabled') or 0)), 'shipped_code': shipped_code(),
+           'shipped_codes': shipped_codes()}
     out['policy_summary'] = policy_summary(pol)
     # 1.0.120: a Windows server's agent (agent_windows), and the enrollment code it came with
     out['kind'] = row.get('kind') or 'agent'
@@ -584,6 +585,26 @@ def shipped_code():
         return code
     except Exception:                                   # noqa: BLE001
         return ''
+
+
+def shipped_codes():
+    """Every hash an agent of the program acme ships may say (1.0.122). The whole program; and on
+    Linux the same program without its Windows files: a 1.0.119 agent updated itself to 1.0.120
+    with the files it knew - acme_agent.py only - and hashes the three Windows files it does not
+    need as absent (code_hash: 32 zero bytes each). It runs exactly the program acme ships."""
+    code = shipped_code()
+    out = [code] if code else []
+    try:
+        m = agent_mod()
+        with open(os.path.join(AGENT_DIR, 'acme_agent.py'), 'rb') as f:
+            h = hashlib.sha256(hashlib.sha256(f.read()).digest())
+        for n in getattr(m, 'AGENT_FILES', ())[1:]:
+            h.update(b'\0' * 32)
+        if h.hexdigest() not in out:
+            out.append(h.hexdigest())
+    except Exception:                                   # noqa: BLE001
+        pass
+    return out
 
 
 # ---- the join ---------------------------------------------------------------------------------

@@ -1199,6 +1199,11 @@ class Card(unittest.TestCase):
         self.assertIn('semanage port', adm['confirm'] + adm['card'])
         self.assertIn('ENFORCING', adm['node_b'].upper())
         self.assertTrue(adm['node_b_calm'])
+        self.assertEqual(adm['cards'], 2)                                 # a card a node
+        self.assertTrue(adm['side'])                                      # side by side at 1400 px
+        for k, s in seen.items():
+            if '390' in k:
+                self.assertFalse(s['side'], k)                            # a phone: one under the other
 
 
 if __name__ == '__main__':

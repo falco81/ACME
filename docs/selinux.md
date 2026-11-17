@@ -5,10 +5,12 @@ as otp 1.0.233); on the server `sudo acme --selinux look`. **Nothing changes unl
 a machine where SELinux is disabled stays disabled, and acme runs on it exactly as before.
 
 **SELinux is each machine's own.** In a cluster every node has its own mode, its own module, its
-own refusals and its own fixes. The card shows one node at a time - a pill for each node at the top,
-with a dot (green: enforcing and nothing left; amber: something to do; red: not heard from; grey:
-disabled) - and whatever is asked on it is asked of the node shown and done by that node's root
-helper only. Nothing of it is a setting: no switch is replicated to the other node, and an id found
+own refusals and its own fixes. The card shows every node as a card of its own, side by side (one
+under the other on a phone), with a dot a node in the pill at the top (green: enforcing and nothing
+left; amber: something to do; red: not heard from; grey: disabled). *Look again* at the top looks
+again on every node at once, and *Download the report* gives one file with every node's report.
+The buttons at the bottom of a node's card - and its ticks, its rules - are that node's: whatever is
+asked there is asked of that node and done by its root helper only. Nothing of it is a setting: no switch is replicated to the other node, and an id found
 on one node is refused on the other.
 
 ## Who is who (what SELinux sees of acme)
@@ -158,7 +160,9 @@ name and file only.
 
 ## The report
 
-*Download the report* gives the report of the node shown (`acme-selinux-report-NODE-DATE.tar.gz`);
+*Download the report* gives every node's report in one file - each node's own
+`acme-selinux-report-NODE.tar.gz` inside, each made by that node (a node not heard from is named as
+missing); on a single machine its own (`acme-selinux-report-NODE-DATE.tar.gz`);
 `sudo acme --selinux report [FILE]` (or `--selinux-report`) makes the same for the machine it runs
 on. Nothing is changed to make it.
 

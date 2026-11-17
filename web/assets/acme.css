@@ -3597,17 +3597,12 @@ table.split-scen{table-layout:fixed;width:100%;min-width:1060px}
   padding:1px 3px 1px 2px;font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;line-height:1}
 .se-pill.diff{border-color:color-mix(in srgb,var(--warn,#d29922) 45%,var(--line))}
 .se-lede{max-width:980px}
-.se-nodes{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 6px}
-.se-nodebtn{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);
-  background:var(--panel2);color:var(--tx);cursor:pointer;font:inherit;font-size:13px;min-width:0;max-width:100%}
-.se-nodebtn:hover{border-color:color-mix(in srgb,var(--info) 45%,var(--line))}
-.se-nodebtn.on{border-color:var(--info);background:var(--info-bg);box-shadow:0 0 0 1px var(--info) inset}
-.se-nodebtn .se-nodename{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.se-nodemode{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--tx-dim)}
-.se-nodecount{font-size:12px;color:var(--warn)}
-.se-nodebtn .spin{width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--info);border-radius:50%;animation:turn .9s linear infinite}
 .se-each{margin:0 0 10px}
 .se-card .se-node{margin-top:10px}
+/* A card a node, side by side (1.0.122): the same height, the last look and the node's own buttons at the bottom. */
+.se-card .se-grid{margin-top:4px}
+.se-grid .se-node{margin-top:0}
+.se-grid .se-node > .se-at{margin-top:auto}
 .se-fh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:14px}
 .se-calm{display:flex;gap:14px;align-items:center;padding:14px 16px;border-radius:12px;border:1px solid rgba(63,185,80,.5);background:var(--ok-bg);font-size:13.5px}
 .se-calm-i{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;

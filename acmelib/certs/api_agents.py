@@ -103,7 +103,7 @@ def _agents(h, s):
            'names': str(E.CONFIG.get('certs_agents_names') or ''),
            'ca': G.ca_public(h.store), 'rows': rows, 'node': E.node_name(),
            'nginx': (st or {}).get('agents') if isinstance(st, dict) else None,
-           'shipped_code': G.shipped_code()}
+           'shipped_code': G.shipped_code(), 'shipped_codes': G.shipped_codes()}
     try:
         out.update(_install(h.store))
     except Exception as e:                              # noqa: BLE001

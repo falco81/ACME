@@ -68227,6 +68227,14 @@
   "z_928": {
    "source": "root on the command line",
    "text": "root na příkazové řádce"
+  },
+  "z_929": {
+   "source": "SELinux is each machine's own: every node has its own mode, module, refusals and fixes. What is asked on a node's card is asked of that node, and done by its root only - never on the other node.",
+   "text": "SELinux má každý stroj svůj: každý uzel má vlastní režim, modul, odepřené věci i opravy. Co se zadá na kartě uzlu, týká se jen toho uzlu a provede to jen jeho root – nikdy na druhém uzlu."
+  },
+  "z_930": {
+   "source": "The report of every node, in one file",
+   "text": "Report všech uzlů v jednom souboru"
   }
  },
  "patterns": {

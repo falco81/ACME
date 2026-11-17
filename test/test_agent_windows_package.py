@@ -522,5 +522,29 @@ class Api(unittest.TestCase):
         self.assertEqual(e.exception.status, 403)
 
 
+class UpdatedFrom119(unittest.TestCase):
+    """1.0.122: a Linux agent 1.0.119 updated itself to 1.0.120 with acme_agent.py only (the files
+    it knew) - the program acme ships all the same, no "another program" on its tile."""
+
+    def test_linux_without_windows_files(self):
+        sys.path.insert(0, ROOT)
+        from acmelib.certs import agents as G
+        m = G.agent_mod()
+        d = tempfile.mkdtemp(prefix='acme-only-linux-')
+        try:
+            shutil.copy(os.path.join(ROOT, 'deploy', 'agent', 'acme_agent.py'), d)
+            codes = G.shipped_codes()
+            self.assertEqual(codes[0], G.shipped_code())
+            self.assertIn(m.code_hash(d), codes)
+            with open(os.path.join(d, 'acme_agent.py'), 'a') as f:
+                f.write('# changed\n')
+            self.assertNotIn(m.code_hash(d), codes)          # another program stays another
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+        js = open(os.path.join(ROOT, 'web', 'assets', 'agents.js'), encoding='utf-8').read()
+        self.assertIn('otherProgram(a, d && d.shipped_code, d && d.shipped_codes)', js)
+        self.assertIn('otherProgram(a, a.shipped_code, a.shipped_codes)', js)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

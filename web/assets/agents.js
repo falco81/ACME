@@ -40,7 +40,10 @@ function designButton(row, opts, cls) {
 }
 /** Another program than the one this acme ships - only of the same version (an older one
     has the newer agent offered, which says it). */
-function otherProgram(a, shipped) {
+function otherProgram(a, shipped, also) {
+  /* also (1.0.122): every hash of the program acme ships - on Linux without its Windows files too
+     (a 1.0.119 agent updated itself with acme_agent.py only). */
+  if (also && also.indexOf && also.indexOf(a.code_hash) >= 0) return false;
   return !!(a.code_hash && shipped && a.code_hash !== shipped && !(a.update && a.update.newer)
     && (!a.update || !a.update.offered || String(a.version || '') === String(a.update.offered)));
 }
@@ -474,7 +477,7 @@ function tile(a, d) {
   }
   acts.appendChild(prog);
   t.appendChild(acts);
-  if (otherProgram(a, d && d.shipped_code)) {
+  if (otherProgram(a, d && d.shipped_code, d && d.shipped_codes)) {
     t.appendChild(el('div', 'note warn small ag-older', 'Another program than the one this acme ships - install the package of this version.'));
   }
   return t;
@@ -1034,7 +1037,7 @@ function card(row, opts) {
     box.appendChild(k);
     /* 1.0.120: what the agent tells about its server */
     if (a.joined) box.appendChild(sysPanel(row, a, function (b) { load(true, b); }));
-    if (otherProgram(a, a.shipped_code)) {
+    if (otherProgram(a, a.shipped_code, a.shipped_codes)) {
       box.appendChild(el('div', 'note warn small', 'The agent runs another program than the one this acme ships - install the package of this version (Settings → Target agents).'));
     }
     if (a.last_error && a.state !== 'answers') {
