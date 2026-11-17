@@ -68331,6 +68331,10 @@
   "z_954": {
    "source": "no account is set (Signing in: auto)",
    "text": "není nastaven žádný účet (Přihlašování: auto)"
+  },
+  "z_955": {
+   "source": "the last try failed - it is tried again when the wait after it is over",
+   "text": "poslední pokus selhal – zkusí se znovu, až uplyne čekání po něm"
   }
  },
  "patterns": {
