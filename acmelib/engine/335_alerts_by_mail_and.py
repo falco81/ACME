@@ -577,12 +577,18 @@ def alert_problems(store, lang='en'):
     if pct:
         for n in names:
             for d in (health.get(n) or {}).get('disks') or []:
-                if float(d.get('pct') or 0) >= pct or float(d.get('inodes') or 0) >= pct:
-                    add('disk:%s:%s' % (n, d['path']), 'bad' if d['pct'] >= 95 else 'warn', n,
+                ino = float(d.get('inodes') or 0)
+                if float(d.get('pct') or 0) >= pct or ino >= pct:
+                    # the inodes too (1.0.124): a file system out of them was only "warn",
+                    # and said "40 % full" - its files cannot be written all the same
+                    add('disk:%s:%s' % (n, d['path']),
+                        'bad' if max(float(d.get('pct') or 0), ino) >= 95 else 'warn', n,
                         _al(lang, 'Na %s dochází místo (%s)' % (n, d['path']),
                             '%s is running out of room (%s)' % (n, d['path'])),
                         _al(lang, 'Zaplněno %s %% - volných %s.', '%s %% full - %s free.')
-                        % (d['pct'], human_bytes(d.get('free') or 0)), 'osup')
+                        % (d['pct'], human_bytes(d.get('free') or 0)) +
+                        ((_al(lang, ' Inody zaplněny z %s %%.', ' Inodes %s %% used.') % d['inodes'])
+                         if ino >= pct else ''), 'osup')
     # The clocks: the certificates' dates and the app's codes are worked out from them.
     if CONFIG.get('alerts_time', 1):
         for n in names:
@@ -1350,16 +1356,27 @@ def report_build(store, since, until, lang='cs'):
     days = max(1, int(round((until - since) / 86400)))
     # By day, whatever the period: the events that went well and those worth a
     # look. Counted by the database, a day a row (never the rows themselves read in).
-    slot = ('CAST((ts - ?) / 86400 AS INTEGER)' if db.engine == 'sqlite'
-            else 'FLOOR((ts - ?) / 86400)')
+    # The days are the calendar's here (1.0.124): counted in steps of 86400 s from the
+    # first, a month with the clocks put back showed one day twice and lost its last, and
+    # each day after the change took an hour of the next. Counted by the hour, each hour
+    # put into the local day it begins in.
+    slot = ('CAST((ts - ?) / 3600 AS INTEGER)' if db.engine == 'sqlite'
+            else 'FLOOR((ts - ?) / 3600)')
     rows = db.rows("SELECT %s AS d, CASE WHEN level IN ('warn', 'bad') THEN 'warn' ELSE 'info' "
                    "END AS lv, COUNT(*) AS n FROM events WHERE ts >= ? AND ts < ? GROUP BY 1, 2"
                    % slot, (since, since, until)) if days <= 62 else []
     per = collections.OrderedDict()
-    for i in range(min(days, 62)):
-        per[i] = {'t': since + i * 86400, 'accept': 0, 'reject': 0}
+    starts = [float(since)]
+    d0 = datetime.fromtimestamp(since).date()
+    while len(starts) < 62:
+        nxt = time.mktime((d0 + timedelta(days=len(starts))).timetuple())
+        if nxt >= until:
+            break
+        starts.append(nxt)
+    for i, t0 in enumerate(starts):
+        per[i] = {'t': t0, 'accept': 0, 'reject': 0}
     for r in rows:
-        i = int(r['d'] or 0)
+        i = bisect.bisect_right(starts, since + 3600 * int(r['d'] or 0)) - 1
         if i in per:
             per[i]['reject' if r['lv'] == 'warn' else 'accept'] += int(r['n'] or 0)
     total = int(db.value('SELECT COUNT(*) FROM events WHERE ts >= ? AND ts < ?',

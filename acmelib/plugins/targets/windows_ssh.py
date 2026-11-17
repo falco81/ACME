@@ -179,11 +179,11 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
         for line in lines(options.get('post_ps')):
             sc.append(line)
         if keep >= 0:
-            sc += [
-                "$used = @()",
-                "if (Get-Module -ListAvailable WebAdministration) { Import-Module WebAdministration;"
-                " $used += (Get-ChildItem IIS:\\SslBindings -ErrorAction SilentlyContinue | "
-                "ForEach-Object { $_.Thumbprint }) }",
+            # never one still used (1.0.124): only IIS's bindings were looked at - one the
+            # Remote Desktop listener, SQL Server, WinRM or an http.sys binding (netsh: AD FS,
+            # WAP, SSTP...) still used was deleted. The lines of the roles' clean-up and the
+            # agent's (_win_roles.USED).
+            sc += [dict(WR.HELPERS)['Run-Native']] + WR.USED + [
                 # only this certificate's own (1.0.51): "acme-vpn-*" took vpn-2's too
                 "$old = Get-ChildItem $store | Where-Object { $_.FriendlyName -match ('^' + "
                 "[regex]::Escape(%s) + '\\d{8}-[0-9a-f]+$') -and "
@@ -265,6 +265,11 @@ class WindowsSshTarget(WR.RolesMixin, SshMixin, Base):
             if o['path'] in had:
                 sc.append("Copy-Item -LiteralPath %s -Destination %s -Force"
                           % (ps_str(bak(o['path'])), p))
+                if bak(o['path']).endswith(F.PREV):
+                    # only for putting back: done with, as on Linux (1.0.124: the copy of
+                    # the old key stayed beside the file)
+                    sc.append("Remove-Item -LiteralPath %s -Force -ErrorAction "
+                              "SilentlyContinue" % ps_str(bak(o['path'])))
             else:
                 sc.append("Remove-Item -LiteralPath %s -Force -ErrorAction SilentlyContinue" % p)
         if sc:

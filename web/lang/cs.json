@@ -68303,6 +68303,18 @@
   "z_947": {
    "source": "the agent sent no key to seal secrets to",
    "text": "agent neposlal klíč, kterému by se daly zapečetit tajné údaje"
+  },
+  "z_948": {
+   "source": "Update all agents: every one a newer agent is offered to and its policy allows",
+   "text": "Aktualizovat všechny agenty: každého, komu je nabízen novější agent a jehož politika to dovoluje"
+  },
+  "z_949": {
+   "source": "Every agent that runs an older version than the one this acme ships, and whose policy allows it (allow self-update), gets acme's own signed agent - one by one. The others are said with why not.",
+   "text": "Každý agent, který běží ve starší verzi, než jakou dodává tento acme, a jehož politika to dovoluje (allow self-update), dostane podepsaného agenta acme - jeden po druhém. U ostatních se řekne, proč ne."
+  },
+  "z_950": {
+   "source": "Update them",
+   "text": "Aktualizovat je"
   }
  },
  "patterns": {

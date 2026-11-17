@@ -969,15 +969,20 @@ class OthersTest(unittest.TestCase):
 
     def test_windows_script(self):
         from acmelib.plugins.targets import windows_ssh
-        ssh = FakeSsh([(r'EncodedCommand', (0, 'IMPORTED X\nIIS Default Web Site '
-                                               'www.example.test:443\nRDP\n', ''))])
+        # the import script as -EncodedCommand, or (past cmd.exe's line, hunt R3: the clean-up
+        # looks at every use as the roles' does) uploaded as a .ps1 and run with -File
+        ssh = FakeSsh([(r'EncodedCommand|-File ', (0, 'IMPORTED X\nIIS Default Web Site '
+                                                      'www.example.test:443\nRDP\n', ''))])
         t = make('windows_ssh', {'host': 'win', 'user': 'Administrator', 'auth': 'password',
                                  'password': 'pw'}, FakeCtx(ssh=ssh))
         b = FakeBundle()
         words = t.deploy(b, {'iis': 'Default Web Site | www.example.test | 443', 'rdp': True})
         self.assertIn('RDP', words)
         cmd = ssh.runs[-1][0]
-        script = base64.b64decode(cmd.split('-EncodedCommand ')[1]).decode('utf-16-le')
+        if '-EncodedCommand ' in cmd:
+            script = base64.b64decode(cmd.split('-EncodedCommand ')[1]).decode('utf-16-le')
+        else:
+            script = [d for p_, d, _m in ssh.puts if p_.endswith('.ps1')][-1].decode('utf-8-sig')
         self.assertIn("Import-PfxCertificate -FilePath 'C:/Windows/Temp/acme-", script)
         self.assertIn("New-WebBinding -Name 'Default Web Site' -Protocol https -Port 443 "
                       "-HostHeader 'www.example.test'", script)
@@ -985,7 +990,7 @@ class OthersTest(unittest.TestCase):
         self.assertIn(C.sha1_thumb(b), script)
         self.assertIn('SSLCertificateSHA1Hash', script)
         self.assertTrue(ssh.puts[0][0].endswith('.pfx'))
-        self.assertEqual(ssh.vias, ['scp'])
+        self.assertEqual(set(ssh.vias), {'scp'})
         self.assertEqual(windows_ssh.ps_str("it's"), "'it''s'")
 
     def test_every_module_describes(self):

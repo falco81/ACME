@@ -2026,8 +2026,15 @@ class Cli(object):
                 if self.json:
                     return self.out(got) or 0
                 print(got['code'])
-                sys.stderr.write('a join code for %s (%s mode) - on the server, as root, within an '
-                                 'hour:\n  acme-agent join CODE\n' % (row['name'], got['mode']))
+                # a Windows server has no root (1.0.124): an elevated prompt, as its card says
+                if G.platform_of(self.store, row) == 'windows':
+                    sys.stderr.write('a join code for %s (%s mode) - on the server, in an elevated '
+                                     'prompt (Run as administrator), within an hour:\n  acme-agent '
+                                     'join CODE\n(or at the MSI\'s Join step, or msiexec /i ... /qn '
+                                     'JOINCODE=CODE)\n' % (row['name'], got['mode']))
+                else:
+                    sys.stderr.write('a join code for %s (%s mode) - on the server, as root, within '
+                                     'an hour:\n  acme-agent join CODE\n' % (row['name'], got['mode']))
                 return 0
             if what == 'confirm':
                 if not rest:
@@ -2060,8 +2067,11 @@ class Cli(object):
             raise SystemExit('acme: %s' % e)
         if what == 'system':
             return self.target_agent_system(row, info)
+        # look (1.0.124): an agent acme could not reach (or that refused) ends non-zero, as any
+        # other failure - it ended 0 with the error only in "said"
+        failed = 1 if what == 'look' and info.get('said') else 0
         if self.json:
-            return self.out(info if what != 'policy' else (info.get('policy') or {})) or 0
+            return self.out(info if what != 'policy' else (info.get('policy') or {})) or failed
         if what == 'policy':
             pol = info.get('policy')
             if not pol:
@@ -2148,7 +2158,7 @@ class Cli(object):
             rows.append(('said', info['said']))
         for k, v in rows:
             print('%-18s %s' % (k, v))
-        return 0
+        return failed
 
     def fam_action(self, fam, name, key):
         from acmelib.certs import api

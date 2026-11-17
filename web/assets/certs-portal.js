@@ -56,10 +56,13 @@ function sayBad(said, words) {
   try { said.scrollIntoView({block: 'nearest', behavior: 'smooth'}); } catch (e) { }
 }
 function data(kind, cls, text) { return noI18n(el(kind, cls, text)); }
-function stateTag(st) {
+function stateTag(st, c) {
   var s = STATE[st] || [st || '–', 'dim'];
+  /* one not issued that nothing issues (not renewed by itself, its approval never recorded) is
+     "not issued yet", as the administration says - not "being issued", pulsing for good */
+  if (st === 'new' && c && !running(c)) s = ['not issued yet', 'dim'];
   var t = el('span', 'tag ' + s[1] + ' ct-state', s[0]);
-  if (st === 'renewing' || st === 'new') t.classList.add('ct-pulse');
+  if (st === 'renewing' || (st === 'new' && s[1] !== 'dim')) t.classList.add('ct-pulse');
   return t;
 }
 function now() { return Date.now() / 1000; }
@@ -259,7 +262,7 @@ function row(c) {
   tr.tabIndex = 0;
   if (c.state === 'failed' || c.state === 'expired' || c.state === 'declined') tr.classList.add('ct-hot');
   var sc = el('td');
-  sc.appendChild(stateTag(c.state));
+  sc.appendChild(stateTag(c.state, c));
   tr.appendChild(sc);
   var nc = el('td', 'ct-cname');
   nc.appendChild(data('b', '', c.cn || c.name));
@@ -359,7 +362,7 @@ function certDialog(id, fresh) {
     var hw = el('div', 'ct-head-w');
     var t = el('div', 'ct-head-t');
     t.appendChild(data('span', 'ct-head-name', c.cn || c.name));
-    t.appendChild(stateTag(c.state));
+    t.appendChild(stateTag(c.state, c));
     if (c.not_after) t.appendChild(c.state === 'revoked' ? el('span', 'ct-days crit', 'revoked') : daysTag(c.not_after));
     hw.appendChild(t);
     hw.appendChild(namesChips(c.names));

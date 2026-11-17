@@ -5411,6 +5411,8 @@ def cli_selinux_found(args, pal, want, more):
         words = 'The rule %s %s is taken out of acme\'s local module (semodule)' % (rid, r[0]['rule'])
         plan_ids, do = [rid], 'rule_drop'
     else:
+        # With --json (1.0.124) what root will do goes to stderr: stdout is the JSON alone.
+        say = (lambda line: sys.stderr.write(line + '\n')) if args.json else print
         c = _selinux_look(want)
         fs = c.get('findings') or []
         if args.all:
@@ -5433,15 +5435,17 @@ def cli_selinux_found(args, pal, want, more):
                         i, SE_KIND_WORDS.get(f.get('kind'), f.get('kind')).lower(), f.get('why')))
                 plan.append(f)
         if not plan:
-            print('nothing SELinux refused here can be put right from here')
+            say('nothing SELinux refused here can be put right from here')
+            if args.json:
+                print(json.dumps({'said': []}, indent=1))
             return 0
-        print(pal.head('Root does exactly this on %s - nothing else - and looks again at once:' % node_name()))
+        say(pal.head('Root does exactly this on %s - nothing else - and looks again at once:' % node_name()))
         for f in plan:
-            print('  %-8s %s' % (f['kind'], pal.info(f['fix'])))
-            print('           %s: %s -> %s %s { %s }' % (f.get('program'), f['source'], f['target'], f['class'],
-                                                        f['perms']))
+            say('  %-8s %s' % (f['kind'], pal.info(f['fix'])))
+            say('           %s: %s -> %s %s { %s }' % (f.get('program'), f['source'], f['target'], f['class'],
+                                                      f['perms']))
         if any(f['kind'] == 'rule' for f in plan):
-            print('  the rules go into acme\'s own local module acme_local - each can be taken away again '
+            say('  the rules go into acme\'s own local module acme_local - each can be taken away again '
                   '(acme --selinux rules --take-away ID)')
         words = 'Put these right'
         plan_ids, do = [f['id'] for f in plan], 'fix'
@@ -5460,8 +5464,9 @@ def cli_selinux_found(args, pal, want, more):
     except ValueError:
         c = {}
     said = c.get('said') or []
-    for line in said:
-        print(pal.ok_line(line))
+    if not args.json:
+        for line in said:
+            print(pal.ok_line(line))
     _selinux_after(said)
     if args.json:
         print(json.dumps({k: c.get(k) for k in ('mode', 'findings', 'found', 'local', 'said')}, indent=1))

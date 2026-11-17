@@ -51,7 +51,8 @@ def _dns_state():
 def counts(store):
     out = {s: 0 for s in STATES}
     for r in store.db.rows('SELECT state, COUNT(*) AS n FROM certs GROUP BY state'):
-        out[r['state'] or 'new'] = int(r['n'])
+        # added up (1.0.124): rows with no state and those 'new' are one count, not the last
+        out[r['state'] or 'new'] = out.get(r['state'] or 'new', 0) + int(r['n'])
     return out
 
 
@@ -125,7 +126,7 @@ def metrics(store):
     deps = {s: 0 for s in DEPLOY_STATES}
     for r in store.db.rows('SELECT state, COUNT(*) AS n FROM cert_deploys WHERE '
                            'COALESCE(enabled, 1) <> 0 GROUP BY state'):
-        deps[r['state'] or 'new'] = int(r['n'])
+        deps[r['state'] or 'new'] = deps.get(r['state'] or 'new', 0) + int(r['n'])
     jobs_ok = {}
     for r in store.db.rows('SELECT kind, ok, COUNT(*) AS n FROM cert_jobs WHERE finished IS NOT '
                            'NULL GROUP BY kind, ok'):

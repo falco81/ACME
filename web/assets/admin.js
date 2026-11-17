@@ -20354,7 +20354,11 @@ function drawMonitor() {
   card.appendChild(cpy);
   host.appendChild(card);
   api('ha').then(function (d) {
-    var targets = (d.nodes || []).map(function (n) { return (n.address || n.name) + ':443'; });
+    /* an IPv6 address in brackets (1.0.124): "2001:db8::1:443" is no target Prometheus takes */
+    var targets = (d.nodes || []).map(function (n) {
+      var a = String(n.address || n.name || '');
+      return (a.indexOf(':') >= 0 && a.charAt(0) !== '[' ? '[' + a + ']' : a) + ':443';
+    });
     if (!targets.length) targets = [location.hostname + ':443'];
     var y = 'scrape_configs:\n  - job_name: acme\n    scheme: https\n    metrics_path: /metrics\n    bearer_token_file: /etc/prometheus/acme.token\n'
       + '    tls_config:\n      # the CA of the nodes\' certificates, if not a public one\n      # ca_file: /etc/prometheus/acme-ca.pem\n      insecure_skip_verify: false\n'

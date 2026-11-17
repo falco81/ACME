@@ -338,6 +338,11 @@
       seg.appendChild(b);
     });
     seg._set = set;
+    /* for a read-only account: no button of it can be clicked */
+    seg._lock = function () {
+      seg._off = true;
+      Array.prototype.forEach.call(seg.children, function (b) { b.disabled = true; });
+    };
     set(value);
     return seg;
   }
@@ -570,6 +575,7 @@
       noI18n(c);
       c.title = v[1];
       c.onmousedown = function (e) { e.preventDefault(); };
+      if (!MANAGE) c.disabled = true;
       c.onclick = function () {
         var t = lastPath && document.body.contains(lastPath) ? lastPath : (rows[rows.length - 1] || {}).path;
         if (!t || !MANAGE) return;
@@ -585,11 +591,14 @@
     asText.title = 'The same files as lines "format path [mode] [owner]" - as the command line has them';
     tools.appendChild(asText);
     box.appendChild(tools);
+    /* read-only: the rows as they are, nothing to switch or type */
+    if (!MANAGE) asText.disabled = true;
     /* The same rows as text: one a line, as the command line and older pages have them. */
     var textArea = el('textarea', 'mono df-astext');
     noI18n(textArea);
     textArea.spellcheck = false;
     textArea.hidden = true;
+    if (!MANAGE) textArea.readOnly = true;
     box.appendChild(textArea);
     var textMode = false;
     var setRows = function (list) {
@@ -703,7 +712,7 @@
     pw.addEventListener('input', changed);
     if (alias) alias.addEventListener('input', changed);
     paint();
-    if (!MANAGE) { seg._off = true; pw.disabled = true; if (alias) alias.disabled = true; }
+    if (!MANAGE) { seg._lock(); pw.disabled = true; if (alias) alias.disabled = true; }
     return {
       node: box,
       read: function (o) {
@@ -824,7 +833,7 @@
     box.addEventListener('input', function () { paint(); changed(); });
     box.addEventListener('change', function () { paint(); changed(); });
     paint();
-    if (!MANAGE) { seg._off = true; [sp, sa, isel, argsIn].forEach(function (x) { x.disabled = true; }); if (snipSel) snipSel.disabled = true; }
+    if (!MANAGE) { seg._lock(); [sp, sa, isel, argsIn].forEach(function (x) { x.disabled = true; }); if (snipSel) snipSel.disabled = true; }
     if (!FULL && snipSel) snipSel.hidden = true;
     function win() { return ui.kind === 'windows'; }
     return {
@@ -1140,7 +1149,7 @@
       };
       tplRow.appendChild(tplB);
       tplRow.appendChild(el('span', 'muted small', 'nginx, Apache, HAProxy, Postfix, Dovecot, PostgreSQL… - reload, restart or hard restart'));
-      if (aroundFields.some(function (f) { return f.key === 'reload_cmd'; })) ssec.insertBefore(tplRow, det);
+      if (MANAGE && aroundFields.some(function (f) { return f.key === 'reload_cmd'; })) ssec.insertBefore(tplRow, det);
     }
 
     var rsec = null;
@@ -1153,6 +1162,10 @@
     main.appendChild(fsec);
     main.appendChild(ssec);
     if (!win && rsec) main.appendChild(rsec);
+    /* read-only: the module's other options shown, none of them changed or clicked */
+    if (!MANAGE) [rest.node, around && around.node].forEach(function (n) {
+      if (n) Array.prototype.forEach.call(n.querySelectorAll('input,select,textarea,button'), function (x) { x.disabled = true; });
+    });
 
     /* -- Beside them: what it will be -- */
     ctx.interp = script.interp;

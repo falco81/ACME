@@ -1120,7 +1120,17 @@ def agents_menu(con):
         ('3', 'Make an enrollment code: one code for many servers', lambda: enroll_new(con)),
         ('4', 'Every target with an agent', lambda: family(con, 'target')),
         ('5', 'The agents waiting, as acme --target-agent waiting says it',
-         lambda: con.act(flag, 'waiting'))])
+         lambda: con.act(flag, 'waiting')),
+        # as Update all agents… of the pages (1.0.118; in the console 1.0.124)
+        ('6', 'Update all agents: every one a newer agent is offered to and its policy allows',
+         lambda: agents_update_all(con))])
+
+
+def agents_update_all(con):
+    if con.confirm('Update all agents', 'Every agent that runs an older version than the one this '
+                   'acme ships, and whose policy allows it (allow self-update), gets acme\'s own '
+                   'signed agent - one by one. The others are said with why not.', 'Update them'):
+        con.live(lambda: (con.cmd('--target-agent', 'all', 'update'), con.pause()))
 
 
 def agents_waiting(con):
