@@ -114,6 +114,13 @@ def hba_add(conf, db, user, peers, why):
         added.append(line)
     if not added:
         return []
+    # The lines PostgreSQL could not read already (1.0.119): only more of them than there
+    # were are the ones written here - one of somebody else's refused every addition.
+    count = 'SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL'
+    try:
+        was = int(sql(conf, count) or 0)
+    except ValueError:
+        was = 0
     st = os.lstat(hba)
     W.pg_file_copy(hba, hba + '.acme-before-' + why)
     W.pg_file_put(hba, '# acme (%s, %s)\n%s\n%s' % (why, time.strftime('%Y-%m-%d'), '\n'.join(added),
@@ -121,8 +128,11 @@ def hba_add(conf, db, user, peers, why):
                   st.st_gid)
     try:
         sql(conf, 'SELECT pg_reload_conf()')
-        bad = sql(conf, 'SELECT count(*) FROM pg_hba_file_rules WHERE error IS NOT NULL')
-        if bad not in ('', '0'):
+        try:
+            bad = int(sql(conf, count) or 0)
+        except ValueError:
+            bad = was + 1
+        if bad > was:
             raise Refused('PostgreSQL does not read pg_hba.conf as written')
     except Refused:
         W.pg_file_copy(hba + '.acme-before-' + why, hba)
@@ -566,8 +576,12 @@ def facts(conf):
             out.update(running=False, said=str(e)[:200])
     else:
         try:
-            got = my_sql(conf, "SELECT CONCAT(VERSION(), '|', @@have_ssl, '|', @@datadir)")
-            v, ssl_on, data = got.split('|')
+            # @@have_ssl NULL made the CONCAT NULL (1.0.119): the server answered all the same -
+            # it runs; what it did not say is not said (the node took the agent for silent).
+            got = my_sql(conf, "SELECT CONCAT(VERSION(), '|', IFNULL(@@have_ssl, ''), '|', "
+                               "IFNULL(@@datadir, ''))")
+            v, ssl_on, data = ((got.split('|', 2) + ['', ''])[:3] if '|' in got
+                               else ('', '', ''))
             out.update(running=True, version=v, ssl=ssl_on == 'YES')
             try:
                 s = os.statvfs(data)

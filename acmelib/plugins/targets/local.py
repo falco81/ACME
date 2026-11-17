@@ -334,7 +334,8 @@ class LocalTarget(Base):
             pairs = []
         base = os.path.realpath(self.c('base') or '/etc/acme/out')
         for o, _b in pairs:
-            full = os.path.normpath(os.path.join(base, o['path'].lstrip('/')))
+            # where deploy() writes it (_where): a path already under the folder is the folder's
+            full = self._where(base, o['path'])
             if not full.startswith(base + os.sep):
                 problems.append({'level': 'bad', 'words': '%s is outside %s' % (o['path'], base)})
         cmd = (options.get('command') or '').strip()
@@ -343,7 +344,9 @@ class LocalTarget(Base):
                              'allows' % cmd})
         got = SC.preview(self, bundle, options, pairs, vars, problems, base=base, owners=False,
                          interps=INTERPS, script_ok=lambda sc: self._script_refused(sc, options))
-        full = [(dict(o, path=os.path.join(base, o['path'].lstrip('/'))), b) for o, b in pairs]
+        for one, (o, _b) in zip(got['files'], pairs):
+            one['full'] = self._where(base, o['path'])
+        full = [(dict(o, path=self._where(base, o['path'])), b) for o, b in pairs]
         env = SC.env_for(self, bundle, full, vars)
         env.update({k: v for k, v in got['env'].items() if k == 'ACME_PASSWORD'})
         got['env'] = env
@@ -369,7 +372,7 @@ class LocalTarget(Base):
                 p = os.path.join(folder, '%d-%s' % (i + 1, os.path.basename(o['path'])))
                 self._write(p, data, o['mode'])
                 moved.append((dict(o, path=p), b))
-                self.ctx.step('%s: %s, %d B' % (os.path.join(base, o['path'].lstrip('/')),
+                self.ctx.step('%s: %s, %d B' % (self._where(base, o['path']),
                                                 o['format'], len(data)))
             if sc and run_script:
                 env = SC.env_for(self, bundle, moved, vars, SC.password_of(options), dry_run=True,

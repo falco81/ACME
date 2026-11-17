@@ -1166,6 +1166,15 @@ def _say_check(got):
         '' if len(got['warnings']) == 1 else 's'))
 
 
+def policy_copy_order(name):
+    """policy.DATE-TIME[-N] oldest first: by the time, then N as a number (1.0.119: by the
+    name, policy.X-10 went before policy.X-2 - a newer copy deleted, an older one kept)."""
+    m = re.fullmatch(r'policy\.(\d{8}-\d{6})(?:-(\d+))?', name)
+    if not m:
+        return ('', 0)
+    return (m.group(1), int(m.group(2) or 1))
+
+
 def policy_apply(text):
     """`acme-agent policy apply`: the whole policy replaced by `text` - checked first (any line
     the agent would not read, a folder no job may write, a script not there with its hash:
@@ -1194,8 +1203,9 @@ def policy_apply(text):
             i += 1
             kept = '%s.%s-%d' % (POLICY, stamp, i)
         _write(kept, old, 0o600, (0, 0))
-        mine = sorted(n for n in os.listdir(ETC)
-                      if re.fullmatch(r'policy\.\d{8}-\d{6}(-\d+)?', n))
+        mine = sorted((n for n in os.listdir(ETC)
+                       if re.fullmatch(r'policy\.\d{8}-\d{6}(-\d+)?', n)),
+                      key=policy_copy_order)
         for n in mine[:-POLICY_COPIES]:
             try:
                 os.unlink(os.path.join(ETC, n))

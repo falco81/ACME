@@ -203,7 +203,7 @@ def public_row(store, r, via):
         one.pop(k, None)
     one['why'] = str(why or '')[:500]
     one['via'] = via                    # 'me', or the group it is theirs through
-    one['mine'] = str(r.get('created_by') or '') == 'portal:' + str(one.get('owner') or '')
+    one['mine'] = str(r.get('created_by') or '') == asked_word(one.get('owner'))
     one['job'] = last_job(store, r['id'])
     # What it may be downloaded as, and the request profile it was asked for from (1.0.18).
     one['formats'] = row_formats(store, r)
@@ -294,7 +294,9 @@ def mine(h, s, rows=None):
             one['formats'] = [f for f in one.get('formats') or [] if f != KEY_FORMAT]
         return one
     if E.portal_sees_all(s):
-        out = [public(store, r, owner_of(r, names, groups, tms) or '*')
+        # with the teams there are (1.0.119), as everywhere else: a team's certificate of the
+        # same name as the administrator was said to be theirs ('me')
+        out = [public(store, r, owner_of(r, names, groups, tms, defined) or '*')
                for r in store.db.rows('SELECT * FROM certs ORDER BY name')]
         out.sort(key=lambda o: (o.get('via') != 'me', str(o.get('name') or '').lower()))
         return out
@@ -317,11 +319,17 @@ def mine(h, s, rows=None):
     return out
 
 
+def asked_word(who):
+    """created_by of a request asked for here: the name cut as the column keeps it - and
+    compared so (1.0.119: a longer sign-in name never counted towards its limit)."""
+    return 'portal:' + str(who or '')[:180]
+
+
 def used(store, who):
     """The requests a person has made that count: every one asked for here
     and still kept, but those declined."""
     return int(store.db.value("SELECT COUNT(*) FROM certs WHERE created_by = ? AND "
-                              "COALESCE(state, '') <> ?", ('portal:' + who, DECLINED), 0) or 0)
+                              "COALESCE(state, '') <> ?", (asked_word(who), DECLINED), 0) or 0)
 
 
 def key_may(s, via, may, asked_by=''):
@@ -1005,7 +1013,7 @@ def _portal_request(h):
         'state': 'new' if auto else WAITING, 'state_at': t, 'version': 0,
         'fails': 0, 'tags': json.dumps(['portal']),
         'note': ('asked for on the portal by %s. %s' % (who, note)).strip(), 'owner': owner[:190],
-        'created': t, 'created_by': 'portal:' + who[:180], 'enabled': 1, 'ari': '{}'}
+        'created': t, 'created_by': asked_word(who), 'enabled': 1, 'ari': '{}'}
     # Two asks at once (1.0.45): the name another took meanwhile is taken next (it was a 500),
     # and the person's limit counted again once the row is in (both had passed it).
     cid = None

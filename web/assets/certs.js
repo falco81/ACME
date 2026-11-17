@@ -452,7 +452,13 @@ function rowOpens(tr, go) {
     if (e && e.target && e.target.closest && e.target.closest('button, a, input, select, label')) return;
     go();
   };
-  tr.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+  /* Enter on a button of the row (Renew it now, Run its tests, the switch) is that button's,
+     not the row's (hunt q2: it opened the certificate instead) */
+  tr.onkeydown = function (e) {
+    if (e.key !== 'Enter' || (e.target !== tr && e.target.closest && e.target.closest('button, a, input, select, label, textarea'))) return;
+    e.preventDefault();
+    go();
+  };
   return tr;
 }
 function td(cls, content) {
@@ -3367,10 +3373,14 @@ function deployEdit(o) {
   modal('A deployment', function (b) { b.appendChild(el('p', 'center muted', 'Asking…')); }, [{words: 'Close', close: true}], 'medium');
   var ticket = modalTicket();
   Promise.all([plugins(true).catch(function () { return null; }), loadRows('targets', true).catch(function () { return []; }),
-               certId ? Promise.resolve(null) : capi('certs' + qs({per: 1000})).then(function (x) { return rowsOf(x, 'certs'); }).catch(function () { return []; })])
+               /* from a target's window the certificate's row is not given: asked for, so its
+                  card says its state and names as when it is picked (it said "web –") */
+               certId ? (o.cert ? Promise.resolve(null) : capi('certs/one' + qs({id: certId})).then(function (x) { return (x && x.cert) || null; }).catch(function () { return null; }))
+                 : capi('certs' + qs({per: 1000})).then(function (x) { return rowsOf(x, 'certs'); }).catch(function () { return []; })])
   .then(function (got) {
     if (!modalStill(ticket)) return;
-    var targets = got[1], certs = got[2];
+    var targets = got[1], certs = certId ? [] : got[2];
+    if (certId && got[2] && !o.cert) o = Object.assign({}, o, {cert: got[2]});
     var tSel = null, cSel = null, formHost = el('div'), form = null, on = null, pickHost = null;
     var certPick = null, certHost = null;
     var testsHost = el('div'), pendingTests = [];
@@ -4076,6 +4086,13 @@ function certPeek(id) {
 /* What a certificate says of itself that is not in the certificate - its owner,
    tags, note, how it renews, its name here, on or off: shown, and with the
    pencil changed where it is shown and saved alone. Nothing is issued. */
+/* How it renews, in words: the Details and the section of where it comes from say the same
+   (hunt q2: there an imported one "only when asked", a revoked one "by itself, 30 days before") */
+function renewsWords(c) {
+  return !c.issuer ? 'by importing a new one' : c.state === 'revoked' ? 'no - it is revoked'
+    : (c.state === 'pending' || c.state === 'pending-approval' || asked(c)) ? 'once it is approved and issued'
+    : (c.auto_renew === undefined || truthy(c.auto_renew) ? 'automatically' : 'only when asked');
+}
 function detailsSection(c, back) {
   var sec = section('Details', 'Changed here at once - none of this is in the certificate, nothing is issued again.');
   sec.classList.add('tm-details');
@@ -4088,9 +4105,7 @@ function detailsSection(c, back) {
       ['Note', c.note ? data('span', '', known(c.note)) : '–'],
       /* what it is, for whoever looks (1.0.80: read-only accounts, revoked and waiting ones said
          "by importing a new one" of a certificate from a source) */
-      ['Renews', !c.issuer ? 'by importing a new one' : c.state === 'revoked' ? 'no - it is revoked'
-        : (c.state === 'pending' || c.state === 'pending-approval' || asked(c)) ? 'once it is approved and issued'
-        : (truthy(c.auto_renew) ? 'automatically' : 'only when asked')],
+      ['Renews', renewsWords(c)],
       ['Days before the end', c.renew_days ? String(c.renew_days) : 'as Renewal and notices says'],
       ['Key on renewal', c.csr_from ? data('span', '', tr('key made by') + ' ' + c.csr_from) : (truthy(c.reuse_key) ? 'kept' : 'a new one each time')],
       c.issuer_ref ? ['Its id at the source', explain(copyable(String(c.issuer_ref), 'copied'), 'Imported from its source: each renewal reissues this order (or certificate) there.')] : null,
@@ -4354,16 +4369,16 @@ function certBody(body, c, versions, deploys, jobs, back) {
   var prof = obj(c.profile);
   var cmap = obj(c.challenge_map);
   rs._body.appendChild(kvTable([
-    ['Source', c.issuer || (c.source === 'import' ? 'imported - renewed by importing again' : (c.source === 'csr' ? 'an outside CA, by a CSR' : '–'))],
+    ['Source', c.issuer ? data('span', '', c.issuer) : (c.source === 'import' ? 'imported - renewed by importing again' : (c.source === 'csr' ? 'an outside CA, by a CSR' : '–'))],
     ['Validation', c.challenge ? c.challenge + (Object.keys(cmap).length ? ' · ' + Object.keys(cmap).length + ' name(s) otherwise' : '') : '–'],
-    ['Renews', autoRenew(c, false, function () { if (window.CT && CT.refresh) CT.refresh(); })],
+    ['Renews', autoCan(c) ? autoRenew(c, false, function () { if (window.CT && CT.refresh) CT.refresh(); }) : renewsWords(c)],
     ['Key on renewal', c.csr_from ? data('span', '', tr('key made by') + ' ' + c.csr_from) : (truthy(c.reuse_key) ? 'kept' : 'a new one each time')],
     ['Last renewed', c.last_ok ? stamp(c.last_ok) : 'never'],
     ['Next look', c.next_try ? stamp(c.next_try) : '–'],
     prof.days ? ['Validity asked', prof.days + ' days'] : null,
     arr(prof.eku).length ? ['Used for', arr(prof.eku).join(', ')] : null,
     c.ari && obj(c.ari).start ? ['CA suggests', stamp(obj(c.ari).start) + ' – ' + stamp(obj(c.ari).end)] : null,
-    ['Note', c.note || '–'],
+    ['Note', c.note ? data('span', '', known(c.note)) : '–'],
     ['Made', c.created ? stamp(c.created) + (c.created_by ? ' · ' + known(c.created_by) : '') : '–']
   ]));
   if (Object.keys(cmap).length) {
@@ -6995,7 +7010,12 @@ function importDialog(into) {
     found.appendChild(box);
     keyRow.hidden = hasKey;
     var lf = certs[0];
-    if (!name.value && lf) name.value = lf.cn || arr(lf.names)[0] || '';
+    /* a name acme takes (hunt q2: "*.example.com" or a CN with brackets was offered as it is -
+       Import then refused with "the certificate's name: letters a-z...") */
+    if (!name.value && lf && (lf.cn || arr(lf.names)[0])) {
+      name.value = certName(lf.cn || arr(lf.names)[0], arr(CL.rows).map(function (x) { return x.name; }));
+      if (name._nameCheck) name._nameCheck();
+    }
   };
   /* More than one certificate file at once (1.0.34): rsa.pfx and ec.pfx, the two
      halves of a dual certificate - read together, as a ZIP of them would be. */
@@ -7789,7 +7809,7 @@ function caNode(c, depth, kids) {
     n.appendChild(star);
   }
   n.onclick = function () { caPeek(c.id); };
-  n.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); caPeek(c.id); } };
+  n.onkeydown = function (e) { if (e.key === 'Enter' && e.target === n) { e.preventDefault(); caPeek(c.id); } };
   return n;
 }
 function ftag(k, v, cls) {

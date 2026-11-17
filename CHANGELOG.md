@@ -6,6 +6,10 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.119 - not released
 
+- Target agents: an active agent whose certificate answer was lost (or that failed to take it) is answered again until its first poll - it was refused "no such join" and stuck while acme said it joined; a passive agent that took its certificate, its answer lost, is seen as joined instead of asked again and again.
+- Target agents: a join sent again by the same agent with a new request (each one is signed anew) is taken - the key is compared, not the request's text; another key with a used code is still refused.
+- acme-agent: `policy apply` keeps the ten newest copies of the policy - a copy named …-10 went before …-2 and the newer one was deleted.
+- Target agents: the pane no longer reads and hashes the agent's package for every agent listed; *Download* of the package is shown only to those who may download it; *Design its policy…* clicked twice opens the builder once; a tile's update in progress keeps saying so when the pane is drawn again; the pane that could not be asked says it without leaving what is below it as if it were now.
 - Database server card and firewall: a MariaDB server with an agent showed PostgreSQL's port 5432; it shows MariaDB's own now.
 - acme-db-agent: MariaDB given a certificate that did not come back after its restart (or came back without TLS) is started again with its old files, not left stopped.
 - acme-db-agent: `--forget NAME` of a node not joined says so (exit 1) instead of "no longer let in".
@@ -29,6 +33,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 - Certificate portal: *Ask for a certificate*, on again after the limit, no longer keeps saying (tooltip, screen reader) that the limit is reached.
 - Certificate portal: a certificate not issued yet that nothing issues (not renewed by itself, or its approval missing) no longer says "being issued…" and is no longer asked about every 3 s.
 - Certificate portal: with a certificate as the only way to sign in, "your sign-in has run out" is said again on the sign-in page.
+- Database server card: on a phone the title of the card's summary no longer squeezes beside its state, which goes under it; *Last heard* of a database server is red when it was not heard from lately, not because its database is down.
+- Joining a database agent that did not answer in time once joined no longer says "Nothing was changed on this node" (it was joined): the join is kept, and the agent is looked at again shortly.
+- acme-db-agent: a line of pg_hba.conf that PostgreSQL could not read already no longer refuses every address acme adds; MariaDB without `have_ssl` no longer makes the agent look silent.
+- install.sh --db-server mariadb: with no folder of MariaDB's configuration it says to set `bind-address` by hand instead of writing into a folder that is not there.
+- Certificate portal: a sign-in left from before the one-time code was switched on is no longer drawn signed in for a moment; Settings → the sign-in's picture: *Save* with your own picture taken away and still picked is refused before the picture is taken away.
+- Certificate portal: the request limit counts the requests of a person with a long sign-in name (over 180 characters); an administrator who sees every certificate no longer has a team's certificate of their own name shown as theirs.
 
 ## 1.0.118 - 2026-11-17
 

@@ -49,7 +49,9 @@ def _G():
 
 
 def _txt(v, most):
-    return re.sub(r'[\x00-\x08\x0b-\x1f\x7f]', '', str(v if v is not None else ''))[:most]
+    # the C1 control characters too (1.0.119), as agents._txt
+    return re.sub(r'[\x00-\x08\x0b-\x1f\x7f\x80-\x9f]', '',
+                  str(v if v is not None else ''))[:most]
 
 
 # ---- templates ---------------------------------------------------------------------------------

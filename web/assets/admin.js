@@ -20116,6 +20116,9 @@ function dbaState(s) {
   if (s.ok) return ['ok', 'answers', ''];
   return ['off', 'not looked at yet', ''];
 }
+/* Last heard: red by how long ago it was (not heard lately, or not yet), not by the state of
+   the database - one heard moments ago is not red because its database is down (1.0.119). */
+function dbaHeardCls(s) { return !s.at || s.stale ? 'bad' : ''; }
 function dbaDot(st) { return el('span', 'dot ' + (st === 'bad' ? 'crit' : st)); }
 function dbaEngine(e) { return e === 'mariadb' ? 'MariaDB' : 'PostgreSQL'; }
 function dbaWhere(s) { return (s.db_host || s.host || '?') + (s.port ? '' : ''); }
@@ -20380,7 +20383,7 @@ function dbaTile(s, d) {
   dbaKv(kv, 'Agent’s certificate ends', ce);
   var cc = dbaDays(s.client_cert_end);
   dbaKv(kv, 'Node’s client certificate ends', noI18n(el('span', cc !== null && cc < 14 ? 'bad' : '', dbaDate(s.client_cert_end))));
-  var hd = el('span', st[0] === 'ok' ? '' : 'bad');
+  var hd = el('span', dbaHeardCls(s));
   hd.appendChild(el('span', '', s.at ? ago(s.at) : 'not yet'));
   dbaKv(kv, 'Last heard', hd);
   t.appendChild(kv);
@@ -20642,7 +20645,9 @@ function dbaWizard() {
       var f = W.done.facts || {}, a = W.done.agent || {};
       steps.set('reach', 'ok', (W.done.host || '') + ':' + (W.done.port || '') + (a.version ? ' · acme-db-agent ' + a.version : ''));
       steps.set('certs', 'ok', 'the agent has its certificate; this node its client certificate and signing key');
-      steps.set('look', f.running === false ? 'warn' : 'ok', (f.engine === 'mariadb' ? 'MariaDB ' : 'PostgreSQL ') + String(f.version || '').split(/[ -]/)[0] + (f.running === false ? ' - not running' : ' - running'));
+      /* Joined, but the agent did not answer since (1.0.119): not said to be running. */
+      if (W.done.late) steps.set('look', 'warn', 'the agent did not answer yet - it is looked at again shortly');
+      else steps.set('look', f.running === false ? 'warn' : 'ok', (f.engine === 'mariadb' ? 'MariaDB ' : 'PostgreSQL ') + String(f.version || '').split(/[ -]/)[0] + (f.running === false ? ' - not running' : ' - running'));
       var v = W.done.view || {};
       var me = (v.servers || []).filter(function (s) { return s.me; })[0];
       if (me) { var g = el('div', 'dbs-grid one'); g.appendChild(dbaTile(me, v)); res.appendChild(g); }
@@ -20970,7 +20975,7 @@ function dbaLocalTile(s, rows) {
   }
   dbaKv(kv, 'Processors', (f.cpus ? num(f.cpus) : '–') + (f.load ? ' · ' + f.load.map(function (x) { var v = Number(x).toFixed(2); return numDecimal() === ',' ? v.replace('.', ',') : v; }).join(' / ') : ''));
   dbaKv(kv, 'Up for', f.uptime ? dbaUp(f.uptime) : '–');
-  var hd = el('span', st[0] === 'ok' ? '' : 'bad');
+  var hd = el('span', dbaHeardCls(s));
   hd.appendChild(el('span', '', s.at ? ago(s.at) : 'not yet'));
   dbaKv(kv, 'Last heard', hd);
   t.appendChild(kv);

@@ -4350,6 +4350,8 @@ textarea.dbs-code{width:100%;font-size:12.5px;resize:vertical;min-height:72px}
 .dbw-agent{margin:12px 0 0}
 @media (max-width:760px){
   .dbs-hero{flex-wrap:wrap;padding:12px}
+  /* 1.0.119: a basis of its own, or flex:1 (0%) never wraps - the title squeezed beside the chip */
+  .dbs-hero-w{flex:1 1 200px}
   .dbs-state{order:3}
   .dbs-kvs{grid-template-columns:1fr}
   .dbs-kv.wide{grid-column:auto}

@@ -528,7 +528,7 @@
         else if (/(^|[\\/])\.\.([\\/]|$)/.test(p)) bad = '.. is not allowed in a path';
         else if (/['"`$;&|<>]/.test(p)) bad = 'quotes, $ ; & | < > are not allowed in a path';
         else if (/[\\/]$/.test(p)) bad = 'that is a folder: give the file a name';
-        else if (/\{(?!(name|cn|service|date|alt)\})[a-z_]+\}/.test(p)) bad = 'not a placeholder there is: ' + p.match(/\{[a-z_]+\}/)[0];
+        else if (/\{(?!(name|cn|service|date|alt)\})[a-z_]+\}/.test(p)) bad = 'not a placeholder there is: ' + p.match(/\{(?!(name|cn|service|date|alt)\})[a-z_]+\}/)[0];
         if (msel && msel.value.trim() && !/^[0-7]{3,4}$/.test(msel.value.trim())) bad = bad || 'the mode is three or four octal digits, as 0644 or 0755';
         var m = msel && (msel.value.trim() || (KEYS.indexOf(fsel.value) >= 0 ? '0600' : '0644'));
         if (!bad && m && KEYS.indexOf(fsel.value) >= 0 && (parseInt(m, 8) & 4)) warn = 'anybody on the machine may read the key: 0600 or 0640';

@@ -485,9 +485,27 @@ def policy_summary(pol):
             'self_update': bool(pol.get('self_update'))}
 
 
+_SHIPPED = {}
+
+
 def shipped_code():
+    """The hash of the program acme ships - kept while its files are the same (1.0.119: the
+    pages hashed it once for every agent of a list, and every few seconds)."""
     try:
-        return agent_mod().code_hash(AGENT_DIR)
+        m = agent_mod()
+        key = []
+        for n in getattr(m, 'AGENT_FILES', ()):
+            try:
+                f = os.stat(os.path.join(AGENT_DIR, n))
+                key.append((n, f.st_mtime_ns, f.st_size, f.st_ino))
+            except OSError:
+                key.append((n, None))
+        key = tuple(key)
+        if key and _SHIPPED.get('key') == key:
+            return _SHIPPED['code']
+        code = m.code_hash(AGENT_DIR)
+        _SHIPPED.update(key=key, code=code)
+        return code
     except Exception:                                   # noqa: BLE001
         return ''
 
@@ -556,7 +574,7 @@ def join_take(store, row, st, c, secret, req, tls_key_fp=None):
     """The agent's join request (its CSR, its X25519 key, its proof of the code) - kept as
     pending until a person confirms its fingerprint."""
     now = time.time()
-    if c.get('used') and (st.get('pending') or {}).get('csr') != req.get('csr'):
+    if c.get('used') and not isinstance(st.get('pending'), dict):
         raise PluginError('the join code was used already - make a new one', retry=False)
     if float(c.get('until') or 0) < now:
         raise PluginError('the join code ran out - make a new one', retry=False)
@@ -582,10 +600,17 @@ def join_take(store, row, st, c, secret, req, tls_key_fp=None):
         raise PluginError('the agent answers with another key than it asks a certificate for',
                           retry=False)
     was = st.get('pending') if isinstance(st.get('pending'), dict) else {}
-    if c.get('used') and was.get('cert') and was.get('csr') == csr and was.get('fp') == fp:
-        # 1.0.119: the same join again (sent twice, or replayed) once a person confirmed it -
-        # the pending request was made anew without its certificate: the confirmation undone
-        return fp
+    if c.get('used'):
+        # 1.0.119: the code is used once - only the agent that used it may ask again (its
+        # answer lost, sent twice): the same key, the same key to seal to. Its CSR is made anew
+        # each time (a signature of its own), so the key is compared, never the CSR's text
+        if not was.get('fp') or not hmac.compare_digest(was['fp'], fp) or \
+                not hmac.compare_digest(str(was.get('enc_pub') or ''), enc):
+            raise PluginError('the join code was used already - make a new one', retry=False)
+        if was.get('cert'):
+            # once a person confirmed it: the pending request was made anew without its
+            # certificate - the confirmation undone
+            return fp
     c['used'] = True
     st['code'] = c
     st['pending'] = {'csr': csr, 'fp': fp, 'enc_pub': enc, 'agent_id': c['agent_id'],
@@ -672,12 +697,31 @@ def finish_passive(store, row, st):
     body = {'cert_pem': pend['cert'], 'nonce': nonce,
             'proof': proof(secret, 'cert', c['id'], hashlib.sha256(pend['cert'].encode())
                            .hexdigest(), nonce)}
-    got, _peer = _passive_post(store, row, '/v1/join/finish', body, joining=pend['fp'])
+    err = None
+    try:
+        got, _peer = _passive_post(store, row, '/v1/join/finish', body, joining=pend['fp'])
+    except PluginError as e:
+        got, err = {}, e
+    if not got.get('ok') and _has_its_cert(store, row):
+        got = {'ok': True}
+    if err is not None and not got.get('ok'):
+        raise err
     if not got.get('ok'):
         raise PluginError('the agent did not take its certificate: %s' % _txt(got.get('said')),
                           retry=True)
     _joined(store, row)
     return True
+
+
+def _has_its_cert(store, row):
+    """1.0.119: the agent took its certificate, its answer lost (it serves it now, the join
+    over on its side - asked again it says "no join under way"): it answers a job over its
+    certificate, the one acme gave it - so it has it."""
+    try:
+        hello(store, row)
+        return True
+    except (PluginError, OSError, ValueError):
+        return False
 
 
 def _joined(store, row):
@@ -775,7 +819,16 @@ def wire(store, op, body, cert_pem, verify, ip=''):
             'ok': True, 'state': 'done', 'cert_pem': pend['cert'],
             'proof': proof(secret, 'cert', c['id'], hashlib.sha256(
                 pend['cert'].encode()).hexdigest(), nonce)})
-        _joined(store, row)
+        # 1.0.119: the code and the confirmed request kept until the agent's first poll with
+        # its certificate (poll) - this answer lost, or the agent failing to take it, it asks
+        # again and is answered again (it gave away the code once, it used it from the start)
+        if not pend.get('handed'):
+            pend['handed'] = time.time()
+            st['pending'] = pend
+            st['last_seen'] = time.time()
+            state_put(store, row['id'], st)
+            store.add_event('certificates', 'the agent of target %s joined acme (%s) - %s' % (
+                row['name'], st.get('agent_id'), st.get('host') or '?'), 'info')
         return 200, out
     if op == 'poll':
         return poll(store, body, cert_pem, verify, ip)
@@ -1719,11 +1772,28 @@ def package(build=True):
         return got
 
 
+_FACTS = {}
+
+
 def _pkg_facts(path, name, ver, signed):
-    with open(path, 'rb') as f:
-        data = f.read()
-    return {'name': name, 'version': ver, 'sha256': hashlib.sha256(data).hexdigest(),
-            'size': len(data), 'signed': signed, 'path': path}
+    """(1.0.119: kept by the file's path, time and size - the 4 MB package was read and hashed
+    for every agent of the pages' list, at every ask.)"""
+    f = os.stat(path)
+    key = (path, f.st_mtime_ns, f.st_size, f.st_ino)
+    got = _FACTS.get(key)
+    if got is None:
+        h = hashlib.sha256()
+        n = 0
+        with open(path, 'rb') as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b''):
+                h.update(chunk)
+                n += len(chunk)
+        got = {'sha256': h.hexdigest(), 'size': n}
+        if len(_FACTS) > 16:
+            _FACTS.clear()
+        _FACTS[key] = got
+    return {'name': name, 'version': ver, 'sha256': got['sha256'], 'size': got['size'],
+            'signed': signed, 'path': path}
 
 
 def build_package(dest, version, key=None, keys_dir=None, epoch=None):

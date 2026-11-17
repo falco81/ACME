@@ -19,12 +19,17 @@ and the console use them - beside test/test_target_agent.py (its real agents, it
   connections, a newer agent, the policy blocking, the keys made there; `allow probe local`
   listed by policy;
 * the agents' events for isemon / the SIEM of a target whose name has a space;
-* the console offers the agent's menu on a target "Server with acme-agent".
+* the console offers the agent's menu on a target "Server with acme-agent";
+* the agents' pages in a browser: test/agents_page.js (node with playwright; skipped without) -
+  no Python test ran it (1.0.119).
 
 Needs what test_target_agent.py needs (root, setpriv, openssl).
 """
 import io
+import json
 import os
+import shutil
+import subprocess
 import sys
 import time
 import unittest
@@ -296,6 +301,25 @@ class Console(unittest.TestCase):
             CO._plugin = orig
         self.assertIn('agent', con.asked[0][1])
         self.assertEqual(con.acts, [('--target-agent', 'web1', 'policy')])
+
+
+class Pages(unittest.TestCase):
+    def test_agents_page(self):
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('no node here')
+        if subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
+                          timeout=60).returncode:
+            self.skipTest('no playwright for node here')
+        root = os.path.dirname(HERE)
+        got = subprocess.run([node, os.path.join(HERE, 'agents_page.js'),
+                              os.path.join(root, 'web')],
+                             capture_output=True, text=True, timeout=900)
+        out = json.loads((got.stdout.strip().splitlines() or ['{}'])[-1])
+        bad = [k for k, v in (out.get('checks') or {}).items() if not v]
+        self.assertTrue(out.get('ok'), json.dumps({'failed': bad, 'error': out.get('error'),
+                                                   'errors': out.get('errors')})
+                        + got.stderr[-2000:])
 
 
 if __name__ == '__main__':

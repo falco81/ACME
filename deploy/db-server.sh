@@ -319,9 +319,15 @@ my_configure() {
     done
     run my_q "FLUSH PRIVILEGES"
     good "the database $DBS_NAME and the account $DBS_USER (localhost, 127.0.0.1${ACME_NODES:+, $ACME_NODES})"
-    for cnf_dir in /etc/my.cnf.d /etc/mysql/mariadb.conf.d; do [[ -d "$cnf_dir" ]] && break; done
-    cnf="$cnf_dir/zz-acme-listen.cnf"
-    if [[ -n "$ACME_NODES" && ! -f "$cnf" ]]; then
+    # The folder MariaDB reads, the first of them there is (1.0.119: none there, the file was
+    # written into a folder that is not - the last one tried).
+    cnf=""
+    for cnf_dir in /etc/my.cnf.d /etc/mysql/mariadb.conf.d /etc/mysql/conf.d; do
+        if [[ -d "$cnf_dir" ]]; then cnf="$cnf_dir/zz-acme-listen.cnf"; break; fi
+    done
+    if [[ -n "$ACME_NODES" && -z "$cnf" ]]; then
+        warn "no folder of MariaDB's configuration (/etc/my.cnf.d, /etc/mysql/mariadb.conf.d) - put bind-address = 0.0.0.0 in its [mariadb] section yourself and start it again, or the acme nodes do not reach it"
+    elif [[ -n "$ACME_NODES" && ! -f "$cnf" ]]; then
         printf '# written by install.sh --db-server mariadb (acme)\n[mariadb]\nbind-address = 0.0.0.0\n' | write_file "$cnf" 0644
         if dbs_systemd; then run systemctl restart mariadb; else warn "start MariaDB again for $cnf (bind-address)"; fi
         good "MariaDB listens on the network ($cnf)"

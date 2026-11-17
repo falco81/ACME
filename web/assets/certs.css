@@ -117,7 +117,8 @@ table.ct-cmap td{padding-top:3px;padding-bottom:3px}
 /* ---- the wizard ---------------------------------------------------------- */
 .ct-wsteps{list-style:none;margin:0 0 16px;padding:0;display:flex;gap:4px;flex-wrap:wrap;
   border-bottom:1px solid var(--line);padding-bottom:12px}
-.ct-wsteps li{flex:1 1 0;min-width:96px}
+/* each as wide as its words at least (hunt q2: "Deployments" ran into "9 Review") */
+.ct-wsteps li{flex:1 1 0;min-width:max-content}
 .ct-wsteps button{all:unset;box-sizing:border-box;width:100%;display:flex;align-items:center;gap:8px;
   padding:7px 10px;border-radius:10px;cursor:pointer;color:var(--tx-mut);font-size:13px;font-weight:600}
 .ct-wsteps button:disabled{cursor:default;opacity:.55}
@@ -392,6 +393,9 @@ pre.ct-dnslines{margin:4px 0;width:100%;white-space:pre;overflow-x:auto}
 .msect table.tight td .tag{white-space:normal;overflow-wrap:anywhere;word-break:break-word;max-width:100%}
 .msect table.tight{max-width:100%}
 
+/* a popup on a phone narrower than a section (hunt q2: three or more sections side by side -
+   the card's Details - kept 330 px each, cut at the popup's right edge) */
+.msects:not(.two){grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr))}
 .msects.ct-two{grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr))}
 @media (min-width: 760px){.msects.ct-two{grid-template-columns:1fr 1fr}}
 .msects.ct-one > .msect:not(.wide){grid-column:1 / -1}
@@ -424,7 +428,11 @@ table.ct-deptable,table.ct-vertable,table.ct-issued,table.ct-dnstable{min-width:
 .ct-url{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;word-break:break-all}
 .ct-url .iconbtn{padding:2px}
 .ct-inline-switch{margin-left:10px;vertical-align:middle}
-.ct-pki-line{margin:0 0 12px}
+.ct-pki-line{margin:0 0 12px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+/* its buttons a row's gap apart, never indented when they wrap (hunt q2) */
+p.note.ct-pki-line{max-width:none}
+p.note.ct-pki-line > .btn{margin:0}
+.ct-pki-line > span{flex:0 1 auto;min-width:0}
 .ct-name-said{color:var(--crit,#f85149);margin-top:4px}
 .set-item.refused input{border-color:var(--crit,#f85149)}
 

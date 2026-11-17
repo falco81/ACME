@@ -876,7 +876,7 @@ def request(h, s, b):
         'tags': json.dumps(tags),
         'note': ('asked for on the portal by %s (request profile %s%s). %s' % (
             who, r['name'], ', with a CSR' if csr_pem else '', note)).strip(),
-        'owner': owner[:190], 'created': t, 'created_by': 'portal:' + who[:180], 'enabled': 1,
+        'owner': owner[:190], 'created': t, 'created_by': P.asked_word(who), 'enabled': 1,
         'ari': '{}', 'csr_given': csr_pem or None}
     # Two asks at once (1.0.102, as the portal's own form since 1.0.45): the name another took
     # meanwhile is taken next - it was a 500 and a Traceback

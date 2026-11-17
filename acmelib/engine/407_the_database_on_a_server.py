@@ -577,14 +577,20 @@ def db_agent_join(store, code, addr='', db_host='', by='command line', say=None)
                       'client_cert_end': _cert_end(ccrt),
                       'trust_sent': _db_agent_set_hash(trust)})
     # The agent starts its listening side again with this node in: waited for.
+    # Not answering in time is no failure of the join (1.0.119): agent.json and the keys are
+    # written already - this node is joined, and the agent is watched and looked at again.
     end = time.time() + 20
+    late = ''
     while True:
         try:
             got = db_agent_call('status', conf=a)
             break
-        except ValueError:
+        except ValueError as e:
             if time.time() > end:
-                raise
+                got, late = {}, str(e)
+                say('NOTE: the agent did not answer since it was joined (%s) - this node is '
+                    'joined all the same; it is looked at again shortly' % late)
+                break
             time.sleep(0.5)
     # Its firewall opened to this node (the database's port and the agent's), where firewalld
     # runs there - joined without --acme-node, nothing else would.
@@ -601,7 +607,7 @@ def db_agent_join(store, code, addr='', db_host='', by='command line', say=None)
         store.add_event('settings', '%s: %s' % (by, db_agent_replaced_words(replaced)), 'warn',
                         who=by)
     return {'host': host, 'port': port, 'facts': got.get('facts') or {},
-            'agent': got.get('agent') or {}, 'replaced': replaced,
+            'agent': got.get('agent') or {}, 'replaced': replaced, 'late': late,
             'replaced_said': db_agent_replaced_words(replaced) if replaced else ''}
 
 
@@ -1649,8 +1655,10 @@ def _db_agent_cli(args):
         except ValueError as e:
             raise SystemExit('acme: %s' % e)
         f = got.get('facts') or {}
-        ok_line('the database server: %s %s, %s' % (f.get('engine'), f.get('version') or '',
-                                                     'running' if f.get('running') else 'NOT running'))
+        if not got.get('late'):
+            ok_line('the database server: %s %s, %s' % (
+                f.get('engine'), f.get('version') or '',
+                'running' if f.get('running') else 'NOT running'))
         ok_line('db_admin = agent:%s:%s (%s)' % (got['host'], got['port'], DBAGENT_FILE))
         if not os.environ.get('ACME_HA_NO_RESTART') and os.geteuid() == 0:
             subprocess.run(['systemctl', 'restart', 'acme'], capture_output=True)

@@ -642,10 +642,16 @@ var USERS = ['root', 'nginx', 'www-data', 'apache', 'haproxy', 'postfix', 'dovec
  * The builder of one target's agent policy. row: {id, name}; opts: {from: 'design'|'server'|
  * 'empty', state: a state to start from (a version of the design), done: after a save}.
  */
+/* the builder being asked for (1.0.119: "Design its policy…" clicked twice while it was
+   asked opened it twice) */
+var OPENING = false;
 function open(row, opts) {
   opts = opts || {};
+  if (OPENING) return;
   var go = function () {
-    ask('agents/builder?id=' + encodeURIComponent(row.id || row.name)).then(function (d) { build(row, d, opts); }).catch(oops);
+    if (OPENING) return;
+    OPENING = true;
+    ask('agents/builder?id=' + encodeURIComponent(row.id || row.name)).then(function (d) { OPENING = false; build(row, d, opts); }).catch(function (e) { OPENING = false; oops(e); });
   };
   var h = hands();
   if (h.over && opts.over !== false) h.over(go, opts.back); else go();

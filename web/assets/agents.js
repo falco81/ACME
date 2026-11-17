@@ -18,6 +18,10 @@ var PANE = {ticket: 0, timer: null};
 /* the agents being updated now (id: 1) - a second click, or Update all meanwhile, sent the
    package to the same agent again */
 var UPDATING = {};
+/* how each tile's update goes (id: {cls, words, at}) - the pane drawn again meanwhile (its
+   4 s settling, an update ending) drew the tiles without it (1.0.119) */
+var MARKS = {};
+var MARK_KEEP = 300000;
 
 function ask(path, body, wait) {
   if (!H.capi) return Promise.reject(new Error('the page is not ready'));
@@ -185,8 +189,19 @@ function pane(live) {
     fill(d, live || again);
     settleMore(d);
   }).catch(function (e) {
-    clear(hero);
-    hero.appendChild(el('p', 'ct-bad', 'The target agents could not be asked: ' + String((e && e.message) || e)));
+    if (ticket !== PANE.ticket) return;
+    /* 1.0.119: said where it is seen - the hero alone said it, the boxes below went on
+       empty (the first time) or showing what was seen last as if it were now */
+    var words = 'The target agents could not be asked: ' + String((e && e.message) || e);
+    if (PANE.last && hero.firstChild) {
+      var was = hero.querySelector('.ag-ask-err');
+      if (was) was.remove();
+      var p = el('p', 'ct-bad ag-ask-err', words);
+      hero.insertBefore(p, hero.firstChild);
+      return;
+    }
+    [hero, pkg, ca, list].forEach(function (b) { if (b) clear(b); });
+    hero.appendChild(el('p', 'ct-bad ag-ask-err', words));
   });
 }
 /* After active mode or the port is saved (1.0.117): the pane is asked again every 4 s while
@@ -290,9 +305,13 @@ function drawPackage(box, d) {
   sha.appendChild(sv);
   w.appendChild(sha);
   tile.appendChild(w);
-  var dl = cmdButton('Download', 'download', 'primary');
-  dl.onclick = function () { download(dl); };
-  tile.appendChild(dl);
+  /* the package is given to a certificate administrator (GET agents/package) - the button
+     was there for every role, and said "forbidden" (1.0.119) */
+  if (MANAGE) {
+    var dl = cmdButton('Download', 'download', 'primary');
+    dl.onclick = function () { download(dl); };
+    tile.appendChild(dl);
+  }
   box.appendChild(tile);
   box.appendChild(el('h4', 'dbw-h', 'On the server, as root'));
   var ol = el('ol', 'dbs-steps ag-steps');
@@ -432,6 +451,12 @@ function tile(a, d) {
   var prog = el('span', 'ag-tile-upd');
   prog.hidden = true;
   prog.setAttribute('data-upd', String(a.id));
+  var mk = MARKS[a.id];
+  if (mk && (UPDATING[a.id] || Date.now() - mk.at < MARK_KEEP)) {
+    prog.hidden = false;
+    prog.className = 'ag-tile-upd ' + mk.cls;
+    prog.textContent = mk.words;
+  }
   acts.appendChild(prog);
   t.appendChild(acts);
   if (otherProgram(a, d && d.shipped_code)) {
@@ -624,6 +649,7 @@ function waitVersion(row, want) {
     tile's Update), each tile saying how it goes. */
 function updateMany(list) {
   var mark = function (id, cls, words) {
+    MARKS[id] = {cls: cls, words: words, at: Date.now()};
     var p = document.querySelector('[data-upd="' + id + '"]');
     if (!p) return;
     p.hidden = false;

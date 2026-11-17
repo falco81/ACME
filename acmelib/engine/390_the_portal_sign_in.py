@@ -512,6 +512,15 @@ def _portal_art_set(h):
                 except (binascii.Error, ValueError):
                     raise ApiError(400, 'the picture did not arrive whole')
                 logo_check(raw)
+            # Refused before anything is changed (1.0.119): the picture of your own was taken
+            # away first and then the answer was 400 - one of the other sign-in's, or custom
+            # with the picture taken away.
+            if not art_for_slot(slot, art):
+                raise ApiError(400, 'that picture is for the sign-in of the enrolment pages only'
+                               if ART_ONLY[art] == 'portal' else
+                               'that picture is for the sign-in of the administration only')
+            if art == 'custom' and not raw and (b.get('forget') or not logo_read(h.store, slot)):
+                raise ApiError(400, 'there is no picture of your own yet - upload one first')
             if b.get('forget') and not raw:
                 logo_set(h.store, slot, b'', who)
                 h.store.add_event('settings', '%s took away the picture of their own of the '
@@ -1196,6 +1205,13 @@ def _portal_whoami(h):
     if portal_gated(s):
         # Waiting for its one-time code (as otp 1.0.228): nothing of the person shown yet.
         return {'me': {'name': s['name'], 'gate': portal_gate_view(s)}}
+    data = s.get('data') or {}
+    needed = portal_local_ways() if data.get('kind') == 'local' else portal_gate_needed()
+    if not data.get('gate_ok') and needed:
+        # A one-time code asked now and never given by this sign-in (1.0.119): as portal_me -
+        # the page drew it signed in and its first call signed it out.
+        h.store.session_end(h.headers.get('X-Acme-Session'))
+        return {'me': None}
     if not portal_local_ok(h, s):
         h.store.session_end(h.headers.get('X-Acme-Session'))
         return {'me': None}
