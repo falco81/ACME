@@ -10894,6 +10894,24 @@ window.ACME_AGENTS_HANDS = {capi: capi, over: over, openTarget: function (name) 
   /* phase 3: a certificate whose key the agent makes there (certs.csr_from = the target) */
   var h = bareHost(String(host || ''));
   over(function () { certWizard(null, null, {csrFrom: row.name, names: h ? [h] : []}); }, function () { targetPeek(row); });
+}, newDeploy: function (row, o) {
+  /* 1.0.125, discovery: the deployment dialog prefilled from what was found on the server -
+     its options (preset, files, reload; Windows: store, IIS bindings, role), the certificate
+     acme serves there already when it is one of acme's */
+  o = o || {};
+  over(function () {
+    deployEdit({target: row, have: o.have || [], deploy: {target: row.name, options: o.options || {}, cert_id: o.cert_id || undefined}});
+  }, o.back || function () { targetPeek(row); });
+}, newTest: function (kind, keep, back) {
+  /* ...and "Watch it": a test of what the server serves, its form prefilled ({config, name,
+     note}) */
+  plugins(true).then(function () {
+    var p = plugVersion(plugOf('check', kind)) || plugVersion(plugOf('check', 'tls'));
+    if (!p) { toast('no test of that kind here', 'bad'); return; }
+    over(function () { modForm('tests', null, p, false, keep || {config: {}}); }, back);
+  }).catch(fail);
+}, importCert: function (back) {
+  over(function () { importDialog(); }, back);
 }};
 if (window.ACME_AGENTS) window.ACME_AGENTS.init(window.ACME_AGENTS_HANDS);
 var LAST = {};

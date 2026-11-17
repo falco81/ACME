@@ -1601,6 +1601,13 @@ def clean_result(r):
         out['cert_fp'] = r['cert_fp']
     if isinstance(r.get('adcs'), dict):
         out['adcs'] = clean_adcs(r['adcs'])
+    if isinstance(r.get('discover'), dict):
+        # 1.0.125: what a discovery found on the server (agent_discover.py)
+        from acmelib.certs import agent_discover
+        try:
+            out['discover'] = agent_discover.clean(r['discover'])
+        except PluginError as e:
+            out.update(ok=False, said=str(e))
     # 1.0.120: what the agent tells about its server - its word, cleaned strictly
     if isinstance(r.get('system'), dict):
         from acmelib.certs import agent_system
@@ -1686,6 +1693,11 @@ def clean_policy(p):
         out['adcs'] = adcs
     if p.get('adcs_read'):
         out['adcs_read'] = True
+    # 1.0.125: discovery (allow discover [KIND,KIND]): ['*'] every kind, else the kinds
+    disc = [s(x, 20) for x in lst('discover')[:40] if isinstance(x, str) and
+            re.fullmatch(r'\*|[a-z0-9]{1,20}', x)]
+    if disc:
+        out['discover'] = ['*'] if '*' in disc else disc
     lim = p.get('limits') if isinstance(p.get('limits'), dict) else {}
     for k in ('files', 'size'):
         try:
@@ -2270,6 +2282,8 @@ def target_gone(store, row):
         pass
     from acmelib.certs import agent_policy
     agent_policy.design_gone(store, row)
+    from acmelib.certs import agent_discover
+    agent_discover.forget(store, row)
 
 
 # ---- now and then (the leader) -------------------------------------------------------------------

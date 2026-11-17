@@ -18,7 +18,10 @@
 (function () {
 'use strict';
 
-var CP = {d: null, host: null, timer: null, jobTimer: null, open: null};
+var CP = {d: null, host: null, timer: null, jobTimer: null, open: null,
+          /* the team workspace (1.0.125, portal-teams.js): one page of a team's certificates,
+             searched on the server - `q` what is asked (team, below, q, state, page, per) */
+          paged: false, q: {}, ctx: null};
 
 if (typeof ICONS === 'object' && !ICONS.cert) {
   ICONS.cert = '<rect x="3.5" y="4" width="17" height="12" rx="2"/><path d="M7.5 8h9M7.5 11h5"/>'
@@ -66,6 +69,24 @@ function stateTag(st, c) {
   return t;
 }
 function now() { return Date.now() / 1000; }
+/* What the person may do with one certificate (1.0.125): its capabilities `caps` - or, from an
+   older daemon, the old rights `may` (manage gave every one of them). */
+var MANAGE_CAPS = ['cert.renew', 'cert.auto', 'cert.edit', 'cert.revoke', 'cert.delete', 'cert.key',
+                   'deploy.run', 'deploy.manage'];
+function has(c, cap) {
+  if (Array.isArray(c.caps)) {
+    if (cap === 'cert.approve') return c.caps.indexOf(cap) >= 0 || MANAGE_CAPS.every(function (x) { return c.caps.indexOf(x) >= 0; });
+    return c.caps.indexOf(cap) >= 0;
+  }
+  var may = c.may || ['view'];
+  if (may.indexOf('manage') >= 0) return true;
+  if (cap === 'cert.approve') return may.indexOf('approve') >= 0;
+  if (cap === 'cert.request') return may.indexOf('request') >= 0;
+  return cap === 'cert.view';
+}
+function renewable(c) {
+  return !!c.issuer && c.state !== 'pending-approval' && !c.stuck && c.state !== 'declined' && c.state !== 'revoked';
+}
 function daysLeftOf(ts) { return ts ? Math.floor((Number(ts) - now()) / 86400) : null; }
 function daysTone(d) {
   if (d === null) return 'dim';
@@ -150,10 +171,48 @@ function running(c) {
 }
 
 /* ---- the card ---------------------------------------------------------------- */
+/* A person in a team (1.0.125): the team workspace (portal-teams.js) - in none, "Your
+   certificates" as it always was. Which one is asked first (GET teams); a daemon that does not
+   know it, or any refusal, is the old page. */
 function part(host, me) {
+  var wait = skeletonCard();
+  host.appendChild(wait);
+  api('teams').then(function (t) {
+    wait.remove();
+    if (t && t.in_teams && window.ACME_PORTAL_WS && !(me && me.must_change)) {
+      window.ACME_PORTAL_WS.start(host, me, t);
+      return;
+    }
+    oldPart(host, me);
+  }).catch(function (e) {
+    if (e && e.stopped) return;
+    wait.remove();
+    oldPart(host, me);
+  });
+}
+/* A card of grey bars while the first answer comes. */
+function skeletonCard() {
+  var c = el('div', 'card cp-skel-card');
+  c.setAttribute('aria-busy', 'true');
+  var h = el('div', 'cp-skel cp-skel-h');
+  c.appendChild(h);
+  for (var i = 0; i < 4; i++) {
+    var r = el('div', 'cp-skel-row');
+    r.appendChild(el('div', 'cp-skel cp-skel-dot'));
+    r.appendChild(el('div', 'cp-skel cp-skel-line'));
+    r.appendChild(el('div', 'cp-skel cp-skel-short'));
+    c.appendChild(r);
+  }
+  return c;
+}
+function oldPart(host, me) {
   var card = el('div', 'card cp-card');
   card.id = 'cp-card';
-  var h = el('h2', '', 'Your certificates');
+  var h = el('h2', 'cp-title');
+  var hic = noI18n(el('span', 'cp-title-ic'));
+  hic.innerHTML = iconMarkup('cert', 18);
+  h.appendChild(hic);
+  h.appendChild(el('span', '', 'Your certificates'));
   var right = el('span', 'right btnrow');
   var ask = cmdButton('Ask for a certificate', 'add', 'primary small');
   ask.id = 'cp-ask';
@@ -176,13 +235,25 @@ function part(host, me) {
   load();
 }
 
+function query() {
+  if (!CP.paged) return 'certs';
+  var q = CP.q || {}, out = 'certs';
+  ['team', 'below', 'q', 'state', 'page', 'per'].forEach(function (k) {
+    if (q[k] !== undefined && q[k] !== null && q[k] !== '') out += '&' + k + '=' + encodeURIComponent(q[k]);
+  });
+  /* "All my teams": one page of every certificate they see */
+  if (out === 'certs') out += '&page=0';
+  return out;
+}
 function load() {
   clearTimeout(CP.timer);
-  return api('certs').then(function (d) {
+  if (!CP.host || !CP.host.isConnected) return Promise.resolve(null);
+  return apiLatest('cp-certs', query()).then(function (d) {
     CP.d = d;
     draw(d);
     var busyOnes = (d.rows || []).some(running);
     CP.timer = setTimeout(load, busyOnes ? 3000 : 60000);
+    if (CP.onLoad) CP.onLoad(d);
     return d;
   }).catch(function (e) {
     if (e && e.stopped) return;
@@ -206,6 +277,7 @@ function load() {
 function draw(d) {
   var host = CP.host, rows = d.rows || [];
   var ask = $('cp-ask');
+  if (CP.paged) { drawPaged(d); return; }
   var setUp = !!(d.suffixes || []).length && !!(d.issuers || []).length;
   var profs = (d.profiles || []).length > 0;
   /* A team gives them asking (request) but the pages are not set up for it:
@@ -230,16 +302,65 @@ function draw(d) {
   }
   clear(host);
   if (!rows.length) {
-    var b = el('div', 'ct-blank big');
-    var ic = el('div', 'ct-blank-ic');
-    ic.innerHTML = iconMarkup('cert', 30);
-    b.appendChild(ic);
-    b.appendChild(el('h3', '', 'No certificate of yours yet'));
-    b.appendChild(el('p', 'muted', ask.hidden
+    host.appendChild(emptyState('cert', 'No certificate of yours yet', ask.hidden
       ? 'When an administrator gives you one (or a group you are in), it is here.'
       : 'Ask for one above: its names, where it comes from and its key.'));
-    host.appendChild(b);
   } else {
+    host.appendChild(certTable(rows));
+  }
+  explainWhatWasDrawn(host.parentNode);
+  if (CP.open && CP.open.refresh) CP.open.refresh();
+}
+/* Nothing to show: an icon, a heading and one helpful sentence. */
+function emptyState(icon, title, words) {
+  var b = el('div', 'ct-blank big cp-empty');
+  var ic = el('div', 'ct-blank-ic');
+  ic.innerHTML = iconMarkup(icon, 30);
+  b.appendChild(ic);
+  b.appendChild(el('h3', '', title));
+  if (words) b.appendChild(el('p', 'muted', words));
+  return b;
+}
+/* One page of a team's certificates (the workspace): the table, and where in them it is. */
+function drawPaged(d) {
+  var host = CP.host, rows = d.rows || [];
+  clear(host);
+  if (!rows.length) {
+    var q = CP.q || {};
+    host.appendChild(q.q || q.state
+      ? emptyState('search', 'Nothing matches', 'No certificate here matches what you are looking for - try other words, or another filter.')
+      : emptyState('cert', 'No certificate here yet', CP.ctx && CP.ctx.mayAsk
+        ? 'Ask for one: it belongs to the team, and its members see it here too.'
+        : 'When the team has one, it is here.'));
+  } else {
+    host.appendChild(certTable(rows));
+    host.appendChild(pageBar(d));
+  }
+  if (CP.ctx && CP.ctx.drawn) CP.ctx.drawn(d);
+  explainWhatWasDrawn(host);
+  if (CP.open && CP.open.refresh) CP.open.refresh();
+}
+function pageBar(d) {
+  var bar = el('div', 'cp-pager');
+  var per = d.per || 50, page = d.page || 0, total = d.total || 0;
+  var from = total ? page * per + 1 : 0, to = Math.min(total, (page + 1) * per);
+  bar.appendChild(el('span', 'cp-pager-w', from + '–' + to + ' of ' + total));
+  if ((d.pages || 1) > 1) {
+    var go = function (n) { CP.q.page = n; load(); if (CP.host) CP.host.scrollIntoView({block: 'nearest'}); };
+    var back = iconButton('prev', 'The page before');
+    back.disabled = page <= 0;
+    back.onclick = function () { go(page - 1); };
+    var next = iconButton('next', 'The next page');
+    next.disabled = page >= (d.pages || 1) - 1;
+    next.onclick = function () { go(page + 1); };
+    bar.appendChild(back);
+    bar.appendChild(noI18n(el('span', 'cp-pager-n', (page + 1) + ' / ' + d.pages)));
+    bar.appendChild(next);
+  }
+  return bar;
+}
+function certTable(rows) {
+  {
     var t = el('table', 'rows cp-table');
     var hr = el('tr');
     ['State', 'Certificate', 'Source', 'Expires', ''].forEach(function (x) { hr.appendChild(el('th', '', x)); });
@@ -251,10 +372,8 @@ function draw(d) {
     t.appendChild(tb);
     var sc = el('div', 'scroll rowsonly');
     sc.appendChild(t);
-    host.appendChild(sc);
+    return sc;
   }
-  explainWhatWasDrawn(host.parentNode);
-  if (CP.open && CP.open.refresh) CP.open.refresh();
 }
 
 function row(c) {
@@ -298,6 +417,13 @@ function row(c) {
     dl.onclick = function (e) { e.stopPropagation(); downloadDialog(c); };
     tools.appendChild(dl);
   }
+  /* the workspace: Renew now beside it, where the team gives it */
+  if (CP.paged && has(c, 'cert.renew') && renewable(c) && c.not_after && !running(c)) {
+    var rn = iconButton('refresh', 'Renew it now');
+    rn.classList.add('cp-renew');
+    rn.onclick = function (e) { e.stopPropagation(); renewDialogP(c); };
+    tools.appendChild(rn);
+  }
   tr.appendChild(tools);
   tr.onclick = function (e) {
     if (e.target.closest && e.target.closest('button')) return;
@@ -318,7 +444,7 @@ function certDialog(id, fresh) {
   var buttons = [{words: 'Close', close: true}];
   /* What the team that owns it gives (Settings → Owners and teams, 1.0.16). */
   var may = c.may || ['view'];
-  var manage = may.indexOf('manage') >= 0, approve = manage || may.indexOf('approve') >= 0;
+  var manage = may.indexOf('manage') >= 0, approve = has(c, 'cert.approve');
   var waiting = c.state === 'pending-approval';
   /* out of the waiting state, its approval never recorded (1.0.107): approved or declined as a
      waiting one - Decline off, the why said, for one with a certificate (revoked instead) */
@@ -338,10 +464,10 @@ function certDialog(id, fresh) {
   }
   /* ...not where its CA cannot revoke it (revoke_no, as the administration's): offered on a
      self-signed one, its job failed "Self-signed cannot revoke a certificate" */
-  if (manage && c.not_after && (c.state !== 'revoked' || c.alt_state === 'revoke-failed') && !c.revoke_no) {
+  if (has(c, 'cert.revoke') && c.not_after && (c.state !== 'revoked' || c.alt_state === 'revoke-failed') && !c.revoke_no) {
     buttons.push({words: 'Revoke', cls: 'danger', icon: 'ban', once: true, go: function () { modalOver(function () { revokeDialogP(c); }, function () { certDialog(c.id); }); }});
   }
-  if (manage && c.issuer && !waiting && !stuck && c.state !== 'declined' && c.state !== 'revoked') {
+  if (has(c, 'cert.renew') && renewable(c)) {
     buttons.push({words: 'Renew now', icon: 'refresh', go: function (b) {
       if (!c.not_after || c.state === 'failed') { renewGo(c, b); return; }
       modalOver(function () { renewDialogP(c); }, function () { certDialog(c.id); });
@@ -351,6 +477,18 @@ function certDialog(id, fresh) {
   if (manage && c.from_csr && !waiting && c.state !== 'declined') {
     buttons.push({words: 'Send a new CSR', icon: 'upload', go: function () {
       modalOver(function () { newCsrDialog(c); }, function () { certDialog(c.id); });
+    }});
+  }
+  /* deleted, not revoked (1.0.125, cert.delete) - asked twice, as everything that destroys */
+  if (CP.paged && has(c, 'cert.delete') && !running(c)) {
+    buttons.push({words: 'Delete', icon: 'trash', go: function (b) {
+      busy(b, true);
+      api('cert-delete', {id: c.id}).then(function (d) {
+        if (d && d.waits) { toast(d.message || 'it waits for an approval first', 'good'); return; }
+        closeModal();
+        toast(d.message || 'deleted', 'good');
+        load();
+      }).catch(oops).then(function () { busy(b, false); });
     }});
   }
   if (c.not_after && c.state !== 'revoked') buttons.push({words: 'Download', cls: 'primary', icon: 'download', go: function () {
@@ -415,13 +553,15 @@ function certDialog(id, fresh) {
       ['Valid to', c.not_after ? stamp(c.not_after) : '–'],
       ['Serial', c.serial ? data('span', 'mono small', c.serial) : '–'],
       ['Issued by', c.issuer_dn ? data('span', 'mono small', c.issuer_dn) : '–'],
-      ['Renews', manage && c.issuer && c.state !== 'revoked' && c.state !== 'declined' && !waiting ? autoSwitch(c)
+      ['Renews', has(c, 'cert.auto') && c.issuer && c.state !== 'revoked' && c.state !== 'declined' && !waiting ? autoSwitch(c)
         : (c.auto_renew ? 'by itself, before it runs out' : 'not by itself')],
       ['Owner', c.via === '*' ? (c.owner ? data('span', 'mono', c.owner) : 'nobody') : (c.via && c.via !== 'me' ? ownerWords(c) : 'you')],
       ['Asked for', c.created ? stamp(c.created) : '–'],
-      ['You may', mayTags(may)]
+      ['You may', Array.isArray(c.caps) ? capTags(c.caps) : mayTags(may)]
     ]);
     body.appendChild(kv);
+    /* the workspace adds what it knows: the certificate's deployments, its request's timeline */
+    if (CP.ctx && CP.ctx.certMore) CP.ctx.certMore(body, c);
     if (jobId) {
       var jh = el('div', 'cp-jobhead');
       jh.appendChild(el('b', '', 'Its latest job'));
@@ -448,6 +588,21 @@ function ownerWords(c) {
   w.appendChild(data('span', '', c.owner));
   w.appendChild(document.createTextNode(' · '));
   w.appendChild(el('span', 'muted', c.team ? 'your team' : 'a group you are in'));
+  return w;
+}
+var CAP_WORDS_P = {'cert.view': 'see it', 'cert.request': 'ask for new ones', 'cert.renew': 'renew it',
+  'cert.auto': 'switch renewing', 'cert.edit': 'change it', 'cert.revoke': 'revoke it', 'cert.delete': 'delete it',
+  'cert.key': 'download its key', 'cert.approve': 'approve requests', 'deploy.view': 'see its deployments',
+  'deploy.run': 'deploy it', 'deploy.manage': 'set up its deployments'};
+function capTags(caps) {
+  var w = el('span', 'cp-may');
+  caps.forEach(function (x) {
+    if (!CAP_WORDS_P[x]) return;
+    w.appendChild(el('span', 'tag info', CAP_WORDS_P[x]));
+    w.appendChild(document.createTextNode(' '));
+  });
+  if (!w.childNodes.length) w.appendChild(el('span', 'muted', 'see it'));
+  explain(w, 'What the team that owns it gives you - its team manager changes it on the portal (Members).');
   return w;
 }
 function mayTags(may) {
@@ -495,8 +650,9 @@ function revokeDialogP(c) {
     else body.appendChild(el('p', 'note small', 'Issued for the CSR you sent: for a new one, send a new CSR (a new key) afterwards.'));
   }, [{words: 'No, leave it', close: true}, {words: 'Revoke it', cls: 'danger', icon: 'ban', go: function (b) {
     busy(b, true);
-    api('cert-revoke', {id: c.id, reason: reason.value, renew: also._get()}).then(function () {
+    api('cert-revoke', {id: c.id, reason: reason.value, renew: also._get()}).then(function (d) {
       closeModal();
+      if (d && d.waits) { toast(d.message || 'it waits for an approval first', 'good'); load(); return; }
       toast('it is being revoked - its job is shown here', 'good');
       load();
     }).catch(oops).then(function () { busy(b, false); });
@@ -609,6 +765,7 @@ function downloadDialog(c) {
         }
         busy(go, true);
         api('cert-download', body2).then(function (d) {
+          if (d && d.waits) { toast(d.message || 'it waits for an approval first', 'good'); return; }
           saveB64(d);
           toast('downloaded: ' + (d.filename || ''), 'good');
           if (pw1) { pw1.value = ''; pw2.value = ''; }
@@ -623,9 +780,19 @@ function downloadDialog(c) {
 }
 
 /* ---- asking for one -------------------------------------------------------------- */
+/* The team asked for (the workspace): its limits in force, said above the form. */
+function teamPolicy() { return (CP.ctx && CP.ctx.policy && CP.ctx.policy()) || null; }
+function limitsNote(body) {
+  if (CP.ctx && CP.ctx.limitsNote) {
+    var n = CP.ctx.limitsNote();
+    if (n) body.appendChild(n);
+  }
+}
 function askDialog() {
   var d = CP.d || {};
   var sufs = d.suffixes || [], iss = d.issuers || [];
+  var pol = teamPolicy();
+  if (pol && Array.isArray(pol.suffixes) && pol.suffixes.length) sufs = pol.suffixes;
   var namesBox, chips, issuerSel, keySel, noteBox, said, teamSel = null;
   var check = function () {
     var names = splitNames(namesBox.value);
@@ -634,6 +801,7 @@ function askDialog() {
     return names;
   };
   modal('Ask for a certificate', function (body) {
+    limitsNote(body);
     body.appendChild(el('p', 'note', d.auto
       ? 'It is issued as soon as you ask, and renewed by itself before it runs out.'
       : 'An administrator approves it first; you are told by mail when they have. Then it is issued, and renewed by itself before it runs out.'));
@@ -658,7 +826,13 @@ function askDialog() {
     keySel = selectBox((d.key_types || ['ec-256', 'rsa-2048']).map(function (k) { return [k, KEY_WORDS[k] || k]; }), 'ec-256');
     body.appendChild(formField('Its key', keySel, 'EC P-256 suits nearly everything; RSA 2048 for old devices that know nothing else.'));
     /* Owned by a team they may ask for (Settings → Owners and teams), or by them. */
-    if ((d.teams || []).length) {
+    var askTeams = CP.ctx && CP.ctx.askTeams ? CP.ctx.askTeams() : null;
+    if (askTeams && askTeams.length) {
+      teamSel = selectBox(askTeams.map(function (t) { return [t, t]; }), askTeams.indexOf(CP.ctx.team()) >= 0 ? CP.ctx.team() : askTeams[0]);
+      teamSel.id = 'cp-team';
+      noI18n(teamSel);
+      body.appendChild(formField('Whose it is', teamSel, 'The team it belongs to: its members see it here too.'));
+    } else if ((d.teams || []).length) {
       teamSel = selectBox([['', 'me']].concat(d.teams.map(function (t) { return [t, t]; })), d.teams.length === 1 ? d.teams[0] : '');
       teamSel.id = 'cp-team';
       teamSel.options[0].textContent = 'me';
@@ -942,19 +1116,35 @@ function newCsrDialog(c) {
 }
 
 /* ---- asking: from a request profile, or the free form --------------------------------- */
-function askStart() {
-  var d = CP.d || {};
+function askProfiles() {
+  var d = CP.d || {}, pol = teamPolicy();
   var profs = d.profiles || [];
+  if (pol && Array.isArray(pol.profiles)) profs = profs.filter(function (p) { return pol.profiles.indexOf(p.name) >= 0; });
+  return profs;
+}
+function askFree() {
+  var d = CP.d || {}, pol = teamPolicy();
+  if (pol && pol.free_form === false) return false;
+  /* without profiles the free form was always the way (as before) */
+  return (d.profiles || []).length ? !!d.free_form : true;
+}
+function askStart() {
+  var profs = askProfiles(), free = askFree();
+  if (!profs.length && !free) {
+    toast('your team asks only from request profiles, and none of them is offered to you - ask its manager', 'bad');
+    return;
+  }
   if (!profs.length) { askDialog(); return; }
-  if (profs.length === 1 && !d.free_form) { profileDialog(profs[0]); return; }
+  if (profs.length === 1 && !free) { profileDialog(profs[0]); return; }
   pickerDialog();
 }
 function pickerDialog() {
   var d = CP.d || {};
   modal('Ask for a certificate', function (body) {
+    limitsNote(body);
     body.appendChild(el('p', 'note', 'Pick what you need. Each kind says where the certificate comes from and what is in it - you give only its names and what is left to you.'));
     var list = el('div', 'cp-profiles');
-    (d.profiles || []).forEach(function (p) {
+    askProfiles().forEach(function (p) {
       var card = el('button', 'cp-prof');
       card.type = 'button';
       var t = el('div', 'cp-prof-t');
@@ -967,7 +1157,7 @@ function pickerDialog() {
       card.onclick = function () { profileDialog(p, true); };
       list.appendChild(card);
     });
-    if (d.free_form) {
+    if (askFree()) {
       var other = el('button', 'cp-prof cp-prof-free');
       other.type = 'button';
       var t2 = el('div', 'cp-prof-t');
@@ -1084,6 +1274,7 @@ function profileDialog(p, fromPicker) {
     csrHost.hidden = how !== 'csr';
   };
   modal('Ask for a certificate', function (body) {
+    limitsNote(body);
     var ph = el('div', 'cp-prof-head');
     ph.appendChild(data('b', 'cp-prof-name', p.name));
     ph.appendChild(el('span', 'tag ' + (p.approval ? 'warn' : 'ok'), p.approval ? 'approved first' : 'issued at once'));
@@ -1159,7 +1350,9 @@ function profileDialog(p, fromPicker) {
     /* -- whose it is, a note -- */
     var g2 = el('div', 'formgrid');
     if (p.owner === 'team') {
-      f.team = selectBox(p.owner_choices.map(function (t) { return [t, t]; }), p.owner_choices.length === 1 ? p.owner_choices[0] : '');
+      var here = CP.ctx && CP.ctx.team ? CP.ctx.team() : '';
+      f.team = selectBox(p.owner_choices.map(function (t) { return [t, t]; }), p.owner_choices.length === 1 ? p.owner_choices[0]
+        : (p.owner_choices.indexOf(here) >= 0 ? here : ''));
       noI18n(f.team);
       g2.appendChild(formField('Whose it is', f.team, 'The team it belongs to: its members see it here too.'));
     }
@@ -1220,4 +1413,30 @@ function profileDialog(p, fromPicker) {
 }
 window.ACME_PORTAL_PARTS = window.ACME_PORTAL_PARTS || [];
 window.ACME_PORTAL_PARTS.push(part);
+/* For the team workspace (portal-teams.js): the same list, dialogs and asking, team-aware. */
+window.ACME_PORTAL_CERTS = {
+  /* the list of one team's certificates into `host` (a card with #cp-list in it) */
+  mount: function (list, q, ctx) {
+    CP.host = list;
+    CP.paged = true;
+    CP.q = q || {};
+    CP.ctx = ctx || null;
+    return load();
+  },
+  ask: function (q) { if (q) Object.keys(q).forEach(function (k) { CP.q[k] = q[k]; }); return load(); },
+  stop: function () { clearTimeout(CP.timer); CP.host = null; },
+  data: function () { return CP.d; },
+  open: function (id) { if (rowById(id)) certDialog(id); },
+  openRow: function (row) {
+    if (!CP.d) CP.d = {rows: []};
+    if (!rowById(row.id)) CP.d.rows.push(row);
+    certDialog(row.id);
+  },
+  askStart: function () {
+    if (CP.d) { askStart(); return; }
+    apiLatest('cp-certs', 'certs&per=1').then(function (d) { CP.d = d; askStart(); }).catch(oops);
+  },
+  download: downloadDialog, saveB64: saveB64, stateTag: stateTag, daysTag: daysTag, namesChips: namesChips,
+  emptyState: emptyState, skeleton: skeletonCard, has: has, jobLog: jobLog, STATE: STATE, FORMATS: FORMATS
+};
 })();

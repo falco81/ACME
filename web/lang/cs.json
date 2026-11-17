@@ -69267,6 +69267,846 @@
   "z_1155": {
    "source": "the password of the account has expired (KDC_ERR_KEY_EXPIRED) - set a new one",
    "text": "heslo účtu vypršelo (KDC_ERR_KEY_EXPIRED) – nastavte nové"
+  },
+  "z_1156": {
+   "source": "(own)",
+   "text": "(vlastní)"
+  },
+  "z_1157": {
+   "source": "1 person",
+   "text": "1 osoba"
+  },
+  "z_1158": {
+   "source": "1 team below",
+   "text": "1 tým pod ním"
+  },
+  "z_1159": {
+   "source": "30 days",
+   "text": "30 dní"
+  },
+  "z_1160": {
+   "source": "90 days",
+   "text": "90 dní"
+  },
+  "z_1161": {
+   "source": "A member",
+   "text": "Člen"
+  },
+  "z_1162": {
+   "source": "A name with * where anything may stand: CN=PKI-*, *-certs.",
+   "text": "Jméno s * tam, kde může stát cokoli: CN=PKI-*, *-certs."
+  },
+  "z_1163": {
+   "source": "A new role",
+   "text": "Nová role"
+  },
+  "z_1164": {
+   "source": "A new team",
+   "text": "Nový tým"
+  },
+  "z_1165": {
+   "source": "A new unit",
+   "text": "Nová jednotka"
+  },
+  "z_1166": {
+   "source": "A person's teams, what they may do in each and why - through which membership, role and group, inherited from where - as the directory says now.",
+   "text": "Týmy osoby, co v každém smí a proč – přes které členství, roli a skupinu, odkud zděděno – podle toho, co teď říká adresář."
+  },
+  "z_1167": {
+   "source": "A role is a set of capabilities a member is given on a team (and every team below it). The built-in roles stay as they are - copy one to make a role of your own. The old rights view / request / manage / approve still work and give what they gave.",
+   "text": "Role je sada oprávnění, kterou člen dostane v týmu (a ve všech týmech pod ním). Vestavěné role zůstávají, jak jsou – zkopírujte některou a vytvořte si vlastní. Stará práva view / request / manage / approve stále platí a dávají, co dávala."
+  },
+  "z_1168": {
+   "source": "A team below may only narrow what is in force here - never widen it.",
+   "text": "Tým pod ním smí to, co platí zde, jen zúžit – nikdy rozšířit."
+  },
+  "z_1169": {
+   "source": "A unit is a region or a site - it groups teams; a team and a person own certificates. All three may have members and limits.",
+   "text": "Jednotka je region nebo pobočka – sdružuje týmy; tým a osoba vlastní certifikáty. Všechny tři mohou mít členy a omezení."
+  },
+  "z_1170": {
+   "source": "Access check",
+   "text": "Kontrola přístupu"
+  },
+  "z_1171": {
+   "source": "Account of acme",
+   "text": "Účet acme"
+  },
+  "z_1172": {
+   "source": "Activity",
+   "text": "Aktivita"
+  },
+  "z_1173": {
+   "source": "Add a member",
+   "text": "Přidat člena"
+  },
+  "z_1174": {
+   "source": "Add the first team",
+   "text": "Přidat první tým"
+  },
+  "z_1175": {
+   "source": "Agents",
+   "text": "Agenti"
+  },
+  "z_1176": {
+   "source": "Agents confirmed by themselves",
+   "text": "Agenti potvrzení sami"
+  },
+  "z_1177": {
+   "source": "Agents enrolling with the team's code become its devices without waiting for a confirmation.",
+   "text": "Agenti zapsaní kódem týmu se stanou jeho zařízeními bez čekání na potvrzení."
+  },
+  "z_1178": {
+   "source": "Allowed",
+   "text": "Povoleno"
+  },
+  "z_1179": {
+   "source": "Already in",
+   "text": "Už je v"
+  },
+  "z_1180": {
+   "source": "Always",
+   "text": "Vždy"
+  },
+  "z_1181": {
+   "source": "Always waits",
+   "text": "Vždy čeká"
+  },
+  "z_1182": {
+   "source": "Approval of requests",
+   "text": "Schvalování žádostí"
+  },
+  "z_1183": {
+   "source": "Approvals",
+   "text": "Schvalování"
+  },
+  "z_1184": {
+   "source": "As above",
+   "text": "Jako výše"
+  },
+  "z_1185": {
+   "source": "As the profile says",
+   "text": "Jak říká profil"
+  },
+  "z_1186": {
+   "source": "As the teams above say (or the request profile).",
+   "text": "Jak říkají týmy nad ním (nebo profil žádosti)."
+  },
+  "z_1187": {
+   "source": "Ask without a profile",
+   "text": "Žádat bez profilu"
+  },
+  "z_1188": {
+   "source": "Assign devices",
+   "text": "Přiřadit zařízení"
+  },
+  "z_1189": {
+   "source": "Assign targets to it - servers, load balancers, agents - and its members take care of them.",
+   "text": "Přiřaďte mu cíle – servery, balancery, agenty – a jeho členové se o ně postarají."
+  },
+  "z_1190": {
+   "source": "Assign them",
+   "text": "Přiřadit je"
+  },
+  "z_1191": {
+   "source": "At least two letters.",
+   "text": "Aspoň dvě písmena."
+  },
+  "z_1192": {
+   "source": "At most",
+   "text": "Nejvýš"
+  },
+  "z_1193": {
+   "source": "Capabilities",
+   "text": "Oprávnění"
+  },
+  "z_1194": {
+   "source": "Capability",
+   "text": "Oprávnění"
+  },
+  "z_1195": {
+   "source": "Certificates are given to the team where they are made or changed - or asked for by its members on the portal.",
+   "text": "Certifikáty se týmu přidělují tam, kde se vytvářejí nebo mění – nebo o ně jeho členové požádají na portálu."
+  },
+  "z_1196": {
+   "source": "Change this member",
+   "text": "Změnit tohoto člena"
+  },
+  "z_1197": {
+   "source": "Change this role",
+   "text": "Změnit tuto roli"
+  },
+  "z_1198": {
+   "source": "Changes of the team and what happens to its certificates and devices are listed here.",
+   "text": "Zde jsou změny týmu a co se děje s jeho certifikáty a zařízeními."
+  },
+  "z_1199": {
+   "source": "Choose at least one role: without one the member sees nothing.",
+   "text": "Vyberte aspoň jednu roli: bez ní člen nevidí nic."
+  },
+  "z_1200": {
+   "source": "Choose somebody else",
+   "text": "Vybrat někoho jiného"
+  },
+  "z_1201": {
+   "source": "Copy it to a role of your own",
+   "text": "Zkopírovat do vlastní role"
+  },
+  "z_1202": {
+   "source": "Delete the role",
+   "text": "Smazat roli"
+  },
+  "z_1203": {
+   "source": "Delete the team",
+   "text": "Smazat tým"
+  },
+  "z_1204": {
+   "source": "Delete this role",
+   "text": "Smazat tuto roli"
+  },
+  "z_1205": {
+   "source": "Delete this team",
+   "text": "Smazat tento tým"
+  },
+  "z_1206": {
+   "source": "Enter adds it",
+   "text": "Enter přidá"
+  },
+  "z_1207": {
+   "source": "Every group of the directory matching the filter becomes a team whose member is that group, with the role chosen. A team that is there already is left as it is. Nothing is made until the preview is confirmed.",
+   "text": "Každá skupina adresáře odpovídající filtru se stane týmem, jehož členem je tato skupina, s vybranou rolí. Tým, který už existuje, zůstane, jak je. Nic se nevytvoří, dokud nepotvrdíte náhled."
+  },
+  "z_1208": {
+   "source": "Every name of its certificates must be under one of these.",
+   "text": "Každé jméno jeho certifikátů musí být pod jednou z nich."
+  },
+  "z_1209": {
+   "source": "Every request waits for an approval.",
+   "text": "Každá žádost čeká na schválení."
+  },
+  "z_1210": {
+   "source": "Files with the private key (PFX, PEM with the key) may be downloaded.",
+   "text": "Soubory se soukromým klíčem (PFX, PEM s klíčem) je možné stáhnout."
+  },
+  "z_1211": {
+   "source": "Find a target…",
+   "text": "Najít cíl…"
+  },
+  "z_1212": {
+   "source": "Find a team…",
+   "text": "Najít tým…"
+  },
+  "z_1213": {
+   "source": "Fold",
+   "text": "Sbalit"
+  },
+  "z_1214": {
+   "source": "Fold everything",
+   "text": "Sbalit vše"
+  },
+  "z_1215": {
+   "source": "Forbidden",
+   "text": "Zakázáno"
+  },
+  "z_1216": {
+   "source": "From directory groups",
+   "text": "Ze skupin adresáře"
+  },
+  "z_1217": {
+   "source": "From the teams above",
+   "text": "Z týmů nad ním"
+  },
+  "z_1218": {
+   "source": "Given before roles came; they still give exactly what they gave. Take them off once the roles say the same.",
+   "text": "Dána před zavedením rolí; dávají stále přesně to, co dávala. Odeberte je, až totéž budou říkat role."
+  },
+  "z_1219": {
+   "source": "How many certificates the team - with the teams below it - may own.",
+   "text": "Kolik certifikátů smí tým – i s týmy pod ním – vlastnit."
+  },
+  "z_1220": {
+   "source": "How the names of its certificates may be proved.",
+   "text": "Jak smějí být prokázána jména jeho certifikátů."
+  },
+  "z_1221": {
+   "source": "In no team",
+   "text": "V žádném týmu"
+  },
+  "z_1222": {
+   "source": "Inside the pre-approved envelope at once; anything outside it waits.",
+   "text": "Uvnitř předschváleného rámce hned; cokoli mimo něj čeká."
+  },
+  "z_1223": {
+   "source": "Key types",
+   "text": "Typy klíčů"
+  },
+  "z_1224": {
+   "source": "Keys, devices and agents",
+   "text": "Klíče, zařízení a agenti"
+  },
+  "z_1225": {
+   "source": "Letters, digits, spaces and . _ @ + - (as every name in acme). Renamed, its certificates, devices and the teams below follow.",
+   "text": "Písmena, číslice, mezery a . _ @ + - (jako každé jméno v acme). Po přejmenování jej následují jeho certifikáty, zařízení i týmy pod ním."
+  },
+  "z_1226": {
+   "source": "Limits in force",
+   "text": "Platná omezení"
+  },
+  "z_1227": {
+   "source": "Longest validity",
+   "text": "Nejdelší platnost"
+  },
+  "z_1228": {
+   "source": "Make the teams",
+   "text": "Vytvořit týmy"
+  },
+  "z_1229": {
+   "source": "Members ask for what the team's limits allow and get it at once - the team does it all itself.",
+   "text": "Členové žádají o to, co dovolí omezení týmu, a dostanou to hned – tým si vše dělá sám."
+  },
+  "z_1230": {
+   "source": "More are there - type more of the name.",
+   "text": "Je jich víc – napište víc ze jména."
+  },
+  "z_1231": {
+   "source": "Most certificates",
+   "text": "Nejvíce certifikátů"
+  },
+  "z_1232": {
+   "source": "Move to…",
+   "text": "Přesunout…"
+  },
+  "z_1233": {
+   "source": "Never",
+   "text": "Nikdy"
+  },
+  "z_1234": {
+   "source": "Never waits",
+   "text": "Nikdy nečeká"
+  },
+  "z_1235": {
+   "source": "New team",
+   "text": "Tým"
+  },
+  "z_1236": {
+   "source": "New unit",
+   "text": "Jednotka"
+  },
+  "z_1237": {
+   "source": "Night shift",
+   "text": "Noční směna"
+  },
+  "z_1238": {
+   "source": "No certificate of its own",
+   "text": "Žádný vlastní certifikát"
+  },
+  "z_1239": {
+   "source": "No device of the team",
+   "text": "Tým nemá žádné zařízení"
+  },
+  "z_1240": {
+   "source": "No end",
+   "text": "Bez konce"
+  },
+  "z_1241": {
+   "source": "No group matches the filter.",
+   "text": "Filtru neodpovídá žádná skupina."
+  },
+  "z_1242": {
+   "source": "No limit",
+   "text": "Bez omezení"
+  },
+  "z_1243": {
+   "source": "No limits of its own",
+   "text": "Žádná vlastní omezení"
+  },
+  "z_1244": {
+   "source": "No member of its own",
+   "text": "Žádný vlastní člen"
+  },
+  "z_1245": {
+   "source": "No other target.",
+   "text": "Žádný další cíl."
+  },
+  "z_1246": {
+   "source": "No team below this one.",
+   "text": "Pod tímto týmem žádný tým není."
+  },
+  "z_1247": {
+   "source": "No team matches.",
+   "text": "Žádný tým neodpovídá."
+  },
+  "z_1248": {
+   "source": "No team yet",
+   "text": "Zatím žádný tým"
+  },
+  "z_1249": {
+   "source": "Nobody found.",
+   "text": "Nikdo nenalezen."
+  },
+  "z_1250": {
+   "source": "Not a name of a built-in role or of an old right. Renamed, it is renamed on every member.",
+   "text": "Ne jméno vestavěné role ani starého práva. Po přejmenování se přejmenuje u všech členů."
+  },
+  "z_1251": {
+   "source": "Nothing above it limits it either: its members may do what their roles give.",
+   "text": "Ani nic nad ním ho neomezuje: jeho členové smějí, co dávají jejich role."
+  },
+  "z_1252": {
+   "source": "Nothing limits this team: it may do what its members' roles give.",
+   "text": "Tento tým nic neomezuje: smí, co dávají role jeho členů."
+  },
+  "z_1253": {
+   "source": "Nothing of acme's is shown to this person: no membership of any team matches them or a group they are in.",
+   "text": "Této osobě se z acme nic nezobrazí: žádné členství v žádném týmu neodpovídá jí ani skupině, ve které je."
+  },
+  "z_1254": {
+   "source": "Nothing yet",
+   "text": "Zatím nic"
+  },
+  "z_1255": {
+   "source": "Old rights",
+   "text": "Stará práva"
+  },
+  "z_1256": {
+   "source": "Older",
+   "text": "Starší"
+  },
+  "z_1257": {
+   "source": "On: whoever asked may approve it too.",
+   "text": "Zapnuto: kdo žádal, ji smí i schválit."
+  },
+  "z_1258": {
+   "source": "One approval",
+   "text": "Jedno schválení"
+  },
+  "z_1259": {
+   "source": "Only administrators and the members of the teams above it see its certificates.",
+   "text": "Jeho certifikáty vidí jen správci a členové týmů nad ním."
+  },
+  "z_1260": {
+   "source": "Only these",
+   "text": "Jen tyto"
+  },
+  "z_1261": {
+   "source": "Open in Certificates",
+   "text": "Otevřít v Certifikátech"
+  },
+  "z_1262": {
+   "source": "Other actions approved",
+   "text": "Schvalované další akce"
+  },
+  "z_1263": {
+   "source": "Outside envelope",
+   "text": "Mimo rámec"
+  },
+  "z_1264": {
+   "source": "Person",
+   "text": "Osoba"
+  },
+  "z_1265": {
+   "source": "Pick the targets that become the team's. A target of another team moves to this one.",
+   "text": "Vyberte cíle, které připadnou týmu. Cíl jiného týmu se přesune k tomuto."
+  },
+  "z_1266": {
+   "source": "Running out",
+   "text": "Končí platnost"
+  },
+  "z_1267": {
+   "source": "Save the limits",
+   "text": "Uložit omezení"
+  },
+  "z_1268": {
+   "source": "Servers with acme-agent may be the team's devices.",
+   "text": "Servery s acme-agentem mohou být zařízeními týmu."
+  },
+  "z_1269": {
+   "source": "Set limits",
+   "text": "Nastavit omezení"
+  },
+  "z_1270": {
+   "source": "Take it from the team",
+   "text": "Vzít týmu"
+  },
+  "z_1271": {
+   "source": "Take the member out",
+   "text": "Odebrat člena"
+  },
+  "z_1272": {
+   "source": "Take them off",
+   "text": "Odebrat je"
+  },
+  "z_1273": {
+   "source": "Target modules",
+   "text": "Moduly cílů"
+  },
+  "z_1274": {
+   "source": "Targets owned by the team: its members with the device capabilities see, test and change them, and deploy the team's certificates to them.",
+   "text": "Cíle, které tým vlastní: jeho členové s oprávněními k zařízením je vidí, testují a mění a nasazují na ně certifikáty týmu."
+  },
+  "z_1275": {
+   "source": "Team",
+   "text": "Tým"
+  },
+  "z_1276": {
+   "source": "Teams",
+   "text": "Týmy"
+  },
+  "z_1277": {
+   "source": "Teams below",
+   "text": "Týmy pod ním"
+  },
+  "z_1278": {
+   "source": "Teams from directory groups",
+   "text": "Týmy ze skupin adresáře"
+  },
+  "z_1279": {
+   "source": "Teams own certificates and devices; their members - accounts of acme, users and groups of the directory - see and do with them what their roles give. Arrange them in a tree: regions and sites as units, teams below them.",
+   "text": "Týmy vlastní certifikáty a zařízení; jejich členové – účty acme, uživatelé a skupiny adresáře – s nimi vidí a dělají, co jim dávají jejich role. Uspořádejte je do stromu: regiony a pobočky jako jednotky, pod nimi týmy."
+  },
+  "z_1280": {
+   "source": "That day is over: the membership gives nothing.",
+   "text": "Ten den už minul: členství nedává nic."
+  },
+  "z_1281": {
+   "source": "The certificates the team owns itself. Those of the teams below are on their own pages.",
+   "text": "Certifikáty, které tým vlastní sám. Certifikáty týmů pod ním jsou na jejich stránkách."
+  },
+  "z_1282": {
+   "source": "The group's role",
+   "text": "Role skupiny"
+  },
+  "z_1283": {
+   "source": "The membership does not end.",
+   "text": "Členství nekončí."
+  },
+  "z_1284": {
+   "source": "The most days a certificate of the team may be valid.",
+   "text": "Nejvíc dní, kolik smí certifikát týmu platit."
+  },
+  "z_1285": {
+   "source": "The portal's free form - names and source chosen by the person.",
+   "text": "Volný formulář portálu – jména a zdroj volí žadatel."
+  },
+  "z_1286": {
+   "source": "The pre-approved envelope",
+   "text": "Předschválený rámec"
+  },
+  "z_1287": {
+   "source": "The request profile decides, as before.",
+   "text": "Rozhoduje profil žádosti, jako dřív."
+  },
+  "z_1288": {
+   "source": "The teams below it go under",
+   "text": "Týmy pod ním přejdou pod"
+  },
+  "z_1289": {
+   "source": "The top - under no team",
+   "text": "Nahoře – pod žádným týmem"
+  },
+  "z_1290": {
+   "source": "Their own request",
+   "text": "Vlastní žádost"
+  },
+  "z_1291": {
+   "source": "These wait for an approval too.",
+   "text": "I tyto čekají na schválení."
+  },
+  "z_1292": {
+   "source": "This daemon does not say whose a target is yet.",
+   "text": "Tento démon zatím neříká, čí cíl je."
+  },
+  "z_1293": {
+   "source": "This role is not in the catalog any more.",
+   "text": "Tato role už v katalogu není."
+  },
+  "z_1294": {
+   "source": "Told when one of its certificates fails or runs out. Comma between them.",
+   "text": "Dostane zprávu, když některý jeho certifikát selže nebo vyprší. Oddělte čárkou."
+  },
+  "z_1295": {
+   "source": "Two (four eyes)",
+   "text": "Dvě (čtyři oči)"
+  },
+  "z_1296": {
+   "source": "Type a name, a login, a mail or a group…",
+   "text": "Napište jméno, login, e-mail nebo skupinu…"
+  },
+  "z_1297": {
+   "source": "Typed",
+   "text": "Napsáno"
+  },
+  "z_1298": {
+   "source": "Under",
+   "text": "Pod"
+  },
+  "z_1299": {
+   "source": "Unfold",
+   "text": "Rozbalit"
+  },
+  "z_1300": {
+   "source": "Unfold everything",
+   "text": "Rozbalit vše"
+  },
+  "z_1301": {
+   "source": "Validations",
+   "text": "Ověření"
+  },
+  "z_1302": {
+   "source": "Waiting requests",
+   "text": "Čekající žádosti"
+  },
+  "z_1303": {
+   "source": "Waits outside the envelope",
+   "text": "Čeká mimo předschválený rámec"
+  },
+  "z_1304": {
+   "source": "What happened to the team, its members, limits, certificates and devices.",
+   "text": "Co se dělo s týmem, jeho členy, omezeními, certifikáty a zařízeními."
+  },
+  "z_1305": {
+   "source": "What is in force here comes from the teams above it - shown beside each limit below.",
+   "text": "Co tu platí, pochází z týmů nad ním – je uvedeno u každého omezení níže."
+  },
+  "z_1306": {
+   "source": "What its members may ask for on the portal. With no limit: whatever the profiles themselves allow.",
+   "text": "O co smějí jeho členové žádat na portálu. Bez omezení: cokoli, co dovolí samy profily."
+  },
+  "z_1307": {
+   "source": "Where it stands",
+   "text": "Kde stojí"
+  },
+  "z_1308": {
+   "source": "Where it stands decides what it inherits: the members of the teams above see and do with it what they may there, and their limits narrow its own. The teams below it move with it.",
+   "text": "Kde stojí, rozhoduje, co dědí: členové týmů nad ním s ním vidí a dělají, co smějí tam, a jejich omezení zužují jeho vlastní. Týmy pod ním se přesunou s ním."
+  },
+  "z_1309": {
+   "source": "Where its certificates may come from.",
+   "text": "Odkud smějí jeho certifikáty pocházet."
+  },
+  "z_1310": {
+   "source": "Whether what its members ask for waits, and who approves it.",
+   "text": "Zda to, o co jeho členové žádají, čeká, a kdo to schvaluje."
+  },
+  "z_1311": {
+   "source": "Which groups",
+   "text": "Které skupiny"
+  },
+  "z_1312": {
+   "source": "Which kinds of devices its members may create and use.",
+   "text": "Jaké druhy zařízení smějí jeho členové vytvářet a používat."
+  },
+  "z_1313": {
+   "source": "Who approves",
+   "text": "Kdo schvaluje"
+  },
+  "z_1314": {
+   "source": "Who belongs to the team and what each may do - by roles (sets of capabilities) or the old rights. What they may do here they may do in every team below too. A membership may end by itself.",
+   "text": "Kdo do týmu patří a co kdo smí – podle rolí (sad oprávnění) nebo starých práv. Co smějí zde, smějí i ve všech týmech pod ním. Členství může samo skončit."
+  },
+  "z_1315": {
+   "source": "Who may do what",
+   "text": "Kdo smí co"
+  },
+  "z_1316": {
+   "source": "a unit",
+   "text": "jednotka"
+  },
+  "z_1317": {
+   "source": "a year",
+   "text": "rok"
+  },
+  "z_1318": {
+   "source": "add…",
+   "text": "přidat…"
+  },
+  "z_1319": {
+   "source": "both - the team first, then the team above",
+   "text": "oba – nejdřív tým, pak tým nad ním"
+  },
+  "z_1320": {
+   "source": "built in: copy it to change it",
+   "text": "vestavěná: pro změnu ji zkopírujte"
+  },
+  "z_1321": {
+   "source": "choose an account…",
+   "text": "vyberte účet…"
+  },
+  "z_1322": {
+   "source": "choose at least one role",
+   "text": "vyberte aspoň jednu roli"
+  },
+  "z_1323": {
+   "source": "choose where",
+   "text": "vyberte kam"
+  },
+  "z_1324": {
+   "source": "deleting",
+   "text": "mazání"
+  },
+  "z_1325": {
+   "source": "devices",
+   "text": "zařízení"
+  },
+  "z_1326": {
+   "source": "downloading a key",
+   "text": "stažení klíče"
+  },
+  "z_1327": {
+   "source": "either of them",
+   "text": "kterýkoli z nich"
+  },
+  "z_1328": {
+   "source": "for an approval",
+   "text": "na schválení"
+  },
+  "z_1329": {
+   "source": "forbidden",
+   "text": "zakázáno"
+  },
+  "z_1330": {
+   "source": "four eyes",
+   "text": "čtyři oči"
+  },
+  "z_1331": {
+   "source": "in force",
+   "text": "platí"
+  },
+  "z_1332": {
+   "source": "inherited from",
+   "text": "zděděno z"
+  },
+  "z_1333": {
+   "source": "local:NAME, a login or a UPN",
+   "text": "local:JMÉNO, login nebo UPN"
+  },
+  "z_1334": {
+   "source": "may approve their own",
+   "text": "smí schválit svou vlastní"
+  },
+  "z_1335": {
+   "source": "no role - sees nothing",
+   "text": "žádná role – nevidí nic"
+  },
+  "z_1336": {
+   "source": "none at all",
+   "text": "vůbec žádné"
+  },
+  "z_1337": {
+   "source": "not found in the directory",
+   "text": "v adresáři nenalezen"
+  },
+  "z_1338": {
+   "source": "not found in the directory - kept as typed",
+   "text": "v adresáři nenalezen – ponecháno, jak bylo napsáno"
+  },
+  "z_1339": {
+   "source": "not made",
+   "text": "nevytvořen"
+  },
+  "z_1340": {
+   "source": "nothing - the membership ended",
+   "text": "nic – členství skončilo"
+  },
+  "z_1341": {
+   "source": "nothing in the catalog",
+   "text": "v katalogu nic není"
+  },
+  "z_1342": {
+   "source": "nothing of its own",
+   "text": "nic vlastního"
+  },
+  "z_1343": {
+   "source": "old rights",
+   "text": "stará práva"
+  },
+  "z_1344": {
+   "source": "on this team",
+   "text": "v tomto týmu"
+  },
+  "z_1345": {
+   "source": "only the first 500",
+   "text": "jen prvních 500"
+  },
+  "z_1346": {
+   "source": "owned by this team",
+   "text": "vlastní tento tým"
+  },
+  "z_1347": {
+   "source": "people and groups",
+   "text": "lidé a skupiny"
+  },
+  "z_1348": {
+   "source": "pick a target",
+   "text": "vyberte cíl"
+  },
+  "z_1349": {
+   "source": "sAMAccountName, UPN, mail, group:NAME or a DN",
+   "text": "sAMAccountName, UPN, e-mail, group:NÁZEV nebo DN"
+  },
+  "z_1350": {
+   "source": "see the preview first",
+   "text": "nejdřív se podívejte na náhled"
+  },
+  "z_1351": {
+   "source": "servers with acme-agent",
+   "text": "servery s acme-agentem"
+  },
+  "z_1352": {
+   "source": "set here",
+   "text": "nastaveno zde"
+  },
+  "z_1353": {
+   "source": "targets owned by the team",
+   "text": "cíle, které tým vlastní"
+  },
+  "z_1354": {
+   "source": "the approvers of the team above",
+   "text": "schvalovatelé týmu nad ním"
+  },
+  "z_1355": {
+   "source": "the team's own approvers",
+   "text": "vlastní schvalovatelé týmu"
+  },
+  "z_1356": {
+   "source": "the top - under no team",
+   "text": "nahoře – pod žádným týmem"
+  },
+  "z_1357": {
+   "source": "under",
+   "text": "pod"
+  },
+  "z_1358": {
+   "source": "what stays inside it goes through at once",
+   "text": "co zůstane uvnitř, projde hned"
+  },
+  "z_1359": {
+   "source": "what the team takes care of",
+   "text": "o co se tým stará"
+  },
+  "z_1360": {
+   "source": "which groups?",
+   "text": "které skupiny?"
+  },
+  "z_1361": {
+   "source": "who? - choose somebody",
+   "text": "kdo? – vyberte někoho"
+  },
+  "z_1362": {
+   "source": "whom?",
+   "text": "koho?"
+  },
+  "z_1363": {
+   "source": "why, who asked, a ticket…",
+   "text": "proč, kdo žádal, tiket…"
+  },
+  "z_1364": {
+   "source": "with the teams below",
+   "text": "i s týmy pod ním"
+  },
+  "z_1365": {
+   "source": "within the notice days",
+   "text": "během dnů upozornění"
   }
  },
  "patterns": {
@@ -96517,6 +97357,158 @@
   "pz_416": {
    "source": "the domain knows no service {0} (KDC_ERR_S_PRINCIPAL_UNKNOWN) - Kerberos needs the CA server's full DNS name as its computer account has it (an address, a short name or an alias does not do)",
    "text": "doména nezná službu {0} (KDC_ERR_S_PRINCIPAL_UNKNOWN) – Kerberos potřebuje plné DNS jméno serveru CA, jak ho má jeho počítačový účet (adresa, krátké jméno ani alias nestačí)"
+  },
+  "pz_417": {
+   "source": "A copy of {0}",
+   "text": "Kopie role {0}"
+  },
+  "pz_418": {
+   "source": "A new member of {0}",
+   "text": "Nový člen týmu {0}"
+  },
+  "pz_419": {
+   "source": "A new team under {0}",
+   "text": "Nový tým pod {0}"
+  },
+  "pz_420": {
+   "source": "A new unit (a region, a site) under {0}",
+   "text": "Nová jednotka (region, pobočka) pod {0}"
+  },
+  "pz_421": {
+   "source": "Delete the team {0}",
+   "text": "Smazat tým {0}"
+  },
+  "pz_422": {
+   "source": "Devices for {0}",
+   "text": "Zařízení pro {0}"
+  },
+  "pz_423": {
+   "source": "Every limit set on {0} is taken off; what the teams above it say stays in force.",
+   "text": "Všechna omezení nastavená na {0} budou odebrána; co říkají týmy nad ním, platí dál."
+  },
+  "pz_424": {
+   "source": "Gives {0} capabilities:",
+   "text": "Dává {0} {0:oprávnění|oprávnění|oprávnění}:"
+  },
+  "pz_425": {
+   "source": "It ends by itself in {0} days.",
+   "text": "Samo skončí za {0} {0:den|dny|dní}."
+  },
+  "pz_426": {
+   "source": "Move {0}",
+   "text": "Přesunout {0}"
+  },
+  "pz_427": {
+   "source": "The role {0}",
+   "text": "Role {0}"
+  },
+  "pz_428": {
+   "source": "The role {0} is deleted and taken off {1} member(s).",
+   "text": "Role {0} bude smazána a odebrána {1} {1:členovi|členům|členům}."
+  },
+  "pz_429": {
+   "source": "The role {0} is deleted. No member has it.",
+   "text": "Role {0} bude smazána. Žádný člen ji nemá."
+  },
+  "pz_430": {
+   "source": "The team {0}",
+   "text": "Tým {0}"
+  },
+  "pz_431": {
+   "source": "The team {0} is deleted. It owns no certificate and has no team below it.",
+   "text": "Tým {0} bude smazán. Nevlastní žádný certifikát a nemá pod sebou žádný tým."
+  },
+  "pz_432": {
+   "source": "at most {0} certificates",
+   "text": "nejvýš {0} {0:certifikát|certifikáty|certifikátů}"
+  },
+  "pz_433": {
+   "source": "at most {0} days",
+   "text": "nejvýš {0} {0:den|dny|dní}"
+  },
+  "pz_434": {
+   "source": "ended {0}",
+   "text": "skončilo {0}"
+  },
+  "pz_435": {
+   "source": "expires in {0} days",
+   "text": "vyprší za {0} {0:den|dny|dní}"
+  },
+  "pz_436": {
+   "source": "fine {0}",
+   "text": "v pořádku {0}"
+  },
+  "pz_437": {
+   "source": "given to {0} member(s)",
+   "text": "{0:dána|dána|dána} {0} {0:členovi|členům|členům}"
+  },
+  "pz_438": {
+   "source": "{0} capabilities",
+   "text": "{0} {0:oprávnění|oprávnění|oprávnění}"
+  },
+  "pz_439": {
+   "source": "{0} certificate(s) - {1} with the teams below",
+   "text": "{0} {0:certifikát|certifikáty|certifikátů} – {1} i s týmy pod ním"
+  },
+  "pz_440": {
+   "source": "{0} device(s)",
+   "text": "{0} {0:zařízení|zařízení|zařízení}"
+  },
+  "pz_441": {
+   "source": "{0} device(s) assigned",
+   "text": "{0} {0:zařízení přiřazeno|zařízení přiřazena|zařízení přiřazeno}"
+  },
+  "pz_442": {
+   "source": "{0} ending within 30 days",
+   "text": "{0} {0:končí|končí|končí} do 30 dnů"
+  },
+  "pz_443": {
+   "source": "{0} groups",
+   "text": "{0} {0:skupina|skupiny|skupin}"
+  },
+  "pz_444": {
+   "source": "{0} is acme's own again",
+   "text": "{0} je zase vlastní acme"
+  },
+  "pz_445": {
+   "source": "{0} is taken out of {1}.",
+   "text": "{0} bude odebrán z týmu {1}."
+  },
+  "pz_446": {
+   "source": "{0} member(s)",
+   "text": "{0} {0:člen|členové|členů}"
+  },
+  "pz_447": {
+   "source": "{0} of {1} shown",
+   "text": "zobrazeno {0} z {1}"
+  },
+  "pz_448": {
+   "source": "{0} people",
+   "text": "{0} {0:osoba|osoby|osob}"
+  },
+  "pz_449": {
+   "source": "{0} team(s) made",
+   "text": "{0:vytvořen|vytvořeny|vytvořeno} {0} {0:tým|týmy|týmů}"
+  },
+  "pz_450": {
+   "source": "{0} team(s) stand under it. They move to the place chosen here.",
+   "text": "{0:Pod ním stojí|Pod ním stojí|Pod ním stojí} {0} {0:tým|týmy|týmů}. Přesunou se na místo vybrané zde."
+  },
+  "pz_451": {
+   "source": "{0} team(s) to make",
+   "text": "{0} {0:tým|týmy|týmů} k vytvoření"
+  },
+  "pz_452": {
+   "source": "{0} teams",
+   "text": "{0} {0:tým|týmy|týmů}"
+  },
+  "pz_453": {
+   "source": "{0} teams below",
+   "text": "{0} {0:tým|týmy|týmů} pod ním"
+  },
+  "pz_454": {
+   "source": "{0} with the teams below",
+   "text": "{0} i s týmy pod ním"
   }
  },
  "rich": {

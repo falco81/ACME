@@ -295,3 +295,11 @@
 .pb-chip-add.on{border-color:color-mix(in srgb,var(--ok) 45%,var(--line));background:var(--ok-bg)}
 .pb-chip-add.on .pb-chip-p{color:var(--ok)}
 .pb-adcs-allow{display:block;margin:6px 0}
+
+/* the designer's Discovery and From discovery (policybuilder.js) */
+.pb-disc-kinds{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.pb-found{display:flex;flex-direction:column;gap:6px;padding:9px 11px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);min-width:0}
+.pb-found + .pb-found{margin-top:8px}
+.pb-found-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.pb-found-h .ag-dc-ic{min-width:30px;height:30px;font-size:10.5px;border-radius:9px}
+.pb-found-h b{font-size:13px}

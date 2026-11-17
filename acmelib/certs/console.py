@@ -1075,7 +1075,7 @@ def ssh_key(con, word, name):
 def target_agent(con, name):
     """The acme-agent of a target "Server with acme-agent" (1.0.116), as its card on the page:
     acme --target-agent NAME show|system|code|confirm FP|look|policy|renew|update|forget|
-    design."""
+    design|discover."""
     what = con.choose('The acme-agent of %s' % name, [
         ('show', 'How it stands'),
         ('system', 'Its server: the OS, addresses, memory, disks, uptime, clock, roles'),
@@ -1085,6 +1085,7 @@ def target_agent(con, name):
         ('policy', 'What its policy allows, as it last said'),
         ('renew', 'Renew its certificate'), ('update', 'Update it to the agent this acme ships'),
         ('design', 'The policy designed for it in acme (never sent)'),
+        ('discover', 'What its server runs that takes certificates (discovery: allow discover)'),
         ('forget', 'Forget it')])
     if not what:
         return
@@ -1103,6 +1104,9 @@ def target_agent(con, name):
     elif what == 'design':
         # as the command line has it (1.0.118): the saved design and how the server's differs
         con.act(flag, name, 'design', 'show')
+    elif what == 'discover':
+        # 1.0.125: the services and certificates its agent finds (read-only on the server)
+        con.live(lambda: (con.cmd(flag, name, 'discover'), con.pause()))
     elif what in ('look', 'renew', 'update', 'code'):
         con.live(lambda: (con.cmd(flag, name, what), con.pause()))
     else:

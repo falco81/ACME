@@ -27,6 +27,13 @@ The routes of target agents (1.0.116, docs/target-agent.md) - imported at the en
     GET  /api/agents/adcs?target=NAME[&ca=HOST\\CA]   the Microsoft CAs and templates a
                                         Windows server's agent reads (1.0.125, read-only; what
                                         its policy lets it list)        certificate administrator
+    GET  /api/agents/discover?target=NAME[&kind=K,K][&cached=1]   what services of the server
+                                        use certificates (1.0.125, docs/target-agent.md
+                                        "Discovery"): a signed job `discover`, read-only on
+                                        the server, only where its policy says `allow discover`
+                                        (else the refusal with the line that allows it); the
+                                        answer kept with the target. cached=1: the last one kept,
+                                        the agent not asked             certificate administrator
     GET  /api/agents/design?id=         the saved design, its history, the server compared
     POST /api/agents/design {id, text, state, title, note}   a design saved (documentation
                                         only - acme never sends it)          full administrator
@@ -152,6 +159,23 @@ def _adcs(h, s):
     except (TypeError, ValueError):
         pass
     return P.adcs_lists(h.store, G.target_row(h.store, ref), ca=h.arg('ca') or '')
+
+
+@A.api('GET', '/api/agents/discover', 'certadmin')
+def _discover(h, s):
+    """A discovery on the server of a target's agent (1.0.125) - read-only."""
+    from acmelib.certs import agent_discover
+    ref = h.arg('target') or h.arg('id')
+    try:
+        ref = int(ref)
+    except (TypeError, ValueError):
+        pass
+    row = G.target_row(h.store, ref)
+    if str(h.arg('cached') or '') in ('1', 'true', 'yes'):
+        got = agent_discover.cached(h.store, row)
+        return {'discovery': got, 'target': row['name']}
+    return {'discovery': agent_discover.run(h.store, row, h.arg('kind') or None, A.who(s)),
+            'target': row['name']}
 
 
 @A.api('GET', '/api/agents/design')

@@ -268,8 +268,8 @@ class Pages(unittest.TestCase):
     def check_seen(self, seen):
         # the tree: every team, kind icons, counts; the search keeps the ancestors
         self.assertEqual(seen['treeRows'], len(TREE), seen)
-        self.assertEqual(seen['searchShown'], ['Group HQ', 'Europe', 'Prague', 'Web'], seen)
-        self.assertEqual(seen['searchHit'], ['Web'], seen)
+        self.assertEqual(seen['searchShown'], ['Group HQ', 'Europe', 'Prague', 'Databases'], seen)
+        self.assertEqual(seen['searchHit'], ['Databases'], seen)
         # the team's page
         self.assertEqual(seen['crumbs'], ['Group HQ', 'Europe', 'Prague', 'Web'], seen)
         self.assertEqual(seen['tiles']['certs'], '6', seen)

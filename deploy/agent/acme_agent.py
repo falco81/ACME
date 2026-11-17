@@ -3502,14 +3502,19 @@ def _d_tomcat(D):
             root = ET.fromstring(text)
         except ET.ParseError:
             continue
-        base = os.path.dirname(os.path.dirname(conf)) if conf.endswith('/conf/server.xml') \
-            else os.path.dirname(conf).replace('/etc/', '/usr/share/', 1)
+        # CATALINA_BASE: the folder above conf/ - Debian's /etc/tomcatN is the conf/ of
+        # /var/lib/tomcatN
+        etc = not conf.endswith('/conf/server.xml')
+        base = os.path.dirname(conf).replace('/etc/', '/var/lib/', 1) if etc else \
+            os.path.dirname(os.path.dirname(conf))
         m = re.search(r'tomcat(\d*)', conf)
         unit = D.unit(('tomcat%s' % (m.group(1) if m else ''), 'tomcat'))
 
         def path_of(v):
             v = str(v or '').replace('${catalina.base}', base).replace('${catalina.home}', base)
-            if v and not v.startswith('/'):
+            if etc and v.startswith((base + '/conf/', 'conf/')):
+                v = os.path.dirname(conf) + '/' + v.split('conf/', 1)[1]
+            elif v and not v.startswith('/'):
                 v = base + '/' + v
             return v
         for c in root.iter('Connector'):
@@ -3738,7 +3743,8 @@ def cmd_discover(argv):
         print(json.dumps(got, indent=1, sort_keys=True))
         return 0
     for f in got['found']:
-        print('%-10s %s%s' % (f['kind'], f.get('config') or '', (' (%s)' % f['unit'])
+        print('%-10s %s%s' % (f['kind'], f.get('site') or f.get('config') or '',
+                              (' (%s)' % f['unit'])
                               if f.get('unit') else ''))
         if f.get('names'):
             print('    names    %s' % ', '.join(f['names'][:8]))

@@ -229,7 +229,11 @@ def add_args(p):
                         'policy allows it; "all update": every agent it can), forget (--yes), '
                         'design show|text|forget (the policy designed in acme), adcs-templates '
                         '[HOST\\CA] (the Microsoft CAs and templates a Windows server\'s agent '
-                        'reads; --json); "enroll new" '
+                        'reads; --json), discover [--kind K,K] (what services of the server use '
+                        'certificates and which ones, read by its agent where its policy allows '
+                        'it - allow discover; --json; "discover cached": the last one, not '
+                        'asked again); '
+                        '"enroll new" '
                         '(a company enrollment code: --title, --mode passive|active, --port, '
                         '--days, --most, --auto-confirm), "enroll list", "enroll revoke ID"; '
                         '"waiting" (every agent asking to join)')
@@ -2011,6 +2015,45 @@ class Cli(object):
                 t['name'] for t in c.get('templates') or []) or '*'))
         return 0
 
+    def target_agent_discover(self, row, rest):
+        """acme --target-agent NAME discover [cached] [--kind K,K] [--json] (1.0.125): what
+        services of the server use certificates, where their files are and which certificate
+        each serves now - read by its agent (only with `allow discover` in its policy) - and
+        the policy lines a deployment of each needs."""
+        from acmelib.certs import agent_discover as AD
+        kinds = getattr(self.args, 'kind', None) or ''
+        if '--kind' in rest:
+            i = rest.index('--kind')
+            if i + 1 >= len(rest):
+                raise SystemExit('acme: --target-agent NAME discover [cached] [--kind K,K]')
+            kinds = rest[i + 1]
+        if 'cached' in rest or '--cached' in rest:
+            got = AD.cached(self.store, row)
+            if got is None:
+                got = {'target': row['name'], 'found': [], 'certs': [],
+                       'said': 'no discovery was asked on %s yet' % row['name']}
+        else:
+            try:
+                got = AD.run(self.store, row, kinds or None, self.WHO)
+            except ValueError as e:
+                raise SystemExit('acme: %s' % e)
+        if self.json:
+            return self.out(got) or (1 if got.get('refused') else 0)
+        if got.get('refused'):
+            print('the agent of %s refused the discovery: %s' % (row['name'], got['said']))
+            if got.get('allow'):
+                print('  allow it on the server (%s): %s' % (
+                    'an elevated prompt' if got.get('platform') == 'windows' else 'as root',
+                    got['allow']))
+            return 1
+        for line in AD.lines(got):
+            print(line)
+        n = len(got.get('found') or [])
+        print('# %d service%s found on %s, %d certificate%s (%d not managed by acme)' % (
+            n, '' if n == 1 else 's', row['name'], len(got.get('certs') or []),
+            '' if len(got.get('certs') or []) == 1 else 's', got.get('unmanaged') or 0))
+        return 0
+
     def target_agent_system(self, row, info):
         """acme --target-agent NAME system [--json] (1.0.120): what the agent told of its
         server, as its card's "The server" shows it."""
@@ -2091,9 +2134,11 @@ class Cli(object):
                 return self.target_agent_design(row, rest)
             elif what == 'adcs-templates':
                 return self.target_agent_adcs(row, rest)
+            elif what == 'discover':
+                return self.target_agent_discover(row, rest)
             else:
                 raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|'
-                                 'system|renew|update|forget|design|adcs-templates')
+                                 'system|renew|update|forget|design|adcs-templates|discover')
         except PluginError as e:
             raise SystemExit('acme: %s' % e)
         if what == 'system':

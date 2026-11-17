@@ -1037,6 +1037,8 @@ function card(row, opts) {
     box.appendChild(k);
     /* 1.0.120: what the agent tells about its server */
     if (a.joined) box.appendChild(sysPanel(row, a, function (b) { load(true, b); }));
+    /* 1.0.125: what the server runs that takes certificates (only where its policy allows it) */
+    if (a.joined) box.appendChild(discoverBox(row, a, {reopen: opts.reopen, done: function () { load(false); }}));
     if (otherProgram(a, a.shipped_code, a.shipped_codes)) {
       box.appendChild(el('div', 'note warn small', 'The agent runs another program than the one this acme ships - install the package of this version (Settings → Target agents).'));
     }
@@ -2186,6 +2188,348 @@ function serverRow(a) {
   return r;
 }
 
+/* ---- discovery (1.0.125, docs/target-agent.md "Discovery"): what the server runs that takes
+   certificates, read by its agent where its policy says `allow discover` - each service found
+   with the certificate it serves now; a deployment prefilled from it, the policy lines it
+   needs, a test of what it serves; the certificates there that acme does not manage. ---- */
+var DISC_IC = '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/><path d="M8.2 11h5.6M11 8.2v5.6"/>';
+var DISC_TONE = {nginx: 'g', apache: 'r', haproxy: 'b', postfix: 'v', dovecot: 'v', exim: 'v', tomcat: 'o', proxmox: 'o', pbs: 'o',
+  openldap: 'b', grafana: 'o', cockpit: 'b', webmin: 'b', vsftpd: 'g', mariadb: 'b', files: 'm', iis: 'b', rdp: 'v', store: 'm',
+  sql: 'r', exchange: 'b', adfs: 'v', wap: 'v', winrm: 'g', ldaps: 'o', sstp: 'g', ftp: 'g', ccs: 'b', rdgw: 'v', rds: 'v',
+  sharepoint: 'g', wac: 'b', lync: 'b'};
+var DISC_ABBR = {nginx: 'NG', apache: 'AP', haproxy: 'HA', postfix: 'PF', dovecot: 'DC', exim: 'EX', tomcat: 'TC', proxmox: 'PV',
+  pbs: 'PB', openldap: 'LD', grafana: 'GF', cockpit: 'CP', webmin: 'WM', vsftpd: 'FT', mariadb: 'DB', files: '/', iis: 'IIS',
+  rdp: 'RDP', store: 'MY', sql: 'SQL', exchange: 'EXC', adfs: 'ADFS', wap: 'WAP', winrm: 'WRM', ldaps: 'LDS', sstp: 'VPN',
+  ftp: 'FTP', ccs: 'CCS', rdgw: 'GW', rds: 'RDS', sharepoint: 'SP', wac: 'WAC', lync: 'SfB'};
+var DISC_ROLE = {cert: 'certificate', key: 'key', chain: 'chain', combined: 'key + chain', keystore: 'keystore'};
+var DISC = {};          /* target id -> {view, at, busy} - kept while the page is open */
+function discIcon(size) {
+  var s = noI18n(el('span', 'ag-ic'));
+  s.innerHTML = '<svg viewBox="0 0 24 24" width="' + (size || 16) + '" height="' + (size || 16) + '" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + DISC_IC + '</svg>';
+  return s;
+}
+function discAllowed(a) { return arr(a && a.policy && a.policy.discover); }
+function discWin(a) { return (a && a.platform === 'windows') || false; }
+function discAllowLine(a, kinds) {
+  return (discWin(a) ? '' : 'sudo ') + 'acme-agent allow discover' + (kinds && kinds.length ? ' ' + kinds.join(',') : '');
+}
+/** How long a certificate has: a pill (green, amber within 14 days, red when it ran out). */
+function daysPill(c) {
+  if (!c || c.days === undefined || c.days === null) return null;
+  var d = Number(c.days), lv = d < 0 ? 'bad' : (d <= 14 ? 'warn' : 'ok');
+  var p = el('span', 'ag-sys-pill ag-dc-days ' + lv);
+  p.appendChild(noI18n(el('span', 'dot')));
+  p.appendChild(el('span', '', d < 0 ? 'ran out' : (d === 1 ? '1 day left' : d + ' days left')));
+  if (c.not_after) explain(p, tr('until') + ' ' + new Date(Number(c.not_after) * 1000).toLocaleDateString());
+  return p;
+}
+function certLine(c, cls) {
+  var line = el('div', 'ag-dc-cert' + (cls ? ' ' + cls : ''));
+  if (!c) { line.appendChild(el('span', 'muted small', 'no certificate read there')); return line; }
+  if (c.missing) {
+    line.appendChild(el('span', 'ag-sys-pill bad', 'its certificate is not in the machine store'));
+    line.appendChild(mono(String(c.thumbprint || '').slice(0, 16) + '…', 'small muted'));
+    return line;
+  }
+  var w = el('div', 'ag-dc-cw');
+  var top = el('div', 'ag-dc-ct');
+  top.appendChild(icon('lock', 13));
+  top.appendChild(mono(c.cn || c.subject || c.thumbprint, 'ag-dc-cn'));
+  var dp = daysPill(c);
+  if (dp) top.appendChild(dp);
+  if (c.managed) {
+    var m = el('span', 'ag-badge ok ag-dc-acme');
+    m.appendChild(el('span', '', 'acme'));
+    m.appendChild(data('b', '', c.managed.name));
+    explain(m, c.managed.current ? 'This is the certificate acme holds now.' : 'An older version of this certificate of acme.');
+    top.appendChild(m);
+  } else if (c.acme) {
+    top.appendChild(el('span', 'ag-badge ok ag-dc-acme', 'imported by acme'));
+  } else {
+    top.appendChild(el('span', 'ag-badge dim ag-dc-acme', 'not managed by acme'));
+  }
+  w.appendChild(top);
+  var sub = el('div', 'ag-dc-cs');
+  if (c.issuer) { sub.appendChild(el('span', 'ag-sys-l', 'issuer')); sub.appendChild(data('span', 'ag-dc-iss', c.issuer)); }
+  if (arr(c.sans).length) {
+    var more = arr(c.sans).filter(function (n) { return n !== c.cn; });
+    if (more.length) { sub.appendChild(el('span', 'ag-sys-l', 'names')); sub.appendChild(data('span', 'ag-dc-iss', more.slice(0, 6).join(', ') + (more.length > 6 ? ' …' : ''))); }
+  }
+  w.appendChild(sub);
+  if (c.thumbprint) {
+    var t = mono(c.thumbprint.replace(/(.{4})/g, '$1 ').trim(), 'ag-dc-thumb');
+    explain(t, 'SHA-1 thumbprint' + (c.serial ? ' · serial ' + c.serial : ''));
+    w.appendChild(t);
+  }
+  line.appendChild(w);
+  return line;
+}
+function discBadge(kind) {
+  var b = noI18n(el('span', 'ag-dc-ic t-' + (DISC_TONE[kind] || 'm'), DISC_ABBR[kind] || String(kind).slice(0, 2).toUpperCase()));
+  return b;
+}
+/** One service found: its names, its files, what it serves now - and what acme offers. */
+function discCard(row, a, f, v, opts) {
+  var c = el('div', 'ag-dc');
+  var h = el('div', 'ag-dc-h');
+  h.appendChild(discBadge(f.kind));
+  var hw = el('div', 'ag-dc-hw');
+  var ht = el('div', 'ag-dc-ht');
+  ht.appendChild(noI18n(el('b', '', f.title || f.kind_title || f.kind)));
+  if (f.unit) ht.appendChild(mono(f.unit, 'ag-dc-unit'));
+  if (f.state && f.state !== 'Started') ht.appendChild(el('span', 'ag-badge warn', 'stopped'));
+  hw.appendChild(ht);
+  var where = f.site || f.config || f.detail || '';
+  if (where && where !== f.kind) hw.appendChild(mono(where, 'ag-dc-where'));
+  h.appendChild(hw);
+  c.appendChild(h);
+  var names = arr(f.names);
+  if (names.length || arr(f.listen).length) {
+    var ch = el('div', 'ag-dc-chips');
+    names.slice(0, 8).forEach(function (n) { ch.appendChild(mono(n, 'ag-dc-name')); });
+    if (names.length > 8) ch.appendChild(data('span', 'ag-dc-name more', '+' + (names.length - 8)));
+    arr(f.listen).slice(0, 3).forEach(function (l) { ch.appendChild(mono(l, 'ag-dc-port')); });
+    c.appendChild(ch);
+  }
+  if (arr(f.files).length) {
+    var fl = el('div', 'ag-dc-files');
+    arr(f.files).forEach(function (x) {
+      var r = el('div', 'ag-dc-file' + (x.there ? '' : ' gone'));
+      r.appendChild(el('span', 'ag-dc-role', DISC_ROLE[x.role] || x.role));
+      r.appendChild(mono(x.path, 'ag-dc-path'));
+      if (x.there) r.appendChild(mono((x.mode || '') + ' ' + (x.owner ? x.owner + ':' + (x.group || x.owner) : ''), 'ag-dc-meta'));
+      else r.appendChild(el('span', 'ag-dc-meta warn', x.dynamic ? 'set at run time' : 'not there yet'));
+      fl.appendChild(r);
+    });
+    c.appendChild(fl);
+  }
+  if (arr(f.bindings).length) {
+    var bl = el('div', 'ag-dc-chips');
+    arr(f.bindings).forEach(function (b) {
+      var x = el('span', 'ag-dc-bind');
+      x.appendChild(icon('globe', 12));
+      x.appendChild(mono((b.host || (b.ip && b.ip !== '*' ? b.ip : '*')) + ':' + b.port));
+      if (b.sni) x.appendChild(el('span', 'ag-dc-sni', 'SNI'));
+      bl.appendChild(x);
+    });
+    c.appendChild(bl);
+  }
+  if (arr(f.instances).length || arr(f.listeners).length) {
+    var il = el('div', 'ag-dc-chips');
+    arr(f.instances).forEach(function (i) { var x = el('span', 'ag-dc-bind'); x.appendChild(icon('db', 12)); x.appendChild(mono(i.name)); il.appendChild(x); });
+    arr(f.listeners).forEach(function (i) { var x = el('span', 'ag-dc-bind'); x.appendChild(icon('plug', 12)); x.appendChild(mono((i.host || '*') + ':' + (i.port || '5986'))); il.appendChild(x); });
+    c.appendChild(il);
+  }
+  c.appendChild(certLine(f.cert));
+  if (f.note) c.appendChild(data('p', 'note small ag-dc-note', f.note));
+  var acts = el('div', 'ag-dc-acts');
+  if (MANAGE) {
+    var has = f.prefill && Object.keys(f.prefill).length;
+    var mk = cmdButton('Make a deployment', 'add', 'small primary ag-dc-deploy');
+    mk.disabled = !has || !H.newDeploy;
+    if (!has) explain(mk, 'Nothing here acme could write to: no file of its was read.');
+    mk.onclick = function () {
+      var cert = f.cert && f.cert.managed && f.cert.managed.current ? f.cert.managed.id : null;
+      H.newDeploy(row, {options: f.prefill, cert_id: cert, back: opts.reopen});
+    };
+    acts.appendChild(mk);
+  }
+  if (arr(f.items).length) {
+    var pb = cmdButton('Add to the policy', 'shield', 'small ag-dc-policy');
+    pb.onclick = function () { builder(row, {from: 'server', add: f.items, back: opts.reopen, done: opts.done}); };
+    acts.appendChild(pb);
+  }
+  if (MANAGE && f.watch && H.newTest && !(f.cert && f.cert.managed)) {
+    var wb = cmdButton('Watch it', 'eye', 'small ag-dc-watch');
+    explain(wb, 'A test of what ' + (f.watch.host || 'the server') + ':' + f.watch.port + ' serves - its form filled in, saved by you.');
+    wb.onclick = function () { watch(row, f.watch, opts); };
+    acts.appendChild(wb);
+  }
+  if (acts.childNodes.length) c.appendChild(acts);
+  return c;
+}
+function watch(row, w, opts) {
+  H.newTest(w.kind, {config: {host: w.host, port: w.port, sni: w.sni || ''}, name: ('watch-' + (w.sni || w.host || row.name) + '-' + w.port).replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 60),
+    note: tr('What the server serves - found by the discovery on') + ' ' + row.name}, opts.reopen);
+}
+/** The certificates found that acme does not manage: watched (a test), imported. */
+function discUnmanaged(row, a, v, opts) {
+  var list = arr(v.certs).filter(function (c) { return !c.managed && !c.acme; });
+  var box = el('div', 'ag-du');
+  var h = el('div', 'ag-du-h');
+  h.appendChild(icon('flag', 14));
+  h.appendChild(el('b', '', 'Certificates found that acme does not manage'));
+  h.appendChild(noI18n(el('span', 'count', String(list.length))));
+  box.appendChild(h);
+  if (!list.length) { box.appendChild(el('p', 'muted small', 'Every certificate found is one of acme’s.')); return box; }
+  list.slice(0, 40).forEach(function (c) {
+    var r = el('div', 'ag-du-r');
+    var d = Number(c.days);
+    r.appendChild(noI18n(el('span', 'dot ' + (c.days === undefined ? 'dim' : (d < 0 ? 'bad' : (d <= 14 ? 'warn' : 'ok'))))));
+    var w = el('div', 'ag-du-w');
+    var t = el('div', 'ag-du-t');
+    t.appendChild(mono(c.cn || c.subject || c.thumbprint, 'ag-du-cn'));
+    var dp = daysPill(c);
+    if (dp) t.appendChild(dp);
+    w.appendChild(t);
+    var s = el('div', 'ag-dc-cs');
+    if (c.issuer) { s.appendChild(el('span', 'ag-sys-l', 'issuer')); s.appendChild(data('span', 'ag-dc-iss', c.issuer)); }
+    w.appendChild(s);
+    if (arr(c.where).length) w.appendChild(mono(arr(c.where).slice(0, 3).join(' · '), 'ag-du-where'));
+    r.appendChild(w);
+    var acts = el('div', 'ag-du-acts');
+    if (MANAGE && c.watch && H.newTest) {
+      var wb = cmdButton('Watch it', 'eye', 'small');
+      wb.onclick = function () { watch(row, c.watch, opts); };
+      acts.appendChild(wb);
+    }
+    if (MANAGE && H.importCert) {
+      var ib = cmdButton('Import…', 'upload', 'small');
+      var file = arr(c.where).map(function (x) { return String(x).split(' ').slice(1).join(' '); }).filter(function (x) { return x.charAt(0) === '/'; })[0];
+      explain(ib, file ? tr('Its file on the server:') + ' ' + file + ' - ' + tr('copy it here; acme then renews it (a source of yours) or watches it.')
+        : tr('Export it from the machine store (certlm.msc, with its key if acme is to deploy it) and drop the file here.'));
+      ib.onclick = function () {
+        H.importCert(opts.reopen);
+        toast(file ? tr('Its file on the server:') + ' ' + file : tr('Export it from the machine store (certlm.msc) and drop the file here.'), 'info');
+      };
+      acts.appendChild(ib);
+    }
+    if (acts.childNodes.length) r.appendChild(acts);
+    box.appendChild(r);
+  });
+  if (list.length > 40) box.appendChild(el('p', 'muted small', '…and ' + (list.length - 40) + ' more'));
+  return box;
+}
+/** The card's "Found on this server" - only where the policy allows discovery; else the line
+    that allows it. */
+function discoverBox(row, a, opts) {
+  opts = opts || {};
+  var box = el('div', 'ag-disc');
+  var head = el('div', 'ag-sys-h ag-disc-h');
+  var hi = discIcon(16);
+  head.appendChild(hi);
+  head.appendChild(el('b', '', 'Found on this server'));
+  var said = el('span', 'ag-sys-ago');
+  head.appendChild(said);
+  box.appendChild(head);
+  var body = el('div', 'ag-disc-b');
+  box.appendChild(body);
+  var kinds = discAllowed(a);
+  if (!a.policy) {
+    body.appendChild(el('p', 'muted small', 'Its policy is not known yet - Ask it now.'));
+    return box;
+  }
+  if (!kinds.length) {
+    var off = el('div', 'ag-sys-none ag-disc-off');
+    off.appendChild(discIcon(18));
+    var w = el('div', 'ag-disc-offw');
+    w.appendChild(el('b', '', 'Discovery is off on this server'));
+    w.appendChild(el('p', 'note small', discWin(a)
+      ? 'acme can list what this server runs that takes certificates - the IIS sites and their bindings, the Remote Desktop listener, the roles, the machine store - read-only, never a key. Its policy allows it with this line (an elevated prompt):'
+      : 'acme can list what this server runs that takes certificates - nginx, Apache, HAProxy, Postfix, Dovecot, Tomcat, Proxmox… with their files and the certificate each serves - read-only, never a key. Its policy allows it with this line (as root):'));
+    w.appendChild(cmdBox(discAllowLine(a, []), 'small ag-disc-line'));
+    var pb = cmdButton('Allow it in the policy designer…', 'shield', 'small');
+    pb.onclick = function () { builder(row, {from: 'server', add: [{kind: 'discover', kinds: ['*']}], back: opts.reopen, done: opts.done}); };
+    var br = el('div', 'btnrow');
+    br.appendChild(pb);
+    w.appendChild(br);
+    off.appendChild(w);
+    body.appendChild(off);
+    return box;
+  }
+  var allowedPill = el('span', 'ag-sys-pill ok ag-disc-kinds');
+  allowedPill.appendChild(noI18n(el('span', 'dot')));
+  allowedPill.appendChild(el('span', '', kinds[0] === '*' ? 'every kind allowed' : 'allowed: ' + kinds.join(', ')));
+  explain(allowedPill, 'The policy on the server: ' + discAllowLine(a, kinds[0] === '*' ? [] : kinds).replace(/^sudo /, ''));
+  head.appendChild(allowedPill);
+  var look = null;
+  var st = DISC[row.id] || (DISC[row.id] = {});
+  var paint = function () {
+    clear(body);
+    said.textContent = '';
+    var v = st.view;
+    if (look) look.disabled = !!st.busy;
+    if (st.busy && !v) { body.appendChild(el('p', 'muted small ag-disc-busy', 'Looking at the server…')); return; }
+    if (st.error) {
+      var e = el('div', 'pb-msg bad ag-disc-err');
+      e.appendChild(data('span', '', st.error));
+      body.appendChild(e);
+    }
+    if (!v) {
+      if (!st.error) body.appendChild(el('p', 'muted small', 'Not looked yet: Look now asks the agent what its server runs (read-only).'));
+      return;
+    }
+    if (v.refused) {
+      var r = el('div', 'ag-sys-none old ag-disc-off');
+      r.appendChild(discIcon(18));
+      var rw = el('div', '');
+      rw.appendChild(el('b', '', 'The agent refused the discovery'));
+      rw.appendChild(data('p', 'note small', v.said || ''));
+      if (v.allow) rw.appendChild(cmdBox((discWin(a) ? '' : 'sudo ') + v.allow, 'small ag-disc-line'));
+      r.appendChild(rw);
+      body.appendChild(r);
+      return;
+    }
+    if (v.at) said.textContent = tr('looked') + ' ' + ago(v.at) + (v.by ? ' · ' + v.by : '');
+    var found = arr(v.found), certs = arr(v.certs);
+    var sum = el('div', 'ag-disc-sum');
+    var s1 = el('span', 'ag-chip');
+    s1.appendChild(icon('gear', 13));
+    s1.appendChild(el('span', '', found.length === 1 ? '1 service' : found.length + ' services'));
+    sum.appendChild(s1);
+    var s2 = el('span', 'ag-chip');
+    s2.appendChild(icon('lock', 13));
+    s2.appendChild(el('span', '', certs.length === 1 ? '1 certificate' : certs.length + ' certificates'));
+    sum.appendChild(s2);
+    var um = Number(v.unmanaged || 0);
+    var s3 = el('span', 'ag-chip' + (um ? ' warnc' : ''));
+    s3.appendChild(icon('flag', 13));
+    s3.appendChild(el('span', '', um + ' not managed by acme'));
+    sum.appendChild(s3);
+    var soon = certs.filter(function (c) { return c.days !== undefined && Number(c.days) <= 14; }).length;
+    if (soon) {
+      var s4 = el('span', 'ag-chip bad');
+      s4.appendChild(icon('clock', 13));
+      s4.appendChild(el('span', '', soon + ' end within 14 days'));
+      sum.appendChild(s4);
+    }
+    body.appendChild(sum);
+    if (!found.length) body.appendChild(el('p', 'muted small', 'Nothing of the kinds allowed was found on this server.'));
+    var grid = el('div', 'ag-dc-grid');
+    found.forEach(function (f) { grid.appendChild(discCard(row, a, f, v, opts)); });
+    if (found.length) body.appendChild(grid);
+    if (certs.length) body.appendChild(discUnmanaged(row, a, v, opts));
+    arr(v.skipped).forEach(function (s) { body.appendChild(data('p', 'note warn small', s.kind + ': ' + s.why)); });
+    if (v.truncated) body.appendChild(el('p', 'note warn small', 'Only part of it is shown: the server has more than an answer holds.'));
+    explainWhatWasDrawn(body);
+  };
+  var run = function (live, button) {
+    st.busy = true;
+    st.error = '';
+    paint();
+    if (button) busy(button, true);
+    return ask('agents/discover?target=' + encodeURIComponent(row.id || row.name) + (live ? '' : '&cached=1'), null, live ? 240 : 30).then(function (x) {
+      st.busy = false;
+      if (x && x.discovery) st.view = x.discovery;
+      else if (live) st.view = null;
+      paint();
+    }).catch(function (e) {
+      st.busy = false;
+      st.error = String((e && e.message) || e);
+      paint();
+    }).then(function () { if (button) busy(button, false); });
+  };
+  if (MANAGE) {
+    look = cmdButton('Look now', 'refresh', 'small ag-sys-ask ag-disc-look');
+    explain(look, 'The agent reads what its server runs: configurations and the certificates there - nothing is changed, no key is read.');
+    look.onclick = function () { run(true, look); };
+    head.appendChild(look);
+  }
+  paint();
+  if (MANAGE && !st.view && !st.busy && !st.asked) { st.asked = true; run(false); }
+  return box;
+}
+
 function init(h) { Object.keys(h || {}).forEach(function (k) { H[k] = h[k]; }); }
 /* certs.js is loaded before this file on the page: what it hands is waiting there */
 if (window.ACME_AGENTS_HANDS) init(window.ACME_AGENTS_HANDS);
@@ -2193,6 +2537,6 @@ window.ACME_AGENTS = {
   init: init, hands: function () { return H; }, designBox: designBox,
   pane: pane, settle: settle, card: card, wizard: wizard, needs: needs, policyView: policyView,
   statePill: statePill, chips: chips, updateBox: updateBox, blockedBox: blockedBox, keysBox: keysBox,
-  sysPanel: sysPanel, sysLine: sysLine, serversTable: serversTable
+  sysPanel: sysPanel, sysLine: sysLine, serversTable: serversTable, discoverBox: discoverBox
 };
 }());

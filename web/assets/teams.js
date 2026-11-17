@@ -872,7 +872,7 @@
     }
     if (t.contact_phone) meta.appendChild(dataChip(t.contact_phone, 'dim', 'phone'));
     if (n.kids.length) {
-      var kc = chip(nw(n.kids.length, 'teams below'), 'dim', 'tm_tree');
+      var kc = chip(n.kids.length === 1 ? '1 team below' : num(n.kids.length) + ' teams below', 'dim', 'tm_tree');
       meta.appendChild(kc);
     }
     if (meta.firstChild) tw.appendChild(meta);

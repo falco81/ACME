@@ -105,7 +105,7 @@
 .tmx-find > .tmx-ic{position:absolute;left:10px;color:var(--tx-mut);pointer-events:none}
 .tmx-find input{width:100%;padding-left:32px !important;min-width:0}
 .tmx-find.big input{height:40px;font-size:14px}
-.tmx-tree-tools{display:flex;align-items:center;gap:6px}
+.tmx-tree-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .tmx-tree-tools .tmx-sp{flex:1}
 .tmx-tree-tools .btn.cmd.small{padding:5px 10px;gap:5px}
 .tmx-tree-s{position:relative;overflow:auto;max-height:calc(100vh - 290px);min-height:220px;padding:6px 6px 10px;scrollbar-width:thin}
@@ -227,7 +227,7 @@ button.tmx-crumb:focus-visible{outline:2px solid var(--info)}
 .tmx-cap.g-team,.tmx-mx-cid.g-team{color:var(--violet);border-color:color-mix(in srgb,var(--violet) 30%,var(--line));background:var(--violet-bg)}
 
 /* Overview */
-.tmx-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:10px;margin:0 0 16px}
+.tmx-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:0 0 16px}
 .tmx-tile{all:unset;box-sizing:border-box;position:relative;display:flex;flex-direction:column;gap:4px;padding:13px 14px 12px;border-radius:13px;border:1px solid var(--line);
   background:linear-gradient(160deg,color-mix(in srgb,var(--tmx-tc,var(--tx-mut)) 9%,var(--panel2)),var(--panel2) 70%);cursor:pointer;min-width:0;
   transition:transform .15s var(--tmx-ease),border-color .15s,box-shadow .15s}
@@ -237,7 +237,8 @@ button.tmx-crumb:focus-visible{outline:2px solid var(--info)}
 .tmx-tile.warn{--tmx-tc:var(--warn)}
 .tmx-tile.crit{--tmx-tc:var(--crit)}
 .tmx-tile.violet{--tmx-tc:var(--violet)}
-.tmx-tile-h{display:flex;align-items:center;gap:7px;color:var(--tx-dim);font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.tmx-tile-h{display:flex;align-items:flex-start;gap:6px;color:var(--tx-dim);font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;line-height:1.3;min-width:0}
+.tmx-tile-h > span{min-width:0;overflow-wrap:anywhere}
 .tmx-tile-h .tmx-ic{color:var(--tmx-tc,var(--tx-mut))}
 .tmx-tile-v{font-size:28px;font-weight:700;line-height:1.1;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
 .tmx-tile.warn .tmx-tile-v{color:var(--warn)}
