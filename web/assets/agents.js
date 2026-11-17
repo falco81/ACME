@@ -2208,6 +2208,9 @@ function discIcon(size) {
   s.innerHTML = '<svg viewBox="0 0 24 24" width="' + (size || 16) + '" height="' + (size || 16) + '" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + DISC_IC + '</svg>';
   return s;
 }
+/* who may look and act: the account's role - or the page's own say (opts.manage: the portal's
+   team workspace, where a member managing the team's devices does it) */
+function discMay(opts) { return opts && opts.manage !== undefined ? !!opts.manage : MANAGE; }
 function discAllowed(a) { return arr(a && a.policy && a.policy.discover); }
 function discWin(a) { return (a && a.platform === 'windows') || false; }
 function discAllowLine(a, kinds) {
@@ -2323,7 +2326,7 @@ function discCard(row, a, f, v, opts) {
   c.appendChild(certLine(f.cert));
   if (f.note) c.appendChild(data('p', 'note small ag-dc-note', f.note));
   var acts = el('div', 'ag-dc-acts');
-  if (MANAGE) {
+  if (discMay(opts)) {
     var has = f.prefill && Object.keys(f.prefill).length;
     var mk = cmdButton('Make a deployment', 'add', 'small primary ag-dc-deploy');
     mk.disabled = !has || !H.newDeploy;
@@ -2339,7 +2342,7 @@ function discCard(row, a, f, v, opts) {
     pb.onclick = function () { builder(row, {from: 'server', add: f.items, back: opts.reopen, done: opts.done}); };
     acts.appendChild(pb);
   }
-  if (MANAGE && f.watch && H.newTest && !(f.cert && f.cert.managed)) {
+  if (discMay(opts) && f.watch && H.newTest && !(f.cert && f.cert.managed)) {
     var wb = cmdButton('Watch it', 'eye', 'small ag-dc-watch');
     explain(wb, 'A test of what ' + (f.watch.host || 'the server') + ':' + f.watch.port + ' serves - its form filled in, saved by you.');
     wb.onclick = function () { watch(row, f.watch, opts); };
@@ -2378,12 +2381,12 @@ function discUnmanaged(row, a, v, opts) {
     if (arr(c.where).length) w.appendChild(mono(arr(c.where).slice(0, 3).join(' · '), 'ag-du-where'));
     r.appendChild(w);
     var acts = el('div', 'ag-du-acts');
-    if (MANAGE && c.watch && H.newTest) {
+    if (discMay(opts) && c.watch && H.newTest) {
       var wb = cmdButton('Watch it', 'eye', 'small');
       wb.onclick = function () { watch(row, c.watch, opts); };
       acts.appendChild(wb);
     }
-    if (MANAGE && H.importCert) {
+    if (discMay(opts) && H.importCert) {
       var ib = cmdButton('Import…', 'upload', 'small');
       var file = arr(c.where).map(function (x) { return String(x).split(' ').slice(1).join(' '); }).filter(function (x) { return x.charAt(0) === '/'; })[0];
       explain(ib, file ? tr('Its file on the server:') + ' ' + file + ' - ' + tr('copy it here; acme then renews it (a source of yours) or watches it.')
@@ -2522,14 +2525,14 @@ function discoverBox(row, a, opts) {
       paint();
     }).then(function () { if (button) busy(button, false); });
   };
-  if (MANAGE) {
+  if (discMay(opts)) {
     look = cmdButton('Look now', 'refresh', 'small ag-sys-ask ag-disc-look');
     explain(look, 'The agent reads what its server runs: configurations and the certificates there - nothing is changed, no key is read.');
     look.onclick = function () { run(true, look); };
     head.appendChild(look);
   }
   paint();
-  if (MANAGE && !st.view && !st.busy && !st.asked) { st.asked = true; run(false); }
+  if ((discMay(opts) || (opts && opts.read)) && !st.view && !st.busy && !st.asked) { st.asked = true; run(false); }
   return box;
 }
 

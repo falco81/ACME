@@ -787,6 +787,32 @@ class Agents(unittest.TestCase):
         self.assertEqual(st, 403)
         self.assertIn('the team Web', words)
 
+    def test_discovery_of_a_team_agent(self):
+        """GET agent_discover (1.0.125): the last look for target.view, a new one for
+        target.manage - only the kinds the agent's policy allows."""
+        from acmelib.certs import agent_discover as AD
+        aid = device('ag9', 'Web', 'agent', {'mode': 'passive', 'host': 'ag9.example.test'})
+        got = call('v', 'GET', 'agent_discover', args={'id': aid, 'cached': 1})
+        self.assertIsNone(got['discovery'])
+        self.assertEqual(status('v', 'GET', 'agent_discover', args={'id': aid}), 403)
+        self.assertEqual(status('odm', 'GET', 'agent_discover', args={'id': aid}), 404)
+        was_info, was_run = G.info, AD.run
+        ran = []
+        try:
+            G.info = lambda store, row: {'policy': {'discover': []}}
+            st, words = refusal('dm', 'GET', 'agent_discover', args={'id': aid})
+            self.assertEqual(st, 403)
+            self.assertIn('acme-agent allow discover', words)
+            G.info = lambda store, row: {'policy': {'discover': ['nginx']}}
+            AD.run = lambda store, row, kinds=None, by='': ran.append(kinds) or {'found': []}
+            self.assertEqual(status('dm', 'GET', 'agent_discover', args={'id': aid,
+                                                                         'kind': 'apache'}), 403)
+            got = call('dm', 'GET', 'agent_discover', args={'id': aid, 'kind': 'nginx'})
+            self.assertEqual(got['discovery'], {'found': []})
+            self.assertEqual(ran, [['nginx']])
+        finally:
+            G.info, AD.run = was_info, was_run
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

@@ -228,7 +228,14 @@ function needAgents() {
   }).then(function () {
     if (window.ACME_AGENTS) window.ACME_AGENTS.init({capi: agentAsk, over: function (open, back) {
       if ($('modal') && !$('modal').hidden) modalOver(open, back); else open();
-    }, openTarget: null, newCert: null});
+    }, openTarget: null, newCert: null, newTest: null, importCert: null,
+    /* "Make a deployment" of a service the discovery found: the portal's own dialog, filled in */
+    newDeploy: function (row, o) {
+      o = o || {};
+      var t = row.owner || (deviceById(row.id) || {}).owner;
+      modalOver(function () { deployDialog(null, {team: t, target: row.name, options: o.options || {}, cert_id: o.cert_id || null}); },
+                function () { deviceOpen(row); });
+    }});
     return window.ACME_AGENTS;
   });
 }
@@ -240,6 +247,10 @@ function agentAsk(path, body, wait) {
   if (path === 'agents/builder') return api('agent-builder&id=' + id, undefined, wait);
   if (path === 'agents/design') return api('agent-design', body, wait);
   if (path === 'agents/update') return api('agent-update', body, wait);
+  if (path === 'agents/discover') {
+    var tg = (/(?:^|&)target=([^&]*)/.exec(q) || [])[1] || '';
+    return api('agent-discover&id=' + tg + (/(?:^|&)cached=1/.test(q) ? '&cached=1' : ''), undefined, wait);
+  }
   if (path === 'agents/look' || path === 'agents/one') return api('agent&id=' + encodeURIComponent((body && body.id) || decodeURIComponent(id || '')), undefined, wait);
   return Promise.reject(new Error(tr('not on the portal - an administrator does that')));
 }
@@ -1282,6 +1293,7 @@ function viewDevices(main) {
   askTops('target.view', 'devices').then(function (d) {
     if (seq !== WS.seq) return;
     rows = d.rows.sort(function (a, b) { return low(a.name) < low(b.name) ? -1 : 1; });
+    rows.forEach(function (r) { DEVICES_SEEN[r.id] = r; });
     paint();
   }).catch(function (e) { if (seq === WS.seq) failed(grid, e); });
   askTops('target.view', 'agents-waiting').then(function (d) {
@@ -1843,6 +1855,11 @@ function agentPart(host, r, a, manage) {
       };
       bar.appendChild(jc);
     }
+    /* what the server runs that takes certificates (agent_discover, agents.js's card) */
+    if (AG.discoverBox && info.joined) {
+      try { host.appendChild(AG.discoverBox(r, info, {manage: !!manage, read: true, reopen: function () { deviceOpen(r); }, done: function () { }})); }
+      catch (e) { if (window.console) console.error(e); }
+    }
     if (info.joined && window.ACME_POLICY_BUILDER) {
       var pb = cmdButton('Design its policy…', 'shield', 'small');
       pb.onclick = function () { window.ACME_POLICY_BUILDER.open({id: r.id, name: r.name}, {maySave: manage, done: function () { }}); };
@@ -1984,15 +2001,26 @@ function dryRun(r) {
 }
 /** A deployment added or changed: a certificate of the team, a device of the team, the
     module's own deployment options. */
-function deployDialog(row) {
-  var team = row ? (row.team || WS.team) : (teamsWith('deploy.manage').indexOf(WS.team) >= 0 ? WS.team : teamsWith('deploy.manage')[0]);
+var DEVICES_SEEN = {};
+function deviceById(id) { return DEVICES_SEEN[id] || null; }
+function deployDialog(row, pre) {
+  pre = pre || null;
+  var team = row ? (row.team || WS.team) : (pre && pre.team && teamsWith('deploy.manage').indexOf(pre.team) >= 0 ? pre.team
+    : (teamsWith('deploy.manage').indexOf(WS.team) >= 0 ? WS.team : teamsWith('deploy.manage')[0]));
   if (!team || team === '*') team = teamsWith('deploy.manage')[0];
+  if (!team) { toast(tr('no team of yours lets you set up deployments'), 'bad'); return; }
   modal(row ? tr('Change the deployment') : tr('Add a deployment'), function (body) { body.appendChild(skeleton(3)); }, [{words: 'Close', close: true}], 'large');
   var ticket = modalTicket();
   Promise.all([api('devices&team=' + encodeURIComponent(team) + '&below=1'), api('kinds&team=' + encodeURIComponent(team)), needForms()]).then(function (got) {
     if (!modalStill(ticket)) return;
     var devices = arr(got[0].rows), kinds = arr(got[1].kinds);
     var pick = {cert: row ? {id: row.cert_id, name: row.cert_name} : null, dev: row ? devices.filter(function (x) { return x.name === row.target; })[0] || {name: row.target, kind: row.target_kind} : null};
+    if (pre) {
+      pick.dev = devices.filter(function (x) { return x.name === pre.target; })[0] || null;
+      if (pre.cert_id) pick.cert = {id: pre.cert_id, name: '#' + pre.cert_id};
+      row = null;
+    }
+    var preOpts = pre ? pre.options || {} : null;
     var optHost = null, form = null, on = null, note = null, said = null, certBox = null, devSel = null;
     var drawOpts = function () {
       clear(optHost);
@@ -2000,7 +2028,7 @@ function deployDialog(row) {
       if (!pick.dev) { optHost.appendChild(el('p', 'muted small', 'Pick the device first - its module says what it needs.')); return; }
       var k = kinds.filter(function (x) { return x.kind === pick.dev.kind; })[0];
       if (!k) { optHost.appendChild(el('p', 'note warn small', 'The team may not deploy to a device of this module.')); return; }
-      form = window.ACME_CERTS.fieldForm(k.deploy_fields || [], row ? row.options : {}, row ? row.secrets : {}, {kept: row ? row.options : null});
+      form = window.ACME_CERTS.fieldForm(k.deploy_fields || [], row ? row.options : (preOpts || {}), row ? row.secrets : {}, {kept: row ? row.options : null});
       optHost.appendChild(form.node);
     };
     modal(row ? tr('Change the deployment') : tr('Add a deployment'), function (body) {
@@ -2060,6 +2088,22 @@ function deployDialog(row) {
         find('');
       };
       drawCert();
+      /* prefilled from a discovery: the certificate it serves now, by its name */
+      if (pick.cert && /^#/.test(pick.cert.name)) {
+        api('certs&team=' + encodeURIComponent(team) + '&below=1&per=200').then(function (d) {
+          var c = arr(d.rows).filter(function (x) { return x.id === pick.cert.id; })[0];
+          if (c) { pick.cert.name = c.name; drawCert(); }
+        }).catch(function () { });
+      }
+      if (pre) {
+        var pn = el('div', 'pw-note');
+        pn.appendChild(ic('search', 17));
+        var pw = el('div', '');
+        pw.appendChild(el('b', '', 'Filled in from what was found on the server'));
+        pw.appendChild(el('span', '', 'Look at it before you add it - the files, the service, its reload.'));
+        pn.appendChild(pw);
+        body.insertBefore(pn, body.firstChild);
+      }
       var oh = el('h4', 'pw-cm-h');
       oh.appendChild(ic('gear', 15));
       oh.appendChild(el('span', '', 'How it is put there'));

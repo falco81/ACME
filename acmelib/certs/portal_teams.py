@@ -789,6 +789,37 @@ def _agent_update(h):
     return api_agents._update(_H(h, {'id': row['id']}), me.admin())
 
 
+@route('GET', 'agent_discover')
+def _agent_discover(h):
+    """What the server of a team's agent runs that takes certificates (1.0.125,
+    agent_discover.py): the last look kept (target.view, `cached=1`) or a new one
+    (target.manage) - read-only on the server, and only the kinds the agent's policy (as it last
+    said it) allows; the agent checks its policy again itself."""
+    me = Me(h)
+    from acmelib.certs import agent_discover as AD, agents as G
+    live = not _flag(h, 'cached')
+    row, _t = agent_of(me, h.arg('id'), 'target.manage' if live else 'target.view',
+                       'look at what runs on the server of' if not live else 'run a discovery on')
+    if not live:
+        return {'discovery': AD.cached(h.store, row), 'target': row['name']}
+    platform = G.platform_of(h.store, row)
+    policy = G.info(h.store, row).get('policy')
+    allowed = AD.allowed_kinds(policy, platform)
+    want = [k.strip() for k in str(h.arg('kind') or '').split(',') if k.strip()]
+    if policy is not None and not allowed:
+        me.deny('the policy of the agent of %s does not allow discovery - its server\'s root '
+                'allows it: %s' % (row['name'], AD.allow_line(want)))
+    bad = [k for k in want if allowed and k not in allowed]
+    if bad:
+        me.deny('the policy of the agent of %s does not allow discovering %s - only %s' % (
+            row['name'], ', '.join(bad), ', '.join(allowed)))
+    try:
+        got = AD.run(h.store, row, want or None, me.by)
+    except ValueError as e:
+        raise E.ApiError(400, str(e))
+    return {'discovery': got, 'target': row['name']}
+
+
 # ---------------------------------------------------------------------------
 # Deployments of the team's certificates to the team's devices
 # ---------------------------------------------------------------------------

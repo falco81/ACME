@@ -221,7 +221,8 @@ if (isset($_GET['api'])) {
     $team_reads = ['teams' => [], 'inbox' => [], 'timeline' => ['id'],
                    'devices' => ['team', 'below', 'q'], 'device' => ['id'], 'kinds' => ['team'],
                    'agents-waiting' => ['team', 'below'], 'agent' => ['id'],
-                   'agent-builder' => ['id'], 'deploys' => ['team', 'below'],
+                   'agent-builder' => ['id'], 'agent-discover' => ['id', 'cached', 'kind'],
+                   'deploys' => ['team', 'below'],
                    'members' => ['team'], 'dir-search' => ['q', 'kind'],
                    'activity' => ['team', 'page', 'per', 'below']];
     if ($post && isset($team_writes[$what])) {
@@ -244,8 +245,9 @@ if (isset($_GET['api'])) {
         return $q ? '?' . http_build_query($q) : '';
     };
     if (!$post && isset($team_reads[$what])) {
+        /* a discovery through an agent waits for the agent (agent_discover.TIMEOUT) */
         acme_relay('/api/portal/' . str_replace('-', '_', $what) . $team_query($team_reads[$what]),
-                   'GET', null, 60.0);
+                   'GET', null, $what === 'agent-discover' ? 240.0 : 60.0);
         exit;
     }
     if (!$post && $what === 'certs') {
