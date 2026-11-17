@@ -535,6 +535,13 @@ def smtp_talk(store, host, port, security, auth, msg, to, steps, helo='', verify
     except (OSError, smtplib.SMTPException) as e:
         step('reach the server %s:%d' % (host, port), False, e)
         raise MailError('%s:%d could not be reached: %s' % (host, port, e), steps)
+    # "auto" with no account and no password set signs nothing in (hunt R4): a relay that lets
+    # this machine send was refused with "SMTP AUTH extension not supported", or told that "the
+    # password" would go in plain text - and no mail, no code went until Signing in was "none".
+    signs_in = bool(auth and auth != 'none' and not direct)
+    if signs_in and auth == 'auto' and not str(CONFIG.get('smtp_user') or '') and \
+            not setting_secret('smtp_password'):
+        signs_in = False
     try:
         code, said = conn.ehlo()
         step('greeted it as %s' % helo, 200 <= code < 300, said.decode('utf-8', 'replace')
@@ -562,7 +569,7 @@ def smtp_talk(store, host, port, security, auth, msg, to, steps, helo='', verify
                                 'none' % host, steps)
             else:
                 step('stayed in plain text', True, 'the server does not offer STARTTLS')
-                if auth and auth != 'none' and not direct:
+                if signs_in:
                     # Not the password in plain text (1.0.94): a STARTTLS taken
                     # out on the way would have had it read off the wire.
                     step('sign in', False, 'not without TLS: the password would go in plain text')
@@ -570,7 +577,9 @@ def smtp_talk(store, host, port, security, auth, msg, to, steps, helo='', verify
                                     'plain text - choose STARTTLS (required) or TLS from the '
                                     'start, or Security none if a plain connection is meant'
                                     % host, steps)
-        if auth and auth != 'none' and not direct:
+        if not signs_in and auth == 'auto' and not direct:
+            step('not signed in', True, 'no account is set (Signing in: auto)')
+        if signs_in:
             user = str(CONFIG.get('smtp_user') or '')
             pw = setting_secret('smtp_password')
             offered = (conn.esmtp_features.get('auth') or '').upper().split()

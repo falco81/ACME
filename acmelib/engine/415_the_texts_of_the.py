@@ -203,6 +203,11 @@ def mfa_lang(h):
     if not got:
         m = re.search(r'(?:^|;\s*)acme_lang=([a-z]{2})', str(h.headers.get('Cookie') or ''))
         got = m.group(1) if m else ''
+    if not got:
+        # None chosen in this browser (hunt R4): the page is drawn in the language the pages
+        # open in (ui_lang, acme_lang_pick), and the code went in the codes' own - an English
+        # page, its code mailed in Czech.
+        got = str(CONFIG.get('ui_lang') or '')
     return got if got in CODE_TEXTS else None
 
 

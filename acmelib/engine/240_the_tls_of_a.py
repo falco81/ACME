@@ -388,6 +388,12 @@ def web_desired(store):
 
 
 def web_hash(desired):
+    # With the VIP address on, the version too (1.0.124): acme_vip.conf (the VIP's copy of the
+    # HTTPS server) is written by root from this request only - after an upgrade the locations
+    # install.sh gave acme.conf (/metrics, /healthz, /pki...) were missing on the VIP until a
+    # TLS or VIP setting changed. A new version now asks root once again.
+    if isinstance(desired, dict) and (desired.get('vip') or {}).get('on'):
+        desired = dict(desired, _version=__version__)
     return hashlib.sha256(json.dumps(desired, sort_keys=True).encode()).hexdigest()
 
 

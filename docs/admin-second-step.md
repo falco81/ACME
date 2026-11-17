@@ -42,8 +42,10 @@ password, the second step is asked after it every time.
 Wrong codes count as wrong passwords do (`login_tries`, `login_wait_min`) and
 show in Accounts → Locked out. Every step is an event (Sign-ins, Accounts).
 
-Turned on, sign-ins already open stay open; turned off, a sign-in waiting for
-its second step goes straight in.
+Turned on (on the pages, the console or the command line), every other sign-in already open
+ends - opened with the password alone, each signs in again and gives the second step; the one
+that switched it on stays. Acme's own accounts signed in to the enrolment pages without it end
+too. Turned off, a sign-in waiting for its second step goes straight in.
 
 ## Its messages
 
