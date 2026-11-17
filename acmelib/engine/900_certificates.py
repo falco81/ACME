@@ -383,7 +383,9 @@ CERT_CARRY_TABLES = ['cert_issuers', 'cert_challenges', 'cert_targets', 'cert_ca
                      'cert_ca_issued', 'certs', 'cert_deploys', 'dns_records',
                      'dns_sets', 'dns_set_uses', 'cert_teams', 'cert_tags', 'cert_req_profiles',
                      # the tests and where they are bound, an authority's renewals (1.0.80)
-                     'cert_tests', 'cert_checks', 'cert_ca_versions']
+                     'cert_tests', 'cert_checks', 'cert_ca_versions',
+                     # the custom roles of the teams (1.0.125, docs/teams.md)
+                     'cert_roles']
 
 
 @_certs_hook('carry_tables')

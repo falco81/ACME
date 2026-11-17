@@ -67,7 +67,9 @@ SCHEMA = [
     ('cert_targets', '''CREATE TABLE IF NOT EXISTS cert_targets (
         id {ID}, name {K} NOT NULL UNIQUE, kind {K}, config {B}, state {B}, enabled {I},
         note {T}, created {N}, created_by {K}, updated {N}, last_ok {N}, last_error {T},
-        tags {T})'''),
+        tags {T}, owner {K})'''),
+    # owner (1.0.125, docs/teams.md "Enterprise teams"): the team whose device it is - NULL
+    # acme's own, as before.
     # One certificate on one target.
     ('cert_deploys', '''CREATE TABLE IF NOT EXISTS cert_deploys (
         id {ID}, cert_id {I} NOT NULL, target {K} NOT NULL, options {B}, enabled {I},
@@ -101,7 +103,14 @@ SCHEMA = [
     ('cert_teams', '''CREATE TABLE IF NOT EXISTS cert_teams (
         id {ID}, name {K} NOT NULL UNIQUE, kind {K}, members {B}, contact_mail {T},
         contact_phone {K}, note {T}, created {N}, created_by {K}, updated {N},
-        updated_by {K})'''),
+        updated_by {K}, parent {K}, policy {B}, description {T})'''),
+    # 1.0.125 (docs/teams.md "Enterprise teams"): parent - the team above it (NULL top level),
+    # policy - its limits (JSON, NULL none of its own), description; kind also 'unit'.
+    # Members also carry roles (names of the built-in roles or of cert_roles) and until.
+    # The custom roles (1.0.125): a name, words, and the capabilities it gives (JSON list).
+    ('cert_roles', '''CREATE TABLE IF NOT EXISTS cert_roles (
+        id {ID}, name {K} NOT NULL UNIQUE, description {T}, caps {B}, created {N},
+        created_by {K}, updated {N}, updated_by {K})'''),
     # The tags certificates and targets pick from (their `tags`: JSON names of these).
     ('cert_tags', '''CREATE TABLE IF NOT EXISTS cert_tags (
         id {ID}, name {K} NOT NULL UNIQUE, colour {K}, description {T}, created {N},

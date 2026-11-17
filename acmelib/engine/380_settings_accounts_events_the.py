@@ -689,7 +689,7 @@ def _db_files(h):
 FINGERPRINT_TABLES = ('certs', 'cert_versions', 'cert_cas', 'cert_ca_versions', 'cert_ca_issued',
                       'cert_issuers', 'cert_challenges', 'cert_targets', 'cert_deploys',
                       'dns_records', 'dns_sets', 'dns_set_uses', 'cert_teams', 'cert_tags',
-                      'cert_req_profiles', 'cert_tests', 'cert_checks')
+                      'cert_req_profiles', 'cert_tests', 'cert_checks', 'cert_roles')
 FINGERPRINT_WORDS = {'settings': 'the settings', 'accounts': 'the accounts',
                      'directories': 'the directories', 'certs': 'the certificates',
                      'cert_versions': 'the versions of the certificates',
@@ -700,7 +700,7 @@ FINGERPRINT_WORDS = {'settings': 'the settings', 'accounts': 'the accounts',
                      'dns_sets': 'the DNS sets', 'dns_set_uses': 'the DNS sets in use',
                      'cert_teams': 'the teams', 'cert_tags': 'the tags',
                      'cert_req_profiles': 'the request profiles', 'cert_tests': 'the tests',
-                     'cert_checks': 'the tests attached'}
+                     'cert_checks': 'the tests attached', 'cert_roles': 'the roles of the teams'}
 
 
 def db_fingerprint(db):
