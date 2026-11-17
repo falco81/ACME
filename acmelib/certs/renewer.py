@@ -1203,7 +1203,8 @@ def scan(store, by='the renewer'):
         E.log_sparing('certs-checks', 'the tests of the servers: %s' % e, 'warn', every=3600)
     # Target agents (1.0.116): passive ones asked how they are, their certificates renewed.
     try:
-        if store.db.value("SELECT COUNT(*) FROM cert_targets WHERE kind = 'agent'", (), 0):
+        if store.db.value("SELECT COUNT(*) FROM cert_targets WHERE kind IN ('agent', "
+                          "'agent_windows')", (), 0):
             from acmelib.certs import agents
             agents.tick(store)
     except Exception as e:                              # noqa: BLE001
@@ -1483,7 +1484,8 @@ def alerts(store):
     out = []
     # Target agents not heard from, their certificates running out (1.0.116).
     try:
-        if store.db.value("SELECT COUNT(*) FROM cert_targets WHERE kind = 'agent'", (), 0):
+        if store.db.value("SELECT COUNT(*) FROM cert_targets WHERE kind IN ('agent', "
+                          "'agent_windows')", (), 0):
             from acmelib.certs import agents
             out += agents.alerts(store)
     except Exception as e:                              # noqa: BLE001

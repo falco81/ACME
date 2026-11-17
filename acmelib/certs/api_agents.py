@@ -15,7 +15,10 @@ The routes of target agents (1.0.116, docs/target-agent.md) - imported at the en
                                         checks its signature and that it is newer; only with
                                         `allow self-update` in its policy)  full administrator
     GET  /api/agents/package            the install package {name, version, sha256, size,
-                                        signed, data_b64}
+                                        signed, data_b64, windows: {name, version, sha256,
+                                        size, signed, product_code} | null, windows_why}
+    GET  /api/agents/package?platform=windows   the Windows agent's MSI, the same way (1.0.120;
+                                        404 "comes with a release" in a source tree)
     GET  /api/agents/updates            the agents a newer one is offered to: whether acme can
                                         update each now, and why not (1.0.118)
     GET  /api/agents/builder?id=        the policy builder: the agent, the lists the agent
@@ -26,7 +29,16 @@ The routes of target agents (1.0.116, docs/target-agent.md) - imported at the en
                                         only - acme never sends it)          full administrator
     POST /api/agents/design/forget {id} the design deleted                   full administrator
 
-    POST /api/agent-wire/{join,status,poll}   an active agent, through nginx (the agents' port)
+    GET  /api/agents/enroll             the company enrollment codes and every agent waiting
+                                        for confirmation (1.0.120)
+    POST /api/agents/enroll {title, mode, port, days, most, auto}   a company enrollment code
+                                        (shown once)                         full administrator
+    POST /api/agents/enroll/revoke {id} no other server joins with it        full administrator
+    GET  /api/agents/waiting            the agents asking to join, not confirmed yet
+    POST /api/agents/confirm-many {items: [{id, fp}]}   several confirmed, each by the
+                                        fingerprint it asks with              full administrator
+
+    POST /api/agent-wire/{join,status,poll,enroll}   an active agent, through nginx (the agents' port)
                                         and web/agent.php only - the API's token, never a
                                         session: the pages' relay does not reach it.
 """
@@ -55,10 +67,26 @@ def _install(store, row=None):
     pkg = G.package(build=True) or {}
     name = pkg.get('name') or 'acme-agent.tar.gz'
     top = name[:-len('.tar.gz')]
-    return {'package': {k: pkg.get(k) for k in ('name', 'version', 'sha256', 'size', 'signed')},
-            'commands': ['sha256sum %s' % name, 'tar xzf %s' % name,
-                         'cd %s && sudo ./install.sh' % top,
-                         'sudo acme-agent join CODE']}
+    out = {'package': {k: pkg.get(k) for k in ('name', 'version', 'sha256', 'size', 'signed')},
+           'commands': ['sha256sum %s' % name, 'tar xzf %s' % name,
+                        'cd %s && sudo ./install.sh' % top,
+                        'sudo acme-agent join CODE']}
+    out['package']['windows'], out['package']['windows_why'] = _windows()
+    win = out['package']['windows']
+    out['windows_commands'] = G.windows_commands(win['name']) if win else []
+    return out
+
+
+def _windows():
+    """The Windows MSI's facts for the pages (1.0.120), or None and why."""
+    try:
+        win, why = G.package_windows()
+    except OSError as e:
+        return None, str(e)[:300]
+    if not win:
+        return None, why
+    return {k: win.get(k) for k in ('name', 'version', 'sha256', 'size', 'signed',
+                                    'product_code')}, None
 
 
 @A.api('GET', '/api/agents')
@@ -80,6 +108,13 @@ def _agents(h, s):
     except Exception as e:                              # noqa: BLE001
         out['package'] = None
         out['package_error'] = str(e)[:300]
+    # 1.0.120: the company enrollment codes, the agents waiting to be confirmed
+    try:
+        out['enroll'] = G.enroll_list(h.store)
+        out['waiting'] = G.waiting(h.store)
+    except Exception as e:                              # noqa: BLE001
+        out['enroll'], out['waiting'] = [], []
+        out['enroll_error'] = str(e)[:300]
     return out
 
 
@@ -182,12 +217,62 @@ def _update(h, s):
 
 @A.api('GET', '/api/agents/package', 'certadmin')
 def _package(h, s):
+    if (h.arg('platform') or 'linux').lower() == 'windows':
+        # the Windows agent's MSI (1.0.120): only the one a release brought
+        win, why = G.package_windows()
+        if not win:
+            raise E.ApiError(404, why)
+        with open(win['path'], 'rb') as f:
+            data = f.read()
+        return {'name': win['name'], 'version': win['version'], 'sha256': win['sha256'],
+                'size': win['size'], 'signed': win['signed'],
+                'product_code': win['product_code'], 'platform': 'windows',
+                'mime': 'application/x-msi', 'filename': win['name'],
+                'data_b64': base64.b64encode(data).decode('ascii')}
     pkg = G.package(build=True)
     with open(pkg['path'], 'rb') as f:
         data = f.read()
+    win, why = _windows()
     return {'name': pkg['name'], 'version': pkg['version'], 'sha256': pkg['sha256'],
             'size': pkg['size'], 'signed': pkg['signed'], 'mime': 'application/gzip',
-            'filename': pkg['name'], 'data_b64': base64.b64encode(data).decode('ascii')}
+            'filename': pkg['name'], 'data_b64': base64.b64encode(data).decode('ascii'),
+            'platform': 'linux', 'windows': win, 'windows_why': why}
+
+
+# ---- the company enrollment code (1.0.120) ---------------------------------------------------
+@A.api('GET', '/api/agents/enroll')
+def _enroll_list(h, s):
+    return {'codes': G.enroll_list(h.store), 'waiting': G.waiting(h.store),
+            'active': G.active_on()}
+
+
+@A.api('POST', '/api/agents/enroll', 'fulladmin')
+def _enroll_new(h, s):
+    b = h.body()
+    return G.enroll_new(h.store, A.who(s), title=A._text(b, 'title', 200),
+                        mode=b.get('mode') or 'passive', port=b.get('port'), days=b.get('days'),
+                        most=b.get('most'), auto=bool(b.get('auto')))
+
+
+@A.api('POST', '/api/agents/enroll/revoke', 'fulladmin')
+def _enroll_revoke(h, s):
+    b = h.body()
+    return {'code': G.enroll_revoke(h.store, A._text(b, 'id', 40), A.who(s))}
+
+
+@A.api('GET', '/api/agents/waiting')
+def _waiting(h, s):
+    return {'rows': G.waiting(h.store)}
+
+
+@A.api('POST', '/api/agents/confirm-many', 'fulladmin')
+def _confirm_many(h, s):
+    b = h.body()
+    if not isinstance(b.get('items'), list) or not b['items']:
+        raise ValueError('items: the agents to confirm, each {id, fp}')
+    got = G.confirm_many(h.store, b['items'], A.who(s))
+    return {'rows': got, 'confirmed': sum(1 for x in got if x['ok']),
+            'waiting': G.waiting(h.store)}
 
 
 # ---- the wire: an active agent (no session - the API's token, from web/agent.php) ------------
@@ -213,6 +298,6 @@ def _wire(op):
     E.route('POST', '/api/agent-wire/' + op)(run)
 
 
-for _op in ('join', 'status', 'poll'):
+for _op in ('join', 'status', 'poll', 'enroll'):
     _wire(_op)
 del _op

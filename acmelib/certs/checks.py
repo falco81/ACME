@@ -159,7 +159,7 @@ def for_target(store, cert_id, target, by, kind='tls', host='', port=None, sni='
     tcfg = S.plugin_config('target', trow) or {}
     if via is None:
         via = str(tcfg.get('via') or '').strip()
-        if trow.get('kind') == 'agent':
+        if trow.get('kind') in ('agent', 'agent_windows'):
             # a server with acme-agent (1.0.116): its tests go through its agent (allow probe)
             via = trow['name']
     host = str(host or '').strip()
@@ -1023,7 +1023,8 @@ def _through(store, via, mod, host, port, sni, exp):
     fam = 'check'
     if not crow:
         # a server with acme-agent (1.0.116): its agent connects there and says what was sent
-        arow = store.db.row("SELECT * FROM cert_targets WHERE name = ? AND kind = 'agent'",
+        arow = store.db.row("SELECT * FROM cert_targets WHERE name = ? AND kind IN "
+                            "('agent', 'agent_windows')",
                             (via,))
         if arow:
             got = _through_agent(store, arow, mod, host, port, sni, exp)

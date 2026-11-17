@@ -26,9 +26,20 @@ What it makes, in release/ and nowhere else:
                       the target agent's package (docs/target-agent.md), signed by
                       the same key (MANIFEST.sig inside) - also inside acme's package
                       as deploy/agent/acme-agent-X.Y.Z.tar.gz, handed out by the pages
+  acme-agent-X.Y.Z-windows-x64.msi
+                      the target agent for Windows (tools/agent_windows.py: its own
+                      Python and OpenSSL, pinned downloads, built with wixl/msibuild),
+                      MANIFEST + MANIFEST.sig of every file it installs signed by the same
+                      key - also inside acme's package as deploy/agent/, and listed in
+                      index.json with its version ("agent_windows")
 
 Only the last ten versions are kept: an older package is deleted from
 release/ (git still has it).
+
+The Windows MSI needs wixl and msibuild (msitools), zstd, and the two pinned
+downloads in ~/.cache/acme-agent-windows (python3 tools/agent_windows.py fetch;
+`check` says what is missing): without them a release stops before anything is
+written - a version is never built twice, so never without its MSI.
 
 The version is the one in acmelib/__init__.py; nothing changes it unless
 --bump is given (which rewrites that one line, and nothing else outside
@@ -245,8 +256,9 @@ def manifest_of(files, extra=None):
 # The package of acme-agent (1.0.116, docs/target-agent.md): made with every release, signed by
 # the same key - inside acme's package (deploy/agent/acme-agent-X.Y.Z.tar.gz, which the pages
 # hand out: Settings -> Target agents) and beside it in release/.
-AGENT_PKG_RE = re.compile(r'^deploy/agent/acme-agent-[0-9.]+\.tar\.gz\Z')
+AGENT_PKG_RE = re.compile(r'^deploy/agent/acme-agent-[0-9.]+(\.tar\.gz|-windows-x64\.msi)\Z')
 AGENT_NAME_RE = re.compile(r'^acme-agent-(\d+)\.(\d+)\.(\d+)\.tar\.gz\Z')
+WIN_NAME_RE = re.compile(r'^acme-agent-(\d+)\.(\d+)\.(\d+)-windows-x64\.msi\Z')
 
 
 def build_agent(dest, version, key, epoch):
@@ -258,6 +270,39 @@ def build_agent(dest, version, key, epoch):
     spec.loader.exec_module(m)
     m.build_package(dest, version, key=key, keys_dir=KEYS_DIR, epoch=epoch)
     return dest
+
+
+def agent_windows():
+    """tools/agent_windows.py, loaded."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        'agent_windows_release', os.path.join(ROOT, 'tools', 'agent_windows.py'))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def windows_ready():
+    """None when the Windows MSI can be built, else why not (a release stops on it)."""
+    W = agent_windows()
+    lost = W.missing_tools() + ([] if shutil.which('msiinfo') else ['msiinfo'])
+    if lost:
+        return ('%s not installed - the Windows agent (MSI) cannot be built (apt install '
+                'msitools zstd)' % ', '.join(lost))
+    try:
+        W.fetch(download=True)
+    except W.Missing as e:
+        return 'the Windows agent cannot be built: %s' % e
+    return None
+
+
+def build_windows(work, version, key):
+    """acme-agent-X.Y.Z-windows-x64.msi into `work` (MANIFEST.sig by the release key)."""
+    W = agent_windows()
+    try:
+        return W.build_msi(work, version, key=key, keys_dir=KEYS_DIR)['path']
+    except W.Missing as e:
+        die('the Windows agent (MSI) could not be built: %s' % e)
 
 
 def checks_before(version, files):
@@ -309,6 +354,9 @@ def build(version, key, force=False, epoch=None):
     if os.path.exists(dest) and not force:
         return None, ('%s is there already - a version released is never built again '
                       '(--bump patch for the next one, or --force to replace it)' % name)
+    why = windows_ready()
+    if why:
+        return None, why
     top = 'acme-%s' % version
     if epoch is None:
         epoch = int(os.environ.get('SOURCE_DATE_EPOCH') or 0) or int(datetime.datetime.now(
@@ -316,8 +364,10 @@ def build(version, key, force=False, epoch=None):
     work = tempfile.mkdtemp(prefix='acme-release-')
     try:
         agent_rel = 'deploy/agent/acme-agent-%s.tar.gz' % version
-        extra = {agent_rel: build_agent(os.path.join(work, 'agent.tar.gz'), version, key, epoch)}
-        files = sorted(files + [agent_rel])
+        win_rel = 'deploy/agent/acme-agent-%s-windows-x64.msi' % version
+        extra = {agent_rel: build_agent(os.path.join(work, 'agent.tar.gz'), version, key, epoch),
+                 win_rel: build_windows(os.path.join(work, 'windows'), version, key)}
+        files = sorted(files + [agent_rel, win_rel])
         manifest = manifest_of(files, extra)
         man = os.path.join(work, 'MANIFEST')
         sig = os.path.join(work, 'MANIFEST.sig')
@@ -365,6 +415,7 @@ def build(version, key, force=False, epoch=None):
         # ...and the agent's package beside it, for whoever installs agents from release/
         shutil.copyfile(extra[agent_rel], os.path.join(RELEASE_DIR, 'acme-agent-%s.tar.gz'
                                                        % version))
+        shutil.copyfile(extra[win_rel], os.path.join(RELEASE_DIR, os.path.basename(win_rel)))
     finally:
         shutil.rmtree(work, ignore_errors=True)
     return {'name': name, 'files': len(files), 'signed_by': signer[:-4], 'path': dest,
@@ -408,12 +459,13 @@ def prune(folder=None, keep=KEEP):
     for _v, name in packages_here(folder)[keep:]:
         os.unlink(os.path.join(folder, name))
         gone.append(name)
-    agents = sorted((n for n in (os.listdir(folder) if os.path.isdir(folder) else [])
-                     if AGENT_NAME_RE.match(n)),
-                    key=lambda n: vtuple('.'.join(AGENT_NAME_RE.match(n).groups())), reverse=True)
-    for name in agents[keep:]:
-        os.unlink(os.path.join(folder, name))
-        gone.append(name)
+    for rx in (AGENT_NAME_RE, WIN_NAME_RE):
+        agents = sorted((n for n in (os.listdir(folder) if os.path.isdir(folder) else [])
+                         if rx.match(n)),
+                        key=lambda n: vtuple('.'.join(rx.match(n).groups())), reverse=True)
+        for name in agents[keep:]:
+            os.unlink(os.path.join(folder, name))
+            gone.append(name)
     return gone
 
 
@@ -445,8 +497,17 @@ def write_index(folder=None, base=None, built=None):
             date = _iso(built['epoch'])
         if not date:
             date = _iso(_tar_time(path) or os.path.getmtime(path))
-        rows.append({'name': name, 'version': version, 'size': os.path.getsize(path),
-                     'sha256': sha, 'date': date, 'download_url': base + name})
+        row = {'name': name, 'version': version, 'size': os.path.getsize(path),
+               'sha256': sha, 'date': date, 'download_url': base + name}
+        # the Windows agent of that version, beside it (1.0.120)
+        win = 'acme-agent-%s-windows-x64.msi' % version
+        wpath = os.path.join(folder, win)
+        if os.path.isfile(wpath):
+            wsha = sha256_file(wpath)
+            row['agent_windows'] = {'name': win, 'size': os.path.getsize(wpath), 'sha256': wsha,
+                                    'product_code': _product_code(version),
+                                    'download_url': base + win}
+        rows.append(row)
     _write(os.path.join(folder, 'index.json'), json.dumps(rows, indent=2) + '\n')
     latest = os.path.join(folder, 'LATEST')
     if rows:
@@ -457,6 +518,16 @@ def write_index(folder=None, base=None, built=None):
     elif os.path.exists(latest):
         os.unlink(latest)
     return rows
+
+
+def _product_code(version):
+    """The Windows MSI's ProductCode of a version (msiexec /x {...}) - tools/agent_windows.py."""
+    if 'W' not in _PC:
+        _PC['W'] = agent_windows()
+    return _PC['W'].product_code(version)
+
+
+_PC = {}
 
 
 def _iso(t):
@@ -481,7 +552,12 @@ def _write(path, text):
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(description='Build a signed release of acme into release/.')
+    p = argparse.ArgumentParser(
+        description='Build a signed release of acme into release/: acme-X.Y.Z.tar.gz, the target '
+                    'agent\'s acme-agent-X.Y.Z.tar.gz and acme-agent-X.Y.Z-windows-x64.msi '
+                    '(inside it and beside it). The MSI needs wixl, msibuild, zstd and the '
+                    'pinned downloads (python3 tools/agent_windows.py check|fetch) - without '
+                    'them nothing is built.')
     p.add_argument('--version', action='store_true',
                    help='say the version acmelib/__init__.py has, and stop')
     p.add_argument('--bump', choices=('patch', 'minor', 'major'),

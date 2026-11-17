@@ -1725,6 +1725,21 @@ def _agent_program():
     return _AGENT_PROGRAM['m']
 
 
+def _agent_program_for(platform):
+    """A Windows server's agent (1.0.120): acme_agent.py as it reasons there (acme's own
+    loader, agents.agent_mod_windows) - else the one above."""
+    if platform == 'windows':
+        if 'w' not in _AGENT_PROGRAM:
+            try:
+                from acmelib.certs import agents
+                _AGENT_PROGRAM['w'] = agents.agent_mod_windows()
+            except Exception:                           # noqa: BLE001
+                _AGENT_PROGRAM['w'] = None
+        if _AGENT_PROGRAM['w'] is not None:
+            return _AGENT_PROGRAM['w']
+    return _agent_program()
+
+
 class PlanContext(object):
     """A Context (acmelib/plugins/base.py) that answers and does nothing."""
     def __init__(self, job, scope, answers):
@@ -1934,14 +1949,16 @@ class PlanContext(object):
                 'label': str(label)[:300]}
 
     def agent_plan_check(self, policy, part):
-        m = _agent_program()
+        part = dict(part)
+        m = _agent_program_for(part.pop('platform', '') or (self._agent or {}).get('platform'))
         if m is None or not isinstance(policy, dict):
             return []
         pol = m.parse_policy('')
-        for k in ('files', 'units', 'tests', 'scripts', 'script_hashes', 'probe', 'connect'):
+        for k in ('files', 'units', 'tests', 'scripts', 'script_hashes', 'probe', 'connect',
+                  'iis'):
             if isinstance(policy.get(k), (list, dict)):
                 pol[k] = policy[k]
-        for k in ('probe_local', 'self_update'):
+        for k in ('probe_local', 'self_update', 'store', 'rdp'):
             pol[k] = bool(policy.get(k))
         if isinstance(policy.get('limits'), dict):
             pol['limits'] = dict(pol['limits'], **policy['limits'])
@@ -1961,19 +1978,60 @@ class PlanContext(object):
         a = self._agent or {}
         pol = a.get('policy') if isinstance(a.get('policy'), dict) else None
         items = []
+        win = None
 
         whys = {}
 
         def verdict(part):
             if pol is None:
                 return None, ''
+            if win is not None:
+                part = dict(part, platform='windows')
             needs = self.agent_plan_check(pol, part)
             why = '; '.join(str(n.get('what') or '') for n in needs if not n.get('allow'))
             if why:
                 whys[len(items)] = why      # never allowed there: no line allows it
             return (not needs), '\n'.join(n.get('allow') for n in needs if n.get('allow'))
 
+        win = args.get('win') if isinstance(args.get('win'), dict) else None
+        if win is not None:
+            # a Windows server (1.0.120): the machine store, the IIS bindings, the Remote
+            # Desktop listener - judged as its agent judges them (acme_agent_wincert)
+            from acmelib.plugins.targets import agent_windows as AW
+
+            def wverdict(part):
+                if pol is None:
+                    return None, ''
+                try:
+                    needs = AW.win_needs(pol, part)
+                except Exception:                       # noqa: BLE001
+                    return None, ''
+                return (not needs), '\n'.join(n['allow'] for n in needs)
+            st = win.get('store') if isinstance(win.get('store'), dict) else None
+            if st:
+                ok, allow = wverdict({'store': True})
+                items.append({'what': 'store', 'exportable': bool(st.get('exportable')),
+                              'keep': st.get('keep'), 'agent_key': st.get('pfx_index') is None,
+                              'friendly': st.get('friendly') or '', 'ok': ok, 'allow': allow})
+            for b in win.get('iis') or []:
+                ok, allow = wverdict({'iis': [b]})
+                items.append({'what': 'iis', 'site': b.get('site'), 'host': b.get('host') or '',
+                              'port': b.get('port'), 'ip': b.get('ip') or '*', 'ok': ok,
+                              'allow': allow})
+            if win.get('rdp'):
+                ok, allow = wverdict({'rdp': True})
+                items.append({'what': 'rdp', 'ok': ok, 'allow': allow})
         for f in args.get('files') or []:
+            if win is not None and not f.get('path'):
+                continue                # the PKCS#12 for the machine store: no file written
+            if win is not None:
+                ok, allow = verdict({'files': [{'path': f.get('path')}],
+                                     'platform': 'windows'})
+                items.append({'what': 'file', 'path': f.get('path'), 'windows': True,
+                              'format': f.get('format'), 'sealed': bool(f.get('sealed')),
+                              'agent_key': bool(f.get('agent_key')),
+                              'keep': bool(f.get('keep_if_there')), 'ok': ok, 'allow': allow})
+                continue
             ok, allow = verdict({'files': [{k: f.get(k) for k in ('path', 'mode', 'owner')}]})
             items.append({'what': 'file', 'path': f.get('path'), 'mode': '%04o' % int(
                 f.get('mode') or 0), 'owner': f.get('owner') or 'root:root',
@@ -2006,6 +2064,8 @@ class PlanContext(object):
             items.append({'what': op, 'to': args.get('to'), 'ok': ok,
                           'allow': '' if ok else 'acme-agent allow %s %s' % (op, args.get('to'))})
         rec({'kind': 'agent-job', 'op': op, 'target': self.target_name or '',
+             'platform': 'windows' if args.get('win') is not None or
+             (a.get('platform') == 'windows') else 'linux',
              'mode': a.get('mode') or 'passive', 'host': a.get('host') or '',
              'port': a.get('port'), 'via': a.get('via') or '', 'state': a.get('state') or 'new',
              'policy_known': pol is not None, 'items': items[:80],

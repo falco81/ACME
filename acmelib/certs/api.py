@@ -2315,7 +2315,7 @@ def options_for(store, source):
         # a server with acme-agent (1.0.116): a test connected from its server (allow probe)
         taken = {o[0] for o in out}
         out += [[r['name'], '%s (through its acme-agent)' % r['name']] for r in store.db.rows(
-            "SELECT name FROM cert_targets WHERE kind = 'agent' ORDER BY name")
+            "SELECT name FROM cert_targets WHERE kind IN ('agent', 'agent_windows') ORDER BY name")
             if r['name'] not in taken]
         return out
     if source == 'key_types':
@@ -2476,7 +2476,7 @@ def family_save(store, family, b, by):
                          'switching it on or off can' % (kind, row['name']))
     if family == 'target' and row is not None and cls is not None:
         _device_kind_kept(store, row, cls)
-    if family == 'target' and kind == 'agent' and given is not None and \
+    if family == 'target' and kind in ('agent', 'agent_windows') and given is not None and \
             str(given.get('mode') or '') == 'active' and \
             not _lib('agents').active_on():
         # an agent that connects to acme, with nothing listening for it (1.0.116)
@@ -2835,7 +2835,7 @@ def family_delete(store, family, b, by, quiet=False):
     if uses:
         _unbind(store, family, row, uses, by)
     store.db.run('DELETE FROM %s WHERE id = ?' % S.TABLE_OF[family], (row['id'],))
-    if family == 'target' and row.get('kind') == 'agent':
+    if family == 'target' and row.get('kind') in ('agent', 'agent_windows'):
         _lib('agents').target_gone(store, row)      # its agent no longer let in (1.0.116)
     if family == 'target':
         # the tests acme made from deployments there, needed by nothing now, go with it

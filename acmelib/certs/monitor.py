@@ -499,7 +499,8 @@ def snmp_rows(store):
 
 def agent_rows(store):
     """Each target with acme-agent as the pages show it (agents.info) - [] without one."""
-    if not store.db.value("SELECT COUNT(*) FROM cert_targets WHERE kind = 'agent'", (), 0):
+    if not store.db.value("SELECT COUNT(*) FROM cert_targets WHERE kind IN ('agent', "
+                          "'agent_windows')", (), 0):
         return []
     from acmelib.certs import agents
     out = []

@@ -720,7 +720,7 @@ def agent_of(store, trow):
     """A server with acme-agent (1.0.116): what its plan shows of its agent - the mode, where
     it is reached, the policy it last said (each file, command and script judged against it).
     None for any other target."""
-    if not trow or trow.get('kind') != 'agent':
+    if not trow or trow.get('kind') not in ('agent', 'agent_windows'):
         return None
     from acmelib.certs import agents
     try:
@@ -731,7 +731,10 @@ def agent_of(store, trow):
     return {'mode': info.get('mode') or cfg.get('mode') or 'passive',
             'state': info.get('state') or 'new', 'policy': info.get('policy'),
             'policy_at': info.get('policy_at'), 'host': str(cfg.get('host') or ''),
-            'port': cfg.get('port') or agents.PASSIVE_PORT, 'via': str(cfg.get('via') or '')}
+            'port': cfg.get('port') or agents.PASSIVE_PORT, 'via': str(cfg.get('via') or ''),
+            # a Windows server's agent (1.0.120): its policy judged as it judges it there
+            'platform': info.get('platform') or ('windows' if trow.get('kind') ==
+                                                 'agent_windows' else 'linux')}
 
 
 def _agent_steps(ev):
@@ -780,10 +783,27 @@ def _agent_steps(ev):
                                           'root/keys, 0600) until its certificate comes; put '
                                           'into the files below with it', 'words']]}})
     pol_items = []
+    windows = ev.get('platform') == 'windows'
     for it in ev.get('items') or []:
         w = it.get('what')
         st = None
-        if w == 'file':
+        if w in ('store', 'iis', 'rdp'):
+            st = _agent_win_step(it)
+        elif w == 'file' and it.get('windows'):
+            st = {'kind': 'file', 'words': ('The agent writes the key it made into {0}' if
+                                            it.get('agent_key') and op != 'keygen' else
+                                            'The key will go into {0}' if op == 'keygen' else
+                                            'The agent writes {0}').replace(
+                '{0}', it.get('path') or ''), 'detail': {'path': it.get('path'),
+                                                         'format': it.get('format')},
+                'note': 'its folder\'s readers are the policy\'s (readers=) - no owner, no mode'}
+            if it.get('sealed'):
+                st['secret'] = True
+                st['note'] = 'sealed to the agent (X25519 + AES-256-GCM): only its root side ' \
+                             'opens it'
+            if it.get('keep') and op == 'deploy':
+                st['note'] += ' · left as it is when this certificate is there already'
+        elif w == 'file':
             if op == 'keygen':
                 words = 'The key will go into {0}'.replace('{0}', it.get('path') or '')
             elif it.get('agent_key'):
@@ -805,6 +825,17 @@ def _agent_steps(ev):
             if it.get('keep') and op == 'deploy':
                 st['note'] = ((st.get('note') + ' · ') if st.get('note') else '') + \
                     'left as it is when this certificate is there already'
+        elif w in ('pre', 'test', 'reload', 'post') and windows:
+            o = it.get('op') or {}
+            from acmelib.plugins.targets import agent_windows as AW
+            st = {'kind': 'command', 'words': {
+                'pre': 'Before the files, the agent runs', 'test': 'The agent tests',
+                'reload': 'The agent restarts', 'post': 'After it, the agent runs'}[w] + ' ' +
+                AW.op_words(o), 'detail': {'command': AW.op_words(o)},
+                'note': 'no shell: ' + ('a Windows service (its state said after)' if 'unit'
+                                        in o else 'a fixed command line (CreateProcess)'
+                                        if 'argv' in o else 'a PowerShell script, its SHA-256 '
+                                        'checked when it runs')}
         elif w in ('pre', 'test', 'reload', 'post'):
             o = it.get('op') or {}
             from acmelib.plugins.targets import agent as AT
@@ -821,7 +852,8 @@ def _agent_steps(ev):
             st = {'kind': 'command', 'words': 'The agent runs the script after the files',
                   'detail': {'pairs': [
                       ['Script', sc.get('path') or 'written in the deployment (%s) - allowed '
-                       'by its SHA-256' % (sc.get('interp') or 'bash'), '' if sc.get('path')
+                       'by its SHA-256' % (sc.get('interp') or ('powershell' if windows else
+                                                                'bash')), '' if sc.get('path')
                        else 'words'],
                       ['Arguments', str(sc.get('args') or '–'), ''],
                       ['Variables', ', '.join(ev.get('env') or []) or '–', '']]}}
@@ -837,6 +869,13 @@ def _agent_steps(ev):
             st['policy']['why'] = it['why']
         pol_items.append(st['policy'])
         out.append(st)
+    if op == 'deploy' and windows and any(x.get('what') in ('store', 'iis', 'rdp')
+                                          for x in ev.get('items') or []):
+        out.append({'kind': 'info', 'words': 'On the server, in this order: before, the files, '
+                    'the machine store, the bindings, the test, the script, the restarts, '
+                    'after - anything failing after the store puts the bindings back to the '
+                    'certificate they had, takes the new one out of the store again and puts '
+                    'the files back'})
     if op == 'deploy':
         if ev.get('stale'):
             out.append({'kind': 'delete', 'words': 'The agent takes away the files acme wrote '
@@ -862,12 +901,45 @@ def _agent_steps(ev):
     return out
 
 
+def _agent_win_step(it):
+    """A Windows server's agent (1.0.120): the machine store, an IIS binding, the Remote
+    Desktop listener as a step of its job."""
+    w = it.get('what')
+    if w == 'store':
+        return {'kind': 'key', 'words': 'The agent imports the certificate into the machine store '
+                '(Cert:\\LocalMachine\\My)', 'detail': {'pairs': [
+                    ['Key', ('made by the agent - the PKCS#12 is made there from it'
+                             if it.get('agent_key') else
+                             'in a PKCS#12 sealed to the agent (only its root side opens it), '
+                             'never written as a file there') + (', exportable' if
+                                                                 it.get('exportable') else
+                                                                 ', not exportable'), 'words'],
+                    ['Name', it.get('friendly') or '', ''],
+                    ['Keep', 'the older certificates this agent imported for this deployment: '
+                     'the newest {0} kept, the rest removed (never one still bound)'.replace(
+                         '{0}', str(it.get('keep') if it.get('keep') is not None else 1)),
+                     'words']]},
+                'secret': not it.get('agent_key')}
+    if w == 'iis':
+        where = '%s:%s' % (it.get('host') or (it.get('ip') if it.get('ip') not in (None, '*')
+                                              else '*'), it.get('port') or 443)
+        return {'kind': 'command', 'words': 'The agent binds it to the IIS site {0} (https {1})'
+                .replace('{0}', str(it.get('site') or '')).replace('{1}', where),
+                'detail': {'pairs': [['Binding', ('SNI by the host name ' + it['host']) if
+                                      it.get('host') else 'the port, for all names', 'words'],
+                                     ['When it is not there', 'made', 'words']]},
+                'note': 'put back to the certificate it had when anything after it fails'}
+    return {'kind': 'command', 'words': 'The agent gives the Remote Desktop listener the '
+            'certificate', 'note': 'Win32_TSGeneralSetting (RDP-tcp) - put back when anything '
+            'after it fails'}
+
+
 def _agent_vias(store, phases):
     """An SSH target reached through a server with acme-agent (1.0.116): its "Through" said
     as it is - the agent connects (allow connect), nobody signs in there. No agent target: the
     phases as they are."""
-    names = {r['name'] for r in store.db.rows("SELECT name FROM cert_targets WHERE kind = "
-                                              "'agent'")}
+    names = {r['name'] for r in store.db.rows("SELECT name FROM cert_targets WHERE kind IN "
+                                              "('agent', 'agent_windows')")}
     if not names:
         return phases
 
@@ -4940,7 +5012,7 @@ def plan(store, cert, deploys, full=False):
         kw['ssh_answers'] = ssh_answers_of(trow['kind'], scfg, sopts, version=_answer_ver(tcls))
         if trow['kind'] == 'acme_push':
             kw['push_pin'] = push_pin_of(store, tcls, tcfg)
-        if trow['kind'] == 'agent':
+        if trow['kind'] in ('agent', 'agent_windows'):
             kw['agent'] = agent_of(store, trow)
         kept = kept_of(store, trow, tcls, tcfg, opts, cert)
         if kept:
@@ -5475,7 +5547,8 @@ def checks_phase(store, cert, names):
             first = next((n for n in names or [] if not str(n).startswith('*.')), '')
             g['host'] = '%s:%s' % (cfg.get('host') or first or '?',
                                    cfg.get('port') or cls.default_port)
-            arow = store.db.row("SELECT * FROM cert_targets WHERE name = ? AND kind = 'agent'",
+            arow = store.db.row("SELECT * FROM cert_targets WHERE name = ? AND kind IN "
+                                "('agent', 'agent_windows')",
                                 (str(cfg.get('via') or ''),)) if cfg.get('via') else None
             ag = dict(agent_of(store, arow) or {}, name=arow['name']) if arow else None
             steps += _test_steps(cls, mcfg, names, agent=ag)

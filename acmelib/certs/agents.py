@@ -16,6 +16,9 @@ What acme keeps (all in meta, so in every backup, on every node of a cluster):
                        its certificate, its X25519 key (public), what it last said (version,
                        policy), when it was last heard from
     agents:id:<agent>  which target an agent id is
+    agents:enroll:<e>  a company enrollment code (1.0.120): its title, mode, until, how many
+                       servers may join with it, who made it, its secret (sealed) - each
+                       server that joins with it becomes a target of its own
     agentq:<id>:<job>  a job for an active agent, waiting for its poll (either node serves it)
     agentr:<job>       its result
 
@@ -72,6 +75,14 @@ BUSY = set()                    # targets whose certificate is being renewed (th
 ASKING = set()                  # active agents asked their policy (this node)
 
 M_CA, M_CMD, M_CTL = 'agents:ca', 'agents:cmd', 'agents:ctl'
+# the kinds of target with acme-agent (1.0.120): a Linux / Unix server, a Windows server - an
+# agent everywhere (cards, join, monitoring, connectors, tests through it)
+AGENT_KINDS = ('agent', 'agent_windows')
+KINDS_SQL = "('agent', 'agent_windows')"
+
+
+def is_agent_kind(k):
+    return str(k or '') in AGENT_KINDS
 
 
 def M_T(tid):
@@ -98,6 +109,55 @@ def agent_mod():
         spec.loader.exec_module(m)
         _AGENT['m'] = m
     return _AGENT['m']
+
+
+def _load_agent_file(name, fn):
+    spec = importlib.util.spec_from_file_location(name, os.path.join(AGENT_DIR, fn))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def agent_mod_windows():
+    """acme_agent.py as it reasons on Windows (1.0.120: acme_agent_win.install - its paths
+    C:\\..., its protected places, services, PowerShell scripts): what a deployment to a Windows
+    server needs of its policy, with the very code its agent runs. Only its pure checks are
+    used here - nothing of Windows is ever called. The Linux one when it cannot be had."""
+    if 'w' not in _AGENT:
+        try:
+            m = _load_agent_file('acme_agent_program_win', 'acme_agent.py')
+            if not getattr(m, 'WINDOWS', False):
+                w = _load_agent_file('acme_agent_win_program', 'acme_agent_win.py')
+                inst = getattr(w, 'install_checks', None) or w.install
+                inst(m.__dict__)
+            _AGENT['w'] = m if getattr(m, 'WINDOWS', False) else None
+        except Exception as e:                          # noqa: BLE001
+            E.log('agents: the Windows agent\'s checks cannot be loaded: %s' % e, 'warn')
+            _AGENT['w'] = None
+    return _AGENT['w'] or agent_mod()
+
+
+def wincert_mod():
+    """deploy/agent/acme_agent_wincert.py: the agent's own words for the machine store, IIS and
+    the Remote Desktop listener (the policy's allow store / iis / rdp)."""
+    if 'wc' not in _AGENT:
+        _AGENT['wc'] = _load_agent_file('acme_agent_wincert_program', 'acme_agent_wincert.py')
+    return _AGENT['wc']
+
+
+def platform_of(store, row):
+    """'windows' or 'linux': the kind of the target, else what its agent said."""
+    if (row or {}).get('kind') == 'agent_windows':
+        return 'windows'
+    try:
+        st = state(store, row['id'])
+    except Exception:                                   # noqa: BLE001
+        st = {}
+    return 'windows' if (st or {}).get('platform') == 'windows' else 'linux'
+
+
+def agent_mod_for(platform):
+    return agent_mod_windows() if platform == 'windows' else agent_mod()
 
 
 # ---- small things -----------------------------------------------------------------------------
@@ -343,7 +403,7 @@ def state_put(store, tid, st):
 def target_row(store, ref):
     from acmelib.certs import store as S
     row = S.plugin_row(store, 'target', ref)
-    if not row or row.get('kind') != 'agent':
+    if not row or not is_agent_kind(row.get('kind')):
         raise LookupError('there is no target with acme-agent of that name')
     return row
 
@@ -455,6 +515,18 @@ def info(store, row, full=False):
            'active_on': active_on(), 'enabled': row.get('enabled') is None or
            bool(int(row.get('enabled') or 0)), 'shipped_code': shipped_code()}
     out['policy_summary'] = policy_summary(pol)
+    # 1.0.120: a Windows server's agent (agent_windows), and the enrollment code it came with
+    out['kind'] = row.get('kind') or 'agent'
+    out['platform'] = st.get('platform') or ('windows' if out['kind'] == 'agent_windows'
+                                             else 'linux')
+    en = st.get('enroll') if isinstance(st.get('enroll'), dict) else None
+    out['enroll'] = {'id': en.get('e'), 'title': en.get('title') or '',
+                     'fqdn': en.get('fqdn') or '', 'at': en.get('at')} if en else None
+    if out['pending'] is not None:
+        out['pending'].update(os=pend.get('os') or '', ip=pend.get('ip') or '',
+                              fqdn=pend.get('fqdn') or '',
+                              enroll={'id': pend['enroll'], 'title': pend.get('enroll_title')
+                                      or ''} if pend.get('enroll') else None)
     out['update'] = update_facts(st) if joined else None
     blk = st.get('blocked') if isinstance(st.get('blocked'), dict) else None
     out['blocked'] = {'at': blk.get('at'), 'what': blk.get('what') or '',
@@ -557,7 +629,7 @@ def _code_of(store, cid):
         if isinstance(c, dict) and c.get('id') == cid:
             tid = int(r['k'].rsplit(':', 1)[1])
             row = store.db.row('SELECT * FROM cert_targets WHERE id = ?', (tid,))
-            if not row or row.get('kind') != 'agent':
+            if not row or not is_agent_kind(row.get('kind')):
                 break
             secret = E.unseal_secret(c.get('secret'), M_T(tid) + ':code')
             if not secret:
@@ -678,7 +750,8 @@ def _install_identity(store, row, st, pend, cert):
     st.update(agent_id=aid, cert_fp=fp_of_pem(cert), cert_prev_fp='', cert_end=cert_end(cert),
               key_fp=pend['fp'], enc_pub=pend['enc_pub'], version=pend.get('version') or '',
               code_hash=pend.get('code_hash') or '', host=pend.get('host') or '',
-              joined_at=time.time(), refused='', last_error='', mode=mode_of(row))
+              joined_at=time.time(), refused='', last_error='', mode=mode_of(row),
+              os=pend.get('os') or st.get('os') or '')
     st['policy'] = None
     state_put(store, row['id'], st)
     store.set_meta(M_ID(aid), str(row['id']))
@@ -742,7 +815,12 @@ def look(store, row, by=''):
         c = st.get('code') if isinstance(st.get('code'), dict) else None
         pend = st.get('pending') if isinstance(st.get('pending'), dict) else None
         try:
-            if pend and pend.get('cert'):
+            if pend and pend.get('cert') and pend.get('enroll'):
+                # 1.0.120: joined by an enrollment code - it takes its certificate by asking
+                # acme (join/status), then listens: its first answer ends the join (call)
+                if pend.get('handed'):
+                    hello(store, row)
+            elif pend and pend.get('cert'):
                 finish_passive(store, row, st)
             elif c and not c.get('used') and float(c.get('until') or 0) > time.time():
                 secret = E.unseal_secret(c.get('secret'), M_T(row['id']) + ':code')
@@ -781,6 +859,379 @@ def look(store, row, by=''):
     return info(store, row)
 
 
+# ---- the company enrollment code (1.0.120) ------------------------------------------------------
+# One code for many servers: each server that joins with it (acme-agent join ACAE1..., the MSI's
+# JOINCODE=, install.sh --join) becomes a target of its own, waiting for a person to confirm
+# its fingerprint - one by one or many at once. The code's secret never joins anything itself:
+# each target gets a join code of its own whose secret is derived from it (never sent).
+M_E_PREFIX = 'agents:enroll:'
+ENROLL_DAYS_MOST = 365
+ENROLL_MOST = 10000
+ENROLL_KEEP_S = 30 * 86400              # a code that ended is still listed this long
+ENROLL_ID = re.compile(r'[0-9a-f]{12}\Z')
+
+
+def M_E(eid):
+    return M_E_PREFIX + str(eid)
+
+
+def enroll_get(store, eid):
+    if not ENROLL_ID.match(str(eid or '')):
+        return None
+    got = _jload(store.get_meta(M_E(eid)), None)
+    return got if isinstance(got, dict) and got.get('id') == eid else None
+
+
+def _enroll_put(store, ec):
+    store.set_meta(M_E(ec['id']), json.dumps(ec, sort_keys=True))
+
+
+def enroll_state(ec, now=None):
+    """active | expired | used | revoked"""
+    now = time.time() if now is None else now
+    if ec.get('revoked'):
+        return 'revoked'
+    if float(ec.get('until') or 0) < now:
+        return 'expired'
+    if int(ec.get('uses') or 0) >= int(ec.get('most') or 1):
+        return 'used'
+    return 'active'
+
+
+def enroll_view(store, ec, now=None):
+    """What the pages show of an enrollment code - never its secret."""
+    names = []
+    for tid in list(ec.get('targets') or [])[:200]:
+        try:
+            r = store.db.row('SELECT name FROM cert_targets WHERE id = ?', (int(tid),))
+        except (TypeError, ValueError):
+            r = None
+        if r:
+            names.append(r['name'])
+    rv = ec.get('revoked') if isinstance(ec.get('revoked'), dict) else None
+    return {'id': ec['id'], 'title': ec.get('title') or '', 'mode': ec.get('mode') or 'passive',
+            'port': ec.get('port'), 'until': ec.get('until'), 'most': int(ec.get('most') or 1),
+            'uses': int(ec.get('uses') or 0), 'by': ec.get('by') or '', 'at': ec.get('at'),
+            'auto': bool(ec.get('auto')), 'state': enroll_state(ec, now), 'targets': names,
+            'revoked_by': (rv or {}).get('by') or '', 'revoked_at': (rv or {}).get('at')}
+
+
+def enroll_list(store):
+    now = time.time()
+    out = []
+    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'agents:enroll:%'"):
+        ec = _jload(r['v'], None)
+        if isinstance(ec, dict) and ENROLL_ID.match(str(ec.get('id') or '')):
+            out.append(enroll_view(store, ec, now))
+    out.sort(key=lambda x: (x['state'] != 'active', -float(x.get('at') or 0)))
+    return out
+
+
+def _int_in(v, lo, hi, what, default):
+    try:
+        n = int(default if v in (None, '') else v)
+    except (TypeError, ValueError):
+        raise PluginError('%s is a whole number' % what, retry=False)
+    if not lo <= n <= hi:
+        raise PluginError('%s is %d to %d' % (what, lo, hi), retry=False)
+    return n
+
+
+def enroll_new(store, by, title='', mode='passive', port=PASSIVE_PORT, days=7, most=10,
+               auto=False):
+    """A company enrollment code: {code (shown once), and what enroll_view says}."""
+    if not active_on():
+        raise PluginError('the agents\' port is off: an enrolling agent always asks acme there '
+                          '- switch it on at Settings → Target agents (Agents may connect to '
+                          'acme) first', retry=False)
+    mode = str(mode or 'passive')
+    if mode not in ('passive', 'active'):
+        raise PluginError('the mode is passive or active', retry=False)
+    port = _int_in(port, 1, 65535, 'the port', PASSIVE_PORT)
+    days = _int_in(days, 1, ENROLL_DAYS_MOST, 'valid for (days)', 7)
+    most = _int_in(most, 1, ENROLL_MOST, 'at most (servers)', 10)
+    title = _txt(title, 80).strip() or 'Enrollment code'
+    a = ca(store)
+    ck = cmd_key(store)
+    ctl(store)
+    eid = secrets.token_hex(6)
+    secret = secrets.token_urlsafe(24)
+    now = time.time()
+    until = now + days * 86400
+    ec = {'id': eid, 'title': title, 'mode': mode, 'port': port, 'until': until, 'most': most,
+          'uses': 0, 'targets': [], 'by': _txt(by, 120), 'at': now, 'auto': bool(auto),
+          'secret': E.seal_secret(secret, M_E(eid))}
+    _enroll_put(store, ec)
+    data = {'v': 1, 'e': eid, 's': secret, 'ca': a['fp'], 'ck': ck['fp'], 'a': endpoints(store),
+            'm': mode, 'p': port, 'u': int(until), 'n': title}
+    code = 'ACAE1.' + base64.urlsafe_b64encode(json.dumps(data, separators=(',', ':'))
+                                               .encode()).decode().rstrip('=')
+    store.add_event('certificates', 'the enrollment code "%s" was made by %s (%s, %d day%s, at '
+                    'most %d server%s)%s' % (
+                        title, by, mode, days, '' if days == 1 else 's', most,
+                        '' if most == 1 else 's',
+                        ' - each server that joins with it is CONFIRMED AUTOMATICALLY' if auto
+                        else ' - each server that joins with it waits to be confirmed'),
+                    'warn' if auto else 'info', who=by)
+    return dict(enroll_view(store, ec, now), code=code, ca_fp=a['fp'],
+                endpoints=data['a'])
+
+
+def enroll_revoke(store, eid, by):
+    ec = enroll_get(store, eid)
+    if not ec:
+        raise LookupError('there is no such enrollment code')
+    if ec.get('revoked'):
+        return enroll_view(store, ec)
+    ec['revoked'] = {'by': _txt(by, 120), 'at': time.time()}
+    _enroll_put(store, ec)
+    store.add_event('certificates', 'the enrollment code "%s" was revoked by %s (%d server%s '
+                    'joined with it) - no other server joins with it' % (
+                        ec.get('title') or ec['id'], by, int(ec.get('uses') or 0),
+                        '' if int(ec.get('uses') or 0) == 1 else 's'), who=by)
+    return enroll_view(store, ec)
+
+
+def _enrolled_row(store, fqdn, fp):
+    """The target a server enrolled as before (the same name, the same key) - or None."""
+    for row in rows(store):
+        en = state(store, row['id']).get('enroll')
+        if isinstance(en, dict) and en.get('fqdn') == fqdn and en.get('key_fp') == fp:
+            return row
+    return None
+
+
+def _enroll_name(store, host, fqdn, ip):
+    from acmelib.certs import store as S
+    base = str(host or '').strip().lower() or str(fqdn or '').strip().lower()
+    base = base.split('.')[0] if base and not re.match(r'[0-9.]+\Z', base) else base
+    base = re.sub(r'[^a-z0-9._@+-]+', '-', base).strip('-.')[:100]
+    if not base or not S.NAME_RE.match(base):
+        base = 'server-' + re.sub(r'[^0-9a-f]', '-', str(ip or 'x'))[:40].strip('-')
+        if not S.NAME_RE.match(base):
+            base = 'server'
+    name, n = base, 1
+    while store.db.row('SELECT id FROM cert_targets WHERE name = ?', (name,)):
+        n += 1
+        name = '%s-%d' % (base, n)
+    return name
+
+
+def _enroll_target(store, ec, kind, host, fqdn, ip):
+    """The target a new server enrolls as: the kind of its platform, its host name (made
+    unique), reached at its name (else the address it came from), the code's mode and port."""
+    from acmelib.certs import api as A, store as S
+    addr = fqdn if fqdn and '.' in fqdn and not fqdn.startswith('localhost') and \
+        S.DNS_RE.match(fqdn) else str(ip or '')
+    cfg = {'mode': ec.get('mode') or 'passive', 'host': addr}
+    if cfg['mode'] == 'passive':
+        cfg['port'] = int(ec.get('port') or PASSIVE_PORT)
+    by = 'the enrollment code "%s"' % (ec.get('title') or ec['id'])
+    last = None
+    for _ in range(5):
+        name = _enroll_name(store, host, fqdn, ip)
+        try:
+            rid = A.family_save(store, 'target', {
+                'name': name, 'kind': kind, 'config': cfg, 'enabled': 1,
+                'note': 'enrolled by %s' % by}, by)
+            return S.plugin_row(store, 'target', rid)
+        except ValueError as e:                         # taken meanwhile (another node)
+            last = e
+    raise PluginError('the target could not be made: %s' % last, retry=False)
+
+
+def _target_code(store, row, st, eid, secret_e, until, by):
+    """A join code of the target's own, its secret derived from the enrollment code's."""
+    cid = secrets.token_hex(6)
+    c = {'id': cid, 'secret': E.seal_secret(proof(secret_e, 'target', eid, cid),
+                                            M_T(row['id']) + ':code'),
+         'until': until, 'agent_id': 'ag-' + secrets.token_hex(8), 'mode': mode_of(row),
+         'tries': 0, 'by': by, 'at': time.time(), 'enroll': eid}
+    st['code'] = c
+    st.pop('pending', None)
+    st['mode'] = mode_of(row)
+    state_put(store, row['id'], st)
+    return c
+
+
+def _enroll_refused(store, ec, ip, words):
+    """Said once a minute at most for a code (an event of the agent's own making otherwise)."""
+    now = time.time()
+    if now - float(ec.get('refused_at') or 0) < 60:
+        return
+    ec['refused_at'] = now
+    _enroll_put(store, ec)
+    store.add_event('certificates', 'an agent from %s was refused by the enrollment code "%s": '
+                    '%s' % (_txt(ip, 45) or '?', ec.get('title') or ec['id'], words), 'warn')
+
+
+def enroll_take(store, body, ip=''):
+    """An agent joining with an enrollment code (POST /agent/v1/enroll) -> (status, answer):
+    the target it is (made the first time), the join taken as `join` takes it, and acme's
+    answer as `join` answers plus {i, target} - the agent goes on as an active join of `i`."""
+    eid = str(body.get('e') or '')
+    ec = enroll_get(store, eid)
+    if not ec:
+        return 403, {'ok': False, 'said': 'no such enrollment code - make one in acme '
+                                          '(Settings → Target agents → Enrollment codes)'}
+    secret = E.unseal_secret(ec.get('secret'), M_E(eid))
+    if not secret:
+        return 403, {'ok': False, 'said': 'the enrollment code does not open on this node'}
+    csr, enc = str(body.get('csr') or ''), str(body.get('enc_pub') or '')
+    nonce, fqdn_said = str(body.get('nonce') or ''), str(body.get('fqdn') or '')
+    want = proof(secret, 'enroll', eid, hashlib.sha256(csr.encode()).hexdigest(), enc, nonce,
+                 fqdn_said)
+    if not re.fullmatch(r'[0-9a-f]{32}', nonce) or \
+            not hmac.compare_digest(want, str(body.get('proof') or '')):
+        _enroll_refused(store, ec, ip, 'its request does not prove the code')
+        return 403, {'ok': False, 'said': 'the request does not prove the enrollment code'}
+    now = time.time()
+    st_e = enroll_state(ec, now)
+    if st_e == 'revoked':
+        return 403, {'ok': False, 'said': 'the enrollment code was revoked in acme - ask for a '
+                                          'new one'}
+    if st_e == 'expired':
+        return 403, {'ok': False, 'said': 'the enrollment code ran out - ask for a new one'}
+    try:
+        fp = spki_fp(csr)
+    except PluginError as e:
+        return 400, {'ok': False, 'said': str(e)}
+    fqdn = _txt(fqdn_said, 253).strip().lower().rstrip('.')
+    host = _txt(body.get('host'), 120).strip()
+    windows = str(body.get('platform') or '') == 'windows'
+    kind = 'agent_windows' if windows else 'agent'
+    by = 'the enrollment code "%s"' % (ec.get('title') or eid)
+    with LOCK:
+        row = _enrolled_row(store, fqdn, fp)
+        made = False
+        if row is None:
+            ec = enroll_get(store, eid) or ec
+            if enroll_state(ec, now) == 'used':
+                _enroll_refused(store, ec, ip, 'it was used by as many servers as it allows')
+                return 403, {'ok': False, 'said': 'the enrollment code was used by as many '
+                                                  'servers as it allows (%d) - ask for a new one'
+                                                  % int(ec.get('most') or 1)}
+            try:
+                row = _enroll_target(store, ec, kind, host, fqdn, ip)
+            except (PluginError, ValueError, LookupError) as e:
+                return 403, {'ok': False, 'said': 'acme could not make the target: %s' % e}
+            made = True
+            ec['uses'] = int(ec.get('uses') or 0) + 1
+            ec['targets'] = (list(ec.get('targets') or []) + [row['id']])[-ENROLL_MOST:]
+            _enroll_put(store, ec)
+        st = state(store, row['id'])
+        c = st.get('code') if isinstance(st.get('code'), dict) else None
+        if not c or c.get('enroll') != eid or float(c.get('until') or 0) < now:
+            c = _target_code(store, row, st, eid, secret, max(now + CODE_S,
+                                                              float(ec.get('until') or 0)), by)
+            st = state(store, row['id'])
+        secret_t = proof(secret, 'target', eid, c['id'])
+        req = {'csr': csr, 'enc_pub': enc, 'nonce': nonce, 'version': body.get('version'),
+               'code': body.get('code'), 'host': host,
+               'proof': proof(secret_t, 'join', c['id'], hashlib.sha256(csr.encode())
+                              .hexdigest(), enc, nonce)}
+        try:
+            join_take(store, row, st, c, secret_t, req)
+        except PluginError as e:
+            return 403, {'ok': False, 'said': str(e)}
+        st = state(store, row['id'])
+        pend = st.get('pending') or {}
+        osn = _txt(body.get('os'), 80)
+        pend.update(enroll=eid, enroll_title=ec.get('title') or '', fqdn=fqdn, ip=_txt(ip, 45),
+                    os=osn, platform='windows' if windows else 'linux')
+        st['pending'] = pend
+        st['enroll'] = {'e': eid, 'title': ec.get('title') or '', 'fqdn': fqdn, 'key_fp': fp,
+                        'platform': pend['platform'], 'at': st['enroll'].get('at', now)
+                        if isinstance(st.get('enroll'), dict) else now}
+        st['platform'] = pend['platform']
+        if osn:
+            st['os'] = osn
+        state_put(store, row['id'], st)
+    if made:
+        store.add_event('certificates', 'a server enrolled with %s: target %s (%s, %s, %s, key '
+                        '%s…)%s' % (by, row['name'], fqdn or host or '?', _txt(ip, 45) or '?',
+                                    'Windows' if windows else 'Linux', fp[:16],
+                                    ' - confirmed automatically' if ec.get('auto') else
+                                    ' - it waits for its fingerprint to be confirmed'), 'info')
+    if ec.get('auto') and not pend.get('cert'):
+        try:
+            confirm(store, row, fp, '%s (confirmed automatically)' % by)
+        except PluginError as e:
+            E.log('agent enrollment: confirming %s automatically: %s' % (row['name'], e), 'warn')
+    out = join_answer(store, secret_t, c, nonce)
+    out.update(i=c['id'], target=row['name'])
+    return 200, out
+
+
+def waiting(store):
+    """Every agent asking to join, not confirmed yet: the target, the server, its fingerprint,
+    the enrollment code it came with (or the target's own join code)."""
+    out = []
+    for row in rows(store):
+        st = state(store, row['id'])
+        pend = st.get('pending') if isinstance(st.get('pending'), dict) else None
+        if not pend or pend.get('cert') or not pend.get('fp'):
+            continue
+        cfg = target_conf(row)
+        out.append({'id': row['id'], 'name': row['name'], 'kind': row.get('kind'),
+                    'platform': pend.get('platform') or st.get('platform') or (
+                        'windows' if row.get('kind') == 'agent_windows' else 'linux'),
+                    'mode': mode_of(row), 'host': pend.get('host') or '',
+                    'fqdn': pend.get('fqdn') or '', 'ip': pend.get('ip') or '',
+                    'address': str(cfg.get('host') or ''), 'os': pend.get('os') or '',
+                    'version': pend.get('version') or '', 'fp': pend['fp'],
+                    'fp_words': fp_words(pend['fp']), 'at': pend.get('at'),
+                    'enroll': {'id': pend['enroll'], 'title': pend.get('enroll_title') or ''}
+                    if pend.get('enroll') else None,
+                    'enabled': row.get('enabled') is None or bool(int(row.get('enabled') or 0))})
+    out.sort(key=lambda x: float(x.get('at') or 0))
+    return out
+
+
+def confirm_many(store, items, by):
+    """Several agents confirmed, each by the fingerprint it asks with -> [{id, name, ok, said}]."""
+    out = []
+    for it in (items if isinstance(items, list) else [])[:500]:
+        if not isinstance(it, dict):
+            continue
+        try:
+            row = target_row(store, int(it.get('id')))
+        except (LookupError, TypeError, ValueError):
+            out.append({'id': it.get('id'), 'name': '', 'ok': False,
+                        'said': 'there is no target with acme-agent of that id'})
+            continue
+        try:
+            confirm(store, row, str(it.get('fp') or ''), by)
+            said = 'confirmed'
+            pend = state(store, row['id']).get('pending') or {}
+            if mode_of(row) == 'passive' and not pend.get('enroll'):
+                got = look(store, row, by)
+                if got.get('said'):
+                    said = 'confirmed - %s' % got['said']
+            out.append({'id': row['id'], 'name': row['name'], 'ok': True, 'said': said})
+        except PluginError as e:
+            out.append({'id': row['id'], 'name': row['name'], 'ok': False, 'said': str(e)})
+    return out
+
+
+def _first_hello(store, row):
+    """A passive agent that joined by an enrollment code took its certificate as an active
+    join does and then listens: acme asks it how it is - its first answer ends the join."""
+    try:
+        for _ in range(20):
+            time.sleep(3)
+            pend = state(store, row['id']).get('pending')
+            if not isinstance(pend, dict) or not pend.get('handed'):
+                return
+            try:
+                hello(store, row)
+                return
+            except (PluginError, OSError, ValueError):
+                continue
+    finally:
+        ASKING.discard(row['id'])
+
+
 # ---- the wire of an active agent (nginx -> agent.php -> here) -----------------------------------
 def wire(store, op, body, cert_pem, verify, ip=''):
     """One request of an active agent: (status, answer). join and join/status come without a
@@ -801,6 +1252,9 @@ def wire(store, op, body, cert_pem, verify, ip=''):
         except PluginError as e:
             return 403, {'ok': False, 'said': str(e)}
         return 200, join_answer(store, secret, c, str(body.get('nonce') or ''))
+    if op == 'enroll':
+        # 1.0.120: a server joining with a company enrollment code - its target made
+        return enroll_take(store, body, ip)
     if op == 'status':
         try:
             row, st, c, secret = _code_of(store, body.get('i'))
@@ -829,6 +1283,11 @@ def wire(store, op, body, cert_pem, verify, ip=''):
             state_put(store, row['id'], st)
             store.add_event('certificates', 'the agent of target %s joined acme (%s) - %s' % (
                 row['name'], st.get('agent_id'), st.get('host') or '?'), 'info')
+            if mode_of(row) == 'passive' and row['id'] not in ASKING:
+                # 1.0.120: joined by an enrollment code, it listens from now on - acme asks it
+                ASKING.add(row['id'])
+                threading.Thread(target=_first_hello, args=(store, row), daemon=True,
+                                 name='agent-hello').start()
         return 200, out
     if op == 'poll':
         return poll(store, body, cert_pem, verify, ip)
@@ -855,7 +1314,7 @@ def who_is(store, cert_pem, verify):
     tid = store.get_meta(M_ID(aid))
     row = store.db.row('SELECT * FROM cert_targets WHERE id = ?', (int(tid),)) \
         if tid and str(tid).isdigit() else None
-    if not row or row.get('kind') != 'agent':
+    if not row or not is_agent_kind(row.get('kind')):
         raise PluginError('this agent is not one of acme\'s targets (deleted, or joined again)',
                           retry=False)
     st = state(store, row['id'])
@@ -1243,6 +1702,12 @@ def call(store, row, op, args=None, timeout=900, step=None):
     st = state(store, row['id'])
     st['last_seen'] = time.time()
     st['last_error'] = '' if got.get('ok') else _txt(got.get('said'), 400)
+    pend = st.get('pending') if isinstance(st.get('pending'), dict) else {}
+    if mode == 'passive' and pend.get('cert') and pend.get('handed') and pend.get('enroll'):
+        # 1.0.120: an agent joined by an enrollment code, passive: it answered over the
+        # certificate acme gave it (the one pinned) - so it has it, the join is over
+        st.pop('pending', None)
+        st.pop('code', None)
     if st.get('quiet'):
         st['quiet'] = False
         store.add_event('certificates', 'the agent of target %s is heard from again'
@@ -1632,7 +2097,7 @@ def target_gone(store, row):
 
 # ---- now and then (the leader) -------------------------------------------------------------------
 def rows(store):
-    return store.db.rows("SELECT * FROM cert_targets WHERE kind = 'agent' ORDER BY name")
+    return store.db.rows("SELECT * FROM cert_targets WHERE kind IN %s ORDER BY name" % KINDS_SQL)
 
 
 def tick(store):
@@ -1648,6 +2113,17 @@ def tick(store):
         got = _jload(r['v'], {})
         if not isinstance(got, dict) or now - float(got.get('_at') or 0) > 3600:
             store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))     # its caller is gone
+    for r in store.db.rows("SELECT k, v FROM meta WHERE k LIKE 'agents:enroll:%'"):
+        # 1.0.120: an enrollment code that ended (ran out, revoked) a month ago is gone
+        ec = _jload(r['v'], {})
+        ec = ec if isinstance(ec, dict) else {}
+        rv = ec.get('revoked') if isinstance(ec.get('revoked'), dict) else {}
+        try:
+            ended = min(float(rv.get('at') or ec.get('until') or 0), float(ec.get('until') or 0))
+        except (TypeError, ValueError):
+            ended = 0
+        if not ended or now - ended > ENROLL_KEEP_S:
+            store.db.run('DELETE FROM meta WHERE k = ?', (r['k'],))
     for row in rows(store):
         if not (row.get('enabled') is None or int(row.get('enabled') or 0)):
             continue
@@ -1770,6 +2246,42 @@ def package(build=True):
         got['code'] = code
         _PKG['built'] = dict(got)
         return got
+
+
+WIN_PKG_RE = re.compile(r'acme-agent-(\d+\.\d+\.\d+)-windows-x64\.msi\Z')
+WIN_NONE = ('the Windows agent (acme-agent-X.Y.Z-windows-x64.msi) comes with a release - a '
+            'source tree has none (tools/release.py builds it)')
+
+
+def package_windows():
+    """The Windows agent's MSI a release put beside the program for this version
+    (deploy/agent/acme-agent-X.Y.Z-windows-x64.msi, 1.0.120) -> ({name, version, sha256, size,
+    signed, product_code, path}, None), or (None, why) - acme never builds one itself."""
+    import acmelib
+    ver = acmelib.__version__
+    name = 'acme-agent-%s-windows-x64.msi' % ver
+    path = os.path.join(AGENT_DIR, name)
+    if not os.path.isfile(path):
+        return None, WIN_NONE
+    got = _pkg_facts(path, name, ver, True)
+    got['product_code'] = windows_product_code(ver)
+    return got, None
+
+
+def windows_product_code(ver):
+    """The MSI's ProductCode of a version (msiexec /x {...}): made from the version the way
+    tools/agent_windows.py makes it."""
+    import uuid
+    ns = uuid.UUID('9b0e7c52-3f6a-4d8e-a1b4-5c7d2e9f0a16')
+    return '{%s}' % str(uuid.uuid5(ns, 'acme-agent-windows-x64-' + ver)).upper()
+
+
+def windows_commands(name):
+    """What the pages show to install the MSI (an elevated prompt / PowerShell)."""
+    return ['Get-FileHash .\\%s' % name,
+            'msiexec /i %s' % name,
+            'msiexec /i %s /qn JOINCODE=CODE' % name,
+            'acme-agent join CODE']
 
 
 _FACTS = {}

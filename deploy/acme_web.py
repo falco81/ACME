@@ -994,7 +994,10 @@ def agents_text(main, c, pad='    '):
             '%sserver_tokens          off;' % pad,
             '%saccess_log             off;' % pad,
             '%sadd_header X-Content-Type-Options "nosniff" always;' % pad]
+    # /agent/v1/enroll (1.0.120): a server joining with a company enrollment code - no
+    # certificate yet, the code proves it, as the join
     body = loc('/agent/v1/join', 'join', False, 30) + loc('/agent/v1/join/status', 'status', False, 30) + \
+        loc('/agent/v1/enroll', 'enroll', False, 30) + \
         loc('/agent/v1/poll', 'poll', True, 90) + '%slocation / { return 404; }\n' % pad
     return '\n'.join(out) + '\n\n' + body + '}\n'
 

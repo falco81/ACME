@@ -30,7 +30,9 @@ Two processes:
     agent's id, a nonce never seen, the time; then every file, owner, mode, unit, command and
     script against the policy. Private keys arrive sealed to this side's own X25519 key.
 
-  acme-agent join CODE [--no-wait]       join acme with a one-time code (made by acme)
+  acme-agent join CODE [--no-wait]       join acme with a one-time code (made by acme) - or
+                                         a company enrollment code (ACAE1.: acme makes this
+                                         server a target of its own, confirmed there)
   acme-agent status                      what is here (JSON)
   acme-agent fingerprint                 the fingerprint acme asks you to confirm
   acme-agent forget                      leave acme: its keys and pins taken away
@@ -107,7 +109,13 @@ ROOT_OPS = ('hello', 'policy', 'fingerprints', 'deploy', 'check', 'keygen', 'upd
 # checked by root (the signature, and - probe, connect - the policy), done by the network side:
 # root never opens a network connection
 NET_OPS = ('csr', 'cert', 'probe', 'connect')
-AGENT_FILES = ('acme_agent.py',)
+# the agent's program (code_hash, the update package): the Windows parts ride along everywhere
+# (on Linux they are never loaded - see the platform hook at the end)
+AGENT_FILES = ('acme_agent.py', 'acme_agent_win.py', 'acme_agent_wincert.py')
+PLATFORM = 'linux'              # 'windows': acme_agent_win.install() (the platform hook)
+WINDOWS = False
+UNIT_WORD = 'unit'              # allow unit NAME ... (Windows: allow service NAME ...)
+STDIN_IN = ['-in', '/dev/stdin']    # openssl reading what it is given (Windows: [] - stdin)
 # a key the agent makes (phase 3): its types, and the formats root writes it in
 KEY_TYPES = {'ec-256': ['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-256'],
              'ec-384': ['-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:P-384'],
@@ -164,6 +172,7 @@ POLICY = os.path.join(ETC, 'policy')
 CONF = os.path.join(ETC, 'agent.json')
 CA_FILE = os.path.join(ETC, 'ca.pem')
 SOCK = os.path.join(RUN, 'root.sock')
+OPENSSL = _env('ACME_AGENT_OPENSSL', 'openssl')
 
 
 def _agent_version():
@@ -260,7 +269,7 @@ def _sha(data):
 
 
 def _openssl(args, data=None, binary=False):
-    got = subprocess.run(['openssl'] + args, input=data, capture_output=True,
+    got = subprocess.run([OPENSSL] + args, input=data, capture_output=True,
                          text=not binary)
     if got.returncode != 0:
         err = got.stderr if not binary else got.stderr.decode('utf-8', 'replace')
@@ -939,7 +948,8 @@ def policy_canon(pol):
     keep = {k: pol[k] for k in ('files', 'units', 'tests', 'scripts', 'script_hashes', 'from',
                                 'self_update', 'connect', 'limits')}
     # what phase 3 added - only when used, so a policy of phase 2 keeps its hash
-    for k in ('probe', 'probe_local'):
+    # ...and what Windows adds (the machine store, IIS, Remote Desktop): never on Linux
+    for k in ('probe', 'probe_local', 'store', 'iis', 'rdp'):
         if pol.get(k):
             keep[k] = pol[k]
     return json.dumps(keep, sort_keys=True, separators=(',', ':'))
@@ -985,6 +995,13 @@ def policy_lines(pol):
         out.append('allow connect %s' % c)
     if pol['self_update']:
         out.append('allow self-update')
+    if pol.get('store'):
+        out.append('allow store')
+    for site in pol.get('iis') or []:
+        out.append('allow iis %s' % (site if not re.search(r'[\s"\']', site) else
+                                     '"%s"' % site))
+    if pol.get('rdp'):
+        out.append('allow rdp')
     if pol['limits']['files'] != FILES_MOST:
         out.append('limit files %d' % pol['limits']['files'])
     if pol['limits']['size'] != FILE_MOST:
@@ -994,11 +1011,15 @@ def policy_lines(pol):
 
 def policy_report(pol, h):
     """What acme is told of the policy: what is allowed, never a file's content."""
-    return {'hash': h, 'files': pol['files'], 'units': pol['units'], 'tests': pol['tests'],
-            'scripts': pol['scripts'], 'script_hashes': pol['script_hashes'],
-            'from': pol['from'], 'self_update': pol['self_update'], 'connect': pol['connect'],
-            'probe': pol.get('probe') or [], 'probe_local': bool(pol.get('probe_local')),
-            'limits': pol['limits'], 'problems': pol['problems'][:20]}
+    out = {'hash': h, 'files': pol['files'], 'units': pol['units'], 'tests': pol['tests'],
+           'scripts': pol['scripts'], 'script_hashes': pol['script_hashes'],
+           'from': pol['from'], 'self_update': pol['self_update'], 'connect': pol['connect'],
+           'probe': pol.get('probe') or [], 'probe_local': bool(pol.get('probe_local')),
+           'limits': pol['limits'], 'problems': pol['problems'][:20]}
+    for k in ('store', 'iis', 'rdp'):               # Windows only, when there
+        if pol.get(k):
+            out[k] = pol[k]
+    return out
 
 
 # ---- a whole policy checked before it is written (1.0.118: acme-agent policy check / apply,
@@ -1258,6 +1279,11 @@ def owner_ids(user, group):
     return uid, gid
 
 
+def qw(word):
+    """A word of a command line as it is typed (sh here; cmd.exe / PowerShell on Windows)."""
+    return shlex.quote(word)
+
+
 def cmd_check(pol, op, needs):
     """One command of a deployment (a test, a reload...) against the policy -> what is run."""
     if not isinstance(op, dict):
@@ -1294,29 +1320,57 @@ def cmd_check(pol, op, needs):
             raise Refused('%r is not one of %s' % (verb[:40], ', '.join(VERBS)))
         if verb not in pol['units'].get(unit, []):
             needs.append({'kind': 'unit', 'what': '%s %s' % (verb, unit),
-                          'allow': 'acme-agent allow unit %s %s' % (unit, verb)})
+                          'allow': 'acme-agent allow %s %s %s' % (UNIT_WORD, unit, verb)})
         return {'unit': unit, 'verb': verb}
     if 'argv' in op:
         argv = check_argv(op.get('argv'))
         if argv not in pol['tests']:
-            needs.append({'kind': 'test', 'what': ' '.join(shlex.quote(a) for a in argv),
+            needs.append({'kind': 'test', 'what': ' '.join(qw(a) for a in argv),
                           'allow': 'acme-agent allow test -- %s' % ' '.join(
-                              shlex.quote(a) for a in argv)})
+                              qw(a) for a in argv)})
         return {'argv': argv}
     if 'script' in op:
         path = norm_dir(op.get('script'), real=False)
         rule = next((s for s in pol['scripts'] if s['path'] == path), None)
         if rule is None:
             needs.append({'kind': 'script', 'what': path,
-                          'allow': 'acme-agent allow script %s' % shlex.quote(path)})
+                          'allow': 'acme-agent allow script %s' % qw(path)})
         return {'script': path, 'args': check_argv(op['args']) if op.get('args') else []}
     raise Refused('a command is a unit and a verb, a command line or a script')
+
+
+class _Here(object):
+    """This module as acme_agent_wincert.py sees it: its names as they are when asked (on
+    Windows the ones acme_agent_win.py put in their place)."""
+
+    def __getattr__(self, name):
+        try:
+            return globals()[name]
+        except KeyError:
+            raise AttributeError(name)
+
+
+def _wincert():
+    """acme_agent_wincert.py beside this file (the machine store, IIS, the Remote Desktop
+    listener) - loaded only for a job that has `win` (Windows)."""
+    m = sys.modules.get('acme_agent_wincert')
+    if m is None:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('acme_agent_wincert', os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), 'acme_agent_wincert.py'))
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        sys.modules['acme_agent_wincert'] = m
+    return m
 
 
 def plan_check(pol, args):
     """Every file, owner, mode, command and script of a deployment against the policy: the
     plan as it will run, or Refused with what the policy lacks (and the lines that allow it)."""
     needs = []
+    if 'win' in args:
+        # Windows: the PKCS#12 only for the machine store (no path) is no file to write
+        _wincert().take_store_file(_Here(), args)
     files = args.get('files') if isinstance(args.get('files'), list) else []
     if len(files) > pol['limits']['files']:
         raise Refused('%d files - the policy allows %d in one deployment' % (
@@ -1333,7 +1387,7 @@ def plan_check(pol, args):
         if path in seen:
             raise Refused('%s twice' % path)
         seen.add(path)
-        name = path.rsplit('/', 1)[-1]
+        name = split_path(path)[1]
         if name.startswith('.acme-'):
             raise Refused('%s: a name acme-agent keeps for itself' % path)
         try:
@@ -1354,7 +1408,7 @@ def plan_check(pol, args):
         rule = file_rule(pol, path)
         u, g = (owner.split(':', 1) + [''])[:2] if owner else (None, None)
         if rule is None:
-            d = path.rsplit('/', 1)[0] or '/'
+            d = split_path(path)[0]
             needs.append({'kind': 'file', 'what': path, 'allow': allow_file_words(
                 d, u or 'root', g or u or 'root', mode | (0o600 if mode else 0))})
             plan['files'].append({'path': path})
@@ -1406,6 +1460,8 @@ def plan_check(pol, args):
             plan['script'] = {'mode': 'path', 'path': op['script'], 'args': op['args']}
         else:
             raise Refused('a script is written in acme or a path on this machine')
+    if 'win' in args:
+        plan['win'] = _wincert().win_check(_Here(), pol, args, needs)
     if needs:
         words = '; '.join(n['what'] for n in needs[:6]) + (' …' if len(needs) > 6 else '')
         raise Refused('not allowed by the policy of this machine: %s' % words, needs)
@@ -1425,6 +1481,36 @@ def _split_args(text):
 
 
 # ---- files, safely: every folder opened without following a link ---------------------------
+# The small steps the classes below take on an open folder - the platform hook (Windows,
+# acme_agent_win.py) puts its own in their place.
+def split_path(path):
+    """(its folder, its name) of a normalised path."""
+    d, name = path.rsplit('/', 1)
+    return d or '/', name
+
+
+def dir_close(dfd):
+    os.close(dfd)
+
+
+def unlink_at(dfd, name):
+    os.unlink(name, dir_fd=dfd)
+
+
+def subdir_at(dfd, name, make=False):
+    """A folder in an open folder, opened without following a link (made first: `make`)."""
+    if make:
+        try:
+            os.mkdir(name, 0o700, dir_fd=dfd)
+        except FileExistsError:
+            pass
+    return os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=dfd)
+
+
+def dup_dir(dfd):
+    return os.dup(dfd)
+
+
 def open_dir(path, make_from=None):
     """A descriptor of the folder `path`, walked from / without following any symbolic link;
     the folders below `make_from` (an allowed folder) made when they are not there."""
@@ -1568,7 +1654,7 @@ def key_paths(slot):
 def key_type_of(pem):
     """'ec-256' ... 'rsa-4096' of a private key (PEM), or '' - asked of openssl."""
     try:
-        txt = _openssl(['pkey', '-in', '/dev/stdin', '-noout', '-text_pub'], pem)
+        txt = _openssl(['pkey'] + STDIN_IN + ['-noout', '-text_pub'], pem)
     except Refused:
         return ''
     if 'prime256v1' in txt or 'P-256' in txt:
@@ -1607,6 +1693,11 @@ def make_key_csr(key_pem, names):
                      '-addext', 'subjectAltName=%s' % san], key_pem)
 
 
+def _p12_env(password):
+    """What openssl pkcs12 runs with: the password in its environment, nothing else."""
+    return {'PATH': os.environ.get('PATH', '/usr/bin:/bin'), 'ACME_AGENT_P12': password or ''}
+
+
 def key_file(fmt, key_pem, data, password, alias, kt):
     """The bytes of a file holding the key this agent made: the key in its format, or the
     certificate's files acme sent (`data`) with the key put in."""
@@ -1618,14 +1709,14 @@ def key_file(fmt, key_pem, data, password, alias, kt):
             raise Refused('key-rsa (PKCS#1) is only for RSA keys - this one is %s' % kt)
         for args in (['pkey', '-traditional'], ['rsa' if kt.startswith('rsa') else 'ec']):
             try:
-                out = _openssl(args + ['-in', '/dev/stdin'], kb, binary=True)
+                out = _openssl(args + STDIN_IN, kb, binary=True)
             except Refused:
                 continue
             if b'BEGIN PRIVATE KEY' not in out:
                 return out
         raise Refused('openssl could not write the key in the traditional form')
     if fmt == 'key-der':
-        return _openssl(['pkey', '-in', '/dev/stdin', '-outform', 'DER'], kb, binary=True)
+        return _openssl(['pkey'] + STDIN_IN + ['-outform', 'DER'], kb, binary=True)
     if fmt == 'combined-pem':
         return kb + (b'' if kb.endswith(b'\n') else b'\n') + data
     if fmt in ('pfx', 'p12'):
@@ -1638,11 +1729,10 @@ def key_file(fmt, key_pem, data, password, alias, kt):
                 fd = os.open(fn, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                 with os.fdopen(fd, 'wb') as f:
                     f.write(b)
-            got = subprocess.run(['openssl', 'pkcs12', '-export', '-inkey', kf, '-in', cf,
+            got = subprocess.run([OPENSSL, 'pkcs12', '-export', '-inkey', kf, '-in', cf,
                                   '-name', str(alias or 'acme')[:64], '-passout',
                                   'env:ACME_AGENT_P12'], capture_output=True,
-                                 env={'PATH': os.environ.get('PATH', '/usr/bin:/bin'),
-                                      'ACME_AGENT_P12': password or ''})
+                                 env=_p12_env(password))
             if got.returncode != 0:
                 raise Refused('openssl pkcs12: %s' % got.stderr.decode('utf-8', 'replace')
                               .strip()[-200:])
@@ -1764,7 +1854,7 @@ def verify_package(top, files):
         if listed.get(n) != _sha(b):
             raise Refused('%s is not the file MANIFEST names - refused' % n)
     missing = [n for n in listed if n not in files]
-    if missing or 'acme_agent.py' not in files or 'release' not in files:
+    if missing or any(n not in files for n in AGENT_FILES) or 'release' not in files:
         raise Refused('the package is not whole (%s)' % ', '.join(missing[:3] or ['its program']))
     ver = files['release'].decode('ascii', 'replace').strip()
     if not re.fullmatch(r'[0-9]+(\.[0-9]+){1,3}', ver) or top != 'acme-agent-' + ver:
@@ -1773,6 +1863,20 @@ def verify_package(top, files):
         raise Refused('the package is version %s, not newer than this agent (%s) - an agent is '
                       'never put back to an older one' % (ver, VERSION))
     return ver, who
+
+
+def install_files(here, files, names):
+    """The files of a checked package put in place of the agent's own, each atomically."""
+    for name in names:
+        tmp = os.path.join(here, '.%s.new' % name)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
+                     0o755 if name.endswith('.py') else 0o644)
+        with os.fdopen(fd, 'wb') as f:
+            f.write(files[name])
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, 0o755 if name.endswith('.py') else 0o644)
+        os.replace(tmp, os.path.join(here, name))
 
 
 def restart_later(delay=2.0):
@@ -1993,7 +2097,7 @@ class Root(object):
         st = self.status()
         return {'ok': True, 'said': 'acme-agent %s here' % VERSION, 'version': VERSION,
                 'code': CODE, 'policy': st['policy'], 'enc_pub': st['enc_pub'],
-                'host': socket.gethostname()[:120], 'os': _os_name()}
+                'host': socket.gethostname()[:120], 'os': _os_name(), 'platform': PLATFORM}
 
     def op_policy(self, args, job, msg):
         return self.op_hello(args, job, msg)
@@ -2013,7 +2117,7 @@ class Root(object):
             if protected(p):
                 out.append({'path': p, 'sha256': None, 'said': protected(p)})
                 continue
-            d, name = p.rsplit('/', 1)
+            d, name = split_path(p)
             try:
                 dfd = open_dir(d or '/')
             except Refused as e:
@@ -2025,21 +2129,21 @@ class Root(object):
             except Refused as e:
                 out.append({'path': p, 'sha256': None, 'said': str(e)})
             finally:
-                os.close(dfd)
+                dir_close(dfd)
         return {'ok': True, 'files': out}
 
     def op_check(self, args, job, msg):
         """A deployment as it would run, against the policy - nothing changed."""
         pol, h, _t = policy_load()
         try:
-            plan_check(pol, args)
+            plan = plan_check(pol, args)
         except Refused as e:
             return {'ok': False, 'refused': True, 'said': str(e), 'needs': e.needs,
                     'policy_hash': h}
         out = []
         for f in args.get('files') or []:
             p = norm_dir(f.get('path'), real=False)
-            d, name = p.rsplit('/', 1)
+            d, name = split_path(p)
             try:
                 dfd = open_dir(d or '/')
             except Refused as e:
@@ -2053,7 +2157,9 @@ class Root(object):
             except Refused as e:
                 out.append({'path': p, 'said': str(e), 'bad': True})
             finally:
-                os.close(dfd)
+                dir_close(dfd)
+        if plan.get('win'):
+            out += _wincert().dry_check(_Here(), plan['win'])
         bad = [x for x in out if x.get('bad')]
         return {'ok': not bad, 'said': 'the policy allows all of it' if not bad else
                 bad[0]['said'], 'files': out, 'policy_hash': h}
@@ -2075,7 +2181,7 @@ class Root(object):
             raise Refused('%r is not a key type this agent makes (%s)' % (kt[:20],
                                                                       ', '.join(KEY_TYPES)))
         files = args.get('files') if isinstance(args.get('files'), list) else []
-        if not files:
+        if not files and not args.get('store'):
             raise Refused('no file of the deployment holds the key - give it a key file '
                           '(key-pem, combined-pem, pfx ...)')
         for f in files:
@@ -2085,6 +2191,9 @@ class Root(object):
                                  ', '.join(AGENT_KEY_FORMATS)))
         plan_check(pol, {'files': [{k: f.get(k) for k in ('path', 'mode', 'owner')}
                                    for f in files]})
+        if args.get('store'):
+            # Windows: the key goes into the machine store with its certificate
+            _wincert().keygen_check(_Here(), pol)
         names = args.get('names') if isinstance(args.get('names'), list) else []
         held = [n for n in os.listdir(keys_dir()) if n.endswith(('.key', '.pending'))]
         if len({n.rsplit('.', 1)[0] for n in held} | {slot}) > KEYS_MOST:
@@ -2117,16 +2226,7 @@ class Root(object):
         ver, who = verify_package(top, files)
         here = lib_dir()
         with self.work:
-            for name in ('acme_agent.py', 'release'):
-                tmp = os.path.join(here, '.%s.new' % name)
-                fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW,
-                             0o755 if name.endswith('.py') else 0o644)
-                with os.fdopen(fd, 'wb') as f:
-                    f.write(files[name])
-                    f.flush()
-                    os.fsync(f.fileno())
-                os.chmod(tmp, 0o755 if name.endswith('.py') else 0o644)
-                os.replace(tmp, os.path.join(here, name))
+            install_files(here, files, AGENT_FILES + ('release',))
         again = restart_later()
         return {'ok': True, 'version': ver,
                 'said': 'acme-agent %s is installed (from %s, signed by %s)%s' % (
@@ -2218,10 +2318,14 @@ class Deploy(object):
         except (TypeError, ValueError):
             keep = 5
         when = time.time()
+        win = None
+        if plan.get('win'):
+            # Windows: the machine store, IIS, the Remote Desktop listener (acme_agent_wincert)
+            win = self.win = _wincert().WinJob(_Here(), self, plan['win'], priv, datas, ak)
         # the files there now, each compared
         same, olds = [], []
         for p, data in zip(plan['files'], datas):
-            d, name = p['path'].rsplit('/', 1)
+            d, name = split_path(p['path'])
             try:
                 dfd = open_dir(d or '/')
             except Refused as e:
@@ -2234,7 +2338,7 @@ class Deploy(object):
             try:
                 old, st = read_at(dfd, name, max(pol['limits']['size'], FILE_MOST) * 4)
             finally:
-                os.close(dfd)
+                dir_close(dfd)
             olds.append((old, st))
             if old is None:
                 same.append(False)
@@ -2257,13 +2361,16 @@ class Deploy(object):
             same = [False] * len(same)
         result_files = [{'path': p['path'], 'sha256': _sha(d)} for p, d in zip(plan['files'],
                                                                                   datas)]
-        if all(same) and not plan['stale'] and not self.args.get('pending'):
+        if win is not None and win.same:
+            win.say_same()
+        if all(same) and not plan['stale'] and not self.args.get('pending') and \
+                (win is None or win.same):
             self.step('nothing replaced: every file holds this certificate already (the same '
                       'SHA-256) - no command, script or reload run', 'ok')
             self.key_in_use()
             return {'ok': True, 'unchanged': True, 'steps': self.steps, 'files': result_files,
                     'said': 'unchanged: every file holds it already', 'policy_hash': h}
-        if all(same):
+        if all(same) and (win is None or win.same):
             self.step('every file holds it already, but the last deployment here did not finish '
                       '- the commands run all the same', 'warn')
         for op in plan['pre']:
@@ -2286,6 +2393,13 @@ class Deploy(object):
             self.put_back()
             raise Refused('the files could not be written, the previous ones are back: %s'
                           % str(e)[:300])
+        if win is not None:
+            try:
+                win.apply()
+            except Exception as e:                      # noqa: BLE001
+                self.put_back()             # the bindings, the store and the files back
+                return self.failed('%s - the previous files are back' % str(e)[:300],
+                                   result_files, h)
         try:
             for op in plan['test']:
                 ok, said = self.run_op(op, env, 'test')
@@ -2316,11 +2430,14 @@ class Deploy(object):
         for op in plan['post']:
             self.run_op(op, env, 'after', warn=True)
         self.after(backup, keep)
+        if win is not None:
+            win.finish()
         self.key_in_use()
         return {'ok': True, 'steps': self.steps, 'files': result_files, 'policy_hash': h,
-                'said': '%d file%s written%s%s' % (
+                'said': '%d file%s written%s%s%s' % (
                     sum(1 for s in same if not s), '' if sum(1 for s in same if not s) == 1
-                    else 's', ', the script ran' if plan['script'] else '',
+                    else 's', win.words() if win is not None else '',
+                    ', the script ran' if plan['script'] else '',
                     ', reloaded' if plan['reload'] else '')}
 
     def agent_key(self, ak):
@@ -2357,33 +2474,28 @@ class Deploy(object):
                 'policy_hash': h, 'rolled_back': True}
 
     def put(self, p, data, old, st, backup, when):
-        d, name = p['path'].rsplit('/', 1)
+        d, name = split_path(p['path'])
         dfd = open_dir(d or '/', make_from=p['rule'])
         try:
             if old is not None and backup != 'none':
                 if backup == 'folder':
-                    try:
-                        os.mkdir('.acme-backup', 0o700, dir_fd=dfd)
-                    except FileExistsError:
-                        pass
-                    bfd = os.open('.acme-backup', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-                                  dir_fd=dfd)
+                    bfd = subdir_at(dfd, '.acme-backup', make=True)
                 else:
-                    bfd = os.dup(dfd)
+                    bfd = dup_dir(dfd)
                 try:
                     # the copy without setuid, setgid or sticky bits (1.0.116 security): a
                     # copy of a program of root's that runs as root is not made by acme
                     write_at(bfd, backup_name(name, backup, when), old,
                              stat.S_IMODE(st.st_mode) & 0o777, st.st_uid, st.st_gid)
                 finally:
-                    os.close(bfd)
+                    dir_close(bfd)
             self.done.append((d or '/', name, old, st))
             write_at(dfd, name, data, p['mode'], p['uid'], p['gid'])
         finally:
-            os.close(dfd)
+            dir_close(dfd)
 
     def take_away(self, path):
-        d, name = path.rsplit('/', 1)
+        d, name = split_path(path)
         try:
             dfd = open_dir(d or '/')
         except Refused:
@@ -2392,24 +2504,26 @@ class Deploy(object):
             old, st = read_at(dfd, name, 64 * 1024 * 1024)
             if old is None:
                 return
-            os.unlink(name, dir_fd=dfd)
+            unlink_at(dfd, name)
             self.gone.append((d or '/', name, old, st))
             self.step('taken away (written by acme before, not any more): %s' % path)
         finally:
-            os.close(dfd)
+            dir_close(dfd)
 
     def put_back(self):
+        if getattr(self, 'win', None) is not None:
+            self.win.undo()                 # Windows: the bindings and the store first
         bad = []
         for d, name, old, st in reversed(self.done):
             try:
                 dfd = open_dir(d)
                 try:
                     if old is None:
-                        os.unlink(name, dir_fd=dfd)
+                        unlink_at(dfd, name)
                     else:
                         write_at(dfd, name, old, stat.S_IMODE(st.st_mode), st.st_uid, st.st_gid)
                 finally:
-                    os.close(dfd)
+                    dir_close(dfd)
             except Exception as e:                      # noqa: BLE001
                 bad.append('%s/%s: %s' % (d, name, e))
         for d, name, old, st in self.gone:
@@ -2418,7 +2532,7 @@ class Deploy(object):
                 try:
                     write_at(dfd, name, old, stat.S_IMODE(st.st_mode), st.st_uid, st.st_gid)
                 finally:
-                    os.close(dfd)
+                    dir_close(dfd)
             except Exception as e:                      # noqa: BLE001
                 bad.append('%s/%s: %s' % (d, name, e))
         self.done, self.gone = [], []
@@ -2438,18 +2552,17 @@ class Deploy(object):
                 try:
                     if backup == 'folder':
                         try:
-                            bfd = os.open('.acme-backup', os.O_RDONLY | os.O_DIRECTORY |
-                                          os.O_NOFOLLOW, dir_fd=dfd)
+                            bfd = subdir_at(dfd, '.acme-backup')
                         except OSError:
                             continue
                         try:
                             prune_backups(bfd, name, keep)
                         finally:
-                            os.close(bfd)
+                            dir_close(bfd)
                     else:
                         prune_backups(dfd, name, keep)
                 finally:
-                    os.close(dfd)
+                    dir_close(dfd)
 
     def _env(self, env):
         out = {'PATH': '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
@@ -2474,6 +2587,16 @@ class Deploy(object):
     def systemctl(self):
         return str(self.root.conf().get('systemctl') or 'systemctl')
 
+    def unit_verb(self, op):
+        """systemctl VERB UNIT, then the state it is in -> (exit code, what is said)."""
+        rc, said = self.run_argv([self.systemctl(), op['verb'], op['unit']], {})
+        if rc == 0:
+            rc2, st = self.run_argv([self.systemctl(), 'is-active', op['unit']], {})
+            said = 'is %s' % (st.strip() or ('active' if rc2 == 0 else '?'))
+            if rc2 != 0 and op['verb'] != 'try-restart':
+                rc = rc2
+        return rc, said
+
     def run_op(self, op, env, what, warn=False):
         if 'any' in op:
             last = (False, 'nothing allowed')
@@ -2486,12 +2609,7 @@ class Deploy(object):
                                                                       for a in op['any'])), 'bad')
             return last
         if 'unit' in op:
-            rc, said = self.run_argv([self.systemctl(), op['verb'], op['unit']], {})
-            if rc == 0:
-                rc2, st = self.run_argv([self.systemctl(), 'is-active', op['unit']], {})
-                said = 'is %s' % (st.strip() or ('active' if rc2 == 0 else '?'))
-                if rc2 != 0 and op['verb'] != 'try-restart':
-                    rc = rc2
+            rc, said = self.unit_verb(op)
         elif 'argv' in op:
             rc, said = self.run_argv(op['argv'], env)
         else:
@@ -2513,7 +2631,7 @@ class Deploy(object):
             rule = next((s for s in pol['scripts'] if s['path'] == path), None)
             if rule is None:
                 return 126, 'the script is not allowed by the policy'
-            d, name = path.rsplit('/', 1)
+            d, name = split_path(path)
             try:
                 dfd = open_dir(d or '/')
             except Refused as e:
@@ -2523,7 +2641,7 @@ class Deploy(object):
             except Refused as e:
                 return 126, str(e)
             finally:
-                os.close(dfd)
+                dir_close(dfd)
             if data is None:
                 return 127, '%s is not there' % path
             if not hmac.compare_digest(_sha(data), rule['sha256']):
@@ -2747,7 +2865,7 @@ def check_issued(cert_pem, key_path):
             f.write(cert_pem)
         with open(af, 'w') as f:
             f.write(_read(CA_FILE, '') or '')
-        got = subprocess.run(['openssl', 'verify', '-CAfile', af, cf], capture_output=True,
+        got = subprocess.run([OPENSSL, 'verify', '-CAfile', af, cf], capture_output=True,
                              text=True)
         if got.returncode != 0:
             raise Refused('the certificate is not one of the authority this agent pinned')
@@ -2759,6 +2877,11 @@ def status_write(**kw):
         _write(os.path.join(STATE, 'join-status.json'), json.dumps(kw))
     except OSError:
         pass
+
+
+def _probe_env():
+    """What openssl s_client runs with (a test of what a place serves)."""
+    return {'PATH': '/usr/bin:/bin:/usr/local/bin'}
 
 
 class Net(object):
@@ -2783,7 +2906,8 @@ class Net(object):
 
     def join_info(self):
         j = _json(os.path.join(STATE, 'join.json'), {})
-        return j if isinstance(j, dict) and j.get('i') else None
+        # (1.0.120: or a join with a company enrollment code, before acme named its target)
+        return j if isinstance(j, dict) and (j.get('i') or j.get('e')) else None
 
     def facts(self):
         _key, crt = tls_paths()
@@ -2833,7 +2957,7 @@ class Net(object):
             timeout = max(2, min(PROBE_S, int(args.get('timeout') or 15)))
         except (TypeError, ValueError):
             timeout = 15
-        argv = ['openssl', 's_client', '-connect', '[%s]:%d' % (host, port) if ':' in host
+        argv = [OPENSSL, 's_client', '-connect', '[%s]:%d' % (host, port) if ':' in host
                 else '%s:%d' % (host, port), '-showcerts']
         argv += ['-servername', sni] if sni not in ('', '-') else ['-noservername']
         if st:
@@ -2847,7 +2971,7 @@ class Net(object):
         t0 = time.time()
         try:
             r = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
-                               timeout=timeout, env={'PATH': '/usr/bin:/bin:/usr/local/bin'})
+                               timeout=timeout, env=_probe_env())
         except subprocess.TimeoutExpired:
             return {'ok': False, 'said': '%s:%d did not finish a handshake in %d s' % (
                 host, port, timeout)}
@@ -2904,6 +3028,19 @@ class Net(object):
         return {'i': j['i'], 'csr': csr, 'enc_pub': enc, 'version': VERSION, 'code': CODE,
                 'host': socket.gethostname()[:120], 'nonce': nonce,
                 'proof': proof(j['s'], 'join', j['i'], _sha(csr), enc, nonce)}
+
+    def enroll_request(self, j, nonce):
+        """The join with a company enrollment code (1.0.120): this server's name and system
+        besides what a join says - acme makes the target of it."""
+        key, _crt = tls_paths()
+        csr = make_csr(key)
+        st = self.root.ask({'kind': 'status'}).get('status') or {}
+        enc = st.get('enc_pub') or ''
+        fqdn = (socket.getfqdn() or socket.gethostname())[:253]
+        return {'e': j['e'], 'csr': csr, 'enc_pub': enc, 'version': VERSION, 'code': CODE,
+                'host': socket.gethostname()[:120], 'fqdn': fqdn, 'os': _os_name(),
+                'platform': PLATFORM, 'port': int(j.get('p') or PASSIVE_PORT), 'nonce': nonce,
+                'proof': proof(j['s'], 'enroll', j['e'], _sha(csr), enc, nonce, fqdn)}
 
     def join_answer(self, j, ans, nonce):
         """acme's answer to the join: its authority and command key against the code's pins,
@@ -3204,6 +3341,11 @@ class PassiveServer(http.server.ThreadingHTTPServer):
         pass
 
 
+def reuse_addr(ls):
+    """The passive port bound again at once after a restart (Windows: exclusively)."""
+    ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+
 def serve_passive(net, joining):
     c = net.conf()
     j = net.join_info() or {}
@@ -3217,7 +3359,7 @@ def serve_passive(net, joining):
         if net.lsock is not None:
             net.lsock.close()
         ls = socket.socket(fam, socket.SOCK_STREAM)
-        ls.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        reuse_addr(ls)
         ls.bind((listen, port))
         ls.listen(64)
         net.lsock, net.lsock_at = ls, (listen, port)
@@ -3318,10 +3460,36 @@ class Active(object):
                 conn.close()
         raise Refused('acme does not answer (%s)' % last)
 
+    def enroll(self, j, fp):
+        """A company enrollment code (1.0.120): acme makes this server a target of its own and
+        answers as a join does, with the target's join code `i` - its secret derived from the
+        enrollment code's, never sent. Then it goes on as the join of `i`."""
+        nonce = secrets.token_hex(16)
+        req = self.net.enroll_request(j, nonce)
+        status_write(state='asking', fp=fp, said='asking acme (an enrollment code)')
+        got = self.post('/agent/v1/enroll', req, joining=True)
+        if got.get('_status') != 200 or not got.get('ok'):
+            said = str(got.get('said') or got.get('error') or 'refused')
+            status_write(state='refused', fp=fp, said=said)
+            raise Refused(said)
+        i = str(got.get('i') or '')
+        if not re.fullmatch(r'[0-9a-f]{12}', i):
+            raise Refused('acme answered no join of this server\'s')
+        name = re.sub(r'[^A-Za-z0-9 ._@+-]', '', str(got.get('target') or ''))[:120]
+        j2 = dict(j, i=i, s=proof(j['s'], 'target', j['e'], i), n=name or j.get('n') or '')
+        aid = self.net.join_answer(j2, got, nonce)
+        j2['agent_id'] = aid
+        _write(os.path.join(STATE, 'join.json'), json.dumps(j2))
+        status_write(state='confirm', fp=fp, said='acme made the target %s - confirm the '
+                     'fingerprint in acme' % (name or '?'))
+        return j2
+
     def join(self):
         j = self.net.join_info()
         key, _crt = tls_paths()
         fp = spki_fp(_read(key, ''))
+        if j.get('e') and not j.get('i'):
+            j = self.enroll(j, fp)
         if not j.get('agent_id'):
             nonce = secrets.token_hex(16)
             req = self.net.join_request(j, nonce)
@@ -3363,6 +3531,8 @@ class Active(object):
                         continue
                     if self.join():
                         backoff = 2.0
+                        if self.net.conf().get('mode') != 'active':
+                            return      # 1.0.120: enrolled, passive - it listens from now on
                         continue
                     time.sleep(4)
                     continue
@@ -3424,6 +3594,11 @@ def serve_net():
         raise SystemExit(0)
     signal.signal(signal.SIGTERM, bye)
     signal.signal(signal.SIGINT, bye)
+    return net_loop(net)
+
+
+def net_loop(net):
+    """The network side's life: passive or active, as the join or agent.json says."""
     while not net.stopping:
         c = net.conf()
         j = net.join_info()
@@ -3439,8 +3614,39 @@ def serve_net():
 
 
 # ---- the command line (root) -----------------------------------------------------------------
+def read_enroll_code(code):
+    """A company enrollment code (ACAE1., 1.0.120): one code for many servers - acme makes
+    each a target of its own. -> what read_code gives, with 'e' (no target yet: 'i', 't' empty)."""
+    raw = code[6:]
+    try:
+        c = json.loads(base64.urlsafe_b64decode(raw + '=' * (-len(raw) % 4)).decode())
+    except (ValueError, binascii.Error, UnicodeDecodeError):
+        raise SystemExit('acme-agent: the enrollment code is not whole - copy it again')
+    if not isinstance(c, dict) or any(k not in c for k in ('e', 's', 'ca', 'ck', 'm')) or \
+            not re.fullmatch(r'[0-9a-f]{12}', str(c.get('e'))) or \
+            c.get('m') not in ('passive', 'active') or not HEX64.match(str(c.get('ca'))) or \
+            not HEX64.match(str(c.get('ck'))):
+        raise SystemExit('acme-agent: the enrollment code is not whole - copy it again')
+    if float(c.get('u') or 0) and float(c['u']) < time.time():
+        raise SystemExit('acme-agent: the enrollment code ran out - ask for a new one')
+    if not c.get('a') or not isinstance(c.get('a'), list):
+        raise SystemExit('acme-agent: the enrollment code names no address of acme')
+    c.update(i='', t='', n=str(c.get('n') or '')[:80])
+    return c
+
+
+def enroll_pins(c, pins, j):
+    """What `join` writes for an enrollment code: the join goes as an active one (the agent
+    asks acme) whatever the mode the servers take after it (root pins that mode) - and it
+    may wait for a person to confirm it as long as the code is valid."""
+    pins.update(e=c['e'], until=max(pins['until'], float(c.get('u') or 0) + 86400))
+    j.update(e=c['e'], m='active', final=c['m'])
+
+
 def read_code(code):
     code = str(code or '').strip()
+    if code.startswith('ACAE1.'):
+        return read_enroll_code(code)
     if not code.startswith('ACAG1.'):
         if re.fullmatch(r'[0-9A-Fa-f: ]{40,}', code):
             raise SystemExit('acme-agent: that is a fingerprint (of acme\'s agent authority, from '
@@ -3471,9 +3677,23 @@ def _owned(path, ids, mode):
     os.chmod(path, mode)
 
 
-def cmd_join(argv):
+def need_root(words):
+    """The command line's check that it runs as root (Windows: in an elevated prompt)."""
     if os.geteuid() != 0:
-        raise SystemExit('acme-agent join runs as root')
+        raise SystemExit(words)
+
+
+def make_places(ids):
+    """The agent's folders, each with its owner and mode."""
+    for d, owner, mode in ((ETC, (0, 0), 0o755), (STATE, ids, 0o700),
+                           (ROOT_STATE, (0, 0), 0o700)):
+        os.makedirs(d, exist_ok=True)
+        os.chown(d, owner[0], owner[1])
+        os.chmod(d, mode)
+
+
+def cmd_join(argv):
+    need_root('acme-agent join runs as root')
     if not argv:
         raise SystemExit('acme-agent join CODE')
     c = read_code(argv[0])
@@ -3484,11 +3704,7 @@ def cmd_join(argv):
     ids = agent_ids()
     if ids is None:
         raise SystemExit('acme-agent: the account %s is not there (install.sh makes it)' % USER)
-    for d, owner, mode in ((ETC, (0, 0), 0o755), (STATE, ids, 0o700),
-                           (ROOT_STATE, (0, 0), 0o700)):
-        os.makedirs(d, exist_ok=True)
-        os.chown(d, owner[0], owner[1])
-        os.chmod(d, mode)
+    make_places(ids)
     if not os.path.exists(POLICY):
         _write(POLICY, POLICY_HEAD, 0o644)
     # a new identity: the TLS key (the network side's, made here, never leaving), the X25519
@@ -3515,13 +3731,20 @@ def cmd_join(argv):
             'until': time.time() + 3 * 3600}
     if '--listen' in argv:
         pins['listen'] = argv[argv.index('--listen') + 1]
-    _write(os.path.join(ROOT_STATE, 'join-pins.json'), json.dumps(pins))
     j = {'i': c['i'], 's': c['s'], 'm': c['m'], 'a': c.get('a') or [], 'p': pins['p'],
          't': c['t'], 'n': c.get('n') or '', 'ca': c['ca'], 'ck': c['ck'],
          'listen': pins.get('listen') or ''}
+    if c.get('e'):
+        enroll_pins(c, pins, j)                         # 1.0.120: an enrollment code
+    _write(os.path.join(ROOT_STATE, 'join-pins.json'), json.dumps(pins))
     _write(os.path.join(STATE, 'join.json'), json.dumps(j), 0o600, ids)
     fp = spki_fp(kpem)
-    print('acme-agent: joining acme as the target %s (%s mode)' % (c.get('n') or c['t'], c['m']))
+    if c.get('e'):
+        print('acme-agent: joining acme with the enrollment code "%s" (%s mode) - acme makes '
+              'this server a target of its own' % (c.get('n') or c['e'], c['m']))
+    else:
+        print('acme-agent: joining acme as the target %s (%s mode)' % (c.get('n') or c['t'],
+                                                                       c['m']))
     print('')
     print('  The fingerprint of this agent - acme shows the same; confirm it there:')
     print('')
@@ -3586,8 +3809,7 @@ def cmd_init():
 
 
 def cmd_forget():
-    if os.geteuid() != 0:
-        raise SystemExit('acme-agent forget runs as root')
+    need_root('acme-agent forget runs as root')
     for p in (CONF, CA_FILE, os.path.join(ROOT_STATE, 'enc.key'),
               os.path.join(ROOT_STATE, 'join-pins.json'), os.path.join(STATE, 'tls.key'),
               os.path.join(STATE, 'tls.crt'), os.path.join(STATE, 'join.json'),
@@ -3604,6 +3826,12 @@ def cmd_forget():
 
 
 def cmd_status():
+    print(json.dumps(status_facts(), indent=1))
+    return 0
+
+
+def status_facts():
+    """What `acme-agent status` says."""
     c = net_conf()
     key, crt = tls_paths()
     out = {'version': VERSION, 'code': CODE, 'joined': bool(c.get('joined')),
@@ -3621,15 +3849,13 @@ def cmd_status():
         out['last'] = st
     pol, h, _t = policy_load()
     out['policy'] = {'hash': h, 'entries': len(policy_lines(pol)), 'problems': pol['problems']}
-    print(json.dumps(out, indent=1))
-    return 0
+    return out
 
 
 def policy_edit(add, words):
     """`acme-agent allow ...` / `deny ...`: the entry written into (or taken out of) the
     policy - the file read, checked and written whole (root:root 0644). Comments stay."""
-    if os.geteuid() != 0:
-        raise SystemExit('the policy is root\'s: run it as root')
+    need_root('the policy is root\'s: run it as root')
     line = policy_words(words)
     probe = parse_policy(line)
     if probe['problems']:
@@ -3652,7 +3878,7 @@ def policy_edit(add, words):
             said = 'taken away: files in %s' % d
             if len(out) == len(lines):
                 raise SystemExit('acme-agent: no such entry in the policy: files in %s' % d)
-    elif line.startswith('allow unit '):
+    elif line.startswith('allow %s ' % UNIT_WORD):
         name, verbs = list(probe['units'].items())[0]
         have = []
         for x in lines:
@@ -3667,9 +3893,9 @@ def policy_edit(add, words):
             raise SystemExit('acme-agent: no such entry in the policy: %s %s' % (
                 name, ','.join(verbs)))
         if now:
-            out.append('allow unit %s %s' % (name, ','.join(now)))
-        said = ('allowed: unit %s %s' if add else 'now: unit %s %s') % (
-            name, ','.join(now) or 'nothing')
+            out.append('allow %s %s %s' % (UNIT_WORD, name, ','.join(now)))
+        said = ('allowed: %s %s %s' if add else 'now: %s %s %s') % (
+            UNIT_WORD, name, ','.join(now) or 'nothing')
     elif line.startswith('limit '):
         k = line.split()[1]
         out = [x for x in lines if not (x.strip().startswith('limit %s ' % k))]
@@ -3758,8 +3984,7 @@ def cmd_policy(argv):
             raise SystemExit('acme-agent policy %s FILE|-' % argv[0])
         src = [a for a in argv[1:] if a != '--json'][0]
         if argv[0] == 'apply':
-            if os.geteuid() != 0:
-                raise SystemExit('acme-agent policy apply runs as root: the policy is root\'s')
+            need_root('acme-agent policy apply runs as root: the policy is root\'s')
             return policy_apply(_policy_input(src))
         got = policy_check(_policy_input(src), machine=True)
         if '--json' in argv:
@@ -3785,6 +4010,7 @@ def cmd_policy(argv):
 # ---- the package (tools/release.py, and acme's pages) ------------------------------------------
 PKG_FILES = ('acme_agent.py', 'install.sh', 'acme-agent.service', 'acme-agent-root.service',
              'README.md')
+PKG_MORE = ('acme_agent_win.py', 'acme_agent_wincert.py')     # the Windows parts, when there
 
 
 def build_package(dest, version, key=None, keys_dir=None, epoch=None):
@@ -3800,7 +4026,7 @@ def build_package(dest, version, key=None, keys_dir=None, epoch=None):
     epoch = int(epoch or os.environ.get('SOURCE_DATE_EPOCH') or 0) or int(time.time())
     keys_dir = keys_dir or os.path.join(os.path.dirname(here), 'release-keys')
     blobs = []
-    for n in PKG_FILES:
+    for n in PKG_FILES + tuple(x for x in PKG_MORE if os.path.exists(os.path.join(here, x))):
         with open(os.path.join(here, n), 'rb') as f:
             blobs.append((n, f.read(), 0o755 if n in ('acme_agent.py', 'install.sh') else 0o644))
     blobs.append(('release', (version + '\n').encode(), 0o644))
@@ -3819,7 +4045,7 @@ def build_package(dest, version, key=None, keys_dir=None, epoch=None):
             man, sig = os.path.join(t, 'MANIFEST'), os.path.join(t, 'MANIFEST.sig')
             with open(man, 'wb') as f:
                 f.write(manifest)
-            r = subprocess.run(['openssl', 'pkeyutl', '-sign', '-inkey', key, '-rawin', '-in',
+            r = subprocess.run([OPENSSL, 'pkeyutl', '-sign', '-inkey', key, '-rawin', '-in',
                                 man, '-out', sig], capture_output=True)
             if r.returncode != 0:
                 raise Refused('signing the agent\'s package failed: %s'
@@ -3884,6 +4110,23 @@ def main(argv):
         return 0
     print(__doc__)
     return 2
+
+
+
+# ---- the platform hook: on Windows (or the tests' fake of it) acme_agent_win.py beside this file
+# puts its own in place of what is POSIX here (paths, folders, ACLs, services, the named pipe).
+def _platform_hook(g):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('acme_agent_win', os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), 'acme_agent_win.py'))
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    sys.modules.setdefault('acme_agent_win', m)
+    m.install(g)
+
+
+if os.name == 'nt' or os.environ.get('ACME_AGENT_FAKE_WINDOWS'):
+    _platform_hook(globals())
 
 
 if __name__ == '__main__':

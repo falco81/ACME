@@ -911,6 +911,16 @@ class Package(unittest.TestCase):
         os.makedirs(R.RELEASE_DIR)
         ver = R.read_version()
         R.checks_before = lambda version, files: True
+
+        def fake_msi(work, version, key):
+            # the Windows MSI (1.0.120) - test/test_agent_windows_package.py builds the real one
+            os.makedirs(work, exist_ok=True)
+            path = os.path.join(work, 'acme-agent-%s-windows-x64.msi' % version)
+            with open(path, 'wb') as fh:
+                fh.write(b'not an MSI')
+            return path
+        R.windows_ready = lambda: None
+        R.build_windows = fake_msi
         built, why = R.build(ver, key, force=True, epoch=1700000000)
         self.assertTrue(built, why)
         side = os.path.join(R.RELEASE_DIR, 'acme-agent-%s.tar.gz' % ver)

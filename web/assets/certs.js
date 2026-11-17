@@ -2769,7 +2769,7 @@ function modForm(key, row, p, fromPick, keep) {
     if (FULL && p.kind === 'acme_dns') body.appendChild(acmeDnsHere(form));
     if (MANAGE && p.kind === 'ssh_dns') body.appendChild(sshDnsHere(form, row, p, function () { return name.value.trim(); }));
     /* a server with acme-agent (1.0.116): its agent's card - state, policy, the join */
-    if (key === 'targets' && p.kind === 'agent' && window.ACME_AGENTS) {
+    if (key === 'targets' && (p.kind === 'agent' || p.kind === 'agent_windows') && window.ACME_AGENTS) {
       if (row && row.id) body.appendChild(window.ACME_AGENTS.card(row, {reopen: function () { modEdit('targets', row); }}));
       else body.appendChild(el('p', 'note info small', 'Save the target first: its card then makes the join code for the agent on the server.'));
     }
@@ -2844,7 +2844,7 @@ function targetPeek(r) {
           body.appendChild(le);
         }
         /* a server with acme-agent (1.0.116): its agent first */
-        if (r.kind === 'agent' && window.ACME_AGENTS) body.appendChild(window.ACME_AGENTS.card(r, {reopen: function () { targetPeek(r); }}));
+        if ((r.kind === 'agent' || r.kind === 'agent_windows') && window.ACME_AGENTS) body.appendChild(window.ACME_AGENTS.card(r, {reopen: function () { targetPeek(r); }}));
         var grid = el('div', 'msects');
         var sec = section('Certificates deployed here', 'Each with the options it has on this target. Run deploys it again now.', true);
         if (depsErr) sec._body.appendChild(failedBox(depsErr, 'the deployments of a target'));

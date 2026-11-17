@@ -87,6 +87,8 @@ def menu(con):
         ('6', FAMS['issuer'][2], lambda: family(con, 'issuer')),
         ('7', FAMS['challenge'][2], lambda: family(con, 'challenge')),
         ('8', FAMS['target'][2], lambda: family(con, 'target')),
+        ('g', 'Target agents: enrollment codes, agents waiting for confirmation',
+         lambda: agents_menu(con)),
         ('9', 'Deployments: which certificate goes where', lambda: deploys(con)),
         ('t', FAMS['check'][2], lambda: family(con, 'check')),
         ('r', 'Run the tests of every certificate (a report by mail or SMS if wanted)',
@@ -330,7 +332,7 @@ def fam_do(con, fam, r):
     if any(f.get('type') == 'sshkey' for f in (_plugin(con, fam, r.get('kind')) or {}).get(
             'fields') or []):
         opts.append(('key', 'Its SSH key (make, public half, your own, forget, try)'))
-    if fam == 'target' and r.get('kind') == 'agent':
+    if fam == 'target' and r.get('kind') in ('agent', 'agent_windows'):
         opts.append(('agent', 'Its acme-agent (state, join code, confirm, ask it, policy, '
                               'renew, update, forget)'))
     opts.append(('del', 'Delete it'))
@@ -1102,6 +1104,106 @@ def target_agent(con, name):
         con.live(lambda: (con.cmd(flag, name, what), con.pause()))
     else:
         con.act(flag, name, what)
+
+
+def agents_menu(con):
+    """Settings → Target agents of the pages (1.0.120): the company enrollment codes - one
+    code for many servers - and every agent waiting for its fingerprint to be confirmed."""
+    flag = '--target-agent'
+    return con.sub('Target agents', [
+        ('1', 'Agents waiting for confirmation (Enter: compare and confirm one)',
+         lambda: agents_waiting(con)),
+        ('2', 'Enrollment codes (Enter: revoke one)', lambda: enroll_codes(con)),
+        ('3', 'Make an enrollment code: one code for many servers', lambda: enroll_new(con)),
+        ('4', 'Every target with an agent', lambda: family(con, 'target')),
+        ('5', 'The agents waiting, as acme --target-agent waiting says it',
+         lambda: con.act(flag, 'waiting'))])
+
+
+def agents_waiting(con):
+    def load():
+        return con._rows(con.out('--target-agent', 'waiting'), 'rows')
+
+    cols = [('target', lambda r: r.get('name'), 22, None),
+            ('system', lambda r: 'Windows' if r.get('platform') == 'windows' else 'Linux', 8,
+             None),
+            ('server', lambda r: r.get('fqdn') or r.get('host') or '-', 28, None),
+            ('from', lambda r: r.get('ip') or '-', 16, lambda r: 'dim'),
+            ('code', lambda r: (r.get('enroll') or {}).get('title') or 'its own', 18,
+             lambda r: 'dim'),
+            ('fingerprint', lambda r: ' '.join((r.get('fp_words') or '').split()[:4]) + ' …',
+             24, lambda r: 'warn')]
+
+    def do(r):
+        if con.confirm('Confirm the agent of %s' % r['name'],
+                       'Compare with what acme-agent join printed on %s - every group:\n\n%s\n\n'
+                       'Confirm only when it is the same.' % (
+                           r.get('fqdn') or r.get('host') or r['name'], r.get('fp_words')),
+                       'It is the same - confirm'):
+            con.act('--target-agent', r['name'], 'confirm', r['fp'])
+    return con.pick('Agents waiting for confirmation', load, cols, do,
+                    'no agent waits to be confirmed')
+
+
+def enroll_codes(con):
+    def load():
+        return con._rows(con.out('--target-agent', 'enroll', 'list'), 'rows')
+
+    tone = {'active': 'ok', 'expired': 'dim', 'used': 'dim', 'revoked': 'bad'}
+    cols = [('title', lambda r: r.get('title'), 24, None),
+            ('state', lambda r: r.get('state'), 8, lambda r: tone.get(r.get('state'), '')),
+            ('mode', lambda r: r.get('mode'), 7, None),
+            ('servers', lambda r: '%s of %s' % (r.get('uses'), r.get('most')), 9, None),
+            ('until', lambda r: _when(r.get('until'), '%Y-%m-%d %H:%M'), 16, None),
+            ('made by', lambda r: r.get('by') or '', 16, lambda r: 'dim'),
+            ('', lambda r: 'confirmed automatically' if r.get('auto') else '', 24,
+             lambda r: 'bad')]
+
+    def do(r):
+        if r.get('state') == 'revoked':
+            con.note('Revoked', 'The enrollment code %s is revoked already.' % r['title'])
+            return
+        if con.confirm('Revoke the enrollment code', 'No other server joins with "%s". The '
+                       'servers that joined with it stay (those waiting still wait to be '
+                       'confirmed).' % r['title'], 'Revoke it', danger=True):
+            con.act('--target-agent', 'enroll', 'revoke', r['id'])
+    return con.pick('Enrollment codes', load, cols, do,
+                    'no enrollment code yet (Make an enrollment code)')
+
+
+def enroll_new(con):
+    got = con.form('An enrollment code: one code for many servers', [
+        {'key': 'title', 'label': 'its title', 'need': True,
+         'help': 'What you call it - each server that joins with it says it.'},
+        {'key': 'mode', 'label': 'the servers\' mode', 'kind': 'choice',
+         'options': [('passive', 'passive: acme connects to them'),
+                     ('active', 'active: they connect to acme')]},
+        {'key': 'port', 'label': 'their port', 'kind': 'number', 'value': '8446',
+         'range': (1, 65535), 'when': lambda v: v.get('mode') == 'passive'},
+        {'key': 'days', 'label': 'valid for (days)', 'kind': 'number', 'value': '7',
+         'range': (1, 365)},
+        {'key': 'most', 'label': 'at most (servers)', 'kind': 'number', 'value': '10',
+         'range': (1, 10000)},
+        {'key': 'auto', 'label': 'confirm automatically', 'kind': 'choice',
+         'options': [('0', 'no - a person confirms each'), ('1', 'yes - nobody compares')]}],
+        'Each server that joins with it (acme-agent join CODE, the MSI\'s JOINCODE=) becomes a '
+        'target of its own and waits for its fingerprint to be confirmed. The agents\' port '
+        '(Settings → Target agents) must be on.')
+    if not got:
+        return
+    if got.get('auto') == '1' and not con.confirm(
+            'Confirm automatically?', 'Anybody holding this code joins a server to acme '
+            'without a person comparing its fingerprint. Only for a code that never leaves your '
+            'deployment tooling, for a short time.', 'Confirm automatically', danger=True):
+        return
+    args = ['--target-agent', 'enroll', 'new', '--title', got['title'].strip(), '--mode',
+            got.get('mode') or 'passive', '--days', got.get('days') or '7', '--most',
+            got.get('most') or '10']
+    if got.get('mode') == 'passive' and got.get('port'):
+        args += ['--port', got['port']]
+    if got.get('auto') == '1':
+        args.append('--auto-confirm')
+    con.live(lambda: (con.cmd(*args), con.pause()))
 
 
 def cert_import(con, name=None):

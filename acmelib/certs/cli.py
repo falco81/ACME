@@ -224,7 +224,20 @@ def add_args(p):
                         'now), policy (what it allows, as it last said), renew (its '
                         'certificate), update (to the signed agent this acme ships, where its '
                         'policy allows it; "all update": every agent it can), forget (--yes), '
-                        'design show|text|forget (the policy designed in acme)')
+                        'design show|text|forget (the policy designed in acme); "enroll new" '
+                        '(a company enrollment code: --title, --mode passive|active, --port, '
+                        '--days, --most, --auto-confirm), "enroll list", "enroll revoke ID"; '
+                        '"waiting" (every agent asking to join)')
+    g.add_argument('--title', metavar='TEXT', default=None,
+                   help='with --target-agent enroll new: what the enrollment code is called')
+    g.add_argument('--mode', choices=('passive', 'active'), default=None,
+                   help='with --target-agent enroll new: the mode of the servers joining with it '
+                        '[passive]')
+    g.add_argument('--most', type=int, metavar='N', default=None,
+                   help='with --target-agent enroll new: how many servers may join with it [10]')
+    g.add_argument('--auto-confirm', dest='auto_confirm', action='store_true',
+                   help='with --target-agent enroll new: each server that joins with it is '
+                        'confirmed at once, nobody comparing its fingerprint (off by default)')
     for word in ('target', 'validation', 'check'):
         g.add_argument('--%s-key' % word, dest='%s_key' % word, nargs='+', metavar='ARG',
                        help='NAME WHAT - the SSH key of a %s, as the key card of the page: '
@@ -1831,6 +1844,81 @@ class Cli(object):
             print('%s: %s' % (x['target'], x['said']))
         return 1 if bad else 0
 
+    def target_agents_enroll(self, what, rest):
+        """acme --target-agent enroll new|list|revoke ID (1.0.120): the company enrollment
+        codes - one code for many servers, each its own target waiting to be confirmed."""
+        from acmelib.certs import agents as G
+        from acmelib.plugins.base import PluginError
+        a = self.args
+        if what == 'new':
+            try:
+                got = G.enroll_new(self.store, self.WHO, title=a.title or '',
+                                   mode=a.mode or 'passive',
+                                   port=a.port if getattr(a, 'port', None) else G.PASSIVE_PORT,
+                                   days=a.days if a.days is not None else 7,
+                                   most=a.most if a.most is not None else 10,
+                                   auto=bool(a.auto_confirm))
+            except PluginError as e:
+                raise SystemExit('acme: %s' % e)
+            if self.json:
+                return self.out(got) or 0
+            print(got['code'])
+            sys.stderr.write(
+                'the enrollment code "%s" (%s mode, until %s, at most %d server%s)%s - on each '
+                'server, as root (Windows: an elevated prompt, or the MSI\'s JOINCODE=):\n'
+                '  acme-agent join CODE\nIt is shown this once.\n' % (
+                    got['title'], got['mode'], _when(got['until']), got['most'],
+                    '' if got['most'] == 1 else 's',
+                    ' - CONFIRMED AUTOMATICALLY: no fingerprint is compared' if got['auto']
+                    else ' - each server then waits for its fingerprint to be confirmed '
+                         '(acme --target-agent waiting)'))
+            return 0
+        if what == 'revoke':
+            if not rest:
+                raise SystemExit('acme: --target-agent enroll revoke ID (enroll list says them)')
+            try:
+                got = G.enroll_revoke(self.store, rest[0], self.WHO)
+            except LookupError as e:
+                raise SystemExit('acme: %s' % e)
+            return self._said('revoked: the enrollment code "%s" - no other server joins with it'
+                              % got['title'])
+        rows = G.enroll_list(self.store)
+        if self.json:
+            return self.out({'rows': rows}) or 0
+        if not rows:
+            print('no enrollment code (acme --target-agent enroll new makes one)')
+            return 0
+        print('%-12s  %-24s  %-8s  %-7s  %-9s  %-20s  %s' % (
+            'id', 'title', 'state', 'mode', 'servers', 'until', 'made by'))
+        for r in rows:
+            print('%-12s  %-24s  %-8s  %-7s  %-9s  %-20s  %s%s' % (
+                r['id'], r['title'][:24], r['state'], r['mode'],
+                '%d of %d' % (r['uses'], r['most']), _when(r['until']), r['by'],
+                '  (confirmed automatically)' if r['auto'] else ''))
+        return 0
+
+    def target_agents_waiting(self, rest):
+        """acme --target-agent waiting (1.0.120): every agent asking to join, not confirmed
+        yet - confirm each with acme --target-agent NAME confirm FINGERPRINT."""
+        from acmelib.certs import agents as G
+        rows = G.waiting(self.store)
+        if self.json:
+            return self.out({'rows': rows}) or 0
+        if not rows:
+            print('no agent waits to be confirmed')
+            return 0
+        for r in rows:
+            print('%s  (%s, %s)' % (r['name'], 'Windows' if r['platform'] == 'windows'
+                                    else 'Linux', r['mode']))
+            for k, v in (('server', r['fqdn'] or r['host'] or '-'), ('from', r['ip'] or '-'),
+                         ('system', r['os'] or '-'),
+                         ('joined with', ('the enrollment code "%s"' % r['enroll']['title'])
+                          if r['enroll'] else 'the target\'s own join code'),
+                         ('asked', _when(r['at'])), ('fingerprint', r['fp_words'])):
+                print('  %-12s %s' % (k, v))
+            print('  acme --target-agent %s confirm %s' % (r['name'], r['fp']))
+        return 0
+
     def _said(self, words):
         """What was done: the line, or {ok, message} with --json (1.0.119: text with --json)."""
         if self.json:
@@ -1897,12 +1985,19 @@ class Cli(object):
         (1.0.116) | design show|text|forget (1.0.118); acme --target-agent all update."""
         from acmelib.certs import agents as G
         from acmelib.plugins.base import PluginError
+        if words == ['waiting']:
+            return self.target_agents_waiting([])
+        if words == ['enroll']:
+            return self.target_agents_enroll('list', [])
         if len(words) < 2:
             raise SystemExit('acme: --target-agent NAME show|code|confirm FP|look|policy|renew|'
-                             'update|forget|design (or: all update)')
+                             'update|forget|design (or: all update; enroll new|list|revoke; '
+                             'waiting)')
         name, what, rest = words[0], words[1], words[2:]
         if name == 'all' and what == 'update':
             return self.target_agents_update()
+        if name == 'enroll' and what in ('new', 'list', 'revoke'):
+            return self.target_agents_enroll(what, rest)
         try:
             row = G.target_row(self.store, name)
         except LookupError as e:

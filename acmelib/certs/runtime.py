@@ -711,7 +711,9 @@ class RunContext(base.Context):
     def agent_plan_check(self, policy, part):
         """[what the policy lacks for `part` of a deployment] - the agent's own check."""
         from acmelib.certs import agents
-        m = agents.agent_mod()
+        part = dict(part)
+        # a Windows server's agent (1.0.120): its checks as they run there
+        m = agents.agent_mod_for(part.pop('platform', ''))
         full = {'files': [], 'stale': [], 'pre': [], 'test': [], 'reload': [], 'post': [],
                 'script': None}
         full.update(part)
@@ -1106,7 +1108,8 @@ class SshSession(base.SshSession):
                                              "kind = 'ssh_relay'", (name,))
         if not row and store:
             # a server with acme-agent, passive (1.0.116): its agent as the connector
-            arow = store.db.row("SELECT * FROM cert_targets WHERE name = ? AND kind = 'agent'",
+            arow = store.db.row("SELECT * FROM cert_targets WHERE name = ? AND kind IN "
+                                "('agent', 'agent_windows')",
                                 (name,))
             if arow:
                 if arow.get('enabled') == 0:
