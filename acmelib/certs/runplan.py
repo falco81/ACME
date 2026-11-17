@@ -4225,6 +4225,15 @@ def steps_of(events, sandbox_err=None, later=None, invented_note=True, proxy_on=
                                 'sha256': ev.get('sha256'), 'text': '→ %s' % ev.get('cmd')}
             if ev.get('secret'):
                 st['secret'] = True
+        elif k == 'rpc':
+            # a conversation the module holds itself (issuers/ms_adcs_rpc.py: Kerberos and
+            # DCE/RPC to a Windows CA), as it describes it step by step - nothing connected
+            words = str(ev.get('words') or '')
+            for n, a in enumerate(ev.get('args') or []):
+                words = words.replace('{%d}' % n, str(a))
+            st = {'kind': ev.get('step') if ev.get('step') in ('connect', 'call', 'read')
+                  else 'call', 'words': words,
+                  'detail': {'pairs': [list(p) for p in ev.get('pairs') or []]}}
         elif k == 'socket':
             hp = '%s:%s' % (ev.get('host'), ev.get('port'))
             if ev.get('hex'):

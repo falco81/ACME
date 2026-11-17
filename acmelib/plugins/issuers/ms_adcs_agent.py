@@ -180,10 +180,9 @@ class MsAdcsAgentIssuer(Issuer):
         return words
 
     # -- the form's lists --------------------------------------------------------------
-    discover_keys = ['agent', 'ca']
-
-    def discover_setup(self):
-        return sc.discover_lists(self)
+    # no "Find the settings from the account": there is no account to sign in with - the
+    # lists are loaded beside their fields (Load the list), through the agent
+    discovery = False
 
     def catalog(self, key):
         """Read-only, through the agent: the CAs of the domain ('cas', ICertConfig - as

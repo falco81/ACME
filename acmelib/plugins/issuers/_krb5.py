@@ -517,10 +517,10 @@ def skew_words(skew):
                'ahead' if ahead else 'behind'))
 
 
-def error_words(msg, user='', spn=''):
+def error_words(msg, user='', spn='', now=None):
     """KrbError for a KRB-ERROR the KDC or the server sent."""
     if msg.code == 37:
-        skew = (msg.stime - time.time()) if msg.stime else 0
+        skew = (msg.stime - (time.time() if now is None else now)) if msg.stime else 0
         return KrbError(skew_words(skew), code=37, skew=skew)
     words = ERRORS.get(msg.code)
     st = msg.ntstatus()
@@ -636,7 +636,7 @@ class Client(object):
         if el.tag == 0x7e:
             err = KrbErrorMsg(el)
             if err.code != 25:              # not PREAUTH_REQUIRED
-                raise error_words(err, self.who)
+                raise error_words(err, self.who, now=self.now())
             info = [x for x in err.etype_info2() if x[0] in etypes]
             if not info:
                 offered = ', '.join(ETYPE_NAMES.get(x[0], str(x[0])) for x in err.etype_info2())
@@ -655,7 +655,7 @@ class Client(object):
             body = _req_body(options, [self.user], self.realm, sname, till, nonce, etypes)
             el = self._send(_kdc_req(10, [pa_ts, pac], body))
             if el.tag == 0x7e:
-                raise error_words(KrbErrorMsg(el), self.who)
+                raise error_words(KrbErrorMsg(el), self.who, now=self.now())
         else:
             key = None
         if el.tag != 0x6b:
@@ -721,7 +721,7 @@ class Client(object):
                          ctx(3, self.tgt.der), ctx(4, auth)))
         el = self._send(_kdc_req(12, [pa_data(PA_TGS_REQ, ap)], body))
         if el.tag == 0x7e:
-            raise error_words(KrbErrorMsg(el), self.who, spn)
+            raise error_words(KrbErrorMsg(el), self.who, spn, now=self.now())
         if el.tag != 0x6d:
             raise KrbError('the domain controller sent no TGS-REP (tag 0x%02x)' % el.tag)
         rep = el.inner().fields()

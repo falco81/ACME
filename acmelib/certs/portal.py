@@ -145,11 +145,39 @@ def my_groups(h, s):
     return [tuple(g) for g in got]
 
 
+def my_caps(h, s):
+    """{team lower: {'name', 'caps', 'direct'}} of the person (1.0.125, teams.person_caps): the
+    capabilities they hold on each team - inherited from the teams above too. Cached per
+    version of the teams and the person."""
+    from acmelib.certs import teams
+    return teams.person_caps(h.store, my_names(s), my_groups(h, s))
+
+
+def rights_of_caps(caps):
+    """The old rights the portal checks, of a set of capabilities (1.0.125): those held in
+    full (teams.rights_of_caps), and view / request / approve where their own capability is
+    held with cert.view - a role of cert.view and cert.renew alone sees the certificates."""
+    from acmelib.certs import teams
+    got = set(teams.rights_of_caps(caps))
+    if 'cert.view' in caps:
+        got.add('view')
+        if 'cert.request' in caps:
+            got.add('request')
+        if 'cert.approve' in caps:
+            got.add('approve')
+    return got
+
+
 def my_teams(h, s):
     """{team lower: (name, {rights})} of the person (Settings → Owners and teams):
-    the teams with them - their name, local:NAME, a group they are in - as a member."""
-    from acmelib.certs import teams
-    return teams.person_teams(h.store, my_names(s), my_groups(h, s))
+    the teams with them - their name, local:NAME, a group they are in - as a member (the teams
+    below theirs too, 1.0.125)."""
+    out = {}
+    for k, v in my_caps(h, s).items():
+        r = rights_of_caps(v['caps'])
+        if r:
+            out[k] = (v['name'], r)
+    return out
 
 
 def defined_teams(store):
@@ -228,6 +256,23 @@ def row_formats(store, row):
 ALL_RIGHTS = ('view', 'request', 'manage', 'approve')
 
 
+def caps_of(s, row, names, groups, pcaps, defined=()):
+    """The capabilities (1.0.125, docs/teams.md) this sign-in holds on one certificate: every
+    one for an administrator of acme's own who sees all; those of the team that owns it
+    (inherited from the teams above); cert.view where it is theirs (owned by them or a group of
+    theirs) - as rights_of says it in the old rights."""
+    from acmelib.certs import teams as T
+    if E.portal_sees_all(s):
+        return set(T.CAPS)
+    owner = str(row.get('owner') or '').strip().lower()
+    got = set()
+    if owner and owner in (pcaps or {}):
+        got |= set(pcaps[owner]['caps'])
+    if owner_of(row, names, groups, None, defined):
+        got.add('cert.view')
+    return got
+
+
 def rights_of(s, row, names, groups, tms, defined=()):
     """What this sign-in may do with one certificate (1.0.16): an administrator
     of acme's own who sees all (portal_admins_all) everything; otherwise the
@@ -244,20 +289,69 @@ def rights_of(s, row, names, groups, tms, defined=()):
     return got
 
 
-def mine(h, s, rows=None):
-    """Their certificates: owned by them or by a group they are in - every
-    one for an administrator of acme's own (portal_admins_all)."""
+class _Me(object):
+    """Who a portal sign-in is, read once for a list (names, groups, teams, capabilities)."""
+    def __init__(self, h, s):
+        self.store = h.store
+        self.s = s
+        self.names = my_names(s)
+        self.groups = my_groups(h, s)
+        self.pcaps = my_caps(h, s)
+        self.tms = {k: (v['name'], rights_of_caps(v['caps'])) for k, v in self.pcaps.items()
+                    if rights_of_caps(v['caps'])}
+        self.defined = defined_teams(h.store)
+        self.ids = set(asker_ids(s))
+
+
+def mine_rows(h, s, me=None):
+    """[(row, via)] of their certificates (not yet as the page shows them): owned by them or by
+    a group they are in, or by a team where they see certificates - every one for an
+    administrator of acme's own (portal_admins_all)."""
+    me = me or _Me(h, s)
     store = h.store
-    names = my_names(s)
-    groups = my_groups(h, s)
-    tms = my_teams(h, s)
-    defined = defined_teams(store)
-    ids = set(asker_ids(s))
+    names, groups, tms, defined = me.names, me.groups, me.tms, me.defined
+    if E.portal_sees_all(s):
+        # with the teams there are (1.0.119), as everywhere else: a team's certificate of the
+        # same name as the administrator was said to be theirs ('me')
+        return [(r, owner_of(r, names, groups, tms, defined) or '*')
+                for r in store.db.rows('SELECT * FROM certs ORDER BY name')]
+    # "group:" in front of the group's DN too (1.0.119): owner_of took it, the list never asked
+    # for it - the certificate was theirs to download, and not in their list
+    want = sorted(names | {cn.lower() for _, cn in groups} | {dn.lower() for dn, _ in groups}
+                  | {'group:' + cn.lower() for _, cn in groups}
+                  | {'group:' + dn.lower() for dn, _ in groups}
+                  | {k for k, (_, r) in tms.items() if 'view' in r})
+    out, seen = [], set()
+    # Asked in pieces: a person in hundreds of groups is not one statement of hundreds of '?'.
+    for at in range(0, len(want), 100):
+        part = want[at:at + 100]
+        for r in store.db.rows('SELECT * FROM certs WHERE LOWER(TRIM(owner)) IN (%s)' % ', '.join(
+                '?' * len(part)), tuple(part)):
+            via = owner_of(r, names, groups, tms, defined)
+            if via and r['id'] not in seen:
+                seen.add(r['id'])
+                out.append((r, via))
+    return out
+
+
+def mine_sort(pairs):
+    pairs.sort(key=lambda o: (o[1] != 'me', str(o[0].get('name') or '').lower()))
+    return pairs
+
+
+def mine_public(h, s, pairs, me=None):
+    """Their certificates as the page shows them: what each may do (the old rights `may`, and
+    the capabilities `caps`, 1.0.125), its approval state, its formats."""
+    me = me or _Me(h, s)
+    names, groups, tms, defined, ids = me.names, me.groups, me.tms, me.defined, me.ids
     held_rows = []
 
     def public(st_, r, via):
         one = public_row(st_, r, via)
         one['may'] = [w for w in ALL_RIGHTS if w in rights_of(s, r, names, groups, tms, defined)]
+        caps = caps_of(s, r, names, groups, me.pcaps, defined)
+        from acmelib.certs import teams as T
+        one['caps'] = [c for c in T.CAPS if c in caps]
         one['team'] = str(r.get('owner') or '').strip().lower() in tms
         # asked for by this very person (1.0.80): its Approve was offered, then refused
         one['asked_by_me'] = bool(askers_of(st_, r['id']) & ids)
@@ -268,7 +362,7 @@ def mine(h, s, rows=None):
             one['stuck'] = True
         if r.get('state') == WAITING or stuck:
             # Approve and Decline both need the right approve (or manage) - need_right
-            no_right = not ({'approve', 'manage'} & set(one['may']))
+            no_right = not may_approve_caps(caps)
             right_why = ('you may not approve this certificate - its team gives you the right '
                          'approve for that')
             one['may_decline'], one['decline_why'] = (False, right_why) if no_right \
@@ -292,35 +386,25 @@ def mine(h, s, rows=None):
                 one['may_approve'], one['approve_why'] = not why, why
         # whether its CA can revoke it (api.revocable, as the administration's Revoke): a
         # self-signed one was offered Revoke and its job failed "cannot revoke a certificate"
-        if 'manage' in one['may'] and r.get('cert_pem'):
+        if 'cert.revoke' in caps and r.get('cert_pem'):
             one['revoke_no'] = A.revocable(st_, r)
-        if not key_may(s, via, one['may'], asker(st_, r['id']).get('who')):
+        if not key_may(s, via, caps, asker(st_, r['id']).get('who')):
             one['formats'] = [f for f in one.get('formats') or [] if f != KEY_FORMAT]
         return one
-    if E.portal_sees_all(s):
-        # with the teams there are (1.0.119), as everywhere else: a team's certificate of the
-        # same name as the administrator was said to be theirs ('me')
-        out = [public(store, r, owner_of(r, names, groups, tms, defined) or '*')
-               for r in store.db.rows('SELECT * FROM certs ORDER BY name')]
-        out.sort(key=lambda o: (o.get('via') != 'me', str(o.get('name') or '').lower()))
-        return out
-    # "group:" in front of the group's DN too (1.0.119): owner_of took it, the list never asked
-    # for it - the certificate was theirs to download, and not in their list
-    want = sorted(names | {cn.lower() for _, cn in groups} | {dn.lower() for dn, _ in groups}
-                  | {'group:' + cn.lower() for _, cn in groups}
-                  | {'group:' + dn.lower() for dn, _ in groups}
-                  | {k for k, (_, r) in tms.items() if 'view' in r})
-    out = []
-    # Asked in pieces: a person in hundreds of groups is not one statement of hundreds of '?'.
-    for at in range(0, len(want), 100):
-        part = want[at:at + 100]
-        for r in store.db.rows('SELECT * FROM certs WHERE LOWER(TRIM(owner)) IN (%s)' % ', '.join(
-                '?' * len(part)), tuple(part)):
-            via = owner_of(r, names, groups, tms, defined)
-            if via and r['id'] not in {o['id'] for o in out}:
-                out.append(public(store, r, via))
-    out.sort(key=lambda o: (o.get('via') != 'me', str(o.get('name') or '').lower()))
-    return out
+    return [public(h.store, r, via) for r, via in pairs]
+
+
+def may_approve_caps(caps):
+    """cert.approve - or the old right manage in full, as need_right took it."""
+    from acmelib.certs import teams as T
+    return 'cert.approve' in caps or T.RIGHT_CAPS['manage'] <= set(caps)
+
+
+def mine(h, s, rows=None):
+    """Their certificates: owned by them or by a group they are in - every
+    one for an administrator of acme's own (portal_admins_all)."""
+    me = _Me(h, s)
+    return mine_public(h, s, mine_sort(mine_rows(h, s, me)), me)
 
 
 def asked_word(who):
@@ -346,8 +430,10 @@ def key_may(s, via, may, asked_by=''):
     sees_all_key = E.portal_sees_all(s) and (s.get('data') or {}).get('role') == 'fulladmin'
     if sees_all_key or via == 'me' or (asked_by and str(asked_by).lower() == owner_word(s).lower()):
         return True
-    # 'manage' by a team's right - not the every-right a sees-all session gets.
-    return bool('manage' in (may or ()) and not E.portal_sees_all(s))
+    # 'manage' by a team's right - not the every-right a sees-all session gets. A capability
+    # set (1.0.125): cert.key, which the old manage holds.
+    return bool(('manage' in (may or ()) or 'cert.key' in (may or ()))
+                and not E.portal_sees_all(s))
 
 
 def need_mine(h, s, ref):
@@ -360,21 +446,35 @@ def need_mine(h, s, ref):
     return row
 
 
+RIGHT_WORDS = {'manage': 'you may not change this certificate - its team gives you the right '
+                         'manage for that',
+               'approve': 'you may not approve this certificate - its team gives you the right '
+                          'approve for that'}
+
+
 def need_right(h, s, ref, right, doing):
     """One of their certificates, and the right asked for on it - or a 403 in
-    words and an event saying who was refused what."""
+    words and an event saying who was refused what. `right` an old right (view, request,
+    manage, approve) or a capability (1.0.125: cert.renew, cert.revoke, ...) - the old right
+    manage holds every capability it gave, so a member with it does what it did."""
+    from acmelib.certs import teams as T
     row = need_mine(h, s, ref)
-    have = rights_of(s, row, my_names(s), my_groups(h, s), my_teams(h, s),
-                     defined_teams(h.store))
-    ok = right in have or (right == 'approve' and 'manage' in have)
+    names, groups = my_names(s), my_groups(h, s)
+    defined = defined_teams(h.store)
+    if right in T.CAPS:
+        caps = caps_of(s, row, names, groups, my_caps(h, s), defined)
+        ok = right in caps or (right == 'cert.approve' and may_approve_caps(caps))
+    else:
+        have = rights_of(s, row, names, groups, my_teams(h, s), defined)
+        ok = right in have or (right == 'approve' and 'manage' in have)
     if not ok:
-        h.store.add_event('certificates', '%s was refused on the portal: %s %s (needs the right '
-                          '%s)' % (s['name'], doing, row['name'], right), 'warn', who=s['name'])
-        raise E.ApiError(403, {'manage': 'you may not change this certificate - its team gives '
-                                         'you the right manage for that',
-                               'approve': 'you may not approve this certificate - its team gives '
-                                          'you the right approve for that'}.get(
-            right, 'you may not do that'))
+        h.store.add_event('certificates', '%s was refused on the portal: %s %s (needs %s %s)' % (
+            s['name'], doing, row['name'], 'the capability' if right in T.CAPS else 'the right',
+            right), 'warn', who=s['name'])
+        if right in T.CAPS:
+            raise E.ApiError(403, 'you may not do that with %s - its team does not give you '
+                                  '"%s" (%s)' % (row['name'], right, T.CAP_WORDS[right]))
+        raise E.ApiError(403, RIGHT_WORDS.get(right, 'you may not do that'))
     return row
 
 
@@ -860,8 +960,21 @@ def _portal_certs(h):
         row = S.plugin_row(h.store, 'issuer', i)
         if row and row.get('enabled', 1):
             iss.append({'name': row['name'], 'kind': row.get('kind') or ''})
-    have = mine(h, s)
+    paged = any(h.arg(k) not in (None, '') for k in ('team', 'q', 'state', 'page', 'per'))
+    page = {}
+    if paged:
+        # one page of them, searched on the server (1.0.125): thousands of a team's
+        # certificates are not drawn at once - without these arguments the answer is as before
+        have, page = mine_page(h, s)
+    else:
+        have = mine(h, s)
     n = used(h.store, owner_word(s))
+    out = _certs_answer(h, s, have, sufs, iss, n)
+    out.update(page)
+    return out
+
+
+def _certs_answer(h, s, have, sufs, iss, n):
     return {'rows': have, 'suffixes': sufs, 'issuers': [i['name'] for i in iss],
             'issuer_kinds': {i['name']: i['kind'] for i in iss}, 'formats': formats(),
             'key_types': list(schema.KEY_TYPES), 'most': most(), 'used': n,
@@ -875,6 +988,70 @@ def _portal_certs(h):
             # The request profiles they may ask from (Settings → Request profiles, 1.0.18).
             'profiles': reqprofiles.usable(h, s), 'free_form': bool(sufs and iss),
             'may_ask': n < most()}
+
+
+EXPIRING_S = 30 * 86400
+PAGE_STATES = ('expiring', 'failing', 'waiting', 'mine')
+
+
+def _num(h, name, default, lo, hi):
+    try:
+        return max(lo, min(hi, int(str(h.arg(name) or default).strip())))
+    except (TypeError, ValueError):
+        return default
+
+
+def mine_page(h, s):
+    """(rows of one page, {total, page, per, team, q, state}) of their certificates:
+    `team` a team's (below=1: and the teams below it; 'me' their own), `q` text in the name,
+    the names or the owner, `state` a state of a certificate or expiring | failing | waiting |
+    mine (asked for by them)."""
+    from acmelib.certs import teams as T
+    me = _Me(h, s)
+    per = _num(h, 'per', 50, 1, 200)
+    page = _num(h, 'page', 0, 0, 100000)
+    q = str(h.arg('q') or '').strip().lower()[:200]
+    state = str(h.arg('state') or '').strip()[:40]
+    team = str(h.arg('team') or '').strip()[:190]
+    pairs = mine_rows(h, s, me)
+    if team:
+        if team.lower() == 'me':
+            pairs = [(r, v) for r, v in pairs if v == 'me']
+        else:
+            tr = T.tree(h.store)
+            want = {team.lower()}
+            if str(h.arg('below') or '') in ('1', 'true', 'yes'):
+                want |= set(tr.descendants(team))
+            pairs = [(r, v) for r, v in pairs
+                     if str(r.get('owner') or '').strip().lower() in want]
+    if q:
+        def hit(r):
+            return q in ' '.join(str(r.get(k) or '') for k in (
+                'name', 'cn', 'names', 'owner', 'issuer', 'serial')).lower()
+        pairs = [(r, v) for r, v in pairs if hit(r)]
+    if state:
+        now = time.time()
+        if state == 'expiring':
+            pairs = [(r, v) for r, v in pairs if r.get('not_after') and
+                     now < float(r['not_after']) < now + EXPIRING_S]
+        elif state == 'failing':
+            pairs = [(r, v) for r, v in pairs if r.get('state') == 'failed' or
+                     r.get('alt_state') == 'failed' or int(r.get('fails') or 0) > 0]
+        elif state == 'waiting':
+            pairs = [(r, v) for r, v in pairs if r.get('state') == WAITING]
+        elif state == 'mine':
+            pairs = [(r, v) for r, v in pairs if askers_of(h.store, r['id']) & me.ids]
+        elif state in schema.STATES:
+            pairs = [(r, v) for r, v in pairs if r.get('state') == state]
+        else:
+            raise E.ApiError(400, 'the state is one of %s' % ', '.join(
+                list(PAGE_STATES) + list(schema.STATES)))
+    mine_sort(pairs)
+    total = len(pairs)
+    part = pairs[page * per:(page + 1) * per]
+    return mine_public(h, s, part, me), {'total': total, 'page': page, 'per': per,
+                                         'pages': (total + per - 1) // per, 'team': team,
+                                         'q': q, 'state': state}
 
 
 @E.route('GET', '/api/portal/cert_job')
@@ -912,6 +1089,7 @@ def _portal_download(h):
     if fmt not in row_formats(h.store, row):
         raise E.ApiError(400, 'the format is one of %s' % ', '.join(row_formats(h.store, row)))
     as_who = {'name': s['name'], 'role': 'readonly'}
+    key_action = None
     if fmt == KEY_FORMAT:
         pw = str(b.get('password') or '')
         if len(pw) < 8:
@@ -922,7 +1100,7 @@ def _portal_download(h):
         names, groups, tms = my_names(s), my_groups(h, s), my_teams(h, s)
         defined = defined_teams(h.store)
         via = owner_of(row, names, groups, tms, defined)
-        if not key_may(s, via, rights_of(s, row, names, groups, tms, defined),
+        if not key_may(s, via, caps_of(s, row, names, groups, my_caps(h, s), defined),
                        asker(h.store, row['id']).get('who')):
             h.store.add_event('certificates', '%s was refused on the portal: the key of %s '
                               '(needs the right manage)' % (s['name'], row['name']), 'warn',
@@ -932,6 +1110,24 @@ def _portal_download(h):
         # ...and where its team's limits let a key out (1.0.125, policy key_download)
         from acmelib.certs import teampolicy as TP
         TP.need_key_download(h.store, row.get('owner'), s['name'])
+        # ...and once a lead approved it where its policy says so (approve_actions key): asked
+        # first, then taken with the approved action's id, once
+        if not E.portal_sees_all(s) and TP.action_needs_approval(h.store, row.get('owner'),
+                                                                 'key'):
+            aid = str(b.get('action') or '')
+            if not aid:
+                return action_waits(h, s, row, 'key', 'a PFX file with the key of %s'
+                                    % row['name'])
+            rec = TP._action_get(h.store, aid)
+            if not rec or rec.get('action') != 'key' or str(rec.get('ref')) != str(row['id']) \
+                    or not TP._same_person(rec, TP.approver_portal(h, s)):
+                raise E.ApiError(404, 'there is no such approval of yours for the key of %s'
+                                 % row['name'])
+            if rec.get('state') != 'approved':
+                raise E.ApiError(409, 'the key of %s is %s - not approved (yet)' % (
+                    row['name'], 'taken already' if rec.get('state') == 'done'
+                    else rec.get('state')))
+            key_action = aid
         # The key, only through this route and only as a PFX with a password:
         # the setting portal_cert_keys says the people may have theirs.
         as_who = {'name': 'portal:%s' % s['name'], 'role': 'fulladmin'}
@@ -943,6 +1139,9 @@ def _portal_download(h):
         raise E.ApiError(400, str(e))
     h.store.add_event('certificates', '%s took %s (%s) from the portal' % (
         s['name'], row['name'], fmt), 'warn' if fmt == KEY_FORMAT else 'info', who=s['name'])
+    if key_action:
+        from acmelib.certs import teampolicy as TP
+        TP.action_done(h.store, key_action, 'taken by %s' % s['name'])
     return got
 
 
@@ -1087,7 +1286,7 @@ def portal_by(s):
 @E.route('POST', '/api/portal/cert_renew')
 def _portal_renew(h):
     s = portal_session(h)
-    row = need_right(h, s, h.body().get('id'), 'manage', 'renewing')
+    row = need_right(h, s, h.body().get('id'), 'cert.renew', 'renewing')
     if row.get('state') in (WAITING, DECLINED):
         raise E.ApiError(409, '%s has not been approved' % row['name'])
     try:
@@ -1103,33 +1302,15 @@ def _portal_renew(h):
 def _portal_auto(h):
     s = portal_session(h)
     b = h.body()
-    row = need_right(h, s, b.get('id'), 'manage', 'switching renewing for')
+    row = need_right(h, s, b.get('id'), 'cert.auto', 'switching renewing for')
     try:
         return A.cert_auto(h.store, row['id'], A._flag(b.get('auto_renew'), 1), portal_by(s))
     except (ValueError, LookupError) as e:
         raise E.ApiError(400, str(e))
 
 
-@E.route('POST', '/api/portal/cert_revoke')
-def _portal_revoke(h):
-    s = portal_session(h)
-    b = h.body()
-    row = need_right(h, s, b.get('id'), 'manage', 'revoking')
-    if not row.get('cert_pem') or (row.get('state') == 'revoked' and
-                                   row.get('alt_state') != 'revoke-failed'):
-        raise E.ApiError(409, '%s is not a certificate that can be revoked' % row['name'])
-    reason = str(b.get('reason') or 'unspecified')
-    if reason not in A.REVOKE_REASONS:
-        raise E.ApiError(400, 'the reason is one of %s' % ', '.join(A.REVOKE_REASONS))
-    by = portal_by(s)
-    again = A._flag(b.get('renew'), 0)
-    if again and row.get('csr_given'):
-        # Refused before anything is revoked (1.0.19): revoked, it then could not be issued
-        # again with the same CSR - and was left renewed by itself, revoked.
-        raise E.ApiError(400, '%s was issued for the CSR you sent: a new one needs a new CSR '
-                              '(a new key) - revoke it without one, then send it'
-                         % row['name'])
-
+def start_revoke(store, row, reason, again, by):
+    """A revocation (and, `again`, a new certificate at once) in a job -> its id."""
     def fn(job):
         got = renewer.revoke_cert(job.store, job, row['id'], reason, by)
         if not again:
@@ -1142,21 +1323,89 @@ def _portal_revoke(h):
         job.store.db.update('certs', row['id'], {'auto_renew': 1})
         return renewer.renew_cert(job.store, job, row['id'], True, by)
     try:
-        job_id = jobs.submit(h.store, 'revoke', fn, cert_id=row['id'], by=by,
-                             said='reason: %s%s, from the portal' % (
-                                 reason, ', a new one at once' if again else ''))
+        return jobs.submit(store, 'revoke', fn, cert_id=row['id'], by=by,
+                           said='reason: %s%s, from the portal' % (
+                               reason, ', a new one at once' if again else ''))
     except ValueError as e:
         raise E.ApiError(409, str(e))
+
+
+def revoke_checked(row, reason, again):
+    """What a revocation asks, checked before anything is done (or asked for)."""
+    if not row.get('cert_pem') or (row.get('state') == 'revoked' and
+                                   row.get('alt_state') != 'revoke-failed'):
+        raise E.ApiError(409, '%s is not a certificate that can be revoked' % row['name'])
+    if reason not in A.REVOKE_REASONS:
+        raise E.ApiError(400, 'the reason is one of %s' % ', '.join(A.REVOKE_REASONS))
+    if again and row.get('csr_given'):
+        # Refused before anything is revoked (1.0.19): revoked, it then could not be issued
+        # again with the same CSR - and was left renewed by itself, revoked.
+        raise E.ApiError(400, '%s was issued for the CSR you sent: a new one needs a new CSR '
+                              '(a new key) - revoke it without one, then send it'
+                         % row['name'])
+
+
+def action_waits(h, s, row, action, words):
+    """An action the policy of the certificate's team makes wait for an approval (1.0.125,
+    approve_actions): asked for, and the answer the page shows - None when it does not wait."""
+    from acmelib.certs import teampolicy as TP
+    if E.portal_sees_all(s) or not TP.action_needs_approval(h.store, row.get('owner'), action):
+        return None
+    rec = TP.action_ask(h.store, row.get('owner'), action, row['id'],
+                        TP.approver_portal(h, s), words)
+    return {'waits': True, 'action': rec,
+            'message': '%s: it waits for an approval of the team %s first' % (row['name'],
+                                                                                rec['team'])}
+
+
+@E.route('POST', '/api/portal/cert_revoke')
+def _portal_revoke(h):
+    s = portal_session(h)
+    b = h.body()
+    row = need_right(h, s, b.get('id'), 'cert.revoke', 'revoking')
+    reason = str(b.get('reason') or 'unspecified')
+    again = A._flag(b.get('renew'), 0)
+    revoke_checked(row, reason, again)
+    # its team's policy may make a revocation wait for a lead's approval (approve_actions)
+    waits = action_waits(h, s, row, 'revoke', 'reason: %s%s' % (
+        reason, ', a new one at once' if again else ''))
+    if waits:
+        waits['action']['reason'] = reason
+        waits['action']['again'] = bool(again)
+        _action_keep(h.store, waits['action'])
+        return waits
+    job_id = start_revoke(h.store, row, reason, again, portal_by(s))
     h.store.add_event('certificates', '%s revokes %s from the portal (%s)' % (
         s['name'], row['name'], reason), 'warn', who=s['name'])
     return {'job_id': job_id}
+
+
+def _action_keep(store, rec):
+    from acmelib.certs import teampolicy as TP
+    store.set_meta(TP.ACTION_META + rec['id'], json.dumps(rec, sort_keys=True))
+
+
+@E.route('POST', '/api/portal/cert_delete')
+def _portal_delete(h):
+    """{id} a certificate of a team deleted (1.0.125, cert.delete) - not revoked; waiting for an
+    approval first where the team's policy says so (approve_actions delete)."""
+    s = portal_session(h)
+    b = h.body()
+    row = need_right(h, s, b.get('id'), 'cert.delete', 'deleting')
+    if jobs.cert_busy(h.store, row['id']):
+        raise E.ApiError(409, 'a job is working on %s: wait for it to end' % row['name'])
+    waits = action_waits(h, s, row, 'delete', 'delete %s' % row['name'])
+    if waits:
+        return waits
+    A.cert_drop(h.store, row, portal_by(s))
+    return {'message': '%s deleted' % row['name']}
 
 
 @E.route('POST', '/api/portal/cert_approve')
 def _portal_approve(h):
     s = portal_session(h)
     b = h.body()
-    row = need_right(h, s, b.get('id'), 'approve', 'approving')
+    row = need_right(h, s, b.get('id'), 'cert.approve', 'approving')
     # Never one's own (1.0.51): a member with "manage" asked for a wildcard (which always waits
     # for approval) and approved it himself - and took its key. Declining one's own is fine.
     # ...nor one they sent a new CSR or names for (1.0.102): a member who may manage sent his

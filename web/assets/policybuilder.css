@@ -287,3 +287,11 @@
 .ag-upd-one .why{font-size:12px;color:var(--tx-dim);flex-basis:100%}
 .ag-list-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ag-list-h .btn{margin-left:auto}
+/* a Microsoft CA asked through the agent (1.0.125): the CAs and templates loaded from it */
+.pb-adcs-load{margin:10px 0}
+.pb-adcs-ca{margin:10px 0 12px;padding:8px 10px;border:1px solid var(--line);border-radius:10px}
+.pb-adcs-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:8px}
+.pb-adcs-chips{display:flex;flex-wrap:wrap;gap:6px}
+.pb-chip-add.on{border-color:color-mix(in srgb,var(--ok) 45%,var(--line));background:var(--ok-bg)}
+.pb-chip-add.on .pb-chip-p{color:var(--ok)}
+.pb-adcs-allow{display:block;margin:6px 0}

@@ -204,6 +204,56 @@ if (isset($_GET['api'])) {
                'gate_again' => '/api/portal/gate/again',
                // The check of the card that could not be made (1.0.113).
                'cert-lost' => '/api/certlogin/lost'];
+    /* The team workspace (1.0.125, docs/certificate-portal.md "Teams"): each route by its
+       name, the daemon checks the person's capabilities on the team. A body of 256 KB at most
+       (a device's settings, an agent's policy design). */
+    $team_writes = ['action-approve' => 'action_approve', 'cert-delete' => 'cert_delete',
+                    'device-save' => 'device_save', 'device-delete' => 'device_delete',
+                    'device-test' => 'device_test', 'agent-code' => 'agent_code',
+                    'enroll-code' => 'enroll_code', 'enroll-revoke' => 'enroll_revoke',
+                    'agent-confirm' => 'agent_confirm', 'agent-refuse' => 'agent_refuse',
+                    'agent-design' => 'agent_design', 'agent-update' => 'agent_update',
+                    'deploy-save' => 'deploy_save', 'deploy-delete' => 'deploy_delete',
+                    'deploy-run' => 'deploy_run', 'deploy-dry-run' => 'deploy_dry_run',
+                    'member-save' => 'member_save', 'member-delete' => 'member_delete',
+                    'team-save' => 'team_save', 'team-delete' => 'team_delete'];
+    /* GET: the arguments each takes, nothing else passed on (each 200 characters at most). */
+    $team_reads = ['teams' => [], 'inbox' => [], 'timeline' => ['id'],
+                   'devices' => ['team', 'below', 'q'], 'device' => ['id'], 'kinds' => ['team'],
+                   'agents-waiting' => ['team', 'below'], 'agent' => ['id'],
+                   'agent-builder' => ['id'], 'deploys' => ['team', 'below'],
+                   'members' => ['team'], 'dir-search' => ['q', 'kind'],
+                   'activity' => ['team', 'page', 'per', 'below']];
+    if ($post && isset($team_writes[$what])) {
+        if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 256 * 1024) {
+            http_response_code(413);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => 'that is too much to send here']);
+            exit;
+        }
+        acme_relay('/api/portal/' . $team_writes[$what], 'POST', sent_json(), 120.0);
+        exit;
+    }
+    $team_query = function (array $keys): string {
+        $q = [];
+        foreach ($keys as $k) {
+            if (isset($_GET[$k]) && is_string($_GET[$k]) && $_GET[$k] !== '') {
+                $q[$k] = substr($_GET[$k], 0, 200);
+            }
+        }
+        return $q ? '?' . http_build_query($q) : '';
+    };
+    if (!$post && isset($team_reads[$what])) {
+        acme_relay('/api/portal/' . str_replace('-', '_', $what) . $team_query($team_reads[$what]),
+                   'GET', null, 60.0);
+        exit;
+    }
+    if (!$post && $what === 'certs') {
+        /* Their certificates - one page of them, searched on the server, when asked so. */
+        acme_relay('/api/portal/certs' . $team_query(['team', 'below', 'q', 'state', 'page', 'per']),
+                   'GET', null, 30.0);
+        exit;
+    }
     if ($post && isset($writes[$what])) {
         acme_relay($writes[$what], 'POST', sent_json(), 120.0);
         exit;

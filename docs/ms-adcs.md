@@ -12,6 +12,11 @@ member server submit the request to the CA natively (RPC, Kerberos as its comput
 account): no Web Enrollment, no IIS, no password in acme, and the agent's policy names
 the CA and the templates.
 
+**Directly over RPC** (1.0.125): the source *Microsoft AD CS (RPC, as certreq)* -
+[ms-adcs-rpc.md](ms-adcs-rpc.md) - asks the CA itself the way certreq.exe does (MS-ICPR
+over DCE/RPC, TCP 135 and the CA's RPC port), signed in with Kerberos or NTLMv2 and
+always encrypted (packet privacy): no IIS, no Web Enrollment, nothing installed on Windows.
+
 ## What it does
 
 1. `POST /certsrv/certfnsh.asp` with `Mode=newreq`, the CSR (`CertRequest`) and

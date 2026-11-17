@@ -544,7 +544,7 @@ if (isset($_GET['api'])) {
        own name - certs, certs-one (or certs/one), cas-create, targets-test...
        The daemon's routes are each one method, so a GET still never reaches a
        write, and the daemon decides whether whoever is signed in may. */
-    if (preg_match('#^(certs|cas|plugins|modules|checks|tests|sources|validations|targets|deploys|dns|dnssets|sshkey|teams|tags|reqprofiles|agents)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
+    if (preg_match('#^(certs|cas|plugins|modules|checks|tests|sources|validations|targets|deploys|dns|dnssets|sshkey|teams|tags|reqprofiles|agents|roles|dir)(?:[/-]([a-z_]{1,40}))?$#', $what, $road)) {
         $path = '/api/' . $road[1] . (isset($road[2]) && $road[2] !== '' ? '/' . $road[2] : '');
         if ($post) {
             acme_relay($path, 'POST', sent_json(), 120.0);

@@ -68739,6 +68739,214 @@
   "z_1023": {
    "source": "you approved it already - another approver is wanted",
    "text": "už jste to schválili – je potřeba další schvalovatel"
+  },
+  "z_1024": {
+   "source": "Microsoft AD CS (through acme-agent)",
+   "text": "Microsoft AD CS (přes acme-agent)"
+  },
+  "z_1025": {
+   "source": "Certificates from a Microsoft CA without its web service: the acme-agent of a Windows member server submits the request to the CA (RPC, Kerberos as the computer account). acme holds no credential; the agent's policy names the CA and the templates.",
+   "text": "Certifikáty od Microsoft CA bez její webové služby: acme-agent na členském serveru Windows předá žádost CA (RPC, Kerberos jako účet počítače). acme nedrží žádné přihlašovací údaje; CA a šablony jmenuje politika agenta."
+  },
+  "z_1026": {
+   "source": "choose a server",
+   "text": "vyberte server"
+  },
+  "z_1027": {
+   "source": "A member server of the domain whose acme-agent submits the requests (Targets: Windows server with acme-agent). Its computer account needs Read and Enroll on the template and Request Certificates on the CA.",
+   "text": "Členský server domény, jehož acme-agent předává žádosti (Cíle: Windows server s acme-agentem). Jeho účet počítače potřebuje Read a Enroll na šabloně a Request Certificates na CA."
+  },
+  "z_1028": {
+   "source": "Certification authority",
+   "text": "Certifikační autorita"
+  },
+  "z_1029": {
+   "source": "The CA's config string: its server, a backslash, its name. Load the list: the CAs of the domain the agent may name (allow adcs, allow adcs-read).",
+   "text": "Konfigurační řetězec CA: její server, zpětné lomítko, její jméno. Načíst seznam: CA domény, které agent smí jmenovat (allow adcs, allow adcs-read)."
+  },
+  "z_1030": {
+   "source": "The template's name (not its display name). Load the list: the templates the CA offers, as the agent reads them; its policy allows them by name (allow adcs ... template=).",
+   "text": "Jméno šablony (ne zobrazované jméno). Načíst seznam: šablony, které CA nabízí, jak je čte agent; jeho politika je povoluje jménem (allow adcs ... template=)."
+  },
+  "z_1031": {
+   "source": "What the template's Cryptography tab allows. The certificate's key type is checked against it before the CA is asked.",
+   "text": "Co dovoluje karta Cryptography šablony. Typ klíče certifikátu se s tím porovná dřív, než se CA zeptá."
+  },
+  "z_1032": {
+   "source": "Send the names as a SAN attribute too",
+   "text": "Poslat jména i jako atribut SAN"
+  },
+  "z_1033": {
+   "source": "Only for a CA that takes names from the request's attributes (EDITF_ATTRIBUTESUBJECTALTNAME2): the agent makes the attribute of the CSR's own DNS names and addresses - nothing else. Off: the names go in the CSR only (a template set to \"Supply in the request\").",
+   "text": "Jen pro CA, která bere jména z atributů žádosti (EDITF_ATTRIBUTESUBJECTALTNAME2): agent vytvoří atribut z vlastních DNS jmen a adres CSR - nic jiného. Vypnuto: jména jdou jen v CSR (šablona nastavená na „Supply in the request“)."
+  },
+  "z_1034": {
+   "source": "How long the agent waits for the CA.",
+   "text": "Jak dlouho agent čeká na CA."
+  },
+  "z_1035": {
+   "source": "The template on the Windows CA for this certificate (the agent's policy must allow it). Empty: the source's own.",
+   "text": "Šablona na Windows CA pro tento certifikát (politika agenta ji musí povolit). Prázdné: šablona zdroje."
+  },
+  "z_1036": {
+   "source": "choose the Windows server whose acme-agent asks the CA",
+   "text": "vyberte Windows server, jehož acme-agent se ptá CA"
+  },
+  "z_1037": {
+   "source": "set the certification authority (HOST\\CA Name)",
+   "text": "nastavte certifikační autoritu (SERVER\\Jméno CA)"
+  },
+  "z_1038": {
+   "source": "this acme cannot reach agents",
+   "text": "toto acme nedosáhne na agenty"
+  },
+  "z_1039": {
+   "source": " - but the agent's policy does not allow it",
+   "text": " - ale politika agenta ji nepovoluje"
+  },
+  "z_1040": {
+   "source": " - not allowed by the agent's policy",
+   "text": " - nepovoleno politikou agenta"
+  },
+  "z_1041": {
+   "source": "denied",
+   "text": "zamítla"
+  },
+  "z_1042": {
+   "source": "did not issue",
+   "text": "nevydala"
+  },
+  "z_1043": {
+   "source": "Credentials",
+   "text": "Přihlašovací údaje"
+  },
+  "z_1044": {
+   "source": "none in acme: the agent asks the CA as its computer account (Kerberos)",
+   "text": "v acme žádné: agent se ptá CA jako svůj účet počítače (Kerberos)"
+  },
+  "z_1045": {
+   "source": "The agent has not said its policy yet: what it allows is not known - the step below shows the line that allows it on the server",
+   "text": "Agent zatím neřekl svou politiku: co povoluje, není známo - krok níže ukazuje řádek, který to na serveru povolí"
+  },
+  "z_1046": {
+   "source": "The agent lists the CAs of the domain",
+   "text": "Agent vypíše CA domény"
+  },
+  "z_1047": {
+   "source": "the CA's own request interface (ICertRequest over RPC/DCOM, MS-ICPR) from fixed PowerShell, run by the agent's root side (LocalSystem): Kerberos as the computer account, encrypted as the CA enforces (IF_ENFORCEENCRYPTICERTREQUEST)",
+   "text": "vlastní rozhraní CA pro žádosti (ICertRequest přes RPC/DCOM, MS-ICPR) z pevného PowerShellu, spuštěné rootovou stranou agenta (LocalSystem): Kerberos jako účet počítače, šifrováno, jak CA vyžaduje (IF_ENFORCEENCRYPTICERTREQUEST)"
+  },
+  "z_1048": {
+   "source": "Sent to the CA",
+   "text": "Posláno CA"
+  },
+  "z_1049": {
+   "source": ", and a SAN attribute made of the CSR's own names",
+   "text": " a atribut SAN vytvořený z vlastních jmen CSR"
+  },
+  "z_1050": {
+   "source": "the certificate and its chain (PKCS#7); a request waiting for a certificate manager: its id, asked for again at the next tries",
+   "text": "certifikát a jeho řetězec (PKCS#7); žádost čekající na správce certifikátů: její číslo, vyžádá se znovu při dalších pokusech"
+  },
+  "z_1051": {
+   "source": "The agent's policy does not allow this CA or template: the agent refuses the job - allow it on the server first",
+   "text": "Politika agenta tuto CA nebo šablonu nepovoluje: agent úlohu odmítne - nejdřív to povolte na serveru"
+  },
+  "z_1052": {
+   "source": "The agent's policy allows this CA and template",
+   "text": "Politika agenta tuto CA a šablonu povoluje"
+  },
+  "z_1053": {
+   "source": "acme checks the certificate is for the key of its request and puts its chain in order",
+   "text": "acme ověří, že certifikát je pro klíč jeho žádosti, a seřadí jeho řetězec"
+  },
+  "z_1054": {
+   "source": "Microsoft CA (AD CS)",
+   "text": "Microsoft CA (AD CS)"
+  },
+  "z_1055": {
+   "source": "Certificates from a Microsoft CA",
+   "text": "Certifikáty od Microsoft CA"
+  },
+  "z_1056": {
+   "source": "Its CA and template are examples - load the real ones in the AD CS section (the source \"Microsoft AD CS (through acme-agent)\" asks through this server).",
+   "text": "Jeho CA a šablona jsou příklady - skutečné načtěte v sekci AD CS (zdroj „Microsoft AD CS (přes acme-agent)“ se ptá přes tento server)."
+  },
+  "z_1057": {
+   "source": "The CAs this server may ask for certificates, as its computer account (Kerberos), and the templates of each - for the source “Microsoft AD CS (through acme-agent)”. acme sends only the CSR; the agent asks the CA itself.",
+   "text": "CA, které tento server smí žádat o certifikáty jako svůj účet počítače (Kerberos), a šablony každé z nich - pro zdroj „Microsoft AD CS (přes acme-agent)“. acme posílá jen CSR; CA se ptá agent sám."
+  },
+  "z_1058": {
+   "source": "Add a CA",
+   "text": "Přidat CA"
+  },
+  "z_1059": {
+   "source": "acme may list every CA of the domain and its templates (read-only) - else only the CAs named below",
+   "text": "acme smí vypsat každou CA domény a její šablony (jen čtení) - jinak jen CA uvedené níže"
+  },
+  "z_1060": {
+   "source": "Load the CAs and templates from the agent",
+   "text": "Načíst CA a šablony od agenta"
+  },
+  "z_1061": {
+   "source": "Loading…",
+   "text": "Načítá se…"
+  },
+  "z_1062": {
+   "source": "Read through the agent: what its policy on the server lets it list (allow adcs-read, or the CAs named).",
+   "text": "Čte se přes agenta: co mu jeho politika na serveru dovolí vypsat (allow adcs-read, nebo uvedené CA)."
+  },
+  "z_1063": {
+   "source": "The agent lists no CA.",
+   "text": "Agent nevypsal žádnou CA."
+  },
+  "z_1064": {
+   "source": "every template (*)",
+   "text": "každá šablona (*)"
+  },
+  "z_1065": {
+   "source": "No CA - the agent asks none.",
+   "text": "Žádná CA - agent se žádné neptá."
+  },
+  "z_1066": {
+   "source": "Microsoft CA",
+   "text": "Microsoft CA"
+  },
+  "z_1067": {
+   "source": "allow adcs \"HOST\\CA Name\" template=NAME,NAME - the CA's config string: its server, a backslash, its name",
+   "text": "allow adcs \"SERVER\\Jméno CA\" template=JMÉNO,JMÉNO - konfigurační řetězec CA: její server, zpětné lomítko, její jméno"
+  },
+  "z_1068": {
+   "source": "template= names a template or more (template=WebServer,WebServer2) or is * (any template of the CA)",
+   "text": "template= jmenuje jednu či více šablon (template=WebServer,WebServer2) nebo je * (jakákoli šablona CA)"
+  },
+  "z_1069": {
+   "source": "template=* is any template of the CA - no names beside it",
+   "text": "template=* je jakákoli šablona CA - žádná jména vedle"
+  },
+  "z_1070": {
+   "source": "any template this CA offers",
+   "text": "jakákoli šablona, kterou tato CA nabízí"
+  },
+  "z_1071": {
+   "source": "the list of the CAs of the domain",
+   "text": "seznam CA domény"
+  },
+  "z_1072": {
+   "source": "the computer account of this server may not enroll for this template (the template - Security: Read and Enroll)",
+   "text": "účet počítače tohoto serveru nesmí žádat o tuto šablonu (šablona - Security: Read a Enroll)"
+  },
+  "z_1073": {
+   "source": "access is denied (the computer account's rights on the CA: Request Certificates)",
+   "text": "přístup odepřen (práva účtu počítače na CA: Request Certificates)"
+  },
+  "z_1074": {
+   "source": "the CA cannot be reached over RPC (the RPC server is unavailable: its name, the firewall - TCP 135 and the dynamic ports)",
+   "text": "CA není dosažitelná přes RPC (server RPC není dostupný: její jméno, firewall - TCP 135 a dynamické porty)"
+  },
+  "z_1075": {
+   "source": "AD CS",
+   "text": "AD CS"
   }
  },
  "patterns": {
@@ -95605,6 +95813,130 @@
   "pz_320": {
    "source": "{0}: your approval is recorded - it waits for {1} more",
    "text": "{0}: vaše schválení je zaznamenáno – čeká se ještě na {1}"
+  },
+  "pz_321": {
+   "source": "{0} is not the config string of a CA: its server, a backslash, its name (ca01.example.local\\Example Issuing CA)",
+   "text": "{0} není konfigurační řetězec CA: její server, zpětné lomítko, její jméno (ca01.example.local\\Example Issuing CA)"
+  },
+  "pz_322": {
+   "source": "{0} is not the name of a template (its name, not its display name: WebServer)",
+   "text": "{0} není jméno šablony (jméno, ne zobrazované jméno: WebServer)"
+  },
+  "pz_323": {
+   "source": "{0} - allow it on {1} (an elevated prompt): {2}",
+   "text": "{0} - povolte to na {1} (zvýšený příkazový řádek): {2}"
+  },
+  "pz_324": {
+   "source": "{0} - the agent of {1} is older than 1.0.125: update it",
+   "text": "{0} - agent cíle {1} je starší než 1.0.125: aktualizujte ho"
+  },
+  "pz_325": {
+   "source": "the agent of {0} did not answer about the CA (an agent older than 1.0.125?)",
+   "text": "agent cíle {0} neodpověděl o CA (agent starší než 1.0.125?)"
+  },
+  "pz_326": {
+   "source": "the agent of {0} reaches {1}: {2} template{3}",
+   "text": "agent cíle {0} dosáhne na {1}: šablon: {2}{3}"
+  },
+  "pz_327": {
+   "source": "{0} does not offer the template {1} (it offers {2})",
+   "text": "{0} nenabízí šablonu {1} (nabízí {2})"
+  },
+  "pz_328": {
+   "source": "; {0} is offered{1}",
+   "text": "; {0} je nabízena{1}"
+  },
+  "pz_329": {
+   "source": "{0} CA{1} the agent of {2} lists",
+   "text": "CA, které vypíše agent cíle {2}: {0}{1}"
+  },
+  "pz_330": {
+   "source": "{0} templates {1} offers",
+   "text": "šablon, které nabízí {1}: {0}"
+  },
+  "pz_331": {
+   "source": "the request {0} waits at {1} since {2} - the agent of {3} asks for it again",
+   "text": "žádost {0} čeká u {1} od {2} - agent cíle {3} o ni žádá znovu"
+  },
+  "pz_332": {
+   "source": "the agent of {0} submits the request to {1} (template {2})",
+   "text": "agent cíle {0} předá žádost {1} (šablona {2})"
+  },
+  "pz_333": {
+   "source": "{0} holds the request {1} for a certificate manager to approve (Certification Authority: Pending Requests - Issue); acme asks for it again at the next try",
+   "text": "{0} drží žádost {1} ke schválení správcem certifikátů (Certification Authority: Pending Requests - Issue); acme o ni požádá znovu při dalším pokusu"
+  },
+  "pz_334": {
+   "source": "{0} {1} the request{2}: {3}",
+   "text": "{0} {1} žádost{2}: {3}"
+  },
+  "pz_335": {
+   "source": "the agent sent no certificate for request {0}",
+   "text": "agent neposlal certifikát k žádosti {0}"
+  },
+  "pz_336": {
+   "source": "the certificate of request {0} cannot be read",
+   "text": "certifikát žádosti {0} nelze přečíst"
+  },
+  "pz_337": {
+   "source": "the certificate of request {0} is for another key than this request - it is not used",
+   "text": "certifikát žádosti {0} je pro jiný klíč než tato žádost - nepoužije se"
+  },
+  "pz_338": {
+   "source": "the CA sent no chain with request {0} - only the certificate",
+   "text": "CA k žádosti {0} neposlala řetězec - jen certifikát"
+  },
+  "pz_339": {
+   "source": "Sends a signed job (adcs {0}) to the agent of {1}",
+   "text": "Pošle podepsanou úlohu (adcs {0}) agentovi cíle {1}"
+  },
+  "pz_340": {
+   "source": "The agent runs certreq -submit -config {0} with the template {1}: the request goes to the CA as the server's computer account",
+   "text": "Agent spustí certreq -submit -config {0} se šablonou {1}: žádost jde k CA jako účet počítače serveru"
+  },
+  "pz_341": {
+   "source": "The agent runs certreq -retrieve -config {0}: the request waiting for a certificate manager (template {1}) is asked for again",
+   "text": "Agent spustí certreq -retrieve -config {0}: o žádost čekající na správce certifikátů (šablona {1}) se požádá znovu"
+  },
+  "pz_342": {
+   "source": "The agent lists the templates {0} offers",
+   "text": "Agent vypíše šablony, které nabízí {0}"
+  },
+  "pz_343": {
+   "source": "the CSR acme made (only its subject and names) and the template's name{0} - no other attribute",
+   "text": "CSR vytvořené acme (jen jeho subjekt a jména) a jméno šablony{0} - žádný jiný atribut"
+  },
+  "pz_344": {
+   "source": "the CA {0} is said twice: its templates are taken together",
+   "text": "CA {0} je uvedena dvakrát: její šablony se berou dohromady"
+  },
+  "pz_345": {
+   "source": "the source {0}",
+   "text": "zdroj {0}"
+  },
+  "pz_346": {
+   "source": "not allowed by the policy of this machine: {0}",
+   "text": "nepovoleno politikou tohoto stroje: {0}"
+  },
+  "pz_347": {
+   "source": "a certificate of the template {0} from the CA {1}",
+   "text": "certifikát šablony {0} od CA {1}"
+  },
+  "pz_348": {
+   "source": "the templates of the CA {0}",
+   "text": "šablony CA {0}"
+  },
+  "pz_349": {
+   "source": "a Microsoft CA is asked only by acme-agent on Windows (a member server of the domain) - this agent runs on {0}",
+   "text": "Microsoft CA se ptá jen acme-agent na Windows (členský server domény) - tento agent běží na {0}"
+  },
+  "pz_350": {
+   "source": "the CSR names {0} - this agent asks the CA for server certificates only (DNS names, addresses): no Windows sign-in name (UPN), no other name",
+   "text": "CSR jmenuje {0} - tento agent žádá CA jen o serverové certifikáty (DNS jména, adresy): žádné přihlašovací jméno Windows (UPN), žádné jiné jméno"
+  },
+  "pz_351": {
+   "source": "the agent of {0} has not joined yet - make a join code on the target's card",
+   "text": "agent cíle {0} se ještě nepřipojil - vytvořte připojovací kód na kartě cíle"
   }
  },
  "rich": {

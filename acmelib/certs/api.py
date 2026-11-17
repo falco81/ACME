@@ -3671,6 +3671,7 @@ from acmelib.certs import api_push  # noqa: E402,F401  (acme push: Discover, and
 from acmelib.certs import api_dnssets  # noqa: E402,F401  (Settings → DNS: the sets of DNS servers)
 from acmelib.certs import api_agents  # noqa: E402,F401  (target agents: the join, the wire, the pane)
 from acmelib.certs import api_teams  # noqa: E402,F401  (Settings → Owners and teams, the tags)
+from acmelib.certs import portal_teams  # noqa: E402,F401  (the portal's team workspace, 1.0.125)
 from acmelib.certs import api_reqprofiles  # noqa: E402,F401  (Settings → Request profiles)
 from acmelib.certs import api_deploys  # noqa: E402,F401  (a deployment's files: preview, test)
 from acmelib.certs import api_cas  # noqa: E402,F401  (an authority changed: edit, renew, versions)

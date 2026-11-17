@@ -1815,6 +1815,19 @@ class PlanContext(object):
     def ssh(self, conn):
         return FakeSsh(self, conn)
 
+    def rpc_plan(self, call):
+        """A conversation a module holds itself over a protocol the Context has no call for
+        (issuers/ms_adcs_rpc.py: Kerberos and DCE/RPC to a Windows CA): the steps it describes
+        written down - nothing is connected, no secret is in them -, answered as the CA
+        issues (the certificate for the request's key and its chain)."""
+        for st in list((call or {}).get('steps') or [])[:20]:
+            rec({'kind': 'rpc', 'step': str(st.get('kind') or 'call'),
+                 'words': str(st.get('words') or '')[:300],
+                 'args': [str(a)[:300] for a in st.get('args') or []][:6],
+                 'pairs': [[str(x)[:600] for x in p][:3] for p in st.get('pairs') or []][:12]})
+        issued = getattr(self.answers, 'issued', None) or {}
+        return {k: issued.get(k) for k in ('CERT', 'CHAIN') if issued.get(k)}
+
     def openssl(self, args, data=None, timeout=60):
         from acmelib.certs import pki
         from acmelib.plugins import base
