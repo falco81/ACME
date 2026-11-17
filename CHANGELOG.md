@@ -6,7 +6,12 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.120 - not released
 
-(nothing yet)
+- Upgrades: every page shows an upgrade going on in a band under the header - to which version, from which, who asked, how long, a bar and the step (*step 7 of 9*); in a cluster a row for each node (its step, how far, what happened, when), whichever node answers behind the VIP address. The pill says *in maintenance*, the cards *maintenance* and *upgrading*. Going back says *taken back to*.
+- Upgrades: while the API, nginx and PHP restart the pages no longer turn red - no "not answering" bar, no red messages; the band says how long it has not answered and asks again every two seconds. Once every node is done the page loads the new version by itself, once (with changes not saved: a *Load it again* link instead). A failure is a red band with the reason and a link to Settings → Upgrades, hidden with ×.
+- Upgrades: the sign-in page shows the upgrade too, and loads itself again once the API answers; nobody is signed out by an upgrade.
+- Upgrades: root says how far it is in `/var/www/acme/.upgrade.json` (acme_upgrade.py, and `install.sh --upgrade` at each step - also when it is typed in, and `failed` when it is stopped); `acme --upgrade-follow` shows *step N of M*, and follows an `install.sh --upgrade` of this node too. `install.sh --upgrade` has a step of its own for restarting the service.
+- `/healthz` says *being upgraded* after its first word during an upgrade; its status codes and first words are as before (balancers, keepalived and the other node read the same).
+- While an upgrade runs the alerts "a node is not heard from" and "the nodes run different versions" wait, and the checks of what waits for a person are made only once root has finished on that node.
 
 ## 1.0.119 - 2026-11-17
 

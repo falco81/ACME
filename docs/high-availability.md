@@ -403,7 +403,9 @@ leaving the cluster): [operations.md](operations.md).
   of service first: *Settings → Upgrades* does it by itself, or by hand with
   `acme --maintenance on` and `install.sh --upgrade` on each node in turn.
   [upgrades.md](upgrades.md) says how, and how to upgrade the operating
-  system. The node list shows any mismatch.
+  system. The node list shows any mismatch. While it runs every page shows
+  the cluster's upgrade in a band, a row for each node, whichever node answers
+  (1.0.120 - [the pages during an upgrade](upgrades.md#the-pages-during-an-upgrade)).
 
 ## Tested
 

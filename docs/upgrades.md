@@ -193,6 +193,82 @@ refused - put it in on the command line if you trust it. The keys trusted are
 exactly those of the version installed (`deploy/release-keys/*.pub`, acme's
 own - the key of otp, which acme was made from, is not one of them).
 
+### The pages during an upgrade
+
+An upgrade restarts the very things that serve the pages - the API, then
+nginx and PHP. Since 1.0.120 the pages stay with it instead of turning red:
+
+- **A band under the header**, on every page and for everybody signed in:
+  *acme is being upgraded to X* (going back: *acme is being taken back to
+  X*), from which version, who asked, how long so far, a bar, and the step -
+  *acmeB: The pages · step 7 of 9*. In a cluster **every node has a row**:
+  its step, how far, what happened, when. The pill in the header says *in
+  maintenance*, the cards *maintenance* and *upgrading*.
+- **No red while it is expected**: no "not answering" bar, no red messages.
+  While the API restarts the band says *not answering for 7 s, asked again
+  every two seconds*; while nginx and PHP restart too, it says so.
+- **The end**: once every node is done the page loads itself again - once,
+  onto the new pages. With changes not saved it does not: the band offers
+  *Load it again*. A failure is a red band with the reason and a link to
+  *Settings → Upgrades*, with × to hide it; a stopped upgrade says which nodes
+  stay as they were.
+- **Signed out meanwhile** (or the page loaded while the API is away): the
+  sign-in page shows the band itself and loads itself again once the API
+  answers. Nobody is signed out by the upgrade.
+- `acme --upgrade-follow` (and *Upgrades → Follow the upgrade* of the console)
+  shows the same *step N of M*; it also follows an `install.sh --upgrade`
+  typed in on this node.
+
+**Where it comes from.** Root writes how far it is into
+`/var/www/acme/.upgrade.json` - `acme_upgrade.py` when it takes the request
+(step 1, checking the package), then `install.sh --upgrade` at each of its
+steps, and how it ended (`failed` from its exit trap also when it is stopped
+by Ctrl-C, a hang-up or TERM, so a stopped run is never left "running"). The
+file is root's (0644, the folder is root's), written whole and renamed into
+place, goes over with the pages when they are put in, and holds nothing
+secret (who asked is shown only to a page with a session). nginx never serves
+it (`location ~ /\. { deny all; }`); PHP reads it from disk (within its
+`open_basedir`, labelled for the web server like the pages, so SELinux needs
+nothing new). It is believed for 30 min after its last word while it says
+`running`, 10 min once `done` or `failed`; anything else in it, or a time to
+come, is as if there were none.
+
+PHP uses it three ways: while the API does not answer, every request of the
+pages gets `503 {"upgrading": {...}}` instead of "not answering";
+`?api=upgrade-state` answers without the API at all; and the status the pages
+ask every few seconds carries it, with the version of the pages on that
+node's disk.
+
+**A cluster and the VIP address.** The file is per node - each node's root
+writes its own - while the upgrade of the cluster is the plan in the database,
+which the API of *whichever node answers* serves. Behind the VIP address the
+answering node changes during the upgrade: the node the page came from goes
+last, so when it goes into maintenance the address moves to the other node,
+which already runs the new version. The band always draws the cluster's plan;
+the answering node's file only fills in that node's own row (and is the whole
+of it only while no API answers, or on a single server). A node's own file
+saying `done` never ends the upgrade: the page loads the new pages only when
+the API says the plan is over - every node done, or failed, or stopped with no
+node at its turn - and never while a node is still to go. It also loads once
+when the pages on the answering node's disk are another version than the page
+itself while nothing is going on (an old page must not stay on a new API).
+Each of these happens once per upgrade in a tab (no loops, whichever node
+answers next). The session is the cluster's: the node that takes over knows
+it, and a 401 from a node that is just starting is asked again before
+anybody is signed out (1.0.73).
+
+`/healthz` keeps its status codes exactly - what keepalived, the balancers and
+the other node read is unchanged (keepalived itself decides by
+`/run/acme/vip-state`, not by `/healthz`). Only its words gain the reason
+after the first one: `maintenance: being upgraded`, `down: the daemon is not
+answering (maintenance: being upgraded)` - no version, no node name.
+
+While an upgrade runs, the alerts *a node is not heard from* and *the nodes
+run different versions* wait (the failure of the upgrade is an alert of its
+own), and the checks of *what waits for a person* are not made on a node until
+root has written that its part ended - the new daemon starts before
+`install.sh` has finished.
+
 ## Going back to an older version
 
 Only to a version it is safe to go back to, and never by putting a database

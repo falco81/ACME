@@ -316,6 +316,14 @@ pages or `install.sh --upgrade` - gives the address up, and the other takes it.
 When the node is back in service and is the preferred one, the address
 returns to it.
 
+A page open through the address follows it (1.0.120): its band shows the
+cluster's upgrade, every node's row, whichever node answers - the node the page
+came from goes last, so the address moves to the node that already runs the new
+version, and the page goes on with the same session. It loads the new pages
+once, when every node is done. What keepalived decides is unchanged: the check
+is `/run/acme/vip-state`, and `/healthz` keeps its status codes (only its words
+say *being upgraded*). See [upgrades.md](upgrades.md#the-pages-during-an-upgrade).
+
 ### Turning it off
 
 *Turn it off…*, or `acme --vip off`: keepalived stops on both nodes and its

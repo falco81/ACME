@@ -1232,7 +1232,26 @@ class RealWin(object):
     def service_install(self, spec):
         """A service made, or the one there set to `spec`: {name, display, description,
         cmdline, account (None: LocalSystem), depends, sid_type ('restricted' |
-        'unrestricted'), privileges ([...] | None), delayed, restart_ms}."""
+        'unrestricted'), privileges ([...] | None), delayed, restart_ms}.
+
+        A service taken away a moment ago (an uninstall, a rollback) is only marked for
+        deletion while any handle to it is open: waited for (our own handles closed) up to
+        30 s, then said plainly."""
+        end = time.time() + 30
+        while True:
+            try:
+                return self._service_install(spec)
+            except WinFail as e:
+                if e.errno != ERROR_SERVICE_MARKED_FOR_DELETE:
+                    raise
+                if time.time() >= end:
+                    raise WinFail(e.errno, 'the service %s is still being taken away (marked '
+                                  'for deletion): close the Services console, Event Viewer or '
+                                  'anything else that has it open, or restart Windows - then '
+                                  'run it again' % spec['name'])
+                time.sleep(1)
+
+    def _service_install(self, spec):
         a, ct = self.api, self.api.ct
         deps = ''.join(d + '\0' for d in spec.get('depends') or []) + '\0'
         account = spec.get('account') or 'LocalSystem'
@@ -1251,7 +1270,9 @@ class RealWin(object):
                                               SERVICE_ERROR_NORMAL, spec['cmdline'], None, None,
                                               ct.create_unicode_buffer(deps, len(deps)),
                                               account, None, spec['display']):
-                    raise a.fail('ChangeServiceConfigW %s' % spec['name'])
+                    err = ct.get_last_error()
+                    a.CloseServiceHandle(h)             # never held while waiting
+                    raise a.fail('ChangeServiceConfigW %s' % spec['name'], err)
             try:
                 self._config2(h, spec)
             finally:
@@ -1534,11 +1555,18 @@ class _RealPipe(object):
 
     def __init__(self, win, h, server=False):
         self.win, self.h, self.server = win, h, server
+        self.pending = b''      # read by peer() (impersonation needs data read first)
 
     def settimeout(self, _t):
         pass                    # a blocking pipe; the other end closing ends a read
 
     def recv(self, n):
+        if self.pending:
+            out, self.pending = self.pending[:n], self.pending[n:]
+            return out
+        return self._read(n)
+
+    def _read(self, n):
         a = self.win.api
         buf, got = a.ct.create_string_buffer(n), a.wt.DWORD()
         if not a.ReadFile(self.h, buf, n, a.ct.byref(got), None):
@@ -1558,13 +1586,36 @@ class _RealPipe(object):
             view = view[n.value:]
 
     def peer(self):
-        """{sid, elevated, admin} of the process at the other end (its token)."""
+        """{sid, elevated, admin} of the client: its own token, by impersonating it
+        (identification level: only read) - never by its process id, which may be another
+        process's by the time it is opened."""
         a = self.win.api
+        # ImpersonateNamedPipeClient needs data read from the pipe first: the request's length
+        # (4 bytes) is read here and given back by recv()
+        while len(self.pending) < 4:
+            got = self._read(4 - len(self.pending))
+            if not got:
+                raise WinFail(ERROR_BROKEN_PIPE, 'the client left before it said anything')
+            self.pending += got
+        tok = a.wt.HANDLE()
+        if not a.ImpersonateNamedPipeClient(self.h):
+            raise a.fail('ImpersonateNamedPipeClient')
+        try:
+            ok = a.OpenThreadToken(a.GetCurrentThread(), TOKEN_QUERY, True, a.ct.byref(tok))
+            err = a.ct.get_last_error()
+        finally:
+            if not a.RevertToSelf():
+                # never go on as the client
+                os._exit(1)
+        if not ok:
+            raise a.fail('OpenThreadToken', err)
+        try:
+            who = self.win._who(tok)
+        finally:
+            self.win._close(tok)
         pid = a.wt.ULONG()
-        if not a.GetNamedPipeClientProcessId(self.h, a.ct.byref(pid)):
-            raise a.fail('GetNamedPipeClientProcessId')
-        who = self.win._process_who(pid.value)
-        who['pid'] = pid.value
+        if a.GetNamedPipeClientProcessId(self.h, a.ct.byref(pid)):
+            who['pid'] = pid.value              # for the log only
         return who
 
     def close(self):
