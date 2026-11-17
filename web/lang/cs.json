@@ -66871,6 +66871,14 @@
   "z_589": {
    "source": "the agent did not answer yet - it is looked at again shortly",
    "text": "agent zatím neodpověděl - podívá se na něj znovu za chvíli"
+  },
+  "z_590": {
+   "source": "empty",
+   "text": "prázdný"
+  },
+  "z_591": {
+   "source": "data_b64 is not base64",
+   "text": "data_b64 není base64"
   }
  },
  "patterns": {
@@ -92785,6 +92793,10 @@
   "pz_153": {
    "source": "{0} is not what a {1} record holds - for example {2}",
    "text": "{0} není hodnota, kterou záznam {1} nese – například {2}"
+  },
+  "pz_154": {
+   "source": "{0}: the certificate has no chain (it is self-signed, or came without one) - the file is written empty",
+   "text": "{0}: certifikát nemá řetězec (je podepsaný sám sebou, nebo přišel bez něj) – soubor se zapíše prázdný"
   }
  },
  "rich": {

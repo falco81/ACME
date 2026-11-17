@@ -6,6 +6,9 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.119 - not released
 
+- Settings → Message texts: the portal's and SSH's sign-in codes are listed by their whole titles - both were "The sign-in code by mail" (and "… by SMS").
+- Settings → Backups: the times of the backups sent, of those at a destination and of the one to put back are dd-mm-yyyy hh:mm:ss as everywhere else, not the browser's own format; once a backup is put back, the settings and the pane are drawn again.
+- Settings → Accounts on a phone: the box to find the directory's groups no longer makes the page wider than the screen.
 - Certificates: a revoked certificate says "revoked" in red in the list and the overview, its window no "… days left" in green; a serial typed with colons (`1F:AB:…`) is found; the window says the key's size once ("RSA 2048", not "RSA 2048 · 2048 bits").
 - Import: a key dropped with an earlier certificate is not taken for a new certificate dropped alone.
 - CSR for an outside CA: when the certificate was kept but its CSR could not be made, pressing the button again makes the CSR of that certificate - it said "there is a certificate called … already".
