@@ -145,7 +145,9 @@ def register(ctx, url, verify=True, allow_from=None):
     got = got or {}
     need = ('username', 'password', 'subdomain', 'fulldomain')
     if not all(got.get(k) for k in need):
-        raise PluginError('acme-dns answered without an account: %s' % (json.dumps(got)[:200]))
+        raise PluginError('acme-dns answered without an account: %s' % (json.dumps(
+            {k: ('••••' if k == 'password' else v) for k, v in got.items()}
+            if isinstance(got, dict) else got)[:200]))
     out = {k: str(got[k]) for k in need}
     out['server_url'] = url
     return out
