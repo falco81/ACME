@@ -28,6 +28,16 @@ Loaded by acme_agent.py only for a deployment job that has `win`; a Linux job ne
     one still bound to a site or the listener.
 
 The policy: `allow store`, `allow iis SITE` (or `allow iis *`), `allow rdp`.
+
+The roles (1.0.120 - what acme's OpenSSH target windows_ssh does, docs/target-agent.md "Windows:
+what the OpenSSH target does, the agent does"): `win.roles` [{key, o}], `win.key_read`
+[accounts], `win.post_ps` (PowerShell lines), `win.prefix`, `win.ccs` (the Central Certificate
+Store's PKCS#12 and its password, sealed). Each role's script is acme_agent_winroles.SCRIPTS
+(generated from acme's _win_roles - the same text windows_ssh renders), run with the job's values
+checked by its SCHEMA in a JSON file ($o) - allowed by `allow role NAME` (ccs: `path=FOLDER`, wac:
+`msi=FILE` for the installer it runs again), `allow key-read ACCOUNT`, the PowerShell after by
+`allow script-hash HASH`. Order: ... reload -> read on the key -> each role (one failing is said,
+the others run, the deployment fails, the old certificates are kept, nothing is put back).
 """
 import base64
 import hashlib
