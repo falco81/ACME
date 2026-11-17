@@ -68335,6 +68335,10 @@
   "z_955": {
    "source": "the last try failed - it is tried again when the wait after it is over",
    "text": "poslední pokus selhal – zkusí se znovu, až uplyne čekání po něm"
+  },
+  "z_956": {
+   "source": "keyCertSign and cRLSign are for an authority only - a certificate that is not one (CA:FALSE) cannot have them in its key usage",
+   "text": "keyCertSign a cRLSign patří jen autoritě - certifikát, který jí není (CA:FALSE), je ve svém použití klíče mít nemůže"
   }
  },
  "patterns": {
