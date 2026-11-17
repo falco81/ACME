@@ -448,6 +448,13 @@ def certs_carry_row_drop(store, table, ident):
         name = store.db.value('SELECT name FROM cert_tests WHERE id = ?', (ident,), None)
         if name:
             certs_mod('checks').test_meta_drop(store, name)
+    elif table == 'cert_targets':
+        # A target of an agent taken away by a file "replacing all": its agent no longer let
+        # in, as when it is deleted on the pages (api: target_gone) - it stayed paired, and a
+        # target put in later under the same number (a file's own) took that agent over.
+        row = store.db.row('SELECT * FROM cert_targets WHERE id = ?', (ident,))
+        if row and certs_mod('agents').is_agent_kind(row.get('kind')):
+            certs_mod('agents').target_gone(store, row)
 
 
 @_certs_hook('carry_with_sealed')

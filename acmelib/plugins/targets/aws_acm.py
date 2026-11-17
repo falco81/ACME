@@ -206,7 +206,38 @@ class AwsAcmTarget(CloudTarget):
         return '%s %s' % ('re-imported into' if arn else 'imported as', new)
 
     def remove(self, bundle, options):
-        arn = text((options or {}).get('certificate_arn')).strip() or \
-            text(self.ctx.kv_get(self.kv_arn(bundle, options)) or '')
+        arn = text((options or {}).get('certificate_arn')).strip()
         if arn:
             self.call('DeleteCertificate', {'CertificateArn': arn}, what='deleting %s' % arn)
+            return
+        # the ARN of this key type first (deploy keeps one per key type): the one kept by the
+        # name alone is the half imported first, of a dual certificate maybe the other one
+        name_key = self.kv_arn(bundle, options)
+        want = acm_key_type(bundle)
+        arn = text(self.ctx.kv_get(name_key + ':' + want) or '') if want else ''
+        typed = bool(arn)
+        by_name = text(self.ctx.kv_get(name_key) or '')
+        if not arn and by_name:
+            arn = by_name
+            if want:
+                try:
+                    have = text((self.call('DescribeCertificate', {'CertificateArn': arn},
+                                           what='reading %s' % arn).get('Certificate')
+                                 or {}).get('KeyAlgorithm'))
+                except PluginError as e:
+                    if 'ResourceNotFound' not in str(e):
+                        raise
+                    have = ''
+                    arn = ''
+                if have and have != want:
+                    arn = ''        # the other half's: not this one to delete
+        if not arn:
+            return
+        self.call('DeleteCertificate', {'CertificateArn': arn}, what='deleting %s' % arn)
+        try:
+            if typed:
+                self.ctx.kv_set(name_key + ':' + want, '')
+            if by_name == arn:
+                self.ctx.kv_set(name_key, '')
+        except Exception as e:                          # noqa: BLE001
+            self.ctx.debug('cannot forget the ARN: %s' % e)

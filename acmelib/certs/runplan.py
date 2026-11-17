@@ -5729,6 +5729,14 @@ def after_phase(store, cert, irow, dinfo):
     if not auto:
         steps.append({'kind': 'info', 'words': 'It is renewed only when somebody asks - '
                       'nothing repeats by itself'})
+    elif cert.get('state') == 'failed' and cert.get('next_try'):
+        # Its last renewal (or first issue) failed: the renewer tries again when the wait
+        # after it is over (renewer.main_due) - not at the end of its renew window, nor "at
+        # the next look" - as its own window says ("tried again ...").
+        steps.append({'kind': 'wait', 'words': 'Next renewal: {0}'.replace(
+            '{0}', time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(
+                max(float(cert['next_try']), time.time())))),
+            'note': 'the last try failed - it is tried again when the wait after it is over'})
     elif cert.get('not_after'):
         # as the renewer works it out (renewer.renew_window): its renew days, but no more
         # than a third of its life - a 6-day certificate was said to be renewed at once
@@ -5738,6 +5746,8 @@ def after_phase(store, cert, irow, dinfo):
         ari = S.jload(cert.get('ari'), {}) if isinstance(cert.get('ari'), str) else {}
         if ari and ari.get('at'):
             at = min(at, float(ari['at']))
+        if cert.get('state') == 'due':
+            at = time.time()            # made due for a new issue: at the next look (main_due)
         steps.append({'kind': 'wait', 'words': 'Next renewal: {0}'.replace(
             '{0}', time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(max(at, time.time())))),
             'note': ('%d days before the end, or sooner in the window its CA suggests (ARI)'

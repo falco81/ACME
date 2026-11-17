@@ -2080,7 +2080,9 @@ $('ctl-find').addEventListener('input', function () {
   var mayOpen = function (s) {
     var pane = paneOf(s);
     var nb = document.querySelector('.ctl-nav [data-pane="' + (pane || 'about') + '"]');
-    if (nb && nb.hidden) return false;
+    /* data-reads="all" (Monitoring): any account may open it, as showPane lets it - its rail
+       button hidden or not (hunt r5: a reader no longer found its settings) */
+    if (nb && nb.hidden && nb.dataset.reads !== 'all') return false;
     var item = document.querySelector('.set-item[data-key="' + s.key + '"]');
     var only = item && item.closest('.fulladmin-only, .admin-only, .certadmin-only');
     return !(only && only.hidden);
