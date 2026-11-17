@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.118 - not released
+## 1.0.118 - 2026-11-17
 
 - **Target agents: the policy builder** (docs/target-agent.md, *Designing the policy*). *Design
   its policy…* on the agent's card, on its tile in Settings → Target agents and on what a
