@@ -437,6 +437,456 @@ $('signout').onclick = function () {
   api('logout', {}).then(function () { location.reload(); }, function () { location.reload(); });
 };
 
+/* ---- an upgrade going on, on every page (1.0.120, docs/upgrades.md) ----------
+   The band under the header (#upband): the CLUSTER's upgrade - the plan the API serves from
+   the database, every node's row - whichever node answers (behind the VIP address the node
+   that answers changes while the nodes go one at a time). Root's file of the node that answers
+   (PHP reads it from disk: status.upgrading, or a 503 with `upgrading` while the API restarts,
+   or ?api=upgrade-state while nothing else answers) only fills in that node's row - and on a
+   single server, or install.sh --upgrade typed in, it is the whole of it. It never ends the
+   cluster's upgrade: a node done is not every node done.
+   The end: once the API answers that the plan is over (every node done, or failed, or stopped
+   with no node at it) - and it was seen running here - or the pages on the disk of the node that
+   answers are another version than this page while nothing is going on: the page loads itself
+   again, once for that upgrade (sessionStorage), never while a node is still to go, never over
+   changes not saved (a "Load it again" link instead). */
+var UPG = {plan: null, keep: null, file: null, pages: '', node: '', nodeWas: '', movedAt: 0,
+           heard: 0, away: 0, phpAway: false, api: true, seen: {}, reloading: false, held: null,
+           asking: false, asked: 0, after: null, afterAt: 0};
+(function () {
+  try { UPG.seen = JSON.parse(sessionStorage.getItem('acme-upg-seen') || '{}') || {}; } catch (e) { UPG.seen = {}; }
+  /* Loaded again by the end of an upgrade: said once, in green. */
+  try {
+    var a = sessionStorage.getItem('acme-upg-after');
+    if (a) { sessionStorage.removeItem('acme-upg-after'); UPG.after = JSON.parse(a); UPG.afterAt = Date.now(); }
+  } catch (e) { UPG.after = null; }
+}());
+function upgStepBusy(st) { return ['draining', 'installing', 'checking'].indexOf(st && st.state) >= 0; }
+/* The cluster's upgrade still going: running - or stopped, with a node still at its turn
+   (a node being put in is finished before it stops). */
+function upgPlanActive(p) {
+  if (!p) return false;
+  if (p.state === 'running') return true;
+  return p.state === 'cancelled' && (p.steps || []).some(upgStepBusy);
+}
+function upgFileRunning() { return !!(UPG.file && UPG.file.state === 'running'); }
+function upgradeExpected() {
+  return !!(UPG.reloading || upgPlanActive(UPG.plan) || upgFileRunning());
+}
+/* Each node's row only goes forward (as upSteady): behind the VIP address the next answer may
+   come from the node whose copy is a moment behind. */
+function upgSteady(p) {
+  if (!p || !p.id) return p;
+  var k = UPG.keep;
+  if (k && k.id !== p.id && Number(p.at || 0) < Number(k.at || 0) && UPG.plan) return UPG.plan;
+  if (!k || k.id !== p.id) k = UPG.keep = {id: p.id, at: p.at, steps: {}};
+  (p.steps || []).forEach(function (st, i) {
+    var was = k.steps[st.name];
+    if (was && Number(was.at || 0) > Number(st.at || 0)) p.steps[i] = was;
+    else k.steps[st.name] = st;
+  });
+  var states = (p.steps || []).map(function (x) { return x.state; });
+  if (states.indexOf('failed') >= 0) p.state = 'failed';
+  else if (states.length && states.every(function (x) { return x === 'done'; })) p.state = 'done';
+  return p;
+}
+function upgSeenNow() {
+  var ids = [];
+  if (upgPlanActive(UPG.plan) && UPG.plan.id) ids.push(UPG.plan.id);
+  if (upgFileRunning() && UPG.file.id) ids.push(UPG.file.id);
+  var more = false;
+  ids.forEach(function (id) { if (!UPG.seen[id]) { UPG.seen[id] = Date.now(); more = true; } });
+  if (more) try { sessionStorage.setItem('acme-upg-seen', JSON.stringify(UPG.seen)); } catch (e) { }
+}
+/* What the daemon answered (paintHeader): the cluster's plan, root's file of that node (PHP
+   puts it in), the version of the pages on its disk. */
+function upgradeFromStatus(s) {
+  if (!s) return;
+  UPG.api = true;
+  UPG.heard = Date.now();
+  UPG.away = 0;
+  UPG.phpAway = false;
+  if (s.node) {
+    if (UPG.node && s.node !== UPG.node) { UPG.nodeWas = UPG.node; UPG.movedAt = Date.now(); }
+    UPG.node = s.node;
+  }
+  var p = s.upgrade && s.upgrade.plan;
+  UPG.plan = p ? upgSteady(p) : null;
+  if (Object.prototype.hasOwnProperty.call(s, 'upgrading')) UPG.file = s.upgrading || null;
+  if (s.pages) UPG.pages = String(s.pages);
+  upgSeenNow();
+  upgradeDraw();
+  upgradeEnd();
+}
+/* A 503 that says how far root is (core.js api()): the API restarts in an upgrade. */
+function upgradeHeard(u) {
+  if (!u || typeof u !== 'object') return;
+  UPG.file = u;
+  UPG.api = false;
+  UPG.phpAway = false;
+  if (!UPG.away) UPG.away = Date.now();
+  upgSeenNow();
+  upgradeDraw();
+}
+/* The status not answered (tick): while an upgrade is expected, PHP is asked alone - true when
+   it is (no red bar then). */
+function upgradeAway(e) {
+  if (e && e.upgrading) return true;
+  if (!upgradeExpected()) return false;
+  UPG.api = false;
+  if (!UPG.away) UPG.away = Date.now();
+  fetch('?api=upgrade-state', {credentials: 'same-origin', cache: 'no-store'}).then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function (d) {
+    UPG.phpAway = false;
+    if (d && d.upgrading) UPG.file = d.upgrading;
+    if (d && d.pages) UPG.pages = String(d.pages);
+    upgSeenNow();
+    upgradeDraw();
+    if (d && d.api) setTimeout(tick, 300);
+  }).catch(function () {
+    UPG.phpAway = true;              /* nginx or PHP restarting too */
+    upgradeDraw();
+  });
+  upgradeDraw();
+  return true;
+}
+function upgUnsaved() {
+  if ((typeof DIRTY === 'object' && DIRTY && Object.keys(DIRTY).length) ||
+      (typeof PENDING === 'object' && PENDING && Object.keys(PENDING).length)) return true;
+  var m = $('modal');
+  return !!(m && !m.hidden && Array.prototype.some.call(
+    m.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea'),
+    function (x) { return String(x.value || '') !== String(x.defaultValue || '') && String(x.value || '').trim() !== ''; }));
+}
+/* The end, decided only on what the API answered now. */
+function upgradeEnd() {
+  if (!UPG.api || UPG.reloading || UPG.held) return;
+  var p = UPG.plan, f = UPG.file;
+  if (upgPlanActive(p) || upgFileRunning()) return;      /* a node still to go */
+  var differ = !!(UPG.pages && VERSION_LOADED && UPG.pages !== VERSION_LOADED);
+  var id = '', state = '', version = '', down = false;
+  if (p && p.id && UPG.seen[p.id]) {
+    id = p.id; state = p.state; version = p.version; down = !!p.downgrade;
+  } else if (f && f.id && UPG.seen[f.id]) {
+    id = f.id; state = f.state; version = f.version; down = !!f.downgrade;
+  }
+  var go = id && (differ || (state === 'done' && version !== VERSION_LOADED));
+  if (!go && differ) {
+    /* Old pages against new ones on this disk, nothing going on (an upgrade not seen here,
+       another node answering): once for that version. */
+    id = 'pages-' + UPG.pages;
+    state = state || 'done';
+    version = version || UPG.pages;
+    go = true;
+  }
+  if (go) upgradeReload(id, state, version, down);
+}
+function upgradeReload(id, state, version, down) {
+  var key = 'acme-upg-reloaded:' + id;
+  var guarded = false;
+  try {
+    if (sessionStorage.getItem(key)) return;          /* once for that upgrade: never a loop */
+    guarded = true;
+  } catch (e) { guarded = false; }
+  if (!guarded || upgUnsaved()) {
+    /* Changes not saved, or no way to keep from loading it again and again: a link instead. */
+    UPG.held = {id: id, state: state, version: version, down: down};
+    upgradeDraw();
+    return;
+  }
+  try {
+    sessionStorage.setItem(key, String(Date.now()));
+    sessionStorage.setItem('acme-upg-after', JSON.stringify({id: id, state: state, version: version, down: down}));
+  } catch (e) { UPG.held = {id: id, state: state, version: version, down: down}; upgradeDraw(); return; }
+  UPG.reloading = {version: version, down: down};
+  upgradeDraw();
+  setTimeout(function () { location.reload(); }, 700);
+}
+function upgHidden(id) {
+  try { return !!(id && localStorage.getItem('acme-upg-hide:' + id)); } catch (e) { return false; }
+}
+function upgHide(id) {
+  try { localStorage.setItem('acme-upg-hide:' + id, String(Date.now())); } catch (e) { }
+}
+/* When the plan ended: the last word of its last node. */
+function upgEndedAt(p) {
+  return (p.steps || []).reduce(function (m, st) { return Math.max(m, Number(st.at || 0)); }, Number(p.at || 0));
+}
+/* The rows to draw: the plan's, with root's file of the node that answers in its own row
+   (newer, and this upgrade's) - its step N of M. */
+function upgRows() {
+  var p = UPG.plan, f = UPG.file;
+  var rows = ((p && p.steps) || []).map(function (st) { return Object.assign({}, st); });
+  if (f && p && f.id && f.id === p.id) {
+    var who = f.node || UPG.node;
+    rows.forEach(function (r) {
+      if (r.name !== who || Number(f.at || 0) < Number(r.at || 0)) return;
+      if (f.parts) { r.part = f.state === 'running' ? f.part : f.parts; r.parts = f.parts; }
+      if (f.words && r.state !== 'done' && r.state !== 'failed') r.part_words = f.words;
+      if (r.state === 'waiting' || r.state === 'none' || r.state === 'draining') r.state = 'installing';
+      r.file = true;
+    });
+  }
+  return rows;
+}
+function upgFilePercent(f) {
+  if (!f) return 0;
+  if (f.state !== 'running') return 100;
+  return f.parts ? Math.max(1, Math.round(100 * Math.max(0, Number(f.part || 0) - 0.5) / f.parts)) : 3;
+}
+function upgStepWords(st) {
+  var w = UP_STATE[st.state] || UP_STATE.waiting;
+  if (st.state === 'installing' && st.part_words) return st.part_words;
+  if (st.state === 'draining') return 'taken out of service';
+  return w[0];
+}
+/* What the band says now, or null. */
+function upgradeView() {
+  var p = UPG.plan, f = UPG.file, now = Date.now() / 1000;
+  if (UPG.reloading) return {kind: 'reloading', version: UPG.reloading.version, down: UPG.reloading.down};
+  if (UPG.held) return {kind: 'held', version: UPG.held.version, down: UPG.held.down, state: UPG.held.state};
+  if (upgPlanActive(p)) {
+    return {kind: 'running', plan: p, version: p.version, down: !!p.downgrade, id: p.id, rows: upgRows()};
+  }
+  if (upgFileRunning()) return {kind: 'running', file: f, version: f.version, down: !!f.downgrade, id: f.id};
+  if (p && p.id && (p.state === 'failed' || p.state === 'cancelled') && !upgHidden(p.id)
+      && (UPG.seen[p.id] || now - upgEndedAt(p) < 600)) {
+    return {kind: p.state === 'failed' ? 'failed' : 'stopped', plan: p, version: p.version,
+            down: !!p.downgrade, id: p.id, rows: upgRows()};
+  }
+  if (f && f.state === 'failed' && !(p && p.id && f.id === p.id) && !upgHidden(f.id || ('at-' + f.at))) {
+    return {kind: 'failed', file: f, version: f.version, down: !!f.downgrade, id: f.id || ('at-' + f.at)};
+  }
+  if (UPG.after && UPG.after.state === 'done' && Date.now() - UPG.afterAt < 120000) {
+    return {kind: 'done', version: UPG.after.version, down: !!UPG.after.down, many: (p && (p.steps || []).length > 1)};
+  }
+  return null;
+}
+function upgradeDraw() {
+  var b = $('upband');
+  if (!b) return;
+  var v = upgradeView();
+  var sig = v ? JSON.stringify([v.kind, v.version, v.id, UPG.api, UPG.phpAway, UPG.node,
+    Math.floor((Date.now() - (UPG.away || 0)) / 1000), v.plan && v.plan.state, v.rows, v.file,
+    Math.floor(Date.now() / 1000)]) : '';
+  if (!v) {
+    if (!b.hidden) { b.hidden = true; clear(b); b._sig = ''; }
+    upgradePill(false);
+    upgradeCards();
+    return;
+  }
+  b.hidden = false;
+  b.className = 'offline upband' + (v.kind === 'failed' ? ' bad' : (v.kind === 'done' ? ' good' : (v.kind === 'stopped' ? ' warnish' : '')));
+  upgradePill(v.kind === 'running' || v.kind === 'reloading');
+  upgradeCards();
+  if (b._sig === sig) return;
+  b._sig = sig;
+  clear(b);
+  var now = Date.now() / 1000;
+  var head = el('div', 'upband-head');
+  var title = el('b', 'upband-title');
+  var ver = v.version || '?';
+  var plan = v.plan, file = v.file;
+  if (v.kind === 'running') title.textContent = v.down ? 'acme is being taken back to ' + ver : 'acme is being upgraded to ' + ver;
+  else if (v.kind === 'failed') title.textContent = v.down ? 'Going back to acme ' + ver + ' failed' : 'The upgrade to acme ' + ver + ' failed';
+  else if (v.kind === 'stopped') title.textContent = v.down ? 'Going back to acme ' + ver + ' was stopped' : 'The upgrade to acme ' + ver + ' was stopped';
+  else if (v.kind === 'done') title.textContent = v.down ? (v.many ? 'acme is taken back to ' + ver + ' on every node' : 'acme is taken back to ' + ver)
+    : (v.many ? 'acme is upgraded to ' + ver + ' on every node' : 'acme is upgraded to ' + ver);
+  else if (v.kind === 'reloading') title.textContent = 'Loading the pages of acme ' + ver + '…';
+  else if (v.kind === 'held') title.textContent = v.state === 'done' ? (v.down ? 'acme is taken back to ' + ver : 'acme is upgraded to ' + ver)
+    : 'These pages are of another version now';
+  head.appendChild(title);
+  /* from, who asked, how long */
+  var sub = el('span', 'upband-sub');
+  var bits = [];
+  var from = '';
+  if (plan) (plan.steps || []).forEach(function (st) { if (!from && st.from_version) from = st.from_version; });
+  if (!from && file) from = file.from || '';
+  if (!from && plan && VERSION_LOADED && VERSION_LOADED !== ver) from = VERSION_LOADED;
+  if (v.kind === 'running' || v.kind === 'failed' || v.kind === 'stopped') {
+    if (from) bits.push('from ' + from);
+    var by = (plan && plan.by) || (file && file.by) || '';
+    if (by) bits.push('asked by ' + by);
+    var began = Number((plan && plan.at) || (file && file.started) || 0);
+    if (v.kind === 'running' && began) bits.push(span(now - began) + ' so far');
+  }
+  bits.forEach(function (t, i) {
+    if (i) sub.appendChild(document.createTextNode(' · '));
+    var x = el('span', '', t);
+    sub.appendChild(x);
+  });
+  if (bits.length) head.appendChild(sub);
+  if (v.kind === 'failed' || v.kind === 'stopped' || v.kind === 'done' || v.kind === 'held') {
+    var x = el('button', 'upband-x', '×');
+    x.type = 'button';
+    x.title = 'Hide this';
+    x.setAttribute('aria-label', 'Hide this');
+    x.onclick = function () {
+      if (v.kind === 'done') { UPG.after = null; }
+      else if (v.kind === 'held') { UPG.held = null; UPG.reloading = false; upgHide('held-' + (v.version || '')); }
+      else upgHide(v.id);
+      b._sig = '';
+      upgradeDraw();
+    };
+    head.appendChild(x);
+  }
+  b.appendChild(head);
+  /* the bar and how far */
+  var rows = v.rows || [];
+  if (v.kind === 'running' || v.kind === 'failed' || v.kind === 'stopped') {
+    var pc;
+    if (plan && rows.length) pc = Math.round(rows.reduce(function (m, st) { return m + upPercent(st, plan); }, 0) / rows.length);
+    else pc = file ? upgFilePercent(file) : 5;
+    if (v.kind !== 'running') pc = v.kind === 'failed' ? 100 : pc;
+    var bar = el('div', 'going up-bar wide' + (v.kind === 'failed' ? ' bad' : (v.kind === 'stopped' ? ' warn' : '')));
+    var track = el('div', 'bar');
+    var fill = el('span', '');
+    fill.style.width = Math.max(2, Math.min(100, pc)) + '%';
+    track.appendChild(fill);
+    bar.appendChild(track);
+    b.appendChild(bar);
+    var line = el('div', 'upband-line');
+    var bitsL = [num(pc) + ' %'];
+    if (v.kind === 'running') {
+      var cur = null;
+      if (rows.length) cur = rows.filter(upgStepBusy)[0] || rows.filter(function (st) { return st.state !== 'done'; })[0] || null;
+      if (cur) {
+        var w = upgStepWords(cur);
+        bitsL.push(rows.length > 1 ? cur.name + ': ' + w : w);
+        if (cur.state === 'installing' && cur.parts) bitsL.push('step ' + cur.part + ' of ' + cur.parts);
+      } else if (file) {
+        if (file.words) bitsL.push(file.words);
+        if (file.parts) bitsL.push('step ' + file.part + ' of ' + file.parts);
+      }
+      if (rows.length > 1) bitsL.push(rows.filter(function (st) { return st.state === 'done'; }).length + ' of ' + rows.length + ' node(s) done');
+    } else if (v.kind === 'failed') {
+      var bad = rows.filter(function (st) { return st.state === 'failed'; });
+      if (bad.length) bad.forEach(function (st) { bitsL.push((rows.length > 1 ? st.name + ': ' : '') + (st.said || 'failed')); });
+      else if (file) bitsL.push(file.said || file.words || 'failed');
+    } else if (v.kind === 'stopped') {
+      bitsL.push(rows.filter(function (st) { return st.state === 'done'; }).length + ' of ' + rows.length + ' node(s) done');
+    }
+    bitsL.forEach(function (t, i) {
+      if (i) line.appendChild(document.createTextNode(' · '));
+      line.appendChild(el('span', '', t));
+    });
+    b.appendChild(line);
+  }
+  /* every node's row, in a cluster */
+  if (rows.length > 1 && (v.kind === 'running' || v.kind === 'failed' || v.kind === 'stopped')) {
+    var list = el('div', 'upband-nodes');
+    rows.slice().sort(function (a, c) { return String(a.name).localeCompare(String(c.name)); }).forEach(function (st) {
+      var r = el('div', 'upband-node' + (upgStepBusy(st) ? ' now' : ''));
+      var nm = noI18n(el('span', 'upband-name mono', st.name));
+      if (st.name === UPG.node) nm.title = 'this page is answered by it';
+      r.appendChild(nm);
+      var w = UP_STATE[st.state] || UP_STATE.waiting;
+      r.appendChild(el('span', 'tag ' + w[1], st.state === 'installing' && !st.part_words && !st.parts ? w[0] : w[0]));
+      var how = el('span', 'upband-how');
+      var pcn = upPercent(st, plan || {});
+      how.appendChild(el('span', '', num(pcn) + ' %'));
+      if (st.state === 'installing' && st.parts) {
+        how.appendChild(document.createTextNode(' · '));
+        how.appendChild(el('span', '', 'step ' + st.part + ' of ' + st.parts));
+      }
+      r.appendChild(how);
+      var said = st.state === 'installing' && st.part_words ? st.part_words : (st.said || '');
+      r.appendChild(el('span', 'upband-said', said));
+      r.appendChild(el('span', 'upband-when muted', st.at ? ago(st.at) : '–'));
+      list.appendChild(r);
+    });
+    b.appendChild(list);
+  }
+  /* what it means */
+  var means = el('div', 'upband-means');
+  var awayS = UPG.away ? Math.max(0, Math.round((Date.now() - UPG.away) / 1000)) : 0;
+  if (v.kind === 'running') {
+    if (!UPG.api && UPG.phpAway) means.textContent = 'nginx and PHP are restarting - not answering for ' + awayS + ' s, asked again every two seconds; the page comes back by itself.';
+    else if (!UPG.api) means.textContent = 'The API of these pages is restarting with the new version - not answering for ' + awayS + ' s, asked again every two seconds; the page comes back by itself.';
+    else if (rows.length > 1) means.textContent = 'One node at a time: each is taken out of service - the VIP address and the load balancer go to the other node - upgraded, checked and put back. This page loads the new version by itself once every node is done.';
+    else means.textContent = 'acme.service and these pages restart once - for a minute or two nothing is renewed or put in place. This page follows it and loads the new version by itself.';
+    b.appendChild(means);
+    if (UPG.nodeWas && UPG.node && Date.now() - UPG.movedAt < 120000) {
+      var mv = el('div', 'upband-moved muted');
+      mv.appendChild(document.createTextNode('This page is answered by '));
+      mv.appendChild(noI18n(el('b', 'mono', UPG.node)));
+      mv.appendChild(document.createTextNode(' now - the VIP address moved from '));
+      mv.appendChild(noI18n(el('b', 'mono', UPG.nodeWas)));
+      mv.appendChild(document.createTextNode('. You stay signed in.'));
+      b.appendChild(mv);
+    }
+  } else if (v.kind === 'failed' || v.kind === 'stopped') {
+    if (v.kind === 'failed') means.appendChild(document.createTextNode('What install.sh said is in Settings → Upgrades. '));
+    else means.appendChild(document.createTextNode('The nodes not begun stay as they are. '));
+    if (ADMIN && $('pane-upgrade')) {
+      var go = el('a', 'fgo', 'Open Upgrades');
+      go.href = '#settings/upgrade';
+      go.onclick = function (e) { e.preventDefault(); showTab('settings'); if (typeof showPane === 'function') showPane('upgrade'); };
+      means.appendChild(go);
+    }
+    b.appendChild(means);
+  } else if (v.kind === 'reloading') {
+    means.textContent = 'Every node is done - this page loads itself again, once.';
+    b.appendChild(means);
+  } else if (v.kind === 'held') {
+    means.appendChild(document.createTextNode('This page is still the one of ' + (VERSION_LOADED || '?') + ' - it keeps what you have not saved. '));
+    var again = el('a', 'fgo', 'Load it again');
+    again.href = '#';
+    again.onclick = function (e) { e.preventDefault(); location.reload(); };
+    means.appendChild(again);
+    b.appendChild(means);
+  }
+  explainWhatWasDrawn(b);
+}
+/* The pill: "in maintenance" while an upgrade runs (or ends with a load of the new pages). */
+function upgradePill(on) {
+  var pill = $('state-pill');
+  if (!pill) return;
+  if (on) {
+    pill.className = 'pill warn';
+    pill.lastChild.textContent = 'in maintenance';
+    pill.title = 'An upgrade is going on - the band under the header says how far.';
+    pill._upg = true;
+  } else if (pill._upg) {
+    pill._upg = false;
+    if (STATUS && UPG.api) paintHeaderPillAgain();
+  }
+}
+function paintHeaderPillAgain() {
+  /* as paintHeader paints it, once the band has gone */
+  var s = STATUS, pill = $('state-pill');
+  var nprob = (s.problems || []).length, probs = nprob + (s.attention || []).length;
+  var inMaint = !!(s.maintenance && s.maintenance.on);
+  pill.className = 'pill ' + (probs || inMaint ? 'warn' : 'ok');
+  pill.lastChild.textContent = inMaint ? 'in maintenance' : (probs ? 'running, with trouble' : 'running');
+}
+/* The cards while the API is away, or root upgrades this node alone: maintenance, upgrading. */
+function upgradeCards() {
+  if (!$('card-maint') || !$('card-server')) return;
+  var v = upgradeExpected() && !UPG.reloading;
+  var fileOnly = v && !upgPlanActive(UPG.plan);
+  var ver = (upgPlanActive(UPG.plan) ? UPG.plan.version : (UPG.file && UPG.file.version)) || '';
+  var tap = function (id) { return $(id).classList.contains('tappable') ? ' tappable' : ''; };
+  if (v && (fileOnly || !UPG.api)) {
+    $('m-maint').textContent = 'upgrading';
+    $('m-maint-sub').textContent = ver ? 'to ' + ver : '';
+    $('card-maint').className = 'card metric info' + tap('card-maint');
+  }
+  if (v && !UPG.api) {
+    $('m-server').textContent = 'maintenance';
+    $('m-server-sub').textContent = ver ? 'restarting with acme ' + ver + ' - back in a moment' : 'restarting - back in a moment';
+    $('card-server').className = 'card metric warn' + tap('card-server');
+  }
+}
+/* Every two seconds while an upgrade is expected (the live tick is every five). */
+setInterval(function () {
+  if (!upgradeExpected() && !($('upband') && !$('upband').hidden)) return;
+  if (!document.hidden && LIVE && upgradeExpected() && Date.now() - (UPG.asked || 0) >= 1800) tick();
+  else upgradeDraw();             /* the seconds of "not answering for" */
+}, 2000);
+
 /* ---- the account signed in --------------------------------------------- */
 function meSecPasskeys() {
   var sec = el('div', 'me-sec');

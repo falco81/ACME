@@ -394,8 +394,10 @@ class Sides(unittest.TestCase):
                        'port': cls.port, 'listen': '127.0.0.1', 'cmd_pub':
                        base64.b64encode(pub).decode(), 'acme': []}, fh)
         # the machine: a service, a broken one, programs, PowerShell (a stub running sh)
-        for name, broken in (('W3SVC', False), ('Broken', True)):
-            W.service_install({'name': name, 'display': name})
+        for name, broken in (('WAS', False), ('W3SVC', False), ('Broken', True),
+                             ('Ftpsvc', False)):
+            W.service_install({'name': name, 'display': name,
+                               'depends': {'W3SVC': ['WAS'], 'Ftpsvc': ['W3SVC']}.get(name, [])})
             W._update('services.json', {}, lambda s, n=name, b=broken: s[n.lower()].update(
                 state='Running', broken=b))
         put('C:\\tools\\ok.exe', '#!/bin/sh\nexit 0\n', 0o755)
@@ -407,6 +409,7 @@ class Sides(unittest.TestCase):
         h = AG._sha(read(local('C:\\scripts\\after.ps1'), 'rb'))
         for words in (['file', 'C:\\certs', '--readers', 'IIS_IUSRS'],
                       ['service', 'W3SVC', 'restart'], ['service', 'Broken', 'restart'],
+                      ['service', 'WAS', 'restart,try-restart'],
                       ['test', '--', 'C:\\tools\\ok.exe'], ['test', '--', 'C:\\tools\\fail.exe'],
                       ['script', 'C:\\scripts\\after.ps1'], ['from', '127.0.0.1']):
             cli('allow', *words)
@@ -569,6 +572,31 @@ class Sides(unittest.TestCase):
         got = cli('root', ok=False, ACME_AGENT_FAKE_SID='S-1-5-21-1-2-3-1001',
                   ACME_AGENT_FAKE_ELEVATED='0')
         self.assertIn('LocalSystem', got.stderr)
+
+    def test_7_restart_as_restart_service_force(self):
+        """WAS has W3SVC depending on it (and Ftpsvc on W3SVC): a restart stops them first,
+        then starts them again - as Restart-Service -Force; a dependent stopped stays so."""
+        with self.assertRaises(OSError) as c:
+            W.service_stop('WAS')                       # as Windows: dependents run
+        self.assertEqual(c.exception.errno, 1051)
+        n = len(W.lines('services.log'))
+        got = self.deploy(b'CERT FIVE\n', reload=[{'unit': 'WAS', 'verb': 'restart'}])
+        self.assertTrue(got.get('ok'), got)
+        steps = json.dumps(got['steps'])
+        self.assertIn('the services depending on it restarted too: Ftpsvc, W3SVC', steps)
+        done = [(x['verb'], x['name']) for x in W.lines('services.log')[n:]
+                if x['verb'] in ('stop', 'start')]
+        self.assertEqual(done, [('stop', 'Ftpsvc'), ('stop', 'W3SVC'), ('stop', 'WAS'),
+                                ('start', 'WAS'), ('start', 'W3SVC'), ('start', 'Ftpsvc')])
+        for name in ('WAS', 'W3SVC', 'Ftpsvc'):
+            self.assertEqual(W.service_state(name), 'Running')
+        # try-restart the same; a dependent that was stopped is left stopped
+        W._update('services.json', {}, lambda s: s['ftpsvc'].update(state='Stopped'))
+        got = self.deploy(b'CERT SIX\n', reload=[{'unit': 'WAS', 'verb': 'try-restart'}])
+        self.assertTrue(got.get('ok'), got)
+        self.assertIn('restarted too: W3SVC', json.dumps(got['steps']))
+        self.assertEqual(W.service_state('Ftpsvc'), 'Stopped')
+        self.assertEqual(W.service_state('W3SVC'), 'Running')
 
     def test_9_graceful_stop(self):
         self.net.send_signal(signal.SIGTERM)

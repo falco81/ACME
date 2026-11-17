@@ -493,6 +493,12 @@ class _Api(object):
         fn(adv, 'ControlService', B, H, D, P(SERVICE_STATUS))
         fn(adv, 'QueryServiceStatusEx', B, H, ctypes.c_int, V, D, P(D))
         fn(adv, 'DeleteService', B, H)
+
+        class ENUM_SERVICE_STATUSW(ctypes.Structure):
+            _fields_ = [('lpServiceName', wt.LPWSTR), ('lpDisplayName', wt.LPWSTR),
+                        ('ServiceStatus', SERVICE_STATUS)]
+        self.ENUM_SERVICE_STATUSW = ENUM_SERVICE_STATUSW
+        fn(adv, 'EnumDependentServicesW', B, H, D, V, D, P(D), P(D))
         fn(adv, 'CloseServiceHandle', B, H)
         fn(adv, 'StartServiceCtrlDispatcherW', B, P(SERVICE_TABLE_ENTRYW))
         fn(adv, 'RegisterServiceCtrlHandlerExW', H, W_, self.HANDLER_EX, V)
@@ -540,6 +546,8 @@ TOKEN_USER, TOKEN_GROUPS, TOKEN_ELEVATION = 1, 2, 20
 SE_GROUP_ENABLED, SE_GROUP_USE_FOR_DENY_ONLY = 0x4, 0x10
 SC_MANAGER_CONNECT, SC_MANAGER_ALL_ACCESS = 0x1, 0xF003F
 SERVICE_ALL_ACCESS, SERVICE_QUERY_STATUS, SERVICE_START, SERVICE_STOP = 0xF01FF, 0x4, 0x10, 0x20
+SERVICE_ENUMERATE_DEPENDENTS, SERVICE_ACTIVE, ERROR_MORE_DATA = 0x8, 0x1, 234
+ERROR_DEPENDENT_SERVICES_RUNNING = 1051
 SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, SERVICE_ERROR_NORMAL = 0x10, 2, 1
 SERVICE_NO_CHANGE = 0xFFFFFFFF
 CONFIG_DESCRIPTION, CONFIG_FAILURE_ACTIONS, CONFIG_DELAYED_AUTO_START = 1, 2, 3
@@ -569,6 +577,21 @@ def _os_words(product, build, major, minor):
     except (TypeError, ValueError):
         pass
     return ('%s (%s.%s.%s)' % (product, major, minor, build))[:80]
+
+
+def restart_force(w, name, wait=60):
+    """Restart-Service -Force (W3SVC depends on WAS, many services have dependents): the
+    running services that depend on it stopped first, it stopped and started, then they started
+    again (in their start order)."""
+    deps = w.service_dependents(name)
+    for d in deps:
+        w.service_stop(d, wait)
+    if w.service_state(name) not in ('Stopped', None):
+        w.service_stop(name, wait)
+    w.service_start(name, wait)
+    for d in reversed(deps):
+        w.service_start(d, wait)
+    return deps
 
 
 class RealWin(object):
@@ -1111,11 +1134,32 @@ class RealWin(object):
         finally:
             a.CloseServiceHandle(h)
 
+    def service_dependents(self, name):
+        """The services running that depend on `name` (and on those), in the order to stop
+        them (EnumDependentServicesW gives the reverse of the start order)."""
+        a, ct = self.api, self.api.ct
+        h = self._svc(name, SERVICE_ENUMERATE_DEPENDENTS)
+        try:
+            need, count = a.wt.DWORD(0), a.wt.DWORD(0)
+            if a.EnumDependentServicesW(h, SERVICE_ACTIVE, None, 0, ct.byref(need),
+                                        ct.byref(count)):
+                return []                               # none
+            err = ct.get_last_error()
+            if err != ERROR_MORE_DATA:
+                raise a.fail('EnumDependentServicesW %s' % name, err)
+            buf = ct.create_string_buffer(need.value)
+            if not a.EnumDependentServicesW(h, SERVICE_ACTIVE, buf, need.value, ct.byref(need),
+                                            ct.byref(count)):
+                raise a.fail('EnumDependentServicesW %s' % name)
+            arr = (a.ENUM_SERVICE_STATUSW * count.value).from_buffer(buf)
+            return [x.lpServiceName for x in arr]
+        finally:
+            a.CloseServiceHandle(h)
+
     def service_restart(self, name, wait=60):
-        """Restart-Service: stopped (when running), started, waited for."""
-        if self.service_state(name) not in ('Stopped', None):
-            self.service_stop(name, wait)
-        self.service_start(name, wait)
+        """Restart-Service -Force: its running dependents stopped first, it restarted, they
+        started again."""
+        return restart_force(self, name, wait)
 
     def service_delete(self, name):
         a = self.api
@@ -1853,8 +1897,16 @@ class FakeWin(object):
             if verb in ('start', 'restart') and s.get('broken'):
                 s['state'] = 'Stopped'
                 raise WinFail(1053, '%s did not start (it is Stopped)' % name)
+            if verb == 'stop':
+                up = [d for d in self._dependents(svcs, name) if svcs[d].get('state') ==
+                      'Running']
+                if up:
+                    # as Windows: ERROR_DEPENDENT_SERVICES_RUNNING
+                    raise WinFail(ERROR_DEPENDENT_SERVICES_RUNNING, '%s cannot be stopped: '
+                                  'services that depend on it run (%s)' % (name, ', '.join(up)))
             s['state'] = 'Stopped' if verb == 'stop' else 'Running'
-            s['times'] = s.get('times', 0) + 1
+            if verb != 'stop':
+                s['times'] = s.get('times', 0) + 1
         self._update('services.json', {}, go)
 
     def service_state(self, name):
@@ -1867,8 +1919,28 @@ class FakeWin(object):
     def service_stop(self, name, wait=60):
         self._svc_do(name, 'stop')
 
+    @staticmethod
+    def _dependents(svcs, name):
+        """Keys of the services depending on `name` (and on those), the deepest first."""
+        out = []
+
+        def walk(n):
+            for k, s in sorted(svcs.items()):
+                if n.lower() in [str(d).lower() for d in s.get('depends') or []] and k not in out:
+                    walk(k)
+                    out.append(k)
+        walk(name)
+        return out
+
+    def service_dependents(self, name):
+        svcs = self.load('services.json', {})
+        if str(name).lower() not in svcs:
+            raise WinFail(ERROR_SERVICE_DOES_NOT_EXIST, 'there is no service %s here' % name)
+        return [svcs[k].get('name') or k for k in self._dependents(svcs, name)
+                if svcs[k].get('state') == 'Running']
+
     def service_restart(self, name, wait=60):
-        self._svc_do(name, 'restart')
+        return restart_force(self, name, wait)
 
     def service_delete(self, name):
         def go(svcs):
@@ -2842,15 +2914,19 @@ def deploy_unit_verb(self, op):
             return 1, 'there is no service %s here' % name
         if verb == 'try-restart' and st != 'Running':
             return 0, 'is %s - not running, left as it is' % st
+        deps = []
         if verb == 'start':
             if st != 'Running':
                 W.service_start(name)
         else:
-            W.service_restart(name)
+            deps = W.service_restart(name) or []      # Restart-Service -Force
         st = W.service_state(name)
     except OSError as e:
         return 1, str(e)
-    return (0 if st == 'Running' else 1), 'is %s' % st
+    said = 'is %s' % st
+    if deps:
+        said += ' (the services depending on it restarted too: %s)' % ', '.join(deps)
+    return (0 if st == 'Running' else 1), said
 
 
 def deploy_run_file(self, path, args, env, body):
