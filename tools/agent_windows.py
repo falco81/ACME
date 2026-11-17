@@ -501,7 +501,10 @@ ACTIONS = [
      REMOVE + ' AND NOT UPGRADINGPRODUCTCODE AND PURGE&lt;&gt;"1"', 1701, 'ignore'),
     ('AgentUninstallPurge', 'windows-uninstall --purge',
      REMOVE + ' AND NOT UPGRADINGPRODUCTCODE AND PURGE="1"', 1702, 'ignore'),
-    ('AgentInstallRollback', 'windows-uninstall', INSTALL, 6490, 'rollback'),
+    # only a first install (or a major upgrade's new product) is undone so: a repair that fails
+    # leaves the services that were there
+    ('AgentInstallRollback', 'windows-uninstall', 'NOT Installed AND ' + INSTALL, 6490,
+     'rollback'),
     ('AgentInstall', 'windows-install', INSTALL + ' AND NOT JOINCODE', 6500, 'deferred'),
     ('AgentInstallJoin', 'windows-install --join &quot;[JOINCODE]&quot;',
      INSTALL + ' AND JOINCODE', 6501, 'deferred'),

@@ -710,7 +710,7 @@ if ($me && ($_COOKIE['acme_lang'] ?? '') !== $lang) {
             : ($upg['parts'] > 0 ? (int) round(100 * max(0, $upg['part'] - 0.5) / $upg['parts']) : 3);
       ?>
       <div class="offline upband signin-upband" id="upband" data-api="<?= $alive ? '1' : '0' ?>">
-        <div class="upband-head"><b class="upband-title"><?php if ($upg['state'] !== 'running'): ?>acme <span data-no-i18n><?= h($upg['version']) ?></span> is starting<?php elseif ($upg['downgrade']): ?>acme is being taken back to <span data-no-i18n><?= h($upg['version']) ?></span><?php else: ?>acme is being upgraded to <span data-no-i18n><?= h($upg['version']) ?></span><?php endif; ?></b></div>
+        <div class="upband-head"><b class="upband-title"><?php if ($upg['state'] !== 'running'): ?>acme <?= h($upg['version']) ?> is starting<?php elseif ($upg['downgrade']): ?>acme is being taken back to <?= h($upg['version']) ?><?php else: ?>acme is being upgraded to <?= h($upg['version']) ?><?php endif; ?></b></div>
         <div class="going up-bar wide"><div class="bar"><span style="width:<?= (int) $upg_pc ?>%"></span></div></div>
         <div class="upband-line"><?php if ($upg['words'] !== ''): ?><span><?= h($upg['words']) ?></span><?php endif; ?><?php if ($upg['parts'] > 0 && $upg['state'] === 'running'): ?> · <span>step <?= (int) $upg['part'] ?> of <?= (int) $upg['parts'] ?></span><?php endif; ?></div>
         <div class="upband-means">acme.service and these pages restart once - this page loads again by itself when they are back.</div>

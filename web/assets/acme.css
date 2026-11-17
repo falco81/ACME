@@ -4442,7 +4442,7 @@ details.lb-guide + p.note{margin-top:12px}
 .upband-means{font-size:12.5px;margin-top:6px;overflow-wrap:anywhere}
 .upband-moved{font-size:12px;margin-top:4px;overflow-wrap:anywhere}
 .upband-nodes{margin-top:8px;border-top:1px solid rgba(255,255,255,.07)}
-.upband-node{display:grid;grid-template-columns:minmax(80px,12%) auto minmax(110px,18%) 1fr auto;gap:4px 12px;
+.upband-node{display:grid;grid-template-columns:minmax(80px,140px) 160px 170px minmax(0,1fr) 90px;gap:4px 12px;
   align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12.5px}
 .upband-node > *{min-width:0;overflow-wrap:anywhere}
 .upband-node.now .upband-name{color:var(--info);font-weight:650}

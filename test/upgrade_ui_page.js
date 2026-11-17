@@ -11,7 +11,8 @@
 //                - no reload; the page then answered by B's PHP (the VIP address moved) - the
 //                band and the session stay; the plan done - one reload.
 //   CTL          a command that does what the page cannot: CTL file A|B JSON, CTL rm A|B,
-//                CTL kill-api, CTL start-api, CTL kill-php A, CTL start-php A, CTL plan JSON
+//                CTL kill-api, CTL start-api, CTL kill-php A, CTL start-php A, CTL plan JSON,
+//                CTL vip A|B (the VIP address moved: BASE_A is then the address both nodes share)
 //
 // Prints one line of JSON: what was seen.
 const { chromium } = require('playwright');
@@ -87,7 +88,12 @@ const { execSync } = require('child_process');
     await watchRed();
   };
   const shot = async (n) => {
-    if (process.env.UPG_SHOTS) await page.screenshot({path: process.env.UPG_SHOTS + '/' + mode + '-' + lang + '-' + width + '-' + n + '.png'});
+    if (!process.env.UPG_SHOTS) return;
+    await page.evaluate(() => { window.scrollTo(0, 0); const p = document.querySelector('.panel:not([hidden])'); if (p) p.scrollTop = 0; });
+    await wait(300);
+    await page.screenshot({path: process.env.UPG_SHOTS + '/' + mode + '-' + lang + '-' + width + '-' + n + '.png'});
+    out.scrolled = out.scrolled || [];
+    out.scrolled.push(await page.evaluate(() => Math.round(window.scrollY)));
   };
   try {
     run('rm A');
@@ -197,11 +203,8 @@ const { execSync } = require('child_process');
       out.reloadsWhileBRuns = navs - navs0;
       await shot('c1-on-a');
       // ---- the VIP address moves: the page answered by B's PHP ----
-      await page.route(/\/admin\/index\.php\?api=/, route => {
-        const u = route.request().url().replace(baseA, baseB);
-        route.continue({url: u});
-      });
-      out.onB = await bandWait(b => b && /5/.test(b.text) && b.rows === 2 && /acmeB/.test(b.line), 15000);
+      run('vip B');
+      out.onB = await bandWait(b => b && /step 5 of 9/.test(b.text) && b.rows === 2 && /acmeB/.test(b.line), 15000);
       await shot('c2-on-b');
       // B's API restarting while the page is on B
       run('kill-api');
@@ -222,7 +225,7 @@ const { execSync } = require('child_process');
       out.reloadsAtEnd = navs - navs1;
       out.afterEnd = await band();
       await shot('c3-done');
-      await page.unroute(/\/admin\/index\.php\?api=/);
+      run('vip A');
     }
   } catch (e) {
     out.error = String(e && e.stack || e);

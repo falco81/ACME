@@ -649,17 +649,19 @@ function upgradeView() {
   var p = UPG.plan, f = UPG.file, now = Date.now() / 1000;
   if (UPG.reloading) return {kind: 'reloading', version: UPG.reloading.version, down: UPG.reloading.down};
   if (UPG.held) return {kind: 'held', version: UPG.held.version, down: UPG.held.down, state: UPG.held.state};
+  /* Anything newer than the green "done" after the load takes its place - for good. */
+  var newer = function (v) { UPG.after = null; return v; };
   if (upgPlanActive(p)) {
-    return {kind: 'running', plan: p, version: p.version, down: !!p.downgrade, id: p.id, rows: upgRows()};
+    return newer({kind: 'running', plan: p, version: p.version, down: !!p.downgrade, id: p.id, rows: upgRows()});
   }
-  if (upgFileRunning()) return {kind: 'running', file: f, version: f.version, down: !!f.downgrade, id: f.id};
+  if (upgFileRunning()) return newer({kind: 'running', file: f, version: f.version, down: !!f.downgrade, id: f.id});
   if (p && p.id && (p.state === 'failed' || p.state === 'cancelled') && !upgHidden(p.id)
       && (UPG.seen[p.id] || now - upgEndedAt(p) < 600)) {
-    return {kind: p.state === 'failed' ? 'failed' : 'stopped', plan: p, version: p.version,
-            down: !!p.downgrade, id: p.id, rows: upgRows()};
+    return newer({kind: p.state === 'failed' ? 'failed' : 'stopped', plan: p, version: p.version,
+                  down: !!p.downgrade, id: p.id, rows: upgRows()});
   }
   if (f && f.state === 'failed' && !(p && p.id && f.id === p.id) && !upgHidden(f.id || ('at-' + f.at))) {
-    return {kind: 'failed', file: f, version: f.version, down: !!f.downgrade, id: f.id || ('at-' + f.at)};
+    return newer({kind: 'failed', file: f, version: f.version, down: !!f.downgrade, id: f.id || ('at-' + f.at)});
   }
   if (UPG.after && UPG.after.state === 'done' && Date.now() - UPG.afterAt < 120000) {
     return {kind: 'done', version: UPG.after.version, down: !!UPG.after.down, many: (p && (p.steps || []).length > 1)};
@@ -11447,8 +11449,16 @@ function loadUpgrade(live) {
       /* ...and what root says of the node that answers these pages (1.0.120), from its file. */
       var uf = UPG.file;
       if ($('up-retry') && uf && uf.state === 'running') {
-        $('up-retry').textContent += ' ' + (uf.node || UPG.node || 'This node') + ': ' + (uf.words || 'being put in')
-          + (uf.parts ? ' · step ' + uf.part + ' of ' + uf.parts : '') + '.';
+        /* pieces of their own: the sentence before keeps its translation */
+        var ur = $('up-retry');
+        ur.appendChild(document.createTextNode(' '));
+        ur.appendChild(noI18n(el('b', 'mono', uf.node || UPG.node || '')));
+        ur.appendChild(document.createTextNode(' '));
+        ur.appendChild(el('span', '', uf.words || 'being put in'));
+        if (uf.parts) {
+          ur.appendChild(document.createTextNode(' · '));
+          ur.appendChild(el('span', '', 'step ' + uf.part + ' of ' + uf.parts));
+        }
       }
       upgradeAgain(Math.min(2000 * UP.misses, 6000));
       return;

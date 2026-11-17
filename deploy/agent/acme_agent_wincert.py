@@ -282,7 +282,11 @@ $thumb = [string]$j.thumb
 $had = Test-Path -LiteralPath (Join-Path $store $thumb)
 if (-not $had) {
   $before = @(Get-ChildItem -LiteralPath $store | ForEach-Object { $_.Thumbprint })
-  $pw = ConvertTo-SecureString -String $env:ACME_PFX_PASSWORD -AsPlainText -Force
+  # a PKCS#12 without a password: an empty SecureString (ConvertTo-SecureString refuses '')
+  $pw = New-Object System.Security.SecureString
+  if ([string]$env:ACME_PFX_PASSWORD) {
+    $pw = ConvertTo-SecureString -String $env:ACME_PFX_PASSWORD -AsPlainText -Force
+  }
   if ($j.exportable) {
     $got = @(Import-PfxCertificate -FilePath ([string]$j.pfx) -CertStoreLocation $store `
       -Password $pw -Exportable)
@@ -338,13 +342,24 @@ foreach ($w in @($j.iis)) {
 }
 if ($j.rdp) {
   $cert = Get-Item -LiteralPath (Join-Path $store $thumb)
-  $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
-  if ($rsa -and $rsa.Key) {
-    $kf = $rsa.Key.UniqueName
+  # the listener (TermService, NETWORK SERVICE) reads the private key: its file's name -
+  # a CNG key (RSA or ECDSA) or a CryptoAPI one (what a 3DES PKCS#12 is imported as)
+  $key = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+  if (-not $key) {
+    try { $key = [System.Security.Cryptography.X509Certificates.ECDsaCertificateExtensions]::GetECDsaPrivateKey($cert) } catch { }
+  }
+  $kf = ''
+  if ($key -is [System.Security.Cryptography.RSACryptoServiceProvider]) {
+    $kf = [string]$key.CspKeyContainerInfo.UniqueKeyContainerName
+  } elseif ($key -and $key.Key) {
+    $kf = [string]$key.Key.UniqueName
+  }
+  if ($kf) {
     foreach ($d in @("$env:ProgramData\Microsoft\Crypto\RSA\MachineKeys",
                      "$env:ProgramData\Microsoft\Crypto\Keys")) {
       $p = Join-Path $d $kf
-      if (Test-Path -LiteralPath $p) { icacls $p /grant 'NETWORK SERVICE:R' | Out-Null }
+      # by its SID: the account's name is translated on a Windows not in English
+      if (Test-Path -LiteralPath $p) { icacls $p /grant '*S-1-5-20:R' | Out-Null }
     }
   }
   $ts = Rdp-Setting

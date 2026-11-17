@@ -168,7 +168,6 @@ RIGHTS = {'GA': 0x10000000, 'GX': 0x20000000, 'GW': 0x40000000, 'GR': 0x80000000
 WRITE_MASK = 0x2 | 0x4 | 0x10 | 0x40 | 0x100 | 0x10000 | 0x40000 | 0x80000 | 0x10000000 | \
     0x40000000
 READ_MASK = 0x120089
-ACE_RE = re.compile(r'\(([^;()]*);([^;()]*);([^;()]*);([^;()]*);([^;()]*);([^;()]*)\)')
 
 
 def _rights(text):
@@ -208,9 +207,32 @@ def parse_sddl(text):
     if 'NO_ACCESS_CONTROL' in head:
         out['null_dacl'] = True
     out['protected'] = 'P' in head
-    for ace in ACE_RE.findall(dacl):
-        out['aces'].append({'type': ace[0], 'flags': ace[1], 'mask': _rights(ace[2]),
-                            'sid': _sid(ace[5])})
+    for ace in _aces(dacl):
+        f = ace.split(';')
+        if len(f) < 6:
+            # not an ACE this reads: taken as one that lets anybody do anything (never as one
+            # that is not there)
+            f = ['A', '', 'GA', '', '', 'S-1-1-0']
+        out['aces'].append({'type': f[0], 'flags': f[1], 'mask': _rights(f[2]),
+                            'sid': _sid(f[5])})
+    return out
+
+
+def _aces(dacl):
+    """The ACEs of a DACL's SDDL, each its text without the outer parentheses - a conditional
+    ACE's condition (nested parentheses) included, never skipped."""
+    out, depth, start = [], 0, 0
+    for i, ch in enumerate(dacl):
+        if ch == '(':
+            if depth == 0:
+                start = i + 1
+            depth += 1
+        elif ch == ')' and depth:
+            depth -= 1
+            if depth == 0:
+                out.append(dacl[start:i])
+    if depth:
+        out.append(dacl[start:])
     return out
 
 
@@ -238,7 +260,8 @@ def sd_writers(sd):
     the object itself)."""
     out = []
     for a in sd['aces']:
-        if a['type'] not in ('A', 'XA') or 'IO' in _flags(a['flags']):
+        # every kind of allow ACE (plain, callback/conditional, object); deny ACEs never help
+        if a['type'] not in ('A', 'XA', 'OA', 'ZA') or 'IO' in _flags(a['flags']):
             continue
         if a['mask'] & WRITE_MASK and a['sid'] not in out:
             out.append(a['sid'])
@@ -252,7 +275,9 @@ def sd_problem(sd):
         return 'its permissions cannot be read'
     if sd['null_dacl']:
         return 'it has no DACL (everybody may change it)'
-    if sd['owner'] and sd['owner'] not in TRUSTED:
+    if not sd['owner']:
+        return 'its owner cannot be read'
+    if sd['owner'] not in TRUSTED:
         return 'its owner is %s (it must be SYSTEM, the Administrators or TrustedInstaller)' % \
             sd['owner']
     bad = [s for s in sd_writers(sd) if s not in TRUSTED]
@@ -535,6 +560,7 @@ OWNER_INFO, DACL_INFO, PROTECTED_DACL_INFO, UNPROTECTED_DACL_INFO = 0x1, 0x4, 0x
     0x20000000
 ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND, ERROR_ACCESS_DENIED = 2, 3, 5
 ERROR_BROKEN_PIPE, ERROR_FILE_EXISTS, ERROR_INSUFFICIENT_BUFFER = 109, 80, 122
+ERROR_INVALID_OWNER, ERROR_PIPE_BUSY = 1307, 231
 ERROR_ALREADY_EXISTS, ERROR_PIPE_CONNECTED, ERROR_NO_DATA = 183, 535, 232
 ERROR_SERVICE_ALREADY_RUNNING, ERROR_SERVICE_DOES_NOT_EXIST = 1056, 1060
 ERROR_SERVICE_NOT_ACTIVE, ERROR_SERVICE_EXISTS, ERROR_SERVICE_MARKED_FOR_DELETE = 1062, 1073, 1072
@@ -833,14 +859,25 @@ class RealWin(object):
         start - inherited (acl None), exactly a copy's (acl.sddl), or readers= (SIDs)."""
         a = self.api
         sddl = acl_sddl(acl)
-        sa, psd = (self._sa(sddl) if sddl else (None, None))
+
+        def create(sddl):
+            sa, psd = (self._sa(sddl) if sddl else (None, None))
+            try:
+                return self._open(ntpath.join(dh.path, name), GENERIC_WRITE | DELETE, 0,
+                                  CREATE_NEW, ATTR_NORMAL | FLAG_WRITE_THROUGH |
+                                  FLAG_OPEN_REPARSE_POINT,
+                                  a.ct.byref(sa) if sa is not None else None)
+            finally:
+                if psd:
+                    a.LocalFree(psd)
         try:
-            h = self._open(ntpath.join(dh.path, name), GENERIC_WRITE | DELETE, 0, CREATE_NEW,
-                           ATTR_NORMAL | FLAG_WRITE_THROUGH | FLAG_OPEN_REPARSE_POINT,
-                           a.ct.byref(sa) if sa is not None else None)
-        finally:
-            if psd:
-                a.LocalFree(psd)
+            h = create(sddl)
+        except WinFail as e:
+            # a copy's owner (another account) cannot be given without SeRestorePrivilege
+            # enabled: ERROR_INVALID_OWNER - the copy then gets its DACL and our own owner
+            if e.errno != ERROR_INVALID_OWNER or not sddl or not _dacl_part(sddl):
+                raise
+            h = create(_dacl_part(sddl))
         try:
             view, n = memoryview(bytes(data)), a.wt.DWORD()
             while len(view):
@@ -919,19 +956,29 @@ class RealWin(object):
             owner, odflt = a.ct.c_void_p(), a.wt.BOOL()
             if not a.GetSecurityDescriptorOwner(psd, a.ct.byref(owner), a.ct.byref(odflt)):
                 raise a.fail('GetSecurityDescriptorOwner')
-            info = DACL_INFO | (PROTECTED_DACL_INFO if parse_sddl(sddl)['protected'] else
-                                UNPROTECTED_DACL_INFO)
+            # the DACL only when the SDDL has one: DACL_SECURITY_INFORMATION with no DACL would
+            # set a NULL DACL - everybody full control
+            info = 0
+            if present.value:
+                if not dacl.value:
+                    raise WinFail(ERROR_ACCESS_DENIED, 'a NULL DACL is never set (%s)' % path)
+                info |= DACL_INFO | (PROTECTED_DACL_INFO if parse_sddl(sddl)['protected']
+                                     else UNPROTECTED_DACL_INFO)
             if owner.value:
                 info |= OWNER_INFO
+            if not info:
+                return
             err = a.SetNamedSecurityInfoW(path, SE_FILE_OBJECT, info, owner if owner.value
-                                          else None, None, dacl, None)
+                                          else None, None, dacl if present.value else None,
+                                          None)
             if err:
                 raise a.fail('SetNamedSecurityInfoW %s' % path, err)
         finally:
             a.LocalFree(psd)
 
     def set_owner(self, path, sid):
-        self.set_sd(path, 'O:%s%s' % (sid, _dacl_part(self.file_sd(path))))
+        # the owner alone (OWNER_SECURITY_INFORMATION): the DACL as it is
+        self.set_sd(path, 'O:%s' % sid)
 
     def final_path(self, path):
         """The real path of `path` (links followed) as far as it is there, the rest as it is."""
@@ -1256,9 +1303,20 @@ class RealWin(object):
                 # FILE_CREATE_PIPE_INSTANCE (a server of the same name)
                 h = self._open(name, GENERIC_READ | FILE_WRITE_DATA, 0, OPEN_EXISTING,
                                SQOS_PRESENT | SECURITY_IDENTIFICATION)
+                # the server is the root side: any account may make a pipe of this name while
+                # the root side does not hold it (a restart) - the pipe of the root side is
+                # owned by SYSTEM (pipe_sddl), which no other account can give an object
+                try:
+                    owner = parse_sddl(self._sddl_of(h))['owner']
+                except OSError:
+                    owner = ''
+                if owner not in (SYSTEM, ADMINS):
+                    self._close(h)
+                    raise WinFail(ERROR_ACCESS_DENIED, '%s is not served by the root side (its '
+                                  'owner is %s) - refused' % (name, owner or '?'))
                 return _RealPipe(self, h)
             except WinFail as e:
-                if e.errno == 231 and time.time() < end:    # ERROR_PIPE_BUSY
+                if e.errno == ERROR_PIPE_BUSY and time.time() < end:
                     a.WaitNamedPipeW(name, 2000)
                 elif e.errno == ERROR_FILE_NOT_FOUND and time.time() < quick:
                     time.sleep(0.05)        # between two instances of the root side's pipe
@@ -1399,8 +1457,13 @@ class RealWin(object):
         st.dwServiceType = SERVICE_WIN32_OWN_PROCESS
         box = {'h': None, 'rc': 0}
         stopping = threading.Event()
+        lock = threading.Lock()         # the handler's thread and ServiceMain's both report
 
         def report(state, wait=0, rc=0):
+            with lock:
+                _report(state, wait, rc)
+
+        def _report(state, wait, rc):
             st.dwCurrentState = state
             st.dwControlsAccepted = 0 if state in (START_PENDING, STOP_PENDING) else \
                 ACCEPT_STOP | ACCEPT_SHUTDOWN
@@ -2675,7 +2738,7 @@ def trusted_text(path, what):
     if why:
         return None, 'the folder of %s may be changed by somebody else than SYSTEM and the ' \
                      'Administrators (%s) - %s' % (path, why, what)
-    if len(data) > A.POLICY_MOST:
+    if data is None or len(data) > A.POLICY_MOST:
         return None, '%s is bigger than %d bytes - %s' % (path, A.POLICY_MOST, what)
     return data.decode('utf-8', 'replace'), ''
 
@@ -2765,8 +2828,9 @@ def write_at(dfd, name, data, mode, uid, gid):
     if ntpath.splitext(name)[1].lower() in EXEC_EXT:
         raise Refused('%s: acme-agent never writes a file Windows runs or loads' % name)
     tmp = '.acme-new.%s' % secrets.token_hex(8)
-    W.write_new(dfd, tmp, data, uid)
     try:
+        # a write that fails half way (a full disk) leaves no part of the file behind
+        W.write_new(dfd, tmp, data, uid)
         W.rename(dfd, tmp, name)
     except BaseException:
         try:
@@ -3055,13 +3119,38 @@ def make_places(ids=None):
     svc = service_sid(SERVICE)
     base = base_dir()
     if os.path.dirname(A.ETC) == base:
+        _place_check(base)
         os.makedirs(base, exist_ok=True)
         _acl(base, [(SYSTEM, 'F'), (ADMINS, 'F'), (USERS, 'RX')])
     for d, aces in ((A.ETC, [(SYSTEM, 'F'), (ADMINS, 'F'), (USERS, 'RX'), (svc, 'RX')]),
                     (A.STATE, [(SYSTEM, 'F'), (ADMINS, 'F'), (svc, 'M')]),
                     (A.ROOT_STATE, [(SYSTEM, 'F'), (ADMINS, 'F')])):
+        _place_check(d)
         os.makedirs(d, exist_ok=True)
         _acl(d, aces)
+
+
+def _place_check(local):
+    """A folder of the agent's own that is there already (C:\\ProgramData lets every user make
+    folders): never a reparse point (a junction would send what root writes elsewhere), and
+    owned by SYSTEM, the Administrators or TrustedInstaller - one an account made before the
+    agent was installed (what it put in it stays its own) is refused."""
+    try:
+        st = os.lstat(local)
+    except FileNotFoundError:
+        return
+    if stat.S_ISLNK(st.st_mode) or getattr(st, 'st_file_attributes', 0) & ATTR_REPARSE:
+        raise SystemExit('acme-agent: %s is a symbolic link or a junction - take it away (an '
+                         'administrator) and run it again' % local)
+    w = W.winpath(local)
+    if not w:
+        return
+    sd = W.file_sd(w)
+    owner = parse_sddl(sd)['owner'] if sd else ''
+    if owner not in TRUSTED and owner != W.current_sid():
+        raise SystemExit('acme-agent: %s is there already, made by %s (not SYSTEM or the '
+                         'Administrators) - take it away (an administrator) and run it again' %
+                         (w, owner or 'an account whose name cannot be read'))
 
 
 def _acl(local, aces):
@@ -3111,7 +3200,8 @@ def pipe_sddl():
     write) - nobody else even opens it; nobody from another machine (the pipe refuses them)."""
     # 0x12008b: read, write data, attributes, READ_CONTROL, SYNCHRONIZE - never
     # FILE_CREATE_PIPE_INSTANCE: only the root side serves this pipe
-    return 'D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x12008b;;;%s)' % service_sid(SERVICE)
+    # owned by SYSTEM: the network side checks that the pipe it opens is the root side's
+    return 'O:SYD:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x12008b;;;%s)' % service_sid(SERVICE)
 
 
 def peer_ok(who):

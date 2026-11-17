@@ -568,6 +568,42 @@ elif act == 'start-php':
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     open(C['php_pid'][n], 'w').write(str(p.pid))
     up(C['php_port'][n], '/')
+elif act == 'vip':
+    # the VIP address moved: new connections go to that node's PHP
+    with open(C['vip_to'] + '.t', 'w') as f:
+        f.write(str(C['php_port'][sys.argv[2]]))
+    os.replace(C['vip_to'] + '.t', C['vip_to'])
+elif act == 'vip-serve':
+    import threading
+    srv = socket.socket()
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(('127.0.0.1', C['vip_port']))
+    srv.listen(64)
+
+    def pipe(a, b):
+        try:
+            while True:
+                got = a.recv(65536)
+                if not got:
+                    break
+                b.sendall(got)
+        except OSError:
+            pass
+        for x in (a, b):
+            try:
+                x.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+
+    while True:
+        c, _ = srv.accept()
+        try:
+            far = socket.create_connection(('127.0.0.1', int(open(C['vip_to']).read())), 5)
+        except (OSError, ValueError):
+            c.close()
+            continue
+        threading.Thread(target=pipe, args=(c, far), daemon=True).start()
+        threading.Thread(target=pipe, args=(far, c), daemon=True).start()
 elif act == 'plan':
     d = json.loads(sys.argv[2])
     db = sqlite3.connect(C['db'], timeout=30)
@@ -630,11 +666,22 @@ class ThePages(unittest.TestCase):
                        'api_env': cls.env, 'api_cwd': cls.tmp,
                        'api_log': os.path.join(cls.tmp, 'api-again.log'),
                        'db': dbs[0] if dbs else ''}, f)
+        cls.vip_port = free_port()
+        cls.vip_to = os.path.join(cls.tmp, 'vip-to')
+        with open(cls.conf_ctl) as f:
+            conf = json.load(f)
+        conf.update(vip_port=cls.vip_port, vip_to=cls.vip_to)
+        with open(cls.conf_ctl, 'w') as f:
+            json.dump(conf, f)
         cls.ctl_py = os.path.join(cls.tmp, 'ctl.py')
         with open(cls.ctl_py, 'w') as f:
             f.write(CTL % cls.conf_ctl)
         for n in cls.webs:
             cls.ctl('start-php', n)
+        # the cluster's VIP address: one port, forwarded to the PHP of the node holding it
+        cls.ctl('vip', 'A')
+        cls.vip = subprocess.Popen([sys.executable, cls.ctl_py, 'vip-serve'], start_new_session=True,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     @classmethod
     def merge_cs(cls, path, extra):
@@ -656,6 +703,9 @@ class ThePages(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        if getattr(cls, 'vip', None) is not None:
+            cls.vip.kill()
+            cls.vip.wait(10)
         for n in getattr(cls, 'pids', {}):
             cls.ctl('kill-php', n)
         try:
@@ -798,14 +848,14 @@ class ThePages(unittest.TestCase):
         self.assertIn('The daemon is not answering', body)
 
     # ---- the pages in Chromium -----------------------------------------------------------
-    def browser(self, mode, lang, width):
+    def browser(self, mode, lang, width, vip=False):
         node = shutil.which('node')
         if not node or subprocess.run([node, '-e', 'require("playwright")'], capture_output=True,
                                       cwd=ROOT).returncode != 0:
             self.skipTest('no node or playwright here')
         ctl = '%s %s' % (sys.executable, self.ctl_py)
         got = subprocess.run([node, os.path.join(HERE, 'upgrade_ui_page.js'), mode,
-                              'http://127.0.0.1:%d' % self.phps['A'],
+                              'http://127.0.0.1:%d' % (self.vip_port if vip else self.phps['A']),
                               'http://127.0.0.1:%d' % self.phps['B'], 'tester', self.pw, ctl,
                               lang, str(width)],
                              capture_output=True, text=True, timeout=600, cwd=ROOT)
@@ -910,7 +960,8 @@ class ThePages(unittest.TestCase):
     def test_cluster(self):
         if not self.conf_db():
             self.skipTest('no SQLite database to write the plan into')
-        s = self.browser('cluster', 'en', 1300)
+        self.ctl('vip', 'A')
+        s = self.browser('cluster', 'en', 1300, vip=True)
         try:
             # A's own file says done, the cluster's plan says B is at it: no reload
             self.assertEqual(s['onA']['rows'], 2, s)
