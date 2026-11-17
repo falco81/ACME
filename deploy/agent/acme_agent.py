@@ -2240,6 +2240,448 @@ def _os_name():
     return (m.group(1) if m else sys.platform)[:80]
 
 
+# ---- what the agent tells about its server (1.0.121, docs/target-agent.md "What the agent tells
+# about its server"): basic facts of the machine, never a secret - collected by root, kept a
+# minute, each bounded in size and time: a fact that is slow or fails is left out, never the
+# hello. Sent whole in the hello (`system`), its hash with every active poll (`system_hash`, as
+# the policy's) - acme asks the hello again when it changed. Windows: acme_agent_win.py has its
+# own system_facts (the registry, the service manager), the rest is this.
+SYS_ROOT = _env('ACME_AGENT_SYS_ROOT', '')     # the tests' layout of /proc, /sys, /etc (else /)
+SYS_TTL = 60                    # the facts kept this long (s)
+SYS_BUDGET_S = 6.0              # all of them at most this long; one slow fact at most:
+SYS_FACT_S = 3.0
+SYS_MOST = 12 * 1024            # bytes of the facts, as JSON
+SYS_TEXT = 200                  # characters of one fact
+SYS_LISTS = {'addrs': 16, 'disks': 8, 'services': 40, 'load': 3}
+# the services a certificate is deployed to, looked for by their unit (present: its unit file;
+# active: systemctl is-active, once for all of them)
+SYS_SERVICES = ('nginx', 'httpd', 'apache2', 'haproxy', 'postfix', 'dovecot', 'exim4', 'sendmail',
+                'lighttpd', 'caddy', 'traefik', 'envoy', 'squid', 'varnish', 'slapd', 'dirsrv',
+                'postgresql', 'mariadb', 'mysql', 'mysqld', 'redis', 'redis-server', 'mongod',
+                'vsftpd', 'proftpd', 'pure-ftpd', 'cockpit', 'grafana-server', 'keycloak',
+                'tomcat', 'tomcat9', 'tomcat10', 'jenkins', 'gitlab-runsvdir', 'openvpn',
+                'strongswan', 'ipsec', 'named', 'bind9', 'rabbitmq-server', 'mosquitto', 'docker',
+                'podman', 'kubelet', 'k3s', 'coturn', 'prosody', 'ejabberd', 'asterisk',
+                'freeradius', 'radiusd', 'zabbix-server', 'zabbix-agent', 'zabbix-agent2',
+                'webmin', 'minio', 'vault', 'consul', 'nomad', 'opensearch', 'elasticsearch',
+                'kibana', 'splunk', 'icinga2', 'nagios', 'sshd', 'ssh')
+_SYS = {'at': 0.0, 'facts': None, 'hash': '', 'busy': set(), 'cli': (0.0, None)}
+_SYS_LOCK = threading.Lock()
+
+
+def _sysp(path):
+    """A place of the machine's (/proc/...) - under ACME_AGENT_SYS_ROOT in the tests."""
+    return os.path.join(SYS_ROOT, path.lstrip('/')) if SYS_ROOT else path
+
+
+def _sysread(path, most=256 * 1024):
+    try:
+        with open(_sysp(path), 'rb') as f:
+            return f.read(most).decode('utf-8', 'replace')
+    except OSError:
+        return None
+
+
+def _timed(name, fn, most=SYS_FACT_S, until=None):
+    """fn() in a thread of its own -> what it returned, or None when it failed or took longer
+    than `most` s (it is left to end by itself, and not started again meanwhile)."""
+    if until is not None:
+        most = min(most, until - time.time())
+    if most <= 0 or name in _SYS['busy']:
+        return None
+    box = {}
+
+    def go():
+        try:
+            box['v'] = fn()
+        except Exception:                               # noqa: BLE001
+            pass
+        finally:
+            _SYS['busy'].discard(name)
+    _SYS['busy'].add(name)
+    t = threading.Thread(target=go, daemon=True, name='acme-agent-fact-' + name)
+    t.start()
+    t.join(most)
+    return box.get('v')
+
+
+def _sys_try(out, fn, *args):
+    """One fact (a dict of keys) into `out` - a fact that fails is left out."""
+    try:
+        got = fn(*args)
+    except Exception:                                   # noqa: BLE001
+        return
+    if isinstance(got, dict):
+        out.update({k: v for k, v in got.items() if v not in (None, '', [], {})})
+
+
+def _sys_value(v, depth=0):
+    """A fact as acme is told it: one line of text cut to size, a finite number, short lists."""
+    if isinstance(v, bool) or v is None:
+        return v
+    if isinstance(v, int):
+        return v if abs(v) < 2 ** 62 else None
+    if isinstance(v, float):
+        return round(v, 3) if math.isfinite(v) else None
+    if isinstance(v, str):
+        return re.sub(r'\s+', ' ', re.sub(r'[\x00-\x08\x0b-\x1f\x7f-\x9f]', '', v)).strip()[
+            :SYS_TEXT]
+    if depth >= 2:
+        return None
+    if isinstance(v, dict):
+        return {str(k)[:40]: _sys_value(x, depth + 1) for k, x in list(v.items())[:20]}
+    if isinstance(v, (list, tuple)):
+        return [_sys_value(x, depth + 1) for x in list(v)[:40]]
+    return None
+
+
+def sys_bound(facts):
+    """The facts bounded: each value, each list, the whole (the long lists cut first)."""
+    out = {}
+    for k, v in list((facts or {}).items())[:60]:
+        v = _sys_value(v)
+        if isinstance(v, list):
+            v = v[:SYS_LISTS.get(k, 20)]
+        if v not in (None, '', [], {}):
+            out[str(k)[:40]] = v
+    for k in ('services', 'addrs', 'disks', 'load', 'machine', 'cpu'):
+        if len(json.dumps(out)) <= SYS_MOST:
+            break
+        out.pop(k, None)
+    while len(json.dumps(out)) > SYS_MOST and out:
+        out.pop(sorted(out, key=lambda x: len(json.dumps(out[x])))[-1])
+    return out
+
+
+def sys_hash(facts):
+    """The hash of what changes seldom: not the clock, the uptime, the memory or the load
+    (a disk by the percent it is used) - a changed one has acme ask the hello again."""
+    keep = {k: v for k, v in facts.items()
+            if k not in ('clock', 'uptime', 'mem_avail', 'load', 'hash')}
+    if isinstance(keep.get('boot'), (int, float)):
+        keep['boot'] = int(keep['boot'] // 600)
+    keep['disks'] = [[d.get('path'), d.get('size'),
+                      int(100 * (1 - d.get('free', 0) / d['size'])) if d.get('size') else 0]
+                     for d in facts.get('disks') or [] if isinstance(d, dict)]
+    return _sha(json.dumps(keep, sort_keys=True, separators=(',', ':')))
+
+
+def _vkey(v):
+    """'5.14.0-427.13.1.el9_4.x86_64' as something sorted as versions are."""
+    return [(0, int(x), '') if x.isdigit() else (1, 0, x) for x in re.findall(r'\d+|[A-Za-z]+',
+                                                                             str(v))]
+
+
+def _sf_runtime():
+    out = {'python': sys.version.split()[0], 'openssl': ssl.OPENSSL_VERSION}
+    at, cli = _SYS['cli']
+    if time.time() - at > 3600:
+        def ask():
+            got = subprocess.run([OPENSSL, 'version'], capture_output=True, text=True,
+                                 timeout=SYS_FACT_S, stdin=subprocess.DEVNULL)
+            return got.stdout.strip() if got.returncode == 0 else None
+        cli = _timed('openssl', ask)
+        _SYS['cli'] = (time.time(), cli)
+    if cli:
+        out['openssl_cli'] = cli
+    return out
+
+
+def _sf_disks(out, pol, usage, mount_of, extra=()):
+    """The file systems of / (C:\\ on Windows) and of the policy's folders: size and free."""
+    seen, disks = set(), []
+    places = list(extra) + [f.get('dir') for f in (pol or {}).get('files') or []
+                            if isinstance(f, dict)]
+    for p in places[:24]:
+        if not p:
+            continue
+        try:
+            key, mount, fs = mount_of(p)
+        except Exception:                               # noqa: BLE001
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            size, free = usage(mount)
+        except Exception:                               # noqa: BLE001
+            continue
+        if size:
+            d = {'path': mount, 'size': int(size), 'free': int(free)}
+            if fs:
+                d['fs'] = fs
+            disks.append(d)
+        if len(disks) >= SYS_LISTS['disks']:
+            break
+    out['disks'] = disks
+
+
+def _linux_mounts():
+    rows = []
+    for line in (_sysread('/proc/self/mounts') or '').splitlines()[:2000]:
+        w = line.split()
+        if len(w) >= 3:
+            rows.append((w[1].replace('\\040', ' '), w[2]))
+    return rows
+
+
+def _linux_mount_of(path, mounts):
+    p = os.path.realpath(path)
+    while not os.path.exists(p) and p != '/':
+        p = os.path.dirname(p)
+    st = os.stat(p)
+    best = ('/', '')
+    for mp, fs in mounts:
+        if (p == mp or p.startswith(mp.rstrip('/') + '/')) and len(mp) >= len(best[0]):
+            best = (mp, fs)
+    return st.st_dev, best[0] if os.path.exists(best[0]) else p, best[1]
+
+
+def _linux_usage(path):
+    v = os.statvfs(path)
+    return v.f_blocks * v.f_frsize, v.f_bavail * v.f_frsize
+
+
+def _sf_os_linux():
+    text = _sysread('/etc/os-release') or _sysread('/usr/lib/os-release') or ''
+    kv = {}
+    for line in text.splitlines():
+        m = re.match(r'([A-Z_]+)=(.*)\Z', line.strip())
+        if m:
+            kv[m.group(1)] = m.group(2).strip().strip('"\'')
+    out = {'os': kv.get('PRETTY_NAME') or kv.get('NAME') or 'Linux',
+           'os_id': kv.get('ID') or 'linux', 'os_version': kv.get('VERSION_ID') or '',
+           'os_like': kv.get('ID_LIKE') or ''}
+    kern = (_sysread('/proc/sys/kernel/osrelease') or '').strip()
+    out['kernel'] = kern or os.uname().release
+    out['arch'] = os.uname().machine
+    vendor = (_sysread('/sys/class/dmi/id/sys_vendor', 200) or '').strip()
+    product = (_sysread('/sys/class/dmi/id/product_name', 200) or '').strip()
+    if vendor or product:
+        out['machine'] = ' '.join(x for x in (vendor, product) if x and
+                                  not product.startswith(vendor or '\0'))[:120] or product
+    return out
+
+
+def _sf_host_linux(until):
+    host = (_sysread('/proc/sys/kernel/hostname') or '').strip() or socket.gethostname()
+    out = {'hostname': host}
+    fqdn = _timed('fqdn', lambda: socket.getfqdn(host), until=until) or ''
+    if fqdn and fqdn != host and '.' in fqdn and not fqdn.startswith('localhost'):
+        out['fqdn'] = fqdn
+    elif '.' in host:
+        out['fqdn'] = host
+    dom = out.get('fqdn', '').split('.', 1)[1] if '.' in out.get('fqdn', '') else ''
+    if not dom:
+        nis = (_sysread('/proc/sys/kernel/domainname') or '').strip()
+        dom = '' if nis in ('', '(none)') else nis
+    if dom:
+        out['domain'] = dom
+    return out
+
+
+def _linux_addrs():
+    """The interfaces' addresses (no loopback, no link-local): IPv4 by SIOCGIFADDR, IPv6 from
+    /proc/net/if_inet6 - never a command."""
+    import fcntl
+    out = []
+    try:
+        names = [n for _i, n in socket.if_nameindex()][:64]
+    except OSError:
+        names = []
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        for n in names:
+            if n == 'lo':
+                continue
+            try:
+                raw = fcntl.ioctl(s.fileno(), 0x8915, struct.pack('256s', n[:15].encode()))
+                ip = socket.inet_ntoa(raw[20:24])
+                bits = ''
+                try:
+                    m = fcntl.ioctl(s.fileno(), 0x891b, struct.pack('256s', n[:15].encode()))
+                    bits = '/%d' % bin(struct.unpack('!I', m[20:24])[0]).count('1')
+                except OSError:
+                    pass
+                if not ip.startswith('127.'):
+                    out.append({'if': n, 'ip': ip + bits})
+            except OSError:
+                continue
+    finally:
+        s.close()
+    return out
+
+
+def _linux_addrs6():
+    out = []
+    for line in (_sysread('/proc/net/if_inet6') or '').splitlines()[:200]:
+        w = line.split()
+        if len(w) < 6 or w[5] == 'lo':
+            continue
+        try:
+            ip = ipaddress.IPv6Address(bytes.fromhex(w[0]))
+        except ValueError:
+            continue
+        if ip.is_link_local or ip.is_loopback:
+            continue
+        out.append({'if': w[5], 'ip': '%s/%d' % (ip, int(w[2], 16))})
+    return out
+
+
+def _sf_hw_linux():
+    out = {}
+    cpu = _sysread('/proc/cpuinfo', 512 * 1024) or ''
+    model = re.search(r'(?mi)^(?:model name|hardware|cpu model|processor\s*:\s*[A-Za-z])\s*:\s*'
+                      r'(.+)$', cpu)
+    if model:
+        out['cpu'] = model.group(1).strip()
+    n = len(re.findall(r'(?m)^processor\s*:\s*\d+', cpu))
+    out['cores'] = n or os.cpu_count() or 0
+    mem = _sysread('/proc/meminfo') or ''
+    for k, name in (('MemTotal', 'mem_total'), ('MemAvailable', 'mem_avail')):
+        m = re.search(r'(?m)^%s:\s*(\d+)\s*kB' % k, mem)
+        if m:
+            out[name] = int(m.group(1)) * 1024
+    load = (_sysread('/proc/loadavg') or '').split()
+    if len(load) >= 3:
+        out['load'] = [float(x) for x in load[:3]]
+    up = (_sysread('/proc/uptime') or '').split()
+    stat_ = _sysread('/proc/stat') or ''
+    m = re.search(r'(?m)^btime\s+(\d+)', stat_)
+    if m:
+        out['boot'] = int(m.group(1))
+    elif up:
+        out['boot'] = int(time.time() - float(up[0]))
+    return out
+
+
+def _sf_tz_linux():
+    out = {}
+    name = (_sysread('/etc/timezone', 200) or '').strip()
+    if not name:
+        try:
+            link = os.readlink(_sysp('/etc/localtime'))
+            name = link.split('zoneinfo/', 1)[1] if 'zoneinfo/' in link else ''
+        except OSError:
+            name = ''
+    out['tz'] = name or time.strftime('%Z')
+    out['tz_offset'] = int(time.localtime().tm_gmtoff // 60)
+    return out
+
+
+def _sf_security_linux():
+    out = {}
+    enf = (_sysread('/sys/fs/selinux/enforce', 8) or '').strip()
+    if enf in ('0', '1'):
+        out['selinux'] = 'enforcing' if enf == '1' else 'permissive'
+    else:
+        # SELinux not mounted: disabled where it is installed (its configuration there)
+        if _sysread('/etc/selinux/config', 8192) is not None:
+            out['selinux'] = 'disabled'
+    aa = (_sysread('/sys/module/apparmor/parameters/enabled', 8) or '').strip()
+    if aa:
+        out['apparmor'] = aa.upper().startswith('Y')
+    comm = (_sysread('/proc/1/comm', 64) or '').strip()
+    if os.path.isdir(_sysp('/run/systemd/system')) or comm == 'systemd':
+        out['init'] = 'systemd'
+    elif comm:
+        out['init'] = comm
+    return out
+
+
+def _sf_reboot_linux(kernel):
+    why = []
+    for p in ('/run/reboot-required', '/var/run/reboot-required'):
+        if os.path.exists(_sysp(p)):
+            pkgs = (_sysread(p + '.pkgs', 4096) or '').split()
+            why.append('reboot-required' + (' (%s)' % ', '.join(sorted(set(pkgs))[:4])
+                                            if pkgs else ''))
+            break
+    for top in ('/lib/modules', '/usr/lib/modules'):
+        try:
+            have = [x for x in os.listdir(_sysp(top)) if not x.startswith('.')]
+        except OSError:
+            continue
+        if kernel and kernel in have:
+            newest = max(have, key=_vkey)
+            if newest != kernel and _vkey(newest) > _vkey(kernel):
+                why.append('a newer kernel is installed (%s)' % newest)
+        break
+    return {'reboot': bool(why), 'reboot_why': '; '.join(why)}
+
+
+def _sf_services_linux(until):
+    """The known services there (their unit file) and which run (one systemctl is-active)."""
+    dirs = ('/etc/systemd/system', '/run/systemd/system', '/usr/lib/systemd/system',
+            '/lib/systemd/system')
+    have = []
+    for name in SYS_SERVICES:
+        if any(os.path.exists(_sysp('%s/%s.service' % (d, name))) for d in dirs):
+            have.append(name)
+    if not have:
+        return {'services': []}
+    states = {}
+    ctl = next((p for p in ('/usr/bin/systemctl', '/bin/systemctl')
+                if os.path.exists(_sysp(p))), None)
+    if ctl:
+        def ask():
+            got = subprocess.run([_sysp(ctl), 'is-active', '--'] + ['%s.service' % n
+                                                                   for n in have],
+                                 capture_output=True, text=True, timeout=SYS_FACT_S,
+                                 stdin=subprocess.DEVNULL, env={'PATH': '/usr/bin:/bin'})
+            return got.stdout.split()
+        said = _timed('services', ask, until=until) or []
+        if len(said) == len(have):
+            states = dict(zip(have, said))
+    return {'services': [{'name': n, 'state': 'active' if states.get(n) == 'active'
+                          else 'present'} for n in have]}
+
+
+def system_facts(pol=None):
+    """The facts of this Linux server (Windows: acme_agent_win.system_facts)."""
+    until = time.time() + SYS_BUDGET_S
+    out = {'platform': PLATFORM}
+    _sys_try(out, _sf_os_linux)
+    _sys_try(out, _sf_hw_linux)
+    _sys_try(out, _sf_tz_linux)
+    _sys_try(out, _sf_security_linux)
+    _sys_try(out, _sf_reboot_linux, out.get('kernel'))
+    _sys_try(out, _sf_runtime)
+    _sys_try(out, _sf_host_linux, until)
+    addrs = (_timed('addrs', _linux_addrs, until=until) or []) + \
+        (_timed('addrs6', _linux_addrs6, until=until) or [])
+    if addrs:
+        out['addrs'] = addrs
+    mounts = _timed('mounts', _linux_mounts, until=until) or []
+    _sys_try(out, lambda: _sf_disks(out, pol, _linux_usage,
+                                    lambda p: _linux_mount_of(p, mounts), ('/',)) or {})
+    _sys_try(out, _sf_services_linux, until)
+    return out
+
+
+def system_info(fresh=False):
+    """(the facts, their hash) - collected at most once a minute; the clock and the uptime of
+    now. Never raises: what could not be said is left out."""
+    with _SYS_LOCK:
+        if fresh or _SYS['facts'] is None or time.time() - _SYS['at'] > SYS_TTL:
+            try:
+                pol = policy_load()[0]
+            except Exception:                           # noqa: BLE001
+                pol = None
+            try:
+                facts = sys_bound(system_facts(pol))
+            except Exception:                           # noqa: BLE001
+                facts = {'platform': PLATFORM}
+            _SYS.update(facts=facts, hash=sys_hash(facts), at=time.time())
+        facts, h = dict(_SYS['facts']), _SYS['hash']
+    now = time.time()
+    facts['clock'] = round(now, 3)
+    if isinstance(facts.get('boot'), (int, float)):
+        facts['uptime'] = max(0, int(now - facts['boot']))
+    facts['hash'] = h
+    return facts, h
+
+
 class Deploy(object):
     """One deployment: checked, files staged and put in place, tested, reloaded - or the
     previous files back."""
