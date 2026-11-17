@@ -1653,3 +1653,38 @@ def contact_mails(store, cert):
     if not t:
         return []
     return [w for w in re.split(r'[\s,;]+', str(t.get('contact_mail') or '')) if w]
+
+
+# ---------------------------------------------------------------------------
+# What happened in a team (1.0.125)
+# ---------------------------------------------------------------------------
+def _like(text):
+    return '%' + str(text).lower().replace('!', '!!').replace('%', '!%').replace('_', '!_') + '%'
+
+
+def team_activity(store, team, limit=50, offset=0, below=False):
+    """The events about a team: its own changes (the owner / the team NAME), its certificates'
+    and its devices' - (rows, total), newest first. `below`: the teams below it too."""
+    tr = tree(store)
+    k = _low(team)
+    if k not in tr.rows:
+        raise LookupError('there is no team %s' % team)
+    teams_ = [k] + (tr.descendants(k) if below else [])
+    terms = []
+    for x in teams_:
+        n = tr.rows[x]['name']
+        terms += ['the owner %s' % n, 'the team %s' % n, 'team %s' % n]
+    part = ', '.join('?' * len(teams_))
+    for r in store.db.rows('SELECT name FROM certs WHERE LOWER(TRIM(owner)) IN (%s) ORDER BY '
+                           'name LIMIT 300' % part, tuple(teams_)):
+        terms.append(r['name'])
+    for r in store.db.rows('SELECT name FROM cert_targets WHERE LOWER(TRIM(owner)) IN (%s) '
+                           'ORDER BY name LIMIT 200' % part, tuple(teams_)):
+        terms.append(r['name'])
+    terms = list(dict.fromkeys(t for t in terms if t))[:600]
+    sql = "kind = 'certificates' AND (%s)" % ' OR '.join(
+        "LOWER(words) LIKE ? ESCAPE '!'" for _ in terms)
+    rows, total = store.events(max(1, min(500, int(limit))), max(0, int(offset)),
+                               extra=(sql, [_like(t) for t in terms]))
+    return [{'id': r.get('id'), 'ts': r.get('ts'), 'level': r.get('level'), 'who': r.get('who'),
+             'words': r.get('words'), 'node': r.get('node')} for r in rows], total

@@ -1599,12 +1599,43 @@ def clean_result(r):
             pass
     if isinstance(r.get('cert_fp'), str) and HEX64.match(r['cert_fp']):
         out['cert_fp'] = r['cert_fp']
+    if isinstance(r.get('adcs'), dict):
+        out['adcs'] = clean_adcs(r['adcs'])
     # 1.0.120: what the agent tells about its server - its word, cleaned strictly
     if isinstance(r.get('system'), dict):
         from acmelib.certs import agent_system
         sysf = agent_system.clean(r['system'])
         if sysf:
             out['system'] = sysf
+    return out
+
+
+def clean_adcs(a):
+    """What a Windows agent answers of a Microsoft CA (op adcs, 1.0.125): its shape checked -
+    the certificate and its chain as base64 (DER, PKCS#7), the lists cut to size."""
+    out = {}
+    for k, n in (('action', 20), ('ca', 400), ('template', 64), ('state', 30), ('code', 12),
+                 ('said', 600)):
+        if a.get(k) is not None:
+            out[k] = _txt(a[k], n)
+    if re.fullmatch(r'[0-9]{1,10}', str(a.get('req_id') or '')):
+        out['req_id'] = str(a['req_id'])
+    for k in ('cert', 'chain'):
+        v = a.get(k)
+        if isinstance(v, str) and len(v) < 200000 and re.fullmatch(r'[A-Za-z0-9+/=]*', v):
+            out[k] = v
+    if isinstance(a.get('templates'), list):
+        out['templates'] = [{'name': _txt(t.get('name'), 64), 'display': _txt(t.get('display'),
+                                                                                128),
+                             'allowed': bool(t.get('allowed'))}
+                            for t in a['templates'][:500] if isinstance(t, dict)]
+    if isinstance(a.get('cas'), list):
+        out['cas'] = [{'config': _txt(c.get('config'), 400), 'name': _txt(c.get('name'), 128),
+                       'server': _txt(c.get('server'), 253),
+                       'allowed': [_txt(t, 64) for t in (c.get('allowed') or [])[:64]
+                                   if isinstance(t, str)]
+                       if isinstance(c.get('allowed'), list) else []}
+                      for c in a['cas'][:64] if isinstance(c, dict)]
     return out
 
 
@@ -1646,6 +1677,15 @@ def clean_policy(p):
     out['connect'] = [s(x, 300) for x in lst('connect')[:100]]
     out['probe'] = [s(x, 300) for x in lst('probe')[:100]]
     out['problems'] = [s(x, 300) for x in lst('problems')[:20]]
+    # 1.0.125: a Windows agent's Microsoft CAs and their templates (allow adcs, adcs-read)
+    adcs = [{'ca': s(x.get('ca'), 400), 'templates': [s(t, 64) for t in x['templates'][:64]
+                                                      if isinstance(t, str)]}
+            for x in lst('adcs')[:64] if isinstance(x, dict) and isinstance(x.get('ca'), str)
+            and isinstance(x.get('templates'), list)]
+    if adcs:
+        out['adcs'] = adcs
+    if p.get('adcs_read'):
+        out['adcs_read'] = True
     lim = p.get('limits') if isinstance(p.get('limits'), dict) else {}
     for k in ('files', 'size'):
         try:

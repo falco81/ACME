@@ -105,7 +105,7 @@ OWNER_RE = re.compile(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,31}\Z')
 AGENT_ID_RE = re.compile(r'ag-[0-9a-f]{12,32}\Z')
 SAFE_PATH = re.compile(r'/[^\x00-\x1f\x7f]{0,1023}\Z')
 SAFE_ENV = re.compile(r'[A-Z][A-Z0-9_]{0,63}\Z')
-ROOT_OPS = ('hello', 'policy', 'fingerprints', 'deploy', 'check', 'keygen', 'update')
+ROOT_OPS = ('hello', 'policy', 'fingerprints', 'deploy', 'check', 'keygen', 'update', 'adcs')
 # checked by root (the signature, and - probe, connect - the policy), done by the network side:
 # root never opens a network connection
 NET_OPS = ('csr', 'cert', 'probe', 'connect')
@@ -964,7 +964,8 @@ def policy_canon(pol):
                                 'self_update', 'connect', 'limits')}
     # what phase 3 added - only when used, so a policy of phase 2 keeps its hash
     # ...and what Windows adds (the machine store, IIS, Remote Desktop): never on Linux
-    for k in ('probe', 'probe_local', 'store', 'iis', 'rdp', 'roles', 'key_read'):
+    for k in ('probe', 'probe_local', 'store', 'iis', 'rdp', 'roles', 'key_read', 'adcs',
+              'adcs_read'):
         if pol.get(k):
             keep[k] = pol[k]
     return json.dumps(keep, sort_keys=True, separators=(',', ':'))
@@ -1038,7 +1039,7 @@ def policy_report(pol, h):
            'from': pol['from'], 'self_update': pol['self_update'], 'connect': pol['connect'],
            'probe': pol.get('probe') or [], 'probe_local': bool(pol.get('probe_local')),
            'limits': pol['limits'], 'problems': pol['problems'][:20]}
-    for k in ('store', 'iis', 'rdp', 'roles', 'key_read'):     # Windows only, when there
+    for k in ('store', 'iis', 'rdp', 'roles', 'key_read', 'adcs', 'adcs_read'):  # Windows only
         if pol.get(k):
             out[k] = pol[k]
     if WINDOWS:
@@ -2268,6 +2269,20 @@ class Root(object):
         return {'ok': True, 'csr': csr, 'kept': kept, 'key_fp': spki_fp(key), 'policy_hash': h,
                 'said': ('the key in use kept (%s), a CSR of it' if kept else
                          'a new %s key made here - it stays on this machine - and its CSR') % kt}
+
+    def op_adcs(self, args, job, msg):
+        """A Microsoft CA asked without its web service (1.0.125, docs/ms-adcs-agent.md): a CSR
+        submitted, a pending request retrieved, the CAs and their templates listed - as this
+        computer (LocalSystem: Kerberos as the machine account), only for the CAs and templates
+        the policy allows (allow adcs, allow adcs-read). Only on Windows."""
+        if not WINDOWS:
+            raise Refused('a Microsoft CA is asked only by acme-agent on Windows (a member '
+                          'server of the domain) - this agent runs on %s' % PLATFORM)
+        pol, h, _t = policy_load()
+        with self.work:
+            out = _wincert().adcs(_Here(), pol, args)
+        out['policy_hash'] = h
+        return out
 
     def op_update(self, args, job, msg):
         """This agent replaced by a newer one acme offers: only with `allow self-update`, only
@@ -4674,6 +4689,8 @@ def main(argv):
     if cmd == 'version':
         print(VERSION)
         return 0
+    if cmd == 'adcs':
+        raise SystemExit('acme-agent: a Microsoft CA is listed only by acme-agent on Windows')
     print(__doc__)
     return 2
 

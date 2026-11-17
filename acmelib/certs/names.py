@@ -45,7 +45,7 @@ WORDS = {'issuer': 'source', 'challenge': 'validation', 'target': 'target', 'ca'
 # options_from of a module's field -> the family whose names it holds
 OPTIONS_OF = {'sources': 'issuer', 'issuers': 'issuer', 'validations': 'challenge',
               'challenges': 'challenge', 'targets': 'target', 'cas': 'ca', 'certs': 'cert',
-              'dns_writers': 'challenge'}
+              'dns_writers': 'challenge', 'agent_windows_targets': 'target'}
 KV_PREFIX = 'certs:kv:'
 
 

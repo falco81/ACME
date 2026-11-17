@@ -677,8 +677,10 @@ class RunContext(base.Context):
         return E.push_pin(self.store, url, pin)
 
     # ---- a server with acme-agent (targets/agent.py, 1.0.116) --------------------------------
-    def _agent_row(self):
-        name = getattr(self, 'target_name', '') or (
+    def _agent_row(self, target=None):
+        # 1.0.125: a source asks the agent of the target its settings name (issuers/
+        # ms_adcs_agent.py: a Microsoft CA through acme-agent) - `target`, bound by the module
+        name = target or getattr(self, 'target_name', '') or (
             self.scope.split(':', 1)[1] if str(self.scope).startswith('target:') else '')
         from acmelib.certs import agents
         try:
@@ -687,11 +689,12 @@ class RunContext(base.Context):
             raise base.PluginError('save the target first, then join its agent (a join code on '
                                    'its card)', retry=False)
 
-    def agent_call(self, op, args=None, timeout=900):
-        """One signed job run by the target's agent -> its answer."""
+    def agent_call(self, op, args=None, timeout=900, target=None):
+        """One signed job run by the target's agent -> its answer. `target`: the agent of that
+        target (a source's: issuers/ms_adcs_agent.py) - else the target this Context is for."""
         from acmelib.certs import agents
-        return agents.call(self.store, self._agent_row(), op, args or {}, timeout=timeout,
-                           step=self.step)
+        return agents.call(self.store, self._agent_row(target), op, args or {},
+                           timeout=timeout, step=self.step)
 
     def agent_seal(self, label, data):
         """`data` sealed to the target's agent for `label` (a file's path, 'env')."""
@@ -700,11 +703,11 @@ class RunContext(base.Context):
         st = agents.state(self.store, row['id'])
         return agents.seal(st.get('enc_pub'), st.get('agent_id'), label, data)
 
-    def agent_info(self):
+    def agent_info(self, target=None):
         """What acme knows of the target's agent (its last policy) - no network."""
         from acmelib.certs import agents
         try:
-            return agents.info(self.store, self._agent_row())
+            return agents.info(self.store, self._agent_row(target))
         except base.PluginError:
             return {}
 

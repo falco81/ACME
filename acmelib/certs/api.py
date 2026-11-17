@@ -2341,6 +2341,11 @@ def options_for(store, source):
             "SELECT name FROM cert_targets WHERE kind IN ('agent', 'agent_windows') ORDER BY name")
             if r['name'] not in taken]
         return out
+    if source == 'agent_windows_targets':
+        # the Windows servers with acme-agent (1.0.125: issuers/ms_adcs_agent.py - the one
+        # whose agent asks a Microsoft CA)
+        return [[r['name'], r['name']] for r in store.db.rows(
+            "SELECT name FROM cert_targets WHERE kind = 'agent_windows' ORDER BY name")]
     if source == 'key_types':
         return [[k, k] for k in schema.KEY_TYPES]
     return []
