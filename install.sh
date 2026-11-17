@@ -136,10 +136,11 @@ trap 'rc=$?; printf "\n%sERROR: line %s: \"%s\" ended with %s; nothing after it 
 UPGRADE_TELL="" UPGRADE_PART=0 UPGRADE_PARTS=0 UPGRADE_WORDS="" UPGRADE_ID="" UPGRADE_NODE=""
 UPGRADE_FROM="" UPGRADE_STARTED=0 UPGRADE_DOWN=""
 json_str() {            # json_str TEXT: "TEXT" as JSON takes it - no control characters
-    local s="${1//\\/\\\\}"
+    local s="${1:0:300}"                # cut first: a cut through an escape breaks the JSON
+    s="${s//\\/\\\\}"
     s="${s//\"/\\\"}"
     s="$(printf '%s' "$s" | tr -d '\000-\037\177')"
-    printf '"%s"' "${s:0:300}"
+    printf '"%s"' "$s"
 }
 upgrade_tell() {        # upgrade_tell STATE [SAID] - never stops the upgrade (called with || true)
     [[ -n "$UPGRADE_TELL" && -z "$DRY_RUN" ]] || return 0

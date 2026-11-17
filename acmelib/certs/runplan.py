@@ -873,9 +873,10 @@ def _agent_steps(ev):
             continue
         if w == 'file' and meta.get('password') and it.get('format') in AGENT_PW_FORMATS:
             more = {'fixed': 'protected by the password of the deployment',
-                    'generate': 'protected by a new password each time (in ACME_PASSWORD for '
-                                'the script)', 'none': 'without a password'}.get(
-                                    meta['password'], 'protected by a password')
+                    'generate': 'protected by a password acme made, kept sealed with the '
+                                'deployment (in ACME_PASSWORD for the script)',
+                    'none': 'without a password'}.get(meta['password'],
+                                                      'protected by a password')
             if it.get('format') == 'jks' and meta.get('alias'):
                 more += ' · ' + 'its alias {0}'.replace('{0}', str(meta['alias']))
             st['note'] = ((st.get('note') + ' · ') if st.get('note') else '') + more
@@ -4519,7 +4520,18 @@ def key_phase(cert, profile, irow, icls):
     else:
         for i, kt in enumerate(kts):
             sealed = cert.get('alt_key_sealed' if i else 'key_sealed')
+            other = ''
             if cert.get('reuse_key') and sealed and cert.get('state') != 'revoked':
+                # kept only while it is of the key type asked (renewer: 1.0.48) - the key type
+                # changed, a new key is made; only its type is looked at here
+                try:
+                    from acmelib.certs import pki as _pki
+                    had = _pki.key_info(S.cert_key(cert, 'alt' if i else ''))['key_type']
+                    if had and had != kt:
+                        other = had
+                except Exception:                       # noqa: BLE001
+                    pass
+            if cert.get('reuse_key') and sealed and cert.get('state') != 'revoked' and not other:
                 words = 'The {0} key it has is kept (sealed in acme\'s database)'
             else:
                 words = 'A new {0} key is made here, on this machine'
@@ -4532,6 +4544,9 @@ def key_phase(cert, profile, irow, icls):
                 st['branch'] = 'The twin of a dual certificate: the same names, another key'
             if cert.get('reuse_key') and not sealed:
                 st['note'] = 'it keeps this key at the renewals after'
+            elif other:
+                st['note'] = 'the key it has is {0}, not the key type asked: a new one, kept ' \
+                    'at the renewals after'.replace('{0}', other)
             steps.append(st)
         subj = dict(profile.get('subject') or {})
         pairs = [['Subject', ', '.join('%s=%s' % kv for kv in subj.items()) or
@@ -5715,14 +5730,21 @@ def after_phase(store, cert, irow, dinfo):
         steps.append({'kind': 'info', 'words': 'It is renewed only when somebody asks - '
                       'nothing repeats by itself'})
     elif cert.get('not_after'):
-        at = float(cert['not_after']) - days * 86400
+        # as the renewer works it out (renewer.renew_window): its renew days, but no more
+        # than a third of its life - a 6-day certificate was said to be renewed at once
+        from acmelib.certs import renewer as _rn
+        win = _rn.renew_window(cert, cert['not_after'], cert.get('not_before'))
+        at = float(cert['not_after']) - win
         ari = S.jload(cert.get('ari'), {}) if isinstance(cert.get('ari'), str) else {}
         if ari and ari.get('at'):
             at = min(at, float(ari['at']))
         steps.append({'kind': 'wait', 'words': 'Next renewal: {0}'.replace(
             '{0}', time.strftime('%Y-%m-%d %H:%M UTC', time.gmtime(max(at, time.time())))),
-            'note': '%d days before the end, or sooner in the window its CA suggests (ARI)'
-            % days})
+            'note': ('%d days before the end, or sooner in the window its CA suggests (ARI)'
+                     % days) if win >= days * 86400 else
+            ('a third of its life ({0}) before the end - its {1} days are more than that - or '
+             'sooner in the window its CA suggests (ARI)').replace(
+                '{0}', E.human_span(win)).replace('{1}', str(days))})
     elif cert.get('state') == 'held' or (not cert.get('id') and cert.get('hold')):
         # "Add only" (1.0.26): never issued by itself (1.0.96: said it would be, at the next look)
         steps.append({'kind': 'wait', 'words': 'Not issued by itself: it was only added - it '

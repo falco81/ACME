@@ -94605,6 +94605,10 @@
   "pz_257": {
    "source": "its alias {0}",
    "text": "jeho alias {0}"
+  },
+  "pz_258": {
+   "source": "Downloaded - no new report of: {0}",
+   "text": "Staženo – bez nové zprávy uzlu: {0}"
   }
  },
  "rich": {

@@ -755,7 +755,7 @@ class AcmeSide(unittest.TestCase):
                  'The agent gives', 'The agent sets the Windows role', 'After it']
         self.assertEqual([next(o for o in order if w.startswith(o)) for w in words], order)
         text = json.dumps(steps)
-        self.assertIn('protected by a new password each time', text)
+        self.assertIn('protected by a password acme made, kept sealed with the deployment', text)
         self.assertIn('legacy (3DES, SHA-1)', text)
         self.assertIn('the PFX files protected by the password of the store', text)
         self.assertIn('every file is written again even when it is the same', text)
