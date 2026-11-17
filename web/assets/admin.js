@@ -11442,6 +11442,12 @@ function loadUpgrade(live) {
     UP.misses = (UP.misses || 0) + 1;
     if (running || e.unreachable || UP.misses <= 3) {
       if ($('up-retry')) $('up-retry').textContent = ('A node is restarting or the VIP address is moving to the other node - asking again…');
+      /* ...and what root says of the node that answers these pages (1.0.120), from its file. */
+      var uf = UPG.file;
+      if ($('up-retry') && uf && uf.state === 'running') {
+        $('up-retry').textContent += ' ' + (uf.node || UPG.node || 'This node') + ': ' + (uf.words || 'being put in')
+          + (uf.parts ? ' · step ' + uf.part + ' of ' + uf.parts : '') + '.';
+      }
       upgradeAgain(Math.min(2000 * UP.misses, 6000));
       return;
     }

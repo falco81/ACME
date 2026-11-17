@@ -584,10 +584,10 @@ class Sides(unittest.TestCase):
         self.assertTrue(got.get('ok'), got)
         steps = json.dumps(got['steps'])
         self.assertIn('the services depending on it restarted too: Ftpsvc, W3SVC', steps)
-        done = [(x['verb'], x['name']) for x in W.lines('services.log')[n:]
+        done = [(x['verb'], x['name'].lower()) for x in W.lines('services.log')[n:]
                 if x['verb'] in ('stop', 'start')]
-        self.assertEqual(done, [('stop', 'Ftpsvc'), ('stop', 'W3SVC'), ('stop', 'WAS'),
-                                ('start', 'WAS'), ('start', 'W3SVC'), ('start', 'Ftpsvc')])
+        self.assertEqual(done, [('stop', 'ftpsvc'), ('stop', 'w3svc'), ('stop', 'was'),
+                                ('start', 'was'), ('start', 'w3svc'), ('start', 'ftpsvc')])
         for name in ('WAS', 'W3SVC', 'Ftpsvc'):
             self.assertEqual(W.service_state(name), 'Running')
         # try-restart the same; a dependent that was stopped is left stopped

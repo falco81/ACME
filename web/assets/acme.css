@@ -4420,3 +4420,38 @@ textarea.dbs-code{width:100%;font-size:12.5px;resize:vertical;min-height:72px}
 .scroll + p.note, .btnrow + p.note, pre + p.note, .lb-block + p.note, .lb-list + p.note,
 details.lb-guide + p.note{margin-top:12px}
 @media (max-width:560px){#gd-find{width:100%;max-width:none !important}}
+/* An upgrade going on (1.0.120): its band under the header, in the colours of a long job -
+   red when it failed, green once done. A frame of its own (.offline: it stays put above the
+   page that scrolls); the cluster's nodes a row each, wrapping on a phone. */
+.offline.upband{background:var(--info-bg);border-color:rgba(88,166,255,.4);color:var(--tx);font-weight:500}
+.offline.upband.bad{background:var(--crit-bg);border-color:rgba(248,81,73,.45)}
+.offline.upband.good{background:var(--ok-bg);border-color:rgba(63,185,80,.4)}
+.offline.upband.warnish{background:var(--warn-bg);border-color:rgba(210,153,34,.45)}
+.upband-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;min-width:0}
+.upband-title{color:var(--info);font-weight:650;overflow-wrap:anywhere}
+.upband.bad .upband-title{color:var(--crit)}
+.upband.good .upband-title{color:var(--ok)}
+.upband.warnish .upband-title{color:var(--warn)}
+.upband-sub{color:var(--tx-dim);font-size:12.5px;overflow-wrap:anywhere}
+.upband-x{margin-left:auto;appearance:none;background:none;border:0;color:var(--tx-dim);font-size:18px;
+  line-height:1;cursor:pointer;padding:0 2px}
+.upband-x:hover{color:var(--tx)}
+.upband .up-bar.wide{margin:8px 0 6px}
+.upband .up-bar .bar{background:rgba(255,255,255,.07)}
+.upband-line{font-size:12.5px;color:var(--tx-dim);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.upband-means{font-size:12.5px;margin-top:6px;overflow-wrap:anywhere}
+.upband-moved{font-size:12px;margin-top:4px;overflow-wrap:anywhere}
+.upband-nodes{margin-top:8px;border-top:1px solid rgba(255,255,255,.07)}
+.upband-node{display:grid;grid-template-columns:minmax(80px,12%) auto minmax(110px,18%) 1fr auto;gap:4px 12px;
+  align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12.5px}
+.upband-node > *{min-width:0;overflow-wrap:anywhere}
+.upband-node.now .upband-name{color:var(--info);font-weight:650}
+.upband-how{color:var(--tx-dim);font-variant-numeric:tabular-nums}
+.upband-when{white-space:nowrap;text-align:right}
+.upband-node .tag{justify-self:start}
+.signin-upband{text-align:left;margin:12px 0}
+@media (max-width:560px){
+  .upband-node{grid-template-columns:auto auto 1fr;padding:6px 0}
+  .upband-said{grid-column:1 / -1}
+  .upband-when{text-align:left}
+}
