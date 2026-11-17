@@ -599,7 +599,8 @@ checks its tables, its wizard, its files and the MANIFEST. Installing is then as
   the server, agent not heard from and heard from again; **alerts** for an agent not heard from
   for ten minutes and its certificate ending within seven days.
 * **Command line**: `acme --target-agent NAME show | system [--json] | code | confirm FP | look |
-  policy | renew | update | forget | design show|text|forget`, `acme --target-agent all update`, `acme
+  policy | renew | update | forget | design show|text|forget | adcs-templates [HOST\CA] [--json]`,
+  `acme --target-agent all update`, `acme
   --target-agent enroll new|list|revoke ID`, `acme --target-agent waiting` - `show` says what the
   card says; the console (`acme`): Targets → the target → *Its acme-agent*, Certificates →
   *Target agents*.
@@ -939,6 +940,24 @@ allow key-read "NT SERVICE\MyService"  an account given read on the private key
 The policy builder has templates for each role and the sections *Windows roles* and *Read on the
 key*; the agent tells acme which roles it knows (`roles_known`) - acme sends no role to an agent
 that does not.
+
+## Windows: a Microsoft CA asked through the agent (1.0.125)
+
+A Windows member server's agent can also be the way acme gets certificates from a Microsoft CA
+without its web service - the source *Microsoft AD CS (through acme-agent)*,
+[ms-adcs-agent.md](ms-adcs-agent.md): op `adcs` (actions `submit`, `retrieve`, `templates`,
+`cas`), run by the root side (LocalSystem: Kerberos as the computer account) through the CA's own
+request interface from fixed PowerShell. Its entries (Windows only; an agent on Linux refuses the
+op):
+
+```
+allow adcs "HOST\CA Name" template=WebServer,WebServer2   that CA, those templates (template=*: any)
+allow adcs-read                                           every CA of the domain and its templates listed
+```
+
+`acme-agent adcs cas` and `acme-agent adcs templates --config "HOST\CA Name"` (`--json`) list
+them on the server; acme lists them through the agent (`GET /api/agents/adcs?target=NAME`, `acme
+--target-agent NAME adcs-templates`, the builder's section *Microsoft CA (AD CS)*).
 
 ## Windows: the agent on the server (1.0.120)
 

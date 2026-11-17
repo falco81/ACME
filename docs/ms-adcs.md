@@ -6,6 +6,12 @@ does: the CSR acme made is posted with the template, the certificate fetched.
 Nothing is installed on the Windows side beyond the *Certification Authority
 Web Enrollment* role service.
 
+**A way without the web service** (1.0.125): the source *Microsoft AD CS (through
+acme-agent)* - [ms-adcs-agent.md](ms-adcs-agent.md) - has the acme-agent of a Windows
+member server submit the request to the CA natively (RPC, Kerberos as its computer
+account): no Web Enrollment, no IIS, no password in acme, and the agent's policy names
+the CA and the templates.
+
 ## What it does
 
 1. `POST /certsrv/certfnsh.asp` with `Mode=newreq`, the CSR (`CertRequest`) and

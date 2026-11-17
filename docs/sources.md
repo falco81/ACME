@@ -1,7 +1,8 @@
 # More certificate sources: EST, CMP, Vault, EJBCA, step-ca, cloud CAs, CA APIs
 
 Sources → Add offers, beside ACME (`acme-issuers.md`), acme's own CAs
-(`own-ca.md`), Microsoft AD CS (`ms-adcs.md`), SCEP (`scep.md`), SSLmarket
+(`own-ca.md`), Microsoft AD CS (`ms-adcs.md`; without its web service, through acme-agent on a
+Windows member server: `ms-adcs-agent.md`), SCEP (`scep.md`), SSLmarket
 (`sslmarket.md`) and SSLS.cz (`ssls.md`), these modules. Each takes the request (CSR) acme makes for
 the certificate - **the private key never leaves acme** - and gives back the
 certificate with its chain, ordered and checked against the key. *Try it*
