@@ -4,7 +4,7 @@ Newest first. Each version's section is what the pages show before an
 upgrade (and, going back, what is given up), so it says what changed for
 the people who run acme - one `## X.Y.Z - date` heading per version.
 
-## 1.0.122 - not released
+## 1.0.122 - 2026-11-17
 
 - SELinux in a cluster: every node a card of its own, side by side (one under the other on a phone) - each with its own findings and its own buttons at the bottom (put in what acme needs, switch to enforcing, back to permissive). *Look again* at the top looks again on every node at once; *Download the report* gives one file with every node's report.
 - Target agents: a Linux agent updated from 1.0.119 to 1.0.120 by *Update* no longer says "Another program than the one this acme ships" - it updated itself with the files it knew (acme_agent.py; the Windows files are not needed on Linux) and runs exactly the program acme ships. A program really changed is still said.
