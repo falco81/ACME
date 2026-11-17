@@ -782,25 +782,6 @@ function build(row, d, opts) {
     sec[key] = s;
     return {node: s, body: body};
   }
-  /* the focus where it was after a section is drawn again (a row taken away, a template or a
-     need added): it fell to the page and the keyboard started over at the top */
-  function focusables(n) {
-    return Array.prototype.filter.call(n.querySelectorAll('button, input, textarea'), function (x) {
-      return !x.disabled && x.offsetParent !== null && getComputedStyle(x).visibility !== 'hidden';
-    });
-  }
-  function keepFocus(fn) {
-    var a = document.activeElement, s = a && a.closest ? a.closest('.pb-sec') : null;
-    if (!s || !refs.main || !refs.main.contains(s)) { fn(); return; }
-    var id = s.id, at = Math.max(0, focusables(s).indexOf(a));
-    fn();
-    var now = document.activeElement;
-    if (now && now !== document.body && refs.main.contains(now)) return;
-    var ns = document.getElementById(id);
-    if (!ns) return;
-    var l = focusables(ns), t = l[Math.min(at, l.length - 1)];
-    if (t) try { t.focus({preventScroll: true}); } catch (e) { }
-  }
   function drawAll() {
     Object.keys(sec).forEach(function (k) { if (sec[k].parentNode) sec[k].remove(); });
     refs.rows = {};
@@ -808,12 +789,10 @@ function build(row, d, opts) {
       .forEach(function (f) { refs.main.appendChild(f()); });
   }
   function redraw(key, fn) {
-    keepFocus(function () {
-      var old = sec[key];
-      var fresh = fn();
-      old.parentNode.replaceChild(fresh, old);
-      refresh();
-    });
+    var old = sec[key];
+    var fresh = fn();
+    old.parentNode.replaceChild(fresh, old);
+    refresh();
   }
   /* a row's light and what it says - in its place, the row never jumps */
   function light() { return noI18n(el('span', 'pb-light')); }
@@ -879,7 +858,8 @@ function build(row, d, opts) {
         if (t.note) explain(b, t.note);
         b.onclick = function () {
           addTemplate(S, t);
-          keepFocus(function () { drawAll(); refresh(); });
+          drawAll();
+          refresh();
           toast(tr('Added from the template') + ': ' + t.title, 'good');
         };
         refs.tpl.push({t: t, b: b, mk: mk});
@@ -927,7 +907,8 @@ function build(row, d, opts) {
     all.onclick = function () {
       var n = 0;
       deps.forEach(function (dep) { arr(dep.items).forEach(function (it) { if (covers(S, R, it) === 'no') { addNeed(S, it); R = check(S); n++; } }); });
-      keepFocus(function () { drawAll(); refresh(); });
+      drawAll();
+      refresh();
       toast(n ? tr('Added') + ': ' + n : tr('the policy allows all of it already'), 'good');
     };
     refs.addAll = all;
@@ -956,7 +937,7 @@ function build(row, d, opts) {
         r.appendChild(el('span', 'pb-need-k', NEED_K[it.kind] || it.kind));
         r.appendChild(mono(needWords(it), 'pb-need-w'));
         var b = cmdButton('Add', 'add', 'small pb-need-add');
-        b.onclick = function () { addNeed(S, it); keepFocus(function () { drawAll(); refresh(); }); };
+        b.onclick = function () { addNeed(S, it); drawAll(); refresh(); };
         r.appendChild(b);
         var why = el('div', 'pb-need-why');
         r.appendChild(why);
