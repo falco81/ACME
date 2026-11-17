@@ -476,7 +476,8 @@ msiexec /i acme-agent-X.Y.Z-windows-x64.msi /qn /l*v C:\Windows\Temp\acme-agent.
   type, the same line, run as System.
 
 The enrollment code is a secret while it is valid: the MSI keeps `JOINCODE` out of its logs
-(`MsiHiddenProperties`), it is a secure property (it reaches the elevated part of the install),
+(`MsiHiddenProperties`, and the custom action that joins hides its command line - HideTarget,
+1.0.124), it is a secure property (it reaches the elevated part of the install),
 and an administrator still confirms each server in acme unless the code was made to confirm by
 itself.
 
@@ -1018,7 +1019,9 @@ is SYSTEM, the Administrators or TrustedInstaller and nobody else may change the
   there kept), the event source, both services made (or set again) and started, the program folder
   on the system PATH; with a code the join is started and the services finish it (nothing needs
   the network while installing; a code not taken is said in `acme-agent status`). Run again it
-  changes nothing (a repair).
+  changes nothing (a repair). An agent joined already keeps its identity: a code given again (an
+  upgrade or repair from Intune, SCCM or a GPO transform that always passes `JOINCODE`) is left
+  aside with a message (1.0.124) - to join anew, `acme-agent join CODE`.
 * `acme-agent windows-uninstall [--purge]` - the services stopped and taken away, the firewall
   rule, the PATH entry, the event source; `C:\ProgramData\acme-agent` stays unless `--purge`.
   `--upgrade` (a newer MSI replacing this one): only the services stopped.

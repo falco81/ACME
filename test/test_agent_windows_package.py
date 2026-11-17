@@ -203,7 +203,8 @@ class Msi(unittest.TestCase):
         ca = {r['Action']: r for r in table('CustomAction')}
         py = '-I -B "[INSTALLDIR]acme_agent.py" '
         want = {'AgentInstall': (3090, 'windows-install'),
-                'AgentInstallJoin': (3090, 'windows-install --join "[JOINCODE]"'),
+                # +0x2000 HideTarget: its command line (the join code) never in the log
+                'AgentInstallJoin': (3090 | 0x2000, 'windows-install --join "[JOINCODE]"'),
                 'AgentInstallRollback': (3410, 'windows-uninstall'),
                 'AgentUninstall': (3154, 'windows-uninstall'),
                 'AgentUninstallPurge': (3154, 'windows-uninstall --purge'),

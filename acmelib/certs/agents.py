@@ -594,6 +594,10 @@ def shipped_codes():
     need as absent (code_hash: 32 zero bytes each). It runs exactly the program acme ships."""
     code = shipped_code()
     out = [code] if code else []
+    # hunt R1: kept with the program's hash (shipped_code) - acme_agent.py was read and hashed
+    # again for every agent of the pages' list
+    if code and _SHIPPED.get('codes_of') == code:
+        return list(_SHIPPED['codes'])
     try:
         m = agent_mod()
         with open(os.path.join(AGENT_DIR, 'acme_agent.py'), 'rb') as f:
@@ -603,7 +607,9 @@ def shipped_codes():
         if h.hexdigest() not in out:
             out.append(h.hexdigest())
     except Exception:                                   # noqa: BLE001
-        pass
+        return out
+    if code:
+        _SHIPPED.update(codes_of=code, codes=list(out))
     return out
 
 
@@ -754,6 +760,11 @@ def confirm(store, row, fp, by):
         _refuse(store, row, 'a fingerprint that is not the agent\'s was given to confirm it')
         raise PluginError('that is not the fingerprint of the agent that asks - compare it with '
                           'what `acme-agent join` printed on the target', retry=False)
+    if pend.get('cert'):
+        # confirmed already (hunt R1: a second confirmation - two people, a page not drawn
+        # again, an item twice in confirm-many - signed it a new certificate: the one the
+        # agent had taken meanwhile no longer let in, an active agent locked out)
+        return st
     aid = pend['agent_id']
     cert = sign_csr(store, pend['csr'], AGENT_CN + aid, CERT_DAYS)
     old = st.get('agent_id')
@@ -1082,10 +1093,14 @@ def _target_code(store, row, st, eid, secret_e, until, by):
 def _enroll_refused(store, ec, ip, words):
     """Said once a minute at most for a code (an event of the agent's own making otherwise)."""
     now = time.time()
-    if now - float(ec.get('refused_at') or 0) < 60:
-        return
-    ec['refused_at'] = now
-    _enroll_put(store, ec)
+    with LOCK:
+        # hunt R1: the code as it is now - the one read before the request was checked was
+        # written back whole, a revocation (or a server's use) made meanwhile undone
+        ec = enroll_get(store, ec['id']) or ec
+        if now - float(ec.get('refused_at') or 0) < 60:
+            return
+        ec['refused_at'] = now
+        _enroll_put(store, ec)
     store.add_event('certificates', 'an agent from %s was refused by the enrollment code "%s": '
                     '%s' % (_txt(ip, 45) or '?', ec.get('title') or ec['id'], words), 'warn')
 
@@ -2110,6 +2125,8 @@ def update_candidates(store):
         elif mode == 'active' and not active_on():
             why = 'the agents\' port is off'
         out.append({'id': row['id'], 'name': row['name'], 'mode': mode,
+                    'platform': st.get('platform') or ('windows' if row.get('kind') ==
+                                                       'agent_windows' else 'linux'),
                     'version': st.get('version') or '', 'offered': f['offered'],
                     'ok': not why, 'why': why})
     return out

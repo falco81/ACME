@@ -3858,6 +3858,15 @@ def service_specs():
              'delayed': True, 'restart_ms': 5000}]
 
 
+def _joined():
+    """This agent has joined acme (agent.json says so and its TLS key and certificate are
+    there) - what an install with a join code leaves as it is."""
+    c = A._json(A.CONF, {})
+    key, crt = A.tls_paths()
+    return isinstance(c, dict) and bool(c.get('joined')) and os.path.exists(key) and \
+        os.path.exists(crt)
+
+
 def windows_install(argv):
     """The MSI's install (and upgrade): folders and DACLs, an empty policy, the event source,
     the services made or set again and started, the program on the system PATH; a join code
@@ -3876,6 +3885,14 @@ def windows_install(argv):
     W.path_add(program_dir())
     A.audit(op='install', ok=True, said='acme-agent %s installed (Windows)' % A.VERSION)
     print('acme-agent %s is installed. Nothing is allowed yet: acme-agent policy show' % A.VERSION)
+    if code and _joined():
+        # an upgrade or a repair with the same command line (Intune, SCCM, a GPO's transform
+        # pass JOINCODE each time): the agent joined already keeps its identity - a join here
+        # would replace its key and leave acme's target behind
+        print('acme-agent: joined to acme already - the join code given is not used (its '
+              'identity stays; `acme-agent join CODE` joins anew)')
+        restart_services()
+        return 0
     if code:
         try:
             return_code = A.cmd_join([code, '--no-wait'])

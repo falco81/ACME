@@ -534,7 +534,9 @@ function upgradeHeard(u) {
 /* The status not answered (tick): while an upgrade is expected, PHP is asked alone - true when
    it is (no red bar then). */
 function upgradeAway(e) {
-  if (e && e.upgrading) return true;
+  /* Root's word of an upgrade still running (1.0.124): not of one done or failed - root's file
+     says so for ten minutes after, and a daemon down then was never said (no red, the pill as it was). */
+  if (e && e.upgrading && e.upgrading.state === 'running') return true;
   if (!upgradeExpected()) return false;
   UPG.api = false;
   if (!UPG.away) UPG.away = Date.now();
@@ -20412,13 +20414,14 @@ function seReport(btn, all) {
   SE.rep = {words: want === '*' ? 'asking every node for its report…' : 'asking ' + want + ' for its report…'};
   drawSelinux();
   api('selinux', {action: 'report', node: want}).then(function (r) {
-    /* A node with a step asked and not done yet is not asked (1.0.59): not waited for either. */
+    /* A node with a step asked and not done yet is not asked (1.0.59): not waited for either - nor
+       a node not heard from (1.0.124): it cannot make one, and the wait went on for three minutes. */
     var skip = (r && r.busy) || [];
     return new Promise(function (done) {
       (function tick() {
         api('selinux').then(function (d) {
           SE.d = d;
-          var nodes = (d.nodes || []).map(function (n) { return n.name; }).filter(function (n) { return skip.indexOf(n) < 0 && (want === '*' || n === want); });
+          var nodes = (d.nodes || []).filter(function (n) { return n.alive !== false; }).map(function (n) { return n.name; }).filter(function (n) { return skip.indexOf(n) < 0 && (want === '*' || n === want); });
           var reps = d.reports || {};
           var ready = nodes.filter(function (n) { return reps[n] && (reps[n].at || 0) > (before[n] || 0); });
           SE.rep = {words: 'reports made: ' + ready.length + ' of ' + nodes.length + (ready.length < nodes.length ? ' - waiting for ' + nodes.filter(function (n) { return ready.indexOf(n) < 0; }).join(', ') : '')};
@@ -20439,14 +20442,23 @@ function seReport(btn, all) {
     document.body.appendChild(a);
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    /* A node that made no new report (not heard from, a step not done, not in time): its older one,
+       if any, is in the file - said, not "every node's report" (1.0.124). */
+    var reps = (SE.d && SE.d.reports) || {};
+    var stale = ((SE.d && SE.d.nodes) || []).map(function (n) { return n.name; }).filter(function (n) {
+      return (want === '*' || n === want) && !(reps[n] && (reps[n].at || 0) > (before[n] || 0));
+    });
     SE.rep = (x.missing || []).length ? {words: 'Downloaded - without: ' + x.missing.join('; '), bad: true}
-                                      : {words: want === '*' ? 'Downloaded: every node\'s report is in it.' : 'Downloaded: the report of ' + want + '.'};
+      : stale.length ? {words: 'Downloaded - no new report of: ' + stale.join(', '), bad: true}
+      : {words: want === '*' ? 'Downloaded: every node\'s report is in it.' : 'Downloaded: the report of ' + want + '.'};
     drawSelinux();
   }).catch(function (e) { SE.rep = {words: String((e && e.message) || e), bad: true}; drawSelinux(); oops(e); })
     .then(function () { busy(btn, false); });
 }
 function seBusy(d) {
-  return ((d && d.nodes) || []).some(function (n) { return !!n.pending || !(n.state && n.state.mode); });
+  /* A node not heard from is not waited for (1.0.124): its step or its first look waits for it, and
+     the card was drawn again every two seconds for as long as it stayed away. */
+  return ((d && d.nodes) || []).some(function (n) { return n.alive !== false && (!!n.pending || !(n.state && n.state.mode)); });
 }
 function sePoll(on) {
   if (on && !SE.poll) SE.poll = setInterval(function () {

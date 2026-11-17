@@ -553,7 +553,11 @@ if (-not $had) {
   }
 }
 $cert = Get-Item -LiteralPath (Join-Path $store $thumb)
-if (-not $cert.HasPrivateKey) { throw 'the certificate in the machine store has no private key' }
+if (-not $cert.HasPrivateKey) {
+  # imported by this run: taken out again (the deployment's undo knows of no import)
+  if (-not $had) { Remove-Item -LiteralPath (Join-Path $store $thumb) -ErrorAction SilentlyContinue }
+  throw 'the certificate in the machine store has no private key'
+}
 if (-not $had) { $cert.FriendlyName = [string]$j.friendly }
 Say @{ imported = (-not $had); thumb = $thumb }
 """

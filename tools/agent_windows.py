@@ -509,6 +509,11 @@ ACTIONS = [
     ('AgentInstallJoin', 'windows-install --join &quot;[JOINCODE]&quot;',
      INSTALL + ' AND JOINCODE', 6501, 'deferred'),
 ]
+# msidbCustomActionTypeHideTarget: the command line of these never written into the install's
+# log (it holds the join code; MsiHiddenProperties alone does not hide it there) - wixl has no
+# HideTarget, so the bit is set on its CustomAction table after it
+HIDE_TARGET = 0x2000
+HIDDEN_ACTIONS = ('AgentInstallJoin',)
 
 
 def wxs(payload, version):
@@ -613,6 +618,8 @@ SCHEMA = {
                           ('Action',)),
     'Property': (('Property', 'Value'), ('s72', 'l0'), ('Property',)),
     'Binary': (('Name', 'Data'), ('s72', 'v0'), ('Name',)),
+    'CustomAction': (('Action', 'Type', 'Source', 'Target', 'ExtendedType'),
+                     ('s72', 'i2', 'S72', 'S255', 'I4'), ('Action',)),
 }
 
 W, H = 370, 270
@@ -1165,6 +1172,10 @@ def build_msi(out_dir, version, key=None, keys_dir=None, cache=None, agent_dir=N
         props += [('SecureCustomProperties', ';'.join(secure)), ('DefaultUIFont', 'AcmeDefault'),
                   ('ErrorDialog', 'ErrorDlg'), ('ARPNOMODIFY', '1')]
         t['Property'] = props
+        cols = SCHEMA['CustomAction'][0]
+        t['CustomAction'] = [tuple((r.get(c) | HIDE_TARGET) if c == 'Type' and
+                                   r.get('Action') in HIDDEN_ACTIONS else r.get(c)
+                                   for c in cols) for r in read_table(msi, 'CustomAction')]
         bad = check_ui(t)
         if bad:
             raise Missing('the wizard\'s tables are wrong: %s' % '; '.join(bad[:10]))

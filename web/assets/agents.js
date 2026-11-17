@@ -1144,12 +1144,14 @@ function updateBox(row, a, done) {
     }
   } else {
     w.appendChild(el('p', 'note small', 'Its policy does not let acme update it: install the package on the server (Settings → Target agents), or allow acme to send it - only a package signed by the release key, only a newer version:'));
-    w.appendChild(cmdBox('sudo acme-agent allow self-update', 'small'));
+    /* hunt R1: a Windows server has no sudo - the line in an elevated prompt there */
+    w.appendChild(cmdBox(selfUpdateLine(a.platform === 'windows' || row.kind === 'agent_windows'), 'small'));
   }
   if (u.last && u.last.ok === false) w.appendChild(data('div', 'note bad small', String(u.last.said || '')));
   box.appendChild(w);
   return box;
 }
+function selfUpdateLine(win) { return (win ? '' : 'sudo ') + 'acme-agent allow self-update'; }
 function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]; }); }
 /** After an update: the agent asked until it says the version sent (a minute at most). */
 function waitVersion(row, want) {
@@ -1211,7 +1213,7 @@ function updateAll() {
           r.appendChild(el('span', 'tag ' + (x.ok ? 'ok' : 'dim'), x.ok ? 'will be updated' : 'not updated'));
           if (!x.ok) r.appendChild(el('span', 'why', String(x.why || '')));
           /* what lets acme do it, to copy for the server */
-          if (!x.ok && /allow self-update/.test(String(x.why || ''))) r.appendChild(cmdBox('sudo acme-agent allow self-update', 'small ag-upd-line'));
+          if (!x.ok && /allow self-update/.test(String(x.why || ''))) r.appendChild(cmdBox(selfUpdateLine(x.platform === 'windows'), 'small ag-upd-line'));
           l.appendChild(r);
         });
         body.appendChild(l);

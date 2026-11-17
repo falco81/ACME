@@ -1409,9 +1409,11 @@ def plan_check(pol, args):
         if not isinstance(f, dict):
             raise Refused('a file is an object')
         path = norm_dir(f.get('path'), real=False)
-        if path in seen:
+        # Windows: one file whatever the case of its name (C:\certs\A.pem is c:\CERTS\a.pem)
+        key = path.lower() if WINDOWS else path
+        if key in seen:
             raise Refused('%s twice' % path)
-        seen.add(path)
+        seen.add(key)
         name = split_path(path)[1]
         if name.startswith('.acme-'):
             raise Refused('%s: a name acme-agent keeps for itself' % path)
@@ -1454,7 +1456,8 @@ def plan_check(pol, args):
             p = norm_dir(p, real=False)
         except Refused:
             continue
-        if file_rule(pol, p) and p not in seen and not protected(p) and not runs_from(pol, p):
+        if file_rule(pol, p) and (p.lower() if WINDOWS else p) not in seen and \
+                not protected(p) and not runs_from(pol, p):
             plan['stale'].append(p)
     for k in ('pre', 'test', 'reload', 'post'):
         ops = args.get(k) or []
