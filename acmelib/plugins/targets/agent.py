@@ -362,6 +362,15 @@ class AgentTarget(Base):
             args['agent_key'] = ak
         return args
 
+    def plan_meta(self, options, r):
+        """What a plan says of the files besides the job (1.0.123): how a PKCS#12/JKS is
+        protected, its alias - the password itself never."""
+        mode = str((options or {}).get('pfx_password_mode') or 'fixed')
+        if mode == 'fixed' and not (options or {}).get('pfx_password'):
+            mode = 'none'
+        return {'password': mode, 'alias': r.get('jks_alias') or (r.get('vars') or {}).get('name')
+                or ''}
+
     def deploy(self, bundle, options):
         options = options or {}
         r = self.resolved(bundle, options)
@@ -373,6 +382,10 @@ class AgentTarget(Base):
         datas = self.render(bundle, r, agent_key=ak)
         args = self.plan(bundle, options, r, datas, agent_key=ak)
         self.mark_pending(bundle)
+        if hasattr(self.ctx, 'agent_meta'):
+            # What happens only (1.0.123): what the job's files are made with that the job
+            # itself does not carry - never sent to the agent, no secret in it
+            self.ctx.agent_meta(self.plan_meta(options, r))
         got = self._call('deploy', args, timeout=1800)
         for lv, words in got.get('steps') or []:
             self.ctx.step(words, lv)

@@ -784,7 +784,14 @@ def _agent_steps(ev):
                                           'into the files below with it', 'words']]}})
     pol_items = []
     windows = ev.get('platform') == 'windows'
-    for it in ev.get('items') or []:
+    meta = ev.get('meta') if isinstance(ev.get('meta'), dict) else {}
+    # In the order the agent does it (1.0.123): before, the files, the machine store, the
+    # bindings, the PowerShell after the import, the test, the script, the restarts, the read
+    # on the key and the roles, after.
+    rank = {'pre': 0, 'file': 1, 'store': 2, 'iis': 3, 'rdp': 4, 'post_ps': 5, 'test': 6,
+            'script': 7, 'reload': 8, 'key_read': 9, 'role': 10, 'post': 11}
+    items = sorted(ev.get('items') or [], key=lambda x: rank.get(x.get('what'), 12))
+    for it in items:
         w = it.get('what')
         st = None
         if w in ('store', 'iis', 'rdp', 'role', 'key_read', 'post_ps'):
@@ -864,6 +871,24 @@ def _agent_steps(ev):
                   .replace('{0}', it.get('to') or '').replace('{1}', name)}
         if st is None:
             continue
+        if w == 'file' and meta.get('password') and it.get('format') in AGENT_PW_FORMATS:
+            more = {'fixed': 'protected by the password of the deployment',
+                    'generate': 'protected by a new password each time (in ACME_PASSWORD for '
+                                'the script)', 'none': 'without a password'}.get(
+                                    meta['password'], 'protected by a password')
+            if it.get('format') == 'jks' and meta.get('alias'):
+                more += ' · ' + 'its alias {0}'.replace('{0}', str(meta['alias']))
+            st['note'] = ((st.get('note') + ' · ') if st.get('note') else '') + more
+        if w == 'store' and meta.get('pfx_format'):
+            st.setdefault('detail', {}).setdefault('pairs', []).insert(1, [
+                'PKCS#12', 'legacy (3DES, SHA-1) - Windows Server 2016 and older read it'
+                if meta['pfx_format'] == 'p12-legacy' else 'AES-256 - Windows Server 2019 and '
+                'later', 'words'])
+        if w == 'role' and it.get('role') == 'ccs':
+            st.setdefault('detail', {}).setdefault('pairs', []).insert(2, [
+                'Password', 'the PFX files protected by the password of the store (sealed to the '
+                'agent, not shown)' if meta.get('ccs_password') else 'the PFX files without a '
+                'password', 'words'])
         st['policy'] = {'ok': it.get('ok'), 'allow': it.get('allow') or ''}
         if windows:
             st['policy']['windows'] = True      # typed in an elevated prompt: no sudo
@@ -874,8 +899,9 @@ def _agent_steps(ev):
     if op == 'deploy' and windows and any(x.get('what') in ('store', 'iis', 'rdp')
                                           for x in ev.get('items') or []):
         out.append({'kind': 'info', 'words': 'On the server, in this order: before, the files, '
-                    'the machine store, the bindings, the test, the script, the restarts, '
-                    'after - anything failing after the store puts the bindings back to the '
+                    'the machine store, the bindings, the PowerShell after the import, the test, '
+                    'the script, the restarts, the read on the key and the roles, after - '
+                    'anything failing before the roles puts the bindings back to the '
                     'certificate they had, takes the new one out of the store again and puts '
                     'the files back'})
     if op == 'deploy' and windows and any(x.get('what') in ('role', 'key_read')
@@ -892,9 +918,13 @@ def _agent_steps(ev):
         copies = {'dated': 'a dated copy of each file replaced', 'daily': 'a copy a day',
                   'bak': 'one .bak copy', 'folder': 'dated copies in .acme-backup',
                   'none': 'no copy'}.get(ev.get('backup') or 'dated', '')
-        out.append({'kind': 'info', 'words': 'On the server, all of it at once: a file the same '
+        out.append({'kind': 'info', 'words': ('On the server, all of it at once: a file the same '
                     '(SHA-256, owner, mode) is left alone - all the same and nothing pending, '
-                    'nothing is run; a test, script or reload failing puts every file back',
+                    'nothing is run; a test, script or reload failing puts every file back')
+                    if ev.get('skip_same') not in (False, 0, '0') else
+                    ('On the server, all of it at once: every file is written again even when '
+                     'it is the same (Leave a file alone when it is the same: off) and the commands run; '
+                     'a test, script or reload failing puts every file back'),
                     'detail': {'pairs': [['Copies', '%s%s' % (copies, (', the newest %s kept' %
                                                                 ev.get('backup_keep'))
                                                                if ev.get('backup_keep') else ''),
@@ -907,6 +937,9 @@ def _agent_steps(ev):
                               'server first').replace('{0}', str(len(bad))) if bad else
                     'The agent\'s policy allows every file, command and script of it'})
     return out
+
+
+AGENT_PW_FORMATS = ('pfx', 'p12', 'p12-legacy', 'jks', 'key-pem-enc')
 
 
 def _agent_win_step(it):

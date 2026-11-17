@@ -721,6 +721,14 @@ the verdict of the policy the agent last said**: allowed, not allowed (with the
 job). The tests through the agent show the probe and its verdict. An SSH target through an agent
 says so.
 
+1.0.123: the steps stand in the order the agent takes them - before, the files, the machine store,
+the bindings, the PowerShell after the import, the test, the script, the restarts, the read on the
+key and the Windows roles, after; a PKCS#12, JKS or encrypted key says how it is protected (the
+password of the deployment, a new one each time, none) and a JKS its alias - never the password;
+the machine store says its PKCS#12 format (legacy 3DES/SHA-1 or AES-256); the Central Certificate
+Store whether its PFX files have a password; and with *Leave a file alone when it is the same* off
+the plan says every file is written again and the commands run.
+
 ## Updates of the agent (phase 4)
 
 1.0.118: the card's *A newer agent is offered* has **Update the agent now** where its policy

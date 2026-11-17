@@ -1944,6 +1944,12 @@ class PlanContext(object):
         return {'state': a.get('state') or 'new', 'policy': a.get('policy'),
                 'policy_at': a.get('policy_at'), 'mode': a.get('mode') or 'passive'}
 
+    def agent_meta(self, meta):
+        """What the target says of the next job's files besides the job (1.0.123): how a
+        PKCS#12/JKS is protected, its alias, the store's PKCS#12 format - no secret."""
+        self._agent_meta = {k: v for k, v in dict(meta or {}).items()
+                            if k in ('password', 'alias', 'pfx_format', 'ccs_password')}
+
     def agent_seal(self, label, data):
         note_sent(data)
         return {'alg': 'X25519-HKDF-SHA256-A256GCM', 'sealed': '\u2039sealed to the agent\u203a',
@@ -2013,6 +2019,7 @@ class PlanContext(object):
             if st:
                 ok, allow = wverdict({'store': True})
                 items.append({'what': 'store', 'exportable': bool(st.get('exportable')),
+                              'legacy': bool(st.get('legacy')),
                               'keep': st.get('keep'), 'agent_key': st.get('pfx_index') is None,
                               'friendly': st.get('friendly') or '', 'ok': ok, 'allow': allow})
             for b in win.get('iis') or []:
@@ -2090,7 +2097,10 @@ class PlanContext(object):
              'stale': list(args.get('stale') or [])[:20], 'skip_same': args.get('skip_same'),
              'slot': (args.get('agent_key') or {}).get('slot') or args.get('slot') or '',
              'key_type': args.get('key_type') or '', 'keep': bool(args.get('keep')),
-             'names': list(args.get('names') or [])[:20]})
+             'names': list(args.get('names') or [])[:20],
+             'meta': dict(getattr(self, '_agent_meta', None) or {}) if op == 'deploy' else {}})
+        if op == 'deploy':
+            self._agent_meta = None
         if op == 'keygen':
             answers = self.answers
             csr = getattr(answers, 'csr', '') or ''

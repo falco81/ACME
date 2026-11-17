@@ -68235,6 +68235,46 @@
   "z_930": {
    "source": "The report of every node, in one file",
    "text": "Report všech uzlů v jednom souboru"
+  },
+  "z_931": {
+   "source": "protected by the password of the deployment",
+   "text": "chráněný heslem nasazení"
+  },
+  "z_932": {
+   "source": "protected by a new password each time (in ACME_PASSWORD for the script)",
+   "text": "chráněný pokaždé novým heslem (pro skript v ACME_PASSWORD)"
+  },
+  "z_933": {
+   "source": "without a password",
+   "text": "bez hesla"
+  },
+  "z_934": {
+   "source": "protected by a password",
+   "text": "chráněný heslem"
+  },
+  "z_935": {
+   "source": "legacy (3DES, SHA-1) - Windows Server 2016 and older read it",
+   "text": "starší (3DES, SHA-1) – přečte ho i Windows Server 2016 a starší"
+  },
+  "z_936": {
+   "source": "AES-256 - Windows Server 2019 and later",
+   "text": "AES-256 – Windows Server 2019 a novější"
+  },
+  "z_937": {
+   "source": "the PFX files protected by the password of the store (sealed to the agent, not shown)",
+   "text": "soubory PFX chráněné heslem úložiště (zapečetěným pro agenta, nezobrazuje se)"
+  },
+  "z_938": {
+   "source": "the PFX files without a password",
+   "text": "soubory PFX bez hesla"
+  },
+  "z_939": {
+   "source": "On the server, all of it at once: every file is written again even when it is the same (Leave a file alone when it is the same: off) and the commands run; a test, script or reload failing puts every file back",
+   "text": "Na serveru vše najednou: každý soubor se zapíše znovu, i když je stejný (Stejný soubor nenahrazovat: vypnuto), a příkazy se spustí; když selže test, skript nebo reload, vrátí se všechny soubory zpět"
+  },
+  "z_940": {
+   "source": "On the server, in this order: before, the files, the machine store, the bindings, the PowerShell after the import, the test, the script, the restarts, the read on the key and the roles, after - anything failing before the roles puts the bindings back to the certificate they had, takes the new one out of the store again and puts the files back",
+   "text": "Na serveru v tomto pořadí: před, soubory, úložiště počítače, vazby, PowerShell po importu, test, skript, restarty, čtení klíče a role, po – cokoli, co selže před rolemi, vrátí vazby na certifikát, který měly, odebere nový certifikát z úložiště a vrátí soubory zpět"
   }
  },
  "patterns": {
@@ -94561,6 +94601,10 @@
   "pz_256": {
    "source": "{0} - {1} runs",
    "text": "{0} – běží {1}"
+  },
+  "pz_257": {
+   "source": "its alias {0}",
+   "text": "jeho alias {0}"
   }
  },
  "rich": {

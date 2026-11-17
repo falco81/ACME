@@ -446,6 +446,12 @@ class AgentWindowsTarget(AG.AgentTarget):
         info = self.ctx.agent_info() if hasattr(self.ctx, 'agent_info') else {}
         return (info or {}).get('policy')
 
+    def plan_meta(self, options, r):
+        out = AG.AgentTarget.plan_meta(self, options, r)
+        out['pfx_format'] = r.get('pfx_format') or ''
+        out['ccs_password'] = bool(r.get('ccs_password'))
+        return out
+
     def deploy(self, bundle, options):
         r = self.resolved(bundle, dict(options or {}), partial=True)
         if r.get('roles') or r.get('key_read') or r.get('post_ps'):

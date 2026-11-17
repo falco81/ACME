@@ -728,6 +728,46 @@ class AcmeSide(unittest.TestCase):
                                          'windows': True})
         self.assertTrue(any(s.get('kind') == 'stop' for s in steps))
 
+    def test_what_happens_order_password_format(self):
+        """1.0.123: the steps in the agent's own order, the password of a PKCS#12/JKS and its
+        alias, the store's PKCS#12 format, the password of the Central Certificate Store, and
+        the files written again when Skip files that are the same is off."""
+        from acmelib.certs import runplan
+        ev = {'op': 'deploy', 'target': 'win1', 'mode': 'passive', 'host': 'w', 'port': 8446,
+              'platform': 'windows', 'policy_known': True, 'skip_same': False,
+              'meta': {'password': 'generate', 'alias': 'a1', 'pfx_format': 'p12-legacy',
+                       'ccs_password': True},
+              'items': [
+                  {'what': 'role', 'role': 'ccs', 'o': {'ccs_path': 'D:\\c'}, 'ok': True,
+                   'allow': ''},
+                  {'what': 'post', 'op': {'argv': ['C:/x/post.exe']}, 'ok': True, 'allow': ''},
+                  {'what': 'key_read', 'account': 'NT SERVICE\\X', 'ok': True, 'allow': ''},
+                  {'what': 'reload', 'op': {'unit': 'W3SVC', 'verb': 'restart'}, 'ok': True,
+                   'allow': ''},
+                  {'what': 'store', 'exportable': False, 'keep': 1, 'agent_key': False,
+                   'friendly': 'acme-x', 'ok': True, 'allow': ''},
+                  {'what': 'file', 'windows': True, 'path': 'C:\\certs\\a.pfx',
+                   'format': 'pfx', 'sealed': True, 'ok': True, 'allow': ''},
+                  {'what': 'pre', 'op': {'argv': ['C:/x/pre.exe']}, 'ok': True, 'allow': ''}]}
+        steps = runplan._agent_steps(ev)
+        words = [s['words'] for s in steps if 'policy' in s]
+        order = ['Before the files', 'The agent writes', 'The agent imports', 'The agent restarts',
+                 'The agent gives', 'The agent sets the Windows role', 'After it']
+        self.assertEqual([next(o for o in order if w.startswith(o)) for w in words], order)
+        text = json.dumps(steps)
+        self.assertIn('protected by a new password each time', text)
+        self.assertIn('legacy (3DES, SHA-1)', text)
+        self.assertIn('the PFX files protected by the password of the store', text)
+        self.assertIn('every file is written again even when it is the same', text)
+        ev['skip_same'] = True
+        ev['meta'] = {'password': 'fixed', 'alias': 'a1'}
+        ev['items'] = [{'what': 'file', 'path': '/etc/a.jks', 'format': 'jks', 'mode': 384,
+                        'ok': True, 'allow': ''}]
+        ev['platform'] = 'linux'
+        text = json.dumps(runplan._agent_steps(ev), ensure_ascii=False)
+        self.assertIn('protected by the password of the deployment · its alias a1', text)
+        self.assertIn('a file the same (SHA-256, owner, mode) is left alone', text)
+
     def test_what_happens_records_the_job(self):
         """The sandbox of What happens (plansandbox.PlanContext.agent_call) writes down the store,
         each binding, the listener and the files of a Windows job, each judged by the policy."""

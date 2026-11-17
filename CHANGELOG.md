@@ -6,7 +6,7 @@ the people who run acme - one `## X.Y.Z - date` heading per version.
 
 ## 1.0.123 - not released
 
-(nothing yet)
+- What happens of a server with acme-agent (Linux and Windows): the steps in the order the agent takes them (before, files, machine store, bindings, PowerShell after the import, test, script, restarts, read on the key and the roles, after); how a PKCS#12, JKS or encrypted key is protected (the deployment's password, a new one each time, none) and a JKS's alias - never the password; the machine store's PKCS#12 format (legacy or AES-256); whether the Central Certificate Store's PFX files have a password; and *Leave a file alone when it is the same* off said (every file written again, the commands run) instead of the opposite.
 
 ## 1.0.122 - 2026-11-17
 
